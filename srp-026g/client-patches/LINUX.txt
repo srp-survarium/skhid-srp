@@ -1,0 +1,48 @@
+SURVARIUM 0.26g - LINUX
+
+Install Bash, Wine with 32-bit Windows application support, and Winetricks.
+The launcher also uses standard Linux tools, including flock, timeout and GNU
+coreutils. Apply this archive's game folder over the original extracted game,
+then open a terminal in game/binaries/x86 and run:
+
+    bash play_skhid.sh
+
+Select an English keyboard layout before launching. In our Wine tests, starting
+with Russian selected could leave text input broken after switching to English.
+The game language is a separate setting: edit localization near the top of the
+script to choose english, russian, ukrainian, german or polish.
+
+Full builds use the login address embedded in the executable. To override it,
+set server=host:port near the top of play_skhid.sh. Certificate-only builds have
+this value filled in by the release builder. No command-line arguments or
+Python are needed to play.
+
+FIRST RUN
+
+The script creates wineprefix beside itself and installs DXVK with
+winetricks -q dxvk. This can download files and needs a Vulkan-capable graphics
+driver with support appropriate for your Wine installation. Later launches
+reuse the prefix and DXVK installation. If installation fails, the next launch
+retries it. The optional Wine qwave component is disabled to avoid the observed
+lobby-entry crash.
+
+Game settings stay in this prefix's Documents/Survarium directory. New settings
+use fullscreen at the detected preferred display resolution. X11 uses xrandr
+when available; Wayland uses the first enabled monitor in /sys/class/drm. On a
+multi-monitor Wayland desktop this may differ from the monitor where the game
+opens. Detection falls back to 1920x1080. Existing user.cfg settings are kept;
+you can change the resolution in the game.
+
+COMPATIBILITY AND LOGS
+
+Full release builds already include the minimum-VRAM-check patch. The launcher
+recognizes it and leaves the executable unchanged. For older or certificate-only
+builds, it verifies the known instructions, backs up the executable as
+survarium_skhid.exe.before-memory-patch, and changes only that check. Earlier
+backups are kept with numbered suffixes. Unexpected instructions stop launch
+without modifying the executable. The launcher does not install the login
+certificate: copy the complete release overlay, including resources/ssl.
+
+Both allocator options are set to 768 MB. Only one copy of this launcher runs
+from a given folder at a time. Wine and setup output is saved to skhid-wine.log
+beside the script. If setup or the game fails, check that log first.

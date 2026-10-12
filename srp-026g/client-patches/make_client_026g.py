@@ -44,6 +44,11 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         Two different arenas: docs/notes/README.md.)
     <output>/game/binaries/x86/bugtrap.dll
         the Rust SRP crash reporter; saves dumps locally; Submit Bug opens SRP Discord in the browser.
+    <output>/game/binaries/x86/play_skhid.sh
+        the Linux launcher: creates a local Wine prefix, installs DXVK through
+        Winetricks and launches with the same server and language as the batch file.
+    <output>/LINUX.txt
+        Linux setup and troubleshooting instructions.
     <output>/game/resources/ssl/survarium_login_server.crt
         srp's login certificate (beside this script; the same file as in ../certs): the client accepts the
         login server only with this very file.
@@ -51,8 +56,8 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         what to do with it, and where the original game is had.
 
 A player copies the overlay's `game` folder over the game's own `game`
-folder and starts play_skhid.bat. --pack-zip directly makes
-the download the web page offers (SRP_DOWNLOAD_FILE). Only the five player
+folder and starts play_skhid.bat, or bash play_skhid.sh on Linux. --pack-zip directly makes
+the download the web page offers (SRP_DOWNLOAD_FILE). Only the seven player
 files are included: no source, PDBs, tests or development tools. Build the
 Rust DLL first with ../../client/bugtrap/build.sh. The game itself is had
 from SRP_GAME_URL.
@@ -60,6 +65,7 @@ from SRP_GAME_URL.
 
 import hashlib
 import os
+from pathlib import Path
 import sys
 import zipfile
 
@@ -77,6 +83,7 @@ GAME_URL = (
 SRP_CERT = os.path.join(HERE, "survarium_login_server.crt")
 EXE_DIR = os.path.join("binaries", "x86")
 CERT_REL = os.path.join("resources", "ssl", "survarium_login_server.crt")
+LINUX_LAUNCHER = os.path.join("game", EXE_DIR, "play_skhid.sh")
 # The localizations the client knows (login_chat.md: the language byte).
 LOCALIZATIONS = ("english", "russian", "ukrainian", "german", "polish")
 
@@ -147,6 +154,13 @@ def bat(server, localization, embedded=False):
     return "\r\n".join(lines).encode("ascii")
 
 
+def sh(server, localization, embedded=False):
+    with open(os.path.join(HERE, "play_skhid.sh"), "rb") as source:
+        script = source.read()
+    return script.replace(b"localization=english\n", f"localization={localization}\n".encode("ascii"), 1).replace(
+        b"server=\n", f"server={'' if embedded else server}\n".encode("ascii"), 1)
+
+
 def readme(server, localization, description, files, embedded=False):
     lines = [
         "SURVARIUM 0.26g - SKHID COMMUNITY SERVER FILES (UNOFFICIAL)",
@@ -168,18 +182,20 @@ def readme(server, localization, description, files, embedded=False):
         f"   {GAME_URL}",
         "   The game is in its Survarium\\game folder.",
         "2. Copy the `game` folder of this archive over the game's own `game`",
-        "   folder. It adds survarium_skhid.exe and play_skhid.bat to",
+        "   folder. It adds survarium_skhid.exe, play_skhid.bat and play_skhid.sh to",
         "   game\\binaries\\x86 and replaces bugtrap.dll there, plus",
         "   game\\resources\\ssl\\survarium_login_server.crt. Back up those two",
         "   original files first. The game's own survarium.exe is not changed.",
-        "3. Double-click game\\binaries\\x86\\play_skhid.bat. It connects to the",
-        "   Skhid server. Do not run survarium_skhid.exe by hand without the",
-        "   options.",
+        "3. Windows: double-click game\\binaries\\x86\\play_skhid.bat.",
+        "   Linux: install Wine and Winetricks, then run bash play_skhid.sh",
+        "   from game/binaries/x86. See LINUX.txt for setup and troubleshooting.",
+        "   These launchers supply the options the game needs.",
         "4. Sign in with any user name and password. A new name is registered on its",
         "   first sign-in; remember the password.",
         "",
         "To change the language, open play_skhid.bat in a text editor and set",
-        "LANGUAGE.",
+        "LANGUAGE. On Linux, edit localization near the top of play_skhid.sh;",
+        "set server=host:port there to override the embedded login address.",
         "",
         "OPTIONS (in play_skhid.bat)",
         (f"  Default server: {server} (embedded in survarium_skhid.exe)" if embedded
@@ -240,8 +256,8 @@ def main():
     bugtrap = read_bugtrap(bugtrap_path)
 
     # The exe: patch_026g.py refuses anything but the original.
-    original = open(os.path.join(source, EXE_DIR, "survarium.exe"), "rb").read()
-    code = None if mode == "cert-only" else open(P.default_bin(mode), "rb").read()
+    original = Path(source, EXE_DIR, "survarium.exe").read_bytes()
+    code = None if mode == "cert-only" else Path(P.default_bin(mode)).read_bytes()
     embedded = mode != "cert-only"
     exe, description = P.build(original, mode, code, server if embedded else None)
     exe = bytes(exe)
@@ -249,7 +265,7 @@ def main():
     # The certificates.
     if not os.path.isfile(SRP_CERT):
         sys.exit(f"{SRP_CERT}: srp's certificate is missing")
-    srp_cert = open(SRP_CERT, "rb").read()
+    srp_cert = Path(SRP_CERT).read_bytes()
     if b"BEGIN CERTIFICATE" not in srp_cert:
         sys.exit(f"{SRP_CERT}: not a PEM certificate")
     game_cert_path = os.path.join(source, CERT_REL)
@@ -260,7 +276,9 @@ def main():
         (os.path.join("game", EXE_DIR, "survarium_skhid.exe"), exe),
         (os.path.join("game", EXE_DIR, "bugtrap.dll"), bugtrap),
         (os.path.join("game", EXE_DIR, "play_skhid.bat"), bat(server, localization, embedded)),
+        (LINUX_LAUNCHER, sh(server, localization, embedded)),
         (os.path.join("game", CERT_REL), srp_cert),
+        ("LINUX.txt", Path(HERE, "LINUX.txt").read_bytes()),
     ]
     listed = [(name.replace(os.sep, "/"), sha256(data)) for name, data in files]
     files.append(("README.txt", readme(server, localization, description, listed, embedded)))
@@ -269,13 +287,19 @@ def main():
         os.makedirs(os.path.dirname(output), exist_ok=True)
         with zipfile.ZipFile(output, "x", zipfile.ZIP_DEFLATED) as out:
             for name, data in files:
-                out.writestr(name.replace(os.sep, "/"), data)
+                entry = zipfile.ZipInfo(name.replace(os.sep, "/"))
+                entry.create_system = 3
+                entry.external_attr = (0o100755 if name == LINUX_LAUNCHER else 0o100644) << 16
+                entry.compress_type = zipfile.ZIP_DEFLATED
+                out.writestr(entry, data)
     for name, data in files:
         target = (output + "!/" + name.replace(os.sep, "/") if archive else os.path.join(output, name))
         if not check and not archive:
             os.makedirs(os.path.dirname(target), exist_ok=True)
             with open(target, "xb") as out:   # never over a file that is there
                 out.write(data)
+            if name == LINUX_LAUNCHER:
+                os.chmod(target, 0o755)
         print(f"{'would write' if check else 'wrote'} {target} ({len(data)} bytes, sha256 {sha256(data)})")
     print(f"exe: {description}")
     print(f"launch line: {launch_line(server, localization, embedded)}")

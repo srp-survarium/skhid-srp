@@ -22,6 +22,7 @@ published.
 | `snapshot_upload_026g.section.bin`, `.hash-mismatch.bin` | That code assembled, for the two places it can go; `patch_026g.py` reads them. Assembling the source again gives the same bytes |
 | `default_server_026g.asm`, `.section.bin`, `.hash-mismatch.bin` | Optional default-login-address stub, appended to the snapshot cave; source and assembled code for both placements |
 | `make_client_026g.py` | Makes the players' overlay folder or ZIP: patched exe, Rust BugTrap DLL, certificate, start file and README |
+| `play_skhid.sh`, `LINUX.txt` | Linux Wine/DXVK launcher and instructions, included in the generated folder and ZIP |
 | `selftest_026g.py` | Builds every variant and checks it (sections, disassembly of every hook, checksum, signature); needs the original exe and nasm |
 | `survarium_login_server.crt` | The login certificate (the same file as `../certs/survarium_login_server.crt`) |
 
@@ -50,11 +51,11 @@ python make_client_026g.py <game folder> <new file.zip> --pack-zip --server=<hos
 
 It writes `game/binaries/x86/survarium_skhid.exe`,
 `game/binaries/x86/bugtrap.dll` (the Rust crash reporter),
-`game/binaries/x86/play_skhid.bat` (the launch line and language setting),
+`game/binaries/x86/play_skhid.bat` and `play_skhid.sh` (Windows and Linux launchers),
 `game/resources/ssl/survarium_login_server.crt` and
-`README.txt` into the new folder, or a ZIP with `--pack-zip`, to be copied over
+`README.txt` and `LINUX.txt` into the new folder, or a ZIP with `--pack-zip`, to be copied over
 the game. These are
-the only five files shipped; source, symbols, tests and development tools are
+the only seven files shipped; source, symbols, tests and development tools are
 excluded. Back up the original `bugtrap.dll` and login certificate before
 installing. `--check` does every check and writes nothing. Existing ZIPs are
 never overwritten. `--bugtrap=<path>` selects another built DLL; by default
@@ -71,6 +72,23 @@ the default. Without that option it retains the original address behavior.
 An embedded hostname is limited to 63 ASCII bytes and the port to 1–65535.
 `--cert-only` does not support embedding; cert-only overlays still pass the
 address through their batch file.
+
+On Linux, install Wine with support for 32-bit Windows applications and
+Winetricks, then run `bash play_skhid.sh` from `game/binaries/x86`. The launcher
+creates its own Wine prefix, installs DXVK on first use, and preserves saved
+game settings. Full builds use the embedded server; edit `server=` at the top
+of the script for an override. Certificate-only builds fill in that value.
+Both launchers use the builder's `--localization` setting. See `LINUX.txt` for
+details, including the English-keyboard-layout startup workaround.
+
+The launcher is executable in folder output and has Unix executable permissions
+in ZIP metadata. Launcher and packaging tests use synthetic fixtures and mocked
+Wine commands, without game files or downloads:
+
+```
+python -m unittest discover -s . -p 'test_*.py'
+bash -n play_skhid.sh
+```
 
 Other builds of the patch: `--cert-only` (only patch 1), `--cave=hash-mismatch`
 (patch 4 in another place, see below), `--check`.
