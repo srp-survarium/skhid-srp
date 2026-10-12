@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-or-later
 # Put beside survarium_skhid.exe, then run: bash play_skhid.sh
 set -euo pipefail
 

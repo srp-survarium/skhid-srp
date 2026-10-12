@@ -79,6 +79,18 @@ class ReleaseTests(unittest.TestCase):
         with zipfile.ZipFile(archive) as z:
             self.assertIn(b'server=release.example:2234\n', z.read('game/binaries/x86/play_skhid.sh'))
 
+    def test_windows_checkout_produces_a_unix_launcher(self):
+        # Git's core.autocrlf can give the release builder a CRLF template.
+        template = Path(overlay.HERE, 'play_skhid.sh').read_bytes().replace(b'\r\n', b'\n')
+        Path(self.root, 'play_skhid.sh').write_bytes(template.replace(b'\n', b'\r\n'))
+        with mock.patch.object(overlay, 'HERE', str(self.root)):
+            for embedded in (False, True):
+                with self.subTest(embedded=embedded):
+                    script = overlay.sh('release.example:2234', 'polish', embedded)
+                    self.assertNotIn(b'\r', script)
+                    server = b'' if embedded else b'release.example:2234'
+                    self.assertIn(b'localization=polish\nserver=' + server + b'\n', script)
+
     def test_check_writes_neither_folder_nor_archive(self):
         for options in ((), ('--pack-zip',)):
             with self.subTest(options=options):

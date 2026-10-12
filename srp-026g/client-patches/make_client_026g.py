@@ -156,7 +156,8 @@ def bat(server, localization, embedded=False):
 
 def sh(server, localization, embedded=False):
     with open(os.path.join(HERE, "play_skhid.sh"), "rb") as source:
-        script = source.read()
+        # Windows checkouts may use CRLF; Bash and the substitutions need LF.
+        script = source.read().replace(b"\r\n", b"\n")
     return script.replace(b"localization=english\n", f"localization={localization}\n".encode("ascii"), 1).replace(
         b"server=\n", f"server={'' if embedded else server}\n".encode("ascii"), 1)
 

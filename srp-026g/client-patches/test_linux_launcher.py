@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
 """Exercise the release launcher with mocked Wine and synthetic patch-site bytes."""
+import fcntl
 import hashlib
 import json
 import os
@@ -24,7 +24,6 @@ PATCHED_FIXTURE = bytearray(FIXTURE)
 PATCHED_FIXTURE[0xf5811] = 0xeb
 ORIGINAL = hashlib.sha256(FIXTURE).hexdigest()
 PATCHED = hashlib.sha256(PATCHED_FIXTURE).hexdigest()
-
 
 
 class LauncherTests(unittest.TestCase):
@@ -53,6 +52,8 @@ if name=='wine' and sys.argv[1]=='wineboot.exe':
  prefix.mkdir(parents=True,exist_ok=True)
 with open(os.environ['TEST_CALLS'],'a') as f:
  f.write(json.dumps(dict(name=name,args=sys.argv[1:],cwd=os.getcwd(),prefix=str(prefix),dll=os.environ.get('WINEDLLOVERRIDES'))) + '\\n')
+if os.environ.get('TEST_FAIL')==name+':'+sys.argv[1]:
+ sys.exit(1)
 if name=='wineserver':
  # Delayed registry creation ensures the script waits for wineserver.
  (prefix/'system.reg').write_text('registry')
@@ -241,6 +242,51 @@ HDMI-1 connected 1366x768+0+0
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         calls = [json.loads(s) for s in self.calls.read_text().splitlines()]
         self.assertEqual([c['name'] for c in calls[-2:]], ['winetricks', 'wine'])
+
+    def test_wine_setup_failures_retry_before_launching(self):
+        self.copy_exe()
+        prefix = self.bin / 'wineprefix'
+        for failure in ('wine:wineboot.exe', 'wineserver:-w'):
+            with self.subTest(failure=failure):
+                self.env['TEST_FAIL'] = failure
+                self.calls.unlink(missing_ok=True)
+                result = self.run_script()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse((prefix / '.skhid-ready').exists())
+                self.assertFalse((prefix / '.skhid-dxvk').exists())
+                calls = [json.loads(s) for s in self.calls.read_text().splitlines()]
+                self.assertFalse(any(c['name'] == 'winetricks' or
+                    c['args'][0] == 'survarium_skhid.exe' for c in calls))
+        del self.env['TEST_FAIL']
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue((prefix / '.skhid-ready').exists())
+        self.assertTrue((prefix / '.skhid-dxvk').exists())
+
+    def test_game_failure_is_reported_and_allows_relaunch(self):
+        self.copy_exe()
+        self.env['TEST_FAIL'] = 'wine:survarium_skhid.exe'
+        result = self.run_script()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Game exited with an error', result.stderr)
+        del self.env['TEST_FAIL']
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        calls = [json.loads(s) for s in self.calls.read_text().splitlines()]
+        self.assertEqual([c['name'] for c in calls],
+            ['wine', 'wineserver', 'winetricks', 'wine', 'wine'])
+
+    def test_concurrent_launcher_cannot_patch_or_start_wine(self):
+        self.copy_exe()
+        with (self.bin / '.skhid-launcher.lock').open('w') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            result = self.run_script()
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('already running', result.stderr)
+            self.assertEqual(self.exe.read_bytes(), FIXTURE)
+            self.assertFalse(self.calls.exists())
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_missing_registry_reinitializes_prefix_and_dxvk(self):
         self.copy_exe()
