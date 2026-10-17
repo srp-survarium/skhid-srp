@@ -55,7 +55,7 @@ WHAT IT WRITES (the overlay mirrors the game's layout)
         -minimum_resources_memory_size: the resources arenas' floor.
         Two different arenas: docs/notes/README.md.)
     <output>/game/binaries/x86/bugtrap.dll
-        the Rust SRP crash reporter; saves dumps locally; Submit Bug opens SRP Discord in the browser.
+        the Rust SRP crash reporter; saves zipped dumps locally; Submit Bug opens SRP Discord in the browser.
     <output>/game/binaries/x86/play_skhid.sh
         the Linux launcher: creates a local Wine prefix, installs DXVK through
         Winetricks and launches with the same server and language as the batch file.
@@ -427,9 +427,10 @@ def readme(server, localization, description, files, embedded=False, site=None):
                       else "The launcher and the updater of the original game are not needed."),
         "",
         "CRASH REPORTS",
-        "Crash dumps are saved beside survarium_skhid.exe, or in the Windows",
-        "temporary folder if that folder cannot be written. The crash dialog",
-        "shows the location. Nothing is uploaded automatically.",
+        "Crash dumps are saved, zipped (SRP-crash-....zip), beside",
+        "survarium_skhid.exe, or in the Windows temporary folder if that folder",
+        "cannot be written. The crash dialog shows the file and its location:",
+        "upload it in SRP Discord. Nothing is uploaded automatically.",
         "",
     ]
     return "\r\n".join(lines).encode("utf-8")

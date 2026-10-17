@@ -7,6 +7,7 @@ compile_error!(
 );
 
 mod api;
+mod archive;
 mod arithmetic;
 mod dump;
 mod modules;
@@ -15,6 +16,7 @@ mod notice_text;
 mod runtime;
 mod text;
 mod ui;
+mod zip;
 
 use core::{
     ffi::c_void,

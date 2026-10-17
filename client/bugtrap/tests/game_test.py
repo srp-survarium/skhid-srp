@@ -12,6 +12,7 @@ import re
 import shutil
 import struct
 import subprocess
+import zipfile
 
 
 def digest(path):
@@ -19,7 +20,12 @@ def digest(path):
 
 
 def verify_dump(dump, expected_thread):
-    data = dump.read_bytes()
+    # The DLL zips its dump: SRP-crash-...-N.zip holds SRP-crash-...-N.dmp.
+    with zipfile.ZipFile(dump) as archive:
+        assert archive.testzip() is None
+        [entry] = archive.infolist()
+        assert entry.filename == dump.stem + ".dmp"
+        data = archive.read(entry)
     assert data[:4] == b"MDMP"
     count, directory = struct.unpack_from("<II", data, 8)
     modules = []
@@ -81,7 +87,8 @@ def main():
         assert (build / name).is_file(), name
     d3d11 = prefix / "drive_c/windows/syswow64/d3d11.dll"
     assert d3d11.is_file()
-    before = {p: digest(p) for p in game.glob("SRP-crash-*.dmp")}
+    before = {p: digest(p) for p in game.glob("SRP-crash-*.zip")}
+    dumps_before = set(game.glob("SRP-crash-*.dmp"))
     log = output / "game-test.log"
     thread_file = output / "crash-thread.txt"
     thread_file.unlink(missing_ok=True)
@@ -122,11 +129,14 @@ def main():
     assert result.returncode == 0, "Controller failed; see game-test.log"
     assert "DISCORD_BUTTON=1" in content and "CRASH_DIALOG_CLOSED" in content
     assert "Crash dump saved:" in content
-    dumps = set(game.glob("SRP-crash-*.dmp")) - set(before)
+    dumps = set(game.glob("SRP-crash-*.zip")) - set(before)
     assert len(dumps) == 1, dumps
+    assert set(game.glob("SRP-crash-*.dmp")) == dumps_before, "the zipped dump was kept"
     for old, hash_before in before.items():
         assert digest(old) == hash_before, "An earlier dump changed"
-    summary = verify_dump(dumps.pop(), int(thread_file.read_text().strip()))
+    archive = dumps.pop()
+    summary = verify_dump(archive, int(thread_file.read_text().strip()))
+    summary.update(zip=str(archive), zip_bytes=archive.stat().st_size)
     summary.update(exe_sha256=exe_hash, replacement_dll_sha256=digest(replacement),
                    original_dll_restored=True, temporary_test_dlls_removed=True,
                    discord_button_present=True, dump_survived_dialog_close=True)

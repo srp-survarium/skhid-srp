@@ -42,7 +42,7 @@ At the root:
 | [`docs/RE-TOOLKIT.md`](docs/RE-TOOLKIT.md) | How the game client was read: disassembly, symbols, game data, and the scripts in `tools/re-kit` |
 | [`docs/PUBLISHING.md`](docs/PUBLISHING.md) | What must never be written into this repository (players' names, addresses, secrets) |
 | `tools/re-kit/` | The reverse-engineering and log-analysis scripts |
-| [`client/bugtrap/`](client/bugtrap/) | Rust crash DLL for the native Win32 client: saves dumps beside the EXE, with report submission removed |
+| [`client/bugtrap/`](client/bugtrap/) | Rust crash DLL for the native Win32 client: saves zipped dumps beside the EXE, with report submission removed |
 | [`client/updater/`](client/updater/) | The 0.26g launcher's updater (`updater_skhid.exe`): brings a player's files to what the server offers (the players' ZIP, the resources.db patches of `/patches`) and keeps PLAY off until they match |
 | [`release/`](release/) | The scripts that release a change of the 0.26g server to players: `release/release.sh` (one run around a maintenance window), its steps, the offered-patch list `release/patches.tsv`, and `release/test.sh`; how to use them: [`.claude/skills/skhid-release/SKILL.md`](.claude/skills/skhid-release/SKILL.md) |
 | `LICENSE` | GPL-3.0, as the SRP project |

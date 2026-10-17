@@ -61,6 +61,7 @@ struct DialogData {
     folder: *const u16,
     filename: *const u16,
     have_dump: bool,
+    zipped: bool,
 }
 
 impl Template {
@@ -131,7 +132,9 @@ unsafe extern "system" fn dialog(window: HWND, msg: u32, wp: usize, lp: isize) -
             SetDlgItemTextW(
                 window,
                 1036,
-                if data.have_dump {
+                if data.zipped {
+                    windows_sys::w!("Use Submit Bug to open SRP Discord and upload this .zip file.")
+                } else if data.have_dump {
                     windows_sys::w!("Use Submit Bug to open SRP Discord and attach this file.")
                 } else {
                     windows_sys::w!("Use Submit Bug to open SRP Discord.")
@@ -258,7 +261,7 @@ unsafe extern "system" fn dialog(window: HWND, msg: u32, wp: usize, lp: isize) -
         _ => 0,
     }
 }
-pub unsafe fn show(path: &Wide<32768>, saved: bool, partial: bool, error: u32) {
+pub unsafe fn show(path: &Wide<32768>, saved: bool, partial: bool, error: u32, zipped: bool) {
     let mut message = Wide::<34000>::new();
     let split = path.buf[..path.len]
         .iter()
@@ -397,6 +400,7 @@ pub unsafe fn show(path: &Wide<32768>, saved: bool, partial: bool, error: u32) {
         folder: folder.ptr(),
         filename: path.buf.as_ptr().add(split),
         have_dump: saved || partial,
+        zipped,
     };
     let result = DialogBoxIndirectParamW(
         null_mut(),

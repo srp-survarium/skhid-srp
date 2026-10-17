@@ -6,8 +6,9 @@ in Rust, with small x86 assembly helpers for the compiler ABI. It implements all
 The installed 0.26g Skhid client has been tested under Wine Staging 11.8 / DXVK.
 
 On a handled crash it writes
-`SRP-crash-YYYYMMDD-HHMMSS-mmm-pPID-tTID-N.dmp` **beside the game EXE**, before
-callbacks or the dialog. Closing the dialog keeps the dump. Existing files are
+`SRP-crash-YYYYMMDD-HHMMSS-mmm-pPID-tTID-N.dmp` **beside the game EXE**, then
+zips it to `SRP-crash-…-N.zip` (see Zipped dumps), before callbacks or the
+dialog. Closing the dialog keeps the file. Existing files are
 never overwritten. If the EXE folder is unwritable, it tries the Windows temporary
 folder; the dialog shows the filename and folder in separate labeled fields,
 or a failure message. Long folders use middle ellipsis. It uses static text
@@ -23,7 +24,9 @@ seen under Wine.
 
 Submit Bug opens [SRP Discord](https://discord.gg/Pxa4prXfwu) in the default
 browser, only when clicked. The dialog stays open so the player can attach the
-saved dump manually. A browser-launch failure displays the invite address.
+saved file manually: “Use Submit Bug to open SRP Discord and upload this .zip
+file.”, or, when the dump could not be zipped, “… and attach this file.” A
+browser-launch failure displays the invite address.
 Nothing is uploaded automatically. Email/upload entry points fail with
 `ERROR_NOT_SUPPORTED`, and legacy support destinations are discarded. The DLL
 imports `kernel32.dll`, `user32.dll`, `gdi32.dll` and `shell32.dll` (for the browser
@@ -83,6 +86,35 @@ English, Russian, Ukrainian, German, Polish; English without the option):
   the game goes on after OK; an ordinary folder: no box. Not tried: Windows'
   Controlled folder access itself, Wine, the launcher's own start.
 
+## Zipped dumps
+
+A dump is about 160–190 MB (it holds the game's data segments); zipped, it is
+2–4 MB, small enough for Discord.
+
+- When: right after the dump is written, flushed and closed, on the report
+  worker, before callbacks and the dialog; for crashes and for
+  `BT_SaveSnapshot[Ex]` alike, and also for a stack overflow (no dialog).
+- Files: `SRP-crash-…-N.zip` beside its `SRP-crash-…-N.dmp` (the same folder:
+  the EXE's or the temporary one), holding that one file under its own name
+  (DEFLATE, plain ASCII name, no folder). It is written as
+  `SRP-crash-…-N.zip.part`, never over an existing file, and renamed to `.zip`
+  when complete.
+- Checked before the dump goes: the whole ZIP is read back; its records must
+  be the ones written and its data must inflate to the dump's size and
+  CRC-32, refusing what zlib refuses (such as a Huffman code with unused
+  bit patterns). Then the `.dmp` is deleted and the dialog names the `.zip`.
+- On any failure (no memory, disk full, a file of that name, a dump of 4 GiB
+  or more, more than 60 seconds): the `.part` file is deleted, the `.dmp` is
+  kept and the dialog names it as before. A crash or forced exit while zipping
+  also keeps the `.dmp` (and may leave a `.part` file).
+- Cost: a 166 MB dump took 1.3 s to zip and check under Wine (i686 build), to
+  2.4–3.3 MB. The DEFLATE writer (`src/zip.rs`, no dependency) does greedy
+  matching with 8 candidates per position, and dynamic Huffman blocks of 256 KiB
+  of input, or stored ones where those would be larger. It uses 2 MB of fresh
+  pages (`VirtualAlloc`), not the game's heap.
+- A concurrent crash on another thread waits for the ZIP as it waits for the
+  dump (but not for callbacks or the dialog).
+
 ## Install
 
 Use the 0.26g player overlay, or build the DLL for manual installation. Keep a
@@ -102,8 +134,8 @@ its scope. Native Windows testing is still outstanding.
 - Captures despite `MiniDumpNoDump`, disabled report flags or silent activity.
 - Keeps the game's `BT_SetUserMessage` in the dump's comment stream.
 - Serializes its own captures without acquiring a configuration or logging lock.
-  Concurrent crashing threads wait until the primary dump is closed, then apply
-  their exit mode without waiting for callbacks or the dialog. Recursive captures
+  Concurrent crashing threads wait until the primary dump is closed and zipped,
+  then apply their exit mode without waiting for callbacks or the dialog. Recursive captures
   on the owner/writer thread and overlapping snapshot requests return busy. A crash
   during a manual snapshot waits for it, then captures a separate crash report
   with the faulting thread context and normal callbacks/dialog.
@@ -129,16 +161,17 @@ and [module record format](https://learn.microsoft.com/en-us/windows/win32/api/m
 | `BT_NetFilter` / `BT_CallNetFilter` | Native context capture; no managed stack processing |
 | App name/version, user message, intro messages, flags, dump type, report format/path | Setters/getters retained; local capture policy and SRP dialog remain fixed |
 | Pre/post handlers | Invoked on the report worker after the dump closes; skipped on stack overflow |
-| `BT_SaveSnapshot[Ex]` | Writes an automatically named local raw dump with the same folder policy; the legacy filename argument is ignored |
+| `BT_SaveSnapshot[Ex]` | Writes an automatically named local dump with the same folder policy, zipped as a crash dump is; the legacy filename argument is ignored |
 | Email, uploads, registry export, version-resource reading, tracing/log APIs, import-table interception | Unsupported; operations with failure results return failure; applicable calls set `ERROR_NOT_SUPPORTED` |
 | Attached log/archive list | Empty; the game's own logs remain in their existing location |
 
-There is no XML/ZIP report generation, screenshot capture, restart-after-crash,
-advanced BugTrap UI or mail integration. The dump is the report. Settings strings
+There is no XML report generation, attached log files, screenshot capture,
+restart-after-crash, advanced BugTrap UI or mail integration. The zipped dump is
+the report. Settings strings
 are immutable process-lifetime copies (up to 32,767 bytes each), so getter pointers
 stay valid after another setter; configuration calls allocate, capture does not
-allocate through Rust. Win32/DbgHelp may allocate internally. Callers must supply
-valid native pointers and coordinate configuration changes.
+allocate through Rust (zipping takes its memory from `VirtualAlloc`).
+Win32/DbgHelp may allocate internally. Callers must supply valid native pointers and coordinate configuration changes.
 
 ## Build
 
@@ -183,10 +216,21 @@ rustc --edition 2024 --test src/arithmetic.rs -o target/arithmetic-test
 ./target/arithmetic-test
 rustc --edition 2024 --test src/notice_text.rs -o target/notice-text-test
 ./target/notice-text-test
+rustc --edition 2024 -O --test src/zip.rs -o target/zip-test
+./target/zip-test   # SRP_ZIP_SAMPLE=<a dump> zips that file instead
 ```
 
-The nineteen crash cases verify exception codes and thread IDs, module presence, the
-game error comment, callback ordering, stack overflow, dialog closure, repeated
+The ZIP tests round-trip empty, tiny, zero, repetitive, random and dump-like
+inputs across block and read boundaries, check the CRC-32, the code-length
+limits and that damaged or truncated streams are refused, that the check
+refuses the incomplete codes zlib refuses and reads zlib's fixed codes, and have
+Python's `zipfile` read a 40 MB ZIP made as the DLL makes it (when `python3` is
+on PATH).
+
+Every crash case reads its dump out of the `.zip` with `zipfile` (CRC checked,
+one member named like the ZIP, not UTF-8 flagged) and checks that no `.dmp` or
+`.part` file is left. The twenty crash cases verify exception codes and thread
+IDs, module presence, the game error comment, callback ordering, stack overflow, dialog closure, repeated
 crashes, Unicode paths, a different working directory, read-only EXE fallback,
 and explicit failure when neither folder is writable. They also cover all three
 synthetic entry points in continue-search/execute-handler modes, recursive worker
@@ -194,7 +238,9 @@ callbacks, and a second crash while a test-only DbgHelp shim holds the primary
 writer behind a gate. The concurrency case verifies that the dump survives and
 the second crash does not wait for the primary callback. A snapshot-overlap case
 checks that a real crash saves its own exception stream and runs its callback
-after the snapshot finishes. Run as a normal user so
+after the snapshot finishes. The zip-blocked case puts a folder in the place of
+the temporary ZIP while the test DbgHelp holds the writer, and checks that the
+`.dmp` is kept and valid. Run as a normal user so
 permission tests are effective. The Discord case intercepts only the browser
 API call and checks the exact invite, absence of automatic launches, and that
 the dialog and dump survive the click; it does not contact Discord. The ABI check also rejects runtime/network import
@@ -211,7 +257,8 @@ python3 tests/game_test.py /path/to/game/binaries/x86 \
 
 The harness temporarily replaces BugTrap and adds a D3D11 forwarding test DLL.
 After the game window appears and 15 seconds elapse, it triggers a real null write
-inside the client, checks the dialog, closes it and parses the persistent dump.
+inside the client, checks the dialog, closes it and parses the dump inside the
+persistent ZIP.
 It validates the original exception/register context, fault module, game module
 and that BugTrap is in the module list. It restores the original BugTrap and removes both test
 DLLs in `finally`, checks the EXE and earlier dump hashes, and keeps evidence in
