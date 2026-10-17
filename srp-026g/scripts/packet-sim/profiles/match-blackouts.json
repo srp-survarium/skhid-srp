@@ -1,0 +1,7 @@
+{
+  "description": "The match port only: 3 s blackouts of every client, both ways, every 60 s from 30 s; lobby, login and web untouched",
+  "seed": 1,
+  "events": [
+    {"label": "match blackout", "port": "match", "action": "drop", "at": 30, "every": 60, "duration": 3}
+  ]
+}

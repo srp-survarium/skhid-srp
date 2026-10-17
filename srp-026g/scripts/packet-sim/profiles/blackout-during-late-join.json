@@ -1,0 +1,9 @@
+{
+  "description": "A late joiner (a match client that came while another had been in the match 10 s) loses all match traffic both ways from 1 s to 5 s after its first match packet; everything else has 30 ms delay",
+  "seed": 1,
+  "link": {"delay_ms": 30, "jitter_ms": 5},
+  "events": [
+    {"label": "late-join blackout", "port": "match", "peer": "late:10", "anchor": "session",
+     "at": 1, "duration": 4, "action": "drop"}
+  ]
+}

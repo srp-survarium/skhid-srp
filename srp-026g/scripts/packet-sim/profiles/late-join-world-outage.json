@@ -1,0 +1,9 @@
+{
+  "description": "A late joiner (late:10) gets nothing from srp on the match port for 4 s from its 0xDA (loaded): every 0xE5 of its first sync is lost and its first world comes late; everything else has 30 ms delay",
+  "seed": 1,
+  "link": {"delay_ms": 30, "jitter_ms": 5},
+  "events": [
+    {"label": "late-join world outage", "port": "match", "peer": "late:10", "anchor": "id:DA",
+     "dir": "down", "at": 0, "duration": 4, "action": "drop"}
+  ]
+}

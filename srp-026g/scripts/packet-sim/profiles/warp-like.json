@@ -1,0 +1,13 @@
+{
+  "description": "A consumer VPN path (WARP-like): 45 ms each way, 12 ms jitter, 0.3% loss plus short bursts (mean 3 packets), rare reordering, a 300 ms stall every 40 s",
+  "seed": 1,
+  "link": {
+    "delay_ms": 45, "jitter_ms": 12,
+    "loss_pct": 0.3,
+    "burst_enter_pct": 0.4, "burst_exit_pct": 33, "burst_loss_pct": 100,
+    "reorder_pct": 0.3, "reorder_gap_ms": 25
+  },
+  "events": [
+    {"label": "warp stall", "action": "hold", "at": 25, "every": 40, "duration": 0.3}
+  ]
+}
