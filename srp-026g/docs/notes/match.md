@@ -670,6 +670,34 @@ Not looked at: whether the two "not traced" event types 2 and 3 reach the event 
 - A member failed alone is rejected to the lobby as before (`take_rejected_joins`), its game, if connected, put out; **its place is still installed by every game**, as a place whose player left (a roster grows only at its end, so a place left out would stop the places after it). Only a place a game failed to install (`Status::Failed`) stops installing and fails the whole group, as before.
 - Not changed: a match admits no new group while any admission of it has not entered (`admitting`), so a match with a failed admission takes no more late joiners. That was so before as well.
 
+## 33. A game still loading holds up no late join (added 2026-10-17)
+
+`game/late_join.rs`: `every_game_has` (used by `poll_roster`'s preparation and by `join_ready`). Tests: `tests/late_join.rs` (`a_group_member_stuck_loading_holds_up_no_other_member`, `a_player_back_in_and_loading_holds_up_no_newcomer`, `a_player_resynced_while_a_newcomer_loads_keeps_the_place_installed`, `readiness_from_an_old_connection_cannot_ready_its_replacement`).
+
+The rule:
+
+- A new place is prepared once its own game has loaded (0xDA) and **every game of the match has the place**: a game that is gone does not count; a game still connecting (no 0xD9 yet) has it, because it gets every place in its static info; a game that is loading (0xE4 sent, no 0xDA yet) has it when its static info had it (`installed_roster`, set when the 0xE4 goes); a game that loaded has it when it installed it (`Prepared` with `Installed`, or it was in its static info).
+- A game that loads with a static info from before the place (connected before the reservation, still on its loading screen) does not have it: it is asked to install the place once it has loaded (`poll_roster`), and holds the place up until it has.
+- The same holds for starting a newcomer from a world (`join_ready`, so `usable_snapshot` and `finish_sync`) and for its catch-up check (`caught_up`).
+- Until 2026-10-17 every game that was not gone had to have loaded as well. A game that never gets past its loading screen then held up every other place for its whole minute.
+- A resync of a game of the match while a place waits changes nothing about the place: the server's count of what the game installed (`installed_roster`) and the game's own (the late-join state is the client's and the match's, `lj_activate` only on a new client or match object) both stay. Live, 2026-10-17 13:18: place 16 of match 0x13749c9c was prepared 1 s after player 5's resync.
+
+What the time-outs were (live logs of 2026-10-15 to 2026-10-17 16:20 UTC, 48 places let go with "timed out during preparation or catch-up"; the match recordings for the prepare/ack exchange):
+
+| what | places |
+|---|---|
+| its own game never sent 0xDA (stayed on its loading screen, or died there) | 22 (15 Oct 2, 16 Oct 9, 17 Oct 11) |
+| loaded, never prepared: another game of the match was still loading (a member of its group that never loaded, or a player back after a time-out), 19 to 56 s | 8 |
+| prepared, then held up the same way (a game back in and loading), never started from a world | 2 (match 0x19318dad) |
+| its own game timed out or left after it loaded | 7 |
+| its world wrong from its first report on (§31), not right after the second start | 4 |
+| in sync, never caught up (no agreeing report in time) | 4 |
+| an existing game answered `Busy` to the place's `Prepare` for the whole minute (its load of the newcomer's kits never ended; it timed out itself 6 min later) | 1 (0x494d1e19, player 6) |
+
+- The 10 places of the second and third rows would have been prepared in seconds under the rule above. Whether they entered then depends on the group: one whose member never loads still waits for it until that member's 60 s (§32), then enters without it.
+- No time-out had a resync of another game as its cause: of the 10 places (8 matches) where one came while the place waited, 6 had their own game never load (Adokir's two among them: 0x6c9cd1d2 at 16:17, 0x33cecb53 at 13:33), 2 were held up by a game loading, 1 timed out itself and 1 was wrong from its world on.
+- **A game that never loads** (Adokir's, 17 Oct: the three matches it went to, on revision 17 and 18, one of them from the start; on 15 Oct it finished 26 matches, on revision 11): its match link sends only keep-alives after 0xD9, every ~380 ms, for the whole minute, never 0xDA; at the time-out the server sends FD and the game confirms with FB 0.3 s later (recording of 0x6c9cd1d2). So the server does tell it that the place is gone, and the game's link takes it, but the game stays on its loading screen (the owner: the bar full) and its lobby link goes silent ("nothing came from its client"). Not known why it does not finish loading; a game's 0xDA comes from `on_match_ready`, after the late join's `ready_hook` (client_patch.md §3.11). The lobby already says such a game has loaded no match since it signed in (and gets no results screen).
+
 ## 28. A Team Deathmatch that does not end when a team is out (added 2026-10-15)
 
 Mode 4. Found from the live logs and the saved worlds of 2026-10-14/15; tools: `cargo run -p match-server --example tdm_alive -- <dir of snapshots> <map id>` (the tdm rule of each snapshot: tickets, alive mask, respawn queue, kills:deaths) and `--example tdm_blocks` (the alive flag of each player block; the item count of a profile is guessed, so only a verdict that all candidates share counts).

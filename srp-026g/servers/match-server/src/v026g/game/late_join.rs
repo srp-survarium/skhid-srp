@@ -243,12 +243,23 @@ impl Game {
         };
         admission.entered()
             || (matches!(admission.phase, AdmissionPhase::CatchingUp { .. })
-                && self
-                    .peers
-                    .iter()
-                    .flatten()
-                    .filter(|p| p.stage != Stage::Gone)
-                    .all(|p| p.resources_loaded && p.installed_roster > index))
+                && self.every_game_has(index))
+    }
+
+    /// Whether every game of the match has the place at `index`, or loads
+    /// it with its map. A game that loads (its 0xE4 went, no 0xDA yet) with
+    /// the place in its static info has it once it is loaded, as a newcomer
+    /// has the places before its own; one still connecting gets every place
+    /// in its static info. Neither holds the place up (live, 2026-10-16/17:
+    /// a member of a group on its loading screen for a minute held up the
+    /// rest of its group, and a player back in after a time-out the
+    /// newcomers, until they were let go). A game that loads with a static
+    /// info from before the place is asked to install it once loaded
+    /// (`poll_roster`), and holds it up until then.
+    fn every_game_has(&self, index: usize) -> bool {
+        self.peers.iter().flatten().all(|p| {
+            p.stage == Stage::Gone || p.stage == Stage::Connecting || p.installed_roster > index
+        })
     }
 
     pub(super) fn after_preparation(&self, index: usize, time: u32) -> bool {
@@ -425,12 +436,7 @@ impl Game {
             let ready = self.peers[index]
                 .as_ref()
                 .is_some_and(|p| p.resources_loaded && p.stage != Stage::Gone)
-                && self
-                    .peers
-                    .iter()
-                    .flatten()
-                    .filter(|p| p.stage != Stage::Gone)
-                    .all(|p| p.resources_loaded && p.installed_roster > index);
+                && self.every_game_has(index);
             let connected = self.peers[index]
                 .as_ref()
                 .is_some_and(|p| p.stage != Stage::Gone);

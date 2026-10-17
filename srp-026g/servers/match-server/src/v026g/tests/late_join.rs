@@ -372,10 +372,15 @@ fn readiness_from_an_old_connection_cannot_ready_its_replacement() {
     .unwrap();
     bench.clients[1].send(id::LEAVE, &ack, true);
     bench.run(2_000);
-    assert!(bench.clients[place].snapshots().is_empty());
+    // The replacement loads the place with its map (its static info has
+    // it): it is asked to install nothing, and the stale ack changed
+    // nothing. The newcomer is prepared without waiting for its load.
+    assert!(bench.clients[1].prepares.is_empty());
+    assert_eq!(bench.clients[place].snapshots().len(), 1);
     assert_eq!(bench.clients[0].model.syncs, 1);
     bench.clients[1].ready();
     assert!(bench.until(10_000, |b| b.stages() == "LLL"));
+    assert!(bench.clients[1].prepares.is_empty());
     bench.assert_no_faults();
 }
 
@@ -1184,5 +1189,121 @@ fn a_game_out_of_step_while_a_place_is_installed_is_resynced_afterwards() {
     assert_eq!(bench.game().resyncs(0), 0);
     assert_eq!(bench.game().resyncs(1), 0);
     assert!(bench.until(8_000, |b| b.stages() == "LLLL"));
+    bench.assert_no_faults();
+}
+
+// A game still loading holds up no other place (live, 2026-10-16/17: of 48
+// late joins let go after their 60 s, 12 had loaded and were never
+// prepared, or never started, because another game of the match was still
+// on its loading screen: a member of their own group, or a player back in
+// the match after a time-out).
+
+#[test]
+fn a_group_member_stuck_loading_holds_up_no_other_member() {
+    let mut bench = running();
+    let reserved = bench.ms;
+    let places = reserve_group(&mut bench, 2);
+    // The first member's game connects and stays on its loading screen: it
+    // never says it has loaded (as Adokir's game, 2026-10-17).
+    bench.clients[places[0]].connect();
+    assert!(bench.until(1_000, |b| b.clients[places[0]].model.options.is_some()));
+    // The second loads: it is prepared and started from a world at once,
+    // and waits for the first.
+    bench.clients[places[1]].connect();
+    assert!(bench.until(1_000, |b| b.clients[places[1]].model.options.is_some()));
+    bench.clients[places[1]].ready();
+    assert!(
+        bench.until(5_000, |b| b.clients[places[1]].snapshots().len() == 1),
+        "a game still loading held up the preparation of another place: {}",
+        bench.stages()
+    );
+    bench.run_long(20_000);
+    assert!(!bench.clients[0].entered().contains(&(places[1] as u8)));
+    assert!(!bench.clients[places[1]].disconnected);
+    // At its 60 s the game on its loading screen is told that its place is
+    // gone (FD), and the second enters without it (1 v 2).
+    while bench.ms < reserved + 61_000 {
+        bench.step(25);
+    }
+    assert!(bench.clients[places[0]].disconnected);
+    assert!(bench.registry.seat(session_of(places[0])).is_none());
+    assert!(bench.until(3_000, |b| {
+        b.clients[..2]
+            .iter()
+            .all(|c| c.entered().contains(&(places[1] as u8)))
+    }));
+    assert!(!bench.clients[places[1]].disconnected);
+    assert!(!bench.clients[0].entered().contains(&(places[0] as u8)));
+    for index in 0..2 {
+        assert_eq!(bench.clients[index].model.syncs, 1);
+        assert_eq!(bench.game().resyncs(index), 0);
+    }
+    bench.assert_no_faults();
+}
+
+#[test]
+fn a_player_back_in_and_loading_holds_up_no_newcomer() {
+    let mut bench = running_three();
+    let place = reserve(&mut bench);
+    // Player 2's game comes back (a new game, after a crash): its static
+    // info has the new place, and it stays on its loading screen a while.
+    bench.clients[2] = Client::growing(session_of(2), place + 1, MAP_BATTERIES);
+    bench.addrs[2] = SocketAddr::from(([127, 0, 0, 1], 41_002));
+    bench.clients[2].connect();
+    assert!(bench.until(1_000, |b| b.clients[2].model.options.is_some()));
+    // The newcomer is prepared, catches up and enters meanwhile.
+    bench.clients[place].connect();
+    assert!(bench.until(1_000, |b| b.clients[place].model.options.is_some()));
+    bench.clients[place].ready();
+    assert!(
+        bench.until(10_000, |b| {
+            b.clients[..2]
+                .iter()
+                .all(|c| c.entered().contains(&(place as u8)))
+        }),
+        "a game back in and loading held up the newcomer: {}",
+        bench.stages()
+    );
+    // The game back in was never asked to install a place it loads.
+    assert!(bench.clients[2].prepares.is_empty());
+    // It loads at last, and plays with the newcomer in its world.
+    bench.clients[2].ready();
+    assert!(bench.until(10_000, |b| b.stages() == "LLLL"));
+    bench.run(3_000);
+    for index in 0..4 {
+        assert_eq!(bench.game().resyncs(index), 0, "player {index}");
+    }
+    bench.assert_no_faults();
+}
+
+#[test]
+fn a_player_resynced_while_a_newcomer_loads_keeps_the_place_installed() {
+    // The first guess at the time-outs of 2026-10-17 (a resync of a
+    // player of the match while a newcomer loads loses that game's
+    // installation of the place): it does not. A resync gives the game a
+    // world; what it installed stays, and so does the server's count of it.
+    let mut bench = running_three();
+    let place = reserve(&mut bench);
+    bench.clients[place].connect();
+    assert!(bench.until(1_000, |b| b.clients[place].model.options.is_some()));
+    // Every game of the match installs the place at once ...
+    assert!(bench.until(2_000, |b| {
+        b.clients[..3].iter().all(|c| !c.prepares.is_empty())
+    }));
+    // ... and game 2 goes out of step and is resynced while the newcomer
+    // still loads.
+    bench.run(1_000);
+    let from = bench.clients[2].clock();
+    bench.clients[2].sim.salt_from = Some((from, 7));
+    assert!(bench.until(10_000, |b| b.game().resyncs(2) == 1));
+    assert!(bench.until(5_000, |b| &b.stages()[..3] == "LLL"));
+    bench.run(1_000);
+    bench.clients[place].ready();
+    assert!(bench.until(10_000, |b| {
+        b.clients[..3]
+            .iter()
+            .all(|c| c.entered().contains(&(place as u8)))
+    }));
+    assert!(bench.clients[2].prepares.len() == 1);
     bench.assert_no_faults();
 }
