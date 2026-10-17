@@ -239,6 +239,8 @@ impl<'a> Core<'a> {
         // (it ignores one it still holds, `social.md` §1.4), also after a
         // restart of srp: the ids start at the time.
         let next_message_id = (quests::now() as u32 & 0x0FFF_FFFF) << 3 | 1;
+        // The squads are the store's, and so is their size (`SRP_SQUAD_SIZE`).
+        store.squads().set_size(settings.squad_size);
         Self {
             store,
             accounts,
@@ -357,6 +359,15 @@ impl<'a> Core<'a> {
     /// `84 <op> 00 <key>`: refused, with the game's own text for it.
     pub fn deny(&mut self, to: SocketAddr, op: u8, key: &str) {
         self.send(to, lobby::denied(op, key));
+    }
+
+    /// What an invite into a full squad says (`SRP_SQUAD_FULL_TEXT`, or a
+    /// sentence from the squads' size).
+    pub fn squad_full_text(&self) -> String {
+        self.settings
+            .squad_full_text
+            .clone()
+            .unwrap_or_else(|| super::squad_full_text_for(self.store.squads().size()))
     }
 
     /// The inventory, the account and the money, in the order the client

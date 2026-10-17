@@ -5,17 +5,24 @@
 //!   (type 3, "membership accepted").
 //! - The inviter's client then asks the lobby to add that player (`2A 02 name`).
 //!
-//! The first member is the commander. A squad holds at most three players.
+//! The first member is the commander. A squad holds at most
+//! [`Squads::size`] players: three, the client's own limit, or two when the
+//! server says so (`SRP_SQUAD_SIZE`).
 //! Each member readies with Play. The commander's Play is unlocked once all
 //! the others are ready, and the squad is in the queue once everyone is.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::LockExt;
 
-/// The client keeps three members (`read_squad_info`, spec R7).
+/// The client keeps three members (`read_squad_info`, spec R7): no server
+/// setting goes above it.
 pub const MAX_SQUAD_MEMBERS: usize = 3;
+
+/// The smallest squad: a squad of one is none.
+pub const MIN_SQUAD_SIZE: usize = 2;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Squad {
@@ -58,9 +65,20 @@ pub enum SquadError {
     NotInASquad,
 }
 
-#[derive(Default)]
 pub struct Squads {
     inner: Mutex<Inner>,
+    /// The most members a squad may have, [`MIN_SQUAD_SIZE`] to
+    /// [`MAX_SQUAD_MEMBERS`] (`SRP_SQUAD_SIZE`).
+    size: AtomicUsize,
+}
+
+impl Default for Squads {
+    fn default() -> Self {
+        Self {
+            inner: Mutex::default(),
+            size: AtomicUsize::new(MAX_SQUAD_MEMBERS),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -105,6 +123,30 @@ impl Inner {
 }
 
 impl Squads {
+    /// The most members a squad may have.
+    pub fn size(&self) -> usize {
+        self.size.load(Ordering::Relaxed)
+    }
+
+    /// Set [`Self::size`], kept from [`MIN_SQUAD_SIZE`] to
+    /// [`MAX_SQUAD_MEMBERS`]. A squad that already has more keeps them; it
+    /// takes nobody new until it is under the size.
+    pub fn set_size(&self, size: usize) {
+        let size = size.clamp(MIN_SQUAD_SIZE, MAX_SQUAD_MEMBERS);
+        self.size.store(size, Ordering::Relaxed);
+    }
+
+    /// Whether `account_id`'s squad has as many members as it may, so that
+    /// nobody more can be added. A player in no squad has room: it would
+    /// start a squad of two.
+    pub fn is_full(&self, account_id: u32) -> bool {
+        let size = self.size();
+        let mut inner = self.inner.locked();
+        inner
+            .squad_mut(account_id)
+            .is_some_and(|squad| squad.members.len() >= size)
+    }
+
     /// `invited` accepted `inviter`'s invite: `inviter` may now add it.
     pub fn invite_accepted(&self, inviter: u32, invited: u32) {
         self.inner.locked().accepted.insert((inviter, invited));
@@ -118,6 +160,7 @@ impl Squads {
     /// `2A 02`: `commander` adds `member`, who accepted its invite. A player
     /// in no squad starts one and commands it.
     pub fn add(&self, commander: u32, member: u32) -> Result<Squad, SquadError> {
+        let size = self.size();
         let mut inner = self.inner.locked();
         if !inner.accepted.contains(&(commander, member)) {
             return Err(SquadError::NotInvited);
@@ -129,7 +172,11 @@ impl Squads {
             if squad.commander() != commander {
                 return Err(SquadError::NotCommander);
             }
-            if squad.members.len() >= MAX_SQUAD_MEMBERS {
+            // Checked under the lock: of two accepted invites added at
+            // once, only the first gets the last place. The other invite
+            // is used up: it was for a place that is gone.
+            if squad.members.len() >= size {
+                inner.accepted.remove(&(commander, member));
                 return Err(SquadError::Full);
             }
         }
@@ -259,6 +306,72 @@ mod tests {
         squad_of(&squads, &[A, B, C]);
         squads.invite_accepted(A, D);
         assert_eq!(squads.add(A, D), Err(SquadError::Full));
+    }
+
+    #[test]
+    fn a_squad_of_two_takes_nobody_more() {
+        let squads = Squads::default();
+        squads.set_size(2);
+        assert!(!squads.is_full(A));
+        // Two invites accepted at once: whichever is added first gets the
+        // place, the other is refused.
+        squads.invite_accepted(A, B);
+        squads.invite_accepted(A, C);
+        assert_eq!(squads.add(A, B).unwrap().members, vec![A, B]);
+        assert!(squads.is_full(A) && squads.is_full(B));
+        assert_eq!(squads.add(A, C), Err(SquadError::Full));
+        assert_eq!(squads.of(C), None);
+        assert!(!squads.has_accepted(A, C));
+        // A place freed later does not take C on that old invite.
+        squads.leave(B).unwrap();
+        assert_eq!(squads.add(A, C), Err(SquadError::NotInvited));
+    }
+
+    #[test]
+    fn two_invites_added_from_two_threads_make_one_squad_of_two() {
+        let squads = std::sync::Arc::new(Squads::default());
+        squads.set_size(2);
+        squads.invite_accepted(A, B);
+        squads.invite_accepted(A, C);
+        let adds: Vec<_> = [B, C]
+            .into_iter()
+            .map(|member| {
+                let squads = squads.clone();
+                std::thread::spawn(move || squads.add(A, member))
+            })
+            .collect();
+        let results: Vec<_> = adds.into_iter().map(|add| add.join().unwrap()).collect();
+        assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+        assert!(results.contains(&Err(SquadError::Full)));
+        assert_eq!(squads.of(A).unwrap().members.len(), 2);
+    }
+
+    #[test]
+    fn a_member_leaving_frees_its_place() {
+        let squads = Squads::default();
+        squads.set_size(2);
+        squads.invite_accepted(A, B);
+        squads.add(A, B).unwrap();
+        squads.leave(B).unwrap();
+        // A squad of one is none: A starts a new one with C.
+        assert!(!squads.is_full(A));
+        squads.invite_accepted(A, C);
+        assert_eq!(squads.add(A, C).unwrap().members, vec![A, C]);
+    }
+
+    #[test]
+    fn the_size_is_two_or_three() {
+        let squads = Squads::default();
+        assert_eq!(squads.size(), MAX_SQUAD_MEMBERS);
+        squads.set_size(1);
+        assert_eq!(squads.size(), MIN_SQUAD_SIZE);
+        squads.set_size(10);
+        assert_eq!(squads.size(), MAX_SQUAD_MEMBERS);
+        // Three, as before.
+        squad_of(&squads, &[A, B]);
+        assert!(!squads.is_full(A));
+        squad_of(&squads, &[A, C]);
+        assert!(squads.is_full(A));
     }
 
     #[test]

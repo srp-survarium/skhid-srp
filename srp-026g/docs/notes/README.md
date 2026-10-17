@@ -130,7 +130,9 @@ Every setting has a default; none is needed on a dev PC.
   queue of the games that join matches being played, patch revision 5 or
   later (`matchmaking.md` §9).
   `SRP_SQUADS` (default on; `off`: no squads), `SRP_SQUADS_OFF_TEXT`
-  (`social.md` §9.4).
+  (`social.md` §9.4); `SRP_SQUAD_SIZE` (default 3; 2 or 3),
+  `SRP_SQUAD_FULL_TEXT` (default "Squads are limited to <size> players."):
+  the most players of a squad (`social.md` §9.8).
 - `SRP_MATCH_TEAM_SIZE` (default 10), `SRP_MATCH_SEARCH_STEP_SECONDS`
   (default 4): the sides of a match and how fast a waiting player's range
   of levels grows (`matchmaking.md`).

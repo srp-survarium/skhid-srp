@@ -120,6 +120,11 @@ RUST_LOG=info
 # No squads: an invite is refused, and its sender is told in a message box.
 # SRP_SQUADS=off
 # SRP_SQUADS_OFF_TEXT=Squads are switched off on this server.
+# The most players of a squad: 3 (the game's own limit) or 2. An invite
+# from a full squad is not passed on, and its sender is told in a message
+# box (default text: "Squads are limited to <size> players.").
+# SRP_SQUAD_SIZE=2
+# SRP_SQUAD_FULL_TEXT=Squads are limited to 2 players.
 # A game older than this patch revision (what the exe says at its sign-in)
 # is refused at its sign-in with the game's own "outdated version", and its
 # sessions from before a restart in the lobby. Left out (or 0): every game

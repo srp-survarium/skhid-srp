@@ -47,6 +47,10 @@
 //!   `50` sender at 0x28C7E1; PROVEN); then the inviter's client adds the
 //!   player (`4A 02`). The acceptance is passed on once both have come,
 //!   whichever came first.
+//!   A squad holds `SRP_SQUAD_SIZE` players (2 or 3): an invite from a
+//!   full squad is not passed on, nor an acceptance once it filled, and
+//!   the player who did it is told `SRP_SQUAD_FULL_TEXT` in the message box
+//!   of `84 49` (`social.md` §9.8).
 //!   Every change is answered with the squad info (0xA1) to each member.
 //!   A squad mate's character is shown from 0x88, which the client asks
 //!   for by the kit id of 0xA1 and files under the id of the **first kit
@@ -364,6 +368,9 @@ impl Core<'_> {
     ///   tells the inviter ("membership accepted", type 3), which is passed
     ///   on only for an invite that was accepted; the inviter's client then
     ///   adds the player (`4A 02`).
+    /// - A squad invite from a squad that has `SRP_SQUAD_SIZE` players is
+    ///   not sent: its sender is told `SRP_SQUAD_FULL_TEXT`. So is a player
+    ///   who accepts an invite of a squad that filled since.
     pub(super) fn important(
         &mut self,
         who: &Who,
@@ -409,6 +416,17 @@ impl Core<'_> {
                     self.deny(who.addr, id::PROFILE, &text);
                 }
             }
+            important::SQUAD_INVITE if self.store.squads().is_full(who.account_id) => {
+                // The squad has `SRP_SQUAD_SIZE` players: the invite goes
+                // nowhere, and the one who invites is told why.
+                log::info!(
+                    "{}: squad invite to {target_name} refused: the squad is full ({})",
+                    who.name,
+                    self.store.squads().size()
+                );
+                let text = self.squad_full_text();
+                self.deny(who.addr, id::PROFILE, &text);
+            }
             important::SQUAD_INVITE | important::SQUAD_INVITE_ACCEPTED => {
                 let target = target.filter(|target| self.by_account.contains_key(target));
                 let Some(target) = target else {
@@ -432,6 +450,18 @@ impl Core<'_> {
                 }
                 if kind == important::SQUAD_INVITE {
                     self.request(request(target));
+                } else if self.store.squads().has_accepted(target, who.account_id)
+                    && self.store.squads().is_full(target)
+                {
+                    // The inviter's squad filled since the answer: the
+                    // player who accepted is told, the inviter's client
+                    // adds nobody.
+                    log::info!(
+                        "{}: joining {target_name}'s squad refused: it is full",
+                        who.name
+                    );
+                    let text = self.squad_full_text();
+                    self.deny(who.addr, id::PROFILE, &text);
                 } else if self.store.squads().has_accepted(target, who.account_id) {
                     // The inviter's client answers it by itself and adds
                     // the player.
@@ -475,6 +505,19 @@ impl Core<'_> {
         };
         if answer != 0 {
             log::info!("{} declined a request of type {}", who.name, request.kind);
+            return;
+        }
+        if request.kind == important::SQUAD_INVITE && self.store.squads().is_full(request.from) {
+            // Another invite of the same squad was accepted first and took
+            // the last place: this acceptance is not kept nor passed on,
+            // and the player who accepted is told.
+            log::info!(
+                "{} accepted {}'s squad invite, but the squad is full",
+                who.name,
+                request.from_name
+            );
+            let text = self.squad_full_text();
+            self.deny(who.addr, id::PROFILE, &text);
             return;
         }
         if request.kind == important::SQUAD_INVITE {
@@ -699,10 +742,16 @@ impl Core<'_> {
     /// any squad refusal (not the commander, full, not invited, in a
     /// squad): its squad keys are labels and the two invite requests. So a
     /// refusal means the client's picture of the squad was old: it is sent
-    /// the squad as it is.
+    /// the squad as it is. The one exception is a full squad (two invites
+    /// accepted before either was added, `SRP_SQUAD_SIZE`): the commander,
+    /// and the player who was not added, get the same message box as for
+    /// an invite into a full squad, with `84 49`, which shows a text at any
+    /// time.
     pub(super) fn squad_action(&mut self, who: &Who, message: &ClientMessage) {
         let squads = self.store.squads();
         let me = who.account_id;
+        // The player who accepted but found the squad full (`4A 02`).
+        let mut not_added = None;
         let result = match message {
             ClientMessage::DisbandSquad => squads.disband(me),
             // Squads are off (`SRP_SQUADS`): nobody is added, whatever a
@@ -711,7 +760,13 @@ impl Core<'_> {
                 Err(SquadError::NotInvited)
             }
             ClientMessage::AddSquadMember { name } => match self.account_named(name, me) {
-                Some(member) => squads.add(me, member).map(drop),
+                Some(member) => {
+                    let added = squads.add(me, member).map(drop);
+                    if added == Err(SquadError::Full) {
+                        not_added = Some(member);
+                    }
+                    added
+                }
                 None => Err(SquadError::NotInvited),
             },
             ClientMessage::DropSquadMember { account_id } => squads.drop_member(me, *account_id),
@@ -722,6 +777,18 @@ impl Core<'_> {
             Ok(()) => log::info!("{}: squad change {message:?}", who.name),
             Err(error) => {
                 log::info!("{}: squad change {message:?} refused: {error:?}", who.name);
+                // Two accepted invites added at once, the last place taken
+                // by the first: the commander is told in the message box
+                // of `84 49` (`84 4A` shows nothing), and so is the player
+                // who accepted and was not added.
+                if error == SquadError::Full {
+                    let text = self.squad_full_text();
+                    self.deny(who.addr, id::PROFILE, &text);
+                    let member = not_added.and_then(|member| self.by_account.get(&member));
+                    if let Some(addr) = member.copied() {
+                        self.deny(addr, id::PROFILE, &text);
+                    }
+                }
                 // Its client asked for a change to a squad the server does
                 // not have as it shows it: it gets the squad as it is.
                 if let Some(player) = self.player_mut(who.addr) {

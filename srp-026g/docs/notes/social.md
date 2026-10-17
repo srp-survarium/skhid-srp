@@ -519,9 +519,12 @@ So: on the general, match and team channels a stock client lets through at most 
 | `4D` type 2 | the player ignores the sender | nothing | |
 | `4D` type 2 | squads are off (`SRP_SQUADS=off`) | `84 49 00 <SRP_SQUADS_OFF_TEXT>`, by default the sentence "Squads are switched off on this server." | the game has no text for it (9.2); a text that is no key is shown as it is (`lobby_requests.md` §4.2). The invite's button is the client's and stays. Not yet seen in a real game |
 | `4A 02` | squads are off | the squad as it is (`A1`: none), no text | the invite was already refused; this is a client that adds a player all the same |
+| `4D` type 2 | the sender's squad has `SRP_SQUAD_SIZE` players | `84 49 00 <SRP_SQUAD_FULL_TEXT>`, by default "Squads are limited to <size> players." | 9.8; the invite is not passed on |
+| `50` (answer 0 to a squad invite) or `4D` type 3 after it | the inviter's squad filled since the invite | `84 49 00 <SRP_SQUAD_FULL_TEXT>` to the player who accepted, once; nothing to the inviter | 9.8; the acceptance is not kept nor passed on |
 | `4D` type 3 (the client's own "membership accepted") | can not be passed on | nothing | not the player's act |
 | `4E 04` (ignore by a typed name) | the name is no account | `A3 08` (the list as it is), then `84 49 00 st_player_not_found` | |
-| `4A 01..04` | refused (not the commander, squad full, not invited, in no squad) | the squad as it is (`A1`), no text | `84 4A` is dropped by the client and the game has no text (9.2) |
+| `4A 02` | the squad is full (two invites accepted before either was added) | `84 49 00 <SRP_SQUAD_FULL_TEXT>` to the inviter and to the player who was not added; the inviter gets the squad as it is (`A1`) | 9.8; the one squad refusal that is told, with `84 49` (`84 4A` would be dropped) |
+| `4A 01..04` | refused (not the commander, not invited, in no squad) | the squad as it is (`A1`), no text | `84 4A` is dropped by the client and the game has no text (9.2) |
 | `3D` | the match's report is gone | nothing; but see 9.5 | 0x93 is always a player's kits (0x271A30): there is no "nothing to show" answer |
 
 0.21d (`servers/lobby-server/src/messaging_server/`) says nothing in any of these cases; 0.26g's srp now says what the game has a text for. The bytes: `84 49 00 13 "st_player_not_found"`.
@@ -565,6 +568,52 @@ deliberate exception for these lines, at the owner's request).
   those are the clan's lines) and whether `add_to_recent_list("")` (0x209330)
   is harmless. If it shows a stray colon or a blank recent contact, set
   `SRP_QUEUE_CHAT_NAME` to a short name.
+
+### 9.8 The size of a squad (`SRP_SQUAD_SIZE`, since 2026-10-17)
+
+The owner's rule (2026-10-17): squads of two, not of three. Squads were
+switched off because squads of three put strong players on one side; two
+are fine, with no change to how the sides are made (`matchmaking.md` §8.5).
+
+- **The setting.** `SRP_SQUAD_SIZE` is 2 or 3, default 3 (the client keeps
+  three members, `MAX_SQUAD_MEMBERS`; it is today's behaviour, and the live
+  server sets 2 with `SRP_SQUADS=on`). Anything else is logged and 3 is
+  used. It is given to the store's squads when the lobby starts
+  (`session::Squads::set_size`, `Core::new`). It counts only with squads
+  on: with `SRP_SQUADS=off` no invite goes out at all (9.4).
+- **When an invite is refused.** A `4D` type 2 from a player whose squad
+  already has `SRP_SQUAD_SIZE` members: the commander or any member. A
+  player in no squad always has room (an invite starts a squad of two).
+  The invite is not passed on: the invited player sees nothing.
+- **What the player sees.** The message box of `84 49 00 <text>` (9.1),
+  as for squads off: `SRP_SQUAD_FULL_TEXT`, a key of the game or a
+  sentence of up to 255 bytes (a longer or empty one is ignored), by
+  default "Squads are limited to 2 players." (the number is the size).
+  The game has no text of its own for it (9.2). The client's invite
+  button stays.
+- **Races.** Invites go out while the squad has room, so two can be out at
+  once (Alice invites Bob and Carol before either is in):
+  - The second acceptance (`50` answer 0, or the `4D` type 3 that follows
+    it) comes after the first was added: it is not kept nor passed on to
+    the inviter, and the player who accepted is told the same text, once.
+  - Both acceptances came before either was added: the inviter's client
+    sends two `4A 02`. `Squads::add` checks the size under its lock, so
+    only the first is added; the second is refused (`SquadError::Full`)
+    and its acceptance is used up (a place freed later does not take that
+    player on it). The inviter gets its squad as it is (`A1`) and the
+    same message box, and so does the player who was not added.
+- **Leaving frees the place.** A member leaving (`4A 04`), dropped (`4A
+  03`), or the squad disbanded (`4A 01`): the next invite goes out. A
+  squad of one is none (`squads.rs`), so its last player is
+  in no squad and starts a new one.
+- **A smaller size while squads are bigger** (only across a restart, which
+  ends every squad anyway): a squad keeps its members and takes nobody new
+  until it is under the size.
+
+Tests: `session::squads` (`a_squad_of_two_takes_nobody_more`,
+`two_invites_added_from_two_threads_make_one_squad_of_two`,
+`a_member_leaving_frees_its_place`, `the_size_is_two_or_three`) and the
+lobby's `core_tests::squad_size_tests`.
 
 ## Correction (2026-10-12): the order of an accepted squad invite
 

@@ -80,7 +80,9 @@
 //!   for another before it goes in (`play.rs`);
 //! - `SRP_SQUADS` (default on), `SRP_SQUADS_OFF_TEXT`: with `off` nobody
 //!   is invited to a squad, and the one who tries is told so in a message
-//!   box (`social.rs`);
+//!   box (`social.rs`); `SRP_SQUAD_SIZE` (default 3, 2 or 3),
+//!   `SRP_SQUAD_FULL_TEXT`: the most players of a squad, and what the one
+//!   who invites somebody more is told;
 //! - `SRP_MIN_PATCH_REVISION` (default none; not a number from 0 to 255,
 //!   or one under the newest patch of the game data, stops srp
 //!   (`check_min_patch_revision`)): a game older than that patch revision
@@ -163,7 +165,7 @@ use session::v026g::balance::Weights;
 use session::v026g::matchmaking::{DEFAULT_MAP_SKEW, MAX_MAP_SKEW};
 use session::v026g::replays::Replays;
 use session::v026g::rewards::Results;
-use session::{LockExt, SessionStore};
+use session::{LockExt, MAX_SQUAD_MEMBERS, MIN_SQUAD_SIZE, SessionStore};
 use survarium::v026g::lobby::ServerMessage;
 use survarium::v026g::maps;
 use udp_transport::PacketLog;
@@ -255,6 +257,14 @@ pub struct Settings {
     /// What the message box of a refused squad invite says: a text key of
     /// the game, or a sentence (`SRP_SQUADS_OFF_TEXT`).
     pub squads_off_text: String,
+    /// The most players of a squad, 2 or 3 (`SRP_SQUAD_SIZE`, default 3:
+    /// the client's own limit). Given to the store's squads when the lobby
+    /// starts (`Core::new`).
+    pub squad_size: usize,
+    /// What the message box of an invite into a full squad says: a text
+    /// key of the game, or a sentence (`SRP_SQUAD_FULL_TEXT`). None: the
+    /// sentence of [`squad_full_text_for`], from the size.
+    pub squad_full_text: Option<String>,
     /// The match server's own bots put into each match made
     /// (`SRP_SERVER_BOTS`, default 0; testing only).
     pub server_bots: u8,
@@ -438,6 +448,28 @@ impl Settings {
         if !squads {
             log::info!("Squads are off: an invite is refused with `{squads_off_text}`");
         }
+        let squad_size = match var("SRP_SQUAD_SIZE") {
+            Some(value) => parse_squad_size(&value).unwrap_or_else(|| {
+                log::error!(
+                    "SRP_SQUAD_SIZE is `{value}`; it must be {MIN_SQUAD_SIZE} or \
+                     {MAX_SQUAD_MEMBERS}. Using {MAX_SQUAD_MEMBERS}"
+                );
+                MAX_SQUAD_MEMBERS
+            }),
+            None => MAX_SQUAD_MEMBERS,
+        };
+        let squad_full_text = var("SRP_SQUAD_FULL_TEXT")
+            .map(|text| text.trim().to_owned())
+            .filter(|text| !text.is_empty() && text.len() <= 255);
+        if squads {
+            log::info!(
+                "A squad has at most {squad_size} players: an invite into a full one is refused \
+                 with `{}`",
+                squad_full_text
+                    .clone()
+                    .unwrap_or_else(|| squad_full_text_for(squad_size))
+            );
+        }
         let most_bots = (session::MAX_PLAYERS_PER_MATCH - 1) as u8;
         let server_bots = match var("SRP_SERVER_BOTS") {
             Some(value) => match value.trim().parse::<u8>() {
@@ -463,6 +495,8 @@ impl Settings {
             late_join_patience,
             squads,
             squads_off_text,
+            squad_size,
+            squad_full_text,
             queue_chat,
             queue_chat_name,
             min_patch_revision,
@@ -502,6 +536,8 @@ impl Settings {
             late_join_patience: DEFAULT_LATE_JOIN_PATIENCE,
             squads: true,
             squads_off_text: DEFAULT_SQUADS_OFF_TEXT.to_owned(),
+            squad_size: MAX_SQUAD_MEMBERS,
+            squad_full_text: None,
             server_bots: 0,
             pvb: pvb::Config::default(),
         }
@@ -512,6 +548,21 @@ impl Settings {
 /// no text of its own for it (`social.md` §9.2), and its client shows a
 /// text that is no key of its as it is (`lobby_requests.md` §4.2).
 pub const DEFAULT_SQUADS_OFF_TEXT: &str = "Squads are switched off on this server.";
+
+/// What an invite into a full squad says when `SRP_SQUAD_FULL_TEXT` is not
+/// set. The game has no text for it either (`social.md` §9.2).
+pub fn squad_full_text_for(size: usize) -> String {
+    format!("Squads are limited to {size} players.")
+}
+
+/// `SRP_SQUAD_SIZE`: 2 or 3 (the client keeps three members).
+fn parse_squad_size(value: &str) -> Option<usize> {
+    value
+        .trim()
+        .parse::<usize>()
+        .ok()
+        .filter(|size| (MIN_SQUAD_SIZE..=MAX_SQUAD_MEMBERS).contains(size))
+}
 
 /// A `SRP_BALANCE_*` number: 0 to 1000.
 fn parse_weight(value: &str) -> Option<f64> {

@@ -354,6 +354,11 @@ With the "settled" line (the winner) it is what a later fit needs.
 sides from being made even; with them on, a squad is still one side and
 the rule above works around it.
 
+`SRP_SQUAD_SIZE=2` (the owner, 2026-10-17): squads of two, not three. A
+squad of three was what put strong players on one side; two are fine, and
+nothing here changes for them (a squad of two is one side as before). The
+invite that would make a third is refused (`social.md` §9.8).
+
 ### 8.6 Not done
 
 - (Done 2026-10-13: late joins are placed by this number too, §9.)

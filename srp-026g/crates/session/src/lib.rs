@@ -46,7 +46,7 @@ pub use matchmaking::{
 };
 use persist::{AccountRecord, AccountRepository, PersistError, StoredSession};
 pub use reports::{MatchReport, Reports};
-pub use squads::{MAX_SQUAD_MEMBERS, Squad, SquadError, Squads};
+pub use squads::{MAX_SQUAD_MEMBERS, MIN_SQUAD_SIZE, Squad, SquadError, Squads};
 
 /// Locking that survives a panic. The servers share this state across
 /// threads, and a thread that panics while holding a lock poisons it; with
