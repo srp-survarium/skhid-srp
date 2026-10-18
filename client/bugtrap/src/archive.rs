@@ -241,6 +241,29 @@ impl Record {
         }
     }
 }
+// Distinct from OS I/O errors so the summary explains why this source was omitted.
+const LOG_ZIP_LIMIT: u32 = 0xE000_0101;
+struct LimitedSink<'a> {
+    file: &'a mut File,
+    left: u64,
+    deadline: u64,
+}
+impl Sink for LimitedSink<'_> {
+    fn write(&mut self, bytes: &[u8]) -> Result<(), u32> {
+        // Check BEFORE handing a block to WriteFile; an incompressible source
+        // cannot temporarily grow the archive past the compressed budget.
+        if bytes.len() as u64 > self.left {
+            return Err(LOG_ZIP_LIMIT);
+        }
+        if unsafe { GetTickCount64() } > self.deadline {
+            return Err(ERROR_TIMEOUT);
+        }
+        self.file.write(bytes)?;
+        self.left -= bytes.len() as u64;
+        Ok(())
+    }
+}
+
 unsafe fn append(
     src: &mut dyn Source,
     size: u64,
@@ -248,13 +271,28 @@ unsafe fn append(
     record: &mut Record,
     offset: u32,
     words: &mut [u32],
+    budget: Option<(u64, u64)>,
 ) -> Result<u32, u32> {
     record.offset = offset;
     out.seek(offset as i64)?;
     let mut local = [0; zip::LOCAL_MAX];
     let n = zip::local_header(&record.entry(), &mut local);
+    let mut central = [0; zip::TAIL_MAX];
+    let overhead = n as u64 + zip::central(&record.entry(), offset, &mut central) as u64;
+    let (limit, deadline) = budget.unwrap_or((u64::MAX, out.deadline));
+    if overhead > limit {
+        return Err(LOG_ZIP_LIMIT);
+    }
     out.write(&local[..n])?;
-    let sum = zip::deflate(src, out, &mut Memory::new(words))?;
+    let sum = zip::deflate(
+        src,
+        &mut LimitedSink {
+            file: out,
+            left: limit - overhead,
+            deadline,
+        },
+        &mut Memory::new(words),
+    )?;
     let end = offset as u64 + n as u64 + sum.packed;
     if sum.size != size {
         return Err(ERROR_HANDLE_EOF);
@@ -298,24 +336,26 @@ unsafe fn write(
     records[0].len = name.len();
     records[0].time = time;
     records[0].date = date;
-    let mut offset = append(dump, size, out, &mut records[0], 0, words)?;
+    let mut offset = append(dump, size, out, &mut records[0], 0, words, None)?;
     let mut count = 1;
     let mut sources = 0;
     let mut manifest = crate::logs::Manifest::new();
     let _ = writeln!(
         manifest,
-        "SRP crash log collection\nPolicy: recent 48 hours; newest 32 matching files; whole files up to 2 MiB; otherwise first 64 KiB plus last 1984 KiB; 16 MiB total; 5 second collection budget.\nOnly named game/launcher/updater/render logs and game journals in fixed locations. No recursion.\nCaptured bytes may omit buffered writes. head-/tail- pieces preserve startup diagnostics and crash context; their boundary lines can be partial.\n"
+        "SRP crash log collection\nPolicy: recent 48 hours; newest 32 matching files; whole sources; 16 MiB compressed log ZIP contribution (headers included, summary separate); 256 MiB source bytes read including failed attempts; 5 second collection budget.\nOnly named game/launcher/updater/render logs and game journals in fixed locations. No recursion.\nWhole files preserve startup diagnostics and crash context. Buffered writes may be missing. Over-budget or failed sources are omitted atomically, never truncated.\n"
     );
     let log_deadline = out.deadline.min(GetTickCount64() + 5_000);
     let mut folders = crate::logs::folders();
     let candidates = crate::logs::recent(&mut folders, log_deadline, &mut manifest);
-    let mut budget = crate::logs::TOTAL_BYTES;
+    let mut packed_left = crate::logs::PACKED_BYTES;
+    let mut input_left = crate::logs::INPUT_BYTES;
+    let mut included_input = 0;
     for candidate in &candidates {
         if candidate.len == 0 {
             break;
         }
         let record = &mut records[count];
-        record.len = candidate.zip_name(b"", &mut record.name);
+        record.len = candidate.zip_name(&mut record.name);
         let label = core::str::from_utf8(&record.name[..record.len]).unwrap_or("invalid name");
         if GetTickCount64() > log_deadline {
             let _ = writeln!(manifest, "skipped {}: time limit", label);
@@ -367,90 +407,62 @@ unsafe fn write(
                 continue;
             }
         };
-        let keep = original.min(crate::logs::MAX_BYTES);
-        if keep > budget {
+        if original > input_left {
             CloseHandle(handle);
             let _ = writeln!(
                 manifest,
-                "skipped {}: total-byte limit (need {}, remaining {})",
-                label, keep, budget
+                "skipped {}: input-processing limit (source {}, remaining {})",
+                label, original, input_left
             );
             continue;
         }
-        let parts = if original > crate::logs::MAX_BYTES {
-            [
-                (0, crate::logs::HEAD_BYTES, b"head-".as_slice()),
-                (
-                    original - crate::logs::TAIL_BYTES,
-                    crate::logs::TAIL_BYTES,
-                    b"tail-".as_slice(),
-                ),
-            ]
+        log.left = original;
+        record.time = time;
+        record.date = date;
+        let result = if record.len == 0 {
+            Err(ERROR_INVALID_NAME)
         } else {
-            [(0, original, b"".as_slice()), (0, 0, b"".as_slice())]
+            append(
+                &mut log,
+                original,
+                out,
+                record,
+                offset,
+                words,
+                Some((packed_left, log_deadline)),
+            )
         };
-        let pieces = if original > crate::logs::MAX_BYTES {
-            2
-        } else {
-            1
-        };
-        let mut next = offset;
-        let result = (|| {
-            for (i, &(start, size, prefix)) in parts[..pieces].iter().enumerate() {
-                log.seek(start as i64)?;
-                log.left = size;
-                let record = &mut records[count + i];
-                record.len = candidate.zip_name(prefix, &mut record.name);
-                if record.len == 0 {
-                    return Err(ERROR_INVALID_NAME);
-                }
-                record.time = time;
-                record.date = date;
-                next = append(&mut log, size, out, record, next, words)?;
-            }
-            Ok::<(), u32>(())
-        })();
+        // Read work is never refunded when an attempted source is rolled back.
+        let consumed = original - log.left;
+        input_left -= consumed;
         CloseHandle(handle);
+        let label = core::str::from_utf8(&record.name[..record.len]).unwrap_or("invalid name");
         match result {
-            Ok(()) => {
-                if pieces == 2 {
-                    let mut name = [0; zip::MAX_NAME];
-                    let len = candidate.zip_name(b"", &mut name);
-                    let label = core::str::from_utf8(&name[..len]).unwrap_or("invalid name");
-                    let _ = writeln!(
-                        manifest,
-                        "split {}: omitted_middle_offset={}, omitted_middle_bytes={}",
-                        label,
-                        crate::logs::HEAD_BYTES,
-                        original - keep
-                    );
-                }
-                for (i, &(start, size, _)) in parts[..pieces].iter().enumerate() {
-                    let record = &records[count + i];
-                    let label =
-                        core::str::from_utf8(&record.name[..record.len]).unwrap_or("invalid name");
-                    let _ = writeln!(
-                        manifest,
-                        "included {}: source_bytes={}, included_bytes={}, start_offset={}",
-                        label, original, size, start
-                    );
-                }
-                budget -= keep;
+            Ok(next) => {
+                let mut central = [0; zip::TAIL_MAX];
+                let contribution = (next - offset) as u64
+                    + zip::central(&record.entry(), record.offset, &mut central) as u64;
+                let _ = writeln!(
+                    manifest,
+                    "included {}: source_bytes={}, compressed_zip_bytes={}",
+                    label, original, contribution
+                );
+                packed_left -= contribution;
+                included_input += original;
                 offset = next;
-                count += pieces;
+                count += 1;
                 sources += 1;
             }
             Err(error) => {
-                // A source is atomic: if its tail fails, remove its successful
-                // head as well. Metadata and budget are committed only above.
-                let record = &mut records[count];
-                record.len = candidate.zip_name(b"", &mut record.name);
-                let label =
-                    core::str::from_utf8(&record.name[..record.len]).unwrap_or("invalid name");
+                let reason = match error {
+                    LOG_ZIP_LIMIT => "compressed ZIP limit",
+                    ERROR_TIMEOUT => "time limit",
+                    _ => "read/append failure",
+                };
                 let _ = writeln!(
                     manifest,
-                    "skipped {}: read/append error {} (all pieces rolled back)",
-                    label, error
+                    "skipped {}: {} (error {}, input_bytes_read={}, source rolled back)",
+                    label, reason, error, consumed
                 );
                 out.seek(offset as i64)?;
                 if SetEndOfFile(out.handle) == 0 {
@@ -461,10 +473,11 @@ unsafe fn write(
     }
     let _ = writeln!(
         manifest,
-        "Included logs: {}; log members: {}; total log bytes: {}",
+        "Included logs: {}; included_source_bytes={}; compressed_log_zip_bytes={}; input_bytes_processed={}",
         sources,
-        count - 1,
-        crate::logs::TOTAL_BYTES - budget
+        included_input,
+        crate::logs::PACKED_BYTES - packed_left,
+        crate::logs::INPUT_BYTES - input_left
     );
     let record = &mut records[count];
     let name = b"logs/collection.txt";
@@ -479,6 +492,7 @@ unsafe fn write(
         record,
         offset,
         words,
+        None,
     )?;
     count += 1;
     let records = &records[..count];

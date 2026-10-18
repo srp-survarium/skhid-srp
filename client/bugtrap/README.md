@@ -124,26 +124,31 @@ A dump is about 160–190 MB (it holds the game's data segments); zipped, it is
   transaction journals, settings, screenshots, other extensions and unrelated
   files are excluded. Directories and reparse points are excluded when Windows
   reports them as such; Wine may expose host symlinks as ordinary files.
-- Bounds and omissions: files up to 2 MiB are included whole. Larger files
-  contribute two separate members: `head-<name>` contains the first 64 KiB,
-  and `tail-<name>` contains the last 1984 KiB. This preserves startup diagnostics
-  (including actual memory-arena sizes) together with the context near the crash.
-  Up to 32 source files and 16 MiB total log payload are included, plus a bounded
-  collection summary; source and ZIP-member counts are tracked separately.
-  A source that cannot fit the remaining byte budget is skipped whole, allowing
-  later smaller files to fit. Original logs are never
-  changed or deleted. Each source has its own ZIP subfolder, such as
-  `logs/documents/` and `logs/game-exe/`, so identical filenames cannot collide.
-  Head/tail boundary lines can be partial. `logs/collection.txt` records each
-  member's source size, included bytes and starting offset, the omitted middle's
-  offset and size, reasons for skipped selected sources, and
-  per-folder missing/unavailable status, stale counts, scan errors and the
-  number omitted by the file limit. It is included even when no logs are found.
+- Bounds and omissions: logs are captured **whole**, preserving startup
+  diagnostics, the intervening session and crash context. There is no per-file
+  raw-size truncation and no 16-MiB raw-total limit. Instead, up to 32 recent
+  sources may contribute **16 MiB of compressed ZIP bytes**, including each
+  log's local header, compressed data and central-directory record. Streaming
+  writes enforce that bound before a block reaches `WriteFile`, rather than
+  compressing an oversized source completely and checking afterward.
+  The dump and a separately bounded 32-KiB collection summary are outside that
+  log-byte allowance. Original logs are never changed or deleted.
+- Work limit: at most 256 MiB of source bytes are read across all attempts,
+  including reads from a source whose ZIP member is later rolled back.
+  A source larger than the remaining input allowance is omitted before reading.
+  A source exceeding the compressed, input or time budget is omitted whole;
+  no head/tail fragments or retry are substituted. Failed output is removed,
+  and later small files remain eligible when time and input budget permit.
+  Each location has its own ZIP subfolder (`logs/documents/`, `logs/game-exe/`,
+  etc.) so identical filenames cannot collide. `logs/collection.txt` records
+  each included source's full size and ZIP contribution, omission reasons,
+  processed-input totals, and per-folder missing/unavailable status, stale
+  counts, scan errors and files omitted by the count limit. The summary is
+  included even when no logs are available.
 - Live files: shared reads capture the active log when its writer permits them.
   A size snapshot bounds concurrent appends; a shrinking or unreadable file is
-  skipped atomically: both its head and tail are removed if either read fails.
-  Missing or locked
-  logs do not discard the dump ZIP. Collection gets up to five seconds of the
+  skipped atomically: its partial ZIP member is removed on any read failure.
+  Missing or locked logs do not discard the dump ZIP. Collection gets up to five seconds of the
   archive's 60-second deadline. OS file calls are synchronous, so a blocked
   disk/network call can exceed that deadline. Buffered bytes not yet written
   by the game cannot be recovered; no game logging lock is acquired.
@@ -294,7 +299,7 @@ Python's `zipfile` read a 40 MB ZIP made as the DLL makes it (when `python3` is
 on PATH).
 
 Every crash case reads its dump out of the `.zip` with `zipfile` (CRC checked,
-one dump member named like the ZIP, not UTF-8 flagged; up to 32 log sources (up to two members each) and the collection summary) and checks that no `.dmp` or
+one dump member named like the ZIP, not UTF-8 flagged; up to 32 whole log members and the collection summary) and checks that no `.dmp` or
 `.part` file is left. The twenty crash cases verify exception codes and thread
 IDs, module presence, the game error comment, callback ordering, stack overflow, dialog closure, repeated
 crashes, Unicode paths, a different working directory, read-only EXE fallback,
@@ -322,11 +327,15 @@ WINEPREFIX=/path/to/disposable-prefix python3 tests/check_logs.py target/i686-pc
 ```
 
 This test redirects **that disposable prefix's Documents folder** to temporary
-fixtures. It checks absent logs, Documents and game-folder coverage, 32-file/16-MiB bounds, age and filename
-filtering, Unicode paths/names, journals, exact oversized head/tail bytes, the whole-file 2-MiB boundary,
-manifest outcomes, writer sharing and exclusive locks, injected head and tail
-failures with whole-source rollback, admission under a partly used byte budget, directory
-exclusion, and that original logs remain untouched.
+fixtures. It checks absent logs, Documents and game-folder coverage, age and
+filename filtering, Unicode paths/names, journals, manifest outcomes, writer
+sharing and exclusive locks, injected read/time failures with whole-source
+rollback and input accounting, directory exclusion and unchanged originals.
+Two compressible logs larger than 16 MiB each are recovered byte-for-byte.
+An incompressible source exceeds the ZIP cap, while a `WriteFile` hook checks
+that streaming writes never cross it; a later small source still fits.
+A sparse source larger than 256 MiB is omitted before reading. The tests also
+check the 32-file bound and count omitted candidates.
 Python `zipfile` checks every member and its CRC.
 
 For an **idle, disposable installed 0.26g client** with `survarium_skhid.exe`:
