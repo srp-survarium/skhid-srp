@@ -5,11 +5,12 @@
 #include <string.h>
 static BY_HANDLE_FILE_INFORMATION target;
 static unsigned reads;
+static unsigned failAfter = 1;
 static BOOL WINAPI FailLogRead(HANDLE file, LPVOID data, DWORD size, LPDWORD got, LPOVERLAPPED overlap) {
     BY_HANDLE_FILE_INFORMATION info;
     if (GetFileInformationByHandle(file, &info) && info.dwVolumeSerialNumber == target.dwVolumeSerialNumber
         && info.nFileIndexLow == target.nFileIndexLow && info.nFileIndexHigh == target.nFileIndexHigh
-        && reads++ != 0) {
+        && reads++ >= failAfter) {
         *got = 0;
         SetLastError(ERROR_READ_FAULT);
         return FALSE;
@@ -64,11 +65,14 @@ int wmain(int argc, wchar_t** argv) {
         log = CreateFileW(argv[3], GENERIC_READ | GENERIC_WRITE, share, NULL, OPEN_EXISTING, 0, NULL);
         if (log == INVALID_HANDLE_VALUE) return 6;
     }
-    if (!wcscmp(argv[2], L"readfail")) {
+    bool inject = !wcscmp(argv[2], L"readfail") || !wcscmp(argv[2], L"tailfail") || !wcscmp(argv[2], L"headfail");
+    if (!wcscmp(argv[2], L"tailfail")) failAfter = 2;
+    if (!wcscmp(argv[2], L"headfail")) failAfter = 0;
+    if (inject) {
         if (!GetFileInformationByHandle(log, &target) || !InjectReadFailure(dll)) return 8;
     }
     BOOL ok = snapshot(NULL);
-    if (!wcscmp(argv[2], L"readfail") && reads < 2) return 9;
+    if (inject && reads <= failAfter) return 9;
     if (log != INVALID_HANDLE_VALUE) CloseHandle(log);
     return ok ? 0 : 7;
 }

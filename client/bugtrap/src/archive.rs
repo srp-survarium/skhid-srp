@@ -259,7 +259,7 @@ unsafe fn append(
     if sum.size != size {
         return Err(ERROR_HANDLE_EOF);
     }
-    if end + ((crate::logs::COUNT + 2) * zip::TAIL_MAX) as u64 > u32::MAX as u64 {
+    if end + (crate::logs::MAX_MEMBERS * zip::TAIL_MAX) as u64 > u32::MAX as u64 {
         return Err(zip::ERROR_FILE_TOO_LARGE);
     }
     record.crc = sum.crc;
@@ -293,17 +293,18 @@ unsafe fn write(
         now.wMinute,
         now.wSecond,
     );
-    let mut records = [const { Record::EMPTY }; crate::logs::COUNT + 2];
+    let mut records = [const { Record::EMPTY }; crate::logs::MAX_MEMBERS];
     records[0].name[..name.len()].copy_from_slice(name);
     records[0].len = name.len();
     records[0].time = time;
     records[0].date = date;
     let mut offset = append(dump, size, out, &mut records[0], 0, words)?;
     let mut count = 1;
+    let mut sources = 0;
     let mut manifest = crate::logs::Manifest::new();
     let _ = writeln!(
         manifest,
-        "SRP crash log collection\nPolicy: recent 48 hours; newest 32 matching files; last 2 MiB per file; 16 MiB total; 5 second collection budget.\nOnly named game/launcher/updater/render logs and game journals in fixed locations. No recursion.\nCaptured bytes may omit buffered writes. tail- files can start mid-line.\n"
+        "SRP crash log collection\nPolicy: recent 48 hours; newest 32 matching files; whole files up to 2 MiB; otherwise first 64 KiB plus last 1984 KiB; 16 MiB total; 5 second collection budget.\nOnly named game/launcher/updater/render logs and game journals in fixed locations. No recursion.\nCaptured bytes may omit buffered writes. head-/tail- pieces preserve startup diagnostics and crash context; their boundary lines can be partial.\n"
     );
     let log_deadline = out.deadline.min(GetTickCount64() + 5_000);
     let mut folders = crate::logs::folders();
@@ -314,15 +315,10 @@ unsafe fn write(
             break;
         }
         let record = &mut records[count];
-        record.len = candidate.zip_name(false, &mut record.name);
+        record.len = candidate.zip_name(b"", &mut record.name);
         let label = core::str::from_utf8(&record.name[..record.len]).unwrap_or("invalid name");
-        if GetTickCount64() > log_deadline || budget == 0 {
-            let _ = writeln!(
-                manifest,
-                "skipped {}: {} limit",
-                label,
-                if budget == 0 { "total-byte" } else { "time" }
-            );
+        if GetTickCount64() > log_deadline {
+            let _ = writeln!(manifest, "skipped {}: time limit", label);
             continue;
         }
         let mut path = Wide::<1024>::new();
@@ -352,8 +348,7 @@ unsafe fn write(
             deadline: log_deadline,
             left: 0,
         };
-        let (mut original, mut keep) = (0, 0);
-        let result = (|| {
+        let original = (|| {
             if GetFileInformationByHandle(handle, &mut info) == 0 {
                 return Err(GetLastError());
             }
@@ -362,37 +357,101 @@ unsafe fn write(
             {
                 return Err(ERROR_INVALID_DATA);
             }
-            original = log.size()?;
-            keep = original.min(crate::logs::MAX_BYTES).min(budget);
-            log.seek((original - keep) as i64)?;
-            log.left = keep;
-            record.len = candidate.zip_name(original > keep, &mut record.name);
-            if record.len == 0 {
-                return Err(ERROR_INVALID_NAME);
+            log.size()
+        })();
+        let original = match original {
+            Ok(size) => size,
+            Err(error) => {
+                CloseHandle(handle);
+                let _ = writeln!(manifest, "skipped {}: metadata error {}", label, error);
+                continue;
             }
-            record.time = time;
-            record.date = date;
-            append(&mut log, keep, out, record, offset, words)
+        };
+        let keep = original.min(crate::logs::MAX_BYTES);
+        if keep > budget {
+            CloseHandle(handle);
+            let _ = writeln!(
+                manifest,
+                "skipped {}: total-byte limit (need {}, remaining {})",
+                label, keep, budget
+            );
+            continue;
+        }
+        let parts = if original > crate::logs::MAX_BYTES {
+            [
+                (0, crate::logs::HEAD_BYTES, b"head-".as_slice()),
+                (
+                    original - crate::logs::TAIL_BYTES,
+                    crate::logs::TAIL_BYTES,
+                    b"tail-".as_slice(),
+                ),
+            ]
+        } else {
+            [(0, original, b"".as_slice()), (0, 0, b"".as_slice())]
+        };
+        let pieces = if original > crate::logs::MAX_BYTES {
+            2
+        } else {
+            1
+        };
+        let mut next = offset;
+        let result = (|| {
+            for (i, &(start, size, prefix)) in parts[..pieces].iter().enumerate() {
+                log.seek(start as i64)?;
+                log.left = size;
+                let record = &mut records[count + i];
+                record.len = candidate.zip_name(prefix, &mut record.name);
+                if record.len == 0 {
+                    return Err(ERROR_INVALID_NAME);
+                }
+                record.time = time;
+                record.date = date;
+                next = append(&mut log, size, out, record, next, words)?;
+            }
+            Ok::<(), u32>(())
         })();
         CloseHandle(handle);
-        let label = core::str::from_utf8(&record.name[..record.len]).unwrap_or("invalid name");
         match result {
-            Ok(next) => {
-                let _ = writeln!(
-                    manifest,
-                    "included {}: source_bytes={}, included_bytes={}, start_offset={}",
-                    label,
-                    original,
-                    keep,
-                    original - keep
-                );
+            Ok(()) => {
+                if pieces == 2 {
+                    let mut name = [0; zip::MAX_NAME];
+                    let len = candidate.zip_name(b"", &mut name);
+                    let label = core::str::from_utf8(&name[..len]).unwrap_or("invalid name");
+                    let _ = writeln!(
+                        manifest,
+                        "split {}: omitted_middle_offset={}, omitted_middle_bytes={}",
+                        label,
+                        crate::logs::HEAD_BYTES,
+                        original - keep
+                    );
+                }
+                for (i, &(start, size, _)) in parts[..pieces].iter().enumerate() {
+                    let record = &records[count + i];
+                    let label =
+                        core::str::from_utf8(&record.name[..record.len]).unwrap_or("invalid name");
+                    let _ = writeln!(
+                        manifest,
+                        "included {}: source_bytes={}, included_bytes={}, start_offset={}",
+                        label, original, size, start
+                    );
+                }
                 budget -= keep;
                 offset = next;
-                count += 1;
+                count += pieces;
+                sources += 1;
             }
             Err(error) => {
-                let _ = writeln!(manifest, "skipped {}: read/append error {}", label, error);
-                // Remove a partial member before continuing the valid dump ZIP.
+                // A source is atomic: if its tail fails, remove its successful
+                // head as well. Metadata and budget are committed only above.
+                let record = &mut records[count];
+                record.len = candidate.zip_name(b"", &mut record.name);
+                let label =
+                    core::str::from_utf8(&record.name[..record.len]).unwrap_or("invalid name");
+                let _ = writeln!(
+                    manifest,
+                    "skipped {}: read/append error {} (all pieces rolled back)",
+                    label, error
+                );
                 out.seek(offset as i64)?;
                 if SetEndOfFile(out.handle) == 0 {
                     return Err(GetLastError());
@@ -402,7 +461,8 @@ unsafe fn write(
     }
     let _ = writeln!(
         manifest,
-        "Included logs: {}; total log bytes: {}",
+        "Included logs: {}; log members: {}; total log bytes: {}",
+        sources,
         count - 1,
         crate::logs::TOTAL_BYTES - budget
     );

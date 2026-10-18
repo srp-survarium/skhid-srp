@@ -68,10 +68,17 @@ with tempfile.TemporaryDirectory(prefix="srp-log-test-") as temporary:
              "survarium_launcher_Жółw.log": b"launcher"}
     for index, (name, data) in enumerate(small.items()):
         add(name, data, 30 + index)
-    big = b"omitted prefix" * 100 + b"tail of game log\r\n" * 150000
+    big = b"startup memory arena budget\r\n" * 3000 + b"middle of game log\r\n" * 150000 + b"crash context\r\n" * 5000
     current = add("Survarium_current.log", big, 10)
     expected = {"logs/documents/" + n: data for n, data in small.items()}
-    expected["logs/documents/tail-Survarium_current.log"] = big[-2 * 1024 * 1024:]
+    def parts(name, data):
+        return {"logs/documents/head-" + name: data[:64 * 1024],
+                "logs/documents/tail-" + name: data[-(2 * 1024 * 1024 - 64 * 1024):]}
+    expected.update(parts("Survarium_current.log", big))
+    boundary = b"whole log boundary\r\n" * 120000
+    boundary = boundary[:2 * 1024 * 1024]
+    add("Survarium_boundary.log", boundary, 25)
+    expected["logs/documents/Survarium_boundary.log"] = boundary
     for where, scope, name in ((game, "game-exe", "updater_skhid.log"),
                                (game, "game-exe", "survarium_skhid_d3d11.log"),
                                (game_root, "game-root", "survarium_skhid_dxgi.log"),
@@ -81,13 +88,14 @@ with tempfile.TemporaryDirectory(prefix="srp-log-test-") as temporary:
         expected[f"logs/{scope}/{name}"] = b"diagnostic " + scope.encode()
     # CWD is the install root; arbitrary CWD files are still not collected.
     add("other.log", b"unrelated", 0, root)
-    check(expected, "readable", current, ("start_offset=", "Included logs: 11"))
+    check(expected, "readable", current, ("omitted_middle_offset=65536, omitted_middle_bytes=" + str(len(big) - 2 * 1024 * 1024), "included_bytes=65536, start_offset=0", "included_bytes=2031616, start_offset=", "Included logs: 12" ))
     assert current.read_bytes() == big
-    print("PASS 11 logs from Documents/EXE/game/install/temp, journal, Unicode, tail and active writer", flush=True)
-    no_current = {k: v for k, v in expected.items() if "tail-" not in k}
+    print("PASS 12 logs from Documents/EXE/game/install/temp, journal, Unicode, exact head/tail bytes, whole 2 MiB boundary and active writer", flush=True)
+    no_current = {k: v for k, v in expected.items() if "Survarium_current.log" not in k}
     check(no_current, "locked", current, ("skipped logs/documents/Survarium_current.log: open error",))
-    check(no_current, "readfail", current, ("read/append error",))
-    print("PASS exclusive lock and mid-read failure: valid dump/remaining logs, skipped-file reasons", flush=True)
+    for failure in ("headfail", "readfail", "tailfail"):
+        check(no_current, failure, current, ("all pieces rolled back",))
+    print("PASS exclusive lock, head failure and early/mid-tail failures: valid dump/remaining logs, skipped-file reasons", flush=True)
     # Wine exposes Unix symlinks as ordinary files; they cannot test Windows reparse flags.
     (folder / "Survarium_directory.log").mkdir()
     add("Survarium.log", b"", 0)
@@ -114,6 +122,31 @@ with tempfile.TemporaryDirectory(prefix="srp-log-test-") as temporary:
         name = f"Survarium_budget{i}.log"
         add(name, big, i)
         if i < 8:
-            expected["logs/documents/tail-" + name] = big[-2 * 1024 * 1024:]
+            expected.update(parts(name, big))
     check(expected, messages=("total-byte limit", "total log bytes: 16777216"))
     print("PASS 16 MiB total bound with skipped-file summary", flush=True)
+    (folder / "Survarium_budget8.log").unlink()
+    for i in range(24):
+        name = f"Survarium_empty{i:02}.log"
+        add(name, b"", 20 + i)
+        expected["logs/documents/" + name] = b""
+    check(expected, messages=("Included logs: 32; log members: 40", "total log bytes: 16777216"))
+    print("PASS 32 sources / 40 log members with unchanged payload bound", flush=True)
+    # Remaining budget cannot force a small source to become a partial log.
+    # A skipped larger source also must not prevent later whole files fitting.
+    for path in folder.glob("*.log"):
+        if path.is_file():
+            path.unlink()
+    expected = {}
+    for i in range(7):
+        name = f"Survarium_budget{i}.log"
+        add(name, big, i)
+        expected.update(parts(name, big))
+    for name, data, age in (("Survarium_first.log", b"a" * (1536 * 1024), 10),
+                            ("Survarium_skip.log", b"b" * (1024 * 1024), 11),
+                            ("Survarium_last.log", b"c" * (512 * 1024), 12)):
+        add(name, data, age)
+        if "skip" not in name:
+            expected["logs/documents/" + name] = data
+    check(expected, messages=("Survarium_skip.log: total-byte limit", "total log bytes: 16777216"))
+    print("PASS whole-source budget admission, later small files still included", flush=True)

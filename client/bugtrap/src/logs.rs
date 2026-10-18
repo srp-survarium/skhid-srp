@@ -15,6 +15,9 @@ use windows_sys::Win32::{
 
 pub const COUNT: usize = 32;
 pub const MAX_BYTES: u64 = 2 * 1024 * 1024;
+pub const HEAD_BYTES: u64 = 64 * 1024;
+pub const TAIL_BYTES: u64 = MAX_BYTES - HEAD_BYTES;
+pub const MAX_MEMBERS: usize = COUNT * 2 + 2; // two pieces per source, dump, summary
 pub const TOTAL_BYTES: u64 = 16 * 1024 * 1024;
 const AGE: u64 = 48 * 60 * 60 * 10_000_000;
 pub const SCOPES: [&str; 5] = [
@@ -26,13 +29,13 @@ pub const SCOPES: [&str; 5] = [
 ];
 
 pub struct Manifest {
-    pub buf: [u8; 32768],
+    pub buf: [u8; 65536],
     pub len: usize,
 }
 impl Manifest {
     pub fn new() -> Self {
         Self {
-            buf: [0; 32768],
+            buf: [0; 65536],
             len: 0,
         }
     }
@@ -61,13 +64,13 @@ impl Candidate {
         scope: 0,
         modified: 0,
     };
-    pub unsafe fn zip_name(&self, tail: bool, buf: &mut [u8; zip::MAX_NAME]) -> usize {
+    pub unsafe fn zip_name(&self, part: &[u8], buf: &mut [u8; zip::MAX_NAME]) -> usize {
         let mut prefix = 0;
         for part in [
             b"logs/".as_slice(),
             SCOPES[self.scope].as_bytes(),
             b"/",
-            if tail { b"tail-" } else { b"" },
+            part,
         ] {
             buf[prefix..prefix + part.len()].copy_from_slice(part);
             prefix += part.len();

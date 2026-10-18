@@ -124,18 +124,25 @@ A dump is about 160–190 MB (it holds the game's data segments); zipped, it is
   transaction journals, settings, screenshots, other extensions and unrelated
   files are excluded. Directories and reparse points are excluded when Windows
   reports them as such; Wine may expose host symlinks as ordinary files.
-- Bounds and omissions: at most the last 2 MiB of each log, up to 16 MiB total
-  before compression, plus a small collection summary. Original logs are never
+- Bounds and omissions: files up to 2 MiB are included whole. Larger files
+  contribute two separate members: `head-<name>` contains the first 64 KiB,
+  and `tail-<name>` contains the last 1984 KiB. This preserves startup diagnostics
+  (including actual memory-arena sizes) together with the context near the crash.
+  Up to 32 source files and 16 MiB total log payload are included, plus a bounded
+  collection summary; source and ZIP-member counts are tracked separately.
+  A source that cannot fit the remaining byte budget is skipped whole, allowing
+  later smaller files to fit. Original logs are never
   changed or deleted. Each source has its own ZIP subfolder, such as
   `logs/documents/` and `logs/game-exe/`, so identical filenames cannot collide.
-  Truncated files have `tail-` before their original name; their first line can
-  be partial. `logs/collection.txt` records each included file's source size,
-  included bytes and starting offset, reasons for skipped selected files, and
+  Head/tail boundary lines can be partial. `logs/collection.txt` records each
+  member's source size, included bytes and starting offset, the omitted middle's
+  offset and size, reasons for skipped selected sources, and
   per-folder missing/unavailable status, stale counts, scan errors and the
   number omitted by the file limit. It is included even when no logs are found.
 - Live files: shared reads capture the active log when its writer permits them.
   A size snapshot bounds concurrent appends; a shrinking or unreadable file is
-  skipped and any partially written ZIP member is removed. Missing or locked
+  skipped atomically: both its head and tail are removed if either read fails.
+  Missing or locked
   logs do not discard the dump ZIP. Collection gets up to five seconds of the
   archive's 60-second deadline. OS file calls are synchronous, so a blocked
   disk/network call can exceed that deadline. Buffered bytes not yet written
@@ -287,7 +294,7 @@ Python's `zipfile` read a 40 MB ZIP made as the DLL makes it (when `python3` is
 on PATH).
 
 Every crash case reads its dump out of the `.zip` with `zipfile` (CRC checked,
-one dump member named like the ZIP, not UTF-8 flagged; up to 32 log members and the collection summary) and checks that no `.dmp` or
+one dump member named like the ZIP, not UTF-8 flagged; up to 32 log sources (up to two members each) and the collection summary) and checks that no `.dmp` or
 `.part` file is left. The twenty crash cases verify exception codes and thread
 IDs, module presence, the game error comment, callback ordering, stack overflow, dialog closure, repeated
 crashes, Unicode paths, a different working directory, read-only EXE fallback,
@@ -316,8 +323,9 @@ WINEPREFIX=/path/to/disposable-prefix python3 tests/check_logs.py target/i686-pc
 
 This test redirects **that disposable prefix's Documents folder** to temporary
 fixtures. It checks absent logs, Documents and game-folder coverage, 32-file/16-MiB bounds, age and filename
-filtering, Unicode paths/names, journals, exact oversized tails, manifest outcomes, writer sharing and
-exclusive locks, injected mid-read failure/partial-member rollback, directory
+filtering, Unicode paths/names, journals, exact oversized head/tail bytes, the whole-file 2-MiB boundary,
+manifest outcomes, writer sharing and exclusive locks, injected head and tail
+failures with whole-source rollback, admission under a partly used byte budget, directory
 exclusion, and that original logs remain untouched.
 Python `zipfile` checks every member and its CRC.
 
