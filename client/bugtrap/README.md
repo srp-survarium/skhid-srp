@@ -7,7 +7,7 @@ The installed 0.26g Skhid client has been tested under Wine Staging 11.8 / DXVK.
 
 On a handled crash it writes
 `SRP-crash-YYYYMMDD-HHMMSS-mmm-pPID-tTID-N.dmp` **beside the game EXE**, then
-zips it to `SRP-crash-…-N.zip` (see Zipped dumps), before callbacks or the
+zips it with recent logs to `SRP-crash-…-N.zip` (see Zipped dumps), before callbacks or the
 dialog. Closing the dialog keeps the file. Existing files are
 never overwritten. If the EXE folder is unwritable, it tries the Windows temporary
 folder; the dialog shows the filename and folder in separate labeled fields,
@@ -108,12 +108,40 @@ A dump is about 160–190 MB (it holds the game's data segments); zipped, it is
   worker, before callbacks and the dialog; for crashes and for
   `BT_SaveSnapshot[Ex]` alike, and also for a stack overflow (no dialog).
 - Files: `SRP-crash-…-N.zip` beside its `SRP-crash-…-N.dmp` (the same folder:
-  the EXE's or the temporary one), holding that one file under its own name
-  (DEFLATE, plain ASCII name, no folder). It is written as
+  the EXE's or the temporary one), holding the dump under its own name and recent game logs under `logs/`
+  (DEFLATE; Unicode log names use the ZIP UTF-8 flag). It is written as
   `SRP-crash-…-N.zip.part`, never over an existing file, and renamed to `.zip`
   when complete.
+- Recent logs: up to 32 newest matching files modified in the last 48 hours,
+  from fixed locations (never from an arbitrary working directory or recursive
+  scan): Windows Documents/Survarium and the game EXE's folder. For the standard
+  `game/binaries/x86` installation layout, also `game/`, the installation root,
+  and its `temp/` folder. Matching is case-insensitive: `Survarium.log`,
+  `Survarium_*.log`, `Survarium.journal`, `Survarium_*.journal`,
+  `updater_skhid.log`, `launcher_skhid.log`, and `launcher.log`. This covers the
+  game's and original launcher's username-suffixed logs, game journals, and
+  DXVK's `survarium_skhid_d3d11.log` / `survarium_skhid_dxgi.log`. Updater patch
+  transaction journals, settings, screenshots, other extensions and unrelated
+  files are excluded. Directories and reparse points are excluded when Windows
+  reports them as such; Wine may expose host symlinks as ordinary files.
+- Bounds and omissions: at most the last 2 MiB of each log, up to 16 MiB total
+  before compression, plus a small collection summary. Original logs are never
+  changed or deleted. Each source has its own ZIP subfolder, such as
+  `logs/documents/` and `logs/game-exe/`, so identical filenames cannot collide.
+  Truncated files have `tail-` before their original name; their first line can
+  be partial. `logs/collection.txt` records each included file's source size,
+  included bytes and starting offset, reasons for skipped selected files, and
+  per-folder missing/unavailable status, stale counts, scan errors and the
+  number omitted by the file limit. It is included even when no logs are found.
+- Live files: shared reads capture the active log when its writer permits them.
+  A size snapshot bounds concurrent appends; a shrinking or unreadable file is
+  skipped and any partially written ZIP member is removed. Missing or locked
+  logs do not discard the dump ZIP. Collection gets up to five seconds of the
+  archive's 60-second deadline. OS file calls are synchronous, so a blocked
+  disk/network call can exceed that deadline. Buffered bytes not yet written
+  by the game cannot be recovered; no game logging lock is acquired.
 - Checked before the dump goes: the whole ZIP is read back; its records must
-  be the ones written and its data must inflate to the dump's size and
+  be the ones written and each member must inflate to its recorded size and
   CRC-32, refusing what zlib refuses (such as a Huffman code with unused
   bit patterns). Then the `.dmp` is deleted and the dialog names the `.zip`.
 - On any failure (no memory, disk full, a file of that name, a dump of 4 GiB
@@ -176,9 +204,9 @@ and [module record format](https://learn.microsoft.com/en-us/windows/win32/api/m
 | Pre/post handlers | Invoked on the report worker after the dump closes; skipped on stack overflow |
 | `BT_SaveSnapshot[Ex]` | Writes an automatically named local dump with the same folder policy, zipped as a crash dump is; the legacy filename argument is ignored |
 | Email, uploads, registry export, version-resource reading, tracing/log APIs, import-table interception | Unsupported; operations with failure results return failure; applicable calls set `ERROR_NOT_SUPPORTED` |
-| Attached log/archive list | Empty; the game's own logs remain in their existing location |
+| Legacy attached log/archive list | Empty; recent game logs are collected independently for the local ZIP |
 
-There is no XML report generation, attached log files, screenshot capture,
+There is no XML report generation, arbitrary caller-selected attachments, screenshot capture,
 restart-after-crash, advanced BugTrap UI or mail integration. The zipped dump is
 the report. Settings strings
 are immutable process-lifetime copies (up to 32,767 bytes each), so getter pointers
@@ -259,7 +287,7 @@ Python's `zipfile` read a 40 MB ZIP made as the DLL makes it (when `python3` is
 on PATH).
 
 Every crash case reads its dump out of the `.zip` with `zipfile` (CRC checked,
-one member named like the ZIP, not UTF-8 flagged) and checks that no `.dmp` or
+one dump member named like the ZIP, not UTF-8 flagged; up to 32 log members and the collection summary) and checks that no `.dmp` or
 `.part` file is left. The twenty crash cases verify exception codes and thread
 IDs, module presence, the game error comment, callback ordering, stack overflow, dialog closure, repeated
 crashes, Unicode paths, a different working directory, read-only EXE fallback,
@@ -276,6 +304,22 @@ permission tests are effective. The Discord case intercepts only the browser
 API call and checks the exact invite, absence of automatic launches, and that
 the dialog and dump survive the click; it does not contact Discord. The ABI check also rejects runtime/network import
 changes and checks all 82 legacy ordinals.
+
+Log collection has a separate integration test. Build `tests/logs_probe.cpp`
+with MinGW (`i686-w64-mingw32-g++ -static -municode -O2 tests/logs_probe.cpp
+-o target/i686-pc-windows-msvc/release/logs_probe.exe -ladvapi32`) or MSVC
+(`cl tests\logs_probe.cpp advapi32.lib`). Then run:
+
+```sh
+WINEPREFIX=/path/to/disposable-prefix python3 tests/check_logs.py target/i686-pc-windows-msvc/release
+```
+
+This test redirects **that disposable prefix's Documents folder** to temporary
+fixtures. It checks absent logs, Documents and game-folder coverage, 32-file/16-MiB bounds, age and filename
+filtering, Unicode paths/names, journals, exact oversized tails, manifest outcomes, writer sharing and
+exclusive locks, injected mid-read failure/partial-member rollback, directory
+exclusion, and that original logs remain untouched.
+Python `zipfile` checks every member and its CRC.
 
 For an **idle, disposable installed 0.26g client** with `survarium_skhid.exe`:
 

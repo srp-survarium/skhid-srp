@@ -1,7 +1,7 @@
 // The ZIP of a crash dump: CRC-32, a DEFLATE writer (RFC 1951), a DEFLATE
 // reader that only checks a stream, and the ZIP records (APPNOTE 6.3) of an
-// archive of one file. No Windows call and no allocation: the caller passes
-// the memory and reads and writes the files. Tested on any host:
+// archive with one or more files. No Windows call and no allocation: the caller
+// passes the memory and reads and writes the files. Tested on any host:
 //   rustc --edition 2024 --test src/zip.rs -o target/zip-test
 #![allow(dead_code)]
 
@@ -838,7 +838,7 @@ pub fn dos_time(
     )
 }
 
-/// The fields every record repeats. `name` is plain ASCII (flag bit 11 clear).
+/// The fields every record repeats. Names are UTF-8; ASCII keeps flag bit 11 clear.
 pub struct Entry<'a> {
     pub name: &'a [u8],
     pub time: u16,
@@ -850,7 +850,7 @@ pub struct Entry<'a> {
 const HEADER: usize = 30;
 const CENTRAL: usize = 46;
 const END: usize = 22;
-pub const MAX_NAME: usize = 128;
+pub const MAX_NAME: usize = 1024;
 pub const LOCAL_MAX: usize = HEADER + MAX_NAME;
 /// The central directory and the end record.
 pub const TAIL_MAX: usize = CENTRAL + MAX_NAME + END;
@@ -861,7 +861,7 @@ fn le(out: &mut [u8], at: &mut usize, v: u32, n: usize) {
 }
 fn common(e: &Entry, out: &mut [u8], at: &mut usize) {
     le(out, at, 20, 2); // version needed: 2.0, deflate
-    le(out, at, 0, 2); // flags: no data descriptor, name not UTF-8
+    le(out, at, if e.name.is_ascii() { 0 } else { 0x800 }, 2); // UTF-8 names
     le(out, at, 8, 2); // deflate
     le(out, at, e.time as u32, 2);
     le(out, at, e.date as u32, 2);
@@ -871,7 +871,7 @@ fn common(e: &Entry, out: &mut [u8], at: &mut usize) {
     le(out, at, e.name.len() as u32, 2);
     le(out, at, 0, 2); // no extra field
 }
-/// The local header, at offset 0. Returns its length.
+/// A local header, at its entry offset. Returns its length.
 pub fn local_header(e: &Entry, out: &mut [u8; LOCAL_MAX]) -> usize {
     let mut at = 0;
     le(out, &mut at, 0x0403_4b50, 4);
@@ -879,8 +879,8 @@ pub fn local_header(e: &Entry, out: &mut [u8; LOCAL_MAX]) -> usize {
     out[at..at + e.name.len()].copy_from_slice(e.name);
     at + e.name.len()
 }
-/// The central directory entry and the end record, at offset `offset`.
-pub fn tail(e: &Entry, offset: u32, out: &mut [u8; TAIL_MAX]) -> usize {
+/// A central directory entry pointing to the local header at `offset`.
+pub fn central(e: &Entry, offset: u32, out: &mut [u8; TAIL_MAX]) -> usize {
     let mut at = 0;
     le(out, &mut at, 0x0201_4b50, 4);
     le(out, &mut at, 20, 2); // made by: MS-DOS, 2.0
@@ -889,18 +889,30 @@ pub fn tail(e: &Entry, offset: u32, out: &mut [u8; TAIL_MAX]) -> usize {
     le(out, &mut at, 0, 2); // disk
     le(out, &mut at, 0, 2); // internal attributes
     le(out, &mut at, 0x20, 4); // FILE_ATTRIBUTE_ARCHIVE
-    le(out, &mut at, 0, 4); // local header offset
+    le(out, &mut at, offset, 4); // local header offset
     out[at..at + e.name.len()].copy_from_slice(e.name);
     at += e.name.len();
-    let central = at as u32;
+    at
+}
+pub fn end(count: u16, central: u32, offset: u32, out: &mut [u8; TAIL_MAX]) -> usize {
+    let mut at = 0;
     le(out, &mut at, 0x0605_4b50, 4);
     le(out, &mut at, 0, 4); // disks
-    le(out, &mut at, 1, 2);
-    le(out, &mut at, 1, 2);
+    le(out, &mut at, count as u32, 2);
+    le(out, &mut at, count as u32, 2);
     le(out, &mut at, central, 4);
     le(out, &mut at, offset, 4);
     le(out, &mut at, 0, 2); // comment
     at
+}
+
+/// Single-entry convenience wrapper used by interoperability tests.
+pub fn tail(e: &Entry, offset: u32, out: &mut [u8; TAIL_MAX]) -> usize {
+    let n = central(e, 0, out);
+    let mut ending = [0u8; TAIL_MAX];
+    let m = end(1, n as u32, offset, &mut ending);
+    out[n..n + m].copy_from_slice(&ending[..m]);
+    n + m
 }
 
 #[cfg(test)]

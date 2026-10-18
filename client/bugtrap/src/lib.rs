@@ -12,6 +12,7 @@ mod arithmetic;
 mod crash_text;
 mod dump;
 mod modules;
+mod logs;
 mod notice;
 mod notice_text;
 mod runtime;

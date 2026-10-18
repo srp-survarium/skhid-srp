@@ -21,7 +21,9 @@ def unzip(path):
     """The one dump inside SRP-crash-...-N.zip, checked as a ZIP."""
     with zipfile.ZipFile(path) as archive:
         assert archive.testzip() is None, path
-        [entry] = archive.infolist()
+        [entry] = [e for e in archive.infolist() if e.filename.endswith(".dmp")]
+        assert all(e.filename == entry.filename or e.filename.startswith("logs/") for e in archive.infolist())
+        assert len(archive.infolist()) <= 34
         assert entry.filename == path.stem + ".dmp", entry.filename
         assert entry.compress_type == zipfile.ZIP_DEFLATED and not entry.flag_bits & 0x800
         return archive.read(entry)

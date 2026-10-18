@@ -23,7 +23,8 @@ def verify_dump(dump, expected_thread):
     # The DLL zips its dump: SRP-crash-...-N.zip holds SRP-crash-...-N.dmp.
     with zipfile.ZipFile(dump) as archive:
         assert archive.testzip() is None
-        [entry] = archive.infolist()
+        [entry] = [e for e in archive.infolist() if e.filename.endswith(".dmp")]
+        assert "logs/collection.txt" in archive.namelist()
         assert entry.filename == dump.stem + ".dmp"
         data = archive.read(entry)
     assert data[:4] == b"MDMP"
