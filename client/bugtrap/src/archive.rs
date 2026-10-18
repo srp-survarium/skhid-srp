@@ -266,7 +266,7 @@ impl Sink for LimitedSink<'_> {
 
 unsafe fn append(
     src: &mut dyn Source,
-    size: u64,
+    size: Option<u64>,
     out: &mut File,
     record: &mut Record,
     offset: u32,
@@ -294,7 +294,7 @@ unsafe fn append(
         &mut Memory::new(words),
     )?;
     let end = offset as u64 + n as u64 + sum.packed;
-    if sum.size != size {
+    if size.is_some_and(|expected| sum.size != expected) {
         return Err(ERROR_HANDLE_EOF);
     }
     if end + (crate::logs::MAX_MEMBERS * zip::TAIL_MAX) as u64 > u32::MAX as u64 {
@@ -336,13 +336,13 @@ unsafe fn write(
     records[0].len = name.len();
     records[0].time = time;
     records[0].date = date;
-    let mut offset = append(dump, size, out, &mut records[0], 0, words, None)?;
+    let mut offset = append(dump, Some(size), out, &mut records[0], 0, words, None)?;
     let mut count = 1;
     let mut sources = 0;
     let mut manifest = crate::logs::Manifest::new();
     let _ = writeln!(
         manifest,
-        "SRP crash log collection\nPolicy: recent 48 hours; newest 32 matching files; whole sources; 16 MiB compressed log ZIP contribution (headers included, summary separate); 256 MiB source bytes read including failed attempts; 5 second collection budget.\nOnly named game/launcher/updater/render logs and game journals in fixed locations. No recursion.\nWhole files preserve startup diagnostics and crash context. Buffered writes may be missing. Over-budget or failed sources are omitted atomically, never truncated.\n"
+        "SRP crash log collection\nPolicy: recent 48 hours; newest 32 matching files; whole sources; 16 MiB compressed log ZIP contribution (headers included, summary separate); 256 MiB source bytes read including failed attempts; 5 second collection budget.\nOnly named game/launcher/updater/render logs and game journals in fixed locations. No recursion.\nText logs preserve startup diagnostics and crash context except sensitive records and their unframed continuations, which are removed before compression. Attachment IDs never echo source names. Only UTF-8/ASCII text with lines at most 64 KiB is accepted; unsafe or ambiguous records omit the source. Detection covers labelled credentials and command lines, not arbitrary unidentified secrets. Minidump memory is not sanitized. Buffered writes may be missing. Over-budget or failed sources are omitted atomically, never truncated.\n"
     );
     let log_deadline = out.deadline.min(GetTickCount64() + 5_000);
     let mut folders = crate::logs::folders();
@@ -350,12 +350,12 @@ unsafe fn write(
     let mut packed_left = crate::logs::PACKED_BYTES;
     let mut input_left = crate::logs::INPUT_BYTES;
     let mut included_input = 0;
-    for candidate in &candidates {
+    for (index, candidate) in candidates.iter().enumerate() {
         if candidate.len == 0 {
             break;
         }
         let record = &mut records[count];
-        record.len = candidate.zip_name(&mut record.name);
+        record.len = candidate.zip_name(index, &mut record.name);
         let label = core::str::from_utf8(&record.name[..record.len]).unwrap_or("invalid name");
         if GetTickCount64() > log_deadline {
             let _ = writeln!(manifest, "skipped {}: time limit", label);
@@ -419,19 +419,24 @@ unsafe fn write(
         log.left = original;
         record.time = time;
         record.date = date;
-        let result = if record.len == 0 {
-            Err(ERROR_INVALID_NAME)
-        } else {
-            append(
-                &mut log,
-                original,
+        let (mut result, removed, emitted) = {
+            let mut filtered = crate::sanitize::Filter::new(&mut log);
+            let result = append(
+                &mut filtered,
+                None,
                 out,
                 record,
                 offset,
                 words,
                 Some((packed_left, log_deadline)),
-            )
+            );
+            (result, filtered.removed_lines, filtered.emitted)
         };
+        // Filtered output is shorter than its input. A source that shrank still
+        // must fail atomically; successful compression alone cannot prove EOF.
+        if result.is_ok() && log.left != 0 {
+            result = Err(ERROR_HANDLE_EOF);
+        }
         // Read work is never refunded when an attempted source is rolled back.
         let consumed = original - log.left;
         input_left -= consumed;
@@ -444,8 +449,8 @@ unsafe fn write(
                     + zip::central(&record.entry(), record.offset, &mut central) as u64;
                 let _ = writeln!(
                     manifest,
-                    "included {}: source_bytes={}, compressed_zip_bytes={}",
-                    label, original, contribution
+                    "included {}: source_bytes={}, sanitized_bytes={}, removed_lines={}, compressed_zip_bytes={}",
+                    label, original, emitted, removed, contribution
                 );
                 packed_left -= contribution;
                 included_input += original;
@@ -457,6 +462,11 @@ unsafe fn write(
                 let reason = match error {
                     LOG_ZIP_LIMIT => "compressed ZIP limit",
                     ERROR_TIMEOUT => "time limit",
+                    crate::sanitize::ERROR_UNSAFE_TEXT => "unsafe text encoding/control bytes",
+                    crate::sanitize::ERROR_LONG_LINE => "line exceeds 64 KiB",
+                    crate::sanitize::ERROR_AMBIGUOUS_RECORD => {
+                        "ambiguous sensitive multiline record"
+                    }
                     _ => "read/append failure",
                 };
                 let _ = writeln!(
@@ -487,7 +497,7 @@ unsafe fn write(
     record.date = date;
     offset = append(
         &mut Bytes(&manifest.buf[..manifest.len]),
-        manifest.len as u64,
+        Some(manifest.len as u64),
         out,
         record,
         offset,

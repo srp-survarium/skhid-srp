@@ -6,7 +6,7 @@
 static BY_HANDLE_FILE_INFORMATION target;
 static unsigned reads;
 static unsigned failAfter = 1;
-static bool slowRead;
+static bool slowRead, shortRead;
 static unsigned long long logStart = ~0ULL, highWater;
 static bool logWrites;
 static BOOL WINAPI WatchWrite(HANDLE file, LPCVOID data, DWORD size, LPDWORD written, LPOVERLAPPED overlap) {
@@ -31,6 +31,7 @@ static BOOL WINAPI FailLogRead(HANDLE file, LPVOID data, DWORD size, LPDWORD got
         && reads++ >= failAfter) {
         if (slowRead) { Sleep(5200); return ReadFile(file, data, size, got, overlap); }
         *got = 0;
+        if (shortRead) return TRUE;
         SetLastError(ERROR_READ_FAULT);
         return FALSE;
     }
@@ -86,9 +87,10 @@ int wmain(int argc, wchar_t** argv) {
         log = CreateFileW(argv[3], GENERIC_READ | GENERIC_WRITE, share, NULL, OPEN_EXISTING, 0, NULL);
         if (log == INVALID_HANDLE_VALUE) return 6;
     }
-    bool inject = !wcscmp(argv[2], L"readfail") || !wcscmp(argv[2], L"tailfail") || !wcscmp(argv[2], L"headfail") || !wcscmp(argv[2], L"slow");
+    bool inject = !wcscmp(argv[2], L"readfail") || !wcscmp(argv[2], L"tailfail") || !wcscmp(argv[2], L"headfail") || !wcscmp(argv[2], L"slow") || !wcscmp(argv[2], L"short");
     if (!wcscmp(argv[2], L"tailfail")) failAfter = 2;
     if (!wcscmp(argv[2], L"headfail")) failAfter = 0;
+    shortRead = !wcscmp(argv[2], L"short");
     slowRead = !wcscmp(argv[2], L"slow");
     if (slowRead) failAfter = 0;
     if (inject) {

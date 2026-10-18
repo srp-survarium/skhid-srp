@@ -7,7 +7,6 @@ use core::{
 };
 use windows_sys::Win32::{
     Foundation::*,
-    Globalization::*,
     Storage::FileSystem::*,
     System::{LibraryLoader::GetModuleFileNameW, SystemInformation::*},
     UI::Shell::*,
@@ -62,23 +61,21 @@ impl Candidate {
         scope: 0,
         modified: 0,
     };
-    pub unsafe fn zip_name(&self, buf: &mut [u8; zip::MAX_NAME]) -> usize {
+    // Never echo user-controlled filenames into attachments or the summary.
+    pub fn zip_name(&self, index: usize, buf: &mut [u8; zip::MAX_NAME]) -> usize {
         let mut prefix = 0;
-        for part in [b"logs/".as_slice(), SCOPES[self.scope].as_bytes(), b"/"] {
+        for part in [
+            b"logs/".as_slice(),
+            SCOPES[self.scope].as_bytes(),
+            b"/source-",
+        ] {
             buf[prefix..prefix + part.len()].copy_from_slice(part);
             prefix += part.len();
         }
-        let n = WideCharToMultiByte(
-            CP_UTF8,
-            WC_ERR_INVALID_CHARS,
-            self.name.as_ptr(),
-            self.len as i32,
-            buf[prefix..].as_mut_ptr(),
-            (buf.len() - prefix) as i32,
-            core::ptr::null(),
-            null_mut(),
-        );
-        if n == 0 { 0 } else { prefix + n as usize }
+        buf[prefix] = b'0' + ((index + 1) / 10) as u8;
+        buf[prefix + 1] = b'0' + ((index + 1) % 10) as u8;
+        buf[prefix + 2..prefix + 6].copy_from_slice(b".txt");
+        prefix + 6
     }
 }
 fn ticks(t: FILETIME) -> u64 {

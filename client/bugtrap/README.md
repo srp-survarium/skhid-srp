@@ -124,8 +124,25 @@ A dump is about 160–190 MB (it holds the game's data segments); zipped, it is
   transaction journals, settings, screenshots, other extensions and unrelated
   files are excluded. Directories and reparse points are excluded when Windows
   reports them as such; Wine may expose host symlinks as ordinary files.
-- Bounds and omissions: logs are captured **whole**, preserving startup
-  diagnostics, the intervening session and crash context. There is no per-file
+- Credential filtering: before compression, UTF-8/ASCII text is checked one
+  complete line at a time (64 KiB maximum), including labels split across disk
+  reads. Records containing known password/passwd/pwd, account-digest,
+  authorization/bearer/basic-auth, token, secret, API/access/session-key, cookie,
+  credential, command-line or URL-userinfo markers are replaced with a fixed
+  removal notice. Following unframed lines are removed until the next native
+  `channel <level>\t[HH:MM:SS.mmm]\t` or updater `YYYY-MM-DD HH:MM:SS ` record.
+  This deliberately favors omission over retaining ambiguous continuations.
+  Unclosed quotes/trailing backslashes in sensitive lines, oversized lines,
+  invalid UTF-8, UTF-16/32, NUL/binary/control bytes omit the entire source.
+  ASCII and UTF-8 diagnostics around removed records remain available; logs in
+  legacy code pages and binary journals can therefore be omitted.
+  This detects **known credential-bearing records**, not arbitrary unlabelled
+  secrets, unusual obfuscation, or a multiline value that impersonates a valid
+  new record. **Minidump memory is not sanitized** and may contain credentials;
+  review the complete report before sharing it publicly.
+- Bounds and omissions: accepted text is captured without size truncation,
+  preserving startup diagnostics, the intervening session and crash context
+  except records removed by the credential filter. There is no per-file
   raw-size truncation and no 16-MiB raw-total limit. Instead, up to 32 recent
   sources may contribute **16 MiB of compressed ZIP bytes**, including each
   log's local header, compressed data and central-directory record. Streaming
@@ -140,8 +157,11 @@ A dump is about 160–190 MB (it holds the game's data segments); zipped, it is
   no head/tail fragments or retry are substituted. Failed output is removed,
   and later small files remain eligible when time and input budget permit.
   Each location has its own ZIP subfolder (`logs/documents/`, `logs/game-exe/`,
-  etc.) so identical filenames cannot collide. `logs/collection.txt` records
-  each included source's full size and ZIP contribution, omission reasons,
+  etc.). Entries use anonymous `source-01.txt` IDs, never original filenames or
+  full paths, so a filename containing a username or secret cannot echo into
+  ZIP metadata or the summary. `logs/collection.txt` records each source's
+  original size, sanitized size, removed-line count and ZIP contribution,
+  omission reasons,
   processed-input totals, and per-folder missing/unavailable status, stale
   counts, scan errors and files omitted by the count limit. The summary is
   included even when no logs are available.
@@ -299,7 +319,7 @@ Python's `zipfile` read a 40 MB ZIP made as the DLL makes it (when `python3` is
 on PATH).
 
 Every crash case reads its dump out of the `.zip` with `zipfile` (CRC checked,
-one dump member named like the ZIP, not UTF-8 flagged; up to 32 whole log members and the collection summary) and checks that no `.dmp` or
+one dump member named like the ZIP, not UTF-8 flagged; up to 32 filtered log members and the collection summary) and checks that no `.dmp` or
 `.part` file is left. The twenty crash cases verify exception codes and thread
 IDs, module presence, the game error comment, callback ordering, stack overflow, dialog closure, repeated
 crashes, Unicode paths, a different working directory, read-only EXE fallback,
@@ -335,7 +355,19 @@ Two compressible logs larger than 16 MiB each are recovered byte-for-byte.
 An incompressible source exceeds the ZIP cap, while a `WriteFile` hook checks
 that streaming writes never cross it; a later small source still fits.
 A sparse source larger than 256 MiB is omitted before reading. The tests also
-check the 32-file bound and count omitted candidates.
+check the 32-file bound and count omitted candidates. Synthetic passwords,
+account digests, bearer/tokens, command lines, URL credentials and continuation
+values are absent from extracted log members, member names and the summary;
+startup memory diagnostics remain. UTF-16/binary, oversized and ambiguous
+multiline sources are omitted atomically; original files are unchanged.
+A short successful read followed by premature EOF must also roll back the
+source even though filtered output has a different size. Host-only boundary,
+encoding and read-failure tests run with:
+
+```sh
+rustc --edition 2024 --test tests/sanitize_tests.rs -o /tmp/sanitize-tests
+/tmp/sanitize-tests
+```
 Python `zipfile` checks every member and its CRC.
 
 For an **idle, disposable installed 0.26g client** with `survarium_skhid.exe`:

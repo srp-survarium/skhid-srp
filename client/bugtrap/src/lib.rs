@@ -16,6 +16,7 @@ mod logs;
 mod notice;
 mod notice_text;
 mod runtime;
+mod sanitize;
 mod text;
 mod ui;
 mod zip;
