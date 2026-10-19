@@ -4,7 +4,7 @@ the log and the files tell what it did; every patch file hashed) or started
 by a stand-in for the launcher on its pipe (the quick check), a web server
 on 127.0.0.1 in the place of the srp one that lists resources.db's patches
 at `/patches` with the addresses of each file (on itself, or on other
-servers), and `ready` and play_skhid.bat after it.
+servers), and `ready` after it.
 
     cd client/updater
     ./build.sh
@@ -44,9 +44,6 @@ if not WINDOWS:
     ctypes.WinDLL = lambda *args, **kwargs: types.SimpleNamespace(
         CreateMutexW=types.SimpleNamespace(), CloseHandle=types.SimpleNamespace())
 import test_updater as harness  # noqa: E402
-# The players' play_skhid.bat, as the release builder writes it.
-sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "srp-026g", "client-patches"))
-import make_client_026g as builder  # noqa: E402
 
 X86 = harness.X86
 sha256 = harness.sha256
@@ -226,24 +223,6 @@ class WineTest(unittest.TestCase):
         command, env = windows([self.exe(), "ready", "quiet"])
         return subprocess.run(command, cwd=self.x86, env=env, timeout=300,
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
-
-    def run_bat(self):
-        """The players' play_skhid.bat, as make_client_026g.py writes it, run
-        by cmd; whether it started the game (the stand-in writes down that
-        it was started)."""
-        started = os.path.join(self.x86, "survarium_skhid.exe.started.txt")
-        if os.path.exists(started):
-            os.remove(started)
-        self.write(f"{X86}/play_skhid.bat", builder.bat("srp.example:1234", "english", True))
-        command, env = windows(["cmd", "/c", "play_skhid.bat"])
-        code = subprocess.run(command, cwd=self.x86, env=env, timeout=120,
-                              stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        # `start` does not wait for the game.
-        for _ in range(100):
-            if os.path.exists(started):
-                break
-            time.sleep(0.1)
-        return code.returncode, os.path.exists(started), code.stdout.decode("ascii", "replace")
 
     def log_since(self, mark):
         return self.log()[mark:]
@@ -1077,29 +1056,6 @@ class PatchTest(WineTest):
         scanner.release()
         self.assertEqual(self.run_updater(), 0, self.log())
         self.assert_patches(patches)
-
-    # --- what play_skhid.bat checks before it starts the game: `ready` ----
-
-    def test_play_skhid_bat_starts_the_game_only_when_the_patches_are_checked(self):
-        patches = self.make_patches(14)
-        code, started, said = self.run_bat()
-        self.assertEqual((code, started), (1, False), said)
-        self.assertIn("Skhid has not finished updating the game's files", said)
-        self.assertIn("ready: NOT READY: patches:", self.log())
-        self.site.patch_bodies[14] = b"wrong"
-        self.assertEqual(self.run_updater(), 1)
-        code, started, said = self.run_bat()
-        self.assertEqual((code, started), (1, False), said)
-        self.site.patch_bodies.clear()
-        self.assertEqual(self.run_updater(), 0, self.log())
-        code, started, said = self.run_bat()
-        self.assertEqual((code, started), (0, True), said)
-        # An extra patch file after (copied by hand): not started.
-        self.write("game/resources.db.patch_200", b"from somewhere")
-        code, started, said = self.run_bat()
-        self.assertEqual((code, started), (1, False), said)
-        self.assertTrue(self.exists("game/resources.db.patch_200"), "ready only reads")
-        self.assert_patches({**patches, 200: b"from somewhere"})
 
 
 class RestoreTest(WineTest):

@@ -647,7 +647,8 @@ struct Options {
     pipe_name: Option<String>,
     /// The original's `copy` action: nothing to do here.
     copy: bool,
-    /// `ready`: only whether the game's files are updated (play_skhid.bat).
+    /// `ready`: only whether the game's files are updated (play_skhid.sh,
+    /// and the play_skhid.bat older archives left behind).
     ready: bool,
     quiet: bool,
     /// `check`: every patch file is hashed, whatever was hashed before (the

@@ -213,11 +213,12 @@ python make_client_026g.py <game folder> <new file.zip> --pack-zip --server=<hos
 
 It writes `game/binaries/x86/survarium_skhid.exe`,
 `game/binaries/x86/bugtrap.dll` (the Rust crash reporter),
-`game/binaries/x86/play_skhid.bat` and `play_skhid.sh` (Windows and Linux launchers),
+`game/binaries/x86/play_skhid.sh` (the Linux launcher: Wine prefix, DXVK, then the game
+or, with `launcher`, the Skhid launcher),
 `game/resources/ssl/survarium_login_server.crt` and
 `README.txt` and `LINUX.txt` into the new folder, or a ZIP with `--pack-zip`, to be copied over
 the game. With `--no-launcher` these are
-the only seven files shipped; source, symbols, tests and development tools are
+the only six files shipped; source, symbols, tests and development tools are
 excluded.
 
 Without that option it adds the launcher (`launcher/README.md`), made from the
@@ -226,14 +227,13 @@ game folder's own `survarium_launcher.exe`: `game/binaries/x86/launcher_skhid.ex
 `--updater=<path>`), `7zr.exe` (7-Zip's standalone extractor, the copy of
 `../../client/updater/extractor/`: the updater unpacks the original game with it when
 a player has none; `--extractor=<path>` names another copy, which must be the same file),
-`updater_skhid.url`, the ten pages of
-`game/binaries/x86/launcher_skhid/`, and `Skhid.bat` and `Skhid.sh` at the top, beside `game/`
-(`Skhid.sh` is the file of that name here: on Linux, `bash Skhid.sh` in the game's folder runs
-`play_skhid.sh` from there).
+`updater_skhid.url` and the ten pages of
+`game/binaries/x86/launcher_skhid/`. There are no start scripts on Windows: the
+launcher is started directly.
 `--site=https://<host>` names the server's web
 page when it is not `https://<host of --server>`. A player then unpacks the ZIP into
-the game's folder (the one that holds `game`) once and double-clicks `Skhid.bat`,
-which starts `launcher_skhid.exe`: it looks for a newer ZIP on that site, installs it, and its
+the game's folder (the one that holds `game`) once and double-clicks
+`game\binaries\x86\launcher_skhid.exe`: it looks for a newer ZIP on that site, installs it, and its
 PLAY button starts the game in the language chosen in it. The same input gives the
 same ZIP byte for byte, which the updater relies on. Back up the original `bugtrap.dll` and login certificate before
 installing. `--check` does every check and writes nothing. Existing ZIPs are

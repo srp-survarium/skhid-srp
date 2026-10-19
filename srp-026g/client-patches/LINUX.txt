@@ -7,15 +7,6 @@ then open a terminal in game/binaries/x86 and run:
 
     bash play_skhid.sh
 
-An archive with the Skhid launcher also has Skhid.sh at its top. Unpacked into
-the game's folder (the one that holds the game folder), it saves the walk:
-open a terminal in that folder and run
-
-    bash Skhid.sh
-
-It runs play_skhid.sh and nothing else; bash Skhid.sh launcher is
-bash play_skhid.sh launcher (below).
-
 Select an English keyboard layout before launching. In our Wine tests, starting
 with Russian selected could leave text input broken after switching to English.
 The game language is a separate setting: edit localization near the top of the
@@ -29,7 +20,8 @@ Python are needed to play.
 THE SKHID LAUNCHER (UPDATES)
 
 For a new installation, unpack the Skhid archive into an empty folder with
-about 10 GB free and run bash Skhid.sh launcher there. The updater downloads
+about 10 GB free and, in its game/binaries/x86, run bash play_skhid.sh
+launcher. The updater downloads
 the original game from Google Drive (2.9 GB), verifies its pinned SHA-256,
 and installs it before applying the Skhid files. No Google sign-in is needed.
 It is unpacked with 7zr.exe, a file of the Skhid archive, which is checked

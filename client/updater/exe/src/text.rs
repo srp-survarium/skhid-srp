@@ -336,7 +336,7 @@ pub fn patches_offline(reason: &str) -> String {
 /// `updater_skhid.exe ready` found the patches not checked in place.
 pub fn patches_not_ready() -> String {
     "Skhid has not finished updating the game's files (game\\resources.db.patch_*), so the \
-     game is not started. Start Skhid.bat (the launcher): it finishes the update, or says \
-     what is in the way. Details: game\\binaries\\x86\\updater_skhid.log."
+     game is not started. Start game\\binaries\\x86\\launcher_skhid.exe: it finishes the \
+     update, or says what is in the way. Details: game\\binaries\\x86\\updater_skhid.log."
         .into()
 }

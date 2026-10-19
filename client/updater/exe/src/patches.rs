@@ -27,7 +27,7 @@
 //!
 //! Beside the updater: `updater_skhid.patches`, the server's last list, and
 //! `updater_skhid.patches.status`, `ready` or `blocked <why>`. `ready`
-//! (play_skhid.bat) and a start that cannot reach the server check the
+//! (play_skhid.sh) and a start that cannot reach the server check the
 //! folder against that list. The status is written only by a run that got
 //! a list it can use: `blocked` once the folder is about to change, `ready`
 //! once it is checked; a run that cannot fetch the list or stops before it
@@ -314,10 +314,10 @@ fn numbers(list: &List) -> Vec<u8> {
     list.patches.iter().map(|patch| patch.number).collect()
 }
 
-/// `updater_skhid.exe ready`, from play_skhid.bat and play_skhid.sh: reads
-/// only (the quick check too: the record is not written). `Err` (the words
-/// for the player) unless the last run ended with every patch in place and
-/// the folder still is so.
+/// `updater_skhid.exe ready`, from play_skhid.sh (and the play_skhid.bat
+/// older archives left behind): reads only (the quick check too: the record
+/// is not written). `Err` (the words for the player) unless the last run
+/// ended with every patch in place and the folder still is so.
 pub fn ready(layout: &Layout) -> Result<(), String> {
     let mut record = read_record(layout, Look::Quick);
     match kept_in_place(layout, None, &mut record, Look::Quick) {

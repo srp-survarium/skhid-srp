@@ -231,7 +231,7 @@ pub enum Problem {
     /// The game's files are not in place (`updater_skhid.exe ready` says
     /// no: the last patch step did not end `ready`, or the
     /// `resources.db.patch_<n>` files are not what its list says), so the
-    /// game is not started, as `play_skhid.bat` does not start it.
+    /// game is not started, as `play_skhid.sh` does not start it.
     NotReady,
 }
 
@@ -296,11 +296,11 @@ pub fn message(language: Option<u32>, problem: &Problem) -> String {
         (3, Path) => "Der Pfad des Spielordners enthält Zeichen, die das Spiel nicht lesen kann. Verschiebe das Spiel in einen Ordner, dessen Pfad nur lateinische Buchstaben hat.".into(),
         (4, Path) => "Ścieżka folderu gry zawiera znaki, których gra nie odczyta. Przenieś grę do folderu, którego ścieżka ma tylko litery łacińskie.".into(),
         (_, Path) => "The game folder's path has characters the game cannot read. Move the game to a folder whose path has Latin letters only.".into(),
-        (1, NotReady) => "Skhid ещё не закончил обновлять файлы игры (game\\resources.db.patch_*), поэтому повтор не запущен. Запустите Skhid.bat (лаунчер): он закончит обновление или скажет, что мешает. Затем запросите повтор снова в Истории лобби. Подробности: game\\binaries\\x86\\updater_skhid.log.".into(),
-        (2, NotReady) => "Skhid ще не завершив оновлення файлів гри (game\\resources.db.patch_*), тому повтор не запущено. Запустіть Skhid.bat (лаунчер): він завершить оновлення або скаже, що заважає. Потім попросіть повтор знову в Історії лобі. Подробиці: game\\binaries\\x86\\updater_skhid.log.".into(),
-        (3, NotReady) => "Skhid hat die Dateien des Spiels (game\\resources.db.patch_*) noch nicht fertig aktualisiert, daher wird die Wiederholung nicht gestartet. Starte Skhid.bat (den Launcher): Er schließt die Aktualisierung ab oder sagt, was im Weg ist. Fordere die Wiederholung danach im Verlauf der Lobby erneut an. Details: game\\binaries\\x86\\updater_skhid.log.".into(),
-        (4, NotReady) => "Skhid nie zakończył jeszcze aktualizacji plików gry (game\\resources.db.patch_*), więc powtórka nie została uruchomiona. Uruchom Skhid.bat (launcher): dokończy aktualizację albo powie, co przeszkadza. Potem poproś o powtórkę ponownie w Historii w lobby. Szczegóły: game\\binaries\\x86\\updater_skhid.log.".into(),
-        (_, NotReady) => "Skhid has not finished updating the game's files (game\\resources.db.patch_*), so the replay is not started. Start Skhid.bat (the launcher): it finishes the update, or says what is in the way. Then ask for the replay again in the lobby's History. Details: game\\binaries\\x86\\updater_skhid.log.".into(),
+        (1, NotReady) => "Skhid ещё не закончил обновлять файлы игры (game\\resources.db.patch_*), поэтому повтор не запущен. Запустите game\\binaries\\x86\\launcher_skhid.exe (лаунчер): он закончит обновление или скажет, что мешает. Затем запросите повтор снова в Истории лобби. Подробности: game\\binaries\\x86\\updater_skhid.log.".into(),
+        (2, NotReady) => "Skhid ще не завершив оновлення файлів гри (game\\resources.db.patch_*), тому повтор не запущено. Запустіть game\\binaries\\x86\\launcher_skhid.exe (лаунчер): він завершить оновлення або скаже, що заважає. Потім попросіть повтор знову в Історії лобі. Подробиці: game\\binaries\\x86\\updater_skhid.log.".into(),
+        (3, NotReady) => "Skhid hat die Dateien des Spiels (game\\resources.db.patch_*) noch nicht fertig aktualisiert, daher wird die Wiederholung nicht gestartet. Starte game\\binaries\\x86\\launcher_skhid.exe (den Launcher): Er schließt die Aktualisierung ab oder sagt, was im Weg ist. Fordere die Wiederholung danach im Verlauf der Lobby erneut an. Details: game\\binaries\\x86\\updater_skhid.log.".into(),
+        (4, NotReady) => "Skhid nie zakończył jeszcze aktualizacji plików gry (game\\resources.db.patch_*), więc powtórka nie została uruchomiona. Uruchom game\\binaries\\x86\\launcher_skhid.exe (launcher): dokończy aktualizację albo powie, co przeszkadza. Potem poproś o powtórkę ponownie w Historii w lobby. Szczegóły: game\\binaries\\x86\\updater_skhid.log.".into(),
+        (_, NotReady) => "Skhid has not finished updating the game's files (game\\resources.db.patch_*), so the replay is not started. Start game\\binaries\\x86\\launcher_skhid.exe (the launcher): it finishes the update, or says what is in the way. Then ask for the replay again in the lobby's History. Details: game\\binaries\\x86\\updater_skhid.log.".into(),
     }
 }
 
@@ -510,11 +510,11 @@ mod tests {
 
     #[test]
     fn a_game_whose_files_are_not_updated_is_sent_to_the_launcher_in_every_language() {
-        // As `updater_skhid.exe ready` tells play_skhid.bat's player: the
+        // As `updater_skhid.exe ready` tells a player: the
         // file, the launcher that finishes the update, and the log.
         for language in [None, Some(1), Some(2), Some(3), Some(4)] {
             let text = message(language, &Problem::NotReady);
-            for part in ["game\\resources.db", "Skhid.bat", "game\\binaries\\x86\\updater_skhid.log"] {
+            for part in ["game\\resources.db", "launcher_skhid.exe", "game\\binaries\\x86\\updater_skhid.log"] {
                 assert!(text.contains(part), "{language:?}: {part} in {text}");
             }
             assert!(!text.contains("\\\\"), "{text}");

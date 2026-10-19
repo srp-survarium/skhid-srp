@@ -390,7 +390,7 @@ class ReplayTest(unittest.TestCase):
         self.assertIn("https://host", line)
         self.assertNothingDone()
 
-    # --- the game's files must be in place, as for play_skhid.bat ---------
+    # --- the game's files must be in place, as for `ready` ---------------
 
     def write_patches(self, patches, status):
         """Beside the updater, the list of the last patch step (`patches`:

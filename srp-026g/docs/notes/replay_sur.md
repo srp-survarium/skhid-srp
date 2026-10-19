@@ -118,7 +118,7 @@ Not proven (each would show on a first run):
 
 1. Make the file: `srp-recording-to-sur <recording of the exe's revision> --game-modes <dir> --out <dir>` (the stored variant too, `--stored`, to exclude the encoder).
 2. Put it in `Documents\Survarium\replays\<name>.sur` (make the folder).
-3. Start the exe of the same revision from its own folder (`game\binaries\x86`), as `play_skhid.bat` does, with `-match_replay=<name>` added: `survarium_skhid.exe -localization=english -mt_allocator=768 -minimum_resources_memory_size=768 -match_replay=<name>`. If the name is not found, the full path `-match_replay=<drive>:\...\<name>.sur` is the other form.
+3. Start the exe of the same revision from its own folder (`game\binaries\x86`), as the launcher does, with `-match_replay=<name>` added: `survarium_skhid.exe -localization=english -mt_allocator=768 -minimum_resources_memory_size=768 -match_replay=<name>`. If the name is not found, the full path `-match_replay=<drive>:\...\<name>.sur` is the other form.
 4. Look at: a crash (the dump is beside the exe), "Replay of other engine version is used" (chunk 0), the map loading, the replay UI, whether the players move and whether the clock and the key frames keep the world together (a world that drifts is put right every 10 s).
 
 ## 7. Key frames before a late joiner's install (found 2026-10-15, fixed in the converter)
