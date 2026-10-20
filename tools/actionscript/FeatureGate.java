@@ -119,12 +119,15 @@ final class FeatureGate {
         return changed;
     }
 
-    /** The owners of a class's methods named `name` (instance or static). */
+    /** The owners of a class's methods named `name` (instance or static; the class's own name is its constructor). */
     static List<String> methodOwners(ABC abc, String cls, String name) throws IOException {
         Integer k = classes(abc).get(cls);
         List<String> result = new ArrayList<>();
         if (k == null) return result;
         String owner = MovieSource.name(abc, abc.instance_info.get(k).name_index);
+        if (name.equals(local(abc, abc.instance_info.get(k).name_index))) result.add(owner + "/instance-init");
+        // "class-init": the class initializer (static declarations' values).
+        if (name.equals("class-init")) result.add(owner + "/class-init");
         for (var group : List.of(List.of("/instance", abc.instance_info.get(k).instance_traits),
                                  List.of("/static", abc.class_info.get(k).static_traits)))
             for (Trait trait : ((Traits) group.get(1)).traits)
@@ -311,15 +314,25 @@ final class FeatureGate {
         return report.toString();
     }
 
+    /** The package a source declares ("" for the top level). */
+    static String sourcePackage(String source) throws IOException {
+        var found = java.util.regex.Pattern.compile(
+            "(?m)^\\s*package(?:\\s+([A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*))?\\s*(?:\\{|$)").matcher(source);
+        if (!found.find()) throw new IOException("The source declares no package");
+        return found.group(1) == null ? "" : found.group(1);
+    }
+
     /** Compile a new class (FFDec's compiler) into the ABC of an existing class, after all its records. */
     static void addScript(Path input, Path output, String anchor, Path source) throws Exception {
         String file = source.getFileName().toString();
         if (!file.endsWith(".as")) throw new IOException("New class source must be a .as file");
-        String cls = file.substring(0, file.length() - 3);
+        String text = Files.readString(source);
+        String pkg = sourcePackage(text), simple = file.substring(0, file.length() - 3);
+        String cls = pkg.isEmpty() ? simple : pkg + "." + simple;
         SWF swf = MovieSource.read(input);
         for (var tag : swf.getAbcList())
             for (int i = 0; i < tag.getABC().instance_info.size(); i++)
-                if (local(tag.getABC(), tag.getABC().instance_info.get(i).name_index).equals(cls))
+                if (dotted(tag.getABC(), tag.getABC().instance_info.get(i).name_index).equals(cls))
                     throw new IOException("The movie already has a class " + cls);
         ScriptPack home = MovieSource.findScript(swf, anchor);
         ABC abc = home.abc;
@@ -327,7 +340,7 @@ final class FeatureGate {
         for (MethodBody body : abc.bodies) before.add(MovieSource.record(abc, body));
         byte[] definitions = MovieSource.definitions(abc);
         swf.getAbcIndex().selectAbc(abc);
-        ActionScript3Parser.compile(Files.readString(source), abc, swf.getAbcIndex(), file,
+        ActionScript3Parser.compile(text, abc, swf.getAbcIndex(), file,
             abc.instance_info.size(), abc.script_info.size(), false, "");
         for (int i = 0; i < before.size(); i++)
             if (!Arrays.equals(before.get(i), MovieSource.record(abc, abc.bodies.get(i))))
@@ -338,5 +351,117 @@ final class FeatureGate {
         try (OutputStream out = Files.newOutputStream(output, StandardOpenOption.CREATE_NEW)) { swf.saveTo(out); }
         System.out.println("Added " + cls + " to the ABC of " + anchor + " (" + (now.length - definitions.length)
             + " definition bytes); the feature link checks every original record");
+    }
+
+    /** Every record of an ABC but its constant pools, each serialized on its own, in order. */
+    static List<byte[]> records(ABC abc) throws Exception {
+        List<byte[]> result = new ArrayList<>();
+        for (MethodInfo info : abc.method_info) result.add(methodInfoBytes(info));
+        for (MethodBody body : abc.bodies) result.add(MovieSource.record(abc, body));
+        for (int i = 0; i < abc.instance_info.size(); i++) {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            ABCOutputStream out = new ABCOutputStream(bytes);
+            out.writeInstanceInfo(abc.instance_info.get(i));
+            out.writeU30(abc.class_info.get(i).cinit_index);
+            out.writeTraits(abc.class_info.get(i).static_traits);
+            result.add(bytes.toByteArray());
+        }
+        for (ScriptInfo script : abc.script_info) {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            ABCOutputStream out = new ABCOutputStream(bytes);
+            out.writeU30(script.init_index);
+            out.writeTraits(script.traits);
+            result.add(bytes.toByteArray());
+        }
+        return result;
+    }
+
+    /**
+     * Take a class of the release out of the movie (srp's own, gone from its
+     * source tree). Its script, class and methods must be the last records of
+     * an ABC that keeps other scripts: srp's classes of the release were
+     * appended to the ABC of a game class. Every other record keeps its index
+     * and bytes, every other ABC its bytes, the constant pools stay whole
+     * (an entry only the class used stays, unused). The owners of the methods
+     * taken out are written to REPORT.
+     */
+    static void removeScript(Path input, Path output, String cls, Path report) throws Exception {
+        SWF swf = MovieSource.read(input);
+        ScriptPack pack = MovieSource.findScript(swf, cls);
+        ABC abc = pack.abc;
+        int home = swf.getAbcList().indexOf(swf.getAbcList().stream().filter(t -> t.getABC() == abc).findFirst().orElseThrow());
+        int script = pack.scriptIndex, k = abc.findClassByName(cls);
+        if (k < 0) throw new IOException("No class " + cls + " in its script");
+        if (abc.script_info.size() < 2 || script != abc.script_info.size() - 1 || k != abc.instance_info.size() - 1)
+            throw new IOException(cls + " is not the last script and class of an ABC that has others");
+        ScriptInfo info = abc.script_info.get(script);
+        if (info.traits.traits.size() != 1 || !(info.traits.traits.get(0) instanceof TraitClass only) || only.class_info != k)
+            throw new IOException(cls + "'s script defines more than the class");
+        Map<Integer, String> owners = MovieSource.names(abc);
+        String classOwner = MovieSource.name(abc, abc.instance_info.get(k).name_index) + "/";
+        String scriptOwner = "script:" + info.traits.traits.stream().map(t -> MovieSource.name(abc, t.name_index)).sorted().toList() + "/";
+        java.util.function.Predicate<String> its = o -> o != null && Arrays.stream(o.split("\\|"))
+            .allMatch(part -> part.startsWith(classOwner) || part.startsWith(scriptOwner));
+        int methods = abc.method_info.size(), first = methods;
+        while (first > 0 && its.test(owners.get(first - 1))) first--;
+        for (int i = 0; i < first; i++) {
+            String owner = owners.get(i);
+            if (owner != null && (owner.contains(classOwner) || owner.contains(scriptOwner)))
+                throw new IOException(cls + "'s methods are not the last of its ABC: " + owner);
+        }
+        int allBodies = abc.bodies.size(), bodies = allBodies;
+        while (bodies > 0 && abc.bodies.get(bodies - 1).method_info >= first) bodies--;
+        for (int i = 0; i < bodies; i++)
+            if (abc.bodies.get(i).method_info >= first) throw new IOException(cls + "'s method bodies are not the last of its ABC");
+        List<String> removed = new ArrayList<>();
+        for (int i = first; i < methods; i++) removed.add(owners.get(i));
+        List<byte[]> before = records(abc);
+        int classes = abc.instance_info.size();
+        List<byte[]> kept = new ArrayList<>(before.subList(0, first));
+        kept.addAll(before.subList(methods, methods + bodies));
+        kept.addAll(before.subList(methods + allBodies, methods + allBodies + k));
+        kept.addAll(before.subList(methods + allBodies + classes, methods + allBodies + classes + script));
+        abc.script_info.remove(script);
+        abc.instance_info.remove(k);
+        abc.class_info.remove(k);
+        abc.bodies.subList(bodies, allBodies).clear();
+        abc.method_info.subList(first, methods).clear();
+        abc.resetMethodIndexing();
+        abc.clearAllCaches();
+        ((Tag) abc.parentTag).setModified(true);
+        swf.clearAbcListCache();
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        swf.saveTo(bytes);
+        // The saved movie, parsed again, against the input.
+        SWF reference = MovieSource.read(input), saved = new SWF(new ByteArrayInputStream(bytes.toByteArray()), true);
+        if (reference.getAbcList().size() != saved.getAbcList().size()) throw new IOException("ABC block count changed");
+        for (int i = 0; i < reference.getAbcList().size(); i++) {
+            ABC a = reference.getAbcList().get(i).getABC(), b = saved.getAbcList().get(i).getABC();
+            if (i != home) {
+                if (!Arrays.equals(MovieSource.abcBytes(a), MovieSource.abcBytes(b))) throw new IOException("Unrelated ABC block changed: " + i);
+                continue;
+            }
+            for (String pool : List.of("Int", "UInt", "Double", "String", "Namespace", "NamespaceSet", "Multiname")) {
+                var count = a.constants.getClass().getMethod("get" + pool + "Count");
+                int size = (int) count.invoke(a.constants);
+                if ((int) count.invoke(b.constants) != size) throw new IOException("Pool changed: " + pool);
+                for (int j = 1; j < size; j++)
+                    if (!Objects.equals(MovieSource.poolEntry(a, pool, j), MovieSource.poolEntry(b, pool, j)))
+                        throw new IOException("Pool entry changed: " + pool + " " + j);
+            }
+            if (a.metadata_info.size() != b.metadata_info.size()) throw new IOException("Metadata changed");
+            List<byte[]> after = records(b);
+            if (after.size() != kept.size()) throw new IOException("Records other than " + cls + "'s went");
+            for (int j = 0; j < kept.size(); j++)
+                if (!Arrays.equals(kept.get(j), after.get(j))) throw new IOException("A record other than " + cls + "'s changed");
+            for (int j = 0; j < b.instance_info.size(); j++)
+                if (dotted(b, b.instance_info.get(j).name_index).equals(cls)) throw new IOException(cls + " is still there");
+        }
+        Files.write(output, bytes.toByteArray(), StandardOpenOption.CREATE_NEW);
+        StringBuilder rows = new StringBuilder("method\tstatus\n");
+        for (String owner : removed) rows.append(MovieSource.cell(owner)).append("\tremoved\n");
+        Files.writeString(report, rows);
+        System.out.println("Removed " + cls + ": its script, class and " + removed.size()
+            + " methods; every other record is the input's");
     }
 }

@@ -198,8 +198,14 @@ public final class MixedCompiler {
         Map<Integer,List<Integer>> alternatives=new HashMap<>();
         Map<Integer,Integer> result=MovieSource.namespaceLayout(original,source,alternatives);
         var used=MovieSource.bodyNamespaces(source,body);
-        var old=original.findBody(body.method_info);
-        if(old==null)throw new IOException("Missing corresponding reference owner");
+        var old=body.method_info<original.method_info.size()?original.findBody(body.method_info):null;
+        if(old==null) {
+            // A method a feature added has no original to tell which of
+            // several namespaces it means: it may use none of those.
+            if(body.method_info<original.method_info.size())throw new IOException("Missing corresponding reference owner");
+            for(var item:alternatives.keySet())if(used.contains(item))throw new IOException("Ambiguous file namespace in an added method");
+            return result;
+        }
         var oldUsed=MovieSource.bodyNamespaces(original,old);
         for(var item:alternatives.entrySet())if(used.contains(item.getKey())) {
             var candidates=item.getValue().stream().filter(oldUsed::contains).toList();
@@ -261,7 +267,8 @@ public final class MixedCompiler {
             prefix(original,abc);
             for(var body:abc.bodies)MovieSource.exactCode(body);
             MovieSource.restoreNameReferences(original,abc);
-            MovieSource.restoreMethodOrder(original,abc);
+            // A feature may add methods (and nested functions): they follow the original ones.
+            MovieSource.restoreMethodOrder(original,abc,true);
             if(abc.instance_info.size()!=original.instance_info.size()||abc.script_info.size()!=original.script_info.size())throw new IOException("Declaration counts changed");
             for(int i=0; i<abc.instance_info.size(); i++)if(abc.instance_info.get(i).name_index!=original.instance_info.get(i).name_index)throw new IOException("Class identities changed");
         }

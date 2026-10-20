@@ -142,6 +142,14 @@ class TreeInputsTests(unittest.TestCase):
                          ['edit\tpkg.Game\ttwo\t?\t?', 'member\tpkg.Game\tb', 'member\tpkg.Game\tfour'])
         self.assertIn(b'+         trace(2);', game['patch'])
 
+    def test_a_declaration_with_a_value_lets_its_initializer_change(self):
+        self.write('pkg/Game.as', GAME.replace('      public var a:int;\n',
+            '      public var a:int;\n\n      public static const LIMIT:int = 3;\n\n      private var _on:Boolean = true;\n'))
+        game, = self.inputs()
+        self.assertEqual(game['permissions'].decode().splitlines(),
+                         ['edit\tpkg.Game\tGame\t?\t?', 'edit\tpkg.Game\tclass-init\t?\t?',
+                          'member\tpkg.Game\tLIMIT', 'member\tpkg.Game\t_on'])
+
     def test_refusals(self):
         for relative, text, message in [
             ('New.as', 'x\n', 'name it'),
@@ -161,6 +169,75 @@ class TreeInputsTests(unittest.TestCase):
         (self.tree / 'src/Anchor.as').unlink()
         with self.assertRaisesRegex(ValueError, 'removed'):
             self.inputs()
+
+    def test_a_removed_srp_class_must_be_listed_and_unnamed(self):
+        (self.tree / 'src/Owned.as').unlink()
+        with self.assertRaisesRegex(ValueError, 'Scripts removed'):
+            self.inputs()
+        (self.tree / 'srp.json').write_text(json.dumps({'classes': [], 'removed': ['Owned']}))
+        self.write('pkg/Game.as', GAME.replace('trace(1);', 'Owned.go();'))
+        with self.assertRaisesRegex(ValueError, 'still names it: pkg/Game.as'):
+            self.inputs()
+        self.write('pkg/Game.as', GAME.replace('trace(1);', 'OwnedNot.go();'))
+        removed, game = self.inputs()
+        self.assertEqual((removed['class'], removed['kind'], removed['permissions']),
+                         ('Owned', 'removed', b'removed\tOwned\n'))
+        self.assertEqual(game['kind'], 'game')
+        for srp in ({'classes': [{'class': 'Owned'}], 'removed': ['Owned']},
+                    {'classes': [], 'removed': ['Anchor']}, {'classes': [], 'removed': 'Owned'}):
+            with self.subTest(srp):
+                (self.tree / 'srp.json').write_text(json.dumps(srp))
+                with self.assertRaises(ValueError):
+                    self.inputs()
+
+    def test_a_class_whose_new_members_another_uses_compiles_first(self):
+        other = GAME.replace('package pkg', 'package pkg').replace('class Game', 'class Alpha')
+        base = {'pkg/Alpha.as': other}
+        for relative, text in base.items():
+            data = text.encode()
+            (self.root / 'project/pristine' / relative).write_bytes(data)
+            (self.tree / 'src' / relative).write_bytes(data)
+            self.pinned['sources'][relative] = patches.sha(data)
+            spec = json.loads((self.tree / 'movie.json').read_text())
+            spec['sources'][relative] = patches.sha(data)
+            (self.tree / 'movie.json').write_text(json.dumps(spec))
+        # Alpha (first by path) calls Game's new static member: Game first.
+        self.write('pkg/Alpha.as', other.replace('trace(1);', 'Game.opened(1);'))
+        self.write('pkg/Game.as', GAME.replace('      public function three',
+            '      public static function opened(x:int) : void\n      {\n      }\n\n      public function three'))
+        self.assertEqual([i['class'] for i in self.inputs()], ['pkg.Game', 'pkg.Alpha'])
+        # Without the use: by path.
+        self.write('pkg/Alpha.as', other.replace('trace(1);', 'trace(3);'))
+        self.assertEqual([i['class'] for i in self.inputs()], ['pkg.Alpha', 'pkg.Game'])
+        # Both ways: refused.
+        self.write('pkg/Alpha.as', other.replace('trace(1);', 'Game.opened(1);').replace(
+            '      public function three', '      public static function back() : void\n      {\n      }\n\n      public function three'))
+        self.write('pkg/Game.as', GAME.replace('trace(1);', 'Alpha.back();').replace('      public function three',
+            '      public static function opened(x:int) : void\n      {\n      }\n\n      public function three'))
+        with self.assertRaisesRegex(ValueError, 'both ways'):
+            self.inputs()
+
+    def test_a_new_class_is_first_its_declaration_alone(self):
+        source = b'''package survarium.rooms
+{
+    import flash.display.Sprite;
+    import flash.events.Event;
+    import survarium.controls.PlayerInfo;
+
+    // The window.
+    public class RoomsWindow extends Sprite
+    {
+        public static var me:RoomsWindow;
+    }
+}
+'''
+        self.assertEqual(build_feature.stub_source(source).decode(),
+                         'package survarium.rooms\n{\n    import flash.display.Sprite;\n    public class RoomsWindow extends Sprite\n'
+                         '    {\n    }\n}\n')
+        self.assertEqual(build_feature.stub_source(b'package {\n public class A {\n }\n}\n').decode(),
+                         'package\n{\n    public class A\n    {\n    }\n}\n')
+        with self.assertRaises(ValueError):
+            build_feature.stub_source(b'package { function f() {} }')
 
     def test_the_tree_must_be_of_the_pinned_export(self):
         self.write('Owned.as', 'changed\n')

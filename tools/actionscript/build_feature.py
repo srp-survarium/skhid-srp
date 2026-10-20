@@ -152,12 +152,64 @@ def source_permissions(cls, baseline, changed):
         found = re.search(r'\b(?:var|const)\s+([\w$]+)', line)
         if found:
             members.add(found.group(1))
-    edits = [name for name in edits if name not in members]
+            # A declaration's initial value is set by the class initializer
+            # (static) or the constructor: that one may change too.
+            if '=' in line[found.end():]:
+                edits.append('class-init' if re.search(r'\bstatic\b', line) else cls.split('.')[-1])
+    edits = sorted({name for name in edits if name not in members})
     lines = ['\t'.join(('edit', cls, name, '?', '?')) for name in edits]
     lines += [f'member\t{cls}\t{name}' for name in sorted(members)]
     if not lines:
         raise ValueError(f'{cls}: its source changed, but no method or declaration did')
     return lines, edits, sorted(members)
+
+
+def game_order(game):
+    """The game classes in the order they compile: one whose new members
+    another uses first (Flex checks a member against the movie compiled so
+    far), otherwise by path. The use is read from the source: the other names
+    the class, and a line it adds names the member."""
+    def words(text):
+        return set(re.findall(r'[A-Za-z_$][\w$]*', text))
+    added = {}
+    for item in game:
+        lines = [line[1:] for line in item['patch'].decode('utf-8').splitlines()
+                 if line.startswith('+') and not line.startswith('+++')]
+        added[item['class']] = words('\n'.join(lines))
+    needs = {item['class']: set() for item in game}
+    for user in game:
+        names = words(user['changed'].decode('utf-8'))
+        for owner in game:
+            if owner is not user and owner.get('members') and owner['class'].split('.')[-1] in names \
+                    and added[user['class']] & set(owner['members']):
+                needs[user['class']].add(owner['class'])
+    order, done = [], set()
+    while len(order) < len(game):
+        ready = [item for item in game if item['class'] not in done and needs[item['class']] <= done]
+        if not ready:
+            raise ValueError('Game classes use each other\'s new members both ways: '
+                             + ', '.join(sorted(c for c in needs if c not in done)))
+        order.append(ready[0])
+        done.add(ready[0]['class'])
+    return order
+
+
+def stub_source(source):
+    """A new class's declaration alone (its package, the imports its header
+    names, an empty body): every new class is added so first, then compiled
+    whole, so that new classes may name each other (FFDec compiles a class
+    only against types the movie has)."""
+    text = source.decode('utf-8')
+    package = re.search(r'^\s*package\b([^{]*)\{', text, re.M)
+    header = re.search(r'^\s*(public\s+(?:(?:final|dynamic)\s+)*class\s+([\w$]+)([^{]*))\{', text, re.M)
+    if package is None or header is None:
+        raise ValueError('A new class must be one public class in a package block')
+    named = set(re.findall(r'[\w$]+', header.group(3)))
+    imports = [m.group(0).strip() for m in re.finditer(r'^\s*import\s+([\w$.]+)\s*;', text, re.M)
+               if m.group(1).split('.')[-1] in named]
+    body = ''.join(f'    {line}\n' for line in imports)
+    return (f'package {package.group(1).strip()}\n{{\n{body}    {" ".join(header.group(1).split())}\n'
+            '    {\n    }\n}\n').replace('package \n', 'package\n').encode('utf-8')
 
 
 def tree_inputs(movie_dir, pinned, reconstructed, reconstruction_evidence, project):
@@ -189,9 +241,27 @@ def tree_inputs(movie_dir, pinned, reconstructed, reconstruction_evidence, proje
     baseline = spec['sources']
     if baseline.keys() != pinned['sources'].keys():
         raise ValueError('The tree baseline and the pinned export name different scripts')
-    removed = sorted(set(baseline) - set(files))
-    if removed:
-        raise ValueError('Scripts removed from the tree: ' + ', '.join(removed))
+    # srp's classes of the release that are gone from the tree (their code
+    # moved into the game's classes): the build takes them out of the movie.
+    gone = srp.get('removed', [])
+    if (not isinstance(gone, list) or len(set(gone)) != len(gone)
+            or any(not isinstance(c, str) or not CLASS_NAME.fullmatch(c) or c in own for c in gone)):
+        raise ValueError('srp.json: "removed" is a list of class names, none of them in "classes"')
+    unlisted = sorted(r for r in set(baseline) - set(files) if r[:-3].replace('/', '.') not in gone)
+    if unlisted:
+        raise ValueError('Scripts removed from the tree: ' + ', '.join(unlisted))
+    removals = []
+    for cls in gone:
+        relative = cls.replace('.', '/') + '.as'
+        if relative not in baseline or relative in files:
+            raise ValueError(f'srp.json removes {cls}, which is not a class of the release gone from the tree')
+        word = re.compile(rf'(?<![\w$]){re.escape(cls.split(".")[-1])}(?![\w$])')
+        users = sorted(p for p, data in files.items() if word.search(data.decode('utf-8')))
+        if users:
+            raise ValueError(f'{cls} is removed, but the tree still names it: ' + ', '.join(users))
+        removals.append({'class': cls, 'kind': 'removed', 'baseline': None, 'changed': b'', 'features': ['tree'],
+                         'patch': b'', 'compiler': None, 'composition': None, 'reservations': None,
+                         'permissions': f'removed\t{cls}\n'.encode()})
     compilers, compositions, reservations = class_plans(reconstruction_evidence)
     inputs = []
     for cls, anchor in own.items():
@@ -238,9 +308,11 @@ def tree_inputs(movie_dir, pinned, reconstructed, reconstruction_evidence, proje
         twice = duplicate_functions(item['changed'].decode('utf-8'))
         if twice:
             raise ValueError(f'{item["class"]} defines these more than once (FFDec keeps the last): ' + ', '.join(twice))
-    # New classes first (game classes compiled by Flex need them), then srp's
-    # own classes, then the game classes.
-    inputs += owned + game
+    # Removals first (a new class may take the ABC records a removed one
+    # had), then the new classes (game classes compiled by Flex need them),
+    # srp's own classes, and the game classes, a class whose new members
+    # another one uses before that one.
+    inputs = removals + inputs + owned + game_order(game)
     if not inputs:
         raise ValueError('The tree is the baseline: nothing to build')
     raw = json.dumps({'movie': spec['movie'], 'classes': [
@@ -388,7 +460,7 @@ def build(tools_path, reconstruction, project, feature, output, jobs=1, log=prin
         rows[cls].update(status='refused', error=str(error))
         movie.write_json(output / 'report.json', report)
 
-    existing = [item for item in inputs if item['kind'] != 'new']
+    existing = [item for item in inputs if item['kind'] in ('owned', 'game')]
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         futures = {item['class']: pool.submit(check_baseline, item) for item in existing}
         failures = []
@@ -406,17 +478,42 @@ def build(tools_path, reconstruction, project, feature, output, jobs=1, log=prin
         log(f'Baselines exact: {len(existing)} classes reproduce the complete compressed release movie')
 
     current = reference
-    linked_reports = []
+    linked_reports, removed_reports = [], []
+    # Each class removed (its script, class and methods, the last records of
+    # its ABC), then each new class as its declaration alone (`stub_source`):
+    # every new class is a type of the movie before any is compiled whole.
     for item in inputs:
         cls, folder, row = item['class'], folders[item['class']], rows[item['class']]
         try:
-            if item['kind'] == 'new':
-                run(folder, cls, 'add-script', current, folder / 'feature-compiled.swf', item['anchor'],
-                    folder / item['source_name'], folder / 'feature-snapshot', log_name='feature-compile.log')
-                link_class = item['anchor']
-            else:
-                compile_source(item, current, 'feature')
-                link_class = cls
+            if item['kind'] == 'removed':
+                run(folder, cls, 'remove-script', current, folder / 'removed.swf', cls, folder / 'removed.tsv',
+                    folder / 'removed-snapshot', log_name='remove.log')
+                current = folder / 'removed.swf'
+                removed_reports.append(folder / 'removed.tsv')
+                row.update(status='verified', linked_code_sha256=movie.digest(current))
+                log(f'{cls} (removed): taken out; every other record is the release\'s')
+            elif item['kind'] == 'new':
+                stub = folder / 'stub' / item['source_name']
+                stub.parent.mkdir()
+                stub.write_bytes(stub_source(item['changed']))
+                run(folder, cls, 'add-script', current, folder / 'stub-compiled.swf', item['anchor'],
+                    stub, folder / 'stub-snapshot', log_name='stub-compile.log')
+                run(folder, cls, 'link-feature', current, folder / 'stub-compiled.swf', folder / 'stub-linked.swf',
+                    item['anchor'], folder / 'permissions.tsv', log_name='stub-link.log')
+                current = folder / 'stub-linked.swf'
+                linked_reports.append(folder / 'stub-linked.swf.methods.tsv')
+        except (ValueError, OSError, subprocess.TimeoutExpired) as error:
+            refuse(cls, error)
+            raise
+        movie.write_json(output / 'report.json', report)
+    for item in inputs:
+        cls, folder, row = item['class'], folders[item['class']], rows[item['class']]
+        if item['kind'] == 'removed':
+            continue
+        try:
+            # A new class replaces its declaration (FFDec's compiler).
+            compile_source(item, current, 'feature')
+            link_class = cls
             run(folder, cls, 'link-feature', current, folder / 'feature-compiled.swf', folder / 'feature-linked.swf',
                 link_class, folder / 'permissions.tsv', log_name='feature-link.log')
             if (folder / 'feature.as').read_bytes() != item['changed'] or (
@@ -431,7 +528,7 @@ def build(tools_path, reconstruction, project, feature, output, jobs=1, log=prin
             refuse(cls, error)
             raise
         movie.write_json(output / 'report.json', report)
-    unreviewed = [(item['class'], *row) for item in inputs
+    unreviewed = [(item['class'], *row) for item in inputs if item['kind'] != 'removed'
                   for row in review_rows(folders[item['class']], folders[item['class']] / 'feature-linked.swf.methods.tsv')]
     # Changed call, cast and construction sequences of edited game methods,
     # with their before/after assembly, for the review of the source diff.
@@ -459,6 +556,9 @@ def build(tools_path, reconstruction, project, feature, output, jobs=1, log=prin
         for line in path.read_text().splitlines()[1:]:
             fields = line.split('\t')
             permitted.add((fields[0], 'added' if fields[1] == 'added' else 'changed'))
+    for path in removed_reports:
+        for line in path.read_text().splitlines()[1:]:
+            permitted.add((line.split('\t')[0], 'missing'))
     if schema == 1 and comparison['reference_methods'] != comparison['candidate_methods']:
         raise ValueError('Final movie changed method ownership')
     for change in comparison['method_changes']:

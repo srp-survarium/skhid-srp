@@ -2398,6 +2398,12 @@ public final class MovieSource {
             snapshot(read(Path.of(a[2])), Path.of(a[5]));
             return;
         }
+        if (a[0].equals("remove-script")) {
+            if (a.length != 6) throw new IllegalArgumentException("remove-script INPUT OUTPUT CLASS REPORT.tsv SNAPSHOT");
+            FeatureGate.removeScript(Path.of(a[1]), Path.of(a[2]), a[3], Path.of(a[4]));
+            snapshot(read(Path.of(a[2])), Path.of(a[5]));
+            return;
+        }
         if (a[0].equals("link-layout")) {
             if (a.length != 5) throw new IllegalArgumentException("link-layout ORIGINAL COMPILED OUTPUT CLASS");
             linkLayout(Path.of(a[1]), Path.of(a[2]), Path.of(a[3]), a[4]);
