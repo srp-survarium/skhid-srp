@@ -11,6 +11,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
+use session::matchmaking_policy::Closed;
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps::{self, MapMode};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
@@ -265,7 +266,9 @@ struct Inner {
     matches: HashMap<u32, std::sync::Arc<Formed>>,
     seats: HashMap<u32, Seat>,
     last_id: u32,
-    admitting: HashMap<u32, std::time::Instant>,
+    /// A growing roster's admission as the match last said it: until when
+    /// it takes a joiner, or why it takes none.
+    admitting: HashMap<u32, Result<Instant, Closed>>,
     live: HashMap<u32, Live>,
 }
 
@@ -533,11 +536,7 @@ impl MatchRegistry {
         if players.len() > MAX_PLAYERS - formed.places.len() {
             return Err(JoinError::Full);
         }
-        if !inner
-            .admitting
-            .get(&match_id)
-            .is_some_and(|deadline| std::time::Instant::now() < *deadline)
-        {
+        if !open_at(inner.admitting.get(&match_id), Instant::now()) {
             return Err(JoinError::Unavailable);
         }
         // An account whose place in this match has no seat any more (it
@@ -594,7 +593,8 @@ impl MatchRegistry {
         }
         let count = next.places.len() - first;
         inner.matches.insert(match_id, std::sync::Arc::new(next));
-        inner.admitting.remove(&match_id);
+        // Closed until the match says otherwise of the grown roster.
+        inner.admitting.insert(match_id, Err(Closed::Joining));
         log::info!(
             "Match {match_id:#x}: reserved {count} new places from {first}; waiting for resource preparation"
         );
@@ -607,11 +607,13 @@ impl MatchRegistry {
 
     /// Do not let an observation of an older roster reopen admission after
     /// the lobby has concurrently reserved the next place.
+    /// `admission`: until when it takes a joiner, or why it takes none
+    /// (`Game::admission`).
     pub(crate) fn set_admitting(
         &self,
         match_id: u32,
         roster: usize,
-        deadline: Option<std::time::Instant>,
+        admission: Result<Instant, Closed>,
     ) {
         let mut inner = self.inner();
         if inner
@@ -619,21 +621,25 @@ impl MatchRegistry {
             .get(&match_id)
             .is_some_and(|m| m.growing_roster && m.places.len() == roster)
         {
-            if let Some(deadline) = deadline {
-                inner.admitting.insert(match_id, deadline);
-            } else {
-                inner.admitting.remove(&match_id);
-            }
+            inner.admitting.insert(match_id, admission);
         }
     }
 
     /// Whether new reservations are allowed at `now`. The absolute deadline
     /// also closes admission if the match thread stops publishing updates.
-    pub fn admits(&self, match_id: u32, now: std::time::Instant) -> bool {
-        self.inner()
-            .admitting
-            .get(&match_id)
-            .is_some_and(|deadline| now < *deadline)
+    pub fn admits(&self, match_id: u32, now: Instant) -> bool {
+        open_at(self.inner().admitting.get(&match_id), now)
+    }
+
+    /// Why the match takes no new reservation at `now`, as it last said;
+    /// past its deadline, [`Closed::LastSeconds`]. `None`: it takes one, or
+    /// it has said nothing (not a growing roster, not polled yet, or over).
+    pub fn closed(&self, match_id: u32, now: Instant) -> Option<Closed> {
+        match self.inner().admitting.get(&match_id)? {
+            Ok(deadline) if now < *deadline => None,
+            Ok(_) => Some(Closed::LastSeconds),
+            Err(closed) => Some(*closed),
+        }
     }
 
     /// The place a session has in a match that is not over.
@@ -692,7 +698,9 @@ impl MatchRegistry {
     /// while it lingers for its clients to hear the end.
     pub(crate) fn free_seats(&self, match_id: u32) {
         let mut inner = self.inner();
-        inner.admitting.remove(&match_id);
+        if inner.admitting.contains_key(&match_id) {
+            inner.admitting.insert(match_id, Err(Closed::Ending));
+        }
         inner.seats.retain(|_, seat| seat.match_id != match_id);
     }
 
@@ -790,6 +798,11 @@ impl MatchRegistry {
         inner.seats.retain(|_, seat| seat.match_id != match_id);
         inner.matches.remove(&match_id)
     }
+}
+
+/// Whether an admission as the match said it takes a joiner at `now`.
+fn open_at(admission: Option<&Result<Instant, Closed>>, now: Instant) -> bool {
+    matches!(admission, Some(Ok(deadline)) if now < *deadline)
 }
 
 /// A number that differs from run to run, for the first match id.

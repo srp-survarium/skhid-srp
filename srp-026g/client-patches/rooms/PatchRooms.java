@@ -1,5 +1,5 @@
-// Compile SrpRooms into the bottom panel's ABC block and add seven calls to
-// it; nothing else changes. The hooks:
+// Compile SrpRooms into the bottom panel's ABC block and add calls to it;
+// nothing else changes. The hooks:
 //   BottomPanel.createMatchesTab  end    SrpRooms.attach(this)
 //   BottomPanel.placeMatchesTab   end    SrpRooms.place(this)
 //   BottomPanel.resizeTab         end    SrpRooms.resize(this)
@@ -12,6 +12,7 @@
 //   TopMenu.fill_windows          end    SrpRooms.topMenu(this)
 //   TopMenu.changeActiveMenu      end    SrpRooms.topChanged(this)
 //   StatusPanel.play_button_clicked start if (SrpRooms.playPressed()) return;
+//   LobbyMenu.show_victory_screen  start  SrpRooms.afterMatch()
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
@@ -76,6 +77,19 @@ public class PatchRooms {
             code.insertInstruction(0, new AVM2Instruction(0, IFFALSE, new int[]{1}), body);
         }
         code.insertInstruction(0, new AVM2Instruction(0, CALLPROPERTY,
+            new int[]{abc.constants.getPublicQnameId(name, true), 0}), body);
+        code.insertInstruction(0, new AVM2Instruction(0, GETLEX, new int[]{helper}), body);
+        body.max_stack = Math.max(body.max_stack, 1);
+        body.setCode(code);
+        body.getCode().checkValidOffsets(body);
+    }
+
+    // Puts `SrpRooms.<name>();` before the method's first instruction.
+    private static void prepend(ABC abc, MethodBody body, int helper, String name) throws Exception {
+        if (body.exceptions.length != 0)
+            throw new IOException("Unexpected exceptions in the method of " + name);
+        AVM2Code code = body.getCode();
+        code.insertInstruction(0, new AVM2Instruction(0, CALLPROPVOID,
             new int[]{abc.constants.getPublicQnameId(name, true), 0}), body);
         code.insertInstruction(0, new AVM2Instruction(0, GETLEX, new int[]{helper}), body);
         body.max_stack = Math.max(body.max_stack, 1);
@@ -190,6 +204,11 @@ public class PatchRooms {
             throw new IOException("Two hooks share a body");
         guard0(lobbyAbc, active, lobbyHelper, "escapable", true);
         guard0(lobbyAbc, close, lobbyHelper, "closeWindow", false);
+        // A match's results: the room's window is opened first, so the
+        // results screen goes over it and closing them shows the room.
+        MethodBody results = method(lobbyAbc, lobby, "show_victory_screen");
+        if (!changed.get(lobbyIndex).add(results)) throw new IOException("Two hooks share a body");
+        prepend(lobbyAbc, results, lobbyHelper, "afterMatch");
 
         // Play with rooms on: straight into a room, the game's own Play (its
         // search) not run. The same body has the `played` call at its end.

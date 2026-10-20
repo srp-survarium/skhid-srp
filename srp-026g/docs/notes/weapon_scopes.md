@@ -135,3 +135,52 @@ in `crates/session/src/v026g/items_rules.rs`.
 
 Not needed: a client patch beyond patch 30, a simulation change (a scope is view-only), a server
 table in code.
+
+## 5. Weapon right-click menu
+
+The released revision 19/20 movie's `ItemCard` and `ItemControlPanel` already allow
+the scope editor for a weapon with `UpgradeWindow.hasScopes(dictId)`. The separate
+`InventoryList.isUpgradeable` predicate still only accepts armor. Both inventory
+right-clicks and `LocalPaperDoll.onMouseItemClick` use `InventoryList.showContextMenu`,
+so both omit the action despite the working item-details button.
+
+`client-patches/scope_context_menu_026g.py` fixes that predicate and gives weapons
+the existing localized `scope_window_title` menu label. The existing
+`upgradeElelemnt` callback opens the normal editor; `UpgradeWindow.setData` selects
+category 22 and its normal slot handles attach, replace and detach. Compatibility
+comes from the movie's existing `scopePairs`, populated by the game data. Weapons
+with no compatible scopes get no action. Armor keeps its cosmetic predicate and
+`btn_upgrade_label`; ownership, stack, disabled-item and locked-inventory checks
+remain in the original menu method.
+
+Build an extracted movie for the next resource patch (JDK and FFDec 25.1.3):
+
+```sh
+# development only: this one step; the movie that ships is build_lobby_026g.py's
+python3 srp-026g/client-patches/scope_context_menu_026g.py \
+  <the craft window's movie> /tmp/step.swf --ffdec /path/to/ffdec.jar --step-only
+python3 -m unittest discover -s srp-026g/client-patches -p test_scope_context_menu.py
+```
+
+The builder accepts the newest movie of the lobby patches' chain (since
+2026-10-20: revision 24's with Get Gold, the exchange update, Buy on owned items
+and the craft window, `1091a19d…`; the output with FFDec 25.1.3 is deterministic,
+its hash in the README) and refuses unknown or already patched inputs and existing
+outputs. The work of 2026-10-18 (built on revisions 19/20, never merged) was
+taken up again then. It changes one ABC block, verifies every
+unrelated existing method is byte-identical, and transplants that block into the
+original movie without round-tripping its Scaleform graphics. It is step 6 of
+`build_lobby_026g.py` (README "Building the lobby movie"): the movie that ships is
+that driver's, never this step's output alone (it would lack the steps not run);
+do not replace an already published patch. No executable, protocol or simulation change is needed.
+
+Validation of the first version (2026-10-18; the build of 2026-10-20 on the newer
+movie is checked in the game separately): built against both released input movies with FFDec
+26.0.0; the saved revision 20 movie decompiles to the expected predicate call
+and localized label, retaining the original `upgradeElelemnt` callback. Four
+patch-tool tests and the five `cargo test -p session scope` tests pass. In the
+native revision 20 client under Wine at 1280x720, right-clicking the equipped
+AK-74M and an inventory SVD showed “Optics” and opened the existing editor.
+Compatible PSO-1 variants attached and persisted on the server; dragging the SVD
+scope back to inventory removed its saved upgrade and restored “Stock scope”.
+Incompatible scopes were greyed out, and the TT-33 menu had no optics action.

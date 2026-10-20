@@ -214,6 +214,8 @@ pub fn sense_batteries(
     }
     looks.sort_by(|a, b| a.0.total_cmp(&b.0));
     let mut cast = 0;
+    // `cast` counts only the looks tried by ray, not every look.
+    #[allow(clippy::explicit_counter_loop)]
     'looks: for (_, look) in looks {
         let at = match look {
             BatteryLook::Battery(_, at)
@@ -387,7 +389,7 @@ mod tests {
             Vec3::new(5.0, 4.0, 15.0),
             Vec3::new(-5.0, 4.0, 15.0),
         );
-        RayTree::from_corners([[a, b, c], [a, c, d], [c, b, a], [d, c, a]].into_iter())
+        RayTree::from_corners([[a, b, c], [a, c, d], [c, b, a], [d, c, a]])
     }
 
     /// With the battery cheat off: a battery in view in a clear line
@@ -489,7 +491,7 @@ mod tests {
             Vec3::new(1.0, 0.4, 9.9),
             Vec3::new(-1.0, 0.4, 9.9),
         );
-        let sight = RayTree::from_corners([[a, b, c], [a, c, d], [c, b, a], [d, c, a]].into_iter());
+        let sight = RayTree::from_corners([[a, b, c], [a, c, d], [c, b, a], [d, c, a]]);
         let eye = me.eye();
         assert!(!crate::v026g::bots::aimpoint::sight_line(
             &sight,

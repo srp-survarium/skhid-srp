@@ -20,7 +20,8 @@ table is re-sorted by CRC.
 
 Edits (edits.json):
   "set":            [{"file", "path", "from", "to"}]   a number (float or int, its type kept); `from` must
-                                                       be the live value (a stale base is refused)
+                                                       be the live value (a stale base is refused); the
+                                                       path's `name[i]` is item i of an indexed table
   "rename_key":     [{"files" (glob on the game path), "table", "from", "to"}]
                     renames a key of the named table in every matching file that has it; the new name
                     is appended after the file's last byte, the table's children re-sorted by CRC
@@ -67,16 +68,21 @@ def children(buf, off):
 
 
 def find(buf, path):
-    """Offset of the value at a/b/c (named tables only)."""
+    """Offset of the value at a/b/c; `name[i]` is item i of an indexed table (states[0]/take_time)."""
     off = 0
     for part in path.split('/'):
-        want = part.encode()
+        name, *indices = part.split('[')
         for c in children(buf, off):
-            if name_at(buf, rec(buf, c)[1]) == want:
+            if name_at(buf, rec(buf, c)[1]) == name.encode():
                 off = c
                 break
         else:
             raise KeyError(path)
+        for i in indices:
+            items, i = children(buf, off), int(i.rstrip(']'))
+            if rec(buf, off)[3] != T_INDEXED or i >= len(items):
+                raise KeyError(path)
+            off = items[i]
     return off
 
 

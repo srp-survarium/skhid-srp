@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+# usage: release/build-site --tree <checkout> [--with <resources.db.patch_<n>>]
+#
+# Builds the website's pages made from the game data, the Maps tab (/maps)
+# and the damage calculator (/damage), in <checkout> (release/release.sh: a
+# worktree of the commit it releases; by hand: yours, for a preview), from
+# the stock resources.db ($SKHID_STOCK_DB) with exactly the patches of the
+# offered-patch list (release/patches.tsv) over it, and --with the
+# release's new patch, not listed yet:
+#   1. each listed patch from ~/.cache/skhid-release/patches/ (its size and
+#      sha256 checked), else downloaded there from its row's first URL (200,
+#      the row's size and sha256);
+#   2. the tools: python with pillow and numpy, java (nixpkgs#jdk21), FFDec
+#      26.0.0 (downloaded once into the cache, its sha256 checked; the one
+#      that makes main's pages byte for byte), dbgrab (tools/re-kit of
+#      <checkout>'s commit, built into the cache with the unpacker checked
+#      out as tools/vostok-resources-db in the main checkout; or
+#      $SKHID_DBGRAB);
+#   3. the calculator's build (srp-026g/scripts/damage-calc/build_site.py:
+#      its lobby icons), the Maps tab's (srp-026g/scripts/maps-tab/build.py,
+#      with those icons), then the calculator's again (it takes the maps'
+#      names, order and minimaps from the Maps tab);
+#   4. both built-from.tsv must name exactly the list's patches (and
+#      --with's), in any order (release.sh compares them so too); else it
+#      fails.
+# Relative paths (--with, $SKHID_STOCK_DB, $SKHID_PATCH_LIST, $SKHID_DBGRAB)
+# are of the folder it is run in.
+# Writes srp-026g/servers/web-server/{maps,damage}/ of <checkout> and the
+# cache, nothing else. About 2 minutes, at nice 10 (the downloads aside).
+. "$(dirname "$0")/lib.sh"
+
+tree='' with=''
+while (($#)); do
+    case $1 in
+    -h | --help) usage ;;
+    --tree) (($# >= 2)) || usage 1; tree=$2; shift 2 ;;
+    --with) (($# >= 2)) || usage 1; with=$2; shift 2 ;;
+    *) die "unknown argument $1 (--help)" ;;
+    esac
+done
+[[ -n $tree ]] || usage 1
+tree=$(cd "$tree" && pwd) || die "--tree: no such folder"
+[[ -f $tree/srp-026g/scripts/maps-tab/build.py && -f $tree/srp-026g/scripts/damage-calc/build_site.py ]] ||
+    die "$tree has no srp-026g/scripts/maps-tab/build.py and damage-calc/build_site.py"
+[[ -z $with || -f $with ]] || die "--with $with: no such file"
+# The builds run in <checkout>: every path they are given is absolute.
+[[ -z $with ]] || with=$(realpath -s -- "$with")
+need_cmds curl sha256sum nix
+lower_priority
+load_env SKHID_STOCK_DB
+use_patches live
+[[ -f $SKHID_STOCK_DB ]] || die "SKHID_STOCK_DB: $SKHID_STOCK_DB: no such file"
+SKHID_STOCK_DB=$(realpath -s -- "$SKHID_STOCK_DB")
+read_patch_list
+PATCH_LIST=$(realpath -s -- "$PATCH_LIST")
+cache=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release
+mkdir -p "$cache/patches"
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+# 1. The patches.
+while read -r name sha size urls; do
+    [[ -n $name ]] || continue
+    file=$cache/patches/$name
+    if [[ -f $file && $(size_of "$file") == "$size" && $(sha256_of "$file") == "$sha" ]]; then
+        say "$name: in the cache"
+        continue
+    fi
+    url=${urls%% *}
+    say "$name: downloading $url ($size bytes)"
+    status=$(http_get "$url" "$file.part")
+    [[ $status == 200 ]] || die "GET $url answered $status, not 200 (in $PATCH_LIST)"
+    [[ $(size_of "$file.part") == "$size" && $(sha256_of "$file.part") == "$sha" ]] ||
+        die "GET $url did not give the $size bytes of sha256 $sha that $PATCH_LIST names"
+    mv "$file.part" "$file"
+done <<<"$LIST"
+
+# 2. The tools.
+# shellcheck disable=SC2016 # a nix expression
+py=$(nix build --impure --no-link --print-out-paths --expr \
+    '(builtins.getFlake "nixpkgs").legacyPackages.${builtins.currentSystem}.python3.withPackages (p: [ p.pillow p.numpy ])') ||
+    die "python with pillow and numpy did not build (nix)"
+FFDEC_VERSION=26.0.0
+FFDEC_SHA256=e13509d0ed11c6d77bb1588701d803eb2c706e2ba4eaab8bc4477255cfc718f4
+ffdec=$cache/ffdec-$FFDEC_VERSION/ffdec-cli.jar
+if [[ ! -f $ffdec ]]; then
+    url=https://github.com/jindrapetrik/jpexs-decompiler/releases/download/version$FFDEC_VERSION/ffdec_$FFDEC_VERSION.zip
+    say "FFDec $FFDEC_VERSION: downloading $url"
+    curl -sSfL --max-time 600 -o "$work/ffdec.zip" "$url" || die "GET $url failed"
+    [[ $(sha256_of "$work/ffdec.zip") == "$FFDEC_SHA256" ]] || die "$url: not the FFDec $FFDEC_VERSION zip (sha256 $FFDEC_SHA256)"
+    rm -rf "$cache/ffdec-$FFDEC_VERSION.part"
+    if ! "$py/bin/python3" -I -c 'import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])' \
+        "$work/ffdec.zip" "$cache/ffdec-$FFDEC_VERSION.part"; then
+        die "FFDec $FFDEC_VERSION: cannot unpack it into $cache"
+    fi
+    rm -rf "$cache/ffdec-$FFDEC_VERSION"
+    mv "$cache/ffdec-$FFDEC_VERSION.part" "$cache/ffdec-$FFDEC_VERSION"
+fi
+if [[ -n ${SKHID_DBGRAB:-} ]]; then
+    [[ -x $SKHID_DBGRAB ]] || die "SKHID_DBGRAB: $SKHID_DBGRAB is not a program"
+    dbgrab=$(realpath -s -- "$SKHID_DBGRAB")
+else
+    # Built from tools/re-kit/common/dbgrab of <checkout>'s commit, copied
+    # into the cache anew (cargo writes its lock there, not in a checkout;
+    # its target folder, kept, is beside it), with the unpacker it names
+    # (../../../vostok-resources-db) of the main checkout.
+    common=$(dirname "$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)")
+    unpacker=$common/tools/vostok-resources-db
+    [[ -f $unpacker/Cargo.toml ]] ||
+        die "dbgrab needs https://github.com/srp-survarium/vostok-resources-db checked out as $unpacker (docs/RE-TOOLKIT.md), or SKHID_DBGRAB set"
+    src=$cache/dbgrab
+    rm -rf "$src"
+    mkdir -p "$src/tools/re-kit/common/dbgrab"
+    # -m: the files dated now, so cargo never takes the kept target for theirs.
+    git -C "$tree" archive HEAD:tools/re-kit/common/dbgrab | tar -x -m -C "$src/tools/re-kit/common/dbgrab" ||
+        die "dbgrab: no tools/re-kit/common/dbgrab in the commit of $tree (git archive HEAD)"
+    ln -sfn "$unpacker" "$src/tools/vostok-resources-db"
+    say "building dbgrab of $(git -C "$tree" rev-parse --short HEAD) (nix develop) ..."
+    (cd "$ROOT" && nix develop ./srp-026g -c cargo build --quiet --release \
+        --manifest-path "$src/tools/re-kit/common/dbgrab/Cargo.toml" --target-dir "$cache/dbgrab-target") || die "dbgrab did not build"
+    dbgrab=$cache/dbgrab-target/release/dbgrab
+fi
+[[ -x $dbgrab ]] || die "dbgrab: $dbgrab is not a program"
+
+# 3. The pages: the calculator (its icons), the Maps tab, the calculator again.
+args=(--stock "$SKHID_STOCK_DB" --patches "$cache/patches" --list "$PATCH_LIST" --dbgrab "$dbgrab" --ffdec "$ffdec")
+[[ -z $with ]] || args+=(--with "$with")
+build() { (cd "$tree" && PATH=$py/bin:$PATH nix shell nixpkgs#jdk21 -c python3 -I "$@"); }
+say "the calculator (its icons)"
+build srp-026g/scripts/damage-calc/build_site.py "${args[@]}" --work "$work/calc" || die "the calculator's build failed"
+say "the Maps tab"
+build srp-026g/scripts/maps-tab/build.py "${args[@]}" --icons "$work/calc/icons/icons" --work "$work/maps" || die "the Maps tab's build failed"
+say "the calculator (the Maps tab's maps)"
+build srp-026g/scripts/damage-calc/build_site.py "${args[@]}" --work "$work/calc" || die "the calculator's build failed"
+
+# 4. What they were built from.
+want=$(site_wants "$with")
+for dir in maps damage; do
+    built=$tree/srp-026g/servers/web-server/$dir/built-from.tsv
+    [[ -f $built && $(built_from "$built") == "$want" ]] ||
+        die "$built does not name exactly the patches of $PATCH_LIST${with:+ and ${with##*/}}"
+done
+say "the Maps tab and the calculator: built in $tree/srp-026g/servers/web-server/ from the stock resources.db and $(grep -c . <<<"$want") patch(es):"
+while read -r name sha; do say "  $name $sha"; done <<<"$want"

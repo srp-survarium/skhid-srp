@@ -39,3 +39,10 @@ Earlier builds have their own folders (`tools/re-kit/v021d/`, `tools/re-kit/v010
 work identifies a function that is not there, or identifies one with more confidence, add a row to the
 TSV (one line per name, no bulk JSON). The client patches' own addresses and reasoning are in
 `srp-026g/docs/notes/client_patch.md` and `srp-026g/client-patches/README.md`.
+
+## Rust changes
+
+- Before opening a PR, run `cargo clippy --workspace --all-targets` (in `srp-026g`, under `nix develop`)
+  and the tests of what you changed.
+- A PR adds no clippy or rustc warnings: fix the ones your change causes. A lint that is noise for this
+  code is allowed once in `[workspace.lints.clippy]` (`srp-026g/Cargo.toml`) with a comment why.

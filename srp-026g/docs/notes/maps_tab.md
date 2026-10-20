@@ -23,7 +23,8 @@ served by `servers/web-server/src/maps.rs`.
 - The map underneath is either the top-down render ("From above") or the game's minimap. Nothing else.
 - Data-driven, per release, never stale:
   - everything is read from the released patches;
-  - a live release refuses a Maps tab built from other patches than it offers.
+  - a live release rebuilds it from the patches it offers (`release/build-site`), never on a "don't forget"
+    basis; its record commits it.
 - The calculator's look; English and Ukrainian; names from the game's localization. Little text.
 - A mode shows only what its rules use. Chargers appear in the timed battery mode only, with "N active"
   from the mode's `spawn_points_count`; that mode shows no battery spawns (its batteries come out of the chargers).

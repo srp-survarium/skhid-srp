@@ -12,6 +12,7 @@ package
     import flash.events.MouseEvent;
     import flash.events.TimerEvent;
     import flash.external.ExternalInterface;
+    import flash.geom.ColorTransform;
     import flash.geom.Matrix;
     import flash.geom.Point;
     import flash.geom.Rectangle;
@@ -42,6 +43,9 @@ package
         public static const PLAY:int = FIRST + 6;
         public static const UNQUEUE:int = FIRST + 7;
         public static const JOIN_MATCH:int = FIRST + 8;
+        // The create window's start: the player's last room made by hand,
+        // kept by the server (the owner's of 2026-10-20).
+        public static const SETTINGS:int = FIRST + 9;
         public static const QUEUE:int = FIRST + 200000;
         public static const VOTE:int = FIRST + 3;
         public static const POOL:int = FIRST + 10;
@@ -52,8 +56,18 @@ package
         public static const CREATE:int = FIRST + 10000000;
         public static const LAST:int = FIRST + 19999999;
         public static const WAITS:Array = [15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
+        // The vote's own time before the wait (srp's rooms::VOTE).
+        public static const VOTE_SECS:int = 15;
         public static const GOLD:uint = 0xE0A64E;
         public static const RED:uint = 0xE0533F;
+        // A member of a room sees where it is (the owner's of 2026-10-19:
+        // players did not know they were in one): the top menu's tab and
+        // the switch to a better room in this, Play turned red (it leaves).
+        public static const YELLOW:uint = 0xFFD23F;
+        // The colours as transforms, for drawn parts (the tab's icon, the
+        // game's buttons): yellow and red over their own shading.
+        private static const YELLOW_TINT:ColorTransform = new ColorTransform(1, 0.82, 0.25, 1, 60, 45, 0, 0);
+        private static const RED_TINT:ColorTransform = new ColorTransform(1, 0.3, 0.25, 1, 70, 0, 0, 0);
         public static const LIGHT:uint = 0xE8EEF2;
         public static const GREY:uint = 0x93A3AF;
         public static const DIM:uint = 0x5F707C;
@@ -91,22 +105,18 @@ package
             "map": ["Map", "Карта", "Карта", "Karte", "Mapa"],
             "state": ["State", "Стан", "Состояние", "Status", "Stan"],
             "size": ["Team size", "Розмір команд", "Размер команд", "Teamgröße", "Rozmiar drużyn"],
-            "wait": ["Wait after the vote", "Очікування після голосування", "Ожидание после голосования", "Wartezeit nach der Wahl",
-                "Czekanie po głosowaniu"],
+            "wait": ["Time to start", "Час до старту", "Время до старта", "Zeit bis zum Start", "Czas do startu"],
             "pin": ["PIN", "PIN", "PIN", "PIN", "PIN"],
             "pinHint": ["4 digits; empty: an open room", "4 цифри; порожньо: відкрита кімната",
                 "4 цифры; пусто: открытая комната", "4 Ziffern; leer: offener Raum", "4 cyfry; puste: pokój otwarty"],
-            "waitHint": ["Then: 15 s map vote, this wait, the match.", "Далі: 15 с голосування, це очікування, матч.",
-                "Затем: 15 с голосования, это ожидание, матч.", "Dann: 15 s Kartenwahl, diese Wartezeit, das Match.",
-                "Potem: 15 s głosowania, to czekanie, mecz."],
             "minPlayers": ["Players to start", "Гравців для старту", "Игроков для старта", "Spieler zum Start",
                 "Graczy do startu"],
             "voting": ["Map vote", "Голосування", "Голосование", "Kartenwahl", "Głosowanie"],
-            "voteNow": ["Vote for the next map: click a card. The wait starts when the vote ends.",
-                "Голосуйте за наступну карту: клацніть картку. Очікування почнеться після голосування.",
-                "Голосуйте за следующую карту: нажмите карточку. Ожидание начнётся после голосования.",
-                "Stimme für die nächste Karte: klicke eine Karte. Danach beginnt die Wartezeit.",
-                "Zagłosuj na następną mapę: kliknij kartę. Czekanie zacznie się po głosowaniu."],
+            "voteNow": ["Vote for the next map: click a card. The match starts on the winner when the time is up.",
+                "Голосуйте за наступну карту: клацніть картку. Коли час вийде, матч почнеться на переможниці.",
+                "Голосуйте за следующую карту: нажмите карточку. Когда время выйдет, матч начнётся на победителе.",
+                "Stimme für die nächste Karte: klicke eine Karte. Ist die Zeit um, beginnt das Match auf der Gewinnerin.",
+                "Zagłosuj na następną mapę: kliknij kartę. Gdy czas minie, mecz zacznie się na zwycięskiej."],
             "nextMap": ["Next", "Далі", "Далее", "Als Nächstes", "Następna"],
             "pin4": ["The PIN is 4 digits.", "PIN — це 4 цифри.", "PIN — это 4 цифры.", "Die PIN hat 4 Ziffern.",
                 "PIN ma 4 cyfry."],
@@ -125,6 +135,7 @@ package
                 "Drużyny są losowane na starcie meczu."],
             "code": ["code", "код", "код", "Code", "kod"],
             "leave": ["Leave", "Вийти", "Выйти", "Verlassen", "Opuść"],
+            "leaveRoom": ["Leave room", "Вийти з кімнати", "Выйти из комнаты", "Raum verlassen", "Opuść pokój"],
             "joinMatch": ["Join match", "Увійти в матч", "Войти в матч", "Match beitreten", "Dołącz do meczu"],
             "joinIn": ["Into the match in %S s, or now with Join match", "У матч за %S с, або зараз: «Увійти в матч»",
                 "В матч через %S с, или сейчас: «Войти в матч»", "Ins Match in %S s, oder jetzt: Match beitreten",
@@ -161,6 +172,26 @@ package
                 "Ваше снаряжение выше макс. уровня: снизьте, иначе на старте вы выйдете из комнаты.",
                 "Deine Ausrüstung liegt über der max. Stufe: senke sie, sonst verlässt du beim Start den Raum.",
                 "Twój ekwipunek przekracza maks. poziom: obniż go, inaczej na starcie opuścisz pokój."],
+            // Why a member waiting in its room cannot go into the match now
+            // (`J;-1;<why>`, the owner's of 2026-10-20).
+            "joinWhy1": ["Another player is joining the match; you go in after.",
+                "Інший гравець заходить у матч; ви — після нього.", "Другой игрок заходит в матч; вы — после него.",
+                "Ein anderer Spieler betritt das Match; du kommst danach.", "Inny gracz dołącza do meczu; ty wchodzisz po nim."],
+            "joinWhy2": ["A player's game is loading; joining opens in a moment.",
+                "Гра одного з гравців завантажується; вхід відкриється за мить.",
+                "Игра одного из игроков загружается; вход откроется через мгновение.",
+                "Das Spiel eines Spielers lädt; Beitreten gleich wieder möglich.",
+                "Gra jednego z graczy się wczytuje; dołączenie za chwilę."],
+            "joinWhy3": ["Under 30 s left: you'll play the next match.", "Лишилося менше 30 с: ви зіграєте наступний матч.",
+                "Осталось меньше 30 с: вы сыграете следующий матч.", "Weniger als 30 s übrig: du spielst das nächste Match.",
+                "Zostało mniej niż 30 s: zagrasz następny mecz."],
+            "joinWhy4": ["The match is full.", "Матч заповнений.", "Матч заполнен.", "Das Match ist voll.", "Mecz jest pełny."],
+            "joinWhy5": ["Server maintenance soon: no new joins.", "Скоро технічні роботи: нові входи закрито.",
+                "Скоро технические работы: новые входы закрыты.", "Bald Wartung: keine neuen Beitritte.",
+                "Wkrótce przerwa techniczna: brak nowych wejść."],
+            "joinWhy6": ["The match is ending: you'll play the next one.", "Матч завершується: ви зіграєте наступний.",
+                "Матч завершается: вы сыграете следующий.", "Das Match endet: du spielst das nächste.",
+                "Mecz się kończy: zagrasz następny."],
             "lateHint": ["Who joins now sees the room, then goes into the match.", "Хто зайде зараз, побачить кімнату, потім потрапить у матч.",
                 "Кто зайдёт сейчас, увидит комнату, потом попадёт в матч.", "Wer jetzt beitritt, sieht den Raum, dann geht es ins Match.",
                 "Kto dołączy teraz, zobaczy pokój, potem trafi do meczu."],
@@ -461,7 +492,40 @@ package
             return true;
         }
 
-        // The end of LobbyMenu.set_play_button_enabled: Play stays off in a room.
+        // The start of LobbyMenu.show_victory_screen (a match's results): a
+        // player in a room gets the room's window opened first, so the
+        // results screen goes over it and closing them shows the room (the
+        // owner's of 2026-10-20). Out of a room: nothing.
+        public static function afterMatch():void
+        {
+            // A hook: nothing of it may throw into the game's code.
+            try
+            {
+                if (me != null && me._room != null && !me._shown)
+                    me.show(true);
+            }
+            catch (err:Error)
+            {
+            }
+        }
+
+        // The results screen is up (over our window, after a match): Esc and
+        // the list's keys are its, not ours.
+        private function resultsUp():Boolean
+        {
+            try
+            {
+                var screen:DisplayObject = _lobby != null ? _lobby["victory_screen"] as DisplayObject : null;
+                return screen != null && screen.visible && screen.stage != null;
+            }
+            catch (err:Error)
+            {
+            }
+            return false;
+        }
+
+        // The end of LobbyMenu.set_play_button_enabled: in a room or a room's
+        // queue Play is our Leave (on); otherwise the game's own word.
         public static function playState(lobby:*):void
         {
             // A hook: nothing of it may throw into the game's code.
@@ -496,6 +560,24 @@ package
                 // its search, is never run from this button.
                 if (me == null)
                     return false;
+                // In a room it is "Leave room" (red): out of the room.
+                if (me.leavesRoom())
+                {
+                    me._playAskedAt = getTimer();
+                    me.applyPlay();
+                    me.ask(LEAVE, 1);
+                    me._fastUntil = getTimer() + 5000;
+                    return true;
+                }
+                // In a room's queue it is "Leave queue" (red): out of it.
+                if (me.leavesQueue())
+                {
+                    me._playAskedAt = getTimer();
+                    me.applyPlay();
+                    me.ask(UNQUEUE, 1);
+                    me._fastUntil = getTimer() + 5000;
+                    return true;
+                }
                 me.quickPlay();
                 return true;
             }
@@ -560,7 +642,7 @@ package
             // A hook: nothing of it may throw into the game's code.
             try
             {
-                return me != null && me._shown;
+                return me != null && me._shown && !me.resultsUp();
             }
             catch (err:Error)
             {
@@ -574,7 +656,7 @@ package
             // A hook: nothing of it may throw into the game's code.
             try
             {
-                if (me == null || !me._shown || MainScene.activePop != null)
+                if (me == null || !me._shown || MainScene.activePop != null || me.resultsUp())
                     return false;
                 me.show(false);
                 return true;
@@ -667,6 +749,8 @@ package
             watchWindows();
             topIcon();
             overPanels();
+            alertNear();
+            applyPlay(true);
         }
 
         // While open, ours is the lobby's top child: the lobby adds its own
@@ -745,11 +829,35 @@ package
                 }
                 art.visible = false;
                 _topIcon.alpha = art.alpha;
-                _topIcon.transform.colorTransform = art.transform.colorTransform;
+                _topIcon.transform.colorTransform = marked() ? YELLOW_TINT : art.transform.colorTransform;
+                topColour(tab.textField as TextField);
             }
             catch (e:Error)
             {
             }
+        }
+
+        // The tab's label: yellow while we are in a room, its own colour
+        // otherwise (the tab sets it again on each state: ours each frame).
+        private var _topText:TextField;
+        private var _topTextColour:uint;
+
+        private function topColour(field:TextField):void
+        {
+            if (field == null)
+                return;
+            if (field != _topText)
+            {
+                _topText = field;
+                _topTextColour = field.textColor;
+            }
+            if (marked())
+            {
+                if (field.textColor != YELLOW)
+                    field.textColor = YELLOW;
+            }
+            else if (field.textColor == YELLOW)
+                field.textColor = _topTextColour;
         }
 
         private function show(value:Boolean):void
@@ -858,23 +966,113 @@ package
             }
         }
 
-        private function applyPlay():void
+        // In a room, Play is "Leave room", red, and takes us out of it (the
+        // owner's of 2026-10-19); but when our row says we play the room's
+        // match, yet we are here (the game started anew), it is Play and
+        // takes us back to our seat.
+        private function leavesRoom():Boolean
+        {
+            if (_room == null)
+                return false;
+            for (var i:int = 0; i < _room.members.length; i++)
+                if (_room.members[i].me && _room.members[i].inMatch)
+                    return false;
+            return true;
+        }
+
+        // In no room but in a full room's queue: Play is "Leave queue", red,
+        // and takes us out of the queue (the owner's of 2026-10-20).
+        private function leavesQueue():Boolean
+        {
+            return _room == null && _queueKey != 0;
+        }
+
+        // The Rooms tab is yellow while we are in a room or a room's queue
+        // (the owner's of 2026-10-20).
+        private function marked():Boolean
+        {
+            return _room != null || _queueKey != 0;
+        }
+
+        // A button's art tinted, its label not: the text stays white, as
+        // PLAY's (the owner's of 2026-10-20). Every part of the button but
+        // the one that holds its text field takes the tint.
+        private static function skinTint(btn:*, tint:ColorTransform):void
+        {
+            var box:DisplayObjectContainer = btn as DisplayObjectContainer;
+            if (box == null)
+                return;
+            box.transform.colorTransform = new ColorTransform();
+            var field:DisplayObject = null;
+            try
+            {
+                field = btn.textField as DisplayObject;
+            }
+            catch (err:Error)
+            {
+            }
+            for (var i:int = 0; i < box.numChildren; i++)
+            {
+                var part:DisplayObject = box.getChildAt(i);
+                if (field != null && (part == field
+                    || (part is DisplayObjectContainer && DisplayObjectContainer(part).contains(field))))
+                    continue;
+                part.transform.colorTransform = tint;
+            }
+        }
+
+        // The game's own label of Play, while ours is on it, and ours.
+        private var _playLabel:String = null;
+        private var _ourPlayLabel:String = null;
+
+        // `each`: the frame's call, which leaves the game's own Play enabled as
+        // the game sets it (only our Leave is kept on).
+        private function applyPlay(each:Boolean = false):void
         {
             if (_lobby == null)
                 return;
             try
             {
-                // Grey in a room, and from a press until its answer (6 s at
-                // most); the game's own word otherwise.
+                var btn:* = _lobby.statusPanel.playBtn;
+                var leaving:Boolean = leavesRoom();
+                var queued:Boolean = !leaving && leavesQueue();
+                // Grey from a press until its answer (6 s at most). Leave room
+                // and Leave queue need none of the game's Play conditions (a
+                // squad's member, a kit the game refuses): on whatever the
+                // game's Play is. Play: the game's own word.
                 var asking:Boolean = _playAskedAt != 0 && getTimer() - _playAskedAt < 6000;
-                // Our row says we play the room's match, yet we are here (the
-                // game started anew): Play takes us back to our seat.
-                var seat:Boolean = false;
-                if (_room != null)
-                    for (var i:int = 0; i < _room.members.length; i++)
-                        if (_room.members[i].me && _room.members[i].inMatch)
-                            seat = true;
-                _lobby.statusPanel.playBtn.enabled = (_room == null || seat) && !asking && _nativePlay;
+                if (leaving || queued || !each)
+                {
+                    var on:Boolean = !asking && (leaving || queued || _nativePlay);
+                    if (btn.enabled != on)
+                        btn.enabled = on;
+                }
+                // In the case of the game's own label (its Play is in capitals).
+                var native:String = _playLabel != null ? _playLabel : String(btn.label);
+                var label:String = say(leaving ? "leaveRoom" : "leaveQueue");
+                if (native != "" && native == native.toUpperCase())
+                    label = label.toUpperCase();
+                if (leaving || queued)
+                {
+                    // The game sets its own label again (its language): ours
+                    // over it each time.
+                    if (btn.label != label)
+                    {
+                        if (_playLabel == null)
+                            _playLabel = btn.label;
+                        btn.label = label;
+                    }
+                    _ourPlayLabel = label;
+                    skinTint(btn, RED_TINT);
+                }
+                else if (_playLabel != null)
+                {
+                    if (btn.label == _ourPlayLabel)
+                        btn.label = _playLabel;
+                    _playLabel = null;
+                    _ourPlayLabel = null;
+                    skinTint(btn, new ColorTransform());
+                }
             }
             catch (e:Error)
             {
@@ -907,8 +1105,7 @@ package
                 if (_shown)
                     render();
             }
-            // No answer to Play within 6 s: Play is back (the room, if any,
-            // greys it again when its state comes). Silence never drops the
+            // No answer to Play (or Leave) within 6 s: the button is back. Silence never drops the
             // room: during a match the lobby may not answer, and the next
             // answer says where we are.
             if (_playAskedAt != 0 && _now - _playAskedAt >= 6000)
@@ -1047,8 +1244,31 @@ package
                 if (_pool.length < _poolTotal && rows.length > 1)
                     ask(POOL + page + 1, 31);
                 else
+                {
                     defaultPool();
+                    // Settings that came before the pool: now they can be read.
+                    if (_saved != null)
+                        applySaved();
+                }
                 if (_view == "create" || _view == "room")
+                    render();
+            }
+            else if (kind == "F")
+            {
+                // `S1;F;<saved>;<size>;<min side>;<max level>;<wait>;<modes off>`,
+                // then `E;<chunk>;<bits>`: a pool entry's tile is in by its bit.
+                var bits:Array = [];
+                for (var fb:int = 1; fb < rows.length; fb++)
+                {
+                    var fe:Array = fields(rows[fb]);
+                    if (fe[0] == "E" && fe.length > 2)
+                        bits[int(fe[1])] = uint(fe[2]);
+                }
+                _saved = {"size": int(head[3]), "min": int(head[4]), "max": int(head[5]), "wait": int(head[6]),
+                    "modesOff": head.length > 7 && head[7] != "" ? String(head[7]).split(",") : [], "bits": bits};
+                if (_poolTotal >= 0 && _pool.length >= _poolTotal)
+                    applySaved();
+                if (_shown && _view == "create")
                     render();
             }
             else if (kind == "K" || kind == "B")
@@ -1092,12 +1312,12 @@ package
                 _room = {"key": int(head[2]), "level": int(head[3]), "max": int(head[4]), "size": int(head[5]),
                     "wait": int(head[6]), "phase": int(head[7]), "secs": int(head[8]), "owner": head[9] == "1",
                     "pool": int(head[10]), "serial": int(head[12]), "pin": head[13] == "1", "next": int(head[14]), "min": int(head[15]),
-                    "cards": [], "members": [], "last": 0, "switchTo": null, "joinIn": -1};
+                    "cards": [], "members": [], "last": 0, "switchTo": null, "joinIn": -1, "joinWhy": 0};
                 _roomAt = getTimer();
-                // The vote chose the map: the game's alert (6, its important
-                // message's), not the match's own start (15), the owner's.
-                if (was != null && was.key == _room.key && was.phase == 3 && _room.phase == 1)
-                    gameSound(6);
+                // A new vote (another room, or after its match): its alert
+                // may sound again (`alertNear`).
+                if (was == null || was.key != _room.key || was.phase != 3)
+                    _alerted = false;
                 for (var k:int = 1; k < rows.length; k++)
                 {
                     var r:Array = fields(rows[k]);
@@ -1108,7 +1328,11 @@ package
                             "inMatch": r[5] == "1", "fit": int(r[6]), "away": r[7] == "1",
                             "name": r.slice(8).join(";")});
                     else if (r[0] == "J")
+                    {
+                        // `J;<seconds>`, or `J;-1;<why>`: it cannot go in now.
                         _room.joinIn = int(r[1]);
+                        _room.joinWhy = r.length > 2 ? int(r[2]) : 0;
+                    }
                     else if (r[0] == "W")
                         _room.switchTo = {"key": int(r[1]), "max": int(r[2]), "players": int(r[3]),
                             "size": int(r[4]), "name": r.slice(5).join(";")};
@@ -1698,11 +1922,12 @@ package
                 text(row, String(room.level), tw * cols[1], 10, tw * 0.09, 17, LIGHT);
                 text(row, levelText(room.max), tw * cols[2], 10, tw * 0.09, 17, LIGHT);
                 var e:Object = entry(room.map);
-                text(row, e != null ? levelName(e.level) + " · " + weatherName(e.weather) : "",
-                    tw * cols[3], 10, tw * 0.27, 15, GREY);
+                // No card leads alone yet (a tie, no votes): the start draws one.
+                text(row, e != null ? levelName(e.level) + " · " + weatherName(e.weather)
+                    : room.phase == 3 ? say("voting") : "", tw * cols[3], 10, tw * 0.27, 15, GREY);
                 text(row, room.players + " / " + room.size * 2, tw * cols[4], 10, tw * 0.10, 17, LIGHT);
                 _stateCells[String(room.key)] = text(row, phaseText(room), tw * cols[5], 10, tw * 0.16, 15,
-                    room.phase == 2 ? GOLD : room.phase == 1 ? 0x8FD18F : GREY);
+                    room.phase == 2 ? GOLD : room.phase == 3 || room.phase == 1 ? 0x8FD18F : GREY);
                 row.buttonMode = true;
                 row.mouseChildren = false;
                 row.name = String(room.key);
@@ -1845,7 +2070,8 @@ package
         {
             try
             {
-                if (!_shown || _view != "list" || (e.keyCode != 13 && e.keyCode != 38 && e.keyCode != 40))
+                if (!_shown || _view != "list" || (e.keyCode != 13 && e.keyCode != 38 && e.keyCode != 40)
+                    || resultsUp())
                     return;
                 var focus:TextField = stage != null ? stage.focus as TextField : null;
                 if (focus != null && focus != _joinPin && focus.text.length > 0)
@@ -1924,9 +2150,7 @@ package
             slider(y, say("max"), "max");
             y += SLIDER_H;
             slider(y, say("wait"), "wait");
-            y += SLIDER_H;
-            text(_content, say("waitHint"), 14, y, FORM_W - 14, 13, GREY);
-            y += 30;
+            y += SLIDER_H + 12;
             // The modes: the two kinds of protective device apart, and team
             // deathmatch; a mode out takes all its entries out of the pool.
             text(_content, say("modes").toUpperCase(), 14, y, 260, 12, DIM);
@@ -2178,8 +2402,19 @@ package
 
         private function stopText(what:String, v:int):String
         {
-            return what == "wait" ? (v >= 60 ? "1 " + say("min") : v + " " + say("sec")) : what == "size" || what == "min" ? v + " v " + v
+            return what == "wait" ? startText(v) : what == "size" || what == "min" ? v + " v " + v
                 : levelText(v);
+        }
+
+        // The time to start a wait makes: the vote's own 15 s and the wait
+        // (the owner's of 2026-10-19: the vote runs until the match starts,
+        // its time added to the wait; 30 s at the least).
+        private function startText(wait:int):String
+        {
+            var all:int = wait + VOTE_SECS;
+            if (all < 60)
+                return all + " " + say("sec");
+            return int(all / 60) + " " + say("min") + (all % 60 != 0 ? " " + (all % 60) + " " + say("sec") : "");
         }
 
         // A slider's places: the values it stops at, in order.
@@ -2309,6 +2544,46 @@ package
             }
             return tiles;
         }
+
+        // The create window as the server says it starts (`_saved`, the
+        // player's last room made by hand, fitted to the pool and its
+        // equipment now): the sliders, the modes, and a tile out unless an
+        // entry of it is in. A value out of a slider's range leaves it as it is.
+        private var _saved:Object = null;
+
+        private function applySaved():void
+        {
+            var s:Object = _saved;
+            _saved = null;
+            if (stops("size").indexOf(s.size) >= 0)
+                _size = s.size;
+            if (stops("min").indexOf(s.min) >= 0)
+                _minSide = s.min;
+            if (stops("wait").indexOf(s.wait) >= 0)
+                _wait = s.wait;
+            if (s.max >= 0 && s.max <= 15)
+                _max = s.max;
+            _modesOff = {};
+            for (var m:int = 0; m < s.modesOff.length; m++)
+                _modesOff[String(s.modesOff[m])] = true;
+            var on:Object = {};
+            var i:int;
+            for (i = 0; i < _pool.length; i++)
+            {
+                var p:Object = _pool[i];
+                var chunk:uint = uint(s.bits[int(p.index / 20)]);
+                if ((chunk & (1 << (p.index % 20))) != 0)
+                    on[p.level + "_" + p.weather] = true;
+            }
+            _off = {};
+            for (i = 0; i < _pool.length; i++)
+            {
+                var key:String = _pool[i].level + "_" + _pool[i].weather;
+                if (on[key] != true)
+                    _off[key] = true;
+            }
+        }
+
 
         // A new creator starts with the server's pool, the experimental maps out.
         private function defaultPool():void
@@ -2471,6 +2746,7 @@ package
                 var to:Object = room.switchTo;
                 buttons.push([say("switchTo"), onSwitch, to]);
                 var made:Array = footer(buttons);
+                made[made.length - 1].transform.colorTransform = YELLOW_TINT;
                 // Two buttons leave room for what the switch is; three do not.
                 if (buttons.length < 3)
                 {
@@ -2500,6 +2776,25 @@ package
             return 0;
         }
 
+        // The vote's alert: the game's (6, its important message's), not
+        // the match's own start (15), the owner's; once a vote, when 10 s
+        // or less are left of it (the vote runs until the match starts, the
+        // owner's of 2026-10-19), also with the window hidden.
+        private var _alerted:Boolean = false;
+        private static const ALERT_SECS:int = 10;
+
+        private function alertNear():void
+        {
+            if (_room == null || _room.phase != 3 || _alerted)
+                return;
+            var left:int = _room.secs - int((getTimer() - _roomAt) / 1000);
+            if (left <= ALERT_SECS)
+            {
+                _alerted = true;
+                gameSound(6);
+            }
+        }
+
         // The countdown, kept moving between the server's answers.
         private function banner():void
         {
@@ -2526,10 +2821,13 @@ package
             {
                 _bannerLabel.text = say("playing").toUpperCase();
                 _banner.text = clock(_room.secs + passed);
-                // Waiting to go into it: the seconds left, counted here.
+                // Waiting to go into it: the seconds left, counted here; or
+                // why it cannot go in now; or its own kit or gear.
+                var why:String = "joinWhy" + _room.joinWhy;
                 _bannerHint.text = _room.joinIn >= 0
                     ? say("joinIn").split("%S").join(String(Math.max(0, _room.joinIn - passed)))
-                    : say("lateHint");
+                    : TEXT[why] != null ? say(why)
+                    : unfit != "" ? unfit : say("lateHint");
             }
             else
             {
@@ -2552,7 +2850,7 @@ package
                 return;
             }
             var left:int = _room.secs - int((getTimer() - _roomAt) / 1000);
-            var tail:String = _room.phase == 1 ? clock(left)
+            var tail:String = _room.phase == 1 || _room.phase == 3 ? clock(left)
                 : _room.phase == 2 ? say("inMatch") : _room.members.length + "/" + _room.size * 2;
             setTab(say("room") + " " + tail);
         }
@@ -2603,6 +2901,10 @@ package
             _makePinText = "";
             if (_poolTotal < 0)
                 ask(POOL, 31);
+            // The settings of the player's last room made by hand (the
+            // defaults with none): the window starts with them. Not the PIN.
+            _saved = null;
+            ask(SETTINGS, 1);
             render();
         }
 

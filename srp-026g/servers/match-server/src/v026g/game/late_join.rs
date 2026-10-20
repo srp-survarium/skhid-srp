@@ -3,6 +3,7 @@
 //! clocks, histories and normal input relay while this state machine waits.
 
 use super::*;
+use session::matchmaking_policy::Closed;
 use survarium::v026g::match_msgs::late_join::{Prepare, Prepared, Proposal, Status};
 use survarium::v026g::match_msgs::{MAX_PLAYERS, id};
 
@@ -28,10 +29,45 @@ const JOINER_EXTRA_TIME: Duration = Duration::from_secs(30);
 /// reservation, or not again after it left) is let go, and the rest of its
 /// group is admitted without it.
 const JOINER_ABSENT: Duration = Duration::from_secs(20);
+/// A game in the match that has not installed a newcomer's place this long
+/// after it was asked to, and after the newcomer's own game loaded and
+/// began to wait, is let go (it comes again with the whole roster), not the
+/// newcomer: live, 2026-10-19, one game kept a newcomer waiting until it
+/// timed out, and then the match took nobody. Only an outlier: another game
+/// of the match has the place, and the slow ones are fewer than half of the
+/// match's games (`drop_slow_games`). Games a few seconds apart are usual
+/// (`games_that_install_a_place_seconds_apart_…`).
+const INSTALL_GRACE: Duration = Duration::from_secs(15);
+/// A game still loading (from its connection on) is waited for this long at
+/// most, by a match taking joiners and by a joiner whose place its roster
+/// lacks. Measured live (2026-10-19, 294 loads, connection to "has loaded"):
+/// 4.2 s in the middle, 8.4 s at the 90th percentile, 15.2 s at the 99th,
+/// 16.3 s at most. Past it, it is left behind (`Peer::left_behind`): loaded
+/// later without a place taken meanwhile, it is let go to come again. Only
+/// a game that loads its place again ([`LoadWait`]).
+const LOADING_GRACE: Duration = Duration::from_secs(30);
+
+/// By place: whether a game of it still loading past [`LOADING_GRACE`] is
+/// left behind. The owner's players have slow disks (game starts of
+/// minutes): a slow machine is waited for on the match's first load, and
+/// is let go for loading behind once at most.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum LoadWait {
+    /// Its first load of the match (an initial place, from the start):
+    /// waited for.
+    First,
+    /// It loaded before (its game came again): left behind past the grace.
+    Again,
+    /// Let go once for loading behind (`loaded_behind`): waited for from
+    /// then on.
+    Always,
+}
 
 pub(super) struct LoadingProfile {
     proposal: Proposal,
     sent: Instant,
+    /// When it was first sent ([`INSTALL_GRACE`]).
+    since: Instant,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -73,6 +109,9 @@ pub(super) struct Admission {
     /// Caught up, it waits: without the rest of its group the sides would
     /// be too far apart (said once).
     waits_for_balance: bool,
+    /// Since when its own game has loaded and waits for the others to
+    /// install its place ([`INSTALL_GRACE`] runs from here at the earliest).
+    waiting_since: Option<Instant>,
 }
 
 impl Admission {
@@ -92,6 +131,7 @@ impl Admission {
             absent_since: Some(now),
             failed_alone: false,
             waits_for_balance: false,
+            waiting_since: None,
         }
     }
 
@@ -162,6 +202,7 @@ impl Game {
             self.peers.push(None);
             self.best_streaks.push(0);
             self.kit_changes.push(0);
+            self.load_waits.push(LoadWait::First);
             self.push_driven_place(formed.places[place].team);
             self.admissions.push(Some(Admission::new(now)));
         }
@@ -171,44 +212,148 @@ impl Game {
         self.record_note(note, now);
     }
 
+    #[cfg(test)]
     pub(crate) fn admitting(&self) -> bool {
-        self.growing_roster()
-            && self.players() < MAX_PLAYERS
-            // From the countdown on (the owner's of 2026-10-18: the first
-            // seconds of a room's match take joiners too), not while it
-            // waits for its players.
-            && matches!(
-                self.rule.state,
-                rules::state::COUNTDOWN | rules::state::IN_PROCESS
-            )
-            && self.mode_end_at.is_none()
-            && self.ending.is_none()
-            && self.finished_at.is_none()
-            && self.live() > 0
-            && self.admissions.iter().flatten().all(Admission::entered)
-            && self
-                .peers
-                .iter()
-                .flatten()
-                .filter(|p| p.stage != Stage::Gone)
-                .all(|p| p.resources_loaded && p.installed_roster == self.players())
+        self.growing_roster() && self.closed_to_joiners().is_none()
+    }
+
+    /// Why the match takes no late joiner now, the first reason that
+    /// holds; `None`: it takes one (its time limit aside,
+    /// [`Self::admission`]). Meaningful for a growing roster only.
+    pub(crate) fn closed_to_joiners(&self) -> Option<Closed> {
+        if self.mode_end_at.is_some() || self.ending.is_some() || self.finished_at.is_some() {
+            return Some(Closed::Ending);
+        }
+        if self.players() >= MAX_PLAYERS {
+            return Some(Closed::Full);
+        }
+        // One pending reservation at a time; a newcomer that failed by
+        // itself (`failed_alone`) is settled (its place is installed on, as
+        // one whose player left), and closes nothing.
+        if self
+            .admissions
+            .iter()
+            .flatten()
+            .any(|a| !a.entered() && !a.failed())
+        {
+            return Some(Closed::Joining);
+        }
+        // A place no game could install closes the match to joiners: none
+        // after it can be. No more players go in, as when it is full.
+        if self
+            .admissions
+            .iter()
+            .flatten()
+            .any(Admission::install_stopped)
+        {
+            return Some(Closed::Full);
+        }
+        // From the countdown on (the owner's of 2026-10-18: the first
+        // seconds of a room's match take joiners too), not while it waits
+        // for its players.
+        if !matches!(
+            self.rule.state,
+            rules::state::COUNTDOWN | rules::state::IN_PROCESS
+        ) || self.live() == 0
+        {
+            return Some(Closed::Loading);
+        }
+        let mut peers = self
+            .peers
+            .iter()
+            .flatten()
+            .filter(|p| p.stage != Stage::Gone && !p.left_behind);
+        if peers.clone().any(|p| !p.resources_loaded) {
+            return Some(Closed::Loading);
+        }
+        // Loaded, a game still installing a place: its joiner is on its way.
+        // A place whose newcomer failed alone is settled: a game that has
+        // not installed it yet holds no joiner back (the next one waits for
+        // that game, `drop_slow_games`).
+        if peers
+            .any(|p| (p.installed_roster..self.players()).any(|place| !self.failed_alone(place)))
+        {
+            return Some(Closed::Joining);
+        }
+        None
+    }
+
+    /// The newcomer of the place at `index` failed by itself: the place is
+    /// settled, and installed on as one whose player left.
+    fn failed_alone(&self, index: usize) -> bool {
+        self.admissions[index]
+            .as_ref()
+            .is_some_and(|a| a.failed() && a.failed_alone)
+    }
+
+    /// Whether the place at `index` waits for `peer` to enter: a game in
+    /// the match without the place yet. A game that has it from its static
+    /// info waits for nobody, loaded or not (live, 2026-10-19: a game that
+    /// connected again and never loaded kept a newcomer out); one left
+    /// behind is not waited for.
+    fn waits_for(peer: &Peer, index: usize) -> bool {
+        peer.stage != Stage::Gone && !peer.left_behind && peer.installed_roster <= index
+    }
+
+    /// The game at `index` has loaded. Left behind without a place taken
+    /// since its static info, it is let go: it would start from a world
+    /// with a player it has not installed. It comes again with the whole
+    /// roster. `true`: it was let go.
+    ///
+    /// Not installed after its load instead: a world from a game that has
+    /// the place carries that place's kit objects (`installing`), and no
+    /// client has yet installed a place between its load and its first
+    /// world. Letting it go is the path every client takes today.
+    pub(super) fn loaded_behind(&mut self, index: usize, now: Instant) -> bool {
+        let Some(peer) = self.peers[index].as_mut() else {
+            return false;
+        };
+        let wait = &mut self.load_waits[index];
+        if *wait == LoadWait::First {
+            *wait = LoadWait::Again;
+        }
+        let behind = std::mem::replace(&mut peer.left_behind, false);
+        let missing = peer.installed_roster < self.formed.places.len()
+            && !self.admissions[peer.installed_roster]
+                .as_ref()
+                .is_some_and(Admission::install_stopped);
+        if !behind || !missing {
+            return false;
+        }
+        log::warn!(
+            "Match {:#x}: player {index} loaded without the places taken since it connected; it \
+             is let go, to come again with the whole roster; its next load is waited for",
+            self.id
+        );
+        peer.transport.disconnect(now);
+        self.load_waits[index] = LoadWait::Always;
+        self.leave(index, now);
+        true
     }
 
     /// Until when a late joiner is taken: the time limit less
     /// `LOAD_MARGIN` (30 s, the owner's of 2026-10-19), while the match
     /// [admits](Self::admitting) players.
+    #[cfg(test)]
     pub(crate) fn admission_deadline(&self, now: Instant) -> Option<Instant> {
-        if !self.admitting() {
-            return None;
+        self.admission(now).ok()
+    }
+
+    /// [`Self::admission_deadline`], or why there is none: what the lobby
+    /// tells a room's waiting member.
+    pub(crate) fn admission(&self, now: Instant) -> Result<Instant, Closed> {
+        if let Some(closed) = self.closed_to_joiners() {
+            return Err(closed);
         }
-        let remaining = Duration::from_millis(u64::from(
-            self.rule.time_limit_at()?.saturating_sub(self.clock(now)),
-        ));
-        let open_for = remaining.checked_sub(session::matchmaking_policy::LOAD_MARGIN)?;
-        if open_for.is_zero() {
-            return None;
-        }
-        now.checked_add(open_for)
+        let Some(limit) = self.rule.time_limit_at() else {
+            return Err(Closed::Loading);
+        };
+        let remaining = Duration::from_millis(u64::from(limit.saturating_sub(self.clock(now))));
+        remaining
+            .checked_sub(session::matchmaking_policy::LOAD_MARGIN)
+            .filter(|open_for| !open_for.is_zero())
+            .and_then(|open_for| now.checked_add(open_for))
+            .ok_or(Closed::LastSeconds)
     }
 
     /// Failed newcomers can queue elsewhere. Their descriptors remain
@@ -251,12 +396,11 @@ impl Game {
         };
         admission.entered()
             || (matches!(admission.phase, AdmissionPhase::CatchingUp { .. })
-                && self
+                && !self
                     .peers
                     .iter()
                     .flatten()
-                    .filter(|p| p.stage != Stage::Gone)
-                    .all(|p| p.resources_loaded && p.installed_roster > index))
+                    .any(|p| Self::waits_for(p, index)))
     }
 
     pub(super) fn after_preparation(&self, index: usize, time: u32) -> bool {
@@ -307,6 +451,8 @@ impl Game {
             admission.forget_wrong();
             if new_connection {
                 admission.phase = AdmissionPhase::Preparing;
+                // Its new game waits from its own load ([`INSTALL_GRACE`]).
+                admission.waiting_since = None;
             }
         }
     }
@@ -354,8 +500,15 @@ impl Game {
                     self.id,
                     ack.proposal.place
                 );
+                // Its install stops, whether its newcomer failed alone
+                // before or not: the same end as when this came first. One
+                // already failed (and maybe rejected to the lobby) keeps
+                // its phase: it is not rejected twice.
                 if let Some(admission) = &mut self.admissions[usize::from(ack.proposal.place)] {
-                    admission.phase = AdmissionPhase::Failed;
+                    if !admission.failed() {
+                        admission.phase = AdmissionPhase::Failed;
+                    }
+                    admission.failed_alone = false;
                 }
             }
         }
@@ -371,6 +524,7 @@ impl Game {
             return;
         }
         let count = self.players();
+        self.drop_slow_games(count, now);
         for peer in self.peers.iter_mut().flatten() {
             if peer.stage == Stage::Gone || !peer.resources_loaded || peer.installed_roster >= count
             {
@@ -401,6 +555,7 @@ impl Game {
                         place: place as u8,
                     },
                     sent: now,
+                    since: now,
                 });
             }
             let pending = peer.preparing.as_mut().unwrap();
@@ -433,12 +588,11 @@ impl Game {
             let ready = self.peers[index]
                 .as_ref()
                 .is_some_and(|p| p.resources_loaded && p.stage != Stage::Gone)
-                && self
+                && !self
                     .peers
                     .iter()
                     .flatten()
-                    .filter(|p| p.stage != Stage::Gone)
-                    .all(|p| p.resources_loaded && p.installed_roster > index);
+                    .any(|p| Self::waits_for(p, index));
             let connected = self.peers[index]
                 .as_ref()
                 .is_some_and(|p| p.stage != Stage::Gone);
@@ -537,6 +691,129 @@ impl Game {
                 peer.transport.disconnect(now);
                 self.leave(index, now);
             }
+        }
+    }
+
+    /// A newcomer's place waits for no game longer than it must. A game
+    /// still loading (from its connection) past [`LOADING_GRACE`] is left
+    /// behind. A game of the match that has not installed a place whose
+    /// newcomer's game has loaded and waits, [`INSTALL_GRACE`] after both
+    /// its proposal and that wait began, is let go (it comes again with the
+    /// whole roster) — but only an outlier: another game of the match has
+    /// installed that place, and the slow ones are fewer than half of the
+    /// match's games. When none has it, or most are slow, the place is the
+    /// trouble: nobody is let go, and the newcomer runs out by its own time.
+    /// A place whose game is away waits for nobody ([`JOINER_ABSENT`]).
+    fn drop_slow_games(&mut self, count: usize, now: Instant) {
+        let first = self.formed.initial_players;
+        let coming: Vec<usize> = (first..count).filter(|&place| self.coming(place)).collect();
+        let loading = self
+            .peers
+            .iter()
+            .flatten()
+            .any(|p| p.stage != Stage::Gone && !p.resources_loaded && !p.left_behind);
+        if coming.is_empty() && !loading {
+            return;
+        }
+        for (index, peer) in self.peers.iter_mut().enumerate() {
+            let Some(peer) = peer.as_mut() else {
+                continue;
+            };
+            // Loading this long, it holds no joiner back: neither a place
+            // taken nor one waiting (live, 2026-10-19: a game that signed in
+            // again every minute and never loaded closed the match to
+            // joiners for most of each minute). Not on the place's first
+            // load, nor once it was let go for it ([`LoadWait`]).
+            if peer.stage != Stage::Gone
+                && !peer.resources_loaded
+                && !peer.left_behind
+                && self.load_waits[index] == LoadWait::Again
+                && peer
+                    .loading_since
+                    .is_some_and(|since| now.saturating_duration_since(since) >= LOADING_GRACE)
+            {
+                peer.left_behind = true;
+                log::warn!(
+                    "Match {:#x}: player {index} is still loading after {} s; joiners do not \
+                     wait for it",
+                    self.id,
+                    LOADING_GRACE.as_secs()
+                );
+            }
+        }
+        // The newcomers whose own game has loaded wait from now on.
+        let mut waiting = Vec::new();
+        for &place in &coming {
+            let loaded = self.peers[place]
+                .as_ref()
+                .is_some_and(|p| p.stage != Stage::Gone && p.resources_loaded);
+            if let Some(admission) = self.admissions[place].as_mut()
+                && loaded
+            {
+                waiting.push((place, *admission.waiting_since.get_or_insert(now)));
+            }
+        }
+        if waiting.is_empty() {
+            return;
+        }
+        // The match's own games: in it and loaded, newcomers left out.
+        let games: Vec<usize> = (0..self.peers.len())
+            .filter(|&index| {
+                !self.coming(index)
+                    && self.peers[index]
+                        .as_ref()
+                        .is_some_and(|p| p.stage != Stage::Gone && p.resources_loaded)
+            })
+            .collect();
+        let mut slow = Vec::new();
+        for &index in &games {
+            let peer = self.peers[index].as_ref().unwrap();
+            // The first waiting place it does not have yet (an earlier one
+            // it is stuck on, a newcomer's that failed alone, holds it too).
+            let Some(&(place, since)) = waiting
+                .iter()
+                .find(|(place, _)| peer.installed_roster <= *place)
+            else {
+                continue;
+            };
+            let Some(asked) = peer.preparing.as_ref().map(|p| p.since) else {
+                continue;
+            };
+            let has_it = games.iter().any(|&other| {
+                other != index
+                    && self.peers[other]
+                        .as_ref()
+                        .is_some_and(|p| p.installed_roster > place)
+            });
+            if has_it && now.saturating_duration_since(asked.max(since)) >= INSTALL_GRACE {
+                slow.push((index, place));
+            }
+        }
+        if slow.is_empty() {
+            return;
+        }
+        if slow.len() * 2 >= games.len() {
+            log::debug!(
+                "Match {:#x}: {} of its {} games have not installed a new place in {} s; none is \
+                 let go for it",
+                self.id,
+                slow.len(),
+                games.len(),
+                INSTALL_GRACE.as_secs()
+            );
+            return;
+        }
+        for (index, place) in slow {
+            log::warn!(
+                "Match {:#x}: player {index} has not installed new place {place} in {} s; it is \
+                 let go, to come again with the whole roster",
+                self.id,
+                INSTALL_GRACE.as_secs()
+            );
+            if let Some(peer) = self.peers[index].as_mut() {
+                peer.transport.disconnect(now);
+            }
+            self.leave(index, now);
         }
     }
 

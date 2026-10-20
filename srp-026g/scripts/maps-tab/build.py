@@ -30,8 +30,8 @@ Writes <out>/maps.html ({{LANG}} and <!--SITE-HEADER--> for the server),
 <out>/maps.js (data and UI), <out>/minimap/<project_name>.webp and
 <out>/files.rs (those files, for the server's include) and
 <out>/built-from.tsv (the patches it was built from: release/release.sh
-refuses a release that offers other patches; a content release builds with
---with <its patch> first). Needs pillow, java on PATH and the
+rebuilds the page, through release/build-site, when it offers others; --with
+<a patch> previews one not listed yet). Needs pillow, java on PATH and the
 icons the damage calculator's build exports (assets/tools/build_icons.py).
 """
 import argparse

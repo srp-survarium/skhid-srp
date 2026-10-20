@@ -10,8 +10,8 @@ of the README's build, in one: the configs and texts (dump_json.py,
 gen_calc_data.py), the lobby icons (lobby_menu.swf through FFDec,
 assets/tools/build_icons.py), then build_page.py --site into
 servers/web-server/damage/, and built-from.tsv there: release/release.sh
-refuses a release that offers other patches, and a web-server test says so on
-a PR. Run the Maps tab's build first (srp-026g/scripts/maps-tab): the
+rebuilds the page (release/build-site) when it offers other patches, and a
+web-server test fails a PR whose pages and list differ. Run the Maps tab's build first (srp-026g/scripts/maps-tab): the
 calculator takes its maps' names, order and minimaps from it; the renders are
 the ones in servers/web-server/damage/maps/. Needs pillow, numpy and java on
 PATH.

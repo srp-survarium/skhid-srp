@@ -448,3 +448,26 @@ kept and can be put back).
 - TODO: #203 Rooms: every PvP match is a room's (the in-game Rooms window); the old queue goes
 - TODO: #206 Patch 39: the Tab list shows the places in the match, none whose player left
 - TODO: #207 Site: Maps tab and calculator built with revision 24's patch
+
+## 20 Oct, 08:36 — TODO: the owner's words (update required)
+
+<!-- Revision 25 (026g-rev25), released 2026-10-20 08:36 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #213 Lobby: every Get Gold opens the exchange, not the online store
+- TODO: #214 Exchange: a typed amount over the balance becomes the most it pays for
+- TODO: #215 Lobby: Buy on an owned item: modified ones too, no "already purchased" question
+- TODO: #216 Lobby: craft window: right-click Buy and Sell; Continue and Exit after an upgrade
+- TODO: #217 Lobby: Optics in a weapon's right-click menu (opens the scope editor)
+- TODO: #201 Patch 38: spotting has no cooldown, and a battery's body spots it (simulation change)
+- TODO: #200 Fall damage as in 0.27: fatal_damage 1.0 (simulation change)
+- TODO: #205 Patch 40: a model's LOD and screen factor at a wider field of view are the original's
+- TODO: #212 Rooms: the map vote runs until the match starts
+- TODO: #218 Lobby movie: one driver builds every lobby change, in order
+- TODO: #219 Rooms: the room's window under a match's results
+- TODO: #210 Late joiners: fewer players first, then the side they played on, then the balance
+- TODO: #211 Rooms: a member sees it is in a room (yellow tab, red Leave room)
+- TODO: #222 Ukrainian: the Duty faction is Долг
+- TODO: #209 Late joins: a failed joiner closes nothing, and no joiner waits for a game that is not playing
+- TODO: #221 Battery pick-up 20 % faster (take_time 0.6 -> 0.5)
+- TODO: #199 Release: rebuild the Maps tab and the calculator from the release's patches
+- TODO: #224 re-kit 0.26g: weapon draw/holster, the modifier getter, the battery's states

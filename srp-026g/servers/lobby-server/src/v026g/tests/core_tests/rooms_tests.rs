@@ -6,12 +6,14 @@
 use session::v026g::matchmaking;
 use session::v026g::rooms::Stage;
 use survarium::v026g::lobby::rooms::{
-    ROOM_JOIN_BASE, ROOM_JOIN_MATCH, ROOM_LEAVE, ROOM_PIN_BASE, ROOM_PLAY, ROOM_QUEUE_BASE,
-    ROOM_STATE, ROOM_UNQUEUE, ROOM_VOTE_BASE, ROOMS_LIST, RoomSpec, create_start, kick_start,
+    ROOM_FORM, ROOM_JOIN_BASE, ROOM_JOIN_MATCH, ROOM_LEAVE, ROOM_PIN_BASE, ROOM_PLAY,
+    ROOM_QUEUE_BASE, ROOM_STATE, ROOM_UNQUEUE, ROOM_VOTE_BASE, ROOMS_LIST, RoomSpec, bits_start,
+    create_start, kick_start,
 };
 
 use super::pvb_tests::with_gear;
 use super::*;
+use crate::v026g::LiveView;
 
 /// Fields of the state's header (`S1;R;<key>;<level>;<max level>;<size>;
 /// <wait>;<phase>;<secs>;<owner>;<pool>;<members>;<serial>;<pin>`).
@@ -117,10 +119,8 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
 
     let list = rows(&mut world, bob, ROOMS_LIST, 32);
     assert_eq!(list[0], "S1;L;1;0");
-    assert_eq!(
-        list[1],
-        format!("{key};0;0;6;1;0;0;{};0;Alice", cards(&alone)[0])
-    );
+    // No vote yet: no map (the start would draw one).
+    assert_eq!(list[1], format!("{key};0;0;6;1;0;0;0;0;Alice"));
     let joined = rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
     assert_eq!(header(&joined)[MEMBERS], "2");
     assert_eq!(header(&joined)[OWNER], "0", "Bob does not own it");
@@ -144,16 +144,24 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
         voted.contains(&format!("C;1;{};2;1", voted_cards[1])),
         "{voted:?}"
     );
+    // The list shows the card that leads alone.
+    let map_of = |list: &[String]| list[1].split(';').nth(7).unwrap().to_owned();
+    let list = rows(&mut world, bob, ROOMS_LIST, 32);
+    assert_eq!(map_of(&list), voted_cards[1].to_string());
 
-    // The vote is over: its winner is the next map, and the wait runs.
+    // Past the vote's 15 s it is still open, through the wait, until the
+    // match starts (the owner's of 2026-10-19); no map is fixed before.
     world.advance(Duration::from_secs(15));
     let waiting = state(&mut world, alice);
-    assert_eq!(header(&waiting)[PHASE], "1", "the wait: {waiting:?}");
-    assert_eq!(header(&waiting)[NEXT], voted_cards[1].to_string());
-    // Its vote is shut.
+    assert_eq!(header(&waiting)[PHASE], "3", "still the vote: {waiting:?}");
+    assert_eq!(header(&waiting)[NEXT], "0");
+    rows(&mut world, alice, ROOM_VOTE_BASE + 2, 1);
+    // One vote each: a tie, no map in the list (the start draws one).
+    let list = rows(&mut world, bob, ROOMS_LIST, 32);
+    assert_eq!(map_of(&list), "0");
     let late = rows(&mut world, bob, ROOM_VOTE_BASE + 2, 1);
     assert!(
-        late.contains(&format!("C;1;{};2;1", voted_cards[1])),
+        late.contains(&format!("C;2;{};2;1", voted_cards[2])),
         "{late:?}"
     );
     world.take(alice);
@@ -164,7 +172,10 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     assert_eq!(to_alice.0, to_bob.0);
     assert_ne!(to_alice.1, to_bob.1, "one a side");
     let setup = world.host.made.locked().last().unwrap().1.clone();
-    assert_eq!(setup.map_id, voted_cards[1]);
+    assert_eq!(
+        setup.map_id, voted_cards[2],
+        "the vote's winner when it started"
+    );
     assert_eq!(setup.players.len(), 2, "no bots");
     assert!(!setup.vs_bots);
     world.advance(Duration::from_secs(1));
@@ -183,7 +194,7 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     world.advance(Duration::from_secs(2));
     let after = state(&mut world, alice);
     assert_eq!(header(&after)[PHASE], "3", "the next vote: {after:?}");
-    assert_eq!(after.last().unwrap(), &format!("L;{}", voted_cards[1]));
+    assert_eq!(after.last().unwrap(), &format!("L;{}", voted_cards[2]));
     assert_eq!(cards(&after).len(), 3);
 }
 
@@ -544,8 +555,14 @@ fn a_room_whose_match_cannot_be_made_tries_again() {
             "left searching: {decoded:?}"
         );
     }
-    assert_eq!(header(&state(&mut world, alice))[PHASE], "1");
+    // The vote and the wait again, whole.
+    assert_eq!(header(&state(&mut world, alice))[PHASE], "3");
     world.host.fail.store(false, Ordering::Relaxed);
+    world.advance(Duration::from_secs(16));
+    assert!(
+        sent_to_match(&world.take(alice)).is_none(),
+        "the 30 s at the least"
+    );
     world.advance(Duration::from_secs(16));
     assert!(sent_to_match(&world.take(alice)).is_some());
     assert!(sent_to_match(&world.take(bob)).is_some());
@@ -781,6 +798,99 @@ fn an_older_game_plays_in_no_room() {
     assert!(world.host.made.locked().is_empty());
 }
 
+/// The create window's answer: its header's fields and the `maps_dict` ids
+/// it puts in (tile in, mode not out).
+fn form(world: &mut World, index: usize) -> (Vec<String>, Vec<u8>) {
+    let rows = rows(world, index, ROOM_FORM, 1);
+    let header = header(&rows);
+    let modes_off: Vec<u8> = header[7]
+        .split(',')
+        .filter(|mode| !mode.is_empty())
+        .map(|mode| mode.parse().unwrap())
+        .collect();
+    let mut tiles_on = Vec::new();
+    for (chunk, row) in rows[1..].iter().enumerate() {
+        let fields: Vec<&str> = row.split(';').collect();
+        assert_eq!(fields[..2], ["E", &chunk.to_string()]);
+        let bits: u32 = fields[2].parse().unwrap();
+        tiles_on.extend((0..20).map(|b| bits & 1 << b != 0));
+    }
+    let chosen = world
+        .core
+        .room_entries()
+        .iter()
+        .zip(tiles_on)
+        .filter(|(entry, on)| *on && !modes_off.contains(&entry.mode))
+        .map(|(entry, _)| entry.map_id)
+        .collect();
+    (header[2..7].to_vec(), chosen)
+}
+
+/// A room made by hand is its maker's next create window (the owner's of
+/// 2026-10-20): its team size, players to start, max level, wait and pool,
+/// not its PIN; a max level under the maker's equipment now is raised to
+/// it. With none made, the defaults; a room Play made keeps nothing.
+#[test]
+fn a_room_made_by_hand_starts_its_makers_next_create_window() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let entries = world.core.room_entries();
+    let regular: Vec<u8> = entries
+        .iter()
+        .filter(|entry| !entry.extra)
+        .map(|entry| entry.map_id)
+        .collect();
+    assert!(entries.len() >= 3, "{entries:?}");
+    let defaults = (
+        ["0", "8", "1", "0", "30"].map(str::to_owned).to_vec(),
+        regular.clone(),
+    );
+    assert_eq!(form(&mut world, alice), defaults);
+    world.ask(alice, request::play(1));
+    world.advance(Duration::from_millis(100));
+    assert_eq!(header(&state(&mut world, alice))[1], "R");
+    assert_eq!(form(&mut world, alice), defaults);
+    assert!(world.account(alice).room_settings.is_none());
+
+    // By hand: the first and third entries, 9 v 9 from 2 v 2, max level 3,
+    // a wait of 45 s, a PIN.
+    rows(&mut world, alice, bits_start(0, 0b101), 1);
+    create(
+        &mut world,
+        alice,
+        RoomSpec {
+            size: 9,
+            min_side: 2,
+            max_level: 3,
+            wait: 45,
+            pin: false,
+        },
+        Some(1234),
+    );
+    let (fields, chosen) = form(&mut world, alice);
+    assert_eq!(fields, ["1", "9", "2", "3", "45"]);
+    // The pool as made: the window's tiles and modes give it back (an entry
+    // of the same map, weather and mode would come with it).
+    let made: Vec<u8> = world
+        .core
+        .rooms
+        .of(world.ids[alice].0)
+        .unwrap()
+        .pool
+        .clone();
+    assert_eq!(made, [entries[0].map_id, entries[2].map_id]);
+    assert_eq!(chosen, made);
+    assert!(world.account(alice).room_settings.is_some());
+    // Equipment over the max level now: the window offers its level.
+    with_gear(&mut world, alice, 5);
+    assert_eq!(form(&mut world, alice).0, ["1", "9", "2", "5", "45"]);
+    // Play's room after it keeps what the hand made.
+    rows(&mut world, alice, ROOM_LEAVE, 1);
+    world.ask(alice, request::play(1));
+    world.advance(Duration::from_millis(100));
+    assert_eq!(form(&mut world, alice).1, made);
+}
+
 /// A full room's queue (the owner's of 2026-10-17): who is in no room waits
 /// for a place and is told its place; when a member leaves, the first in
 /// the queue is in the room at once, and the next moves up; leaving the
@@ -894,4 +1004,271 @@ fn one_who_leaves_the_match_by_its_own_word_is_out_of_the_room_and_may_come_agai
     assert_eq!(bob_report.player_id, 3);
     assert_eq!(report.stats.rows.len(), 2);
     world.assert_clean();
+}
+
+/// A room match of four that has started: the room's key, the match's
+/// ticket and lobby id, and the four clients.
+fn room_match_of_four(world: &mut World) -> (u32, u32, u32, [usize; 4]) {
+    let players = ["Alice", "Bob", "Carol", "Dave"].map(|name| world.connect(name));
+    let key = create(world, players[0], spec(6), None);
+    for &player in &players[1..] {
+        rows(world, player, ROOM_JOIN_BASE + key, 1);
+    }
+    world.advance(VOTE_AND_WAIT);
+    let (ticket, _) = sent_to_match(&world.take(players[0])).expect("a match");
+    for &player in &players[1..] {
+        assert!(sent_to_match(&world.take(player)).is_some());
+    }
+    let (&id, running) = world
+        .core
+        .matches
+        .iter()
+        .find(|(_, running)| running.ticket.match_id == ticket)
+        .unwrap();
+    assert_eq!(running.seats.len(), 4);
+    (key, ticket, id, players)
+}
+
+/// The roster place and team of the client's player in the match.
+fn seat_of(world: &World, id: u32, player: usize) -> (usize, u8) {
+    let session = world.ids[player].1;
+    let seats = &world.core.matches[&id].seats;
+    let place = seats.iter().position(|&(s, _)| s == session).unwrap();
+    (place, seats[place].1)
+}
+
+/// The player leaves the match by its own word, then (the match showing
+/// `present`) joins the room again and goes into the match: its new team.
+fn leave_and_come_back(
+    world: &mut World,
+    (key, ticket, id): (u32, u32, u32),
+    player: usize,
+    present: u32,
+) -> u8 {
+    let account = world.ids[player].0;
+    assert_eq!(world.store.matchmaking().leave_match(account), Some(id));
+    world.ask(player, request::leave(1, true));
+    world.advance(Duration::from_secs(1));
+    world.host.live.locked().insert(
+        ticket,
+        LiveView {
+            present,
+            points: None,
+            kills: [0, 0],
+            played: Some(Duration::from_secs(60)),
+            time_left: Some(Duration::from_secs(600)),
+        },
+    );
+    world.host.admitting.locked().insert(ticket);
+    rows(world, player, ROOM_JOIN_BASE + key, 1);
+    world.take(player);
+    world.advance(Duration::from_secs(16));
+    let (sent, _) = sent_to_match(&world.take(player)).expect("back into the match");
+    assert_eq!(sent, ticket);
+    let seats = &world.core.matches[&id].seats;
+    assert_eq!(seats.len(), 5);
+    assert_eq!(seats[4].0, world.ids[player].1);
+    seats[4].1
+}
+
+/// The owner's of 2026-10-19 (players, then the previous team, then the
+/// balance): one who comes back into its room's match goes, of two sides
+/// with as many players in it, to the side it played on.
+#[test]
+fn one_who_comes_back_into_the_match_goes_to_its_side_when_the_players_are_alike() {
+    let mut world = World::new();
+    let (key, ticket, id, players) = room_match_of_four(&mut world);
+    // A player of team 1 leaves, and one of team 0 is out of the match too
+    // (its game gone): 1 v 1 in it. The players are alike, so the balance
+    // alone would send the one coming back to team 0.
+    let leaver = players[1..]
+        .iter()
+        .copied()
+        .find(|&player| seat_of(&world, id, player).1 == 1)
+        .unwrap();
+    let other = players
+        .iter()
+        .copied()
+        .find(|&player| seat_of(&world, id, player).1 == 0)
+        .unwrap();
+    let present =
+        0b1111 & !(1 << seat_of(&world, id, leaver).0) & !(1 << seat_of(&world, id, other).0);
+    let team = leave_and_come_back(&mut world, (key, ticket, id), leaver, present);
+    assert_eq!(team, 1);
+}
+
+/// Players come first: one who comes back goes to the side with fewer
+/// players in the match, though it played on the other.
+#[test]
+fn one_who_comes_back_goes_to_the_side_with_fewer_players_whatever_its_team() {
+    let mut world = World::new();
+    let (key, ticket, id, players) = room_match_of_four(&mut world);
+    let leaver = players[1..]
+        .iter()
+        .copied()
+        .find(|&player| seat_of(&world, id, player).1 == 1)
+        .unwrap();
+    // Team 0's two are out of the match: 0 v 1 without it.
+    let mut present = 0b1111 & !(1 << seat_of(&world, id, leaver).0);
+    for &player in &players {
+        if seat_of(&world, id, player).1 == 0 {
+            present &= !(1 << seat_of(&world, id, player).0);
+        }
+    }
+    let team = leave_and_come_back(&mut world, (key, ticket, id), leaver, present);
+    assert_eq!(team, 0);
+}
+
+/// The `J` row of a state: `J;<seconds>`, or `J;-1;<why>`.
+fn join_row(state: &[String]) -> Option<&str> {
+    state
+        .iter()
+        .find(|row| row.starts_with("J;"))
+        .map(String::as_str)
+}
+
+/// The owner's of 2026-10-20: a member waiting in its room while the
+/// room's match is played, and the match takes nobody now, is told why
+/// (`J;-1;<why>`, `JoinHold`): another joiner on its way in, a game
+/// loading, the last 30 s, the end, a full side, a maintenance. Its own 15 s
+/// over, it goes in once joining opens again, and is shown the seconds
+/// again.
+#[test]
+fn a_member_who_cannot_go_into_the_match_is_told_why() {
+    use session::matchmaking_policy::Closed;
+    let mut world = World::new();
+    let (key, ticket, id, _) = room_match_of_four(&mut world);
+    let erin = world.connect("Erin");
+    // The match server says why it takes nobody now.
+    let held = [
+        (Closed::Joining, "J;-1;1"),
+        (Closed::Loading, "J;-1;2"),
+        (Closed::LastSeconds, "J;-1;3"),
+        (Closed::Full, "J;-1;4"),
+        (Closed::Ending, "J;-1;6"),
+    ];
+    world.host.closed.locked().insert(ticket, Closed::Loading);
+    let joined = rows(&mut world, erin, ROOM_JOIN_BASE + key, 1);
+    assert_eq!(join_row(&joined), Some("J;-1;2"), "{joined:?}");
+    for (closed, row) in held {
+        world.host.closed.locked().insert(ticket, closed);
+        let state = state(&mut world, erin);
+        assert_eq!(join_row(&state), Some(row), "{closed:?}: {state:?}");
+    }
+    // Held past her 15 s, she stays in the room.
+    world.host.closed.locked().insert(ticket, Closed::Joining);
+    world.advance(Duration::from_secs(16));
+    assert!(sent_to_match(&world.take(erin)).is_none());
+    // The match says nothing: no reason, and no seconds.
+    world.host.closed.locked().clear();
+    assert_eq!(join_row(&state(&mut world, erin)), None);
+    // Its sides full (6 a side, the room's size): the lobby's own reason,
+    // whatever the match server says.
+    world.host.admitting.locked().insert(ticket);
+    let seats = world.core.matches[&id].seats.clone();
+    {
+        let running = world.core.matches.get_mut(&id).unwrap();
+        for team in [0, 1] {
+            let more = 6 - seats.iter().filter(|seat| seat.1 == team).count();
+            for n in 0..more {
+                running
+                    .seats
+                    .push((9000 + u32::from(team) * 100 + n as u32, team));
+                running.strengths.push(0);
+                running.names.push(String::new());
+            }
+        }
+    }
+    let full = state(&mut world, erin);
+    assert_eq!(join_row(&full), Some("J;-1;4"), "{full:?}");
+    world.advance(Duration::from_secs(2));
+    assert!(sent_to_match(&world.take(erin)).is_none());
+    // A place frees on a side: joining opens, the seconds are back, and
+    // she goes in.
+    {
+        let running = world.core.matches.get_mut(&id).unwrap();
+        running.seats.truncate(seats.len());
+        running.strengths.truncate(seats.len());
+        running.names.truncate(seats.len());
+    }
+    let open = state(&mut world, erin);
+    assert_eq!(join_row(&open), Some("J;0"), "{open:?}");
+    world.advance(Duration::from_secs(1));
+    let (sent, _) = sent_to_match(&world.take(erin)).expect("Erin goes in");
+    assert_eq!(sent, ticket);
+}
+
+/// A maintenance within 30 min: a member waiting in its room while the
+/// match is played is told nobody goes in now; with the seconds it would
+/// have otherwise.
+#[test]
+fn a_member_waiting_while_a_maintenance_is_near_is_told_so() {
+    let mut world = World::new();
+    let (key, ticket, _, _) = room_match_of_four(&mut world);
+    let erin = world.connect("Erin");
+    world.host.admitting.locked().insert(ticket);
+    let joined = rows(&mut world, erin, ROOM_JOIN_BASE + key, 1);
+    assert_eq!(join_row(&joined), Some("J;15"), "{joined:?}");
+    world
+        .store
+        .set_maintenance(Some(session::v026g::quests::now() + 20 * 60));
+    let state = state(&mut world, erin);
+    assert_eq!(join_row(&state), Some("J;-1;5"), "{state:?}");
+}
+
+/// Live, 2026-10-19 (room 2168): a member that went into its room's match
+/// late and was let go before it entered (its game never came, left, or did
+/// not catch up; the match server gives its seat up) stayed marked in the
+/// match, without its `J` row, and waited out the whole match. Now it waits
+/// in the room again, is told when it goes in, and goes in at its next turn
+/// as a new place.
+#[test]
+fn a_member_whose_late_join_fails_waits_in_its_room_again_and_goes_in_later() {
+    let mut world = World::new();
+    let (key, ticket, id, _) = room_match_of_four(&mut world);
+    let erin = world.connect("Erin");
+    let (erin_account, erin_session) = world.ids[erin];
+    world.host.admitting.locked().insert(ticket);
+    let joined = rows(&mut world, erin, ROOM_JOIN_BASE + key, 1);
+    assert_eq!(join_row(&joined), Some("J;15"), "{joined:?}");
+    world.take(erin);
+    world.advance(Duration::from_secs(16));
+    let (sent, _) = sent_to_match(&world.take(erin)).expect("Erin goes in");
+    assert_eq!(sent, ticket);
+    assert_eq!(world.store.matchmaking().seat(erin_session), Some((id, 4)));
+    let room = world.core.rooms.get(key).unwrap();
+    assert!(room.in_match.contains(&erin_account));
+
+    // The match server lets her go before she entered (her game did not
+    // come in 20 s) and takes joiners again; her game is back in the lobby.
+    world.advance(Duration::from_secs(20));
+    assert_eq!(
+        world.store.matchmaking().join_failed(erin_account),
+        Some(id)
+    );
+    world.host.admitting.locked().insert(ticket);
+    world.ask(erin, request::leave(1, true));
+    world.advance(Duration::from_secs(1));
+    let room = world.core.rooms.get(key).unwrap();
+    assert!(room.members.contains(&erin_account));
+    assert!(!room.in_match.contains(&erin_account));
+    let waiting = state(&mut world, erin);
+    let row = join_row(&waiting).expect("her J row");
+    assert!(!row.starts_with("J;-1"), "{waiting:?}");
+
+    // At her next turn she goes in again, as a new place.
+    world.take(erin);
+    world.advance(Duration::from_secs(16));
+    let (sent, _) = sent_to_match(&world.take(erin)).expect("Erin goes in again");
+    assert_eq!(sent, ticket);
+    assert_eq!(world.store.matchmaking().seat(erin_session), Some((id, 5)));
+    assert!(
+        world
+            .core
+            .rooms
+            .get(key)
+            .unwrap()
+            .in_match
+            .contains(&erin_account)
+    );
 }

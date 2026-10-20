@@ -48,6 +48,10 @@ pub const ROOM_UNQUEUE: u32 = ROOMS_FIRST + 7;
 /// Go into the asker's room's match being played now, without waiting for
 /// [`RoomView::join_in`]. Answered with the state.
 pub const ROOM_JOIN_MATCH: u32 = ROOMS_FIRST + 8;
+/// What the asker's create window starts with: the settings of the last
+/// room it made by hand, fitted to the pool and the rules now
+/// ([`room_form`]; the owner's of 2026-10-20).
+pub const ROOM_FORM: u32 = ROOMS_FIRST + 9;
 /// `ROOM_QUEUE_BASE + key`, key 1 to [`ROOM_KEY_MAX`]: wait in that full
 /// room's queue (its PIN, if it asks one, given just before), or join it if
 /// a place is free. Answered with the state.
@@ -129,6 +133,7 @@ pub enum RoomRequest {
     Queue { key: u32 },
     Unqueue,
     JoinMatch,
+    Form,
     Bits { chunk: u8, bits: u32 },
     Create(RoomSpec),
 }
@@ -173,6 +178,7 @@ pub fn room_request(start: u32, count: u8) -> Option<RoomRequest> {
         ROOM_PLAY => R::Play,
         ROOM_UNQUEUE => R::Unqueue,
         ROOM_JOIN_MATCH => R::JoinMatch,
+        ROOM_FORM => R::Form,
         _ if (ROOM_VOTE_BASE..ROOM_VOTE_BASE + CARDS as u32).contains(&start) => R::Vote {
             card: (start - ROOM_VOTE_BASE) as u8,
         },
@@ -234,11 +240,14 @@ pub fn room_request(start: u32, count: u8) -> Option<RoomRequest> {
 pub enum RoomPhase {
     /// Fewer than two who can play: nothing runs.
     Waiting = 0,
-    /// The vote chose the map; the room's wait runs, `secs` is what is left.
+    /// Not sent since 2026-10-19 (the vote runs until the match starts);
+    /// kept so the lobby movies of revision 24 and before read the wire.
+    /// It was: the vote chose the map; the room's wait runs.
     Countdown = 1,
     /// Its match is being played; `secs` is how long it has been.
     InMatch = 2,
-    /// The vote's own 15 s run; `secs` is what is left.
+    /// The vote, open until the match starts: its 15 s and the room's wait
+    /// together; `secs` is what is left.
     Vote = 3,
 }
 
@@ -364,7 +373,8 @@ pub struct RoomView {
     pub members: Vec<Member>,
     /// The map of its last match; 0: none yet.
     pub last_map: u8,
-    /// The map the vote chose, during the wait after it; 0: none.
+    /// Always 0 since 2026-10-19 (no map is fixed before the start); kept
+    /// so the lobby movies of revision 24 and before read the wire.
     pub next_map: u8,
     /// The players it needs before its vote begins (2, 4 or 6).
     pub min_players: u8,
@@ -375,6 +385,31 @@ pub struct RoomView {
     /// put into it, unless it asks first ([`ROOM_JOIN_MATCH`]); none when it
     /// is in it, or the match takes nobody now.
     pub join_in: Option<u32>,
+    /// The asker waits in its room while the match is played and the match
+    /// takes nobody now: why (none with [`Self::join_in`]).
+    pub join_hold: Option<JoinHold>,
+}
+
+/// Why a member waiting in its room cannot go into the room's match being
+/// played now (the owner's of 2026-10-20: players are told why). The third
+/// field of `J;-1;<why>` in [`room_state`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum JoinHold {
+    /// Another player is on its way into the match: one at a time.
+    Joining = 1,
+    /// A game of the match is loading; joining opens when it has loaded,
+    /// or within 30 s.
+    Loading = 2,
+    /// 30 s or less are left of it: the member plays the next match.
+    LastSeconds = 3,
+    /// Its side is full (the room's size a side), or the match takes no
+    /// more places.
+    Full = 4,
+    /// A maintenance is within 30 min: nobody goes into a match.
+    Maintenance = 5,
+    /// The match is ending (its mode's rule, or its result).
+    Ending = 6,
 }
 
 /// A room to switch to (`W` row of [`room_state`]).
@@ -388,6 +423,28 @@ pub struct RoomSwitch {
     pub size: u8,
     /// Its maker's name.
     pub name: String,
+}
+
+/// What the create window starts with ([`room_form`]): the settings of the
+/// asker's last room made by hand, or the defaults.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RoomForm {
+    /// The settings are the asker's own (false: the defaults).
+    pub saved: bool,
+    /// One of [`SIZES`].
+    pub size: u8,
+    /// One of [`MIN_SIDES`].
+    pub min_side: u8,
+    /// 0 (any) to [`LEVEL_MAX`].
+    pub max_level: u8,
+    /// One of [`WAITS`].
+    pub wait: u8,
+    /// By the pool's entries ([`room_pool`]'s order): the entry's map and
+    /// weather (its tile in the window) are in. An entry is in the pool made
+    /// when its tile is in and its mode is not in [`Self::modes_off`].
+    pub tiles_on: Vec<bool>,
+    /// The modes left out (`maps::MapMode::mode`).
+    pub modes_off: Vec<u8>,
 }
 
 /// A map a pool may hold, in [`room_pool`].
@@ -481,8 +538,10 @@ pub fn room_list(
 ///   gone for now), a row `W;<key>;<max level>;<players>;<size>;<name>` when
 ///   a room of a lower max level would take the asker now ([`RoomSwitch`]),
 ///   a row `J;<seconds>` when the asker waits to go into its room's match
-///   being played ([`RoomView::join_in`]), and `L;<map_id>`, the last
-///   match's map (0: none).
+///   being played ([`RoomView::join_in`]), or `J;-1;<why>` when it waits
+///   and the match takes nobody now ([`JoinHold`]; a movie that reads only
+///   the seconds takes -1 as no row), and `L;<map_id>`, the last match's
+///   map (0: none).
 pub fn room_state(
     room: Option<&RoomView>,
     code: RoomCode,
@@ -536,6 +595,8 @@ pub fn room_state(
     }));
     if let Some(secs) = room.join_in {
         names.push(format!("J;{secs}"));
+    } else if let Some(why) = room.join_hold {
+        names.push(format!("J;-1;{}", why as u8));
     }
     if let Some(switch) = &room.switch {
         names.push(format!(
@@ -576,6 +637,44 @@ pub fn room_pool(entries: &[PoolEntry], page: u8) -> Result<ServerMessage, WireE
             }),
     );
     rows_at(ROOM_POOL_BASE + u32::from(page), names)
+}
+
+/// `91` as the answer to `3B 00 <ROOM_FORM> 1`, `place = ROOM_FORM + i`:
+/// `S1;F;<saved>;<size>;<min side>;<max level>;<wait>;<modes off>` (`saved`
+/// 1: the asker's own settings, 0: the defaults; `modes off` the modes left
+/// out, `,` between them, empty for none), then a row a chunk of 20 entries
+/// of the pool, `E;<chunk>;<bits>`: entry `chunk × 20 + b`'s tile is in by
+/// bit `b` ([`RoomForm::tiles_on`]), every chunk the pool has (one at least).
+pub fn room_form(form: &RoomForm) -> Result<ServerMessage, WireError> {
+    at_most("room form entries", form.tiles_on.len(), POOL_BITS)?;
+    rows_at(ROOM_FORM, form_names(form))
+}
+
+fn form_names(form: &RoomForm) -> Vec<String> {
+    let modes: Vec<String> = form.modes_off.iter().map(u8::to_string).collect();
+    let mut names = vec![format!(
+        "{ROOMS_VERSION};F;{};{};{};{};{};{}",
+        u8::from(form.saved),
+        form.size,
+        form.min_side,
+        form.max_level,
+        form.wait,
+        modes.join(",")
+    )];
+    let chunk = BITS_PER_CHUNK as usize;
+    let chunks = form.tiles_on.len().div_ceil(chunk).max(1);
+    names.extend((0..chunks).map(|index| {
+        let bits = form
+            .tiles_on
+            .iter()
+            .skip(index * chunk)
+            .take(chunk)
+            .enumerate()
+            .filter(|&(_, &on)| on)
+            .fold(0_u32, |bits, (b, _)| bits | 1 << b);
+        format!("E;{index};{bits}")
+    }));
+    names
 }
 
 /// `91` as the answer to a bits request: `S1;B;<chunk>;<entries in>`, at
@@ -622,7 +721,10 @@ mod tests {
             room_request(ROOM_JOIN_MATCH, 1),
             Some(RoomRequest::JoinMatch)
         );
-        assert_eq!(room_request(ROOM_JOIN_MATCH + 1, 1), None);
+        // The create window's settings, then the pool.
+        assert_eq!(ROOM_JOIN_MATCH + 1, ROOM_FORM);
+        assert_eq!(room_request(ROOM_FORM, 1), Some(RoomRequest::Form));
+        assert_eq!(ROOM_FORM + 1, ROOM_POOL_BASE);
         assert_eq!(
             room_request(ROOM_POOL_BASE + 15, 1),
             Some(RoomRequest::Pool { page: 15 })
@@ -688,6 +790,42 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn a_form_says_its_settings_and_its_tiles_by_chunk() {
+        let mut tiles_on = vec![false; 23];
+        for index in [0, 2, 19, 20, 22] {
+            tiles_on[index] = true;
+        }
+        let form = RoomForm {
+            saved: true,
+            size: 9,
+            min_side: 2,
+            max_level: 7,
+            wait: 45,
+            tiles_on,
+            modes_off: vec![3, 4],
+        };
+        assert_eq!(
+            form_names(&form),
+            ["S1;F;1;9;2;7;45;3,4", "E;0;524293", "E;1;5"]
+        );
+        assert!(room_form(&form).is_ok());
+        // No pool: one chunk all the same; no mode out: an empty field.
+        let form = RoomForm {
+            saved: false,
+            tiles_on: Vec::new(),
+            modes_off: Vec::new(),
+            ..form
+        };
+        assert_eq!(form_names(&form), ["S1;F;0;9;2;7;45;", "E;0;0"]);
+        // More entries than a create can name: refused.
+        let form = RoomForm {
+            tiles_on: vec![true; POOL_BITS + 1],
+            ..form
+        };
+        assert!(room_form(&form).is_err());
     }
 
     #[test]

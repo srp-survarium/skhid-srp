@@ -388,6 +388,17 @@ offered_of_list() {
     done <<<"$LIST${1:+$'\n'$1}"
 }
 
+# The site's pages made from the game (the Maps tab, the calculator), for
+# release.sh and build-site alike: the patches a page's built-from.tsv names
+# (built_from <file>), and the ones it must name (site_wants [<patch file>]:
+# LIST's and that file, not listed yet), each as `<name> <sha256>` lines in
+# one order (sorted), so the two compare equal whatever order each is in.
+built_from() { grep -v '^#' "$1" | tr '\t' ' ' | grep . | LC_ALL=C sort -V || true; }
+site_wants() {
+    { cut -d' ' -f1,2 <<<"$LIST"; if [[ -n ${1:-} ]]; then printf '%s %s\n' "${1##*/}" "$(sha256_of "$1")"; fi; } |
+        grep . | LC_ALL=C sort -V || true
+}
+
 # Where a release goes, set by use_target:
 #   live  $SKHID_LIVE through $SKHID_JUMP (which holds its key), in
 #         $SKHID_LIVE_DIR, its site $SKHID_SITE;

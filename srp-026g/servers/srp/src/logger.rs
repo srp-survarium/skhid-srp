@@ -193,7 +193,7 @@ pub fn init(level: LevelFilter) -> io::Result<()> {
 
     log::set_max_level(level);
     log::set_boxed_logger(Box::new(FileLogger { level, files, days }))
-        .map_err(|error| io::Error::new(io::ErrorKind::Other, error))
+        .map_err(io::Error::other)
 }
 
 /// `HH:MM:SS.mmmZ` (UTC) for log lines. Time of day is enough to correlate the

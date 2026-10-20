@@ -184,15 +184,17 @@ fn offered(file: &PathBuf) -> Option<Offered> {
     let meta = std::fs::metadata(file).ok().filter(|meta| meta.is_file())?;
     let (size, modified) = (meta.len(), meta.modified().ok());
     let mut checked = locked(&CHECKED);
-    if let Some(known) = checked.as_ref() {
-        if known.file == *file && known.size == size && known.modified == modified {
-            return Some(Offered {
-                sha256: known.sha256.clone(),
-                size,
-                launcher: known.launcher,
-                extractor: known.extractor,
-            });
-        }
+    if let Some(known) = checked.as_ref()
+        && known.file == *file
+        && known.size == size
+        && known.modified == modified
+    {
+        return Some(Offered {
+            sha256: known.sha256.clone(),
+            size,
+            launcher: known.launcher,
+            extractor: known.extractor,
+        });
     }
     let (sha256, launcher, extractor) = read_through(file)?;
     // The file may have been replaced while it was read: what is said must
@@ -391,7 +393,7 @@ fn grouped(value: u64) -> String {
     let digits = value.to_string();
     let mut out = String::new();
     for (index, digit) in digits.chars().enumerate() {
-        if index > 0 && (digits.len() - index) % 3 == 0 {
+        if index > 0 && (digits.len() - index).is_multiple_of(3) {
             out.push_str("&nbsp;");
         }
         out.push(digit);

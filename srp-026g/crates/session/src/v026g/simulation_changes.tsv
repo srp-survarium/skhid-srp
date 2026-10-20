@@ -17,3 +17,4 @@
 11	the Team Deathmatch end (patch 21) and a battery under the floor picked up (patch 23)
 17	patch 31: a kit chosen before the start is played at once where the player stands (#150)
 21	weapon balance 1: weapon damage, armour piercing and rate of fire values, the SVD magazine (5 rounds), and item stamina-regeneration bonuses that now apply (resources.db patch)
+25	patch 38: spotting has no cooldown, and a hit on a battery's body spots it (exe patch, #201); fall damage as in 0.27: gameplay/players/default.player fall_params.fatal_damage 1.5 -> 1 (resources.db patch, content-edit fall-damage-1, #200); the battery pick-up 20 % faster: gameplay/victory_items/default.options states[0].take_time 0.6 -> 0.5 (resources.db patch, content-edit battery-pickup-1)

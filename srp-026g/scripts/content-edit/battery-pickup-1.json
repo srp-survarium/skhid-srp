@@ -1,0 +1,11 @@
+{
+ "_about": "Battery pick-up 20% faster (the owner, 2026-10-20; the rules: docs/notes/battery_pickup.md): gameplay/victory_items/default.options states[0].take_time 0.6 -> 0.5, 1.2 times the speed. The take state plays its animations at a time scale of (the player animation's length) / take_time and ends with them, so the animation itself plays faster and the hands are free sooner. put_time (states[2], putting it into a container) stays 0.6.",
+ "set": [
+  {
+   "file": "gameplay/victory_items/default.options",
+   "path": "states[0]/take_time",
+   "from": 0.6,
+   "to": 0.5
+  }
+ ]
+}

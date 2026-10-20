@@ -98,8 +98,11 @@ RUST_LOG=info
 # one. 1: every match moves it.
 # SRP_BALANCE_RATED_PLAYERS=4
 # A player who comes into a room while its match is played goes into the
-# match, on the side that then counts for less: the players in it, what
-# they count for (above), and the lead. What a battery and a ticket of lead
+# match on the side with fewer players; of two alike in that, the side it
+# played on before in that match; then the side that counts for less: what
+# its players count for (above), and the lead. So the lead only decides
+# between sides with as many players, for a joiner that has no side of its
+# own in that match yet. What a battery and a ticket of lead
 # count for, in players:
 # SRP_BALANCE_BATTERY_LEAD=0.55
 # SRP_BALANCE_TICKET_LEAD=0.2

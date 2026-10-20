@@ -54,7 +54,8 @@
 //! - **play 11, weapon matchup:** the distance band its weapon wants
 //!   against the enemy's ([`preferred_band`]), stepped into while it duels;
 //! - **play 19, spot:** a newly noticed enemy is spotted (bit 28, key down
-//!   once, the game's 3 s cooldown kept) once it is in the crosshair;
+//!   once, 3 s apart: the stock game's cooldown, kept as the bots' own
+//!   pace since client patch 38 has none) once it is in the crosshair;
 //! - **play 20, grenade before the peek:** rarely, at an enemy last seen
 //!   holding an angle or at a place an enemy was sensed staying at, with
 //!   grenades left (two a life), the grenade key held until the throw;
@@ -168,7 +169,8 @@ pub struct CombatTuning {
     pub band_slack_m: f32,
     pub band_step_m: f32,
     pub band_legs: bool,
-    /// Play 19: the game's spot cooldown, ms; the same enemy is spotted
+    /// Play 19: the bots' own spacing of spots, ms (the stock game's 3 s
+    /// cooldown; client patch 38 has none); the same enemy is spotted
     /// again only after `spot_again_ms`; spotted once the view is within
     /// `spot_within_deg` of him; with this chance per new enemy.
     pub spot_cooldown_ms: u32,

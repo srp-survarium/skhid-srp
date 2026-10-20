@@ -29,7 +29,7 @@ class BuyModifiedTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / 'lobby_menu.swf'
             output.write_bytes(b'existing movie')
-            with mock.patch('sys.argv', ['buy_modified_026g.py', 'unused', str(output), '--ffdec=unused']):
+            with mock.patch('sys.argv', ['buy_modified_026g.py', 'unused', str(output), '--ffdec=unused', '--step-only']):
                 with self.assertRaises(SystemExit):
                     patch.main()
             self.assertEqual(output.read_bytes(), b'existing movie')

@@ -58,7 +58,9 @@ fn a_reserved_player_that_never_connects_expires_without_entering() {
     bench.run_long(61_000);
     assert!(bench.registry.seat(session_of(place)).is_none());
     assert!(!bench.clients[0].entered().contains(&(place as u8)));
-    assert!(!bench.game().admitting()); // Failed immutable descriptors close admission.
+    // It failed by itself: its place is installed on, and the match takes
+    // joiners again (until 2026-10-19 it took nobody after one failed).
+    assert!(bench.game().admitting());
     assert_existing_undisturbed(&bench);
 }
 

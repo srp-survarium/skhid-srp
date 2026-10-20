@@ -17,7 +17,7 @@ tinted by team.
 
 The map underneath is either the top-down render or the game's own minimap.
 
-## Build: every release that changes content
+## Build: the release does it
 
 `build.py` reads it all from the game as the players have it (through
 `srp-026g/scripts/released-game/released.py`, shared with the calculator's build): the stock
@@ -25,13 +25,31 @@ The map underneath is either the top-down render or the game's own minimap.
 each checked by its sha256. Nothing about a map is typed in by hand: a patch
 that adds a map, moves a spawn or redraws a minimap shows up at the next build.
 
+A live release builds it, so no one has to remember to. When main's
+`built-from.tsv` names other patches than the release offers (a release with
+`--resources` always), `release/release.sh` rebuilds this tab and the
+calculator in its preflight, before the go, with `release/build-site`. That
+takes about 2 minutes and reads the stock db (`$SKHID_STOCK_DB`) and the
+patches (cached in `~/.cache/skhid-release/patches/`). The server's source
+carries the rebuilt pages, and the release's record commits them with the
+list. A failed rebuild stops the release before players see anything.
+
+By hand, for a local preview, on your own checkout (the same steps; it
+reads the owner's `private/release/release.env`):
+
+```
+release/build-site --tree . [--with <resources.db.patch_<n>>]
+```
+
+or, without that file, this tab on its own:
+
 ```
 nix build --impure -o py --expr 'with import <nixpkgs>{}; python3.withPackages(p:[p.pillow])'
 nix shell nixpkgs#jdk21 -c py/bin/python3 -I srp-026g/scripts/maps-tab/build.py \
   --stock "$SKHID_STOCK_DB" --patches <folder with the list's patches> \
   --dbgrab tools/re-kit/common/dbgrab/target/release/dbgrab --ffdec <ffdec-cli.jar> \
   --icons <the lobby icons, as the damage calculator's build exports them>
-# a content release: add --with <its resources.db.patch_<n>>, before the patch is in the list
+# a patch not in the list yet: add --with <its resources.db.patch_<n>>
 ```
 
 It writes `srp-026g/servers/web-server/maps/`:
@@ -41,14 +59,11 @@ It writes `srp-026g/servers/web-server/maps/`:
 - `files.rs` (what the server includes);
 - `built-from.tsv`.
 
-Commit them. The patches in `built-from.tsv` must be exactly the offered
-ones:
-
-- `release/release.sh` refuses a live release otherwise (its preflight).
-- The web-server test `the_maps_and_the_calculator_are_built_from_the_offered_patches` fails
-  otherwise.
-
-So a content release first merges a rebuild made with `--with <its patch>`.
+The patches in `built-from.tsv` are exactly the offered ones on main. The
+web-server test `the_maps_and_the_calculator_are_built_from_the_offered_patches`
+fails a PR otherwise. A PR that changes the page's code commits its rebuild
+(`release/build-site --tree .`, or the commands above). FFDec is 26.0.0: it makes the committed
+icons byte for byte.
 
 What comes from where:
 

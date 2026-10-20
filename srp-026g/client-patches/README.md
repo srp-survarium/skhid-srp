@@ -36,6 +36,7 @@ release's. The "Result" row is the build of the revision named in it.
 | Revision 22 | Released 2026-10-18 21:55 UTC (tag `026g-rev22`, `main` b4e7cea). Shipped: #184 Changelog: game update 21; #185 Shop: stop selling the Russian and Belarusian flags and coats of arms, the USSR flag and the red star; #187 Admin page: reset a forgotten password while srp runs; #186 Site: damage calculator tab (/damage), English and Ukrainian; #189 Password reset: close the sign-in race, write only the account, report errors. Without a server sha256 `6d082912ea51f6098b51c0ceba06341c2f4b6efd463e1e9ad3f275b0819987ef`, with `--server=skhid.link:1234` `f9e9dbeb45eed7a690d0e8f228c864beef4098546dbd60196546c609ed2462c6`. The ZIP: 6881533 bytes, sha256 `81d40f91c49f93487ba7df702e2a53f7af36df422a5633727005b6f822c9e399`; the server data: sha256 `c5615e24624e4cb146fceaefc9925fa20987fee0c5cf6333764cc8a094233dda`. Its content: `resources.db.patch_22` (845094613 bytes, sha256 `8d89d7a472d3659f370822212874aa237edb2257c8a3640d70c21c6fda0c65a5`) |
 | Revision 23 | Released 2026-10-19 10:52 UTC (tag `026g-rev23`, `main` 2145a91). Shipped: #191 Site in the calculator's look; calculator: healing table, play-area map, aligned bonuses; #192 Damage calculator: armour picker by icon and level, item protection by its bonuses; #193 Website: Maps tab (spawns, batteries, chargers, containers, artefacts); #194 Reroll offers three on items of few types; backpacks may roll health regeneration; #188 Patch 31: before the start a drag turns the camera and the wheel moves it, as in the lobby; #180 Match native game memory defaults to launcher budgets; #178 Fix launcher crash when an install starts with stale status information; #196 Shop: sell the STK2 Novice's knit cap to everyone; #197 Site: Maps tab and calculator built with revision 23's patch. Without a server sha256 `bccb7d7b905112cbcf2cbe156a44774520b34a8de6370fe752b51c5281edb9a2`, with `--server=skhid.link:1234` `d4154dbefef865457f7c363b823995e009c419ec1b7c895ae8eb85811714186e`. The ZIP: 6881868 bytes, sha256 `a946f4442433d59c09ca41b311907ab13de1d2c64442c42a0b01325204608e38`; the server data: sha256 `fdee2965e1a16ae26a27ddb7ee414af65a44676ae43048861716b482b7fe4d89`. Its content: `resources.db.patch_23` (55877739 bytes, sha256 `f504ed4ceba7642df009dede3405236a4774f728c500f736f5a4921fe33141b0`) |
 | Revision 24 | Released 2026-10-19 18:03 UTC (tag `026g-rev24`, `main` c52751b). Shipped: #204 Patch list: Google Drive mirrors of patches 19 to 23; #202 No tutorial: new accounts start with 10k silver, 500 gold, the Scavengers and ammo; #203 Rooms: every PvP match is a room's (the in-game Rooms window); the old queue goes; #206 Patch 39: the Tab list shows the places in the match, none whose player left; #207 Site: Maps tab and calculator built with revision 24's patch. Without a server sha256 `f1e91352927aeeda9aaae91d18eea88d5cfccdf979dfc4e56b102a37c378b9c0`, with `--server=skhid.link:1234` `809177184f37f8d69bb8edac8404c1f0ff1559dfe3f88a2e27959ce48988aaf5`. The ZIP: 6881999 bytes, sha256 `da6136600bf68e95d26f6c316873ccc746acf9c620036c00f32734ea78a8d536`; the server data: sha256 `6e0631e74542aa0c0eb92321c733062c02945590b57dc186a6560879e83e5f7a`. Its content: `resources.db.patch_24` (40387410 bytes, sha256 `c87623b9f80238a6b9c21507bd194bfbce6622cfd26b3a6be66839c9046a21b4`) |
+| Revision 25 | Released 2026-10-20 08:36 UTC (tag `026g-rev25`, `main` 1948a6d). Shipped: #213 Lobby: every Get Gold opens the exchange, not the online store; #214 Exchange: a typed amount over the balance becomes the most it pays for; #215 Lobby: Buy on an owned item: modified ones too, no "already purchased" question; #216 Lobby: craft window: right-click Buy and Sell; Continue and Exit after an upgrade; #217 Lobby: Optics in a weapon's right-click menu (opens the scope editor); #201 Patch 38: spotting has no cooldown, and a battery's body spots it (simulation change); #200 Fall damage as in 0.27: fatal_damage 1.0 (simulation change); #205 Patch 40: a model's LOD and screen factor at a wider field of view are the original's; #212 Rooms: the map vote runs until the match starts; #218 Lobby movie: one driver builds every lobby change, in order; #219 Rooms: the room's window under a match's results; #210 Late joiners: fewer players first, then the side they played on, then the balance; #211 Rooms: a member sees it is in a room (yellow tab, red Leave room); #222 Ukrainian: the Duty faction is Долг; #209 Late joins: a failed joiner closes nothing, and no joiner waits for a game that is not playing; #221 Battery pick-up 20 % faster (take_time 0.6 -> 0.5); #199 Release: rebuild the Maps tab and the calculator from the release's patches; #224 re-kit 0.26g: weapon draw/holster, the modifier getter, the battery's states. Without a server sha256 `12006dd9346171e3fcadbd6ac1b63fed7e0c73ca7e4c031198bc371d24f9a8b4`, with `--server=skhid.link:1234` `0142022a113c03c61e1cb9cc1658d68e0e9d1ba6b04886f48785a43441396ca1`. The ZIP: 6882118 bytes, sha256 `6e27343932698b25a5b707be7121dffe93ae1988ab5eef6e8bedd17670fa9a0d`; the server data: sha256 `781087d5fdc07c0651fa1d8599a30a749b4819a5c4e4cb8d68f3deb502395288`. Its content: `resources.db.patch_25` (40649751 bytes, sha256 `cf5078143de863dceefc3976575ac94f08b9e5672d95bbff7522bd1ef3b076ac`) |
 | Revision 4 | Revision 3 with patch 10 (a start with a Documents folder the game may not write to). **In the players' download since 2026-10-13 15:36 UTC.** Made as the download is, it differs from the revision 3 exe (`ac947abd…6d7b`; without a server `eedc5b5c…cf0d`) in the four bytes at file 0x35F0B, two bytes of an address at file 0x8410C8, the revision byte and the PE checksum, and in nothing else (compared byte by byte). The built exe was started in both situations of patch 10, not past the sign-in screen, before the release; the first sign-in with revision 4 on the players' server was logged three minutes after it. It plays together with revision 3 |
 | Revision 3 | Revision 3 is revision 2 with patch 9 (the battery rule). **It was the players' download from 2026-10-13 12:22 to 15:36 UTC** (the rows below are the downloads so far): it and the revision 2 exe differ in the 13 bytes of patch 9, the revision byte and the PE checksum, and in nothing else (compared byte by byte). Its rule was run outside the game (`run_battery_rule.ps1`). Eight sign-ins with revision 3 were logged in those hours; whether one of them played a match to a team's last battery was not looked at. A game of revision 3 or later and an older one part at a team's last battery (patch 9) |
 | The players' download | `Survarium-0.26g-srp-files.zip` of skhid.link (and 026g.skhid.link), since 2026-10-13 15:36 UTC: 6 793 103 bytes, sha256 `29b2ac002a1787c1352d021065f18a87ea5caa66fb16298c8e603a5347416bb4`, 23 files, made by `make_client_026g.py --pack-zip --server=skhid.link:1234 --localization=english` of `main` dbd70f0 with `--bugtrap=` naming the build of `client/bugtrap` that had been run in the game (that DLL does not build to the same bytes twice). It differs from the download before in two files: the game exe (sha256 `ae3ddf43f38eecb9e5080b10aa6b8397ce5dbed0f133b381461c82cb17329f25`, patch revision 4: patch 10) and `bugtrap.dll` (39 936 bytes, sha256 `9e3295c1312854c455c474e1dbd457b0a792b5ae406ff0b55d3b19b4f2fc4353`: the start-up notice of `client/bugtrap/README.md`); the other 21 files are byte for byte the same. Built twice: the same ZIP. Checked after the replacement: `/api/client-files` and `/download` of both names give this sha256. No restart: nothing on the server changed |
@@ -60,6 +61,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `late_join_026g.py` | Builds those two files (`--write-bin`), says whether they are what the sources give on this machine (`--check-bin`), or builds an exe straight from the sources for work on the code. Needs nasm, a C compiler for x86 and GNU ld |
 | `check_late_join_026g.py`, `test_late_join_runtime_026g.c` | Checks of the late-join code: the first runs the patched machine code on made-up objects (needs Unicorn 2.1.4), the second the C bookkeeping under the sanitizers |
 | `check_fov_026g.py` | Runs the original and patch 22's camera projection, the game's matrix builder included, and compares the matrices (needs Unicorn) |
+| `check_fov_lod_026g.py` | Runs patch 40 (a model's LOD and screen factor at a wider field of view are the original's): the projection's k at several settings and zooms, the game's select_lod and screen factor of the original and the build on made-up models (needs Unicorn) |
 | `pickup_below_026g.asm`, `pickup_below_026g.section.bin` | The source of patch 23's code and that code assembled, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_pickup_below_026g.py` | Runs the original and patch 23's use scan on made-up ray hits (needs Unicorn) |
 | `replay_seek_026g.asm`, `replay_seek_026g.section.bin` | The source of patch 26's code (a replay's seek empties the weapons' sound queues) and that code assembled, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
@@ -82,6 +84,8 @@ release's. The "Result" row is the build of the revision named in it.
 | `read_order_026g.asm`, `read_order_026g.bin` | The source of patch 33 (the order of the archive reads is a strict weak ordering) and that code assembled at 0x10BCC0, the 0x1A0 bytes of `hdd_manager_sorting_predicate` it replaces, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_read_order_026g.py` | Runs the original's and patch 33's predicate, with the game's own path, string and offset helpers, and the game's own sort on made-up read queries over several archives (needs Unicorn) |
 | `suicide_key_026g.asm`, `suicide_key_026g.section.bin` | The source of patch 34's code (the commit_suicide key kills one's own player) and that code assembled for 0x980 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `spot_026g.asm`, `spot_026g.section.bin` | The source of patch 38's code (a spot's hit on a battery's body spots the battery) and that code assembled for 0x7C0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -452,7 +456,8 @@ The input is the live lobby movie (`flash_movies/lobby_menu.swf` of
 new `resources.db.patch_<n>`, as for the rooms:
 
 ```sh
-python buy_gold_026g.py <lobby_menu.swf> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar
+# development only (a step of build_lobby_026g.py, which builds the movie that ships)
+python buy_gold_026g.py <lobby_menu.swf> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar --step-only
 ```
 
 The build is deterministic (sha256 `b7cf70a8…` with FFDec 25.1.3). Tests:
@@ -476,7 +481,8 @@ gold with 5,500 silver: 10,000 in Pay becomes 5,500, 100 in Receive becomes
 whole gold: with 5,550 silver, anything over 5,500 becomes 5,500.
 
 ```sh
-python exchange_update_026g.py <lobby_menu.swf> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar
+# development only (a step of build_lobby_026g.py, which builds the movie that ships)
+python exchange_update_026g.py <lobby_menu.swf> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar --step-only
 ```
 
 The input is the movie with Get Gold (`b7cf70a8…`); the build is
@@ -513,10 +519,102 @@ The input is the movie of the exchange update (`f900cc8b…`); the build is
 deterministic (`45452c50…` with FFDec 25.1.3):
 
 ```sh
-python buy_modified_026g.py <lobby_menu.swf> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar
+# development only (a step of build_lobby_026g.py, which builds the movie that ships)
+python buy_modified_026g.py <lobby_menu.swf> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar --step-only
 ```
 
 Tests: `python -m unittest test_buy_modified`. Not in a release yet.
+
+## The craft window: Buy and Sell, Continue and Exit
+
+`craft_menu_026g.py`: right-click on an item in the craft window's list
+("Upgrade") gives Buy and Sell only, and its result offers Continue and Exit (the rules: `docs/notes/craft-menu.md`).
+The window locks the inventory list (`lockControls(true)`), and
+`InventoryList.showContextMenu` ended at once on a locked list. Its read of
+the lock, `this._inventoryLocked`, becomes `SrpCraftMenu.locked(this._inventoryLocked,
+this, activeItem)`: five instructions after the `getproperty`, no jump added.
+While the list is locked and a `MessageCraftItem` is on the lobby, the helper
+shows its own menu (Buy by the list's rule; Sell for an owned item, not the
+item being upgraded or the donor the window holds) and returns true, so the
+method ends; otherwise it returns the lock as it was. Buy goes as the item
+card's (the dictionary id, the shop's price, the shop's seller); Sell through
+the list's public `sellItem`.
+
+After an upgrade the window's result had one button, Ready, which closed it.
+`MessageCraftItem.fillCraftedItem` now ends with `SrpCraftMenu.result(this,
+result)`: the window's Cancel shows again as Exit (the lobby already closes
+the window on it, as on Ready), and the Ready button becomes Continue, side
+by side. Continue closes the window as Exit does, puts the main item (as the
+inventory has it now) on the item card (`setPrimaryItem`) and sends the
+list's `craft_item` event, which opens the Upgrade window for it again with
+an empty donor slot; an item with three modifications, or not craftable,
+just closes. The words are the game's: `btn_exit_label` and
+`btn_go_to_online_store` ("Continue").
+
+The input is the movie of Buy on owned items (`45452c50…`); the build is
+deterministic (`1091a19d…` with FFDec 25.1.3):
+
+```sh
+# development only (a step of build_lobby_026g.py, which builds the movie that ships)
+python craft_menu_026g.py <lobby_menu.swf> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar --step-only
+```
+
+Tests: `python -m unittest test_craft_menu`. Not in a release yet.
+
+## Weapon scope context menu
+
+`scope_context_menu_026g.py` adds the existing localized **Optics** action to a
+compatible weapon's right-click menu, in the inventory or an equipped slot. It
+opens the scope editor already shipped in revision 19. Armor still opens its
+camouflage/decal editor. See [weapon_scopes.md §5](../docs/notes/weapon_scopes.md#5-weapon-right-click-menu)
+for the build command and validation. The output is a `lobby_menu.swf` replacement
+for the next resource patch (built on `1091a19d…`, the craft window's movie: `2e4cb7d2…`,
+deterministic with FFDec 25.1.3); this does not change the executable or reserve a
+release revision.
+
+## Building the lobby movie (one driver)
+
+The lobby movie is one file (`flash_movies/lobby_menu.swf`), and a patch that
+carries it replaces the players' movie whole. So it is built one way only:
+`build_lobby_026g.py` starts from revision 23's movie (`flash_movies/lobby_menu.swf`
+of `resources.db.patch_23`, sha256 `12f0ee1d…`) and applies every lobby change
+the repository holds, in order, as `patch_026g.py` does for the exe:
+
+1. the rooms window (`rooms_026g.py`, today's `rooms/SrpRooms.as`, #212 in it);
+2. Get Gold opens the exchange (`buy_gold_026g.py`, #213);
+3. the exchange window's amounts (`exchange_update_026g.py`, #214);
+4. Buy on owned items (`buy_modified_026g.py`, #215);
+5. the craft window's menu and buttons (`craft_menu_026g.py`, #216);
+6. Optics in a weapon's menu (`scope_context_menu_026g.py`, #217).
+
+A change of a step's source is built in by building again; a new lobby change
+is a new entry of `STEPS`. Never ship a movie made by running one step alone
+on some movie: it would lack the steps not run. Each step checks its own work
+(every method it does not change byte for byte); the steps' own lists of known
+inputs name the movies they were first built on, and the driver checks the
+base instead.
+
+```sh
+python build_lobby_026g.py <patch_23's lobby_menu.swf> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar
+```
+
+Each step's own script refuses to write a movie unless given `--step-only`
+(a development build of that one step). The driver's result must be
+`RESULT_SHA256`, the movie last checked: a changed source or FFDec gives
+another, refused until `RESULT_SHA256` is set to it on purpose (`--any-result`
+for development). The login hint and the exchange's first build are frozen in
+the base (a change of theirs needs a new base); the exchange's later changes
+are a step.
+
+Since the rooms' window under a match's results (2026-10-20): `RESULT_SHA256` is
+`57f73166…` (the owner checked `d41b9655…` in the game; then #219's review fixes); with #211 (Leave room / Leave queue, the yellow tab) `a56cd0ed…` (the owner checked `d7907536…`; then the review fixes); with #209 (why a waiting member cannot go into its room's match, `J;-1;<why>`) `57258f9e…`, not yet checked in the game; with the remembered create window (the last room made by hand, `S1;F`) `88fa657a…`, not yet checked in the game. The first build of 2026-10-20 (`main` with
+#212): sha256 `8841ba5c…`, deterministic
+with FFDec 25.1.3. Its 881 scripts decompile byte for byte to those of the
+movie the owner tested with #212 (`ed14345f…`, made the long way: the rooms
+class compiled over Optics' movie); the bytecode is laid out differently (the
+rooms class compiled first), the non-script tags are the base's in both (every
+step keeps them). Tests: `python -m unittest test_build_lobby`. Not in a
+release yet.
 
 ## What each patch does
 
@@ -2101,6 +2199,67 @@ the native resource reload routine did not reproduce the failure. Memory use
 settled after the second reload. That stress test does not exercise full
 lobby-to-match transitions. The exact reported intermittent crash remains open.
 
+### 38. Spotting: no cooldown, a battery's body spots it (the next release's revision)
+
+The owner's decision (2026-10-19), on "battery marking sometimes works,
+sometimes doesn't": no spot cooldown at all, and a hit on a battery's body
+counts. The rules: `../docs/notes/spotting.md`.
+
+A spot is input bit 28, set by the input builder when the spot key goes
+down (0x2421A6; holding the key sends no more). Every game applies it in
+`base_player::apply_new_input` (0x2D86E0): with the spotter's
+`m_time_left_to_try_spot_in_ms` (+34Ch) at 0 it casts a 100 m ray from the
+eye and walks the hits in order, spotting the first spottable one (group
+800h) whose owner gives a player (an enemy: 10 s marked) or a geometry
+whose first spottable says yes (a battery's use box
+`!victory_item_collision!`); a hit that is walkable after a hittable one
+ends the walk. Two faults made a spot of a battery fail:
+
+- the wait was set to 3000 ms at every press, hit or miss (0x2D87C1): a
+  miss, or a ray that met the battery's body, blocked the next press for
+  3 s;
+- the battery's rigid body (group 0A18h, 0x301CF5) is spottable and
+  hittable, but its owner (victory_item_core+58h, vtable 0xA13EEC) returns
+  neither a player nor a geometry: it spotted nothing, kept its hittable
+  bit in the walk's mask, and the floor behind it then ended the walk
+  before the use box.
+
+**The patch.** Only in the builds with the late join. The wait's immediate
+at 0x2D87C1 becomes 0 (two bytes): the field is 0 at every tick, so every
+press spots, and every snapshot saves 0 (the countdown 0x2DAB44 keeps 0, a
+spawn sets 0). And 0x2D8A0F, where the walk asks the owner for a geometry,
+jumps to `spot_026g.asm` (50 bytes at `.srp`+7C0h, after the shared
+upgrades' code, before the pickup code): for a battery's body owner it asks
+the battery's spottable interface (+54h, vtable 0xA13EE0) and spots it as
+the use box's path does (can_be_spotted_by 0x301CA0, set_spotted 0x301C40:
+the spotter's team bit into +1A4h, event 4 to the match statistics) and
+ends the walk; any other owner goes on as before.
+
+**Pressing again.** A spot of a battery one's team already sees sets no
+new bit and raises the statistics' event again, as the stock game did after
+its 3 s; only the battery's first spotter gets the spot award, once. A spot
+of an enemy marks them for 10 s again. A press is one ray; the identical
+input of the next tick (the key held, the mouse still) is not applied again.
+
+**Revisions.** It changes what a match computes (every game runs every
+player's spot): a game with it and one without part at the first spot
+(the wait, +34Ch, is saved with the player), so a server asks for the release's
+revision, and `../crates/session/src/v026g/simulation_changes.tsv` has its
+`next` row. `../docs/notes/client_patch.md` section 3.35 has the proof.
+
+Checked: `selftest_026g.py` check 38 (and check 15's layout of `.srp`'s
+first page); `check_spot_026g.py` runs the original's and the build's input
+apply on made-up hits with the game's own spottable code: a miss and the
+next press, one press held, a press every tick, a battery's body alone, the
+body before the floor and the use box, the use box alone and first, the
+other team's bit, a battery already spotted, a wall before it, an enemy, a
+teammate (alone and before an enemy), a wall before an enemy, a spottable
+hit with no owner behind it; the wait is 0 after every tick in the build.
+Against the build of `main` 7cb1e45, the default build differs in the two
+bytes at file 0x2C7BC7, the five of the hook at file 0x2C7E0F, the 50 bytes
+of code at file 0xC4B1C0 and the PE checksum, and in nothing else (compared
+byte by byte). **Not run in a game.**
+
 ### 39. The Tab list shows the places in the match, none whose player left (the next release's revision)
 
 Seen since the rooms (#203): a player who left a running match (Leave
@@ -2145,6 +2304,69 @@ huds (places leaving, entering, a late joiner, nobody, the list hidden, a
 list made by the install, a player back under the same name);
 `check_revision6_026g.py` and `check_late_join_026g.py` pass with it.
 **Not run in a game.**
+
+### 40. A model's LOD and screen factor at a wider field of view are the original's (the next release's revision)
+
+The report: "with a high FOV some models disappear" (patch 22's setting).
+The note with the rules and the table: `../docs/notes/fov_lod.md`.
+
+Not the frustum: every culling frustum of the game is made from the
+camera's real projection. The game measures a model by its size on the
+screen, through the projection, with thresholds tuned at the stock 65
+degrees (a zoom only narrows it):
+
+- `static_render_model_instance::select_lod` (0x16EEC0): a static model
+  whose `lod_switching.type` is 1 is drawn not at all (LOD 3) when half its
+  box's larger NDC extent is under `param2`. In the retail `resources.db`,
+  281 static models with LODs are of that type; 20 have a `param2` one sees
+  (church_interior_details on Rudnya 0.2, Cologne's floor-vegetation corners
+  0.15 and hoist 0.1, Mamayev Kurgan's base_a_mod_ 0.15 and base_b 0.07, a
+  ladder 0.05, the Kamaz trucks 0.025, transformers 0.015, the UAZs, a
+  flagpole and a ladder 0.01). On London (patch 14) 110 models are type 1
+  with `param0` 0.2 to 0.9: at a wide angle a piece of a big room under
+  that share of the screen falls to its LOD1, which leaves out whole
+  surfaces (floors, bars, walls), the owner's "a third of the screen"; the
+  correction of select_lod fixes it (`docs/notes/fov_lod.md`). Whether LOD 3
+  really draws nothing is doubtful (a model there usually falls back to
+  LOD 2 or 1, ibid.);
+- `render_surface_instance::calculate_screen_factor` (0x158D80): the share
+  of the screen times 100, for the shader LOD and the small casters dropped
+  from the sun's and spot lights' shadows and rain occlusion.
+
+A wider angle makes a model smaller on the screen: it lost detail and went
+out sooner, at tan 32.5 / tan(F/2) of the distance (0.76 at 80, 0.53 at
+100; a Kamaz side-on at 16:9 about 130 m at 65, 70 m at 100).
+
+**The patch.** Only in the builds with the late join. `fov_projection`
+(late_join_026g.asm) also keeps k = max(1, tan(A/2) / tan(65 z/2)) at +E50h
+of the late join's state page, A the angle it passes (bit for bit patch
+22's) and 65 z the stock angle at the same zoom: 1.0 at 65 and less and
+through a full scope, 1.317 at 80, 1.871 at 100 unaimed. select_lod's
+`mulss xmm0,[0x927A44]` (0.5, 0x16F2A4, 8 bytes) and the screen factor's
+`fmul dword [0xA710D0]` (100, 0x1590AF, 6 bytes) become a call and nops to
+`fov_lod_scale` and `fov_screen_scale` (late join +6E0h, +700h): the original
+instruction, then the same by k when k is not 0 (the zeroed page before the
+first projection), `ret`. The two relocations under them are disabled. At
+65 and less every value is the original's bit for bit (x 1.0). At a wide
+angle the game draws within a distance what 65 draws there, in a wider
+view; k also reaches the shadow passes' LOD, a little more shadow detail.
+
+**Revisions.** Rendering only: nothing a match computes reads a LOD or a
+screen factor (collision and hits use the physics shapes), so it needs no
+row in `../crates/session/src/v026g/simulation_changes.tsv`, and games with
+and without it play together. `../docs/notes/client_patch.md` section 3.37
+has the proof.
+
+Checked: `selftest_026g.py` check 40 (and checks 15 and 23);
+`check_fov_lod_026g.py` runs the projection at 50 to 100 and five zooms (k
+is exactly 1 at 65 and less and through a scope), the game's select_lod on
+a Kamaz-sized box (out at 113.7 m at 65 in the original, and at every
+setting in the build; with k zeroed, 87.4 m at 80 and 62.5 m at 100) and
+its screen factor (the original's at 20, 60 and 150 m). Against the build of
+`main` bee9dc3, the default build differs in the two sites (file 0x15E6A4,
+0x1484AF), two relocation entries (0xB71E47, 0xB728AD), fov_projection's
+code (0xC4BC60..0xC4BCED), the two scales (0xC4C0E0..0xC4C115) and the PE
+checksum, and in nothing else (compared byte by byte). **Not run in a game.**
 
 ## Not ported, not done
 

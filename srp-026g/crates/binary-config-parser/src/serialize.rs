@@ -112,7 +112,7 @@ impl BinaryConfig {
                         .collect::<Vec<_>>();
                     values.sort_by_key(|v| v.2.get());
 
-                    queue.extend(values.into_iter());
+                    queue.extend(values);
 
                     BinaryValue {
                         data,

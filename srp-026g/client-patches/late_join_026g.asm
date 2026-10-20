@@ -7,6 +7,9 @@ bits 32
 ; TAB_LIST_STATE_OFFSET): the places the scoreboard was last made with.
 %define TAB_ROWS 0xe40
 org CAVE
+; Patch 40's k, a float (0 until the first projection): FOV_LOD_STATE_OFFSET
+; of the state page (patch_026g.py), after the scoreboard's TAB_ROWS.
+FOV_LOD_K equ STATE_VA + 0xE50
 
 ; eax=core, [esp+4]=slot, ret 4. Used for initial and appended slots.
 ; Separate ID ranges keep world IDs independent of the initial roster size.
@@ -161,6 +164,12 @@ times 576-($-$$) db 0xcc
 ; uro_fov unaimed, nearly it with iron sights, the original's 65 * 0.25
 ; through a 4x scope whatever the setting, and between them a slide that
 ; follows the aim. Only xmm0 of the XMM registers is written, as before.
+; Patch 40: it also keeps k = max(1, tan(A/2) / tan(65 z/2)), A the angle
+; it passes, 65 z the original's at the same zoom, at FOV_LOD_K of the
+; state page, for fov_lod_scale and fov_screen_scale below. k is exactly 1
+; at uro_fov 65 or less (A = 65 z + 0, the same two tangents) and through
+; a full scope; 1.87 unaimed at 100. The x87 stack is empty again before
+; the call, as it was.
 fov_projection:
     mov eax, [esp+8]
     push esi
@@ -181,9 +190,25 @@ fov_projection:
     fmulp st1, st0
     fxch st1
     fmul dword [fov_stock]
-    faddp st1, st0
+    fld st0
+    faddp st2, st0
+    fld st1
     fmul dword [fov_radians]
     fstp dword [esp]
+    fmul dword [fov_half]
+    fptan
+    fstp st0
+    fxch st1
+    fmul dword [fov_half]
+    fptan
+    fstp st0
+    fdivrp st1, st0
+    fld1
+    fxch st1
+    fcomi st0, st1
+    fcmovbe st0, st1
+    fstp st1
+    fstp dword [FOV_LOD_K]
     movss xmm0, [esp]
     fld dword [eax]
     fdiv dword [eax+4]
@@ -197,6 +222,7 @@ fov_scope:   dd 0.25
 fov_blend:   dd 1.3333334
 fov_stock:   dd 65.0
 fov_radians: dd 0.017453292
+fov_half:    dd 0.008726646
 
 times 768-($-$$) db 0xcc
 ; Native boost member callback: ecx=context, [esp+4]=queries_result.
@@ -446,6 +472,36 @@ ready_hook:
 .done:
     popad
     jmp UPLOAD_READY
+
+times 1760-($-$$) db 0xcc
+; Patch 40: the high-FOV LOD compensation. The game measures a model by
+; its size on the screen, through the projection: a static model's LOD
+; (static_render_model_instance::select_lod 0x16EEC0, type 1, LOD 3 draws
+; nothing) and every surface's screen factor (0x158D80: shader LOD, sun
+; and spot shadow casters, rain occluders). At a wider angle a model is
+; smaller on the screen, so it went down in LOD and out at a shorter
+; distance than the original's 65 degrees. Both multiply by k
+; (fov_projection above) after the original's own constant, so they see
+; the model as the original at the same zoom would. Before the first
+; projection the page is zero, and they keep the original's value.
+; select_lod's `mulss xmm0,[0x927A44]` (0.5, 0x16F2A4) calls here.
+fov_lod_scale:
+    mulss xmm0, [0x927A44]
+    cmp dword [FOV_LOD_K], 0
+    je .stock
+    mulss xmm0, [FOV_LOD_K]
+.stock:
+    ret
+
+times 1792-($-$$) db 0xcc
+; calculate_screen_factor's `fmul dword [0xA710D0]` (100, 0x1590AF) calls here.
+fov_screen_scale:
+    fmul dword [0xA710D0]
+    cmp dword [FOV_LOD_K], 0
+    je .stock
+    fmul dword [FOV_LOD_K]
+.stock:
+    ret
 
 times 1856-($-$$) db 0xcc
 ; E4 case of on_match_packet_received: esi=NC, ebx=reader.

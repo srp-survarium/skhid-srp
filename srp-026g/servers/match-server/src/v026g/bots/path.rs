@@ -159,6 +159,8 @@ pub struct Planning {
 /// route, or none, once the search ends within them; else the search,
 /// to go on with the same `allowed` and `region_ok`. A search that ends
 /// within them gives what [`plan_in`] gives.
+// The Err is the search under way, which the bot keeps: not an error to box.
+#[allow(clippy::result_large_err)]
 pub fn plan_start(
     grid: &WalkGrid,
     regions: &Regions,
@@ -818,11 +820,11 @@ mod tests {
                         holes.iter().all(|h| h.distance_xz(p) > 3.0)
                     };
                     let t = std::time::Instant::now();
-                    let whole = grid.search(a, b, &allowed, usize::MAX);
+                    let whole = grid.search(a, b, allowed, usize::MAX);
                     whole_us += t.elapsed().as_secs_f64() * 1e6;
                     let t = std::time::Instant::now();
                     let (by_regions, stage) =
-                        regions.route_search(grid, a, b, &allowed, |_| true, usize::MAX);
+                        regions.route_search(grid, a, b, allowed, |_| true, usize::MAX);
                     let us = t.elapsed().as_secs_f64() * 1e6;
                     regions_us += us;
                     regions_worst = regions_worst.max(us);

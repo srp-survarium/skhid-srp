@@ -168,6 +168,14 @@ impl MatchHost for RegistryHost {
         self.0.admits(match_id, now)
     }
 
+    fn closed(
+        &self,
+        match_id: u32,
+        now: std::time::Instant,
+    ) -> Option<session::matchmaking_policy::Closed> {
+        self.0.closed(match_id, now)
+    }
+
     fn live(&self, match_id: u32, now: std::time::Instant) -> Option<lobby::LiveView> {
         let live = self.0.live_match(match_id, now)?;
         Some(lobby::LiveView {

@@ -55,7 +55,8 @@ pub mod key {
     /// Throw a grenade (bit 23): held until the throw starts. PROVEN
     /// (0x2D8E05).
     pub const GRENADE: u32 = 0x80_0000;
-    /// Spot (bit 28): on the key going down, a 3 s cooldown. PROVEN
+    /// Spot (bit 28): on the key going down. PROVEN. The stock game then
+    /// waited 3 s; client patch 38 has no cooldown.
     /// (0x2D877C).
     pub const SPOT: u32 = 0x1000_0000;
     /// Bits a bot never sends: the suicide (24: a hit on the player's own

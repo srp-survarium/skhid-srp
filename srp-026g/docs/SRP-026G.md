@@ -79,8 +79,9 @@ start them: the two login servers share one port.
    are the side of fewer: `matchmaking.md` §8), squads together. Who comes
    while the match is played sees the room first and goes into it 15 s
    later (or at once with Join match) until 30 s are left, on the side
-   that then counts for less (the lead counts too). After the match
-   everyone is in the room again for the next vote; a player leaves by
+   with fewer players; of two alike in that, the side it played on before
+   in that match; then the one that counts for less (the lead counts
+   too). After the match everyone is in the room again for the next vote; a player leaves by
    itself, or when its game is gone. A player's level is the client's own
    "equipment level" (its highest kit, moved up by its rating); the
    match's level (the reward multipliers) is the mean of its players'.

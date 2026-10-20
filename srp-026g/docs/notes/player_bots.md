@@ -65,8 +65,9 @@ the bot sends key-down actions as one-tick pulses.
 
 Batteries (code): taking one from the ground on use is instant (0x3007E0),
 and so are putting one in and stealing from a container (0x31CC40); the
-battery config's `take_time: 0.6` is LIKELY the hands-up animation before it
-is in hand. Only resupply zones (`resupply_time_in_ms`), artefact
+battery config's `take_time` (0.6, 0.5 from content-edit battery-pickup-1) is
+the length the hands-up animation is time-scaled to (PROVEN,
+`battery_pickup.md`); the bots plan with no pick-up time. Only resupply zones (`resupply_time_in_ms`), artefact
 containers (`artefacts_search_time_sec`) and defusing a trap need use held.
 A carrier's speed is ×0.95 (`movement_speed_modifier: -0.05`, read at
 0x30016D; speed = max(0, 1 + sum of modifiers), 0x2D5AE0): 3.325 m/s

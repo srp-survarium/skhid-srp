@@ -156,6 +156,10 @@ struct Inner {
     /// ([`Matchmaking::leave_match`]) and the lobby was not told yet
     /// ([`Matchmaking::take_left`]).
     left: Vec<(u32, u32)>,
+    /// `(match, account)`: late joiners the match server let go before
+    /// they entered ([`Matchmaking::join_failed`]), the lobby not told yet
+    /// ([`Matchmaking::take_failed_joins`]).
+    failed_joins: Vec<(u32, u32)>,
 }
 
 pub struct Matchmaking {
@@ -180,6 +184,7 @@ impl Matchmaking {
                 told: HashSet::new(),
                 given_up: HashSet::new(),
                 left: Vec::new(),
+                failed_joins: Vec::new(),
             }),
         }
     }
@@ -471,6 +476,23 @@ impl Matchmaking {
     /// call, in order.
     pub fn take_left(&self) -> Vec<(u32, u32)> {
         std::mem::take(&mut self.inner.locked().left)
+    }
+
+    /// [`Self::give_up_seat`] for a late joiner the match server let go
+    /// before it entered (its game never came, left, or did not catch up):
+    /// the lobby hears of it once ([`Self::take_failed_joins`]), and a
+    /// room's member waits in its room again, to go in at its next turn.
+    pub fn join_failed(&self, account_id: u32) -> Option<u32> {
+        let mut inner = self.inner.locked();
+        let match_id = inner.give_up_seat(account_id)?;
+        inner.failed_joins.push((match_id, account_id));
+        Some(match_id)
+    }
+
+    /// `(match, account)` of every [`Self::join_failed`] since the last
+    /// call, in order.
+    pub fn take_failed_joins(&self) -> Vec<(u32, u32)> {
+        std::mem::take(&mut self.inner.locked().failed_joins)
     }
 
     /// A lobby connection sent the session to its match.
@@ -902,6 +924,15 @@ mod tests {
         assert_eq!(mm.give_up_seat(player(3).account_id), Some(id));
         assert_eq!(mm.seat(33), None);
         assert_eq!(mm.give_up_seat(player(3).account_id), None);
+        assert_eq!(mm.take_left(), []);
+        // A late joiner the match server let go: its seat given up, and the
+        // lobby hears of it once (not as a leave).
+        assert!(mm.append_player(id, player(3), 0, |first, _| first == 4));
+        assert_eq!(mm.join_failed(player(3).account_id), Some(id));
+        assert_eq!(mm.seat(3), None);
+        assert_eq!(mm.join_failed(player(3).account_id), None);
+        assert_eq!(mm.take_failed_joins(), [(id, player(3).account_id)]);
+        assert_eq!(mm.take_failed_joins(), []);
         assert_eq!(mm.take_left(), []);
         // A match of fixed teams, or of the standard queue, takes nobody
         // late.

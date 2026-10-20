@@ -394,7 +394,7 @@ fn prune_backups(dir: &Path, keep: usize) {
             Some((stamp, entry.path()))
         })
         .collect();
-    backups.sort_by(|lhs, rhs| rhs.0.cmp(&lhs.0));
+    backups.sort_by_key(|backup| std::cmp::Reverse(backup.0));
     for (_, path) in backups.into_iter().skip(keep) {
         if let Err(error) = std::fs::remove_file(&path) {
             log::warn!(

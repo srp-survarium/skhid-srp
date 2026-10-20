@@ -166,10 +166,10 @@ impl Web {
             ("GET", "/exchange") => page(lang, Form::InTheGame26(launcher_code(request)), ""),
             ("GET", path) if self.is_admin_page(path, request) => page(
                 lang,
-                Form::Admin(AdminView {
+                Form::Admin(Box::new(AdminView {
                     g26: true,
                     ..AdminView::default()
-                }),
+                })),
                 "",
             ),
             ("POST", path) if self.is_admin_page(path, request) => self.admin(request, peer),

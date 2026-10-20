@@ -391,10 +391,7 @@ pub fn apply_at(
 }
 
 /// The best player of the four titles, by `key`, if anyone scored.
-fn best<'a>(
-    players: &'a [PlayerStats],
-    key: impl Fn(&PlayerStats) -> u32,
-) -> Option<&'a PlayerStats> {
+fn best(players: &[PlayerStats], key: impl Fn(&PlayerStats) -> u32) -> Option<&PlayerStats> {
     players
         .iter()
         .filter(|player| key(player) > 0)

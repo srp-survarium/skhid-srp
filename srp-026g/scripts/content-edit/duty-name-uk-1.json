@@ -1,0 +1,47 @@
+{
+ "_about": "The Duty faction's name in Ukrainian (the owner, 2026-10-20: \"let's change обовязок to долг in ukrainian\"): \"Обов'язку\" -> \"Долгу\" in the seven Duty exo texts (revision 17's STK2 port). The word обов'язок in its plain sense (st_edge_steal_box_descr, st_edge_defend_items_descr) stays.",
+ "edit_text": [
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_duty_026_suit_name",
+   "from": "\"Обов'язку\"",
+   "to": "\"Долгу\""
+  },
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_duty_026_head_desc",
+   "from": "\"Обов'язку\"",
+   "to": "\"Долгу\""
+  },
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_duty_026_helmet_name",
+   "from": "\"Обов'язку\"",
+   "to": "\"Долгу\""
+  },
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_duty_026_gloves_name",
+   "from": "\"Обов'язку\"",
+   "to": "\"Долгу\""
+  },
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_duty_026_gloves_desc",
+   "from": "\"Обов'язку\"",
+   "to": "\"Долгу\""
+  },
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_duty_026_boots_name",
+   "from": "\"Обов'язку\"",
+   "to": "\"Долгу\""
+  },
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_duty_026_boots_desc",
+   "from": "\"Обов'язку\"",
+   "to": "\"Долгу\""
+  }
+ ]
+}

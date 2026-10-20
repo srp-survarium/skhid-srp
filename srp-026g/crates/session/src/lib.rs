@@ -343,6 +343,10 @@ struct Writer {
     sessions: HashMap<u32, Instant>,
 }
 
+/// A banned account in [`SessionStore::bans`]: id, user name, shown name,
+/// ban, last address.
+pub type BannedAccount = (u32, String, String, Ban, Option<IpAddr>);
+
 /// Maps sign-ins to shared accounts. Cheap to clone behind an `Arc`.
 ///
 /// Lock order: `sessions` is never held while the matchmaking is asked;
@@ -1488,8 +1492,7 @@ impl SessionStore {
     /// with [`SignInError::Banned`].
     pub fn account_ban(&self, account_id: u32) -> Option<Ban> {
         let account = self.account(account_id)?;
-        let ban = account.locked().ban_at(unix_now()).cloned();
-        ban
+        account.locked().ban_at(unix_now()).cloned()
     }
 
     /// The ban of `ip`, if one holds now.
@@ -1627,7 +1630,7 @@ impl SessionStore {
 
     /// The bans in force: accounts (id, user name, shown name, ban, last
     /// address), then addresses. Ones that ran out are left out.
-    pub fn bans(&self) -> (Vec<(u32, String, String, Ban, Option<IpAddr>)>, Vec<IpBan>) {
+    pub fn bans(&self) -> (Vec<BannedAccount>, Vec<IpBan>) {
         let now = unix_now();
         let accounts: Vec<_> = self.accounts.locked().values().cloned().collect();
         let mut banned: Vec<_> = accounts

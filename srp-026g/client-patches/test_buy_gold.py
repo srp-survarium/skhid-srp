@@ -30,7 +30,7 @@ class BuyGoldTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / 'lobby_menu.swf'
             output.write_bytes(b'existing movie')
-            with mock.patch('sys.argv', ['buy_gold_026g.py', 'unused', str(output), '--ffdec=unused']):
+            with mock.patch('sys.argv', ['buy_gold_026g.py', 'unused', str(output), '--ffdec=unused', '--step-only']):
                 with self.assertRaises(SystemExit):
                     buy_gold.main()
             self.assertEqual(output.read_bytes(), b'existing movie')

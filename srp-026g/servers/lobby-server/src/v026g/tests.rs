@@ -32,6 +32,8 @@ pub(super) struct TestHost {
     pub fail: AtomicBool,
     pub admitting: Mutex<HashSet<u32>>,
     pub rejecting: Mutex<HashSet<u32>>,
+    /// Why a match not admitting takes nobody, when the test says.
+    pub closed: Mutex<std::collections::HashMap<u32, session::matchmaking_policy::Closed>>,
     /// How a match stands, when the test says: who is in it and the score.
     pub live: Mutex<std::collections::HashMap<u32, super::LiveView>>,
     /// Every place given to a new session: `(match, account, session)`.
@@ -95,6 +97,17 @@ impl MatchHost for TestHost {
 
     fn admits(&self, match_id: u32, _: std::time::Instant) -> bool {
         self.admitting.locked().contains(&match_id)
+    }
+
+    fn closed(
+        &self,
+        match_id: u32,
+        _: std::time::Instant,
+    ) -> Option<session::matchmaking_policy::Closed> {
+        if self.admitting.locked().contains(&match_id) {
+            return None;
+        }
+        self.closed.locked().get(&match_id).copied()
     }
 
     fn is_open(&self, match_id: u32) -> bool {

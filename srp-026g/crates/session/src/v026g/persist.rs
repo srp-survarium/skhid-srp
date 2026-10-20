@@ -26,6 +26,7 @@ mod extras;
 mod items;
 mod map_plays;
 mod results;
+mod room_settings;
 
 /// The schema, step by step. Never change a step that shipped: add one.
 const MIGRATIONS: &[&str] = &[
@@ -126,6 +127,8 @@ const MIGRATIONS: &[&str] = &[
     results::MIGRATION,
     // 7: the balance rating the sides of a match are made with (`balance`).
     balance::MIGRATION,
+    // 8: the settings of an account's last room made by hand (`room_settings`).
+    room_settings::MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
@@ -459,6 +462,7 @@ impl GameRepository for SqliteGameRepository {
                         tutorial_done: row.get(15)?,
                         extras: Default::default(),
                         map_plays: Vec::new(),
+                        room_settings: None,
                     },
                 ))
             })?;
@@ -471,6 +475,7 @@ impl GameRepository for SqliteGameRepository {
             account.extras = extras::load(&transaction, account_id)?;
             account.map_plays = map_plays::load(&transaction, account_id)?;
             account.balance = balance::load(&transaction, account_id)?;
+            account.room_settings = room_settings::load(&transaction, account_id)?;
             {
                 let mut statement = transaction.prepare_cached(
                     "SELECT skill_id, points FROM g26_skills WHERE account_id = ?1 ORDER BY seq",
@@ -632,6 +637,7 @@ impl GameRepository for SqliteGameRepository {
         extras::save(&transaction, account_id, &account.extras)?;
         map_plays::save(&transaction, account_id, &account.map_plays)?;
         balance::save(&transaction, account_id, account.balance)?;
+        room_settings::save(&transaction, account_id, account.room_settings.as_ref())?;
         for (seq, &(skill_id, points)) in account.skills.iter().enumerate() {
             transaction.execute(
                 "INSERT INTO g26_skills (account_id, seq, skill_id, points)
@@ -822,6 +828,15 @@ mod tests {
         account.extras.bonus.reward_count = 50;
         account.extras.bonus.completed = true;
         account.extras.bonus.shown_day = 20_373;
+        account.room_settings = Some(crate::v026g::room_settings::RoomSettings {
+            size: 9,
+            min_side: 2,
+            max_level: 7,
+            wait: 45,
+            tiles_off: vec![(2, 1), (4, 3)],
+            tiles_on: vec![(10, 1)],
+            modes_off: vec![4],
+        });
         account
     }
 

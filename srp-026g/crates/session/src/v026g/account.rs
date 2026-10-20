@@ -182,6 +182,9 @@ pub struct Account {
     /// map (`maps::MapMode::level`), by map; the matchmaker draws the maps
     /// its players played less more often ([`super::matchmaking`]).
     pub map_plays: Vec<(u8, u32)>,
+    /// The settings of the last room it made by hand, its create window's
+    /// start ([`super::room_settings`]); none before its first.
+    pub room_settings: Option<super::room_settings::RoomSettings>,
 }
 
 /// The level reached with `total` experience, where it starts and where
@@ -252,6 +255,7 @@ impl Account {
                 ..Default::default()
             },
             map_plays: Vec::new(),
+            room_settings: None,
         };
         for worn in &loadout.items {
             let Some(entry) = dictionary.item(worn.dict_id) else {

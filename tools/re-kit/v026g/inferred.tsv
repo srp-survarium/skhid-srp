@@ -1840,8 +1840,6 @@ va	status	ref_021d	name
 0x002dbca0	inferred-high	0x001d6606	survarium::base_player::on_pain_regenerated
 0x002dbe90	inferred-medium	0x001d6638	survarium::base_player::unsubscribe_from_actions
 0x002dbf40	inferred-medium	0x001d6747	survarium::base_player::can_sprint
-0x002dc0b0	inferred-medium	0x001d6811	survarium::base_player::set_spotted
-0x002dc0c0	inferred-medium	0x001d681e	survarium::base_player::can_be_spotted_by
 0x002dd110	inferred-medium	0x001d6d38	boost::detail::function::functor_manager<boost::_bi::bind_t<unsigned short,unsigned short (__cdecl*)(survarium::animations_registry &,vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base> const &,vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base> const &),boost::_bi::list3<boost::reference_wrapper<survarium::animations_registry>,boost::arg<1>,boost::arg<2> > > >::manager
 0x002dd280	inferred-medium	0x001d6e1f	boost::detail::function::functor_manager<boost::_bi::bind_t<vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base>,vostok::resources::resource_ptr<vostok::resources::managed_resource,vostok::resources::managed_intrusive_base> (__cdecl*)(survarium::animations_registry &,unsigned short),boost::_bi::list2<boost::reference_wrapper<survarium::animations_registry>,boost::arg<1> > > >::manager
 0x002ddad0	inferred-medium		survarium::game_effect_player::serialize
@@ -1914,7 +1912,6 @@ va	status	ref_021d	name
 0x003012a0	inferred-medium	0x001e7966	survarium::victory_item_core::selected_animations
 0x00301470	inferred-medium	0x001e7a74	survarium::victory_item_core::serialize
 0x00301920	inferred-medium	0x001e7d46	survarium::victory_item_core::initialize_logic
-0x00301c40	inferred-medium	0x001e7f5f	survarium::victory_item_core::set_spotted
 0x00301de0	inferred-medium		vostok::network_core::buffer_writer::w<class vostok::math::float4x4>
 0x003028a0	inferred-medium		vostok::network_core::buffer_writer::w<int>
 0x00303490	inferred-medium	0x001e88a2	boost::detail::function::functor_manager<bool (__cdecl*)(void)>::manager

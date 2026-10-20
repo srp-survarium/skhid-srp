@@ -24,18 +24,22 @@ The rules follow the client's hit code as the reverse-engineering notes record i
 
 ## Build
 
-The page follows the game as Skhid's players have it: the stock `resources.db` with exactly the patches of `release/patches.tsv` over it, each checked by its sha256. One command does every step, after the Maps tab's build (`srp-026g/scripts/maps-tab/README.md`, which gives the maps' names, order and minimaps):
+The page follows the game as Skhid's players have it: the stock `resources.db` with exactly the patches of `release/patches.tsv` over it, each checked by its sha256.
+
+A live release builds it, with the Maps tab: when main's `built-from.tsv` names other patches than the release offers (a release with `--resources` always), `release/release.sh` rebuilds both pages in its preflight, before the go, with `release/build-site` (about 2 minutes, from `$SKHID_STOCK_DB` and the patches, cached in `~/.cache/skhid-release/patches/`). The server's source carries them, and the release's record commits them with the list. A failed rebuild stops the release before players see anything. For a local preview, `release/build-site --tree . [--with <resources.db.patch_<n>>]` runs the same steps on your checkout (it reads the owner's `private/release/release.env`).
+
+Without that file, one command does every step of this page, after the Maps tab's build (`srp-026g/scripts/maps-tab/README.md`, which gives the maps' names, order and minimaps):
 
 ```
 nix shell nixpkgs#jdk21 -c <python with pillow and numpy> -I srp-026g/scripts/damage-calc/build_site.py \
   --stock "$SKHID_STOCK_DB" --patches <folder with the list's patches> \
   --dbgrab tools/re-kit/common/dbgrab/target/release/dbgrab --ffdec <ffdec-cli.jar>
-# a content release: add --with <its resources.db.patch_<n>>, before the patch is in the list
+# a patch not in the list yet: add --with <its resources.db.patch_<n>>
 ```
 
-It extracts `gameplay/`, the English and Ukrainian texts and `lobby_menu.swf` (newest archive wins), then runs `dump_json.py`, `gen_calc_data.py`, the icons (FFDec, `assets/tools/build_icons.py`) and `build_page.py --site` into `srp-026g/servers/web-server/damage/`, and writes `built-from.tsv` there. A live release refuses a calculator built from other patches than it offers (`release/release.sh`), and so does the web-server test `the_maps_and_the_calculator_are_built_from_the_offered_patches`. `python -I build_page.py calc-data.json damage-calc.html icons/icons 22` still makes one standalone file.
+It extracts `gameplay/`, the English and Ukrainian texts and `lobby_menu.swf` (newest archive wins), then runs `dump_json.py`, `gen_calc_data.py`, the icons (FFDec, `assets/tools/build_icons.py`) and `build_page.py --site` into `srp-026g/servers/web-server/damage/`, and writes `built-from.tsv` there. On main the patches in `built-from.tsv` are exactly the offered ones: the web-server test `the_maps_and_the_calculator_are_built_from_the_offered_patches` fails a PR otherwise. `python -I build_page.py calc-data.json damage-calc.html icons/icons 22` still makes one standalone file.
 
-Rebuild the website's copy with every content patch that changes weapons, ammo, armour, artefacts, drugs or names, and commit `srp-026g/servers/web-server/damage/`: the server binary includes those files. The page names each file it loads with `?v=<its hash>`.
+The server binary includes `srp-026g/servers/web-server/damage/`: a content patch reaches it through the release's rebuild, and a PR that changes the page's code commits its own (`release/build-site --tree .`, or the command above). The page names each file it loads with `?v=<its hash>`.
 
 The item dictionary (`gameplay/db_static_dictionaries`) decides which items exist: a patch can leave a retired config behind (the one-piece Duty suit in the back slot). Items are keyed by their config's file name, or by the dictionary's name where file names clash (the exo pieces are all `duty_exo_026` / `freedom_exo_026`, one per slot).
 

@@ -970,6 +970,7 @@ va	name	source	ret_cleanup	result
 0x0026b1b0	survarium::messaging_client::read_important_message	manual	12	
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	manual	12	AL: Observed constant1 on local return path
 0x0026d090	survarium::lobby_menu::on_mouse_move	manual	16	AL: Observed constant1 on local return path
+0x0026daa0	survarium::base_game_statistics_handler::on_victory_item_event	manual	16	
 0x0026e4e0	survarium::player_result_brief::deserialize	manual	0	
 0x0026e610	survarium::match_stats::deserialize	manual	4	
 0x0026f060	survarium::lobby_client::lobby_client	manual	8	
@@ -1053,6 +1054,7 @@ va	name	source	ret_cleanup	result
 0x002d2770		auto	12	
 0x002d2e10		auto	0	
 0x002d2e40	survarium::game_world_core::move	manual	4	
+0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	manual	8	XMM0 low32: B x max(0, 1 + k x S) for a multiplicative index, B + k x S for an additive one (index list 0x927E08); S = the kit's float plus its item nodes; EAX, ECX, EDX clobbered
 0x002d6230	survarium::character_breath_vibration_params::load	manual	8	
 0x002d84c0		auto	8	
 0x002d9a60	survarium::base_player::hit	manual	40	
@@ -1060,6 +1062,8 @@ va	name	source	ret_cleanup	result
 0x002d9b90	survarium::base_player::hit_impl	manual	8	
 0x002daf60	survarium::base_player::serialize	manual	16	
 0x002db490	survarium::base_player::deserialize	manual	28	
+0x002dc0b0	survarium::base_player::set_spotted	manual	4	
+0x002dc0c0	survarium::base_player::can_be_spotted_by	manual	4	AL: 1 when the spotter's team differs from this player's
 0x002df0d0	survarium::weapon_core::weapon_core	manual	12	
 0x002df550	survarium::weapon_core::`scalar deleting destructor'	manual	4	
 0x002df570	survarium::weapon_core::~weapon_core	manual	4	
@@ -1144,10 +1148,13 @@ va	name	source	ret_cleanup	result
 0x002ffdf0		auto	8	
 0x002fff10		auto	12	
 0x00300710		auto	4	
+0x00301c40	survarium::victory_item_core::set_spotted	manual	4	
+0x00301ca0	survarium::victory_item_core::can_be_spotted_by	manual	4	AL: always 1
 0x00303da0	survarium::grenade_core::serialize	manual	8	
 0x00303f80	survarium::grenade_core::deserialize	manual	12	
 0x003052e0	survarium::booby_trap_core::serialize	manual	8	
 0x003053c0	survarium::booby_trap_core::deserialize	manual	12	
+0x0030d750	survarium::computed_show_animation_time_scale	manual	0	XMM0 low32: (end - start) x (1/30) / time, the animation's length over the wanted time
 0x0030da60	survarium::weapon_core_animation_end_aware_state::initialize	manual	0	
 0x0030db60	survarium::weapon_core_animation_end_aware_state::on_animation_end	manual	4	
 0x0030dbb0	survarium::weapon_core_animation_end_aware_state::deserialize	manual	12	
@@ -1266,6 +1273,7 @@ va	name	source	ret_cleanup	result
 0x0032fee0	survarium::transition_helper::serialize	manual	0	
 0x0032ff70	survarium::transition_helper::deserialize	manual	0	
 0x003312f0	survarium::dispersion_calculator::serialize	manual	4	
+0x00334ac0	survarium::victory_item_event_manager::on_event	manual	12	
 0x00334dc0	survarium::victory_item_event_manager::serialize	manual	4	
 0x00334fb0	survarium::victory_item_event_manager::deserialize	manual	4	
 0x003353c0	survarium::intermediate_shared_statistics::serialize	manual	8	

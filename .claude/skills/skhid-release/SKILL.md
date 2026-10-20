@@ -34,7 +34,13 @@ Ask, in this order:
    game's format, named for the release's revision, below; how it was made
    doesn't matter). A folder of files at the paths the game reads them from
    (`gameplay/items/...`) is packed into one by
-   `release/build-patch <folder> <rev>`.
+   `release/build-patch <folder> <rev>`. **The lobby movie**
+   (`flash_movies/lobby_menu.swf`), when any lobby change is new since the
+   last release, is built by `srp-026g/client-patches/build_lobby_026g.py`
+   alone (every lobby change, in order, on revision 23's movie; README
+   "Building the lobby movie"), never by running one lobby step on some
+   movie: a patch replaces the movie whole, so a movie missing a step drops
+   that change for the players.
 2. **Any server-code change?** `release.sh` compares main's `srp-026g`
    build inputs with the target's tree and builds the image when they
    differ; the owner may know better (`--server-code yes|no`).
@@ -187,7 +193,19 @@ The order, as it runs:
    revision 12 on; with
    `--resources`: the name is `resources.db.patch_<n>` (the release's revision),
    srp-game-data reads it over the stock db, it is neither published nor
-   listed yet. Last, which server-code files differ, which settings
+   listed yet. Live: the website's pages made from the game data (the
+   Maps tab, the calculator): when main's `built-from.tsv` names other
+   patches than the list (and the `--resources` file), it rebuilds both
+   with `release/build-site` in a worktree of the commit (about 2 min; the
+   patches cached in `~/.cache/skhid-release/patches/`, FFDec 26.0.0
+   downloaded there, dbgrab built there from the commit's `tools/re-kit` with the
+   unpacker checked out as `tools/vostok-resources-db` in the main checkout,
+   or `$SKHID_DBGRAB`). Nobody rebuilds them by hand before a release. The
+   rebuild comes after the other checks and is skipped when one of them
+   failed. A failed rebuild is a problem like any other: the run stops before the go.
+   The server's source carries the rebuilt pages, so the server code is
+   built (`--server-code no` is refused then, by the dry run too). Last, which server-code
+   files differ, which settings
    main's compose file newly passes that the target's `.env` sets (names
    only: their values take effect at the recreate), and whether main
    changes what a match computes (a `next` row of `simulation_changes.tsv`,
@@ -227,7 +245,7 @@ The order, as it runs:
    **release folder** on the target (below) with both files staged in it
    (sha256 checked there, `chmod 644`) and `changed.txt`. With server
    code: the running image tagged `srp-026g:before-rev<rev>-<stamp>` by
-   its ID, main's source unpacked in the folder's `src/` and
+   its ID, main's source (with the rebuilt pages) unpacked in the folder's `src/` and
    `docker compose build srp26` run on it (the running container is not
    touched). The local builds run at nice 10.
 5. **The swap, at the later of the planned time and the end of the
@@ -266,7 +284,9 @@ The order, as it runs:
      before, the record PRs left out), a `CHANGELOG-SKHID-026G.md` entry
      under the rule, `TODO` for the owner to word, with those PRs, and
      `release/patches.tsv` as the server offers it (the row
-     `upload-patch` added), and `<n>` in place of a `next` row of
+     `upload-patch` added), the Maps tab and the calculator when
+     step 1 rebuilt them (so main's pages match its list, as the web-server
+     test wants), and `<n>` in place of a `next` row of
      `simulation_changes.tsv` (said in the commit); pushed as
      `release/record-rev<n>`, a PR opened
      (`gh pr create`) and merged as a merge commit (`gh pr merge --merge`).
@@ -435,6 +455,7 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 | `release/upload-patch [--test] [--dry-run] <file>` | publishes one patch: `.tmp`, sha256 there, `chmod 644`, `mv -n`, GET must be 200 with the sha256, then its row in the list; never replaces one | the patches server, the list |
 | `release/add-mirror [--test] <name> <url>` | another URL of a listed patch: downloaded as the updater does, not a web page, the row's size and sha256, then appended to the row | the list (and the URL cache) |
 | `release/build-server-db [--test] [--out <file>]` | `server-game-data.db` from the stock db and the list's patches (each first URL GET 200 with the row's size and sha256; each mirror checked as above), `srp-game-data build --patch "<file>=<urls>"` | a local file |
+| `release/build-site --tree <checkout> [--with <patch>]` | the Maps tab and the calculator from the stock db and the list's patches (cached, each sha256 checked), FFDec 26.0.0, dbgrab; both `built-from.tsv` must name exactly those; release.sh runs it in its preflight, by hand it is a local preview (`--tree .`) | the checkout's `servers/web-server/{maps,damage}/`, the cache |
 | `release/build-zip [--test] [--ref <commit>] [--revision <n>] [--work <dir>]` | the players' ZIP from a fresh worktree of origin/main (never this checkout, never `git stash`): `--server`, `--site`, `--localization`, `--revision` (default: the site's exe's + 1; above it), no resources.db regions; the exe without a server too, both sha256 in `<work>/exe.sha256`; entries against the site's ZIP | a worktree, the ZIP |
 | `release/deploy --zip --server-data --revision [--label] [--dry-run]` | the swap on its own, in a window planned by hand: the release folder, the checks, the rollback on failure | the live host |
 | `release/rollback [--test] [--keep-db] [<folder>]` | a release folder's rollback | the target |

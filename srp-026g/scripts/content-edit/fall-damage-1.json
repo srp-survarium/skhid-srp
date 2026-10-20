@@ -1,0 +1,11 @@
+{
+ "_about": "Fall damage as in 0.27 (2026-10-19, #200; the rules: docs/notes/fall_damage.md): gameplay/players/default.player fall_params.fatal_damage 1.5 -> 1, the 0.27d0 value. Only 0.27's change, nothing a later version changed (the owner, 2026-10-20). The field stays f32 (1.0); 0.27 writes i32:1, the loader takes either.",
+ "set": [
+  {
+   "file": "gameplay/players/default.player",
+   "path": "player/fall_params/fatal_damage",
+   "from": 1.5,
+   "to": 1
+  }
+ ]
+}

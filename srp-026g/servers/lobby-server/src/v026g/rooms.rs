@@ -23,15 +23,22 @@
 //! - **Late.** A member in the lobby while the room's match is played sees
 //!   the room first and goes into it `LATE_JOIN_WAIT` later (or at once on
 //!   its ask) if the match admits players (from its countdown until
-//!   `LOAD_MARGIN` is left), on the side that counts for less
-//!   (`matchmaking_policy::place_weaker`); otherwise it waits for the next
-//!   match.
+//!   `LOAD_MARGIN` is left), on the side with fewer players in it; of two
+//!   alike in that, the side it played on in that match before, then the
+//!   one that counts for less (`matchmaking_policy::place_joiner`);
+//!   otherwise it waits for the next match. While it waits it is told why it
+//!   cannot go in now (`late_hold`: a joiner on its way, a game loading,
+//!   the last 30 s, the end, full, a maintenance; the owner's of 2026-10-20).
 //! - **After.** The match over, its players are in the lobby again and in
 //!   the room, whose next vote and wait begin.
 //! - **Play.** Play with nothing else chosen puts the player into an open
 //!   room (the one nearest its level, however far, then the fullest), or makes
 //!   one for it (8 v 8, any max level, 30 s, the whole pool), and answers
 //!   with the lobby state: the movie shows the room.
+//! - **Remembered.** A room made by hand (a create, not Play) is its maker's
+//!   next create window, kept with the account (`room_remember`; not the
+//!   PIN; the owner's of 2026-10-20); the window asks for it fitted to the
+//!   pool and the maker's equipment now (`room_settings::form`).
 //! - A member whose game is gone (crashed, killed, its link silent) keeps
 //!   its place while its session is kept: the link's 30 s and the session's
 //!   60 s, about 90 s in all (the owner's of 2026-10-18); then it leaves the
@@ -53,20 +60,21 @@
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
-use session::matchmaking_policy::{self as policy, Worth};
+use session::matchmaking_policy::{self as policy, Closed, Worth};
+use session::v026g::room_settings::{self, RoomSettings};
 use session::v026g::rooms::{self as model, Due, Refused, Spec, Stage};
 use session::v026g::{matchmaking, quests, rules};
 use session::{LockExt, QueuePool};
 use survarium::v026g::lobby::rooms::{
-    self as wire, Card, Fit, Member, PoolEntry, RoomCode, RoomPhase, RoomRequest, RoomRow,
-    RoomSpec, RoomSwitch, RoomView,
+    self as wire, Card, Fit, JoinHold, Member, PoolEntry, RoomCode, RoomPhase, RoomRequest,
+    RoomRow, RoomSpec, RoomSwitch, RoomView,
 };
 use survarium::v026g::lobby::{self, ClientState};
 use survarium::v026g::maps;
 
 use super::MAINTENANCE_WINDOW;
 use super::core::{Core, Who};
-use super::play::{MatchPlayer, match_profile};
+use super::play::{MatchPlayer, Running, match_profile};
 
 /// `SRP_ROOMS_MAX` when unset.
 pub const DEFAULT_MAX_ROOMS: usize = 50;
@@ -260,6 +268,17 @@ impl Core<'_> {
                 let entries = self.room_entries();
                 self.send_made(who.addr, wire::room_pool(&entries, page));
             }
+            // The create window's start: the asker's last room made by hand,
+            // fitted to the pool and its equipment now.
+            RoomRequest::Form => {
+                let entries = self.room_entries();
+                let form = {
+                    let account = who.account.locked();
+                    let gear = matchmaking::gear_level(&account, quests::now());
+                    room_settings::form(account.room_settings.as_ref(), &entries, gear)
+                };
+                self.send_made(who.addr, wire::room_form(&form));
+            }
             RoomRequest::Bits { chunk, bits } => {
                 let entries = self.rooms.draft(who.account_id, chunk, bits, now);
                 self.send_made(who.addr, wire::bits_answer(chunk, entries));
@@ -383,7 +402,10 @@ impl Core<'_> {
                 let code = match self.room_fit(who) {
                     Err(code) => code,
                     Ok(()) => match self.room_create(who, spec, now) {
-                        Ok(_) => RoomCode::None,
+                        Ok(key) => {
+                            self.room_remember(who, key);
+                            RoomCode::None
+                        }
                         Err(refused) => code_of(refused),
                     },
                 };
@@ -442,6 +464,29 @@ impl Core<'_> {
             if spec.pin { "" } else { "no " }
         );
         Ok(key)
+    }
+
+    /// A room made by hand: its settings are its maker's create window's
+    /// start from now on, kept with the account (the owner's of
+    /// 2026-10-20). Not its PIN. A room Play makes keeps nothing.
+    fn room_remember(&self, who: &Who, key: u32) {
+        let Some(room) = self.rooms.get(key) else {
+            return;
+        };
+        let spec = room.spec;
+        let settings = RoomSettings::of_room(
+            spec.size,
+            spec.min_players / 2,
+            spec.max_level,
+            spec.wait,
+            &room.pool,
+            &self.room_entries(),
+        );
+        let mut account = who.account.locked();
+        if account.room_settings.as_ref() != Some(&settings) {
+            account.room_settings = Some(settings);
+            self.accounts.mark_dirty(who.account_id);
+        }
     }
 
     /// Play for a game whose movie has rooms: into an open room, or a
@@ -523,6 +568,10 @@ impl Core<'_> {
             })
             .collect();
         let (phase, secs) = phase_of(room, now);
+        let (join_in, join_hold) = match self.room_join_in(who, room, now) {
+            Ok(secs) => (secs, None),
+            Err(hold) => (None, Some(hold)),
+        };
         Some(RoomView {
             key: room.key,
             level: self.room_level(room),
@@ -548,28 +597,80 @@ impl Core<'_> {
             members,
             last_map: room.last_map,
             min_players: room.needs() as u8,
-            next_map: match room.stage {
-                Stage::Countdown { map_id, .. } => map_id,
-                _ => 0,
-            },
+            // The vote is open until the match starts: no map is fixed
+            // before (the cards show the votes).
+            next_map: 0,
             switch: self.room_switch(who, room),
-            join_in: self.room_join_in(who, room, now),
+            join_in,
+            join_hold,
         })
     }
 
-    /// Seconds until the member goes into its room's match being played
-    /// (it came while it is played; the tick puts it in): none when it is
-    /// in it, or the match takes nobody now.
-    fn room_join_in(&self, who: &Who, room: &model::Room, now: Instant) -> Option<u32> {
-        let Stage::InMatch { match_id, .. } = room.stage else {
-            return None;
-        };
-        if room.in_match.contains(&who.account_id) {
-            return None;
+    /// Whether a room's match being played takes a member of the room now
+    /// (`room_late_join` would put one in), and why not: a maintenance
+    /// near; its sides full; or what the match server says (a joiner on its
+    /// way in, a game loading, its last 30 s, its end, every place taken).
+    /// `Err(None)`: it takes nobody, and nobody says why.
+    fn late_hold(
+        &self,
+        running: &Running,
+        size: usize,
+        now: Instant,
+    ) -> Result<(), Option<JoinHold>> {
+        if self.maintenance_is_near() {
+            return Err(Some(JoinHold::Maintenance));
         }
-        let running = self.matches.get(&match_id)?;
-        if !self.late_admission(running, now) {
-            return None;
+        // The side a joiner would go to is full (the room's size), or the
+        // match has no place left: the side does not depend on who comes.
+        let live = self.host.live(running.ticket.match_id, now);
+        let (sides, rule) = self.late_rule(running, live.as_ref(), size);
+        let anyone = Worth {
+            players: 1,
+            strength: 0,
+        };
+        if policy::place_joiner(sides, anyone, None, &rule).is_none() {
+            return Err(Some(JoinHold::Full));
+        }
+        if self.late_admission(running, now) {
+            return Ok(());
+        }
+        Err(self
+            .host
+            .closed(running.ticket.match_id, now)
+            .map(|closed| match closed {
+                Closed::Joining => JoinHold::Joining,
+                Closed::Loading => JoinHold::Loading,
+                Closed::LastSeconds => JoinHold::LastSeconds,
+                Closed::Ending => JoinHold::Ending,
+                Closed::Full => JoinHold::Full,
+            }))
+    }
+
+    /// The member came while its room's match is played: seconds until it
+    /// goes into it (the tick puts it in), or why it cannot now (the
+    /// owner's of 2026-10-20: players are told). `Ok(None)`: it is in it,
+    /// cannot play as it is (its kit or gear: the movie has its own text
+    /// for that, from `fit`), or the match takes nobody and nobody says
+    /// why.
+    fn room_join_in(
+        &self,
+        who: &Who,
+        room: &model::Room,
+        now: Instant,
+    ) -> Result<Option<u32>, JoinHold> {
+        let Stage::InMatch { match_id, .. } = room.stage else {
+            return Ok(None);
+        };
+        if room.in_match.contains(&who.account_id) || self.member_fit(who.account_id) != Fit::Yes {
+            return Ok(None);
+        }
+        let Some(running) = self.matches.get(&match_id) else {
+            return Ok(None);
+        };
+        match self.late_hold(running, usize::from(room.spec.size), now) {
+            Ok(()) => {}
+            Err(Some(hold)) => return Err(hold),
+            Err(None) => return Ok(None),
         }
         let at = self
             .room_join_at
@@ -577,7 +678,7 @@ impl Core<'_> {
             .copied()
             .unwrap_or(now + LATE_JOIN_WAIT);
         let left = at.saturating_duration_since(now);
-        Some(left.as_millis().div_ceil(1000) as u32)
+        Ok(Some(left.as_millis().div_ceil(1000) as u32))
     }
 
     /// A room the member may switch to with one click (the owner's of
@@ -645,18 +746,12 @@ impl Core<'_> {
             .all()
             .map(|room| {
                 let (phase, secs) = phase_of(room, now);
+                // Before its match: the card that leads alone, or none (a
+                // tie or no votes is drawn at the start, so no map is shown
+                // that may not be played).
                 let map_id = match room.stage {
                     Stage::InMatch { .. } => room.last_map,
-                    Stage::Countdown { map_id, .. } => map_id,
-                    _ => {
-                        let tally = room.tally();
-                        tally
-                            .iter()
-                            .enumerate()
-                            .max_by_key(|(index, votes)| (**votes, std::cmp::Reverse(*index)))
-                            .and_then(|(index, _)| room.cards.get(index).copied())
-                            .unwrap_or(0)
-                    }
+                    _ => room.leading().unwrap_or(0),
                 };
                 RoomRow {
                     key: room.key,
@@ -712,7 +807,7 @@ impl Core<'_> {
     /// still may come: in the lobby (its game there, in no room, not in a
     /// match), its equipment within the max level. Straight into a match
     /// being played. One who may not is out of the queue.
-    fn room_admit_queues(&mut self, now: Instant) {
+    fn room_admit_queues(&mut self) {
         // Near a maintenance nobody may come: the queues wait, to be told
         // (code 9) when their rooms are disbanded.
         if self.maintenance_is_near() {
@@ -764,6 +859,30 @@ impl Core<'_> {
                     self.name_of(account_id).unwrap_or_default()
                 );
             }
+        }
+    }
+
+    /// A member that went into its room's match late and was let go before
+    /// it entered (`Matchmaking::join_failed`: its game never came, left,
+    /// or did not catch up) waits in the room again: it is told when it
+    /// goes in, and goes in at its next turn. Live, 2026-10-19 (room 2168):
+    /// one such member stayed marked in the match and waited out all of it.
+    fn room_failed_joins(&mut self) {
+        for (match_id, account_id) in self.store.matchmaking().take_failed_joins() {
+            let Some(key) = self.rooms.of(account_id).and_then(|room| {
+                (matches!(room.stage, Stage::InMatch { match_id: id, .. } if id == match_id)
+                    && room.in_match.contains(&account_id))
+                .then_some(room.key)
+            }) else {
+                continue;
+            };
+            self.rooms.join_failed(key, account_id);
+            // Its next turn: `LATE_JOIN_WAIT` from now.
+            self.room_join_at.remove(&account_id);
+            log::info!(
+                "{}: did not get into match {match_id:#x}; it waits in room {key} again",
+                self.name_of(account_id).unwrap_or_default()
+            );
         }
     }
 
@@ -837,10 +956,11 @@ impl Core<'_> {
             queued: self.rooms.queued_total(),
         });
         self.room_left_matches();
+        self.room_failed_joins();
         if self.rooms.is_empty() {
             return;
         }
-        self.room_admit_queues(now);
+        self.room_admit_queues();
         // A maintenance is near: no room plays another match. A room not
         // playing ends now; one playing plays its match out and ends with it
         // (`room_match_over`), the owner's of 2026-10-17.
@@ -1132,7 +1252,23 @@ impl Core<'_> {
             players: 1,
             strength: i64::from(ready.strength),
         };
-        let Some(placement) = policy::place_weaker(sides, worth, &rule) else {
+        // One who played this match before (left it, or its game was gone
+        // for good) goes back to its side when the sides have as many
+        // players: the side of its latest place in the roster, which keeps
+        // every place, given up or not.
+        let previous = self
+            .store
+            .matchmaking()
+            .formed_match(match_id)
+            .and_then(|formed| {
+                formed
+                    .seats
+                    .iter()
+                    .rev()
+                    .find(|seat| seat.player.account_id == account_id)
+                    .map(|seat| seat.team)
+            });
+        let Some(placement) = policy::place_joiner(sides, worth, previous, &rule) else {
             return;
         };
         let team = placement.assignments.first().map_or(0, |(_, team)| *team);
@@ -1182,10 +1318,6 @@ fn phase_of(room: &model::Room, now: Instant) -> (RoomPhase, u32) {
         Stage::Waiting => (RoomPhase::Waiting, 0),
         Stage::Vote { until } => (
             RoomPhase::Vote,
-            until.saturating_duration_since(now).as_secs() as u32,
-        ),
-        Stage::Countdown { until, .. } => (
-            RoomPhase::Countdown,
             until.saturating_duration_since(now).as_secs() as u32,
         ),
         Stage::InMatch { since, .. } => (

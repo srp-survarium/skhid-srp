@@ -29,7 +29,7 @@ class ExchangeUpdateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / 'lobby_menu.swf'
             output.write_bytes(b'existing movie')
-            with mock.patch('sys.argv', ['exchange_update_026g.py', 'unused', str(output), '--ffdec=unused']):
+            with mock.patch('sys.argv', ['exchange_update_026g.py', 'unused', str(output), '--ffdec=unused', '--step-only']):
                 with self.assertRaises(SystemExit):
                     update.main()
             self.assertEqual(output.read_bytes(), b'existing movie')

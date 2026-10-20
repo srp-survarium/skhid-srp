@@ -933,7 +933,6 @@ fn soak_tuned(
                 note.time, note.place as i64, note.text
             );
         }
-        let Outcome { notes: _, .. } = &out;
         eprintln!(
             "winner {:?} at {} s; kills {:?}; delivered {:?}; stolen {}; hits {} of {} shots, {} into a wall short of the target, {} at a hidden target; {:.1} sight and aim rays per bot a second; least moved {:.0} m; stuck notes {}",
             out.winner,
@@ -1266,7 +1265,7 @@ fn a_goal_one_bot_found_no_way_to_is_left_by_its_team() {
     let near = goal + Vec3::new(1.0, 0.0, 0.0);
     learn_no_way(&mut team, &[(near, 40_000 + NO_WAY_KEEP_MS)], 41_000);
     assert_eq!(team, vec![(goal, 40_000 + TEAM_NO_WAY_KEEP_MS)]);
-    assert!(TEAM_NO_WAY_KEEP_MS >= 3 * NO_WAY_KEEP_MS);
+    const { assert!(TEAM_NO_WAY_KEEP_MS >= 3 * NO_WAY_KEEP_MS) };
 }
 
 /// A bot standing right on a battery steps off it and takes it (it
@@ -2382,7 +2381,7 @@ fn real_bot_cost() {
                 }
             }
             let mut top: Vec<_> = plays.into_iter().collect();
-            top.sort_by(|a, b| b.1.cmp(&a.1));
+            top.sort_by_key(|entry| std::cmp::Reverse(entry.1));
             eprintln!("  notes: {:?}", &top[..top.len().min(24)]);
             eprintln!(
                 "  stood with a goal and no route: {stood_ticks} of {goal_ticks} bot ticks ({:.1} %); delivered {:?}; points {:?}, stolen {}",
@@ -2426,7 +2425,7 @@ fn real_bot_cost() {
                 eprintln!("  stolen log: {line}");
             }
             let mut by: Vec<_> = stood_by.into_iter().collect();
-            by.sort_by(|a, b| b.1.cmp(&a.1));
+            by.sort_by_key(|entry| std::cmp::Reverse(entry.1));
             eprintln!("  stood by play: {:?}", &by[..by.len().min(8)]);
             let rows: Vec<String> = by_play
                 .iter()

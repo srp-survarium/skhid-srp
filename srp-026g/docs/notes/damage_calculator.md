@@ -7,8 +7,8 @@ number from the game data, the rules as the client's hit code applies them. Buil
 ## Owner's rules
 
 - The data is the game as players have it: the stock `resources.db` with every **released**
-  patch over it, read by one command (`build_site.py`), never by hand. A live release refuses a calculator built
-  from other patches than it offers.
+  patch over it, read by one command (`build_site.py`), never by hand. A live release rebuilds it from the
+  patches it offers (`release/build-site`), never on a "don't forget" basis; its record commits it.
 - English and Ukrainian, as the rest of the site (`?lang=`). Item, map and bonus names are the
   game's own localization.
 - Less text: one line per rule, players know the game. No intro, no sources paragraph; the

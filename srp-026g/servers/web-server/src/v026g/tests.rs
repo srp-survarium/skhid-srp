@@ -1047,7 +1047,9 @@ fn every_file_the_maps_name_is_served() {
 
 #[test]
 fn the_maps_and_the_calculator_are_built_from_the_offered_patches() {
-    // release/release.sh refuses a release otherwise; this says so on a PR.
+    // A live release rebuilds both pages from the patches it offers and its
+    // record commits them with release/patches.tsv (release/build-site); this
+    // fails a PR that changes one without the other.
     let rows = |text: &str| -> Vec<(String, String)> {
         text.lines()
             .filter(|line| !line.starts_with('#') && !line.trim().is_empty())
@@ -1064,11 +1066,11 @@ fn the_maps_and_the_calculator_are_built_from_the_offered_patches() {
     let maps = rows(include_str!("../../maps/built-from.tsv"));
     assert_eq!(
         maps, offered,
-        "rebuild the Maps tab: srp-026g/scripts/maps-tab/README.md"
+        "the Maps tab is built from other patches than release/patches.tsv: rebuild it with build.py (srp-026g/scripts/maps-tab/README.md)"
     );
     let calculator = rows(include_str!("../../damage/built-from.tsv"));
     assert_eq!(
         calculator, offered,
-        "rebuild the calculator: srp-026g/scripts/damage-calc/README.md (build_site.py)"
+        "the calculator is built from other patches than release/patches.tsv: rebuild it with build_site.py (srp-026g/scripts/damage-calc/README.md)"
     );
 }

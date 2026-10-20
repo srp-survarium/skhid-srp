@@ -393,6 +393,8 @@ pub struct Client {
     /// and normal simulation continue, independently of resource readiness.
     pub auto_prepare: bool,
     pub prepares: Vec<Prepare>,
+    /// Every prepare received, resends too.
+    pub prepares_received: u32,
     /// The bytes a place this game installs adds to its world's game
     /// objects, from the tick of the install on (a newcomer whose kits
     /// have grenades or traps).
@@ -478,6 +480,7 @@ impl Client {
             auto_prepare: true,
             late_objects: 0,
             prepares: Vec::new(),
+            prepares_received: 0,
             disconnected: false,
             last_words: None,
             told_to_leave: false,
@@ -867,6 +870,7 @@ impl Client {
         if self.model.growing_roster && id == id::STATIC_INFO && payload.first() == Some(&0xff) {
             match Prepare::decode(payload, Dictionary::shared()) {
                 Ok(prepare) => {
+                    self.prepares_received += 1;
                     if self.auto_prepare {
                         self.prepared(&prepare, Status::Installed);
                     }
