@@ -17,7 +17,8 @@ A camouflage reaches a weapon in three pieces, all in one content patch:
 # the players' files: the stock resources.db with every offered patch over it, flattened
 for db in resources.db resources.db.patch_12 ... resources.db.patch_<live>; do
   for p in models/weapons/ material_instances/weapons/ textures/weapons/ \
-           textures/character/human/camo/ textures/character/human/base_camo/; do dbgrab $db get $p layer; done
+           textures/character/human/camo/ textures/character/human/base_camo/ \
+           animations/skeletons/weapons/ animations/single/weapons/; do dbgrab $db get $p layer; done
   cp -f layer/* game/                                  # later patches over earlier ones
 done
 dbgrab resources.db get black_market_01_torso_aoac.options game     # the stock _aoac .options
@@ -25,7 +26,7 @@ dbgrab <0.28a2 resources.db> get textures/weapons/ donor            # guns.tsv's
 dbgrab server-game-data.db get gameplay/items/weapons/ live         # the live weapon configs
 dbgrab server-game-data.db get gameplay/items/upgrades/camouflages/ camos   # the camouflage items (picker)
 
-python3 -I weapon_camo.py guns.tsv game donor out --previews previews \
+python3 -I weapon_camo.py guns.tsv game donor out --previews previews --weapons live \
     --camo game/textures__character__human__camo__premium__city_camo.dds
 python3 -I ../content-edit/content_edit.py ../content-edit/weapon-camo-1.json live folder
 cp -r out/textures folder/
@@ -33,10 +34,13 @@ release/build-patch folder <revision>
 ```
 
 Which parts are painted: `parts.tsv` (beside guns.tsv) names them per texture, a UV point on each;
-a texture with no line gets the suggestion, the large parts its premium painted. To choose:
+a texture with no line gets the suggestion, the large parts its premium painted that are seen from
+outside (`visibility()`: a magazine inside a grip is not), with each weapon posed as its idle
+animation has it (`--weapons`: a mesh is stored in its bind pose, where the PM's magazine lies 8 cm
+beside the grip and the Mosin's stripper clip above the rifle). To choose:
 
 ```bash
-python3 -I weapon_camo.py guns.tsv game donor - --picker picker.html --camos camos \
+python3 -I weapon_camo.py guns.tsv game donor - --picker picker.html --camos camos --weapons live \
     --camo game/textures__character__human__camo__premium__city_camo.dds
 ```
 

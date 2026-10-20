@@ -14,7 +14,13 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
   `scripts/weapon-camo/parts.tsv` names, chosen by hand in the picker page. A weapon without a
   line there gets the suggestion: the large parts its premium painted (each at least 2 % of the
   texture's parts: receiver, covers, handguard, stock, magazine); with no premium (65 textures),
-  the large parts, which can take in a barrel (the TOZ-66's): pick those before a release. Small parts (triggers, bolts,
+  the large parts, which can take in a barrel (the TOZ-66's): pick those before a release.
+- **Only what is seen.** A part inside the weapon (a magazine in a pistol's grip, the HK416
+  magazine's inner parts) takes no camouflage: the suggestion skips a part seen from outside on
+  under 10 % of its surface (the weapon looked at from 32 directions; outside parts are seen on
+  20–50 %, inner ones on 0–4 %), the weapon posed as the game shows it: its 3rd-view idle
+  animation (the weapon config's animation set), not the mesh's bind pose, where some parts lie
+  away from the weapon (the PM's magazine 8 cm beside the grip, the Mosin's clip above it). Small parts (triggers, bolts,
   pins, sights, screws) stay bare. Most premiums were repainted as a whole, so "where the premium
   painted" alone would cover nearly the whole weapon (97 % of the AK-12's parts).
 - **Which camouflage.** Any camouflage item (category 25) that goes on armour; one at a time.
@@ -47,6 +53,16 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
 - Only the character's parts (0x204560 → 0x129830) and the lobby's decal editor (0x2641A0) ask for
   a bake; weapon_cook never did. Patch 44 (`client-patches/weapon_camo_026g.asm`, client_patch.md
   §3.41) asks for one per weapon surface, as the editor does.
+- A weapon's mesh (`render/<surface>/converted_model`) is skinned, one bone a vertex (byte 12 of
+  the 36- and 40-byte vertices), stored in the bind pose (`render/bind_pose`: u16 bones, then
+  name, translation, rotation, scale; model space). Parts an animation moves can lie away from
+  the weapon there (the PM's magazine 8 cm to its side). The pose the game shows comes from the
+  weapon's animation set (the weapon config's `animations/single/weapons/<set>/item/...`):
+  `3rd_view/idle.b-spline` (u32 bones, a table, then per bone 9 curves of 8k + 4 bytes: u32 k,
+  k - 1 (time, value) pairs, f32 length, u32; translation, rotation, scale; parent-relative, in
+  `idle.bones_names`' order) over the skeleton's hierarchy (`animations/skeletons/...skeleton`,
+  nested config tables). Unused parts are parked inside the weapon (the Mosin's clip in its
+  stock, the Magnum's spare rounds in its drum). [read from the data files, `idle_pose()`]
 - The lobby movie (revision 24) shows a weapon's upgrade window as the scope window only (its
   `camoSlot`, index 3, takes category 22). **No slot for a weapon's camouflage yet** (below).
 
