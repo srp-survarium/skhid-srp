@@ -662,3 +662,46 @@ and rejection of invalid intermediate boundaries and incorrect NaN predicates.
 Re-linking the saved 76-class evidence-guided probe changes only
 `CreateClanWindow` from rejected to exact; its mixed comparison forms now match.
 The other 75 outcomes are unchanged.
+
+The subsequent 878-script regression completed with the same 642 exact results,
+222 differences and 14 earlier compilation failures. Every previously exact
+movie retains its hash. There were 641 serialization cache hits. This comparison
+reused authenticated pristine compiler artifacts; it is not a fresh whole-tree
+source build.
+
+## Nineteen additional reviewed source repairs
+
+Eight of nine focused proposals rebuilt exactly. `ToolTip` and `Extensions`
+needed static field order restored. Three easing classes needed assignments
+inside their comparison or return expressions to retain the compiler's temporary
+registers. Two message classes needed their final switch breaks, and
+`MessageApplyExternal` needed its identifier object key.
+
+A five-class follow-up was entirely exact. `PropertiesDescriptor`,
+`MessageAskInvite` and `MessageTutorialComplete` needed explicit `: void`
+constructor annotations: their bodies already matched, but the omitted source
+annotation produced a wildcard return signature. `ItemRendererQSlot` needed both
+local defaults implicit in declaration order, and `MessageEnterName` needed an
+explicit Boolean initializer and final switch break. `CreateClanWindow` from the
+earlier source probe also passed with the verified comparison emitter.
+
+Four of five further loop and expression repairs passed. `Slider` recovers its
+switch exits and return temporary, `ItemDescriptor` its constructor signature
+and loop continue, `LobbyGameSearch` its typed assignments, and `PaperDollBase`
+its missing-slot continue paths. `Animation` then passed after restoring its
+static field order; its constructor branches and required Boolean conversion
+already matched. The final PaperDollBase source was recompiled after whitespace
+cleanup. All successful patches were reviewed and their applied bytes checked
+against the real compiler inputs. The manifest now contains 177 classes.
+
+The current repository-authored `SrpExchange` has two methods absent from the
+pinned release and was rejected. The source from tag `026g-rev24` matches its
+definitions and all but two method bodies. Those methods emit `coerce_s` where
+the release contains `convert_s`; this candidate remains private and rejected.
+No string-conversion exception was added to the linker.
+
+The premium example built against the 177-entry manifest again produces
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+with one changed method and identical non-code content. The new manifest hashes
+are recorded as a subsequent rebuild, separate from the earlier game test.
+Whole-tree reconstruction remains incomplete.

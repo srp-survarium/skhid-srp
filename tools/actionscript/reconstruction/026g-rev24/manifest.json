@@ -1265,6 +1265,158 @@
       "pristine_sha256": "9c47e8073a82aa67bcf00701e0a3c08045a8489ca03b7f1b0c22d3acc52330d7",
       "reason": "Restore premiumLeft after premiumExchangeRate to recover static field slots, explicit voucher counter initialization, typed assignments, setters and object keys. Real Flex compilation and exact linking reproduce the complete revision-24 movie.",
       "result_sha256": "7568217ed42f62c1523315ab0c3c6921e3c4a2f8be8ce99ec9165eae1fb397d8"
+    },
+    {
+      "class": "com.greensock.easing.BackInOut",
+      "patch": "com/greensock/easing/BackInOut.patch",
+      "patch_sha256": "d4aacbd67c8967b64691a673e4b207d52372ec07711d46673c01988fd5db8e3d",
+      "pristine_sha256": "6e2dff41b73eab42cff7f8ad60c44954cc293a6a3e70a5e614d9a54030dbe76f",
+      "reason": "Restore the doubled input assignment within its comparison expression; real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
+      "result_sha256": "1b1def679dc353ddca3cdbc7242f413af749496a158595f0d0980330073b1bc5"
+    },
+    {
+      "class": "com.greensock.easing.BackOut",
+      "patch": "com/greensock/easing/BackOut.patch",
+      "patch_sha256": "ef0d29d84e59670a8cad286a27e6b120497fbdeaf67ed1a7d0fe595db7056886",
+      "pristine_sha256": "3320c92470adfe5b889f64836dc5080ab3a7fc21b12f5fd403059d3444e2ac35",
+      "reason": "Restore the decremented input assignment within its return expression; real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
+      "result_sha256": "4a219e3054d8ce936bc0093d2b5011f132f76d648dae84a0f90066269a9b1085"
+    },
+    {
+      "class": "fl.transitions.easing.Strong",
+      "patch": "fl/transitions/easing/Strong.patch",
+      "patch_sha256": "a584a20dd2c6e36a5c2e3cbe9c4e183f896537744adb3d8e8a8bf66bcb4cae18",
+      "pristine_sha256": "340d1f34ac7eda8b1adaa0ac27fc25ef53b4150350acb9407cdda3e312fbc909",
+      "reason": "Restore the normalized input assignment within its comparison expression; real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
+      "result_sha256": "ea8ee6608a3f7525f5729c57c855b08342e2b60ee57f49e2e9fd1b3bda1cf9ee"
+    },
+    {
+      "class": "scaleform.clik.controls.ToolTip",
+      "patch": "scaleform/clik/controls/ToolTip.patch",
+      "patch_sha256": "30749fb59d28c3984c690f66c9cf3f2c6d20b3d06f5ed6436e15d1a8a7d36b38",
+      "pristine_sha256": "16f2d5d3b4879c532124d23bb7df9d91fc10daa6495e8eea4b2f9560f4fbd449",
+      "reason": "Restore static field order, implicit locals, unqualified assignments and direct truth tests; real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
+      "result_sha256": "1c2a23a8da3e7c41fff3ac9f6dd3512e8d4e6e14251629231007925966263a34"
+    },
+    {
+      "class": "scaleform.gfx.Extensions",
+      "patch": "scaleform/gfx/Extensions.patch",
+      "patch_sha256": "6dc76658a605cbc238627b438450fdcf2b76170fabfbad061f94f300016a0a15",
+      "pristine_sha256": "d55a4f4bf43a31fd315998a56e42f90221c606bdcc4d936c1d5e3a5b30239820",
+      "reason": "Restore static callback fields after the edge-antialiasing constants and player flag; real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
+      "result_sha256": "f328722beb395e93f24deb7c3f051059200ce275dfc05fbfcd396f5b67abe3a3"
+    },
+    {
+      "class": "survarium.messages.MessageAcceptBase",
+      "patch": "survarium/messages/MessageAcceptBase.patch",
+      "patch_sha256": "bc7791994c75bc1bc445a06c0648a524c669138d92e0782c6e0e2132763381c1",
+      "pristine_sha256": "3726f606b2f81287d8a8abfc11e38c208265324c094175a56d1a051a86089e39",
+      "reason": "Restore the final keyboard-switch break; real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
+      "result_sha256": "d0077bca210851dd8e09f282b3c0bb84e6015ebf3d7abea245a1cdfa3bf25194"
+    },
+    {
+      "class": "survarium.messages.MessageApplyExternal",
+      "patch": "survarium/messages/MessageApplyExternal.patch",
+      "patch_sha256": "ed44fe8ef2c4e4172819464f909c9daa5765128dd03714f0b80a81f4739693a6",
+      "pristine_sha256": "8a975503b2f9d05c5c7150a6bc675ebdd560fb67cc419aa0abc1693ff1ae4aaf",
+      "reason": "Restore the identifier object key for the external message text; real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
+      "result_sha256": "ca347181b285a7f16830608758f03913aa2ce419bc68829346c23cc45e8e9bf3"
+    },
+    {
+      "class": "survarium.messages.MessageRename",
+      "patch": "survarium/messages/MessageRename.patch",
+      "patch_sha256": "6569e611b6aa9411d0377f9b8dda90a62485cc3eeeb7bbd027662b0ab85e373c",
+      "pristine_sha256": "f6dd62b755e69d348e548c830e845836fab3204d96923f959269463fa1fe6d4a",
+      "reason": "Restore the final keyboard-switch break; real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
+      "result_sha256": "244f862cff894b82b8006ccb84ea32488d0dd39ff5e3aa01665d819d750ca6f7"
+    },
+    {
+      "class": "survarium.clan.CreateClanWindow",
+      "patch": "survarium/clan/CreateClanWindow.patch",
+      "patch_sha256": "78ca9caa46d7a7b38dd2ed9195cc6231858db194da11b906f2018e368748c6a2",
+      "pristine_sha256": "9240c70eb02d9b091170e5d00aeeea1efc27e67babe885902a9c04e2aeb47c14",
+      "reason": "Restore unqualified assignments, direct truth tests and local declaration order; the verified comparison emitter preserves mixed branch encodings. Real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
+      "result_sha256": "431cf28cc4be25e84ed5465268e34bddfc8b7f049a98a597f66d90bf3f190b1a"
+    },
+    {
+      "class": "survarium.controls.ItemRendererQSlot",
+      "patch": "survarium/controls/ItemRendererQSlot.patch",
+      "patch_sha256": "61e575d5c6cb101dcb899fe5d5258561d3cb48c64404882e05fb7058ec22244a",
+      "pristine_sha256": "d0e00f5cc7e3f492a0339fdcd3d8fef51b0bb8897e9cb65929394b697bffcbe8",
+      "reason": "Restore implicit local defaults in declaration order and typed ternary assignment; real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
+      "result_sha256": "4440720032a0b1747d869570023ea213b33d07b127ff0552ed57fea5b513869a"
+    },
+    {
+      "class": "survarium.data.PropertiesDescriptor",
+      "patch": "survarium/data/PropertiesDescriptor.patch",
+      "patch_sha256": "b6ff7b4b78837183e85da38bc14590468027578ecc5e9705aa8d4c22cd258582",
+      "pristine_sha256": "8cdef669c3d5bd6f96f7724beba332ad3288a062781943d0e5e340598656be2e",
+      "reason": "Restore the explicit void constructor annotation and unqualified assignments; real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
+      "result_sha256": "ebdc8807e33430daafab6681cded48cd1f0146060bead7c00af5ca4dcfb53941"
+    },
+    {
+      "class": "survarium.messages.MessageAskInvite",
+      "patch": "survarium/messages/MessageAskInvite.patch",
+      "patch_sha256": "81b82d8c7da4c029719de00bc4a9d59fcf427d8a1b015a73a9525aafa479d244",
+      "pristine_sha256": "a161a19ad7015fbd4f054f989f81c09f5e7e622c443cceb1053feedb4f8056aa",
+      "reason": "Restore the explicit void constructor annotation and unqualified assignments; real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
+      "result_sha256": "0aa9b9fd868a30a19a80554f37a4e6f2a3348337864b88458bfe57bbd9d4a0c5"
+    },
+    {
+      "class": "survarium.messages.MessageEnterName",
+      "patch": "survarium/messages/MessageEnterName.patch",
+      "patch_sha256": "1d8b3407ab560968e469dd84ef9c3903901743e1e5502d29c3043e20f3695b1a",
+      "pristine_sha256": "c4981a98aada7a7117690c7e8bb9ee4ab961b06a8403a16606890a50c4ee25ad",
+      "reason": "Restore the final keyboard-switch break, explicit nickname Boolean initialization and unqualified assignments; real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
+      "result_sha256": "619388cbccab18faedd409baa103b56e9976d536a4db2801e3e3891d16f29e49"
+    },
+    {
+      "class": "survarium.messages.MessageTutorialComplete",
+      "patch": "survarium/messages/MessageTutorialComplete.patch",
+      "patch_sha256": "a8ea75962e6cd471791e995bcc3468a888c7138b8dfc9edfc754a3c490d15d08",
+      "pristine_sha256": "50375e8a72267fb181c99acd93896143e7e0dc9bf6a7d435177ba11bdbaf0bac",
+      "reason": "Restore the explicit void constructor annotation and direct truth tests; real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
+      "result_sha256": "686e5f697035a56af6e4679f91f35d21fa9d0c9467767f7b867667688ff729cb"
+    },
+    {
+      "class": "scaleform.clik.controls.Slider",
+      "patch": "scaleform/clik/controls/Slider.patch",
+      "patch_sha256": "fa51480e917a587042bdda5e47798b42b921ac1212ea7e6a9428a040bf603ab4",
+      "pristine_sha256": "a55d94907e0b6a02bbf9d97231cabb00166cee0652a15d7c0df03628da4e8c71",
+      "reason": "Restore final/default switch breaks, unqualified value compound assignments, a typed return temporary, reviewed local defaults and object keys. Real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
+      "result_sha256": "d015d948d76bc321f9e9ff7e8e9af68d8b1a84c84dc2ef6f584cad0a874b4b60"
+    },
+    {
+      "class": "survarium.data.ItemDescriptor",
+      "patch": "survarium/data/ItemDescriptor.patch",
+      "patch_sha256": "b39488a13532e922036bf412c6353bd118e30242d814163cc286ebe3b0d21431",
+      "pristine_sha256": "43eaacfccd9cd9e8a790dfc463c15fd28eba1f7d290d7d67461dd0ae7ff671db",
+      "reason": "Restore the explicit void constructor annotation, for-loop update and continue path, unqualified assignments and identifier object keys. Real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
+      "result_sha256": "d3d24896c44a7fd140e347115046d84a32401e8ca0ad2182a9232c2473588489"
+    },
+    {
+      "class": "survarium.gsearch.LobbyGameSearch",
+      "patch": "survarium/gsearch/LobbyGameSearch.patch",
+      "patch_sha256": "27e945933a5232cf4769c83da71fbf5e6ee860cef930d552bbcaa55e1a69bc51",
+      "pristine_sha256": "a1f102102899c010303f0271989f76a6e232bbb5330987ea5f22da59b581255d",
+      "reason": "Restore typed local assignments, unqualified compound assignment, declaration order and implicit local defaults. Real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
+      "result_sha256": "10118d9c01dc0777af07026fe515bb1a11bc67bcf7684c65e0dcd9e2bc6e93a1"
+    },
+    {
+      "class": "com.greensock.core.Animation",
+      "patch": "com/greensock/core/Animation.patch",
+      "patch_sha256": "95ec4dc2c91cc4441a92bc487004b13099979bfc74b35ee8ac738a94d5906740",
+      "pristine_sha256": "bfeaba8cc67bd81346f18950095d9fa687eb06872018a21a38b97003b2f7402f",
+      "reason": "Restore initialization branch structure, the required Boolean conversion, unqualified assignments, implicit locals and static field declaration order. Real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
+      "result_sha256": "7e7ab2d99611cc176f0b6a0a7e331e80e3378da200c82bb97b2f58f08d89dc1a"
+    },
+    {
+      "class": "survarium.paperdoll.PaperDollBase",
+      "patch": "survarium/paperdoll/PaperDollBase.patch",
+      "patch_sha256": "2f80af736746a1f929673119c7e2815a0b5c1e6d19081b616a51c0d45831ec48",
+      "pristine_sha256": "214d45ad998609211ce8e1d52160b1bde985606ee309433d4ebabd02fccceda0",
+      "reason": "Restore for-loop update and continue paths for absent slots, the explicit label counter initializer, implicit local defaults and direct truth tests. Real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
+      "result_sha256": "461aca876a5f62247b7960001432bccf3a146bc444dcbfeab89f65226e46b2dd"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

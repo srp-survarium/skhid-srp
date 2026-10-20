@@ -1,0 +1,125 @@
+--- a/survarium/clan/CreateClanWindow.as
++++ b/survarium/clan/CreateClanWindow.as
+@@ -116,7 +116,7 @@
+       
+       public function set totalPlayers(param1:uint) : void
+       {
+-         this._playersRequired = param1;
++         _playersRequired = param1;
+       }
+       
+       public function set clanPlayers(param1:uint) : void
+@@ -132,7 +132,7 @@
+       
+       public function setState(param1:uint) : void
+       {
+-         this._state = param1;
++         _state = param1;
+          if(this._state < 3)
+          {
+             if(currentFrame != 1)
+@@ -188,13 +188,13 @@
+       
+       public function setClanCreationCostProgress(param1:uint) : void
+       {
+-         this._registrationMoneyProgress = param1;
++         _registrationMoneyProgress = param1;
+          this.updateClanCreationEnabled();
+       }
+       
+       public function setClanCreationCost(param1:uint) : void
+       {
+-         this._clanCost = param1;
++         _clanCost = param1;
+          this.updateClanCreationEnabled();
+       }
+       
+@@ -214,7 +214,7 @@
+       
+       public function setClanPlayersRequired(param1:uint) : void
+       {
+-         this._playersRequired = param1;
++         _playersRequired = param1;
+       }
+       
+       public function handleClanAbbreviationValidation(param1:Boolean, param2:String, param3:String = null) : void
+@@ -286,7 +286,7 @@
+          this.textInputClanAbbreviation.addEventListener(SrvTextInput.RESET_TEXT,this.onTextUpdate);
+          this.warningContainerAbb.visible = this.warningContainer.visible = false;
+          this.setClanCreationCost(0);
+-         this.clanPlayers = 0;
++         clanPlayers = 0;
+          this.textFieldPaid.visible = false;
+          this.btnPayRegistration.enabled = true;
+          this.btnAccept.enabled = false;
+@@ -317,7 +317,7 @@
+       private function onTextInputFocusOut(param1:FocusEvent) : void
+       {
+          trace("onTextInputFocusOut::event");
+-         this._frames = 0;
++         _frames = 0;
+          stage.addEventListener(Event.EXIT_FRAME,this.onRednerAfterFocus);
+       }
+       
+@@ -334,14 +334,14 @@
+          {
+             return;
+          }
+-         this._frames = 0;
++         _frames = 0;
+          stage.removeEventListener(Event.EXIT_FRAME,this.onRednerAfterFocus);
+-         trace("onTextInputFocusOut",FocusManager.getFocus(),stage.focus,Boolean(stage.focus) ? this.searchComponent.contains(stage.focus) : null,this.searchComponent.hasFocus,this.searchComponent.focused,this.searchComponent.focusable);
+-         if(Boolean(SrvContextMenu.getInstance()) && Boolean(SrvContextMenu.getInstance().parent))
+-         {
+-            return;
+-         }
+-         if(Boolean(stage.focus) && this.searchComponent.contains(stage.focus))
++         trace("onTextInputFocusOut",FocusManager.getFocus(),stage.focus,stage.focus ? this.searchComponent.contains(stage.focus) : null,this.searchComponent.hasFocus,this.searchComponent.focused,this.searchComponent.focusable);
++         if((SrvContextMenu.getInstance()) && (SrvContextMenu.getInstance().parent))
++         {
++            return;
++         }
++         if(stage.focus && this.searchComponent.contains(stage.focus))
+          {
+             return;
+          }
+@@ -356,18 +356,18 @@
+       
+       private function changeInputName(param1:ListEvent) : void
+       {
+-         var _loc3_:Object = null;
+          trace("changeInputName::click");
+-         if(!param1 || Boolean(SrvContextMenu.getInstance()) && Boolean(SrvContextMenu.getInstance().parent))
++         if(!param1 || (SrvContextMenu.getInstance()) && (SrvContextMenu.getInstance().parent))
+          {
+             return;
+          }
+          var _loc2_:* = param1.itemData;
++         var _loc3_:Object;
+          trace("changeInputName::",_loc2_);
+          stage.removeEventListener(Event.EXIT_FRAME,this.onRednerAfterFocus);
+          this.searchComponent.removeEventListener(FocusEvent.FOCUS_OUT,this.onTextInputFocusOut);
+          this.searchComponent.cleanUp();
+-         if(Boolean(_loc2_))
++         if(_loc2_)
+          {
+             _loc3_ = _loc2_;
+             trace("value::",_loc3_.name);
+@@ -409,7 +409,7 @@
+       
+       private function requestAbbreviationValidation(param1:Event) : void
+       {
+-         this._lastClanAbbreviation = this.textInputClanAbbreviation.textField.text;
++         _lastClanAbbreviation = this.textInputClanAbbreviation.textField.text;
+          this.updateBrackets();
+          trace("_lastClanAbbreviation::",this._lastClanAbbreviation);
+          this.loadingIndicatorAbb.gotoAndPlay(1);
+@@ -426,7 +426,7 @@
+       
+       private function requestNameValidation(param1:Event) : void
+       {
+-         this._lastClanName = this.textInputClanName.textField.text;
++         _lastClanName = this.textInputClanName.textField.text;
+          trace("_lastClanName::",this._lastClanName);
+          this.loadingIndicator.gotoAndPlay(1);
+          this.btnReserveClanName.enabled = false;

@@ -1,0 +1,22 @@
+--- a/survarium/messages/MessageAskInvite.as
++++ b/survarium/messages/MessageAskInvite.as
+@@ -24,7 +24,7 @@
+       
+       protected var messageType:uint;
+       
+-      public function MessageAskInvite()
++      public function MessageAskInvite() : void
+       {
+          super();
+       }
+@@ -37,8 +37,8 @@
+          {
+             return;
+          }
+-         this.messageId = param2.id;
+-         this.messageType = param2.type;
++         messageId = param2.id;
++         messageType = param2.type;
+          this.textFieldName.multiline = true;
+          var _loc3_:TextFormat = this.textFieldName.getTextFormat();
+          _loc3_.leading = 0;

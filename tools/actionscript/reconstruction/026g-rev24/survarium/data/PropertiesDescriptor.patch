@@ -1,0 +1,24 @@
+--- a/survarium/data/PropertiesDescriptor.as
++++ b/survarium/data/PropertiesDescriptor.as
+@@ -12,10 +12,10 @@
+       
+       protected var _descriptorName:String;
+       
+-      public function PropertiesDescriptor(param1:String)
++      public function PropertiesDescriptor(param1:String) : void
+       {
+          super();
+-         this._descriptorName = param1;
++         _descriptorName = param1;
+          _descriptors[this._descriptorName] = this;
+       }
+       
+@@ -31,7 +31,7 @@
+          {
+             return;
+          }
+-         this._propertyDescriptors = new Dictionary();
++         _propertyDescriptors = new Dictionary();
+          var _loc2_:uint = 0;
+          while(_loc2_ < param1.length)
+          {

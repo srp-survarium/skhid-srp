@@ -1,0 +1,184 @@
+--- a/scaleform/clik/controls/Slider.as
++++ b/scaleform/clik/controls/Slider.as
+@@ -103,7 +103,7 @@
+       
+       public function set value(param1:Number) : void
+       {
+-         this._value = this.lockValue(param1);
++         _value = this.lockValue(param1);
+          dispatchEvent(new SliderEvent(SliderEvent.VALUE_CHANGE,false,true,this._value));
+          this.draw();
+       }
+@@ -116,7 +116,7 @@
+       
+       public function set maximum(param1:Number) : void
+       {
+-         this._maximum = param1;
++         _maximum = param1;
+       }
+       
+       [Inspectable(defaultValue="0")]
+@@ -127,7 +127,7 @@
+       
+       public function set minimum(param1:Number) : void
+       {
+-         this._minimum = param1;
++         _minimum = param1;
+       }
+       
+       public function get position() : Number
+@@ -137,7 +137,7 @@
+       
+       public function set position(param1:Number) : void
+       {
+-         this._value = param1;
++         _value = param1;
+       }
+       
+       [Inspectable(defaultValue="false")]
+@@ -148,7 +148,7 @@
+       
+       public function set snapping(param1:Boolean) : void
+       {
+-         this._snapping = param1;
++         _snapping = param1;
+          this.invalidateSettings();
+       }
+       
+@@ -160,7 +160,7 @@
+       
+       public function set snapInterval(param1:Number) : void
+       {
+-         this._snapInterval = param1;
++         _snapInterval = param1;
+          this.invalidateSettings();
+       }
+       
+@@ -183,30 +183,33 @@
+             case NavigationCode.RIGHT:
+                if(_loc4_)
+                {
+-                  this.value += this._snapInterval;
++                  value += this._snapInterval;
+                   param1.handled = true;
+                }
+                break;
+             case NavigationCode.LEFT:
+                if(_loc4_)
+                {
+-                  this.value -= this._snapInterval;
++                  value -= this._snapInterval;
+                   param1.handled = true;
+                }
+                break;
+             case NavigationCode.HOME:
+                if(!_loc4_)
+                {
+-                  this.value = this.minimum;
++                  value = this.minimum;
+                   param1.handled = true;
+                }
+                break;
+             case NavigationCode.END:
+                if(!_loc4_)
+                {
+-                  this.value = this.maximum;
++                  value = this.maximum;
+                   param1.handled = true;
+                }
++               break;
++            default:
++               break;
+          }
+       }
+       
+@@ -229,10 +232,10 @@
+       
+       override protected function draw() : void
+       {
+-         var _loc1_:Number = NaN;
++         var _loc1_:Number;
+          if(isInvalid(InvalidationType.STATE))
+          {
+-            gotoAndPlay(!this.enabled ? "disabled" : (Boolean(_focused) ? "focused" : "default"));
++            gotoAndPlay(!this.enabled ? "disabled" : (_focused ? "focused" : "default"));
+          }
+          if(isInvalid(InvalidationType.SIZE))
+          {
+@@ -274,9 +277,9 @@
+       
+       protected function beginDrag(param1:MouseEvent) : void
+       {
+-         this._thumbPressed = true;
++         _thumbPressed = true;
+          var _loc2_:Point = globalToLocal(new Point(param1.stageX,param1.stageY));
+-         this._dragOffset = {"x":_loc2_.x - this.thumb.x - this.thumb.width / 2};
++         _dragOffset = {x:_loc2_.x - this.thumb.x - this.thumb.width / 2};
+          stage.addEventListener(MouseEvent.MOUSE_MOVE,this.doDrag,false,0,true);
+          stage.addEventListener(MouseEvent.MOUSE_UP,this.endDrag,false,0,true);
+       }
+@@ -291,7 +294,7 @@
+          {
+             return;
+          }
+-         this._value = _loc5_;
++         _value = _loc5_;
+          this.updateThumb();
+          if(this.liveDragging)
+          {
+@@ -307,14 +310,14 @@
+          {
+             dispatchEvent(new SliderEvent(SliderEvent.VALUE_CHANGE,false,true,this._value));
+          }
+-         this._trackDragMouseIndex = undefined;
+-         this._thumbPressed = false;
+-         this._trackPressed = false;
++         _trackDragMouseIndex = undefined;
++         _thumbPressed = false;
++         _trackPressed = false;
+       }
+       
+       protected function trackPress(param1:MouseEvent) : void
+       {
+-         this._trackPressed = true;
++         _trackPressed = true;
+          this.track.focused = _focused;
+          var _loc2_:Number = _width - this.offsetLeft - this.offsetRight;
+          var _loc3_:Number = this.lockValue((param1.localX * scaleX - this.offsetLeft) / _loc2_ * (this._maximum - this._minimum) + this._minimum);
+@@ -322,13 +325,13 @@
+          {
+             return;
+          }
+-         this.value = _loc3_;
++         value = _loc3_;
+          if(!this.liveDragging)
+          {
+             dispatchEvent(new SliderEvent(SliderEvent.VALUE_CHANGE,false,true,this._value));
+          }
+-         this._trackDragMouseIndex = 0;
+-         this._dragOffset = {"x":0};
++         _trackDragMouseIndex = 0;
++         _dragOffset = {x:0};
+       }
+       
+       protected function lockValue(param1:Number) : Number
+@@ -338,14 +341,15 @@
+          {
+             return param1;
+          }
+-         return Math.round(param1 / this.snapInterval) * this.snapInterval;
++         var _loc2_:Number = Math.round(param1 / this.snapInterval) * this.snapInterval;
++         return _loc2_;
+       }
+       
+       protected function scrollWheel(param1:Number) : void
+       {
+-         if(Boolean(_focused))
+-         {
+-            this.value -= param1 * this._snapInterval;
++         if(_focused)
++         {
++            value -= param1 * this._snapInterval;
+             dispatchEvent(new Event(Event.CHANGE));
+          }
+       }
