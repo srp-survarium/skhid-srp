@@ -139,8 +139,8 @@ package survarium.controls
       
       override protected function lockValue(value:Number) : Number
       {
-         var _loc2_:Number = Math.max(_minimum,Math.min(_maximum,stepSize * Math.round(value / stepSize)));
-         return _loc2_;
+         var newVal:Number = Math.max(_minimum,Math.min(_maximum,stepSize * Math.round(value / stepSize)));
+         return newVal;
       }
    }
 }

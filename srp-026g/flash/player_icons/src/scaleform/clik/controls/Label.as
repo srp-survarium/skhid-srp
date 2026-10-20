@@ -156,8 +156,8 @@ package scaleform.clik.controls
          {
             element = constraints.getElement("textField");
          }
-         var _loc1_:Number = Math.ceil(this.textField.textWidth + element.left + element.right + 5);
-         return _loc1_;
+         var w:Number = Math.ceil(this.textField.textWidth + element.left + element.right + 5);
+         return w;
          var element:ConstrainedElement;
       }
       

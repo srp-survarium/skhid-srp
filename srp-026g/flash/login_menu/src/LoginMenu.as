@@ -263,7 +263,7 @@ package
          ExternalInterface.call("set_mouse_cursor",_new);
       }
       
-      private function onRegistrationClicked(param1:Event) : void
+      private function onRegistrationClicked(e:Event) : void
       {
       }
       
