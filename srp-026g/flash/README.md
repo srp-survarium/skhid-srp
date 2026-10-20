@@ -45,7 +45,8 @@ raw FFDec tree again, without these changes.
   compiled FFDec text with debug info, so the shipped movie records exactly those names
   (`UpgradeWindow`, `ItemRendererInv.updateData`, `ItemInfoRenderer.set data`, ...). Some
   player-icons/replay interfaces keep their parameters too: their movie's parameter table holds
-  unrelated strings. The files the lobby features branch (#238) edits are left for it.
+  unrelated strings. The lobby's own game classes (`survarium/**`, the top-level scripts and the
+  timeline classes) are not cleaned yet: the lobby features are being moved into them first.
 - **Named numbers.** Sound ids, key codes, item categories and the like are Flex compile-time
   constants, declared in the file that uses them:
 
