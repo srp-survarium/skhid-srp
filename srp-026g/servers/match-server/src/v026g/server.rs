@@ -542,6 +542,7 @@ impl Server {
                     trusted_snapshot_ms: None,
                     trusted_by: 0,
                     vs_bots: formed.vs_bots,
+                    private: formed.private,
                     players: formed
                         .places
                         .iter()

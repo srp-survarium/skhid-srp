@@ -79,6 +79,7 @@ pub fn setup(players: usize, map_id: u8) -> MatchSetup {
             .collect(),
         score_weights: None,
         vs_bots: false,
+        private: false,
         room_minimum: None,
     }
 }

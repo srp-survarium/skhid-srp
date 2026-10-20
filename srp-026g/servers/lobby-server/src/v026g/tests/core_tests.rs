@@ -2058,6 +2058,7 @@ impl World {
             trusted_by: 2,
             players,
             vs_bots: setup.vs_bots,
+            private: setup.private,
         };
         let terms = Terms::at(session::v026g::quests::now());
         let report = self
@@ -2126,6 +2127,7 @@ impl World {
             trusted_by: 0,
             players,
             vs_bots: setup.vs_bots,
+            private: setup.private,
         };
         let terms = Terms::at(session::v026g::quests::now());
         let report = self

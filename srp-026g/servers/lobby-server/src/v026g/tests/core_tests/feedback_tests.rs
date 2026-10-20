@@ -412,6 +412,7 @@ impl World {
             trusted_snapshot_ms: Some(690_000),
             trusted_by: 2,
             vs_bots: false,
+            private: false,
             players: vec![PlayerResult {
                 place: 0,
                 session_id,

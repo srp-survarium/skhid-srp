@@ -4788,6 +4788,7 @@ impl Game {
             trusted_by: state.map_or(0, |state| state.vouchers),
             players,
             vs_bots: self.formed.vs_bots,
+            private: self.formed.private,
         }
     }
 

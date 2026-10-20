@@ -35,6 +35,8 @@ The rules the code and the tests follow. Code: `crates/session/src/v026g/rewards
   report is `Standing::Finished`: in the match at its end); the account used no card for it
   yet; the item is a drop card of the account with a count above 0; the roll gives an item.
   Then one roll of `drop_card_drop` at the match's level, at full condition, as before.
+- **A room with a PIN's match** (the owner's of 2026-10-20: it pays nothing,
+  `rooms.md`): no card for it, refused for everyone and logged as "private match".
 - **A player who leaves early** (or whose game never got in) cannot use a card on that match:
   refused, and the reason (`Left`, `Absent`, `NotPlayed`) is logged. So the 1-player PIN-room
   screen left at once gives no card.

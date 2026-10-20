@@ -215,6 +215,9 @@ pub struct MatchSetup {
     /// One player against the server's own bots (`pvb`): the match
     /// server's `MatchSetup::vs_bots`.
     pub vs_bots: bool,
+    /// A match of a room with a PIN: it pays nothing (the match server's
+    /// `MatchSetup::private`; the owner's of 2026-10-20).
+    pub private: bool,
     /// A room's match: the room's minimum of players (the match server's
     /// `MatchSetup::room_minimum`).
     pub room_minimum: Option<u8>,
@@ -876,10 +879,10 @@ impl Core<'_> {
             return false;
         };
         let pvb = self.pvb_launching.get(&match_id).copied();
-        // A room's match: the map its vote chose and the room's minimum
-        // (`rooms`).
+        // A room's match: the map its vote chose, the room's minimum and
+        // whether it has a PIN (`rooms`).
         let room = self.room_launching.get(&match_id).copied();
-        let room_map = room.map(|(map_id, _)| map_id);
+        let room_map = room.map(|(map_id, ..)| map_id);
         let unix = quests::now();
         // Its players' levels.
         let mut levels = Vec::with_capacity(formed.seats.len());
@@ -951,7 +954,8 @@ impl Core<'_> {
                 match_level,
                 players,
                 vs_bots: pvb.is_some(),
-                room_minimum: room.map(|(_, minimum)| minimum),
+                private: room.is_some_and(|(.., private)| private),
+                room_minimum: room.map(|(_, minimum, _)| minimum),
             }),
             None => Err("a seated player is unavailable or uses an incompatible client".to_owned()),
         };
