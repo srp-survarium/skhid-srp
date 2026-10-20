@@ -287,7 +287,7 @@ Use `--compiler reconstruction` with the pinned patch manifest to select these
 per-class compilers in one measurement. Classes without an override use
 `flex-strict`; every report row records the compiler actually used. Explicit
 `--compiler ffdec`, `flex`, `flex-strict` or `flex-library` selects that compiler for every
-class, for comparison experiments. The per-class profile currently proves 214
+class, for comparison experiments. The per-class profile currently proves 215
 reconstructed classes, including easing, button, list, text, message, clan,
 debug and tutorial classes. Source fixes also recover local declaration order,
 static field slot order and explicit switch breaks where required.
@@ -304,6 +304,29 @@ Each tracked
 patch reproduces its independently
 verified compiler input and the complete compressed release movie. Whole-tree
 reconstruction remains incomplete.
+
+`flex-mixed` compiles the same authenticated source with both `flex-library` and
+`ffdec`. An entry's `composition.ffdec_methods` explicitly lists complete method
+owner names to take from FFDec, including their nested functions. Other methods
+remain native compiler records. Optional `composition.script_traits: "ffdec"`
+selects FFDec's script declaration when both outputs contain the same sole class.
+`ItemCard` uses this profile for `isUpgradeable` and its script declaration.
+Selections are pinned in the reconstruction manifest; the tool never chooses
+methods automatically by comparing them with the release.
+
+Composition imports live constant references, method signatures, activation
+traits and exception records from the selected compiler output. It preserves
+the authenticated original constant-pool prefix and relocates branches when
+operand widths change. Unknown owners, incompatible method layouts and ambiguous
+private namespace identities are rejected. Original executable bodies are never
+copied. The regular exact-baseline and feature-permission gates run afterward.
+This profile supports matching existing method layouts; it does not enable
+arbitrary additions of classes or methods.
+
+The measurement retains `compiler-composition.tsv` and its hash. Each
+`snapshot-mixed/` directory contains the shared source, selection file, both
+compiler outputs and their diagnostics. Feature builds use the same selection
+for fresh baseline and edited-source compilations and retain both sets of inputs.
 
 ## Building a source feature
 

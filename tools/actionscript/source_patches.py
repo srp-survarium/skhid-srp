@@ -9,6 +9,28 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def composition_plan(entry):
+    """Validate an explicit compiler selection and serialize the bridge input."""
+    if entry.get('compiler') != 'flex-mixed':
+        if 'composition' in entry:
+            raise ValueError('Compiler composition requires flex-mixed')
+        return None
+    spec = entry.get('composition')
+    if not isinstance(spec, dict) or set(spec) - {'ffdec_methods', 'script_traits'}:
+        raise ValueError('Invalid compiler composition')
+    methods = spec.get('ffdec_methods')
+    if (not isinstance(methods, list) or not methods
+            or any(not isinstance(owner, str) or not owner or owner.strip() != owner
+                   or any(c in owner for c in '\t\r\n|') for owner in methods)
+            or len(set(methods)) != len(methods)):
+        raise ValueError('Invalid or duplicate compiler method selection')
+    declarations = spec.get('script_traits', 'native')
+    if declarations not in ('native', 'ffdec'):
+        raise ValueError('Invalid script-trait compiler selection')
+    lines = (['script_traits=ffdec'] if declarations == 'ffdec' else []) + methods
+    return ('\n'.join(lines) + '\n').encode()
+
+
 def apply_patch(source, patch, relative):
     text = source.decode('utf-8')
     newline = '\r\n' if '\r\n' in text else '\n'
@@ -68,8 +90,9 @@ def load_sources(manifest_path, project, pinned):
         raise ValueError('Source patches target a different release')
     sources, evidence = {}, {'manifest_sha256': sha(raw), 'classes': []}
     for entry in spec['classes']:
-        if entry.get('compiler', 'flex-strict') not in ('ffdec', 'flex', 'flex-strict', 'flex-library'):
+        if entry.get('compiler', 'flex-strict') not in ('ffdec', 'flex', 'flex-strict', 'flex-library', 'flex-mixed'):
             raise ValueError('Unknown reconstruction compiler')
+        composition_plan(entry)
         cls = entry['class']
         relative = cls.replace('.', '/') + '.as'
         if relative not in pinned['sources'] or relative in sources:

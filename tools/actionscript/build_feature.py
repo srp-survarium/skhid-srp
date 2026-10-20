@@ -49,6 +49,7 @@ def feature_inputs(path, pinned, reconstructed, reconstruction_evidence, project
         raise ValueError('Feature targets a different reconstruction manifest')
     seen, inputs = set(), []
     compilers = {entry['class']: entry.get('compiler', 'flex-strict') for entry in reconstruction_evidence['classes']}
+    compositions = {entry['class']: patches.composition_plan(entry) for entry in reconstruction_evidence['classes']}
     for entry in spec['classes']:
         cls = entry['class']
         relative = cls.replace('.', '/') + '.as'
@@ -85,7 +86,8 @@ def feature_inputs(path, pinned, reconstructed, reconstruction_evidence, project
             raise ValueError('Feature must name its edited methods')
         inputs.append({'entry': entry, 'baseline': baseline, 'changed': changed, 'patch': diff,
                        'permissions': ('\n'.join(permissions) + '\n').encode(),
-                       'compiler': compilers.get(cls, 'flex-strict')})
+                       'compiler': compilers.get(cls, 'flex-strict'),
+                       'composition': compositions.get(cls)})
     if not inputs:
         raise ValueError('Feature changes no classes')
     return raw, inputs
@@ -133,8 +135,15 @@ def main():
         for name, value in [('baseline.as', item['baseline']), ('feature.as', item['changed']),
                             ('source.patch', item['patch']), ('permissions.tsv', item['permissions'])]:
             (folder / name).write_bytes(value)
+        composition_args = []
+        if item['composition'] is not None:
+            plan_path = folder / 'compiler-composition.tsv'
+            plan_path.write_bytes(item['composition'])
+            composition_args = [plan_path]
         row = {'class': cls, 'directory': folder.name, 'compiler': compiler, 'status': 'checking_baseline',
                'baseline_source_sha256': patches.sha(item['baseline']), 'feature_source_sha256': patches.sha(item['changed'])}
+        if composition_args:
+            row['composition_sha256'] = movie.digest(composition_args[0])
         report['classes'].append(row)
         movie.write_json(output / 'report.json', report)
 
@@ -147,7 +156,8 @@ def main():
             # Compile the baseline afresh: saved measurements cannot authorize a
             # feature built with a changed compiler or reconstruction source.
             run('compile', reference, folder / 'baseline-compiled.swf', cls, folder / 'baseline.as',
-                folder / 'baseline-snapshot', compiler, tools.config.get('flex', ''), log='baseline-compile.log')
+                folder / 'baseline-snapshot', compiler, tools.config.get('flex', ''), *composition_args,
+                log='baseline-compile.log')
             run('link-layout', reference, folder / 'baseline-compiled.swf', folder / 'baseline-linked.swf', cls,
                 log='baseline-link.log')
             full_movie(original, folder / 'baseline-linked.swf', folder / 'baseline-full.swf')
@@ -156,7 +166,8 @@ def main():
             row['baseline_exact'] = True
             (folder / 'baseline-full.swf').unlink()
             run('compile', current, folder / 'feature-compiled.swf', cls, folder / 'feature.as',
-                folder / 'feature-snapshot', compiler, tools.config.get('flex', ''), log='feature-compile.log')
+                folder / 'feature-snapshot', compiler, tools.config.get('flex', ''), *composition_args,
+                log='feature-compile.log')
             run('link-feature', current, folder / 'feature-compiled.swf', folder / 'feature-linked.swf', cls,
                 folder / 'permissions.tsv', log='feature-link.log')
             if (folder / 'baseline.as').read_bytes() != item['baseline'] or (folder / 'feature.as').read_bytes() != item['changed']:

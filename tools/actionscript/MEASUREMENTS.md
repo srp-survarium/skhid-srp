@@ -950,3 +950,29 @@ premium feature rebuild again produces the previously runtime-tested movie
 `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
 with one authorized method changed and identical non-code bytes. The runtime
 record explicitly identifies this as a byte-identical rebuild, not a game rerun.
+
+### Explicit compiler composition and ItemCard
+
+`ItemCard` now reproduces the complete compressed release movie. Its source
+repairs recover typed assignments and counter initialization. The `flex-mixed`
+profile compiles the same source with Flex library mode and FFDec, selects the
+actual FFDec `isUpgradeable` method record and sole script-class trait, and keeps
+native records elsewhere. The manifest pins these choices. Constant references
+are imported from actual compiler records, including signatures, nested
+functions, activation traits and exceptions; no reference executable body is
+substituted. Existing final equality and feature permission gates are unchanged.
+
+All 19 tests pass, including four real-compiler integration tests. The new fixture
+checks independent baseline reconstruction, an edited nested function with new
+property/string/integer constants, optional arguments and exception handlers.
+It also checks rejection of unknown or duplicate selections, a corrupted
+retained constant and an unauthorized edit to a native method. A separate
+ItemCard edit probe passes feature checks while failing baseline equality.
+
+The manifest contains 215 authenticated patches. Together with 645 pristine
+successes, accumulated individual-script evidence covers 860 of 878 scripts;
+18 remain. This is still not a whole-tree matching build. The premium feature
+rebuild preserves the previously runtime-tested movie hash
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+with one authorized method changed and identical non-code bytes. The runtime
+record documents byte identity; the game was not rerun.

@@ -8,6 +8,25 @@ import source_patches as patches
 
 
 class SourcePatchTests(unittest.TestCase):
+    def test_composition_plan_requires_explicit_unique_method_choices(self):
+        owner = 'QName(PackageNamespace(""),"C")/instance/1/QName(PackageNamespace(""),"f")'
+        entry = {'compiler': 'flex-mixed',
+                 'composition': {'ffdec_methods': [owner], 'script_traits': 'ffdec'}}
+        self.assertEqual(patches.composition_plan(entry), ('script_traits=ffdec\n' + owner + '\n').encode())
+        self.assertIsNone(patches.composition_plan({'compiler': 'flex-library'}))
+        for broken in [
+            {'compiler': 'flex-mixed'},
+            dict(entry, compiler='flex-library'),
+            dict(entry, composition={'ffdec_methods': []}),
+            dict(entry, composition={'ffdec_methods': owner}),
+            dict(entry, composition={'ffdec_methods': [owner, owner]}),
+            dict(entry, composition={'ffdec_methods': [owner + '\n']}),
+            dict(entry, composition={'ffdec_methods': [owner], 'script_traits': 'reference'}),
+            dict(entry, composition={'ffdec_methods': [owner], 'fallback': 'reference'}),
+        ]:
+            with self.assertRaises(ValueError):
+                patches.composition_plan(broken)
+
     def patch(self, before, after):
         return ''.join(difflib.unified_diff(before.splitlines(keepends=True), after.splitlines(keepends=True), fromfile='a/C.as', tofile='b/C.as')).encode()
 

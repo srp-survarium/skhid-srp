@@ -1534,6 +1534,26 @@ public final class MovieSource {
                 ? FlexCompiler.externalDefinitions(Path.of(a[3])) : Set.of());
             return;
         }
+        if (a[0].equals("compile") && a.length >= 7 && a[6].equals("flex-mixed")) {
+            if (a.length != 9) throw new IllegalArgumentException("Mixed compilation requires a selection file");
+            Path snapshot = Path.of(a[5]);
+            Path diagnostics = snapshot.resolveSibling(snapshot.getFileName() + "-mixed");
+            Files.createDirectory(diagnostics);
+            Path source = diagnostics.resolve("source.as"), selection = diagnostics.resolve("composition.tsv");
+            byte[] sourceBytes = Files.readAllBytes(Path.of(a[4]));
+            Files.write(source, sourceBytes, StandardOpenOption.CREATE_NEW);
+            Files.copy(Path.of(a[8]), selection);
+            for (String compiler : List.of("flex-library", "ffdec")) {
+                run(new String[]{"compile", a[1], diagnostics.resolve(compiler + ".swf").toString(),
+                    a[3], source.toString(), diagnostics.resolve(compiler + "-snapshot").toString(), compiler, a[7]});
+                if (!Arrays.equals(sourceBytes, Files.readAllBytes(source)))
+                    throw new IOException("Mixed compiler source changed during compilation");
+            }
+            MixedCompiler.compose(new String[]{a[1], diagnostics.resolve("flex-library.swf").toString(),
+                diagnostics.resolve("ffdec.swf").toString(), a[3], selection.toString(), a[2]});
+            snapshot(read(Path.of(a[2])), snapshot);
+            return;
+        }
         SWF swf = read(Path.of(a[1]));
         Path output = Path.of(a[2]);
         switch (a[0]) {

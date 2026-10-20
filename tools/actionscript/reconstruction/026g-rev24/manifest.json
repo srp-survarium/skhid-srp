@@ -1744,6 +1744,21 @@
       "pristine_sha256": "fa06a372ffa1a559e460b9dab5c3b834211a71e37cea9c357b799d35fbbc1721",
       "reason": "Recover original block-scoped local declarations, explicit accumulator initialization and typed branch assignment. Preserve the explicit Boolean conversion passed to lock, the positive unlocked-level branch with its break alternative, and the missing-skill continue guard.",
       "result_sha256": "d62b258b8494fe76a5cfa9d72694e4ef8c82a8122198ccd650637c2de8dea5cb"
+    },
+    {
+      "class": "survarium.controls.ItemCard",
+      "compiler": "flex-mixed",
+      "composition": {
+        "ffdec_methods": [
+          "QName(PackageNamespace(\"survarium.controls\"),\"ItemCard\")/instance/1/QName(PrivateNamespace(\"survarium.controls:ItemCard\"),\"isUpgradeable\")"
+        ],
+        "script_traits": "ffdec"
+      },
+      "patch": "survarium/controls/ItemCard.patch",
+      "patch_sha256": "17c72865fdf7edc330707b8e9a7eeaf9d96ee010a5163995085ea7a619588aa8",
+      "pristine_sha256": "13514f1dc8eaed63c978b9fce312f51fb7ede2761debadfc8c2d132c84d7e79d",
+      "reason": "Recover typed assignments and loop initializers; compile identical source with Flex library mode and FFDec, explicitly selecting FFDec's isUpgradeable method and sole script-class trait while retaining native records elsewhere. The complete compressed release movie matches byte for byte.",
+      "result_sha256": "f4e990c3414b498701d740ba0d7b15ccde2c7a82cc58e6635264793980a73312"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

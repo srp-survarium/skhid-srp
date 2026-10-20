@@ -155,10 +155,12 @@ class Toolchain:
         self.env["PATH"] = str(Path(self.config["java"]).parent) + os.pathsep + self.env.get("PATH", "")
         self.cp = str(self.work) + os.pathsep + self.config["ffdec"]
         shutil.copyfile(HERE / "MovieSource.java", self.work / "MovieSource.java")
+        shutil.copyfile(HERE / "MixedCompiler.java", self.work / "MixedCompiler.java")
         shutil.copyfile(HERE / "movie_source.py", self.work / "movie_source.py")
         shutil.copyfile(HERE / "source_patches.py", self.work / "source_patches.py")
         subprocess.run([self.config["javac"], "-encoding", "UTF-8", "-cp", self.config["ffdec"],
-                        "-d", str(self.work), str(self.work / "MovieSource.java")], check=True, env=self.env)
+                        "-d", str(self.work), str(self.work / "MovieSource.java"),
+                        str(self.work / "MixedCompiler.java")], check=True, env=self.env)
 
     def run(self, *args, log, timeout=600):
         with log.open("w") as stream:
@@ -185,6 +187,7 @@ class Toolchain:
                 "java_version": subprocess.check_output([self.config["java"], "-version"], stderr=subprocess.STDOUT, text=True),
                 "python_version": sys.version, "zlib_version": zlib.ZLIB_RUNTIME_VERSION,
                 "bridge_sha256": digest(self.work / "MovieSource.java"),
+                "composition_bridge_sha256": digest(self.work / "MixedCompiler.java"),
                 "driver_sha256": digest(self.work / "movie_source.py"),
                 "source_patches_sha256": digest(self.work / "source_patches.py")}
 
@@ -210,7 +213,7 @@ def main():
     measure = commands.add_parser("measure", help="Independently recompile each selected class from a fresh original")
     measure.add_argument("project", type=Path)
     measure.add_argument("output", type=Path)
-    measure.add_argument("--compiler", choices=("ffdec", "flex", "flex-strict", "flex-library", "reconstruction"), required=True,
+    measure.add_argument("--compiler", choices=("ffdec", "flex", "flex-strict", "flex-library", "flex-mixed", "reconstruction"), required=True,
                          help="reconstruction uses pinned per-class compiler choices, defaulting to flex-strict")
     measure.add_argument("--classes", type=Path, help="One full script name per line; defaults to every exported script")
     measure.add_argument("--source-patches", type=Path, help="Pinned reconstruction manifest; pristine exports stay immutable")
@@ -285,6 +288,8 @@ def main():
     write_json(output / "report.json", report)
     compiler_overrides = {entry["class"]: entry.get("compiler", "flex-strict")
                           for entry in (correction_evidence or {}).get("classes", [])}
+    compiler_entries = {entry["class"]: entry
+                        for entry in (correction_evidence or {}).get("classes", [])}
 
     def measure_class(number, cls):
         relative = cls.replace(".", "/") + ".as"
@@ -302,9 +307,18 @@ def main():
                 source.write_bytes(corrected[relative])
                 row["pristine_sha256"] = manifest["sources"][relative]
                 row["source_sha256"] = digest(source)
+            composition_args = []
+            if compiler == "flex-mixed":
+                plan = source_patches.composition_plan(compiler_entries.get(cls, {}))
+                if plan is None:
+                    raise ValueError("Mixed compilation requires an authenticated composition plan")
+                plan_path = folder / "compiler-composition.tsv"
+                plan_path.write_bytes(plan)
+                composition_args = [plan_path]
+                row["composition_sha256"] = digest(plan_path)
             result = tools.run("compile", output / "code.swf", folder / "compiled-code.swf", cls,
                                source, folder / "snapshot", compiler,
-                               tools.config.get("flex", ""), log=folder / "compile.log")
+                               tools.config.get("flex", ""), *composition_args, log=folder / "compile.log")
             if digest(source) != row["source_sha256"]:
                 raise ValueError("Source changed during compilation")
             if result.returncode:
