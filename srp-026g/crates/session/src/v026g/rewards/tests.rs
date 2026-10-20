@@ -1790,6 +1790,106 @@ fn a_drop_card_is_used_for_one_roll() {
     assert!(use_drop_card(&mut account, cards, 5, &mut rng).is_none());
 }
 
+/// One drop card for each player of a match, and only of a match it played
+/// in (the owner's rule of 2026-10-20, `drop_cards.md`): what is used is
+/// kept with the reports, so a restart does not open the screen again.
+#[test]
+fn a_drop_card_is_taken_once_for_each_player_of_a_match_across_a_restart() {
+    let players = alice_and_bob();
+    let repository = MemoryGameRepository::default();
+    let card = Dictionary::shared().item_named(DROP_CARD).unwrap().dict_id;
+    let store = kept_accounts(&players, &repository);
+    store.get_or_create(12, "Carol");
+    let mut cards = HashMap::new();
+    for id in [10, 11, 12] {
+        cards.insert(id, store.get(id).unwrap().locked().add_item(card, 3));
+        store.mark_dirty(id);
+    }
+    let results = Results::attached(&store);
+    let mut rng = Rng::new(3);
+    let mut result = match_of(MATCH);
+    result.match_level = 7;
+    results.settle(&result, &store, &at(NOW), &mut rng).unwrap();
+    store.flush();
+    // `(the match's level, the cards left)`; nothing changed when refused.
+    let use_card = |results: &Results,
+                    store: &GameAccounts,
+                    match_id: u32,
+                    id: u32,
+                    item_id: u32,
+                    rng: &mut Rng| {
+        let account = store.get(id).unwrap();
+        let mut account = account.locked();
+        let before = account.clone();
+        let used = results.use_drop_card(match_id, id, &mut account, item_id, rng);
+        if used.is_err() {
+            assert_eq!(*account, before);
+        }
+        used.map(|(level, used)| (level, used.unwrap().cards_left))
+    };
+
+    // A state of before the cards were kept still reads, reports and all.
+    let mut rows = repository.clone().load_results().unwrap();
+    for (key, body) in &mut rows {
+        if key == STATE_KEY {
+            let mut state: serde_json::Value = serde_json::from_str(body).unwrap();
+            assert!(state.as_object_mut().unwrap().remove("cards").is_some());
+            *body = state.to_string();
+        }
+    }
+    let old = Results::restored(rows);
+    assert!(old.find(MATCH).is_some());
+    assert!(!old.drop_card_used(MATCH, 10));
+
+    // Carol was not in the match; no match is kept under that id; no card
+    // has that id.
+    assert_eq!(
+        use_card(&results, &store, MATCH, 12, cards[&12], &mut rng),
+        Err(DropCardRefusal::NotAPlayer)
+    );
+    assert_eq!(
+        use_card(&results, &store, MATCH + 9, 10, cards[&10], &mut rng),
+        Err(DropCardRefusal::NoMatch)
+    );
+    assert_eq!(
+        use_card(&results, &store, MATCH, 10, 999, &mut rng),
+        Err(DropCardRefusal::NoCard)
+    );
+    assert!(!results.drop_card_used(MATCH, 10));
+    // Alice's first card is a roll at the match's level; a second is not.
+    assert_eq!(
+        use_card(&results, &store, MATCH, 10, cards[&10], &mut rng),
+        Ok((7, 2))
+    );
+    assert!(results.drop_card_used(MATCH, 10));
+    assert_eq!(
+        use_card(&results, &store, MATCH, 10, cards[&10], &mut rng),
+        Err(DropCardRefusal::Used)
+    );
+    store.mark_dirty(10);
+    store.flush();
+    drop(results);
+    drop(store);
+
+    // srp starts again on the same database: her card stays used, Bob's
+    // is still his to use, once.
+    let store = kept_accounts(&players, &repository);
+    let results = Results::attached(&store);
+    assert!(results.drop_card_used(MATCH, 10));
+    assert_eq!(
+        use_card(&results, &store, MATCH, 10, cards[&10], &mut rng),
+        Err(DropCardRefusal::Used)
+    );
+    assert_eq!(
+        use_card(&results, &store, MATCH, 11, cards[&11], &mut rng),
+        Ok((7, 2))
+    );
+    assert_eq!(
+        use_card(&results, &store, MATCH, 11, cards[&11], &mut rng),
+        Err(DropCardRefusal::Used)
+    );
+}
+
 /// Every player's pushes, as the lobby sends them, through the client's own
 /// reading rules: a client that signed in before the match, then what the
 /// match changed, the screen, the notices and a click on every row.

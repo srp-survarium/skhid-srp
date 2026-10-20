@@ -25,6 +25,7 @@ given), LIKELY or GUESS.
 | [social.md](social.md) | Chat channels, friends, squads, clans, online stats |
 | [premium.md](premium.md) | Premium time, the shop's offers and bundles, items for gold, the daily bonus, the tutorial, a nickname change, autobuy and auto-repair, the level notice; their settings |
 | [results.md](results.md) | Match results screen, player details, drops, daily bonus, craft tables |
+| [drop_cards.md](drop_cards.md) | Drop cards: one per player of a match, own matches only (the owner, 2026-10-20), the original screen's rule, what `allow_drop_card` is, the logging of sales and exchanges |
 | [progression_pace.md](progression_pace.md) | How long levels, faction ranks and gear tiers take, measured on the players' server, and the pay rates chosen from it |
 | [items.md](items.md) | Modifications, defects, cosmetics, reroll, craft, repair: the data, the wire, the rules |
 | [weapon_scopes.md](weapon_scopes.md) | Weapon scopes: how the client builds one, scope items bought once and put on any number of weapons (variants per weapon from the game data), what a release still needs |
