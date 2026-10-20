@@ -2128,7 +2128,7 @@ def test_db_signature(original, image, before):
           and image.read(va, len(new)) == new and before.read(va, len(old)) == old,
           f"{va:#x}: verify_sign's `call {P.DB_SIGNATURE_IMPL:#x}` is `xor eax,eax` and three nops between the "
           "original's instructions; the build without the late join keeps the original call")
-    under = [v for kind, v in Image(original).relocations().values() if kind == 3 and va - 3 < v < va + len(old)]
+    under = [v for kind, v in Image(original).relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
     # rel32 branches of .text and 4-byte values of the file; the short
     # branches of verify_sign itself (0x13310..0x13608), instruction by
     # instruction (a byte-wise scan reads `lea esi,[esp+10h]` at 0x135AD
@@ -2151,7 +2151,7 @@ def test_stale_dll(original, image, before):
           == ["mov [edi+0x8],eax", "mov [edi+0xc],dl"],
           f"{va:#x}: `mov [edi+0x8],eax` / `mov [edi+0xc],dl` are `call {entry:#x}` / `nop`; "
           "the build without the late join keeps them")
-    under = [v for kind, v in Image(original).relocations().values() if kind == 3 and va - 3 < v < va + len(old)]
+    under = [v for kind, v in Image(original).relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
     start, end = SIGN_IN_ON_CONNECTED
     found = aimed_inside(original, va, len(old), 0)
     found += [address for address, _, text in ndisasm(Image(original).read(start, end - start), start)
@@ -2224,7 +2224,7 @@ def test_mount_patches(original, image, before):
         return False
 
     for (va, old, _), (start, end) in ((P.MOUNT_QUERY, QUERY_DB), (P.MOUNTED, ON_MOUNTED_RESOURCES)):
-        under = [v for v in relocated if va - 3 < v < va + len(old)]
+        under = [v for v in relocated if va - 4 < v < va + len(old)]
         found = [a for a in aimed_inside(original, va, len(old), 0) if not va < a < va + len(old) or an_address(a)]
         found += [address for address, _, text in ndisasm(Image(original).read(start, end - start), start)
                   if (target := branch_target(text)) is not None and va < target < va + len(old)]
@@ -2408,7 +2408,7 @@ def test_forward_scroll(original, image, before):
           f"the last of those ({inside[-1] if inside else 0:#x}) is scene_time's, right before the hook")
     for va, old, _, _ in P.FORWARD_SCROLL_HOOKS:
         start, end = RENDERER_CONTEXT if va == 0x14990F else FORWARD_COMPILE
-        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 3 < v < va + len(old)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
         found = aimed_inside(original, va, len(old), 0)
         found += [address for address, _, t in ndisasm(stock.read(start, end - start), start)
                   if (target := branch_target(t)) is not None and va < target < va + len(old)]
@@ -2811,7 +2811,7 @@ def test_kit_change(original, image, before):
                   if (target := branch_target(text)) is not None
                   and any(va < target < va + len(old) for va, old in sites)]
     under = [v for kind, v in stock.relocations().values() if kind == 3
-             and any(va - 3 < v < va + len(old) for va, old in sites)]
+             and any(va - 4 < v < va + len(old) for va, old in sites)]
     check(not found and not under, "no branch or address aims inside the five sites, no base relocation under them"
           + "".join(f"\n          {a:#x}" for a in found + under))
 
@@ -2940,7 +2940,7 @@ def test_warmup_look(original, image, before):
         hits = [h for h in aimed_inside(original, va, len(old), 0x80) if not va <= h < va + len(old)]
         spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
         found += hits[:len(hits) - len(spelled)]
-        found += [v for kind, v in stock.relocations().values() if kind == 3 and va - 3 < v < va + len(old)]
+        found += [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
     for lo, hi in ((0x25D0E0, 0x25D128), (0x242200, 0x2422A6)):
         found += [address for address, _, text in ndisasm(stock.read(lo, hi - lo), lo)
                   if (target := branch_target(text)) is not None and any(va < target < va + len(old) for va, old in sites)]
@@ -3012,7 +3012,7 @@ def test_warmup_keys(original, image, before):
     hits = [h for h in aimed_inside(original, va, len(old), 0x80) if not va <= h < va + len(old)]
     spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
     found = hits[:len(hits) - len(spelled)]
-    found += [v for kind, v in stock.relocations().values() if kind == 3 and va - 3 < v < va + len(old)]
+    found += [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
     found += [address for address, _, text in ndisasm(stock.read(0x25CF60, 0x25D0E0 - 0x25CF60), 0x25CF60)
               if (target := branch_target(text)) is not None and va < target < va + len(old)]
     check(not found, "nothing aims inside the site and no base relocation is under it"
@@ -3066,7 +3066,7 @@ def test_suicide_key(original, image, before):
           "instruction, and it holds no absolute address")
     hits = aimed_inside(original, va, len(old), 0x80)
     spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
-    under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 3 < v < va + len(old)]
+    under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
     check(len(hits) == len(spelled) and not under,
           "nothing aims inside the site (a 4-byte value spelling an address there is no pointer without a "
           "relocation) and no base relocation is under it" + "".join(f", {h:#x}" for h in hits + under))
@@ -3154,7 +3154,7 @@ def test_spot(original, image, before):
     for va, size in ((P.SPOT_COOLDOWN[0], len(P.SPOT_COOLDOWN[1])), (P.SPOT_HOOK[0], len(P.SPOT_HOOK[1]))):
         hits = aimed_inside(original, va, size, 0x80)
         spelled = [va + i for i in range(1, size) if original.find(struct.pack("<I", va + i)) != -1]
-        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 3 < v < va + size]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + size]
         check(len(hits) == len(spelled) and not under,
               f"{va:#x}: nothing aims inside the site and no base relocation is under it"
               + "".join(f", {h:#x}" for h in hits + under))
@@ -3286,7 +3286,7 @@ def test_tab_list(original, image, before):
     found = [a for site, bytes_ in sites for a in aimed_inside(original, site, len(bytes_), 0x82)
              if a not in spelled and (a in starts or not any(lo <= a < hi for lo, hi in hosts))]
     under = [v for kind, v in stock.relocations().values() if kind == 3
-             and any(site - 3 < v < site + len(bytes_) for site, bytes_ in sites)]
+             and any(site - 4 < v < site + len(bytes_) for site, bytes_ in sites)]
     check(not found and not under, "nothing aims inside the three sites (no branch of .text, and no 4-byte value "
           "that is a pointer) and no base relocation is under them" + "".join(f", {h:#x}" for h in found + under))
 
