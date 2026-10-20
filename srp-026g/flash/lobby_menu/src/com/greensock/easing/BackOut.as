@@ -5,20 +5,20 @@ package com.greensock.easing
       
       public static var ease:BackOut = new BackOut();
       
-      public function BackOut(param1:Number = 1.70158)
+      public function BackOut(overshoot:Number = 1.70158)
       {
          super();
-         _p1 = param1;
+         _p1 = overshoot;
       }
       
-      override public function getRatio(param1:Number) : Number
+      override public function getRatio(progress:Number) : Number
       {
-         return (param1 = param1 - 1) * param1 * ((_p1 + 1) * param1 + _p1) + 1;
+         return (progress = progress - 1) * progress * ((_p1 + 1) * progress + _p1) + 1;
       }
       
-      public function config(param1:Number = 1.70158) : BackOut
+      public function config(overshoot:Number = 1.70158) : BackOut
       {
-         return new BackOut(param1);
+         return new BackOut(overshoot);
       }
    }
 }

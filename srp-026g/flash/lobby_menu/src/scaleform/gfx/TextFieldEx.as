@@ -25,37 +25,37 @@ package scaleform.gfx
          super();
       }
       
-      public static function appendHtml(param1:TextField, param2:String) : void
+      public static function appendHtml(textField:TextField, newHtml:String) : void
       {
       }
       
-      public static function setIMEEnabled(param1:TextField, param2:Boolean) : void
+      public static function setIMEEnabled(textField:TextField, isEnabled:Boolean) : void
       {
       }
       
-      public static function setVerticalAlign(param1:TextField, param2:String) : void
+      public static function setVerticalAlign(textField:TextField, valign:String) : void
       {
       }
       
-      public static function getVerticalAlign(param1:TextField) : String
-      {
-         return "none";
-      }
-      
-      public static function setTextAutoSize(param1:TextField, param2:String) : void
-      {
-      }
-      
-      public static function getTextAutoSize(param1:TextField) : String
+      public static function getVerticalAlign(textField:TextField) : String
       {
          return "none";
       }
       
-      public static function setImageSubstitutions(param1:TextField, param2:Object) : void
+      public static function setTextAutoSize(textField:TextField, autoSz:String) : void
       {
       }
       
-      public static function updateImageSubstitution(param1:TextField, param2:String, param3:BitmapData) : void
+      public static function getTextAutoSize(textField:TextField) : String
+      {
+         return "none";
+      }
+      
+      public static function setImageSubstitutions(textField:TextField, substInfo:Object) : void
+      {
+      }
+      
+      public static function updateImageSubstitution(textField:TextField, id:String, image:BitmapData) : void
       {
       }
    }

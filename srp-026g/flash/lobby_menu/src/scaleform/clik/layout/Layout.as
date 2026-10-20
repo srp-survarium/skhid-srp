@@ -53,9 +53,9 @@ package scaleform.clik.layout
          return this._rect;
       }
       
-      public function set rect(param1:Rectangle) : void
+      public function set rect(value:Rectangle) : void
       {
-         _rect = param1;
+         _rect = value;
       }
       
       [Inspectable(defaultValue="false")]
@@ -64,13 +64,13 @@ package scaleform.clik.layout
          return this._tiedToStageSize;
       }
       
-      public function set tiedToStageSize(param1:Boolean) : void
+      public function set tiedToStageSize(value:Boolean) : void
       {
-         if(param1 == this._tiedToStageSize)
+         if(value == this._tiedToStageSize)
          {
             return;
          }
-         _tiedToStageSize = param1;
+         _tiedToStageSize = value;
          _tiedToParent = false;
          if(stage != null)
          {
@@ -89,13 +89,13 @@ package scaleform.clik.layout
          return this._tiedToParent;
       }
       
-      public function set tiedToParent(param1:Boolean) : void
+      public function set tiedToParent(value:Boolean) : void
       {
-         if(param1 == this._tiedToParent)
+         if(value == this._tiedToParent)
          {
             return;
          }
-         _tiedToParent = param1;
+         _tiedToParent = value;
          _tiedToStageSize = false;
          if(this._parent != null)
          {
@@ -113,9 +113,9 @@ package scaleform.clik.layout
          return this._hidden;
       }
       
-      public function set hidden(param1:Boolean) : void
+      public function set hidden(value:Boolean) : void
       {
-         _hidden = param1;
+         _hidden = value;
          visible = !this._hidden;
       }
       
@@ -124,10 +124,10 @@ package scaleform.clik.layout
          return super.width;
       }
       
-      override public function set width(param1:Number) : void
+      override public function set width(value:Number) : void
       {
-         super.width = param1;
-         if(param1 > 0)
+         super.width = value;
+         if(value > 0)
          {
             this.invalidate();
          }
@@ -138,10 +138,10 @@ package scaleform.clik.layout
          return super.height;
       }
       
-      override public function set height(param1:Number) : void
+      override public function set height(value:Number) : void
       {
-         super.height = param1;
-         if(param1 > 0)
+         super.height = value;
+         if(value > 0)
          {
             this.invalidate();
          }
@@ -152,9 +152,9 @@ package scaleform.clik.layout
          return super.scaleX;
       }
       
-      override public function set scaleX(param1:Number) : void
+      override public function set scaleX(value:Number) : void
       {
-         super.scaleX = param1;
+         super.scaleX = value;
          this.invalidate();
       }
       
@@ -163,9 +163,9 @@ package scaleform.clik.layout
          return super.scaleY;
       }
       
-      override public function set scaleY(param1:Number) : void
+      override public function set scaleY(value:Number) : void
       {
-         super.scaleY = param1;
+         super.scaleY = value;
          this.invalidate();
       }
       
@@ -173,108 +173,108 @@ package scaleform.clik.layout
       {
          if(this.beforeReflow is Function)
          {
-            _loc2_ = this.beforeReflow;
+            _tm2 = this.beforeReflow;
             beforeReflow = null;
-            _loc2_();
+            _tm2();
          }
-         var _loc1_:uint = 0;
-         var _loc2_:Function;
-         var _loc3_:Sprite;
-         var _loc4_:LayoutData;
-         var _loc5_:String;
-         var _loc6_:String;
-         var _loc7_:Number;
-         var _loc8_:Number;
-         var _loc9_:String;
-         var _loc10_:Sprite;
-         var _loc11_:String;
-         var _loc12_:Sprite;
-         var _loc13_:Function;
-         while(_loc1_ < this._managedSprites.length)
+         var i:uint = 0;
+         var _tm2:Function;
+         var spr:Sprite;
+         var ld:LayoutData;
+         var alignH:String;
+         var alignV:String;
+         var offsetH:Number;
+         var offsetV:Number;
+         var relativeH:String;
+         var relHObject:Sprite;
+         var relativeV:String;
+         var relVObject:Sprite;
+         var _tm:Function;
+         while(i < this._managedSprites.length)
          {
-            _loc3_ = this._managedSprites[_loc1_];
-            _loc4_ = _loc3_["layoutData"] as LayoutData;
-            _loc5_ = _loc4_.alignH;
-            _loc6_ = _loc4_.alignV;
-            _loc7_ = this._tiedToStageSize && _loc4_.offsetHashH[this._aspectRatio] != undefined ? (_loc4_.offsetHashH[this._aspectRatio]) : _loc4_.offsetH;
-            _loc8_ = this._tiedToStageSize && _loc4_.offsetHashV[this._aspectRatio] != undefined ? (_loc4_.offsetHashV[this._aspectRatio]) : _loc4_.offsetV;
-            _loc9_ = _loc4_.relativeToH;
-            _loc10_ = _loc9_ != null ? this._parent.getChildByName(_loc9_) as Sprite : null;
-            _loc11_ = _loc4_.relativeToV;
-            _loc12_ = _loc11_ != null ? this._parent.getChildByName(_loc11_) as Sprite : null;
-            if(_loc5_ != LayoutMode.ALIGN_NONE)
+            spr = this._managedSprites[i];
+            ld = spr["layoutData"] as LayoutData;
+            alignH = ld.alignH;
+            alignV = ld.alignV;
+            offsetH = this._tiedToStageSize && ld.offsetHashH[this._aspectRatio] != undefined ? (ld.offsetHashH[this._aspectRatio]) : ld.offsetH;
+            offsetV = this._tiedToStageSize && ld.offsetHashV[this._aspectRatio] != undefined ? (ld.offsetHashV[this._aspectRatio]) : ld.offsetV;
+            relativeH = ld.relativeToH;
+            relHObject = relativeH != null ? this._parent.getChildByName(relativeH) as Sprite : null;
+            relativeV = ld.relativeToV;
+            relVObject = relativeV != null ? this._parent.getChildByName(relativeV) as Sprite : null;
+            if(alignH != LayoutMode.ALIGN_NONE)
             {
-               if(_loc5_ == LayoutMode.ALIGN_LEFT)
+               if(alignH == LayoutMode.ALIGN_LEFT)
                {
-                  if(_loc10_ == null)
+                  if(relHObject == null)
                   {
-                     _loc3_.x = this.rect.x + _loc7_;
+                     spr.x = this.rect.x + offsetH;
                   }
                   else
                   {
-                     _loc3_.x = _loc10_.x - _loc3_.width + _loc7_;
+                     spr.x = relHObject.x - spr.width + offsetH;
                   }
                }
-               else if(_loc5_ == LayoutMode.ALIGN_RIGHT)
+               else if(alignH == LayoutMode.ALIGN_RIGHT)
                {
-                  if(_loc10_ == null)
+                  if(relHObject == null)
                   {
-                     _loc3_.x = this.rect.width - _loc3_.width + _loc7_;
+                     spr.x = this.rect.width - spr.width + offsetH;
                      if(this._tiedToStageSize && (stage.align == STAGE_ALIGN_CENTER || stage.align == StageAlign.TOP || stage.align == StageAlign.BOTTOM))
                      {
-                        _loc3_.x += this.rect.x;
+                        spr.x += this.rect.x;
                      }
                   }
                   else
                   {
-                     _loc3_.x = _loc10_.x + _loc10_.width + _loc7_;
+                     spr.x = relHObject.x + relHObject.width + offsetH;
                   }
                }
-               else if(_loc5_ == LayoutMode.ALIGN_CENTER)
+               else if(alignH == LayoutMode.ALIGN_CENTER)
                {
-                  _loc3_.x = (this.rect.width - this.rect.x) / 2 - _loc3_.width / 2 + _loc7_;
+                  spr.x = (this.rect.width - this.rect.x) / 2 - spr.width / 2 + offsetH;
                }
             }
-            if(_loc6_ != LayoutMode.ALIGN_NONE)
+            if(alignV != LayoutMode.ALIGN_NONE)
             {
-               if(_loc6_ == LayoutMode.ALIGN_TOP)
+               if(alignV == LayoutMode.ALIGN_TOP)
                {
-                  if(_loc12_ == null)
+                  if(relVObject == null)
                   {
-                     _loc3_.y = this.rect.y + _loc8_;
+                     spr.y = this.rect.y + offsetV;
                   }
                   else
                   {
-                     _loc3_.y = _loc12_.y - _loc3_.height + _loc8_;
+                     spr.y = relVObject.y - spr.height + offsetV;
                   }
                }
-               else if(_loc6_ == LayoutMode.ALIGN_BOTTOM)
+               else if(alignV == LayoutMode.ALIGN_BOTTOM)
                {
-                  if(_loc12_ == null)
+                  if(relVObject == null)
                   {
-                     _loc3_.y = this.rect.height - _loc3_.height + _loc8_;
+                     spr.y = this.rect.height - spr.height + offsetV;
                      if(this._tiedToStageSize && (stage.align == STAGE_ALIGN_CENTER || stage.align == StageAlign.TOP || stage.align == StageAlign.BOTTOM))
                      {
-                        _loc3_.y += this.rect.y;
+                        spr.y += this.rect.y;
                      }
                   }
                   else
                   {
-                     _loc3_.y = _loc12_.y + _loc12_.height + _loc8_;
+                     spr.y = relVObject.y + relVObject.height + offsetV;
                   }
                }
-               else if(_loc6_ == LayoutMode.ALIGN_CENTER)
+               else if(alignV == LayoutMode.ALIGN_CENTER)
                {
-                  _loc3_.y = (this.rect.height - this.rect.y) / 2 - _loc3_.height / 2 + _loc8_;
+                  spr.y = (this.rect.height - this.rect.y) / 2 - spr.height / 2 + offsetV;
                }
             }
-            _loc1_++;
+            i++;
          }
          if(this.afterReflow is Function)
          {
-            _loc13_ = this.afterReflow;
+            _tm = this.afterReflow;
             afterReflow = null;
-            _loc13_();
+            _tm();
          }
       }
       
@@ -290,12 +290,12 @@ package scaleform.clik.layout
       
       public function resortManagedSprites() : void
       {
-         var _loc1_:Vector.<Sprite> = new Vector.<Sprite>();
+         var list:Vector.<Sprite> = new Vector.<Sprite>();
          while(this._managedSprites.length >= 1)
          {
-            this.insertIntoSortedVector(this._managedSprites.pop(),_loc1_);
+            this.insertIntoSortedVector(this._managedSprites.pop(),list);
          }
-         _managedSprites = _loc1_;
+         _managedSprites = list;
       }
       
       protected function invalidate() : void
@@ -307,7 +307,7 @@ package scaleform.clik.layout
          }
       }
       
-      protected function handleStageInvalidation(param1:Event) : void
+      protected function handleStageInvalidation(e:Event) : void
       {
          removeEventListener(Event.RENDER,this.handleStageInvalidation,false);
          this._rect.x = x;
@@ -317,7 +317,7 @@ package scaleform.clik.layout
          this.reflow();
       }
       
-      protected function handleAddedToStage(param1:Event) : void
+      protected function handleAddedToStage(e:Event) : void
       {
          this.configUI();
       }
@@ -356,7 +356,7 @@ package scaleform.clik.layout
          }
       }
       
-      protected function handleFirstEnterFrame(param1:Event) : void
+      protected function handleFirstEnterFrame(e:Event) : void
       {
          removeEventListener(Event.ENTER_FRAME,this.handleFirstEnterFrame,false);
          this.analyzeSpritesOnStage();
@@ -364,57 +364,57 @@ package scaleform.clik.layout
       
       protected function analyzeSpritesOnStage() : void
       {
-         var _loc1_:uint = 0;
-         var _loc2_:Sprite;
-         while(_loc1_ < this._parent.numChildren)
+         var i:uint = 0;
+         var spr:Sprite;
+         while(i < this._parent.numChildren)
          {
-            _loc2_ = this._parent.getChildAt(_loc1_) as Sprite;
-            if(_loc2_ != this)
+            spr = this._parent.getChildAt(i) as Sprite;
+            if(spr != this)
             {
-               this.evaluateLayoutForSprite(_loc2_);
+               this.evaluateLayoutForSprite(spr);
             }
-            _loc1_++;
+            i++;
          }
          this.reflow();
       }
       
-      protected function handleSpriteAddedToParent(param1:Event) : void
+      protected function handleSpriteAddedToParent(e:Event) : void
       {
-         var _loc2_:Sprite = param1.target as Sprite;
-         if(_loc2_.parent != this._parent)
+         var spr:Sprite = e.target as Sprite;
+         if(spr.parent != this._parent)
          {
             return;
          }
-         this.evaluateLayoutForSprite(_loc2_);
+         this.evaluateLayoutForSprite(spr);
          this.reflow();
       }
       
-      protected function handleSpriteRemovedFromParent(param1:Event) : void
+      protected function handleSpriteRemovedFromParent(event:Event) : void
       {
-         var _loc2_:Sprite = param1.target as Sprite;
-         if(_loc2_.parent != this._parent)
+         var sprite:Sprite = event.target as Sprite;
+         if(sprite.parent != this._parent)
          {
             return;
          }
-         var _loc3_:uint = 0;
-         while(_loc3_ < this._managedSprites.length)
+         var i:uint = 0;
+         while(i < this._managedSprites.length)
          {
-            if(this._managedSprites[_loc3_] == _loc2_)
+            if(this._managedSprites[i] == sprite)
             {
-               this._managedSprites.splice(_loc3_,1);
+               this._managedSprites.splice(i,1);
             }
-            _loc3_++;
+            i++;
          }
       }
       
-      protected function handleParentResize(param1:Event) : void
+      protected function handleParentResize(e:Event) : void
       {
          this._rect.width = this._parent.width;
          this._rect.height = this._parent.height;
          this.reflow();
       }
       
-      protected function handleStageResize(param1:Event) : void
+      protected function handleStageResize(e:Event) : void
       {
          this.updateAspectRatio();
          this.reflow();
@@ -422,12 +422,12 @@ package scaleform.clik.layout
       
       protected function updateAspectRatio() : void
       {
-         var _loc1_:Number;
+         var ar:Number;
          if(Extensions.enabled && this._scaleFactor == 1)
          {
             _rect = Extensions.visibleRect;
-            _loc1_ = this.rect.width / this.rect.height;
-            switch(_loc1_)
+            ar = this.rect.width / this.rect.height;
+            switch(ar)
             {
                case 4 / 3:
                   _aspectRatio = LayoutData.ASPECT_RATIO_4_3;
@@ -450,120 +450,120 @@ package scaleform.clik.layout
          }
       }
       
-      public function setScaleFactor(param1:Number) : void
+      public function setScaleFactor(value:Number) : void
       {
-         trace("setScaleFactor",param1);
-         _scaleFactor = param1;
+         trace("setScaleFactor",value);
+         _scaleFactor = value;
          this.handleStageResize(null);
       }
       
-      protected function evaluateLayoutForSprite(param1:Sprite) : void
+      protected function evaluateLayoutForSprite(spr:Sprite) : void
       {
-         if(param1 == null)
+         if(spr == null)
          {
             return;
          }
-         var _loc2_:LayoutData = null;
-         _loc2_ = param1["layoutData"];
-         if(_loc2_ != null && (_loc2_.layoutIdentifier == null || _loc2_.layoutIdentifier == this.identifier))
+         var lData:LayoutData = null;
+         lData = spr["layoutData"];
+         if(lData != null && (lData.layoutIdentifier == null || lData.layoutIdentifier == this.identifier))
          {
-            this.insertIntoSortedVector(param1,this._managedSprites);
-            this.calculateOffsets(param1);
+            this.insertIntoSortedVector(spr,this._managedSprites);
+            this.calculateOffsets(spr);
          }
       }
       
-      protected function insertIntoSortedVector(param1:Sprite, param2:Vector.<Sprite>) : void
+      protected function insertIntoSortedVector(spr:Sprite, list:Vector.<Sprite>) : void
       {
-         var _loc3_:int = (param1["layoutData"] as LayoutData).layoutIndex;
-         var _loc4_:Boolean;
-         var _loc5_:uint;
-         var _loc6_:LayoutData;
-         if(param2.length == 0 || _loc3_ == -1)
+         var lIndex:int = (spr["layoutData"] as LayoutData).layoutIndex;
+         var inserted:Boolean;
+         var i:uint;
+         var ld:LayoutData;
+         if(list.length == 0 || lIndex == -1)
          {
-            param2.push(param1);
+            list.push(spr);
          }
          else
          {
-            _loc4_ = false;
-            _loc5_ = 0;
-            while(_loc5_ < param2.length && !_loc4_)
+            inserted = false;
+            i = 0;
+            while(i < list.length && !inserted)
             {
-               _loc6_ = param2[_loc5_]["layoutData"] as LayoutData;
-               if(_loc3_ >= 0 && _loc3_ <= _loc6_.layoutIndex)
+               ld = list[i]["layoutData"] as LayoutData;
+               if(lIndex >= 0 && lIndex <= ld.layoutIndex)
                {
-                  param2.splice(_loc5_,0,param1);
-                  _loc4_ = true;
+                  list.splice(i,0,spr);
+                  inserted = true;
                }
-               _loc5_++;
+               i++;
             }
-            if(!_loc4_)
+            if(!inserted)
             {
-               param2.push(param1);
+               list.push(spr);
             }
          }
       }
       
-      protected function calculateOffsets(param1:Sprite) : void
+      protected function calculateOffsets(spr:Sprite) : void
       {
-         var _loc2_:LayoutData = param1["layoutData"] as LayoutData;
-         var _loc3_:String = _loc2_.alignH;
-         var _loc4_:String = _loc2_.alignV;
-         var _loc5_:String = _loc2_.relativeToH;
-         var _loc6_:Sprite = _loc5_ != null ? this._parent.getChildByName(_loc5_) as Sprite : null;
-         var _loc7_:String = _loc2_.relativeToV;
-         var _loc8_:Sprite = _loc7_ != null ? this._parent.getChildByName(_loc7_) as Sprite : null;
-         if(_loc2_.offsetH == -1)
+         var ld:LayoutData = spr["layoutData"] as LayoutData;
+         var alignH:String = ld.alignH;
+         var alignV:String = ld.alignV;
+         var relativeH:String = ld.relativeToH;
+         var relHObject:Sprite = relativeH != null ? this._parent.getChildByName(relativeH) as Sprite : null;
+         var relativeV:String = ld.relativeToV;
+         var relVObject:Sprite = relativeV != null ? this._parent.getChildByName(relativeV) as Sprite : null;
+         if(ld.offsetH == -1)
          {
-            if(_loc3_ != LayoutMode.ALIGN_NONE)
+            if(alignH != LayoutMode.ALIGN_NONE)
             {
-               if(_loc3_ == LayoutMode.ALIGN_LEFT)
+               if(alignH == LayoutMode.ALIGN_LEFT)
                {
-                  if(_loc6_ == null)
+                  if(relHObject == null)
                   {
-                     _loc2_.offsetH = param1.x - this.rect.x;
+                     ld.offsetH = spr.x - this.rect.x;
                   }
                   else
                   {
-                     _loc2_.offsetH = param1.x - (_loc6_.x + _loc6_.width);
+                     ld.offsetH = spr.x - (relHObject.x + relHObject.width);
                   }
                }
-               else if(_loc3_ == LayoutMode.ALIGN_RIGHT)
+               else if(alignH == LayoutMode.ALIGN_RIGHT)
                {
-                  if(_loc6_ == null)
+                  if(relHObject == null)
                   {
-                     _loc2_.offsetH = param1.x + param1.width - this.rect.width;
+                     ld.offsetH = spr.x + spr.width - this.rect.width;
                   }
                   else
                   {
-                     _loc2_.offsetH = param1.x - _loc6_.x;
+                     ld.offsetH = spr.x - relHObject.x;
                   }
                }
             }
          }
-         if(_loc2_.offsetV == -1)
+         if(ld.offsetV == -1)
          {
-            if(_loc4_ != LayoutMode.ALIGN_NONE)
+            if(alignV != LayoutMode.ALIGN_NONE)
             {
-               if(_loc4_ == LayoutMode.ALIGN_TOP)
+               if(alignV == LayoutMode.ALIGN_TOP)
                {
-                  if(_loc8_ == null)
+                  if(relVObject == null)
                   {
-                     _loc2_.offsetV = param1.y - this.rect.y;
+                     ld.offsetV = spr.y - this.rect.y;
                   }
                   else
                   {
-                     _loc2_.offsetV = param1.y - (_loc8_.y + _loc8_.height);
+                     ld.offsetV = spr.y - (relVObject.y + relVObject.height);
                   }
                }
-               else if(_loc4_ == LayoutMode.ALIGN_BOTTOM)
+               else if(alignV == LayoutMode.ALIGN_BOTTOM)
                {
-                  if(_loc8_ == null)
+                  if(relVObject == null)
                   {
-                     _loc2_.offsetV = param1.y + param1.height - this.rect.height;
+                     ld.offsetV = spr.y + spr.height - this.rect.height;
                   }
                   else
                   {
-                     _loc2_.offsetV = param1.y - _loc8_.y;
+                     ld.offsetV = spr.y - relVObject.y;
                   }
                }
             }
