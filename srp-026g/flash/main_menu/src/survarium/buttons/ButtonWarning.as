@@ -21,15 +21,15 @@ package survarium.buttons
          startSize = this.background.width;
       }
       
-      public function showWarning(param1:String) : void
+      public function showWarning(message:String) : void
       {
-         var _loc2_:Number;
-         if(param1)
+         var targetWidth:Number;
+         if(message)
          {
             alpha = 1;
             visible = true;
-            this.textFieldNotification.text = param1;
-            _loc2_ = this.textFieldNotification.textWidth + this.borderOffset * 2;
+            this.textFieldNotification.text = message;
+            targetWidth = this.textFieldNotification.textWidth + this.borderOffset * 2;
             this.textFieldNotification.width = 1;
             this.background.width = this.startSize;
             this.textFieldNotification.alpha = 1;
@@ -37,9 +37,9 @@ package survarium.buttons
             TweenLite.killTweensOf(this);
             TweenLite.killTweensOf(this.textFieldNotification);
             TweenLite.killTweensOf(this.background);
-            TweenLite.to(this.textFieldNotification,1,{width:_loc2_});
+            TweenLite.to(this.textFieldNotification,1,{width:targetWidth});
             TweenLite.to(this.background,1,{
-               width:_loc2_ + this.textFieldNotification.x,
+               width:targetWidth + this.textFieldNotification.x,
                onComplete:this.hideMe
             });
          }

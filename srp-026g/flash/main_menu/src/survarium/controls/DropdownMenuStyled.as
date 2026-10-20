@@ -14,26 +14,26 @@ package survarium.controls
       
       public function DropdownMenuStyled()
       {
-         var _loc1_:Object;
+         var styleObject:Object;
          super();
          styleSheet = new StyleSheet();
-         _loc1_ = new Object();
-         _loc1_.color = "#F4B717";
-         _loc1_.size = 14;
-         this.styleSheet.setStyle("yellow",_loc1_);
-         _loc1_ = new Object();
-         _loc1_.color = "#A97E0E";
-         _loc1_.size = 14;
-         _loc1_.alpha = 0.5;
-         this.styleSheet.setStyle("dark_yellow",_loc1_);
+         styleObject = new Object();
+         styleObject.color = "#F4B717";
+         styleObject.size = 14;
+         this.styleSheet.setStyle("yellow",styleObject);
+         styleObject = new Object();
+         styleObject.color = "#A97E0E";
+         styleObject.size = 14;
+         styleObject.alpha = 0.5;
+         this.styleSheet.setStyle("dark_yellow",styleObject);
       }
       
-      override public function set label(param1:String) : void
+      override public function set label(value:String) : void
       {
-         super.label = param1;
+         super.label = value;
          if(this.textFieldLabel)
          {
-            this.textFieldLabel.text = param1;
+            this.textFieldLabel.text = value;
          }
       }
       

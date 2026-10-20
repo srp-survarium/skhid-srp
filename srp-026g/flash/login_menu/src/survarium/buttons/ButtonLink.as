@@ -12,11 +12,11 @@ package survarium.buttons
       
       override protected function updateText() : void
       {
-         var _loc1_:TextFormat = textField.getTextFormat();
-         _loc1_.underline = true;
-         textField.defaultTextFormat = _loc1_;
+         var format:TextFormat = textField.getTextFormat();
+         format.underline = true;
+         textField.defaultTextFormat = format;
          super.updateText();
-         textField.setTextFormat(_loc1_);
+         textField.setTextFormat(format);
       }
    }
 }

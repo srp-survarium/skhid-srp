@@ -166,24 +166,24 @@ package main_menu_fla
          addFrameScript(0,this.frame1,1,this.frame2,2,this.frame3,3,this.frame4);
       }
       
-      public function setNewCross(param1:Event) : void
+      public function setNewCross(event:Event) : void
       {
-         var _loc2_:TileListSmoothR = this.crossList.list;
-         var _loc3_:* = _loc2_.getRendererAt(_loc2_.selectedIndex,_loc2_.scrollPosition);
-         trace("set new cross:",_loc2_,_loc3_,_loc2_.selectedIndex,_loc2_.scrollPosition);
+         var list:TileListSmoothR = this.crossList.list;
+         var renderer:* = list.getRendererAt(list.selectedIndex,list.scrollPosition);
+         trace("set new cross:",list,renderer,list.selectedIndex,list.scrollPosition);
          this.showSelect(null);
       }
       
-      public function showSelect(param1:Event = null) : *
+      public function showSelect(event:Event = null) : *
       {
          if(this._ignore)
          {
             _ignore = false;
             return;
          }
-         if((param1))
+         if((event))
          {
-            trace("showSelct",param1.target,param1.currentTarget);
+            trace("showSelct",event.target,event.currentTarget);
          }
          else
          {
@@ -191,26 +191,26 @@ package main_menu_fla
          }
       }
       
-      public function onStageClick(param1:MouseEvent) : void
+      public function onStageClick(event:MouseEvent) : void
       {
          stage.removeEventListener(MouseEvent.MOUSE_UP,this.onStageClick);
       }
       
-      public function crossListFO(param1:FocusEvent) : void
+      public function crossListFO(event:FocusEvent) : void
       {
          stage.addEventListener(MouseEvent.MOUSE_UP,this.onStageClick);
-         if(param1.relatedObject == null || !this.crossList.contains(param1.relatedObject))
+         if(event.relatedObject == null || !this.crossList.contains(event.relatedObject))
          {
             this.showSelect();
          }
       }
       
-      public function callExternal(param1:Event) : void
+      public function callExternal(event:Event) : void
       {
-         ExternalInterface.call(param1.target.name);
+         ExternalInterface.call(event.target.name);
       }
       
-      public function fdsfsd(param1:Event) : void
+      public function fdsfsd(event:Event) : void
       {
          if(!this.screenAdjust.visible)
          {
@@ -218,10 +218,10 @@ package main_menu_fla
          }
       }
       
-      public function showScreenAdjust(param1:ButtonEvent) : void
+      public function showScreenAdjust(event:ButtonEvent) : void
       {
          this.screenAdjust.btn_set.label = Settings.get_label("button_ok");
-         var _loc2_:Point = localToGlobal(new Point(x,y));
+         var globalPos:Point = localToGlobal(new Point(x,y));
          this.screenAdjust.visible = true;
          this.screenAdjust.setSize(stage.stageWidth,stage.stageHeight);
          parent.visible = false;

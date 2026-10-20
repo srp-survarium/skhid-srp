@@ -10,41 +10,41 @@ package scaleform.clik.data
       
       protected var dispatcher:EventDispatcher;
       
-      public function DataProvider(param1:Array = null)
+      public function DataProvider(source:Array = null)
       {
          super();
          dispatcher = new EventDispatcher(this);
-         this.parseSource(param1);
+         this.parseSource(source);
       }
       
-      public function indexOf(param1:Object, param2:Function = null) : int
+      public function indexOf(item:Object, callBack:Function = null) : int
       {
-         var _loc3_:int = super.indexOf(param1);
-         if(param2 != null)
+         var index:int = super.indexOf(item);
+         if(callBack != null)
          {
-            param2(_loc3_);
+            callBack(index);
          }
-         return _loc3_;
+         return index;
       }
       
-      public function requestItemAt(param1:uint, param2:Function = null) : Object
+      public function requestItemAt(index:uint, callBack:Function = null) : Object
       {
-         var _loc3_:Object = this[param1];
-         if(param2 != null)
+         var item:Object = this[index];
+         if(callBack != null)
          {
-            param2(_loc3_);
+            callBack(item);
          }
-         return _loc3_;
+         return item;
       }
       
-      public function requestItemRange(param1:int, param2:int, param3:Function = null) : Array
+      public function requestItemRange(startPosition:int, endPosition:int, callBack:Function = null) : Array
       {
-         var _loc4_:Array = this.slice(param1,param2 + 1);
-         if(param3 != null)
+         var items:Array = this.slice(startPosition,endPosition + 1);
+         if(callBack != null)
          {
-            param3(_loc4_);
+            callBack(items);
          }
-         return _loc4_;
+         return items;
       }
       
       public function cleanUp() : void
@@ -52,14 +52,14 @@ package scaleform.clik.data
          this.splice(0,length);
       }
       
-      public function invalidate(param1:uint = 0) : void
+      public function invalidate(length:uint = 0) : void
       {
          this.dispatcher.dispatchEvent(new Event(Event.CHANGE));
       }
       
-      public function setSource(param1:Array) : void
+      public function setSource(source:Array) : void
       {
-         this.parseSource(param1);
+         this.parseSource(source);
       }
       
       public function toString() : String
@@ -67,44 +67,44 @@ package scaleform.clik.data
          return "[CLIK DataProvider " + this.join(",") + "]";
       }
       
-      protected function parseSource(param1:Array) : void
+      protected function parseSource(source:Array) : void
       {
-         if(param1 == null)
+         if(source == null)
          {
             return;
          }
-         var _loc2_:uint = param1.length;
-         var _loc3_:uint = 0;
-         while(_loc3_ < _loc2_)
+         var count:uint = source.length;
+         var i:uint = 0;
+         while(i < count)
          {
-            this[_loc3_] = param1[_loc3_];
-            _loc3_++;
+            this[i] = source[i];
+            i++;
          }
       }
       
-      public function addEventListener(param1:String, param2:Function, param3:Boolean = false, param4:int = 0, param5:Boolean = false) : void
+      public function addEventListener(type:String, listener:Function, useCapture:Boolean = false, priority:int = 0, useWeakReference:Boolean = false) : void
       {
-         this.dispatcher.addEventListener(param1,param2,param3,param4,param5);
+         this.dispatcher.addEventListener(type,listener,useCapture,priority,useWeakReference);
       }
       
-      public function removeEventListener(param1:String, param2:Function, param3:Boolean = false) : void
+      public function removeEventListener(type:String, listener:Function, useCapture:Boolean = false) : void
       {
-         this.dispatcher.removeEventListener(param1,param2,param3);
+         this.dispatcher.removeEventListener(type,listener,useCapture);
       }
       
-      public function dispatchEvent(param1:Event) : Boolean
+      public function dispatchEvent(event:Event) : Boolean
       {
-         return this.dispatcher.dispatchEvent(param1);
+         return this.dispatcher.dispatchEvent(event);
       }
       
-      public function hasEventListener(param1:String) : Boolean
+      public function hasEventListener(type:String) : Boolean
       {
-         return this.dispatcher.hasEventListener(param1);
+         return this.dispatcher.hasEventListener(type);
       }
       
-      public function willTrigger(param1:String) : Boolean
+      public function willTrigger(type:String) : Boolean
       {
-         return this.dispatcher.willTrigger(param1);
+         return this.dispatcher.willTrigger(type);
       }
    }
 }

@@ -21,13 +21,13 @@ package scaleform.clik.events
       
       public var dragSprite:Sprite;
       
-      public function DragEvent(param1:String, param2:Object, param3:IDragSlot, param4:IDragSlot, param5:Sprite, param6:Boolean = true, param7:Boolean = true)
+      public function DragEvent(type:String, data:Object, drag:IDragSlot, drop:IDragSlot, sprite:Sprite, bubbles:Boolean = true, cancelable:Boolean = true)
       {
-         this.dragData = param2;
-         this.dragTarget = param3;
-         this.dropTarget = param4;
-         this.dragSprite = param5;
-         super(param1,param6,param7);
+         this.dragData = data;
+         this.dragTarget = drag;
+         this.dropTarget = drop;
+         this.dragSprite = sprite;
+         super(type,bubbles,cancelable);
       }
       
       override public function toString() : String

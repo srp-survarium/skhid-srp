@@ -17,15 +17,15 @@ package scaleform.clik.controls
          _toggle = true;
       }
       
-      override protected function handleMouseRollOver(param1:MouseEvent) : void
+      override protected function handleMouseRollOver(event:MouseEvent) : void
       {
-         super.handleMouseRollOver(param1);
+         super.handleMouseRollOver(event);
          ExternalInterface.call("sound_play",1);
       }
       
-      override protected function handleMouseRelease(param1:MouseEvent) : void
+      override protected function handleMouseRelease(event:MouseEvent) : void
       {
-         super.handleMouseRelease(param1);
+         super.handleMouseRelease(event);
          ExternalInterface.call("sound_play",0);
       }
       
@@ -34,7 +34,7 @@ package scaleform.clik.controls
          return false;
       }
       
-      override public function set autoRepeat(param1:Boolean) : void
+      override public function set autoRepeat(value:Boolean) : void
       {
       }
       
@@ -43,7 +43,7 @@ package scaleform.clik.controls
          return true;
       }
       
-      override public function set toggle(param1:Boolean) : void
+      override public function set toggle(value:Boolean) : void
       {
       }
       

@@ -20,7 +20,7 @@ package survarium.messages
          ExternalInterface.call("sound_play",13);
       }
       
-      override protected function cleanUp(param1:Event = null) : void
+      override protected function cleanUp(event:Event = null) : void
       {
          super.cleanUp();
       }

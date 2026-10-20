@@ -24,18 +24,18 @@ package survarium.controls
          _toggle = true;
       }
       
-      override protected function handleMouseRollOver(param1:MouseEvent) : void
+      override protected function handleMouseRollOver(event:MouseEvent) : void
       {
-         super.handleMouseRollOver(param1);
+         super.handleMouseRollOver(event);
          if(enabled)
          {
             ExternalInterface.call("sound_play",1);
          }
       }
       
-      override protected function handleMouseRelease(param1:MouseEvent) : void
+      override protected function handleMouseRelease(event:MouseEvent) : void
       {
-         super.handleMouseRelease(param1);
+         super.handleMouseRelease(event);
          if(enabled)
          {
             ExternalInterface.call("sound_play",0);
@@ -47,7 +47,7 @@ package survarium.controls
          return false;
       }
       
-      override public function set autoRepeat(param1:Boolean) : void
+      override public function set autoRepeat(value:Boolean) : void
       {
       }
       
@@ -56,7 +56,7 @@ package survarium.controls
          return true;
       }
       
-      override public function set toggle(param1:Boolean) : void
+      override public function set toggle(value:Boolean) : void
       {
       }
       

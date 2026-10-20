@@ -68,14 +68,14 @@ package survarium.controls
          }
       }
       
-      private function play_input_sound(param1:Event) : void
+      private function play_input_sound(event:Event) : void
       {
-         var _loc2_:KeyboardEvent;
-         if(param1.type == TextEvent.TEXT_INPUT)
+         var keyEvent:KeyboardEvent;
+         if(event.type == TextEvent.TEXT_INPUT)
          {
             _last_input = textField.caretIndex;
          }
-         else if(param1.type == Event.CHANGE)
+         else if(event.type == Event.CHANGE)
          {
             if(this._last_input != textField.caretIndex)
             {
@@ -83,24 +83,24 @@ package survarium.controls
             }
             _last_input = textField.caretIndex;
          }
-         else if(param1.type == KeyboardEvent.KEY_DOWN)
+         else if(event.type == KeyboardEvent.KEY_DOWN)
          {
-            _loc2_ = param1 as KeyboardEvent;
-            if(_loc2_.keyCode == 46 && textField.caretIndex <= textField.length - 1)
+            keyEvent = event as KeyboardEvent;
+            if(keyEvent.keyCode == 46 && textField.caretIndex <= textField.length - 1)
             {
                ExternalInterface.call("sound_play",8);
                _last_input = textField.caretIndex;
             }
-            else if(_loc2_.keyCode == 8 && textField.caretIndex >= 1)
+            else if(keyEvent.keyCode == 8 && textField.caretIndex >= 1)
             {
                ExternalInterface.call("sound_play",8);
                _last_input = textField.caretIndex - 1;
             }
-            else if((_loc2_.keyCode == 37 || _loc2_.keyCode == 36) && textField.caretIndex >= 1)
+            else if((keyEvent.keyCode == 37 || keyEvent.keyCode == 36) && textField.caretIndex >= 1)
             {
                this.playSound();
             }
-            else if((_loc2_.keyCode == 39 || _loc2_.keyCode == 35) && textField.caretIndex <= textField.length - 1)
+            else if((keyEvent.keyCode == 39 || keyEvent.keyCode == 35) && textField.caretIndex <= textField.length - 1)
             {
                this.playSound();
             }

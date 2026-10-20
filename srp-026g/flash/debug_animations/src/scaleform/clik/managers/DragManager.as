@@ -32,14 +32,14 @@ package scaleform.clik.managers
          super();
       }
       
-      public static function init(param1:Stage) : void
+      public static function init(stage:Stage) : void
       {
          if(_initialized)
          {
             return;
          }
          _initialized = true;
-         DragManager._stage = param1;
+         DragManager._stage = stage;
          _dragCanvas = new Sprite();
          _dragCanvas.mouseEnabled = _dragCanvas.mouseChildren = false;
          _stage.addChild(_dragCanvas);
@@ -51,73 +51,73 @@ package scaleform.clik.managers
          return _inDrag;
       }
       
-      public static function handleStartDragEvent(param1:DragEvent) : void
+      public static function handleStartDragEvent(e:DragEvent) : void
       {
-         if(param1.dragTarget == null || param1.dragSprite == null)
+         if(e.dragTarget == null || e.dragSprite == null)
          {
             return;
          }
-         var _loc2_:Sprite = param1.dragSprite;
-         _dragData = param1.dragData;
-         _dragTarget = param1.dragData.dragIcon;
-         _origDragSlot = param1.dragTarget;
-         var _loc3_:Point = new Point(_loc2_.x,_loc2_.y);
-         var _loc4_:Point = _loc2_.localToGlobal(_loc3_);
+         var refSprite:Sprite = e.dragSprite;
+         _dragData = e.dragData;
+         _dragTarget = e.dragData.dragIcon;
+         _origDragSlot = e.dragTarget;
+         var origin:Point = new Point(refSprite.x,refSprite.y);
+         var dest:Point = refSprite.localToGlobal(origin);
          _dragCanvas.addChild(_dragTarget);
-         _dragTarget.x = _loc4_.x;
-         _dragTarget.y = _loc4_.y;
+         _dragTarget.x = dest.x;
+         _dragTarget.y = dest.y;
          _inDrag = true;
          _stage.addEventListener(MouseEvent.MOUSE_UP,handleEndDragEvent,false,0,true);
-         var _loc5_:MovieClip = _dragTarget as MovieClip;
-         _loc5_.startDrag();
-         _loc5_.mouseEnabled = _loc5_.mouseChildren = false;
-         _loc5_.trackAsMenu = true;
+         var dragMC:MovieClip = _dragTarget as MovieClip;
+         dragMC.startDrag();
+         dragMC.mouseEnabled = dragMC.mouseChildren = false;
+         dragMC.trackAsMenu = true;
       }
       
-      public static function handleEndDragEvent(param1:MouseEvent) : void
+      public static function handleEndDragEvent(e:MouseEvent) : void
       {
          _stage.removeEventListener(MouseEvent.MOUSE_UP,handleEndDragEvent,false);
          _inDrag = false;
-         var _loc2_:Boolean = false;
-         var _loc3_:IDragSlot = findSpriteAncestorOf(_dragTarget.dropTarget) as IDragSlot;
-         if(_loc3_ != null && _loc3_ is IDragSlot && _loc3_ != _origDragSlot)
+         var isValidDrop:Boolean = false;
+         var dropTarget:IDragSlot = findSpriteAncestorOf(_dragTarget.dropTarget) as IDragSlot;
+         if(dropTarget != null && dropTarget is IDragSlot && dropTarget != _origDragSlot)
          {
-            _loc5_ = new DragEvent(DragEvent.DROP,_dragData,_origDragSlot,_loc3_,_dragTarget);
-            _loc2_ = _loc3_.handleDropEvent(_loc5_);
+            dropEvent = new DragEvent(DragEvent.DROP,_dragData,_origDragSlot,dropTarget,_dragTarget);
+            isValidDrop = dropTarget.handleDropEvent(dropEvent);
          }
          _dragTarget.stopDrag();
          _dragTarget.mouseEnabled = _dragTarget.mouseChildren = true;
          (_dragTarget as MovieClip).trackAsMenu = false;
          _dragCanvas.removeChild(_dragTarget);
-         var _loc4_:DragEvent = new DragEvent(DragEvent.DRAG_END,_dragData,_origDragSlot,_loc3_,_dragTarget);
-         var _loc5_:DragEvent;
-         if(param1.target is Stage)
+         var dragEndEvent:DragEvent = new DragEvent(DragEvent.DRAG_END,_dragData,_origDragSlot,dropTarget,_dragTarget);
+         var dropEvent:DragEvent;
+         if(e.target is Stage)
          {
-            _loc2_ = true;
-            _origDragSlot.handleDropEvent(_loc4_);
+            isValidDrop = true;
+            _origDragSlot.handleDropEvent(dragEndEvent);
          }
-         _origDragSlot.handleDragEndEvent(_loc4_,_loc2_);
-         _origDragSlot.dispatchEvent(_loc4_);
+         _origDragSlot.handleDragEndEvent(dragEndEvent,isValidDrop);
+         _origDragSlot.dispatchEvent(dragEndEvent);
          _dragTarget = null;
          _origDragSlot = null;
       }
       
-      protected static function handleStageAddedEvent(param1:Event) : void
+      protected static function handleStageAddedEvent(e:Event) : void
       {
       }
       
-      protected static function findSpriteAncestorOf(param1:DisplayObject) : IDragSlot
+      protected static function findSpriteAncestorOf(obj:DisplayObject) : IDragSlot
       {
-         while((param1) && !(param1 is IDragSlot))
+         while((obj) && !(obj is IDragSlot))
          {
-            param1 = param1.parent;
+            obj = obj.parent;
          }
-         return param1 as IDragSlot;
+         return obj as IDragSlot;
       }
       
-      protected static function cloneDisplayObjectAsSprite(param1:DisplayObject) : DisplayObject
+      protected static function cloneDisplayObjectAsSprite(original:DisplayObject) : DisplayObject
       {
-         return param1;
+         return original;
       }
    }
 }

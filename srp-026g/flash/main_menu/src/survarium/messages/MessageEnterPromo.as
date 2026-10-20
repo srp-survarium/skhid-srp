@@ -38,25 +38,25 @@ package survarium.messages
          this.warning.visible = false;
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
-         if(param1.isDefaultPrevented())
+         if(event.isDefaultPrevented())
          {
             return;
          }
-         var _loc2_:InputDetails = param1.details;
-         var _loc3_:uint = _loc2_.controllerIndex;
-         switch(_loc2_.code)
+         var details:InputDetails = event.details;
+         var controllerIndex:uint = details.controllerIndex;
+         switch(details.code)
          {
             case Keyboard.ENTER:
-               if(_loc2_.value == InputValue.KEY_UP)
+               if(details.value == InputValue.KEY_UP)
                {
                   this.onMessageAccept(null);
-                  param1.handled = true;
+                  event.handled = true;
                }
                break;
             case Keyboard.ESCAPE:
-               if(_loc2_.value == InputValue.KEY_UP)
+               if(details.value == InputValue.KEY_UP)
                {
                   if(stage.focus is TextField)
                   {
@@ -65,12 +65,12 @@ package survarium.messages
                }
                break;
             case Keyboard.BACKSPACE:
-               if(_loc2_.value == InputValue.KEY_UP)
+               if(details.value == InputValue.KEY_UP)
                {
                   if(!stage.focus is TextField)
                   {
                      this.onMessageCancel(null);
-                     param1.handled = true;
+                     event.handled = true;
                   }
                }
                break;
@@ -96,7 +96,7 @@ package survarium.messages
          this.loadingIndicator.visible = false;
       }
       
-      private function requestKeyValidation(param1:Event = null) : void
+      private function requestKeyValidation(event:Event = null) : void
       {
          trace("requestCodeValidation::",this.textInput.text);
          this.btnAccept.enabled = false;
@@ -106,11 +106,11 @@ package survarium.messages
          ExternalInterface.call("request_promo_key_validation",this.textInput.text);
       }
       
-      private function updatePromo(param1:Event) : void
+      private function updatePromo(event:Event) : void
       {
-         var _loc2_:String = this.textInput.text;
-         trace("updatePromo",_loc2_);
-         _lastPromo = _loc2_;
+         var promo:String = this.textInput.text;
+         trace("updatePromo",promo);
+         _lastPromo = promo;
          this.loadingIndicator.gotoAndStop(1);
          this.loadingIndicator.visible = false;
          this.btnAccept.enabled = this.checkLocalKeyValidation();
@@ -122,15 +122,15 @@ package survarium.messages
          return this._lastPromo.length >= this.MIN_CHARS && this._lastPromo.length <= this.MAX_CHARS;
       }
       
-      public function handleCodeValidation(param1:Boolean, param2:String = null) : void
+      public function handleCodeValidation(isValid:Boolean, warningText:String = null) : void
       {
          this.loadingIndicator.gotoAndStop(1);
          this.loadingIndicator.visible = false;
          this.btnAccept.enabled = this.checkLocalKeyValidation();
          this.textInput.enabled = true;
-         if(param1 == false)
+         if(isValid == false)
          {
-            this.warning.showWarning(param2);
+            this.warning.showWarning(warningText);
             this.warning.visible = true;
          }
          else
@@ -139,13 +139,13 @@ package survarium.messages
          }
       }
       
-      protected function onMessageCancel(param1:ButtonEvent) : void
+      protected function onMessageCancel(event:ButtonEvent) : void
       {
          Message.onClick(_id,"no");
          removeEventListener(InputEvent.INPUT,this.handleInput);
       }
       
-      protected function onMessageAccept(param1:ButtonEvent) : void
+      protected function onMessageAccept(event:ButtonEvent) : void
       {
          if(!this.btnAccept.enabled)
          {
