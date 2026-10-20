@@ -45,6 +45,11 @@ class CompilerIntegration(unittest.TestCase):
                     private var secret:int = 7;
                     private function hidden():int { return secret; }
                     public function inspect(target:Object, key:String):* { return target[key]; }
+                    public function nested(value:int):Function {
+                        var first:Function = function(delta:int):int { return value+delta+secret; };
+                        var second:Function = function(delta:int):int { return first(delta)+1; };
+                        return second;
+                    }
                     public function branches(n:int=0):int {
                         var total:int=0;
                         while(n>0) { if(n==2) total+=hidden(); n--; }
@@ -104,6 +109,31 @@ class CompilerIntegration(unittest.TestCase):
                                 int cls = abc.findClassByName("Probe");
                                 if (cls < 0) continue;
                                 for (var methodBody : abc.bodies) MovieSource.exactCode(methodBody);
+                                if (args[2].startsWith("closures-")) {
+                                    var sites=new java.util.ArrayList<AVM2Instruction>();
+                                    for(var body:abc.bodies)for(var ins:body.getCode().code)
+                                        if(ins.definition.instructionCode==0x40)sites.add(ins);
+                                    if(sites.size()!=2)throw new IOException("Expected two local function sites");
+                                    int left=sites.get(0).operands[0],right=sites.get(1).operands[0];
+                                    if(args[2].equals("closures-reference")) {
+                                        abc.method_info.get(left).name_index=abc.constants.getStringId("legacyFirst",true);
+                                        abc.method_info.get(right).name_index=abc.constants.getStringId("legacySecond",true);
+                                    } else if(args[2].equals("closures-reorder")) {
+                                        java.util.Collections.swap(abc.method_info,left,right);
+                                        abc.method_info.get(left).name_index=0;abc.method_info.get(right).name_index=0;
+                                        for(var body:abc.bodies){
+                                            if(body.method_info==left)body.method_info=right;
+                                            else if(body.method_info==right)body.method_info=left;
+                                        }
+                                        sites.get(0).operands[0]=right;sites.get(1).operands[0]=left;
+                                    } else if(args[2].equals("closures-target")) sites.get(1).operands[0]=left;
+                                    else {
+                                        var code=abc.findBody(left).getCode();
+                                        code.code.set(0,new AVM2Instruction(0,0x20,new int[0]));
+                                    }
+                                    for(var body:abc.bodies)body.setCode(body.getCode());
+                                    ((Tag)tag).setModified(true);changed++;continue;
+                                }
                                 if (args[2].equals("merge-scripts")) {
                                     int merged=0;
                                     var extra = new SWF(Files.newInputStream(Path.of(args[3])), true);
@@ -225,7 +255,7 @@ class CompilerIntegration(unittest.TestCase):
                                     abc.metadata_info.add(metadata);
                                     ((Tag)tag).setModified(true); changed++; continue;
                                 }
-                                if (java.util.Set.of("prepare", "binding", "scope", "slot", "paramnames", "optional", "binding-code", "debug-lines").contains(args[2])) {
+                                if (java.util.Set.of("prepare", "binding", "scope", "slot", "paramnames", "optional", "binding-code", "debug-lines", "debug-flow").contains(args[2])) {
                                     var script = abc.script_info.get(0);
                                     var trait = (TraitClass)script.traits.traits.get(0);
                                     var name = abc.constants.getMultiname(trait.name_index);
@@ -236,6 +266,16 @@ class CompilerIntegration(unittest.TestCase):
                                         for (var method : abc.method_info) {
                                             method.unsetFlagHas_paramnames(); method.paramNames = new int[0];
                                         }
+                                    } else if (args[2].equals("debug-flow")) {
+                                        var body=abc.bodies.stream().filter(b -> b.exceptions.length>0).findFirst().orElseThrow();
+                                        var code=body.getCode();
+                                        for(int i=code.code.size()-1;i>=0;i--) {
+                                            var instruction=code.code.get(i);
+                                            if(instruction.isBranch() || instruction.isJump() || instruction.definition.instructionCode==0x09)
+                                                code.insertInstruction(i,new AVM2Instruction(0,0xf0,new int[]{i+1}),body);
+                                        }
+                                        code.insertInstruction(0,new AVM2Instruction(0,0xf1,new int[]{name.name_index}),body);
+                                        body.setCode(code);
                                     } else if (args[2].equals("debug-lines")) {
                                         var body = abc.findBody(abc.class_info.get(cls).cinit_index);
                                         var code = body.getCode();
@@ -248,7 +288,7 @@ class CompilerIntegration(unittest.TestCase):
                                             if (args[2].equals("paramnames")) {
                                                 method.setFlagHas_paramnames();
                                                 method.paramNames = new int[]{abc.constants.getStringId("addedDebugName", true)};
-                                            } else method.optional[0].value_index = abc.constants.getIntId(2, true);
+                                            } else if(method.optional.length>0) method.optional[0].value_index = abc.constants.getIntId(2, true);
                                         }
                                     } else {
                                         var body = abc.findBody(script.init_index);
@@ -385,6 +425,18 @@ class CompilerIntegration(unittest.TestCase):
             # emission and implicit script slot against real compiler code.
             prepared, binding = root / "prepared.swf", root / "binding.swf"
             mutate(accepted_file, prepared, "prepare")
+            closures, closures_reordered, closures_linked = root / "closures.swf", root / "closures-reordered.swf", root / "closures-linked.swf"
+            mutate(prepared, closures, "closures-reference")
+            mutate(closures, closures_reordered, "closures-reorder")
+            result=tools.run("link-layout", closures, closures_reordered, closures_linked, "Probe", log=root / "closures.log")
+            self.assertEqual(result.returncode,0,(root / "closures.log").read_text())
+            self.assertEqual(movie_source.uncompressed(closures),movie_source.uncompressed(closures_linked))
+            for mode in ("target","code"):
+                corrupted,destination=root / (mode+"-closure.swf"),root / (mode+"-closure-linked.swf")
+                mutate(closures_reordered,corrupted,"closures-"+mode)
+                result=tools.run("link-layout",closures,corrupted,destination,"Probe",log=root / (mode+"-closure.log"))
+                self.assertNotEqual(result.returncode,0,mode)
+                self.assertFalse(destination.exists(),mode)
             traits, traits_linked = root / "traits.swf", root / "traits-linked.swf"
             mutate(prepared, traits, "traits")
             tools.run("link-layout", prepared, traits, traits_linked, "Probe", log=root / "traits.log").check_returncode()
@@ -425,6 +477,17 @@ class CompilerIntegration(unittest.TestCase):
             rejected = tools.run("link-layout", debug, debug_corrupt, debug_rejected, "Probe", log=root / "debug-code.log")
             self.assertNotEqual(rejected.returncode, 0)
             self.assertFalse(debug_rejected.exists())
+            flow, flow_linked = root / "debug-flow.swf", root / "debug-flow-linked.swf"
+            mutate(prepared, flow, "debug-flow")
+            result=tools.run("link-layout",flow,prepared,flow_linked,"Probe",log=root / "debug-flow.log")
+            self.assertEqual(result.returncode,0,(root / "debug-flow.log").read_text())
+            self.assertEqual(movie_source.uncompressed(flow),movie_source.uncompressed(flow_linked))
+            for mode in ("target","handler"):
+                corrupted,destination=root / (mode+"-debug-flow.swf"),root / (mode+"-debug-flow-linked.swf")
+                mutate(prepared,corrupted,"control-"+mode)
+                result=tools.run("link-layout",flow,corrupted,destination,"Probe",log=root / (mode+"-debug-flow.log"))
+                self.assertNotEqual(result.returncode,0,mode)
+                self.assertFalse(destination.exists(),mode)
             annotation = root / "annotation.swf"
             mutate(prepared, annotation, "annotation-new")
             for mode in ("duplicate", "changed"):

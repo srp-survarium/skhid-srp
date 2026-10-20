@@ -1,0 +1,94 @@
+"""Apply pinned, exact per-class source diffs without modifying pristine exports."""
+import hashlib
+import json
+from pathlib import Path
+import re
+
+
+def sha(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def apply_patch(source, patch, relative):
+    text = source.decode('utf-8')
+    newline = '\r\n' if '\r\n' in text else '\n'
+    normalized = text.replace('\r\n', '\n')
+    if '\r' in normalized or (newline == '\r\n' and '\n' in text.replace('\r\n', '')):
+        raise ValueError('Mixed source line endings')
+    if not normalized.endswith('\n'):
+        raise ValueError('Source must end with a newline')
+    lines = normalized.splitlines(keepends=True)
+    edits = patch.decode('utf-8').splitlines(keepends=True)
+    if edits[:2] != [f'--- a/{relative}\n', f'+++ b/{relative}\n']:
+        raise ValueError('Patch must name exactly the selected class')
+    result, cursor, index, hunks = [], 0, 2, 0
+    while index < len(edits):
+        match = re.fullmatch(r'@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@[^\n]*\n', edits[index])
+        if not match:
+            raise ValueError('Invalid hunk header')
+        old, old_count, new, new_count = (int(v) if v is not None else 1 for v in match.groups())
+        old_index = old - 1 if old_count else old
+        new_index = new - 1 if new_count else new
+        if old_index < cursor or old_index > len(lines):
+            raise ValueError('Overlapping or out-of-range hunk')
+        result.extend(lines[cursor:old_index])
+        cursor = old_index
+        if len(result) != new_index:
+            raise ValueError('Incorrect new hunk position')
+        index += 1
+        removed = added = 0
+        while index < len(edits) and not edits[index].startswith('@@ '):
+            line = edits[index]
+            if not line.endswith('\n') or line[:1] not in (' ', '-', '+'):
+                raise ValueError('Unsupported patch line')
+            if line[0] in ' -':
+                if cursor >= len(lines) or lines[cursor] != line[1:]:
+                    raise ValueError('Patch context differs from pristine source')
+                cursor += 1
+                removed += 1
+            if line[0] in ' +':
+                result.append(line[1:])
+                added += 1
+            index += 1
+        if (removed, added) != (old_count, new_count):
+            raise ValueError('Hunk lengths do not match header')
+        hunks += 1
+    if not hunks:
+        raise ValueError('Empty patch')
+    result.extend(lines[cursor:])
+    return ''.join(result).replace('\n', newline).encode('utf-8')
+
+
+def load_sources(manifest_path, project, pinned):
+    """Authenticate all patches and return corrected bytes plus reproducible evidence."""
+    manifest_path = Path(manifest_path)
+    raw = manifest_path.read_bytes()
+    spec = json.loads(raw)
+    if spec.get('schema') != 1 or spec.get('release') != pinned['release'] or spec.get('movie_sha256') != pinned['movie_sha256']:
+        raise ValueError('Source patches target a different release')
+    sources, evidence = {}, {'manifest_sha256': sha(raw), 'classes': []}
+    for entry in spec['classes']:
+        cls = entry['class']
+        relative = cls.replace('.', '/') + '.as'
+        if relative not in pinned['sources'] or relative in sources:
+            raise ValueError('Unknown or duplicate patched class')
+        patch_relative = Path(entry['patch'])
+        if patch_relative.is_absolute() or '..' in patch_relative.parts or patch_relative.as_posix() != entry['patch']:
+            raise ValueError('Invalid patch path')
+        patch_path = manifest_path.parent / patch_relative
+        if not patch_path.resolve().is_relative_to(manifest_path.parent.resolve()):
+            raise ValueError('Patch escapes manifest directory')
+        source = (project / 'pristine' / relative).read_bytes()
+        patch = patch_path.read_bytes()
+        if sha(source) != entry['pristine_sha256'] or sha(source) != pinned['sources'][relative]:
+            raise ValueError('Patch source hash differs from pristine export')
+        if sha(patch) != entry['patch_sha256']:
+            raise ValueError('Patch hash mismatch')
+        corrected = apply_patch(source, patch, relative)
+        if sha(corrected) != entry['result_sha256']:
+            raise ValueError('Corrected source hash mismatch')
+        sources[relative] = corrected
+        evidence['classes'].append(dict(entry))
+    if not sources:
+        raise ValueError('Empty source patch manifest')
+    return sources, evidence

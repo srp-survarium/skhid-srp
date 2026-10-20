@@ -1,0 +1,15 @@
+{
+  "classes": [
+    {
+      "class": "survarium.messages.MessagePremium",
+      "patch": "survarium/messages/MessagePremium.patch",
+      "patch_sha256": "bb42ee1e62865c1e9ed8b6bae8452b7c194271ca7cc8a93155a05b04a66c97d5",
+      "pristine_sha256": "993c68f14fcd2d1e059881a255d2f9b62bc9b1823e2f3190363b2969567e0a88",
+      "reason": "Recover implicit typed initialization and assignments, original local declaration order, identifier object keys, and direct truth tests; retain explicit ExternalInterface argument conversions.",
+      "result_sha256": "45527eb51c565d428087a61cacdbbb36dff671a7a190ddb49dee357dc489ecae"
+    }
+  ],
+  "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",
+  "release": "026g-rev24",
+  "schema": 1
+}

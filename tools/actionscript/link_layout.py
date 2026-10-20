@@ -14,6 +14,7 @@ import subprocess
 import zlib
 
 import movie_source as movie
+import source_patches
 
 
 def main():
@@ -33,6 +34,11 @@ def main():
     compiled = json.loads(recorded)
     if compiled["movie_sha256"] != manifest["movie_sha256"]:
         raise ValueError("Measurement targets a different movie")
+    corrected = {}
+    if compiled.get("source_patches") is not None:
+        corrected, evidence = source_patches.load_sources(measurement / "source-patches" / "manifest.json", project, manifest)
+        if evidence != compiled["source_patches"]:
+            raise ValueError("Source patch provenance differs from measurement")
     output.mkdir(parents=True, exist_ok=False)
     (output / "compilation-report.json").write_bytes(recorded)
     shutil.copyfile(Path(__file__), output / "link_layout.py")
@@ -49,8 +55,12 @@ def main():
 
     def link(row):
         relative = row["class"].replace(".", "/") + ".as"
-        if row["source_sha256"] != manifest["sources"].get(relative):
-            raise ValueError("Measurement source differs from pristine export")
+        expected_source = source_patches.sha(corrected[relative]) if relative in corrected else manifest["sources"].get(relative)
+        if row["source_sha256"] != expected_source:
+            raise ValueError("Measurement source differs from verified compile input")
+        if relative in corrected:
+            if row.get("pristine_sha256") != manifest["sources"][relative] or (measurement / row["directory"] / "source.as").read_bytes() != corrected[relative]:
+                raise ValueError("Saved corrected source differs from pinned patch")
         folder = output / row["directory"]
         if folder.parent != output:
             raise ValueError("Invalid measurement directory")

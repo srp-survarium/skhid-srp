@@ -247,7 +247,7 @@ public final class MovieSource {
         }
     }
 
-    static Map<Integer, String> names(ABC abc) {
+    static Map<Integer, String> names(ABC abc) throws IOException {
         Map<Integer, String> result = new TreeMap<>();
         for (int i = 0; i < abc.instance_info.size(); i++) {
             InstanceInfo ins = abc.instance_info.get(i);
@@ -263,6 +263,30 @@ public final class MovieSource {
             result.put(s.init_index, owner + "/init");
             traits(abc, owner, s.traits, result);
         }
+        // A local function belongs to the newfunction site in its parent.
+        // Pair sites by lexical occurrence, not compiler method numbers or
+        // debugger names. Full parent/child byte comparisons still follow.
+        Map<Integer, List<int[]>> incoming = new HashMap<>();
+        for (MethodBody body : abc.bodies) {
+            int ordinal = 0;
+            for (var instruction : exactCode(body).code) if (instruction.definition.instructionCode == 0x40) {
+                int child = instruction.operands[0];
+                if (child < 0 || child >= abc.method_info.size()) throw new IOException("Invalid local function reference");
+                incoming.computeIfAbsent(child, k -> new ArrayList<>()).add(new int[]{body.method_info, ordinal++});
+            }
+        }
+        boolean changed;
+        do {
+            changed = false;
+            for (var entry : incoming.entrySet()) {
+                if (result.containsKey(entry.getKey()) || entry.getValue().size() != 1) continue;
+                int[] site = entry.getValue().get(0);
+                String parent = result.get(site[0]);
+                if (parent == null) continue;
+                result.put(entry.getKey(), parent + "/function[" + site[1] + "]");
+                changed = true;
+            }
+        } while (changed);
         return result;
     }
 
@@ -712,25 +736,69 @@ public final class MovieSource {
         return opcode == 0xef || opcode == 0xf0 || opcode == 0xf1;
     }
 
-    static void retainStraightLineDebug(ABC original, ABC compiled) {
+    static int[] branchTargets(AVM2Instruction instruction) {
+        int opcode = instruction.definition.instructionCode, address = (int)instruction.getAddress();
+        if (opcode >= 0x0c && opcode <= 0x1a)
+            return new int[]{address + instruction.getBytesLength() + instruction.operands[0]};
+        if (opcode != 0x1b) return new int[0];
+        int[] targets = new int[instruction.operands.length - 1];
+        targets[0] = address + instruction.operands[0];
+        for (int i = 1; i < targets.length; i++) targets[i] = address + instruction.operands[i + 1];
+        return targets;
+    }
+
+    static Map<Integer, Integer> executablePositions(List<AVM2Instruction> code) {
+        Map<Integer, Integer> positions = new HashMap<>();
+        int executable = 0, end = 0;
+        for (var instruction : code) {
+            positions.put((int)instruction.getAddress(), executable);
+            if (!debugInstruction(instruction)) executable++;
+            end = (int)instruction.getAddress() + instruction.getBytesLength();
+        }
+        positions.put(end, executable);
+        return positions;
+    }
+
+    static boolean sameTargets(int[] before, int[] after, Map<Integer, Integer> oldPositions,
+            Map<Integer, Integer> newPositions) throws IOException {
+        if (before.length != after.length) return false;
+        for (int i = 0; i < before.length; i++)
+            if (boundary(oldPositions, before[i]) != boundary(newPositions, after[i])) return false;
+        return true;
+    }
+
+    static void retainDebugDirectives(ABC original, ABC compiled) throws IOException {
         for (MethodBody body : compiled.bodies) {
             MethodBody before = original.findBody(body.method_info);
-            if (before == null || before.exceptions.length != 0 || body.exceptions.length != 0) continue;
+            if (before == null || before.exceptions.length != body.exceptions.length) continue;
             var emitted = body.getCode().code;
             var layout = before.getCode().code;
             if (emitted.stream().anyMatch(MovieSource::debugInstruction)
-                    || layout.stream().noneMatch(MovieSource::debugInstruction)
-                    || layout.stream().anyMatch(i -> i.isBranch() || i.isJump())) continue;
+                    || layout.stream().noneMatch(MovieSource::debugInstruction)) continue;
             var executable = layout.stream().filter(i -> !debugInstruction(i)).toList();
             if (executable.size() != emitted.size()) continue;
+            var oldPositions = executablePositions(layout);
+            var newPositions = executablePositions(emitted);
             boolean identical = true;
-            for (int i = 0; i < emitted.size(); i++)
-                if (!Arrays.equals(executable.get(i).getBytes(), emitted.get(i).getBytes())) identical = false;
+            for (int i = 0; i < emitted.size(); i++) {
+                var a = executable.get(i); var b = emitted.get(i);
+                if (a.definition.instructionCode != b.definition.instructionCode) { identical = false; break; }
+                int[] aTargets = branchTargets(a), bTargets = branchTargets(b);
+                if (aTargets.length == 0) {
+                    if (!Arrays.equals(a.getBytes(), b.getBytes())) identical = false;
+                } else if (!sameTargets(aTargets, bTargets, oldPositions, newPositions)) identical = false;
+            }
+            for (int i = 0; i < body.exceptions.length; i++) {
+                var a = before.exceptions[i]; var b = body.exceptions[i];
+                if (a.type_index != b.type_index || a.name_index != b.name_index
+                        || !sameTargets(new int[]{a.start, a.end, a.target}, new int[]{b.start, b.end, b.target}, oldPositions, newPositions))
+                    identical = false;
+            }
             if (!identical) continue;
             // Only debugger directives come from the reference's source map.
             // Every executable instruction is the actual compiler instruction,
-            // already checked above. Branches/handlers need offset relocation
-            // and are unsupported by this initial source-map emitter.
+            // already checked above, including every control-flow target and
+            // handler boundary expressed without debugger-only instructions.
             List<AVM2Instruction> merged = new ArrayList<>();
             int next = 0;
             for (var instruction : layout) {
@@ -741,6 +809,25 @@ public final class MovieSource {
             var code = body.getCode();
             code.code = merged;
             code.markOffsets();
+            Map<Integer, Integer> placed = new HashMap<>();
+            for (int i = 0; i < layout.size(); i++) placed.put((int)layout.get(i).getAddress(), (int)merged.get(i).getAddress());
+            int oldEnd = (int)layout.get(layout.size() - 1).getAddress() + layout.get(layout.size() - 1).getBytesLength();
+            int newEnd = (int)merged.get(merged.size() - 1).getAddress() + merged.get(merged.size() - 1).getBytesLength();
+            placed.put(oldEnd, newEnd);
+            for (int i = 0; i < layout.size(); i++) {
+                int[] targets = branchTargets(layout.get(i));
+                var instruction = merged.get(i);
+                boolean table = instruction.definition.instructionCode == 0x1b;
+                for (int j = 0; j < targets.length; j++) {
+                    int offset = boundary(placed, targets[j]) - (int)instruction.getAddress() - (table ? 0 : instruction.getBytesLength());
+                    if (offset < -0x800000 || offset > 0x7fffff) throw new IOException("Source-map branch exceeds signed 24-bit range");
+                    instruction.operands[table && j > 0 ? j + 1 : j] = offset;
+                }
+            }
+            for (int i = 0; i < body.exceptions.length; i++) {
+                var a = before.exceptions[i]; var b = body.exceptions[i];
+                b.start = boundary(placed, a.start); b.end = boundary(placed, a.end); b.target = boundary(placed, a.target);
+            }
             body.setCode(code);
         }
     }
@@ -788,7 +875,7 @@ public final class MovieSource {
         restoreMethodOrder(original, compiled);
         emitScriptClassBindings(original, compiled);
         restoreScriptClassSlot(original, compiled);
-        retainStraightLineDebug(original, compiled);
+        retainDebugDirectives(original, compiled);
         if (compiled.metadata_info.size() < original.metadata_info.size()) throw new IOException("Metadata pool compacted");
         for (int i = 0; i < original.metadata_info.size(); i++) {
             MetadataInfo a = original.metadata_info.get(i), b = compiled.metadata_info.get(i);
@@ -807,12 +894,14 @@ public final class MovieSource {
             if (original.bodies.get(i).method_info != compiled.bodies.get(i).method_info) throw new IOException("Method body ordering changed");
             retainDebugMetadata(original, compiled, original.bodies.get(i).traits, compiled.bodies.get(i).traits);
         }
+        Map<Integer, String> originalOwners = names(original), compiledOwners = names(compiled);
         for (int i = 0; i < original.method_info.size(); i++) {
             MethodInfo before = original.method_info.get(i), after = compiled.method_info.get(i);
             String oldName = before.name_index == 0 ? "" : original.constants.getString(before.name_index);
             String newName = after.name_index == 0 ? "" : compiled.constants.getString(after.name_index);
-            if (!oldName.isEmpty() && !oldName.equals(newName))
-                throw new IOException("Nonempty debug method name changed at " + i);
+            if (!oldName.isEmpty() && !oldName.equals(newName)
+                    && (!originalOwners.containsKey(i) || !originalOwners.get(i).equals(compiledOwners.get(i))))
+                throw new IOException("Unowned debug method name changed at " + i);
             after.name_index = before.name_index;
             // Parameter names are optional debugger information, independent
             // of parameter types/defaults. Do not erase names present upstream.

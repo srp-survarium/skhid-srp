@@ -1,0 +1,158 @@
+--- a/survarium/messages/MessagePremium.as
++++ b/survarium/messages/MessagePremium.as
+@@ -80,21 +80,21 @@
+       
+       override protected function configUI() : void
+       {
+-         var _loc1_:int = 0;
+-         var _loc2_:Array = null;
+-         var _loc3_:uint = 0;
+-         var _loc4_:Object = null;
+-         var _loc5_:Boolean = false;
+-         var _loc6_:String = null;
+-         var _loc7_:int = 0;
+-         var _loc8_:int = 0;
++         var _loc1_:int;
++         var _loc2_:Array;
++         var _loc3_:uint;
++         var _loc4_:Object;
++         var _loc5_:Boolean;
++         var _loc6_:String;
++         var _loc7_:int;
++         var _loc8_:int;
+          super.configUI();
+          this.coin.gotoAndStop(2);
+          this.coin.x += 2;
+          this.textFieldValue.x += 2;
+          btnAccept.label = LocalizationData.getName("buy");
+          this.textFieldValue.mouseEnabled = false;
+-         if(Boolean(this.premiumBonus1))
++         if(this.premiumBonus1)
+          {
+             this.premiumBonus3.textField.width += 10;
+             this.updateTextFormat(this.premiumBonus1.textField,LocalizationData.getName("premium_bonus_experience").toUpperCase());
+@@ -108,7 +108,7 @@
+          tabEnabled = true;
+          btnAccept.enabled = false;
+          this.textFieldValue.text = "0";
+-         if(Boolean(_data))
++         if(_data)
+          {
+             _loc1_ = -1;
+             _loc2_ = _data.options;
+@@ -125,7 +125,7 @@
+                {
+                   _loc4_.text = _loc4_.label;
+                }
+-               if(Boolean(_loc4_.discount))
++               if(_loc4_.discount)
+                {
+                   _loc6_ = Util.styledChar(LocalizationData.getName("discount"),"white") + " " + Util.styledChar(_loc4_.discount,"yellow");
+                }
+@@ -136,11 +136,11 @@
+                _loc4_.label = Util.styledChar(_loc4_.text,"yellow") + " " + Util.styledChar(_loc4_.value2,"dark_yellow") + " " + _loc6_;
+                if(_loc5_ && _loc1_ == -1)
+                {
+-                  _loc1_ = int(_loc3_);
++                  _loc1_ = _loc3_;
+                }
+                _loc3_++;
+             }
+-            if(Boolean(this.list))
++            if(this.list)
+             {
+                _loc7_ = height / scaleY - (this.LIST_OFFSET_TOP + this.LIST_OFFSET_BOTTOM);
+                _loc8_ = _loc2_.length * 32;
+@@ -154,7 +154,7 @@
+             _loc1_ = 3;
+             btnAccept.enabled = true;
+          }
+-         if(Boolean(this.dropDownlist))
++         if(this.dropDownlist)
+          {
+             this.dropDownlist.menuWidth = 200;
+             this.textFieldChooseSub.text = LocalizationData.getName("choose_premium_subscription");
+@@ -175,10 +175,10 @@
+       private function onPremiumMoneyAddClick(param1:Event) : void
+       {
+          var _loc2_:Object = {
+-            "text":LocalizationData.getName("go_to_online_store_message"),
+-            "onYes":this.goToStore,
+-            "label_ok":LocalizationData.getName("btn_go_to_online_store"),
+-            "label_cancel":LocalizationData.getName("cancel")
++            text:LocalizationData.getName("go_to_online_store_message"),
++            onYes:this.goToStore,
++            label_ok:LocalizationData.getName("btn_go_to_online_store"),
++            label_cancel:LocalizationData.getName("cancel")
+          };
+          Message.showMessage("apply",_loc2_,true,0,true);
+       }
+@@ -191,35 +191,35 @@
+          }
+          var _loc2_:Object = this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex];
+          this.textFieldValue.text = Util.getMoneyString(_loc2_.value);
+-         if(Boolean(_loc2_.discount))
++         if(_loc2_.discount)
+          {
+             if(this.discountContainer.alpha == 0)
+             {
+-               TweenLite.to(this.discountContainer,0.3,{"alpha":1});
++               TweenLite.to(this.discountContainer,0.3,{alpha:1});
+             }
+             else
+             {
+-               TweenLite.to(this.discountContainer,0.3,{"alpha":0});
++               TweenLite.to(this.discountContainer,0.3,{alpha:0});
+                TweenLite.to(this.discountContainer,0.3,{
+-                  "alpha":1,
+-                  "delay":0.3
++                  alpha:1,
++                  delay:0.3
+                });
+             }
+             this.discountContainer.textField.text = LocalizationData.getName("discount") + " " + _loc2_.discount;
+          }
+          else if(this.discountContainer.alpha == 1)
+          {
+-            TweenLite.to(this.discountContainer,0.3,{"alpha":0});
++            TweenLite.to(this.discountContainer,0.3,{alpha:0});
+          }
+       }
+       
+       protected function onNoMoneyEnought() : void
+       {
+          var _loc1_:Object = {
+-            "text":LocalizationData.getName("cant_buy_premium_message"),
+-            "onYes":this.goToStore,
+-            "label_ok":LocalizationData.getName("btn_add_premium_message"),
+-            "label_cancel":LocalizationData.getName("cancel")
++            text:LocalizationData.getName("cant_buy_premium_message"),
++            onYes:this.goToStore,
++            label_ok:LocalizationData.getName("btn_add_premium_message"),
++            label_cancel:LocalizationData.getName("cancel")
+          };
+          Message.showMessage("apply",_loc1_,true,0,true);
+       }
+@@ -231,12 +231,11 @@
+       
+       override protected function onMessageAccept(param1:ButtonEvent = null) : void
+       {
+-         var _loc4_:Function = null;
+          if(!btnAccept.enabled)
+          {
+             return;
+          }
+-         var _loc2_:uint = uint(this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].id);
++         var _loc2_:uint = this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].id;
+          var _loc3_:Boolean = PlayerInfo.premiumMoney >= this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].value;
+          if(_loc3_)
+          {
+@@ -250,7 +249,7 @@
+             {
+                ExternalInterface.call("accept_premium",_loc2_);
+             }
+-            _loc4_ = _data.onYes as Function;
++            var _loc4_:Function = _data.onYes as Function;
+             _data.onNo = null;
+             _data.onYes = null;
+             if(_loc4_ is Function)

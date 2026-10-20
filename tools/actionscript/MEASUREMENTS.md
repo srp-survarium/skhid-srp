@@ -158,3 +158,46 @@ linker pass still refuses all 18: remaining findings include ambiguous file-priv
 namespaces from earlier movie patches, nonempty debugger method-name differences,
 and executable/record differences. These are unresolved; the synthetic fixture
 and the 440-script subset do not establish completion of the source workflow.
+
+## Nested functions, debugger control flow, and source corrections
+
+Nested functions now acquire identities through uniquely owned `newfunction`
+sites, recursively including nested closures. Shared or unrooted functions
+remain ambiguous. Original debugger names can follow these proven identities.
+Debugger directive reconstruction now checks executable branch/switch targets
+and exception ranges, then relocates them around the original source map.
+Regression cases reject altered closure references, branch targets, handler
+targets and instructions; they do not replace executable bodies.
+
+The first pinned source correction is `survarium.messages.MessagePremium`.
+Its reconstructed source compiles with strict Flex and links to the exact
+**5,199-byte ABC**. Reassembling and compressing the complete movie reproduces
+SHA-256 `3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60`
+and all original file bytes. The normal measurement and linking commands
+reproduce that result with the saved, independently verified patch manifest.
+
+The source diff corrects these specific decompiler artifacts:
+
+- Hoisted default initializers become implicit typed declarations, restoring
+  their prologue order without redundant conversions.
+- A function local is declared at its assignment, restoring register order.
+- Object literal keys use identifiers instead of quoted strings, avoiding
+  compiler-added string conversions.
+- Direct truth tests and typed assignments replace decompiler-added explicit
+  conversion calls where the original used implicit coercion.
+
+The explicit `uint(_data.matchId)` argument passed to `ExternalInterface.call`
+and the explicit integer conversion used for button positioning are preserved.
+The entire-file match verifies those choices, rather than assuming all casts
+can be removed. Pristine source remains unchanged; the tracked manifest pins
+source, diff and reconstructed-source hashes. Patch tests reject moved context,
+wrong hunk positions, wrong release hashes, changed content and escaping paths.
+All **11 tests**, including actual Flex recompilation and linking, pass.
+
+The initial 878-script strict Flex sweep has finished: 866 compiled and 12
+failed compilation. This run predates native-import repair. The corrected native
+sweep remains in progress. These counts and the single corrected feature class
+are not a whole-tree result. For example, `ItemData` and `TopMenu` still differ
+in protected-field assignment encoding; `TopMenu` also contains manually added
+room hooks whose call encoding differs from native Flex. Those differences are
+still refused, not normalized away by the source-patch mechanism.

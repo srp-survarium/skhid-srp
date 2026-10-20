@@ -94,8 +94,9 @@ or packaged by this tool.
 Method comparisons include code, signatures, stack/register/scope limits,
 exception tables and body traits. The disassembly resolves pool operands for
 diagnosis. Methods are paired by qualified class/trait name and getter/setter
-kind; anonymous methods are explicitly marked with their numeric IDs. Those
-IDs can move. A method-level diagnostic is not a semantic or binary proof;
+kind. Nested functions use their uniquely owned `newfunction` call site and
+lexical ordinal; shared or unrooted functions remain marked with numeric IDs.
+Those IDs can move. A method-level diagnostic is not a semantic or binary proof;
 the complete movie comparison is the acceptance test.
 
 ## Flex integration
@@ -163,10 +164,12 @@ exception handlers or body traits. It emits a new lookup instruction from the
 declared class binding; it never copies the original initializer. Unknown
 shapes, a different scope operand, and other instruction changes remain rejected.
 The original method bodies are never substituted for failed compiler output.
-Original debugger file/line/register directives can also be emitted for
-straight-line methods after every non-debug instruction compares equal to the
-compiler output. This source-map handling refuses branches and exception
-handlers; it cannot repair an executable instruction mismatch.
+Original debugger file/line/register directives can also be emitted after every
+non-debug instruction compares equal to the compiler output. Branch and switch
+targets and exception boundaries must identify the same executable instruction;
+then their offsets are relocated around the debugger directives. This cannot
+repair an executable instruction, branch target, or handler mismatch. Nested
+function debugger names require a matching, uniquely owned function identity.
 
 The entire reconstructed ABC must equal the original, and every other ABC must
 also remain identical. Only then is linked code written. Original graphics are
@@ -178,6 +181,26 @@ The current linker refuses unresolved anonymous method identities, ambiguous
 private namespace ownership, unmatched constant references, class reordering,
 and remaining instruction or verifier-metadata differences. Its success on individual classes
 does not prove a whole-tree rebuild. `MEASUREMENTS.md` records the current evidence.
+
+## Source reconstruction diffs
+
+`reconstruction/026g-rev24/manifest.json` pins per-class corrections separately
+from future feature changes. Each entry records the pristine, patch and result
+hashes and explains the correction. The patch applicator requires exact hunk
+positions and context; it does not shift hunks or use fuzzy matching. It preserves
+the pristine source's line endings and rejects mismatched release identities.
+
+Pass `--source-patches tools/actionscript/reconstruction/026g-rev24/manifest.json`
+to `measure` to compile corrected copies. The run saves the manifest, patches,
+corrected inputs and their hashes. `link_layout.py` independently reapplies the
+saved patches and verifies the compiler input before linking. The immutable
+`pristine/` directory remains the reference for every correction.
+
+The first correction, `MessagePremium`, reproduces the complete compressed
+revision 24 movie exactly after compilation and layout linking. Its changes
+recover implicit local initialization, declaration order, identifier object
+keys, direct truth tests and typed assignments. Explicit casts on external-call
+arguments remain present. This proves one corrected class, not the whole tree.
 
 ## Remaining work
 

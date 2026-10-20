@@ -18,6 +18,8 @@ import subprocess
 import sys
 import zlib
 
+import source_patches
+
 HERE = Path(__file__).resolve().parent
 
 
@@ -154,6 +156,7 @@ class Toolchain:
         self.cp = str(self.work) + os.pathsep + self.config["ffdec"]
         shutil.copyfile(HERE / "MovieSource.java", self.work / "MovieSource.java")
         shutil.copyfile(HERE / "movie_source.py", self.work / "movie_source.py")
+        shutil.copyfile(HERE / "source_patches.py", self.work / "source_patches.py")
         subprocess.run([self.config["javac"], "-encoding", "UTF-8", "-cp", self.config["ffdec"],
                         "-d", str(self.work), str(self.work / "MovieSource.java")], check=True, env=self.env)
 
@@ -182,7 +185,8 @@ class Toolchain:
                 "java_version": subprocess.check_output([self.config["java"], "-version"], stderr=subprocess.STDOUT, text=True),
                 "python_version": sys.version, "zlib_version": zlib.ZLIB_RUNTIME_VERSION,
                 "bridge_sha256": digest(self.work / "MovieSource.java"),
-                "driver_sha256": digest(self.work / "movie_source.py")}
+                "driver_sha256": digest(self.work / "movie_source.py"),
+                "source_patches_sha256": digest(self.work / "source_patches.py")}
 
 
 def verify_project(project):
@@ -208,6 +212,7 @@ def main():
     measure.add_argument("output", type=Path)
     measure.add_argument("--compiler", choices=("ffdec", "flex", "flex-strict"), required=True)
     measure.add_argument("--classes", type=Path, help="One full script name per line; defaults to every exported script")
+    measure.add_argument("--source-patches", type=Path, help="Pinned reconstruction manifest; pristine exports stay immutable")
     measure.add_argument("--jobs", type=int, default=1, help="Concurrent independent compiler processes (1-8)")
     measure.add_argument("--compact", action="store_true", help="Keep compiled code and comparison; reconstruct the full candidate with original.swf when needed")
     args = parser.parse_args()
@@ -243,6 +248,20 @@ def main():
         raise ValueError("--jobs must be between 1 and 8")
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
+    corrected, correction_evidence = {}, None
+    if args.source_patches:
+        corrected, correction_evidence = source_patches.load_sources(args.source_patches, project, manifest)
+        correction_dir = output / "source-patches"
+        correction_dir.mkdir()
+        shutil.copyfile(args.source_patches, correction_dir / "manifest.json")
+        for entry in correction_evidence["classes"]:
+            destination = correction_dir / entry["patch"]
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(args.source_patches.parent / entry["patch"], destination)
+        # Authenticate the saved copies too, before using any corrected input.
+        saved, saved_evidence = source_patches.load_sources(correction_dir / "manifest.json", project, manifest)
+        if saved != corrected or saved_evidence != correction_evidence:
+            raise ValueError("Source patches changed while being recorded")
     tools = Toolchain(args.tools, output / "bridge")
     code_movie(project / "original.swf", output / "code.swf")
     # Recreate diagnostics from pinned bytes instead of trusting old reports.
@@ -258,7 +277,8 @@ def main():
             raise ValueError(f"Class not in pinned export: {cls}")
     report = {"schema": 1, "release": manifest["release"], "movie_sha256": manifest["movie_sha256"],
               "compiler": args.compiler, "toolchain": tool_identity, "classes": [], "complete": False,
-              "selected_classes": classes, "jobs": args.jobs, "compact": args.compact}
+              "selected_classes": classes, "jobs": args.jobs, "compact": args.compact,
+              "source_patches": correction_evidence}
     write_json(output / "report.json", report)
 
     def measure_class(number, cls):
@@ -270,10 +290,15 @@ def main():
             source = project / "pristine" / relative
             if digest(source) != manifest["sources"][relative]:
                 raise ValueError("Source changed after project verification")
+            if relative in corrected:
+                source = folder / "source.as"
+                source.write_bytes(corrected[relative])
+                row["pristine_sha256"] = manifest["sources"][relative]
+                row["source_sha256"] = digest(source)
             result = tools.run("compile", output / "code.swf", folder / "compiled-code.swf", cls,
                                source, folder / "snapshot", args.compiler,
                                tools.config.get("flex", ""), log=folder / "compile.log")
-            if digest(source) != manifest["sources"][relative]:
+            if digest(source) != row["source_sha256"]:
                 raise ValueError("Source changed during compilation")
             if result.returncode:
                 row.update(status="compile_failed", exit_code=result.returncode)
