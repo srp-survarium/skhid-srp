@@ -44,6 +44,7 @@ given), LIKELY or GUESS.
 | [fall_damage.md](fall_damage.md) | Fall damage: the formula, the values (fatal_damage 1.0 as in 0.27, the owner, 2026-10-19), the lethal heights stock and now |
 | [battery_pickup.md](battery_pickup.md) | The battery pick-up 20 % faster: take_time 0.6 -> 0.5 (the owner, 2026-10-20), why the animation plays faster and is not cut, what the release needs |
 | [weapon_balance_2.md](weapon_balance_2.md) | Weapon balance 2 (the owner, 2026-10-20): AK-12 and premium damage 0.55 -> 0.5, piercing 0.45 -> 0.35 ("50 35 for ak-12"), the premium gives silver only; Socom16 damage 0.8 -> 0.6; each weapon in the builds at hand |
+| [battery_credit.md](battery_credit.md) | A player's battery events (put in, found, delivery shares, quests) paid per match, per kind, at most as many times as the map has batteries: the owner's rule against farming (2026-10-20), its catch |
 | [damage_calculator.md](damage_calculator.md) | The site's damage calculator (`/damage`): the owner's rules for it, the data it is built from, how it is served and kept up to date |
 | [maps_tab.md](maps_tab.md) | The site's Maps tab (`/maps`): spawns, batteries, chargers, containers and artefacts on every map; the owner's rules, rebuilt per release |
 | [spotting.md](spotting.md) | Spotting: no cooldown, a battery's body and its use box both spot it, the markers (the owner, 2026-10-19; exe patch 38) |

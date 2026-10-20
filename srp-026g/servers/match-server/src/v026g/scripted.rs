@@ -55,6 +55,8 @@ pub struct Sim {
     pub team_respawn_from: Option<(u32, [bool; 2])>,
     /// From a tick on: kills of player 0 and deaths of player 1.
     pub kills_from: Option<(u32, u16)>,
+    /// Each from its tick on: a place's count of an event, in kit 0.
+    pub events_from: Vec<(u32, usize, usize, u16)>,
     /// From a tick on the world differs from the others' by this byte.
     pub salt_from: Option<(u32, u8)>,
     /// Extra bytes in every world (a bigger upload).
@@ -97,6 +99,7 @@ impl Sim {
             tdm_from: None,
             team_respawn_from: None,
             kills_from: None,
+            events_from: Vec::new(),
             salt_from: None,
             ballast: 0,
             late_objects_from: None,
@@ -178,6 +181,9 @@ impl Sim {
                 players[0].events[snapshot::event::DEATH][0] = kills;
                 kills_deaths[0].deaths = kills;
             }
+        }
+        for &(_, place, event, count) in self.events_from.iter().filter(|set| since(set.0)) {
+            players[place].events[event][0] = count;
         }
         let tdm = (self.game_mode() == mode::TEAM_DEATHMATCH).then(|| {
             self.tdm_from.filter(|(from, _)| since(*from)).map_or(

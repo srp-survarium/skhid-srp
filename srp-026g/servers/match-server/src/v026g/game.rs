@@ -114,6 +114,7 @@ use survarium::v026g::match_msgs::{
 };
 use udp_transport::{Event, SendError, Transport};
 
+use super::battery_cap;
 use super::record::{Recorder, Recording};
 use super::registry::{Formed, MatchEnd, MatchResult, PlayerResult};
 use super::{LateInputs, Settings};
@@ -4685,7 +4686,26 @@ impl Game {
     fn build_result(&self, end: MatchEnd, clock: u32, present: &[bool]) -> MatchResult {
         let state = self.state.as_ref();
         let standing = state.and_then(|state| state.standing);
-        let statistics = state.and_then(|state| state.statistics.as_ref());
+        // A player's battery events pay, per kind, at most as many times as
+        // the map has batteries (docs/notes/battery_credit.md).
+        let statistics = state
+            .and_then(|state| state.statistics.clone())
+            .map(|mut statistics| {
+                for cut in battery_cap::cap(&mut statistics, self.batteries()) {
+                    log::info!(
+                        "Match {:#x}: place {}'s battery events \"{}\" counted {}, paid {} \
+                         (at most the map's {} batteries)",
+                        self.id,
+                        cut.place,
+                        cut.kind,
+                        cut.counted,
+                        cut.paid,
+                        self.batteries()
+                    );
+                }
+                statistics
+            });
+        let statistics = statistics.as_ref();
         let kills_deaths = state
             .and_then(|state| state.rules.as_ref())
             .map(|read| &read.kills_deaths);
