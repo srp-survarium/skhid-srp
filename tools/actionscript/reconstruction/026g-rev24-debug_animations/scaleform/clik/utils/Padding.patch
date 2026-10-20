@@ -1,0 +1,27 @@
+--- a/scaleform/clik/utils/Padding.as
++++ b/scaleform/clik/utils/Padding.as
+@@ -19,17 +19,17 @@
+             case 0:
+                break;
+             case 1:
+-               this.top = this.right = this.bottom = this.left = Number(rest[0]);
++               top = right = bottom = left = Number(rest[0]);
+                break;
+             case 2:
+-               this.top = this.bottom = Number(rest[0]);
+-               this.right = this.left = Number(rest[1]);
++               top = bottom = Number(rest[0]);
++               right = left = Number(rest[1]);
+                break;
+             case 4:
+-               this.top = Number(rest[0]);
+-               this.right = Number(rest[1]);
+-               this.bottom = Number(rest[2]);
+-               this.left = Number(rest[3]);
++               top = Number(rest[0]);
++               right = Number(rest[1]);
++               bottom = Number(rest[2]);
++               left = Number(rest[3]);
+                break;
+             default:
+                throw new Error("Padding can not have " + rest.length + " values");

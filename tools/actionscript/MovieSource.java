@@ -1741,6 +1741,8 @@ public final class MovieSource {
                         && (following.operands == null || following.operands.length == 0);
                     boolean stringExpansion = opcode == 0x2c && desired == 0x2c
                         && following.definition.instructionCode == 0x85
+                        && !(next + 1 < emitted.size()
+                            && emitted.get(next + 1).definition.instructionCode == 0x85)
                         && Arrays.equals(instruction.operands, wanted.operands);
                     if (lookupExpansion || callExpansion || stringExpansion) {
                         positions.put((int)instruction.getAddress(),result.size());

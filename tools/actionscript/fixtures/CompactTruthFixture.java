@@ -68,7 +68,7 @@ public class CompactTruthFixture {
         for(int i=code.code.size()-2;i>=0;i--) {
             var a=code.code.get(i);var b=code.code.get(i+1);
             int op=a.definition.instructionCode,next=b.definition.instructionCode,replacement=0;
-            if(op==0x2c && next==0x85)replacement=0x2c;
+            if(op==0x2c && next==0x85 && abc.constants.getString(a.operands[0]).equals("fixture"))replacement=0x2c;
             if(op==0x5d && next==0x66 && Arrays.equals(a.operands,b.operands))replacement=0x60;
             if(op==0x46 && next==0x29)replacement=0x4f;
             if(op==0x45 && next==0x29)replacement=0x4e;

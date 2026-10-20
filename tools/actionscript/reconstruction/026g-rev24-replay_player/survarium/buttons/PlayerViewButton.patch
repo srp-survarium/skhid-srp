@@ -1,0 +1,7 @@
+--- a/survarium/buttons/PlayerViewButton.as
++++ b/survarium/buttons/PlayerViewButton.as
+@@ -1,3 +1,4 @@
++// Compile with the native optimized profile.
+ package survarium.buttons
+ {
+    import scaleform.clik.controls.Button;

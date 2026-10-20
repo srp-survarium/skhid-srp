@@ -1,0 +1,580 @@
+--- a/scaleform/clik/controls/Button.as
++++ b/scaleform/clik/controls/Button.as
+@@ -132,7 +132,7 @@
+       
+       public function set autoRepeat(value:Boolean) : void
+       {
+-         this._autoRepeat = value;
++         _autoRepeat = value;
+       }
+       
+       override public function get enabled() : Boolean
+@@ -142,12 +142,12 @@
+       
+       override public function set enabled(value:Boolean) : void
+       {
+-         var state:String = null;
++         var state:String;
+          super.enabled = value;
+          mouseChildren = false;
+          if(super.enabled)
+          {
+-            state = this._focusIndicator == null && (Boolean(_displayFocus) || Boolean(_focused)) ? "over" : "up";
++            state = this._focusIndicator == null && (_displayFocus || _focused) ? "over" : "up";
+          }
+          else
+          {
+@@ -173,7 +173,7 @@
+       
+       public function set toggle(value:Boolean) : void
+       {
+-         this._toggle = value;
++         _toggle = value;
+       }
+       
+       public function get owner() : UIComponent
+@@ -183,7 +183,7 @@
+       
+       public function set owner(value:UIComponent) : void
+       {
+-         this._owner = value;
++         _owner = value;
+       }
+       
+       public function get state() : String
+@@ -198,12 +198,12 @@
+       
+       public function set selected(value:Boolean) : void
+       {
+-         var df:Boolean = false;
++         var df:Boolean;
+          if(this._selected == value)
+          {
+             return;
+          }
+-         this._selected = value;
++         _selected = value;
+          if(this.enabled)
+          {
+             if(!_focused)
+@@ -244,7 +244,7 @@
+          {
+             this._group.removeButton(this);
+          }
+-         this._group = value;
++         _group = value;
+          if(this._group != null)
+          {
+             this._group.addButton(this);
+@@ -276,7 +276,7 @@
+             removeEventListener(Event.ADDED,this.addToAutoGroup,false);
+             removeEventListener(Event.REMOVED,this.addToAutoGroup,false);
+          }
+-         this._groupName = value;
++         _groupName = value;
+          this.addToAutoGroup(null);
+       }
+       
+@@ -291,7 +291,7 @@
+          {
+             return;
+          }
+-         this._label = value;
++         _label = value;
+          invalidateData();
+       }
+       
+@@ -306,7 +306,7 @@
+          {
+             return;
+          }
+-         this._autoSize = value;
++         _autoSize = value;
+          invalidateData();
+       }
+       
+@@ -317,9 +317,9 @@
+       
+       public function set focusIndicator(value:MovieClip) : void
+       {
+-         this._focusIndicatorLabelHash = null;
+-         this._focusIndicator = value;
+-         this._focusIndicatorLabelHash = UIComponent.generateLabelHash(this._focusIndicator);
++         _focusIndicatorLabelHash = null;
++         _focusIndicator = value;
++         _focusIndicatorLabelHash = UIComponent.generateLabelHash(this._focusIndicator);
+       }
+       
+       override public function handleInput(event:InputEvent) : void
+@@ -346,6 +346,7 @@
+                      event.handled = true;
+                   }
+                }
++               break;
+          }
+       }
+       
+@@ -383,12 +384,12 @@
+             if(this._newFrame)
+             {
+                gotoAndPlay(this._newFrame);
+-               this._newFrame = null;
++               _newFrame = null;
+             }
+             if(this._newFocusIndicatorFrame)
+             {
+                this.focusIndicator.gotoAndPlay(this._newFocusIndicatorFrame);
+-               this._newFocusIndicatorFrame = null;
++               _newFocusIndicatorFrame = null;
+             }
+             this.updateAfterStateChange();
+             dispatchEvent(new ComponentEvent(ComponentEvent.STATE_CHANGE));
+@@ -420,7 +421,7 @@
+       {
+          if(parent == null)
+          {
+-            this.group = null;
++            group = null;
+             return;
+          }
+          var g:ButtonGroup = ButtonGroup.getGroup(this._groupName,parent);
+@@ -428,13 +429,13 @@
+          {
+             return;
+          }
+-         this.group = g;
++         group = g;
+       }
+       
+       protected function checkOwnerFocused() : Boolean
+       {
+-         var ownerFocusTarget:Object = null;
+          var ownerFocused:Boolean = false;
++         var ownerFocusTarget:Object;
+          if(this.owner != null)
+          {
+             ownerFocused = this._owner.focused != 0;
+@@ -452,8 +453,8 @@
+       
+       protected function calculateWidth() : Number
+       {
+-         var element:ConstrainedElement = null;
+          var w:Number = actualWidth;
++         var element:ConstrainedElement;
+          if(!this.constraintsDisabled)
+          {
+             element = constraints.getElement("textField");
+@@ -464,15 +465,15 @@
+       
+       protected function alignForAutoSize() : void
+       {
+-         var oldWidth:Number = NaN;
+-         var oldRight:Number = NaN;
+-         var oldCenter:Number = NaN;
++         var oldWidth:Number;
+          if(!initialized || this._autoSize == TextFieldAutoSize.NONE || this.textField == null)
+          {
+             return;
+          }
+          oldWidth = _width;
+          var newWidth:Number = _width = this.calculateWidth();
++         var oldRight:Number;
++         var oldCenter:Number;
+          switch(this._autoSize)
+          {
+             case TextFieldAutoSize.RIGHT:
+@@ -482,6 +483,7 @@
+             case TextFieldAutoSize.CENTER:
+                oldCenter = x + oldWidth * 0.5;
+                x = oldCenter - newWidth * 0.5;
++               break;
+          }
+       }
+       
+@@ -495,17 +497,17 @@
+       
+       override protected function changeFocus() : void
+       {
+-         var focusFrame:String = null;
++         var focusFrame:String;
+          if(!this.enabled)
+          {
+             return;
+          }
+          if(this._focusIndicator == null)
+          {
+-            this.setState(Boolean(_focused) || _displayFocus ? "over" : "out");
++            this.setState((_focused) || _displayFocus ? "over" : "out");
+             if(this._pressedByKeyboard && !_focused)
+             {
+-               this._pressedByKeyboard = false;
++               _pressedByKeyboard = false;
+             }
+          }
+          else
+@@ -519,18 +521,18 @@
+                focusFrame = "state" + _focused;
+                if(this._focusIndicatorLabelHash[focusFrame])
+                {
+-                  this._newFocusIndicatorFrame = "state" + _focused;
++                  _newFocusIndicatorFrame = "state" + _focused;
+                }
+                else
+                {
+-                  this._newFocusIndicatorFrame = Boolean(_focused) || _displayFocus ? "show" : "hide";
++                  _newFocusIndicatorFrame = (_focused) || _displayFocus ? "show" : "hide";
+                }
+                invalidateState();
+             }
+             if(this._pressedByKeyboard && !_focused)
+             {
+                this.setState("kb_release");
+-               this._pressedByKeyboard = false;
++               _pressedByKeyboard = false;
+             }
+          }
+       }
+@@ -550,7 +552,7 @@
+             {
+                return;
+             }
+-            if(Boolean(_focused) || _displayFocus)
++            if(_focused || _displayFocus)
+             {
+                this.setState(this.focusIndicator == null ? "down" : "kb_down");
+             }
+@@ -565,7 +567,7 @@
+             {
+                return;
+             }
+-            if(Boolean(_focused) || _displayFocus)
++            if(_focused || _displayFocus)
+             {
+                if(this._focusIndicator != null)
+                {
+@@ -597,7 +599,7 @@
+             {
+                return;
+             }
+-            if(Boolean(_focused) || _displayFocus)
++            if(_focused || _displayFocus)
+             {
+                this.setState(this._focusIndicator == null ? "release" : "kb_release");
+             }
+@@ -612,7 +614,7 @@
+             {
+                return;
+             }
+-            if(Boolean(_focused) || _displayFocus)
++            if(_focused || _displayFocus)
+             {
+                if(this._focusIndicator != null)
+                {
+@@ -628,7 +630,71 @@
+       
+       protected function handleMousePress(event:MouseEvent) : void
+       {
+-         var sfButtonEvent:ButtonEvent = null;
++         var sfEvent:MouseEventEx = event as MouseEventEx;
++         var mouseIdx:uint = sfEvent == null ? 0 : sfEvent.mouseIdx;
++         var btnIdx:uint = sfEvent == null ? 0 : sfEvent.buttonIdx;
++         var sfButtonEvent:ButtonEvent;
++         if(btnIdx != 0)
++         {
++            return;
++         }
++         _mouseDown |= 1 << mouseIdx;
++         if(this.enabled)
++         {
++            this.setState("down");
++            if(this.autoRepeat && this._repeatTimer == null)
++            {
++               _autoRepeatEvent = new ButtonEvent(ButtonEvent.CLICK,true,false,mouseIdx,btnIdx,false,true);
++               _repeatTimer = new Timer(this.repeatDelay,1);
++               this._repeatTimer.addEventListener(TimerEvent.TIMER_COMPLETE,this.beginRepeat,false,0,true);
++               this._repeatTimer.start();
++            }
++            sfButtonEvent = new ButtonEvent(ButtonEvent.PRESS,true,false,mouseIdx,btnIdx,false,false);
++            dispatchEvent(sfButtonEvent);
++         }
++      }
++      
++      protected function handleMouseRelease(event:MouseEvent) : void
++      {
++         _autoRepeatEvent = null;
++         if(!this.enabled)
++         {
++            return;
++         }
++         var sfEvent:MouseEventEx = event as MouseEventEx;
++         var mouseIdx:uint = sfEvent == null ? 0 : sfEvent.mouseIdx;
++         var btnIdx:uint = sfEvent == null ? 0 : sfEvent.buttonIdx;
++         var sfButtonEvent:ButtonEvent;
++         if(btnIdx != 0)
++         {
++            return;
++         }
++         _mouseDown ^= 1 << mouseIdx;
++         if(this._mouseDown == 0 && this._repeatTimer)
++         {
++            this._repeatTimer.stop();
++            this._repeatTimer.reset();
++            this._repeatTimer.removeEventListener(TimerEvent.TIMER_COMPLETE,this.beginRepeat);
++            this._repeatTimer.removeEventListener(TimerEvent.TIMER,this.handleRepeat);
++            _repeatTimer = null;
++         }
++         this.setState("release");
++         this.handleClick(mouseIdx);
++         if(!this._isRepeating)
++         {
++            sfButtonEvent = new ButtonEvent(ButtonEvent.CLICK,true,false,mouseIdx,btnIdx,false,false);
++            dispatchEvent(sfButtonEvent);
++         }
++         _isRepeating = false;
++      }
++      
++      protected function handleReleaseOutside(event:MouseEvent) : void
++      {
++         _autoRepeatEvent = null;
++         if(contains(event.target as DisplayObject))
++         {
++            return;
++         }
+          var sfEvent:MouseEventEx = event as MouseEventEx;
+          var mouseIdx:uint = sfEvent == null ? 0 : sfEvent.mouseIdx;
+          var btnIdx:uint = sfEvent == null ? 0 : sfEvent.buttonIdx;
+@@ -636,140 +702,76 @@
+          {
+             return;
+          }
+-         this._mouseDown |= 1 << mouseIdx;
+-         if(this.enabled)
+-         {
+-            this.setState("down");
+-            if(this.autoRepeat && this._repeatTimer == null)
+-            {
+-               this._autoRepeatEvent = new ButtonEvent(ButtonEvent.CLICK,true,false,mouseIdx,btnIdx,false,true);
+-               this._repeatTimer = new Timer(this.repeatDelay,1);
+-               this._repeatTimer.addEventListener(TimerEvent.TIMER_COMPLETE,this.beginRepeat,false,0,true);
+-               this._repeatTimer.start();
+-            }
+-            sfButtonEvent = new ButtonEvent(ButtonEvent.PRESS,true,false,mouseIdx,btnIdx,false,false);
+-            dispatchEvent(sfButtonEvent);
+-         }
+-      }
+-      
+-      protected function handleMouseRelease(event:MouseEvent) : void
+-      {
+-         var sfButtonEvent:ButtonEvent = null;
+-         this._autoRepeatEvent = null;
++         stage.removeEventListener(MouseEvent.MOUSE_UP,this.handleReleaseOutside,false);
++         _mouseDown ^= 1 << mouseIdx;
++         dispatchEvent(new ButtonEvent(ButtonEvent.RELEASE_OUTSIDE));
+          if(!this.enabled)
+          {
+             return;
+          }
+-         var sfEvent:MouseEventEx = event as MouseEventEx;
+-         var mouseIdx:uint = sfEvent == null ? 0 : sfEvent.mouseIdx;
+-         var btnIdx:uint = sfEvent == null ? 0 : sfEvent.buttonIdx;
+-         if(btnIdx != 0)
+-         {
+-            return;
+-         }
+-         this._mouseDown ^= 1 << mouseIdx;
+-         if(this._mouseDown == 0 && Boolean(this._repeatTimer))
++         if(this.lockDragStateChange)
++         {
++            if(_focused || _displayFocus)
++            {
++               this.setState(this.focusIndicator == null ? "release" : "kb_release");
++            }
++            else
++            {
++               this.setState("kb_release");
++            }
++         }
++      }
++      
++      protected function handlePress(controllerIndex:uint = 0) : void
++      {
++         if(!this.enabled)
++         {
++            return;
++         }
++         _pressedByKeyboard = true;
++         this.setState(this._focusIndicator == null ? "down" : "kb_down");
++         if(this.autoRepeat && this._repeatTimer == null)
++         {
++            _autoRepeatEvent = new ButtonEvent(ButtonEvent.CLICK,true,false,controllerIndex,0,true,true);
++            _repeatTimer = new Timer(this.repeatDelay,1);
++            this._repeatTimer.addEventListener(TimerEvent.TIMER_COMPLETE,this.beginRepeat,false,0,true);
++            this._repeatTimer.start();
++         }
++         var sfEvent:ButtonEvent = new ButtonEvent(ButtonEvent.PRESS,true,false,controllerIndex,0,true,false);
++         dispatchEvent(sfEvent);
++      }
++      
++      protected function handleRelease(controllerIndex:uint = 0) : void
++      {
++         var sfEvent:ButtonEvent;
++         if(!this.enabled)
++         {
++            return;
++         }
++         this.setState(this.focusIndicator == null ? "release" : "kb_release");
++         if(this._repeatTimer)
+          {
+             this._repeatTimer.stop();
+             this._repeatTimer.reset();
+             this._repeatTimer.removeEventListener(TimerEvent.TIMER_COMPLETE,this.beginRepeat);
+             this._repeatTimer.removeEventListener(TimerEvent.TIMER,this.handleRepeat);
+-            this._repeatTimer = null;
+-         }
+-         this.setState("release");
+-         this.handleClick(mouseIdx);
+-         if(!this._isRepeating)
+-         {
+-            sfButtonEvent = new ButtonEvent(ButtonEvent.CLICK,true,false,mouseIdx,btnIdx,false,false);
+-            dispatchEvent(sfButtonEvent);
+-         }
+-         this._isRepeating = false;
+-      }
+-      
+-      protected function handleReleaseOutside(event:MouseEvent) : void
+-      {
+-         this._autoRepeatEvent = null;
+-         if(contains(event.target as DisplayObject))
+-         {
+-            return;
+-         }
+-         var sfEvent:MouseEventEx = event as MouseEventEx;
+-         var mouseIdx:uint = sfEvent == null ? 0 : sfEvent.mouseIdx;
+-         var btnIdx:uint = sfEvent == null ? 0 : sfEvent.buttonIdx;
+-         if(btnIdx != 0)
+-         {
+-            return;
+-         }
+-         stage.removeEventListener(MouseEvent.MOUSE_UP,this.handleReleaseOutside,false);
+-         this._mouseDown ^= 1 << mouseIdx;
+-         dispatchEvent(new ButtonEvent(ButtonEvent.RELEASE_OUTSIDE));
+-         if(!this.enabled)
+-         {
+-            return;
+-         }
+-         if(this.lockDragStateChange)
+-         {
+-            if(Boolean(_focused) || _displayFocus)
+-            {
+-               this.setState(this.focusIndicator == null ? "release" : "kb_release");
+-            }
+-            else
+-            {
+-               this.setState("kb_release");
+-            }
+-         }
+-      }
+-      
+-      protected function handlePress(controllerIndex:uint = 0) : void
+-      {
+-         if(!this.enabled)
+-         {
+-            return;
+-         }
+-         this._pressedByKeyboard = true;
+-         this.setState(this._focusIndicator == null ? "down" : "kb_down");
+-         if(this.autoRepeat && this._repeatTimer == null)
+-         {
+-            this._autoRepeatEvent = new ButtonEvent(ButtonEvent.CLICK,true,false,controllerIndex,0,true,true);
+-            this._repeatTimer = new Timer(this.repeatDelay,1);
+-            this._repeatTimer.addEventListener(TimerEvent.TIMER_COMPLETE,this.beginRepeat,false,0,true);
+-            this._repeatTimer.start();
+-         }
+-         var sfEvent:ButtonEvent = new ButtonEvent(ButtonEvent.PRESS,true,false,controllerIndex,0,true,false);
+-         dispatchEvent(sfEvent);
+-      }
+-      
+-      protected function handleRelease(controllerIndex:uint = 0) : void
+-      {
+-         var sfEvent:ButtonEvent = null;
+-         if(!this.enabled)
+-         {
+-            return;
+-         }
+-         this.setState(this.focusIndicator == null ? "release" : "kb_release");
+-         if(this._repeatTimer)
+-         {
+-            this._repeatTimer.stop();
+-            this._repeatTimer.reset();
+-            this._repeatTimer.removeEventListener(TimerEvent.TIMER_COMPLETE,this.beginRepeat);
+-            this._repeatTimer.removeEventListener(TimerEvent.TIMER,this.handleRepeat);
+-            this._repeatTimer = null;
++            _repeatTimer = null;
+          }
+          this.handleClick(controllerIndex);
+-         this._pressedByKeyboard = false;
++         _pressedByKeyboard = false;
+          if(!this._isRepeating)
+          {
+             sfEvent = new ButtonEvent(ButtonEvent.CLICK,true,false,controllerIndex,0,true,false);
+             dispatchEvent(sfEvent);
+          }
+-         this._isRepeating = false;
++         _isRepeating = false;
+       }
+       
+       protected function handleClick(controllerIndex:uint = 0) : void
+       {
+          if(this.toggle && (!this.selected || this.allowDeselect))
+          {
+-            this.selected = !this.selected;
++            selected = !this.selected;
+          }
+       }
+       
+@@ -791,22 +793,18 @@
+             this._repeatTimer.reset();
+             this._repeatTimer.removeEventListener(TimerEvent.TIMER_COMPLETE,this.beginRepeat);
+             this._repeatTimer.removeEventListener(TimerEvent.TIMER,this.handleRepeat);
+-            this._repeatTimer = null;
++            _repeatTimer = null;
+          }
+          if(this._autoRepeatEvent)
+          {
+-            this._isRepeating = true;
++            _isRepeating = true;
+             dispatchEvent(this._autoRepeatEvent);
+          }
+       }
+       
+       protected function setState(state:String) : void
+       {
+-         var prefix:String = null;
+-         var sl:uint = 0;
+-         var j:uint = 0;
+-         var thisLabel:String = null;
+-         this._state = state;
++         _state = state;
+          var prefixes:Vector.<String> = this.getStatePrefixes();
+          var states:Array = this._stateMap[state];
+          if(states == null || states.length == 0)
+@@ -816,6 +814,10 @@
+          var l:uint = prefixes.length;
+          for(var i:uint = 0; i < l; i++)
+          {
++            var prefix:String;
++            var sl:uint;
++            var j:uint;
++            var thisLabel:String;
+             prefix = prefixes[i];
+             sl = states.length;
+             for(j = 0; j < sl; j++)
+@@ -823,7 +825,7 @@
+                thisLabel = prefix + states[j];
+                if(_labelHash[thisLabel])
+                {
+-                  this._newFrame = thisLabel;
++                  _newFrame = thisLabel;
+                   invalidateState();
+                   return;
+                }

@@ -17,9 +17,10 @@ an optional compiler probe; the baseline proof covers all 878 scripts.
 
 ## Other released movies
 
-The other seven revision-24 movies are now pinned and fully exported into
-private source projects. Their combined inventory is 727 scripts and 6,855
-method bodies. Exporting a source tree does not establish an exact rebuild.
+All seven other revision-24 movies now rebuild byte for byte from their exported
+ActionScript and pinned source corrections: **727 scripts and 6,855 method
+bodies**. Each proof covers fresh compilation, complete assembly and the original
+compressed file, including padding where present.
 
 | Movie | Scripts | Method bodies | Complete source rebuild |
 | --- | ---: | ---: | --- |
@@ -27,9 +28,9 @@ method bodies. Exporting a source tree does not establish an exact rebuild.
 | `main_menu.swf` | 183 | 1,864 | Byte-exact, including compression and padding |
 | `login_menu.swf` | 86 | 866 | Byte-exact, including compression and padding |
 | `player_icons.swf` | 34 | 347 | Byte-exact, including compression |
-| `replay_player.swf` | 82 | 866 | Reconstruction in progress |
+| `replay_player.swf` | 82 | 866 | Byte-exact, including compression |
 | `cursor.swf` | 2 | 10 | Byte-exact, including compression |
-| `debug_animations.swf` | 53 | 560 | Reconstruction in progress |
+| `debug_animations.swf` | 53 | 560 | Byte-exact, including compression |
 
 Each `releases/026g-rev24-<movie>.json` records the actual supplying archive,
 its authenticated hash, the entry offset, the movie hash and its serialization
@@ -69,6 +70,21 @@ reconstructed sources and 20 pristine exports. The 186,560-byte rebuild has SHA-
 `36aa353350acb61a79b52c1bcc2d303c7c21352863cd61095025a748275e796b`.
 The native optimized profile preserves the original marker logic, declaration
 order and loop control flow.
+
+Animation-debugging [verification evidence](reconstruction/026g-rev24-debug_animations/verification.json)
+covers all 53 scripts and 560 method bodies, using 20 reconstructed sources
+and 33 pristine exports. The 33,714-byte rebuild has SHA-256
+`67a7576c6fcbbf308bded935e7476ab7763cd9f49cedfd1379a72759c4486732`.
+The reconstruction recovers the original loop branches, local types and
+initializers while preserving anonymous private namespace identities.
+
+Replay [verification evidence](reconstruction/026g-rev24-replay_player/verification.json)
+covers all 82 scripts and 866 method bodies, using 25 reconstructed sources
+and 57 pristine exports. The 418,646-byte rebuild has SHA-256
+`d3ffb74154cd6778600262ef491d02c2dcb91dcb95d3d5a400aefb1d37be09a8`.
+The source corrections restore integer loop variables, captured-local
+initialization and the original control flow. Layout verification preserves
+methods containing both retained and omitted string conversions.
 
 ## Private inputs and pinned tools
 

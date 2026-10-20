@@ -1,0 +1,175 @@
+--- a/replay_player_fla/MainTimeline.as
++++ b/replay_player_fla/MainTimeline.as
+@@ -115,7 +115,7 @@
+       {
+          if(this._ignoreEvent)
+          {
+-            this._ignoreEvent = false;
++            _ignoreEvent = false;
+             return;
+          }
+          var innerButton:Boolean = e.target.parent is Button;
+@@ -128,7 +128,7 @@
+          }
+          if(innerButton)
+          {
+-            this._ignoreEvent = true;
++            _ignoreEvent = true;
+          }
+          trace("addEventListener");
+          stage.addEventListener(Event.ENTER_FRAME,this.onEventRender,true);
+@@ -137,7 +137,7 @@
+       public function onEventRender(e:Event) : void
+       {
+          trace("onEventRender");
+-         this._ignoreEvent = false;
++         _ignoreEvent = false;
+          stage.removeEventListener(Event.ENTER_FRAME,this.onEventRender,true);
+       }
+       
+@@ -242,7 +242,7 @@
+          }
+          var labels:DataProvider = this.labelsBar.dataProvider as DataProvider;
+          var l:int = labels.length - 1;
+-         for(var i:* = l; i >= 0; i--)
++         for(var i:int = l; i >= 0; i--)
+          {
+             if(this.slider.position >= labels[i].time)
+             {
+@@ -260,7 +260,7 @@
+       
+       public function updateActiveLabel(e:Event) : void
+       {
+-         var activeLabel:uint = uint(this.labelsBar.selectedIndex);
++         var activeLabel:uint = (this.labelsBar.selectedIndex);
+          trace("updateActiveLabel::",activeLabel);
+          this.slider.value = this.labelsBar.dataProvider[activeLabel].time;
+          this.checkLabelButtons();
+@@ -289,14 +289,14 @@
+       
+       public function beginDrag(e:Event) : void
+       {
+-         this.inDrag = true;
++         inDrag = true;
+          this.slider.addEventListener(SliderEvent.VALUE_CHANGE,this.onEndDrag);
+       }
+       
+       public function onEndDrag(e:Event) : void
+       {
+          trace("onED");
+-         this.inDrag = false;
++         inDrag = false;
+          this.slider.removeEventListener(SliderEvent.VALUE_CHANGE,this.onEndDrag);
+       }
+       
+@@ -410,7 +410,6 @@
+       
+       public function set_scene_settings(value:Array) : void
+       {
+-         var slider:SrvOptionSlider = null;
+          if(this.optionsContainer.numChildren)
+          {
+             while(this.optionsContainer.numChildren)
+@@ -420,6 +419,7 @@
+          }
+          for(var i:uint = 0; i < value.length; i++)
+          {
++            var slider:SrvOptionSlider;
+             slider = new SrvOptionSlider();
+             slider.y = i * (slider.height + 1);
+             if(value[i].snapInterval == undefined)
+@@ -525,16 +525,16 @@
+       {
+          this.labelsBar.height = 1;
+          this.labelsBar.visible = false;
+-         this.slider = this.bottomPanel.slider;
+-         this.btn_start = this.bottomPanel.btn_start;
+-         this.btn_end = this.bottomPanel.btn_end;
+-         this.btn_play = this.bottomPanel.btn_play;
+-         this.stepper = this.bottomPanel.speedStepper;
+-         this.btn_previous_label = this.bottomPanel.btn_previous_label;
+-         this.btn_previous_frame = this.bottomPanel.btn_previous_frame;
+-         this.btn_next_label = this.bottomPanel.btn_next_label;
+-         this.btn_next_frame = this.bottomPanel.btn_next_frame;
+-         this.btn_camera = this.bottomPanel.btn_camera;
++         slider = this.bottomPanel.slider;
++         btn_start = this.bottomPanel.btn_start;
++         btn_end = this.bottomPanel.btn_end;
++         btn_play = this.bottomPanel.btn_play;
++         stepper = this.bottomPanel.speedStepper;
++         btn_previous_label = this.bottomPanel.btn_previous_label;
++         btn_previous_frame = this.bottomPanel.btn_previous_frame;
++         btn_next_label = this.bottomPanel.btn_next_label;
++         btn_next_frame = this.bottomPanel.btn_next_frame;
++         btn_camera = this.bottomPanel.btn_camera;
+          trace("btn_camera");
+          this.btn_camera.addEventListener(ButtonEvent.CLICK,this.onCameraChange);
+          this.btn_previous_label.addEventListener(ButtonEvent.CLICK,this.onLabelChange);
+@@ -545,8 +545,8 @@
+          this.btn_end.addEventListener(ButtonEvent.CLICK,this.onMoveClicked);
+          this.playersBar.addEventListener(ButtonEvent.CLICK,this.onPlayerClikedClicked);
+          this.freeViewButton.addEventListener(ButtonEvent.CLICK,this.onFreeViewClicked);
+-         this._ignoreEvent = false;
+-         this.offset = 10;
++         _ignoreEvent = false;
++         offset = 10;
+          this.bottomPanel.layoutData = new LayoutData();
+          this.bottomPanel.layoutData.alignV = "bottom";
+          this.bottomPanel.layoutData.alignH = "center";
+@@ -562,14 +562,14 @@
+          this.playersBar.layoutData.alignH = "right";
+          this.playersBar.layoutData.offsetH = -this.offset;
+          this.playersBar.layoutData.offsetV = -25;
+-         this.optionsContainer = new MovieClip();
++         optionsContainer = new MovieClip();
+          this.optionsContainer.layoutData = new LayoutData();
+          this.optionsContainer.layoutData.alignV = "bottom";
+          this.optionsContainer.layoutData.alignH = "left";
+          this.optionsContainer.layoutData.offsetH = this.offset;
+          this.optionsContainer.layoutData.offsetV = -25;
+          addChild(this.optionsContainer);
+-         this.layout = new Layout();
++         layout = new Layout();
+          this.layout.tiedToStageSize = true;
+          addChild(this.layout);
+          stage.addEventListener(Event.RESIZE,this.onStageResize);
+@@ -579,7 +579,7 @@
+          this.slider.addEventListener(SliderEvent.VALUE_CHANGE,this.onSliderUpdate);
+          this.labelsBar.visible = false;
+          this.labelsBar.addEventListener(IndexEvent.INDEX_CHANGE,this.updateActiveLabel);
+-         this.temp_data = {
++         temp_data = {
+             "min_replay_speed":0.20111111,
+             "max_replay_speed":1.999995,
+             "replay_speed_step_size":0.092,
+@@ -595,8 +595,8 @@
+                "time":750
+             }]
+          };
+-         this.temp_players = [];
+-         for(this.i = 0; this.i < 8; ++this.i)
++         temp_players = [];
++         for(i = 0; this.i < 8; ++this.i)
+          {
+             this.temp_players.push({
+                "id":this.i,
+@@ -604,8 +604,8 @@
+                "team":(this.i < 4 ? 1 : 2)
+             });
+          }
+-         this.temp_options = [];
+-         for(this.i = 0; this.i < 6; ++this.i)
++         temp_options = [];
++         for(i = 0; this.i < 6; ++this.i)
+          {
+             this.temp_options.push({
+                "id":this.i,
+@@ -626,7 +626,7 @@
+          }
+          this.slider.liveDragging = false;
+          this.slider.thumb.addEventListener(MouseEvent.MOUSE_DOWN,this.beginDrag,false,0,true);
+-         this.inDrag = false;
++         inDrag = false;
+       }
+    }
+ }
