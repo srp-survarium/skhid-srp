@@ -242,7 +242,11 @@ impl Bench {
     pub fn restart(&mut self, place: usize) {
         let old = &self.clients[place];
         let (players, map_id) = (old.sim.players, old.sim.map_id);
-        self.clients[place] = Client::new(old.session, true, players, map_id);
+        self.clients[place] = if old.model.growing_roster {
+            Client::growing(old.session, players, map_id)
+        } else {
+            Client::new(old.session, true, players, map_id)
+        };
         let port = self
             .addrs
             .iter()

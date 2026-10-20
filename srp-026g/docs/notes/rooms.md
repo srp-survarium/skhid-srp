@@ -60,6 +60,8 @@ The rules the code and the tests follow, the owner's of 2026-10-16 to 10-19. Cod
   match's places; the server starts it with who is in once that can't come (places given up
   by Leave match) or 30 s after the first player is in, if the room's minimum is in with
   one a side. A started countdown runs on whoever leaves. `match.md` §34.
+  - The room never makes a match of fewer than its minimum: a member whose game can't
+    play in it (an older game started anew) counts for nothing.
   - Fewer than the minimum, or nobody of a side, in or still able to come (everyone left
     too): the match is called off before its countdown, as one that could not be made
     (the vote and the wait again, whole); nothing of it counts (no results, pay, rating,

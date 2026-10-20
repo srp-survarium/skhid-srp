@@ -528,7 +528,13 @@ impl Server {
                     map_id: formed.map.id,
                     game_mode: formed.map.mode,
                     match_level: formed.match_level,
-                    end: MatchEnd::NoShow,
+                    // A room's: called off, as one everyone left before its
+                    // countdown (`Game::called_off`).
+                    end: if formed.room_minimum.is_some() {
+                        MatchEnd::NotMade
+                    } else {
+                        MatchEnd::NoShow
+                    },
                     winner: None,
                     team_points: [0, 0],
                     duration_ms: 0,

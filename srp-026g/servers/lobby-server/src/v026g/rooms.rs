@@ -1029,6 +1029,13 @@ impl Core<'_> {
             return None;
         }
         let session_id = player.session_id;
+        // Its game plays in matches that take players (a member's game
+        // started anew may be an older one): counted for the room's vote
+        // as it is seated, or a match is made with fewer than the room's
+        // minimum and called off at once (`room_start`).
+        if self.pool_for_sessions([session_id]) != Some(QueuePool::GrowingRoster) {
+            return None;
+        }
         let unix = quests::now();
         if self.member_fit(account_id) != Fit::Yes {
             return None;
@@ -1182,9 +1189,6 @@ impl Core<'_> {
         let ready: Vec<Ready> = members
             .iter()
             .filter_map(|&account_id| self.room_ready(account_id))
-            .filter(|ready| {
-                self.pool_for_sessions([ready.player.session_id]) == Some(QueuePool::GrowingRoster)
-            })
             .collect();
         // Squads of the room's members, each a party; any other member alone.
         let mut seen = HashSet::new();
@@ -1227,9 +1231,14 @@ impl Core<'_> {
         };
         let teams: [Vec<session::Player>; 2] =
             sides.map(|side| side.iter().filter_map(player_of).collect());
-        if teams.iter().any(Vec::is_empty) {
+        // Never fewer than the room's minimum: the match server would call
+        // such a match off at once (`MatchSetup::room_minimum`), and the room
+        // make it again.
+        let seated = teams.iter().map(Vec::len).sum::<usize>();
+        if teams.iter().any(Vec::is_empty) || seated < usize::from(room_minimum) {
             log::info!(
-                "Room {key}: no match yet: {} of {} members are free with a kit Play takes",
+                "Room {key}: no match yet: {} of {} members are free with a kit Play takes, \
+                 {seated} seated, the room needs {room_minimum}",
                 ready.len(),
                 members.len()
             );

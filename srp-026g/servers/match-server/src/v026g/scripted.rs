@@ -963,7 +963,9 @@ impl Client {
                     // (`dropped_leaves`). A copy of one taken is nothing.
                     let event = (at, *player, false);
                     if !self.sim.events.contains(&event) {
-                        let played = at.min(self.clock());
+                        // A world that stands still (`frozen_at`) plays
+                        // nothing past it.
+                        let played = at.min(self.clock()).min(self.frozen_at.unwrap_or(u32::MAX));
                         let mask = self.sim.rule_at(played).mask;
                         if mask & 1u32.checked_shl(u32::from(*player)).unwrap_or(0) == 0 {
                             self.dropped_leaves.push((at, *player));

@@ -1565,3 +1565,35 @@ fn a_room_whose_match_is_called_off_votes_again_and_plays_with_who_is_there() {
     assert_eq!(again, with_bob);
     assert_ne!(again, ticket);
 }
+
+/// A member whose game started anew is an older one (it plays in no match
+/// that takes players) counts for nothing: a room of four that needs four
+/// makes no match of three, which the match server would call off at once
+/// (`MatchSetup::room_minimum`) and the room make again, round after round.
+#[test]
+fn a_room_makes_no_match_below_its_minimum() {
+    use survarium::v026g::match_msgs::late_join::FIRST_REVISION;
+
+    let mut world = World::new();
+    let players = ["Alice", "Bob", "Carol", "Dave"].map(|name| world.connect(name));
+    let two_a_side = RoomSpec {
+        min_side: 2,
+        ..spec(6)
+    };
+    let key = create(&mut world, players[0], two_a_side, None);
+    for &player in &players[1..] {
+        rows(&mut world, player, ROOM_JOIN_BASE + key, 1);
+    }
+    let (dave, _) = world.ids[players[3]];
+    let older = world
+        .store
+        .create_session_with_revision(dave, FIRST_REVISION - 1);
+    let again = world.connect_session((dave, older));
+    world.take(again);
+    assert_eq!(world.core.rooms.of(dave).map(|room| room.key), Some(key));
+    world.advance(VOTE_AND_WAIT * 3);
+    assert!(world.host.made.locked().is_empty(), "no match of three");
+    for &player in &players[..3] {
+        assert!(sent_to_match(&world.take(player)).is_none());
+    }
+}

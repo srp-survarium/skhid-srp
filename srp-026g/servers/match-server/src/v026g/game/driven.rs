@@ -381,12 +381,12 @@ impl Game {
         }
     }
 
-    /// Whether the place's last roster change was its leave.
+    /// Whether the place's last roster change was its leave (a stand-in's,
+    /// `start`, is none of the place's own).
     pub(super) fn has_left(&self, index: usize) -> bool {
-        self.events
-            .iter()
-            .rev()
-            .find(|(_, who, _)| *who == index)
+        self.players_events()
+            .filter(|(_, who, _)| *who == index)
+            .last()
             .is_some_and(|(_, _, entered)| !entered)
     }
 

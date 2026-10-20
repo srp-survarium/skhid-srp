@@ -1118,16 +1118,33 @@ impl Game {
         if self.result_made {
             return self.result.take();
         }
-        let end = if self.events.is_empty() && self.clock_start.is_none() {
+        let end = self.called_off(if self.events.is_empty() && self.clock_start.is_none() {
             MatchEnd::NoShow
         } else {
             MatchEnd::Deserted
-        };
+        });
         let present = vec![false; self.players()];
         self.result_made = true;
         let result = self.build_result(end, self.clock(now), &present);
         self.record_result(&result, now);
         Some(result)
+    }
+
+    /// A room's match that ends before its countdown, everyone gone (left,
+    /// lost, never come) or its world lost, was not made (`match.md`
+    /// section 34): [`MatchEnd::NotMade`] for [`MatchEnd::Deserted`] and
+    /// [`MatchEnd::NoShow`], as when `poll_start` calls it off. Nothing of
+    /// it counts, and its room votes and waits again, whole.
+    fn called_off(&self, end: MatchEnd) -> MatchEnd {
+        let room = self.formed.room_minimum.is_some();
+        let before_countdown = matches!(
+            self.rule.state,
+            rules::state::INACTIVE | rules::state::WAITING_FOR_PLAYERS
+        );
+        match end {
+            MatchEnd::Deserted | MatchEnd::NoShow if room && before_countdown => MatchEnd::NotMade,
+            end => end,
+        }
     }
 
     /// The match clock in ms: 0 until the first snapshot, then running from
@@ -1403,7 +1420,9 @@ impl Game {
                     if self.loaded_behind(index, now) {
                         return;
                     }
-                    if self.returns(index) {
+                    // Its place standing in: it enters once the stand-in
+                    // left (`start::send_stand_in_leaves`).
+                    if self.returns(index) && !self.stands_in(index) {
                         self.enter_early(index, now);
                     }
                     self.start_sync(index, true, now);
@@ -1853,10 +1872,11 @@ impl Game {
     }
 
     /// Whether the player at `index` is back in a match it left, with
-    /// others playing and a patched client to give a snapshot.
+    /// others playing and a patched client to give a snapshot. A place
+    /// that only stood in (`start`) was never left by a player: its game
+    /// comes as a new arrival.
     fn returns(&self, index: usize) -> bool {
-        self.events
-            .iter()
+        self.players_events()
             .any(|(_, who, entered)| *who == index && !*entered)
             && self.others_live(index)
             && !self.sources(index).is_empty()
@@ -1989,6 +2009,9 @@ impl Game {
     /// it is started: a snapshot after this entry has its player as the
     /// others have it (0.21d `enter_early`).
     fn enter_early(&mut self, index: usize, now: Instant) {
+        // After the place's last roster change, a stand-in's too (its leave
+        // is sent before this, `stands_in`): the games take a place's
+        // changes in the order of their ticks.
         let left = self
             .events
             .iter()
@@ -2023,6 +2046,20 @@ impl Game {
         if let Some(peer) = self.peers[index].as_mut() {
             peer.time_confirmed = false;
             peer.set_times.clear();
+        }
+        if self.stands_in(index) {
+            if let Some(peer) = self.peers[index].as_mut() {
+                peer.stage = Stage::WaitingSnapshot {
+                    since: now,
+                    entering,
+                };
+            }
+            log::info!(
+                "Match {:#x}: player {index}'s place stands in; its game waits for the stand-in's \
+                 leave",
+                self.id
+            );
+            return;
         }
         if self.bot_waits(index) || !self.join_ready(index) {
             if let Some(peer) = self.peers[index].as_mut() {
@@ -2490,7 +2527,8 @@ impl Game {
     /// The roster changes after `time` for the client at `index`, which
     /// starts from a snapshot of then. Never its own leaving: a client told
     /// it left closes the match. Its own entry only if it entered early and
-    /// the snapshot (given up waiting for) is from before it.
+    /// the snapshot (given up waiting for) is from before it; never a
+    /// stand-in's of its place (`start`).
     fn roster_since(&self, index: usize, time: u32) -> Vec<(u32, ServerMessage)> {
         let early = self.peers[index]
             .as_ref()
@@ -2498,7 +2536,11 @@ impl Game {
         self.events
             .iter()
             .filter(|(at, who, entered)| {
-                *at > time && (*who != index || (*entered && early.is_some()))
+                *at > time
+                    && (*who != index
+                        || (*entered
+                            && early.is_some()
+                            && !self.is_stand_in_event(*at, *who, *entered)))
             })
             .map(|&(at, who, entered)| {
                 let (tick, player) = (tick_byte(at), who as u8);
@@ -4735,6 +4777,7 @@ impl Game {
         if self.finished_at.is_some() {
             return;
         }
+        let end = self.called_off(end);
         let clock = self.clock(now);
         let present = self.present();
         let result = self.build_result(end, clock, &present);
@@ -4804,6 +4847,7 @@ impl Game {
         for index in 0..self.peers.len() {
             self.check_in_flight(index, now);
             let join_ready = self.join_ready(index);
+            let stands_in = self.stands_in(index);
             let Some(peer) = self.peers[index].as_mut() else {
                 continue;
             };
@@ -4820,6 +4864,15 @@ impl Game {
             let early = peer.entered_early;
             match peer.stage {
                 Stage::WaitingSnapshot { since, entering } => {
+                    if stands_in {
+                        // Its place stands in (`start`): its wait begins
+                        // when the stand-in has left.
+                        peer.stage = Stage::WaitingSnapshot {
+                            since: now,
+                            entering,
+                        };
+                        continue;
+                    }
                     if !join_ready {
                         continue;
                     }

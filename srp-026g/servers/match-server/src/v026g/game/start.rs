@@ -16,15 +16,16 @@
 //!   as many places as are missing that no game holds (given up first) on
 //!   one tick: every game starts its countdown there, as for players who
 //!   came. Each such place leaves again once every game has played that
-//!   tick ([`STAND_IN_LEAVE_CAP`] at most): a leave for a tick is taken
-//!   only by a game whose simulation has the player in by then (0xEA's
-//!   `leave_match` 0x2D18A0 reads the entered mask of the newest played
-//!   node at or before the tick, 0x2D1B4B..0x2D1B9D, and ignores a player
-//!   not in it). A countdown never goes back to waiting (`logic_tick`
-//!   0x318100), so it runs on. The respawn rule spawns an entering player
-//!   at its tick (0x316BC0, 0x316820), so a stand-in's body stands at a
-//!   spawn point for that half second or so; it has no input, no kill, no
-//!   result, and the results count it nowhere.
+//!   tick (a game that has not by [`STAND_IN_LEAVE_CAP`] is resynced
+//!   first): a leave for a tick is taken only by a game whose simulation
+//!   has the player in by then (0xEA's `leave_match` 0x2D18A0 reads the
+//!   entered mask of the newest played node at or before the tick,
+//!   0x2D1B4B..0x2D1B9D, and ignores a player not in it). A countdown never
+//!   goes back to waiting (`logic_tick` 0x318100), so it runs on. The
+//!   respawn rule spawns an entering player at its tick (0x316BC0,
+//!   0x316820), so a stand-in's body stands at a spawn point for that half
+//!   second or so; it has no input, no kill, no result, and the results
+//!   count it nowhere.
 //! - **Called off.** When fewer than the room's minimum, or nobody of a
 //!   side, are in or can still come, the match ends before its countdown
 //!   as not made ([`MatchEnd::NotMade`]): nothing of it counts, and the
@@ -39,7 +40,13 @@ use super::*;
 /// any match; it stands in for nobody.
 pub(super) const START_WAIT_MS: u32 = 30_000;
 /// A stand-in's leave goes once every game simulating has reported a tick
-/// at or past its entry (it played the entry), or after this at most.
+/// at or past its entry (it played the entry). A game that has not this
+/// long after the entry is started anew from a world of a game that played
+/// it (a resync), and the leave goes without waiting for it: sent to a game
+/// that has not played the entry, the leave would be dropped (`leave_match`
+/// 0x2D1B4B..0x2D1B9D), the stand-in left in that game alone and its
+/// hashes wrong from then on. A game being resynced gets the entry and the
+/// leave with its replay, as any roster change of its time out.
 const STAND_IN_LEAVE_CAP: Duration = Duration::from_secs(2);
 
 /// A place the server entered so that the clients start the countdown.
@@ -67,11 +74,25 @@ impl Game {
         })
     }
 
-    /// The players' roster changes: the stand-ins' left out.
+    /// The players' roster changes: the stand-ins' left out. What a player
+    /// did (came, left, came back) reads these; the order of a place's
+    /// roster changes in the games (each a tick after its last) reads them
+    /// all.
     pub(super) fn players_events(&self) -> impl Iterator<Item = &(u32, usize, bool)> {
         self.events
             .iter()
             .filter(|(at, who, entered)| !self.is_stand_in_event(*at, *who, *entered))
+    }
+
+    /// The place stands in now: entered, its leave not sent yet. A game of
+    /// it that connects meanwhile is held before its start (`start_sync`):
+    /// its player enters after the stand-in's leave, from a world after
+    /// it; never a second time while the stand-in is in, nor taken out by
+    /// the stand-in's leave.
+    pub(super) fn stands_in(&self, index: usize) -> bool {
+        self.stand_ins
+            .iter()
+            .any(|stand_in| stand_in.index == index && stand_in.left_at.is_none())
     }
 
     /// Another roster change than a stand-in's goes after the stand-ins'
@@ -142,8 +163,10 @@ impl Game {
                 continue;
             }
             // Never connected, or lost: waited for until the start's wait
-            // is over; a game connected (loading) as long as it is.
-            let may_come = !given_up && (connected || !waited);
+            // is over; a game connected (loading) as long as it is, and a
+            // place taken into the match until its admission is in or has
+            // failed (its own deadline, `late_join`).
+            let may_come = !given_up && (connected || !waited || self.coming(index));
             if may_come {
                 able += 1;
                 if human {
@@ -211,7 +234,9 @@ impl Game {
         }
     }
 
-    /// Each stand-in leaves once every game simulating played its entry.
+    /// Each stand-in leaves once every game simulating played its entry;
+    /// past [`STAND_IN_LEAVE_CAP`], a game that has not is resynced first,
+    /// so that no game gets a leave it would drop.
     fn send_stand_in_leaves(&mut self, now: Instant) {
         if self.finished_at.is_some() {
             return;
@@ -224,17 +249,24 @@ impl Game {
             }
             // A game reports the hash of a tick it played (its event
             // horizon's, behind its present).
-            let everyone = (0..self.peers.len()).all(|index| {
-                self.is_bot(index)
-                    || self.peers[index].as_ref().is_none_or(|peer| {
-                        peer.stage != Stage::Live
-                            || peer
-                                .reported_tick
-                                .is_some_and(|tick| tick >= stand_in.entered_at)
-                    })
-            });
-            if !everyone && now.saturating_duration_since(stand_in.since) < STAND_IN_LEAVE_CAP {
-                continue;
+            let behind: Vec<usize> = (0..self.peers.len())
+                .filter(|&index| {
+                    !self.is_bot(index)
+                        && self.peers[index].as_ref().is_some_and(|peer| {
+                            peer.stage == Stage::Live
+                                && peer
+                                    .reported_tick
+                                    .is_none_or(|tick| tick < stand_in.entered_at)
+                        })
+                })
+                .collect();
+            if !behind.is_empty() {
+                if now.saturating_duration_since(stand_in.since) < STAND_IN_LEAVE_CAP {
+                    continue;
+                }
+                for index in behind {
+                    self.resync_behind_stand_in(index, stand_in, now);
+                }
             }
             let at = grid_up(clock + ROSTER_LEAD_MS);
             self.stand_ins[which].left_at = Some(at);
@@ -245,6 +277,40 @@ impl Game {
                 stand_in.index,
                 stand_in.entered_at
             );
+            // Its own game, loaded while the stand-in was in and held
+            // (`stands_in`), and back in the match: it enters for the
+            // others first (`enter_early`), after the leave.
+            let index = stand_in.index;
+            let held = self.peers[index].as_ref().is_some_and(|peer| {
+                peer.resources_loaded
+                    && peer.entered_early.is_none()
+                    && matches!(peer.stage, Stage::WaitingSnapshot { entering: true, .. })
+            });
+            if held && self.returns(index) {
+                self.enter_early(index, now);
+            }
         }
+    }
+
+    /// A game that has not played a stand-in's entry [`STAND_IN_LEAVE_CAP`]
+    /// after it (a stalled game: its window not active, its machine
+    /// hanging) is started anew from a world of the others, as for a
+    /// game out of step: the stand-in's leave would be dropped by it.
+    fn resync_behind_stand_in(&mut self, index: usize, stand_in: StandIn, now: Instant) {
+        let Some(peer) = self.peers[index].as_mut() else {
+            return;
+        };
+        log::warn!(
+            "Match {:#x}: player {index} has reported no tick past place {}'s stand-in entry at \
+             {} ms in {} s (its last {:?}); resynced, so that it takes the stand-in's leave",
+            self.id,
+            stand_in.index,
+            stand_in.entered_at,
+            STAND_IN_LEAVE_CAP.as_secs(),
+            peer.reported_tick
+        );
+        peer.last_resync = Some(now);
+        peer.resyncs += 1;
+        self.start_sync(index, false, now);
     }
 }
