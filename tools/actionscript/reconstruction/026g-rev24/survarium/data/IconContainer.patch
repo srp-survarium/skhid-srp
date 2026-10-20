@@ -1,0 +1,60 @@
+--- a/survarium/data/IconContainer.as
++++ b/survarium/data/IconContainer.as
+@@ -17,27 +17,14 @@
+       
+       public var columns:uint = 0;
+       
+-      protected var _icons:Array;
++      protected var _icons:Array = new Array();
+       
+-      public function IconContainer(param1:String, param2:uint, param3:uint, param4:BitmapData, param5:Boolean = false, param6:uint = 0, param7:uint = 0, param8:uint = 0, param9:Boolean = true)
++      public function IconContainer(name:String, iconW:uint, iconH:uint, iconBitmap:BitmapData, vertical:Boolean = false, count:uint = 0, stepH:uint = 0, stepV:uint = 0, atStart:Boolean = true)
+       {
+-         var times:int;
+-         var create_icon:Function;
+-         var baseTexture:BitmapData = null;
+-         var r:uint = 0;
+-         var c:uint = 0;
+-         var name:String = param1;
+-         var iconW:uint = param2;
+-         var iconH:uint = param3;
+-         var iconBitmap:BitmapData = param4;
+-         var vertical:Boolean = param5;
+-         var count:uint = param6;
+-         var stepH:uint = param7;
+-         var stepV:uint = param8;
+-         var atStart:Boolean = param9;
+-         this._icons = new Array();
+-         super();
+-         create_icon = function(param1:int, param2:int, param3:Boolean):void
++         _ids[name] = this;
++         var times:int = -1;
++         var baseTexture:BitmapData;
++         function create_icon(param1:int, param2:int, param3:Boolean):void
+          {
+             var _loc4_:BitmapData = new BitmapData(iconW,iconH,true,0);
+             var _loc5_:Matrix = new Matrix();
+@@ -51,16 +38,16 @@
+             }
+             _loc4_.draw(baseTexture,_loc5_,null,null,new Rectangle(0,0,iconW,iconH));
+             _icons.push(_loc4_);
+-         };
+-         _ids[name] = this;
+-         times = -1;
+-         if(Boolean(count))
++         }
++         var r:uint;
++         var c:uint;
++         if(count)
+          {
+-            times = int(count);
++            times = count;
+          }
+          baseTexture = iconBitmap;
+-         this.columns = Math.floor(baseTexture.width / (iconW + stepH));
+-         this.rows = Math.floor(baseTexture.height / (iconH + stepV));
++         columns = Math.floor(baseTexture.width / (iconW + stepH));
++         rows = Math.floor(baseTexture.height / (iconH + stepV));
+          if(!vertical)
+          {
+             r = 0;

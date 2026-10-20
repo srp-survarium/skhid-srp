@@ -142,6 +142,17 @@ class CompilerIntegration(unittest.TestCase):
                         for (var tag : swf.getAbcList()) {
                             var abc = tag.getABC();
                             if (args.length >= 3) {
+                                if (args[2].startsWith("global-dispatch-")) {
+                                    for (var script:abc.script_info) for(var trait:script.traits.traits)
+                                        if(trait instanceof com.jpexs.decompiler.flash.abc.types.traits.TraitMethodGetterSetter method) {
+                                            if(args[2].equals("global-dispatch-kind")) method.kindType=2;
+                                            else if(args[2].equals("global-dispatch-method")) method.method_info=script.init_index;
+                                            else method.disp_id=Integer.parseInt(args[2].substring("global-dispatch-".length()));
+                                            changed++;
+                                        }
+                                    ((Tag)tag).setModified(true);
+                                    continue;
+                                }
                                 if (args[2].startsWith("namespace-slot-")) {
                                     for (var script:abc.script_info) for(var trait:script.traits.traits)
                                         if(trait instanceof com.jpexs.decompiler.flash.abc.types.traits.TraitSlotConst slot) {
@@ -951,6 +962,21 @@ class CompilerIntegration(unittest.TestCase):
                                    log=globals_dir / (script_name + "-link.log"))
                 self.assertEqual(result.returncode, 0, (globals_dir / (script_name + "-link.log")).read_text())
                 self.assertEqual(movie_source.uncompressed(reference), movie_source.uncompressed(linked))
+                if script_name == "globalValue":
+                    dispatch_layout = globals_dir / "global-dispatch-layout.swf"
+                    mutate(compiled, dispatch_layout, "global-dispatch-21")
+                    destination = globals_dir / "global-dispatch-linked.swf"
+                    result = tools.run("link-layout", reference, dispatch_layout, destination, script_name,
+                                       log=globals_dir / "global-dispatch-link.log")
+                    self.assertEqual(result.returncode, 0, (globals_dir / "global-dispatch-link.log").read_text())
+                    self.assertEqual(movie_source.uncompressed(reference), movie_source.uncompressed(destination))
+                    for mutation in ("global-dispatch-0", "global-dispatch-kind", "global-dispatch-method"):
+                        corrupted, rejected = globals_dir / (mutation + ".swf"), globals_dir / (mutation + "-linked.swf")
+                        mutate(compiled, corrupted, mutation)
+                        result = tools.run("link-layout", reference, corrupted, rejected, script_name,
+                                           log=globals_dir / (mutation + ".log"))
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertFalse(rejected.exists())
                 if script_name == "ProbeContract":
                     interface_layout = globals_dir / "interface-layout.swf"
                     mutate(reference, interface_layout, "interface-binding")
@@ -1049,6 +1075,96 @@ class CompilerIntegration(unittest.TestCase):
                                "fixture.SelfReference", log=root / "changed-link.log")
             self.assertNotEqual(result.returncode, 0)
             self.assertFalse(rejected.exists())
+
+    def test_file_private_helper_protected_namespace_owner(self):
+        with tempfile.TemporaryDirectory(prefix="srp-as-helper-test-") as temp:
+            root = Path(temp)
+            config_path = Path(os.environ["SRP_AS_TOOLS"]).resolve()
+            config = json.loads(config_path.read_text())
+            sdk = Path(config["flex"])
+            tools = movie_source.Toolchain(config_path, root / "bridge")
+            source = root / "fixture/PrivateOwner.as"
+            source.parent.mkdir()
+            source.write_text("""package fixture {
+                public class PrivateOwner {
+                    public function read():int { return new Helper().read(); }
+                }
+            }
+            final class Helper {
+                protected var number:int = 7;
+                public function read():int { return number; }
+            }""")
+            entry = root / "HelperEntry.as"
+            entry.write_text("""package {
+                import fixture.PrivateOwner;
+                public class HelperEntry { public var reference:Class = PrivateOwner; }
+            }""")
+            native = root / "native.swf"
+            result = subprocess.run([config["java"], "-jar", str(sdk / "lib/mxmlc.jar"),
+                "+flexlib=" + str(sdk / "frameworks"),
+                "+playerglobalHome=" + str(sdk / "frameworks/libs/player"),
+                "-external-library-path=" + str(sdk / "frameworks/libs/player/32.0/playerglobal.swc"),
+                "-library-path=", "-strict=true", "-debug=false", "-optimize=false",
+                "-source-path=" + str(root), "-output=" + str(native), str(entry)],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=90)
+            self.assertEqual(result.returncode, 0, result.stdout)
+            mutation_source = root / "HelperNamespaceFixture.java"
+            mutation_source.write_text("""
+                import java.nio.file.*;
+                public class HelperNamespaceFixture {
+                    public static void main(String[] args) throws Exception {
+                        var movie=MovieSource.read(Path.of(args[0]));
+                        var abc=MovieSource.findScript(movie,"fixture.PrivateOwner").abc;
+                        for(var body:abc.bodies)MovieSource.exactCode(body);
+                        var helper=abc.instance_info.stream().filter(i -> {
+                            var name=abc.constants.getMultiname(i.name_index);
+                            return abc.constants.getString(name.name_index).equals("Helper");
+                        }).findFirst().orElseThrow();
+                        var ns=abc.constants.getNamespace(helper.protectedNS);
+                        if(args[2].equals("rename")) {
+                            var name=abc.constants.getMultiname(helper.name_index);
+                            String file=abc.constants.getString(abc.constants.getNamespace(name.namespace_index).name_index);
+                            if(!file.startsWith("PrivateOwner.as$"))throw new Exception("Unexpected file namespace");
+                            for(int i=1;i<abc.constants.getNamespaceCount();i++) {
+                                var item=abc.constants.getNamespace(i);
+                                String label=abc.constants.getString(item.name_index);
+                                if(label.equals(file) || label.startsWith(file+":"))
+                                    item.name_index=abc.constants.getStringId("PrivateOwner.as$37"+label.substring(file.length()),true);
+                            }
+                        } else if(args[2].equals("owner")) {
+                            ns.name_index=abc.constants.getStringId("PrivateOwner.as$0:OtherHelper",true);
+                        } else if(args[2].equals("kind")) {
+                            ns.kind=5;
+                        } else if(args[2].equals("shared")) {
+                            abc.instance_info.get(abc.findClassByName("fixture.PrivateOwner")).protectedNS=helper.protectedNS;
+                        } else throw new Exception("Unknown mutation");
+                        ((com.jpexs.decompiler.flash.tags.Tag)abc.parentTag).setModified(true);
+                        try(var out=Files.newOutputStream(Path.of(args[1]))){movie.saveTo(out);}
+                        System.exit(0);
+                    }
+                }""")
+            cp = str(root) + os.pathsep + tools.cp
+            subprocess.run([config["javac"], "-cp", tools.cp, "-d", str(root), str(mutation_source)], check=True)
+
+            def mutate(input_file, output_file, mode):
+                subprocess.run([config["java"], "-cp", cp, "HelperNamespaceFixture",
+                                str(input_file), str(output_file), mode], check=True, timeout=60)
+
+            reference, compiled, linked = root / "reference.swf", root / "compiled.swf", root / "linked.swf"
+            mutate(native, reference, "rename")
+            result = tools.run("compile", reference, compiled, "fixture.PrivateOwner", source,
+                               root / "snapshot", "flex-library", sdk, log=root / "compile.log")
+            self.assertEqual(result.returncode, 0, (root / "compile.log").read_text())
+            result = tools.run("link-layout", reference, compiled, linked, "fixture.PrivateOwner", log=root / "link.log")
+            self.assertEqual(result.returncode, 0, (root / "link.log").read_text())
+            self.assertEqual(movie_source.uncompressed(reference), movie_source.uncompressed(linked))
+            for mode in ("owner", "kind", "shared"):
+                corrupted, rejected = root / (mode + ".swf"), root / (mode + "-linked.swf")
+                mutate(compiled, corrupted, mode)
+                result = tools.run("link-layout", reference, corrupted, rejected,
+                                   "fixture.PrivateOwner", log=root / (mode + ".log"))
+                self.assertNotEqual(result.returncode, 0, mode)
+                self.assertFalse(rejected.exists(), mode)
 
 
 if __name__ == "__main__":

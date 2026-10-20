@@ -1501,6 +1501,60 @@
       "pristine_sha256": "8cdc020c9b94de5bb1679295c4bb9cfcdcff9a942e058d4bb264d60c04c36e72",
       "reason": "Restore static field slot order, implicit wildcard initialization and typed local declarations, using strict imported-unit compilation for native self-class references. Real native compiler output links to the exact complete compressed release movie.",
       "result_sha256": "db5cd67518317f5dcbd84722d2358826df2747d631ce9e036607e8d397bf6df6"
+    },
+    {
+      "class": "scaleform.clik.managers.PopUpManager",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/managers/PopUpManager.patch",
+      "patch_sha256": "5f6b5c743814af162c019b86bdc1a1d8f7433870c1ba5ee7479e956c03330aec",
+      "pristine_sha256": "6ccc3795d9ed1a0c413ff2743b37f46a0c08298a262b02fc93305503b78f2dba",
+      "reason": "Restore static field order and direct truth tests; imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "61cc220a2c110d08576f50fc44dcf8ce6fd60fb58df66e5bb122df4cf3353ab5"
+    },
+    {
+      "class": "scaleform.clik.core.UIComponent",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/core/UIComponent.patch",
+      "patch_sha256": "121300c005f2d1a8db7f79926c38789fd784ca1163b085b8cd2ae86bed5a05c2",
+      "pristine_sha256": "7909ab85a336bdca3d3be3ab31b4062b8a6a332622306df813ed76df0590e8ac",
+      "reason": "Restore metadata order, lexical field writes, typed temporary/register order, implicit defaults, direct truth tests and the original getInvalid continue branch; imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "4f980de88ada32599886dc32e2ce884c158568766e3f00645e7e5ed71e873e9f"
+    },
+    {
+      "class": "scaleform.clik.motion.Tween",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/motion/Tween.patch",
+      "patch_sha256": "7d9c4bbe33c2e698956f6494065adca5915ed4bbca44ff2df40fe9aafd4c6471",
+      "pristine_sha256": "c558cb5fb306a0762d81f29ceb88a73f92c265887db7c6b64d3fbe69c9ded67d",
+      "reason": "Restore static/local declaration order, implicit defaults, identifier object keys, lexical field writes, direct truth tests and typed ease results; imported-unit compilation with uniquely owned file-private helper namespace relocation reproduces the complete compressed release movie.",
+      "result_sha256": "4bf94c7726bb96614282051d8bea7b29b3a95b239bcade2aec64b50f7aec22fe"
+    },
+    {
+      "class": "scaleform.clik.managers.FocusHandler",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/managers/FocusHandler.patch",
+      "patch_sha256": "ce1220fb67ccd91520ec10d328a9aae866a484035f4be1e7b5ff409e7cccea31",
+      "pristine_sha256": "19cb2aa512983f58b2cd6976aeacdfaae911ed3a6d42f14e9f36753cbf11e180",
+      "reason": "Restore static/local declaration order, implicit defaults, lexical field writes, direct truth tests, focus-target and parent traversal loops, and text-field switch fallthrough; imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "ecea4a697f13450f892454841b778203d51be6a5be63139a133fe84f82a0d8dd"
+    },
+    {
+      "class": "scaleform.clik.controls.ButtonBar",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/controls/ButtonBar.patch",
+      "patch_sha256": "7eb19f3ab98e662e5f057f146116fa8538d6d1685c3391f39059bed5fdb92c7f",
+      "pristine_sha256": "80a9e1ab1acf6a9e3f805c2f471cc4dddc749496f9308a0799a1e5f259016fb1",
+      "reason": "Restore captured parameter name without a copied alias, explicit counter initialization, and final switch/default breaks; imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "6e5952c73c8442b8c81d0a932561f005bbd8d02f8df757ba2d7815f23dd0dfa4"
+    },
+    {
+      "class": "survarium.data.IconContainer",
+      "compiler": "flex-library",
+      "patch": "survarium/data/IconContainer.patch",
+      "patch_sha256": "43e5acec6872db6c5eb36abc1e272e30bdaf8a42b028a9e30f9a07178476daaa",
+      "pristine_sha256": "d1fa9b77e3b89aab4def2da36c1ae21874bbbcab1d10f4a441f87d3611dafc7d",
+      "reason": "Restore captured parameter names without copied aliases, activation declaration order, typed count assignment, a named local function, and the array field initializer with implicit superclass initialization; imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "fa71616716b6e7ec1c346afa7e45ec87c9daaf8fc0172f2fcb273dca9475776b"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

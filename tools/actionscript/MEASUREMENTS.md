@@ -781,3 +781,61 @@ The premium example rebuilt against this manifest retains its tested movie hash
 `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
 with one changed method and identical non-code content. The new identities are
 recorded as a subsequent rebuild rather than a new game test.
+
+## File-private helpers, global dispatch hints, and four source repairs
+
+`PopUpManager`, `UIComponent`, `Tween` and `FocusHandler` now reproduce the entire
+compressed release movie through imported-unit compilation. Their source repairs
+restore static/local declaration order, implicit defaults, lexical writes,
+direct truth tests and the original loop/switch structure. `UIComponent` also
+restores its typed event return temporary; `Tween` restores typed easing results
+without extra conversion calls.
+
+`Tween` contains a file-private helper whose protected namespace embeds the
+compiler-generated file identity. The linker carries the already unique file
+mapping into that protected namespace only when class names, namespace kinds,
+exact generated owner labels and unique ownership all agree. A real-compiler
+fixture exercises protected member access and rejects changed owners, namespace
+kinds and shared ownership.
+
+A separate rule restores a positive compiler dispatch hint to the release's
+hint of 1 for a sole named global function, in one script without classes or
+`callmethod` instructions. Named method identity must match. Adobe's
+[ABC parser](https://raw.githubusercontent.com/adobe/avmplus/master/core/AbcParser.cpp)
+ignores this encoded hint when resolving the named method; complete ABC and
+compressed-movie equality remain the acceptance gate. The fixture rejects a
+zero compiler hint, a getter in place of the function, and a changed method
+reference. Freshly compiled pristine `stackTrace` now passes the complete movie
+comparison: its native output used hint 21, while the release uses 1.
+
+All 17 tests pass, including three real-compiler integration tests. The 58-script
+saved fresh-compilation report now links three scripts exactly, with 52 differences
+and three compilation failures. The manifest contains 191 reviewed source
+patches. With 645 distinct pristine-script successes, accumulated individual
+proofs cover 836 of 878 scripts. This is not yet a whole-tree matching build.
+
+The premium example rebuilt against the 191-entry manifest retains its tested
+movie hash `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+with one changed method and identical non-code content. Its new manifest hashes
+are recorded separately from the earlier native-game test.
+
+Two more imported-unit source repairs subsequently pass the full movie check.
+`ButtonBar` restores its captured parameter name, removing the decompiler's copy
+into a second activation slot, along with explicit counter initializers and
+final switch/default breaks. `IconContainer` restores its captured parameter
+names, declaration order, typed count assignment, named local function and array
+field initializer. Allowing the compiler to insert superclass initialization
+places that local function's creation after the field initializer and superclass
+call, exactly as in the release. No further linker rule was needed.
+
+The manifest now has 193 patches and accumulated individual-script evidence
+covers 838 of 878 scripts; 40 remain. Fourteen unit tests pass after these
+source-only additions. The 193-entry premium rebuild again has the same tested
+movie hash, one changed method and identical non-code content; its manifest
+identities are recorded as another rebuild, without claiming another game run.
+
+The final linker was also run over all 878 saved pristine compiler artifacts.
+The result remains 642 exact, 222 different and 14 not compiled, with every
+previously exact movie hash preserved and no status changes. This is a linker
+regression over saved artifacts, separate from the newer compilation that proves
+`MessageAskSell`, `mx_internal` and `stackTrace` exact.

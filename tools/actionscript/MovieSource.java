@@ -660,6 +660,36 @@ public final class MovieSource {
                 }
             }
           }
+          // A file-private helper class carries the file's generated identity
+          // into its protected namespace, e.g. Tween.as$218:Prop. Relocate that
+          // owned namespace only after the containing file has a unique map.
+          for (int owner = 0; owner < original.instance_info.size(); owner++) {
+            var before = original.instance_info.get(owner);
+            var after = compiled.instance_info.get(owner);
+            var oldName = original.constants.getMultiname(before.name_index);
+            var newName = compiled.constants.getMultiname(after.name_index);
+            if (oldName.kind != 7 || newName.kind != 7 || before.protectedNS == 0
+                    || after.protectedNS < retained) continue;
+            var oldFile = original.constants.getNamespace(oldName.namespace_index);
+            var newFile = compiled.constants.getNamespace(newName.namespace_index);
+            String simple = original.constants.getString(oldName.name_index);
+            if (oldFile.kind != 5 || newFile.kind != 5
+                    || !simple.equals(compiled.constants.getString(newName.name_index))
+                    || !Objects.equals(mapping.get(newName.namespace_index), oldName.namespace_index)) continue;
+            var oldProtected = original.constants.getNamespace(before.protectedNS);
+            var newProtected = compiled.constants.getNamespace(after.protectedNS);
+            String oldOwner = original.constants.getString(oldFile.name_index) + ":" + simple;
+            String newOwner = compiled.constants.getString(newFile.name_index) + ":" + simple;
+            if (oldProtected.kind != 0x18 || newProtected.kind != 0x18
+                    || !oldOwner.equals(original.constants.getString(oldProtected.name_index))
+                    || !newOwner.equals(compiled.constants.getString(newProtected.name_index))) continue;
+            if (original.instance_info.stream().filter(i -> i.protectedNS == before.protectedNS).count() != 1
+                    || compiled.instance_info.stream().filter(i -> i.protectedNS == after.protectedNS).count() != 1)
+                throw new IOException("Ambiguous file-private protected namespace owner");
+            Integer previous = mapping.putIfAbsent(after.protectedNS, before.protectedNS);
+            if (previous != null && previous != before.protectedNS)
+                throw new IOException("Conflicting file-private protected namespace mapping");
+          }
         }
         return mapping;
     }
@@ -961,6 +991,21 @@ public final class MovieSource {
                     && a.kindType == b.kindType && a.type_index == b.type_index
                     && a.value_index == b.value_index && a.value_kind == b.value_kind
                     && a.slot_id == 0 && b.slot_id == 1) b.slot_id = 0;
+            // Preserve the release's dispatch hint for a sole global function.
+            // Adobe's parser ignores this field and binds by the named trait.
+            // Keep this narrower than a general vtable relocation: no classes,
+            // other scripts, getters/setters or early-bound callmethod sites.
+            if (original.script_info.size() == 1 && compiled.script_info.size() == 1
+                    && original.instance_info.isEmpty() && compiled.instance_info.isEmpty()
+                    && before.size() == 1 && after.size() == 1
+                    && before.get(0) instanceof TraitMethodGetterSetter a
+                    && after.get(0) instanceof TraitMethodGetterSetter b
+                    && a.kindType == 1 && b.kindType == 1 && a.name_index == b.name_index
+                    && a.method_info == b.method_info && a.disp_id == 1 && b.disp_id > 0
+                    && java.util.stream.Stream.concat(original.bodies.stream(), compiled.bodies.stream())
+                        .flatMap(body -> body.getCode().code.stream())
+                        .noneMatch(instruction -> instruction.definition.instructionCode == 0x43))
+                b.disp_id = a.disp_id;
         }
     }
 

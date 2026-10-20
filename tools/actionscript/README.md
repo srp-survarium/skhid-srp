@@ -163,6 +163,10 @@ It keeps the compiler's method bodies, signatures, class definitions, scope and
 stack limits, and exception tables. It restores named method and trait ordering.
 Class/file private namespaces are mapped by their compiler-generated owners,
 requiring unique identities in both pools; ambiguous ownership is refused.
+For a file-private helper class, its generated protected namespace follows the
+already mapped file identity. Both class names, namespace kinds and generated
+owner labels must agree, and each protected namespace must have exactly one
+class owner.
 For exact baseline linking, earlier method patches may have left several empty
 file-private namespaces in one class. The linker can select a method's original
 file namespace when that method used exactly one, and the namespaces have no
@@ -176,6 +180,13 @@ Changing reference widths relocates conditional/unconditional branches, switch
 tables and exception boundaries by instruction identity. Invalid boundaries
 and unsupported control-flow forms are refused. The linker checks every
 existing pool entry before retaining its index and removes unused additions.
+For a sole global function in a single script without classes, a positive
+compiler dispatch hint can be restored to the release's hint of 1. The named
+method must match and neither body set may contain `callmethod`. This is not a
+general class dispatch-table relocation. Adobe's
+[ABC parser](https://raw.githubusercontent.com/adobe/avmplus/master/core/AbcParser.cpp)
+ignores this encoded hint when resolving the named method. Complete ABC and
+movie equality remain mandatory.
 Empty debug method names and the Adobe editor's `__go_to_definition_help` and
 `__go_to_ctor_definition_help` annotations follow the original layout. Runtime
 annotations are compared by their complete resolved names, keys and values;
@@ -276,7 +287,7 @@ Use `--compiler reconstruction` with the pinned patch manifest to select these
 per-class compilers in one measurement. Classes without an override use
 `flex-strict`; every report row records the compiler actually used. Explicit
 `--compiler ffdec`, `flex`, `flex-strict` or `flex-library` selects that compiler for every
-class, for comparison experiments. The per-class profile currently proves 187
+class, for comparison experiments. The per-class profile currently proves 193
 reconstructed classes, including easing, button, list, text, message, clan,
 debug and tutorial classes. Source fixes also recover local declaration order,
 static field slot order and explicit switch breaks where required.
