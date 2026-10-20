@@ -2691,6 +2691,8 @@ va	name	location	role	basis
 0x003052e0	survarium::booby_trap_core::serialize	stack+4	writer	inferred
 0x003053c0	survarium::booby_trap_core::deserialize	ECX	trap_secondary_receiver_fullobject_plus_0x74	inferred
 0x003053c0	survarium::booby_trap_core::deserialize	stack+4	reader	inferred
+0x0030d750	survarium::computed_show_animation_time_scale	EDI	the state's animation resources; the first's length (end - start, frames at 30/s) is used	observed
+0x0030d750	survarium::computed_show_animation_time_scale	stack+4	float time the animation must last (show_time, hide_time, take_time, put_time)	observed
 0x0030da60	survarium::weapon_core_animation_end_aware_state::initialize	ECX	animation aware state	inferred
 0x0030db60	survarium::weapon_core_animation_end_aware_state::on_animation_end	ECX	animation end aware state	inferred
 0x0030db60	survarium::weapon_core_animation_end_aware_state::on_animation_end	stack+4	animation callback parameters	inferred
@@ -2989,6 +2991,7 @@ va	name	location	role	basis
 0x003384e0	survarium::player_logic_dead_state::on_animation_end	ECX	dead_state	inferred
 0x003384e0	survarium::player_logic_dead_state::on_animation_end	stack+4	callback_params	inferred
 0x00338b20	survarium::victory_item_core_take_state::item_and_hands_expression	ECX	victory_item_core_take_state: +1Ch the victory_item_core (its user at +8), +0E8h the take animation's time scale	observed
+0x00339070	survarium::victory_item_core_put_state::item_and_hands_expression	ECX	victory_item_core_put_state (RTTI victory_item_core_drop_state, vtable 0xA1BFE8): +0E8h the put animation's time scale, loaded at 0x339101 by its helper 0x339100	observed
 0x00339cc0	survarium::weapon_core_throw_grenade_state::execute	ECX	throw-grenade state	inferred
 0x00339d70	survarium::weapon_core_throw_grenade_state::register_animations	ECX	throw-grenade state	inferred
 0x00339d70	survarium::weapon_core_throw_grenade_state::register_animations	stack+4	registration context	inferred
@@ -3112,6 +3115,9 @@ va	name	location	role	basis
 0x00344cb0	survarium::victory_item_core_base_state::serialize	stack+4	writer	inferred
 0x00344d70	survarium::victory_item_core_base_state::deserialize	ECX	victory item base state	inferred
 0x00344d70	survarium::victory_item_core_base_state::deserialize	stack+4	reader	inferred
+0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	XMM0 low32	float, 0.0 from the take and put expressions	observed
+0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+20	float time scale of the hands' animation ([state+0E8h] at the take and put)	observed
+0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+4	the victory item state; its item [+1Ch], whose user [+8] is animated	observed
 0x0034be30	vostok::render::culling::portal_sector_structure::portal_sector_structure	EAX	owner storage copied ESI	observed
 0x0034be30	vostok::render::culling::portal_sector_structure::portal_sector_structure	entry ESP+4	portal capacity count	observed
 0x0034be30	vostok::render::culling::portal_sector_structure::portal_sector_structure	entry ESP+8	sector capacity count	observed

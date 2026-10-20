@@ -1131,6 +1131,7 @@ va	status	ref_021d	name
 0x002f8460	reviewed	0x001e8b65	survarium::usable_object::serialize_usable_object
 0x002f84c0	reviewed	0x001e8bcb	survarium::usable_object::deserialize_usable_object
 0x002f8510	reviewed	0x001e8c2c	survarium::usable_object::post_deserialize_resolve
+0x002fa050	reviewed	0x001dffde	survarium::victory_item_core_cook::process_loading_victory_item_core
 0x002fc4b0	reviewed	0x001faa61	survarium::inventory::inventory
 0x002fc560	reviewed	0x001faacf	survarium::inventory::`scalar deleting destructor'
 0x002fc620	reviewed	0x001fab02	survarium::inventory::set_item
@@ -1148,6 +1149,7 @@ va	status	ref_021d	name
 0x002fff10	reviewed	0x001e703d	survarium::inventory_item::deserialize
 0x00300710	reviewed	0x001e739d	survarium::victory_item_core::can_use
 0x00300b00	reviewed	0x001e7565	survarium::victory_item_core::set_user
+0x00301920	reviewed	0x001e7d46	survarium::victory_item_core::initialize_logic
 0x00301c40	reviewed	0x001e7f5f	survarium::victory_item_core::set_spotted
 0x00301ca0	reviewed	0x00145450	survarium::victory_item_core::can_be_spotted_by
 0x00303da0	reviewed	0x001ec610	survarium::grenade_core::serialize
@@ -1157,6 +1159,7 @@ va	status	ref_021d	name
 0x0030d750	reviewed	0x001b1cf4	survarium::computed_hide_animation_time_scale
 0x0030d750	reviewed	0x001b1cf4	survarium::computed_show_animation_time_scale
 0x0030d7f0	reviewed	0x001f114a	survarium::weapon_core_show_state::weapon_core_show_state
+0x0030d940	reviewed	0x001f11cf	survarium::weapon_core_show_state::initialize
 0x0030d9c0	reviewed	0x001f11e8	survarium::weapon_core_hide_state::weapon_and_hands_expression
 0x0030d9c0	reviewed	0x001f11e8	survarium::weapon_core_show_state::weapon_and_hands_expression
 0x0030da60	reviewed	0x001f1294	survarium::weapon_core_animation_end_aware_state::initialize
@@ -1164,6 +1167,8 @@ va	status	ref_021d	name
 0x0030dbb0	reviewed	0x001f135f	survarium::weapon_core_animation_end_aware_state::deserialize
 0x0030dc90	reviewed	0x001f13e0	survarium::weapon_core_animation_end_aware_state::serialize
 0x0030ddc0	reviewed	0x001f14eb	survarium::weapon_core_hide_state::weapon_core_hide_state
+0x0030def0	reviewed	0x001f158f	survarium::weapon_core_hide_state::initialize
+0x0030dfe0	reviewed	0x001f1643	survarium::weapon_core_hide_state_base::on_animation_end_impl
 0x0030e910	reviewed	0x001f1d0f	survarium::weapon_core_fire_state_base::initialize
 0x0030ea00	reviewed	0x001f1db9	survarium::weapon_core_fire_state_base::execute
 0x0030ea50	reviewed	0x001f1ea3	survarium::weapon_core_fire_state_base::on_animation_end_impl
@@ -1288,6 +1293,10 @@ va	status	ref_021d	name
 0x003384e0	reviewed	0x002072a1	survarium::player_logic_dead_state::on_animation_end
 0x00338940	reviewed	0x002081fa	survarium::victory_item_core_take_state::victory_item_core_take_state
 0x00338b20	reviewed	0x002082df	survarium::victory_item_core_take_state::item_and_hands_expression
+0x00338be0	reviewed	0x0020839b	survarium::victory_item_core_carry_state::victory_item_core_carry_state
+0x00338d90	reviewed	0x00208467	survarium::victory_item_core_carry_state::item_and_hands_expression
+0x00338f00	reviewed	0x0020851a	survarium::victory_item_core_put_state::victory_item_core_put_state
+0x00339070	reviewed	0x002082df	survarium::victory_item_core_put_state::item_and_hands_expression
 0x00339cc0	reviewed	0x002092a2	survarium::weapon_core_throw_grenade_state::execute
 0x00339d70	reviewed	0x00209323	survarium::weapon_core_throw_grenade_state::register_animations
 0x0033a300	reviewed	0x00208f72	survarium::weapon_core_throw_grenade_state::`scalar deleting destructor'
