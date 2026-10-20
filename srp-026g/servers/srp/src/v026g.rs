@@ -340,6 +340,10 @@ impl web_server::LobbyLink for WebLink {
     fn admin_text(&self) -> Option<(String, String)> {
         self.inbox.admin_text()
     }
+
+    fn fake_rooms(&self, action: &str, room: &str) -> String {
+        self.inbox.fake_rooms(action, room)
+    }
 }
 
 /// What the stack is started with.

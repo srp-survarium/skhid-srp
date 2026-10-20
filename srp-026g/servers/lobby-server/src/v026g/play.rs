@@ -580,6 +580,9 @@ impl Core<'_> {
     /// The account's level (its gear's, `matchmaking::level`); the lowest
     /// for an account the lobby does not have.
     pub(super) fn level_of(&self, account_id: u32, unix: u64) -> Level {
+        if let Some(fake) = self.fake(account_id) {
+            return matchmaking::level_of(fake.gear, 0);
+        }
         match self.accounts.get(account_id) {
             Some(account) => matchmaking::level(&account.locked(), unix),
             None => Level::default(),

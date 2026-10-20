@@ -434,6 +434,20 @@ fn the_admin_sets_and_clears_the_text_for_everyone() {
     assert_eq!(world.told.admin_text(), None);
 }
 
+/// The local test's fake rooms (`SRP_FAKE_ROOMS`): a script's text
+/// answer, with the token; a lobby without them refuses.
+#[test]
+fn the_fake_rooms_action_answers_a_script_in_text() {
+    let world = world();
+    let answer = world.admin(&[("tab", "fake_room"), ("action", "add")]);
+    assert_eq!(answer, "refused: fake rooms are off\n");
+    let refused = world.web.route(
+        &post("/hidden", &[("token", "bad"), ("tab", "fake_room")]),
+        "t",
+    );
+    assert_eq!(refused.status, "403 Forbidden");
+}
+
 #[test]
 fn bans_maintenance_and_registration_are_the_stores() {
     let world = world();

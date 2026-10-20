@@ -910,3 +910,139 @@ fn one_who_leaves_the_match_by_its_own_word_is_out_of_the_room_and_may_come_agai
     assert_eq!(report.stats.rows.len(), 2);
     world.assert_clean();
 }
+
+/// A lobby with the fake rooms of a local test (`SRP_FAKE_ROOMS`).
+fn with_fake_rooms(rooms: &str, leave_every: Option<Duration>) -> World {
+    let mut settings = Settings::local("127.0.0.1:0");
+    settings.rooms.fakes = crate::v026g::fake_rooms::Config {
+        rooms: crate::v026g::fake_rooms::parse_rooms(rooms).unwrap(),
+        leave_every,
+    };
+    World::with_settings(settings)
+}
+
+/// Fake rooms (local tests only, the owner's of 2026-10-20): listed with
+/// their fake members as any room; a full one offers a queue, whose first
+/// moves in when the local admin takes a fake out; fakes never start a
+/// vote or a match, and a real player alone with them is too few.
+#[test]
+fn a_full_fake_room_queues_and_its_first_moves_in_when_a_fake_is_removed() {
+    let mut world = with_fake_rooms("Full 2:4/4,Half:1/4", None);
+    assert_eq!(world.core.rooms.len(), 2);
+    let alice = world.connect("Alice");
+    let list = rows(&mut world, alice, ROOMS_LIST, 32);
+    assert_eq!(list[0], "S1;L;2;0");
+    let row = |name: &str| {
+        list.iter()
+            .find(|row| row.ends_with(&format!(";{name}")))
+            .unwrap_or_else(|| panic!("no {name}: {list:?}"))
+            .split(';')
+            .map(str::to_owned)
+            .collect::<Vec<_>>()
+    };
+    let (full, half) = (row("Full 2"), row("Half"));
+    // 2 v 2, its four places taken.
+    assert_eq!((&full[3][..], &full[4][..]), ("2", "4"));
+    assert_eq!(half[4], "1");
+    let key: u32 = full[0].parse().unwrap();
+    // Full: Join is refused, the queue takes her.
+    assert_eq!(
+        header(&rows(&mut world, alice, ROOM_JOIN_BASE + key, 1))[1],
+        "N"
+    );
+    assert_eq!(
+        rows(&mut world, alice, ROOM_QUEUE_BASE + key, 1),
+        [format!("S1;N;0;{key};1")]
+    );
+    world.advance(Duration::from_secs(2));
+    assert_eq!(state(&mut world, alice), [format!("S1;N;0;{key};1")]);
+
+    // The local admin takes a fake out: she is in at once.
+    let now = world.now;
+    let answer = world.core.fake_rooms_action("remove", "full 2", now);
+    assert!(answer.starts_with("removed Fake 4\n"), "{answer}");
+    assert!(answer.contains("Alice (gear 0, real)"), "{answer}");
+    let inside = state(&mut world, alice);
+    assert_eq!(header(&inside)[KEY], key.to_string(), "{inside:?}");
+    assert_eq!(header(&inside)[MEMBERS], "4");
+    // The fakes as members there: a gear, fit, not away; the first owns it.
+    assert!(
+        inside.contains(&"P;0;5;1;0;0;0;0;Full 2".to_owned()),
+        "{inside:?}"
+    );
+    assert!(
+        inside.contains(&"P;3;0;0;1;0;0;0;Alice".to_owned()),
+        "{inside:?}"
+    );
+
+    // One real player and three fakes: no vote, no match, ever.
+    world.advance(Duration::from_secs(60));
+    assert_eq!(header(&state(&mut world, alice))[PHASE], "0");
+    assert!(world.host.made.locked().is_empty());
+    // The site counts no fake.
+    assert_eq!(world.store.room_counts().rooms, 1);
+    assert_eq!(world.store.room_counts().in_rooms, 1);
+
+    // Full again with Alice: a fake more is refused there; another takes one.
+    let now = world.now;
+    assert!(
+        world
+            .core
+            .fake_rooms_action("add", "", now)
+            .starts_with("refused: room")
+    );
+    let answer = world.core.fake_rooms_action("add", "Half", now);
+    assert!(answer.starts_with("added Fake "), "{answer}");
+    assert!(answer.contains("2/4"), "{answer}");
+    // Never its last member: the room would be gone.
+    let removed = world.core.fake_rooms_action("remove", "Half", now);
+    assert!(removed.starts_with("removed"), "{removed}");
+    let last = world.core.fake_rooms_action("remove", "Half", now);
+    assert!(
+        last.starts_with("refused") && last.contains("1/4"),
+        "{last}"
+    );
+    assert!(
+        world
+            .core
+            .fake_rooms_action("jump", "", now)
+            .starts_with("refused")
+    );
+    world.assert_clean();
+}
+
+/// `SRP_FAKE_ROOMS_LEAVE_SECONDS`: a fake leaves a full fake room with a
+/// queue on the timer, and its queue's first moves in; a full one without
+/// a queue stays full.
+#[test]
+fn the_fake_rooms_timer_lets_a_queued_player_in() {
+    let mut world = with_fake_rooms("Lone:2/2,Full:2/2", Some(Duration::from_secs(5)));
+    let bob = world.connect("Bob");
+    let full = world
+        .core
+        .rooms
+        .all()
+        .find(|room| world.core.name_of(room.maker).as_deref() == Some("Full"))
+        .unwrap()
+        .key;
+    rows(&mut world, bob, ROOM_QUEUE_BASE + full, 1);
+    world.advance(Duration::from_secs(6));
+    let inside = state(&mut world, bob);
+    assert_eq!(header(&inside)[KEY], full.to_string(), "{inside:?}");
+    assert!(world.core.rooms.all().all(|room| room.members.len() == 2));
+}
+
+/// Unset: no fake room, and the local admin's action is refused.
+#[test]
+fn without_fake_rooms_there_are_none() {
+    let mut world = World::new();
+    assert!(world.core.rooms.is_empty());
+    let now = world.now;
+    assert!(
+        world
+            .core
+            .fake_rooms_action("add", "", now)
+            .starts_with("refused: fake rooms are off")
+    );
+    assert!(world.core.rooms.is_empty());
+}

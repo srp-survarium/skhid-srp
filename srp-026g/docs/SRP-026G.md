@@ -289,6 +289,40 @@ Why it is not for a public server: the one real client could claim any
 plausible result, and whoever holds a named account is never checked. The
 name belongs to whoever registers it first, as any name does.
 
+### Fake rooms (local tests only; `servers/lobby-server/src/v026g/fake_rooms.rs`)
+
+Rooms whose members are no clients, so one game window can test a full room
+and its queue (the owner's of 2026-10-20). **Never on a public server.**
+
+| Variable | Default | What |
+|---|---|---|
+| `SRP_FAKE_ROOMS` | not set: no fake room, the admin's action is refused | Rooms made at start, comma-separated, each `Name:members/places[:PIN]`, e.g. `Full 8:8/8,Half:3/8,Full 2:2/2:1234`: `places` both sides together (even, 2 to 20), `members` fakes in it (1 to `places`), a 4-digit PIN optional. The start log says `FAKE ROOMS for local tests` |
+| `SRP_FAKE_ROOMS_LEAVE_SECONDS` | not set: no timer | Every N s, one fake leaves the first full fake room that has a queue, so the queue's first moves in |
+
+- A fake is shown as any member: the room's maker has the room's name, the
+  others `Fake N`, each a gear level of 4 to 8, fit, not away. It fills a
+  place (a full room offers Queue), but it never counts for a vote or a match
+  and never gets a message; a real player alone with fakes is one player too
+  few (no vote, as in any room). Max level any, wait 30 s, the whole map pool.
+- Nothing is saved: fakes have no account (no rating, result or stat), the
+  rooms are in memory as all rooms are, and the site's room counts leave
+  fakes out.
+- By hand: `srp-026g/scripts/local-clients/room.sh` calls the local web admin
+  (`tab=fake_room`, a text answer):
+
+  ```sh
+  srp-026g/scripts/local-clients/room.sh                 # every room, members, queue
+  srp-026g/scripts/local-clients/room.sh add [ROOM]      # a fake more
+  srp-026g/scripts/local-clients/room.sh remove [ROOM]   # a fake out: a queued player moves in
+  ```
+
+  `ROOM` is a room's name or key, none the first fake room (`add player` and
+  `remove player` read the same). A room's last member is never removed. The
+  script takes the web port, `SRP_ADMIN_PATH` and `SRP_ADMIN_TOKEN` from the
+  environment, else from the local launcher's `private/local-clients/config.json`,
+  else 18088, `/admin-local`, `local-demo-token`. With the launcher, put
+  `"SRP_FAKE_ROOMS": "Full 8:8/8,Half:3/8"` in its `server.env`.
+
 ### Rewards and features
 
 | Variable | Default | What |

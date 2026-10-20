@@ -992,6 +992,10 @@ impl Web {
         if request.field("tab") == password_reset::DIRECT_TAB {
             return self.admin_reset_direct(request, peer);
         }
+        // A local test's script (`SRP_FAKE_ROOMS`): a text back.
+        if request.field("tab") == "fake_room" {
+            return self.admin_fake_rooms_026g(request, peer);
+        }
         let lang = request.lang;
         // The tab the form was on says what to do: Enter in any field
         // submits the form, whichever button that presses.

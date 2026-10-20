@@ -78,5 +78,10 @@ The rules the code and the tests follow, the owner's of 2026-10-16 to 10-19. Cod
   the window hidden (not the match start's 15).
 - **Site:** the launcher shows rooms and players in rooms; `/api/stats` has `rooms`,
   `in_rooms`, `queued` (in room queues).
+- **Fake rooms (local tests only, 2026-10-20):** `SRP_FAKE_ROOMS` makes rooms of
+  fake members at start, so one game window tests a full room and its queue;
+  `room.sh add|remove` (or `SRP_FAKE_ROOMS_LEAVE_SECONDS`) puts a fake in or
+  takes one out. A fake fills a place but is no player: never in a vote or a
+  match, never saved (`SRP-026G.md` "Fake rooms").
 - **Deferred:** the Rooms list's visibility (members of the selected room, "Full · N in
   queue", header totals; no friend or clan markers): after rooms are solid.

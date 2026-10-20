@@ -49,6 +49,15 @@ pub const DRAFT_CHUNK: usize = 20;
 const SHORT_KEYS: std::ops::RangeInclusive<u32> = 1000..=9999;
 /// The largest key.
 const KEY_MAX: u32 = 99_999;
+/// The first account id of a fake member (`SRP_FAKE_ROOMS`, local tests
+/// only): far above any real account's, which count up from 1.
+pub const FAKE_MEMBERS: u32 = 0xF000_0000;
+
+/// Whether the account is a fake member of a room (local tests only): it
+/// fills a place, but it is no player, never counts for a vote or a match.
+pub fn is_fake(account_id: u32) -> bool {
+    account_id >= FAKE_MEMBERS
+}
 
 /// What a room is made with.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -375,6 +384,54 @@ impl Rooms {
         Ok(key)
     }
 
+    /// A room of `members` as they are (the first owns it and names it), no
+    /// check made: the fake rooms of a local test (`SRP_FAKE_ROOMS`). None
+    /// of them may be in a room; none without members, a pool or a size.
+    pub fn seed(
+        &mut self,
+        members: &[u32],
+        spec: Spec,
+        pool: Vec<u8>,
+        below: &mut impl FnMut(usize) -> usize,
+    ) -> Option<u32> {
+        let &maker = members.first()?;
+        if pool.is_empty()
+            || spec.size == 0
+            || members.len() > 2 * usize::from(spec.size)
+            || members
+                .iter()
+                .any(|member| self.of_account.contains_key(member))
+        {
+            return None;
+        }
+        let key = self.new_key(below)?;
+        let serial = self.next_serial();
+        let cards = Self::draw(&pool, below);
+        self.rooms.insert(
+            key,
+            Room {
+                key,
+                owner: maker,
+                maker,
+                spec,
+                pool,
+                members: members.to_vec(),
+                stage: Stage::Waiting,
+                cards,
+                votes: HashMap::new(),
+                last_map: 0,
+                after_match: false,
+                in_match: HashSet::new(),
+                serial,
+                kicked: HashSet::new(),
+            },
+        );
+        for &member in members {
+            self.of_account.insert(member, key);
+        }
+        Some(key)
+    }
+
     /// The account joins room `key`, with the PIN it gave last (within
     /// [`PIN_LIFE`]) and its equipment level `gear`; it leaves the room it
     /// was in. Joining the room it is in already is no change.
@@ -642,10 +699,11 @@ impl Rooms {
     ) -> Vec<Due> {
         let mut due = Vec::new();
         for room in self.rooms.values_mut() {
+            // A fake member (a local test's) is never a player.
             let enough = room
                 .members
                 .iter()
-                .filter(|&&member| counts(member))
+                .filter(|&&member| !is_fake(member) && counts(member))
                 .count()
                 >= room.needs();
             // The vote is always there: a match that started took its cards,
@@ -1108,6 +1166,41 @@ mod tests {
         rooms.leave(4);
         rooms.tick(now, &mut first, |_| true);
         assert_eq!(rooms.get(key).unwrap().stage, Stage::Waiting);
+    }
+
+    /// Fake members (`SRP_FAKE_ROOMS`) fill a room, so it offers a queue
+    /// whose first moves in when one leaves; they never start a vote, and
+    /// a real player alone with them is one player too few.
+    #[test]
+    fn fake_members_fill_a_room_but_never_start_a_vote() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let fakes: Vec<u32> = (1..=4).map(|n| FAKE_MEMBERS + n).collect();
+        let key = rooms
+            .seed(&fakes, spec(2, None), POOL.to_vec(), &mut first)
+            .unwrap();
+        assert!(rooms.get(key).unwrap().is_full());
+        assert_eq!(
+            rooms.seed(&fakes, spec(2, None), POOL.to_vec(), &mut first),
+            None
+        );
+        assert_eq!(rooms.join(1, 0, key, now), Err(Refused::Full));
+        assert_eq!(rooms.enqueue(1, 0, key, now), Ok(1));
+        // Full of fakes: no vote, whatever the lobby counts.
+        assert!(rooms.tick(now, &mut first, |_| true).is_empty());
+        assert_eq!(rooms.get(key).unwrap().stage, Stage::Waiting);
+        rooms.leave(fakes[3]);
+        assert_eq!(rooms.next_in_queue(key), Some(1));
+        assert!(rooms.admit(1, key));
+        // One real player with three fakes: still too few.
+        rooms.tick(now, &mut first, |_| true);
+        assert_eq!(rooms.get(key).unwrap().stage, Stage::Waiting);
+        // A second real one: the vote.
+        rooms.leave(fakes[2]);
+        rooms.join(2, 0, key, now).unwrap();
+        rooms.tick(now, &mut first, |_| true);
+        assert!(matches!(rooms.get(key).unwrap().stage, Stage::Vote { .. }));
+        assert!(!is_fake(u32::MAX >> 4) && is_fake(FAKE_MEMBERS));
     }
 
     #[test]

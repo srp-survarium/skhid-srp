@@ -102,6 +102,7 @@ mod away;
 mod clans;
 mod core;
 mod dispatch;
+mod fake_rooms;
 mod items;
 mod patch_check;
 mod play;
@@ -438,6 +439,13 @@ pub(crate) enum Notice {
     Broadcast {
         messages: Vec<ServerMessage>,
     },
+    /// The local admin's action on fake members (`fake_rooms`): its
+    /// answer, as text, goes back on `reply`.
+    FakeRooms {
+        action: String,
+        room: String,
+        reply: std::sync::mpsc::Sender<String>,
+    },
 }
 
 /// What the other servers tell the lobby. The lobby's thread takes the
@@ -503,6 +511,22 @@ impl Inbox {
     /// The operator's text that stands, if any.
     pub fn admin_text(&self) -> Option<(String, String)> {
         self.admin_text.locked().clone()
+    }
+
+    /// **Local tests only** (`SRP_FAKE_ROOMS`): the admin's `add`, `remove`
+    /// or `show` of a fake member in a room (its name or key, empty: the
+    /// first fake room), done on the lobby's next pass; the rooms after it,
+    /// as text. Refused when fake rooms are off.
+    pub fn fake_rooms(&self, action: &str, room: &str) -> String {
+        let (reply, answer) = std::sync::mpsc::channel();
+        self.notices.locked().push(Notice::FakeRooms {
+            action: action.to_owned(),
+            room: room.to_owned(),
+            reply,
+        });
+        answer
+            .recv_timeout(Duration::from_secs(3))
+            .unwrap_or_else(|_| "error: the lobby did not answer".to_owned())
     }
 
     /// Ends [`Lobby::run`] on its next pass.

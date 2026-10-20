@@ -49,6 +49,7 @@
 //! |---|---|---|
 //! | `SRP_ROOMS_MAX` | 50 | the most rooms at once, 1 to 1000 |
 //! | `SRP_ROOMS_EXTRA_MAPS` | (none) | playable `maps_dict` ids a creator may add to a pool besides the match pool (`SRP_MATCH_MAPS`): the experimental maps |
+//! | `SRP_FAKE_ROOMS`, `SRP_FAKE_ROOMS_LEAVE_SECONDS` | (none) | **local tests only**: rooms of fake members made at start (`fake_rooms`) |
 
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
@@ -73,7 +74,7 @@ pub const DEFAULT_MAX_ROOMS: usize = 50;
 /// What a room Play makes is made with (any max level, the whole pool):
 /// 8 a side, the owner's word of 2026-10-18 ("8vs8 not 10vs10").
 const QUICK_SIZE: u8 = 8;
-const QUICK_WAIT: u8 = 30;
+pub(super) const QUICK_WAIT: u8 = 30;
 /// How long a member who comes while its room's match is played sees the
 /// room before it is put into the match, unless it asks first (the owner's
 /// of 2026-10-19).
@@ -87,6 +88,8 @@ pub struct Config {
     /// `SRP_ROOMS_EXTRA_MAPS`: playable ids a pool may hold besides the
     /// match pool.
     pub extra_maps: Vec<u8>,
+    /// `SRP_FAKE_ROOMS`, `SRP_FAKE_ROOMS_LEAVE_SECONDS`: local tests only.
+    pub fakes: super::fake_rooms::Config,
 }
 
 impl Default for Config {
@@ -94,6 +97,7 @@ impl Default for Config {
         Self {
             max_rooms: DEFAULT_MAX_ROOMS,
             extra_maps: Vec::new(),
+            fakes: Default::default(),
         }
     }
 }
@@ -128,6 +132,7 @@ impl Config {
         Self {
             max_rooms,
             extra_maps,
+            fakes: super::fake_rooms::Config::from_env(),
         }
     }
 }
@@ -508,16 +513,21 @@ impl Core<'_> {
             .members
             .iter()
             .map(|&account_id| {
-                let gear = self.accounts.get(account_id).map_or(0, |account| {
-                    matchmaking::gear_level(&account.locked(), unix)
-                });
+                let fake = self.fake(account_id);
+                let gear = match fake {
+                    Some(fake) => fake.gear,
+                    None => self.accounts.get(account_id).map_or(0, |account| {
+                        matchmaking::gear_level(&account.locked(), unix)
+                    }),
+                };
                 Member {
                     gear,
                     owner: account_id == room.owner,
                     me: account_id == who.account_id,
                     in_match: room.in_match.contains(&account_id),
                     fit: self.member_fit(account_id),
-                    away: !self.by_account.contains_key(&account_id),
+                    // A fake member (a local test's) is shown as one there.
+                    away: fake.is_none() && !self.by_account.contains_key(&account_id),
                     name: self.name_of(account_id).unwrap_or_default(),
                 }
             })
@@ -705,7 +715,7 @@ impl Core<'_> {
     /// still may come: in the lobby (its game there, in no room, not in a
     /// match), its equipment within the max level. Straight into a match
     /// being played. One who may not is out of the queue.
-    fn room_admit_queues(&mut self, now: Instant) {
+    pub(super) fn room_admit_queues(&mut self, now: Instant) {
         // Near a maintenance nobody may come: the queues wait, to be told
         // (code 9) when their rooms are disbanded.
         if self.maintenance_is_near() {
@@ -789,6 +799,10 @@ impl Core<'_> {
     /// The member as its room's match takes it: free in the lobby, its
     /// active kit one Play would take, its game of the pool.
     fn room_ready(&self, account_id: u32) -> Option<Ready> {
+        // A fake member (a local test's) is no player: never in a match.
+        if model::is_fake(account_id) {
+            return None;
+        }
         let addr = *self.by_account.get(&account_id)?;
         let player = self.player(addr)?;
         if player.in_match.is_some() || player.connect.is_some() || player.queued_since.is_some() {
@@ -823,16 +837,23 @@ impl Core<'_> {
     /// over start, and members free in the lobby while their room's match
     /// is played go into it.
     pub(super) fn room_tick(&mut self, now: Instant) {
-        // What the site shows of the rooms.
+        // What the site shows of the rooms: no fake member of a local test,
+        // nor a room of fakes only.
+        let real = |room: &&model::Room| room.members.iter().any(|&m| !model::is_fake(m));
         self.store.set_room_counts(session::RoomCounts {
-            rooms: self.rooms.len(),
-            in_rooms: self.rooms.all().map(|room| room.members.len()).sum(),
+            rooms: self.rooms.all().filter(real).count(),
+            in_rooms: self
+                .rooms
+                .all()
+                .map(|room| room.members.iter().filter(|&&m| !model::is_fake(m)).count())
+                .sum(),
             queued: self.rooms.queued_total(),
         });
         self.room_left_matches();
         if self.rooms.is_empty() {
             return;
         }
+        self.fake_rooms_tick(now);
         self.room_admit_queues(now);
         // A maintenance is near: no room plays another match. A room not
         // playing ends now; one playing plays its match out and ends with it
@@ -876,7 +897,7 @@ impl Core<'_> {
             .flat_map(|room| {
                 room.members
                     .iter()
-                    .filter(|member| !room.in_match.contains(member))
+                    .filter(|&&member| !room.in_match.contains(&member) && !model::is_fake(member))
                     .copied()
                     .collect::<Vec<_>>()
             })
@@ -902,6 +923,11 @@ impl Core<'_> {
     /// equipment level within the room's max level (which holds for its
     /// matches, not only its door: equipment changes in the room).
     pub(super) fn member_fit(&self, account_id: u32) -> Fit {
+        // A fake member (a local test's) is shown as one who can play; it
+        // never plays (`room_ready`).
+        if self.fake(account_id).is_some() {
+            return Fit::Yes;
+        }
         let Some(account) = self.accounts.get(account_id) else {
             return Fit::Kit;
         };

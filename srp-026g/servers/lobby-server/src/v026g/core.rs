@@ -225,6 +225,8 @@ pub(super) struct Core<'a> {
     /// When a member who came while its room's match is played goes into
     /// it (`rooms::LATE_JOIN_WAIT` after it came, or at once on its ask).
     pub room_join_at: HashMap<u32, Instant>,
+    /// The fake members of a local test (`SRP_FAKE_ROOMS`; `fake_rooms`).
+    pub fakes: super::fake_rooms::Fakes,
 }
 
 impl<'a> Core<'a> {
@@ -241,7 +243,7 @@ impl<'a> Core<'a> {
         // (it ignores one it still holds, `social.md` §1.4), also after a
         // restart of srp: the ids start at the time.
         let next_message_id = (quests::now() as u32 & 0x0FFF_FFFF) << 3 | 1;
-        Self {
+        let mut core = Self {
             store,
             accounts,
             results,
@@ -274,7 +276,10 @@ impl<'a> Core<'a> {
             room_launching: HashMap::new(),
             room_codes: HashMap::new(),
             room_join_at: HashMap::new(),
-        }
+            fakes: Default::default(),
+        };
+        core.seed_fake_rooms(now);
+        core
     }
 
     // ------------------------------------------------------------ lookups
@@ -320,6 +325,9 @@ impl<'a> Core<'a> {
 
     /// The name the lobby shows for an account, in the lobby or not.
     pub fn name_of(&self, account_id: u32) -> Option<String> {
+        if let Some(fake) = self.fake(account_id) {
+            return Some(fake.name.clone());
+        }
         if let Some(account) = self.accounts.get(account_id) {
             return Some(account.locked().name.clone());
         }
@@ -989,6 +997,14 @@ impl<'a> Core<'a> {
                 for addr in self.players() {
                     self.send_all(addr, messages.clone());
                 }
+            }
+            Notice::FakeRooms {
+                action,
+                room,
+                reply,
+            } => {
+                let answer = self.fake_rooms_action(&action, &room, now);
+                let _ = reply.send(answer);
             }
             Notice::AccountChanged { account_id } => {
                 let Some(who) = self.who_is(account_id) else {

@@ -36,6 +36,12 @@ pub trait LobbyLink: Send + Sync {
     fn clear_admin_text(&self);
     /// The lines that stand.
     fn admin_text(&self) -> Option<(String, String)>;
+    /// **Local tests only** (`SRP_FAKE_ROOMS`): `add`, `remove` or `show` a
+    /// fake member of a room (`room`: its name or key; empty, the first fake
+    /// room); the rooms after it, as text.
+    fn fake_rooms(&self, _action: &str, _room: &str) -> String {
+        "refused: fake rooms are off".to_owned()
+    }
 }
 
 /// The match server's matches created and not yet ended.
@@ -446,6 +452,36 @@ impl Web {
                 item.name, item.dict_id
             ),
         )
+    }
+
+    /// **Local tests only**: a script's action on the fake members of the
+    /// rooms (`SRP_FAKE_ROOMS`, `scripts/local-clients/room.sh`): `action`
+    /// add, remove or show, `room` a name or key; the lobby's answer, as
+    /// text. The lobby refuses it when fake rooms are off.
+    pub(crate) fn admin_fake_rooms_026g(&self, request: &Request, peer: &str) -> Response {
+        let answer = |status: &'static str, body: String| Response {
+            status,
+            content_type: crate::ContentType::Text,
+            body: body + "\n",
+        };
+        match self.check_token(request, peer) {
+            Ok(()) => {}
+            Err(crate::TokenRefused::Locked) => {
+                return answer(
+                    "429 Too Many Requests",
+                    "locked: too many wrong tokens".into(),
+                );
+            }
+            Err(crate::TokenRefused::Wrong) => {
+                return answer("403 Forbidden", "wrong token".into());
+            }
+        }
+        let Some(game) = &self.game else {
+            return answer("404 Not Found", "refused: no 0.26g lobby".into());
+        };
+        let (action, room) = (request.field("action"), request.field("room"));
+        log::info!("Admin from {peer}: fake rooms: {action} {room:?}");
+        answer("200 OK", game.lobby.fake_rooms(action, room))
     }
 
     /// The operator's text for everyone in the lobby: set, or cleared.
