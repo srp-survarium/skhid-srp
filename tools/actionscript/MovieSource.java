@@ -1583,14 +1583,16 @@ public final class MovieSource {
             byte[] sourceBytes = Files.readAllBytes(Path.of(a[4]));
             Files.write(source, sourceBytes, StandardOpenOption.CREATE_NEW);
             Files.copy(Path.of(a[8]), selection);
-            for (String compiler : List.of("flex-library", "ffdec")) {
+            String secondaryCompiler = Files.readAllLines(selection).contains("ffdec_compiler=ffdec-source")
+                ? "ffdec-source" : "ffdec";
+            for (String compiler : List.of("flex-library", secondaryCompiler)) {
                 run(new String[]{"compile", a[1], diagnostics.resolve(compiler + ".swf").toString(),
                     a[3], source.toString(), diagnostics.resolve(compiler + "-snapshot").toString(), compiler, a[7]});
                 if (!Arrays.equals(sourceBytes, Files.readAllBytes(source)))
                     throw new IOException("Mixed compiler source changed during compilation");
             }
             MixedCompiler.compose(new String[]{a[1], diagnostics.resolve("flex-library.swf").toString(),
-                diagnostics.resolve("ffdec.swf").toString(), a[3], selection.toString(), a[2]});
+                diagnostics.resolve(secondaryCompiler + ".swf").toString(), a[3], selection.toString(), a[2]});
             snapshot(read(Path.of(a[2])), snapshot);
             return;
         }

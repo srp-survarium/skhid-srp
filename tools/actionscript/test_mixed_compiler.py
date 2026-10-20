@@ -62,6 +62,8 @@ class MixedCompilerIntegration(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0, log.read_text())
                 return log.read_text()
 
+            secondary_backend = 'ffdec'
+
             def compile_from(reference, selected_source, name):
                 output = root / (name + '.swf')
                 run('compile', reference, output, 'MixedProbe', selected_source,
@@ -70,7 +72,7 @@ class MixedCompilerIntegration(unittest.TestCase):
                 self.assertEqual((retained / 'source.as').read_bytes(), selected_source.read_bytes())
                 self.assertEqual((retained / 'composition.tsv').read_bytes(), plan.read_bytes())
                 self.assertTrue((retained / 'flex-library.swf').is_file())
-                self.assertTrue((retained / 'ffdec.swf').is_file())
+                self.assertTrue((retained / (secondary_backend + '.swf')).is_file())
                 return output
 
             # Construct the mixed reference from real compilers, then rebuild it
@@ -241,6 +243,19 @@ class MixedCompilerIntegration(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0, result.stdout)
             self.assertIn('Changed pool prefix', result.stdout)
             self.assertFalse(output.exists())
+
+            # The corrected source-call profile is also an explicit, retained
+            # secondary compiler choice in mixed builds.
+            secondary_backend = 'ffdec-source'
+            entry['composition']['ffdec_compiler'] = secondary_backend
+            plan.write_bytes(source_patches.composition_plan(entry))
+            source_reference = compile_from(asc, source, 'source-reference')
+            source_baseline = compile_from(source_reference, source, 'source-baseline')
+            source_linked = root / 'source-baseline-linked.swf'
+            run('link-layout', source_reference, source_baseline, source_linked, 'MixedProbe', name='source-baseline-link')
+            self.assertEqual(movie_source.uncompressed(source_reference), movie_source.uncompressed(source_linked))
+            assembly = '\n'.join(path.read_text() for path in (root / 'source-baseline-snapshot').glob('abc-*/method-*.asm'))
+            self.assertIn('convert_s', assembly)
 
 
 if __name__ == '__main__':

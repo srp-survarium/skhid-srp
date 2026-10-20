@@ -1047,3 +1047,10 @@ the previously runtime-tested hash
 `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
 one authorized method changed and identical non-code bytes. The runtime record
 documents byte identity without claiming another game run.
+
+The mixed profile also accepts an explicit `ffdec_compiler: "ffdec-source"`
+selection. Its plan pins that backend and retains the separately named output.
+The mixed integration test passes independent baseline reconstruction with both
+secondary backends, including nested functions; all 15 local unit tests pass.
+Reserved plan directives cannot be supplied as method owners. No additional
+reconstruction is counted from the ongoing notification/matchmaking probes.

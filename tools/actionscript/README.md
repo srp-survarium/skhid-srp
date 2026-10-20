@@ -346,6 +346,10 @@ unidentified coercions in compiled bytecode. `SourceCompiler.java` and the pinne
 FFDec files are retained and hashed with the compiler artifacts. The profile
 currently requires a simple script with its dependencies embedded in the movie.
 `SrpExchange` uses it with the repository-authored revision 24 source.
+Mixed builds can explicitly set `composition.ffdec_compiler: "ffdec-source"`
+to use this generator for their selected methods. The default remains `ffdec`;
+the selected backend is included in the authenticated composition plan and its
+named SWF and diagnostics are retained alongside the native compilation.
 
 ## Building a source feature
 

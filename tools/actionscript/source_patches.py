@@ -16,18 +16,23 @@ def composition_plan(entry):
             raise ValueError('Compiler composition requires flex-mixed')
         return None
     spec = entry.get('composition')
-    if not isinstance(spec, dict) or set(spec) - {'ffdec_methods', 'script_traits'}:
+    if not isinstance(spec, dict) or set(spec) - {'ffdec_methods', 'script_traits', 'ffdec_compiler'}:
         raise ValueError('Invalid compiler composition')
     methods = spec.get('ffdec_methods')
     if (not isinstance(methods, list) or not methods
             or any(not isinstance(owner, str) or not owner or owner.strip() != owner
-                   or any(c in owner for c in '\t\r\n|') for owner in methods)
+                   or any(c in owner for c in '\t\r\n|')
+                   or owner.startswith(('script_traits=', 'ffdec_compiler=')) for owner in methods)
             or len(set(methods)) != len(methods)):
         raise ValueError('Invalid or duplicate compiler method selection')
     declarations = spec.get('script_traits', 'native')
     if declarations not in ('native', 'ffdec'):
         raise ValueError('Invalid script-trait compiler selection')
-    lines = (['script_traits=ffdec'] if declarations == 'ffdec' else []) + methods
+    compiler = spec.get('ffdec_compiler', 'ffdec')
+    if compiler not in ('ffdec', 'ffdec-source'):
+        raise ValueError('Invalid secondary source compiler')
+    lines = (['ffdec_compiler=ffdec-source'] if compiler == 'ffdec-source' else [])
+    lines += (['script_traits=ffdec'] if declarations == 'ffdec' else []) + methods
     return ('\n'.join(lines) + '\n').encode()
 
 

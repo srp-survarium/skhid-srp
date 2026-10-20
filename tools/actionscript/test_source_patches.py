@@ -13,6 +13,9 @@ class SourcePatchTests(unittest.TestCase):
         entry = {'compiler': 'flex-mixed',
                  'composition': {'ffdec_methods': [owner], 'script_traits': 'ffdec'}}
         self.assertEqual(patches.composition_plan(entry), ('script_traits=ffdec\n' + owner + '\n').encode())
+        source_entry = dict(entry, composition=dict(entry['composition'], ffdec_compiler='ffdec-source'))
+        self.assertEqual(patches.composition_plan(source_entry),
+                         ('ffdec_compiler=ffdec-source\nscript_traits=ffdec\n' + owner + '\n').encode())
         self.assertIsNone(patches.composition_plan({'compiler': 'flex-library'}))
         for broken in [
             {'compiler': 'flex-mixed'},
@@ -23,6 +26,9 @@ class SourcePatchTests(unittest.TestCase):
             dict(entry, composition={'ffdec_methods': [owner + '\n']}),
             dict(entry, composition={'ffdec_methods': [owner], 'script_traits': 'reference'}),
             dict(entry, composition={'ffdec_methods': [owner], 'fallback': 'reference'}),
+            dict(entry, composition={'ffdec_methods': [owner], 'ffdec_compiler': 'reference'}),
+            dict(entry, composition={'ffdec_methods': ['ffdec_compiler=ffdec-source']}),
+            dict(entry, composition={'ffdec_methods': ['script_traits=ffdec']}),
         ]:
             with self.assertRaises(ValueError):
                 patches.composition_plan(broken)

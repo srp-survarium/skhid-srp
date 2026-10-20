@@ -230,6 +230,7 @@ public final class MixedCompiler {
         List<String> selected=Files.readAllLines(selection);
         if(selected.isEmpty()||selected.stream().anyMatch(String::isBlank)||new HashSet<>(selected).size()!=selected.size())throw new IOException("Empty or duplicate selection");
         boolean secondaryScript=selected.remove("script_traits=ffdec");
+        selected.remove("ffdec_compiler=ffdec-source");
         if(selected.isEmpty())throw new IOException("No selected methods");
         var script=MovieSource.findScript(reference,cls);
         int home=-1;
