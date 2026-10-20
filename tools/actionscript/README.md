@@ -1,23 +1,27 @@
 # ActionScript source reconstruction
 
-Work in progress toward a source rebuild of the lobby movie with **1:1 binary
-equality**. The release movie is authoritative. Compiler success, a matching
-decompile, or matching instruction bytes without their constant pools do not
-prove compatibility.
+Revision 24's complete lobby source tree now rebuilds with **1:1 binary
+equality**: 878 scripts, 7,758 method bodies and the complete compressed movie.
+The rebuilt 40,366,973-byte file has SHA-256
+`3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60`,
+identical to the shipped movie.
+[Verification evidence](reconstruction/026g-rev24/verification.json) records
+the compiler profiles, source/tool hashes, complete reports and artifact.
 
-This directory provides reproducible compiler investigation, exact byte checks,
-a conservative layout linker, and a guarded source-feature builder. Some classes
-now rebuild to the identical release movie. It does **not yet provide a
-whole-tree matching rebuild**. The target includes the entire source tree; the 18-class list is an
-initial compiler probe, not the completion boundary.
+This directory provides pinned private source exports, 233 reconstruction
+diffs over that pristine tree, a verified layout linker, a whole-tree build
+command, and a source-feature builder that recompiles only touched classes.
+The feature builder currently supports edits to existing method bodies and
+checks every untouched method and class. The original 18-class list remains
+an optional compiler probe; the baseline proof covers all 878 scripts.
 
 ## Private inputs and pinned tools
 
-Use Python 3.10+, JDK 17+, FFDec 25.1.3's complete distribution, and optionally
+Use Python 3.10+, JDK 17+, FFDec 25.1.3's complete distribution, and
 [Apache Flex 4.16.1](https://flex.apache.org/download-binaries.html). Keep the
 movie, exported source, SDKs, compiler outputs and diagnostics under the ignored
 repository-root `private/` directory. Only project-authored tools, release
-identities and eventual source diffs belong in git.
+identities, verification records and source diffs belong in git.
 
 `releases/026g-rev24.json` pins the shipped movie and FFDec exporter. The movie
 was checked against the actual `flash_movies/lobby_menu.swf` entry in the
@@ -321,8 +325,9 @@ compression. If compression differs, the result is still reported as different.
 
 The current linker refuses unresolved anonymous method identities, ambiguous
 private namespace ownership, unmatched constant references, class reordering,
-and remaining instruction or verifier-metadata differences. Its success on individual classes
-does not prove a whole-tree rebuild. `MEASUREMENTS.md` records the current evidence.
+and instruction or verifier-metadata differences. Individual class results
+are followed by the separate whole-tree assembly proof described below.
+`MEASUREMENTS.md` records the experiments and final verification.
 
 ## Source reconstruction diffs
 
@@ -537,21 +542,20 @@ The current feature gate supports edits to existing method bodies. Adding or
 removing methods, changing signatures, or changing class/script layout is
 refused. Such features need additional reconstruction and verification support.
 
-## Remaining work
+## Verification and boundaries
 
-1. Finish compiler matching and decompiler defects.
-   Evaluate all 878 scripts after the initial 18-class experiment.
-2. Complete the verified ABC linker's remaining pool, private-namespace,
-   anonymous-method and class mappings. Require each compiled method's
-   instructions **and metadata** to match after relocation. Never copy an old
-   body as a substitute for a failed compilation.
-3. Preserve source reconstruction corrections as reviewed diffs over each
-   release's pristine tree; keep feature diffs separate from those corrections.
-4. Extend the feature builder beyond existing method-body edits while preserving
-   untouched-class/method checks, call/cast review and constant-reference fidelity.
-5. Prove an unchanged whole-tree source rebuild reproduces the full movie.
-   The source-feature example and its in-game Scaleform UI check now pass;
-   whole-tree matching remains required before replacing the shipping patchers.
+The complete revision-24 run compiled all 878 scripts afresh, linked all 878
+exactly, and assembled every method signature, body, class and script from
+the corresponding compiled records. Both a direct file comparison and SHA-256
+confirm complete compressed-file equality. The 645 scripts without source
+corrections and all 233 reconstructed scripts participate in this build.
+
+The baseline, source-feature example and recorded Scaleform UI check are
+verified. The existing shipping patchers remain in place; adopting this
+workflow in a release is a separate change. A different release needs its own
+pinned export, reconstruction and whole-tree proof. New methods, changed
+signatures and class/script layout changes require extending the feature gate;
+they are currently rejected explicitly.
 
 ```sh
 python3 -m unittest discover -s tools/actionscript -v

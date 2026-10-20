@@ -1386,3 +1386,39 @@ A structural ownership audit of the pinned lobby covers all 878 scripts,
 8,052 method signatures, 7,758 bodies and 877 class definitions. This checks the
 assembler's coverage model, not source compilation. The fresh 878-script run is
 still in progress; its final artifact equality remains outstanding.
+
+### Complete revision-24 source rebuild verified
+
+The fresh whole-tree run completed all 878 independent source compilations
+using the committed reconstruction manifest: 645 pristine scripts and 233
+reconstructed scripts. Compiler profiles were 828 `flex-strict`, 34
+`flex-library`, 13 `flex-mixed`, two `ffdec-source`, and one `ffdec`.
+All 878 then passed exact linking, including complete compressed-movie equality.
+
+The final assembler consumed each script's own linked compiler output. Its
+coverage contains 878 scripts across 876 ABC blocks, 8,052 method signatures,
+7,758 method bodies and 877 class definitions. Every executable record table
+started empty and was filled exactly once by its owning compiled script.
+Both multi-script ABC blocks were assembled from their separate compilations.
+No missing record was supplied by the reference movie.
+
+The freshly serialized and compressed artifact is 40,366,973 bytes. A separate
+`cmp` against the pinned original passed, and both files have SHA-256:
+
+```
+3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60
+```
+
+`reconstruction/026g-rev24/verification.json` records the complete report,
+coverage, input and tool-source hashes, compiler profiles, and artifact path.
+The final audit reauthenticated all source patches and saved compiler artifacts,
+required all 878 exact results, checked the assembled coverage, and confirmed
+that the compiler/linker source hashes match the committed tools.
+
+The same audit rechecked the premium source-feature build: one authorized method
+changed, all non-code bytes stayed identical, and its output retains the earlier
+game-tested hash `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`.
+The full suite passed 27 tests, including ten real-compiler integrations, and the
+expanded public build-command integration passed separately. This closes the
+whole-tree baseline proof. The documented feature gate still accepts existing
+method-body edits only; adding methods or changing definitions remains refused.
