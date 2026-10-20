@@ -1,7 +1,7 @@
 # Buy from a modified item's right-click menu
 
-The rules the code follows. Code: `client-patches/buy_modified_026g.py`,
-`buy_modified/PatchBuyModified.java`; README "Buy for modified items". The owner's rule: 2026-10-20
+The rules the code follows. Code: the lobby feature `buy-modified` (`lobby/features/buy-modified/`;
+[lobby-source.md](lobby-source.md)); README "Buy for modified items". The owner's rule: 2026-10-20
 ("if the item is modified, when pressing rmb 'buy' is no longer there. I wish it were there and it
 would just buy a normal unmodified item").
 

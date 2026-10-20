@@ -37,10 +37,14 @@ Ask, in this order:
    `release/build-patch <folder> <rev>`. **The lobby movie**
    (`flash_movies/lobby_menu.swf`), when any lobby change is new since the
    last release, is built by `srp-026g/client-patches/build_lobby_026g.py`
-   alone (every lobby change, in order, on revision 23's movie; README
-   "Building the lobby movie"), never by running one lobby step on some
-   movie: a patch replaces the movie whole, so a movie missing a step drops
-   that change for the players.
+   alone, from ActionScript source: revision 24's source tree and every
+   lobby feature of `srp-026g/lobby/lobby.json` (`python3
+   build_lobby_026g.py <lobby_menu.swf of resources.db.patch_24> <out>`;
+   it needs `private/actionscript/tools.json`, about 5 minutes; README
+   "Building the lobby movie", `docs/notes/lobby-source.md`). Its result
+   must be its pinned `RESULT_SHA256`; a movie it refuses is not shipped.
+   A patch replaces the movie whole, so the movie must come from this one
+   build of every feature, never from an older or partial build.
 2. **Any server-code change?** `release.sh` compares main's `srp-026g`
    build inputs with the target's tree and builds the image when they
    differ; the owner may know better (`--server-code yes|no`).

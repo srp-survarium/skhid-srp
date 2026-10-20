@@ -1,0 +1,20 @@
+{
+  "schema": 2,
+  "description": "Optics in a weapon's right-click menu (#217): a weapon with scopes is upgradeable, and its menu entry opens the scope editor (SrpScopeContextMenu). Spec: docs/notes/weapon_scopes.md.",
+  "classes": [
+    {
+      "class": "SrpScopeContextMenu",
+      "new": true,
+      "source": "src/SrpScopeContextMenu.as",
+      "abc_with": "survarium.controls.InventoryList"
+    },
+    {
+      "class": "survarium.controls.InventoryList",
+      "patch": "InventoryList.patch",
+      "methods": [
+        "isUpgradeable",
+        "showContextMenu"
+      ]
+    }
+  ]
+}

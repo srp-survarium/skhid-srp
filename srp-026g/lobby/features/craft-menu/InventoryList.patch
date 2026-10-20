@@ -1,0 +1,11 @@
+--- a/survarium/controls/InventoryList.as
++++ b/survarium/controls/InventoryList.as
+@@ -2045,7 +2045,7 @@
+          var modifiersLength:uint;
+          var i:uint;
+          var modifier:Object;
+-         if(this._inventoryLocked)
++         if(SrpCraftMenu.locked(this._inventoryLocked,this,activeItem))
+          {
+             return;
+          }

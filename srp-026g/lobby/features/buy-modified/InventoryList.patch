@@ -1,0 +1,11 @@
+--- a/survarium/controls/InventoryList.as
++++ b/survarium/controls/InventoryList.as
+@@ -2145,7 +2145,7 @@
+             trace("IL::context:",itemData.name,itemData.canBuy,itemData.descriptor,itemData.enabled,itemData.isPremium,itemData.cost);
+             if((itemData) && itemData.canBuy)
+             {
+-               if(itemData.isStack || !itemData.isStack && !itemData.rank)
++               if(itemData.isStack || !itemData.isStack && (!itemData.rank || itemAvailable))
+                {
+                   trace("addBuyOPtion");
+                   options.push({

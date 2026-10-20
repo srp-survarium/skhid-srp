@@ -1,0 +1,11 @@
+--- a/LobbyMenu.as
++++ b/LobbyMenu.as
+@@ -3365,7 +3365,7 @@
+             _obj.onYes = onComplete;
+          }
+          trace("try_buy_info::",_descr.is_stack,_descr.name,this.inventory_list.hasItem(dict_uid),onComplete);
+-         if(!_descr.is_stack && _descr.category != FiltersWindow.CAT_CAMO && (sourceSlot != 300 && this.inventory_list.hasItem(dict_uid)))
++         if(!_descr.is_stack && _descr.category != FiltersWindow.CAT_CAMO && (sourceSlot == 200 && this.inventory_list.hasItem(dict_uid)))
+          {
+             _obj.text = LocalizationData.getName("already_in_inventory");
+             _obj.onYes = this.show_buy_message;

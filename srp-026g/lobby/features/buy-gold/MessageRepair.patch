@@ -1,0 +1,11 @@
+--- a/survarium/messages/MessageRepair.as
++++ b/survarium/messages/MessageRepair.as
+@@ -269,7 +269,7 @@
+       
+       protected function goToStore() : void
+       {
+-         ExternalInterface.call("go_to_store");
++         SrpBuyGold.open();
+       }
+       
+       protected function onNoMoneyEnought() : void

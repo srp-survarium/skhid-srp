@@ -1,0 +1,20 @@
+{
+  "schema": 2,
+  "description": "Buy on an item the account owns (#215): its menu lists Buy when the item is not modified or is available, and the \"already purchased\" question is asked only for a buy from the shop's list (slot 200). Spec: docs/notes/buy-modified.md.",
+  "classes": [
+    {
+      "class": "LobbyMenu",
+      "patch": "LobbyMenu.patch",
+      "methods": [
+        "try_buy_item"
+      ]
+    },
+    {
+      "class": "survarium.controls.InventoryList",
+      "patch": "InventoryList.patch",
+      "methods": [
+        "showContextMenu"
+      ]
+    }
+  ]
+}

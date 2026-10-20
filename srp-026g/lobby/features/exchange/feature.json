@@ -1,0 +1,10 @@
+{
+  "schema": 2,
+  "description": "The exchange window (src/SrpExchange.as) as the repository has it: amounts clamped to what the player can pay, the typed field kept (#214). Spec: docs/notes/exchange.md.",
+  "classes": [
+    {
+      "class": "SrpExchange",
+      "source": "src/SrpExchange.as"
+    }
+  ]
+}

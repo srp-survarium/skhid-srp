@@ -1,0 +1,83 @@
+{
+  "schema": 2,
+  "description": "Every \"Get Gold\" opens the exchange window instead of the gone online store (#213): each goToStore, and the premium window's gold button, call SrpBuyGold.open(). Spec: docs/notes/buy-gold.md.",
+  "classes": [
+    {
+      "class": "SrpBuyGold",
+      "new": true,
+      "source": "src/SrpBuyGold.as",
+      "abc_with": "SrpExchange"
+    },
+    {
+      "class": "survarium.controls.ItemCard",
+      "patch": "ItemCard.patch",
+      "methods": [
+        "goToStore"
+      ]
+    },
+    {
+      "class": "survarium.controls.StatusPanel",
+      "patch": "StatusPanel.patch",
+      "methods": [
+        "goToStore"
+      ]
+    },
+    {
+      "class": "survarium.messages.MessageAsk",
+      "patch": "MessageAsk.patch",
+      "methods": [
+        "goToStore"
+      ]
+    },
+    {
+      "class": "survarium.messages.MessageCraftItem",
+      "patch": "MessageCraftItem.patch",
+      "methods": [
+        "goToStore"
+      ]
+    },
+    {
+      "class": "survarium.messages.MessagePostPremium",
+      "patch": "MessagePostPremium.patch",
+      "methods": [
+        "goToStore"
+      ]
+    },
+    {
+      "class": "survarium.messages.MessagePremium",
+      "patch": "MessagePremium.patch",
+      "methods": [
+        "goToStore",
+        "onPremiumMoneyAddClick"
+      ]
+    },
+    {
+      "class": "survarium.messages.MessagePremiumDiscount",
+      "patch": "MessagePremiumDiscount.patch",
+      "methods": [
+        "goToStore"
+      ]
+    },
+    {
+      "class": "survarium.messages.MessagePremiumProfile",
+      "patch": "MessagePremiumProfile.patch",
+      "methods": [
+        "goToStore"
+      ]
+    },
+    {
+      "class": "survarium.messages.MessageRepair",
+      "patch": "MessageRepair.patch",
+      "methods": [
+        "goToStore"
+      ]
+    },
+    {
+      "class": "survarium.messages.MessageRerollItem",
+      "patch": "MessageRerollItem.patch",
+      "methods": [
+        "goToStore"
+      ]
+    }
+  ]
+}

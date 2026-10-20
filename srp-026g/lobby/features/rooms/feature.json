@@ -1,0 +1,17 @@
+{
+  "schema": 2,
+  "description": "The rooms (the players' \"servers\"): src/SrpRooms.as, and the lobby hooks the release did not have yet. Revision 24 already calls SrpRooms from BottomPanel, PlayerRanking, LobbyMenu, StatusPanel and TopMenu; a match's results now open over the room (#219). Spec: docs/notes/rooms.md.",
+  "classes": [
+    {
+      "class": "SrpRooms",
+      "source": "src/SrpRooms.as"
+    },
+    {
+      "class": "LobbyMenu",
+      "patch": "LobbyMenu.patch",
+      "methods": [
+        "show_victory_screen"
+      ]
+    }
+  ]
+}

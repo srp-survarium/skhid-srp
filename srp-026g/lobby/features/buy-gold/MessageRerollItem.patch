@@ -1,0 +1,11 @@
+--- a/survarium/messages/MessageRerollItem.as
++++ b/survarium/messages/MessageRerollItem.as
+@@ -340,7 +340,7 @@
+       
+       protected function goToStore() : void
+       {
+-         ExternalInterface.call("go_to_store");
++         SrpBuyGold.open();
+       }
+       
+       protected function onNoMoneyEnought() : void

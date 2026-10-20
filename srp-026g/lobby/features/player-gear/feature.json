@@ -1,0 +1,26 @@
+{
+  "schema": 2,
+  "description": "Show player's information from the Rankings (#232) and the rooms (#233): a right-click on a row asks for that player's kits, and the answer opens the game's own window (src/SrpPlayerGear.as). Spec: docs/notes/player_gear.md.",
+  "classes": [
+    {
+      "class": "SrpPlayerGear",
+      "new": true,
+      "source": "src/SrpPlayerGear.as",
+      "abc_with": "LobbyMenu"
+    },
+    {
+      "class": "LobbyMenu",
+      "patch": "LobbyMenu.patch",
+      "methods": [
+        "fill_victory_screen_player"
+      ]
+    },
+    {
+      "class": "survarium.controls.PlayerRanking",
+      "patch": "PlayerRanking.patch",
+      "methods": [
+        "onActivate"
+      ]
+    }
+  ]
+}

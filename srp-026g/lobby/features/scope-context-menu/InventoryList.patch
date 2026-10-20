@@ -1,0 +1,21 @@
+--- a/survarium/controls/InventoryList.as
++++ b/survarium/controls/InventoryList.as
+@@ -2015,8 +2015,7 @@
+       
+       private function isUpgradeable(value:Object) : Boolean
+       {
+-         var cat:int = (value.category);
+-         return (cat == 3 || cat == 1 || cat == 5 || cat == 4) && ((value.camoAvailable) || (value.decalAvailable));
++         return SrpScopeContextMenu.isUpgradeable(value);
+       }
+       
+       protected function onMouseItemClick(e:MouseEventEx) : void
+@@ -2129,7 +2128,7 @@
+                   if(this.isUpgradeable(itemData))
+                   {
+                      options.push({
+-                        name:LocalizationData.getName("btn_upgrade_label"),
++                        name:LocalizationData.getName(SrpScopeContextMenu.labelKey(activeItem.data)),
+                         click_function:this.upgradeElelemnt
+                      });
+                   }

@@ -1,0 +1,10 @@
+--- a/survarium/messages/MessageCraftItem.as
++++ b/survarium/messages/MessageCraftItem.as
+@@ -454,6 +454,7 @@
+             Message.showMessage("ok",LocalizationData.getName("cannot_craft_item"));
+             dispatchEvent(new Event("closeCraft"));
+          }
++         SrpCraftMenu.result(this,param2);
+       }
+       
+       protected function goToStore() : void

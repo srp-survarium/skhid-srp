@@ -1,7 +1,7 @@
 # A player's equipment from the Rankings (and the rooms' lists)
 
-The rules the code follows. Code: `client-patches/player_gear_026g.py`,
-`player_gear/SrpPlayerGear.as`, `player_gear/PatchPlayerGear.java`; the lobby's
+The rules the code follows. Code: `lobby/src/SrpPlayerGear.as` and the lobby feature
+`player-gear` (`lobby/features/player-gear/`; [lobby-source.md](lobby-source.md)); the lobby's
 `servers/lobby-server/src/v026g/gear.rs`; the wire `lobby::GEAR_BY_PLACE`. The owner's rules,
 2026-10-20: "after match in match overview you can rmb to see the players equipments", "you
 should be able to go to rankings and rmb to do the same", "for every single player".
