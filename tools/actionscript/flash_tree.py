@@ -15,8 +15,8 @@
         to the original
 
 A tree holds the source that compiles to the release exactly: the FFDec export
-with tools/actionscript/reconstruction's corrections applied, byte for byte
-(CRLF line ends, as exported). movie.json pins the release (the original
+with tools/actionscript/reconstruction's corrections applied, with LF line
+ends (FFDec writes CRLF; nothing compiled depends on them: `full` proves it). movie.json pins the release (the original
 movie's archive entry and sha256), the reconstruction manifest whose per-class
 compiler settings the build uses, and the sha256 of every baseline source file.
 The original movie is not committed: its non-code tags (graphics, fonts,
@@ -40,6 +40,11 @@ REPO = HERE.parents[1]
 
 def sha(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def lf(data):
+    """A tree file's text: FFDec exports CRLF; the tree keeps LF, as every other source."""
+    return data.replace(b'\r\n', b'\n')
 
 
 def load(movie_dir):
@@ -101,7 +106,7 @@ def export(movie_dir, original_swf, tools, release, reconstruction):
             raise ValueError(f'{movie_dir}/src exists; export writes a new tree')
         sources = {}
         for relative in sorted(pinned['sources']):
-            data = corrected.get(relative, (project / 'pristine' / relative).read_bytes())
+            data = lf(corrected.get(relative, (project / 'pristine' / relative).read_bytes()))
             target = movie_dir / 'src' / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)

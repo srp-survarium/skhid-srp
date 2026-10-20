@@ -26,7 +26,8 @@ to a repository of its own.
 - The original `.swf` is not committed. Its graphics, fonts and sounds are not source, so the build
   takes them from the pinned original: `flash_tree.py original <movie dir> <archive> <out.swf>` cuts
   it from the archive the pin names.
-- The files keep FFDec's CRLF line ends (`.gitattributes`); they are compiled as they are.
+- The files have LF line ends (FFDec writes CRLF; `export` converts them). The full rebuild below
+  compiles the LF files, so nothing compiled depends on the line ends.
 
 ```sh
 # Is the tree the baseline?

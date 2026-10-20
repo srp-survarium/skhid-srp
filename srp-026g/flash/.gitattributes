@@ -1,3 +1,2 @@
-# The exported source compiles to the release byte for byte as it is
-# (CRLF line ends): git must not convert it.
-*.as -text
+# LF line ends, as the trees are exported (flash_tree.py).
+*.as text eol=lf
