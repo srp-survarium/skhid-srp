@@ -2013,6 +2013,47 @@
       "pristine_sha256": "472f5003698b8fad79a640c10c86c18b4367a3d7a888549ddb2f635ef0191d17",
       "reason": "Recover the native tournament branch, static declaration order, typed Array return temporary and explicit integer property assignment. Explicitly compose feature methods from ffdec-source; String(play.label) preserves the dynamic string call, and public::Object(this.parent) emits a source-qualified public call. Fresh compilation and reassembly reproduce the entire compressed release movie exactly.",
       "result_sha256": "a1497a9dcce2477c70e273d28ba4a56ef35bd019b238569cf7996620373b2a34"
+    },
+    {
+      "class": "survarium.controls.BottomPanel",
+      "compiler": "ffdec-source",
+      "patch": "survarium/controls/BottomPanel.patch",
+      "patch_sha256": "5c7e1e4be9c17e692cda406263125a45069dbff78152dc7b7f6aab3df61aaf1a",
+      "pristine_sha256": "4c6a35b31d5d21dde7eafab9b6e5fb7f7139e9524c4275edf7d716e51848538e",
+      "reason": "The source compiler reproduces every method after restoring static field order, direct NaN initializers, and the original single Boolean conversion in matchesCanJoin. Independently linked output reproduces the complete compressed release movie byte for byte.",
+      "result_sha256": "4bd39acec854835ac68253d5f23cf61bf5e5a27ca29cfa173ec9f0900a8f72b3"
+    },
+    {
+      "class": "survarium.upgrade.UpgradeWindow",
+      "compiler": "flex-mixed",
+      "composition": {
+        "ffdec_compiler": "ffdec-source",
+        "ffdec_methods": [
+          "QName(PackageNamespace(\"survarium.upgrade\"),\"UpgradeWindow\")/instance/1/QName(PackageNamespace(\"\"),\"setData\")",
+          "QName(PackageNamespace(\"survarium.upgrade\"),\"UpgradeWindow\")/instance/1/QName(PrivateNamespace(\"survarium.upgrade:UpgradeWindow\"),\"updateData\")",
+          "QName(PackageNamespace(\"survarium.upgrade\"),\"UpgradeWindow\")/instance/1/QName(PackageNamespace(\"\"),\"selectAgeements\")",
+          "QName(PackageNamespace(\"survarium.upgrade\"),\"UpgradeWindow\")/instance/1/QName(PackageNamespace(\"\"),\"closePopup\")",
+          "QName(PackageNamespace(\"survarium.upgrade\"),\"UpgradeWindow\")/instance/1/QName(ProtectedNamespace(\"survarium.upgrade:UpgradeWindow\"),\"create_item\")",
+          "QName(PackageNamespace(\"survarium.upgrade\"),\"UpgradeWindow\")/instance/1/QName(ProtectedNamespace(\"survarium.upgrade:UpgradeWindow\"),\"configUI\")",
+          "QName(PackageNamespace(\"survarium.upgrade\"),\"UpgradeWindow\")/instance/1/QName(PrivateNamespace(\"survarium.upgrade:UpgradeWindow\"),\"onItemMouseClicked\")",
+          "QName(PackageNamespace(\"survarium.upgrade\"),\"UpgradeWindow\")/static/1/QName(PackageNamespace(\"\"),\"addCompatibility\")",
+          "QName(PackageNamespace(\"survarium.upgrade\"),\"UpgradeWindow\")/static/1/QName(PackageNamespace(\"\"),\"isWeaponCategory\")",
+          "QName(PackageNamespace(\"survarium.upgrade\"),\"UpgradeWindow\")/static/1/QName(PackageNamespace(\"\"),\"hasScopes\")",
+          "QName(PackageNamespace(\"survarium.upgrade\"),\"UpgradeWindow\")/static/1/QName(PackageNamespace(\"\"),\"fits\")",
+          "QName(PackageNamespace(\"survarium.upgrade\"),\"UpgradeWindow\")/static/1/QName(PackageNamespace(\"\"),\"weaponsFor\")",
+          "QName(PackageNamespace(\"survarium.upgrade\"),\"UpgradeWindow\")/static/1/QName(PackageNamespace(\"\"),\"greyed\")",
+          "QName(PackageNamespace(\"survarium.upgrade\"),\"UpgradeWindow\")/static/1/QName(PackageNamespace(\"\"),\"inventoryItem\")",
+          "QName(PackageNamespace(\"survarium.upgrade\"),\"UpgradeWindow\")/static/1/QName(PackageNamespace(\"\"),\"wearers\")",
+          "QName(PackageNamespace(\"survarium.upgrade\"),\"UpgradeWindow\")/static/1/QName(PackageNamespace(\"\"),\"attachedScope\")",
+          "QName(PackageNamespace(\"survarium.upgrade\"),\"UpgradeWindow\")/static/1/QName(PackageNamespace(\"\"),\"fitText\")"
+        ],
+        "script_traits": "ffdec"
+      },
+      "patch": "survarium/upgrade/UpgradeWindow.patch",
+      "patch_sha256": "646047ce6e2e7280f773921a0ef1741cdfe7bed14c5e138b44d74ba526dbcc9e",
+      "pristine_sha256": "808498faea3d03b768115e87178e961d9f2b711e08aeda41cee8d9293df3a52c",
+      "reason": "Actual native and source-compiler methods from the same source recover typed local declaration order, lexical assignments, Boolean conversion placement, unsigned loop assignments, and static field order. The explicit mixed plan retains the source compiler script trait. Independently linked output reproduces the complete compressed release movie byte for byte.",
+      "result_sha256": "9b4fc68fcc987edd4debe920ba108db99fa1114b103add9fd62a95fd6214f53b"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

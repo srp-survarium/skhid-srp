@@ -1176,3 +1176,24 @@ same previously game-tested hash
 `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
 one authorized method changed and identical non-code bytes. No new game run
 is claimed for this byte-identical rebuild.
+
+### BottomPanel and UpgradeWindow source reconstruction
+
+Both classes now independently reproduce the complete compressed release movie.
+`BottomPanel` uses the source compiler with restored static field order, direct
+NaN initializers and a single Boolean conversion in `matchesCanJoin`.
+`UpgradeWindow` uses an explicit mixed plan over the same source: native methods
+recover local declarations and lexical assignments, while selected source
+compiler methods retain unsigned loop assignments and explicit Boolean
+conversions. Its static fields now occupy their original slots.
+
+No compiler or emitter change was needed. The 15 unit checks pass; the six
+compiler integrations remain covered by the preceding full test run. The fresh
+premium build again changes exactly one authorized method, preserves non-code
+bytes, and has the previously game-tested hash
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`.
+The runtime record identifies this as a byte-identical rebuild, not a new game run.
+
+There are now 227 authenticated reconstructions and 645 pristine successes:
+872 of 878 scripts have individual exact proofs. Six remain, and a complete
+matching whole-tree build is still outstanding.
