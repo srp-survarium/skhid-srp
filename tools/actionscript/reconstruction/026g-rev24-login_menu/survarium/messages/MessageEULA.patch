@@ -1,0 +1,46 @@
+--- a/survarium/messages/MessageEULA.as
++++ b/survarium/messages/MessageEULA.as
+@@ -56,7 +56,7 @@
+       override protected function configUI() : void
+       {
+          super.configUI();
+-         if(Boolean(_data) && Boolean(this.textField))
++         if(_data && this.textField)
+          {
+             this.textField.addEventListener(ComponentEvent.STATE_CHANGE,this.checkAcceptBtnState);
+             trace("EUAL_LABEL::",_data.label_window);
+@@ -65,13 +65,13 @@
+             addEventListener(Event.REMOVED_FROM_STAGE,this.onRemoved,false,1);
+             this.textField.addEventListener(Event.SCROLL,this.checkAcceptBtn);
+             this.textField.position = 0;
+-            if(Boolean(_data))
++            if(_data)
+             {
+-               if(Boolean(_data.label_ok))
++               if(_data.label_ok)
+                {
+                   btnAccept.label = _data.label_ok;
+                }
+-               if(Boolean(_data.label_cancel))
++               if(_data.label_cancel)
+                {
+                   btnCancel.label = _data.label_cancel;
+                }
+@@ -86,7 +86,7 @@
+       
+       override protected function onMessageCancel(event:ButtonEvent = null) : void
+       {
+-         if(Boolean(_data))
++         if(_data)
+          {
+             if(_data.onNo is Function)
+             {
+@@ -106,7 +106,7 @@
+          {
+             return;
+          }
+-         if(Boolean(_data))
++         if(_data)
+          {
+             if(_data.onYes is Function)
+             {

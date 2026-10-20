@@ -96,7 +96,20 @@ public class ScopeDefaultFixture {
     public static void main(String[] args)throws Exception {
         Path input=Path.of(args[0]);guards(input);
         var swf=MovieSource.read(input);var abc=MovieSource.findScript(swf,"fixture.DefaultProbe").abc;
-        normalize(abc,false);((Tag)abc.parentTag).setModified(true);
+        normalize(abc,false);
+        int disabledId=MovieSource.names(abc).entrySet().stream()
+            .filter(e->e.getValue().endsWith(",\"disabled\")")).findFirst().orElseThrow().getKey();
+        var disabled=abc.findBody(disabledId);
+        var code=MovieSource.exactCode(disabled);
+        if(code.code.size()!=3 || code.code.get(0).definition.instructionCode!=0xd0
+                || code.code.get(1).definition.instructionCode!=0x30
+                || code.code.get(2).definition.instructionCode!=0x47)
+            throw new AssertionError("Unexpected native empty-method prologue");
+        // Released patches can disable an instance handler by leaving only
+        // returnvoid while retaining its original verifier capacities.
+        code.removeInstruction(0,disabled);code.removeInstruction(0,disabled);
+        disabled.setCode(code);
+        ((Tag)abc.parentTag).setModified(true);
         try(var out=Files.newOutputStream(Path.of(args[1]))){swf.saveTo(out);}
         System.exit(0);
     }

@@ -1,6 +1,29 @@
 {
   "classes": [
     {
+      "class": "LoginMenu",
+      "compiler": "flex-strict",
+      "method_reservations": {
+        "QName(PackageNamespace(\"\"),\"LoginMenu\")/instance/1/QName(PrivateNamespace(\"LoginMenu\",\"1\"),\"onRegistrationClicked\")": {
+          "stack": 2
+        }
+      },
+      "patch": "LoginMenu.patch",
+      "patch_sha256": "f1ffbb4fa9dbdb35849d59f123e0c1d399c66192528ac0e8802d1ad32f920633",
+      "pristine_sha256": "44ff6a793575569161258fc4621262e2386a0d272616986e78906c4abd2c88c3",
+      "reason": "Restore class-field initializers, captured-variable declaration order, explicit closure assignments, the negative-zero offset literal, and reserved stack capacity for the disabled registration callback. Native compilation and guarded scope encoding reproduce the complete released movie.",
+      "result_sha256": "3af2d90e00820edf384d7453a1aa6d4c6388edb666df4cf2bd5826038ba94f29"
+    },
+    {
+      "class": "SrpLoginHint",
+      "compiler": "ffdec",
+      "patch": "SrpLoginHint.patch",
+      "patch_sha256": "db7885924b22d2e4a85adac18caf7614c00ea13cb8d38b7e8c2acf129f371f31",
+      "pristine_sha256": "bec13bc8c16618952666800a69e1c894b47f0bee4746069467a876d7f2b1e9cc",
+      "reason": "Restore the repository-authored login hint source and original FFDec compiler profile. Independent source compilation reproduces the complete released movie.",
+      "result_sha256": "8a3ba7db447f56265126417070d5a3e405d4589a2097f5dc6c1c02b733b92725"
+    },
+    {
       "class": "com.greensock.TweenLite",
       "compiler": "flex-library",
       "patch": "com/greensock/TweenLite.patch",
@@ -101,6 +124,15 @@
       "result_sha256": "3832778fb4bf0d17273816366e9ed5b93af75d4e6f9c299cd2967131de73af90"
     },
     {
+      "class": "scaleform.clik.controls.ToolTip",
+      "compiler": "flex-strict",
+      "patch": "scaleform/clik/controls/ToolTip.patch",
+      "patch_sha256": "ee7d6da9928009d63566d077adfe2d148cec3d4b0fd97f16abac686bb6877720",
+      "pristine_sha256": "8319e4dcbc511acfe444e2b6f984f0ec0414c788b18a5944309bd67b72079132",
+      "reason": "Restore lexical instance-field writes, implicit defaults and original static slot declaration order. Independent source compilation reproduces the complete released movie.",
+      "result_sha256": "b07dfbfc95dbcba23e59c1492995b81abdd177911c47a9dd58430d819dbba5c4"
+    },
+    {
       "class": "scaleform.clik.core.CLIK",
       "compiler": "flex-library",
       "patch": "scaleform/clik/core/CLIK.patch",
@@ -117,6 +149,24 @@
       "pristine_sha256": "7909ab85a336bdca3d3be3ab31b4062b8a6a332622306df813ed76df0590e8ac",
       "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
       "result_sha256": "4f980de88ada32599886dc32e2ce884c158568766e3f00645e7e5ed71e873e9f"
+    },
+    {
+      "class": "scaleform.clik.layout.Layout",
+      "compiler": "flex-strict",
+      "patch": "scaleform/clik/layout/Layout.patch",
+      "patch_sha256": "ddbab4eb14ce76bcd0bf57248eeeba664d446d33baa3ea37682f988a2e44dae8",
+      "pristine_sha256": "730a11aab540b2b8f496f06d1361dc837852bcd6222955d70823714137d653d0",
+      "reason": "Restore loop structure and local declaration order while preserving this movie\u2019s names. Independent source compilation reproduces the complete released movie.",
+      "result_sha256": "f96021f2913933d6abf5b04acf517c68d0dc0e4dea1fb03acd760a1efe9a74db"
+    },
+    {
+      "class": "scaleform.clik.managers.DragManager",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/managers/DragManager.patch",
+      "patch_sha256": "ab5e71cfab0ae47ff954fd3f97f65cd0f239bb2df8b30b318ac851c04cf75703",
+      "pristine_sha256": "561b57e7fed9b177df036844e904421973755609b400bc8b3143f36a497684ae",
+      "reason": "Restore lexical self-class lookups through library compilation, explicit counter and Boolean initializers, local register order, and static slot declaration order. Independent source compilation reproduces the complete released movie.",
+      "result_sha256": "8d4fdab4c99230b7d47bad4bc08864a7cabd6fd55e1db25b1504df471d388fc4"
     },
     {
       "class": "scaleform.clik.managers.FocusHandler",
@@ -216,6 +266,22 @@
       "pristine_sha256": "d81d7273c3b01db7935c087b7367910191f27b55550ed1b43c4d6dc05e5ce50a",
       "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
       "result_sha256": "18134a945707dbcb5017514266a2b8d2f6dfc7059ae8574526af2b2a8e5e4282"
+    },
+    {
+      "class": "survarium.messages.MessageBase",
+      "patch": "survarium/messages/MessageBase.patch",
+      "patch_sha256": "50973f8766742650aa0df2e158104cd43d6df43067b1c690473399849ee9cc03",
+      "pristine_sha256": "52609e47f4f55a7fcbd2de21fea52607f8f1c3119330ae603cd1d08eeb15c16d",
+      "reason": "Recover implicit typed defaults, lexical field assignments, identifier object keys and direct truth tests. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "1e8a752719dbf1bf2681b46c250637266ca971b708eaf3e709ec117c035ff70b"
+    },
+    {
+      "class": "survarium.messages.MessageEULA",
+      "patch": "survarium/messages/MessageEULA.patch",
+      "patch_sha256": "9c9cf647e63f7f053503ce0baff30894b992e37b4e8cc748c98f066b6737b857",
+      "pristine_sha256": "62b98e8899c7e9ef7475cdcce52f16f00f897bda8eb9cd8d55e72787e85f3888",
+      "reason": "Recover implicit typed defaults, lexical field assignments, identifier object keys and direct truth tests. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "271bf27f8493a3f7050a61cf0466977ba5dcc7d59191b0f1e28f3d077db11761"
     },
     {
       "class": "survarium.messages.MessageInfoBase",

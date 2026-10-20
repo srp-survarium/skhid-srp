@@ -25,7 +25,7 @@ method bodies. Exporting a source tree does not establish an exact rebuild.
 | --- | ---: | ---: | --- |
 | `hud.swf` | 287 | 2,342 | Reconstruction in progress |
 | `main_menu.swf` | 183 | 1,864 | Reconstruction in progress |
-| `login_menu.swf` | 86 | 866 | Reconstruction in progress |
+| `login_menu.swf` | 86 | 866 | Byte-exact, including compression and padding |
 | `player_icons.swf` | 34 | 347 | Reconstruction in progress |
 | `replay_player.swf` | 82 | 866 | Reconstruction in progress |
 | `cursor.swf` | 2 | 10 | Byte-exact, including compression |
@@ -41,6 +41,13 @@ records the independent compilation of both pristine scripts and assembly of
 all ten method bodies. Its reconstruction manifest deliberately has no patches.
 The same whole-tree command accepts an empty patch list when the pristine
 exports already suffice.
+
+Login [verification evidence](reconstruction/026g-rev24-login_menu/verification.json)
+covers all 86 scripts, including the repository-authored hint and the disabled
+registration handler. Its 3,508,744-byte rebuild has SHA-256
+`20ab1d2289e1fe08df25ae2a33f37213f052b5b5d9eb1b3b77a568f126844261`.
+The reconstruction preserves constructor closure ordering and the original
+negative-zero layout constant, which the pristine export displayed as `0`.
 
 ## Private inputs and pinned tools
 
@@ -261,6 +268,9 @@ accesses are refused. Branches cannot enter the removed prologue, return into
 the prefix or bypass deferred scope setup. The complete method and control-flow
 comparison must still match. Both void and value-returning guards are supported;
 the returned expression remains the compiler's actual instruction sequence.
+An otherwise empty instance handler can also omit that prologue and emit only
+its compiled `returnvoid`. The same ownership, hierarchy and exception guards
+apply; introducing an executable statement still fails baseline equality.
 This follows ordinary instance lookup in
 [Adobe's MethodEnv](https://github.com/adobe/avmplus/blob/master/core/MethodEnv.cpp#L1221);
 `with` scopes have different lookup rules and are excluded.

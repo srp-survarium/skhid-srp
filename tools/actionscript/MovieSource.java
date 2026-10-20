@@ -1297,7 +1297,9 @@ public final class MovieSource {
             List<AVM2Instruction> emitted) throws IOException {
         if (emitted.size() < 3 || localRegister(emitted.get(0), false) != 0
                 || emitted.get(1).definition.instructionCode != 0x30
-                || expected.size() < 2 || (localRegister(expected.get(0), false) == 0
+                || expected.isEmpty()
+                || (expected.size() == 1 && expected.get(0).definition.instructionCode != 0x47)
+                || (expected.size() >= 2 && localRegister(expected.get(0), false) == 0
                     && expected.get(1).definition.instructionCode == 0x30)) return emitted;
         int returns = 0, expectedScope = -1;
         for (int i = 0; i + 1 < expected.size(); i++) {
