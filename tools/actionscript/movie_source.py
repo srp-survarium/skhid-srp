@@ -6,6 +6,7 @@ equality of the complete uncompressed movie, including all ABC metadata/assets.
 """
 import argparse
 import csv
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import json
 import os
@@ -102,6 +103,21 @@ def methods(folder):
     return result
 
 
+def deduplicate_snapshot(baseline, snapshot):
+    """Share diagnostics only after comparing every file in an unchanged block."""
+    for folder in snapshot.glob("abc-*"):
+        reference = baseline / folder.name
+        if not reference.is_dir():
+            continue
+        files = sorted(p.name for p in folder.iterdir())
+        if files != sorted(p.name for p in reference.iterdir()):
+            continue
+        if not all((folder / name).read_bytes() == (reference / name).read_bytes() for name in files):
+            continue
+        shutil.rmtree(folder)
+        folder.symlink_to(os.path.relpath(reference, folder.parent), target_is_directory=True)
+
+
 def compare(reference, candidate, before, after):
     original, rebuilt = uncompressed(reference), uncompressed(candidate)
     a, b = methods(before), methods(after)
@@ -164,6 +180,7 @@ class Toolchain:
                        if p.is_file() and (p.suffix in (".jar", ".swc", ".xml", ".properties") or p.name == "mxmlc")}
         return {"ffdec_files": inputs, "flex_files": flex_inputs,
                 "java_version": subprocess.check_output([self.config["java"], "-version"], stderr=subprocess.STDOUT, text=True),
+                "python_version": sys.version, "zlib_version": zlib.ZLIB_RUNTIME_VERSION,
                 "bridge_sha256": digest(self.work / "MovieSource.java"),
                 "driver_sha256": digest(self.work / "movie_source.py")}
 
@@ -191,6 +208,8 @@ def main():
     measure.add_argument("output", type=Path)
     measure.add_argument("--compiler", choices=("ffdec", "flex", "flex-strict"), required=True)
     measure.add_argument("--classes", type=Path, help="One full script name per line; defaults to every exported script")
+    measure.add_argument("--jobs", type=int, default=1, help="Concurrent independent compiler processes (1-8)")
+    measure.add_argument("--compact", action="store_true", help="Keep compiled code and comparison; reconstruct the full candidate with original.swf when needed")
     args = parser.parse_args()
     project = args.project.resolve()
     if args.command == "init":
@@ -220,6 +239,8 @@ def main():
         print(f"Pinned {args.release}: {len(sources)} source files, {len(methods(project / 'baseline'))} method bodies", flush=True)
         return 0
     manifest = verify_project(project)
+    if not 1 <= args.jobs <= 8:
+        raise ValueError("--jobs must be between 1 and 8")
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     tools = Toolchain(args.tools, output / "bridge")
@@ -232,20 +253,28 @@ def main():
     classes = [c.strip() for c in classes if c.strip() and not c.startswith("#")]
     if not classes or len(set(classes)) != len(classes):
         raise ValueError("Empty or duplicate class selection")
-    report = {"schema": 1, "release": manifest["release"], "movie_sha256": manifest["movie_sha256"],
-              "compiler": args.compiler, "toolchain": tool_identity, "classes": [], "complete": False}
-    write_json(output / "report.json", report)
-    for number, cls in enumerate(classes):
-        relative = cls.replace(".", "/") + ".as"
-        if relative not in manifest["sources"]:
+    for cls in classes:
+        if cls.replace(".", "/") + ".as" not in manifest["sources"]:
             raise ValueError(f"Class not in pinned export: {cls}")
+    report = {"schema": 1, "release": manifest["release"], "movie_sha256": manifest["movie_sha256"],
+              "compiler": args.compiler, "toolchain": tool_identity, "classes": [], "complete": False,
+              "selected_classes": classes, "jobs": args.jobs, "compact": args.compact}
+    write_json(output / "report.json", report)
+
+    def measure_class(number, cls):
+        relative = cls.replace(".", "/") + ".as"
         folder = output / f"class-{number:04d}"
         folder.mkdir()
         row = {"class": cls, "source_sha256": manifest["sources"][relative], "directory": folder.name}
         try:
+            source = project / "pristine" / relative
+            if digest(source) != manifest["sources"][relative]:
+                raise ValueError("Source changed after project verification")
             result = tools.run("compile", output / "code.swf", folder / "compiled-code.swf", cls,
-                               project / "pristine" / relative, folder / "snapshot", args.compiler,
+                               source, folder / "snapshot", args.compiler,
                                tools.config.get("flex", ""), log=folder / "compile.log")
+            if digest(source) != manifest["sources"][relative]:
+                raise ValueError("Source changed during compilation")
             if result.returncode:
                 row.update(status="compile_failed", exit_code=result.returncode)
             else:
@@ -255,11 +284,23 @@ def main():
                 row.update(status="exact" if comparison["movie_exact"] else "different",
                            file_exact=comparison["file_exact"], changed_methods=len(comparison["method_changes"]),
                            changed_abc_blocks=comparison["changed_abc_blocks"])
+                deduplicate_snapshot(output / "baseline", folder / "snapshot")
+                if args.compact:
+                    (folder / "candidate.swf").unlink()
         except subprocess.TimeoutExpired:
             row.update(status="timeout")
-        report["classes"].append(row)
-        write_json(output / "report.json", report)
-        print(f"{cls}: {row['status']}", flush=True)
+        except (ValueError, OSError) as error:
+            row.update(status="tool_error", error=str(error))
+        return row
+
+    with ThreadPoolExecutor(max_workers=args.jobs) as executor:
+        pending = [executor.submit(measure_class, number, cls) for number, cls in enumerate(classes)]
+        for future in as_completed(pending):
+            row = future.result()
+            report["classes"].append(row)
+            report["classes"].sort(key=lambda row: row["directory"])
+            write_json(output / "report.json", report)
+            print(f"{row['class']}: {row['status']} ({len(report['classes'])}/{len(classes)})", flush=True)
     report["complete"] = True
     report["all_exact"] = all(row["status"] == "exact" for row in report["classes"])
     write_json(output / "report.json", report)

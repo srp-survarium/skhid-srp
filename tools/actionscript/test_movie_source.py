@@ -104,6 +104,21 @@ class MovieTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Pristine"):
             movie.verify_project(self.root)
 
+    def test_deduplicate_requires_all_diagnostics_to_match(self):
+        before = self.snapshot("before", b"same block")
+        after = self.snapshot("after", b"same block")
+        ref = before / "abc-0000"
+        candidate = after / "abc-0000"
+        (ref / "method.asm").write_text("getlocal0")
+        (candidate / "method.asm").write_text("getlocal1")
+        movie.deduplicate_snapshot(before, after)
+        self.assertFalse(candidate.is_symlink())
+        (candidate / "method.asm").write_text("getlocal0")
+        movie.deduplicate_snapshot(before, after)
+        self.assertTrue(candidate.is_symlink())
+        self.assertEqual((candidate / "block.abc").read_bytes(), b"same block")
+        self.assertEqual(movie.methods(before), movie.methods(after))
+
 
 if __name__ == "__main__":
     unittest.main()

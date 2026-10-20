@@ -5,9 +5,10 @@ equality**. The release movie is authoritative. Compiler success, a matching
 decompile, or matching instruction bytes without their constant pools do not
 prove compatibility.
 
-This directory currently provides the reproducible compiler investigation and
-byte comparison. It does **not yet provide a matching rebuild or a feature patch
-builder**. The target includes the entire source tree; the 18-class list is an
+This directory provides reproducible compiler investigation, exact byte checks,
+and a conservative layout linker. Some classes now rebuild to the identical
+release movie. It does **not yet provide a whole-tree matching rebuild or a
+feature patch builder**. The target includes the entire source tree; the 18-class list is an
 initial compiler probe, not the completion boundary.
 
 ## Private inputs and pinned tools
@@ -59,7 +60,13 @@ python3 tools/actionscript/movie_source.py --tools private/actionscript/tools.js
   --compiler flex-strict --classes tools/actionscript/feature-classes.txt
 ```
 
-Omit `--classes` to investigate every exported script. Output directories must
+Omit `--classes` to investigate every exported script. `--jobs 4` runs independent
+compilers concurrently. `--compact` retains compiled code and comparisons but
+omits the full candidate movies, which can be reconstructed from those code
+files and the pinned original. Unchanged diagnostic directories are shared with
+the run's baseline only after every file has compared equal.
+
+Output directories must
 be new. Each class is compiled independently from the original movie, including
 when a previous compilation fails. Every attempted class gets a log; successful
 ones also get the saved candidate, reparsed ABC blocks, method records,
@@ -98,21 +105,57 @@ The default `flex` mode uses FFDec's Flex script replacer arguments, including
 
 - FFDec 25.1.3 selects `mxmlc.exe` on Unix. The bridge invokes the same SDK's
   `mxmlc.jar` directly and records the arguments.
-- The temporary dependency SWC lacks inheritance dependencies in its catalog.
-  The bridge adds superclass/interface entries from its ABC definitions.
+- The temporary dependency SWC lacks inheritance and expression/type dependencies
+  in its catalog. The bridge derives these from its ABC definitions and references.
 - Single-namespace multinames in the dependency library are represented as
   qualified names for Flex's type importer. This is applied only to the
   temporary dependency SWC. Both original and adapted SWCs are retained.
+- Flex's SWC reader crashes on multiname zero in `Vector.<*>`. The dependency
+  adapter uses an explicit public `*` name for the same wildcard type. This fixes
+  the `CharWindow` dependency needed to compile `LobbyMenu`.
 
 `flex-strict` additionally enables strict type binding, disables optimization
 and debug output, and preserves `trace` calls. These settings are recorded;
 they are an experiment toward matching the original compiler output.
 
+## Exact layout linking
+
+After a measurement, try linking its compiled outputs back into the original
+ABC layout. This also works on the finished rows of a running measurement;
+the linking report explicitly records that the compilation run is incomplete.
+
+```sh
+python3 tools/actionscript/link_layout.py --tools private/actionscript/tools.json \
+  --jobs 4 --compact private/actionscript/rev24 private/actionscript/flex-strict-probe \
+  private/actionscript/linked-probe
+```
+
+The linker verifies each input against its recorded compiler-output movie hash.
+It keeps the compiler's method bodies, signatures, class definitions, scope and
+stack limits, and exception tables. It restores named method ordering and
+method references when operand widths stay fixed. It preserves existing pool
+indices after checking every existing entry, and removes unused compiler additions.
+Empty debug method names and the Adobe editor's `__go_to_definition_help` and
+`__go_to_ctor_definition_help` annotations follow the original layout. Other
+metadata changes are refused. These layout data are separate from executable
+instructions; no original method body is used to fill a compiler mismatch.
+
+The entire reconstructed ABC must equal the original, and every other ABC must
+also remain identical. Only then is linked code written. Original graphics are
+reassembled with that code, and CWS movies are recompressed with zlib level 9.
+The final SHA-256 and byte comparison must prove full file equality, including
+compression. If compression differs, the result is still reported as different.
+
+The current linker refuses anonymous method identity changes, changed constant
+references, changing operand widths, class/trait reordering, and remaining
+instruction or verifier-metadata differences. Its success on individual classes
+does not prove a whole-tree rebuild. `MEASUREMENTS.md` records the current evidence.
+
 ## Remaining work
 
-1. Finish compiler matching, including `LobbyMenu` and decompiler defects.
+1. Finish compiler matching and decompiler defects.
    Evaluate all 878 scripts after the initial 18-class experiment.
-2. Build a verified ABC linker that maps compiled pools, private namespaces,
+2. Extend the verified ABC linker to map compiled pools, private namespaces,
    methods and classes to original identities. Require each compiled method's
    instructions **and metadata** to match after relocation. Never copy an old
    body as a substitute for a failed compilation.
@@ -127,8 +170,14 @@ they are an experiment toward matching the original compiler output.
 
 ```sh
 python3 -m unittest discover -s tools/actionscript -v
+# Include the actual Flex dependency and linker regression test:
+SRP_AS_TOOLS=/absolute/path/to/private/actionscript/tools.json \
+  python3 -m unittest discover -s tools/actionscript -v
 ```
 
 These tests cover the byte comparison and container preservation, including
 negative cases where instruction bytes stay equal but a pool or method
 metadata changes. Real compiler measurements are separate private artifacts.
+The optional compiler regression uses project-authored ActionScript. It reproduces
+the wildcard dependency failure, verifies its repair, tests method reordering,
+and checks that changed instructions or stack metadata produce no linked output.

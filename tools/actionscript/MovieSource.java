@@ -47,6 +47,15 @@ public final class MovieSource {
                 ABC abc = tag.getABC();
                 for (int j = 1; j < abc.constants.getMultinameCount(); j++) {
                     Multiname m = abc.constants.getMultiname(j);
+                    // ASC's SWC reader dereferences multiname 0 for Vector.<*>.
+                    // Its explicit public '*' name represents the same wildcard
+                    // without that null entry in the compiler dependency only.
+                    if (m.kind == 0x1d) {
+                        for (int k = 0; k < m.params.length; k++) if (m.params[k] == 0) {
+                            m.params[k] = abc.constants.getPublicQnameId("*", true);
+                            ((Tag)tag).setModified(true);
+                        }
+                    }
                     if (m.kind != 0x09) continue;
                     int[] ns = abc.constants.getNamespaceSet(m.namespace_set_index).namespaces;
                     if (ns.length != 1) continue;
@@ -75,14 +84,40 @@ public final class MovieSource {
                 factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
                 var doc = factory.newDocumentBuilder().parse(new ByteArrayInputStream(entries.get("catalog.xml")));
                 var scripts = doc.getElementsByTagName("script");
+                Set<String> definitions = new HashSet<>();
+                var allDefs = doc.getElementsByTagName("def");
+                for (int i = 0; i < allDefs.getLength(); i++)
+                    definitions.add(((org.w3c.dom.Element)allDefs.item(i)).getAttribute("id"));
+                Map<String, Set<String>> references = new HashMap<>();
+                for (var tag : dependency.getAbcList()) {
+                    ABC abc = tag.getABC();
+                    Set<String> refs = new TreeSet<>();
+                    for (int j = 1; j < abc.constants.getMultinameCount(); j++) {
+                        if (abc.constants.getMultiname(j).kind != 7) continue;
+                        String ref = catalogName(abc, j);
+                        if (definitions.contains(ref)) refs.add(ref);
+                    }
+                    for (InstanceInfo ins : abc.instance_info)
+                        references.put(catalogName(abc, ins.name_index), refs);
+                }
                 for (int i = 0; i < scripts.getLength(); i++) {
                     var script = (org.w3c.dom.Element)scripts.item(i);
                     var defs = script.getElementsByTagName("def");
                     Set<String> deps = new TreeSet<>();
+                    Set<String> own = new HashSet<>(), expression = new TreeSet<>();
                     for (int j = 0; j < defs.getLength(); j++)
                         deps.addAll(inheritance.getOrDefault(((org.w3c.dom.Element)defs.item(j)).getAttribute("id"), List.of()));
+                    for (int j = 0; j < defs.getLength(); j++) {
+                        String id = ((org.w3c.dom.Element)defs.item(j)).getAttribute("id");
+                        own.add(id); expression.addAll(references.getOrDefault(id, Set.of()));
+                    }
+                    expression.removeAll(own); expression.removeAll(deps);
                     for (String base : deps) {
                         var dep = doc.createElement("dep"); dep.setAttribute("id", base); dep.setAttribute("type", "i");
+                        script.appendChild(dep);
+                    }
+                    for (String ref : expression) {
+                        var dep = doc.createElement("dep"); dep.setAttribute("id", ref); dep.setAttribute("type", "e");
                         script.appendChild(dep);
                     }
                 }
@@ -199,6 +234,205 @@ public final class MovieSource {
         return buf.toByteArray();
     }
 
+    static byte[] abcBytes(ABC abc) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        abc.saveToStream(out);
+        return out.toByteArray();
+    }
+
+    static Object poolEntry(ABC abc, String pool, int index) throws Exception {
+        Object value = abc.constants.getClass().getMethod("get" + pool, int.class).invoke(abc.constants, index);
+        if (value instanceof Namespace ns) {
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            new ABCOutputStream(buffer).writeNamespace(ns);
+            return HexFormat.of().formatHex(buffer.toByteArray());
+        }
+        if (value instanceof NamespaceSet ns) return Arrays.toString(ns.namespaces);
+        if (value instanceof Multiname name) {
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            new ABCOutputStream(buffer).writeMultiname(name);
+            return HexFormat.of().formatHex(buffer.toByteArray());
+        }
+        if (value instanceof Double d) return Double.doubleToRawLongBits(d);
+        if (value instanceof Float f) return Float.floatToRawIntBits(f);
+        return value;
+    }
+
+    static List<Integer> runtimeMetadata(ABC abc, Trait trait) {
+        List<Integer> result = new ArrayList<>();
+        if ((trait.kindFlags & Trait.ATTR_Metadata) == 0) return result;
+        for (int id : trait.metadata) {
+            String name = abc.constants.getString(abc.metadata_info.get(id).name_index);
+            if (!name.equals("__go_to_definition_help") && !name.equals("__go_to_ctor_definition_help")) result.add(id);
+        }
+        return result;
+    }
+
+    static void retainDebugMetadata(ABC original, ABC compiled, Traits before, Traits after) throws IOException {
+        if (before.traits.size() != after.traits.size()) throw new IOException("Trait count changed");
+        for (int j = 0; j < before.traits.size(); j++) {
+            Trait a = before.traits.get(j), b = after.traits.get(j);
+            if (a.kindType != b.kindType || !name(original, a.name_index).equals(name(compiled, b.name_index)))
+                throw new IOException("Trait identities or ordering changed");
+            if (!runtimeMetadata(original, a).equals(runtimeMetadata(compiled, b)))
+                throw new IOException("Runtime trait metadata changed");
+            b.metadata = a.metadata == null ? null : a.metadata.clone();
+            b.kindFlags = (b.kindFlags & ~Trait.ATTR_Metadata) | (a.kindFlags & Trait.ATTR_Metadata);
+        }
+    }
+
+    static void relocateTraitMethods(Traits traits, Map<Integer, Integer> mapping) {
+        for (Trait trait : traits.traits) {
+            if (trait instanceof TraitMethodGetterSetter method) method.method_info = mapping.get(method.method_info);
+            else if (trait instanceof TraitFunction function) function.method_info = mapping.get(function.method_info);
+        }
+    }
+
+    static void restoreMethodOrder(ABC original, ABC compiled) throws IOException {
+        if (original.method_info.size() != compiled.method_info.size()) throw new IOException("Method count changed");
+        Map<Integer, String> before = names(original), after = names(compiled);
+        if (before.equals(after)) return;
+        if (before.size() != original.method_info.size() || after.size() != compiled.method_info.size())
+            throw new IOException("Anonymous method ownership is unresolved");
+        Map<String, Integer> owners = new HashMap<>();
+        for (var entry : before.entrySet())
+            if (owners.put(entry.getValue(), entry.getKey()) != null) throw new IOException("Ambiguous method owner");
+        Map<Integer, Integer> mapping = new HashMap<>();
+        Set<Integer> assigned = new HashSet<>();
+        for (var entry : after.entrySet()) {
+            Integer index = owners.get(entry.getValue());
+            if (index == null || !assigned.add(index)) throw new IOException("Method identities changed");
+            mapping.put(entry.getKey(), index);
+        }
+        List<MethodInfo> infos = new ArrayList<>(Collections.nCopies(compiled.method_info.size(), null));
+        for (var entry : mapping.entrySet()) infos.set(entry.getValue(), compiled.method_info.get(entry.getKey()));
+        Map<Integer, MethodBody> bodies = new HashMap<>();
+        for (MethodBody body : compiled.bodies) {
+            var code = body.getCode();
+            for (var instruction : code.code) {
+                int length = instruction.getBytesLength();
+                for (int j = 0; j < instruction.definition.operands.length; j++)
+                    if (instruction.definition.operands[j] == com.jpexs.decompiler.flash.abc.avm2.AVM2Code.DAT_METHOD_INDEX) {
+                        Integer index = mapping.get(instruction.operands[j]);
+                        if (index == null) throw new IOException("Unmapped method instruction operand");
+                        instruction.operands[j] = index;
+                    }
+                // Until branch/exception offset relocation is implemented,
+                // never shift an instruction or silently leave stale offsets.
+                if (instruction.getBytesLength() != length) throw new IOException("Method reference width changed; offset relocation required");
+            }
+            body.setCode(code);
+            relocateTraitMethods(body.traits, mapping);
+            body.method_info = mapping.get(body.method_info);
+            if (bodies.put(body.method_info, body) != null) throw new IOException("Duplicate method body");
+        }
+        for (InstanceInfo ins : compiled.instance_info) {
+            ins.iinit_index = mapping.get(ins.iinit_index);
+            relocateTraitMethods(ins.instance_traits, mapping);
+        }
+        for (ClassInfo cls : compiled.class_info) {
+            cls.cinit_index = mapping.get(cls.cinit_index);
+            relocateTraitMethods(cls.static_traits, mapping);
+        }
+        for (ScriptInfo script : compiled.script_info) {
+            script.init_index = mapping.get(script.init_index);
+            relocateTraitMethods(script.traits, mapping);
+        }
+        List<MethodBody> ordered = new ArrayList<>();
+        for (MethodBody body : original.bodies) {
+            MethodBody emitted = bodies.remove(body.method_info);
+            if (emitted == null) throw new IOException("Compiled method has no body");
+            ordered.add(emitted);
+        }
+        if (!bodies.isEmpty()) throw new IOException("Unexpected compiled method bodies");
+        compiled.method_info = infos;
+        compiled.bodies = ordered;
+        compiled.resetMethodIndexing();
+    }
+
+    // Conservative first layout linker. It never imports an original method
+    // body. All executable records and class/script definitions come from the
+    // compiler. Existing pool entries must retain their original indices and
+    // values; unused appended constants, compiler debug names and Adobe editor
+    // navigation metadata follow the original layout. A byte comparison of the
+    // entire ABC must then pass. Runtime metadata is never silently restored.
+    static void linkLayout(Path referenceFile, Path candidateFile, Path output, String cls) throws Exception {
+        SWF reference = read(referenceFile), candidate = read(candidateFile);
+        if (reference.getAbcList().size() != candidate.getAbcList().size())
+            throw new IOException("ABC block count changed");
+        int home = -1;
+        for (int i = 0; i < reference.getAbcList().size(); i++) {
+            if (reference.getAbcList().get(i).getABC().findClassByName(cls) < 0) continue;
+            if (home != -1) throw new IOException("Ambiguous class " + cls);
+            home = i;
+        }
+        if (home < 0) throw new IOException("Missing class " + cls);
+        for (int i = 0; i < reference.getAbcList().size(); i++) {
+            if (i != home && !Arrays.equals(abcBytes(reference.getAbcList().get(i).getABC()),
+                    abcBytes(candidate.getAbcList().get(i).getABC())))
+                throw new IOException("Unrelated ABC block changed: " + i);
+        }
+        ABC original = reference.getAbcList().get(home).getABC();
+        ABC compiled = candidate.getAbcList().get(home).getABC();
+        if (original.version.major != compiled.version.major || original.version.minor != compiled.version.minor)
+            throw new IOException("ABC version changed");
+        for (String pool : List.of("Int", "UInt", "Double", "String", "Namespace", "NamespaceSet", "Multiname")) {
+            var count = original.constants.getClass().getMethod("get" + pool + "Count");
+            int size = (int)count.invoke(original.constants);
+            if ((int)count.invoke(compiled.constants) < size) throw new IOException("Pool was compacted: " + pool);
+            for (int j = 1; j < size; j++)
+                if (!Objects.equals(poolEntry(original, pool, j), poolEntry(compiled, pool, j)))
+                    throw new IOException("Existing pool entry changed: " + pool + " " + j);
+        }
+        if (original.hasDecimalSupport() || original.hasFloatSupport() || original.hasFloat4Support())
+            throw new IOException("Extended numeric ABC versions are not supported by this linker");
+        restoreMethodOrder(original, compiled);
+        if (compiled.metadata_info.size() < original.metadata_info.size()) throw new IOException("Metadata pool compacted");
+        for (int i = 0; i < original.metadata_info.size(); i++) {
+            MetadataInfo a = original.metadata_info.get(i), b = compiled.metadata_info.get(i);
+            if (a.name_index != b.name_index || !Arrays.equals(a.keys, b.keys) || !Arrays.equals(a.values, b.values))
+                throw new IOException("Existing metadata pool entry changed");
+        }
+        if (original.instance_info.size() != compiled.instance_info.size() || original.script_info.size() != compiled.script_info.size()
+                || original.bodies.size() != compiled.bodies.size()) throw new IOException("ABC record counts changed");
+        for (int i = 0; i < original.instance_info.size(); i++) {
+            retainDebugMetadata(original, compiled, original.instance_info.get(i).instance_traits, compiled.instance_info.get(i).instance_traits);
+            retainDebugMetadata(original, compiled, original.class_info.get(i).static_traits, compiled.class_info.get(i).static_traits);
+        }
+        for (int i = 0; i < original.script_info.size(); i++)
+            retainDebugMetadata(original, compiled, original.script_info.get(i).traits, compiled.script_info.get(i).traits);
+        for (int i = 0; i < original.bodies.size(); i++) {
+            if (original.bodies.get(i).method_info != compiled.bodies.get(i).method_info) throw new IOException("Method body ordering changed");
+            retainDebugMetadata(original, compiled, original.bodies.get(i).traits, compiled.bodies.get(i).traits);
+        }
+        for (int i = 0; i < original.method_info.size(); i++) {
+            MethodInfo before = original.method_info.get(i), after = compiled.method_info.get(i);
+            String oldName = before.name_index == 0 ? "" : original.constants.getString(before.name_index);
+            String newName = after.name_index == 0 ? "" : compiled.constants.getString(after.name_index);
+            if (!oldName.isEmpty() && !oldName.equals(newName))
+                throw new IOException("Nonempty debug method name changed at " + i);
+            after.name_index = before.name_index;
+        }
+        compiled.constants = original.constants;
+        compiled.metadata_info = original.metadata_info;
+        byte[] rebuilt = abcBytes(compiled), expected = abcBytes(original);
+        if (!Arrays.equals(rebuilt, expected)) {
+            int first = 0;
+            while (first < Math.min(rebuilt.length, expected.length) && rebuilt[first] == expected[first]) first++;
+            throw new IOException("Compiled ABC still differs at byte " + first + " (original " + expected.length
+                + " bytes, compiled " + rebuilt.length + "); no output written");
+        }
+        ((Tag)compiled.parentTag).setModified(true);
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        candidate.saveTo(bytes);
+        SWF saved = new SWF(new ByteArrayInputStream(bytes.toByteArray()), true);
+        for (int i = 0; i < reference.getAbcList().size(); i++)
+            if (!Arrays.equals(abcBytes(reference.getAbcList().get(i).getABC()), abcBytes(saved.getAbcList().get(i).getABC())))
+                throw new IOException("Serialized ABC differs at block " + i);
+        Files.write(output, bytes.toByteArray(), StandardOpenOption.CREATE_NEW);
+        System.out.println("Exact compiled ABC for " + cls + ": " + rebuilt.length + " bytes; original bodies were not substituted");
+    }
+
     static String cell(String s) { return s.replace("\t", "\\t").replace("\n", "\\n").replace("\r", "\\r"); }
 
     static void snapshot(SWF swf, Path dir) throws Exception {
@@ -230,6 +464,16 @@ public final class MovieSource {
     static void run(String[] a) throws Exception {
         if (a.length < 3) throw new IllegalArgumentException("export|snapshot|compile INPUT OUTPUT [CLASS SOURCE ffdec|flex SDK]");
         Configuration.parallelSpeedUp.set(false);
+        if (a[0].equals("link-layout")) {
+            if (a.length != 5) throw new IllegalArgumentException("link-layout ORIGINAL COMPILED OUTPUT CLASS");
+            linkLayout(Path.of(a[1]), Path.of(a[2]), Path.of(a[3]), a[4]);
+            return;
+        }
+        if (a[0].equals("dependencies")) {
+            Files.copy(Path.of(a[1]), Path.of(a[2]));
+            FlexCompiler.qualifyDependencyInterfaces(Path.of(a[2]));
+            return;
+        }
         SWF swf = read(Path.of(a[1]));
         Path output = Path.of(a[2]);
         switch (a[0]) {
