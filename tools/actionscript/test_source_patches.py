@@ -16,6 +16,16 @@ class SourcePatchTests(unittest.TestCase):
         source_entry = dict(entry, composition=dict(entry['composition'], ffdec_compiler='ffdec-source'))
         self.assertEqual(patches.composition_plan(source_entry),
                          ('ffdec_compiler=ffdec-source\nscript_traits=ffdec\n' + owner + '\n').encode())
+        hidden_entry = dict(source_entry, composition=dict(source_entry['composition'],
+                            ffdec_hidden_static=['example.Dependency/helper']))
+        self.assertEqual(patches.composition_plan(hidden_entry),
+                         ('ffdec_compiler=ffdec-source\nffdec_hide_static=example.Dependency/helper\n'
+                          'script_traits=ffdec\n' + owner + '\n').encode())
+        for value in ('Dependency/helper', ['Dependency/helper', 'Dependency/helper'],
+                      ['../Dependency/helper'], ['Dependency/helper\n'], ['Dependency/field/subfield']):
+            with self.assertRaises(ValueError):
+                patches.composition_plan(dict(source_entry, composition=dict(source_entry['composition'],
+                                         ffdec_hidden_static=value)))
         self.assertIsNone(patches.composition_plan({'compiler': 'flex-library'}))
         for broken in [
             {'compiler': 'flex-mixed'},
@@ -29,6 +39,8 @@ class SourcePatchTests(unittest.TestCase):
             dict(entry, composition={'ffdec_methods': [owner], 'ffdec_compiler': 'reference'}),
             dict(entry, composition={'ffdec_methods': ['ffdec_compiler=ffdec-source']}),
             dict(entry, composition={'ffdec_methods': ['script_traits=ffdec']}),
+            dict(entry, composition={'ffdec_methods': ['ffdec_hide_static=Dependency/helper']}),
+            dict(entry, composition={'ffdec_methods': [owner], 'ffdec_hidden_static': ['Dependency/helper']}),
         ]:
             with self.assertRaises(ValueError):
                 patches.composition_plan(broken)

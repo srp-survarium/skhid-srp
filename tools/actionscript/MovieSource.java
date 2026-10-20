@@ -1680,8 +1680,10 @@ public final class MovieSource {
             String secondaryCompiler = Files.readAllLines(selection).contains("ffdec_compiler=ffdec-source")
                 ? "ffdec-source" : "ffdec";
             for (String compiler : List.of("flex-library", secondaryCompiler)) {
-                run(new String[]{"compile", a[1], diagnostics.resolve(compiler + ".swf").toString(),
-                    a[3], source.toString(), diagnostics.resolve(compiler + "-snapshot").toString(), compiler, a[7]});
+                var arguments = new ArrayList<>(List.of("compile", a[1], diagnostics.resolve(compiler + ".swf").toString(),
+                    a[3], source.toString(), diagnostics.resolve(compiler + "-snapshot").toString(), compiler, a[7]));
+                if (compiler.equals("ffdec-source")) arguments.add(selection.toString());
+                run(arguments.toArray(String[]::new));
                 if (!Arrays.equals(sourceBytes, Files.readAllBytes(source)))
                     throw new IOException("Mixed compiler source changed during compilation");
             }
@@ -1710,7 +1712,8 @@ public final class MovieSource {
                 break;
             }
             case "compile": {
-                if (a.length != 8) throw new IllegalArgumentException("compile INPUT OUTPUT CLASS SOURCE ffdec|ffdec-source|flex|flex-strict|flex-library SDK");
+                if (a.length != 8 && !(a.length == 9 && a[6].equals("ffdec-source")))
+                    throw new IllegalArgumentException("compile INPUT OUTPUT CLASS SOURCE COMPILER SDK [SOURCE_PLAN]");
                 ScriptPack found = null;
                 for (ScriptPack pack : swf.getAS3Packs())
                     if (pack.getClassPath().toRawString().equals(a[3])) {
@@ -1724,7 +1727,8 @@ public final class MovieSource {
                     compiler = new FlexCompiler(a[7], Path.of(a[5]).resolveSibling(Path.of(a[5]).getFileName() + "-flex"),
                         !a[6].equals("flex"), a[6].equals("flex-library") ? a[3] : null);
                 else if (a[6].equals("ffdec")) compiler = As3ScriptReplacerFactory.createFFDec();
-                else if (a[6].equals("ffdec-source")) compiler = new SourceCompiler();
+                else if (a[6].equals("ffdec-source")) compiler = new SourceCompiler(a.length == 9
+                    ? MixedCompiler.hiddenStaticMembers(Files.readAllLines(Path.of(a[8]))) : List.of());
                 else throw new IllegalArgumentException("Unknown compiler " + a[6]);
                 try {
                     if (!found.abc.replaceScriptPack(compiler, found, Files.readString(Path.of(a[4])), List.of()))

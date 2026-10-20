@@ -1110,3 +1110,37 @@ whole-tree build is still outstanding. The fresh premium rebuild again has
 hash `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
 with exactly one authorized method changed and identical non-code bytes. This
 records byte identity with the earlier game-tested build, not a new game run.
+
+### Explicit dependency declarations and two more reconstructions
+
+`UpgradeSlot` and `ItemFactory` now independently reproduce the complete
+compressed release movie. Their mixed plans select `updateSlot` and
+`setItemsCompatibility`, respectively, from `ffdec-source`. Native source
+reconstruction recovers declaration order, typed temporaries and conversions,
+unsigned loop counters, and retained loop-update structure.
+
+Each plan names one public static dependency method in
+`ffdec_hidden_static`: `UpgradeWindow/fitText` or
+`UpgradeWindow/addCompatibility` (with its full package). Hiding that declaration
+from the compiler index preserves the unresolved namespace lookup in the
+original call. The dependency declaration is restored before output. No
+executable dependency code is changed, and the existing composition gate checks
+all non-target ABC bytes. Missing or ambiguous methods, non-method traits,
+target ABC declarations, duplicate entries and malformed paths are refused.
+The choices are pinned in the manifest and retained composition plan.
+
+The real-compiler fixture builds separate dependency ABCs and checks independent
+baseline equality, the intended unresolved call alongside an ordinary typed
+call, unchanged dependency bytes, preservation of a deliberate source edit,
+feature-gate acceptance and baseline-gate rejection of that edit. It also
+checks rejection of invalid API selections and restoration after parser or
+selection failure. The full run passed the other 20 tests; after correcting a
+test input that the parser accepted, the new integration test passes too
+(21 tests total, including six compiler integration tests).
+
+There are now 224 authenticated reconstructions and 645 pristine successes:
+869 of 878 scripts have individual exact proofs. Nine remain, and the complete
+whole-tree matching build is still outstanding. The premium rebuild retains
+hash `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+with one authorized method changed and unchanged non-code bytes. The runtime
+record describes a rebuild identical to the earlier game-tested output.

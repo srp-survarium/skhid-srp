@@ -9,6 +9,20 @@ import com.jpexs.decompiler.flash.abc.types.traits.*;
 import com.jpexs.decompiler.flash.tags.Tag;
 /** Compose explicitly selected records from two actual compilations of the same source. */
 public final class MixedCompiler {
+    static List<String> hiddenStaticMembers(List<String> plan) throws IOException {
+        List<String> result = new ArrayList<>();
+        String identifier = "[A-Za-z_$][A-Za-z0-9_$]*";
+        for (String line : plan) if (line.startsWith("ffdec_hide_static=")) {
+            String member = line.substring("ffdec_hide_static=".length());
+            if (!member.matches(identifier + "(?:\\." + identifier + ")*/" + identifier)
+                    || result.contains(member))
+                throw new IOException("Invalid hidden static dependency declaration");
+            result.add(member);
+        }
+        if (!result.isEmpty() && !plan.contains("ffdec_compiler=ffdec-source"))
+            throw new IOException("Hidden declarations require ffdec-source");
+        return result;
+    }
     static final List<String> POOLS=List.of("Int","UInt","Double","String","Namespace","NamespaceSet","Multiname");
     static int count(ABC abc,String pool)throws Exception {
         return (int)abc.constants.getClass().getMethod("get"+pool+"Count").invoke(abc.constants);
@@ -229,6 +243,8 @@ public final class MixedCompiler {
         Path selection=Path.of(args[4]),output=Path.of(args[5]);
         List<String> selected=Files.readAllLines(selection);
         if(selected.isEmpty()||selected.stream().anyMatch(String::isBlank)||new HashSet<>(selected).size()!=selected.size())throw new IOException("Empty or duplicate selection");
+        hiddenStaticMembers(selected);
+        selected.removeIf(line -> line.startsWith("ffdec_hide_static="));
         boolean secondaryScript=selected.remove("script_traits=ffdec");
         selected.remove("ffdec_compiler=ffdec-source");
         if(selected.isEmpty())throw new IOException("No selected methods");

@@ -1911,6 +1911,44 @@
       "pristine_sha256": "4bf4eec6657b4de1d262b2761348d9c2244de5c0ed312bbe5d21c1f491f42319",
       "reason": "Recover lexical height updates, constant/variable declaration order, typed return temporaries, explicit property conversions and NaN-preserving comparison expressions. Explicitly compose the feature methods from ffdec-source and native UI methods from Flex. The validated emitter selects equivalent integer operations and the fixed zero encoding for a proven unreachable jump. Fresh compilation and reassembly reproduce the entire compressed release movie exactly.",
       "result_sha256": "437b3df5fcdd6d60c63e8ab2b79f16859cf6552f6fb90c80c35a4340e36bd23e"
+    },
+    {
+      "class": "survarium.upgrade.UpgradeSlot",
+      "compiler": "flex-mixed",
+      "composition": {
+        "ffdec_compiler": "ffdec-source",
+        "ffdec_hidden_static": [
+          "survarium.upgrade.UpgradeWindow/fitText"
+        ],
+        "ffdec_methods": [
+          "QName(PackageNamespace(\"survarium.upgrade\"),\"UpgradeSlot\")/instance/1/QName(ProtectedNamespace(\"survarium.upgrade:UpgradeSlot\"),\"updateSlot\")"
+        ],
+        "script_traits": "ffdec"
+      },
+      "patch": "survarium/upgrade/UpgradeSlot.patch",
+      "patch_sha256": "2cc2658bdf8367334cbb1486567db1567b6ba3fadafa5a5450cb01fd0608b758",
+      "pristine_sha256": "772410ba492595d12a4a78dbb5dde1f52a5f108b71d423c6db52da2e096fd1d7",
+      "reason": "Recover native declaration and unreachable loop-update structure; explicitly select the updateSlot method from ffdec-source. Hide only the public UpgradeWindow.fitText declaration from the compiler index to preserve its unresolved namespace lookup, then restore every dependency byte. Fresh compilation and reassembly reproduce the entire compressed release movie exactly.",
+      "result_sha256": "3ee182e1cd4245529eed1463e6c0ad5a4d2deac0f2a3897ad90af949fc97e508"
+    },
+    {
+      "class": "survarium.item.ItemFactory",
+      "compiler": "flex-mixed",
+      "composition": {
+        "ffdec_compiler": "ffdec-source",
+        "ffdec_hidden_static": [
+          "survarium.upgrade.UpgradeWindow/addCompatibility"
+        ],
+        "ffdec_methods": [
+          "QName(PackageNamespace(\"survarium.item\"),\"ItemFactory\")/static/1/QName(PackageNamespace(\"\"),\"setItemsCompatibility\")"
+        ],
+        "script_traits": "ffdec"
+      },
+      "patch": "survarium/item/ItemFactory.patch",
+      "patch_sha256": "99668cc271ab608d504e5481bcf5d211cf2ce263c92967ad9801b8f2d9aeffc0",
+      "pristine_sha256": "231a18873c979c5966023b0fcd48ef6bb8db3219c440dee3b856b4be2f7cb789",
+      "reason": "Recover native typed ternary expressions, explicit numeric conversions, Array/Object return temporaries and initialized unsigned counters. Explicitly select setItemsCompatibility from ffdec-source with only the public UpgradeWindow.addCompatibility declaration hidden during compilation. Dependency declarations and bytes are restored; fresh compilation and reassembly reproduce the entire compressed release movie exactly.",
+      "result_sha256": "63a59f6b285fc309a192c3c5b5a3b122f8ad98560bc70459c9dc032fd538e2a3"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

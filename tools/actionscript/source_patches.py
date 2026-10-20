@@ -16,13 +16,13 @@ def composition_plan(entry):
             raise ValueError('Compiler composition requires flex-mixed')
         return None
     spec = entry.get('composition')
-    if not isinstance(spec, dict) or set(spec) - {'ffdec_methods', 'script_traits', 'ffdec_compiler'}:
+    if not isinstance(spec, dict) or set(spec) - {'ffdec_methods', 'script_traits', 'ffdec_compiler', 'ffdec_hidden_static'}:
         raise ValueError('Invalid compiler composition')
     methods = spec.get('ffdec_methods')
     if (not isinstance(methods, list) or not methods
             or any(not isinstance(owner, str) or not owner or owner.strip() != owner
                    or any(c in owner for c in '\t\r\n|')
-                   or owner.startswith(('script_traits=', 'ffdec_compiler=')) for owner in methods)
+                   or owner.startswith(('script_traits=', 'ffdec_compiler=', 'ffdec_hide_static=')) for owner in methods)
             or len(set(methods)) != len(methods)):
         raise ValueError('Invalid or duplicate compiler method selection')
     declarations = spec.get('script_traits', 'native')
@@ -31,7 +31,17 @@ def composition_plan(entry):
     compiler = spec.get('ffdec_compiler', 'ffdec')
     if compiler not in ('ffdec', 'ffdec-source'):
         raise ValueError('Invalid secondary source compiler')
+    hidden = spec.get('ffdec_hidden_static', [])
+    identifier = r'[A-Za-z_$][A-Za-z0-9_$]*'
+    if (not isinstance(hidden, list)
+            or any(not isinstance(member, str)
+                   or not re.fullmatch(identifier + r'(?:\.' + identifier + r')*/' + identifier, member)
+                   for member in hidden)
+            or len(set(hidden)) != len(hidden)
+            or (hidden and compiler != 'ffdec-source')):
+        raise ValueError('Invalid hidden static dependency declaration')
     lines = (['ffdec_compiler=ffdec-source'] if compiler == 'ffdec-source' else [])
+    lines += ['ffdec_hide_static=' + member for member in hidden]
     lines += (['script_traits=ffdec'] if declarations == 'ffdec' else []) + methods
     return ('\n'.join(lines) + '\n').encode()
 
