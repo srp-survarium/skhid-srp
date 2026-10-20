@@ -1,0 +1,247 @@
+--- a/survarium/chat/LobbyChatTab.as
++++ b/survarium/chat/LobbyChatTab.as
+@@ -101,7 +101,7 @@
+       
+       public function set owner(param1:LobbyChat) : void
+       {
+-         this._owner = param1;
++         _owner = param1;
+       }
+       
+       public function get handled() : Boolean
+@@ -158,7 +158,7 @@
+       
+       public function setData(param1:Object) : void
+       {
+-         this._data = param1;
++         _data = param1;
+          invalidateData();
+       }
+       
+@@ -187,10 +187,10 @@
+       
+       public function setSizeLimits(param1:int, param2:int, param3:int, param4:int) : void
+       {
+-         this._minWidth = param1;
+-         this._minHeight = param2;
+-         this._maxWidth = param3;
+-         this._maxHeight = param4;
++         _minWidth = param1;
++         _minHeight = param2;
++         _maxWidth = param3;
++         _maxHeight = param4;
+       }
+       
+       public function submitText(param1:Event = null) : void
+@@ -214,14 +214,14 @@
+       
+       public function prepareToResize() : void
+       {
+-         this._pos = this.text_chat.position;
+-         this._was_last = this.text_chat.position == this.text_chat.textField.maxScrollV;
++         _pos = this.text_chat.position;
++         _was_last = this.text_chat.position == this.text_chat.textField.maxScrollV;
+          this.text_chat.addEventListener(Event.RENDER,this.checkChat);
+       }
+       
+       public function clear() : void
+       {
+-         this._data = null;
++         _data = null;
+          this.btn_close.removeEventListener(ButtonEvent.CLICK,this.onClose);
+          this.btn_hide.removeEventListener(ButtonEvent.CLICK,this.onHide);
+          this.text_inpput.removeEventListener(KeyboardEvent.KEY_UP,this.checkInputKeyForSubmit);
+@@ -290,7 +290,7 @@
+       
+       private function startResize(param1:Event) : void
+       {
+-         this._dragPoint = new Point(mouseX,mouseY);
++         _dragPoint = new Point(mouseX,mouseY);
+          stage.addEventListener(MouseEvent.MOUSE_MOVE,this.chResize);
+          stage.addEventListener(MouseEvent.MOUSE_UP,this.stopResize);
+       }
+@@ -305,7 +305,7 @@
+       
+       private function startMove(param1:Event) : void
+       {
+-         this._dragPoint = new Point(mouseX,mouseY);
++         _dragPoint = new Point(mouseX,mouseY);
+          stage.addEventListener(MouseEvent.MOUSE_MOVE,this.chMove);
+          stage.addEventListener(MouseEvent.MOUSE_UP,this.stopMove);
+       }
+@@ -343,38 +343,38 @@
+          {
+             _loc2_ = -(MainScene.stageWidth - (x + this.width / this._myScaleFactor));
+          }
+-         this.x = x - _loc2_;
+-         this.y = y - _loc3_;
+-         this._hasMoved = true;
++         x = x - _loc2_;
++         y = y - _loc3_;
++         _hasMoved = true;
+       }
+       
+       private function chResize(param1:MouseEvent) : void
+       {
+-         var _loc2_:Number = NaN;
+-         var _loc4_:Number = NaN;
++         var _loc2_:Number;
+          if(this._dragPoint.x < 80)
+          {
+             _loc2_ = Math.min(Math.max(this._dragPoint.x - mouseX,this._minWidth - this.width),this._maxWidth - this.width);
+             _loc4_ = x;
+-            this.x = x - _loc2_ / this._myScaleFactor;
+-            this.width += _loc4_ - x;
++            x = x - _loc2_ / this._myScaleFactor;
++            width += _loc4_ - x;
+          }
+          else
+          {
+             _loc2_ = Math.min(Math.max(mouseX - this._dragPoint.x,this._minWidth - this.width),this._maxWidth - this.width);
+             this._dragPoint.x += _loc2_;
+-            this.width += _loc2_;
++            width += _loc2_;
+          }
+          var _loc3_:Number = Math.min(Math.max(mouseY - this._dragPoint.y,this._minHeight - this.back.height),this._maxHeight - this.back.height);
++         var _loc4_:Number;
+          this._dragPoint.y += _loc3_;
+-         this.height = this.back.height + _loc3_;
++         height = this.back.height + _loc3_;
+       }
+       
+       protected function checkLenght(param1:int) : void
+       {
+-         var _loc3_:int = 0;
+-         var _loc4_:int = 0;
+          var _loc2_:TextField = this.text_chat.textField;
++         var _loc3_:int;
++         var _loc4_:int;
+          trace("currentLength::",_loc2_.numLines);
+          if(_loc2_.numLines > param1)
+          {
+@@ -392,14 +392,14 @@
+       
+       protected function addMessage(param1:String) : void
+       {
+-         this._pos = this.text_chat.position;
+-         this._was_last = this.text_chat.position == this.text_chat.textField.maxScrollV;
++         _pos = this.text_chat.position;
++         _was_last = this.text_chat.position == this.text_chat.textField.maxScrollV;
+          this.text_chat.appendHtml(param1 + this._nline);
+          this.text_chat.validateNow();
+          this.text_chat.addEventListener(Event.RENDER,this.checkChat);
+          if(!visible)
+          {
+-            if(Boolean(this._data))
++            if(this._data)
+             {
+                this._data.blink = true;
+             }
+@@ -410,7 +410,7 @@
+       
+       protected function onClose(param1:Event = null) : void
+       {
+-         if(Boolean(stage))
++         if(stage)
+          {
+             stage.focus = null;
+          }
+@@ -464,11 +464,11 @@
+          this.back.focusTarget = this;
+          LocalizationData.addCallback(this.onLocal,"enter_chat_message");
+          layoutData = null;
+-         if(Boolean(this.labelTextField))
++         if(this.labelTextField)
+          {
+             this.labelTextField.mouseEnabled = false;
+          }
+-         if(Boolean(this.labelTextField))
++         if(this.labelTextField)
+          {
+             this.labelTextField.mouseChildren = false;
+          }
+@@ -519,7 +519,7 @@
+          }
+          if(isInvalid(InvalidationType.DATA))
+          {
+-            if(Boolean(this.labelTextField))
++            if(this.labelTextField)
+             {
+                this.labelTextField.text = this._data.name;
+                this.labelTextField.validateNow();
+@@ -567,13 +567,13 @@
+             else
+             {
+                trace("chat_enter_cancel");
+-               this._started = false;
++               _started = false;
+                ExternalInterface.call("chat_enter_cancel");
+                this.enterArrow.alpha = 0.3;
+             }
+-            this._isTyping = false;
+-         }
+-         this.ignoreFocus = false;
++            _isTyping = false;
++         }
++         ignoreFocus = false;
+       }
+       
+       protected function start_enter_text(param1:FocusEvent = null) : void
+@@ -588,13 +588,13 @@
+             else
+             {
+                trace("chat_enter_start");
+-               this._started = true;
++               _started = true;
+                ExternalInterface.call("chat_enter_start");
+                this.enterArrow.alpha = 1;
+             }
+          }
+-         this.ignoreFocus = false;
+-         this._isTyping = true;
++         ignoreFocus = false;
++         _isTyping = true;
+          this.text_inpput.addEventListener(ComponentEvent.STATE_CHANGE,this.onNewState);
+       }
+       
+@@ -610,12 +610,12 @@
+             else
+             {
+                trace("chat_enter_cancel");
+-               this._started = false;
++               _started = false;
+                ExternalInterface.call("chat_enter_cancel");
+             }
+-            this._isTyping = false;
+-         }
+-         this.ignoreFocus = false;
++            _isTyping = false;
++         }
++         ignoreFocus = false;
+       }
+       
+       protected function start_enter_text_area(param1:FocusEvent = null) : void
+@@ -630,18 +630,18 @@
+             else
+             {
+                trace("chat_enter_start");
+-               this._started = true;
++               _started = true;
+                ExternalInterface.call("chat_enter_start");
+             }
+          }
+-         this.ignoreFocus = false;
+-         this._isTyping = true;
++         ignoreFocus = false;
++         _isTyping = true;
+       }
+       
+       protected function sendText() : Boolean
+       {
+-         var _loc2_:* = undefined;
+-         var _loc1_:int = int(this._data.channel_to_send);
++         var _loc1_:int = (this._data.channel_to_send);
++         var _loc2_:*;
+          if(this._owner.send_function is Function)
+          {
+             _loc2_ = this._owner.send_function(this.text_inpput,_loc1_);

@@ -1025,6 +1025,246 @@
       "pristine_sha256": "d399d36def29a6d9bf0cd184ac5cee1de842cd4647e3c9c962e1acd48479e743",
       "reason": "Restore local declaration order, implicit wildcard and numeric defaults, implicit typed assignments, identifier object keys and direct truth tests; preserve all external calls and relocation argument structure.",
       "result_sha256": "cf1659090703d981c408f8d11255379b8c506ab19e19894ae09a2f02eb9b3a42"
+    },
+    {
+      "class": "scaleform.clik.controls.DragSlot",
+      "patch": "scaleform/clik/controls/DragSlot.patch",
+      "patch_sha256": "6f1881ca96282f371449d82327e461d4b6d6f758029cb5157027a39e8768a686",
+      "pristine_sha256": "90ac3b8b96105a1a572fab212973eed82f7faf32acba58deab77711c31ebc19b",
+      "reason": "Restore empty positive drag branch and existing else body, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "b5540e4af771581021342f069eb961119b53a6f8f36b0e02211a495636e9b5c6"
+    },
+    {
+      "class": "scaleform.clik.controls.NumericStepper",
+      "patch": "scaleform/clik/controls/NumericStepper.patch",
+      "patch_sha256": "a4253fc729e1423988d63932272ffd4a8d3522e9579caca1f33ffd899860cbf5",
+      "pristine_sha256": "df6e2c071d6712294e62e47152bb73564b885347d8ae54dd7d08f0a8c4d9162b",
+      "reason": "Restore final input-switch break and Number return temporary, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "16288780c790914217a4f4b9b846507e674c70bf37485069fd2921edfec6d02f"
+    },
+    {
+      "class": "scaleform.clik.controls.ScrollIndicator",
+      "patch": "scaleform/clik/controls/ScrollIndicator.patch",
+      "patch_sha256": "e2b809dff1f0a4eeb479a46509a703b3f70d9a4d0f8ba8ca35e09723f8cc4d85",
+      "pristine_sha256": "ddcd3e4b76ebb050d1297396a8c6e5fdfce56676d580fa2fe72b2788dcfd9843",
+      "reason": "Restore qualified scroll-property setters and unqualified position compound assignments, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "8df6f73a003e95fd6858c48d9699c3a0b720257af199455aa9c756a3c1899be1"
+    },
+    {
+      "class": "scaleform.clik.controls.TextArea",
+      "patch": "scaleform/clik/controls/TextArea.patch",
+      "patch_sha256": "b93160bc3931e61ae9097c2777589162ec692aff53e008e843b679309ff6df5a",
+      "pristine_sha256": "76c3b24c67621c50b9a5b1fe577489667dd9fdb6e156622f16ede200e7df5083",
+      "reason": "Restore final input-switch break, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "c64e6aa681049c34682c266a1efc64383bc6277d023fd656c82c99a97802f4bf"
+    },
+    {
+      "class": "scaleform.clik.controls.TextInput",
+      "patch": "scaleform/clik/controls/TextInput.patch",
+      "patch_sha256": "927924f3ebf14da3a1bcb697ae7e82c2724a1ed036997401b4e1d21384fdfd88",
+      "pristine_sha256": "639195759cf9abd7e96baa30ac4ba87e25668a88e6bf58d49b45693f66e4b1b3",
+      "reason": "Restore unqualified text append assignments, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "3832778fb4bf0d17273816366e9ed5b93af75d4e6f9c299cd2967131de73af90"
+    },
+    {
+      "class": "scaleform.clik.layout.Layout",
+      "patch": "scaleform/clik/layout/Layout.patch",
+      "patch_sha256": "e259ebcba91233551b1a8135fa2151c0b0dc73cdee49eca6d182558c25974836",
+      "pristine_sha256": "04c02f178eadabf4cfd973d447a5265f2a5c40b1dbd8dd8efb8ebfb5f8ae2764",
+      "reason": "Restore explicit loop initialization and final/default aspect-ratio switch breaks, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "a3f0cdcbc907211f12ceefc64b2ca14ff4c29f10c00fc920f1ad4e6946e00af5"
+    },
+    {
+      "class": "scaleform.clik.managers.InputDelegate",
+      "patch": "scaleform/clik/managers/InputDelegate.patch",
+      "patch_sha256": "5478cd2dd35cc451ef2a990762af7353c369a6ef715b168a9804321fd433ca97",
+      "pristine_sha256": "babe88353203db9b09c9868b541ae889dd2726b86d819e108374634aa812323f",
+      "reason": "Restore qualified stage assignment, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "8952f4595ba0dc629acd3e4f58f9d719b2dff97c09fa4a0f6f813798ee58880d"
+    },
+    {
+      "class": "survarium.ammo.AmmoShareElement",
+      "patch": "survarium/ammo/AmmoShareElement.patch",
+      "patch_sha256": "e00130323a7d0e4a8e739f7c1b1b2a4c411e1d1ab9ea9f3582d860b1227925bf",
+      "pristine_sha256": "be01e8b39d656dc6ffbcd8a28feb4492ecc949e6a163e506b03fbf39665bf85f",
+      "reason": "Restore typed ammo count assignment and uint return temporary, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "6fc299409f34de02141261fd6305ca9587f0304f951d0c9354823f3c518819a7"
+    },
+    {
+      "class": "survarium.ammo.AmmoSlider",
+      "patch": "survarium/ammo/AmmoSlider.patch",
+      "patch_sha256": "c53d965aef82bae84cb33030e80d7945b1a7406c875fa2923e8424ead2ce66a3",
+      "pristine_sha256": "861e30dc4e5f68f32797e0a954cac0e0282b6edcf601d4886c3da44d859c271f",
+      "reason": "Restore final and default input-switch breaks, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "fbe4db25f987889c91b4f5be1de334b1de3e76036eebef436e1f2ee3052cb951"
+    },
+    {
+      "class": "survarium.buttons.BottomTab",
+      "patch": "survarium/buttons/BottomTab.patch",
+      "patch_sha256": "0f3934617ad9d86a21ab51fc433694239a8ce598837b3ce6dcb0a94bd661a701",
+      "pristine_sha256": "49f055535a10a95dda5ae45bd97242391b80cf40ca8d011b7fe3a77da89e1455",
+      "reason": "Restore local declaration order after the loop counter, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "0d0c8d183a96c11bd84b3340a085e0c3308b1a208d5dccb9d5cbaf7127ea372e"
+    },
+    {
+      "class": "survarium.buttons.SkillListRenderer",
+      "patch": "survarium/buttons/SkillListRenderer.patch",
+      "patch_sha256": "7c293a190811095048554b58f602c68fea125e331c2a4935199739bddc6602a1",
+      "pristine_sha256": "6b9598bad2b933c7025a82f1bfdfee861adb53f1dcc83ff2cd466b569fb079a9",
+      "reason": "Restore required Boolean conversion for the dynamic resize property, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "2f669d3ea29c5974d34567e9dd49bc300d5a078408b3ec47f5c3cd834468fbb5"
+    },
+    {
+      "class": "survarium.chat.Chat",
+      "patch": "survarium/chat/Chat.patch",
+      "patch_sha256": "fcd6dff4bcd2052495fc29576b9781f02681c994e021463e319fbbd9dff9113c",
+      "pristine_sha256": "4d7b66f222ca44f7dae83d087a0c6cf53ee0827269ee092de68f94ab72e306a4",
+      "reason": "Restore explicit loop counter initialization and wildcard send result temporary, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "4bfbb7037e6a32258f4789ff26af205db5c50d730d98c50a4832f2303bd81dc6"
+    },
+    {
+      "class": "survarium.chat.LobbyChatTab",
+      "patch": "survarium/chat/LobbyChatTab.patch",
+      "patch_sha256": "c02aed1e7b83493b4f4dba9f9dbc5327fb53fb7e3e6ffa20a42585103ee9171e",
+      "pristine_sha256": "52609ed135f66484375841eb1c84e07c80e88ff9febeee4193f3b0edd4cefbcc",
+      "reason": "Restore unqualified position and size assignments, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "478cfa6f05ff737850d4c703a83ad2d0da5a42281f2cd6f807229094dfd9aa45"
+    },
+    {
+      "class": "survarium.clan.TournamentWindow",
+      "patch": "survarium/clan/TournamentWindow.patch",
+      "patch_sha256": "99691edb86d94fbaaba2d9632bef29530f9e13cc6cca70f5e4e2fd4d824f05c0",
+      "pristine_sha256": "28aac363ff93b52fa8b5e6336fc88c790d1b881705ebeeeedd7a64e99d0d1604",
+      "reason": "Restore explicit status local initialization, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "37c396c3c5ad745667d8fa7986aab04255389a6b9e77e4f1b3b2250e28fefb78"
+    },
+    {
+      "class": "survarium.controls.ButtonBarBottom",
+      "patch": "survarium/controls/ButtonBarBottom.patch",
+      "patch_sha256": "4d0e9c5d4679e3dc5775f26e7b971f52957e0e2ac208a26fa4aa2e022ee50980",
+      "pristine_sha256": "745e12fd987692b742344d0eb5cce2b189692ae35c1a12cb7c624d0801b1fbb4",
+      "reason": "Restore unqualified start-index compound assignments, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "11f01e435f95bb8f67bced63bdc7bf3bfdb4711ee46ea9d1c229fd4043164c68"
+    },
+    {
+      "class": "survarium.controls.FilterList",
+      "patch": "survarium/controls/FilterList.patch",
+      "patch_sha256": "6fbc39164791690f3dec42788189f2a81ade5521ec49c9edfb9516267ee38098",
+      "pristine_sha256": "8c3975e8ae411d6c467544b5ce47a9a64108e9abf8215349fcde01409d15a947",
+      "reason": "Restore final breaks in all three navigation switches, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "9949f7674a0a7fa5b018c62297920776941fa504976caf773437dc67d42c2420"
+    },
+    {
+      "class": "survarium.controls.FixedText",
+      "patch": "survarium/controls/FixedText.patch",
+      "patch_sha256": "5f6ea78d6d0e5eccb54a0f413b79dcd996ff63dcf47c15026cf05dc53aa06114",
+      "pristine_sha256": "f9cc851e7b552ac306968258f0979e99ee527493dd9a44ea63a82305706478be",
+      "reason": "Restore typed width return temporary, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "f2cd74cdf88d4e691939ecb93c39f81aa592da564b4d62d73c6c87be1257ccf7"
+    },
+    {
+      "class": "survarium.controls.NumericStepperSrv",
+      "patch": "survarium/controls/NumericStepperSrv.patch",
+      "patch_sha256": "b0d2dd7e63949710c6e12c0442d81c5665ec7e484a709e14a35efbdb2ae412d3",
+      "pristine_sha256": "84cecd5b628adf426a87fb62084f92341a71b94ae7d52051948a633af4d071af",
+      "reason": "Restore typed value-clamping return temporary, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "e3cacee55de653ced5e2c7ade00cac6bb7f6880cb4c2d410c62aaa848358a018"
+    },
+    {
+      "class": "survarium.controls.OptionFilterControl",
+      "patch": "survarium/controls/OptionFilterControl.patch",
+      "patch_sha256": "b70c421bf4e259fa494f03e986adbf5c91ea4e63eb0d924b1b3a3f4c474c8508",
+      "pristine_sha256": "c901e23a925d8069304ae46db9737595516e96a277b6e7a6536be5f3f53a054a",
+      "reason": "Restore typed filter count assignment and offset return temporary, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "3d1ebac65ac7560cf644065005a612e1d996a6e07bb95a51cd9db4f448e86392"
+    },
+    {
+      "class": "survarium.controls.PlayerList",
+      "patch": "survarium/controls/PlayerList.patch",
+      "patch_sha256": "c70f3fbe78893218e169ba5f19f73abfa62811fe55bc4612698bead54facac87",
+      "pristine_sha256": "826de9f1dff84e5f6d3a59d39416c293fae4e66ceb6b30a065a5f3fee6223907",
+      "reason": "Restore explicit player search counter initialization, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "6362802ba2ba73c2217926329fcca6ded92df11880e4c5549c38dc5be1ba2c14"
+    },
+    {
+      "class": "survarium.controls.PlayerSearchComponent",
+      "patch": "survarium/controls/PlayerSearchComponent.patch",
+      "patch_sha256": "e0506716ba874c7fe604ae32f46dfe11f302bc3116b4006cb94c49d207f5b314",
+      "pristine_sha256": "26c98141084221f6692d422f6601033abe76783a759d5377d1f91e1a9b0f0a12",
+      "reason": "Restore final input-switch break and explicit filter Boolean initialization, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "af2c27f68fe3b53136c8b29ed4a5b2dad979ef73cd37b30c945dc9b6b0e7e821"
+    },
+    {
+      "class": "survarium.controls.QuestWindow",
+      "patch": "survarium/controls/QuestWindow.patch",
+      "patch_sha256": "acf042f6929a094ced5748d82fc90324c58b92e705b6f51f3983594778992164",
+      "pristine_sha256": "84fbac7f744dbbd4eddaef2637a9e3c23f366b82cd01877b767c0f873b8c551f",
+      "reason": "Restore unreachable initialized target declaration retaining the unused register before implicit locals, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "5e354c1611c504bb40adf8716d561efa7aee24e797dc21a75a7edd8fe8dcb0e0"
+    },
+    {
+      "class": "survarium.friends.SquadInviteList",
+      "patch": "survarium/friends/SquadInviteList.patch",
+      "patch_sha256": "7ec7862cebbb8b519dcd1d4d61ae94558f46e77a6078041d02ddc3caed2ade96",
+      "pristine_sha256": "71f3ffb52a976319ce9825a1246fcc189d2be8115bf654898ff6a249632923f3",
+      "reason": "Restore explicit invitation search counter initialization, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "7416013306f5475b77c33e610fe4c670dd01a53ee425dde30e238f85c3add213"
+    },
+    {
+      "class": "survarium.friends.SquadList",
+      "patch": "survarium/friends/SquadList.patch",
+      "patch_sha256": "fbf4dbae18f4a1787c63051f76b7ccb8724a3f3ce282bf31f7fc70f041f11330",
+      "pristine_sha256": "fb5eee49c6e433bed2bd343f753112cb1c3606ccb493ac3b8408750da4c9859c",
+      "reason": "Restore explicit squad search counter and final input-switch break, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "3ac090bdaba7b88b3d0777452f4e5fbc34b8a7e934cdf4ff6e1ae6d74e79f6cb"
+    },
+    {
+      "class": "survarium.messages.MessagePostPremium",
+      "patch": "survarium/messages/MessagePostPremium.patch",
+      "patch_sha256": "60939183ff2d973f2b8165f01e40864a9db23a4ebfe2251fc40f399a9adb243b",
+      "pristine_sha256": "130aa42a31af1c50da8e4a7c7adfee226049bca4deddead814691f0b9e5e42fd",
+      "reason": "Restore typed selected-option assignments while retaining required external-call conversions, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "373913f69810c1e0a683d899085c0bc5e74cd9901b8ba9215385a0b30c61786b"
+    },
+    {
+      "class": "survarium.messages.MessagePremiumDiscount",
+      "patch": "survarium/messages/MessagePremiumDiscount.patch",
+      "patch_sha256": "7b50c1001764c3cac77d7cd6c0c6525e3fae76f018802e347e49d1cc07462741",
+      "pristine_sha256": "540a7d05b60bf9993213b56fe8f3ad9fd0a404e4af3c8027287927ddba9b5d5e",
+      "reason": "Restore selected-option typed assignment and accept-handler local declaration order, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "5c2919512842e6a26e199471944408b6d21ea27006462562c7e65cd67d69ef80"
+    },
+    {
+      "class": "survarium.messages.MessageRerollItem",
+      "patch": "survarium/messages/MessageRerollItem.patch",
+      "patch_sha256": "71019125a28810fe7797c51f985a83c14271cc0f875c649c261078108b3282e7",
+      "pristine_sha256": "8bd8a5fcec810a7baa9152f71762cfb061c1df93921c7320b8f2135ab9dc38ff",
+      "reason": "Restore typed selected-index assignment while retaining required external-call conversions, alongside reviewed setter spelling, implicit locals, truth tests and object keys; real Flex compilation and exact layout linking reproduce the complete revision-24 movie.",
+      "result_sha256": "c899479733dbd31f69b2a379b933e470e2721a75b59bb5bcf6d4799e33a541e9"
+    },
+    {
+      "class": "scaleform.clik.controls.CoreList",
+      "patch": "scaleform/clik/controls/CoreList.patch",
+      "patch_sha256": "c04d3144c8a9d4ea97d0cf900d0b7adef2494085950083a0189a8df09010eb0b",
+      "pristine_sha256": "af095c72e518a85dd7c8ebf8aee731a9195c53349dad82b636de6af829aafd9a",
+      "reason": "Restore the zero-counter continue followed by a loop break, with renderer insertion after the conditional rather than in an else; retain reviewed local, setter and truth-test repairs. Real Flex compilation and exact linking reproduce the complete revision-24 movie.",
+      "result_sha256": "ecbbba7060784a1612a13fd84ec817444a4c726c46e83203ab7704c82303d774"
+    },
+    {
+      "class": "scaleform.clik.controls.DropdownMenu",
+      "patch": "scaleform/clik/controls/DropdownMenu.patch",
+      "patch_sha256": "25393e75422035f0460e31501ca2f67f39aedc29018c5377210d93bf7fad49c6",
+      "pristine_sha256": "02889eded2332c317d758cd78f130b8b016cd1a4b9dc0970e68091534856f870",
+      "reason": "Restore the input switch default break and fallthrough from the final case, alongside reviewed local, setter, typed assignment and object-key repairs. Real Flex compilation and exact linking reproduce the complete revision-24 movie.",
+      "result_sha256": "f42a6cbb1ead0ae2acf783845b229c569aa18b8aa27c0d42038402c36b67c8b2"
+    },
+    {
+      "class": "survarium.controls.PlayerInfo",
+      "patch": "survarium/controls/PlayerInfo.patch",
+      "patch_sha256": "fec3830df92646895a31d22e5e74cfcc1f2a97c54b4b0c245797360ff2e2799a",
+      "pristine_sha256": "9c47e8073a82aa67bcf00701e0a3c08045a8489ca03b7f1b0c22d3acc52330d7",
+      "reason": "Restore premiumLeft after premiumExchangeRate to recover static field slots, explicit voucher counter initialization, typed assignments, setters and object keys. Real Flex compilation and exact linking reproduce the complete revision-24 movie.",
+      "result_sha256": "7568217ed42f62c1523315ab0c3c6921e3c4a2f8be8ce99ec9165eae1fb397d8"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

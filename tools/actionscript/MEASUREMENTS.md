@@ -597,3 +597,51 @@ The 128-entry premium example build again produces the previously tested movie
 with one changed method and identical non-code content. Runtime evidence records
 this build separately from the earlier game observations; no new game run is
 claimed. These independent class proofs do not establish whole-tree completion.
+
+## Completed comparison of saved pristine compiler outputs
+
+Re-linking all 878 saved `flex-native-all` compiler results with the current
+linker completed with 642 exact movies, 222 rejected differences and 14 scripts
+without a usable compiler result. Every exact result reproduced the pinned
+compressed movie, not just the executable instructions. The earlier linker
+produced 614 exact results from those same inputs.
+
+This run reused authenticated compiler artifacts from the earlier pristine-source
+measurement. It did not freshly compile the reconstruction manifest or combine
+its classes into a whole-tree build. In particular, earlier compilation failures
+remain failures in this report even when subsequent source repairs or dependency
+fixes have resolved them in separate measurements. This run started before the
+serialization-cache change and completed with its original uncached driver.
+
+## Thirty more exact source reconstructions
+
+A focused thirty-class source probe produced 27 exact movies. It restores typed
+return temporaries, explicit local initialization at the original execution
+point, local declaration order, assignment syntax, required Boolean conversions,
+and final switch breaks. The successful `QuestWindow` source retains an
+initialized target declaration after an unconditional return. Flex allocates
+its unused register before the other locals without emitting the unreachable
+assignment; the original register bounds and debug directives then match.
+
+Three rejected candidates required a second source revision. `CoreList` needs
+the zero-counter continue and subsequent break, followed by renderer insertion
+outside the conditional. An else branch added an extra jump. `DropdownMenu`
+needs fallthrough from its last case to an explicit default break; putting the
+break in the case emitted the jump before the default label. `PlayerInfo` already
+matched every method, but its `premiumLeft` field needed to follow
+`premiumExchangeRate` to recover the original static slot order.
+
+All three follow-ups now reproduce the complete compressed release movie.
+The 30 successful patches were reviewed and their applied bytes checked against
+the retained real compiler inputs, bringing the manifest to 158 classes.
+The linker and its acceptance rules were unchanged. Fourteen local unit tests
+pass; the optional standalone compiler integration test was not rerun for these
+source-only changes. The 33 real compilation attempts and their independent
+exact-link results are retained privately.
+
+The premium example built against the 158-entry manifest again produces
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+with one changed method and identical non-code content. Its manifest identities
+are recorded separately in the runtime evidence. The game was not rerun because
+the rebuilt movie is byte-identical to the previously tested candidate.
+Whole-tree reconstruction remains incomplete.

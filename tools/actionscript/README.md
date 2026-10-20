@@ -261,13 +261,16 @@ Use `--compiler reconstruction` with the pinned patch manifest to select these
 per-class compilers in one measurement. Classes without an override use
 `flex-strict`; every report row records the compiler actually used. Explicit
 `--compiler ffdec`, `flex` or `flex-strict` still selects that compiler for every
-class, for comparison experiments. The per-class profile currently proves 128
+class, for comparison experiments. The per-class profile currently proves 158
 reconstructed classes, including easing, button, list, text, message, clan,
 debug and tutorial classes. Source fixes also recover local declaration order,
 static field slot order and explicit switch breaks where required.
 `FontDebugControl.addTextField` needs two initialized declarations after its
 unconditional return: Flex retains the unused register slots but emits no
 unreachable instructions. Removing those declarations changes the binary.
+`QuestWindow` similarly retains an unused target register before its implicit
+locals. Typed return temporaries, explicit loop initializers and switch default
+fallthrough can also be necessary to reproduce the original instructions.
 Each tracked
 patch reproduces its independently
 verified compiler input and the complete compressed release movie. Whole-tree

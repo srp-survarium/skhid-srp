@@ -1,0 +1,143 @@
+--- a/survarium/chat/Chat.as
++++ b/survarium/chat/Chat.as
+@@ -79,17 +79,17 @@
+       
+       public function focusTab(param1:uint) : void
+       {
+-         var _loc2_:uint = 0;
++         var _loc2_:uint;
+          while(_loc2_ < this._data.tabs[this._activeMode].length)
+          {
+             if(this._data.tabs[this._activeMode][_loc2_].id == param1)
+             {
+-               this._activeTab = _loc2_;
++               _activeTab = _loc2_;
+                return;
+             }
+             _loc2_++;
+          }
+-         this._activeTab = -1;
++         _activeTab = -1;
+       }
+       
+       public function addTab(param1:Object) : void
+@@ -109,27 +109,27 @@
+          }
+          this._messages[param1.id] = "";
+          this._data.tabs[param1.tabs_group_id].push({
+-            "id":param1.id,
+-            "channels":param1.channels,
+-            "name":param1.name,
+-            "icon":param1.channel_to_send,
+-            "closable":param1.closable,
+-            "channel_to_send":param1.channel_to_send,
+-            "index":param1.id + 1,
+-            "bool_save_history":param1.save_history,
+-            "tabs_group_id":param1.tabs_group_id
++            id:param1.id,
++            channels:param1.channels,
++            name:param1.name,
++            icon:param1.channel_to_send,
++            closable:param1.closable,
++            channel_to_send:param1.channel_to_send,
++            index:param1.id + 1,
++            bool_save_history:param1.save_history,
++            tabs_group_id:param1.tabs_group_id
+          });
+          this.invalidateChatData();
+       }
+       
+       public function hasTab(param1:uint) : Boolean
+       {
+-         var _loc3_:int = 0;
+          if(!this._data || !this._data.tabs)
+          {
+             return false;
+          }
+          var _loc2_:int = 0;
++         var _loc3_:int;
+          while(_loc2_ < this._data.tabs.length)
+          {
+             _loc3_ = 0;
+@@ -148,12 +148,12 @@
+       
+       public function removeTab(param1:uint) : void
+       {
+-         var _loc3_:int = 0;
+          if(!this._data || !this._data.tabs)
+          {
+             return;
+          }
+          var _loc2_:int = 0;
++         var _loc3_:int;
+          while(_loc2_ < this._data.tabs.length)
+          {
+             _loc3_ = 0;
+@@ -174,15 +174,15 @@
+       
+       public function got_message(param1:Object) : void
+       {
+-         var _loc2_:String = null;
+-         var _loc6_:int = 0;
+-         var _loc7_:int = 0;
++         var _loc2_:String;
+          trace("chat_got_message::",param1.type,param1.text);
+          var _loc3_:Date = new Date();
+          param1.time = "" + Util.getZeroString(_loc3_.getHours()) + ":" + Util.getZeroString(_loc3_.getMinutes()) + ":" + Util.getZeroString(_loc3_.getSeconds()) + " ";
+          _loc2_ = this.get_styled_text(param1);
+-         var _loc4_:int = int(this._data.tabs[this._activeMode][this._activeTab != -1 ? this._activeTab : 0].id);
++         var _loc4_:int = (this._data.tabs[this._activeMode][this._activeTab != -1 ? this._activeTab : 0].id);
+          var _loc5_:int = 0;
++         var _loc6_:int;
++         var _loc7_:int;
+          while(_loc5_ < this._data.tabs.length)
+          {
+             _loc6_ = 0;
+@@ -388,7 +388,7 @@
+       
+       protected function findAppropriateTab(param1:Object, param2:String) : void
+       {
+-         var _loc3_:uint = 0;
++         var _loc3_:uint;
+          if(this._activeTab != -1)
+          {
+             if(param1.tab_id != undefined)
+@@ -425,12 +425,13 @@
+       
+       protected function sendText() : Boolean
+       {
+-         var _loc2_:* = undefined;
+-         var _loc1_:int = int(this._data.tabs[this._activeMode][this._activeTab].channel_to_send);
++         var _loc1_:int = (this._data.tabs[this._activeMode][this._activeTab].channel_to_send);
++         var _loc2_:*;
+          trace("sendText::",_loc1_);
+          if(this.send_function is Function)
+          {
+-            return this.send_function(this.text_inpput,_loc1_);
++            _loc2_ = this.send_function(this.text_inpput,_loc1_);
++            return _loc2_;
+          }
+          return false;
+       }
+@@ -442,8 +443,8 @@
+       
+       protected function clearTabs() : void
+       {
+-         var _loc1_:int = 0;
+-         if(Boolean(this._data.tabs[this._activeMode]))
++         var _loc1_:int;
++         if(this._data.tabs[this._activeMode])
+          {
+             _loc1_ = 0;
+             while(_loc1_ < this._data.tabs[this._activeMode].length)
+@@ -470,8 +471,8 @@
+       
+       protected function getColor(param1:int) : String
+       {
+-         var _loc2_:int = 0;
+-         if(Boolean(this._data) && Boolean(this._data.channels_data))
++         var _loc2_:int;
++         if(this._data && this._data.channels_data)
+          {
+             _loc2_ = 0;
+             while(_loc2_ < this._data.channels_data.length)

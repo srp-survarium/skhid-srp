@@ -1,0 +1,138 @@
+--- a/scaleform/clik/controls/NumericStepper.as
++++ b/scaleform/clik/controls/NumericStepper.as
+@@ -107,7 +107,7 @@
+       
+       public function set maximum(param1:Number) : void
+       {
+-         this._maximum = param1;
++         _maximum = param1;
+          param1 = this._value;
+       }
+       
+@@ -119,7 +119,7 @@
+       
+       public function set minimum(param1:Number) : void
+       {
+-         this._minimum = param1;
++         _minimum = param1;
+          param1 = this._value;
+       }
+       
+@@ -137,7 +137,7 @@
+             return;
+          }
+          var _loc2_:Number = this._value;
+-         this._value = param1;
++         _value = param1;
+          if(initialized)
+          {
+             dispatchEventAndSound(new IndexEvent(IndexEvent.INDEX_CHANGE,true,false,this.value,_loc2_,null));
+@@ -152,7 +152,7 @@
+       
+       public function set labelFunction(param1:Function) : void
+       {
+-         this._labelFunction = param1;
++         _labelFunction = param1;
+          this.updateLabel();
+       }
+       
+@@ -200,16 +200,17 @@
+             case NavigationCode.HOME:
+                if(!_loc4_)
+                {
+-                  this.value = this._minimum;
++                  value = this._minimum;
+                }
+                param1.handled = true;
+                break;
+             case NavigationCode.END:
+                if(!_loc4_)
+                {
+-                  this.value = this._maximum;
++                  value = this._maximum;
+                }
+                param1.handled = true;
++            break;
+          }
+       }
+       
+@@ -248,10 +249,10 @@
+       {
+          if(isInvalid(InvalidationType.STATE))
+          {
+-            if(Boolean(this._newFrame))
++            if(this._newFrame)
+             {
+                gotoAndPlay(this._newFrame);
+-               this._newFrame = null;
++               _newFrame = null;
+             }
+             this.updateAfterStateChange();
+             dispatchEvent(new ComponentEvent(ComponentEvent.STATE_CHANGE));
+@@ -277,7 +278,7 @@
+       
+       override protected function changeFocus() : void
+       {
+-         if(Boolean(_focused) || _displayFocus)
++         if(_focused || _displayFocus)
+          {
+             this.setState("focused","default");
+          }
+@@ -324,36 +325,36 @@
+       
+       protected function onNext(param1:ButtonEvent) : void
+       {
+-         this.value = this._value + this.stepSize;
++         value = this._value + this.stepSize;
+       }
+       
+       protected function onPrev(param1:ButtonEvent) : void
+       {
+-         this.value = this._value - this.stepSize;
++         value = this._value - this.stepSize;
+       }
+       
+       protected function setState(... rest) : void
+       {
+-         var _loc4_:String = null;
+-         var _loc5_:String = null;
+          if(rest.length == 1)
+          {
+             _loc4_ = rest[0].toString();
+-            if(this.state != _loc4_ && Boolean(_labelHash[_loc4_]))
+-            {
+-               this.state = this._newFrame = _loc4_;
++            if(this.state != _loc4_ && _labelHash[_loc4_])
++            {
++               state = _newFrame = _loc4_;
+                invalidateState();
+             }
+             return;
+          }
+-         var _loc2_:uint = uint(rest.length);
++         var _loc2_:uint = (rest.length);
+          var _loc3_:uint = 0;
++         var _loc4_:String;
++         var _loc5_:String;
+          while(_loc3_ < _loc2_)
+          {
+             _loc5_ = rest[_loc3_].toString();
+-            if(Boolean(_labelHash[_loc5_]))
+-            {
+-               this.state = this._newFrame = _loc5_;
++            if(_labelHash[_loc5_])
++            {
++               state = _newFrame = _loc5_;
+                invalidateState();
+                break;
+             }
+@@ -363,7 +364,8 @@
+       
+       protected function lockValue(param1:Number) : Number
+       {
+-         return Math.max(this._minimum,Math.min(this._maximum,this.stepSize * Math.round(param1 / this.stepSize)));
++         var _loc2_:Number = Math.max(this._minimum,Math.min(this._maximum,this.stepSize * Math.round(param1 / this.stepSize)));
++         return _loc2_;
+       }
+    }
+ }

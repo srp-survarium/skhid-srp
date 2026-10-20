@@ -1,0 +1,197 @@
+--- a/survarium/controls/PlayerList.as
++++ b/survarium/controls/PlayerList.as
+@@ -41,7 +41,7 @@
+          super();
+          this.team1list.addEventListener(ListEvent.INDEX_CHANGE,this.onListIndexChange);
+          this.team2list.addEventListener(ListEvent.INDEX_CHANGE,this.onListIndexChange);
+-         if(Boolean(this.team1) && Boolean(this.team2))
++         if(this.team1 && this.team2)
+          {
+             this.team1.mouseEnabled = this.team2.mouseEnabled = false;
+          }
+@@ -49,7 +49,7 @@
+       
+       public function set autoSizeLists(param1:Boolean) : void
+       {
+-         this._autoSizeLists = param1;
++         _autoSizeLists = param1;
+          this.sizeLists();
+       }
+       
+@@ -60,8 +60,8 @@
+       
+       public function setRowSizes(param1:int, param2:int) : void
+       {
+-         this._smallTeamRow = param1;
+-         this._bigTeamRow = param2;
++         _smallTeamRow = param1;
++         _bigTeamRow = param2;
+       }
+       
+       protected function onListIndexChange(param1:Event) : void
+@@ -85,11 +85,11 @@
+       
+       public function set_local_name(param1:String) : void
+       {
+-         var _loc3_:uint = 0;
+          trace("HUD_PL::set_local_name",param1);
+-         this._playerName = param1;
++         _playerName = param1;
+          var _loc2_:int = -1;
+-         if(Boolean(this._players))
++         var _loc3_:uint;
++         if(this._players)
+          {
+             _loc3_ = 0;
+             while(_loc3_ < this._players.length)
+@@ -97,7 +97,7 @@
+                if(this._players[_loc3_].name == this._playerName)
+                {
+                   this._players[_loc3_].isLocal = true;
+-                  _loc2_ = int(this._players[_loc3_].squad_id);
++                  _loc2_ = (this._players[_loc3_].squad_id);
+                }
+                _loc3_++;
+             }
+@@ -118,7 +118,7 @@
+       public function addPlayersList(param1:Array) : void
+       {
+          trace("HUD_PL::addPlayersList!");
+-         this._players = param1;
++         _players = param1;
+          var _loc2_:int = -1;
+          var _loc3_:uint = 0;
+          while(_loc3_ < this._players.length)
+@@ -132,7 +132,7 @@
+             if(this._players[_loc3_].name == this._playerName)
+             {
+                this._players[_loc3_].isLocal = true;
+-               _loc2_ = int(this._players[_loc3_].squad_id);
++               _loc2_ = (this._players[_loc3_].squad_id);
+             }
+             _loc3_++;
+          }
+@@ -151,9 +151,9 @@
+       
+       public function set_online_player(param1:String, param2:Boolean) : void
+       {
+-         var _loc3_:DataProvider = null;
+-         var _loc4_:uint = 0;
+-         var _loc5_:uint = 0;
++         var _loc3_:DataProvider;
++         var _loc4_:uint;
++         var _loc5_:uint;
+          while(_loc5_ < this._players.length)
+          {
+             if(this._players[_loc5_].name == param1)
+@@ -162,7 +162,7 @@
+                {
+                   return;
+                }
+-               _loc4_ = uint(this._players[_loc5_].team);
++               _loc4_ = (this._players[_loc5_].team);
+                break;
+             }
+             _loc5_++;
+@@ -190,10 +190,8 @@
+       
+       public function updatePlayer(param1:Object) : void
+       {
+-         var _loc2_:DataProvider = null;
+-         var _loc3_:uint = 0;
+-         var _loc6_:Object = null;
+-         var _loc7_:uint = 0;
++         var _loc2_:DataProvider;
++         var _loc3_:uint;
+          var _loc4_:uint = 0;
+          while(_loc4_ < this._players.length)
+          {
+@@ -204,7 +202,7 @@
+                {
+                   return;
+                }
+-               _loc3_ = uint(this._players[_loc4_].team);
++               _loc3_ = (this._players[_loc4_].team);
+                break;
+             }
+             _loc4_++;
+@@ -218,6 +216,8 @@
+             _loc2_ = this._team2DP;
+          }
+          var _loc5_:uint = 0;
++         var _loc6_:Object;
++         var _loc7_:uint;
+          while(_loc5_ < _loc2_.length)
+          {
+             if(_loc2_[_loc5_].id == param1.id)
+@@ -251,14 +251,14 @@
+       {
+          if(this._autoSizeLists)
+          {
+-            this.team1list.height = this.team1list.rowHeight * (Boolean(this.team1list.dataProvider) ? this.team1list.dataProvider.length : 0);
+-            this.team2list.height = this.team2list.rowHeight * (Boolean(this.team2list.dataProvider) ? this.team2list.dataProvider.length : 0);
++            this.team1list.height = this.team1list.rowHeight * (this.team1list.dataProvider ? this.team1list.dataProvider.length : 0);
++            this.team2list.height = this.team2list.rowHeight * (this.team2list.dataProvider ? this.team2list.dataProvider.length : 0);
+          }
+       }
+       
+       private function sortTeam(param1:DataProvider) : void
+       {
+-         var _loc2_:uint = 0;
++         var _loc2_:uint;
+          while(_loc2_ < param1.length)
+          {
+             trace("team",_loc2_,param1[_loc2_].name,param1[_loc2_].score,param1[_loc2_].rank,param1[_loc2_].kills,param1[_loc2_].deaths);
+@@ -276,8 +276,8 @@
+       
+       private function splitTeams() : void
+       {
+-         this._team1 = new Array();
+-         this._team2 = new Array();
++         _team1 = new Array();
++         _team2 = new Array();
+          var _loc1_:uint = 0;
+          while(_loc1_ < this._players.length)
+          {
+@@ -307,10 +307,7 @@
+       
+       private function populateTeams() : void
+       {
+-         var _loc2_:int = 0;
+-         var _loc3_:int = 0;
+-         var _loc4_:uint = 0;
+-         this._team1DP = new DataProvider(this._team1);
++         _team1DP = new DataProvider(this._team1);
+          this.sortTeam(this._team1DP);
+          _loc4_ = 0;
+          while(_loc4_ < this._team1DP.length)
+@@ -318,7 +315,7 @@
+             trace("teamDP",_loc4_,this._team1DP[_loc4_].name,this._team1DP[_loc4_].score,this._team1DP[_loc4_].rank,this._team1DP[_loc4_].kills,this._team1DP[_loc4_].deaths);
+             _loc4_++;
+          }
+-         this._team2DP = new DataProvider(this._team2);
++         _team2DP = new DataProvider(this._team2);
+          this.sortTeam(this._team2DP);
+          if(this._smallTeamRow != -1)
+          {
+@@ -332,7 +329,10 @@
+          this.team2list.dataProvider = this._team2DP;
+          this.sizeLists();
+          var _loc1_:uint = 0;
+-         if(Boolean(this._team1))
++         var _loc2_:int;
++         var _loc3_:int;
++         var _loc4_:uint;
++         if(this._team1)
+          {
+             _loc1_ = this._team1DP.length;
+             _loc4_ = 0;
+@@ -347,7 +347,7 @@
+                _loc4_++;
+             }
+          }
+-         if(Boolean(this._team2DP))
++         if(this._team2DP)
+          {
+             _loc1_ = this._team2DP.length;
+             _loc4_ = 0;
