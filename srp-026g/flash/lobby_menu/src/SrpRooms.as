@@ -2209,7 +2209,8 @@ package
                 nameX = 46;
             }
             fitName(text(row, "", nameX, top, w - nameX, size, memberColour(m)), m.name, "");
-            _listHits.push({"control": row, "name": m.name, "how": "BY_ACCOUNT", "player": m.account});
+            _listHits.push({"control": row, "name": m.name, "how": LobbyMenu.PLAYER_INFO_BY_ACCOUNT,
+                "player": m.account});
         }
 
         // A member's name: grey while its game is gone (`away`), red when its
@@ -2256,13 +2257,10 @@ package
 
         // A right-click on a member (the list's side panel, the room's
         // window): the game's right-click menu with "Show player's
-        // information", and its window with the member's kits (srp's
-        // SrpPlayerGear, the player-gear feature); the
+        // information", and its window with the member's kits
+        // (LobbyMenu.showPlayerInfoMenu, the player-gear feature); the
         // request names the member by its account (`S1;G`) or by its place
-        // in our room's state and its serial (as a kick does). A hit's `how`
-        // names SrpPlayerGear's constant (BY_ACCOUNT, BY_ROOM_PLACE): that
-        // class is compiled in by a later step, so it is looked up at the
-        // click.
+        // in our room's state and its serial (as a kick does).
         private var _listHits:Array = [];
         private var _roomHits:Array = [];
 
@@ -2292,9 +2290,8 @@ package
                     var control:DisplayObject = hit.control as DisplayObject;
                     if (control.stage == null || !control.hitTestPoint(e.stageX, e.stageY, false))
                         continue;
-                    var gear:Object = getDefinitionByName("SrpPlayerGear");
                     var nick:String = hit.place != null ? wholeName(int(hit.place), String(hit.name)) : String(hit.name);
-                    gear.menu(nick, uint(hit.player), uint(gear[hit.how]));
+                    LobbyMenu.showPlayerInfoMenu(nick, uint(hit.player), uint(hit.how));
                     return;
                 }
             }
@@ -3028,7 +3025,8 @@ package
                 hitArea.graphics.drawRect(mx, my, colW - 10, rowH);
                 hitArea.graphics.endFill();
                 inner.addChild(hitArea);
-                _roomHits.push({"control": hitArea, "name": member.name, "place": m, "how": "BY_ROOM_PLACE",
+                _roomHits.push({"control": hitArea, "name": member.name, "place": m,
+                    "how": LobbyMenu.PLAYER_INFO_BY_ROOM_PLACE,
                     "player": m + 20 * (int(room.serial) % 495)});
                 text(inner, String(member.gear), mx, my + mid + 1, 26, 14, member.fit == 2 ? RED : DIM, "right");
                 // A red mark: this kit cannot play the next match as it is

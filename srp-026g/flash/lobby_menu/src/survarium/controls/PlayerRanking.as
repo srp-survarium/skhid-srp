@@ -1,7 +1,9 @@
 package survarium.controls
 {
+   import flash.display.DisplayObject;
    import flash.display.MovieClip;
    import flash.events.Event;
+   import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
    import flash.text.TextField;
    import flash.utils.Dictionary;
@@ -11,6 +13,7 @@ package survarium.controls
    import scaleform.clik.controls.ScrollingList;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.events.ButtonEvent;
+   import scaleform.gfx.MouseEventEx;
    import survarium.data.LocalizationData;
    import survarium.gsearch.MatchMakingSettings;
    
@@ -60,6 +63,9 @@ package survarium.controls
       protected var _request_index:int = 0;
       
       protected var _totalPlayers:uint = 0;
+      
+      // The right-click on a player is listened to (onActivate, once).
+      private var _playerInfoClick:Boolean;
       
       protected const _total_renderers:int = 20;
       
@@ -169,9 +175,15 @@ package survarium.controls
          {
             this.onIndexChange(null,true);
          }
-         SrpPlayerGear.ranking(this);
+         // A right-click on a row of either tab, any page, or on the
+         // player's own place under them: "Show player's information".
+         if(!this._playerInfoClick)
+         {
+            this._playerInfoClick = true;
+            addEventListener(MouseEvent.CLICK,this.onPlayerRightClick);
+         }
       }
-      
+
       protected function onLocal(param1:String) : void
       {
          this.tabBar.dataProvider = new DataProvider([{
@@ -346,6 +358,41 @@ package survarium.controls
                _loc2_++;
             }
          }
+      }
+      
+      private function onPlayerRightClick(e:MouseEvent) : void
+      {
+         var ex:MouseEventEx = e as MouseEventEx;
+         if(ex == null || ex.buttonIdx != 1)
+         {
+            return;
+         }
+         for(var at:DisplayObject = e.target as DisplayObject; at != null; at = at.parent)
+         {
+            var row:Object = this.rankingRow(at);
+            if(row != null)
+            {
+               LobbyMenu.showPlayerInfoMenu(String(row.nickname),uint(row.place),LobbyMenu.PLAYER_INFO_BY_PLACE);
+               return;
+            }
+         }
+      }
+      
+      // A row's data (RankingItemRenderer's): its place and nickname.
+      private function rankingRow(at:DisplayObject) : Object
+      {
+         try
+         {
+            var data:Object = Object(at).data;
+            if(data != null && data.nickname != null && int(data.place) > 0)
+            {
+               return data;
+            }
+         }
+         catch(e:Error)
+         {
+         }
+         return null;
       }
    }
 }

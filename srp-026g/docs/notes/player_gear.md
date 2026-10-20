@@ -1,7 +1,8 @@
 # A player's equipment from the Rankings (and the rooms' lists)
 
-The rules the code follows. Code: `flash/lobby_menu/src/SrpPlayerGear.as` and its calls in
-`LobbyMenu` and `PlayerRanking` ([lobby-source.md](lobby-source.md)); the lobby's
+The rules the code follows. Code: `LobbyMenu` (`showPlayerInfoMenu`, the ask in flight, and
+`takePlayerInfo` first in `fill_victory_screen_player`) and `PlayerRanking` (`onPlayerRightClick`) in
+`flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)); the lobby's
 `servers/lobby-server/src/v026g/gear.rs`; the wire `lobby::GEAR_BY_PLACE`. The owner's rules,
 2026-10-20: "after match in match overview you can rmb to see the players equipments", "you
 should be able to go to rankings and rmb to do the same", "for every single player".
@@ -34,6 +35,6 @@ should be able to go to rankings and rmb to do the same", "for every single play
   is given up).
 - **Nothing to show** (no such place or account): no answer, no window (the game has no "nothing
   to show" message for `93`).
-- **The rooms' lists** use the same menu and window (`SrpPlayerGear.menu`; `rooms.md`): a member of the Rooms list's side panel by its account (`GEAR_BY_ACCOUNT`; only a member of a room now is answered), a member of the asker's own room by its place and the state's serial (`GEAR_IN_ROOM`).
+- **The rooms' lists** use the same menu and window (`LobbyMenu.showPlayerInfoMenu`; `rooms.md`): a member of the Rooms list's side panel by its account (`GEAR_BY_ACCOUNT`; only a member of a room now is answered), a member of the asker's own room by its place and the state's serial (`GEAR_IN_ROOM`).
 - **Older movies:** never ask. An older server does not answer (no window opens).
 - **Release:** a lobby movie (resources.db patch) and the server; the server first.
