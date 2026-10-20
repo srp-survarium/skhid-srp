@@ -332,10 +332,18 @@ package
 
         private function limit(gold:Number):uint
         {
-            var most:Number = Math.min(MAX_GOLD, Math.floor(uint.MAX_VALUE / rate()));
+            var most:Number = Math.min(MAX_GOLD, Math.floor(uint.MAX_VALUE / rate()), affordable());
             return uint(Math.max(0, Math.min(most, Math.floor(gold))));
         }
 
+        // The most gold the Pay balance covers: all the gold to sell, or the
+        // whole gold the silver buys.
+        private function affordable():uint
+        {
+            return _payGold ? PlayerInfo.premiumMoney : uint(Math.floor(PlayerInfo.genericMoney / rate()));
+        }
+
+        // More than the balance pays for becomes the most it does, at once.
         private function onEdit(e:Event):void
         {
             var source:TextField = e.target as TextField;
@@ -344,16 +352,24 @@ package
             {
                 _gold = limit(typed);
                 if (_gold != typed)
-                    source.text = String(_gold);
+                    retype(source, _gold);
                 silverField().text = String(_gold * rate());
             }
             else
             {
                 // Silver goes by whole gold: the field is evened out on leaving.
                 _gold = limit(typed / rate());
+                if (typed > limit(Number.POSITIVE_INFINITY) * rate())
+                    retype(source, _gold * rate());
                 goldField().text = String(_gold);
             }
             refresh();
+        }
+
+        private static function retype(field:TextField, value:Number):void
+        {
+            field.text = String(value);
+            field.setSelection(field.text.length, field.text.length);
         }
 
         private function onPress(e:MouseEvent):void

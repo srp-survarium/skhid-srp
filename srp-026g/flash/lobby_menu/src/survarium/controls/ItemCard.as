@@ -364,7 +364,7 @@ package survarium.controls
       
       protected function goToStore() : void
       {
-         ExternalInterface.call("go_to_store");
+         SrpBuyGold.open();
       }
       
       public function checkButtonEnabled(param1:Event = null) : void

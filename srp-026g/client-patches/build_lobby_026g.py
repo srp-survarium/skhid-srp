@@ -1,52 +1,44 @@
 #!/usr/bin/env python3
-"""Build the lobby movie from ActionScript source: revision 24's tree and every lobby feature.
+"""Build the lobby movie from its ActionScript source tree (srp-026g/flash/lobby_menu).
 
     python build_lobby_026g.py <revision 24's lobby_menu.swf> <new lobby_menu.swf> [--tools private/actionscript/tools.json]
 
 The lobby movie is one file (`flash_movies/lobby_menu.swf`), and a resources.db
 patch carrying it replaces the players' movie whole. It is built one way only,
-from source: revision 24's movie rebuilds byte for byte from its exported and
-reconstructed ActionScript (tools/actionscript), and every lobby change is a
-source feature over that tree, in the order of ../lobby/lobby.json:
-repository-authored classes (../lobby/src/SrpRooms.as, ...) and diffs of the
-game's classes (../lobby/features/<feature>/). Nothing is patched in bytecode.
+from source: srp-026g/flash/lobby_menu/src is the movie's complete ActionScript
+(revision 24's, which rebuilds byte for byte: tools/actionscript/flash_tree.py
+full), and every lobby change is an ordinary edit of that tree (srp's own
+classes, SrpRooms.as and the others, are files of it; srp.json names them).
+Nothing is patched in bytecode.
 
-Only the classes the features touch are compiled. Each of them first
-recompiles unchanged and must give revision 24's movie exactly; then every
-method, trait and class no feature names is checked byte for byte against
-revision 24's, and every non-script tag is revision 24's
+Only the files that are not the baseline's are compiled. Each changed class
+first recompiles unchanged and must give revision 24's movie exactly; then
+every method, trait and class its change does not touch is checked byte for
+byte against revision 24's, as is every non-script tag
 (tools/actionscript/build_feature.py; docs/notes/lobby-source.md).
 
 The input is `flash_movies/lobby_menu.swf` of `resources.db.patch_24` (revision
-24, BASE_SHA256); the output is the movie for the next resources.db.patch_<n>
-(`srp-game-data pack`). The result must be RESULT_SHA256, the movie last
-built: a change of a source or a tool gives another, which the build refuses
-until RESULT_SHA256 is set to it on purpose (--any-result builds it anyway,
-for development). Requires a JDK, JPEXS FFDec 25.1.3 (its full distribution)
-and Apache Flex 4.16.1, named in a tools.json (tools/actionscript/README.md).
-The exported source of revision 24 is private (it is the game's code): it is
-made from the input movie into --project once (FFDec), and reused while its
-pinned hashes match. No game assets or code are stored in this repository.
+24, BASE_SHA256): its graphics are not source. The output is the movie for the
+next resources.db.patch_<n> (`srp-game-data pack`). The result must be
+RESULT_SHA256, the movie last built: a change of the tree or a tool gives
+another, which the build refuses until RESULT_SHA256 is set to it on purpose
+(--any-result builds it anyway, for development). Requires a JDK, JPEXS FFDec
+25.1.3 (its full distribution) and Apache Flex 4.16.1, named in a tools.json
+(tools/actionscript/README.md). The baseline source of a changed class comes
+from FFDec's export of the input movie, made into --project once.
 """
 import argparse
-import contextlib
 import hashlib
 from pathlib import Path
-import shutil
 import subprocess
 import sys
-import tempfile
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
-TOOLS = REPO / "tools" / "actionscript"
-LOBBY = HERE.parent / "lobby" / "lobby.json"
-RECONSTRUCTION = TOOLS / "reconstruction" / "026g-rev24" / "manifest.json"
-RELEASE = "026g-rev24"
-sys.path.insert(0, str(TOOLS))
+TREE = HERE.parent / "flash" / "lobby_menu"
+sys.path.insert(0, str(REPO / "tools" / "actionscript"))
 
-import build_feature  # noqa: E402
-import movie_source  # noqa: E402
+import flash_tree  # noqa: E402
 
 # lobby_menu.swf of resources.db.patch_24 (revision 24), which its source rebuilds exactly.
 BASE_SHA256 = "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60"
@@ -55,36 +47,14 @@ OLDER = {
     "12f0ee1dae4301d18405e956678ad1c9aa2c975ce2639c408722f5708548856b": "revision 23's (resources.db.patch_23)",
     "ab6f22d80d32fa4928403d19e3e054bd5316b2370e2550cefec0c9d22b959850": "the retail",
 }
-# The movie the source build makes. Set it anew, on purpose, when a feature,
-# a source or a tool changes. bdd66ed5 (2026-10-20): the first build from
-# source, of every lobby change main's bytecode driver had (its e626a01a:
-# the rooms through #229 and #233/#234, #213 to #217, #232's player gear);
-# every method decompiles as e626a01a's does but for compiler encodings
-# (docs/notes/lobby-source.md); NOT yet checked in the game.
+# The movie the source build makes. Set it anew, on purpose, when the tree
+# or a tool changes. RESULT (2026-10-20): the tree with every lobby change
+# main's bytecode driver had (its e626a01a: the rooms through #229 and
+# #233/#234, #213 to #217, #232's player gear), built with the tools of
+# feat/actionscript-source 7127f16; every method decompiles as e626a01a's
+# does but for compiler encodings (docs/notes/lobby-source.md); NOT yet
+# checked in the game.
 RESULT_SHA256 = "bdd66ed5a87c07f325ba177dc052bb81d2591b0222c55e1b875edf335c69ccad"
-
-
-def project_for(movie, project, tools, report=print):
-    """Revision 24's pinned export in `project`, made from `movie` if absent."""
-    if not project.exists():
-        report(f"Exporting revision 24's ActionScript into {project} (once; FFDec)")
-        project.parent.mkdir(parents=True, exist_ok=True)
-        pending = project.with_name(project.name + ".partial")
-        if pending.exists():
-            shutil.rmtree(pending)
-        movie_source.init_project(movie, pending, tools, RELEASE)
-        pending.rename(project)
-    manifest = movie_source.verify_project(project)
-    if manifest["movie_sha256"] != BASE_SHA256 or manifest.get("release") != RELEASE:
-        raise ValueError(f"{project} is not revision 24's pinned export")
-    return project
-
-
-@contextlib.contextmanager
-def kept(path):
-    """A new work directory that stays, for review."""
-    path.mkdir(parents=True, exist_ok=False)
-    yield path
 
 
 def build(movie, tools, project, work=None, jobs=4, report=print, any_result=False):
@@ -94,15 +64,12 @@ def build(movie, tools, project, work=None, jobs=4, report=print, any_result=Fal
         raise ValueError(f"This is {OLDER[digest]} lobby movie; give revision 24's (resources.db.patch_24)")
     if digest != BASE_SHA256:
         raise ValueError(f"Not revision 24's lobby movie (sha256 {digest}): the source tree is that movie's")
-    project = project_for(movie, project, tools, report)
-    with (tempfile.TemporaryDirectory(prefix="srp-lobby-") if work is None else kept(work)) as folder:
-        output = Path(folder) / "build"
-        result = build_feature.build(tools, RECONSTRUCTION, project, LOBBY, output, jobs, log=report)
-        built = (output / "feature.swf").read_bytes()
-    if not any_result and result["feature_movie_sha256"] != RESULT_SHA256:
-        raise ValueError(f"The movie is {result['feature_movie_sha256']}, not RESULT_SHA256 ({RESULT_SHA256}): "
-                         "a feature, a source or a tool changed. Check the movie (in the game), then set "
-                         "RESULT_SHA256 to it; --any-result builds it anyway")
+    built, result = flash_tree.build(TREE, movie, tools, project, work, jobs, report)
+    sha = hashlib.sha256(built).hexdigest()
+    if not any_result and sha != RESULT_SHA256:
+        raise ValueError(f"The movie is {sha}, not RESULT_SHA256 ({RESULT_SHA256}): the tree or a tool "
+                         "changed. Check the movie (in the game), then set RESULT_SHA256 to it; "
+                         "--any-result builds it anyway")
     return built, result
 
 
@@ -133,9 +100,10 @@ def main():
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("xb") as output:
         output.write(movie)
+    changes = (f"; {result['changed_methods']} methods changed and {result['added_methods']} added over "
+               "revision 24's, every other one byte for byte") if result else "; the tree is revision 24's"
     print(f"Created {args.output}: the lobby movie from source ({len(movie)} bytes, sha256 "
-          f"{hashlib.sha256(movie).hexdigest()}; {result['changed_methods']} methods changed and "
-          f"{result['added_methods']} added over revision 24's, every other one byte for byte)")
+          f"{hashlib.sha256(movie).hexdigest()}{changes})")
 
 
 if __name__ == "__main__":

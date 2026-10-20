@@ -2015,8 +2015,7 @@ package survarium.controls
       
       private function isUpgradeable(value:Object) : Boolean
       {
-         var cat:int = (value.category);
-         return (cat == 3 || cat == 1 || cat == 5 || cat == 4) && ((value.camoAvailable) || (value.decalAvailable));
+         return SrpScopeContextMenu.isUpgradeable(value);
       }
       
       protected function onMouseItemClick(e:MouseEventEx) : void
@@ -2045,7 +2044,7 @@ package survarium.controls
          var modifiersLength:uint;
          var i:uint;
          var modifier:Object;
-         if(this._inventoryLocked)
+         if(SrpCraftMenu.locked(this._inventoryLocked,this,activeItem))
          {
             return;
          }
@@ -2129,7 +2128,7 @@ package survarium.controls
                   if(this.isUpgradeable(itemData))
                   {
                      options.push({
-                        name:LocalizationData.getName("btn_upgrade_label"),
+                        name:LocalizationData.getName(SrpScopeContextMenu.labelKey(activeItem.data)),
                         click_function:this.upgradeElelemnt
                      });
                   }
@@ -2145,7 +2144,7 @@ package survarium.controls
             trace("IL::context:",itemData.name,itemData.canBuy,itemData.descriptor,itemData.enabled,itemData.isPremium,itemData.cost);
             if((itemData) && itemData.canBuy)
             {
-               if(itemData.isStack || !itemData.isStack && !itemData.rank)
+               if(itemData.isStack || !itemData.isStack && (!itemData.rank || itemAvailable))
                {
                   trace("addBuyOPtion");
                   options.push({

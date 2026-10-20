@@ -454,11 +454,12 @@ package survarium.messages
             Message.showMessage("ok",LocalizationData.getName("cannot_craft_item"));
             dispatchEvent(new Event("closeCraft"));
          }
+         SrpCraftMenu.result(this,param2);
       }
       
       protected function goToStore() : void
       {
-         ExternalInterface.call("go_to_store");
+         SrpBuyGold.open();
       }
       
       protected function onNoMoneyEnought() : void

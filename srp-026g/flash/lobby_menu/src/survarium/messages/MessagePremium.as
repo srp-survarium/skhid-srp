@@ -174,13 +174,7 @@ package survarium.messages
       
       private function onPremiumMoneyAddClick(param1:Event) : void
       {
-         var _loc2_:Object = {
-            text:LocalizationData.getName("go_to_online_store_message"),
-            onYes:this.goToStore,
-            label_ok:LocalizationData.getName("btn_go_to_online_store"),
-            label_cancel:LocalizationData.getName("cancel")
-         };
-         Message.showMessage("apply",_loc2_,true,0,true);
+         SrpBuyGold.open();
       }
       
       private function onPremiumSelected(param1:ListEvent = null) : void
@@ -226,7 +220,7 @@ package survarium.messages
       
       protected function goToStore() : void
       {
-         ExternalInterface.call("go_to_store");
+         SrpBuyGold.open();
       }
       
       override protected function onMessageAccept(param1:ButtonEvent = null) : void

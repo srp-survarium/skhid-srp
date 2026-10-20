@@ -13,8 +13,9 @@ diffs over that pristine tree, a verified layout linker, a whole-tree build
 command, and a source-feature builder that recompiles only touched classes.
 Features may edit method bodies, add methods, traits, nested functions,
 constants and whole classes, and change the declarations they name; the
-builder checks every untouched method and class byte for byte. The lobby movie
-of skhid-srp is built this way from `srp-026g/lobby/` (see
+builder checks every untouched method and class byte for byte. The game's
+movies are committed source trees in `srp-026g/flash/`; the lobby movie of
+skhid-srp is built from its tree this way (see
 `srp-026g/docs/notes/lobby-source.md`). The original 18-class list remains
 an optional compiler probe; the baseline proof covers all 878 scripts.
 
@@ -671,37 +672,32 @@ purchase; the current server disables tutorials for all accounts, so the test
 exercised its normal lobby flow. Build reports retain `runtime_verified: false`
 because compilation alone cannot establish these separate UI observations.
 
-### Build lists: additions, whole classes and new classes
+### Source trees: additions, whole classes and new classes
 
-A schema 2 build list (`srp-026g/lobby/lobby.json`) names features in order;
-each feature's patches apply to the source the features before it left, and
-each touched class is compiled once, from its final source:
+The game's movies are committed source trees, `srp-026g/flash/<movie>`
+(`flash_tree.py`; `srp-026g/flash/README.md`), and a change is an edit of a
+tree. Building a tree compiles only the files that are not the baseline's:
 
 ```sh
-python3 tools/actionscript/build_feature.py --tools private/actionscript/tools.json \
-  --reconstruction tools/actionscript/reconstruction/026g-rev24/manifest.json --jobs 4 \
-  private/actionscript/rev24 srp-026g/lobby/lobby.json private/actionscript/lobby-build
+python3 tools/actionscript/flash_tree.py build srp-026g/flash/<movie> <original.swf> <out.swf> [--work DIR]
 ```
 
-A feature's `feature.json` lists its classes, each of one kind:
+- a new file is a new class: `srp.json` names it and `abc_with`, a class whose
+  ABC takes it; FFDec compiles it there, after all of that ABC's records (the
+  `add-script` bridge operation), as srp's lobby classes always were;
+- a changed file of srp's own classes (`srp.json`) is owned whole: its methods,
+  traits and declarations may change and grow;
+- a changed game class may change the methods whose text changed, and add or
+  redeclare the methods, vars and consts its diff adds or changes
+  (`compare_decompiled.members` reads the diff by method); a removed method is
+  refused.
 
-- a game class: `{"class", "patch", "methods", "members"}`. `methods` names
-  the existing methods whose bodies change (by name; a getter/setter pair
-  both); `members` names members the feature adds or redeclares, whose traits,
-  signatures and bodies (with nested functions) may change or be new. New
-  nested functions of an edited method belong to it.
-- a repository-authored class of the release: `{"class", "source"}`. The whole
-  file is the source and the feature owns the class: its methods, traits and
-  declarations may change and grow.
-- a new class: `{"class", "new": true, "source", "abc_with"}`. FFDec compiles it
-  into the ABC of class `abc_with`, after all of that ABC's records (the
-  `add-script` bridge operation), as the lobby's own classes always were.
-
-New classes compile first, then repository-authored classes, then game
-classes (Flex needs the new classes as dependencies). Each existing class
-first recompiles its unchanged reconstruction and must reproduce the complete
-compressed release movie (`--jobs` runs these in parallel); then the feature
-source compiles over the movie the classes before it left, and links.
+New classes compile first, then srp's classes, then the game classes (Flex
+needs the new classes as dependencies). Each existing class first recompiles
+its baseline (the FFDec export with the reconstruction diffs, made once into
+the project directory) and must reproduce the complete compressed release
+movie (`--jobs` runs these in parallel); then its tree source compiles over the
+movie the classes before it left, and links.
 
 The link keeps every original record at its index: new methods, bodies,
 traits, classes, scripts and metadata come after the original ones, so every
@@ -713,26 +709,15 @@ kind; an edited method's activation (closure) traits may change with its body.
 Each link writes `feature-linked.swf.methods.tsv` (changed, added, unreviewed).
 The final movie is reparsed and compared with the release: every changed or
 added method must be one a class link reported, and `changes.tsv` lists them.
-
-Call/cast review works as for schema 1, by method: the build list's
-`reviewed_calls` maps `Class.method` to the reviewed `before`/`after`
-fingerprints of the final, combined source. `--review-calls` builds without
-them, writes every unreviewed change with its before/after assembly to
-`review-calls.tsv`, and stops before writing a movie.
+An edited game method whose call, cast or construction sequence changed is
+listed with its before/after assembly in `review-calls.tsv`, for the review of
+the diff.
 
 `compare_decompiled.py --tools T A.swf B.swf OUT` exports two movies with the
 same FFDec and compares them script by script and method by method (with
 parameter and local names numbered, so dropped debug names do not count);
 `OUT/report.txt` lists every difference for review. It is how the lobby's
 source build was compared with the bytecode driver's last movie.
-
-`feature_source.py` shows a class's source as the features leave it, and
-records a feature's patch from an edited copy:
-
-```sh
-python3 tools/actionscript/feature_source.py --reconstruction R PROJECT BUILD_LIST show CLASS [--before FEATURE] -o FILE
-python3 tools/actionscript/feature_source.py --reconstruction R PROJECT BUILD_LIST diff FEATURE CLASS FILE
-```
 
 ## Verification and boundaries
 
@@ -785,8 +770,8 @@ unreviewed constructor-to-call change and incorrect review fingerprints.
 feature adding a member, a nested function and a constant, and a new class;
 it checks that undeclared additions, an unpermitted redeclaration, a changed
 untouched method and a removed method are refused, and that an owned class
-may change its signatures. `test_feature.py` and `test_feature_source.py`
-cover build-list parsing, feature chaining and patch recording.
+may change its signatures. `test_feature.py` covers a tree's
+changes and the permissions derived from them; `test_flash_tree.py` the trees.
 The scope fixture checks omitted and deferred instance setup, inherited and
 local shadowing, incomplete hierarchies, duplicate classes, method aliases,
 unsafe scopes and branches. Its reservation checks prove that only the named

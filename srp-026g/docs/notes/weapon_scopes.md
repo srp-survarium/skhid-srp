@@ -144,8 +144,8 @@ the scope editor for a weapon with `UpgradeWindow.hasScopes(dictId)`. The separa
 right-clicks and `LocalPaperDoll.onMouseItemClick` use `InventoryList.showContextMenu`,
 so both omit the action despite the working item-details button.
 
-The lobby feature `scope-context-menu` (`lobby/features/scope-context-menu/`,
-`lobby/src/SrpScopeContextMenu.as`) fixes that predicate and gives weapons
+The lobby's `SrpScopeContextMenu` (`flash/lobby_menu/src/SrpScopeContextMenu.as`, called from
+`InventoryList`) fixes that predicate and gives weapons
 the existing localized `scope_window_title` menu label. The existing
 `upgradeElelemnt` callback opens the normal editor; `UpgradeWindow.setData` selects
 category 22 and its normal slot handles attach, replace and detach. Compatibility

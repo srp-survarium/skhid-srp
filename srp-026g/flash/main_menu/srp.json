@@ -1,0 +1,4 @@
+{
+  "description": "srp's own classes of the main menu (the FOV slider, patch 22), owned whole by srp.",
+  "classes": [{"class": "SrpFovSlider"}]
+}

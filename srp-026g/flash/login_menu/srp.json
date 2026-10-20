@@ -1,0 +1,4 @@
+{
+  "description": "srp's own classes of the login movie (the account hint, patch 12), owned whole by srp.",
+  "classes": [{"class": "SrpLoginHint"}]
+}

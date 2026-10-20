@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Build source features over the reconstructed tree, proving baseline equality and untouched-code preservation.
+"""Build changed ActionScript over a release movie, proving baseline equality and untouched-code preservation.
 
-The input is either one pinned feature manifest (schema 1: edits of existing
-method bodies) or an ordered build list of features (schema 2), which may also
-add methods, traits, nested functions, constants and whole classes, and change
-declarations. Every class a feature does not name, and every record of a named
-class the feature does not permit, must stay byte for byte as the release has it.
+The input is a movie's source tree (srp-026g/flash/<movie>: every file that is
+not the baseline's is compiled; changes may add methods, traits, nested
+functions, constants and whole classes, and change declarations), or one
+pinned feature manifest (schema 1: edits of existing method bodies). Every
+class that did not change, and every record of a changed class its change
+does not touch, must stay byte for byte as the release has it.
 """
 import argparse
+import difflib
 from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
@@ -18,12 +20,11 @@ import subprocess
 import sys
 import zlib
 
+import compare_decompiled as compare
 import movie_source as movie
 import source_patches as patches
 
 CLASS_NAME = re.compile(r'[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*')
-MEMBER_NAME = re.compile(r'[A-Za-z_$][\w$]*')
-FEATURE_NAME = re.compile(r'[a-z0-9][a-z0-9-]*')
 
 
 def full_movie(original, code, output):
@@ -127,139 +128,125 @@ def duplicate_functions(source):
     return sorted(name for name, count in names.items() if count > 1)
 
 
-def build_list_inputs(path, pinned, reconstructed, reconstruction_evidence, project, review=False):
-    """Schema 2: features in order, each over the source the ones before it left.
+def method_name(key):
+    """The member name of a compare_decompiled.members key ("get x", " x static", " x #2")."""
+    words = [w for w in key.split('#')[0].split() if w not in ('get', 'set', 'static')]
+    return words[0]
 
-    A feature's class entry is one of:
-      {"class": C, "patch": P, "methods": [...], "members": [...]}
-          a game class: a diff of its current source; `methods` names the
-          existing methods whose bodies change, `members` the members it adds
-          or redeclares (their traits, signatures and bodies, nested included);
-      {"class": C, "source": S}
-          a repository-authored class of the release (SrpRooms...): its whole
-          source is the repository's file, and the feature owns the class;
-      {"class": C, "new": true, "source": S, "abc_with": A}
-          a new repository-authored class, compiled by FFDec into the ABC of
-          class A, after all of that ABC's records.
-    `reviewed_calls` of the build list records, per "Class.method", the
-    reviewed call/cast fingerprints of an edited method whose call, cast or
-    construction sequence changes (the final, combined source's). With
-    `review`, an edited method without them is reported, not refused.
-    """
-    raw = path.read_bytes()
-    spec = json.loads(raw)
-    if spec.get('schema') != 2 or spec.get('release') != pinned['release'] or spec.get('movie_sha256') != pinned['movie_sha256']:
-        raise ValueError('Build list targets a different release')
+
+def source_permissions(cls, baseline, changed):
+    """A game class's permissions, from its baseline and changed source.
+
+    Every method whose text changed may change (its call/cast sequence is
+    reported for review, not refused); a method, var or const that is new or
+    whose declaration changed is a member the class may add or redeclare.
+    A removed method is refused; everything else must stay byte for byte."""
+    before, before_lines = compare.members(baseline.decode('utf-8'))
+    after, after_lines = compare.members(changed.decode('utf-8'))
+    gone = sorted(before.keys() - after.keys())
+    if gone:
+        raise ValueError(f'{cls}: methods removed ({", ".join(gone)}); a feature may not remove one')
+    edits = sorted({method_name(k) for k in before if before[k] != after[k]})
+    members = {method_name(k) for k in after.keys() - before.keys()}
+    for line in set(before_lines) ^ set(after_lines):
+        found = re.search(r'\b(?:var|const)\s+([\w$]+)', line)
+        if found:
+            members.add(found.group(1))
+    edits = [name for name in edits if name not in members]
+    lines = ['\t'.join(('edit', cls, name, '?', '?')) for name in edits]
+    lines += [f'member\t{cls}\t{name}' for name in sorted(members)]
+    if not lines:
+        raise ValueError(f'{cls}: its source changed, but no method or declaration did')
+    return lines, edits, sorted(members)
+
+
+def tree_inputs(movie_dir, pinned, reconstructed, reconstruction_evidence, project):
+    """A movie's source tree (srp-026g/flash/<movie>) against its baseline.
+
+    Every file whose hash is not the baseline's is compiled: a new file is a
+    new class (srp.json names the class whose ABC takes it), a changed file of
+    srp's own classes (srp.json) is owned whole, and a changed game class may
+    change the methods and declarations its source diff touches. Unchanged
+    files are not compiled: the release's bytes are what they compile to
+    (flash_tree.py full)."""
+    spec = json.loads((movie_dir / 'movie.json').read_bytes())
+    if spec.get('release') != pinned['release'] or spec.get('movie_sha256') != pinned['movie_sha256']:
+        raise ValueError('The tree is of another release movie')
     if spec.get('reconstruction_sha256') != reconstruction_evidence['manifest_sha256']:
-        raise ValueError('Build list targets a different reconstruction manifest')
-    root = path.parent
-    features = spec.get('features')
-    if not isinstance(features, list) or not features or len(set(features)) != len(features):
-        raise ValueError('Build list names no features, or one twice')
+        raise ValueError('The tree was exported with another reconstruction manifest')
+    srp_path = movie_dir / 'srp.json'
+    srp = json.loads(srp_path.read_bytes()) if srp_path.exists() else {'classes': []}
+    own = {}
+    for entry in srp['classes']:
+        if not CLASS_NAME.fullmatch(entry.get('class', '')) or entry['class'] in own or set(entry) - {'class', 'abc_with'}:
+            raise ValueError(f'srp.json: invalid or repeated entry {entry}')
+        own[entry['class']] = entry.get('abc_with')
+    files = {}
+    root = movie_dir / 'src'
+    for path in sorted(root.rglob('*')):
+        if path.is_file():
+            files[path.relative_to(root).as_posix()] = path.read_bytes()
+    baseline = spec['sources']
+    if baseline.keys() != pinned['sources'].keys():
+        raise ValueError('The tree baseline and the pinned export name different scripts')
+    removed = sorted(set(baseline) - set(files))
+    if removed:
+        raise ValueError('Scripts removed from the tree: ' + ', '.join(removed))
     compilers, compositions, reservations = class_plans(reconstruction_evidence)
-    state, order, manifests = {}, [], {}
-    for name in features:
-        if not isinstance(name, str) or not FEATURE_NAME.fullmatch(name):
-            raise ValueError(f'Invalid feature name {name!r}')
-        folder = contained(root, f'features/{name}', 'Feature')
-        manifest = (folder / 'feature.json').read_bytes()
-        manifests[name] = manifest
-        feature = json.loads(manifest)
-        if feature.get('schema') != 2 or not feature.get('classes'):
-            raise ValueError(f'Feature {name} is not a schema 2 feature with classes')
-        seen = set()
-        for entry in feature['classes']:
-            cls = entry.get('class', '')
-            if not CLASS_NAME.fullmatch(cls) or cls in seen:
-                raise ValueError(f'Feature {name}: invalid or repeated class {cls!r}')
-            seen.add(cls)
-            relative = cls.replace('.', '/') + '.as'
-            keys = set(entry) - {'class', 'description'}
-            if entry.get('new'):
-                if keys != {'new', 'source', 'abc_with'}:
-                    raise ValueError(f'Feature {name}: a new class takes source and abc_with')
-                if relative in pinned['sources'] or cls in state:
-                    raise ValueError(f'Feature {name}: {cls} is not a new class')
-                if entry['abc_with'].replace('.', '/') + '.as' not in pinned['sources']:
-                    raise ValueError(f'Feature {name}: unknown abc_with class for {cls}')
-                source_path = contained(root, entry['source'], 'Class source')
-                if source_path.name != cls.rsplit('.', 1)[-1] + '.as':
-                    raise ValueError(f'Feature {name}: {cls} must be in a file of its name')
-                state[cls] = {'class': cls, 'kind': 'new', 'baseline': None, 'changed': source_path.read_bytes(),
-                              'source_name': source_path.name, 'anchor': entry['abc_with'], 'features': [name],
-                              'methods': [], 'members': [], 'patches': []}
-                order.append(cls)
-                continue
-            if relative not in pinned['sources'] and cls not in state:
-                raise ValueError(f'Feature {name}: unknown class {cls}')
-            if cls not in state:
-                baseline = reconstructed.get(relative, (project / 'pristine' / relative).read_bytes())
-                state[cls] = {'class': cls, 'kind': None, 'baseline': baseline, 'changed': baseline,
-                              'features': [], 'methods': [], 'members': [], 'patches': []}
-                order.append(cls)
-            item = state[cls]
-            item['features'].append(name)
-            if 'source' in entry:
-                if keys != {'source'} or item['kind'] == 'game':
-                    raise ValueError(f'Feature {name}: {cls} takes its whole source, and nothing else')
-                item['changed'] = contained(root, entry['source'], 'Class source').read_bytes()
-                if item['kind'] != 'new':
-                    item['kind'] = 'owned'
-                continue
-            if keys - {'patch', 'methods', 'members'} or 'patch' not in entry or item['kind'] in ('owned', 'new'):
-                raise ValueError(f'Feature {name}: {cls} needs a patch (and methods/members) for a game class')
-            item['kind'] = 'game'
-            diff = contained(folder, entry['patch'], 'Feature patch').read_bytes()
-            changed = patches.apply_patch(item['changed'], diff, relative)
-            if changed == item['changed']:
-                raise ValueError(f'Feature {name}: the patch of {cls} changes nothing')
-            item['changed'] = changed
-            item['patches'].append((name, diff))
-            for key in ('methods', 'members'):
-                values = entry.get(key, [])
-                if not isinstance(values, list) or any(not isinstance(v, str) or not MEMBER_NAME.fullmatch(v) for v in values):
-                    raise ValueError(f'Feature {name}: invalid {key} of {cls}')
-                item[key] += [v for v in values if v not in item[key]]
-            if not item['methods'] and not item['members']:
-                raise ValueError(f'Feature {name}: {cls} names no edited method or member')
-    reviewed = spec.get('reviewed_calls', {})
-    used = set()
     inputs = []
-    for cls in order:
-        item = state[cls]
-        if item['kind'] in ('owned', 'new'):
-            twice = duplicate_functions(item['changed'].decode('utf-8'))
-            if twice:
-                raise ValueError(f'{cls} defines these more than once (FFDec keeps the last): ' + ', '.join(twice))
-            lines = [f'class\t{cls}']
+    for cls, anchor in own.items():
+        relative = cls.replace('.', '/') + '.as'
+        if relative in baseline:
+            if anchor is not None:
+                raise ValueError(f'srp.json: {cls} is a class of the release; it takes no abc_with')
+            continue
+        if anchor is None or anchor.replace('.', '/') + '.as' not in baseline:
+            raise ValueError(f'srp.json: the new class {cls} needs abc_with, a class of the release')
+        if relative not in files:
+            raise ValueError(f'srp.json names {cls}, which the tree does not have')
+        inputs.append({'class': cls, 'kind': 'new', 'baseline': None, 'changed': files[relative],
+                       'source_name': Path(relative).name, 'anchor': anchor, 'features': ['tree'],
+                       'patch': b''})
+    for relative in sorted(set(files) - set(baseline)):
+        cls = relative[:-3].replace('/', '.')
+        if cls not in own:
+            raise ValueError(f'{relative} is new: name it, and the class whose ABC takes it, in srp.json')
+    owned, game = [], []
+    for relative, data in files.items():
+        if relative not in baseline or patches.sha(data) == baseline[relative]:
+            continue
+        cls = relative[:-3].replace('/', '.')
+        # The tree keeps LF line ends; FFDec exports CRLF (flash_tree.py).
+        base = reconstructed.get(relative, (project / 'pristine' / relative).read_bytes()).replace(b'\r\n', b'\n')
+        if patches.sha(base) != baseline[relative]:
+            raise ValueError(f'{relative}: the exported baseline is not the tree baseline')
+        item = {'class': cls, 'baseline': base, 'changed': data, 'features': ['tree'],
+                'patch': ''.join(difflib.unified_diff(base.decode('utf-8').splitlines(True), data.decode('utf-8').splitlines(True),
+                                                      f'a/{relative}', f'b/{relative}')).encode('utf-8'),
+                'compiler': compilers.get(cls, 'flex-strict'), 'composition': compositions.get(cls),
+                'reservations': reservations.get(cls)}
+        if cls in own:
+            item.update(kind='owned', permissions=f'class\t{cls}\n'.encode())
+            owned.append(item)
         else:
-            if item['changed'] == item['baseline']:
-                raise ValueError(f'The features leave {cls} unchanged')
-            lines = []
-            for method in item['methods']:
-                calls = reviewed.get(f'{cls}.{method}', {})
-                if calls:
-                    used.add(f'{cls}.{method}')
-                unset = '?' if review else '-'
-                before, after = calls.get('before', unset), calls.get('after', unset)
-                if not all(re.fullmatch(r'-|\?|[0-9a-f]{64}', v) for v in (before, after)) or calls and not all(
-                        re.fullmatch(r'[0-9a-f]{64}', v) for v in (before, after)):
-                    raise ValueError(f'Invalid reviewed calls of {cls}.{method}')
-                lines.append('\t'.join(('edit', cls, method, before, after)))
-            lines += [f'member\t{cls}\t{member}' for member in item['members']]
-        item['permissions'] = ('\n'.join(lines) + '\n').encode()
-        item['compiler'] = 'ffdec' if item['kind'] == 'new' else compilers.get(cls, 'flex-strict')
-        item['composition'] = None if item['kind'] == 'new' else compositions.get(cls)
-        item['reservations'] = None if item['kind'] == 'new' else reservations.get(cls)
-        item['patch'] = b''.join(diff for _, diff in item['patches'])
-        inputs.append(item)
-    if set(reviewed) - used:
-        raise ValueError('reviewed_calls names methods no feature edits: ' + ', '.join(sorted(set(reviewed) - used)))
-    # New classes first (game classes compiled by Flex need them), then the
-    # repository-authored ones, then the game classes; each kind in list order.
-    rank = {'new': 0, 'owned': 1, 'game': 2}
-    inputs.sort(key=lambda item: rank[item['kind']])
-    return raw, inputs, manifests
+            lines, item['methods'], item['members'] = source_permissions(cls, base, data)
+            item.update(kind='game', permissions=('\n'.join(lines) + '\n').encode())
+            game.append(item)
+    for item in inputs:
+        item.update(compiler='ffdec', composition=None, reservations=None, permissions=f'class\t{item["class"]}\n'.encode())
+    for item in inputs + owned:
+        twice = duplicate_functions(item['changed'].decode('utf-8'))
+        if twice:
+            raise ValueError(f'{item["class"]} defines these more than once (FFDec keeps the last): ' + ', '.join(twice))
+    # New classes first (game classes compiled by Flex need them), then srp's
+    # own classes, then the game classes.
+    inputs += owned + game
+    if not inputs:
+        raise ValueError('The tree is the baseline: nothing to build')
+    raw = json.dumps({'movie': spec['movie'], 'classes': [
+        {k: item[k] for k in ('class', 'kind', 'compiler', 'methods', 'members', 'anchor') if k in item}
+        for item in inputs]}, indent=2).encode()
+    return raw, inputs
 
 
 def main():
@@ -267,15 +254,13 @@ def main():
     parser.add_argument('--tools', required=True, type=Path)
     parser.add_argument('--reconstruction', required=True, type=Path)
     parser.add_argument('--jobs', type=int, default=1, help='Concurrent baseline compilations (1-8)')
-    parser.add_argument('--review-calls', action='store_true',
-                        help='Report every unreviewed call/cast change of a build list (writes review-calls.tsv; no movie)')
     parser.add_argument('project', type=Path)
-    parser.add_argument('feature', type=Path, help='A schema 1 feature manifest or a schema 2 build list')
+    parser.add_argument('feature', type=Path, help='A source tree (srp-026g/flash/<movie>) or a schema 1 feature manifest')
     parser.add_argument('output', type=Path)
     args = parser.parse_args()
     if not 1 <= args.jobs <= 8:
         raise ValueError('--jobs must be between 1 and 8')
-    build(args.tools, args.reconstruction, args.project, args.feature, args.output, args.jobs, review=args.review_calls)
+    build(args.tools, args.reconstruction, args.project, args.feature, args.output, args.jobs)
     return 0
 
 
@@ -300,22 +285,19 @@ def review_rows(folder, report_path):
             yield fields[0], fields[4], fields[5], before.get(plain(fields[0]), '-'), after.get(plain(fields[0]), '-')
 
 
-def build(tools_path, reconstruction, project, feature, output, jobs=1, log=print, review=False):
-    """Build `feature` (a manifest or build list); returns the report written to `output`."""
+def build(tools_path, reconstruction, project, feature, output, jobs=1, log=print):
+    """Build `feature` (a source tree or a manifest); returns the report written to `output`."""
     project, output = project.resolve(), output.resolve()
     pinned = movie.verify_project(project)
     reconstructed, evidence = patches.load_sources(reconstruction, project, pinned)
-    schema = json.loads(feature.read_bytes()).get('schema')
-    manifests = {}
-    if schema == 2:
-        feature_raw, inputs, manifests = build_list_inputs(feature, pinned, reconstructed, evidence, project, review)
+    schema = 1
+    if feature.is_dir():
+        schema = 'tree'
+        feature_raw, inputs = tree_inputs(feature, pinned, reconstructed, evidence, project)
     else:
         feature_raw, inputs = feature_inputs(feature, pinned, reconstructed, evidence, project)
     output.mkdir(parents=True, exist_ok=False)
-    (output / 'feature.json').write_bytes(feature_raw)
-    for name, manifest in manifests.items():
-        (output / 'features' / name).mkdir(parents=True)
-        (output / 'features' / name / 'feature.json').write_bytes(manifest)
+    (output / 'feature.json' if schema == 1 else output / 'tree-changes.json').write_bytes(feature_raw)
     shutil.copyfile(__file__, output / 'build_feature.py')
     correction_dir = output / 'reconstruction'
     correction_dir.mkdir()
@@ -334,7 +316,6 @@ def build(tools_path, reconstruction, project, feature, output, jobs=1, log=prin
     movie.code_movie(original, reference)
     report = {'schema': schema, 'release': pinned['release'], 'movie_sha256': pinned['movie_sha256'],
               'feature_manifest_sha256': patches.sha(feature_raw), 'reconstruction': evidence,
-              'feature_manifests': {name: patches.sha(raw) for name, raw in manifests.items()},
               'driver_sha256': movie.digest(output / 'build_feature.py'), 'toolchain': tools.identity(),
               'classes': [], 'complete': False, 'runtime_verified': False}
     movie.write_json(output / 'report.json', report)
@@ -452,13 +433,12 @@ def build(tools_path, reconstruction, project, feature, output, jobs=1, log=prin
         movie.write_json(output / 'report.json', report)
     unreviewed = [(item['class'], *row) for item in inputs
                   for row in review_rows(folders[item['class']], folders[item['class']] / 'feature-linked.swf.methods.tsv')]
-    if review:
-        with (output / 'review-calls.tsv').open('w') as stream:
-            stream.write('class\tmethod\tbefore_calls_casts\tafter_calls_casts\tbefore_assembly\tafter_assembly\n')
-            for row in unreviewed:
-                stream.write('\t'.join(map(str, row)) + '\n')
-        raise ValueError(f'Review mode: {len(unreviewed)} edited methods change their calls/casts; see '
-                         f'{output / "review-calls.tsv"} (no movie is written in review mode)')
+    # Changed call, cast and construction sequences of edited game methods,
+    # with their before/after assembly, for the review of the source diff.
+    with (output / 'review-calls.tsv').open('w') as stream:
+        stream.write('class\tmethod\tbefore_calls_casts\tafter_calls_casts\tbefore_assembly\tafter_assembly\n')
+        for row in unreviewed:
+            stream.write('\t'.join(map(str, row)) + '\n')
     # Publish a local build artifact only after every class passes all gates.
     pending = output / 'verified-movie.tmp'
     full_movie(original, current, pending)
@@ -479,7 +459,7 @@ def build(tools_path, reconstruction, project, feature, output, jobs=1, log=prin
         for line in path.read_text().splitlines()[1:]:
             fields = line.split('\t')
             permitted.add((fields[0], 'added' if fields[1] == 'added' else 'changed'))
-    if schema != 2 and comparison['reference_methods'] != comparison['candidate_methods']:
+    if schema == 1 and comparison['reference_methods'] != comparison['candidate_methods']:
         raise ValueError('Final movie changed method ownership')
     for change in comparison['method_changes']:
         if (change['owner'], change['status']) not in permitted:

@@ -297,7 +297,8 @@ Other builds of the patch: `--cert-only` (only patch 1), `--cave=hash-mismatch`
 
 ## Login menu account hint
 
-`login_hint_026g.py` replaces the old registration button with plain text:
+The login movie's old registration button is replaced with plain text (released in
+`resources.db.patch_12`; its source is `../flash/login_menu`, srp's class `SrpLoginHint`):
 
 - English: "Account created on first sign-in"
 - Ukrainian: "Акаунт створюється під час першого входу"
@@ -310,46 +311,20 @@ removed from keyboard focus, and its browser callback is erased. All five game
 languages have a translation. The language comes from the native client's
 localization data, so it follows `-localization`.
 
-Build a new resource archive with Python 3, a JDK and JPEXS FFDec 26.0.0:
-
-```sh
-python login_hint_026g.py /original/game/resources.db /output/game/resources.db \
-  --ffdec=/path/to/ffdec.jar
-```
-
-`--java` and `--javac` can specify the JDK executables. The original archive is
-only read; an existing output is refused. Install the output as the client's
-`game/resources.db` while the game is closed, keeping the original for rollback.
-This archive is a separate output from the small `make_client_026g.py` overlay;
-include it when preparing a complete client distribution.
-
-The patch verifies the original build 2777 login movie's SHA-256 and edits one
-ActionScript block. All other movie tags and existing unrelated methods remain
-byte-identical. Recompressing the movie leaves enough room in its original
-archive entry; padding preserves the entry size and offsets, with four ignored
-trailer bytes retaining the original content CRC. Both the signed file table
-and the resource checksum validation remain intact. No archive signature bypass
-is added. The sources are in `login_hint/`;
-game assets are generated locally and are not checked in.
+The released movie keeps its archive entry's size and CRC (zero padding and
+four trailer bytes), so the signed file table stays intact. A change of it is
+an edit of `../flash/login_menu/src`, built like any movie of the trees
+(`tools/actionscript/flash_tree.py build`, [lobby-source.md](../docs/notes/lobby-source.md)).
+The bytecode builder that made it (`login_hint_026g.py`) is in git history only.
 
 ## Field-of-view slider
 
-`fov_slider_026g.py` puts a "FOV:" slider under gamma in Settings →
+srp's `SrpFovSlider` (`../flash/main_menu`) puts a "FOV:" slider under gamma in Settings →
 Graphics. The exe side is patch 22 (patch revision 11): the game's video
 option 7, a "FOV" slider labelled `st_fov_option` in all five languages, is
 bound to `uro_fov`, which the camera follows. `Settings.as` maps the option
-to `_slider_fov`, but the stock menu places no slider for it; this build
-adds one to `main_menu.swf` in a new resources.db:
-
-```sh
-python fov_slider_026g.py /original/game/resources.db /output/game/resources.db \
-  --ffdec=/path/to/ffdec.jar
-```
-
-It needs a JDK and JPEXS FFDec (tested with 25.1.3), as the login hint
-does. The input is only read; an existing output is refused. It compiles
-`fov_slider/SrpFovSlider.as` into `main_menu.swf` and calls it twice in
-`Settings.create_content`. The first call, before the options are bound,
+to `_slider_fov`, but the stock menu places no slider for it; the released
+`main_menu.swf` has one. `Settings.create_content` calls `SrpFovSlider` twice. The first call, before the options are bound,
 creates the slider on the Graphics frame, hidden, so the game binds option
 7 to it like its other controls (label, range, value, apply). The second
 call, before the final return, runs after the game has set the label, as
@@ -357,16 +332,15 @@ the login hint's calls run after the stock code. It shows the slider, makes
 it opaque (Scaleform leaves a slider made by script at alpha 0), adds the
 colon gamma has ("FOV:"), places it under gamma and moves the preset-button
 panel down to make room. Under Scaleform `ENTER_FRAME` never reached the
-slider, so nothing runs per frame. As with the login hint, one ActionScript
-block changes, every other tag and unrelated method stays byte-identical,
-and the archive entry keeps its size and CRC, so the signed file table is
-untouched. The input may already carry the login hint.
+slider, so nothing runs per frame. As with the login hint, the archive entry
+keeps its size and CRC, so the signed file table is untouched.
 
 With an exe before revision 11 the slider shows and does nothing: its
 option 7 names a console variable that does not exist. Without this
 archive, revision 11 still has the setting (`uro_fov 80` in the console or
-`user.cfg`), just no slider. `test_fov_slider.py` checks the build's
-refusals without game files. Checked live in the lobby and in a match on a
+`user.cfg`), just no slider. A change of it is an edit of `../flash/main_menu/src`
+(`tools/actionscript/flash_tree.py build`); the bytecode builder that made it
+(`fov_slider_026g.py`) is in git history only. Checked live in the lobby and in a match on a
 local server (with an earlier form of patch 22): the slider shows "FOV:"
 under gamma, changes the view and is saved to `user.cfg`. In the players'
 download from revision 12 the movie ships in `resources.db.patch_12`.
@@ -374,7 +348,7 @@ download from revision 12 the movie ships in `resources.db.patch_12`.
 ## Lobby exchange, silver and gold both ways
 
 The lobby's gold-for-silver window is an exchange both ways (since revision
-23; source `../lobby/src/SrpExchange.as`, the lobby feature `exchange`). The gold box at the top of the lobby ("Get Gold", which asked to
+23; source `../flash/lobby_menu/src/SrpExchange.as`). The gold box at the top of the lobby ("Get Gold", which asked to
 open the online store) opens it to buy gold; the silver box opens it to sell
 gold. The window has:
 
@@ -425,8 +399,7 @@ the server's, every text in every language): `python -m unittest test_build_lobb
 
 ## Get Gold opens the exchange
 
-The lobby feature `buy-gold` (`../lobby/features/buy-gold/`,
-`../lobby/src/SrpBuyGold.as`) makes every "Get Gold" of the lobby open the exchange
+`SrpBuyGold` (`../flash/lobby_menu/src/SrpBuyGold.as`) makes every "Get Gold" of the lobby open the exchange
 window above, to buy gold with silver, instead of the online store (a browser
 window on a dead site). The rules: `docs/notes/buy-gold.md`. The
 "Insufficient Gold Rubles" dialog's button calls `goToStore` of the window that
@@ -442,9 +415,8 @@ server do not change. Not in a release yet.
 
 ## Exchange window updates
 
-A change of `../lobby/src/SrpExchange.as` is built in by building the lobby
-movie (the lobby feature `exchange` owns the class; FFDec compiles it, as
-revision 24's was). A method defined twice in the source is refused (FFDec
+A change of `../flash/lobby_menu/src/SrpExchange.as` is built in by building the
+lobby movie (srp owns the class whole; FFDec compiles it, as revision 24's was). A method defined twice in the source is refused (FFDec
 keeps the last).
 
 The first such change (2026-10-20): an amount more than the Pay balance pays
@@ -456,8 +428,8 @@ release yet.
 
 ## Buy for modified items
 
-The lobby feature `buy-modified` (`../lobby/features/buy-modified/`):
-right-click on an owned item with modifications lists Buy, which buys a stock one (the rules: `docs/notes/buy-modified.md`). The
+`InventoryList.showContextMenu` and `LobbyMenu.try_buy_item` (in
+`../flash/lobby_menu/src`): right-click on an owned item with modifications lists Buy, which buys a stock one (the rules: `docs/notes/buy-modified.md`). The
 menu (`InventoryList.showContextMenu`) listed Buy for an item that is not a
 stack only when `!itemData.rank`; an owned item's rank is its number of
 modifications (the server's `roll_modifications`), and a dictionary item's
@@ -478,8 +450,7 @@ with 200 as before. Not in a release yet.
 
 ## The craft window: Buy and Sell, Continue and Exit
 
-The lobby feature `craft-menu` (`../lobby/features/craft-menu/`,
-`../lobby/src/SrpCraftMenu.as`): right-click on an item in the craft window's list
+`SrpCraftMenu` (`../flash/lobby_menu/src/SrpCraftMenu.as`): right-click on an item in the craft window's list
 ("Upgrade") gives Buy and Sell only, and its result offers Continue and Exit (the rules: `docs/notes/craft-menu.md`).
 The window locks the inventory list (`lockControls(true)`), and
 `InventoryList.showContextMenu` ended at once on a locked list. Its read of
@@ -505,8 +476,7 @@ just closes. The words are the game's: `btn_exit_label` and
 
 ## Weapon scope context menu
 
-The lobby feature `scope-context-menu` (`../lobby/features/scope-context-menu/`,
-`../lobby/src/SrpScopeContextMenu.as`) adds the existing localized **Optics** action to a
+`SrpScopeContextMenu` (`../flash/lobby_menu/src/SrpScopeContextMenu.as`) adds the existing localized **Optics** action to a
 compatible weapon's right-click menu, in the inventory or an equipped slot. It
 opens the scope editor already shipped in revision 19. Armor still opens its
 camouflage/decal editor. See [weapon_scopes.md §5](../docs/notes/weapon_scopes.md#5-weapon-right-click-menu).
@@ -516,21 +486,17 @@ This does not change the executable or reserve a release revision.
 
 The lobby movie is one file (`flash_movies/lobby_menu.swf`), and a patch that
 carries it replaces the players' movie whole. It is built one way only, from
-ActionScript source ([lobby-source.md](../docs/notes/lobby-source.md)):
-revision 24's movie (`flash_movies/lobby_menu.swf` of `resources.db.patch_24`,
-sha256 `3ca94f2a…`) rebuilds byte for byte from its exported and reconstructed
-source (`../../tools/actionscript`), and every lobby change is a source feature
-over that tree, in the order of `../lobby/lobby.json`:
+its ActionScript source tree, `../flash/lobby_menu/src`
+([lobby-source.md](../docs/notes/lobby-source.md)). The tree is revision 24's
+complete source, which rebuilds byte for byte (`tools/actionscript/flash_tree.py
+full`), with every lobby change as an ordinary edit of it:
 
-1. `rooms`: the rooms window (`../lobby/src/SrpRooms.as`; revision 24 has its
-   hooks in the game's classes but the results', added here);
-2. `buy-gold`: Get Gold opens the exchange (#213);
-3. `exchange`: the exchange window's amounts (`../lobby/src/SrpExchange.as`, #214);
-4. `buy-modified`: Buy on owned items (#215);
-5. `craft-menu`: the craft window's menu and buttons (#216);
-6. `scope-context-menu`: Optics in a weapon's menu (#217);
-7. `player-gear`: a player's kits on a right-click in the Rankings and the
-   rooms' lists ([player_gear.md](../docs/notes/player_gear.md)).
+- srp's own classes, files of the tree named in `../flash/lobby_menu/srp.json`:
+  `SrpRooms` (the rooms), `SrpExchange` (#214), `SrpBuyGold` (#213),
+  `SrpCraftMenu` (#216), `SrpScopeContextMenu` (#217), `SrpPlayerGear` (#232);
+- their calls in the game's classes: `LobbyMenu`, `PlayerRanking`,
+  `InventoryList` (#215 to #217), the ten `goToStore` and the premium window's
+  gold button (#213), `MessageCraftItem` (#216).
 
 ```sh
 python build_lobby_026g.py <patch_24's lobby_menu.swf> <new lobby_menu.swf> [--work DIR]
@@ -539,23 +505,23 @@ python build_lobby_026g.py <patch_24's lobby_menu.swf> <new lobby_menu.swf> [--w
 It needs `private/actionscript/tools.json` at the repository root (a JDK,
 FFDec 25.1.3's full distribution and Apache Flex 4.16.1:
 `tools/actionscript/README.md`; `--tools` names another), and exports
-revision 24's source into `private/actionscript/rev24` the first time (FFDec;
-`--project` names another place). About 5 minutes. Only the classes the
-features touch are compiled; each first recompiles unchanged and must give
-revision 24's movie exactly, and every method, trait and class no feature
-names, and every non-script tag, stays revision 24's byte for byte. A change of
-a source or a feature is built in by building again; a new lobby change is a
-new feature ([lobby-source.md](../docs/notes/lobby-source.md)). Nothing is
-patched in bytecode; the steps that did (`rooms_026g.py` to
+revision 24's source into `private/actionscript/rev24` the first time, for the
+baseline of a changed class (FFDec; `--project` names another place). About
+5 minutes. Only the files that are not the baseline's are compiled; each
+changed class first recompiles unchanged and must give revision 24's movie
+exactly; a changed game class may change only the methods and declarations its
+source diff touches (srp's classes change freely); every other method, trait
+and class, and every non-script tag, stays revision 24's byte for byte.
+Nothing is patched in bytecode; the steps that did (`rooms_026g.py` to
 `player_gear_026g.py` and their Java patchers, on revision 23's movie) are in
 git history only.
 
-The result must be `RESULT_SHA256`, the movie last built: a changed source,
-feature or tool gives another, refused until `RESULT_SHA256` is set to it on
-purpose (`--any-result` for development). Since 2026-10-20: `bdd66ed5…`, the
-first build from source, of everything the bytecode driver's last movie had
-(main's `e626a01a…`: the rooms through #234, #213 to #217, the player gear);
-every method decompiles as that movie's does but for compiler encodings
+The result must be `RESULT_SHA256`, the movie last built: a changed tree or
+tool gives another, refused until `RESULT_SHA256` is set to it on purpose
+(`--any-result` for development). Since 2026-10-20: `bdd66ed5…`, the first
+build from source, of everything the bytecode driver's last movie had (main's
+`e626a01a…`: the rooms through #234, #213 to #217, the player gear); every
+method decompiles as that movie's does but for compiler encodings
 ([lobby-source.md](../docs/notes/lobby-source.md) lists them). NOT yet checked
 in the game. Tests: `python -m unittest test_build_lobby`. Not in a release yet.
 

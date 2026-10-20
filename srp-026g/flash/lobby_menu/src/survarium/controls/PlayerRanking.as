@@ -169,6 +169,7 @@ package survarium.controls
          {
             this.onIndexChange(null,true);
          }
+         SrpPlayerGear.ranking(this);
       }
       
       protected function onLocal(param1:String) : void

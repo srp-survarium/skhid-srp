@@ -1,7 +1,7 @@
 # Buy and Sell in the craft window
 
-The rules the code follows. Code: `lobby/src/SrpCraftMenu.as` and the lobby feature `craft-menu`
-(`lobby/features/craft-menu/`; [lobby-source.md](lobby-source.md)); README "The craft window: Buy
+The rules the code follows. Code: `flash/lobby_menu/src/SrpCraftMenu.as` and its calls in
+`InventoryList` and `MessageCraftItem` ([lobby-source.md](lobby-source.md)); README "The craft window: Buy
 and Sell, Continue and Exit". The owner's rule:
 2026-10-20 ("rmb on bought item -> upgrade -NEW-> rmb on any item in the list -> buy/sell (NOT
 upgrade)").

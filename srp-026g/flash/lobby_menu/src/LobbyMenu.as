@@ -3365,7 +3365,7 @@ package
             _obj.onYes = onComplete;
          }
          trace("try_buy_info::",_descr.is_stack,_descr.name,this.inventory_list.hasItem(dict_uid),onComplete);
-         if(!_descr.is_stack && _descr.category != FiltersWindow.CAT_CAMO && (sourceSlot != 300 && this.inventory_list.hasItem(dict_uid)))
+         if(!_descr.is_stack && _descr.category != FiltersWindow.CAT_CAMO && (sourceSlot == 200 && this.inventory_list.hasItem(dict_uid)))
          {
             _obj.text = LocalizationData.getName("already_in_inventory");
             _obj.onYes = this.show_buy_message;
@@ -4152,11 +4152,16 @@ package
       
       public function fill_victory_screen_player(value:Object) : void
       {
+         if(SrpPlayerGear.take(this,value))
+         {
+            return;
+         }
          this.victory_screen.setPlayerData(value);
       }
       
       public function show_victory_screen() : void
       {
+         SrpRooms.afterMatch();
          dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP,true));
          trace("_top_container::this");
          this.notificationListTemp.stopTimer();
