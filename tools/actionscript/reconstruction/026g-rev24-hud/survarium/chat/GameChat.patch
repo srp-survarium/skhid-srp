@@ -1,0 +1,123 @@
+--- a/survarium/chat/GameChat.as
++++ b/survarium/chat/GameChat.as
+@@ -53,7 +53,7 @@
+       
+       public function startEnterMessage() : void
+       {
+-         if(Boolean(_data.tabs[_activeMode]) && Boolean(_data.tabs[_activeMode][_activeTab]))
++         if(_data.tabs[_activeMode] && _data.tabs[_activeMode][_activeTab])
+          {
+             this.textFieldName.text = _data.tabs[_activeMode][_activeTab].name + ":";
+          }
+@@ -78,7 +78,7 @@
+          {
+             _activeTab = 0;
+          }
+-         if(Boolean(this.textFieldName))
++         if(this.textFieldName)
+          {
+             this.textFieldName.text = _data.tabs[_activeMode][_activeTab].name + ":";
+             text_inpput.x = this.textFieldName.width - 2;
+@@ -103,7 +103,7 @@
+          {
+             _activeTab = _data.tabs[_activeMode].length - 1;
+          }
+-         if(Boolean(this.textFieldName))
++         if(this.textFieldName)
+          {
+             this.textFieldName.text = _data.tabs[_activeMode][_activeTab].name + ":";
+             text_inpput.x = this.textFieldName.width - 2;
+@@ -147,24 +147,27 @@
+       
+       protected function updateChatData() : void
+       {
+-         var slected:int = 0;
+-         if(Boolean(_data.tabs[_activeMode]) && Boolean(_data.tabs[_activeMode][_activeTab]))
+-         {
+-            slected = int(_data.tabs[_activeMode][_activeTab].id);
+-            if(Boolean(this.messageContainer))
++         var slected:int;
++         if(_data.tabs[_activeMode] && _data.tabs[_activeMode][_activeTab])
++         {
++            slected = (_data.tabs[_activeMode][_activeTab].id);
++         }
++         else
++         {
++            return;
++         }
++         if(this.messageContainer)
++         {
++            this.messageContainer.clear();
++            if(_messages[slected])
+             {
+-               this.messageContainer.clear();
+-               if(Boolean(_messages[slected]))
+-               {
+-                  this.messageContainer.addText(_messages[slected]);
+-               }
++               this.messageContainer.addText(_messages[slected]);
+             }
+-            if(Boolean(this.textFieldName))
+-            {
+-               this.textFieldName.text = _data.tabs[_activeMode][_activeTab].name + ":";
+-               text_inpput.x = this.textFieldName.width - 2;
+-            }
+-            return;
++         }
++         if(this.textFieldName)
++         {
++            this.textFieldName.text = _data.tabs[_activeMode][_activeTab].name + ":";
++            text_inpput.x = this.textFieldName.width - 2;
+          }
+       }
+       
+@@ -181,7 +184,7 @@
+       
+       protected function start_enter_text(e:FocusEvent = null) : void
+       {
+-         var slected:int = 0;
++         var slected:int;
+          if(e.relatedObject != null && !ignoreFocus)
+          {
+             ExternalInterface.call("chat_enter_start");
+@@ -190,15 +193,18 @@
+          _isTyping = true;
+          text_inpput.addEventListener(ComponentEvent.STATE_CHANGE,this.onNewState);
+          trace("start_enter_text::");
+-         if(Boolean(_data.tabs[_activeMode]) && Boolean(_data.tabs[_activeMode][_activeTab]))
+-         {
+-            slected = int(_data.tabs[_activeMode][_activeTab].id);
+-            if(Boolean(this.messageContainer))
+-            {
+-               this.messageContainer.showLastMessages();
+-               this.messageContainer.stopHideout();
+-            }
++         if(_data.tabs[_activeMode] && _data.tabs[_activeMode][_activeTab])
++         {
++            slected = (_data.tabs[_activeMode][_activeTab].id);
++         }
++         else
++         {
+             return;
++         }
++         if(this.messageContainer)
++         {
++            this.messageContainer.showLastMessages();
++            this.messageContainer.stopHideout();
+          }
+       }
+       
+@@ -238,10 +244,10 @@
+       
+       override protected function get_styled_text(value:Object) : String
+       {
+-         var style:String = null;
+-         var isSquad:Boolean = false;
+-         var isAlly:Boolean = false;
+          var slyleStr:String = String(value.color != undefined ? value.color : getColor(value.type));
++         var style:String;
++         var isSquad:Boolean;
++         var isAlly:Boolean;
+          trace("get_styled_text",value.color,value.type,slyleStr,_data.name,value.name);
+          if(!value.name)
+          {

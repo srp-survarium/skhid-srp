@@ -1289,6 +1289,79 @@ public final class MovieSource {
         return opcode == 0x47 || opcode == 0x48;
     }
 
+    // Native ASC hoists implicit local defaults above a source-level hook.
+    // A single global static call receiving only this cannot observe these
+    // uncaptured local registers. Delay only its pure default stores; neither
+    // the call nor any executable instruction comes from the reference.
+    static List<AVM2Instruction> hookDefaultsVariant(ABC abc, MethodBody body,
+            List<AVM2Instruction> expected, List<AVM2Instruction> emitted) throws IOException {
+        if (emitted.size() < 8 || expected.size() < 8
+                || localRegister(emitted.get(0), false) != 0
+                || emitted.get(1).definition.instructionCode != 0x30
+                || localRegister(expected.get(0), false) != 0
+                || expected.get(1).definition.instructionCode != 0x30) return emitted;
+        Set<String> bindings = instanceBindings(abc, body);
+        if (bindings == null) return emitted;
+        for (var instruction : emitted)
+            if (Set.of(0x1c,0x40,0x57).contains(instruction.definition.instructionCode)) return emitted;
+        int params = abc.method_info.get(body.method_info).param_types.length, end = 2;
+        Set<Integer> initialized = new HashSet<>();
+        while (end + 1 < emitted.size()) {
+            int next = end;
+            var value = emitted.get(next++);
+            int op = value.definition.instructionCode;
+            if (op == 0x20) {
+                var cast = emitted.get(next++);
+                int conversion = cast.definition.instructionCode;
+                if (conversion != 0x85 && !(conversion == 0x80
+                        && ("Object".equals(publicName(abc,cast.operands[0]))
+                            || "Array".equals(publicName(abc,cast.operands[0]))))) break;
+            } else if (op == 0x21) {
+                if (emitted.get(next++).definition.instructionCode != 0x82) break;
+            } else if (op == 0x24 && value.operands[0] == 0) {
+                if (emitted.get(next).definition.instructionCode == 0x74) next++;
+            } else if (op != 0x27) break;
+            if (next >= emitted.size()) break;
+            int local = localRegister(emitted.get(next), true);
+            if (local <= params || local >= body.max_regs || !initialized.add(local)) break;
+            end = next + 1;
+        }
+        if (end == 2 || end + 4 >= emitted.size()) return emitted;
+        var lookup = emitted.get(end);
+        if (lookup.definition.instructionCode != 0x5d || lookup.operands.length != 1
+                || !globalClass(abc,lookup.operands[0],bindings)) return emitted;
+        var property = emitted.get(end + 1); var call = emitted.get(end + 3);
+        if (property.definition.instructionCode != 0x66
+                || !Arrays.equals(lookup.operands,property.operands)
+                || localRegister(emitted.get(end + 2),false) != 0
+                || call.definition.instructionCode != 0x46 || call.operands.length != 2
+                || call.operands[1] != 1 || publicName(abc,call.operands[0]) == null
+                || emitted.get(end + 4).definition.instructionCode != 0x29) return emitted;
+        // The reference must place this same default block immediately after
+        // either the compact or expanded spelling of that one call.
+        boolean located = false;
+        for (int start : new int[]{5,7}) {
+            if (start + end - 2 > expected.size()) continue;
+            boolean same = true;
+            for (int j = 2; j < end; j++) {
+                var a = emitted.get(j); var b = expected.get(start + j - 2);
+                if (a.definition.instructionCode != b.definition.instructionCode
+                        || !Arrays.equals(a.operands,b.operands)) same = false;
+            }
+            located |= same;
+        }
+        if (!located) return emitted;
+        var boundaries = executablePositions(body.getCode().code);
+        for (var instruction : emitted) for (int target : branchTargets(instruction))
+            if (boundary(boundaries,target) < end + 5) return emitted;
+        var result = new ArrayList<AVM2Instruction>();
+        result.addAll(emitted.subList(0,2));
+        result.addAll(emitted.subList(end,end + 5));
+        result.addAll(emitted.subList(2,end));
+        result.addAll(emitted.subList(end + 5,emitted.size()));
+        return result;
+    }
+
     // Omit or defer only the actual compiler's instance-scope prologue, across
     // a prefix whose lookups provably resolve without it. No nested scopes,
     // activations, handlers or incoming edges may defeat that proof. The full
@@ -1427,6 +1500,7 @@ public final class MovieSource {
             var emitted = emittedLayout.stream().filter(i -> !debugInstruction(i)).toList();
             var originalEmitted = emitted;
             emitted = scopeVariant(compiled, body, expected, emitted);
+            emitted = hookDefaultsVariant(compiled, body, expected, emitted);
             ArrayList<AVM2Instruction> result = new ArrayList<>();
             List<int[]> targets = new ArrayList<>();
             Map<Integer, Integer> positions = new HashMap<>();
@@ -1527,6 +1601,16 @@ public final class MovieSource {
                     }
                 }
                 int consumed = 1;
+                // A string literal is already a String. Its coerce_s cannot
+                // invoke user code. Interior CFG/handler entries are rejected
+                // by the same whole-method checks as the folds below.
+                if (opcode == 0x2c && desired == opcode && next + 1 < emitted.size()
+                        && emitted.get(next + 1).definition.instructionCode == 0x85
+                        && !(wantedIndex + 1 < expected.size()
+                            && expected.get(wantedIndex + 1).definition.instructionCode == 0x85)) {
+                    consumed = 2;
+                    rewritten = true;
+                }
                 // A successful coerce already has the type resolved by this
                 // pool entry. Repeating that identical coercion is idempotent.
                 // Interior branch/handler entries are rejected below.
@@ -1549,8 +1633,18 @@ public final class MovieSource {
                         && Arrays.equals(instruction.operands, following.operands)
                         && instruction.operands.length == 1
                         && compiled.constants.getMultiname(instruction.operands[0]).kind == 0x07;
-                    boolean discardedCall = desired == 0x4f && opcode == 0x46
+                    boolean discardedCall = ((desired == 0x4f && opcode == 0x46)
+                        || (desired == 0x4e && opcode == 0x45))
                         && following.definition.instructionCode == 0x29;
+                    // Both branch forms perform the same Boolean conversion.
+                    // Logical negation only reverses the branch polarity.
+                    int truthBranch = next + 1;
+                    if (opcode == 0x96 && truthBranch < emitted.size()
+                            && emitted.get(truthBranch).definition.instructionCode == 0x76) truthBranch++;
+                    boolean compactTruth = (desired == 0x11 || desired == 0x12)
+                        && (opcode == 0x96 || opcode == 0x76) && truthBranch < emitted.size()
+                        && emitted.get(truthBranch).definition.instructionCode ==
+                           (opcode == 0x96 ? (desired == 0x11 ? 0x12 : 0x11) : desired);
                     if (opcode == 0x61 && desired == 0x68
                             && mutableConstructorSlot(compiled, body, emitted, next)) {
                         // initproperty and setproperty both assign an ordinary
@@ -1560,6 +1654,10 @@ public final class MovieSource {
                         consumed = 4;
                         operandSource = emitted.get(next + 3);
                     } else if (lookup || discardedCall) consumed = 2;
+                    else if (compactTruth) {
+                        consumed = truthBranch - next + 1;
+                        operandSource = emitted.get(truthBranch);
+                    }
                     else {
                         // A comparison produces a Boolean. Optional logical
                         // negation and Boolean conversion cannot change its

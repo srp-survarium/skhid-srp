@@ -1,0 +1,86 @@
+--- a/survarium/controls/ButtonBarSelect.as
++++ b/survarium/controls/ButtonBarSelect.as
+@@ -26,13 +26,13 @@
+          }
+          var _loc2_:int = this._focusIndex;
+          var _loc3_:Button = _renderers[_loc2_] as Button;
+-         if(Boolean(_loc3_))
++         if(_loc3_)
+          {
+             _loc3_.displayFocus = false;
+          }
+-         this._focusIndex = param1;
++         _focusIndex = param1;
+          _loc3_ = _renderers[this._focusIndex] as Button;
+-         if(Boolean(_loc3_))
++         if(_loc3_)
+          {
+             _loc3_.displayFocus = true;
+          }
+@@ -42,27 +42,27 @@
+       {
+          if(!_focused)
+          {
+-            this.focusIndex = selectedIndex;
++            focusIndex = selectedIndex;
+          }
+       }
+       
+       override public function set selectedIndex(param1:int) : void
+       {
+-         var _loc2_:int = 0;
++         var _loc2_:int;
+          if(param1 == _selectedIndex)
+          {
+             return;
+          }
+          _loc2_ = _selectedIndex;
+          var _loc3_:Button = _renderers[_loc2_] as Button;
+-         if(Boolean(_loc3_))
++         if(_loc3_)
+          {
+             _loc3_.selected = false;
+          }
+          _selectedIndex = param1;
+-         this.focusIndex = param1;
++         focusIndex = param1;
+          _loc3_ = _renderers[_selectedIndex] as Button;
+-         if(Boolean(_loc3_))
++         if(_loc3_)
+          {
+             _loc3_.selected = true;
+          }
+@@ -71,7 +71,6 @@
+       
+       override public function handleInput(param1:InputEvent) : void
+       {
+-         var _loc6_:Number = NaN;
+          if(param1.handled)
+          {
+             return;
+@@ -92,6 +91,7 @@
+             return;
+          }
+          var _loc5_:Boolean = false;
++         var _loc6_:Number;
+          switch(_loc3_.navEquivalent)
+          {
+             case NavigationCode.LEFT:
+@@ -121,13 +121,16 @@
+                   _loc6_ = this._focusIndex + 1;
+                   _loc5_ = true;
+                }
++               break;
++            default:
++               break;
+          }
+          if(_loc5_)
+          {
+             _loc6_ = Math.max(0,Math.min(_dataProvider.length - 1,_loc6_));
+             if(_loc6_ != this._focusIndex)
+             {
+-               this.focusIndex = _loc6_;
++               focusIndex = _loc6_;
+                param1.handled = true;
+             }
+          }

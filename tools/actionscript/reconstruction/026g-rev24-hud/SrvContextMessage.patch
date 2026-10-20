@@ -1,0 +1,11 @@
+--- a/SrvContextMessage.as
++++ b/SrvContextMessage.as
+@@ -20,7 +20,7 @@
+       
+       internal function frame30() : *
+       {
+-         if(Boolean(parent))
++         if(parent)
+          {
+             parent.removeChild(this);
+          }

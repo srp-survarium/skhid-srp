@@ -22,6 +22,51 @@ public class ScopeDefaultFixture {
         return new AVM2Instruction(0,instruction.definition,
             instruction.operands==null?null:instruction.operands.clone());
     }
+    static MethodBody hooked(ABC abc)throws Exception {
+        int id=MovieSource.names(abc).entrySet().stream().filter(e->e.getValue().endsWith(",\"hooked\")"))
+            .findFirst().orElseThrow().getKey();
+        var body=abc.findBody(id);MovieSource.exactCode(body);return body;
+    }
+    static int hookIndex(MethodBody body) {
+        var code=body.getCode().code;
+        for(int i=2;i<code.size();i++)if(code.get(i).definition.instructionCode==0x5d)return i;
+        throw new AssertionError("Missing hook lookup");
+    }
+    static void moveHookDefaults(ABC abc)throws Exception {
+        var body=hooked(abc);var code=body.getCode();int end=hookIndex(body);
+        if(end<=2 || code.code.get(end+3).definition.instructionCode!=0x46
+                || code.code.get(end+4).definition.instructionCode!=0x29)
+            throw new AssertionError("Unexpected native hook prologue");
+        var defaults=code.code.subList(2,end).stream().map(ScopeDefaultFixture::copy).toList();
+        for(int i=end-1;i>=2;i--)code.removeInstruction(i,body);
+        for(int i=0;i<defaults.size();i++)code.insertInstruction(7+i,defaults.get(i),false,body);
+        body.setCode(code);
+    }
+    static void hookGuards(Path input)throws Exception {
+        for(String mutation:List.of("valid","local-read","handler","activation","closure","incoming","cast","call")) {
+            var reference=abc(input);moveHookDefaults(reference);
+            var candidate=abc(input);var body=hooked(candidate);var code=body.getCode();
+            int end=hookIndex(body);
+            if(mutation.equals("local-read"))code.replaceInstruction(end+2,new AVM2Instruction(0,0xd2,null),body);
+            if(mutation.equals("handler"))body.exceptions=new ABCException[]{new ABCException()};
+            if(mutation.equals("activation"))code.insertInstruction(end+5,new AVM2Instruction(0,0x57,null),false,body);
+            if(mutation.equals("closure"))code.insertInstruction(end+5,new AVM2Instruction(0,0x40,new int[]{body.method_info}),false,body);
+            if(mutation.equals("incoming")) {
+                var jump=code.code.stream().filter(i->i.definition.instructionCode==0x12).findFirst().orElseThrow();
+                jump.operands[0]=(int)code.code.get(2).getAddress()-(int)jump.getAddress()-jump.getBytesLength();
+            }
+            if(mutation.equals("cast"))code.replaceInstruction(3,new AVM2Instruction(0,0x70,null),body);
+            if(mutation.equals("call"))code.code.get(end+3).operands[1]=2;
+            body.setCode(code);var emitted=executable(body);
+            var result=MovieSource.hookDefaultsVariant(candidate,body,executable(hooked(reference)),emitted);
+            if((result!=emitted)!=mutation.equals("valid"))throw new AssertionError("Hook guard "+mutation);
+            if(mutation.equals("valid")) {
+                MovieSource.emitCompactOperations(reference,candidate);
+                if(!Arrays.equals(hooked(reference).getCodeBytes(),body.getCodeBytes()))
+                    throw new AssertionError("Hook defaults do not match");
+            }
+        }
+    }
     static void normalize(ABC abc,boolean together)throws Exception {
         var body=method(abc);var code=body.getCode();
         for(int i=code.code.size()-1;i>=0;i--)if(MovieSource.debugInstruction(code.code.get(i)))code.removeInstruction(i,body);
@@ -94,9 +139,10 @@ public class ScopeDefaultFixture {
         }
     }
     public static void main(String[] args)throws Exception {
-        Path input=Path.of(args[0]);guards(input);
+        Path input=Path.of(args[0]);guards(input);hookGuards(input);
         var swf=MovieSource.read(input);var abc=MovieSource.findScript(swf,"fixture.DefaultProbe").abc;
         normalize(abc,false);
+        moveHookDefaults(abc);
         int disabledId=MovieSource.names(abc).entrySet().stream()
             .filter(e->e.getValue().endsWith(",\"disabled\")")).findFirst().orElseThrow().getKey();
         var disabled=abc.findBody(disabledId);

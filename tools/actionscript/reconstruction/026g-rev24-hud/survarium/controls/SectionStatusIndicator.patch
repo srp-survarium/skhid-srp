@@ -1,0 +1,72 @@
+--- a/survarium/controls/SectionStatusIndicator.as
++++ b/survarium/controls/SectionStatusIndicator.as
+@@ -20,13 +20,13 @@
+       
+       public function set rendererStep(value:uint) : void
+       {
+-         this._rendererStep = value;
++         _rendererStep = value;
+          invalidateData();
+       }
+       
+       public function registerRenderer(value:Class) : void
+       {
+-         this._progressRenderer = value;
++         _progressRenderer = value;
+          invalidateData();
+       }
+       
+@@ -42,32 +42,37 @@
+       
+       override protected function updatePosition() : void
+       {
+-         var renderer:MovieClip = null;
+-         var rendererCount:int = int(this._renderers.length);
+-         for(var j:uint = 0; j < rendererCount; j++)
++         var renderer:MovieClip;
++         var rendererCount:int = this._renderers.length;
++         var j:uint = 0;
++         while(j < rendererCount)
+          {
+             renderer = this._renderers[j];
+             renderer.gotoAndStop(j < _value ? 1 : 2);
++            j++;
+          }
+       }
+       
+       protected function updateRenderers() : void
+       {
+-         var renderer:MovieClip = null;
+-         var nx:uint = 0;
+-         var ny:uint = 0;
+          var rendererCount:int = _maximum;
++         var renderer:MovieClip;
+          if(!this._progressRenderer)
+          {
+             return;
+          }
+-         for(var j:uint = 0; j < this._renderers.length; j++)
++         var j:uint = 0;
++         while(j < this._renderers.length)
+          {
+             renderer = this._renderers[j];
+             renderer.gotoAndStop(1);
+             removeChild(renderer);
++            j++;
+          }
+-         for(var i:uint = 0; i < rendererCount; i++)
++         var i:uint = 0;
++         var nx:uint;
++         var ny:uint;
++         while(i < rendererCount)
+          {
+             if(!this._renderers[i])
+             {
+@@ -84,6 +89,7 @@
+             ny = 0;
+             renderer.x = nx;
+             renderer.y = ny;
++            i++;
+          }
+       }
+    }

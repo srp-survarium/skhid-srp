@@ -24,7 +24,7 @@ method bodies. Exporting a source tree does not establish an exact rebuild.
 | Movie | Scripts | Method bodies | Complete source rebuild |
 | --- | ---: | ---: | --- |
 | `hud.swf` | 287 | 2,342 | Reconstruction in progress |
-| `main_menu.swf` | 183 | 1,864 | Reconstruction in progress |
+| `main_menu.swf` | 183 | 1,864 | Byte-exact, including compression and padding |
 | `login_menu.swf` | 86 | 866 | Byte-exact, including compression and padding |
 | `player_icons.swf` | 34 | 347 | Reconstruction in progress |
 | `replay_player.swf` | 82 | 866 | Reconstruction in progress |
@@ -48,6 +48,13 @@ registration handler. Its 3,508,744-byte rebuild has SHA-256
 `20ab1d2289e1fe08df25ae2a33f37213f052b5b5d9eb1b3b77a568f126844261`.
 The reconstruction preserves constructor closure ordering and the original
 negative-zero layout constant, which the pristine export displayed as `0`.
+
+Main-menu [verification evidence](reconstruction/026g-rev24-main_menu/verification.json)
+covers all 183 scripts and 1,864 method bodies, including the released FOV slider
+and its settings hooks. The 1,194,596-byte rebuild has SHA-256
+`edc60a3df39e8c5d1fa7df6eebe989a80f3b931d3d86e31d7b651306dc416267`.
+The source corrections recover explicit switch breaks, local initialization,
+loop continuation targets and the original settings conditionals.
 
 ## Private inputs and pinned tools
 
@@ -287,6 +294,16 @@ All actual compiler instructions and capacity records are retained. An edited
 method that no longer matches retains its ordinary compiler layout; a changed
 call/cast ordering still requires explicit feature review.
 
+A separate conservative case delays implicit defaults past one global static
+hook receiving only `this`. It requires an ordinary instance method without
+handlers, activation traits, closures or `with` scopes. Only distinct, uncaptured
+local stores of zero, false, undefined, null String, null Object or null Array
+are eligible. The hook cannot read these registers, and no branch may enter
+the reordered prefix. The reference must contain the identical default block
+immediately after the hook; complete instruction and control-flow comparison
+still decides acceptance. This reproduces the released settings hook without
+copying its executable instructions from the original movie.
+
 Some previously patched methods retain spare stack or local capacity that
 neither source compiler allocates. An authenticated reconstruction entry can
 declare `method_reservations`, mapping full method owner names to positive
@@ -314,6 +331,11 @@ Operand evaluation order is retained; negated ordered comparisons use `ifnlt`,
 The equivalent combined branch can also be expanded back into that comparison
 and Boolean branch, including the same optional negation and conversion.
 Both directions can occur within one method.
+Discarded `callsuper` results can similarly use `callsupervoid`. A Boolean
+conversion immediately before a truth branch can be folded into that branch,
+and logical negation reverses its polarity. String literals can omit their
+redundant `coerce_s`. These cases preserve operand values and coercion behavior;
+the tests also reject altered calls, literals and branch polarity.
 A whole method must match after only these
 encoding changes, including names, argument counts, branches, switch targets and
 exception boundaries. No control-flow or exception boundary may enter an

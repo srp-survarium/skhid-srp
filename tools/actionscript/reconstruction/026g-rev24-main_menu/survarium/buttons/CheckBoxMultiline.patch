@@ -1,0 +1,20 @@
+--- a/survarium/buttons/CheckBoxMultiline.as
++++ b/survarium/buttons/CheckBoxMultiline.as
+@@ -16,7 +16,7 @@
+       
+       override protected function updateText() : void
+       {
+-         if(Boolean(textField))
++         if(textField)
+          {
+             textField.multiline = true;
+             textField.styleSheet = this.style;
+@@ -27,7 +27,7 @@
+       
+       override protected function configUI() : void
+       {
+-         var _loc1_:Object = null;
++         var _loc1_:Object;
+          super.configUI();
+          preventAutosizing = false;
+          _loc1_ = new Object();

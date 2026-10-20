@@ -1,0 +1,20 @@
+--- a/fpsHUD_fla/progress_oxygen_188.as
++++ b/fpsHUD_fla/progress_oxygen_188.as
+@@ -29,7 +29,7 @@
+          {
+             this.glow_thumb.gotoAndPlay(2);
+          }
+-         this._progress = value;
++         _progress = value;
+          this.progress_thumb.width = this.background.width * value;
+          this.glow_thumb.x = this.progress_thumb.width;
+          this.glow_thumb.gotoAndPlay(2);
+@@ -38,7 +38,7 @@
+       internal function frame1() : *
+       {
+          this.glow_thumb.gotoAndStop(1);
+-         this._progress = -1;
++         _progress = -1;
+       }
+    }
+ }

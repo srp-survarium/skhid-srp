@@ -1,0 +1,22 @@
+--- a/survarium/quest/QuestListRenderHUD.as
++++ b/survarium/quest/QuestListRenderHUD.as
+@@ -48,7 +48,6 @@
+       
+       override protected function updateText() : void
+       {
+-         var progressLabel:String = null;
+          if(!data)
+          {
+             this.questIcon.visible = false;
+@@ -56,9 +55,10 @@
+             textField.text = " ";
+             return;
+          }
+-         var isRatio:Boolean = Boolean(_data.is_ratio);
++         var isRatio:Boolean = _data.is_ratio;
+          var currentProgress:Number = Math.floor((_data.current_progress + 0.005) / 0.1) * 0.1;
+          var required:Number = Math.floor((_data.required + 0.005) / 0.1) * 0.1;
++         var progressLabel:String;
+          trace("questIcon::",currentProgress,required,_data.current_progress,_data.required);
+          if(int(currentProgress) != currentProgress)
+          {

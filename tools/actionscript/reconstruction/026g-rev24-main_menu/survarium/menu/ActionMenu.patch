@@ -1,0 +1,80 @@
+--- a/survarium/menu/ActionMenu.as
++++ b/survarium/menu/ActionMenu.as
+@@ -66,17 +66,17 @@
+       override protected function configUI() : void
+       {
+          this.menu_buttons.dataProvider = new DataProvider([{
+-            "label":"назад",
+-            "action":"close"
++            label:"назад",
++            action:"close"
+          },{
+-            "label":"настройки",
+-            "action":"settings"
++            label:"настройки",
++            action:"settings"
+          },{
+-            "label":"logout",
+-            "action":"logoout"
++            label:"logout",
++            action:"logoout"
+          },{
+-            "label":"выход в виндовс",
+-            "action":"exit"
++            label:"выход в виндовс",
++            action:"exit"
+          }]);
+          this._actions["close"] = this.closeMe;
+          this._actions["settings"] = this.showSettings;
+@@ -95,9 +95,9 @@
+       
+       private function showPromo(param1:ButtonEvent) : void
+       {
+-         this._promoMessage = Message.showMessage("promo",{
+-            "label_ok":Settings.get_label("button_ok"),
+-            "default_text":Settings.get_label("enter_promo_key")
++         _promoMessage = Message.showMessage("promo",{
++            label_ok:Settings.get_label("button_ok"),
++            default_text:Settings.get_label("enter_promo_key")
+          },true);
+       }
+       
+@@ -109,7 +109,7 @@
+       protected function takeAction(param1:ButtonBarEvent) : void
+       {
+          var _loc2_:String = this.menu_buttons.dataProvider[param1.index].action;
+-         this._current_action = _loc2_;
++         _current_action = _loc2_;
+          trace("button pressed:",param1.index,this.menu_buttons.dataProvider[param1.index].action,this._actions[_loc2_]);
+          if(this._actions[_loc2_] is Function)
+          {
+@@ -127,10 +127,10 @@
+       protected function exitBattle() : void
+       {
+          Message.showMessage("apply",{
+-            "text":Settings.get_label("exit_match_confirm_text"),
+-            "label_ok":Settings.get_label("exit_match_confirm_accept"),
+-            "label_cancel":Settings.get_label("exit_match_confirm_cancel"),
+-            "onYes":this.action_accept
++            text:Settings.get_label("exit_match_confirm_text"),
++            label_ok:Settings.get_label("exit_match_confirm_accept"),
++            label_cancel:Settings.get_label("exit_match_confirm_cancel"),
++            onYes:this.action_accept
+          });
+       }
+       
+@@ -153,10 +153,10 @@
+       protected function exitGame() : void
+       {
+          Message.showMessage("apply",{
+-            "text":Settings.get_label("exit_game_confirm_text"),
+-            "label_ok":Settings.get_label("exit_game_confirm_accept"),
+-            "label_cancel":Settings.get_label("exit_game_confirm_cancel"),
+-            "onYes":this.action_accept
++            text:Settings.get_label("exit_game_confirm_text"),
++            label_ok:Settings.get_label("exit_game_confirm_accept"),
++            label_cancel:Settings.get_label("exit_game_confirm_cancel"),
++            onYes:this.action_accept
+          });
+       }
+       

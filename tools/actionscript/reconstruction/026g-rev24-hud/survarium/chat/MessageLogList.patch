@@ -1,0 +1,189 @@
+--- a/survarium/chat/MessageLogList.as
++++ b/survarium/chat/MessageLogList.as
+@@ -41,8 +41,8 @@
+       public function MessageLogList()
+       {
+          super();
+-         this._height = height;
+-         this._move_tween = new Tween(500,this,{"move":0},{"ease":Strong.easeOut});
++         _height = height;
++         _move_tween = new Tween(500,this,{move:0},{ease:Strong.easeOut});
+          this._move_tween.paused = true;
+          this._hideTimer.addEventListener(TimerEvent.TIMER,this.onTimerEvent);
+       }
+@@ -54,13 +54,14 @@
+       
+       public function set styleSheet(value:StyleSheet) : void
+       {
+-         this._style = value;
++         _style = value;
+       }
+       
+       public function setText(value:String) : void
+       {
+-         var itemRenderer:MovieClip = null;
+-         for(var i:uint = 0; i < this._renderers.length; i++)
++         var i:uint = 0;
++         var itemRenderer:MovieClip;
++         for(; i < this._renderers.length; i++)
+          {
+             removeChild(this._renderers[i]);
+          }
+@@ -97,7 +98,6 @@
+       
+       public function addMessage(value:String, useAlpha:Boolean = false) : void
+       {
+-         var _start_index:Array = null;
+          var itemRenderer:MovieClip = new MessageRenderer();
+          itemRenderer.textContainer.textField.styleSheet = this._style;
+          if(!useAlpha)
+@@ -118,10 +118,11 @@
+          itemRenderer.y = this.items_height();
+          addChild(itemRenderer);
+          var i:uint = this._renderers.length;
++         var _start_index:Array;
+          this._targets[i] = itemRenderer.y;
+          if(!useAlpha)
+          {
+-            new Tween(500,itemRenderer.textContainer,{"alpha":1},{"ease":Strong.easeOut});
++            new Tween(500,itemRenderer.textContainer,{alpha:1},{ease:Strong.easeOut});
+          }
+          this._renderers.push(itemRenderer);
+          this._messages.push(itemRenderer);
+@@ -135,7 +136,7 @@
+          trace("LogListStartTimer::",value);
+          this._hideTimer.reset();
+          this._hideTimer.start();
+-         this._nextHideTime = getTimer() + value;
++         _nextHideTime = getTimer() + value;
+       }
+       
+       private function onTimerEvent(e:TimerEvent) : void
+@@ -148,17 +149,17 @@
+       
+       public function reset() : void
+       {
+-         var renderer:MovieClip = null;
+          this._move_tween.reset();
+          this._move_tween.paused = true;
+          var hh:uint = 0;
+          this._renderers.length = 0;
+          for(var i:uint = 0; i < this._messages.length; i++)
+          {
++            var renderer:MovieClip;
+             renderer = new MessageRenderer();
+             renderer.textContainer.textField.styleSheet = this._style;
+             renderer.textContainer.textField.htmlText = this._messages[i].textContainer.textField.htmlText;
+-            if(Boolean(this._messages[i].parent))
++            if(this._messages[i].parent)
+             {
+                removeChild(this._messages[i]);
+             }
+@@ -175,7 +176,7 @@
+       
+       public function showLastMessages() : void
+       {
+-         if(this._messages.length == this._renderers.length || Boolean(this._renderers[0]) && Boolean(this._renderers[0].fake))
++         if(this._messages.length == this._renderers.length || this._renderers[0] && this._renderers[0].fake)
+          {
+             return;
+          }
+@@ -190,7 +191,7 @@
+             _str += this._messages[i].textContainer.textField.htmlText;
+          }
+          renderer.textContainer.textField.htmlText = _str;
+-         var hh:uint = uint(renderer.textContainer.textField.textHeight);
++         var hh:uint = (renderer.textContainer.textField.textHeight);
+          for(i = 0; i < this._renderers.length; i++)
+          {
+             this._targets[i] += hh;
+@@ -219,13 +220,13 @@
+       
+       public function stopHideout() : void
+       {
+-         this._isHiding = false;
++         _isHiding = false;
+          this._hideTimer.stop();
+       }
+       
+       public function resumeHideout() : void
+       {
+-         this._isHiding = true;
++         _isHiding = true;
+          this.startTimer(this._longHideTime);
+       }
+       
+@@ -240,7 +241,7 @@
+          {
+             this._renderers[i].y = this._targets[i] + value;
+          }
+-         this._move = value;
++         _move = value;
+       }
+       
+       protected function get move() : Number
+@@ -255,7 +256,7 @@
+       
+       protected function hideItem(e:Event = null) : void
+       {
+-         trace("hideTimer::",Boolean(e) ? "byEvent" : "noEvent","delay:",this._hideTimer.delay,"renderers:",this._renderers.length,this._isHiding);
++         trace("hideTimer::",e ? "byEvent" : "noEvent","delay:",this._hideTimer.delay,"renderers:",this._renderers.length,this._isHiding);
+          var i:uint = 0;
+          var renderer:MovieClip = this._renderers[i];
+          if(!renderer || !renderer.parent)
+@@ -270,13 +271,13 @@
+          {
+             this.clearTimer();
+          }
+-         var hh:int = int(uint(this._renderers[i].textContainer.textField.textHeight));
++         var hh:int = (uint(this._renderers[i].textContainer.textField.textHeight));
+          new Tween(500,this._renderers[i],{
+-            "y":this._targets[i] = this._targets[i] - 10,
+-            "alpha":0
++            y:this._targets[i] = this._targets[i] - 10,
++            alpha:0
+          },{
+-            "ease":Strong.easeOut,
+-            "onComplete":this._renderers[i].clear
++            ease:Strong.easeOut,
++            onComplete:this._renderers[i].clear
+          });
+          this._renderers.splice(i,1);
+          this._targets.splice(i,1);
+@@ -284,20 +285,20 @@
+          {
+             this._targets[i] -= hh;
+          }
+-         this._move += hh;
++         _move += hh;
+          this._move_tween.reset();
+          this._move_tween.paused = true;
+-         this._move_tween = new Tween(500,this,{"move":0},{"ease":Strong.easeOut});
++         _move_tween = new Tween(500,this,{move:0},{ease:Strong.easeOut});
+       }
+       
+       protected function items_height() : uint
+       {
+-         var renderer:MovieClip = null;
+          var hn:uint = 0;
+          for(var i:uint = 0; i < this._renderers.length; i++)
+          {
++            var renderer:MovieClip;
+             renderer = this._renderers[i];
+-            if(Boolean(renderer.parent))
++            if(renderer.parent)
+             {
+                hn += uint(renderer.textContainer.textField.textHeight);
+             }
+@@ -307,10 +308,10 @@
+       
+       protected function messages_height() : uint
+       {
+-         var renderer:MovieClip = null;
+          var hn:uint = 0;
+          for(var i:uint = 0; i < this._messages.length; i++)
+          {
++            var renderer:MovieClip;
+             renderer = this._messages[i];
+             hn += uint(renderer.textContainer.textField.textHeight);
+          }

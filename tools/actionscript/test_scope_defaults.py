@@ -30,6 +30,17 @@ class ScopeDefaultIntegration(unittest.TestCase):
                 public class DefaultProbe extends Sprite {
                     private var marker:int=1;
                     public function disabled(value:Object):void { return; }
+                    public function hooked(value:Object):void {
+                        ScopeHelper.take(this);
+                        var items:Array;
+                        var other:Object;
+                        var label:String;
+                        var flag:Boolean;
+                        var index:int;
+                        var count:uint;
+                        var any:*;
+                        if(value) this.name=String(items)+String(other)+label+flag+index+count+any;
+                    }
                     public function test(value:Object):void {
                         if(ScopeHelper.take(value)) return;
                         if(ScopeHelper.take(this)) return;

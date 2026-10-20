@@ -1,0 +1,35 @@
+--- a/survarium/controls/CaptureBar.as
++++ b/survarium/controls/CaptureBar.as
+@@ -22,8 +22,8 @@
+       public function CaptureBar()
+       {
+          super();
+-         this.good = getChildByName("good_mc");
+-         this.bad = getChildByName("bad_mc");
++         good = getChildByName("good_mc");
++         bad = getChildByName("bad_mc");
+       }
+       
+       public function set percent(_value:int) : void
+@@ -39,7 +39,7 @@
+          this.bad.y = 0;
+          this.good.y = 0;
+          this.pointer.y = 0;
+-         this._percent = _value;
++         _percent = _value;
+          this.good.x = 0;
+          this.good.width = int(int(this.body.width - 2) * (_value / 100));
+          this.bad.width = this.body.width - this.good.width - 2;
+@@ -55,9 +55,9 @@
+       public function swap() : *
+       {
+          var _temp:* = this.bad;
+-         this.bad = this.good;
+-         this.good = _temp;
+-         this.percent = this._percent;
++         bad = this.good;
++         good = _temp;
++         percent = this._percent;
+       }
+    }
+ }
