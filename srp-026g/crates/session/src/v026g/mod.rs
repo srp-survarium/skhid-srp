@@ -49,6 +49,7 @@ pub mod rewards;
 pub mod rooms;
 pub mod rules;
 pub mod tutorial;
+pub mod wiki;
 pub mod wire;
 
 pub use account::{Account, Item, Kit, KitSlot, QuestInstance};
