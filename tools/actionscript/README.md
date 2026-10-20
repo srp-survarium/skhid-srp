@@ -101,7 +101,7 @@ the complete movie comparison is the acceptance test.
 ## Flex integration
 
 The default `flex` mode uses FFDec's Flex script replacer arguments, including
-`strict=false` and `debug=true`. The bridge corrects three integration problems:
+`strict=false` and `debug=true`. The bridge corrects these integration problems:
 
 - FFDec 25.1.3 selects `mxmlc.exe` on Unix. The bridge invokes the same SDK's
   `mxmlc.jar` directly and records the arguments.
@@ -113,6 +113,11 @@ The default `flex` mode uses FFDec's Flex script replacer arguments, including
 - Flex's SWC reader crashes on multiname zero in `Vector.<*>`. The dependency
   adapter uses an explicit public `*` name for the same wildcard type. This fixes
   the `CharWindow` dependency needed to compile `LobbyMenu`.
+- FFDec's instruction decoder rewrites unreachable jump operands, including
+  while importing native compiler output. The bridge retains `native-compiler.swf`
+  and imports its instructions through a linear decoder that must reproduce
+  their exact bytes before any relocation. Other scripts sharing the target
+  ABC are retained. Snapshots use the same exact decoder for disassembly.
 
 `flex-strict` additionally enables strict type binding, disables optimization
 and debug output, and preserves `trace` calls. These settings are recorded;
@@ -132,9 +137,15 @@ python3 tools/actionscript/link_layout.py --tools private/actionscript/tools.jso
 
 The linker verifies each input against its recorded compiler-output movie hash.
 It keeps the compiler's method bodies, signatures, class definitions, scope and
-stack limits, and exception tables. It restores named method ordering and
-method references when operand widths stay fixed. It preserves existing pool
-indices after checking every existing entry, and removes unused compiler additions.
+stack limits, and exception tables. It restores named method and trait ordering.
+Class/file private namespaces are mapped by their compiler-generated owners,
+requiring unique identities in both pools; ambiguous ownership is refused.
+Equivalent multinames can then use their original pool indices. Namespace-set
+members must match after relocation; their ordering is not lookup precedence.
+Changing reference widths relocates conditional/unconditional branches, switch
+tables and exception boundaries by instruction identity. Invalid boundaries
+and unsupported control-flow forms are refused. The linker checks every
+existing pool entry before retaining its index and removes unused additions.
 Empty debug method names and the Adobe editor's `__go_to_definition_help` and
 `__go_to_ctor_definition_help` annotations follow the original layout. Runtime
 annotations are compared by their complete resolved names, keys and values;
@@ -163,17 +174,17 @@ reassembled with that code, and CWS movies are recompressed with zlib level 9.
 The final SHA-256 and byte comparison must prove full file equality, including
 compression. If compression differs, the result is still reported as different.
 
-The current linker refuses anonymous method identity changes, changed constant
-references, changing operand widths, class/trait reordering, and remaining
-instruction or verifier-metadata differences. Its success on individual classes
+The current linker refuses unresolved anonymous method identities, ambiguous
+private namespace ownership, unmatched constant references, class reordering,
+and remaining instruction or verifier-metadata differences. Its success on individual classes
 does not prove a whole-tree rebuild. `MEASUREMENTS.md` records the current evidence.
 
 ## Remaining work
 
 1. Finish compiler matching and decompiler defects.
    Evaluate all 878 scripts after the initial 18-class experiment.
-2. Extend the verified ABC linker to map compiled pools, private namespaces,
-   methods and classes to original identities. Require each compiled method's
+2. Complete the verified ABC linker's remaining pool, private-namespace,
+   anonymous-method and class mappings. Require each compiled method's
    instructions **and metadata** to match after relocation. Never copy an old
    body as a substitute for a failed compilation.
 3. Preserve source reconstruction corrections as reviewed diffs over each
@@ -205,3 +216,9 @@ The source-map test rejects an altered executable instruction in the method
 whose debugger directives would otherwise be restored.
 Duplicate runtime metadata records are accepted only when all their values match;
 the compiler regression also checks rejection of a changed annotation value.
+The real compiler fixture includes private members, runtime property lookup,
+forward/backward branches, a switch table and exception handlers. It exercises
+native recompilation and exact linking, including a second script/class in the
+same ABC. A separately constructed wide-reference fixture exercises instruction
+growth/shrinkage; changed owners, namespace members, branch targets and handler
+targets are refused. Unreachable jump bytes are included in the exact comparison.

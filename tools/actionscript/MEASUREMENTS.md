@@ -116,7 +116,8 @@ after the 292-script batch and are not included in its 239 successes.
 Sixteen `LobbyMenu_*Icons` classes were refused because the importer appended
 an identical `ExcludeClass` annotation at a new metadata index. Runtime metadata
 comparison now resolves all names, keys and values before retaining the original
-index. A new measurement batch is running with this fix and debugger-map emission.
+index. The completed batch with this fix and debugger-map emission accepted
+**316 of 370** selected scripts; 53 were refused and one had failed compilation.
 Synthetic tests verify duplicate annotation relocation and reject changed values,
 scope operands, slots, defaults, executable instructions and verifier metadata.
 All eight tests, including the real Flex integration test, pass.
@@ -125,3 +126,35 @@ Remaining observed issues include anonymous method ownership in `LobbyMenu`,
 class/script private namespace identity and namespace-set order, and decompiler
 source defects in `SrpRooms` (missing return paths and implicit int-to-String
 coercions rejected by strict Flex). The complete 878-script sweep is unfinished.
+
+## Namespace and control-flow relocation
+
+The next completed batch accepted **434 of 440** selected scripts, with five
+refused and one compile failure. This batch maps unique class/file private
+namespace owners, compares namespace-set membership, and relocates equivalent
+multiname references. `CreateClanWindow`'s 2,296-byte ABC is one newly exact
+example. The batch predates operand-width relocation and native-import repair.
+
+Reference relocation now also updates branch/switch offsets and exception
+boundaries when a pool or method index changes width. Trait ordering follows
+qualified owner/name and kind, retaining the actual compiler records. The real
+compiler regression covers wide references across forward and backward branches,
+switch tables and handlers, and rejects changed control flow and namespaces.
+
+That regression exposed FFDec 25.1.3 rewriting unreachable jump operands while
+decoding an unchanged compiler output. A linear decoder now requires exact
+instruction-byte preservation. Applied to the original release, it preserves
+all **7,758 method records** and every ABC block; it corrects 23 diagnostic
+disassemblies from the former control-flow decoder. Earlier exact-file successes
+remain valid; their final comparisons included the actual complete movie bytes.
+
+Native Flex output is now retained and imported with that decoder before symbol
+merging. The importer preserves other scripts/classes sharing the ABC. An actual
+recompile-and-link regression, including private members, loops, switch,
+try/catch and an unrelated retained script, reproduces its complete input movie.
+
+All 18 feature scripts compile with the repaired native importer. Their current
+linker pass still refuses all 18: remaining findings include ambiguous file-private
+namespaces from earlier movie patches, nonempty debugger method-name differences,
+and executable/record differences. These are unresolved; the synthetic fixture
+and the 440-script subset do not establish completion of the source workflow.

@@ -10,6 +10,7 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.abc.*;
+import com.jpexs.decompiler.flash.abc.avm2.AVM2Code;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.types.*;
 import com.jpexs.decompiler.flash.abc.types.traits.*;
@@ -169,6 +170,9 @@ public final class MovieSource {
                 builder.environment().put("PLAYERGLOBAL_HOME", sdk.resolve("frameworks/libs/player").toString());
                 process = builder.start();
                 if (process.waitFor() != 0) throw new MxmlcException(Files.readString(errors));
+                int output = args.indexOf("-output");
+                if (output < 0 || output + 1 >= args.size()) throw new IOException("Missing native compiler output path");
+                Files.copy(Path.of(args.get(output + 1)), diagnostics.resolve("native-compiler.swf"));
             } finally {
                 if (process != null) process.destroyForcibly();
                 Files.copy(errors, diagnostics.resolve("mxmlc.stderr"));
@@ -178,6 +182,52 @@ public final class MovieSource {
     }
     static SWF read(Path file) throws Exception {
         try (InputStream in = Files.newInputStream(file)) { return new SWF(in, true); }
+    }
+
+    static SWF importNative(Path originalFile, Path nativeFile, String cls) throws Exception {
+        SWF original = read(originalFile), nativeMovie = read(nativeFile);
+        ScriptPack source = null;
+        for (ScriptPack pack : original.getAS3Packs()) if (pack.getClassPath().toRawString().equals(cls)) {
+            if (source != null) throw new IOException("Ambiguous original script");
+            source = pack;
+        }
+        if (source == null || !source.isSimple) throw new IOException("Native import requires a simple source script");
+        ABC destination = source.abc;
+        var emittedTags = nativeMovie.getAbcList();
+        if (emittedTags.isEmpty()) throw new IOException("Native compiler emitted no ABC");
+        ABC emitted = emittedTags.get(emittedTags.size() - 1).getABC();
+        if (emitted.findClassByName(cls) < 0 || emitted.script_info.size() != 1)
+            throw new IOException("Native compiler's final ABC does not define the requested script");
+        for (MethodBody body : emitted.bodies) exactCode(body);
+        // Delete the replaced script, retaining other scripts and pool context.
+        // Every replacement definition comes from the native compiler. Decode
+        // retained bodies too before FFDec renumbers any of their references.
+        for (MethodBody body : destination.bodies) exactCode(body);
+        int classPosition = destination.class_info.size();
+        ScriptInfo script = destination.script_info.get(source.scriptIndex);
+        for (Trait trait : script.traits.traits)
+            if (trait instanceof TraitClass c) classPosition = Math.min(classPosition, c.class_info);
+        script.delete(destination, true);
+        destination.pack();
+        Map<Integer, Integer> classes = new HashMap<>(), scripts = new HashMap<>();
+        destination.mergeABC(emitted, new HashMap<>(), new HashMap<>(), new HashMap<>(),
+            new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(),
+            new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), classes, new HashMap<>(), scripts);
+        List<Integer> addedScripts = scripts.values().stream().sorted().toList();
+        List<ScriptInfo> orderedScripts = new ArrayList<>();
+        for (int index : addedScripts) orderedScripts.add(destination.script_info.get(index));
+        for (int i = addedScripts.size() - 1; i >= 0; i--) destination.script_info.remove((int)addedScripts.get(i));
+        destination.script_info.addAll(source.scriptIndex, orderedScripts);
+        List<Integer> addedClasses = classes.values().stream().sorted().toList();
+        List<Integer> order = new ArrayList<>();
+        for (int i = 0; i < destination.class_info.size(); i++) if (!addedClasses.contains(i)) order.add(i);
+        if (classPosition > order.size()) throw new IOException("Original class insertion position is unavailable");
+        order.addAll(classPosition, addedClasses);
+        Map<Integer, Integer> positions = new HashMap<>();
+        for (int i = 0; i < order.size(); i++) positions.put(order.get(i), i);
+        destination.reorganizeClasses(positions);
+        ((Tag)destination.parentTag).setModified(true);
+        return original;
     }
 
     static String hash(byte[] bytes) throws Exception {
@@ -279,6 +329,18 @@ public final class MovieSource {
 
     static void retainDebugMetadata(ABC original, ABC compiled, Traits before, Traits after) throws IOException {
         if (before.traits.size() != after.traits.size()) throw new IOException("Trait count changed");
+        Map<List<Object>, Trait> emitted = new HashMap<>();
+        for (Trait trait : after.traits)
+            if (emitted.put(List.of(trait.kindType, name(compiled, trait.name_index)), trait) != null)
+                throw new IOException("Ambiguous compiled trait identity");
+        List<Trait> ordered = new ArrayList<>();
+        for (Trait trait : before.traits) {
+            Trait found = emitted.remove(List.of(trait.kindType, name(original, trait.name_index)));
+            if (found == null) throw new IOException("Trait identities changed");
+            ordered.add(found);
+        }
+        after.traits.clear();
+        after.traits.addAll(ordered);
         for (int j = 0; j < before.traits.size(); j++) {
             Trait a = before.traits.get(j), b = after.traits.get(j);
             if (a.kindType != b.kindType || !name(original, a.name_index).equals(name(compiled, b.name_index)))
@@ -294,6 +356,227 @@ public final class MovieSource {
         for (Trait trait : traits.traits) {
             if (trait instanceof TraitMethodGetterSetter method) method.method_info = mapping.get(method.method_info);
             else if (trait instanceof TraitFunction function) function.method_info = mapping.get(function.method_info);
+        }
+    }
+
+    @FunctionalInterface interface InstructionRelocation { void apply(AVM2Instruction instruction) throws IOException; }
+
+    static AVM2Code exactCode(MethodBody body) throws IOException {
+        // FFDec's control-flow decoder rewrites unreachable jump operands even
+        // on getCode(). Linking needs a linear, byte-preserving instruction
+        // reader, including unreachable code. Reject unsupported encodings.
+        byte[] bytes = body.getCodeBytes();
+        ABCInputStream in = new ABCInputStream(new com.jpexs.helpers.MemoryInputStream(bytes));
+        ArrayList<AVM2Instruction> instructions = new ArrayList<>();
+        while (in.available() > 0) {
+            long offset = in.getPosition();
+            int opcode = in.readU8("opcode");
+            var definition = AVM2Code.instructionSet[opcode];
+            if (definition == null) throw new IOException("Unknown instruction opcode " + opcode);
+            int[] operands;
+            if (opcode == 0x1b) {
+                int target = in.readS24("default"), cases = in.readU30("cases");
+                if (cases < 0 || cases >= in.available() / 3) throw new IOException("Truncated switch table");
+                operands = new int[cases + 3]; operands[0] = target; operands[1] = cases;
+                for (int i = 2; i < operands.length; i++) operands[i] = in.readS24("case");
+            } else {
+                operands = new int[definition.operands.length];
+                for (int i = 0; i < operands.length; i++) operands[i] = switch (definition.operands[i] & 0xff00) {
+                    case AVM2Code.OPT_U30 -> in.readU30("operand");
+                    case AVM2Code.OPT_U8 -> in.readU8("operand");
+                    case AVM2Code.OPT_S8 -> (byte)in.readU8("operand");
+                    case AVM2Code.OPT_S16 -> (short)in.readU30("operand");
+                    case AVM2Code.OPT_S24 -> in.readS24("operand");
+                    default -> throw new IOException("Unsupported instruction operand encoding");
+                };
+            }
+            instructions.add(new AVM2Instruction(offset, definition, operands));
+        }
+        AVM2Code code = new AVM2Code(instructions);
+        if (!Arrays.equals(bytes, code.getBytes())) throw new IOException("Instruction encoding changed during linear decoding");
+        body.setCode(code);
+        return code;
+    }
+
+    static int boundary(Map<Integer, Integer> positions, int offset) throws IOException {
+        Integer index = positions.get(offset);
+        if (index == null) throw new IOException("Control-flow offset is not an instruction boundary: " + offset);
+        return index;
+    }
+
+    static void relocateCode(MethodBody body, InstructionRelocation relocation) throws IOException {
+        var code = body.getCode();
+        int size = code.code.size();
+        int[] before = new int[size + 1], after = new int[size + 1];
+        Map<Integer, Integer> positions = new HashMap<>();
+        for (int i = 0; i < size; i++) before[i + 1] = Math.addExact(before[i], code.code.get(i).getBytesLength());
+        for (int i = 0; i <= size; i++) positions.put(before[i], i);
+        int[][] targets = new int[size][];
+        for (int i = 0; i < size; i++) {
+            var instruction = code.code.get(i);
+            int opcode = instruction.definition.instructionCode;
+            if (opcode == 0x1b) {
+                if (instruction.operands.length < 3 || instruction.operands[1] != instruction.operands.length - 3)
+                    throw new IOException("Malformed lookupswitch operands");
+                targets[i] = new int[instruction.operands.length];
+                for (int j = 0; j < instruction.operands.length; j++) if (j != 1)
+                    targets[i][j] = boundary(positions, before[i] + instruction.operands[j]);
+            } else if (opcode >= 0x0c && opcode <= 0x1a) {
+                if (instruction.operands.length != 1) throw new IOException("Malformed branch operands");
+                targets[i] = new int[]{boundary(positions, before[i + 1] + instruction.operands[0])};
+            } else if (instruction.isBranch() || instruction.isJump()) throw new IOException("Unsupported control-flow opcode");
+        }
+        int[][] handlers = new int[body.exceptions.length][3];
+        for (int i = 0; i < handlers.length; i++) {
+            var handler = body.exceptions[i];
+            handlers[i] = new int[]{boundary(positions, handler.start), boundary(positions, handler.end), boundary(positions, handler.target)};
+        }
+        for (int i = 0; i < size; i++) {
+            relocation.apply(code.code.get(i));
+            after[i + 1] = Math.addExact(after[i], code.code.get(i).getBytesLength());
+        }
+        for (int i = 0; i < size; i++) if (targets[i] != null) {
+            var instruction = code.code.get(i);
+            boolean table = instruction.definition.instructionCode == 0x1b;
+            for (int j = 0; j < targets[i].length; j++) {
+                if (table && j == 1) continue;
+                int offset = after[targets[i][j]] - (table ? after[i] : after[i + 1]);
+                if (offset < -0x800000 || offset > 0x7fffff) throw new IOException("Relocated branch exceeds signed 24-bit range");
+                instruction.operands[j] = offset;
+            }
+        }
+        for (int i = 0; i < handlers.length; i++) {
+            var handler = body.exceptions[i];
+            handler.start = after[handlers[i][0]]; handler.end = after[handlers[i][1]]; handler.target = after[handlers[i][2]];
+        }
+        code.markOffsets();
+        body.setCode(code);
+    }
+
+    static String privateRole(ABC abc, int index, String className, String simpleName) {
+        Namespace ns = abc.constants.getNamespace(index);
+        if (ns.kind != 5) return null;
+        String text = abc.constants.getString(ns.name_index);
+        if (text.equals(className)) return "class";
+        if (text.matches("\\$[0-9]+") || text.matches(java.util.regex.Pattern.quote(simpleName + ".as$") + "[0-9]+"))
+            return "script";
+        return null;
+    }
+
+    static Map<Integer, Integer> namespaceLayout(ABC original, ABC compiled) throws IOException {
+        Map<Integer, Integer> mapping = new HashMap<>();
+        int retained = original.constants.getNamespaceCount();
+        for (int i = 0; i < retained; i++) mapping.put(i, i);
+        // Class/script private namespaces are lexical identities, not strings.
+        // Compiler-generated class and file namespace roles must each be
+        // unique in the old pool and among newly emitted namespaces. Retained
+        // classes can share this ABC, but class identity/order must be fixed.
+        if (original.instance_info.size() == compiled.instance_info.size()) {
+          for (int owner = 0; owner < original.instance_info.size(); owner++) {
+            int nameId = original.instance_info.get(owner).name_index;
+            Multiname name = original.constants.getMultiname(nameId);
+            if (compiled.instance_info.get(owner).name_index == nameId && name.kind == 7
+                    && original.constants.getNamespace(name.namespace_index).kind == 0x16) {
+                String simple = original.constants.getString(name.name_index);
+                String pkg = original.constants.getString(original.constants.getNamespace(name.namespace_index).name_index);
+                String qualified = pkg.isEmpty() ? simple : pkg + ":" + simple;
+                for (String role : List.of("class", "script")) {
+                    List<Integer> before = new ArrayList<>(), after = new ArrayList<>();
+                    for (int i = 1; i < retained; i++)
+                        if (role.equals(privateRole(original, i, qualified, simple))) before.add(i);
+                    for (int i = retained; i < compiled.constants.getNamespaceCount(); i++)
+                        if (role.equals(privateRole(compiled, i, qualified, simple))) after.add(i);
+                    if (after.isEmpty()) continue;
+                    if (before.size() != 1 || after.size() != 1)
+                        throw new IOException("Ambiguous private namespace owner: " + role);
+                    mapping.put(after.get(0), before.get(0));
+                }
+            }
+          }
+        }
+        return mapping;
+    }
+
+    static List<Object> multinameKey(ABC abc, int index, Map<Integer, Integer> namespaces,
+            Map<Integer, List<Object>> memo, Set<Integer> visiting) throws IOException {
+        if (index == 0) return List.of("wildcard");
+        if (memo.containsKey(index)) return memo.get(index);
+        if (!visiting.add(index)) throw new IOException("Cyclic type-name reference");
+        Multiname m = abc.constants.getMultiname(index);
+        List<Object> key = new ArrayList<>(List.of(m.kind));
+        if (m.hasOwnName()) key.add(List.of(m.name_index == 0, m.name_index == 0 ? "" : abc.constants.getString(m.name_index)));
+        if (m.hasOwnNamespace()) key.add(namespaces.getOrDefault(m.namespace_index, m.namespace_index));
+        if (m.hasOwnNamespaceSet()) {
+            // AVM2 resolves any matching namespace, raising an ambiguity error
+            // for multiple matches. Set order is not lookup precedence.
+            key.add(Arrays.stream(abc.constants.getNamespaceSet(m.namespace_set_index).namespaces)
+                .map(i -> namespaces.getOrDefault(i, i)).sorted().boxed().toList());
+        }
+        if (m.kind == 0x1d) {
+            key.add(multinameKey(abc, m.qname_index, namespaces, memo, visiting));
+            List<Object> params = new ArrayList<>();
+            for (int param : m.params) params.add(multinameKey(abc, param, namespaces, memo, visiting));
+            key.add(params);
+        }
+        visiting.remove(index);
+        memo.put(index, key);
+        return key;
+    }
+
+    static void relocateTraitNames(Traits traits, Map<Integer, Integer> names, Map<Integer, Integer> namespaces) {
+        for (Trait trait : traits.traits) {
+            trait.name_index = names.getOrDefault(trait.name_index, trait.name_index);
+            if (trait instanceof TraitSlotConst slot) {
+                slot.type_index = names.getOrDefault(slot.type_index, slot.type_index);
+                if (slot.value_index != 0 && slot.isNamespace())
+                    slot.value_index = namespaces.getOrDefault(slot.value_index, slot.value_index);
+            }
+        }
+    }
+
+    static void restoreNameReferences(ABC original, ABC compiled) throws IOException {
+        Map<Integer, Integer> namespaces = namespaceLayout(original, compiled), names = new HashMap<>();
+        Map<List<Object>, List<Integer>> definitions = new HashMap<>();
+        Map<Integer, List<Object>> oldKeys = new HashMap<>(), newKeys = new HashMap<>();
+        int retained = original.constants.getMultinameCount();
+        for (int i = 0; i < retained; i++) {
+            names.put(i, i);
+            definitions.computeIfAbsent(multinameKey(original, i, Map.of(), oldKeys, new HashSet<>()), k -> new ArrayList<>()).add(i);
+        }
+        for (int i = retained; i < compiled.constants.getMultinameCount(); i++) {
+            var candidates = definitions.get(multinameKey(compiled, i, namespaces, newKeys, new HashSet<>()));
+            if (candidates != null && candidates.size() == 1) names.put(i, candidates.get(0));
+        }
+        for (MethodInfo method : compiled.method_info) {
+            method.ret_type = names.getOrDefault(method.ret_type, method.ret_type);
+            for (int i = 0; i < method.param_types.length; i++)
+                method.param_types[i] = names.getOrDefault(method.param_types[i], method.param_types[i]);
+            for (ValueKind option : method.optional) if (option.isNamespace())
+                option.value_index = namespaces.getOrDefault(option.value_index, option.value_index);
+        }
+        for (InstanceInfo ins : compiled.instance_info) {
+            ins.name_index = names.getOrDefault(ins.name_index, ins.name_index);
+            ins.super_index = names.getOrDefault(ins.super_index, ins.super_index);
+            ins.protectedNS = namespaces.getOrDefault(ins.protectedNS, ins.protectedNS);
+            for (int i = 0; i < ins.interfaces.length; i++) ins.interfaces[i] = names.getOrDefault(ins.interfaces[i], ins.interfaces[i]);
+            relocateTraitNames(ins.instance_traits, names, namespaces);
+        }
+        for (ClassInfo cls : compiled.class_info) relocateTraitNames(cls.static_traits, names, namespaces);
+        for (ScriptInfo script : compiled.script_info) relocateTraitNames(script.traits, names, namespaces);
+        for (MethodBody body : compiled.bodies) {
+            relocateTraitNames(body.traits, names, namespaces);
+            for (ABCException handler : body.exceptions) {
+                handler.type_index = names.getOrDefault(handler.type_index, handler.type_index);
+                handler.name_index = names.getOrDefault(handler.name_index, handler.name_index);
+            }
+            relocateCode(body, instruction -> {
+                for (int i = 0; i < instruction.definition.operands.length; i++) {
+                    int type = instruction.definition.operands[i];
+                    Map<Integer, Integer> map = type == AVM2Code.DAT_MULTINAME_INDEX ? names
+                        : type == AVM2Code.DAT_NAMESPACE_INDEX ? namespaces : Map.of();
+                    if (!map.isEmpty()) instruction.operands[i] = map.getOrDefault(instruction.operands[i], instruction.operands[i]);
+                }
+            });
         }
     }
 
@@ -317,20 +600,14 @@ public final class MovieSource {
         for (var entry : mapping.entrySet()) infos.set(entry.getValue(), compiled.method_info.get(entry.getKey()));
         Map<Integer, MethodBody> bodies = new HashMap<>();
         for (MethodBody body : compiled.bodies) {
-            var code = body.getCode();
-            for (var instruction : code.code) {
-                int length = instruction.getBytesLength();
+            relocateCode(body, instruction -> {
                 for (int j = 0; j < instruction.definition.operands.length; j++)
                     if (instruction.definition.operands[j] == com.jpexs.decompiler.flash.abc.avm2.AVM2Code.DAT_METHOD_INDEX) {
                         Integer index = mapping.get(instruction.operands[j]);
                         if (index == null) throw new IOException("Unmapped method instruction operand");
                         instruction.operands[j] = index;
                     }
-                // Until branch/exception offset relocation is implemented,
-                // never shift an instruction or silently leave stale offsets.
-                if (instruction.getBytesLength() != length) throw new IOException("Method reference width changed; offset relocation required");
-            }
-            body.setCode(code);
+            });
             relocateTraitMethods(body.traits, mapping);
             body.method_info = mapping.get(body.method_info);
             if (bodies.put(body.method_info, body) != null) throw new IOException("Duplicate method body");
@@ -505,6 +782,9 @@ public final class MovieSource {
         }
         if (original.hasDecimalSupport() || original.hasFloatSupport() || original.hasFloat4Support())
             throw new IOException("Extended numeric ABC versions are not supported by this linker");
+        for (MethodBody body : original.bodies) exactCode(body);
+        for (MethodBody body : compiled.bodies) exactCode(body);
+        restoreNameReferences(original, compiled);
         restoreMethodOrder(original, compiled);
         emitScriptClassBindings(original, compiled);
         restoreScriptClassSlot(original, compiled);
@@ -595,7 +875,7 @@ public final class MovieSource {
             for (MethodBody body : abc.bodies) {
                 String owner = names.getOrDefault(body.method_info, "unowned-index:" + body.method_info);
                 StringBuilder asm = new StringBuilder();
-                for (var instruction : body.getCode().code)
+                for (var instruction : exactCode(body).code)
                     asm.append(instruction.toStringNoAddress(abc.constants, List.of())).append('\n');
                 byte[] assembly = asm.toString().getBytes(StandardCharsets.UTF_8);
                 String stem = String.format("method-%05d", body.method_info);
@@ -660,6 +940,8 @@ public final class MovieSource {
                     if (!found.abc.replaceScriptPack(compiler, found, Files.readString(Path.of(a[4])), List.of()))
                         throw new IOException("Compiler refused " + a[3]);
                     ((Tag)found.abc.parentTag).setModified(true);
+                    if (compiler instanceof FlexCompiler flex)
+                        swf = importNative(Path.of(a[1]), flex.diagnostics.resolve("native-compiler.swf"), a[3]);
                     try (OutputStream out = Files.newOutputStream(output)) { swf.saveTo(out); }
                 } finally { compiler.deinitReplacement(found); }
                 // Reparse persisted bytes so reports cover what was actually written.
