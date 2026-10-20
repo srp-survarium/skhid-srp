@@ -511,6 +511,64 @@ public final class MovieSource {
     }
 
     static Map<Integer, Integer> namespaceLayout(ABC original, ABC compiled) throws IOException {
+        return namespaceLayout(original, compiled, null);
+    }
+
+    static boolean namespaceValue(Traits traits, int namespace) {
+        for (Trait trait : traits.traits)
+            if (trait instanceof TraitSlotConst slot && slot.isNamespace() && slot.value_index == namespace) return true;
+        return false;
+    }
+
+    static boolean namespaceDeclaration(ABC abc, Traits traits, int namespace) {
+        if (namespaceValue(traits, namespace)) return true;
+        for (var trait : traits.traits) {
+            Set<Integer> used = new HashSet<>();
+            nameNamespaces(abc, trait.name_index, used, new HashSet<>());
+            if (used.contains(namespace)) return true;
+        }
+        return false;
+    }
+
+    // A file namespace with no qualified names or namespace values cannot
+    // carry a private binding. Require a public namespace in every containing
+    // set, so dynamic property creation still uses the public name.
+    static boolean emptyFileNamespace(ABC abc, int namespace) {
+        for (int i = 1; i < abc.constants.getMultinameCount(); i++) {
+            var name = abc.constants.getMultiname(i);
+            if (name.hasOwnNamespace() && name.namespace_index == namespace) return false;
+        }
+        for (int i = 1; i < abc.constants.getNamespaceSetCount(); i++) {
+            boolean contains = false, publicName = false;
+            for (int member : abc.constants.getNamespaceSet(i).namespaces) {
+                contains |= member == namespace;
+                var ns = abc.constants.getNamespace(member);
+                publicName |= ns.kind == 0x16 && abc.constants.getString(ns.name_index).isEmpty();
+            }
+            if (contains && !publicName) return false;
+        }
+        for (var info : abc.method_info) for (var option : info.optional)
+            if (option.isNamespace() && option.value_index == namespace) return false;
+        for (var info : abc.instance_info) {
+            Set<Integer> declared = new HashSet<>();
+            nameNamespaces(abc, info.name_index, declared, new HashSet<>());
+            if (declared.contains(namespace) || info.protectedNS == namespace
+                    || namespaceDeclaration(abc, info.instance_traits, namespace)) return false;
+        }
+        for (var info : abc.class_info) if (namespaceDeclaration(abc, info.static_traits, namespace)) return false;
+        for (var info : abc.script_info) if (namespaceDeclaration(abc, info.traits, namespace)) return false;
+        for (var body : abc.bodies) {
+            if (namespaceDeclaration(abc, body.traits, namespace)) return false;
+            for (var instruction : body.getCode().code)
+                for (int i = 0; i < instruction.definition.operands.length; i++)
+                    if (instruction.definition.operands[i] == AVM2Code.DAT_NAMESPACE_INDEX
+                            && instruction.operands[i] == namespace) return false;
+        }
+        return true;
+    }
+
+    static Map<Integer, Integer> namespaceLayout(ABC original, ABC compiled,
+            Map<Integer, List<Integer>> perMethod) throws IOException {
         Map<Integer, Integer> mapping = new HashMap<>();
         int retained = original.constants.getNamespaceCount();
         for (int i = 0; i < retained; i++) mapping.put(i, i);
@@ -534,6 +592,13 @@ public final class MovieSource {
                     for (int i = retained; i < compiled.constants.getNamespaceCount(); i++)
                         if (role.equals(privateRole(compiled, i, qualified, simple))) after.add(i);
                     if (after.isEmpty()) continue;
+                    if (perMethod != null && role.equals("script") && before.size() > 1 && after.size() == 1
+                            && before.stream().allMatch(ns -> emptyFileNamespace(original, ns))
+                            && emptyFileNamespace(compiled, after.get(0))) {
+                        if (perMethod.putIfAbsent(after.get(0), before) != null)
+                            throw new IOException("File namespace belongs to multiple classes");
+                        continue;
+                    }
                     if (before.size() != 1 || after.size() != 1)
                         throw new IOException("Ambiguous private namespace owner: " + role);
                     mapping.put(after.get(0), before.get(0));
@@ -542,6 +607,27 @@ public final class MovieSource {
           }
         }
         return mapping;
+    }
+
+    static void nameNamespaces(ABC abc, int index, Set<Integer> namespaces, Set<Integer> visited) {
+        if (index == 0 || !visited.add(index)) return;
+        var name = abc.constants.getMultiname(index);
+        if (name.hasOwnNamespace()) namespaces.add(name.namespace_index);
+        if (name.hasOwnNamespaceSet())
+            for (int ns : abc.constants.getNamespaceSet(name.namespace_set_index).namespaces) namespaces.add(ns);
+        if (name.kind == 0x1d) {
+            nameNamespaces(abc, name.qname_index, namespaces, visited);
+            for (int param : name.params) nameNamespaces(abc, param, namespaces, visited);
+        }
+    }
+
+    static Set<Integer> bodyNamespaces(ABC abc, MethodBody body) {
+        Set<Integer> namespaces = new HashSet<>(), visited = new HashSet<>();
+        for (var instruction : body.getCode().code)
+            for (int i = 0; i < instruction.definition.operands.length; i++)
+                if (instruction.definition.operands[i] == AVM2Code.DAT_MULTINAME_INDEX)
+                    nameNamespaces(abc, instruction.operands[i], namespaces, visited);
+        return namespaces;
     }
 
     static List<Object> multinameKey(ABC abc, int index, Map<Integer, Integer> namespaces,
@@ -582,7 +668,16 @@ public final class MovieSource {
     }
 
     static void restoreNameReferences(ABC original, ABC compiled) throws IOException {
-        Map<Integer, Integer> namespaces = namespaceLayout(original, compiled), names = new HashMap<>();
+        Map<Integer, List<Integer>> perMethod = new HashMap<>();
+        Map<Integer, Integer> namespaces = namespaceLayout(original, compiled, perMethod), names = new HashMap<>();
+        Map<String, MethodBody> originalBodies = new HashMap<>();
+        if (!perMethod.isEmpty()) {
+            var originalOwners = names(original);
+            for (var body : original.bodies) {
+                String owner = originalOwners.get(body.method_info);
+                if (owner != null && originalBodies.put(owner, body) != null) throw new IOException("Ambiguous original method owner");
+            }
+        }
         Map<List<Object>, List<Integer>> definitions = new HashMap<>();
         Map<Integer, List<Object>> oldKeys = new HashMap<>(), newKeys = new HashMap<>();
         int retained = original.constants.getMultinameCount();
@@ -610,7 +705,26 @@ public final class MovieSource {
         }
         for (ClassInfo cls : compiled.class_info) relocateTraitNames(cls.static_traits, names, namespaces);
         for (ScriptInfo script : compiled.script_info) relocateTraitNames(script.traits, names, namespaces);
+        Map<Integer, String> methodOwners = perMethod.isEmpty() ? Map.of() : names(compiled);
         for (MethodBody body : compiled.bodies) {
+            Map<Integer, Integer> bodyNames = perMethod.isEmpty() ? names : new HashMap<>(names);
+            Set<Integer> used = perMethod.isEmpty() ? Set.of() : bodyNamespaces(compiled, body);
+            Map<Integer, Integer> localNamespaces = new HashMap<>(namespaces);
+            for (var entry : perMethod.entrySet()) if (used.contains(entry.getKey())) {
+                MethodBody prior = originalBodies.get(methodOwners.get(body.method_info));
+                if (prior == null) throw new IOException("Unowned method has an ambiguous file namespace");
+                var oldUsed = bodyNamespaces(original, prior);
+                var candidates = entry.getValue().stream().filter(oldUsed::contains).toList();
+                if (candidates.size() != 1) throw new IOException("Method has no unique original file namespace");
+                localNamespaces.put(entry.getKey(), candidates.get(0));
+            }
+            if (!localNamespaces.equals(namespaces)) {
+                Map<Integer, List<Object>> localKeys = new HashMap<>();
+                for (int i = retained; i < compiled.constants.getMultinameCount(); i++) {
+                    var candidates = definitions.get(multinameKey(compiled, i, localNamespaces, localKeys, new HashSet<>()));
+                    if (candidates != null && candidates.size() == 1) bodyNames.put(i, candidates.get(0));
+                }
+            }
             relocateTraitNames(body.traits, names, namespaces);
             for (ABCException handler : body.exceptions) {
                 handler.type_index = names.getOrDefault(handler.type_index, handler.type_index);
@@ -619,7 +733,7 @@ public final class MovieSource {
             relocateCode(body, instruction -> {
                 for (int i = 0; i < instruction.definition.operands.length; i++) {
                     int type = instruction.definition.operands[i];
-                    Map<Integer, Integer> map = type == AVM2Code.DAT_MULTINAME_INDEX ? names
+                    Map<Integer, Integer> map = type == AVM2Code.DAT_MULTINAME_INDEX ? bodyNames
                         : type == AVM2Code.DAT_NAMESPACE_INDEX ? namespaces : Map.of();
                     if (!map.isEmpty()) instruction.operands[i] = map.getOrDefault(instruction.operands[i], instruction.operands[i]);
                 }

@@ -51,6 +51,7 @@ class CompilerIntegration(unittest.TestCase):
                     private var secret:int = 7;
                     private function hidden():int { return secret; }
                     public function inspect(target:Object, key:String):* { return target[key]; }
+                    public function inspectOther(target:Object):* { return target.one + target.two; }
                     public function nested(value:int):Function {
                         var first:Function = function(delta:int):int { return value+delta+secret; };
                         var second:Function = function(delta:int):int { return first(delta)+1; };
@@ -261,6 +262,48 @@ class CompilerIntegration(unittest.TestCase):
                                         branch.operands[0]=(int)(target-branch.getAddress()-branch.getBytesLength());
                                     }
                                     body.setCode(code);((Tag)tag).setModified(true);changed++;continue;
+                                }
+                                if (args[2].startsWith("split-file-")) {
+                                    int originalNamespace=0;
+                                    for(int i=1;i<abc.constants.getNamespaceCount();i++)
+                                        if("script".equals(MovieSource.privateRole(abc,i,"Probe","Probe"))) {
+                                            if(originalNamespace!=0)throw new IOException("Already split file namespace");
+                                            originalNamespace=i;
+                                        }
+                                    if(originalNamespace==0)throw new IOException("Missing file namespace");
+                                    var namespace=new Namespace();namespace.kind=5;
+                                    namespace.name_index=abc.constants.getStringId("Probe.as$900",true);
+                                    int replacement=abc.constants.addNamespace(namespace);
+                                    var owners=MovieSource.names(abc);
+                                    var body=abc.bodies.stream().filter(b->owners.get(b.method_info).contains("\\\"inspectOther\\\""))
+                                        .findFirst().orElseThrow();
+                                    var relocated=new java.util.HashMap<Integer,Integer>();
+                                    for(var instruction:body.getCode().code)for(int j=0;j<instruction.definition.operands.length;j++) {
+                                        if(instruction.definition.operands[j]!=AVM2Code.DAT_MULTINAME_INDEX)continue;
+                                        int index=instruction.operands[j];var old=abc.constants.getMultiname(index);
+                                        if(!old.hasOwnNamespaceSet() || relocated.containsKey(index))continue;
+                                        int[] members=abc.constants.getNamespaceSet(old.namespace_set_index).namespaces.clone();
+                                        boolean found=false;
+                                        for(int k=0;k<members.length;k++)if(members[k]==originalNamespace){members[k]=replacement;found=true;}
+                                        if(!found || (args[2].equals("split-file-mixed") && !relocated.isEmpty()))continue;
+                                        var copy=new Multiname();copy.kind=old.kind;copy.name_index=old.name_index;
+                                        copy.namespace_set_index=abc.constants.addNamespaceSet(new NamespaceSet(members));
+                                        relocated.put(index,abc.constants.addMultiname(copy));
+                                    }
+                                    if(relocated.isEmpty())throw new IOException("Missing split namespace lookups");
+                                    MovieSource.relocateCode(body,instruction->{
+                                        for(int j=0;j<instruction.definition.operands.length;j++)
+                                            if(instruction.definition.operands[j]==AVM2Code.DAT_MULTINAME_INDEX)
+                                                instruction.operands[j]=relocated.getOrDefault(instruction.operands[j],instruction.operands[j]);
+                                    });
+                                    if(!MovieSource.emptyFileNamespace(abc,originalNamespace)
+                                        || !MovieSource.emptyFileNamespace(abc,replacement))throw new IOException("File namespace is not empty");
+                                    if(args[2].equals("split-file-exposed")) {
+                                        abc.constants.addMultiname(Multiname.createQName(false,
+                                            abc.constants.getStringId("privateBinding",true),replacement));
+                                        if(MovieSource.emptyFileNamespace(abc,replacement))throw new IOException("Qualified private name was ignored");
+                                    }
+                                    ((Tag)tag).setModified(true);changed++;continue;
                                 }
                                 if (args[2].startsWith("namespace-")) {
                                     var namespaces = new java.util.HashMap<Integer,Integer>();
@@ -512,6 +555,21 @@ class CompilerIntegration(unittest.TestCase):
             def mutate(source, destination, mode, *extra):
                 subprocess.run([config["java"], "-cp", str(root) + os.pathsep + str(root / "bridge") + os.pathsep + config["ffdec"], "WildcardFixture",
                                 str(source), str(destination), mode, *map(str, extra)], check=True, timeout=60)
+
+            for mode in ("plain", "mixed", "exposed"):
+                split = root / (mode + "-split.swf")
+                mutate(accepted_file, split, "split-file-" + mode)
+                compiled, destination = root / (mode + "-split-compiled.swf"), root / (mode + "-split-linked.swf")
+                result = tools.run("compile", split, compiled, "Probe", source, root / (mode + "-split-snapshot"),
+                                   "flex-strict", sdk, log=root / (mode + "-split-compile.log"))
+                self.assertEqual(result.returncode, 0, (root / (mode + "-split-compile.log")).read_text())
+                result = tools.run("link-layout", split, compiled, destination, "Probe", log=root / (mode + "-split-link.log"))
+                if mode == "plain":
+                    self.assertEqual(result.returncode, 0, (root / (mode + "-split-link.log")).read_text())
+                    self.assertEqual(movie_source.uncompressed(split), movie_source.uncompressed(destination))
+                else:
+                    self.assertNotEqual(result.returncode, 0, mode)
+                    self.assertFalse(destination.exists(), mode)
 
             compact_reference = root / "compact-reference.swf"
             mutate(accepted_file, compact_reference, "compact-reference")

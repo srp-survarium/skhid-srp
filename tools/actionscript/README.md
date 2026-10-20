@@ -146,6 +146,13 @@ It keeps the compiler's method bodies, signatures, class definitions, scope and
 stack limits, and exception tables. It restores named method and trait ordering.
 Class/file private namespaces are mapped by their compiler-generated owners,
 requiring unique identities in both pools; ambiguous ownership is refused.
+For exact baseline linking, earlier method patches may have left several empty
+file-private namespaces in one class. The linker can select a method's original
+file namespace when that method used exactly one, and the namespaces have no
+qualified names, declarations or namespace values. Every containing namespace
+set must include the empty public namespace. A method using multiple original
+file namespaces is refused. Feature linking still requires one namespace identity
+for the whole class, because newly introduced names need an unambiguous scope.
 Equivalent multinames can then use their original pool indices. Namespace-set
 members must match after relocation; their ordering is not lookup precedence.
 Changing reference widths relocates conditional/unconditional branches, switch

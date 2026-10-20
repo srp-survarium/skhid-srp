@@ -351,3 +351,24 @@ parameter-name metadata while preserving the original constant pool.
 The separate 15-class feature-source probe applied candidate field-assignment,
 object-key and truth-test corrections. Every candidate compiled, but none passed
 exact linking. Those patches remain private and unpromoted.
+
+## File namespaces left by earlier method patches
+
+`ItemCard` contains both `ItemCard.as$148` and `ItemCard.as$0` file namespaces.
+The later `isUpgradeable` method uses the second; native recompilation emits one
+new file namespace. Four other feature classes have the same initial ambiguity.
+
+Baseline linking now maps these empty file namespaces by uniquely owned method,
+with checks for namespace values, qualified names, declarations and public
+namespace-set membership. It refuses methods using multiple original file
+namespaces. The real Flex fixture recompiles a class with two such lexical
+contexts to the identical movie, and refuses a mixed context or exposed private
+QName. Feature output continues to refuse this ambiguity.
+
+The latest targeted run reaches ordinary method differences in `ItemCard`,
+`UpgradeWindow`, `ItemControlPanel` and `ItemFactory`; `BottomPanel` reaches a
+trait-count mismatch. All five remain rejected. In particular, the corrected
+`ItemCard` has six differing method bodies and `ItemControlPanel` has three;
+the namespace mapping is not counted as a new exact class rebuild.
+All 13 tests pass after the change, including the existing checks for private
+namespace ownership, original pool preservation and feature lookup scopes.
