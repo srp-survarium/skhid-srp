@@ -1028,6 +1028,30 @@ public final class MovieSource {
         };
     }
 
+    static int localRegister(AVM2Instruction instruction, boolean write) {
+        int opcode = instruction.definition.instructionCode;
+        if (opcode == (write ? 0x63 : 0x62) && instruction.operands.length == 1)
+            return instruction.operands[0];
+        int first = write ? 0xd4 : 0xd0;
+        return opcode >= first && opcode <= first + 3 ? opcode - first : -1;
+    }
+
+    static boolean redundantNumericSelfAssignment(List<AVM2Instruction> code, int next, int desired) {
+        // FFDec emits both stores for n = ++n. After numeric increment/decrement,
+        // the duplicated value is primitive and both int/uint conversions yield
+        // the same value. With the same local on both stores, the first store is
+        // unobservable. Full CFG checks below reject entry/handlers in this group.
+        if (next < 2 || next + 4 >= code.size() || (desired != 0x73 && desired != 0x74)
+                || code.get(next).definition.instructionCode != 0x2a
+                || code.get(next + 1).definition.instructionCode != desired
+                || code.get(next + 3).definition.instructionCode != desired) return false;
+        int register = localRegister(code.get(next - 2), false);
+        int operation = code.get(next - 1).definition.instructionCode;
+        return register >= 0 && (operation == 0x91 || operation == 0x93 || operation == 0xc0 || operation == 0xc1)
+            && localRegister(code.get(next + 2), true) == register
+            && localRegister(code.get(next + 4), true) == register;
+    }
+
     // ASC Encoder.OP_getproperty/OP_pop and CodeGenerator.If select these
     // compact encodings. Comparison semantics also follow Adobe's interpreter:
     // https://github.com/adobe/avmplus/blob/master/core/Interpreter.cpp
@@ -1041,8 +1065,8 @@ public final class MovieSource {
             if (reference == null || reference.exceptions.length != body.exceptions.length) continue;
             var layout = reference.getCode().code;
             var expected = layout.stream().filter(i -> !debugInstruction(i)).toList();
-            var emitted = body.getCode().code;
-            if (emitted.stream().anyMatch(MovieSource::debugInstruction)) continue;
+            var emittedLayout = body.getCode().code;
+            var emitted = emittedLayout.stream().filter(i -> !debugInstruction(i)).toList();
             ArrayList<AVM2Instruction> result = new ArrayList<>();
             List<int[]> targets = new ArrayList<>();
             Map<Integer, Integer> positions = new HashMap<>();
@@ -1101,7 +1125,10 @@ public final class MovieSource {
                         && compiled.constants.getMultiname(instruction.operands[0]).kind == 0x07;
                     boolean discardedCall = desired == 0x4f && opcode == 0x46
                         && following.definition.instructionCode == 0x29;
-                    if (lookup || discardedCall) consumed = 2;
+                    if (redundantNumericSelfAssignment(emitted, next, desired)) {
+                        consumed = 4;
+                        operandSource = emitted.get(next + 3);
+                    } else if (lookup || discardedCall) consumed = 2;
                     else {
                         // A comparison produces a Boolean. Optional logical
                         // negation and Boolean conversion cannot change its
@@ -1137,6 +1164,19 @@ public final class MovieSource {
             }
             if (!matching || !rewritten || next != emitted.size()) continue;
             positions.put(end, result.size());
+            // Compiler debugger directives do not execute. A branch/handler at
+            // such a directive belongs to its next executable boundary. Only
+            // boundaries already retained above may acquire these aliases;
+            // directives inside a folded group cannot bypass the entry checks.
+            int sourceEnd = emittedLayout.isEmpty() ? 0 : (int)emittedLayout.get(emittedLayout.size() - 1).getAddress()
+                + emittedLayout.get(emittedLayout.size() - 1).getBytesLength();
+            positions.put(sourceEnd, result.size());
+            for (var entry : executablePositions(emittedLayout).entrySet()) {
+                int address = entry.getValue() == emitted.size() ? sourceEnd
+                    : (int)emitted.get(entry.getValue()).getAddress();
+                Integer target = positions.get(address);
+                if (target != null) positions.put(entry.getKey(), target);
+            }
             var oldPositions = executablePositions(layout);
             // The interior of a folded group has no output boundary. Branches,
             // switch entries and exception boundaries may not enter it.

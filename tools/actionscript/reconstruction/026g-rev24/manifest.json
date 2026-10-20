@@ -1807,6 +1807,22 @@
       "pristine_sha256": "f9f8f031116ffd07854ec2389bbc9f069c779a7b270a2a4d7ad24d4cd1f15501",
       "reason": "Recover block-local declarations for mouse events, repair timing and state changes, plus lexical mouse-mask updates; explicitly select FFDec updateSlot, updateSlotState and handleDragEnabling records and the sole script-class declaration from the same source. The full compressed release movie is byte-identical.",
       "result_sha256": "4adcb34b7f0af385b14381c70d309daa44cf818518d49f7e8c0bc5a18e016f46"
+    },
+    {
+      "class": "survarium.controls.ItemControlPanel",
+      "compiler": "flex-mixed",
+      "composition": {
+        "ffdec_methods": [
+          "QName(PackageNamespace(\"survarium.controls\"),\"ItemControlPanel\")/instance/1/QName(PackageNamespace(\"\"),\"updateData\")",
+          "QName(PackageNamespace(\"survarium.controls\"),\"ItemControlPanel\")/instance/1/QName(PrivateNamespace(\"survarium.controls:ItemControlPanel\"),\"isUpgradeable\")"
+        ],
+        "script_traits": "ffdec"
+      },
+      "patch": "survarium/controls/ItemControlPanel.patch",
+      "patch_sha256": "8919b4395e8415558bdd25ed90d48877f230bb0029d4c683a3ab66836c6e2063",
+      "pristine_sha256": "5fa9df99c39510f31b63f157b146d743c34b0d1e799b789a18d2a7d834fb9409",
+      "reason": "Recover native source declarations and typed expressions; explicitly select FFDec updateData and isUpgradeable records and the sole script-class trait. An explicit Boolean conversion and numeric self assignment preserve the source behavior, and the validated emitter removes the duplicate local store. Fresh compilation reproduces the complete compressed release movie exactly.",
+      "result_sha256": "e45222989d22318075411800dcbde1c87ac54a31d718db0f58c6e872c720b701"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

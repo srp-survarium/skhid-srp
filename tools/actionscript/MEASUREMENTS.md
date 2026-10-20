@@ -995,3 +995,28 @@ has the previously runtime-tested hash
 `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
 one authorized method changed and identical non-code bytes. Its runtime record
 identifies a byte-identical rebuild, not a new game run.
+
+### Item control panel and redundant numeric assignments
+
+`ItemControlPanel` now reproduces the complete compressed release movie after
+fresh compilation. Its reconstruction selects FFDec's `updateData` and
+`isUpgradeable` records from the same source also compiled by Flex. An explicit
+Boolean conversion and numeric self assignment retain the original operations.
+The emitter removes only the duplicated store in a numeric `n = ++n` or
+`n = --n` when both conversions and all three local-register references agree.
+The full method, branches and exception boundaries must still match. Debugger
+directives can label retained boundaries but cannot admit entry to a removed
+instruction. This does not copy reference instructions or change verifier limits.
+
+All 19 tests pass. The real compiler fixture now additionally checks signed and
+unsigned self assignments with debugger directives, and refuses changed
+registers, changed conversions, a non-numeric producer, and branch or exception
+boundaries inside the removed group.
+
+The manifest contains 219 patches. Combined with 645 pristine successes, the
+accumulated individual-script evidence covers 864 of 878 scripts; 14 remain.
+Whole-tree reconstruction is incomplete. The premium rebuild retains the
+previously runtime-tested hash
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+one authorized method changed and identical non-code bytes. Its recorded evidence
+is byte identity, not a new game run.

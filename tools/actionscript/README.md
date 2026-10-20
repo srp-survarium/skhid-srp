@@ -230,6 +230,14 @@ compiler's operands and relocated control flow;
 verifier limits and all other method records must still pass the exact checks.
 The rule does not reconcile other changes within an edited feature method.
 
+The same whole-method check can remove the redundant local store emitted for
+`n = ++n` or `n = --n`. It requires a numeric increment/decrement, identical
+`int` or `uint` conversions, and the same local on the read and both stores.
+It does not remove repeated conversions of arbitrary objects. Compiler debugger
+directives may label retained executable boundaries; they cannot allow entry
+inside a removed instruction group. Register changes, conversion changes,
+interior branch targets and interior exception boundaries remain rejected.
+
 Original debugger file/line/register directives can also be emitted after every
 non-debug instruction compares equal to the compiler output. Compiler-emitted
 directives are replaced or removed only after that comparison. Branch and switch
@@ -287,7 +295,7 @@ Use `--compiler reconstruction` with the pinned patch manifest to select these
 per-class compilers in one measurement. Classes without an override use
 `flex-strict`; every report row records the compiler actually used. Explicit
 `--compiler ffdec`, `flex`, `flex-strict` or `flex-library` selects that compiler for every
-class, for comparison experiments. The per-class profile currently proves 218
+class, for comparison experiments. The per-class profile currently proves 219
 reconstructed classes, including easing, button, list, text, message, clan,
 debug and tutorial classes. Source fixes also recover local declaration order,
 static field slot order and explicit switch breaks where required.

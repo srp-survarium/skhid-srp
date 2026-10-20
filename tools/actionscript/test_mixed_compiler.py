@@ -25,6 +25,8 @@ class MixedCompilerIntegration(unittest.TestCase):
                 public class MixedProbe extends Sprite {
                     private var secret:int=7;
                     public function nativeValue(value:int):int { return value+secret; }
+                    public function selfUint(value:uint):uint { value = ++value; return value; }
+                    public function selfInt(value:int):int { value = --value; return value; }
                     public function mixed(value:int=2):String {
                         var callback:Function=function(delta:int):String {
                             var object:Object={oldKey:"old-marker"};
@@ -37,7 +39,9 @@ class MixedCompilerIntegration(unittest.TestCase):
                 }
             }''')
             owner = 'QName(PackageNamespace(""),"MixedProbe")/instance/1/QName(PackageNamespace(""),"mixed")'
-            entry = {'compiler': 'flex-mixed', 'composition': {'ffdec_methods': [owner], 'script_traits': 'ffdec'}}
+            self_owners = [owner.replace('"mixed")', '"' + name + '")') for name in ('selfUint', 'selfInt')]
+            entry = {'compiler': 'flex-mixed', 'composition': {
+                'ffdec_methods': [owner] + self_owners, 'script_traits': 'ffdec'}}
             plan = root / 'composition.tsv'
             plan.write_bytes(source_patches.composition_plan(entry))
             asc = root / 'asc.swf'
@@ -110,11 +114,94 @@ class MixedCompilerIntegration(unittest.TestCase):
             # This helper also corrupts a retained constant to verify prefix authentication.
             helper = root / 'MixedFixture.java'
             helper.write_text('''import java.nio.file.*;
+                import java.util.*;
+                import com.jpexs.decompiler.flash.abc.avm2.AVM2Code;
+                import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
+                import com.jpexs.decompiler.flash.abc.types.ABCException;
                 import com.jpexs.decompiler.flash.tags.Tag;
                 public class MixedFixture {
+                    static void numericAssignments(Path path)throws Exception {
+                        for(String name:List.of("selfUint","selfInt")) {
+                            for(String mutation:List.of("valid","register","conversion","non-numeric","branch","handler")) {
+                                var reference=MovieSource.findScript(MovieSource.read(path),"MixedProbe").abc;
+                                var candidate=MovieSource.findScript(MovieSource.read(path),"MixedProbe").abc;
+                                int id=MovieSource.names(reference).entrySet().stream()
+                                    .filter(e->e.getValue().endsWith(","+(char)34+name+(char)34+")")).findFirst().orElseThrow().getKey();
+                                var before=reference.findBody(id);
+                                var after=candidate.findBody(id);
+                                MovieSource.exactCode(before);
+                                MovieSource.exactCode(after);
+                                var source=new ArrayList<>(after.getCode().code);
+                                int duplicate=-1;
+                                for(int i=0;i+4<source.size();i++) {
+                                    int conversion=source.get(i+1).definition.instructionCode;
+                                    if(source.get(i).definition.instructionCode==0x2a
+                                            && (conversion==0x73||conversion==0x74)
+                                            && source.get(i+3).definition.instructionCode==conversion) {
+                                        if(duplicate>=0)throw new AssertionError("Ambiguous compiler fixture");
+                                        duplicate=i;
+                                    }
+                                }
+                                if(duplicate<2)throw new AssertionError("Missing real compiler self assignment");
+                                var expected=new ArrayList<>(before.getCode().code);
+                                var expectedConversion=expected.get(duplicate+3);
+                                var actualConversion=source.get(duplicate+3);
+                                expected.subList(duplicate,duplicate+3).clear();
+                                if(mutation.equals("register")) {
+                                    source.set(duplicate+2,new AVM2Instruction(0,0x63,new int[]{7}));
+                                } else if(mutation.equals("conversion")) {
+                                    int other=source.get(duplicate+1).definition.instructionCode==0x73?0x74:0x73;
+                                    source.set(duplicate+1,new AVM2Instruction(0,other,null));
+                                } else if(mutation.equals("non-numeric")) {
+                                    // A coercion on a duplicated object may invoke user code twice.
+                                    source.set(duplicate-1,new AVM2Instruction(0,0x82,null));
+                                    expected.set(duplicate-1,new AVM2Instruction(0,0x82,null));
+                                }
+                                AVM2Instruction expectedJump=null,actualJump=null;
+                                if(mutation.equals("branch")) {
+                                    expectedJump=new AVM2Instruction(0,0x10,new int[]{0});
+                                    actualJump=new AVM2Instruction(0,0x10,new int[]{0});
+                                    expected.addAll(0,List.of(new AVM2Instruction(0,0x24,new int[]{0}),expectedJump));
+                                    source.addAll(0,List.of(new AVM2Instruction(0,0x24,new int[]{0}),actualJump));
+                                }
+                                var expectedCode=new AVM2Code(expected);
+                                var actualCode=new AVM2Code(source);
+                                expectedCode.markOffsets();
+                                actualCode.markOffsets();
+                                if(expectedJump!=null) {
+                                    expectedJump.operands[0]=(int)(expectedConversion.getAddress()-expectedJump.getAddress()-expectedJump.getBytesLength());
+                                    actualJump.operands[0]=(int)(actualConversion.getAddress()-actualJump.getAddress()-actualJump.getBytesLength());
+                                }
+                                before.setCode(expectedCode);
+                                after.setCode(actualCode);
+                                if(mutation.equals("handler")) {
+                                    var oldHandler=new ABCException();
+                                    var newHandler=new ABCException();
+                                    oldHandler.start=newHandler.start=0;
+                                    oldHandler.end=(int)expectedConversion.getAddress();
+                                    newHandler.end=(int)actualConversion.getAddress();
+                                    oldHandler.target=(int)expected.get(expected.size()-1).getAddress();
+                                    newHandler.target=(int)source.get(source.size()-1).getAddress();
+                                    before.exceptions=new ABCException[]{oldHandler};
+                                    after.exceptions=new ABCException[]{newHandler};
+                                }
+                                byte[] untouched=after.getCodeBytes().clone();
+                                MovieSource.emitCompactOperations(reference,candidate);
+                                if(mutation.equals("valid")) {
+                                    MovieSource.retainDebugDirectives(reference,candidate);
+                                    if(!Arrays.equals(before.getCodeBytes(),after.getCodeBytes()))
+                                        throw new AssertionError("Numeric assignment was not folded with debugger directives");
+                                } else if(!Arrays.equals(untouched,after.getCodeBytes())) {
+                                    throw new AssertionError("Unsafe numeric fold accepted: "+mutation);
+                                }
+                            }
+                        }
+                    }
                     public static void main(String[] args)throws Exception {
                         if(args[0].equals("compose")) {
                             MixedCompiler.compose(java.util.Arrays.copyOfRange(args,1,args.length));
+                        } else if(args[0].equals("numeric")) {
+                            numericAssignments(Path.of(args[1]));
                         } else {
                             var swf=MovieSource.read(Path.of(args[1]));
                             var abc=MovieSource.findScript(swf,"MixedProbe").abc;
@@ -128,6 +215,9 @@ class MixedCompilerIntegration(unittest.TestCase):
             cp = str(tools.work) + os.pathsep + config['ffdec']
             subprocess.run([config['javac'], '-cp', cp, '-d', str(root), str(helper)], check=True)
             java = [config['java'], '-cp', str(root) + os.pathsep + cp, 'MixedFixture']
+            result = subprocess.run(java + ['numeric', str(reference)], stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stdout)
             retained = root / 'baseline-snapshot-mixed'
             for name, text, expected in [
                 ('unknown', owner + 'Missing\n', 'Unknown or ambiguous'),
