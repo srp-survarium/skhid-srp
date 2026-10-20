@@ -1,0 +1,29 @@
+--- a/survarium/tutorial/TutorEnterNickname.as
++++ b/survarium/tutorial/TutorEnterNickname.as
+@@ -57,7 +57,7 @@
+       
+       override protected function configUI() : void
+       {
+-         var try_enter_name:Function = null;
++         var try_enter_name:Function;
+          try_enter_name = function(param1:KeyboardEvent):void
+          {
+             param1.preventDefault();
+@@ -82,7 +82,7 @@
+          this.rewardItem1.itemSlot.tooltipRendererName = "SrvTextHintRendererTip";
+          this.rewardItem2.itemSlot.tooltipRendererName = "SrvTextHintRendererTip";
+          this.rewardItem3.itemSlot.tooltipRendererName = "SrvTextHintRendererTip";
+-         if(Boolean(this.data.reward_1))
++         if(this.data.reward_1)
+          {
+             trace("TutorEnterNickname::",this.data.reward_1.icon);
+          }
+@@ -108,7 +108,7 @@
+       
+       private function onRedner(param1:Event) : void
+       {
+-         if(Boolean(stage))
++         if(stage)
+          {
+             stage.focus = this.textInput.textInput;
+             this.textInput.textInput.textField.setSelection(0,99);

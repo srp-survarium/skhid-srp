@@ -1,0 +1,36 @@
+--- a/survarium/buttons/ButtonStyledLabelProfile.as
++++ b/survarium/buttons/ButtonStyledLabelProfile.as
+@@ -25,7 +25,7 @@
+       override protected function configUI() : void
+       {
+          super.configUI();
+-         if(!constraintsDisabled && Boolean(constraints))
++         if(!constraintsDisabled && constraints)
+          {
+             constraints.addElement("iconDisabled",this.iconDisabled,Constraints.CENTER_V);
+             constraints.addElement("textFieldLevel",this.textFieldLevel,Constraints.LEFT);
+@@ -65,19 +65,19 @@
+       
+       override protected function updateText() : void
+       {
+-         var offset:int = 0;
++         var offset:int;
+          super.updateText();
+-         if(Boolean(_data))
++         if(_data)
+          {
+             trace("ButtonStyledLabelProfile",textField,_data.levelLabel,_data.label,_data.tipText,tipEnabled,_tooltipRenderer);
+          }
+          this.btnChangeName.alpha = state == "over" ? 1 : 0.5;
+-         this.btnChangeName.visible = enabled && _data && _data.enabled == undefined && Boolean(_data.editable);
+-         if(Boolean(_data) && Boolean(this.textFieldLevel))
++         this.btnChangeName.visible = enabled && _data && _data.enabled == undefined && _data.editable;
++         if(_data && this.textFieldLevel)
+          {
+             this.textFieldLevel.text = _data.levelLabel;
+          }
+-         if(Boolean(this.iconDisabled))
++         if(this.iconDisabled)
+          {
+             this.iconDisabled.visible = !enabled;
+             if(this.iconDisabled.visible)

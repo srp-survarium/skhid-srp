@@ -1,0 +1,35 @@
+--- a/survarium/controls/ItemRenderer.as
++++ b/survarium/controls/ItemRenderer.as
+@@ -40,7 +40,7 @@
+       override protected function configUI() : void
+       {
+          super.configUI();
+-         this._countTextFormat = this.textCount.getTextFormat();
++         _countTextFormat = this.textCount.getTextFormat();
+          this.iconRenderer.center = true;
+       }
+       
+@@ -49,7 +49,7 @@
+          super.draw();
+          if(isInvalid(InvalidationType.DATA))
+          {
+-            if(Boolean(_data))
++            if(_data)
+             {
+                visible = true;
+                this.updateData();
+@@ -63,10 +63,10 @@
+       
+       protected function updateData() : void
+       {
+-         var _loc1_:int = 0;
+-         var _loc2_:uint = 0;
+-         var _loc3_:ColorTransform = null;
+-         var _loc4_:Boolean = false;
++         var _loc1_:int;
++         var _loc2_:uint;
++         var _loc3_:ColorTransform;
++         var _loc4_:Boolean;
+          this.iconRenderer.content = _data.icon;
+          this.damageIndicator.visible = !_data.isStack && _data.value < 100;
+          trace("IR::updateData",_data.name,_data.isStack,_data.value,this.damageIndicator.visible);

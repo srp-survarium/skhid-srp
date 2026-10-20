@@ -1,0 +1,74 @@
+{
+  "baseline_movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",
+  "candidate_movie_sha256": "1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3",
+  "checks": [
+    {
+      "balance": 999,
+      "buy_enabled_observed": false,
+      "observation": "Opening the month option below its price disables Buy.",
+      "price": 1000,
+      "screenshot": "private/actionscript/runtime/premium-below.png",
+      "screenshot_sha256": "e54af3c29df348ee97a0124896e323ed0b869f2febfee0cd276f17bc9193defa"
+    },
+    {
+      "balance": 999,
+      "buy_enabled_observed": false,
+      "observation": "Clicking the disabled Buy button leaves the same dialog and balance.",
+      "price": 1000,
+      "screenshot": "private/actionscript/runtime/premium-below-click.png",
+      "screenshot_sha256": "0ffdf1f335ef63ca5934d1d1273e6b7df84308eb0d6724962cba93750784d06c"
+    },
+    {
+      "balance": 1000,
+      "buy_enabled_observed": true,
+      "observation": "Opening the month option at exactly its price enables Buy.",
+      "price": 1000,
+      "screenshot": "private/actionscript/runtime/premium-equal.png",
+      "screenshot_sha256": "0bfd18e43dbf7891e79f90dd23c308b1f00bd2067bfaced4d2663a15ba4cb6de"
+    },
+    {
+      "balance": 1001,
+      "buy_enabled_observed": true,
+      "observation": "Opening the month option above its price enables Buy.",
+      "price": 1000,
+      "screenshot": "private/actionscript/runtime/premium-above.png",
+      "screenshot_sha256": "f562361cbb043cfc547406d9a37585b345db85dc2a884974db068f2fe36ad2ca"
+    },
+    {
+      "balance": 1001,
+      "buy_enabled_observed": false,
+      "observation": "Selecting the three-month option disables Buy.",
+      "price": 2500,
+      "screenshot": "private/actionscript/runtime/premium-selection-unaffordable.png",
+      "screenshot_sha256": "4c51ce31dfcaba2cf62d2167f337fb5733cce83244c656a397e7c7fce75291b2"
+    },
+    {
+      "balance": 1001,
+      "buy_enabled_observed": true,
+      "observation": "Selecting the month option again enables Buy.",
+      "price": 1000,
+      "screenshot": "private/actionscript/runtime/premium-selection-affordable.png",
+      "screenshot_sha256": "57ef5d16e51e95783a65525a3d8c050f339f4b7c7c1b8df4cd5f30880432590a"
+    }
+  ],
+  "environment": {
+    "account": "AsSourceTest, private loopback server only",
+    "display": ":98 Xvfb, Wine virtual desktop 1280x720",
+    "dxvk": "2.7.1",
+    "gpu": "NVIDIA GeForce RTX 3060 Ti",
+    "test_overlay": "Private resources.db.patch_25 overlays pinned release 24; the private executable reports 25 for that local server. No release revision or published resource changed.",
+    "tutorial": "The current server unconditionally disables tutorials for all accounts. No tutorial flow was exercised and no tutorial flags were manually changed.",
+    "wine": "11.8 staging"
+  },
+  "feature_manifest_sha256": "34df3b18567a07c3ce4bc578096f3a289be3fc35273294e1d39630d05bbd7663",
+  "managed_processes_stopped": true,
+  "reconstruction_manifest_sha256": "7a0c4268f728fe7a65d757dfc2060375dcc63215a7940f29452117c65a4d42c3",
+  "runtime_verified": true,
+  "schema": 1,
+  "scope": "Premium subscription affordability UI in the native game; screenshot observations, not an automated UI assertion. No purchase was completed.",
+  "server_data_sha256": "9358ff5cf0ae97d6d73ff1f8a5dc9734266c845c917d148d27bb442594d4cd80",
+  "status": "passed",
+  "test_executable_sha256": "c92a49008b32f0c6442a712e098555194405bb25c8a32fb5ee5d6dd2f706e89c",
+  "test_overlay_sha256": "1bfc608762082909f97c3fb1a91e8b557a0af5767132be10b32de710164013bc",
+  "test_server_sha256": "e108b341843791641104d7719c8b6289b2b8e75f6296af634b890aedca3575c0"
+}

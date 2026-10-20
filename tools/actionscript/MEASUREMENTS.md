@@ -437,3 +437,43 @@ The premium feature rebuild with all five reconstruction entries again produces
 SHA-256 `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
 with one changed method and identical non-code content. Whole-tree equality and
 runtime behavior remain unverified.
+
+## Broader source corrections
+
+A private probe removed explicit default local initializers from 160 previously
+unmatched classes, retaining earlier private proposals where available. Of
+these, 157 compiled and three failed; none passed exact linking. Defaults alone
+were insufficient. Forty candidates had at most two remaining differing
+records. Combining the established own-field assignment, object-key and truth
+expression corrections changed 34 of those candidates: all compiled, 21 rebuilt
+to the exact compressed release movie, and 13 remained refused.
+
+All 21 successful diffs were reviewed and promoted, bringing the reconstruction
+manifest to 26 classes. Their applied bytes match the retained compiler inputs.
+The rejected proposals remain private. The final premium feature build with
+this manifest still produces
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+with exactly one changed method and identical non-code content.
+
+## Native-game premium UI verification
+
+Wine's virtual desktop fixed the earlier Xvfb startup crash. The copied test
+executable then proved obsolete (it reported revision 0). Rebuilding from the
+hash-checked original with this worktree's patcher provided the full resource
+mounting code and a private revision-25 marker for the test overlay. Neither
+the release revision nor any published resource changed.
+
+The game loaded the feature movie on the isolated display and created the
+private test account. The purchase button was disabled at 999 gold for a
+1,000-gold subscription, ignored a click there, and was enabled at exactly
+1,000 and at 1,001. With 1,001 gold, changing the selection to the 2,500-gold
+subscription disabled it, and changing back to the 1,000-gold option enabled
+it. No purchase was completed. The server currently disables all tutorials;
+the older housekeeping note's tutorial run could not be exercised through
+that server, and no tutorial flags were manually changed.
+
+`features/premium-affordability/runtime-verification.json` records the tested
+movie, test executable, server, data and screenshot hashes. The overlay's movie
+payload was independently checked against the source-feature output. The private
+client, server and Xvfb display were stopped after the check. This verifies the
+example's UI behavior; whole-tree source reconstruction remains incomplete.

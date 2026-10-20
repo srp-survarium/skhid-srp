@@ -256,8 +256,11 @@ Use `--compiler reconstruction` with the pinned patch manifest to select these
 per-class compilers in one measurement. Classes without an override use
 `flex-strict`; every report row records the compiler actually used. Explicit
 `--compiler ffdec`, `flex` or `flex-strict` still selects that compiler for every
-class, for comparison experiments. The per-class profile currently proves five
-reconstructed classes, not the whole tree.
+class, for comparison experiments. The per-class profile currently proves 26
+reconstructed classes, including 21 additional easing, button, list, text,
+message and tutorial classes. Each tracked patch reproduces its independently
+verified compiler input and the complete compressed release movie. Whole-tree
+reconstruction remains incomplete.
 
 ## Building a source feature
 
@@ -300,9 +303,14 @@ per-method hashes retained for review. No release files are installed or package
 The included `premium-affordability` example updates the purchase button when
 the selected premium subscription exceeds the player's current premium balance.
 It changes only `MessagePremium.onPremiumSelected` and preserves its call/cast
-sequence. The build has passed these byte checks; its in-game behavior still
-needs verification. Runtime scenarios are a balance below the price, equal to
-the price, and above it, switching between differently priced subscriptions.
+sequence. The build has passed these byte checks and a native-game UI check:
+Buy is disabled at 999 gold for the 1,000-gold option, enabled at 1,000 and 1,001,
+and updates when switching between the 1,000- and 2,500-gold options.
+[Runtime evidence](features/premium-affordability/runtime-verification.json)
+pins the tested movie, tools and private screenshots. The check completed no
+purchase; the current server disables tutorials for all accounts, so the test
+exercised its normal lobby flow. Build reports retain `runtime_verified: false`
+because compilation alone cannot establish these separate UI observations.
 
 The current feature gate supports edits to existing method bodies. Adding or
 removing methods, changing signatures, or changing class/script layout is
@@ -320,9 +328,9 @@ refused. Such features need additional reconstruction and verification support.
    release's pristine tree; keep feature diffs separate from those corrections.
 4. Extend the feature builder beyond existing method-body edits while preserving
    untouched-class/method checks, call/cast review and constant-reference fidelity.
-5. Prove an unchanged source rebuild reproduces the full movie, demonstrate a
-   real source feature edit, and run the in-game Scaleform check. Until then,
-   the existing shipping patchers remain the release path.
+5. Prove an unchanged whole-tree source rebuild reproduces the full movie.
+   The source-feature example and its in-game Scaleform UI check now pass;
+   whole-tree matching remains required before replacing the shipping patchers.
 
 ```sh
 python3 -m unittest discover -s tools/actionscript -v

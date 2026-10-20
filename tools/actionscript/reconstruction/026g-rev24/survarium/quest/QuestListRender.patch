@@ -1,0 +1,35 @@
+--- a/survarium/quest/QuestListRender.as
++++ b/survarium/quest/QuestListRender.as
+@@ -32,9 +32,9 @@
+       override public function setData(param1:Object) : void
+       {
+          this.data = param1;
+-         if(Boolean(_data))
++         if(_data)
+          {
+-            this._start_time = _data.start_time;
++            _start_time = _data.start_time;
+          }
+          invalidateData();
+       }
+@@ -49,7 +49,7 @@
+       
+       override protected function updateText() : void
+       {
+-         var _loc1_:int = 0;
++         var _loc1_:int;
+          if(!data)
+          {
+             this.questIcon.visible = false;
+@@ -57,9 +57,9 @@
+             return;
+          }
+          _data.name = _data.quest_label;
+-         if(Boolean(enabled) && Boolean(_data) && Boolean(_data.time_limit))
++         if(enabled && _data && _data.time_limit)
+          {
+-            if(Boolean(this.textFieldTime))
++            if(this.textFieldTime)
+             {
+                _loc1_ = Math.max(0,_data.time_limit - (QuestWindow.getTime() - this._start_time));
+                this.textFieldTime.text = Util.getTimeString(_loc1_);
