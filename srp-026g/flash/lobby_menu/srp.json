@@ -3,7 +3,6 @@
   "classes": [
     {"class": "SrpRooms"},
     {"class": "SrpExchange"},
-    {"class": "SrpBuyGold", "abc_with": "SrpExchange"},
     {"class": "SrpPlayerGear", "abc_with": "LobbyMenu"}
   ]
 }

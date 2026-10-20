@@ -340,7 +340,7 @@ package survarium.messages
       
       protected function goToStore() : void
       {
-         SrpBuyGold.open();
+         MessageMoneyExchange.buyGold();
       }
       
       protected function onNoMoneyEnought() : void

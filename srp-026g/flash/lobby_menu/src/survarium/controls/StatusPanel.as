@@ -27,6 +27,7 @@ package survarium.controls
    import survarium.gsearch.MatchMakingSettings;
    import survarium.messages.MessageBase;
    import survarium.messages.MessageEnterName;
+   import survarium.messages.MessageMoneyExchange;
    
    public class StatusPanel extends UIComponent
    {
@@ -850,7 +851,7 @@ package survarium.controls
       
       protected function goToStore() : void
       {
-         SrpBuyGold.open();
+         MessageMoneyExchange.buyGold();
       }
       
       protected function goToKnowledgeBase() : void

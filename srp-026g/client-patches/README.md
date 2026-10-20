@@ -399,8 +399,8 @@ the server's, every text in every language): `python -m unittest test_build_lobb
 
 ## Get Gold opens the exchange
 
-`SrpBuyGold` (`../flash/lobby_menu/src/SrpBuyGold.as`) makes every "Get Gold" of the lobby open the exchange
-window above, to buy gold with silver, instead of the online store (a browser
+`MessageMoneyExchange.buyGold()` (`../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`)
+makes every "Get Gold" of the lobby open the exchange window above, to buy gold with silver, instead of the online store (a browser
 window on a dead site). The rules: `docs/notes/buy-gold.md`. The
 "Insufficient Gold Rubles" dialog's button calls `goToStore` of the window that
 showed it; the bodies of all ten (`ItemCard`, `StatusPanel`, `MessageAsk`,
@@ -408,7 +408,7 @@ showed it; the bodies of all ten (`ItemCard`, `StatusPanel`, `MessageAsk`,
 `MessagePremiumDiscount`, `MessagePremiumProfile`, `MessageRepair`,
 `MessageRerollItem`) and the premium window's gold button
 (`MessagePremium.onPremiumMoneyAddClick`, which asked first) become
-`SrpBuyGold.open()`. It shows the exchange with `showMessage`'s third
+`MessageMoneyExchange.buyGold()`. It shows the exchange with `showMessage`'s third
 and fifth arguments set, so it opens over a window still open instead of
 waiting behind it, and that window stays visible under it. The exe and the
 server do not change. Not in a release yet.

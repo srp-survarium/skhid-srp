@@ -2,6 +2,7 @@ package survarium.messages
 {
    import flash.text.TextField;
    import scaleform.clik.events.ButtonEvent;
+   import survarium.controls.Message;
    import survarium.controls.NumericStepperExchange;
    import survarium.controls.PlayerInfo;
    import survarium.data.LocalizationData;
@@ -13,6 +14,20 @@ package survarium.messages
       
       public var exchangeStepper:NumericStepperExchange;
       
+      // Every "Get Gold" of the lobby opened the online store, which is gone:
+      // it opens this window, to buy gold with silver. Shown at once over a
+      // window still open (without the third argument it would wait for
+      // that window to close), which stays visible under it (the fifth), as
+      // the premium windows' own dialogs do; it has the focus again when
+      // this one closes.
+      public static function buyGold() : void
+      {
+         Message.showMessage("exchange",{
+            label:"",
+            srpBuyGold:true
+         },true,0,true);
+      }
+
       public function MessageMoneyExchange()
       {
          super();

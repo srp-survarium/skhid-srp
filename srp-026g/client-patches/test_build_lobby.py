@@ -117,8 +117,9 @@ class LobbySourceTests(unittest.TestCase):
             self.assertEqual(len(re.findall(r'"[^"]+"', row)), 5, key)
 
     def test_get_gold_opens_the_exchange_over_the_dialog_on_the_buy_side(self):
-        source = (TREE / 'src' / 'SrpBuyGold.as').read_text(encoding='utf-8')
-        self.assertIn('Message.showMessage("exchange", {"label": "", "srpBuyGold": true}, true, 0, true);', source)
+        source = (TREE / 'src' / 'survarium' / 'messages' / 'MessageMoneyExchange.as').read_text(encoding='utf-8')
+        body = re.search(r'public static function buyGold\(\) : void\s*\{(.*?)\n      \}', source, re.S).group(1)
+        self.assertRegex(body, r'Message\.showMessage\("exchange",\{\s*label:"",\s*srpBuyGold:true\s*\},true,0,true\);')
 
 
 if __name__ == '__main__':
