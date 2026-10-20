@@ -236,3 +236,37 @@ Private candidate corrections also make `AmmoShareControll`, `ManageClanWindow`
 and `ItemCompare` compile, by reconstructing a loop break, removing FFDec's
 keyword escape markers, and making the downcast explicit. All three still fail
 exact linking. They have not been added to the tracked reconstruction set.
+
+## Source feature build with untouched-code gates
+
+`build_feature.py` now compiles only the classes named by a pinned feature
+manifest. Each build first recompiles the corresponding unchanged reconstruction
+and requires complete compressed-file equality. The feature linker then preserves
+all original constant-pool entries, definitions and signatures, checks every
+untouched method record, and checks other ABC blocks. Added constant names retain
+the class's original lexical namespace identities. An edited method's ordered
+call/construction/cast/coercion/throw sequence must remain identical unless its
+precise before/after fingerprints were recorded for review.
+
+The `premium-affordability` source diff adds a balance check when a premium
+subscription is selected. The fully reparsed result has **7,758 methods**, with
+exactly one changed method: `MessagePremium.onPremiumSelected` (ABC 80, method 5).
+All other method records match; only one DoABC tag changes, and the assets,
+frame settings, ABC names and loading flags remain unchanged. The edited method's
+call/cast fingerprint is unchanged. The resulting local candidate's SHA-256 is
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`.
+It has not been installed, shipped or verified in the game.
+
+The full linking pass over the earlier 878-script strict Flex sweep has finished:
+**613 exact compressed movies, 253 refused outputs, and 12 compilation failures**.
+This pass uses the newer linker but the older compiler import path. The separate
+native-import sweep is still running. Neither report proves that all classes
+can rebuild together; whole-tree reconstruction remains incomplete.
+
+All **13 tests** pass with the feature gate, including real Flex builds. The
+feature regression preserves an unrelated class in the same ABC, accepts a new
+string constant, and verifies that an appended dynamic-property lookup uses the
+original private namespace identities. Negative cases cover untouched code,
+stack metadata, original constant-pool content, another class's body, unreviewed
+call changes and incorrect review fingerprints. Container tests separately reject
+changes to opaque assets, tag order, DoABC names and loading flags.

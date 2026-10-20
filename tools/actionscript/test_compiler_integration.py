@@ -1,6 +1,7 @@
 """Optional real Flex regression test; requires SRP_AS_TOOLS=/path/to/tools.json."""
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -118,6 +119,36 @@ class CompilerIntegration(unittest.TestCase):
                                 int cls = abc.findClassByName("Probe");
                                 if (cls < 0) continue;
                                 for (var methodBody : abc.bodies) MovieSource.exactCode(methodBody);
+                                if (args[2].equals("feature-pool")) {
+                                    var reference=new SWF(Files.newInputStream(Path.of(args[3])),true);
+                                    var original=reference.getAbcList().stream().map(t->t.getABC())
+                                        .filter(a->a.findClassByName("Probe")>=0).findFirst().orElseThrow();
+                                    int found=0;
+                                    for(int i=original.constants.getMultinameCount();i<abc.constants.getMultinameCount();i++) {
+                                        var m=abc.constants.getMultiname(i);
+                                        if(!m.hasOwnName() || !abc.constants.getString(m.name_index).equals("new_feature_property"))continue;
+                                        if(!m.hasOwnNamespaceSet())throw new IOException("Expected dynamic feature lookup");
+                                        for(int ns:abc.constants.getNamespaceSet(m.namespace_set_index).namespaces)
+                                            if(abc.constants.getNamespace(ns).kind==5 && ns>=original.constants.getNamespaceCount())
+                                                throw new IOException("Feature lookup retained a fresh private namespace");
+                                        found++;
+                                    }
+                                    if(found==0)throw new IOException("No appended feature name tested");
+                                    changed++;continue;
+                                }
+                                if (args[2].equals("pool")) {
+                                    int id=abc.constants.getStringId("fixture",false);
+                                    if(id<=0)throw new IOException("Missing original string fixture");
+                                    abc.constants.setString(id,"tampered original constant");
+                                    ((Tag)tag).setModified(true);changed++;continue;
+                                }
+                                if (args[2].equals("other-class")) {
+                                    int other=abc.findClassByName("Retained");
+                                    if(other<0)throw new IOException("Missing retained class");
+                                    var body=abc.findBody(abc.instance_info.get(other).iinit_index);
+                                    byte[] code=body.getCodeBytes().clone();code[0]=0x20;body.setCodeBytes(code);
+                                    ((Tag)tag).setModified(true);changed++;continue;
+                                }
                                 if (args[2].startsWith("closures-")) {
                                     var sites=new java.util.ArrayList<AVM2Instruction>();
                                     for(var body:abc.bodies)for(var ins:body.getCode().code)
@@ -435,6 +466,68 @@ class CompilerIntegration(unittest.TestCase):
             result = tools.run("link-layout", combined, combined_output, combined_linked, "Probe", log=root / "combined-link.log")
             self.assertEqual(result.returncode, 0, (root / "combined-link.log").read_text())
             self.assertEqual(movie_source.uncompressed(combined), movie_source.uncompressed(combined_linked))
+
+            # A real source feature may add constants and edit a selected body,
+            # while every other method/class and all old pool entries stay exact.
+            feature_source = root / "feature-source.as"
+            feature_source.write_text(source.read_text().replace('new Error("fixture")', 'new Error("source feature")'))
+            feature_compiled, feature_linked = root / "feature-compiled.swf", root / "feature-linked.swf"
+            result = tools.run("compile", combined, feature_compiled, "Probe", feature_source, root / "feature-snapshot",
+                               "flex-strict", sdk, log=root / "feature-compile.log")
+            self.assertEqual(result.returncode, 0, (root / "feature-compile.log").read_text())
+            owners = [owner for _, owner in movie_source.methods(root / "feature-snapshot")
+                      if '"Probe")/instance/1/' in owner and '"branches")' in owner]
+            self.assertEqual(len(owners), 1)
+            permission = root / "feature-permissions.tsv"
+            permission.write_text(owners[0] + "\t-\t-\n")
+            result = tools.run("link-feature", combined, feature_compiled, feature_linked, "Probe", permission,
+                               log=root / "feature-link.log")
+            self.assertEqual(result.returncode, 0, (root / "feature-link.log").read_text())
+            self.assertNotEqual(movie_source.uncompressed(combined), movie_source.uncompressed(feature_linked))
+            for mode in ("code", "metadata", "pool", "other-class"):
+                corrupt = root / ("feature-" + mode + ".swf")
+                denied = root / ("feature-denied-" + mode + ".swf")
+                mutate(feature_compiled, corrupt, mode)
+                result = tools.run("link-feature", combined, corrupt, denied, "Probe", permission,
+                                   log=root / ("feature-denied-" + mode + ".log"))
+                self.assertNotEqual(result.returncode, 0, mode)
+                self.assertFalse(denied.exists())
+            # Removing construction changes a protected call, even in an
+            # authorized method. It needs the exact reviewed before/after pair.
+            feature_source.write_text(feature_source.read_text().replace('new Error("source feature")', 'Error("source feature")'))
+            changed_calls = root / "feature-calls.swf"
+            result = tools.run("compile", combined, changed_calls, "Probe", feature_source, root / "feature-calls-snapshot",
+                               "flex-strict", sdk, log=root / "feature-calls-compile.log")
+            self.assertEqual(result.returncode, 0, (root / "feature-calls-compile.log").read_text())
+            denied = root / "feature-calls-denied.swf"
+            result = tools.run("link-feature", combined, changed_calls, denied, "Probe", permission,
+                               log=root / "feature-calls-denied.log")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(denied.exists())
+            fingerprints = re.search(r'([0-9a-f]{64}) -> ([0-9a-f]{64})', (root / "feature-calls-denied.log").read_text())
+            self.assertIsNotNone(fingerprints, (root / "feature-calls-denied.log").read_text())
+            permission.write_text(owners[0] + "\t" + fingerprints[1] + "\t" + fingerprints[2] + "\n")
+            result = tools.run("link-feature", combined, changed_calls, root / "feature-calls-reviewed.swf", "Probe", permission,
+                               log=root / "feature-calls-reviewed.log")
+            self.assertEqual(result.returncode, 0, (root / "feature-calls-reviewed.log").read_text())
+            permission.write_text(owners[0] + "\t" + fingerprints[1] + "\t" + "0" * 64 + "\n")
+            result = tools.run("link-feature", combined, changed_calls, root / "feature-calls-wrong-review.swf", "Probe", permission,
+                               log=root / "feature-calls-wrong-review.log")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse((root / "feature-calls-wrong-review.swf").exists())
+            feature_source.write_text(source.read_text().replace('return target[key];', 'return target.new_feature_property;'))
+            dynamic_compiled, dynamic_linked = root / "feature-dynamic.swf", root / "feature-dynamic-linked.swf"
+            result = tools.run("compile", combined, dynamic_compiled, "Probe", feature_source, root / "feature-dynamic-snapshot",
+                               "flex-strict", sdk, log=root / "feature-dynamic-compile.log")
+            self.assertEqual(result.returncode, 0, (root / "feature-dynamic-compile.log").read_text())
+            inspect_owners = [owner for _, owner in movie_source.methods(root / "feature-dynamic-snapshot")
+                              if '"Probe")/instance/1/' in owner and '"inspect")' in owner]
+            self.assertEqual(len(inspect_owners), 1)
+            permission.write_text(inspect_owners[0] + "\t-\t-\n")
+            result = tools.run("link-feature", combined, dynamic_compiled, dynamic_linked, "Probe", permission,
+                               log=root / "feature-dynamic-link.log")
+            self.assertEqual(result.returncode, 0, (root / "feature-dynamic-link.log").read_text())
+            mutate(dynamic_linked, root / "feature-pool-checked.swf", "feature-pool", combined)
 
             # Retain the same pool in both files, then exercise Flash's binding
             # emission and implicit script slot against real compiler code.

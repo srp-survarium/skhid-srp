@@ -6,9 +6,9 @@ decompile, or matching instruction bytes without their constant pools do not
 prove compatibility.
 
 This directory provides reproducible compiler investigation, exact byte checks,
-and a conservative layout linker. Some classes now rebuild to the identical
-release movie. It does **not yet provide a whole-tree matching rebuild or a
-feature patch builder**. The target includes the entire source tree; the 18-class list is an
+a conservative layout linker, and a guarded source-feature builder. Some classes
+now rebuild to the identical release movie. It does **not yet provide a
+whole-tree matching rebuild**. The target includes the entire source tree; the 18-class list is an
 initial compiler probe, not the completion boundary.
 
 ## Private inputs and pinned tools
@@ -215,6 +215,55 @@ per-class compilers in one measurement. Classes without an override use
 class, for comparison experiments. The per-class profile currently proves two
 reconstructed classes, not the whole tree.
 
+## Building a source feature
+
+Feature patches are separate from reconstruction patches and apply to the
+reconstructed source. Their manifest pins the release, reconstruction manifest,
+baseline source, patch and resulting source. It names the qualified methods
+whose bodies the feature may change; copy those identities from `methods.tsv`.
+
+```sh
+python3 tools/actionscript/build_feature.py --tools private/actionscript/tools.json \
+  --reconstruction tools/actionscript/reconstruction/026g-rev24/manifest.json \
+  private/actionscript/rev24 \
+  tools/actionscript/features/premium-affordability/manifest.json \
+  private/actionscript/premium-affordability
+```
+
+The builder compiles only the classes named by the source diffs. For each, it
+first recompiles its unchanged reconstruction and requires the complete
+compressed release movie to match exactly. It then compiles the feature source
+and checks all other ABCs and every untouched method in the affected ABC,
+including other classes sharing that block. Signatures, class/script definitions
+and traits must remain exact. Every original pool entry retains its index and
+value; new constants are allowed, with their lexical namespaces relocated.
+
+Edited methods also retain the ordered sequence of call, construction, cast,
+coercion and throw instructions by default. A feature intentionally changing
+that sequence must record the reviewed `calls_casts.before` and
+`calls_casts.after` SHA-256 fingerprints on its method permission. Inspect the
+before/after assembly before recording an exception; mismatched fingerprints
+are refused. These fingerprints check the named instruction sequence, not all
+argument data flow or runtime behavior. The exact baseline and untouched-method
+checks remain mandatory even with such an exception.
+
+The final movie is independently reparsed. Its method changes must be confined
+to the permitted owners; non-code tags, frame settings, ABC names and loading
+flags must remain unchanged. A successful build writes `feature.swf`,
+`comparison.json`, and `report.json`, with source inputs, compiler artifacts and
+per-method hashes retained for review. No release files are installed or packaged.
+
+The included `premium-affordability` example updates the purchase button when
+the selected premium subscription exceeds the player's current premium balance.
+It changes only `MessagePremium.onPremiumSelected` and preserves its call/cast
+sequence. The build has passed these byte checks; its in-game behavior still
+needs verification. Runtime scenarios are a balance below the price, equal to
+the price, and above it, switching between differently priced subscriptions.
+
+The current feature gate supports edits to existing method bodies. Adding or
+removing methods, changing signatures, or changing class/script layout is
+refused. Such features need additional reconstruction and verification support.
+
 ## Remaining work
 
 1. Finish compiler matching and decompiler defects.
@@ -225,9 +274,8 @@ reconstructed classes, not the whole tree.
    body as a substitute for a failed compilation.
 3. Preserve source reconstruction corrections as reviewed diffs over each
    release's pristine tree; keep feature diffs separate from those corrections.
-4. Add the feature builder: compile only touched classes and reject changes in
-   every untouched class, including untouched methods inside touched classes.
-   Calls, casts, exception handling and constant references all need coverage.
+4. Extend the feature builder beyond existing method-body edits while preserving
+   untouched-class/method checks, call/cast review and constant-reference fidelity.
 5. Prove an unchanged source rebuild reproduces the full movie, demonstrate a
    real source feature edit, and run the in-game Scaleform check. Until then,
    the existing shipping patchers remain the release path.
@@ -258,3 +306,7 @@ native recompilation and exact linking, including a second script/class in the
 same ABC. A separately constructed wide-reference fixture exercises instruction
 growth/shrinkage; changed owners, namespace members, branch targets and handler
 targets are refused. Unreachable jump bytes are included in the exact comparison.
+Feature tests compile an actual source edit with a new constant and an unrelated
+class in the same ABC. They reject changes to untouched instructions, verifier
+metadata, original pool entries and the retained class. They also reject an
+unreviewed constructor-to-call change and incorrect review fingerprints.

@@ -621,6 +621,35 @@ public final class MovieSource {
         }
     }
 
+    static void relocateAddedPoolNames(ABC original, ABC compiled) throws IOException {
+        Map<Integer, Integer> namespaces = namespaceLayout(original, compiled);
+        Map<Integer, List<Object>> oldKeys = new HashMap<>(), newKeys = new HashMap<>();
+        Map<List<Object>, List<Integer>> definitions = new HashMap<>();
+        Map<Integer, Integer> names = new HashMap<>();
+        for (int i = 0; i < original.constants.getMultinameCount(); i++)
+            definitions.computeIfAbsent(multinameKey(original, i, Map.of(), oldKeys, new HashSet<>()), k -> new ArrayList<>()).add(i);
+        for (int i = original.constants.getMultinameCount(); i < compiled.constants.getMultinameCount(); i++) {
+            var candidates = definitions.get(multinameKey(compiled, i, namespaces, newKeys, new HashSet<>()));
+            if (candidates != null && candidates.size() == 1) names.put(i, candidates.get(0));
+        }
+        // A newly introduced lookup must use the same lexical namespaces as
+        // the recompiled class. Mutate appended pool entries only; retaining a
+        // fresh private namespace here would silently change name resolution.
+        for (int i = original.constants.getNamespaceSetCount(); i < compiled.constants.getNamespaceSetCount(); i++) {
+            int[] members = compiled.constants.getNamespaceSet(i).namespaces;
+            compiled.constants.setNamespaceSet(i, new NamespaceSet(Arrays.stream(members)
+                .map(n -> namespaces.getOrDefault(n, n)).toArray()));
+        }
+        for (int i = original.constants.getMultinameCount(); i < compiled.constants.getMultinameCount(); i++) {
+            var m = compiled.constants.getMultiname(i);
+            if (m.hasOwnNamespace()) m.namespace_index = namespaces.getOrDefault(m.namespace_index, m.namespace_index);
+            if (m.kind == 0x1d) {
+                m.qname_index = names.getOrDefault(m.qname_index, m.qname_index);
+                for (int j = 0; j < m.params.length; j++) m.params[j] = names.getOrDefault(m.params[j], m.params[j]);
+            }
+        }
+    }
+
     static void restoreMethodOrder(ABC original, ABC compiled) throws IOException {
         if (original.method_info.size() != compiled.method_info.size()) throw new IOException("Method count changed");
         Map<Integer, String> before = names(original), after = names(compiled);
@@ -857,6 +886,78 @@ public final class MovieSource {
     // navigation metadata follow the original layout. A byte comparison of the
     // entire ABC must then pass. Runtime metadata is never silently restored.
     static void linkLayout(Path referenceFile, Path candidateFile, Path output, String cls) throws Exception {
+        linkLayout(referenceFile, candidateFile, output, cls, null);
+    }
+
+    static byte[] definitions(ABC abc) throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        ABCOutputStream out = new ABCOutputStream(bytes);
+        out.writeU30(abc.method_info.size());
+        for (var method : abc.method_info) out.writeMethodInfo(method);
+        out.writeU30(abc.instance_info.size());
+        for (var instance : abc.instance_info) out.writeInstanceInfo(instance);
+        for (var cls : abc.class_info) { out.writeU30(cls.cinit_index); out.writeTraits(cls.static_traits); }
+        out.writeU30(abc.script_info.size());
+        for (var script : abc.script_info) { out.writeU30(script.init_index); out.writeTraits(script.traits); }
+        return bytes.toByteArray();
+    }
+
+    static String callCastFingerprint(ABC abc, MethodBody body) throws Exception {
+        StringBuilder sequence = new StringBuilder();
+        for (var instruction : body.getCode().code) {
+            int op = instruction.definition.instructionCode;
+            if (op == 0x03 || (op >= 0x40 && op <= 0x4f) || op == 0x53 || op == 0x58
+                    || (op >= 0x70 && op <= 0x89) || op == 0xb2 || op == 0xb3)
+                sequence.append(instruction.toStringNoAddress(abc.constants, List.of())).append('\n');
+        }
+        return hash(sequence.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    static String checkFeature(ABC original, ABC compiled, String cls, Path permissions) throws Exception {
+        Map<String, String[]> allowed = new LinkedHashMap<>();
+        String prefix = name(original, original.instance_info.get(original.findClassByName(cls)).name_index) + "/";
+        for (String line : Files.readAllLines(permissions)) {
+            String[] fields = line.split("\\t", -1);
+            if (fields.length != 3 || !fields[0].startsWith(prefix) || fields[0].contains("|")
+                    || allowed.put(fields[0], fields) != null)
+                throw new IOException("Invalid or duplicate feature method permission");
+            if (!(fields[1].equals("-") && fields[2].equals("-"))
+                    && !(fields[1].matches("[0-9a-f]{64}") && fields[2].matches("[0-9a-f]{64}")))
+                throw new IOException("Call/cast permission requires both reviewed fingerprints");
+        }
+        if (allowed.isEmpty()) throw new IOException("No feature methods authorized");
+        if (!Arrays.equals(definitions(original), definitions(compiled)))
+            throw new IOException("Feature changed class, script, trait or method-signature records");
+        Map<Integer, String> owners = names(original);
+        Set<String> seen = new HashSet<>();
+        StringBuilder report = new StringBuilder("method\tbefore_record\tafter_record\tbefore_calls_casts\tafter_calls_casts\n");
+        int changed = 0;
+        for (MethodBody before : original.bodies) {
+            MethodBody after = compiled.findBody(before.method_info);
+            String owner = owners.get(before.method_info);
+            byte[] a = record(original, before), b = record(compiled, after);
+            if (!allowed.containsKey(owner)) {
+                if (!Arrays.equals(a, b)) throw new IOException("Untouched method changed: " + owner);
+                continue;
+            }
+            if (!seen.add(owner)) throw new IOException("Ambiguous feature method owner");
+            String oldCalls = callCastFingerprint(original, before), newCalls = callCastFingerprint(compiled, after);
+            String[] permission = allowed.get(owner);
+            if (permission[1].equals("-")) {
+                if (!oldCalls.equals(newCalls)) throw new IOException("Unreviewed calls/casts changed in " + owner
+                    + ": " + oldCalls + " -> " + newCalls);
+            } else if (!permission[1].equals(oldCalls) || !permission[2].equals(newCalls))
+                throw new IOException("Reviewed calls/casts do not match compiler output for " + owner);
+            if (!Arrays.equals(a, b)) changed++;
+            report.append(cell(owner)).append('\t').append(hash(a)).append('\t').append(hash(b)).append('\t')
+                .append(oldCalls).append('\t').append(newCalls).append('\n');
+        }
+        if (!seen.equals(allowed.keySet())) throw new IOException("Feature permission names a missing method");
+        if (changed == 0) throw new IOException("Feature compiled without changing any authorized method");
+        return report.toString();
+    }
+
+    static void linkLayout(Path referenceFile, Path candidateFile, Path output, String cls, Path permissions) throws Exception {
         SWF reference = read(referenceFile), candidate = read(candidateFile);
         if (reference.getAbcList().size() != candidate.getAbcList().size())
             throw new IOException("ABC block count changed");
@@ -889,6 +990,7 @@ public final class MovieSource {
         for (MethodBody body : original.bodies) exactCode(body);
         for (MethodBody body : compiled.bodies) exactCode(body);
         restoreNameReferences(original, compiled);
+        if (permissions != null) relocateAddedPoolNames(original, compiled);
         restoreMethodOrder(original, compiled);
         emitScriptClassBindings(original, compiled);
         restoreScriptClassSlot(original, compiled);
@@ -927,10 +1029,13 @@ public final class MovieSource {
                 after.paramNames = new int[0];
             }
         }
-        compiled.constants = original.constants;
+        // Feature output retains appended constants. Every original entry was
+        // checked above, so untouched operands retain their original meaning.
+        if (permissions == null) compiled.constants = original.constants;
         compiled.metadata_info = original.metadata_info;
         byte[] rebuilt = abcBytes(compiled), expected = abcBytes(original);
-        if (!Arrays.equals(rebuilt, expected)) {
+        String featureReport = permissions == null ? null : checkFeature(original, compiled, cls, permissions);
+        if (permissions == null && !Arrays.equals(rebuilt, expected)) {
             Files.write(output.resolveSibling(output.getFileName() + ".rejected.abc"), rebuilt);
             StringBuilder differences = new StringBuilder();
             for (int i = 0; i < original.method_info.size(); i++) {
@@ -961,10 +1066,12 @@ public final class MovieSource {
         candidate.saveTo(bytes);
         SWF saved = new SWF(new ByteArrayInputStream(bytes.toByteArray()), true);
         for (int i = 0; i < reference.getAbcList().size(); i++)
-            if (!Arrays.equals(abcBytes(reference.getAbcList().get(i).getABC()), abcBytes(saved.getAbcList().get(i).getABC())))
+            if (!Arrays.equals(i == home ? rebuilt : abcBytes(reference.getAbcList().get(i).getABC()), abcBytes(saved.getAbcList().get(i).getABC())))
                 throw new IOException("Serialized ABC differs at block " + i);
         Files.write(output, bytes.toByteArray(), StandardOpenOption.CREATE_NEW);
-        System.out.println("Exact compiled ABC for " + cls + ": " + rebuilt.length + " bytes; original bodies were not substituted");
+        if (featureReport != null) Files.writeString(output.resolveSibling(output.getFileName() + ".methods.tsv"), featureReport);
+        System.out.println((permissions == null ? "Exact compiled ABC for " : "Verified feature ABC for ")
+            + cls + ": " + rebuilt.length + " bytes; original bodies were not substituted");
     }
 
     static String cell(String s) { return s.replace("\t", "\\t").replace("\n", "\\n").replace("\r", "\\r"); }
@@ -998,6 +1105,11 @@ public final class MovieSource {
     static void run(String[] a) throws Exception {
         if (a.length < 3) throw new IllegalArgumentException("export|snapshot|compile INPUT OUTPUT [CLASS SOURCE ffdec|flex SDK]");
         Configuration.parallelSpeedUp.set(false);
+        if (a[0].equals("link-feature")) {
+            if (a.length != 6) throw new IllegalArgumentException("link-feature ORIGINAL COMPILED OUTPUT CLASS PERMISSIONS.tsv");
+            linkLayout(Path.of(a[1]), Path.of(a[2]), Path.of(a[3]), a[4], Path.of(a[5]));
+            return;
+        }
         if (a[0].equals("link-layout")) {
             if (a.length != 5) throw new IllegalArgumentException("link-layout ORIGINAL COMPILED OUTPUT CLASS");
             linkLayout(Path.of(a[1]), Path.of(a[2]), Path.of(a[3]), a[4]);
