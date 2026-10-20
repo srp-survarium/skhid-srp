@@ -83,3 +83,29 @@ Applied to revision 24's live `localization/ukrainian/localization` (from the se
 | `gameplay/victory_items/default.options` `states[0]/take_time` 0.6 -> 0.5 (an indexed table's item: the `set` path's `name[i]`) | the owner: the battery pick-up animation 20 % faster (1.2 times the speed). The take state time-scales its animation to last `take_time`, so it plays faster, not cut (`docs/notes/battery_pickup.md`); `put_time` stays 0.6 |
 
 Applied to revision 24's server game data (`gameplay/victory_items/`): 1 file edited, 0 unexpected differences.
+
+## ak12-027-1.json (2026-10-20)
+
+| change | why |
+|---|---|
+| AK-12 and premium AK-12 (`wpn_ak_12`, `wpn_ak_12_premium`): `bullet_damage` 0.55 -> 0.5, `bullet_pierce` 0.45 -> 0.4 (f32 kept); the card's damage (prop 1) 55 -> 50 and armour piercing (prop 3) 45 -> 40 | the owner: "0.27a (released 3 months after 0.26a where ak12 was introduced) nerfed ak12 damage 55 » 50 and armour penetration 45 » 40. I think it should be done here". Only 0.27's change (`docs/notes/ak12_027.md`) |
+| premium AK-12: `default_modifications` [1230, 2044, 2094] -> [1230] (a new edit, `remove_item`) | the owner: a premium weapon gives silver and nothing else. 1230 is +10 % silver; 2044 (reload time -15 %) and 2094 (reliability +25 %) go. The defaults are not on the wire: the client and srp both read them from the config |
+
+The AK-12 in the builds we have (plain / premium; the card shows the same numbers x100):
+
+| build | damage | piercing |
+|---|---|---|
+| 0.26g stock (no premium AK-12) | 0.55 / - | 0.45 / - |
+| live, revision 25 | 0.55 / 0.55 | 0.45 / 0.45 |
+| 0.27d0 | **0.55** / 0.50 | 0.40 / 0.40 |
+| 0.28a2 | 0.50 / 0.45 | 0.30 / 0.30 |
+| 0.28d0 | 0.45 / 0.45 | 0.30 / 0.30 |
+| 0.31a2 | 0.35 / 0.35 | 0.55 / 0.55 |
+| 0.46c2 | 0.26 / 0.26 | none (`material_pierce` 6: another scale) |
+
+No 0.27a build is at hand; 0.27d0 has the plain AK-12 at 0.55. Both are set to 0.5 per
+the owner's note; the plain one back at 0.55 is its `bullet_damage` `set` and prop 1
+`set_prop` taken out.
+
+Applied to revision 24's server game data (`gameplay/items/weapons/wpn_ak_12*`; patch 25
+did not touch weapons): 2 files edited, 0 unexpected differences.
