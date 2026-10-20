@@ -984,6 +984,72 @@ class CompilerIntegration(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertFalse(destination.exists())
 
+    def test_library_context_preserves_native_self_class_lookups(self):
+        with tempfile.TemporaryDirectory(prefix="srp-as-library-test-") as temp:
+            root = Path(temp)
+            config_path = Path(os.environ["SRP_AS_TOOLS"]).resolve()
+            config = json.loads(config_path.read_text())
+            sdk = Path(config["flex"])
+            tools = movie_source.Toolchain(config_path, root / "bridge")
+            source = root / "fixture/SelfReference.as"
+            source.parent.mkdir()
+            source.write_text("""package fixture {
+                public class SelfReference {
+                    public static var current:SelfReference;
+                    public function copy():SelfReference { return new SelfReference(); }
+                    public function self():SelfReference { return this as SelfReference; }
+                    public function value():int { return 7; }
+                }
+            }""")
+            entry = root / "LibraryProbe.as"
+            entry.write_text("""package {
+                import fixture.SelfReference;
+                public class LibraryProbe {
+                    public var reference:Class = SelfReference;
+                }
+            }""")
+            baseline = root / "baseline.swf"
+            result = subprocess.run([config["java"], "-jar", str(sdk / "lib/mxmlc.jar"),
+                "+flexlib=" + str(sdk / "frameworks"),
+                "+playerglobalHome=" + str(sdk / "frameworks/libs/player"),
+                "-external-library-path=" + str(sdk / "frameworks/libs/player/32.0/playerglobal.swc"),
+                "-library-path=", "-strict=true", "-debug=false", "-optimize=false",
+                "-omit-trace-statements=false", "-source-path=" + str(root),
+                "-output=" + str(baseline), str(entry)], stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, text=True, timeout=90)
+            self.assertEqual(result.returncode, 0, result.stdout)
+            for profile, exact in (("flex-strict", False), ("flex-library", True)):
+                compiled, linked = root / (profile + ".swf"), root / (profile + "-linked.swf")
+                snapshot = root / (profile + "-snapshot")
+                log = root / (profile + "-compile.log")
+                result = tools.run("compile", baseline, compiled, "fixture.SelfReference",
+                                   source, snapshot, profile, sdk, log=log)
+                self.assertEqual(result.returncode, 0, log.read_text())
+                log = root / (profile + "-link.log")
+                result = tools.run("link-layout", baseline, compiled, linked,
+                                   "fixture.SelfReference", log=log)
+                self.assertEqual(result.returncode == 0, exact, log.read_text())
+                if exact:
+                    self.assertEqual(movie_source.uncompressed(baseline), movie_source.uncompressed(linked))
+                    diagnostics = root / (profile + "-snapshot-flex")
+                    self.assertTrue((diagnostics / "native-compiler.swf").is_file())
+                    self.assertTrue((diagnostics / "native-script.swf").is_file())
+                    self.assertTrue((diagnostics / "entry-source.as").is_file())
+                else:
+                    self.assertFalse(linked.exists())
+            # The new profile cannot recover changed executable code from the
+            # reference. Its temporary entry must not leak into the linked movie.
+            source.write_text(source.read_text().replace("return 7;", "return 8;"))
+            changed, rejected = root / "changed.swf", root / "rejected.swf"
+            log = root / "changed-compile.log"
+            result = tools.run("compile", baseline, changed, "fixture.SelfReference",
+                               source, root / "changed-snapshot", "flex-library", sdk, log=log)
+            self.assertEqual(result.returncode, 0, log.read_text())
+            result = tools.run("link-layout", baseline, changed, rejected,
+                               "fixture.SelfReference", log=root / "changed-link.log")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(rejected.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

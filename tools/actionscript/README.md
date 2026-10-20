@@ -129,6 +129,18 @@ The default `flex` mode uses FFDec's Flex script replacer arguments, including
 and debug output, and preserves `trace` calls. These settings are recorded;
 they are an experiment toward matching the original compiler output.
 
+`flex-library` uses those same settings but compiles the requested class as an
+imported source unit. A temporary entry class references it, and inheritance-only
+linking is disabled so the target is included in the native output. This restores
+the compiler's lexical self-class lookups where entry-script compilation would
+emit global-slot access. No lookup opcode is rewritten by the layout linker.
+The full `native-compiler.swf`, temporary `entry-source.as`, and selected
+`native-script.swf` are retained. Selection requires a uniquely named class in a
+single-script ABC, and verifies that the selected ABC's bytes survive
+serialization unchanged. Only that native ABC replaces the requested script;
+the temporary entry and its other linked dependencies never enter the result.
+This profile requires a class, rather than a global function or namespace script.
+
 ## Exact layout linking
 
 After a measurement, try linking its compiled outputs back into the original
@@ -263,8 +275,8 @@ argument conversions.
 Use `--compiler reconstruction` with the pinned patch manifest to select these
 per-class compilers in one measurement. Classes without an override use
 `flex-strict`; every report row records the compiler actually used. Explicit
-`--compiler ffdec`, `flex` or `flex-strict` still selects that compiler for every
-class, for comparison experiments. The per-class profile currently proves 183
+`--compiler ffdec`, `flex`, `flex-strict` or `flex-library` selects that compiler for every
+class, for comparison experiments. The per-class profile currently proves 187
 reconstructed classes, including easing, button, list, text, message, clan,
 debug and tutorial classes. Source fixes also recover local declaration order,
 static field slot order and explicit switch breaks where required.

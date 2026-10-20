@@ -30,8 +30,10 @@ public final class MovieSource {
         final Path sdk;
         final Path diagnostics;
         final boolean strict;
-        FlexCompiler(String path, Path diagnostics, boolean strict) {
+        final String libraryClass;
+        FlexCompiler(String path, Path diagnostics, boolean strict, String libraryClass) {
             super(path); sdk = Path.of(path); this.diagnostics = diagnostics; this.strict = strict;
+            this.libraryClass = libraryClass;
         }
         // Adapt only the compiler's temporary dependency SWC. Qualify singleton
         // namespace sets and supply the inheritance catalog missing from FFDec's
@@ -177,6 +179,30 @@ public final class MovieSource {
                 command.remove("-debug=true");
                 command.addAll(List.of("-strict=true", "-debug=false", "-optimize=false", "-omit-trace-statements=false"));
             }
+            if (libraryClass != null) {
+                // ASC emits different self-class lookups for the entry script
+                // and an imported source unit. Compile the requested class as
+                // a dependency; retain the complete native output as evidence.
+                if (!libraryClass.matches("[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*")
+                        || libraryClass.equals("__SRPCompileEntry"))
+                    throw new IOException("Unsupported library class name");
+                int sourcePath = command.indexOf("-source-path");
+                if (sourcePath < 0 || sourcePath + 1 >= command.size())
+                    throw new IOException("Missing native source path");
+                Path root = Path.of(command.get(sourcePath + 1));
+                Path source = root.resolve(libraryClass.replace('.', '/') + ".as");
+                int sourceIndex = command.indexOf(source.toString());
+                if (sourceIndex < 0 || command.lastIndexOf(source.toString()) != sourceIndex)
+                    throw new IOException("Missing or ambiguous native source argument");
+                Path entry = root.resolve("__SRPCompileEntry.as");
+                String text = "package { import " + libraryClass + "; public class __SRPCompileEntry {"
+                    + " public var reference:Class = " + libraryClass.substring(libraryClass.lastIndexOf('.') + 1)
+                    + "; } }\n";
+                Files.writeString(entry, text, StandardOpenOption.CREATE_NEW);
+                Files.writeString(diagnostics.resolve("entry-source.as"), text);
+                command.set(sourceIndex, entry.toString());
+                command.remove("-include-inheritance-dependencies-only");
+            }
             command.add("-external-library-path=" + sdk.resolve("frameworks/libs/player/32.0/playerglobal.swc"));
             Files.write(diagnostics.resolve("compiler-arguments.txt"), command);
             Path errors = Files.createTempFile("srp-flex-", ".log");
@@ -189,7 +215,19 @@ public final class MovieSource {
                 if (process.waitFor() != 0) throw new MxmlcException(Files.readString(errors));
                 int output = args.indexOf("-output");
                 if (output < 0 || output + 1 >= args.size()) throw new IOException("Missing native compiler output path");
-                Files.copy(Path.of(args.get(output + 1)), diagnostics.resolve("native-compiler.swf"));
+                Path nativeFile = Path.of(args.get(output + 1));
+                Files.copy(nativeFile, diagnostics.resolve("native-compiler.swf"));
+                if (libraryClass != null) {
+                    // FFDec's importer expects the selected script last. Give
+                    // it a container with that exact native ABC, excluding the
+                    // temporary entry and linked dependency ABCs.
+                    try {
+                        selectNativeScript(nativeFile, diagnostics.resolve("native-script.swf"), libraryClass);
+                    } catch (Exception error) {
+                        throw new IOException("Cannot select native library script", error);
+                    }
+                    Files.copy(diagnostics.resolve("native-script.swf"), nativeFile, StandardCopyOption.REPLACE_EXISTING);
+                }
             } finally {
                 if (process != null) process.destroyForcibly();
                 Files.copy(errors, diagnostics.resolve("mxmlc.stderr"));
@@ -209,6 +247,23 @@ public final class MovieSource {
         }
         if (found == null || !found.isSimple) throw new IOException("Missing or non-simple script " + path);
         return found;
+    }
+
+    static void selectNativeScript(Path input, Path output, String cls) throws Exception {
+        SWF movie = read(input);
+        ScriptPack target = findScript(movie, cls);
+        if (target.scriptIndex != 0 || target.abc.script_info.size() != 1
+                || target.abc.findClassByName(cls) < 0)
+            throw new IOException("Native library ABC does not uniquely define the requested class");
+        byte[] emitted = abcBytes(target.abc);
+        for (MethodBody body : target.abc.bodies) exactCode(body);
+        for (var tag : new ArrayList<>(movie.getAbcList()))
+            if (tag.getABC() != target.abc) movie.removeTag((Tag)tag);
+        try (OutputStream out = Files.newOutputStream(output)) { movie.saveTo(out); }
+        SWF saved = read(output);
+        if (saved.getAbcList().size() != 1
+                || !Arrays.equals(emitted, abcBytes(findScript(saved, cls).abc)))
+            throw new IOException("Selected native library ABC changed during serialization");
     }
 
     static SWF importNative(Path originalFile, Path nativeFile, String cls) throws Exception {
@@ -1416,7 +1471,7 @@ public final class MovieSource {
     }
 
     static void run(String[] a) throws Exception {
-        if (a.length < 3) throw new IllegalArgumentException("export|snapshot|compile INPUT OUTPUT [CLASS SOURCE ffdec|flex SDK]");
+        if (a.length < 3) throw new IllegalArgumentException("export|snapshot|compile INPUT OUTPUT [CLASS SOURCE COMPILER SDK]");
         Configuration.parallelSpeedUp.set(false);
         if (a[0].equals("link-feature")) {
             if (a.length != 6) throw new IllegalArgumentException("link-feature ORIGINAL COMPILED OUTPUT CLASS PERMISSIONS.tsv");
@@ -1454,7 +1509,7 @@ public final class MovieSource {
                 break;
             }
             case "compile": {
-                if (a.length != 8) throw new IllegalArgumentException("compile INPUT OUTPUT CLASS SOURCE ffdec|flex SDK");
+                if (a.length != 8) throw new IllegalArgumentException("compile INPUT OUTPUT CLASS SOURCE ffdec|flex|flex-strict|flex-library SDK");
                 ScriptPack found = null;
                 for (ScriptPack pack : swf.getAS3Packs())
                     if (pack.getClassPath().toRawString().equals(a[3])) {
@@ -1464,8 +1519,9 @@ public final class MovieSource {
                 if (found == null) throw new IOException("Missing script " + a[3]);
                 Configuration.flexSdkLocation.set(a[7]);
                 As3ScriptReplacerInterface compiler;
-                if (a[6].equals("flex") || a[6].equals("flex-strict"))
-                    compiler = new FlexCompiler(a[7], Path.of(a[5]).resolveSibling(Path.of(a[5]).getFileName() + "-flex"), a[6].equals("flex-strict"));
+                if (a[6].equals("flex") || a[6].equals("flex-strict") || a[6].equals("flex-library"))
+                    compiler = new FlexCompiler(a[7], Path.of(a[5]).resolveSibling(Path.of(a[5]).getFileName() + "-flex"),
+                        !a[6].equals("flex"), a[6].equals("flex-library") ? a[3] : null);
                 else if (a[6].equals("ffdec")) compiler = As3ScriptReplacerFactory.createFFDec();
                 else throw new IllegalArgumentException("Unknown compiler " + a[6]);
                 try {
@@ -1473,7 +1529,8 @@ public final class MovieSource {
                         throw new IOException("Compiler refused " + a[3]);
                     ((Tag)found.abc.parentTag).setModified(true);
                     if (compiler instanceof FlexCompiler flex)
-                        swf = importNative(Path.of(a[1]), flex.diagnostics.resolve("native-compiler.swf"), a[3]);
+                        swf = importNative(Path.of(a[1]), flex.diagnostics.resolve(
+                            flex.libraryClass == null ? "native-compiler.swf" : "native-script.swf"), a[3]);
                     try (OutputStream out = Files.newOutputStream(output)) { swf.saveTo(out); }
                 } finally { compiler.deinitReplacement(found); }
                 // Reparse persisted bytes so reports cover what was actually written.

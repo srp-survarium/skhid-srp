@@ -1465,6 +1465,42 @@
       "pristine_sha256": "e5e1ff71dd5fb6d32ec24f2f11ea7d949e453e98801b74d45287c758322eef04",
       "reason": "Restore the explicit void constructor signature, identifier object keys, lexical assignments, implicit defaults and original register declaration order. Reconstruct the outer ammunition loop, its quick-slot continue path, nested ammunition-slot else branch, and item construction followed by return inside the loop; independently compiled and linked to the exact complete compressed release movie.",
       "result_sha256": "e87a5300ebc3fbae5465b5e733f21b5acc62e57757195704f0d07d4cb635d43b"
+    },
+    {
+      "class": "scaleform.clik.managers.DragManager",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/managers/DragManager.patch",
+      "patch_sha256": "db0a85c3b048a79c78443b35b21b794ccd9381aa9bcdf2391bd30378e00ff9c2",
+      "pristine_sha256": "7010ada3c129a832a5eea2e8291310d66c36f247cd53da94bbc7c526830f709c",
+      "reason": "Use strict imported-unit compilation to preserve native lexical self-class lookups, restore static field slot order, typed local defaults and lexical assignments. Real native compiler output links to the exact complete compressed release movie.",
+      "result_sha256": "3e07d2e936b31dc55b035fb8e4b2829644dcec41cb4952be7e2a4b11d7700ea5"
+    },
+    {
+      "class": "survarium.data.ItemData",
+      "compiler": "flex-library",
+      "patch": "survarium/data/ItemData.patch",
+      "patch_sha256": "f20a5df44d0b325870179a552d0c38f93e1eaa4942037a29deb0f3692acdaa86",
+      "pristine_sha256": "31cf753183eecfa3d7b8fac77f63f5407f2f4430cde2891597253f3099892202",
+      "reason": "Restore the lexical upgrades assignment and direct icon truth tests, using strict imported-unit compilation for the original self-class cast lookup. Real native compiler output links to the exact complete compressed release movie.",
+      "result_sha256": "371aa90e8722deb05fcbe2b934244d453a178f4969ed33f1584a6e3df4990c5f"
+    },
+    {
+      "class": "scaleform.clik.utils.Constraints",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/utils/Constraints.patch",
+      "patch_sha256": "42034b7f955b695fe0a6dd26c699b2a9439234b28fae5e0297c2e2a6726edaef",
+      "pristine_sha256": "a018780b843bbddddc64454a1f5f502bcb0d9ea5c4a5dce8e18cb47e6b12622a",
+      "reason": "Restore local declaration order and implicit typed defaults, direct typed assignment and lexical field writes, using strict imported-unit compilation for native self-class casts. Real native compiler output links to the exact complete compressed release movie.",
+      "result_sha256": "e35fbb29fa0968e6e18cc303975a1fa654a493f2d127e3bd6d41a664e427c4be"
+    },
+    {
+      "class": "scaleform.clik.core.CLIK",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/core/CLIK.patch",
+      "patch_sha256": "82ccb8bfc76cff75c1ae41b42b2ea9a115559dd4f4833d60cd3ebf6bf5a98b19",
+      "pristine_sha256": "8cdc020c9b94de5bb1679295c4bb9cfcdcff9a942e058d4bb264d60c04c36e72",
+      "reason": "Restore static field slot order, implicit wildcard initialization and typed local declarations, using strict imported-unit compilation for native self-class references. Real native compiler output links to the exact complete compressed release movie.",
+      "result_sha256": "db5cd67518317f5dcbd84722d2358826df2747d631ce9e036607e8d397bf6df6"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

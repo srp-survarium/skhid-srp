@@ -747,3 +747,37 @@ the 183-entry manifest again produces
 `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
 with one changed method and identical non-code content. Its new manifest
 identities are recorded separately from the previous native-game test.
+
+## Imported-unit compiler profile
+
+The `flex-library` profile uses the strict compiler settings with a temporary
+entry class that references the requested source class. It disables the
+inheritance-only linking option so the native output contains the imported
+source unit. This makes ASC emit its native lexical self-class lookups instead
+of the entry-script global-slot accesses that prevented several classes from
+matching. The layout linker does not rewrite these lookup instructions.
+
+The complete native compiler output, temporary entry source, and selected native
+script are retained. Selection requires a unique class in a single-script ABC
+and checks its complete bytes again after serialization. The temporary entry
+and other linked dependencies are excluded from the imported result. Original
+method bodies are never substituted.
+
+All 16 tests pass, including the two real-compiler integration fixtures. The new
+fixture reproduces the entry-script mismatch with a self-class cast, rebuilds
+the same reference movie exactly through imported-unit compilation, and rejects
+a deliberate executable-code change. Complete movie equality also checks that
+the temporary entry does not leak into the output.
+
+`ItemData` and `Constraints` now rebuild exactly using their reviewed source
+repairs with this profile. `DragManager` additionally required its static field
+order restored. `CLIK` needed an implicit wildcard default and its original
+static field order. All four pass the complete compressed release-movie check.
+The manifest contains 187 reconstructed classes, bringing the accumulated
+individual-script evidence to 831 of 878. Whole-tree reconstruction remains
+incomplete.
+
+The premium example rebuilt against this manifest retains its tested movie hash
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+with one changed method and identical non-code content. The new identities are
+recorded as a subsequent rebuild rather than a new game test.
