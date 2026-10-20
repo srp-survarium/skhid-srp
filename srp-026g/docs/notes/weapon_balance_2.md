@@ -38,10 +38,12 @@ resources.db patch (`scripts/content-edit/weapon-balance-2.json`).
 
 ## Socom16
 
-- **Decision (the owner, 2026-10-20):** "and also Socom16 75 → 50" (0.28a2's cut).
-- **Values:** `bullet_damage` 0.8 -> 0.5 (live is 0.26g's 0.8, not 0.75: 0.27d0 had
+- **Request (the owner, 2026-10-20):** "and also Socom16 75 → 50" (0.28a2's cut).
+- **Decision (the owner, 2026-10-20), shown the history below:** "seems like socom is
+  nerfed too much, let's make it 60" (0.31a2's value).
+- **Values:** `bullet_damage` 0.8 -> 0.6 (live is 0.26g's 0.8, not 0.75: 0.27d0 had
   already cut it to 0.75; weapon balance 1 did not touch it); the card's damage
-  (prop 1) 80 -> 50. Piercing stays 0.45: 0.28a2 also cut it to 0.35, but the owner
+  (prop 1) 80 -> 60. Piercing stays 0.45: 0.28a2 also cut it to 0.35, but the owner
   named the damage only.
 - **In the builds at hand:**
 
@@ -53,7 +55,7 @@ resources.db patch (`scripts/content-edit/weapon-balance-2.json`).
   | 0.28d0 | 0.50 | 0.35 |
   | 0.31a2 | 0.60 | 0.40 |
   | 0.46c2 | 0.65 | none (`material_pierce` 6) |
-  | **here** | 0.50 | 0.45 |
+  | **here** | 0.60 | 0.45 |
 
 ## Who computes it, release
 
