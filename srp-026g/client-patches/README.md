@@ -572,6 +572,45 @@ for the next resource patch (built on `1091a19d…`, the craft window's movie: `
 deterministic with FFDec 25.1.3); this does not change the executable or reserve a
 release revision.
 
+## Squads of two
+
+`squad_two_026g.py` (#173; the owner's of 2026-10-20: "there shouldn't even be
+a button to accept a third person"): the squad panel has two places, and no
+lobby screen offers "Invite to squad" once a squad has two. Three methods of
+`survarium.friends.SquadList` change, every other method byte for byte:
+
+- `set_squad_player`: `_squadList.length = 3` becomes `= 2` (`pushbyte 3` →
+  `pushbyte 2`): with both places taken there is no empty row, whose click
+  opened the panel's player search (the commander's invite there);
+- `updateSize`: `PlayerInfo.isSquadFull = count == 3` becomes `count >= 2`
+  (`pushbyte 2; greaterequals`). The other two ways to invite read it: the
+  friends list's right-click menu (`FriendListRender`, `askToJoinSquad`) and
+  the chat's (`LobbyChat`, a name clicked) list "Invite to squad" only for a
+  commander whose squad is not full;
+- `addFriend` (a player picked in the panel's search, which may still be open
+  from before the second member came): `if (itemData)` becomes `if (itemData
+  & !PlayerInfo.isSquadFull)`, five instructions, no jump crossed; the search
+  closes as before.
+
+Nothing else in the movie invites (`LobbyChatTab.addToSquad` is never
+called; the results screen, player info and the Tab list have no squad
+invite). The 2 is the movie's own: the movie gets no squad size from the game
+(`SRP_SQUAD_SIZE` is the server's). An invite already shown when the inviter's
+squad fills keeps its Accept (the invite carries the sender only); the server
+refuses it (`SRP_SQUAD_FULL_TEXT`). Accept is off, as before, while the invited
+player is in a squad (`SquadInviteList` / `BottomPanel.onInviteItemClick`).
+
+The input is the movie of Optics (`88fa657a…`); the build is deterministic
+(`ee6ad512…` with FFDec 25.1.3):
+
+```sh
+# development only (a step of build_lobby_026g.py, which builds the movie that ships)
+python squad_two_026g.py <lobby_menu.swf> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar --step-only
+```
+
+Tests: `python -m unittest test_squad_two`. Not yet checked in the game; not
+in a release yet.
+
 ## Building the lobby movie (one driver)
 
 The lobby movie is one file (`flash_movies/lobby_menu.swf`), and a patch that
@@ -585,7 +624,8 @@ the repository holds, in order, as `patch_026g.py` does for the exe:
 3. the exchange window's amounts (`exchange_update_026g.py`, #214);
 4. Buy on owned items (`buy_modified_026g.py`, #215);
 5. the craft window's menu and buttons (`craft_menu_026g.py`, #216);
-6. Optics in a weapon's menu (`scope_context_menu_026g.py`, #217).
+6. Optics in a weapon's menu (`scope_context_menu_026g.py`, #217);
+7. squads of two (`squad_two_026g.py`, #173).
 
 A change of a step's source is built in by building again; a new lobby change
 is a new entry of `STEPS`. Never ship a movie made by running one step alone
@@ -607,7 +647,7 @@ the base (a change of theirs needs a new base); the exchange's later changes
 are a step.
 
 Since the rooms' window under a match's results (2026-10-20): `RESULT_SHA256` is
-`57f73166…` (the owner checked `d41b9655…` in the game; then #219's review fixes); with #211 (Leave room / Leave queue, the yellow tab) `a56cd0ed…` (the owner checked `d7907536…`; then the review fixes); with #209 (why a waiting member cannot go into its room's match, `J;-1;<why>`) `57258f9e…`, not yet checked in the game; with the remembered create window (the last room made by hand, `S1;F`) `88fa657a…`, not yet checked in the game. The first build of 2026-10-20 (`main` with
+`57f73166…` (the owner checked `d41b9655…` in the game; then #219's review fixes); with #211 (Leave room / Leave queue, the yellow tab) `a56cd0ed…` (the owner checked `d7907536…`; then the review fixes); with #209 (why a waiting member cannot go into its room's match, `J;-1;<why>`) `57258f9e…`, not yet checked in the game; with the remembered create window (the last room made by hand, `S1;F`) `88fa657a…`, not yet checked in the game; with squads of two (#173) `ee6ad512…`, not yet checked in the game. The first build of 2026-10-20 (`main` with
 #212): sha256 `8841ba5c…`, deterministic
 with FFDec 25.1.3. Its 881 scripts decompile byte for byte to those of the
 movie the owner tested with #212 (`ed14345f…`, made the long way: the rooms

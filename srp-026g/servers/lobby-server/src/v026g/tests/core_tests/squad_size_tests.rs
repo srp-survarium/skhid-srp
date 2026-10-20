@@ -7,10 +7,10 @@ use crate::v026g::{parse_squad_size, squad_full_text_for};
 use survarium::v026g::lobby::requests::id;
 
 /// A lobby whose squads hold `size` players.
-fn world_of(size: usize, gather: Duration) -> World {
+fn world_of(size: usize) -> World {
     let mut settings = Settings::local("127.0.0.1:0");
     settings.squad_size = size;
-    World::with_settings(gather, settings)
+    World::with_settings(settings)
 }
 
 /// `inviter` invites `invited` (by name); the invite's id as `invited`
@@ -73,13 +73,15 @@ fn the_size_is_three_unless_the_server_is_told_otherwise() {
         assert_eq!(parse_squad_size(wrong), None, "{wrong}");
     }
     assert_eq!(squad_full_text_for(2), "Squads are limited to 2 players.");
-    let world = World::new(Duration::ZERO);
+    let world = World::new();
     assert_eq!(world.store.squads().size(), 3);
 }
 
+/// Alice's Play takes Bob into a room, Carol's Play goes into the same;
+/// their match puts the squad on one side, Carol on the other.
 #[test]
-fn with_squads_of_two_two_players_squad_and_queue_together() {
-    let mut world = world_of(2, Duration::ZERO);
+fn with_squads_of_two_two_players_squad_and_play_together() {
+    let mut world = world_of(2);
     assert_eq!(world.store.squads().size(), 2);
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
@@ -89,10 +91,12 @@ fn with_squads_of_two_two_players_squad_and_queue_together() {
     assert_eq!(members(&world, alice), [alice_id, bob_id]);
     assert_eq!(denial(&world.take(alice), id::PROFILE), None);
 
-    world.ask(bob, request::play(1));
     world.ask(alice, request::play(1));
     world.ask(carol, request::play(1));
-    world.advance(Duration::from_secs(2));
+    let room = world.core.rooms.key_of(alice_id).expect("Alice's room");
+    assert_eq!(world.core.rooms.key_of(bob_id), Some(room));
+    assert_eq!(world.core.rooms.key_of(world.ids[carol].0), Some(room));
+    world.advance(PLAY_TO_MATCH);
     let (alice_match, alice_team) = sent_to_match(&world.take(alice)).expect("Alice's match");
     let (bob_match, bob_team) = sent_to_match(&world.take(bob)).expect("Bob's match");
     let (carol_match, carol_team) = sent_to_match(&world.take(carol)).expect("Carol's match");
@@ -104,7 +108,7 @@ fn with_squads_of_two_two_players_squad_and_queue_together() {
 
 #[test]
 fn with_squads_of_two_a_third_invite_is_refused_and_its_sender_told() {
-    let mut world = world_of(2, Duration::from_secs(600));
+    let mut world = world_of(2);
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
     let carol = world.connect("Carol");
@@ -151,7 +155,7 @@ fn with_squads_of_two_a_third_invite_is_refused_and_its_sender_told() {
 /// after the other): only the first is added, and she and Carol are told.
 #[test]
 fn with_squads_of_two_two_invites_accepted_at_once_add_one() {
-    let mut world = world_of(2, Duration::from_secs(600));
+    let mut world = world_of(2);
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
     let carol = world.connect("Carol");
@@ -192,7 +196,7 @@ fn with_squads_of_two_two_invites_accepted_at_once_add_one() {
 #[test]
 fn with_squads_of_two_an_acceptance_after_the_squad_filled_is_refused() {
     for answer_first in [false, true] {
-        let mut world = world_of(2, Duration::from_secs(600));
+        let mut world = world_of(2);
         let alice = world.connect("Alice");
         let bob = world.connect("Bob");
         let carol = world.connect("Carol");
@@ -226,7 +230,7 @@ fn with_squads_of_two_an_acceptance_after_the_squad_filled_is_refused() {
 
 #[test]
 fn with_squads_of_two_a_member_leaving_frees_the_place() {
-    let mut world = world_of(2, Duration::from_secs(600));
+    let mut world = world_of(2);
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
     let carol = world.connect("Carol");
@@ -243,7 +247,7 @@ fn with_squads_of_two_a_member_leaving_frees_the_place() {
 
 #[test]
 fn with_squads_of_three_a_third_joins_and_a_fourth_is_refused() {
-    let mut world = World::new(Duration::from_secs(600));
+    let mut world = World::new();
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
     let carol = world.connect("Carol");

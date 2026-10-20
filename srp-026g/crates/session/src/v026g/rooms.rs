@@ -385,33 +385,62 @@ impl Rooms {
         key: u32,
         now: Instant,
     ) -> Result<(), Refused> {
+        self.join_with(account_id, gear, &[], key, now)
+    }
+
+    /// [`Self::join`] with `mates`, each with its equipment level: the
+    /// members of the account's squad who come along (the owner's of
+    /// 2026-10-20: squads of two play together in rooms). All of them or
+    /// none: the room must let each in (not turned out, its max level) and
+    /// have a place for each one not in it yet; the PIN is the account's,
+    /// asked only when the account is not in the room itself. Each comer
+    /// leaves the room and the queue it was in.
+    pub fn join_with(
+        &mut self,
+        account_id: u32,
+        gear: u8,
+        mates: &[(u32, u8)],
+        key: u32,
+        now: Instant,
+    ) -> Result<(), Refused> {
         let pin = self.take_pin(account_id, now);
         let room = self.rooms.get(&key).ok_or(Refused::Unknown)?;
-        if room.members.contains(&account_id) {
+        let coming: Vec<(u32, u8)> = std::iter::once((account_id, gear))
+            .chain(mates.iter().copied())
+            .filter(|(member, _)| !room.members.contains(member))
+            .collect();
+        if coming.is_empty() {
             return Ok(());
         }
-        if room.kicked.contains(&account_id) {
+        if coming
+            .iter()
+            .any(|(member, _)| room.kicked.contains(member))
+        {
             return Err(Refused::Kicked);
         }
-        if room.spec.pin.is_some_and(|wanted| pin != Some(wanted)) {
+        if !room.members.contains(&account_id)
+            && room.spec.pin.is_some_and(|wanted| pin != Some(wanted))
+        {
             return Err(Refused::WrongPin);
         }
-        if !room.lets_in(gear) {
+        if coming.iter().any(|(_, gear)| !room.lets_in(*gear)) {
             return Err(Refused::GearTooHigh);
         }
-        if room.is_full() {
+        if room.members.len() + coming.len() > room.capacity() {
             return Err(Refused::Full);
         }
-        self.leave(account_id);
-        let serial = self.next_serial();
-        let Some(room) = self.rooms.get_mut(&key) else {
-            return Err(Refused::Unknown);
-        };
-        room.members.push(account_id);
-        room.serial = serial;
-        self.of_account.insert(account_id, key);
-        // In a room: no queue any more.
-        self.dequeue(account_id);
+        for (member, _) in coming {
+            self.leave(member);
+            let serial = self.next_serial();
+            let Some(room) = self.rooms.get_mut(&key) else {
+                return Err(Refused::Unknown);
+            };
+            room.members.push(member);
+            room.serial = serial;
+            self.of_account.insert(member, key);
+            // In a room: no queue any more.
+            self.dequeue(member);
+        }
         Ok(())
     }
 
@@ -1124,6 +1153,59 @@ mod tests {
         assert_eq!((a.len(), b.len()), (2, 2));
         let [a, b] = sides(&[(vec![1, 2], 20)], 8, 10);
         assert_eq!((a.len(), b.len()), (1, 1));
+    }
+
+    /// A squad joins whole or not at all: a place for each one not in the
+    /// room yet, each let in; the PIN is the one who leads it.
+    #[test]
+    fn a_squad_joins_whole_or_not_at_all() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let key = room_of(&mut rooms, 1, 6, Some(1234), now);
+        for account in 2..=11 {
+            rooms.give_pin(account, 1234, now);
+            rooms.join(account, 0, key, now).unwrap();
+        }
+        // One place left: a squad of two is refused, nobody of it moves.
+        let other = room_of(&mut rooms, 20, 6, None, now);
+        rooms.join(21, 0, other, now).unwrap();
+        rooms.give_pin(20, 1234, now);
+        assert_eq!(
+            rooms.join_with(20, 0, &[(21, 0)], key, now),
+            Err(Refused::Full)
+        );
+        assert_eq!(rooms.key_of(20), Some(other));
+        assert_eq!(rooms.key_of(21), Some(other));
+        // A place frees: both come on the leader's PIN, out of their room.
+        rooms.leave(11);
+        rooms.give_pin(20, 1234, now);
+        rooms.join_with(20, 0, &[(21, 0)], key, now).unwrap();
+        assert_eq!(rooms.get(key).unwrap().members.len(), 12);
+        assert!(rooms.get(other).is_none());
+        // A mate already in the room takes no place; one turned out, or
+        // over the max level, keeps the squad out.
+        let capped = rooms
+            .create(
+                40,
+                3,
+                Spec {
+                    max_level: 5,
+                    ..spec(6, None)
+                },
+                &POOL,
+                &POOL,
+                50,
+                now,
+                &mut first,
+            )
+            .unwrap();
+        rooms.join(41, 5, capped, now).unwrap();
+        rooms.join_with(40, 3, &[(41, 5)], capped, now).unwrap();
+        assert_eq!(
+            rooms.join_with(42, 3, &[(43, 6)], capped, now),
+            Err(Refused::GearTooHigh)
+        );
+        assert_eq!(rooms.key_of(42), None);
     }
 
     #[test]

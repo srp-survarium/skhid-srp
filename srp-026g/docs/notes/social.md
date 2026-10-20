@@ -579,6 +579,23 @@ The owner's rule (2026-10-17): squads of two, not of three. Squads were
 switched off because squads of three put strong players on one side; two
 are fine, with no change to how the sides are made (`matchmaking.md` §8.5).
 
+The owner's of 2026-10-20, with rooms: "can we update UI to only allow for
+2 people in a squad and we will allow squads again (it is fine if it joins
+a room and disbalance it by making one team two people more)"; "by UI i
+mean there shouldn't even be a button to accept a third person".
+
+- **Live:** `SRP_SQUADS=on`, `SRP_SQUAD_SIZE=2` (set at the release).
+- **The lobby movie** (`client-patches/squad_two_026g.py`, a step of
+  `build_lobby_026g.py`): the squad panel has 2 places; with 2 in the
+  squad no Invite anywhere (the panel's empty row, the friends list's and
+  the chat names' menus). The 2 is the movie's own: the game gives the
+  movie no squad size, so a server of `SRP_SQUAD_SIZE=3` still shows 2.
+- **Accept:** off while the invited player is in a squad (the game's own).
+  An invite already on screen when the inviter's squad filled keeps its
+  Accept (the invite carries no size); the server refuses that acceptance
+  with the message below. The server's refusals stay the safety net.
+- **In rooms:** `rooms.md` (Squads).
+
 - **The setting.** `SRP_SQUAD_SIZE` is 2 or 3, default 3 (the client keeps
   three members, `MAX_SQUAD_MEMBERS`; it is today's behaviour, and the live
   server sets 2 with `SRP_SQUADS=on`). Anything else is logged and 3 is
@@ -593,8 +610,9 @@ are fine, with no change to how the sides are made (`matchmaking.md` §8.5).
   as for squads off: `SRP_SQUAD_FULL_TEXT`, a key of the game or a
   sentence of up to 255 bytes (a longer or empty one is ignored), by
   default "Squads are limited to 2 players." (the number is the size).
-  The game has no text of its own for it (9.2). The client's invite
-  button stays.
+  The game has no text of its own for it (9.2). A game with the lobby
+  movie of squads of two shows no invite once its squad has two; an older
+  movie, or a size of 3, still offers it.
 - **Races.** Invites go out while the squad has room, so two can be out at
   once (Alice invites Bob and Carol before either is in):
   - The second acceptance (`50` answer 0, or the `4D` type 3 that follows
@@ -616,8 +634,9 @@ are fine, with no change to how the sides are made (`matchmaking.md` §8.5).
 
 Tests: `session::squads` (`a_squad_of_two_takes_nobody_more`,
 `two_invites_added_from_two_threads_make_one_squad_of_two`,
-`a_member_leaving_frees_its_place`, `the_size_is_two_or_three`) and the
-lobby's `core_tests::squad_size_tests`.
+`a_member_leaving_frees_its_place`, `the_size_is_two_or_three`), the
+lobby's `core_tests::squad_size_tests` and `core_tests::squad_rooms_tests`,
+and `client-patches/test_squad_two.py`.
 
 ## Correction (2026-10-12): the order of an accepted squad invite
 

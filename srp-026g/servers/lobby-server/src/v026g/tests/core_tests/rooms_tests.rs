@@ -17,19 +17,19 @@ use crate::v026g::LiveView;
 
 /// Fields of the state's header (`S1;R;<key>;<level>;<max level>;<size>;
 /// <wait>;<phase>;<secs>;<owner>;<pool>;<members>;<serial>;<pin>`).
-const KEY: usize = 2;
+pub(super) const KEY: usize = 2;
 const LEVEL: usize = 3;
 const PHASE: usize = 7;
 const OWNER: usize = 9;
-const MEMBERS: usize = 11;
+pub(super) const MEMBERS: usize = 11;
 const SERIAL: usize = 12;
 const NEXT: usize = 14;
 /// From two players to the match: the vote's 15 s, the wait of [`spec`]
 /// (15 s), and a little more.
-const VOTE_AND_WAIT: Duration = Duration::from_secs(32);
+pub(super) const VOTE_AND_WAIT: Duration = Duration::from_secs(32);
 
 /// The names of the rows of the one answer to a request at `start`.
-fn rows(world: &mut World, index: usize, start: u32, count: u8) -> Vec<String> {
+pub(super) fn rows(world: &mut World, index: usize, start: u32, count: u8) -> Vec<String> {
     let answers = answered(world, index, start, count);
     let [rows] = &answers[..] else {
         panic!("not one answer: {answers:?}");
@@ -41,12 +41,12 @@ fn rows(world: &mut World, index: usize, start: u32, count: u8) -> Vec<String> {
     rows.iter().map(|(name, _)| name.clone()).collect()
 }
 
-fn state(world: &mut World, index: usize) -> Vec<String> {
+pub(super) fn state(world: &mut World, index: usize) -> Vec<String> {
     rows(world, index, ROOM_STATE, 1)
 }
 
 /// The fields of the state's header.
-fn header(state: &[String]) -> Vec<String> {
+pub(super) fn header(state: &[String]) -> Vec<String> {
     state[0].split(';').map(str::to_owned).collect()
 }
 

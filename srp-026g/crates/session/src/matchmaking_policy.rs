@@ -99,7 +99,23 @@ pub fn place_joiner(
             worth(&sides, side),
         )
     };
-    let side = usize::from(key(1) < key(0));
+    place_on(sides, joiner, usize::from(key(1) < key(0)), rule)
+}
+
+/// [`place_joiner`] on `side` (0 or 1), the caller's choice: a squad's
+/// member goes to its mate's side (the owner's of 2026-10-20: a squad stays
+/// on one side). Only that side being full (`capacity`) with it, and the
+/// match's `room`, stop it.
+pub fn place_on(
+    sides: [Worth; 2],
+    joiner: Worth,
+    side: usize,
+    rule: &LateRule,
+) -> Option<LatePlacement> {
+    let worth = |sides: &[Worth; 2], side: usize| {
+        rule.player_value * sides[side].players as i64 + sides[side].strength + rule.lead[side]
+    };
+    let side = side.min(1);
     let mut after = sides;
     after[side].players += joiner.players;
     after[side].strength += joiner.strength;
@@ -211,6 +227,31 @@ mod tests {
         // Nobody to place.
         assert_eq!(
             place_joiner([side(3, 0), side(2, 0)], Worth::default(), None, &rule()),
+            None
+        );
+    }
+
+    /// A squad of two goes in whole on the side with fewer players, up to
+    /// that side's capacity; one whose mate plays goes to the mate's side.
+    #[test]
+    fn a_squad_goes_in_whole_on_one_side() {
+        let two = side(2, 0);
+        let small = LateRule {
+            capacity: 4,
+            ..rule()
+        };
+        let placed = place_joiner([side(3, 0), side(2, 0)], two, None, &small).unwrap();
+        assert_eq!(placed.sides, [side(3, 0), side(4, 0)]);
+        // Three a side of four: no side takes two.
+        assert_eq!(
+            place_joiner([side(3, 0), side(3, 0)], two, None, &small),
+            None
+        );
+        // To the mate's side, more players and all, while it has a place.
+        let placed = place_on([side(2, 0), side(3, 0)], side(1, 0), 1, &small).unwrap();
+        assert_eq!(placed.assignments, [(0, 1)]);
+        assert_eq!(
+            place_on([side(2, 0), side(4, 0)], side(1, 0), 1, &small),
             None
         );
     }

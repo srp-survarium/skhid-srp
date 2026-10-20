@@ -1752,12 +1752,17 @@ fn room_rules(lang: Lang, squads: bool) -> String {
             "Команди вирівнюються за спорядженням, рівнем і результатами минулих матчів.",
         ),
     ];
-    if !squads {
-        items.push(lang.tr(
+    items.push(if squads {
+        lang.tr(
+            "A squad plays on one side: its commander's Play or Join takes it along.",
+            "Загін грає на одній стороні: «Грати» чи «Увійти» його командира бере загін із собою.",
+        )
+    } else {
+        lang.tr(
             "Squads are off: everyone plays alone.",
             "Загони вимкнено: кожен грає сам.",
-        ));
-    }
+        )
+    });
     items
         .iter()
         .map(|item| format!("<li>{item}</li>"))
@@ -2912,6 +2917,8 @@ mod tests {
 
         let squads = room_rules(Lang::En, true);
         assert!(!squads.contains("Squads are off"));
+        assert!(squads.contains("A squad plays on one side"));
+        assert_eq!(squads.matches("<li>").count(), en.matches("<li>").count());
 
         let uk = room_rules(Lang::Uk, false);
         assert!(uk.contains("15 с голосують за одну з 3 мап"));

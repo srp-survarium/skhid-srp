@@ -37,14 +37,17 @@ import craft_menu_026g
 import exchange_update_026g
 import rooms_026g
 import scope_context_menu_026g
+import squad_two_026g
 
 # lobby_menu.swf of resources.db.patch_23 (revision 23): the lobby with the
 # matches list, the exchange and the login hint, before the rooms.
 BASE_SHA256 = "12f0ee1dae4301d18405e956678ad1c9aa2c975ce2639c408722f5708548856b"
 RETAIL_SHA256 = "ab6f22d80d32fa4928403d19e3e054bd5316b2370e2550cefec0c9d22b959850"
 # The movie the steps make (FFDec 25.1.3). Set it anew, on purpose, when a
-# step changes. 88fa657a (2026-10-20): the create window starts with the
-# player's last room made by hand (the server's `S1;F`);
+# step changes. ee6ad512 (2026-10-20, #173): squads of two, the squad
+# panel's two places and no "Invite to squad" once full (squad_two_026g.py);
+# NOT yet checked in the game. Before it, 88fa657a (2026-10-20): the create
+# window starts with the player's last room made by hand (the server's `S1;F`);
 # NOT yet checked in the game. Before it, 57258f9e (#209,
 # 2026-10-20): the rooms window tells a member
 # waiting during its room's match why it cannot go in (`J;-1;<why>`); NOT yet
@@ -53,7 +56,7 @@ RETAIL_SHA256 = "ab6f22d80d32fa4928403d19e3e054bd5316b2370e2550cefec0c9d22b95985
 # and the yellow tab in a room or a queue (#211: the owner checked d7907536;
 # then the review fixes: no double-click into Play, Leave on whatever the
 # game says of Play).
-RESULT_SHA256 = "88fa657a48250bd2729c875ff86f56c20a8acdc42c7ba06bd41fbf11161db1c9"
+RESULT_SHA256 = "ee6ad5123025d611840e7aed7d26ce72bdd1f6cfaf2dbc83d6f0d2723ee74fee"
 # Every lobby change, in the order they are built (each on the one before).
 STEPS = [
     ("the rooms window (rooms/SrpRooms.as)", rooms_026g),
@@ -62,6 +65,7 @@ STEPS = [
     ("Buy on owned items (#215)", buy_modified_026g),
     ("the craft window's menu and buttons (#216)", craft_menu_026g),
     ("Optics in a weapon's menu (#217)", scope_context_menu_026g),
+    ("squads of two: no third place, no invite once full (#173)", squad_two_026g),
 ]
 
 

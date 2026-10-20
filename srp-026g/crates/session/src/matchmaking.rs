@@ -247,16 +247,34 @@ impl Matchmaking {
         team: u8,
         reserve: impl FnOnce(usize, &[Seat]) -> bool,
     ) -> bool {
+        self.append_squad(match_id, &[player], team, 0, reserve)
+    }
+
+    /// [`Self::append_player`] for the members of a squad together, all
+    /// or none, on one `team` with the match's squad id `squad` (0: none):
+    /// a room's squad that comes while its match is played (the owner's of
+    /// 2026-10-20).
+    pub fn append_squad(
+        &self,
+        match_id: u32,
+        players: &[Player],
+        team: u8,
+        squad: u8,
+        reserve: impl FnOnce(usize, &[Seat]) -> bool,
+    ) -> bool {
         let mut inner = self.inner.locked();
         let queued = inner.queue.iter().any(|group| {
             group.players.iter().any(|waiting| {
-                waiting.account_id == player.account_id || waiting.session_id == player.session_id
+                players.iter().any(|player| {
+                    waiting.account_id == player.account_id
+                        || waiting.session_id == player.session_id
+                })
             })
         });
         if queued {
             return false;
         }
-        let Some((first, seats)) = inner.late_seat(match_id, player, team) else {
+        let Some((first, seats)) = inner.late_seats(match_id, players, team, squad) else {
             return false;
         };
         if !reserve(first, &seats) {
@@ -588,30 +606,45 @@ impl Inner {
         self.queue.iter().map(|group| group.players.len()).sum()
     }
 
-    /// The roster place `player` would take on `team` in a match being
-    /// played, and its index; `None` when the match takes nobody: it is no
-    /// match of growing rosters, its teams are fixed, `team` is over 1, the
-    /// player has a place in a match (one it gave up aside: it comes again
-    /// as a new place), or there is no room.
-    fn late_seat(&self, match_id: u32, player: Player, team: u8) -> Option<(usize, Vec<Seat>)> {
-        if team > 1
+    /// The roster places `players` would take on `team` in a match being
+    /// played, and the first's index; `None` when the match takes them
+    /// not: it is no match of growing rosters, its teams are fixed, `team`
+    /// is over 1, a player has a place in a match (one it gave up aside: it
+    /// comes again as a new place) or is named twice, or there is no room
+    /// for all.
+    fn late_seats(
+        &self,
+        match_id: u32,
+        players: &[Player],
+        team: u8,
+        squad: u8,
+    ) -> Option<(usize, Vec<Seat>)> {
+        let mut accounts = HashSet::new();
+        if players.is_empty()
+            || team > 1
             || self.fixed_teams.contains(&match_id)
             || self.match_pools.get(&match_id) != Some(&QueuePool::GrowingRoster)
-            || self.live_seat_of_account(player.account_id).is_some()
+            || players.iter().any(|player| {
+                !accounts.insert(player.account_id)
+                    || self.live_seat_of_account(player.account_id).is_some()
+            })
         {
             return None;
         }
         let roster = self.matches.get(&match_id)?;
         let first = roster.len();
-        if first >= MAX_PLAYERS_PER_MATCH {
+        if first + players.len() > MAX_PLAYERS_PER_MATCH {
             return None;
         }
-        let seat = Seat {
-            player,
-            team,
-            squad: 0,
-        };
-        Some((first, vec![seat]))
+        let seats = players
+            .iter()
+            .map(|&player| Seat {
+                player,
+                team,
+                squad,
+            })
+            .collect();
+        Some((first, seats))
     }
 
     /// The account's seat, unless it was given up.
@@ -850,6 +883,36 @@ mod tests {
         assert_eq!(mm.match_count(), 1);
         mm.end_match(match_id);
         assert_eq!(mm.queued_players(), 0);
+    }
+
+    /// A room's squad that comes while its match is played is seated whole
+    /// on one team with its squad id, or not at all.
+    #[test]
+    fn a_squad_is_seated_into_a_match_being_played_whole() {
+        let mm = Matchmaking::new(Duration::ZERO);
+        let now = Instant::now();
+        let id = mm
+            .seat_sides_in_pool(
+                [&[player(1)], &[player(2)]],
+                now,
+                QueuePool::GrowingRoster,
+                &|_| 0,
+            )
+            .expect("seated");
+        // One of it seated already: neither comes.
+        assert!(mm.append_player(id, player(3), 0, |_, _| true));
+        assert!(!mm.append_squad(id, &[player(3), player(4)], 1, 1, |_, _| panic!("seated")));
+        assert!(!mm.append_squad(id, &[player(4), player(4)], 1, 1, |_, _| panic!("twice")));
+        assert!(
+            mm.append_squad(id, &[player(4), player(5)], 1, 7, |first, seats| {
+                assert_eq!(first, 3);
+                assert_eq!(seats.len(), 2);
+                assert!(seats.iter().all(|seat| seat.team == 1 && seat.squad == 7));
+                true
+            })
+        );
+        assert_eq!(mm.seat(4), Some((id, 3)));
+        assert_eq!(mm.seat(5), Some((id, 4)));
     }
 
     /// A room's member who comes while its match is played is seated in
