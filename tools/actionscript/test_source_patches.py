@@ -59,6 +59,9 @@ class SourcePatchTests(unittest.TestCase):
             manifest.write_text(json.dumps(dict(spec, movie_sha256='different')))
             with self.assertRaises(ValueError):
                 patches.load_sources(manifest, root, pinned)
+            manifest.write_text(json.dumps(dict(spec, classes=[dict(entry, compiler='unknown')])))
+            with self.assertRaisesRegex(ValueError, 'compiler'):
+                patches.load_sources(manifest, root, pinned)
 
 
 if __name__ == '__main__':

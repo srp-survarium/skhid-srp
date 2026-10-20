@@ -220,3 +220,19 @@ Four source failures remain in this targeted run: `SrpRooms` has missing return
 paths and strict numeric-to-string errors, `AmmoShareControll` contains a
 decompiler goto marker, `ManageClanWindow` contains escaped keyword-property
 syntax, and `ItemCompare` has an implicit downcast rejected by strict Flex.
+
+## Authored room source recovery
+
+Recompiling the repository's `client-patches/rooms/SrpRooms.as` with FFDec 25.1.3
+reproduces **every original ABC block directly**, with zero changed method
+records. The final reassembled and recompressed movie is byte-for-byte identical
+to the pinned release. A per-class diff now records that recovery over the
+pristine decompile. This restores authored declarations and explicit `String`
+calls lost by decompilation; it does not use old executable records to replace
+compiler output. The reconstruction profile records FFDec for this class and
+strict Flex for `MessagePremium`.
+
+Private candidate corrections also make `AmmoShareControll`, `ManageClanWindow`
+and `ItemCompare` compile, by reconstructing a loop break, removing FFDec's
+keyword escape markers, and making the downcast explicit. All three still fail
+exact linking. They have not been added to the tracked reconstruction set.

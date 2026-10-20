@@ -199,11 +199,21 @@ corrected inputs and their hashes. `link_layout.py` independently reapplies the
 saved patches and verifies the compiler input before linking. The immutable
 `pristine/` directory remains the reference for every correction.
 
-The first correction, `MessagePremium`, reproduces the complete compressed
+The correction for `MessagePremium` reproduces the complete compressed
 revision 24 movie exactly after compilation and layout linking. Its changes
 recover implicit local initialization, declaration order, identifier object
 keys, direct truth tests and typed assignments. Explicit casts on external-call
-arguments remain present. This proves one corrected class, not the whole tree.
+arguments remain present. `SrpRooms` uses its repository-authored source and
+FFDec 25.1.3; it reproduces the original ABCs directly, and the complete compressed
+movie after reassembly. Its explicit conversion calls and original declarations
+avoid defects introduced by decompilation.
+
+Use `--compiler reconstruction` with the pinned patch manifest to select these
+per-class compilers in one measurement. Classes without an override use
+`flex-strict`; every report row records the compiler actually used. Explicit
+`--compiler ffdec`, `flex` or `flex-strict` still selects that compiler for every
+class, for comparison experiments. The per-class profile currently proves two
+reconstructed classes, not the whole tree.
 
 ## Remaining work
 

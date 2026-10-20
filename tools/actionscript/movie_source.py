@@ -210,7 +210,8 @@ def main():
     measure = commands.add_parser("measure", help="Independently recompile each selected class from a fresh original")
     measure.add_argument("project", type=Path)
     measure.add_argument("output", type=Path)
-    measure.add_argument("--compiler", choices=("ffdec", "flex", "flex-strict"), required=True)
+    measure.add_argument("--compiler", choices=("ffdec", "flex", "flex-strict", "reconstruction"), required=True,
+                         help="reconstruction uses pinned per-class compiler choices, defaulting to flex-strict")
     measure.add_argument("--classes", type=Path, help="One full script name per line; defaults to every exported script")
     measure.add_argument("--source-patches", type=Path, help="Pinned reconstruction manifest; pristine exports stay immutable")
     measure.add_argument("--jobs", type=int, default=1, help="Concurrent independent compiler processes (1-8)")
@@ -244,6 +245,8 @@ def main():
         print(f"Pinned {args.release}: {len(sources)} source files, {len(methods(project / 'baseline'))} method bodies", flush=True)
         return 0
     manifest = verify_project(project)
+    if args.compiler == "reconstruction" and not args.source_patches:
+        raise ValueError("Reconstruction compilation requires a pinned source patch manifest")
     if not 1 <= args.jobs <= 8:
         raise ValueError("--jobs must be between 1 and 8")
     output = args.output.resolve()
@@ -280,12 +283,16 @@ def main():
               "selected_classes": classes, "jobs": args.jobs, "compact": args.compact,
               "source_patches": correction_evidence}
     write_json(output / "report.json", report)
+    compiler_overrides = {entry["class"]: entry.get("compiler", "flex-strict")
+                          for entry in (correction_evidence or {}).get("classes", [])}
 
     def measure_class(number, cls):
         relative = cls.replace(".", "/") + ".as"
         folder = output / f"class-{number:04d}"
         folder.mkdir()
-        row = {"class": cls, "source_sha256": manifest["sources"][relative], "directory": folder.name}
+        compiler = compiler_overrides.get(cls, "flex-strict") if args.compiler == "reconstruction" else args.compiler
+        row = {"class": cls, "source_sha256": manifest["sources"][relative], "directory": folder.name,
+               "compiler": compiler}
         try:
             source = project / "pristine" / relative
             if digest(source) != manifest["sources"][relative]:
@@ -296,7 +303,7 @@ def main():
                 row["pristine_sha256"] = manifest["sources"][relative]
                 row["source_sha256"] = digest(source)
             result = tools.run("compile", output / "code.swf", folder / "compiled-code.swf", cls,
-                               source, folder / "snapshot", args.compiler,
+                               source, folder / "snapshot", compiler,
                                tools.config.get("flex", ""), log=folder / "compile.log")
             if digest(source) != row["source_sha256"]:
                 raise ValueError("Source changed during compilation")
