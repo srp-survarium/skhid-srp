@@ -471,3 +471,20 @@ kept and can be put back).
 - TODO: #221 Battery pick-up 20 % faster (take_time 0.6 -> 0.5)
 - TODO: #199 Release: rebuild the Maps tab and the calculator from the release's patches
 - TODO: #224 re-kit 0.26g: weapon draw/holster, the modifier getter, the battery's states
+
+## 20 Oct, 20:38 — TODO: the owner's words (update required)
+
+<!-- Revision 26 (026g-rev26), released 2026-10-20 20:38 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #228 Clippy clean, and clippy in the dev process (AGENTS.md)
+- TODO: #229 Rooms: the create window remembers the last room made by hand
+- TODO: #236 Patch 43: the player's own row in the Tab list is gold
+- TODO: #232 Rankings: right-click a player to see their equipment
+- TODO: #233 Rooms list: the selected room's players below State; right-click for their equipment
+- TODO: #234 Rooms: a match starts at the room's minimum, or is called off
+- TODO: #237 selftest: the relocation-under-site checks include one starting 3 bytes before
+- TODO: #240 Admin page: take silver, gold and items from an account, with a preview
+- TODO: #243 Drop cards: one per player of a match, own matches only; log sales and exchanges
+- TODO: #242 Weapon balance 2: AK-12 50 / 35 (premium: silver only), Socom16 damage 60
+- TODO: #239 Battery events pay per match at most as many times as the map has batteries (anti-farming)
+- TODO: #245 Rooms with a PIN: their matches pay no rewards
