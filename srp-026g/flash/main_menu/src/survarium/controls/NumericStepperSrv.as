@@ -7,6 +7,9 @@ package survarium.controls
    import scaleform.clik.controls.NumericStepper;
    import scaleform.clik.events.IndexEvent;
    import scaleform.clik.events.InputEvent;
+
+   config namespace KEY;
+   KEY const ENTER:int = 13;
    
    public class NumericStepperSrv extends NumericStepper
    {
@@ -131,7 +134,7 @@ package survarium.controls
       
       protected function checkInputKeyForSubmit(event:KeyboardEvent) : void
       {
-         if(event.keyCode == 13)
+         if(event.keyCode == KEY::ENTER)
          {
             event.stopImmediatePropagation();
             value = int(textField.text);

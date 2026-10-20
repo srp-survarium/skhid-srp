@@ -29,6 +29,45 @@ to a repository of its own.
 - The files have LF line ends (FFDec writes CRLF; `export` converts them). The full rebuild below
   compiles the LF files, so nothing compiled depends on the line ends.
 
+## Cleaned up over the export
+
+The trees are no longer FFDec's text as it came out. Every change below still compiles to the
+original movie byte for byte (`full`), and `movie.json` pins the cleaned text; `export` makes the
+raw FFDec tree again, without these changes.
+
+- **Names.** FFDec calls a local `_loc2_` and a parameter `param1` where the bytecode has no name.
+  They have names now: the original one where another movie's copy of the same function has it in
+  its debug info (the hud, player-icons and replay movies carry debug info), or where the movie's
+  own debug info or parameter table records it and FFDec ignored it; otherwise one read from how
+  the variable is used. Local and parameter names do not reach the bytecode of a method without
+  debug info, which is why the rebuild stays identical.
+- **Placeholders that stay.** Some lobby methods keep `_loc2_`/`param1`: srp's earlier patches
+  compiled FFDec text with debug info, so the shipped movie records exactly those names
+  (`UpgradeWindow`, `ItemRendererInv.updateData`, `ItemInfoRenderer.set data`, ...). Some
+  player-icons/replay interfaces keep their parameters too: their movie's parameter table holds
+  unrelated strings. The files the lobby features branch (#238) edits are left for it.
+- **Named numbers.** Sound ids, key codes, item categories and the like are Flex compile-time
+  constants, declared in the file that uses them:
+
+  ```as3
+  package survarium.buttons
+  {
+     import flash.external.ExternalInterface;
+
+     config namespace SOUND;
+     SOUND const CLICK:int = 0;
+     SOUND const HOVER:int = 1;
+     ...
+              ExternalInterface.call("sound_play",SOUND::CLICK);
+  ```
+
+  The compiler inlines `SOUND::CLICK` as the literal itself, so the bytecode does not change (a
+  `static const` would compile to a property lookup and change it). The build passes no `-define`
+  options; each file declares the constants it uses. The groups: `SOUND` (the order of
+  `gameplay/ui_sounds`), `KEY` (key codes), `CATEGORY` (`item_category`), `SUPER_CATEGORY`
+  (`ItemFactory.getCategory`), `PLACE` (`ItemData.descriptor`: inventory, shop, bundle; below 100
+  the profile slot) and `MOUSE` (`MouseEventEx` buttons).
+
 ```sh
 # Is the tree the baseline?
 python3 tools/actionscript/flash_tree.py check srp-026g/flash/<movie>

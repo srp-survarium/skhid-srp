@@ -12,6 +12,9 @@ package survarium.messages
    import scaleform.clik.ui.InputDetails;
    import survarium.controls.Message;
    import survarium.controls.SrvTextInput;
+
+   config namespace SOUND;
+   SOUND const MENU_MESSAGE:int = 13;
    
    public class MessageEnterPromo extends MessageBase
    {
@@ -34,7 +37,7 @@ package survarium.messages
       {
          super();
          addEventListener(InputEvent.INPUT,this.handleInput,false,0,true);
-         ExternalInterface.call("sound_play",13);
+         ExternalInterface.call("sound_play",SOUND::MENU_MESSAGE);
          this.warning.visible = false;
       }
       

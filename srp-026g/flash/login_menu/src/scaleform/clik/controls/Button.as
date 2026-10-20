@@ -21,6 +21,9 @@ package scaleform.clik.controls
    import scaleform.clik.utils.ConstrainedElement;
    import scaleform.clik.utils.Constraints;
    import scaleform.gfx.MouseEventEx;
+
+   config namespace MOUSE;
+   MOUSE const LEFT_BUTTON:int = 0;
    
    [Event(name="SHOW",type="scaleform.clik.events.ComponentEvent")]
    [Event(name="HIDE",type="scaleform.clik.events.ComponentEvent")]
@@ -653,7 +656,7 @@ package scaleform.clik.controls
          var mouseIdx:uint = sfEvent == null ? 0 : sfEvent.mouseIdx;
          var btnIdx:uint = sfEvent == null ? 0 : sfEvent.buttonIdx;
          var sfButtonEvent:ButtonEvent;
-         if(btnIdx != 0)
+         if(btnIdx != MOUSE::LEFT_BUTTON)
          {
             return;
          }
@@ -684,7 +687,7 @@ package scaleform.clik.controls
          var mouseIdx:uint = sfEvent == null ? 0 : sfEvent.mouseIdx;
          var btnIdx:uint = sfEvent == null ? 0 : sfEvent.buttonIdx;
          var sfButtonEvent:ButtonEvent;
-         if(btnIdx != 0)
+         if(btnIdx != MOUSE::LEFT_BUTTON)
          {
             return;
          }
@@ -717,7 +720,7 @@ package scaleform.clik.controls
          var sfEvent:MouseEventEx = event as MouseEventEx;
          var mouseIdx:uint = sfEvent == null ? 0 : sfEvent.mouseIdx;
          var btnIdx:uint = sfEvent == null ? 0 : sfEvent.buttonIdx;
-         if(btnIdx != 0)
+         if(btnIdx != MOUSE::LEFT_BUTTON)
          {
             return;
          }

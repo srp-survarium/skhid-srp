@@ -5,6 +5,17 @@ package survarium.controls
    import flash.events.TextEvent;
    import flash.external.ExternalInterface;
    import scaleform.clik.controls.TextInput;
+
+   config namespace KEY;
+   KEY const BACKSPACE:int = 8;
+   KEY const END:int = 35;
+   KEY const HOME:int = 36;
+   KEY const LEFT:int = 37;
+   KEY const RIGHT:int = 39;
+   KEY const DELETE:int = 46;
+   config namespace SOUND;
+   SOUND const TYPE:int = 4;
+   SOUND const BACKSPACE:int = 8;
    
    public class SrvTextInput extends TextInput
    {
@@ -86,21 +97,21 @@ package survarium.controls
          else if(event.type == KeyboardEvent.KEY_DOWN)
          {
             keyEvent = event as KeyboardEvent;
-            if(keyEvent.keyCode == 46 && textField.caretIndex <= textField.length - 1)
+            if(keyEvent.keyCode == KEY::DELETE && textField.caretIndex <= textField.length - 1)
             {
-               ExternalInterface.call("sound_play",8);
+               ExternalInterface.call("sound_play",SOUND::BACKSPACE);
                _last_input = textField.caretIndex;
             }
-            else if(keyEvent.keyCode == 8 && textField.caretIndex >= 1)
+            else if(keyEvent.keyCode == KEY::BACKSPACE && textField.caretIndex >= 1)
             {
-               ExternalInterface.call("sound_play",8);
+               ExternalInterface.call("sound_play",SOUND::BACKSPACE);
                _last_input = textField.caretIndex - 1;
             }
-            else if((keyEvent.keyCode == 37 || keyEvent.keyCode == 36) && textField.caretIndex >= 1)
+            else if((keyEvent.keyCode == KEY::LEFT || keyEvent.keyCode == KEY::HOME) && textField.caretIndex >= 1)
             {
                this.playSound();
             }
-            else if((keyEvent.keyCode == 39 || keyEvent.keyCode == 35) && textField.caretIndex <= textField.length - 1)
+            else if((keyEvent.keyCode == KEY::RIGHT || keyEvent.keyCode == KEY::END) && textField.caretIndex <= textField.length - 1)
             {
                this.playSound();
             }
@@ -113,7 +124,7 @@ package survarium.controls
       
       private function playSound() : void
       {
-         ExternalInterface.call("sound_play",4);
+         ExternalInterface.call("sound_play",SOUND::TYPE);
       }
    }
 }

@@ -25,6 +25,10 @@ package
    import survarium.data.LocalizationData;
    import survarium.messages.MessageApply;
    import survarium.messages.MessageEULA;
+
+   config namespace KEY;
+   KEY const ENTER:int = 13;
+   KEY const ESCAPE:int = 27;
    
    public class LoginMenu extends MovieClip
    {
@@ -77,7 +81,7 @@ package
          };
          onKeyDownK = function(e:KeyboardEvent):void
          {
-            if(e.keyCode == 27)
+            if(e.keyCode == KEY::ESCAPE)
             {
                if(Message.isAnyMessage() != -1)
                {
@@ -105,7 +109,7 @@ package
          try_enter_pass = function(e:KeyboardEvent):void
          {
             e.preventDefault();
-            if(e.keyCode == 13 && sign_in_btn.enabled)
+            if(e.keyCode == KEY::ENTER && sign_in_btn.enabled)
             {
                sign_in_button_clicked(null);
             }

@@ -9,6 +9,9 @@ package survarium.chat
    import scaleform.clik.layout.LayoutData;
    import survarium.Util;
    import survarium.constants.Colors;
+
+   config namespace SOUND;
+   SOUND const MESSAGE:int = 5;
    
    public class Chat extends UIComponent
    {
@@ -196,12 +199,12 @@ package survarium.chat
                      if(this._activeMode != k)
                      {
                         this._data.tabs[k][j].updated = true;
-                        ExternalInterface.call("sound_play",5);
+                        ExternalInterface.call("sound_play",SOUND::MESSAGE);
                      }
                      else if(this._activeTab != j)
                      {
                         this._data.tabs[k][j].updated = true;
-                        ExternalInterface.call("sound_play",5);
+                        ExternalInterface.call("sound_play",SOUND::MESSAGE);
                         invalidateState();
                      }
                      break;

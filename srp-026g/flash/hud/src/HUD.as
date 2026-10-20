@@ -40,6 +40,9 @@ package
    import survarium.data.LocalizationData;
    import survarium.interfaces.IItemFactory;
    import survarium.item.ItemFactory;
+
+   config namespace SOUND;
+   SOUND const TUTORIAL_SUCCESS:int = 18;
    
    [SWF(backgroundColor="#666666")]
    public class HUD extends MovieClip
@@ -278,7 +281,7 @@ package
             {
                if(this._tutor.currentFrame != this._tutor.totalFrames)
                {
-                  ExternalInterface.call("sound_play",18);
+                  ExternalInterface.call("sound_play",SOUND::TUTORIAL_SUCCESS);
                }
                this.removeTutorial();
             }

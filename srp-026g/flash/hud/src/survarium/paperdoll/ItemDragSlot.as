@@ -12,6 +12,9 @@ package survarium.paperdoll
    import survarium.controls.ListDragSlot;
    import survarium.data.ItemData;
    import survarium.interfaces.IPaperDollSlot;
+
+   config namespace MOUSE;
+   MOUSE const LEFT_BUTTON:int = 0;
    
    public class ItemDragSlot extends ListDragSlot implements IPaperDollSlot
    {
@@ -210,7 +213,7 @@ package survarium.paperdoll
          var sfEvent:MouseEventEx = e as MouseEventEx;
          var mouseIdx:uint = sfEvent == null ? 0 : sfEvent.mouseIdx;
          var btnIdx:uint = sfEvent == null ? 0 : sfEvent.buttonIdx;
-         if(DragManager.inDrag() || !enabled || btnIdx != 0)
+         if(DragManager.inDrag() || !enabled || btnIdx != MOUSE::LEFT_BUTTON)
          {
             return;
          }
