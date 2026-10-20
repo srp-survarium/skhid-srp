@@ -68,6 +68,9 @@ USAGE (this script never touches the source exe):
         nasm -f bin -DCAVE=0xA425980 suicide_key_026g.asm -o suicide_key_026g.section.bin
     (checked in). A spot's hit on a battery's body comes from spot_026g.asm:
         nasm -f bin -DCAVE=0xA4257C0 spot_026g.asm -o spot_026g.section.bin
+    (checked in). The dynamic anomalies come from dynamic_anomalies_026g.asm,
+    the section `.srpa` after the late join's state page:
+        nasm -f bin -DCAVE=0xA429000 dynamic_anomalies_026g.asm -o dynamic_anomalies_026g.section.bin
     (checked in). The late-join code is late_join_026g.section.bin, checked in too; it is
     made by `late_join_026g.py --write-bin`, which needs nasm, a C compiler
     for x86 and GNU ld (--late-join-bin=<file> names another one).
@@ -355,6 +358,16 @@ Patches:
   page; select_lod's x0.5 (0x16F2A4) and the factor's x100 (0x1590AF)
   call fov_lod_scale and fov_screen_scale, which multiply by k after the
   original's constant (k is 1 at 65 and less, and through a scope);
+- dynamic anomalies (patch 42, with the late join, client_patch.md section
+  3.38, docs/notes/dynamic_anomalies.md): the release's anomalies rule on
+  timed generic anomalies (energy_enabled, artefacts that never respawn by
+  themselves). game_world_core::atomic_tick (0x2D1E20) first runs the rule
+  (a try 20 to 40 s apart from the start + 30 s: one idle timed anomaly
+  with a free artefact and nothing busy within 15 m charges, while fewer
+  than 16 are active), and on_artefact_container_use (0x33BCD0) puts a
+  timed anomaly to its after-the-pick-up energy. The code is a section of
+  its own, `.srpa`, the page after the late join's state
+  (dynamic_anomalies_026g.asm);
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -1454,6 +1467,32 @@ FOV_LOD_RELOCS = [0x1590B1, 0x16F2A8]
 FOV_LOD_STATE_OFFSET = 0xE50                  # after the scoreboard's (TAB_LIST_STATE_OFFSET)
 FOV_LOD_STATE_SIZE = 4
 
+# Dynamic anomalies (patch 42, README; client_patch.md section 3.38; the
+# rules: ../docs/notes/dynamic_anomalies.md). The release's anomalies rule
+# (0.28a2 timeout_anomalies_rule_core) on timed generic_anomaly_cores, whose
+# states are the release's timeline by energy. Two hooks into
+# dynamic_anomalies_026g.asm, the section `.srpa` (code, the page after the
+# late join's state page, DYNAMIC_ANOMALIES_VA): game_world_core::
+# atomic_tick's first six bytes (`push ecx; mov eax,51EB851Fh`, a constant)
+# jump to tick_hook (+0), which runs the rule before any object of the tick
+# and goes on at 0x2D1E26; generic_anomaly_core::on_artefact_container_use's
+# first ten (`push ecx; push esi; mov esi,ecx; mov eax,[esi+15Ch]`) jump to
+# pickup_hook (+40h), which takes a timed core's pick-up and goes on at
+# 0x33BCDA with any other. No base relocation under either; the code ends
+# with the address it was assembled for.
+DYNAMIC_ANOMALIES_NAME = b".srpa\0\0\0"
+DYNAMIC_ANOMALIES_CHARACTERISTICS = 0x60000020   # code, execute, read (as .srp)
+DYNAMIC_ANOMALIES_HOOKS = (
+    (0x2D1E20, bytes.fromhex("51b81f85eb51"), 0x00, 0xE9),           # atomic_tick: tick_hook
+    (0x33BCD0, bytes.fromhex("51568bf18b865c010000"), 0x40, 0xE9),   # on_artefact_container_use: pickup_hook
+)
+DYNAMIC_ANOMALIES_EXITS = (0x2D1E26, 0x33BCDA)
+
+
+def dynamic_anomalies_va(late_join):
+    """Where `.srpa` is: the page after the late join's state page."""
+    return late_join_state_va(late_join) + LATE_JOIN_STATE_SIZE
+
 # A battery under the floor (patch 23, pickup_below_026g.asm at
 # PICKUP_VA): client_patch.md section 3.23.
 PICKUP_OFFSET = 0x800
@@ -1685,6 +1724,39 @@ def add_section(data, cave):
     struct.pack_into("<H", out, headers.count_at, len(sections) + 1)
     struct.pack_into("<I", out, headers.size_of_image_at,
                      align(SECTION_RVA + len(cave), headers.section_alignment))
+    struct.pack_into("<I", out, headers.size_of_code_at,
+                     struct.unpack_from("<I", data, headers.size_of_code_at)[0] + raw_size)
+    struct.pack_into("<I", out, headers.security_at, security_offset + raw_size)
+    return out
+
+
+def add_code_section(data, name, va, code, characteristics):
+    """Appends a code section at `va` (the next aligned RVA after the last
+    section, the late join's state page) whose file bytes follow the last
+    file bytes (.srp's), and moves the Authenticode blob behind them, as
+    add_section does. Returns the new file contents."""
+    headers = Headers(data)
+    sections = headers.sections(data)
+    _, last_rva, last_vsize, _, _, _ = sections[-1]
+    align = lambda value, to: (value + to - 1) // to * to
+    slot = headers.table + 40 * len(sections)
+    if slot + 40 > headers.size_of_headers or any(data[slot:slot + 40]):
+        sys.exit(f"no free section table entry for {name.rstrip(bytes(1)).decode()}")
+    rva = va - IMAGE_BASE
+    if rva != align(last_rva + last_vsize, headers.section_alignment) \
+            or struct.unpack_from("<I", data, headers.size_of_image_at)[0] != rva:
+        sys.exit(f"{name.rstrip(bytes(1)).decode()} does not follow the last section")
+    raw = max(offset + size for _, _, _, offset, size, _ in sections)
+    security_offset, security_size = struct.unpack_from("<II", data, headers.security_at)
+    if security_offset != raw or security_offset + security_size != len(data) or raw % headers.file_alignment:
+        sys.exit("unexpected layout after the last section's bytes")
+    raw_size = align(len(code), headers.file_alignment)
+    if (raw + raw_size) % 8:
+        sys.exit("the certificate table would lose its 8-byte alignment")
+    out = bytearray(data[:raw]) + code + b"\xCC" * (raw_size - len(code)) + data[raw:]
+    out[slot:slot + 40] = name + struct.pack("<IIIIIIHHI", len(code), rva, raw_size, raw, 0, 0, 0, 0, characteristics)
+    struct.pack_into("<H", out, headers.count_at, len(sections) + 1)
+    struct.pack_into("<I", out, headers.size_of_image_at, align(rva + len(code), headers.section_alignment))
     struct.pack_into("<I", out, headers.size_of_code_at,
                      struct.unpack_from("<I", data, headers.size_of_code_at)[0] + raw_size)
     struct.pack_into("<I", out, headers.security_at, security_offset + raw_size)
@@ -2080,6 +2152,20 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
         patch(data, va, expected, hook_bytes(SPOT_VA, va, expected, offset, opcode))
         if neutralize_relocs(data, [(va, va + len(expected))]):
             sys.exit("a base relocation under the spot's hook")
+        anomalies = open(dynamic_anomalies_bin(), "rb").read()
+        anomalies_va = dynamic_anomalies_va(late_join)
+        # It ends with its address, begins tick_hook with `pushad` and
+        # pickup_hook with `push edi`, and leaves by jumps to the two exits.
+        exits = sorted({anomalies_va + at + 5 + struct.unpack_from("<i", anomalies, at + 1)[0]
+                        for at in range(len(anomalies) - 4) if anomalies[at] == 0xE9}
+                       & set(DYNAMIC_ANOMALIES_EXITS))
+        if anomalies[-4:] != struct.pack("<I", anomalies_va) or anomalies[0] != 0x60 or anomalies[0x40] != 0x57 \
+                or exits != sorted(DYNAMIC_ANOMALIES_EXITS):
+            sys.exit(f"dynamic_anomalies_026g.section.bin was assembled for another address: -DCAVE={anomalies_va:#x}")
+        for va, expected, offset, opcode in DYNAMIC_ANOMALIES_HOOKS:
+            patch(data, va, expected, hook_bytes(anomalies_va, va, expected, offset, opcode))
+            if neutralize_relocs(data, [(va, va + len(expected))]):
+                sys.exit(f"{va:#x}: a base relocation under a hook of the dynamic anomalies")
 
     if mode == "section":
         if late_join is not None:
@@ -2102,6 +2188,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
         data = add_section(data, cave)
         if late_join is not None:
             add_state_section(data, late_join_state_va(late_join))
+            data = add_code_section(data, DYNAMIC_ANOMALIES_NAME, dynamic_anomalies_va(late_join), anomalies,
+                                    DYNAMIC_ANOMALIES_CHARACTERISTICS)
     headers = Headers(data)
     struct.pack_into("<I", data, headers.checksum_at, pe_checksum(data, headers.checksum_at))
     return data, (f"certificate check, mutex, minimum VRAM check, hash interval {HASH_INTERVAL_MS} ms, "
@@ -2136,7 +2224,9 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
                      "the commit_suicide key (K) kills one's own player, "
                      "the scoreboard shows the places in the match and none whose player left, "
                      "a spot has no cooldown and a battery's body spots it, "
-                     "a model's LOD and screen factor at a wider field of view are the original's"
+                     "a model's LOD and screen factor at a wider field of view are the original's, "
+                     f"dynamic anomalies (the release's rule, {len(anomalies)} bytes of code in .srpa at "
+                     f"{dynamic_anomalies_va(late_join):#x})"
                      if late_join is not None else "")
                   + (f", default login server {server}" if server is not None else ""))
 
@@ -2175,6 +2265,10 @@ def mount_patches_bin():
 
 def spot_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "spot_026g.section.bin")
+
+
+def dynamic_anomalies_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "dynamic_anomalies_026g.section.bin")
 
 
 def pickup_bin():

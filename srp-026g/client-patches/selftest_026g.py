@@ -1349,7 +1349,8 @@ def late_join_sites():
         [(P.WEAPON_DRAW_HOOK[0], len(P.WEAPON_DRAW_HOOK[1]))] +         [(P.SUICIDE_KEY_HOOK[0], len(P.SUICIDE_KEY_HOOK[1]))] + \
         [(va, len(old)) for va, old, _, _ in P.TAB_LIST_HOOKS] + [(P.TAB_LIST_LOOP_VA, len(P.TAB_LIST_LOOP[1]))] + \
         [(P.SPOT_COOLDOWN[0], len(P.SPOT_COOLDOWN[1])), (P.SPOT_HOOK[0], len(P.SPOT_HOOK[1]))] + \
-        [(va, len(old)) for va, old, _, _ in P.FOV_LOD_HOOKS]
+        [(va, len(old)) for va, old, _, _ in P.FOV_LOD_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.DYNAMIC_ANOMALIES_HOOKS]
 
 
 def pickup_sites():
@@ -1708,6 +1709,63 @@ def test_fov_lod(original, image, before):
                        and any(va + 4 > site and va < site + len(old) for site, old, _, _ in P.FOV_LOD_HOOKS))
     check(relocated == P.FOV_LOD_RELOCS, "the original has a base relocation under each site, at its constant's "
           f"address ({', '.join(f'{va:#x}' for va in P.FOV_LOD_RELOCS)}), disabled in the build")
+
+
+def test_dynamic_anomalies(original, image, before):
+    """Check 42: dynamic anomalies (patch 42). check_dynamic_anomalies_026g.py
+    runs the hooks, the rule and the game's anomaly code on made-up worlds."""
+    source = Image(original)
+    plain = lambda text: text.replace("[dword 0x", "[0x").replace("dword [", "[")
+    at = lambda start, size: {a: plain(t) for a, _, t in ndisasm(source.read(start, size), start)}
+    u32 = lambda va: struct.unpack("<I", source.read(va, 4))[0]
+    va_a = P.dynamic_anomalies_va(open(P.late_join_bin(), "rb").read())
+    tick = at(0x2D1E20, 0x80)
+    check(tick.get(0x2D1E20) == "push ecx" and tick.get(0x2D1E21) == "mov eax,0x51eb851f"
+          and tick.get(0x2D1E26) == "mul edi" and tick.get(0x2D1E3A) == "mov ecx,[esp+0xc]"
+          and tick.get(0x2D1E3F) == "lea esi,[ecx+0x18840]" and tick.get(0x2D1E45) == "lea ebx,[ecx+0x188b0]"
+          and tick.get(0x2D1E5C) == "call 0x2d1d20" and source.read(0x2D1E92, 3) == bytes.fromhex("c20800"),
+          "the original's game_world_core::atomic_tick: the world at [esp+4], now in edi, its seven tick lists "
+          "(+18840h..+188B0h) run through 0x2D1D20, `ret 8`; it starts `push ecx; mov eax,51EB851Fh`")
+    pickup = at(0x33BCD0, 0x80)
+    check(pickup.get(0x33BCD0) == "push ecx" and pickup.get(0x33BCD1) == "push esi"
+          and pickup.get(0x33BCD2) == "mov esi,ecx" and pickup.get(0x33BCD4) == "mov eax,[esi+0x15c]"
+          and pickup.get(0x33BCDA) == "fild [esi+0x15c]" and pickup.get(0x33BCEA) == "cmp byte [esi+0x14c],0x0"
+          and pickup.get(0x33BD0C) == "addss xmm0,[esi+0x150]" and pickup.get(0x33BD2F) == "mov byte [esi+0x138],0x1"
+          and pickup.get(0x33BD47) == "ret 0x8" and u32(0xA169CC + 0x28) == 0x33BCD0
+          and source.read(0x31C832, 6) == bytes.fromhex("8b422857ffd0"),
+          "the original's on_artefact_container_use (generic_anomaly_core's slot 10): energy_af_container_use "
+          "(+15Ch) added to the energy (+150h) when energy_enabled (+14Ch), an artefact due (+138h), `ret 8`; "
+          "artefact_container_core::use_execute calls it through the owner's slot 10 (0x31C832)")
+    activate = at(0x318B26, 0x40)
+    check(source.read(0x31AECE, 10) == bytes.fromhex("c78798010000b0b53100")
+          and source.read(0x31AED8, 6) == bytes.fromhex("89bf94010000"),
+          "the core's tick delegate (+194h) has generic_anomaly_core::tick 0x31B5B0 as its function")
+    check(activate.get(0x318B26) == "lea eax,[edi+0x194]" and activate.get(0x318B2C) == "mov byte [eax+0x14],0x6"
+          and activate.get(0x318B30) == "inc [esi+0x188a0]" and activate.get(0x318B4A) == "mov [esi+0x188a4],eax",
+          "server_game_project::set_game_world_core puts each anomaly core's delegate into tick list 6 "
+          "(+188A0h count, +188A4h first), in the project's order")
+    check(source.read(0x2D00BB, 6) == bytes.fromhex("898bac8f0100") and source.read(0x2D01D7, 6) == bytes.fromhex("8b80b0770500")
+          and source.read(0x317DB4, 6) == bytes.fromhex("c7062c6ea000") and u32(0xA06E2C + 0x3C) == 0x317F30,
+          "the world keeps the static info at +18FACh (0x2D00BB), whose seed is at +577B0h (0x2D01D7); "
+          "timelimit_rule_core's vtable is 0xA06E2C (constructor 0x317DB4; serialize 0x317F30 at +3Ch)")
+    for (va, old, offset, opcode), exit_ in zip(P.DYNAMIC_ANOMALIES_HOOKS, P.DYNAMIC_ANOMALIES_EXITS):
+        site = image.read(va, len(old))
+        target = va + 5 + struct.unpack_from("<i", site, 1)[0]
+        check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
+              and site[0] == opcode and target == va_a + offset and set(site[5:]) <= {0x90},
+              f"{va:#x}: `{old.hex()}` becomes a jump to {va_a + offset:#x} and nops; the build without the late join "
+              "keeps it")
+        stub = ndisasm(image.read(va_a + offset, 0x40), va_a + offset)
+        texts = [plain(t) for _, _, t in stub]
+        jumps = [branch_target(t) for t in texts if t.startswith("jmp ")]
+        check(exit_ in jumps, f"{va_a + offset:#x}: the replaced instructions done, it goes on at {exit_:#x}")
+    hits = [hit for va, old, _, _ in P.DYNAMIC_ANOMALIES_HOOKS for hit in aimed_inside(original, va, len(old), 0x82)
+            if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
+    check(not hits, "no rel32 branch of .text, no rel8 branch near them and no 4-byte value aims inside the two sites"
+          + "".join(f"\n          {a:#x}" for a in hits))
+    relocated = [va for kind, va in source.relocations().values() if kind == 3
+                 and any(va + 4 > site and va < site + len(old) for site, old, _, _ in P.DYNAMIC_ANOMALIES_HOOKS)]
+    check(not relocated, "no base relocation under either site")
 
 
 # A battery's usable-object vtables: can_use at +30h, get_transform at +44h.
@@ -3637,12 +3695,12 @@ def test_late_join(original, without, server, source):
     image, before = Image(data), Image(without)
     headers = image.headers
     sections, old_sections = image.sections, before.sections
-    name, rva, vsize, raw, rsize, flags = sections[-2]
+    name, rva, vsize, raw, rsize, flags = sections[-3]
     align = lambda value, to: (value + to - 1) // to * to
     weapon_preview = open(P.weapon_preview_bin(), "rb").read()
     weapon_draw = open(P.weapon_draw_bin(), "rb").read()
     first_page = bytes(without[old_sections[-1][3]:old_sections[-1][3] + old_sections[-1][2]])
-    check(len(sections) == 9 and sections[:7] == old_sections[:7], "9 sections; the original's seven are untouched")
+    check(len(sections) == 10 and sections[:7] == old_sections[:7], "10 sections; the original's seven are untouched")
     check(name == P.SECTION_NAME and rva == P.SECTION_RVA and flags == P.SECTION_CHARACTERISTICS
           and vsize == P.WEAPON_PREVIEW_OFFSET + len(weapon_preview)
           and rsize == align(vsize, headers.file_alignment) and raw == old_sections[-1][3],
@@ -3729,25 +3787,33 @@ def test_late_join(original, without, server, source):
           f"the shell_32.dll check at +{P.STALE_DLL_OFFSET:#x} "
           f"and the kit change at +{P.KIT_CHANGE_OFFSET:#x}, the late-join code follows, then int3 padding, "
           f"the weapon preview at +{P.WEAPON_PREVIEW_OFFSET:#x} and int3 padding")
-    name, state_rva, state_size, state_raw, state_rsize, flags = sections[-1]
+    name, state_rva, state_size, state_raw, state_rsize, flags = sections[-2]
     check(name == P.LATE_JOIN_STATE_NAME and flags == P.LATE_JOIN_STATE_CHARACTERISTICS
           and state_size == P.LATE_JOIN_STATE_SIZE and (state_raw, state_rsize) == (0, 0)
           and state_rva == align(rva + vsize, headers.section_alignment)
           and P.IMAGE_BASE + state_rva == P.late_join_state_va(code),
           f".srpd at VA {P.IMAGE_BASE + state_rva:#x}: one page, uninitialized | read | write, no bytes in the "
           "file, on the page after the code (where the code looks for it)")
+    anomalies = open(P.dynamic_anomalies_bin(), "rb").read()
+    name_a, rva_a, vsize_a, raw_a, rsize_a, flags_a = sections[-1]
+    check(name_a == P.DYNAMIC_ANOMALIES_NAME and flags_a == P.DYNAMIC_ANOMALIES_CHARACTERISTICS
+          and rva_a == state_rva + state_size and P.IMAGE_BASE + rva_a == P.dynamic_anomalies_va(code)
+          and vsize_a == len(anomalies) and raw_a == raw + rsize and rsize_a == align(vsize_a, headers.file_alignment)
+          and bytes(data[raw_a:raw_a + vsize_a]) == anomalies and set(data[raw_a + vsize_a:raw_a + rsize_a]) <= {0xCC},
+          f".srpa at VA {P.IMAGE_BASE + rva_a:#x}: the {len(anomalies)} bytes of dynamic_anomalies_026g.section.bin, "
+          "code | execute | read, on the page after .srpd, its file bytes right after .srp's")
     get = lambda blob, at: struct.unpack_from("<I", blob, at)[0]
-    check(get(data, headers.size_of_image_at) == state_rva + state_size
+    check(get(data, headers.size_of_image_at) == align(rva_a + vsize_a, headers.section_alignment)
           and get(data, headers.optional + 12) == get(without, headers.optional + 12) + state_size
-          and get(data, headers.size_of_code_at) == get(original, headers.size_of_code_at) + rsize
-          and headers.table + 40 * 9 <= headers.size_of_headers,
-          "SizeOfImage ends at .srpd, SizeOfUninitializedData grew by its page, SizeOfCode by .srp's file size; "
-          "the section table fits in the headers")
+          and get(data, headers.size_of_code_at) == get(original, headers.size_of_code_at) + rsize + rsize_a
+          and headers.table + 40 * 10 <= headers.size_of_headers,
+          "SizeOfImage ends at .srpa, SizeOfUninitializedData grew by .srpd's page, SizeOfCode by .srp's and "
+          ".srpa's file sizes; the section table fits in the headers")
     security_offset, security_size = image.directory(4)
     old_offset, old_size = struct.unpack_from("<II", original, headers.security_at)
-    check(security_offset == raw + rsize and security_offset + security_size == len(data) and security_offset % 8 == 0
+    check(security_offset == raw_a + rsize_a and security_offset + security_size == len(data) and security_offset % 8 == 0
           and bytes(data[security_offset:]) == bytes(original[old_offset:old_offset + old_size]),
-          f"certificate table at {security_offset:#x}: right after .srp's bytes, 8-byte aligned, last in the file, "
+          f"certificate table at {security_offset:#x}: right after .srpa's bytes, 8-byte aligned, last in the file, "
           "identical to the original's")
     same = all(image.directory(index) == before.directory(index) for index in range(16) if index != 4)
     check(same, "the other 15 data directories are those of the build without it")
@@ -3762,7 +3828,8 @@ def test_late_join(original, without, server, source):
                *((P.file_offset(va), len(old)) for va, old, _, _ in P.FORWARD_SCROLL_HOOKS),
                (headers.count_at, 2), (headers.size_of_code_at, 4), (headers.optional + 12, 4),
                (headers.size_of_image_at, 4), (headers.checksum_at, 4), (headers.security_at, 4),
-               (headers.table + 40 * 7 + 8, 4), (headers.table + 40 * 7 + 16, 4), (headers.table + 40 * 8, 40)]
+               (headers.table + 40 * 7 + 8, 4), (headers.table + 40 * 7 + 16, 4), (headers.table + 40 * 8, 40),
+               (headers.table + 40 * 9, 40)]
     # The entries of the relocation table that are disabled (scene::remove_model's
     # branch, uro_fov's least, the pickup's distance, the lobby camera's least,
     # the two constants of patch 40).
@@ -3865,6 +3932,7 @@ def test_late_join(original, without, server, source):
     test_pregame_progress(original, image, before)
     test_fov(original, image, before)
     test_fov_lod(original, image, before)
+    test_dynamic_anomalies(original, image, before)
     test_pickup(original, image, before)
     test_weapon_random(original, image, before)
     test_kit_state(original, image, before)
