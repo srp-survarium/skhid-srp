@@ -201,19 +201,25 @@ public final class MovieSource {
         try (InputStream in = Files.newInputStream(file)) { return new SWF(in, true); }
     }
 
+    static ScriptPack findScript(SWF movie, String path) throws IOException {
+        ScriptPack found = null;
+        for (ScriptPack pack : movie.getAS3Packs()) if (pack.getClassPath().toRawString().equals(path)) {
+            if (found != null) throw new IOException("Ambiguous script " + path);
+            found = pack;
+        }
+        if (found == null || !found.isSimple) throw new IOException("Missing or non-simple script " + path);
+        return found;
+    }
+
     static SWF importNative(Path originalFile, Path nativeFile, String cls) throws Exception {
         SWF original = read(originalFile), nativeMovie = read(nativeFile);
-        ScriptPack source = null;
-        for (ScriptPack pack : original.getAS3Packs()) if (pack.getClassPath().toRawString().equals(cls)) {
-            if (source != null) throw new IOException("Ambiguous original script");
-            source = pack;
-        }
-        if (source == null || !source.isSimple) throw new IOException("Native import requires a simple source script");
+        ScriptPack source = findScript(original, cls);
         ABC destination = source.abc;
         var emittedTags = nativeMovie.getAbcList();
         if (emittedTags.isEmpty()) throw new IOException("Native compiler emitted no ABC");
         ABC emitted = emittedTags.get(emittedTags.size() - 1).getABC();
-        if (emitted.findClassByName(cls) < 0 || emitted.script_info.size() != 1)
+        ScriptPack replacement = findScript(nativeMovie, cls);
+        if (replacement.abc != emitted || replacement.scriptIndex != 0 || emitted.script_info.size() != 1)
             throw new IOException("Native compiler's final ABC does not define the requested script");
         for (MethodBody body : emitted.bodies) exactCode(body);
         // Delete the replaced script, retaining other scripts and pool context.
@@ -764,7 +770,7 @@ public final class MovieSource {
         }
     }
 
-    static void restoreScriptClassSlot(ABC original, ABC compiled) {
+    static void restoreScriptSlot(ABC original, ABC compiled) {
         for (int i = 0; i < compiled.script_info.size(); i++) {
             var before = original.script_info.get(i).traits.traits;
             var after = compiled.script_info.get(i).traits.traits;
@@ -774,6 +780,11 @@ public final class MovieSource {
             if (before.size() == 1 && after.size() == 1 && before.get(0) instanceof TraitClass a
                     && after.get(0) instanceof TraitClass b && a.name_index == b.name_index
                     && a.class_info == b.class_info && a.slot_id == 0 && b.slot_id == 1) b.slot_id = 0;
+            if (before.size() == 1 && after.size() == 1 && before.get(0) instanceof TraitSlotConst a
+                    && after.get(0) instanceof TraitSlotConst b && a.name_index == b.name_index
+                    && a.kindType == b.kindType && a.type_index == b.type_index
+                    && a.value_index == b.value_index && a.value_kind == b.value_kind
+                    && a.slot_id == 0 && b.slot_id == 1) b.slot_id = 0;
         }
     }
 
@@ -913,9 +924,8 @@ public final class MovieSource {
         return hash(sequence.toString().getBytes(StandardCharsets.UTF_8));
     }
 
-    static String checkFeature(ABC original, ABC compiled, String cls, Path permissions) throws Exception {
+    static String checkFeature(ABC original, ABC compiled, String prefix, Path permissions) throws Exception {
         Map<String, String[]> allowed = new LinkedHashMap<>();
-        String prefix = name(original, original.instance_info.get(original.findClassByName(cls)).name_index) + "/";
         for (String line : Files.readAllLines(permissions)) {
             String[] fields = line.split("\\t", -1);
             if (fields.length != 3 || !fields[0].startsWith(prefix) || fields[0].contains("|")
@@ -962,8 +972,9 @@ public final class MovieSource {
         if (reference.getAbcList().size() != candidate.getAbcList().size())
             throw new IOException("ABC block count changed");
         int home = -1;
+        ScriptPack source = findScript(reference, cls);
         for (int i = 0; i < reference.getAbcList().size(); i++) {
-            if (reference.getAbcList().get(i).getABC().findClassByName(cls) < 0) continue;
+            if (reference.getAbcList().get(i).getABC() != source.abc) continue;
             if (home != -1) throw new IOException("Ambiguous class " + cls);
             home = i;
         }
@@ -993,7 +1004,7 @@ public final class MovieSource {
         if (permissions != null) relocateAddedPoolNames(original, compiled);
         restoreMethodOrder(original, compiled);
         emitScriptClassBindings(original, compiled);
-        restoreScriptClassSlot(original, compiled);
+        restoreScriptSlot(original, compiled);
         retainDebugDirectives(original, compiled);
         if (compiled.metadata_info.size() < original.metadata_info.size()) throw new IOException("Metadata pool compacted");
         for (int i = 0; i < original.metadata_info.size(); i++) {
@@ -1034,7 +1045,11 @@ public final class MovieSource {
         if (permissions == null) compiled.constants = original.constants;
         compiled.metadata_info = original.metadata_info;
         byte[] rebuilt = abcBytes(compiled), expected = abcBytes(original);
-        String featureReport = permissions == null ? null : checkFeature(original, compiled, cls, permissions);
+        int classId = original.findClassByName(cls);
+        String ownerPrefix = classId >= 0 ? name(original, original.instance_info.get(classId).name_index) + "/"
+            : "script:" + original.script_info.get(source.scriptIndex).traits.traits.stream()
+                .map(t -> name(original, t.name_index)).sorted().toList() + "/";
+        String featureReport = permissions == null ? null : checkFeature(original, compiled, ownerPrefix, permissions);
         if (permissions == null && !Arrays.equals(rebuilt, expected)) {
             Files.write(output.resolveSibling(output.getFileName() + ".rejected.abc"), rebuilt);
             StringBuilder differences = new StringBuilder();

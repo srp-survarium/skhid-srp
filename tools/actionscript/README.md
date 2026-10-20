@@ -77,6 +77,8 @@ class failed to compile or did not reproduce the uncompressed movie exactly.
 The importer currently exports 878 scripts and inventories 7,758 method bodies
 from revision 24. `pristine/` is immutable: source additions, deletions or edits
 cause subsequent measurements to refuse the project.
+Native import and linking identify namespace and global-function scripts by
+their exported script path, without requiring a class definition.
 
 ## What the comparison proves
 
@@ -156,8 +158,9 @@ annotations are compared by their complete resolved names, keys and values;
 duplicate records may reuse the original index, but changed values are refused.
 Added optional debugger parameter names are removed
 when the original has none; parameter types, defaults and other flags still
-have to match. A sole script class's explicit slot 1 can use the original
-automatically assigned slot encoding (0).
+have to match. A sole script class, variable or constant's explicit slot 1 can
+use the original automatically assigned slot encoding (0), with its name, kind,
+type and initial value still checked. Other slot numbers remain unchanged.
 
 There is also one explicit code-generation rule: for a script defining exactly
 one class, the generated global binding can use `findpropstrict` for that class

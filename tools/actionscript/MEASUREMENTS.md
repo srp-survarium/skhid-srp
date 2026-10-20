@@ -279,3 +279,19 @@ division-by-zero error during graphics initialization. The movie's behavior was
 not reached, so this is not a runtime pass or evidence of a movie defect. The
 managed client, server and display were stopped. Private logs, package hashes,
 server data and a startup screenshot are retained for the next runtime attempt.
+
+## Namespace and global-function imports
+
+The native sweep exposed two import failures after successful compilation:
+`mx.core.mx_internal` is a namespace script and `stackTrace` is a global function.
+Neither has a class definition. The importer and linker now find their owning
+script directly and still require a unique simple script from the compiler.
+
+Both now import. The namespace reproduces the complete compressed release movie
+after the sole-script-slot rule maps explicit slot 1 to automatic slot 0. Its
+name, kind, type and namespace value still match exactly. `stackTrace` remains
+refused: its method bodies match, but its script method dispatch ID differs
+(original 1, compiled 21). No dispatch-ID rewrite has been added.
+
+The real Flex fixture now compiles and links both a namespace and a global
+function, tests the namespace's automatic-slot layout, and rejects slot 2.

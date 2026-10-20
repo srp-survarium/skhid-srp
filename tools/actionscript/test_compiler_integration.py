@@ -116,6 +116,15 @@ class CompilerIntegration(unittest.TestCase):
                         for (var tag : swf.getAbcList()) {
                             var abc = tag.getABC();
                             if (args.length >= 3) {
+                                if (args[2].startsWith("namespace-slot-")) {
+                                    for (var script:abc.script_info) for(var trait:script.traits.traits)
+                                        if(trait instanceof com.jpexs.decompiler.flash.abc.types.traits.TraitSlotConst slot) {
+                                            slot.slot_id=Integer.parseInt(args[2].substring("namespace-slot-".length()));
+                                            changed++;
+                                        }
+                                    ((Tag)tag).setModified(true);
+                                    continue;
+                                }
                                 int cls = abc.findClassByName("Probe");
                                 if (cls < 0) continue;
                                 for (var methodBody : abc.bodies) MovieSource.exactCode(methodBody);
@@ -622,6 +631,46 @@ class CompilerIntegration(unittest.TestCase):
                 rejected = tools.run("link-layout", accepted_file, corrupted, destination, "Probe", log=root / (mutation + ".log"))
                 self.assertNotEqual(rejected.returncode, 0)
                 self.assertFalse(destination.exists(), "Rejected compilation must never produce a linked movie")
+
+            # Whole-tree exports contain namespace and global-function scripts,
+            # too. Neither requires a class_info entry to import or link.
+            globals_dir = root / "globals"
+            globals_dir.mkdir()
+            for script_name, declaration in (
+                ("fixtureNamespace", 'public namespace fixtureNamespace = "urn:source-fixture";'),
+                ("globalValue", 'public function globalValue(value:int):int { return value; }'),
+            ):
+                script_source = globals_dir / (script_name + ".as")
+                script_source.write_text("package { " + declaration + " }")
+                reference, compiled, linked = (globals_dir / (script_name + suffix) for suffix in (".swf", "-compiled.swf", "-linked.swf"))
+                result = compiler("mxmlc.jar", ["-library-path=", "-source-path=" + str(globals_dir),
+                                  "-output=" + str(reference), str(script_source)])
+                self.assertEqual(result.returncode, 0, result.stdout)
+                result = tools.run("compile", reference, compiled, script_name, script_source,
+                                   globals_dir / (script_name + "-snapshot"), "flex-strict", sdk,
+                                   log=globals_dir / (script_name + "-compile.log"))
+                self.assertEqual(result.returncode, 0, (globals_dir / (script_name + "-compile.log")).read_text())
+                result = tools.run("link-layout", reference, compiled, linked, script_name,
+                                   log=globals_dir / (script_name + "-link.log"))
+                self.assertEqual(result.returncode, 0, (globals_dir / (script_name + "-link.log")).read_text())
+                self.assertEqual(movie_source.uncompressed(reference), movie_source.uncompressed(linked))
+                if script_name == "fixtureNamespace":
+                    automatic = globals_dir / "automatic-slot.swf"
+                    mutate(reference, automatic, "namespace-slot-0")
+                    self.assertNotEqual(movie_source.uncompressed(reference), movie_source.uncompressed(automatic))
+                    destination = globals_dir / "automatic-linked.swf"
+                    result = tools.run("link-layout", automatic, compiled, destination, script_name,
+                                       log=globals_dir / "automatic-link.log")
+                    self.assertEqual(result.returncode, 0, (globals_dir / "automatic-link.log").read_text())
+                    self.assertEqual(movie_source.uncompressed(automatic), movie_source.uncompressed(destination))
+                    corrupted = globals_dir / "wrong-slot.swf"
+                    mutate(compiled, corrupted, "namespace-slot-2")
+                    self.assertNotEqual(movie_source.uncompressed(compiled), movie_source.uncompressed(corrupted))
+                    destination = globals_dir / "wrong-slot-linked.swf"
+                    result = tools.run("link-layout", automatic, corrupted, destination, script_name,
+                                       log=globals_dir / "wrong-slot-link.log")
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(destination.exists())
 
 
 if __name__ == "__main__":
