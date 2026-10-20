@@ -1,0 +1,15 @@
+--- a/survarium/char/PerkTipRenderer.as
++++ b/survarium/char/PerkTipRenderer.as
+@@ -37,10 +37,10 @@
+       override protected function invalidateData() : void
+       {
+          trace("HINT::invalidateData",_data.resize);
+-         if(Boolean(_data.description_2_string))
++         if(_data.description_2_string)
+          {
+             this.line.visible = true;
+-            if(Boolean(_data.resize))
++            if(_data.resize)
+             {
+                this.textFieldProp.wordWrap = false;
+                this.textFieldProp.multiline = false;

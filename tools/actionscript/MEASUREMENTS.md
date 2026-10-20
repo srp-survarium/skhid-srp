@@ -477,3 +477,36 @@ movie, test executable, server, data and screenshot hashes. The overlay's movie
 payload was independently checked against the source-feature output. The private
 client, server and Xvfb display were stopped after the check. This verifies the
 example's UI behavior; whole-tree source reconstruction remains incomplete.
+
+## Declaration order and expanded exact source set
+
+Twelve of the thirteen nearest rejected reconstructions now pass. Eight recover
+local declaration order, loop-counter initialization, typed assignments, inline
+object keys or original branch structure. `NameUtil` also removes a decompiler-
+added `use namespace mx_internal` while retaining its explicit namespace use.
+`ClanWindow` and `Logger` restore static declaration order to match slot IDs.
+`TopMenuBar` restores final/default switch breaks. `ButtonOver` preserves both
+explicit Boolean conversions on bitmask expressions. Each reviewed patch's
+applied bytes match the actual compiler input and reconstruct the full compressed
+release movie exactly.
+
+`FontDebugControl` remains refused. After fixing its static slots and local
+order, its empty `addTextField` retains five registers in the release while the
+compiler emits three. Unused local declarations add executable initialization;
+placing them in `if (false)` removes both their initialization and registers.
+No register-count relaxation or copied executable body was introduced.
+
+A separate broader probe applied the established source-spelling corrections to
+170 previously unmatched classes: 166 compiled, 53 reproduced the full release
+movie, 113 were refused by exact linking and four failed compilation. All 53
+successful diffs were individually reviewed and promoted; rejected proposals
+remain private. Together with the twelve targeted repairs, the tracked manifest
+now contains 91 reconstructed classes. These are independent class rebuild
+proofs, not a completed whole-tree build or a new whole-tree coverage measurement.
+
+Rebuilding the premium feature with the 91-entry manifest again yields
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+with one changed method and identical non-code data. The runtime evidence retains
+the original test's manifest hashes and records this later build separately.
+The game was not rerun: the newly produced movie is byte-identical to the tested
+candidate.

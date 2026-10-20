@@ -1,0 +1,18 @@
+--- a/survarium/controls/TextTipRenderer.as
++++ b/survarium/controls/TextTipRenderer.as
+@@ -16,13 +16,13 @@
+       
+       public function TextTipRenderer()
+       {
+-         var _loc4_:Object = null;
+          super();
+          var _loc1_:uint = 6061383;
+          var _loc2_:uint = 13582914;
+-         this.constraints = new Constraints(this,ConstrainMode.COUNTER_SCALE);
++         constraints = new Constraints(this,ConstrainMode.COUNTER_SCALE);
+          this.constraints.addElement("textField",this.textField,Constraints.ALL);
+          var _loc3_:StyleSheet = new StyleSheet();
++         var _loc4_:Object;
+          _loc4_ = new Object();
+          _loc4_.color = "#b3ea97";
+          _loc3_.setStyle("current",_loc4_);

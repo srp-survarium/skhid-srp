@@ -1,0 +1,32 @@
+--- a/survarium/buttons/ButtonIconCenter.as
++++ b/survarium/buttons/ButtonIconCenter.as
+@@ -16,7 +16,7 @@
+       override protected function configUI() : void
+       {
+          super.configUI();
+-         if(!constraintsDisabled && Boolean(constraints))
++         if(!constraintsDisabled && constraints)
+          {
+             constraints.addElement("icon",this.icon,Constraints.CENTER_H);
+          }
+@@ -25,7 +25,7 @@
+       
+       override public function set data(param1:Object) : void
+       {
+-         if(Boolean(param1) && param1.enabled != undefined)
++         if(param1 && param1.enabled != undefined)
+          {
+             enabled = param1.enabled;
+          }
+@@ -48,9 +48,9 @@
+       {
+          super.updateText();
+          trace("updateText");
+-         if(Boolean(this.icon))
++         if(this.icon)
+          {
+-            this.icon.gotoAndStop(Boolean(_data) ? _data.icon : 1);
++            this.icon.gotoAndStop(_data ? _data.icon : 1);
+          }
+       }
+    }

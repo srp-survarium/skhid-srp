@@ -1,0 +1,38 @@
+--- a/survarium/buttons/ButtonRewardAutosize.as
++++ b/survarium/buttons/ButtonRewardAutosize.as
+@@ -23,7 +23,7 @@
+          super.configUI();
+          textField.autoSize = TextFieldAutoSize.LEFT;
+          preventAutosizing = true;
+-         if(Boolean(constraints))
++         if(constraints)
+          {
+             constraints.removeAllElements();
+          }
+@@ -43,7 +43,7 @@
+       
+       protected function updateContent() : void
+       {
+-         var _loc1_:Boolean = false;
++         var _loc1_:Boolean;
+          if(_data.type == Reward.RATING)
+          {
+             this.icon.gotoAndStop(5);
+@@ -90,7 +90,7 @@
+          }
+          else
+          {
+-            _loc1_ = Boolean(_data.useMultiplier);
++            _loc1_ = _data.useMultiplier;
+             textField.text = Util.getMoneyString(int(_data.amount * (_loc1_ ? (_data.type == Reward.REPUTATION ? PlayerInfo.questRewardsMultiplierReputation : PlayerInfo.questRewardsMultiplierMoney) : 1)));
+          }
+          textField.x = this.icon.getRect(this).x * 2 + this.icon.width + 3;
+@@ -100,7 +100,7 @@
+       override protected function draw() : void
+       {
+          super.draw();
+-         if(isInvalid(InvalidationType.DATA) && Boolean(_data))
++         if(isInvalid(InvalidationType.DATA) && _data)
+          {
+             this.updateContent();
+          }

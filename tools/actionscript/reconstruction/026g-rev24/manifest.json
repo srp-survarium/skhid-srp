@@ -208,6 +208,526 @@
       "pristine_sha256": "74e3a627c2d08ad2e623670260ad7839867dd61166da7619e02bb0186968f77f",
       "reason": "Recover implicit local defaults, direct truth expressions, unqualified own-field assignments and identifier object keys where present. Reviewed source diff reproduces the complete compressed release movie.",
       "result_sha256": "8757882844d18a060ddf22df8e6294a982ef04f400c8c8d6aa8ea7fd5bb04618"
+    },
+    {
+      "class": "mx.utils.NameUtil",
+      "patch": "mx/utils/NameUtil.patch",
+      "patch_sha256": "d77e6205aa3e533c1d1b8834bd57d7f95d22fc17a64ae4c578972cb9ed2904c3",
+      "pristine_sha256": "2c160297b860363af3f121ffe0fe9411efd8f6916eaea47097be03b3bdf2616b",
+      "reason": "Recover original dynamic lookup namespace sets by removing the decompiler-added use-namespace directive; retain the explicitly namespaced VERSION declaration, implicit local defaults and direct truth tests.",
+      "result_sha256": "0209db0f4f4259f0b81b25c2de906a4c3045e4f6918d07bca0c6ebce56076234"
+    },
+    {
+      "class": "survarium.buttons.ButtonWarning",
+      "patch": "survarium/buttons/ButtonWarning.patch",
+      "patch_sha256": "cf6bb96da7143bd217f427f1fb65783d290c2fb4270176835c0c944bb5540fb6",
+      "pristine_sha256": "16819a28bfd721aaa3044709d16a4fc5ed77e19527d18ba9f5900713671d288d",
+      "reason": "Recover identifier object keys, including an inline literal, plus implicit Number initialization, field assignment and a direct truth test.",
+      "result_sha256": "37891a06c14bb9d32a66aa44e68a653449f1432960cf73bee84ecba0cbc6f44b"
+    },
+    {
+      "class": "survarium.controls.ButtonBarDynam",
+      "patch": "survarium/controls/ButtonBarDynam.patch",
+      "patch_sha256": "097bd5e045332e12653353649cbced8d6a6b2ae67762561f5dd36f5d13b14fc3",
+      "pristine_sha256": "a8b045333c8b9bfa2c45da1fab5e1d4f11da133030b158b70aa010d8ff9c29e5",
+      "reason": "Restore local declaration order, explicit loop-counter initialization and implicit typed assignments; retain the original loop and renderer control flow.",
+      "result_sha256": "61df0db95a4679376723830c51b2687be6b97456c498c49c7e508153f73db673"
+    },
+    {
+      "class": "survarium.controls.DragRegion",
+      "patch": "survarium/controls/DragRegion.patch",
+      "patch_sha256": "d50aad5af83ca09d938dee837c7469dbbf63d82740e97357443efe634dd93c8c",
+      "pristine_sha256": "de340746ef0638de8707d6238e7fa0772956bf3cca08eb33f33e1f942bbfab04",
+      "reason": "Restore local declaration order, identifier object keys and the original non-stack branch with its explicit else return; preserve ExternalInterface argument conversions.",
+      "result_sha256": "969bbf99c8a32104202d2c55925191e61d72cd91307ae70a1907c09972a7b043"
+    },
+    {
+      "class": "survarium.controls.ItemRendererFull",
+      "patch": "survarium/controls/ItemRendererFull.patch",
+      "patch_sha256": "e8dcbcb0471b71d5e53dd997eaa459d74c656e48eebe561bad40e2f438b517f2",
+      "pristine_sha256": "608f3af52a51b4a39234edcc872f385875605d5a933327344c50cc71c48ca4d9",
+      "reason": "Restore local declaration order and direct truth tests, while retaining the explicit Boolean conversion on the seller-icon visibility assignment.",
+      "result_sha256": "5e7f1a4ad381d870b7bb7f7997178963bce42ae62a4c33d93e392a9863b9b3cc"
+    },
+    {
+      "class": "survarium.controls.TextTipRenderer",
+      "patch": "survarium/controls/TextTipRenderer.patch",
+      "patch_sha256": "65b2957b23f199b76d8b0fb264f6a42478f540d596c2fc0a5059f21d97c58c2c",
+      "pristine_sha256": "81c6e12982275beb3dcce3960c8df550f25310276d18015cf5f6306f8785a357",
+      "reason": "Restore local declaration order, the implicit Object default and the unqualified constraints assignment.",
+      "result_sha256": "759c155da01744f230a44da4291570b0331236aca45f5e158fe9e9ade4c5fbbb"
+    },
+    {
+      "class": "survarium.controls.SyncWave",
+      "patch": "survarium/controls/SyncWave.patch",
+      "patch_sha256": "2cd39869d7d90bebe991d8907a3508ebc39e6026362e4c92a45f6473d3f2b6f0",
+      "pristine_sha256": "7e65c222fef53710d6c7cf6ba89a28bef8a1dc5136c3387d0a6b6657ebbd3858",
+      "reason": "Restore local declaration order, explicit loop initialization, unqualified field assignments and typed numeric assignments; retain the explicit int conversions used by the calculations.",
+      "result_sha256": "17e51e9f54d43f92fae0a840ff51cd37a5a771094da5057993ce20f7f450bddd"
+    },
+    {
+      "class": "survarium.controls.TipVictoryScreenColumns",
+      "patch": "survarium/controls/TipVictoryScreenColumns.patch",
+      "patch_sha256": "bc299f3f72afee7cec0bd1838e8a09f1e7e1571f559040c7b008d1ee4f6b9ee4",
+      "pristine_sha256": "453a674d7b08d531704ea575a3dba260c24b64b9e917aac82d980f2881787d62",
+      "reason": "Restore local declaration order, explicit loop initialization, direct truth tests and implicit typed ternary assignments.",
+      "result_sha256": "991ca6e185bad705b28a41b69708a022fd9bcb03a2d6ea4f3fd91bbb0bb2b90d"
+    },
+    {
+      "class": "survarium.clan.ClanWindow",
+      "patch": "survarium/clan/ClanWindow.patch",
+      "patch_sha256": "d6eff96f57a85a4cf9e4fb138f1e22af52bddda1a2fece429d44d8e6f049d759",
+      "pristine_sha256": "88db5efd1a242435819f04453d37dbdf306bbeb87b5d331ea7dd2e27f489c811",
+      "reason": "Restore static field declaration order to reproduce their slot numbers, alongside implicit local defaults and a direct truth test.",
+      "result_sha256": "91d6da74ecad5e46613a2260bfc4d201b596f4ba0cd69bbedd5f51a2e8c91115"
+    },
+    {
+      "class": "survarium.debug.Logger",
+      "patch": "survarium/debug/Logger.patch",
+      "patch_sha256": "630d504001339ff8999504c6c54558957e7b68c22202260ec650924a10d576b7",
+      "pristine_sha256": "6129bec84c28096052ee1dcd02a450d3246ff8430476cd61cd28caa292698826",
+      "reason": "Restore static field declaration order to reproduce their slot numbers, alongside implicit local defaults and a direct truth test.",
+      "result_sha256": "5fa1b9cdf9281bcc79f9505e3a209002d5833fc623158e549a553c58a30f4291"
+    },
+    {
+      "class": "scaleform.clik.controls.TopMenuBar",
+      "patch": "scaleform/clik/controls/TopMenuBar.patch",
+      "patch_sha256": "8c9583b46ee57407ce8d6f49c76f29e0aa45b6da2ec75a0f3db9692e4c3b6ecb",
+      "pristine_sha256": "176eadc7a887664f9da7731d2c9b25a1f139999f0117ca577223395ec4b50a56",
+      "reason": "Restore local declaration order, explicit loop initialization, final/default switch breaks and implicit typed assignments.",
+      "result_sha256": "7060adee0916625399d7ed79b64db13888da44eda033fc7603c5190815df0574"
+    },
+    {
+      "class": "survarium.buttons.ButtonOver",
+      "patch": "survarium/buttons/ButtonOver.patch",
+      "patch_sha256": "ab7fe68186934849cf1895bfabd98bca88598f725a4f2ff7a77b9ba666a8e2ac",
+      "pristine_sha256": "7e37f04d570d46287e854fe2a9e4333e85b011c012598cd8a1f74b52ccda250d",
+      "reason": "Restore local declaration order, explicit loop initialization, identifier object keys and direct label lookup truth tests; preserve explicit Boolean conversions on bitmask expressions.",
+      "result_sha256": "8db9293e166a6df0ebfff900f97fe1767fd3ea3c2abf7ee760908239fb8793f9"
+    },
+    {
+      "class": "SymbolFonts",
+      "patch": "SymbolFonts.patch",
+      "patch_sha256": "575824a6e5f08efd2f45cf85a4e9b165ec6fa519ed2815d579382464182d274f",
+      "pristine_sha256": "14d477d202087644eb16e2d89eabefe20a2eb1753b9622451483c6a003c939be",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "cbf3190317a7565b9a3836e1d35958bec6c37797ce9d829761a8019e0fc792be"
+    },
+    {
+      "class": "SymbolFontsExo",
+      "patch": "SymbolFontsExo.patch",
+      "patch_sha256": "e7536022453d815d7287fe3f959bbe8e9f58fc10edb495283c9d1cec723450d6",
+      "pristine_sha256": "eb827be3e33c610c92f4f054b77c90bb1d824dd5179572e2c6b3d7ea2c2a64e0",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "df5044f9ec495c0c0ffd6edcd4506c4b11755df0892432c3e7d42b7c9ab119c3"
+    },
+    {
+      "class": "com.greensock.core.PropTween",
+      "patch": "com/greensock/core/PropTween.patch",
+      "patch_sha256": "cbafb1e8ee967a2566decb5d4965ad03f2121248fcdc0864884d715a1b9db990",
+      "pristine_sha256": "4fc68338aba81fd5735b448167a7f2ad8d675df238c2180d8d0694dfc032e253",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "457893bcb919678acf95a7a70725c15da45f898dbc42c677fd934bf56a9cdc96"
+    },
+    {
+      "class": "profiles_fla.MainTimeline",
+      "patch": "profiles_fla/MainTimeline.patch",
+      "patch_sha256": "b3484d79177998d6c643940c39d97cdadcb19748a9e67269e88d557ea76aad44",
+      "pristine_sha256": "497cd15a5b82e991ea1faa4081d2b5682b8ffb860d72f27da2cb3234c423e40a",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "1309037d18a49f3edd71a72802aa7ed2559aeebae0ed06d6541d0cb322eb83eb"
+    },
+    {
+      "class": "scaleform.clik.controls.StatusIndicator",
+      "patch": "scaleform/clik/controls/StatusIndicator.patch",
+      "patch_sha256": "cf1d609561b547bcd02f43f057c5c0ccb4aedaca2141a2e0534d23a4cba8153f",
+      "pristine_sha256": "7ba55c4f547afbeaded62f2d6ae5ff690a20e48d494bdff47d00418b70fb7d1d",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "21422826d16a20e109d9420cd2293d471cbe763afbe37e7456a2148647d6788a"
+    },
+    {
+      "class": "scaleform.clik.controls.TipRenderer",
+      "patch": "scaleform/clik/controls/TipRenderer.patch",
+      "patch_sha256": "806314595961135314259b603bb22dbabfbc583a1a613be74d8524da5b70c412",
+      "pristine_sha256": "aea9de5c5212c35c2ffce7892ea4fda9402c31ead39a9e0567ec4c39c02161c8",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "1126c503409f76412aa20772881a70d114177aad52ee658d4dd0741d702526c0"
+    },
+    {
+      "class": "survarium.buttons.ButtonArrow",
+      "patch": "survarium/buttons/ButtonArrow.patch",
+      "patch_sha256": "18eb648cc9d07825bc94f92384663e29621e86668bd7d94553377409a7f82850",
+      "pristine_sha256": "0d1a6bdc32238ae95d0566432e5ed2f4156e471818bf127296f2b2924facaf6b",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "5a4b9aae3277202eb2b020ecd9313034e989d3490c5b953ce4c852c045af376d"
+    },
+    {
+      "class": "survarium.buttons.ButtonBlink",
+      "patch": "survarium/buttons/ButtonBlink.patch",
+      "patch_sha256": "d6bcc59cbee3daa378f77e2dd81127fa5798beeb9a967ab528b297632aa2512a",
+      "pristine_sha256": "828a112259a30a5a512fbb7e33282b06e9c04b91b8586f37ddac6b268f2166ba",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "bc269e2ec78c877d86cb04031e0f935a4b74c37213ce134a3ea4a2873840fa68"
+    },
+    {
+      "class": "survarium.buttons.ButtonDataLabel",
+      "patch": "survarium/buttons/ButtonDataLabel.patch",
+      "patch_sha256": "42894fa8a71164a1a8ecf605061dc9ad3a9fb0c10322d78583c123183e39d76c",
+      "pristine_sha256": "9795da428977391424377a590ed776d3e42ad28f95733ddf8c8a4ef493843295",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "e9bb38e9ddcca5191730e1d9de62546d24f1cbf8ded19ef31523b380c1b18529"
+    },
+    {
+      "class": "survarium.buttons.ButtonIconCenter",
+      "patch": "survarium/buttons/ButtonIconCenter.patch",
+      "patch_sha256": "d8dbbbc1fd1209e1c2a9f68f00d616de64bbaace53ec59b9d3e3f242e320d5ef",
+      "pristine_sha256": "1ccb6450f45e2a6cd9cd9cdd9262d72f86aa684450634206876cb68461f4dee3",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "9ebb060bf55f658d4876fedf0dfc972801d3120e78216ec51c869253f4fa7016"
+    },
+    {
+      "class": "survarium.buttons.ButtonNotificationFactionRank",
+      "patch": "survarium/buttons/ButtonNotificationFactionRank.patch",
+      "patch_sha256": "361807e74a111a43ce0402030b9ceba47d69e01812fe13abdb086fd0ee57c08c",
+      "pristine_sha256": "2306615bb33be7ef7172f463434dbb360b2374273cc53b169ec362da450b9460",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "f691b682e46d84d478e0b03271f1a2db8700550950c57f5bd183356eba4168a5"
+    },
+    {
+      "class": "survarium.buttons.ButtonNotificationInvited",
+      "patch": "survarium/buttons/ButtonNotificationInvited.patch",
+      "patch_sha256": "3e228132ee445937c8fa256e7ffa2427c21e05c87ca3f07d5655a4a8160afa11",
+      "pristine_sha256": "0fbef8d73c31691daf9542b1f80031ecc0c186edff5442aadd4d1015c792072d",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "beb12c43efc472638ef775fe448f0a5edbfdec0f4f3b9570436f49da9a0b09fa"
+    },
+    {
+      "class": "survarium.buttons.ButtonNotificationLog",
+      "patch": "survarium/buttons/ButtonNotificationLog.patch",
+      "patch_sha256": "885a4ad4d03bf65fe6448dc371c9d09e4d14a8e3f9db3759777837ca85b0574a",
+      "pristine_sha256": "a72a7f91513341cbc994ca8a095ae27ad94d7def64651a0a51c6f02af6f4c1af",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "13b8020ac026ad2d95d37f4aec058e0019189344adff2f377ad72da296ecafa2"
+    },
+    {
+      "class": "survarium.buttons.ButtonPremium",
+      "patch": "survarium/buttons/ButtonPremium.patch",
+      "patch_sha256": "4f38e8663d5b11da0fe5f1d8e4d2168e6af76f5463759d8382c6f2ad85a7c3bd",
+      "pristine_sha256": "59e87897e5991460f423d6eca7e8114ae442fb89a16956d784a707967d35f16e",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "4bd202dbaffb17f067edaee87b044301f4d595851313752fd99762aa24efbc57"
+    },
+    {
+      "class": "survarium.buttons.ButtonProgress",
+      "patch": "survarium/buttons/ButtonProgress.patch",
+      "patch_sha256": "38c482ceb3d659860a4783faacd0638c3f63e561d7c66fabc6b1731daae65d0f",
+      "pristine_sha256": "69028d8bf408ed7311bdd4d61811e7e2b851ecbd9517082340e466f453d78e55",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "431afec65f656935d6e9867a3d3d16996a91ee322c5e219ccf53404a6d04347f"
+    },
+    {
+      "class": "survarium.buttons.ButtonRewardAutosize",
+      "patch": "survarium/buttons/ButtonRewardAutosize.patch",
+      "patch_sha256": "3a403d1edc604c69e2d8e758508bc187d5b6ffa1f327db087a2fe593c96719b5",
+      "pristine_sha256": "9f87f1428fb70e05a7f2ca21ec66b96fe814c7e6555abed5c48f4a95e0e628e4",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "0e2d97cde74af0211663953987e7b43604e14ef3e29daaf6ded2a0932bfa3d4b"
+    },
+    {
+      "class": "survarium.buttons.ButtonShort",
+      "patch": "survarium/buttons/ButtonShort.patch",
+      "patch_sha256": "17f2a593e78b32d03771a12f5ceb9bebf1dd1676f47f3b79f1db05f112835e30",
+      "pristine_sha256": "25c7eac58fde19ccc1f964c4311d3bdccfa94697fcfde6950895b6e5b9a5af98",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "39df87c57dc2be895dd41c563108f921612d20740db0adda257e8368ca1c210d"
+    },
+    {
+      "class": "survarium.buttons.ButtonStyledLabel",
+      "patch": "survarium/buttons/ButtonStyledLabel.patch",
+      "patch_sha256": "a69ba23bdec6df629fd5856e319b1b48727c1a7ebb2f32d7e0ea9e1efd124ca4",
+      "pristine_sha256": "951ecf7da9b20dfda0b08a708e0bb8cb0c851e03d1afd3b37b1e13ea01d9c3ae",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "747c0feaf394dc24c03c97a2ad608ad0214fc79d6e2f222b92efe7e81883111b"
+    },
+    {
+      "class": "survarium.buttons.CheckBoxIcon",
+      "patch": "survarium/buttons/CheckBoxIcon.patch",
+      "patch_sha256": "370be0c6751459462fcde4bff991281cb8fc11148ff7dc9f8f473a3146e392e7",
+      "pristine_sha256": "090b812d0880a6f8b88ae069e1c872c63db8f68047fbeff871234e9d745738ca",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "765e72557bc667ca803e5add5480e39a0c8ee9320841e9b8ea0b1e08ef0091f9"
+    },
+    {
+      "class": "survarium.buttons.ClanInviteRenderer",
+      "patch": "survarium/buttons/ClanInviteRenderer.patch",
+      "patch_sha256": "5e85ee8f80d00e89f54440a0c7b1b1efb2b9a5f08c0ce79e064d96852606c2ac",
+      "pristine_sha256": "a1b0dd2be83c2d1b51ba8bd3997f65d5249c40cf5481fdf82853b166c20557c0",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "c9ce354a318bb9fc937bb3d9f41b955902c14f9c2da175ed314c6435142b4828"
+    },
+    {
+      "class": "survarium.buttons.DailyDropRenderer",
+      "patch": "survarium/buttons/DailyDropRenderer.patch",
+      "patch_sha256": "cbf62e984b11d0b0a53cded6b1c33d4fcfebb0d80abe16d38bab0e159ee39641",
+      "pristine_sha256": "bb811ab0672a2c7710d5dd9b0eceab65333466f458cd45e3776b50df572e2f22",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "541a375dfb4f0d2199b258b0f1f9aa4b25e01f64c5bfead66d47cc1593a0baef"
+    },
+    {
+      "class": "survarium.char.PerkTipRenderer",
+      "patch": "survarium/char/PerkTipRenderer.patch",
+      "patch_sha256": "23c51ca02df015bdddf2f42c0bdefad5e510d89e9baec363a996203b3cc34e74",
+      "pristine_sha256": "e0b9e8c497cc75f3943c63d32d1e102cfae389e8ae878f5e7fe033248b686327",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "fbbe726afb594d542a442c39908e0052bdc08387d660674225318db374f10a3b"
+    },
+    {
+      "class": "survarium.controls.AmmoTipRenderer",
+      "patch": "survarium/controls/AmmoTipRenderer.patch",
+      "patch_sha256": "e6cf82cf44935a0ed1bd219d85c3cfb1ee033e77d9e5a37b66462b06deff033d",
+      "pristine_sha256": "2cd70eb9baca49ca71cc201adc76291c4ba28e0867a1cbffbb2dfdda00c44741",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "32c178138f93295d189515949593c3057debdb3c13be8a93aed38e60aaf7f1ef"
+    },
+    {
+      "class": "survarium.controls.DiffIndicator",
+      "patch": "survarium/controls/DiffIndicator.patch",
+      "patch_sha256": "b9e47d3b80cd435d450924d23a781a8ed47731b8b1527e2e3fa55bef608ff841",
+      "pristine_sha256": "6352b53009a0e4989aeeea662ce82607bdd6b95d6c8ce23c65f419d3a503d7e6",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "87fc8a9239d1f0ba4507ac1a9fd7d8fdf79531afedb2f4cecb479fe014abc909"
+    },
+    {
+      "class": "survarium.controls.FixedTextDots",
+      "patch": "survarium/controls/FixedTextDots.patch",
+      "patch_sha256": "d6b99206f5985d64a1cc58e89aef9eb7cadbf09e3e7c9878923a6fcb861f4a0f",
+      "pristine_sha256": "dfa98a6da8d3c57444f10b0fc87cc7306075dc5e6e5fdeca2b51dffe1d85afb7",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "fe6005b9c145800c2681602c6c272bbc1d7a98f6adef5dfdfc6f3157bbd3c673"
+    },
+    {
+      "class": "survarium.controls.IconRenderer",
+      "patch": "survarium/controls/IconRenderer.patch",
+      "patch_sha256": "2147e9602dbff2597e42e8a51f95a33ad7640a804ef133dfd159ea7b69343743",
+      "pristine_sha256": "5c2dcadb6168f2e5086b4d95676abcbb22de91eef543bfc68fd4993e4034103f",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "b138db13dc47c911ada8abeed1fcefccdbcdddce5656b2e6eea8d3a90cedc836"
+    },
+    {
+      "class": "survarium.controls.ItemRendererCore",
+      "patch": "survarium/controls/ItemRendererCore.patch",
+      "patch_sha256": "0631863157734621cfa161628d2b8bb9cafa478232464c4c92db8ff604e426a3",
+      "pristine_sha256": "d7616fc99450a148f6bd46777dcc5c2069af9d82f6abdba823c017550cb54e1f",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "fc530cb42f811680efc843ec3f06ddef4b5f1fa045b70ed66c463e4673d10ff5"
+    },
+    {
+      "class": "survarium.controls.LabelCost",
+      "patch": "survarium/controls/LabelCost.patch",
+      "patch_sha256": "0a87f347bd8203443894ccf97c17d73f9ae1c17417cd5a2c768d3e1feda03110",
+      "pristine_sha256": "502a5a6469e8237c8e05ea9231e7b4c008f1fe329ea20e8b69223e9e4ff348c0",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "e0d41f9b0404250b593afc66ca84de912385509ab27fd17316b8139040cf9025"
+    },
+    {
+      "class": "survarium.controls.LabelDiffIndicator",
+      "patch": "survarium/controls/LabelDiffIndicator.patch",
+      "patch_sha256": "db752cd0523229807b65b8a42d051777816ca762f941d445f2b5cdc9404604db",
+      "pristine_sha256": "3bf4123b4345a6248112e6a2e30b2b6ea3b4ce84367ed1c2d43ebf7662339001",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "2b5a35fcf7ede524b6368c40ea825f8950ba35f6b95c0bde7431a6f5a3eacd8c"
+    },
+    {
+      "class": "survarium.controls.NumericStepperExchange",
+      "patch": "survarium/controls/NumericStepperExchange.patch",
+      "patch_sha256": "15ea6cc04a3aa53241b8794ed8f95cb256adc87c27930b58e14cd215d494ebb5",
+      "pristine_sha256": "6f7e69a33c5913e19f34c97ef84909ec87c3d47c6053ec8f821afc4790b67d50",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "fcdf356b399280419a069f4e6913d0d2e4862fc8affbb882a2e627030fdefe95"
+    },
+    {
+      "class": "survarium.controls.NumericStepperLabel",
+      "patch": "survarium/controls/NumericStepperLabel.patch",
+      "patch_sha256": "99f07a966d9e834d7807a1e7568356f436c58f25620fbb3ae820dd7a342126a3",
+      "pristine_sha256": "29f8b894c06fe7939c6d27d07b9e9d766cdbea93c8bc05e5934295ccccf6934c",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "afb07d029412b184b468242dbb5ccc7e4441c2ead8cee6a53f56050a13da9847"
+    },
+    {
+      "class": "survarium.controls.PlayerListRendererTipped",
+      "patch": "survarium/controls/PlayerListRendererTipped.patch",
+      "patch_sha256": "020608c2aacdc574a050942cb6e1f6cedabfed1a7183d81e374eb53c13231025",
+      "pristine_sha256": "28aac64f6c5f565e6cb1f02b1ce27d24fbef16ad4bc9cb59678231c0c7ecb6ce",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "8d214af8b5701bd90ce1ba0844f43d10cbf18006c1a454ee8cacc16d90a6b9bf"
+    },
+    {
+      "class": "survarium.controls.TaskRenderer",
+      "patch": "survarium/controls/TaskRenderer.patch",
+      "patch_sha256": "0893542400416bc6a2c8f5742a07489233940633dc95738ddf5f9bb4828abd7d",
+      "pristine_sha256": "8b22b963e8ac78b28231c5e387923d58be77184086b6ed3a40307e80d4ede446",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "6d8a08419455e0fb679e48459b3a0fe38a171d406b57501ec7f6b3d5356fa384"
+    },
+    {
+      "class": "survarium.controls.TextInputValidate",
+      "patch": "survarium/controls/TextInputValidate.patch",
+      "patch_sha256": "79a0316ee4ad767818f8d632d78c04bfcf6cbcd45a096b9991ca469a42f7303d",
+      "pristine_sha256": "e49703c6fd1835f2f2a6f0d584eb5ec076b4356f2489848cf28fd057bab55dc4",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "e04b939abb045db6994d48af5ae1d1e692126660d08a556aaea49f4720e33f77"
+    },
+    {
+      "class": "survarium.controls.UIWindow",
+      "patch": "survarium/controls/UIWindow.patch",
+      "patch_sha256": "f86b83aaa2e6cc9f34c8da7964c4bb6df6fd39c2be7201de7ce5de2bfbf256f6",
+      "pristine_sha256": "34875421451d9c6f6a2514ed820aa6798d14637a07ebe5eb68dd88fc4860d04e",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "9e78e058e8c898d71045856be71ec2bc6c3fb3db0d14e164b5f8cf8dcc601205"
+    },
+    {
+      "class": "survarium.core.Icon",
+      "patch": "survarium/core/Icon.patch",
+      "patch_sha256": "89bd5bfc7f044e02ebedeea02358164af7c4f08f1e551934b76dcf8545f4d6c3",
+      "pristine_sha256": "d7e4056e86eb069ff12acbf7f48f8723a87efcaf85bbd58b3b23f29b3c118803",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "9af371cc7a4c1d515e9681984bb4bd5920336a41f8099a6750414b3bf1669ac3"
+    },
+    {
+      "class": "survarium.friends.FriendListRenderS",
+      "patch": "survarium/friends/FriendListRenderS.patch",
+      "patch_sha256": "9566e5aa2ee1f5cfb946bdfc2e2190d83695760afaa4162ec0d4edeb30c66974",
+      "pristine_sha256": "16ca61240068d63ba261b4684593b4069689f65f8e242c5851f01e0d03f72c66",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "d6d209bc51688f115913f810215ff4f50260d285d66e5a5143e9240bdfac1911"
+    },
+    {
+      "class": "survarium.gsearch.LobbyGameLoad",
+      "patch": "survarium/gsearch/LobbyGameLoad.patch",
+      "patch_sha256": "ae447ed518fe0858700127e0938ad5388062b14d3e8bd9d52f18d77b9f39eac0",
+      "pristine_sha256": "3d46b63fe7cb0b31943412f4e6bf502b7778b57b2e39dc6498148217ca0bebc3",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "1de4a8141ea4b707d8822f0f6b013e041ed27e628fcc3e12647a050dd0faadce"
+    },
+    {
+      "class": "survarium.item.ItemRendererReward",
+      "patch": "survarium/item/ItemRendererReward.patch",
+      "patch_sha256": "7d189a6af84eb216dbfdbed8ada74fa43644c1d0c5b1e90a8e0255d1498315c0",
+      "pristine_sha256": "6973061a557cc27fbe89332c16fbec164b317aff8ab483f48deae9702903a31e",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "44fe9bf1293d14669859bffc3f7dffeaeacf75bc7c8f05b8a07bb4f7882f7586"
+    },
+    {
+      "class": "survarium.item.ItemRendererUnlocked",
+      "patch": "survarium/item/ItemRendererUnlocked.patch",
+      "patch_sha256": "4693df2d12be2b6d429c9d448a6517ad3ad71f6dbbdb79300b98e93dd277b1cd",
+      "pristine_sha256": "c0dbad4e0722df8fc8b7840d9747edb530e85941e47298b32fc6c85fb68a5980",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "711b67d5e34fce8941dd13a2a72bd1299a491ee1c5861d6d78ac4e0f5e0b9661"
+    },
+    {
+      "class": "survarium.item.ListItem",
+      "patch": "survarium/item/ListItem.patch",
+      "patch_sha256": "c24949a55680df4e58175866ad60b15ee648dc4a26e35443130a15561e32f5db",
+      "pristine_sha256": "625514aaa0d013aadd7800c43e0d373ddd67b84696673c163da7fcfb37a94580",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "2e7a920848f21103fd38a0344bc265c7a4dff206b62a2246c660c4464b6a782d"
+    },
+    {
+      "class": "survarium.messages.MessageAnnounce",
+      "patch": "survarium/messages/MessageAnnounce.patch",
+      "patch_sha256": "c3d423f28c79dd6bdc9f40938c539dadbfe21471cb80beb5e0008bd28bccba42",
+      "pristine_sha256": "867b948c7d518cf908ea964ab0a42ce351490170c181f9be9c728b387bc12871",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "a376edb310b36ff3f1941e5a3962e06ee79e5d34843592870cab8da6a2af89a0"
+    },
+    {
+      "class": "survarium.messages.MessageAskReroll",
+      "patch": "survarium/messages/MessageAskReroll.patch",
+      "patch_sha256": "d211b3eee275860ca5cdc8a2c353e167d1ccf99011bf14b59a5055db4f34bcdf",
+      "pristine_sha256": "baad4fa2cf169f85637c103c384f45720c06018d526d3f9c5b3262bb2a44af3d",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "1fd1974a7f904e20c1f7cd551847ce4d2ad1b8c0c8e8ff0a688556d49296b058"
+    },
+    {
+      "class": "survarium.messages.MessageBase",
+      "patch": "survarium/messages/MessageBase.patch",
+      "patch_sha256": "5f41e6145f64d2d9acc557ee7083545df82457a01c3f380e297bdd8834a1820f",
+      "pristine_sha256": "ffd1210978f8caff2b268f138ada00012889b1f8964c47a627e6728e1ece1ca1",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "ca7734d1fdf77f6a147547fa2bdb7ebf9031a570af6cd0596e9f5bec0c286ecc"
+    },
+    {
+      "class": "survarium.messages.MessageCreateChar",
+      "patch": "survarium/messages/MessageCreateChar.patch",
+      "patch_sha256": "db66ab2f281de1fded9931dc241b0ef87cf1f56aed88839d7322f116d6dd9d20",
+      "pristine_sha256": "1b70fd7dbbd1f8e5f8408c4386b2b8b7c5e32a77ad2f1ca975d2af19f4a3120c",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "290ea00f2a5acbf2df9570d0706636081792a6080d96e8a7176ccb6e84e6ecfa"
+    },
+    {
+      "class": "survarium.messages.MessageExit",
+      "patch": "survarium/messages/MessageExit.patch",
+      "patch_sha256": "c294e94afee451713bdf0d8d128a17afbc39370ccedcfdc3f1fe6e50f7660d88",
+      "pristine_sha256": "3a996b800eba25bded4d2a541163cd6f6b0feadaabe47a0d97e56520fbdd3f3e",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "9de465092203f3a6db32ba298ca6ea77762f6535c7148e9aa4ad9c7431effbd5"
+    },
+    {
+      "class": "survarium.messages.MessageFactionRank",
+      "patch": "survarium/messages/MessageFactionRank.patch",
+      "patch_sha256": "838f92c3d899e2dd307a200eb280f5e5da3fac9731a84f7caa0ebdff0670c253",
+      "pristine_sha256": "827e6485d7227a23c081aaf0beb4d396d59021870fdd4a0d917fe7940532424c",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "e6bdcd4978880a4d5785f9efba2dc71b72783f00cec076b83c4c0f503f095413"
+    },
+    {
+      "class": "survarium.messages.MessageNoClose",
+      "patch": "survarium/messages/MessageNoClose.patch",
+      "patch_sha256": "8ba4d9be4b4816457df0c3c48bdb52ceb646c5b202015f91ee0f15083f0ee109",
+      "pristine_sha256": "1f0a32c92112e0c2133597e95e0a6b4f0793c2a5204c7ef7a62efc03e787f5fe",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "15b574bdceabe4fb1c31641d12a27ed099ba94668ecdc9ff4195e8802a7061dd"
+    },
+    {
+      "class": "survarium.messages.MessagePlayerInfo",
+      "patch": "survarium/messages/MessagePlayerInfo.patch",
+      "patch_sha256": "d05a47030889a7d4df9f813ca19ece5ee2f6f1d1a3002a385f02324df93a3b9d",
+      "pristine_sha256": "15e2e646e1ea14696cc257580af5df6a3ab7b7fa311480800605bba7f54bcf1c",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "39e391d135ef001337573a76aadfbd2157ed3432ee4c104554d7b12e009ddf78"
+    },
+    {
+      "class": "survarium.messages.MessagePlayerRank",
+      "patch": "survarium/messages/MessagePlayerRank.patch",
+      "patch_sha256": "cca415d3f6de74252c4597f4e3e76bfb5b3b0f337e4bc2f67c2ff0c737595656",
+      "pristine_sha256": "00ffe1118ab816a5bbec9861885b1a089a7b347cb2e7223b632f0ef3a90d7910",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "505158c548f2b974e3c5655643369c816f4ff62861dd8e08817112b2f34592fd"
+    },
+    {
+      "class": "survarium.messages.MessageQuestInfo",
+      "patch": "survarium/messages/MessageQuestInfo.patch",
+      "patch_sha256": "0c0faa7dec6e1ef13b0ec65cacb109484f751217ba380037ce8d6a9b4083a7ee",
+      "pristine_sha256": "7fa8c8e2d2f88c31713b4d659e5a9c01830c54a4081ee7a3fc19966dc0f82660",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "46a663b08e55f290004571dbc6107fc1cc0addffd5412fb508b18e2378aeb4e8"
+    },
+    {
+      "class": "survarium.tutorial.TextSlide",
+      "patch": "survarium/tutorial/TextSlide.patch",
+      "patch_sha256": "b5ce9d585487d501d1a0a90a39ddcf38e53f46e0789dba2011eb52aaa387d788",
+      "pristine_sha256": "ae86e1e54ff232fd6e0531181d4b22f0ce4bc817da2543444c844cbdcce5be7a",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "114919f695dc3974b30c938b4217d9ac486e50d34583dfc6834856978b02e975"
+    },
+    {
+      "class": "temp_test_fla.MainTimeline",
+      "patch": "temp_test_fla/MainTimeline.patch",
+      "patch_sha256": "a926ed9bc4ecfcbc9fb89e9bc33751476d6474b24c4e1c7885ce69972817d2cc",
+      "pristine_sha256": "1c1c980d5eca72783c2ef7c7c7fe6b81477050561df947448743f181ab070c8a",
+      "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
+      "result_sha256": "4bb8414327456e2557d350f06f40c3e15634a7dd1cc2e540da4262b1da530060"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

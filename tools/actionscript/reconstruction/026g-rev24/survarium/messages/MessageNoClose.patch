@@ -1,0 +1,20 @@
+--- a/survarium/messages/MessageNoClose.as
++++ b/survarium/messages/MessageNoClose.as
+@@ -52,7 +52,7 @@
+       
+       public function set text(value:String) : void
+       {
+-         this._text = value;
++         _text = value;
+          this._message.text = this._text;
+          this.resize();
+       }
+@@ -64,7 +64,7 @@
+       
+       private function _startDrag(e:MouseEvent) : void
+       {
+-         if(Boolean(parent))
++         if(parent)
+          {
+             parent.addChild(this);
+          }

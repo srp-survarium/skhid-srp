@@ -1,0 +1,13 @@
+--- a/survarium/buttons/ButtonDataLabel.as
++++ b/survarium/buttons/ButtonDataLabel.as
+@@ -12,8 +12,8 @@
+       
+       override protected function updateText() : void
+       {
+-         trace("BDL::",textField,Boolean(_data) ? _data.name : null,alpha,visible);
+-         if(Boolean(textField) && Boolean(_data))
++         trace("BDL::",textField,_data ? _data.name : null,alpha,visible);
++         if(textField && _data)
+          {
+             textField.text = _data.name;
+          }

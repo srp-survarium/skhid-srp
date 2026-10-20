@@ -1,0 +1,33 @@
+--- a/survarium/buttons/DailyDropRenderer.as
++++ b/survarium/buttons/DailyDropRenderer.as
+@@ -39,7 +39,7 @@
+       override public function set data(param1:Object) : void
+       {
+          super.data = param1;
+-         if(Boolean(param1))
++         if(param1)
+          {
+             selected = param1.selected;
+          }
+@@ -89,10 +89,10 @@
+       protected function updateData() : void
+       {
+          trace("DDR::updateText",name,_data);
+-         if(Boolean(_data))
++         if(_data)
+          {
+             _data.name = LocalizationData.getName("daily_bonus_progress") + "\n" + Util.styledChar(_data.progress,"white") + "/" + Util.styledChar(_data.progressRequired,"gold") + " " + LocalizationData.getName("daily_bonus_victories");
+-            this.textLabel.textColor = Boolean(_data.last) ? 15317048 : (_selected ? 16704178 : 15000804);
++            this.textLabel.textColor = _data.last ? 15317048 : (_selected ? 16704178 : 15000804);
+             this.textLabel.alpha = _selected ? 1 : 0.7;
+             this.textLabel.text = _data.dayLabel;
+             this.progressIndicator.gotoAndStop(3);
+@@ -109,7 +109,7 @@
+                this.progressIndicatorFull.gotoAndStop(1);
+                this.progressIndicatorFull.visible = false;
+             }
+-            if(Boolean(this.completedButton))
++            if(this.completedButton)
+             {
+                this.completedButton.visible = _data.completed;
+             }

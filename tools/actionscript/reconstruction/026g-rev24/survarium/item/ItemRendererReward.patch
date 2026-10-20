@@ -1,0 +1,33 @@
+--- a/survarium/item/ItemRendererReward.as
++++ b/survarium/item/ItemRendererReward.as
+@@ -41,7 +41,7 @@
+       override protected function configUI() : void
+       {
+          super.configUI();
+-         this._textFieldFormat = this.textField.getTextFormat();
++         _textFieldFormat = this.textField.getTextFormat();
+          TextFieldEx.setVerticalAlign(this.textField,TextFieldEx.VALIGN_CENTER);
+          this.iconRenderer.center = true;
+       }
+@@ -51,7 +51,7 @@
+          super.draw();
+          if(isInvalid(InvalidationType.DATA))
+          {
+-            if(Boolean(_data))
++            if(_data)
+             {
+                visible = true;
+                this.updateData();
+@@ -66,9 +66,9 @@
+       
+       protected function updateData() : void
+       {
+-         var _loc1_:Boolean = false;
+-         var _loc2_:Boolean = false;
+-         this.iconRenderer.content = Boolean(_data.icon) ? (_data.icon as Icon).clone() : null;
++         var _loc1_:Boolean;
++         var _loc2_:Boolean;
++         this.iconRenderer.content = _data.icon ? (_data.icon as Icon).clone() : null;
+          if(!_data.isStack)
+          {
+             this._textFieldFormat.align = TextFormatAlign.CENTER;

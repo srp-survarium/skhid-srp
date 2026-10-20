@@ -1,0 +1,20 @@
+--- a/survarium/messages/MessageQuestInfo.as
++++ b/survarium/messages/MessageQuestInfo.as
+@@ -17,7 +17,7 @@
+          addChild(this.questRender);
+          if(!this.btnAccept)
+          {
+-            this.btnAccept = new SrvButtonSkinned();
++            btnAccept = new SrvButtonSkinned();
+             addChild(this.btnAccept);
+          }
+          this.btnAccept.y = 285 - this.btnAccept.height - 10;
+@@ -28,7 +28,7 @@
+       {
+          super.configUI();
+          this.btnAccept.addEventListener(ButtonEvent.CLICK,onMessageAccept,false,0,true);
+-         if(Boolean(_data))
++         if(_data)
+          {
+             _data.useMultiplier = false;
+             this.questRender.setData(_data);

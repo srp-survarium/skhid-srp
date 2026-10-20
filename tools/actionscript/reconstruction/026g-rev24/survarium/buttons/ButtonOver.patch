@@ -1,0 +1,69 @@
+--- a/survarium/buttons/ButtonOver.as
++++ b/survarium/buttons/ButtonOver.as
+@@ -15,23 +15,23 @@
+       {
+          super();
+          _stateMap = {
+-            "up":["up"],
+-            "over":["over"],
+-            "down":["down"],
+-            "release":["up"],
+-            "out":["up"],
+-            "disabled":["disabled"],
+-            "selecting":["over"],
+-            "toggle":["up"],
+-            "kb_selecting":["up"],
+-            "kb_release":["up"],
+-            "kb_down":["down"]
++            up:["up"],
++            over:["over"],
++            down:["down"],
++            release:["up"],
++            out:["up"],
++            disabled:["disabled"],
++            selecting:["over"],
++            toggle:["up"],
++            kb_selecting:["up"],
++            kb_release:["up"],
++            kb_down:["down"]
+          };
+       }
+       
+       override public function set enabled(param1:Boolean) : void
+       {
+-         var _loc2_:String = null;
++         var _loc2_:String;
+          if(enabled == param1)
+          {
+             return;
+@@ -66,10 +66,6 @@
+       
+       override protected function setState(param1:String) : void
+       {
+-         var _loc6_:String = null;
+-         var _loc7_:uint = 0;
+-         var _loc8_:uint = 0;
+-         var _loc9_:String = null;
+          _state = param1;
+          var _loc2_:Vector.<String> = getStatePrefixes();
+          var _loc3_:Array = _stateMap[param1];
+@@ -79,6 +75,10 @@
+          }
+          var _loc4_:uint = _loc2_.length;
+          var _loc5_:uint = 0;
++         var _loc6_:String;
++         var _loc7_:uint;
++         var _loc8_:uint;
++         var _loc9_:String;
+          while(_loc5_ < _loc4_)
+          {
+             _loc6_ = _loc2_[_loc5_];
+@@ -87,7 +87,7 @@
+             while(_loc8_ < _loc7_)
+             {
+                _loc9_ = _loc6_ + _loc3_[_loc8_];
+-               if(Boolean(_labelHash[_loc9_]))
++               if(_labelHash[_loc9_])
+                {
+                   _newFrame = _loc9_;
+                   invalidateState();

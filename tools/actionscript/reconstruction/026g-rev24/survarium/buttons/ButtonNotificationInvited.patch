@@ -1,0 +1,11 @@
+--- a/survarium/buttons/ButtonNotificationInvited.as
++++ b/survarium/buttons/ButtonNotificationInvited.as
+@@ -47,7 +47,7 @@
+       override protected function updateText() : void
+       {
+          super.updateText();
+-         if(Boolean(_data))
++         if(_data)
+          {
+             this.labelCost.mouseEnabled = this.textFieldReward.mouseEnabled = false;
+             this.textFieldReward.text = LocalizationData.getName("reward");

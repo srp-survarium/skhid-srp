@@ -1,0 +1,32 @@
+--- a/survarium/buttons/ClanInviteRenderer.as
++++ b/survarium/buttons/ClanInviteRenderer.as
+@@ -11,14 +11,14 @@
+    {
+       
+       protected static const statusMap:Array = [{
+-         "label":"clan_invite_accepted",
+-         "color":26112
++         label:"clan_invite_accepted",
++         color:26112
+       },{
+-         "label":"clan_invite_rejected",
+-         "color":10039349
++         label:"clan_invite_rejected",
++         color:10039349
+       },{
+-         "label":"clan_invite_pending",
+-         "color":4934475
++         label:"clan_invite_pending",
++         color:4934475
+       }];
+       
+       public var btnCancel:MovieClip;
+@@ -33,7 +33,7 @@
+       override protected function updateText() : void
+       {
+          super.updateText();
+-         if(Boolean(_data))
++         if(_data)
+          {
+             visible = true;
+             mouseChildren = true;

@@ -1,0 +1,13 @@
+--- a/survarium/friends/FriendListRenderS.as
++++ b/survarium/friends/FriendListRenderS.as
+@@ -29,8 +29,8 @@
+             return;
+          }
+          trace("FriendListRenderS::",this.nameTextfield,this.statusIndicator);
+-         this.nameTextfield.text = Boolean(data.abbr) ? "[" + data.abbr + "] " + data.name : data.name;
+-         if(Boolean(_data.ignored))
++         this.nameTextfield.text = data.abbr ? "[" + data.abbr + "] " + data.name : data.name;
++         if(_data.ignored)
+          {
+             this.statusIndicator.gotoAndStop("offline");
+          }

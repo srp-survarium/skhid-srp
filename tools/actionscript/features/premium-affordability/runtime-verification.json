@@ -68,6 +68,18 @@
   "scope": "Premium subscription affordability UI in the native game; screenshot observations, not an automated UI assertion. No purchase was completed.",
   "server_data_sha256": "9358ff5cf0ae97d6d73ff1f8a5dc9734266c845c917d148d27bb442594d4cd80",
   "status": "passed",
+  "subsequent_rebuilds": [
+    {
+      "candidate_movie_sha256": "1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3",
+      "changed_methods": 1,
+      "evidence": "The rebuilt movie is byte-identical to the candidate exercised by the recorded native-game check.",
+      "feature_manifest_sha256": "49b7889040317b42ab199f7290ca60fca16ccbb51242194ce941976e3fd3366a",
+      "noncode_identical": true,
+      "reconstruction_classes": 91,
+      "reconstruction_manifest_sha256": "a7c1e1b3a8c3a26e1fd0a45bc814fb25d06f3eff191bc4fd6648fbf081d27719",
+      "runtime_rerun": false
+    }
+  ],
   "test_executable_sha256": "c92a49008b32f0c6442a712e098555194405bb25c8a32fb5ee5d6dd2f706e89c",
   "test_overlay_sha256": "1bfc608762082909f97c3fb1a91e8b557a0af5767132be10b32de710164013bc",
   "test_server_sha256": "e108b341843791641104d7719c8b6289b2b8e75f6296af634b890aedca3575c0"

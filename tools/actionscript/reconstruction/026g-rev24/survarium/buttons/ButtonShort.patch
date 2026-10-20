@@ -1,0 +1,11 @@
+--- a/survarium/buttons/ButtonShort.as
++++ b/survarium/buttons/ButtonShort.as
+@@ -13,7 +13,7 @@
+       override protected function updateText() : void
+       {
+          trace("shortUpdateText",_label);
+-         if(Boolean(textField))
++         if(textField)
+          {
+             TextFieldEx.setVerticalAlign(textField,TextFieldEx.VALIGN_CENTER);
+             textField.multiline = true;

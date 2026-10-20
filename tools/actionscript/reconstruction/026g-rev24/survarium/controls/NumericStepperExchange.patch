@@ -1,0 +1,31 @@
+--- a/survarium/controls/NumericStepperExchange.as
++++ b/survarium/controls/NumericStepperExchange.as
+@@ -24,24 +24,24 @@
+       
+       public function setExchangeMoneyFactor(param1:uint) : void
+       {
+-         this._exchangeFactor = param1;
++         _exchangeFactor = param1;
+          invalidateData();
+       }
+       
+       public function setExchangeMoneyType(param1:uint) : void
+       {
+-         this._exchangeType = param1;
++         _exchangeType = param1;
+          invalidateData();
+       }
+       
+       override protected function updateLabel() : void
+       {
+          super.updateLabel();
+-         if(Boolean(this.iconMoney) && this.iconMoney.currentFrame != this._exchangeType)
++         if(this.iconMoney && this.iconMoney.currentFrame != this._exchangeType)
+          {
+             this.iconMoney.gotoAndStop(this._exchangeType);
+          }
+-         if(Boolean(textFieldLabel))
++         if(textFieldLabel)
+          {
+             textFieldLabel.text = String(_value * this._exchangeFactor);
+          }

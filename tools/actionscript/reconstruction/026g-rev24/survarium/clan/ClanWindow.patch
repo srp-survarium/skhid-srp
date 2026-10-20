@@ -1,0 +1,31 @@
+--- a/survarium/clan/ClanWindow.as
++++ b/survarium/clan/ClanWindow.as
+@@ -9,9 +9,9 @@
+    public class ClanWindow extends UIWindow
+    {
+       
++      protected static var _state:uint = 0;
++      
+       private static var _clanMembers:Array;
+-      
+-      protected static var _state:uint = 0;
+       
+       public var createClanRenderer:MovieClip;
+       
+@@ -36,11 +36,11 @@
+       
+       public static function getMembersList() : Array
+       {
+-         var _loc1_:Array = null;
+-         var _loc2_:uint = 0;
+-         var _loc3_:Boolean = false;
+-         var _loc4_:uint = 0;
+-         if(Boolean(_clanMembers))
++         var _loc1_:Array;
++         var _loc2_:uint;
++         var _loc3_:Boolean;
++         var _loc4_:uint;
++         if(_clanMembers)
+          {
+             _loc1_ = [];
+             _loc2_ = _clanMembers.length;

@@ -1,0 +1,38 @@
+--- a/survarium/debug/Logger.as
++++ b/survarium/debug/Logger.as
+@@ -10,11 +10,11 @@
+    public class Logger extends UIComponent
+    {
+       
++      protected static var _field:Dictionary = new Dictionary();
++      
+       protected static var _id:Logger;
+       
+       protected static var _stage:Sprite;
+-      
+-      protected static var _field:Dictionary = new Dictionary();
+       
+       protected static var textFields:Dictionary = new Dictionary();
+       
+@@ -47,7 +47,7 @@
+          _id.graphics.clear();
+          _id.graphics.lineStyle(2,16777215,1);
+          _id.graphics.drawRect(_loc3_.x,_loc3_.y,_loc3_.width,_loc3_.height);
+-         if(Boolean(_id))
++         if(_id)
+          {
+             _id.updateFields();
+          }
+@@ -64,9 +64,9 @@
+       
+       private function updateFields(param1:Event = null) : void
+       {
+-         var _loc2_:Object = null;
+-         var _loc3_:Rectangle = null;
+-         var _loc4_:TextField = null;
++         var _loc2_:Object;
++         var _loc3_:Rectangle;
++         var _loc4_:TextField;
+          if(!_stage)
+          {
+             return;

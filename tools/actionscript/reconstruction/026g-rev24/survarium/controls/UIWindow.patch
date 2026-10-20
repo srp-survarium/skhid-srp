@@ -1,0 +1,39 @@
+--- a/survarium/controls/UIWindow.as
++++ b/survarium/controls/UIWindow.as
+@@ -21,15 +21,15 @@
+       public function UIWindow()
+       {
+          super();
+-         if(Boolean(this.btnClose))
++         if(this.btnClose)
+          {
+             this.btnClose.addEventListener(ButtonEvent.CLICK,this.closeWindow);
+          }
+-         if(Boolean(this.btnClose2))
++         if(this.btnClose2)
+          {
+             LocalizationData.addButton(this.btnClose2,"close");
+          }
+-         if(Boolean(this.btnClose2))
++         if(this.btnClose2)
+          {
+             this.btnClose2.addEventListener(ButtonEvent.CLICK,this.closeWindow);
+          }
+@@ -42,7 +42,7 @@
+       
+       public function set subsystem_name(param1:String) : void
+       {
+-         this._subsystemName = param1;
++         _subsystemName = param1;
+       }
+       
+       public function activate(param1:Boolean, param2:Boolean = true) : void
+@@ -85,7 +85,7 @@
+       
+       public function get subsystem_active() : Boolean
+       {
+-         return visible && Boolean(parent);
++         return visible && parent;
+       }
+       
+       public function set subsystem_active(param1:Boolean) : void

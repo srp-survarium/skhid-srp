@@ -1,0 +1,17 @@
+--- a/survarium/buttons/ButtonArrow.as
++++ b/survarium/buttons/ButtonArrow.as
+@@ -20,12 +20,12 @@
+       override protected function updateText() : void
+       {
+          super.updateText();
+-         if(Boolean(_data))
++         if(_data)
+          {
+             textField.text = _data.name;
+             this.arrowIcon.visible = _data.options != undefined;
+          }
+-         trace("updateText::",autoSize,width,Boolean(_data) ? _data.name : "null",textField.text);
++         trace("updateText::",autoSize,width,_data ? _data.name : "null",textField.text);
+       }
+    }
+ }
