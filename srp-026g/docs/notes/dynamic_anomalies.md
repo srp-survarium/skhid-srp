@@ -182,4 +182,61 @@ PROVEN = read in the code (addresses given); LIKELY = inferred, not read to the 
 
 ## 6. Maps
 
-DATA_PENDING
+The release had timed anomalies on every map, not only London (every map config of 0.28a2,
+0.28d0, 0.31a2 and 0.46c2 has the same `anomalies` table; none of 0.26g's maps has one). So
+every map we ship from the release gets them (`scripts/dynamic-anomalies/build.py`, one
+resources.db patch). Places per mode 2 / 3 / 4, three timed anomalies per place:
+
+| map | from | places | the release removed (so here too) |
+|---|---|---|---|
+| level_01 Rudnya | 0.28d0 | 75 / 71 / 61 | the swamp anomaly (2 cores) |
+| level_02 School | 0.28d0 | 86 / 84 / 85 | the fruit cloud and the stalactite (2 cores, 24 zones) |
+| level_03 Vostok | 0.28d0 | 58 / 58 / 45 | the antenna's electric pairs and the rust anomalies (5 cores) |
+| level_04 Chem plant | 0.28d0 | 53 / 53 / 39 | 2 cores |
+| level_05 Fort | 0.28d0 | 67 / 63 / 65 | 2 cores |
+| level_06 Mamayev | 0.28d0 | 43 / 39 / 43 | the acid and fire anomalies (3 cores) |
+| level_07 Vector | 0.28d0 | 30 / 28 / 30 | the artefact spawner (1 core) |
+| level_08 Cologne | 0.28d0 | 29 everywhere | none |
+| level_09 London | 0.31a2 | 27 everywhere | patch 14's 7 always-on places |
+
+- 75 projects (every weather of a mode takes the release's `day_<mode>`: its weathers have the
+  same places), 3,870 places, 11,610 timed anomalies; v021d_/v011e_ maps are not from the
+  release and keep their anomalies.
+- The release's maps are 0.26g's (visuals and collision equal but for equivalent rotations
+  and a few edits; on level_05 0.26g has 336 bush collisions more, two within 2 m of a place).
+  LIKELY fine; to be seen in a game.
+- Particles the game lacked (`pre_onix1`, `pre_onix2`, `pre_spring1`, `pre_spring2`,
+  `pre_zhivokost1`) come from 0.31a2 as patch 14 converted its own four; every material
+  they name is in the game.
+- A project now holds up to 103,000 config values (level_02); the largest loaded so far is
+  patch 14's London (43,799). The format has no total limit (a table's count is u16 only;
+  the largest table, client_objects, stays far below): to be seen in a game.
+
+## 7. The server
+
+- Nothing in srp, the lobby or the match server reads anomalies, except the bots: the server
+  data keeps a project's `server_objects` only, and nothing new is in a snapshot.
+- The bots (`match-server` `bots::anomalies`, wired since before this) find each core in the
+  checked worlds by its random value and run it on: a timed anomaly is idle until a world
+  shows it charging (the clients' choice is never predicted), then its timers take it to
+  damage and the artefact state; a world after the pick-up turns it off. Fixed for it: a
+  state's end is taken on the first tick past it (as the client), and the tick after an
+  `energy_on_exit` chooses the next state (the simulation used to skip it when idle).
+- The bots' map files must be dumped again for every map: `mapdata-dump --db <stock> --patch
+  <each live patch> --patch <this release's> --out <dir>` (the new `--patch` lays patches over
+  the db as the game mounts them; `--project level_09/day_N` for London).
+- More artefacts are found (every map, every 20 to 40 s): statistics event 5 (artefact) pays
+  score and the find-artefacts quest. An owner's call, not a code change.
+- The site's Maps tab draws one artefact marker per place (the kinds of a place's
+  containers within 1.5 m together).
+
+## 8. Release and test
+
+- **Release**: exe patch 42 (`.srpa`, the default build), the content patch (the
+  `build.py` output packed by `release/build-patch`), a server version (server data with
+  the patch, `SRP_MIN_PATCH_REVISION` = the release: a game without patch 42 never charges a
+  timed anomaly and would desync), the bots' map files dumped again, the `next` row of
+  `simulation_changes.tsv` (old replays are not watchable after it).
+- **Test** (only with the owner's go): two clients on London; a late joiner; a resync; an
+  anomaly's whole life (charging → damage → artefact → pick-up → gone); another map. The
+  kit: `private/local-clients/dynamic-anomalies-test/HOW-TO-TEST.md`.

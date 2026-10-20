@@ -182,7 +182,14 @@ def objects(project, artefact_keys):
             kinds = sorted(kinds_of.get(o.get("full_name"), ()))
             zones = [by_name[c["name"]] for c in o.get("collision_geometries") or [] if c.get("name") in by_name]
             if kinds:
-                artefacts.append(xzy(zones[0] if zones else o) + [kinds])
+                at = xzy(zones[0] if zones else o)
+                # A timed anomaly's place (exe patch 42) has one container
+                # per kind within a metre: one marker with every kind.
+                same = next((m for m in artefacts if math.dist(m[:3], at) < 1.5), None)
+                if same:
+                    same[3] = sorted(set(same[3]) | set(kinds))
+                else:
+                    artefacts.append(at + [kinds])
     # A team's container and its stash are where their collision zone is:
     # the object's own position can be a pivot far away (level_04's two
     # containers both stand at one team's side by it).
