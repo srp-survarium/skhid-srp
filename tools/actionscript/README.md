@@ -236,12 +236,15 @@ avoid defects introduced by decompilation.
 `TopMenu` also reproduces the complete compressed movie: its diff recovers
 unqualified instance-field assignments, identifier object keys and direct truth
 tests, while the emitter reproduces the room hooks' compact lookup/call encoding.
+`MessageApply` restores local declaration order and implicit typed defaults in
+`updatePattern`, plus direct truth tests. It also reproduces the complete
+compressed release movie.
 
 Use `--compiler reconstruction` with the pinned patch manifest to select these
 per-class compilers in one measurement. Classes without an override use
 `flex-strict`; every report row records the compiler actually used. Explicit
 `--compiler ffdec`, `flex` or `flex-strict` still selects that compiler for every
-class, for comparison experiments. The per-class profile currently proves three
+class, for comparison experiments. The per-class profile currently proves four
 reconstructed classes, not the whole tree.
 
 ## Building a source feature

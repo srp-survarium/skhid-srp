@@ -24,6 +24,14 @@
       "pristine_sha256": "edab05f559e341be7a760dd12317298d41e37c26fa6b69b84d8df56144b60c51",
       "reason": "Recover unqualified instance-field assignments, identifier object keys and direct truth tests. Compact room-hook calls use the verified ASC lookup/call folding rules.",
       "result_sha256": "6c51d3b4d2a66e27325cff222b27842f8accc95da3a4b1b5cfeefb56564a1f30"
+    },
+    {
+      "class": "survarium.messages.MessageApply",
+      "patch": "survarium/messages/MessageApply.patch",
+      "patch_sha256": "73ed43a101cb40f05cfed8a2bdf32b79f5f2a6b04416a02da206ba3caaf0ca16",
+      "pristine_sha256": "727e0ae8b42d30cbef179f3e816d3495154656d52d0d415b8f31779ff793a593",
+      "reason": "Restore original local declaration order and implicit typed defaults, plus direct truth tests.",
+      "result_sha256": "e9dcc967355c3fb8f0e2740ecf8af28196af2a0366dcfabe3a98688fada8213c"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

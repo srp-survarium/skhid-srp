@@ -393,3 +393,20 @@ remaining self-class lookup difference. That experiment remains private.
 All 13 tests pass. The debugger regression covers replacement and removal of
 emitted directives, duplicate directives around a loop/switch/exception handler,
 and rejection of an executable change despite matching debugger metadata.
+
+## MessageApply source reconstruction
+
+`MessageApply` now reproduces the complete compressed release movie. Its final
+mismatch was in `updatePattern`: decompilation hoisted local declarations ahead
+of `offset` and inserted explicit typed defaults. Restoring declaration order
+(`offset`, `_body`, `gr`, `rectW`, `rectH`, `offSize`) and implicit defaults recovers
+the original registers and integer initialization instructions. Together with
+direct truth tests, the tracked diff compiles and links exactly.
+
+The tracked patch is byte-for-byte identical to the verified private compiler
+input after application to the pinned pristine source. All four reconstruction
+entries and the updated premium feature input manifest pass their hash checks.
+Rebuilding the premium feature with the updated manifest and source-map linker
+again produces SHA-256
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`, with exactly
+one changed method and identical non-code content. Runtime remains unverified.
