@@ -24,6 +24,7 @@ use crate::persist::{DATA_DIR_VAR, DB_FILE, DB_VAR, DEFAULT_DATA_DIR, PersistErr
 mod admin_actions;
 mod balance;
 mod clans;
+mod drop_cards;
 mod extras;
 mod items;
 mod map_plays;
@@ -133,6 +134,8 @@ const MIGRATIONS: &[&str] = &[
     room_settings::MIGRATION,
     // 9: the audit trail of the admin's account moderation (`admin_actions`).
     admin_actions::MIGRATION,
+    // 10: the matches an account used a drop card on (`drop_cards`).
+    drop_cards::MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
@@ -572,6 +575,7 @@ impl GameRepository for SqliteGameRepository {
                         extras: Default::default(),
                         map_plays: Vec::new(),
                         room_settings: None,
+                        drop_cards: Vec::new(),
                     },
                 ))
             })?;
@@ -585,6 +589,7 @@ impl GameRepository for SqliteGameRepository {
             account.map_plays = map_plays::load(&transaction, account_id)?;
             account.balance = balance::load(&transaction, account_id)?;
             account.room_settings = room_settings::load(&transaction, account_id)?;
+            account.drop_cards = drop_cards::load(&transaction, account_id)?;
             {
                 let mut statement = transaction.prepare_cached(
                     "SELECT skill_id, points FROM g26_skills WHERE account_id = ?1 ORDER BY seq",
@@ -813,6 +818,7 @@ fn write_account(
     map_plays::save(transaction, account_id, &account.map_plays)?;
     balance::save(transaction, account_id, account.balance)?;
     room_settings::save(transaction, account_id, account.room_settings.as_ref())?;
+    drop_cards::save(transaction, account_id, &account.drop_cards)?;
     for (seq, &(skill_id, points)) in account.skills.iter().enumerate() {
         transaction.execute(
             "INSERT INTO g26_skills (account_id, seq, skill_id, points)

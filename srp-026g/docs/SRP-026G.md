@@ -178,7 +178,7 @@ that rule is mended when the accounts load, and never plays.
 
 | Variable | Default | What |
 |---|---|---|
-| `SRP_DATA_DIR` | `./data` | `srp.db` (accounts, sessions, and the 0.26g `g26_*` tables; since 2026-10-12 also the finished matches' results screens not shown yet and each account's play period, `g26_results`; since 2026-10-20 the admin's audit trail, `g26_admin_actions`), `backups/` (a copy at every start) |
+| `SRP_DATA_DIR` | `./data` | `srp.db` (accounts, sessions, and the 0.26g `g26_*` tables; since 2026-10-12 also the finished matches' results screens not shown yet and each account's play period, `g26_results`; since 2026-10-20 the admin's audit trail, `g26_admin_actions`, and the matches each account used a drop card on, `g26_drop_cards`), `backups/` (a copy at every start) |
 | `SRP_DB` | on | `off`: everything in memory only |
 | `SRP_LOG_FILES` | on | `off`: no `logs/<server>.log`, stdout only |
 | `SRP_LOG_DIR` | unset | A folder: every line srp prints, in one file per UTC day (`srp-YYYY-MM-DD.log`), added to across restarts. The compose file sets `/srv/srp/data/logs` (the data volume): a container's own output is gone at every update |

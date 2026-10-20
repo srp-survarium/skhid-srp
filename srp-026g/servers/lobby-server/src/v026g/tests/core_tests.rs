@@ -2436,8 +2436,8 @@ fn assert_card_used(world: &mut World, player: usize, card: u32, left: u32) {
 
 /// The drop-card loop of 2026-10-18..20: a card was taken on any results
 /// screen kept, as often as asked, so cards bought with silver turned
-/// into more silver. One card for each player of a match now, and only of
-/// a match it played in (`drop_cards.md`).
+/// into more silver. One card for each player that finished a match now
+/// (`drop_cards.md`).
 #[test]
 fn a_drop_card_is_used_once_on_the_screen_of_a_match_played() {
     let mut world = World::new();
@@ -2484,7 +2484,6 @@ fn a_drop_card_is_used_once_on_the_screen_of_a_match_played() {
     for player in [alice, bob, carol] {
         world.take(player);
     }
-    let alice_account = world.ids[alice].0;
 
     // Not a card, not an item, a match not kept: the game's own refusal.
     for not_a_card in [pistol, 999] {
@@ -2492,15 +2491,15 @@ fn a_drop_card_is_used_once_on_the_screen_of_a_match_played() {
     }
     refused(&mut world, alice, request::use_drop_card(card, 0x77));
     // Her card on her match's screen.
-    assert!(!world.results.drop_card_used(first, alice_account));
+    assert!(world.account(alice).drop_cards.is_empty());
     world.ask(alice, request::use_drop_card(card, first));
     assert_card_used(&mut world, alice, card, 1);
-    assert!(world.results.drop_card_used(first, alice_account));
+    assert_eq!(world.account(alice).drop_cards, [first]);
     // A second card for the same match: refused, and the card stays.
     refused(&mut world, alice, request::use_drop_card(card, first));
     // Carol was not in it.
     refused(&mut world, carol, request::use_drop_card(carol_card, first));
-    assert!(!world.results.drop_card_used(first, world.ids[carol].0));
+    assert!(world.account(carol).drop_cards.is_empty());
     // Bob's own card is his, once; the arguments the other way round are
     // still read.
     world.ask(bob, request::use_drop_card(first, bob_card));

@@ -98,7 +98,7 @@
 //!   ([`pay::drop_condition`], [`pay::drop_defect`]).
 //! - **A drop card** (`drop_card`, used on the results screen) is one
 //!   roll of `drop_card_drop` at the match's level, and only one for each
-//!   player of the match: [`Results::use_drop_card`]
+//!   player that finished the match: [`Results::use_drop_card`]
 //!   (`docs/notes/drop_cards.md`).
 //! - **Ammo and consumables used** are taken off the stacks as far as
 //!   the last trusted snapshot proves them used, and the account's autobuy
@@ -143,7 +143,7 @@ use std::sync::{Arc, Mutex};
 
 use survarium::v021d;
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::drops::{self, Drops, Rng};
+use survarium::v026g::drops::{self, DropTable, Drops, Rng};
 use survarium::v026g::item_params::item_params;
 use survarium::v026g::lobby::{
     self, AccountBody, BonusColumn, FULL_CONDITION, FullResult, ItemDescr, ResultRow,
@@ -635,10 +635,6 @@ struct State {
     periods: Vec<(u32, u64, u32)>,
     /// `(match, account)`.
     claimed: Vec<(u32, u32)>,
-    /// `(match, account)`: drop cards used. Not in a state written before
-    /// 2026-10-20.
-    #[serde(default)]
-    cards: Vec<(u32, u32)>,
 }
 
 /// What changed since the repository was last written.
@@ -670,9 +666,6 @@ struct Inner {
     periods: HashMap<u32, (u64, u32)>,
     /// `(match, account)`: premium bonuses given after the match.
     claimed: Vec<(u32, u32)>,
-    /// `(match, account)`: the drop card the account used on the match's
-    /// results screen ([`Results::use_drop_card`]).
-    cards: Vec<(u32, u32)>,
     /// The match whose results screen each account's client was last sent,
     /// and when (Unix seconds): the screen may still be open, so the
     /// report stays ([`SHOWN_FOR_SECONDS`]).
@@ -726,8 +719,6 @@ impl Inner {
                 }
             }
             self.claimed.retain(|&(id, _)| id != gone.match_id);
-            // No card is taken for a match whose report is gone.
-            self.cards.retain(|&(id, _)| id != gone.match_id);
         }
     }
 
@@ -780,7 +771,6 @@ impl Inner {
             stray,
             periods,
             claimed: self.claimed.clone(),
-            cards: self.cards.clone(),
         }
     }
 }
@@ -897,7 +887,6 @@ impl Results {
             .map(|(account, at, games)| (account, (at, games)))
             .collect();
         inner.claimed = state.claimed;
-        inner.cards = state.cards;
         if !inner.reports.is_empty() || !inner.unseen.is_empty() || !inner.periods.is_empty() {
             log::info!(
                 "Restored {} match reports, {} accounts with a results screen not shown yet, {} \
@@ -1210,13 +1199,22 @@ impl Results {
 
     /// `46 03`: the account uses a drop card on the results screen of
     /// `match_id` ([`use_drop_card`], at the match's level). One card for
-    /// each player of a match, and only of a match it played in (the
-    /// owner's rule, 2026-10-20; the original's screen takes one card too:
+    /// each player that finished the match, once (the owner's rule,
+    /// 2026-10-20; the original's screen takes one card too:
     /// `docs/notes/drop_cards.md`). Refused, and nothing changed, for a
-    /// match not kept, one the account was not in, one it used a card for
-    /// already, or an item that is no drop card of the account. Lock the
-    /// account before calling it, as for [`Results::claim_premium`]; mark
-    /// it dirty after. Returns the match's level and what the card did.
+    /// match not kept, one the account was not in or left before its end,
+    /// one it used a card for already, an item that is no drop card of the
+    /// account, or a roll that gave nothing. Lock the account before
+    /// calling it, as for [`Results::claim_premium`]; mark it dirty after.
+    /// Returns the match's level and what the card did.
+    ///
+    /// The mark is the account's own ([`Account::drop_cards`]): it is
+    /// checked and made under the account's lock, which the caller holds
+    /// from the check to the grant, and it is written in the same
+    /// transaction as the card taken and the item given. So a card is
+    /// never taken twice for a match, across a crash too. The results'
+    /// lock is held only to read the report and which marks are of reports
+    /// still kept, never over the roll.
     pub fn use_drop_card(
         &self,
         match_id: u32,
@@ -1225,26 +1223,59 @@ impl Results {
         card_item_id: u32,
         rng: &mut Rng,
     ) -> Result<(u16, Result<DropCardUse, WireError>), DropCardRefusal> {
-        let mut inner = self.inner.locked();
-        let report = inner.find(match_id).ok_or(DropCardRefusal::NoMatch)?;
-        if account_id == 0 || report.player(account_id).is_none() {
-            return Err(DropCardRefusal::NotAPlayer);
-        }
-        if inner.cards.contains(&(match_id, account_id)) {
-            return Err(DropCardRefusal::Used);
-        }
-        let used = use_drop_card(account, card_item_id, report.match_level, rng)
-            .ok_or(DropCardRefusal::NoCard)?;
-        // Taken even when its `98` cannot be written: the card is spent and
-        // the item given.
-        inner.cards.push((match_id, account_id));
-        inner.changes.state = true;
-        Ok((report.match_level, used))
+        self.use_drop_card_from(
+            &Drops::shared().drop_card,
+            match_id,
+            account_id,
+            account,
+            card_item_id,
+            rng,
+        )
     }
 
-    /// Whether the account used a drop card on the match's screen.
-    pub fn drop_card_used(&self, match_id: u32, account_id: u32) -> bool {
-        self.inner.locked().cards.contains(&(match_id, account_id))
+    /// [`Results::use_drop_card`] with the table rolled.
+    fn use_drop_card_from(
+        &self,
+        table: &DropTable,
+        match_id: u32,
+        account_id: u32,
+        account: &mut Account,
+        card_item_id: u32,
+        rng: &mut Rng,
+    ) -> Result<(u16, Result<DropCardUse, WireError>), DropCardRefusal> {
+        let (report, kept) = {
+            let inner = self.inner.locked();
+            let report = inner.find(match_id).ok_or(DropCardRefusal::NoMatch)?;
+            // The marks of reports no longer kept go with the next card: a
+            // card for a match not kept is refused anyway.
+            let kept: Vec<u32> = account
+                .drop_cards
+                .iter()
+                .copied()
+                .filter(|&id| inner.find(id).is_some())
+                .collect();
+            (report, kept)
+        };
+        let standing = report
+            .player(account_id)
+            .filter(|_| account_id != 0)
+            .ok_or(DropCardRefusal::NotAPlayer)?
+            .reward
+            .standing;
+        if standing != Standing::Finished {
+            return Err(DropCardRefusal::NotFinished(standing));
+        }
+        if account.drop_cards.contains(&match_id) {
+            return Err(DropCardRefusal::Used);
+        }
+        let used = use_card(account, card_item_id, report.match_level, table, rng)?;
+        // Marked even when its `98` cannot be written: the card is spent
+        // and the item given.
+        account.drop_cards = kept;
+        if let Err(at) = account.drop_cards.binary_search(&match_id) {
+            account.drop_cards.insert(at, match_id);
+        }
+        Ok((report.match_level, used))
     }
 }
 
@@ -1255,20 +1286,30 @@ pub enum DropCardRefusal {
     NoMatch,
     /// The account was not in the match.
     NotAPlayer,
+    /// The account was not in the match at its end: it left early, or its
+    /// game never got into it.
+    NotFinished(Standing),
     /// The account used a card for the match already.
     Used,
     /// The item is no drop card of the account.
     NoCard,
+    /// The roll gave nothing (`drop_card_drop` always gives: a table the
+    /// game data broke). The card is kept.
+    NoRoll,
 }
 
 impl std::fmt::Display for DropCardRefusal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            Self::NoMatch => "no such match kept",
-            Self::NotAPlayer => "not a player of the match",
-            Self::Used => "a card was used for the match already",
-            Self::NoCard => "no drop card of the account",
-        })
+        match self {
+            Self::NoMatch => f.write_str("no such match kept"),
+            Self::NotAPlayer => f.write_str("not a player of the match"),
+            Self::NotFinished(standing) => {
+                write!(f, "did not finish the match ({standing:?})")
+            }
+            Self::Used => f.write_str("a card was used for the match already"),
+            Self::NoCard => f.write_str("no drop card of the account"),
+            Self::NoRoll => f.write_str("the drop card table rolled nothing; card kept"),
+        }
     }
 }
 
@@ -2163,24 +2204,47 @@ pub struct DropCardUse {
 /// Use a drop card (the voucher `drop_card`, the screen's stash map): one
 /// card for one roll of the `drop_card_drop` table, which always gives.
 /// `match_level` is that of the match the screen shows
-/// ([`MatchReport::match_level`]). `None`, and nothing changed, when the
-/// item is no drop card of the account: deny with the game's
-/// `st_cannot_use_drop_card`. The lobby goes through
-/// [`Results::use_drop_card`], which allows one card a player of a match.
+/// ([`MatchReport::match_level`]). Refused, and nothing changed, when the
+/// item is no drop card of the account ([`DropCardRefusal::NoCard`]) or
+/// the roll gives nothing ([`DropCardRefusal::NoRoll`]): deny with the
+/// game's `st_cannot_use_drop_card`. The lobby goes through
+/// [`Results::use_drop_card`], which allows one card a finisher of a match.
 pub fn use_drop_card(
     account: &mut Account,
     card_item_id: u32,
     match_level: u16,
     rng: &mut Rng,
-) -> Option<Result<DropCardUse, WireError>> {
+) -> Result<Result<DropCardUse, WireError>, DropCardRefusal> {
+    use_card(
+        account,
+        card_item_id,
+        match_level,
+        &Drops::shared().drop_card,
+        rng,
+    )
+}
+
+/// [`use_drop_card`] with the table rolled.
+fn use_card(
+    account: &mut Account,
+    card_item_id: u32,
+    match_level: u16,
+    table: &DropTable,
+    rng: &mut Rng,
+) -> Result<Result<DropCardUse, WireError>, DropCardRefusal> {
     let dictionary = Dictionary::shared();
-    let card = dictionary.item_named(DROP_CARD)?.dict_id;
-    let owned = account.item(card_item_id)?;
+    let card = dictionary
+        .item_named(DROP_CARD)
+        .ok_or(DropCardRefusal::NoCard)?
+        .dict_id;
+    let owned = account.item(card_item_id).ok_or(DropCardRefusal::NoCard)?;
     if owned.dict_id != card || owned.condition_or_stack == 0 {
-        return None;
+        return Err(DropCardRefusal::NoCard);
     }
     let level = match_level.min(u16::from(u8::MAX)) as u8;
-    let rolled = drops::roll(&Drops::shared().drop_card, dictionary, level, 0, rng)?;
+    // Rolled before anything changes: a roll that gives nothing keeps the
+    // card.
+    let rolled = drops::roll(table, dictionary, level, 0, rng).ok_or(DropCardRefusal::NoRoll)?;
     let (dropped, shown) = give_drop(account, &rolled, false, rng);
     let cards_left = match account
         .inventory
@@ -2198,7 +2262,7 @@ pub fn use_drop_card(
         None => 0,
     };
     account.sync_kits();
-    Some(
+    Ok(
         lobby::drop(&shown, card_item_id, cards_left, dropped.rarity).map(|message| DropCardUse {
             dropped,
             cards_left,

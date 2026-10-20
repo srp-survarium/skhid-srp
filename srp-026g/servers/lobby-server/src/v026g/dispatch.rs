@@ -339,12 +339,20 @@ impl Core<'_> {
             }
             M::Repair { item_id, payment } => self.repair(who, item_id, payment),
             M::ExchangePremium { amount } => {
-                let exchanged = rules::exchange_premium(&mut who.account.locked(), amount);
-                self.exchanged(who, false, amount, exchanged);
+                let exchanged = {
+                    let mut account = who.account.locked();
+                    rules::exchange_premium(&mut account, amount)
+                        .map(|silver| (silver, account.generic_money, account.premium_money))
+                };
+                self.exchanged(who, "exchanged", amount, exchanged);
             }
             M::BuyPremium { gold } => {
-                let bought = rules::buy_premium(&mut who.account.locked(), gold);
-                self.exchanged(who, true, gold, bought);
+                let bought = {
+                    let mut account = who.account.locked();
+                    rules::buy_premium(&mut account, gold)
+                        .map(|silver| (silver, account.generic_money, account.premium_money))
+                };
+                self.exchanged(who, "bought", gold, bought);
             }
             // The premium shop (`shop`). `47 02` with a match id is the
             // results screen's "buy premium": the match's premium half is
@@ -500,33 +508,25 @@ impl Core<'_> {
 
     /// The answer to `47 04`, either way: `83 47 04`, then the account with
     /// its new silver and gold; or the game's text for the refusal. `gold`
-    /// was asked for: bought with silver (`buying`, srp's own window) or
-    /// given for it; the result is the silver paid or gained.
+    /// was asked for, and `verb` says which way (`bought` with silver, in
+    /// srp's own window, or `exchanged` for it); the result is the silver
+    /// paid or gained and the balances right after, read under the same
+    /// lock as the exchange.
     fn exchanged(
         &mut self,
         who: &Who,
-        buying: bool,
+        verb: &str,
         gold: u32,
-        result: Result<u32, rules::ActionError>,
+        result: Result<(u32, u32, u32), rules::ActionError>,
     ) {
         match result {
-            Ok(silver) => {
-                let (now_silver, now_gold) = {
-                    let account = who.account.locked();
-                    (account.generic_money, account.premium_money)
-                };
-                let (name, id) = (&who.name, who.account_id);
-                if buying {
-                    log::info!(
-                        "{name} (account {id}) bought {gold} gold for {silver} silver; now \
-                         {now_silver} silver, {now_gold} gold"
-                    );
-                } else {
-                    log::info!(
-                        "{name} (account {id}) exchanged {gold} gold for {silver} silver; now \
-                         {now_silver} silver, {now_gold} gold"
-                    );
-                }
+            Ok((silver, now_silver, now_gold)) => {
+                log::info!(
+                    "{} (account {}) {verb} {gold} gold for {silver} silver; now {now_silver} \
+                     silver, {now_gold} gold",
+                    who.name,
+                    who.account_id
+                );
                 self.send_made(who.addr, lobby::permitted_shop_event(4));
                 self.push_account(who);
             }

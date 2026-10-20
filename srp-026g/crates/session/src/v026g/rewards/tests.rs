@@ -1736,8 +1736,11 @@ fn a_drop_card_is_used_for_one_roll() {
         .unwrap();
     let mut rng = Rng::new(4);
     // Not a card, not an item.
-    assert!(use_drop_card(&mut account, pistol, 5, &mut rng).is_none());
-    assert!(use_drop_card(&mut account, 999, 5, &mut rng).is_none());
+    assert_eq!(
+        use_drop_card(&mut account, pistol, 5, &mut rng).err(),
+        Some(DropCardRefusal::NoCard)
+    );
+    assert!(use_drop_card(&mut account, 999, 5, &mut rng).is_err());
 
     for left in [1, 0] {
         let before = account.clone();
@@ -1787,83 +1790,109 @@ fn a_drop_card_is_used_for_one_roll() {
         assert_eq!(client.inventory().len(), account.inventory.len());
     }
     // No card left.
-    assert!(use_drop_card(&mut account, cards, 5, &mut rng).is_none());
+    assert!(use_drop_card(&mut account, cards, 5, &mut rng).is_err());
 }
 
-/// One drop card for each player of a match, and only of a match it played
-/// in (the owner's rule of 2026-10-20, `drop_cards.md`): what is used is
-/// kept with the reports, so a restart does not open the screen again.
-#[test]
-fn a_drop_card_is_taken_once_for_each_player_of_a_match_across_a_restart() {
-    let players = alice_and_bob();
-    let repository = MemoryGameRepository::default();
+/// Alice and Bob, who finished the match; Carol, who left it at once (the
+/// 1-player PIN-room screen of 2026-10-20); Dave, whose game never got in.
+fn finishers_and_not() -> Vec<PlayerResult> {
+    let mut players = alice_and_bob();
+    let mut carol = player(2, 0, "Carol", PlayerStatistics::default());
+    carol.present_at_end = false;
+    carol.left = true;
+    carol.time_in_match_ms = 2_000;
+    let mut dave = player(3, 1, "Dave", PlayerStatistics::default());
+    dave.entered = false;
+    dave.present_at_end = false;
+    dave.statistics = None;
+    players.extend([carol, dave]);
+    players
+}
+
+/// Settles `MATCH` (level 7) with [`finishers_and_not`] and gives every
+/// player and Erin (account 14, not in the match) three drop cards: the
+/// cards' item ids by account.
+fn match_with_cards(store: &GameAccounts, results: &Results) -> HashMap<u32, u32> {
     let card = Dictionary::shared().item_named(DROP_CARD).unwrap().dict_id;
-    let store = kept_accounts(&players, &repository);
-    store.get_or_create(12, "Carol");
+    store.get_or_create(14, "Erin");
     let mut cards = HashMap::new();
-    for id in [10, 11, 12] {
+    for id in 10..=14 {
         cards.insert(id, store.get(id).unwrap().locked().add_item(card, 3));
         store.mark_dirty(id);
     }
-    let results = Results::attached(&store);
-    let mut rng = Rng::new(3);
-    let mut result = match_of(MATCH);
+    let mut result = result(finishers_and_not());
     result.match_level = 7;
-    results.settle(&result, &store, &at(NOW), &mut rng).unwrap();
+    results
+        .settle(&result, store, &at(NOW), &mut Rng::new(3))
+        .unwrap();
     store.flush();
-    // `(the match's level, the cards left)`; nothing changed when refused.
-    let use_card = |results: &Results,
-                    store: &GameAccounts,
-                    match_id: u32,
-                    id: u32,
-                    item_id: u32,
-                    rng: &mut Rng| {
-        let account = store.get(id).unwrap();
-        let mut account = account.locked();
-        let before = account.clone();
-        let used = results.use_drop_card(match_id, id, &mut account, item_id, rng);
-        if used.is_err() {
-            assert_eq!(*account, before);
-        }
-        used.map(|(level, used)| (level, used.unwrap().cards_left))
-    };
+    cards
+}
 
-    // A state of before the cards were kept still reads, reports and all.
-    let mut rows = repository.clone().load_results().unwrap();
-    for (key, body) in &mut rows {
-        if key == STATE_KEY {
-            let mut state: serde_json::Value = serde_json::from_str(body).unwrap();
-            assert!(state.as_object_mut().unwrap().remove("cards").is_some());
-            *body = state.to_string();
-        }
+/// [`Results::use_drop_card`] on the account as the store has it: `(the
+/// match's level, the cards left)`. A refusal changes nothing of it.
+fn use_card_of(
+    results: &Results,
+    store: &GameAccounts,
+    match_id: u32,
+    id: u32,
+    item_id: u32,
+    rng: &mut Rng,
+) -> Result<(u16, u32), DropCardRefusal> {
+    let account = store.get(id).unwrap();
+    let mut account = account.locked();
+    let before = account.clone();
+    let used = results.use_drop_card(match_id, id, &mut account, item_id, rng);
+    if used.is_err() {
+        assert_eq!(*account, before);
     }
-    let old = Results::restored(rows);
-    assert!(old.find(MATCH).is_some());
-    assert!(!old.drop_card_used(MATCH, 10));
+    used.map(|(level, used)| (level, used.unwrap().cards_left))
+}
 
-    // Carol was not in the match; no match is kept under that id; no card
-    // has that id.
+/// One drop card for each player that finished a match, once (the owner's
+/// rule of 2026-10-20, `drop_cards.md`): the mark is kept with the account,
+/// so a restart does not open the screen again.
+#[test]
+fn a_drop_card_is_taken_once_for_each_finisher_of_a_match_across_a_restart() {
+    let players = finishers_and_not();
+    let repository = MemoryGameRepository::default();
+    let store = kept_accounts(&players, &repository);
+    let results = Results::attached(&store);
+    let cards = match_with_cards(&store, &results);
+    let mut rng = Rng::new(3);
+    let marks = |store: &GameAccounts, id: u32| store.get(id).unwrap().locked().drop_cards.clone();
+
+    // Erin was not in the match; Carol left it at once; Dave never got
+    // in; no match is kept under that id; no card has that id.
     assert_eq!(
-        use_card(&results, &store, MATCH, 12, cards[&12], &mut rng),
+        use_card_of(&results, &store, MATCH, 14, cards[&14], &mut rng),
         Err(DropCardRefusal::NotAPlayer)
     );
     assert_eq!(
-        use_card(&results, &store, MATCH + 9, 10, cards[&10], &mut rng),
+        use_card_of(&results, &store, MATCH, 12, cards[&12], &mut rng),
+        Err(DropCardRefusal::NotFinished(Standing::Left))
+    );
+    assert_eq!(
+        use_card_of(&results, &store, MATCH, 13, cards[&13], &mut rng),
+        Err(DropCardRefusal::NotFinished(Standing::Absent))
+    );
+    assert_eq!(
+        use_card_of(&results, &store, MATCH + 9, 10, cards[&10], &mut rng),
         Err(DropCardRefusal::NoMatch)
     );
     assert_eq!(
-        use_card(&results, &store, MATCH, 10, 999, &mut rng),
+        use_card_of(&results, &store, MATCH, 10, 999, &mut rng),
         Err(DropCardRefusal::NoCard)
     );
-    assert!(!results.drop_card_used(MATCH, 10));
+    assert!(marks(&store, 10).is_empty());
     // Alice's first card is a roll at the match's level; a second is not.
     assert_eq!(
-        use_card(&results, &store, MATCH, 10, cards[&10], &mut rng),
+        use_card_of(&results, &store, MATCH, 10, cards[&10], &mut rng),
         Ok((7, 2))
     );
-    assert!(results.drop_card_used(MATCH, 10));
+    assert_eq!(marks(&store, 10), [MATCH]);
     assert_eq!(
-        use_card(&results, &store, MATCH, 10, cards[&10], &mut rng),
+        use_card_of(&results, &store, MATCH, 10, cards[&10], &mut rng),
         Err(DropCardRefusal::Used)
     );
     store.mark_dirty(10);
@@ -1875,19 +1904,162 @@ fn a_drop_card_is_taken_once_for_each_player_of_a_match_across_a_restart() {
     // is still his to use, once.
     let store = kept_accounts(&players, &repository);
     let results = Results::attached(&store);
-    assert!(results.drop_card_used(MATCH, 10));
+    assert_eq!(marks(&store, 10), [MATCH]);
     assert_eq!(
-        use_card(&results, &store, MATCH, 10, cards[&10], &mut rng),
+        use_card_of(&results, &store, MATCH, 10, cards[&10], &mut rng),
         Err(DropCardRefusal::Used)
     );
     assert_eq!(
-        use_card(&results, &store, MATCH, 11, cards[&11], &mut rng),
+        use_card_of(&results, &store, MATCH, 11, cards[&11], &mut rng),
         Ok((7, 2))
     );
     assert_eq!(
-        use_card(&results, &store, MATCH, 11, cards[&11], &mut rng),
+        use_card_of(&results, &store, MATCH, 11, cards[&11], &mut rng),
         Err(DropCardRefusal::Used)
     );
+}
+
+/// A repository whose results rows stop being written once `stop` is set:
+/// srp ending after an account's write and before the results' rows.
+struct ResultsStop {
+    inner: MemoryGameRepository,
+    stop: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl GameRepository for ResultsStop {
+    fn load_all(&mut self) -> Result<Vec<(u32, Account)>, crate::persist::PersistError> {
+        self.inner.load_all()
+    }
+    fn save(
+        &mut self,
+        account_id: u32,
+        account: &Account,
+    ) -> Result<(), crate::persist::PersistError> {
+        self.inner.save(account_id, account)
+    }
+    fn describe(&self) -> String {
+        "results stop".to_owned()
+    }
+    fn load_results(&mut self) -> Result<Vec<(String, String)>, crate::persist::PersistError> {
+        self.inner.load_results()
+    }
+    fn save_result(&mut self, key: &str, body: &str) -> Result<(), crate::persist::PersistError> {
+        if self.stop.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(crate::persist::PersistError::GameData("stopped".to_owned()));
+        }
+        self.inner.save_result(key, body)
+    }
+    fn delete_result(&mut self, key: &str) -> Result<(), crate::persist::PersistError> {
+        self.inner.delete_result(key)
+    }
+}
+
+/// srp ends after the account that used a card is written and before the
+/// results' rows are: the card taken, the item given and the mark are one
+/// write, so after the restart the card is still refused for the match.
+#[test]
+fn a_crash_after_the_accounts_write_takes_no_second_card() {
+    let players = finishers_and_not();
+    let repository = MemoryGameRepository::default();
+    let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let store = GameAccounts::with_repository(Box::new(ResultsStop {
+        inner: repository.clone(),
+        stop: Arc::clone(&stop),
+    }))
+    .unwrap();
+    for player in &players {
+        let account = store.get_or_create(player.account_id, &player.name);
+        let mut account = account.locked();
+        only_the_pistol(&mut account);
+        account.exp_total = PLAYED;
+        account.extras.bonus = spent_day();
+    }
+    let results = Results::attached(&store);
+    // The report and the state are written.
+    let cards = match_with_cards(&store, &results);
+    stop.store(true, std::sync::atomic::Ordering::SeqCst);
+    let mut rng = Rng::new(5);
+    assert_eq!(
+        use_card_of(&results, &store, MATCH, 10, cards[&10], &mut rng),
+        Ok((7, 2))
+    );
+    let used = store.get(10).unwrap().locked().clone();
+    store.mark_dirty(10);
+    store.flush();
+    // The account is written; the results' rows are not.
+    assert_eq!(repository.get(10).unwrap(), used);
+    drop(results);
+    drop(store);
+
+    let store = kept_accounts(&players, &repository);
+    let results = Results::attached(&store);
+    assert!(results.find(MATCH).is_some());
+    assert_eq!(*store.get(10).unwrap().locked(), used);
+    assert_eq!(
+        use_card_of(&results, &store, MATCH, 10, cards[&10], &mut rng),
+        Err(DropCardRefusal::Used)
+    );
+}
+
+/// A roll that gives nothing (a broken `drop_card_drop`) is its own
+/// refusal: the card is kept and no mark is made, so the next card works.
+#[test]
+fn a_roll_that_gives_nothing_keeps_the_card_and_the_match() {
+    let players = finishers_and_not();
+    let store = accounts(&players);
+    let results = Results::new();
+    let cards = match_with_cards(&store, &results);
+    let empty = DropTable {
+        categories: Vec::new(),
+        ..Drops::shared().drop_card.clone()
+    };
+    let mut rng = Rng::new(6);
+    let alice = store.get(10).unwrap();
+    let mut alice = alice.locked();
+    let before = alice.clone();
+    assert_eq!(
+        use_card(&mut alice, cards[&10], 7, &empty, &mut rng).err(),
+        Some(DropCardRefusal::NoRoll)
+    );
+    assert_eq!(
+        results
+            .use_drop_card_from(&empty, MATCH, 10, &mut alice, cards[&10], &mut rng)
+            .err(),
+        Some(DropCardRefusal::NoRoll)
+    );
+    assert_eq!(*alice, before);
+    let (level, used) = results
+        .use_drop_card(MATCH, 10, &mut alice, cards[&10], &mut rng)
+        .unwrap();
+    assert_eq!((level, used.unwrap().cards_left), (7, 2));
+    assert_eq!(alice.drop_cards, [MATCH]);
+}
+
+/// The marks are of kept reports only: one whose report is gone goes with
+/// the next card, so the list stays as short as the reports kept.
+#[test]
+fn the_marks_of_matches_no_longer_kept_go() {
+    let players = finishers_and_not();
+    let store = accounts(&players);
+    let results = Results::new();
+    let cards = match_with_cards(&store, &results);
+    let mut rng = Rng::new(7);
+    assert_eq!(
+        use_card_of(&results, &store, MATCH, 10, cards[&10], &mut rng),
+        Ok((7, 2))
+    );
+    for index in 0..KEPT as u32 {
+        let mut next = result(alice_and_bob());
+        next.match_id = 0x1000 + index;
+        results.settle(&next, &store, &at(NOW), &mut Rng::new(3));
+    }
+    assert!(results.find(MATCH).is_none());
+    let last = 0x1000 + KEPT as u32 - 1;
+    assert_eq!(
+        use_card_of(&results, &store, last, 10, cards[&10], &mut rng),
+        Ok((0, 1))
+    );
+    assert_eq!(store.get(10).unwrap().locked().drop_cards, [last]);
 }
 
 /// Every player's pushes, as the lobby sends them, through the client's own
