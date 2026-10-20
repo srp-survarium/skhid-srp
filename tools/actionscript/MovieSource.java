@@ -430,7 +430,16 @@ public final class MovieSource {
     }
 
     static void retainDebugMetadata(ABC original, ABC compiled, Traits before, Traits after) throws IOException {
-        if (before.traits.size() != after.traits.size()) throw new IOException("Trait count changed");
+        retainDebugMetadata(original, compiled, before, after, false);
+    }
+
+    // With `additions`, a feature may append traits: the original traits keep
+    // their order and records, and new traits follow in compiler order. A
+    // removed trait (or one whose kind changed) is still refused.
+    static void retainDebugMetadata(ABC original, ABC compiled, Traits before, Traits after, boolean additions)
+            throws IOException {
+        if (additions ? before.traits.size() > after.traits.size() : before.traits.size() != after.traits.size())
+            throw new IOException("Trait count changed");
         Map<List<Object>, Trait> emitted = new HashMap<>();
         for (Trait trait : after.traits)
             if (emitted.put(List.of(trait.kindType, name(compiled, trait.name_index)), trait) != null)
@@ -438,9 +447,13 @@ public final class MovieSource {
         List<Trait> ordered = new ArrayList<>();
         for (Trait trait : before.traits) {
             Trait found = emitted.remove(List.of(trait.kindType, name(original, trait.name_index)));
-            if (found == null) throw new IOException("Trait identities changed");
+            if (found == null) throw new IOException(additions ? "Feature removed or re-kinded trait "
+                + name(original, trait.name_index) : "Trait identities changed");
             ordered.add(found);
         }
+        List<Trait> added = new ArrayList<>(after.traits);
+        added.removeIf(trait -> !emitted.containsValue(trait));
+        ordered.addAll(added);
         after.traits.clear();
         after.traits.addAll(ordered);
         for (int j = 0; j < before.traits.size(); j++) {
@@ -452,6 +465,12 @@ public final class MovieSource {
             b.metadata = a.metadata == null ? null : a.metadata.clone();
             b.kindFlags = (b.kindFlags & ~Trait.ATTR_Metadata) | (a.kindFlags & Trait.ATTR_Metadata);
         }
+    }
+
+    static Set<List<Object>> traitIdentities(ABC abc, Traits traits) {
+        Set<List<Object>> result = new HashSet<>();
+        for (Trait trait : traits.traits) result.add(List.of(trait.kindType, name(abc, trait.name_index)));
+        return result;
     }
 
     static void relocateTraitMethods(Traits traits, Map<Integer, Integer> mapping) {
@@ -856,9 +875,19 @@ public final class MovieSource {
     }
 
     static void restoreMethodOrder(ABC original, ABC compiled) throws IOException {
-        if (original.method_info.size() != compiled.method_info.size()) throw new IOException("Method count changed");
+        restoreMethodOrder(original, compiled, false);
+    }
+
+    // With `additions`, methods new to the compiled source (by owner) follow
+    // every original method, in compiler order; each original method keeps
+    // its index. A method of the original missing from the compiled source
+    // is refused: method indices cannot have holes.
+    static void restoreMethodOrder(ABC original, ABC compiled, boolean additions) throws IOException {
+        // With additions, a missing method is named by the owner check below.
+        if (!additions && original.method_info.size() != compiled.method_info.size())
+            throw new IOException("Method count changed");
         Map<Integer, String> before = names(original), after = names(compiled);
-        if (before.equals(after)) return;
+        if (before.equals(after) && original.method_info.size() == compiled.method_info.size()) return;
         if (before.size() != original.method_info.size() || after.size() != compiled.method_info.size())
             throw new IOException("Anonymous method ownership is unresolved");
         Map<String, Integer> owners = new HashMap<>();
@@ -866,11 +895,15 @@ public final class MovieSource {
             if (owners.put(entry.getValue(), entry.getKey()) != null) throw new IOException("Ambiguous method owner");
         Map<Integer, Integer> mapping = new HashMap<>();
         Set<Integer> assigned = new HashSet<>();
+        int appended = original.method_info.size();
         for (var entry : after.entrySet()) {
             Integer index = owners.get(entry.getValue());
+            if (index == null && additions) index = appended++;
             if (index == null || !assigned.add(index)) throw new IOException("Method identities changed");
             mapping.put(entry.getKey(), index);
         }
+        if (additions) for (var entry : before.entrySet())
+            if (!assigned.contains(entry.getKey())) throw new IOException("Feature removed method " + entry.getValue());
         List<MethodInfo> infos = new ArrayList<>(Collections.nCopies(compiled.method_info.size(), null));
         for (var entry : mapping.entrySet()) infos.set(entry.getValue(), compiled.method_info.get(entry.getKey()));
         Map<Integer, MethodBody> bodies = new HashMap<>();
@@ -905,6 +938,8 @@ public final class MovieSource {
             if (emitted == null) throw new IOException("Compiled method has no body");
             ordered.add(emitted);
         }
+        if (additions) for (int index : new TreeSet<>(bodies.keySet()))
+            if (index >= original.method_info.size()) ordered.add(bodies.remove(index));
         if (!bodies.isEmpty()) throw new IOException("Unexpected compiled method bodies");
         compiled.method_info = infos;
         compiled.bodies = ordered;
@@ -948,8 +983,14 @@ public final class MovieSource {
     }
 
     static void emitScriptClassBindings(ABC original, ABC compiled) throws IOException {
-        if (original.script_info.size() != compiled.script_info.size()) throw new IOException("Script count changed");
-        for (int i = 0; i < compiled.script_info.size(); i++) {
+        emitScriptClassBindings(original, compiled, false);
+    }
+
+    static void emitScriptClassBindings(ABC original, ABC compiled, boolean additions) throws IOException {
+        if (additions ? original.script_info.size() > compiled.script_info.size()
+                : original.script_info.size() != compiled.script_info.size())
+            throw new IOException("Script count changed");
+        for (int i = 0; i < original.script_info.size(); i++) {
             ScriptInfo script = compiled.script_info.get(i);
             MethodBody body = compiled.findBody(script.init_index);
             if (!classInitializer(compiled, script, body)) continue;
@@ -977,7 +1018,7 @@ public final class MovieSource {
     }
 
     static void restoreScriptSlot(ABC original, ABC compiled) {
-        for (int i = 0; i < compiled.script_info.size(); i++) {
+        for (int i = 0; i < Math.min(original.script_info.size(), compiled.script_info.size()); i++) {
             var before = original.script_info.get(i).traits.traits;
             var after = compiled.script_info.get(i).traits.traits;
             // With exactly one script trait and no script inheritance, the
@@ -1332,7 +1373,7 @@ public final class MovieSource {
     // encoding; never transfer executable instructions from the reference.
     static void emitCompactOperations(ABC original, ABC compiled) throws IOException {
         for (MethodBody body : compiled.bodies) {
-            MethodBody reference = original.findBody(body.method_info);
+            MethodBody reference = body.method_info < original.method_info.size() ? original.findBody(body.method_info) : null;
             if (reference == null || reference.exceptions.length != body.exceptions.length) continue;
             var layout = reference.getCode().code;
             var expected = layout.stream().filter(i -> !debugInstruction(i)).toList();
@@ -1610,7 +1651,7 @@ public final class MovieSource {
 
     static void retainDebugDirectives(ABC original, ABC compiled) throws IOException {
         for (MethodBody body : compiled.bodies) {
-            MethodBody before = original.findBody(body.method_info);
+            MethodBody before = body.method_info < original.method_info.size() ? original.findBody(body.method_info) : null;
             if (before == null || before.exceptions.length != body.exceptions.length) continue;
             var emitted = body.getCode().code;
             var layout = before.getCode().code;
@@ -1709,49 +1750,6 @@ public final class MovieSource {
         return hash(sequence.toString().getBytes(StandardCharsets.UTF_8));
     }
 
-    static String checkFeature(ABC original, ABC compiled, String prefix, Path permissions) throws Exception {
-        Map<String, String[]> allowed = new LinkedHashMap<>();
-        for (String line : Files.readAllLines(permissions)) {
-            String[] fields = line.split("\\t", -1);
-            if (fields.length != 3 || !fields[0].startsWith(prefix) || fields[0].contains("|")
-                    || allowed.put(fields[0], fields) != null)
-                throw new IOException("Invalid or duplicate feature method permission");
-            if (!(fields[1].equals("-") && fields[2].equals("-"))
-                    && !(fields[1].matches("[0-9a-f]{64}") && fields[2].matches("[0-9a-f]{64}")))
-                throw new IOException("Call/cast permission requires both reviewed fingerprints");
-        }
-        if (allowed.isEmpty()) throw new IOException("No feature methods authorized");
-        if (!Arrays.equals(definitions(original), definitions(compiled)))
-            throw new IOException("Feature changed class, script, trait or method-signature records");
-        Map<Integer, String> owners = names(original);
-        Set<String> seen = new HashSet<>();
-        StringBuilder report = new StringBuilder("method\tbefore_record\tafter_record\tbefore_calls_casts\tafter_calls_casts\n");
-        int changed = 0;
-        for (MethodBody before : original.bodies) {
-            MethodBody after = compiled.findBody(before.method_info);
-            String owner = owners.get(before.method_info);
-            byte[] a = record(original, before), b = record(compiled, after);
-            if (!allowed.containsKey(owner)) {
-                if (!Arrays.equals(a, b)) throw new IOException("Untouched method changed: " + owner);
-                continue;
-            }
-            if (!seen.add(owner)) throw new IOException("Ambiguous feature method owner");
-            String oldCalls = callCastFingerprint(original, before), newCalls = callCastFingerprint(compiled, after);
-            String[] permission = allowed.get(owner);
-            if (permission[1].equals("-")) {
-                if (!oldCalls.equals(newCalls)) throw new IOException("Unreviewed calls/casts changed in " + owner
-                    + ": " + oldCalls + " -> " + newCalls);
-            } else if (!permission[1].equals(oldCalls) || !permission[2].equals(newCalls))
-                throw new IOException("Reviewed calls/casts do not match compiler output for " + owner);
-            if (!Arrays.equals(a, b)) changed++;
-            report.append(cell(owner)).append('\t').append(hash(a)).append('\t').append(hash(b)).append('\t')
-                .append(oldCalls).append('\t').append(newCalls).append('\n');
-        }
-        if (!seen.equals(allowed.keySet())) throw new IOException("Feature permission names a missing method");
-        if (changed == 0) throw new IOException("Feature compiled without changing any authorized method");
-        return report.toString();
-    }
-
     static void linkLayout(Path referenceFile, Path candidateFile, Path output, String cls, Path permissions) throws Exception {
         SWF reference = read(referenceFile), candidate = read(candidateFile);
         if (reference.getAbcList().size() != candidate.getAbcList().size())
@@ -1785,10 +1783,12 @@ public final class MovieSource {
             throw new IOException("Extended numeric ABC versions are not supported by this linker");
         for (MethodBody body : original.bodies) exactCode(body);
         for (MethodBody body : compiled.bodies) exactCode(body);
+        boolean feature = permissions != null;
+        if (feature) FeatureGate.restoreClassOrder(original, compiled);
         restoreNameReferences(original, compiled);
-        if (permissions != null) relocateAddedPoolNames(original, compiled);
-        restoreMethodOrder(original, compiled);
-        emitScriptClassBindings(original, compiled);
+        if (feature) relocateAddedPoolNames(original, compiled);
+        restoreMethodOrder(original, compiled, feature);
+        emitScriptClassBindings(original, compiled, feature);
         restoreScriptSlot(original, compiled);
         emitCompactOperations(original, compiled);
         retainDebugDirectives(original, compiled);
@@ -1798,17 +1798,27 @@ public final class MovieSource {
             if (a.name_index != b.name_index || !Arrays.equals(a.keys, b.keys) || !Arrays.equals(a.values, b.values))
                 throw new IOException("Existing metadata pool entry changed");
         }
-        if (original.instance_info.size() != compiled.instance_info.size() || original.script_info.size() != compiled.script_info.size()
-                || original.bodies.size() != compiled.bodies.size()) throw new IOException("ABC record counts changed");
+        if (feature ? original.instance_info.size() > compiled.instance_info.size()
+                    || original.script_info.size() > compiled.script_info.size()
+                    || original.bodies.size() > compiled.bodies.size()
+                : original.instance_info.size() != compiled.instance_info.size()
+                    || original.script_info.size() != compiled.script_info.size()
+                    || original.bodies.size() != compiled.bodies.size())
+            throw new IOException("ABC record counts changed");
+        if (feature) FeatureGate.checkScriptOrder(original, compiled);
         for (int i = 0; i < original.instance_info.size(); i++) {
-            retainDebugMetadata(original, compiled, original.instance_info.get(i).instance_traits, compiled.instance_info.get(i).instance_traits);
-            retainDebugMetadata(original, compiled, original.class_info.get(i).static_traits, compiled.class_info.get(i).static_traits);
+            retainDebugMetadata(original, compiled, original.instance_info.get(i).instance_traits, compiled.instance_info.get(i).instance_traits, feature);
+            retainDebugMetadata(original, compiled, original.class_info.get(i).static_traits, compiled.class_info.get(i).static_traits, feature);
         }
         for (int i = 0; i < original.script_info.size(); i++)
-            retainDebugMetadata(original, compiled, original.script_info.get(i).traits, compiled.script_info.get(i).traits);
+            retainDebugMetadata(original, compiled, original.script_info.get(i).traits, compiled.script_info.get(i).traits, feature);
         for (int i = 0; i < original.bodies.size(); i++) {
             if (original.bodies.get(i).method_info != compiled.bodies.get(i).method_info) throw new IOException("Method body ordering changed");
-            retainDebugMetadata(original, compiled, original.bodies.get(i).traits, compiled.bodies.get(i).traits);
+            Traits before = original.bodies.get(i).traits, after = compiled.bodies.get(i).traits;
+            // A feature's edited method may declare different activation
+            // locals; its whole body record is then checked by the gate.
+            if (feature && !traitIdentities(original, before).equals(traitIdentities(compiled, after))) continue;
+            retainDebugMetadata(original, compiled, before, after, feature);
         }
         Map<Integer, String> originalOwners = names(original), compiledOwners = names(compiled);
         for (int i = 0; i < original.method_info.size(); i++) {
@@ -1837,13 +1847,16 @@ public final class MovieSource {
         // Feature output retains appended constants. Every original entry was
         // checked above, so untouched operands retain their original meaning.
         if (permissions == null) compiled.constants = original.constants;
-        compiled.metadata_info = original.metadata_info;
+        // Every original metadata record was checked above; a feature's new
+        // traits may reference records appended after them.
+        if (!feature || compiled.metadata_info.size() == original.metadata_info.size())
+            compiled.metadata_info = original.metadata_info;
         byte[] rebuilt = abcBytes(compiled), expected = abcBytes(original);
         int classId = original.findClassByName(cls);
         String ownerPrefix = classId >= 0 ? name(original, original.instance_info.get(classId).name_index) + "/"
             : "script:" + original.script_info.get(source.scriptIndex).traits.traits.stream()
                 .map(t -> name(original, t.name_index)).sorted().toList() + "/";
-        String featureReport = permissions == null ? null : checkFeature(original, compiled, ownerPrefix, permissions);
+        String featureReport = permissions == null ? null : FeatureGate.check(original, compiled, ownerPrefix, permissions);
         if (permissions == null && !Arrays.equals(rebuilt, expected)) {
             Files.write(output.resolveSibling(output.getFileName() + ".rejected.abc"), rebuilt);
             StringBuilder differences = new StringBuilder();
@@ -1922,6 +1935,12 @@ public final class MovieSource {
         if (a[0].equals("link-feature")) {
             if (a.length != 6) throw new IllegalArgumentException("link-feature ORIGINAL COMPILED OUTPUT CLASS PERMISSIONS.tsv");
             linkLayout(Path.of(a[1]), Path.of(a[2]), Path.of(a[3]), a[4], Path.of(a[5]));
+            return;
+        }
+        if (a[0].equals("add-script")) {
+            if (a.length != 6) throw new IllegalArgumentException("add-script INPUT OUTPUT ANCHOR_CLASS SOURCE SNAPSHOT");
+            FeatureGate.addScript(Path.of(a[1]), Path.of(a[2]), a[3], Path.of(a[4]));
+            snapshot(read(Path.of(a[2])), Path.of(a[5]));
             return;
         }
         if (a[0].equals("link-layout")) {

@@ -11,8 +11,11 @@ the compiler profiles, source/tool hashes, complete reports and artifact.
 This directory provides pinned private source exports, 233 reconstruction
 diffs over that pristine tree, a verified layout linker, a whole-tree build
 command, and a source-feature builder that recompiles only touched classes.
-The feature builder currently supports edits to existing method bodies and
-checks every untouched method and class. The original 18-class list remains
+Features may edit method bodies, add methods, traits, nested functions,
+constants and whole classes, and change the declarations they name; the
+builder checks every untouched method and class byte for byte. The lobby movie
+of skhid-srp is built this way from `srp-026g/lobby/` (see
+`srp-026g/docs/notes/lobby-source.md`). The original 18-class list remains
 an optional compiler probe; the baseline proof covers all 878 scripts.
 
 ## Private inputs and pinned tools
@@ -538,9 +541,62 @@ purchase; the current server disables tutorials for all accounts, so the test
 exercised its normal lobby flow. Build reports retain `runtime_verified: false`
 because compilation alone cannot establish these separate UI observations.
 
-The current feature gate supports edits to existing method bodies. Adding or
-removing methods, changing signatures, or changing class/script layout is
-refused. Such features need additional reconstruction and verification support.
+### Build lists: additions, whole classes and new classes
+
+A schema 2 build list (`srp-026g/lobby/lobby.json`) names features in order;
+each feature's patches apply to the source the features before it left, and
+each touched class is compiled once, from its final source:
+
+```sh
+python3 tools/actionscript/build_feature.py --tools private/actionscript/tools.json \
+  --reconstruction tools/actionscript/reconstruction/026g-rev24/manifest.json --jobs 4 \
+  private/actionscript/rev24 srp-026g/lobby/lobby.json private/actionscript/lobby-build
+```
+
+A feature's `feature.json` lists its classes, each of one kind:
+
+- a game class: `{"class", "patch", "methods", "members"}`. `methods` names
+  the existing methods whose bodies change (by name; a getter/setter pair
+  both); `members` names members the feature adds or redeclares, whose traits,
+  signatures and bodies (with nested functions) may change or be new. New
+  nested functions of an edited method belong to it.
+- a repository-authored class of the release: `{"class", "source"}`. The whole
+  file is the source and the feature owns the class: its methods, traits and
+  declarations may change and grow.
+- a new class: `{"class", "new": true, "source", "abc_with"}`. FFDec compiles it
+  into the ABC of class `abc_with`, after all of that ABC's records (the
+  `add-script` bridge operation), as the lobby's own classes always were.
+
+New classes compile first, then repository-authored classes, then game
+classes (Flex needs the new classes as dependencies). Each existing class
+first recompiles its unchanged reconstruction and must reproduce the complete
+compressed release movie (`--jobs` runs these in parallel); then the feature
+source compiles over the movie the classes before it left, and links.
+
+The link keeps every original record at its index: new methods, bodies,
+traits, classes, scripts and metadata come after the original ones, so every
+original operand keeps its meaning. The gate (`FeatureGate.java`) then
+requires every record the permissions do not name to be byte-identical:
+method signatures and bodies, class headers, traits and script records.
+Removing a method, a trait or a class is refused, as is changing a trait's
+kind; an edited method's activation (closure) traits may change with its body.
+Each link writes `feature-linked.swf.methods.tsv` (changed, added, unreviewed).
+The final movie is reparsed and compared with the release: every changed or
+added method must be one a class link reported, and `changes.tsv` lists them.
+
+Call/cast review works as for schema 1, by method: the build list's
+`reviewed_calls` maps `Class.method` to the reviewed `before`/`after`
+fingerprints of the final, combined source. `--review-calls` builds without
+them, writes every unreviewed change with its before/after assembly to
+`review-calls.tsv`, and stops before writing a movie.
+
+`feature_source.py` shows a class's source as the features leave it, and
+records a feature's patch from an edited copy:
+
+```sh
+python3 tools/actionscript/feature_source.py --reconstruction R PROJECT BUILD_LIST show CLASS [--before FEATURE] -o FILE
+python3 tools/actionscript/feature_source.py --reconstruction R PROJECT BUILD_LIST diff FEATURE CLASS FILE
+```
 
 ## Verification and boundaries
 
@@ -553,9 +609,8 @@ corrections and all 233 reconstructed scripts participate in this build.
 The baseline, source-feature example and recorded Scaleform UI check are
 verified. The existing shipping patchers remain in place; adopting this
 workflow in a release is a separate change. A different release needs its own
-pinned export, reconstruction and whole-tree proof. New methods, changed
-signatures and class/script layout changes require extending the feature gate;
-they are currently rejected explicitly.
+pinned export, reconstruction and whole-tree proof. Removed methods, traits
+or classes and changed trait kinds are rejected explicitly.
 
 ```sh
 python3 -m unittest discover -s tools/actionscript -v
@@ -590,6 +645,12 @@ Feature tests compile an actual source edit with a new constant and an unrelated
 class in the same ABC. They reject changes to untouched instructions, verifier
 metadata, original pool entries and the retained class. They also reject an
 unreviewed constructor-to-call change and incorrect review fingerprints.
+`test_feature_additions.py` (also with `SRP_AS_TOOLS`) compiles a real
+feature adding a member, a nested function and a constant, and a new class;
+it checks that undeclared additions, an unpermitted redeclaration, a changed
+untouched method and a removed method are refused, and that an owned class
+may change its signatures. `test_feature.py` and `test_feature_source.py`
+cover build-list parsing, feature chaining and patch recording.
 The scope fixture checks omitted and deferred instance setup, inherited and
 local shadowing, incomplete hierarchies, duplicate classes, method aliases,
 unsafe scopes and branches. Its reservation checks prove that only the named

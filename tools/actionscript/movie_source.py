@@ -158,12 +158,13 @@ class Toolchain:
         shutil.copyfile(HERE / "MixedCompiler.java", self.work / "MixedCompiler.java")
         shutil.copyfile(HERE / "SourceCompiler.java", self.work / "SourceCompiler.java")
         shutil.copyfile(HERE / "CompilerReserves.java", self.work / "CompilerReserves.java")
+        shutil.copyfile(HERE / "FeatureGate.java", self.work / "FeatureGate.java")
         shutil.copyfile(HERE / "movie_source.py", self.work / "movie_source.py")
         shutil.copyfile(HERE / "source_patches.py", self.work / "source_patches.py")
         subprocess.run([self.config["javac"], "-encoding", "UTF-8", "-cp", self.config["ffdec"],
                         "-d", str(self.work), str(self.work / "MovieSource.java"),
                         str(self.work / "MixedCompiler.java"), str(self.work / "SourceCompiler.java"),
-                        str(self.work / "CompilerReserves.java")],
+                        str(self.work / "CompilerReserves.java"), str(self.work / "FeatureGate.java")],
                        check=True, env=self.env)
 
     def run(self, *args, log, timeout=600):
@@ -194,6 +195,7 @@ class Toolchain:
                 "composition_bridge_sha256": digest(self.work / "MixedCompiler.java"),
                 "source_compiler_sha256": digest(self.work / "SourceCompiler.java"),
                 "compiler_reserves_sha256": digest(self.work / "CompilerReserves.java"),
+                "feature_gate_sha256": digest(self.work / "FeatureGate.java"),
                 "driver_sha256": digest(self.work / "movie_source.py"),
                 "source_patches_sha256": digest(self.work / "source_patches.py")}
 
