@@ -1020,3 +1020,30 @@ previously runtime-tested hash
 `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
 one authorized method changed and identical non-code bytes. Its recorded evidence
 is byte identity, not a new game run.
+
+### Explicit String source calls and SrpExchange
+
+The `ffdec-source` profile now reconstructs `SrpExchange` from its
+repository-authored revision 24 source. The regular FFDec result differed at
+five explicit `String(...)` calls. A source AST adapter lets FFDec resolve each
+callee, then emits `convert_s` for its resolved String intrinsic. This preserves
+the source's null/undefined stringification and leaves typed String coercions
+alone. The adapter visits nested source fields and preserves constructor nodes,
+source metadata and all other call generation. It never uses a reference
+executable instruction to determine which conversion to emit.
+
+Fresh compilation passes the complete compressed release equality check.
+All 20 tests pass, including five real-compiler integration tests. The new
+fixture verifies explicit null/undefined calls, nested calls and functions,
+assignments through call results in both branches, ordinary String assignment,
+a shadowing function parameter and static/dynamic constructors. It also checks
+independent baseline reconstruction, an authorized source edit, rejection of
+that edit as a baseline, and rejection of invalid source before output is saved.
+
+There are now 220 authenticated reconstruction patches. With 645 pristine
+successes, accumulated individual-script evidence covers 865 of 878 scripts;
+13 remain. This is not a whole-tree matching build. The premium rebuild retains
+the previously runtime-tested hash
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+one authorized method changed and identical non-code bytes. The runtime record
+documents byte identity without claiming another game run.

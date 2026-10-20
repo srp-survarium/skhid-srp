@@ -1823,6 +1823,15 @@
       "pristine_sha256": "5fa9df99c39510f31b63f157b146d743c34b0d1e799b789a18d2a7d834fb9409",
       "reason": "Recover native source declarations and typed expressions; explicitly select FFDec updateData and isUpgradeable records and the sole script-class trait. An explicit Boolean conversion and numeric self assignment preserve the source behavior, and the validated emitter removes the duplicate local store. Fresh compilation reproduces the complete compressed release movie exactly.",
       "result_sha256": "e45222989d22318075411800dcbde1c87ac54a31d718db0f58c6e872c720b701"
+    },
+    {
+      "class": "SrpExchange",
+      "compiler": "ffdec-source",
+      "patch": "SrpExchange.patch",
+      "patch_sha256": "0e059939fdcf5f13b7f8eae20d7df0862830311c64419a6dcf9a9133d5e2da5a",
+      "pristine_sha256": "15f3eaa75c13ee0bd110a6497c5aad859dea8c990180675a1b90f9cd743e874d",
+      "reason": "Use the repository-authored ActionScript pinned to revision 24. The ffdec-source profile emits explicit String calls from their source AST as convert_s while preserving ordinary coercions and all other compiler operations. Fresh compilation and reassembly reproduce the entire compressed release movie exactly.",
+      "result_sha256": "6e27e6e144bd2967b660818d68201ebd69c52f22c58d0496e4608503ba9783c1"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

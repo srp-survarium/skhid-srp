@@ -15,7 +15,7 @@
   ],
   "description": "Disable the premium purchase button when the selected subscription costs more than the current premium balance. Local source-feature demonstration; runtime verification required before release.",
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",
-  "reconstruction_sha256": "cbe481763369d8fa379005ddc987397170d448203ff992b4f1d4380ac9d65698",
+  "reconstruction_sha256": "5e7d5c53d68c2cd1ab70dff2135d6cb752bd2ee52ab5ee6180bae306cc75e857",
   "release": "026g-rev24",
   "schema": 1
 }

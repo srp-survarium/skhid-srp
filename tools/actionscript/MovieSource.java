@@ -1614,7 +1614,7 @@ public final class MovieSource {
                 break;
             }
             case "compile": {
-                if (a.length != 8) throw new IllegalArgumentException("compile INPUT OUTPUT CLASS SOURCE ffdec|flex|flex-strict|flex-library SDK");
+                if (a.length != 8) throw new IllegalArgumentException("compile INPUT OUTPUT CLASS SOURCE ffdec|ffdec-source|flex|flex-strict|flex-library SDK");
                 ScriptPack found = null;
                 for (ScriptPack pack : swf.getAS3Packs())
                     if (pack.getClassPath().toRawString().equals(a[3])) {
@@ -1628,6 +1628,7 @@ public final class MovieSource {
                     compiler = new FlexCompiler(a[7], Path.of(a[5]).resolveSibling(Path.of(a[5]).getFileName() + "-flex"),
                         !a[6].equals("flex"), a[6].equals("flex-library") ? a[3] : null);
                 else if (a[6].equals("ffdec")) compiler = As3ScriptReplacerFactory.createFFDec();
+                else if (a[6].equals("ffdec-source")) compiler = new SourceCompiler();
                 else throw new IllegalArgumentException("Unknown compiler " + a[6]);
                 try {
                     if (!found.abc.replaceScriptPack(compiler, found, Files.readString(Path.of(a[4])), List.of()))

@@ -156,11 +156,13 @@ class Toolchain:
         self.cp = str(self.work) + os.pathsep + self.config["ffdec"]
         shutil.copyfile(HERE / "MovieSource.java", self.work / "MovieSource.java")
         shutil.copyfile(HERE / "MixedCompiler.java", self.work / "MixedCompiler.java")
+        shutil.copyfile(HERE / "SourceCompiler.java", self.work / "SourceCompiler.java")
         shutil.copyfile(HERE / "movie_source.py", self.work / "movie_source.py")
         shutil.copyfile(HERE / "source_patches.py", self.work / "source_patches.py")
         subprocess.run([self.config["javac"], "-encoding", "UTF-8", "-cp", self.config["ffdec"],
                         "-d", str(self.work), str(self.work / "MovieSource.java"),
-                        str(self.work / "MixedCompiler.java")], check=True, env=self.env)
+                        str(self.work / "MixedCompiler.java"), str(self.work / "SourceCompiler.java")],
+                       check=True, env=self.env)
 
     def run(self, *args, log, timeout=600):
         with log.open("w") as stream:
@@ -188,6 +190,7 @@ class Toolchain:
                 "python_version": sys.version, "zlib_version": zlib.ZLIB_RUNTIME_VERSION,
                 "bridge_sha256": digest(self.work / "MovieSource.java"),
                 "composition_bridge_sha256": digest(self.work / "MixedCompiler.java"),
+                "source_compiler_sha256": digest(self.work / "SourceCompiler.java"),
                 "driver_sha256": digest(self.work / "movie_source.py"),
                 "source_patches_sha256": digest(self.work / "source_patches.py")}
 
@@ -213,7 +216,7 @@ def main():
     measure = commands.add_parser("measure", help="Independently recompile each selected class from a fresh original")
     measure.add_argument("project", type=Path)
     measure.add_argument("output", type=Path)
-    measure.add_argument("--compiler", choices=("ffdec", "flex", "flex-strict", "flex-library", "flex-mixed", "reconstruction"), required=True,
+    measure.add_argument("--compiler", choices=("ffdec", "ffdec-source", "flex", "flex-strict", "flex-library", "flex-mixed", "reconstruction"), required=True,
                          help="reconstruction uses pinned per-class compiler choices, defaulting to flex-strict")
     measure.add_argument("--classes", type=Path, help="One full script name per line; defaults to every exported script")
     measure.add_argument("--source-patches", type=Path, help="Pinned reconstruction manifest; pristine exports stay immutable")

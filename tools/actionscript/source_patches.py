@@ -90,7 +90,7 @@ def load_sources(manifest_path, project, pinned):
         raise ValueError('Source patches target a different release')
     sources, evidence = {}, {'manifest_sha256': sha(raw), 'classes': []}
     for entry in spec['classes']:
-        if entry.get('compiler', 'flex-strict') not in ('ffdec', 'flex', 'flex-strict', 'flex-library', 'flex-mixed'):
+        if entry.get('compiler', 'flex-strict') not in ('ffdec', 'ffdec-source', 'flex', 'flex-strict', 'flex-library', 'flex-mixed'):
             raise ValueError('Unknown reconstruction compiler')
         composition_plan(entry)
         cls = entry['class']
