@@ -1070,3 +1070,43 @@ premium rebuild has the previously runtime-tested hash
 `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
 with one authorized method changed and identical non-code bytes. Its runtime
 record documents a verified rebuild, not another game run.
+
+### Integer encodings and notification source reconstruction
+
+`NotificationListScrollContent` now reproduces the entire compressed release
+movie from source. Its mixed plan selects the feature methods from
+`ffdec-source`; native UI methods remain compiled by Flex. The source recovers
+static declaration order, typed Array return temporaries, explicit property
+conversions and comparisons that preserve the original NaN behavior.
+
+Two integer encoding rules cover local and activation-slot loops. Integer
+local increments/decrements can expand to load/integer operation/`convert_i`/
+store, with no increase to verifier limits. An already integer result can
+retain the redundant conversion before its store. Adobe's interpreter uses the
+same integer implementation for both local and stack operations
+([source](https://github.com/adobe/avmplus/blob/master/core/Interpreter.cpp#L1426)).
+Generic numeric operations and unsigned conversions remain excluded, and the
+entire method's branch, switch and exception boundaries must agree.
+
+The remaining notification difference was an unreachable jump after return.
+The emitter can give such a jump the fixed zero displacement used by the
+reference encoding only after proving it unreachable from method entry and
+all exception handlers. Reachability follows all branches and switch targets.
+The generated target is the next compiled boundary; no original executable
+operand is copied. The complete method still has to match.
+
+All 20 tests pass, including five real-compiler integration tests. Additional
+fixtures cover short and wide local registers, activation slots, increment and
+decrement, changed operands/conversions, generic numeric operations, stack
+bounds, and branch/handler entry into generated instructions. A real compiler
+try/return fixture exercises the unreachable jump rule; reachable jumps through
+normal flow, an explicit branch, a switch or an exception handler are rejected.
+The added switch case also passes in a separate rerun of the mixed integration
+test.
+
+There are now 222 authenticated reconstructions and 645 pristine successes:
+867 of 878 scripts have individual exact proofs, leaving 11. A complete matching
+whole-tree build is still outstanding. The fresh premium rebuild again has
+hash `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+with exactly one authorized method changed and identical non-code bytes. This
+records byte identity with the earlier game-tested build, not a new game run.

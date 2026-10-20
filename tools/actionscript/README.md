@@ -238,6 +238,20 @@ directives may label retained executable boundaries; they cannot allow entry
 inside a removed instruction group. Register changes, conversion changes,
 interior branch targets and interior exception boundaries remain rejected.
 
+Integer local increments/decrements can also use their equivalent
+load/integer-operation/`convert_i`/store encoding. The existing stack bound
+must accommodate that encoding. A redundant `convert_i` can be emitted before
+storing an integer increment/decrement result in a local or activation slot.
+Generic Number operations and unsigned conversions are excluded. Both rules
+retain the whole-method control-flow and exception checks.
+
+A jump proven unreachable from method entry and every exception handler can
+use the fixed zero displacement emitted by older compilers. Reachability
+includes conditional branches and all switch targets. The emitted target is
+the next compiled instruction boundary; no reference target is copied. A
+reachable jump, a different requested displacement, or any other control-flow
+mismatch remains refused.
+
 Original debugger file/line/register directives can also be emitted after every
 non-debug instruction compares equal to the compiler output. Compiler-emitted
 directives are replaced or removed only after that comparison. Branch and switch
@@ -295,7 +309,7 @@ Use `--compiler reconstruction` with the pinned patch manifest to select these
 per-class compilers in one measurement. Classes without an override use
 `flex-strict`; every report row records the compiler actually used. Explicit
 `--compiler ffdec`, `ffdec-source`, `flex`, `flex-strict` or `flex-library` selects that compiler for every
-class, for comparison experiments. The per-class profile currently proves 221
+class, for comparison experiments. The per-class profile currently proves 222
 reconstructed classes, including easing, button, list, text, message, clan,
 debug and tutorial classes. Source fixes also recover local declaration order,
 static field slot order and explicit switch breaks where required.

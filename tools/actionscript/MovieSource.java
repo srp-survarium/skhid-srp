@@ -1052,6 +1052,36 @@ public final class MovieSource {
             && localRegister(code.get(next + 4), true) == register;
     }
 
+    static Set<Integer> unreachableJumps(MethodBody body) throws IOException {
+        var instructions = body.getCode().code;
+        Map<Integer, Integer> indices = new HashMap<>();
+        for (int i = 0; i < instructions.size(); i++)
+            indices.put((int)instructions.get(i).getAddress(), i);
+        Set<Integer> reached = new HashSet<>();
+        ArrayDeque<Integer> pending = new ArrayDeque<>();
+        if (!instructions.isEmpty()) pending.add(0);
+        // Every handler is a root, even for an unreachable protected region.
+        // This deliberately overestimates reachability.
+        for (var handler : body.exceptions) pending.add(boundary(indices, handler.target));
+        while (!pending.isEmpty()) {
+            int index = pending.removeFirst();
+            if (!reached.add(index)) continue;
+            var instruction = instructions.get(index);
+            int opcode = instruction.definition.instructionCode;
+            for (int target : branchTargets(instruction)) pending.add(boundary(indices, target));
+            if (opcode != 0x03 && opcode != 0x47 && opcode != 0x48
+                    && opcode != 0x10 && opcode != 0x1b && index + 1 < instructions.size())
+                pending.add(index + 1);
+        }
+        Set<Integer> result = new HashSet<>();
+        for (int i = 0; i < instructions.size(); i++) {
+            var instruction = instructions.get(i);
+            if (!reached.contains(i) && instruction.definition.instructionCode == 0x10)
+                result.add((int)instruction.getAddress());
+        }
+        return result;
+    }
+
     // ASC Encoder.OP_getproperty/OP_pop and CodeGenerator.If select these
     // compact encodings. Comparison semantics also follow Adobe's interpreter:
     // https://github.com/adobe/avmplus/blob/master/core/Interpreter.cpp
@@ -1070,6 +1100,7 @@ public final class MovieSource {
             ArrayList<AVM2Instruction> result = new ArrayList<>();
             List<int[]> targets = new ArrayList<>();
             Map<Integer, Integer> positions = new HashMap<>();
+            Set<Integer> deadJumps = null;
             boolean matching = true, rewritten = false;
             int next = 0, end = 0;
             for (int wantedIndex = 0; wantedIndex < expected.size(); wantedIndex++) {
@@ -1078,6 +1109,57 @@ public final class MovieSource {
                 var instruction = emitted.get(next);
                 var operandSource = instruction;
                 int opcode = instruction.definition.instructionCode, desired = wanted.definition.instructionCode;
+                // The interpreter implements inclocal_i/declocal_i using the
+                // same operation as increment_i/decrement_i on a stack value.
+                // The extra convert_i is idempotent on that integer result.
+                // Only expand when the existing stack bound accommodates the
+                // reference encoding; never raise verifier limits to force it.
+                if ((opcode == 0xc2 || opcode == 0xc3) && instruction.operands.length == 1
+                        && body.max_stack >= reference.max_stack && wantedIndex + 3 < expected.size()) {
+                    int register = instruction.operands[0];
+                    var expanded = List.of(
+                        new AVM2Instruction(0, register < 4 ? 0xd0 + register : 0x62,
+                            register < 4 ? null : new int[]{register}),
+                        new AVM2Instruction(0, opcode == 0xc2 ? 0xc0 : 0xc1, null),
+                        new AVM2Instruction(0, 0x73, null),
+                        new AVM2Instruction(0, register < 4 ? 0xd4 + register : 0x63,
+                            register < 4 ? null : new int[]{register}));
+                    boolean same = register >= 0 && register < body.max_regs;
+                    for (int j = 0; j < expanded.size(); j++) {
+                        var item = expanded.get(j);
+                        var target = expected.get(wantedIndex + j);
+                        if (item.definition.instructionCode != target.definition.instructionCode
+                                || !Arrays.equals(item.operands, target.operands)) same = false;
+                    }
+                    if (same) {
+                        positions.put((int)instruction.getAddress(), result.size());
+                        for (var item : expanded) {
+                            result.add(item);
+                            targets.add(new int[0]);
+                        }
+                        end = (int)instruction.getAddress() + instruction.getBytesLength();
+                        next++;
+                        wantedIndex += 3;
+                        rewritten = true;
+                        continue;
+                    }
+                }
+                // Some generators omit the redundant conversion before storing
+                // an increment_i/decrement_i result. It cannot invoke user code.
+                // Incoming edges still target the original store, and all CFG
+                // and exception boundaries must agree below.
+                if (desired == 0x73 && next > 0
+                        && (emitted.get(next - 1).definition.instructionCode == 0xc0
+                            || emitted.get(next - 1).definition.instructionCode == 0xc1)
+                        && (opcode == 0x6d || localRegister(instruction, true) >= 0)
+                        && wantedIndex + 1 < expected.size()
+                        && expected.get(wantedIndex + 1).definition.instructionCode == opcode
+                        && Arrays.equals(expected.get(wantedIndex + 1).operands, instruction.operands)) {
+                    result.add(new AVM2Instruction(0, 0x73, null));
+                    targets.add(new int[0]);
+                    rewritten = true;
+                    continue;
+                }
                 // ASC can use either a combined comparison branch or a Boolean
                 // comparison followed by a branch, including within one method.
                 // Generate the latter only from an equivalent combined opcode.
@@ -1152,6 +1234,18 @@ public final class MovieSource {
                     rewritten = true;
                 }
                 int[] branches = branchTargets(operandSource);
+                // FFDec emits a jump past catch handlers even after return.
+                // A proven unreachable jump can use the fixed zero displacement
+                // emitted by older compilers. Do not borrow a reference target:
+                // use the next compiled boundary and validate the entire CFG.
+                if (opcode == 0x10 && desired == 0x10 && wanted.operands.length == 1
+                        && wanted.operands[0] == 0 && instruction.operands[0] != 0) {
+                    if (deadJumps == null) deadJumps = unreachableJumps(body);
+                    if (deadJumps.contains((int)instruction.getAddress())) {
+                        branches = new int[]{(int)instruction.getAddress() + instruction.getBytesLength()};
+                        rewritten = true;
+                    }
+                }
                 if (branches.length == 0 && !Arrays.equals(wanted.operands, operandSource.operands)) {
                     matching = false; break;
                 }

@@ -27,6 +27,28 @@ class MixedCompilerIntegration(unittest.TestCase):
                     public function nativeValue(value:int):int { return value+secret; }
                     public function selfUint(value:uint):uint { value = ++value; return value; }
                     public function selfInt(value:int):int { value = --value; return value; }
+                    public function integerLoop(a:int,b:int,c:int,d:int,value:int):int {
+                        while(value>0) { a += value; value--; }
+                        value++;
+                        return a+value;
+                    }
+                    public function integerClosure(value:int):int {
+                        var captured:int=value;
+                        try { captured++; captured--; }
+                        catch(error:Error) { return -1; }
+                        return captured;
+                    }
+                    public function shortLoop(value:int):int {
+                        while(value>0) value--;
+                        value++;
+                        return value+1;
+                    }
+                    public function deadTry(source:Object):Boolean {
+                        var data:Object=null;
+                        try { data=source; return data!=null && data.x==true; }
+                        catch(error:Error) {}
+                        return false;
+                    }
                     public function mixed(value:int=2):String {
                         var callback:Function=function(delta:int):String {
                             var object:Object={oldKey:"old-marker"};
@@ -39,7 +61,8 @@ class MixedCompilerIntegration(unittest.TestCase):
                 }
             }''')
             owner = 'QName(PackageNamespace(""),"MixedProbe")/instance/1/QName(PackageNamespace(""),"mixed")'
-            self_owners = [owner.replace('"mixed")', '"' + name + '")') for name in ('selfUint', 'selfInt')]
+            self_owners = [owner.replace('"mixed")', '"' + name + '")')
+                           for name in ('selfUint', 'selfInt', 'integerLoop', 'integerClosure', 'shortLoop', 'deadTry')]
             entry = {'compiler': 'flex-mixed', 'composition': {
                 'ffdec_methods': [owner] + self_owners, 'script_traits': 'ffdec'}}
             plan = root / 'composition.tsv'
@@ -122,6 +145,151 @@ class MixedCompilerIntegration(unittest.TestCase):
                 import com.jpexs.decompiler.flash.abc.types.ABCException;
                 import com.jpexs.decompiler.flash.tags.Tag;
                 public class MixedFixture {
+                    static void unreachableEncoding(Path path)throws Exception {
+                        for(String mutation:List.of("valid","handler","branch","switch","fallthrough","target")) {
+                            var reference=MovieSource.findScript(MovieSource.read(path),"MixedProbe").abc;
+                            var candidate=MovieSource.findScript(MovieSource.read(path),"MixedProbe").abc;
+                            int id=MovieSource.names(reference).entrySet().stream()
+                                .filter(e->e.getValue().endsWith(","+(char)34+"deadTry"+(char)34+")"))
+                                .findFirst().orElseThrow().getKey();
+                            var before=reference.findBody(id);var after=candidate.findBody(id);
+                            var expected=MovieSource.exactCode(before);var actual=MovieSource.exactCode(after);
+                            int site=-1;
+                            for(int i=1;i<actual.code.size();i++)
+                                if(actual.code.get(i).definition.instructionCode==0x10
+                                    && actual.code.get(i-1).definition.instructionCode==0x48){site=i;break;}
+                            if(site<0 || before.exceptions.length!=1)throw new AssertionError("Missing real dead jump fixture");
+                            var a=expected.code.get(site);var b=actual.code.get(site);
+                            if(b.operands[0]==0)throw new AssertionError("Fixture jump was already zero");
+                            a.operands[0]=0;
+                            if(mutation.equals("handler")) {
+                                before.exceptions[0].target=(int)a.getAddress();
+                                after.exceptions[0].target=(int)b.getAddress();
+                            } else if(mutation.equals("branch")) {
+                                expected.insertInstruction(0,new AVM2Instruction(0,0x10,new int[]{0}),true,before);
+                                actual.insertInstruction(0,new AVM2Instruction(0,0x10,new int[]{0}),true,after);
+                                expected.code.get(0).operands[0]=(int)a.getAddress()-4;
+                                actual.code.get(0).operands[0]=(int)b.getAddress()-4;
+                            } else if(mutation.equals("switch")) {
+                                expected.insertInstruction(0,new AVM2Instruction(0,0x1b,new int[]{0,0,0}),true,before);
+                                actual.insertInstruction(0,new AVM2Instruction(0,0x1b,new int[]{0,0,0}),true,after);
+                                expected.insertInstruction(0,new AVM2Instruction(0,0x24,new int[]{0}),true,before);
+                                actual.insertInstruction(0,new AVM2Instruction(0,0x24,new int[]{0}),true,after);
+                                var x=expected.code.get(1);var y=actual.code.get(1);
+                                x.operands[0]=x.operands[2]=(int)(a.getAddress()-x.getAddress());
+                                y.operands[0]=y.operands[2]=(int)(b.getAddress()-y.getAddress());
+                            } else if(mutation.equals("fallthrough")) {
+                                expected.replaceInstruction(site-1,new AVM2Instruction(0,0x29,null),before);
+                                actual.replaceInstruction(site-1,new AVM2Instruction(0,0x29,null),after);
+                            } else if(mutation.equals("target")) {
+                                // Only the fixed zero encoding is supported.
+                                a.operands[0]=b.operands[0]+1;
+                            }
+                            before.setCode(expected);after.setCode(actual);
+                            byte[] untouched=after.getCodeBytes().clone();
+                            MovieSource.emitCompactOperations(reference,candidate);
+                            if(mutation.equals("valid")) {
+                                MovieSource.retainDebugDirectives(reference,candidate);
+                                if(!Arrays.equals(before.getCodeBytes(),after.getCodeBytes()))
+                                    throw new AssertionError("Unreachable jump encoding did not match");
+                            } else if(!Arrays.equals(untouched,after.getCodeBytes())) {
+                                throw new AssertionError("Reachable jump changed: "+mutation);
+                            }
+                        }
+                    }
+                    static void integerEncodings(Path path)throws Exception {
+                        for(String name:List.of("integerLoop","shortLoop","integerClosure")) {
+                            for(String mutation:List.of("valid","register","conversion","operation","branch","handler","stack")) {
+                                boolean local=!name.equals("integerClosure");
+                                if(!local && mutation.equals("stack"))continue;
+                                var reference=MovieSource.findScript(MovieSource.read(path),"MixedProbe").abc;
+                                var candidate=MovieSource.findScript(MovieSource.read(path),"MixedProbe").abc;
+                                String suffix=","+(char)34+name+(char)34+")";
+                                int id=MovieSource.names(reference).entrySet().stream()
+                                    .filter(e->e.getValue().endsWith(suffix)).findFirst().orElseThrow().getKey();
+                                var before=reference.findBody(id);
+                                var after=candidate.findBody(id);
+                                MovieSource.exactCode(before);
+                                MovieSource.exactCode(after);
+                                var expected=before.getCode();
+                                var actual=after.getCode();
+                                int count=0;
+                                // Construct an expanded reference from actual compiler
+                                // operations, using FFDec's independent branch relocation.
+                                for(int i=expected.code.size()-1;i>=0;i--) {
+                                    var op=expected.code.get(i);
+                                    int opcode=op.definition.instructionCode;
+                                    if(local && (opcode==0xc2||opcode==0xc3)) {
+                                        int reg=op.operands[0];
+                                        expected.replaceInstruction(i,new AVM2Instruction(0,reg<4?0xd0+reg:0x62,
+                                            reg<4?null:new int[]{reg}),before);
+                                        expected.insertInstruction(i+1,new AVM2Instruction(0,opcode==0xc2?0xc0:0xc1,null),true,before);
+                                        expected.insertInstruction(i+2,new AVM2Instruction(0,0x73,null),true,before);
+                                        expected.insertInstruction(i+3,new AVM2Instruction(0,reg<4?0xd4+reg:0x63,
+                                            reg<4?null:new int[]{reg}),true,before);
+                                        count++;
+                                    } else if(!local && (opcode==0xc0||opcode==0xc1)
+                                            && expected.code.get(i+1).definition.instructionCode==0x6d) {
+                                        expected.insertInstruction(i+1,new AVM2Instruction(0,0x73,null),true,before);
+                                        count++;
+                                    }
+                                }
+                                if(count!=2)throw new AssertionError("Missing real integer compiler fixture: "+name+" "+count
+                                    +" "+java.util.HexFormat.of().formatHex(after.getCodeBytes()));
+                                int conversion=-1,operation=-1;
+                                for(int i=0;i<expected.code.size();i++)
+                                    if(expected.code.get(i).definition.instructionCode==0xc0
+                                            ||expected.code.get(i).definition.instructionCode==0xc1){conversion=i+1;break;}
+                                for(int i=0;i<actual.code.size();i++) {
+                                    int op=actual.code.get(i).definition.instructionCode;
+                                    if(local?(op==0xc2||op==0xc3):(op==0xc0||op==0xc1)){operation=i;break;}
+                                }
+                                if(conversion<0||operation<0)throw new AssertionError("Missing mutation site");
+                                if(mutation.equals("register")) {
+                                    // Wrong source register / slot must not be imported from reference.
+                                    actual.code.get(operation+(local?0:1)).operands[0]++;
+                                } else if(mutation.equals("conversion")) {
+                                    expected.replaceInstruction(conversion,new AVM2Instruction(0,0x74,null),before);
+                                } else if(mutation.equals("operation")) {
+                                    // Generic Number operations have different overflow/coercion semantics.
+                                    int op=actual.code.get(operation).definition.instructionCode;
+                                    int generic=switch(op){case 0xc2->0x92;case 0xc3->0x94;case 0xc0->0x91;default->0x93;};
+                                    actual.replaceInstruction(operation,new AVM2Instruction(0,generic,
+                                        actual.code.get(operation).operands==null?null:
+                                        actual.code.get(operation).operands.clone()),after);
+                                } else if(mutation.equals("branch")) {
+                                    // Matching-looking jump enters the generated interior.
+                                    expected.insertInstruction(0,new AVM2Instruction(0,0x10,new int[]{0}),before);
+                                    actual.insertInstruction(0,new AVM2Instruction(0,0x10,new int[]{0}),after);
+                                    var a=expected.code.get(0);var b=actual.code.get(0);
+                                    a.operands[0]=(int)expected.code.get(conversion+1).getAddress()-a.getBytesLength();
+                                    b.operands[0]=(int)actual.code.get(operation+1).getAddress()-b.getBytesLength();
+                                } else if(mutation.equals("handler")) {
+                                    var a=new ABCException();var b=new ABCException();
+                                    a.start=b.start=0;
+                                    a.end=(int)expected.code.get(conversion).getAddress();
+                                    b.end=(int)actual.code.get(operation).getAddress();
+                                    a.target=(int)expected.code.get(expected.code.size()-1).getAddress();
+                                    b.target=(int)actual.code.get(actual.code.size()-1).getAddress();
+                                    before.exceptions=new ABCException[]{a};after.exceptions=new ABCException[]{b};
+                                } else if(mutation.equals("stack")) {
+                                    after.max_stack=before.max_stack-1;
+                                }
+                                before.setCode(expected);after.setCode(actual);
+                                byte[] untouched=after.getCodeBytes().clone();
+                                MovieSource.emitCompactOperations(reference,candidate);
+                                if(mutation.equals("valid")) {
+                                    MovieSource.retainDebugDirectives(reference,candidate);
+                                    if(!Arrays.equals(before.getCodeBytes(),after.getCodeBytes()))
+                                        throw new AssertionError("Integer encoding did not match: "+name
+                                            +" expected="+java.util.HexFormat.of().formatHex(before.getCodeBytes())
+                                            +" actual="+java.util.HexFormat.of().formatHex(after.getCodeBytes()));
+                                } else if(!Arrays.equals(untouched,after.getCodeBytes())) {
+                                    throw new AssertionError("Unsafe integer encoding accepted: "+name+" "+mutation);
+                                }
+                            }
+                        }
+                    }
                     static void numericAssignments(Path path)throws Exception {
                         for(String name:List.of("selfUint","selfInt")) {
                             for(String mutation:List.of("valid","register","conversion","non-numeric","branch","handler")) {
@@ -204,6 +372,8 @@ class MixedCompilerIntegration(unittest.TestCase):
                             MixedCompiler.compose(java.util.Arrays.copyOfRange(args,1,args.length));
                         } else if(args[0].equals("numeric")) {
                             numericAssignments(Path.of(args[1]));
+                            integerEncodings(Path.of(args[1]));
+                            unreachableEncoding(Path.of(args[1]));
                         } else {
                             var swf=MovieSource.read(Path.of(args[1]));
                             var abc=MovieSource.findScript(swf,"MixedProbe").abc;
