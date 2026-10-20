@@ -1832,6 +1832,23 @@
       "pristine_sha256": "15f3eaa75c13ee0bd110a6497c5aad859dea8c990180675a1b90f9cd743e874d",
       "reason": "Use the repository-authored ActionScript pinned to revision 24. The ffdec-source profile emits explicit String calls from their source AST as convert_s while preserving ordinary coercions and all other compiler operations. Fresh compilation and reassembly reproduce the entire compressed release movie exactly.",
       "result_sha256": "6e27e6e144bd2967b660818d68201ebd69c52f22c58d0496e4608503ba9783c1"
+    },
+    {
+      "class": "survarium.controls.ItemInfoRenderer",
+      "compiler": "flex-mixed",
+      "composition": {
+        "ffdec_compiler": "ffdec-source",
+        "ffdec_methods": [
+          "QName(PackageNamespace(\"survarium.controls\"),\"ItemInfoRenderer\")/instance/1/QName(ProtectedNamespace(\"survarium.controls:ItemInfoRenderer\"),\"scopeHintText\")",
+          "QName(PackageNamespace(\"survarium.controls\"),\"ItemInfoRenderer\")/instance/3/QName(PackageNamespace(\"\"),\"data\")"
+        ],
+        "script_traits": "ffdec"
+      },
+      "patch": "survarium/controls/ItemInfoRenderer.patch",
+      "patch_sha256": "4c63014fa259b8499fabcca28b4426b175ad645f9e115acab92896a660592d6e",
+      "pristine_sha256": "01193fbefb8769f92d9b59387da8d22a7402fed95d5cf0a32f9ed3f71c23a297",
+      "reason": "Recover native typed counters and explicitly compose scopeHintText and the data setter from the ffdec-source backend. Preserve explicit String calls, numeric self assignment, and the Boolean conversion at the short-circuit merge in the source. Fresh compilation and reassembly reproduce the entire compressed release movie exactly.",
+      "result_sha256": "f505b77f895a6adeb9facc334d3a7d1d5db7bea3397c17f91075c4ce25ee5027"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

@@ -1054,3 +1054,19 @@ The mixed integration test passes independent baseline reconstruction with both
 secondary backends, including nested functions; all 15 local unit tests pass.
 Reserved plan directives cannot be supplied as method owners. No additional
 reconstruction is counted from the ongoing notification/matchmaking probes.
+
+### ItemInfoRenderer source reconstruction
+
+`ItemInfoRenderer` now compiles to the exact complete compressed release movie.
+The mixed plan explicitly selects `scopeHintText` and the data setter from the
+`ffdec-source` backend. Source changes preserve explicit String conversion and
+numeric self assignment, and place a Boolean conversion at the merge of the
+whole short-circuit expression. No additional emitter rule was needed.
+
+There are now 221 authenticated reconstruction patches. Together with 645
+pristine successes, individual-script evidence covers 866 of 878 scripts;
+12 remain, and the whole-tree matching build is still outstanding. The fresh
+premium rebuild has the previously runtime-tested hash
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+with one authorized method changed and identical non-code bytes. Its runtime
+record documents a verified rebuild, not another game run.

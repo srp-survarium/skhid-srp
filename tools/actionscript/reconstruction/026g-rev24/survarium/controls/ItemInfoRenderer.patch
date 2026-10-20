@@ -1,0 +1,85 @@
+--- a/survarium/controls/ItemInfoRenderer.as
++++ b/survarium/controls/ItemInfoRenderer.as
+@@ -83,11 +83,11 @@
+       
+       protected function set sellerIcon(param1:Sprite) : void
+       {
+-         if(Boolean(this.manufacturerIcon.numChildren))
++         if(this.manufacturerIcon.numChildren)
+          {
+             this.manufacturerIcon.removeChildAt(0);
+          }
+-         if(Boolean(this.manufacturerIcon) && Boolean(param1))
++         if(this.manufacturerIcon && param1)
+          {
+             this.manufacturerIcon.addChild(param1);
+          }
+@@ -95,8 +95,8 @@
+       
+       protected function init() : void
+       {
+-         var _loc2_:Object = null;
+          var _loc1_:StyleSheet = new StyleSheet();
++         var _loc2_:Object;
+          _loc2_ = new Object();
+          _loc2_.color = "#b3ea97";
+          _loc1_.setStyle("current",_loc2_);
+@@ -115,25 +115,25 @@
+       
+       protected function sortModifiers(param1:Array, param2:Array, param3:Array) : void
+       {
+-         var _loc7_:Object = null;
+-         var _loc8_:Icon = null;
+-         var _loc9_:Object = null;
+          var _loc4_:Array = this._data.modifiers != null ? this._data.modifiers : [];
+          var _loc5_:IconContainer = IconContainer.getInstance("modifiers");
+          var _loc6_:uint = 0;
++         var _loc7_:Object;
++         var _loc8_:Icon;
++         var _loc9_:Object;
+          while(_loc6_ < _loc4_.length)
+          {
+             _loc7_ = _loc4_[_loc6_];
+             _loc8_ = _loc5_.getIcon(_loc7_.icon);
+             _loc9_ = {
+-               "icon":_loc8_,
+-               "label":_loc7_.textValue
++               icon:_loc8_,
++               label:_loc7_.textValue
+             };
+             if(_loc7_.state == 1)
+             {
+                param3.push(_loc9_);
+             }
+-            else if(Boolean(_loc7_.isDefault))
++            else if(_loc7_.isDefault)
+             {
+                param2.push(_loc9_);
+             }
+@@ -147,7 +147,7 @@
+       
+       public function displayOrange(param1:Boolean) : void
+       {
+-         this._displayOrange = param1;
++         _displayOrange = param1;
+       }
+       
+       public function displaylabel(param1:Boolean) : void
+@@ -196,7 +196,7 @@
+             {
+                _loc4_.push(_loc5_);
+             }
+-            _loc7_++;
++            _loc7_ = ++_loc7_;
+          }
+          if(_loc4_.length > 0)
+          {
+@@ -250,7 +250,7 @@
+          this.sellerIcon = Boolean(_loc2_.sellerIcon) ? (_loc2_.sellerIcon as Icon).clone() : null;
+          this.orangeOverlay.visible = false;
+          this.itemName.x = this.itemAmmoName.x = Boolean(_loc2_.sellerIcon) ? 30 : 10;
+-         if(_loc2_.itemDescription && (_loc2_.category == 10 || _loc2_.superCategory == 5 || _loc2_.category == 100) && _loc2_.category != 28 && _loc2_.category != 29 && _loc2_.category != Category.GOLD)
++         if(Boolean(_loc2_.itemDescription && (_loc2_.category == 10 || _loc2_.superCategory == 5 || _loc2_.category == 100) && _loc2_.category != 28) && Boolean(_loc2_.category != 29) && _loc2_.category != Category.GOLD)
+          {
+             this.textFieldDescription.y = _loc2_.isStack && _loc2_.descriptor < 100 ? 52 : 32;
+             this.textFieldDescription.x = 11;
