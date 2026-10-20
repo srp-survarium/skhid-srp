@@ -408,6 +408,8 @@ struct Web {
     replay_downloads: AtomicU32,
     /// Failed `/replays/` lookups by address ([`REPLAY_FAILURES`]).
     replay_failures: Mutex<HashMap<Option<IpAddr>, ReplayFailures>>,
+    /// The admin's moderation previews waiting for their confirm.
+    plans: moderation::Plans,
     /// `Some`: the page of the 0.26g stack.
     game: Option<Game>,
 }
@@ -535,6 +537,7 @@ pub fn serve_on(
         resource_downloads: AtomicU32::new(0),
         replay_downloads: AtomicU32::new(0),
         replay_failures: Mutex::new(HashMap::new()),
+        plans: Default::default(),
         game,
     });
     for stream in listener.incoming() {
@@ -2429,6 +2432,7 @@ mod tests {
             resource_downloads: AtomicU32::new(0),
             replay_downloads: AtomicU32::new(0),
             replay_failures: Mutex::new(HashMap::new()),
+            plans: Default::default(),
             game: None,
         }
     }

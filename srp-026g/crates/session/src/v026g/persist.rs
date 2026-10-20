@@ -180,10 +180,21 @@ pub trait GameRepository: Send {
     fn delete_result(&mut self, _key: &str) -> Result<(), PersistError> {
         Ok(())
     }
-    /// Add a row to the admin's audit trail ([`AdminAction`]). (A
-    /// repository that keeps none drops it.)
-    fn save_admin_action(&mut self, _action: &AdminAction) -> Result<(), PersistError> {
-        Ok(())
+    /// The admin's change of an account and its rows of the audit trail
+    /// ([`AdminAction`]), together: both are kept or neither. `account`:
+    /// the account to write whole too, `None` when what is kept of it has
+    /// the change already. (A repository that keeps no audit trail writes
+    /// the account only.)
+    fn save_admin(
+        &mut self,
+        account_id: u32,
+        account: Option<&Account>,
+        _actions: &[AdminAction],
+    ) -> Result<(), PersistError> {
+        match account {
+            Some(account) => self.save(account_id, account),
+            None => Ok(()),
+        }
     }
     /// The account's latest `limit` rows of the audit trail, the newest
     /// first.
@@ -207,6 +218,12 @@ pub struct MemoryGameRepository {
     /// Account writes and audit rows fail while it is on: a database
     /// refusing them.
     failing: Arc<Mutex<bool>>,
+    /// Account writes fail while it is on, audit rows alone do not.
+    failing_accounts: Arc<Mutex<bool>>,
+    /// Account writes wait while it is held ([`Self::hold_saves`]).
+    gate: Arc<Mutex<()>>,
+    /// Account writes waiting at the gate now.
+    held: Arc<std::sync::atomic::AtomicUsize>,
 }
 
 impl MemoryGameRepository {
@@ -223,6 +240,23 @@ impl MemoryGameRepository {
     /// work again: a database that refuses them, for tests.
     pub fn fail_saves(&self, failing: bool) {
         *self.failing.locked() = failing;
+    }
+
+    /// Make every account write fail, while audit rows written alone
+    /// still work: a database that refuses the account only, for tests.
+    pub fn fail_account_saves(&self, failing: bool) {
+        *self.failing_accounts.locked() = failing;
+    }
+
+    /// Account writes wait until the guard is dropped: a saver busy with a
+    /// long pass, for tests.
+    pub fn hold_saves(&self) -> std::sync::MutexGuard<'_, ()> {
+        self.gate.locked()
+    }
+
+    /// How many account writes wait at [`Self::hold_saves`] now.
+    pub fn saves_held(&self) -> usize {
+        self.held.load(std::sync::atomic::Ordering::SeqCst)
     }
 
     /// Every row of the audit trail written so far, the oldest first.
@@ -244,7 +278,13 @@ impl GameRepository for MemoryGameRepository {
     }
 
     fn save(&mut self, account_id: u32, account: &Account) -> Result<(), PersistError> {
-        if *self.failing.locked() {
+        {
+            use std::sync::atomic::Ordering::SeqCst;
+            self.held.fetch_add(1, SeqCst);
+            let _gate = self.gate.locked();
+            self.held.fetch_sub(1, SeqCst);
+        }
+        if *self.failing.locked() || *self.failing_accounts.locked() {
             return Err(PersistError::BadRow(account_id, "disk full".into()));
         }
         let mut inner = self.inner.locked();
@@ -294,11 +334,20 @@ impl GameRepository for MemoryGameRepository {
         Ok(())
     }
 
-    fn save_admin_action(&mut self, action: &AdminAction) -> Result<(), PersistError> {
-        if *self.failing.locked() {
-            return Err(PersistError::BadRow(action.account_id, "disk full".into()));
+    fn save_admin(
+        &mut self,
+        account_id: u32,
+        account: Option<&Account>,
+        actions: &[AdminAction],
+    ) -> Result<(), PersistError> {
+        // Both or neither, as one transaction.
+        if *self.failing.locked() || (account.is_some() && *self.failing_accounts.locked()) {
+            return Err(PersistError::BadRow(account_id, "disk full".into()));
         }
-        self.admin_actions.locked().push(action.clone());
+        if let Some(account) = account {
+            self.save(account_id, account)?;
+        }
+        self.admin_actions.locked().extend_from_slice(actions);
         Ok(())
     }
 
@@ -654,126 +703,7 @@ impl GameRepository for SqliteGameRepository {
 
     fn save(&mut self, account_id: u32, account: &Account) -> Result<(), PersistError> {
         let transaction = self.connection.transaction()?;
-        for table in CHILD_TABLES {
-            transaction.execute(
-                &format!("DELETE FROM {table} WHERE account_id = ?1"),
-                [account_id],
-            )?;
-        }
-        transaction.execute(
-            "INSERT INTO g26_accounts (
-                account_id, name, clan_tag, generic_money, premium_money, premium_until,
-                exp_total, quest_faction, rating, rating_before, active_kit, autobuy,
-                next_item_id, next_quest_instance, tutorial_step, tutorial_done
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
-             ON CONFLICT(account_id) DO UPDATE SET
-                name = excluded.name, clan_tag = excluded.clan_tag,
-                generic_money = excluded.generic_money, premium_money = excluded.premium_money,
-                premium_until = excluded.premium_until, exp_total = excluded.exp_total,
-                quest_faction = excluded.quest_faction, rating = excluded.rating,
-                rating_before = excluded.rating_before, active_kit = excluded.active_kit,
-                autobuy = excluded.autobuy, next_item_id = excluded.next_item_id,
-                next_quest_instance = excluded.next_quest_instance,
-                tutorial_step = excluded.tutorial_step, tutorial_done = excluded.tutorial_done",
-            params![
-                account_id,
-                account.name,
-                account.clan_tag,
-                account.generic_money,
-                account.premium_money,
-                account.premium_until.min(i64::MAX as u64) as i64,
-                account.exp_total,
-                account.quest_faction,
-                account.rating,
-                account.rating_before,
-                account.active_kit,
-                account.autobuy,
-                account.next_item_id,
-                account.next_quest_instance,
-                account.tutorial_step,
-                account.tutorial_done,
-            ],
-        )?;
-        extras::save(&transaction, account_id, &account.extras)?;
-        map_plays::save(&transaction, account_id, &account.map_plays)?;
-        balance::save(&transaction, account_id, account.balance)?;
-        room_settings::save(&transaction, account_id, account.room_settings.as_ref())?;
-        for (seq, &(skill_id, points)) in account.skills.iter().enumerate() {
-            transaction.execute(
-                "INSERT INTO g26_skills (account_id, seq, skill_id, points)
-                 VALUES (?1, ?2, ?3, ?4)",
-                params![account_id, seq as i64, skill_id, points],
-            )?;
-        }
-        for (seq, &(faction, points)) in account.reputations.iter().enumerate() {
-            transaction.execute(
-                "INSERT INTO g26_reputations (account_id, seq, faction, points)
-                 VALUES (?1, ?2, ?3, ?4)",
-                params![account_id, seq as i64, faction, points],
-            )?;
-        }
-        for (seq, item) in account.inventory.iter().enumerate() {
-            transaction.execute(
-                "INSERT INTO g26_items (
-                    account_id, item_id, seq, dict_id, condition_or_stack, repair_time,
-                    reroll_time, modifications, upgrades, reroll
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-                params![
-                    account_id,
-                    item.item_id,
-                    seq as i64,
-                    item.dict_id,
-                    item.condition_or_stack,
-                    item.repair_time,
-                    item.reroll_time,
-                    modifications_text(item),
-                    upgrades_text(item),
-                    items::reroll_text(item),
-                ],
-            )?;
-        }
-        for (seq, kit) in account.kits.iter().enumerate() {
-            transaction.execute(
-                "INSERT INTO g26_kits (account_id, id, seq, name, revision)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![account_id, kit.id, seq as i64, kit.name, kit.revision],
-            )?;
-            for (slot, held) in kit.slots.iter().enumerate() {
-                if let Some(held) = held {
-                    transaction.execute(
-                        "INSERT INTO g26_kit_slots (account_id, kit_id, slot, item_id, count)
-                         VALUES (?1, ?2, ?3, ?4, ?5)",
-                        params![account_id, kit.id, slot as i64, held.item_id, held.count],
-                    )?;
-                }
-            }
-        }
-        for (seq, quest) in account.quests.iter().enumerate() {
-            transaction.execute(
-                "INSERT INTO g26_quests (account_id, instance_id, seq, quest_id, games, expires_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![
-                    account_id,
-                    quest.instance_id,
-                    seq as i64,
-                    quest.quest_id,
-                    quest.games,
-                    quest.expires_at.min(i64::MAX as u64) as i64,
-                ],
-            )?;
-        }
-        for (seq, &(quest_id, until)) in account.quest_cooldowns.iter().enumerate() {
-            transaction.execute(
-                "INSERT INTO g26_quest_cooldowns (account_id, seq, quest_id, until)
-                 VALUES (?1, ?2, ?3, ?4)",
-                params![
-                    account_id,
-                    seq as i64,
-                    quest_id,
-                    until.min(i64::MAX as u64) as i64
-                ],
-            )?;
-        }
+        write_account(&transaction, account_id, account)?;
         transaction.commit()?;
         Ok(())
     }
@@ -806,8 +736,21 @@ impl GameRepository for SqliteGameRepository {
         results::delete(&self.connection, key)
     }
 
-    fn save_admin_action(&mut self, action: &AdminAction) -> Result<(), PersistError> {
-        admin_actions::save(&self.connection, action)
+    fn save_admin(
+        &mut self,
+        account_id: u32,
+        account: Option<&Account>,
+        actions: &[AdminAction],
+    ) -> Result<(), PersistError> {
+        let transaction = self.connection.transaction()?;
+        if let Some(account) = account {
+            write_account(&transaction, account_id, account)?;
+        }
+        for action in actions {
+            admin_actions::save(&transaction, action)?;
+        }
+        transaction.commit()?;
+        Ok(())
     }
 
     fn admin_actions(
@@ -817,6 +760,136 @@ impl GameRepository for SqliteGameRepository {
     ) -> Result<Vec<AdminAction>, PersistError> {
         admin_actions::load(&self.connection, account_id, limit)
     }
+}
+
+/// Write one account whole, replacing what was kept of it, in the
+/// caller's transaction.
+fn write_account(
+    transaction: &Connection,
+    account_id: u32,
+    account: &Account,
+) -> Result<(), PersistError> {
+    for table in CHILD_TABLES {
+        transaction.execute(
+            &format!("DELETE FROM {table} WHERE account_id = ?1"),
+            [account_id],
+        )?;
+    }
+    transaction.execute(
+        "INSERT INTO g26_accounts (
+            account_id, name, clan_tag, generic_money, premium_money, premium_until,
+            exp_total, quest_faction, rating, rating_before, active_kit, autobuy,
+            next_item_id, next_quest_instance, tutorial_step, tutorial_done
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
+         ON CONFLICT(account_id) DO UPDATE SET
+            name = excluded.name, clan_tag = excluded.clan_tag,
+            generic_money = excluded.generic_money, premium_money = excluded.premium_money,
+            premium_until = excluded.premium_until, exp_total = excluded.exp_total,
+            quest_faction = excluded.quest_faction, rating = excluded.rating,
+            rating_before = excluded.rating_before, active_kit = excluded.active_kit,
+            autobuy = excluded.autobuy, next_item_id = excluded.next_item_id,
+            next_quest_instance = excluded.next_quest_instance,
+            tutorial_step = excluded.tutorial_step, tutorial_done = excluded.tutorial_done",
+        params![
+            account_id,
+            account.name,
+            account.clan_tag,
+            account.generic_money,
+            account.premium_money,
+            account.premium_until.min(i64::MAX as u64) as i64,
+            account.exp_total,
+            account.quest_faction,
+            account.rating,
+            account.rating_before,
+            account.active_kit,
+            account.autobuy,
+            account.next_item_id,
+            account.next_quest_instance,
+            account.tutorial_step,
+            account.tutorial_done,
+        ],
+    )?;
+    extras::save(transaction, account_id, &account.extras)?;
+    map_plays::save(transaction, account_id, &account.map_plays)?;
+    balance::save(transaction, account_id, account.balance)?;
+    room_settings::save(transaction, account_id, account.room_settings.as_ref())?;
+    for (seq, &(skill_id, points)) in account.skills.iter().enumerate() {
+        transaction.execute(
+            "INSERT INTO g26_skills (account_id, seq, skill_id, points)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![account_id, seq as i64, skill_id, points],
+        )?;
+    }
+    for (seq, &(faction, points)) in account.reputations.iter().enumerate() {
+        transaction.execute(
+            "INSERT INTO g26_reputations (account_id, seq, faction, points)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![account_id, seq as i64, faction, points],
+        )?;
+    }
+    for (seq, item) in account.inventory.iter().enumerate() {
+        transaction.execute(
+            "INSERT INTO g26_items (
+                account_id, item_id, seq, dict_id, condition_or_stack, repair_time,
+                reroll_time, modifications, upgrades, reroll
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                account_id,
+                item.item_id,
+                seq as i64,
+                item.dict_id,
+                item.condition_or_stack,
+                item.repair_time,
+                item.reroll_time,
+                modifications_text(item),
+                upgrades_text(item),
+                items::reroll_text(item),
+            ],
+        )?;
+    }
+    for (seq, kit) in account.kits.iter().enumerate() {
+        transaction.execute(
+            "INSERT INTO g26_kits (account_id, id, seq, name, revision)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![account_id, kit.id, seq as i64, kit.name, kit.revision],
+        )?;
+        for (slot, held) in kit.slots.iter().enumerate() {
+            if let Some(held) = held {
+                transaction.execute(
+                    "INSERT INTO g26_kit_slots (account_id, kit_id, slot, item_id, count)
+                     VALUES (?1, ?2, ?3, ?4, ?5)",
+                    params![account_id, kit.id, slot as i64, held.item_id, held.count],
+                )?;
+            }
+        }
+    }
+    for (seq, quest) in account.quests.iter().enumerate() {
+        transaction.execute(
+            "INSERT INTO g26_quests (account_id, instance_id, seq, quest_id, games, expires_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                account_id,
+                quest.instance_id,
+                seq as i64,
+                quest.quest_id,
+                quest.games,
+                quest.expires_at.min(i64::MAX as u64) as i64,
+            ],
+        )?;
+    }
+    for (seq, &(quest_id, until)) in account.quest_cooldowns.iter().enumerate() {
+        transaction.execute(
+            "INSERT INTO g26_quest_cooldowns (account_id, seq, quest_id, until)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![
+                account_id,
+                seq as i64,
+                quest_id,
+                until.min(i64::MAX as u64) as i64
+            ],
+        )?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

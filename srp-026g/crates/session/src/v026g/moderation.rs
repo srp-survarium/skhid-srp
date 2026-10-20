@@ -7,10 +7,10 @@
 //! Every change is planned from the account as it is ([`MoneyChange::plan`],
 //! [`plan_take`]) and applied under the same lock that planned it, so what
 //! is applied is what the plan says. A plan's [`MoneyChange::key`] /
-//! [`take_key`] names the account's state it was made from: the page's
-//! confirm carries the key it showed and is applied only when the account
-//! still gives the same key, so a reload of the confirm, or a change by the
-//! game in between, changes nothing.
+//! [`take_key`] names the account's state it was made from: the page keeps
+//! it with the preview's one-time token, and a confirm is applied only when
+//! the account still gives the same key, so a change by the game in between
+//! changes nothing (and the token, used once, a reload of the confirm).
 
 use survarium::v026g::dictionary::Dictionary;
 

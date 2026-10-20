@@ -12,13 +12,16 @@
 //!   when an item is sold.
 //!
 //! Both take the account by the user name it signs in with, the character
-//! name (if only one account has it), or `#<account id>`, and both go in two
-//! steps: a request without `confirm=1` only shows what would change (the
-//! balances or items before and after) with a digest of that plan; the
-//! confirm sends the same fields, the digest and `confirm=1`, and is applied
-//! only when the account, planned again under its lock, gives the same
-//! digest. A reload of the confirm, a change by the game in between, or
-//! fields changed after the preview change nothing and show a new preview.
+//! name (if only one account has it), or `#<account id>` (bare digits are a
+//! name), and both go in two steps: a request without `confirm=1` only shows
+//! what would change (the balances or items before and after) with a
+//! one-time token of that plan ([`Plans`]: kept here with the plan, good
+//! for [`PLAN_LIFE`]); the confirm sends the same fields, the token and
+//! `confirm=1`, uses the token up, and is applied only when the account,
+//! planned again under its lock, gives the plan the token was issued for. A
+//! reload of the confirm (even once the account is back as it was), an old
+//! preview, a change by the game in between, or fields changed after the
+//! preview change nothing and show a new preview.
 //! A reason is required; it is the admin's only (the log, the audit trail
 //! `g26_admin_actions` and this page), never sent to the player.
 //!
@@ -28,7 +31,9 @@
 //! is an error on the page), and then the account's open game is sent its
 //! account again, as after a purchase. No other account is touched.
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use session::v026g::account::Account;
 use session::v026g::moderation::{
@@ -44,6 +49,58 @@ use super::{AdminView, Lang, Request, Web, clock_utc, delta, escape, unix_now};
 
 /// The audit rows shown with an account.
 const HISTORY: usize = 8;
+/// How long a preview's confirm is good for.
+const PLAN_LIFE: Duration = Duration::from_secs(10 * 60);
+/// The most previews waiting for their confirm; past it the oldest goes.
+const MAX_PLANS: usize = 256;
+
+/// The previews waiting for their confirm: each one's token (random, used
+/// once) with the plan it showed ([`MoneyChange::key`], [`take_key`]) and
+/// until when it is good.
+#[derive(Default)]
+pub(crate) struct Plans(Mutex<HashMap<String, (String, Instant)>>);
+
+impl Plans {
+    /// A new token for a preview of the plan `key`; `None` if the system
+    /// gave no random bytes (no confirm is offered then).
+    fn issue(&self, key: String) -> Option<String> {
+        let mut bytes = [0_u8; 16];
+        if let Err(error) = openssl::rand::rand_bytes(&mut bytes) {
+            log::error!("No random bytes for a moderation preview: {error}");
+            return None;
+        }
+        let token: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+        let now = Instant::now();
+        let mut plans = self.0.locked();
+        plans.retain(|_, (_, until)| now < *until);
+        if plans.len() >= MAX_PLANS
+            && let Some(oldest) = plans
+                .iter()
+                .min_by_key(|(_, (_, until))| *until)
+                .map(|(token, _)| token.clone())
+        {
+            plans.remove(&oldest);
+        }
+        plans.insert(token.clone(), (key, now + PLAN_LIFE));
+        Some(token)
+    }
+
+    /// The plan `token` was issued for, the token used up: `None` for one
+    /// never issued, used already, or past [`PLAN_LIFE`].
+    fn take(&self, token: &str) -> Option<String> {
+        let (key, until) = self.0.locked().remove(token)?;
+        (Instant::now() < until).then_some(key)
+    }
+
+    /// Every preview past its life, for tests.
+    #[cfg(test)]
+    pub(crate) fn expire_all(&self) {
+        let now = Instant::now();
+        for (_, until) in self.0.locked().values_mut() {
+            *until = now;
+        }
+    }
+}
 
 /// The account as the page shows it.
 #[derive(Clone)]
@@ -70,8 +127,8 @@ pub(crate) struct MoneyView {
 struct MoneyShown {
     card: Card,
     change: MoneyChange,
-    /// The digest the confirm carries.
-    plan: String,
+    /// The one-time token the confirm carries ([`Plans`]).
+    plan: Option<String>,
     /// The change is made (the table is of before and after).
     applied: bool,
     /// The confirm button is offered.
@@ -86,8 +143,9 @@ pub(crate) struct ItemsView {
     reason: String,
     card: Option<Card>,
     rows: Vec<Row>,
-    /// The take planned (or made), and its digest.
-    plan: Option<(Vec<Taking>, String)>,
+    /// The take planned (or made), and the one-time token its confirm
+    /// carries ([`Plans`]).
+    plan: Option<(Vec<Taking>, Option<String>)>,
     applied: bool,
     confirmable: bool,
     history: Option<Result<Vec<AdminAction>, String>>,
@@ -110,14 +168,6 @@ struct Row {
     /// Ticked, and the units typed: kept from the request.
     ticked: bool,
     units: String,
-}
-
-/// A plan's digest, as the form carries it: 32 hex characters of SHA-256.
-fn digest(key: &str) -> String {
-    openssl::sha::sha256(key.as_bytes())[..16]
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
 }
 
 /// `1 234 567`, as the game writes money.
@@ -146,8 +196,10 @@ fn written_note(lang: Lang, written: &ResetWrite) -> String {
     match written {
         ResetWrite::Written => String::new(),
         ResetWrite::Pending => lang.tr(
-            " The database was busy: srp's saver writes it within seconds.",
-            " База була зайнята: srp запише це за кілька секунд.",
+            " The database was busy: srp's saver writes it within seconds (the history below \
+             is shown next time).",
+            " База була зайнята: srp запише це за кілька секунд (історію нижче буде показано \
+             наступного разу).",
         ),
         ResetWrite::Failed(error) => lang.tr(
             &format!(
@@ -175,8 +227,10 @@ fn log_write(peer: &str, what: &str, written: &ResetWrite) {
 }
 
 impl Web {
-    /// The account the admin means: `#<id>`, a user name, the character
-    /// name of one account only, or else an account id in digits.
+    /// The account the admin means: `#<id>`, a user name, or the character
+    /// name of one account only. Digits without `#` are a name, never an
+    /// id: a name that is not found, names several accounts, or is of an
+    /// account that has not signed in to 0.26g says so.
     fn moderated(
         &self,
         game: &Game,
@@ -198,16 +252,21 @@ impl Web {
                 .map(|account| (id, account))
                 .ok_or_else(no_such);
         }
-        match self.find_026g(game, lang, text) {
-            Ok(found) => Ok(found),
-            Err(message) => match text.parse::<u32>().ok().and_then(|id| {
-                let account = game.accounts.get(id)?;
-                Some((id, account))
-            }) {
-                Some(found) => Ok(found),
-                None => Err(message),
-            },
+        if self.store.find_account(text).is_none()
+            && game
+                .accounts
+                .ranking()
+                .iter()
+                .filter(|row| row.1.eq_ignore_ascii_case(text))
+                .count()
+                > 1
+        {
+            return Err(lang.tr(
+                "More than one account has that character name: type its user name or #id.",
+                "Це ім'я персонажа мають кілька акаунтів: введіть ім'я для входу або #id.",
+            ));
         }
+        self.find_026g(game, lang, text)
     }
 
     /// The account's card. Locks the store's account, then the game's,
@@ -266,21 +325,27 @@ impl Web {
             );
         };
         let reason = moderation::clean_reason(&view.reason);
-        let card = self.card(game, account_id);
         let confirm = request.field("confirm") == "1";
-        let shown_plan = request.field("money_plan");
+        // A confirm uses its token up, applied or not.
+        let issued = if confirm {
+            self.plans.take(request.field("money_plan"))
+        } else {
+            None
+        };
         let (change, applied) = {
             let mut account = account.locked();
             let change = MoneyChange::plan(account_id, &account, silver, gold);
             let apply = confirm
                 && reason.is_some()
                 && !change.is_nothing()
-                && shown_plan == digest(&change.key());
+                && issued.as_deref() == Some(change.key().as_str());
             if apply {
                 change.apply(&mut account);
             }
             (change, apply)
         };
+        let card = self.card(game, account_id);
+        let mut written = None;
         let message = if applied {
             let reason = reason.as_deref().unwrap_or_default();
             let action = change.action(unix_now(), peer, &card.name, reason);
@@ -294,9 +359,11 @@ impl Web {
                 action.after
             );
             // Written before the game is told, as a match's rewards are.
-            let written = game.accounts.write_admin(account_id, action);
+            let done = game.accounts.write_admin(account_id, action);
             game.lobby.account_changed(account_id);
-            log_write(peer, &format!("money of account {account_id:#x}"), &written);
+            log_write(peer, &format!("money of account {account_id:#x}"), &done);
+            let note = written_note(lang, &done);
+            written = Some(done);
             view.silver.clear();
             view.gold.clear();
             view.reason.clear();
@@ -321,7 +388,7 @@ impl Web {
                     grouped(change.gold.1.into()),
                     signed(change.gold_change()),
                 ),
-            ) + &written_note(lang, &written)
+            ) + &note
         } else if silver == 0 && gold == 0 {
             lang.tr(
                 "Type the silver and/or gold to add (+) or take (-). The balance is below.",
@@ -337,6 +404,8 @@ impl Web {
                 "A reason is required: nothing was changed.",
                 "Потрібна причина: нічого не змінено.",
             )
+        } else if confirm && issued.is_none() {
+            used_or_old(lang)
         } else if confirm {
             lang.tr(
                 "The account changed since the preview, or the fields did: nothing was changed. \
@@ -355,17 +424,16 @@ impl Web {
                 "Перевірте зміну нижче, потім натисніть «Застосувати». Доти нічого не змінено.",
             )
         };
-        let confirmable = !applied && !change.is_nothing() && reason.is_some();
+        let plan = (!applied && !change.is_nothing() && reason.is_some())
+            .then(|| self.plans.issue(change.key()))
+            .flatten();
         view.shown = Some(MoneyShown {
-            card: Card {
-                online: self.store.is_online(account_id),
-                ..card
-            },
-            plan: digest(&change.key()),
+            card,
+            confirmable: plan.is_some(),
+            plan,
             change,
             applied,
-            confirmable,
-            history: game.accounts.admin_actions(account_id, HISTORY),
+            history: self.history(game, account_id, written.as_ref()),
         });
         (message, view)
     }
@@ -392,6 +460,12 @@ impl Web {
             Ok(found) => found,
             Err(message) => return (message, view),
         };
+        let bad_item = |text: &str| {
+            lang.tr(
+                &format!("{text:?} is not an item id: nothing was changed."),
+                &format!("{text:?} — не id предмета: нічого не змінено."),
+            )
+        };
         let bad_units = || {
             lang.tr(
                 "Units are a whole number above 0, or empty for all of it.",
@@ -401,7 +475,7 @@ impl Web {
         let mut picks = Vec::new();
         for text in request.fields("take") {
             let Ok(item_id) = text.parse::<u32>() else {
-                return (bad_units(), view);
+                return (bad_item(text), view);
             };
             let units = match request.field(&format!("u{item_id}")) {
                 "" => None,
@@ -413,9 +487,13 @@ impl Web {
             picks.push(Pick { item_id, units });
         }
         let reason = moderation::clean_reason(&view.reason);
-        let card = self.card(game, account_id);
         let confirm = request.field("confirm") == "1";
-        let shown_plan = request.field("items_plan");
+        // A confirm uses its token up, applied or not.
+        let issued = if confirm {
+            self.plans.take(request.field("items_plan"))
+        } else {
+            None
+        };
         let (planned, applied, rows) = {
             let mut account = account.locked();
             let planned = (!picks.is_empty()).then(|| plan_take(&account, &picks));
@@ -423,7 +501,7 @@ impl Web {
             if let Some(Ok(plan)) = &planned
                 && confirm
                 && reason.is_some()
-                && shown_plan == digest(&take_key(account_id, plan))
+                && issued.as_deref() == Some(take_key(account_id, plan).as_str())
             {
                 take(&mut account, plan);
                 applied = true;
@@ -438,8 +516,10 @@ impl Web {
             };
             (planned, applied, rows_of(&account, kept))
         };
+        let card = self.card(game, account_id);
         view.rows = rows;
         view.card = Some(card.clone());
+        let mut written = None;
         let message = match planned {
             None => lang.tr(
                 "Tick the items to take (and the units of a stack, or all of it), type a \
@@ -449,7 +529,6 @@ impl Web {
             ),
             Some(Err(refused)) => refused_text(lang, refused),
             Some(Ok(plan)) => {
-                let key = digest(&take_key(account_id, &plan));
                 let message = if applied {
                     let reason = reason.as_deref().unwrap_or_default();
                     let action = moderation::take_action(
@@ -469,19 +548,23 @@ impl Web {
                         action.before,
                         action.after
                     );
-                    let written = game.accounts.write_admin(account_id, action);
+                    let done = game.accounts.write_admin(account_id, action);
                     game.lobby.account_changed(account_id);
-                    log_write(peer, &format!("items of account {account_id:#x}"), &written);
+                    log_write(peer, &format!("items of account {account_id:#x}"), &done);
+                    let note = written_note(lang, &done);
+                    written = Some(done);
                     view.reason.clear();
                     lang.tr(
                         &format!("{}: {} item(s) taken.", card.name, plan.len()),
                         &format!("{}: забрано предметів: {}.", card.name, plan.len()),
-                    ) + &written_note(lang, &written)
+                    ) + &note
                 } else if confirm && reason.is_none() {
                     lang.tr(
                         "A reason is required: nothing was changed.",
                         "Потрібна причина: нічого не змінено.",
                     )
+                } else if confirm && issued.is_none() {
+                    used_or_old(lang)
                 } else if confirm {
                     lang.tr(
                         "The items or the choice changed since the preview: nothing was \
@@ -502,18 +585,44 @@ impl Web {
                          нічого не змінено.",
                     )
                 };
-                view.confirmable = !applied && reason.is_some();
-                view.plan = Some((plan, key));
+                let token = (!applied && reason.is_some())
+                    .then(|| self.plans.issue(take_key(account_id, &plan)))
+                    .flatten();
+                view.confirmable = token.is_some();
+                view.plan = Some((plan, token));
                 message
             }
         };
         view.applied = applied;
-        if let Some(card) = &mut view.card {
-            card.online = self.store.is_online(account_id);
-        }
-        view.history = Some(game.accounts.admin_actions(account_id, HISTORY));
+        view.history = Some(self.history(game, account_id, written.as_ref()));
         (message, view)
     }
+
+    /// The account's audit rows shown with it. After a write (`written`),
+    /// which waited for a busy saver already, it does not wait again: a
+    /// request waits [`session::RESET_WRITE_WAIT`] once at most.
+    fn history(
+        &self,
+        game: &Game,
+        account_id: u32,
+        written: Option<&ResetWrite>,
+    ) -> Result<Vec<AdminAction>, String> {
+        if let Some(ResetWrite::Pending) = written {
+            return Err("the database is busy; shown next time".to_owned());
+        }
+        game.accounts
+            .admin_actions(account_id, HISTORY, written.is_none())
+    }
+}
+
+/// A confirm whose token is not good (used already, or too old).
+fn used_or_old(lang: Lang) -> String {
+    lang.tr(
+        "This preview was used already or is older than 10 minutes: nothing was changed. \
+         Check the new preview below and apply again.",
+        "Цей перегляд уже використано або він старший за 10 хвилин: нічого не змінено. \
+         Перевірте новий перегляд нижче і застосуйте знову.",
+    )
 }
 
 fn refused_text(lang: Lang, refused: TakeRefused) -> String {
@@ -713,7 +822,7 @@ pub(crate) fn money_panel(lang: Lang, view: &AdminView) -> String {
             format!(
                 "<h3>{}</h3><table>{}\
                  <tr><th>{}</th><td>{}</td></tr><tr><th>{}</th><td>{}</td></tr></table>\
-                 <input type=hidden name=money_plan value={}>{button}{}",
+                 {}{button}{}",
                 if shown.applied {
                     lang.tr("Done", "Зроблено")
                 } else {
@@ -734,7 +843,11 @@ pub(crate) fn money_panel(lang: Lang, view: &AdminView) -> String {
                     change.gold_change(),
                     change.asked.1
                 )),
-                shown.plan,
+                shown
+                    .plan
+                    .as_ref()
+                    .map(|token| format!("<input type=hidden name=money_plan value={token}>"))
+                    .unwrap_or_default(),
                 history_table(lang, &shown.history),
             )
         }
@@ -777,7 +890,7 @@ pub(crate) fn items_panel(lang: Lang, view: &AdminView) -> String {
     let body = match &items.card {
         Some(card) if !view.token.is_empty() => {
             let plan = match &items.plan {
-                Some((plan, key)) => {
+                Some((plan, token)) => {
                     let lines: String = plan
                         .iter()
                         .map(|taking| {
@@ -840,10 +953,13 @@ pub(crate) fn items_panel(lang: Lang, view: &AdminView) -> String {
                     } else {
                         String::new()
                     };
+                    let token = token
+                        .as_ref()
+                        .map(|token| format!("<input type=hidden name=items_plan value={token}>"))
+                        .unwrap_or_default();
                     format!(
                         "<h3>{}</h3><div class=scroll><table><tr><th>{}</th><th>{}</th>\
-                         <th>{}</th><th>{}</th></tr>{lines}</table></div>\
-                         <input type=hidden name=items_plan value={key}>{button}",
+                         <th>{}</th><th>{}</th></tr>{lines}</table></div>{token}{button}",
                         if items.applied {
                             lang.tr("Taken", "Забрано")
                         } else {

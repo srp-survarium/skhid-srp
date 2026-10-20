@@ -16,8 +16,10 @@ server release before use.
   token in the form), tabs **Money** and **Take items**. The 0.21d page's
   Money tab is unchanged (at once, for testing).
 - **The account:** the user name it signs in with (any case), the character
-  name if only one account has it, or `#<account id>` (bare digits too, when
-  no name matches). The page shows user name, character name, account id
+  name if only one account has it, or `#<account id>`. Bare digits are a
+  name only, never an id: a name that several accounts have, or an account
+  that has not signed in to 0.26g yet, says so and loads no account. The
+  page shows user name, character name, account id
   (decimal and hex, as the logs write it) and whether its game is open.
 - **Money:** a signed amount of silver (`generic_money`) and/or gold
   (`premium_money`). A balance never goes below 0 (nor past `u32::MAX`): a
@@ -38,27 +40,35 @@ server release before use.
     each kit changed gets a new revision. A cosmetic on a taken item stays in
     the inventory.
 - **Two steps, no accidental change:** a request without `confirm=1` only
-  shows the plan, with its digest (`money_plan` / `items_plan`: SHA-256 of
-  the account id and the account's state the plan was made from: balances,
-  or each item's dictionary id, units/condition and units taken). The Apply
-  button sends the same fields, the digest and `confirm=1`; the change is
-  planned again under the account's lock and made only when the digest is
-  the same and a reason is given. So a reload of the confirm, a change by
-  the game between preview and confirm (gold spent, ammo used, an item
-  sold), or fields changed after the preview change nothing: the page says
-  so and shows the new preview. The preview's button comes first in the
+  shows the plan, with a one-time token (`money_plan` / `items_plan`: 16
+  random bytes). srp keeps the token with the plan it was issued for (the
+  account id and the account's state the plan was made from: balances, or
+  each item's dictionary id, units/condition and units taken) for 10
+  minutes. The Apply button sends the same fields, the token and
+  `confirm=1`; a confirm uses the token up, applied or not. The change is
+  planned again under the account's lock and made only when the token is
+  good (issued, not used, not older than 10 minutes), its plan is the same,
+  and a reason is given. So a reload of the confirm (even once the account
+  is back as it was), an old preview, a change by the game between preview
+  and confirm (gold spent, ammo used, an item sold), or fields changed
+  after the preview change nothing: the page says so and shows the new
+  preview. The preview's button comes first in the
   form, so Enter never applies. The page is POST only, as every admin
   action: the token never goes in a URL.
 - **Live account, never the database by hand:** srp holds the accounts in
   memory and saves them; an edit of `srp.db` while it runs is written over.
   The change is made on the live `GameAccounts` account (the one the lobby
   and the matches change, under its lock), then:
-  1. written at once on the admin request's thread: this account and the
-     audit rows waiting, nothing else (not the saver's whole pass). The
-     saver holds the database for its pass, so the write waits for it 2 s
-     at most (`RESET_WRITE_WAIT`); past that the saver, woken, writes it
-     ("the database was busy"). If the database refuses, the page says
-     "Error: the change stands in memory only" and the saver retries;
+  1. written at once on the admin request's thread: this account and its
+     audit row in one transaction (both are kept or neither: a row never
+     tells of a change the database does not have), and the audit rows
+     waiting, nothing else (not the saver's whole pass). The saver holds
+     the database for its pass, so the write waits for it 2 s at most
+     (`RESET_WRITE_WAIT`); past that the saver, woken, writes it ("the
+     database was busy"; the history is shown next time: a request waits
+     once at most). If the database refuses, the page says "Error: the
+     change stands in memory only" and the saver retries, the account and
+     its rows together;
   2. then the account's open game is sent its account again
      (`Inbox::account_changed`, as after a purchase: inventory, account and
      kits, money, level and skills, reputations, quests, services), and its

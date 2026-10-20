@@ -341,7 +341,8 @@ fn the_page_changes_an_account_and_its_open_game_is_told() {
     stack.stop();
 }
 
-/// The value of the hidden field `name` the page shows (a plan's digest).
+/// The value of the hidden field `name` the page shows (a plan's one-time
+/// token).
 fn hidden(body: &str, name: &str) -> String {
     let start = format!("name={name} value=");
     let at = body
@@ -428,7 +429,7 @@ fn moderation_reaches_the_open_game_and_the_database() {
                 .all(|item| item.item_id != pistol)
     });
     // The audit trail (in the database) has both, the newest first.
-    let actions = stack.accounts.admin_actions(id, 10).unwrap();
+    let actions = stack.accounts.admin_actions(id, 10, true).unwrap();
     let kinds: Vec<&str> = actions.iter().map(|action| action.kind.as_str()).collect();
     assert_eq!(kinds, ["items", "money"]);
     assert!(

@@ -118,11 +118,11 @@ mod tests {
         assert!(repository.admin_actions(7, 10).unwrap().is_empty());
         for (at, change) in [(1, "first"), (2, "second"), (3, "third")] {
             repository
-                .save_admin_action(&action(7, at, change))
+                .save_admin(7, None, &[action(7, at, change)])
                 .unwrap();
         }
         repository
-            .save_admin_action(&action(8, 4, "other"))
+            .save_admin(8, None, &[action(8, 4, "other")])
             .unwrap();
         drop(repository);
 
@@ -169,8 +169,52 @@ mod tests {
         assert_eq!(repository.version().unwrap(), MIGRATIONS.len() as i64);
         assert_eq!(repository.load_all().unwrap().len(), 1);
         assert!(repository.admin_actions(3, 10).unwrap().is_empty());
-        repository.save_admin_action(&action(3, 1, "x")).unwrap();
+        repository
+            .save_admin(3, None, &[action(3, 1, "x")])
+            .unwrap();
         assert_eq!(repository.admin_actions(3, 10).unwrap().len(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The account and its audit row are one transaction: when the row is
+    /// refused, the account is kept as it was; when it goes in, both do.
+    #[test]
+    fn an_account_and_its_audit_row_are_written_together_or_not_at_all() {
+        let dir = temp_dir("together");
+        let path = dir.join(DB_FILE);
+        let mut repository = SqliteGameRepository::open(&path).unwrap();
+        let mut account = crate::v026g::Account::new("pain");
+        account.generic_money = 500;
+        repository.save(3, &account).unwrap();
+        repository
+            .connection
+            .execute_batch(
+                "CREATE TRIGGER refuse BEFORE INSERT ON g26_admin_actions
+                 BEGIN SELECT RAISE(ABORT, 'disk full'); END;",
+            )
+            .unwrap();
+        let mut changed = account.clone();
+        changed.generic_money = 0;
+        assert!(
+            repository
+                .save_admin(3, Some(&changed), &[action(3, 1, "refused")])
+                .is_err()
+        );
+        let kept = repository.load_all().unwrap();
+        assert_eq!(kept[0].1.generic_money, 500, "the account is as it was");
+        assert!(repository.admin_actions(3, 10).unwrap().is_empty());
+        repository
+            .connection
+            .execute_batch("DROP TRIGGER refuse;")
+            .unwrap();
+        repository
+            .save_admin(3, Some(&changed), &[action(3, 2, "written")])
+            .unwrap();
+        assert_eq!(repository.load_all().unwrap()[0].1.generic_money, 0);
+        assert_eq!(
+            repository.admin_actions(3, 10).unwrap(),
+            [action(3, 2, "written")]
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

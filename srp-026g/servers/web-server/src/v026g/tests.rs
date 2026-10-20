@@ -86,6 +86,7 @@ fn world_with(accounts: GameAccounts) -> World {
         resource_downloads: AtomicU32::new(0),
         replay_downloads: AtomicU32::new(0),
         replay_failures: Mutex::new(std::collections::HashMap::new()),
+        plans: Default::default(),
         game: Some(Game {
             accounts: accounts.clone(),
             lobby: told.clone(),
@@ -1089,7 +1090,8 @@ fn the_maps_and_the_calculator_are_built_from_the_offered_patches() {
     );
 }
 
-/// The value of the hidden field `name` the page shows (a plan's digest).
+/// The value of the hidden field `name` the page shows (a plan's one-time
+/// token).
 fn hidden(body: &str, name: &str) -> String {
     let start = format!("name={name} value=");
     let at = body
@@ -1168,6 +1170,11 @@ fn money_is_taken_after_a_preview_and_never_below_zero() {
     assert_eq!(world.balances(id), (480_000, 7));
     assert!(world.told.changed.locked().is_empty());
 
+    // A confirm uses its token up, applied or not: a new preview's.
+    let used = world.admin(&confirmed(&asked, "money_plan", &plan));
+    assert!(used.contains("used already or is older"), "{used}");
+    assert_eq!(world.balances(id), (480_000, 7));
+    let plan = hidden(&used, "money_plan");
     let done = world.admin(&confirmed(&asked, "money_plan", &plan));
     assert!(
         done.contains("pain: silver 480 000 → 0 (-480 000), gold 7 → 7 (0)."),
@@ -1397,6 +1404,8 @@ fn items_are_listed_previewed_and_taken_off_every_kit() {
     );
     assert!(world.told.changed.locked().is_empty());
 
+    // That confirm used the token up: a new preview's.
+    let plan = hidden(&world.admin(&asked), "items_plan");
     let done = world.admin(&confirmed(&asked, "items_plan", &plan));
     assert!(done.contains("Fasojib: 2 item(s) taken."), "{done}");
     assert!(!done.contains("name=confirm value=1"));
@@ -1467,6 +1476,205 @@ fn a_moderation_the_database_refused_says_so() {
     assert_eq!(world.balances(id).0, 1_900);
     // The saver writes it once the database takes it again.
     repository.fail_saves(false);
+    world.accounts.flush();
+    assert_eq!(repository.get(id).unwrap().generic_money, 1_900);
+    assert_eq!(repository.all_admin_actions().len(), 1);
+}
+
+#[test]
+fn a_used_confirm_changes_nothing_even_once_the_account_is_back() {
+    let (world, repository) = kept_world();
+    let id = world.player("pain", "secret");
+    world.accounts.get(id).unwrap().locked().generic_money = 500;
+    let asked = [
+        ("user", "pain"),
+        ("silver", "-100"),
+        ("money_reason", "farmed"),
+    ];
+    let plan = hidden(&world.admin(&asked), "money_plan");
+    let confirm = confirmed(&asked, "money_plan", &plan);
+    world.admin(&confirm);
+    assert_eq!(world.balances(id).0, 400);
+    // The game gives the 100 back: the account is as at the preview.
+    world.accounts.get(id).unwrap().locked().generic_money = 500;
+    let again = world.admin(&confirm);
+    assert!(again.contains("used already or is older"), "{again}");
+    assert_eq!(world.balances(id).0, 500);
+    assert_eq!(repository.all_admin_actions().len(), 1);
+
+    // Items alike: part of a stack, the stack made whole again.
+    let (ammo, units) = {
+        let account = world.accounts.get(id).unwrap();
+        let account = account.locked();
+        let ammo = &account.inventory[1];
+        assert!(Dictionary::shared().is_stack(ammo.dict_id));
+        (ammo.item_id, ammo.condition_or_stack)
+    };
+    let ammo_text = ammo.to_string();
+    let ammo_units = format!("u{ammo}");
+    let asked = [
+        ("tab", "items"),
+        ("items_user", "pain"),
+        ("take", ammo_text.as_str()),
+        (ammo_units.as_str(), "1"),
+        ("items_reason", "duped"),
+    ];
+    let plan = hidden(&world.admin(&asked), "items_plan");
+    let confirm = confirmed(&asked, "items_plan", &plan);
+    let stack = || {
+        world
+            .accounts
+            .get(id)
+            .unwrap()
+            .locked()
+            .item(ammo)
+            .unwrap()
+            .condition_or_stack
+    };
+    assert!(world.admin(&confirm).contains("1 item(s) taken"));
+    assert_eq!(stack(), units - 1);
+    world
+        .accounts
+        .get(id)
+        .unwrap()
+        .locked()
+        .inventory
+        .iter_mut()
+        .find(|item| item.item_id == ammo)
+        .unwrap()
+        .condition_or_stack = units;
+    let again = world.admin(&confirm);
+    assert!(again.contains("used already or is older"), "{again}");
+    assert_eq!(stack(), units);
+    assert_eq!(repository.all_admin_actions().len(), 2);
+
+    // A preview older than its life is refused, money and items.
+    let money = [
+        ("user", "pain"),
+        ("silver", "-100"),
+        ("money_reason", "farmed"),
+    ];
+    let plan = hidden(&world.admin(&money), "money_plan");
+    let items_plan = hidden(&world.admin(&asked), "items_plan");
+    world.web.plans.expire_all();
+    let late = world.admin(&confirmed(&money, "money_plan", &plan));
+    assert!(late.contains("older than 10 minutes"), "{late}");
+    let late = world.admin(&confirmed(&asked, "items_plan", &items_plan));
+    assert!(late.contains("older than 10 minutes"), "{late}");
+    assert_eq!(world.balances(id).0, 500);
+    assert_eq!(stack(), units);
+    assert_eq!(repository.all_admin_actions().len(), 2);
+}
+
+#[test]
+fn bare_digits_are_a_name_and_only_hash_digits_an_id() {
+    let world = world();
+    world.accounts.get_or_create(1337, "Bystander");
+    world.accounts.get_or_create(4242, "Other");
+    for login in ["first", "second"] {
+        let id = world.player(login, "secret");
+        world.accounts.get(id).unwrap().locked().name = "1337".into();
+    }
+    // A user name in digits that has not signed in to 0.26g yet.
+    world
+        .web
+        .store
+        .sign_in_with_digest_from(
+            "4242",
+            &sha1_hex(b"secret"),
+            "127.0.0.1".parse().unwrap(),
+            Instant::now(),
+        )
+        .unwrap();
+    let money =
+        |user: &str| world.admin(&[("user", user), ("silver", "-5"), ("money_reason", "x")]);
+    let items = |user: &str| world.admin(&[("tab", "items"), ("items_user", user)]);
+    for body in [money("1337"), items("1337")] {
+        assert!(
+            body.contains("More than one account has that character name"),
+            "{body}"
+        );
+        assert!(
+            !body.contains("Bystander") && !body.contains("0x539"),
+            "{body}"
+        );
+        assert!(!body.contains("money_plan") && !body.contains("name=take"));
+    }
+    for body in [money("4242"), items("4242")] {
+        assert!(
+            body.contains("has not signed in to the 0.26g lobby yet"),
+            "{body}"
+        );
+        assert!(
+            !body.contains("Other") && !body.contains("0x1092"),
+            "{body}"
+        );
+        assert!(!body.contains("money_plan") && !body.contains("name=take"));
+    }
+    for body in [money("#1337"), items("#1337")] {
+        assert!(
+            body.contains("Bystander") && body.contains("1337 (0x539)"),
+            "{body}"
+        );
+    }
+}
+
+#[test]
+fn a_take_value_that_is_no_item_id_says_so() {
+    let world = world();
+    let id = world.player("tester", "secret");
+    let before = world.accounts.get(id).unwrap().locked().clone();
+    let body = world.admin(&[
+        ("tab", "items"),
+        ("items_user", "tester"),
+        ("take", "12abc"),
+        ("items_reason", "x"),
+    ]);
+    assert!(
+        body.contains("&quot;12abc&quot; is not an item id"),
+        "{body}"
+    );
+    assert!(!body.contains("Units are a whole number"), "{body}");
+    assert_eq!(*world.accounts.get(id).unwrap().locked(), before);
+}
+
+#[test]
+fn a_moderation_waits_for_a_busy_saver_once_only() {
+    let (world, repository) = kept_world();
+    let id = world.player("pain", "secret");
+    let other = world.player("bystander", "secret");
+    world.accounts.flush();
+    let asked = [
+        ("user", "pain"),
+        ("silver", "-100"),
+        ("money_reason", "farmed"),
+    ];
+    let plan = hidden(&world.admin(&asked), "money_plan");
+    // The saver is in a long pass: it holds the database.
+    let held = repository.hold_saves();
+    world.accounts.get(other).unwrap().locked().generic_money = 1;
+    world.accounts.mark_dirty(other);
+    std::thread::scope(|scope| {
+        let saver = scope.spawn(|| world.accounts.flush());
+        while repository.saves_held() == 0 {
+            std::thread::yield_now();
+        }
+        let started = Instant::now();
+        let done = world.admin(&confirmed(&asked, "money_plan", &plan));
+        let waited = started.elapsed();
+        assert!(done.contains("The database was busy"), "{done}");
+        assert!(
+            done.contains("the database is busy; shown next time"),
+            "{done}"
+        );
+        assert!(
+            waited < session::RESET_WRITE_WAIT + session::RESET_WRITE_WAIT / 2,
+            "waited {waited:?}"
+        );
+        drop(held);
+        saver.join().unwrap();
+    });
+    assert_eq!(world.balances(id).0, 1_900);
     world.accounts.flush();
     assert_eq!(repository.get(id).unwrap().generic_money, 1_900);
     assert_eq!(repository.all_admin_actions().len(), 1);
