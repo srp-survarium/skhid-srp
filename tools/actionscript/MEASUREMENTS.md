@@ -839,3 +839,21 @@ The result remains 642 exact, 222 different and 14 not compiled, with every
 previously exact movie hash preserved and no status changes. This is a linker
 regression over saved artifacts, separate from the newer compilation that proves
 `MessageAskSell`, `mx_internal` and `stackTrace` exact.
+
+## Ammunition window activation and loop reconstruction
+
+`AmmoShareLite` now reproduces the complete compressed release movie. The source
+restores its captured parameter name, activation/local declaration order,
+executable initializers, named local function, typed assignments and direct
+logical operands. Explicit loop counters, continue branches and else branches
+recover the original control flow. Lexical compound writes and static field
+order complete the match. Every method, activation trait, limit and exception
+record passes the existing linker unchanged.
+
+The manifest contains 194 reviewed patches. Together with 645 pristine-script
+successes, the accumulated evidence covers 839 of 878 scripts individually;
+39 remain before a whole-tree matching build. Fourteen unit tests pass after
+this source-only addition. The premium example rebuilt against the final
+194-entry manifest retains its earlier tested movie hash, one changed method
+and identical non-code content. The new manifest identities are recorded as a
+subsequent rebuild; the game was not rerun.

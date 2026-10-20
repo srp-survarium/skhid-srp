@@ -1555,6 +1555,15 @@
       "pristine_sha256": "d1fa9b77e3b89aab4def2da36c1ae21874bbbcab1d10f4a441f87d3611dafc7d",
       "reason": "Restore captured parameter names without copied aliases, activation declaration order, typed count assignment, a named local function, and the array field initializer with implicit superclass initialization; imported-unit compilation reproduces the complete compressed release movie.",
       "result_sha256": "fa71616716b6e7ec1c346afa7e45ec87c9daaf8fc0172f2fcb273dca9475776b"
+    },
+    {
+      "class": "survarium.ammo.AmmoShareLite",
+      "compiler": "flex-library",
+      "patch": "survarium/ammo/AmmoShareLite.patch",
+      "patch_sha256": "75364d749f2d5e800e33546bfb73dfeb821d0a4d53112eff9656f9ed149dde99",
+      "pristine_sha256": "e57c4f0b89a0afba679bdb1ce4761b3d4110c398143c1a0945da33d9e2de79ae",
+      "reason": "Restore static/local/activation declaration order, captured parameter and named local function declarations, typed assignments, lexical compound writes, logical operands, explicit counter initialization and original loop control flow; imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "f6d7b3b2212eaf5c64bcb7361ab9891dc981ad5c98404d46f1239a8111de8d5f"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

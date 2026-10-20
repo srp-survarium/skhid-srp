@@ -1,0 +1,1116 @@
+--- a/survarium/ammo/AmmoShareLite.as
++++ b/survarium/ammo/AmmoShareLite.as
+@@ -17,19 +17,19 @@
+    public class AmmoShareLite extends UIComponent implements IAmmoShare
+    {
+       
++      public static const GROUP_AMMO:uint = 1;
++      
++      public static const GROUP_ITEMS:uint = 2;
++      
++      public static const PAIR_AMMO1:uint = 1;
++      
++      public static const PAIR_AMMO2:uint = 2;
++      
++      public static const PAIR_ITEMS:uint = 3;
++      
+       protected static var _id:AmmoShareLite;
+       
+       protected static var _itemCard:*;
+-      
+-      public static const GROUP_AMMO:uint = 1;
+-      
+-      public static const GROUP_ITEMS:uint = 2;
+-      
+-      public static const PAIR_AMMO1:uint = 1;
+-      
+-      public static const PAIR_AMMO2:uint = 2;
+-      
+-      public static const PAIR_ITEMS:uint = 3;
+       
+       public var tx_weigth:TextField;
+       
+@@ -114,19 +114,19 @@
+       
+       public function set updateFunction(param1:Function) : void
+       {
+-         this._updateFunction = param1;
++         _updateFunction = param1;
+       }
+       
+       public function registerWeightTextField(param1:TextField) : void
+       {
+-         this.tx_weigth = param1;
++         tx_weigth = param1;
+       }
+       
+       public function registerRenderer(param1:Class) : void
+       {
+-         var _loc3_:AmmoShareElement = null;
+-         this._renderer = param1;
++         _renderer = param1;
+          var _loc2_:uint = 0;
++         var _loc3_:AmmoShareElement;
+          while(_loc2_ < 6)
+          {
+             _loc3_ = new this._renderer();
+@@ -137,8 +137,8 @@
+       
+       protected function getEmptyElement() : AmmoShareElement
+       {
+-         var _loc2_:AmmoShareElement = null;
+          var _loc1_:uint = 0;
++         var _loc2_:AmmoShareElement;
+          while(_loc1_ < this._emptyElements.length)
+          {
+             _loc2_ = this._emptyElements[_loc1_];
+@@ -153,7 +153,7 @@
+       
+       public function set autoBuyCheckBox(param1:Button) : void
+       {
+-         this._autoBuyCheckBox = param1;
++         _autoBuyCheckBox = param1;
+       }
+       
+       public function get autoBuyCheckBox() : Button
+@@ -163,26 +163,26 @@
+       
+       public function set acceptButton(param1:Button) : void
+       {
+-         this._btn_yes = param1;
++         _btn_yes = param1;
+          this._btn_yes.enabled = false;
+          this._btn_yes.addEventListener(ButtonEvent.CLICK,this.setAmmo,false,0,true);
+       }
+       
+       public function set cancelButton(param1:Button) : void
+       {
+-         this._btn_cancel = param1;
++         _btn_cancel = param1;
+          this._btn_cancel.enabled = false;
+          this._btn_cancel.addEventListener(ButtonEvent.CLICK,this.cancel,false,0,true);
+       }
+       
+       public function set ammoBags(param1:uint) : void
+       {
+-         this._ammoBags = param1;
++         _ammoBags = param1;
+       }
+       
+       public function set pocketSize(param1:uint) : void
+       {
+-         this._pocketSize = param1;
++         _pocketSize = param1;
+       }
+       
+       public function getItemsList() : *
+@@ -193,10 +193,10 @@
+       public function getAmmoRenderer(param1:uint) : DisplayObject
+       {
+          trace("getAmmoRenderer",param1);
+-         if(Boolean(this._elemetns))
++         if(this._elemetns)
+          {
+             trace("_elemetns",this._elemetns[param1]);
+-            if(Boolean(this._elemetns[param1]))
++            if(this._elemetns[param1])
+             {
+                this._elemetns[param1].arrayIndex = param1;
+             }
+@@ -209,10 +209,10 @@
+       public function highlightAmmoRendererSlider(param1:uint) : DisplayObject
+       {
+          trace("getAmmoRendererSlider",param1);
+-         if(Boolean(this._elemetns))
++         if(this._elemetns)
+          {
+             trace("_elemetns",this._elemetns[param1]);
+-            if(Boolean(this._elemetns[param1]))
++            if(this._elemetns[param1])
+             {
+                this._elemetns[param1].arrayIndex = param1;
+             }
+@@ -225,10 +225,10 @@
+       public function highlightAmmoRendererCell(param1:uint, param2:Boolean) : void
+       {
+          trace("highlightAmmoRendererCell",param1);
+-         if(Boolean(this._elemetns))
++         if(this._elemetns)
+          {
+             trace("_elemetns",this._elemetns[param1]);
+-            if(Boolean(this._elemetns[param1]))
++            if(this._elemetns[param1])
+             {
+                this._elemetns[param1].slider.hoverCells(param2);
+             }
+@@ -237,11 +237,11 @@
+       
+       public function swapElements(param1:int, param2:int) : void
+       {
+-         var _loc3_:Object = null;
+-         var _loc4_:Object = null;
+-         var _loc7_:Object = null;
++         var _loc3_:Object;
++         var _loc4_:Object;
+          var _loc5_:uint = this._elemetnsSlots.length;
+          var _loc6_:int = 0;
++         var _loc7_:Object;
+          while(_loc6_ < _loc5_)
+          {
+             _loc7_ = this._elemetnsSlots[_loc6_];
+@@ -253,23 +253,23 @@
+             {
+                _loc4_ = _loc7_;
+             }
+-            if(Boolean(_loc3_) && Boolean(_loc4_))
++            if(_loc3_ && _loc4_)
+             {
+                break;
+             }
+             _loc6_++;
+          }
+          trace("swapElements",_loc3_,_loc4_,"|",param1,param2);
+-         if(Boolean(_loc3_) && Boolean(_loc4_))
+-         {
+-            trace("swapElements",Boolean(_loc3_.data) ? _loc3_.data.name : "null",Boolean(_loc4_.data) ? _loc4_.data.name : "null");
++         if(_loc3_ && _loc4_)
++         {
++            trace("swapElements",_loc3_.data ? _loc3_.data.name : "null",_loc4_.data ? _loc4_.data.name : "null");
+             _loc3_.index = param2;
+-            if(Boolean(_loc3_.data))
++            if(_loc3_.data)
+             {
+                _loc3_.data.slotId = param2;
+             }
+             _loc4_.index = param1;
+-            if(Boolean(_loc4_.data))
++            if(_loc4_.data)
+             {
+                _loc4_.data.slotId = param1;
+             }
+@@ -279,8 +279,7 @@
+       
+       public function updateElement(param1:Object, param2:ItemData = null) : void
+       {
+-         var _loc6_:Object = null;
+-         trace("updateElement::",this._ammoList.length,this._elemetns.length,this._elemetnsSlots.length,this._dataSlots.length,Boolean(param2) ? param2.count : "no_new_data");
++         trace("updateElement::",this._ammoList.length,this._elemetns.length,this._elemetnsSlots.length,this._dataSlots.length,param2 ? param2.count : "no_new_data");
+          var _loc3_:ItemData = null;
+          var _loc4_:int = 0;
+          while(_loc4_ < this._dataSlots.length)
+@@ -295,17 +294,21 @@
+          }
+          if(!_loc3_)
+          {
+-            if(!Boolean(param2))
++            if(param2)
++            {
++               _loc3_ = param2;
++            }
++            else
+             {
+                return;
+             }
+-            _loc3_ = param2;
+-         }
+-         else if(Boolean(param2))
++         }
++         else if(param2)
+          {
+             _loc3_.count += param2.value;
+          }
+          var _loc5_:int = 0;
++         var _loc6_:Object;
+          while(_loc5_ < this._elemetnsSlots.length)
+          {
+             _loc6_ = this._elemetnsSlots[_loc5_];
+@@ -324,7 +327,7 @@
+       protected function acceptItemCard(param1:Event = null) : void
+       {
+          trace("acceptItemCardTotal::",_itemCard,this._elemetns);
+-         this._relocateArray = new Array();
++         _relocateArray = new Array();
+          trace("ASL::apply_profile_items");
+          ExternalInterface.call("apply_profile_items",this._relocateArray);
+       }
+@@ -336,17 +339,17 @@
+       
+       public function setProfileId(param1:int) : void
+       {
+-         this._profileID = param1;
++         _profileID = param1;
+       }
+       
+       public function setSlots(param1:int = 0, param2:uint = 0) : void
+       {
+-         this._slotsN = param1;
++         _slotsN = param1;
+       }
+       
+       public function setShared(param1:Boolean) : void
+       {
+-         this._isShared = param1;
++         _isShared = param1;
+       }
+       
+       public function getShared() : Boolean
+@@ -356,20 +359,20 @@
+       
+       public function reflow(param1:AmmoShareElement) : void
+       {
+-         var _loc5_:AmmoShareElement = null;
+-         var _loc6_:AmmoShareElement = null;
+-         var _loc9_:uint = 0;
+-         trace("ammmo_reflow_st",param1,Boolean(param1) ? param1.index : "no_tg",this._isReflow);
++         trace("ammmo_reflow_st",param1,param1 ? param1.index : "no_tg",this._isReflow);
+          if(this._isReflow)
+          {
+             return;
+          }
+-         this._isReflow = true;
++         _isReflow = true;
+          var _loc2_:Number = 0;
+          var _loc3_:Number = 0;
+          var _loc4_:Boolean = true;
++         var _loc5_:AmmoShareElement;
++         var _loc6_:AmmoShareElement;
+          var _loc7_:uint = this._elemetns.length;
+          var _loc8_:int = 0;
++         var _loc9_:uint;
+          while(_loc8_ < _loc7_)
+          {
+             _loc5_ = this._elemetns[_loc8_];
+@@ -394,46 +397,45 @@
+             }
+             _loc8_++;
+          }
+-         this._totalPrice = 0;
+-         this._totalPricePremium = 0;
+-         _loc8_ = 0;
+-         while(_loc8_ < _loc7_)
++         _totalPrice = 0;
++         _totalPricePremium = 0;
++         for(_loc8_ = 0; _loc8_ < _loc7_; _loc8_++)
+          {
+             _loc5_ = this._elemetns[_loc8_];
+             if(_loc5_.isPremium())
+             {
+-               this._totalPricePremium += _loc5_.get_required_price();
++               _totalPricePremium += _loc5_.get_required_price();
+             }
+             else
+             {
+-               this._totalPrice += _loc5_.get_required_price();
+-            }
+-            if(_loc5_.group != GROUP_ITEMS)
+-            {
+-               if(Boolean(param1) && _loc5_.pair != param1.pair)
+-               {
+-                  _loc2_ = 0;
+-                  _loc9_ = 0;
+-                  while(_loc9_ < _loc7_)
++               _totalPrice += _loc5_.get_required_price();
++            }
++            if(_loc5_.group == GROUP_ITEMS)
++            {
++               continue;
++            }
++            if(param1 && _loc5_.pair != param1.pair)
++            {
++               _loc2_ = 0;
++               _loc9_ = 0;
++               while(_loc9_ < _loc7_)
++               {
++                  _loc6_ = this._elemetns[_loc9_];
++                  if(_loc6_.index != _loc5_.index && _loc5_.group == _loc6_.group)
+                   {
+-                     _loc6_ = this._elemetns[_loc9_];
+-                     if(_loc6_.index != _loc5_.index && _loc5_.group == _loc6_.group)
+-                     {
+-                        _loc2_ += _loc6_.getCount();
+-                     }
+-                     _loc9_++;
++                     _loc2_ += _loc6_.getCount();
+                   }
+-                  if(_loc4_)
+-                  {
+-                     _loc5_.setCount(_loc2_,true);
+-                  }
+-                  else
+-                  {
+-                     _loc5_.setCount(_loc2_,false);
+-                  }
+-               }
+-            }
+-            _loc8_++;
++                  _loc9_++;
++               }
++               if(_loc4_)
++               {
++                  _loc5_.setCount(_loc2_,true);
++               }
++               else
++               {
++                  _loc5_.setCount(_loc2_,false);
++               }
++            }
+          }
+          if(this._updateFunction is Function)
+          {
+@@ -446,20 +448,20 @@
+             _loc5_.updateStorage();
+             _loc9_++;
+          }
+-         this._isReflow = false;
++         _isReflow = false;
+          trace("reflow_end");
+       }
+       
+       public function getSlotData(param1:uint) : ItemData
+       {
+-         var _loc2_:int = 0;
++         var _loc2_:int;
+          trace("getSlotData::",this._ammoList);
+-         if(Boolean(this._ammoList))
++         if(this._ammoList)
+          {
+             _loc2_ = 0;
+             while(_loc2_ < this._ammoList.length)
+             {
+-               if(Boolean(this._ammoList[_loc2_]) && this._ammoList[_loc2_].slot == param1)
++               if(this._ammoList[_loc2_] && this._ammoList[_loc2_].slot == param1)
+                {
+                   return this._ammoList[_loc2_];
+                }
+@@ -471,13 +473,13 @@
+       
+       public function getAmmoList(param1:int, param2:Boolean = false, param3:int = -1) : Array
+       {
+-         var _loc5_:Boolean = false;
+-         var _loc6_:int = 0;
+-         var _loc7_:AmmoShareElement = null;
+-         var _loc8_:ItemData = null;
+          trace("getAmmoList",param1,this._ammoList,name,param3,param2);
+          this._tempAmmoLst.length = 0;
+          var _loc4_:int = 0;
++         var _loc5_:Boolean;
++         var _loc6_:int;
++         var _loc7_:AmmoShareElement;
++         var _loc8_:ItemData;
+          while(_loc4_ < this._ammoList.length)
+          {
+             _loc5_ = false;
+@@ -495,7 +497,7 @@
+                   {
+                      _loc7_ = this._elemetns[_loc6_];
+                      _loc8_ = _loc7_.getData();
+-                     if(Boolean(_loc8_))
++                     if(_loc8_)
+                      {
+                         if(this._ammoList[_loc4_].dictId == _loc8_.dictId)
+                         {
+@@ -504,7 +506,10 @@
+                               _loc5_ = true;
+                               break;
+                            }
+-                           this._ammoList[_loc4_].enabled = false;
++                           else
++                           {
++                              this._ammoList[_loc4_].enabled = false;
++                           }
+                         }
+                      }
+                      _loc6_++;
+@@ -523,9 +528,9 @@
+       
+       public function setAmmo(param1:ButtonEvent = null) : void
+       {
+-         var _loc3_:AmmoShareElement = null;
+-         this._relocateArray = new Array();
++         _relocateArray = new Array();
+          var _loc2_:int = 0;
++         var _loc3_:AmmoShareElement;
+          while(_loc2_ < this._elemetns.length)
+          {
+             _loc3_ = this._elemetns[_loc2_];
+@@ -551,65 +556,65 @@
+       
+       public function reflowElements() : void
+       {
+-         var _loc5_:AmmoShareElement = null;
+-         this.activeIndex = 4;
++         activeIndex = 4;
+          var _loc1_:int = 144 + 5;
+          var _loc2_:int = 275 + 5;
+          var _loc3_:int = 0;
+          var _loc4_:int = 0;
++         var _loc5_:AmmoShareElement;
+          trace("reflowElemnts",this.activeIndex);
+-         var _loc6_:uint = 0;
+-         while(_loc6_ < this._elemetns.length)
++         for(var _loc6_:uint = 0; _loc6_ < this._elemetns.length; _loc6_++)
+          {
+             _loc5_ = this._elemetns[_loc6_];
+-            if(_loc5_)
+-            {
+-               if(_loc5_.pair == PAIR_AMMO1 || _loc5_.pair == PAIR_AMMO2)
+-               {
+-                  if(this.activeIndex == 0 && _loc5_.pair == PAIR_AMMO1 || this.activeIndex == 1 && _loc5_.pair == PAIR_AMMO2 || this.activeIndex == 4)
++            if(!_loc5_)
++            {
++               continue;
++            }
++            if(_loc5_.pair == PAIR_AMMO1 || _loc5_.pair == PAIR_AMMO2)
++            {
++               if(this.activeIndex == 0 && _loc5_.pair == PAIR_AMMO1 || this.activeIndex == 1 && _loc5_.pair == PAIR_AMMO2 || this.activeIndex == 4)
++               {
++                  if(!_loc5_.parent)
+                   {
+-                     if(!_loc5_.parent)
+-                     {
+-                        _loc5_.y = _loc3_;
+-                        this._items_container.addContent(_loc5_);
+-                     }
++                     _loc5_.y = _loc3_;
++                     this._items_container.addContent(_loc5_);
+                   }
+-                  else if(Boolean(_loc5_.parent))
+-                  {
+-                     this._items_container.removeContent(_loc5_);
+-                  }
+-               }
+-               else if(this.activeIndex == -1)
+-               {
+-                  _loc5_.y = _loc3_;
+-                  this._items_container.addContent(_loc5_);
+-               }
+-               else
++               }
++               else if(_loc5_.parent)
+                {
+                   this._items_container.removeContent(_loc5_);
+                }
+-               if(_loc5_.parent)
+-               {
+-                  _loc5_.y = _loc3_;
+-                  _loc5_.x = _loc4_;
+-                  _loc3_ += _loc1_;
+-                  if(_loc3_ / _loc1_ == 3)
+-                  {
+-                     _loc3_ = 0;
+-                     _loc4_ += _loc2_;
+-                  }
+-               }
+-            }
+-            _loc6_++;
++            }
++            else if(this.activeIndex == -1)
++            {
++               _loc5_.y = _loc3_;
++               this._items_container.addContent(_loc5_);
++            }
++            else
++            {
++               this._items_container.removeContent(_loc5_);
++            }
++            if(!_loc5_.parent)
++            {
++               continue;
++            }
++            _loc5_.y = _loc3_;
++            _loc5_.x = _loc4_;
++            _loc3_ += _loc1_;
++            if(_loc3_ / _loc1_ == 3)
++            {
++               _loc3_ = 0;
++               _loc4_ += _loc2_;
++            }
+          }
+       }
+       
+       public function setData(param1:Array, param2:Array, param3:Boolean = false, param4:Boolean = false) : void
+       {
+-         this._data = param1;
+-         this._dataSlots = param2;
+-         this._softUpdate = param4;
+-         this._ammoList = this._data;
++         _data = param1;
++         _dataSlots = param2;
++         _softUpdate = param4;
++         _ammoList = this._data;
+          trace("invalidateASLData",this._data,this._softUpdate);
+          invalidateData();
+       }
+@@ -631,32 +636,33 @@
+       
+       internal function getCount(param1:AmmoShareElement) : Number
+       {
+-         var _loc4_:AmmoShareElement = null;
+          var _loc2_:Number = 0;
+          var _loc3_:int = 0;
+-         while(_loc3_ < this._elemetns.length)
++         var _loc4_:AmmoShareElement;
++         for(; _loc3_ < this._elemetns.length; _loc3_++)
+          {
+             _loc4_ = this._elemetns[_loc3_];
+-            if(_loc4_)
+-            {
+-               if(_loc4_.group != GROUP_ITEMS)
+-               {
+-                  if(_loc4_.index != param1.index)
+-                  {
+-                     _loc2_ += _loc4_.getCount();
+-                  }
+-               }
+-            }
+-            _loc3_++;
++            if(!_loc4_)
++            {
++               continue;
++            }
++            if(_loc4_.group == GROUP_ITEMS)
++            {
++               continue;
++            }
++            if(_loc4_.index != param1.index)
++            {
++               _loc2_ += _loc4_.getCount();
++            }
+          }
+          return _loc2_;
+       }
+       
+       internal function getCost(param1:AmmoShareElement) : Number
+       {
+-         var _loc4_:AmmoShareElement = null;
+          var _loc2_:Number = 0;
+          var _loc3_:int = 0;
++         var _loc4_:AmmoShareElement;
+          while(_loc3_ < this._elemetns.length)
+          {
+             _loc4_ = this._elemetns[_loc3_];
+@@ -686,7 +692,7 @@
+          super.draw();
+          if(isInvalid(InvalidationType.DATA))
+          {
+-            if(Boolean(this._data))
++            if(this._data)
+             {
+                this._setData(this._data);
+             }
+@@ -701,29 +707,29 @@
+       
+       protected function onChange(param1:Event) : void
+       {
+-         var _loc5_:AmmoShareElement = null;
+-         var _loc6_:Number = NaN;
+-         var _loc7_:ItemData = null;
+          var _loc2_:Number = 0;
+-         var _loc3_:int = int(this._elemetns.length);
++         var _loc3_:int = (this._elemetns.length);
+          var _loc4_:int = 0;
++         var _loc5_:AmmoShareElement;
++         var _loc6_:Number;
++         var _loc7_:ItemData;
+          while(_loc4_ < _loc3_)
+          {
+             _loc5_ = this._elemetns[_loc4_];
+             _loc6_ = 0;
+-            if(Boolean(_loc5_.getData()))
++            if((_loc5_.getData()))
+             {
+                _loc6_ = _loc5_.getWeight();
+                _loc2_ += _loc6_;
+             }
+             _loc4_++;
+          }
+-         _loc3_ = int(this._elemetnsSlots.length);
++         _loc3_ = (this._elemetnsSlots.length);
+          _loc4_ = 0;
+          while(_loc4_ < this._elemetnsSlots.length)
+          {
+             _loc7_ = this._elemetnsSlots[_loc4_].data;
+-            if(Boolean(_loc7_))
++            if(_loc7_)
+             {
+                _loc6_ = _loc7_.value * _loc7_.weight;
+                _loc2_ += _loc6_;
+@@ -731,7 +737,7 @@
+             _loc4_++;
+          }
+          trace("updateWeightOnChange::",this.tx_weigth,PlayerInfo.curWeight,this.aviableWeight,_loc2_,PlayerInfo.maxWeight,"calculated",Number(PlayerInfo.maxWeight - this.aviableWeight + _loc2_).toPrecision(2));
+-         if(Boolean(this.tx_weigth))
++         if(this.tx_weigth)
+          {
+          }
+       }
+@@ -759,8 +765,8 @@
+       
+       protected function prepare_new_data() : void
+       {
+-         var _loc2_:AmmoShareElement = null;
+          var _loc1_:int = 0;
++         var _loc2_:AmmoShareElement;
+          while(_loc1_ < this._elemetns.length)
+          {
+             _loc2_ = this._elemetns[_loc1_];
+@@ -779,8 +785,8 @@
+       
+       protected function clearElements() : void
+       {
+-         var _loc2_:AmmoShareElement = null;
+          var _loc1_:int = 0;
++         var _loc2_:AmmoShareElement;
+          while(_loc1_ < this._elemetns.length)
+          {
+             _loc2_ = this._elemetns[_loc1_];
+@@ -793,15 +799,15 @@
+       
+       protected function relocateItem(param1:ItemData) : void
+       {
+-         var _loc3_:uint = 0;
+-         var _loc4_:uint = 0;
+-         var _loc5_:uint = 0;
+-         var _loc6_:uint = 0;
+-         var _loc7_:uint = 0;
+-         var _loc8_:uint = 0;
+-         var _loc9_:uint = 0;
+          var _loc2_:ItemData = param1;
+-         if(Boolean(_loc2_))
++         var _loc3_:uint;
++         var _loc4_:uint;
++         var _loc5_:uint;
++         var _loc6_:uint;
++         var _loc7_:uint;
++         var _loc8_:uint;
++         var _loc9_:uint;
++         if(_loc2_)
+          {
+             _loc3_ = _loc2_.itemId == -1 ? 0 : _loc2_.itemId;
+             _loc4_ = this._profileID;
+@@ -811,17 +817,17 @@
+             _loc8_ = _loc2_.count;
+             _loc9_ = _loc2_.value;
+             trace("prepare relocate item:",param1.name,"target:",_loc6_,"count:",_loc9_,_loc8_,"sr:",_loc7_,"name",_loc2_.name,_loc3_,_loc2_.itemId,"ds:",_loc2_.descriptor);
+-            if(Boolean(_loc8_))
++            if(_loc8_)
+             {
+                this._relocateArray.push({
+-                  "profile":_loc4_,
+-                  "id":_loc3_,
+-                  "dict_id":_loc5_,
+-                  "targetSlot":_loc6_,
+-                  "count":_loc9_,
+-                  "sourceSlot":_loc7_,
+-                  "count_in_inventory":_loc8_,
+-                  "auto_buy":this.autoBuyCheckBox.selected
++                  profile:_loc4_,
++                  id:_loc3_,
++                  dict_id:_loc5_,
++                  targetSlot:_loc6_,
++                  count:_loc9_,
++                  sourceSlot:_loc7_,
++                  count_in_inventory:_loc8_,
++                  auto_buy:this.autoBuyCheckBox.selected
+                });
+             }
+          }
+@@ -829,35 +835,35 @@
+       
+       protected function relocateAmmo(param1:AmmoShareElement) : void
+       {
+-         var _loc3_:uint = 0;
+-         var _loc4_:uint = 0;
+-         var _loc5_:uint = 0;
+-         var _loc6_:uint = 0;
+-         var _loc7_:uint = 0;
+-         var _loc8_:uint = 0;
+-         var _loc9_:uint = 0;
+          var _loc2_:Object = param1.getData();
+-         if(Boolean(_loc2_))
+-         {
+-            _loc3_ = _loc2_.itemId == -1 ? 0 : uint(_loc2_.itemId);
++         var _loc3_:uint;
++         var _loc4_:uint;
++         var _loc5_:uint;
++         var _loc6_:uint;
++         var _loc7_:uint;
++         var _loc8_:uint;
++         var _loc9_:uint;
++         if(_loc2_)
++         {
++            _loc3_ = _loc2_.itemId == -1 ? 0 : (_loc2_.itemId);
+             _loc4_ = this._profileID;
+-            _loc5_ = uint(_loc2_.dictId);
++            _loc5_ = (_loc2_.dictId);
+             _loc6_ = param1.index;
+-            _loc7_ = _loc2_.source_slot != undefined ? uint(_loc2_.source_slot) : 100;
++            _loc7_ = _loc2_.source_slot != undefined ? (_loc2_.source_slot) : 100;
+             _loc8_ = param1.slider.position;
+-            _loc9_ = uint(param1.slider.value_storage);
++            _loc9_ = (param1.slider.value_storage);
+             trace("prepare relocate:",param1.name,"target:",_loc6_,"source:",_loc7_,"count:",_loc8_,_loc9_,"name",_loc2_.name,param1.pair,_loc3_,_loc2_.itemId,this.autoBuyCheckBox.selected);
+-            if(Boolean(_loc9_))
++            if(_loc9_)
+             {
+                this._relocateArray.push({
+-                  "profile":_loc4_,
+-                  "id":_loc3_,
+-                  "dict_id":_loc5_,
+-                  "targetSlot":_loc6_,
+-                  "count":_loc8_,
+-                  "sourceSlot":_loc7_,
+-                  "count_in_inventory":_loc9_,
+-                  "auto_buy":this.autoBuyCheckBox.selected
++                  profile:_loc4_,
++                  id:_loc3_,
++                  dict_id:_loc5_,
++                  targetSlot:_loc6_,
++                  count:_loc8_,
++                  sourceSlot:_loc7_,
++                  count_in_inventory:_loc9_,
++                  auto_buy:this.autoBuyCheckBox.selected
+                });
+             }
+          }
+@@ -875,51 +881,27 @@
+          this._setData(this._data);
+       }
+       
+-      protected function _setData(param1:Array) : void
+-      {
+-         var _ammoSlots:uint;
+-         var _shift:uint;
+-         var current_index:uint;
+-         var st_index:uint;
+-         var _slotToIterate:uint;
+-         var _start_elements:Array;
+-         var ammo1_slots:int;
+-         var ammo2_slots:int;
+-         var step_y:int;
+-         var step_x:int;
+-         var shift_y:int;
+-         var shift_x:int;
+-         var getIndexOwned:Function;
+-         var _element:AmmoShareElement = null;
+-         var ln:int = 0;
+-         var ln2:int = 0;
+-         var ammoL:int = 0;
+-         var slotsL:int = 0;
+-         var itemsL:int = 0;
+-         var i:int = 0;
+-         var itemData:ItemData = null;
+-         var k:int = 0;
+-         var elData:ItemData = null;
+-         var index_iterator:int = 0;
+-         var new_index:uint = 0;
+-         var _elementSlot:Object = null;
+-         var pos_of_last_ammo:uint = 0;
+-         var j:int = 0;
+-         var list:Array = null;
+-         var value:Array = param1;
++      protected function _setData(value:Array) : void
++      {
+          trace("AmmoShareSetData:",this.activeIndex,this._softUpdate,"|",value,"|",this._elemetns,"|",this._items_container);
+-         this._ammoList = value;
+-         if(Boolean(value.length))
++         _ammoList = value;
++         if(value.length)
+          {
+             value.sortOn(["weapon_target","slot"],Array.NUMERIC);
+          }
+-         _ammoSlots = 6;
+-         _shift = 0;
+-         current_index = 0;
+-         st_index = 0;
+-         _slotToIterate = _ammoSlots;
++         var _ammoSlots:uint = 6;
++         var _shift:uint = 0;
++         var _element:AmmoShareElement;
++         var current_index:uint = 0;
++         var st_index:uint = 0;
++         var _slotToIterate:uint = _ammoSlots;
++         var ln:int;
++         var ln2:int;
++         var ammoL:int;
++         var slotsL:int;
++         var itemsL:int;
+          trace("updateA");
+-         ln = int(this._elemetns.length);
++         ln = (this._elemetns.length);
+          i = 0;
+          while(i < ln)
+          {
+@@ -927,18 +909,19 @@
+             _element.index = this._unsetted_slot;
+             _element.slider.removeEventListener(SliderEvent.VALUE_CHANGE,this.onChange);
+             _element.removeEventListener(Event.CHANGE,this.onControlChanges);
+-            if(Boolean(_element.parent))
++            if(_element.parent)
+             {
+                this._items_container.removeContent(_element);
+             }
+             i++;
+          }
+          trace("updateB");
+-         _start_elements = this._elemetns.concat();
++         var _start_elements:Array = this._elemetns.concat();
+          this._elemetns.length = 0;
+-         ammo1_slots = 0;
+-         ammo2_slots = 0;
+-         ln = int(value.length);
++         var ammo1_slots:int = 0;
++         var ammo2_slots:int = 0;
++         var i:int;
++         ln = (value.length);
+          i = 0;
+          while(i < ln)
+          {
+@@ -946,21 +929,20 @@
+             if(itemData.weaponTarget != PAIR_ITEMS)
+             {
+                _element = null;
+-               ln2 = int(_start_elements.length);
+-               k = 0;
+-               while(k < ln2)
+-               {
+-                  if(_start_elements[k])
++               ln2 = (_start_elements.length);
++               for(k = 0; k < ln2; k++)
++               {
++                  if(!_start_elements[k])
+                   {
+-                     elData = _start_elements[k].getData();
+-                     if(Boolean(elData) && elData.dictId == itemData.dictId)
+-                     {
+-                        _element = _start_elements[k];
+-                        trace("use_old_element",_element.index,_element.updated);
+-                        _start_elements.splice(k,1);
+-                     }
++                     continue;
+                   }
+-                  k++;
++                  elData = _start_elements[k].getData();
++                  if(elData && elData.dictId == itemData.dictId)
++                  {
++                     _element = _start_elements[k];
++                     trace("use_old_element",_element.index,_element.updated);
++                     _start_elements.splice(k,1);
++                  }
+                }
+                if(!_element)
+                {
+@@ -992,24 +974,24 @@
+                      this._items_container.addContent(_element);
+                   }
+                }
+-               else if(Boolean(_element.parent))
++               else if(_element.parent)
+                {
+                   this._items_container.removeContent(_element);
+                }
+             }
+             i++;
+          }
+-         ln = int(this._elemetns.length);
++         ln = (this._elemetns.length);
+          i = 0;
+          while(i < ln)
+          {
+             _element = this._elemetns[i];
+             if(_element.pair != PAIR_ITEMS && _element.index == this._unsetted_slot)
+             {
+-               getIndexOwned = function(param1:int):Boolean
+-               {
+-                  var _loc3_:* = undefined;
++               function getIndexOwned(param1:int):Boolean
++               {
+                   var _loc2_:int = 0;
++                  var _loc3_:*;
+                   while(_loc2_ < ln)
+                   {
+                      _loc3_ = _elemetns[_loc2_];
+@@ -1020,13 +1002,17 @@
+                      _loc2_++;
+                   }
+                   return false;
+-               };
++               }
++               var _elementSlot:Object;
++               var pos_of_last_ammo:uint;
++               var j:int;
++               var list:Array;
+                index_iterator = 0;
+-               new_index = uint(this._ammo_indexes[0]);
+-               while(Boolean(getIndexOwned(new_index)))
++               new_index = (this._ammo_indexes[0]);
++               while(getIndexOwned(new_index))
+                {
+                   index_iterator++;
+-                  new_index = uint(this._ammo_indexes[index_iterator]);
++                  new_index = (this._ammo_indexes[index_iterator]);
+                }
+                _element.index = new_index;
+             }
+@@ -1040,7 +1026,7 @@
+             _element = this._elemetns[i];
+             if(_element.pair != PAIR_ITEMS)
+             {
+-               if(Boolean(_element.parent))
++               if(_element.parent)
+                {
+                   this._items_container.removeContent(_element);
+                   _element.clear();
+@@ -1049,14 +1035,14 @@
+             }
+             i--;
+          }
+-         ln = int(_start_elements.length);
++         ln = (_start_elements.length);
+          i = 0;
+          while(i < ln)
+          {
+             _element = _start_elements[i];
+-            if(Boolean(_element) && _element.pair != PAIR_ITEMS)
+-            {
+-               if(Boolean(_element.parent))
++            if(_element && _element.pair != PAIR_ITEMS)
++            {
++               if(_element.parent)
+                {
+                   this._items_container.removeContent(_element);
+                }
+@@ -1098,7 +1084,7 @@
+          while(i < this._slotsN)
+          {
+             _elementSlot = null;
+-            ln = int(this._elemetnsSlots.length);
++            ln = (this._elemetnsSlots.length);
+             k = 0;
+             while(k < ln)
+             {
+@@ -1118,7 +1104,7 @@
+             i++;
+          }
+          this._elemetnsSlots.length = this._slotsN;
+-         ln = int(this._elemetns.length);
++         ln = (this._elemetns.length);
+          st_index += i;
+          i = ln;
+          while(i > st_index)
+@@ -1126,7 +1112,7 @@
+             _element = this._elemetns.pop();
+             _element.removeEventListener(Event.CHANGE,this.onControlChanges);
+             _element.slider.removeEventListener(SliderEvent.VALUE_CHANGE,this.onChange);
+-            if(Boolean(_element.parent))
++            if(_element.parent)
+             {
+                this._items_container.removeContent(_element);
+             }
+@@ -1148,10 +1134,10 @@
+          }
+          if(this._ammoBags == this._slotsN)
+          {
+-            pos_of_last_ammo = uint(this._elemetns.indexOf(_element));
++            pos_of_last_ammo = (this._elemetns.indexOf(_element));
+          }
+          this._elemetns.sortOn(["pair","index"],Array.NUMERIC);
+-         ln2 = int(value.length);
++         ln2 = (value.length);
+          i = 0;
+          while(i < ln2)
+          {
+@@ -1160,17 +1146,20 @@
+             while(j < ln)
+             {
+                _element = this._elemetns[j];
+-               if(Boolean(_element) && (Boolean(itemData.slotId != 0 && itemData.slotId == _element.index) || Boolean(itemData.slotId == 0 && _element.getData() && itemData.dictId == _element.getData().dictId)))
+-               {
+-                  if((Boolean(this._softUpdate || _element.updated)) && Boolean(_element.getData()) && itemData.dictId == _element.getData().dictId)
++               if(_element && (itemData.slotId != 0 && itemData.slotId == _element.index || (itemData.slotId == 0 && _element.getData() && itemData.dictId == _element.getData().dictId)))
++               {
++                  if((this._softUpdate || _element.updated) && _element.getData() && itemData.dictId == _element.getData().dictId)
+                   {
+                      _element.name = value[i].name;
+                      _element.update(value[i],!this._softUpdate);
+                      break;
+                   }
+-                  _element.name = value[i].name;
+-                  _element.setData(value[i],true);
+-                  break;
++                  else
++                  {
++                     _element.name = value[i].name;
++                     _element.setData(value[i],true);
++                     break;
++                  }
+                }
+                j++;
+             }
+@@ -1183,7 +1172,7 @@
+             _elementSlot.data = null;
+             i++;
+          }
+-         itemsL = int(this._dataSlots.length);
++         itemsL = (this._dataSlots.length);
+          trace("fill_dataSlots",itemsL,"|",this._slotsN);
+          i = 0;
+          while(i < itemsL)
+@@ -1211,7 +1200,7 @@
+             if(!_element.getData() && _element.pair != PAIR_ITEMS && _element.index != 999)
+             {
+                list = this.getAmmoList(_element.pair,true);
+-               if(Boolean(list.length) && Boolean(list[0]))
++               if(list.length && list[0])
+                {
+                   _element.name = "[]" + list[0].name;
+                   _element.setData(list[0],true);
+@@ -1241,26 +1230,30 @@
+             i++;
+          }
+          this._elemetns.sortOn(["pair","itemLevel","index"],Array.NUMERIC);
+-         step_y = 144 + 5;
+-         step_x = 275 + 5;
+-         shift_y = 0;
+-         shift_x = 0;
+-         i = 0;
+-         while(i < ln)
++         var step_y:int = 144 + 5;
++         var step_x:int = 275 + 5;
++         var shift_y:int = 0;
++         var shift_x:int = 0;
++         var itemData:ItemData;
++         var k:int;
++         var elData:ItemData;
++         var index_iterator:int;
++         var new_index:uint;
++         for(i = 0; i < ln; i++)
+          {
+             _element = this._elemetns[i];
+-            if(!(!_element || !_element.parent))
+-            {
+-               _element.x = shift_x;
+-               _element.y = shift_y;
+-               shift_y += step_y;
+-               if(shift_y / step_y == 3)
+-               {
+-                  shift_y = 0;
+-                  shift_x += step_x;
+-               }
+-            }
+-            i++;
++            if(!_element || !_element.parent)
++            {
++               continue;
++            }
++            _element.x = shift_x;
++            _element.y = shift_y;
++            shift_y += step_y;
++            if(shift_y / step_y == 3)
++            {
++               shift_y = 0;
++               shift_x += step_x;
++            }
+          }
+          trace("ASL::updated");
+       }
