@@ -77,6 +77,17 @@ class CompilerIntegration(unittest.TestCase):
                     }
                     public function item():* { return value.items[0]; }
                     public function identity(value:int=1):int { return value; }
+                    public function compact(value:int):void {
+                        while(value>0) { Math.max(value,1); value--; }
+                        switch(value) {
+                            case 0: Math.max(value,4); break;
+                            case 1: Math.max(value,5); break;
+                            case 2: Math.max(value,6); break;
+                            default: Math.max(value,7);
+                        }
+                        try { Math.max(value,2); }
+                        catch(error:Error) { Math.max(0,3); }
+                    }
                 }
             }""")
 
@@ -128,6 +139,43 @@ class CompilerIntegration(unittest.TestCase):
                                 int cls = abc.findClassByName("Probe");
                                 if (cls < 0) continue;
                                 for (var methodBody : abc.bodies) MovieSource.exactCode(methodBody);
+                                if (args[2].startsWith("compact-")) {
+                                    var owners=MovieSource.names(abc);
+                                    var body=abc.bodies.stream().filter(b -> owners.get(b.method_info).contains("\\\"compact\\\""))
+                                        .findFirst().orElseThrow();
+                                    var code=body.getCode();
+                                    if(args[2].equals("compact-reference")) {
+                                        int lookups=0,calls=0;
+                                        for(int i=code.code.size()-2;i>=0;i--) {
+                                            var a=code.code.get(i);var b=code.code.get(i+1);
+                                            int op=a.definition.instructionCode,replacement=0;
+                                            if(op==0x5d && b.definition.instructionCode==0x66
+                                                && java.util.Arrays.equals(a.operands,b.operands)) {replacement=0x60;lookups++;}
+                                            if(op==0x46 && b.definition.instructionCode==0x29) {replacement=0x4f;calls++;}
+                                            if(replacement!=0) {
+                                                code.replaceInstruction(i,new AVM2Instruction(0,replacement,a.operands.clone()),body);
+                                                code.removeInstruction(i+1,body);
+                                            }
+                                        }
+                                        if(lookups<3 || calls<3 || body.exceptions.length==0)throw new IOException("Missing compact fixture");
+                                        if(code.code.stream().noneMatch(i->i.definition.instructionCode==0x1b))
+                                            throw new IOException("Missing compact switch table");
+                                    } else {
+                                        int pair=-1;
+                                        for(int i=0;i+1<code.code.size();i++)if(code.code.get(i).definition.instructionCode==0x46
+                                            && code.code.get(i+1).definition.instructionCode==0x29){pair=i;break;}
+                                        if(pair<0)throw new IOException("Missing discarded call");
+                                        int middle=(int)code.code.get(pair+1).getAddress();
+                                        if(args[2].equals("compact-target")) {
+                                            var branch=code.code.stream().filter(i->i.definition.instructionCode>=0x0c
+                                                && i.definition.instructionCode<=0x1a).findFirst().orElseThrow();
+                                            branch.operands[0]=middle-(int)branch.getAddress()-branch.getBytesLength();
+                                        } else if(args[2].equals("compact-handler")) body.exceptions[0].end=middle;
+                                        else if(args[2].equals("compact-argc"))code.code.get(pair).operands[1]++;
+                                        else throw new IOException("Unknown compact mutation");
+                                    }
+                                    body.setCode(code);((Tag)tag).setModified(true);changed++;continue;
+                                }
                                 if (args[2].equals("feature-pool")) {
                                     var reference=new SWF(Files.newInputStream(Path.of(args[3])),true);
                                     var original=reference.getAbcList().stream().map(t->t.getABC())
@@ -459,6 +507,22 @@ class CompilerIntegration(unittest.TestCase):
             def mutate(source, destination, mode, *extra):
                 subprocess.run([config["java"], "-cp", str(root) + os.pathsep + str(root / "bridge") + os.pathsep + config["ffdec"], "WildcardFixture",
                                 str(source), str(destination), mode, *map(str, extra)], check=True, timeout=60)
+
+            compact_reference = root / "compact-reference.swf"
+            mutate(accepted_file, compact_reference, "compact-reference")
+            self.assertNotEqual(movie_source.uncompressed(accepted_file), movie_source.uncompressed(compact_reference))
+            compact_linked = root / "compact-linked.swf"
+            result = tools.run("link-layout", compact_reference, accepted_file, compact_linked, "Probe",
+                               log=root / "compact-link.log")
+            self.assertEqual(result.returncode, 0, (root / "compact-link.log").read_text())
+            self.assertEqual(movie_source.uncompressed(compact_reference), movie_source.uncompressed(compact_linked))
+            for mode in ("target", "handler", "argc"):
+                corrupted, destination = root / (mode + "-compact.swf"), root / (mode + "-compact-linked.swf")
+                mutate(accepted_file, corrupted, "compact-" + mode)
+                result = tools.run("link-layout", compact_reference, corrupted, destination, "Probe",
+                                   log=root / (mode + "-compact.log"))
+                self.assertNotEqual(result.returncode, 0, mode)
+                self.assertFalse(destination.exists(), mode)
 
             combined = root / "combined.swf"
             retained_source = root / "Retained.as"

@@ -16,6 +16,14 @@
       "pristine_sha256": "e072882fc856ac960e6425370979727ff227edffee98681b4009e191875dbe96",
       "reason": "Recover the repository-authored rooms implementation, including explicit String conversions and original declarations. FFDec 25.1.3 recompilation reproduces every original ABC byte.",
       "result_sha256": "cfe3cebded3eb4567cad5f6972c68e35b62111f2d19c955ba32b897e771c12bf"
+    },
+    {
+      "class": "survarium.controls.TopMenu",
+      "patch": "survarium/controls/TopMenu.patch",
+      "patch_sha256": "123f3d88b4711300228f4c21e812a91d43d9675d28b45d7b409f813a71901f97",
+      "pristine_sha256": "edab05f559e341be7a760dd12317298d41e37c26fa6b69b84d8df56144b60c51",
+      "reason": "Recover unqualified instance-field assignments, identifier object keys and direct truth tests. Compact room-hook calls use the verified ASC lookup/call folding rules.",
+      "result_sha256": "6c51d3b4d2a66e27325cff222b27842f8accc95da3a4b1b5cfeefb56564a1f30"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

@@ -260,7 +260,10 @@ It has not been installed, shipped or verified in the game.
 The full linking pass over the earlier 878-script strict Flex sweep has finished:
 **613 exact compressed movies, 253 refused outputs, and 12 compilation failures**.
 This pass uses the newer linker but the older compiler import path. The separate
-native-import sweep is still running. Neither report proves that all classes
+native-import sweep subsequently finished with 864 compiled scripts and 14
+failures, including the two non-class imports described below. Its saved compiler
+predates the external-player-API fix; a new layout pass is running over those
+outputs. Neither report proves that all classes
 can rebuild together; whole-tree reconstruction remains incomplete.
 
 All **13 tests** pass with the feature gate, including real Flex builds. The
@@ -295,3 +298,30 @@ refused: its method bodies match, but its script method dispatch ID differs
 
 The real Flex fixture now compiles and links both a namespace and a global
 function, tests the namespace's automatic-slot layout, and rejects slot 2.
+
+## TopMenu source reconstruction and mixed compiler encodings
+
+`TopMenu` now reproduces the **complete compressed release movie** after strict
+Flex compilation and layout emission. Its per-class diff restores unqualified
+instance-field assignments, identifier object-literal keys and direct truth
+tests. Removing the decompiler's explicit `this.` on these assignments makes
+ASC emit the original `initproperty` instructions directly. No assignment
+opcode normalization was necessary.
+
+Only the two `SrpRooms` hooks then differed. They use compact lookup/call
+instructions within otherwise expanded methods. The linker now implements the
+two corresponding adjacent-instruction folds from Apache Flex's pinned Encoder:
+same-QName lookup pairs and calls whose result is immediately discarded. It
+requires the complete method to match after these folds and proves that all
+branches, switches and exception boundaries still identify the same output
+instruction. It refuses any boundary entering a folded pair. The resulting
+instructions retain the compiler's operands; no original method body is copied.
+
+The real compiler fixture exercises both folds in a method containing a loop,
+a switch table and an exception handler. It tests rejection of a changed call argument count,
+a branch into the discarded-result instruction, and a handler boundary there.
+All 13 tests pass. A fresh build from the tracked reconstruction manifest again
+reproduces the exact movie for `TopMenu`. Rebuilding `premium-affordability`
+with this linker produces the same candidate SHA-256 recorded above: one changed
+method, all 7,758 methods reparsed, and identical non-code content. Runtime
+verification remains outstanding.

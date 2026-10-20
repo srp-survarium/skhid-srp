@@ -162,7 +162,7 @@ have to match. A sole script class, variable or constant's explicit slot 1 can
 use the original automatically assigned slot encoding (0), with its name, kind,
 type and initial value still checked. Other slot numbers remain unchanged.
 
-There is also one explicit code-generation rule: for a script defining exactly
+For a script defining exactly
 one class, the generated global binding can use `findpropstrict` for that class
 instead of `getscopeobject 0`. The matcher requires the complete straight-line
 ASC class-initializer shape, a singleton public namespace, one register, and no
@@ -170,6 +170,18 @@ exception handlers or body traits. It emits a new lookup instruction from the
 declared class binding; it never copies the original initializer. Unknown
 shapes, a different scope operand, and other instruction changes remain rejected.
 The original method bodies are never substituted for failed compiler output.
+
+The emitter also supports two adjacent-instruction folds used by
+[Apache Flex's pinned Encoder](https://github.com/apache/flex-sdk/blob/1644730bd54105c8aab234af7c1a08b2af17865d/modules/asc/src/java/macromedia/abc/Encoder.java):
+`findpropstrict` plus `getproperty` of the same QName becomes `getlex`, and
+`callproperty` plus `pop` becomes `callpropvoid`. This handles movies containing
+both compact and expanded encodings. A whole method must match after only these
+folds, including names, argument counts, branches, switch targets and exception
+boundaries. No control-flow or exception boundary may enter the middle of a
+folded pair. The output uses the compiler's operands and relocated control flow;
+verifier limits and all other method records must still pass the exact checks.
+The rule does not reconcile other changes within an edited feature method.
+
 Original debugger file/line/register directives can also be emitted after every
 non-debug instruction compares equal to the compiler output. Branch and switch
 targets and exception boundaries must identify the same executable instruction;
@@ -210,12 +222,15 @@ arguments remain present. `SrpRooms` uses its repository-authored source and
 FFDec 25.1.3; it reproduces the original ABCs directly, and the complete compressed
 movie after reassembly. Its explicit conversion calls and original declarations
 avoid defects introduced by decompilation.
+`TopMenu` also reproduces the complete compressed movie: its diff recovers
+unqualified instance-field assignments, identifier object keys and direct truth
+tests, while the emitter reproduces the room hooks' compact lookup/call encoding.
 
 Use `--compiler reconstruction` with the pinned patch manifest to select these
 per-class compilers in one measurement. Classes without an override use
 `flex-strict`; every report row records the compiler actually used. Explicit
 `--compiler ffdec`, `flex` or `flex-strict` still selects that compiler for every
-class, for comparison experiments. The per-class profile currently proves two
+class, for comparison experiments. The per-class profile currently proves three
 reconstructed classes, not the whole tree.
 
 ## Building a source feature

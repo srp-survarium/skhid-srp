@@ -793,6 +793,100 @@ public final class MovieSource {
         return opcode == 0xef || opcode == 0xf0 || opcode == 0xf1;
     }
 
+    // ASC Encoder.OP_getproperty and OP_pop fold these exact adjacent pairs.
+    // https://github.com/apache/flex-sdk/blob/1644730bd54105c8aab234af7c1a08b2af17865d/modules/asc/src/java/macromedia/abc/Encoder.java
+    // Mixed-tool movies can contain both encodings in one method. Match the
+    // entire method and its control-flow graph before selecting the shorter
+    // encoding; never transfer executable instructions from the reference.
+    static void emitCompactOperations(ABC original, ABC compiled) throws IOException {
+        for (MethodBody body : compiled.bodies) {
+            MethodBody reference = original.findBody(body.method_info);
+            if (reference == null || reference.exceptions.length != body.exceptions.length) continue;
+            var layout = reference.getCode().code;
+            var expected = layout.stream().filter(i -> !debugInstruction(i)).toList();
+            var emitted = body.getCode().code;
+            if (emitted.stream().anyMatch(MovieSource::debugInstruction)) continue;
+            ArrayList<AVM2Instruction> result = new ArrayList<>();
+            List<int[]> targets = new ArrayList<>();
+            Map<Integer, Integer> positions = new HashMap<>();
+            boolean matching = true, folded = false;
+            int next = 0, end = 0;
+            for (var wanted : expected) {
+                if (next == emitted.size()) { matching = false; break; }
+                var instruction = emitted.get(next);
+                int opcode = instruction.definition.instructionCode, desired = wanted.definition.instructionCode;
+                int consumed = 1;
+                if (opcode != desired) {
+                    if (next + 1 >= emitted.size()) { matching = false; break; }
+                    var following = emitted.get(next + 1);
+                    boolean lookup = desired == 0x60 && opcode == 0x5d
+                        && following.definition.instructionCode == 0x66
+                        && Arrays.equals(instruction.operands, following.operands)
+                        && instruction.operands.length == 1
+                        && compiled.constants.getMultiname(instruction.operands[0]).kind == 0x07;
+                    boolean discardedCall = desired == 0x4f && opcode == 0x46
+                        && following.definition.instructionCode == 0x29;
+                    if (!lookup && !discardedCall) { matching = false; break; }
+                    consumed = 2;
+                    folded = true;
+                }
+                int[] branches = branchTargets(instruction);
+                if (branches.length == 0 && !Arrays.equals(wanted.operands, instruction.operands)) {
+                    matching = false; break;
+                }
+                positions.put((int)instruction.getAddress(), result.size());
+                result.add(new AVM2Instruction(0, desired, instruction.operands == null ? null : instruction.operands.clone()));
+                targets.add(branches);
+                var last = emitted.get(next + consumed - 1);
+                end = (int)last.getAddress() + last.getBytesLength();
+                next += consumed;
+            }
+            if (!matching || !folded || next != emitted.size()) continue;
+            positions.put(end, result.size());
+            var oldPositions = executablePositions(layout);
+            // The interior of a folded pair has no output boundary. Branches,
+            // switch entries and exception boundaries may not enter it.
+            for (int i = 0; i < result.size(); i++) {
+                int[] a = branchTargets(expected.get(i)), b = targets.get(i);
+                if (a.length != b.length) { matching = false; break; }
+                for (int j = 0; j < a.length; j++) {
+                    Integer target = positions.get(b[j]);
+                    if (target == null || !target.equals(oldPositions.get(a[j]))) matching = false;
+                }
+            }
+            for (int i = 0; i < body.exceptions.length; i++) {
+                var a = reference.exceptions[i]; var b = body.exceptions[i];
+                if (a.type_index != b.type_index || a.name_index != b.name_index) matching = false;
+                int[] oldBounds = {a.start, a.end, a.target}, newBounds = {b.start, b.end, b.target};
+                for (int j = 0; j < 3; j++) {
+                    Integer target = positions.get(newBounds[j]);
+                    if (target == null || !target.equals(oldPositions.get(oldBounds[j]))) matching = false;
+                }
+            }
+            if (!matching) continue;
+            var code = new AVM2Code(result);
+            code.markOffsets();
+            int[] offsets = new int[result.size() + 1];
+            for (int i = 0; i < result.size(); i++) offsets[i + 1] = offsets[i] + result.get(i).getBytesLength();
+            for (int i = 0; i < result.size(); i++) {
+                var instruction = result.get(i);
+                boolean table = instruction.definition.instructionCode == 0x1b;
+                int[] branches = targets.get(i);
+                for (int j = 0; j < branches.length; j++) {
+                    int offset = offsets[positions.get(branches[j])] - offsets[i + (table ? 0 : 1)];
+                    if (offset < -0x800000 || offset > 0x7fffff) throw new IOException("Folded branch exceeds signed 24-bit range");
+                    instruction.operands[table && j > 0 ? j + 1 : j] = offset;
+                }
+            }
+            for (var handler : body.exceptions) {
+                handler.start = offsets[positions.get(handler.start)];
+                handler.end = offsets[positions.get(handler.end)];
+                handler.target = offsets[positions.get(handler.target)];
+            }
+            body.setCode(code);
+        }
+    }
+
     static int[] branchTargets(AVM2Instruction instruction) {
         int opcode = instruction.definition.instructionCode, address = (int)instruction.getAddress();
         if (opcode >= 0x0c && opcode <= 0x1a)
@@ -891,7 +985,7 @@ public final class MovieSource {
 
     // Conservative first layout linker. It never imports an original method
     // body. Executable records and class/script definitions come from the
-    // compiler, with the narrow class-binding emission rule above. Existing
+    // compiler, with the class-binding and compact-operation rules above. Existing
     // pool entries must retain their original indices and
     // values; unused appended constants, compiler debug names and Adobe editor
     // navigation metadata follow the original layout. A byte comparison of the
@@ -1005,6 +1099,7 @@ public final class MovieSource {
         restoreMethodOrder(original, compiled);
         emitScriptClassBindings(original, compiled);
         restoreScriptSlot(original, compiled);
+        emitCompactOperations(original, compiled);
         retainDebugDirectives(original, compiled);
         if (compiled.metadata_info.size() < original.metadata_info.size()) throw new IOException("Metadata pool compacted");
         for (int i = 0; i < original.metadata_info.size(); i++) {

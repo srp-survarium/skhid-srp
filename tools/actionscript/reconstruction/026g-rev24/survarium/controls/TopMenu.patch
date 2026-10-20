@@ -1,0 +1,198 @@
+--- a/survarium/controls/TopMenu.as
++++ b/survarium/controls/TopMenu.as
+@@ -62,7 +62,7 @@
+       
+       public function set questButton(param1:Button) : void
+       {
+-         this._questButton = param1;
++         _questButton = param1;
+          this._questButton.toggle = true;
+          this._questButton.addEventListener(ButtonEvent.CLICK,this.showQuests);
+       }
+@@ -88,7 +88,7 @@
+       private function setByUser(param1:Boolean) : void
+       {
+          trace("setByUser",param1);
+-         this._byUser = param1;
++         _byUser = param1;
+          stackTrace("_affectByUser");
+       }
+       
+@@ -124,7 +124,7 @@
+       public function lockIndex(param1:int, param2:Boolean) : void
+       {
+          var _loc3_:Object = this.tabPage.dataProvider[param1];
+-         if(Boolean(_loc3_))
++         if(_loc3_)
+          {
+             _loc3_.enabled = !param2;
+          }
+@@ -142,21 +142,21 @@
+          {
+             return;
+          }
+-         this.locked = param1;
++         locked = param1;
+          this.tabPage.dataProvider[this.CHAR_INDEX] = {
+-            "name":LocalizationData.getName("character"),
+-            "icon":1,
+-            "enabled":!param1
++            name:LocalizationData.getName("character"),
++            icon:1,
++            enabled:!param1
+          };
+          this.tabPage.dataProvider[this.SHOP_INDEX] = {
+-            "name":LocalizationData.getName("shop"),
+-            "icon":3,
+-            "enabled":!param1
++            name:LocalizationData.getName("shop"),
++            icon:3,
++            enabled:!param1
+          };
+          this.tabPage.dataProvider[this.INV_INDEX] = {
+-            "name":LocalizationData.getName("inventrory"),
+-            "icon":2,
+-            "enabled":!param1
++            name:LocalizationData.getName("inventrory"),
++            icon:2,
++            enabled:!param1
+          };
+          if((this.tabPage.selectedIndex == this.SHOP_INDEX || this.tabPage.selectedIndex == this.INV_INDEX || this.tabPage.selectedIndex == this.CHAR_INDEX) && param1 == true)
+          {
+@@ -168,28 +168,28 @@
+       protected function fill_windows(param1:String) : void
+       {
+          this.tabPage.dataProvider = new DataProvider([{
+-            "name":LocalizationData.getName("character"),
+-            "icon":1
+-         },{
+-            "name":LocalizationData.getName("inventrory"),
+-            "icon":2
+-         },{
+-            "name":LocalizationData.getName("shop"),
+-            "icon":3
+-         },{
+-            "name":LocalizationData.getName("clan"),
+-            "icon":4
+-         },{
+-            "name":LocalizationData.getName("map"),
+-            "icon":6,
+-            "enabled":false
+-         },{
+-            "name":LocalizationData.getName("ranking"),
+-            "icon":5
+-         },{
+-            "name":LocalizationData.getName("missions"),
+-            "icon":7,
+-            "enabled":true
++            name:LocalizationData.getName("character"),
++            icon:1
++         },{
++            name:LocalizationData.getName("inventrory"),
++            icon:2
++         },{
++            name:LocalizationData.getName("shop"),
++            icon:3
++         },{
++            name:LocalizationData.getName("clan"),
++            icon:4
++         },{
++            name:LocalizationData.getName("map"),
++            icon:6,
++            enabled:false
++         },{
++            name:LocalizationData.getName("ranking"),
++            icon:5
++         },{
++            name:LocalizationData.getName("missions"),
++            icon:7,
++            enabled:true
+          }]);
+          this.tabPage.addEventListener(IndexEvent.INDEX_CHANGE,this.changeActiveMenu);
+          SrpRooms.topMenu(this);
+@@ -197,11 +197,11 @@
+       
+       protected function changeActiveMenu(param1:IndexEvent) : void
+       {
+-         if(Boolean(MainScene.activePop) && Boolean(MainScene.activePop.closePopup))
++         if(MainScene.activePop && MainScene.activePop.closePopup)
+          {
+             MainScene.activePop.closePopup();
+          }
+-         if(Boolean(this.currentUI) && this.currentUI.visible == true)
++         if(this.currentUI && this.currentUI.visible == true)
+          {
+             this.currentUI.removeEventListener(Event.CLOSE,this.onClose);
+             this.currentUI.closeWindow();
+@@ -210,44 +210,44 @@
+          this._questButton.selected = this.tabPage.selectedIndex == this.QUESTS_INDEX;
+          if(this.tabPage.selectedIndex == this.CHAR_INDEX)
+          {
+-            this.currentUI = this.sceneContainer["charWindow"];
++            currentUI = this.sceneContainer["charWindow"];
+          }
+          else if(this.tabPage.selectedIndex == this.INV_INDEX)
+          {
+-            this.currentUI = this.sceneContainer["inventory_list"];
++            currentUI = this.sceneContainer["inventory_list"];
+             this.sceneContainer["inventory_list"].toggleShopMode(false);
+          }
+          else if(this.tabPage.selectedIndex == this.SHOP_INDEX)
+          {
+-            this.currentUI = this.sceneContainer["inventory_list"];
++            currentUI = this.sceneContainer["inventory_list"];
+             this.sceneContainer["inventory_list"].toggleShopMode(true);
+          }
+          else if(this.tabPage.selectedIndex == this.QUESTS_INDEX)
+          {
+-            this.currentUI = this.sceneContainer["questWindow"];
++            currentUI = this.sceneContainer["questWindow"];
+             trace("QUESTS_INDEX",this.currentUI);
+             this.sceneContainer["questWindow"].onActivate();
+          }
+          else if(this.tabPage.selectedIndex == this.RANK_INDEX)
+          {
+-            this.currentUI = this.sceneContainer["ranking"];
++            currentUI = this.sceneContainer["ranking"];
+             this.sceneContainer["ranking"].onActivate();
+          }
+          else if(this.tabPage.selectedIndex == this.CLAN_INDEX)
+          {
+-            this.currentUI = this.sceneContainer["clanWindow"];
++            currentUI = this.sceneContainer["clanWindow"];
+             this.sceneContainer["clanWindow"].onActivate();
+          }
+          else
+          {
+-            this.currentUI = null;
++            currentUI = null;
+             MainScene.activeWindow = null;
+          }
+-         if(Boolean(this.currentUI))
++         if(this.currentUI)
+          {
+             trace("changeActiveMenu",this._byUser);
+             MainScene.activeWindow = this.currentUI;
+-            if(Boolean(this.sceneContainer["victory_screen"]) && Boolean(this.sceneContainer["victory_screen"].parent))
++            if(this.sceneContainer["victory_screen"] && this.sceneContainer["victory_screen"].parent)
+             {
+                this.sceneContainer.addChildAt(this.currentUI,Math.max(this.sceneContainer.getChildIndex(this.sceneContainer["victory_screen"]) - 1,0));
+             }
+@@ -262,7 +262,7 @@
+          {
+             MainScene.activeWindow = null;
+          }
+-         this._byUser = true;
++         _byUser = true;
+          SrpRooms.topChanged(this);
+       }
+       
+@@ -274,7 +274,7 @@
+       
+       override protected function configUI() : void
+       {
+-         this.sceneContainer = parent.parent as MovieClip;
++         sceneContainer = parent.parent as MovieClip;
+          this.sceneContainer["shop_list"].visible = false;
+          this.sceneContainer["charWindow"].visible = false;
+          this.sceneContainer["inventory_list"].visible = false;
