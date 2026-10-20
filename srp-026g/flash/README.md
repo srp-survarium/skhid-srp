@@ -66,7 +66,8 @@ raw FFDec tree again, without these changes.
   options; each file declares the constants it uses. The groups: `SOUND` (the order of
   `gameplay/ui_sounds`), `KEY` (key codes), `CATEGORY` (`item_category`), `SUPER_CATEGORY`
   (`ItemFactory.getCategory`), `PLACE` (`ItemData.descriptor`: inventory, shop, bundle; below 100
-  the profile slot) and `MOUSE` (`MouseEventEx` buttons).
+  the profile slot), `MOUSE` (`MouseEventEx` buttons) and `GAMEPAD` (the key codes Scaleform gives
+  gamepad buttons, in `InputDelegate`).
 
 ```sh
 # Is the tree the baseline?

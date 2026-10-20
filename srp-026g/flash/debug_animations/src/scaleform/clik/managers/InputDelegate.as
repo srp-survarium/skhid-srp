@@ -9,6 +9,20 @@ package scaleform.clik.managers
    import scaleform.clik.events.InputEvent;
    import scaleform.clik.ui.InputDetails;
    import scaleform.gfx.KeyboardEventEx;
+
+   config namespace GAMEPAD;
+   GAMEPAD const A:int = 96;
+   GAMEPAD const B:int = 97;
+   GAMEPAD const X:int = 98;
+   GAMEPAD const Y:int = 99;
+   GAMEPAD const L1:int = 100;
+   GAMEPAD const L2:int = 101;
+   GAMEPAD const L3:int = 102;
+   GAMEPAD const R1:int = 103;
+   GAMEPAD const R2:int = 104;
+   GAMEPAD const R3:int = 105;
+   GAMEPAD const START:int = 106;
+   GAMEPAD const BACK:int = 107;
    
    public class InputDelegate extends EventDispatcher
    {
@@ -102,29 +116,29 @@ package scaleform.clik.managers
                   return NavigationCode.PAGE_UP;
                case Keyboard.ESCAPE:
                   return NavigationCode.ESCAPE;
-               case 96:
+               case GAMEPAD::A:
                   return NavigationCode.GAMEPAD_A;
-               case 97:
+               case GAMEPAD::B:
                   return NavigationCode.GAMEPAD_B;
-               case 98:
+               case GAMEPAD::X:
                   return NavigationCode.GAMEPAD_X;
-               case 99:
+               case GAMEPAD::Y:
                   return NavigationCode.GAMEPAD_Y;
-               case 100:
+               case GAMEPAD::L1:
                   return NavigationCode.GAMEPAD_L1;
-               case 101:
+               case GAMEPAD::L2:
                   return NavigationCode.GAMEPAD_L2;
-               case 102:
+               case GAMEPAD::L3:
                   return NavigationCode.GAMEPAD_L3;
-               case 103:
+               case GAMEPAD::R1:
                   return NavigationCode.GAMEPAD_R1;
-               case 104:
+               case GAMEPAD::R2:
                   return NavigationCode.GAMEPAD_R2;
-               case 105:
+               case GAMEPAD::R3:
                   return NavigationCode.GAMEPAD_R3;
-               case 106:
+               case GAMEPAD::START:
                   return NavigationCode.GAMEPAD_START;
-               case 107:
+               case GAMEPAD::BACK:
                   return NavigationCode.GAMEPAD_BACK;
             }
          }

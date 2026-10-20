@@ -221,7 +221,7 @@
     "scaleform/clik/layout/LayoutData.as": "c6ddeca24f1a54cbc1cded1907a64941d440d1fd84f93a3066bf99c66c43d3b5",
     "scaleform/clik/managers/DragManager.as": "64899c175227d418d27795b0412119bcfdd250313ef2ad683d1c6abce5c0a732",
     "scaleform/clik/managers/FocusHandler.as": "d71ba25db004187f35c5d65d5044bf1404b030ab08b2bf4709228832ddda2fb3",
-    "scaleform/clik/managers/InputDelegate.as": "4bf7a88196494e4524cb501364342e504d1bffea61ca96b20e2e30a6c38446e5",
+    "scaleform/clik/managers/InputDelegate.as": "78829be243289f2bc20d95a06e466cca2a07a04ac7da897ebd615c8ad9034603",
     "scaleform/clik/managers/PopUpManager.as": "a57b7f25dba975009c3f1d74cfa62b169fd55d6865ca071464223270ec383fb0",
     "scaleform/clik/motion/Tween.as": "629d76a08d2dc8af7786286cf9df4a6b468d0369f175781d871c2bb04f8d179f",
     "scaleform/clik/ui/InputDetails.as": "194029bc427b1ff33e60e839311747a365faa08e3537822b24d3a45dabd7f64d",
