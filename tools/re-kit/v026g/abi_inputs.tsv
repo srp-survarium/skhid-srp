@@ -2646,6 +2646,7 @@ va	name	location	role	basis
 0x002f84c0	survarium::usable_object::deserialize_usable_object	EDI	reader	inferred
 0x002f8510	survarium::usable_object::post_deserialize_resolve	ECX	usable_receiver	inferred
 0x002f8510	survarium::usable_object::post_deserialize_resolve	ESI	world	inferred
+0x002f8c30	survarium::collision_geometry::load	stack+4	config (binary_config_value by value, 8 bytes)	observed
 0x002fc4b0	survarium::inventory::inventory	EAX	inventory_storage	inferred
 0x002fc560	survarium::inventory::`scalar deleting destructor'	ECX	inventory receiver	inferred
 0x002fc560	survarium::inventory::`scalar deleting destructor'	stack+4	deallocation flags bit0	inferred
@@ -3032,6 +3033,9 @@ va	name	location	role	basis
 0x0033a6a0	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression	stack+12	substate context	inferred
 0x0033a6a0	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression	stack+20	metadata output pointer	inferred
 0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	EDX	throw-grenade state	inferred
+0x0033bb50	survarium::generic_anomaly_core::on_player_action	ECX	player_actions_subscriber subobject (core+8)	observed
+0x0033bb50	survarium::generic_anomaly_core::on_player_action	stack+8	action: a jump table of handlers, each adds its energy_on_* x param and clamps to energy_maximum when above 0	observed
+0x0033bb50	survarium::generic_anomaly_core::on_player_action	stack+12	param (f32)	observed
 0x0033bcd0	survarium::generic_anomaly_core::on_artefact_container_use	ECX	generic_anomaly_core	observed
 0x0033bcd0	survarium::generic_anomaly_core::on_artefact_container_use	stack+4	artefact_container_core	observed
 0x0033bcd0	survarium::generic_anomaly_core::on_artefact_container_use	stack+8	current_time_ms	observed
@@ -3156,6 +3160,10 @@ va	name	location	role	basis
 0x0034d040	vostok::render::culling::portal_sector_structure::update_portals_visability	ESI	portal structure owner	observed
 0x0034d040	vostok::render::culling::portal_sector_structure::update_portals_visability	entry ESP+4	query-volume pointer forwarded to virtual3C	observed
 0x0034d040	vostok::render::culling::portal_sector_structure::update_portals_visability	entry ESP+8	visibility-byte-array pointer	observed
+0x003578f0	vostok::physics::bt_ghost_object::bt_ghost_object	stack+4	memory of the ghost (0x1C bytes)	observed
+0x003578f0	vostok::physics::bt_ghost_object::bt_ghost_object	stack+8	shape, kept at +10h	observed
+0x003578f0	vostok::physics::bt_ghost_object::bt_ghost_object	stack+12	the bullet object (btCollisionObject, world transform at +10h, origin +40h), kept at +18h; its +F8h = the ghost	observed
+0x00357aa0	vostok::physics::create_ghost_object	stack+8	float4x4 transform (copied into the bullet object by 0x70C20)	observed
 0x00376280	vostok::network::login_client::create_client	ECX	login-client receiver	observed
 0x003762d0	vostok::network::login_client::login_client	EAX	world pointer	observed
 0x003762d0	vostok::network::login_client::login_client	EDI	login-client receiver	observed

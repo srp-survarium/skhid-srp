@@ -1132,6 +1132,7 @@ va	name	source	ret_cleanup	result
 0x002f8460	survarium::usable_object::serialize_usable_object	manual	0	
 0x002f84c0	survarium::usable_object::deserialize_usable_object	manual	0	
 0x002f8510	survarium::usable_object::post_deserialize_resolve	manual	0	
+0x002f8c30	survarium::collision_geometry::load	manual	8	
 0x002fc4b0	survarium::inventory::inventory	manual	0	
 0x002fc560	survarium::inventory::`scalar deleting destructor'	manual	4	
 0x002fc620	survarium::inventory::set_item	manual	4	
@@ -1301,6 +1302,7 @@ va	name	source	ret_cleanup	result
 0x0033a650	survarium::weapon_core_throw_grenade_state::is_ready_for_transition	manual	0	
 0x0033a6a0	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression	manual	20	
 0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	manual	0	
+0x0033bb50	survarium::generic_anomaly_core::on_player_action	manual	12	
 0x0033bcd0	survarium::generic_anomaly_core::on_artefact_container_use	manual	8	
 0x0033bd50	survarium::generic_anomaly_core::load	manual	4	
 0x0033c440	survarium::generic_anomaly_core::resolve_links	manual	28	
@@ -1360,6 +1362,8 @@ va	name	source	ret_cleanup	result
 0x0034ce30	vostok::render::culling::portal_sector_structure::sort_portal_ids	manual	4	
 0x0034ce80	vostok::render::culling::portal_sector_structure::initialize_portals_geometry	manual	4	
 0x0034d040	vostok::render::culling::portal_sector_structure::update_portals_visability	manual	8	
+0x003578f0	vostok::physics::bt_ghost_object::bt_ghost_object	manual	12	EAX: the ghost
+0x00357aa0	vostok::physics::create_ghost_object	manual		EAX: the bt_ghost_object (kept at collision_geometry+18h)
 0x00376280	vostok::network::login_client::create_client	manual	0	
 0x003762d0	vostok::network::login_client::login_client	manual	0	EAX: receiver pointer explicitly moved intoEAX at normal return
 0x00376520	vostok::network::login_client::~login_client	manual	0	

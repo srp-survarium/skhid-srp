@@ -1131,6 +1131,7 @@ va	status	ref_021d	name
 0x002f8460	reviewed	0x001e8b65	survarium::usable_object::serialize_usable_object
 0x002f84c0	reviewed	0x001e8bcb	survarium::usable_object::deserialize_usable_object
 0x002f8510	reviewed	0x001e8c2c	survarium::usable_object::post_deserialize_resolve
+0x002f8c30	reviewed	0x001deff5	survarium::collision_geometry::load
 0x002fa050	reviewed	0x001dffde	survarium::victory_item_core_cook::process_loading_victory_item_core
 0x002fc4b0	reviewed	0x001faa61	survarium::inventory::inventory
 0x002fc560	reviewed	0x001faacf	survarium::inventory::`scalar deleting destructor'
@@ -1316,6 +1317,7 @@ va	status	ref_021d	name
 0x0033a650	reviewed	0x002092b0	survarium::weapon_core_throw_grenade_state::is_ready_for_transition
 0x0033a6a0	reviewed	0x00208ffa	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression
 0x0033a7e0	reviewed	0x002091b6	survarium::weapon_core_throw_grenade_state::attach_grenade
+0x0033bb50	reviewed	0x001eeeeb	survarium::generic_anomaly_core::on_player_action
 0x0033bcd0	reviewed	0x001eefef	survarium::generic_anomaly_core::on_artefact_container_use
 0x0033bd50	reviewed	0x001ee5df	survarium::generic_anomaly_core::load
 0x0033c440	reviewed	0x001eeaa2	survarium::generic_anomaly_core::resolve_links
@@ -1377,6 +1379,8 @@ va	status	ref_021d	name
 0x0034ce30	reviewed	0x002148e6	vostok::render::culling::portal_sector_structure::sort_portal_ids
 0x0034ce80	reviewed	0x002149aa	vostok::render::culling::portal_sector_structure::initialize_portals_geometry
 0x0034d040	reviewed	0x00214afc	vostok::render::culling::portal_sector_structure::update_portals_visability
+0x003578f0	reviewed	0x0021be7f	vostok::physics::bt_ghost_object::bt_ghost_object
+0x00357aa0	reviewed	0x0021bed1	vostok::physics::create_ghost_object
 0x00376280	reviewed	0x0023514e	vostok::network::login_client::create_client
 0x003762d0	reviewed	0x002351c8	vostok::network::login_client::login_client
 0x00376520	reviewed	0x00235345	vostok::network::login_client::~login_client
