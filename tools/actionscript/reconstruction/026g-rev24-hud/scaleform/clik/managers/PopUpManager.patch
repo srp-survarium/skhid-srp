@@ -1,0 +1,47 @@
+--- a/scaleform/clik/managers/PopUpManager.as
++++ b/scaleform/clik/managers/PopUpManager.as
+@@ -12,6 +12,8 @@
+    public class PopUpManager
+    {
+       
++      protected static var initialized:Boolean = false;
++      
+       protected static var _stage:Stage;
+       
+       protected static var _defaultPopupCanvas:MovieClip;
+@@ -19,8 +21,6 @@
+       protected static var _modalMc:Sprite;
+       
+       protected static var _modalBg:Sprite;
+-      
+-      protected static var initialized:Boolean = false;
+       
+       public function PopUpManager()
+       {
+@@ -47,7 +47,7 @@
+             trace("PopUpManager has not been initialized. Automatic initialization has not occured or has failed; call PopUpManager.init() manually.");
+             return;
+          }
+-         if(Boolean(mc.parent))
++         if(mc.parent)
+          {
+             mc.parent.removeChild(mc);
+          }
+@@ -72,7 +72,7 @@
+             trace("PopUpManager has not been initialized. Automatic initialization has not occured or has failed; call PopUpManager.init() manually.");
+             return;
+          }
+-         if(Boolean(_modalMc))
++         if(_modalMc)
+          {
+             _defaultPopupCanvas.removeChild(_modalMc);
+          }
+@@ -113,7 +113,7 @@
+       protected static function handleRemoveModalMc(e:Event) : void
+       {
+          _modalBg.removeEventListener(Event.REMOVED_FROM_STAGE,handleRemoveModalMc,false);
+-         if(Boolean(_modalBg))
++         if(_modalBg)
+          {
+             _defaultPopupCanvas.removeChild(_modalBg);
+          }

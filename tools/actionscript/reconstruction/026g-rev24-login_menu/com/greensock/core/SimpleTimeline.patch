@@ -1,0 +1,118 @@
+--- a/com/greensock/core/SimpleTimeline.as
++++ b/com/greensock/core/SimpleTimeline.as
+@@ -16,7 +16,7 @@
+       public function SimpleTimeline(param1:Object = null)
+       {
+          super(0,param1);
+-         this.autoRemoveChildren = this.smoothChildTiming = true;
++         autoRemoveChildren = smoothChildTiming = true;
+       }
+       
+       public function insert(param1:*, param2:* = 0) : *
+@@ -26,34 +26,34 @@
+       
+       public function add(param1:*, param2:* = "+=0", param3:String = "normal", param4:Number = 0) : *
+       {
+-         var _loc6_:Number = NaN;
+          param1._startTime = Number(param2 || 0) + param1._delay;
+-         if(Boolean(param1._paused))
++         if(param1._paused)
+          {
+             if(this != param1._timeline)
+             {
+                param1._pauseTime = param1._startTime + (this.rawTime() - param1._startTime) / param1._timeScale;
+             }
+          }
+-         if(Boolean(param1.timeline))
++         if(param1.timeline)
+          {
+             param1.timeline._remove(param1,true);
+          }
+          param1.timeline = param1._timeline = this;
+-         if(Boolean(param1._gc))
++         if(param1._gc)
+          {
+             param1._enabled(true,true);
+          }
+          var _loc5_:Animation = this._last;
++         var _loc6_:Number;
+          if(this._sortChildren)
+          {
+-            _loc6_ = Number(param1._startTime);
+-            while(Boolean(_loc5_) && _loc5_._startTime > _loc6_)
++            _loc6_ = param1._startTime;
++            while(_loc5_ && _loc5_._startTime > _loc6_)
+             {
+                _loc5_ = _loc5_._prev;
+             }
+          }
+-         if(Boolean(_loc5_))
++         if(_loc5_)
+          {
+             param1._next = _loc5_._next;
+             _loc5_._next = Animation(param1);
+@@ -61,18 +61,18 @@
+          else
+          {
+             param1._next = this._first;
+-            this._first = Animation(param1);
++            _first = Animation(param1);
+          }
+-         if(Boolean(param1._next))
++         if(param1._next)
+          {
+             param1._next._prev = param1;
+          }
+          else
+          {
+-            this._last = Animation(param1);
++            _last = Animation(param1);
+          }
+          param1._prev = _loc5_;
+-         if(Boolean(_timeline))
++         if(_timeline)
+          {
+             _uncache(true);
+          }
+@@ -88,23 +88,23 @@
+                param1._enabled(false,true);
+             }
+             param1.timeline = null;
+-            if(Boolean(param1._prev))
++            if(param1._prev)
+             {
+                param1._prev._next = param1._next;
+             }
+             else if(this._first === param1)
+             {
+-               this._first = param1._next;
++               _first = param1._next;
+             }
+-            if(Boolean(param1._next))
++            if(param1._next)
+             {
+                param1._next._prev = param1._prev;
+             }
+             else if(this._last === param1)
+             {
+-               this._last = param1._prev;
++               _last = param1._prev;
+             }
+-            if(Boolean(_timeline))
++            if(_timeline)
+             {
+                _uncache(true);
+             }
+@@ -114,10 +114,10 @@
+       
+       override public function render(param1:Number, param2:Boolean = false, param3:Boolean = false) : void
+       {
+-         var _loc5_:Animation = null;
+          var _loc4_:Animation = this._first;
++         var _loc5_:Animation;
+          _totalTime = _time = _rawPrevTime = param1;
+-         while(Boolean(_loc4_))
++         while(_loc4_)
+          {
+             _loc5_ = _loc4_._next;
+             if(_loc4_._active || param1 >= _loc4_._startTime && !_loc4_._paused)

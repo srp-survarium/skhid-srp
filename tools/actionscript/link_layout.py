@@ -12,7 +12,6 @@ from pathlib import Path
 import shutil
 import subprocess
 import threading
-import zlib
 
 import movie_source as movie
 import source_patches
@@ -47,6 +46,9 @@ class SerializationCache:
     def __init__(self, original, compressed):
         self.original = original
         self.compressed = compressed
+        self.profile = movie.serialization_profile(original)
+        if compressed != (self.profile["compression"] == "zlib"):
+            raise ValueError("Compression flag differs from original movie")
         self.lock = threading.Lock()
         self.cached = None
 
@@ -61,7 +63,7 @@ class SerializationCache:
                 if code.read_bytes() != code_bytes:
                     raise ValueError("Linked code changed during serialization")
                 raw = output.read_bytes()
-                final = b"CWS" + raw[3:8] + zlib.compress(raw[8:], 9) if self.compressed else raw
+                final = movie.serialize(raw, self.profile)
                 if self.cached is None:
                     self.cached = (code_bytes, raw, final)
         output.write_bytes(final)
@@ -104,6 +106,7 @@ def main():
               "link_driver_sha256": movie.digest(output / "link_layout.py"),
               "compilation_report_sha256": hashlib.sha256(recorded).hexdigest(),
               "compilation_complete": compiled["complete"], "linker": tools.identity(),
+              "serialization": serialization.profile,
               "classes": [], "complete": False}
     movie.write_json(output / "report.json", report)
 

@@ -15,6 +15,33 @@ The feature builder currently supports edits to existing method bodies and
 checks every untouched method and class. The original 18-class list remains
 an optional compiler probe; the baseline proof covers all 878 scripts.
 
+## Other released movies
+
+The other seven revision-24 movies are now pinned and fully exported into
+private source projects. Their combined inventory is 727 scripts and 6,855
+method bodies. Exporting a source tree does not establish an exact rebuild.
+
+| Movie | Scripts | Method bodies | Complete source rebuild |
+| --- | ---: | ---: | --- |
+| `hud.swf` | 287 | 2,342 | Reconstruction in progress |
+| `main_menu.swf` | 183 | 1,864 | Reconstruction in progress |
+| `login_menu.swf` | 86 | 866 | Reconstruction in progress |
+| `player_icons.swf` | 34 | 347 | Reconstruction in progress |
+| `replay_player.swf` | 82 | 866 | Reconstruction in progress |
+| `cursor.swf` | 2 | 10 | Byte-exact, including compression |
+| `debug_animations.swf` | 53 | 560 | Reconstruction in progress |
+
+Each `releases/026g-rev24-<movie>.json` records the actual supplying archive,
+its authenticated hash, the entry offset, the movie hash and its serialization
+profile. The selected files come from the base archive and released patches
+12 and 22. The HUD pin includes the released minimap changes.
+
+Cursor [verification evidence](reconstruction/026g-rev24-cursor/verification.json)
+records the independent compilation of both pristine scripts and assembly of
+all ten method bodies. Its reconstruction manifest deliberately has no patches.
+The same whole-tree command accepts an empty patch list when the pristine
+exports already suffice.
+
 ## Private inputs and pinned tools
 
 Use Python 3.10+, JDK 17+, FFDec 25.1.3's complete distribution, and
@@ -92,6 +119,13 @@ frame header, every tag, ABC pools, methods, traits and metadata. Compression
 differences are reported separately; decompressed equality does not claim
 compressed file equality.
 
+Baseline serialization identifies a zlib level that independently reproduces
+the original compressed stream. The main and login menu patches also have an
+archive-entry trailer: zero padding followed by four CRC correction bytes.
+That non-code trailer is preserved separately. Unknown trailers and truncated
+streams are rejected. Linked and assembled executable bytes are freshly
+compressed; an original compressed payload is never substituted for them.
+
 Only ABC tags enter FFDec. The raw headers and bytes of all other tags are
 retained, including Scaleform tags FFDec cannot parse correctly. ABC count and
 order must remain fixed. Candidates are diagnostic artifacts, never installed
@@ -117,6 +151,11 @@ The default `flex` mode uses FFDec's Flex script replacer arguments, including
   including external definitions from the pinned player API catalog. Without the
   external edges, Flex can partially load inherited `TextField` or `Timer` types,
   reporting missing methods or crashing during type resolution.
+- Shared ABCs are split into their original scripts in the temporary dependency
+  SWC. This prevents loading a base class from also loading every descendant
+  in that ABC and creating an artificial inheritance cycle through the source
+  class being compiled. The dependency catalog retains every exported definition.
+  The actual movie's ABC organization remains fixed.
 - Single-namespace multinames in the dependency library are represented as
   qualified names for Flex's type importer. This is applied only to the
   temporary dependency SWC. Both original and adapted SWCs are retained.

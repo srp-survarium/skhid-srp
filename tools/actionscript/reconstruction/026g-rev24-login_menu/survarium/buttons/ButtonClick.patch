@@ -1,0 +1,98 @@
+--- a/survarium/buttons/ButtonClick.as
++++ b/survarium/buttons/ButtonClick.as
+@@ -16,17 +16,17 @@
+       {
+          super();
+          _stateMap = {
+-            "up":["up"],
+-            "over":["over"],
+-            "down":["down"],
+-            "release":["over"],
+-            "out":["up"],
+-            "disabled":["disabled"],
+-            "selecting":["over"],
+-            "toggle":["up"],
+-            "kb_selecting":["up"],
+-            "kb_release":["up"],
+-            "kb_down":["down"]
++            up:["up"],
++            over:["over"],
++            down:["down"],
++            release:["over"],
++            out:["up"],
++            disabled:["disabled"],
++            selecting:["over"],
++            toggle:["up"],
++            kb_selecting:["up"],
++            kb_release:["up"],
++            kb_down:["down"]
+          };
+       }
+       
+@@ -38,7 +38,7 @@
+       override protected function configUI() : void
+       {
+          super.configUI();
+-         if(!constraintsDisabled && Boolean(textField))
++         if(!constraintsDisabled && textField)
+          {
+             constraints.addElement("textField",textField,Constraints.LEFT | Constraints.RIGHT);
+          }
+@@ -61,10 +61,6 @@
+       
+       override protected function setState(param1:String) : void
+       {
+-         var _loc6_:String = null;
+-         var _loc7_:uint = 0;
+-         var _loc8_:uint = 0;
+-         var _loc9_:String = null;
+          _state = param1;
+          var _loc2_:Vector.<String> = getStatePrefixes();
+          var _loc3_:Array = _stateMap[param1];
+@@ -74,6 +70,10 @@
+          }
+          var _loc4_:uint = _loc2_.length;
+          var _loc5_:uint = 0;
++         var _loc6_:String;
++         var _loc7_:uint;
++         var _loc8_:uint;
++         var _loc9_:String;
+          while(_loc5_ < _loc4_)
+          {
+             _loc6_ = _loc2_[_loc5_];
+@@ -82,7 +82,7 @@
+             while(_loc8_ < _loc7_)
+             {
+                _loc9_ = _loc6_ + _loc3_[_loc8_];
+-               if(Boolean(_labelHash[_loc9_]))
++               if(_labelHash[_loc9_])
+                {
+                   _newFrame = _loc9_;
+                   invalidateState();
+@@ -98,7 +98,7 @@
+       {
+          var _loc2_:MouseEventEx = param1 as MouseEventEx;
+          var _loc3_:uint = _loc2_ == null ? 0 : _loc2_.mouseIdx;
+-         this._mouseOver = false;
++         _mouseOver = false;
+          if(param1.buttonDown)
+          {
+             dispatchEvent(new ButtonEvent(ButtonEvent.DRAG_OUT));
+@@ -133,7 +133,7 @@
+          }
+          var _loc2_:MouseEventEx = param1 as MouseEventEx;
+          var _loc3_:uint = _loc2_ == null ? 0 : _loc2_.mouseIdx;
+-         this._mouseOver = true;
++         _mouseOver = true;
+          if(param1.buttonDown)
+          {
+             dispatchEvent(new ButtonEvent(ButtonEvent.DRAG_OVER));
+@@ -145,7 +145,7 @@
+             {
+                return;
+             }
+-            if(Boolean(_focused) || _displayFocus)
++            if(_focused || _displayFocus)
+             {
+                this.setState(focusIndicator == null ? "down" : "kb_down");
+             }

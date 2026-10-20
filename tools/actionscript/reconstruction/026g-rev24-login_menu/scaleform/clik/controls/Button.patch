@@ -1,0 +1,661 @@
+--- a/scaleform/clik/controls/Button.as
++++ b/scaleform/clik/controls/Button.as
+@@ -22,17 +22,17 @@
+    import scaleform.clik.utils.Constraints;
+    import scaleform.gfx.MouseEventEx;
+    
++   [Event(name="SHOW",type="scaleform.clik.events.ComponentEvent")]
++   [Event(name="HIDE",type="scaleform.clik.events.ComponentEvent")]
++   [Event(name="FOCUS_IN",type="scaleform.clik.events.FocusHandlerEvent")]
++   [Event(name="FOCUS_OUT",type="scaleform.clik.events.FocusHandlerEvent")]
++   [Event(name="SELECT",type="flash.events.Event")]
++   [Event(name="STATE_CHANGE",type="scaleform.clik.events.ComponentEvent")]
++   [Event(name="PRESS",type="scaleform.clik.events.ButtonEvent")]
++   [Event(name="CLICK",type="scaleform.clik.events.ButtonEvent")]
++   [Event(name="DRAG_OVER",type="scaleform.clik.events.ButtonEvent")]
++   [Event(name="DRAG_OUT",type="scaleform.clik.events.ButtonEvent")]
+    [Event(name="RELEASE_OUTSIDE",type="scaleform.clik.events.ButtonEvent")]
+-   [Event(name="DRAG_OUT",type="scaleform.clik.events.ButtonEvent")]
+-   [Event(name="DRAG_OVER",type="scaleform.clik.events.ButtonEvent")]
+-   [Event(name="CLICK",type="scaleform.clik.events.ButtonEvent")]
+-   [Event(name="PRESS",type="scaleform.clik.events.ButtonEvent")]
+-   [Event(name="STATE_CHANGE",type="scaleform.clik.events.ComponentEvent")]
+-   [Event(name="SELECT",type="flash.events.Event")]
+-   [Event(name="FOCUS_OUT",type="scaleform.clik.events.FocusHandlerEvent")]
+-   [Event(name="FOCUS_IN",type="scaleform.clik.events.FocusHandlerEvent")]
+-   [Event(name="HIDE",type="scaleform.clik.events.ComponentEvent")]
+-   [Event(name="SHOW",type="scaleform.clik.events.ComponentEvent")]
+    public class Button extends ToolTip
+    {
+       
+@@ -71,17 +71,17 @@
+       protected var _owner:UIComponent = null;
+       
+       protected var _stateMap:Object = {
+-         "up":["up"],
+-         "over":["over"],
+-         "down":["down"],
+-         "release":["release","over"],
+-         "out":["out","up"],
+-         "disabled":["disabled"],
+-         "selecting":["selecting","over"],
+-         "toggle":["toggle","up"],
+-         "kb_selecting":["kb_selecting","up"],
+-         "kb_release":["kb_release","out","up"],
+-         "kb_down":["kb_down","down"]
++         up:["up"],
++         over:["over"],
++         down:["down"],
++         release:["release","over"],
++         out:["out","up"],
++         disabled:["disabled"],
++         selecting:["selecting","over"],
++         toggle:["toggle","up"],
++         kb_selecting:["kb_selecting","up"],
++         kb_release:["kb_release","out","up"],
++         kb_down:["kb_down","down"]
+       };
+       
+       protected var _newFrame:String;
+@@ -145,7 +145,7 @@
+       
+       public function set autoRepeat(param1:Boolean) : void
+       {
+-         this._autoRepeat = param1;
++         _autoRepeat = param1;
+       }
+       
+       [Inspectable(defaultValue="true")]
+@@ -156,12 +156,12 @@
+       
+       override public function set enabled(param1:Boolean) : void
+       {
+-         var _loc2_:String = null;
++         var _loc2_:String;
+          super.enabled = param1;
+          mouseChildren = false;
+          if(super.enabled)
+          {
+-            _loc2_ = this._focusIndicator == null && (Boolean(_displayFocus) || Boolean(_focused)) ? "over" : "up";
++            _loc2_ = this._focusIndicator == null && (_displayFocus || _focused) ? "over" : "up";
+          }
+          else
+          {
+@@ -189,7 +189,7 @@
+       
+       public function set toggle(param1:Boolean) : void
+       {
+-         this._toggle = param1;
++         _toggle = param1;
+       }
+       
+       public function get owner() : UIComponent
+@@ -199,7 +199,7 @@
+       
+       public function set owner(param1:UIComponent) : void
+       {
+-         this._owner = param1;
++         _owner = param1;
+       }
+       
+       public function get state() : String
+@@ -215,12 +215,12 @@
+       
+       public function set selected(param1:Boolean) : void
+       {
+-         var _loc2_:Boolean = false;
++         var _loc2_:Boolean;
+          if(this._selected == param1)
+          {
+             return;
+          }
+-         this._selected = param1;
++         _selected = param1;
+          if(this.enabled)
+          {
+             if(!_focused)
+@@ -235,7 +235,7 @@
+             {
+                this.setState("selecting");
+             }
+-            if(Boolean(this.owner))
++            if(this.owner)
+             {
+                _loc2_ = this._selected && this.owner != null && this.checkOwnerFocused();
+                this.setState(_loc2_ && this._focusIndicator == null ? "selecting" : "toggle");
+@@ -261,7 +261,7 @@
+          {
+             this._group.removeButton(this);
+          }
+-         this._group = param1;
++         _group = param1;
+          if(this._group != null)
+          {
+             this._group.addButton(this);
+@@ -293,7 +293,7 @@
+             removeEventListener(Event.ADDED,this.addToAutoGroup,false);
+             removeEventListener(Event.REMOVED,this.addToAutoGroup,false);
+          }
+-         this._groupName = param1;
++         _groupName = param1;
+          this.addToAutoGroup(null);
+       }
+       
+@@ -309,7 +309,7 @@
+          {
+             return;
+          }
+-         this._label = param1;
++         _label = param1;
+          invalidateData();
+       }
+       
+@@ -325,7 +325,7 @@
+          {
+             return;
+          }
+-         this._autoSize = param1;
++         _autoSize = param1;
+          invalidateData();
+       }
+       
+@@ -336,9 +336,9 @@
+       
+       public function set focusIndicator(param1:MovieClip) : void
+       {
+-         this._focusIndicatorLabelHash = null;
+-         this._focusIndicator = param1;
+-         this._focusIndicatorLabelHash = UIComponent.generateLabelHash(this._focusIndicator);
++         _focusIndicatorLabelHash = null;
++         _focusIndicator = param1;
++         _focusIndicatorLabelHash = UIComponent.generateLabelHash(this._focusIndicator);
+       }
+       
+       override public function handleInput(param1:InputEvent) : void
+@@ -365,6 +365,7 @@
+                      param1.handled = true;
+                   }
+                }
++               break;
+          }
+       }
+       
+@@ -399,15 +400,15 @@
+          super.draw();
+          if(isInvalid(InvalidationType.STATE))
+          {
+-            if(Boolean(this._newFrame))
++            if(this._newFrame)
+             {
+                gotoAndPlay(this._newFrame);
+-               this._newFrame = null;
+-            }
+-            if(Boolean(this._newFocusIndicatorFrame))
++               _newFrame = null;
++            }
++            if(this._newFocusIndicatorFrame)
+             {
+                this.focusIndicator.gotoAndPlay(this._newFocusIndicatorFrame);
+-               this._newFocusIndicatorFrame = null;
++               _newFocusIndicatorFrame = null;
+             }
+             this.updateAfterStateChange();
+             dispatchEvent(new ComponentEvent(ComponentEvent.STATE_CHANGE));
+@@ -439,7 +440,7 @@
+       {
+          if(parent == null)
+          {
+-            this.group = null;
++            group = null;
+             return;
+          }
+          var _loc2_:ButtonGroup = ButtonGroup.getGroup(this._groupName,parent);
+@@ -447,13 +448,13 @@
+          {
+             return;
+          }
+-         this.group = _loc2_;
++         group = _loc2_;
+       }
+       
+       protected function checkOwnerFocused() : Boolean
+       {
+-         var _loc2_:Object = null;
+          var _loc1_:Boolean = false;
++         var _loc2_:Object;
+          if(this.owner != null)
+          {
+             _loc1_ = this._owner.focused != 0;
+@@ -471,8 +472,8 @@
+       
+       protected function calculateWidth() : Number
+       {
+-         var _loc2_:ConstrainedElement = null;
+          var _loc1_:Number = actualWidth;
++         var _loc2_:ConstrainedElement;
+          if(!this.constraintsDisabled)
+          {
+             _loc2_ = constraints.getElement("textField");
+@@ -483,15 +484,15 @@
+       
+       protected function alignForAutoSize() : void
+       {
+-         var _loc1_:Number = NaN;
+-         var _loc3_:Number = NaN;
+-         var _loc4_:Number = NaN;
++         var _loc1_:Number;
+          if(!initialized || this._autoSize == TextFieldAutoSize.NONE || this.textField == null)
+          {
+             return;
+          }
+          _loc1_ = _width;
+          var _loc2_:Number = _width = this.calculateWidth();
++         var _loc3_:Number;
++         var _loc4_:Number;
+          switch(this._autoSize)
+          {
+             case TextFieldAutoSize.RIGHT:
+@@ -501,6 +502,7 @@
+             case TextFieldAutoSize.CENTER:
+                _loc4_ = x + _loc1_ * 0.5;
+                x = _loc4_ - _loc2_ * 0.5;
++               break;
+          }
+       }
+       
+@@ -514,17 +516,17 @@
+       
+       override protected function changeFocus() : void
+       {
+-         var _loc1_:String = null;
++         var _loc1_:String;
+          if(!this.enabled)
+          {
+             return;
+          }
+          if(this._focusIndicator == null)
+          {
+-            this.setState(Boolean(_focused) || _displayFocus ? "over" : "out");
++            this.setState(_focused || _displayFocus ? "over" : "out");
+             if(this._pressedByKeyboard && !_focused)
+             {
+-               this._pressedByKeyboard = false;
++               _pressedByKeyboard = false;
+             }
+          }
+          else
+@@ -536,20 +538,20 @@
+             else
+             {
+                _loc1_ = "state" + _focused;
+-               if(Boolean(this._focusIndicatorLabelHash[_loc1_]))
++               if(this._focusIndicatorLabelHash[_loc1_])
+                {
+-                  this._newFocusIndicatorFrame = "state" + _focused;
++                  _newFocusIndicatorFrame = "state" + _focused;
+                }
+                else
+                {
+-                  this._newFocusIndicatorFrame = Boolean(_focused) || _displayFocus ? "show" : "hide";
++                  _newFocusIndicatorFrame = _focused || _displayFocus ? "show" : "hide";
+                }
+                invalidateState();
+             }
+             if(this._pressedByKeyboard && !_focused)
+             {
+                this.setState("kb_release");
+-               this._pressedByKeyboard = false;
++               _pressedByKeyboard = false;
+             }
+          }
+       }
+@@ -569,7 +571,7 @@
+             {
+                return;
+             }
+-            if(Boolean(_focused) || _displayFocus)
++            if(_focused || _displayFocus)
+             {
+                this.setState(this.focusIndicator == null ? "down" : "kb_down");
+             }
+@@ -584,7 +586,7 @@
+             {
+                return;
+             }
+-            if(Boolean(_focused) || _displayFocus)
++            if(_focused || _displayFocus)
+             {
+                if(this._focusIndicator != null)
+                {
+@@ -616,7 +618,7 @@
+             {
+                return;
+             }
+-            if(Boolean(_focused) || _displayFocus)
++            if(_focused || _displayFocus)
+             {
+                this.setState(this._focusIndicator == null ? "release" : "kb_release");
+             }
+@@ -631,7 +633,7 @@
+             {
+                return;
+             }
+-            if(Boolean(_focused) || _displayFocus)
++            if(_focused || _displayFocus)
+             {
+                if(this._focusIndicator != null)
+                {
+@@ -647,7 +649,71 @@
+       
+       protected function handleMousePress(param1:MouseEvent) : void
+       {
+-         var _loc5_:ButtonEvent = null;
++         var _loc2_:MouseEventEx = param1 as MouseEventEx;
++         var _loc3_:uint = _loc2_ == null ? 0 : _loc2_.mouseIdx;
++         var _loc4_:uint = _loc2_ == null ? 0 : _loc2_.buttonIdx;
++         var _loc5_:ButtonEvent;
++         if(_loc4_ != 0)
++         {
++            return;
++         }
++         _mouseDown |= 1 << _loc3_;
++         if(this.enabled)
++         {
++            this.setState("down");
++            if(this.autoRepeat && this._repeatTimer == null)
++            {
++               _autoRepeatEvent = new ButtonEvent(ButtonEvent.CLICK,true,false,_loc3_,_loc4_,false,true);
++               _repeatTimer = new Timer(this.repeatDelay,1);
++               this._repeatTimer.addEventListener(TimerEvent.TIMER_COMPLETE,this.beginRepeat,false,0,true);
++               this._repeatTimer.start();
++            }
++            _loc5_ = new ButtonEvent(ButtonEvent.PRESS,true,false,_loc3_,_loc4_,false,false);
++            dispatchEvent(_loc5_);
++         }
++      }
++      
++      protected function handleMouseRelease(param1:MouseEvent) : void
++      {
++         _autoRepeatEvent = null;
++         if(!this.enabled)
++         {
++            return;
++         }
++         var _loc2_:MouseEventEx = param1 as MouseEventEx;
++         var _loc3_:uint = _loc2_ == null ? 0 : _loc2_.mouseIdx;
++         var _loc4_:uint = _loc2_ == null ? 0 : _loc2_.buttonIdx;
++         var _loc5_:ButtonEvent;
++         if(_loc4_ != 0)
++         {
++            return;
++         }
++         _mouseDown ^= 1 << _loc3_;
++         if(this._mouseDown == 0 && this._repeatTimer)
++         {
++            this._repeatTimer.stop();
++            this._repeatTimer.reset();
++            this._repeatTimer.removeEventListener(TimerEvent.TIMER_COMPLETE,this.beginRepeat);
++            this._repeatTimer.removeEventListener(TimerEvent.TIMER,this.handleRepeat);
++            _repeatTimer = null;
++         }
++         this.setState("release");
++         this.handleClick(_loc3_);
++         if(!this._isRepeating)
++         {
++            _loc5_ = new ButtonEvent(ButtonEvent.CLICK,true,false,_loc3_,_loc4_,false,false);
++            dispatchEvent(_loc5_);
++         }
++         _isRepeating = false;
++      }
++      
++      protected function handleReleaseOutside(param1:MouseEvent) : void
++      {
++         _autoRepeatEvent = null;
++         if(contains(param1.target as DisplayObject))
++         {
++            return;
++         }
+          var _loc2_:MouseEventEx = param1 as MouseEventEx;
+          var _loc3_:uint = _loc2_ == null ? 0 : _loc2_.mouseIdx;
+          var _loc4_:uint = _loc2_ == null ? 0 : _loc2_.buttonIdx;
+@@ -655,140 +721,76 @@
+          {
+             return;
+          }
+-         this._mouseDown |= 1 << _loc3_;
+-         if(this.enabled)
+-         {
+-            this.setState("down");
+-            if(this.autoRepeat && this._repeatTimer == null)
+-            {
+-               this._autoRepeatEvent = new ButtonEvent(ButtonEvent.CLICK,true,false,_loc3_,_loc4_,false,true);
+-               this._repeatTimer = new Timer(this.repeatDelay,1);
+-               this._repeatTimer.addEventListener(TimerEvent.TIMER_COMPLETE,this.beginRepeat,false,0,true);
+-               this._repeatTimer.start();
+-            }
+-            _loc5_ = new ButtonEvent(ButtonEvent.PRESS,true,false,_loc3_,_loc4_,false,false);
+-            dispatchEvent(_loc5_);
+-         }
+-      }
+-      
+-      protected function handleMouseRelease(param1:MouseEvent) : void
+-      {
+-         var _loc5_:ButtonEvent = null;
+-         this._autoRepeatEvent = null;
++         stage.removeEventListener(MouseEvent.MOUSE_UP,this.handleReleaseOutside,false);
++         _mouseDown ^= 1 << _loc3_;
++         dispatchEvent(new ButtonEvent(ButtonEvent.RELEASE_OUTSIDE));
+          if(!this.enabled)
+          {
+             return;
+          }
+-         var _loc2_:MouseEventEx = param1 as MouseEventEx;
+-         var _loc3_:uint = _loc2_ == null ? 0 : _loc2_.mouseIdx;
+-         var _loc4_:uint = _loc2_ == null ? 0 : _loc2_.buttonIdx;
+-         if(_loc4_ != 0)
+-         {
+-            return;
+-         }
+-         this._mouseDown ^= 1 << _loc3_;
+-         if(this._mouseDown == 0 && Boolean(this._repeatTimer))
++         if(this.lockDragStateChange)
++         {
++            if(_focused || _displayFocus)
++            {
++               this.setState(this.focusIndicator == null ? "release" : "kb_release");
++            }
++            else
++            {
++               this.setState("kb_release");
++            }
++         }
++      }
++      
++      protected function handlePress(param1:uint = 0) : void
++      {
++         if(!this.enabled)
++         {
++            return;
++         }
++         _pressedByKeyboard = true;
++         this.setState(this._focusIndicator == null ? "down" : "kb_down");
++         if(this.autoRepeat && this._repeatTimer == null)
++         {
++            _autoRepeatEvent = new ButtonEvent(ButtonEvent.CLICK,true,false,param1,0,true,true);
++            _repeatTimer = new Timer(this.repeatDelay,1);
++            this._repeatTimer.addEventListener(TimerEvent.TIMER_COMPLETE,this.beginRepeat,false,0,true);
++            this._repeatTimer.start();
++         }
++         var _loc2_:ButtonEvent = new ButtonEvent(ButtonEvent.PRESS,true,false,param1,0,true,false);
++         dispatchEvent(_loc2_);
++      }
++      
++      protected function handleRelease(param1:uint = 0) : void
++      {
++         var _loc2_:ButtonEvent;
++         if(!this.enabled)
++         {
++            return;
++         }
++         this.setState(this.focusIndicator == null ? "release" : "kb_release");
++         if(this._repeatTimer)
+          {
+             this._repeatTimer.stop();
+             this._repeatTimer.reset();
+             this._repeatTimer.removeEventListener(TimerEvent.TIMER_COMPLETE,this.beginRepeat);
+             this._repeatTimer.removeEventListener(TimerEvent.TIMER,this.handleRepeat);
+-            this._repeatTimer = null;
+-         }
+-         this.setState("release");
+-         this.handleClick(_loc3_);
+-         if(!this._isRepeating)
+-         {
+-            _loc5_ = new ButtonEvent(ButtonEvent.CLICK,true,false,_loc3_,_loc4_,false,false);
+-            dispatchEvent(_loc5_);
+-         }
+-         this._isRepeating = false;
+-      }
+-      
+-      protected function handleReleaseOutside(param1:MouseEvent) : void
+-      {
+-         this._autoRepeatEvent = null;
+-         if(contains(param1.target as DisplayObject))
+-         {
+-            return;
+-         }
+-         var _loc2_:MouseEventEx = param1 as MouseEventEx;
+-         var _loc3_:uint = _loc2_ == null ? 0 : _loc2_.mouseIdx;
+-         var _loc4_:uint = _loc2_ == null ? 0 : _loc2_.buttonIdx;
+-         if(_loc4_ != 0)
+-         {
+-            return;
+-         }
+-         stage.removeEventListener(MouseEvent.MOUSE_UP,this.handleReleaseOutside,false);
+-         this._mouseDown ^= 1 << _loc3_;
+-         dispatchEvent(new ButtonEvent(ButtonEvent.RELEASE_OUTSIDE));
+-         if(!this.enabled)
+-         {
+-            return;
+-         }
+-         if(this.lockDragStateChange)
+-         {
+-            if(Boolean(_focused) || _displayFocus)
+-            {
+-               this.setState(this.focusIndicator == null ? "release" : "kb_release");
+-            }
+-            else
+-            {
+-               this.setState("kb_release");
+-            }
+-         }
+-      }
+-      
+-      protected function handlePress(param1:uint = 0) : void
+-      {
+-         if(!this.enabled)
+-         {
+-            return;
+-         }
+-         this._pressedByKeyboard = true;
+-         this.setState(this._focusIndicator == null ? "down" : "kb_down");
+-         if(this.autoRepeat && this._repeatTimer == null)
+-         {
+-            this._autoRepeatEvent = new ButtonEvent(ButtonEvent.CLICK,true,false,param1,0,true,true);
+-            this._repeatTimer = new Timer(this.repeatDelay,1);
+-            this._repeatTimer.addEventListener(TimerEvent.TIMER_COMPLETE,this.beginRepeat,false,0,true);
+-            this._repeatTimer.start();
+-         }
+-         var _loc2_:ButtonEvent = new ButtonEvent(ButtonEvent.PRESS,true,false,param1,0,true,false);
+-         dispatchEvent(_loc2_);
+-      }
+-      
+-      protected function handleRelease(param1:uint = 0) : void
+-      {
+-         var _loc2_:ButtonEvent = null;
+-         if(!this.enabled)
+-         {
+-            return;
+-         }
+-         this.setState(this.focusIndicator == null ? "release" : "kb_release");
+-         if(Boolean(this._repeatTimer))
+-         {
+-            this._repeatTimer.stop();
+-            this._repeatTimer.reset();
+-            this._repeatTimer.removeEventListener(TimerEvent.TIMER_COMPLETE,this.beginRepeat);
+-            this._repeatTimer.removeEventListener(TimerEvent.TIMER,this.handleRepeat);
+-            this._repeatTimer = null;
++            _repeatTimer = null;
+          }
+          this.handleClick(param1);
+-         this._pressedByKeyboard = false;
++         _pressedByKeyboard = false;
+          if(!this._isRepeating)
+          {
+             _loc2_ = new ButtonEvent(ButtonEvent.CLICK,true,false,param1,0,true,false);
+             dispatchEvent(_loc2_);
+          }
+-         this._isRepeating = false;
++         _isRepeating = false;
+       }
+       
+       protected function handleClick(param1:uint = 0) : void
+       {
+          if(this.toggle && (!this.selected || this.allowDeselect))
+          {
+-            this.selected = !this.selected;
++            selected = !this.selected;
+          }
+       }
+       
+@@ -810,22 +812,18 @@
+             this._repeatTimer.reset();
+             this._repeatTimer.removeEventListener(TimerEvent.TIMER_COMPLETE,this.beginRepeat);
+             this._repeatTimer.removeEventListener(TimerEvent.TIMER,this.handleRepeat);
+-            this._repeatTimer = null;
+-         }
+-         if(Boolean(this._autoRepeatEvent))
+-         {
+-            this._isRepeating = true;
++            _repeatTimer = null;
++         }
++         if(this._autoRepeatEvent)
++         {
++            _isRepeating = true;
+             dispatchEvent(this._autoRepeatEvent);
+          }
+       }
+       
+       protected function setState(param1:String) : void
+       {
+-         var _loc6_:String = null;
+-         var _loc7_:uint = 0;
+-         var _loc8_:uint = 0;
+-         var _loc9_:String = null;
+-         this._state = param1;
++         _state = param1;
+          var _loc2_:Vector.<String> = this.getStatePrefixes();
+          var _loc3_:Array = this._stateMap[param1];
+          if(_loc3_ == null || _loc3_.length == 0)
+@@ -834,6 +832,10 @@
+          }
+          var _loc4_:uint = _loc2_.length;
+          var _loc5_:uint = 0;
++         var _loc6_:String;
++         var _loc7_:uint;
++         var _loc8_:uint;
++         var _loc9_:String;
+          while(_loc5_ < _loc4_)
+          {
+             _loc6_ = _loc2_[_loc5_];
+@@ -842,9 +844,9 @@
+             while(_loc8_ < _loc7_)
+             {
+                _loc9_ = _loc6_ + _loc3_[_loc8_];
+-               if(Boolean(_labelHash[_loc9_]))
++               if(_labelHash[_loc9_])
+                {
+-                  this._newFrame = _loc9_;
++                  _newFrame = _loc9_;
+                   invalidateState();
+                   return;
+                }

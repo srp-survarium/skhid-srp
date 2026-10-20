@@ -1,0 +1,118 @@
+--- a/com/greensock/core/SimpleTimeline.as
++++ b/com/greensock/core/SimpleTimeline.as
+@@ -16,7 +16,7 @@
+       public function SimpleTimeline(vars:Object = null)
+       {
+          super(0,vars);
+-         this.autoRemoveChildren = this.smoothChildTiming = true;
++         autoRemoveChildren = smoothChildTiming = true;
+       }
+       
+       public function insert(child:*, position:* = 0) : *
+@@ -26,34 +26,34 @@
+       
+       public function add(child:*, position:* = "+=0", align:String = "normal", stagger:Number = 0) : *
+       {
+-         var st:Number = NaN;
+          child._startTime = Number(position || 0) + child._delay;
+-         if(Boolean(child._paused))
++         if(child._paused)
+          {
+             if(this != child._timeline)
+             {
+                child._pauseTime = child._startTime + (this.rawTime() - child._startTime) / child._timeScale;
+             }
+          }
+-         if(Boolean(child.timeline))
++         if(child.timeline)
+          {
+             child.timeline._remove(child,true);
+          }
+          child.timeline = child._timeline = this;
+-         if(Boolean(child._gc))
++         if(child._gc)
+          {
+             child._enabled(true,true);
+          }
+          var prevTween:Animation = this._last;
++         var st:Number;
+          if(this._sortChildren)
+          {
+-            st = Number(child._startTime);
+-            while(Boolean(prevTween) && prevTween._startTime > st)
++            st = child._startTime;
++            while(prevTween && prevTween._startTime > st)
+             {
+                prevTween = prevTween._prev;
+             }
+          }
+-         if(Boolean(prevTween))
++         if(prevTween)
+          {
+             child._next = prevTween._next;
+             prevTween._next = Animation(child);
+@@ -61,18 +61,18 @@
+          else
+          {
+             child._next = this._first;
+-            this._first = Animation(child);
++            _first = Animation(child);
+          }
+-         if(Boolean(child._next))
++         if(child._next)
+          {
+             child._next._prev = child;
+          }
+          else
+          {
+-            this._last = Animation(child);
++            _last = Animation(child);
+          }
+          child._prev = prevTween;
+-         if(Boolean(_timeline))
++         if(_timeline)
+          {
+             _uncache(true);
+          }
+@@ -88,23 +88,23 @@
+                tween._enabled(false,true);
+             }
+             tween.timeline = null;
+-            if(Boolean(tween._prev))
++            if(tween._prev)
+             {
+                tween._prev._next = tween._next;
+             }
+             else if(this._first === tween)
+             {
+-               this._first = tween._next;
++               _first = tween._next;
+             }
+-            if(Boolean(tween._next))
++            if(tween._next)
+             {
+                tween._next._prev = tween._prev;
+             }
+             else if(this._last === tween)
+             {
+-               this._last = tween._prev;
++               _last = tween._prev;
+             }
+-            if(Boolean(_timeline))
++            if(_timeline)
+             {
+                _uncache(true);
+             }
+@@ -114,10 +114,10 @@
+       
+       override public function render(time:Number, suppressEvents:Boolean = false, force:Boolean = false) : void
+       {
+-         var next:Animation = null;
+          var tween:Animation = this._first;
++         var next:Animation;
+          _totalTime = _time = _rawPrevTime = time;
+-         while(Boolean(tween))
++         while(tween)
+          {
+             next = tween._next;
+             if(tween._active || time >= tween._startTime && !tween._paused)

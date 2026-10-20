@@ -41,6 +41,71 @@ public final class MovieSource {
         static void qualifyDependencyInterfaces(Path swc) throws IOException, InterruptedException {
             qualifyDependencyInterfaces(swc, Set.of());
         }
+        static void splitDependencyScripts(SWF dependency, Map<String, byte[]> entries) throws IOException {
+            // A shared ABC becomes one SWC catalog script in FFDec's export.
+            // Loading a base class then loads all of its descendants, including
+            // ones that depend on the source class currently being compiled.
+            // Keep each original script in its own dependency-only ABC so Flex
+            // can load the actual inheritance graph without that artificial cycle.
+            if (dependency.getAbcList().stream().noneMatch(t -> t.getABC().script_info.size() > 1)) return;
+            try {
+                var factory = DocumentBuilderFactory.newInstance();
+                factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+                var doc = factory.newDocumentBuilder().parse(new ByteArrayInputStream(entries.get("catalog.xml")));
+                for (var container : new ArrayList<>(dependency.getAbcList())) {
+                    ABC abc = container.getABC();
+                    if (abc.script_info.size() < 2) continue;
+                    if (!(container instanceof com.jpexs.decompiler.flash.tags.DoABC2Tag original))
+                        throw new IOException("Shared dependency requires a named DoABC tag");
+                    org.w3c.dom.Element catalog = null;
+                    var scripts = doc.getElementsByTagName("script");
+                    for (int i = 0; i < scripts.getLength(); i++) {
+                        var script = (org.w3c.dom.Element)scripts.item(i);
+                        if (!script.getAttribute("name").equals(original.name)) continue;
+                        if (catalog != null) throw new IOException("Ambiguous dependency catalog script");
+                        catalog = script;
+                    }
+                    if (catalog == null) throw new IOException("Missing dependency catalog script");
+                    Set<String> remaining = new HashSet<>();
+                    var defs = catalog.getElementsByTagName("def");
+                    for (int i = 0; i < defs.getLength(); i++)
+                        remaining.add(((org.w3c.dom.Element)defs.item(i)).getAttribute("id"));
+                    int position = dependency.indexOfTag(original);
+                    dependency.removeTag(original);
+                    byte[] bytes = abcBytes(abc);
+                    for (int selected = 0; selected < abc.script_info.size(); selected++) {
+                        var tag = new com.jpexs.decompiler.flash.tags.DoABC2Tag(dependency);
+                        tag.flags = original.flags;
+                        tag.name = "__srp_dependency_" + position + "_" + selected;
+                        var copy = new ABC(new ABCInputStream(new com.jpexs.helpers.MemoryInputStream(bytes)),
+                                           dependency, tag);
+                        for (int i = 0; i < copy.script_info.size(); i++)
+                            if (i != selected) copy.script_info.get(i).delete(copy, true);
+                        copy.pack();
+                        if (copy.script_info.size() != 1) throw new IOException("Dependency script selection failed");
+                        tag.setABC(copy); tag.setModified(true);
+                        dependency.addTag(position++, tag);
+                        var script = doc.createElement("script");
+                        script.setAttribute("name", tag.name);
+                        script.setAttribute("mod", catalog.getAttribute("mod"));
+                        for (var trait : copy.script_info.get(0).traits.traits) {
+                            String name = catalogName(copy, trait.name_index);
+                            if (!remaining.remove(name)) continue;
+                            var def = doc.createElement("def"); def.setAttribute("id", name); script.appendChild(def);
+                        }
+                        var dep = doc.createElement("dep");
+                        dep.setAttribute("id", "AS3"); dep.setAttribute("type", "n"); script.appendChild(dep);
+                        catalog.getParentNode().insertBefore(script, catalog);
+                    }
+                    if (!remaining.isEmpty()) throw new IOException("Dependency split lost definitions: " + remaining);
+                    catalog.getParentNode().removeChild(catalog);
+                }
+                dependency.clearAbcListCache();
+                var output = new ByteArrayOutputStream();
+                TransformerFactory.newInstance().newTransformer().transform(new DOMSource(doc), new StreamResult(output));
+                entries.put("catalog.xml", output.toByteArray());
+            } catch (Exception error) { throw new IOException("Cannot split dependency scripts", error); }
+        }
         static void qualifyDependencyInterfaces(Path swc, Set<String> externalDefinitions) throws IOException, InterruptedException {
             Map<String, byte[]> entries = new LinkedHashMap<>();
             try (ZipInputStream zip = new ZipInputStream(Files.newInputStream(swc))) {
@@ -49,6 +114,7 @@ public final class MovieSource {
             byte[] library = entries.get("library.swf");
             if (library == null) throw new IOException("Dependency SWC has no library.swf");
             SWF dependency = new SWF(new ByteArrayInputStream(library), true);
+            splitDependencyScripts(dependency, entries);
             int changed = 0;
             for (var tag : dependency.getAbcList()) {
                 ABC abc = tag.getABC();
@@ -119,6 +185,7 @@ public final class MovieSource {
                         String id = ((org.w3c.dom.Element)defs.item(j)).getAttribute("id");
                         own.add(id); expression.addAll(references.getOrDefault(id, Set.of()));
                     }
+                    deps.removeAll(own);
                     expression.removeAll(own); expression.removeAll(deps);
                     for (String base : deps) {
                         var dep = doc.createElement("dep"); dep.setAttribute("id", base); dep.setAttribute("type", "i");
@@ -144,7 +211,7 @@ public final class MovieSource {
         static String catalogName(ABC abc, int id) throws IOException {
             Multiname m = abc.constants.getMultiname(id);
             if (m.kind != 7) throw new IOException("Non-qualified inheritance name " + m);
-            String ns = abc.constants.getString(abc.constants.getNamespace(m.namespace_index).name_index);
+            String ns = namespaceText(abc, abc.constants.getNamespace(m.namespace_index));
             return (ns.isEmpty() ? "" : ns + ":") + abc.constants.getString(m.name_index);
         }
         static Set<String> externalDefinitions(Path library) throws IOException {
@@ -555,10 +622,14 @@ public final class MovieSource {
         body.setCode(code);
     }
 
+    static String namespaceText(ABC abc, Namespace namespace) {
+        return namespace.name_index == 0 ? "" : abc.constants.getString(namespace.name_index);
+    }
+
     static String privateRole(ABC abc, int index, String className, String simpleName) {
         Namespace ns = abc.constants.getNamespace(index);
         if (ns.kind != 5) return null;
-        String text = abc.constants.getString(ns.name_index);
+        String text = namespaceText(abc, ns);
         if (text.equals(className)) return "class";
         if (text.matches("\\$[0-9]+") || text.matches(java.util.regex.Pattern.quote(simpleName + ".as$") + "[0-9]+"))
             return "script";
@@ -598,7 +669,7 @@ public final class MovieSource {
             for (int member : abc.constants.getNamespaceSet(i).namespaces) {
                 contains |= member == namespace;
                 var ns = abc.constants.getNamespace(member);
-                publicName |= ns.kind == 0x16 && abc.constants.getString(ns.name_index).isEmpty();
+                publicName |= ns.kind == 0x16 && namespaceText(abc, ns).isEmpty();
             }
             if (contains && !publicName) return false;
         }
@@ -622,6 +693,14 @@ public final class MovieSource {
         return true;
     }
 
+    static boolean unusedNamespace(ABC abc, int namespace) {
+        if (!emptyFileNamespace(abc, namespace)) return false;
+        for (int i = 1; i < abc.constants.getNamespaceSetCount(); i++)
+            for (int member : abc.constants.getNamespaceSet(i).namespaces)
+                if (member == namespace) return false;
+        return true;
+    }
+
     static Map<Integer, Integer> namespaceLayout(ABC original, ABC compiled,
             Map<Integer, List<Integer>> perMethod) throws IOException {
         Map<Integer, Integer> mapping = new HashMap<>();
@@ -638,7 +717,7 @@ public final class MovieSource {
             if (compiled.instance_info.get(owner).name_index == nameId && name.kind == 7
                     && original.constants.getNamespace(name.namespace_index).kind == 0x16) {
                 String simple = original.constants.getString(name.name_index);
-                String pkg = original.constants.getString(original.constants.getNamespace(name.namespace_index).name_index);
+                String pkg = namespaceText(original, original.constants.getNamespace(name.namespace_index));
                 String qualified = pkg.isEmpty() ? simple : pkg + ":" + simple;
                 for (String role : List.of("class", "script")) {
                     List<Integer> before = new ArrayList<>(), after = new ArrayList<>();
@@ -647,6 +726,12 @@ public final class MovieSource {
                     for (int i = retained; i < compiled.constants.getNamespaceCount(); i++)
                         if (role.equals(privateRole(compiled, i, qualified, simple))) after.add(i);
                     if (after.isEmpty()) continue;
+                    // Flash can omit a class's private namespace when there
+                    // are no private bindings. Flex still emits the unused
+                    // constant. It needs no mapping; the normal pool cleanup
+                    // removes it after checking every executable record.
+                    if (before.isEmpty() && after.stream().allMatch(ns -> unusedNamespace(compiled, ns)))
+                        continue;
                     if (perMethod != null && role.equals("script") && before.size() > 1 && after.size() == 1
                             && before.stream().allMatch(ns -> emptyFileNamespace(original, ns))
                             && emptyFileNamespace(compiled, after.get(0))) {
@@ -678,11 +763,11 @@ public final class MovieSource {
                     || !Objects.equals(mapping.get(newName.namespace_index), oldName.namespace_index)) continue;
             var oldProtected = original.constants.getNamespace(before.protectedNS);
             var newProtected = compiled.constants.getNamespace(after.protectedNS);
-            String oldOwner = original.constants.getString(oldFile.name_index) + ":" + simple;
-            String newOwner = compiled.constants.getString(newFile.name_index) + ":" + simple;
+            String oldOwner = namespaceText(original, oldFile) + ":" + simple;
+            String newOwner = namespaceText(compiled, newFile) + ":" + simple;
             if (oldProtected.kind != 0x18 || newProtected.kind != 0x18
-                    || !oldOwner.equals(original.constants.getString(oldProtected.name_index))
-                    || !newOwner.equals(compiled.constants.getString(newProtected.name_index))) continue;
+                    || !oldOwner.equals(namespaceText(original, oldProtected))
+                    || !newOwner.equals(namespaceText(compiled, newProtected))) continue;
             if (original.instance_info.stream().filter(i -> i.protectedNS == before.protectedNS).count() != 1
                     || compiled.instance_info.stream().filter(i -> i.protectedNS == after.protectedNS).count() != 1)
                 throw new IOException("Ambiguous file-private protected namespace owner");
@@ -1138,7 +1223,7 @@ public final class MovieSource {
         if (name.kind != 7) return null;
         var namespace = abc.constants.getNamespace(name.namespace_index);
         if (namespace.kind != 0x16) return null;
-        String pkg = abc.constants.getString(namespace.name_index);
+        String pkg = namespaceText(abc, namespace);
         return (pkg.isEmpty() ? "" : pkg + ".") + abc.constants.getString(name.name_index);
     }
 

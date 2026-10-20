@@ -1,0 +1,212 @@
+{
+  "classes": [
+    {
+      "class": "com.greensock.core.PropTween",
+      "patch": "com/greensock/core/PropTween.patch",
+      "patch_sha256": "efa86d45cad3f17a12474a731af86d511bf26fe8be843158a85eb68a3a8b651b",
+      "pristine_sha256": "0dce8f652b16a75c174f8ae8daf5b619f0072e7af1637048eb15407736bbd55b",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "dced7b09855371a6e095ef57d87957da98769f332cd832b119d9539f7fdeb262"
+    },
+    {
+      "class": "com.greensock.core.SimpleTimeline",
+      "patch": "com/greensock/core/SimpleTimeline.patch",
+      "patch_sha256": "34e17bd4d0b49e877a1e78d6068e8b54ec6eca6938fd87e10da955d0de5c7c4f",
+      "pristine_sha256": "e83bec838be817a1703b55154e2ad525053d2181ce7761d4f85843ab6efbc244",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "2b792c56117c48cc5dc3ae88fe22417e5bc1df2bf0ca0aa6db1163e6760d2fa8"
+    },
+    {
+      "class": "com.greensock.easing.Ease",
+      "patch": "com/greensock/easing/Ease.patch",
+      "patch_sha256": "93b738a66a208023ae800a01e78dad5d2bd70ec2bdfda2ee03b4e6d1998c9b19",
+      "pristine_sha256": "585107c7f815bbd8dbb23cd315f7963b7507366a115a3f89b0c49719af9c6e59",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "47d4159c5b36e3aaf26f21c8e43f7e34e1e7e55487d8c02722a90cabbff5d786"
+    },
+    {
+      "class": "fl.transitions.easing.Strong",
+      "patch": "fl/transitions/easing/Strong.patch",
+      "patch_sha256": "a584a20dd2c6e36a5c2e3cbe9c4e183f896537744adb3d8e8a8bf66bcb4cae18",
+      "pristine_sha256": "340d1f34ac7eda8b1adaa0ac27fc25ef53b4150350acb9407cdda3e312fbc909",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "ea8ee6608a3f7525f5729c57c855b08342e2b60ee57f49e2e9fd1b3bda1cf9ee"
+    },
+    {
+      "class": "profiles_fla.MainTimeline",
+      "patch": "profiles_fla/MainTimeline.patch",
+      "patch_sha256": "b3484d79177998d6c643940c39d97cdadcb19748a9e67269e88d557ea76aad44",
+      "pristine_sha256": "497cd15a5b82e991ea1faa4081d2b5682b8ffb860d72f27da2cb3234c423e40a",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "1309037d18a49f3edd71a72802aa7ed2559aeebae0ed06d6541d0cb322eb83eb"
+    },
+    {
+      "class": "scaleform.clik.controls.ButtonBar",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/controls/ButtonBar.patch",
+      "patch_sha256": "7eb19f3ab98e662e5f057f146116fa8538d6d1685c3391f39059bed5fdb92c7f",
+      "pristine_sha256": "80a9e1ab1acf6a9e3f805c2f471cc4dddc749496f9308a0799a1e5f259016fb1",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "6e5952c73c8442b8c81d0a932561f005bbd8d02f8df757ba2d7815f23dd0dfa4"
+    },
+    {
+      "class": "scaleform.clik.controls.ListItemRenderer",
+      "patch": "scaleform/clik/controls/ListItemRenderer.patch",
+      "patch_sha256": "624217ef0e5d808885206af280397ea0ac6ff890b57762b5e0ef385c4166c3eb",
+      "pristine_sha256": "0d5f361e9cda59b71cea23545171270d75a35d0e7c394d54cc135236d7adda3f",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "a83a04768d7a5d1e0cc167fc1a4562684c9ffc3feb077ff8097b7d1023dda9a6"
+    },
+    {
+      "class": "scaleform.clik.controls.ScrollIndicator",
+      "patch": "scaleform/clik/controls/ScrollIndicator.patch",
+      "patch_sha256": "2d8406d272233b2958b21c433f557b82fb6700b47415c39b69649cb9b063cdf9",
+      "pristine_sha256": "c5dfc5bfe43ba80139c54b9b21934c748211fc09644fa3a8c7e1bbab7aa9b5ca",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "787c19e3c0614135937fff0d2c24aefc75767257de7ef8defe17ca03425e18f3"
+    },
+    {
+      "class": "scaleform.clik.controls.StatusIndicator",
+      "patch": "scaleform/clik/controls/StatusIndicator.patch",
+      "patch_sha256": "294f5fc6b09656ed0524b9a1028d531f716879f0b8528baba11ccfde763e01da",
+      "pristine_sha256": "2b3263749d14d5fabf75bba5eb00f08f1b107411803601febb13060cc7e5d696",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "570cb8a2e7cc7eb839622ad7ee2a7ea1fe3016bb1628fe0c8d26a6d465b06381"
+    },
+    {
+      "class": "scaleform.clik.controls.ToolTip",
+      "patch": "scaleform/clik/controls/ToolTip.patch",
+      "patch_sha256": "ad207c2270481bfe7f986bee8b7d4c94eff92baca3caa389f590577a257a9091",
+      "pristine_sha256": "a82e2cb54acf99680695a3f39cabd44e8478662184b0d7dca7184cb398412f3c",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "31eab7feef2cac590d174517e8bdacd5c525d19e0d7a2137401c55e6dbd712a2"
+    },
+    {
+      "class": "scaleform.clik.core.CLIK",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/core/CLIK.patch",
+      "patch_sha256": "5643e4ef9ea4584cfc7d1db954cf060f9512afda880aa056ad8320f4ff63e9c0",
+      "pristine_sha256": "6bd53ed37710ae6a634563b2519648ab9810aaf038d6e8027faff07bdeeab0d1",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "4c8fcef8e88a118a9272e2a7493ee8a6c5b7d17bfd5453c3ca47ba00d534d8a7"
+    },
+    {
+      "class": "scaleform.clik.layout.Layout",
+      "patch": "scaleform/clik/layout/Layout.patch",
+      "patch_sha256": "e259ebcba91233551b1a8135fa2151c0b0dc73cdee49eca6d182558c25974836",
+      "pristine_sha256": "04c02f178eadabf4cfd973d447a5265f2a5c40b1dbd8dd8efb8ebfb5f8ae2764",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "a3f0cdcbc907211f12ceefc64b2ca14ff4c29f10c00fc920f1ad4e6946e00af5"
+    },
+    {
+      "class": "scaleform.clik.managers.DragManager",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/managers/DragManager.patch",
+      "patch_sha256": "634d7917d1978cb1f68eb8836e9fe6d15b3a0c5232119b7fd3f1750b30435852",
+      "pristine_sha256": "53abc875948ad5d53c6de6cadec8332e4360531ce6b7d49422f29366fc9b9950",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "4c51764cefaf20bc35835a5f9120f249f3fe3fca0626c35727e15724913d3254"
+    },
+    {
+      "class": "scaleform.clik.managers.InputDelegate",
+      "patch": "scaleform/clik/managers/InputDelegate.patch",
+      "patch_sha256": "99d82aa1b91ac2c06b471f1c7113a9233cb33696a7d0aaac952150bc41830124",
+      "pristine_sha256": "2c7572bb3d4a3406f5de33af3c2f6b85ec0c48fc2ae639bed3cebc9ee303324c",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "b7ec08c479e1ae20dbacfdd6467da4ae01af949bb2c1482242650b3af0fdeec9"
+    },
+    {
+      "class": "scaleform.clik.managers.PopUpManager",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/managers/PopUpManager.patch",
+      "patch_sha256": "68b1a19966af66ede1b0b73b920bdf4a136abb06fdcbcec6afa9d81910642863",
+      "pristine_sha256": "bbcd837f0afc04edc9ad00930bf9a8cb90b7170f9d683123690ea59669348015",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "b7a23da92960c7c38ae374fa8dcfe8c63dd74fef3c2e1d432505da2ee1342167"
+    },
+    {
+      "class": "scaleform.gfx.Extensions",
+      "patch": "scaleform/gfx/Extensions.patch",
+      "patch_sha256": "6dc76658a605cbc238627b438450fdcf2b76170fabfbad061f94f300016a0a15",
+      "pristine_sha256": "f50c5d9b223e2d3ca946da0a3fbb6b78cf2a519ebf0cd511cf3011ea086f9387",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "4c1c7d2043305b859ded91ed74183bbbbc21f47f9036a0468fdce0c55c0cc312"
+    },
+    {
+      "class": "survarium.buttons.ButtonStyledLabel",
+      "patch": "survarium/buttons/ButtonStyledLabel.patch",
+      "patch_sha256": "182bac8b0bc6eeb54bff70022cf3b70806c3d877b3804b905b221d75a3348449",
+      "pristine_sha256": "3cd02f2a2614469b5011754fed403a8c293ff324560185f4764134822a7e362e",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "e093d5d7a2df5e3c83543156a88a14e446b89ce0bed54b1b527f8c49601909e9"
+    },
+    {
+      "class": "survarium.controls.FixedTextDots",
+      "patch": "survarium/controls/FixedTextDots.patch",
+      "patch_sha256": "2c960d480d311577d3ec6e7abc7fe705db60c09f8ab1c54dc17affa3cebb30d6",
+      "pristine_sha256": "ab2575815d1d134384db8d1783f7613240e073f0f9b482d427862c080917c853",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "1cc71e97cc323d8dc43f19dfa9db456cf61ece0290da18fdf392c12747c312c6"
+    },
+    {
+      "class": "survarium.controls.ItemRendererCore",
+      "patch": "survarium/controls/ItemRendererCore.patch",
+      "patch_sha256": "0631863157734621cfa161628d2b8bb9cafa478232464c4c92db8ff604e426a3",
+      "pristine_sha256": "af5aab98240ccf62401dab29c231826e1be025eedf68e24a37bb8ada67444b8b",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "de18976f3542321d5c600a21f42716bbc73b3ec2f366819894360b677a0a48c4"
+    },
+    {
+      "class": "survarium.controls.ListDragSlot",
+      "patch": "survarium/controls/ListDragSlot.patch",
+      "patch_sha256": "483197b870925dd7cf65ec93bf954257f23ea2529d5a11a025bd6075c6581b9c",
+      "pristine_sha256": "d42f02e740f7a9374c26170f73e2558bd358416e4660ac955f813b42c167f711",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "fbfa8f11a14627997300ae4712b9ad86010f83172c440e80ee19569c0a4968cf"
+    },
+    {
+      "class": "survarium.controls.PlayerListRenderer",
+      "patch": "survarium/controls/PlayerListRenderer.patch",
+      "patch_sha256": "c5c78db2872cb5787fd6c15a5bdaa844eb374a7e96217d7764e7917078066078",
+      "pristine_sha256": "e3056c5ca714d78abf1b43ccd0db9a93ca124cd2227427a615b318011c7c20c6",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "6a0ec74b1c075309b31eb9589c5de55eaffc35d54811c1abe845246bec72887f"
+    },
+    {
+      "class": "survarium.controls.PlayerProfileBase",
+      "patch": "survarium/controls/PlayerProfileBase.patch",
+      "patch_sha256": "b12953949525f052d308b14f0ee0eda7a35d4589a2b75b883326688f1da7e748",
+      "pristine_sha256": "8bc98051244b8ec36bec8c908cb38ae5d2490d38cb265eb6ebfd1e7c83c86f40",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "fe632085fb7da3d08d6d5b0ce0219655870860a703f602abc4407fa0d1304a79"
+    },
+    {
+      "class": "survarium.core.Icon",
+      "patch": "survarium/core/Icon.patch",
+      "patch_sha256": "13ae09673b2c85bfdfa5ebf872e7b66e13a7ee96fbdfd825672f7ecffb631716",
+      "pristine_sha256": "35824c612ea50909ae7b2642771fdb9342fc7a0e99b7b69bbfe316aadb13aaa7",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "bbf83c50cf9b405e4222aa103814ab065b8ab9d09ada3b0b3a8f3a57a3dd7fcd"
+    },
+    {
+      "class": "survarium.data.ItemData",
+      "compiler": "flex-library",
+      "patch": "survarium/data/ItemData.patch",
+      "patch_sha256": "88e524c02979ff1d9a44813ee6edc0e79c83c6acce44839dcc3461fe0fa125ad",
+      "pristine_sha256": "2d322542961c7fb6ea6a0dab63afd1aea0566662147abe16bbe28a2d33e241c8",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "bbadf28f6e0095b67a8554ce86383d0863f19b39f9dc53b2ca6367646c99bb81"
+    },
+    {
+      "class": "survarium.data.LocalizationData",
+      "patch": "survarium/data/LocalizationData.patch",
+      "patch_sha256": "c1a0b5996d0b86204be96f594b39404c87944d38b931d1fa3b15acb0596fb3e0",
+      "pristine_sha256": "d91fe3b1d80dd34e125c7b80324577e2bc9adfcd465aa6b5bbd9bad55a047d94",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "37107067ef7bce07641c580625372207098aa2b0e1a951616a454bd96ed8caa0"
+    }
+  ],
+  "movie_sha256": "b924b29db06070dfe7d89827a3cf3bc71f14ae4cbca9a2546d95ac977951ec80",
+  "release": "026g-rev24-hud",
+  "schema": 1
+}

@@ -36,7 +36,10 @@ def uncompressed(path):
     if data[:3] == b"CWS":
         stream = zlib.decompressobj()
         body = stream.decompress(data[8:]) + stream.flush()
-        if not stream.eof or stream.unused_data:
+        # The released login/settings patches keep the archive entry size and
+        # CRC using zero padding followed by a four-byte CRC correction.
+        trailer = stream.unused_data
+        if not stream.eof or (trailer and (len(trailer) < 4 or any(trailer[:-4]))):
             raise ValueError("Incomplete or trailing compressed SWF data")
         data = b"FWS" + data[3:8] + body
     elif data[:3] != b"FWS":
@@ -44,6 +47,36 @@ def uncompressed(path):
     if len(data) < 9 or len(data) != struct.unpack_from("<I", data, 4)[0]:
         raise ValueError("SWF declared length differs from actual length")
     return data
+
+
+def serialization_profile(path):
+    """Identify reproducible compression and the opaque archive-entry trailer."""
+    original = path.read_bytes()
+    raw = uncompressed(path)
+    if original[:3] == b"FWS":
+        return {"compression": "none"}
+    stream = zlib.decompressobj()
+    stream.decompress(original[8:])
+    stream.flush()
+    trailer = stream.unused_data
+    payload = original[8:len(original) - len(trailer)] if trailer else original[8:]
+    for level in (9, 6, 1, 2, 3, 4, 5, 7, 8, 0):
+        if zlib.compress(raw[8:], level) == payload:
+            return {"compression": "zlib", "level": level,
+                    "trailer_size": len(trailer),
+                    "trailer_crc_hex": trailer[-4:].hex() if trailer else ""}
+    raise ValueError("Original compression cannot be reproduced by this zlib")
+
+
+def serialize(raw, profile):
+    """Compress newly assembled bytes; never reuse an original deflate stream."""
+    if raw[:3] != b"FWS":
+        raise ValueError("Serialization requires an uncompressed movie")
+    if profile["compression"] == "none":
+        return raw
+    size = profile["trailer_size"]
+    trailer = bytes(size - 4) + bytes.fromhex(profile["trailer_crc_hex"]) if size else b""
+    return b"CWS" + raw[3:8] + zlib.compress(raw[8:], profile["level"]) + trailer
 
 
 def split_movie(path):
