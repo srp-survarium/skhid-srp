@@ -1,0 +1,204 @@
+--- a/survarium/controls/QuickSlots.as
++++ b/survarium/controls/QuickSlots.as
+@@ -37,29 +37,29 @@
+       
+       public function registerIconContainer(link:IconContainer) : void
+       {
+-         this._iconContainer = link;
++         _iconContainer = link;
+       }
+       
+       public function setGrayIcons(value:Dictionary) : void
+       {
+-         var str:* = undefined;
++         var str:*;
+          for(str in value)
+          {
+             trace("grayIndexs::",str);
+          }
+-         this._grayBitmaps = value;
++         _grayBitmaps = value;
+       }
+       
+       public function fillSlot(_p:Object) : Boolean
+       {
+-         var convertedObject:Object = null;
+-         var origin:Object = null;
+-         var data:Object = null;
++         var convertedObject:Object;
+          trace("fill_slot::",_p.cooldown,_p.name,_p.icon,_p.condition_or_stack,_p.hotkey,_p.count,"slot::",_p.slot_id,_p.timer,_p.enabled,_p.is_artefact);
+          var len:uint = this._slots_items.length;
+          var found:Boolean = false;
+          for(var i:uint = 0; i < len; i++)
+          {
++            var origin:Object;
++            var data:Object;
+             if(this._slots_items[i].slot_id == _p.slot_id)
+             {
+                found = true;
+@@ -81,30 +81,33 @@
+          }
+          if(!found)
+          {
+-            if(!Boolean(_p.enabled))
++            if(_p.enabled)
++            {
++               data = this.create_object(_p,null);
++               for(i = 0; i <= len; i++)
++               {
++                  trace("i_len",i,len);
++                  if(i == len)
++                  {
++                     this._slots_items.push(data);
++                     break;
++                  }
++                  else if(this._slots_items[i].slot_id > _p.slot_id)
++                  {
++                     this._slots_items.splice(i,0,data);
++                     break;
++                  }
++               }
++            }
++            else
+             {
+                return false;
+-            }
+-            data = this.create_object(_p,null);
+-            for(i = 0; i <= len; i++)
+-            {
+-               trace("i_len",i,len);
+-               if(i == len)
+-               {
+-                  this._slots_items.push(data);
+-                  break;
+-               }
+-               if(this._slots_items[i].slot_id > _p.slot_id)
+-               {
+-                  this._slots_items.splice(i,0,data);
+-                  break;
+-               }
+             }
+          }
+          trace("_slots_items::",this._slots_items,visible,alpha);
+          this.slots_list.visible = this._slots_items.length > 0;
+          this.slots_list.dataProvider = new DataProvider(this._slots_items);
+-         this.slots_list.width = Boolean(this._slots_items.length) ? this._slots_items.length * this.slots_list.columnWidth + 8 : 10;
++         this.slots_list.width = this._slots_items.length ? this._slots_items.length * this.slots_list.columnWidth + 8 : 10;
+          return this._slots_items.length != len;
+       }
+       
+@@ -117,18 +120,18 @@
+       
+       public function fillSlots(p:Array) : void
+       {
+-         var currentItemDescr:Object = null;
+-         var iconRow:int = 0;
+-         var iconColumn:int = 0;
+-         var iconId:int = 0;
+-         var iconIndex:int = 0;
+-         var icon:Icon = null;
+-         var grayIcon:Icon = null;
+          trace("QS::fillSlots");
+          this._slots_items.length = 0;
+          var convertedItems:Array = new Array();
+          for(var i:uint = 0; i < p.length; i++)
+          {
++            var currentItemDescr:Object;
++            var iconRow:int;
++            var iconColumn:int;
++            var iconId:int;
++            var iconIndex:int;
++            var icon:Icon;
++            var grayIcon:Icon;
+             currentItemDescr = p[i];
+             if(currentItemDescr.icon_row == undefined)
+             {
+@@ -144,31 +147,31 @@
+             icon = this._iconContainer.getIcon(iconIndex);
+             trace("----Slots:createIcon::","rowcolumn",iconRow,iconColumn,"index::",iconIndex,"id:",iconId,icon,this._grayBitmaps[iconIndex]);
+             grayIcon = null;
+-            if(Boolean(this._grayBitmaps[iconIndex]))
++            if(this._grayBitmaps[iconIndex])
+             {
+                grayIcon = (this._grayBitmaps[iconIndex] as Icon).clone();
+             }
+-            if(Boolean(currentItemDescr.enabled))
++            if(currentItemDescr.enabled)
+             {
+                convertedItems.push({
+-                  "id":currentItemDescr.id,
+-                  "slot_id":currentItemDescr.slot_id,
+-                  "dictId":currentItemDescr.dictId,
+-                  "name":currentItemDescr.name,
+-                  "icon":icon,
+-                  "grayIcon":grayIcon,
+-                  "icon_id":currentItemDescr.icon,
+-                  "count":currentItemDescr.count,
+-                  "cooldown":currentItemDescr.cooldown,
+-                  "enabled":currentItemDescr.enabled,
+-                  "hotkey":currentItemDescr.hotkey,
+-                  "timer":currentItemDescr.timer,
+-                  "is_artefact":currentItemDescr.is_artefact
++                  id:currentItemDescr.id,
++                  slot_id:currentItemDescr.slot_id,
++                  dictId:currentItemDescr.dictId,
++                  name:currentItemDescr.name,
++                  icon:icon,
++                  grayIcon:grayIcon,
++                  icon_id:currentItemDescr.icon,
++                  count:currentItemDescr.count,
++                  cooldown:currentItemDescr.cooldown,
++                  enabled:currentItemDescr.enabled,
++                  hotkey:currentItemDescr.hotkey,
++                  timer:currentItemDescr.timer,
++                  is_artefact:currentItemDescr.is_artefact
+                });
+             }
+          }
+-         this._slots_items = convertedItems;
+-         this.slots_list.width = Boolean(this._slots_items.length) ? this._slots_items.length * this.slots_list.columnWidth + 8 : 10;
++         _slots_items = convertedItems;
++         this.slots_list.width = this._slots_items.length ? this._slots_items.length * this.slots_list.columnWidth + 8 : 10;
+          this.slots_list.visible = this._slots_items.length > 0;
+          this.slots_list.dataProvider = new DataProvider(convertedItems);
+          trace("vs::",visible,parent,width,this.slots_list.width,this.slots_list.visible);
+@@ -181,26 +184,26 @@
+          var iconColumn:int = value.icon_column - 1;
+          var iconId:int = iconColumn * this.otherRows + iconRow;
+          value.icon = iconId;
+-         var isSame:Boolean = Boolean(current_value) && value.icon == current_value.icon_id;
++         var isSame:Boolean = current_value && value.icon == current_value.icon_id;
+          var iconIndex:int = this.hudIcons.indexOf(value.icon);
+          var icon:Icon = isSame ? current_value.icon : this._iconContainer.getIcon(iconIndex);
+          var grayIcon:Icon = null;
+-         if(Boolean(this._grayBitmaps[iconIndex]))
++         if(this._grayBitmaps[iconIndex])
+          {
+             grayIcon = isSame ? current_value.grayIcon : (this._grayBitmaps[iconIndex] as Icon).clone();
+          }
+          return {
+-            "id":value.id,
+-            "slot_id":value.slot_id,
+-            "icon":icon,
+-            "grayIcon":grayIcon,
+-            "icon_id":value.icon,
+-            "count":value.count,
+-            "cooldown":value.cooldown,
+-            "enabled":value.enabled,
+-            "hotkey":value.hotkey,
+-            "timer":value.timer,
+-            "is_artefact":value.is_artefact
++            id:value.id,
++            slot_id:value.slot_id,
++            icon:icon,
++            grayIcon:grayIcon,
++            icon_id:value.icon,
++            count:value.count,
++            cooldown:value.cooldown,
++            enabled:value.enabled,
++            hotkey:value.hotkey,
++            timer:value.timer,
++            is_artefact:value.is_artefact
+          };
+       }
+    }

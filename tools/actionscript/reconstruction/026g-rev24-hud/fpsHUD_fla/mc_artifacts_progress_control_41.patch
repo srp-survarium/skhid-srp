@@ -1,0 +1,35 @@
+--- a/fpsHUD_fla/mc_artifacts_progress_control_41.as
++++ b/fpsHUD_fla/mc_artifacts_progress_control_41.as
+@@ -42,9 +42,9 @@
+       
+       public function set_progress(value:uint, max:uint) : *
+       {
+-         var art:ArtifactMC = null;
+          for(var i:uint = 0; i < max; i++)
+          {
++            var art:ArtifactMC;
+             if(!this.slots[i])
+             {
+                art = new ArtifactMC();
+@@ -81,7 +81,7 @@
+          for(i = max; i < this.slots.length; i++)
+          {
+             art = this.slots[i - 1];
+-            if(Boolean(art))
++            if(art)
+             {
+                removeChild(art);
+             }
+@@ -94,9 +94,9 @@
+       
+       internal function frame1() : *
+       {
+-         this.slots = new Array();
+-         this.team = 0;
+-         this.renderer_width = 20;
++         slots = new Array();
++         team = 0;
++         renderer_width = 20;
+       }
+    }
+ }

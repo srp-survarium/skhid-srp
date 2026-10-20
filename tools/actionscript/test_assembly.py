@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import zlib
 
 import assemble_baseline
 import movie_source
@@ -35,13 +36,14 @@ class AssemblyIntegration(unittest.TestCase):
             sources = {
                 "AssemblyMain": """package {
                     import flash.display.Sprite;
-                    public class AssemblyMain extends Sprite {
+                    public class AssemblyMain extends AssemblyValue {
                         private var value:AssemblyValue = new AssemblyValue();
-                        public function result():int { return value.result(); }
+                        public function total():int { return value.result(); }
                     }
                 }""",
                 "AssemblyValue": """package {
-                    public class AssemblyValue implements AssemblyContract {
+                    import flash.display.Sprite;
+                    public class AssemblyValue extends Sprite implements AssemblyContract {
                         public function result():int { return 7; }
                         public function nested():Function {
                             return function(value:int):int { return value+2; };
@@ -129,7 +131,11 @@ class AssemblyIntegration(unittest.TestCase):
             project, reconstruction = root / "project", root / "reconstruction"
             (project / "pristine").mkdir(parents=True)
             reconstruction.mkdir()
-            (project / "original.swf").write_bytes(movie_source.uncompressed(reference))
+            raw = movie_source.uncompressed(reference)
+            # Exercise the retail compression level and archive-entry padding
+            # through the complete public build, not only the serializer unit.
+            (project / "original.swf").write_bytes(
+                b"CWS" + raw[3:8] + zlib.compress(raw[8:], 6) + bytes(17) + b"\x12\x34\x56\x78")
             for name, source in sources.items():
                 (project / "pristine" / (name + ".as")).write_text(source + "\n")
             pin = {"schema": 1, "release": "assembly-fixture",

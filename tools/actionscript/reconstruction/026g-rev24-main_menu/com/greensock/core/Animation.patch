@@ -1,0 +1,309 @@
+--- a/com/greensock/core/Animation.as
++++ b/com/greensock/core/Animation.as
+@@ -7,14 +7,14 @@
+    public class Animation
+    {
+       
++      public static const version:String = "12.1.1";
++      
++      public static var ticker:Shape = new Shape();
++      
+       public static var _rootTimeline:SimpleTimeline;
+       
+       public static var _rootFramesTimeline:SimpleTimeline;
+       
+-      public static const version:String = "12.1.1";
+-      
+-      public static var ticker:Shape = new Shape();
+-      
+       protected static var _rootFrame:Number = -1;
+       
+       protected static var _tickEvent:Event = new Event("tick");
+@@ -68,35 +68,38 @@
+       public function Animation(param1:Number = 0, param2:Object = null)
+       {
+          super();
+-         this.vars = param2 || {};
+-         if(Boolean(this.vars._isGSVars))
+-         {
+-            this.vars = this.vars.vars;
+-         }
+-         this._duration = this._totalDuration = param1 || 0;
+-         this._delay = Number(this.vars.delay) || 0;
+-         this._timeScale = 1;
+-         this._totalTime = this._time = 0;
+-         this.data = this.vars.data;
+-         this._rawPrevTime = -1;
++         vars = param2 || {};
++         if(this.vars._isGSVars)
++         {
++            vars = this.vars.vars;
++         }
++         _duration = _totalDuration = param1 || 0;
++         _delay = Number(this.vars.delay) || 0;
++         _timeScale = 1;
++         _totalTime = _time = 0;
++         data = this.vars.data;
++         _rawPrevTime = -1;
+          if(_rootTimeline == null)
+          {
+-            if(_rootFrame != -1)
++            if(_rootFrame == -1)
++            {
++               _rootFrame = 0;
++               _rootFramesTimeline = new SimpleTimeline();
++               _rootTimeline = new SimpleTimeline();
++               _rootTimeline._startTime = getTimer() / 1000;
++               _rootFramesTimeline._startTime = 0;
++               _rootTimeline._active = _rootFramesTimeline._active = true;
++               ticker.addEventListener("enterFrame",_updateRoot,false,0,true);
++            }
++            else
+             {
+                return;
+             }
+-            _rootFrame = 0;
+-            _rootFramesTimeline = new SimpleTimeline();
+-            _rootTimeline = new SimpleTimeline();
+-            _rootTimeline._startTime = getTimer() / 1000;
+-            _rootFramesTimeline._startTime = 0;
+-            _rootTimeline._active = _rootFramesTimeline._active = true;
+-            ticker.addEventListener("enterFrame",_updateRoot,false,0,true);
+-         }
+-         var _loc3_:SimpleTimeline = Boolean(this.vars.useFrames) ? _rootFramesTimeline : _rootTimeline;
++         }
++         var _loc3_:SimpleTimeline = this.vars.useFrames ? _rootFramesTimeline : _rootTimeline;
+          _loc3_.add(this,_loc3_._time);
+-         this._reversed = this.vars.reversed == true;
+-         if(Boolean(this.vars.paused))
++         _reversed = this.vars.reversed == true;
++         if(this.vars.paused)
+          {
+             this.paused(true);
+          }
+@@ -112,7 +115,7 @@
+       
+       public function play(param1:* = null, param2:Boolean = true) : *
+       {
+-         if(Boolean(arguments.length))
++         if(arguments.length)
+          {
+             this.seek(param1,param2);
+          }
+@@ -122,7 +125,7 @@
+       
+       public function pause(param1:* = null, param2:Boolean = true) : *
+       {
+-         if(Boolean(arguments.length))
++         if(arguments.length)
+          {
+             this.seek(param1,param2);
+          }
+@@ -131,7 +134,7 @@
+       
+       public function resume(param1:* = null, param2:Boolean = true) : *
+       {
+-         if(Boolean(arguments.length))
++         if(arguments.length)
+          {
+             this.seek(param1,param2);
+          }
+@@ -152,7 +155,7 @@
+       
+       public function reverse(param1:* = null, param2:Boolean = true) : *
+       {
+-         if(Boolean(arguments.length))
++         if(arguments.length)
+          {
+             this.seek(param1 || this.totalDuration(),param2);
+          }
+@@ -171,15 +174,15 @@
+       
+       public function isActive() : Boolean
+       {
+-         var _loc2_:Number = NaN;
+          var _loc1_:SimpleTimeline = this._timeline;
++         var _loc2_:Number;
+          return _loc1_ == null || !this._gc && !this._paused && _loc1_.isActive() && (_loc2_ = _loc1_.rawTime()) >= this._startTime && _loc2_ < this._startTime + this.totalDuration() / this._timeScale;
+       }
+       
+       public function _enabled(param1:Boolean, param2:Boolean = false) : Boolean
+       {
+-         this._gc = !param1;
+-         this._active = Boolean(param1 && !this._paused && this._totalTime > 0 && this._totalTime < this._totalDuration);
++         _gc = !param1;
++         _active = Boolean(param1 && !this._paused && this._totalTime > 0 && this._totalTime < this._totalDuration);
+          if(!param2)
+          {
+             if(param1 && this.timeline == null)
+@@ -208,7 +211,7 @@
+       protected function _uncache(param1:Boolean) : *
+       {
+          var _loc2_:Animation = param1 ? this : this.timeline;
+-         while(Boolean(_loc2_))
++         while(_loc2_)
+          {
+             _loc2_._dirty = true;
+             _loc2_ = _loc2_.timeline;
+@@ -218,7 +221,7 @@
+       
+       protected function _swapSelfInParams(param1:Array) : Array
+       {
+-         var _loc2_:int = int(param1.length);
++         var _loc2_:int = (param1.length);
+          var _loc3_:Array = param1.concat();
+          while(--_loc2_ > -1)
+          {
+@@ -253,7 +256,7 @@
+             }
+             if(param1 == "onUpdate")
+             {
+-               this._onUpdate = param2;
++               _onUpdate = param2;
+             }
+          }
+          return this;
+@@ -269,7 +272,7 @@
+          {
+             this.startTime(this._startTime + param1 - this._delay);
+          }
+-         this._delay = param1;
++         _delay = param1;
+          return this;
+       }
+       
+@@ -277,10 +280,10 @@
+       {
+          if(!arguments.length)
+          {
+-            this._dirty = false;
++            _dirty = false;
+             return this._duration;
+          }
+-         this._duration = this._totalDuration = param1;
++         _duration = _totalDuration = param1;
+          this._uncache(true);
+          if(this._timeline.smoothChildTiming)
+          {
+@@ -300,7 +303,7 @@
+       
+       public function totalDuration(param1:Number = NaN) : *
+       {
+-         this._dirty = false;
++         _dirty = false;
+          return !arguments.length ? this._totalDuration : this.duration(param1);
+       }
+       
+@@ -323,12 +326,12 @@
+       
+       public function totalTime(param1:Number = NaN, param2:Boolean = false, param3:Boolean = false) : *
+       {
+-         var _loc5_:SimpleTimeline = null;
++         var _loc5_:SimpleTimeline;
+          if(!arguments.length)
+          {
+             return this._totalTime;
+          }
+-         if(Boolean(this._timeline))
++         if(this._timeline)
+          {
+             if(param1 < 0 && !param3)
+             {
+@@ -345,14 +348,14 @@
+                   param1 = this._totalDuration;
+                }
+                _loc5_ = this._timeline;
+-               this._startTime = (this._paused ? this._pauseTime : _loc5_._time) - (!this._reversed ? param1 : this._totalDuration - param1) / this._timeScale;
++               _startTime = (this._paused ? this._pauseTime : _loc5_._time) - (!this._reversed ? param1 : this._totalDuration - param1) / this._timeScale;
+                if(!this._timeline._dirty)
+                {
+                   this._uncache(false);
+                }
+                if(_loc5_._timeline != null)
+                {
+-                  while(Boolean(_loc5_._timeline))
++                  while(_loc5_._timeline)
+                   {
+                      if(_loc5_._timeline._time !== (_loc5_._startTime + _loc5_._totalTime) / _loc5_._timeScale)
+                      {
+@@ -392,8 +395,8 @@
+          }
+          if(param1 != this._startTime)
+          {
+-            this._startTime = param1;
+-            if(Boolean(this.timeline))
++            _startTime = param1;
++            if(this.timeline)
+             {
+                if(this.timeline._sortChildren)
+                {
+@@ -406,18 +409,18 @@
+       
+       public function timeScale(param1:Number = NaN) : *
+       {
+-         var _loc3_:Number = NaN;
++         var _loc3_:Number;
+          if(!arguments.length)
+          {
+             return this._timeScale;
+          }
+          param1 ||= 0.000001;
+-         if(Boolean(this._timeline) && this._timeline.smoothChildTiming)
+-         {
+-            _loc3_ = Boolean(this._pauseTime) || this._pauseTime == 0 ? this._pauseTime : this._timeline._totalTime;
+-            this._startTime = _loc3_ - (_loc3_ - this._startTime) * this._timeScale / param1;
+-         }
+-         this._timeScale = param1;
++         if(this._timeline && this._timeline.smoothChildTiming)
++         {
++            _loc3_ = this._pauseTime || this._pauseTime == 0 ? this._pauseTime : this._timeline._totalTime;
++            _startTime = _loc3_ - (_loc3_ - this._startTime) * this._timeScale / param1;
++         }
++         _timeScale = param1;
+          return this._uncache(false);
+       }
+       
+@@ -429,34 +432,34 @@
+          }
+          if(param1 != this._reversed)
+          {
+-            this._reversed = param1;
+-            this.totalTime(Boolean(this._timeline) && !this._timeline.smoothChildTiming ? this.totalDuration() - this._totalTime : this._totalTime,true);
++            _reversed = param1;
++            this.totalTime(this._timeline && !this._timeline.smoothChildTiming ? this.totalDuration() - this._totalTime : this._totalTime,true);
+          }
+          return this;
+       }
+       
+       public function paused(param1:Boolean = false) : *
+       {
+-         var _loc3_:Number = NaN;
+-         var _loc4_:Number = NaN;
++         var _loc3_:Number;
++         var _loc4_:Number;
+          if(!arguments.length)
+          {
+             return this._paused;
+          }
+          if(param1 != this._paused)
+          {
+-            if(Boolean(this._timeline))
++            if(this._timeline)
+             {
+                _loc3_ = this._timeline.rawTime();
+                _loc4_ = _loc3_ - this._pauseTime;
+                if(!param1 && this._timeline.smoothChildTiming)
+                {
+-                  this._startTime += _loc4_;
++                  _startTime += _loc4_;
+                   this._uncache(false);
+                }
+-               this._pauseTime = param1 ? _loc3_ : NaN;
+-               this._paused = param1;
+-               this._active = !param1 && this._totalTime > 0 && this._totalTime < this._totalDuration;
++               _pauseTime = param1 ? _loc3_ : NaN;
++               _paused = param1;
++               _active = !param1 && this._totalTime > 0 && this._totalTime < this._totalDuration;
+                if(!param1 && _loc4_ != 0 && this._initted && this.duration() !== 0)
+                {
+                   this.render(this._timeline.smoothChildTiming ? this._totalTime : (_loc3_ - this._startTime) / this._timeScale,true,true);

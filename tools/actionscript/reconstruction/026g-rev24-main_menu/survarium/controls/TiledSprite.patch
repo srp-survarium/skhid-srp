@@ -1,0 +1,22 @@
+--- a/survarium/controls/TiledSprite.as
++++ b/survarium/controls/TiledSprite.as
+@@ -48,15 +48,15 @@
+       
+       public function setTile(param1:BitmapData) : void
+       {
+-         this._tile = param1;
++         _tile = param1;
+          this.redraw();
+       }
+       
+       private function redraw() : void
+       {
+-         var _loc1_:Graphics = null;
+-         var _loc2_:Matrix = null;
+-         if(Boolean(this._tile))
++         var _loc1_:Graphics;
++         var _loc2_:Matrix;
++         if(this._tile)
+          {
+             _loc1_ = this.graphics;
+             _loc1_.clear();

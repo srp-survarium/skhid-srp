@@ -1,0 +1,297 @@
+--- a/survarium/controls/QuickItemRenderer.as
++++ b/survarium/controls/QuickItemRenderer.as
+@@ -65,15 +65,15 @@
+       {
+          super();
+          _stateMap = {
+-            "def":["default"],
+-            "disabled":["disabled"],
+-            "cooldown":["cooldown"]
++            def:["default"],
++            disabled:["disabled"],
++            cooldown:["cooldown"]
+          };
+          this._timer.repeatCount = 10;
+          this._timer.start();
+          this.artifact_background.visible = false;
+          this.glow.gotoAndStop(1);
+-         if(Boolean(contentCanvas))
++         if(contentCanvas)
+          {
+             (contentCanvas as MovieClip).gotoAndStop(1);
+          }
+@@ -81,12 +81,12 @@
+       
+       override public function set content(value:Sprite) : void
+       {
+-         var container:MovieClip = null;
++         var container:MovieClip;
+          trace("QIR::setContetn:",name,contentCanvas,value);
+          if(value != _content)
+          {
+             container = (contentCanvas as MovieClip).container;
+-            if(Boolean(_content))
++            if(_content)
+             {
+                if(container.contains(_content))
+                {
+@@ -115,7 +115,7 @@
+       
+       public function set owner(value:UIComponent) : void
+       {
+-         this._owner = value;
++         _owner = value;
+       }
+       
+       public function get selectable() : Boolean
+@@ -125,7 +125,7 @@
+       
+       public function set selectable(value:Boolean) : void
+       {
+-         this._selectable = value;
++         _selectable = value;
+       }
+       
+       public function get highlighted() : Boolean
+@@ -135,7 +135,7 @@
+       
+       public function set highlighted(value:Boolean) : void
+       {
+-         this._highlighted = value;
++         _highlighted = value;
+          this.setState("out");
+       }
+       
+@@ -146,12 +146,12 @@
+       
+       public function set selected(value:Boolean) : void
+       {
+-         this._selected = value;
++         _selected = value;
+       }
+       
+       public function set disabled(value:Boolean) : void
+       {
+-         this.enabled = !value;
++         enabled = !value;
+          if(value == true)
+          {
+             this.setState("disabled");
+@@ -188,7 +188,7 @@
+             return;
+          }
+          _data = value;
+-         if(Boolean(_data) && Boolean(_data.cooldown != undefined) && _data.cooldown > 0)
++         if(_data && _data.cooldown != undefined && _data.cooldown > 0)
+          {
+             this.setState("cooldown");
+          }
+@@ -206,14 +206,14 @@
+       
+       public function set index(value:uint) : void
+       {
+-         this._index = value;
++         _index = value;
+          _descriptor = value;
+       }
+       
+       public function setListData(listData:ListData) : void
+       {
+-         this.index = listData.index;
+-         this.selected = listData.selected;
++         index = listData.index;
++         selected = listData.selected;
+       }
+       
+       public function setData(data:Object) : void
+@@ -228,19 +228,19 @@
+       
+       protected function updateSlot() : void
+       {
+-         var _scale:Number = NaN;
+-         var sec:int = 0;
+-         var contentContainer:MovieClip = null;
+-         var grayIcon:Icon = null;
++         var _scale:Number;
++         var sec:int;
++         var contentContainer:MovieClip;
++         var grayIcon:Icon;
+          if(_data != null)
+          {
+             trace("QIR::",_data.is_artefact);
+-            this.enabled = _data.enabled;
++            enabled = _data.enabled;
+             this.artifact_background.visible = _data.is_artefact == true;
+-            if(Boolean(_data.enabled))
++            if(_data.enabled)
+             {
+                trace("sc_01");
+-               this.content = _data.icon;
++               content = _data.icon;
+                _scale = Math.min(110 / _content.width,110 / _content.height);
+                contentCanvas.scaleX = _scale / scaleX;
+                contentCanvas.scaleY = contentCanvas.scaleX;
+@@ -249,11 +249,11 @@
+             }
+             else
+             {
+-               this.content = null;
+-            }
+-            if(Boolean(this.keyBind))
+-            {
+-               if(Boolean(_data.enabled) && Boolean(_data.hotkey))
++               content = null;
++            }
++            if(this.keyBind)
++            {
++               if(_data.enabled && _data.hotkey)
+                {
+                   this.keyBind.text = _data.hotkey;
+                }
+@@ -262,22 +262,22 @@
+                   this.keyBind.text = "";
+                }
+             }
+-            if(Boolean(this.count))
++            if(this.count)
+             {
+                if(this._lastCount != _data.count)
+                {
+                   if(this._lastCount != -1 && this._lastCount != _data.count && this._lastId == _data.icon_id)
+                   {
+                      trace("contentContainer::playAsItemGlow");
+-                     if(Boolean(contentCanvas))
++                     if(contentCanvas)
+                      {
+                         (contentCanvas as MovieClip).gotoAndPlay("glow");
+                      }
+                   }
+-                  this._lastCount = _data.count;
+-                  this._lastId = _data.icon_id;
+-               }
+-               if(_data.count > 1 && Boolean(_data.enabled))
++                  _lastCount = _data.count;
++                  _lastId = _data.icon_id;
++               }
++               if(_data.count > 1 && _data.enabled)
+                {
+                   this.count.text = "x" + _data.count;
+                }
+@@ -296,35 +296,35 @@
+                   this.count_timer.text = Util.getZeroString(sec);
+                   this.timerBack.visible = true;
+                   trace("contentContainer::check_glow",contentContainer,contentContainer.currentFrame,this._lastTimer,sec,this._lastId,_data.icon_id);
+-                  if(Boolean(contentContainer) && (contentContainer.currentFrame < 11 || contentContainer.currentFrame == 20))
++                  if(contentContainer && (contentContainer.currentFrame < 11 || contentContainer.currentFrame == 20))
+                   {
+                      if(this._lastTimer != sec)
+                      {
+                         if(this._lastTimer != -1 && this._lastTimer != sec && this._lastId == _data.icon_id)
+                         {
+                            trace("contentContainer::playAsArtifact");
+-                           if(Boolean(contentContainer))
++                           if(contentContainer)
+                            {
+                               contentContainer.gotoAndPlay("glow_container");
+                            }
+                         }
+-                        this._lastTimer = sec;
+-                        this._lastId = _data.icon_id;
++                        _lastTimer = sec;
++                        _lastId = _data.icon_id;
+                      }
+                   }
+                }
+                else
+                {
+                   trace("grayIcon::",_data.grayIcon,_data.is_artefact);
+-                  if(Boolean(_data.grayIcon))
++                  if(_data.grayIcon)
+                   {
+                      grayIcon = _data.grayIcon;
+                      trace("sc_02");
+-                     this.content = grayIcon;
++                     content = grayIcon;
+                   }
+                   this.count_timer.text = "";
+                   this.timerBack.visible = false;
+-                  if(Boolean(contentContainer) && contentContainer.currentFrame > 10)
++                  if(contentContainer && contentContainer.currentFrame > 10)
+                   {
+                      contentContainer.gotoAndStop(1);
+                   }
+@@ -333,7 +333,7 @@
+             else
+             {
+                contentContainer = contentCanvas as MovieClip;
+-               if(Boolean(contentContainer) && contentContainer.currentFrame > 10)
++               if(contentContainer && contentContainer.currentFrame > 10)
+                {
+                   contentContainer.gotoAndStop(1);
+                }
+@@ -341,18 +341,18 @@
+             }
+             if(_data.cooldown != undefined && _data.cooldown > 0)
+             {
+-               if(Boolean(this.overCooldown))
++               if(this.overCooldown)
+                {
+                   this.overCooldown.alpha = 0.3;
+                   this.overCooldown.gotoAndStop(1);
+                   this.overCooldown.rotation = -90;
+                   this.drawSegment(this.overCooldown,6,-11,34,1,_data.cooldown / 100 * 360);
+                }
+-               if(Boolean(_data.grayIcon))
++               if(_data.grayIcon)
+                {
+                   grayIcon = _data.grayIcon;
+                   trace("sc_04");
+-                  this.content = grayIcon;
++                  content = grayIcon;
+                }
+             }
+             else
+@@ -361,33 +361,33 @@
+                if(_data.icon_id != 13 && _data.icon_id != 42 && _data.icon_id != 67 && _data.icon_id != 74 && _data.icon_id != 110 && _data.icon_id != 113)
+                {
+                   this.setState("def");
+-                  if(Boolean(_data.grayIcon))
++                  if(_data.grayIcon)
+                   {
+                      trace("sc_03");
+-                     this.content = _data.icon;
++                     content = _data.icon;
+                   }
+                }
+             }
+          }
+          else
+          {
+-            this.content = null;
+-            this._lastCount = -1;
+-            this._lastTimer = -1;
+-            this._lastId = -1;
+-            if(Boolean(this.keyBind))
++            content = null;
++            _lastCount = -1;
++            _lastTimer = -1;
++            _lastId = -1;
++            if(this.keyBind)
+             {
+                this.keyBind.text = "";
+             }
+-            if(Boolean(this.count))
++            if(this.count)
+             {
+                this.count.text = "";
+             }
+-            if(Boolean(this.count_timer))
++            if(this.count_timer)
+             {
+                this.count_timer.text = "";
+             }
+-            if(Boolean(this.timerBack))
++            if(this.timerBack)
+             {
+                this.timerBack.visible = false;
+             }

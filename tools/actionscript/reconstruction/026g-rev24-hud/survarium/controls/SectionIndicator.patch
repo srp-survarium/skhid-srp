@@ -1,0 +1,84 @@
+--- a/survarium/controls/SectionIndicator.as
++++ b/survarium/controls/SectionIndicator.as
+@@ -37,7 +37,7 @@
+          var classRef:Class = getDefinitionByName(value) as Class;
+          if(classRef != null)
+          {
+-            this._itemRenderer = classRef;
++            _itemRenderer = classRef;
+          }
+          else
+          {
+@@ -61,7 +61,7 @@
+       
+       public function set scaleRenders(value:Boolean) : void
+       {
+-         this._scaleRenderers = value;
++         _scaleRenderers = value;
+       }
+       
+       override public function toString() : String
+@@ -77,9 +77,6 @@
+       
+       override protected function updatePosition() : void
+       {
+-         var cell:MovieClip = null;
+-         var pos:uint = 0;
+-         var maxSize:int = 0;
+          trace("SI::updatePosition",enabled);
+          if(!enabled)
+          {
+@@ -88,6 +85,9 @@
+          setChildIndex(this.track,0);
+          for(var i:uint = 0; i < this._cells.length; i++)
+          {
++            var cell:MovieClip;
++            var pos:uint;
++            var maxSize:int;
+             cell = this._cells[i];
+             if(this._useSections)
+             {
+@@ -116,7 +116,7 @@
+       
+       public function set snapInterval(value:Number) : void
+       {
+-         this._snapInterval = value;
++         _snapInterval = value;
+          invalidate(InvalidationType.SETTINGS);
+       }
+       
+@@ -142,18 +142,18 @@
+       
+       public function set useSections(value:Boolean) : void
+       {
+-         this._useSections = value;
++         _useSections = value;
+          invalidate(InvalidationType.SETTINGS);
+       }
+       
+       override protected function draw() : void
+       {
+-         var j:uint = 0;
+-         var cellCount:uint = 0;
+-         var maxSize:int = 0;
+-         var rendererWidth:Number = NaN;
+-         var i:uint = 0;
+-         var cell:MovieClip = null;
++         var j:uint;
++         var cellCount:uint;
++         var maxSize:int;
++         var rendererWidth:Number;
++         var i:uint;
++         var cell:MovieClip;
+          if(isInvalid(InvalidationType.SETTINGS))
+          {
+             for(j = 0; j < this._cells.length; j++)
+@@ -163,7 +163,7 @@
+                removeChild(cell);
+             }
+             this._cells.length = 0;
+-            cellCount = this.useSections ? uint(this.maximum / this.snapInterval) : 1;
++            cellCount = this.useSections ? (this.maximum / this.snapInterval) : 1;
+             maxSize = this.track.width;
+             rendererWidth = (maxSize - (cellCount - 1) * this.shiftInterval) / cellCount;
+             for(i = 0; i < cellCount; i++)

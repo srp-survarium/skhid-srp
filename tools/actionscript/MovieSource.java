@@ -30,16 +30,82 @@ public final class MovieSource {
         final Path sdk;
         final Path diagnostics;
         final boolean strict;
+        final boolean optimized;
         final String libraryClass;
-        FlexCompiler(String path, Path diagnostics, boolean strict, String libraryClass) {
+        FlexCompiler(String path, Path diagnostics, boolean strict, String libraryClass, boolean optimized) {
             super(path); sdk = Path.of(path); this.diagnostics = diagnostics; this.strict = strict;
-            this.libraryClass = libraryClass;
+            this.libraryClass = libraryClass; this.optimized = optimized;
         }
         // Adapt only the compiler's temporary dependency SWC. Qualify singleton
         // namespace sets and supply the inheritance catalog missing from FFDec's
         // export. The target movie remains untouched.
         static void qualifyDependencyInterfaces(Path swc) throws IOException, InterruptedException {
             qualifyDependencyInterfaces(swc, Set.of());
+        }
+        static void splitDependencyScripts(SWF dependency, Map<String, byte[]> entries) throws IOException {
+            // A shared ABC becomes one SWC catalog script in FFDec's export.
+            // Loading a base class then loads all of its descendants, including
+            // ones that depend on the source class currently being compiled.
+            // Keep each original script in its own dependency-only ABC so Flex
+            // can load the actual inheritance graph without that artificial cycle.
+            if (dependency.getAbcList().stream().noneMatch(t -> t.getABC().script_info.size() > 1)) return;
+            try {
+                var factory = DocumentBuilderFactory.newInstance();
+                factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+                var doc = factory.newDocumentBuilder().parse(new ByteArrayInputStream(entries.get("catalog.xml")));
+                for (var container : new ArrayList<>(dependency.getAbcList())) {
+                    ABC abc = container.getABC();
+                    if (abc.script_info.size() < 2) continue;
+                    if (!(container instanceof com.jpexs.decompiler.flash.tags.DoABC2Tag original))
+                        throw new IOException("Shared dependency requires a named DoABC tag");
+                    org.w3c.dom.Element catalog = null;
+                    var scripts = doc.getElementsByTagName("script");
+                    for (int i = 0; i < scripts.getLength(); i++) {
+                        var script = (org.w3c.dom.Element)scripts.item(i);
+                        if (!script.getAttribute("name").equals(original.name)) continue;
+                        if (catalog != null) throw new IOException("Ambiguous dependency catalog script");
+                        catalog = script;
+                    }
+                    if (catalog == null) throw new IOException("Missing dependency catalog script");
+                    Set<String> remaining = new HashSet<>();
+                    var defs = catalog.getElementsByTagName("def");
+                    for (int i = 0; i < defs.getLength(); i++)
+                        remaining.add(((org.w3c.dom.Element)defs.item(i)).getAttribute("id"));
+                    int position = dependency.indexOfTag(original);
+                    dependency.removeTag(original);
+                    byte[] bytes = abcBytes(abc);
+                    for (int selected = 0; selected < abc.script_info.size(); selected++) {
+                        var tag = new com.jpexs.decompiler.flash.tags.DoABC2Tag(dependency);
+                        tag.flags = original.flags;
+                        tag.name = "__srp_dependency_" + position + "_" + selected;
+                        var copy = new ABC(new ABCInputStream(new com.jpexs.helpers.MemoryInputStream(bytes)),
+                                           dependency, tag);
+                        for (int i = 0; i < copy.script_info.size(); i++)
+                            if (i != selected) copy.script_info.get(i).delete(copy, true);
+                        copy.pack();
+                        if (copy.script_info.size() != 1) throw new IOException("Dependency script selection failed");
+                        tag.setABC(copy); tag.setModified(true);
+                        dependency.addTag(position++, tag);
+                        var script = doc.createElement("script");
+                        script.setAttribute("name", tag.name);
+                        script.setAttribute("mod", catalog.getAttribute("mod"));
+                        for (var trait : copy.script_info.get(0).traits.traits) {
+                            String name = catalogName(copy, trait.name_index);
+                            if (!remaining.remove(name)) continue;
+                            var def = doc.createElement("def"); def.setAttribute("id", name); script.appendChild(def);
+                        }
+                        var dep = doc.createElement("dep");
+                        dep.setAttribute("id", "AS3"); dep.setAttribute("type", "n"); script.appendChild(dep);
+                        catalog.getParentNode().insertBefore(script, catalog);
+                    }
+                    if (!remaining.isEmpty()) throw new IOException("Dependency split lost definitions: " + remaining);
+                    catalog.getParentNode().removeChild(catalog);
+                }
+                dependency.clearAbcListCache();
+                var output = new ByteArrayOutputStream();
+                TransformerFactory.newInstance().newTransformer().transform(new DOMSource(doc), new StreamResult(output));
+                entries.put("catalog.xml", output.toByteArray());
+            } catch (Exception error) { throw new IOException("Cannot split dependency scripts", error); }
         }
         static void qualifyDependencyInterfaces(Path swc, Set<String> externalDefinitions) throws IOException, InterruptedException {
             Map<String, byte[]> entries = new LinkedHashMap<>();
@@ -49,6 +115,7 @@ public final class MovieSource {
             byte[] library = entries.get("library.swf");
             if (library == null) throw new IOException("Dependency SWC has no library.swf");
             SWF dependency = new SWF(new ByteArrayInputStream(library), true);
+            splitDependencyScripts(dependency, entries);
             int changed = 0;
             for (var tag : dependency.getAbcList()) {
                 ABC abc = tag.getABC();
@@ -119,6 +186,7 @@ public final class MovieSource {
                         String id = ((org.w3c.dom.Element)defs.item(j)).getAttribute("id");
                         own.add(id); expression.addAll(references.getOrDefault(id, Set.of()));
                     }
+                    deps.removeAll(own);
                     expression.removeAll(own); expression.removeAll(deps);
                     for (String base : deps) {
                         var dep = doc.createElement("dep"); dep.setAttribute("id", base); dep.setAttribute("type", "i");
@@ -144,7 +212,7 @@ public final class MovieSource {
         static String catalogName(ABC abc, int id) throws IOException {
             Multiname m = abc.constants.getMultiname(id);
             if (m.kind != 7) throw new IOException("Non-qualified inheritance name " + m);
-            String ns = abc.constants.getString(abc.constants.getNamespace(m.namespace_index).name_index);
+            String ns = namespaceText(abc, abc.constants.getNamespace(m.namespace_index));
             return (ns.isEmpty() ? "" : ns + ":") + abc.constants.getString(m.name_index);
         }
         static Set<String> externalDefinitions(Path library) throws IOException {
@@ -177,7 +245,7 @@ public final class MovieSource {
             if (strict) {
                 command.remove("-strict=false");
                 command.remove("-debug=true");
-                command.addAll(List.of("-strict=true", "-debug=false", "-optimize=false", "-omit-trace-statements=false"));
+                command.addAll(List.of("-strict=true", "-debug=false", optimized ? "-optimize=true" : "-optimize=false", "-omit-trace-statements=false"));
             }
             if (libraryClass != null) {
                 // ASC emits different self-class lookups for the entry script
@@ -252,6 +320,17 @@ public final class MovieSource {
     static void selectNativeScript(Path input, Path output, String cls) throws Exception {
         SWF movie = read(input);
         ScriptPack target = findScript(movie, cls);
+        if (target.abc.script_info.size() > 1) {
+            ABC selected = target.abc;
+            for (var body : selected.bodies) exactCode(body);
+            for (int i = 0; i < selected.script_info.size(); i++)
+                if (i != target.scriptIndex) selected.script_info.get(i).delete(selected, true);
+            selected.pack();
+            for (var container : movie.getAbcList()) if (container.getABC() == selected)
+                ((Tag)container).setModified(true);
+            movie.clearAbcListCache();
+            target = findScript(movie, cls);
+        }
         if (target.scriptIndex != 0 || target.abc.script_info.size() != 1
                 || target.abc.findClassByName(cls) < 0)
             throw new IOException("Native library ABC does not uniquely define the requested class");
@@ -574,10 +653,14 @@ public final class MovieSource {
         body.setCode(code);
     }
 
+    static String namespaceText(ABC abc, Namespace namespace) {
+        return namespace.name_index == 0 ? "" : abc.constants.getString(namespace.name_index);
+    }
+
     static String privateRole(ABC abc, int index, String className, String simpleName) {
         Namespace ns = abc.constants.getNamespace(index);
         if (ns.kind != 5) return null;
-        String text = abc.constants.getString(ns.name_index);
+        String text = namespaceText(abc, ns);
         if (text.equals(className)) return "class";
         if (text.matches("\\$[0-9]+") || text.matches(java.util.regex.Pattern.quote(simpleName + ".as$") + "[0-9]+"))
             return "script";
@@ -617,7 +700,7 @@ public final class MovieSource {
             for (int member : abc.constants.getNamespaceSet(i).namespaces) {
                 contains |= member == namespace;
                 var ns = abc.constants.getNamespace(member);
-                publicName |= ns.kind == 0x16 && abc.constants.getString(ns.name_index).isEmpty();
+                publicName |= ns.kind == 0x16 && namespaceText(abc, ns).isEmpty();
             }
             if (contains && !publicName) return false;
         }
@@ -641,11 +724,159 @@ public final class MovieSource {
         return true;
     }
 
+    static boolean unusedNamespace(ABC abc, int namespace) {
+        if (!emptyFileNamespace(abc, namespace)) return false;
+        for (int i = 1; i < abc.constants.getNamespaceSetCount(); i++)
+            for (int member : abc.constants.getNamespaceSet(i).namespaces)
+                if (member == namespace) return false;
+        return true;
+    }
+
+    static List<Integer> nonPrivateNamespaces(ABC abc, int[] members) {
+        return Arrays.stream(members).filter(n -> abc.constants.getNamespace(n).kind != 5)
+            .sorted().boxed().toList();
+    }
+
+    static Set<Integer> privateNamespaces(ABC abc, int[] members) {
+        Set<Integer> result = new TreeSet<>();
+        for (int n : members) if (abc.constants.getNamespace(n).kind == 5) result.add(n);
+        return result;
+    }
+
+    static List<String> privateDeclarations(ABC abc, int namespace) {
+        List<String> result = new ArrayList<>();
+        for (int i = 0; i < abc.instance_info.size(); i++) {
+            String owner = publicName(abc, abc.instance_info.get(i).name_index);
+            if (owner == null) continue;
+            List<Traits> groups = List.of(abc.instance_info.get(i).instance_traits,
+                abc.class_info.get(i).static_traits);
+            for (int group = 0; group < groups.size(); group++) {
+                for (var trait : groups.get(group).traits) {
+                    var name = abc.constants.getMultiname(trait.name_index);
+                    if (name.kind == 7 && name.namespace_index == namespace)
+                        result.add(owner + "/" + group + "/" + trait.kindType + "/"
+                            + abc.constants.getString(name.name_index));
+                }
+            }
+        }
+        Collections.sort(result);
+        return result;
+    }
+
+    static boolean namespacesTogether(ABC abc, Set<Integer> group) {
+        for (int i = 1; i < abc.constants.getNamespaceSetCount(); i++) {
+            var members = privateNamespaces(abc, abc.constants.getNamespaceSet(i).namespaces);
+            if (!Collections.disjoint(group, members) && !members.containsAll(group)) return false;
+        }
+        return true;
+    }
+
+    // Some published ABCs erase private namespace labels. Recover identities
+    // from retained namespace-set anchors and owned declarations, never from
+    // the erased text. Unbound identities can be interchangeable only when
+    // every containing set includes the entire group on both sides.
+    static Map<Integer, Integer> anonymousNamespaceLayout(ABC original, ABC compiled) {
+        int retained = original.constants.getNamespaceCount();
+        Map<Integer, Set<Integer>> candidates = new TreeMap<>();
+        Set<Integer> empty = new HashSet<>();
+        for (int ns = retained; ns < compiled.constants.getNamespaceCount(); ns++) {
+            if (compiled.constants.getNamespace(ns).kind != 5 || unusedNamespace(compiled, ns)) continue;
+            Set<Integer> possible = null;
+            boolean valid = true;
+            for (int set = 1; set < compiled.constants.getNamespaceSetCount(); set++) {
+                int[] values = compiled.constants.getNamespaceSet(set).namespaces;
+                var fresh = privateNamespaces(compiled, values);
+                if (!fresh.contains(ns)) continue;
+                var retainedMembers = new TreeSet<>(fresh);
+                retainedMembers.removeIf(n -> n >= retained);
+                fresh.removeIf(n -> n < retained);
+                var anchor = nonPrivateNamespaces(compiled, values);
+                Set<Set<Integer>> matches = new HashSet<>();
+                for (int oldSet = 1; oldSet < original.constants.getNamespaceSetCount(); oldSet++) {
+                    int[] oldValues = original.constants.getNamespaceSet(oldSet).namespaces;
+                    if (!anchor.equals(nonPrivateNamespaces(original, oldValues))) continue;
+                    var old = privateNamespaces(original, oldValues);
+                    if (!old.containsAll(retainedMembers)) continue;
+                    old.removeAll(retainedMembers);
+                    if (old.size() != fresh.size()) continue;
+                    boolean erasedOriginal = old.stream().allMatch(
+                        n -> original.constants.getNamespace(n).name_index == 0);
+                    boolean erasedCompiled = fresh.stream().allMatch(
+                        n -> compiled.constants.getNamespace(n).name_index == 0);
+                    if (!erasedOriginal && !erasedCompiled) continue;
+                    matches.add(old);
+                }
+                if (matches.size() != 1) { valid = false; break; }
+                var selected = matches.iterator().next();
+                if (possible == null) possible = new TreeSet<>(selected);
+                else possible.retainAll(selected);
+            }
+            if (!valid) continue;
+            if (possible == null) {
+                // A qualified-only private field may never occur in a namespace
+                // set. A unique, nonempty set of owned declarations still
+                // establishes its identity when either pool erased the label.
+                var declarations = privateDeclarations(compiled, ns);
+                if (declarations.isEmpty()) continue;
+                possible = new TreeSet<>();
+                for (int old = 1; old < retained; old++) {
+                    var before = original.constants.getNamespace(old);
+                    if (before.kind == 5 && (before.name_index == 0
+                            || compiled.constants.getNamespace(ns).name_index == 0)
+                            && declarations.equals(privateDeclarations(original, old))) possible.add(old);
+                }
+                if (possible.size() != 1) continue;
+            }
+            if (possible.isEmpty()) continue;
+            if (emptyFileNamespace(compiled, ns)) {
+                possible.removeIf(n -> !emptyFileNamespace(original, n));
+                empty.add(ns);
+            } else {
+                var declarations = privateDeclarations(compiled, ns);
+                if (declarations.isEmpty()) continue;
+                possible.removeIf(n -> !declarations.equals(privateDeclarations(original, n)));
+            }
+            if (!possible.isEmpty()) candidates.put(ns, possible);
+        }
+        Map<Integer, Integer> result = new TreeMap<>();
+        Set<Integer> used = new HashSet<>();
+        boolean progress = true;
+        while (progress) {
+            progress = false;
+            for (var entry : candidates.entrySet()) {
+                if (result.containsKey(entry.getKey())) continue;
+                entry.getValue().removeAll(used);
+                if (entry.getValue().size() == 1) {
+                    int selected = entry.getValue().iterator().next();
+                    result.put(entry.getKey(), selected); used.add(selected); progress = true;
+                }
+            }
+        }
+        for (var entry : candidates.entrySet()) {
+            if (result.containsKey(entry.getKey()) || !empty.contains(entry.getKey())) continue;
+            entry.getValue().removeAll(used);
+            if (entry.getValue().isEmpty()) continue;
+            var oldGroup = new TreeSet<>(entry.getValue());
+            Set<Integer> newGroup = new TreeSet<>();
+            for (var other : candidates.entrySet())
+                if (!result.containsKey(other.getKey()) && empty.contains(other.getKey())
+                        && other.getValue().equals(oldGroup)) newGroup.add(other.getKey());
+            if (newGroup.size() != oldGroup.size() || !namespacesTogether(original, oldGroup)
+                    || !namespacesTogether(compiled, newGroup)) continue;
+            var old = oldGroup.iterator();
+            for (int fresh : newGroup) {
+                int target = old.next(); result.put(fresh, target); used.add(target);
+            }
+        }
+        return result;
+    }
+
     static Map<Integer, Integer> namespaceLayout(ABC original, ABC compiled,
             Map<Integer, List<Integer>> perMethod) throws IOException {
         Map<Integer, Integer> mapping = new HashMap<>();
         int retained = original.constants.getNamespaceCount();
         for (int i = 0; i < retained; i++) mapping.put(i, i);
+        mapping.putAll(anonymousNamespaceLayout(original, compiled));
         // Class/script private namespaces are lexical identities, not strings.
         // Compiler-generated class and file namespace roles must each be
         // unique in the old pool and among newly emitted namespaces. Retained
@@ -657,7 +888,7 @@ public final class MovieSource {
             if (compiled.instance_info.get(owner).name_index == nameId && name.kind == 7
                     && original.constants.getNamespace(name.namespace_index).kind == 0x16) {
                 String simple = original.constants.getString(name.name_index);
-                String pkg = original.constants.getString(original.constants.getNamespace(name.namespace_index).name_index);
+                String pkg = namespaceText(original, original.constants.getNamespace(name.namespace_index));
                 String qualified = pkg.isEmpty() ? simple : pkg + ":" + simple;
                 for (String role : List.of("class", "script")) {
                     List<Integer> before = new ArrayList<>(), after = new ArrayList<>();
@@ -666,6 +897,13 @@ public final class MovieSource {
                     for (int i = retained; i < compiled.constants.getNamespaceCount(); i++)
                         if (role.equals(privateRole(compiled, i, qualified, simple))) after.add(i);
                     if (after.isEmpty()) continue;
+                    if (before.isEmpty() && after.size() == 1 && mapping.containsKey(after.get(0))) continue;
+                    // Flash can omit a class's private namespace when there
+                    // are no private bindings. Flex still emits the unused
+                    // constant. It needs no mapping; the normal pool cleanup
+                    // removes it after checking every executable record.
+                    if (before.isEmpty() && after.stream().allMatch(ns -> unusedNamespace(compiled, ns)))
+                        continue;
                     if (perMethod != null && role.equals("script") && before.size() > 1 && after.size() == 1
                             && before.stream().allMatch(ns -> emptyFileNamespace(original, ns))
                             && emptyFileNamespace(compiled, after.get(0))) {
@@ -697,11 +935,11 @@ public final class MovieSource {
                     || !Objects.equals(mapping.get(newName.namespace_index), oldName.namespace_index)) continue;
             var oldProtected = original.constants.getNamespace(before.protectedNS);
             var newProtected = compiled.constants.getNamespace(after.protectedNS);
-            String oldOwner = original.constants.getString(oldFile.name_index) + ":" + simple;
-            String newOwner = compiled.constants.getString(newFile.name_index) + ":" + simple;
+            String oldOwner = namespaceText(original, oldFile) + ":" + simple;
+            String newOwner = namespaceText(compiled, newFile) + ":" + simple;
             if (oldProtected.kind != 0x18 || newProtected.kind != 0x18
-                    || !oldOwner.equals(original.constants.getString(oldProtected.name_index))
-                    || !newOwner.equals(compiled.constants.getString(newProtected.name_index))) continue;
+                    || !oldOwner.equals(namespaceText(original, oldProtected))
+                    || !newOwner.equals(namespaceText(compiled, newProtected))) continue;
             if (original.instance_info.stream().filter(i -> i.protectedNS == before.protectedNS).count() != 1
                     || compiled.instance_info.stream().filter(i -> i.protectedNS == after.protectedNS).count() != 1)
                 throw new IOException("Ambiguous file-private protected namespace owner");
@@ -771,6 +1009,22 @@ public final class MovieSource {
         }
     }
 
+    // Duplicate generic type constants can have identical resolved identities.
+    // A uniquely matched field declaration supplies its own original alias;
+    // a changed type or a different/ambiguous field never inherits that index.
+    static void restoreTraitTypeAliases(ABC original, ABC compiled, Traits before, Traits after,
+            Map<Integer,Integer> namespaces) throws IOException {
+        for (var trait : after.traits) if (trait instanceof TraitSlotConst slot) {
+            var matches = before.traits.stream().filter(t -> t.name_index == trait.name_index
+                && t.kindType == trait.kindType && t instanceof TraitSlotConst).toList();
+            if (matches.size() != 1) continue;
+            var old = (TraitSlotConst)matches.get(0);
+            var oldKey = multinameKey(original,old.type_index,Map.of(),new HashMap<>(),new HashSet<>());
+            var newKey = multinameKey(compiled,slot.type_index,namespaces,new HashMap<>(),new HashSet<>());
+            if (oldKey.equals(newKey)) slot.type_index = old.type_index;
+        }
+    }
+
     static void restoreNameReferences(ABC original, ABC compiled) throws IOException {
         Map<Integer, List<Integer>> perMethod = new HashMap<>();
         Map<Integer, Integer> namespaces = namespaceLayout(original, compiled, perMethod), names = new HashMap<>();
@@ -809,6 +1063,16 @@ public final class MovieSource {
         }
         for (ClassInfo cls : compiled.class_info) relocateTraitNames(cls.static_traits, names, namespaces);
         for (ScriptInfo script : compiled.script_info) relocateTraitNames(script.traits, names, namespaces);
+        if (original.instance_info.size() == compiled.instance_info.size()
+                && original.class_info.size() == compiled.class_info.size()) {
+            for (int i = 0; i < original.instance_info.size(); i++) {
+                var before = original.instance_info.get(i); var after = compiled.instance_info.get(i);
+                if (before.name_index != after.name_index) continue;
+                restoreTraitTypeAliases(original,compiled,before.instance_traits,after.instance_traits,namespaces);
+                restoreTraitTypeAliases(original,compiled,original.class_info.get(i).static_traits,
+                    compiled.class_info.get(i).static_traits,namespaces);
+            }
+        }
         Map<Integer, String> methodOwners = perMethod.isEmpty() ? Map.of() : names(compiled);
         for (MethodBody body : compiled.bodies) {
             Map<Integer, Integer> bodyNames = perMethod.isEmpty() ? names : new HashMap<>(names);
@@ -950,6 +1214,27 @@ public final class MovieSource {
     // ASC. Script entry uses its global object, containing the class trait.
     // The layout emitter can express that class binding as a property lookup.
     // This is an explicit code-generation rule, not body substitution.
+    static boolean publicScriptClassBinding(ABC abc, ScriptInfo script, AVM2Instruction instruction) {
+        if (instruction.definition.instructionCode != 0x5d || script.traits.traits.size() != 1
+                || !(script.traits.traits.get(0) instanceof TraitClass trait)) return false;
+        var binding = abc.constants.getMultiname(instruction.operands[0]);
+        var declared = abc.constants.getMultiname(trait.name_index);
+        if (binding.kind != 0x09 || declared.kind != 0x07 || binding.name_index != declared.name_index)
+            return false;
+        int[] namespaces = abc.constants.getNamespaceSet(binding.namespace_set_index).namespaces;
+        return namespaces.length == 1 && namespaces[0] == declared.namespace_index
+            && abc.constants.getNamespace(declared.namespace_index).kind == 0x16;
+    }
+
+    static int lexicalLookupWidth(List<AVM2Instruction> code, int index) {
+        if (index >= code.size()) return 0;
+        var first = code.get(index);
+        if (first.definition.instructionCode == 0x60) return 1;
+        return index + 1 < code.size() && first.definition.instructionCode == 0x5d
+            && code.get(index + 1).definition.instructionCode == 0x66
+            && first.operands[0] == code.get(index + 1).operands[0] ? 2 : 0;
+    }
+
     static boolean classInitializer(ABC abc, ScriptInfo script, MethodBody body) {
         if (script.traits.traits.size() != 1 || !(script.traits.traits.get(0) instanceof TraitClass trait)
                 || body == null || body.init_scope_depth < 0 || body.init_scope_depth > 1 || body.max_regs != 1
@@ -959,23 +1244,23 @@ public final class MovieSource {
         if (n < 7 || code.get(0).definition.instructionCode != 0xd0
                 || code.get(1).definition.instructionCode != 0x30) return false;
         var binding = code.get(2);
-        if (binding.definition.instructionCode != 0x65 || binding.operands[0] != 0) return false;
+        if (!(binding.definition.instructionCode == 0x65 && binding.operands[0] == 0)
+                && !publicScriptClassBinding(abc, script, binding)) return false;
         if (abc.instance_info.get(trait.class_info).isInterface())
             return n == 7 && code.get(3).definition.instructionCode == 0x20
                 && code.get(4).definition.instructionCode == 0x58 && code.get(4).operands[0] == trait.class_info
                 && code.get(5).definition.instructionCode == 0x68 && code.get(5).operands[0] == trait.name_index
                 && code.get(6).definition.instructionCode == 0x47;
-        int i = 3, scopes = 0;
-        while (i + 2 < n && code.get(i).definition.instructionCode == 0x5d
-                && code.get(i + 1).definition.instructionCode == 0x66
-                && code.get(i).operands[0] == code.get(i + 1).operands[0]
-                && code.get(i + 2).definition.instructionCode == 0x30) { i += 3; scopes++; }
-        if (scopes == 0 || i + 2 >= n || code.get(i).definition.instructionCode != 0x5d
-                || code.get(i + 1).definition.instructionCode != 0x66
-                || code.get(i).operands[0] != code.get(i + 1).operands[0]
-                || code.get(i + 2).definition.instructionCode != 0x58
-                || code.get(i + 2).operands[0] != trait.class_info) return false;
-        i += 3;
+        int i = 3, scopes = 0, width;
+        while ((width = lexicalLookupWidth(code, i)) > 0 && i + width < n
+                && code.get(i + width).definition.instructionCode == 0x30) {
+            i += width + 1; scopes++;
+        }
+        width = lexicalLookupWidth(code, i);
+        if (scopes == 0 || width == 0 || i + width >= n
+                || code.get(i + width).definition.instructionCode != 0x58
+                || code.get(i + width).operands[0] != trait.class_info) return false;
+        i += width + 1;
         for (int j = 0; j < scopes; j++, i++)
             if (i >= n || code.get(i).definition.instructionCode != 0x1d) return false;
         return i + 2 == n && code.get(i).definition.instructionCode == 0x68
@@ -999,6 +1284,12 @@ public final class MovieSource {
             var executable = reference.getCode().code.stream().filter(ins -> !debugInstruction(ins)).toList();
             if (executable.size() < 3) continue;
             var layout = executable.get(2);
+            if (layout.definition.instructionCode == 0x65 && layout.operands[0] == 0) {
+                var code = body.getCode();
+                code.code.set(2, new AVM2Instruction(code.code.get(2).getAddress(), 0x65, new int[]{0}));
+                code.markOffsets(); body.setCode(code);
+                continue;
+            }
             if (layout.definition.instructionCode != 0x5d) continue;
             int index = layout.operands[0];
             Multiname binding = original.constants.getMultiname(index);
@@ -1026,7 +1317,7 @@ public final class MovieSource {
             // require a full slot map and are deliberately left unchanged.
             if (before.size() == 1 && after.size() == 1 && before.get(0) instanceof TraitClass a
                     && after.get(0) instanceof TraitClass b && a.name_index == b.name_index
-                    && a.class_info == b.class_info && a.slot_id == 0 && b.slot_id == 1) b.slot_id = 0;
+                    && a.class_info == b.class_info && a.slot_id <= 1 && b.slot_id <= 1) b.slot_id = a.slot_id;
             if (before.size() == 1 && after.size() == 1 && before.get(0) instanceof TraitSlotConst a
                     && after.get(0) instanceof TraitSlotConst b && a.name_index == b.name_index
                     && a.kindType == b.kindType && a.type_index == b.type_index
@@ -1123,7 +1414,7 @@ public final class MovieSource {
         return result;
     }
 
-    static boolean mutableConstructorSlot(ABC abc, MethodBody body, List<AVM2Instruction> code,
+    static boolean mutableInstanceSlot(ABC abc, MethodBody body, List<AVM2Instruction> code,
             int store) throws IOException {
         var instruction = code.get(store);
         if (instruction.operands.length != 1) return false;
@@ -1134,7 +1425,11 @@ public final class MovieSource {
         // Private/protected own slots cannot be dynamic public properties.
         if (kind != 0x05 && kind != 0x18) return false;
         boolean mutable = false;
-        for (var instance : abc.instance_info) if (instance.iinit_index == body.method_info) {
+        for (var instance : abc.instance_info) {
+            boolean constructor = instance.iinit_index == body.method_info;
+            boolean instanceMethod = instance.instance_traits.traits.stream().anyMatch(t ->
+                t instanceof TraitMethodGetterSetter m && m.method_info == body.method_info);
+            if (!constructor && (!instanceMethod || instanceBindings(abc,body) == null)) continue;
             int matches = 0;
             for (var trait : instance.instance_traits.traits) if (trait.name_index == name) {
                 matches++;
@@ -1179,7 +1474,7 @@ public final class MovieSource {
         if (name.kind != 7) return null;
         var namespace = abc.constants.getNamespace(name.namespace_index);
         if (namespace.kind != 0x16) return null;
-        String pkg = abc.constants.getString(namespace.name_index);
+        String pkg = namespaceText(abc, namespace);
         return (pkg.isEmpty() ? "" : pkg + ".") + abc.constants.getString(name.name_index);
     }
 
@@ -1245,6 +1540,79 @@ public final class MovieSource {
         return opcode == 0x47 || opcode == 0x48;
     }
 
+    // Native ASC hoists implicit local defaults above a source-level hook.
+    // A single global static call receiving only this cannot observe these
+    // uncaptured local registers. Delay only its pure default stores; neither
+    // the call nor any executable instruction comes from the reference.
+    static List<AVM2Instruction> hookDefaultsVariant(ABC abc, MethodBody body,
+            List<AVM2Instruction> expected, List<AVM2Instruction> emitted) throws IOException {
+        if (emitted.size() < 8 || expected.size() < 8
+                || localRegister(emitted.get(0), false) != 0
+                || emitted.get(1).definition.instructionCode != 0x30
+                || localRegister(expected.get(0), false) != 0
+                || expected.get(1).definition.instructionCode != 0x30) return emitted;
+        Set<String> bindings = instanceBindings(abc, body);
+        if (bindings == null) return emitted;
+        for (var instruction : emitted)
+            if (Set.of(0x1c,0x40,0x57).contains(instruction.definition.instructionCode)) return emitted;
+        int params = abc.method_info.get(body.method_info).param_types.length, end = 2;
+        Set<Integer> initialized = new HashSet<>();
+        while (end + 1 < emitted.size()) {
+            int next = end;
+            var value = emitted.get(next++);
+            int op = value.definition.instructionCode;
+            if (op == 0x20) {
+                var cast = emitted.get(next++);
+                int conversion = cast.definition.instructionCode;
+                if (conversion != 0x85 && !(conversion == 0x80
+                        && ("Object".equals(publicName(abc,cast.operands[0]))
+                            || "Array".equals(publicName(abc,cast.operands[0]))))) break;
+            } else if (op == 0x21) {
+                if (emitted.get(next++).definition.instructionCode != 0x82) break;
+            } else if (op == 0x24 && value.operands[0] == 0) {
+                if (emitted.get(next).definition.instructionCode == 0x74) next++;
+            } else if (op != 0x27) break;
+            if (next >= emitted.size()) break;
+            int local = localRegister(emitted.get(next), true);
+            if (local <= params || local >= body.max_regs || !initialized.add(local)) break;
+            end = next + 1;
+        }
+        if (end == 2 || end + 4 >= emitted.size()) return emitted;
+        var lookup = emitted.get(end);
+        if (lookup.definition.instructionCode != 0x5d || lookup.operands.length != 1
+                || !globalClass(abc,lookup.operands[0],bindings)) return emitted;
+        var property = emitted.get(end + 1); var call = emitted.get(end + 3);
+        if (property.definition.instructionCode != 0x66
+                || !Arrays.equals(lookup.operands,property.operands)
+                || localRegister(emitted.get(end + 2),false) != 0
+                || call.definition.instructionCode != 0x46 || call.operands.length != 2
+                || call.operands[1] != 1 || publicName(abc,call.operands[0]) == null
+                || emitted.get(end + 4).definition.instructionCode != 0x29) return emitted;
+        // The reference must place this same default block immediately after
+        // either the compact or expanded spelling of that one call.
+        boolean located = false;
+        for (int start : new int[]{5,7}) {
+            if (start + end - 2 > expected.size()) continue;
+            boolean same = true;
+            for (int j = 2; j < end; j++) {
+                var a = emitted.get(j); var b = expected.get(start + j - 2);
+                if (a.definition.instructionCode != b.definition.instructionCode
+                        || !Arrays.equals(a.operands,b.operands)) same = false;
+            }
+            located |= same;
+        }
+        if (!located) return emitted;
+        var boundaries = executablePositions(body.getCode().code);
+        for (var instruction : emitted) for (int target : branchTargets(instruction))
+            if (boundary(boundaries,target) < end + 5) return emitted;
+        var result = new ArrayList<AVM2Instruction>();
+        result.addAll(emitted.subList(0,2));
+        result.addAll(emitted.subList(end,end + 5));
+        result.addAll(emitted.subList(2,end));
+        result.addAll(emitted.subList(end + 5,emitted.size()));
+        return result;
+    }
+
     // Omit or defer only the actual compiler's instance-scope prologue, across
     // a prefix whose lookups provably resolve without it. No nested scopes,
     // activations, handlers or incoming edges may defeat that proof. The full
@@ -1253,7 +1621,9 @@ public final class MovieSource {
             List<AVM2Instruction> emitted) throws IOException {
         if (emitted.size() < 3 || localRegister(emitted.get(0), false) != 0
                 || emitted.get(1).definition.instructionCode != 0x30
-                || expected.size() < 2 || (localRegister(expected.get(0), false) == 0
+                || expected.isEmpty()
+                || (expected.size() == 1 && expected.get(0).definition.instructionCode != 0x47)
+                || (expected.size() >= 2 && localRegister(expected.get(0), false) == 0
                     && expected.get(1).definition.instructionCode == 0x30)) return emitted;
         int returns = 0, expectedScope = -1;
         for (int i = 0; i + 1 < expected.size(); i++) {
@@ -1381,6 +1751,7 @@ public final class MovieSource {
             var emitted = emittedLayout.stream().filter(i -> !debugInstruction(i)).toList();
             var originalEmitted = emitted;
             emitted = scopeVariant(compiled, body, expected, emitted);
+            emitted = hookDefaultsVariant(compiled, body, expected, emitted);
             ArrayList<AVM2Instruction> result = new ArrayList<>();
             List<int[]> targets = new ArrayList<>();
             Map<Integer, Integer> positions = new HashMap<>();
@@ -1393,6 +1764,59 @@ public final class MovieSource {
                 var instruction = emitted.get(next);
                 var operandSource = instruction;
                 int opcode = instruction.definition.instructionCode, desired = wanted.definition.instructionCode;
+                // Recreate the expanded spelling from the compiler's own
+                // compact lookup/call. No reference operand is transferred,
+                // and the final CFG checks forbid entry into the new interior.
+                if (wantedIndex + 1 < expected.size()) {
+                    var following = expected.get(wantedIndex + 1);
+                    boolean lookupExpansion = opcode == 0x60 && desired == 0x5d
+                        && instruction.operands.length == 1
+                        && compiled.constants.getMultiname(instruction.operands[0]).kind == 7
+                        && following.definition.instructionCode == 0x66
+                        && Arrays.equals(instruction.operands,wanted.operands)
+                        && Arrays.equals(instruction.operands,following.operands);
+                    boolean callExpansion = ((opcode == 0x4f && desired == 0x46)
+                            || (opcode == 0x4e && desired == 0x45))
+                        && following.definition.instructionCode == 0x29
+                        && Arrays.equals(instruction.operands,wanted.operands)
+                        && (following.operands == null || following.operands.length == 0);
+                    boolean stringExpansion = opcode == 0x2c && desired == 0x2c
+                        && following.definition.instructionCode == 0x85
+                        && !(next + 1 < emitted.size()
+                            && emitted.get(next + 1).definition.instructionCode == 0x85)
+                        && Arrays.equals(instruction.operands, wanted.operands);
+                    if (lookupExpansion || callExpansion || stringExpansion) {
+                        positions.put((int)instruction.getAddress(),result.size());
+                        result.add(new AVM2Instruction(0,desired,instruction.operands.clone()));
+                        result.add(new AVM2Instruction(0,lookupExpansion ? 0x66 : stringExpansion ? 0x85 : 0x29,
+                            lookupExpansion ? instruction.operands.clone() : null));
+                        targets.add(new int[0]); targets.add(new int[0]);
+                        end = (int)instruction.getAddress() + instruction.getBytesLength();
+                        next++; wantedIndex++; rewritten = true;
+                        continue;
+                    }
+                }
+                // A local store followed by a read of the same register can
+                // keep its value on the stack with dup/store. No coercion or
+                // user code occurs between them. The intermediate boundary is
+                // deliberately absent from positions, so edges and handlers
+                // cannot enter either spelling halfway through the pair.
+                int storedRegister = localRegister(instruction, true);
+                if (desired == 0x2a && storedRegister >= 0 && storedRegister < body.max_regs
+                        && next + 1 < emitted.size() && wantedIndex + 1 < expected.size()
+                        && localRegister(emitted.get(next + 1), false) == storedRegister
+                        && expected.get(wantedIndex + 1).definition.instructionCode == opcode
+                        && Arrays.equals(expected.get(wantedIndex + 1).operands, instruction.operands)) {
+                    positions.put((int)instruction.getAddress(), result.size());
+                    result.add(new AVM2Instruction(0, 0x2a, null));
+                    result.add(new AVM2Instruction(0, opcode,
+                        instruction.operands == null ? null : instruction.operands.clone()));
+                    targets.add(new int[0]); targets.add(new int[0]);
+                    var last = emitted.get(next + 1);
+                    end = (int)last.getAddress() + last.getBytesLength();
+                    next += 2; wantedIndex++; rewritten = true;
+                    continue;
+                }
                 // The interpreter implements inclocal_i/declocal_i using the
                 // same operation as increment_i/decrement_i on a stack value.
                 // The extra convert_i is idempotent on that integer result.
@@ -1481,6 +1905,16 @@ public final class MovieSource {
                     }
                 }
                 int consumed = 1;
+                // A string literal is already a String. Its coerce_s cannot
+                // invoke user code. Interior CFG/handler entries are rejected
+                // by the same whole-method checks as the folds below.
+                if (opcode == 0x2c && desired == opcode && next + 1 < emitted.size()
+                        && emitted.get(next + 1).definition.instructionCode == 0x85
+                        && !(wantedIndex + 1 < expected.size()
+                            && expected.get(wantedIndex + 1).definition.instructionCode == 0x85)) {
+                    consumed = 2;
+                    rewritten = true;
+                }
                 // A successful coerce already has the type resolved by this
                 // pool entry. Repeating that identical coercion is idempotent.
                 // Interior branch/handler entries are rejected below.
@@ -1503,10 +1937,27 @@ public final class MovieSource {
                         && Arrays.equals(instruction.operands, following.operands)
                         && instruction.operands.length == 1
                         && compiled.constants.getMultiname(instruction.operands[0]).kind == 0x07;
-                    boolean discardedCall = desired == 0x4f && opcode == 0x46
+                    boolean discardedCall = ((desired == 0x4f && opcode == 0x46)
+                        || (desired == 0x4e && opcode == 0x45))
                         && following.definition.instructionCode == 0x29;
-                    if (opcode == 0x61 && desired == 0x68
-                            && mutableConstructorSlot(compiled, body, emitted, next)) {
+                    // Both branch forms perform the same Boolean conversion.
+                    // Logical negation only reverses the branch polarity.
+                    int truthBranch = next + 1;
+                    if (opcode == 0x96 && truthBranch < emitted.size()
+                            && emitted.get(truthBranch).definition.instructionCode == 0x76) truthBranch++;
+                    boolean compactTruth = (desired == 0x11 || desired == 0x12)
+                        && (opcode == 0x96 || opcode == 0x76) && truthBranch < emitted.size()
+                        && emitted.get(truthBranch).definition.instructionCode ==
+                           (opcode == 0x96 ? (desired == 0x11 ? 0x12 : 0x11) : desired);
+                    if (((opcode == 0x24 && desired == 0x25) || (opcode == 0x25 && desired == 0x24))
+                            && instruction.operands.length == 1 && wanted.operands.length == 1
+                            && instruction.operands[0] >= -128 && instruction.operands[0] <= 127
+                            && instruction.operands[0] == wanted.operands[0]) {
+                        // Signed byte and signed short immediates push the same
+                        // integer in their common range. Keep the actual value;
+                        // only its encoding width follows the reference.
+                    } else if (opcode == 0x61 && desired == 0x68
+                            && mutableInstanceSlot(compiled, body, emitted, next)) {
                         // initproperty and setproperty both assign an ordinary
                         // mutable slot. Const fields, setters, dynamic names,
                         // foreign receivers and inherited slots are excluded.
@@ -1514,6 +1965,10 @@ public final class MovieSource {
                         consumed = 4;
                         operandSource = emitted.get(next + 3);
                     } else if (lookup || discardedCall) consumed = 2;
+                    else if (compactTruth) {
+                        consumed = truthBranch - next + 1;
+                        operandSource = emitted.get(truthBranch);
+                    }
                     else {
                         // A comparison produces a Boolean. Optional logical
                         // negation and Boolean conversion cannot change its
@@ -2009,9 +2464,10 @@ public final class MovieSource {
                 if (found == null) throw new IOException("Missing script " + a[3]);
                 Configuration.flexSdkLocation.set(a[7]);
                 As3ScriptReplacerInterface compiler;
-                if (a[6].equals("flex") || a[6].equals("flex-strict") || a[6].equals("flex-library"))
+                if (a[6].equals("flex") || a[6].equals("flex-strict") || a[6].equals("flex-library") || a[6].equals("flex-optimized"))
                     compiler = new FlexCompiler(a[7], Path.of(a[5]).resolveSibling(Path.of(a[5]).getFileName() + "-flex"),
-                        !a[6].equals("flex"), a[6].equals("flex-library") ? a[3] : null);
+                        !a[6].equals("flex"), (a[6].equals("flex-library") || a[6].equals("flex-optimized")) ? a[3] : null,
+                        a[6].equals("flex-optimized"));
                 else if (a[6].equals("ffdec")) compiler = As3ScriptReplacerFactory.createFFDec();
                 else if (a[6].equals("ffdec-source")) compiler = new SourceCompiler(a.length == 9
                     ? MixedCompiler.hiddenStaticMembers(Files.readAllLines(Path.of(a[8]))) : List.of());

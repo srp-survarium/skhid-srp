@@ -1,0 +1,114 @@
+--- a/survarium/debug/DListItemRenderer.as
++++ b/survarium/debug/DListItemRenderer.as
+@@ -57,12 +57,12 @@
+          {
+             return;
+          }
+-         this._data = param1;
++         _data = param1;
+       }
+       
+       public function setData(param1:Object) : void
+       {
+-         this.data = param1;
++         data = param1;
+          this.updateValues();
+       }
+       
+@@ -71,19 +71,19 @@
+          this.textField.width = param1 - 2;
+          this._back.width = param1;
+          this._txback.width = param1;
+-         this.myWidth = param1;
++         myWidth = param1;
+       }
+       
+       protected function configUI() : void
+       {
+-         this.onConfig = true;
++         onConfig = true;
+       }
+       
+       protected function updateValues() : void
+       {
+-         var _loc1_:TextFormat = null;
+-         var _loc2_:Boolean = false;
+-         var _loc3_:ColorTransform = null;
++         var _loc1_:TextFormat;
++         var _loc2_:Boolean;
++         var _loc3_:ColorTransform;
+          if(this._data)
+          {
+             if(this._data.cur == undefined)
+@@ -91,7 +91,7 @@
+                if(this.txAlign != this._data.textAlign)
+                {
+                   _loc1_ = this.textField.getTextFormat();
+-                  this.txAlign = this._data.textAlign;
++                  txAlign = this._data.textAlign;
+                   _loc1_ = this.textField.getTextFormat();
+                   _loc1_.align = "center";
+                   if(this._data.textAlign == 0)
+@@ -116,19 +116,19 @@
+                if(this.txtColor != this._data.txColor)
+                {
+                   this.textField.textColor = this._data.txColor;
+-                  this.txtColor = this._data.txColor;
++                  txtColor = this._data.txColor;
+                }
+                if(this.txt != this._data.text)
+                {
+                   this.textField.text = this._data.text;
+-                  this.txt = this._data.text;
++                  txt = this._data.text;
+                }
+                if(this.state != 1)
+                {
+                   this._progress.visible = false;
+                   this._back.visible = false;
+                   this._txback.visible = true;
+-                  this.state = 1;
++                  state = 1;
+                }
+             }
+             else
+@@ -138,7 +138,7 @@
+                   this._progress.visible = true;
+                   this._back.visible = true;
+                   this._txback.visible = false;
+-                  this.state = 2;
++                  state = 2;
+                }
+                if(this._data.tot == undefined)
+                {
+@@ -156,12 +156,12 @@
+                if(this.pgColor != this._data.pgColor || this.bgColor != this._data.bgColor)
+                {
+                   _loc2_ = true;
+-                  this.pgColor = this._data.pgColor;
+-                  this.bgColor = this._data.bgColor;
++                  pgColor = this._data.pgColor;
++                  bgColor = this._data.bgColor;
+                }
+                if(this.txAlign != 1)
+                {
+-                  this.txAlign = 1;
++                  txAlign = 1;
+                   _loc1_ = this.textField.getTextFormat();
+                   _loc1_.align = "center";
+                   this.textField.defaultTextFormat = _loc1_;
+@@ -169,12 +169,12 @@
+                if(this.txtColor != this._data.txColor)
+                {
+                   this.textField.textColor = this._data.txColor;
+-                  this.txtColor = this._data.txColor;
++                  txtColor = this._data.txColor;
+                }
+                if(this.txt != this._data.text)
+                {
+                   this.textField.text = this._data.text;
+-                  this.txt = this._data.text;
++                  txt = this._data.text;
+                }
+                this._progress.width = this.myWidth * (this._data.cur / this._data.tot);
+                if(_loc2_)

@@ -18,6 +18,77 @@ of skhid-srp is built this way from `srp-026g/lobby/` (see
 `srp-026g/docs/notes/lobby-source.md`). The original 18-class list remains
 an optional compiler probe; the baseline proof covers all 878 scripts.
 
+## Other released movies
+
+All seven other revision-24 movies now rebuild byte for byte from their exported
+ActionScript and pinned source corrections: **727 scripts and 6,855 method
+bodies**. Each proof covers fresh compilation, complete assembly and the original
+compressed file, including padding where present.
+
+| Movie | Scripts | Method bodies | Complete source rebuild |
+| --- | ---: | ---: | --- |
+| `hud.swf` | 287 | 2,342 | Byte-exact, including compression |
+| `main_menu.swf` | 183 | 1,864 | Byte-exact, including compression and padding |
+| `login_menu.swf` | 86 | 866 | Byte-exact, including compression and padding |
+| `player_icons.swf` | 34 | 347 | Byte-exact, including compression |
+| `replay_player.swf` | 82 | 866 | Byte-exact, including compression |
+| `cursor.swf` | 2 | 10 | Byte-exact, including compression |
+| `debug_animations.swf` | 53 | 560 | Byte-exact, including compression |
+
+Each `releases/026g-rev24-<movie>.json` records the actual supplying archive,
+its authenticated hash, the entry offset, the movie hash and its serialization
+profile. The selected files come from the base archive and released patches
+12 and 22. The HUD pin includes the released minimap changes.
+
+Cursor [verification evidence](reconstruction/026g-rev24-cursor/verification.json)
+records the independent compilation of both pristine scripts and assembly of
+all ten method bodies. Its reconstruction manifest deliberately has no patches.
+The same whole-tree command accepts an empty patch list when the pristine
+exports already suffice.
+
+Login [verification evidence](reconstruction/026g-rev24-login_menu/verification.json)
+covers all 86 scripts, including the repository-authored hint and the disabled
+registration handler. Its 3,508,744-byte rebuild has SHA-256
+`20ab1d2289e1fe08df25ae2a33f37213f052b5b5d9eb1b3b77a568f126844261`.
+The reconstruction preserves constructor closure ordering and the original
+negative-zero layout constant, which the pristine export displayed as `0`.
+
+Main-menu [verification evidence](reconstruction/026g-rev24-main_menu/verification.json)
+covers all 183 scripts and 1,864 method bodies, including the released FOV slider
+and its settings hooks. The 1,194,596-byte rebuild has SHA-256
+`edc60a3df39e8c5d1fa7df6eebe989a80f3b931d3d86e31d7b651306dc416267`.
+The source corrections recover explicit switch breaks, local initialization,
+loop continuation targets and the original settings conditionals.
+
+HUD [verification evidence](reconstruction/026g-rev24-hud/verification.json)
+covers all 287 scripts and 2,342 method bodies, using 84 reconstructed sources
+and 203 pristine exports. The 7,713,475-byte rebuild has SHA-256
+`b924b29db06070dfe7d89827a3cf3bc71f14ae4cbca9a2546d95ac977951ec80`.
+The source corrections preserve captured local declarations, nested function
+initialization, global type imports and the released minimap changes.
+
+Player-icons [verification evidence](reconstruction/026g-rev24-player_icons/verification.json)
+covers all 34 scripts and 347 method bodies in the shared ABC, using 14
+reconstructed sources and 20 pristine exports. The 186,560-byte rebuild has SHA-256
+`36aa353350acb61a79b52c1bcc2d303c7c21352863cd61095025a748275e796b`.
+The native optimized profile preserves the original marker logic, declaration
+order and loop control flow.
+
+Animation-debugging [verification evidence](reconstruction/026g-rev24-debug_animations/verification.json)
+covers all 53 scripts and 560 method bodies, using 20 reconstructed sources
+and 33 pristine exports. The 33,714-byte rebuild has SHA-256
+`67a7576c6fcbbf308bded935e7476ab7763cd9f49cedfd1379a72759c4486732`.
+The reconstruction recovers the original loop branches, local types and
+initializers while preserving anonymous private namespace identities.
+
+Replay [verification evidence](reconstruction/026g-rev24-replay_player/verification.json)
+covers all 82 scripts and 866 method bodies, using 25 reconstructed sources
+and 57 pristine exports. The 418,646-byte rebuild has SHA-256
+`d3ffb74154cd6778600262ef491d02c2dcb91dcb95d3d5a400aefb1d37be09a8`.
+The source corrections restore integer loop variables, captured-local
+initialization and the original control flow. Layout verification preserves
+methods containing both retained and omitted string conversions.
+
 ## Private inputs and pinned tools
 
 Use Python 3.10+, JDK 17+, FFDec 25.1.3's complete distribution, and
@@ -95,6 +166,13 @@ frame header, every tag, ABC pools, methods, traits and metadata. Compression
 differences are reported separately; decompressed equality does not claim
 compressed file equality.
 
+Baseline serialization identifies a zlib level that independently reproduces
+the original compressed stream. The main and login menu patches also have an
+archive-entry trailer: zero padding followed by four CRC correction bytes.
+That non-code trailer is preserved separately. Unknown trailers and truncated
+streams are rejected. Linked and assembled executable bytes are freshly
+compressed; an original compressed payload is never substituted for them.
+
 Only ABC tags enter FFDec. The raw headers and bytes of all other tags are
 retained, including Scaleform tags FFDec cannot parse correctly. ABC count and
 order must remain fixed. Candidates are diagnostic artifacts, never installed
@@ -120,6 +198,11 @@ The default `flex` mode uses FFDec's Flex script replacer arguments, including
   including external definitions from the pinned player API catalog. Without the
   external edges, Flex can partially load inherited `TextField` or `Timer` types,
   reporting missing methods or crashing during type resolution.
+- Shared ABCs are split into their original scripts in the temporary dependency
+  SWC. This prevents loading a base class from also loading every descendant
+  in that ABC and creating an artificial inheritance cycle through the source
+  class being compiled. The dependency catalog retains every exported definition.
+  The actual movie's ABC organization remains fixed.
 - Single-namespace multinames in the dependency library are represented as
   qualified names for Flex's type importer. This is applied only to the
   temporary dependency SWC. Both original and adapted SWCs are retained.
@@ -140,13 +223,19 @@ they are an experiment toward matching the original compiler output.
 imported source unit. A temporary entry class references it, and inheritance-only
 linking is disabled so the target is included in the native output. This restores
 the compiler's lexical self-class lookups where entry-script compilation would
-emit global-slot access. No lookup opcode is rewritten by the layout linker.
+emit global-slot access. The compiler supplies these self-class lookups.
 The full `native-compiler.swf`, temporary `entry-source.as`, and selected
-`native-script.swf` are retained. Selection requires a uniquely named class in a
-single-script ABC, and verifies that the selected ABC's bytes survive
+`native-script.swf` are retained. Selection requires a uniquely named class.
+When native optimization merges scripts into one ABC, selection removes the
+other scripts and packs the compiler's records into a single-script ABC.
+It verifies that the selected ABC's bytes survive
 serialization unchanged. Only that native ABC replaces the requested script;
 the temporary entry and its other linked dependencies never enter the result.
 This profile requires a class, rather than a global function or namespace script.
+
+`flex-optimized` uses the same library compilation with optimization enabled.
+It preserves `trace` calls and retains the full native output before selecting
+the requested script. The profile is explicit in each reconstruction entry.
 
 ## Exact layout linking
 
@@ -170,6 +259,13 @@ It keeps the compiler's method bodies, signatures, class definitions, scope and
 stack limits, and exception tables. It restores named method and trait ordering.
 Class/file private namespaces are mapped by their compiler-generated owners,
 requiring unique identities in both pools; ambiguous ownership is refused.
+If either compiler erased private namespace labels, retained non-private members
+of namespace sets must identify one original group. Private declarations must
+agree by class, trait kind and member name. An ambiguous group is interchangeable
+only when every namespace has no qualified bindings or namespace values and the
+whole group occurs together in every containing set on both sides.
+A private identity used only by qualified names can instead follow a unique,
+nonempty set of matching owned declarations. Ambiguous declarations are refused.
 For a file-private helper class, its generated protected namespace follows the
 already mapped file identity. Both class names, namespace kinds and generated
 owner labels must agree, and each protected namespace must have exactly one
@@ -183,6 +279,9 @@ file namespaces is refused. Feature linking still requires one namespace identit
 for the whole class, because newly introduced names need an unambiguous scope.
 Equivalent multinames can then use their original pool indices. Namespace-set
 members must match after relocation; their ordering is not lookup precedence.
+A uniquely matched field can retain its original type-pool alias when the
+complete resolved type is identical, including generic parameters. Different
+types, field names, trait kinds and ambiguous declarations are excluded.
 Changing reference widths relocates conditional/unconditional branches, switch
 tables and exception boundaries by instruction identity. Invalid boundaries
 and unsupported control-flow forms are refused. The linker checks every
@@ -225,6 +324,9 @@ accesses are refused. Branches cannot enter the removed prologue, return into
 the prefix or bypass deferred scope setup. The complete method and control-flow
 comparison must still match. Both void and value-returning guards are supported;
 the returned expression remains the compiler's actual instruction sequence.
+An otherwise empty instance handler can also omit that prologue and emit only
+its compiled `returnvoid`. The same ownership, hierarchy and exception guards
+apply; introducing an executable statement still fails baseline equality.
 This follows ordinary instance lookup in
 [Adobe's MethodEnv](https://github.com/adobe/avmplus/blob/master/core/MethodEnv.cpp#L1221);
 `with` scopes have different lookup rules and are excluded.
@@ -240,6 +342,16 @@ and local initialization may occur at the same boundary or separate boundaries.
 All actual compiler instructions and capacity records are retained. An edited
 method that no longer matches retains its ordinary compiler layout; a changed
 call/cast ordering still requires explicit feature review.
+
+A separate conservative case delays implicit defaults past one global static
+hook receiving only `this`. It requires an ordinary instance method without
+handlers, activation traits, closures or `with` scopes. Only distinct, uncaptured
+local stores of zero, false, undefined, null String, null Object or null Array
+are eligible. The hook cannot read these registers, and no branch may enter
+the reordered prefix. The reference must contain the identical default block
+immediately after the hook; complete instruction and control-flow comparison
+still decides acceptance. This reproduces the released settings hook without
+copying its executable instructions from the original movie.
 
 Some previously patched methods retain spare stack or local capacity that
 neither source compiler allocates. An authenticated reconstruction entry can
@@ -268,6 +380,16 @@ Operand evaluation order is retained; negated ordered comparisons use `ifnlt`,
 The equivalent combined branch can also be expanded back into that comparison
 and Boolean branch, including the same optional negation and conversion.
 Both directions can occur within one method.
+QName lookups and discarded calls also support the reverse expansion, using
+only the compiler's actual name and argument operands.
+Discarded `callsuper` results can similarly use `callsupervoid`. A Boolean
+conversion immediately before a truth branch can be folded into that branch,
+and logical negation reverses its polarity. String literals can add or omit their
+redundant `coerce_s`. A store followed immediately by a read of the same local
+can use `dup` followed by that store. These cases preserve operand values and coercion behavior;
+the tests also reject altered calls, literals and branch polarity.
+Signed byte and short integer pushes can use either width within their common
+range, with the exact same integer operand.
 A whole method must match after only these
 encoding changes, including names, argument counts, branches, switch targets and
 exception boundaries. No control-flow or exception boundary may enter an
@@ -298,12 +420,14 @@ the next compiled instruction boundary; no reference target is copied. A
 reachable jump, a different requested displacement, or any other control-flow
 mismatch remains refused.
 
-Constructor writes to an own private/protected mutable slot can use
+Constructor and ordinary instance-method writes to an own private/protected mutable slot can use
 `initproperty` in place of `setproperty`. The emitter proves a direct `this`
 receiver through the compiled stack expression and rejects register-zero
 reassignment, foreign receivers, const/accessor/inherited traits, dynamic names,
 joins, and ambiguous stack operations. Both instructions use the same mutable
 slot assignment in [Adobe's runtime](https://github.com/adobe/avmplus/blob/master/core/MethodEnv.cpp#L879).
+Ordinary methods additionally require unique instance ownership and a fully
+resolved class hierarchy; static methods and aliases are refused.
 Two adjacent `coerce` instructions with the same QName type can also fold to
 one: the first successful coercion already has that type. The whole-method
 branch and exception checks reject entry into the second coercion. A pair
@@ -322,7 +446,7 @@ function debugger names require a matching, uniquely owned function identity.
 
 The entire reconstructed ABC must equal the original, and every other ABC must
 also remain identical. Only then is linked code written. Original graphics are
-reassembled with that code, and CWS movies are recompressed with zlib level 9.
+reassembled with that code, and CWS movies use their pinned serialization profile.
 The final SHA-256 and byte comparison must prove full file equality, including
 compression. If compression differs, the result is still reported as different.
 
@@ -369,7 +493,8 @@ argument conversions.
 Use `--compiler reconstruction` with the pinned patch manifest to select these
 per-class compilers in one measurement. Classes without an override use
 `flex-strict`; every report row records the compiler actually used. Explicit
-`--compiler ffdec`, `ffdec-source`, `flex`, `flex-strict` or `flex-library` selects that compiler for every
+`--compiler ffdec`, `ffdec-source`, `flex`, `flex-strict`, `flex-library` or
+`flex-optimized` selects that compiler for every
 class, for comparison experiments. The per-class profile currently proves 233
 reconstructed classes, including easing, button, list, text, message, clan,
 debug and tutorial classes. Source fixes also recover local declaration order,
@@ -421,6 +546,11 @@ unidentified coercions in compiled bytecode. `SourceCompiler.java` and the pinne
 FFDec files are retained and hashed with the compiler artifacts. The profile
 currently requires a simple script with its dependencies embedded in the movie.
 `SrpExchange` uses it with the repository-authored revision 24 source.
+The adapter also honors an explicit default-package type import when the
+current package contains another class with that name. It resolves only a
+known class selected by one unambiguous import, at the source type node;
+ordinary expressions and unknown or competing imports retain the normal
+resolver. Different field type identities still fail baseline comparison.
 Mixed builds can explicitly set `composition.ffdec_compiler: "ffdec-source"`
 to use this generator for their selected methods. The default remains `ffdec`;
 the selected backend is included in the authenticated composition plan and its

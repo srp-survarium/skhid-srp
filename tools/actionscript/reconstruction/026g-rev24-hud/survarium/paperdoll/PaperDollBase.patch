@@ -1,0 +1,236 @@
+--- a/survarium/paperdoll/PaperDollBase.as
++++ b/survarium/paperdoll/PaperDollBase.as
+@@ -42,7 +42,7 @@
+       override protected function initialize() : void
+       {
+          super.initialize();
+-         this._slots = [];
++         _slots = [];
+          tabEnabled = tabChildren = false;
+       }
+       
+@@ -61,7 +61,7 @@
+          {
+             this._dataProvider.removeEventListener(Event.CHANGE,this.handleDataChange,false);
+          }
+-         this._dataProvider = value;
++         _dataProvider = value;
+          if(this._dataProvider == null)
+          {
+             return;
+@@ -92,8 +92,8 @@
+       
+       public function openSlots(slotsN:int, slotsA:int) : void
+       {
+-         this._slotsN = slotsN;
+-         this._slotsA = slotsA;
++         _slotsN = slotsN;
++         _slotsA = slotsA;
+          invalidateData();
+       }
+       
+@@ -104,14 +104,16 @@
+       
+       protected function updateSlotLabels(value:String) : void
+       {
+-         var slot:IPaperDollSlot = null;
+-         for(var i:uint = 0; i < _slotNames.length; i++)
++         var i:uint = 0;
++         var slot:IPaperDollSlot;
++         for(; i < _slotNames.length; i++)
+          {
+             slot = getChildByName(_slotNames[i]) as IPaperDollSlot;
+-            if(slot)
+-            {
+-               slot.label = LocalizationData.getName(this._slotLabels[i]);
+-            }
++            if(!slot)
++            {
++               continue;
++            }
++            slot.label = LocalizationData.getName(this._slotLabels[i]);
+          }
+       }
+       
+@@ -129,22 +131,24 @@
+       
+       override protected function configUI() : void
+       {
+-         var slot:IPaperDollSlot = null;
+          super.configUI();
+          LocalizationData.addCallback(this.updateSlotLabels,"sell");
+-         for(var i:uint = 0; i < _slotNames.length; i++)
++         var i:uint = 0;
++         var slot:IPaperDollSlot;
++         for(; i < _slotNames.length; i++)
+          {
+             slot = getChildByName(_slotNames[i]) as IPaperDollSlot;
+-            if(slot)
+-            {
+-               slot.index = i;
+-               slot.owner = this;
+-               slot.selected = false;
+-               slot.label = LocalizationData.getName(this._slotLabels[i]);
+-               this._slots[i] = slot;
+-               this.handleSlotListeners(slot);
+-               this.configSlot(slot);
+-            }
++            if(!slot)
++            {
++               continue;
++            }
++            slot.index = i;
++            slot.owner = this;
++            slot.selected = false;
++            slot.label = LocalizationData.getName(this._slotLabels[i]);
++            this._slots[i] = slot;
++            this.handleSlotListeners(slot);
++            this.configSlot(slot);
+          }
+       }
+       
+@@ -154,16 +158,16 @@
+       
+       override protected function draw() : void
+       {
+-         var newslots:Array = null;
+-         var newitems:IDataProvider = null;
+-         var newItemsL:uint = 0;
+-         var i:uint = 0;
+-         var slotsL:uint = 0;
+-         var j:uint = 0;
+-         var newSlotData:ItemData = null;
+-         var slot:IPaperDollSlot = null;
+-         var slotData:ItemData = null;
+-         var isAmmoSlot:Boolean = false;
++         var newslots:Array;
++         var newitems:IDataProvider;
++         var newItemsL:uint;
++         var i:uint;
++         var slotsL:uint;
++         var j:uint;
++         var newSlotData:ItemData;
++         var slot:IPaperDollSlot;
++         var slotData:ItemData;
++         var isAmmoSlot:Boolean;
+          super.draw();
+          if(isInvalid(InvalidationType.DATA))
+          {
+@@ -173,48 +177,56 @@
+             if(this._dataProvider != null)
+             {
+                newItemsL = newitems.length;
+-               for(i = 0; i < newItemsL; i++)
++               i = 0;
++               while(i < newItemsL)
+                {
+                   slotData = newitems[i];
+-                  if(Boolean(slotData.additionalSlots))
+-                  {
+-                     for(j = 0; j < slotData.additionalSlots.length; j++)
++                  if(slotData.additionalSlots)
++                  {
++                     j = 0;
++                     while(j < slotData.additionalSlots.length)
+                      {
+                         newSlotData = slotData.clone();
+                         newSlotData.additionalSlots = null;
+                         newSlotData.enabled = false;
+                         newSlotData.slotId = slotData.additionalSlots[j];
+                         newslots[newSlotData.slotId] = newSlotData;
++                        j++;
+                      }
+                   }
+-               }
+-               for(i = 0; i < newItemsL; i++)
++                  i++;
++               }
++               i = 0;
++               while(i < newItemsL)
+                {
+                   trace("newItemsL",i,newitems[i].name,newitems[i].slotId);
+                   newslots[newitems[i].slotId] = newitems[i];
++                  i++;
+                }
+                slotsL = this._slots.length;
+-               for(i = 0; i < slotsL; i++)
++               i = 0;
++               for(; i < slotsL; i++)
+                {
+                   slot = this._slots[i] as IPaperDollSlot;
+                   trace("DRAW_PDB",i,slot,newslots[i]);
+-                  if(slot)
+-                  {
+-                     slotData = newslots[i];
+-                     isAmmoSlot = Boolean(slotData) && slotData.superCategory == Category.BASE_AMMO;
+-                     if(Boolean(slotData) && (isAmmoSlot && slotData.value != 0 || !isAmmoSlot))
+-                     {
+-                        slot.setData(slotData);
+-                        slot.enabled = slotData.enabled;
+-                     }
+-                     else
+-                     {
+-                        slot.setData(null);
+-                        slot.enabled = true;
+-                     }
+-                     slot.invalidateData();
+-                     slot.validateNow();
+-                  }
++                  if(!slot)
++                  {
++                     continue;
++                  }
++                  slotData = newslots[i];
++                  isAmmoSlot = slotData && slotData.superCategory == Category.BASE_AMMO;
++                  if(slotData && (isAmmoSlot && slotData.value != 0 || !isAmmoSlot))
++                  {
++                     slot.setData(slotData);
++                     slot.enabled = slotData.enabled;
++                  }
++                  else
++                  {
++                     slot.setData(null);
++                     slot.enabled = true;
++                  }
++                  slot.invalidateData();
++                  slot.validateNow();
+                }
+             }
+             this.handleQuickSlots();
+@@ -224,15 +236,16 @@
+       
+       protected function handleQuickSlots() : void
+       {
+-         var slotRenderer:IPaperDollSlot = null;
+          var slots:int = this._slotsN + this._slotsA;
+-         for(var i:uint = 1; i < 7; i++)
++         var i:uint = 1;
++         var slotRenderer:IPaperDollSlot;
++         while(i < 7)
+          {
+             slotRenderer = this._slots[i + 12];
+             trace("handleQuickSlots",slotRenderer);
+             if(i > slots)
+             {
+-               if(Boolean(slotRenderer.data))
++               if(slotRenderer.data)
+                {
+                   slotRenderer.dropSlot();
+                }
+@@ -247,7 +260,7 @@
+                {
+                   slotRenderer.label = LocalizationData.getName("pd_artifact");
+                   slotRenderer.artifact = true;
+-                  if(Boolean(slotRenderer.data))
++                  if(slotRenderer.data)
+                   {
+                      slotRenderer.dropSlot();
+                   }
+@@ -260,6 +273,7 @@
+                   slotRenderer.enabled = true;
+                }
+             }
++            i++;
+          }
+       }
+       

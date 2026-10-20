@@ -1,0 +1,118 @@
+--- a/survarium/controls/HUDIconLayer.as
++++ b/survarium/controls/HUDIconLayer.as
+@@ -51,12 +51,12 @@
+       public function set_enemy_icon_ids(value:Array) : void
+       {
+          trace("set_player_icon_ids::",value,"length::",value.length);
+-         this._enemyIds = value;
++         _enemyIds = value;
+       }
+       
+       public function set_player_team(team:uint) : void
+       {
+-         this._playerTeam = team;
++         _playerTeam = team;
+       }
+       
+       public function set_player_icon_team(id:uint, team:uint) : void
+@@ -96,7 +96,7 @@
+       
+       public function set_player_time_interval(value:uint) : void
+       {
+-         var _marker:HUDMarker = null;
++         var _marker:HUDMarker;
+          for each(_marker in this._markers)
+          {
+             _marker.delay = value;
+@@ -117,7 +117,7 @@
+       
+       public function set_player_icon_visible(id:uint, bool:Boolean) : void
+       {
+-         var canBeVisible:Boolean = false;
++         var canBeVisible:Boolean;
+          if(this._markers[id])
+          {
+             if(bool)
+@@ -138,13 +138,7 @@
+       
+       public function set_player_icon_props(props:Object) : void
+       {
+-         var canBeVisible:Boolean = false;
+-         var textField:TextField = null;
+-         var newName:String = null;
+-         var colorTransfor:ColorTransform = null;
+-         var color:uint = 0;
+-         var filter:DropShadowFilter = null;
+-         var id:int = int(props.id);
++         var id:int = (props.id);
+          var renderer:HUDMarker = this._markers[id];
+          trace("set_player_icon_props",id,renderer);
+          if(!renderer)
+@@ -152,14 +146,18 @@
+             return;
+          }
+          var iconVisible:Boolean = props.visible == true || props.visible == undefined;
++         var canBeVisible:Boolean;
++         var textField:TextField;
++         var newName:String;
++         var colorTransfor:ColorTransform;
++         var color:uint;
++         var filter:DropShadowFilter;
+          if(iconVisible)
+          {
+             canBeVisible = renderer.kind != 0 || this._enemyIds.indexOf(id) == -1;
+             trace("canBeVisible",canBeVisible,renderer.kind,props.a);
+-            if(!canBeVisible)
+-            {
+-               return;
+-            }
++            if(canBeVisible)
++            {
+             if(props.visible != undefined)
+             {
+                renderer.visible = props.visible;
+@@ -170,6 +168,11 @@
+                renderer.y = props.y;
+                renderer.scaleX = renderer.scaleY = props.z * renderer.baseScale;
+             }
++            }
++            else
++            {
++               return;
++            }
+             textField = renderer.textField;
+             trace("textField",textField);
+             if(textField)
+@@ -201,7 +204,7 @@
+             if(props.rgb != undefined)
+             {
+                colorTransfor = new ColorTransform();
+-               color = uint(props.rgb);
++               color = (props.rgb);
+                colorTransfor.color = color;
+                if(renderer.icon.renderer)
+                {
+@@ -256,12 +259,12 @@
+       
+       public function set_player_color(id:uint, red:uint, green:uint, blue:uint, alpha:uint = 255) : void
+       {
+-         var filter:DropShadowFilter = null;
+-         var color:uint = uint(red << 16 | green << 8 | blue);
++         var color:uint = (red << 16 | green << 8 | blue);
+          var colorTransfor:ColorTransform = new ColorTransform();
+          colorTransfor.color = color;
+          colorTransfor.alphaOffset = alpha - 255;
+          var renderer:HUDMarker = this._markers[id];
++         var filter:DropShadowFilter;
+          if(renderer.icon.renderer)
+          {
+             renderer.icon.renderer.transform.colorTransform = colorTransfor;
+@@ -270,7 +273,7 @@
+          {
+             renderer.textField.textColor = color;
+          }
+-         if(Boolean(renderer.textField) && Boolean((renderer.textField as TextField).filters))
++         if(renderer.textField && ((renderer.textField as TextField).filters))
+          {
+             filter = (renderer.textField as TextField).filters[0];
+             filter.color = red << 16 | green << 8 | blue;

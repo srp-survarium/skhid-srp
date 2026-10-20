@@ -9,6 +9,23 @@ import link_layout
 
 
 class SourcePatchTests(unittest.TestCase):
+    def test_pristine_tree_can_have_no_reconstruction_patches(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pin = {"schema": 1, "release": "fixture", "movie_sha256": "pinned",
+                   "sources": {"C.as": "source"}}
+            path = root / "manifest.json"
+            spec = {**pin, "classes": []}
+            path.write_text(json.dumps(spec))
+            sources, evidence = patches.load_sources(path, root, pin)
+            self.assertEqual(sources, {})
+            self.assertEqual(evidence, {"manifest_sha256": patches.sha(path.read_bytes()),
+                                        "classes": []})
+            for invalid in ({}, None, ""):
+                path.write_text(json.dumps({**spec, "classes": invalid}))
+                with self.assertRaises(ValueError):
+                    patches.load_sources(path, root, pin)
+
     def test_method_reservations_and_saved_plan_authentication(self):
         self.assertIsNone(patches.reservation_plan({}))
         entry = {'compiler': 'flex-library', 'method_reservations': {'C/method': {'stack': 3, 'locals': 4}}}

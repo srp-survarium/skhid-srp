@@ -1,0 +1,89 @@
+--- a/survarium/menu/BindKeyRender.as
++++ b/survarium/menu/BindKeyRender.as
+@@ -64,10 +64,10 @@
+             param1.defToggle = param1.toggle;
+          }
+          _data = param1;
+-         if(Boolean(param1.enter))
++         if(param1.enter)
+          {
+             dispatchEvent(new Event(Event.CHANGE,true));
+-            this._enter_mode = false;
++            _enter_mode = false;
+             param1.enter = false;
+          }
+          invalidate(InvalidationType.DATA);
+@@ -128,6 +128,7 @@
+                   this.endKey();
+                   param1.handled = true;
+                }
++               break;
+          }
+       }
+       
+@@ -172,7 +173,7 @@
+       
+       override protected function changeFocus() : void
+       {
+-         if(Boolean(_focused) || _displayFocus)
++         if(_focused || _displayFocus)
+          {
+             setState("focused");
+          }
+@@ -220,14 +221,14 @@
+       
+       protected function startKey(param1:Event) : void
+       {
+-         trace("startKey::",Boolean(param1) ? param1.type : "noevent");
++         trace("startKey::",param1 ? param1.type : "noevent");
+          if(!this.btn_key.enabled)
+          {
+             return;
+          }
+          this.btn_key.gotoAndStop("down_k");
+          ExternalInterface.call("start_bind_key",data.action_id);
+-         this._enter_mode = true;
++         _enter_mode = true;
+          stage.addEventListener(Event.CANCEL,this.onMe,true);
+          dispatchEvent(new Event(START_KEYBIND));
+       }
+@@ -239,25 +240,25 @@
+       
+       protected function endKey(param1:Event = null) : void
+       {
+-         var _loc2_:TileList = null;
++         var _loc2_:TileList;
+          if(this._enter_mode == false)
+          {
+             return;
+          }
+-         if(Boolean(stage))
++         if(stage)
+          {
+             stage.removeEventListener(Event.CANCEL,this.onMe);
+          }
+-         if(Boolean(_loc2_))
++         if(_loc2_)
+          {
+             stage.focus = _loc2_;
+             _loc2_.selectedIndex = index;
+          }
+-         if(Boolean(data) && data.key == undefined)
++         if(data && data.key == undefined)
+          {
+             data.key = "LOL";
+          }
+-         if(Boolean(data))
++         if(data)
+          {
+             ExternalInterface.call("end_bind_key",index,data.name);
+             this.btn_key.gotoAndStop("up_k");
+@@ -265,7 +266,7 @@
+          }
+          _loc2_ = this.parent.parent as TileList;
+          dispatchEvent(new Event(Event.CHANGE,true));
+-         this._enter_mode = false;
++         _enter_mode = false;
+       }
+       
+       protected function onCheckBox(param1:ButtonEvent = null) : void

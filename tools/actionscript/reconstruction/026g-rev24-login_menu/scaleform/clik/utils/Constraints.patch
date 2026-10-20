@@ -1,0 +1,108 @@
+--- a/scaleform/clik/utils/Constraints.as
++++ b/scaleform/clik/utils/Constraints.as
+@@ -49,11 +49,11 @@
+       public function Constraints(param1:Sprite, param2:String = "counterScale")
+       {
+          super();
+-         this.scope = param1;
+-         this.scaleMode = param2;
+-         this.elements = {};
+-         this.lastWidth = param1.width;
+-         this.lastHeight = param1.height;
++         scope = param1;
++         scaleMode = param2;
++         elements = {};
++         lastWidth = param1.width;
++         lastHeight = param1.height;
+          param1.addEventListener(Event.ADDED_TO_STAGE,this.handleScopeAddedToStage,false,0,true);
+          param1.addEventListener(Event.REMOVED_FROM_STAGE,this.handleScopeAddedToStage,false,0,true);
+       }
+@@ -90,7 +90,7 @@
+       
+       public function removeAllElements() : void
+       {
+-         var _loc1_:String = null;
++         var _loc1_:String;
+          for(_loc1_ in this.elements)
+          {
+             if(this.elements[_loc1_] is ConstrainedElement)
+@@ -140,14 +140,8 @@
+       
+       public function update(param1:Number, param2:Number) : void
+       {
+-         var _loc6_:String = null;
+-         var _loc7_:ConstrainedElement = null;
+-         var _loc8_:uint = 0;
+-         var _loc9_:DisplayObject = null;
+-         var _loc10_:Number = NaN;
+-         var _loc11_:Number = NaN;
+-         this.lastWidth = param1;
+-         this.lastHeight = param2;
++         lastWidth = param1;
++         lastHeight = param2;
+          if(this.elementCount == 0)
+          {
+             return;
+@@ -155,6 +149,12 @@
+          var _loc3_:Number = this.getXAdjust();
+          var _loc4_:Number = this.getYAdjust();
+          var _loc5_:Boolean = this.scaleMode == ConstrainMode.COUNTER_SCALE;
++         var _loc6_:String;
++         var _loc7_:ConstrainedElement;
++         var _loc8_:uint;
++         var _loc9_:DisplayObject;
++         var _loc10_:Number;
++         var _loc11_:Number;
+          for(_loc6_ in this.elements)
+          {
+             _loc7_ = this.elements[_loc6_] as ConstrainedElement;
+@@ -256,9 +256,9 @@
+       
+       override public function toString() : String
+       {
+-         var _loc3_:String = null;
+-         var _loc1_:uint = uint(this.elements.length);
++         var _loc1_:uint = (this.elements.length);
+          var _loc2_:String = "[CLIK Constraints (" + _loc1_ + ")]";
++         var _loc3_:String;
+          for(_loc3_ in this.elements)
+          {
+             _loc2_ += "\n\t" + _loc3_ + ": " + this.elements[_loc3_].toString();
+@@ -277,7 +277,7 @@
+          {
+             this.parentConstraints.removeEventListener(ResizeEvent.RESIZE,this.handleParentConstraintsResize);
+          }
+-         this.parentConstraints = null;
++         parentConstraints = null;
+          var _loc1_:DisplayObjectContainer = this.scope.parent;
+          if(_loc1_ == null)
+          {
+@@ -287,7 +287,7 @@
+          {
+             if(_loc1_.hasOwnProperty("constraints"))
+             {
+-               this.parentConstraints = _loc1_["constraints"] as Constraints;
++               parentConstraints = _loc1_["constraints"] as Constraints;
+                if(this.parentConstraints != null && this.parentConstraints.scaleMode == ConstrainMode.REFLOW)
+                {
+                   return;
+@@ -306,15 +306,15 @@
+          }
+          if(this.parentConstraints != null)
+          {
+-            this.parentXAdjust = this.parentConstraints.getXAdjust();
+-            this.parentYAdjust = this.parentConstraints.getYAdjust();
++            parentXAdjust = this.parentConstraints.getXAdjust();
++            parentYAdjust = this.parentConstraints.getYAdjust();
+          }
+       }
+       
+       protected function handleParentConstraintsResize(param1:ResizeEvent) : void
+       {
+-         this.parentXAdjust = param1.scaleX;
+-         this.parentYAdjust = param1.scaleY;
++         parentXAdjust = param1.scaleX;
++         parentYAdjust = param1.scaleY;
+          this.update(this.lastWidth,this.lastHeight);
+       }
+    }

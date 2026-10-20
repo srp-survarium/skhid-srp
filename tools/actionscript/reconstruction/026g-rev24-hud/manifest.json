@@ -1,0 +1,725 @@
+{
+  "classes": [
+    {
+      "class": "HUD",
+      "compiler": "flex-strict",
+      "method_reservations": {
+        "QName(PackageNamespace(\"\"),\"HUD\")/instance/1/QName(PrivateNamespace(\"HUD\",\"1\"),\"test_all\")": {
+          "locals": 9
+        }
+      },
+      "patch": "HUD.patch",
+      "patch_sha256": "5dca724689358f3144ad1092a102e0292d9d6ac8eff056bb13619e8f4b33752b",
+      "pristine_sha256": "75832e6d71a984867f1500f6544db13c7056eb67a03a25081d401cc1ae73f1af",
+      "reason": "Recover captured-local declaration order, original closure/super placement, negative-zero constants and released compiler profile.",
+      "result_sha256": "cfee50500f939469bc79b8edbeb294b6688a897669a36d77b2d45e2166ae250f"
+    },
+    {
+      "class": "HitText",
+      "patch": "HitText.patch",
+      "patch_sha256": "91c71356d655988c56a9a32e14d5ae94e261d6b59e8ddde440e2a101b28a873f",
+      "pristine_sha256": "d534792666e2e61a5a6c32dfb63af3907bda57f9d08999eb6eec109b85dbec39",
+      "reason": "Recover implicit typed defaults, lexical field assignments, identifier object keys and direct truth tests. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "c4fb4918a6f6d3119cf28d97528d36c63a4f282643719f06431164bb822d7669"
+    },
+    {
+      "class": "SrvContextMessage",
+      "patch": "SrvContextMessage.patch",
+      "patch_sha256": "1b970ee174818ebe26b461150842e9b685c5130e524adc1ab8651fe0b7d69b86",
+      "pristine_sha256": "a62b6f294cce369435c39ccb5b7ad0923b933ecc7146e35cf658e8a2c7ab7f15",
+      "reason": "Recover implicit typed defaults, lexical field assignments, identifier object keys and direct truth tests. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "608eda6602884ff713b070c0b1b0cee61ae9f38b0eabee7f38d15654bb29ccf3"
+    },
+    {
+      "class": "SrvContextMessage3",
+      "patch": "SrvContextMessage3.patch",
+      "patch_sha256": "e59310463b57f7eaa5323094639e7881a1cedb98f5f785e00345ebc3cf696e00",
+      "pristine_sha256": "40654c72a98f1c9ccd151ca715a5f386eb6d6b605f1b9b7dbf418bf7fbb4c35a",
+      "reason": "Recover implicit typed defaults, lexical field assignments, identifier object keys and direct truth tests. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "b7fe5b3e4cd4394aa10b32ea7b265c17fdd5c63b3b7d3ae0486986dee158d9ac"
+    },
+    {
+      "class": "SrvMatchProgress",
+      "patch": "SrvMatchProgress.patch",
+      "patch_sha256": "8410bdd711b1f244eb8959466a8661290366e43410dc7a73e37317b21db52a6f",
+      "pristine_sha256": "0c85808196d442c5b87562793484c52e0fa2ea67b5df54424e165c98465d9f45",
+      "reason": "Recover implicit typed defaults, lexical field assignments, identifier object keys and direct truth tests. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "f04d3d7bcde0a93795dd365fac21c82457b9382597b18eb22a6d38c6594fb3a3"
+    },
+    {
+      "class": "SrvPlayerList",
+      "patch": "SrvPlayerList.patch",
+      "patch_sha256": "bd0cef93627b30b7e8a39a0854d138d5c9e4ac30c6b7a00349fd127d6e63e6c6",
+      "pristine_sha256": "8daf94ab6cabb8efc425aa3f865141bf0b47469c9a634e57a883a8e609cf4913",
+      "reason": "Recover implicit typed defaults, lexical field assignments, identifier object keys and direct truth tests. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "aeb60eff08edfd9dace2c1da17d08ed91a4750a18bb99a070ac146a913da750c"
+    },
+    {
+      "class": "SrvWarningMessage",
+      "patch": "SrvWarningMessage.patch",
+      "patch_sha256": "d83b749e71036f69985ae7ccafdba4147f3e00680794806ddd690e0f73c63bc9",
+      "pristine_sha256": "1a60ed51d331afbfc72dd9af2108f9551080d2c8a4e5801a4466a87925c54328",
+      "reason": "Recover implicit typed defaults, lexical field assignments, identifier object keys and direct truth tests. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "06843abd83097c3ee75860470719e6ad18173e93be37c70a67f40607dcb9b83a"
+    },
+    {
+      "class": "SymbolFonts",
+      "patch": "SymbolFonts.patch",
+      "patch_sha256": "e3af525bba050caa290d3935e59a7a26743c058fa9c67985bac3230aa4bb8972",
+      "pristine_sha256": "1c61bb961c005563d8364a441e764b4fda4c019a7968daffd8ad55f66cf5f15e",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "cbf3190317a7565b9a3836e1d35958bec6c37797ce9d829761a8019e0fc792be"
+    },
+    {
+      "class": "com.greensock.TweenLite",
+      "compiler": "flex-library",
+      "patch": "com/greensock/TweenLite.patch",
+      "patch_sha256": "c090c4e4b4c107b83bab9928ce33a5af03554395bf2ca8253c2ea22cca088a19",
+      "pristine_sha256": "567254ddfe22d9187e638cffb5519f357ef988c1fb7a8ecc04d7421541b65a48",
+      "reason": "Recover captured-local declaration order, explicit closure assignment placement and original constructor bindings; prove through complete independent compilation.",
+      "result_sha256": "addb193ab4f71bfa59954a31708e08f38d046ebf41eca4d92e3ea6f60586483f"
+    },
+    {
+      "class": "com.greensock.core.Animation",
+      "patch": "com/greensock/core/Animation.patch",
+      "patch_sha256": "6b92acf0dd46650b90513d996ed6ca3ee7dd7a82768b45f109bc4504fa0ab232",
+      "pristine_sha256": "ecf40960e0efbc9f5be56411fdf237dd5c39a2fc3240d90e29a52ef3498b4bbb",
+      "reason": "Recover constructor field bindings with distinct parameter names, explicit native local initialization and exact loop control flow.",
+      "result_sha256": "b912b584403e0be7547aba60f8bb0755bff51fe3c31742ad1e1a871c099feb92"
+    },
+    {
+      "class": "com.greensock.core.PropTween",
+      "patch": "com/greensock/core/PropTween.patch",
+      "patch_sha256": "efa86d45cad3f17a12474a731af86d511bf26fe8be843158a85eb68a3a8b651b",
+      "pristine_sha256": "0dce8f652b16a75c174f8ae8daf5b619f0072e7af1637048eb15407736bbd55b",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "dced7b09855371a6e095ef57d87957da98769f332cd832b119d9539f7fdeb262"
+    },
+    {
+      "class": "com.greensock.core.SimpleTimeline",
+      "patch": "com/greensock/core/SimpleTimeline.patch",
+      "patch_sha256": "34e17bd4d0b49e877a1e78d6068e8b54ec6eca6938fd87e10da955d0de5c7c4f",
+      "pristine_sha256": "e83bec838be817a1703b55154e2ad525053d2181ce7761d4f85843ab6efbc244",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "2b792c56117c48cc5dc3ae88fe22417e5bc1df2bf0ca0aa6db1163e6760d2fa8"
+    },
+    {
+      "class": "com.greensock.easing.Ease",
+      "patch": "com/greensock/easing/Ease.patch",
+      "patch_sha256": "93b738a66a208023ae800a01e78dad5d2bd70ec2bdfda2ee03b4e6d1998c9b19",
+      "pristine_sha256": "585107c7f815bbd8dbb23cd315f7963b7507366a115a3f89b0c49719af9c6e59",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "47d4159c5b36e3aaf26f21c8e43f7e34e1e7e55487d8c02722a90cabbff5d786"
+    },
+    {
+      "class": "fl.transitions.easing.Strong",
+      "patch": "fl/transitions/easing/Strong.patch",
+      "patch_sha256": "a584a20dd2c6e36a5c2e3cbe9c4e183f896537744adb3d8e8a8bf66bcb4cae18",
+      "pristine_sha256": "340d1f34ac7eda8b1adaa0ac27fc25ef53b4150350acb9407cdda3e312fbc909",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "ea8ee6608a3f7525f5729c57c855b08342e2b60ee57f49e2e9fd1b3bda1cf9ee"
+    },
+    {
+      "class": "fpsHUD_fla.mc_artifacts_progress_control_41",
+      "compiler": "flex-strict",
+      "patch": "fpsHUD_fla/mc_artifacts_progress_control_41.patch",
+      "patch_sha256": "ca53fc3d6bc2ab45223d9d649edec3adcea7d4bc8eb0856652db806ba77a4d27",
+      "pristine_sha256": "5b6b28eaa13e50f6b52ea55b8b06236cc04b95f1d39b2ca06e4f5f22aa75cc7b",
+      "reason": "Private source candidate guided by original local debug identities and native conversion instructions; requires independent full-movie equality.",
+      "result_sha256": "3fadb1f8d9e2701b01f4af6e567f0ea4333113d3b15cc01c848609226ff33fc5"
+    },
+    {
+      "class": "fpsHUD_fla.progress_oxygen_188",
+      "patch": "fpsHUD_fla/progress_oxygen_188.patch",
+      "patch_sha256": "6c69eb9917bbd0fa1ce8f5bef56165df4789dc3895c6b516c687f17a183de070",
+      "pristine_sha256": "e8b63b815cdbb111394fe34db9642cf72c7189ae6f3a1bf8aea0010e99c4f75a",
+      "reason": "Recover implicit typed defaults, lexical field assignments, identifier object keys and direct truth tests. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "5925b7dcf853f5c578c9dfe4d5a8011e3797af1e36eb19564d17904d0effddc8"
+    },
+    {
+      "class": "fpsHUD_fla.progress_stamina2_110",
+      "patch": "fpsHUD_fla/progress_stamina2_110.patch",
+      "patch_sha256": "736765a2dc171d7bebb0f980f42b49c2aa8da1776a305ee11c267952b7e5b540",
+      "pristine_sha256": "1c4934cc0678ebfe71966f78732160d3947ce1a93b5015b8d0a7e37548f48130",
+      "reason": "Recover implicit typed defaults, lexical field assignments, identifier object keys and direct truth tests. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "d6cc5d8aeb02ed2dff9b6db507c6d2e4aad6d9d691ad5f0ade8775346efff03f"
+    },
+    {
+      "class": "profiles_fla.MainTimeline",
+      "patch": "profiles_fla/MainTimeline.patch",
+      "patch_sha256": "b3484d79177998d6c643940c39d97cdadcb19748a9e67269e88d557ea76aad44",
+      "pristine_sha256": "497cd15a5b82e991ea1faa4081d2b5682b8ffb860d72f27da2cb3234c423e40a",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "1309037d18a49f3edd71a72802aa7ed2559aeebae0ed06d6541d0cb322eb83eb"
+    },
+    {
+      "class": "scaleform.clik.controls.Button",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/controls/Button.patch",
+      "patch_sha256": "c435822e02aefe19d01a7ae72c7065602ba819bf65cea92fdd03cf2868bc1ee6",
+      "pristine_sha256": "0f1f3341b21df8aac9220d064d2ad920e8af2911222b7e8a98fb214452a89d82",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "dbc7721351610b2b41abf00f62099e5f895597b62d6316802fe710ac2fcd843d"
+    },
+    {
+      "class": "scaleform.clik.controls.ButtonBar",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/controls/ButtonBar.patch",
+      "patch_sha256": "7eb19f3ab98e662e5f057f146116fa8538d6d1685c3391f39059bed5fdb92c7f",
+      "pristine_sha256": "80a9e1ab1acf6a9e3f805c2f471cc4dddc749496f9308a0799a1e5f259016fb1",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "6e5952c73c8442b8c81d0a932561f005bbd8d02f8df757ba2d7815f23dd0dfa4"
+    },
+    {
+      "class": "scaleform.clik.controls.ButtonGroup",
+      "patch": "scaleform/clik/controls/ButtonGroup.patch",
+      "patch_sha256": "6f39d688747d583a2135ef0d4c3513b2b4229ebb64da0ba038dab99af0bbc554",
+      "pristine_sha256": "dfc1c37e0d9ee90091bd8238e2143bbfd102ec34ac75ffda627f5b408c47737b",
+      "reason": "Recover constructor field bindings with distinct parameter names, explicit native local initialization and exact loop control flow.",
+      "result_sha256": "944380dc8c3e98dfdf73680430ef4b906e76cb63351fba3a48c4761a01f3571f"
+    },
+    {
+      "class": "scaleform.clik.controls.CoreList",
+      "patch": "scaleform/clik/controls/CoreList.patch",
+      "patch_sha256": "76d70730a4c6a4a51ef2621293a2f3ff564f71756880d8b103680eda3ecd7b79",
+      "pristine_sha256": "8531756ac55c258761cbbb4c6ec89ed02fb80767f1d76bac14b884687a047afb",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "8c359e6ff0dd756102cc7eefb3f97d688932f79c6390d6e7144eed01f9c26302"
+    },
+    {
+      "class": "scaleform.clik.controls.DragSlot",
+      "patch": "scaleform/clik/controls/DragSlot.patch",
+      "patch_sha256": "6785ac2a9a8572ee1b5b16c35932ea5ef01b56758da12a89f3f1db70b7fe00af",
+      "pristine_sha256": "4ca6ff1e28fbe0bab76aa4b46ea7478da15d97ebefa817f5d27183e00aa90e7b",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "bdb97c01e42f5efcfd636134b60866e1ebb4d74e39fbf4c068c8ea1ac3a00c64"
+    },
+    {
+      "class": "scaleform.clik.controls.Label",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/controls/Label.patch",
+      "patch_sha256": "6e7e24b750cda45cacd334033b75c8d8a60cbf94ad4c33f01d1b45ce69ac2973",
+      "pristine_sha256": "7959625a098c23cb885ae5138e47f3a6a1a12ae7c6bd5d6cfc496384c5b2006e",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "c990f52333d960876cf82bf21c32b48d116fe84a0e630ceab5ad84369521bd3f"
+    },
+    {
+      "class": "scaleform.clik.controls.ListItemRenderer",
+      "patch": "scaleform/clik/controls/ListItemRenderer.patch",
+      "patch_sha256": "624217ef0e5d808885206af280397ea0ac6ff890b57762b5e0ef385c4166c3eb",
+      "pristine_sha256": "0d5f361e9cda59b71cea23545171270d75a35d0e7c394d54cc135236d7adda3f",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "a83a04768d7a5d1e0cc167fc1a4562684c9ffc3feb077ff8097b7d1023dda9a6"
+    },
+    {
+      "class": "scaleform.clik.controls.ScrollIndicator",
+      "patch": "scaleform/clik/controls/ScrollIndicator.patch",
+      "patch_sha256": "2d8406d272233b2958b21c433f557b82fb6700b47415c39b69649cb9b063cdf9",
+      "pristine_sha256": "c5dfc5bfe43ba80139c54b9b21934c748211fc09644fa3a8c7e1bbab7aa9b5ca",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "787c19e3c0614135937fff0d2c24aefc75767257de7ef8defe17ca03425e18f3"
+    },
+    {
+      "class": "scaleform.clik.controls.ScrollingList",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/controls/ScrollingList.patch",
+      "patch_sha256": "eb558fc771ae139f8f9faeea19af970e211d2ef8fc2ac34aa7207401fccd8a98",
+      "pristine_sha256": "a5f79e347e17df56ea685c8d1374a5de834d546d6fdf43a7846b6564427d55bd",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "12c2fe39a0a23eef6a7bdf9937a7e6bdd14012f6992ef130b56c087d050697cf"
+    },
+    {
+      "class": "scaleform.clik.controls.StatusIndicator",
+      "patch": "scaleform/clik/controls/StatusIndicator.patch",
+      "patch_sha256": "294f5fc6b09656ed0524b9a1028d531f716879f0b8528baba11ccfde763e01da",
+      "pristine_sha256": "2b3263749d14d5fabf75bba5eb00f08f1b107411803601febb13060cc7e5d696",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "570cb8a2e7cc7eb839622ad7ee2a7ea1fe3016bb1628fe0c8d26a6d465b06381"
+    },
+    {
+      "class": "scaleform.clik.controls.TextInput",
+      "patch": "scaleform/clik/controls/TextInput.patch",
+      "patch_sha256": "40996699bb1d5ced4cd811ce0e7291f84e4e98734e3ef8189bc9117d7f9d750c",
+      "pristine_sha256": "88ae53cd3cbaa6950d8979fb909e84ca7e0e5be48c611fe117f15def8639238f",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "fa28344836009580638b7089faf16ae3ad50885fdcc52a918a083a56cd205d5e"
+    },
+    {
+      "class": "scaleform.clik.controls.TileList",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/controls/TileList.patch",
+      "patch_sha256": "d8f1e38b37bdfff728e5b59344bd6eea725fe3ada57dd2e72486ae4909d61c5d",
+      "pristine_sha256": "d34d5972aa414adada9e91ac23bb8654142d4e95299391727bd08b3c5ad5ea59",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "474eeba2e952569ee8159a62b900f162626a6c33f9984e41e82b4c5dc1c30782"
+    },
+    {
+      "class": "scaleform.clik.controls.ToolTip",
+      "patch": "scaleform/clik/controls/ToolTip.patch",
+      "patch_sha256": "ad207c2270481bfe7f986bee8b7d4c94eff92baca3caa389f590577a257a9091",
+      "pristine_sha256": "a82e2cb54acf99680695a3f39cabd44e8478662184b0d7dca7184cb398412f3c",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "31eab7feef2cac590d174517e8bdacd5c525d19e0d7a2137401c55e6dbd712a2"
+    },
+    {
+      "class": "scaleform.clik.core.CLIK",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/core/CLIK.patch",
+      "patch_sha256": "5643e4ef9ea4584cfc7d1db954cf060f9512afda880aa056ad8320f4ff63e9c0",
+      "pristine_sha256": "6bd53ed37710ae6a634563b2519648ab9810aaf038d6e8027faff07bdeeab0d1",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "4c8fcef8e88a118a9272e2a7493ee8a6c5b7d17bfd5453c3ca47ba00d534d8a7"
+    },
+    {
+      "class": "scaleform.clik.core.UIComponent",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/core/UIComponent.patch",
+      "patch_sha256": "10e30c122bfe6173e55bbbc3ce9ee76778ba0ab8c850f22c679b5065ad4b7e07",
+      "pristine_sha256": "52c4c7f7fb3245688b67d9321a1c38aaaa5216d86beae809f14d472a99c733d6",
+      "reason": "Recover constructor field bindings with distinct parameter names, explicit native local initialization and exact loop control flow.",
+      "result_sha256": "ce34d6c77c1a98b1a9b6457b9fffd7e294029ae05fa0c431ea2e862c5da380e2"
+    },
+    {
+      "class": "scaleform.clik.layout.Layout",
+      "patch": "scaleform/clik/layout/Layout.patch",
+      "patch_sha256": "e259ebcba91233551b1a8135fa2151c0b0dc73cdee49eca6d182558c25974836",
+      "pristine_sha256": "04c02f178eadabf4cfd973d447a5265f2a5c40b1dbd8dd8efb8ebfb5f8ae2764",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "a3f0cdcbc907211f12ceefc64b2ca14ff4c29f10c00fc920f1ad4e6946e00af5"
+    },
+    {
+      "class": "scaleform.clik.managers.DragManager",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/managers/DragManager.patch",
+      "patch_sha256": "634d7917d1978cb1f68eb8836e9fe6d15b3a0c5232119b7fd3f1750b30435852",
+      "pristine_sha256": "53abc875948ad5d53c6de6cadec8332e4360531ce6b7d49422f29366fc9b9950",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "4c51764cefaf20bc35835a5f9120f249f3fe3fca0626c35727e15724913d3254"
+    },
+    {
+      "class": "scaleform.clik.managers.FocusHandler",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/managers/FocusHandler.patch",
+      "patch_sha256": "e03e9912ae17003b34ee0407c5d8014f0da1a795d8e61048f90b3b7ea098302b",
+      "pristine_sha256": "d1d5cc8113e585fcae984c3c3af72c31957a753945f82e5697e73d04832954ff",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "cb1eccffa0974c7304cbd90b6722e75c157d2632401746fad8bb6559f849e86d"
+    },
+    {
+      "class": "scaleform.clik.managers.InputDelegate",
+      "patch": "scaleform/clik/managers/InputDelegate.patch",
+      "patch_sha256": "99d82aa1b91ac2c06b471f1c7113a9233cb33696a7d0aaac952150bc41830124",
+      "pristine_sha256": "2c7572bb3d4a3406f5de33af3c2f6b85ec0c48fc2ae639bed3cebc9ee303324c",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "b7ec08c479e1ae20dbacfdd6467da4ae01af949bb2c1482242650b3af0fdeec9"
+    },
+    {
+      "class": "scaleform.clik.managers.PopUpManager",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/managers/PopUpManager.patch",
+      "patch_sha256": "68b1a19966af66ede1b0b73b920bdf4a136abb06fdcbcec6afa9d81910642863",
+      "pristine_sha256": "bbcd837f0afc04edc9ad00930bf9a8cb90b7170f9d683123690ea59669348015",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "b7a23da92960c7c38ae374fa8dcfe8c63dd74fef3c2e1d432505da2ee1342167"
+    },
+    {
+      "class": "scaleform.clik.motion.Tween",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/motion/Tween.patch",
+      "patch_sha256": "89043c41ca236c53d8c7ff6a39b61d279f821078d8e55f0bd356caf0a175f7d1",
+      "pristine_sha256": "a670c9190da836b1e07d5fd5f37ac875b931af82745f3ea0cbd2cf41663c74d7",
+      "reason": "Recover constructor field bindings with distinct parameter names, explicit native local initialization and exact loop control flow.",
+      "result_sha256": "c9b399d4c4afadd23d94110c585519ef78380af31f5656b933ec54a741844ca3"
+    },
+    {
+      "class": "scaleform.clik.utils.Constraints",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/utils/Constraints.patch",
+      "patch_sha256": "58998168b11da24c5ff7fb5e5227ed7cb7ade6bd32cdefb961a57fb8c6bb635b",
+      "pristine_sha256": "b6e25c9baefa44a7e184b10a84e84cf1170257a3e3c204aa730083481478b03f",
+      "reason": "Recover constructor field bindings with distinct parameter names, explicit native local initialization and exact loop control flow.",
+      "result_sha256": "b2fdd7a82f26ebf068ce1869ee7a5458dcda316dbb6426240d3fbcc8316baa94"
+    },
+    {
+      "class": "scaleform.gfx.Extensions",
+      "patch": "scaleform/gfx/Extensions.patch",
+      "patch_sha256": "6dc76658a605cbc238627b438450fdcf2b76170fabfbad061f94f300016a0a15",
+      "pristine_sha256": "f50c5d9b223e2d3ca946da0a3fbb6b78cf2a519ebf0cd511cf3011ea086f9387",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "4c1c7d2043305b859ded91ed74183bbbbc21f47f9036a0468fdce0c55c0cc312"
+    },
+    {
+      "class": "survarium.Util",
+      "compiler": "flex-library",
+      "patch": "survarium/Util.patch",
+      "patch_sha256": "c094cd4613f074fc92de901657457ace014149ea799ee9ecadd8494eefbd7931",
+      "pristine_sha256": "9be38b40b9984a4c26248d065a8a8a534ace87c06d498e449e5ac182766a7293",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "f74690243fb7f855f78553406918d7e7e44b86cb574405d2814fa475070b2641"
+    },
+    {
+      "class": "survarium.ammo.AmmoIndicator",
+      "compiler": "flex-strict",
+      "patch": "survarium/ammo/AmmoIndicator.patch",
+      "patch_sha256": "d82e896aabf8758275a9a24674a2330ec70a815eba2acd13fd0193914e1ded6d",
+      "pristine_sha256": "e8245d5d9d319ef485a5c2df095e9081527837fad1dd4016e3ccd5158e1c1344",
+      "reason": "Recover constructor field bindings with distinct parameter names, explicit native local initialization and exact loop control flow.",
+      "result_sha256": "ae2a7ded410b5aa8c5644e22e1d6dc68278b71259a0436346dff1b7c764fb8af"
+    },
+    {
+      "class": "survarium.ammo.AmmoRenderer",
+      "patch": "survarium/ammo/AmmoRenderer.patch",
+      "patch_sha256": "c3f4025131798752565ace0de1b2488aa521ff7dbf92f18bc3ffd3b4bfd5c789",
+      "pristine_sha256": "c7cae10587b354cd2f71a9d5c37b6121cc7209674cbb81e6c656e1c55859fbf2",
+      "reason": "Recover constructor field bindings with distinct parameter names, explicit native local initialization and exact loop control flow.",
+      "result_sha256": "0d43e6e83a97e8845d067900164f6dad503dfc0643d0f14c153f0491d4c622c1"
+    },
+    {
+      "class": "survarium.buttons.ButtonClick",
+      "patch": "survarium/buttons/ButtonClick.patch",
+      "patch_sha256": "9cd6343877e897337dbea38bf3cfdb32211a39c10143d3bb1e41ad9011f557d3",
+      "pristine_sha256": "dcc96b1b787742b1134c11175b3c502d68c6ac91de25f0d957e9967bc713ac80",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "1d017c9da76e7e5b999fc8bdba0fb47f4a5edee4372f813b55f8e63116c8340a"
+    },
+    {
+      "class": "survarium.buttons.ButtonStyledLabel",
+      "patch": "survarium/buttons/ButtonStyledLabel.patch",
+      "patch_sha256": "182bac8b0bc6eeb54bff70022cf3b70806c3d877b3804b905b221d75a3348449",
+      "pristine_sha256": "3cd02f2a2614469b5011754fed403a8c293ff324560185f4764134822a7e362e",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "e093d5d7a2df5e3c83543156a88a14e446b89ce0bed54b1b527f8c49601909e9"
+    },
+    {
+      "class": "survarium.buttons.ButtonStyledLabelProfile",
+      "patch": "survarium/buttons/ButtonStyledLabelProfile.patch",
+      "patch_sha256": "1a1ddeba7f11845f4ef135885871721b66f90b0c3fd6ad48575aaddae47ec5fa",
+      "pristine_sha256": "21f954c43ff83cb2dc08177bf637da4e403d63e840286dbe7521b80c66541ea0",
+      "reason": "Recover implicit typed defaults, lexical field assignments, identifier object keys and direct truth tests. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "8399a68e98b3461dbefb0f02c8c627cd6574ac17a07db52da9375be6fe09eea1"
+    },
+    {
+      "class": "survarium.chat.Chat",
+      "patch": "survarium/chat/Chat.patch",
+      "patch_sha256": "9aebf16b13b1ddbf046374715e1b84d4510dd4f2b00bd6892996e580041b6cc8",
+      "pristine_sha256": "223492a46ce03376afa873d8027d840c547941295053785d8f8b954922467719",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "be6dd97c818d70cc4f4491af51b59f6036eb393b475e149e5983f417b769a9ff"
+    },
+    {
+      "class": "survarium.chat.GameChat",
+      "compiler": "flex-strict",
+      "patch": "survarium/chat/GameChat.patch",
+      "patch_sha256": "b66859f03dc7f1cd4dee816b63687132a228e0085ca7401dfa59cc696fb32168",
+      "pristine_sha256": "e240dd6f8fa2b9ee1ba369d4962ee06939f12487307c686a854d79ed3dd07c21",
+      "reason": "Restore explicit local variables, source guards, object key syntax, conversions and namespace-qualified bindings through independent native compilation.",
+      "result_sha256": "2f2c1802f88aaa41f836b57c52d907fe379203a53e8c7302d046f2515d4849af"
+    },
+    {
+      "class": "survarium.chat.MessageLogList",
+      "compiler": "flex-strict",
+      "patch": "survarium/chat/MessageLogList.patch",
+      "patch_sha256": "3326bd55053b1bc5b916820089db39a485bd79721b47cd1c367ccde7d65a56a5",
+      "pristine_sha256": "4dc5f84cd29a0d4d8366fe70e9b574b6637a441bd1549bd461af6ce5868c1147",
+      "reason": "Restore explicit local variables, source guards, object key syntax, conversions and namespace-qualified bindings through independent native compilation.",
+      "result_sha256": "bc65f75e169b815942fce7f0d888452f0b5a4b9be91d50b43c0dd81e2c129135"
+    },
+    {
+      "class": "survarium.controls.CaptureBar",
+      "compiler": "flex-strict",
+      "patch": "survarium/controls/CaptureBar.patch",
+      "patch_sha256": "04c7ab943cb52e2bc9f3610f5b3251e2247882ca5a94ac02e7496a6ffe3897c6",
+      "pristine_sha256": "471b999635b2f776301a54eaa458ec5aee6f843ac15306a241b5c937e9854aeb",
+      "reason": "Private source candidate guided by original local debug identities and native conversion instructions; requires independent full-movie equality.",
+      "result_sha256": "1a3524ca043dde7e57695f43783ac07246c0b1c504924e5272423bef58bc2c34"
+    },
+    {
+      "class": "survarium.controls.CombatLogItem",
+      "compiler": "flex-strict",
+      "patch": "survarium/controls/CombatLogItem.patch",
+      "patch_sha256": "705d1bcfd62e9ba5913afb257ebb08926adbd2d35d25faa7abadac636cba5568",
+      "pristine_sha256": "1f1cc24dce0d985e78a8f7ec8687f98dd2c84ffe5fbc901a1c3d0910f4d0e2e8",
+      "reason": "Private source candidate guided by original local debug identities and native conversion instructions; requires independent full-movie equality.",
+      "result_sha256": "974d49d5f41d1d223019080cdc72e8c035f1bcfdfc6520f124d9f4db2ec0e6f1"
+    },
+    {
+      "class": "survarium.controls.CombatLogList",
+      "compiler": "flex-strict",
+      "patch": "survarium/controls/CombatLogList.patch",
+      "patch_sha256": "e75aa90fdb705422317da5e2e4c04189b538c860bc4b819277e67e5f5aed5fe9",
+      "pristine_sha256": "d492090163763b8e73d04ce4b1fcfff01b620402354475b2642d3e0434d7bf28",
+      "reason": "Recover constructor field bindings with distinct parameter names, explicit native local initialization and exact loop control flow.",
+      "result_sha256": "bb4b30a0c1295f15f3e7d7e681fd2bf741ef69cfd393165db930399f40d6dadc"
+    },
+    {
+      "class": "survarium.controls.CombatLogRenderer",
+      "compiler": "ffdec-source",
+      "patch": "survarium/controls/CombatLogRenderer.patch",
+      "patch_sha256": "95520e49c75446162db589aff6268e9968509f9615b49b2ea2ed0ff9af75a403",
+      "pristine_sha256": "21acdeaf834d17c7fef6afc1711e292ac5fb72ea9ffea6130c1a193381f9b59f",
+      "reason": "Use the source compiler with unambiguous original global CombatLogItem type binding and explicit instance field receivers; native compiler rejects the conflicting package type.",
+      "result_sha256": "8f47b2800703e85d3d6f4d1be8c463299d473124c5e390e237742a860f25505b"
+    },
+    {
+      "class": "survarium.controls.CriticalIndicator",
+      "compiler": "flex-strict",
+      "patch": "survarium/controls/CriticalIndicator.patch",
+      "patch_sha256": "0785f7fde71d581e019dc6cea9335c32773aa046417311909b977ac69caa3dba",
+      "pristine_sha256": "16156026a8528dd9d1262ccee4a9fb32bbd83c7bac18f477f7d82e68313f9e03",
+      "reason": "Recover constructor field bindings with distinct parameter names, explicit native local initialization and exact loop control flow.",
+      "result_sha256": "496f0682aa123a29419f194fcd74e1fdaed2a206e7fabca326175ad86a7001d9"
+    },
+    {
+      "class": "survarium.controls.Crosshair",
+      "patch": "survarium/controls/Crosshair.patch",
+      "patch_sha256": "dcee7f3d2880df20c94d8c051dbe21cc9dcd9daf0db3490c657d6bfcf7486a7a",
+      "pristine_sha256": "1607477259d5f78eedd183d6c580c1b7c251ff057686ea7186c40e6ee60e6891",
+      "reason": "Recover captured-local declaration order, explicit closure assignment placement and original constructor bindings; prove through complete independent compilation.",
+      "result_sha256": "5636a4b69b2c57ff6f3f6cac60ee08ed6f7b2646af7b1ddbef67fa29d4c7354b"
+    },
+    {
+      "class": "survarium.controls.DamageIndicator",
+      "compiler": "flex-strict",
+      "patch": "survarium/controls/DamageIndicator.patch",
+      "patch_sha256": "6ed77817aa877a552de2141420c0ebf50df707780e5685fe3462dbdc20836898",
+      "pristine_sha256": "650dba82fb15dff93b1ee723654f001c45744eeafeea917736eb68eafda1bee9",
+      "reason": "Recover constructor field bindings with distinct parameter names, explicit native local initialization and exact loop control flow.",
+      "result_sha256": "eaed02bf5099cb334c90ef6e5f5a1ec7769f154c9a70911bd4c746bfa6be945d"
+    },
+    {
+      "class": "survarium.controls.FixedTextDots",
+      "patch": "survarium/controls/FixedTextDots.patch",
+      "patch_sha256": "2c960d480d311577d3ec6e7abc7fe705db60c09f8ab1c54dc17affa3cebb30d6",
+      "pristine_sha256": "ab2575815d1d134384db8d1783f7613240e073f0f9b482d427862c080917c853",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "1cc71e97cc323d8dc43f19dfa9db456cf61ece0290da18fdf392c12747c312c6"
+    },
+    {
+      "class": "survarium.controls.ItemRendererCore",
+      "patch": "survarium/controls/ItemRendererCore.patch",
+      "patch_sha256": "0631863157734621cfa161628d2b8bb9cafa478232464c4c92db8ff604e426a3",
+      "pristine_sha256": "af5aab98240ccf62401dab29c231826e1be025eedf68e24a37bb8ada67444b8b",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "de18976f3542321d5c600a21f42716bbc73b3ec2f366819894360b677a0a48c4"
+    },
+    {
+      "class": "survarium.controls.ItemRendererText",
+      "patch": "survarium/controls/ItemRendererText.patch",
+      "patch_sha256": "c1a65e32e37f10515e474da2aa41e9cf8a4fe2966a3aaebf0efa8bb0528414a6",
+      "pristine_sha256": "1fd45592bec11a71c4306654bb00a93a6e0b97c756c7fe92a627675693b8babe",
+      "reason": "Recover implicit typed defaults, lexical field assignments, identifier object keys and direct truth tests. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "1c5b27cae7529d31c5d3ad78253100216ec1b163f420cd91ce2a6f2c72d5ed37"
+    },
+    {
+      "class": "survarium.controls.ItemRendererTextQSlot",
+      "patch": "survarium/controls/ItemRendererTextQSlot.patch",
+      "patch_sha256": "368046cf4b4cee7fe059b7904ed20d104cfe636d03b56fdba734cd4c34f502c7",
+      "pristine_sha256": "eafe56f23c2ee2058904914e1d54ed54155474ab8b75ba8cb00f9a5df1ef470d",
+      "reason": "Recover implicit typed defaults, lexical field assignments, identifier object keys and direct truth tests. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "586dec49d98e82c6010bb8db565b877d7b2008f8bcb7d484e579e90987bd7ab3"
+    },
+    {
+      "class": "survarium.controls.ListDragSlot",
+      "patch": "survarium/controls/ListDragSlot.patch",
+      "patch_sha256": "483197b870925dd7cf65ec93bf954257f23ea2529d5a11a025bd6075c6581b9c",
+      "pristine_sha256": "d42f02e740f7a9374c26170f73e2558bd358416e4660ac955f813b42c167f711",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "fbfa8f11a14627997300ae4712b9ad86010f83172c440e80ee19569c0a4968cf"
+    },
+    {
+      "class": "survarium.controls.Minimap",
+      "compiler": "ffdec",
+      "method_reservations": {
+        "QName(PackageNamespace(\"survarium.controls\"),\"Minimap\")/instance-init": {
+          "stack": 33
+        }
+      },
+      "patch": "survarium/controls/Minimap.patch",
+      "patch_sha256": "9a05ebf364038930b1acf6d79d3c165c8feee49833e2264cfabb010dfcab1fea",
+      "pristine_sha256": "51ed2e4740037e1adb4bdef4cdf1b0b7fae53ae62b1fdc4625d5451027fb63ee",
+      "reason": "Recover captured-local declaration order, original closure/super placement, negative-zero constants and released compiler profile.",
+      "result_sha256": "dafc2b7eaaef1eef0dc60d4975bdc75000ac3afb2850c866e00dd6a43048b4c0"
+    },
+    {
+      "class": "survarium.controls.MinimapObjectPlayer",
+      "patch": "survarium/controls/MinimapObjectPlayer.patch",
+      "patch_sha256": "bd21fad6c2c93696094e086a30637b3726aa81fcf4e7f1fa4ec70a6b292be5ef",
+      "pristine_sha256": "3dffe60df6491a4c18cd2832c0ab41cd363f09fc583f5f136dca665c2a2fc0b3",
+      "reason": "Recover implicit typed defaults, lexical field assignments, identifier object keys and direct truth tests. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "e02f8e46b9b353fab1789be904af931de889be09834ff2c19b66282132c1cf0a"
+    },
+    {
+      "class": "survarium.controls.PlayerList",
+      "compiler": "flex-strict",
+      "patch": "survarium/controls/PlayerList.patch",
+      "patch_sha256": "8536a24cd5e588bb673bc7a88835879b85902a331b09fec385922db4705f5ca4",
+      "pristine_sha256": "a453a514034dca8b0b90e8ea29835bee5e2b00cb9af67126b70dc3f6d8a5206b",
+      "reason": "Recover constructor field bindings with distinct parameter names, explicit native local initialization and exact loop control flow.",
+      "result_sha256": "ece0420f13882252c722d4775642de66ece774a9699c2f76c4033a95c0581bd8"
+    },
+    {
+      "class": "survarium.controls.PlayerListRenderer",
+      "patch": "survarium/controls/PlayerListRenderer.patch",
+      "patch_sha256": "c5c78db2872cb5787fd6c15a5bdaa844eb374a7e96217d7764e7917078066078",
+      "pristine_sha256": "e3056c5ca714d78abf1b43ccd0db9a93ca124cd2227427a615b318011c7c20c6",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "6a0ec74b1c075309b31eb9589c5de55eaffc35d54811c1abe845246bec72887f"
+    },
+    {
+      "class": "survarium.controls.PlayerProfileBase",
+      "patch": "survarium/controls/PlayerProfileBase.patch",
+      "patch_sha256": "b12953949525f052d308b14f0ee0eda7a35d4589a2b75b883326688f1da7e748",
+      "pristine_sha256": "8bc98051244b8ec36bec8c908cb38ae5d2490d38cb265eb6ebfd1e7c83c86f40",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "fe632085fb7da3d08d6d5b0ce0219655870860a703f602abc4407fa0d1304a79"
+    },
+    {
+      "class": "survarium.controls.QuickItemRenderer",
+      "compiler": "flex-strict",
+      "patch": "survarium/controls/QuickItemRenderer.patch",
+      "patch_sha256": "08d49c730eb2e0cd2f24f3704c133fcbe54fb1eb0bc4931537e26076cafd614f",
+      "pristine_sha256": "ed97e23ade1b566a4b9f212704d7f6ec55dd33275471010fc540c4be734cf8e6",
+      "reason": "Private source candidate guided by original local debug identities and native conversion instructions; requires independent full-movie equality.",
+      "result_sha256": "e1ac4aee0049e6fcb4c5aa3cc9f5ffc0d78d06afb22a6b85b343767ff5f6663e"
+    },
+    {
+      "class": "survarium.controls.QuickSlots",
+      "compiler": "flex-strict",
+      "patch": "survarium/controls/QuickSlots.patch",
+      "patch_sha256": "e010df6d766e5bb50efeb817df604b3689f050bfce805822995905657e705d08",
+      "pristine_sha256": "e507fa2ef23cf99fb829ac961869a7cab9653a0200140138df2f8803d30a958a",
+      "reason": "Restore explicit local variables, source guards, object key syntax, conversions and namespace-qualified bindings through independent native compilation.",
+      "result_sha256": "50223d587fd1a03560ea0168dd9bf494fea2c36147ac309e510ca0e3f713f52d"
+    },
+    {
+      "class": "survarium.controls.SectionIndicator",
+      "compiler": "flex-strict",
+      "patch": "survarium/controls/SectionIndicator.patch",
+      "patch_sha256": "9e8de02573a349bd5732de61a63dd5666eaf7fadd38f7af6ab02ddf3c36d19c7",
+      "pristine_sha256": "83ce5ba424dadd140b14e97b66315fe0308162e8e5c5d6c6ee7074c50747d694",
+      "reason": "Private source candidate guided by original local debug identities and native conversion instructions; requires independent full-movie equality.",
+      "result_sha256": "932b4619ebd07404180efd1180fa2c30c10c620eb7caf87672955cc1d19dc33f"
+    },
+    {
+      "class": "survarium.controls.SectionStatusIndicator",
+      "patch": "survarium/controls/SectionStatusIndicator.patch",
+      "patch_sha256": "cb53fc8ab7ea46bd30d8043055fd82a7a8ffee7bf544326b662dd495b3885a51",
+      "pristine_sha256": "440de142bda24cb8d9da0bfeee72879d51335b42aa60df2ffad6838be987bdf3",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "e90011caff0962614f20222ae00d7ec431d056f3ceb09399edc2a21caa87ca55"
+    },
+    {
+      "class": "survarium.core.Icon",
+      "patch": "survarium/core/Icon.patch",
+      "patch_sha256": "13ae09673b2c85bfdfa5ebf872e7b66e13a7ee96fbdfd825672f7ecffb631716",
+      "pristine_sha256": "35824c612ea50909ae7b2642771fdb9342fc7a0e99b7b69bbfe316aadb13aaa7",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "bbf83c50cf9b405e4222aa103814ab065b8ab9d09ada3b0b3a8f3a57a3dd7fcd"
+    },
+    {
+      "class": "survarium.data.IconContainer",
+      "compiler": "flex-library",
+      "patch": "survarium/data/IconContainer.patch",
+      "patch_sha256": "499b1625974d13bb780a0abc0b39aebf0c45ded3bda25e837f99f4f7207dda75",
+      "pristine_sha256": "06dcb541c5b041cbfe2287b7b4a92f25c2089332c76093b766b7f5276e071b93",
+      "reason": "Recover captured-local declaration order, original closure/super placement, negative-zero constants and released compiler profile.",
+      "result_sha256": "243ab78858f9a5fa89d5e5d9ca9fad295228b2b9b0f4984122c2a6afbf757d48"
+    },
+    {
+      "class": "survarium.data.ItemData",
+      "compiler": "flex-library",
+      "patch": "survarium/data/ItemData.patch",
+      "patch_sha256": "88e524c02979ff1d9a44813ee6edc0e79c83c6acce44839dcc3461fe0fa125ad",
+      "pristine_sha256": "2d322542961c7fb6ea6a0dab63afd1aea0566662147abe16bbe28a2d33e241c8",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "bbadf28f6e0095b67a8554ce86383d0863f19b39f9dc53b2ca6367646c99bb81"
+    },
+    {
+      "class": "survarium.data.ItemDescriptor",
+      "patch": "survarium/data/ItemDescriptor.patch",
+      "patch_sha256": "1f2e6d144c74263f19cc52e575577cb742a865e7511ba3de0a623085848f891c",
+      "pristine_sha256": "c578823aa11e90c9be869c625602fd5f2dbf6df2a7d3af59e913c3530329dab9",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "835f5475bff0c2806d760fa107465bb076135381200c8c9bf6b8afefad90a37b"
+    },
+    {
+      "class": "survarium.data.LocalizationData",
+      "patch": "survarium/data/LocalizationData.patch",
+      "patch_sha256": "c1a0b5996d0b86204be96f594b39404c87944d38b931d1fa3b15acb0596fb3e0",
+      "pristine_sha256": "d91fe3b1d80dd34e125c7b80324577e2bc9adfcd465aa6b5bbd9bad55a047d94",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "37107067ef7bce07641c580625372207098aa2b0e1a951616a454bd96ed8caa0"
+    },
+    {
+      "class": "survarium.data.PropertiesDescriptor",
+      "patch": "survarium/data/PropertiesDescriptor.patch",
+      "patch_sha256": "6d2d18dea7380db2d6200a529d708960d376c1ab6b47a46f92661da912afc728",
+      "pristine_sha256": "fa83bc10be346636efe2c48c878554423d3a4040b540d16bfbf08bd1a733decd",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "35ca5d2b6fb1b9e9f0479249b3ab92c3de4a64d6e9de983393a7b2b0cc2d83ec"
+    },
+    {
+      "class": "survarium.debug.Damage",
+      "compiler": "flex-strict",
+      "patch": "survarium/debug/Damage.patch",
+      "patch_sha256": "e5e27787f3368f32f9432d0abe9c43a9cb662eb9ad1751569529a271e39d73b9",
+      "pristine_sha256": "39980dc5dd3ee2447af1cbb4760ca03520cda63d590ea500086e7e3aac36faf2",
+      "reason": "Restore explicit local variables, source guards, object key syntax, conversions and namespace-qualified bindings through independent native compilation.",
+      "result_sha256": "0597c3d536060a2cbf5cc7799a480a5d1800f14aef91ed6daaa8f3603126487a"
+    },
+    {
+      "class": "survarium.item.ItemFactory",
+      "compiler": "flex-strict",
+      "patch": "survarium/item/ItemFactory.patch",
+      "patch_sha256": "69f84e228ef34137d31d3a8c777025ddab64ae1b6784c7073fa6979aabfd9ab4",
+      "pristine_sha256": "91f1f02a9ae9ca7fe759cd7c83c0f3e984374761513193396a1c27621f1ce875",
+      "reason": "Restore explicit local variables, source guards, object key syntax, conversions and namespace-qualified bindings through independent native compilation.",
+      "result_sha256": "d903805e762119f95a72e29c8f2301777f5c4234a030b7a71cbfeb0c8f6a366f"
+    },
+    {
+      "class": "survarium.paperdoll.ItemDragSlot",
+      "patch": "survarium/paperdoll/ItemDragSlot.patch",
+      "patch_sha256": "5b3e07089c5c6844de82acd9a9b88b458de1cb0078cd9c79f6f79c43e0037f9b",
+      "pristine_sha256": "902e52517f368a97b648e78c08e9de51a5aa3c7caf9a7a419cc9df93d95fb9c7",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "54d7e3fb5bf4da4f0535c4264fe6e4a70fdf63015f906a9ae299329dd190490d"
+    },
+    {
+      "class": "survarium.paperdoll.PaperDollBase",
+      "patch": "survarium/paperdoll/PaperDollBase.patch",
+      "patch_sha256": "c787958c4afe71b31b2fad1aab8bc82259af48dfddc8c5b6091dbee5d081d7ce",
+      "pristine_sha256": "b952d40026984b8d2efa95b75443fb0a855bdc5988c20333a44ad05f1000a7cb",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "21a09c629d455c783aa9d5998cca0584e6a5dd2344eaaf4b7f41c3440ca66c9a"
+    },
+    {
+      "class": "survarium.player.ProfileSelector",
+      "patch": "survarium/player/ProfileSelector.patch",
+      "patch_sha256": "e0ac31fd61128b085ad946e80471a04f041a51d8beed1683fa58f5a3dcac2641",
+      "pristine_sha256": "50bb098acf4a249bee054c6c2d94051597af767357cec7f9f5fe0eeb83bf1fe8",
+      "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "d9b2c25c397197f44bbcc3f94d5c7ef4786f660ce4a7e6ee94c32f58768ea9fb"
+    },
+    {
+      "class": "survarium.quest.QuestListRenderHUD",
+      "compiler": "flex-strict",
+      "patch": "survarium/quest/QuestListRenderHUD.patch",
+      "patch_sha256": "e082042e6339de396e51be5666d890a91a6f238b161b92cb7b0b3e707860dd3d",
+      "pristine_sha256": "f96ecd4913c3bc99f361660f47242f8b506bd826a5d1fdb113c2e8097cfe2b75",
+      "reason": "Private source candidate guided by original local debug identities and native conversion instructions; requires independent full-movie equality.",
+      "result_sha256": "33d8789157c1db3502cb571991c3aab7b45bd5b5892dbff5fe5ea50b18931771"
+    },
+    {
+      "class": "survarium.quest.TaskRendererHUD",
+      "compiler": "flex-strict",
+      "patch": "survarium/quest/TaskRendererHUD.patch",
+      "patch_sha256": "0c63265fbe914c3874a027fffc0d8f297250c2287b4a0816e075e0ba1fd8c904",
+      "pristine_sha256": "3d16b4911016e15a9bdf1891cfc506db4331a61b3f14757251b92c989ddfa099",
+      "reason": "Private source candidate guided by original local debug identities and native conversion instructions; requires independent full-movie equality.",
+      "result_sha256": "3c5bfd50a3b6dba54665ad298901d41f291e106208a2ba4aa79791c99c841cab"
+    }
+  ],
+  "movie_sha256": "b924b29db06070dfe7d89827a3cf3bc71f14ae4cbca9a2546d95ac977951ec80",
+  "release": "026g-rev24-hud",
+  "schema": 1
+}

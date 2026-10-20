@@ -1,0 +1,187 @@
+--- a/LoginMenu.as
++++ b/LoginMenu.as
+@@ -49,9 +49,9 @@
+       
+       public var save_checkbox:CheckBox;
+       
+-      public var loadingIndicator:MovieClip;
+-      
+-      public var panelContainer:MovieClip;
++      public var loadingIndicator:MovieClip = new LoadingIndicator();
++      
++      public var panelContainer:MovieClip = new PanelContainer();
+       
+       public var tweenLite:TweenLite;
+       
+@@ -63,24 +63,6 @@
+       
+       public function LoginMenu()
+       {
+-         var format1:TextFormat;
+-         var format2:TextFormat;
+-         var spriteMail:Sprite;
+-         var spritePass:Sprite;
+-         var backContainer:MovieClip;
+-         var back:Bitmap;
+-         var shift:uint;
+-         var spr:MovieClip;
+-         var updateFocus:Function = null;
+-         var sign_in_button_clicked:Function = null;
+-         var onKeyDownK:Function = null;
+-         var exit_button_clicked:Function = null;
+-         var callExit:Function = null;
+-         var try_enter_pass:Function = null;
+-         var clearPass:Function = null;
+-         var selectAll:Function = null;
+-         this.loadingIndicator = new LoadingIndicator();
+-         this.panelContainer = new PanelContainer();
+          super();
+          updateFocus = function():void
+          {
+@@ -110,10 +92,10 @@
+          exit_button_clicked = function(e:ButtonEvent = null):void
+          {
+             Message.showMessage("ask",{
+-               "text":LocalizationData.getName("exit_game_confirm_text"),
+-               "onYes":callExit,
+-               "label_ok":LocalizationData.getName("exit_game_confirm_accept"),
+-               "label_cancel":LocalizationData.getName("exit_game_confirm_cancel")
++               text:LocalizationData.getName("exit_game_confirm_text"),
++               onYes:callExit,
++               label_ok:LocalizationData.getName("exit_game_confirm_accept"),
++               label_cancel:LocalizationData.getName("exit_game_confirm_cancel")
+             });
+          };
+          callExit = function():void
+@@ -135,43 +117,43 @@
+          selectAll = function(e:Event):void
+          {
+             var tx:TextInput = e.currentTarget as TextInput;
+-            if(Boolean(tx.focused))
++            if(tx.focused)
+             {
+                tx.textField.setSelection(0,tx.length);
+             }
+          };
+          trace("LoginMenu::super");
+-         format1 = new TextFormat("Calibri",18,16777215,true);
+-         format2 = new TextFormat("Calibri",18,16777215,true);
+-         spriteMail = this.panelContainer.spriteMail;
+-         spritePass = this.panelContainer.spritePass;
+-         this.loadingIndicator = this.panelContainer.loadingIndicator;
++         var format1:TextFormat = new TextFormat("Calibri",18,16777215,true);
++         var format2:TextFormat = new TextFormat("Calibri",18,16777215,true);
++         var spriteMail:Sprite = this.panelContainer.spriteMail;
++         var spritePass:Sprite = this.panelContainer.spritePass;
++         loadingIndicator = this.panelContainer.loadingIndicator;
+          spriteMail.mouseEnabled = spritePass.mouseEnabled = false;
+          this.loadingIndicator.gotoAndStop(1);
+-         backContainer = new MovieClip();
++         var backContainer:MovieClip = new MovieClip();
+          addChild(backContainer);
+-         back = new Bitmap(new LoginBackground());
++         var back:Bitmap = new Bitmap(new LoginBackground());
+          backContainer.addChild(back);
+-         this.exit_btn = new ButtonCloseWindow2();
++         exit_btn = new ButtonCloseWindow2();
+          this.panelContainer.alpha = 0;
+          addChild(this.panelContainer);
+          addEventListener(Event.RENDER,this.configUI);
+-         shift = 20;
+-         this.save_checkbox = this.panelContainer.save_checkbox;
+-         this.sign_in_btn = this.panelContainer.sign_in_btn;
+-         this.login_input = this.panelContainer.login_input;
++         var shift:uint = 20;
++         save_checkbox = this.panelContainer.save_checkbox;
++         sign_in_btn = this.panelContainer.sign_in_btn;
++         login_input = this.panelContainer.login_input;
+          this.login_input.maxChars = 120;
+-         this.password_input = this.panelContainer.password_input;
++         password_input = this.panelContainer.password_input;
+          this.password_input.maxChars = 120;
+          this.password_input.displayAsPassword = true;
+-         this.status_str = this.panelContainer.status;
+-         this.status = this.panelContainer.status;
++         status_str = this.panelContainer.status;
++         status = this.panelContainer.status;
+          this.status.alpha = 0.2;
+-         this.register_btn = this.panelContainer.register_btn;
++         register_btn = this.panelContainer.register_btn;
+          this.register_btn.addEventListener(ButtonEvent.CLICK,this.onRegistrationClicked);
+          this.status_str.autoSize = "center";
+          this.loadingIndicator.alpha = 0.7;
+-         spr = new MovieClip();
++         var spr:MovieClip = new MovieClip();
+          stage.addChild(spr);
+          Message.initStage(spr as Sprite);
+          Message.registerBackground(BackBlack);
+@@ -203,10 +185,10 @@
+          this.panelContainer.layoutData = new LayoutData();
+          this.panelContainer.layoutData.alignV = "top";
+          this.panelContainer.layoutData.alignH = "right";
+-         this.panelContainer.layoutData.offsetV = 0;
++         this.panelContainer.layoutData.offsetV = -0.0;
+          this.panelContainer.layoutData.offsetH = -40;
+          stage.addEventListener(Event.RESIZE,this.onStageResize);
+-         this._layout = new Layout();
++         _layout = new Layout();
+          this._layout.tiedToStageSize = true;
+          addChild(this._layout);
+          this._layout.reflow();
+@@ -216,6 +198,15 @@
+          this.password_input.addEventListener(ComponentEvent.STATE_CHANGE,selectAll);
+          stage.addEventListener(MouseCursorEvent.CURSOR_CHANGE,this.onChangeCursor);
+          SrpLoginHint.apply(this);
++         var updateFocus:Function;
++         var sign_in_button_clicked:Function;
++         var onKeyDownK:Function;
++         var exit_button_clicked:Function;
++         var callExit:Function;
++         var try_enter_pass:Function;
++         var clearPass:Function;
++         var selectAll:Function;
++
+       }
+       
+       private function onLocal(value:String) : void
+@@ -237,12 +228,12 @@
+       public function show_eula_wnd() : void
+       {
+          Message.showMessage("eula",{
+-            "label_window":LocalizationData.getName("EULA_label"),
+-            "text":LocalizationData.getName("EULA"),
+-            "onYes":this.agree_eula,
+-            "onNo":this.disagree_eula,
+-            "label_ok":LocalizationData.getName("accept"),
+-            "label_ok":LocalizationData.getName("label_cancel")
++            label_window:LocalizationData.getName("EULA_label"),
++            text:LocalizationData.getName("EULA"),
++            onYes:this.agree_eula,
++            onNo:this.disagree_eula,
++            label_ok:LocalizationData.getName("accept"),
++            label_ok:LocalizationData.getName("label_cancel")
+          });
+       }
+       
+@@ -256,7 +247,7 @@
+       
+       private function onChangeCursor(e:MouseCursorEvent) : void
+       {
+-         var _new:uint = 0;
++         var _new:uint;
+          if(e.cursor == "ibeam")
+          {
+             _new = 6;
+@@ -279,9 +270,9 @@
+       private function configUI(e:Event) : void
+       {
+          removeEventListener(Event.RENDER,this.configUI);
+-         this.tweenLite = TweenLite.to(this.panelContainer,0.8,{
+-            "delay":0.5,
+-            "alpha":1
++         tweenLite = TweenLite.to(this.panelContainer,0.8,{
++            delay:0.5,
++            alpha:1
+          });
+       }
+       

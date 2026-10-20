@@ -1,0 +1,25 @@
+--- a/survarium/quest/TaskRendererHUD.as
++++ b/survarium/quest/TaskRendererHUD.as
+@@ -23,12 +23,12 @@
+       
+       override protected function configUI() : void
+       {
+-         var styleObject:Object = null;
+          super.configUI();
+          constraints.removeAllElements();
+          constraintsDisabled = true;
+          preventAutosizing = true;
+          var style:StyleSheet = new StyleSheet();
++         var styleObject:Object;
+          styleObject = new Object();
+          styleObject.color = "#5b6261";
+          styleObject.size = 7;
+@@ -40,7 +40,7 @@
+       override protected function updateText() : void
+       {
+          trace("TRH::",_label);
+-         if(Boolean(_label))
++         if(_label)
+          {
+             visible = true;
+             if(textField.text != _label)

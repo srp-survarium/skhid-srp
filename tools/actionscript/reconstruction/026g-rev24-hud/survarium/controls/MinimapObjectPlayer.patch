@@ -1,0 +1,20 @@
+--- a/survarium/controls/MinimapObjectPlayer.as
++++ b/survarium/controls/MinimapObjectPlayer.as
+@@ -15,7 +15,7 @@
+       
+       public function set isCarryingItem(value:Boolean) : void
+       {
+-         this._isCarryingItem = value;
++         _isCarryingItem = value;
+       }
+       
+       public function get isCarryingItem() : Boolean
+@@ -26,7 +26,7 @@
+       public function set type(value:int) : void
+       {
+          gotoAndStop(value);
+-         this._type = value;
++         _type = value;
+       }
+    }
+ }

@@ -1,0 +1,116 @@
+--- a/scaleform/clik/utils/Constraints.as
++++ b/scaleform/clik/utils/Constraints.as
+@@ -46,16 +46,16 @@
+       
+       public var lastHeight:Number = NaN;
+       
+-      public function Constraints(scope:Sprite, scaleMode:String = "counterScale")
++      public function Constraints(scopeValue:Sprite, scaleModeValue:String = "counterScale")
+       {
+          super();
+-         this.scope = scope;
+-         this.scaleMode = scaleMode;
+-         this.elements = {};
+-         this.lastWidth = scope.width;
+-         this.lastHeight = scope.height;
+-         scope.addEventListener(Event.ADDED_TO_STAGE,this.handleScopeAddedToStage,false,0,true);
+-         scope.addEventListener(Event.REMOVED_FROM_STAGE,this.handleScopeAddedToStage,false,0,true);
++         scope = scopeValue;
++         scaleMode = scaleModeValue;
++         elements = {};
++         lastWidth = scopeValue.width;
++         lastHeight = scopeValue.height;
++         scopeValue.addEventListener(Event.ADDED_TO_STAGE,this.handleScopeAddedToStage,false,0,true);
++         scopeValue.addEventListener(Event.REMOVED_FROM_STAGE,this.handleScopeAddedToStage,false,0,true);
+       }
+       
+       public function addElement(name:String, clip:DisplayObject, edges:uint) : void
+@@ -90,7 +90,7 @@
+       
+       public function removeAllElements() : void
+       {
+-         var name:String = null;
++         var name:String;
+          for(name in this.elements)
+          {
+             if(this.elements[name] is ConstrainedElement)
+@@ -140,14 +140,8 @@
+       
+       public function update(width:Number, height:Number) : void
+       {
+-         var n:String = null;
+-         var element:ConstrainedElement = null;
+-         var edges:uint = 0;
+-         var clip:DisplayObject = null;
+-         var nw:Number = NaN;
+-         var nh:Number = NaN;
+-         this.lastWidth = width;
+-         this.lastHeight = height;
++         lastWidth = width;
++         lastHeight = height;
+          if(this.elementCount == 0)
+          {
+             return;
+@@ -155,6 +149,12 @@
+          var xAdjust:Number = this.getXAdjust();
+          var yAdjust:Number = this.getYAdjust();
+          var counterScale:Boolean = this.scaleMode == ConstrainMode.COUNTER_SCALE;
++         var n:String;
++         var element:ConstrainedElement;
++         var edges:uint;
++         var clip:DisplayObject;
++         var nw:Number;
++         var nh:Number;
+          for(n in this.elements)
+          {
+             element = this.elements[n] as ConstrainedElement;
+@@ -256,9 +256,9 @@
+       
+       override public function toString() : String
+       {
+-         var n:String = null;
+-         var l:uint = uint(this.elements.length);
++         var l:uint = (this.elements.length);
+          var str:String = "[CLIK Constraints (" + l + ")]";
++         var n:String;
+          for(n in this.elements)
+          {
+             str += "\n\t" + n + ": " + this.elements[n].toString();
+@@ -277,7 +277,7 @@
+          {
+             this.parentConstraints.removeEventListener(ResizeEvent.RESIZE,this.handleParentConstraintsResize);
+          }
+-         this.parentConstraints = null;
++         parentConstraints = null;
+          var p:DisplayObjectContainer = this.scope.parent;
+          if(p == null)
+          {
+@@ -287,7 +287,7 @@
+          {
+             if(p.hasOwnProperty("constraints"))
+             {
+-               this.parentConstraints = p["constraints"] as Constraints;
++               parentConstraints = p["constraints"] as Constraints;
+                if(this.parentConstraints != null && this.parentConstraints.scaleMode == ConstrainMode.REFLOW)
+                {
+                   return;
+@@ -306,15 +306,15 @@
+          }
+          if(this.parentConstraints != null)
+          {
+-            this.parentXAdjust = this.parentConstraints.getXAdjust();
+-            this.parentYAdjust = this.parentConstraints.getYAdjust();
++            parentXAdjust = this.parentConstraints.getXAdjust();
++            parentYAdjust = this.parentConstraints.getYAdjust();
+          }
+       }
+       
+       protected function handleParentConstraintsResize(event:ResizeEvent) : void
+       {
+-         this.parentXAdjust = event.scaleX;
+-         this.parentYAdjust = event.scaleY;
++         parentXAdjust = event.scaleX;
++         parentYAdjust = event.scaleY;
+          this.update(this.lastWidth,this.lastHeight);
+       }
+    }

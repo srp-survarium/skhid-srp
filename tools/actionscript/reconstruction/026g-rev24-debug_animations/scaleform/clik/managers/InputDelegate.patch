@@ -1,0 +1,20 @@
+--- a/scaleform/clik/managers/InputDelegate.as
++++ b/scaleform/clik/managers/InputDelegate.as
+@@ -30,7 +30,7 @@
+       public function InputDelegate()
+       {
+          super();
+-         this.keyHash = [];
++         keyHash = [];
+       }
+       
+       public static function getInstance() : InputDelegate
+@@ -142,7 +142,7 @@
+          var _loc3_:uint = _loc2_ == null ? 0 : _loc2_.controllerIdx;
+          var _loc4_:Number = param1.keyCode;
+          var _loc5_:uint = _loc3_ * MAX_KEY_CODES + _loc4_;
+-         var _loc6_:uint = uint(this.keyHash[_loc5_]);
++         var _loc6_:uint = (this.keyHash[_loc5_]);
+          if(_loc6_ & KEY_PRESSED)
+          {
+             if((_loc6_ & KEY_SUPRESSED) == 0)

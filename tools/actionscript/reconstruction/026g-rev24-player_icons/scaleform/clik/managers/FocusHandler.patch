@@ -1,0 +1,239 @@
+--- a/scaleform/clik/managers/FocusHandler.as
++++ b/scaleform/clik/managers/FocusHandler.as
+@@ -25,10 +25,10 @@
+    public class FocusHandler
+    {
+       
++      protected static var initialized:Boolean = false;
++      
+       public static var instance:FocusHandler;
+       
+-      protected static var initialized:Boolean = false;
+-      
+       protected var _stage:Stage;
+       
+       protected var currentFocusLookup:WeakRefDictionary;
+@@ -42,8 +42,8 @@
+       public function FocusHandler()
+       {
+          super();
+-         this.currentFocusLookup = new WeakRefDictionary();
+-         this.actualFocusLookup = new WeakRefDictionary();
++         currentFocusLookup = new WeakRefDictionary();
++         actualFocusLookup = new WeakRefDictionary();
+       }
+       
+       public static function getInstance() : FocusHandler
+@@ -72,7 +72,7 @@
+       {
+          if(this._stage == null)
+          {
+-            this._stage = value;
++            _stage = value;
+          }
+          this._stage.stageFocusRect = false;
+          if(Extensions.enabled)
+@@ -96,12 +96,8 @@
+       
+       public function setFocus(focus:DisplayObject, focusGroupIdx:uint = 0, mouseChange:Boolean = false) : void
+       {
+-         var focusComponent:UIComponent = null;
+-         var controllerMask:Number = NaN;
+-         var numControllers:uint = 0;
+-         var i:uint = 0;
+-         var controllerValue:Boolean = false;
+          var focusParam:DisplayObject = focus;
++         var focusComponent:UIComponent;
+          if(focus != null)
+          {
+             while(true)
+@@ -111,11 +107,12 @@
+                {
+                   break;
+                }
+-               if(focusComponent.focusTarget == null)
+-               {
+-                  break;
+-               }
+-               focus = focusComponent.focusTarget;
++               if(focusComponent.focusTarget != null)
++               {
++                  focus = focusComponent.focusTarget;
++                  continue;
++               }
++               break;
+             }
+          }
+          if(focusComponent != null)
+@@ -126,7 +123,7 @@
+             }
+          }
+          var spr:Sprite = focus as Sprite;
+-         if(Boolean(spr) && Boolean(mouseChange) && spr.tabEnabled == false)
++         if(spr && mouseChange && spr.tabEnabled == false)
+          {
+             focus = null;
+          }
+@@ -161,24 +158,30 @@
+          }
+          var isActualFocusTextField:Boolean = actualFocus is TextField;
+          var isCurrentFocusUIComponent:Boolean = currentFocus is UIComponent;
++         var controllerMask:Number;
++         var numControllers:uint;
++         var i:uint;
++         var controllerValue:Boolean;
+          if(actualFocus != currentFocus && (!isActualFocusTextField || isActualFocusTextField && !isCurrentFocusUIComponent))
+          {
+             if(focusParam is TextField && focusParam != focus && focus == null)
+             {
+                focus = focusParam;
+             }
+-            this.preventStageFocusChanges = true;
++            preventStageFocusChanges = true;
+             if(Extensions.isScaleform)
+             {
+                controllerMask = FocusManager.getControllerMaskByFocusGroup(focusGroupIdx);
+                numControllers = Extensions.numControllers;
+-               for(i = 0; i < numControllers; i++)
++               i = 0;
++               while(i < numControllers)
+                {
+                   controllerValue = (controllerMask >> i & 1) != 0;
+                   if(controllerValue)
+                   {
+                      this.setSystemFocus(focus as InteractiveObject,i);
+                   }
++                  i++;
+                }
+             }
+             else
+@@ -212,7 +215,7 @@
+       
+       protected function clearFocusPrevention(e:Event) : void
+       {
+-         this.preventStageFocusChanges = false;
++         preventStageFocusChanges = false;
+          this._stage.removeEventListener(Event.ENTER_FRAME,this.clearFocusPrevention,false);
+       }
+       
+@@ -224,12 +227,11 @@
+       
+       public function trackMouseDown(e:MouseEvent) : void
+       {
+-         this.mouseDown = e.buttonDown;
++         mouseDown = e.buttonDown;
+       }
+       
+       protected function handleInput(event:InputEvent) : void
+       {
+-         var focusProp:String = null;
+          var controllerIdx:Number = event.details.controllerIndex;
+          var focusGroupIdx:Number = FocusManager.getControllerFocusGroup(controllerIdx);
+          var component:InteractiveObject = this.currentFocusLookup.getValue(focusGroupIdx) as InteractiveObject;
+@@ -264,17 +266,17 @@
+             return;
+          }
+          var dirX:Boolean = nav == NavigationCode.LEFT || nav == NavigationCode.RIGHT;
+-         var dirY:Boolean = nav == NavigationCode.UP || Boolean(NavigationCode.DOWN);
++         var dirY:Boolean = nav == NavigationCode.UP || NavigationCode.DOWN;
+          if(focusedElement == null)
+          {
+-            if(Boolean(stageFocusedElement) && stageFocusedElement is UIComponent)
++            if(stageFocusedElement && stageFocusedElement is UIComponent)
+             {
+                focusedElement = stageFocusedElement as UIComponent;
+             }
+          }
+          if(focusedElement == null)
+          {
+-            if(Boolean(actualFocus) && actualFocus is UIComponent)
++            if(actualFocus && actualFocus is UIComponent)
+             {
+                focusedElement = actualFocus as UIComponent;
+             }
+@@ -290,16 +292,17 @@
+             focusProp = dirX ? FocusMode.HORIZONTAL : FocusMode.VERTICAL;
+             while(focusContext != null)
+             {
+-               if(!(focusProp in focusContext))
+-               {
+-                  break;
+-               }
+-               focusMode = focusContext[focusProp];
+-               if(focusMode != null && focusMode != FocusMode.DEFAULT)
+-               {
+-                  break;
+-               }
+-               focusContext = focusContext.parent;
++               if(focusProp in focusContext)
++               {
++                  focusMode = focusContext[focusProp];
++                  if(focusMode != null && focusMode != FocusMode.DEFAULT)
++                  {
++                     break;
++                  }
++                  focusContext = focusContext.parent;
++                  continue;
++               }
++               break;
+             }
+          }
+          else
+@@ -311,6 +314,7 @@
+             focusedElement = this.getSystemFocus(controllerIdx);
+          }
+          var newFocus:InteractiveObject = FocusManager.findFocus(nav,null,focusMode == FocusMode.LOOP,focusedElement,false,controllerIdx);
++         var focusProp:String;
+          if(newFocus != null)
+          {
+             this.setFocus(newFocus,focusGroupIdx);
+@@ -324,7 +328,6 @@
+       
+       protected function handleFocusChange(oldFocus:InteractiveObject, newFocus:InteractiveObject, event:FocusEvent) : void
+       {
+-         var focusTF:TextField = null;
+          if(this.mouseDown && newFocus is TextField)
+          {
+             event.preventDefault();
+@@ -353,14 +356,15 @@
+          var sfEvent:FocusEventEx = event as FocusEventEx;
+          var controllerIdx:uint = sfEvent == null ? 0 : sfEvent.controllerIdx;
+          var focusGroupIdx:uint = FocusManager.getControllerFocusGroup(controllerIdx);
++         var focusTF:TextField;
+          this.actualFocusLookup.setValue(focusGroupIdx,newFocus);
+          this.setFocus(newFocus,focusGroupIdx,event.type == FocusEvent.MOUSE_FOCUS_CHANGE);
+       }
+       
+       protected function updateActualFocus(event:FocusEvent) : void
+       {
+-         var oldFocus:InteractiveObject = null;
+-         var newFocus:InteractiveObject = null;
++         var oldFocus:InteractiveObject;
++         var newFocus:InteractiveObject;
+          if(event.type == FocusEvent.FOCUS_IN)
+          {
+             oldFocus = event.relatedObject as InteractiveObject;
+@@ -418,9 +422,8 @@
+                {
+                   return false;
+                }
+-               break;
+             case NavigationCode.LEFT:
+-               break;
++               return position > 0;
+             case NavigationCode.DOWN:
+                if(!actualFocus.multiline)
+                {
+@@ -428,10 +431,8 @@
+                }
+             case NavigationCode.RIGHT:
+                return position < actualFocus.length;
+-            default:
+-               return false;
+-         }
+-         return position > 0;
++         }
++         return false;
+       }
+    }
+ }

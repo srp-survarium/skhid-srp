@@ -1,0 +1,219 @@
+--- a/survarium/controls/Message.as
++++ b/survarium/controls/Message.as
+@@ -47,7 +47,6 @@
+       
+       public static function close(param1:uint, param2:Boolean = false) : void
+       {
+-         var _loc9_:Array = null;
+          var _loc3_:MessageBase = _instances[param1];
+          if(!_loc3_)
+          {
+@@ -68,6 +67,7 @@
+          var _loc6_:Number = _loc4_.height * ((1 - _scaleStart) / 2);
+          var _loc7_:Number = _loc3_.x + _loc5_;
+          var _loc8_:Number = _loc3_.y + _loc6_;
++         var _loc9_:Array;
+          trace("close::",_loc3_,param1,"|",_loc9_);
+          if(param2)
+          {
+@@ -77,12 +77,12 @@
+          {
+             _loc9_ = [_loc3_];
+             TweenLite.to(_loc3_,0.1,{
+-               "scale":_scaleFactor * _scaleStart,
+-               "alpha":0,
+-               "x":_loc7_,
+-               "y":_loc8_,
+-               "onComplete":removeMessageFromStage,
+-               "onCompleteParams":_loc9_
++               scale:_scaleFactor * _scaleStart,
++               alpha:0,
++               x:_loc7_,
++               y:_loc8_,
++               onComplete:removeMessageFromStage,
++               onCompleteParams:_loc9_
+             });
+          }
+          handleClose();
+@@ -96,16 +96,16 @@
+       
+       protected static function updateBack(param1:Event = null) : void
+       {
+-         var _loc3_:* = undefined;
+-         var _loc4_:MessageBase = null;
+-         var _loc2_:Boolean = _scaleFactorInvalidated || Boolean(_backSprite) && (_backSprite.width != _stage.stage.stageWidth || _backSprite.height != _stage.stage.stageHeight);
++         var _loc2_:Boolean = _scaleFactorInvalidated || _backSprite && (_backSprite.width != _stage.stage.stageWidth || _backSprite.height != _stage.stage.stageHeight);
++         var _loc3_:*;
++         var _loc4_:MessageBase;
+          trace("Message::handleStageResize::",_scaleFactor,_loc2_);
+          if(!_loc2_)
+          {
+             return;
+          }
+          _scaleFactorInvalidated = false;
+-         if(Boolean(_stage) && Boolean(_backSprite) && Boolean(_backSprite.parent))
++         if(_stage && _backSprite && _backSprite.parent)
+          {
+             _backSprite.width = _stage.stage.stageWidth;
+             _backSprite.height = _stage.stage.stageHeight;
+@@ -126,15 +126,15 @@
+       
+       public static function hideMessages() : void
+       {
+-         var _loc1_:* = undefined;
+-         var _loc2_:MessageBase = null;
++         var _loc1_:*;
++         var _loc2_:MessageBase;
+          _hideMessages = true;
+          for(_loc1_ in _instances)
+          {
+             _loc2_ = _instances[_loc1_];
+             _loc2_.visible = false;
+          }
+-         if(Boolean(_backSprite) && Boolean(_backSprite.parent))
++         if(_backSprite && _backSprite.parent)
+          {
+             _stage.removeChild(_backSprite);
+          }
+@@ -142,21 +142,20 @@
+       
+       public static function showMessages() : void
+       {
+-         var _loc1_:* = undefined;
+-         var _loc2_:MessageBase = null;
++         var _loc1_:*;
++         var _loc2_:MessageBase;
+          trace("showMessages::",_currentRenderer);
+          _hideMessages = false;
+          if(!_currentRenderer)
+          {
+-            var _loc3_:int = 0;
+-            var _loc4_:* = _instances;
+-            for(_loc1_ in _loc4_)
++            for(_loc1_ in _instances)
+             {
+                _loc2_ = _instances[_loc1_];
+                _currentRenderer = _loc2_;
++               break;
+             }
+          }
+-         if(Boolean(_currentRenderer))
++         if(_currentRenderer)
+          {
+             _stage.addChild(_backSprite);
+             addMessageToStage();
+@@ -166,12 +165,12 @@
+       
+       private static function addMessageToStage() : void
+       {
+-         var _loc4_:Number = NaN;
+-         var _loc5_:Number = NaN;
+          var _loc1_:int = 0;
+          var _loc2_:int = 0;
+          _currentRenderer.scaleX = _currentRenderer.scaleY = _scaleFactor;
+          var _loc3_:Rectangle = _currentRenderer.getRect(_stage);
++         var _loc4_:Number;
++         var _loc5_:Number;
+          _loc1_ = _stage.stage.stageWidth / 2 - _loc3_.width / 2;
+          _loc2_ = _stage.stage.stageHeight / 2 - _loc3_.height / 2;
+          if(_currentRenderer.visible == false)
+@@ -186,10 +185,10 @@
+             trace("MessagePosition:: wh",_loc3_.width,_loc3_.height,_currentRenderer.width,_currentRenderer.height,"offset::",_loc4_,_loc5_);
+             _stage.addChild(_currentRenderer);
+             TweenLite.to(_currentRenderer,0.1,{
+-               "scale":_scaleFactor,
+-               "alpha":1,
+-               "x":_loc1_,
+-               "y":_loc2_
++               scale:_scaleFactor,
++               alpha:1,
++               x:_loc1_,
++               y:_loc2_
+             });
+          }
+          else
+@@ -203,20 +202,20 @@
+       
+       public static function showMessage(param1:String, param2:* = null, param3:Boolean = false, param4:uint = 0, param5:Boolean = false) : *
+       {
+-         var _loc7_:uint = 0;
+          trace("MESSAGE::showMessage::",param4,param1,param3,"cur::",_currentRenderer,"hide::",_hideMessages,_stage.visible);
+          if(!_stage)
+          {
+             return;
+          }
+          var _loc6_:Class = _messages[param1];
++         var _loc7_:uint;
+          if(!_loc6_ is Class)
+          {
+             return;
+          }
+          if(param4 == 0)
+          {
+-            _loc7_ = uint(_messIndex);
++            _loc7_ = (_messIndex);
+             ++_messIndex;
+          }
+          else
+@@ -232,16 +231,16 @@
+             _loc8_.text = param2;
+          }
+          _instances[_loc7_] = _loc8_;
+-         if((Boolean(_currentRenderer) || Boolean(_hideMessages)) && param3 == false)
++         if((_currentRenderer || _hideMessages) && param3 == false)
+          {
+             return _loc8_;
+          }
+          trace("addMessageToStage");
+-         if(Boolean(_backSprite))
++         if(_backSprite)
+          {
+             _stage.addChild(_backSprite);
+          }
+-         if(Boolean(_currentRenderer) && !param5)
++         if(_currentRenderer && !param5)
+          {
+             _currentRenderer.visible = false;
+          }
+@@ -274,14 +273,12 @@
+       
+       public static function isAnyMessage() : int
+       {
+-         var _loc1_:* = undefined;
+-         if(Boolean(_currentRenderer))
++         var _loc1_:*;
++         if(_currentRenderer)
+          {
+             return _currentRenderer.getMessageId();
+          }
+-         var _loc2_:int = 0;
+-         var _loc3_:* = _instances;
+-         for(_loc1_ in _loc3_)
++         for(_loc1_ in _instances)
+          {
+             return _loc1_;
+          }
+@@ -290,10 +287,10 @@
+       
+       protected static function handleClose() : void
+       {
+-         var _loc1_:int = 0;
+-         var _loc2_:Sprite = null;
+-         var _loc3_:MessageBase = null;
+-         if(Boolean(_stage))
++         var _loc1_:int;
++         var _loc2_:Sprite;
++         var _loc3_:MessageBase;
++         if(_stage)
+          {
+             _loc1_ = isAnyMessage();
+             if(_loc1_ == -1 || _hideMessages)
+@@ -320,7 +317,7 @@
+       {
+          trace("REMOVE_FROM_STAGE::",param1);
+          var _loc2_:MessageBase = param1 as MessageBase;
+-         if(Boolean(_loc2_) && Boolean(_stage) && Boolean(_stage.contains(_loc2_)))
++         if(_loc2_ && _stage && (_stage.contains(_loc2_)))
+          {
+             trace("REMOVE_FROM_STAGE::complete");
+             _stage.removeChild(_loc2_);

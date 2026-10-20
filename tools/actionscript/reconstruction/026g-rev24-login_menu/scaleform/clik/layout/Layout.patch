@@ -1,0 +1,240 @@
+--- a/scaleform/clik/layout/Layout.as
++++ b/scaleform/clik/layout/Layout.as
+@@ -45,7 +45,7 @@
+       public function initialize() : void
+       {
+          addEventListener(Event.ADDED_TO_STAGE,this.handleAddedToStage,false,0,true);
+-         this._managedSprites = new Vector.<Sprite>();
++         _managedSprites = new Vector.<Sprite>();
+       }
+       
+       public function get rect() : Rectangle
+@@ -55,7 +55,7 @@
+       
+       public function set rect(value:Rectangle) : void
+       {
+-         this._rect = value;
++         _rect = value;
+       }
+       
+       [Inspectable(defaultValue="false")]
+@@ -70,8 +70,8 @@
+          {
+             return;
+          }
+-         this._tiedToStageSize = value;
+-         this._tiedToParent = false;
++         _tiedToStageSize = value;
++         _tiedToParent = false;
+          if(stage != null)
+          {
+             stage.removeEventListener(Event.RESIZE,this.handleStageResize,false);
+@@ -95,8 +95,8 @@
+          {
+             return;
+          }
+-         this._tiedToParent = value;
+-         this._tiedToStageSize = false;
++         _tiedToParent = value;
++         _tiedToStageSize = false;
+          if(this._parent != null)
+          {
+             this._parent.removeEventListener(ResizeEvent.RESIZE,this.handleParentResize,false);
+@@ -115,7 +115,7 @@
+       
+       public function set hidden(value:Boolean) : void
+       {
+-         this._hidden = value;
++         _hidden = value;
+          visible = !this._hidden;
+       }
+       
+@@ -171,32 +171,33 @@
+       
+       public function reflow() : void
+       {
+-         var _tm2:Function = null;
+-         var spr:Sprite = null;
+-         var ld:LayoutData = null;
+-         var alignH:String = null;
+-         var alignV:String = null;
+-         var offsetH:Number = NaN;
+-         var offsetV:Number = NaN;
+-         var relativeH:String = null;
+-         var relHObject:Sprite = null;
+-         var relativeV:String = null;
+-         var relVObject:Sprite = null;
+-         var _tm:Function = null;
+          if(this.beforeReflow is Function)
+          {
+             _tm2 = this.beforeReflow;
+-            this.beforeReflow = null;
++            beforeReflow = null;
+             _tm2();
+          }
+-         for(var i:uint = 0; i < this._managedSprites.length; i++)
++         var i:uint = 0;
++         var _tm2:Function;
++         var spr:Sprite;
++         var ld:LayoutData;
++         var alignH:String;
++         var alignV:String;
++         var offsetH:Number;
++         var offsetV:Number;
++         var relativeH:String;
++         var relHObject:Sprite;
++         var relativeV:String;
++         var relVObject:Sprite;
++         var _tm:Function;
++         while(i < this._managedSprites.length)
+          {
+             spr = this._managedSprites[i];
+             ld = spr["layoutData"] as LayoutData;
+             alignH = ld.alignH;
+             alignV = ld.alignV;
+-            offsetH = this._tiedToStageSize && ld.offsetHashH[this._aspectRatio] != undefined ? Number(ld.offsetHashH[this._aspectRatio]) : ld.offsetH;
+-            offsetV = this._tiedToStageSize && ld.offsetHashV[this._aspectRatio] != undefined ? Number(ld.offsetHashV[this._aspectRatio]) : ld.offsetV;
++            offsetH = this._tiedToStageSize && ld.offsetHashH[this._aspectRatio] != undefined ? (ld.offsetHashH[this._aspectRatio]) : ld.offsetH;
++            offsetV = this._tiedToStageSize && ld.offsetHashV[this._aspectRatio] != undefined ? (ld.offsetHashV[this._aspectRatio]) : ld.offsetV;
+             relativeH = ld.relativeToH;
+             relHObject = relativeH != null ? this._parent.getChildByName(relativeH) as Sprite : null;
+             relativeV = ld.relativeToV;
+@@ -267,11 +268,12 @@
+                   spr.y = (this.rect.height - this.rect.y) / 2 - spr.height / 2 + offsetV;
+                }
+             }
++            i++;
+          }
+          if(this.afterReflow is Function)
+          {
+             _tm = this.afterReflow;
+-            this.afterReflow = null;
++            afterReflow = null;
+             _tm();
+          }
+       }
+@@ -282,7 +284,7 @@
+          {
+             return;
+          }
+-         this._managedSprites = new Vector.<Sprite>();
++         _managedSprites = new Vector.<Sprite>();
+          this.configUI();
+       }
+       
+@@ -293,13 +295,13 @@
+          {
+             this.insertIntoSortedVector(this._managedSprites.pop(),list);
+          }
+-         this._managedSprites = list;
++         _managedSprites = list;
+       }
+       
+       protected function invalidate() : void
+       {
+          addEventListener(Event.RENDER,this.handleStageInvalidation,false,0,true);
+-         if(Boolean(stage))
++         if(stage)
+          {
+             stage.invalidate();
+          }
+@@ -323,22 +325,22 @@
+       protected function configUI() : void
+       {
+          removeEventListener(Event.ADDED_TO_STAGE,this.handleAddedToStage,false);
+-         this._parent = parent as MovieClip;
++         _parent = parent as MovieClip;
+          visible = !this._hidden;
+          if(this.width > 0 && this.height > 0)
+          {
+-            this._rect = new Rectangle(x,y,this.width,this.height);
++            _rect = new Rectangle(x,y,this.width,this.height);
+          }
+          if(this._rect == null)
+          {
+             if(this._tiedToStageSize)
+             {
+-               this._rect = Extensions.enabled ? Extensions.visibleRect : new Rectangle(0,0,stage.stageWidth,stage.stageHeight);
++               _rect = Extensions.enabled ? Extensions.visibleRect : new Rectangle(0,0,stage.stageWidth,stage.stageHeight);
+             }
+             else
+             {
+-               this._rect = new Rectangle(0,0,this._parent.width,this._parent.height);
+-               this._tiedToParent = true;
++               _rect = new Rectangle(0,0,this._parent.width,this._parent.height);
++               _tiedToParent = true;
+             }
+          }
+          addEventListener(Event.ENTER_FRAME,this.handleFirstEnterFrame,false,0,true);
+@@ -362,14 +364,16 @@
+       
+       protected function analyzeSpritesOnStage() : void
+       {
+-         var spr:Sprite = null;
+-         for(var i:uint = 0; i < this._parent.numChildren; i++)
++         var i:uint = 0;
++         var spr:Sprite;
++         while(i < this._parent.numChildren)
+          {
+             spr = this._parent.getChildAt(i) as Sprite;
+             if(spr != this)
+             {
+                this.evaluateLayoutForSprite(spr);
+             }
++            i++;
+          }
+          this.reflow();
+       }
+@@ -416,21 +420,24 @@
+       
+       protected function updateAspectRatio() : void
+       {
+-         var ar:Number = NaN;
++         var ar:Number;
+          if(Extensions.enabled && this._scaleFactor == 1)
+          {
+-            this._rect = Extensions.visibleRect;
++            _rect = Extensions.visibleRect;
+             ar = this.rect.width / this.rect.height;
+             switch(ar)
+             {
+                case 4 / 3:
+-                  this._aspectRatio = LayoutData.ASPECT_RATIO_4_3;
++                  _aspectRatio = LayoutData.ASPECT_RATIO_4_3;
+                   break;
+                case 16 / 9:
+-                  this._aspectRatio = LayoutData.ASPECT_RATIO_16_9;
++                  _aspectRatio = LayoutData.ASPECT_RATIO_16_9;
+                   break;
+                case 16 / 10:
+-                  this._aspectRatio = LayoutData.ASPECT_RATIO_16_10;
++                  _aspectRatio = LayoutData.ASPECT_RATIO_16_10;
++               break;
++               default:
++                  break;
+             }
+          }
+          else
+@@ -444,7 +451,7 @@
+       public function setScaleFactor(value:Number) : void
+       {
+          trace("setScaleFactor",value);
+-         this._scaleFactor = value;
++         _scaleFactor = value;
+          this.handleStageResize(null);
+       }
+       
+@@ -465,10 +472,10 @@
+       
+       protected function insertIntoSortedVector(spr:Sprite, list:Vector.<Sprite>) : void
+       {
+-         var inserted:Boolean = false;
+-         var i:uint = 0;
+-         var ld:LayoutData = null;
+          var lIndex:int = (spr["layoutData"] as LayoutData).layoutIndex;
++         var inserted:Boolean;
++         var i:uint;
++         var ld:LayoutData;
+          if(list.length == 0 || lIndex == -1)
+          {
+             list.push(spr);

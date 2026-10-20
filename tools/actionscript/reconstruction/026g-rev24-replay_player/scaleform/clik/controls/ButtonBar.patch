@@ -1,0 +1,331 @@
+--- a/scaleform/clik/controls/ButtonBar.as
++++ b/scaleform/clik/controls/ButtonBar.as
+@@ -62,14 +62,16 @@
+       
+       public function getMaxWidth() : int
+       {
+-         var _max:int = 0;
+-         for(var i:Number = 0; i < this._renderers.length; i++)
++         var _max:int;
++         var i:Number = 0;
++         while(i < this._renderers.length)
+          {
+             trace("ButtonBat::getMax::",this._renderers.length,_max,this._renderers[i].width,_width,actualWidth);
+             if(this._renderers[i].width > _max)
+             {
+-               _max = int(this._renderers[i].width);
+-            }
++               _max = (this._renderers[i].width);
++            }
++            i++;
+          }
+          return _max;
+       }
+@@ -77,8 +79,8 @@
+       override protected function initialize() : void
+       {
+          super.initialize();
+-         this.dataProvider = new DataProvider();
+-         this._renderers = [];
++         dataProvider = new DataProvider();
++         _renderers = [];
+       }
+       
+       override public function get enabled() : Boolean
+@@ -131,7 +133,7 @@
+          {
+             this._dataProvider.removeEventListener(Event.CHANGE,this.handleDataChange,false);
+          }
+-         this._dataProvider = value;
++         _dataProvider = value;
+          if(this._dataProvider == null)
+          {
+             return;
+@@ -142,7 +144,7 @@
+       
+       public function set itemRendererName(value:String) : void
+       {
+-         var classRef:Class = null;
++         var classRef:Class;
+          if(_inspector && value == "Button" || value == "")
+          {
+             return;
+@@ -157,7 +159,7 @@
+          }
+          if(classRef != null)
+          {
+-            this._itemRendererClass = classRef;
++            _itemRendererClass = classRef;
+             invalidate();
+          }
+       }
+@@ -169,7 +171,7 @@
+       
+       public function set spacing(value:Number) : void
+       {
+-         this._spacing = value;
++         _spacing = value;
+          this.invalidateSettings();
+       }
+       
+@@ -180,7 +182,7 @@
+       
+       public function set direction(value:String) : void
+       {
+-         this._direction = value;
++         _direction = value;
+          this.invalidateSettings();
+       }
+       
+@@ -195,10 +197,12 @@
+          {
+             return;
+          }
+-         this._autoSize = value;
+-         for(var i:Number = 0; i < this._renderers.length; i++)
++         _autoSize = value;
++         var i:Number = 0;
++         while(i < this._renderers.length)
+          {
+             (this._renderers[i] as this._itemRendererClass).autoSize = this._autoSize;
++            i++;
+          }
+          this.invalidateSettings();
+       }
+@@ -210,7 +214,7 @@
+       
+       public function set buttonWidth(value:Number) : void
+       {
+-         this._buttonWidth = value;
++         _buttonWidth = value;
+          invalidate();
+       }
+       
+@@ -231,7 +235,7 @@
+          {
+             renderer.selected = false;
+          }
+-         this._selectedIndex = value;
++         _selectedIndex = value;
+          renderer = this._renderers[this._selectedIndex] as Button;
+          if(renderer)
+          {
+@@ -257,7 +261,7 @@
+       
+       public function set labelField(value:String) : void
+       {
+-         this._labelField = value;
++         _labelField = value;
+          invalidateData();
+       }
+       
+@@ -268,7 +272,7 @@
+       
+       public function set labelFunction(value:Function) : void
+       {
+-         this._labelFunction = value;
++         _labelFunction = value;
+          invalidateData();
+       }
+       
+@@ -309,7 +313,6 @@
+       
+       override public function handleInput(event:InputEvent) : void
+       {
+-         var newIndex:Number = NaN;
+          if(event.handled)
+          {
+             return;
+@@ -330,6 +333,7 @@
+             return;
+          }
+          var indexChanged:Boolean = false;
++         var newIndex:Number;
+          switch(details.navEquivalent)
+          {
+             case NavigationCode.LEFT:
+@@ -359,13 +363,16 @@
+                   newIndex = this._selectedIndex + 1;
+                   indexChanged = true;
+                }
++               break;
++            default:
++               break;
+          }
+          if(indexChanged)
+          {
+             newIndex = Math.max(0,Math.min(this._dataProvider.length - 1,newIndex));
+             if(newIndex != this._selectedIndex)
+             {
+-               this.selectedIndex = newIndex;
++               selectedIndex = newIndex;
+                event.handled = true;
+             }
+          }
+@@ -382,12 +389,12 @@
+          tabEnabled = _focusable && this.enabled;
+          if(this._group == null)
+          {
+-            this._group = new ButtonGroup(name + "Group",this);
++            _group = new ButtonGroup(name + "Group",this);
+          }
+          this._group.addEventListener(ButtonEvent.CLICK,this.handleButtonGroupChange,false,0,true);
+          if(this.container == null)
+          {
+-            this.container = new MovieClip();
++            container = new MovieClip();
+             addChild(this.container);
+          }
+          addEventListener(InputEvent.INPUT,this.handleInput,false,0,true);
+@@ -395,8 +402,8 @@
+       
+       override protected function draw() : void
+       {
+-         var i:Number = NaN;
+-         var renderer:Button = null;
++         var i:Number;
++         var renderer:Button;
+          if(isInvalid(InvalidationType.RENDERERS) || isInvalid(InvalidationType.DATA) || isInvalid(InvalidationType.SETTINGS) || isInvalid(InvalidationType.SIZE))
+          {
+             removeChild(this.container);
+@@ -407,14 +414,16 @@
+             this.updateRenderers();
+             if(this._autoResize)
+             {
+-               this._buttonWidth = this.getMaxWidth();
+-               for(i = 0; i < this._renderers.length; i++)
++               _buttonWidth = this.getMaxWidth();
++               i = 0;
++               while(i < this._renderers.length)
+                {
+                   renderer = this._renderers[i];
+                   trace("setWidth::",this._buttonWidth,width);
+                   renderer.autoSize = TextFieldAutoSize.NONE;
+                   renderer.width = this._buttonWidth;
+                   renderer.validateNow();
++                  i++;
+                }
+             }
+          }
+@@ -422,7 +431,7 @@
+       
+       protected function refreshData() : void
+       {
+-         this.selectedIndex = Math.min(this._dataProvider.length - 1,this._selectedIndex);
++         selectedIndex = Math.min(this._dataProvider.length - 1,this._selectedIndex);
+          if(this._dataProvider)
+          {
+             this._dataProvider.requestItemRange(0,this._dataProvider.length - 1,this.populateData);
+@@ -431,21 +440,16 @@
+       
+       public function setMaxFit(value:Boolean) : void
+       {
+-         this._maxFit = value;
++         _maxFit = value;
+       }
+       
+       public function setMaxSize(value:int) : void
+       {
+-         this._maxSize = value;
++         _maxSize = value;
+       }
+       
+       protected function updateRenderers() : void
+       {
+-         var c:* = 0;
+-         var renderer:Button = null;
+-         var isNew:Boolean = false;
+-         var j:* = 0;
+-         var rend:Button = null;
+          var w:Number = 0;
+          var h:Number = 0;
+          var overflowIndex:int = -1;
+@@ -453,7 +457,7 @@
+          {
+             while(this._renderers.length > this._dataProvider.length)
+             {
+-               c = int(this._renderers.length - 1);
++               c = (this._renderers.length - 1);
+                if(this.container.contains(this._renderers[c]))
+                {
+                   this.container.removeChild(this._renderers[c]);
+@@ -470,6 +474,11 @@
+             this._renderers.length = 0;
+          }
+          var i:uint = 0;
++         var c:int;
++         var renderer:Button;
++         var isNew:Boolean;
++         var j:int;
++         var rend:Button;
+          while(i < this._dataProvider.length && overflowIndex == -1)
+          {
+             isNew = false;
+@@ -503,7 +512,7 @@
+                }
+                else
+                {
+-                  overflowIndex = int(i);
++                  overflowIndex = (i);
+                   renderer = null;
+                }
+             }
+@@ -515,7 +524,7 @@
+             }
+             else
+             {
+-               overflowIndex = int(i);
++               overflowIndex = (i);
+                renderer = null;
+             }
+             if(isNew && renderer != null)
+@@ -528,7 +537,7 @@
+          }
+          if(overflowIndex > -1)
+          {
+-            for(j = int(this._renderers.length - 1); j >= overflowIndex; j--)
++            for(j = (this._renderers.length - 1); j >= overflowIndex; j--)
+             {
+                rend = this._renderers[j];
+                if(rend)
+@@ -541,12 +550,12 @@
+                }
+             }
+          }
+-         this.selectedIndex = Math.min(this._dataProvider.length - 1,this._selectedIndex);
++         selectedIndex = Math.min(this._dataProvider.length - 1,this._selectedIndex);
+       }
+       
+       public function set autoResize(value:Boolean) : void
+       {
+-         this._autoResize = value;
++         _autoResize = value;
+       }
+       
+       public function get autoResize() : Boolean
+@@ -556,12 +565,14 @@
+       
+       protected function populateData(data:Array) : void
+       {
+-         var renderer:Button = null;
+-         for(var i:uint = 0; i < this._renderers.length; i++)
++         var i:uint = 0;
++         var renderer:Button;
++         while(i < this._renderers.length)
+          {
+             renderer = this._renderers[i] as Button;
+             this.populateRendererData(renderer,i);
+             renderer.validateNow();
++            i++;
+          }
+       }
+       
+@@ -586,7 +597,7 @@
+          var ev:ButtonEvent = event as ButtonEvent;
+          if(this._group.selectedIndex != this.selectedIndex)
+          {
+-            this.selectedIndex = this._group.selectedIndex;
++            selectedIndex = this._group.selectedIndex;
+             dispatchEvent(new ButtonBarEvent(ButtonBarEvent.BUTTON_SELECT,false,true,this._selectedIndex,event.target as Button));
+          }
+       }

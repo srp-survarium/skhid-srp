@@ -7,7 +7,6 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
-import zlib
 
 import link_layout
 import movie_source as movie
@@ -125,11 +124,13 @@ def main():
     movie.transplant(project / "original.swf", output / "assembled-code.swf", output / "rebuilt.swf")
     raw = (output / "rebuilt.swf").read_bytes()
     original = (project / "original.swf").read_bytes()
-    final = b"CWS" + raw[3:8] + zlib.compress(raw[8:], 9) if original[:3] == b"CWS" else raw
+    profile = movie.serialization_profile(project / "original.swf")
+    final = movie.serialize(raw, profile)
     if raw != movie.uncompressed(project / "original.swf") or final != original:
         raise ValueError("Assembled movie is not byte-identical to the complete release")
     (output / "rebuilt.swf").write_bytes(final)
     report.update(complete=True, file_exact=True, movie_exact=True,
+                  serialization=profile,
                   rebuilt_sha256=hashlib.sha256(final).hexdigest(),
                   assembled_code_sha256=movie.digest(output / "assembled-code.swf"),
                   coverage_sha256=movie.digest(output / "coverage.tsv"),

@@ -123,8 +123,10 @@ def load_sources(manifest_path, project, pinned):
     if spec.get('schema') != 1 or spec.get('release') != pinned['release'] or spec.get('movie_sha256') != pinned['movie_sha256']:
         raise ValueError('Source patches target a different release')
     sources, evidence = {}, {'manifest_sha256': sha(raw), 'classes': []}
+    if not isinstance(spec.get('classes'), list):
+        raise ValueError('Source patch classes must be a list')
     for entry in spec['classes']:
-        if entry.get('compiler', 'flex-strict') not in ('ffdec', 'ffdec-source', 'flex', 'flex-strict', 'flex-library', 'flex-mixed'):
+        if entry.get('compiler', 'flex-strict') not in ('ffdec', 'ffdec-source', 'flex', 'flex-strict', 'flex-library', 'flex-optimized', 'flex-mixed'):
             raise ValueError('Unknown reconstruction compiler')
         composition_plan(entry)
         reservation_plan(entry)
@@ -149,6 +151,4 @@ def load_sources(manifest_path, project, pinned):
             raise ValueError('Corrected source hash mismatch')
         sources[relative] = corrected
         evidence['classes'].append(dict(entry))
-    if not sources:
-        raise ValueError('Empty source patch manifest')
     return sources, evidence

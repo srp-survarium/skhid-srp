@@ -1,0 +1,37 @@
+--- a/survarium/controls/NumericStepperSrv.as
++++ b/survarium/controls/NumericStepperSrv.as
+@@ -35,7 +35,7 @@
+          {
+             return;
+          }
+-         this._editable = param1;
++         _editable = param1;
+          textField.type = param1 ? TextFieldType.INPUT : TextFieldType.DYNAMIC;
+          textField.tabEnabled = textField.mouseEnabled = param1;
+          trace("editable",this._editable);
+@@ -112,7 +112,7 @@
+       
+       protected function onTextInput(param1:Event) : void
+       {
+-         this.value = int(textField.text);
++         value = int(textField.text);
+       }
+       
+       override protected function updateLabel() : void
+@@ -134,13 +134,14 @@
+          if(param1.keyCode == 13)
+          {
+             param1.stopImmediatePropagation();
+-            this.value = int(textField.text);
++            value = int(textField.text);
+          }
+       }
+       
+       override protected function lockValue(param1:Number) : Number
+       {
+-         return Math.max(_minimum,Math.min(_maximum,stepSize * Math.round(param1 / stepSize)));
++         var _loc2_:Number = Math.max(_minimum,Math.min(_maximum,stepSize * Math.round(param1 / stepSize)));
++         return _loc2_;
+       }
+    }
+ }

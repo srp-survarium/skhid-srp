@@ -1,0 +1,313 @@
+--- a/com/greensock/core/Animation.as
++++ b/com/greensock/core/Animation.as
+@@ -7,14 +7,14 @@
+    public class Animation
+    {
+       
++      public static const version:String = "12.1.1";
++      
++      public static var ticker:Shape = new Shape();
++      
+       public static var _rootTimeline:SimpleTimeline;
+       
+       public static var _rootFramesTimeline:SimpleTimeline;
+       
+-      public static const version:String = "12.1.1";
+-      
+-      public static var ticker:Shape = new Shape();
+-      
+       protected static var _rootFrame:Number = -1;
+       
+       protected static var _tickEvent:Event = new Event("tick");
+@@ -65,38 +65,41 @@
+       
+       public var data:*;
+       
+-      public function Animation(duration:Number = 0, vars:Object = null)
++      public function Animation(duration:Number = 0, varsValue:Object = null)
+       {
+          super();
+-         this.vars = vars || {};
+-         if(Boolean(this.vars._isGSVars))
+-         {
+-            this.vars = this.vars.vars;
+-         }
+-         this._duration = this._totalDuration = duration || 0;
+-         this._delay = Number(this.vars.delay) || 0;
+-         this._timeScale = 1;
+-         this._totalTime = this._time = 0;
+-         this.data = this.vars.data;
+-         this._rawPrevTime = -1;
++         vars = varsValue || {};
++         if(this.vars._isGSVars)
++         {
++            vars = this.vars.vars;
++         }
++         _duration = _totalDuration = duration || 0;
++         _delay = Number(this.vars.delay) || 0;
++         _timeScale = 1;
++         _totalTime = _time = 0;
++         data = this.vars.data;
++         _rawPrevTime = -1;
+          if(_rootTimeline == null)
+          {
+-            if(_rootFrame != -1)
++            if(_rootFrame == -1)
++            {
++               _rootFrame = 0;
++               _rootFramesTimeline = new SimpleTimeline();
++               _rootTimeline = new SimpleTimeline();
++               _rootTimeline._startTime = getTimer() / 1000;
++               _rootFramesTimeline._startTime = 0;
++               _rootTimeline._active = _rootFramesTimeline._active = true;
++               ticker.addEventListener("enterFrame",_updateRoot,false,0,true);
++            }
++            else
+             {
+                return;
+             }
+-            _rootFrame = 0;
+-            _rootFramesTimeline = new SimpleTimeline();
+-            _rootTimeline = new SimpleTimeline();
+-            _rootTimeline._startTime = getTimer() / 1000;
+-            _rootFramesTimeline._startTime = 0;
+-            _rootTimeline._active = _rootFramesTimeline._active = true;
+-            ticker.addEventListener("enterFrame",_updateRoot,false,0,true);
+-         }
+-         var tl:SimpleTimeline = Boolean(this.vars.useFrames) ? _rootFramesTimeline : _rootTimeline;
++         }
++         var tl:SimpleTimeline = this.vars.useFrames ? _rootFramesTimeline : _rootTimeline;
+          tl.add(this,tl._time);
+-         this._reversed = this.vars.reversed == true;
+-         if(Boolean(this.vars.paused))
++         _reversed = this.vars.reversed == true;
++         if(this.vars.paused)
+          {
+             this.paused(true);
+          }
+@@ -112,7 +115,7 @@
+       
+       public function play(from:* = null, suppressEvents:Boolean = true) : *
+       {
+-         if(Boolean(arguments.length))
++         if(arguments.length)
+          {
+             this.seek(from,suppressEvents);
+          }
+@@ -122,7 +125,7 @@
+       
+       public function pause(atTime:* = null, suppressEvents:Boolean = true) : *
+       {
+-         if(Boolean(arguments.length))
++         if(arguments.length)
+          {
+             this.seek(atTime,suppressEvents);
+          }
+@@ -131,7 +134,7 @@
+       
+       public function resume(from:* = null, suppressEvents:Boolean = true) : *
+       {
+-         if(Boolean(arguments.length))
++         if(arguments.length)
+          {
+             this.seek(from,suppressEvents);
+          }
+@@ -152,7 +155,7 @@
+       
+       public function reverse(from:* = null, suppressEvents:Boolean = true) : *
+       {
+-         if(Boolean(arguments.length))
++         if(arguments.length)
+          {
+             this.seek(from || this.totalDuration(),suppressEvents);
+          }
+@@ -171,15 +174,15 @@
+       
+       public function isActive() : Boolean
+       {
+-         var rawTime:Number = NaN;
+          var tl:SimpleTimeline = this._timeline;
++         var rawTime:Number;
+          return tl == null || !this._gc && !this._paused && tl.isActive() && (rawTime = tl.rawTime()) >= this._startTime && rawTime < this._startTime + this.totalDuration() / this._timeScale;
+       }
+       
+       public function _enabled(enabled:Boolean, ignoreTimeline:Boolean = false) : Boolean
+       {
+-         this._gc = !enabled;
+-         this._active = Boolean(enabled && !this._paused && this._totalTime > 0 && this._totalTime < this._totalDuration);
++         _gc = !enabled;
++         _active = Boolean(enabled && !this._paused && this._totalTime > 0 && this._totalTime < this._totalDuration);
+          if(!ignoreTimeline)
+          {
+             if(enabled && this.timeline == null)
+@@ -208,7 +211,7 @@
+       protected function _uncache(includeSelf:Boolean) : *
+       {
+          var tween:Animation = includeSelf ? this : this.timeline;
+-         while(Boolean(tween))
++         while(tween)
+          {
+             tween._dirty = true;
+             tween = tween.timeline;
+@@ -218,7 +221,7 @@
+       
+       protected function _swapSelfInParams(params:Array) : Array
+       {
+-         var i:int = int(params.length);
++         var i:int = (params.length);
+          var copy:Array = params.concat();
+          while(--i > -1)
+          {
+@@ -253,7 +256,7 @@
+             }
+             if(type == "onUpdate")
+             {
+-               this._onUpdate = callback;
++               _onUpdate = callback;
+             }
+          }
+          return this;
+@@ -269,7 +272,7 @@
+          {
+             this.startTime(this._startTime + value - this._delay);
+          }
+-         this._delay = value;
++         _delay = value;
+          return this;
+       }
+       
+@@ -277,10 +280,10 @@
+       {
+          if(!arguments.length)
+          {
+-            this._dirty = false;
++            _dirty = false;
+             return this._duration;
+          }
+-         this._duration = this._totalDuration = value;
++         _duration = _totalDuration = value;
+          this._uncache(true);
+          if(this._timeline.smoothChildTiming)
+          {
+@@ -300,7 +303,7 @@
+       
+       public function totalDuration(value:Number = NaN) : *
+       {
+-         this._dirty = false;
++         _dirty = false;
+          return !arguments.length ? this._totalDuration : this.duration(value);
+       }
+       
+@@ -323,12 +326,12 @@
+       
+       public function totalTime(time:Number = NaN, suppressEvents:Boolean = false, uncapped:Boolean = false) : *
+       {
+-         var tl:SimpleTimeline = null;
++         var tl:SimpleTimeline;
+          if(!arguments.length)
+          {
+             return this._totalTime;
+          }
+-         if(Boolean(this._timeline))
++         if(this._timeline)
+          {
+             if(time < 0 && !uncapped)
+             {
+@@ -345,14 +348,14 @@
+                   time = this._totalDuration;
+                }
+                tl = this._timeline;
+-               this._startTime = (this._paused ? this._pauseTime : tl._time) - (!this._reversed ? time : this._totalDuration - time) / this._timeScale;
++               _startTime = (this._paused ? this._pauseTime : tl._time) - (!this._reversed ? time : this._totalDuration - time) / this._timeScale;
+                if(!this._timeline._dirty)
+                {
+                   this._uncache(false);
+                }
+                if(tl._timeline != null)
+                {
+-                  while(Boolean(tl._timeline))
++                  while(tl._timeline)
+                   {
+                      if(tl._timeline._time !== (tl._startTime + tl._totalTime) / tl._timeScale)
+                      {
+@@ -392,8 +395,8 @@
+          }
+          if(value != this._startTime)
+          {
+-            this._startTime = value;
+-            if(Boolean(this.timeline))
++            _startTime = value;
++            if(this.timeline)
+             {
+                if(this.timeline._sortChildren)
+                {
+@@ -406,18 +409,18 @@
+       
+       public function timeScale(value:Number = NaN) : *
+       {
+-         var t:Number = NaN;
++         var t:Number;
+          if(!arguments.length)
+          {
+             return this._timeScale;
+          }
+          value ||= 0.000001;
+-         if(Boolean(this._timeline) && this._timeline.smoothChildTiming)
+-         {
+-            t = Boolean(this._pauseTime) || this._pauseTime == 0 ? this._pauseTime : this._timeline._totalTime;
+-            this._startTime = t - (t - this._startTime) * this._timeScale / value;
+-         }
+-         this._timeScale = value;
++         if(this._timeline && this._timeline.smoothChildTiming)
++         {
++            t = this._pauseTime || this._pauseTime == 0 ? this._pauseTime : this._timeline._totalTime;
++            _startTime = t - (t - this._startTime) * this._timeScale / value;
++         }
++         _timeScale = value;
+          return this._uncache(false);
+       }
+       
+@@ -429,34 +432,34 @@
+          }
+          if(value != this._reversed)
+          {
+-            this._reversed = value;
+-            this.totalTime(Boolean(this._timeline) && !this._timeline.smoothChildTiming ? this.totalDuration() - this._totalTime : this._totalTime,true);
++            _reversed = value;
++            this.totalTime(this._timeline && !this._timeline.smoothChildTiming ? this.totalDuration() - this._totalTime : this._totalTime,true);
+          }
+          return this;
+       }
+       
+       public function paused(value:Boolean = false) : *
+       {
+-         var raw:Number = NaN;
+-         var elapsed:Number = NaN;
++         var raw:Number;
++         var elapsed:Number;
+          if(!arguments.length)
+          {
+             return this._paused;
+          }
+          if(value != this._paused)
+          {
+-            if(Boolean(this._timeline))
++            if(this._timeline)
+             {
+                raw = this._timeline.rawTime();
+                elapsed = raw - this._pauseTime;
+                if(!value && this._timeline.smoothChildTiming)
+                {
+-                  this._startTime += elapsed;
++                  _startTime += elapsed;
+                   this._uncache(false);
+                }
+-               this._pauseTime = value ? raw : NaN;
+-               this._paused = value;
+-               this._active = !value && this._totalTime > 0 && this._totalTime < this._totalDuration;
++               _pauseTime = value ? raw : NaN;
++               _paused = value;
++               _active = !value && this._totalTime > 0 && this._totalTime < this._totalDuration;
+                if(!value && elapsed != 0 && this._initted && this.duration() !== 0)
+                {
+                   this.render(this._timeline.smoothChildTiming ? this._totalTime : (raw - this._startTime) / this._timeScale,true,true);

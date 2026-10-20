@@ -29,6 +29,18 @@ class ScopeDefaultIntegration(unittest.TestCase):
                 import flash.display.Sprite;
                 public class DefaultProbe extends Sprite {
                     private var marker:int=1;
+                    public function disabled(value:Object):void { return; }
+                    public function hooked(value:Object):void {
+                        ScopeHelper.take(this);
+                        var items:Array;
+                        var other:Object;
+                        var label:String;
+                        var flag:Boolean;
+                        var index:int;
+                        var count:uint;
+                        var any:*;
+                        if(value) this.name=String(items)+String(other)+label+flag+index+count+any;
+                    }
                     public function test(value:Object):void {
                         if(ScopeHelper.take(value)) return;
                         if(ScopeHelper.take(this)) return;
@@ -74,6 +86,14 @@ class ScopeDefaultIntegration(unittest.TestCase):
             linked = root / 'linked.swf'
             run('link-layout', reference, baseline, linked, 'fixture.DefaultProbe', name='baseline-link')
             self.assertEqual(movie_source.uncompressed(reference), movie_source.uncompressed(linked))
+
+            changed_empty = root / 'changed-empty.as'
+            changed_empty.write_text(source.read_text().replace(
+                'public function disabled(value:Object):void { return; }',
+                'public function disabled(value:Object):void { trace(value); }'))
+            changed_empty_movie = compile_from(reference, changed_empty, 'changed-empty')
+            run('link-layout', reference, changed_empty_movie, root / 'changed-empty-linked.swf',
+                'fixture.DefaultProbe', name='changed-empty-link', success=False)
 
             edited = root / 'edited.as'
             edited.write_text(source.read_text().replace('this.alpha=0.5', 'this.alpha=0.75'))

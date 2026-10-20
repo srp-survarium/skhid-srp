@@ -81,6 +81,28 @@ class MovieTests(unittest.TestCase):
             self.assertEqual(final, expected)
             self.assertEqual((self.root / f"out-{n}").read_bytes(), expected)
 
+    def test_serialization_rebuilds_both_retail_compression_and_padded_patch(self):
+        raw = swf([(1000, tag(1000, b"assets" * 100)), (82, tag(82, b"abc")),
+                   (0, tag(0, b""))])
+        for level, trailer in ((6, b""), (9, bytes(31) + b"\x12\x34\x56\x78")):
+            original = self.file("original", b"CWS" + raw[3:8]
+                                 + zlib.compress(raw[8:], level) + trailer)
+            self.assertEqual(movie.uncompressed(original), raw)
+            profile = movie.serialization_profile(original)
+            self.assertEqual(profile["level"], level)
+            self.assertEqual(movie.serialize(raw, profile), original.read_bytes())
+            changed = raw.replace(b"abc", b"xyz")
+            rebuilt = movie.serialize(changed, profile)
+            self.assertNotEqual(rebuilt, original.read_bytes())
+            self.assertEqual(movie.uncompressed(self.file("changed", rebuilt)), changed)
+
+    def test_truncated_compression_and_nonpadding_trailer_are_rejected(self):
+        raw = swf([(0, tag(0, b""))])
+        compressed = b"CWS" + raw[3:8] + zlib.compress(raw[8:])
+        for data in (compressed[:-1], compressed + b"\0\0", compressed + b"x" + bytes(9)):
+            with self.assertRaises(ValueError):
+                movie.uncompressed(self.file("invalid", data))
+
     def test_serialization_cache_cannot_hide_changed_or_missing_abc(self):
         asset = (1000, tag(1000, b"opaque assets", long=True))
         end = (0, tag(0, b""))
