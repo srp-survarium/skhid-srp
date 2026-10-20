@@ -225,6 +225,9 @@ pub(super) struct Core<'a> {
     /// When a member who came while its room's match is played goes into
     /// it (`rooms::LATE_JOIN_WAIT` after it came, or at once on its ask).
     pub room_join_at: HashMap<u32, Instant>,
+    /// A member (or one queued) whose game started anew, until its new
+    /// game is told the room: by then, or it loses the place (`rooms`).
+    pub room_unseen: HashMap<u32, Instant>,
 }
 
 impl<'a> Core<'a> {
@@ -274,6 +277,7 @@ impl<'a> Core<'a> {
             room_launching: HashMap::new(),
             room_codes: HashMap::new(),
             room_join_at: HashMap::new(),
+            room_unseen: HashMap::new(),
         }
     }
 
@@ -538,10 +542,12 @@ impl<'a> Core<'a> {
         // The account's other link: another game signed in with it (the
         // old one is told so, `AA`), or this game connected again.
         let mut still_in_match = None;
+        let mut reconnect = false;
         if let Some(old) = self.by_account.get(&account_id).copied() {
             let same_session = self
                 .player(old)
                 .is_some_and(|player| player.session_id == session_id);
+            reconnect = same_session;
             if same_session {
                 still_in_match = self.player(old).and_then(|player| player.in_match);
                 log::info!("{login_name} connected to the lobby again from {from}");
@@ -555,6 +561,10 @@ impl<'a> Core<'a> {
                 self.sign_out(old, "its account signed in again", now, false);
             }
         }
+
+        // Not the game the server knew (that one connects again with its
+        // session): its room is not shown in it yet (`rooms::room_restarted`).
+        let anew = !reconnect && !self.away.contains_key(&session_id);
 
         // A client that connects again is in the match it was in, if that
         // still runs: its link went silent (`away`), or it gave up on a
@@ -673,6 +683,9 @@ impl<'a> Core<'a> {
         }
         self.links.insert(from, link);
         self.by_account.insert(account_id, from);
+        if anew {
+            self.room_restarted(account_id, now);
+        }
         self.send_all(from, push);
         // The ranking page of a game that was running before this sign-in
         // may still wait for rows that will never come (`ranking_flush`).

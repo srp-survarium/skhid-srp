@@ -38,6 +38,14 @@ The rules the code and the tests follow, the owner's of 2026-10-16 to 10-19. Cod
   same seat, state kept (Play stays usable while their row says they play the match). After
   it the place is lost: they may join again as a new member. A game quit from its menu leaves
   the room at once.
+  - **Started anew** (the owner's of 2026-10-20: "i was in that weird state where the game was
+    not in a room, but i got thrown into a match regardless (twice)"): a new sign-in keeps the
+    place, but the room seats it in no match (nor sends it "match found"), and shows it grey,
+    until its new game is told the room: its movie asks where it is (at once, again every 2 s
+    until answered, then every 5 s outside a room), or it presses Play or Join match. Then it
+    plays as any member; one who comes while the match is played sees the room 15 s first. A
+    seat it had in the room's match stays its own: Play goes back to it. A new game not told
+    within 90 s of its sign-in loses the place.
 - **Leave match (its own word, 0xE0; the owner's of 2026-10-19):** takes the player out of
   its room as Leave does (not kicked; it may join again). Joining again while that match is
   played puts it into the same match as a late join (15 s or "Join match") as a new place,
