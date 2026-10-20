@@ -23,7 +23,7 @@ method bodies. Exporting a source tree does not establish an exact rebuild.
 
 | Movie | Scripts | Method bodies | Complete source rebuild |
 | --- | ---: | ---: | --- |
-| `hud.swf` | 287 | 2,342 | Reconstruction in progress |
+| `hud.swf` | 287 | 2,342 | Byte-exact, including compression |
 | `main_menu.swf` | 183 | 1,864 | Byte-exact, including compression and padding |
 | `login_menu.swf` | 86 | 866 | Byte-exact, including compression and padding |
 | `player_icons.swf` | 34 | 347 | Reconstruction in progress |
@@ -55,6 +55,13 @@ and its settings hooks. The 1,194,596-byte rebuild has SHA-256
 `edc60a3df39e8c5d1fa7df6eebe989a80f3b931d3d86e31d7b651306dc416267`.
 The source corrections recover explicit switch breaks, local initialization,
 loop continuation targets and the original settings conditionals.
+
+HUD [verification evidence](reconstruction/026g-rev24-hud/verification.json)
+covers all 287 scripts and 2,342 method bodies, using 84 reconstructed sources
+and 203 pristine exports. The 7,713,475-byte rebuild has SHA-256
+`b924b29db06070dfe7d89827a3cf3bc71f14ae4cbca9a2546d95ac977951ec80`.
+The source corrections preserve captured local declarations, nested function
+initialization, global type imports and the released minimap changes.
 
 ## Private inputs and pinned tools
 
@@ -233,6 +240,9 @@ file namespaces is refused. Feature linking still requires one namespace identit
 for the whole class, because newly introduced names need an unambiguous scope.
 Equivalent multinames can then use their original pool indices. Namespace-set
 members must match after relocation; their ordering is not lookup precedence.
+A uniquely matched field can retain its original type-pool alias when the
+complete resolved type is identical, including generic parameters. Different
+types, field names, trait kinds and ambiguous declarations are excluded.
 Changing reference widths relocates conditional/unconditional branches, switch
 tables and exception boundaries by instruction identity. Invalid boundaries
 and unsupported control-flow forms are refused. The linker checks every
@@ -331,11 +341,15 @@ Operand evaluation order is retained; negated ordered comparisons use `ifnlt`,
 The equivalent combined branch can also be expanded back into that comparison
 and Boolean branch, including the same optional negation and conversion.
 Both directions can occur within one method.
+QName lookups and discarded calls also support the reverse expansion, using
+only the compiler's actual name and argument operands.
 Discarded `callsuper` results can similarly use `callsupervoid`. A Boolean
 conversion immediately before a truth branch can be folded into that branch,
 and logical negation reverses its polarity. String literals can omit their
 redundant `coerce_s`. These cases preserve operand values and coercion behavior;
 the tests also reject altered calls, literals and branch polarity.
+Signed byte and short integer pushes can use either width within their common
+range, with the exact same integer operand.
 A whole method must match after only these
 encoding changes, including names, argument counts, branches, switch targets and
 exception boundaries. No control-flow or exception boundary may enter an
@@ -366,12 +380,14 @@ the next compiled instruction boundary; no reference target is copied. A
 reachable jump, a different requested displacement, or any other control-flow
 mismatch remains refused.
 
-Constructor writes to an own private/protected mutable slot can use
+Constructor and ordinary instance-method writes to an own private/protected mutable slot can use
 `initproperty` in place of `setproperty`. The emitter proves a direct `this`
 receiver through the compiled stack expression and rejects register-zero
 reassignment, foreign receivers, const/accessor/inherited traits, dynamic names,
 joins, and ambiguous stack operations. Both instructions use the same mutable
 slot assignment in [Adobe's runtime](https://github.com/adobe/avmplus/blob/master/core/MethodEnv.cpp#L879).
+Ordinary methods additionally require unique instance ownership and a fully
+resolved class hierarchy; static methods and aliases are refused.
 Two adjacent `coerce` instructions with the same QName type can also fold to
 one: the first successful coercion already has that type. The whole-method
 branch and exception checks reject entry into the second coercion. A pair
@@ -390,7 +406,7 @@ function debugger names require a matching, uniquely owned function identity.
 
 The entire reconstructed ABC must equal the original, and every other ABC must
 also remain identical. Only then is linked code written. Original graphics are
-reassembled with that code, and CWS movies are recompressed with zlib level 9.
+reassembled with that code, and CWS movies use their pinned serialization profile.
 The final SHA-256 and byte comparison must prove full file equality, including
 compression. If compression differs, the result is still reported as different.
 
@@ -489,6 +505,11 @@ unidentified coercions in compiled bytecode. `SourceCompiler.java` and the pinne
 FFDec files are retained and hashed with the compiler artifacts. The profile
 currently requires a simple script with its dependencies embedded in the movie.
 `SrpExchange` uses it with the repository-authored revision 24 source.
+The adapter also honors an explicit default-package type import when the
+current package contains another class with that name. It resolves only a
+known class selected by one unambiguous import, at the source type node;
+ordinary expressions and unknown or competing imports retain the normal
+resolver. Different field type identities still fail baseline comparison.
 Mixed builds can explicitly set `composition.ffdec_compiler: "ffdec-source"`
 to use this generator for their selected methods. The default remains `ffdec`;
 the selected backend is included in the authenticated composition plan and its

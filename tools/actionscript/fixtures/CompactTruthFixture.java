@@ -11,8 +11,11 @@ public class CompactTruthFixture {
         return MovieSource.findScript(MovieSource.read(input),"CompactTruth").abc;
     }
     static MethodBody method(ABC abc)throws Exception {
+        return method(abc,"test");
+    }
+    static MethodBody method(ABC abc,String name)throws Exception {
         int id=MovieSource.names(abc).entrySet().stream()
-            .filter(e->e.getValue().endsWith(",\"test\")")).findFirst().orElseThrow().getKey();
+            .filter(e->e.getValue().endsWith(",\""+name+"\")")).findFirst().orElseThrow().getKey();
         var body=abc.findBody(id);MovieSource.exactCode(body);return body;
     }
     static int pair(MethodBody body,String kind) {
@@ -20,6 +23,7 @@ public class CompactTruthFixture {
         for(int i=0;i+1<code.size();i++) {
             int a=code.get(i).definition.instructionCode,b=code.get(i+1).definition.instructionCode;
             if(kind.equals("string") && a==0x2c && b==0x85
+                    || kind.equals("integer") && a==0x24 && code.get(i).operands[0]==100
                     || kind.equals("super") && a==0x45 && b==0x29
                     || kind.equals("negation") && a==0x96 && (b==0x11 || b==0x12)
                     || kind.equals("truth") && a==0x76 && (b==0x11 || b==0x12))return i;
@@ -28,11 +32,13 @@ public class CompactTruthFixture {
     }
     static void compact(ABC abc)throws Exception {
         var body=method(abc);var code=body.getCode();
-        for(String kind:List.of("string","super","negation","truth"))pair(body,kind);
+        for(String kind:List.of("string","super","negation","truth","integer"))pair(body,kind);
         for(int i=code.code.size()-2;i>=0;i--) {
             var a=code.code.get(i);var b=code.code.get(i+1);
             int op=a.definition.instructionCode,next=b.definition.instructionCode;
-            if(op==0x2c && next==0x85)code.removeInstruction(i+1,body);
+            if(op==0x24 && a.operands[0]==100)
+                code.replaceInstruction(i,new AVM2Instruction(0,0x25,a.operands.clone()),body);
+            else if(op==0x2c && next==0x85)code.removeInstruction(i+1,body);
             else if(op==0x45 && next==0x29) {
                 code.replaceInstruction(i,new AVM2Instruction(0,0x4e,a.operands.clone()),body);
                 code.removeInstruction(i+1,body);
@@ -44,8 +50,57 @@ public class CompactTruthFixture {
         }
         body.setCode(code);
     }
+    static int lookupPair(MethodBody body,String kind) {
+        var code=body.getCode().code;
+        for(int i=0;i+1<code.size();i++) {
+            int a=code.get(i).definition.instructionCode,b=code.get(i+1).definition.instructionCode;
+            if(kind.equals("lookup") && a==0x5d && b==0x66
+                    && Arrays.equals(code.get(i).operands,code.get(i+1).operands)
+                    || kind.equals("call") && a==0x46 && b==0x29
+                    || kind.equals("super") && a==0x45 && b==0x29)return i;
+        }
+        throw new AssertionError("Missing expanded "+kind);
+    }
+    static void compactLookups(ABC abc)throws Exception {
+        var body=method(abc,"lookups");var code=body.getCode();
+        for(String kind:List.of("lookup","call","super"))lookupPair(body,kind);
+        for(int i=code.code.size()-2;i>=0;i--) {
+            var a=code.code.get(i);var b=code.code.get(i+1);
+            int op=a.definition.instructionCode,next=b.definition.instructionCode,replacement=0;
+            if(op==0x5d && next==0x66 && Arrays.equals(a.operands,b.operands))replacement=0x60;
+            if(op==0x46 && next==0x29)replacement=0x4f;
+            if(op==0x45 && next==0x29)replacement=0x4e;
+            if(replacement!=0) {
+                code.replaceInstruction(i,new AVM2Instruction(0,replacement,a.operands.clone()),body);
+                code.removeInstruction(i+1,body);
+            }
+        }
+        body.setCode(code);
+    }
+    static void expansionGuards(Path input)throws Exception {
+        for(String kind:List.of("lookup","call","super"))
+            for(String mutation:List.of("valid","target","handler","operand")) {
+                var reference=abc(input);var beforeBody=method(reference,"lookups");var code=beforeBody.getCode();
+                int index=lookupPair(beforeBody,kind),interior=(int)code.code.get(index+1).getAddress();
+                if(mutation.equals("target")) {
+                    var jump=code.code.stream().filter(i->i.definition.instructionCode==0x10).findFirst().orElseThrow();
+                    jump.operands[0]=interior-(int)jump.getAddress()-jump.getBytesLength();
+                }
+                if(mutation.equals("handler"))beforeBody.exceptions[0].end=interior;
+                if(mutation.equals("operand"))code.code.get(index).operands[kind.equals("lookup")?0:1]++;
+                beforeBody.setCode(code);
+                var candidate=abc(input);compactLookups(candidate);var body=method(candidate,"lookups");
+                byte[] before=body.getCodeBytes().clone();
+                MovieSource.emitCompactOperations(reference,candidate);
+                if(mutation.equals("valid")) {
+                    if(!Arrays.equals(beforeBody.getCodeBytes(),body.getCodeBytes()))
+                        throw new AssertionError("Failed expanded "+kind);
+                } else if(!Arrays.equals(before,body.getCodeBytes()))
+                    throw new AssertionError("Rewrote unsafe expansion "+kind+" "+mutation);
+            }
+    }
     static void guards(Path input)throws Exception {
-        for(String kind:List.of("string","super","negation","truth"))
+        for(String kind:List.of("string","super","negation","truth","integer"))
             for(String mutation:List.of("valid","target","handler","operand")) {
                 var reference=abc(input);compact(reference);
                 var candidate=abc(input);var body=method(candidate);var code=body.getCode();
@@ -59,7 +114,8 @@ public class CompactTruthFixture {
                 }
                 if(mutation.equals("handler"))body.exceptions[0].end=interior;
                 if(mutation.equals("operand")) {
-                    if(kind.equals("super"))first.operands[1]++;
+                    if(kind.equals("integer"))first.operands[0]++;
+                    else if(kind.equals("super"))first.operands[1]++;
                     else if(kind.equals("string"))first.operands[0]=candidate.constants.getStringId("changed",true);
                     else code.replaceInstruction(index+1,new AVM2Instruction(0,
                         second.definition.instructionCode==0x11?0x12:0x11,second.operands.clone()),body);
@@ -75,9 +131,9 @@ public class CompactTruthFixture {
             }
     }
     public static void main(String[] args)throws Exception {
-        Path input=Path.of(args[0]);guards(input);
+        Path input=Path.of(args[0]);guards(input);expansionGuards(input);
         var swf=MovieSource.read(input);var abc=MovieSource.findScript(swf,"CompactTruth").abc;
-        compact(abc);((Tag)abc.parentTag).setModified(true);
+        compact(abc);compactLookups(abc);((Tag)abc.parentTag).setModified(true);
         try(var out=Files.newOutputStream(Path.of(args[1]))){swf.saveTo(out);}
         System.exit(0);
     }

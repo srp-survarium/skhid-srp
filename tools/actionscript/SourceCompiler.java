@@ -123,6 +123,30 @@ public final class SourceCompiler extends FFDecAs3ScriptReplacer {
             }
             return object;
         }
+        if (object instanceof UnresolvedAVM2Item unresolved) {
+            Field required = UnresolvedAVM2Item.class.getDeclaredField("mustBeType");
+            required.setAccessible(true);
+            var name = unresolved.getVariableName();
+            // The pinned parser otherwise prefers a same-named class in the
+            // current package over an explicit default-package type import.
+            // Resolve only an unambiguous, explicitly imported existing class;
+            // ordinary expressions and unknown/ambiguous imports stay with
+            // the normal compiler resolver.
+            if (required.getBoolean(unresolved) && name.size() == 1
+                    && unresolved.importedClasses != null
+                    && unresolved.importedClasses.contains(name)
+                    && unresolved.importedClasses.stream()
+                        .filter(i -> java.util.Objects.equals(i.getLast(),name.getLast())).count() == 1) {
+                Field field = UnresolvedAVM2Item.class.getDeclaredField("abcIndex");
+                field.setAccessible(true);
+                var index = (AbcIndexing)field.get(unresolved);
+                var type = new TypeItem(name);
+                if (index.findClass(type,index.getSelectedAbc(),null) != null) {
+                    visited.put(object,type);
+                    return type;
+                }
+            }
+        }
         if (!(object instanceof GraphTargetItem)) return object;
         // Constructor nodes subclass CallAVM2Item. They must never be replaced
         // with ordinary calls, even when the constructed type is String.

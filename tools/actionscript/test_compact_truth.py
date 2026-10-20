@@ -22,8 +22,13 @@ class CompactTruthIntegration(unittest.TestCase):
             source.write_text("""package {
                 import flash.display.MovieClip;
                 public class CompactTruth extends MovieClip {
+                    public function lookups(value:Number):void {
+                        try { super.stop(); Math.max(value,1); }
+                        catch(error:Error) { trace(error); }
+                    }
                     public function test(value:*, count:int):String {
                         var result:String = "fixture";
+                        var number:int = 100;
                         try {
                             while(count>0) {
                                 if(!value) super.stop();
@@ -31,7 +36,7 @@ class CompactTruthIntegration(unittest.TestCase):
                                 count--;
                             }
                         } catch(error:Error) { return "caught"; }
-                        return result;
+                        return result + number;
                     }
                 }
             }""")
@@ -40,7 +45,7 @@ class CompactTruthIntegration(unittest.TestCase):
                 config["java"], "-jar", str(sdk / "lib/mxmlc.jar"),
                 "+flexlib=" + str(sdk / "frameworks"),
                 "-external-library-path=" + str(sdk / "frameworks/libs/player/32.0/playerglobal.swc"),
-                "-library-path=", "-debug=false", "-optimize=false",
+                "-library-path=", "-debug=false", "-optimize=false", "-omit-trace-statements=false",
                 "-output=" + str(seed), str(source),
             ], capture_output=True, text=True, timeout=90)
             self.assertEqual(process.returncode, 0, process.stdout + process.stderr)

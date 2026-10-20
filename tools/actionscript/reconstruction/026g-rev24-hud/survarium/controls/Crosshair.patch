@@ -1,0 +1,111 @@
+--- a/survarium/controls/Crosshair.as
++++ b/survarium/controls/Crosshair.as
+@@ -38,20 +38,20 @@
+       {
+          super();
+          this._hit.gotoAndStop(0);
+-         this._framesCount = this.crosshair_mc.totalFrames;
++         _framesCount = this.crosshair_mc.totalFrames;
+          this.bars.addEventListener(Event.COMPLETE,this.onBarsAnimationComplete);
+          this.calculateMaxDisp();
+       }
+       
+       public function calculateMaxDisp() : void
+       {
+-         this._maxDisp = this._fov * (400 / this._hrez);
++         _maxDisp = this._fov * (400 / this._hrez);
+       }
+       
+       public function resetVideoOptions(fov:uint, hrez:uint) : void
+       {
+-         this._fov = fov;
+-         this._hrez = hrez;
++         _fov = fov;
++         _hrez = hrez;
+          this.calculateMaxDisp();
+       }
+       
+@@ -64,13 +64,23 @@
+       
+       public function setDamage(value:Number, delay:uint, killed:Boolean, debug:Boolean) : void
+       {
+-         var container:MovieClip;
+-         var frames:int;
+-         var frame:uint;
+-         var lastPart:String = null;
+-         var hitTex:MovieClip = null;
+-         var dir:Number = NaN;
+-         var updateParts:Function = function(value:MovieClip):void
++
++         if(this._ignoreNewValues)
++         {
++            if(killed)
++            {
++               _ignoreNewValues = false;
++            }
++            else
++            {
++               return;
++            }
++         }
++         var container:MovieClip = this.bars.barsContainer;
++         var frames:int = container.damage1.totalFrames - 1;
++         this.bars.gotoAndStop(1);
++         var frame:uint = Math.ceil(value * frames) + 1;
++         function updateParts(value:MovieClip):void
+          {
+             if(value.currentFrame > 1)
+             {
+@@ -84,19 +94,10 @@
+             {
+                value.part_3.gotoAndStop(1);
+             }
+-         };
+-         if(this._ignoreNewValues)
+-         {
+-            if(!killed)
+-            {
+-               return;
+-            }
+-            this._ignoreNewValues = false;
+          }
+-         container = this.bars.barsContainer;
+-         frames = container.damage1.totalFrames - 1;
+-         this.bars.gotoAndStop(1);
+-         frame = Math.ceil(value * frames) + 1;
++         var lastPart:String;
++         var hitTex:MovieClip;
++         var dir:Number;
+          trace("++++++++++++setDamage::",frame);
+          container.damage1.gotoAndStop(frame);
+          container.damage2.gotoAndStop(frame);
+@@ -113,7 +114,7 @@
+          trace("++++++++++++killed::");
+          if(killed && frame >= 2)
+          {
+-            this._ignoreNewValues = true;
++            _ignoreNewValues = true;
+             lastPart = "part_" + String(frame - 1);
+             trace("lastPart::",lastPart);
+             container.damage1[lastPart].gotoAndStop(2);
+@@ -133,9 +134,9 @@
+          if(this._timeOut != -1)
+          {
+             clearTimeout(this._timeOut);
+-            this._timeOut = -1;
++            _timeOut = -1;
+          }
+-         this._timeOut = setTimeout(this.playBarsHide,delay);
++         _timeOut = setTimeout(this.playBarsHide,delay);
+       }
+       
+       private function playBarsHide() : void
+@@ -145,7 +146,7 @@
+       
+       private function onBarsAnimationComplete(e:Event) : void
+       {
+-         this._ignoreNewValues = false;
++         _ignoreNewValues = false;
+       }
+       
+       public function hitEnemy() : void

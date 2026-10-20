@@ -1,0 +1,53 @@
+--- a/survarium/data/IconContainer.as
++++ b/survarium/data/IconContainer.as
+@@ -17,18 +17,20 @@
+       
+       public var columns:uint = 0;
+       
+-      protected var _icons:Array;
++      protected var _icons:Array = new Array();
+       
+       public function IconContainer(name:String, iconW:uint, iconH:uint, iconBitmap:BitmapData, vertical:Boolean = false, count:uint = 0, stepH:uint = 0, stepV:uint = 0, atStart:Boolean = true)
+       {
+-         var times:int;
+-         var create_icon:Function;
+-         var baseTexture:BitmapData = null;
+-         var r:uint = 0;
+-         var c:uint = 0;
+-         this._icons = new Array();
+-         super();
+-         create_icon = function(c:int, r:int, atStart:Boolean):void
++
++         _ids[name] = this;
++         var times:int = -1;
++         if(count)
++         {
++            times = count;
++         }
++         var baseTexture:BitmapData;
++         baseTexture = iconBitmap;
++         function create_icon(c:int, r:int, atStart:Boolean):void
+          {
+             var iconBmpData:BitmapData = new BitmapData(iconW,iconH,true,0);
+             var mat:Matrix = new Matrix();
+@@ -42,16 +44,11 @@
+             }
+             iconBmpData.draw(baseTexture,mat,null,null,new Rectangle(0,0,iconW,iconH));
+             _icons.push(iconBmpData);
+-         };
+-         _ids[name] = this;
+-         times = -1;
+-         if(Boolean(count))
+-         {
+-            times = int(count);
+          }
+-         baseTexture = iconBitmap;
+-         this.columns = Math.floor(baseTexture.width / (iconW + stepH));
+-         this.rows = Math.floor(baseTexture.height / (iconH + stepV));
++         var r:uint;
++         var c:uint;
++         columns = Math.floor(baseTexture.width / (iconW + stepH));
++         rows = Math.floor(baseTexture.height / (iconH + stepV));
+          if(!vertical)
+          {
+             for(r = 0; r < this.rows; r++)

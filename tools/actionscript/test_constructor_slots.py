@@ -26,6 +26,7 @@ class ConstructorSlotIntegration(unittest.TestCase):
                 public class SlotProbe extends Sprite {
                     private var clip:MovieClip;
                     protected var items:Array;
+                    public function assign(value:MovieClip):void { this.clip=value; }
                     public function SlotProbe() {
                         super();
                         var chosen:MovieClip=MovieClip(this.getChildByName("original-child"));
@@ -72,6 +73,11 @@ class ConstructorSlotIntegration(unittest.TestCase):
                         var body=abc.findBody(abc.instance_info.get(abc.findClassByName("fixture.SlotProbe")).iinit_index);
                         MovieSource.exactCode(body);return body;
                     }
+                    static MethodBody assignment(ABC abc)throws Exception {
+                        int id=MovieSource.names(abc).entrySet().stream()
+                            .filter(e->e.getValue().endsWith(",\\"assign\\")")).findFirst().orElseThrow().getKey();
+                        var body=abc.findBody(id);MovieSource.exactCode(body);return body;
+                    }
                     static List<AVM2Instruction> executable(MethodBody body) {
                         return body.getCode().code.stream().filter(i->!MovieSource.debugInstruction(i)).toList();
                     }
@@ -93,15 +99,28 @@ class ConstructorSlotIntegration(unittest.TestCase):
                         }
                         if(writes!=2)throw new AssertionError("Unexpected field writes");
                         code.removeInstruction(cast(code.code)+1,body);body.setCode(code);
+                        body=assignment(abc);code=body.getCode();
+                        int index=slot(code.code);var write=code.code.get(index);
+                        code.replaceInstruction(index,new AVM2Instruction(0,0x68,write.operands.clone()),body);
+                        body.setCode(code);
                     }
                     static void slotGuards(Path path)throws Exception {
+                        for(boolean ordinary:List.of(false,true))
                         for(String mutation:List.of("valid","const","setter","missing","duplicate","public",
                                 "foreign","register-zero","increment-zero","kill-zero","hasnext-zero",
-                                "ordinary","branch","debug-branch","handler","dup","swap")) {
-                            var abc=abc(path);var body=constructor(abc);var full=body.getCode();
+                                "ordinary","static-method","aliased-method","branch","debug-branch","handler","dup","swap")) {
+                            if(!ordinary && (mutation.equals("static-method") || mutation.equals("aliased-method")))continue;
+                            var abc=abc(path);var body=ordinary?assignment(abc):constructor(abc);var full=body.getCode();
                             var code=executable(body);int site=slot(code);int name=code.get(site).operands[0];
                             var traits=abc.instance_info.get(abc.findClassByName("fixture.SlotProbe")).instance_traits.traits;
                             var trait=traits.stream().filter(t->t.name_index==name).findFirst().orElseThrow();
+                            if(mutation.equals("static-method") || mutation.equals("aliased-method")) {
+                                var method=traits.stream().filter(t->t instanceof
+                                    com.jpexs.decompiler.flash.abc.types.traits.TraitMethodGetterSetter m
+                                    && m.method_info==body.method_info).findFirst().orElseThrow();
+                                abc.class_info.get(abc.findClassByName("fixture.SlotProbe")).static_traits.traits.add(method);
+                                if(mutation.equals("static-method"))traits.remove(method);
+                            }
                             int receiver=-1;
                             for(int i=site-1;i>=0;i--)if(MovieSource.localRegister(code.get(i),false)==0) {
                                 receiver=i;break;
@@ -126,7 +145,12 @@ class ConstructorSlotIntegration(unittest.TestCase):
                                 new AVM2Instruction(0,0x08,new int[]{0}),true,body);
                             if(mutation.equals("hasnext-zero"))full.insertInstruction(0,
                                 new AVM2Instruction(0,0x32,new int[]{1,0}),true,body);
-                            if(mutation.equals("ordinary"))abc.instance_info.get(abc.findClassByName("fixture.SlotProbe")).iinit_index=-1;
+                            if(mutation.equals("ordinary")) {
+                                if(ordinary)traits.removeIf(t->t instanceof
+                                    com.jpexs.decompiler.flash.abc.types.traits.TraitMethodGetterSetter m
+                                    && m.method_info==body.method_info);
+                                else abc.instance_info.get(abc.findClassByName("fixture.SlotProbe")).iinit_index=-1;
+                            }
                             if(mutation.equals("dup") || mutation.equals("swap"))full.insertInstruction(interiorIndex,
                                 new AVM2Instruction(0,mutation.equals("dup")?0x2a:0x2b,null),true,body);
                             if(mutation.equals("branch") || mutation.equals("debug-branch")) {
@@ -142,7 +166,7 @@ class ConstructorSlotIntegration(unittest.TestCase):
                                 handler.target=(int)interior.getAddress();body.exceptions=new ABCException[]{handler};
                             }
                             body.setCode(full);code=executable(body);site=slot(code);
-                            boolean accepted=MovieSource.mutableConstructorSlot(abc,body,code,site);
+                            boolean accepted=MovieSource.mutableInstanceSlot(abc,body,code,site);
                             if(accepted!=mutation.equals("valid"))throw new AssertionError("Slot guard: "+mutation);
                         }
                     }

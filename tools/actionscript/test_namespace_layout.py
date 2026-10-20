@@ -39,7 +39,44 @@ class NamespaceLayoutIntegration(unittest.TestCase):
                         abc.class_info.add(cls);
                         return abc;
                     }
+                    static int qname(ABC abc,String pkg,String value) {
+                        var name=new Multiname();name.kind=7;
+                        name.namespace_index=namespace(abc,0x16,pkg);
+                        name.name_index=abc.constants.getStringId(value,true);
+                        return abc.constants.addMultiname(name);
+                    }
+                    static ABC types() {
+                        var abc=base();
+                        int vector=qname(abc,"__AS3__.vec","Vector"),element=qname(abc,"","String");
+                        var type=new Multiname();type.kind=0x1d;type.qname_index=vector;type.params=new int[]{element};
+                        int first=abc.constants.addMultiname(type);
+                        var alias=new Multiname();alias.kind=0x1d;alias.qname_index=vector;alias.params=new int[]{element};
+                        abc.constants.addMultiname(alias);
+                        var field=new TraitSlotConst();field.name_index=qname(abc,"","items");field.type_index=first;
+                        abc.instance_info.get(0).instance_traits.traits.add(field);
+                        return abc;
+                    }
+                    static void typeAliases()throws Exception {
+                        for(String mode:new String[]{"valid","changed-type","changed-field","changed-kind","duplicate"}) {
+                            var before=types();var after=types();
+                            var oldTraits=before.instance_info.get(0).instance_traits;
+                            var newTraits=after.instance_info.get(0).instance_traits;
+                            var old=(TraitSlotConst)oldTraits.traits.get(0);
+                            var field=(TraitSlotConst)newTraits.traits.get(0);
+                            field.type_index=old.type_index+1;
+                            if(mode.equals("changed-type"))
+                                after.constants.getMultiname(field.type_index).params=new int[]{qname(after,"","Boolean")};
+                            if(mode.equals("changed-field"))field.name_index=qname(after,"","other");
+                            if(mode.equals("changed-kind"))field.kindType=6;
+                            if(mode.equals("duplicate"))oldTraits.traits.add(old);
+                            int emitted=field.type_index;
+                            MovieSource.restoreTraitTypeAliases(before,after,oldTraits,newTraits,java.util.Map.of());
+                            if(field.type_index!=(mode.equals("valid")?old.type_index:emitted))
+                                throw new AssertionError("Field type alias guard: "+mode);
+                        }
+                    }
                     public static void main(String[] args)throws Exception {
+                        typeAliases();
                         var zero=base();
                         var unnamed=new Namespace(); unnamed.kind=5; unnamed.name_index=0;
                         int unnamedId=zero.constants.addNamespace(unnamed);

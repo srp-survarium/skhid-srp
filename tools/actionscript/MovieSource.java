@@ -837,6 +837,22 @@ public final class MovieSource {
         }
     }
 
+    // Duplicate generic type constants can have identical resolved identities.
+    // A uniquely matched field declaration supplies its own original alias;
+    // a changed type or a different/ambiguous field never inherits that index.
+    static void restoreTraitTypeAliases(ABC original, ABC compiled, Traits before, Traits after,
+            Map<Integer,Integer> namespaces) throws IOException {
+        for (var trait : after.traits) if (trait instanceof TraitSlotConst slot) {
+            var matches = before.traits.stream().filter(t -> t.name_index == trait.name_index
+                && t.kindType == trait.kindType && t instanceof TraitSlotConst).toList();
+            if (matches.size() != 1) continue;
+            var old = (TraitSlotConst)matches.get(0);
+            var oldKey = multinameKey(original,old.type_index,Map.of(),new HashMap<>(),new HashSet<>());
+            var newKey = multinameKey(compiled,slot.type_index,namespaces,new HashMap<>(),new HashSet<>());
+            if (oldKey.equals(newKey)) slot.type_index = old.type_index;
+        }
+    }
+
     static void restoreNameReferences(ABC original, ABC compiled) throws IOException {
         Map<Integer, List<Integer>> perMethod = new HashMap<>();
         Map<Integer, Integer> namespaces = namespaceLayout(original, compiled, perMethod), names = new HashMap<>();
@@ -875,6 +891,16 @@ public final class MovieSource {
         }
         for (ClassInfo cls : compiled.class_info) relocateTraitNames(cls.static_traits, names, namespaces);
         for (ScriptInfo script : compiled.script_info) relocateTraitNames(script.traits, names, namespaces);
+        if (original.instance_info.size() == compiled.instance_info.size()
+                && original.class_info.size() == compiled.class_info.size()) {
+            for (int i = 0; i < original.instance_info.size(); i++) {
+                var before = original.instance_info.get(i); var after = compiled.instance_info.get(i);
+                if (before.name_index != after.name_index) continue;
+                restoreTraitTypeAliases(original,compiled,before.instance_traits,after.instance_traits,namespaces);
+                restoreTraitTypeAliases(original,compiled,original.class_info.get(i).static_traits,
+                    compiled.class_info.get(i).static_traits,namespaces);
+            }
+        }
         Map<Integer, String> methodOwners = perMethod.isEmpty() ? Map.of() : names(compiled);
         for (MethodBody body : compiled.bodies) {
             Map<Integer, Integer> bodyNames = perMethod.isEmpty() ? names : new HashMap<>(names);
@@ -1167,7 +1193,7 @@ public final class MovieSource {
         return result;
     }
 
-    static boolean mutableConstructorSlot(ABC abc, MethodBody body, List<AVM2Instruction> code,
+    static boolean mutableInstanceSlot(ABC abc, MethodBody body, List<AVM2Instruction> code,
             int store) throws IOException {
         var instruction = code.get(store);
         if (instruction.operands.length != 1) return false;
@@ -1178,7 +1204,11 @@ public final class MovieSource {
         // Private/protected own slots cannot be dynamic public properties.
         if (kind != 0x05 && kind != 0x18) return false;
         boolean mutable = false;
-        for (var instance : abc.instance_info) if (instance.iinit_index == body.method_info) {
+        for (var instance : abc.instance_info) {
+            boolean constructor = instance.iinit_index == body.method_info;
+            boolean instanceMethod = instance.instance_traits.traits.stream().anyMatch(t ->
+                t instanceof TraitMethodGetterSetter m && m.method_info == body.method_info);
+            if (!constructor && (!instanceMethod || instanceBindings(abc,body) == null)) continue;
             int matches = 0;
             for (var trait : instance.instance_traits.traits) if (trait.name_index == name) {
                 matches++;
@@ -1513,6 +1543,33 @@ public final class MovieSource {
                 var instruction = emitted.get(next);
                 var operandSource = instruction;
                 int opcode = instruction.definition.instructionCode, desired = wanted.definition.instructionCode;
+                // Recreate the expanded spelling from the compiler's own
+                // compact lookup/call. No reference operand is transferred,
+                // and the final CFG checks forbid entry into the new interior.
+                if (wantedIndex + 1 < expected.size()) {
+                    var following = expected.get(wantedIndex + 1);
+                    boolean lookupExpansion = opcode == 0x60 && desired == 0x5d
+                        && instruction.operands.length == 1
+                        && compiled.constants.getMultiname(instruction.operands[0]).kind == 7
+                        && following.definition.instructionCode == 0x66
+                        && Arrays.equals(instruction.operands,wanted.operands)
+                        && Arrays.equals(instruction.operands,following.operands);
+                    boolean callExpansion = ((opcode == 0x4f && desired == 0x46)
+                            || (opcode == 0x4e && desired == 0x45))
+                        && following.definition.instructionCode == 0x29
+                        && Arrays.equals(instruction.operands,wanted.operands)
+                        && (following.operands == null || following.operands.length == 0);
+                    if (lookupExpansion || callExpansion) {
+                        positions.put((int)instruction.getAddress(),result.size());
+                        result.add(new AVM2Instruction(0,desired,instruction.operands.clone()));
+                        result.add(new AVM2Instruction(0,lookupExpansion ? 0x66 : 0x29,
+                            lookupExpansion ? instruction.operands.clone() : null));
+                        targets.add(new int[0]); targets.add(new int[0]);
+                        end = (int)instruction.getAddress() + instruction.getBytesLength();
+                        next++; wantedIndex++; rewritten = true;
+                        continue;
+                    }
+                }
                 // The interpreter implements inclocal_i/declocal_i using the
                 // same operation as increment_i/decrement_i on a stack value.
                 // The extra convert_i is idempotent on that integer result.
@@ -1645,8 +1702,15 @@ public final class MovieSource {
                         && (opcode == 0x96 || opcode == 0x76) && truthBranch < emitted.size()
                         && emitted.get(truthBranch).definition.instructionCode ==
                            (opcode == 0x96 ? (desired == 0x11 ? 0x12 : 0x11) : desired);
-                    if (opcode == 0x61 && desired == 0x68
-                            && mutableConstructorSlot(compiled, body, emitted, next)) {
+                    if (((opcode == 0x24 && desired == 0x25) || (opcode == 0x25 && desired == 0x24))
+                            && instruction.operands.length == 1 && wanted.operands.length == 1
+                            && instruction.operands[0] >= -128 && instruction.operands[0] <= 127
+                            && instruction.operands[0] == wanted.operands[0]) {
+                        // Signed byte and signed short immediates push the same
+                        // integer in their common range. Keep the actual value;
+                        // only its encoding width follows the reference.
+                    } else if (opcode == 0x61 && desired == 0x68
+                            && mutableInstanceSlot(compiled, body, emitted, next)) {
                         // initproperty and setproperty both assign an ordinary
                         // mutable slot. Const fields, setters, dynamic names,
                         // foreign receivers and inherited slots are excluded.

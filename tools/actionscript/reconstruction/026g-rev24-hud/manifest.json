@@ -1,6 +1,20 @@
 {
   "classes": [
     {
+      "class": "HUD",
+      "compiler": "flex-strict",
+      "method_reservations": {
+        "QName(PackageNamespace(\"\"),\"HUD\")/instance/1/QName(PrivateNamespace(\"HUD\",\"1\"),\"test_all\")": {
+          "locals": 9
+        }
+      },
+      "patch": "HUD.patch",
+      "patch_sha256": "5dca724689358f3144ad1092a102e0292d9d6ac8eff056bb13619e8f4b33752b",
+      "pristine_sha256": "75832e6d71a984867f1500f6544db13c7056eb67a03a25081d401cc1ae73f1af",
+      "reason": "Recover captured-local declaration order, original closure/super placement, negative-zero constants and released compiler profile.",
+      "result_sha256": "cfee50500f939469bc79b8edbeb294b6688a897669a36d77b2d45e2166ae250f"
+    },
+    {
       "class": "HitText",
       "patch": "HitText.patch",
       "patch_sha256": "91c71356d655988c56a9a32e14d5ae94e261d6b59e8ddde440e2a101b28a873f",
@@ -438,6 +452,15 @@
       "result_sha256": "bb4b30a0c1295f15f3e7d7e681fd2bf741ef69cfd393165db930399f40d6dadc"
     },
     {
+      "class": "survarium.controls.CombatLogRenderer",
+      "compiler": "ffdec-source",
+      "patch": "survarium/controls/CombatLogRenderer.patch",
+      "patch_sha256": "95520e49c75446162db589aff6268e9968509f9615b49b2ea2ed0ff9af75a403",
+      "pristine_sha256": "21acdeaf834d17c7fef6afc1711e292ac5fb72ea9ffea6130c1a193381f9b59f",
+      "reason": "Use the source compiler with unambiguous original global CombatLogItem type binding and explicit instance field receivers; native compiler rejects the conflicting package type.",
+      "result_sha256": "8f47b2800703e85d3d6f4d1be8c463299d473124c5e390e237742a860f25505b"
+    },
+    {
       "class": "survarium.controls.CriticalIndicator",
       "compiler": "flex-strict",
       "patch": "survarium/controls/CriticalIndicator.patch",
@@ -445,6 +468,14 @@
       "pristine_sha256": "16156026a8528dd9d1262ccee4a9fb32bbd83c7bac18f477f7d82e68313f9e03",
       "reason": "Recover constructor field bindings with distinct parameter names, explicit native local initialization and exact loop control flow.",
       "result_sha256": "496f0682aa123a29419f194fcd74e1fdaed2a206e7fabca326175ad86a7001d9"
+    },
+    {
+      "class": "survarium.controls.Crosshair",
+      "patch": "survarium/controls/Crosshair.patch",
+      "patch_sha256": "dcee7f3d2880df20c94d8c051dbe21cc9dcd9daf0db3490c657d6bfcf7486a7a",
+      "pristine_sha256": "1607477259d5f78eedd183d6c580c1b7c251ff057686ea7186c40e6ee60e6891",
+      "reason": "Recover captured-local declaration order, explicit closure assignment placement and original constructor bindings; prove through complete independent compilation.",
+      "result_sha256": "5636a4b69b2c57ff6f3f6cac60ee08ed6f7b2646af7b1ddbef67fa29d4c7354b"
     },
     {
       "class": "survarium.controls.DamageIndicator",
@@ -494,6 +525,20 @@
       "pristine_sha256": "d42f02e740f7a9374c26170f73e2558bd358416e4660ac955f813b42c167f711",
       "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
       "result_sha256": "fbfa8f11a14627997300ae4712b9ad86010f83172c440e80ee19569c0a4968cf"
+    },
+    {
+      "class": "survarium.controls.Minimap",
+      "compiler": "ffdec",
+      "method_reservations": {
+        "QName(PackageNamespace(\"survarium.controls\"),\"Minimap\")/instance-init": {
+          "stack": 33
+        }
+      },
+      "patch": "survarium/controls/Minimap.patch",
+      "patch_sha256": "9a05ebf364038930b1acf6d79d3c165c8feee49833e2264cfabb010dfcab1fea",
+      "pristine_sha256": "51ed2e4740037e1adb4bdef4cdf1b0b7fae53ae62b1fdc4625d5451027fb63ee",
+      "reason": "Recover captured-local declaration order, original closure/super placement, negative-zero constants and released compiler profile.",
+      "result_sha256": "dafc2b7eaaef1eef0dc60d4975bdc75000ac3afb2850c866e00dd6a43048b4c0"
     },
     {
       "class": "survarium.controls.MinimapObjectPlayer",
@@ -570,6 +615,15 @@
       "pristine_sha256": "35824c612ea50909ae7b2642771fdb9342fc7a0e99b7b69bbfe316aadb13aaa7",
       "reason": "Port verified lobby source corrections while preserving this movie\u2019s parameter and local names. Independently compiled and linked to the complete byte-exact movie.",
       "result_sha256": "bbf83c50cf9b405e4222aa103814ab065b8ab9d09ada3b0b3a8f3a57a3dd7fcd"
+    },
+    {
+      "class": "survarium.data.IconContainer",
+      "compiler": "flex-library",
+      "patch": "survarium/data/IconContainer.patch",
+      "patch_sha256": "499b1625974d13bb780a0abc0b39aebf0c45ded3bda25e837f99f4f7207dda75",
+      "pristine_sha256": "06dcb541c5b041cbfe2287b7b4a92f25c2089332c76093b766b7f5276e071b93",
+      "reason": "Recover captured-local declaration order, original closure/super placement, negative-zero constants and released compiler profile.",
+      "result_sha256": "243ab78858f9a5fa89d5e5d9ca9fad295228b2b9b0f4984122c2a6afbf757d48"
     },
     {
       "class": "survarium.data.ItemData",
