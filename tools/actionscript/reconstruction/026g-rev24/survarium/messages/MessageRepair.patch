@@ -1,0 +1,113 @@
+--- a/survarium/messages/MessageRepair.as
++++ b/survarium/messages/MessageRepair.as
+@@ -77,30 +77,30 @@
+       
+       override protected function configUI() : void
+       {
+-         var l:uint = 0;
+-         var i:uint = 0;
+-         var modifiersContainer:Sprite = null;
+-         var containerScale:Number = NaN;
+-         var nh:uint = 0;
+-         var backWidth:int = 0;
+-         var sz:int = 0;
+-         var pos:int = 0;
+-         var offset:int = 0;
+-         var dmg:int = 0;
+-         var _color:uint = 0;
+-         var hasModifiers:Boolean = false;
+-         var bbHeight:int = 0;
+-         var bbPos:int = 0;
+          super.configUI();
+          var renderer:Class = getDefinitionByName("SrvItemRendererFull") as Class;
+-         this.itemSlot = new renderer();
++         var l:uint;
++         var i:uint;
++         var modifiersContainer:Sprite;
++         var containerScale:Number;
++         var nh:uint;
++         var backWidth:int;
++         var sz:int;
++         var pos:int;
++         var offset:int;
++         var dmg:int;
++         var _color:uint;
++         var hasModifiers:Boolean;
++         var bbHeight:int;
++         var bbPos:int;
++         itemSlot = new renderer();
+          this.itemSlot.x = (this.background.width - this.itemSlot.width) / 2;
+          this.itemSlot.y = 42;
+          addChildAt(this.itemSlot,numChildren - 3);
+          btnAccept.label = LocalizationData.getName("fix");
+          tabEnabled = true;
+          btnAccept.enabled = false;
+-         if(Boolean(_data))
++         if(_data)
+          {
+             trace("in:data::",this.textFieldDamageLabel,this.textFieldCritical,this.textFieldRegular,this.textFieldPremium,this.textFieldVoucher);
+             this.textFieldDamageLabel.text = LocalizationData.getName("item_damage_state");
+@@ -126,19 +126,19 @@
+             this.redGlow.visible = _data.modifiers.length > 0;
+             this.redGlowBottom.visible = this.redGlow.visible;
+             this.redGlow.alpha = this.redGlow.visible ? 1 : 0;
+-            this.repairCostGold = 0;
+-            this.repairCostGeneral = 0;
+-            this.repairTimeGeneral = 0;
++            repairCostGold = 0;
++            repairCostGeneral = 0;
++            repairTimeGeneral = 0;
+             l = (_data.modifiers as Array).length;
+             for(i = 0; i < l; i++)
+             {
+-               this.repairCostGold += _data.modifiers[i].fix_cost_gold;
+-               this.repairCostGeneral += _data.modifiers[i].fix_cost_general;
+-               this.repairTimeGeneral += _data.modifiers[i].fix_time_general;
++               repairCostGold += _data.modifiers[i].fix_cost_gold;
++               repairCostGeneral += _data.modifiers[i].fix_cost_general;
++               repairTimeGeneral += _data.modifiers[i].fix_time_general;
+             }
+             this.timeToRepair.textField.text = Util.getTimeString(this.repairTimeGeneral);
+             this.timeToRepair.visible = this.repairTimeGeneral > 0;
+-            this.repairCost = (1 - _data.value / 100) * (_data.repairCostRatio * _data.cost) + this.repairCostGeneral;
++            repairCost = (1 - _data.value / 100) * (_data.repairCostRatio * _data.cost) + this.repairCostGeneral;
+             trace("MR::init",this.repairCost,_data.value / 100,"repairCostGeneral:",this.repairCostGeneral,_data.modifiers,"cost::",_data.cost,_data.repairCostRatio,_data.value);
+             this.checkBox_1.textFieldValue.textColor = 14933471;
+             this.checkBox_3.textFieldValue.textColor = 14933471;
+@@ -251,7 +251,7 @@
+       
+       protected function getSelectedIndex() : uint
+       {
+-         var index:uint = 0;
++         var index:uint;
+          if(this.checkBox_1.selected)
+          {
+             index = 0;
+@@ -275,22 +275,22 @@
+       protected function onNoMoneyEnought() : void
+       {
+          var object:Object = {
+-            "text":LocalizationData.getName("cant_buy_premium_message"),
+-            "onYes":this.goToStore,
+-            "label_ok":LocalizationData.getName("btn_add_premium_message"),
+-            "label_cancel":LocalizationData.getName("cancel")
++            text:LocalizationData.getName("cant_buy_premium_message"),
++            onYes:this.goToStore,
++            label_ok:LocalizationData.getName("btn_add_premium_message"),
++            label_cancel:LocalizationData.getName("cancel")
+          };
+          Message.showMessage("apply",object,true);
+       }
+       
+       override protected function onMessageAccept(event:ButtonEvent = null) : void
+       {
+-         var voucherId:uint = 0;
+          if(!btnAccept.enabled)
+          {
+             return;
+          }
+          var selectedPaymentType:uint = this.getSelectedIndex();
++         var voucherId:uint;
+          super.onMessageAccept();
+          trace("repair_item",uint(_data.itemId),uint(selectedPaymentType));
+          if(selectedPaymentType == 2)

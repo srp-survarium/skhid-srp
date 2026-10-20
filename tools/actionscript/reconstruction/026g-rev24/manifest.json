@@ -1417,6 +1417,54 @@
       "pristine_sha256": "214d45ad998609211ce8e1d52160b1bde985606ee309433d4ebabd02fccceda0",
       "reason": "Restore for-loop update and continue paths for absent slots, the explicit label counter initializer, implicit local defaults and direct truth tests. Real Flex compilation and exact linking reproduce the complete compressed revision-24 movie.",
       "result_sha256": "461aca876a5f62247b7960001432bccf3a146bc444dcbfeab89f65226e46b2dd"
+    },
+    {
+      "class": "survarium.clan.ManageClanWindow",
+      "patch": "survarium/clan/ManageClanWindow.patch",
+      "patch_sha256": "12b48729db529ae0f04862795a860d738151f6b37e92f89a747e078474da652e",
+      "pristine_sha256": "eac77ca26ba4cbe3524ab343e75678e87c501a10a999aaf4ceac8ae4886a455f",
+      "reason": "Restore the legal default property name, original local declaration order, implicit defaults and truth tests, identifier object keys, lexical field assignments and final switch break; independently compiled and linked to the exact complete compressed release movie.",
+      "result_sha256": "ff06ddd3d8b8c539da785dbd62c384df3822feca2334fc6928de26999bcf49ee"
+    },
+    {
+      "class": "survarium.messages.MessageRepair",
+      "patch": "survarium/messages/MessageRepair.patch",
+      "patch_sha256": "c2007ebb4d8e64964ac4baf4e246099cf29fe2b6d489be18bb9d4f9de8124126",
+      "pristine_sha256": "c1768f522f4a59c5963442959078d79f9ee89a6e407290dbe9c8c0ad9ef14795",
+      "reason": "Restore renderer and payment-local declaration order without adding initializations, and lexical compound writes for the accumulated repair costs and duration; independently compiled and linked to the exact complete compressed release movie.",
+      "result_sha256": "1b57e7414309553b65f2318d75e1da2169eb19f92bdec2f2aa084b1b0686e806"
+    },
+    {
+      "class": "survarium.controls.Message",
+      "patch": "survarium/controls/Message.patch",
+      "patch_sha256": "bee36fe0d6fa803d610b20add3ba7cfadcef0d41b2554c97f953232c6493ac5a",
+      "pristine_sha256": "fcba492092969c882087a3aed8171b557a3be23b758a9f84222502179e86e990",
+      "reason": "Restore direct for-in iteration with compiler-owned enumeration temporaries, the first-renderer break and explicit coordinate initializers; independently compiled and linked to the exact complete compressed release movie.",
+      "result_sha256": "81d96056d7c8e6cf64539d6f7e7c8199e47a98fe2d92030fdde0e463987b4257"
+    },
+    {
+      "class": "survarium.messages.MessageBox",
+      "patch": "survarium/messages/MessageBox.patch",
+      "patch_sha256": "6c6354d1a76e646c9cae1dcd56b75ed9c10935a586a480d6d93f1b124b4dc5f4",
+      "pristine_sha256": "d1f77ec1b07408fbc76340764260e572af1a5c6af33390eb84a5d85daab72ea5",
+      "reason": "Restore the final keyboard switch break; independently compiled and linked to the exact complete compressed release movie, including original debug directives.",
+      "result_sha256": "a2d1af8f9ad9e861709bf2a8fc42efd06f69a12b1611ce58bf24884c59d2ff64"
+    },
+    {
+      "class": "survarium.controls.SrvLabel",
+      "patch": "survarium/controls/SrvLabel.patch",
+      "patch_sha256": "62a11d15c176037cd7a7064753430b11c4240fd78eb42b7dff9cbe25f710f011",
+      "pristine_sha256": "7b6d7c21113f7d10a6322a41a3e22a27ab365e5d4294ac1de751583d2813300e",
+      "reason": "Restore the typed return temporary in register 1 and the hoisted ConstrainedElement declaration in register 2. The latter declaration follows the return so the return temporary has no extra NaN initialization; independently compiled and linked to the exact complete compressed release movie.",
+      "result_sha256": "e30a663f34abc6389bfc12102f8acf257685647a144a02b8adcbe3693274f89d"
+    },
+    {
+      "class": "survarium.ammo.AmmoShareControll",
+      "patch": "survarium/ammo/AmmoShareControll.patch",
+      "patch_sha256": "3488ad18becaf56fca35b2489c79dc999614047eff13d039473c9b6abe283ee3",
+      "pristine_sha256": "e5e1ff71dd5fb6d32ec24f2f11ea7d949e453e98801b74d45287c758322eef04",
+      "reason": "Restore the explicit void constructor signature, identifier object keys, lexical assignments, implicit defaults and original register declaration order. Reconstruct the outer ammunition loop, its quick-slot continue path, nested ammunition-slot else branch, and item construction followed by return inside the loop; independently compiled and linked to the exact complete compressed release movie.",
+      "result_sha256": "e87a5300ebc3fbae5465b5e733f21b5acc62e57757195704f0d07d4cb635d43b"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

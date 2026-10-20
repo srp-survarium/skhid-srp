@@ -705,3 +705,45 @@ The premium example built against the 177-entry manifest again produces
 with one changed method and identical non-code content. The new manifest hashes
 are recorded as a subsequent rebuild, separate from the earlier game test.
 Whole-tree reconstruction remains incomplete.
+
+## Fresh remaining-script compilation and six more source repairs
+
+The 58 remaining non-exchange scripts were freshly compiled with the current
+dependency importer, using their best existing source candidates. Two pristine
+scripts, `MessageAskSell` and `mx_internal`, now reproduce the complete compressed
+release movie. The other results were 53 differences and three compilation
+failures. This refresh replaces obsolete dependency-related failures; it is not
+a fresh compilation of all 878 scripts.
+
+Six further source repairs pass the complete compressed-movie comparison:
+
+- `MessageBox` restores its final keyboard switch break.
+- `SrvLabel` restores the typed return temporary and its register order. The
+  hoisted `ConstrainedElement` declaration follows the return, allowing the
+  temporary's declaration to stay at its assignment without introducing an
+  extra `NaN` initialization.
+- `MessageRepair` restores local declaration order without moving executable
+  assignments, and lexical compound writes for accumulated repair values.
+- `Message` restores direct `for-in` loops, their compiler-owned iteration
+  temporaries, the first-renderer break, and explicit coordinate initializers.
+- `ManageClanWindow` replaces the decompiler's escaped `default` property with
+  legal source, and restores declaration order, truth tests, identifier object
+  keys, lexical field writes, and its final switch break.
+- `AmmoShareControll` restores its constructor signature, declarations and
+  original loop structure. The decompiler's `goto` had obscured an outer `for`
+  loop containing item construction and an immediate return. The quick-slot
+  failure path continues that loop; the ammunition-slot loop retains its
+  explicit `else` and break.
+
+The manifest now contains 183 reviewed patches, each checked against the actual
+compiler input that produced its exact result. Together with the 644 distinct
+pristine-script successes, the accumulated evidence covers 827 of 878 scripts
+individually. The remaining 51 scripts still prevent a whole-tree matching
+rebuild. No linker acceptance rule changed for these six repairs.
+
+Fourteen local unit tests pass; the optional compiler integration fixture was
+not rerun for these source-only changes. The premium example rebuilt against
+the 183-entry manifest again produces
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+with one changed method and identical non-code content. Its new manifest
+identities are recorded separately from the previous native-game test.
