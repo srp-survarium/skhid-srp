@@ -34,6 +34,7 @@ package survarium.controls
    import survarium.interfaces.ILocalPlayerProfile;
    import survarium.interfaces.IPaperDollSlot;
    import survarium.item.ItemFactory;
+   import survarium.upgrade.UpgradeWindow;
    
    public class InventoryList extends FiltersWindow implements IInventoryItemFactory
    {
@@ -2015,7 +2016,8 @@ package survarium.controls
       
       private function isUpgradeable(value:Object) : Boolean
       {
-         return SrpScopeContextMenu.isUpgradeable(value);
+         var cat:int = (value.category);
+         return (cat == 3 || cat == 1 || cat == 5 || cat == 4) && ((value.camoAvailable) || (value.decalAvailable)) || UpgradeWindow.isWeaponCategory(cat) && UpgradeWindow.hasScopes(int(value.dictId));
       }
       
       protected function onMouseItemClick(e:MouseEventEx) : void
@@ -2128,7 +2130,7 @@ package survarium.controls
                   if(this.isUpgradeable(itemData))
                   {
                      options.push({
-                        name:LocalizationData.getName(SrpScopeContextMenu.labelKey(activeItem.data)),
+                        name:LocalizationData.getName(this.upgradeLabelKey(itemData)),
                         click_function:this.upgradeElelemnt
                      });
                   }
@@ -2522,6 +2524,11 @@ package survarium.controls
          itemsTileList.dataProvider = new DataProvider(filteredItems);
          itemsTileList.validateNow();
          trace("items:Filled::");
+      }
+      
+      private function upgradeLabelKey(value:Object) : String
+      {
+         return UpgradeWindow.isWeaponCategory(int(value.category)) ? "scope_window_title" : "btn_upgrade_label";
       }
    }
 }

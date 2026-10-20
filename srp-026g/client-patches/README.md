@@ -476,8 +476,8 @@ just closes. The words are the game's: `btn_exit_label` and
 
 ## Weapon scope context menu
 
-`SrpScopeContextMenu` (`../flash/lobby_menu/src/SrpScopeContextMenu.as`) adds the existing localized **Optics** action to a
-compatible weapon's right-click menu, in the inventory or an equipped slot. It
+`InventoryList` (`../flash/lobby_menu/src/survarium/controls/InventoryList.as`: `isUpgradeable`,
+`upgradeLabelKey`) adds the existing localized **Optics** action to a compatible weapon's right-click menu, in the inventory or an equipped slot. It
 opens the scope editor already shipped in revision 19. Armor still opens its
 camouflage/decal editor. See [weapon_scopes.md §5](../docs/notes/weapon_scopes.md#5-weapon-right-click-menu).
 This does not change the executable or reserve a release revision.

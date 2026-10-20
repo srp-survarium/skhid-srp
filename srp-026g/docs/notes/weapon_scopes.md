@@ -144,9 +144,9 @@ the scope editor for a weapon with `UpgradeWindow.hasScopes(dictId)`. The separa
 right-clicks and `LocalPaperDoll.onMouseItemClick` use `InventoryList.showContextMenu`,
 so both omit the action despite the working item-details button.
 
-The lobby's `SrpScopeContextMenu` (`flash/lobby_menu/src/SrpScopeContextMenu.as`, called from
-`InventoryList`) fixes that predicate and gives weapons
-the existing localized `scope_window_title` menu label. The existing
+The lobby's `InventoryList` (`flash/lobby_menu/src/survarium/controls/InventoryList.as`) fixes
+that predicate (`isUpgradeable`) and gives weapons the existing localized `scope_window_title`
+menu label (`upgradeLabelKey`). The existing
 `upgradeElelemnt` callback opens the normal editor; `UpgradeWindow.setData` selects
 category 22 and its normal slot handles attach, replace and detach. Compatibility
 comes from the movie's existing `scopePairs`, populated by the game data. Weapons
@@ -155,10 +155,10 @@ with no compatible scopes get no action. Armor keeps its cosmetic predicate and
 remain in the original menu method.
 
 It is built with every other lobby change by `client-patches/build_lobby_026g.py`,
-from source ([lobby-source.md](lobby-source.md)): `InventoryList.isUpgradeable` returns
-`SrpScopeContextMenu.isUpgradeable(value)`, and the upgrade entry's label is
-`SrpScopeContextMenu.labelKey(activeItem.data)`; every other method stays revision 24's
-byte for byte. (The work of 2026-10-18, built on revisions 19/20, was taken up again on
+from source ([lobby-source.md](lobby-source.md)): `InventoryList.isUpgradeable` also takes a
+weapon with scopes (`UpgradeWindow.isWeaponCategory`, `UpgradeWindow.hasScopes`), and the upgrade
+entry's label is `LocalizationData.getName(this.upgradeLabelKey(itemData))`; every other method
+stays revision 24's byte for byte. (The work of 2026-10-18, built on revisions 19/20, was taken up again on
 2026-10-20 as a bytecode step, and became this source feature the same day.)
 No executable, protocol or simulation change is needed.
 
