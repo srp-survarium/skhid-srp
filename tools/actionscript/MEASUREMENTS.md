@@ -976,3 +976,22 @@ rebuild preserves the previously runtime-tested movie hash
 `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
 with one authorized method changed and identical non-code bytes. The runtime
 record documents byte identity; the game was not rerun.
+
+### Filter and inventory compiler selections
+
+`FiltersWindow`, `ItemRendererInv` and `InventoryItem` now each reproduce the
+complete compressed release movie. Their manifests explicitly select FFDec's
+filter initialization, scope-badge/rendering and inventory slot/drag methods
+from the same source also compiled by Flex. Native source repairs recover local
+declaration scopes, implicit defaults, typed assignments and lexical mouse-mask
+updates. Both compiler outputs and the selection plans are retained privately.
+
+The manifest contains 218 patches. Together with 645 pristine successes,
+accumulated individual-script results cover 863 of 878 scripts; 15 remain.
+Whole-tree reconstruction remains incomplete. Fifteen unit tests pass, with the
+four real-compiler integration tests not rerun for this source-only checkpoint;
+all four passed at the preceding tooling checkpoint. The premium rebuild again
+has the previously runtime-tested hash
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+one authorized method changed and identical non-code bytes. Its runtime record
+identifies a byte-identical rebuild, not a new game run.

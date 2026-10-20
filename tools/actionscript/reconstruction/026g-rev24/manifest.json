@@ -1759,6 +1759,54 @@
       "pristine_sha256": "13514f1dc8eaed63c978b9fce312f51fb7ede2761debadfc8c2d132c84d7e79d",
       "reason": "Recover typed assignments and loop initializers; compile identical source with Flex library mode and FFDec, explicitly selecting FFDec's isUpgradeable method and sole script-class trait while retaining native records elsewhere. The complete compressed release movie matches byte for byte.",
       "result_sha256": "f4e990c3414b498701d740ba0d7b15ccde2c7a82cc58e6635264793980a73312"
+    },
+    {
+      "class": "survarium.controls.FiltersWindow",
+      "compiler": "flex-mixed",
+      "composition": {
+        "ffdec_methods": [
+          "QName(PackageNamespace(\"survarium.controls\"),\"FiltersWindow\")/instance/1/QName(PrivateNamespace(\"survarium.controls:FiltersWindow\"),\"init\")"
+        ],
+        "script_traits": "ffdec"
+      },
+      "patch": "survarium/controls/FiltersWindow.patch",
+      "patch_sha256": "dcd6c7f6b3cc79905f9e53cb5a65ecff67407df797e6e6e3caf64cbf54a98d03",
+      "pristine_sha256": "24e6642a4e9944b430b658198c264afa272197582b751fe74929a0a8fd740d8c",
+      "reason": "Recover native source declarations and implicit defaults while compiling the same source with both compilers; explicitly retain FFDec's init method and sole script-class declaration. The full compressed release movie is byte-identical.",
+      "result_sha256": "25911a87808ae4408d73b299d5f9392e613596f2a38470cb01b6e77009f59896"
+    },
+    {
+      "class": "survarium.item.ItemRendererInv",
+      "compiler": "flex-mixed",
+      "composition": {
+        "ffdec_methods": [
+          "QName(PackageNamespace(\"survarium.item\"),\"ItemRendererInv\")/instance/1/QName(ProtectedNamespace(\"survarium.item:ItemRendererInv\"),\"updateScopeBadge\")",
+          "QName(PackageNamespace(\"survarium.item\"),\"ItemRendererInv\")/instance/1/QName(ProtectedNamespace(\"survarium.item:ItemRendererInv\"),\"updateData\")"
+        ],
+        "script_traits": "ffdec"
+      },
+      "patch": "survarium/item/ItemRendererInv.patch",
+      "patch_sha256": "e5d438419d2c19aa608f6b6670e51f52e4fb6d2048e5b92ac1274aec3af2e35e",
+      "pristine_sha256": "a686b1fbeab2a78efb0df48a11c88564551b607848040f00fed415a7f6a4d41b",
+      "reason": "Recover native source declarations, truth tests and typed assignments; explicitly select actual FFDec updateScopeBadge and updateData records and the sole script-class declaration from the same source. The full compressed release movie is byte-identical.",
+      "result_sha256": "b065e978c78f9cb083fbeb6493a661f3a8a3300a884f913c6596dcd9d8636939"
+    },
+    {
+      "class": "survarium.item.InventoryItem",
+      "compiler": "flex-mixed",
+      "composition": {
+        "ffdec_methods": [
+          "QName(PackageNamespace(\"survarium.item\"),\"InventoryItem\")/instance/1/QName(ProtectedNamespace(\"survarium.item:InventoryItem\"),\"updateSlot\")",
+          "QName(PackageNamespace(\"survarium.item\"),\"InventoryItem\")/instance/1/QName(ProtectedNamespace(\"survarium.item:InventoryItem\"),\"updateSlotState\")",
+          "QName(PackageNamespace(\"survarium.item\"),\"InventoryItem\")/instance/1/QName(ProtectedNamespace(\"survarium.item:InventoryItem\"),\"handleDragEnabling\")"
+        ],
+        "script_traits": "ffdec"
+      },
+      "patch": "survarium/item/InventoryItem.patch",
+      "patch_sha256": "c37b917279e482ea671dab7f79ecec8cef9adfa344301c05e56e30bd43f11c77",
+      "pristine_sha256": "f9f8f031116ffd07854ec2389bbc9f069c779a7b270a2a4d7ad24d4cd1f15501",
+      "reason": "Recover block-local declarations for mouse events, repair timing and state changes, plus lexical mouse-mask updates; explicitly select FFDec updateSlot, updateSlotState and handleDragEnabling records and the sole script-class declaration from the same source. The full compressed release movie is byte-identical.",
+      "result_sha256": "4adcb34b7f0af385b14381c70d309daa44cf818518d49f7e8c0bc5a18e016f46"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

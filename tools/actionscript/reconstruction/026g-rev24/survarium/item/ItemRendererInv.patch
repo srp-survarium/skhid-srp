@@ -1,0 +1,11 @@
+--- a/survarium/item/ItemRendererInv.as
++++ b/survarium/item/ItemRendererInv.as
+@@ -90,7 +90,7 @@
+       override public function updateState(param1:uint = 0) : void
+       {
+          var _loc2_:Number = param1 == 0 ? 1 : 0.6;
+-         if(Boolean(iconRenderer))
++         if(iconRenderer)
+          {
+             iconRenderer.alpha = param1 == 2 ? 0.6 : 1;
+          }
