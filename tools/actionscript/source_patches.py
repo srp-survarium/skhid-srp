@@ -122,7 +122,7 @@ def load_sources(manifest_path, project, pinned):
     spec = json.loads(raw)
     if spec.get('schema') != 1 or spec.get('release') != pinned['release'] or spec.get('movie_sha256') != pinned['movie_sha256']:
         raise ValueError('Source patches target a different release')
-    sources, evidence = {}, {'manifest_sha256': sha(raw), 'classes': []}
+    sources, evidence, unpatched = {}, {'manifest_sha256': sha(raw), 'classes': []}, set()
     if not isinstance(spec.get('classes'), list):
         raise ValueError('Source patch classes must be a list')
     for entry in spec['classes']:
@@ -132,8 +132,16 @@ def load_sources(manifest_path, project, pinned):
         reservation_plan(entry)
         cls = entry['class']
         relative = cls.replace('.', '/') + '.as'
-        if relative not in pinned['sources'] or relative in sources:
+        if relative not in pinned['sources'] or relative in sources or relative in unpatched:
             raise ValueError('Unknown or duplicate patched class')
+        if 'patch' not in entry:
+            # Compiler settings only: the exported source already compiles
+            # exactly (a source tree of corrected files, srp-026g/flash).
+            if {'pristine_sha256', 'patch_sha256', 'result_sha256'} & set(entry):
+                raise ValueError('A class without a patch has no patch hashes')
+            unpatched.add(relative)
+            evidence['classes'].append(dict(entry))
+            continue
         patch_relative = Path(entry['patch'])
         if patch_relative.is_absolute() or '..' in patch_relative.parts or patch_relative.as_posix() != entry['patch']:
             raise ValueError('Invalid patch path')

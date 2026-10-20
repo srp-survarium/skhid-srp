@@ -321,6 +321,8 @@ def build(tools_path, reconstruction, project, feature, output, jobs=1, log=prin
     correction_dir.mkdir()
     shutil.copyfile(reconstruction, correction_dir / 'manifest.json')
     for entry in evidence['classes']:
+        if 'patch' not in entry:
+            continue
         dest = correction_dir / entry['patch']
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(reconstruction.parent / entry['patch'], dest)

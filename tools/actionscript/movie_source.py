@@ -307,6 +307,8 @@ def main():
         correction_dir.mkdir()
         shutil.copyfile(args.source_patches, correction_dir / "manifest.json")
         for entry in correction_evidence["classes"]:
+            if "patch" not in entry:
+                continue
             destination = correction_dir / entry["patch"]
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(args.source_patches.parent / entry["patch"], destination)

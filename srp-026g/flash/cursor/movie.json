@@ -1,0 +1,12 @@
+{
+  "movie": "flash_movies/cursor.swf",
+  "movie_sha256": "1e9bc9360600fe0e3d7aafa76df43f7b69a18d56aeb0966e52cf084ca2e7e479",
+  "reconstruction": "tools/actionscript/reconstruction/026g-rev24-cursor/manifest.json",
+  "reconstruction_sha256": "d75264333b940b646c21890b13eacbf07256c04275fc57fb90c062bcfb4fa797",
+  "release": "026g-rev24-cursor",
+  "schema": 1,
+  "sources": {
+    "cursor_fla/MainTimeline.as": "5b85f3b9930de98f0b5e8b09e0ddceaaae29be853bcdb39fcc47249d419fbda8",
+    "mouseSymbol.as": "440dd29b77b82996a8fde7b9c6af6d7a1a96eda7409ab6ebeafcd5494e35bb12"
+  }
+}
