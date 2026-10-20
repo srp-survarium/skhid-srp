@@ -1699,6 +1699,24 @@
       "pristine_sha256": "a96cb259ed69b59a5b8495c624695437106ad1d7e91c7483940ab39739a9dcab",
       "reason": "Restore static field order, explicit counter initialization, constant logical guards and the final input switch break; imported-unit compilation reproduces the complete compressed release movie.",
       "result_sha256": "471c36949d07a31b8c284b8fe327cca8afd3145a340a0a74324f7f41095815b5"
+    },
+    {
+      "class": "com.greensock.TweenLite",
+      "compiler": "flex-library",
+      "patch": "com/greensock/TweenLite.patch",
+      "patch_sha256": "179997a112d9b3aa5118015e1878f7e010d5bc37d4816fade6b4ed3e85f38b60",
+      "pristine_sha256": "389b928b8c210784410f5f7883668a31a9edec42e3d35ee928ff9f154ec52bef",
+      "reason": "Recover static slot order, identifier object keys, implicit typed initialization, original local declaration order, direct truth tests and lexical field writes. Restore the overlap guard and assignment expression in its original ternary arm; preserve explicit numeric conversions where the original method requires them.",
+      "result_sha256": "c31dd72d62a18d8199fea8c50abe8b5b8e72c525a2d1e1924eab6d37809c19cb"
+    },
+    {
+      "class": "survarium.controls.VictoryScreen",
+      "compiler": "flex-library",
+      "patch": "survarium/controls/VictoryScreen.patch",
+      "patch_sha256": "64f2952f6c40b89a445e12bacc0357a9bd3040450b66da67c7e023da56cd1e0e",
+      "pristine_sha256": "84ef3126b3cd37164e7bd3df7dfd95552243d696ff30a2ca674cdfa6b3366a04",
+      "reason": "Recover original local declaration scopes and order, explicit Boolean and counter initializers, string parameter accumulation, typed rating assignment, and named local functions with their original activation slots and initialization order.",
+      "result_sha256": "ac403639019ef460e5a0d48dcbdfb2d8f0a22ae7515a61e1da0dd14599289dd8"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

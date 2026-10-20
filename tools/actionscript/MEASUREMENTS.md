@@ -907,3 +907,26 @@ tests pass after these source-only additions. The premium feature rebuilt agains
 the new manifest retains its previously tested movie hash, with one changed
 method and identical non-code content; its manifest identities are recorded
 separately from the earlier game test.
+
+### TweenLite and victory-screen source reconstruction
+
+`TweenLite` and `VictoryScreen` now pass complete compressed-movie equality
+using the current imported-unit compiler and existing layout linker. TweenLite
+recovers static slot order, implicit typed initialization, declaration order,
+identifier object keys, direct truth tests and lexical field writes. Its overlap
+calculation also recovers the assignment inside the final conditional-expression
+arm and the original positive skip branch.
+
+VictoryScreen recovers declaration scopes, explicit initializers, string
+parameter accumulation and named local functions with the original activation
+slots and initialization order. These repairs change source only; the compiler
+and linker rules remain unchanged.
+
+The reconstruction manifest now contains 211 authenticated patches. Together
+with 645 pristine-script successes, accumulated individual-script evidence covers
+856 of 878 scripts; 22 remain. This is not yet a whole-tree matching build.
+Fourteen unit tests pass (three compiler integration tests are not rerun for this
+source-only checkpoint). The premium feature rebuild retains the previously
+runtime-tested movie hash `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+with one authorized method changed and all non-code bytes identical. The runtime
+evidence records byte identity, not a new game run.
