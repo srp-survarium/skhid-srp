@@ -83,3 +83,27 @@ Applied to revision 24's live `localization/ukrainian/localization` (from the se
 | `gameplay/victory_items/default.options` `states[0]/take_time` 0.6 -> 0.5 (an indexed table's item: the `set` path's `name[i]`) | the owner: the battery pick-up animation 20 % faster (1.2 times the speed). The take state time-scales its animation to last `take_time`, so it plays faster, not cut (`docs/notes/battery_pickup.md`); `put_time` stays 0.6 |
 
 Applied to revision 24's server game data (`gameplay/victory_items/`): 1 file edited, 0 unexpected differences.
+
+## weapon-balance-2.json (2026-10-20)
+
+| change | why |
+|---|---|
+| AK-12 and premium AK-12 (`wpn_ak_12`, `wpn_ak_12_premium`): `bullet_damage` 0.55 -> 0.5, `bullet_pierce` 0.45 -> 0.35 (f32 kept); the card's damage (prop 1) 55 -> 50 and armour piercing (prop 3) 45 -> 35 | the owner: "0.27a (released 3 months after 0.26a where ak12 was introduced) nerfed ak12 damage 55 » 50 and armour penetration 45 » 40. I think it should be done here"; then, shown the table below: "50 35 for ak-12" (piercing between 0.27d0's 40 and 0.28a2's 30; 0.28a2 rebalanced the whole game, so only the AK-12's own change is taken) |
+| premium AK-12: `default_modifications` [1230, 2044, 2094] -> [1230] (a new edit, `remove_item`) | the owner: a premium weapon gives silver and nothing else. 1230 is +10 % silver; 2044 (reload time -15 %) and 2094 (reliability +25 %) go. The defaults are not on the wire: the client and srp both read them from the config |
+| Socom16 (`wpn_socom16`): `bullet_damage` 0.8 -> 0.6; the card's damage 80 -> 60 | the owner: "and also Socom16 75 → 50" (0.28a2's cut); then, shown the table below: "seems like socom is nerfed too much, let's make it 60" (0.31a2's value). Live has 0.26g's 0.8 (0.27d0 had cut it to 0.75). Piercing stays 0.45: 0.28a2 also cut it to 0.35, the owner named the damage only |
+
+The two weapons in the builds at hand (damage / piercing; the card shows them x100):
+
+| build | AK-12 | premium AK-12 | Socom16 |
+|---|---|---|---|
+| 0.26g stock | 0.55 / 0.45 | - | 0.80 / 0.45 |
+| live, revision 25 | 0.55 / 0.45 | 0.55 / 0.45 | 0.80 / 0.45 |
+| 0.27d0 (no 0.27a at hand) | 0.55 / 0.40 | 0.50 / 0.40 | 0.75 / 0.45 |
+| 0.28a2 | 0.50 / 0.30 | 0.45 / 0.30 | 0.50 / 0.35 |
+| 0.28d0 | 0.45 / 0.30 | 0.45 / 0.30 | 0.50 / 0.35 |
+| 0.31a2 | 0.35 / 0.55 | 0.35 / 0.55 | 0.60 / 0.40 |
+| 0.46c2 (`material_pierce` 6, another scale) | 0.26 / - | 0.26 / - | 0.65 / - |
+| **here** | 0.50 / 0.35 | 0.50 / 0.35 | 0.60 / 0.45 |
+
+Applied to revision 24's server game data (`gameplay/items/weapons/wpn_ak_12*`,
+`wpn_socom16`; patch 25 did not touch weapons): 3 files edited, 0 unexpected differences.
