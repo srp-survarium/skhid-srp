@@ -270,3 +270,12 @@ original private namespace identities. Negative cases cover untouched code,
 stack metadata, original constant-pool content, another class's body, unreviewed
 call changes and incorrect review fingerprints. Container tests separately reject
 changes to opaque assets, tag order, DoABC names and loading flags.
+
+An isolated native-client runtime attempt packaged the candidate as a one-file
+local overlay and rebuilt server data from the same release patches plus that
+overlay. The server started successfully. Wine 11.8 / DXVK 2.7.1 on a separate
+Xvfb display reported missing DRI3/EDID display information and crashed with a
+division-by-zero error during graphics initialization. The movie's behavior was
+not reached, so this is not a runtime pass or evidence of a movie defect. The
+managed client, server and display were stopped. Private logs, package hashes,
+server data and a startup screenshot are retained for the next runtime attempt.
