@@ -1082,6 +1082,56 @@ public final class MovieSource {
         return result;
     }
 
+    static boolean mutableConstructorSlot(ABC abc, MethodBody body, List<AVM2Instruction> code,
+            int store) throws IOException {
+        var instruction = code.get(store);
+        if (instruction.operands.length != 1) return false;
+        int name = instruction.operands[0];
+        var multiname = abc.constants.getMultiname(name);
+        if (multiname.kind != 7) return false;
+        int kind = abc.constants.getNamespace(multiname.namespace_index).kind;
+        // Private/protected own slots cannot be dynamic public properties.
+        if (kind != 0x05 && kind != 0x18) return false;
+        boolean mutable = false;
+        for (var instance : abc.instance_info) if (instance.iinit_index == body.method_info) {
+            int matches = 0;
+            for (var trait : instance.instance_traits.traits) if (trait.name_index == name) {
+                matches++;
+                mutable = trait instanceof TraitSlotConst && trait.kindType == 0;
+            }
+            if (matches != 1) return false;
+        }
+        if (!mutable) return false;
+        Set<Integer> entries = new HashSet<>();
+        var boundaries = executablePositions(body.getCode().code);
+        for (var item : code) {
+            if (localRegister(item, true) == 0) return false;
+            if (localRegister(item, false) != 0)
+                for (int j = 0; j < item.definition.operands.length; j++)
+                    if (item.definition.operands[j] == AVM2Code.DAT_LOCAL_REG_INDEX && item.operands[j] == 0)
+                        return false;
+            for (int target : branchTargets(item)) entries.add(boundary(boundaries, target));
+        }
+        for (var handler : body.exceptions) entries.add(boundary(boundaries, handler.target));
+        // Walk back through the receiver/value expression. Only a direct this
+        // load proves the receiver; joins, dup/swap and non-linear control flow
+        // are deliberately excluded. No stack value is guessed at a boundary.
+        int needed = 2;
+        for (int i = store; i > 0;) {
+            if (entries.contains(i)) return false;
+            var item = code.get(--i);
+            int opcode = item.definition.instructionCode;
+            if (opcode == 0x2a || opcode == 0x2b || opcode == 0x09
+                    || item.definition.isExitInstruction() || branchTargets(item).length != 0) return false;
+            int pushes = item.definition.getStackPushCount(item, abc);
+            int pops = item.definition.getStackPopCount(item, abc);
+            if (pushes < 0 || pops < 0) return false;
+            if (pushes >= needed) return needed == 1 && localRegister(item, false) == 0;
+            needed += pops - pushes;
+        }
+        return false;
+    }
+
     // ASC Encoder.OP_getproperty/OP_pop and CodeGenerator.If select these
     // compact encodings. Comparison semantics also follow Adobe's interpreter:
     // https://github.com/adobe/avmplus/blob/master/core/Interpreter.cpp
@@ -1197,6 +1247,17 @@ public final class MovieSource {
                     }
                 }
                 int consumed = 1;
+                // A successful coerce already has the type resolved by this
+                // pool entry. Repeating that identical coercion is idempotent.
+                // Interior branch/handler entries are rejected below.
+                if (opcode == 0x80 && desired == opcode && next + 1 < emitted.size()
+                        && instruction.operands.length == 1
+                        && compiled.constants.getMultiname(instruction.operands[0]).kind == 7
+                        && emitted.get(next + 1).definition.instructionCode == opcode
+                        && Arrays.equals(instruction.operands, emitted.get(next + 1).operands)) {
+                    consumed = 2;
+                    rewritten = true;
+                }
                 if (opcode != desired) {
                     if (next + 1 >= emitted.size()) { matching = false; break; }
                     var following = emitted.get(next + 1);
@@ -1207,7 +1268,12 @@ public final class MovieSource {
                         && compiled.constants.getMultiname(instruction.operands[0]).kind == 0x07;
                     boolean discardedCall = desired == 0x4f && opcode == 0x46
                         && following.definition.instructionCode == 0x29;
-                    if (redundantNumericSelfAssignment(emitted, next, desired)) {
+                    if (opcode == 0x61 && desired == 0x68
+                            && mutableConstructorSlot(compiled, body, emitted, next)) {
+                        // initproperty and setproperty both assign an ordinary
+                        // mutable slot. Const fields, setters, dynamic names,
+                        // foreign receivers and inherited slots are excluded.
+                    } else if (redundantNumericSelfAssignment(emitted, next, desired)) {
                         consumed = 4;
                         operandSource = emitted.get(next + 3);
                     } else if (lookup || discardedCall) consumed = 2;

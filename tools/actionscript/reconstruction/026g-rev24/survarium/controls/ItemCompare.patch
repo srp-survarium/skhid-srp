@@ -1,0 +1,265 @@
+--- a/survarium/controls/ItemCompare.as
++++ b/survarium/controls/ItemCompare.as
+@@ -13,13 +13,13 @@
+    public class ItemCompare extends MovieClip
+    {
+       
++      protected static var _propsMin:Dictionary = new Dictionary();
++      
++      protected static var _propsMax:Dictionary = new Dictionary();
++      
++      protected static var _propsDir:Dictionary = new Dictionary();
++      
+       protected static var _propsDescriptor:PropertiesDescriptor;
+-      
+-      protected static var _propsMin:Dictionary = new Dictionary();
+-      
+-      protected static var _propsMax:Dictionary = new Dictionary();
+-      
+-      protected static var _propsDir:Dictionary = new Dictionary();
+       
+       public var diff_1:MovieClip;
+       
+@@ -55,10 +55,10 @@
+          this._spriteAnchor.x -= 130;
+          this._spriteAnchor.y += 120;
+          this._indicator = [this.diff_1,this.diff_2,this.diff_3,this.diff_4,this.diff_5,this.diff_6,this.diff_7,this.diff_8];
+-         _loc2_ = this.getChildByName("diff_9");
++         _loc2_ = MovieClip(this.getChildByName("diff_9"));
+          if(_loc2_)
+          {
+-            this._indicator.push(_loc2_);
++            this._indicator.public::push(_loc2_);
+          }
+          var _loc1_:int = 0;
+          while(_loc1_ < this._indicator.length)
+@@ -90,10 +90,6 @@
+       
+       public function fillModifiers(param1:Object) : void
+       {
+-         var _loc6_:Object = null;
+-         var _loc7_:Object = null;
+-         var _loc8_:int = 0;
+-         var _loc9_:Number = NaN;
+          var _loc2_:Array = param1.modifiers;
+          if(!_loc2_)
+          {
+@@ -102,17 +98,21 @@
+          var _loc3_:Object = new Object();
+          var _loc4_:Object = new Object();
+          var _loc5_:uint = 0;
++         var _loc6_:Object;
++         var _loc7_:Object;
++         var _loc8_:int;
++         var _loc9_:Number;
+          while(_loc5_ < _loc2_.length)
+          {
+             _loc6_ = _loc2_[_loc5_].props;
+             for each(_loc7_ in _loc6_)
+             {
+-               _loc8_ = int(_loc7_.prop_id);
++               _loc8_ = _loc7_.prop_id;
+                if(_loc4_[_loc8_] == undefined)
+                {
+                   _loc4_[_loc8_] = {
+-                     "prop_id":_loc8_,
+-                     "prop_value":0
++                     prop_id:_loc8_,
++                     prop_value:0
+                   };
+                }
+                _loc9_ = Number(_loc7_.prop_value);
+@@ -130,14 +130,14 @@
+       
+       public function setModifiers(param1:Object) : void
+       {
+-         var _loc3_:Object = null;
+-         var _loc4_:uint = 0;
+-         var _loc5_:MovieClip = null;
+-         var _loc6_:Object = null;
+-         var _loc7_:Number = NaN;
+-         var _loc8_:Number = NaN;
+          var _loc2_:uint = this._indicator.length;
+-         if(Boolean(param1))
++         var _loc3_:Object;
++         var _loc4_:uint;
++         var _loc5_:MovieClip;
++         var _loc6_:Object;
++         var _loc7_:Number;
++         var _loc8_:Number;
++         if(param1)
+          {
+             for each(_loc3_ in param1.props)
+             {
+@@ -149,7 +149,7 @@
+                   {
+                      _loc6_ = _propsDescriptor.getPropertyDescription(_loc3_.prop_id);
+                      _loc7_ = _loc5_.indicator.value - _loc5_.indicator.extra;
+-                     _loc8_ = _loc6_.modifier_type == 0 ? Number(_loc3_.prop_value) : _loc7_ * _loc3_.prop_value;
++                     _loc8_ = _loc6_.modifier_type == 0 ? _loc3_.prop_value : _loc7_ * _loc3_.prop_value;
+                      trace("_diff.indicator.value::",_loc6_.modifier_type,_loc7_,_loc5_.indicator.value,_loc3_.prop_value,_loc8_);
+                      _loc5_.indicator.upgrade = _loc8_;
+                      break;
+@@ -172,7 +172,7 @@
+       
+       public function setPrimaryWeapon(param1:Object) : void
+       {
+-         this._primary = param1;
++         _primary = param1;
+          this.updateData();
+       }
+       
+@@ -185,14 +185,14 @@
+       {
+          if(this._secondary != param1 && this._primary != param1)
+          {
+-            this._secondary = param1;
++            _secondary = param1;
+             this.updateData();
+          }
+       }
+       
+       public function setIcon(param1:Sprite) : void
+       {
+-         if(Boolean(this._spriteAnchor.numChildren))
++         if(this._spriteAnchor.numChildren)
+          {
+             this._spriteAnchor.removeChildAt(0);
+          }
+@@ -204,25 +204,32 @@
+       
+       protected function updateData() : void
+       {
+-         var prim_cat:int;
+-         var index:int;
+-         var indicators:uint;
++         if(!_propsDescriptor)
++         {
++            trace("!props_descriptor::");
++            return;
++         }
++         if(!this._primary)
++         {
++            return;
++         }
++         trace("ItemCompare::updateData");
++         var prim_cat:int = ItemFactory.getCategory(this._primary.category);
++         var index:int = 0;
+          var _diff:MovieClip = null;
+          var propDescription:Object = null;
+-         var modifier_value:Number = NaN;
+-         var s:Object = null;
+-         var _valueObject:Object = null;
+-         var _value:Number = NaN;
+-         var initPropValues:Function = function(param1:Object, param2:Object):void
+-         {
+-            var _loc5_:Object = null;
+-            var _loc6_:Object = null;
+-            var _loc7_:Number = NaN;
+-            var _loc8_:Object = null;
++         var indicators:uint = this._indicator.length;
++         var modifier_value:Number = 0;
++         function initPropValues(param1:Object, param2:Object):void
++         {
+             modifier_value = 0;
+             var _loc3_:Number = 0;
+             var _loc4_:int = 0;
+-            if(Boolean(param2))
++            var _loc5_:Object;
++            var _loc6_:Object;
++            var _loc7_:Number;
++            var _loc8_:Object;
++            if(param2)
+             {
+                for each(_loc5_ in param2)
+                {
+@@ -237,7 +244,7 @@
+                         }
+                         modifier_value += _loc7_;
+                         _loc8_ = _propsDescriptor.getPropertyDescription(_loc6_.prop_id);
+-                        _loc4_ = int(_loc8_.modifier_type);
++                        _loc4_ = _loc8_.modifier_type;
+                      }
+                   }
+                }
+@@ -259,8 +266,8 @@
+             {
+                _value = Util.stringToNumber(String(_loc3_));
+             }
+-         };
+-         var initIndicatorValues:Function = function(param1:MovieClip, param2:Object, param3:Number, param4:Number):void
++         }
++         function initIndicatorValues(param1:MovieClip, param2:Object, param3:Number, param4:Number):void
+          {
+             _diff = param1;
+             _diff.visible = true;
+@@ -282,26 +289,10 @@
+             _diff.indicator.extra = modifier_value;
+             _diff.indicator.compare = param3;
+             _diff.indicator.value = param4;
+-         };
+-         if(!_propsDescriptor)
+-         {
+-            trace("!props_descriptor::");
+-            return;
+-         }
+-         if(!this._primary)
+-         {
+-            return;
+-         }
+-         trace("ItemCompare::updateData");
+-         prim_cat = ItemFactory.getCategory(this._primary.category);
+-         index = 0;
+-         _diff = null;
+-         propDescription = null;
+-         indicators = this._indicator.length;
+-         modifier_value = 0;
+-         for each(s in this._primary.properties)
+-         {
+-            _valueObject = s;
++         }
++         for each(var s:Object in this._primary.properties)
++         {
++            var _valueObject:Object = s;
+             propDescription = _propsDescriptor.getPropertyDescription(_valueObject.prop_id);
+             if(!propDescription)
+             {
+@@ -309,9 +300,9 @@
+             }
+             else
+             {
+-               _value = 0;
++               var _value:Number = 0;
+                trace("primaryProps::",propDescription.prop_name,"value::",_valueObject.prop_value);
+-               if(Boolean(propDescription.comparable))
++               if(propDescription.comparable)
+                {
+                   initPropValues(_valueObject,this._primary.modifiers);
+                   initIndicatorValues(this._indicator[index],propDescription,_value,_value);
+@@ -330,7 +321,7 @@
+             _diff.visible = false;
+             index++;
+          }
+-         if(!this._secondary || (prim_cat == 2 ? Boolean(prim_cat != ItemFactory.getCategory(this._secondary.category)) : Boolean(this._primary.category != this._secondary.category)))
++         if(!this._secondary || (prim_cat == 2 ? (prim_cat != ItemFactory.getCategory(this._secondary.category)) : this._primary.category != this._secondary.category))
+          {
+             dispatchEvent(new Event(Event.RESIZE));
+             return;
+@@ -353,7 +344,7 @@
+             {
+                trace("wrong propDescription",_valueObject.prop_id,propDescription);
+             }
+-            else if(Boolean(propDescription.comparable))
++            else if(propDescription.comparable)
+             {
+                initPropValues(_valueObject,this._secondary.modifiers);
+                index = 0;
+@@ -365,7 +356,7 @@
+                      initIndicatorValues(this._indicator[index],propDescription,_value,0);
+                      break;
+                   }
+-                  if(_diff.id == propDescription.prop_id)
++                  else if(_diff.id == propDescription.prop_id)
+                   {
+                      _diff.indicator.compare = _value;
+                      _diff.indicator.extra = 0;

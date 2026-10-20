@@ -2054,6 +2054,21 @@
       "pristine_sha256": "808498faea3d03b768115e87178e961d9f2b711e08aeda41cee8d9293df3a52c",
       "reason": "Actual native and source-compiler methods from the same source recover typed local declaration order, lexical assignments, Boolean conversion placement, unsigned loop assignments, and static field order. The explicit mixed plan retains the source compiler script trait. Independently linked output reproduces the complete compressed release movie byte for byte.",
       "result_sha256": "9b4fc68fcc987edd4debe920ba108db99fa1114b103add9fd62a95fd6214f53b"
+    },
+    {
+      "class": "survarium.controls.ItemCompare",
+      "compiler": "flex-mixed",
+      "composition": {
+        "ffdec_compiler": "ffdec-source",
+        "ffdec_methods": [
+          "QName(PackageNamespace(\"survarium.controls\"),\"ItemCompare\")/instance-init"
+        ]
+      },
+      "patch": "survarium/controls/ItemCompare.patch",
+      "patch_sha256": "631e434ec6d3a72050a9d7ca578faa82a491b47994ffce1a42b0900c975a7455",
+      "pristine_sha256": "86989effddf56c61efa01635ec5d1e645225bfb0e1d56fb11cfdfc0699492dd9",
+      "reason": "An explicit mixed plan selects only the actual source-compiled constructor and retains native methods from the same source. Source changes recover named local functions, captured and ordinary declaration order, typed assignments, public Array.push qualification, static field order, and the original else branch. Guarded constructor-slot and identical type-coercion encodings reproduce the complete compressed release movie byte for byte.",
+      "result_sha256": "72f615c32a0bcbde9b3d2c7b3afc595624417bf734f07c7786d3b768a56d921f"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

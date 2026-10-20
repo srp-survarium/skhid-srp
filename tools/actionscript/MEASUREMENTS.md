@@ -1197,3 +1197,39 @@ The runtime record identifies this as a byte-identical rebuild, not a new game r
 There are now 227 authenticated reconstructions and 645 pristine successes:
 872 of 878 scripts have individual exact proofs. Six remain, and a complete
 matching whole-tree build is still outstanding.
+
+### ItemCompare constructor and captured declarations
+
+`ItemCompare` now independently rebuilds the complete compressed release movie.
+Its mixed plan selects only the actual source-compiled constructor; all other
+methods come from native compilation of the same source. Source reconstruction
+recovers named local functions, captured-variable slot order, ordinary local
+declarations, static field order, typed assignments, explicit public `push`,
+and an `else` branch retained by the original compiler.
+
+Two guarded encodings complete the constructor. A write to an own mutable
+private/protected slot may use `initproperty` instead of `setproperty` when a
+backward stack walk proves its receiver is unchanged register zero. Const,
+accessor, inherited, ambiguous and dynamic traits are excluded, as are foreign
+receivers and control-flow joins inside that expression. Adobe's implementation
+uses the same mutable-slot assignment for both instructions
+([MethodEnv](https://github.com/adobe/avmplus/blob/master/core/MethodEnv.cpp#L879),
+[Toplevel](https://github.com/adobe/avmplus/blob/master/core/Toplevel.cpp#L690)).
+Adjacent coercions to the same QName type can fold to one; the first successful
+coercion already has that type. Complete branch and exception checks still
+reject entry into the removed instruction.
+
+All 22 tests pass, including seven real-compiler integrations. The new fixture
+checks independent baseline equality, rejected trait/receiver/control-flow
+mutations, source-edit preservation, and call/cast review for an edited method
+that retains the actual compiler's repeated coercion. The final register-operand
+guard additionally passes its focused integration run, including writes,
+increments, kills and `hasnext2` changes to register zero.
+
+There are now 228 authenticated reconstructions and 645 pristine successes:
+873 of 878 scripts have individual exact proofs. Five remain; a complete
+matching whole-tree build is still outstanding. The fresh premium rebuild
+retains the earlier game-tested hash
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+with one authorized method changed and identical non-code bytes. The runtime
+record describes byte identity with that earlier run, not a new game check.

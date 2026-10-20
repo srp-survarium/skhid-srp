@@ -233,7 +233,7 @@ The rule does not reconcile other changes within an edited feature method.
 The same whole-method check can remove the redundant local store emitted for
 `n = ++n` or `n = --n`. It requires a numeric increment/decrement, identical
 `int` or `uint` conversions, and the same local on the read and both stores.
-It does not remove repeated conversions of arbitrary objects. Compiler debugger
+That numeric rule does not remove repeated conversions of arbitrary objects. Compiler debugger
 directives may label retained executable boundaries; they cannot allow entry
 inside a removed instruction group. Register changes, conversion changes,
 interior branch targets and interior exception boundaries remain rejected.
@@ -251,6 +251,18 @@ includes conditional branches and all switch targets. The emitted target is
 the next compiled instruction boundary; no reference target is copied. A
 reachable jump, a different requested displacement, or any other control-flow
 mismatch remains refused.
+
+Constructor writes to an own private/protected mutable slot can use
+`initproperty` in place of `setproperty`. The emitter proves a direct `this`
+receiver through the compiled stack expression and rejects register-zero
+reassignment, foreign receivers, const/accessor/inherited traits, dynamic names,
+joins, and ambiguous stack operations. Both instructions use the same mutable
+slot assignment in [Adobe's runtime](https://github.com/adobe/avmplus/blob/master/core/MethodEnv.cpp#L879).
+Two adjacent `coerce` instructions with the same QName type can also fold to
+one: the first successful coercion already has that type. The whole-method
+branch and exception checks reject entry into the second coercion. An edited
+method retains its actual compiler output and still requires call/cast review
+when that output differs from the baseline.
 
 Original debugger file/line/register directives can also be emitted after every
 non-debug instruction compares equal to the compiler output. Compiler-emitted
@@ -309,7 +321,7 @@ Use `--compiler reconstruction` with the pinned patch manifest to select these
 per-class compilers in one measurement. Classes without an override use
 `flex-strict`; every report row records the compiler actually used. Explicit
 `--compiler ffdec`, `ffdec-source`, `flex`, `flex-strict` or `flex-library` selects that compiler for every
-class, for comparison experiments. The per-class profile currently proves 227
+class, for comparison experiments. The per-class profile currently proves 228
 reconstructed classes, including easing, button, list, text, message, clan,
 debug and tutorial classes. Source fixes also recover local declaration order,
 static field slot order and explicit switch breaks where required.
