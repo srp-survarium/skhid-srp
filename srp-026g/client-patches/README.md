@@ -450,22 +450,18 @@ with 200 as before. Not in a release yet.
 
 ## The craft window: Buy and Sell, Continue and Exit
 
-`SrpCraftMenu` (`../flash/lobby_menu/src/SrpCraftMenu.as`): right-click on an item in the craft window's list
-("Upgrade") gives Buy and Sell only, and its result offers Continue and Exit (the rules: `docs/notes/craft-menu.md`).
-The window locks the inventory list (`lockControls(true)`), and
-`InventoryList.showContextMenu` ended at once on a locked list. Its read of
-the lock, `this._inventoryLocked`, becomes `SrpCraftMenu.locked(this._inventoryLocked,
-this, activeItem)`.
-While the list is locked and a `MessageCraftItem` is on the lobby, the helper
-shows its own menu (Buy by the list's rule; Sell for an owned item, not the
-item being upgraded or the donor the window holds) and returns true, so the
-method ends; otherwise it returns the lock as it was. Buy goes as the item
-card's (the dictionary id, the shop's price, the shop's seller); Sell through
-the list's public `sellItem`.
+`InventoryList` and `MessageCraftItem` (`../flash/lobby_menu/src/survarium`): right-click on an item in
+the craft window's list ("Upgrade") gives Buy and Sell only, and its result offers Continue and Exit (the
+rules: `docs/notes/craft-menu.md`). The window locks the inventory list (`lockControls(true)`), and
+`InventoryList.showContextMenu` ended at once on a locked list. On a locked list it now calls
+`showCraftMenu(activeItem)` first: while a `MessageCraftItem` is on the lobby (`findCraftWindow`) it
+shows that menu (Buy by the list's rule; Sell for an owned item, not the item being upgraded or the
+donor the window holds, `MessageCraftItem.holds`); otherwise nothing, as before. Buy goes as the
+item card's (`buyFromCraftMenu`: the dictionary id, the shop's price, the shop's seller); Sell
+through the list's `sellItem`.
 
 After an upgrade the window's result had one button, Ready, which closed it.
-`MessageCraftItem.fillCraftedItem` now ends with `SrpCraftMenu.result(this,
-result)`: the window's Cancel shows again as Exit (the lobby already closes
+`MessageCraftItem.fillCraftedItem` now ends with `offerContinue()` (but for a refused craft): the window's Cancel shows again as Exit (the lobby already closes
 the window on it, as on Ready), and the Ready button becomes Continue, side
 by side. Continue closes the window as Exit does, puts the main item (as the
 inventory has it now) on the item card (`setPrimaryItem`) and sends the

@@ -1,6 +1,7 @@
 package survarium.controls
 {
    import flash.display.DisplayObject;
+   import flash.display.DisplayObjectContainer;
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.events.Event;
@@ -34,6 +35,7 @@ package survarium.controls
    import survarium.interfaces.ILocalPlayerProfile;
    import survarium.interfaces.IPaperDollSlot;
    import survarium.item.ItemFactory;
+   import survarium.messages.MessageCraftItem;
    import survarium.upgrade.UpgradeWindow;
    
    public class InventoryList extends FiltersWindow implements IInventoryItemFactory
@@ -2046,8 +2048,9 @@ package survarium.controls
          var modifiersLength:uint;
          var i:uint;
          var modifier:Object;
-         if(SrpCraftMenu.locked(this._inventoryLocked,this,activeItem))
+         if(this._inventoryLocked)
          {
+            this.showCraftMenu(activeItem);
             return;
          }
          trace("itemData::",itemData.enabled);
@@ -2529,6 +2532,85 @@ package survarium.controls
       private function upgradeLabelKey(value:Object) : String
       {
          return UpgradeWindow.isWeaponCategory(int(value.category)) ? "scope_window_title" : "btn_upgrade_label";
+      }
+      
+      // The craft window ("Upgrade": two items of a kind make a better one)
+      // locks the list. While it is open, the right-click menu has Buy and
+      // Sell only, by the list's own rules for them; nothing else (no
+      // Upgrade). Locked otherwise: no menu.
+      private function showCraftMenu(activeItem:DragSlot) : void
+      {
+         var craft:MessageCraftItem = this.findCraftWindow();
+         if(craft == null)
+         {
+            return;
+         }
+         var item:Object = activeItem.data;
+         if(item == null || !(item.enabled || item.canBuy))
+         {
+            return;
+         }
+         var owned:Boolean = item.descriptor <= 100 && item.enabled;
+         var options:Array = [];
+         // As the menu's own: Buy for an owned item, a stack or an item of
+         // no rarity. Sell for an owned item (sellElement wants it
+         // enabled), not in the shop, and not one of the two the window
+         // holds: the craft would name an item no longer owned.
+         if(item.canBuy && (item.isStack || !item.rank || owned))
+         {
+            options.push({
+               name:LocalizationData.getName("buy"),
+               click_function:function(e:* = null):void
+               {
+                  buyFromCraftMenu(item);
+               }
+            });
+         }
+         if(owned && !this.isShop && !craft.holds(item.itemId))
+         {
+            options.push({
+               name:LocalizationData.getName("sell"),
+               click_function:function(e:* = null):void
+               {
+                  sellItem(item.itemId);
+               }
+            });
+         }
+         if(options.length > 0)
+         {
+            SrvContextMenu.show(options);
+         }
+      }
+      
+      private function findCraftWindow() : MessageCraftItem
+      {
+         var lobby:DisplayObjectContainer = parent;
+         if(lobby == null)
+         {
+            return null;
+         }
+         for(var i:int = 0; i < lobby.numChildren; i++)
+         {
+            if(lobby.getChildAt(i) is MessageCraftItem)
+            {
+               return lobby.getChildAt(i) as MessageCraftItem;
+            }
+         }
+         return null;
+      }
+      
+      // As the item card's Buy: by the dictionary id, at the shop's price;
+      // the shop names the seller. A buy on an owned item is not asked
+      // whether the account wants another.
+      private function buyFromCraftMenu(item:Object) : void
+      {
+         var profile:* = parent != null ? parent["player_profile"] : null;
+         if(profile == null)
+         {
+            return;
+         }
+         var price:int = item.category == 100 ? int(item.cost) : int(GangShop.getInstance().getItemPrice(item.dictId));
+         GangShop.buyFunction(profile.profileId,item.itemId,item.dictId,item.descriptor,100,1,price,-1);
       }
    }
 }

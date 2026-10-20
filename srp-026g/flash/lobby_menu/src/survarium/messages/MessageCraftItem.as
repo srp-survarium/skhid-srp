@@ -13,10 +13,12 @@ package survarium.messages
    import survarium.buttons.ModificatorListRenderer;
    import survarium.constants.Colors;
    import survarium.constants.Events;
+   import survarium.controls.InventoryList;
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
    import survarium.data.ItemData;
    import survarium.data.LocalizationData;
+   import survarium.item.ItemFactory;
    
    public class MessageCraftItem extends MessageAccept
    {
@@ -454,9 +456,12 @@ package survarium.messages
             Message.showMessage("ok",LocalizationData.getName("cannot_craft_item"));
             dispatchEvent(new Event("closeCraft"));
          }
-         SrpCraftMenu.result(this,param2);
+         else
+         {
+            this.offerContinue();
+         }
       }
-      
+
       protected function goToStore() : void
       {
          SrpBuyGold.open();
@@ -549,6 +554,55 @@ package survarium.messages
             rarity_level:1,
             result:-2
          });
+      }
+      
+      // The result had one button, "Ready", which closed the window. It has
+      // two: Exit (Cancel, which the lobby wires to close it, as Ready did)
+      // and Continue (the Ready button: the window again, for the same item,
+      // upgraded, with an empty donor slot).
+      private function offerContinue() : void
+      {
+         // The game's words: "Exit" (btn_exit_label) and "Continue"
+         // (btn_go_to_online_store, the store dialog's own Continue).
+         btnCancel.label = LocalizationData.getName("btn_exit_label");
+         btnAccept.label = LocalizationData.getName("btn_go_to_online_store");
+         btnCancel.visible = true;
+         btnAccept.enabled = true;
+         // The game's order (MessageApply, MessageAsk, MessageExit): the
+         // accepting button left, Cancel right.
+         var middle:Number = width / 2;
+         btnAccept.x = middle - btnAccept.width - 4;
+         btnCancel.x = middle + 4;
+         btnAccept.addEventListener(ButtonEvent.CLICK,this.onContinue);
+      }
+      
+      private function onContinue(e:ButtonEvent = null) : void
+      {
+         var main:Object = this.dragItemSlot1.data;
+         var list:InventoryList = parent != null ? parent["inventory_list"] as InventoryList : null;
+         dispatchEvent(new Event("closeCraft"));
+         if(main == null || list == null)
+         {
+            return;
+         }
+         // The item as the inventory has it now, upgraded; one with three
+         // modifications, or that cannot be crafted, ends here as Exit.
+         var item:ItemData = list.getInventoryItem(main.itemId);
+         // As the game's own Upgrade entry: owned and enabled.
+         if(item == null || !item.enabled || item.rank >= 3 || !ItemFactory.isItemCraftable(item))
+         {
+            return;
+         }
+         list.setPrimaryItem(item);
+         list.dispatchEvent(new Event(Events.CRAFFT_ITEM));
+      }
+      
+      // The item being upgraded or the donor.
+      public function holds(itemId:uint) : Boolean
+      {
+         var main:Object = this.dragItemSlot1.data;
+         var donor:Object = this.dragItemSlot2.data;
+         return main != null && main.itemId == itemId || donor != null && donor.itemId == itemId;
       }
    }
 }

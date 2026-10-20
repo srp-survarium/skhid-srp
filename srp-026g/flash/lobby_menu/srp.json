@@ -4,7 +4,6 @@
     {"class": "SrpRooms"},
     {"class": "SrpExchange"},
     {"class": "SrpBuyGold", "abc_with": "SrpExchange"},
-    {"class": "SrpCraftMenu", "abc_with": "survarium.controls.InventoryList"},
     {"class": "SrpPlayerGear", "abc_with": "LobbyMenu"}
   ]
 }
