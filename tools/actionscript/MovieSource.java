@@ -1045,15 +1045,16 @@ public final class MovieSource {
             if (before == null || before.exceptions.length != body.exceptions.length) continue;
             var emitted = body.getCode().code;
             var layout = before.getCode().code;
-            if (emitted.stream().anyMatch(MovieSource::debugInstruction)
-                    || layout.stream().noneMatch(MovieSource::debugInstruction)) continue;
+            if (emitted.stream().noneMatch(MovieSource::debugInstruction)
+                    && layout.stream().noneMatch(MovieSource::debugInstruction)) continue;
             var executable = layout.stream().filter(i -> !debugInstruction(i)).toList();
-            if (executable.size() != emitted.size()) continue;
+            var compiledExecutable = emitted.stream().filter(i -> !debugInstruction(i)).toList();
+            if (executable.isEmpty() || executable.size() != compiledExecutable.size()) continue;
             var oldPositions = executablePositions(layout);
             var newPositions = executablePositions(emitted);
             boolean identical = true;
-            for (int i = 0; i < emitted.size(); i++) {
-                var a = executable.get(i); var b = emitted.get(i);
+            for (int i = 0; i < compiledExecutable.size(); i++) {
+                var a = executable.get(i); var b = compiledExecutable.get(i);
                 if (a.definition.instructionCode != b.definition.instructionCode) { identical = false; break; }
                 int[] aTargets = branchTargets(a), bTargets = branchTargets(b);
                 if (aTargets.length == 0) {
@@ -1076,7 +1077,7 @@ public final class MovieSource {
             for (var instruction : layout) {
                 if (debugInstruction(instruction)) merged.add(new AVM2Instruction(0,
                     instruction.definition.instructionCode, instruction.operands.clone()));
-                else merged.add(emitted.get(next++));
+                else merged.add(compiledExecutable.get(next++));
             }
             var code = body.getCode();
             code.code = merged;

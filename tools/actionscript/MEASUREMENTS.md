@@ -372,3 +372,24 @@ trait-count mismatch. All five remain rejected. In particular, the corrected
 the namespace mapping is not counted as a new exact class rebuild.
 All 13 tests pass after the change, including the existing checks for private
 namespace ownership, original pool preservation and feature lookup scopes.
+
+## Compiler-emitted debugger directives
+
+The source-map pass now also handles a compiler that emitted its own debugger
+directives. It compares both instruction streams with only debugger directives
+excluded, proves matching branch/switch targets and exception boundaries, then
+emits the original source map around the actual compiler instructions. An empty
+original source map removes compiler-added directives under the same checks.
+
+This makes the pristine-source FFDec results match the complete `isUpgradeable`
+method records in both `ItemCard` and `ItemControlPanel`. Their whole classes
+remain rejected because surrounding methods differ. The 18-class FFDec pass
+still has 17 rejected outputs and one compilation failure; this is not a
+whole-class matching gain. Applying the earlier broad candidate source changes
+also changes these methods, so that candidate was not promoted.
+
+Qualifying `this as ItemData` with the package name did not resolve that class's
+remaining self-class lookup difference. That experiment remains private.
+All 13 tests pass. The debugger regression covers replacement and removal of
+emitted directives, duplicate directives around a loop/switch/exception handler,
+and rejection of an executable change despite matching debugger metadata.

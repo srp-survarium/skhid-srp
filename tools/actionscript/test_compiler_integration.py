@@ -398,7 +398,7 @@ class CompilerIntegration(unittest.TestCase):
                                     abc.metadata_info.add(metadata);
                                     ((Tag)tag).setModified(true); changed++; continue;
                                 }
-                                if (java.util.Set.of("prepare", "binding", "scope", "slot", "paramnames", "optional", "binding-code", "debug-lines", "debug-flow", "interface-prepare", "interface-binding", "interface-scope").contains(args[2])) {
+                                if (java.util.Set.of("prepare", "binding", "scope", "slot", "paramnames", "optional", "binding-code", "debug-lines", "debug-lines-alternate", "debug-flow", "interface-prepare", "interface-binding", "interface-scope").contains(args[2])) {
                                     var script = abc.script_info.get(0);
                                     var trait = (TraitClass)script.traits.traits.get(0);
                                     var name = abc.constants.getMultiname(trait.name_index);
@@ -419,11 +419,12 @@ class CompilerIntegration(unittest.TestCase):
                                         }
                                         code.insertInstruction(0,new AVM2Instruction(0,0xf1,new int[]{name.name_index}),body);
                                         body.setCode(code);
-                                    } else if (args[2].equals("debug-lines")) {
+                                    } else if (args[2].startsWith("debug-lines")) {
                                         var body = abc.findBody(abc.class_info.get(cls).cinit_index);
                                         var code = body.getCode();
                                         code.code.add(2, new AVM2Instruction(0, 0xf1, new int[]{name.name_index}));
-                                        code.code.add(3, new AVM2Instruction(0, 0xf0, new int[]{17}));
+                                        code.code.add(3, new AVM2Instruction(0, 0xf0,
+                                            new int[]{args[2].equals("debug-lines-alternate") ? 39 : 17}));
                                         code.markOffsets(); body.setCode(code);
                                     } else if (args[2].equals("slot")) trait.slot_id = 2;
                                     else if (args[2].equals("paramnames") || args[2].equals("optional")) {
@@ -724,8 +725,16 @@ class CompilerIntegration(unittest.TestCase):
             mutate(prepared, debug, "debug-lines")
             tools.run("link-layout", debug, prepared, debug_linked, "Probe", log=root / "debug.log").check_returncode()
             self.assertEqual(movie_source.uncompressed(debug), movie_source.uncompressed(debug_linked))
+            alternate_debug, alternate_linked = root / "alternate-debug.swf", root / "alternate-debug-linked.swf"
+            mutate(prepared, alternate_debug, "debug-lines-alternate")
+            self.assertNotEqual(movie_source.uncompressed(debug), movie_source.uncompressed(alternate_debug))
+            tools.run("link-layout", debug, alternate_debug, alternate_linked, "Probe", log=root / "alternate-debug.log").check_returncode()
+            self.assertEqual(movie_source.uncompressed(debug), movie_source.uncompressed(alternate_linked))
+            removed_debug = root / "removed-debug.swf"
+            tools.run("link-layout", prepared, alternate_debug, removed_debug, "Probe", log=root / "removed-debug.log").check_returncode()
+            self.assertEqual(movie_source.uncompressed(prepared), movie_source.uncompressed(removed_debug))
             debug_corrupt, debug_rejected = root / "debug-corrupt.swf", root / "debug-rejected.swf"
-            mutate(prepared, debug_corrupt, "debug-code")
+            mutate(alternate_debug, debug_corrupt, "debug-code")
             rejected = tools.run("link-layout", debug, debug_corrupt, debug_rejected, "Probe", log=root / "debug-code.log")
             self.assertNotEqual(rejected.returncode, 0)
             self.assertFalse(debug_rejected.exists())
@@ -734,6 +743,12 @@ class CompilerIntegration(unittest.TestCase):
             result=tools.run("link-layout",flow,prepared,flow_linked,"Probe",log=root / "debug-flow.log")
             self.assertEqual(result.returncode,0,(root / "debug-flow.log").read_text())
             self.assertEqual(movie_source.uncompressed(flow),movie_source.uncompressed(flow_linked))
+            doubled_flow, restored_flow = root / "double-debug-flow.swf", root / "restored-debug-flow.swf"
+            mutate(flow, doubled_flow, "debug-flow")
+            self.assertNotEqual(movie_source.uncompressed(flow), movie_source.uncompressed(doubled_flow))
+            result = tools.run("link-layout", flow, doubled_flow, restored_flow, "Probe", log=root / "restore-debug-flow.log")
+            self.assertEqual(result.returncode, 0, (root / "restore-debug-flow.log").read_text())
+            self.assertEqual(movie_source.uncompressed(flow), movie_source.uncompressed(restored_flow))
             for mode in ("target","handler"):
                 corrupted,destination=root / (mode+"-debug-flow.swf"),root / (mode+"-debug-flow-linked.swf")
                 mutate(prepared,corrupted,"control-"+mode)

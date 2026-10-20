@@ -193,7 +193,8 @@ verifier limits and all other method records must still pass the exact checks.
 The rule does not reconcile other changes within an edited feature method.
 
 Original debugger file/line/register directives can also be emitted after every
-non-debug instruction compares equal to the compiler output. Branch and switch
+non-debug instruction compares equal to the compiler output. Compiler-emitted
+directives are replaced or removed only after that comparison. Branch and switch
 targets and exception boundaries must identify the same executable instruction;
 then their offsets are relocated around the debugger directives. This cannot
 repair an executable instruction, branch target, or handler mismatch. Nested
