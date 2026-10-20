@@ -930,3 +930,23 @@ source-only checkpoint). The premium feature rebuild retains the previously
 runtime-tested movie hash `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
 with one authorized method changed and all non-code bytes identical. The runtime
 evidence records byte identity, not a new game run.
+
+### Chat, shop and character source reconstruction
+
+`LobbyChat`, `GangShop` and `CharWindow` pass complete compressed-movie equality
+with source repairs and the existing compiler/linker rules. LobbyChat restores
+counter initialization, a lexical increment and the early-return branch before
+tab activation. GangShop restores static slot order, typed assignments, object
+keys, declaration scopes and named local functions with the original activation
+slots. CharWindow restores block-scoped declarations and accumulator initializers,
+retains the explicit Boolean argument conversion in `handleAntiskills`, and
+recovers the unlocked-level branch and missing-skill continue guard.
+
+The manifest contains 214 authenticated patches. The accumulated individual-script
+proofs now cover 859 of 878 scripts, including 645 pristine successes; 19 remain.
+Whole-tree reconstruction is still incomplete. Fourteen unit tests pass, with
+three compiler integration tests not rerun for these source-only edits. The
+premium feature rebuild again produces the previously runtime-tested movie
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+with one authorized method changed and identical non-code bytes. The runtime
+record explicitly identifies this as a byte-identical rebuild, not a game rerun.

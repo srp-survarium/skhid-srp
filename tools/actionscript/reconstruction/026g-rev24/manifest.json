@@ -1717,6 +1717,33 @@
       "pristine_sha256": "84ef3126b3cd37164e7bd3df7dfd95552243d696ff30a2ca674cdfa6b3366a04",
       "reason": "Recover original local declaration scopes and order, explicit Boolean and counter initializers, string parameter accumulation, typed rating assignment, and named local functions with their original activation slots and initialization order.",
       "result_sha256": "ac403639019ef460e5a0d48dcbdfb2d8f0a22ae7515a61e1da0dd14599289dd8"
+    },
+    {
+      "class": "survarium.chat.LobbyChat",
+      "compiler": "flex-library",
+      "patch": "survarium/chat/LobbyChat.patch",
+      "patch_sha256": "9aaec37b76f5a1521f6e1e9c276a88ff01f2be7be5d1c8ad38a5d606d481e23d",
+      "pristine_sha256": "cf8cb182662e0eb02e6707540d235dd0c02784932b0aad05ee1dcb215d07bcc7",
+      "reason": "Recover explicit counter initialization, lexical ignore-counter increment, and the original early-return branch before tab activation.",
+      "result_sha256": "034d132e96d700cbb00111c9561eef9c1f130b7c86044c84640cbf553124a85d"
+    },
+    {
+      "class": "survarium.controls.GangShop",
+      "compiler": "flex-library",
+      "patch": "survarium/controls/GangShop.patch",
+      "patch_sha256": "81ce7a7246b66f407a18e0c024f5737c689758b23956429b41d44a7096a4725e",
+      "pristine_sha256": "4d02998cd9995bd9e6ba86c3fc3fd505502fdb6fce0ea9e01af6a7290bcb6dcf",
+      "reason": "Recover static slot order, identifier keys, direct truth tests, typed assignments and lexical field writes. Restore local declaration scopes, implicit default initialization, original activation slot order and named local functions; preserve the explicit numeric conversion in the progress object.",
+      "result_sha256": "ce907c6eae77583f57782c08bef130f44bcbf91915be8c76f58e54b95d8c663b"
+    },
+    {
+      "class": "survarium.char.CharWindow",
+      "compiler": "flex-library",
+      "patch": "survarium/char/CharWindow.patch",
+      "patch_sha256": "1aeb0fdd25fbbe12af3970085f4e82894b1f6c696f6c8178bde55ee083f683a3",
+      "pristine_sha256": "fa06a372ffa1a559e460b9dab5c3b834211a71e37cea9c357b799d35fbbc1721",
+      "reason": "Recover original block-scoped local declarations, explicit accumulator initialization and typed branch assignment. Preserve the explicit Boolean conversion passed to lock, the positive unlocked-level branch with its break alternative, and the missing-skill continue guard.",
+      "result_sha256": "d62b258b8494fe76a5cfa9d72694e4ef8c82a8122198ccd650637c2de8dea5cb"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",
