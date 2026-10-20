@@ -3,7 +3,7 @@
 
 usage: python3 -I weapon_camo.py <guns.tsv> <game folder> <donor folder> <out folder | ->
            [--only <texture>] [--camo <camouflage .dds>] [--previews <folder>]
-           [--picker <page.html> [--camos <camouflage item folder>]] [--weapons <weapon configs>]
+           [--picker <page.html> [--camos <camouflage item folder>]]
 
 <game folder>   the players' game files at their game paths or flattened as dbgrab writes them
                 (models__weapons__uzi.skinned_model__settings): the stock resources.db with every
@@ -19,9 +19,6 @@ usage: python3 -I weapon_camo.py <guns.tsv> <game folder> <donor folder> <out fo
                 page gives the lines of parts.tsv
 --camos         the camouflage items' configs (gameplay/items/upgrades/camouflages, as dbgrab writes
                 them): the picker offers each item's camouflage (textures from the game folder)
---weapons       the weapon configs (gameplay/items/weapons): each model is posed as its idle
-                animation has it (animations/ in the game folder), for what is seen and the 3D
-                view; without, the bind pose, where some parts lie away from the weapon
 
 Which parts are painted: parts.tsv beside guns.tsv names them (a UV point on each part) for the
 textures it has a line for; for the others, the large parts the premium painted (suggest()).
@@ -82,15 +79,6 @@ class Files:
         pre = ('models/%s.skinned_model/render/' % model).replace('/', '__')
         return sorted(f[len(pre):-len('__converted_model')] for f in self.flat
                       if f.startswith(pre) and f.endswith('__converted_model'))
-
-    def glob(self, prefix):
-        """The game paths of the files whose path starts with `prefix`."""
-        d, _, start = prefix.rpartition('/')
-        full = os.path.join(self.root, *d.split('/'))
-        if os.path.isdir(full):
-            return sorted('%s/%s' % (d, f) for f in os.listdir(full) if f.startswith(start))
-        flat = prefix.replace('/', '__')
-        return sorted(f.replace('__', '/') for f in self.flat if f.startswith(flat))
 
 
 def config_value(buf, path):
@@ -368,188 +356,10 @@ MIN_PART = 0.02   # the suggestion: a part the premium painted, of at least this
                   # texture's parts (the receiver, handguard, stock, magazine; not pins, triggers)
 
 
-HIDDEN = 0.1      # the suggestion skips a part seen on less than this share of its surface from
-                  # outside (a magazine inside the grip, a bolt inside the receiver)
-
-
-def suggest(decisions, labels, seen=None):
-    """The parts painted when parts.tsv has no line for the texture: the premium's large ones that
-    are seen from outside (seen: {part: share seen}, visibility())."""
+def suggest(decisions, labels):
+    """The parts painted when parts.tsv has no line for the texture: the premium's large ones."""
     used = (labels > 0).sum()
-    return {i for i, (area, yes, _) in decisions.items()
-            if yes and area >= MIN_PART * used and (seen is None or seen.get(i, 0) >= HIDDEN)}
-
-
-def model_meshes(game, model, anim=None):
-    """[(surface, xyz[n,3], uv[n,2], triangles[m,3])] of a model's render surfaces, in the pose of
-    the animation `anim` (idle_pose()) when given: a weapon's mesh is stored in its bind pose, where
-    some parts lie away from the weapon (the PM's magazine 8 cm beside the grip)."""
-    out, bones = [], []
-    for surface in game.surfaces(model):
-        buf = game.read('models/%s.skinned_model/render/%s/converted_model' % (model, surface))
-        uv, tris = mesh_uv(buf)
-        _, size, count = struct.unpack_from('<III', buf, 0)
-        raw = np.frombuffer(buf, np.uint8, count=count * ((size - 4) // count), offset=12).reshape(count, -1)
-        out.append((surface, raw[:, :12].copy().view('<f4').astype(np.float64), uv, tris))
-        bones.append(raw[:, 12].astype(np.int64))           # one bone a vertex (36 and 40 byte vertices)
-    if anim:
-        C = idle_pose(game, model, anim)
-        main = np.bincount(np.concatenate(bones), minlength=len(C)).argmax()  # the weapon's body
-        rel = np.linalg.inv(C[main]) @ C
-        out = [(sf, np.einsum('nij,nj->ni', rel[np.minimum(b, len(C) - 1)], np.c_[xyz, np.ones(len(xyz))])[:, :3], uv, t)
-               for (sf, xyz, uv, t), b in zip(out, bones)]
-        # a part the pose hides is scaled to nothing (the Magnum's spare rounds): no triangles
-        kept = []
-        for sf, xyz, uv, t in out:
-            t = t[np.linalg.norm(np.cross(xyz[t[:, 1]] - xyz[t[:, 0]], xyz[t[:, 2]] - xyz[t[:, 0]]), axis=1) > 1e-12]
-            used, t = np.unique(t, return_inverse=True)
-            kept.append((sf, xyz[used], uv[used], t.reshape(-1, 3)))
-        out = kept
-    return out
-
-
-def euler(r):
-    """The rotation of Euler angles r (x, y, z). The bind poses' (-pi, 0, -pi) and the idle poses'
-    rotations about one axis (or by a few hundredths of a radian) are the same in any order."""
-    (cx, cy, cz), (sx, sy, sz) = np.cos(r), np.sin(r)
-    return (np.array([[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]]) @ np.array([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]])
-            @ np.array([[1, 0, 0], [0, cx, -sx], [0, sx, cx]]))
-
-
-def trs(t, r, s):
-    m = np.eye(4)
-    m[:3, :3] = euler(np.asarray(r)) * np.asarray(s)
-    m[:3, 3] = t
-    return m
-
-
-def curve_starts(sp, name):
-    """The first key's value of each curve of a .b-spline (9 a bone, see idle_pose())."""
-    count = struct.unpack_from('<I', sp, 0)[0]
-    at, first = 4 + 8 * 9 * count, []
-    for _ in range(9 * count):
-        k = struct.unpack_from('<I', sp, at)[0]
-        first.append(struct.unpack_from('<f', sp, at + 8)[0])
-        at += 8 * k + 4
-    assert at == len(sp), '%s: curves end at %d of %d' % (name, at, len(sp))
-    return first
-
-
-def idle_pose(game, model, anim):
-    """[bone]: the matrix that takes a vertex of that bone (render/bind_pose's order) from the bind
-    pose to the pose of `anim` (an animation's path without extension: .b-spline, .bones_names).
-    bind_pose: u16 bones, then each: name, translation, rotation, scale (3 f32 each), in the
-    model's space. The skeleton (models/<model>.skinned_model/skeleton names it) nests the bones as
-    config tables. The .b-spline: u32 bones, 9 u32 pairs per bone, then a curve per channel one
-    after another (u32 k, k - 1 (time, value) f32 pairs, f32 length, u32): translation, rotation,
-    scale x y z per bone, in bones_names' order and relative to the parent; the first key is the
-    pose."""
-    bp = game.read('models/%s.skinned_model/render/bind_pose' % model)
-    bind, off = [], 2
-    for _ in range(struct.unpack_from('<H', bp, 0)[0]):
-        end = bp.index(b'\0', off)
-        name = bp[off:end].decode()
-        bind.append((name, trs(*(struct.unpack_from('<3f', bp, end + 1 + 12 * k) for k in range(3)))))
-        off = end + 37
-    skeleton = config_value(game.read('models/%s.skinned_model/skeleton' % model), 'skeleton')
-    sk = game.read(skeleton.removeprefix('resources/') + '.skeleton')
-    parents = {}
-
-    def walk(at, parent):
-        data, _, _, t, cnt = struct.unpack_from('<QQIHH', sk, at)
-        for i in range(cnt if t == 3 else 0):
-            c = data + 24 * i
-            n = struct.unpack_from('<Q', sk, c + 8)[0]
-            name = sk[n:sk.index(b'\0', n)].decode()
-            if struct.unpack_from('<QQIHH', sk, c)[3] == 3:
-                parents[name] = parent
-                walk(c, name)
-    walk(0, None)
-    names = config_value(game.read(anim + '.bones_names'), 'bones_names')
-    sp = game.read(anim + '.b-spline')
-    first = curve_starts(sp, anim)
-    local = {n: trs(*(first[9 * b + 3 * k:9 * b + 3 * k + 3] for k in range(3))) for b, n in enumerate(names)}
-    binds = dict(bind)
-    world = {}
-
-    def W(name):                     # a bone the animation leaves out keeps its place to its parent
-        if name not in world:
-            p = parents.get(name)
-            if name in local:
-                world[name] = (W(p) if p else np.eye(4)) @ local[name]
-            elif p in binds and name in binds:
-                world[name] = W(p) @ np.linalg.inv(binds[p]) @ binds[name]
-            else:
-                world[name] = binds.get(name, np.eye(4))
-        return world[name]
-    return np.array([W(name) @ np.linalg.inv(m) for name, m in bind])
-
-
-def idle_animations(folder, game):
-    """{model: its idle animation (path without extension)} from the weapon configs in `folder`
-    (gameplay/items/weapons, as dbgrab writes them): the config's object/model, and the 3rd view
-    `idle` (else the first `idle*`) of the animation set its item animations are in."""
-    import re
-    out = {}
-    for f in sorted(os.listdir(folder)):
-        buf = open(os.path.join(folder, f), 'rb').read()
-        model = config_value(buf, 'object/model') if f.endswith('.options') else None
-        if not isinstance(model, str) or model in out:
-            continue
-        for found in sorted(set(re.findall(rb'animations/single/weapons/([\w\-./]+?)/item/stand/3rd_view/', buf))):
-            stem = 'animations/single/weapons/%s/item/stand/3rd_view/idle' % found.decode()
-            files = [p for p in game.glob(stem) if p.endswith('.b-spline')]
-            files.sort(key=lambda p: p != stem + '.b-spline')
-            if files:
-                out[model] = files[0][:-len('.b-spline')]
-                break
-    return out
-
-
-def visibility(meshes, own, labels, directions=32, res=256, density=3.0):
-    """{part: share of its surface seen from outside}: the model drawn from `directions` around it
-    (orthographic, every surface hiding what is behind it); each part's surfaces (those `own`
-    names, model:surface) sampled by projected area, a sample seen when nothing is nearer at its
-    texel. meshes: {model: model_meshes()} of every model whose surfaces use the texture."""
-    h, w = labels.shape
-    rng = np.random.default_rng(0)
-    seen, total = np.zeros(labels.max() + 1), np.zeros(labels.max() + 1)
-    k = np.arange(directions) + 0.5                 # directions spread over the sphere (Fibonacci)
-    z = 1 - 2 * k / directions
-    phi = np.pi * (3 - np.sqrt(5)) * k
-    dirs = np.stack([np.sqrt(1 - z * z) * np.cos(phi), np.sqrt(1 - z * z) * np.sin(phi), z], 1)
-    for name, model in meshes.items():
-        P = np.concatenate([xyz[tris] for _, xyz, _, tris in model])              # [m,3,3]
-        UV = np.concatenate([uv[tris] for _, _, uv, tris in model])               # [m,3,2]
-        UV = UV - np.floor(UV.mean(1, keepdims=True))                             # as islands()
-        mine = np.concatenate([np.full(len(tris), '%s:%s' % (name, s) in own) for s, _, _, tris in model])
-        centre = (P.reshape(-1, 3).max(0) + P.reshape(-1, 3).min(0)) / 2
-        radius = np.linalg.norm(P.reshape(-1, 3) - centre, axis=1).max()
-        scale = (res - 1) / (2 * radius)
-        for d in dirs:
-            right = np.cross(d, [0, 0, 1] if abs(d[2]) < 0.9 else [1, 0, 0])
-            right /= np.linalg.norm(right)
-            up = np.cross(d, right)
-            Q = np.stack([(P - centre) @ right, (P - centre) @ up, (P - centre) @ d], -1)
-            Q[..., :2] = Q[..., :2] * scale + res / 2
-            e1, e2 = Q[:, 1, :2] - Q[:, 0, :2], Q[:, 2, :2] - Q[:, 0, :2]
-            area = np.abs(e1[:, 0] * e2[:, 1] - e1[:, 1] * e2[:, 0]) / 2
-            n = np.minimum(np.ceil(area * density), 4000).astype(np.int64) + 1
-            t = np.repeat(np.arange(len(P)), n)
-            r1, r2 = np.sqrt(rng.random(len(t))), rng.random(len(t))
-            bary = np.stack([1 - r1, r1 * (1 - r2), r1 * r2], 1)[:, :, None]
-            pts = (Q[t] * bary).sum(1)
-            pix = np.clip(pts[:, 0].astype(np.int64), 0, res - 1) * res + np.clip(pts[:, 1].astype(np.int64), 0, res - 1)
-            near = np.full(res * res, np.inf)
-            np.minimum.at(near, pix, pts[:, 2])
-            vis = pts[:, 2] <= near[pix] + radius * 0.01
-            m = mine[t]
-            uvp = (UV[t[m]] * bary[m]).sum(1)
-            part = labels[np.clip((uvp[:, 1] % 1 * h).astype(np.int64), 0, h - 1),
-                          np.clip((uvp[:, 0] % 1 * w).astype(np.int64), 0, w - 1)]
-            np.add.at(total, part, 1)
-            np.add.at(seen, part, vis[m])
-    return {i: seen[i] / total[i] for i in range(1, len(total)) if total[i]}
+    return {i for i, (area, yes, _) in decisions.items() if yes and area >= MIN_PART * used}
 
 
 def island_points(labels):
@@ -625,16 +435,19 @@ def picker_entry(texture, base, donor, labels, points, suggested, chosen, from_f
             'suggested': sorted(suggested), 'chosen': sorted(chosen), 'from_file': from_file}
 
 
-def picker_model(meshes, model, textures):
-    """A model's surfaces (model_meshes()) for the picker's 3D view: the texture each uses (None: one with no _aoac,
+def picker_model(game, model, textures):
+    """A model's surfaces for the picker's 3D view: the texture each uses (None: one with no _aoac,
     drawn grey) and its mesh, gzipped: u32 vertices, u32 indices, f32 xyz each, f32 uv each, u16
     indices."""
     import base64
     import gzip
     out = []
-    for surface, xyz, uv, tris in meshes:
-        blob = (struct.pack('<II', len(xyz), tris.size) + xyz.astype('<f4').tobytes() + uv.astype('<f4').tobytes()
-                + tris.astype('<u2').tobytes())
+    for surface in game.surfaces(model):
+        buf = game.read('models/%s.skinned_model/render/%s/converted_model' % (model, surface))
+        uv, tris = mesh_uv(buf)
+        _, size, count = struct.unpack_from('<III', buf, 0)
+        xyz = np.frombuffer(buf, np.uint8, count=count * ((size - 4) // count), offset=12).reshape(count, -1)[:, :12]
+        blob = struct.pack('<II', count, tris.size) + xyz.tobytes() + uv.astype('<f4').tobytes() + tris.astype('<u2').tobytes()
         out.append({'surface': surface, 'texture': textures.get('%s:%s' % (model, surface)),
                     'mesh': base64.b64encode(gzip.compress(blob, 9, mtime=0)).decode()})
     return out
@@ -683,8 +496,8 @@ def main():
     args = [a for a in sys.argv[1:]]
     opt = lambda name: args[args.index(name) + 1] if name in args else None
     only, camo_path, previews, picker = opt('--only'), opt('--camo'), opt('--previews'), opt('--picker')
-    camos_dir, weapons_dir = opt('--camos'), opt('--weapons')
-    for name in ('--only', '--camo', '--previews', '--picker', '--camos', '--weapons'):
+    camos_dir = opt('--camos')
+    for name in ('--only', '--camo', '--previews', '--picker', '--camos'):
         if name in args:
             i = args.index(name)
             del args[i:i + 2]
@@ -699,15 +512,6 @@ def main():
     options = game.read(OPTIONS_TEMPLATE)
     camo = load_rgb(open(camo_path, 'rb').read()) if camo_path else None
     written, entries = [], []
-    anims = idle_animations(weapons_dir, game) if weapons_dir else {}
-    meshes_of = {}
-
-    def posed(model):                # the model's meshes as the game shows it (its idle pose)
-        if model not in meshes_of:
-            if weapons_dir and model not in anims:
-                print('  %s: no idle animation, its bind pose' % model)
-            meshes_of[model] = model_meshes(game, model, anims.get(model))
-        return meshes_of[model]
     def texture_of(name, size=None):
         files, name = (donor, name[3:]) if name.startswith('28:') else (game, name)
         img = load_rgb(files.read('textures/%s.dds' % name))
@@ -727,9 +531,7 @@ def main():
             meshes.append(mesh_uv(game.read('models/%s.skinned_model/render/%s/converted_model' % (model, surface))))
         labels = islands(meshes, size)
         _, decisions = paint_mask(plain, imgs, labels)
-        seen = visibility({m: posed(m) for m in dict.fromkeys(s.split(':')[0] for s in surfaces)},
-                          set(surfaces), labels)
-        suggested = suggest(decisions, labels, seen)
+        suggested = suggest(decisions, labels)
         chosen = parts_islands(parts[texture], labels, texture) if texture in parts else suggested
         mask = np.isin(labels, sorted(chosen))
         a = aoac(base, mask, labels)
@@ -762,7 +564,7 @@ def main():
             row.save(os.path.join(previews, texture.replace('/', '__') + '.png'))
     if picker:
         textures = {s: t for t, _, surfaces, _, _ in read_rows(table) for s in surfaces}
-        models = {m: picker_model(posed(m), m, textures) for e in entries for m in e['models']}
+        models = {m: picker_model(game, m, textures) for e in entries for m in e['models']}
         camos = [(os.path.basename(camo_path).rsplit('.', 1)[0].rsplit('__', 1)[-1], camo)]
         if camos_dir:                  # the items instead, --camo's first
             items = []

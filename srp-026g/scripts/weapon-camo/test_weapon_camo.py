@@ -69,28 +69,6 @@ class Test(unittest.TestCase):
         labels = w.islands([(uv, tris)], (64, 64))
         self.assertTrue(labels[19, 19] and not labels[40, 40])  # u 0.2..0.4, v 0.1..0.5
 
-    def test_a_part_inside_the_weapon_is_not_seen(self):
-        cube = np.array([[x, y, z] for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)], float)
-        faces = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
-        box = np.array([t for a, b, c, d in faces for t in ((a, b, c), (a, c, d))])
-        quad = lambda x0, uv0: (np.array([[x0, -0.5, -0.5], [x0, 0.5, -0.5], [x0, 0.5, 0.5], [x0, -0.5, 0.5]]),
-                                np.array([[uv0, 0.1], [uv0 + 0.3, 0.1], [uv0 + 0.3, 0.4], [uv0, 0.4]]),
-                                np.array([[0, 1, 2], [0, 2, 3]]))
-        inner, outer = quad(0.0, 0.1), quad(3.0, 0.6)                 # inside the box, beside it
-        meshes = {'gun': [('box', cube, np.full((8, 2), 0.9), box), ('inner',) + inner, ('outer',) + outer]}
-        labels = w.islands([inner[1:], outer[1:]], (64, 64))
-        seen = w.visibility(meshes, {'gun:inner', 'gun:outer'}, labels, directions=16, res=96)
-        self.assertLess(seen[labels[16, 16]], w.HIDDEN)
-        self.assertGreater(seen[labels[16, 48]], w.HIDDEN)
-
-    def test_curves_of_any_length(self):
-        curve = lambda k, v: struct.pack('<I', k) + struct.pack('<%df' % (2 * (k - 1)), *[0.0, v] * (k - 1)) + struct.pack('<fI', 36.0, 7)
-        values = [0.5 * i for i in range(9)]
-        sp = struct.pack('<I', 1) + bytes(8 * 9) + b''.join(curve(8 if i == 4 else 5, v) for i, v in enumerate(values))
-        self.assertEqual(w.curve_starts(sp, 't'), values)
-        with self.assertRaises(AssertionError):
-            w.curve_starts(sp + b'x', 't')
-
     def test_a_models_surfaces_from_flattened_files(self):
         import tempfile, os
         with tempfile.TemporaryDirectory() as d:
