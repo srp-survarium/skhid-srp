@@ -142,6 +142,24 @@ impl Core<'_> {
                 player_id: lobby::REPLAY_ASK,
                 match_id,
             } => self.replay_ask(who, match_id, now),
+            // `3D 00 <GEAR_BY_PLACE> <place>`: the kits of a row of the
+            // Rankings window (`gear`), any player's.
+            M::QueryPlayerDetails {
+                player_id: lobby::GEAR_BY_PLACE,
+                match_id: place,
+            } => self.ranked_gear(who, place),
+            // `3D 00 <GEAR_BY_ACCOUNT> <account>`: the kits of a member of a
+            // room the list shows (`rooms`); nobody else's.
+            M::QueryPlayerDetails {
+                player_id: lobby::GEAR_BY_ACCOUNT,
+                match_id: account_id,
+            } => self.listed_member_gear(who, account_id),
+            // `3D 00 <GEAR_IN_ROOM> <place + 20 × check>`: the kits of a
+            // member of the asker's room (`rooms`).
+            M::QueryPlayerDetails {
+                player_id: lobby::GEAR_IN_ROOM,
+                match_id,
+            } => self.room_member_gear(who, match_id),
             // `3D 00 <player> <match>`: the kits of a row of that screen,
             // for a player of the match.
             M::QueryPlayerDetails {
@@ -544,6 +562,9 @@ impl Core<'_> {
             if let Some(place) = ranking.iter().position(|row| row.0 == who.account_id) {
                 let row = &ranking[place];
                 self.send(who.addr, lobby::player_elo(place as u32 + 1, row.2, row.3));
+                // The own place under the list: a right-click on it is the
+                // asker, however the ranking moves.
+                self.ranked_shown(who, place as u32, vec![who.account_id]);
             }
         }
         let rows: Vec<Ranked> = ranking[from..to]
@@ -554,6 +575,10 @@ impl Core<'_> {
                 rating_before: row.3,
             })
             .collect();
+        // Who each row of the page is: a right-click on it asks for that
+        // account's kits by its place (`gear`), whatever moved since.
+        let shown = ranking[from..to].iter().map(|row| row.0).collect();
+        self.ranked_shown(who, from as u32, shown);
         self.send_made(who.addr, lobby::elo_list(from as u32, &rows));
     }
 

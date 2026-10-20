@@ -24,6 +24,7 @@ package
     import flash.utils.getTimer;
     import scaleform.clik.events.ButtonEvent;
     import scaleform.gfx.FocusManager;
+    import scaleform.gfx.MouseEventEx;
     import survarium.controls.PlayerInfo;
     import survarium.data.LocalizationData;
 
@@ -711,6 +712,8 @@ package
             // Presses Scaleform gives the content itself, not the control
             // under them, go to that control here (see route()).
             _content.addEventListener(MouseEvent.MOUSE_DOWN, onContentDown);
+            // A right-click on a member: its equipment (`onContentClick`).
+            _content.addEventListener(MouseEvent.CLICK, onContentClick);
             addEventListener(MouseEvent.MOUSE_WHEEL, onWheel, false, 0, true);
             if (panel.parent != null)
                 panel.parent.addChild(this);
@@ -1084,6 +1087,12 @@ package
         private function ask(start:int, count:int):void
         {
             _askedAt = getTimer();
+            send(start, count);
+        }
+
+        // A request that does not count as the state's poll (`_askedAt`).
+        private function send(start:int, count:int):void
+        {
             try
             {
                 ExternalInterface.call("request_players_range", start, count);
@@ -1133,6 +1142,10 @@ package
                     _listAt = _now;
                     ask(LIST, 32);
                 }
+                // The members at their own pace, whatever the state's poll
+                // (in a room, queued or not).
+                if (_shown && (_view == "list" || _view == "room"))
+                    askMembers(false);
             }
             tabLabel();
             if (_shown && _view == "room")
@@ -1275,6 +1288,8 @@ package
             {
                 next();
             }
+            else if (kind == "G")
+                takeMembers(head, rows);
             else if (kind == "N")
             {
                 settle();
@@ -1762,6 +1777,11 @@ package
         // itself, which then has it (no double press).
         private function onContentDown(e:MouseEvent):void
         {
+            // Only the left button presses (a right-click on a member is its
+            // equipment, `onContentClick`).
+            var ex:MouseEventEx = e as MouseEventEx;
+            if (ex != null && ex.buttonIdx != 0)
+                return;
             for (var i:int = _routes.length - 1; i >= 0; i--)
             {
                 var r:Object = _routes[i];
@@ -1799,6 +1819,8 @@ package
                 _backdrop.removeChildAt(0);
             _routes = [];
             _stateCells = {};
+            _listHits = [];
+            _roomHits = [];
             _sliders = {};
             _joinPin = null;
             if (_makePin != null)
@@ -1964,17 +1986,36 @@ package
             panel.graphics.drawRect(x, 52, SIDE_W, _h - FOOT_H - 60);
             panel.graphics.endFill();
             _content.addChild(panel);
+            _membersBox = null;
             if (room == null)
                 return;
             var e:Object = entry(room.map);
+            // Its members below the facts (the owner's of 2026-10-20, "below
+            // state"): the map's render made up to 60 lower when the panel is
+            // short for the rows its players need at 18 each (two columns).
+            var bottom:Number = _h - FOOT_H - 14;
+            var above:Number = 12 + 30 + (e != null ? 28 : 0) + 4 * 26 + (room.pin ? 36 : 0) + 10;
+            var need:int = memberRows(room) * 18;
+            var picH:int = 150 - int(Math.max(0, Math.min(60, need - (bottom - 52 - 150 - above))));
             if (e != null)
             {
+                // Made (and kept) at its full height, its middle shown: one
+                // render a map and weather, whatever the room's players.
+                // (A mask over a Sprite, as scrollBox's.)
+                var crop:Shape = new Shape();
+                crop.graphics.beginFill(0x000000, 1);
+                crop.graphics.drawRect(x, 52, SIDE_W, picH);
+                crop.graphics.endFill();
+                _content.addChild(crop);
+                var framed:Sprite = new Sprite();
                 var pic:Bitmap = render_(e.level, e.weather, SIDE_W, 150);
                 pic.x = x;
-                pic.y = 52;
-                _content.addChild(pic);
+                pic.y = 52 - int((150 - picH) / 2);
+                framed.addChild(pic);
+                _content.addChild(framed);
+                framed.mask = crop;
             }
-            var y:Number = 214;
+            var y:Number = 52 + picH + 12;
             text(_content, room.name, x + 16, y, SIDE_W - 32, 20, 0xFFFFFF);
             y += 30;
             if (e != null)
@@ -1998,6 +2039,267 @@ package
                 y += 6;
                 text(_content, say("pin"), x + 16, y + 4, 60, 15, DIM);
                 _joinPin = input(_content, x + 160, y, _pinText);
+                y += 30;
+            }
+            line(_content, x + 16, y + 2, SIDE_W - 32);
+            y += 10;
+            _membersBox = new Sprite();
+            _membersBox.x = x + 16;
+            _membersBox.y = y;
+            _content.addChild(_membersBox);
+            _membersH = bottom - y;
+            drawMembers();
+        }
+
+        // ------------------------------------------- the chosen room's members
+
+        // Who is in the room chosen in the list, for anyone (srp's `S1;G`, a
+        // room with a PIN too; the owner's of 2026-10-20: "down there is
+        // enough space for a list of players"): asked when a room is chosen
+        // and at the list's own pace while it stays chosen.
+        private static const MEMBERS:int = FIRST + 300000;
+        private static const MEMBERS_W:Number = SIDE_W - 32;
+        // A side's bar while the room plays its match.
+        private static const SIDE_COLOURS:Array = [0x5A8FB5, 0xC98A3C];
+        // The game's bold Calibri (the font of these lists) has U+2026.
+        private static const DOTS:String = "…";
+        private var _seen:Object = null;
+        private var _membersKey:int = 0;
+        private var _membersAt:int = 0;
+        private var _membersBox:Sprite = null;
+        // The height the list has below the facts.
+        private var _membersH:Number = 150;
+
+        // The room chosen in the list; in the room's window, our own (its
+        // whole names, for a right-click on a member there).
+        private function askMembers(now:Boolean):void
+        {
+            var room:Object = _view == "room" ? _room : chosenRoom();
+            if (room == null)
+                return;
+            var t:int = getTimer();
+            if (!now && room.key == _membersKey && t - _membersAt < 3000)
+                return;
+            _membersKey = room.key;
+            _membersAt = t;
+            // Not `ask`: the state's poll keeps its own pace.
+            send(MEMBERS + room.key, 1);
+        }
+
+        // `S1;G;<key>;<members>`, then two rows a member: `P;<i>;<gear>;
+        // <owner>;<me>;<in match>;<fit>;<away>;<side>;<account>` and its
+        // whole name. Drawn when it is the chosen room's and something
+        // changed (only its box: the view under the mouse keeps its clicks
+        // and the PIN typed).
+        private function takeMembers(head:Array, rows:Array):void
+        {
+            var key:int = int(head[2]);
+            // Only the room asked last (the list's choice or our own).
+            if (key != _membersKey)
+                return;
+            var list:Array = [];
+            var sig:String = "";
+            for (var i:int = 1; i + 1 < rows.length; i += 2)
+            {
+                var f:Array = fields(rows[i]);
+                if (f[0] != "P" || f.length < 10 || rows[i + 1] == null)
+                    continue;
+                var name:String = String(rows[i + 1].nickname);
+                sig += String(rows[i].nickname) + "|" + name + "|";
+                list.push({"gear": int(f[2]), "owner": f[3] == "1", "me": f[4] == "1", "inMatch": f[5] == "1",
+                    "fit": int(f[6]), "away": f[7] == "1", "side": int(f[8]), "account": uint(f[9]),
+                    "name": name});
+            }
+            if (_seen != null && _seen.key == key && _seen.sig == sig)
+                return;
+            _seen = {"key": key, "sig": sig, "members": list};
+            drawMembers();
+        }
+
+        // The rows the list of a room of the table needs in two columns (the
+        // render above is made lower for them): half its players, or while
+        // it plays a side's, the room's size at most.
+        private function memberRows(room:Object):int
+        {
+            var n:int = Math.min(20, int(room.players));
+            return Math.max(1, room.phase == 2 ? Math.min(n, int(room.size)) : int((n + 1) / 2));
+        }
+
+        // The chosen room's members: one column while they fit at 18 a row;
+        // two otherwise, and while it plays its match, side 1 on the left
+        // and side 2 on the right (a bar of the side's colour), those not
+        // in the match where there is room. Each row: the equipment level
+        // in a column of its own, the red mark of a kit that cannot play,
+        // the name cut to what is left (`fitName`).
+        private function drawMembers():void
+        {
+            var box:Sprite = _membersBox;
+            _listHits = [];
+            if (box == null)
+                return;
+            while (box.numChildren > 0)
+                box.removeChildAt(0);
+            var room:Object = chosenRoom();
+            if (_view != "list" || room == null || _seen == null || _seen.key != room.key)
+                return;
+            var all:Array = _seen.members;
+            var playing:Boolean = false;
+            var i:int;
+            for (i = 0; i < all.length; i++)
+                if (all[i].side == 1 || all[i].side == 2)
+                    playing = true;
+            var cols:Array;
+            if (!playing && all.length * 18 <= _membersH)
+                cols = [all.slice()];
+            else if (!playing)
+                cols = [all.slice(0, int((all.length + 1) / 2)), all.slice(int((all.length + 1) / 2))];
+            else
+            {
+                cols = [[], []];
+                var rest:Array = [];
+                for (i = 0; i < all.length; i++)
+                {
+                    if (all[i].side == 1 || all[i].side == 2)
+                        cols[all[i].side - 1].push(all[i]);
+                    else
+                        rest.push(all[i]);
+                }
+                for (i = 0; i < rest.length; i++)
+                    cols[cols[0].length <= cols[1].length ? 0 : 1].push(rest[i]);
+            }
+            var rows:int = Math.max(1, Math.max(cols[0].length, cols.length > 1 ? cols[1].length : 0));
+            var rowH:int = int(Math.max(12, Math.min(22, _membersH / rows)));
+            var size:int = rowH >= 20 ? 14 : rowH >= 17 ? 13 : 12;
+            var colW:Number = cols.length == 1 ? MEMBERS_W : (MEMBERS_W - 12) / 2;
+            for (var c:int = 0; c < cols.length; c++)
+                for (var r:int = 0; r < cols[c].length; r++)
+                    // Never past the panel's bottom (a window at its least).
+                    if ((r + 1) * rowH <= _membersH + 2)
+                        drawMember(box, cols[c][r], c * (colW + 12), r * rowH, colW, rowH, size);
+        }
+
+        private function drawMember(box:Sprite, m:Object, x:Number, y:Number, w:Number, rowH:int, size:int):void
+        {
+            var row:Sprite = new Sprite();
+            row.x = x;
+            row.y = y;
+            // The whole row takes the mouse (alpha 0 is not hit).
+            row.graphics.beginFill(0x000000, 0.01);
+            row.graphics.drawRect(0, 0, w, rowH);
+            row.graphics.endFill();
+            if (m.side == 1 || m.side == 2)
+            {
+                row.graphics.beginFill(uint(SIDE_COLOURS[m.side - 1]), 1);
+                row.graphics.drawRect(0, 2, 3, rowH - 4);
+                row.graphics.endFill();
+            }
+            box.addChild(row);
+            var top:Number = int((rowH - size - 4) / 2);
+            // The level in its own column, right-aligned: never under the name.
+            text(row, String(m.gear), 4, top + 1, 22, size - 1, m.fit == 2 ? RED : DIM, "right");
+            var nameX:Number = 30;
+            if (m.fit != 0)
+            {
+                var mark:Shape = new Shape();
+                mark.graphics.beginFill(RED, 1);
+                mark.graphics.drawCircle(37, rowH / 2, Math.min(6, rowH / 2 - 1));
+                mark.graphics.endFill();
+                row.addChild(mark);
+                text(row, "!", 31, top, 12, size - 2, 0xFFFFFF, "center");
+                nameX = 46;
+            }
+            fitName(text(row, "", nameX, top, w - nameX, size, memberColour(m)), m.name, "");
+            _listHits.push({"control": row, "name": m.name, "how": "BY_ACCOUNT", "player": m.account});
+        }
+
+        // A member's name: grey while its game is gone (`away`), red when its
+        // kit cannot play, white for the player itself, gold in the room's
+        // match. The original game marks no friend or clan member in any of
+        // its player lists (results, squad, friends, clan, rankings, chat:
+        // only the player, its squad and the enemy), so neither is marked
+        // here (the owner's of 2026-10-20: only as the original did it).
+        private function memberColour(m:Object):uint
+        {
+            return m.away ? 0x5E6E7A : m.fit != 0 ? RED : m.me ? 0xFFFFFF : (m.inMatch ? GOLD : LIGHT);
+        }
+
+        // A name cut to its field by its width in the field's own font and
+        // size: as much of it as fits, then "…", then `tail` whole (the room
+        // view's "(owner)"); a name the server cut ends with "…" already.
+        private function fitName(field:TextField, value:String, tail:String):void
+        {
+            var room:Number = field.width - 4;
+            field.text = value + tail;
+            if (field.textWidth <= room)
+                return;
+            if (value.charAt(value.length - 1) == DOTS)
+                value = value.substr(0, value.length - 1);
+            var low:int = 0;
+            var high:int = value.length;
+            // The longest head that fits with the dots and the tail.
+            while (low < high)
+            {
+                var mid:int = int((low + high + 1) / 2);
+                field.text = value.substr(0, mid) + DOTS + tail;
+                if (field.textWidth <= room)
+                    low = mid;
+                else
+                    high = mid - 1;
+            }
+            // No space left before the dots.
+            while (low > 0 && value.charAt(low - 1) == " ")
+                low--;
+            field.text = value.substr(0, low) + DOTS + tail;
+        }
+
+        // ------------------------------------------- a player's equipment
+
+        // A right-click on a member (the list's side panel, the room's
+        // window): the game's right-click menu with "Show player's
+        // information", and its window with the member's kits (srp's
+        // SrpPlayerGear, the Rankings' step: player_gear_026g.py); the
+        // request names the member by its account (`S1;G`) or by its place
+        // in our room's state and its serial (as a kick does). A hit's `how`
+        // names SrpPlayerGear's constant (BY_ACCOUNT, BY_ROOM_PLACE): that
+        // class is compiled in by a later step, so it is looked up at the
+        // click.
+        private var _listHits:Array = [];
+        private var _roomHits:Array = [];
+
+        // The whole name of the member at that place of our room (the state
+        // cuts a long one at 32 bytes and ends it with "…"): from our room's
+        // member rows (`S1;G`) when they have it, else the state's.
+        private function wholeName(place:int, cut:String):String
+        {
+            if (_room == null || _seen == null || _seen.key != _room.key || place >= _seen.members.length)
+                return cut;
+            var whole:String = String(_seen.members[place].name);
+            var head:String = cut.charAt(cut.length - 1) == DOTS ? cut.substr(0, cut.length - 1) : cut;
+            return whole.substr(0, head.length) == head ? whole : cut;
+        }
+
+        private function onContentClick(e:MouseEvent):void
+        {
+            try
+            {
+                var ex:MouseEventEx = e as MouseEventEx;
+                if (ex == null || ex.buttonIdx != 1)
+                    return;
+                var hits:Array = _view == "room" ? _roomHits : _listHits;
+                for (var i:int = hits.length - 1; i >= 0; i--)
+                {
+                    var hit:Object = hits[i];
+                    var control:DisplayObject = hit.control as DisplayObject;
+                    if (control.stage == null || !control.hitTestPoint(e.stageX, e.stageY, false))
+                        continue;
+                    var gear:Object = getDefinitionByName("SrpPlayerGear");
+                    var nick:String = hit.place != null ? wholeName(int(hit.place), String(hit.name)) : String(hit.name);
+                    gear.menu(nick, uint(hit.player), uint(gear[hit.how]));
+                    return;
+                }
+            }
+            catch (err:Error)
+            {
             }
         }
 
@@ -2034,6 +2336,10 @@ package
 
         private function onRow(e:Event):void
         {
+            // The left button only: two right-clicks are no join.
+            var ex:MouseEventEx = e as MouseEventEx;
+            if (ex != null && ex.buttonIdx != 0)
+                return;
             pickRow(int(e.currentTarget.name));
         }
 
@@ -2053,6 +2359,7 @@ package
             _rowAt = now;
             _selKey = key;
             render();
+            askMembers(false);
         }
 
         private function chosenRoom():Object
@@ -2097,6 +2404,7 @@ package
                     _scrollPx = top + 42 - _scrollViewH;
                 clickSound();
                 render();
+                askMembers(false);
             }
             catch (err:Error)
             {
@@ -2713,6 +3021,15 @@ package
                     text(inner, say("open"), mx + 34, my + mid, colW - 50, 15, 0x4D5C67);
                     continue;
                 }
+                // A right-click on it: its equipment, by its place and the
+                // state's serial, as a kick names it (`onContentClick`).
+                var hitArea:Shape = new Shape();
+                hitArea.graphics.beginFill(0x000000, 0.01);
+                hitArea.graphics.drawRect(mx, my, colW - 10, rowH);
+                hitArea.graphics.endFill();
+                inner.addChild(hitArea);
+                _roomHits.push({"control": hitArea, "name": member.name, "place": m, "how": "BY_ROOM_PLACE",
+                    "player": m + 20 * (int(room.serial) % 495)});
                 text(inner, String(member.gear), mx, my + mid + 1, 26, 14, member.fit == 2 ? RED : DIM, "right");
                 // A red mark: this kit cannot play the next match as it is
                 // now; the match starts without it and takes it out of the room.
@@ -2727,11 +3044,11 @@ package
                     text(inner, "!", mx + 33, my + mid + 1, 14, 12, 0xFFFFFF, "center");
                     nameX = mx + 52;
                 }
-                text(inner, member.name + (member.owner ? "  (" + say("ownerTag") + ")" : ""), nameX, my + mid, colW - 80 - (nameX - mx - 34), 16,
-                    // Away (its game gone for now): grey until it is back, or
-                    // out of the room after about 90 s.
-                    member.away ? 0x5E6E7A : member.fit != 0 ? RED : member.me ? 0xFFFFFF
-                        : (member.inMatch ? GOLD : LIGHT));
+                // A long name cut to its place, the owner's tag kept whole.
+                // Away (its game gone for now): grey until it is back, or out
+                // of the room after about 90 s (`memberColour`).
+                fitName(text(inner, "", nameX, my + mid, colW - 80 - (nameX - mx - 34), 16, memberColour(member)),
+                    member.name, member.owner ? "  (" + say("ownerTag") + ")" : "");
                 // Only a private room (a PIN) turns a member out.
                 if (room.owner && room.pin && !member.me)
                     button(inner, "×", mx + colW - 44, my + int((rowH - 28) / 2), 30, onKick, m, 28);

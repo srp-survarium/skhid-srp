@@ -6,9 +6,9 @@
 use session::v026g::matchmaking;
 use session::v026g::rooms::Stage;
 use survarium::v026g::lobby::rooms::{
-    ROOM_FORM, ROOM_JOIN_BASE, ROOM_JOIN_MATCH, ROOM_LEAVE, ROOM_PIN_BASE, ROOM_PLAY,
-    ROOM_QUEUE_BASE, ROOM_STATE, ROOM_UNQUEUE, ROOM_VOTE_BASE, ROOMS_LIST, RoomSpec, bits_start,
-    create_start, kick_start,
+    ROOM_FORM, ROOM_JOIN_BASE, ROOM_JOIN_MATCH, ROOM_LEAVE, ROOM_MEMBERS_BASE, ROOM_PIN_BASE,
+    ROOM_PLAY, ROOM_QUEUE_BASE, ROOM_STATE, ROOM_UNQUEUE, ROOM_VOTE_BASE, ROOMS_LIST, RoomSpec,
+    bits_start, create_start, kick_start,
 };
 
 use super::pvb_tests::with_gear;
@@ -1271,4 +1271,329 @@ fn a_member_whose_late_join_fails_waits_in_its_room_again_and_goes_in_later() {
             .in_match
             .contains(&erin_account)
     );
+}
+
+/// The members of a member list (`S1;G;<key>;<members>`, then two rows a
+/// member: `P;<i>;<gear>;<owner>;<me>;<in match>;<fit>;<away>;<side>;
+/// <account>` and its whole name) that the asker gets for the room of
+/// `key`: the header's fields, then each member's fields with its name
+/// last (index 10).
+fn members(world: &mut World, index: usize, key: u32) -> Vec<Vec<String>> {
+    let rows = rows(world, index, ROOM_MEMBERS_BASE + key, 1);
+    let mut seen = vec![rows[0].split(';').map(str::to_owned).collect::<Vec<_>>()];
+    assert_eq!(rows.len() % 2, 1, "{rows:?}");
+    for pair in rows[1..].chunks(2) {
+        let mut fields: Vec<String> = pair[0].split(';').map(str::to_owned).collect();
+        assert_eq!(fields.len(), 10, "{pair:?}");
+        fields.push(pair[1].clone());
+        seen.push(fields);
+    }
+    seen
+}
+
+/// Who is in a room, for anyone looking at the list (the owner's of
+/// 2026-10-20): a player in no room sees a room with a PIN's members too,
+/// a member's game gone shows grey (`away`), and a room gone has nobody.
+#[test]
+fn anyone_sees_who_is_in_a_room_with_a_pin_too() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let carol = world.connect("Carol");
+    let key = create(&mut world, alice, spec(8), Some(1234));
+    rows(&mut world, bob, ROOM_PIN_BASE + 1234, 1);
+    rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
+    // Carol is in no room and gave no PIN.
+    let seen = members(&mut world, carol, key);
+    assert_eq!(seen[0], ["S1", "G", &key.to_string(), "2"], "{seen:?}");
+    let names: Vec<&str> = seen[1..].iter().map(|row| row[10].as_str()).collect();
+    assert_eq!(names, ["Alice", "Bob"]);
+    for (i, row) in seen[1..].iter().enumerate() {
+        assert_eq!(row[0], "P");
+        assert_eq!(row[1], i.to_string());
+        // Owner, me, in match, fit, away, side.
+        let flags = &row[3..9];
+        let owner = if i == 0 { "1" } else { "0" };
+        assert_eq!(flags, [owner, "0", "0", "0", "0", "0"], "{row:?}");
+        // Its account.
+        let account = world.ids[[alice, bob][i]].0;
+        assert_eq!(row[9], account.to_string());
+    }
+    // A member asking is itself in it.
+    let own = members(&mut world, bob, key);
+    assert_eq!(own[2][4], "1", "{own:?}");
+    assert_eq!(own[1][4], "0", "{own:?}");
+    // Bob's game is gone: grey, its place kept.
+    world.silent_for(bob, Duration::from_secs(40));
+    let lost = members(&mut world, carol, key);
+    assert_eq!(lost[2][10], "Bob");
+    assert_eq!(lost[2][7], "1", "away: {lost:?}");
+    assert_eq!(lost[1][7], "0", "{lost:?}");
+    // The room gone: nobody; a key no room ever had the same.
+    world.advance(Duration::from_secs(61));
+    rows(&mut world, alice, ROOM_LEAVE, 1);
+    assert_eq!(
+        members(&mut world, carol, key),
+        [["S1", "G", &key.to_string(), "0"]]
+    );
+    assert_eq!(
+        members(&mut world, carol, 99_999),
+        [["S1", "G", "99999", "0"]]
+    );
+}
+
+/// While the room plays its match, each member's side is the team of its
+/// place in it, 1 or 2; a member waiting outside the match has none.
+#[test]
+fn a_member_list_says_the_side_of_each_player_in_the_match() {
+    let mut world = World::new();
+    let (key, _, id, players) = room_match_of_four(&mut world);
+    let eve = world.connect("Eve");
+    let seen = members(&mut world, eve, key);
+    assert_eq!(seen[0][3], "4", "{seen:?}");
+    for (row, &player) in seen[1..].iter().zip(&players) {
+        let (_, team) = seat_of(&world, id, player);
+        assert_eq!(row[5], "1", "in the match: {row:?}");
+        assert_eq!(row[8], (team + 1).to_string(), "{row:?}");
+    }
+    let sides: Vec<&str> = seen[1..].iter().map(|row| row[8].as_str()).collect();
+    assert_eq!(
+        sides.iter().filter(|&&side| side == "1").count(),
+        2,
+        "{sides:?}"
+    );
+    // One who joins now waits outside the match first: no side.
+    let frank = world.connect("Frank");
+    rows(&mut world, frank, ROOM_JOIN_BASE + key, 1);
+    let now = members(&mut world, eve, key);
+    let row = &now[5];
+    assert_eq!(row[10], "Frank");
+    assert_eq!((row[5].as_str(), row[8].as_str()), ("0", "0"), "{now:?}");
+}
+
+/// The longest names (63 bytes: wide Latin, Cyrillic, mixed with `;`) come
+/// whole in the list, for a room of 20; the state's rows cut them to 32
+/// bytes and say so with "…".
+#[test]
+fn a_member_list_gives_long_names_whole() {
+    let mut world = World::new();
+    let name = |i: usize| match i % 3 {
+        0 => format!("{}{i:02}", "W".repeat(61)),
+        1 => format!("{}W{i:02}", "Ш".repeat(30)),
+        _ => format!("Ж;{}{i:02}", "m".repeat(58)),
+    };
+    let players: Vec<usize> = (0..20).map(|i| world.connect(&name(i))).collect();
+    let key = create(&mut world, players[0], spec(10), None);
+    for &player in &players[1..] {
+        rows(&mut world, player, ROOM_JOIN_BASE + key, 1);
+    }
+    let watcher = world.connect("Watcher");
+    let seen = members(&mut world, watcher, key);
+    assert_eq!(seen.len(), 21, "{seen:?}");
+    for (i, row) in seen[1..].iter().enumerate() {
+        let name = world.account(players[i]).name.clone();
+        assert_eq!(row[10], name);
+        assert_eq!(row[10].len(), 63, "{name}");
+    }
+    let state = state(&mut world, players[0]);
+    let cut = state
+        .iter()
+        .find(|row| row.starts_with("P;0;"))
+        .expect("a member row");
+    assert!(cut.ends_with('…'), "{cut}");
+    assert!(cut.rsplit(';').next().unwrap().len() <= 32, "{cut}");
+}
+
+/// A right-click on a member (the list's side panel, by its account; the
+/// room's own window, by its place and the state's serial): its kits as
+/// they are now; an account in no room or a place from an older list,
+/// nothing.
+#[test]
+fn a_member_shows_its_kits_from_the_list_and_from_the_room() {
+    use survarium::v026g::lobby::rooms::member_gear;
+    use survarium::v026g::lobby::{GEAR_BY_ACCOUNT, GEAR_IN_ROOM};
+
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let carol = world.connect("Carol");
+    let key = create(&mut world, alice, spec(8), Some(1234));
+    rows(&mut world, bob, ROOM_PIN_BASE + 1234, 1);
+    rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
+    let gear = |world: &mut World, index: usize| -> Vec<(String, usize)> {
+        world
+            .take(index)
+            .into_iter()
+            .filter_map(|message| match message {
+                Decoded::PlayerDetails { player, .. } => Some((player.name, player.kits.len())),
+                _ => None,
+            })
+            .collect()
+    };
+    let kits = world.account(bob).kits.len();
+    assert!(kits > 0);
+    // Carol, in no room, from the list: Bob's account in his row.
+    let seen = members(&mut world, carol, key);
+    let account: u32 = seen[2][9].parse().unwrap();
+    world.take(carol);
+    world.ask(carol, request::player_details(GEAR_BY_ACCOUNT, account));
+    assert_eq!(gear(&mut world, carol), [("Bob".to_owned(), kits)]);
+    // Alice, the PIN room's owner, the same (its members are shown to
+    // anyone).
+    let alice_id: u32 = seen[1][9].parse().unwrap();
+    world.ask(carol, request::player_details(GEAR_BY_ACCOUNT, alice_id));
+    assert_eq!(gear(&mut world, carol).len(), 1);
+    // An account in no room: no answer, whether it exists or not, online
+    // or not (account ids cannot be walked).
+    world.accounts.sign_up(900_001, "Offline");
+    let carol_id = world.ids[carol].0;
+    for account in [900_001, carol_id, 12_345_678] {
+        world.ask(carol, request::player_details(GEAR_BY_ACCOUNT, account));
+    }
+    assert!(gear(&mut world, carol).is_empty());
+    // Alice, in her room's window: Bob at place 1 of the state.
+    let serial: u32 = header(&state(&mut world, alice))[12].parse().unwrap();
+    world.take(alice);
+    world.ask(
+        alice,
+        request::player_details(GEAR_IN_ROOM, member_gear(1, serial)),
+    );
+    assert_eq!(gear(&mut world, alice), [("Bob".to_owned(), kits)]);
+    // Her own row too.
+    let own = world.account(alice).kits.len();
+    world.ask(
+        alice,
+        request::player_details(GEAR_IN_ROOM, member_gear(0, serial)),
+    );
+    assert_eq!(gear(&mut world, alice), [("Alice".to_owned(), own)]);
+    // Bob left: the place of an older list is nobody's now.
+    rows(&mut world, bob, ROOM_LEAVE, 1);
+    world.ask(
+        alice,
+        request::player_details(GEAR_IN_ROOM, member_gear(1, serial)),
+    );
+    world.ask(
+        alice,
+        request::player_details(GEAR_IN_ROOM, member_gear(0, serial)),
+    );
+    assert!(gear(&mut world, alice).is_empty());
+    // Bob, out of the room, is in no list now.
+    world.ask(carol, request::player_details(GEAR_BY_ACCOUNT, account));
+    assert!(gear(&mut world, carol).is_empty());
+    // Carol, in no room, has no room's places.
+    world.ask(
+        carol,
+        request::player_details(GEAR_IN_ROOM, member_gear(0, serial)),
+    );
+    assert!(gear(&mut world, carol).is_empty());
+    world.assert_clean();
+}
+
+/// A room's match carries the room's minimum to the match server, which
+/// starts it with who is in, or calls it off when fewer than that can play
+/// it (`match.md` section 34). Called off, it shows nobody results and
+/// pays nothing; its room votes and waits again, whole, and plays its next
+/// match with the members it has (the live room 5209 of 2026-10-20).
+#[test]
+fn a_room_whose_match_is_called_off_votes_again_and_plays_with_who_is_there() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let key = create(&mut world, alice, spec(8), None);
+    rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
+    world.take(alice);
+    world.take(bob);
+    world.advance(VOTE_AND_WAIT);
+    let (ticket, _) = sent_to_match(&world.take(alice)).expect("a match");
+    assert!(sent_to_match(&world.take(bob)).is_some());
+    let setup = world.host.made.locked().last().unwrap().1.clone();
+    assert_eq!(setup.room_minimum, Some(2), "1 v 1: two players");
+    let paid = |world: &World, index: usize| {
+        let account = world.account(index);
+        (account.generic_money, account.rating, account.level())
+    };
+    let before = [paid(&world, alice), paid(&world, bob)];
+
+    world.call_off(ticket);
+    world.advance(Duration::from_secs(1));
+    for index in [alice, bob] {
+        let decoded = world.take(index);
+        assert!(
+            decoded.iter().any(|message| matches!(
+                message,
+                Decoded::ClientState {
+                    state: ClientState::Lobby,
+                    ..
+                }
+            )),
+            "back in the lobby: {decoded:?}"
+        );
+        assert!(
+            !decoded
+                .iter()
+                .any(|message| matches!(message, Decoded::MatchStats { .. })),
+            "no results of a match that was not made: {decoded:?}"
+        );
+    }
+    assert_eq!(
+        [paid(&world, alice), paid(&world, bob)],
+        before,
+        "no pay, no rating"
+    );
+    assert!(world.results.find(ticket).is_none(), "no report");
+    let room = world.core.rooms.get(key).unwrap();
+    assert_eq!(room.members.len(), 2);
+    assert!(room.in_match.is_empty());
+    assert_eq!(
+        header(&state(&mut world, alice))[PHASE],
+        "3",
+        "the vote again"
+    );
+
+    // The vote and the wait, whole (no results to come back from), then
+    // the next match with the two.
+    world.take(alice);
+    world.take(bob);
+    world.advance(Duration::from_secs(16));
+    assert!(
+        sent_to_match(&world.take(alice)).is_none(),
+        "the 30 s at the least"
+    );
+    world.advance(Duration::from_secs(16));
+    let (again, _) = sent_to_match(&world.take(alice)).expect("Alice plays the next");
+    let (with_bob, _) = sent_to_match(&world.take(bob)).expect("Bob plays the next");
+    assert_eq!(again, with_bob);
+    assert_ne!(again, ticket);
+}
+
+/// A member whose game started anew is an older one (it plays in no match
+/// that takes players) counts for nothing: a room of four that needs four
+/// makes no match of three, which the match server would call off at once
+/// (`MatchSetup::room_minimum`) and the room make again, round after round.
+#[test]
+fn a_room_makes_no_match_below_its_minimum() {
+    use survarium::v026g::match_msgs::late_join::FIRST_REVISION;
+
+    let mut world = World::new();
+    let players = ["Alice", "Bob", "Carol", "Dave"].map(|name| world.connect(name));
+    let two_a_side = RoomSpec {
+        min_side: 2,
+        ..spec(6)
+    };
+    let key = create(&mut world, players[0], two_a_side, None);
+    for &player in &players[1..] {
+        rows(&mut world, player, ROOM_JOIN_BASE + key, 1);
+    }
+    let (dave, _) = world.ids[players[3]];
+    let older = world
+        .store
+        .create_session_with_revision(dave, FIRST_REVISION - 1);
+    let again = world.connect_session((dave, older));
+    world.take(again);
+    assert_eq!(world.core.rooms.of(dave).map(|room| room.key), Some(key));
+    world.advance(VOTE_AND_WAIT * 3);
+    assert!(world.host.made.locked().is_empty(), "no match of three");
+    for &player in &players[..3] {
+        assert!(sent_to_match(&world.take(player)).is_none());
+    }
 }

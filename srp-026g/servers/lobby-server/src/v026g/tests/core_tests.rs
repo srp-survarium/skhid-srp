@@ -1144,7 +1144,10 @@ fn a_finished_match_brings_its_players_back_to_the_lobby() {
 
     // The match server says the match is over.
     world.host.open.lock().unwrap().clear();
-    world.inbox.match_finished(MatchFinished { match_id });
+    world.inbox.match_finished(MatchFinished {
+        match_id,
+        not_made: false,
+    });
     world.settle();
     for client in [alice, bob] {
         assert_eq!(queue_state(&world.take(client)), Some(ClientState::Lobby));
@@ -2028,7 +2031,74 @@ impl World {
             self.inbox.account_changed(player.account_id);
         }
         self.host.open.lock().unwrap().remove(&match_id);
-        self.inbox.match_finished(MatchFinished { match_id });
+        self.inbox.match_finished(MatchFinished {
+            match_id,
+            not_made: false,
+        });
+    }
+
+    /// The match server called a room's match off before its countdown
+    /// (`MatchEnd::NotMade`), settled as `servers/srp` does it: nobody
+    /// played, nothing is settled.
+    fn call_off(&mut self, match_id: u32) {
+        let setup = self
+            .host
+            .made
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|(id, _)| *id == match_id)
+            .map(|(_, setup)| setup.clone())
+            .expect("a match the lobby made");
+        let players = setup
+            .players
+            .iter()
+            .enumerate()
+            .map(|(place, player)| PlayerResult {
+                place: place as u8,
+                session_id: player.session_id,
+                account_id: player.account_id,
+                name: player.profile.name.clone(),
+                team: player.profile.team,
+                driven: player.driven,
+                entered: place == 0,
+                present_at_end: place == 0,
+                left: false,
+                time_in_match_ms: 20_000,
+                score: 0,
+                kills: 0,
+                deaths: 0,
+                longest_killstreak: 0,
+                kit_changes: 0,
+                statistics: None,
+                supplies: None,
+            })
+            .collect();
+        let result = MatchResult {
+            match_id,
+            map_id: setup.map_id,
+            game_mode: maps::map_mode(setup.map_id).unwrap().mode,
+            match_level: setup.match_level,
+            end: MatchEnd::NotMade,
+            winner: None,
+            team_points: [0, 0],
+            duration_ms: 20_000,
+            played_ms: None,
+            trusted_snapshot_ms: None,
+            trusted_by: 0,
+            players,
+            vs_bots: setup.vs_bots,
+        };
+        let terms = Terms::at(session::v026g::quests::now());
+        let report = self
+            .results
+            .settle(&result, self.accounts, &terms, &mut Rng::new(7));
+        assert!(report.is_none(), "nothing of a match called off is settled");
+        self.host.open.lock().unwrap().remove(&match_id);
+        self.inbox.match_finished(MatchFinished {
+            match_id,
+            not_made: true,
+        });
     }
 
     /// Two players in a match: both press Play, which puts them into one
@@ -2461,6 +2531,7 @@ mod away_tests;
 mod balance_tests;
 mod clan_tests;
 mod feedback_tests;
+mod gear_tests;
 mod items_tests;
 mod patch_check_tests;
 mod pvb_tests;

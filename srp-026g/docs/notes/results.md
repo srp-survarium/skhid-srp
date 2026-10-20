@@ -215,6 +215,8 @@ Differences: no "lobby connected" check and no pending path: the 0.21d string "q
 
 Flash `victory_screen_request_player_data` (handler 0x29ED70, slot +0x6A0; slot order matches the name table at 0x9C5798..: `close_victory_screen` 0x29ED60 clears +0x313A, `show_match_statistic` 0x29EDA0) -> 0x26FF00: **`3D 00 <u32 arg0> <u32 arg1>`**; by the 0.21d AS3 arg0 = player id (brief id), arg1 = match_id. Reply: **0x93** (section 2).
 
+**From the Rankings (srp's, 2026-10-20).** srp's changed lobby movie sends `3D 00 <0xFFFF_FF03> <place>` (`GEAR_BY_PLACE`) for "Show player's information" on a row of the Rankings; the server answers `93` with that account's kits as they are now, for any account (`player_gear.md`). No results row has a player id that high.
+
 **How long srp can answer it (2026-10-12).** PROVEN in the 0.26g ActionScript: `VictoryScreen.reguestPlayerInfo` calls `victory_screen_request_player_data(uint(rendererData.id), this._match_id)` for a row not yet in `playersCache`, so arg0 is the row's player id and arg1 the match id; with no answer the panel does not open and nothing waits. 0x93 has no "nothing to show" form. So srp keeps a match's report for as long as a screen of it may be open: the last 64 reports, and past them any whose screen an account was sent in the last two hours (`rewards.rs`, `SHOWN_FOR_SECONDS`; `social.md` §9.5).
 
 ### 5.3 Drop queries (NEW) - PROVEN

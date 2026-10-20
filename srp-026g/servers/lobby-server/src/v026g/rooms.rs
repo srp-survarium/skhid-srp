@@ -66,8 +66,8 @@ use session::v026g::rooms::{self as model, Due, Refused, Spec, Stage};
 use session::v026g::{matchmaking, quests, rules};
 use session::{LockExt, QueuePool};
 use survarium::v026g::lobby::rooms::{
-    self as wire, Card, Fit, JoinHold, Member, PoolEntry, RoomCode, RoomPhase, RoomRequest,
-    RoomRow, RoomSpec, RoomSwitch, RoomView,
+    self as wire, Card, Fit, JoinHold, ListMember, Member, PoolEntry, RoomCode, RoomPhase,
+    RoomRequest, RoomRow, RoomSpec, RoomSwitch, RoomView,
 };
 use survarium::v026g::lobby::{self, ClientState};
 use survarium::v026g::maps;
@@ -392,6 +392,12 @@ impl Core<'_> {
                 self.room_late_join(who.account_id, now);
                 self.send_room_state(who, RoomCode::None, now);
             }
+            // Who is in a room the asker looks at in the list: anyone may
+            // ask, of any room (a PIN keeps the door, not the names).
+            RoomRequest::Members { key } => {
+                let members = self.room_members(who, key);
+                self.send_made(who.addr, wire::room_members(key, &members));
+            }
             RoomRequest::Unqueue => {
                 if let Some(key) = self.rooms.dequeue(who.account_id) {
                     log::info!("{}: left room {key}'s queue", who.name);
@@ -543,6 +549,97 @@ impl Core<'_> {
         }
     }
 
+    /// A member of a room as the asker is told it.
+    fn room_member(&self, who: &Who, room: &model::Room, account_id: u32, unix: u64) -> Member {
+        let gear = self.accounts.get(account_id).map_or(0, |account| {
+            matchmaking::gear_level(&account.locked(), unix)
+        });
+        Member {
+            gear,
+            owner: account_id == room.owner,
+            me: account_id == who.account_id,
+            in_match: room.in_match.contains(&account_id),
+            fit: self.member_fit(account_id),
+            away: !self.by_account.contains_key(&account_id),
+            name: self.name_of(account_id).unwrap_or_default(),
+        }
+    }
+
+    /// `3D 00 <GEAR_BY_ACCOUNT> <account>`: the kits of a member of a room
+    /// now, as the list's side panel shows them to anyone (`S1;G`, a PIN
+    /// room's too). Any other account (in no room, or none at all) gets no
+    /// answer: account ids cannot be walked for anyone's kits.
+    pub(super) fn listed_member_gear(&mut self, who: &Who, account_id: u32) {
+        if self
+            .rooms
+            .all()
+            .any(|room| room.members.contains(&account_id))
+        {
+            self.send_gear(who, account_id, account_id);
+        } else {
+            log::info!(
+                "{} asked for the kits of account {account_id}: in no room",
+                who.name
+            );
+        }
+    }
+
+    /// `3D 00 <GEAR_IN_ROOM> <place + 20 × check>`: the kits of the member
+    /// at that place of the asker's room, if the check is its serial's now
+    /// (a member came or went since its list was drawn: no answer).
+    pub(super) fn room_member_gear(&mut self, who: &Who, value: u32) {
+        let member = wire::member_gear_place(value).and_then(|(place, check)| {
+            let room = self.rooms.of(who.account_id)?;
+            (room.serial % wire::KICK_CHECKS == check)
+                .then(|| room.members.get(usize::from(place)).copied())
+                .flatten()
+        });
+        match member {
+            Some(account_id) => self.send_gear(who, account_id, account_id),
+            None => log::info!(
+                "{} asked for the kits of a member of its room: not in it now",
+                who.name
+            ),
+        }
+    }
+
+    /// Who is in the room of that key, for anyone looking at the list (the
+    /// owner's of 2026-10-20), each with its side while it plays the room's
+    /// match: the team of its latest place in the match's roster. Nobody: the
+    /// room is gone.
+    fn room_members(&self, who: &Who, key: u32) -> Vec<ListMember> {
+        let Some(room) = self.rooms.get(key) else {
+            return Vec::new();
+        };
+        let formed = match room.stage {
+            Stage::InMatch { match_id, .. } => self.store.matchmaking().formed_match(match_id),
+            _ => None,
+        };
+        let unix = quests::now();
+        room.members
+            .iter()
+            .map(|&account_id| {
+                let member = self.room_member(who, room, account_id, unix);
+                let side = formed
+                    .as_ref()
+                    .filter(|_| member.in_match)
+                    .and_then(|formed| {
+                        formed
+                            .seats
+                            .iter()
+                            .rev()
+                            .find(|seat| seat.player.account_id == account_id)
+                    })
+                    .map(|seat| seat.team);
+                ListMember {
+                    member,
+                    side,
+                    account_id,
+                }
+            })
+            .collect()
+    }
+
     /// The asker's room as the movie is told it.
     fn room_view(&self, who: &Who, now: Instant) -> Option<RoomView> {
         let room = self.rooms.of(who.account_id)?;
@@ -552,20 +649,7 @@ impl Core<'_> {
         let members = room
             .members
             .iter()
-            .map(|&account_id| {
-                let gear = self.accounts.get(account_id).map_or(0, |account| {
-                    matchmaking::gear_level(&account.locked(), unix)
-                });
-                Member {
-                    gear,
-                    owner: account_id == room.owner,
-                    me: account_id == who.account_id,
-                    in_match: room.in_match.contains(&account_id),
-                    fit: self.member_fit(account_id),
-                    away: !self.by_account.contains_key(&account_id),
-                    name: self.name_of(account_id).unwrap_or_default(),
-                }
-            })
+            .map(|&account_id| self.room_member(who, room, account_id, unix))
             .collect();
         let (phase, secs) = phase_of(room, now);
         let (join_in, join_hold) = match self.room_join_in(who, room, now) {
@@ -899,6 +983,22 @@ impl Core<'_> {
         }
     }
 
+    /// The room's match was called off before its countdown (fewer than
+    /// its minimum could play it, `match.md` section 34): the room goes on
+    /// as for a match that could not be made, its vote and wait whole.
+    pub(super) fn room_match_not_made(&mut self, match_id: u32) {
+        self.room_launching.remove(&match_id);
+        if let Some(key) = self.rooms.match_not_made(match_id) {
+            log::info!(
+                "Room {key}: its match {match_id:#x} was called off before its countdown; the \
+                 room votes and waits again"
+            );
+            if self.maintenance_is_near() {
+                self.room_disband(key);
+            }
+        }
+    }
+
     /// The room is gone (a maintenance is near): its members are told so
     /// at their next state request.
     fn room_disband(&mut self, key: u32) {
@@ -929,6 +1029,13 @@ impl Core<'_> {
             return None;
         }
         let session_id = player.session_id;
+        // Its game plays in matches that take players (a member's game
+        // started anew may be an older one): counted for the room's vote
+        // as it is seated, or a match is made with fewer than the room's
+        // minimum and called off at once (`room_start`).
+        if self.pool_for_sessions([session_id]) != Some(QueuePool::GrowingRoster) {
+            return None;
+        }
         let unix = quests::now();
         if self.member_fit(account_id) != Fit::Yes {
             return None;
@@ -1067,6 +1174,7 @@ impl Core<'_> {
             return;
         };
         let size = usize::from(room.spec.size);
+        let room_minimum = u8::try_from(room.needs()).unwrap_or(u8::MAX);
         let members = room.members.clone();
         let unfit: Vec<(u32, Fit)> = members
             .iter()
@@ -1081,9 +1189,6 @@ impl Core<'_> {
         let ready: Vec<Ready> = members
             .iter()
             .filter_map(|&account_id| self.room_ready(account_id))
-            .filter(|ready| {
-                self.pool_for_sessions([ready.player.session_id]) == Some(QueuePool::GrowingRoster)
-            })
             .collect();
         // Squads of the room's members, each a party; any other member alone.
         let mut seen = HashSet::new();
@@ -1126,9 +1231,14 @@ impl Core<'_> {
         };
         let teams: [Vec<session::Player>; 2] =
             sides.map(|side| side.iter().filter_map(player_of).collect());
-        if teams.iter().any(Vec::is_empty) {
+        // Never fewer than the room's minimum: the match server would call
+        // such a match off at once (`MatchSetup::room_minimum`), and the room
+        // make it again.
+        let seated = teams.iter().map(Vec::len).sum::<usize>();
+        if teams.iter().any(Vec::is_empty) || seated < usize::from(room_minimum) {
             log::info!(
-                "Room {key}: no match yet: {} of {} members are free with a kit Play takes",
+                "Room {key}: no match yet: {} of {} members are free with a kit Play takes, \
+                 {seated} seated, the room needs {room_minimum}",
                 ready.len(),
                 members.len()
             );
@@ -1155,7 +1265,7 @@ impl Core<'_> {
             self.rooms.not_started(key, now);
             return;
         };
-        self.room_launching.insert(match_id, map_id);
+        self.room_launching.insert(match_id, (map_id, room_minimum));
         // Made at the match server before anyone is told: if it fails, its
         // players are back in the lobby (`launch`) and the room waits again,
         // nobody left marked as searching.

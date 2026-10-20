@@ -474,6 +474,7 @@ va	status	ref_021d	name
 0x000eb010	inferred-medium	0x000b4ffc	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,vostok::resources::game_resources_manager,vostok::vfs::vfs_iterator &>,boost::_bi::list2<boost::_bi::value<vostok::resources::game_resources_manager *>,boost::arg<1> > > >::manager
 0x000eb060	inferred-medium	0x000b5045	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf0<void,vostok::resources::game_resources_manager>,boost::_bi::list1<boost::_bi::value<vostok::resources::game_resources_manager *> > > >::manager
 0x000eb0b0	inferred-medium	0x000b508e	process
+0x000eb310	inferred-medium		vostok::journaling::start
 0x000eb390	inferred-medium	0x000b51f8	out_of_memory
 0x000eb410	inferred-high	0x000b5252	vostok::memory::pthreads3_allocator::initialize_impl
 0x000eb6b0	inferred-medium	0x000b53db	vostok::console_commands::show_help
@@ -1038,6 +1039,7 @@ va	status	ref_021d	name
 0x001f3b30	inferred-high	0x00157984	survarium::player::on_landing
 0x001f3bd0	inferred-high	0x00157a52	survarium::player::is_first_view
 0x001f3c70	inferred-medium	0x00157ab8	survarium::player::generate_hit_event
+0x001f53d0	inferred-medium		survarium::copy_name
 0x001f56e0	inferred-medium	0x001652ab	survarium::net_stats::add_text_cell
 0x001f63d0	inferred-medium		survarium::game_world::input_priority
 0x001f6520	inferred-medium	0x00159fec	survarium::booby_trap_set_cook::new_derived_resource
@@ -1577,6 +1579,7 @@ va	status	ref_021d	name
 0x002745d0	inferred-medium	0x0019ed0a	survarium::lobby_client::add_squad_member
 0x00274660	inferred-medium	0x0019ed8a	survarium::lobby_client::drop_squad_member
 0x002746d0	inferred-medium	0x0019ee04	survarium::lobby_client::leave_squad
+0x00274a00	inferred-medium		survarium::lobby_client::on_message_received
 0x00275220	inferred-medium		survarium::lobby_client::process_detach_upgrade
 0x00275520	inferred-medium		survarium::lobby_client::process_succeeded_inventory_action
 0x00276eb0	inferred-medium		survarium::lobby_client::push_upgrade_record

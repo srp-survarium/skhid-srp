@@ -117,7 +117,9 @@
 //! | any, when no snapshot was trusted (`trusted_by` 0) | no counters and no winner: the fixed part of a match not won, wear, a drop; the rating stays (0.21d's unknown result) |
 //! | any, when one client alone vouched (`trusted_by` 1) | in full, as 0.21d paid a match one client was alone in (its numbers passed the match server's checks) |
 //!
-//! A match no client ever reached ([`MatchEnd::NoShow`]) has no report.
+//! A match no client ever reached ([`MatchEnd::NoShow`]) has no report, nor
+//! has a room's match called off before its countdown
+//! ([`MatchEnd::NotMade`]): no screen, pay, rating, quest or wear.
 //! A deserted match is a match all of whose players left early.
 //!
 //! # What the screen shows
@@ -213,6 +215,8 @@ pub enum MatchEnd {
     TimeLimit,
     Deserted,
     NoShow,
+    /// A room's match called off before its countdown.
+    NotMade,
 }
 
 /// One roster place of a finished match (the match server's
@@ -968,7 +972,7 @@ impl Results {
         terms: &Terms,
         rng: &mut Rng,
     ) -> Option<Arc<MatchReport>> {
-        if result.end == MatchEnd::NoShow {
+        if matches!(result.end, MatchEnd::NoShow | MatchEnd::NotMade) {
             return None;
         }
         // An account's place it left and came back from counts for

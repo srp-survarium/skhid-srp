@@ -215,6 +215,9 @@ pub struct MatchSetup {
     /// One player against the server's own bots (`pvb`): the match
     /// server's `MatchSetup::vs_bots`.
     pub vs_bots: bool,
+    /// A room's match: the room's minimum of players (the match server's
+    /// `MatchSetup::room_minimum`).
+    pub room_minimum: Option<u8>,
 }
 
 /// Where the players of a made match connect.
@@ -873,8 +876,10 @@ impl Core<'_> {
             return false;
         };
         let pvb = self.pvb_launching.get(&match_id).copied();
-        // A room's match: the map its vote chose (`rooms`).
-        let room_map = self.room_launching.get(&match_id).copied();
+        // A room's match: the map its vote chose and the room's minimum
+        // (`rooms`).
+        let room = self.room_launching.get(&match_id).copied();
+        let room_map = room.map(|(map_id, _)| map_id);
         let unix = quests::now();
         // Its players' levels.
         let mut levels = Vec::with_capacity(formed.seats.len());
@@ -946,6 +951,7 @@ impl Core<'_> {
                 match_level,
                 players,
                 vs_bots: pvb.is_some(),
+                room_minimum: room.map(|(_, minimum)| minimum),
             }),
             None => Err("a seated player is unavailable or uses an incompatible client".to_owned()),
         };
@@ -1075,13 +1081,15 @@ impl Core<'_> {
     }
 
     /// [`super::Inbox::match_finished`], by the id the clients were told.
-    pub(super) fn match_finished(&mut self, ticket_match_id: u32, _now: Instant) {
+    pub(super) fn match_finished(&mut self, finished: super::MatchFinished, _now: Instant) {
+        let ticket_match_id = finished.match_id;
         let id = self
             .matches
             .iter()
             .find(|(_, running)| running.ticket.match_id == ticket_match_id)
             .map(|(id, _)| *id);
         match id {
+            Some(id) if finished.not_made => self.finish_not_made(id),
             Some(id) => self.finish(id),
             None => log::debug!("Match {ticket_match_id:#x} is over; the lobby had freed it"),
         }
@@ -1091,12 +1099,27 @@ impl Core<'_> {
     /// still marked in it are told they are in the lobby (`85 00`; the
     /// client's Play is off in any other state).
     fn finish(&mut self, match_id: u32) {
+        self.end_running(match_id, true);
+    }
+
+    /// A room's match called off before its countdown (`match.md` section
+    /// 34): as [`Self::finish`], with its room going on as for a match that
+    /// could not be made, and no results (there are none).
+    fn finish_not_made(&mut self, match_id: u32) {
+        self.end_running(match_id, false);
+    }
+
+    fn end_running(&mut self, match_id: u32, made: bool) {
         let Some(running) = self.matches.remove(&match_id) else {
             return;
         };
         self.store.matchmaking().end_match(match_id);
         // A room's match: its players are back in the room.
-        self.room_match_over(match_id);
+        if made {
+            self.room_match_over(match_id);
+        } else {
+            self.room_match_not_made(match_id);
+        }
         log::info!(
             "Match {:#x} (map {}) is over: {} seats freed",
             running.ticket.match_id,
@@ -1117,7 +1140,9 @@ impl Core<'_> {
             player.in_match = None;
             player.connect = None;
             self.send(addr, lobby::client_state(&ClientState::Lobby, None));
-            self.show_results(addr, false);
+            if made {
+                self.show_results(addr, false);
+            }
         }
     }
 

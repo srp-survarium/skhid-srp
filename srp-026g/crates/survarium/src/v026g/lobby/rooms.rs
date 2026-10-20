@@ -43,6 +43,10 @@ pub const ROOM_PIN_BASE: u32 = ROOMS_FIRST + 10_000;
 /// `ROOM_JOIN_BASE + key`, key 1 to [`ROOM_KEY_MAX`]: join that room.
 /// Answered with the state.
 pub const ROOM_JOIN_BASE: u32 = ROOMS_FIRST + 100_000;
+/// `ROOM_MEMBERS_BASE + key`, key 1 to [`ROOM_KEY_MAX`]: who is in that
+/// room, for anyone looking at the list ([`room_members`]; since
+/// 2026-10-20, a movie before it never asks).
+pub const ROOM_MEMBERS_BASE: u32 = ROOMS_FIRST + 300_000;
 /// Leave the queue the asker waits in. Answered with the state.
 pub const ROOM_UNQUEUE: u32 = ROOMS_FIRST + 7;
 /// Go into the asker's room's match being played now, without waiting for
@@ -131,6 +135,7 @@ pub enum RoomRequest {
     Pin { pin: u16 },
     Join { key: u32 },
     Queue { key: u32 },
+    Members { key: u32 },
     Unqueue,
     JoinMatch,
     Form,
@@ -157,6 +162,18 @@ pub fn create_start(spec: RoomSpec) -> u32 {
 /// The start of a kick of the member at `place` of a state of `serial`.
 pub fn kick_start(place: u8, serial: u32) -> u32 {
     ROOM_KICK_BASE + u32::from(place) + MEMBERS_MAX as u32 * (serial % KICK_CHECKS)
+}
+
+/// The `match` of a `3D 00 <GEAR_IN_ROOM> <match>` for the member at `place`
+/// of a room state of that `serial` (`lobby::GEAR_IN_ROOM`), and back:
+/// `(place, check)`.
+pub fn member_gear(place: u8, serial: u32) -> u32 {
+    u32::from(place) + MEMBERS_MAX as u32 * (serial % KICK_CHECKS)
+}
+
+pub fn member_gear_place(value: u32) -> Option<(u8, u32)> {
+    let check = value / MEMBERS_MAX as u32;
+    (check < KICK_CHECKS).then(|| ((value % MEMBERS_MAX as u32) as u8, check))
 }
 
 /// The start of 20 entries of a pool: `chunk` 0 to [`CHUNKS`] − 1, `bits`
@@ -202,6 +219,11 @@ pub fn room_request(start: u32, count: u8) -> Option<RoomRequest> {
         _ if (ROOM_QUEUE_BASE + 1..=ROOM_QUEUE_BASE + ROOM_KEY_MAX).contains(&start) => R::Queue {
             key: start - ROOM_QUEUE_BASE,
         },
+        _ if (ROOM_MEMBERS_BASE + 1..=ROOM_MEMBERS_BASE + ROOM_KEY_MAX).contains(&start) => {
+            R::Members {
+                key: start - ROOM_MEMBERS_BASE,
+            }
+        }
         _ if (ROOM_BITS_BASE..ROOM_BITS_BASE + CHUNKS * (1 << BITS_PER_CHUNK)).contains(&start) => {
             let offset = start - ROOM_BITS_BASE;
             R::Bits {
@@ -468,16 +490,22 @@ fn row(name: String) -> Ranked {
     }
 }
 
-/// A name fit for a row: no `;`, at most [`ROW_NAME`] bytes.
+/// A name fit for a row: no `;`, at most [`ROW_NAME`] bytes; one longer is
+/// cut and ends with "…" (the owner's of 2026-10-20: long names shown as
+/// cut, not as other names).
 fn row_name(name: &str) -> String {
+    let name = name.replace(';', "_");
+    if name.len() <= ROW_NAME {
+        return name;
+    }
     let mut cut = String::new();
     for c in name.chars() {
-        let c = if c == ';' { '_' } else { c };
-        if cut.len() + c.len_utf8() > ROW_NAME {
+        if cut.len() + c.len_utf8() + '…'.len_utf8() > ROW_NAME {
             break;
         }
         cut.push(c);
     }
+    cut.push('…');
     cut
 }
 
@@ -610,6 +638,53 @@ pub fn room_state(
     }
     names.push(format!("L;{}", room.last_map));
     rows_at(ROOM_STATE, names)
+}
+
+/// A member of a room as the Rooms list's side panel shows it
+/// ([`room_members`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ListMember {
+    pub member: Member,
+    /// The team of its place in the room's match being played, 0 or 1;
+    /// `None` when it has none.
+    pub side: Option<u8>,
+    /// Its account: a right-click on it asks for its kits by it
+    /// (`3D 00 <GEAR_BY_ACCOUNT> <account>`).
+    pub account_id: u32,
+}
+
+/// `91` as the answer to `3B 00 <ROOM_MEMBERS_BASE + key> 1`, `place =
+/// ROOM_MEMBERS_BASE + i`, to anyone (the room chosen in the Rooms list; a
+/// room with a PIN too: names are no secret): `S1;G;<key>;<members>`, then
+/// two rows a member in the order of the room: `P;<i>;<gear>;<owner>;<me>;
+/// <in match>;<fit>;<away>;<side>;<account>` (the state's fields; `side` 1
+/// or 2, the team of its place in the room's match being played, 0 when it
+/// has none), and its whole name alone (up to the 63 bytes a row holds, `;`
+/// and all: a name is never cut here). A room gone: `S1;G;<key>;0`, no
+/// member.
+pub fn room_members(key: u32, members: &[ListMember]) -> Result<ServerMessage, WireError> {
+    at_most("room members", members.len(), MEMBERS_MAX)?;
+    rows_at(ROOM_MEMBERS_BASE, members_names(key, members))
+}
+
+fn members_names(key: u32, members: &[ListMember]) -> Vec<String> {
+    let mut names = vec![format!("{ROOMS_VERSION};G;{key};{}", members.len())];
+    for (index, seen) in members.iter().enumerate() {
+        let member = &seen.member;
+        names.push(format!(
+            "P;{index};{};{};{};{};{};{};{};{}",
+            member.gear,
+            u8::from(member.owner),
+            u8::from(member.me),
+            u8::from(member.in_match),
+            member.fit as u8,
+            u8::from(member.away),
+            seen.side.map_or(0, |team| team.min(1) + 1),
+            seen.account_id
+        ));
+        names.push(member.name.clone());
+    }
+    names
 }
 
 /// `91` as the answer to `3B 00 <ROOM_POOL_BASE + page> <count>`, `place =
@@ -757,6 +832,14 @@ mod tests {
             Some(RoomRequest::Queue { key: 7 })
         );
         assert_eq!(room_request(ROOM_QUEUE_BASE, 1), None);
+        // Who is in a room: after the queues, below the pool's bits.
+        assert_eq!(ROOM_QUEUE_BASE + ROOM_KEY_MAX + 1, ROOM_MEMBERS_BASE);
+        const { assert!(ROOM_MEMBERS_BASE + ROOM_KEY_MAX < ROOM_BITS_BASE) };
+        assert_eq!(room_request(ROOM_MEMBERS_BASE, 1), None);
+        assert_eq!(
+            room_request(ROOM_MEMBERS_BASE + ROOM_KEY_MAX, 1),
+            Some(RoomRequest::Members { key: ROOM_KEY_MAX })
+        );
         assert_eq!(
             room_request(bits_start(7, 0xF_FFFF), 1),
             Some(RoomRequest::Bits {
@@ -829,9 +912,120 @@ mod tests {
     }
 
     #[test]
+    fn a_member_list_gives_each_side_account_and_whole_name() {
+        let member = Member {
+            gear: 7,
+            owner: true,
+            me: false,
+            in_match: true,
+            fit: Fit::Gear,
+            away: true,
+            name: "a;b".into(),
+        };
+        let other = Member {
+            owner: false,
+            in_match: false,
+            fit: Fit::Yes,
+            away: false,
+            name: "Bob".into(),
+            ..member.clone()
+        };
+        let seen = |member: &Member, side, account_id| ListMember {
+            member: member.clone(),
+            side,
+            account_id,
+        };
+        assert_eq!(
+            members_names(
+                42,
+                &[
+                    seen(&member, Some(1), 5),
+                    seen(&other, None, 6),
+                    seen(&other, Some(0), 7)
+                ]
+            ),
+            [
+                "S1;G;42;3",
+                "P;0;7;1;0;1;2;1;2;5",
+                "a;b",
+                "P;1;7;0;0;0;0;0;0;6",
+                "Bob",
+                "P;2;7;0;0;0;0;0;1;7",
+                "Bob"
+            ]
+        );
+        assert_eq!(members_names(42, &[]), ["S1;G;42;0"]);
+        assert!(room_members(42, &vec![seen(&member, None, 1); MEMBERS_MAX + 1]).is_err());
+    }
+
+    /// The longest names the game takes (63 bytes: wide Latin, Cyrillic,
+    /// mixed) come whole, and the widest member row fits a row.
+    #[test]
+    fn a_member_list_never_cuts_a_name() {
+        let names = [
+            "W".repeat(63),
+            format!("{}W", "Ш".repeat(31)),
+            format!("Ж{}", "m".repeat(61)),
+        ];
+        let members: Vec<ListMember> = (0..MEMBERS_MAX)
+            .map(|i| ListMember {
+                member: Member {
+                    gear: 15,
+                    owner: true,
+                    me: true,
+                    in_match: true,
+                    fit: Fit::Gear,
+                    away: true,
+                    name: names[i % names.len()].clone(),
+                },
+                side: Some(1),
+                account_id: i32::MAX as u32,
+            })
+            .collect();
+        let rows = members_names(99_999, &members);
+        assert_eq!(rows.len(), 1 + 2 * MEMBERS_MAX);
+        for row in &rows {
+            assert!(row.len() <= crate::v026g::lobby::limits::NAME, "{row}");
+        }
+        for (i, name) in rows[1..].chunks(2).map(|pair| &pair[1]).enumerate() {
+            assert_eq!(name, &names[i % names.len()]);
+            assert_eq!(name.len(), 63);
+        }
+        let message = room_members(99_999, &members).unwrap();
+        let mut client = crate::v026g::lobby::client_model::Client::signed_in();
+        match client.receive(&message).unwrap() {
+            crate::v026g::lobby::client_model::Decoded::EloList(decoded) => {
+                assert_eq!(decoded.len(), rows.len());
+                for (decoded, row) in decoded.iter().zip(&rows) {
+                    assert_eq!(&decoded.0, row);
+                }
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_room_members_kits_are_asked_by_place_and_check() {
+        assert_eq!(
+            member_gear_place(member_gear(19, 1234)),
+            Some((19, 1234 % KICK_CHECKS))
+        );
+        assert_eq!(member_gear_place(member_gear(0, 0)), Some((0, 0)));
+        assert_eq!(member_gear_place(MEMBERS_MAX as u32 * KICK_CHECKS), None);
+        assert_eq!(member_gear_place(u32::MAX), None);
+    }
+
+    #[test]
     fn a_name_loses_its_separators_and_its_tail() {
         assert_eq!(row_name("a;b"), "a_b");
-        assert_eq!(row_name(&"x".repeat(40)).len(), ROW_NAME);
+        // Cut, it says so.
+        let cut = row_name(&"x".repeat(40));
+        assert_eq!(cut, format!("{}…", "x".repeat(ROW_NAME - 3)));
+        assert_eq!(cut.len(), ROW_NAME);
+        assert_eq!(row_name(&"x".repeat(ROW_NAME)), "x".repeat(ROW_NAME));
         assert_eq!(row_name("Сич").len(), 6);
+        let wide = row_name(&"Ш".repeat(20));
+        assert_eq!(wide, format!("{}…", "Ш".repeat(14)));
+        assert!(wide.len() <= ROW_NAME);
     }
 }

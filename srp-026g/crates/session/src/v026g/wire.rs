@@ -163,6 +163,13 @@ pub fn squad_member_account(account: &Account, now: u64) -> Result<ServerMessage
     lobby::squad_member_account(&account_body(account, now), revision)
 }
 
+/// `93`: the account's kits as a results screen's row shows them (the
+/// game's "Information about the player" window), from the account as it
+/// is now; `id` goes in the full result the client discards.
+pub fn player_gear(account: &Account, id: u32, now: u64) -> Result<ServerMessage, WireError> {
+    lobby::player_details(&lobby::FullResult::empty(id), &account_body(account, now))
+}
+
 /// `8B`.
 pub fn money(account: &Account) -> ServerMessage {
     lobby::money(account.generic_money, account.premium_money)

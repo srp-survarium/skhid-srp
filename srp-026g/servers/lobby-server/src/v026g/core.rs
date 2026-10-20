@@ -88,6 +88,11 @@ pub(super) struct Player<'a> {
     pub money_sent: (u32, u32),
     /// The count of ranked players the client's ranking page has.
     pub ranked_sent: u32,
+    /// The ranking pages it was sent, newest last, as (the index of the
+    /// first row, the account of each row): a right-click on a row asks by
+    /// its place, which resolves to what the page (or a cached tab of it)
+    /// showed there (`gear`). The last `gear::PAGES_KEPT` only.
+    pub ranked_shown: Vec<(u32, Vec<u32>)>,
     /// The online counts the client was last sent, and when (`None`: only
     /// with the sign-in's pushes).
     pub online_sent: (u32, u32, u32),
@@ -217,8 +222,8 @@ pub(super) struct Core<'a> {
     /// The rooms (`rooms`).
     pub rooms: session::v026g::rooms::Rooms,
     /// The room matches being made, by the queue's match id: the map their
-    /// vote chose (`rooms`, `play::launch`).
-    pub room_launching: HashMap<u32, u8>,
+    /// vote chose and the room's minimum of players (`rooms`, `play::launch`).
+    pub room_launching: HashMap<u32, (u8, u8)>,
     /// Why a request or a Play left the account outside a room, said once
     /// with its next room state (`rooms`).
     pub room_codes: HashMap<u32, survarium::v026g::lobby::rooms::RoomCode>,
@@ -650,6 +655,7 @@ impl<'a> Core<'a> {
             squad_serial: None,
             money_sent: balance,
             ranked_sent: ranking.len() as u32,
+            ranked_shown: Vec::new(),
             online_sent: online,
             online_at: None,
             friends_sent: Vec::new(),
@@ -976,7 +982,7 @@ impl<'a> Core<'a> {
 
     fn notice(&mut self, notice: Notice, now: Instant) {
         match notice {
-            Notice::MatchFinished(finished) => self.match_finished(finished.match_id, now),
+            Notice::MatchFinished(finished) => self.match_finished(finished, now),
             Notice::Push {
                 account_id,
                 messages,

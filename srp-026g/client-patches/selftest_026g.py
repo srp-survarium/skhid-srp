@@ -654,6 +654,9 @@ def allowed_ranges(original, mode, cave_size, server=None):
     # The journal default's imm32 changes and keeps its relocation: it is
     # an allowed range, and not a rewritten one (test_start_up_folder).
     ranges.append((P.file_offset(P.JOURNAL_DEFAULT_VA + 1), 4))
+    # Patch 43 gives back what that default withheld (test_tab_self).
+    ranges.append((P.file_offset(P.TAB_SELF[0]), len(P.TAB_SELF[1])))
+    rewritten.append((P.TAB_SELF[0], P.TAB_SELF[0] + len(P.TAB_SELF[1])))
     if server is not None:
         va, old = P.DEFAULT_SERVER_HOOK
         ranges.append((P.file_offset(va), len(old)))
@@ -984,9 +987,14 @@ def test_start_up_folder(original, image, mode):
     va, old, new = P.MOUNT_NO_ROOT
     journal_va, journal_old, journal_new = P.JOURNAL_DEFAULT
     if mode == "cert-only":
-        check(image.read(va, len(old)) == old and image.read(journal_va, 5) == journal_old,
-              "cert-only: mounter::finish and the journal's default are the original's")
+        check(image.read(va, len(old)) == old and image.read(journal_va, 5) == journal_old
+              and image.read(P.TAB_SELF[0], len(P.TAB_SELF[1])) == P.TAB_SELF[1],
+              "cert-only: mounter::finish, the journal's default and on_activate's name (patch 43) are the "
+              "original's")
         return
+    check(image.read(P.TAB_SELF[0], len(P.TAB_SELF[2])) == P.TAB_SELF[2],
+          f"{P.TAB_SELF[0]:#x}: patch 43's `jmp short` with the journal off by default: on_activate gives the hud "
+          "its player's name (test_tab_self)")
     # mounter::finish from the read of the mount's root to its `ret 0Ch`.
     start, end = 0x46B04, 0x46B3D
     tail = ["mov eax,[eax+0x34]", "test eax,eax", "jnz 0x46b0f", "xor ecx,ecx", "jmp short 0x46b12",
@@ -2120,7 +2128,7 @@ def test_db_signature(original, image, before):
           and image.read(va, len(new)) == new and before.read(va, len(old)) == old,
           f"{va:#x}: verify_sign's `call {P.DB_SIGNATURE_IMPL:#x}` is `xor eax,eax` and three nops between the "
           "original's instructions; the build without the late join keeps the original call")
-    under = [v for kind, v in Image(original).relocations().values() if kind == 3 and va - 3 < v < va + len(old)]
+    under = [v for kind, v in Image(original).relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
     # rel32 branches of .text and 4-byte values of the file; the short
     # branches of verify_sign itself (0x13310..0x13608), instruction by
     # instruction (a byte-wise scan reads `lea esi,[esp+10h]` at 0x135AD
@@ -2143,7 +2151,7 @@ def test_stale_dll(original, image, before):
           == ["mov [edi+0x8],eax", "mov [edi+0xc],dl"],
           f"{va:#x}: `mov [edi+0x8],eax` / `mov [edi+0xc],dl` are `call {entry:#x}` / `nop`; "
           "the build without the late join keeps them")
-    under = [v for kind, v in Image(original).relocations().values() if kind == 3 and va - 3 < v < va + len(old)]
+    under = [v for kind, v in Image(original).relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
     start, end = SIGN_IN_ON_CONNECTED
     found = aimed_inside(original, va, len(old), 0)
     found += [address for address, _, text in ndisasm(Image(original).read(start, end - start), start)
@@ -2216,7 +2224,7 @@ def test_mount_patches(original, image, before):
         return False
 
     for (va, old, _), (start, end) in ((P.MOUNT_QUERY, QUERY_DB), (P.MOUNTED, ON_MOUNTED_RESOURCES)):
-        under = [v for v in relocated if va - 3 < v < va + len(old)]
+        under = [v for v in relocated if va - 4 < v < va + len(old)]
         found = [a for a in aimed_inside(original, va, len(old), 0) if not va < a < va + len(old) or an_address(a)]
         found += [address for address, _, text in ndisasm(Image(original).read(start, end - start), start)
                   if (target := branch_target(text)) is not None and va < target < va + len(old)]
@@ -2400,7 +2408,7 @@ def test_forward_scroll(original, image, before):
           f"the last of those ({inside[-1] if inside else 0:#x}) is scene_time's, right before the hook")
     for va, old, _, _ in P.FORWARD_SCROLL_HOOKS:
         start, end = RENDERER_CONTEXT if va == 0x14990F else FORWARD_COMPILE
-        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 3 < v < va + len(old)]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
         found = aimed_inside(original, va, len(old), 0)
         found += [address for address, _, t in ndisasm(stock.read(start, end - start), start)
                   if (target := branch_target(t)) is not None and va < target < va + len(old)]
@@ -2803,7 +2811,7 @@ def test_kit_change(original, image, before):
                   if (target := branch_target(text)) is not None
                   and any(va < target < va + len(old) for va, old in sites)]
     under = [v for kind, v in stock.relocations().values() if kind == 3
-             and any(va - 3 < v < va + len(old) for va, old in sites)]
+             and any(va - 4 < v < va + len(old) for va, old in sites)]
     check(not found and not under, "no branch or address aims inside the five sites, no base relocation under them"
           + "".join(f"\n          {a:#x}" for a in found + under))
 
@@ -2932,7 +2940,7 @@ def test_warmup_look(original, image, before):
         hits = [h for h in aimed_inside(original, va, len(old), 0x80) if not va <= h < va + len(old)]
         spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
         found += hits[:len(hits) - len(spelled)]
-        found += [v for kind, v in stock.relocations().values() if kind == 3 and va - 3 < v < va + len(old)]
+        found += [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
     for lo, hi in ((0x25D0E0, 0x25D128), (0x242200, 0x2422A6)):
         found += [address for address, _, text in ndisasm(stock.read(lo, hi - lo), lo)
                   if (target := branch_target(text)) is not None and any(va < target < va + len(old) for va, old in sites)]
@@ -3004,7 +3012,7 @@ def test_warmup_keys(original, image, before):
     hits = [h for h in aimed_inside(original, va, len(old), 0x80) if not va <= h < va + len(old)]
     spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
     found = hits[:len(hits) - len(spelled)]
-    found += [v for kind, v in stock.relocations().values() if kind == 3 and va - 3 < v < va + len(old)]
+    found += [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
     found += [address for address, _, text in ndisasm(stock.read(0x25CF60, 0x25D0E0 - 0x25CF60), 0x25CF60)
               if (target := branch_target(text)) is not None and va < target < va + len(old)]
     check(not found, "nothing aims inside the site and no base relocation is under it"
@@ -3058,7 +3066,7 @@ def test_suicide_key(original, image, before):
           "instruction, and it holds no absolute address")
     hits = aimed_inside(original, va, len(old), 0x80)
     spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
-    under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 3 < v < va + len(old)]
+    under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
     check(len(hits) == len(spelled) and not under,
           "nothing aims inside the site (a 4-byte value spelling an address there is no pointer without a "
           "relocation) and no base relocation is under it" + "".join(f", {h:#x}" for h in hits + under))
@@ -3146,7 +3154,7 @@ def test_spot(original, image, before):
     for va, size in ((P.SPOT_COOLDOWN[0], len(P.SPOT_COOLDOWN[1])), (P.SPOT_HOOK[0], len(P.SPOT_HOOK[1]))):
         hits = aimed_inside(original, va, size, 0x80)
         spelled = [va + i for i in range(1, size) if original.find(struct.pack("<I", va + i)) != -1]
-        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 3 < v < va + size]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + size]
         check(len(hits) == len(spelled) and not under,
               f"{va:#x}: nothing aims inside the site and no base relocation is under it"
               + "".join(f", {h:#x}" for h in hits + under))
@@ -3278,9 +3286,60 @@ def test_tab_list(original, image, before):
     found = [a for site, bytes_ in sites for a in aimed_inside(original, site, len(bytes_), 0x82)
              if a not in spelled and (a in starts or not any(lo <= a < hi for lo, hi in hosts))]
     under = [v for kind, v in stock.relocations().values() if kind == 3
-             and any(site - 3 < v < site + len(bytes_) for site, bytes_ in sites)]
+             and any(site - 4 < v < site + len(bytes_) for site, bytes_ in sites)]
     check(not found and not under, "nothing aims inside the three sites (no branch of .text, and no 4-byte value "
           "that is a pointer) and no base relocation is under them" + "".join(f", {h:#x}" for h in found + under))
+
+
+def test_tab_self(original, image, before):
+    """Check 43: the player's own row in the Tab list is gold (patch 43,
+    TAB_SELF): game_world::on_activate gives the hud its player's name
+    whatever the journal does. check_tab_self_026g.py runs it. Every full
+    build has it, as it has patch 14's default (test_start_up_folder)."""
+    stock = Image(original)
+    rows = lambda blob, at, size: [text for _, _, text in ndisasm(blob.read(at, size), at)]
+    va, old, new = P.TAB_SELF
+    check(stock.read(va, len(old)) == old and before.read(va, len(new)) == new == image.read(va, len(new)),
+          f"{va:#x}: the original's `{old.hex()}` (test eax,eax), `{new.hex()}` (jmp short) here and in the "
+          "build without the late join")
+    guard = ["mov eax,[0xa8394c]", "test eax,eax", "jz 0x1f949d", "mov ecx,[dword 0xa83948]",
+             "cmp dword [ecx],byte +0x1", "jnz 0x1f949d", "mov edx,[esi+0x9c]", "mov eax,[edx+0x5398]", "push eax",
+             "lea edi,[esp+0x24]", "call 0x209ac0", "mov ecx,[dword 0xa8394c]"]
+    check(rows(stock, 0x1F9473, 0x30) == guard,
+          "the original: 0x1F9473 calls chat_handler::set_local_player_name (0x209AC0) with the chat handler "
+          "(game+5398h) and the name at [esp+24h] only when the journal's flag [0xa8394c] is set and its use "
+          "[[0xa83948]] is 1 (record)")
+    check(rows(image, 0x1F9473, 0x30) == guard[:1] + ["jmp short 0x1f9487"] + guard[2:],
+          "here `jmp short 0x1f9487` past the two tests; the call and what follows are the original's")
+    # The name it gives is the rows' name: "[clan] name" (the format at
+    # 0x9FB140), or the name, from the lobby client (+1E5650h the clan,
+    # +1E55D0h the name), as initialize_match makes a row's from the place's
+    # profile (+48h the clan, +8 the name).
+    activate = rows(stock, 0x1F93A1, 0xD2)
+    initialize = rows(stock, 0x23506F, 0x40)
+    check(stock.read(0x9FB140, 8) == b"[%s] %s\0"
+          and "add eax,0x1e5650" in activate and "add eax,0x1e55d0" in activate
+          and activate.count("push dword 0x9fb140") == 1 and activate.count("call 0x1f53d0") == 1
+          and "call 0x209430" in activate
+          and initialize[0] == "lea ecx,[esi+0x48]" and "add esi,byte +0x8" in initialize
+          and "push dword 0x9fb140" in initialize,
+          "on_activate (after chat_handler::set_mode 0x209430) makes the name as the rows have it: \"[%s] %s\" "
+          "(0x9FB140) of the lobby client's clan and name, or the name; initialize_match's row name is the same "
+          "format of the place's clan (+48h) and name (+8)")
+    check(rows(stock, 0x209AF9, 0xA) == ["push dword 0x9fe534", "call 0x511600"]
+          and stock.read(0x9FE534, 22) == b"root.set_local_player\0",
+          "0x209AC0 invokes root.set_local_player (0x9FE534) on the chat handler's movie, the hud in a match")
+    check(rows(stock, 0xEB377, 7) == ["mov eax,0xa8394c", "xchg [eax],edx"] and rows(stock, 0xEB372, 5) == ["mov edx,0x1"]
+          and rows(stock, 0xEB317, 4) == ["test esi,esi", "jz 0xeb37e"]
+          and image.read(P.JOURNAL_DEFAULT_VA, 5) == P.JOURNAL_DEFAULT[2],
+          "the flag [0xa8394c] is set by journaling's start (0xEB310) for a use other than 0 alone, and the "
+          "build's journal is off by default (patch 14): without the patch the call never comes")
+    under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+    found = aimed_inside(original, va, len(old), 0x82)
+    check(not under and not found and sorted(v for kind, v in stock.relocations().values()
+                                               if kind == 3 and 0x1F9473 <= v < 0x1F9487) == [0x1F9474, 0x1F947E],
+          "no base relocation under the two bytes (the two addresses' are at 0x1F9474 and 0x1F947E) and nothing "
+          "aims at the second byte" + "".join(f", {h:#x}" for h in found + under))
 
 
 def test_replay_link(original, image, before):
@@ -3889,6 +3948,7 @@ def test_late_join(original, without, server, source):
     test_weapon_preview(original, image, before)
     test_suicide_key(original, image, before)
     test_tab_list(original, image, before)
+    test_tab_self(original, image, before)
     test_spot(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

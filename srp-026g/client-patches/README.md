@@ -88,6 +88,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
+| `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
 | `check_baked_texture_026g.py` | Runs the original's and patch 35's baked-texture list of the camouflage/decal baker (the look-up, the push and check_loaded_baked_texture) on made-up loads, among them those of the crash of 2026-10-17 (needs Unicorn) |
 | `weapon_preview_026g.asm`, `weapon_preview_026g.section.bin` | The source of patch 32's code (a weapon's upgrade window shows the weapon) and that code assembled for 0x2E50 of `.srp`, its state at 0xE00 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
@@ -585,7 +586,10 @@ the repository holds, in order, as `patch_026g.py` does for the exe:
 3. the exchange window's amounts (`exchange_update_026g.py`, #214);
 4. Buy on owned items (`buy_modified_026g.py`, #215);
 5. the craft window's menu and buttons (`craft_menu_026g.py`, #216);
-6. Optics in a weapon's menu (`scope_context_menu_026g.py`, #217).
+6. Optics in a weapon's menu (`scope_context_menu_026g.py`, #217);
+7. Show player's information in the Rankings (`player_gear_026g.py`): a
+   right-click on any row shows that player's kits in the game's own window
+   ([player_gear.md](../docs/notes/player_gear.md)).
 
 A change of a step's source is built in by building again; a new lobby change
 is a new entry of `STEPS`. Never ship a movie made by running one step alone
@@ -607,7 +611,7 @@ the base (a change of theirs needs a new base); the exchange's later changes
 are a step.
 
 Since the rooms' window under a match's results (2026-10-20): `RESULT_SHA256` is
-`57f73166…` (the owner checked `d41b9655…` in the game; then #219's review fixes); with #211 (Leave room / Leave queue, the yellow tab) `a56cd0ed…` (the owner checked `d7907536…`; then the review fixes); with #209 (why a waiting member cannot go into its room's match, `J;-1;<why>`) `57258f9e…`, not yet checked in the game; with the remembered create window (the last room made by hand, `S1;F`) `88fa657a…`, not yet checked in the game. The first build of 2026-10-20 (`main` with
+`57f73166…` (the owner checked `d41b9655…` in the game; then #219's review fixes); with #211 (Leave room / Leave queue, the yellow tab) `a56cd0ed…` (the owner checked `d7907536…`; then the review fixes); with #209 (why a waiting member cannot go into its room's match, `J;-1;<why>`) `57258f9e…`, not yet checked in the game; with the remembered create window (the last room made by hand, `S1;F`) `88fa657a…`, not yet checked in the game; with Show player's information in the Rankings `d3f81436…` (`929f3f0a…`, then the review fixes), not yet checked in the game; with the Rooms list's members and a member's equipment on a right-click `e626a01a…` (`7fe79086…`, then the review fixes), not yet checked in the game. The first build of 2026-10-20 (`main` with
 #212): sha256 `8841ba5c…`, deterministic
 with FFDec 25.1.3. Its 881 scripts decompile byte for byte to those of the
 movie the owner tested with #212 (`ed14345f…`, made the long way: the rooms
@@ -2367,6 +2371,50 @@ its screen factor (the original's at 20, 60 and 150 m). Against the build of
 0x1484AF), two relocation entries (0xB71E47, 0xB728AD), fov_projection's
 code (0xC4BC60..0xC4BCED), the two scales (0xC4C0E0..0xC4C115) and the PE
 checksum, and in nothing else (compared byte by byte). **Not run in a game.**
+
+### 43. The player's own row in the Tab list is gold (the next release's revision)
+
+The owner (2026-10-20): "when pressing tab in game, your own character
+should be gold", "just like when you kill or get killed in a kill list top
+right". The rule: `../docs/notes/tab-list-left-places.md`.
+
+The colour is already in the hud movie (`flash_movies/hud.swf`, revision
+22's): the kill list (`CombatLogItem`) colours a name by its team code, 2
+being the player's own (`game_world_ui::on_player_killed` 0x237C70 sends 2
+when the place is the player's), with `Colors.PLAYER`; the Tab list's rows
+(`PlayerListRenderer.updateData`) give the row marked `isLocal` the same
+`Colors.PLAYER`. It is `Colors.YELLOW`, 0xF1E545, the lobby's colour for
+the player too. `PlayerList` marks the row whose name is the one
+`root.set_local_player` gave. In a match only `game_world::on_activate`
+(0x1F9340) gives it, the name made as the rows' names are ("[clan] name",
+or the name), and only while the journal records (the journal's flag
+0xA8394C and its use, 1). Patch 14 (revision 4) turned the journal off by
+default, so since then no hud has known its player's name and no row was
+gold.
+
+**The patch.** In every full build (with and without the late join, and
+`--cave=hash-mismatch`), as patch 14's default is, 0x1F9478 `test eax,eax`
+(`85 C0`) becomes `jmp short 0x1F9487` (`EB 0D`): past the journal's two
+tests, the name is given whatever the journal does. Two bytes; no address
+and no base relocation under them, nothing jumps into them. The movie is
+not changed.
+
+Rendering only: the hud's lists (and its chat, which keeps the name too).
+Nothing a match computes: no row in
+`../crates/session/src/v026g/simulation_changes.tsv`; games with and
+without it play together. `../docs/notes/client_patch.md` section 3.40.
+
+Checked: `selftest_026g.py` check 43; `check_tab_self_026g.py` runs
+on_activate's end (0x1F9395..0x1F949D) with the game's own network client
+(vtable 0x9FFB14: +20h, lobby_client), string code and memcpy on a
+made-up world, for the builds with and without the late join and over
+on_hash_mismatch: with the journal
+off the original gives no name and the build "[clan] name" (or the name);
+recording, both the same; played back, the build alone; when the network client's +20h
+says no, neither. Against the build of `main` b97133d (revision 25's exe,
+`12006dd9…a8b4`) the default build differs in file 0x1E8878..0x1E8879 and
+the PE checksum, and in nothing else (compared byte by byte). **Not run in
+a game.**
 
 ## Not ported, not done
 

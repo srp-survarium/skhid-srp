@@ -15,6 +15,7 @@ mod late_join;
 mod late_join_edge_cases;
 mod resync_gate;
 mod sockets;
+mod start;
 mod units;
 
 use std::net::{SocketAddr, UdpSocket};
@@ -78,6 +79,7 @@ pub fn setup(players: usize, map_id: u8) -> MatchSetup {
             .collect(),
         score_weights: None,
         vs_bots: false,
+        room_minimum: None,
     }
 }
 
@@ -142,6 +144,17 @@ impl Bench {
         driven: &[usize],
     ) -> Self {
         Self::with_dialect(players, map_id, settings, &[], driven, true)
+    }
+
+    /// A room's match (growing rosters) of places on `teams`, the room
+    /// needing `minimum` players (`MatchSetup::room_minimum`).
+    pub fn room(teams: &[u8], map_id: u8, settings: Settings, minimum: u8) -> Self {
+        let mut setup = setup(teams.len(), map_id);
+        for (player, &team) in setup.players.iter_mut().zip(teams) {
+            player.profile.team = team;
+        }
+        setup.room_minimum = Some(minimum);
+        Self::with_setup(setup, settings, &[], &[], true)
     }
 
     /// A match of one player against the server's own bots at `driven`
@@ -229,7 +242,11 @@ impl Bench {
     pub fn restart(&mut self, place: usize) {
         let old = &self.clients[place];
         let (players, map_id) = (old.sim.players, old.sim.map_id);
-        self.clients[place] = Client::new(old.session, true, players, map_id);
+        self.clients[place] = if old.model.growing_roster {
+            Client::growing(old.session, players, map_id)
+        } else {
+            Client::new(old.session, true, players, map_id)
+        };
         let port = self
             .addrs
             .iter()
