@@ -1786,7 +1786,7 @@ fn a_team_with_every_battery_home_ends_the_match_three_seconds_later() {
 }
 
 #[test]
-fn a_players_battery_events_are_paid_at_most_once_a_battery_of_the_map() {
+fn a_players_battery_events_are_paid_at_most_the_maps_battery_count_per_kind() {
     // Map 61 has 10 batteries (docs/notes/battery_credit.md).
     let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
     bench.join_all();

@@ -2,7 +2,7 @@ use std::path::Path;
 
 use survarium::v026g::maps::mode;
 use survarium::v026g::match_msgs::MAX_PLAYERS;
-use survarium::v026g::match_msgs::snapshot::{self, PlayerStatistics};
+use survarium::v026g::match_msgs::snapshot::{self, KITS, PlayerStatistics};
 use survarium::v026g::match_msgs::static_info::SCORE_WEIGHTS;
 
 use super::*;
@@ -51,10 +51,10 @@ fn a_battery_put_in_again_and_again_pays_ten_put_ins() {
     );
     let farmer = &played.players[0];
     assert_eq!(farmer.total(event::PUT_VICTORY_ITEM_IN_CONTAINER), 10);
-    // Off the last kit first.
+    // Shared by what each kit counted, each keeping at least 1.
     assert_eq!(
         farmer.events[event::PUT_VICTORY_ITEM_IN_CONTAINER],
-        [10, 0, 0]
+        [8, 2, 0]
     );
     assert_eq!(farmer.total(event::KILL), 3);
 }
@@ -84,7 +84,7 @@ fn batteries_stolen_back_and_forth_pay_ten_steals_each() {
     }
     assert!(cuts.contains(&Cut {
         place: 1,
-        kind: "stolen",
+        kind: "stolen delivery share",
         counted: 1600,
         paid: 1000
     }));
@@ -123,6 +123,82 @@ fn an_active_honest_carriers_eleventh_delivery_is_not_paid() {
     assert_eq!(carrier.total(event::PUT_VICTORY_ITEM_IN_CONTAINER), 10);
     assert_eq!(carrier.total(event::BRING_VICTORY_ITEM), 1000);
     assert_eq!(carrier.total(event::SOLO_DELIVERY), 10);
+}
+
+#[test]
+fn batteries_found_over_the_maps_count_pay_the_maps_count() {
+    let mut played = statistics(&[&[
+        (event::VICTORY_ITEM_FOUND, 0, 20),
+        (event::VICTORY_ITEM_FOUND, 2, 7),
+    ]]);
+    let cuts = cap(&mut played, BATTERIES);
+    assert_eq!(
+        cuts,
+        [Cut {
+            place: 0,
+            kind: "found",
+            counted: 27,
+            paid: 10
+        }]
+    );
+    assert_eq!(played.players[0].total(event::VICTORY_ITEM_FOUND), 10);
+}
+
+#[test]
+fn a_kit_with_only_farmed_events_is_still_a_kit_used() {
+    // Kit 1 did nothing in the match but put a battery in once, kit 2 only
+    // stole a little; kit 0 farmed both. `rewards` counts a kit used (its
+    // wear, its part of the pay) when any of its counters is above 0.
+    let mut played = statistics(&[&[
+        (event::PUT_VICTORY_ITEM_IN_CONTAINER, 0, 500),
+        (event::KILL, 0, 4),
+        (event::PUT_VICTORY_ITEM_IN_CONTAINER, 1, 1),
+        (event::STEAL_VICTORY_ITEM, 0, 5000),
+        (event::STEAL_VICTORY_ITEM, 2, 40),
+    ]]);
+    let cuts = cap(&mut played, BATTERIES);
+    assert_eq!(cuts.len(), 2);
+    let farmer = &played.players[0];
+    assert_eq!(
+        farmer.events[event::PUT_VICTORY_ITEM_IN_CONTAINER],
+        [9, 1, 0]
+    );
+    assert_eq!(farmer.total(event::STEAL_VICTORY_ITEM), 1000);
+    assert!(farmer.events[event::STEAL_VICTORY_ITEM][2] >= 1);
+    for kit in 0..KITS {
+        let used = farmer.events.iter().any(|counts| counts[kit] > 0);
+        assert!(used, "kit {kit}");
+    }
+}
+
+#[test]
+fn a_cut_pays_the_cap_exactly_and_keeps_every_kit_that_counted() {
+    for counts in [
+        [233, 0, 0],
+        [200, 33, 0],
+        [1, 1, 1000],
+        [11, 0, 1],
+        [4, 4, 4],
+        [u16::MAX; KITS],
+    ] {
+        let counted: u32 = counts.iter().map(|&count| u32::from(count)).sum();
+        let used = counts.iter().filter(|&&count| count > 0).count() as u32;
+        for paid in [1, 2, 3, 10, 1000] {
+            if counted <= paid {
+                continue;
+            }
+            let mut now = counts;
+            cut(&mut now, paid);
+            let total: u32 = now.iter().map(|&count| u32::from(count)).sum();
+            assert_eq!(total, paid, "{counts:?} to {paid}: {now:?}");
+            for (&now_kit, was) in now.iter().zip(counts) {
+                assert!(now_kit <= was, "{counts:?} to {paid}: {now:?}");
+                if was > 0 && paid >= used {
+                    assert!(now_kit >= 1, "{counts:?} to {paid}: {now:?}");
+                }
+            }
+        }
+    }
 }
 
 #[test]

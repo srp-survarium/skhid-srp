@@ -4686,8 +4686,8 @@ impl Game {
     fn build_result(&self, end: MatchEnd, clock: u32, present: &[bool]) -> MatchResult {
         let state = self.state.as_ref();
         let standing = state.and_then(|state| state.standing);
-        // A player's battery events pay at most as many times as the map has
-        // batteries (docs/notes/battery_credit.md).
+        // A player's battery events pay, per kind, at most as many times as
+        // the map has batteries (docs/notes/battery_credit.md).
         let statistics = state
             .and_then(|state| state.statistics.clone())
             .map(|mut statistics| {

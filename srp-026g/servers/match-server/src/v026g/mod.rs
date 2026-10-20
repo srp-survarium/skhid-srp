@@ -101,8 +101,8 @@
 //!   long and uploaded none is over (as deserted): its bots see the world
 //!   only through that player's uploads.
 
-/// A player's battery events pay at most once a battery of the map (the
-/// owner's rule against farming them).
+/// A player's battery events pay at most N times per kind, N the map's
+/// batteries (the owner's rule against farming them).
 mod battery_cap;
 /// The server's own bots (`MatchPlayer::driven`): their maps.
 pub mod bots;

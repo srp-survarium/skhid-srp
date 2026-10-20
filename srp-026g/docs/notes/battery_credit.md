@@ -1,4 +1,4 @@
-# Battery events: at most once a battery of the map
+# Battery events: at most N per kind, N the map's batteries
 
 The owner's rule against farming battery events and how srp keeps it. Code:
 `servers/match-server/src/v026g/battery_cap.rs`, applied in `Game::build_result`.
@@ -18,11 +18,15 @@ The owner's rule against farming battery events and how srp keeps it. Code:
   worlds (one every 5 s), not single events, and not which battery an event was.
 - **The rule (option B, the owner chose it):** "Per player per match, each battery event kind
   (put in, stolen, rescued) pays at most as many times as the map has batteries (10). Above
-  that, nothing."
+  that, nothing." So one battery can pay up to N times per kind: the owner knew it.
   - N is the map's `victory_items_count` (10 on every battery map); Team Deathmatch: no cap.
-  - 20 put in: at most N. 6 found, 17 stolen, 18 rescued (hundredths of a delivery, shared
-    among the carriers by distance): at most N × 100 each. 24 solo delivery and 26 own steal
-    (weight 0, but quests 6 and 7 count them): at most N each.
+  - 20 put in and 19 found (`VICTORY_ITEM_FOUND`, weight 2.5, the results' "items" title): at
+    most N each. 6 delivery share, 17 stolen delivery share, 18 rescued delivery share
+    (hundredths of a delivery, shared among the carriers by distance): at most N × 100 each.
+    24 solo delivery and 26 own steal (weight 0, but quests 6 and 7 count them): at most N
+    each.
+  - A cut is shared among the kits by what each counted, and every kit that counted keeps at
+    least 1: it is still a kit used in the match (its wear, its part of the pay).
   - Each cut is logged once per player and kind ("counted T, paid K").
 - **The catch (the owner: "sure, this is fine"):** a very active honest carrier who delivers
   more than N batteries in one match stops earning from the (N+1)th.
@@ -30,7 +34,7 @@ The owner's rule against farming battery events and how srp keeps it. Code:
   activity row's pay and the quests (all srp computes from the result). Not the in-match
   scoreboard (the clients count it) and not the winner (the batteries in each container).
 - **On the live worlds** (`battery_cap_of_saved_worlds`, an ignored test, last world):
-  - in and out: put-ins 233 → 10, score 1313 → 198 (its 7 found and 1 stolen kept);
+  - in and out: put-ins 233 → 10, score 1313 → 198 (its 7 deliveries' share and 1 stolen kept);
   - ping-pong: steals 1800 → 1000 and 1600 → 1000 hundredths, put-ins 23 → 10 and 18 → 10,
     quest events 24/26 19/18 → 10 and 17/16 → 10; scores 830 → 485 and 672 → 422.
 - **Release:** the match server only (srp). No client patch, no data.
