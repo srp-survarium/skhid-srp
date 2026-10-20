@@ -18,8 +18,9 @@ class SourceCompilerIntegration(unittest.TestCase):
             config = json.loads(config_path.read_text())
             sdk = Path(config['flex'])
             tools = movie_source.Toolchain(config_path, root / 'bridge')
-            source = root / 'SourceProbe.as'
-            source.write_text('''package {
+            source = root / 'fixture' / 'SourceProbe.as'
+            source.parent.mkdir()
+            source.write_text('''package fixture {
                 import flash.display.Sprite;
                 public class SourceProbe extends Sprite {
                     private var object:Object = {};
@@ -31,6 +32,13 @@ class SourceCompilerIntegration(unittest.TestCase):
                     public function shadow(value:*,String:Function):* { return String(value); }
                     public function construct(value:*):String { return new String(value); }
                     public function constructClass(kind:Class):Object { return new kind(); }
+                    public function publicObject(value:*):Object { return public::Object(value); }
+                    public function ordinaryObject(value:*):Object { return Object(value); }
+                    public function echo(value:*):* { return value; }
+                    public function publicHelper(value:*):* { return public::echo(value); }
+                    public function publicDiscard(value:*):void { public::echo(value); }
+                    public function ordinaryHelper(value:*):* { return echo(value); }
+                    public function privateHelper():Object { return private::holder(); }
                     private function holder():Object { return object; }
                     public function branches(flag:Boolean,value:*):void {
                         if(flag) holder().text=String(value);
@@ -45,7 +53,8 @@ class SourceCompilerIntegration(unittest.TestCase):
             result = subprocess.run([
                 config['java'], '-jar', str(sdk / 'lib/mxmlc.jar'), '+flexlib=' + str(sdk / 'frameworks'),
                 '-external-library-path=' + str(sdk / 'frameworks/libs/player/32.0/playerglobal.swc'),
-                '-library-path=', '-debug=false', '-optimize=false', '-output=' + str(seed), str(source),
+                '-library-path=', '-source-path=' + str(root), '-debug=false', '-optimize=false',
+                '-output=' + str(seed), str(source),
             ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=90)
             self.assertEqual(result.returncode, 0, result.stdout)
 
@@ -59,20 +68,21 @@ class SourceCompilerIntegration(unittest.TestCase):
 
             def compile_from(reference, selected_source, name, compiler='ffdec-source'):
                 output = root / (name + '.swf')
-                run('compile', reference, output, 'SourceProbe', selected_source, root / (name + '-snapshot'),
+                run('compile', reference, output, 'fixture.SourceProbe', selected_source, root / (name + '-snapshot'),
                     compiler, sdk, name=name)
                 return output
 
             regular = compile_from(seed, source, 'regular', 'ffdec')
             reference = compile_from(seed, source, 'source')
             comparison = movie_source.compare(regular, reference, root / 'regular-snapshot', root / 'source-snapshot')
-            prefix = 'QName(PackageNamespace(""),"SourceProbe")/instance/1/QName(PackageNamespace(""),'
+            prefix = 'QName(PackageNamespace("fixture"),"SourceProbe")/instance/1/QName(PackageNamespace(""),'
 
             def owner(name):
                 return prefix + '"' + name + '")'
 
             expected = {owner(name) for name in ('explicit', 'nullValue', 'undefinedValue', 'number', 'branches')}
             expected.add(owner('nested') + '/function[0]')
+            expected.add(owner('publicObject'))
             self.assertEqual({entry['owner'] for entry in comparison['method_changes']}, expected)
 
             def assembly(snapshot, method_owner):
@@ -83,6 +93,12 @@ class SourceCompilerIntegration(unittest.TestCase):
             for name, count in [('explicit', 1), ('nullValue', 1), ('undefinedValue', 1), ('number', 1), ('branches', 2)]:
                 self.assertEqual(assembly('source-snapshot', owner(name)).count('convert_s'), count)
             self.assertIn('pushnull', assembly('source-snapshot', owner('nullValue')))
+            for name, callee in [('publicObject', 'Object'), ('publicHelper', 'echo'), ('publicDiscard', 'echo')]:
+                generated = assembly('source-snapshot', owner(name))
+                self.assertIn('findpropstrict QName(PackageNamespace(""),"' + callee + '")', generated)
+                self.assertRegex(generated, r'callprop(?:erty|void) QName\(PackageNamespace\(""\),"'
+                                 + callee + r'"\), 1')
+                self.assertNotIn('Multiname("' + callee + '"', generated)
             self.assertIn('pushundefined', assembly('source-snapshot', owner('undefinedValue')))
             self.assertIn('coerce_s', assembly('source-snapshot', owner('assigned')))
             self.assertIn('convert_d', assembly('source-snapshot', owner('number')))
@@ -91,31 +107,37 @@ class SourceCompilerIntegration(unittest.TestCase):
 
             baseline = compile_from(reference, source, 'baseline')
             linked = root / 'baseline-linked.swf'
-            run('link-layout', reference, baseline, linked, 'SourceProbe', name='baseline-link')
+            run('link-layout', reference, baseline, linked, 'fixture.SourceProbe', name='baseline-link')
             self.assertEqual(movie_source.uncompressed(reference), movie_source.uncompressed(linked))
 
             changed = root / 'edited.as'
             changed.write_text(source.read_text().replace(
                 'explicit(value:*):String { return String(value); }',
-                'explicit(value:*):String { return String(value+1); }'))
+                'explicit(value:*):String { return String(value+1); }').replace(
+                'publicObject(value:*):Object { return public::Object(value); }',
+                'publicObject(value:*):Object { return public::Object(value+2); }'))
             candidate = compile_from(reference, changed, 'edited')
             rejected = root / 'edited-baseline.swf'
-            run('link-layout', reference, candidate, rejected, 'SourceProbe', name='edited-baseline', success=False)
+            run('link-layout', reference, candidate, rejected, 'fixture.SourceProbe', name='edited-baseline', success=False)
             self.assertFalse(rejected.exists())
             permissions = root / 'permissions.tsv'
-            permissions.write_text(owner('explicit') + '\t-\t-\n')
+            permissions.write_text(owner('explicit') + '\t-\t-\n' + owner('publicObject') + '\t-\t-\n')
             feature = root / 'feature.swf'
-            run('link-feature', reference, candidate, feature, 'SourceProbe', permissions, name='feature')
+            run('link-feature', reference, candidate, feature, 'fixture.SourceProbe', permissions, name='feature')
             run('snapshot', feature, root / 'feature-snapshot', name='feature-snapshot')
             changed_methods = movie_source.compare(reference, feature, root / 'source-snapshot', root / 'feature-snapshot')
-            self.assertEqual({entry['owner'] for entry in changed_methods['method_changes']}, {owner('explicit')})
+            self.assertEqual({entry['owner'] for entry in changed_methods['method_changes']},
+                             {owner('explicit'), owner('publicObject')})
             self.assertIn('add', assembly('feature-snapshot', owner('explicit')))
             self.assertIn('convert_s', assembly('feature-snapshot', owner('explicit')))
+            self.assertIn('add', assembly('feature-snapshot', owner('publicObject')))
+            self.assertIn('callproperty QName(PackageNamespace(""),"Object"), 1',
+                          assembly('feature-snapshot', owner('publicObject')))
 
             broken = root / 'broken.as'
-            broken.write_text('package { public class SourceProbe { public function broken( }')
+            broken.write_text('package fixture { public class SourceProbe { public function broken( }')
             rejected = root / 'broken.swf'
-            run('compile', reference, rejected, 'SourceProbe', broken, root / 'broken-snapshot',
+            run('compile', reference, rejected, 'fixture.SourceProbe', broken, root / 'broken-snapshot',
                 'ffdec-source', sdk, name='broken', success=False)
             self.assertFalse(rejected.exists())
 

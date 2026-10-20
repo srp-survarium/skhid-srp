@@ -309,7 +309,7 @@ Use `--compiler reconstruction` with the pinned patch manifest to select these
 per-class compilers in one measurement. Classes without an override use
 `flex-strict`; every report row records the compiler actually used. Explicit
 `--compiler ffdec`, `ffdec-source`, `flex`, `flex-strict` or `flex-library` selects that compiler for every
-class, for comparison experiments. The per-class profile currently proves 224
+class, for comparison experiments. The per-class profile currently proves 225
 reconstructed classes, including easing, button, list, text, message, clan,
 debug and tutorial classes. Source fixes also recover local declaration order,
 static field slot order and explicit switch breaks where required.
@@ -364,6 +364,13 @@ Mixed builds can explicitly set `composition.ffdec_compiler: "ffdec-source"`
 to use this generator for their selected methods. The default remains `ffdec`;
 the selected backend is included in the authenticated composition plan and its
 named SWF and diagnostics are retained alongside the native compilation.
+
+The source adapter also honors explicit `public::name(...)` calls with no
+receiver by selecting the public namespace. It leaves unqualified calls,
+other namespace qualifiers, constructors and property assignments alone.
+The qualifier comes from the parsed source; no reference opcode determines
+the lookup. This allows `public::Object(value)` to retain an actual public
+call, while ordinary `Object(value)` keeps the compiler's usual coercion.
 
 With that backend, `composition.ffdec_hidden_static` can name public static
 dependency methods as `package.Class/method`. Their declarations are temporarily

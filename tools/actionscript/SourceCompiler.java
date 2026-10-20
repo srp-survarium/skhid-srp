@@ -39,8 +39,40 @@ public final class SourceCompiler extends FFDecAs3ScriptReplacer {
         return field.get(call);
     }
 
-    static final class StringCall extends CallAVM2Item {
-        StringCall(CallAVM2Item call) throws ReflectiveOperationException {
+    static Object propertyField(PropertyAVM2Item property, String name) throws ReflectiveOperationException {
+        Field field = PropertyAVM2Item.class.getDeclaredField(name);
+        field.setAccessible(true);
+        return field.get(property);
+    }
+
+    static final class PublicGlobalCallee extends PropertyAVM2Item {
+        PublicGlobalCallee(PropertyAVM2Item property) throws ReflectiveOperationException {
+            super(property.object, property.attribute, property.propertyName, property.namespaceSuffix,
+                property.abcIndex, List.of(), List.of(), false, "public", 0, null);
+            for (Class<?> type = PropertyAVM2Item.class; type != null
+                    && GraphTargetItem.class.isAssignableFrom(type); type = type.getSuperclass()) {
+                for (Field field : type.getDeclaredFields()) {
+                    if (Modifier.isStatic(field.getModifiers())) continue;
+                    field.setAccessible(true);
+                    field.set(this, field.get(property));
+                }
+            }
+        }
+
+        @Override
+        public int resolveProperty(SourceGeneratorLocalData local) throws CompilationException {
+            // public::name(...) explicitly selects the public namespace.
+            // FFDec's fallback includes every open namespace. Keep the source's
+            // qualifier while letting its normal generator emit the real call.
+            var pool = abcIndex.getSelectedAbc().constants;
+            int namespace = pool.getNamespaceId(0x16, "", 0, true);
+            return pool.getMultinameId(com.jpexs.decompiler.flash.abc.types.Multiname.createQName(
+                false, pool.getStringId(propertyName, true), namespace), true);
+        }
+    }
+
+    static final class SourceCall extends CallAVM2Item {
+        SourceCall(CallAVM2Item call) throws ReflectiveOperationException {
             super(call.openedNamespaces, call.line, call.name, call.arguments,
                 (AbcIndexing)callField(call, "abcIndex"), (TypeItem)callField(call, "thisType"));
             // Keep source positions and all parser metadata as well as the
@@ -52,6 +84,13 @@ public final class SourceCompiler extends FFDecAs3ScriptReplacer {
                     field.setAccessible(true);
                     field.set(this, field.get(call));
                 }
+            }
+            if (name.getClass() == PropertyAVM2Item.class) {
+                var property = (PropertyAVM2Item)name;
+                if (property.object == null && !property.attribute
+                        && (property.namespaceSuffix == null || property.namespaceSuffix.isEmpty())
+                        && "public".equals(propertyField(property, "nsKeyword")))
+                    name = new PublicGlobalCallee(property);
             }
         }
 
@@ -87,7 +126,7 @@ public final class SourceCompiler extends FFDecAs3ScriptReplacer {
         if (!(object instanceof GraphTargetItem)) return object;
         // Constructor nodes subclass CallAVM2Item. They must never be replaced
         // with ordinary calls, even when the constructed type is String.
-        Object result = object.getClass() == CallAVM2Item.class ? new StringCall((CallAVM2Item)object) : object;
+        Object result = object.getClass() == CallAVM2Item.class ? new SourceCall((CallAVM2Item)object) : object;
         visited.put(object, result);
         for (Class<?> type = result.getClass(); type != null
                 && GraphTargetItem.class.isAssignableFrom(type); type = type.getSuperclass()) {

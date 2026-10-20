@@ -1144,3 +1144,35 @@ whole-tree matching build is still outstanding. The premium rebuild retains
 hash `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
 with one authorized method changed and unchanged non-code bytes. The runtime
 record describes a rebuild identical to the earlier game-tested output.
+
+### Explicit public source calls and MatchMakingSettings
+
+`MatchMakingSettings` now rebuilds to the exact complete compressed release
+movie. Source repairs recover the tournament-selection branch, static slot
+order, a typed Array return temporary, explicit integer assignment, and
+`String(play.label).toUpperCase()`. Its remaining conversion uses the explicit
+source call `public::Object(this.parent)`.
+
+For a receiver-free call with an explicit public qualifier, the source AST
+adapter now resolves that callee in the public namespace. FFDec otherwise falls
+back to a set of all open namespaces in this packaged class. The normal
+compiler still emits the call and its arguments. This follows the source's
+namespace qualification ([Adobe language guide](https://help.adobe.com/en_US/as3/learn/as3_learning.pdf));
+no reference instruction chooses its namespace or opcode. Unqualified calls,
+other qualifiers, constructors and property assignments retain their existing
+generation paths.
+
+All 21 tests pass, including six real-compiler integrations. The source fixture
+now lives in a named package, exercises the public Object call and public
+method calls with used/discarded results, and verifies unchanged ordinary
+Object coercion, ordinary calls, private-qualified calls and constructors.
+Independent baseline equality and source edits to both String conversion and
+the public Object call pass their respective baseline/feature gates.
+
+There are now 225 authenticated reconstructions and 645 pristine successes:
+870 of 878 scripts have individual exact proofs. Eight remain, and the complete
+whole-tree matching build is still outstanding. The premium rebuild has the
+same previously game-tested hash
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+one authorized method changed and identical non-code bytes. No new game run
+is claimed for this byte-identical rebuild.
