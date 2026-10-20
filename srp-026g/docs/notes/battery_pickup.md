@@ -36,3 +36,20 @@ The owner's rule and what it changes. Data: `gameplay/victory_items/default.opti
   server data must be the one the players' patches make); and the `next` row of
   `crates/session/src/v026g/simulation_changes.tsv`, which this change shares
   with patch 38 and fall damage (one `next` row a release).
+
+## The weapon swap bonus (patch 41)
+
+- **Question (the owner, 2026-10-20):** "can we make weapon swap bonuses affect
+  battery pick up?" Yes: an exe patch (`client-patches/README.md` patch 41,
+  `client_patch.md` section 3.38).
+- **The bonus:** `change_weapon_speed_modifier` (kit modifier 22), from skill
+  104 "Deft hands" alone: +7.5 % a level, two levels, +15 %. No item gives it.
+- **The rule:** the pick-up plays at its speed times the player's weapon swap
+  bonus, as a weapon's draw and holster do (the same getter, the same value):
+  0.5 s at no level, 0.465 s at one, 0.435 s at two.
+- **Unchanged:** the drop into a container (`put_time`); the owner asked about
+  the pick-up only. The drop could take it the same way (one more site).
+- **Who computes it:** every game, in the lockstep simulation; the kit's
+  modifiers come from the server's static info, the same in every game. A
+  `next` row of `simulation_changes.tsv`.
+- **Not run in a game** yet.

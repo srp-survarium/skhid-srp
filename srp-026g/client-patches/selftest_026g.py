@@ -341,6 +341,21 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     states of the page; no branch lands inside the two sites.
     check_fov_lod_026g.py runs the projection, select_lod and the screen
     factor of the original and the build.
+41. the same build: a battery's pick-up takes the weapon swap bonus
+    (patch 41). The original: weapon_core_show_state's and _hide_state's
+    vtables (RTTI) both have the expression 0x30D9C0 in slot 8, whose
+    helper 0x30DF10 gives the hands' animation the state's scale [+150h]
+    through the getter 0x2D5AE0 with esi = 22 (change_weapon_speed), k =
+    1.0 and the kit's modifiers of the player [[+120h]+8]; the take
+    state's (victory_item_core_take_state, 0xA1BF84) expression 0x338B20,
+    slot 9 and named nowhere else, loads its scale with `fld dword
+    [esi+0xe8]` at 0x338B3B (xmm0 zeroed and eax set before, both
+    arguments of 0x344F60, which it calls with the scale). The build: that
+    fld is a call to swap_bonus in the late join and a nop (the build
+    without the late join keeps it), whose code is the listing in the
+    test, the weapon's own computation of the modifiers' address and of
+    the getter's arguments; no relocation under the site, nothing aims
+    inside it. check_swap_bonus_026g.py runs it beside the weapon's.
 """
 
 import ctypes
@@ -1349,7 +1364,8 @@ def late_join_sites():
         [(P.WEAPON_DRAW_HOOK[0], len(P.WEAPON_DRAW_HOOK[1]))] +         [(P.SUICIDE_KEY_HOOK[0], len(P.SUICIDE_KEY_HOOK[1]))] + \
         [(va, len(old)) for va, old, _, _ in P.TAB_LIST_HOOKS] + [(P.TAB_LIST_LOOP_VA, len(P.TAB_LIST_LOOP[1]))] + \
         [(P.SPOT_COOLDOWN[0], len(P.SPOT_COOLDOWN[1])), (P.SPOT_HOOK[0], len(P.SPOT_HOOK[1]))] + \
-        [(va, len(old)) for va, old, _, _ in P.FOV_LOD_HOOKS]
+        [(va, len(old)) for va, old, _, _ in P.FOV_LOD_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.SWAP_BONUS_HOOKS]
 
 
 def pickup_sites():
@@ -1379,7 +1395,8 @@ def test_late_join_bin():
           f"its first {P.LATE_JOIN_ASM_SIZE} bytes are what nasm makes of late_join_026g.asm today")
     check(all(0 < offset < len(code) - P.LATE_JOIN_ASM_SIZE for offset in kept["symbols"].values()),
           "the C functions the assembly calls are inside the C code")
-    entries = sorted({offset for _, _, offset, _ in P.LATE_JOIN_HOOKS + P.TAB_LIST_HOOKS + P.FOV_LOD_HOOKS}
+    entries = sorted({offset for _, _, offset, _ in P.LATE_JOIN_HOOKS + P.TAB_LIST_HOOKS + P.FOV_LOD_HOOKS
+                      + P.SWAP_BONUS_HOOKS}
                      | {P.LATE_JOIN_READY_OFFSET})
     check(all(code[offset] != 0xCC and (offset == 0 or code[offset - 1] == 0xCC) for offset in entries),
           f"the {len(entries)} entries the hooks go to start code after int3 padding")
@@ -1708,6 +1725,67 @@ def test_fov_lod(original, image, before):
                        and any(va + 4 > site and va < site + len(old) for site, old, _, _ in P.FOV_LOD_HOOKS))
     check(relocated == P.FOV_LOD_RELOCS, "the original has a base relocation under each site, at its constant's "
           f"address ({', '.join(f'{va:#x}' for va in P.FOV_LOD_RELOCS)}), disabled in the build")
+
+
+# swap_bonus (late_join_026g.asm, patch 41) as NDISASM reads it.
+SWAP_BONUS_TEXT = [
+    "push eax", "push dword [esi+0xe8]", "mov ecx,[esi+0x1c]", "mov ecx,[ecx+0x8]", "jecxz {load:#x}",
+    "movzx eax,byte [ecx+0x115]", "imul eax,eax,dword 0x704", "add eax,[ecx+0x6b8]", "add eax,0xf4",
+    "push esi", "push dword 0x3f800000", "push dword [esp+0x8]", "mov esi,0x16", "call 0x2d5ae0", "pop esi",
+    "movss dword [esp],xmm0", "xorps xmm0,xmm0", "fld dword [esp]", "add esp,byte +0x4", "pop eax", "ret"]
+
+
+def test_swap_bonus(original, image, before):
+    """Check 41: a battery's pick-up takes the weapon swap bonus (patch
+    41, SWAP_BONUS_*). check_swap_bonus_026g.py runs it."""
+    stock = Image(original)
+    u32 = lambda va: struct.unpack("<I", stock.read(va, 4))[0]
+    weapon = {a: t for a, _, t in ndisasm(stock.read(0x30DF10, 0x75), 0x30DF10)}
+    check(rtti_name(stock, 0xA14BEC) == (".?AVweapon_core_show_state@survarium@@", 0)
+          and rtti_name(stock, 0xA14CC8) == (".?AVweapon_core_hide_state@survarium@@", 0)
+          and u32(0xA14BEC + 8 * 4) == u32(0xA14CC8 + 8 * 4) == 0x30D9C0
+          and stock.read(0x30D9DD, 5) == b"\xe8" + struct.pack("<i", 0x30DF10 - 0x30D9E2)
+          and [weapon.get(a) for a in (0x30DF10, 0x30DF16, 0x30DF48, 0x30DF4C, 0x30DF5B, 0x30DF5E, 0x30DF61,
+                                       0x30DF68, 0x30DF6E, 0x30DF74, 0x30DF7B, 0x30DF80)]
+          == ["mov edx,[edi+0x120]", "fld1", "fstp dword [esp+0x4]", "fld dword [edi+0x150]", "fstp dword [esp]",
+              "mov eax,[edx+0x8]", "movzx ecx,byte [eax+0x115]", "mov edx,[eax+0x6b8]", "imul ecx,ecx,dword 0x704",
+              "lea eax,[ecx+edx+0xf4]", "mov esi,0x16", "call 0x2d5ae0"],
+          "the original's weapon draw and holster: weapon_core_show_state's and _hide_state's slot 8 is "
+          "0x30d9c0, whose 0x30df10 calls the getter 0x2d5ae0 with esi = 22, k = 1.0, B = the state's scale "
+          "[+150h] and the kit's modifiers of the player [[+120h]+8] (profile +6b8h, kit +115h x 704h, +0f4h)")
+    take = {a: t for a, _, t in ndisasm(stock.read(0x338B20, 0x56), 0x338B20)}
+    named = [m.start() for m in re.finditer(re.escape(struct.pack("<I", 0x338B20)), original)]
+    check(rtti_name(stock, 0xA1BF84) == (".?AVvictory_item_core_take_state@survarium@@", 0)
+          and u32(0xA1BF84 + 9 * 4) == 0x338B20 and named == [stock.offset(0xA1BF84 + 9 * 4)]
+          and not branches_to(original, 0x338B20)
+          and [take.get(a) for a in (0x338B32, 0x338B35, 0x338B39, 0x338B3B, 0x338B41, 0x338B5D, 0x338B5E,
+                                     0x338B67, 0x338B71)]
+          == ["xorps xmm0,xmm0", "setz al", "mov esi,ecx", "fld dword [esi+0xe8]", "push edi", "push ecx",
+              "fstp dword [esp]", "lea eax,[esp+0x1c]", "call 0x344f60"]
+          and stock.read(0x3389BE, 8) == bytes.fromhex("f30f1186e8000000"),
+          "the original's take state: its expression 0x338b20 is slot 9 of 0xa1bf84 and named nowhere else; "
+          "the scale its constructor stores at +0e8h (0x3389be) is loaded at 0x338b3b and passed to 0x344f60, "
+          "after xmm0 is zeroed and eax set")
+    for va, old, offset, opcode in P.SWAP_BONUS_HOOKS:
+        hook = P.hook_bytes(P.LATE_JOIN_VA, va, old, offset, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook,
+              f"{va:#x}: `fld dword [esi+0xe8]` in the original and the build without the late join, "
+              f"`call {P.LATE_JOIN_VA + offset:#x}` and a nop here")
+        entry = P.LATE_JOIN_VA + offset
+        rows = ndisasm(image.read(entry, 0x60), entry)
+        listing = rows[:len(SWAP_BONUS_TEXT)]
+        load = next((a for a, _, t in listing if t == "fld dword [esp]"), 0)
+        check([t for _, _, t in listing] == [t.format(load=load) for t in SWAP_BONUS_TEXT]
+              and set(image.read(entry + sum(len(h) // 2 for _, h, _ in listing), 4)) == {0xCC},
+              f"swap_bonus at {entry:#x}: eax kept, B = [esi+0e8h], the user [[esi+1ch]+8] (none: B), the weapon's "
+              "modifiers' address, k = 1.0, esi = 22, the getter, its result loaded on the x87 stack, xmm0 zeroed; "
+              "int3 after it")
+        hits = aimed_inside(original, va, len(old), 0x80)
+        spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
+        under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 3 < v < va + len(old)]
+        check(len(hits) == len(spelled) and not under,
+              f"{va:#x}: nothing aims inside the site and no base relocation is under it"
+              + "".join(f", {h:#x}" for h in hits + under))
 
 
 # A battery's usable-object vtables: can_use at +30h, get_transform at +44h.
@@ -3786,7 +3864,7 @@ def test_late_join(original, without, server, source):
               and rows[0][2] == LATE_JOIN_TEXT[va] and all(text == "nop" for _, _, text in rows[1:])
               and sum(len(code_hex) // 2 for _, code_hex, _ in rows) == len(old),
               f"{va:#x}: `{rows[0][2]}` + {len(rows) - 1} nop")
-    for va, old, offset, opcode in P.LATE_JOIN_HOOKS + P.FOV_LOD_HOOKS + \
+    for va, old, offset, opcode in P.LATE_JOIN_HOOKS + P.FOV_LOD_HOOKS + P.SWAP_BONUS_HOOKS + \
             ((P.LATE_JOIN_READY_VA, P.HOOKS[0][1], P.LATE_JOIN_READY_OFFSET, 0xE9),):
         rows = rows_at(va, len(old))
         word = "call" if opcode == 0xE8 else "jmp"
@@ -3865,6 +3943,7 @@ def test_late_join(original, without, server, source):
     test_pregame_progress(original, image, before)
     test_fov(original, image, before)
     test_fov_lod(original, image, before)
+    test_swap_bonus(original, image, before)
     test_pickup(original, image, before)
     test_weapon_random(original, image, before)
     test_kit_state(original, image, before)

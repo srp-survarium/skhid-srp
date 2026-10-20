@@ -540,6 +540,44 @@ prepare_hook:
     popad
     jmp 0x27a385
 
+times 1952-($-$$) db 0xcc
+; Patch 41: a battery's pick-up takes the weapon swap bonus (skill 104,
+; change_weapon_speed_modifier, modifier 22) as a weapon's draw and
+; holster do. weapon_core_show_state and _hide_state's expression (0x30D9C0,
+; slot 8 of both vtables) plays the hands' animation at the state's time
+; scale times M22 (0x30DF10: `M_i(B, k)` 0x2D5AE0 with eax = the player's
+; kit modifiers, profile [+6B8h] + kit [+115h] x 704h + 0F4h, esi = 22,
+; B = the scale, k = 1.0). victory_item_core_take_state's expression
+; (0x338B20, slot 9 of 0xA1BF84 alone) passes its scale, [esi+0E8h], as is
+; to 0x344F60. Its `fld dword [esi+0xe8]` (0x338B3B) calls here: the same
+; M22 of the item's user (victory_item_core+8, the player 0x344F60
+; animates), loaded where the fld put the scale. Without a user, the scale.
+; eax (the expression's `sete al`) and esi are kept, and xmm0 (0 since
+; 0x338B32, an argument of 0x344F60) is 0 again after the call.
+swap_bonus:
+    push eax
+    push dword [esi+0xe8]          ; B, then B x M22
+    mov ecx, [esi+0x1c]            ; victory_item_core
+    mov ecx, [ecx+8]               ; its user
+    jecxz .load
+    movzx eax, byte [ecx+0x115]    ; the user's kit
+    imul eax, eax, 0x704
+    add eax, [ecx+0x6b8]           ; its profile
+    add eax, 0xf4                  ; the kit's 68 modifiers
+    push esi
+    push 0x3f800000                ; k = 1.0
+    push dword [esp+8]             ; B
+    mov esi, 22                    ; change_weapon_speed
+    call 0x2d5ae0                  ; xmm0 = B x max(0, 1 + S22), ret 8
+    pop esi
+    movss [esp], xmm0
+    xorps xmm0, xmm0
+.load:
+    fld dword [esp]
+    add esp, 4
+    pop eax
+    ret
+
 times 2048-($-$$) db 0xcc
 ; Replace the call to player::~player in its scalar deleting destructor.
 ; Save the profile before destruction and notify only after native cleanup.

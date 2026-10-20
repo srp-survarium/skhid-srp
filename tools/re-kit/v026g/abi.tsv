@@ -1054,6 +1054,7 @@ va	name	source	ret_cleanup	result
 0x002d2770		auto	12	
 0x002d2e10		auto	0	
 0x002d2e40	survarium::game_world_core::move	manual	4	
+0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	manual	8	XMM0 low32: B x max(0, 1 + k x S) for a multiplicative index, B + k x S for an additive one (index list 0x927E08); S = the kit's float plus its item nodes; EAX, ECX, EDX clobbered
 0x002d6230	survarium::character_breath_vibration_params::load	manual	8	
 0x002d84c0		auto	8	
 0x002d9a60	survarium::base_player::hit	manual	40	
@@ -1153,6 +1154,7 @@ va	name	source	ret_cleanup	result
 0x00303f80	survarium::grenade_core::deserialize	manual	12	
 0x003052e0	survarium::booby_trap_core::serialize	manual	8	
 0x003053c0	survarium::booby_trap_core::deserialize	manual	12	
+0x0030d750	survarium::computed_show_animation_time_scale	manual	0	XMM0 low32: (end - start) x (1/30) / time, the animation's length over the wanted time
 0x0030da60	survarium::weapon_core_animation_end_aware_state::initialize	manual	0	
 0x0030db60	survarium::weapon_core_animation_end_aware_state::on_animation_end	manual	4	
 0x0030dbb0	survarium::weapon_core_animation_end_aware_state::deserialize	manual	12	

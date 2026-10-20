@@ -84,6 +84,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_read_order_026g.py` | Runs the original's and patch 33's predicate, with the game's own path, string and offset helpers, and the game's own sort on made-up read queries over several archives (needs Unicorn) |
 | `suicide_key_026g.asm`, `suicide_key_026g.section.bin` | The source of patch 34's code (the commit_suicide key kills one's own player) and that code assembled for 0x980 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `spot_026g.asm`, `spot_026g.section.bin` | The source of patch 38's code (a spot's hit on a battery's body spots the battery) and that code assembled for 0x7C0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `check_swap_bonus_026g.py` | Runs patch 41 (a battery's pick-up takes the weapon swap bonus): the build's take scale beside the weapon draw's own code for the same player, kit and modifiers, and the original's (needs Unicorn) |
 | `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
@@ -2366,6 +2367,58 @@ its screen factor (the original's at 20, 60 and 150 m). Against the build of
 0x1484AF), two relocation entries (0xB71E47, 0xB728AD), fov_projection's
 code (0xC4BC60..0xC4BCED), the two scales (0xC4C0E0..0xC4C115) and the PE
 checksum, and in nothing else (compared byte by byte). **Not run in a game.**
+
+### 41. A battery's pick-up takes the weapon swap bonus (the next release's revision)
+
+The owner (2026-10-20): "can we make weapon swap bonuses affect battery
+pick up?". The rules: `../docs/notes/battery_pickup.md`.
+
+The weapon swap bonus is the kit modifier `change_weapon_speed_modifier`
+(index 22): skill 104 "Deft hands", +0.075 a level, two levels (+15 %);
+no retail item, modification or booster has it. A weapon's draw and
+holster (weapon_core_show_state and _hide_state, one expression 0x30D9C0)
+play the hands' animation at the state's time scale times
+`max(0, 1 + S22)`, through the modifier getter 0x2D5AE0 at 0x30DF80
+(S22 = the kit's value plus its item nodes; the kit's 68 values come from
+the server, the same in every game). The battery's take state
+(victory_item_core_take_state, expression 0x338B20) plays its
+`hands_only/show` at its own scale alone, `(end - start) / 30 / take_time`,
+and ends on that animation's end.
+
+**The patch.** Only in the builds with the late join; its code is in
+`late_join_026g.asm` (`swap_bonus` at 1952 of its free part;
+`late_join_026g.section.bin` differs in those 76 bytes, assembled by NASM
+2.16.03, the C part kept). The take expression's `fld dword [esi+0xe8]`
+(0x338B3B, 6 bytes) becomes a call and a nop: the code reads the item's
+user (victory_item_core+8, the player the expression animates), computes
+its kit's modifiers' address as the weapon does (profile +6B8h, kit
++115h x 704h, +0F4h), calls the same getter with index 22, k 1.0 and the
+take scale, and leaves the result where the fld left the scale. A take
+with no user keeps its scale. With skill 104 at two levels the pick-up is
+0.5 / 1.15 = 0.435 s (patch 41 and the take_time of 0.5 together);
+at one level 0.465 s. The drop into a container (put_time, its own
+expression 0x339070) is not changed.
+
+**Revisions.** It changes what a match computes (every game runs every
+player's take, and the take state's end): a game with it and one without
+part at the first pick-up by a player with the skill, so a server asks for
+the release's revision, and `../crates/session/src/v026g/simulation_changes.tsv`
+has it in its `next` row. `../docs/notes/client_patch.md` section 3.38 has
+the proof.
+
+Checked: `selftest_026g.py` check 41 (and check 15's late-join entries);
+`check_swap_bonus_026g.py` runs the take expression from the site to the
+scale it stores for 0x344F60 beside the weapon's own 0x30DF10, for three
+kits, modifier values 0, 0.075, 0.15, with item nodes, negative and
+clamped at 0, five scales, the getter's first (sorting) read and a take
+without a user: the build's battery scale is the weapon's bit for bit, the
+original's its own; registers, xmm0 and the x87 stack as after the
+original's fld; copies of the build with the wrong index, without the
+xmm0 reset or without keeping eax fail it. Against the build of `main`
+da9e7f0, the default build differs in the six bytes of the site (file
+0x327F3B), the 76 bytes of code (file 0xC4C1A0..0xC4C1EB) and the PE
+checksum, and in nothing else (compared byte by byte). **Not run in a
+game.**
 
 ## Not ported, not done
 

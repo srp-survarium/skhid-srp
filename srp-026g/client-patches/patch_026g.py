@@ -355,6 +355,13 @@ Patches:
   page; select_lod's x0.5 (0x16F2A4) and the factor's x100 (0x1590AF)
   call fov_lod_scale and fov_screen_scale, which multiply by k after the
   original's constant (k is 1 at 65 and less, and through a scope);
+- a battery's pick-up takes the weapon swap bonus (patch 41, with the late
+  join, client_patch.md section 3.38, docs/notes/battery_pickup.md): a
+  weapon's draw and holster play at their time scale times the user's
+  change_weapon_speed modifier (M22, skill 104 "Deft hands", 0x30DF80),
+  the battery's take state at its own scale alone (0x338B3B). That
+  `fld dword [esi+0xE8]` calls swap_bonus (late_join_026g.asm), which loads
+  the scale times the same M22 of the battery's user;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -1454,6 +1461,25 @@ FOV_LOD_RELOCS = [0x1590B1, 0x16F2A8]
 FOV_LOD_STATE_OFFSET = 0xE50                  # after the scoreboard's (TAB_LIST_STATE_OFFSET)
 FOV_LOD_STATE_SIZE = 4
 
+# A battery's pick-up takes the weapon swap bonus (patch 41; client_patch.md
+# section 3.38, ../docs/notes/battery_pickup.md). A weapon's show and hide
+# states share their expression (0x30D9C0, slot 8 of vtables 0xA14BEC and
+# 0xA14CC8): it plays the hands' animation at the state's time scale times
+# the user's modifier 22, change_weapon_speed (0x30DF10: the getter
+# 0x2D5AE0 with eax = the kit's modifiers, profile [player+6B8h] + kit
+# [player+115h] x 704h + 0F4h, esi = 22, B = the scale, k = 1.0; skill 104
+# gives +0.075 a level). The battery's take state (victory_item_core_take_state,
+# vtable 0xA1BF84) plays its own (expression 0x338B20, slot 9) at its scale
+# [state+0E8h] alone: `fld dword [esi+0xE8]` at 0x338B3B calls swap_bonus,
+# which loads that scale times the same M22 of the item's user
+# (victory_item_core [state+1Ch], its user [+8], the player 0x344F60
+# animates). The state ends on its animation's end, so the pick-up is that
+# much shorter. It changes what a match computes (every game runs every
+# player's take): a `next` row of simulation_changes.tsv.
+SWAP_BONUS_OFFSET = 1952
+SWAP_BONUS_HOOKS = ((0x338B3B, bytes.fromhex("d986e8000000"), SWAP_BONUS_OFFSET, 0xE8),)
+SWAP_BONUS_GETTER, SWAP_BONUS_INDEX = 0x2D5AE0, 22
+
 # A battery under the floor (patch 23, pickup_below_026g.asm at
 # PICKUP_VA): client_patch.md section 3.23.
 PICKUP_OFFSET = 0x800
@@ -1880,6 +1906,16 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
         if sorted(neutralize_relocs(data, [(va, va + len(expected)) for va, expected, _, _ in FOV_LOD_HOOKS])) \
                 != FOV_LOD_RELOCS:
             sys.exit("the base relocations under the FOV LOD sites are not where they were read")
+        for va, expected, offset, opcode in SWAP_BONUS_HOOKS:
+            stub = late_join[offset:offset + 0x50]
+            call = stub.find(b"\xbe" + struct.pack("<I", SWAP_BONUS_INDEX) + b"\xe8")
+            if not stub.startswith(b"\x50\xff\xb6\xe8\x00\x00\x00") or call < 0 \
+                    or LATE_JOIN_VA + offset + call + 10 + struct.unpack_from("<i", stub, call + 6)[0] \
+                    != SWAP_BONUS_GETTER:
+                sys.exit(f"the late join's code at {offset} is not patch 41's swap bonus")
+            patch(data, va, expected, late_join_hook(va, expected, offset, opcode))
+        if neutralize_relocs(data, [(va, va + len(expected)) for va, expected, _, _ in SWAP_BONUS_HOOKS]):
+            sys.exit("a base relocation under the swap bonus's site")
         pickup = open(pickup_bin(), "rb").read()
         if len(cave) > PICKUP_OFFSET or PICKUP_OFFSET + len(pickup) > LATE_JOIN_OFFSET:
             sys.exit("the upload code and the pickup code do not fit before the late join")
@@ -2136,7 +2172,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
                      "the commit_suicide key (K) kills one's own player, "
                      "the scoreboard shows the places in the match and none whose player left, "
                      "a spot has no cooldown and a battery's body spots it, "
-                     "a model's LOD and screen factor at a wider field of view are the original's"
+                     "a model's LOD and screen factor at a wider field of view are the original's, "
+                     "a battery's pick-up takes the weapon swap bonus"
                      if late_join is not None else "")
                   + (f", default login server {server}" if server is not None else ""))
 
