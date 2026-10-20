@@ -888,3 +888,22 @@ Fourteen unit tests pass after these source-only changes. The premium example
 rebuilt against this manifest retains the previously tested movie hash, one
 changed method and identical non-code content. Its new manifest identities are
 recorded as a subsequent rebuild without claiming another native-game test.
+
+## Paper-doll, notification and friends source reconstruction
+
+`LocalPaperDoll`, `NotificationList` and `FriendsMenu` now reproduce the complete
+compressed release movie through the existing imported-unit profile.
+`LocalPaperDoll` restores branch order, an empty condition's polarity, explicit
+counter initialization, loop continues and a named local function with the
+original activation slot order. `NotificationList` restores declaration scopes
+and explicit initializers. `FriendsMenu` restores static field order, counters,
+constant logical guards and its final input switch break. No linker acceptance
+rule changed for these repairs.
+
+The reconstruction manifest contains 209 classes. Accumulated individual-script
+proofs now cover 854 of 878 scripts, including 645 pristine successes. The
+remaining 24 scripts still prevent a complete matching rebuild. Fourteen unit
+tests pass after these source-only additions. The premium feature rebuilt against
+the new manifest retains its previously tested movie hash, with one changed
+method and identical non-code content; its manifest identities are recorded
+separately from the earlier game test.

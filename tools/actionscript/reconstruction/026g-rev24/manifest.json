@@ -1672,6 +1672,33 @@
       "pristine_sha256": "c55649a5d006c684b3bc92c84303b445bc0cdf8825c2a6789dabbe6bca904a1f",
       "reason": "Restore the typed color return temporary, embedded number-format assignments, explicit counter initialization and original else-if branch join; imported-unit compilation reproduces the complete compressed release movie.",
       "result_sha256": "244414bfc6cf7b90d996e18779de055d6945d56d42c4f2251fda21da16311640"
+    },
+    {
+      "class": "survarium.player.LocalPaperDoll",
+      "compiler": "flex-library",
+      "patch": "survarium/player/LocalPaperDoll.patch",
+      "patch_sha256": "59ca1d754928b38a02a6f7b34dfcfbd88032df72c853090f9deff40a7716bf0d",
+      "pristine_sha256": "cec15d515d1291a483e260924ea688686116344aaddae7d62e38dcd0228cc3ef",
+      "reason": "Restore branch order, empty-condition polarity, explicit counter initialization, loop continue paths, typed slot assignment and named local function declaration with original activation order; imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "32e3d963918af6272890203e95582e62a8aa79ec8826eb2f28c033186a5f0352"
+    },
+    {
+      "class": "survarium.controls.NotificationList",
+      "compiler": "flex-library",
+      "patch": "survarium/controls/NotificationList.patch",
+      "patch_sha256": "e626dcf204b6caf685d8b56a7ba3001de85ceb49aafb906c14e00b16956f9cfa",
+      "pristine_sha256": "dc4a6cf73621adfd30d8a0bece9f9599014ad0835f5e4ac63151cd25208bbc27",
+      "reason": "Restore local declaration scopes and order, plus explicit index and height initialization; imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "53b56a2c23d21586c6690407bb13ed21c3ae4c7ebf7d6a6ce31312f0643f4e47"
+    },
+    {
+      "class": "survarium.friends.FriendsMenu",
+      "compiler": "flex-library",
+      "patch": "survarium/friends/FriendsMenu.patch",
+      "patch_sha256": "4deceb5c7c1ee3b7c726f9d0c7d3fec36124e300d7e9a2af40ec469dfbb3c4c6",
+      "pristine_sha256": "a96cb259ed69b59a5b8495c624695437106ad1d7e91c7483940ab39739a9dcab",
+      "reason": "Restore static field order, explicit counter initialization, constant logical guards and the final input switch break; imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "471c36949d07a31b8c284b8fe327cca8afd3145a340a0a74324f7f41095815b5"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",
