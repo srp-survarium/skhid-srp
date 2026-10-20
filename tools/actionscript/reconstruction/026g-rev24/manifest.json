@@ -872,6 +872,159 @@
       "pristine_sha256": "f8cf79b02004340c720a4ba7cea9674a907c2542d52d08fc1cdb89056128e47d",
       "reason": "Restore local declaration order while retaining explicit loop initialization, alongside unqualified field assignments and direct truth tests.",
       "result_sha256": "ac17cd42ff64562a89a5cea050f4e064736b9bd1cbd9b4a140b11cea1ff56f8b"
+    },
+    {
+      "class": "com.greensock.core.SimpleTimeline",
+      "patch": "com/greensock/core/SimpleTimeline.patch",
+      "patch_sha256": "3d3fe79ecec3e6757878f957df285ab508a174f6b532d4f75ce69e28d1b40c02",
+      "pristine_sha256": "29dc823983786afd5013e6cfe245154ed43c0e13ebb15a74caec3c36cc52cd07",
+      "reason": "Restore declaration order, implicit Number assignment, unqualified field assignments and direct truth tests; retain Number conversion in the start-time calculation.",
+      "result_sha256": "d2a7ebda1ddaa582053334af1d492fa276f28581df71efc6e5c4cf4ee567c584"
+    },
+    {
+      "class": "survarium.buttons.ButtonClick",
+      "patch": "survarium/buttons/ButtonClick.patch",
+      "patch_sha256": "60c94f35cb82a14d4afea7a4bf02544bec0a4e1a7019af3482d8a5716e8ba21f",
+      "pristine_sha256": "863f368d8507713c3597762905c0d7ae0d0b49995fb42e10055d9d6082cb830b",
+      "reason": "Restore declaration order, explicit loop initialization, object keys and direct truth tests while preserving both explicit Boolean conversions on mouse bitmasks.",
+      "result_sha256": "800eb592fb1b0f42224739123e266a4603b9a49f7cd418e60c9cfaf17edb42b6"
+    },
+    {
+      "class": "survarium.buttons.ModificatorListRenderer",
+      "patch": "survarium/buttons/ModificatorListRenderer.patch",
+      "patch_sha256": "a52f7380d5b2e12b4899d30559769317371ac11ffc99798a335e77eb880c8d33",
+      "pristine_sha256": "d4369afe18ecf3c996a97a8f50240c4fb3532d2db9cdfbbd0cf855b6fe03c142",
+      "reason": "Restore local declaration order, implicit defaults, unqualified field and content setter assignments, and direct truth tests.",
+      "result_sha256": "ff052cc1b0efc075e62ee91a6cb44b8a3e4900595293c62a632e931826a61283"
+    },
+    {
+      "class": "survarium.buttons.TabToggleButton",
+      "patch": "survarium/buttons/TabToggleButton.patch",
+      "patch_sha256": "b4995f0d226ff3e0cd330f70039bb1e273723c550c0a71717378b86ee0b7d6a5",
+      "pristine_sha256": "64b8cfb46377ff404c9c27ae8697933f04a0d2bb7c866013689b1ac8cb7c0ea3",
+      "reason": "Restore local declaration order, implicit defaults, field assignment and direct truth tests, including the isInvalid call result.",
+      "result_sha256": "02498dc1e23c1c8a7a2d0cb49ad2aba39a3faeeb655114b66df0fb581e0e779c"
+    },
+    {
+      "class": "survarium.controls.PlayerProfileBase",
+      "patch": "survarium/controls/PlayerProfileBase.patch",
+      "patch_sha256": "b12953949525f052d308b14f0ee0eda7a35d4589a2b75b883326688f1da7e748",
+      "pristine_sha256": "8bc98051244b8ec36bec8c908cb38ae5d2490d38cb265eb6ebfd1e7c83c86f40",
+      "reason": "Restore local declaration order, explicit loop initialization, field assignments and implicit typed ternary assignment.",
+      "result_sha256": "fe632085fb7da3d08d6d5b0ce0219655870860a703f602abc4407fa0d1304a79"
+    },
+    {
+      "class": "survarium.controls.ProgressIndicator",
+      "patch": "survarium/controls/ProgressIndicator.patch",
+      "patch_sha256": "a0d2a2fdeec5dbc3e25524f17108124f960913a87da267c68efbb93c1e11916f",
+      "pristine_sha256": "17fc3b045e674cbcfe77b730a79f86c678b535662d1d15776d8da7e592c75853",
+      "reason": "Restore local declaration order, implicit defaults, field assignments, direct truth tests and identifier object keys including progressLen.",
+      "result_sha256": "86f30eb6218922706f92211ac54249818127d0f6ebd4d301ce00344e4753a172"
+    },
+    {
+      "class": "survarium.controls.SectionStatusIndicator",
+      "patch": "survarium/controls/SectionStatusIndicator.patch",
+      "patch_sha256": "2465f27f06aabf507207b998219c5d0fa1d799056ead03e9deef15140d1b3479",
+      "pristine_sha256": "4f9558e9842099e8d3d0b855dc2513a3f43bdd2ba3695799c903aa052f046abd",
+      "reason": "Restore local declaration order, explicit loop initialization and implicit typed length assignment alongside field assignments and implicit defaults.",
+      "result_sha256": "b731d118267323257f12e4f3b7dca4a73d43f5d3a20cd44d425ba42e6aee3273"
+    },
+    {
+      "class": "survarium.char.SkillProgressIndicator",
+      "patch": "survarium/char/SkillProgressIndicator.patch",
+      "patch_sha256": "fa6c2e6230c3fc87e9582169ef6de0abcdebceb24f97eab20878b77f825cec34",
+      "pristine_sha256": "ff98e36d0a22b9f2ca4ffce198fd9bdde77c117f676beb79d23c4b1fff8c6a12",
+      "reason": "Restore local declaration order, explicit loop initialization and implicit typed assignments while retaining the calculations' required conversions.",
+      "result_sha256": "26c4c37aa86983e014487aeda8684b9431ad50769af80423fd921008d719b331"
+    },
+    {
+      "class": "survarium.messages.MessagePremiumProfile",
+      "patch": "survarium/messages/MessagePremiumProfile.patch",
+      "patch_sha256": "f4ecb65ce0d67e9287f74f47f49e3e97b5cb566eeb8bf15a2163d8bd32741e17",
+      "pristine_sha256": "aceaee65c1d179ef4233a4460b1a03b1b4bce6bb8f648e30e171773800cbdfb6",
+      "reason": "Restore local declaration order, implicit defaults, field assignment, object keys, direct truth tests and implicit typed assignments; retain the half-length int calculation and external-call arguments.",
+      "result_sha256": "f774ce965d047403555e9863ed2e56862a92595af8166773d2c85ac59aeff3fc"
+    },
+    {
+      "class": "survarium.controls.SrvContextMenu",
+      "compiler": "flex-strict",
+      "patch": "survarium/controls/SrvContextMenu.patch",
+      "patch_sha256": "d0b07f8d26cd9d5dc7014a846fc36994f9cb33cd3cf73c7d7ae27fe9e85f48e3",
+      "pristine_sha256": "e1f42001abddd2ed5daeb80df885800879fdb846557e138c567da356d286564d",
+      "reason": "Restore static field declaration order to recover slot IDs, alongside local declaration order, implicit defaults and direct truth tests.",
+      "result_sha256": "9327a3b52d11a3ece1636e1b8c9a66ef7997b54ace050c249ac046a8cc4288bb"
+    },
+    {
+      "class": "survarium.messages.MessageCraftItem",
+      "patch": "survarium/messages/MessageCraftItem.patch",
+      "patch_sha256": "833798ff8190c6da0c13453077578be510b374738eb325b0066fba7860787bc9",
+      "pristine_sha256": "df6d1ffc6865a6dcfaf3d336bfd17953ee59dd6db45af2dbe8ab918f52aa646b",
+      "reason": "Restore static field slot order, local declaration order, explicit chance initialization at its execution point and implicit typed chance assignments; retain the accept-path uint conversion and external-call arguments, alongside field, truth-test and object-key corrections.",
+      "result_sha256": "976c804bdacf6facf80247cfd211ceb8470fb096b6752b35ea11a8bd0e9b1b0a"
+    },
+    {
+      "class": "survarium.debug.FontDebugControl",
+      "patch": "survarium/debug/FontDebugControl.patch",
+      "patch_sha256": "a6d820fb5b795e0161f516dac30026fe5f821ec9797ce91a98911c2aff79a337",
+      "pristine_sha256": "682c973848183a09aba37b971c91e7e77b5e99c2a093a5782174dcdb82fa2da7",
+      "reason": "Restore static field slot order, local declaration order and implicit defaults. Two initialized declarations after the unconditional return retain addTextField's unused registers through actual Flex compilation without emitting initialization instructions; all original method limits and executable bytes match exactly.",
+      "result_sha256": "278e9f2627db4603eee8a7d3948da121515d4f83e70967466a46f2aff5c35995"
+    },
+    {
+      "class": "survarium.buttons.ButtonClickPlay",
+      "patch": "survarium/buttons/ButtonClickPlay.patch",
+      "patch_sha256": "ebc2e5ccf3cf8ffa875acea2880d0de538ac1b8ed8b572d201216f84f89b2805",
+      "pristine_sha256": "36ee1e0925497f87e0577956ae6f1c80b9c30e9c0e405e948a0d2ba758f85386",
+      "reason": "Restore local declaration order, explicit loop initialization, object keys, field and enabled setter assignments, and direct truth tests; retain required Boolean bitmask casts.",
+      "result_sha256": "aa05713d43a87de146c6ccc6ae28669b0386e48dac410261cd5848679077fe4b"
+    },
+    {
+      "class": "survarium.controls.FilterItem",
+      "patch": "survarium/controls/FilterItem.patch",
+      "patch_sha256": "c49453b68e7b06ca0852b81a64f1b00b4ad0d4c12c6bda90b86aacaaa13e1bd1",
+      "pristine_sha256": "5fd925078c6981bea22c5d3efeae841dff7f780a4024f5a00003d7dff8701af4",
+      "reason": "Restore unqualified field and setter assignments, implicit defaults and direct truth tests.",
+      "result_sha256": "2e0dd1f18860e46ddbcb21c65cb46416e202080b20b34291c7b6ca0bf85550bb"
+    },
+    {
+      "class": "survarium.controls.ListDragSlot",
+      "patch": "survarium/controls/ListDragSlot.patch",
+      "patch_sha256": "ab6064fcaa083cae03a96f0f75934c91f13ad325836f47b776eb418920bd4cc6",
+      "pristine_sha256": "3ff5367ed46dbe365af155a007f2e19ead45f8d5efb3af44a99ed019d6484fb7",
+      "reason": "Restore unqualified field and setter assignments, identifier object keys, implicit defaults and direct truth tests.",
+      "result_sha256": "e2db0507fb2c5a8474a248c3f7874905c0ad037a8a3013ce200d5e9a25474faf"
+    },
+    {
+      "class": "survarium.controls.PlayerListRenderer",
+      "patch": "survarium/controls/PlayerListRenderer.patch",
+      "patch_sha256": "a6ef02cbde7ce936c35c94bd950879fc9ffcb9b7eb9edb964b221ae2353b0bb3",
+      "pristine_sha256": "c2b0f00cf640d19a784d4d2a9ade868f3c78b4a4b796248a7898b041bbe24a43",
+      "reason": "Restore implicit typed ternary assignment, unqualified field and index setter assignments, implicit defaults and direct truth tests.",
+      "result_sha256": "890756ee90a0da4202d22fe6b064d2a95735221e9e217ec9d310e93f4780d3ed"
+    },
+    {
+      "class": "survarium.friends.FriendListRender",
+      "patch": "survarium/friends/FriendListRender.patch",
+      "patch_sha256": "7c5286439cb7b67575afe4e3328af9c64868659332fc4984166cf0d78d0afc87",
+      "pristine_sha256": "7115382d5fc3d95261048af4baef90b8e63a1ba965abd9202ba21b11342e12b4",
+      "reason": "Restore local declaration order, implicit defaults, implicit typed assignments, highlighted setter spelling, object keys and direct truth tests; preserve external-call arguments.",
+      "result_sha256": "8b34da7089183b5a149bd5f85a543d5dbeb5e1dbced4ae854b49f6a880ff9317"
+    },
+    {
+      "class": "survarium.quest.QuestList",
+      "patch": "survarium/quest/QuestList.patch",
+      "patch_sha256": "320fcd2e01a83abf27d6f0e3c99c5ce2ea6d40992d76abadc3549a931d6b0d0a",
+      "pristine_sha256": "17729210ffb8aa7c8e8c08b491d99a5d242532c999d825a55f124e921c5299ee",
+      "reason": "Restore identifier object keys including inline literals, field assignments, the implicit local default and direct truth tests.",
+      "result_sha256": "7ef1d33e2ceb42256ae895d964e10bf49ff36f1cd1f580e43aa5914615ed8674"
+    },
+    {
+      "class": "survarium.paperdoll.ItemPaperDollSlot",
+      "patch": "survarium/paperdoll/ItemPaperDollSlot.patch",
+      "patch_sha256": "adc36a0590b99b7a4d24ae16f0c3623f0eeae1af2ea3aa7f6a076758dc2a3dba",
+      "pristine_sha256": "d399d36def29a6d9bf0cd184ac5cee1de842cd4647e3c9c962e1acd48479e743",
+      "reason": "Restore local declaration order, implicit wildcard and numeric defaults, implicit typed assignments, identifier object keys and direct truth tests; preserve all external calls and relocation argument structure.",
+      "result_sha256": "cf1659090703d981c408f8d11255379b8c506ab19e19894ae09a2f02eb9b3a42"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

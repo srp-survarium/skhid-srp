@@ -1,0 +1,96 @@
+--- a/survarium/controls/SrvContextMenu.as
++++ b/survarium/controls/SrvContextMenu.as
+@@ -21,13 +21,14 @@
+       
+       private static var _id:SrvContextMenu;
+       
++      private static var _functions:Array = [];
++      
+       private static var _menuRenderer:Class;
+       
+       private static var _subMenuRenderer:Class;
+       
+       protected static var _subMenu:ContextList;
+       
+-      private static var _functions:Array = [];
+       
+       public var contextList:ContextList;
+       
+@@ -38,7 +39,7 @@
+       
+       public static function get visisble() : Boolean
+       {
+-         return Boolean(_id) ? _id.parent != null : false;
++         return _id ? _id.parent != null : false;
+       }
+       
+       public static function getInstance() : SrvContextMenu
+@@ -124,7 +125,7 @@
+          trace("hide",_stage.focus);
+          _stage.removeChild(_id);
+          _stage.removeEventListener(MouseEvent.MOUSE_DOWN,hideMe);
+-         if(Boolean(_subMenu))
++         if(_subMenu)
+          {
+             _id.removeChild(_subMenu);
+             _subMenu.list.dataProvider = null;
+@@ -135,7 +136,7 @@
+       
+       protected static function hideMe(param1:MouseEvent) : void
+       {
+-         if(Boolean(_id && param1.target != _id && _id.parent) && Boolean(param1.currentTarget != _id) && !(_id as DisplayObjectContainer).contains(param1.target as DisplayObject))
++         if(_id && param1.target != _id && _id.parent && param1.currentTarget != _id && !(_id as DisplayObjectContainer).contains(param1.target as DisplayObject))
+          {
+             hide();
+          }
+@@ -150,11 +151,11 @@
+             return;
+          }
+          trace("button.y",_loc2_.y,_loc2_.owner);
+-         if(Boolean(_loc2_.data) && Boolean(_loc2_.data.options))
++         if(_loc2_.data && _loc2_.data.options)
+          {
+             this.addSubMenu(_loc2_.data.options,_loc2_.y / 23);
+          }
+-         else if(Boolean(_subMenu) && !_subMenu.contains(_loc2_))
++         else if(_subMenu && !_subMenu.contains(_loc2_))
+          {
+             this.removeSubMenu();
+          }
+@@ -182,7 +183,7 @@
+       protected function addSubMenu(param1:Array, param2:int) : void
+       {
+          trace("addSubMenu",param2);
+-         if(Boolean(_subMenu))
++         if(_subMenu)
+          {
+             removeChild(_subMenu);
+             _subMenu.list.dataProvider = null;
+@@ -192,7 +193,7 @@
+          _subMenu.x = this.contextList.x + this.contextList.width - 8;
+          _subMenu.data = param1;
+          param2 = this.contextList.y + param2 * 25 - 4;
+-         if(param2 + _subMenu.height > (Boolean(stage) ? stage.stageHeight : 0))
++         if(param2 + _subMenu.height > (stage ? stage.stageHeight : 0))
+          {
+             param2 -= (param1.length - 1) * 25 - 4;
+          }
+@@ -202,15 +203,15 @@
+       
+       protected function onSelect(param1:Event = null) : void
+       {
+-         var _loc3_:Function = null;
+          trace("onSelect",param1.target,param1.type);
+          var _loc2_:Object = param1.target.data;
+-         if(Boolean(_loc2_.options))
++         var _loc3_:Function;
++         if(_loc2_.options)
+          {
+             return;
+          }
+          hide();
+-         if(Boolean(_loc2_.callBack))
++         if(_loc2_.callBack)
+          {
+             _loc3_ = _loc2_.click_function;
+             if(_loc3_ is Function)

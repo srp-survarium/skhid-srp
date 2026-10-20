@@ -1,0 +1,59 @@
+--- a/survarium/debug/FontDebugControl.as
++++ b/survarium/debug/FontDebugControl.as
+@@ -14,11 +14,11 @@
+    public class FontDebugControl extends UIComponent
+    {
+       
+-      protected static var _id:FontDebugControl;
+-      
+       protected static var _field:Dictionary = new Dictionary();
+       
+       protected static var _fieldSize:Dictionary = new Dictionary();
++      
++      protected static var _id:FontDebugControl;
+       
+       protected static var textFields:Dictionary = new Dictionary();
+       
+@@ -34,10 +34,10 @@
+       
+       private static function updateFieldSize(param1:IndexEvent) : void
+       {
+-         var _loc2_:Object = null;
+-         var _loc3_:int = 0;
+-         var _loc4_:TextField = null;
+-         var _loc5_:TextFormat = null;
++         var _loc2_:Object;
++         var _loc3_:int;
++         var _loc4_:TextField;
++         var _loc5_:TextFormat;
+          for(_loc2_ in _field)
+          {
+             _loc3_ = 0;
+@@ -59,6 +59,9 @@
+       
+       public static function addTextField(param1:Sprite, param2:Array) : void
+       {
++         return;
++         var _loc3_:int = 1;
++         var _loc4_:int = 2;
+       }
+       
+       override protected function configUI() : void
+@@ -72,13 +75,13 @@
+       
+       private function updateFields(param1:Event = null) : void
+       {
+-         var _loc3_:Object = null;
+-         var _loc4_:int = 0;
+-         var _loc5_:TextField = null;
+          var _loc2_:uint = 1;
++         var _loc3_:Object;
++         var _loc4_:int;
++         var _loc5_:TextField;
+          for(_loc3_ in textFields)
+          {
+-            trace("updateFields",_loc2_,_loc3_,textFields[_loc3_],Boolean(textFields[_loc3_]) ? textFields[_loc3_].y : "d");
++            trace("updateFields",_loc2_,_loc3_,textFields[_loc3_],textFields[_loc3_] ? textFields[_loc3_].y : "d");
+             _loc4_ = _loc3_ as int;
+             if(!textFields[_loc4_])
+             {

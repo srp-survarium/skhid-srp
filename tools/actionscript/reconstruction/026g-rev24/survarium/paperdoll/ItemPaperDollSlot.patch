@@ -1,0 +1,184 @@
+--- a/survarium/paperdoll/ItemPaperDollSlot.as
++++ b/survarium/paperdoll/ItemPaperDollSlot.as
+@@ -37,31 +37,31 @@
+       
+       override public function dropSlot(param1:Boolean = true) : void
+       {
+-         var _loc3_:uint = 0;
+-         var _loc4_:uint = 0;
+-         var _loc5_:uint = 0;
+-         var _loc6_:uint = 0;
+-         var _loc7_:Boolean = false;
+-         var _loc8_:Object = null;
+          if(!data)
+          {
+             return;
+          }
+          var _loc2_:ILocalPlayerProfile = this.parent.parent as ILocalPlayerProfile;
+-         if(Boolean(_loc2_))
+-         {
+-            _loc3_ = uint(_data.itemId);
+-            _loc4_ = uint(_loc2_.profileId);
+-            _loc5_ = uint(_data.dictId);
++         var _loc3_:uint;
++         var _loc4_:uint;
++         var _loc5_:uint;
++         var _loc6_:uint;
++         var _loc7_:Boolean;
++         var _loc8_:Object;
++         if(_loc2_)
++         {
++            _loc3_ = (_data.itemId);
++            _loc4_ = (_loc2_.profileId);
++            _loc5_ = (_data.dictId);
+             _loc6_ = 100;
+             _loc7_ = true;
+             _loc8_ = {
+-               "profile":_loc4_,
+-               "id":_loc3_,
+-               "dict_id":_loc5_,
+-               "sourceSlot":index,
+-               "targetSlot":_loc6_,
+-               "count":_data.condition_or_stack as uint
++               profile:_loc4_,
++               id:_loc3_,
++               dict_id:_loc5_,
++               sourceSlot:index,
++               targetSlot:_loc6_,
++               count:_data.condition_or_stack as uint
+             };
+             _relocateArray = [_loc8_];
+             _loc2_._relocateFunction(_relocateArray);
+@@ -73,7 +73,7 @@
+       {
+          var _loc2_:ItemData = _data as ItemData;
+          trace("IPD:handleDragStartEvent::",param1);
+-         if(owner is ILocalPaperDoll && Boolean(_data))
++         if(owner is ILocalPaperDoll && _data)
+          {
+             (owner as ILocalPaperDoll).selectAgeements(data.category,data.dictId,data.oneHanded,true,data.itemId);
+          }
+@@ -97,11 +97,6 @@
+       
+       override public function handleDropEvent(param1:DragEvent) : Boolean
+       {
+-         var _loc8_:uint = 0;
+-         var _loc9_:* = undefined;
+-         var _loc10_:int = 0;
+-         var _loc11_:Object = null;
+-         var _loc12_:Object = null;
+          trace("PDS:handleDropEvent::",name,enabled,highlighted,param1.dropTarget);
+          if(enabled == false || highlighted == false || !param1.dropTarget)
+          {
+@@ -119,10 +114,15 @@
+          }
+          _relocateArray.length = 0;
+          var _loc4_:uint = _loc3_.itemId;
+-         var _loc5_:uint = uint(_loc2_.profileId);
++         var _loc5_:uint = (_loc2_.profileId);
+          var _loc6_:uint = _loc3_.dictId;
+          var _loc7_:uint = param1.dragTarget.descriptor;
+-         if(Boolean(param1.dropTarget))
++         var _loc8_:uint;
++         var _loc9_:*;
++         var _loc10_:int;
++         var _loc11_:Object;
++         var _loc12_:Object;
++         if(param1.dropTarget)
+          {
+             _loc8_ = param1.dropTarget.descriptor;
+          }
+@@ -133,7 +133,7 @@
+          trace("PDS:handleDropEvent::",param1.dragTarget,param1.dropTarget,enabled,highlighted,_loc2_._relocateFunction,"source:",_loc7_);
+          if(_loc3_.descriptor == 200 && enabled == true && highlighted == true)
+          {
+-            _loc10_ = int(_loc3_.count);
++            _loc10_ = (_loc3_.count);
+             if(_loc3_.isStack)
+             {
+                _loc10_ = -1;
+@@ -141,12 +141,12 @@
+             if(index == 7 || index == 10)
+             {
+                _loc11_ = {
+-                  "profile":_loc5_,
+-                  "id":_loc4_,
+-                  "dict_id":_loc6_,
+-                  "sourceSlot":_loc7_,
+-                  "targetSlot":_loc8_,
+-                  "count":1
++                  profile:_loc5_,
++                  id:_loc4_,
++                  dict_id:_loc6_,
++                  sourceSlot:_loc7_,
++                  targetSlot:_loc8_,
++                  count:1
+                };
+                trace_relocate(_relocateArray);
+             }
+@@ -158,12 +158,12 @@
+          if(!_loc3_.isStack)
+          {
+             _loc12_ = {
+-               "profile":_loc5_,
+-               "id":_loc4_,
+-               "dict_id":_loc6_,
+-               "sourceSlot":_loc7_,
+-               "targetSlot":_loc8_,
+-               "count":1
++               profile:_loc5_,
++               id:_loc4_,
++               dict_id:_loc6_,
++               sourceSlot:_loc7_,
++               targetSlot:_loc8_,
++               count:1
+             };
+             trace("relocateFabrica:a");
+             _relocateArray = [_loc12_];
+@@ -188,16 +188,16 @@
+             trace("relocateFabrica:isStack");
+             if(enabled == true && highlighted == true)
+             {
+-               if(Boolean(param1.dropTarget) && !(param1.dragTarget is IPaperDollSlot))
++               if(param1.dropTarget && !(param1.dragTarget is IPaperDollSlot))
+                {
+                   trace("relocateFabrica:other");
+                   _relocateArray = [{
+-                     "profile":_loc5_,
+-                     "id":_loc4_,
+-                     "dict_id":_loc6_,
+-                     "sourceSlot":_loc7_,
+-                     "targetSlot":_loc8_,
+-                     "count":1
++                     profile:_loc5_,
++                     id:_loc4_,
++                     dict_id:_loc6_,
++                     sourceSlot:_loc7_,
++                     targetSlot:_loc8_,
++                     count:1
+                   }];
+                   trace_relocate(_relocateArray);
+                   _loc9_ = _loc2_._relocateFunction(_relocateArray);
+@@ -233,11 +233,11 @@
+       override protected function updateSlot() : void
+       {
+          var _loc1_:MovieClip = itemRenderer as MovieClip;
+-         if(Boolean(_loc1_) && Boolean(_loc1_.slider))
++         if(_loc1_ && _loc1_.slider)
+          {
+             _loc1_.slider.removeEventListener(SliderEvent.VALUE_CHANGE,this.onRendererSliderChange);
+          }
+-         if(Boolean(_data))
++         if(_data)
+          {
+             _content = _data.icon;
+             contentCanvas.visible = false;
+@@ -247,7 +247,7 @@
+             _content = null;
+          }
+          super.updateSlot();
+-         if(Boolean(_loc1_) && Boolean(_loc1_.slider))
++         if(_loc1_ && _loc1_.slider)
+          {
+             trace("itemRenderer.addEventListener",name,_loc1_.slider);
+             _loc1_.slider.addEventListener(SliderEvent.VALUE_CHANGE,this.onRendererSliderChange);

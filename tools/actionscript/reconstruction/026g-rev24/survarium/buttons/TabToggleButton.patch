@@ -1,0 +1,63 @@
+--- a/survarium/buttons/TabToggleButton.as
++++ b/survarium/buttons/TabToggleButton.as
+@@ -26,9 +26,9 @@
+          constraintsDisabled = true;
+          preventAutosizing = true;
+          constraints.removeAllElements();
+-         if(Boolean(this.icon))
++         if(this.icon)
+          {
+-            this._iconY = this.icon.y;
++            _iconY = this.icon.y;
+          }
+       }
+       
+@@ -40,7 +40,7 @@
+       
+       override protected function changeFocus() : void
+       {
+-         var _loc1_:String = null;
++         var _loc1_:String;
+          if(!enabled)
+          {
+             return;
+@@ -62,13 +62,13 @@
+             else
+             {
+                _loc1_ = "state" + _focused;
+-               if(Boolean(_focusIndicatorLabelHash[_loc1_]))
++               if(_focusIndicatorLabelHash[_loc1_])
+                {
+                   _newFocusIndicatorFrame = "state" + _focused;
+                }
+                else
+                {
+-                  _newFocusIndicatorFrame = Boolean(_focused) || _displayFocus ? "show" : "hide";
++                  _newFocusIndicatorFrame = _focused || _displayFocus ? "show" : "hide";
+                }
+                invalidateState();
+             }
+@@ -82,7 +82,7 @@
+       
+       override protected function draw() : void
+       {
+-         if(Boolean(_data) && Boolean(isInvalid(InvalidationType.DATA)) && _data.enabled != undefined)
++         if(_data && isInvalid(InvalidationType.DATA) && _data.enabled != undefined)
+          {
+             enabled = _data.enabled;
+          }
+@@ -96,13 +96,13 @@
+       
+       override protected function updateText() : void
+       {
+-         var _loc2_:ColorTransform = null;
+          if(!_data)
+          {
+             return;
+          }
+          trace("TTB::updateText",textField,this.icon);
+          var _loc1_:String = this.getLabel();
++         var _loc2_:ColorTransform;
+          if(textField.text != _loc1_)
+          {
+             textField.text = _loc1_;

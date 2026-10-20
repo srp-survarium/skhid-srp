@@ -1,0 +1,56 @@
+--- a/survarium/buttons/ModificatorListRenderer.as
++++ b/survarium/buttons/ModificatorListRenderer.as
+@@ -21,9 +21,9 @@
+       
+       public function ModificatorListRenderer()
+       {
+-         var _loc2_:Object = null;
+          super();
+          var _loc1_:StyleSheet = new StyleSheet();
++         var _loc2_:Object;
+          _loc2_ = new Object();
+          _loc2_.color = "#b3ea97";
+          _loc1_.setStyle("current",_loc2_);
+@@ -57,14 +57,14 @@
+          {
+             return;
+          }
+-         if(Boolean(this._content))
++         if(this._content)
+          {
+             if(this.iconContainer.contains(this._content))
+             {
+                this.iconContainer.removeChild(this._content);
+             }
+          }
+-         this._content = param1;
++         _content = param1;
+          if(this._content == null)
+          {
+             return;
+@@ -90,20 +90,20 @@
+       
+       override protected function updateText() : void
+       {
+-         var _loc1_:ColorTransform = null;
++         var _loc1_:ColorTransform;
+          super.updateText();
+-         if(Boolean(_data))
++         if(_data)
+          {
+             trace("updateMLR::",_data.label,_data.state);
+             this.textFieldLabel.text = _data.label;
+-            this.content = _data.icon;
+-            if(Boolean(this.lockIcon))
++            content = _data.icon;
++            if(this.lockIcon)
+             {
+                this.lockIcon.visible = _data.locked;
+             }
+             if(_data.reroll_available != undefined)
+             {
+-               alpha = Boolean(_data.reroll_available) ? 1 : 0.5;
++               alpha = _data.reroll_available ? 1 : 0.5;
+             }
+             if(_data.state == 1)
+             {

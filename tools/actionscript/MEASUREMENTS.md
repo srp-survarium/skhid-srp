@@ -561,3 +561,39 @@ ten-class source probe with this driver gives the same nine exact results and
 one rejection as before, with identical compiled-code, linked-code and movie
 hashes for every row. Eight serialization cache hits avoided repeated compression
 without changing any result.
+
+## Nineteen further exact source reconstructions
+
+The next ten focused source repairs produced nine exact movies. They recover
+implicit typed assignments, local declaration order, explicit loop initialization,
+setter spelling, inline object keys and direct truth tests while retaining
+required bitmask Boolean casts. `MessageCraftItem` then matched after restoring
+its static field slot order: all method records already matched after restoring
+its explicit chance initializers at their execution point. The accept-path uint
+conversion remains intact. `SrvContextMenu` also needed its static fields reordered.
+
+`FontDebugControl` is now exact. Ordinary unused locals added instructions and
+`if (false)` removed their registers, but two initialized declarations after an
+unconditional return make Flex retain five registers while omitting unreachable
+instructions. The actual compiler output passes the unchanged register, scope,
+stack and executable-byte gates. No linker exception was added.
+
+An evidence-guided 76-class proposal run produced six exact movies, 69 linker
+rejections and one compilation failure. It considered each method's original
+conversion calls and assignment instructions before proposing source changes;
+byte equality, rather than that heuristic, determined acceptance. An eleven-class
+follow-up for implicit wildcard defaults and declaration order added
+`ItemPaperDollSlot`; its other ten variants were rejected. Every successful diff
+was reviewed, and its applied bytes were authenticated against the retained
+compiler input. The tracked reconstruction manifest now contains 128 classes.
+
+FFDec probes for `CLIK`, `DragManager` and `ItemData` did not produce exact movies.
+Adding a separately compiled ItemData definition to a private dependency SWC also
+left Flex's same-class global-slot access unchanged. Those experiments remain
+private and introduce no instruction-rewriting exception.
+
+The 128-entry premium example build again produces the previously tested movie
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+with one changed method and identical non-code content. Runtime evidence records
+this build separately from the earlier game observations; no new game run is
+claimed. These independent class proofs do not establish whole-tree completion.
