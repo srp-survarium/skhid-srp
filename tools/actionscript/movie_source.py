@@ -1,0 +1,273 @@
+#!/usr/bin/env python3
+"""Import private movie source and measure real compiler round trips.
+
+No compiler output is approved using disassembly similarity. Exactness requires
+equality of the complete uncompressed movie, including all ABC metadata/assets.
+"""
+import argparse
+import csv
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import signal
+import struct
+import subprocess
+import sys
+import zlib
+
+HERE = Path(__file__).resolve().parent
+
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def write_json(path, value):
+    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
+
+
+def uncompressed(path):
+    data = path.read_bytes()
+    if data[:3] == b"CWS":
+        stream = zlib.decompressobj()
+        body = stream.decompress(data[8:]) + stream.flush()
+        if not stream.eof or stream.unused_data:
+            raise ValueError("Incomplete or trailing compressed SWF data")
+        data = b"FWS" + data[3:8] + body
+    elif data[:3] != b"FWS":
+        raise ValueError("Expected FWS or CWS movie")
+    if len(data) < 9 or len(data) != struct.unpack_from("<I", data, 4)[0]:
+        raise ValueError("SWF declared length differs from actual length")
+    return data
+
+
+def split_movie(path):
+    data = uncompressed(path)
+    pos = 8 + (5 + 4 * (data[8] >> 3) + 7) // 8 + 4
+    header = data[:pos]
+    tags = []
+    while pos < len(data):
+        start = pos
+        word, = struct.unpack_from("<H", data, pos)
+        pos += 2
+        kind, size = word >> 6, word & 63
+        if size == 63:
+            size, = struct.unpack_from("<I", data, pos)
+            pos += 4
+        pos += size
+        if pos > len(data):
+            raise ValueError("Truncated SWF tag")
+        tags.append((kind, data[start:pos]))
+        if kind == 0:
+            if size or pos != len(data):
+                raise ValueError("Bytes after SWF End")
+            break
+    if not tags or tags[-1][0] != 0:
+        raise ValueError("Missing SWF End")
+    return header, tags
+
+
+def join_movie(header, tags):
+    body = header[8:] + b"".join(raw for _, raw in tags)
+    return b"FWS" + header[3:4] + struct.pack("<I", len(body) + 8) + body
+
+
+def code_movie(original, output):
+    header, tags = split_movie(original)
+    output.write_bytes(join_movie(header, [t for t in tags if t[0] in (0, 69, 72, 82)]))
+
+
+def transplant(original, compiled, output):
+    header, tags = split_movie(original)
+    _, changed = split_movie(compiled)
+    old_abc = [kind for kind, _ in tags if kind in (72, 82)]
+    new_abc = [t for t in changed if t[0] in (72, 82)]
+    if old_abc != [kind for kind, _ in new_abc]:
+        raise ValueError("Compiler changed the ABC block count or kinds")
+    replacements = iter(new_abc)
+    output.write_bytes(join_movie(header, [next(replacements) if kind in (72, 82) else (kind, raw) for kind, raw in tags]))
+
+
+def methods(folder):
+    with (folder / "methods.tsv").open() as stream:
+        rows = list(csv.DictReader(stream, delimiter="\t"))
+    result = {}
+    for row in rows:
+        key = (row["abc"], row["owner"])
+        if key in result:
+            raise ValueError(f"Ambiguous method identity {key}")
+        result[key] = row
+    return result
+
+
+def compare(reference, candidate, before, after):
+    original, rebuilt = uncompressed(reference), uncompressed(candidate)
+    a, b = methods(before), methods(after)
+    changes = []
+    for key in sorted(a.keys() | b.keys()):
+        old, new = a.get(key), b.get(key)
+        if old is None or new is None:
+            changes.append({"abc": key[0], "owner": key[1], "status": "added" if old is None else "missing"})
+            continue
+        fields = [f for f in ("code_sha256", "record_sha256", "assembly_sha256") if old[f] != new[f]]
+        if fields:
+            changes.append({"abc": key[0], "owner": key[1], "status": "changed", "fields": fields,
+                            "before_method": old["method"], "after_method": new["method"]})
+    old_blocks = {p.parent.name: digest(p) for p in before.glob("abc-*/block.abc")}
+    new_blocks = {p.parent.name: digest(p) for p in after.glob("abc-*/block.abc")}
+    return {
+        "file_exact": reference.read_bytes() == candidate.read_bytes(),
+        "movie_exact": original == rebuilt,
+        "reference_sha256": digest(reference), "candidate_sha256": digest(candidate),
+        "reference_methods": len(a), "candidate_methods": len(b),
+        "changed_abc_blocks": [k for k in sorted(old_blocks.keys() | new_blocks.keys()) if old_blocks.get(k) != new_blocks.get(k)],
+        "method_changes": changes,
+        "diagnostic_only": "Method hashes and resolved disassembly are not a proof of semantic equivalence. Unowned methods use numeric IDs; IDs may move.",
+    }
+
+
+class Toolchain:
+    def __init__(self, config, work):
+        self.config = json.loads(config.read_text())
+        self.work = work
+        self.work.mkdir(parents=True, exist_ok=True)
+        self.env = dict(os.environ)
+        self.env["PATH"] = str(Path(self.config["java"]).parent) + os.pathsep + self.env.get("PATH", "")
+        self.cp = str(self.work) + os.pathsep + self.config["ffdec"]
+        shutil.copyfile(HERE / "MovieSource.java", self.work / "MovieSource.java")
+        shutil.copyfile(HERE / "movie_source.py", self.work / "movie_source.py")
+        subprocess.run([self.config["javac"], "-encoding", "UTF-8", "-cp", self.config["ffdec"],
+                        "-d", str(self.work), str(self.work / "MovieSource.java")], check=True, env=self.env)
+
+    def run(self, *args, log, timeout=600):
+        with log.open("w") as stream:
+            command = [self.config["java"], "-Xmx2g", "-Djava.awt.headless=true", "-cp", self.cp,
+                       "MovieSource", *map(str, args)]
+            with subprocess.Popen(command, stdout=stream, stderr=subprocess.STDOUT, env=self.env,
+                                  start_new_session=True) as process:
+                try:
+                    status = process.wait(timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    os.killpg(process.pid, signal.SIGKILL)
+                    process.wait()
+                    raise
+            return subprocess.CompletedProcess(command, status)
+
+    def identity(self):
+        jar = Path(self.config["ffdec"])
+        inputs = {str(p.relative_to(jar.parent)): digest(p) for p in sorted(jar.parent.rglob("*.jar"))}
+        inputs.update({str(p.relative_to(jar.parent)): digest(p) for p in sorted(jar.parent.rglob("*.swc"))})
+        flex = Path(self.config.get("flex", "/nonexistent"))
+        flex_inputs = {str(p.relative_to(flex)): digest(p) for p in sorted(flex.rglob("*"))
+                       if p.is_file() and (p.suffix in (".jar", ".swc", ".xml", ".properties") or p.name == "mxmlc")}
+        return {"ffdec_files": inputs, "flex_files": flex_inputs,
+                "java_version": subprocess.check_output([self.config["java"], "-version"], stderr=subprocess.STDOUT, text=True),
+                "bridge_sha256": digest(self.work / "MovieSource.java"),
+                "driver_sha256": digest(self.work / "movie_source.py")}
+
+
+def verify_project(project):
+    manifest = json.loads((project / "manifest.json").read_text())
+    if digest(project / "original.swf") != manifest["movie_sha256"]:
+        raise ValueError("Original movie differs from pinned release")
+    actual = {str(p.relative_to(project / "pristine")): digest(p) for p in sorted((project / "pristine").rglob("*.as"))}
+    if actual != manifest["sources"]:
+        raise ValueError("Pristine sources differ from pinned export")
+    return manifest
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--tools", type=Path, required=True, help="JSON with java, javac, ffdec and optional flex absolute paths")
+    commands = parser.add_subparsers(dest="command", required=True)
+    init = commands.add_parser("init", help="Pin a release and export all ActionScript into private storage")
+    init.add_argument("movie", type=Path)
+    init.add_argument("project", type=Path)
+    init.add_argument("--release", required=True)
+    measure = commands.add_parser("measure", help="Independently recompile each selected class from a fresh original")
+    measure.add_argument("project", type=Path)
+    measure.add_argument("output", type=Path)
+    measure.add_argument("--compiler", choices=("ffdec", "flex", "flex-strict"), required=True)
+    measure.add_argument("--classes", type=Path, help="One full script name per line; defaults to every exported script")
+    args = parser.parse_args()
+    project = args.project.resolve()
+    if args.command == "init":
+        release_file = HERE / "releases" / (args.release + ".json")
+        if release_file.parent != HERE / "releases" or not release_file.is_file():
+            raise ValueError("Unknown release: add its verified movie and compiler hashes under tools/actionscript/releases first")
+        release = json.loads(release_file.read_text())
+        config = json.loads(args.tools.read_text())
+        if digest(args.movie) != release["movie_sha256"]:
+            raise ValueError("Movie does not match the pinned release")
+        ffdec = Path(config["ffdec"])
+        if digest(ffdec) != release["ffdec_sha256"] or digest(ffdec.parent / "lib/ffdec_lib.jar") != release["ffdec_lib_sha256"]:
+            raise ValueError("Exporter does not match the release's pinned FFDec toolchain")
+        project.mkdir(parents=True, exist_ok=False)
+        tools = Toolchain(args.tools, project / "bridge")
+        uncompressed(args.movie)
+        shutil.copyfile(args.movie, project / "original.swf")
+        code_movie(project / "original.swf", project / "code.swf")
+        tools.run("export", project / "code.swf", project / "pristine", log=project / "export.log").check_returncode()
+        tools.run("snapshot", project / "code.swf", project / "baseline", log=project / "snapshot.log").check_returncode()
+        sources = {str(p.relative_to(project / "pristine")): digest(p) for p in sorted((project / "pristine").rglob("*.as"))}
+        if not sources:
+            raise ValueError("No ActionScript exported")
+        write_json(project / "manifest.json", {"schema": 1, "release": args.release,
+                   "release_identity": release, "movie_sha256": digest(project / "original.swf"),
+                   "sources": sources, "toolchain": tools.identity()})
+        print(f"Pinned {args.release}: {len(sources)} source files, {len(methods(project / 'baseline'))} method bodies", flush=True)
+        return 0
+    manifest = verify_project(project)
+    output = args.output.resolve()
+    output.mkdir(parents=True, exist_ok=False)
+    tools = Toolchain(args.tools, output / "bridge")
+    code_movie(project / "original.swf", output / "code.swf")
+    # Recreate diagnostics from pinned bytes instead of trusting old reports.
+    tools.run("snapshot", output / "code.swf", output / "baseline", log=output / "snapshot.log").check_returncode()
+    tool_identity = tools.identity()
+    # A changed compiler is a new experiment, recorded explicitly, never silently trusted.
+    classes = args.classes.read_text().splitlines() if args.classes else [p[:-3].replace("/", ".") for p in manifest["sources"]]
+    classes = [c.strip() for c in classes if c.strip() and not c.startswith("#")]
+    if not classes or len(set(classes)) != len(classes):
+        raise ValueError("Empty or duplicate class selection")
+    report = {"schema": 1, "release": manifest["release"], "movie_sha256": manifest["movie_sha256"],
+              "compiler": args.compiler, "toolchain": tool_identity, "classes": [], "complete": False}
+    write_json(output / "report.json", report)
+    for number, cls in enumerate(classes):
+        relative = cls.replace(".", "/") + ".as"
+        if relative not in manifest["sources"]:
+            raise ValueError(f"Class not in pinned export: {cls}")
+        folder = output / f"class-{number:04d}"
+        folder.mkdir()
+        row = {"class": cls, "source_sha256": manifest["sources"][relative], "directory": folder.name}
+        try:
+            result = tools.run("compile", output / "code.swf", folder / "compiled-code.swf", cls,
+                               project / "pristine" / relative, folder / "snapshot", args.compiler,
+                               tools.config.get("flex", ""), log=folder / "compile.log")
+            if result.returncode:
+                row.update(status="compile_failed", exit_code=result.returncode)
+            else:
+                transplant(project / "original.swf", folder / "compiled-code.swf", folder / "candidate.swf")
+                comparison = compare(project / "original.swf", folder / "candidate.swf", output / "baseline", folder / "snapshot")
+                write_json(folder / "comparison.json", comparison)
+                row.update(status="exact" if comparison["movie_exact"] else "different",
+                           file_exact=comparison["file_exact"], changed_methods=len(comparison["method_changes"]),
+                           changed_abc_blocks=comparison["changed_abc_blocks"])
+        except subprocess.TimeoutExpired:
+            row.update(status="timeout")
+        report["classes"].append(row)
+        write_json(output / "report.json", report)
+        print(f"{cls}: {row['status']}", flush=True)
+    report["complete"] = True
+    report["all_exact"] = all(row["status"] == "exact" for row in report["classes"])
+    write_json(output / "report.json", report)
+    return 0 if report["all_exact"] else 1
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+        sys.exit(str(error))
