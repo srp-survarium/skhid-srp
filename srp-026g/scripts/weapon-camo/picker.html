@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weapon Camo Parts</title>
+<!-- weapon_camo.py --picker fills DATA: the camouflage, and per texture its images, its parts'
+     numbers (a PNG, r + 256 g), a point on each part, the suggested and the painted parts. -->
+<style>
+:root { --bg: #f4f4f2; --panel: #ffffff; --ink: #1d1d1b; --dim: #6b6b66; --line: #d8d8d2; --on: #2f7d4f; --hot: #c9821b; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #161615; --panel: #20201e; --ink: #ecece6; --dim: #9a9a92; --line: #3a3a36; --on: #5cc489; --hot: #f0a83a; } }
+:root[data-theme="dark"] { --bg: #161615; --panel: #20201e; --ink: #ecece6; --dim: #9a9a92; --line: #3a3a36; --on: #5cc489; --hot: #f0a83a; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, sans-serif; display: grid; grid-template-columns: 260px 1fr; height: 100vh; }
+nav { border-right: 1px solid var(--line); overflow-y: auto; background: var(--panel); }
+nav button { display: flex; justify-content: space-between; width: 100%; padding: 6px 12px; border: 0; background: none; color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
+nav button:hover { background: var(--bg); }
+nav button.cur { background: var(--on); color: #fff; }
+nav button small { color: inherit; opacity: .7; }
+nav button.edited span::after { content: " •"; color: var(--hot); }
+main { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 10px 16px; gap: 8px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bar button, .bar label { font: inherit; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); cursor: pointer; }
+.bar .grow { flex: 1; }
+.bar .note { color: var(--dim); }
+.view { flex: 1; min-height: 0; display: flex; justify-content: center; }
+canvas { max-width: 100%; max-height: 100%; aspect-ratio: 1; image-rendering: auto; cursor: crosshair; border: 1px solid var(--line); }
+textarea { width: 100%; height: 110px; font: 12px/1.3 ui-monospace, monospace; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; }
+@media (max-width: 700px) { body { grid-template-columns: 1fr; height: auto; } nav { max-height: 30vh; } main { padding: 10px 16px; } .view { height: 92vw; } }
+</style>
+</head>
+<body>
+<nav id="guns"></nav>
+<main>
+  <div class="bar">
+    <strong id="name"></strong><span class="note" id="count"></span><span class="grow"></span>
+    <label><input type="checkbox" id="premium"> premium texture</label>
+    <label><input type="checkbox" id="camo" checked> camouflage</label>
+    <button id="reset" title="the parts in parts.tsv, or the suggestion when it has none">Reset</button>
+    <button id="suggest" title="the large parts the premium painted">Suggestion</button>
+    <button id="clear">None</button>
+  </div>
+  <div class="note">Click a part to paint it or leave it bare. Picks are kept in this browser. Copy the lines below into <code>parts.tsv</code> (beside guns.tsv) and run weapon_camo.py again.</div>
+  <div class="view"><canvas id="c" width="1024" height="1024"></canvas></div>
+  <div class="bar"><span class="note">parts.tsv</span><span class="grow"></span><button id="copy">Copy</button><button id="save">Download</button></div>
+  <textarea id="out" readonly></textarea>
+</main>
+<script>
+const DATA = /*DATA*/null;
+const N = 1024, STORE = 'weapon-camo-parts';
+const canvas = document.getElementById('c'), ctx = canvas.getContext('2d');
+let stored = {};
+try { stored = JSON.parse(localStorage.getItem(STORE) || '{}'); } catch (e) { stored = {}; }
+
+function pixels(src, size) {
+  return new Promise(ok => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas'); c.width = c.height = size;
+      const x = c.getContext('2d'); x.drawImage(img, 0, 0, size, size);
+      ok(x.getImageData(0, 0, size, size).data);
+    };
+    img.src = src;
+  });
+}
+
+// per texture: chosen (a Set of part numbers) from this browser's picks, else the page's
+const guns = DATA.guns.map(g => {
+  const byPoint = {}; for (const [id, p] of Object.entries(g.points)) byPoint[p] = +id;
+  const chosen0 = [...g.chosen];
+  let chosen = new Set(g.chosen), edited = false;
+  if (stored[g.texture]) { chosen = new Set(stored[g.texture].map(p => byPoint[p]).filter(Boolean)); edited = true; }
+  return Object.assign(g, { byPoint, chosen0, chosen, edited, loaded: null });
+});
+let cur = 0, hover = 0, camo = null;
+
+async function load(g) {
+  if (g.loaded) return g.loaded;
+  const [base, donor, lab] = await Promise.all([pixels(g.base, N), pixels(g.donor, N), pixels(g.labels, N)]);
+  const ids = new Uint16Array(N * N), edge = new Uint8Array(N * N);
+  for (let i = 0; i < N * N; i++) ids[i] = lab[4 * i] + 256 * lab[4 * i + 1];
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const i = y * N + x, a = ids[i];
+    if ((x + 1 < N && ids[i + 1] !== a) || (y + 1 < N && ids[i + N] !== a)) edge[i] = 1;
+  }
+  return g.loaded = { base, donor, ids, edge };
+}
+
+function draw() {
+  const g = guns[cur], L = g.loaded; if (!L || !camo) return;
+  const bg = document.getElementById('premium').checked ? L.donor : L.base;
+  const showCamo = document.getElementById('camo').checked;
+  const on = new Uint8Array(65536); for (const id of g.chosen) on[id] = 1;
+  const out = ctx.createImageData(N, N), o = out.data;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const i = y * N + x, p = 4 * i, id = L.ids[i];
+    let r = bg[p], gg = bg[p + 1], b = bg[p + 2];
+    if (id && on[id]) {
+      if (showCamo) {                       // the camouflage tiled 4 times, as camo_scale 4
+        const q = 4 * (((y * 4) & 511) * 512 + ((x * 4) & 511)), k = 0.8;
+        r = r * (1 - k) + camo[q] * k; gg = gg * (1 - k) + camo[q + 1] * k; b = b * (1 - k) + camo[q + 2] * k;
+      } else { r = r * 0.4 + 40; gg = gg * 0.4 + 150; b = b * 0.4 + 80; }
+    } else if (id) { r *= 0.75; gg *= 0.75; b *= 0.75; }
+    if (id && id === hover) { r = r * 0.6 + 100; gg = gg * 0.6 + 70; b = b * 0.6 + 10; }
+    if (L.edge[i]) { r = r * 0.5 + 90; gg = gg * 0.5 + 90; b = b * 0.5 + 90; }
+    o[p] = r; o[p + 1] = gg; o[p + 2] = b; o[p + 3] = 255;
+  }
+  ctx.putImageData(out, 0, 0);
+}
+
+function lines() {
+  return ['# texture\tthe painted parts: a UV point on each (weapon_camo.py --picker)'].concat(guns.filter(g => g.edited || g.from_file).map(g =>
+    g.texture + '\t' + [...g.chosen].sort((a, b) => a - b).map(id => g.points[id]).join(' '))).join('\n') + '\n';
+}
+
+function save() {
+  const s = {}; for (const g of guns) if (g.edited) s[g.texture] = [...g.chosen].map(id => g.points[id]);
+  try { localStorage.setItem(STORE, JSON.stringify(s)); } catch (e) { }
+  document.getElementById('out').value = lines();
+}
+
+function nav() {
+  const el = document.getElementById('guns'); el.innerHTML = '';
+  guns.forEach((g, k) => {
+    const b = document.createElement('button');
+    b.className = (k === cur ? 'cur ' : '') + (g.edited ? 'edited' : '');
+    b.innerHTML = '<span></span><small></small>';
+    b.firstChild.textContent = g.texture.replace(/^weapons\//, '');
+    b.lastChild.textContent = g.chosen.size + '/' + Object.keys(g.points).length;
+    b.onclick = () => show(k);
+    el.appendChild(b);
+  });
+  const g = guns[cur];
+  document.getElementById('name').textContent = g.texture;
+  document.getElementById('count').textContent = g.chosen.size + ' parts painted of ' + Object.keys(g.points).length;
+}
+
+async function show(k) { cur = k; hover = 0; nav(); await load(guns[k]); if (cur === k) draw(); }
+
+function partAt(ev) {
+  const r = canvas.getBoundingClientRect(), L = guns[cur].loaded; if (!L) return 0;
+  const x = Math.floor((ev.clientX - r.left) / r.width * N), y = Math.floor((ev.clientY - r.top) / r.height * N);
+  return x >= 0 && y >= 0 && x < N && y < N ? L.ids[y * N + x] : 0;
+}
+
+function change(g, chosen) { g.chosen = chosen; g.edited = true; save(); nav(); draw(); }
+
+canvas.addEventListener('click', ev => {
+  const id = partAt(ev), g = guns[cur]; if (!id) return;
+  const c = new Set(g.chosen); c.has(id) ? c.delete(id) : c.add(id); change(g, c);
+});
+let pending = false;
+canvas.addEventListener('mousemove', ev => {
+  const id = partAt(ev); if (id === hover || pending) return;
+  hover = id; pending = true; requestAnimationFrame(() => { pending = false; draw(); });
+});
+canvas.addEventListener('mouseleave', () => { hover = 0; draw(); });
+document.getElementById('premium').onchange = draw;
+document.getElementById('camo').onchange = draw;
+document.getElementById('suggest').onclick = () => change(guns[cur], new Set(guns[cur].suggested));
+document.getElementById('clear').onclick = () => change(guns[cur], new Set());
+document.getElementById('reset').onclick = () => { const g = guns[cur]; g.chosen = new Set(g.chosen0); g.edited = false; save(); nav(); draw(); };
+document.getElementById('copy').onclick = () => navigator.clipboard && navigator.clipboard.writeText(lines());
+document.getElementById('save').onclick = () => {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([lines()], { type: 'text/tab-separated-values' }));
+  a.download = 'parts.tsv'; a.click();
+};
+
+(async () => {
+  camo = await pixels(DATA.camo, 512);
+  save(); show(0);
+})();
+</script>
+</body>
+</html>

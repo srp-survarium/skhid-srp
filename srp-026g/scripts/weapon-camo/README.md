@@ -6,7 +6,7 @@ The rules and the engine: `srp-026g/docs/notes/weapon-camo.md`. The exe side is 
 A camouflage reaches a weapon in three pieces, all in one content patch:
 
 1. `<diffuse>_aoac.dds` (+ `.options`) beside each weapon diffuse that has a camouflaged premium
-   texture: `weapon_camo.py` with `guns.tsv`;
+   texture: `weapon_camo.py` with `guns.tsv` and `parts.tsv` (the painted parts);
 2. `parameters/camo_available` and a `data` table (`camo_scale`) in those weapons' configs:
    `../content-edit/content_edit.py` with `../content-edit/weapon-camo-1.json`;
 3. the server reads both from its game data built of that patch (camouflage into slot 2 of a weapon).
@@ -30,6 +30,18 @@ cp -r out/textures folder/
 release/build-patch folder <revision>
 ```
 
+Which parts are painted: `parts.tsv` (beside guns.tsv) names them per texture, a UV point on each;
+a texture with no line gets the suggestion, the large parts its premium painted. To choose:
+
+```bash
+python3 -I weapon_camo.py guns.tsv game donor - --picker picker.html \
+    --camo game/textures__character__human__camo__premium__city_camo.dds
+```
+
+Open `picker.html` in a browser (about 15 MB, the textures inside). Click a part to paint it or
+leave it bare; "premium texture" shows the premium beneath, "Suggestion" and "None" set a whole
+texture, "Reset" goes back to parts.tsv. Copy or download the lines into `parts.tsv` and build again.
+
 `--previews` writes, per texture: the plain texture, a premium donor, the mask, the aoac and the
 bake the game makes (`bake()`, checked against the game's own bake of the AK-12 with the City
 camouflage: the same tiling and shading). Look at every preview before a release.
@@ -45,15 +57,17 @@ Lancaster's). A donor is usable only on our UVs: the same plain texture in its b
 whose mesh UVs equal ours.
 
 Result (2026-10-20, live data of revision 24): 26 textures, 46 `_aoac` files, 43 weapon configs.
+Painted by the suggestion (no parts.tsv yet), share of the texture's parts:
 
-| texture | donors | painted |
-|---|---|---|
-| uzi | uzi_camo_st, 0.28a2 uzi_camo | 52 % |
-| sks | sks_camo_01, sks_camo_st | 49 % (the wooden stock) |
-| akmn | akmn_camo, akmn_camo_st | 74 % |
-| izh_27_lancaster | lancaster_camo_st, 0.28a2 lancaster_camo | 16 % (both stocks) |
-| ak74_stock_wood (AK-74N) | ak74_stock_wood_camo_st, 0.28a2 _camo | 70 % |
-| akm_stock_wood, ak_12, aks74u, ak74n, kiparis, vityaz, neostead, rem700, saiga_12s, ak74_stock_plastic, vepr12, vepr_main, vepr_sec, vsk_9a91, vssk, vssk_brl, vss, vss_stock_wood, sr3m, sr3_mag, stock_val | one each | 25–84 % |
+| texture | donors | parts painted | of the parts |
+|---|---|---|---|
+| uzi | uzi_camo_st, 0.28a2 uzi_camo | 6 of 81 | 50 % |
+| sks | sks_camo_01, sks_camo_st | 3 of 132 | 57 % (the wooden stock) |
+| akmn | akmn_camo, akmn_camo_st | 9 of 138 | 66 % |
+| izh_27_lancaster | lancaster_camo_st, 0.28a2 lancaster_camo | 2 of 83 | 21 % (both stocks) |
+| ak74_stock_wood (AK-74N) | ak74_stock_wood_camo_st, 0.28a2 _camo | 3 of 10 | 83 % |
+| ak_12 | ak_12_camo | 7 of 254 | 53 % |
+| the other 20 | one each | 2–12 parts | 48–96 % (stocks, magazines and barrel covers: few parts, most painted) |
 
 Not covered: the Vepr-12's magazine texture (its premium repainted under 1 %), the AK-12's magazine
 (our AK-12 has no magazine surface), the 0.29a3 weapons, weapons with no premium.

@@ -9,10 +9,12 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
   on the same UVs: 26 textures (46 `_aoac` files with the premium textures), 43 weapon configs (`scripts/weapon-camo/guns.tsv`,
   `scripts/content-edit/weapon-camo-1.json`). Premium copies that share a model or UVs get it
   too. A weapon without such a premium takes no camouflage (no `camo_available`).
-- **Where the paint goes.** Where the premium weapons were painted, part by part (UV islands):
-  with two premium textures of one weapon, where the two differ and each differs from the plain
-  one; with one, the parts it repainted (§ "The masks"). Bare metal, grips the premium did not
-  paint, sights and bolts stay as they are.
+- **Where the paint goes.** On some parts of a weapon, never the whole: the parts (UV islands)
+  `scripts/weapon-camo/parts.tsv` names, chosen by hand in the picker page. A weapon without a
+  line there gets the suggestion: the large parts its premium painted (each at least 2 % of the
+  texture's parts: receiver, covers, handguard, stock, magazine). Small parts (triggers, bolts,
+  pins, sights, screws) stay bare. Most premiums were repainted as a whole, so "where the premium
+  painted" alone would cover nearly the whole weapon (97 % of the AK-12's parts).
 - **Which camouflage.** Any camouflage item (category 25) that goes on armour; one at a time.
 - **Slot.** [srp] A weapon's camouflage is in upgrade slot 2: slot 3 holds its scope, 0 and 1 are
   the decal slots (`WEAPON_CAMO_SLOT`, `modifications::camo_slot`). A scope and a camouflage
@@ -57,6 +59,11 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
 - One donor (the other 21): a part is painted when the premium differs from the plain texture on
   a fifth of it or more (bare parts differ on under 6 %, a dark camouflage over a dark part on
   about 44 %).
+- From the donors' parts, the suggestion keeps the large ones (`MIN_PART`); parts.tsv overrides
+  it per texture (a UV point on each painted part; a point on no part stops the build).
+- The picker (`weapon_camo.py --picker page.html`): each texture with its parts outlined, the
+  painted ones under the camouflage; a click paints a part or leaves it bare; the premium texture
+  can be shown beneath; the page gives the parts.tsv lines (kept in the browser meanwhile).
 - The aoac: G the mask, B the plain texture's fine shading on painted parts (×4, 0.5 elsewhere),
   R its broad shading (to 0.3, 1 elsewhere), so the camouflage keeps the part's wear and edges.
   DXT1 with mips, the stock files' header.

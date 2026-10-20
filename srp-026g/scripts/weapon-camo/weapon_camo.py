@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """weapon_camo.py: the `_aoac` textures that let a weapon wear an armour camouflage.
 
-usage: python3 -I weapon_camo.py <guns.tsv> <game folder> <donor folder> <out folder>
+usage: python3 -I weapon_camo.py <guns.tsv> <game folder> <donor folder> <out folder | ->
            [--only <texture>] [--camo <camouflage .dds>] [--previews <folder>]
+           [--picker <page.html>]
 
 <game folder>   the players' game files at their game paths or flattened as dbgrab writes them
                 (models__weapons__uzi.skinned_model__settings): the stock resources.db with every
@@ -10,16 +11,22 @@ usage: python3 -I weapon_camo.py <guns.tsv> <game folder> <donor folder> <out fo
 <donor folder>  the same for a later build's files that guns.tsv names with `28:` (0.28a2's
                 resources.db: premium weapons whose camouflaged textures our data does not have)
 <out folder>    gets textures/<texture>_aoac.dds and .options for every row and every premium
-                texture of the row (the same mask: the same UVs); must not exist yet
+                texture of the row (the same mask: the same UVs); must not exist yet (-: none)
 --previews      also writes <texture>.png there: the plain texture, a premium one, the mask, and the
                 texture as the game's bake would make it with --camo (default: the first donor)
+--picker        also writes a page to choose the painted parts by hand (needs --camo): click a part
+                to paint it or not; the page gives the lines of parts.tsv
+
+Which parts are painted: parts.tsv beside guns.tsv names them (a UV point on each part) for the
+textures it has a line for; for the others, the large parts the premium painted (suggest()).
 
 The engine bakes a camouflage into a surface's textures (camouflage_decal_texture_type_baker_cook,
 bake_decal_composition.ps) only when `<diffuse>_aoac.dds` loads beside the diffuse:
     c = lerp(diffuse, camo(uv * scale), 1 - aoac.G)       G: 1 bare, 0 painted
     c = overlay(c, aoac.B)                                B: 0.5 changes nothing
     c = c * aoac.R                                        R: 1 changes nothing
-The mask comes from the premium weapons' own textures, the places their painters painted:
+What the premium weapons' own textures say was painted (most premiums are repainted as a whole,
+so this alone paints nearly the whole weapon):
 - two premium textures of one weapon (two camouflages over the same base): the texels the two
   leave the same are bare. A part of the model (a UV island) is painted when the two differ on
   most of it and each differs from the plain texture there (a part one of them only tints, the
@@ -325,6 +332,88 @@ def dds_dxt1(img):
     return header + body
 
 
+MIN_PART = 0.02   # the suggestion: a part the premium painted, of at least this share of the
+                  # texture's parts (the receiver, handguard, stock, magazine; not pins, triggers)
+
+
+def suggest(decisions, labels):
+    """The parts painted when parts.tsv has no line for the texture: the premium's large ones."""
+    used = (labels > 0).sum()
+    return {i for i, (area, yes, _) in decisions.items() if yes and area >= MIN_PART * used}
+
+
+def island_points(labels):
+    """{island: (u, v)}: a texel of each island, the one nearest its centre, as parts.tsv names it."""
+    h, w = labels.shape
+    ys, xs = np.nonzero(labels)
+    ids = labels[ys, xs]
+    order = np.argsort(ids, kind='stable')
+    ys, xs, ids = ys[order], xs[order], ids[order]
+    starts = np.flatnonzero(np.r_[True, ids[1:] != ids[:-1]])
+    out = {}
+    for s, e in zip(starts, np.r_[starts[1:], len(ids)]):
+        cy, cx = ys[s:e].mean(), xs[s:e].mean()
+        k = s + int(np.argmin((ys[s:e] - cy) ** 2 + (xs[s:e] - cx) ** 2))
+        out[int(ids[s])] = ((xs[k] + 0.5) / w, (ys[k] + 0.5) / h)
+    return out
+
+
+def read_parts(path):
+    """parts.tsv: {texture: [(u, v)]}, a point on each painted part (none: the texture stays plain)."""
+    parts = {}
+    for line in open(path, encoding='utf-8'):
+        line = line.rstrip('\n')
+        if not line or line.startswith('#'):
+            continue
+        texture, _, points = line.partition('\t')
+        parts[texture] = [tuple(float(c) for c in p.split(',')) for p in points.split()]
+    return parts
+
+
+def parts_islands(points, labels, texture):
+    h, w = labels.shape
+    chosen = set()
+    for u, v in points:
+        i = int(labels[min(int(v * h), h - 1), min(int(u * w), w - 1)])
+        if not i:
+            sys.exit('%s: parts.tsv point %.4f,%.4f is on no part (the UVs changed? pick again)' % (texture, u, v))
+        chosen.add(i)
+    return chosen
+
+
+PICKER = 1024      # the picker page's texels a side
+
+
+def data_url(img, fmt, **kw):
+    import base64
+    import io
+    b = io.BytesIO()
+    img.save(b, fmt, **kw)
+    return 'data:image/%s;base64,%s' % (fmt.lower(), base64.b64encode(b.getvalue()).decode())
+
+
+def picker_entry(texture, base, donor, labels, points, suggested, chosen, from_file):
+    """The picker page's data for one texture: its images at PICKER texels, the parts' numbers as
+    a PNG (r + 256 g), a point on each part, the suggested parts and the parts painted now."""
+    small = lambda img: Image.fromarray((np.clip(img, 0, 1) * 255).astype(np.uint8)).resize((PICKER, PICKER), Image.LANCZOS)
+    h, w = labels.shape
+    ids = labels[(np.arange(PICKER) * h // PICKER)[:, None], (np.arange(PICKER) * w // PICKER)[None, :]].astype(np.uint32)
+    rgb = np.stack([ids & 255, ids >> 8, np.zeros_like(ids)], 2).astype(np.uint8)
+    return {'texture': texture, 'base': data_url(small(base), 'JPEG', quality=85),
+            'donor': data_url(small(donor), 'JPEG', quality=85), 'labels': data_url(Image.fromarray(rgb), 'PNG'),
+            'points': {str(i): '%.4f,%.4f' % p for i, p in points.items()},
+            'suggested': sorted(suggested), 'chosen': sorted(chosen), 'from_file': from_file}
+
+
+def write_picker(path, entries, camo):
+    import json
+    tile = Image.fromarray((np.clip(camo, 0, 1) * 255).astype(np.uint8)).resize((512, 512), Image.LANCZOS)
+    data = {'camo': data_url(tile, 'JPEG', quality=85), 'guns': entries}
+    page = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'picker.html'), encoding='utf-8').read()
+    assert '/*DATA*/null' in page
+    open(path, 'w', encoding='utf-8').write(page.replace('/*DATA*/null', json.dumps(data)))
+
+
 def read_rows(path):
     rows = []
     for line in open(path, encoding='utf-8'):
@@ -342,20 +431,22 @@ def read_rows(path):
 def main():
     args = [a for a in sys.argv[1:]]
     opt = lambda name: args[args.index(name) + 1] if name in args else None
-    only, camo_path, previews = opt('--only'), opt('--camo'), opt('--previews')
-    for name in ('--only', '--camo', '--previews'):
+    only, camo_path, previews, picker = opt('--only'), opt('--camo'), opt('--previews'), opt('--picker')
+    for name in ('--only', '--camo', '--previews', '--picker'):
         if name in args:
             i = args.index(name)
             del args[i:i + 2]
-    if len(args) != 4:
+    if len(args) != 4 or (picker and not camo_path):
         sys.exit(__doc__)
     table, game, donor, out = args
     game, donor = Files(game), Files(donor)
-    if os.path.exists(out):
+    if out != '-' and os.path.exists(out):
         sys.exit('%s: already there' % out)
+    parts_path = os.path.join(os.path.dirname(os.path.abspath(table)), 'parts.tsv')
+    parts = read_parts(parts_path) if os.path.exists(parts_path) else {}
     options = game.read(OPTIONS_TEMPLATE)
     camo = load_rgb(open(camo_path, 'rb').read()) if camo_path else None
-    written = []
+    written, entries = [], []
     def texture_of(name, size=None):
         files, name = (donor, name[3:]) if name.startswith('28:') else (game, name)
         img = load_rgb(files.read('textures/%s.dds' % name))
@@ -373,16 +464,22 @@ def main():
             model, surface = s.split(':')
             meshes.append(mesh_uv(game.read('models/%s.skinned_model/render/%s/converted_model' % (model, surface))))
         labels = islands(meshes, size)
-        mask, decisions = paint_mask(plain, imgs, labels)
+        _, decisions = paint_mask(plain, imgs, labels)
+        suggested = suggest(decisions, labels)
+        chosen = parts_islands(parts[texture], labels, texture) if texture in parts else suggested
+        mask = np.isin(labels, sorted(chosen))
         a = aoac(base, mask, labels)
-        painted = 100 * mask.mean()
-        print('%-44s %d donors, %3d islands, %3d painted, %5.1f%% of the texture'
-              % (texture, len(imgs), len(decisions), sum(1 for _, y, _ in decisions.values() if y), painted))
+        print('%-44s %d donors, %3d parts, premium painted %3d, %3d painted (%s), %5.1f%% of the parts'
+              % (texture, len(imgs), len(decisions), sum(1 for _, y, _ in decisions.values() if y), len(chosen),
+                 'parts.tsv' if texture in parts else 'suggested', 100 * mask.sum() / max(1, (labels > 0).sum())))
+        if picker:
+            entries.append(picker_entry(texture, base, imgs[0], labels, island_points(labels), suggested, chosen,
+                                        texture in parts))
         if not mask.any():
             print('  nothing painted: no _aoac')
             continue
         blob = dds_dxt1(a)
-        for name in [texture] + premiums:
+        for name in [texture] + premiums if out != '-' else []:
             dst = os.path.join(out, 'textures', *('%s_aoac' % name).split('/'))
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             open(dst + '.dds', 'wb').write(blob)
@@ -398,6 +495,9 @@ def main():
                                      bake(base, c, a, 4.0)]):
                 row.paste(sm(img), (512 * k, 0))
             row.save(os.path.join(previews, texture.replace('/', '__') + '.png'))
+    if picker:
+        write_picker(picker, entries, camo)
+        print('picker: %s' % picker)
     print('%d textures written to %s' % (len(written), out))
 
 

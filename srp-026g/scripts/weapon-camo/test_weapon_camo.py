@@ -55,6 +55,24 @@ class Test(unittest.TestCase):
         a = w.aoac(base, mask, labels)
         self.assertTrue(np.allclose(a[50, :, 1], 1) and np.allclose(a[50, :, 2], 0.5) and np.allclose(a[50, :, 0], 1))
 
+    def test_the_suggestion_leaves_small_parts_bare(self):
+        base = np.full((64, 64, 3), 0.1, np.float32)
+        donor = np.full((64, 64, 3), 0.6, np.float32)          # the premium repainted all of it
+        uv, tris = w.mesh_uv(mesh([(0, 0, 1, 0.5), (0, 0.6, 0.05, 0.65)]))
+        labels = w.islands([(uv, tris)], (64, 64))
+        _, decisions = w.paint_mask(base, [donor], labels)
+        self.assertEqual(sum(1 for _, yes, _ in decisions.values() if yes), 2)
+        self.assertEqual(w.suggest(decisions, labels), {labels[10, 10]})
+
+    def test_parts_tsv_names_parts_by_a_point_on_each(self):
+        uv, tris = w.mesh_uv(mesh([(0, 0, 0.45, 1), (0.55, 0, 1, 1)]))
+        labels = w.islands([(uv, tris)], (64, 64))
+        points = w.island_points(labels)
+        right = labels[30, 50]
+        self.assertEqual(w.parts_islands([points[right]], labels, 't'), {right})
+        with self.assertRaises(SystemExit):
+            w.parts_islands([(0.5, 0.5)], labels, 't')           # the gap between the parts
+
 
 if __name__ == '__main__':
     unittest.main()
