@@ -9,6 +9,7 @@ use std::collections::BTreeSet;
 use survarium::v026g::match_msgs::client_model::Skip;
 use survarium::v026g::match_msgs::players::PlayerState;
 use survarium::v026g::match_msgs::rules::state;
+use survarium::v026g::match_msgs::snapshot::event;
 use survarium::v026g::match_msgs::{PlayerInput, ServerMessage, WireTime, id};
 use udp_transport::wire::{self, low_level};
 use udp_transport::{Direction, Table};
@@ -1781,6 +1782,44 @@ fn a_team_with_every_battery_home_ends_the_match_three_seconds_later() {
     // Each was told with its own index.
     assert_eq!(bench.clients[0].left(), [0]);
     assert_eq!(bench.clients[1].left(), [1]);
+    bench.assert_no_faults();
+}
+
+#[test]
+fn a_players_battery_events_are_paid_at_most_once_a_battery_of_the_map() {
+    // Map 61 has 10 batteries (docs/notes/battery_credit.md).
+    let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    bench.run_long(130_000);
+    // Player 0 put a battery in 233 times; player 1 stole three and a half
+    // batteries' worth and put 4 in: under the cap.
+    let at = bench.clock() / 50 * 50 + 100;
+    let events = vec![
+        (at, 0, event::PUT_VICTORY_ITEM_IN_CONTAINER, 233),
+        (at, 1, event::STEAL_VICTORY_ITEM, 350),
+        (at, 1, event::PUT_VICTORY_ITEM_IN_CONTAINER, 4),
+    ];
+    for client in &mut bench.clients {
+        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.events_from.clone_from(&events);
+    }
+    assert!(bench.until(12_000, |bench| {
+        bench.clients.iter().all(|client| client.closed)
+    }));
+    let result = bench.results.try_recv().expect("a result");
+    let paid = |place: usize, event: usize| {
+        result.players[place]
+            .statistics
+            .as_ref()
+            .expect("statistics")
+            .total(event)
+    };
+    assert_eq!(paid(0, event::PUT_VICTORY_ITEM_IN_CONTAINER), 10);
+    // 10 put-ins at 5 each, not 233.
+    assert_eq!(result.players[0].score, 50);
+    assert_eq!(paid(1, event::STEAL_VICTORY_ITEM), 350);
+    assert_eq!(paid(1, event::PUT_VICTORY_ITEM_IN_CONTAINER), 4);
     bench.assert_no_faults();
 }
 
