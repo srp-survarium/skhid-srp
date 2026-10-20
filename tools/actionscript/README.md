@@ -26,7 +26,7 @@ method bodies. Exporting a source tree does not establish an exact rebuild.
 | `hud.swf` | 287 | 2,342 | Byte-exact, including compression |
 | `main_menu.swf` | 183 | 1,864 | Byte-exact, including compression and padding |
 | `login_menu.swf` | 86 | 866 | Byte-exact, including compression and padding |
-| `player_icons.swf` | 34 | 347 | Reconstruction in progress |
+| `player_icons.swf` | 34 | 347 | Byte-exact, including compression |
 | `replay_player.swf` | 82 | 866 | Reconstruction in progress |
 | `cursor.swf` | 2 | 10 | Byte-exact, including compression |
 | `debug_animations.swf` | 53 | 560 | Reconstruction in progress |
@@ -62,6 +62,13 @@ and 203 pristine exports. The 7,713,475-byte rebuild has SHA-256
 `b924b29db06070dfe7d89827a3cf3bc71f14ae4cbca9a2546d95ac977951ec80`.
 The source corrections preserve captured local declarations, nested function
 initialization, global type imports and the released minimap changes.
+
+Player-icons [verification evidence](reconstruction/026g-rev24-player_icons/verification.json)
+covers all 34 scripts and 347 method bodies in the shared ABC, using 14
+reconstructed sources and 20 pristine exports. The 186,560-byte rebuild has SHA-256
+`36aa353350acb61a79b52c1bcc2d303c7c21352863cd61095025a748275e796b`.
+The native optimized profile preserves the original marker logic, declaration
+order and loop control flow.
 
 ## Private inputs and pinned tools
 
@@ -197,13 +204,19 @@ they are an experiment toward matching the original compiler output.
 imported source unit. A temporary entry class references it, and inheritance-only
 linking is disabled so the target is included in the native output. This restores
 the compiler's lexical self-class lookups where entry-script compilation would
-emit global-slot access. No lookup opcode is rewritten by the layout linker.
+emit global-slot access. The compiler supplies these self-class lookups.
 The full `native-compiler.swf`, temporary `entry-source.as`, and selected
-`native-script.swf` are retained. Selection requires a uniquely named class in a
-single-script ABC, and verifies that the selected ABC's bytes survive
+`native-script.swf` are retained. Selection requires a uniquely named class.
+When native optimization merges scripts into one ABC, selection removes the
+other scripts and packs the compiler's records into a single-script ABC.
+It verifies that the selected ABC's bytes survive
 serialization unchanged. Only that native ABC replaces the requested script;
 the temporary entry and its other linked dependencies never enter the result.
 This profile requires a class, rather than a global function or namespace script.
+
+`flex-optimized` uses the same library compilation with optimization enabled.
+It preserves `trace` calls and retains the full native output before selecting
+the requested script. The profile is explicit in each reconstruction entry.
 
 ## Exact layout linking
 
@@ -227,6 +240,13 @@ It keeps the compiler's method bodies, signatures, class definitions, scope and
 stack limits, and exception tables. It restores named method and trait ordering.
 Class/file private namespaces are mapped by their compiler-generated owners,
 requiring unique identities in both pools; ambiguous ownership is refused.
+If either compiler erased private namespace labels, retained non-private members
+of namespace sets must identify one original group. Private declarations must
+agree by class, trait kind and member name. An ambiguous group is interchangeable
+only when every namespace has no qualified bindings or namespace values and the
+whole group occurs together in every containing set on both sides.
+A private identity used only by qualified names can instead follow a unique,
+nonempty set of matching owned declarations. Ambiguous declarations are refused.
 For a file-private helper class, its generated protected namespace follows the
 already mapped file identity. Both class names, namespace kinds and generated
 owner labels must agree, and each protected namespace must have exactly one
@@ -345,8 +365,9 @@ QName lookups and discarded calls also support the reverse expansion, using
 only the compiler's actual name and argument operands.
 Discarded `callsuper` results can similarly use `callsupervoid`. A Boolean
 conversion immediately before a truth branch can be folded into that branch,
-and logical negation reverses its polarity. String literals can omit their
-redundant `coerce_s`. These cases preserve operand values and coercion behavior;
+and logical negation reverses its polarity. String literals can add or omit their
+redundant `coerce_s`. A store followed immediately by a read of the same local
+can use `dup` followed by that store. These cases preserve operand values and coercion behavior;
 the tests also reject altered calls, literals and branch polarity.
 Signed byte and short integer pushes can use either width within their common
 range, with the exact same integer operand.
@@ -453,7 +474,8 @@ argument conversions.
 Use `--compiler reconstruction` with the pinned patch manifest to select these
 per-class compilers in one measurement. Classes without an override use
 `flex-strict`; every report row records the compiler actually used. Explicit
-`--compiler ffdec`, `ffdec-source`, `flex`, `flex-strict` or `flex-library` selects that compiler for every
+`--compiler ffdec`, `ffdec-source`, `flex`, `flex-strict`, `flex-library` or
+`flex-optimized` selects that compiler for every
 class, for comparison experiments. The per-class profile currently proves 233
 reconstructed classes, including easing, button, list, text, message, clan,
 debug and tutorial classes. Source fixes also recover local declaration order,

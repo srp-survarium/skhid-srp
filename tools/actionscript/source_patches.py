@@ -126,7 +126,7 @@ def load_sources(manifest_path, project, pinned):
     if not isinstance(spec.get('classes'), list):
         raise ValueError('Source patch classes must be a list')
     for entry in spec['classes']:
-        if entry.get('compiler', 'flex-strict') not in ('ffdec', 'ffdec-source', 'flex', 'flex-strict', 'flex-library', 'flex-mixed'):
+        if entry.get('compiler', 'flex-strict') not in ('ffdec', 'ffdec-source', 'flex', 'flex-strict', 'flex-library', 'flex-optimized', 'flex-mixed'):
             raise ValueError('Unknown reconstruction compiler')
         composition_plan(entry)
         reservation_plan(entry)

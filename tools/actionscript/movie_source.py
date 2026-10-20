@@ -252,7 +252,7 @@ def main():
     measure = commands.add_parser("measure", help="Independently recompile each selected class from a fresh original")
     measure.add_argument("project", type=Path)
     measure.add_argument("output", type=Path)
-    measure.add_argument("--compiler", choices=("ffdec", "ffdec-source", "flex", "flex-strict", "flex-library", "flex-mixed", "reconstruction"), required=True,
+    measure.add_argument("--compiler", choices=("ffdec", "ffdec-source", "flex", "flex-strict", "flex-library", "flex-optimized", "flex-mixed", "reconstruction"), required=True,
                          help="reconstruction uses pinned per-class compiler choices, defaulting to flex-strict")
     measure.add_argument("--classes", type=Path, help="One full script name per line; defaults to every exported script")
     measure.add_argument("--source-patches", type=Path, help="Pinned reconstruction manifest; pristine exports stay immutable")

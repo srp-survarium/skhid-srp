@@ -23,8 +23,14 @@ class CompactTruthIntegration(unittest.TestCase):
                 import flash.display.MovieClip;
                 public class CompactTruth extends MovieClip {
                     public function lookups(value:Number):void {
-                        try { super.stop(); Math.max(value,1); }
+                        try { var label:String = "fixture"; super.stop(); Math.max(value,1); trace(label); }
                         catch(error:Error) { trace(error); }
+                    }
+                    public function localCopy(value:Object):Object {
+                        var result:Object;
+                        try { if((result = value)) trace(result, value, "local"); }
+                        catch(error:Error) { return null; }
+                        return result;
                     }
                     public function test(value:*, count:int):String {
                         var result:String = "fixture";

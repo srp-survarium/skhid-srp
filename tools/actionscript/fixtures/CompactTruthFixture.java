@@ -54,7 +54,8 @@ public class CompactTruthFixture {
         var code=body.getCode().code;
         for(int i=0;i+1<code.size();i++) {
             int a=code.get(i).definition.instructionCode,b=code.get(i+1).definition.instructionCode;
-            if(kind.equals("lookup") && a==0x5d && b==0x66
+            if(kind.equals("string") && a==0x2c && b==0x85
+                    || kind.equals("lookup") && a==0x5d && b==0x66
                     && Arrays.equals(code.get(i).operands,code.get(i+1).operands)
                     || kind.equals("call") && a==0x46 && b==0x29
                     || kind.equals("super") && a==0x45 && b==0x29)return i;
@@ -63,10 +64,11 @@ public class CompactTruthFixture {
     }
     static void compactLookups(ABC abc)throws Exception {
         var body=method(abc,"lookups");var code=body.getCode();
-        for(String kind:List.of("lookup","call","super"))lookupPair(body,kind);
+        for(String kind:List.of("lookup","call","super","string"))lookupPair(body,kind);
         for(int i=code.code.size()-2;i>=0;i--) {
             var a=code.code.get(i);var b=code.code.get(i+1);
             int op=a.definition.instructionCode,next=b.definition.instructionCode,replacement=0;
+            if(op==0x2c && next==0x85)replacement=0x2c;
             if(op==0x5d && next==0x66 && Arrays.equals(a.operands,b.operands))replacement=0x60;
             if(op==0x46 && next==0x29)replacement=0x4f;
             if(op==0x45 && next==0x29)replacement=0x4e;
@@ -78,7 +80,7 @@ public class CompactTruthFixture {
         body.setCode(code);
     }
     static void expansionGuards(Path input)throws Exception {
-        for(String kind:List.of("lookup","call","super"))
+        for(String kind:List.of("lookup","call","super","string"))
             for(String mutation:List.of("valid","target","handler","operand")) {
                 var reference=abc(input);var beforeBody=method(reference,"lookups");var code=beforeBody.getCode();
                 int index=lookupPair(beforeBody,kind),interior=(int)code.code.get(index+1).getAddress();
@@ -87,7 +89,7 @@ public class CompactTruthFixture {
                     jump.operands[0]=interior-(int)jump.getAddress()-jump.getBytesLength();
                 }
                 if(mutation.equals("handler"))beforeBody.exceptions[0].end=interior;
-                if(mutation.equals("operand"))code.code.get(index).operands[kind.equals("lookup")?0:1]++;
+                if(mutation.equals("operand"))code.code.get(index).operands[(kind.equals("lookup") || kind.equals("string"))?0:1]++;
                 beforeBody.setCode(code);
                 var candidate=abc(input);compactLookups(candidate);var body=method(candidate,"lookups");
                 byte[] before=body.getCodeBytes().clone();
@@ -130,8 +132,38 @@ public class CompactTruthFixture {
                     throw new AssertionError("Rewrote unsafe "+kind+" "+mutation);
             }
     }
+    static void localCopyGuards(Path input)throws Exception {
+        for(String mutation:List.of("valid","target","handler","operand")) {
+            var reference=abc(input);var candidate=abc(input);
+            var expected=method(reference,"localCopy");var body=method(candidate,"localCopy");
+            var code=expected.getCode();int index=-1;
+            for(int i=0;i+1<code.code.size();i++) {
+                if(code.code.get(i).definition.instructionCode==0x2a
+                        && MovieSource.localRegister(code.code.get(i+1),true)>=0){index=i;break;}
+            }
+            if(index<0)throw new AssertionError("Missing native dup/store pair");
+            var store=code.code.get(index+1);int local=MovieSource.localRegister(store,true);
+            var emitted=body.getCode();
+            emitted.replaceInstruction(index,new AVM2Instruction(0,store.definition,
+                store.operands==null?null:store.operands.clone()),body);
+            emitted.replaceInstruction(index+1,new AVM2Instruction(0,local<4?0xd0+local:0x62,
+                local<4?null:new int[]{local}),body);
+            int interior=(int)emitted.code.get(index+1).getAddress();
+            if(mutation.equals("target")) {
+                var jump=emitted.code.stream().filter(i->i.definition.instructionCode==0x10).findFirst().orElseThrow();
+                jump.operands[0]=interior-(int)jump.getAddress()-jump.getBytesLength();
+            }
+            if(mutation.equals("handler"))body.exceptions[0].end=interior;
+            if(mutation.equals("operand"))emitted.replaceInstruction(index+1,new AVM2Instruction(0,0xd0,null),body);
+            body.setCode(emitted);byte[] before=body.getCodeBytes().clone();
+            MovieSource.emitCompactOperations(reference,candidate);
+            if(mutation.equals("valid")) {
+                if(!Arrays.equals(expected.getCodeBytes(),body.getCodeBytes()))throw new AssertionError("Local pair rejected");
+            } else if(!Arrays.equals(before,body.getCodeBytes()))throw new AssertionError("Unsafe local pair "+mutation);
+        }
+    }
     public static void main(String[] args)throws Exception {
-        Path input=Path.of(args[0]);guards(input);expansionGuards(input);
+        Path input=Path.of(args[0]);guards(input);expansionGuards(input);localCopyGuards(input);
         var swf=MovieSource.read(input);var abc=MovieSource.findScript(swf,"CompactTruth").abc;
         compact(abc);compactLookups(abc);((Tag)abc.parentTag).setModified(true);
         try(var out=Files.newOutputStream(Path.of(args[1]))){swf.saveTo(out);}

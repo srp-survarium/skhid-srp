@@ -10,6 +10,17 @@ import movie_source
 
 @unittest.skipUnless(os.environ.get("SRP_AS_TOOLS"), "set SRP_AS_TOOLS for Java integration")
 class NamespaceLayoutIntegration(unittest.TestCase):
+    def test_anonymous_namespace_identity_guards(self):
+        with tempfile.TemporaryDirectory(prefix="srp-anonymous-namespace-test-") as temp:
+            root = Path(temp)
+            tools = movie_source.Toolchain(Path(os.environ["SRP_AS_TOOLS"]), root / "bridge")
+            fixture = Path(__file__).parent / "fixtures/AnonymousNamespaceFixture.java"
+            subprocess.run([tools.config["javac"], "-cp", tools.cp, "-d", str(tools.work),
+                            str(fixture)], check=True)
+            result = subprocess.run([tools.config["java"], "-cp", tools.cp, "AnonymousNamespaceFixture"],
+                                    capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_unused_namespace_and_used_namespace_rejection(self):
         with tempfile.TemporaryDirectory(prefix="srp-namespace-test-") as temp:
             root = Path(temp)
