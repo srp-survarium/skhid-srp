@@ -84,28 +84,26 @@ Applied to revision 24's live `localization/ukrainian/localization` (from the se
 
 Applied to revision 24's server game data (`gameplay/victory_items/`): 1 file edited, 0 unexpected differences.
 
-## ak12-027-1.json (2026-10-20)
+## weapon-balance-2.json (2026-10-20)
 
 | change | why |
 |---|---|
-| AK-12 and premium AK-12 (`wpn_ak_12`, `wpn_ak_12_premium`): `bullet_damage` 0.55 -> 0.5, `bullet_pierce` 0.45 -> 0.4 (f32 kept); the card's damage (prop 1) 55 -> 50 and armour piercing (prop 3) 45 -> 40 | the owner: "0.27a (released 3 months after 0.26a where ak12 was introduced) nerfed ak12 damage 55 » 50 and armour penetration 45 » 40. I think it should be done here". Only 0.27's change (`docs/notes/ak12_027.md`) |
+| AK-12 and premium AK-12 (`wpn_ak_12`, `wpn_ak_12_premium`): `bullet_damage` 0.55 -> 0.5, `bullet_pierce` 0.45 -> 0.35 (f32 kept); the card's damage (prop 1) 55 -> 50 and armour piercing (prop 3) 45 -> 35 | the owner: "0.27a (released 3 months after 0.26a where ak12 was introduced) nerfed ak12 damage 55 » 50 and armour penetration 45 » 40. I think it should be done here"; then, shown the table below: "50 35 for ak-12" (piercing between 0.27d0's 40 and 0.28a2's 30; 0.28a2 rebalanced the whole game, so only the AK-12's own change is taken) |
 | premium AK-12: `default_modifications` [1230, 2044, 2094] -> [1230] (a new edit, `remove_item`) | the owner: a premium weapon gives silver and nothing else. 1230 is +10 % silver; 2044 (reload time -15 %) and 2094 (reliability +25 %) go. The defaults are not on the wire: the client and srp both read them from the config |
+| Socom16 (`wpn_socom16`): `bullet_damage` 0.8 -> 0.5; the card's damage 80 -> 50 | the owner: "and also Socom16 75 → 50" (0.28a2's cut). Live has 0.26g's 0.8 (0.27d0 had cut it to 0.75). Piercing stays 0.45: 0.28a2 also cut it to 0.35, the owner named the damage only |
 
-The AK-12 in the builds we have (plain / premium; the card shows the same numbers x100):
+The two weapons in the builds at hand (damage / piercing; the card shows them x100):
 
-| build | damage | piercing |
-|---|---|---|
-| 0.26g stock (no premium AK-12) | 0.55 / - | 0.45 / - |
-| live, revision 25 | 0.55 / 0.55 | 0.45 / 0.45 |
-| 0.27d0 | **0.55** / 0.50 | 0.40 / 0.40 |
-| 0.28a2 | 0.50 / 0.45 | 0.30 / 0.30 |
-| 0.28d0 | 0.45 / 0.45 | 0.30 / 0.30 |
-| 0.31a2 | 0.35 / 0.35 | 0.55 / 0.55 |
-| 0.46c2 | 0.26 / 0.26 | none (`material_pierce` 6: another scale) |
+| build | AK-12 | premium AK-12 | Socom16 |
+|---|---|---|---|
+| 0.26g stock | 0.55 / 0.45 | - | 0.80 / 0.45 |
+| live, revision 25 | 0.55 / 0.45 | 0.55 / 0.45 | 0.80 / 0.45 |
+| 0.27d0 (no 0.27a at hand) | 0.55 / 0.40 | 0.50 / 0.40 | 0.75 / 0.45 |
+| 0.28a2 | 0.50 / 0.30 | 0.45 / 0.30 | 0.50 / 0.35 |
+| 0.28d0 | 0.45 / 0.30 | 0.45 / 0.30 | 0.50 / 0.35 |
+| 0.31a2 | 0.35 / 0.55 | 0.35 / 0.55 | 0.60 / 0.40 |
+| 0.46c2 (`material_pierce` 6, another scale) | 0.26 / - | 0.26 / - | 0.65 / - |
+| **here** | 0.50 / 0.35 | 0.50 / 0.35 | 0.50 / 0.45 |
 
-No 0.27a build is at hand; 0.27d0 has the plain AK-12 at 0.55. Both are set to 0.5 per
-the owner's note; the plain one back at 0.55 is its `bullet_damage` `set` and prop 1
-`set_prop` taken out.
-
-Applied to revision 24's server game data (`gameplay/items/weapons/wpn_ak_12*`; patch 25
-did not touch weapons): 2 files edited, 0 unexpected differences.
+Applied to revision 24's server game data (`gameplay/items/weapons/wpn_ak_12*`,
+`wpn_socom16`; patch 25 did not touch weapons): 3 files edited, 0 unexpected differences.
