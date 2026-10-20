@@ -1,0 +1,17 @@
+--- a/SymbolFontsExo.as
++++ b/SymbolFontsExo.as
+@@ -20,11 +20,11 @@
+       
+       internal function frame1() : *
+       {
+-         this.i = 0;
++         i = 0;
+          while(this.i < numChildren)
+          {
+-            this.tx = getChildAt(this.i) as TextField;
+-            if(Boolean(this.tx))
++            tx = getChildAt(this.i) as TextField;
++            if(this.tx)
+             {
+                this.tx.text = "Abcdefg124 Абцдфг 1231";
+             }

@@ -1,0 +1,817 @@
+--- a/com/greensock/TweenLite.as
++++ b/com/greensock/TweenLite.as
+@@ -12,60 +12,60 @@
+    public class TweenLite extends Animation
+    {
+       
++      public static const version:String = "12.1.3";
++      
++      public static var defaultEase:Ease = new Ease(null,null,1,1);
++      
++      public static var defaultOverwrite:String = "auto";
++      
++      public static var ticker:Shape = Animation.ticker;
++      
++      public static var _plugins:Object = {};
++      
+       public static var _onPluginEvent:Function;
+       
++      protected static var _tweenLookup:Dictionary = new Dictionary(false);
++      
++      protected static var _reservedProps:Object = {
++         ease:1,
++         delay:1,
++         overwrite:1,
++         onComplete:1,
++         onCompleteParams:1,
++         onCompleteScope:1,
++         useFrames:1,
++         runBackwards:1,
++         startAt:1,
++         onUpdate:1,
++         onUpdateParams:1,
++         onUpdateScope:1,
++         onStart:1,
++         onStartParams:1,
++         onStartScope:1,
++         onReverseComplete:1,
++         onReverseCompleteParams:1,
++         onReverseCompleteScope:1,
++         onRepeat:1,
++         onRepeatParams:1,
++         onRepeatScope:1,
++         easeParams:1,
++         yoyo:1,
++         onCompleteListener:1,
++         onUpdateListener:1,
++         onStartListener:1,
++         onReverseCompleteListener:1,
++         onRepeatListener:1,
++         orientToBezier:1,
++         immediateRender:1,
++         repeat:1,
++         repeatDelay:1,
++         data:1,
++         paused:1,
++         reversed:1
++      };
++      
+       protected static var _overwriteLookup:Object;
+       
+-      public static const version:String = "12.1.3";
+-      
+-      public static var defaultEase:Ease = new Ease(null,null,1,1);
+-      
+-      public static var defaultOverwrite:String = "auto";
+-      
+-      public static var ticker:Shape = Animation.ticker;
+-      
+-      public static var _plugins:Object = {};
+-      
+-      protected static var _tweenLookup:Dictionary = new Dictionary(false);
+-      
+-      protected static var _reservedProps:Object = {
+-         "ease":1,
+-         "delay":1,
+-         "overwrite":1,
+-         "onComplete":1,
+-         "onCompleteParams":1,
+-         "onCompleteScope":1,
+-         "useFrames":1,
+-         "runBackwards":1,
+-         "startAt":1,
+-         "onUpdate":1,
+-         "onUpdateParams":1,
+-         "onUpdateScope":1,
+-         "onStart":1,
+-         "onStartParams":1,
+-         "onStartScope":1,
+-         "onReverseComplete":1,
+-         "onReverseCompleteParams":1,
+-         "onReverseCompleteScope":1,
+-         "onRepeat":1,
+-         "onRepeatParams":1,
+-         "onRepeatScope":1,
+-         "easeParams":1,
+-         "yoyo":1,
+-         "onCompleteListener":1,
+-         "onUpdateListener":1,
+-         "onStartListener":1,
+-         "onReverseCompleteListener":1,
+-         "onRepeatListener":1,
+-         "orientToBezier":1,
+-         "immediateRender":1,
+-         "repeat":1,
+-         "repeatDelay":1,
+-         "data":1,
+-         "paused":1,
+-         "reversed":1
+-      };
+-      
+       public var target:Object;
+       
+       public var ratio:Number;
+@@ -92,38 +92,38 @@
+       
+       protected var _startAt:TweenLite;
+       
+-      public function TweenLite(target:Object, duration:Number, vars:Object)
+-      {
+-         var i:int = 0;
++      public function TweenLite(targetValue:Object, duration:Number, vars:Object)
++      {
++         var i:int;
+          super(duration,vars);
+-         if(target == null)
++         if(targetValue == null)
+          {
+             throw new Error("Cannot tween a null object. Duration: " + duration + ", data: " + this.data);
+          }
+          if(!_overwriteLookup)
+          {
+             _overwriteLookup = {
+-               "none":0,
+-               "all":1,
+-               "auto":2,
+-               "concurrent":3,
+-               "allOnStart":4,
+-               "preexisting":5,
++               none:0,
++               all:1,
++               auto:2,
++               concurrent:3,
++               allOnStart:4,
++               preexisting:5,
+                "true":1,
+                "false":0
+             };
+             ticker.addEventListener("enterFrame",_dumpGarbage,false,-1,true);
+          }
+-         this.ratio = 0;
+-         this.target = target;
+-         this._ease = defaultEase;
+-         this._overwrite = !("overwrite" in this.vars) ? int(_overwriteLookup[defaultOverwrite]) : (typeof this.vars.overwrite === "number" ? this.vars.overwrite >> 0 : int(_overwriteLookup[this.vars.overwrite]));
++         ratio = 0;
++         target = targetValue;
++         _ease = defaultEase;
++         _overwrite = !("overwrite" in this.vars) ? (_overwriteLookup[defaultOverwrite]) : (typeof this.vars.overwrite === "number" ? this.vars.overwrite >> 0 : (_overwriteLookup[this.vars.overwrite]));
+          if(this.target is Array && typeof this.target[0] === "object")
+          {
+-            this._targets = this.target.concat();
+-            this._propLookup = [];
+-            this._siblings = [];
+-            i = int(this._targets.length);
++            _targets = this.target.concat();
++            _propLookup = [];
++            _siblings = [];
++            i = (this._targets.length);
+             while(--i > -1)
+             {
+                this._siblings[i] = _register(this._targets[i],this,false);
+@@ -138,22 +138,22 @@
+          }
+          else
+          {
+-            this._propLookup = {};
+-            this._siblings = _tweenLookup[target];
++            _propLookup = {};
++            _siblings = _tweenLookup[targetValue];
+             if(this._siblings == null)
+             {
+-               this._siblings = _tweenLookup[target] = [this];
++               _siblings = _tweenLookup[targetValue] = [this];
+             }
+             else
+             {
+                this._siblings[this._siblings.length] = this;
+                if(this._overwrite == 1)
+                {
+-                  _applyOverwrite(target,this,null,1,this._siblings);
+-               }
+-            }
+-         }
+-         if(Boolean(this.vars.immediateRender) || duration == 0 && _delay == 0 && this.vars.immediateRender != false)
++                  _applyOverwrite(targetValue,this,null,1,this._siblings);
++               }
++            }
++         }
++         if((this.vars.immediateRender) || duration == 0 && _delay == 0 && this.vars.immediateRender != false)
+          {
+             this.render(-_delay,false,true);
+          }
+@@ -182,7 +182,7 @@
+       
+       protected static function _prepVars(vars:Object, immediateRender:Boolean = false) : Object
+       {
+-         if(Boolean(vars._isGSVars))
++         if((vars._isGSVars))
+          {
+             vars = vars.vars;
+          }
+@@ -196,14 +196,14 @@
+       public static function delayedCall(delay:Number, callback:Function, params:Array = null, useFrames:Boolean = false) : TweenLite
+       {
+          return new TweenLite(callback,0,{
+-            "delay":delay,
+-            "onComplete":callback,
+-            "onCompleteParams":params,
+-            "onReverseComplete":callback,
+-            "onReverseCompleteParams":params,
+-            "immediateRender":false,
+-            "useFrames":useFrames,
+-            "overwrite":0
++            delay:delay,
++            onComplete:callback,
++            onCompleteParams:params,
++            onReverseComplete:callback,
++            onReverseCompleteParams:params,
++            immediateRender:false,
++            useFrames:useFrames,
++            overwrite:0
+          });
+       }
+       
+@@ -214,18 +214,18 @@
+       
+       private static function _dumpGarbage(event:Event) : void
+       {
+-         var i:int = 0;
+-         var a:Array = null;
+-         var tgt:Object = null;
++         var i:int;
++         var a:Array;
++         var tgt:Object;
+          if(_rootFrame / 60 >> 0 === _rootFrame / 60)
+          {
+             for(tgt in _tweenLookup)
+             {
+                a = _tweenLookup[tgt];
+-               i = int(a.length);
++               i = (a.length);
+                while(--i > -1)
+                {
+-                  if(Boolean(a[i]._gc))
++                  if((a[i]._gc))
+                   {
+                      a.splice(i,1);
+                   }
+@@ -246,7 +246,7 @@
+             onlyActive = false;
+          }
+          var a:Array = TweenLite.getTweensOf(target,onlyActive);
+-         var i:int = int(a.length);
++         var i:int = (a.length);
+          while(--i > -1)
+          {
+             a[i]._kill(vars,target);
+@@ -260,19 +260,19 @@
+       
+       public static function getTweensOf(target:*, onlyActive:Boolean = false) : Array
+       {
+-         var i:int = 0;
+-         var a:Array = null;
+-         var j:int = 0;
+-         var t:TweenLite = null;
++         var i:int;
++         var a:Array;
++         var j:int;
++         var t:TweenLite;
+          if(target is Array && typeof target[0] != "string" && typeof target[0] != "number")
+          {
+-            i = int(target.length);
++            i = (target.length);
+             a = [];
+             while(--i > -1)
+             {
+                a = a.concat(getTweensOf(target[i],onlyActive));
+             }
+-            i = int(a.length);
++            i = (a.length);
+             while(--i > -1)
+             {
+                t = a[i];
+@@ -289,10 +289,10 @@
+          else
+          {
+             a = _register(target).concat();
+-            i = int(a.length);
++            i = (a.length);
+             while(--i > -1)
+             {
+-               if(Boolean(a[i]._gc) || onlyActive && !a[i].isActive())
++               if((a[i]._gc) || onlyActive && !a[i].isActive())
+                {
+                   a.splice(i,1);
+                }
+@@ -303,15 +303,15 @@
+       
+       protected static function _register(target:Object, tween:TweenLite = null, scrub:Boolean = false) : Array
+       {
+-         var i:int = 0;
+          var a:Array = _tweenLookup[target];
++         var i:int;
+          if(a == null)
+          {
+             a = _tweenLookup[target] = [];
+          }
+-         if(Boolean(tween))
+-         {
+-            i = int(a.length);
++         if((tween))
++         {
++            i = (a.length);
+             a[i] = tween;
+             if(scrub)
+             {
+@@ -329,14 +329,12 @@
+       
+       protected static function _applyOverwrite(target:Object, tween:TweenLite, props:Object, mode:int, siblings:Array) : Boolean
+       {
+-         var i:int = 0;
+-         var changed:Boolean = false;
+-         var curTween:TweenLite = null;
+-         var globalStart:Number = NaN;
+-         var l:int = 0;
++         var i:int;
++         var changed:Boolean;
++         var curTween:TweenLite;
+          if(mode == 1 || mode >= 4)
+          {
+-            l = int(siblings.length);
++            l = (siblings.length);
+             for(i = 0; i < l; i++)
+             {
+                curTween = siblings[i];
+@@ -361,11 +359,16 @@
+          var overlaps:Array = [];
+          var oCount:int = 0;
+          var zeroDur:Boolean = tween._duration == 0;
+-         i = int(siblings.length);
++         var globalStart:Number;
++         var l:int;
++         i = (siblings.length);
+          while(--i > -1)
+          {
+             curTween = siblings[i];
+-            if(!(curTween === tween || curTween._gc || curTween._paused))
++            if(curTween === tween || curTween._gc || curTween._paused)
++            {
++               continue;
++            }
+             {
+                if(curTween._timeline != tween._timeline)
+                {
+@@ -415,7 +418,7 @@
+          var ts:Number = tl._timeScale;
+          var t:Number = tween._startTime;
+          var min:Number = 1e-10;
+-         while(Boolean(tl._timeline))
++         while((tl._timeline))
+          {
+             t += tl._startTime;
+             ts *= tl._timeScale;
+@@ -426,19 +429,18 @@
+             tl = tl._timeline;
+          }
+          t /= ts;
+-         t = t + tween.totalDuration() / tween._timeScale / ts;
+-         return t > reference ? t - reference : (zeroDur && t == reference || !tween._initted && t - reference < 2 * min ? min : (t > reference + min ? 0 : t - reference - min));
++         return t > reference ? t - reference : (zeroDur && t == reference || !tween._initted && t - reference < 2 * min ? min : ((t = t + tween.totalDuration() / tween._timeScale / ts) > reference + min ? 0 : t - reference - min));
+       }
+       
+       protected function _init() : void
+       {
+-         var i:int = 0;
+-         var initPlugins:Boolean = false;
+-         var pt:PropTween = null;
+-         var p:String = null;
+-         var copy:Object = null;
+-         var immediate:Boolean = Boolean(vars.immediateRender);
+-         if(Boolean(vars.startAt))
++         var immediate:Boolean = (vars.immediateRender);
++         var i:int;
++         var initPlugins:Boolean;
++         var pt:PropTween;
++         var p:String;
++         var copy:Object;
++         if((vars.startAt))
+          {
+             if(this._startAt != null)
+             {
+@@ -446,12 +448,12 @@
+             }
+             vars.startAt.overwrite = 0;
+             vars.startAt.immediateRender = true;
+-            this._startAt = new TweenLite(this.target,0,vars.startAt);
++            _startAt = new TweenLite(this.target,0,vars.startAt);
+             if(immediate)
+             {
+                if(_time > 0)
+                {
+-                  this._startAt = null;
++                  _startAt = null;
+                }
+                else if(_duration !== 0)
+                {
+@@ -459,12 +461,12 @@
+                }
+             }
+          }
+-         else if(Boolean(vars.runBackwards) && _duration !== 0)
++         else if((vars.runBackwards) && _duration !== 0)
+          {
+             if(this._startAt != null)
+             {
+                this._startAt.render(-1,true);
+-               this._startAt = null;
++               _startAt = null;
+             }
+             else
+             {
+@@ -478,7 +480,7 @@
+                }
+                copy.overwrite = 0;
+                copy.data = "isFromStart";
+-               this._startAt = TweenLite.to(this.target,0,copy);
++               _startAt = TweenLite.to(this.target,0,copy);
+                if(!immediate)
+                {
+                   this._startAt.render(-1,true);
+@@ -491,25 +493,25 @@
+          }
+          if(vars.ease is Ease)
+          {
+-            this._ease = vars.easeParams is Array ? vars.ease.config.apply(vars.ease,vars.easeParams) : vars.ease;
++            _ease = vars.easeParams is Array ? vars.ease.config.apply(vars.ease,vars.easeParams) : vars.ease;
+          }
+          else if(typeof vars.ease === "function")
+          {
+-            this._ease = new Ease(vars.ease,vars.easeParams);
++            _ease = new Ease(vars.ease,vars.easeParams);
+          }
+          else
+          {
+-            this._ease = defaultEase;
+-         }
+-         this._easeType = this._ease._type;
+-         this._easePower = this._ease._power;
+-         this._firstPT = null;
+-         if(Boolean(this._targets))
+-         {
+-            i = int(this._targets.length);
++            _ease = defaultEase;
++         }
++         _easeType = this._ease._type;
++         _easePower = this._ease._power;
++         _firstPT = null;
++         if((this._targets))
++         {
++            i = (this._targets.length);
+             while(--i > -1)
+             {
+-               if(this._initProps(this._targets[i],this._propLookup[i] = {},this._siblings[i],Boolean(this._overwrittenProps) ? this._overwrittenProps[i] : null))
++               if(this._initProps(this._targets[i],this._propLookup[i] = {},this._siblings[i],(this._overwrittenProps) ? this._overwrittenProps[i] : null))
+                {
+                   initPlugins = true;
+                }
+@@ -523,7 +525,7 @@
+          {
+             _onPluginEvent("_onInitAllProps",this);
+          }
+-         if(Boolean(this._overwrittenProps))
++         if((this._overwrittenProps))
+          {
+             if(this._firstPT == null)
+             {
+@@ -533,10 +535,10 @@
+                }
+             }
+          }
+-         if(Boolean(vars.runBackwards))
++         if((vars.runBackwards))
+          {
+             pt = this._firstPT;
+-            while(Boolean(pt))
++            while((pt))
+             {
+                pt.s += pt.c;
+                pt.c = -pt.c;
+@@ -549,12 +551,12 @@
+       
+       protected function _initProps(target:Object, propLookup:Object, siblings:Array, overwrittenProps:Object) : Boolean
+       {
+-         var p:String = null;
+-         var i:int = 0;
+-         var initPlugins:Boolean = false;
+-         var plugin:Object = null;
+-         var val:Object = null;
+          var vars:Object = this.vars;
++         var p:String;
++         var i:int;
++         var initPlugins:Boolean;
++         var plugin:Object;
++         var val:Object;
+          if(target == null)
+          {
+             return false;
+@@ -572,31 +574,31 @@
+                   }
+                }
+             }
+-            else if(p in _plugins && Boolean((plugin = new _plugins[p]())._onInitTween(target,val,this)))
+-            {
+-               this._firstPT = new PropTween(plugin,"setRatio",0,1,p,true,this._firstPT,plugin._priority);
+-               i = int(plugin._overwriteProps.length);
++            else if(p in _plugins && ((plugin = new _plugins[p]())._onInitTween(target,val,this)))
++            {
++               _firstPT = new PropTween(plugin,"setRatio",0,1,p,true,this._firstPT,plugin._priority);
++               i = (plugin._overwriteProps.length);
+                while(--i > -1)
+                {
+                   propLookup[plugin._overwriteProps[i]] = this._firstPT;
+                }
+-               if(Boolean(plugin._priority) || "_onInitAllProps" in plugin)
++               if((plugin._priority) || "_onInitAllProps" in plugin)
+                {
+                   initPlugins = true;
+                }
+                if("_onDisable" in plugin || "_onEnable" in plugin)
+                {
+-                  this._notifyPluginsOfEnabled = true;
++                  _notifyPluginsOfEnabled = true;
+                }
+             }
+             else
+             {
+-               this._firstPT = propLookup[p] = new PropTween(target,p,0,1,p,false,this._firstPT);
+-               this._firstPT.s = !this._firstPT.f ? Number(target[p]) : Number(target[Boolean(p.indexOf("set")) || !("get" + p.substr(3) in target) ? p : "get" + p.substr(3)]());
++               _firstPT = propLookup[p] = new PropTween(target,p,0,1,p,false,this._firstPT);
++               this._firstPT.s = !this._firstPT.f ? Number(target[p]) : (target[(p.indexOf("set")) || !("get" + p.substr(3) in target) ? p : "get" + p.substr(3)]());
+                this._firstPT.c = typeof val === "number" ? Number(val) - this._firstPT.s : (typeof val === "string" && val.charAt(1) === "=" ? int(val.charAt(0) + "1") * Number(val.substr(2)) : Number(val) || 0);
+             }
+          }
+-         if(Boolean(overwrittenProps))
++         if((overwrittenProps))
+          {
+             if(this._kill(overwrittenProps,target))
+             {
+@@ -622,16 +624,16 @@
+       
+       override public function render(time:Number, suppressEvents:Boolean = false, force:Boolean = false) : void
+       {
+-         var isComplete:Boolean = false;
+-         var callback:String = null;
+-         var pt:PropTween = null;
+-         var rawPrevTime:Number = NaN;
+-         var r:Number = NaN;
++         var isComplete:Boolean;
++         var callback:String;
++         var pt:PropTween;
++         var rawPrevTime:Number;
+          var prevTime:Number = _time;
++         var r:Number;
+          if(time >= _duration)
+          {
+             _totalTime = _time = _duration;
+-            this.ratio = this._ease._calcEnd ? this._ease.getRatio(1) : 1;
++            ratio = this._ease._calcEnd ? this._ease.getRatio(1) : 1;
+             if(!_reversed)
+             {
+                isComplete = true;
+@@ -657,7 +659,7 @@
+          else if(time < 1e-7)
+          {
+             _totalTime = _time = 0;
+-            this.ratio = this._ease._calcEnd ? this._ease.getRatio(0) : 0;
++            ratio = this._ease._calcEnd ? this._ease.getRatio(0) : 0;
+             if(prevTime != 0 || _duration == 0 && _rawPrevTime > _tinyNum)
+             {
+                callback = "onReverseComplete";
+@@ -683,7 +685,7 @@
+          else
+          {
+             _totalTime = _time = time;
+-            if(Boolean(this._easeType))
++            if((this._easeType))
+             {
+                r = time / _duration;
+                if(this._easeType == 1 || this._easeType == 3 && r >= 0.5)
+@@ -712,24 +714,24 @@
+                }
+                if(this._easeType == 1)
+                {
+-                  this.ratio = 1 - r;
++                  ratio = 1 - r;
+                }
+                else if(this._easeType == 2)
+                {
+-                  this.ratio = r;
++                  ratio = r;
+                }
+                else if(time / _duration < 0.5)
+                {
+-                  this.ratio = r / 2;
++                  ratio = r / 2;
+                }
+                else
+                {
+-                  this.ratio = 1 - r / 2;
++                  ratio = 1 - r / 2;
+                }
+             }
+             else
+             {
+-               this.ratio = this._ease.getRatio(time / _duration);
++               ratio = this._ease.getRatio(time / _duration);
+             }
+          }
+          if(_time == prevTime && !force)
+@@ -743,13 +745,13 @@
+             {
+                return;
+             }
+-            if(Boolean(_time) && !isComplete)
+-            {
+-               this.ratio = this._ease.getRatio(_time / _duration);
++            if((_time) && !isComplete)
++            {
++               ratio = this._ease.getRatio(_time / _duration);
+             }
+             else if(isComplete && this._ease._calcEnd)
+             {
+-               this.ratio = this._ease.getRatio(_time === 0 ? 0 : 1);
++               ratio = this._ease.getRatio(_time === 0 ? 0 : 1);
+             }
+          }
+          if(!_active)
+@@ -772,7 +774,7 @@
+                   callback = "_dummyGS";
+                }
+             }
+-            if(Boolean(vars.onStart))
++            if((vars.onStart))
+             {
+                if(_time != 0 || _duration == 0)
+                {
+@@ -784,7 +786,7 @@
+             }
+          }
+          pt = this._firstPT;
+-         while(Boolean(pt))
++         while((pt))
+          {
+             if(pt.f)
+             {
+@@ -810,7 +812,7 @@
+                }
+             }
+          }
+-         if(Boolean(callback))
++         if((callback))
+          {
+             if(!_gc)
+             {
+@@ -828,7 +830,7 @@
+                }
+                if(!suppressEvents)
+                {
+-                  if(Boolean(vars[callback]))
++                  if((vars[callback]))
+                   {
+                      vars[callback].apply(null,vars[callback + "Params"]);
+                   }
+@@ -843,14 +845,14 @@
+       
+       override public function _kill(vars:Object = null, target:Object = null) : Boolean
+       {
+-         var i:int = 0;
+-         var overwrittenProps:Object = null;
+-         var p:String = null;
+-         var pt:PropTween = null;
+-         var propLookup:Object = null;
+-         var changed:Boolean = false;
+-         var killProps:Object = null;
+-         var record:Boolean = false;
++         var i:int;
++         var overwrittenProps:Object;
++         var p:String;
++         var pt:PropTween;
++         var propLookup:Object;
++         var changed:Boolean;
++         var killProps:Object;
++         var record:Boolean;
+          if(vars === "all")
+          {
+             vars = null;
+@@ -865,7 +867,7 @@
+          target = target || this._targets || this.target;
+          if(target is Array && typeof target[0] === "object")
+          {
+-            i = int(target.length);
++            i = (target.length);
+             while(--i > -1)
+             {
+                if(this._kill(vars,target[i]))
+@@ -876,16 +878,16 @@
+          }
+          else
+          {
+-            if(Boolean(this._targets))
+-            {
+-               i = int(this._targets.length);
++            if((this._targets))
++            {
++               i = (this._targets.length);
+                while(--i > -1)
+                {
+                   if(target === this._targets[i])
+                   {
+                      propLookup = this._propLookup[i] || {};
+-                     this._overwrittenProps = this._overwrittenProps || [];
+-                     overwrittenProps = this._overwrittenProps[i] = Boolean(vars) ? this._overwrittenProps[i] || {} : "all";
++                     _overwrittenProps = this._overwrittenProps || [];
++                     overwrittenProps = this._overwrittenProps[i] = (vars) ? this._overwrittenProps[i] || {} : "all";
+                      break;
+                   }
+                }
+@@ -897,9 +899,9 @@
+                   return false;
+                }
+                propLookup = this._propLookup;
+-               overwrittenProps = this._overwrittenProps = Boolean(vars) ? this._overwrittenProps || {} : "all";
+-            }
+-            if(Boolean(propLookup))
++               overwrittenProps = _overwrittenProps = (vars) ? this._overwrittenProps || {} : "all";
++            }
++            if((propLookup))
+             {
+                killProps = vars || propLookup;
+                record = vars != overwrittenProps && overwrittenProps != "all" && vars != propLookup && (typeof vars != "object" || vars._tempKill != true);
+@@ -908,21 +910,21 @@
+                   pt = propLookup[p];
+                   if(pt != null)
+                   {
+-                     if(pt.pg && Boolean(pt.t._kill(killProps)))
++                     if(pt.pg && (pt.t._kill(killProps)))
+                      {
+                         changed = true;
+                      }
+                      if(!pt.pg || pt.t._overwriteProps.length === 0)
+                      {
+-                        if(Boolean(pt._prev))
++                        if((pt._prev))
+                         {
+                            pt._prev._next = pt._next;
+                         }
+                         else if(pt == this._firstPT)
+                         {
+-                           this._firstPT = pt._next;
++                           _firstPT = pt._next;
+                         }
+-                        if(Boolean(pt._next))
++                        if((pt._next))
+                         {
+                            pt._next._prev = pt._prev;
+                         }
+@@ -950,23 +952,23 @@
+          {
+             _onPluginEvent("_onDisable",this);
+          }
+-         this._firstPT = null;
+-         this._overwrittenProps = null;
++         _firstPT = null;
++         _overwrittenProps = null;
+          _onUpdate = null;
+-         this._startAt = null;
+-         _initted = _active = this._notifyPluginsOfEnabled = false;
+-         this._propLookup = Boolean(this._targets) ? {} : [];
++         _startAt = null;
++         _initted = _active = _notifyPluginsOfEnabled = false;
++         _propLookup = (this._targets) ? {} : [];
+          return this;
+       }
+       
+       override public function _enabled(enabled:Boolean, ignoreTimeline:Boolean = false) : Boolean
+       {
+-         var i:int = 0;
++         var i:int;
+          if(enabled && _gc)
+          {
+-            if(Boolean(this._targets))
+-            {
+-               i = int(this._targets.length);
++            if((this._targets))
++            {
++               i = (this._targets.length);
+                while(--i > -1)
+                {
+                   this._siblings[i] = _register(this._targets[i],this,true);
+@@ -974,7 +976,7 @@
+             }
+             else
+             {
+-               this._siblings = _register(this.target,this,true);
++               _siblings = _register(this.target,this,true);
+             }
+          }
+          super._enabled(enabled,ignoreTimeline);

@@ -1,0 +1,89 @@
+--- a/survarium/buttons/ButtonClick.as
++++ b/survarium/buttons/ButtonClick.as
+@@ -16,17 +16,17 @@
+       {
+          super();
+          _stateMap = {
+-            "up":["up"],
+-            "over":["over"],
+-            "down":["down"],
+-            "release":["over"],
+-            "out":["up"],
+-            "disabled":["disabled"],
+-            "selecting":["over"],
+-            "toggle":["up"],
+-            "kb_selecting":["up"],
+-            "kb_release":["up"],
+-            "kb_down":["down"]
++            up:["up"],
++            over:["over"],
++            down:["down"],
++            release:["over"],
++            out:["up"],
++            disabled:["disabled"],
++            selecting:["over"],
++            toggle:["up"],
++            kb_selecting:["up"],
++            kb_release:["up"],
++            kb_down:["down"]
+          };
+       }
+       
+@@ -38,7 +38,7 @@
+       override protected function configUI() : void
+       {
+          super.configUI();
+-         if(!constraintsDisabled && Boolean(textField))
++         if(!constraintsDisabled && textField)
+          {
+             constraints.addElement("textField",textField,Constraints.LEFT | Constraints.RIGHT);
+          }
+@@ -61,10 +61,6 @@
+       
+       override protected function setState(state:String) : void
+       {
+-         var prefix:String = null;
+-         var sl:uint = 0;
+-         var j:uint = 0;
+-         var thisLabel:String = null;
+          _state = state;
+          var prefixes:Vector.<String> = getStatePrefixes();
+          var states:Array = _stateMap[state];
+@@ -75,6 +71,10 @@
+          var l:uint = prefixes.length;
+          for(var i:uint = 0; i < l; i++)
+          {
++            var prefix:String;
++            var sl:uint;
++            var j:uint;
++            var thisLabel:String;
+             prefix = prefixes[i];
+             sl = states.length;
+             for(j = 0; j < sl; j++)
+@@ -94,7 +94,7 @@
+       {
+          var sfEvent:MouseEventEx = event as MouseEventEx;
+          var index:uint = sfEvent == null ? 0 : sfEvent.mouseIdx;
+-         this._mouseOver = false;
++         _mouseOver = false;
+          if(event.buttonDown)
+          {
+             dispatchEvent(new ButtonEvent(ButtonEvent.DRAG_OUT));
+@@ -129,7 +129,7 @@
+          }
+          var sfEvent:MouseEventEx = event as MouseEventEx;
+          var mouseIdx:uint = sfEvent == null ? 0 : sfEvent.mouseIdx;
+-         this._mouseOver = true;
++         _mouseOver = true;
+          if(event.buttonDown)
+          {
+             dispatchEvent(new ButtonEvent(ButtonEvent.DRAG_OVER));
+@@ -141,7 +141,7 @@
+             {
+                return;
+             }
+-            if(Boolean(_focused) || _displayFocus)
++            if(_focused || _displayFocus)
+             {
+                this.setState(focusIndicator == null ? "down" : "kb_down");
+             }

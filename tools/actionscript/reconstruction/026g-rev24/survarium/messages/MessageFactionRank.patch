@@ -1,0 +1,46 @@
+--- a/survarium/messages/MessageFactionRank.as
++++ b/survarium/messages/MessageFactionRank.as
+@@ -34,14 +34,14 @@
+       
+       override protected function configUI() : void
+       {
+-         var newItems:Array = null;
++         var newItems:Array;
+          super.configUI();
+          btnAccept.label = LocalizationData.getName("goto_shop");
+          btnCancel.label = LocalizationData.getName("close");
+          this.btnPrev.addEventListener(ButtonEvent.CLICK,this.prevItem);
+          this.btnNext.addEventListener(ButtonEvent.CLICK,this.nextItem);
+          this.itemsTileList.addEventListener(ListEvent.INDEX_CHANGE,this.onListIndexChange);
+-         if(Boolean(_data))
++         if(_data)
+          {
+             this.factionIcon.gotoAndStop(_data.faction_id);
+             newItems = _data.items;
+@@ -55,7 +55,7 @@
+       
+       private function onListIndexChange(e:ListEvent) : void
+       {
+-         if(Boolean(_data))
++         if(_data)
+          {
+             _data.dictId = e.itemData.dictId;
+          }
+@@ -84,7 +84,7 @@
+       
+       override protected function onMessageCancel(event:ButtonEvent = null) : void
+       {
+-         if(Boolean(_data))
++         if(_data)
+          {
+             if(_data.onNo is Function)
+             {
+@@ -103,7 +103,7 @@
+          {
+             return;
+          }
+-         if(Boolean(_data))
++         if(_data)
+          {
+             if(_data.onYes is Function)
+             {

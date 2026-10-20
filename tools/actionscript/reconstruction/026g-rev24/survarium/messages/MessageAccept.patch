@@ -1,0 +1,34 @@
+--- a/survarium/messages/MessageAccept.as
++++ b/survarium/messages/MessageAccept.as
+@@ -16,18 +16,18 @@
+       
+       public function MessageAccept()
+       {
+-         var _loc1_:Class = null;
+-         var _loc2_:Class = null;
++         var _loc1_:Class;
++         var _loc2_:Class;
+          super();
+          if(!this.btnAccept)
+          {
+             _loc1_ = getDefinitionByName("SrvButtonSkinned") as Class;
+-            this.btnAccept = new _loc1_();
++            btnAccept = new _loc1_();
+          }
+          if(!this.btnCancel)
+          {
+             _loc2_ = getDefinitionByName("SrvButtonSkinned") as Class;
+-            this.btnCancel = new _loc2_();
++            btnCancel = new _loc2_();
+          }
+       }
+       
+@@ -38,7 +38,7 @@
+          super.configUI();
+          this.btnAccept.addEventListener(ButtonEvent.CLICK,onMessageAccept,false,0,true);
+          this.btnCancel.addEventListener(ButtonEvent.CLICK,onMessageCancel,false,0,true);
+-         if(Boolean(this.btnClose))
++         if(this.btnClose)
+          {
+             this.btnClose.addEventListener(ButtonEvent.CLICK,onMessageCancel,false,0,true);
+          }

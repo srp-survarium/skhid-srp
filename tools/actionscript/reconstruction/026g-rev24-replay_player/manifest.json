@@ -1,0 +1,232 @@
+{
+  "classes": [
+    {
+      "class": "replay_player_fla.MainTimeline",
+      "compiler": "flex-optimized",
+      "patch": "replay_player_fla/MainTimeline.patch",
+      "patch_sha256": "73598199da991ad048c595295d2ca637ff481ff78f8fdd1e045ca104b4d1be7f",
+      "pristine_sha256": "50c6b3cc45550a89367682fc0c15bf3932b8c808367dac8f8bafa4cc743b80b2",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "83c79eae26f00169807439b593c0e08917234fcec2c93cb0a9e3f69af046e464"
+    },
+    {
+      "class": "replay_player_fla.bottom_staff_1",
+      "compiler": "flex-optimized",
+      "patch": "replay_player_fla/bottom_staff_1.patch",
+      "patch_sha256": "ec4f422ad297887fd5cdfc9cfa61d089031c2b5528a1b7c29c423d3bd0488501",
+      "pristine_sha256": "2db66ef6d19609dfc9612e980c8444b4bdef29730c7e132221da0f72803b1af8",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "baa1da0c3246c2ca1ea67424711a28bfb76ac67ba80b98598ae6de5575b64534"
+    },
+    {
+      "class": "scaleform.clik.controls.Button",
+      "compiler": "flex-optimized",
+      "patch": "scaleform/clik/controls/Button.patch",
+      "patch_sha256": "7dbc0c66b1f524af0e27a584c991d16b5ec743cca63f129f881a678e72d392e7",
+      "pristine_sha256": "d612b7328f1113fa5e07f3d33bf9bff2b137dc75c318ecaf9a8e802e89fedd2e",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "65ff3770612f3ab776a9c84807fbf9df1ffe67c28eedb42d3e992627acbdb96c"
+    },
+    {
+      "class": "scaleform.clik.controls.ButtonBar",
+      "compiler": "flex-optimized",
+      "patch": "scaleform/clik/controls/ButtonBar.patch",
+      "patch_sha256": "3404d33c65a2ae5c2e62a9b5f2af31c0cc2d72fb30b4164d4901b0f5d65b63d2",
+      "pristine_sha256": "c7d63a035f13b1cef47a52d2019e27b065a92cf9818a9eccccff106176e66fea",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "f7601a5279f35707b88d7b5c646b133ba2bb8f8f345fcc8ac3591bd32a4f5cfa"
+    },
+    {
+      "class": "scaleform.clik.controls.ButtonGroup",
+      "compiler": "flex-optimized",
+      "patch": "scaleform/clik/controls/ButtonGroup.patch",
+      "patch_sha256": "a065fbd6b8d7cf2929429e25c2b6dbf9747cd4e69477b144ad22d2773448531e",
+      "pristine_sha256": "726e7c4156052e4586a16d12075ec884e4b065ef9e3af5994ac0786cb92ea73d",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "6c65ebabc5ebff13fd5506dd2ce30d4b4a01e99fa70f8a33cd0e30563b26d651"
+    },
+    {
+      "class": "scaleform.clik.controls.NumericStepper",
+      "compiler": "flex-optimized",
+      "patch": "scaleform/clik/controls/NumericStepper.patch",
+      "patch_sha256": "48dbb42fd706d5879fd0933811933e365700fe2eaa50fd980d6aad0c2997f00c",
+      "pristine_sha256": "c99050be26fea648f77e5521c735555794f5b3cbbc37c9d70040272d24bbef16",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "a1b944c37e3f45029243027f35153c362cda030f75902fdfab34867c8af7a21d"
+    },
+    {
+      "class": "scaleform.clik.controls.Slider",
+      "compiler": "flex-optimized",
+      "patch": "scaleform/clik/controls/Slider.patch",
+      "patch_sha256": "e75765221c5deb7903b8b221717ddaedd66c794a2b740f8a4ff218718fbd88b5",
+      "pristine_sha256": "76b14cbf3baded9241ee66be74910472bcce1d7861f5be1f56f2be9477d4a7be",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "cab9cb4d986839299fcf11cf51bf8eb2923326975fdeb9d2bb606ad6f9738b7b"
+    },
+    {
+      "class": "scaleform.clik.controls.ToolTip",
+      "compiler": "flex-optimized",
+      "patch": "scaleform/clik/controls/ToolTip.patch",
+      "patch_sha256": "e5801e36b6c75602bbd768d1fe6d951d146a720905d22a929451c33e09cd16c3",
+      "pristine_sha256": "452e8193249b77e7f7643f3f059a74162b75f0b0bc384d71264c8435c51240b0",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "6a1900e73e02945b03bef3c7ccdb5953068f4a80009fa5b07e42ef6916daad5d"
+    },
+    {
+      "class": "scaleform.clik.core.CLIK",
+      "compiler": "flex-optimized",
+      "patch": "scaleform/clik/core/CLIK.patch",
+      "patch_sha256": "71f2d5fa6c16bacffa57f69f3a819d9342b2670b02602207f7bcfb2e50d636db",
+      "pristine_sha256": "d46050d2c59435b020b39f5d92f361b2a62dcce99ca6d6b9474c5672a3c002c2",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "2248560efe23e9e4c6eb9c9071a3e341f06ebb69829707d8f236ad9cdc67f614"
+    },
+    {
+      "class": "scaleform.clik.core.UIComponent",
+      "compiler": "flex-optimized",
+      "patch": "scaleform/clik/core/UIComponent.patch",
+      "patch_sha256": "c393883be92534d2a57e75859b07d8a2e32e3fe9e1de587305fdb832d27f1e8d",
+      "pristine_sha256": "b637d930cccb61a2881efdf93c95e7efb8b05b29bde47ab540df88e8022301a4",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "675cfed8d1c5c6b085ac3c4b60a7829277ed66a4ce83372ed43e71fa22657302"
+    },
+    {
+      "class": "scaleform.clik.layout.Layout",
+      "compiler": "flex-optimized",
+      "patch": "scaleform/clik/layout/Layout.patch",
+      "patch_sha256": "e5bf54bed9e9363eff0a2e456a7fc704e6fe9766649586fb0dba8f975dc2f5f4",
+      "pristine_sha256": "53e86d5edca6dad4189ba5b58a2bb8bb83f974ab873861a0b531ec681fd0e449",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "2498e391d84f4f7640b3fa47f76211d31b3344635b49b20eb644af7aff17ce66"
+    },
+    {
+      "class": "scaleform.clik.managers.DragManager",
+      "compiler": "flex-optimized",
+      "patch": "scaleform/clik/managers/DragManager.patch",
+      "patch_sha256": "776572cf84829e9ceb08306b30c45d53ead99c88292a8cd6f4472b503504c9d4",
+      "pristine_sha256": "daa87b5e10610642fd1c72187d674143497fc6cdc68b6f4fd9ca1a374f7ffa94",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "4c51764cefaf20bc35835a5f9120f249f3fe3fca0626c35727e15724913d3254"
+    },
+    {
+      "class": "scaleform.clik.managers.FocusHandler",
+      "compiler": "flex-optimized",
+      "patch": "scaleform/clik/managers/FocusHandler.patch",
+      "patch_sha256": "661c80b499033a64732a3bbd0731706c73563f8c155adb32010fab1e362e62bf",
+      "pristine_sha256": "d29f3d8b3494817ad01adeaf3819a3c832dd595d00d76f64a10a4e5aefec2254",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "d6380022a52245c7f07efbdd9d944b8d88c8072d5dd3a0cf04a7dd99ffa9c134"
+    },
+    {
+      "class": "scaleform.clik.managers.InputDelegate",
+      "compiler": "flex-optimized",
+      "patch": "scaleform/clik/managers/InputDelegate.patch",
+      "patch_sha256": "41b3879bd6d622bed57d757121d96fc6774f922af06114f6eff183f1d9ac58f2",
+      "pristine_sha256": "10e9841f9c71e26158c2d66f8fdc315ed2704b4d5f71a37f1e0f62c210f0952b",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "e8926120b38025cedf205cbfbeb294dfa1741298344d2891e9411f53af0d25c0"
+    },
+    {
+      "class": "scaleform.clik.managers.PopUpManager",
+      "compiler": "flex-optimized",
+      "patch": "scaleform/clik/managers/PopUpManager.patch",
+      "patch_sha256": "cf7e2197362e0ac3c6cd672a7ec9320d393c8fcfe793252afd652ce119b177aa",
+      "pristine_sha256": "9ccc359ec2af6a38ecc199b444387818c890b09bdf7f288ac9f968624a9580dc",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "b7a23da92960c7c38ae374fa8dcfe8c63dd74fef3c2e1d432505da2ee1342167"
+    },
+    {
+      "class": "scaleform.clik.utils.Constraints",
+      "compiler": "flex-optimized",
+      "patch": "scaleform/clik/utils/Constraints.patch",
+      "patch_sha256": "58998168b11da24c5ff7fb5e5227ed7cb7ade6bd32cdefb961a57fb8c6bb635b",
+      "pristine_sha256": "b6e25c9baefa44a7e184b10a84e84cf1170257a3e3c204aa730083481478b03f",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "b2fdd7a82f26ebf068ce1869ee7a5458dcda316dbb6426240d3fbcc8316baa94"
+    },
+    {
+      "class": "scaleform.gfx.Extensions",
+      "compiler": "flex-optimized",
+      "patch": "scaleform/gfx/Extensions.patch",
+      "patch_sha256": "6dc76658a605cbc238627b438450fdcf2b76170fabfbad061f94f300016a0a15",
+      "pristine_sha256": "f50c5d9b223e2d3ca946da0a3fbb6b78cf2a519ebf0cd511cf3011ea086f9387",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "4c1c7d2043305b859ded91ed74183bbbbc21f47f9036a0468fdce0c55c0cc312"
+    },
+    {
+      "class": "survarium.buttons.ButtonClick",
+      "compiler": "flex-optimized",
+      "patch": "survarium/buttons/ButtonClick.patch",
+      "patch_sha256": "fc5691daa08e1ca34d8184a7e310caeb02a6fa2c345a8fae5cd675f6e2381f09",
+      "pristine_sha256": "a0ce66bae124a57f0872d07d4da01a0eae05f221bdbdb22c7e2ff83a921dd542",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "b1b3b7c4fba5fb1a52f6bce7ad055f7895669d6362bb00a7d8816d0d911a736d"
+    },
+    {
+      "class": "survarium.buttons.ButtonOver",
+      "compiler": "flex-optimized",
+      "patch": "survarium/buttons/ButtonOver.patch",
+      "patch_sha256": "f9d7d08f055a3d33d6c77ee440fb0bed725cfa6f9345f51c4b94387111637966",
+      "pristine_sha256": "5d05593ba43e9fea1fde349d386b84a88083762d523e043b48039dbc1ad70993",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "bf106455f54af2f93d805976eac977b1bbc0f6fe838ec8aa41d958480a6543ab"
+    },
+    {
+      "class": "survarium.buttons.CheckBoxMultiline",
+      "compiler": "flex-optimized",
+      "patch": "survarium/buttons/CheckBoxMultiline.patch",
+      "patch_sha256": "f518052ec39db93916dc99223615a6b5dcd52950f3354d90f9312a4612257fbe",
+      "pristine_sha256": "eac0e2452e887367fbc0e82090c0517e320b97de08bebe43bc534f1e13ad5348",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "4ff0022f7cac7cd14604f077dc6c8844a0687f2004d3deec8c510ad25ac0af76"
+    },
+    {
+      "class": "survarium.buttons.PlayerViewButton",
+      "compiler": "flex-optimized",
+      "patch": "survarium/buttons/PlayerViewButton.patch",
+      "patch_sha256": "bf1d775b399c1bed12bb10fda62200cd67a1a299942ffdd050cb058b848a68ce",
+      "pristine_sha256": "310b376b33c5c464b06a3edc223494455736bfa20fdd96d7efed162b708d0ced",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "ccb01f928f06962d02489ff875ec05757dbdb7e6ea3fa8b9bd521336f25de12f"
+    },
+    {
+      "class": "survarium.controls.NumericStepperSrv",
+      "compiler": "flex-optimized",
+      "patch": "survarium/controls/NumericStepperSrv.patch",
+      "patch_sha256": "ac71708da090c830a339e190f977787ac11cc3dd9eddf3129dace6dcf88ed111",
+      "pristine_sha256": "c415088d8335a3ad0d5350e82a3b22a1cf25937262e83fb53be7d6c5883b883e",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "d583a951591ab7ad251c8815e72c550bd3b8881ccd89447d3fe36f95e55f8a6d"
+    },
+    {
+      "class": "survarium.controls.SliderTrack",
+      "compiler": "flex-optimized",
+      "patch": "survarium/controls/SliderTrack.patch",
+      "patch_sha256": "6ccc9e7d5f554bb03eb972336e5f1a39f6c611e1abb8b625d688caa42dea9786",
+      "pristine_sha256": "25a1aa050ab90594d487ff58a6ac00cdbb621f185df0d22a21fcb26248efddaf",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "f7997683530f710d389907b02d3b824266776b439177a34c8e3bf44dd64e08bb"
+    },
+    {
+      "class": "survarium.controls.UnfocusedCheckBox",
+      "compiler": "flex-optimized",
+      "patch": "survarium/controls/UnfocusedCheckBox.patch",
+      "patch_sha256": "9dfbbcce1b024bff4c98c78ca00911bbf712d4a913edf8454cc1d3da8d06472a",
+      "pristine_sha256": "c239a32f4aa7b7bd3ddfdbdcf140b866d75c345576ff7fbf5241df5565d2b4f6",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "2224000c694bc42dbb1b9ea73157af5769a9d7b4290b5e94a0a505757e070ac8"
+    },
+    {
+      "class": "survarium.menu.OptionSlider",
+      "compiler": "flex-optimized",
+      "patch": "survarium/menu/OptionSlider.patch",
+      "patch_sha256": "917870c9f17e86506c57c4198ab7d62af99f3b857c86eb66d8f95d33ba7ed3c0",
+      "pristine_sha256": "d7a7c2b2dfbcf0c2901bbd61ce0fd06c5c0b03b81103303dec4ccfca39d6526d",
+      "reason": "Recover source declarations and control flow with the recorded native compiler profile. Independently compiled and linked to the complete byte-exact movie.",
+      "result_sha256": "ddde8d56fcb95428b40f79ca03ea514a4c8c1623f0a59a40e4885502a7de8a8b"
+    }
+  ],
+  "movie_sha256": "d3ffb74154cd6778600262ef491d02c2dcb91dcb95d3d5a400aefb1d37be09a8",
+  "release": "026g-rev24-replay_player",
+  "schema": 1
+}

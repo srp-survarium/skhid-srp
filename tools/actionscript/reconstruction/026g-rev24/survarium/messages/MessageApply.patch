@@ -1,0 +1,63 @@
+--- a/survarium/messages/MessageApply.as
++++ b/survarium/messages/MessageApply.as
+@@ -62,18 +62,18 @@
+       override protected function configUI() : void
+       {
+          super.configUI();
+-         if(Boolean(_data) && Boolean(this.textField))
++         if(_data && this.textField)
+          {
+             this.textField.text = _data.text;
+             addEventListener(Event.REMOVED_FROM_STAGE,this.onRemoved);
+-            if(Boolean(_data))
++            if(_data)
+             {
+-               if(Boolean(_data.label_ok))
++               if(_data.label_ok)
+                {
+                   btnAccept.label = _data.label_ok;
+                   btnAccept.validateNow();
+                }
+-               if(Boolean(_data.label_cancel))
++               if(_data.label_cancel)
+                {
+                   btnCancel.label = _data.label_cancel;
+                   btnCancel.validateNow();
+@@ -102,13 +102,13 @@
+       
+       protected function updatePattern() : void
+       {
+-         var _body:Sprite = null;
+-         var gr:Graphics = null;
+-         var rectW:int = 0;
+-         var rectH:int = 0;
+-         var offSize:int = 0;
+          var offset:uint = 8;
+-         if(Boolean(this._pattern) && Boolean(this._patternSprite))
++         var _body:Sprite;
++         var gr:Graphics;
++         var rectW:int;
++         var rectH:int;
++         var offSize:int;
++         if(this._pattern && this._patternSprite)
+          {
+             _body = this.background;
+             if(btnAccept.x < 10)
+@@ -140,7 +140,7 @@
+       override protected function onMessageCancel(event:ButtonEvent = null) : void
+       {
+          super.onMessageCancel();
+-         if(Boolean(_data))
++         if(_data)
+          {
+             if(_data.onNo is Function)
+             {
+@@ -155,7 +155,7 @@
+       {
+          var fn:Function = null;
+          super.onMessageAccept();
+-         if(Boolean(_data))
++         if(_data)
+          {
+             fn = _data.onYes as Function;
+             _data.onNo = null;

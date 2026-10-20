@@ -1,0 +1,35 @@
+--- a/survarium/data/ItemData.as
++++ b/survarium/data/ItemData.as
+@@ -154,7 +154,7 @@
+       
+       public function set upgrades(param1:Array) : void
+       {
+-         this._upgrades = param1;
++         _upgrades = param1;
+       }
+       
+       public function get upgrades() : Array
+@@ -167,19 +167,19 @@
+          var _loc1_:ItemData = new ItemData();
+          var _loc2_:ItemData = this as ItemData;
+          trace("ItemDataClone::",_loc2_,_loc2_.icon,_loc2_.dragIcon,_loc2_.messIcon,_loc2_.sellerIcon);
+-         if(Boolean(_loc2_.icon))
++         if(_loc2_.icon)
+          {
+             _loc1_.icon = _loc2_.icon.clone();
+          }
+-         if(Boolean(_loc2_.dragIcon))
++         if(_loc2_.dragIcon)
+          {
+             _loc1_.dragIcon = _loc2_.dragIcon.clone();
+          }
+-         if(Boolean(_loc2_.messIcon))
++         if(_loc2_.messIcon)
+          {
+             _loc1_.messIcon = _loc2_.messIcon.clone();
+          }
+-         if(Boolean(_loc2_.sellerIcon))
++         if(_loc2_.sellerIcon)
+          {
+             _loc1_.sellerIcon = _loc2_.sellerIcon.clone();
+          }

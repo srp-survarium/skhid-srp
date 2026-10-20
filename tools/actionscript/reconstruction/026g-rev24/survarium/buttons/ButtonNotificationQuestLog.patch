@@ -1,0 +1,23 @@
+--- a/survarium/buttons/ButtonNotificationQuestLog.as
++++ b/survarium/buttons/ButtonNotificationQuestLog.as
+@@ -23,16 +23,16 @@
+       
+       override protected function updateText() : void
+       {
+-         var _loc1_:Array = null;
+-         var _loc2_:uint = 0;
++         var _loc1_:Array;
++         var _loc2_:uint;
+          super.updateText();
+-         if(Boolean(_data))
++         if(_data)
+          {
+             this.questIcon.gotoAndStop(_data.icon);
+             this.rewardField.text = LocalizationData.getName("reward");
+             this.rewardBar.spacing = 5;
+             _loc1_ = _data.reward as Array;
+-            if(Boolean(_loc1_))
++            if(_loc1_)
+             {
+                _loc2_ = 0;
+                while(_loc2_ < _loc1_.length)

@@ -1,0 +1,199 @@
+--- a/survarium/clan/ManageClanWindow.as
++++ b/survarium/clan/ManageClanWindow.as
+@@ -114,19 +114,19 @@
+          this.progressIndicator.maximum = maximum;
+          this.progressIndicator.value = current;
+          this.clanProgressHintArea.tooltipRendererName = "SrvProfileTipRenderer";
+-         this.clanProgressHintArea.tipData = {"name":current + " / " + maximum};
++         this.clanProgressHintArea.tipData = {name:current + " / " + maximum};
+          this.textFieldClanLevel.text = level.toString();
+-         var playersL:uint = Boolean(this.clanManage.clanPlayersList.dataProvider) ? uint(this.clanManage.clanPlayersList.dataProvider.length) : 0;
++         var playersL:uint = (this.clanManage.clanPlayersList.dataProvider) ? (this.clanManage.clanPlayersList.dataProvider.length) : 0;
+          this.clanManage.textFieldPlayers.text = LocalizationData.getName("clan_players_list_availabe_prefix") + String(playersL) + "/" + String(players) + " " + LocalizationData.getName("clan_players_list_availabe_postfix");
+       }
+       
+       public function setState(value:uint) : void
+       {
+-         this._state = value;
++         _state = value;
+          var isAdmin:Boolean = this._state == CLAN_MANAGE_STATE;
+          this.checkRanksEnabled(this.clanSettings.ranksList.selectedIndex);
+          this.clanManage.btnLeaveClan.label = isAdmin ? LocalizationData.getName("btn_disband_clan_label") : LocalizationData.getName("btn_leave_clan_label");
+-         if(Boolean(this.mainTabBar.getButtonAt(1)))
++         if((this.mainTabBar.getButtonAt(1)))
+          {
+             this.mainTabBar.getButtonAt(1).enabled = isAdmin;
+          }
+@@ -140,12 +140,12 @@
+       
+       public function setPlayerData(value:Array) : void
+       {
+-         var data:DataProvider = null;
+-         var i:int = 0;
+          var lastId:int = -1;
+-         if(this.clanManage.clanPlayersList.selectedIndex != -1 && Boolean(this.clanManage.clanPlayersList.dataProvider))
+-         {
+-            lastId = int(this.clanManage.clanPlayersList.dataProvider[this.clanManage.clanPlayersList.selectedIndex].id);
++         var data:DataProvider;
++         var i:int;
++         if(this.clanManage.clanPlayersList.selectedIndex != -1 && (this.clanManage.clanPlayersList.dataProvider))
++         {
++            lastId = (this.clanManage.clanPlayersList.dataProvider[this.clanManage.clanPlayersList.selectedIndex].id);
+          }
+          this.clanManage.clanPlayersList.dataProvider = new DataProvider(value);
+          if(this.clanManage.clanPlayersList.selectedIndex == -1)
+@@ -163,29 +163,29 @@
+                   return;
+                }
+             }
+-            this._selectedData = value[this.clanManage.clanPlayersList.selectedIndex];
++            _selectedData = value[this.clanManage.clanPlayersList.selectedIndex];
+          }
+       }
+       
+       public function setDailyMessage(value:String) : void
+       {
+-         this._dailyMessageText = value;
++         _dailyMessageText = value;
+          this.dailyMessage.text = this._dailyMessageText;
+       }
+       
+       public function setRanksData(value:Array, freeRankSlotsAvailable:Boolean) : void
+       {
+-         var rankData:Object = null;
+          for(var i:uint = 0; i < value.length; i++)
+          {
++            var rankData:Object;
+             rankData = value[i];
+-            if(Boolean(rankData.§default§))
++            if((rankData.default))
+             {
+                rankData.name = LocalizationData.getName("clan_rank_" + rankData.name);
+             }
+          }
+-         this._freeRankSlotsAvailable = freeRankSlotsAvailable;
+-         this._ranks = value;
++         _freeRankSlotsAvailable = freeRankSlotsAvailable;
++         _ranks = value;
+          this.fillRanksList(value);
+       }
+       
+@@ -255,16 +255,16 @@
+       
+       private function onMouseItemClick(e:MouseEventEx) : void
+       {
+-         var activeItem:* = undefined;
++         var activeItem:*;
+          if(e.buttonIdx == 0)
+          {
+             return;
+          }
+-         if(Boolean(e.target) && e.target.parent is SrvClanListRenderer)
++         if((e.target) && e.target.parent is SrvClanListRenderer)
+          {
+             activeItem = e.target.parent;
+          }
+-         else if(Boolean(e.target) && e.target.parent.parent is SrvClanListRenderer)
++         else if((e.target) && e.target.parent.parent is SrvClanListRenderer)
+          {
+             activeItem = e.target.parent.parent;
+          }
+@@ -279,7 +279,7 @@
+          }
+          var options:Array = new Array();
+          var itemData:Object = activeItem.data;
+-         if(Boolean(options.length))
++         if((options.length))
+          {
+             SrvContextMenu.show(options);
+          }
+@@ -312,23 +312,23 @@
+       
+       private function onTextInputFocusOut(e:FocusEvent) : void
+       {
+-         trace("onTextInputFocusOut",FocusManager.getFocus(),stage.focus,Boolean(stage.focus) ? this.clanManage.searchComponent.contains(stage.focus) : null);
++         trace("onTextInputFocusOut",FocusManager.getFocus(),stage.focus,(stage.focus) ? this.clanManage.searchComponent.contains(stage.focus) : null);
+          stage.addEventListener(Event.RENDER,this.onRender);
+       }
+       
+       private function onRender(e:Event) : void
+       {
+          ++this.renderFrames;
+-         if(this.renderFrames == 12 || Boolean(stage.focus))
+-         {
+-            this.renderFrames = 0;
++         if(this.renderFrames == 12 || (stage.focus))
++         {
++            renderFrames = 0;
+             stage.removeEventListener(Event.RENDER,this.onRender);
+-            trace("onRender",this.renderFrames,FocusManager.getFocus(),stage.focus,Boolean(stage.focus) ? this.clanManage.searchComponent.contains(stage.focus) : null);
+-            if(Boolean(SrvContextMenu.getInstance()) && Boolean(SrvContextMenu.getInstance().parent))
++            trace("onRender",this.renderFrames,FocusManager.getFocus(),stage.focus,(stage.focus) ? this.clanManage.searchComponent.contains(stage.focus) : null);
++            if((SrvContextMenu.getInstance()) && (SrvContextMenu.getInstance().parent))
+             {
+                return;
+             }
+-            if(Boolean(stage.focus) && Boolean(this.clanManage.searchComponent.contains(stage.focus)))
++            if((stage.focus) && (this.clanManage.searchComponent.contains(stage.focus)))
+             {
+                return;
+             }
+@@ -341,13 +341,13 @@
+       private function invitePlayerByName(e:ListEvent) : void
+       {
+          trace("changeInputName::init");
+-         if(!e || Boolean(SrvContextMenu.getInstance()) && Boolean(SrvContextMenu.getInstance().parent))
++         if(!e || (SrvContextMenu.getInstance()) && (SrvContextMenu.getInstance().parent))
+          {
+             return;
+          }
+          var itemData:* = e.itemData;
+          trace("changeInputName::",itemData);
+-         if(Boolean(itemData))
++         if((itemData))
+          {
+             this.clanManage.searchComponent.cleanUp();
+             this.clanManage.searchComponent.visible = false;
+@@ -397,11 +397,12 @@
+                      {
+                         trace("send_daily_message::",this.dailyMessage.text + "||");
+                         ExternalInterface.call("update_daily_message",this.dailyMessage.text);
+-                        this._dailyMessageText = this.dailyMessage.text;
++                        _dailyMessageText = this.dailyMessage.text;
+                         event.handled = true;
+                         stage.focus = this;
+                      }
+                   }
++                  break;
+             }
+          }
+       }
+@@ -418,7 +419,7 @@
+       
+       private function onNewIndex(e:ListEvent) : void
+       {
+-         this._selectedData = e.itemData;
++         _selectedData = e.itemData;
+       }
+       
+       private function rankUpMember(e:ButtonEvent) : void
+@@ -483,7 +484,7 @@
+       {
+          var rankName:TextInput = this.clanSettings.rankName;
+          var newArray:Array = this._ranks.concat();
+-         newArray.push({"name":rankName.text});
++         newArray.push({name:rankName.text});
+          this.fillRanksList(newArray);
+          var list:ScrollingList = this.clanSettings.ranksList;
+          list.selectedIndex = newArray.length - 1;
+@@ -527,8 +528,8 @@
+          this.clanSettings.checkBoxBattleCommanderRight.selected = rankData.battle_commander_permission;
+          this.checkRanksEnabled(e.index);
+          this.clanSettings.rankName.text = rankData.name;
+-         this._selectedRankId = rankData.id;
+-         this.clanSettings.btnDeleteRank.enabled = rankData.§default§ == false;
++         _selectedRankId = rankData.id;
++         this.clanSettings.btnDeleteRank.enabled = rankData.default == false;
+       }
+       
+       private function onLocalization(value:String = null) : void

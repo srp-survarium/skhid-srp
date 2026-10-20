@@ -1,0 +1,71 @@
+--- a/scaleform/clik/core/CLIK.as
++++ b/scaleform/clik/core/CLIK.as
+@@ -13,10 +13,6 @@
+       
+       public static var stage:Stage;
+       
+-      protected static var initQueue:Dictionary;
+-      
+-      protected static var validDictIndices:Vector.<uint>;
+-      
+       public static var initialized:Boolean = false;
+       
+       public static var disableNullFocusMoves:Boolean = false;
+@@ -30,6 +26,10 @@
+       protected static var isInitListenerActive:Boolean = false;
+       
+       protected static var firingInitCallbacks:Boolean = false;
++      
++      protected static var initQueue:Dictionary;
++      
++      protected static var validDictIndices:Vector.<uint>;
+       
+       public function CLIK()
+       {
+@@ -53,7 +53,7 @@
+       
+       public static function getTargetPathFor(clip:DisplayObjectContainer) : String
+       {
+-         var targetPath:String = null;
++         var targetPath:String;
+          if(!clip.parent)
+          {
+             return clip.name;
+@@ -64,10 +64,10 @@
+       
+       public static function queueInitCallback(ref:UIComponent) : void
+       {
+-         var parents:Array = null;
+-         var numParents:uint = 0;
+-         var dict:Dictionary = null;
+          var path:String = getTargetPathFor(ref);
++         var parents:Array;
++         var numParents:uint;
++         var dict:Dictionary;
+          if(useImmediateCallbacks || firingInitCallbacks)
+          {
+             Extensions.CLIK_addedToStageCallback(ref.name,path,ref);
+@@ -124,7 +124,7 @@
+       
+       protected static function clearQueue() : void
+       {
+-         var numDict:* = undefined;
++         var numDict:*;
+          for(numDict in initQueue)
+          {
+             initQueue[numDict] = null;
+@@ -146,12 +146,12 @@
+       
+       protected static function getTargetPathImpl(clip:DisplayObjectContainer, targetPath:String = "") : String
+       {
+-         var _name:String = null;
++         var _name:String;
+          if(!clip)
+          {
+             return targetPath;
+          }
+-         _name = Boolean(clip.name) ? clip.name + "." : "";
++         _name = clip.name ? clip.name + "." : "";
+          targetPath = _name + targetPath;
+          return getTargetPathImpl(clip.parent as DisplayObjectContainer,targetPath);
+       }

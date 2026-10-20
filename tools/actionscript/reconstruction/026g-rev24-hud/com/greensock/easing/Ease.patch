@@ -1,0 +1,23 @@
+--- a/com/greensock/easing/Ease.as
++++ b/com/greensock/easing/Ease.as
+@@ -24,15 +24,15 @@
+       public function Ease(func:Function = null, extraParams:Array = null, type:Number = 0, power:Number = 0)
+       {
+          super();
+-         this._func = func;
+-         this._params = Boolean(extraParams) ? _baseParams.concat(extraParams) : _baseParams;
+-         this._type = type;
+-         this._power = power;
++         _func = func;
++         _params = extraParams ? _baseParams.concat(extraParams) : _baseParams;
++         _type = type;
++         _power = power;
+       }
+       
+       public function getRatio(p:Number) : Number
+       {
+-         var r:Number = NaN;
++         var r:Number;
+          if(this._func != null)
+          {
+             this._params[0] = p;

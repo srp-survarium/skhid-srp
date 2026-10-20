@@ -1,0 +1,21 @@
+{
+  "archive": "resources.db",
+  "archive_offset": 101247962,
+  "archive_sha256": "533a623ae1608d8f20fbecc82f2105ae634ac885177a09435e76a98aa86d2c21",
+  "ffdec_lib_sha256": "7b402bf007d3e76f5d87ad44bc004374804df6a072c2a6bbdf2024012c651544",
+  "ffdec_sha256": "baccc02d815aa651ffd11bb6dfc5edfde0fff8d768305f5ce7e7704c19fcd323",
+  "ffdec_version": "25.1.3",
+  "flex_archive_sha256": "17fda7ac8d3e476cad3127f345455ef316acfb87c6f4322e5897bd8d9b09388e",
+  "flex_archive_url": "https://dlcdn.apache.org/flex/4.16.1/binaries/apache-flex-sdk-4.16.1-bin.tar.gz",
+  "flex_version": "4.16.1 build 20171115",
+  "movie": "flash_movies/debug_animations.swf",
+  "movie_sha256": "67a7576c6fcbbf308bded935e7476ab7763cd9f49cedfd1379a72759c4486732",
+  "movie_size": 33714,
+  "release": "026g-rev24-debug_animations",
+  "serialization": {
+    "compression": "zlib",
+    "level": 6,
+    "trailer_crc_hex": "",
+    "trailer_size": 0
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "abc_blocks": 1,
+  "artifact": "private/actionscript/cursor-verified-v3/assembled/rebuilt.swf",
+  "class_definitions": 2,
+  "compiler_profiles": {
+    "flex-strict": 2
+  },
+  "evidence": {
+    "private/actionscript/cursor-verified-v3/assembled/coverage.tsv": "bb9544f01841f57026680727db6d1eaa8c107075bfc6ffa764fefd667e4499b3",
+    "private/actionscript/cursor-verified-v3/assembled/inputs.tsv": "fc08bfd6d493bd3e6c1356c9bcbdfb7c06a68187aa24128b927c87ac38b23c01",
+    "private/actionscript/cursor-verified-v3/assembled/report.json": "4266dd9aa5a952eade72d89798e70e8b83c8681a44e5aee46b5314bdd2e69cf7",
+    "private/actionscript/cursor-verified-v3/compiled/report.json": "9ba9cb7f2372ec4738a1a06101290ce7993940facb94e1e4793c97b9a4a529b7",
+    "private/actionscript/cursor-verified-v3/linked/report.json": "28ad0c25881d40fc97120e00d071f00b876cf781708c617cfdfc1a74d2946348",
+    "private/actionscript/lobby-other-movies-infrastructure-assembled/report.json": "93bdb87f863d3368db275526c80c83f3aed353186a4bc815104ffb004342be71",
+    "private/actionscript/lobby-shared-dependency-regression-linked/report.json": "5e8913bb46c9b71ac4df7019904ed6bb677e442e104666e4401a0d1d75565af2",
+    "private/actionscript/other-movies-assembly-tests-v3.log": "9d78e420763d4208f8128bba06e56573a44d1230ac3a4a2dbd341c16f6e27541",
+    "private/actionscript/other-movies-infrastructure-tests.log": "82668af4ab8b0779079cdc814407bcb0a1de1e555e2bcedcc8e056b1004dc580",
+    "private/actionscript/other-movies-namespace-tests.log": "be56966ccb2b53a5c7dd62514c783964dbf7905ab610f5ae30855b986fa3ff00",
+    "private/actionscript/other-movies-zero-namespace-tests.log": "d37577291e91afbb80cf54455bbaa596cd6d76eb3f18630ab4be6772ce595832"
+  },
+  "file_exact": true,
+  "method_bodies": 10,
+  "method_signatures": 10,
+  "movie_bytes": 20458,
+  "movie_sha256": "1e9bc9360600fe0e3d7aafa76df43f7b69a18d56aeb0966e52cf084ca2e7e479",
+  "pristine_scripts": 2,
+  "rebuilt_sha256": "1e9bc9360600fe0e3d7aafa76df43f7b69a18d56aeb0966e52cf084ca2e7e479",
+  "reconstructed_scripts": 0,
+  "reconstruction_manifest_sha256": "d75264333b940b646c21890b13eacbf07256c04275fc57fb90c062bcfb4fa797",
+  "release": "026g-rev24-cursor",
+  "schema": 1,
+  "scope": "Complete revision-24 cursor source baseline, independently compiled and assembled from every exported script.",
+  "scripts": 2,
+  "serialization": {
+    "compression": "zlib",
+    "level": 6,
+    "trailer_crc_hex": "",
+    "trailer_size": 0
+  },
+  "tool_sources": {
+    "AssembleBaseline.java": "3e86b196f898df3096099774e64de1996fb83482dad17533320217df609e3678",
+    "CompilerReserves.java": "d9ce951776f80d6d7ece228c23020ab1938be99bf1bcf58d23641dd40d49b860",
+    "MixedCompiler.java": "171475e2c5a27d8cf929688103801f57bb00acd55437f7c0756eba0904533ee0",
+    "MovieSource.java": "edd03adecad9c588608c34899240716b3b9aa8e7928f40a38b787055e7e8b4f8",
+    "SourceCompiler.java": "49571878b230457faf4271130906c3bd73974867d758ce8ffcaa3ae14ea44a09",
+    "assemble_baseline.py": "e07f3f209d3b4b656aa62f3c0d7abfeaced6e37efec47057aa60c79b8b457320",
+    "build_baseline.py": "accbc25b3570da68cc4a384f6409b7847ed4bc7cfbeedb070135f8f4f329e0d1",
+    "link_layout.py": "09f10545ef296df59d96f9f053c08f295c8e46ec49b57e4a9c09950f8f3f9cb8",
+    "movie_source.py": "35bf361b7cbcfb7d4b57015c4d8d5e7b8a5a1ce6ac513821650413e815dc945c",
+    "source_patches.py": "91bc702905913eb00c5c28d3e0bbca56b9e52809a4a36de56e0de63003854b16"
+  },
+  "verified_at_utc": "2026-10-20T17:08:52.934529+00:00"
+}

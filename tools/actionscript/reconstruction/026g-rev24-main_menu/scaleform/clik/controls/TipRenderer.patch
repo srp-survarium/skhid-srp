@@ -1,0 +1,11 @@
+--- a/scaleform/clik/controls/TipRenderer.as
++++ b/scaleform/clik/controls/TipRenderer.as
+@@ -24,7 +24,7 @@
+          {
+             return;
+          }
+-         this._data = param1;
++         _data = param1;
+          this.invalidateData();
+       }
+       

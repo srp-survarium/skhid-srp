@@ -1,0 +1,22 @@
+--- a/survarium/messages/MessageBase.as
++++ b/survarium/messages/MessageBase.as
+@@ -26,8 +26,8 @@
+       public function setMessageData(param1:int, param2:Object) : void
+       {
+          trace("setMessageData::",param1,param2);
+-         this._id = param1;
+-         this._data = param2;
++         _id = param1;
++         _data = param2;
+          invalidateData();
+       }
+       
+@@ -49,7 +49,7 @@
+       protected function cleanUp(param1:Event = null) : void
+       {
+          removeEventListener(Event.REMOVED_FROM_STAGE,this.cleanUp);
+-         this._data = null;
++         _data = null;
+       }
+       
+       override public function toString() : String

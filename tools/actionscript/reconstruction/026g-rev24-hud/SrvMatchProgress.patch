@@ -1,0 +1,11 @@
+--- a/SrvMatchProgress.as
++++ b/SrvMatchProgress.as
+@@ -329,7 +329,7 @@
+          {
+             return;
+          }
+-         this.__lastFrameProp = curFrame;
++         __lastFrameProp = curFrame;
+          this.__setProp_respawn_time_progress_indicator_sprite_movies_2(curFrame);
+          this.__setProp_team_1_progress_indicator_sprite_movies_2(curFrame);
+          this.__setProp_team_2_progress_indicator_sprite_movies_2(curFrame);

@@ -1,0 +1,46 @@
+--- a/survarium/core/Icon.as
++++ b/survarium/core/Icon.as
+@@ -26,7 +26,7 @@
+       
+       public function applyImage(param1:Icon) : void
+       {
+-         if(Boolean(param1.bitmap))
++         if(param1.bitmap)
+          {
+             this.loadImage(new Bitmap(param1.bitmap.bitmapData));
+          }
+@@ -34,7 +34,7 @@
+       
+       public function reload() : void
+       {
+-         if(Boolean(this._bmp))
++         if(this._bmp)
+          {
+             addChild(this._bmp);
+          }
+@@ -48,7 +48,7 @@
+          }
+          this._bmp.bitmapData = null;
+          removeChild(this._bmp);
+-         this._bmp = null;
++         _bmp = null;
+       }
+       
+       public function loadImage(param1:Bitmap) : void
+@@ -57,14 +57,14 @@
+          {
+             removeChild(this._bmp);
+          }
+-         this._bmp = param1;
++         _bmp = param1;
+          addChild(this._bmp);
+       }
+       
+       public function clone() : Icon
+       {
+          var _loc1_:Icon = new Icon();
+-         if(Boolean(this._bmp))
++         if(this._bmp)
+          {
+             _loc1_.loadImage(new Bitmap(this._bmp.bitmapData));
+          }

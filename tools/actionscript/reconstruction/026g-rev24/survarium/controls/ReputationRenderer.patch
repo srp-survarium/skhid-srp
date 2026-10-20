@@ -1,0 +1,35 @@
+--- a/survarium/controls/ReputationRenderer.as
++++ b/survarium/controls/ReputationRenderer.as
+@@ -33,9 +33,9 @@
+       override public function set data(param1:Object) : void
+       {
+          _data = param1;
+-         if(Boolean(_data))
++         if(_data)
+          {
+-            this._unlocked = _data.faction_enabled;
++            _unlocked = _data.faction_enabled;
+             mouseEnabled = true;
+          }
+          invalidateData();
+@@ -65,9 +65,9 @@
+          mouseChildren = true;
+          this.hintButton.mouseEnabled = enabled;
+          this.hintButton.visible = true;
+-         if(Boolean(_data))
++         if(_data)
+          {
+-            this.hintButton.data = {"name":Util.styledChar(_data.faction_name,"white") + "\n" + _data.faction_label + Util.styledChar("fff\n\n\n","small") + _data.faction_hint};
++            this.hintButton.data = {name:Util.styledChar(_data.faction_name,"white") + "\n" + _data.faction_label + Util.styledChar("fff\n\n\n","small") + _data.faction_hint};
+             this.factionProgress.visible = true;
+             if(_data.faction_progress == 0)
+             {
+@@ -75,7 +75,7 @@
+             }
+             this.factionProgress.visible = _data.faction_progress != 0;
+             this.factionProgress.set_progress(_data.faction_progress);
+-            if(Boolean(_data.selected))
++            if(_data.selected)
+             {
+             }
+             this.factionIcon.gotoAndStop(_data.faction_id);

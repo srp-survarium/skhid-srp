@@ -1,0 +1,68 @@
+--- a/survarium/buttons/ButtonQuestFaction.as
++++ b/survarium/buttons/ButtonQuestFaction.as
+@@ -28,7 +28,7 @@
+       override protected function configUI() : void
+       {
+          super.configUI();
+-         if(!constraintsDisabled && Boolean(constraints))
++         if(!constraintsDisabled && constraints)
+          {
+             constraints.addElement("selectedIcon",this.selectedIcon,Constraints.RIGHT);
+             constraints.addElement("progressIndicator",this.progressIndicator,Constraints.LEFT | Constraints.RIGHT);
+@@ -37,11 +37,11 @@
+       
+       override public function set data(param1:Object) : void
+       {
+-         if(Boolean(param1) && param1.faction_enabled != undefined)
++         if(param1 && param1.faction_enabled != undefined)
+          {
+             enabled = param1.faction_enabled;
+          }
+-         this._active = Boolean(param1) && Boolean(param1.selected);
++         _active = param1 && param1.selected;
+          super.data = param1;
+          invalidateData();
+          setState(state);
+@@ -50,17 +50,17 @@
+       
+       override protected function handleMouseRelease(param1:MouseEvent) : void
+       {
+-         var _loc5_:ButtonEvent = null;
+          _autoRepeatEvent = null;
+          var _loc2_:MouseEventEx = param1 as MouseEventEx;
+          var _loc3_:uint = _loc2_ == null ? 0 : _loc2_.mouseIdx;
+          var _loc4_:uint = _loc2_ == null ? 0 : _loc2_.buttonIdx;
++         var _loc5_:ButtonEvent;
+          if(_loc4_ != 0)
+          {
+             return;
+          }
+          _mouseDown ^= 1 << _loc3_;
+-         if(_mouseDown == 0 && Boolean(_repeatTimer))
++         if(_mouseDown == 0 && _repeatTimer)
+          {
+             _repeatTimer.stop();
+             _repeatTimer.reset();
+@@ -101,11 +101,11 @@
+       {
+          trace("BQF::",icon,_data,this.progressIndicator);
+          this.selectedIcon.visible = this._active;
+-         if(Boolean(_data))
++         if(_data)
+          {
+             _data.icon = _data.faction_id;
+             _data.name = Util.styledChar(_data.faction_name,"white") + "\n" + _data.faction_label + Util.styledChar("fff\n\n\n","small") + _data.faction_hint;
+-            if(Boolean(this.progressIndicator))
++            if(this.progressIndicator)
+             {
+                this.progressIndicator.maximum = 100;
+                this.progressIndicator.value = _data.faction_progress;
+@@ -113,7 +113,7 @@
+             }
+          }
+          super.updateText();
+-         if(Boolean(icon) && Boolean(_data))
++         if(icon && _data)
+          {
+             if(selected || this._active || state == "over")
+             {

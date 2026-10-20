@@ -1,0 +1,158 @@
+--- a/survarium/messages/MessageAsk.as
++++ b/survarium/messages/MessageAsk.as
+@@ -188,8 +188,6 @@
+       
+       override protected function configUI() : void
+       {
+-         var totalW:int = 0;
+-         var icon:Sprite = null;
+          super.configUI();
+          LocalizationData.addButton(btnAccept,"accept");
+          LocalizationData.addTextField(this._windowLabel,"buy");
+@@ -198,9 +196,9 @@
+          this.slider.addEventListener(IndexEvent.INDEX_CHANGE,this.onSliderUpdate);
+          btnClose.addEventListener(ButtonEvent.CLICK,onMessageCancel,false,0,true);
+          this._CountLabel.visible = false;
+-         if(Boolean(_data))
+-         {
+-            this._money_type = _data.isPremium;
++         if(_data)
++         {
++            _money_type = _data.isPremium;
+             trace("MA::configUI",this._money_type,_data.isPremium);
+             if(this._money_type == true)
+             {
+@@ -210,15 +208,15 @@
+             {
+                this.slider.icon.gotoAndStop(1);
+             }
+-            if(Boolean(_data.clip_size))
+-            {
+-               this._price = _data.price;
+-            }
+-            else
+-            {
+-               this._price = _data.price;
+-            }
+-            if(_data.count > 1 || Boolean(_data.is_stack))
++            if(_data.clip_size)
++            {
++               _price = _data.price;
++            }
++            else
++            {
++               _price = _data.price;
++            }
++            if(_data.count > 1 || _data.is_stack)
+             {
+                this.update_slider();
+                this.background.gotoAndStop(1);
+@@ -229,9 +227,9 @@
+                this._priceLabel.visible = false;
+             }
+             this._ItemLabel.text = _data.name;
+-            if(Boolean(_data.icon))
+-            {
+-               icon = _data.icon;
++            if(_data.icon)
++            {
++               var icon:Sprite = _data.icon;
+                icon.x = Math.max(0,(this.background.width - icon.width) / 2);
+                this.content.addChild(icon);
+             }
+@@ -240,6 +238,7 @@
+          var sliderpos:int = this.slider.value;
+          this._priceLabel.cost = _data.price;
+          var ammount:int = Math.ceil(sliderpos / this._step * this._price);
++         var totalW:int;
+          trace("ammount::",sliderpos,this._step,this._price);
+          this._CountPrice.moneyType = this._money_type;
+          this._CountPrice.textField.textColor = this._money_type ? Colors.GOLD : Colors.PRICE_REG;
+@@ -266,7 +265,7 @@
+             {
+                if(PlayerInfo.premiumMoney < this._price)
+                {
+-                  this._fakeEnabled = true;
++                  _fakeEnabled = true;
+                }
+                btnAccept.enabled = true;
+             }
+@@ -284,12 +283,12 @@
+       
+       protected function update_slider() : void
+       {
+-         var _maxpos:Number = NaN;
+-         var _money_tot:uint = 0;
+-         var _maxTot:Number = NaN;
+-         if(Boolean(_data.clip_size))
+-         {
+-            this._step = _data.clip_size;
++         var _maxpos:Number;
++         var _money_tot:uint;
++         var _maxTot:Number;
++         if(_data.clip_size)
++         {
++            _step = _data.clip_size;
+          }
+          if(!this._money_type)
+          {
+@@ -309,7 +308,7 @@
+          }
+          trace("race1::",this._price,_data.price,_maxTot,_data.count,this._step,_data.sell,PlayerInfo.pocketSize,_data.quick_slot_item_size,_money_tot);
+          var fullPocket:Boolean = _data.quick_slot_item_size == 2;
+-         if(Boolean(_data.targetSlot) && _data.targetSlot != 100)
++         if(_data.targetSlot && _data.targetSlot != 100)
+          {
+             if(_data.targetSlot < 100)
+             {
+@@ -332,7 +331,7 @@
+          {
+             if(_maxpos == 0)
+             {
+-               this._fakeEnabled = true;
++               _fakeEnabled = true;
+             }
+             _maxpos = Math.max(1,_maxpos);
+          }
+@@ -343,7 +342,7 @@
+          trace("CreateAskSellWindow::",_maxpos,_maxTot,_data.originData,_data.targetSlot,this._step,_data.currentCount,this._price,this._fakeEnabled);
+          if(_data.sell != undefined)
+          {
+-            this.setSliderProp(Math.min(_maxpos,_data.count != undefined ? Number(_data.count) : _maxpos),this._step);
++            this.setSliderProp(Math.min(_maxpos,_data.count != undefined ? _data.count : _maxpos),this._step);
+          }
+          else if(!_data.originData)
+          {
+@@ -379,7 +378,7 @@
+       
+       protected function changeMoneyType(event:ButtonEvent = null) : void
+       {
+-         this._money_type = !this._money_type;
++         _money_type = !this._money_type;
+          if(this._money_type == true)
+          {
+          }
+@@ -395,10 +394,10 @@
+       protected function onNoMoneyEnought() : void
+       {
+          var object:Object = {
+-            "text":LocalizationData.getName("cant_buy_premium_message"),
+-            "onYes":this.goToStore,
+-            "label_ok":LocalizationData.getName("btn_add_premium_message"),
+-            "label_cancel":LocalizationData.getName("cancel")
++            text:LocalizationData.getName("cant_buy_premium_message"),
++            onYes:this.goToStore,
++            label_ok:LocalizationData.getName("btn_add_premium_message"),
++            label_cancel:LocalizationData.getName("cancel")
+          };
+          Message.showMessage("apply",object,true);
+       }
+@@ -434,7 +433,7 @@
+          {
+             ExternalInterface.call("buy_ok_clicked",_data.uid,uint(_data.count),uint(_data.seller),this._money_type);
+          }
+-         if(Boolean(_data.onYes))
++         if(_data.onYes)
+          {
+             _data.onYes(_data);
+             _data.onYes = null;

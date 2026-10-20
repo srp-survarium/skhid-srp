@@ -1,0 +1,131 @@
+--- a/survarium/buttons/SkillListRenderer.as
++++ b/survarium/buttons/SkillListRenderer.as
+@@ -58,10 +58,10 @@
+       override public function set data(param1:Object) : void
+       {
+          super.data = param1;
+-         trace("SLR:data",Boolean(param1) ? param1.enabled : "null");
+-         if(Boolean(param1) && param1.enabled != undefined)
+-         {
+-            this.enabled = Boolean(param1.enabled) && !this._locked;
++         trace("SLR:data",param1 ? param1.enabled : "null");
++         if(param1 && param1.enabled != undefined)
++         {
++            enabled = param1.enabled && !this._locked;
+          }
+          this.updateDescription();
+          invalidateData();
+@@ -74,7 +74,7 @@
+       
+       public function set unlockable(param1:Boolean) : void
+       {
+-         this._unlockable = param1;
++         _unlockable = param1;
+          if(!this._unlockable && this.hoverSprite.visible)
+          {
+             this.hoverSprite.visible = false;
+@@ -83,20 +83,20 @@
+       
+       public function lock(param1:Boolean) : void
+       {
+-         this._locked = param1;
++         _locked = param1;
+          this.lockSpriteRed.visible = this._locked;
+          var _loc2_:Boolean = true;
+-         if(Boolean(_data) && _data.enabled != undefined)
+-         {
+-            _loc2_ = Boolean(_data.enabled);
+-         }
+-         this.enabled = _loc2_ && !this._locked;
++         if(_data && _data.enabled != undefined)
++         {
++            _loc2_ = _data.enabled;
++         }
++         enabled = _loc2_ && !this._locked;
+       }
+       
+       private function updateDescription() : void
+       {
+          trace("SLR_updateDescription");
+-         if(Boolean(_data))
++         if(_data)
+          {
+             _data.description_1 = _data.name;
+             if(_data.description_2 is Array)
+@@ -117,7 +117,7 @@
+          this.hoverSprite.visible = enabled && !this._complete && !this._locked && this._unlockable;
+          this.overSprite.visible = enabled && !this._locked;
+          this.background.gotoAndStop(enabled ? 2 : 1);
+-         if(Boolean(_data) && Boolean(_data.antiskills) && !this._locked)
++         if(_data && _data.antiskills && !this._locked)
+          {
+             dispatchEvent(new Event(Events.SHOW_ANTISKILLS,true));
+          }
+@@ -129,7 +129,7 @@
+          this.hoverSprite.visible = false;
+          this.overSprite.visible = false;
+          this.background.gotoAndStop(1);
+-         if(Boolean(_data) && Boolean(_data.antiskills) && !this._locked)
++         if(_data && _data.antiskills && !this._locked)
+          {
+             dispatchEvent(new Event(Events.HIDE_ANTISKILLS,true));
+          }
+@@ -149,7 +149,7 @@
+          tooltipRendererName = "SrvPerkTipRenderer";
+          mouseChildren = false;
+          constraintsDisabled = true;
+-         this._perksIconsContainer = new PerkIconContainer();
++         _perksIconsContainer = new PerkIconContainer();
+          this._perksIconsContainer.gotoAndStop(1);
+          this._perksIconsContainer.icons.gotoAndStop(1);
+          this.iconContainer.addChildAt(this._perksIconsContainer,this.iconContainer.numChildren - 1);
+@@ -157,7 +157,7 @@
+       
+       private function onSliderUpdate(param1:MouseEventEx) : void
+       {
+-         if(Boolean(enabled && data && !isInvalid(InvalidationType.DATA)) && Boolean(!this._locked) && !this.lockSpriteRed.visible)
++         if((enabled && data && !isInvalid(InvalidationType.DATA)) && !this._locked && !this.lockSpriteRed.visible)
+          {
+             if(param1.buttonIdx == 0)
+             {
+@@ -180,7 +180,7 @@
+       
+       override protected function draw() : void
+       {
+-         trace("SLR_RENDRAW::",Boolean(_data) ? _data.tipText : null);
++         trace("SLR_RENDRAW::",_data ? _data.tipText : null);
+          if(isInvalid(InvalidationType.DATA))
+          {
+             this.updateData();
+@@ -190,14 +190,14 @@
+       
+       protected function updateData() : void
+       {
+-         var _loc1_:uint = 0;
+-         var _loc2_:int = 0;
++         var _loc1_:uint;
++         var _loc2_:int;
+          mouseChildren = true;
+          visible = _data != null;
+-         if(Boolean(_data))
+-         {
+-            _loc1_ = uint(_data.newValue);
+-            if(!enabled && Boolean(_loc1_))
++         if(_data)
++         {
++            _loc1_ = (_data.newValue);
++            if(!enabled && _loc1_)
+             {
+                _loc1_ = 0;
+                _data.newValue = 0;
+@@ -207,8 +207,8 @@
+             this.textFieldLevel.text = LEVELS[_data.level - 1];
+             this.skillProgressIndicator.minimum = 0;
+             this.skillProgressIndicator.visible = true;
+-            _loc2_ = int(_data.maxValue);
+-            this._complete = _loc2_ == _loc1_;
++            _loc2_ = (_data.maxValue);
++            _complete = _loc2_ == _loc1_;
+             if(this.hoverSprite.visible && this._complete)
+             {
+                this.hoverSprite.visible = false;

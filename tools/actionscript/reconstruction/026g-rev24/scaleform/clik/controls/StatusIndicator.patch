@@ -1,0 +1,29 @@
+--- a/scaleform/clik/controls/StatusIndicator.as
++++ b/scaleform/clik/controls/StatusIndicator.as
+@@ -30,7 +30,7 @@
+       
+       public function set maximum(param1:Number) : void
+       {
+-         this._maximum = param1;
++         _maximum = param1;
+       }
+       
+       [Inspectable(defaultValue="0")]
+@@ -45,7 +45,7 @@
+          {
+             return;
+          }
+-         this._minimum = param1;
++         _minimum = param1;
+          this.updatePosition();
+       }
+       
+@@ -62,7 +62,7 @@
+          {
+             return;
+          }
+-         this._value = _loc2_;
++         _value = _loc2_;
+          this.updatePosition();
+       }
+       

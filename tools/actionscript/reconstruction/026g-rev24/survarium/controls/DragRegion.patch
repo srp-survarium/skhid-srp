@@ -1,0 +1,76 @@
+--- a/survarium/controls/DragRegion.as
++++ b/survarium/controls/DragRegion.as
+@@ -26,12 +26,12 @@
+       
+       override public function handleDropEvent(param1:DragEvent) : Boolean
+       {
+-         var _loc6_:Array = null;
+-         var _loc7_:Function = null;
+          var _loc2_:ItemData = param1.dragData as ItemData;
+          var _loc3_:ILocalPaperDoll = _playerProfile.profileItems as ILocalPaperDoll;
+          var _loc4_:LocalPlayerProfile = _playerProfile;
+          var _loc5_:int = _loc3_.getSlot(_loc2_);
++         var _loc6_:Array;
++         var _loc7_:Function;
+          trace("DG::handleDropEvent",_loc5_,_playerProfile);
+          if(param1.dragTarget is IInventoryItemRenderer)
+          {
+@@ -42,28 +42,31 @@
+             }
+             if(_loc5_ != -1)
+             {
+-               if(_loc2_.isStack)
++               if(!_loc2_.isStack)
+                {
+-                  return false;
+-               }
+-               if(_loc2_.descriptor == 100)
+-               {
+-                  _loc6_ = [{
+-                     "profile":_loc4_.profileId,
+-                     "id":_loc2_.itemId,
+-                     "dict_id":_loc2_.dictId,
+-                     "sourceSlot":100,
+-                     "targetSlot":_loc5_,
+-                     "count":1
+-                  }];
+-                  _loc7_ = _loc4_._relocateFunction;
+-                  trace("aaa",_loc4_,_loc4_._relocateFunction,_loc7_);
+-                  _loc7_(_loc6_);
+-                  trace("bbb");
++                  if(_loc2_.descriptor == 100)
++                  {
++                     _loc6_ = [{
++                        profile:_loc4_.profileId,
++                        id:_loc2_.itemId,
++                        dict_id:_loc2_.dictId,
++                        sourceSlot:100,
++                        targetSlot:_loc5_,
++                        count:1
++                     }];
++                     _loc7_ = _loc4_._relocateFunction;
++                     trace("aaa",_loc4_,_loc4_._relocateFunction,_loc7_);
++                     _loc7_(_loc6_);
++                     trace("bbb");
++                  }
++                  else
++                  {
++                     MainScene.buyFunction(_loc4_.profileId,_loc2_.itemId,_loc2_.dictId,200,_loc5_,1,_loc2_.cost);
++                  }
+                }
+                else
+                {
+-                  MainScene.buyFunction(_loc4_.profileId,_loc2_.itemId,_loc2_.dictId,200,_loc5_,1,_loc2_.cost);
++                  return false;
+                }
+             }
+          }
+@@ -74,7 +77,7 @@
+       {
+          var _loc2_:IPaperDoll = _playerProfile.profileItems;
+          var _loc3_:ItemData = _loc2_.getSlotAt(2).data as ItemData;
+-         if(Boolean(_loc3_) && Boolean(_loc3_.camoAvailable))
++         if(_loc3_ && _loc3_.camoAvailable)
+          {
+             trace("relocate_upgrade_item_on_drop",_loc3_.itemId,uint(param1.itemId),uint(3));
+             ExternalInterface.call("relocate_upgrade_item",_loc3_.itemId,uint(param1.itemId),uint(3));

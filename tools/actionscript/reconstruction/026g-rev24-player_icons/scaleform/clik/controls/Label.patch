@@ -1,0 +1,138 @@
+--- a/scaleform/clik/controls/Label.as
++++ b/scaleform/clik/controls/Label.as
+@@ -71,8 +71,8 @@
+          {
+             value == "";
+          }
+-         this.isHtml = false;
+-         this._text = value;
++         isHtml = false;
++         _text = value;
+          invalidateData();
+       }
+       
+@@ -87,8 +87,8 @@
+          {
+             value == "";
+          }
+-         this.isHtml = true;
+-         this._text = value;
++         isHtml = true;
++         _text = value;
+          invalidateData();
+       }
+       
+@@ -103,7 +103,7 @@
+          {
+             return;
+          }
+-         this._autoSize = value;
++         _autoSize = value;
+          invalidateData();
+       }
+       
+@@ -119,15 +119,15 @@
+       
+       public function appendText(value:String) : void
+       {
+-         this._text += value;
+-         this.isHtml = false;
++         _text += value;
++         isHtml = false;
+          invalidateData();
+       }
+       
+       public function appendHtml(value:String) : void
+       {
+-         this._text += value;
+-         this.isHtml = true;
++         _text += value;
++         isHtml = true;
+          invalidateData();
+       }
+       
+@@ -148,7 +148,6 @@
+       
+       protected function calculateWidth() : Number
+       {
+-         var element:ConstrainedElement = null;
+          if(constraints == null || this.textField == null)
+          {
+             return actualWidth;
+@@ -157,20 +156,22 @@
+          {
+             element = constraints.getElement("textField");
+          }
+-         return Math.ceil(this.textField.textWidth + element.left + element.right + 5);
++         var _loc1_:Number = Math.ceil(this.textField.textWidth + element.left + element.right + 5);
++         return _loc1_;
++         var element:ConstrainedElement;
+       }
+       
+       protected function alignForAutoSize() : void
+       {
+-         var oldWidth:Number = NaN;
+-         var oldRight:Number = NaN;
+-         var oldCenter:Number = NaN;
++         var oldWidth:Number;
+          if(!initialized || this._autoSize == TextFieldAutoSize.NONE || this.textField == null)
+          {
+             return;
+          }
+          oldWidth = _width;
+          var newWidth:Number = _width = this.calculateWidth();
++         var oldRight:Number;
++         var oldCenter:Number;
+          switch(this._autoSize)
+          {
+             case TextFieldAutoSize.RIGHT:
+@@ -180,6 +181,7 @@
+             case TextFieldAutoSize.CENTER:
+                oldCenter = x + oldWidth * 0.5;
+                x = oldCenter - newWidth * 0.5;
++               break;
+          }
+       }
+       
+@@ -190,7 +192,7 @@
+             if(this._newFrame)
+             {
+                gotoAndPlay(this._newFrame);
+-               this._newFrame = null;
++               _newFrame = null;
+             }
+             this.updateAfterStateChange();
+             dispatchEvent(new ComponentEvent(ComponentEvent.STATE_CHANGE));
+@@ -246,25 +248,25 @@
+       
+       protected function setState(... states) : void
+       {
+-         var onlyState:String = null;
+-         var thisState:String = null;
+          if(states.length == 1)
+          {
+             onlyState = states[0].toString();
+-            if(this.state != onlyState && Boolean(_labelHash[onlyState]))
+-            {
+-               this.state = this._newFrame = onlyState;
++            if(this.state != onlyState && _labelHash[onlyState])
++            {
++               state = _newFrame = onlyState;
+                invalidateState();
+             }
+             return;
+          }
+-         var l:uint = uint(states.length);
++         var l:uint = (states.length);
+          for(var i:uint = 0; i < l; i++)
+          {
++            var onlyState:String;
++            var thisState:String;
+             thisState = states[i].toString();
+             if(_labelHash[thisState])
+             {
+-               this.state = this._newFrame = thisState;
++               state = _newFrame = thisState;
+                invalidateState();
+                break;
+             }

@@ -1,0 +1,132 @@
+--- a/survarium/buttons/BottomTab.as
++++ b/survarium/buttons/BottomTab.as
+@@ -35,7 +35,7 @@
+       
+       override public function set width(value:Number) : void
+       {
+-         if(Boolean(this.background))
++         if(this.background)
+          {
+             this.updateBackgroundWidth(value);
+          }
+@@ -47,7 +47,7 @@
+       
+       override public function get width() : Number
+       {
+-         if(Boolean(this.background))
++         if(this.background)
+          {
+             return this.background.width;
+          }
+@@ -77,15 +77,15 @@
+          textField.mouseEnabled = false;
+          this.background.mouseEnabled = false;
+          this.overlay.visible = false;
+-         if(Boolean(_data))
++         if(_data)
+          {
+             textField.text = _data.name;
+          }
+-         this.width = this._actualWidth;
+-         if(Boolean(_data) && (Boolean(selected || !_data.blink)) && this.flashInterval != -1)
++         width = this._actualWidth;
++         if(_data && (selected || !_data.blink) && this.flashInterval != -1)
+          {
+             clearInterval(this.flashInterval);
+-            this.flashInterval = -1;
++            flashInterval = -1;
+             _data.blink = false;
+             textField.text = _data.name;
+             blink = false;
+@@ -97,23 +97,23 @@
+       
+       override protected function draw() : void
+       {
+-         if(Boolean(_data))
+-         {
+-            if(Boolean(_data.blink) && this.flashInterval == -1)
++         if(_data)
++         {
++            if(_data.blink && this.flashInterval == -1)
+             {
+                invalidate(InvalidationType.STATE);
+-               this.flashInterval = setInterval(this.fnc_flash,200);
++               flashInterval = setInterval(this.fnc_flash,200);
+                blink = true;
+             }
+          }
+          if(isInvalid(InvalidationType.STATE))
+          {
+-            if(Boolean(_newFrame))
++            if(_newFrame)
+             {
+                gotoAndPlay(_newFrame);
+                _newFrame = null;
+             }
+-            if(Boolean(_newFocusIndicatorFrame))
++            if(_newFocusIndicatorFrame)
+             {
+                focusIndicator.gotoAndPlay(_newFocusIndicatorFrame);
+                _newFocusIndicatorFrame = null;
+@@ -144,7 +144,7 @@
+          }
+          if(isInvalid(InvalidationType.SIZE))
+          {
+-            if(Boolean(parent) && parent.parent is ButtonBar)
++            if(parent && parent.parent is ButtonBar)
+             {
+                (parent.parent as ButtonBar).invalidateSize();
+             }
+@@ -158,11 +158,7 @@
+       
+       override protected function setState(state:String) : void
+       {
+-         var prefix:String = null;
+-         var sl:uint = 0;
+-         var j:uint = 0;
+-         var thisLabel:String = null;
+-         if(Boolean(_data) && _data is Object)
++         if(_data && _data is Object)
+          {
+             _state = state;
+          }
+@@ -175,12 +171,16 @@
+          var l:uint = prefixes.length;
+          for(var i:uint = 0; i < l; i++)
+          {
++            var prefix:String;
++            var sl:uint;
++            var j:uint;
++            var thisLabel:String;
+             prefix = prefixes[i];
+             sl = states.length;
+             for(j = 0; j < sl; j++)
+             {
+                thisLabel = prefix + states[j];
+-               if(Boolean(_labelHash[thisLabel]))
++               if(_labelHash[thisLabel])
+                {
+                   _newFrame = thisLabel;
+                   invalidateState();
+@@ -193,8 +193,8 @@
+       protected function stepClose(e:Event) : void
+       {
+          var newSize:int = Math.max(this.width - 20,80);
+-         this._actualWidth = newSize;
+-         if(Boolean(this.background))
++         _actualWidth = newSize;
++         if(this.background)
+          {
+             this.updateBackgroundWidth(newSize);
+          }
+@@ -216,8 +216,8 @@
+       protected function step(e:Event) : void
+       {
+          var newSize:int = Math.min(this.width + 25,this._maxSize);
+-         this._actualWidth = newSize;
+-         if(Boolean(this.background))
++         _actualWidth = newSize;
++         if(this.background)
+          {
+             this.updateBackgroundWidth(newSize);
+          }

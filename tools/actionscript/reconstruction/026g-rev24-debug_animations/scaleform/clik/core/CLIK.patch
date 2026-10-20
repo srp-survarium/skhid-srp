@@ -1,0 +1,82 @@
+--- a/scaleform/clik/core/CLIK.as
++++ b/scaleform/clik/core/CLIK.as
+@@ -13,10 +13,6 @@
+       
+       public static var stage:Stage;
+       
+-      protected static var initQueue:Dictionary;
+-      
+-      protected static var validDictIndices:Vector.<uint>;
+-      
+       public static var initialized:Boolean = false;
+       
+       public static var disableNullFocusMoves:Boolean = false;
+@@ -30,6 +26,10 @@
+       protected static var isInitListenerActive:Boolean = false;
+       
+       protected static var firingInitCallbacks:Boolean = false;
++      
++      protected static var initQueue:Dictionary;
++      
++      protected static var validDictIndices:Vector.<uint>;
+       
+       public function CLIK()
+       {
+@@ -53,7 +53,7 @@
+       
+       public static function getTargetPathFor(param1:DisplayObjectContainer) : String
+       {
+-         var _loc2_:String = null;
++         var _loc2_:String;
+          if(!param1.parent)
+          {
+             return param1.name;
+@@ -64,10 +64,10 @@
+       
+       public static function queueInitCallback(param1:UIComponent) : void
+       {
+-         var _loc3_:Array = null;
+-         var _loc4_:uint = 0;
+-         var _loc5_:Dictionary = null;
+          var _loc2_:String = getTargetPathFor(param1);
++         var _loc3_:Array;
++         var _loc4_:uint;
++         var _loc5_:Dictionary;
+          if(useImmediateCallbacks || firingInitCallbacks)
+          {
+             Extensions.CLIK_addedToStageCallback(param1.name,_loc2_,param1);
+@@ -98,11 +98,11 @@
+       
+       protected static function fireInitCallback(param1:Event) : void
+       {
+-         var _loc2_:uint = 0;
+-         var _loc3_:uint = 0;
+-         var _loc4_:Dictionary = null;
+-         var _loc5_:Object = null;
+-         var _loc6_:UIComponent = null;
++         var _loc2_:uint;
++         var _loc3_:uint;
++         var _loc4_:Dictionary;
++         var _loc5_:Object;
++         var _loc6_:UIComponent;
+          firingInitCallbacks = true;
+          stage.removeEventListener(Event.EXIT_FRAME,fireInitCallback,false);
+          isInitListenerActive = false;
+@@ -125,7 +125,7 @@
+       
+       protected static function clearQueue() : void
+       {
+-         var _loc1_:* = undefined;
++         var _loc1_:*;
+          for(_loc1_ in initQueue)
+          {
+             initQueue[_loc1_] = null;
+@@ -147,7 +147,7 @@
+       
+       protected static function getTargetPathImpl(param1:DisplayObjectContainer, param2:String = "") : String
+       {
+-         var _loc3_:String = null;
++         var _loc3_:String;
+          if(!param1)
+          {
+             return param2;

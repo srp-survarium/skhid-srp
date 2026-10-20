@@ -1,0 +1,86 @@
+--- a/survarium/controls/LabelDiffIndicator.as
++++ b/survarium/controls/LabelDiffIndicator.as
+@@ -34,7 +34,7 @@
+       
+       public function set label(param1:String) : void
+       {
+-         this._label = param1;
++         _label = param1;
+          invalidateData();
+       }
+       
+@@ -45,7 +45,7 @@
+       
+       public function set prefix(param1:String) : void
+       {
+-         this._prefix = param1;
++         _prefix = param1;
+          invalidateData();
+       }
+       
+@@ -56,7 +56,7 @@
+       
+       public function set postfix(param1:String) : void
+       {
+-         this._postfix = param1;
++         _postfix = param1;
+          invalidateData();
+       }
+       
+@@ -68,7 +68,7 @@
+             constraints = new Constraints(this,ConstrainMode.COUNTER_SCALE);
+          }
+          this.textFieldLabel.x = -2;
+-         if(Boolean(constraints))
++         if(constraints)
+          {
+             constraints.addElement("textFieldValue",this.textFieldValue,Constraints.RIGHT);
+             constraints.addElement("textFieldLabel",this.textFieldLabel,Constraints.LEFT);
+@@ -82,7 +82,7 @@
+          super.draw();
+          if(isInvalid(InvalidationType.SIZE))
+          {
+-            if(Boolean(constraints))
++            if(constraints)
+             {
+                constraints.update(_width,_height);
+             }
+@@ -91,11 +91,11 @@
+       
+       override protected function updatePosition() : void
+       {
+-         var _loc1_:String = null;
+-         var _loc2_:uint = 0;
+-         var _loc3_:uint = 0;
++         var _loc1_:String;
++         var _loc2_:uint;
++         var _loc3_:uint;
+          super.updatePosition();
+-         if(Boolean(this._label))
++         if(this._label)
+          {
+             this.textFieldLabel.text = this._label;
+          }
+@@ -116,7 +116,7 @@
+             this.textFieldDiff.textColor = 13356477;
+             if(this._prefix == "-" && value != 0)
+             {
+-               this._prefix = "";
++               _prefix = "";
+             }
+             this.textFieldValue.text = this._prefix + Util.getNumberString(value) + this._postfix;
+          }
+@@ -134,11 +134,11 @@
+             }
+             if(this._prefix == "-" && _otherValue != 0)
+             {
+-               this._prefix = "";
++               _prefix = "";
+             }
+             this.textFieldValue.text = this._prefix + Util.getNumberString(_value) + this._postfix;
+          }
+-         if(Boolean(this.textFieldDiff.text.length))
++         if(this.textFieldDiff.text.length)
+          {
+             this.textFieldValue.x = this.textFieldDiff.x + this.textFieldDiff.width - this.textFieldValue.width - this.textFieldDiff.textWidth - 4;
+          }

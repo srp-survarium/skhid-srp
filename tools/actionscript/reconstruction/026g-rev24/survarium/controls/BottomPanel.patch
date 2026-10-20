@@ -1,0 +1,41 @@
+--- a/survarium/controls/BottomPanel.as
++++ b/survarium/controls/BottomPanel.as
+@@ -27,9 +27,9 @@
+    public class BottomPanel extends UIComponent
+    {
+       
++      public static const MATCHES_DEMO:Boolean = false;
++      
+       public static var matchesHolder:BottomPanel;
+-      
+-      public static const MATCHES_DEMO:Boolean = false;
+       
+       public static const MATCHES_W:int = 400;
+       
+@@ -343,7 +343,7 @@
+       
+       protected function resizeTab(event:Event = null) : void
+       {
+-         var room:Number = Number(NaN);
++         var room:Number = NaN;
+          this.background.x = 0;
+          this.background.width = this.btnShowLogList.x + 194;
+          this.debugLine.x = this.background.width * 0.75;
+@@ -531,7 +531,7 @@
+       
+       protected function placeMatchesTab() : void
+       {
+-         var used:Number = Number(NaN);
++         var used:Number = NaN;
+          if(!this.matchesTab || !this.tabsBar || !this.tabsBar.container)
+          {
+             return;
+@@ -633,7 +633,7 @@
+       
+       protected function matchesCanJoin(row:Object) : Boolean
+       {
+-         return this._matchesVersion == 2 && Boolean(row) && row.join == true && int(row.key) > 0;
++         return this._matchesVersion == 2 && row && row.join == true && int(row.key) > 0;
+       }
+       
+       protected function onMatchesJoinClick(e:Event) : void

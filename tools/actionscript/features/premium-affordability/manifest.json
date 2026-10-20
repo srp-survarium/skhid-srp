@@ -1,0 +1,21 @@
+{
+  "classes": [
+    {
+      "baseline_sha256": "45527eb51c565d428087a61cacdbbb36dff671a7a190ddb49dee357dc489ecae",
+      "class": "survarium.messages.MessagePremium",
+      "methods": [
+        {
+          "owner": "QName(PackageNamespace(\"survarium.messages\"),\"MessagePremium\")/instance/1/QName(PrivateNamespace(\"survarium.messages:MessagePremium\"),\"onPremiumSelected\")"
+        }
+      ],
+      "patch": "MessagePremium.patch",
+      "patch_sha256": "db3cc1777eba8970fbde88f058f17c8fb9605e2923d6d18456d7c8bac27bc40f",
+      "result_sha256": "15c91e03ef3ff2542c0c1ab373ab5b686565e7a701359fb69a4635223c3ef96a"
+    }
+  ],
+  "description": "Disable the premium purchase button when the selected subscription costs more than the current premium balance. Local source-feature demonstration; runtime verification required before release.",
+  "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",
+  "reconstruction_sha256": "bef80b42896c83c9065b57b40a7d6831984a39c181c321ddc43974a2c1f2da42",
+  "release": "026g-rev24",
+  "schema": 1
+}

@@ -1,0 +1,11 @@
+--- a/survarium/messages/MessageApplyExternal.as
++++ b/survarium/messages/MessageApplyExternal.as
+@@ -13,7 +13,7 @@
+       
+       override protected function configUI() : void
+       {
+-         _data = {"text":_data};
++         _data = {text:_data};
+          super.configUI();
+       }
+       

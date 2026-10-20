@@ -1,0 +1,11 @@
+--- a/survarium/messages/MessagePlayerInfo.as
++++ b/survarium/messages/MessagePlayerInfo.as
+@@ -33,7 +33,7 @@
+       {
+          super.configUI();
+          var profileSelectorRendrer:Class = getDefinitionByName("SrvProfileSelector") as Class;
+-         this.profileSelector = new profileSelectorRendrer();
++         profileSelector = new profileSelectorRendrer();
+          this.profileSelector.local = false;
+          (this.playerProfile as MovieClip).addChild(this.profileSelector);
+          this.playerProfile.registerInventory(_data.inventoryList);

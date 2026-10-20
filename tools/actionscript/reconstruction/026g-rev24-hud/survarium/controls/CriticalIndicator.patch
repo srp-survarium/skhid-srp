@@ -1,0 +1,73 @@
+--- a/survarium/controls/CriticalIndicator.as
++++ b/survarium/controls/CriticalIndicator.as
+@@ -41,16 +41,13 @@
+       
+       public function CriticalIndicator()
+       {
+-         var partRenderer:MovieClip = null;
+-         var redMC:MovieClip = null;
+-         var yellowMC:MovieClip = null;
+-         this._bodyParts = ["","lHand","rHand","lLeg","rLeg","head","body"];
+-         this._bodyStats = [1,1,1,1,1,1,1];
++         _bodyParts = ["","lHand","rHand","lLeg","rLeg","head","body"];
++         _bodyStats = [1,1,1,1,1,1,1];
+          super();
+          stop();
+-         this._radiationFramesCount = this.radInd.totalFrames;
+-         this._toxicFramesCount = this.toxInd.totalFrames;
+-         this._bleedFramesCount = this.bleedInd.totalFrames;
++         _radiationFramesCount = this.radInd.totalFrames;
++         _toxicFramesCount = this.toxInd.totalFrames;
++         _bleedFramesCount = this.bleedInd.totalFrames;
+          this.head.gotoAndStop(1);
+          this.body.gotoAndStop(1);
+          this.rHand.gotoAndStop(1);
+@@ -61,11 +58,14 @@
+          this.radInd.visible = this.toxInd.visible = this.bleedInd.visible = false;
+          for(var i:uint = 1; i < this._bodyParts.length; i++)
+          {
++            var partRenderer:MovieClip;
++            var redMC:MovieClip;
++            var yellowMC:MovieClip;
+             partRenderer = this[this._bodyParts[i]];
+             redMC = partRenderer.mc_red;
+             yellowMC = partRenderer.mc_yellow;
+             trace("clean::",this[this._bodyParts[i]],this._bodyParts[i],redMC,yellowMC);
+-            if(Boolean(redMC) && Boolean(yellowMC))
++            if(redMC && yellowMC)
+             {
+                redMC.alpha = 0;
+                yellowMC.alpha = 0;
+@@ -118,7 +118,7 @@
+                if(this._critCount == 0)
+                {
+                   visible = true;
+-                  this._critCount = 1;
++                  _critCount = 1;
+                   trace("partHP::",visible);
+                }
+                return;
+@@ -127,19 +127,20 @@
+          if(this._critCount == 1)
+          {
+             visible = false;
+-            this._critCount = 0;
++            _critCount = 0;
+             trace("partHP::",visible);
+          }
+       }
+       
+       protected function getColor(r:uint, g:uint, b:uint) : uint
+       {
+-         return uint(r << 16 | g << 8 | b);
++         var color:uint = r << 16 | g << 8 | b;
++         return color;
+       }
+       
+       public function crit(part_id:uint, value:uint) : void
+       {
+-         var newValue:Number = NaN;
++         var newValue:Number;
+          if(value == 0)
+          {
+             newValue = 1;

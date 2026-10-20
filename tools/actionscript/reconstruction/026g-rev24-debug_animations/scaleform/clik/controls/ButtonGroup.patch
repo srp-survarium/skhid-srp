@@ -1,0 +1,69 @@
+--- a/scaleform/clik/controls/ButtonGroup.as
++++ b/scaleform/clik/controls/ButtonGroup.as
+@@ -24,10 +24,10 @@
+       public function ButtonGroup(param1:String, param2:DisplayObjectContainer)
+       {
+          super();
+-         this.name = param1;
+-         this.weakScope = new Dictionary(true);
++         name = param1;
++         weakScope = new Dictionary(true);
+          this.weakScope[param2] = null;
+-         this._children = [];
++         _children = [];
+       }
+       
+       public static function getGroup(param1:String, param2:DisplayObjectContainer) : ButtonGroup
+@@ -62,13 +62,12 @@
+       
+       public function get scope() : DisplayObjectContainer
+       {
+-         var _loc2_:String = null;
+          var _loc1_:DisplayObjectContainer = null;
+-         var _loc3_:int = 0;
+-         var _loc4_:* = this.scope;
+-         for(_loc2_ in _loc4_)
++         var _loc2_:String;
++         for(_loc2_ in this.scope)
+          {
+             _loc1_ = _loc2_ as DisplayObjectContainer;
++            break;
+          }
+          return _loc1_;
+       }
+@@ -105,7 +104,7 @@
+       
+       public function setSelectedButtonByIndex(param1:uint, param2:Boolean = true) : Boolean
+       {
+-         var _loc3_:Boolean = false;
++         var _loc3_:Boolean;
+          var _loc4_:Button = this._children[param1] as Button;
+          if(_loc4_ != null)
+          {
+@@ -148,7 +147,7 @@
+          var _loc4_:Button = this.selectedButton;
+          if(param2)
+          {
+-            this.selectedButton = param1;
++            selectedButton = param1;
+          }
+          if(param2 && _loc4_ != null && !this.multiselect)
+          {
+@@ -156,7 +155,7 @@
+          }
+          if(_loc3_)
+          {
+-            this.selectedButton = null;
++            selectedButton = null;
+          }
+          else if(!param2)
+          {
+@@ -167,7 +166,7 @@
+       
+       protected function handleClick(param1:ButtonEvent) : void
+       {
+-         var _loc2_:Button = null;
++         var _loc2_:Button;
+          if(this.multiselect)
+          {
+             _loc2_ = param1.target as Button;

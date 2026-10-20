@@ -1,0 +1,451 @@
+--- a/survarium/controls/StatusPanel.as
++++ b/survarium/controls/StatusPanel.as
+@@ -201,7 +201,7 @@
+       
+       private function sortAdminMessages() : void
+       {
+-         this.labelInfo.y = Boolean(this.left_corner.notesTutorial.visible) || Boolean(this.left_corner.videoTutorial.visible) ? 164 : 108;
++         this.labelInfo.y = (this.left_corner.notesTutorial.visible) || (this.left_corner.videoTutorial.visible) ? 164 : 108;
+          this.labelInfoAdmin.y = this.labelInfo.visible ? this.labelInfo.y + 60 : this.labelInfo.y;
+       }
+       
+@@ -217,7 +217,7 @@
+       
+       public function set show_query(value:Boolean) : void
+       {
+-         this._show_query = value;
++         _show_query = value;
+          this.panel_info_blog.tx_query.visible = value;
+          this.panel_info_blog.query_icon.visible = value;
+       }
+@@ -225,7 +225,7 @@
+       public function set active_faction_name(value:String) : void
+       {
+          trace("active_faction_name",value);
+-         this._activeFactionName = value;
++         _activeFactionName = value;
+          this.updateFactionData(this._factionData);
+       }
+       
+@@ -296,7 +296,7 @@
+       public function set progress_hint(value:String) : void
+       {
+          trace("progressHint::",value);
+-         this.panel_player.hintButton.tipData = {"name":value};
++         this.panel_player.hintButton.tipData = {name:value};
+       }
+       
+       public function set player_progress(value:uint) : void
+@@ -306,7 +306,7 @@
+       
+       public function handleNicknameValidation(result:Boolean, name:String = null, message:String = null) : void
+       {
+-         if(Boolean(this._changeNicknameMessage))
++         if((this._changeNicknameMessage))
+          {
+             this._changeNicknameMessage.handleNicknameValidation(result,name,message);
+          }
+@@ -323,12 +323,12 @@
+       
+       public function setPremiumStore(value:Array) : void
+       {
+-         this._premiumOptions = value;
++         _premiumOptions = value;
+       }
+       
+       public function setPremiumStoreDiscount(value:Array) : void
+       {
+-         this._premiumOptionsDiscount = value;
++         _premiumOptionsDiscount = value;
+       }
+       
+       public function getPremiumStore() : Array
+@@ -338,13 +338,13 @@
+       
+       public function setTopMenu(value:MovieClip) : void
+       {
+-         this._topMenu = value;
++         _topMenu = value;
+          this._topMenu.questButton = this.panelFaction.btnActiveFaction;
+       }
+       
+       public function setPlayerName(value:String) : void
+       {
+-         this.panel_player.textFieldName.text = Boolean(this._clanAbb) && (this._clanState == 3 || this._clanState == 4) ? "[" + this._clanAbb + "] " + value : value;
++         this.panel_player.textFieldName.text = (this._clanAbb) && (this._clanState == 3 || this._clanState == 4) ? "[" + this._clanAbb + "] " + value : value;
+          this.panel_player.textFieldName.mouseEnabled = false;
+          this.panel_player.textFieldName.mouseChildren = false;
+          this.updateIconPosition();
+@@ -352,24 +352,24 @@
+       
+       public function setPlayerClanAbb(value:String) : void
+       {
+-         this._clanAbb = value;
++         _clanAbb = value;
+          this.setPlayerName(PlayerInfo.nickname);
+       }
+       
+       public function setPlayerClanState(value:uint) : void
+       {
+-         this._clanState = value;
++         _clanState = value;
+          this.setPlayerName(PlayerInfo.nickname);
+       }
+       
+       public function setStatusMessage(value:String, firstTime:Boolean) : void
+       {
+-         this._anno_message = value;
++         _anno_message = value;
+          var tx:TextField = this.panel_message.textField;
+          tx.text = value;
+          tx.text = tx.getLineText(0);
+-         var charIndex:uint = uint(tx.length);
+-         while(tx.textWidth > tx.width && Boolean(charIndex))
++         var charIndex:uint = tx.length;
++         while(tx.textWidth > tx.width && (charIndex))
+          {
+             tx.getCharBoundaries(charIndex);
+             tx.text = tx.text.substr(0,charIndex) + "...";
+@@ -430,7 +430,7 @@
+       {
+          super.configUI();
+          var textBonus:* = (this.right_corner.btnShowDailyMessage.content as MovieClip).getChildByName("textBonus");
+-         if(Boolean(textBonus))
++         if((textBonus))
+          {
+             textBonus.visible = false;
+          }
+@@ -448,8 +448,8 @@
+          tx.defaultTextFormat = txF;
+          this.icon_premium.gotoAndStop(2);
+          LocalizationData.addButton(this.playBtn,"Play");
+-         this.panel_games_block = this.mid_back.getChildByName("panel_games_block") as MovieClip;
+-         this.panel_players_block = this.mid_back.getChildByName("panel_players_block") as MovieClip;
++         panel_games_block = this.mid_back.getChildByName("panel_games_block") as MovieClip;
++         panel_players_block = this.mid_back.getChildByName("panel_players_block") as MovieClip;
+          constraints.addElement("btn_settings",this.btn_settings,Constraints.RIGHT);
+          constraints.addElement("btn_off",this.btn_off,Constraints.RIGHT);
+          constraints.addElement("mid_back",this.mid_back,Constraints.CENTER_H);
+@@ -465,7 +465,7 @@
+          this.panelFaction.hintButtonFactionProgress.toolTipRendererName = "SrvProfileTipRenderer";
+          this.matchSettings.addEventListener(MatchMakingSettings.TOURNAMENT_DESELECTED,this.updateMatchSettings);
+          this.matchSettings.addEventListener(MatchMakingSettings.TOURNAMENT_SELECTED,this.updateMatchSettings);
+-         if(Boolean(this._topMenu))
++         if((this._topMenu))
+          {
+             this._topMenu.y = -4;
+             addChildAt(this._topMenu,getChildIndex(this.play_container) - 1);
+@@ -481,7 +481,7 @@
+          this.btn_add_regular_money.addEventListener(ButtonEvent.CLICK,this.onRegulatMoneyAddClick);
+          this.left_corner.btnKnowledgeBase.addEventListener(ButtonEvent.CLICK,this.onKnowlengeBaseClick);
+          var date:Date = new Date();
+-         this._time = getTimer() - date.milliseconds - int(date.seconds) * 1000;
++         _time = getTimer() - date.milliseconds - int(date.seconds) * 1000;
+          this.updateTime();
+          this.btn_settings.addEventListener(MouseEvent.CLICK,this.onClickSettings);
+          this.btn_off.addEventListener(MouseEvent.CLICK,this.onClickOff);
+@@ -509,7 +509,7 @@
+          this.left_corner.notesTutorial.visible = false;
+          this.left_corner.notesTutorial.clickArea.addEventListener(MouseEvent.CLICK,this.showNT);
+          this.left_corner.notesTutorial.mouseChildren = true;
+-         if(Boolean(this.right_corner.textFieldShop))
++         if((this.right_corner.textFieldShop))
+          {
+             LocalizationData.addTextField(this.right_corner.textFieldShop,"online_store");
+             this.right_corner.textFieldShop.mouseEnabled = false;
+@@ -517,8 +517,8 @@
+          LocalizationData.addCallback(this.updateButtons,"btn_settings_label");
+          stage.addEventListener(Event.RESIZE,this.onStageResize);
+          stage.addEventListener(MouseEvent.CLICK,this.onStageClick);
+-         this.players = 0;
+-         this.games = 0;
++         players = 0;
++         games = 0;
+       }
+       
+       public function showVideoTutorialLink(bool:Boolean) : void
+@@ -532,7 +532,7 @@
+          trace("showNotesTutorial",bool,index);
+          if(bool)
+          {
+-            this._notesIndex = index;
++            _notesIndex = index;
+          }
+          this.left_corner.notesTutorial.mouseChildren = true;
+          this.left_corner.notesTutorial.visible = bool;
+@@ -550,24 +550,24 @@
+       private function showVT(e:MouseEvent) : void
+       {
+          trace("video_tutorial_link_clicked");
+-         if(Boolean(this._vtMessage))
++         if((this._vtMessage))
+          {
+             return;
+          }
+          var object:Object = {
+-            "text":LocalizationData.getName("go_to_video_tutorial_message"),
+-            "onYes":this.gotoVideoTutorial,
+-            "label_ok":LocalizationData.getName("btn_go_to_online_store"),
+-            "label_cancel":LocalizationData.getName("cancel")
++            text:LocalizationData.getName("go_to_video_tutorial_message"),
++            onYes:this.gotoVideoTutorial,
++            label_ok:LocalizationData.getName("btn_go_to_online_store"),
++            label_cancel:LocalizationData.getName("cancel")
+          };
+-         this._vtMessage = Message.showMessage("apply",object,true);
++         _vtMessage = Message.showMessage("apply",object,true);
+          this._vtMessage.addEventListener(Event.REMOVED_FROM_STAGE,this.onVTRemoved);
+       }
+       
+       private function onVTRemoved(e:Event) : void
+       {
+          e.target.removeEventListener(Event.REMOVED_FROM_STAGE,this.onVTRemoved);
+-         this._vtMessage = null;
++         _vtMessage = null;
+       }
+       
+       private function gotoVideoTutorial() : void
+@@ -586,7 +586,7 @@
+       
+       private function onStageClick(e:MouseEvent) : void
+       {
+-         if(Boolean(this.matchSettings.visible) && Message.isAnyMessage() == -1)
++         if((this.matchSettings.visible) && Message.isAnyMessage() == -1)
+          {
+             if(e.target != this.dropDownButton && e.target != this.matchSettings && !this.matchSettings.contains(e.target))
+             {
+@@ -597,7 +597,7 @@
+       
+       private function updateMatchSettings(e:Event) : void
+       {
+-         var selectedOption:String = Boolean(this.matchSettings.checkBoxClan.selected) ? LocalizationData.getName("match_settings_clan_match") : LocalizationData.getName("match_settings_checkbox_PVP");
++         var selectedOption:String = (this.matchSettings.checkBoxClan.selected) ? LocalizationData.getName("match_settings_clan_match") : LocalizationData.getName("match_settings_checkbox_PVP");
+          this.play_container.dropDownButton.label = selectedOption;
+       }
+       
+@@ -609,7 +609,7 @@
+       public function setFactionProgress(value:Object) : void
+       {
+          trace("setVFactionProgress::",value,"|",this._activeFactionName);
+-         this._factionData = value;
++         _factionData = value;
+          this.updateFactionData(value);
+       }
+       
+@@ -617,31 +617,31 @@
+       {
+          var factionProgressText:String = null;
+          var tipText:String = null;
+-         this.panelFaction.textFieldFactionName.text = Boolean(this._activeFactionName) ? "«" + this._activeFactionName.toUpperCase() + "»" : "";
+-         if(Boolean(value))
++         this.panelFaction.textFieldFactionName.text = (this._activeFactionName) ? "«" + this._activeFactionName.toUpperCase() + "»" : "";
++         if((value))
+          {
+             this.panelFaction.textFieldFactionProgress.styleSheet = MainScene.textStyleSheet;
+             factionProgressText = value.faction_rank + ", " + value.faction_label;
+             this.panelFaction.textFieldFactionProgress.text = factionProgressText;
+          }
+-         if(Boolean(value))
++         if((value))
+          {
+             tipText = Util.styledChar(this._activeFactionName,"white") + "\n" + value.faction_label;
+             this.panelFaction.factionHint.tipData = {
+-               "tipText":tipText,
+-               "name":tipText,
+-               "faction_label":value.faction_label,
+-               "faction_rank":value.faction_rank
++               tipText:tipText,
++               name:tipText,
++               faction_label:value.faction_label,
++               faction_rank:value.faction_rank
+             };
+             this.panelFaction.factionProgressIndicator.value = value.faction_progress;
+          }
+          else
+          {
+             this.panelFaction.factionHint.tipData = {
+-               "tipText":this._activeFactionName,
+-               "name":this._activeFactionName,
+-               "faction_label":"",
+-               "faction_rank":""
++               tipText:this._activeFactionName,
++               name:this._activeFactionName,
++               faction_label:"",
++               faction_rank:""
+             };
+             this.panelFaction.factionProgressIndicator.value = 0;
+          }
+@@ -649,10 +649,10 @@
+       
+       override protected function draw() : void
+       {
+-         var newWidth:int = 0;
+-         var originHeight:Number = NaN;
+          var scale:Number = 1;
+          var upscale:Number = 0;
++         var newWidth:int;
++         var originHeight:Number;
+          newWidth = MainScene.stageWidth;
+          originHeight = _height / scaleY;
+          trace("SP::updateSize",newWidth,upscale,"|",height,_height,originHeight);
+@@ -660,7 +660,7 @@
+          {
+             setActualSize(newWidth / scale,originHeight);
+             setSize(newWidth / scale,originHeight);
+-            if(Boolean(constraints))
++            if((constraints))
+             {
+                constraints.update(newWidth / (scale - upscale),originHeight);
+             }
+@@ -677,8 +677,8 @@
+          trace("SP::",this.centerContainerTop,this.play_container,this.matchSettings);
+          this.play_container.x = this.centerContainerTop.x;
+          this.matchSettings.x = int(this.play_container.x + 8);
+-         this.firstScale += 1;
+-         if(Boolean(this.labelInfo))
++         firstScale += 1;
++         if((this.labelInfo))
+          {
+          }
+       }
+@@ -690,11 +690,11 @@
+       
+       private function reflowPlayers(useAnimations:Boolean = false) : void
+       {
+-         var playersX:int = 0;
+-         var gamesX:int = 0;
+-         var totalWidth:int = 0;
+-         var newPos:int = 0;
+          var panelGamesSize:int = this.panel_players_block.tx_online.textWidth + 50;
++         var playersX:int;
++         var gamesX:int;
++         var totalWidth:int;
++         var newPos:int;
+          if(this.lobbyGameSearch.visible)
+          {
+             playersX = this.lobbyGameSearch.x - panelGamesSize;
+@@ -715,8 +715,8 @@
+          }
+          else
+          {
+-            TweenLite.to(this.panel_players_block,0.1,{"x":playersX});
+-            TweenLite.to(this.panel_games_block,0.1,{"x":gamesX});
++            TweenLite.to(this.panel_players_block,0.1,{x:playersX});
++            TweenLite.to(this.panel_games_block,0.1,{x:gamesX});
+          }
+       }
+       
+@@ -724,38 +724,38 @@
+       {
+          var voucherId:uint = PlayerInfo.getVoucherId(0);
+          var messageData:Object = {
+-            "nickname":PlayerInfo.nickname,
+-            "premiumCost":this.changeNameCostPremium,
+-            "vouchersCost":1,
+-            "voucherId":voucherId,
+-            "changeNameFailedDelay":this.changeNameFailedDelay,
+-            "changeNameDelay":this.changeNameDelay,
+-            "selectVoucher":Boolean(e == null)
++            nickname:PlayerInfo.nickname,
++            premiumCost:this.changeNameCostPremium,
++            vouchersCost:1,
++            voucherId:voucherId,
++            changeNameFailedDelay:this.changeNameFailedDelay,
++            changeNameDelay:this.changeNameDelay,
++            selectVoucher:Boolean(e == null)
+          };
+-         this._changeNicknameMessage = Message.showMessage("change_name",messageData);
++         _changeNicknameMessage = Message.showMessage("change_name",messageData);
+       }
+       
+       private function updateButtons(value:*, value2:*) : void
+       {
+-         this.btn_settings.data = {"name":LocalizationData.getName("btn_settings_label")};
+-         this.btn_off.data = {"name":LocalizationData.getName("btn_exit_label")};
+-         this.btnChangeName.data = {"name":LocalizationData.getName("btn_change_name_label")};
+-         this.btn_add_premium_money.data = {"name":LocalizationData.getName("btn_add_premium_label")};
+-         this.btn_add_regular_money.data = {"name":LocalizationData.getName("btn_exchange_premium_money")};
+-         this.btn_premium.data = {"name":LocalizationData.getName("btn_premium_hint")};
+-         this.left_corner.btnKnowledgeBase.data = {"name":LocalizationData.getName("btn_knowledge_base")};
++         this.btn_settings.data = {name:LocalizationData.getName("btn_settings_label")};
++         this.btn_off.data = {name:LocalizationData.getName("btn_exit_label")};
++         this.btnChangeName.data = {name:LocalizationData.getName("btn_change_name_label")};
++         this.btn_add_premium_money.data = {name:LocalizationData.getName("btn_add_premium_label")};
++         this.btn_add_regular_money.data = {name:LocalizationData.getName("btn_exchange_premium_money")};
++         this.btn_premium.data = {name:LocalizationData.getName("btn_premium_hint")};
++         this.left_corner.btnKnowledgeBase.data = {name:LocalizationData.getName("btn_knowledge_base")};
+          this.left_corner.videoTutorial.textField.text = LocalizationData.getName("youtube_video_tutorial_button");
+          this.left_corner.videoTutorial.closeBtn.x = this.left_corner.videoTutorial.textField.x + this.left_corner.videoTutorial.textField.textWidth + 10;
+-         this.right_corner.btnShowDailyMessage.data = {"name":LocalizationData.getName("daily_bonus_hint")};
++         this.right_corner.btnShowDailyMessage.data = {name:LocalizationData.getName("daily_bonus_hint")};
+          this.play_container.dropDownButton.label = LocalizationData.getName("match_settings_checkbox_PVP");
+       }
+       
+       public function set_day_progress(value:uint) : void
+       {
+          this.right_corner.btnShowDailyMessage.content.bonusProgressIndicator.gotoAndStop(value + 1);
+-         this.right_corner.btnShowDailyMessage.data = {"name":LocalizationData.getName("daily_bonus_hint")};
++         this.right_corner.btnShowDailyMessage.data = {name:LocalizationData.getName("daily_bonus_hint")};
+          var textBonus:* = (this.right_corner.btnShowDailyMessage.content as MovieClip).getChildByName("textBonus");
+-         if(Boolean(textBonus))
++         if((textBonus))
+          {
+             textBonus.visible = value != 3;
+          }
+@@ -785,10 +785,10 @@
+       private function onClickOff() : void
+       {
+          var object:Object = {
+-            "text":LocalizationData.getName("game_exit_message"),
+-            "onYes":this.callExit,
+-            "label_ok":LocalizationData.getName("yes"),
+-            "label_cancel":LocalizationData.getName("no")
++            text:LocalizationData.getName("game_exit_message"),
++            onYes:this.callExit,
++            label_ok:LocalizationData.getName("yes"),
++            label_cancel:LocalizationData.getName("no")
+          };
+          Message.showMessage("apply",object,true);
+       }
+@@ -807,7 +807,7 @@
+       {
+          if(!e || e.buttonIdx == 0)
+          {
+-            Message.showMessage("anno",{"text":this._anno_message},true);
++            Message.showMessage("anno",{text:this._anno_message},true);
+          }
+       }
+       
+@@ -815,7 +815,7 @@
+       {
+          if(getTimer() - this._time >= 60000)
+          {
+-            this._time = getTimer();
++            _time = getTimer();
+             this.updateTime();
+          }
+       }
+@@ -840,10 +840,10 @@
+       private function onKnowlengeBaseClick(e:Event) : void
+       {
+          var object:Object = {
+-            "text":LocalizationData.getName("go_to_knowledge_base_message"),
+-            "onYes":this.goToKnowledgeBase,
+-            "label_ok":LocalizationData.getName("btn_go_to_online_store"),
+-            "label_cancel":LocalizationData.getName("cancel")
++            text:LocalizationData.getName("go_to_knowledge_base_message"),
++            onYes:this.goToKnowledgeBase,
++            label_ok:LocalizationData.getName("btn_go_to_online_store"),
++            label_cancel:LocalizationData.getName("cancel")
+          };
+          Message.showMessage("apply",object,true);
+       }
+@@ -861,7 +861,7 @@
+       public function showPremium(value:Object = null) : void
+       {
+          var messData:Object = null;
+-         if(Boolean(value))
++         if((value))
+          {
+             messData = value;
+          }

@@ -1,0 +1,1726 @@
+--- a/survarium/controls/InventoryList.as
++++ b/survarium/controls/InventoryList.as
+@@ -139,9 +139,6 @@
+       
+       public static function logModifiers(value:*) : void
+       {
+-         var modificatorProps:Object = null;
+-         var modifierProp:Object = null;
+-         var propDescription:Object = null;
+          trace("logModifiers");
+          if(!value)
+          {
+@@ -155,6 +152,9 @@
+          }
+          for(var i:uint = 0; i < modifiers.length; i++)
+          {
++            var modificatorProps:Object;
++            var modifierProp:Object;
++            var propDescription:Object;
+             modificatorProps = modifiers[i].props;
+             trace("modifier::",modifiers[i].id,modifiers[i].name);
+             for each(modifierProp in modificatorProps)
+@@ -167,7 +167,7 @@
+       
+       override public function activate(value:Boolean, byUser:Boolean = true) : void
+       {
+-         var subsystemName:String = null;
++         var subsystemName:String;
+          trace("activate",name,value,byUser,"vis",visible);
+          if(byUser)
+          {
+@@ -183,12 +183,12 @@
+                ExternalInterface.call("subsystem_deactivated",subsystemName);
+             }
+          }
+-         this.visible = value;
++         visible = value;
+       }
+       
+       public function toggleShopMode(value:Boolean) : void
+       {
+-         this.isShop = value;
++         isShop = value;
+          label.text = LocalizationData.getName(this.isShop ? "shop" : "inventory_label");
+          this.shopTab.selectedIndex = this.isShop ? 1 : 2;
+          this.itemControlPanel.toggleShop(value);
+@@ -211,7 +211,7 @@
+       
+       public function set item_control(value:*) : void
+       {
+-         this._item_control = value;
++         _item_control = value;
+          this._item_control.addEventListener(Event.RESIZE,this.onCardResize);
+          this._item_control.addEventListener(Events.SELL,this.onCardSell);
+          this._item_control.addEventListener(Events.BUY,this.onCardBuy);
+@@ -248,9 +248,9 @@
+             this._item_control.visible = value;
+             if(!this._activated)
+             {
+-               this._activated = true;
+-            }
+-            if(value == false && Boolean(pp.ammoContainer.btn_apply.enabled))
++               _activated = true;
++            }
++            if(value == false && (pp.ammoContainer.btn_apply.enabled))
+             {
+             }
+          }
+@@ -258,7 +258,7 @@
+       
+       public function hasItem(value:int) : Boolean
+       {
+-         var l:int = int(this._inventoryItems.length);
++         var l:int = (this._inventoryItems.length);
+          for(var i:uint = 0; i < l; i++)
+          {
+             if(this._inventoryItems[i].dictId == value)
+@@ -271,10 +271,10 @@
+       
+       public function selectItemDict(value:int, seller:int = -1) : void
+       {
+-         var itemData:ItemData = null;
+-         var l:int = int(itemsTileList.dataProvider.length);
++         var l:int = (itemsTileList.dataProvider.length);
+          for(var i:uint = 0; i < l; i++)
+          {
++            var itemData:ItemData;
+             itemData = itemsTileList.dataProvider[i];
+             if(itemData.dictId == value && (itemData.factionId == seller || seller == -1))
+             {
+@@ -289,10 +289,10 @@
+          var cardData:Object = this._item_control.getItemData();
+          trace("onCardSell",cardData.id);
+          var descrData:Object = _itemDescriptor.getItemDescription(cardData.dictId);
+-         this._cardItem = {
+-            "id":cardData.id,
+-            "action":"sell",
+-            "name":descrData.name
++         _cardItem = {
++            id:cardData.id,
++            action:"sell",
++            name:descrData.name
+          };
+       }
+       
+@@ -308,28 +308,28 @@
+                itemsAtStart++;
+             }
+          }
+-         this._cardItem = {
+-            "id":this._item_control.getItemData().dictId,
+-            "action":"buy",
+-            "itemsAtStart":itemsAtStart
++         _cardItem = {
++            id:this._item_control.getItemData().dictId,
++            action:"buy",
++            itemsAtStart:itemsAtStart
+          };
+       }
+       
+       protected function onCardResize(e:Event = null) : void
+       {
+-         if(Boolean(this._item_control))
++         if((this._item_control))
+          {
+          }
+       }
+       
+       protected function size() : void
+       {
+-         var chd:* = undefined;
+          trace("szd",this.width,this.height,x,y,getBounds(parent));
+          for(var i:int = 0; i < numChildren; i++)
+          {
++            var chd:*;
+             chd = this.getChildAt(i);
+-            if(Boolean(chd))
++            if((chd))
+             {
+                trace("chd",chd,chd.name,chd.x,chd.y,chd.width,chd.height,"|",chd.x + chd.width,chd.y + chd.height,chd.getBounds(this));
+             }
+@@ -338,7 +338,6 @@
+       
+       private function deleteDoubleItems(value:Array, seller:int, dict:Dictionary) : void
+       {
+-         var itemData:ItemData = null;
+          var tmpObject:Object = new Object();
+          var doubleObject:Object = new Object();
+          var tempItems:Array = new Array();
+@@ -368,9 +367,10 @@
+             }
+          }
+          var handledObject:Object = new Object();
++         var itemData:ItemData;
+          for(i = 0; i < tempItems.length; i++)
+          {
+-            if(Boolean(tempItems[i]) && (Boolean(seller != -1 && tempItems[i].seller == seller || seller == -1 && tempItems[i].canBuy == true)) && !handledObject[tempItems[i].dictId])
++            if((tempItems[i]) && ((seller != -1 && tempItems[i].seller == seller || seller == -1 && tempItems[i].canBuy == true)) && !handledObject[tempItems[i].dictId])
+             {
+                handledObject[tempItems[i].dictId] = true;
+                value.push(tempItems[i]);
+@@ -381,7 +381,7 @@
+          }
+          for(i = 0; i < tempItems.length; i++)
+          {
+-            if(Boolean(tempItems[i]) && !handledObject[tempItems[i].dictId])
++            if((tempItems[i]) && !handledObject[tempItems[i].dictId])
+             {
+                handledObject[tempItems[i].dictId] = true;
+                value.push(tempItems[i]);
+@@ -394,7 +394,7 @@
+       
+       public function toggleUpgradeMode() : void
+       {
+-         this._allwayShowControlPanel = !this._allwayShowControlPanel;
++         _allwayShowControlPanel = !this._allwayShowControlPanel;
+          this.itemControlPanel.toggleModifiersButtons();
+          if(this._allwayShowControlPanel && !this.itemControlPanel.visible)
+          {
+@@ -410,7 +410,7 @@
+       
+       public function ignoreNextAttach(value:int) : void
+       {
+-         this._ignoreNextAttach = value;
++         _ignoreNextAttach = value;
+       }
+       
+       public function onPlayerMoneyUpdate(e:Event = null) : void
+@@ -423,12 +423,14 @@
+       
+       public function setupShopItems(value:Array) : void
+       {
+-         var item:ItemData = null;
+          trace("IL::setupShopItems",sellersTabPage.selectedIndex);
+-         this._shopItems = value;
+-         if(!visible)
+-         {
+-            this._activated = false;
++         _shopItems = value;
++         if(visible)
++         {
++         }
++         else
++         {
++            _activated = false;
+          }
+          for(var i:uint = 0; i < value.length; i++)
+          {
+@@ -444,14 +446,15 @@
+          }
+          var supper:Array = optionControl.getSelectedIndexes();
+          var filterOptions:Object = optionControl.getFilterOptions();
+-         var seller:int = sellersTabPage.selectedIndex != -1 ? int(sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id) : 0;
++         var seller:int = sellersTabPage.selectedIndex != -1 ? (sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id) : 0;
++         var item:ItemData;
+          this.ApplyInventoryFilter(supper,inventoryTabPage.selectedIndex,seller,filterOptions);
+       }
+       
+       public function lockControls(value:Boolean) : void
+       {
+          trace("lockControls::",value);
+-         this._inventoryLocked = value;
++         _inventoryLocked = value;
+          inventoryTabPage.mouseEnabled = !value;
+          inventoryTabPage.mouseChildren = !value;
+          btnClose.mouseEnabled = !value;
+@@ -468,11 +471,11 @@
+       {
+          if(elementId == 2)
+          {
+-            this._inventoryLocked = state;
++            _inventoryLocked = state;
+          }
+          else
+          {
+-            this._shopLocked = state;
++            _shopLocked = state;
+          }
+          this.handleLockedWindow();
+       }
+@@ -508,14 +511,9 @@
+       
+       public function createBaseItem(dictId:uint) : ItemData
+       {
+-         var icons:IconContainer = null;
+-         var ammoItems:Array = null;
+-         var ammoStr:String = null;
+-         var ammoL:uint = 0;
+-         var j:uint = 0;
+-         var descrName:String = null;
+          var descrData:Object = _itemDescriptor.getItemDescription(dictId);
+          var item_data:ItemData = new ItemData();
++         var icons:IconContainer;
+          var category:int = ItemFactory.getCategory(descrData.category);
+          if(category == 1)
+          {
+@@ -584,7 +582,7 @@
+             item_data.modifiersDefault[i].isDefault = true;
+          }
+          item_data.properties = descrData.item_properties;
+-         if(Boolean(descrData.descr))
++         if((descrData.descr))
+          {
+             item_data.itemDescription = descrData.descr;
+          }
+@@ -611,7 +609,7 @@
+          item_data.upgradesAvailable = descrData.upgrades_available;
+          item_data.weight = descrData.weight;
+          item_data.clipSize = descrData.clip_size;
+-         item_data.quickSlotItemSize = Boolean(descrData.fills_whole_pocket) ? 2 : 1;
++         item_data.quickSlotItemSize = (descrData.fills_whole_pocket) ? 2 : 1;
+          item_data.clipsInBag = descrData.clips_in_bag;
+          if(descrData.required_bags != undefined)
+          {
+@@ -619,12 +617,17 @@
+          }
+          item_data.usable = item_data.category == FiltersWindow.CAT_VOUCHER && (item_data.type == 3 || item_data.type == 0);
+          var str:String = "";
++         var ammoItems:Array;
++         var ammoStr:String;
++         var ammoL:uint;
++         var j:uint;
++         var descrName:String;
+          if(item_data.isWeapon)
+          {
+             if(!descrData.ammo_text)
+             {
+                ammoItems = ItemFactory.getItemCombableItemNames(item_data.dictId);
+-               if(Boolean(ammoItems))
++               if((ammoItems))
+                {
+                   ammoStr = "";
+                   ammoL = ammoItems.length;
+@@ -632,7 +635,7 @@
+                   for(j = 0; j < ammoL; j++)
+                   {
+                      descrName = _itemDescriptor.getItemDescription(ammoItems[j]).name;
+-                     if(Boolean(descrName))
++                     if((descrName))
+                      {
+                         str += "   " + descrName + "\n";
+                         item_data.ammoText += (j == 0 ? "" : ", ") + descrName;
+@@ -651,16 +654,16 @@
+       
+       public function createItem(dictId:uint, seller:* = -1) : ItemData
+       {
+-         var seller_icon:Icon = null;
+          var seller_icons:IconContainer = IconContainer.getInstance("factionItemIcons");
+          var descrData:Object = _itemDescriptor.getItemDescription(dictId);
+          var item_data:ItemData = this.createBaseItem(dictId);
++         var seller_icon:Icon;
+          var factionId:int = seller;
+-         if(Boolean(descrData) && Boolean(descrData.sellers))
++         if((descrData) && (descrData.sellers))
+          {
+             if((descrData.sellers as Array).length == 1)
+             {
+-               factionId = int(descrData.sellers[0].faction_id);
++               factionId = (descrData.sellers[0].faction_id);
+             }
+             else
+             {
+@@ -705,7 +708,7 @@
+          {
+             item.rank = value.rarity_level;
+          }
+-         if(Boolean(value.cost))
++         if((value.cost))
+          {
+             item.cost = value.cost;
+          }
+@@ -718,21 +721,21 @@
+       protected function updateItemTipText(item:ItemData) : void
+       {
+          var lvlTip:String = item.superCategory != 5 ? Util.styledChar(LocalizationData.getName("equipment_level") + " - " + item.itemLevel.toString(),"gray") : "";
+-         var tipStr:String = "" + (Boolean(item.rank) ? Util.styledChar(LocalizationData.getName("modified") + "\n","green") : "") + (Boolean(item.ammoText) ? LocalizationData.getName("ammo") + ":\n" + item.ammoText : "") + (Boolean(lvlTip) ? Util.styledChar(" \n","small") + lvlTip : "");
++         var tipStr:String = "" + ((item.rank) ? Util.styledChar(LocalizationData.getName("modified") + "\n","green") : "") + ((item.ammoText) ? LocalizationData.getName("ammo") + ":\n" + item.ammoText : "") + ((lvlTip) ? Util.styledChar(" \n","small") + lvlTip : "");
+          item.tipText = tipStr;
+       }
+       
+       public function fillModifierDescription(modifier:Object) : void
+       {
+-         var propDescription:Object = null;
+-         var modifierProp:Object = null;
+-         var propValue:Number = NaN;
+-         var propPostFix:String = null;
+-         var propPrefix:String = null;
+-         var style:String = null;
+-         var propHintTx:String = null;
+-         this._propsDescriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
++         var propDescription:Object;
++         _propsDescriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
+          var modificatorProps:Object = modifier.props;
++         var modifierProp:Object;
++         var propValue:Number;
++         var propPostFix:String;
++         var propPrefix:String;
++         var style:String;
++         var propHintTx:String;
+          trace("modifier::",modificatorProps);
+          modifier.textValue = "";
+          for each(modifierProp in modificatorProps)
+@@ -743,13 +746,13 @@
+                propValue = Util.stringToNumber(modifierProp.prop_value);
+             }
+             propDescription = this._propsDescriptor.getPropertyDescription(modifierProp.prop_id);
+-            if(Boolean(propDescription))
++            if((propDescription))
+             {
+                propPostFix = propDescription.modifier_type == 0 ? propDescription.postfix : "%";
+                propPrefix = modifierProp.prop_value >= 0 ? "+" : "";
+                style = propDescription.direction == 0 && modifierProp.prop_value < 0 || propDescription.direction == 1 && modifierProp.prop_value > 0 ? "green" : "red";
+-               propValue = propDescription.modifier_type == 0 ? Number(modifierProp.prop_value) : modifierProp.prop_value * 100;
+-               propHintTx = propDescription.prop_name + ": " + Util.styledChar(propPrefix + propValue + (Boolean(propPostFix) ? propPostFix : ""),style);
++               propValue = propDescription.modifier_type == 0 ? modifierProp.prop_value : modifierProp.prop_value * 100;
++               propHintTx = propDescription.prop_name + ": " + Util.styledChar(propPrefix + propValue + ((propPostFix) ? propPostFix : ""),style);
+                modifier.textValue += propHintTx + "\n";
+             }
+          }
+@@ -757,16 +760,7 @@
+       
+       public function fillModifiersDescription(value:ItemData) : void
+       {
+-         var propDescription:Object = null;
+-         var propPostFix:String = null;
+-         var propPrefix:String = null;
+-         var style:String = null;
+-         var modificatorProps:Object = null;
+-         var modifierProp:Object = null;
+-         var propValue:Number = NaN;
+-         var propHintTx:String = null;
+-         var propHint:String = null;
+-         this._propsDescriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
++         _propsDescriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
+          var modifiers:Array = value.modifiers;
+          trace("fillModifiersDescription::",value.name,value.itemId,modifiers);
+          if(!modifiers)
+@@ -776,8 +770,17 @@
+          var hintText:String = "";
+          var props:Object = new Object();
+          var originName:String = value.name;
++         var propDescription:Object;
++         var propPostFix:String;
++         var propPrefix:String;
++         var style:String;
+          for(var i:uint = 0; i < modifiers.length; i++)
+          {
++            var modificatorProps:Object;
++            var modifierProp:Object;
++            var propValue:Number;
++            var propHintTx:String;
++            var propHint:String;
+             modificatorProps = modifiers[i].props;
+             trace("modifier::",hintText,modificatorProps);
+             modifiers[i].textValue = "";
+@@ -787,9 +790,9 @@
+                {
+                   trace("addPropValue::",modifierProp.prop_id,modifierProp.prop_value);
+                   props[modifierProp.prop_id] = {
+-                     "prop_id":modifierProp.prop_id,
+-                     "prop_value":0,
+-                     "modifier":modifiers[i]
++                     prop_id:modifierProp.prop_id,
++                     prop_value:0,
++                     modifier:modifiers[i]
+                   };
+                }
+                propValue = Number(modifierProp.prop_value);
+@@ -799,13 +802,13 @@
+                }
+                props[modifierProp.prop_id].prop_value += propValue;
+                propDescription = this._propsDescriptor.getPropertyDescription(modifierProp.prop_id);
+-               if(Boolean(propDescription))
++               if((propDescription))
+                {
+                   propPostFix = propDescription.modifier_type == 0 ? propDescription.postfix : "%";
+                   propPrefix = modifierProp.prop_value >= 0 ? "+" : "";
+                   style = propDescription.direction == 0 && modifierProp.prop_value < 0 || propDescription.direction == 1 && modifierProp.prop_value > 0 ? "green" : "red";
+-                  propValue = propDescription.modifier_type == 0 ? Number(modifierProp.prop_value) : modifierProp.prop_value * 100;
+-                  propHintTx = propDescription.prop_name + ": " + Util.styledChar(propPrefix + propValue + (Boolean(propPostFix) ? propPostFix : ""),style);
++                  propValue = propDescription.modifier_type == 0 ? modifierProp.prop_value : modifierProp.prop_value * 100;
++                  propHintTx = propDescription.prop_name + ": " + Util.styledChar(propPrefix + propValue + ((propPostFix) ? propPostFix : ""),style);
+                   modifiers[i].textValue += propHintTx + "\n";
+                }
+             }
+@@ -813,7 +816,7 @@
+          for each(modifierProp in props)
+          {
+             propDescription = this._propsDescriptor.getPropertyDescription(modifierProp.prop_id);
+-            if(Boolean(propDescription))
++            if((propDescription))
+             {
+                if(propDescription.postfix == undefined)
+                {
+@@ -826,7 +829,7 @@
+                   propDescription.modifier_type = 2;
+                   propDescription.modifier_type = modifierProp.modifier_type;
+                }
+-               propValue = propDescription.modifier_type == 0 ? Number(modifierProp.prop_value) : modifierProp.prop_value * 100;
++               propValue = propDescription.modifier_type == 0 ? modifierProp.prop_value : modifierProp.prop_value * 100;
+                propValue = Math.round(propValue / 0.01) * 0.01;
+                style = propDescription.direction == 0 && modifierProp.prop_value < 0 || propDescription.direction == 1 && modifierProp.prop_value > 0 ? "green" : "red";
+                propHint = propDescription.prop_name + ": " + Util.styledChar(propPrefix + propValue + propPostFix,style);
+@@ -846,7 +849,7 @@
+          trace("IL:forEachAmmo::",items);
+          for(var i:uint = 0; i < items; i++)
+          {
+-            if(Boolean(value(this._ammoItems[i])))
++            if((value(this._ammoItems[i])))
+             {
+                break;
+             }
+@@ -855,11 +858,12 @@
+       
+       public function addFakeItems(value:Array) : void
+       {
++         return;
++         return;
+       }
+       
+       private function getItemBroken(value:Array) : Boolean
+       {
+-         var modifier:Object = null;
+          if(!value)
+          {
+             return false;
+@@ -867,8 +871,9 @@
+          var l:uint = value.length;
+          for(var i:uint = 0; i < l; i++)
+          {
++            var modifier:Object;
+             modifier = value[i];
+-            if(Boolean(modifier.state))
++            if((modifier.state))
+             {
+                return true;
+             }
+@@ -878,7 +883,6 @@
+       
+       private function getItemRank(value:Array) : int
+       {
+-         var modifier:Object = null;
+          var rank:uint = 0;
+          if(!value)
+          {
+@@ -887,6 +891,7 @@
+          var l:uint = value.length;
+          for(var i:uint = 0; i < l; i++)
+          {
++            var modifier:Object;
+             modifier = value[i];
+             if(!modifier.state)
+             {
+@@ -898,20 +903,11 @@
+       
+       public function updateInventoryItem(itemData:Object) : void
+       {
+-         var str:String = null;
+-         var ammoItems:Array = null;
+-         var ammoL:uint = 0;
+-         var j:uint = 0;
+-         var descrName:String = null;
+-         var l:int = 0;
+-         var i:int = 0;
+-         var supper:Array = null;
+-         var filterOptions:Object = null;
+          var item:ItemData = this.getInventoryItem(itemData.id);
+-         trace("updateInventoryItem::",item,this._ignoreNextAttach,Boolean(item) ? item.name : "no_item",itemData.id,itemData.upgrades,"cond::",itemData.condition_or_stack,"modifiers::",itemData.modifiers,"attached::",itemData.is_attached_to,itemData.equipped);
++         trace("updateInventoryItem::",item,this._ignoreNextAttach,(item) ? item.name : "no_item",itemData.id,itemData.upgrades,"cond::",itemData.condition_or_stack,"modifiers::",itemData.modifiers,"attached::",itemData.is_attached_to,itemData.equipped);
+          if(!itemData)
+          {
+-            throw Error("cannotFindItemToUpdate " + itemData + " with id " + (Boolean(itemData) ? itemData.id : "null"));
++            throw Error("cannotFindItemToUpdate " + itemData + " with id " + ((itemData) ? itemData.id : "null"));
+          }
+          item.value = itemData.condition_or_stack;
+          if(itemData.modifiers != undefined)
+@@ -933,13 +929,13 @@
+             {
+                str = "";
+                ammoItems = ItemFactory.getItemCombableItemNames(item.dictId);
+-               if(Boolean(ammoItems))
++               if((ammoItems))
+                {
+                   ammoL = ammoItems.length;
+                   for(j = 0; j < ammoL; j++)
+                   {
+                      descrName = _itemDescriptor.getItemDescription(ammoItems[j]).name;
+-                     if(Boolean(descrName))
++                     if((descrName))
+                      {
+                         str += "   " + descrName + "\n";
+                      }
+@@ -958,7 +954,7 @@
+             if(this._ignoreNextAttach == item.itemId && itemData.is_attached_to == 0)
+             {
+                trace("ignoredAtZero");
+-               this._ignoreNextAttach = 0;
++               _ignoreNextAttach = 0;
+             }
+             else
+             {
+@@ -968,7 +964,7 @@
+          }
+          item.repairTime = itemData.repair_time;
+          item.rerollTime = itemData.reroll_time;
+-         if(Boolean(item.repairTime))
++         if((item.repairTime))
+          {
+             item.enabled = false;
+          }
+@@ -982,12 +978,12 @@
+          }
+          if(itemData.upgrades == undefined)
+          {
+-            itemData.upgrades = [{"id":9003}];
++            itemData.upgrades = [{id:9003}];
+          }
+          item.upgrades = itemData.upgrades;
+-         if(Boolean(item.upgrades))
+-         {
+-            l = int(item.upgrades.length);
++         if((item.upgrades))
++         {
++            l = (item.upgrades.length);
+             for(i = 0; i < l; i++)
+             {
+                trace("updateItem::upgrades",item.upgrades[i].id);
+@@ -1002,16 +998,25 @@
+             dispatchEvent(new Event(Event.CHANGE));
+          }
+          var pp:ILocalPlayerProfile = parent["player_profile"];
++         var str:String;
++         var ammoItems:Array;
++         var ammoL:uint;
++         var j:uint;
++         var descrName:String;
++         var l:int;
++         var i:int;
++         var supper:Array;
++         var filterOptions:Object;
+          pp.refillItem(itemData.id);
+          trace("itemUpdated");
+       }
+       
+       public function getBundleData(value:int) : Object
+       {
+-         var itemData:Object = null;
+          var l:uint = this._bundleItems.length;
+          for(var i:uint = 0; i < l; i++)
+          {
++            var itemData:Object;
+             itemData = this._bundleItems[i];
+             if(itemData.itemId == value)
+             {
+@@ -1023,14 +1028,7 @@
+       
+       public function setupBundleData(p:Array) : void
+       {
+-         var itemData:Object = null;
+-         var item:ItemData = null;
+-         var iconRow:int = 0;
+-         var iconColumn:int = 0;
+-         var bundleItems:Array = null;
+-         var j:uint = 0;
+-         var newItem:ItemData = null;
+-         this._bundleItems = p;
++         _bundleItems = p;
+          var l:uint = this._bundleItems.length;
+          var iconsContainer:IconContainer = IconContainer.getInstance("bundles");
+          var sellerIcons:IconContainer = IconContainer.getInstance("factionItemIcons");
+@@ -1084,7 +1082,7 @@
+                }
+                newItem.upgrades = [];
+                newItem.sellerIcon = sellerIcons.getIcon(0);
+-               newItem.value = newItem.isStack ? uint(bundleItems[j].amount) : 100;
++               newItem.value = newItem.isStack ? (bundleItems[j].amount) : 100;
+                this.fillModifiersDescription(newItem);
+                bundleItems[j] = newItem;
+             }
+@@ -1093,38 +1091,38 @@
+          }
+          var supper:Array = optionControl.getSelectedIndexes();
+          var filterOptions:Object = optionControl.getFilterOptions();
+-         var seller:int = sellersTabPage.selectedIndex != -1 ? int(sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id) : 0;
++         var seller:int = sellersTabPage.selectedIndex != -1 ? sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id : 0;
++         var itemData:Object;
++         var item:ItemData;
++         var iconRow:int;
++         var iconColumn:int;
++         var bundleItems:Array;
++         var j:uint;
++         var newItem:ItemData;
+          this.ApplyInventoryFilter(supper,inventoryTabPage.selectedIndex,seller,filterOptions);
+       }
+       
+       [Event(name="change",type="flash.events.Event")]
+       public function setupInventoryData(p:Array) : void
+       {
+-         var itemData:Object = null;
+-         var item:ItemData = null;
+-         var itemId:int = 0;
+-         var created:Boolean = false;
+-         var inRepair:Boolean = false;
+-         var timer:Timer = null;
+-         var victory_screen:* = undefined;
+          trace("setupInventoryData",p.length);
+-         this._inventoryItems = p;
++         _inventoryItems = p;
+          PlayerInfo.setVoucherCount(PlayerInfo.getVoucherDictId(0),0,0,0);
+          PlayerInfo.setVoucherCount(PlayerInfo.getVoucherDictId(1),0,1,0);
+          PlayerInfo.setVoucherCount(PlayerInfo.getVoucherDictId(2),0,2,0);
+          this.addFakeItems(this._inventoryItems);
+-         if(Boolean(this._ammoItems))
++         if((this._ammoItems))
+          {
+             this._ammoItems.length = 0;
+          }
+-         this._ammoItems = new Array();
++         _ammoItems = new Array();
+          var tempDictionary:Dictionary = new Dictionary(true);
+          var foundSold:Boolean = false;
+          var l:uint = this._inventoryItems.length;
+          for(var i:uint = 0; i < l; i++)
+          {
+             itemData = this._inventoryItems[i];
+-            itemId = int(itemData.id);
++            itemId = (itemData.id);
+             created = this._inventoryItemsDict[itemId] != null;
+             if(!created)
+             {
+@@ -1146,7 +1144,7 @@
+             item.equipped = itemData.is_attached_to;
+             item.slotTarget = itemData.is_attached_to;
+             trace("IV:addItem::",item.name,"rt::",item.repairTime,itemData.repair_time,"| icon:id",item.iconId,item.dictId,itemData.is_attached_to,item.itemId,item.rank,"category::",item.category,"vcat",CAT_VOUCHER,"cost::",item.cost,itemData.cost,item.icon,item.sellerIcon,item.messIcon);
+-            if(Boolean(item.repairTime))
++            if((item.repairTime))
+             {
+                item.enabled = false;
+                timer = QuestWindow.getTimerInstance();
+@@ -1160,7 +1158,7 @@
+             {
+                item.enabled = true;
+             }
+-            if(Boolean(item.rerollTime))
++            if((item.rerollTime))
+             {
+                timer = QuestWindow.getTimerInstance();
+                if(!created)
+@@ -1184,15 +1182,15 @@
+             item.upgrades = itemData.upgrades;
+             this._inventoryItems[i] = item;
+             trace("ItemCreated::",item.itemId);
+-            if(Boolean(this._cardItem))
++            if((this._cardItem))
+             {
+                trace("_cardItem.action",this._cardItem.action,this._cardItem.id," == ",this._inventoryItems[i].id);
+                if(this._cardItem.action == "buy" && this._cardItem.id == this._inventoryItems[i].dictId)
+                {
+                   if(this._cardItem.itemsAtStart == 0)
+                   {
+-                     parent["add_notification"]({"label":LocalizationData.getName("bought") + " " + this._inventoryItems[i].name});
+-                     this._cardItem = null;
++                     parent["add_notification"]({label:LocalizationData.getName("bought") + " " + this._inventoryItems[i].name});
++                     _cardItem = null;
+                   }
+                   else
+                   {
+@@ -1205,23 +1203,30 @@
+                }
+             }
+          }
+-         if(Boolean(!foundSold) && Boolean(this._cardItem) && this._cardItem.action == "sell")
++         if((!foundSold) && (this._cardItem) && this._cardItem.action == "sell")
+          {
+             Message.showMessage("ok",LocalizationData.getName("sold") + " " + this._cardItem.name);
+          }
+-         this._cardItem = null;
+-         this._inventoryItemsDict = tempDictionary;
++         _cardItem = null;
++         _inventoryItemsDict = tempDictionary;
+          var pp:ILocalPlayerProfile = parent["player_profile"];
+          pp.handleUnresolvedItems();
+          pp.fillEquippedItems();
+          var supper:Array = optionControl.getSelectedIndexes();
+          var filterOptions:Object = optionControl.getFilterOptions();
++         var itemData:Object;
++         var item:ItemData;
++         var itemId:int;
++         var created:Boolean;
++         var inRepair:Boolean;
++         var timer:Timer;
++         var victory_screen:*;
+          this.ApplyInventoryFilter(supper,inventoryTabPage.selectedIndex,sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id,filterOptions);
+          dispatchEvent(new Event(Event.CHANGE));
+-         if(Boolean(parent))
++         if((parent))
+          {
+             victory_screen = parent["victory_screen"];
+-            if(Boolean(victory_screen) && Boolean(victory_screen.visible))
++            if((victory_screen) && (victory_screen.visible))
+             {
+                victory_screen.updateVoucherCount();
+             }
+@@ -1233,7 +1238,7 @@
+          var items:uint = this._inventoryItems.length;
+          for(var i:uint = 0; i < items; i++)
+          {
+-            if(Boolean(value(this._inventoryItems[i])))
++            if((value(this._inventoryItems[i])))
+             {
+                break;
+             }
+@@ -1250,9 +1255,9 @@
+          }
+          factions.length = Math.min(4,factions.length);
+          factions.unshift({
+-            "icon":2,
+-            "faction_id":0,
+-            "name":LocalizationData.getName("non_faction_items")
++            icon:2,
++            faction_id:0,
++            name:LocalizationData.getName("non_faction_items")
+          });
+          sellersTabPage.dataProvider = new DataProvider(factions);
+          sellersTabPage.invalidate(InvalidationType.ALL);
+@@ -1266,13 +1271,13 @@
+       
+       public function tryAutoFill(value:ItemData) : void
+       {
+-         var _relocateArray:Array = null;
+-         var _obj:Object = null;
+-         var icon:Sprite = null;
+          var paperDoll:ILocalPaperDoll = parent["player_profile"].profileItems;
+          var pp:ILocalPlayerProfile = parent["player_profile"];
+          paperDoll.selectAgeements(value.category,value.dictId,value.oneHanded,false,value.itemId);
+          var trgSlt:int = paperDoll.getSlot(value);
++         var _relocateArray:Array;
++         var _obj:Object;
++         var icon:Sprite;
+          paperDoll.deselectAgeements();
+          trace("tryAutoFill::",trgSlt);
+          if(trgSlt != -1)
+@@ -1282,12 +1287,12 @@
+                if(value.enabled)
+                {
+                   _relocateArray = [{
+-                     "profile":pp.profileId,
+-                     "id":value.itemId,
+-                     "dict_id":value.dictId,
+-                     "sourceSlot":100,
+-                     "targetSlot":trgSlt,
+-                     "count":1
++                     profile:pp.profileId,
++                     id:value.itemId,
++                     dict_id:value.dictId,
++                     sourceSlot:100,
++                     targetSlot:trgSlt,
++                     count:1
+                   }];
+                   pp._relocateFunction(_relocateArray);
+                }
+@@ -1332,14 +1337,14 @@
+       
+       public function scrollToCategory(value:int) : void
+       {
+-         var itemData:Object = null;
+          var dataProvider:DataProvider = itemsTileList.dataProvider as DataProvider;
+-         var l:int = int(dataProvider.length);
++         var l:int = dataProvider.length;
+          trace("scrollToCategory::",value,"in",l,"items.");
+          for(var i:uint = 0; i < l; i++)
+          {
++            var itemData:Object;
+             itemData = dataProvider[i];
+-            if(Boolean(itemData) && itemData.category == value)
++            if((itemData) && itemData.category == value)
+             {
+                trace("newSL::",i,int(i / itemsTileList.columnCount) * 20);
+                itemsTileList.scrollBar.position = int(i / itemsTileList.columnCount) * 20;
+@@ -1350,13 +1355,6 @@
+       
+       public function selectCategory(value:Array, deselect:Boolean = false, lock:Boolean = false) : void
+       {
+-         var dataProvider:DataProvider = null;
+-         var pLength:uint = 0;
+-         var i:uint = 0;
+-         var k:uint = 0;
+-         var fin:Array = null;
+-         var g:uint = 0;
+-         var h:uint = 0;
+          trace("selectCategoty:: " + String(value));
+          if(!value || this.ignoreSelection)
+          {
+@@ -1370,6 +1368,13 @@
+          var selectCount:uint = value.length;
+          for(var j:uint = 0; j < providers; j++)
+          {
++            var dataProvider:DataProvider;
++            var pLength:uint;
++            var i:uint;
++            var k:uint;
++            var fin:Array;
++            var g:uint;
++            var h:uint;
+             dataProvider = optionControl.filterList.getDataProvider(j);
+             pLength = dataProvider.length;
+             for(i = 0; i < pLength; i++)
+@@ -1417,7 +1422,8 @@
+       
+       public function getItemData(dictId:uint) : Object
+       {
+-         return _itemDescriptor.getItemDescription(dictId);
++         var descrData:Object = _itemDescriptor.getItemDescription(dictId);
++         return descrData;
+       }
+       
+       public function getItemDataByDictId(dictId:uint) : ItemData
+@@ -1455,28 +1461,29 @@
+       
+       public function getItemRenderer(value:int = 0) : DisplayObject
+       {
+-         var renderer:* = undefined;
+-         var itemData:Object = null;
+          var dataProvider:DataProvider = itemsTileList.dataProvider as DataProvider;
+-         var l:int = int(dataProvider.length);
++         var l:int = (dataProvider.length);
++         var renderer:*;
+          var position:Number = itemsTileList.getActualScrollPosition();
+          var totalRenderers:int = itemsTileList.rowCount * itemsTileList.columnCount;
+          trace("IL:getItemRenderer::",value,"r:",totalRenderers,position);
+          for(var i:uint = 0; i < totalRenderers; i++)
+          {
++            var itemData:Object;
+             renderer = itemsTileList.getRendererAt(i,position);
+             trace("getRendererAt",i,position,renderer);
+-            if(renderer)
+-            {
+-               itemData = renderer.data;
+-               if(Boolean(itemData))
+-               {
+-                  trace("getRendererDict",itemData.name,itemData.dictId,value);
+-               }
+-               if(Boolean(itemData) && itemData.dictId == value)
+-               {
+-                  return renderer;
+-               }
++            if(!renderer)
++            {
++               continue;
++            }
++            itemData = renderer.data;
++            if((itemData))
++            {
++               trace("getRendererDict",itemData.name,itemData.dictId,value);
++            }
++            if((itemData) && itemData.dictId == value)
++            {
++               return renderer;
+             }
+          }
+          return null;
+@@ -1484,36 +1491,36 @@
+       
+       public function hoverItem(value:int = 0) : void
+       {
+-         var renderer:IInventoryItemRenderer = null;
+-         var i:uint = 0;
+-         var itemData:Object = null;
+          var dataProvider:DataProvider = itemsTileList.dataProvider as DataProvider;
+-         var l:int = int(dataProvider.length);
++         var l:int = (dataProvider.length);
++         var renderer:IInventoryItemRenderer;
+          var position:Number = itemsTileList.getActualScrollPosition();
++         var i:uint;
++         var itemData:Object;
+          trace("IL:hoverItem::",value);
+          if(value == 0)
+          {
+             renderer = itemsTileList.getRendererAt(this._hoverIndex,position) as IInventoryItemRenderer;
+-            if(Boolean(renderer))
++            if((renderer))
+             {
+                renderer.hover(false);
+             }
+-            this._hoverIndex = -1;
++            _hoverIndex = -1;
+          }
+          else
+          {
+             for(i = 0; i < l; i++)
+             {
+                itemData = dataProvider[i];
+-               if(Boolean(itemData) && itemData.itemId == value)
++               if((itemData) && itemData.itemId == value)
+                {
+                   renderer = itemsTileList.getRendererAt(i,position) as IInventoryItemRenderer;
+-                  if(Boolean(renderer))
++                  if((renderer))
+                   {
+                      trace("hoverItem::",renderer,i);
+                      renderer.hover();
+                      renderer.validateNow();
+-                     this._hoverIndex = i;
++                     _hoverIndex = i;
+                   }
+                   return;
+                }
+@@ -1523,14 +1530,14 @@
+       
+       public function selectItem(value:int) : void
+       {
+-         var itemData:Object = null;
+          var dataProvider:DataProvider = itemsTileList.dataProvider as DataProvider;
+-         var l:int = int(dataProvider.length);
++         var l:int = (dataProvider.length);
+          trace("selectItem::",value,"in",l,"items.");
+          for(var i:uint = 0; i < l; i++)
+          {
++            var itemData:Object;
+             itemData = dataProvider[i];
+-            if(Boolean(itemData) && itemData.itemId == value)
++            if((itemData) && itemData.itemId == value)
+             {
+                trace("newSL::",i);
+                itemsTileList.selectedIndex = i;
+@@ -1596,7 +1603,7 @@
+       
+       override protected function onNewIndex(e:ListEvent) : void
+       {
+-         var paperDoll:ILocalPaperDoll = null;
++         var paperDoll:ILocalPaperDoll;
+          if(e.index != -1)
+          {
+             paperDoll = parent["player_profile"].profileItems;
+@@ -1608,7 +1615,7 @@
+             }
+             this.itemControlPanel.visible = true;
+             this.onFilterShowed();
+-            if(Boolean(this.bundleList.visible) && Boolean(e.itemData) && this.bundleList.itemId != (e.itemData as ItemData).dictId)
++            if((this.bundleList.visible) && (e.itemData) && this.bundleList.itemId != (e.itemData as ItemData).dictId)
+             {
+                this.bundleList.itemId = -1;
+                this.bundleList.visible = false;
+@@ -1616,7 +1623,7 @@
+          }
+          else
+          {
+-            if(this._allwayShowControlPanel)
++            if(!this._allwayShowControlPanel)
+             {
+             }
+             this.bundleList.itemId = -1;
+@@ -1638,7 +1645,7 @@
+          var messageData:ItemData = new ItemData();
+          messageData.itemId = _data.itemId;
+          messageData.name = _data.name;
+-         messageData.sellerIcon = Boolean(_data.sellerIcon) ? _data.sellerIcon.clone() : null;
++         messageData.sellerIcon = (_data.sellerIcon) ? _data.sellerIcon.clone() : null;
+          messageData.icon = _data.messIcon;
+          messageData.value = _data.value;
+          messageData.modifiers = this.getFailModifiers(_data);
+@@ -1649,24 +1656,24 @@
+       
+       protected function getFailModifiers(_data:Object) : Array
+       {
+-         var _modifiersIconContainer:IconContainer = null;
+-         var icon:Icon = null;
+          var modifiers:Array = _data.modifiers != null ? _data.modifiers : [];
+          var modificators:Array = [];
+          for(var j:uint = 0; j < modifiers.length; j++)
+          {
++            var _modifiersIconContainer:IconContainer;
++            var icon:Icon;
+             if(modifiers[j].state == 1)
+             {
+                _modifiersIconContainer = IconContainer.getInstance("modifiers");
+                icon = _modifiersIconContainer.getIcon(modifiers[j].icon);
+                modificators.push({
+-                  "name":modifiers[j].name,
+-                  "props":modifiers[j].props,
+-                  "icon":icon,
+-                  "state":modifiers[j].state,
+-                  "fix_time_general":modifiers[j].fix_time_general,
+-                  "fix_cost_general":modifiers[j].fix_cost_general,
+-                  "fix_cost_gold":modifiers[j].fix_cost_gold
++                  name:modifiers[j].name,
++                  props:modifiers[j].props,
++                  icon:icon,
++                  state:modifiers[j].state,
++                  fix_time_general:modifiers[j].fix_time_general,
++                  fix_cost_general:modifiers[j].fix_cost_general,
++                  fix_cost_gold:modifiers[j].fix_cost_gold
+                });
+             }
+          }
+@@ -1676,23 +1683,23 @@
+       
+       protected function fillModifiersNames(modificators:Array) : void
+       {
+-         var hintText:String = null;
+-         var modificatorProps:Object = null;
+-         var modifierProp:Object = null;
+-         var propDescription:Object = null;
+-         var propPostFix:String = null;
+-         var propPrefix:String = null;
+-         var propValue:Number = NaN;
+-         var style:String = null;
+          for(var i:uint = 0; i < modificators.length; i++)
+          {
++            var hintText:String;
++            var modificatorProps:Object;
++            var modifierProp:Object;
++            var propDescription:Object;
++            var propPostFix:String;
++            var propPrefix:String;
++            var propValue:Number;
++            var style:String;
+             hintText = "";
+             modificatorProps = modificators[i].props;
+             trace("props::",hintText,modificatorProps,this._propsDescriptor);
+             for each(modifierProp in modificatorProps)
+             {
+                propDescription = this._propsDescriptor.getPropertyDescription(modifierProp.prop_id);
+-               if(Boolean(propDescription))
++               if((propDescription))
+                {
+                   if(propDescription.postfix == undefined)
+                   {
+@@ -1710,7 +1717,7 @@
+                      throw Error("modifier_type at modifier " + modificators[i].name + " for prop_id " + modifierProp.prop_id + " is invalid");
+                   }
+                   trace("propValue::",propDescription.direction,modifierProp.direction);
+-                  propValue = propDescription.modifier_type == 0 ? Number(modifierProp.prop_value) : modifierProp.prop_value * 100;
++                  propValue = propDescription.modifier_type == 0 ? (modifierProp.prop_value) : modifierProp.prop_value * 100;
+                   style = propDescription.direction == 0 && modifierProp.prop_value < 0 || propDescription.direction == 1 && modifierProp.prop_value > 0 ? "green" : "red";
+                   hintText += propDescription.prop_name + ": " + Util.styledChar(propPrefix + (int(propValue) == propValue ? propValue.toString() : propValue.toFixed(1)) + propPostFix,style) + "\n";
+                }
+@@ -1722,7 +1729,7 @@
+       protected function wearElement(value:ItemData) : void
+       {
+          trace("wearElement::",value);
+-         if(Boolean(value))
++         if((value))
+          {
+             this.tryAutoFill(value);
+          }
+@@ -1730,11 +1737,11 @@
+       
+       protected function wearItem(event:Event = null) : void
+       {
+-         var value:Object = null;
+          var position:Number = itemsTileList.getActualScrollPosition();
+          var item:* = itemsTileList.getRendererAt(itemsTileList.selectedIndex,position);
++         var value:Object;
+          trace("wearItem",item);
+-         if(Boolean(item) && Boolean(item.data))
++         if((item) && (item.data))
+          {
+             value = item.data;
+             this.wearElement(value as ItemData);
+@@ -1743,10 +1750,10 @@
+       
+       protected function buyElement(event:Event = null) : void
+       {
+-         var value:Object = null;
+          var position:Number = itemsTileList.getActualScrollPosition();
+          var item:* = itemsTileList.getRendererAt(itemsTileList.selectedIndex,position);
+-         if(Boolean(item) && Boolean(item.data))
++         var value:Object;
++         if((item) && (item.data))
+          {
+             value = item.data;
+             if(value.descriptor == 200 && !value.canBuy)
+@@ -1776,7 +1783,7 @@
+             _obj.count = int(_objData.value);
+          }
+          var shopCost:uint = value.cost;
+-         var itemCost:uint = _objData.isPremium ? uint(shopCost * PlayerInfo.premiumExchangeRate) : shopCost;
++         var itemCost:uint = _objData.isPremium ? (shopCost * PlayerInfo.premiumExchangeRate) : shopCost;
+          var sellCost:uint = itemCost / 4 * (_objData.isStack ? 1 : _objData.value / 100);
+          _obj.price = sellCost;
+          _obj.id = _objData.itemId;
+@@ -1786,7 +1793,7 @@
+          _obj.is_stack = _objData.isStack;
+          _obj.weight = _objData.weight;
+          _obj.isPremium = false;
+-         if(Boolean(_objData.clipSize))
++         if((_objData.clipSize))
+          {
+             _obj.clip_size = _objData.clipSize;
+          }
+@@ -1824,13 +1831,13 @@
+             return;
+          }
+          var object:Object = {
+-            "text":LocalizationData.getName("use_item_message"),
+-            "onYes":this.onItemUse,
+-            "label_ok":LocalizationData.getName("btn_use_item"),
+-            "label_cancel":LocalizationData.getName("no")
++            text:LocalizationData.getName("use_item_message"),
++            onYes:this.onItemUse,
++            label_ok:LocalizationData.getName("btn_use_item"),
++            label_cancel:LocalizationData.getName("no")
+          };
+          Message.showMessage("apply",object);
+-         this._useItemId = item.data.itemId;
++         _useItemId = item.data.itemId;
+       }
+       
+       protected function craftElement(event:Event = null) : void
+@@ -1907,7 +1914,7 @@
+       {
+          this.checkboxCompareItems.label = LocalizationData.getName("checkbox_compare_items");
+          this.checkboxCompareItems.tooltipRendererName = "SrvProfileTipRenderer";
+-         this.checkboxCompareItems.tipData = {"name":LocalizationData.getName("checkbox_compare_items_hint")};
++         this.checkboxCompareItems.tipData = {name:LocalizationData.getName("checkbox_compare_items_hint")};
+          this.shopTab.dataProvider = new DataProvider([LocalizationData.getName("filter_shop_and_inventory"),LocalizationData.getName("filter_shop"),LocalizationData.getName("filter_inventory")]);
+       }
+       
+@@ -1918,14 +1925,6 @@
+       
+       private function onItemDoubleClick(e:ListEvent) : void
+       {
+-         var pp:ILocalPlayerProfile = null;
+-         var availableSlots:uint = 0;
+-         var newSlot:int = 0;
+-         var id:uint = 0;
+-         var profile:uint = 0;
+-         var dict_id:uint = 0;
+-         var targetSlot:uint = 0;
+-         var _relocateArray:Array = null;
+          trace("onItemDoubleClick::DOUBLE_CLICK");
+          if(itemsTileList.enabled == false)
+          {
+@@ -1933,13 +1932,21 @@
+          }
+          var item:ItemData = e.itemData as ItemData;
+          var itemAvailable:Boolean = item.descriptor == 100;
++         var pp:ILocalPlayerProfile;
++         var availableSlots:uint;
++         var newSlot:int;
++         var id:uint;
++         var profile:uint;
++         var dict_id:uint;
++         var targetSlot:uint;
++         var _relocateArray:Array;
+          if(itemAvailable)
+          {
+-            if(Boolean(item) && item.usable)
++            if((item) && item.usable)
+             {
+                this.useElement();
+             }
+-            else if(Boolean(item) && item.isStack == false)
++            else if((item) && item.isStack == false)
+             {
+                this.wearElement(item);
+             }
+@@ -1951,30 +1958,30 @@
+                {
+                   (e.itemRenderer as IInventoryItemRenderer).startItemDrag();
+                }
+-               else
+-               {
+-                  if(availableSlots != 1)
+-                  {
+-                     return;
+-                  }
++               else if(availableSlots == 1)
++               {
+                   newSlot = pp.paperDoll.getSlot(item,true);
+                   trace("newSlot:",newSlot);
+                   if(newSlot != -1)
+                   {
+                      id = item.itemId;
+-                     profile = uint(pp.profileId);
++                     profile = (pp.profileId);
+                      dict_id = item.dictId;
+-                     targetSlot = uint(newSlot);
++                     targetSlot = (newSlot);
+                      _relocateArray = [{
+-                        "profile":profile,
+-                        "id":id,
+-                        "dict_id":dict_id,
+-                        "sourceSlot":item.descriptor,
+-                        "targetSlot":targetSlot,
+-                        "count":1
++                        profile:profile,
++                        id:id,
++                        dict_id:dict_id,
++                        sourceSlot:item.descriptor,
++                        targetSlot:targetSlot,
++                        count:1
+                      }];
+                      pp._relocateFunction(_relocateArray);
+                   }
++               }
++               else
++               {
++                  return;
+                }
+             }
+          }
+@@ -2008,14 +2015,14 @@
+       
+       private function isUpgradeable(value:Object) : Boolean
+       {
+-         var cat:int = int(value.category);
+-         return (cat == 3 || cat == 1 || cat == 5 || cat == 4) && (Boolean(value.camoAvailable) || Boolean(value.decalAvailable));
++         var cat:int = (value.category);
++         return (cat == 3 || cat == 1 || cat == 5 || cat == 4) && ((value.camoAvailable) || (value.decalAvailable));
+       }
+       
+       protected function onMouseItemClick(e:MouseEventEx) : void
+       {
+          var activeItem:DragSlot = e.target as DragSlot;
+-         trace("onMouseItemClick:::",itemsTileList.selectedIndex,e.target,e.currentTarget,Boolean(activeItem) ? activeItem.enabled : "null");
++         trace("onMouseItemClick:::",itemsTileList.selectedIndex,e.target,e.currentTarget,(activeItem) ? activeItem.enabled : "null");
+          if(!enabled || e.buttonIdx == 0 || itemsTileList.enabled == false)
+          {
+             return;
+@@ -2025,25 +2032,25 @@
+       
+       public function showContextMenu(activeItem:DragSlot) : void
+       {
+-         var options:Array = null;
+-         var itemAvailable:Boolean = false;
+-         var fixable:Boolean = false;
+-         var rerollable:Boolean = false;
+-         var br:Boolean = false;
+-         var modifiersLength:uint = 0;
+-         var i:uint = 0;
+-         var modifier:Object = null;
+          if(!activeItem || !activeItem.data)
+          {
+             return;
+          }
+          var itemData:ItemData = activeItem.data as ItemData;
++         var options:Array;
++         var itemAvailable:Boolean;
++         var fixable:Boolean;
++         var rerollable:Boolean;
++         var br:Boolean;
++         var modifiersLength:uint;
++         var i:uint;
++         var modifier:Object;
+          if(this._inventoryLocked)
+          {
+             return;
+          }
+          trace("itemData::",itemData.enabled);
+-         if(Boolean(itemData) && (itemData.enabled || itemData.canBuy))
++         if((itemData) && (itemData.enabled || itemData.canBuy))
+          {
+             options = [];
+             itemAvailable = itemData.descriptor <= 100 && itemData.enabled;
+@@ -2052,8 +2059,8 @@
+                if(itemData.usable)
+                {
+                   options.push({
+-                     "name":LocalizationData.getName("btn_use_item"),
+-                     "click_function":this.useElement
++                     name:LocalizationData.getName("btn_use_item"),
++                     click_function:this.useElement
+                   });
+                }
+                if(!itemData.isStack && itemData.enabled)
+@@ -2063,15 +2070,15 @@
+                      if(itemData.descriptor == 100)
+                      {
+                         options.push({
+-                           "name":LocalizationData.getName("wear"),
+-                           "click_function":this.wearItem
++                           name:LocalizationData.getName("wear"),
++                           click_function:this.wearItem
+                         });
+                      }
+                      else
+                      {
+                         options.push({
+-                           "name":LocalizationData.getName("drop"),
+-                           "click_function":(activeItem as IPaperDollSlot).dropSlot
++                           name:LocalizationData.getName("drop"),
++                           click_function:(activeItem as IPaperDollSlot).dropSlot
+                         });
+                      }
+                   }
+@@ -2082,13 +2089,13 @@
+                   {
+                      fixable = true;
+                   }
+-                  if(Boolean(itemData.modifiers))
++                  if((itemData.modifiers))
+                   {
+                      modifiersLength = itemData.modifiers.length;
+                      for(i = 0; i < modifiersLength; i++)
+                      {
+                         modifier = itemData.modifiers[i];
+-                        if(Boolean(modifier))
++                        if((modifier))
+                         {
+                            if(!fixable && modifier.state == 1)
+                            {
+@@ -2108,22 +2115,22 @@
+                   if(fixable)
+                   {
+                      options.push({
+-                        "name":LocalizationData.getName("fix"),
+-                        "click_function":this.fixElement
++                        name:LocalizationData.getName("fix"),
++                        click_function:this.fixElement
+                      });
+                   }
+                   if(rerollable && !itemData.rerollTime && !itemData.broken)
+                   {
+                      options.push({
+-                        "name":LocalizationData.getName("btn_reroll_label"),
+-                        "click_function":this.upgradeItem
++                        name:LocalizationData.getName("btn_reroll_label"),
++                        click_function:this.upgradeItem
+                      });
+                   }
+                   if(this.isUpgradeable(itemData))
+                   {
+                      options.push({
+-                        "name":LocalizationData.getName("btn_upgrade_label"),
+-                        "click_function":this.upgradeElelemnt
++                        name:LocalizationData.getName("btn_upgrade_label"),
++                        click_function:this.upgradeElelemnt
+                      });
+                   }
+                }
+@@ -2131,30 +2138,30 @@
+             if(ItemFactory.isItemCraftable(itemData) && itemAvailable)
+             {
+                options.push({
+-                  "name":LocalizationData.getName("craft"),
+-                  "click_function":this.craftElement
++                  name:LocalizationData.getName("craft"),
++                  click_function:this.craftElement
+                });
+             }
+             trace("IL::context:",itemData.name,itemData.canBuy,itemData.descriptor,itemData.enabled,itemData.isPremium,itemData.cost);
+-            if(Boolean(itemData) && itemData.canBuy)
++            if((itemData) && itemData.canBuy)
+             {
+                if(itemData.isStack || !itemData.isStack && !itemData.rank)
+                {
+                   trace("addBuyOPtion");
+                   options.push({
+-                     "name":LocalizationData.getName("buy"),
+-                     "click_function":this.buyElement
++                     name:LocalizationData.getName("buy"),
++                     click_function:this.buyElement
+                   });
+                }
+             }
+             if((itemData.descriptor <= 100 && itemData.enabled || itemData.isStack) && !this.isShop)
+             {
+                options.push({
+-                  "name":LocalizationData.getName("sell"),
+-                  "click_function":this.sellElement
++                  name:LocalizationData.getName("sell"),
++                  click_function:this.sellElement
+                });
+             }
+-            if(Boolean(options.length))
++            if((options.length))
+             {
+                SrvContextMenu.show(options);
+             }
+@@ -2163,7 +2170,7 @@
+       
+       protected function changeActiveItems(e:Event) : void
+       {
+-         this._activeItems = mainTabBar.selectedIndex;
++         _activeItems = mainTabBar.selectedIndex;
+          this.handleLockedWindow();
+          this.changeInventoryFilterFromFilters(null);
+       }
+@@ -2180,7 +2187,7 @@
+       {
+          var supper:Array = optionControl.getSelectedIndexes();
+          var filterOptions:Object = optionControl.getFilterOptions();
+-         var allFaction:Boolean = Boolean(filterOptions.allTraders);
++         var allFaction:Boolean = (filterOptions.allTraders);
+          trace("fromFilter",supper,"|",sellersTabPage.selectedIndex,allFaction,sellersTabPage.mouseEnabled);
+          if(allFaction && sellersTabPage.mouseEnabled)
+          {
+@@ -2190,7 +2197,7 @@
+          {
+             sellersTabPage.enabled = true;
+          }
+-         if(Boolean(sellersTabPage.dataProvider[sellersTabPage.selectedIndex]))
++         if((sellersTabPage.dataProvider[sellersTabPage.selectedIndex]))
+          {
+             this.ApplyInventoryFilter(supper,inventoryTabPage.selectedIndex,sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id,filterOptions);
+          }
+@@ -2207,13 +2214,13 @@
+       
+       protected function sellAll(e:ButtonEvent) : void
+       {
+-         var itemData:ItemData = null;
+          var dataProvider:DataProvider = itemsTileList.dataProvider as DataProvider;
+-         var itemsCount:int = int(dataProvider.length);
++         var itemsCount:int = (dataProvider.length);
+          for(var i:uint = 0; i < itemsCount; i++)
+          {
++            var itemData:ItemData;
+             itemData = dataProvider[i] as ItemData;
+-            if(Boolean(itemData))
++            if((itemData))
+             {
+                ExternalInterface.call("sell_ok_clicked",itemData.itemId,uint(1));
+             }
+@@ -2234,24 +2241,24 @@
+       
+       public function filterItems(value:Array) : void
+       {
+-         this._filterItems = value;
++         _filterItems = value;
+          var supper:Array = optionControl.getSelectedIndexes();
+          var filterOptions:Object = optionControl.getFilterOptions();
+-         var seller:int = sellersTabPage.selectedIndex != -1 ? int(sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id) : 0;
++         var seller:int = sellersTabPage.selectedIndex != -1 ? (sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id) : 0;
+          this.ApplyInventoryFilter(supper,inventoryTabPage.selectedIndex,seller,filterOptions);
+       }
+       
+       public function filterItem(itemDictId:int) : void
+       {
+-         this._filterDictId = itemDictId;
++         _filterDictId = itemDictId;
+          var supper:Array = optionControl.getSelectedIndexes();
+          var filterOptions:Object = optionControl.getFilterOptions();
+-         var seller:int = sellersTabPage.selectedIndex != -1 ? int(sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id) : 0;
++         var seller:int = sellersTabPage.selectedIndex != -1 ? (sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id) : 0;
+          trace("filterItem::",this._filterDictId,inventoryTabPage.selectedIndex);
+-         this.ApplyInventoryFilter(supper,this._filterDictId != -1 ? 0 : uint(inventoryTabPage.selectedIndex),seller,filterOptions);
+-         if(Boolean(itemDictId))
+-         {
+-            this._filterselectedId = itemsTileList.selectedIndex;
++         this.ApplyInventoryFilter(supper,this._filterDictId != -1 ? 0 : (inventoryTabPage.selectedIndex),seller,filterOptions);
++         if((itemDictId))
++         {
++            _filterselectedId = itemsTileList.selectedIndex;
+          }
+          else
+          {
+@@ -2261,13 +2268,13 @@
+       
+       protected function filterInventoryItems() : void
+       {
+-         var itemData:ItemData = null;
+-         var isFiltered:Boolean = false;
+          var inventoryCount:uint = this._inventoryItems.length;
+          var filtered:Object = new Object();
+          var filteredItems:Array = [];
+          for(var i:uint = 0; i < inventoryCount; i++)
+          {
++            var itemData:ItemData;
++            var isFiltered:Boolean;
+             itemData = this._inventoryItems[i];
+             isFiltered = !filtered[itemData.dictId] && this._filterItems.indexOf(itemData.dictId) != -1;
+             if(isFiltered)
+@@ -2284,25 +2291,7 @@
+       
+       protected function ApplyInventoryFilter(categoryes:Array = null, category:uint = 0, seller:int = 0, options:Object = null) : void
+       {
+-         var showWeapons:Boolean;
+-         var currentItems:Array;
+-         var filteredItemsShop:Array;
+-         var inventoryCount:uint;
+-         var shopDict:Dictionary;
+-         var inventoryFilter:Boolean;
+-         var fullCheck:Boolean;
+-         var sellerId:int = 0;
+-         var filteredItems:Array = null;
+-         var shopCount:uint = 0;
+-         var inventoryDict:Dictionary = null;
+-         var itemData:ItemData = null;
+-         var relativeItem:ItemData = null;
+-         var i:uint = 0;
+-         var shopFilter:Boolean = false;
+-         var isFiltered:Boolean = false;
+-         var j:uint = 0;
+-         var cat:int = 0;
+-         var sortItems:Function = function(inventory:Array, shop:Array):void
++         function sortItems(inventory:Array, shop:Array):void
+          {
+             if(shopFilter)
+             {
+@@ -2318,26 +2307,26 @@
+             }
+             shop.length = 0;
+             filteredItems.sortOn(["buyValue",options.sortFirst,"superCategory","category","dictId","rank","value","broken",options.sortSecond,"factionId"],Array.NUMERIC);
+-         };
+-         var isEnabled:Function = function(value:ItemData):Boolean
++         }
++         function isEnabled(value:ItemData):Boolean
+          {
+             if(value.descriptor == 100 || value.canBuy)
+             {
+                return true;
+             }
+             return false;
+-         };
+-         var isStacked:Function = function(value:ItemData):Boolean
++         }
++         function isStacked(value:ItemData):Boolean
+          {
+             if(value.isStack && value.value == 0 && value.descriptor != 200 && value.descriptor != 300)
+             {
+                return false;
+             }
+             return true;
+-         };
+-         var isSeller:Function = function(data:Object, value:int):Boolean
+-         {
+-            var i:int = 0;
++         }
++         function isSeller(data:Object, value:int):Boolean
++         {
++            var i:int;
+             if(value != -1)
+             {
+                return value == seller;
+@@ -2353,35 +2342,43 @@
+                }
+             }
+             return false;
+-         };
+-         var checkBaseOptions:Function = function(value:ItemData):Boolean
++         }
++         function checkBaseOptions(value:ItemData):Boolean
+          {
+             var isWeapon:Boolean = options.weapons == 2 || ItemFactory.getCategory(value.category) != 2 || (value.oneHanded && options.weapons == 0 || value.oneHanded == false && options.weapons == 1);
+-            return (options.allTraders || isSeller(value,value.factionId)) && isWeapon && Boolean(isStacked(value)) && (!options.onlyEnabled || Boolean(isEnabled(value)));
+-         };
+-         if(Boolean(this._filterItems))
++            return (options.allTraders || isSeller(value,value.factionId)) && isWeapon && (isStacked(value)) && (!options.onlyEnabled || (isEnabled(value)));
++         }
++         if((this._filterItems))
+          {
+             this.filterInventoryItems();
+             return;
+          }
+-         showWeapons = category == 2;
++         var showWeapons:Boolean = category == 2;
+          optionControl.showWeaponsSort(showWeapons);
+-         currentItems = this._activeItems == 0 ? this._shopItems : this._inventoryItems;
++         var currentItems:Array = this._activeItems == 0 ? this._shopItems : this._inventoryItems;
++         var sellerId:int;
++         var filteredItems:Array;
+          stackTrace("ApplyInventoryFilter");
+-         trace("ApplyInventoryFilter",Boolean(currentItems) ? currentItems.length : "no_items","cat::",category,options.onlyEnabled,this._filterDictId,seller);
++         trace("ApplyInventoryFilter",(currentItems) ? currentItems.length : "no_items","cat::",category,options.onlyEnabled,this._filterDictId,seller);
+          if(currentItems == null)
+          {
+             return;
+          }
+          filteredItems = new Array();
+-         filteredItemsShop = new Array();
+-         inventoryCount = this._inventoryItems.length;
++         var filteredItemsShop:Array = new Array();
++         var inventoryCount:uint = this._inventoryItems.length;
++         var shopCount:uint;
++         var inventoryDict:Dictionary;
+          shopCount = this._shopItems.length;
+          inventoryDict = new Dictionary();
+-         shopDict = new Dictionary();
+-         sellerId = Boolean(options.allTraders) ? -1 : seller;
++         var shopDict:Dictionary = new Dictionary();
++         var itemData:ItemData;
++         var relativeItem:ItemData;
++         var i:uint;
++         var shopFilter:Boolean;
++         sellerId = (options.allTraders) ? -1 : seller;
+          shopFilter = options.shopItems == 0 || options.shopItems == 1;
+-         inventoryFilter = options.shopItems == 0 || options.shopItems == 2;
++         var inventoryFilter:Boolean = options.shopItems == 0 || options.shopItems == 2;
+          if(category == 0 || this._filterDictId != -1)
+          {
+             if(this._filterDictId == -1)
+@@ -2389,7 +2386,7 @@
+                for(i = 0; i < shopCount; i++)
+                {
+                   itemData = this._shopItems[i];
+-                  if(Boolean(checkBaseOptions(itemData)))
++                  if((checkBaseOptions(itemData)))
+                   {
+                      filteredItemsShop.push(itemData);
+                   }
+@@ -2412,11 +2409,11 @@
+                for(i = 0; i < inventoryCount; i++)
+                {
+                   itemData = this._inventoryItems[i];
+-                  isFiltered = this._filterDictId == -1 ? Boolean(checkBaseOptions(itemData)) : this._filterDictId == itemData.dictId;
++                  isFiltered = this._filterDictId == -1 ? (checkBaseOptions(itemData)) : this._filterDictId == itemData.dictId;
+                   if(isFiltered)
+                   {
+                      relativeItem = shopDict[itemData.dictId];
+-                     if(Boolean(relativeItem))
++                     if((relativeItem))
+                      {
+                         itemData.canBuy = relativeItem.canBuy;
+                         itemData.unlockLevelLabel = relativeItem.unlockLevelLabel;
+@@ -2437,7 +2434,10 @@
+             itemsTileList.validateNow();
+             return;
+          }
+-         fullCheck = !(categoryes == null || categoryes.length == 0);
++         var fullCheck:Boolean = !(categoryes == null || categoryes.length == 0);
++         var isFiltered:Boolean;
++         var j:uint;
++         var cat:int;
+          if(fullCheck)
+          {
+             for(i = 0; i < shopCount; i++)
+@@ -2445,8 +2445,8 @@
+                itemData = this._shopItems[i];
+                for(j = 0; j < categoryes.length; j++)
+                {
+-                  cat = int(categoryes[j]);
+-                  if(cat == itemData.category && Boolean(checkBaseOptions(itemData)))
++                  cat = (categoryes[j]);
++                  if(cat == itemData.category && (checkBaseOptions(itemData)))
+                   {
+                      filteredItemsShop.push(itemData);
+                      break;
+@@ -2461,11 +2461,11 @@
+                   itemData = this._inventoryItems[i];
+                   for(j = 0; j < categoryes.length; j++)
+                   {
+-                     cat = int(categoryes[j]);
+-                     if(cat == itemData.category && Boolean(checkBaseOptions(itemData)))
++                     cat = (categoryes[j]);
++                     if(cat == itemData.category && (checkBaseOptions(itemData)))
+                      {
+                         relativeItem = shopDict[itemData.dictId];
+-                        if(Boolean(relativeItem))
++                        if((relativeItem))
+                         {
+                            itemData.canBuy = relativeItem.canBuy;
+                            itemData.unlockLevelLabel = relativeItem.unlockLevelLabel;
+@@ -2488,7 +2488,7 @@
+             for(i = 0; i < shopCount; i++)
+             {
+                itemData = this._shopItems[i];
+-               if(category == ItemFactory.getCategory(itemData.category) && Boolean(checkBaseOptions(itemData)))
++               if(category == ItemFactory.getCategory(itemData.category) && (checkBaseOptions(itemData)))
+                {
+                   filteredItemsShop.push(itemData);
+                }
+@@ -2499,10 +2499,10 @@
+                for(i = 0; i < inventoryCount; i++)
+                {
+                   itemData = this._inventoryItems[i];
+-                  if(category == ItemFactory.getCategory(itemData.category) && Boolean(checkBaseOptions(itemData)))
++                  if(category == ItemFactory.getCategory(itemData.category) && (checkBaseOptions(itemData)))
+                   {
+                      relativeItem = shopDict[itemData.dictId];
+-                     if(Boolean(relativeItem))
++                     if((relativeItem))
+                      {
+                         itemData.canBuy = relativeItem.canBuy;
+                         itemData.unlockLevelLabel = relativeItem.unlockLevelLabel;

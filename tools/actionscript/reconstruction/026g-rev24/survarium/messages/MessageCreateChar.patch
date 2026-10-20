@@ -1,0 +1,32 @@
+--- a/survarium/messages/MessageCreateChar.as
++++ b/survarium/messages/MessageCreateChar.as
+@@ -76,9 +76,9 @@
+       
+       override protected function configUI() : void
+       {
+-         var total_row_width:uint = 0;
++         var total_row_width:uint;
+          super.configUI();
+-         if(Boolean(_data))
++         if(_data)
+          {
+             this.textFieldMoney.text = _data.createCost.toString();
+             this.coinIcon.gotoAndStop(_data.createCostType + 1);
+@@ -94,7 +94,7 @@
+       
+       override protected function onMessageCancel(event:ButtonEvent = null) : void
+       {
+-         if(Boolean(_data))
++         if(_data)
+          {
+             if(_data.onNo is Function)
+             {
+@@ -110,7 +110,7 @@
+       
+       override protected function onMessageAccept(event:ButtonEvent = null) : void
+       {
+-         if(Boolean(_data))
++         if(_data)
+          {
+             if(_data.onYes is Function)
+             {

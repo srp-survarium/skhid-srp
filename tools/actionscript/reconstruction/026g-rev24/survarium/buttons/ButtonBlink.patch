@@ -1,0 +1,35 @@
+--- a/survarium/buttons/ButtonBlink.as
++++ b/survarium/buttons/ButtonBlink.as
+@@ -7,19 +7,19 @@
+       {
+          super();
+          _stateMap = {
+-            "up":["up"],
+-            "over":["over"],
+-            "down":["down"],
+-            "release":["over"],
+-            "out":["up"],
+-            "disabled":["disabled"],
+-            "selecting":["over"],
+-            "toggle":["up"],
+-            "kb_selecting":["up"],
+-            "kb_release":["up"],
+-            "kb_down":["down"],
+-            "blink":["blink"],
+-            "blink_down":["blink_down"]
++            up:["up"],
++            over:["over"],
++            down:["down"],
++            release:["over"],
++            out:["up"],
++            disabled:["disabled"],
++            selecting:["over"],
++            toggle:["up"],
++            kb_selecting:["up"],
++            kb_release:["up"],
++            kb_down:["down"],
++            blink:["blink"],
++            blink_down:["blink_down"]
+          };
+       }
+       

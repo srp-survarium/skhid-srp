@@ -1,0 +1,11 @@
+--- a/survarium/controls/AmmoTipRenderer.as
++++ b/survarium/controls/AmmoTipRenderer.as
+@@ -35,7 +35,7 @@
+       {
+          var _loc1_:Object = _data as Object;
+          trace("AmmoTipRenderer::",_loc1_,_data);
+-         if(Boolean(_loc1_))
++         if(_loc1_)
+          {
+             trace("_data",_data.cost);
+             this.lockSprite.visible = _loc1_.lock;

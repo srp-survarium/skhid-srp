@@ -1,0 +1,246 @@
+--- a/survarium/chat/Chat.as
++++ b/survarium/chat/Chat.as
+@@ -79,15 +79,17 @@
+       
+       public function focusTab(id:uint) : void
+       {
+-         for(var i:uint = 0; i < this._data.tabs[this._activeMode].length; i++)
++         var i:uint;
++         while(i < this._data.tabs[this._activeMode].length)
+          {
+             if(this._data.tabs[this._activeMode][i].id == id)
+             {
+-               this._activeTab = i;
++               _activeTab = i;
+                return;
+             }
+-         }
+-         this._activeTab = -1;
++            i++;
++         }
++         _activeTab = -1;
+       }
+       
+       public function addTab(data:Object) : void
+@@ -107,49 +109,55 @@
+          }
+          this._messages[data.id] = "";
+          this._data.tabs[data.tabs_group_id].push({
+-            "id":data.id,
+-            "channels":data.channels,
+-            "name":data.name,
+-            "icon":data.channel_to_send,
+-            "closable":data.closable,
+-            "channel_to_send":data.channel_to_send,
+-            "index":data.id + 1,
+-            "bool_save_history":data.save_history,
+-            "tabs_group_id":data.tabs_group_id
++            id:data.id,
++            channels:data.channels,
++            name:data.name,
++            icon:data.channel_to_send,
++            closable:data.closable,
++            channel_to_send:data.channel_to_send,
++            index:data.id + 1,
++            bool_save_history:data.save_history,
++            tabs_group_id:data.tabs_group_id
+          });
+          this.invalidateChatData();
+       }
+       
+       public function hasTab(id:uint) : Boolean
+       {
+-         var i:int = 0;
+          if(!this._data || !this._data.tabs)
+          {
+             return false;
+          }
+-         for(var j:int = 0; j < this._data.tabs.length; j++)
+-         {
+-            for(i = 0; i < this._data.tabs[j].length; i++)
++         var j:int = 0;
++         var i:int;
++         while(j < this._data.tabs.length)
++         {
++            i = 0;
++            while(i < this._data.tabs[j].length)
+             {
+                if(this._data.tabs[j][i].id == id)
+                {
+                   return true;
+                }
+-            }
++               i++;
++            }
++            j++;
+          }
+          return false;
+       }
+       
+       public function removeTab(id:uint) : void
+       {
+-         var i:int = 0;
+          if(!this._data || !this._data.tabs)
+          {
+             return;
+          }
+-         for(var j:int = 0; j < this._data.tabs.length; j++)
+-         {
+-            for(i = 0; i < this._data.tabs[j].length; i++)
++         var j:int = 0;
++         var i:int;
++         while(j < this._data.tabs.length)
++         {
++            i = 0;
++            while(i < this._data.tabs[j].length)
+             {
+                if(this._data.tabs[j][i].id == id)
+                {
+@@ -157,24 +165,28 @@
+                   (this._data.tabs[j] as Array).splice(i,1);
+                   break;
+                }
+-            }
++               i++;
++            }
++            j++;
+          }
+          this.invalidateChatData();
+       }
+       
+       public function got_message(value:Object) : void
+       {
+-         var _finalText:String = null;
+-         var j:int = 0;
+-         var i:int = 0;
++         var _finalText:String;
+          trace("chat_got_message::",value.type,value.text);
+          var _date:Date = new Date();
+          value.time = "" + Util.getZeroString(_date.getHours()) + ":" + Util.getZeroString(_date.getMinutes()) + ":" + Util.getZeroString(_date.getSeconds()) + " ";
+          _finalText = this.get_styled_text(value);
+-         var slected:int = int(this._data.tabs[this._activeMode][this._activeTab != -1 ? this._activeTab : 0].id);
+-         for(var k:int = 0; k < this._data.tabs.length; k++)
+-         {
+-            for(j = 0; j < this._data.tabs[k].length; j++)
++         var slected:int = (this._data.tabs[this._activeMode][this._activeTab != -1 ? this._activeTab : 0].id);
++         var k:int = 0;
++         var j:int;
++         var i:int;
++         while(k < this._data.tabs.length)
++         {
++            j = 0;
++            while(j < this._data.tabs[k].length)
+             {
+                if(value.tab_id != undefined)
+                {
+@@ -197,7 +209,8 @@
+                }
+                else
+                {
+-                  for(i = 0; i < this._data.tabs[k][j].channels.length; i++)
++                  i = 0;
++                  while(i < this._data.tabs[k][j].channels.length)
+                   {
+                      if(this._data.tabs[k][j].channels[i] == value.type)
+                      {
+@@ -209,9 +222,12 @@
+                         }
+                         break;
+                      }
++                     i++;
+                   }
+                }
+-            }
++               j++;
++            }
++            k++;
+          }
+          this.findAppropriateTab(value,_finalText);
+       }
+@@ -368,7 +384,7 @@
+       
+       protected function findAppropriateTab(value:Object, text:String) : void
+       {
+-         var i:uint = 0;
++         var i:uint;
+          if(this._activeTab != -1)
+          {
+             if(value.tab_id != undefined)
+@@ -380,13 +396,15 @@
+             }
+             else
+             {
+-               for(i = 0; i < this._data.tabs[this._activeMode][this._activeTab].channels.length; i++)
++               i = 0;
++               while(i < this._data.tabs[this._activeMode][this._activeTab].channels.length)
+                {
+                   if(this._data.tabs[this._activeMode][this._activeTab].channels[i] == value.type)
+                   {
+                      this.addMessage(text);
+                      break;
+                   }
++                  i++;
+                }
+             }
+          }
+@@ -403,12 +421,13 @@
+       
+       protected function sendText() : Boolean
+       {
+-         var _received:* = undefined;
+-         var slected:int = int(this._data.tabs[this._activeMode][this._activeTab].channel_to_send);
++         var slected:int = (this._data.tabs[this._activeMode][this._activeTab].channel_to_send);
++         var _received:*;
+          trace("sendText::",slected);
+          if(this.send_function is Function)
+          {
+-            return this.send_function(this.text_inpput,slected);
++            _received = this.send_function(this.text_inpput,slected);
++            return _received;
+          }
+          return false;
+       }
+@@ -420,15 +439,17 @@
+       
+       protected function clearTabs() : void
+       {
+-         var i:int = 0;
+-         if(Boolean(this._data.tabs[this._activeMode]))
+-         {
+-            for(i = 0; i < this._data.tabs[this._activeMode].length; i++)
++         var i:int;
++         if(this._data.tabs[this._activeMode])
++         {
++            i = 0;
++            while(i < this._data.tabs[this._activeMode].length)
+             {
+                if(!this._data.tabs[this._activeMode][i].bool_save_history)
+                {
+                   this.clearChannel(this._data.tabs[this._activeMode][i].id);
+                }
++               i++;
+             }
+          }
+       }
+@@ -446,15 +467,17 @@
+       
+       protected function getColor(value:int) : String
+       {
+-         var i:int = 0;
+-         if(Boolean(this._data) && Boolean(this._data.channels_data))
+-         {
+-            for(i = 0; i < this._data.channels_data.length; i++)
++         var i:int;
++         if(this._data && this._data.channels_data)
++         {
++            i = 0;
++            while(i < this._data.channels_data.length)
+             {
+                if(this._data.channels_data[i].id == value)
+                {
+                   return this._data.channels_data[i].color;
+                }
++               i++;
+             }
+          }
+          return "";

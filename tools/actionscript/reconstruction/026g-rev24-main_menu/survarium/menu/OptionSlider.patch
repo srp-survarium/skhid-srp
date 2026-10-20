@@ -1,0 +1,54 @@
+--- a/survarium/menu/OptionSlider.as
++++ b/survarium/menu/OptionSlider.as
+@@ -48,7 +48,7 @@
+          {
+             return;
+          }
+-         this._editable = param1;
++         _editable = param1;
+          addEventListener(Event.RENDER,this.onRender);
+       }
+       
+@@ -75,7 +75,7 @@
+       protected function onTextFocusOut(param1:Event) : void
+       {
+          trace("onTextFocusOut",this.slider.position);
+-         this.selectedIndex = this.slider.position;
++         selectedIndex = this.slider.position;
+       }
+       
+       protected function onTextInput(param1:Event) : void
+@@ -103,7 +103,7 @@
+       
+       public function set defaultValue(param1:Number) : void
+       {
+-         this._defaultValue = Math.round(param1 / 0.01) * 0.01;
++         _defaultValue = Math.round(param1 / 0.01) * 0.01;
+       }
+       
+       public function get selectedIndex() : Number
+@@ -113,7 +113,7 @@
+       
+       public function set label(param1:String) : void
+       {
+-         if(Boolean(this.textField))
++         if(this.textField)
+          {
+             this.textField.text = param1;
+          }
+@@ -135,13 +135,13 @@
+       
+       public function set selectedIndex(param1:Number) : void
+       {
+-         if(Boolean(this.slider))
++         if(this.slider)
+          {
+             param1 = Math.round(param1 / 0.01) * 0.01;
+             this.slider.position = param1;
+             this.slider.invalidateData();
+          }
+-         if(Boolean(this.textFieldValue))
++         if(this.textFieldValue)
+          {
+             this.textFieldValue.text = this.slider.position.toString();
+          }

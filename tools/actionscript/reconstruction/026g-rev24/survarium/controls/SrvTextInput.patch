@@ -1,0 +1,48 @@
+--- a/survarium/controls/SrvTextInput.as
++++ b/survarium/controls/SrvTextInput.as
+@@ -28,7 +28,7 @@
+       
+       override protected function updateText() : void
+       {
+-         if(Boolean(_focused) && _usingDefaultTextFormat)
++         if(_focused && _usingDefaultTextFormat)
+          {
+             textField.defaultTextFormat = _textFormat;
+             _usingDefaultTextFormat = false;
+@@ -70,10 +70,10 @@
+       
+       private function play_input_sound(param1:Event) : void
+       {
+-         var _loc2_:KeyboardEvent = null;
++         var _loc2_:KeyboardEvent;
+          if(param1.type == TextEvent.TEXT_INPUT)
+          {
+-            this._last_input = textField.caretIndex;
++            _last_input = textField.caretIndex;
+          }
+          else if(param1.type == Event.CHANGE)
+          {
+@@ -81,7 +81,7 @@
+             {
+                this.playSound();
+             }
+-            this._last_input = textField.caretIndex;
++            _last_input = textField.caretIndex;
+          }
+          else if(param1.type == KeyboardEvent.KEY_DOWN)
+          {
+@@ -89,12 +89,12 @@
+             if(_loc2_.keyCode == 46 && textField.caretIndex <= textField.length - 1)
+             {
+                ExternalInterface.call("sound_play",8);
+-               this._last_input = textField.caretIndex;
++               _last_input = textField.caretIndex;
+             }
+             else if(_loc2_.keyCode == 8 && textField.caretIndex >= 1)
+             {
+                ExternalInterface.call("sound_play",8);
+-               this._last_input = textField.caretIndex - 1;
++               _last_input = textField.caretIndex - 1;
+             }
+             else if((_loc2_.keyCode == 37 || _loc2_.keyCode == 36) && textField.caretIndex >= 1)
+             {

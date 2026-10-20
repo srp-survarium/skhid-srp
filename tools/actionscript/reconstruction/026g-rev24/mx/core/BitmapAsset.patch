@@ -1,0 +1,185 @@
+--- a/mx/core/BitmapAsset.as
++++ b/mx/core/BitmapAsset.as
+@@ -6,17 +6,15 @@
+    import flash.geom.Point;
+    import flash.system.ApplicationDomain;
+    
+-   use namespace mx_internal;
+-   
+    public class BitmapAsset extends FlexBitmap implements IFlexAsset, IFlexDisplayObject, ILayoutDirectionElement
+    {
+       
++      mx_internal static const VERSION:String = "4.6.0.23201";
++      
+       private static var FlexVersionClass:Class;
+       
+       private static var MatrixUtilClass:Class;
+       
+-      mx_internal static const VERSION:String = "4.6.0.23201";
+-      
+       private var layoutFeaturesClass:Class;
+       
+       private var layoutFeatures:IAssetLayoutFeatures;
+@@ -27,7 +25,7 @@
+       
+       public function BitmapAsset(bitmapData:BitmapData = null, pixelSnapping:String = "auto", smoothing:Boolean = false)
+       {
+-         var appDomain:ApplicationDomain = null;
++         var appDomain:ApplicationDomain;
+          super(bitmapData,pixelSnapping,smoothing);
+          if(FlexVersionClass == null)
+          {
+@@ -37,7 +35,7 @@
+                FlexVersionClass = Class(appDomain.getDefinition("mx.core::FlexVersion"));
+             }
+          }
+-         if(Boolean(FlexVersionClass) && FlexVersionClass["compatibilityVersion"] >= FlexVersionClass["VERSION_4_0"])
++         if(FlexVersionClass && FlexVersionClass["compatibilityVersion"] >= FlexVersionClass["VERSION_4_0"])
+          {
+             this.addEventListener(Event.ADDED,this.addedHandler);
+          }
+@@ -111,7 +109,7 @@
+       
+       override public function get width() : Number
+       {
+-         var p:Point = null;
++         var p:Point;
+          if(this.layoutFeatures == null)
+          {
+             return super.width;
+@@ -120,7 +118,7 @@
+          {
+             p = MatrixUtilClass["transformSize"](this.layoutFeatures.layoutWidth,this._height,transform.matrix);
+          }
+-         return Boolean(p) ? p.x : super.width;
++         return p ? p.x : super.width;
+       }
+       
+       override public function set width(value:Number) : void
+@@ -143,7 +141,7 @@
+       
+       override public function get height() : Number
+       {
+-         var p:Point = null;
++         var p:Point;
+          if(this.layoutFeatures == null)
+          {
+             return super.height;
+@@ -152,7 +150,7 @@
+          {
+             p = MatrixUtilClass["transformSize"](this.layoutFeatures.layoutWidth,this._height,transform.matrix);
+          }
+-         return Boolean(p) ? p.y : super.height;
++         return p ? p.y : super.height;
+       }
+       
+       override public function set height(value:Number) : void
+@@ -167,7 +165,7 @@
+          }
+          else
+          {
+-            this._height = value;
++            _height = value;
+             this.layoutFeatures.layoutScaleY = this.measuredHeight != 0 ? value / this.measuredHeight : 0;
+             this.validateTransformMatrix();
+          }
+@@ -302,7 +300,7 @@
+          else
+          {
+             this.layoutFeatures.layoutScaleY = value;
+-            this._height = Math.abs(value) * this.measuredHeight;
++            _height = Math.abs(value) * this.measuredHeight;
+             this.validateTransformMatrix();
+          }
+       }
+@@ -341,13 +339,13 @@
+          {
+             return;
+          }
+-         this._layoutDirection = value;
++         _layoutDirection = value;
+          this.invalidateLayoutDirection();
+       }
+       
+       public function get measuredHeight() : Number
+       {
+-         if(Boolean(bitmapData))
++         if(bitmapData)
+          {
+             return bitmapData.height;
+          }
+@@ -356,7 +354,7 @@
+       
+       public function get measuredWidth() : Number
+       {
+-         if(Boolean(bitmapData))
++         if(bitmapData)
+          {
+             return bitmapData.width;
+          }
+@@ -365,9 +363,9 @@
+       
+       public function invalidateLayoutDirection() : void
+       {
+-         var mirror:Boolean = false;
+          var p:DisplayObjectContainer = parent;
+-         while(Boolean(p))
++         var mirror:Boolean;
++         while(p)
+          {
+             if(p is ILayoutDirectionElement)
+             {
+@@ -381,11 +379,11 @@
+                      this.validateTransformMatrix();
+                   }
+                }
+-               else if(!mirror && Boolean(this.layoutFeatures))
++               else if(!mirror && this.layoutFeatures)
+                {
+                   this.layoutFeatures.mirror = mirror;
+                   this.validateTransformMatrix();
+-                  this.layoutFeatures = null;
++                  layoutFeatures = null;
+                }
+                break;
+             }
+@@ -401,8 +399,8 @@
+       
+       public function setActualSize(newWidth:Number, newHeight:Number) : void
+       {
+-         this.width = newWidth;
+-         this.height = newHeight;
++         width = newWidth;
++         height = newHeight;
+       }
+       
+       private function addedHandler(event:Event) : void
+@@ -412,14 +410,14 @@
+       
+       private function initAdvancedLayoutFeatures() : void
+       {
+-         var appDomain:ApplicationDomain = null;
+-         var features:IAssetLayoutFeatures = null;
++         var appDomain:ApplicationDomain;
++         var features:IAssetLayoutFeatures;
+          if(this.layoutFeaturesClass == null)
+          {
+             appDomain = ApplicationDomain.currentDomain;
+             if(appDomain.hasDefinition("mx.core::AdvancedLayoutFeatures"))
+             {
+-               this.layoutFeaturesClass = Class(appDomain.getDefinition("mx.core::AdvancedLayoutFeatures"));
++               layoutFeaturesClass = Class(appDomain.getDefinition("mx.core::AdvancedLayoutFeatures"));
+             }
+             if(MatrixUtilClass == null)
+             {
+@@ -442,8 +440,8 @@
+             features.layoutY = this.y;
+             features.layoutZ = this.z;
+             features.layoutWidth = this.width;
+-            this._height = this.height;
+-            this.layoutFeatures = features;
++            _height = this.height;
++            layoutFeatures = features;
+          }
+       }
+       

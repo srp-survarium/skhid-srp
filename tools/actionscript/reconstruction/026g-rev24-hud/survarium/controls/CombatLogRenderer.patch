@@ -1,0 +1,9 @@
+--- a/survarium/controls/CombatLogRenderer.as
++++ b/survarium/controls/CombatLogRenderer.as
+@@ -1,5 +1,6 @@
+ package survarium.controls
+ {
++   import CombatLogItem;
+    import flash.display.MovieClip;
+    import flash.events.Event;
+    

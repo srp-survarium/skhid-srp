@@ -1,0 +1,96 @@
+--- a/survarium/controls/ItemControlPanel.as
++++ b/survarium/controls/ItemControlPanel.as
+@@ -82,7 +82,7 @@
+       
+       public function toggleShop(param1:Boolean) : void
+       {
+-         this._shopMode = param1;
++         _shopMode = param1;
+          this.updateButtons();
+          this.sortButton();
+       }
+@@ -105,12 +105,12 @@
+       
+       private function onTimerUpdate(param1:TimerEvent) : void
+       {
+-         var _loc2_:Timer = null;
+-         var _loc3_:uint = 0;
+-         if(Boolean(this._data) && Boolean(this._data.rerollTime))
++         var _loc2_:Timer;
++         var _loc3_:uint;
++         if(this._data && this._data.rerollTime)
+          {
+             _loc2_ = MainScene.getTimerInstance();
+-            _loc3_ = uint(_loc2_.currentCount);
++            _loc3_ = (_loc2_.currentCount);
+             this.rerollTimer.setTime(Util.getTimeStringMinutes(Math.max(0,int(this._data.rerollTime / 60) - (_loc3_ - this._data.timeDelta))));
+          }
+       }
+@@ -118,7 +118,7 @@
+       private function onLocalization(param1:String) : void
+       {
+          this.btn_item_upgrade.label = LocalizationData.getName("btn_upgrade_label");
+-         this.btn_item_upgrade.data = {"name":LocalizationData.getName("btn_upgrade_hint")};
++         this.btn_item_upgrade.data = {name:LocalizationData.getName("btn_upgrade_hint")};
+          this.btn_item_sell.label = LocalizationData.getName("sell");
+          this.btn_item_buy.label = LocalizationData.getName("buy");
+          this.btn_item_fix.label = LocalizationData.getName("fix");
+@@ -130,7 +130,7 @@
+       
+       public function setItemControl(param1:*) : void
+       {
+-         this._itemCard = param1;
++         _itemCard = param1;
+          this.btn_item_sell.addEventListener(ButtonEvent.CLICK,this._itemCard.onBtnClick2);
+          this.btn_item_buy.addEventListener(ButtonEvent.CLICK,this._itemCard.onBtnClick1);
+          this.btnSellBig.addEventListener(ButtonEvent.CLICK,this._itemCard.onBtnClick1);
+@@ -150,7 +150,7 @@
+       
+       public function setInvenory(param1:IInventoryItemFactory) : void
+       {
+-         this._inventory = param1;
++         _inventory = param1;
+       }
+       
+       private function openModifiersWindow(param1:Event) : void
+@@ -160,7 +160,7 @@
+       
+       public function toggleModifiersButtons() : void
+       {
+-         this._locked = !this._locked;
++         _locked = !this._locked;
+          this.updateButtons();
+       }
+       
+@@ -215,11 +215,11 @@
+                {
+                   _loc3_ = true;
+                }
+-               if(Boolean(_loc12_) && _loc12_.state == 0 && !_loc12_.isDefault)
++               if(Boolean(_loc12_) && Boolean(_loc12_.state == 0) && !_loc12_.isDefault)
+                {
+                   this._rerollable = true;
+                }
+-               _loc11_++;
++               _loc11_ = ++_loc11_;
+             }
+          }
+          if(this._rerollable && Boolean(this._data.rerollTime))
+@@ -323,7 +323,7 @@
+          }
+          var _loc2_:Boolean = !this._inventory.getElelementLocked(1);
+          var _loc3_:Boolean = !this._inventory.getElelementLocked(2);
+-         var _loc4_:Boolean = !this._data.canBuy && Boolean(this._data.premiumCost);
++         var _loc4_:Boolean = !this._data.canBuy && this._data.premiumCost;
+          var _loc5_:Boolean = this._data.isPremium || !this._data.isPremium && PlayerInfo.genericMoney >= this._data.cost;
+          this.btn_item_sell.enabled = this._data.enabled && _loc3_;
+          this.btn_item_buy.enabled = (this._data.canBuy || _loc4_) && _loc2_ && _loc5_;
+@@ -421,7 +421,7 @@
+       
+       private function sortButton() : void
+       {
+-         var _loc1_:uint = 0;
++         var _loc1_:uint;
+          this.btnSellBig.x = (this.backgroundWidth - 140) / 2;
+          if(this.btn_show_use.visible)
+          {

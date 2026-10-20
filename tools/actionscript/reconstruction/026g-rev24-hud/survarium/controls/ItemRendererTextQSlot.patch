@@ -1,0 +1,11 @@
+--- a/survarium/controls/ItemRendererTextQSlot.as
++++ b/survarium/controls/ItemRendererTextQSlot.as
+@@ -16,7 +16,7 @@
+       
+       override protected function updateData() : void
+       {
+-         if(Boolean(this.textFieldCount))
++         if(this.textFieldCount)
+          {
+             this.textFieldCount.text = "x" + String(_data.value);
+          }

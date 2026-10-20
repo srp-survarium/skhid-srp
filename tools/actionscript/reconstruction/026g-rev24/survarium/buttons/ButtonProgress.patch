@@ -1,0 +1,56 @@
+--- a/survarium/buttons/ButtonProgress.as
++++ b/survarium/buttons/ButtonProgress.as
+@@ -22,9 +22,9 @@
+       public function ButtonProgress()
+       {
+          super();
+-         if(Boolean(this.progress_track))
++         if(this.progress_track)
+          {
+-            this._progressMax = this.progress_track.width;
++            _progressMax = this.progress_track.width;
+          }
+       }
+       
+@@ -32,7 +32,7 @@
+       {
+          if(this._progressValue != param1)
+          {
+-            this._progressValue = param1;
++            _progressValue = param1;
+             invalidateData();
+          }
+       }
+@@ -41,7 +41,7 @@
+       {
+          if(this._progressLabel != param1)
+          {
+-            this._progressLabel = param1;
++            _progressLabel = param1;
+             invalidateData();
+          }
+       }
+@@ -56,12 +56,12 @@
+          trace("Progress::updateText");
+          super.updateText();
+          trace("Progress::updateText1");
+-         if(Boolean(this.textFieldValue))
++         if(this.textFieldValue)
+          {
+             this.textFieldValue.defaultTextFormat = this.textFieldValue.getTextFormat();
+             this.textFieldValue.text = this._progressLabel.toString();
+          }
+-         if(Boolean(this.progress_track))
++         if(this.progress_track)
+          {
+             this.progress_track.gotoAndStop((1 - this._progressValue) * 100);
+          }
+@@ -84,7 +84,7 @@
+          super.draw();
+          if(isInvalid(InvalidationType.SIZE))
+          {
+-            if(Boolean(constraints))
++            if(constraints)
+             {
+                constraints.update(_width,_height);
+             }

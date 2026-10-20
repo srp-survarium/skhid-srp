@@ -1,0 +1,184 @@
+import csv
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+import struct
+import tempfile
+import unittest
+import zlib
+
+from link_layout import SerializationCache
+import movie_source as movie
+
+
+def tag(kind, payload, long=False):
+    if long or len(payload) >= 63:
+        return struct.pack("<HI", kind << 6 | 63, len(payload)) + payload
+    return struct.pack("<H", kind << 6 | len(payload)) + payload
+
+
+def swf(tags):
+    # RECT with zero-width fields, frame rate, frame count.
+    return movie.join_movie(b"FWS\x0b\0\0\0\0\0\0\x18\x01\0", tags)
+
+
+class MovieTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+
+    def file(self, name, data):
+        path = self.root / name
+        path.write_bytes(data)
+        return path
+
+    def test_transplant_preserves_unknown_scaleform_tags_and_encoding(self):
+        tags = [(69, tag(69, b"\x08\0\0\0")),
+                (1000, tag(1000, b"opaque Scaleform data", long=True)),
+                (82, tag(82, b"original abc", long=True)), (0, tag(0, b""))]
+        original = self.file("original.swf", swf(tags))
+        code = self.root / "code.swf"
+        movie.code_movie(original, code)
+        self.assertEqual([k for k, _ in movie.split_movie(code)[1]], [69, 82, 0])
+        compiled = self.file("compiled.swf", swf([(82, tag(82, b"new abc")), (0, tag(0, b""))]))
+        output = self.root / "output.swf"
+        movie.transplant(original, compiled, output)
+        actual = movie.split_movie(output)[1]
+        self.assertEqual(actual[0], tags[0])
+        self.assertEqual(actual[1], tags[1])
+        self.assertEqual(actual[2], (82, tag(82, b"new abc")))
+        self.assertEqual(actual[3], tags[3])
+
+    def test_transplant_refuses_missing_abc(self):
+        original = self.file("original", swf([(82, tag(82, b"abc")), (0, tag(0, b""))]))
+        compiled = self.file("compiled", swf([(0, tag(0, b""))]))
+        with self.assertRaisesRegex(ValueError, "block count"):
+            movie.transplant(original, compiled, self.root / "out")
+        self.assertFalse((self.root / "out").exists())
+
+    def test_compression_is_reported_separately(self):
+        raw = swf([(0, tag(0, b""))])
+        plain = self.file("plain", raw)
+        compressed = self.file("compressed", b"CWS" + raw[3:8] + zlib.compress(raw[8:]))
+        self.assertEqual(movie.uncompressed(plain), movie.uncompressed(compressed))
+        self.assertNotEqual(plain.read_bytes(), compressed.read_bytes())
+        with self.assertRaises(ValueError):
+            movie.uncompressed(self.file("trailing", compressed.read_bytes() + b"trailer"))
+
+    def test_parallel_serialization_reuses_only_identical_complete_code(self):
+        tags = [(1000, tag(1000, b"opaque assets", long=True)),
+                (82, tag(82, b"compiled abc")), (0, tag(0, b""))]
+        raw = swf(tags)
+        expected = b"CWS" + raw[3:8] + zlib.compress(raw[8:], 9)
+        original = self.file("original", expected)
+        code = self.file("code", swf(tags[1:]))
+        cache = SerializationCache(original, True)
+        with ThreadPoolExecutor(4) as workers:
+            results = list(workers.map(lambda n: cache.render(code, self.root / f"out-{n}"), range(12)))
+        self.assertEqual(sum(hit for _, _, hit in results), 11)
+        for n, (actual_raw, final, _) in enumerate(results):
+            self.assertEqual(actual_raw, raw)
+            self.assertEqual(final, expected)
+            self.assertEqual((self.root / f"out-{n}").read_bytes(), expected)
+
+    def test_serialization_rebuilds_both_retail_compression_and_padded_patch(self):
+        raw = swf([(1000, tag(1000, b"assets" * 100)), (82, tag(82, b"abc")),
+                   (0, tag(0, b""))])
+        for level, trailer in ((6, b""), (9, bytes(31) + b"\x12\x34\x56\x78")):
+            original = self.file("original", b"CWS" + raw[3:8]
+                                 + zlib.compress(raw[8:], level) + trailer)
+            self.assertEqual(movie.uncompressed(original), raw)
+            profile = movie.serialization_profile(original)
+            self.assertEqual(profile["level"], level)
+            self.assertEqual(movie.serialize(raw, profile), original.read_bytes())
+            changed = raw.replace(b"abc", b"xyz")
+            rebuilt = movie.serialize(changed, profile)
+            self.assertNotEqual(rebuilt, original.read_bytes())
+            self.assertEqual(movie.uncompressed(self.file("changed", rebuilt)), changed)
+
+    def test_truncated_compression_and_nonpadding_trailer_are_rejected(self):
+        raw = swf([(0, tag(0, b""))])
+        compressed = b"CWS" + raw[3:8] + zlib.compress(raw[8:])
+        for data in (compressed[:-1], compressed + b"\0\0", compressed + b"x" + bytes(9)):
+            with self.assertRaises(ValueError):
+                movie.uncompressed(self.file("invalid", data))
+
+    def test_serialization_cache_cannot_hide_changed_or_missing_abc(self):
+        asset = (1000, tag(1000, b"opaque assets", long=True))
+        end = (0, tag(0, b""))
+        old_abc = (82, tag(82, b"original abc"))
+        original = self.file("original", swf([asset, old_abc, end]))
+        code = self.file("code", swf([old_abc, end]))
+        cache = SerializationCache(original, False)
+        cache.render(code, self.root / "first")
+        new_abc = (82, tag(82, b"different abc"))
+        code.write_bytes(swf([new_abc, end]))
+        raw, final, hit = cache.render(code, self.root / "changed")
+        self.assertFalse(hit)
+        self.assertEqual(raw, swf([asset, new_abc, end]))
+        self.assertEqual(final, raw)
+        self.assertNotEqual(final, original.read_bytes())
+        code.write_bytes(swf([end]))
+        with self.assertRaisesRegex(ValueError, "block count"):
+            cache.render(code, self.root / "missing")
+        self.assertFalse((self.root / "missing").exists())
+
+    def snapshot(self, name, abc, record="same"):
+        folder = self.root / name
+        (folder / "abc-0000").mkdir(parents=True)
+        (folder / "abc-0000/block.abc").write_bytes(abc)
+        fields = ["abc", "method", "owner", "code_size", "code_sha256", "record_sha256", "assembly_sha256"]
+        with (folder / "methods.tsv").open("w") as stream:
+            writer = csv.writer(stream, delimiter="\t")
+            writer.writerow(fields)
+            writer.writerow([0, 0, "C/m", 1, "same", record, "same"])
+        return folder
+
+    def test_unchanged_method_code_cannot_hide_changed_constant_pool(self):
+        before = self.snapshot("before", b"pool: old")
+        after = self.snapshot("after", b"pool: new")
+        a = self.file("a", swf([(82, tag(82, b"pool: old")), (0, tag(0, b""))]))
+        b = self.file("b", swf([(82, tag(82, b"pool: new")), (0, tag(0, b""))]))
+        result = movie.compare(a, b, before, after)
+        self.assertFalse(result["movie_exact"])
+        self.assertEqual(result["method_changes"], [])
+        self.assertEqual(result["changed_abc_blocks"], ["abc-0000"])
+
+    def test_method_metadata_is_reported_even_with_identical_instructions(self):
+        before = self.snapshot("before", b"old", "old-stack")
+        after = self.snapshot("after", b"new", "new-stack")
+        a = self.file("a", swf([(82, tag(82, b"old")), (0, tag(0, b""))]))
+        b = self.file("b", swf([(82, tag(82, b"new")), (0, tag(0, b""))]))
+        result = movie.compare(a, b, before, after)
+        self.assertEqual(result["method_changes"][0]["fields"], ["record_sha256"])
+        self.assertFalse(result["movie_exact"])
+
+    def test_pristine_sources_cannot_be_silently_edited(self):
+        (self.root / "pristine").mkdir()
+        source = self.file("pristine/C.as", b"class C {}")
+        original = self.file("original.swf", b"pinned bytes")
+        movie.write_json(self.root / "manifest.json", {"movie_sha256": movie.digest(original),
+                         "sources": {"C.as": movie.digest(source)}})
+        movie.verify_project(self.root)
+        source.write_text("class C { /* edit */ }")
+        with self.assertRaisesRegex(ValueError, "Pristine"):
+            movie.verify_project(self.root)
+
+    def test_deduplicate_requires_all_diagnostics_to_match(self):
+        before = self.snapshot("before", b"same block")
+        after = self.snapshot("after", b"same block")
+        ref = before / "abc-0000"
+        candidate = after / "abc-0000"
+        (ref / "method.asm").write_text("getlocal0")
+        (candidate / "method.asm").write_text("getlocal1")
+        movie.deduplicate_snapshot(before, after)
+        self.assertFalse(candidate.is_symlink())
+        (candidate / "method.asm").write_text("getlocal0")
+        movie.deduplicate_snapshot(before, after)
+        self.assertTrue(candidate.is_symlink())
+        self.assertEqual((candidate / "block.abc").read_bytes(), b"same block")
+        self.assertEqual(movie.methods(before), movie.methods(after))
+
+
+if __name__ == "__main__":
+    unittest.main()

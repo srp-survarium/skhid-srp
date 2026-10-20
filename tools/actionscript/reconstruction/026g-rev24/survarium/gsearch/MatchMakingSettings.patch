@@ -1,0 +1,225 @@
+--- a/survarium/gsearch/MatchMakingSettings.as
++++ b/survarium/gsearch/MatchMakingSettings.as
+@@ -20,33 +20,33 @@
+    public class MatchMakingSettings extends MovieClip
+    {
+       
++      public static const TOURNAMENT_SELECTED:String = "tournamentSelected";
++      
++      public static const TOURNAMENT_DESELECTED:String = "tournamentDeselected";
++      
++      public static const PVB_DEMO:Boolean = false;
++      
++      public static const PVB_STATUS:int = 2050000000;
++      
++      public static const PVB_CHOOSE:int = 2051000000;
++      
++      public static const PVB_END:int = 2052000000;
++      
++      public static const PVB_ROWS:int = 32;
++      
++      public static const PVB_WAIT_MS:int = 6000;
++      
++      public static const PVB_POLL_MS:int = 10000;
++      
++      public static const PVB_WHY_CHECKING:int = 17;
++      
++      public static const PVB_WHY_NOANSWER:int = 18;
++      
++      public static const PVB_WHY_RETRY:int = 19;
++      
++      public static const PVB_WHY_GENERIC:int = 20;
++      
+       public static var pvbHolder:MatchMakingSettings;
+-      
+-      public static const TOURNAMENT_SELECTED:String = "tournamentSelected";
+-      
+-      public static const TOURNAMENT_DESELECTED:String = "tournamentDeselected";
+-      
+-      public static const PVB_DEMO:Boolean = false;
+-      
+-      public static const PVB_STATUS:int = 2050000000;
+-      
+-      public static const PVB_CHOOSE:int = 2051000000;
+-      
+-      public static const PVB_END:int = 2052000000;
+-      
+-      public static const PVB_ROWS:int = 32;
+-      
+-      public static const PVB_WAIT_MS:int = 6000;
+-      
+-      public static const PVB_POLL_MS:int = 10000;
+-      
+-      public static const PVB_WHY_CHECKING:int = 17;
+-      
+-      public static const PVB_WHY_NOANSWER:int = 18;
+-      
+-      public static const PVB_WHY_RETRY:int = 19;
+-      
+-      public static const PVB_WHY_GENERIC:int = 20;
+       
+       public var checkBoxPVP:Button;
+       
+@@ -207,14 +207,14 @@
+       private function configUI(param1:Event) : void
+       {
+          removeEventListener(Event.RENDER,this.configUI);
+-         this.checkBoxClan = this.clanGame.checkBoxClan;
+-         this.checkBoxRankBattle = this.clanGame.checkBoxRankBattle;
+-         this.checkBoxTournamentBattle = this.clanGame.checkBoxTournamentBattle;
+-         this.checkBoxTrainingBattle = this.trainingGame.checkBoxTrainingBattle;
+-         this.checkBoxPVP = this.pvpGame.checkBoxPVP;
+-         this.checkBoxCharging = this.pvpGame.checkBoxCharging;
+-         this.checkBoxTeam = this.pvpGame.checkBoxTeam;
+-         this.checkBoxPVE = this.freeGame.checkBoxPVE;
++         checkBoxClan = this.clanGame.checkBoxClan;
++         checkBoxRankBattle = this.clanGame.checkBoxRankBattle;
++         checkBoxTournamentBattle = this.clanGame.checkBoxTournamentBattle;
++         checkBoxTrainingBattle = this.trainingGame.checkBoxTrainingBattle;
++         checkBoxPVP = this.pvpGame.checkBoxPVP;
++         checkBoxCharging = this.pvpGame.checkBoxCharging;
++         checkBoxTeam = this.pvpGame.checkBoxTeam;
++         checkBoxPVE = this.freeGame.checkBoxPVE;
+          this.checkBoxClan.enabled = this.checkBoxPVP.enabled = false;
+          this.checkBoxPVP.selected = true;
+          this.checkBoxCharging.iconIndex = 6;
+@@ -227,20 +227,20 @@
+       
+       public function setEnabled(param1:Boolean) : void
+       {
+-         this._enabled = param1;
++         _enabled = param1;
+          this.updateButtonEnabled();
+       }
+       
+       public function selectClanMatchCheckbox() : void
+       {
+-         this._selectCall = true;
++         _selectCall = true;
+          this.setTournamentResult(true);
+          dispatchEvent(new Event(TOURNAMENT_SELECTED));
+       }
+       
+       public function deselectClanMatchCheckbox() : void
+       {
+-         this._selectCall = false;
++         _selectCall = false;
+          this.setTournamentResult(true);
+          dispatchEvent(new Event(TOURNAMENT_DESELECTED));
+       }
+@@ -265,7 +265,7 @@
+             {
+                this.checkBoxClan.selected = false;
+                this.checkBoxPVP.selected = true;
+-               this._selectCall = false;
++               _selectCall = false;
+                dispatchEvent(new Event(TOURNAMENT_DESELECTED));
+             }
+          }
+@@ -309,14 +309,14 @@
+          this.checkBoxRankBattle.tooltipRendererName = "SrvTextHintRenderer";
+          this.checkBoxTournamentBattle.tooltipRendererName = "SrvTextHintRenderer";
+          this.checkBoxTrainingBattle.tooltipRendererName = "SrvTextHintRenderer";
+-         this.checkBoxPVP.data = {"name":LocalizationData.getName("match_settings_checkbox_PVP_hint")};
+-         this.checkBoxCharging.data = {"name":LocalizationData.getName("match_settings_checkbox_battery_charge_hint")};
+-         this.checkBoxTeam.data = {"name":LocalizationData.getName("match_settings_checkbox_team_match_hint")};
+-         this.checkBoxPVE.data = {"name":LocalizationData.getName("match_settings_checkbox_PVE_hint")};
+-         this.checkBoxClan.data = {"name":LocalizationData.getName("match_settings_checkbox_clan_match_hint")};
+-         this.checkBoxRankBattle.data = {"name":LocalizationData.getName("match_settings_checkbox_rank_match_hint")};
+-         this.checkBoxTournamentBattle.data = {"name":LocalizationData.getName("match_settings_checkbox_tournament_match_hint")};
+-         this.checkBoxTrainingBattle.data = {"name":LocalizationData.getName("match_settings_checkbox_training_match_hint")};
++         this.checkBoxPVP.data = {name:LocalizationData.getName("match_settings_checkbox_PVP_hint")};
++         this.checkBoxCharging.data = {name:LocalizationData.getName("match_settings_checkbox_battery_charge_hint")};
++         this.checkBoxTeam.data = {name:LocalizationData.getName("match_settings_checkbox_team_match_hint")};
++         this.checkBoxPVE.data = {name:LocalizationData.getName("match_settings_checkbox_PVE_hint")};
++         this.checkBoxClan.data = {name:LocalizationData.getName("match_settings_checkbox_clan_match_hint")};
++         this.checkBoxRankBattle.data = {name:LocalizationData.getName("match_settings_checkbox_rank_match_hint")};
++         this.checkBoxTournamentBattle.data = {name:LocalizationData.getName("match_settings_checkbox_tournament_match_hint")};
++         this.checkBoxTrainingBattle.data = {name:LocalizationData.getName("match_settings_checkbox_training_match_hint")};
+          this.pvbHookLocal();
+       }
+       
+@@ -333,10 +333,10 @@
+       protected function showCloseMessage() : void
+       {
+          var _loc1_:Object = {
+-            "text":LocalizationData.getName(PlayerInfo.isCommander ? "clan_window_close_message_commander" : "clan_window_close_message"),
+-            "onYes":this.closeWindow,
+-            "label_ok":LocalizationData.getName("ok"),
+-            "label_cancel":LocalizationData.getName("cancel")
++            text:LocalizationData.getName(PlayerInfo.isCommander ? "clan_window_close_message_commander" : "clan_window_close_message"),
++            onYes:this.closeWindow,
++            label_ok:LocalizationData.getName("ok"),
++            label_cancel:LocalizationData.getName("cancel")
+          };
+          Message.showMessage("apply",_loc1_,true,0,true);
+       }
+@@ -358,19 +358,22 @@
+             this.checkBoxClan.selected = !this.checkBoxPVP.selected;
+          }
+          var _loc2_:Boolean = this.checkBoxClan.selected;
+-         this._selectCall = _loc2_;
++         _selectCall = _loc2_;
+          if(this.checkBoxClan.selected)
+          {
+             dispatchEvent(new Event(TOURNAMENT_SELECTED));
++         }
++         else
++         {
++            this.checkBoxPVP.selected = false;
++            this.checkBoxClan.selected = true;
++            this.showCloseMessage();
+             this.updateLayout();
+-            trace("checkbox_tournament_match_clicked",_loc2_,this._selectCall);
+-            ExternalInterface.call("checkbox_tournament_match_clicked",_loc2_);
+             return;
+          }
+-         this.checkBoxPVP.selected = false;
+-         this.checkBoxClan.selected = true;
+-         this.showCloseMessage();
+          this.updateLayout();
++         trace("checkbox_tournament_match_clicked",_loc2_,this._selectCall);
++         ExternalInterface.call("checkbox_tournament_match_clicked",_loc2_);
+       }
+       
+       public function pvbHookConfig() : void
+@@ -542,10 +545,11 @@
+       
+       protected function pvbWords() : Array
+       {
+-         return [["Player vs Bots","Гравець проти ботів","Игрок против ботов","Spieler vs. Bots","Gracz z botami"],["A match against bots, with bots on your team too","Бій проти ботів, у вашій команді теж боти","Бой против ботов, в вашей команде тоже боты","Ein Match gegen Bots, auch in deinem Team spielen Bots","Rozgrywka z botami, w twojej drużynie też są boty"],[" vs "," на "," на "," vs. "," na "],[" (busy)"," (зайнято)"," (занято)"," (belegt)"," (zajęte)"],["Equipment level must be ","Рівень спорядження має бути ","Уровень снаряжения должен быть ","Ausrüstung Niveau muss ","Poziom wyposażenia musi wynosić "],[" or lower"," або нижче"," или ниже"," oder niedriger sein"," lub mniej"],[" (yours: "," (у вас: "," (у вас: "," (deins: "," (twój: "],[")",")",")",")",")"],["Leave your squad first","Спершу залиште загін","Сначала покиньте отряд","Verlasse zuerst deine Abteilung","Najpierw opuść brygadę"],["Leave the search first","Спершу скасуйте пошук","Сначала отмените поиск","Brich zuerst die Suche ab"
++         var words:Array = [["Player vs Bots","Гравець проти ботів","Игрок против ботов","Spieler vs. Bots","Gracz z botami"],["A match against bots, with bots on your team too","Бій проти ботів, у вашій команді теж боти","Бой против ботов, в вашей команде тоже боты","Ein Match gegen Bots, auch in deinem Team spielen Bots","Rozgrywka z botami, w twojej drużynie też są boty"],[" vs "," на "," на "," vs. "," na "],[" (busy)"," (зайнято)"," (занято)"," (belegt)"," (zajęte)"],["Equipment level must be ","Рівень спорядження має бути ","Уровень снаряжения должен быть ","Ausrüstung Niveau muss ","Poziom wyposażenia musi wynosić "],[" or lower"," або нижче"," или ниже"," oder niedriger sein"," lub mniej"],[" (yours: "," (у вас: "," (у вас: "," (deins: "," (twój: "],[")",")",")",")",")"],["Leave your squad first","Спершу залиште загін","Сначала покиньте отряд","Verlasse zuerst deine Abteilung","Najpierw opuść brygadę"],["Leave the search first","Спершу скасуйте пошук","Сначала отмените поиск","Brich zuerst die Suche ab"
+          ,"Najpierw przerwij wyszukiwanie"],["You are already in a match","Ви вже в матчі","Вы уже в матче","Du bist bereits in einem Match","Jesteś już w rozgrywce"],["Update your game","Оновіть гру","Обновите игру","Aktualisiere dein Spiel","Zaktualizuj grę"],["Matches with bots are switched off now","Матчі з ботами зараз вимкнені","Матчи с ботами сейчас отключены","Matches mit Bots sind gerade abgeschaltet","Rozgrywki z botami są teraz wyłączone"],["The most bot matches at a time are already running","Уже йде найбільше матчів з ботами одночасно","Уже идёт максимум матчей с ботами одновременно","Die Höchstzahl an Bot-Matches läuft bereits","Trwa już maksymalna liczba rozgrywek z botami"],[", try again in a minute",", спробуйте за хвилину",", попробуйте через минуту",", versuche es in einer Minute erneut",", spróbuj ponownie za minutę"],["Maintenance starts soon, no new bot matches","Скоро технічне обслуговування, нові матчі з ботами не почнуться","Скоро техническое обслуживание, новые матчи с ботами не начнутся"
+          ,"Die Wartung beginnt bald, keine neuen Bot-Matches","Wkrótce konserwacja, nowe rozgrywki z botami nie wystartują"],["Switch off \"Clan match\" first","Спершу вимкніть \"Клановий бій\"","Сначала отключите \"Клановый бой\"","Schalte zuerst \"Clan Kampf\" ab","Najpierw wyłącz \"Bitwa klanowa\""],["Checking…","Перевірка…","Проверка…","Prüfung…","Sprawdzanie…"],["No answer from the server","Сервер не відповідає","Сервер не отвечает","Keine Antwort vom Server","Brak odpowiedzi serwera"],["No answer, try again","Немає відповіді, спробуйте ще","Нет ответа, попробуйте ещё","Keine Antwort, erneut versuchen","Brak odpowiedzi, spróbuj ponownie"],["A bot match cannot start now","Матч з ботами зараз почати не можна","Матч с ботами сейчас начать нельзя","Ein Bot-Match kann gerade nicht starten","Rozgrywka z botami nie może teraz wystartować"],["This map or team size is not available now","Ця карта чи розмір команд зараз недоступні","Эта карта или размер команд сейчас недоступны","Diese Karte oder Teamgröße ist gerade nicht verfügbar"
+          ,"Ta mapa lub wielkość drużyn jest teraz niedostępna"],["Demo: the server would start the match now: ","Демо: сервер зараз почав би матч: ","Демо: сервер сейчас начал бы матч: ","Demo: der Server würde das Match jetzt starten: ","Demo: serwer uruchomiłby teraz rozgrywkę: "]];
++         return words;
+       }
+       
+       protected function pvbText(key:int) : String
+@@ -728,7 +732,7 @@
+          var found:Object = null;
+          try
+          {
+-            found = Object(this.parent).play_container;
++            found = public::Object(this.parent).play_container;
+          }
+          catch(e:Error)
+          {
+@@ -820,7 +824,7 @@
+          this.pvbMapMenu.y = int(this.pvbModeMenu.y + this.pvbModeMenu.height + 6);
+          this.pvbMapMenu.width = width;
+          this.pvbMapMenu.menuWidth = width > 260 ? width : 260;
+-         this.pvbOpenHeight = this.pvbMapMenu.y + this.pvbMapMenu.height + 10;
++         this.pvbOpenHeight = int(this.pvbMapMenu.y + this.pvbMapMenu.height + 10);
+          if(this.pvbOpenHeight < 130)
+          {
+             this.pvbOpenHeight = 150;
+@@ -1202,7 +1206,7 @@
+             {
+                return;
+             }
+-            if(play.label.toUpperCase() != LocalizationData.getName("Play").toUpperCase())
++            if(String(play.label).toUpperCase() != LocalizationData.getName("Play").toUpperCase())
+             {
+                return;
+             }

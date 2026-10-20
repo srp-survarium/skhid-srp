@@ -1,0 +1,129 @@
+--- a/survarium/controls/FixedText.as
++++ b/survarium/controls/FixedText.as
+@@ -43,13 +43,13 @@
+       public function FixedText()
+       {
+          super();
+-         this._text = this.textField.text;
+-         this.constraints = new Constraints(this,ConstrainMode.COUNTER_SCALE);
++         _text = this.textField.text;
++         constraints = new Constraints(this,ConstrainMode.COUNTER_SCALE);
+          this.constraints.addElement("textField",this.textField,Constraints.LEFT);
+          var _loc1_:TextFormat = this.textField.getTextFormat();
+          if(_loc1_.align == TextFormatAlign.CENTER)
+          {
+-            this._resize = true;
++            _resize = true;
+          }
+          else
+          {
+@@ -63,12 +63,12 @@
+       
+       protected function refresh() : void
+       {
+-         this._mw = this.width / scaleX;
++         _mw = this.width / scaleX;
+          this._mask.graphics.clear();
+          this._mask.graphics.beginFill(0);
+          this._mask.graphics.drawRect(0,0,this._mw,height);
+          this._mask.graphics.endFill();
+-         this._sw = this.width;
++         _sw = this.width;
+          this.constraints.update(this.width,height);
+       }
+       
+@@ -88,7 +88,8 @@
+       
+       public function getWidth() : int
+       {
+-         return this.textField.textWidth < this._mw ? int(this.textField.textWidth) : int(this._mw);
++         var _loc1_:int = this.textField.textWidth < this._mw ? (this.textField.textWidth) : this._mw;
++         return _loc1_;
+       }
+       
+       public function get shift() : int
+@@ -98,8 +99,8 @@
+       
+       public function set shift(param1:int) : void
+       {
+-         this._pos = param1;
+-         if(Boolean(this.textField))
++         _pos = param1;
++         if(this.textField)
+          {
+             this.textField.x = this.shift;
+          }
+@@ -127,10 +128,10 @@
+                   this.textField.width = this._sw;
+                }
+             }
+-            this._text = param1;
++            _text = param1;
+             if(this.textField.textWidth < this._sw)
+             {
+-               if(Boolean(this.mask))
++               if(this.mask)
+                {
+                   this.mask = null;
+                   removeChild(this._mask);
+@@ -139,12 +140,12 @@
+                {
+                   this._timer.stop();
+                }
+-               if(Boolean(this._tweenLite))
++               if(this._tweenLite)
+                {
+                   this._tweenLite.kill();
+-                  this._tweenLite = null;
++                  _tweenLite = null;
+                }
+-               this.shift = 1;
++               shift = 1;
+             }
+             else
+             {
+@@ -155,13 +156,13 @@
+                }
+                this._timer.reset();
+                this._timer.start();
+-               if(Boolean(this._tweenLite))
++               if(this._tweenLite)
+                {
+                   this._tweenLite.kill();
+-                  this._tweenLite = null;
++                  _tweenLite = null;
+                }
+-               this._side = true;
+-               this.shift = 1;
++               _side = true;
++               shift = 1;
+             }
+          }
+       }
+@@ -174,21 +175,21 @@
+          }
+          if(this._side)
+          {
+-            if(Boolean(this._tweenLite))
++            if(this._tweenLite)
+             {
+                this._tweenLite.kill();
+             }
+-            this._tweenLite = TweenLite.to(this,1,{"shift":this._mask.width - this.textField.width - 1});
++            _tweenLite = TweenLite.to(this,1,{shift:this._mask.width - this.textField.width - 1});
+          }
+          else
+          {
+-            if(Boolean(this._tweenLite))
++            if(this._tweenLite)
+             {
+                this._tweenLite.kill();
+             }
+-            this._tweenLite = TweenLite.to(this,0.5,{"shift":1});
++            _tweenLite = TweenLite.to(this,0.5,{shift:1});
+          }
+-         this._side = !this._side;
++         _side = !this._side;
+       }
+    }
+ }

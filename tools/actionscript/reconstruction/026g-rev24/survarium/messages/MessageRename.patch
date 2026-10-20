@@ -1,0 +1,10 @@
+--- a/survarium/messages/MessageRename.as
++++ b/survarium/messages/MessageRename.as
+@@ -69,6 +69,7 @@
+                      param1.handled = true;
+                   }
+                }
++               break;
+          }
+       }
+       

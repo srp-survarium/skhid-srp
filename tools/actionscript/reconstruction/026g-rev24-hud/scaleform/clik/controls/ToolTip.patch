@@ -1,0 +1,173 @@
+--- a/scaleform/clik/controls/ToolTip.as
++++ b/scaleform/clik/controls/ToolTip.as
+@@ -18,9 +18,9 @@
+       
+       public static var tipContainer:DisplayObjectContainer;
+       
++      protected static var _tip_interval:Timer = new Timer(300);
++      
+       protected static var _lastTarget:ToolTip;
+-      
+-      protected static var _tip_interval:Timer = new Timer(300);
+       
+       public var tipEnabled:Boolean = true;
+       
+@@ -62,7 +62,7 @@
+       
+       public function set tooltipRendererName(value:String) : void
+       {
+-         var classRef:Class = null;
++         var classRef:Class;
+          if(_inspector && value == "" || value == "")
+          {
+             return;
+@@ -76,7 +76,7 @@
+          }
+          if(classRef != null)
+          {
+-            this._tooltipRenderer = classRef;
++            _tooltipRenderer = classRef;
+          }
+          else
+          {
+@@ -90,7 +90,7 @@
+          {
+             return;
+          }
+-         this._data = value;
++         _data = value;
+       }
+       
+       public function get tipData() : Object
+@@ -111,13 +111,13 @@
+          super.draw();
+          if(isInvalid(InvalidationType.DATA))
+          {
+-            if(Boolean(this._tooltipRenderer))
++            if(this._tooltipRenderer)
+             {
+                if(this._data == null)
+                {
+                   _tip_interval.reset();
+                }
+-               if(Boolean(this._tipRenderer) && Boolean(this._data))
++               if(this._tipRenderer && this._data)
+                {
+                   this._tipRenderer.data = this._data;
+                }
+@@ -139,9 +139,9 @@
+          {
+             return;
+          }
+-         if(Boolean(this._tooltipRenderer))
+-         {
+-            this._tipRenderer = new this._tooltipRenderer();
++         if(this._tooltipRenderer)
++         {
++            _tipRenderer = new this._tooltipRenderer();
+          }
+          if(!this._tipRenderer)
+          {
+@@ -155,18 +155,18 @@
+          _tip_interval.reset();
+          if(!this._tip_content)
+          {
+-            if(Boolean(this._data))
++            if(this._data)
+             {
+                this._tipRenderer.data = this._data;
+             }
+-            this._tip_content = this._tipRenderer as Sprite;
++            _tip_content = this._tipRenderer as Sprite;
+             tipContainer.addChild(this._tip_content);
+             this._tip_content.mouseEnabled = false;
+             this._tip_content.mouseChildren = false;
+          }
+          else
+          {
+-            this._tip_content = this._tipRenderer as Sprite;
++            _tip_content = this._tipRenderer as Sprite;
+             this._tipRenderer.data = this._data;
+             tipContainer.addChild(this._tip_content);
+             this._tip_content.mouseEnabled = false;
+@@ -204,11 +204,11 @@
+          }
+          if(!DragManager.inDrag())
+          {
+-            if(Boolean(_lastTarget) && _lastTarget != this)
++            if(_lastTarget && _lastTarget != this)
+             {
+                _lastTarget.handleDeleted(null);
+             }
+-            if(Boolean(this._tip_content) && Boolean(tipContainer))
++            if(this._tip_content && tipContainer)
+             {
+                if(tipContainer.contains(this._tip_content))
+                {
+@@ -220,7 +220,7 @@
+             _tip_interval.addEventListener(TimerEvent.TIMER_COMPLETE,this.showTip);
+             event.stopPropagation();
+          }
+-         this.isOver = true;
++         isOver = true;
+       }
+       
+       protected function handleMouseMoveOutTip(event:MouseEvent) : void
+@@ -229,19 +229,19 @@
+          {
+             return;
+          }
+-         this.isOver = false;
+-         if(Boolean(_tip_interval))
+-         {
+-            _tip_interval.reset();
+-         }
+-         if(Boolean(this._tip_content))
+-         {
+-            if(Boolean(tipContainer) && tipContainer.contains(this._tip_content))
++         isOver = false;
++         if(_tip_interval)
++         {
++            _tip_interval.reset();
++         }
++         if(this._tip_content)
++         {
++            if(tipContainer && tipContainer.contains(this._tip_content))
+             {
+                tipContainer.removeChild(this._tip_content);
+             }
+          }
+-         if(Boolean(_tip_interval))
++         if(_tip_interval)
+          {
+             _tip_interval.removeEventListener(TimerEvent.TIMER_COMPLETE,this.showTip);
+          }
+@@ -257,12 +257,12 @@
+          {
+             return;
+          }
+-         if(Boolean(_tip_interval))
++         if(_tip_interval)
+          {
+             _tip_interval.reset();
+             _tip_interval.start();
+          }
+-         if(Boolean(this._tip_content))
++         if(this._tip_content)
+          {
+             if(tipContainer.contains(this._tip_content))
+             {
+@@ -273,11 +273,11 @@
+       
+       protected function handleDeleted(event:Event) : void
+       {
+-         if(Boolean(this._tip_content) && Boolean(this._tip_content.parent) && this._tip_content.parent.contains(this._tip_content))
++         if(this._tip_content && this._tip_content.parent && this._tip_content.parent.contains(this._tip_content))
+          {
+             this._tip_content.parent.removeChild(this._tip_content);
+          }
+-         if(Boolean(_tip_interval))
++         if(_tip_interval)
+          {
+             _tip_interval.reset();
+             _tip_interval.removeEventListener(TimerEvent.TIMER_COMPLETE,this.showTip);

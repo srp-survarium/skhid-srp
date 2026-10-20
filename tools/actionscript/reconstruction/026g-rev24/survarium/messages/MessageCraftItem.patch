@@ -1,0 +1,277 @@
+--- a/survarium/messages/MessageCraftItem.as
++++ b/survarium/messages/MessageCraftItem.as
+@@ -21,15 +21,15 @@
+    public class MessageCraftItem extends MessageAccept
+    {
+       
++      protected static var _craftChance:Array = [1,2,3,4,5,6,7,8,9,10,11,12];
++      
++      protected static var _pemiumCostArray:Array = [];
++      
+       protected static var _pemiumCost:uint;
+       
++      protected static var _regularCostArray:Array = [];
++      
+       protected static var _regularCost:uint;
+-      
+-      protected static var _craftChance:Array = [1,2,3,4,5,6,7,8,9,10,11,12];
+-      
+-      protected static var _pemiumCostArray:Array = [];
+-      
+-      protected static var _regularCostArray:Array = [];
+       
+       public var background:MovieClip;
+       
+@@ -91,9 +91,9 @@
+          {
+             return;
+          }
+-         this.dragItemSlot1 = new _loc1_();
+-         this.dragItemSlot2 = new _loc1_();
+-         this.dragItemSlot3 = new _loc1_();
++         dragItemSlot1 = new _loc1_();
++         dragItemSlot2 = new _loc1_();
++         dragItemSlot3 = new _loc1_();
+          var _loc2_:int = 25;
+          this.dragItemSlot1.x = 24 + _loc2_;
+          this.dragItemSlot1.y = 44;
+@@ -124,10 +124,10 @@
+       
+       public function setMatchState(param1:int) : void
+       {
+-         var _loc2_:ItemData = null;
+-         var _loc3_:Boolean = false;
++         var _loc2_:ItemData;
++         var _loc3_:Boolean;
+          trace("MCI::",this._matchState);
+-         this._matchState = param1;
++         _matchState = param1;
+          if(!parent)
+          {
+             return;
+@@ -136,13 +136,13 @@
+          {
+             _loc3_ = false;
+             _loc2_ = this.dragItemSlot1.data;
+-            if(Boolean(_loc2_) && _loc2_.equipped)
++            if(_loc2_ && _loc2_.equipped)
+             {
+                _loc3_ = true;
+                this.dragItemSlot1.data = null;
+             }
+             _loc2_ = this.dragItemSlot2.data;
+-            if(Boolean(_loc2_) && _loc2_.equipped)
++            if(_loc2_ && _loc2_.equipped)
+             {
+                _loc3_ = true;
+                this.dragItemSlot2.data = null;
+@@ -168,7 +168,7 @@
+          this.updateLayout();
+          tabEnabled = true;
+          btnAccept.enabled = false;
+-         if(Boolean(_data))
++         if(_data)
+          {
+             trace("in:data::",this.newModiferRenderer,this.labelNewModifier);
+             this.lockWindow(false);
+@@ -176,11 +176,11 @@
+             this.newModiferRenderer.visible = false;
+             this.labelNewModifier.visible = false;
+             TextFieldEx.setVerticalAlign(this.decriptionLabel,TextFieldEx.VALIGN_CENTER);
+-            if(Boolean(this.dragItemSlot1))
++            if(this.dragItemSlot1)
+             {
+                this.dragItemSlot1.label = LocalizationData.getName("item_craft_main_slot");
+             }
+-            if(Boolean(this.dragItemSlot2))
++            if(this.dragItemSlot2)
+             {
+                this.dragItemSlot2.label = LocalizationData.getName("item_craft_donor_slot");
+             }
+@@ -226,21 +226,21 @@
+       
+       private function onPaperDollSlot(param1:Event) : void
+       {
+-         var _loc2_:ItemData = null;
++         var _loc2_:ItemData;
+          trace("onPaperDollSlot",param1.target);
+-         trace("items",Boolean(this.dragItemSlot1.data) ? this.dragItemSlot1.data.itemId : null,Boolean(this.dragItemSlot2.data) ? this.dragItemSlot2.data.itemId : null);
++         trace("items",this.dragItemSlot1.data ? this.dragItemSlot1.data.itemId : null,this.dragItemSlot2.data ? this.dragItemSlot2.data.itemId : null);
+          if(!this.dragItemSlot3.visible)
+          {
+-            if(Boolean(this.dragItemSlot1.data) && Boolean(this.dragItemSlot2.data))
++            if(this.dragItemSlot1.data && this.dragItemSlot2.data)
+             {
+                this.decriptionLabel.text = LocalizationData.getName("item_craft_description");
+             }
+             else
+             {
+-               this.decriptionLabel.text = LocalizationData.getName(Boolean(this.dragItemSlot1.data) ? "item_craft_description_choose_donor" : "item_craft_description_choose_item");
+-            }
+-         }
+-         if(Boolean(param1.target.data))
++               this.decriptionLabel.text = LocalizationData.getName(this.dragItemSlot1.data ? "item_craft_description_choose_donor" : "item_craft_description_choose_item");
++            }
++         }
++         if(param1.target.data)
+          {
+             _loc2_ = param1.target.data;
+             trace("dropData::",_loc2_.name,_loc2_.equipped);
+@@ -260,7 +260,7 @@
+                param1.target.data = null;
+             }
+          }
+-         if(Boolean(this.dragItemSlot2.data) && Boolean(this.dragItemSlot1.data))
++         if(this.dragItemSlot2.data && this.dragItemSlot1.data)
+          {
+             if(this.dragItemSlot2.data.itemId == this.dragItemSlot1.data.itemId)
+             {
+@@ -280,22 +280,22 @@
+       
+       protected function updateCraftChance() : void
+       {
+-         var _loc3_:uint = 0;
+-         var _loc4_:uint = 0;
+-         var _loc9_:uint = 0;
+-         var _loc10_:uint = 0;
+          var _loc1_:ItemData = this.dragItemSlot1.data;
+          var _loc2_:ItemData = this.dragItemSlot2.data;
++         var _loc3_:uint;
++         var _loc4_:uint;
+          var _loc5_:uint = 0;
+          var _loc6_:uint = 0;
+          var _loc7_:uint = 0;
+          var _loc8_:uint = 0;
+-         this._craftAvailable = true;
++         var _loc9_:uint;
++         var _loc10_:uint;
++         _craftAvailable = true;
+          if(!_loc1_ || !_loc2_)
+          {
+             _loc3_ = 0;
+             _loc4_ = 0;
+-            this._craftAvailable = false;
++            _craftAvailable = false;
+          }
+          else
+          {
+@@ -303,25 +303,25 @@
+             _loc4_ = _loc2_.rank;
+             if(_loc3_ < _loc4_)
+             {
+-               this._craftAvailable = false;
++               _craftAvailable = false;
+                this.onWrongModifiers();
+             }
+             else
+             {
+                _loc9_ = (_loc3_ - _loc4_) * 4;
+-               _loc5_ = uint(_craftChance[_loc9_]);
+-               _loc6_ = uint(_craftChance[_loc9_ + 1]);
+-               _loc7_ = uint(_craftChance[_loc9_ + 2]);
+-               _loc8_ = uint(_craftChance[_loc9_ + 3]);
++               _loc5_ = _craftChance[_loc9_];
++               _loc6_ = _craftChance[_loc9_ + 1];
++               _loc7_ = _craftChance[_loc9_ + 2];
++               _loc8_ = _craftChance[_loc9_ + 3];
+             }
+          }
+          this.successChanceRegular.text = _loc5_ + "%";
+          this.failChanceRegular.text = _loc6_ + "%";
+          this.successChanceGold.text = _loc7_ + "%";
+          this.failChanceGold.text = _loc8_ + "%";
+-         if(Boolean(_loc1_) || Boolean(_loc2_))
+-         {
+-            _loc10_ = Boolean(_loc1_) ? _loc1_.itemLevel : (Boolean(_loc2_) ? _loc2_.itemLevel : 0);
++         if(_loc1_ || _loc2_)
++         {
++            _loc10_ = _loc1_ ? _loc1_.itemLevel : (_loc2_ ? _loc2_.itemLevel : 0);
+             _pemiumCost = _pemiumCostArray[_loc10_];
+             _regularCost = _regularCostArray[_loc10_];
+          }
+@@ -366,10 +366,10 @@
+       
+       protected function checkAcceptButton(param1:Event = null) : void
+       {
+-         var _loc3_:ItemData = null;
+-         var _loc4_:ItemData = null;
+          var _loc2_:Boolean = true;
+-         if(Boolean(this.dragItemSlot1.data) && Boolean(this.dragItemSlot2.data))
++         var _loc3_:ItemData;
++         var _loc4_:ItemData;
++         if(this.dragItemSlot1.data && this.dragItemSlot2.data)
+          {
+             _loc3_ = this.dragItemSlot1.data;
+             _loc4_ = this.dragItemSlot2.data;
+@@ -382,7 +382,7 @@
+             {
+                _loc2_ = false;
+             }
+-            else if(Boolean(_loc3_.repairTime) || Boolean(_loc4_.repairTime))
++            else if(_loc3_.repairTime || _loc4_.repairTime)
+             {
+                _loc2_ = false;
+             }
+@@ -464,10 +464,10 @@
+       protected function onNoMoneyEnought() : void
+       {
+          var _loc1_:Object = {
+-            "text":LocalizationData.getName("cant_buy_premium_message"),
+-            "onYes":this.goToStore,
+-            "label_ok":LocalizationData.getName("btn_add_premium_message"),
+-            "label_cancel":LocalizationData.getName("cancel")
++            text:LocalizationData.getName("cant_buy_premium_message"),
++            onYes:this.goToStore,
++            label_ok:LocalizationData.getName("btn_add_premium_message"),
++            label_cancel:LocalizationData.getName("cancel")
+          };
+          Message.showMessage("apply",_loc1_,true);
+       }
+@@ -489,11 +489,11 @@
+       protected function onWrongModifiers() : void
+       {
+          var _loc1_:Object = {
+-            "text":LocalizationData.getName("craft_message_modifiers_difference"),
+-            "onYes":this.swapItems,
+-            "onNo":this.dropItem,
+-            "label_ok":LocalizationData.getName("ok"),
+-            "label_cancel":LocalizationData.getName("cancel")
++            text:LocalizationData.getName("craft_message_modifiers_difference"),
++            onYes:this.swapItems,
++            onNo:this.dropItem,
++            label_ok:LocalizationData.getName("ok"),
++            label_cancel:LocalizationData.getName("cancel")
+          };
+          Message.showMessage("apply",_loc1_,true);
+       }
+@@ -517,13 +517,13 @@
+       
+       override protected function onMessageAccept(param1:ButtonEvent = null) : void
+       {
+-         var _loc2_:uint = 0;
++         var _loc2_:uint;
+          if(!btnAccept.enabled)
+          {
+             return;
+          }
+          trace("onMessageAccept",this.dragItemSlot1.data,this.dragItemSlot2.data);
+-         if(Boolean(this.dragItemSlot1.data) && Boolean(this.dragItemSlot2.data) && !this.dragItemSlot3.visible)
++         if(this.dragItemSlot1.data && this.dragItemSlot2.data && !this.dragItemSlot3.visible)
+          {
+             _loc2_ = uint(this.checkBoxPremiumCost.selected ? 1 : 0);
+             if(_loc2_ == 1 && _pemiumCost > PlayerInfo.premiumMoney)
+@@ -543,10 +543,10 @@
+       private function testResult() : void
+       {
+          parent["fill_crafted_item"]({
+-            "dict_id":this.dragItemSlot1.data.dictId,
+-            "new_modifier":null,
+-            "rarity_level":1,
+-            "result":-2
++            dict_id:this.dragItemSlot1.data.dictId,
++            new_modifier:null,
++            rarity_level:1,
++            result:-2
+          });
+       }
+    }

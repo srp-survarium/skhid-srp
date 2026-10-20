@@ -1,0 +1,10 @@
+--- a/survarium/messages/MessageAcceptBase.as
++++ b/survarium/messages/MessageAcceptBase.as
+@@ -52,6 +52,7 @@
+                      param1.handled = true;
+                   }
+                }
++               break;
+          }
+       }
+       

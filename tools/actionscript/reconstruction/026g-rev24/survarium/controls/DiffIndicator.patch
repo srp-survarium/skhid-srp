@@ -1,0 +1,83 @@
+--- a/survarium/controls/DiffIndicator.as
++++ b/survarium/controls/DiffIndicator.as
+@@ -35,11 +35,11 @@
+       public function DiffIndicator()
+       {
+          super();
+-         this._size = this.mc_value.width;
++         _size = this.mc_value.width;
+          this.mc_value.width = 0;
+          this.mc_diff_positive.width = 0;
+          this.mc_diff_negative.width = 0;
+-         if(Boolean(this.mc_diff_positive_ghost) && Boolean(this.mc_diff_negative_ghost))
++         if(this.mc_diff_positive_ghost && this.mc_diff_negative_ghost)
+          {
+             this.mc_diff_positive_ghost.width = 0;
+             this.mc_diff_negative_ghost.width = 0;
+@@ -48,7 +48,7 @@
+       
+       public function set upgrade(param1:Number) : void
+       {
+-         this._upgrade = param1;
++         _upgrade = param1;
+          invalidate(InvalidationType.DATA);
+       }
+       
+@@ -59,7 +59,7 @@
+       
+       public function set extra(param1:Number) : void
+       {
+-         this._extraValue = param1;
++         _extraValue = param1;
+          invalidate(InvalidationType.DATA);
+       }
+       
+@@ -70,32 +70,32 @@
+       
+       public function set compare(param1:Number) : void
+       {
+-         this._otherValue = param1;
++         _otherValue = param1;
+          if(this._otherValue > _maximum)
+          {
+-            this._otherValue = _maximum;
++            _otherValue = _maximum;
+          }
+          if(this._otherValue < _minimum)
+          {
+-            this._otherValue = _minimum;
++            _otherValue = _minimum;
+          }
+          invalidate(InvalidationType.DATA);
+       }
+       
+       public function set direction(param1:Boolean) : void
+       {
+-         this._direction = param1;
++         _direction = param1;
+       }
+       
+       override protected function updatePosition() : void
+       {
+-         var _loc1_:Number = NaN;
+-         var _loc2_:Sprite = null;
++         var _loc1_:Number;
++         var _loc2_:Sprite;
+          if(!enabled)
+          {
+             return;
+          }
+-         this._valueDiff = this._otherValue - _value;
++         _valueDiff = this._otherValue - _value;
+          if(this._valueDiff > 0)
+          {
+             _loc1_ = (_value - _minimum) / (_maximum - _minimum);
+@@ -105,7 +105,7 @@
+             _loc1_ = (_value - _minimum + this._valueDiff) / (_maximum - _minimum);
+          }
+          this.mc_value.width = this._size * _loc1_;
+-         if(Boolean(this.mc_diff_positive_ghost) && Boolean(this.mc_diff_negative_ghost))
++         if(this.mc_diff_positive_ghost && this.mc_diff_negative_ghost)
+          {
+             if(this._extraValue == 0 || this._valueDiff != 0)
+             {

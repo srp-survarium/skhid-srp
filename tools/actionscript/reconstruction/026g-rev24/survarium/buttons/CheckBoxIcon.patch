@@ -1,0 +1,41 @@
+--- a/survarium/buttons/CheckBoxIcon.as
++++ b/survarium/buttons/CheckBoxIcon.as
+@@ -20,18 +20,18 @@
+       
+       public function set iconIndex(param1:uint) : void
+       {
+-         this._iconIndex = param1;
++         _iconIndex = param1;
+          this.icon.gotoAndStop(this._iconIndex + 1);
+       }
+       
+       override protected function updateText() : void
+       {
+          super.updateText();
+-         if(Boolean(textField) && Boolean(this.icon))
++         if(textField && this.icon)
+          {
+             textField.x = this.icon.x + this.icon.width + 5;
+          }
+-         if(Boolean(this.lockIcon))
++         if(this.lockIcon)
+          {
+             mouseChildren = true;
+             mouseEnabled = true;
+@@ -41,14 +41,14 @@
+       override protected function configUI() : void
+       {
+          super.configUI();
+-         if(Boolean(constraints))
++         if(constraints)
+          {
+             constraints.removeAllElements();
+          }
+          constraintsDisabled = true;
+          preventAutosizing = true;
+          trace("CBI::configUI",this.lockIcon);
+-         if(Boolean(this.lockIcon))
++         if(this.lockIcon)
+          {
+             this.lockIcon.tooltipRendererName = "SrvProfileTipRenderer";
+             this.icon.mouseEnabled = false;

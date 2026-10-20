@@ -1,0 +1,1242 @@
+"""Optional real Flex regression test; requires SRP_AS_TOOLS=/path/to/tools.json."""
+import json
+import os
+import re
+from pathlib import Path
+import subprocess
+import tempfile
+import unittest
+import xml.etree.ElementTree as ET
+import zipfile
+
+import movie_source
+
+
+@unittest.skipUnless(os.environ.get("SRP_AS_TOOLS"), "set SRP_AS_TOOLS to run real compiler integration")
+class CompilerIntegration(unittest.TestCase):
+    def test_catalog_and_wildcard_vector_dependency(self):
+        with tempfile.TemporaryDirectory(prefix="srp-as-test-") as temp:
+            root = Path(temp)
+            config_path = Path(os.environ["SRP_AS_TOOLS"]).resolve()
+            config = json.loads(config_path.read_text())
+            sdk = Path(config["flex"])
+            tools = movie_source.Toolchain(config_path, root / "bridge")
+            dep = root / "dependency" / "fixture"
+            dep.mkdir(parents=True)
+            # Separate inherited, field-type and wildcard dependencies exercise
+            # both missing catalog edges and ASC's multiname-zero decoder bug.
+            (dep / "Value.as").write_text("""package fixture {
+                public class Value {
+                    public var items:Vector.<*>;
+                    public function count():uint { return items.length; }
+                }
+            }""")
+            (dep / "Base.as").write_text("""package fixture {
+                import flash.text.TextField;
+                import flash.utils.Timer;
+                public class Base {
+                    public var value:Value;
+                    public var textField:TextField;
+                    public var timer:Timer;
+                }
+            }""")
+            source = root / "probe" / "Probe.as"
+            source.parent.mkdir()
+            source.write_text("""package {
+                import fixture.Base;
+                import fixture.Value;
+                import flash.text.TextFormat;
+                public class Probe extends Base {
+                    public var explicit:Value = new Value();
+                    private var secret:int = 7;
+                    private function hidden():int { return secret; }
+                    public function inspect(target:Object, key:String):* { return target[key]; }
+                    public function inspectOther(target:Object):* { return target.one + target.two; }
+                    public function nested(value:int):Function {
+                        var first:Function = function(delta:int):int { return value+delta+secret; };
+                        var second:Function = function(delta:int):int { return first(delta)+1; };
+                        return second;
+                    }
+                    public function branches(n:int=0):int {
+                        var total:int=0;
+                        while(n>0) { if(n==2) total+=hidden(); n--; }
+                        try {
+                            switch(n) {
+                                case 0: return secret;
+                                case 1: return hidden();
+                                case 2: return secret+1;
+                                case 3: return hidden()+2;
+                                default: throw new Error("fixture");
+                            }
+                        } catch(error:Error) { return secret+total; }
+                        return total;
+                    }
+                    public function count():uint { return value.count(); }
+                    public function api():TextFormat {
+                        timer.reset();
+                        return textField.getTextFormat();
+                    }
+                    public function item():* { return value.items[0]; }
+                    public function identity(value:int=1):int { return value; }
+                    public function comparisons(left:*, right:*):int {
+                        var result:int=0;
+                        try {
+                            result += left == right ? 1 : 0;
+                            result += left != right ? 2 : 0;
+                            result += left === right ? 4 : 0;
+                            result += left !== right ? 8 : 0;
+                            result += left < right ? 16 : 0;
+                            result += left <= right ? 32 : 0;
+                            result += left > right ? 64 : 0;
+                            result += left >= right ? 128 : 0;
+                        } catch(error:Error) { return -1; }
+                        return result;
+                    }
+                    public function compact(value:int):void {
+                        while(value>0) { Math.max(value,1); value--; }
+                        switch(value) {
+                            case 0: Math.max(value,4); break;
+                            case 1: Math.max(value,5); break;
+                            case 2: Math.max(value,6); break;
+                            default: Math.max(value,7);
+                        }
+                        try { Math.max(value,2); }
+                        catch(error:Error) { Math.max(0,3); }
+                    }
+                }
+            }""")
+
+            def compiler(jar, args):
+                command = [config["java"], "-jar", str(sdk / "lib" / jar),
+                           "+flexlib=" + str(sdk / "frameworks"),
+                           "+playerglobalHome=" + str(sdk / "frameworks/libs/player"),
+                           "-external-library-path=" + str(sdk / "frameworks/libs/player/32.0/playerglobal.swc"),
+                           "-debug=false", "-optimize=false", *args]
+                return subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                      text=True, timeout=90)
+
+            library = root / "library.swc"
+            result = compiler("compc.jar", ["-library-path=", "-source-path=" + str(dep.parent), "-include-classes=fixture.Base,fixture.Value",
+                                            "-output=" + str(library)])
+            self.assertEqual(result.returncode, 0, result.stdout)
+            # Reproduce FFDec's incomplete catalog without changing the ABC.
+            with zipfile.ZipFile(library) as archive:
+                entries = {name: archive.read(name) for name in archive.namelist()}
+            # Flash's original compiler uses multiname 0 for Vector.<*>; Flex
+            # itself emits an explicit '*' QName. Construct the legal Flash
+            # representation so the regression reproduces the real input.
+            fixture = root / "WildcardFixture.java"
+            fixture.write_text("""
+                import java.nio.file.*; import java.io.*;
+                import com.jpexs.decompiler.flash.SWF;
+                import com.jpexs.decompiler.flash.tags.Tag;
+                import com.jpexs.decompiler.flash.abc.types.*;
+                import com.jpexs.decompiler.flash.abc.types.traits.TraitClass;
+                import com.jpexs.decompiler.flash.abc.types.traits.Trait;
+                import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
+                import com.jpexs.decompiler.flash.abc.avm2.AVM2Code;
+                public class WildcardFixture {
+                    public static void main(String[] args) throws Exception {
+                        var swf = new SWF(Files.newInputStream(Path.of(args[0])), true);
+                        int changed = 0;
+                        for (var tag : swf.getAbcList()) {
+                            var abc = tag.getABC();
+                            if (args.length >= 3) {
+                                if (args[2].startsWith("global-dispatch-")) {
+                                    for (var script:abc.script_info) for(var trait:script.traits.traits)
+                                        if(trait instanceof com.jpexs.decompiler.flash.abc.types.traits.TraitMethodGetterSetter method) {
+                                            if(args[2].equals("global-dispatch-kind")) method.kindType=2;
+                                            else if(args[2].equals("global-dispatch-method")) method.method_info=script.init_index;
+                                            else method.disp_id=Integer.parseInt(args[2].substring("global-dispatch-".length()));
+                                            changed++;
+                                        }
+                                    ((Tag)tag).setModified(true);
+                                    continue;
+                                }
+                                if (args[2].startsWith("namespace-slot-")) {
+                                    for (var script:abc.script_info) for(var trait:script.traits.traits)
+                                        if(trait instanceof com.jpexs.decompiler.flash.abc.types.traits.TraitSlotConst slot) {
+                                            slot.slot_id=Integer.parseInt(args[2].substring("namespace-slot-".length()));
+                                            changed++;
+                                        }
+                                    ((Tag)tag).setModified(true);
+                                    continue;
+                                }
+                                int cls = abc.findClassByName(args[2].startsWith("interface-") ? "ProbeContract" : "Probe");
+                                if (cls < 0) continue;
+                                for (var methodBody : abc.bodies) MovieSource.exactCode(methodBody);
+                                if(args[2].startsWith("interface-")) {
+                                    if(!abc.instance_info.get(cls).isInterface())throw new IOException("Expected interface");
+                                }
+                                if (args[2].startsWith("comparison-")) {
+                                    var owners=MovieSource.names(abc);
+                                    var body=abc.bodies.stream().filter(b -> owners.get(b.method_info).contains("\\\"comparisons\\\""))
+                                        .findFirst().orElseThrow();
+                                    var code=body.getCode();
+                                    if(args[2].equals("comparison-invert")) {
+                                        for(int i=0;i<code.code.size();i++) {
+                                            var jump=code.code.get(i);
+                                            if(jump.definition.instructionCode==0x12)
+                                                code.replaceInstruction(i,new AVM2Instruction(0,0x11,jump.operands.clone()),body);
+                                        }
+                                    } else if(args[2].equals("comparison-reference") || args[2].startsWith("comparison-mixed-")) {
+                                        int folded=0, seen=0;
+                                        for(int i=code.code.size()-2;i>=0;i--) {
+                                            int op=code.code.get(i).definition.instructionCode;
+                                            // Independent reference mapping for false branches, including
+                                            // equality followed by not. Do not call the production emitter.
+                                            int replacement=switch(op) {
+                                                case 0xab -> 0x14; case 0xac -> 0x1a;
+                                                case 0xad -> 0x0c; case 0xae -> 0x0d;
+                                                case 0xaf -> 0x0e; case 0xb0 -> 0x0f;
+                                                default -> 0;
+                                            };
+                                            if(replacement==0)continue;
+                                            int ordinal=seen++;
+                                            if(args[2].equals("comparison-mixed-even") && ordinal%2!=0)continue;
+                                            if(args[2].equals("comparison-mixed-odd") && ordinal%2!=1)continue;
+                                            int branch=i+1;
+                                            if(code.code.get(branch).definition.instructionCode==0x96) {
+                                                if(op!=0xab && op!=0xac)throw new IOException("Unexpected negation");
+                                                replacement=op==0xab?0x13:0x19;branch++;
+                                            }
+                                            if(code.code.get(branch).definition.instructionCode==0x76)branch++;
+                                            int branchOp=code.code.get(branch).definition.instructionCode;
+                                            if(branchOp==0x11)replacement=switch(replacement) {
+                                                case 0x14 -> 0x13; case 0x13 -> 0x14;
+                                                case 0x1a -> 0x19; case 0x19 -> 0x1a;
+                                                case 0x0c -> 0x15; case 0x0d -> 0x16;
+                                                case 0x0e -> 0x17; case 0x0f -> 0x18;
+                                                default -> throw new IOException("Unknown comparison");
+                                            };
+                                            else if(branchOp!=0x12)throw new IOException("Expected Boolean branch");
+                                            // Keep the existing branch until all preceding operations
+                                            // are removed, letting FFDec relocate its original target.
+                                            var jump=code.code.get(branch);
+                                            code.replaceInstruction(branch,new AVM2Instruction(0,replacement,jump.operands.clone()),body);
+                                            while(branch-->i)code.removeInstruction(i,body);
+                                            folded++;
+                                        }
+                                        int required=args[2].equals("comparison-reference")?8:4;
+                                        if(folded!=required || seen!=8 || body.exceptions.length==0)
+                                            throw new IOException("Missing comparison fixture: "+folded);
+                                    } else {
+                                        int index=-1;
+                                        for(int i=0;i<code.code.size();i++)if(code.code.get(i).definition.instructionCode==0xad){index=i;break;}
+                                        if(args[2].equals("comparison-nan")) {
+                                            var jump=code.code.stream().filter(i->i.definition.instructionCode==0x0c).findFirst().orElseThrow();
+                                            code.replaceInstruction(code.code.indexOf(jump),new AVM2Instruction(0,0x18,jump.operands.clone()),body);
+                                        } else {
+                                            if(index<0)throw new IOException("Missing less-than comparison");
+                                            int middle=(int)code.code.get(index+1).getAddress();
+                                            if(args[2].equals("comparison-handler"))body.exceptions[0].end=middle;
+                                            else if(args[2].equals("comparison-target")) {
+                                                var jump=code.code.stream().filter(i->i.definition.instructionCode==0x12).findFirst().orElseThrow();
+                                                jump.operands[0]=middle-(int)jump.getAddress()-jump.getBytesLength();
+                                            } else throw new IOException("Unknown comparison mutation");
+                                        }
+                                    }
+                                    body.setCode(code);((Tag)tag).setModified(true);changed++;continue;
+                                }
+                                if (args[2].startsWith("compact-")) {
+                                    var owners=MovieSource.names(abc);
+                                    var body=abc.bodies.stream().filter(b -> owners.get(b.method_info).contains("\\\"compact\\\""))
+                                        .findFirst().orElseThrow();
+                                    var code=body.getCode();
+                                    if(args[2].equals("compact-reference")) {
+                                        int lookups=0,calls=0;
+                                        for(int i=code.code.size()-2;i>=0;i--) {
+                                            var a=code.code.get(i);var b=code.code.get(i+1);
+                                            int op=a.definition.instructionCode,replacement=0;
+                                            if(op==0x5d && b.definition.instructionCode==0x66
+                                                && java.util.Arrays.equals(a.operands,b.operands)) {replacement=0x60;lookups++;}
+                                            if(op==0x46 && b.definition.instructionCode==0x29) {replacement=0x4f;calls++;}
+                                            if(replacement!=0) {
+                                                code.replaceInstruction(i,new AVM2Instruction(0,replacement,a.operands.clone()),body);
+                                                code.removeInstruction(i+1,body);
+                                            }
+                                        }
+                                        if(lookups<3 || calls<3 || body.exceptions.length==0)throw new IOException("Missing compact fixture");
+                                        if(code.code.stream().noneMatch(i->i.definition.instructionCode==0x1b))
+                                            throw new IOException("Missing compact switch table");
+                                    } else {
+                                        int pair=-1;
+                                        for(int i=0;i+1<code.code.size();i++)if(code.code.get(i).definition.instructionCode==0x46
+                                            && code.code.get(i+1).definition.instructionCode==0x29){pair=i;break;}
+                                        if(pair<0)throw new IOException("Missing discarded call");
+                                        int middle=(int)code.code.get(pair+1).getAddress();
+                                        if(args[2].equals("compact-target")) {
+                                            var branch=code.code.stream().filter(i->i.definition.instructionCode>=0x0c
+                                                && i.definition.instructionCode<=0x1a).findFirst().orElseThrow();
+                                            branch.operands[0]=middle-(int)branch.getAddress()-branch.getBytesLength();
+                                        } else if(args[2].equals("compact-handler")) body.exceptions[0].end=middle;
+                                        else if(args[2].equals("compact-argc"))code.code.get(pair).operands[1]++;
+                                        else throw new IOException("Unknown compact mutation");
+                                    }
+                                    body.setCode(code);((Tag)tag).setModified(true);changed++;continue;
+                                }
+                                if (args[2].equals("feature-pool")) {
+                                    var reference=new SWF(Files.newInputStream(Path.of(args[3])),true);
+                                    var original=reference.getAbcList().stream().map(t->t.getABC())
+                                        .filter(a->a.findClassByName("Probe")>=0).findFirst().orElseThrow();
+                                    int found=0;
+                                    for(int i=original.constants.getMultinameCount();i<abc.constants.getMultinameCount();i++) {
+                                        var m=abc.constants.getMultiname(i);
+                                        if(!m.hasOwnName() || !abc.constants.getString(m.name_index).equals("new_feature_property"))continue;
+                                        if(!m.hasOwnNamespaceSet())throw new IOException("Expected dynamic feature lookup");
+                                        for(int ns:abc.constants.getNamespaceSet(m.namespace_set_index).namespaces)
+                                            if(abc.constants.getNamespace(ns).kind==5 && ns>=original.constants.getNamespaceCount())
+                                                throw new IOException("Feature lookup retained a fresh private namespace");
+                                        found++;
+                                    }
+                                    if(found==0)throw new IOException("No appended feature name tested");
+                                    changed++;continue;
+                                }
+                                if (args[2].equals("pool")) {
+                                    int id=abc.constants.getStringId("fixture",false);
+                                    if(id<=0)throw new IOException("Missing original string fixture");
+                                    abc.constants.setString(id,"tampered original constant");
+                                    ((Tag)tag).setModified(true);changed++;continue;
+                                }
+                                if (args[2].equals("other-class")) {
+                                    int other=abc.findClassByName("Retained");
+                                    if(other<0)throw new IOException("Missing retained class");
+                                    var body=abc.findBody(abc.instance_info.get(other).iinit_index);
+                                    byte[] code=body.getCodeBytes().clone();code[0]=0x20;body.setCodeBytes(code);
+                                    ((Tag)tag).setModified(true);changed++;continue;
+                                }
+                                if (args[2].startsWith("closures-")) {
+                                    var sites=new java.util.ArrayList<AVM2Instruction>();
+                                    for(var body:abc.bodies)for(var ins:body.getCode().code)
+                                        if(ins.definition.instructionCode==0x40)sites.add(ins);
+                                    if(sites.size()!=2)throw new IOException("Expected two local function sites");
+                                    int left=sites.get(0).operands[0],right=sites.get(1).operands[0];
+                                    if(args[2].equals("closures-reference")) {
+                                        abc.method_info.get(left).name_index=abc.constants.getStringId("legacyFirst",true);
+                                        abc.method_info.get(right).name_index=abc.constants.getStringId("legacySecond",true);
+                                    } else if(args[2].equals("closures-reorder")) {
+                                        java.util.Collections.swap(abc.method_info,left,right);
+                                        abc.method_info.get(left).name_index=0;abc.method_info.get(right).name_index=0;
+                                        for(var body:abc.bodies){
+                                            if(body.method_info==left)body.method_info=right;
+                                            else if(body.method_info==right)body.method_info=left;
+                                        }
+                                        sites.get(0).operands[0]=right;sites.get(1).operands[0]=left;
+                                    } else if(args[2].equals("closures-target")) sites.get(1).operands[0]=left;
+                                    else {
+                                        var code=abc.findBody(left).getCode();
+                                        code.code.set(0,new AVM2Instruction(0,0x20,new int[0]));
+                                    }
+                                    for(var body:abc.bodies)body.setCode(body.getCode());
+                                    ((Tag)tag).setModified(true);changed++;continue;
+                                }
+                                if (args[2].equals("merge-scripts")) {
+                                    int merged=0;
+                                    var extra = new SWF(Files.newInputStream(Path.of(args[3])), true);
+                                    for (var other : extra.getAbcList()) {
+                                        for(var body:other.getABC().bodies) MovieSource.exactCode(body);
+                                        abc.mergeABC(other.getABC());merged++;
+                                    }
+                                    if(merged==0 || abc.script_info.size()<2) throw new IOException("Missing multi-script fixture");
+                                    ((Tag)tag).setModified(true);changed++;continue;
+                                }
+                                if (args[2].equals("traits")) {
+                                    java.util.Collections.reverse(abc.instance_info.get(cls).instance_traits.traits);
+                                    ((Tag)tag).setModified(true);changed++;continue;
+                                }
+                                if (args[2].startsWith("control-")) {
+                                    var body=abc.bodies.stream().filter(b -> b.exceptions.length>0).findFirst().orElseThrow();
+                                    var code=body.getCode();
+                                    if (args[2].equals("control-handler")) body.exceptions[0].target=0;
+                                    else {
+                                        var branch=code.code.stream().filter(i -> i.definition.instructionCode>=0x0c
+                                            && i.definition.instructionCode<=0x1a).findFirst().orElseThrow();
+                                        long target=0;
+                                        if (args[2].equals("control-invalid")) target=code.code.stream()
+                                            .filter(i -> i.getBytesLength()>1).findFirst().orElseThrow().getAddress()+1;
+                                        branch.operands[0]=(int)(target-branch.getAddress()-branch.getBytesLength());
+                                    }
+                                    body.setCode(code);((Tag)tag).setModified(true);changed++;continue;
+                                }
+                                if (args[2].startsWith("split-file-")) {
+                                    int originalNamespace=0;
+                                    for(int i=1;i<abc.constants.getNamespaceCount();i++)
+                                        if("script".equals(MovieSource.privateRole(abc,i,"Probe","Probe"))) {
+                                            if(originalNamespace!=0)throw new IOException("Already split file namespace");
+                                            originalNamespace=i;
+                                        }
+                                    if(originalNamespace==0)throw new IOException("Missing file namespace");
+                                    var namespace=new Namespace();namespace.kind=5;
+                                    namespace.name_index=abc.constants.getStringId("Probe.as$900",true);
+                                    int replacement=abc.constants.addNamespace(namespace);
+                                    var owners=MovieSource.names(abc);
+                                    var body=abc.bodies.stream().filter(b->owners.get(b.method_info).contains("\\\"inspectOther\\\""))
+                                        .findFirst().orElseThrow();
+                                    var relocated=new java.util.HashMap<Integer,Integer>();
+                                    for(var instruction:body.getCode().code)for(int j=0;j<instruction.definition.operands.length;j++) {
+                                        if(instruction.definition.operands[j]!=AVM2Code.DAT_MULTINAME_INDEX)continue;
+                                        int index=instruction.operands[j];var old=abc.constants.getMultiname(index);
+                                        if(!old.hasOwnNamespaceSet() || relocated.containsKey(index))continue;
+                                        int[] members=abc.constants.getNamespaceSet(old.namespace_set_index).namespaces.clone();
+                                        boolean found=false;
+                                        for(int k=0;k<members.length;k++)if(members[k]==originalNamespace){members[k]=replacement;found=true;}
+                                        if(!found || (args[2].equals("split-file-mixed") && !relocated.isEmpty()))continue;
+                                        var copy=new Multiname();copy.kind=old.kind;copy.name_index=old.name_index;
+                                        copy.namespace_set_index=abc.constants.addNamespaceSet(new NamespaceSet(members));
+                                        relocated.put(index,abc.constants.addMultiname(copy));
+                                    }
+                                    if(relocated.isEmpty())throw new IOException("Missing split namespace lookups");
+                                    MovieSource.relocateCode(body,instruction->{
+                                        for(int j=0;j<instruction.definition.operands.length;j++)
+                                            if(instruction.definition.operands[j]==AVM2Code.DAT_MULTINAME_INDEX)
+                                                instruction.operands[j]=relocated.getOrDefault(instruction.operands[j],instruction.operands[j]);
+                                    });
+                                    if(!MovieSource.emptyFileNamespace(abc,originalNamespace)
+                                        || !MovieSource.emptyFileNamespace(abc,replacement))throw new IOException("File namespace is not empty");
+                                    if(args[2].equals("split-file-exposed")) {
+                                        abc.constants.addMultiname(Multiname.createQName(false,
+                                            abc.constants.getStringId("privateBinding",true),replacement));
+                                        if(MovieSource.emptyFileNamespace(abc,replacement))throw new IOException("Qualified private name was ignored");
+                                    }
+                                    ((Tag)tag).setModified(true);changed++;continue;
+                                }
+                                if (args[2].startsWith("namespace-")) {
+                                    var namespaces = new java.util.HashMap<Integer,Integer>();
+                                    int namespaceCount = abc.constants.getNamespaceCount();
+                                    for (int i=1; i<namespaceCount; i++) {
+                                        var ns = abc.constants.getNamespace(i);
+                                        String label = abc.constants.getString(ns.name_index);
+                                        if (ns.kind != 5 || !(label.equals("Probe") || label.startsWith("Probe.as$"))) continue;
+                                        String replacement = label.equals("Probe") ? "Probe" : "Probe.as$999";
+                                        if (args[2].equals("namespace-owner")) replacement = "OtherOwner";
+                                        var copy = new Namespace(); copy.kind = 5;
+                                        copy.name_index = abc.constants.getStringId(replacement, true);
+                                        namespaces.put(i, abc.constants.addNamespace(copy));
+                                        if (args[2].equals("namespace-ambiguous") && label.equals("Probe")) {
+                                            var duplicate = new Namespace(); duplicate.kind=5; duplicate.name_index=copy.name_index;
+                                            abc.constants.addNamespace(duplicate);
+                                        }
+                                    }
+                                    if (namespaces.isEmpty()) throw new IOException("Missing private namespace fixture");
+                                    var names = new java.util.HashMap<Integer,Integer>();
+                                    int nameCount = abc.constants.getMultinameCount();
+                                    if (args[2].equals("namespace-wide")) {
+                                        while(abc.constants.getMultinameCount()<130)
+                                            abc.constants.addMultiname(Multiname.createQName(false,
+                                                abc.constants.getStringId("padding"+abc.constants.getMultinameCount(),true),
+                                                abc.constants.getMultiname(abc.instance_info.get(cls).name_index).namespace_index));
+                                    }
+                                    for (int i=1; i<nameCount; i++) {
+                                        var old = abc.constants.getMultiname(i);
+                                        var copy = new Multiname();
+                                        copy.kind=old.kind; copy.name_index=old.name_index;
+                                        copy.namespace_index=old.namespace_index; copy.namespace_set_index=old.namespace_set_index;
+                                        copy.qname_index=old.qname_index; copy.params=old.params == null ? null : old.params.clone();
+                                        boolean moved=false;
+                                        if (old.hasOwnNamespace() && namespaces.containsKey(old.namespace_index)) {
+                                            copy.namespace_index=namespaces.get(old.namespace_index); moved=true;
+                                        }
+                                        if (old.hasOwnNamespaceSet()) {
+                                            int[] oldSet=abc.constants.getNamespaceSet(old.namespace_set_index).namespaces;
+                                            int extra=args[2].equals("namespace-member") ? 1 : 0;
+                                            int[] newSet=new int[oldSet.length+extra];
+                                            for(int j=0;j<oldSet.length;j++) newSet[j]=namespaces.getOrDefault(oldSet[oldSet.length-1-j],oldSet[oldSet.length-1-j]);
+                                            if(extra!=0) {
+                                                var ns=new Namespace();ns.kind=0x16;ns.name_index=abc.constants.getStringId("unrelated",true);
+                                                newSet[oldSet.length]=abc.constants.addNamespace(ns);
+                                            }
+                                            copy.namespace_set_index=abc.constants.addNamespaceSet(new NamespaceSet(newSet)); moved=true;
+                                        }
+                                        if(moved) names.put(i,abc.constants.addMultiname(copy));
+                                    }
+                                    for(var trait:abc.instance_info.get(cls).instance_traits.traits)
+                                        trait.name_index=names.getOrDefault(trait.name_index,trait.name_index);
+                                    int widths=0,switches=0,forward=0,backward=0,handlers=0;
+                                    for(var body:abc.bodies){
+                                        var code=body.getCode();
+                                        handlers+=body.exceptions.length;
+                                        for(var ins:code.code) {
+                                            int opcode=ins.definition.instructionCode;
+                                            if(opcode==0x1b) switches++;
+                                            else if(opcode>=0x0c && opcode<=0x1a) {
+                                                if(ins.operands[0]>0)forward++;else if(ins.operands[0]<0)backward++;
+                                            }
+                                            int oldWidth=ins.getBytesLength();
+                                            for(int j=0;j<ins.definition.operands.length;j++)
+                                                if(ins.definition.operands[j]==AVM2Code.DAT_MULTINAME_INDEX)
+                                                    // FFDec's own incremental relocation constructs
+                                                    // the fixture independently of our batch linker.
+                                                    ins.setOperand(j,names.getOrDefault(ins.operands[j],ins.operands[j]),code,body);
+                                            if(oldWidth!=ins.getBytesLength())widths++;
+                                        }
+                                        body.setCode(code);
+                                    }
+                                    if(args[2].equals("namespace-wide") && (widths==0 || switches==0 || forward==0 || backward==0 || handlers==0))
+                                        throw new IOException("Incomplete relocation fixture coverage");
+                                    ((Tag)tag).setModified(true);changed++;continue;
+                                }
+                                if (args[2].startsWith("annotation-")) {
+                                    var trait = abc.script_info.get(0).traits.traits.get(0);
+                                    MetadataInfo metadata;
+                                    if (args[2].equals("annotation-new")) metadata = new MetadataInfo(
+                                        abc.constants.getStringId("FixtureMetadata", true),
+                                        new int[]{abc.constants.getStringId("key", true)},
+                                        new int[]{abc.constants.getStringId("original", true)});
+                                    else {
+                                        var old = abc.metadata_info.get(trait.metadata[0]);
+                                        metadata = new MetadataInfo(old.name_index, old.keys.clone(), old.values.clone());
+                                        if (args[2].equals("annotation-changed"))
+                                            metadata.values[0] = abc.constants.getStringId("changed", true);
+                                    }
+                                    trait.metadata = new int[]{abc.metadata_info.size()};
+                                    trait.kindFlags |= Trait.ATTR_Metadata;
+                                    abc.metadata_info.add(metadata);
+                                    ((Tag)tag).setModified(true); changed++; continue;
+                                }
+                                if (java.util.Set.of("prepare", "binding", "scope", "slot", "paramnames", "optional", "binding-code", "debug-lines", "debug-lines-alternate", "debug-flow", "interface-prepare", "interface-binding", "interface-scope").contains(args[2])) {
+                                    var script = abc.script_info.get(0);
+                                    var trait = (TraitClass)script.traits.traits.get(0);
+                                    var name = abc.constants.getMultiname(trait.name_index);
+                                    var multi = Multiname.createMultiname(false, name.name_index,
+                                        abc.constants.getNamespaceSetId(new int[]{name.namespace_index}, true));
+                                    int id = abc.constants.getMultinameId(multi, true);
+                                    if (args[2].equals("prepare") || args[2].equals("interface-prepare")) {
+                                        for (var method : abc.method_info) {
+                                            method.unsetFlagHas_paramnames(); method.paramNames = new int[0];
+                                        }
+                                    } else if (args[2].equals("debug-flow")) {
+                                        var body=abc.bodies.stream().filter(b -> b.exceptions.length>0).findFirst().orElseThrow();
+                                        var code=body.getCode();
+                                        for(int i=code.code.size()-1;i>=0;i--) {
+                                            var instruction=code.code.get(i);
+                                            if(instruction.isBranch() || instruction.isJump() || instruction.definition.instructionCode==0x09)
+                                                code.insertInstruction(i,new AVM2Instruction(0,0xf0,new int[]{i+1}),body);
+                                        }
+                                        code.insertInstruction(0,new AVM2Instruction(0,0xf1,new int[]{name.name_index}),body);
+                                        body.setCode(code);
+                                    } else if (args[2].startsWith("debug-lines")) {
+                                        var body = abc.findBody(abc.class_info.get(cls).cinit_index);
+                                        var code = body.getCode();
+                                        code.code.add(2, new AVM2Instruction(0, 0xf1, new int[]{name.name_index}));
+                                        code.code.add(3, new AVM2Instruction(0, 0xf0,
+                                            new int[]{args[2].equals("debug-lines-alternate") ? 39 : 17}));
+                                        code.markOffsets(); body.setCode(code);
+                                    } else if (args[2].equals("slot")) trait.slot_id = 2;
+                                    else if (args[2].equals("paramnames") || args[2].equals("optional")) {
+                                        for (var method : abc.method_info) if (method.param_types.length == 1) {
+                                            if (args[2].equals("paramnames")) {
+                                                method.setFlagHas_paramnames();
+                                                method.paramNames = new int[]{abc.constants.getStringId("addedDebugName", true)};
+                                            } else if(method.optional.length>0) method.optional[0].value_index = abc.constants.getIntId(2, true);
+                                        }
+                                    } else {
+                                        var body = abc.findBody(script.init_index);
+                                        var code = body.getCode();
+                                        if (code.code.get(2).definition.instructionCode != 0x65)
+                                            throw new IOException("Expected compiler global-scope binding");
+                                        if (args[2].equals("binding") || args[2].equals("interface-binding")) {
+                                            code.code.set(2, new AVM2Instruction(code.code.get(2).getAddress(), 0x5d, new int[]{id}));
+                                            trait.slot_id = 0;
+                                            if(args[2].equals("interface-binding"))
+                                                code.code.add(2,new AVM2Instruction(0,0xf0,new int[]{35}));
+                                        } else if (args[2].equals("scope") || args[2].equals("interface-scope")) code.code.get(2).operands[0] = 1;
+                                        else code.code.set(0, new AVM2Instruction(0, 0x20, new int[0]));
+                                        code.markOffsets(); body.setCode(code);
+                                    }
+                                    ((Tag)tag).setModified(true); changed++; continue;
+                                }
+                                if (args[2].equals("reorder")) {
+                                    int left = abc.instance_info.get(cls).iinit_index;
+                                    int right = abc.class_info.get(cls).cinit_index;
+                                    java.util.Collections.swap(abc.method_info, left, right);
+                                    for (var body : abc.bodies) {
+                                        if (body.method_info == left) body.method_info = right;
+                                        else if (body.method_info == right) body.method_info = left;
+                                    }
+                                    abc.instance_info.get(cls).iinit_index = right;
+                                    abc.class_info.get(cls).cinit_index = left;
+                                    ((Tag)tag).setModified(true); changed++; continue;
+                                }
+                                var body = abc.findBody(args[2].equals("debug-code")
+                                    ? abc.class_info.get(cls).cinit_index : abc.instance_info.get(cls).iinit_index);
+                                if (args[2].equals("metadata")) body.max_stack++;
+                                else {
+                                    byte[] code = body.getCodeBytes().clone();
+                                    code[0] = 0x20; // pushnull replaces getlocal0
+                                    body.setCodeBytes(code);
+                                }
+                                ((Tag)tag).setModified(true); changed++;
+                                continue;
+                            }
+                            for (int j=1; j<abc.constants.getMultinameCount(); j++) {
+                                var m = abc.constants.getMultiname(j);
+                                if (m.kind != 0x1d) continue;
+                                for (int k=0; k<m.params.length; k++) {
+                                    if (m.params[k] == 0) { changed++; continue; }
+                                    var param = abc.constants.getMultiname(m.params[k]);
+                                    if (abc.constants.getString(param.name_index).equals("*")) {
+                                        m.params[k] = 0; changed++; ((Tag)tag).setModified(true);
+                                    }
+                                }
+                            }
+                        }
+                        if (changed == 0) throw new IOException("Missing wildcard fixture");
+                        try (var out = Files.newOutputStream(Path.of(args[1]))) { swf.saveTo(out); }
+                        System.exit(0);
+                    }
+                }
+            """)
+            subprocess.run([config["javac"], "-cp", str(root / "bridge") + os.pathsep + config["ffdec"], "-d", str(root), str(fixture)], check=True, timeout=60)
+            (root / "library.swf").write_bytes(entries["library.swf"])
+            subprocess.run([config["java"], "-cp", str(root) + os.pathsep + str(root / "bridge") + os.pathsep + config["ffdec"], "WildcardFixture",
+                            str(root / "library.swf"), str(root / "wildcard.swf")], check=True, timeout=60)
+            entries["library.swf"] = (root / "wildcard.swf").read_bytes()
+            catalog = ET.fromstring(entries["catalog.xml"])
+            for script in catalog.iter():
+                if script.tag.split("}")[-1] == "script":
+                    for child in list(script):
+                        if child.tag.split("}")[-1] == "dep":
+                            script.remove(child)
+            # Preserve the default namespace, as emitted by FFDec.
+            ET.register_namespace("", "http://www.adobe.com/flash/swccatalog/9")
+            entries["catalog.xml"] = ET.tostring(catalog)
+            incomplete = root / "incomplete.swc"
+            with zipfile.ZipFile(incomplete, "w") as archive:
+                for name, data in entries.items():
+                    archive.writestr(name, data)
+
+            def compile_probe(swc, name):
+                return compiler("mxmlc.jar", ["-strict=true", "-library-path=" + str(swc),
+                    "-source-path=" + str(source.parent), "-output=" + str(root / name), str(source)])
+
+            rejected = compile_probe(incomplete, "rejected.swf")
+            self.assertNotEqual(rejected.returncode, 0, "Fixture failed to reproduce incomplete dependency failure")
+            repaired = root / "repaired.swc"
+            tools.run("dependencies", incomplete, repaired,
+                      sdk / "frameworks/libs/player/32.0/playerglobal.swc", log=root / "repair.log").check_returncode()
+            with zipfile.ZipFile(repaired) as archive:
+                repaired_catalog = ET.fromstring(archive.read("catalog.xml"))
+            external_edges = {node.attrib.get("id") for node in repaired_catalog.iter()
+                              if node.tag.split("}")[-1] == "dep"}
+            self.assertTrue({"flash.text:TextField", "flash.utils:Timer"} <= external_edges)
+            accepted = compile_probe(repaired, "accepted.swf")
+            self.assertEqual(accepted.returncode, 0, accepted.stdout)
+            self.assertTrue((root / "accepted.swf").is_file())
+            # Verify the adapter didn't mutate the original compiler input.
+            with zipfile.ZipFile(incomplete) as archive:
+                self.assertEqual(archive.read("library.swf"), entries["library.swf"])
+            # An unchanged compiler-produced ABC survives layout linking, but
+            # code or verifier metadata mutations cannot be filled from retail.
+            accepted_file = root / "accepted.swf"
+            linked = root / "linked.swf"
+            tools.run("link-layout", accepted_file, accepted_file, linked, "Probe", log=root / "link.log").check_returncode()
+            self.assertEqual(movie_source.uncompressed(accepted_file), movie_source.uncompressed(linked))
+            recompiled, relinked = root / "recompiled.swf", root / "recompiled-linked.swf"
+            snapshot = root / "recompiled-snapshot"
+            result = tools.run("compile", accepted_file, recompiled, "Probe", source, snapshot,
+                               "flex-strict", sdk, log=root / "recompile.log")
+            self.assertEqual(result.returncode, 0, (root / "recompile.log").read_text())
+            result = tools.run("link-layout", accepted_file, recompiled, relinked, "Probe", log=root / "recompile-link.log")
+            self.assertEqual(result.returncode, 0, (root / "recompile-link.log").read_text())
+            self.assertEqual(movie_source.uncompressed(accepted_file), movie_source.uncompressed(relinked))
+            self.assertTrue((root / "recompiled-snapshot-flex/native-compiler.swf").is_file())
+            reordered = root / "reordered.swf"
+            subprocess.run([config["java"], "-cp", str(root) + os.pathsep + str(root / "bridge") + os.pathsep + config["ffdec"], "WildcardFixture",
+                            str(accepted_file), str(reordered), "reorder"], check=True, timeout=60)
+            restored = root / "restored.swf"
+            self.assertNotEqual(movie_source.uncompressed(accepted_file), movie_source.uncompressed(reordered))
+            tools.run("link-layout", accepted_file, reordered, restored, "Probe", log=root / "reorder.log").check_returncode()
+            self.assertEqual(movie_source.uncompressed(accepted_file), movie_source.uncompressed(restored))
+
+            def mutate(source, destination, mode, *extra):
+                subprocess.run([config["java"], "-cp", str(root) + os.pathsep + str(root / "bridge") + os.pathsep + config["ffdec"], "WildcardFixture",
+                                str(source), str(destination), mode, *map(str, extra)], check=True, timeout=60)
+
+            for mode in ("plain", "mixed", "exposed"):
+                split = root / (mode + "-split.swf")
+                mutate(accepted_file, split, "split-file-" + mode)
+                compiled, destination = root / (mode + "-split-compiled.swf"), root / (mode + "-split-linked.swf")
+                result = tools.run("compile", split, compiled, "Probe", source, root / (mode + "-split-snapshot"),
+                                   "flex-strict", sdk, log=root / (mode + "-split-compile.log"))
+                self.assertEqual(result.returncode, 0, (root / (mode + "-split-compile.log")).read_text())
+                result = tools.run("link-layout", split, compiled, destination, "Probe", log=root / (mode + "-split-link.log"))
+                if mode == "plain":
+                    self.assertEqual(result.returncode, 0, (root / (mode + "-split-link.log")).read_text())
+                    self.assertEqual(movie_source.uncompressed(split), movie_source.uncompressed(destination))
+                else:
+                    self.assertNotEqual(result.returncode, 0, mode)
+                    self.assertFalse(destination.exists(), mode)
+
+            compact_reference = root / "compact-reference.swf"
+            mutate(accepted_file, compact_reference, "compact-reference")
+            self.assertNotEqual(movie_source.uncompressed(accepted_file), movie_source.uncompressed(compact_reference))
+            compact_linked = root / "compact-linked.swf"
+            result = tools.run("link-layout", compact_reference, accepted_file, compact_linked, "Probe",
+                               log=root / "compact-link.log")
+            self.assertEqual(result.returncode, 0, (root / "compact-link.log").read_text())
+            self.assertEqual(movie_source.uncompressed(compact_reference), movie_source.uncompressed(compact_linked))
+            for mode in ("target", "handler", "argc"):
+                corrupted, destination = root / (mode + "-compact.swf"), root / (mode + "-compact-linked.swf")
+                mutate(accepted_file, corrupted, "compact-" + mode)
+                result = tools.run("link-layout", compact_reference, corrupted, destination, "Probe",
+                                   log=root / (mode + "-compact.log"))
+                self.assertNotEqual(result.returncode, 0, mode)
+                self.assertFalse(destination.exists(), mode)
+
+            comparison_reference = root / "comparison-reference.swf"
+            mutate(accepted_file, comparison_reference, "comparison-reference")
+            comparison_linked = root / "comparison-linked.swf"
+            result = tools.run("link-layout", comparison_reference, accepted_file, comparison_linked, "Probe",
+                               log=root / "comparison-link.log")
+            self.assertEqual(result.returncode, 0, (root / "comparison-link.log").read_text())
+            self.assertEqual(movie_source.uncompressed(comparison_reference), movie_source.uncompressed(comparison_linked))
+            inverted, inverted_reference, inverted_linked = (root / name for name in
+                ("comparison-inverted.swf", "comparison-inverted-reference.swf", "comparison-inverted-linked.swf"))
+            mutate(accepted_file, inverted, "comparison-invert")
+            mutate(inverted, inverted_reference, "comparison-reference")
+            result = tools.run("link-layout", inverted_reference, inverted, inverted_linked, "Probe",
+                               log=root / "comparison-inverted-link.log")
+            self.assertEqual(result.returncode, 0, (root / "comparison-inverted-link.log").read_text())
+            self.assertEqual(movie_source.uncompressed(inverted_reference), movie_source.uncompressed(inverted_linked))
+            # Exercise the reverse encoding and both directions within the same
+            # method. Reference fixtures use their own independent opcode map.
+            for label, reference, candidate in (
+                ("expanded", accepted_file, comparison_reference),
+                ("expanded-inverted", inverted, inverted_reference),
+            ):
+                destination = root / (label + "-linked.swf")
+                result = tools.run("link-layout", reference, candidate, destination, "Probe",
+                                   log=root / (label + "-link.log"))
+                self.assertEqual(result.returncode, 0, (root / (label + "-link.log")).read_text())
+                self.assertEqual(movie_source.uncompressed(reference), movie_source.uncompressed(destination))
+            mixed_even, mixed_odd = root / "mixed-even.swf", root / "mixed-odd.swf"
+            mutate(accepted_file, mixed_even, "comparison-mixed-even")
+            mutate(accepted_file, mixed_odd, "comparison-mixed-odd")
+            result = tools.run("link-layout", mixed_even, mixed_odd, root / "mixed-linked.swf", "Probe",
+                               log=root / "mixed-link.log")
+            self.assertEqual(result.returncode, 0, (root / "mixed-link.log").read_text())
+            self.assertEqual(movie_source.uncompressed(mixed_even), movie_source.uncompressed(root / "mixed-linked.swf"))
+            for mode in ("target", "handler", "nan"):
+                corrupted, destination = root / (mode + "-comparison.swf"), root / (mode + "-comparison-linked.swf")
+                reference, candidate = comparison_reference, accepted_file
+                if mode == "nan":
+                    mutate(comparison_reference, corrupted, "comparison-nan")
+                    reference = corrupted
+                else:
+                    mutate(accepted_file, corrupted, "comparison-" + mode)
+                    candidate = corrupted
+                result = tools.run("link-layout", reference, candidate, destination, "Probe",
+                                   log=root / (mode + "-comparison.log"))
+                self.assertNotEqual(result.returncode, 0, mode)
+                self.assertFalse(destination.exists(), mode)
+                # Expansion must reject a reference that enters an intermediate
+                # comparison boundary, and a combined opcode with wrong NaN behavior.
+                if mode == "nan":
+                    reference, candidate = accepted_file, corrupted
+                else:
+                    reference, candidate = corrupted, comparison_reference
+                destination = root / (mode + "-expanded-linked.swf")
+                result = tools.run("link-layout", reference, candidate, destination, "Probe",
+                                   log=root / (mode + "-expanded.log"))
+                self.assertNotEqual(result.returncode, 0, mode)
+                self.assertFalse(destination.exists(), mode)
+
+            combined = root / "combined.swf"
+            retained_source = root / "Retained.as"
+            retained_source.write_text("package { public class Retained { public function untouched():int { return 41; } } }")
+            retained_movie = root / "retained.swf"
+            result = compiler("mxmlc.jar", ["-library-path=", "-source-path=" + str(root),
+                              "-output=" + str(retained_movie), str(retained_source)])
+            self.assertEqual(result.returncode, 0, result.stdout)
+            mutate(accepted_file, combined, "merge-scripts", retained_movie)
+            combined_output, combined_linked = root / "combined-output.swf", root / "combined-linked.swf"
+            result = tools.run("compile", combined, combined_output, "Probe", source, root / "combined-snapshot",
+                               "flex-strict", sdk, log=root / "combined-compile.log")
+            self.assertEqual(result.returncode, 0, (root / "combined-compile.log").read_text())
+            result = tools.run("link-layout", combined, combined_output, combined_linked, "Probe", log=root / "combined-link.log")
+            self.assertEqual(result.returncode, 0, (root / "combined-link.log").read_text())
+            self.assertEqual(movie_source.uncompressed(combined), movie_source.uncompressed(combined_linked))
+
+            # A real source feature may add constants and edit a selected body,
+            # while every other method/class and all old pool entries stay exact.
+            feature_source = root / "feature-source.as"
+            feature_source.write_text(source.read_text().replace('new Error("fixture")', 'new Error("source feature")'))
+            feature_compiled, feature_linked = root / "feature-compiled.swf", root / "feature-linked.swf"
+            result = tools.run("compile", combined, feature_compiled, "Probe", feature_source, root / "feature-snapshot",
+                               "flex-strict", sdk, log=root / "feature-compile.log")
+            self.assertEqual(result.returncode, 0, (root / "feature-compile.log").read_text())
+            owners = [owner for _, owner in movie_source.methods(root / "feature-snapshot")
+                      if '"Probe")/instance/1/' in owner and '"branches")' in owner]
+            self.assertEqual(len(owners), 1)
+            permission = root / "feature-permissions.tsv"
+            permission.write_text(owners[0] + "\t-\t-\n")
+            result = tools.run("link-feature", combined, feature_compiled, feature_linked, "Probe", permission,
+                               log=root / "feature-link.log")
+            self.assertEqual(result.returncode, 0, (root / "feature-link.log").read_text())
+            self.assertNotEqual(movie_source.uncompressed(combined), movie_source.uncompressed(feature_linked))
+            for mode in ("code", "metadata", "pool", "other-class"):
+                corrupt = root / ("feature-" + mode + ".swf")
+                denied = root / ("feature-denied-" + mode + ".swf")
+                mutate(feature_compiled, corrupt, mode)
+                result = tools.run("link-feature", combined, corrupt, denied, "Probe", permission,
+                                   log=root / ("feature-denied-" + mode + ".log"))
+                self.assertNotEqual(result.returncode, 0, mode)
+                self.assertFalse(denied.exists())
+            # Removing construction changes a protected call, even in an
+            # authorized method. It needs the exact reviewed before/after pair.
+            feature_source.write_text(feature_source.read_text().replace('new Error("source feature")', 'Error("source feature")'))
+            changed_calls = root / "feature-calls.swf"
+            result = tools.run("compile", combined, changed_calls, "Probe", feature_source, root / "feature-calls-snapshot",
+                               "flex-strict", sdk, log=root / "feature-calls-compile.log")
+            self.assertEqual(result.returncode, 0, (root / "feature-calls-compile.log").read_text())
+            denied = root / "feature-calls-denied.swf"
+            result = tools.run("link-feature", combined, changed_calls, denied, "Probe", permission,
+                               log=root / "feature-calls-denied.log")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(denied.exists())
+            fingerprints = re.search(r'([0-9a-f]{64}) -> ([0-9a-f]{64})', (root / "feature-calls-denied.log").read_text())
+            self.assertIsNotNone(fingerprints, (root / "feature-calls-denied.log").read_text())
+            permission.write_text(owners[0] + "\t" + fingerprints[1] + "\t" + fingerprints[2] + "\n")
+            result = tools.run("link-feature", combined, changed_calls, root / "feature-calls-reviewed.swf", "Probe", permission,
+                               log=root / "feature-calls-reviewed.log")
+            self.assertEqual(result.returncode, 0, (root / "feature-calls-reviewed.log").read_text())
+            permission.write_text(owners[0] + "\t" + fingerprints[1] + "\t" + "0" * 64 + "\n")
+            result = tools.run("link-feature", combined, changed_calls, root / "feature-calls-wrong-review.swf", "Probe", permission,
+                               log=root / "feature-calls-wrong-review.log")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse((root / "feature-calls-wrong-review.swf").exists())
+            feature_source.write_text(source.read_text().replace('return target[key];', 'return target.new_feature_property;'))
+            dynamic_compiled, dynamic_linked = root / "feature-dynamic.swf", root / "feature-dynamic-linked.swf"
+            result = tools.run("compile", combined, dynamic_compiled, "Probe", feature_source, root / "feature-dynamic-snapshot",
+                               "flex-strict", sdk, log=root / "feature-dynamic-compile.log")
+            self.assertEqual(result.returncode, 0, (root / "feature-dynamic-compile.log").read_text())
+            inspect_owners = [owner for _, owner in movie_source.methods(root / "feature-dynamic-snapshot")
+                              if '"Probe")/instance/1/' in owner and '"inspect")' in owner]
+            self.assertEqual(len(inspect_owners), 1)
+            permission.write_text(inspect_owners[0] + "\t-\t-\n")
+            result = tools.run("link-feature", combined, dynamic_compiled, dynamic_linked, "Probe", permission,
+                               log=root / "feature-dynamic-link.log")
+            self.assertEqual(result.returncode, 0, (root / "feature-dynamic-link.log").read_text())
+            mutate(dynamic_linked, root / "feature-pool-checked.swf", "feature-pool", combined)
+
+            # Retain the same pool in both files, then exercise Flash's binding
+            # emission and implicit script slot against real compiler code.
+            prepared, binding = root / "prepared.swf", root / "binding.swf"
+            mutate(accepted_file, prepared, "prepare")
+            closures, closures_reordered, closures_linked = root / "closures.swf", root / "closures-reordered.swf", root / "closures-linked.swf"
+            mutate(prepared, closures, "closures-reference")
+            mutate(closures, closures_reordered, "closures-reorder")
+            result=tools.run("link-layout", closures, closures_reordered, closures_linked, "Probe", log=root / "closures.log")
+            self.assertEqual(result.returncode,0,(root / "closures.log").read_text())
+            self.assertEqual(movie_source.uncompressed(closures),movie_source.uncompressed(closures_linked))
+            for mode in ("target","code"):
+                corrupted,destination=root / (mode+"-closure.swf"),root / (mode+"-closure-linked.swf")
+                mutate(closures_reordered,corrupted,"closures-"+mode)
+                result=tools.run("link-layout",closures,corrupted,destination,"Probe",log=root / (mode+"-closure.log"))
+                self.assertNotEqual(result.returncode,0,mode)
+                self.assertFalse(destination.exists(),mode)
+            traits, traits_linked = root / "traits.swf", root / "traits-linked.swf"
+            mutate(prepared, traits, "traits")
+            tools.run("link-layout", prepared, traits, traits_linked, "Probe", log=root / "traits.log").check_returncode()
+            self.assertEqual(movie_source.uncompressed(prepared), movie_source.uncompressed(traits_linked))
+            for mode in ("relocate", "wide", "owner", "ambiguous", "member"):
+                candidate, destination = root / (mode + "-namespace.swf"), root / (mode + "-namespace-linked.swf")
+                mutate(prepared, candidate, "namespace-" + mode)
+                result = tools.run("link-layout", prepared, candidate, destination, "Probe", log=root / (mode + "-namespace.log"))
+                if mode in ("relocate", "wide"):
+                    result.check_returncode()
+                    self.assertEqual(movie_source.uncompressed(prepared), movie_source.uncompressed(destination))
+                else:
+                    self.assertNotEqual(result.returncode, 0, mode)
+                    self.assertFalse(destination.exists(), mode)
+            for mode in ("target", "invalid", "handler"):
+                candidate, destination = root / (mode + "-control.swf"), root / (mode + "-control-linked.swf")
+                mutate(root / "wide-namespace.swf", candidate, "control-" + mode)
+                log = root / (mode + "-control.log")
+                result = tools.run("link-layout", prepared, candidate, destination, "Probe", log=log)
+                self.assertNotEqual(result.returncode, 0, mode)
+                self.assertFalse(destination.exists(), mode)
+                if mode == "invalid":
+                    self.assertIn("not an instruction boundary", log.read_text())
+            mutate(prepared, binding, "binding")
+            bound = root / "bound.swf"
+            tools.run("link-layout", binding, prepared, bound, "Probe", log=root / "binding.log").check_returncode()
+            self.assertEqual(movie_source.uncompressed(binding), movie_source.uncompressed(bound))
+            reverse_bound = root / "reverse-bound.swf"
+            tools.run("link-layout", prepared, binding, reverse_bound, "Probe",
+                      log=root / "reverse-binding.log").check_returncode()
+            self.assertEqual(movie_source.uncompressed(prepared), movie_source.uncompressed(reverse_bound))
+            named, unnamed = root / "named.swf", root / "unnamed.swf"
+            mutate(prepared, named, "paramnames")
+            tools.run("link-layout", prepared, named, unnamed, "Probe", log=root / "paramnames.log").check_returncode()
+            self.assertEqual(movie_source.uncompressed(prepared), movie_source.uncompressed(unnamed))
+            restored_names = root / "restored-paramnames.swf"
+            cleared_names = root / "cleared-paramnames.swf"
+            # Keep the original pool, including the debugger name string, while
+            # testing a compiler that omitted the optional parameter-name flag.
+            mutate(named, cleared_names, "prepare")
+            result = tools.run("link-layout", named, cleared_names, restored_names, "Probe", log=root / "restore-paramnames.log")
+            self.assertEqual(result.returncode, 0, (root / "restore-paramnames.log").read_text())
+            self.assertEqual(movie_source.uncompressed(named), movie_source.uncompressed(restored_names))
+            debug, debug_linked = root / "debug.swf", root / "debug-linked.swf"
+            mutate(prepared, debug, "debug-lines")
+            tools.run("link-layout", debug, prepared, debug_linked, "Probe", log=root / "debug.log").check_returncode()
+            self.assertEqual(movie_source.uncompressed(debug), movie_source.uncompressed(debug_linked))
+            alternate_debug, alternate_linked = root / "alternate-debug.swf", root / "alternate-debug-linked.swf"
+            mutate(prepared, alternate_debug, "debug-lines-alternate")
+            self.assertNotEqual(movie_source.uncompressed(debug), movie_source.uncompressed(alternate_debug))
+            tools.run("link-layout", debug, alternate_debug, alternate_linked, "Probe", log=root / "alternate-debug.log").check_returncode()
+            self.assertEqual(movie_source.uncompressed(debug), movie_source.uncompressed(alternate_linked))
+            removed_debug = root / "removed-debug.swf"
+            tools.run("link-layout", prepared, alternate_debug, removed_debug, "Probe", log=root / "removed-debug.log").check_returncode()
+            self.assertEqual(movie_source.uncompressed(prepared), movie_source.uncompressed(removed_debug))
+            debug_corrupt, debug_rejected = root / "debug-corrupt.swf", root / "debug-rejected.swf"
+            mutate(alternate_debug, debug_corrupt, "debug-code")
+            rejected = tools.run("link-layout", debug, debug_corrupt, debug_rejected, "Probe", log=root / "debug-code.log")
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertFalse(debug_rejected.exists())
+            flow, flow_linked = root / "debug-flow.swf", root / "debug-flow-linked.swf"
+            mutate(prepared, flow, "debug-flow")
+            result=tools.run("link-layout",flow,prepared,flow_linked,"Probe",log=root / "debug-flow.log")
+            self.assertEqual(result.returncode,0,(root / "debug-flow.log").read_text())
+            self.assertEqual(movie_source.uncompressed(flow),movie_source.uncompressed(flow_linked))
+            doubled_flow, restored_flow = root / "double-debug-flow.swf", root / "restored-debug-flow.swf"
+            mutate(flow, doubled_flow, "debug-flow")
+            self.assertNotEqual(movie_source.uncompressed(flow), movie_source.uncompressed(doubled_flow))
+            result = tools.run("link-layout", flow, doubled_flow, restored_flow, "Probe", log=root / "restore-debug-flow.log")
+            self.assertEqual(result.returncode, 0, (root / "restore-debug-flow.log").read_text())
+            self.assertEqual(movie_source.uncompressed(flow), movie_source.uncompressed(restored_flow))
+            for mode in ("target","handler"):
+                corrupted,destination=root / (mode+"-debug-flow.swf"),root / (mode+"-debug-flow-linked.swf")
+                mutate(prepared,corrupted,"control-"+mode)
+                result=tools.run("link-layout",flow,corrupted,destination,"Probe",log=root / (mode+"-debug-flow.log"))
+                self.assertNotEqual(result.returncode,0,mode)
+                self.assertFalse(destination.exists(),mode)
+            annotation = root / "annotation.swf"
+            mutate(prepared, annotation, "annotation-new")
+            for mode in ("duplicate", "changed"):
+                candidate, destination = root / (mode + "-annotation.swf"), root / (mode + "-annotation-linked.swf")
+                mutate(annotation, candidate, "annotation-" + mode)
+                result = tools.run("link-layout", annotation, candidate, destination, "Probe", log=root / (mode + "-annotation.log"))
+                if mode == "duplicate":
+                    result.check_returncode()
+                    self.assertEqual(movie_source.uncompressed(annotation), movie_source.uncompressed(destination))
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(destination.exists())
+            for mutation in ("scope", "slot", "optional", "binding-code"):
+                corrupted, destination = root / (mutation + ".swf"), root / (mutation + "-linked.swf")
+                mutate(prepared, corrupted, mutation)
+                rejected = tools.run("link-layout", binding, corrupted, destination, "Probe", log=root / (mutation + ".log"))
+                self.assertNotEqual(rejected.returncode, 0, mutation)
+                self.assertFalse(destination.exists(), mutation)
+            for mutation in ("code", "metadata"):
+                corrupted = root / (mutation + ".swf")
+                subprocess.run([config["java"], "-cp", str(root) + os.pathsep + str(root / "bridge") + os.pathsep + config["ffdec"], "WildcardFixture",
+                                str(accepted_file), str(corrupted), mutation], check=True, timeout=60)
+                destination = root / (mutation + "-linked.swf")
+                rejected = tools.run("link-layout", accepted_file, corrupted, destination, "Probe", log=root / (mutation + ".log"))
+                self.assertNotEqual(rejected.returncode, 0)
+                self.assertFalse(destination.exists(), "Rejected compilation must never produce a linked movie")
+
+            # Whole-tree exports contain namespace and global-function scripts,
+            # too. Neither requires a class_info entry to import or link.
+            globals_dir = root / "globals"
+            globals_dir.mkdir()
+            for script_name, declaration in (
+                ("fixtureNamespace", 'public namespace fixtureNamespace = "urn:source-fixture";'),
+                ("globalValue", 'public function globalValue(value:int):int { return value; }'),
+                ("ProbeContract", 'public interface ProbeContract { function get width():Number; function set width(value:Number):void; }'),
+            ):
+                script_source = globals_dir / (script_name + ".as")
+                script_source.write_text("package { " + declaration + " }")
+                reference, compiled, linked = (globals_dir / (script_name + suffix) for suffix in (".swf", "-compiled.swf", "-linked.swf"))
+                result = compiler("mxmlc.jar", ["-library-path=", "-source-path=" + str(globals_dir),
+                                  "-output=" + str(reference), str(script_source)])
+                self.assertEqual(result.returncode, 0, result.stdout)
+                if script_name == "ProbeContract":
+                    prepared_interface = globals_dir / "interface-prepared.swf"
+                    mutate(reference, prepared_interface, "interface-prepare")
+                    reference = prepared_interface
+                result = tools.run("compile", reference, compiled, script_name, script_source,
+                                   globals_dir / (script_name + "-snapshot"), "flex-strict", sdk,
+                                   log=globals_dir / (script_name + "-compile.log"))
+                self.assertEqual(result.returncode, 0, (globals_dir / (script_name + "-compile.log")).read_text())
+                result = tools.run("link-layout", reference, compiled, linked, script_name,
+                                   log=globals_dir / (script_name + "-link.log"))
+                self.assertEqual(result.returncode, 0, (globals_dir / (script_name + "-link.log")).read_text())
+                self.assertEqual(movie_source.uncompressed(reference), movie_source.uncompressed(linked))
+                if script_name == "globalValue":
+                    dispatch_layout = globals_dir / "global-dispatch-layout.swf"
+                    mutate(compiled, dispatch_layout, "global-dispatch-21")
+                    destination = globals_dir / "global-dispatch-linked.swf"
+                    result = tools.run("link-layout", reference, dispatch_layout, destination, script_name,
+                                       log=globals_dir / "global-dispatch-link.log")
+                    self.assertEqual(result.returncode, 0, (globals_dir / "global-dispatch-link.log").read_text())
+                    self.assertEqual(movie_source.uncompressed(reference), movie_source.uncompressed(destination))
+                    for mutation in ("global-dispatch-0", "global-dispatch-kind", "global-dispatch-method"):
+                        corrupted, rejected = globals_dir / (mutation + ".swf"), globals_dir / (mutation + "-linked.swf")
+                        mutate(compiled, corrupted, mutation)
+                        result = tools.run("link-layout", reference, corrupted, rejected, script_name,
+                                           log=globals_dir / (mutation + ".log"))
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertFalse(rejected.exists())
+                if script_name == "ProbeContract":
+                    interface_layout = globals_dir / "interface-layout.swf"
+                    mutate(reference, interface_layout, "interface-binding")
+                    destination = globals_dir / "interface-layout-linked.swf"
+                    result = tools.run("link-layout", interface_layout, compiled, destination, script_name,
+                                       log=globals_dir / "interface-layout.log")
+                    self.assertEqual(result.returncode, 0, (globals_dir / "interface-layout.log").read_text())
+                    self.assertEqual(movie_source.uncompressed(interface_layout), movie_source.uncompressed(destination))
+                    corrupted = globals_dir / "interface-scope.swf"
+                    mutate(compiled, corrupted, "interface-scope")
+                    destination = globals_dir / "interface-scope-linked.swf"
+                    result = tools.run("link-layout", interface_layout, corrupted, destination, script_name,
+                                       log=globals_dir / "interface-scope.log")
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(destination.exists())
+                if script_name == "fixtureNamespace":
+                    automatic = globals_dir / "automatic-slot.swf"
+                    mutate(reference, automatic, "namespace-slot-0")
+                    self.assertNotEqual(movie_source.uncompressed(reference), movie_source.uncompressed(automatic))
+                    destination = globals_dir / "automatic-linked.swf"
+                    result = tools.run("link-layout", automatic, compiled, destination, script_name,
+                                       log=globals_dir / "automatic-link.log")
+                    self.assertEqual(result.returncode, 0, (globals_dir / "automatic-link.log").read_text())
+                    self.assertEqual(movie_source.uncompressed(automatic), movie_source.uncompressed(destination))
+                    corrupted = globals_dir / "wrong-slot.swf"
+                    mutate(compiled, corrupted, "namespace-slot-2")
+                    self.assertNotEqual(movie_source.uncompressed(compiled), movie_source.uncompressed(corrupted))
+                    destination = globals_dir / "wrong-slot-linked.swf"
+                    result = tools.run("link-layout", automatic, corrupted, destination, script_name,
+                                       log=globals_dir / "wrong-slot-link.log")
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(destination.exists())
+
+    def test_library_context_preserves_native_self_class_lookups(self):
+        with tempfile.TemporaryDirectory(prefix="srp-as-library-test-") as temp:
+            root = Path(temp)
+            config_path = Path(os.environ["SRP_AS_TOOLS"]).resolve()
+            config = json.loads(config_path.read_text())
+            sdk = Path(config["flex"])
+            tools = movie_source.Toolchain(config_path, root / "bridge")
+            source = root / "fixture/SelfReference.as"
+            source.parent.mkdir()
+            source.write_text("""package fixture {
+                public class SelfReference {
+                    public static var current:SelfReference;
+                    public function copy():SelfReference { return new SelfReference(); }
+                    public function self():SelfReference { return this as SelfReference; }
+                    public function value():int { return 7; }
+                }
+            }""")
+            entry = root / "LibraryProbe.as"
+            entry.write_text("""package {
+                import fixture.SelfReference;
+                public class LibraryProbe {
+                    public var reference:Class = SelfReference;
+                }
+            }""")
+            baseline = root / "baseline.swf"
+            result = subprocess.run([config["java"], "-jar", str(sdk / "lib/mxmlc.jar"),
+                "+flexlib=" + str(sdk / "frameworks"),
+                "+playerglobalHome=" + str(sdk / "frameworks/libs/player"),
+                "-external-library-path=" + str(sdk / "frameworks/libs/player/32.0/playerglobal.swc"),
+                "-library-path=", "-strict=true", "-debug=false", "-optimize=false",
+                "-omit-trace-statements=false", "-source-path=" + str(root),
+                "-output=" + str(baseline), str(entry)], stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, text=True, timeout=90)
+            self.assertEqual(result.returncode, 0, result.stdout)
+            for profile, exact in (("flex-strict", False), ("flex-library", True)):
+                compiled, linked = root / (profile + ".swf"), root / (profile + "-linked.swf")
+                snapshot = root / (profile + "-snapshot")
+                log = root / (profile + "-compile.log")
+                result = tools.run("compile", baseline, compiled, "fixture.SelfReference",
+                                   source, snapshot, profile, sdk, log=log)
+                self.assertEqual(result.returncode, 0, log.read_text())
+                log = root / (profile + "-link.log")
+                result = tools.run("link-layout", baseline, compiled, linked,
+                                   "fixture.SelfReference", log=log)
+                self.assertEqual(result.returncode == 0, exact, log.read_text())
+                if exact:
+                    self.assertEqual(movie_source.uncompressed(baseline), movie_source.uncompressed(linked))
+                    diagnostics = root / (profile + "-snapshot-flex")
+                    self.assertTrue((diagnostics / "native-compiler.swf").is_file())
+                    self.assertTrue((diagnostics / "native-script.swf").is_file())
+                    self.assertTrue((diagnostics / "entry-source.as").is_file())
+                else:
+                    self.assertFalse(linked.exists())
+            # The new profile cannot recover changed executable code from the
+            # reference. Its temporary entry must not leak into the linked movie.
+            source.write_text(source.read_text().replace("return 7;", "return 8;"))
+            changed, rejected = root / "changed.swf", root / "rejected.swf"
+            log = root / "changed-compile.log"
+            result = tools.run("compile", baseline, changed, "fixture.SelfReference",
+                               source, root / "changed-snapshot", "flex-library", sdk, log=log)
+            self.assertEqual(result.returncode, 0, log.read_text())
+            result = tools.run("link-layout", baseline, changed, rejected,
+                               "fixture.SelfReference", log=root / "changed-link.log")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(rejected.exists())
+
+    def test_optimized_library_preserves_selected_script(self):
+        with tempfile.TemporaryDirectory(prefix="srp-as-optimized-test-") as temp:
+            root = Path(temp)
+            config_path = Path(os.environ["SRP_AS_TOOLS"]).resolve()
+            config = json.loads(config_path.read_text())
+            sdk = Path(config["flex"])
+            tools = movie_source.Toolchain(config_path, root / "bridge")
+            source = root / "fixture/SelfReference.as"
+            source.parent.mkdir()
+            source.write_text("""package fixture {
+                public class SelfReference {
+                    public static var current:SelfReference;
+                    public function copy():SelfReference { return new SelfReference(); }
+                    public function self():SelfReference { return this as SelfReference; }
+                    public function value():int { return 7; }
+                    public function repeated():Array { return [0, 0, 0, 7]; }
+                }
+            }""")
+            entry = root / "LibraryProbe.as"
+            entry.write_text("""package {
+                import fixture.SelfReference;
+                public class LibraryProbe {
+                    public var reference:Class = SelfReference;
+                }
+            }""")
+            baseline = root / "baseline.swf"
+            result = subprocess.run([config["java"], "-jar", str(sdk / "lib/mxmlc.jar"),
+                "+flexlib=" + str(sdk / "frameworks"),
+                "+playerglobalHome=" + str(sdk / "frameworks/libs/player"),
+                "-external-library-path=" + str(sdk / "frameworks/libs/player/32.0/playerglobal.swc"),
+                "-library-path=", "-strict=true", "-debug=false", "-optimize=true",
+                "-omit-trace-statements=false", "-source-path=" + str(root),
+                "-output=" + str(baseline), str(entry)], stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, text=True, timeout=90)
+            self.assertEqual(result.returncode, 0, result.stdout)
+            for profile, exact in (("flex-optimized", True),):
+                compiled, linked = root / (profile + ".swf"), root / (profile + "-linked.swf")
+                snapshot = root / (profile + "-snapshot")
+                log = root / (profile + "-compile.log")
+                result = tools.run("compile", baseline, compiled, "fixture.SelfReference",
+                                   source, snapshot, profile, sdk, log=log)
+                self.assertEqual(result.returncode, 0, log.read_text())
+                log = root / (profile + "-link.log")
+                result = tools.run("link-layout", baseline, compiled, linked,
+                                   "fixture.SelfReference", log=log)
+                self.assertEqual(result.returncode == 0, exact, log.read_text())
+                if exact:
+                    self.assertEqual(movie_source.uncompressed(baseline), movie_source.uncompressed(linked))
+                    diagnostics = root / (profile + "-snapshot-flex")
+                    self.assertTrue((diagnostics / "native-compiler.swf").is_file())
+                    self.assertTrue((diagnostics / "native-script.swf").is_file())
+                    self.assertTrue((diagnostics / "entry-source.as").is_file())
+                else:
+                    self.assertFalse(linked.exists())
+            # The new profile cannot recover changed executable code from the
+            # reference. Its temporary entry must not leak into the linked movie.
+            source.write_text(source.read_text().replace("return 7;", "return 8;"))
+            changed, rejected = root / "changed.swf", root / "rejected.swf"
+            log = root / "changed-compile.log"
+            result = tools.run("compile", baseline, changed, "fixture.SelfReference",
+                               source, root / "changed-snapshot", "flex-optimized", sdk, log=log)
+            self.assertEqual(result.returncode, 0, log.read_text())
+            result = tools.run("link-layout", baseline, changed, rejected,
+                               "fixture.SelfReference", log=root / "changed-link.log")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(rejected.exists())
+
+    def test_file_private_helper_protected_namespace_owner(self):
+        with tempfile.TemporaryDirectory(prefix="srp-as-helper-test-") as temp:
+            root = Path(temp)
+            config_path = Path(os.environ["SRP_AS_TOOLS"]).resolve()
+            config = json.loads(config_path.read_text())
+            sdk = Path(config["flex"])
+            tools = movie_source.Toolchain(config_path, root / "bridge")
+            source = root / "fixture/PrivateOwner.as"
+            source.parent.mkdir()
+            source.write_text("""package fixture {
+                public class PrivateOwner {
+                    public function read():int { return new Helper().read(); }
+                }
+            }
+            final class Helper {
+                protected var number:int = 7;
+                public function read():int { return number; }
+            }""")
+            entry = root / "HelperEntry.as"
+            entry.write_text("""package {
+                import fixture.PrivateOwner;
+                public class HelperEntry { public var reference:Class = PrivateOwner; }
+            }""")
+            native = root / "native.swf"
+            result = subprocess.run([config["java"], "-jar", str(sdk / "lib/mxmlc.jar"),
+                "+flexlib=" + str(sdk / "frameworks"),
+                "+playerglobalHome=" + str(sdk / "frameworks/libs/player"),
+                "-external-library-path=" + str(sdk / "frameworks/libs/player/32.0/playerglobal.swc"),
+                "-library-path=", "-strict=true", "-debug=false", "-optimize=false",
+                "-source-path=" + str(root), "-output=" + str(native), str(entry)],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=90)
+            self.assertEqual(result.returncode, 0, result.stdout)
+            mutation_source = root / "HelperNamespaceFixture.java"
+            mutation_source.write_text("""
+                import java.nio.file.*;
+                public class HelperNamespaceFixture {
+                    public static void main(String[] args) throws Exception {
+                        var movie=MovieSource.read(Path.of(args[0]));
+                        var abc=MovieSource.findScript(movie,"fixture.PrivateOwner").abc;
+                        for(var body:abc.bodies)MovieSource.exactCode(body);
+                        var helper=abc.instance_info.stream().filter(i -> {
+                            var name=abc.constants.getMultiname(i.name_index);
+                            return abc.constants.getString(name.name_index).equals("Helper");
+                        }).findFirst().orElseThrow();
+                        var ns=abc.constants.getNamespace(helper.protectedNS);
+                        if(args[2].equals("rename")) {
+                            var name=abc.constants.getMultiname(helper.name_index);
+                            String file=abc.constants.getString(abc.constants.getNamespace(name.namespace_index).name_index);
+                            if(!file.startsWith("PrivateOwner.as$"))throw new Exception("Unexpected file namespace");
+                            for(int i=1;i<abc.constants.getNamespaceCount();i++) {
+                                var item=abc.constants.getNamespace(i);
+                                String label=abc.constants.getString(item.name_index);
+                                if(label.equals(file) || label.startsWith(file+":"))
+                                    item.name_index=abc.constants.getStringId("PrivateOwner.as$37"+label.substring(file.length()),true);
+                            }
+                        } else if(args[2].equals("owner")) {
+                            ns.name_index=abc.constants.getStringId("PrivateOwner.as$0:OtherHelper",true);
+                        } else if(args[2].equals("kind")) {
+                            ns.kind=5;
+                        } else if(args[2].equals("shared")) {
+                            abc.instance_info.get(abc.findClassByName("fixture.PrivateOwner")).protectedNS=helper.protectedNS;
+                        } else throw new Exception("Unknown mutation");
+                        ((com.jpexs.decompiler.flash.tags.Tag)abc.parentTag).setModified(true);
+                        try(var out=Files.newOutputStream(Path.of(args[1]))){movie.saveTo(out);}
+                        System.exit(0);
+                    }
+                }""")
+            cp = str(root) + os.pathsep + tools.cp
+            subprocess.run([config["javac"], "-cp", tools.cp, "-d", str(root), str(mutation_source)], check=True)
+
+            def mutate(input_file, output_file, mode):
+                subprocess.run([config["java"], "-cp", cp, "HelperNamespaceFixture",
+                                str(input_file), str(output_file), mode], check=True, timeout=60)
+
+            reference, compiled, linked = root / "reference.swf", root / "compiled.swf", root / "linked.swf"
+            mutate(native, reference, "rename")
+            result = tools.run("compile", reference, compiled, "fixture.PrivateOwner", source,
+                               root / "snapshot", "flex-library", sdk, log=root / "compile.log")
+            self.assertEqual(result.returncode, 0, (root / "compile.log").read_text())
+            result = tools.run("link-layout", reference, compiled, linked, "fixture.PrivateOwner", log=root / "link.log")
+            self.assertEqual(result.returncode, 0, (root / "link.log").read_text())
+            self.assertEqual(movie_source.uncompressed(reference), movie_source.uncompressed(linked))
+            for mode in ("owner", "kind", "shared"):
+                corrupted, rejected = root / (mode + ".swf"), root / (mode + "-linked.swf")
+                mutate(compiled, corrupted, mode)
+                result = tools.run("link-layout", reference, corrupted, rejected,
+                                   "fixture.PrivateOwner", log=root / (mode + ".log"))
+                self.assertNotEqual(result.returncode, 0, mode)
+                self.assertFalse(rejected.exists(), mode)
+
+
+if __name__ == "__main__":
+    unittest.main()
