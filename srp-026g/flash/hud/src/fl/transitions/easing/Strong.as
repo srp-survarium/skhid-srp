@@ -8,23 +8,23 @@ package fl.transitions.easing
          super();
       }
       
-      public static function easeIn(param1:Number, param2:Number, param3:Number, param4:Number) : Number
+      public static function easeIn(time:Number, begin:Number, change:Number, duration:Number) : Number
       {
-         return param3 * (param1 = param1 / param4) * param1 * param1 * param1 * param1 + param2;
+         return change * (time = time / duration) * time * time * time * time + begin;
       }
       
-      public static function easeOut(param1:Number, param2:Number, param3:Number, param4:Number) : Number
+      public static function easeOut(time:Number, begin:Number, change:Number, duration:Number) : Number
       {
-         return param3 * ((param1 = param1 / param4 - 1) * param1 * param1 * param1 * param1 + 1) + param2;
+         return change * ((time = time / duration - 1) * time * time * time * time + 1) + begin;
       }
       
-      public static function easeInOut(param1:Number, param2:Number, param3:Number, param4:Number) : Number
+      public static function easeInOut(time:Number, begin:Number, change:Number, duration:Number) : Number
       {
-         if((param1 = param1 / (param4 / 2)) < 1)
+         if((time = time / (duration / 2)) < 1)
          {
-            return param3 / 2 * param1 * param1 * param1 * param1 * param1 + param2;
+            return change / 2 * time * time * time * time * time + begin;
          }
-         return param3 / 2 * ((param1 = param1 - 2) * param1 * param1 * param1 * param1 + 2) + param2;
+         return change / 2 * ((time = time - 2) * time * time * time * time + 2) + begin;
       }
    }
 }
