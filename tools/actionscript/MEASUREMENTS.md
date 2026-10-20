@@ -201,3 +201,22 @@ are not a whole-tree result. For example, `ItemData` and `TopMenu` still differ
 in protected-field assignment encoding; `TopMenu` also contains manually added
 room hooks whose call encoding differs from native Flex. Those differences are
 still refused, not normalized away by the source-patch mechanism.
+
+## External player-API catalog dependencies
+
+The generated dependency catalog also lacked references to definitions outside
+the movie. The adapter now uses the pinned player API's catalog to recognize
+those references. Retesting the twelve full-sweep compile failures resolves
+eight without source changes: `ButtonClick`, `ButtonQuestFaction`, `ButtonShort`,
+`LobbyChat`, `ListItemRendererStyled`, `PlayerSearchComponent`, `SrvLabel` and
+`SrvTextInput`. Their apparent missing `Timer`/`TextField` methods, incompatible
+inheritance and three compiler null dereferences came from incomplete type
+loading. All eight still fail the exact layout check; compilation alone is not
+acceptance. The real compiler fixture now covers inherited `TextField` and
+`Timer` fields and method calls, including an exact recompile-and-link round trip.
+All eleven tests pass with this extension.
+
+Four source failures remain in this targeted run: `SrpRooms` has missing return
+paths and strict numeric-to-string errors, `AmmoShareControll` contains a
+decompiler goto marker, `ManageClanWindow` contains escaped keyword-property
+syntax, and `ItemCompare` has an implicit downcast rejected by strict Flex.

@@ -107,7 +107,10 @@ The default `flex` mode uses FFDec's Flex script replacer arguments, including
 - FFDec 25.1.3 selects `mxmlc.exe` on Unix. The bridge invokes the same SDK's
   `mxmlc.jar` directly and records the arguments.
 - The temporary dependency SWC lacks inheritance and expression/type dependencies
-  in its catalog. The bridge derives these from its ABC definitions and references.
+  in its catalog. The bridge derives these from its ABC definitions and references,
+  including external definitions from the pinned player API catalog. Without the
+  external edges, Flex can partially load inherited `TextField` or `Timer` types,
+  reporting missing methods or crashing during type resolution.
 - Single-namespace multinames in the dependency library are represented as
   qualified names for Flex's type importer. This is applied only to the
   temporary dependency SWC. Both original and adapted SWCs are retained.

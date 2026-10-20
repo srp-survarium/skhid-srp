@@ -31,8 +31,12 @@ class CompilerIntegration(unittest.TestCase):
                 }
             }""")
             (dep / "Base.as").write_text("""package fixture {
+                import flash.text.TextField;
+                import flash.utils.Timer;
                 public class Base {
                     public var value:Value;
+                    public var textField:TextField;
+                    public var timer:Timer;
                 }
             }""")
             source = root / "probe" / "Probe.as"
@@ -40,6 +44,7 @@ class CompilerIntegration(unittest.TestCase):
             source.write_text("""package {
                 import fixture.Base;
                 import fixture.Value;
+                import flash.text.TextFormat;
                 public class Probe extends Base {
                     public var explicit:Value = new Value();
                     private var secret:int = 7;
@@ -65,6 +70,10 @@ class CompilerIntegration(unittest.TestCase):
                         return total;
                     }
                     public function count():uint { return value.count(); }
+                    public function api():TextFormat {
+                        timer.reset();
+                        return textField.getTextFormat();
+                    }
                     public function item():* { return value.items[0]; }
                     public function identity(value:int=1):int { return value; }
                 }
@@ -371,7 +380,13 @@ class CompilerIntegration(unittest.TestCase):
             rejected = compile_probe(incomplete, "rejected.swf")
             self.assertNotEqual(rejected.returncode, 0, "Fixture failed to reproduce incomplete dependency failure")
             repaired = root / "repaired.swc"
-            tools.run("dependencies", incomplete, repaired, log=root / "repair.log").check_returncode()
+            tools.run("dependencies", incomplete, repaired,
+                      sdk / "frameworks/libs/player/32.0/playerglobal.swc", log=root / "repair.log").check_returncode()
+            with zipfile.ZipFile(repaired) as archive:
+                repaired_catalog = ET.fromstring(archive.read("catalog.xml"))
+            external_edges = {node.attrib.get("id") for node in repaired_catalog.iter()
+                              if node.tag.split("}")[-1] == "dep"}
+            self.assertTrue({"flash.text:TextField", "flash.utils:Timer"} <= external_edges)
             accepted = compile_probe(repaired, "accepted.swf")
             self.assertEqual(accepted.returncode, 0, accepted.stdout)
             self.assertTrue((root / "accepted.swf").is_file())

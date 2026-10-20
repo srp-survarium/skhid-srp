@@ -37,6 +37,9 @@ public final class MovieSource {
         // namespace sets and supply the inheritance catalog missing from FFDec's
         // export. The target movie remains untouched.
         static void qualifyDependencyInterfaces(Path swc) throws IOException, InterruptedException {
+            qualifyDependencyInterfaces(swc, Set.of());
+        }
+        static void qualifyDependencyInterfaces(Path swc, Set<String> externalDefinitions) throws IOException, InterruptedException {
             Map<String, byte[]> entries = new LinkedHashMap<>();
             try (ZipInputStream zip = new ZipInputStream(Files.newInputStream(swc))) {
                 for (ZipEntry entry; (entry = zip.getNextEntry()) != null; ) entries.put(entry.getName(), zip.readAllBytes());
@@ -87,6 +90,7 @@ public final class MovieSource {
                 var doc = factory.newDocumentBuilder().parse(new ByteArrayInputStream(entries.get("catalog.xml")));
                 var scripts = doc.getElementsByTagName("script");
                 Set<String> definitions = new HashSet<>();
+                definitions.addAll(externalDefinitions);
                 var allDefs = doc.getElementsByTagName("def");
                 for (int i = 0; i < allDefs.getLength(); i++)
                     definitions.add(((org.w3c.dom.Element)allDefs.item(i)).getAttribute("id"));
@@ -141,13 +145,26 @@ public final class MovieSource {
             String ns = abc.constants.getString(abc.constants.getNamespace(m.namespace_index).name_index);
             return (ns.isEmpty() ? "" : ns + ":") + abc.constants.getString(m.name_index);
         }
+        static Set<String> externalDefinitions(Path library) throws IOException {
+            Set<String> externalDefinitions = new HashSet<>();
+            try (ZipFile api = new ZipFile(library.toFile())) {
+                var factory = DocumentBuilderFactory.newInstance();
+                factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+                var doc = factory.newDocumentBuilder().parse(api.getInputStream(api.getEntry("catalog.xml")));
+                var definitions = doc.getElementsByTagName("def");
+                for (int i = 0; i < definitions.getLength(); i++)
+                    externalDefinitions.add(((org.w3c.dom.Element)definitions.item(i)).getAttribute("id"));
+            } catch (Exception error) { throw new IOException("Cannot read player API definitions", error); }
+            return externalDefinitions;
+        }
         @Override public void mxmlc(List<String> args) throws MxmlcException, InterruptedException, IOException {
             Files.createDirectories(diagnostics);
+            Set<String> externalDefinitions = externalDefinitions(sdk.resolve("frameworks/libs/player/32.0/playerglobal.swc"));
             for (int i = 0; i + 1 < args.size(); i++)
                 if (args.get(i).equals("-library-path")) {
                     Path dependency = Path.of(args.get(i + 1));
                     Files.copy(dependency, diagnostics.resolve("dependency-" + i + "-original.swc"));
-                    qualifyDependencyInterfaces(dependency);
+                    qualifyDependencyInterfaces(dependency, externalDefinitions);
                     Files.copy(dependency, diagnostics.resolve("dependency-" + i + "-qualified.swc"));
                 }
             List<String> command = new ArrayList<>(List.of(
@@ -988,7 +1005,8 @@ public final class MovieSource {
         }
         if (a[0].equals("dependencies")) {
             Files.copy(Path.of(a[1]), Path.of(a[2]));
-            FlexCompiler.qualifyDependencyInterfaces(Path.of(a[2]));
+            FlexCompiler.qualifyDependencyInterfaces(Path.of(a[2]), a.length > 3
+                ? FlexCompiler.externalDefinitions(Path.of(a[3])) : Set.of());
             return;
         }
         SWF swf = read(Path.of(a[1]));
