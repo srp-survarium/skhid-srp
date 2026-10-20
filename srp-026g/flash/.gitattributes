@@ -1,0 +1,3 @@
+# The exported source compiles to the release byte for byte as it is
+# (CRLF line ends): git must not convert it.
+*.as -text

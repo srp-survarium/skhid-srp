@@ -231,6 +231,34 @@ class Toolchain:
                 "source_patches_sha256": digest(self.work / "source_patches.py")}
 
 
+def init_project(movie, project, tools_config, release_name):
+    """Pin a release and export all its ActionScript into `project` (a new directory)."""
+    release_file = HERE / "releases" / (release_name + ".json")
+    if release_file.parent != HERE / "releases" or not release_file.is_file():
+        raise ValueError("Unknown release: add its verified movie and compiler hashes under tools/actionscript/releases first")
+    release = json.loads(release_file.read_text())
+    config = json.loads(tools_config.read_text())
+    if digest(movie) != release["movie_sha256"]:
+        raise ValueError("Movie does not match the pinned release")
+    ffdec = Path(config["ffdec"])
+    if digest(ffdec) != release["ffdec_sha256"] or digest(ffdec.parent / "lib/ffdec_lib.jar") != release["ffdec_lib_sha256"]:
+        raise ValueError("Exporter does not match the release's pinned FFDec toolchain")
+    project.mkdir(parents=True, exist_ok=False)
+    tools = Toolchain(tools_config, project / "bridge")
+    uncompressed(movie)
+    shutil.copyfile(movie, project / "original.swf")
+    code_movie(project / "original.swf", project / "code.swf")
+    tools.run("export", project / "code.swf", project / "pristine", log=project / "export.log").check_returncode()
+    tools.run("snapshot", project / "code.swf", project / "baseline", log=project / "snapshot.log").check_returncode()
+    sources = {str(p.relative_to(project / "pristine")): digest(p) for p in sorted((project / "pristine").rglob("*.as"))}
+    if not sources:
+        raise ValueError("No ActionScript exported")
+    write_json(project / "manifest.json", {"schema": 1, "release": release_name,
+               "release_identity": release, "movie_sha256": digest(project / "original.swf"),
+               "sources": sources, "toolchain": tools.identity()})
+    print(f"Pinned {release_name}: {len(sources)} source files, {len(methods(project / 'baseline'))} method bodies", flush=True)
+
+
 def verify_project(project):
     manifest = json.loads((project / "manifest.json").read_text())
     if digest(project / "original.swf") != manifest["movie_sha256"]:
@@ -261,30 +289,7 @@ def main():
     args = parser.parse_args()
     project = args.project.resolve()
     if args.command == "init":
-        release_file = HERE / "releases" / (args.release + ".json")
-        if release_file.parent != HERE / "releases" or not release_file.is_file():
-            raise ValueError("Unknown release: add its verified movie and compiler hashes under tools/actionscript/releases first")
-        release = json.loads(release_file.read_text())
-        config = json.loads(args.tools.read_text())
-        if digest(args.movie) != release["movie_sha256"]:
-            raise ValueError("Movie does not match the pinned release")
-        ffdec = Path(config["ffdec"])
-        if digest(ffdec) != release["ffdec_sha256"] or digest(ffdec.parent / "lib/ffdec_lib.jar") != release["ffdec_lib_sha256"]:
-            raise ValueError("Exporter does not match the release's pinned FFDec toolchain")
-        project.mkdir(parents=True, exist_ok=False)
-        tools = Toolchain(args.tools, project / "bridge")
-        uncompressed(args.movie)
-        shutil.copyfile(args.movie, project / "original.swf")
-        code_movie(project / "original.swf", project / "code.swf")
-        tools.run("export", project / "code.swf", project / "pristine", log=project / "export.log").check_returncode()
-        tools.run("snapshot", project / "code.swf", project / "baseline", log=project / "snapshot.log").check_returncode()
-        sources = {str(p.relative_to(project / "pristine")): digest(p) for p in sorted((project / "pristine").rglob("*.as"))}
-        if not sources:
-            raise ValueError("No ActionScript exported")
-        write_json(project / "manifest.json", {"schema": 1, "release": args.release,
-                   "release_identity": release, "movie_sha256": digest(project / "original.swf"),
-                   "sources": sources, "toolchain": tools.identity()})
-        print(f"Pinned {args.release}: {len(sources)} source files, {len(methods(project / 'baseline'))} method bodies", flush=True)
+        init_project(args.movie, project, args.tools, args.release)
         return 0
     manifest = verify_project(project)
     if args.compiler == "reconstruction" and not args.source_patches:
@@ -300,6 +305,8 @@ def main():
         correction_dir.mkdir()
         shutil.copyfile(args.source_patches, correction_dir / "manifest.json")
         for entry in correction_evidence["classes"]:
+            if "patch" not in entry:
+                continue
             destination = correction_dir / entry["patch"]
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(args.source_patches.parent / entry["patch"], destination)
