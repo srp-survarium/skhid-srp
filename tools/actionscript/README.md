@@ -196,11 +196,14 @@ an optional `not` and `convert_b`. This follows the same SDK's
 and [Adobe's interpreter](https://github.com/adobe/avmplus/blob/master/core/Interpreter.cpp).
 Operand evaluation order is retained; negated ordered comparisons use `ifnlt`,
 `ifnle`, `ifngt` or `ifnge` to preserve unordered `NaN` behavior.
-This handles movies containing both compact and expanded encodings.
+The equivalent combined branch can also be expanded back into that comparison
+and Boolean branch, including the same optional negation and conversion.
+Both directions can occur within one method.
 A whole method must match after only these
-folds, including names, argument counts, branches, switch targets and exception
-boundaries. No control-flow or exception boundary may enter the middle of a
-folded group. The output uses the compiler's operands and relocated control flow;
+encoding changes, including names, argument counts, branches, switch targets and
+exception boundaries. No control-flow or exception boundary may enter an
+intermediate instruction of a folded or expanded group. The output uses the
+compiler's operands and relocated control flow;
 verifier limits and all other method records must still pass the exact checks.
 The rule does not reconcile other changes within an edited feature method.
 
@@ -372,6 +375,9 @@ native recompilation and exact linking, including a second script/class in the
 same ABC. A separately constructed wide-reference fixture exercises instruction
 growth/shrinkage; changed owners, namespace members, branch targets and handler
 targets are refused. Unreachable jump bytes are included in the exact comparison.
+Comparison fixtures exercise folding, expansion and mixed encodings in one
+method, including true and false branches, negation, exception boundaries, and
+rejection of incorrect NaN behavior or entry into an intermediate instruction.
 Feature tests compile an actual source edit with a new constant and an unrelated
 class in the same ABC. They reject changes to untouched instructions, verifier
 metadata, original pool entries and the retained class. They also reject an

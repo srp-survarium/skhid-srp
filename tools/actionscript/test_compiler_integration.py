@@ -168,8 +168,8 @@ class CompilerIntegration(unittest.TestCase):
                                             if(jump.definition.instructionCode==0x12)
                                                 code.replaceInstruction(i,new AVM2Instruction(0,0x11,jump.operands.clone()),body);
                                         }
-                                    } else if(args[2].equals("comparison-reference")) {
-                                        int folded=0;
+                                    } else if(args[2].equals("comparison-reference") || args[2].startsWith("comparison-mixed-")) {
+                                        int folded=0, seen=0;
                                         for(int i=code.code.size()-2;i>=0;i--) {
                                             int op=code.code.get(i).definition.instructionCode;
                                             // Independent reference mapping for false branches, including
@@ -181,6 +181,9 @@ class CompilerIntegration(unittest.TestCase):
                                                 default -> 0;
                                             };
                                             if(replacement==0)continue;
+                                            int ordinal=seen++;
+                                            if(args[2].equals("comparison-mixed-even") && ordinal%2!=0)continue;
+                                            if(args[2].equals("comparison-mixed-odd") && ordinal%2!=1)continue;
                                             int branch=i+1;
                                             if(code.code.get(branch).definition.instructionCode==0x96) {
                                                 if(op!=0xab && op!=0xac)throw new IOException("Unexpected negation");
@@ -203,7 +206,9 @@ class CompilerIntegration(unittest.TestCase):
                                             while(branch-->i)code.removeInstruction(i,body);
                                             folded++;
                                         }
-                                        if(folded!=8 || body.exceptions.length==0)throw new IOException("Missing comparison fixture: "+folded);
+                                        int required=args[2].equals("comparison-reference")?8:4;
+                                        if(folded!=required || seen!=8 || body.exceptions.length==0)
+                                            throw new IOException("Missing comparison fixture: "+folded);
                                     } else {
                                         int index=-1;
                                         for(int i=0;i<code.code.size();i++)if(code.code.get(i).definition.instructionCode==0xad){index=i;break;}
@@ -682,6 +687,24 @@ class CompilerIntegration(unittest.TestCase):
                                log=root / "comparison-inverted-link.log")
             self.assertEqual(result.returncode, 0, (root / "comparison-inverted-link.log").read_text())
             self.assertEqual(movie_source.uncompressed(inverted_reference), movie_source.uncompressed(inverted_linked))
+            # Exercise the reverse encoding and both directions within the same
+            # method. Reference fixtures use their own independent opcode map.
+            for label, reference, candidate in (
+                ("expanded", accepted_file, comparison_reference),
+                ("expanded-inverted", inverted, inverted_reference),
+            ):
+                destination = root / (label + "-linked.swf")
+                result = tools.run("link-layout", reference, candidate, destination, "Probe",
+                                   log=root / (label + "-link.log"))
+                self.assertEqual(result.returncode, 0, (root / (label + "-link.log")).read_text())
+                self.assertEqual(movie_source.uncompressed(reference), movie_source.uncompressed(destination))
+            mixed_even, mixed_odd = root / "mixed-even.swf", root / "mixed-odd.swf"
+            mutate(accepted_file, mixed_even, "comparison-mixed-even")
+            mutate(accepted_file, mixed_odd, "comparison-mixed-odd")
+            result = tools.run("link-layout", mixed_even, mixed_odd, root / "mixed-linked.swf", "Probe",
+                               log=root / "mixed-link.log")
+            self.assertEqual(result.returncode, 0, (root / "mixed-link.log").read_text())
+            self.assertEqual(movie_source.uncompressed(mixed_even), movie_source.uncompressed(root / "mixed-linked.swf"))
             for mode in ("target", "handler", "nan"):
                 corrupted, destination = root / (mode + "-comparison.swf"), root / (mode + "-comparison-linked.swf")
                 reference, candidate = comparison_reference, accepted_file
@@ -693,6 +716,17 @@ class CompilerIntegration(unittest.TestCase):
                     candidate = corrupted
                 result = tools.run("link-layout", reference, candidate, destination, "Probe",
                                    log=root / (mode + "-comparison.log"))
+                self.assertNotEqual(result.returncode, 0, mode)
+                self.assertFalse(destination.exists(), mode)
+                # Expansion must reject a reference that enters an intermediate
+                # comparison boundary, and a combined opcode with wrong NaN behavior.
+                if mode == "nan":
+                    reference, candidate = accepted_file, corrupted
+                else:
+                    reference, candidate = corrupted, comparison_reference
+                destination = root / (mode + "-expanded-linked.swf")
+                result = tools.run("link-layout", reference, candidate, destination, "Probe",
+                                   log=root / (mode + "-expanded.log"))
                 self.assertNotEqual(result.returncode, 0, mode)
                 self.assertFalse(destination.exists(), mode)
 

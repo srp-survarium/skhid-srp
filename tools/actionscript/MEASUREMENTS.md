@@ -645,3 +645,20 @@ with one changed method and identical non-code content. Its manifest identities
 are recorded separately in the runtime evidence. The game was not rerun because
 the rebuilt movie is byte-identical to the previously tested candidate.
 Whole-tree reconstruction remains incomplete.
+
+## Equivalent expanded comparison branches
+
+The layout emitter now also generates a Boolean comparison and branch from the
+equivalent combined comparison-branch instruction. Optional logical negation and
+Boolean conversion are recognized, with the existing comparison predicate table
+preserving operand order and unordered NaN behavior. The complete method must
+still match. Branches and exception boundaries cannot enter an intermediate
+instruction introduced by expansion, and verifier limits remain unchanged.
+
+All 15 tests pass, including the real compiler integration fixture. Independently
+constructed references exercise both encoding directions, alternating compact
+and expanded comparisons within one method, true and false branches, negation,
+and rejection of invalid intermediate boundaries and incorrect NaN predicates.
+Re-linking the saved 76-class evidence-guided probe changes only
+`CreateClanWindow` from rejected to exact; its mixed comparison forms now match.
+The other 75 outcomes are unchanged.

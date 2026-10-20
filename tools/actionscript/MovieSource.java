@@ -946,13 +946,50 @@ public final class MovieSource {
             ArrayList<AVM2Instruction> result = new ArrayList<>();
             List<int[]> targets = new ArrayList<>();
             Map<Integer, Integer> positions = new HashMap<>();
-            boolean matching = true, folded = false;
+            boolean matching = true, rewritten = false;
             int next = 0, end = 0;
-            for (var wanted : expected) {
+            for (int wantedIndex = 0; wantedIndex < expected.size(); wantedIndex++) {
+                var wanted = expected.get(wantedIndex);
                 if (next == emitted.size()) { matching = false; break; }
                 var instruction = emitted.get(next);
                 var operandSource = instruction;
                 int opcode = instruction.definition.instructionCode, desired = wanted.definition.instructionCode;
+                // ASC can use either a combined comparison branch or a Boolean
+                // comparison followed by a branch, including within one method.
+                // Generate the latter only from an equivalent combined opcode.
+                // Its intermediate boundaries have no emitted input counterpart;
+                // the complete target/handler checks below reject entry to them.
+                if (opcode != desired && desired >= 0xab && desired <= 0xb0) {
+                    int branch = wantedIndex + 1;
+                    boolean negate = branch < expected.size()
+                        && expected.get(branch).definition.instructionCode == 0x96;
+                    if (negate) branch++;
+                    boolean convert = branch < expected.size()
+                        && expected.get(branch).definition.instructionCode == 0x76;
+                    if (convert) branch++;
+                    int jumpOpcode = branch < expected.size() ? expected.get(branch).definition.instructionCode : -1;
+                    if ((jumpOpcode == 0x11 || jumpOpcode == 0x12)
+                            && comparisonBranch(desired, (jumpOpcode == 0x11) != negate) == opcode) {
+                        positions.put((int)instruction.getAddress(), result.size());
+                        result.add(new AVM2Instruction(0, desired, null));
+                        targets.add(new int[0]);
+                        if (negate) {
+                            result.add(new AVM2Instruction(0, 0x96, null));
+                            targets.add(new int[0]);
+                        }
+                        if (convert) {
+                            result.add(new AVM2Instruction(0, 0x76, null));
+                            targets.add(new int[0]);
+                        }
+                        result.add(new AVM2Instruction(0, jumpOpcode, instruction.operands.clone()));
+                        targets.add(branchTargets(instruction));
+                        end = (int)instruction.getAddress() + instruction.getBytesLength();
+                        next++;
+                        wantedIndex = branch;
+                        rewritten = true;
+                        continue;
+                    }
+                }
                 int consumed = 1;
                 if (opcode != desired) {
                     if (next + 1 >= emitted.size()) { matching = false; break; }
@@ -985,7 +1022,7 @@ public final class MovieSource {
                         consumed = branch - next + 1;
                         operandSource = jump;
                     }
-                    folded = true;
+                    rewritten = true;
                 }
                 int[] branches = branchTargets(operandSource);
                 if (branches.length == 0 && !Arrays.equals(wanted.operands, operandSource.operands)) {
@@ -998,7 +1035,7 @@ public final class MovieSource {
                 end = (int)last.getAddress() + last.getBytesLength();
                 next += consumed;
             }
-            if (!matching || !folded || next != emitted.size()) continue;
+            if (!matching || !rewritten || next != emitted.size()) continue;
             positions.put(end, result.size());
             var oldPositions = executablePositions(layout);
             // The interior of a folded group has no output boundary. Branches,
