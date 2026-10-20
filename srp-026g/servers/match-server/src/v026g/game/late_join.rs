@@ -870,11 +870,13 @@ impl Game {
             }
             let at = grid_up(clock + ROSTER_LEAD_MS);
             for &index in &caught_up {
+                // Its tick: after a stand-in's entry, when one shares it
+                // (`Game::after_stand_ins`).
+                let at = self.roster_change(None, index, true, at, now);
                 log::info!(
                     "Match {:#x}: new place {index} caught up; entry scheduled for {at} ms",
                     self.id
                 );
-                self.roster_change(None, index, true, at, now);
             }
         }
     }

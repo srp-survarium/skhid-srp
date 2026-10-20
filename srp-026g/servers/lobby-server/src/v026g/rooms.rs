@@ -983,6 +983,22 @@ impl Core<'_> {
         }
     }
 
+    /// The room's match was called off before its countdown (fewer than
+    /// its minimum could play it, `match.md` section 34): the room goes on
+    /// as for a match that could not be made, its vote and wait whole.
+    pub(super) fn room_match_not_made(&mut self, match_id: u32) {
+        self.room_launching.remove(&match_id);
+        if let Some(key) = self.rooms.match_not_made(match_id) {
+            log::info!(
+                "Room {key}: its match {match_id:#x} was called off before its countdown; the \
+                 room votes and waits again"
+            );
+            if self.maintenance_is_near() {
+                self.room_disband(key);
+            }
+        }
+    }
+
     /// The room is gone (a maintenance is near): its members are told so
     /// at their next state request.
     fn room_disband(&mut self, key: u32) {
@@ -1013,6 +1029,13 @@ impl Core<'_> {
             return None;
         }
         let session_id = player.session_id;
+        // Its game plays in matches that take players (a member's game
+        // started anew may be an older one): counted for the room's vote
+        // as it is seated, or a match is made with fewer than the room's
+        // minimum and called off at once (`room_start`).
+        if self.pool_for_sessions([session_id]) != Some(QueuePool::GrowingRoster) {
+            return None;
+        }
         let unix = quests::now();
         if self.member_fit(account_id) != Fit::Yes {
             return None;
@@ -1151,6 +1174,7 @@ impl Core<'_> {
             return;
         };
         let size = usize::from(room.spec.size);
+        let room_minimum = u8::try_from(room.needs()).unwrap_or(u8::MAX);
         let members = room.members.clone();
         let unfit: Vec<(u32, Fit)> = members
             .iter()
@@ -1165,9 +1189,6 @@ impl Core<'_> {
         let ready: Vec<Ready> = members
             .iter()
             .filter_map(|&account_id| self.room_ready(account_id))
-            .filter(|ready| {
-                self.pool_for_sessions([ready.player.session_id]) == Some(QueuePool::GrowingRoster)
-            })
             .collect();
         // Squads of the room's members, each a party; any other member alone.
         let mut seen = HashSet::new();
@@ -1210,9 +1231,14 @@ impl Core<'_> {
         };
         let teams: [Vec<session::Player>; 2] =
             sides.map(|side| side.iter().filter_map(player_of).collect());
-        if teams.iter().any(Vec::is_empty) {
+        // Never fewer than the room's minimum: the match server would call
+        // such a match off at once (`MatchSetup::room_minimum`), and the room
+        // make it again.
+        let seated = teams.iter().map(Vec::len).sum::<usize>();
+        if teams.iter().any(Vec::is_empty) || seated < usize::from(room_minimum) {
             log::info!(
-                "Room {key}: no match yet: {} of {} members are free with a kit Play takes",
+                "Room {key}: no match yet: {} of {} members are free with a kit Play takes, \
+                 {seated} seated, the room needs {room_minimum}",
                 ready.len(),
                 members.len()
             );
@@ -1239,7 +1265,7 @@ impl Core<'_> {
             self.rooms.not_started(key, now);
             return;
         };
-        self.room_launching.insert(match_id, map_id);
+        self.room_launching.insert(match_id, (map_id, room_minimum));
         // Made at the match server before anyone is told: if it fails, its
         // players are back in the lobby (`launch`) and the room waits again,
         // nobody left marked as searching.
