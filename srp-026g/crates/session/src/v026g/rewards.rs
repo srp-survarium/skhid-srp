@@ -1007,13 +1007,14 @@ impl Results {
         // them) and the match server's own (in every match against bots):
         // a match with one in it moves no rating, and
         // a bot is paid no daily bonus (nor is the player of a match
-        // against bots, `settle_player`).
+        // against bots, `settle_player`). Nor does a room with a PIN's
+        // match move any.
         let bots: Vec<bool> = result
             .players
             .iter()
             .map(|player| player.driven || accounts.is_bot(player.account_id))
             .collect();
-        shared.unrated = bots.contains(&true);
+        shared.unrated = bots.contains(&true) || result.private;
 
         // What the screen's rows and the rating need of every account.
         let held: Vec<Option<(u16, u8, String)>> = result
@@ -1225,9 +1226,10 @@ impl Results {
     /// 2026-10-20; the original's screen takes one card too:
     /// `docs/notes/drop_cards.md`). Refused, and nothing changed, for a
     /// match not kept, one the account was not in or left before its end,
-    /// one it used a card for already, an item that is no drop card of the
-    /// account, or a roll that gave nothing. Lock the account before
-    /// calling it, as for [`Results::claim_premium`]; mark it dirty after.
+    /// a room with a PIN's match (it gives nothing), one it used a card
+    /// for already, an item that is no drop card of the account, or a roll
+    /// that gave nothing. Lock the account before calling it, as for
+    /// [`Results::claim_premium`]; mark it dirty after.
     /// Returns the match's level and what the card did.
     ///
     /// The mark is the account's own ([`Account::drop_cards`]): it is
@@ -1278,9 +1280,6 @@ impl Results {
                 .collect();
             (report, kept)
         };
-        if report.private {
-            return Err(DropCardRefusal::Private);
-        }
         let standing = report
             .player(account_id)
             .filter(|_| account_id != 0)
@@ -1289,6 +1288,9 @@ impl Results {
             .standing;
         if standing != Standing::Finished {
             return Err(DropCardRefusal::NotFinished(standing));
+        }
+        if report.private {
+            return Err(DropCardRefusal::Private);
         }
         if account.drop_cards.contains(&match_id) {
             return Err(DropCardRefusal::Used);
@@ -1392,7 +1394,8 @@ struct Shared<'a> {
     stole: [bool; 2],
     /// The match level's multipliers: money, experience, reputation.
     multipliers: (f64, f64, f64),
-    /// A test bot was in the match: nobody's rating moves.
+    /// A test bot was in the match, or it is a room with a PIN's
+    /// ([`MatchResult::private`]): nobody's rating moves.
     unrated: bool,
 }
 
@@ -1480,7 +1483,7 @@ impl<'a> Shared<'a> {
     /// one team, moves nothing.
     fn rating_changes(&self, held: &[Option<(u16, u8, String)>]) -> Vec<i32> {
         let mut changes = vec![0; self.result.players.len()];
-        let Some(winner) = self.winner.filter(|_| !self.result.private) else {
+        let Some(winner) = self.winner else {
             return changes;
         };
         let rated: Vec<usize> = (0..self.result.players.len())
@@ -1516,11 +1519,11 @@ impl<'a> Shared<'a> {
     /// How the match moves each balance rating ([`balance::changes`]), by
     /// roster place; `None` for a player it does not move. The players
     /// are the ranking's: those who were in the match, one who left with
-    /// its team's result and nothing more. A match with a test bot, with
-    /// no known winner, or left by a whole side ([`MatchEnd::Deserted`]:
-    /// its winner is who stayed) moves none. Nor does a match of few
-    /// players ([`Terms::rated_players`], by default one against one and
-    /// two against one): it is not one more match of anybody's either, so
+    /// its team's result and nothing more. A match with a test bot, a room
+    /// with a PIN's, one with no known winner, or one left by a whole side
+    /// ([`MatchEnd::Deserted`]: its winner is who stayed) moves none. Nor
+    /// does a match of few players ([`Terms::rated_players`], by default
+    /// one against one and two against one): it is not one more match of anybody's either, so
     /// it adds nothing to how far a rating is trusted.
     ///
     /// Each counts for the share of the match it was in
@@ -1532,7 +1535,7 @@ impl<'a> Shared<'a> {
         let Some(winner) = self.winner else {
             return changes;
         };
-        if self.unrated || self.result.private || self.result.end == MatchEnd::Deserted {
+        if self.unrated || self.result.end == MatchEnd::Deserted {
             return changes;
         }
         let rated: Vec<(usize, u8, balance::Balance, u32)> = self
@@ -1740,7 +1743,9 @@ impl<'a> Shared<'a> {
     /// Give one player what the match earned. `rating_change` is its part
     /// of [`Self::rating_changes`]; `game` which game of its play period
     /// this is (0: no drop is rolled); `bot` whether the account is a test
-    /// bot (no daily bonus).
+    /// bot (no daily bonus). A room with a PIN's match
+    /// ([`MatchResult::private`]) gives and takes nothing: only the
+    /// screen's numbers are filled.
     fn settle_player(
         &self,
         account: &mut Account,

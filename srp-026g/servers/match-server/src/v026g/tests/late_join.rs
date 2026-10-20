@@ -1645,7 +1645,6 @@ fn a_private_rooms_result_says_so_with_its_late_joiner() {
     assert_eq!(result.players[place].account_id, 100 + place as u32);
 
     // Any other match's does not.
-    let mut bench = Bench::growing(2, MAP_BATTERIES, Settings::default());
+    let bench = Bench::growing(2, MAP_BATTERIES, Settings::default());
     assert!(!bench.registry.formed(bench.match_id).unwrap().private);
-    bench.join_all();
 }

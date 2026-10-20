@@ -2868,6 +2868,12 @@ fn a_private_rooms_match_takes_no_drop_card() {
         Err(DropCardRefusal::Private)
     );
     assert_eq!(DropCardRefusal::Private.to_string(), "private match");
+    // One not in the match is refused as that, private or not.
+    let erin_cards = store.get_or_create(14, "Erin").locked().add_item(card, 3);
+    assert_eq!(
+        use_card_of(&results, &store, MATCH, 14, erin_cards, &mut rng),
+        Err(DropCardRefusal::NotAPlayer)
+    );
 
     let mut plain = result(players);
     plain.match_id = MATCH + 1;
