@@ -214,9 +214,13 @@ public final class SourceCompiler extends FFDecAs3ScriptReplacer {
             new Parser(index).addScript(source, script.getPathScriptName() + ".as", position,
                 script.scriptIndex, movie.getDocumentClass(), abc);
         } catch (AVM2ParseException e) {
-            throw new As3ScriptReplaceException(new As3ScriptReplaceExceptionItem(null, e.text, (int)e.line));
+            var failure = new As3ScriptReplaceException(new As3ScriptReplaceExceptionItem(null, e.text, (int)e.line));
+            failure.initCause(e);
+            throw failure;
         } catch (CompilationException e) {
-            throw new As3ScriptReplaceException(new As3ScriptReplaceExceptionItem(null, e.text, e.line));
+            var failure = new As3ScriptReplaceException(new As3ScriptReplaceExceptionItem(null, e.text, e.line));
+            failure.initCause(e);
+            throw failure;
         } finally {
             for (var entry : declarations.entrySet()) entry.getKey().traits = entry.getValue();
             if (!declarations.isEmpty())

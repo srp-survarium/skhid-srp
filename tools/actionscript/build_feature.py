@@ -50,6 +50,7 @@ def feature_inputs(path, pinned, reconstructed, reconstruction_evidence, project
     seen, inputs = set(), []
     compilers = {entry['class']: entry.get('compiler', 'flex-strict') for entry in reconstruction_evidence['classes']}
     compositions = {entry['class']: patches.composition_plan(entry) for entry in reconstruction_evidence['classes']}
+    reservations = {entry['class']: patches.reservation_plan(entry) for entry in reconstruction_evidence['classes']}
     for entry in spec['classes']:
         cls = entry['class']
         relative = cls.replace('.', '/') + '.as'
@@ -87,7 +88,7 @@ def feature_inputs(path, pinned, reconstructed, reconstruction_evidence, project
         inputs.append({'entry': entry, 'baseline': baseline, 'changed': changed, 'patch': diff,
                        'permissions': ('\n'.join(permissions) + '\n').encode(),
                        'compiler': compilers.get(cls, 'flex-strict'),
-                       'composition': compositions.get(cls)})
+                       'composition': compositions.get(cls), 'reservations': reservations.get(cls)})
     if not inputs:
         raise ValueError('Feature changes no classes')
     return raw, inputs
@@ -144,6 +145,10 @@ def main():
                'baseline_source_sha256': patches.sha(item['baseline']), 'feature_source_sha256': patches.sha(item['changed'])}
         if composition_args:
             row['composition_sha256'] = movie.digest(composition_args[0])
+        if item['reservations'] is not None:
+            reservation_path = folder / 'method-reservations.tsv'
+            reservation_path.write_bytes(item['reservations'])
+            row['reservations_sha256'] = movie.digest(reservation_path)
         report['classes'].append(row)
         movie.write_json(output / 'report.json', report)
 
@@ -152,12 +157,21 @@ def main():
             if result.returncode:
                 raise ValueError(f'{cls}: {arguments[0]} failed; see {folder / log}')
 
+        def compile_source(input_movie, name):
+            reserved = item['reservations'] is not None
+            compiled = folder / f'{name}-{"unreserved" if reserved else "compiled"}.swf'
+            snapshot = folder / f'{name}-{"unreserved-snapshot" if reserved else "snapshot"}'
+            run('compile', input_movie, compiled, cls, folder / f'{name}.as', snapshot,
+                compiler, tools.config.get('flex', ''), *composition_args, log=f'{name}-compile.log')
+            if reserved:
+                row[f'{name}_unreserved_code_sha256'] = movie.digest(compiled)
+                run('reserve', compiled, folder / f'{name}-compiled.swf', cls, reservation_path,
+                    folder / f'{name}-snapshot', log=f'{name}-reservation.log')
+
         try:
             # Compile the baseline afresh: saved measurements cannot authorize a
             # feature built with a changed compiler or reconstruction source.
-            run('compile', reference, folder / 'baseline-compiled.swf', cls, folder / 'baseline.as',
-                folder / 'baseline-snapshot', compiler, tools.config.get('flex', ''), *composition_args,
-                log='baseline-compile.log')
+            compile_source(reference, 'baseline')
             run('link-layout', reference, folder / 'baseline-compiled.swf', folder / 'baseline-linked.swf', cls,
                 log='baseline-link.log')
             full_movie(original, folder / 'baseline-linked.swf', folder / 'baseline-full.swf')
@@ -165,9 +179,7 @@ def main():
                 raise ValueError('Baseline does not reproduce the complete compressed release movie')
             row['baseline_exact'] = True
             (folder / 'baseline-full.swf').unlink()
-            run('compile', current, folder / 'feature-compiled.swf', cls, folder / 'feature.as',
-                folder / 'feature-snapshot', compiler, tools.config.get('flex', ''), *composition_args,
-                log='feature-compile.log')
+            compile_source(current, 'feature')
             run('link-feature', current, folder / 'feature-compiled.swf', folder / 'feature-linked.swf', cls,
                 folder / 'permissions.tsv', log='feature-link.log')
             if (folder / 'baseline.as').read_bytes() != item['baseline'] or (folder / 'feature.as').read_bytes() != item['changed']:

@@ -2069,6 +2069,21 @@
       "pristine_sha256": "86989effddf56c61efa01635ec5d1e645225bfb0e1d56fb11cfdfc0699492dd9",
       "reason": "An explicit mixed plan selects only the actual source-compiled constructor and retains native methods from the same source. Source changes recover named local functions, captured and ordinary declaration order, typed assignments, public Array.push qualification, static field order, and the original else branch. Guarded constructor-slot and identical type-coercion encodings reproduce the complete compressed release movie byte for byte.",
       "result_sha256": "72f615c32a0bcbde9b3d2c7b3afc595624417bf734f07c7786d3b768a56d921f"
+    },
+    {
+      "class": "survarium.messages.MessageMoneyExchange",
+      "compiler": "flex-library",
+      "method_reservations": {
+        "QName(PackageNamespace(\"survarium.messages\"),\"MessageMoneyExchange\")/instance/1/QName(ProtectedNamespace(\"survarium.messages:MessageMoneyExchange\"),\"onMessageAccept\")": {
+          "locals": 3,
+          "stack": 3
+        }
+      },
+      "patch": "survarium/messages/MessageMoneyExchange.patch",
+      "patch_sha256": "7e4c12e199df8ea87a1874507380dc0f7ce603409bd0368b111e74c2c9644018",
+      "pristine_sha256": "5e5b27011387c4aa81b6e5d25ae07589195acb803fe2b320f9c5a24db3780c60",
+      "reason": "Recover implicit Boolean initialization; native source compilation plus checked unused instance-scope omission and explicit stack/local capacity minimums reproduces the complete compressed release movie.",
+      "result_sha256": "7e9199c895248e0876cde0c082cbc5d2a19e42107796a81685f6309f93bd5853"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

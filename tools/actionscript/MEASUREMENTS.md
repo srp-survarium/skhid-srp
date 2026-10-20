@@ -1233,3 +1233,36 @@ retains the earlier game-tested hash
 `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
 with one authorized method changed and identical non-code bytes. The runtime
 record describes byte identity with that earlier run, not a new game check.
+
+### MessageMoneyExchange scope and explicit compiler capacities
+
+`MessageMoneyExchange` now independently reproduces the complete compressed
+release movie. Its source correction restores an implicit Boolean initializer.
+Its helper-only accept method uses checked omission of an unused instance-scope
+prologue and explicit minimum stack/local capacities of three. The capacity
+finishing step retains the raw compiler artifact and changes only those two
+named fields; it never reads original instructions or method records.
+
+The scope proof requires an ordinary instance method, a complete ancestor
+hierarchy and unshadowed public class lookups. It excludes dynamic scope,
+activations, nested functions, handlers and unsafe branch entries. The same
+proof supports moving scope setup past a helper's early-return guard, with
+branches routed through the moved setup. Full method operands and control flow
+must still match before any encoding is accepted.
+
+All 24 tests pass, including eight real-compiler integrations (156.763 seconds).
+The added fixture checks both scope forms, rejected shadowing/hierarchy/scope/
+branch mutations, exact capacity-only changes, invalid reservations, larger
+compiler requirements and preservation of an independently compiled source edit.
+Five focused source-configuration tests also pass after the final plan
+authentication guard. Saved compiler composition and reservation plans are
+authenticated before linking.
+
+There are now 229 authenticated reconstructions and 645 pristine successes:
+874 of 878 scripts have individual exact proofs. Four remain, and a matching
+whole-tree build is still outstanding. The fresh premium rebuild preserves
+one authorized method change and identical non-code bytes, with the previously
+game-tested hash
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`.
+The runtime record identifies byte identity with the earlier game run; no new
+runtime check is claimed.

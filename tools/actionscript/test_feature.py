@@ -52,6 +52,9 @@ class FeatureTests(unittest.TestCase):
             self.assertEqual(inputs[0]['baseline'], baseline)
             self.assertEqual(inputs[0]['changed'], changed)
             self.assertEqual(inputs[0]['compiler'], 'ffdec')
+            evidence['classes'][0]['method_reservations'] = {'C/method': {'stack': 3}}
+            _, inputs = build_feature.feature_inputs(path, pinned, {'C.as': baseline}, evidence, root)
+            self.assertEqual(inputs[0]['reservations'], b'C/method\t3\t0\n')
             with self.assertRaisesRegex(ValueError, 'baseline'):
                 build_feature.feature_inputs(path, pinned, {}, evidence, root)
             path.write_text(json.dumps(dict(spec, reconstruction_sha256='stale')))

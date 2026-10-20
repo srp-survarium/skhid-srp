@@ -18,6 +18,24 @@ import movie_source as movie
 import source_patches
 
 
+def verify_compiler_plans(row, entry, prior):
+    composition = source_patches.composition_plan(entry) if row['compiler'] == 'flex-mixed' else None
+    if row['compiler'] == 'flex-mixed' and composition is None:
+        raise ValueError("Mixed compiler requires an authenticated composition plan")
+    plans = [
+        ('composition_sha256', 'compiler-composition.tsv', composition),
+        ('reservations_sha256', 'method-reservations.tsv', source_patches.reservation_plan(entry)),
+    ]
+    for key, filename, expected in plans:
+        if expected is None:
+            if key in row:
+                raise ValueError("Unexpected compiler plan in measurement")
+        elif row.get(key) != source_patches.sha(expected) or (prior / filename).read_bytes() != expected:
+            raise ValueError("Compiler plan differs from authenticated source configuration")
+    if 'reservations_sha256' in row and movie.digest(prior / 'unreserved-code.swf') != row.get('unreserved_code_sha256'):
+        raise ValueError("Unreserved compiler artifact differs from measurement")
+
+
 class SerializationCache:
     """Reuse serialization only for byte-identical, already linked code movies.
 
@@ -68,10 +86,12 @@ def main():
     if compiled["movie_sha256"] != manifest["movie_sha256"]:
         raise ValueError("Measurement targets a different movie")
     corrected = {}
+    entries = {}
     if compiled.get("source_patches") is not None:
         corrected, evidence = source_patches.load_sources(measurement / "source-patches" / "manifest.json", project, manifest)
         if evidence != compiled["source_patches"]:
             raise ValueError("Source patch provenance differs from measurement")
+        entries = {entry['class']: entry for entry in evidence['classes']}
     output.mkdir(parents=True, exist_ok=False)
     (output / "compilation-report.json").write_bytes(recorded)
     shutil.copyfile(Path(__file__), output / "link_layout.py")
@@ -103,6 +123,7 @@ def main():
         if row["status"] not in ("different", "exact"):
             return dict(result, status="not_compiled", compilation_status=row["status"])
         prior = measurement / row["directory"]
+        verify_compiler_plans(row, entries.get(row['class'], {}), prior)
         comparison = json.loads((prior / "comparison.json").read_text())
         # This reconstructs the measured FWS candidate, including all assets,
         # and verifies that the compiler artifact has not changed since then.

@@ -157,11 +157,13 @@ class Toolchain:
         shutil.copyfile(HERE / "MovieSource.java", self.work / "MovieSource.java")
         shutil.copyfile(HERE / "MixedCompiler.java", self.work / "MixedCompiler.java")
         shutil.copyfile(HERE / "SourceCompiler.java", self.work / "SourceCompiler.java")
+        shutil.copyfile(HERE / "CompilerReserves.java", self.work / "CompilerReserves.java")
         shutil.copyfile(HERE / "movie_source.py", self.work / "movie_source.py")
         shutil.copyfile(HERE / "source_patches.py", self.work / "source_patches.py")
         subprocess.run([self.config["javac"], "-encoding", "UTF-8", "-cp", self.config["ffdec"],
                         "-d", str(self.work), str(self.work / "MovieSource.java"),
-                        str(self.work / "MixedCompiler.java"), str(self.work / "SourceCompiler.java")],
+                        str(self.work / "MixedCompiler.java"), str(self.work / "SourceCompiler.java"),
+                        str(self.work / "CompilerReserves.java")],
                        check=True, env=self.env)
 
     def run(self, *args, log, timeout=600):
@@ -191,6 +193,7 @@ class Toolchain:
                 "bridge_sha256": digest(self.work / "MovieSource.java"),
                 "composition_bridge_sha256": digest(self.work / "MixedCompiler.java"),
                 "source_compiler_sha256": digest(self.work / "SourceCompiler.java"),
+                "compiler_reserves_sha256": digest(self.work / "CompilerReserves.java"),
                 "driver_sha256": digest(self.work / "movie_source.py"),
                 "source_patches_sha256": digest(self.work / "source_patches.py")}
 
@@ -319,9 +322,20 @@ def main():
                 plan_path.write_bytes(plan)
                 composition_args = [plan_path]
                 row["composition_sha256"] = digest(plan_path)
-            result = tools.run("compile", output / "code.swf", folder / "compiled-code.swf", cls,
-                               source, folder / "snapshot", compiler,
+            reservation = source_patches.reservation_plan(compiler_entries.get(cls, {}))
+            if reservation is not None:
+                plan_path = folder / "method-reservations.tsv"
+                plan_path.write_bytes(reservation)
+                row["reservations_sha256"] = digest(plan_path)
+            compiled_output = folder / ("unreserved-code.swf" if reservation is not None else "compiled-code.swf")
+            compiled_snapshot = folder / ("unreserved-snapshot" if reservation is not None else "snapshot")
+            result = tools.run("compile", output / "code.swf", compiled_output, cls,
+                               source, compiled_snapshot, compiler,
                                tools.config.get("flex", ""), *composition_args, log=folder / "compile.log")
+            if not result.returncode and reservation is not None:
+                row["unreserved_code_sha256"] = digest(compiled_output)
+                result = tools.run("reserve", compiled_output, folder / "compiled-code.swf", cls,
+                                   plan_path, folder / "snapshot", log=folder / "reservation.log")
             if digest(source) != row["source_sha256"]:
                 raise ValueError("Source changed during compilation")
             if result.returncode:

@@ -9,6 +9,25 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def reservation_plan(entry):
+    """Serialize explicit minimum capacities; these never supply executable code."""
+    if 'method_reservations' not in entry:
+        return None
+    spec = entry['method_reservations']
+    if not isinstance(spec, dict) or not spec:
+        raise ValueError('Invalid method reservations')
+    lines = []
+    for owner, values in spec.items():
+        if (not isinstance(owner, str) or not owner or owner.strip() != owner
+                or any(c in owner for c in '\t\r\n|')
+                or not isinstance(values, dict) or not values
+                or set(values) - {'stack', 'locals'}
+                or any(type(value) is not int or not 1 <= value <= 65535 for value in values.values())):
+            raise ValueError('Invalid method reservation')
+        lines.append(f"{owner}\t{values.get('stack', 0)}\t{values.get('locals', 0)}")
+    return ('\n'.join(sorted(lines)) + '\n').encode()
+
+
 def composition_plan(entry):
     """Validate an explicit compiler selection and serialize the bridge input."""
     if entry.get('compiler') != 'flex-mixed':
@@ -108,6 +127,7 @@ def load_sources(manifest_path, project, pinned):
         if entry.get('compiler', 'flex-strict') not in ('ffdec', 'ffdec-source', 'flex', 'flex-strict', 'flex-library', 'flex-mixed'):
             raise ValueError('Unknown reconstruction compiler')
         composition_plan(entry)
+        reservation_plan(entry)
         cls = entry['class']
         relative = cls.replace('.', '/') + '.as'
         if relative not in pinned['sources'] or relative in sources:

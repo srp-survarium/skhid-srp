@@ -209,6 +209,29 @@ as the base class. Debugger directives preceding the reference binding are
 handled separately by the source-map check.
 The original method bodies are never substituted for failed compiler output.
 
+An ordinary instance method's initial `getlocal0; pushscope` can be omitted or
+deferred past an early-return prefix when that prefix does not need instance
+scope. Every lexical lookup must name a uniquely defined public class and be
+unshadowed by the declaring class or any ancestor. Missing ancestors, method
+aliases, handlers, activations, nested functions, dynamic names and scope
+accesses are refused. Branches cannot enter the removed prologue, return into
+the prefix or bypass deferred scope setup. The complete method and control-flow
+comparison must still match. This follows ordinary instance lookup in
+[Adobe's MethodEnv](https://github.com/adobe/avmplus/blob/master/core/MethodEnv.cpp#L1221);
+`with` scopes have different lookup rules and are excluded.
+
+Some previously patched methods retain spare stack or local capacity that
+neither source compiler allocates. An authenticated reconstruction entry can
+declare `method_reservations`, mapping full method owner names to positive
+`stack` and/or `locals` minimums. The separate compiler finishing step keeps
+the greater of the actual compiler requirement and each explicit minimum.
+It never reads a reference body or changes instructions, scope bounds or
+other method records. Measurements retain and hash the raw
+`unreserved-code.swf`, the reservation plan and the finished compiler output.
+The linker authenticates both reservation and mixed-compiler plans against the
+source configuration. Feature builds apply the same minimums to baseline and
+edited source, allowing a larger actual compiler requirement to remain larger.
+
 The emitter also supports adjacent-instruction folds used by
 [Apache Flex's pinned Encoder](https://github.com/apache/flex-sdk/blob/1644730bd54105c8aab234af7c1a08b2af17865d/modules/asc/src/java/macromedia/abc/Encoder.java):
 `findpropstrict` plus `getproperty` of the same QName becomes `getlex`, and
@@ -321,7 +344,7 @@ Use `--compiler reconstruction` with the pinned patch manifest to select these
 per-class compilers in one measurement. Classes without an override use
 `flex-strict`; every report row records the compiler actually used. Explicit
 `--compiler ffdec`, `ffdec-source`, `flex`, `flex-strict` or `flex-library` selects that compiler for every
-class, for comparison experiments. The per-class profile currently proves 228
+class, for comparison experiments. The per-class profile currently proves 229
 reconstructed classes, including easing, button, list, text, message, clan,
 debug and tutorial classes. Source fixes also recover local declaration order,
 static field slot order and explicit switch breaks where required.
@@ -496,3 +519,8 @@ Feature tests compile an actual source edit with a new constant and an unrelated
 class in the same ABC. They reject changes to untouched instructions, verifier
 metadata, original pool entries and the retained class. They also reject an
 unreviewed constructor-to-call change and incorrect review fingerprints.
+The scope fixture checks omitted and deferred instance setup, inherited and
+local shadowing, incomplete hierarchies, duplicate classes, method aliases,
+unsafe scopes and branches. Its reservation checks prove that only the named
+capacity fields change, reject invalid plans, retain larger compiler limits
+and preserve a separately compiled source edit.

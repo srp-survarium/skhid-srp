@@ -5,9 +5,51 @@ import tempfile
 import unittest
 
 import source_patches as patches
+import link_layout
 
 
 class SourcePatchTests(unittest.TestCase):
+    def test_method_reservations_and_saved_plan_authentication(self):
+        self.assertIsNone(patches.reservation_plan({}))
+        entry = {'compiler': 'flex-library', 'method_reservations': {'C/method': {'stack': 3, 'locals': 4}}}
+        plan = patches.reservation_plan(entry)
+        self.assertEqual(plan, b'C/method\t3\t4\n')
+        for spec in ({}, [], None, {'x': {}}, {'x': {'code': 3}}, {'x': {'stack': True}},
+                     {'x': {'locals': -1}}, {'x': {'stack': 65536}}, {'x': {'stack': 0}},
+                     {'x': {'stack': '3'}}, {'x\n': {'stack': 3}}, {3: {'stack': 3}}):
+            with self.assertRaises(ValueError):
+                patches.reservation_plan({'method_reservations': spec})
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'method-reservations.tsv').write_bytes(plan)
+            (root / 'unreserved-code.swf').write_bytes(b'compiler output')
+            row = {'compiler': 'flex-library', 'reservations_sha256': patches.sha(plan),
+                   'unreserved_code_sha256': patches.sha(b'compiler output')}
+            link_layout.verify_compiler_plans(row, entry, root)
+            for name, changed in [('method-reservations.tsv', b'C/method\t9\t4\n'),
+                                  ('unreserved-code.swf', b'changed compiler output')]:
+                saved = (root / name).read_bytes()
+                (root / name).write_bytes(changed)
+                with self.assertRaises(ValueError):
+                    link_layout.verify_compiler_plans(row, entry, root)
+                (root / name).write_bytes(saved)
+            with self.assertRaises(ValueError):
+                link_layout.verify_compiler_plans(dict(row, reservations_sha256='stale'), entry, root)
+            with self.assertRaises(ValueError):
+                link_layout.verify_compiler_plans(row, {}, root)
+            mixed = {'compiler': 'flex-mixed', 'composition': {'ffdec_methods': ['C/method']}}
+            composition = patches.composition_plan(mixed)
+            (root / 'compiler-composition.tsv').write_bytes(composition)
+            mixed_row = {'compiler': 'flex-mixed', 'composition_sha256': patches.sha(composition)}
+            link_layout.verify_compiler_plans(mixed_row, mixed, root)
+            with self.assertRaises(ValueError):
+                link_layout.verify_compiler_plans({'compiler': 'flex-mixed'}, {}, root)
+            with self.assertRaises(ValueError):
+                link_layout.verify_compiler_plans(dict(mixed_row, compiler='ffdec'), mixed, root)
+            (root / 'compiler-composition.tsv').write_bytes(b'C/other\n')
+            with self.assertRaises(ValueError):
+                link_layout.verify_compiler_plans(mixed_row, mixed, root)
+
     def test_composition_plan_requires_explicit_unique_method_choices(self):
         owner = 'QName(PackageNamespace(""),"C")/instance/1/QName(PackageNamespace(""),"f")'
         entry = {'compiler': 'flex-mixed',

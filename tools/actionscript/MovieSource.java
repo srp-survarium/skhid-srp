@@ -1132,6 +1132,137 @@ public final class MovieSource {
         return false;
     }
 
+    static String publicName(ABC abc, int id) {
+        if (id <= 0) return null;
+        var name = abc.constants.getMultiname(id);
+        if (name.kind != 7) return null;
+        var namespace = abc.constants.getNamespace(name.namespace_index);
+        if (namespace.kind != 0x16) return null;
+        String pkg = abc.constants.getString(namespace.name_index);
+        return (pkg.isEmpty() ? "" : pkg + ".") + abc.constants.getString(name.name_index);
+    }
+
+    // Ordinary instance scope resolves declared bindings, including ancestors;
+    // unlike with-scope, it does not search dynamic properties or prototypes.
+    // https://github.com/adobe/avmplus/blob/master/core/MethodEnv.cpp#L1221
+    // Require a complete hierarchy and a uniquely owned instance method.
+    static Set<String> instanceBindings(ABC abc, MethodBody body) throws IOException {
+        int owner = -1;
+        for (int i = 0; i < abc.instance_info.size(); i++) {
+            var instance = abc.instance_info.get(i);
+            if (instance.iinit_index == body.method_info || abc.class_info.get(i).cinit_index == body.method_info)
+                return null;
+            for (var trait : instance.instance_traits.traits)
+                if (trait instanceof TraitMethodGetterSetter method && method.method_info == body.method_info) {
+                    if (owner != -1) return null;
+                    owner = i;
+                }
+            for (var trait : abc.class_info.get(i).static_traits.traits)
+                if (trait instanceof TraitMethodGetterSetter method && method.method_info == body.method_info)
+                    return null;
+        }
+        String identity = names(abc).get(body.method_info);
+        if (identity == null || identity.contains("|") || !identity.contains("/instance/")) return null;
+        if (owner < 0 || body.init_scope_depth == 0 || body.exceptions.length != 0
+                || !body.traits.traits.isEmpty()) return null;
+        String name = publicName(abc, abc.instance_info.get(owner).name_index);
+        if (name == null) return null;
+        var cls = abc.getSwf().getAbcIndex().findClass(new com.jpexs.decompiler.graph.TypeItem(name), abc, null);
+        Set<String> bindings = new HashSet<>(), seen = new HashSet<>();
+        while (cls != null) {
+            var instance = cls.abc.instance_info.get(cls.index);
+            String current = publicName(cls.abc, instance.name_index);
+            if (current == null || !seen.add(current)) return null;
+            for (var trait : instance.instance_traits.traits) {
+                if (cls.abc.constants.getMultiname(trait.name_index).kind != 7) return null;
+                String member = publicName(cls.abc, trait.name_index);
+                if (member != null) bindings.add(member);
+            }
+            if (instance.super_index == 0) return bindings;
+            String parent = publicName(cls.abc, instance.super_index);
+            if (cls.parent == null || parent == null || !parent.equals(publicName(cls.parent.abc,
+                    cls.parent.abc.instance_info.get(cls.parent.index).name_index))) return null;
+            cls = cls.parent;
+        }
+        return null;
+    }
+
+    static boolean globalClass(ABC abc, int name, Set<String> bindings) {
+        String requested = publicName(abc, name);
+        if (requested == null || bindings.contains(requested)) return false;
+        int found = 0;
+        for (var tag : abc.getSwf().getAbcList()) {
+            var dependency = tag.getABC();
+            for (var script : dependency.script_info) for (var trait : script.traits.traits)
+                if (trait instanceof TraitClass && requested.equals(publicName(dependency, trait.name_index))) found++;
+        }
+        return found == 1;
+    }
+
+    // Omit or defer only the actual compiler's instance-scope prologue, across
+    // a prefix whose lookups provably resolve without it. No nested scopes,
+    // activations, handlers or incoming edges may defeat that proof. The full
+    // method comparison below must still match every operand and CFG edge.
+    static List<AVM2Instruction> scopeVariant(ABC abc, MethodBody body, List<AVM2Instruction> expected,
+            List<AVM2Instruction> emitted) throws IOException {
+        if (emitted.size() < 3 || localRegister(emitted.get(0), false) != 0
+                || emitted.get(1).definition.instructionCode != 0x30
+                || expected.size() < 2 || (localRegister(expected.get(0), false) == 0
+                    && expected.get(1).definition.instructionCode == 0x30)) return emitted;
+        int returns = 0, expectedScope = -1;
+        for (int i = 0; i + 1 < expected.size(); i++) {
+            if (localRegister(expected.get(i), false) == 0 && expected.get(i + 1).definition.instructionCode == 0x30) {
+                expectedScope = i; break;
+            }
+            if (expected.get(i).definition.instructionCode == 0x47) returns++;
+        }
+        int limit = emitted.size();
+        if (expectedScope >= 0) {
+            if (returns == 0 || expected.get(expectedScope - 1).definition.instructionCode != 0x47) return emitted;
+            for (int i = 2; i < emitted.size(); i++) if (emitted.get(i).definition.instructionCode == 0x47 && --returns == 0) {
+                limit = i + 1; break;
+            }
+            if (returns != 0 || limit == emitted.size()) return emitted;
+        }
+        Set<String> bindings = instanceBindings(abc, body);
+        if (bindings == null) return emitted;
+        var boundaries = executablePositions(body.getCode().code);
+        int params = abc.method_info.get(body.method_info).param_types.length;
+        for (int i = 0; i < emitted.size(); i++) {
+            var instruction = emitted.get(i);
+            for (int target : branchTargets(instruction)) {
+                int targetIndex = boundary(boundaries, target);
+                if (targetIndex < 2 || (i >= limit && targetIndex < limit)
+                        || (i < limit && targetIndex > limit)) return emitted;
+            }
+            if (i < 2 || i >= limit) continue;
+            int op = instruction.definition.instructionCode;
+            int local = localRegister(instruction, false);
+            if (local >= 0) { if (local > params) return emitted; continue; }
+            if (op == 0x5d || op == 0x60) {
+                if (!globalClass(abc, instruction.operands[0], bindings)) return emitted;
+                continue;
+            }
+            if (!Set.of(0x10,0x11,0x12,0x20,0x21,0x24,0x25,0x26,0x27,0x28,0x29,
+                    0x2c,0x2d,0x2e,0x2f,0x46,0x47,0x4f,0x66,0x70,0x73,0x74,0x75,0x76,0x80,0x85).contains(op))
+                return emitted;
+        }
+        List<AVM2Instruction> result = new ArrayList<>();
+        for (int i = 2; i < emitted.size(); i++) {
+            if (i == limit) result.addAll(emitted.subList(0, 2));
+            var old = emitted.get(i);
+            var instruction = new AVM2Instruction(old.getAddress(), old.definition, old.operands == null ? null : old.operands.clone());
+            if (limit < emitted.size() && i < limit) {
+                int[] targets = branchTargets(instruction);
+                if (targets.length == 1 && boundary(boundaries, targets[0]) == limit)
+                    instruction.operands[0] = (int)emitted.get(0).getAddress()
+                        - (int)instruction.getAddress() - instruction.getBytesLength();
+            }
+            result.add(instruction);
+        }
+        return result;
+    }
+
     // ASC Encoder.OP_getproperty/OP_pop and CodeGenerator.If select these
     // compact encodings. Comparison semantics also follow Adobe's interpreter:
     // https://github.com/adobe/avmplus/blob/master/core/Interpreter.cpp
@@ -1147,11 +1278,13 @@ public final class MovieSource {
             var expected = layout.stream().filter(i -> !debugInstruction(i)).toList();
             var emittedLayout = body.getCode().code;
             var emitted = emittedLayout.stream().filter(i -> !debugInstruction(i)).toList();
+            var originalEmitted = emitted;
+            emitted = scopeVariant(compiled, body, expected, emitted);
             ArrayList<AVM2Instruction> result = new ArrayList<>();
             List<int[]> targets = new ArrayList<>();
             Map<Integer, Integer> positions = new HashMap<>();
             Set<Integer> deadJumps = null;
-            boolean matching = true, rewritten = false;
+            boolean matching = true, rewritten = emitted != originalEmitted;
             int next = 0, end = 0;
             for (int wantedIndex = 0; wantedIndex < expected.size(); wantedIndex++) {
                 var wanted = expected.get(wantedIndex);
@@ -1332,8 +1465,8 @@ public final class MovieSource {
                 + emittedLayout.get(emittedLayout.size() - 1).getBytesLength();
             positions.put(sourceEnd, result.size());
             for (var entry : executablePositions(emittedLayout).entrySet()) {
-                int address = entry.getValue() == emitted.size() ? sourceEnd
-                    : (int)emitted.get(entry.getValue()).getAddress();
+                int address = entry.getValue() == originalEmitted.size() ? sourceEnd
+                    : (int)originalEmitted.get(entry.getValue()).getAddress();
                 Integer target = positions.get(address);
                 if (target != null) positions.put(entry.getKey(), target);
             }
@@ -1718,6 +1851,11 @@ public final class MovieSource {
     static void run(String[] a) throws Exception {
         if (a.length < 3) throw new IllegalArgumentException("export|snapshot|compile INPUT OUTPUT [CLASS SOURCE COMPILER SDK]");
         Configuration.parallelSpeedUp.set(false);
+        if (a[0].equals("reserve")) {
+            if (a.length != 6) throw new IllegalArgumentException("reserve INPUT OUTPUT CLASS PLAN SNAPSHOT");
+            CompilerReserves.apply(Path.of(a[1]), Path.of(a[2]), a[3], Path.of(a[4]), Path.of(a[5]));
+            return;
+        }
         if (a[0].equals("link-feature")) {
             if (a.length != 6) throw new IllegalArgumentException("link-feature ORIGINAL COMPILED OUTPUT CLASS PERMISSIONS.tsv");
             linkLayout(Path.of(a[1]), Path.of(a[2]), Path.of(a[3]), a[4], Path.of(a[5]));
