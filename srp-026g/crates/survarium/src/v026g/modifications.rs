@@ -98,6 +98,23 @@ pub const REROLL_WAIT_SECONDS: u32 = 6 * 3600;
 /// (`DragRegion.as`: `relocate_upgrade_item(item, camo, 3)`).
 pub const DECAL_SLOTS: [u8; 2] = [0, 1];
 pub const CAMO_SLOT: u8 = 3;
+/// [srp] The camouflage's slot on a weapon (one whose config has
+/// `camo_available`, `srp-026g/scripts/weapon-camo`): 2, since a weapon's 3
+/// holds its scope ([`SCOPE_SLOT`]). The client keeps a record whatever its
+/// slot; a weapon wears every upgrade's modification (0x2F14C0), and patch
+/// 44 bakes the camouflage it names.
+pub const WEAPON_CAMO_SLOT: u8 = 2;
+
+/// The slot a camouflage goes into on an item of type `kind`
+/// ([`ItemParams::kind`](super::item_params::ItemParams::kind)): a weapon's
+/// (`wpn_*`) [`WEAPON_CAMO_SLOT`], any other item's [`CAMO_SLOT`].
+pub fn camo_slot(kind: &str) -> u8 {
+    if kind.starts_with("wpn_") {
+        WEAPON_CAMO_SLOT
+    } else {
+        CAMO_SLOT
+    }
+}
 
 /// What an item may be modified with, from its config ([`all_item_mods`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -510,7 +527,8 @@ pub fn upgrade_slots(host_dict_id: u16, upgrade_dict_id: u16) -> &'static [u8] {
 /// The upgrade slots `upgrade_dict_id` may go into on `host_dict_id`: a
 /// scope item that has a variant for the weapon (`scopes`) into
 /// [`SCOPE_SLOT`]; a camouflage (category 25, the kinds `*_camo`) into
-/// [`CAMO_SLOT`] of an item with `camo_available`, a decal (category 26,
+/// [`CAMO_SLOT`] of an item with `camo_available` ([`WEAPON_CAMO_SLOT`] of a
+/// weapon, [`camo_slot`]), a decal (category 26,
 /// `*_decl`) into the [`DECAL_SLOTS`] of one with `decal_available`. Empty:
 /// it does not go on. `items_compatibility` pairs no cosmetic with
 /// anything, so any camouflage goes on any such item [as far as the data
@@ -531,7 +549,13 @@ pub fn upgrade_slots_in(
         return &[];
     }
     if upgrade.kind.ends_with("_camo") && host.camo {
-        &[CAMO_SLOT]
+        let weapon = item_params(host_dict_id)
+            .is_some_and(|params| camo_slot(params.kind) == WEAPON_CAMO_SLOT);
+        if weapon {
+            &[WEAPON_CAMO_SLOT]
+        } else {
+            &[CAMO_SLOT]
+        }
     } else if upgrade.kind.ends_with("_decl") && host.decal {
         &DECAL_SLOTS
     } else {

@@ -80,7 +80,7 @@ in `crates/session/src/v026g/items_rules.rs`.
   no pair: no scope is sold and none goes on a weapon** (the players' data until the release
   patch).
 - **Attach** (`46 01 <kit> <weapon> <scope> 3 <u64 0>`): only to a weapon the scope has a variant
-  for, only into slot 3 (the camouflage's; weapons take no camouflage), one scope a weapon (a
+  for, only into slot 3 (the armour camouflage's; a weapon's camouflage goes into 2), one scope a weapon (a
   second replaces the first). The record is `{scope item id, the variant's dict id, 0, 3}`. The
   scope stays one item of the inventory; any number of weapons wear it, each its own record (the
   rule of shared cosmetics, PR 149). After `83 46 01` the client writes its own copy of the

@@ -83,3 +83,12 @@ Applied to revision 24's live `localization/ukrainian/localization` (from the se
 | `gameplay/victory_items/default.options` `states[0]/take_time` 0.6 -> 0.5 (an indexed table's item: the `set` path's `name[i]`) | the owner: the battery pick-up animation 20 % faster (1.2 times the speed). The take state time-scales its animation to last `take_time`, so it plays faster, not cut (`docs/notes/battery_pickup.md`); `put_time` stays 0.6 |
 
 Applied to revision 24's server game data (`gameplay/victory_items/`): 1 file edited, 0 unexpected differences.
+
+## weapon-camo-1.json (2026-10-20)
+
+| change | why |
+|---|---|
+| 43 weapon configs (every weapon one of whose surfaces has an `_aoac` from `../weapon-camo/guns.tsv`, premium copies included): `parameters/camo_available` true, and a new `data` table holding `camo_scale` 4.0 (the `add_value` edit: a new key in its place by name CRC) | the owner's: armour camouflages on weapons (`docs/notes/weapon-camo.md`). The lobby, the server (a camouflage into slot 2 of a weapon) and exe patch 44 key on `camo_available`; a camouflage's modification writes `data/camouflage` into a `data` table the host config has (none had one); patch 44 bakes with `data/camo_scale` |
+
+The patch carries the `_aoac` textures of `../weapon-camo/weapon_camo.py` beside these configs.
+Applied to revision 24's live configs (server game data): 43 files edited, 0 unexpected differences.

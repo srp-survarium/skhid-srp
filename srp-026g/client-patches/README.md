@@ -89,6 +89,8 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
+| `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section at the page after the late join's state (0xA429000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
 | `check_baked_texture_026g.py` | Runs the original's and patch 35's baked-texture list of the camouflage/decal baker (the look-up, the push and check_loaded_baked_texture) on made-up loads, among them those of the crash of 2026-10-17 (needs Unicorn) |
 | `weapon_preview_026g.asm`, `weapon_preview_026g.section.bin` | The source of patch 32's code (a weapon's upgrade window shows the weapon) and that code assembled for 0x2E50 of `.srp`, its state at 0xE00 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
@@ -2415,6 +2417,40 @@ says no, neither. Against the build of `main` b97133d (revision 25's exe,
 `12006dd9…a8b4`) the default build differs in file 0x1E8878..0x1E8879 and
 the PE checksum, and in nothing else (compared byte by byte). **Not run in
 a game.**
+
+### 44. A weapon wears the camouflage its item holds (the next release's revision)
+
+The owner's request: the armour camouflages on the regular weapons, painted where the premium
+weapons are painted. The rules, the data and the masks: `../docs/notes/weapon-camo.md`,
+`../scripts/weapon-camo/`.
+
+weapon_cook::on_weapon_subresources_ready (0x24ACF0), when the weapon's model is loaded and before
+it is given to the weapon (0x243A30), calls `weapon_ready` (`.srpw`+0) in place of `lea
+eax,[esp+20h] / push eax` (0x24B0D2, five bytes, no address and no relocation under them). With a
+non-empty `data/camouflage` text in the weapon's merged config (a camouflage upgrade puts it
+there when the config has a `data` table), an `object/model` text and a model with a render
+instance, it asks for one class-6Ch bake for each of the instance's surfaces (at most 8), as the
+lobby's decal editor (0x2641A0) asks for one: a camouflage_decal_cook_parameters from the game's
+allocator with the camouflage's diffuse, `_nmap` and `_smap` names, the identity as the
+camouflage's matrix, the render instance (one reference more), the surface's index, the scale
+(`data/camo_scale`, else 4.0), and the baked files' name `srpw1_<camouflage>_<model>_<surface>`
+('/' and '\\' as '_'); its callback lets go of the reference and frees the parameters. The baker
+refuses a surface whose diffuse has no `_aoac` texture (it stays plain). Every register and the
+flags are kept, eax as the original's `lea` leaves it.
+
+`.srpw` is a section of its own (code, 851 bytes, raw bytes after `.srp`'s, the Authenticode blob
+moved behind them, SizeOfImage and SizeOfCode grown), on the page after `.srpd`: `.srp`'s two pages
+are full. In the builds with the late join only.
+
+Rendering only: no row in `../crates/session/src/v026g/simulation_changes.tsv`; games with and
+without it play together (without it the weapon is plain). `../docs/notes/client_patch.md`
+section 3.41.
+
+Checked: `selftest_026g.py` check 44 (the function's frame and the site in the original, the
+call, the code's calls into the game, nothing aiming inside the site, no relocation, `.srpw`'s
+section entry and the headers); `check_weapon_camo_026g.py` (Unicorn, the cases in its header).
+Run in a game on 2026-10-20 (a local server, an AK-12 and an Uzi with the City camouflage in
+slot 2): both baked and the lobby's character showed them. **Not run in a match.**
 
 ## Not ported, not done
 

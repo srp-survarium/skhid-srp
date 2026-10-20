@@ -68,6 +68,9 @@ USAGE (this script never touches the source exe):
         nasm -f bin -DCAVE=0xA425980 suicide_key_026g.asm -o suicide_key_026g.section.bin
     (checked in). A spot's hit on a battery's body comes from spot_026g.asm:
         nasm -f bin -DCAVE=0xA4257C0 spot_026g.asm -o spot_026g.section.bin
+    (checked in). A weapon's camouflage comes from weapon_camo_026g.asm, in a
+    section of its own after the late join's state page:
+        nasm -f bin -DCAVE=0xA429000 weapon_camo_026g.asm -o weapon_camo_026g.section.bin
     (checked in). The late-join code is late_join_026g.section.bin, checked in too; it is
     made by `late_join_026g.py --write-bin`, which needs nasm, a C compiler
     for x86 and GNU ld (--late-join-bin=<file> names another one).
@@ -1502,6 +1505,26 @@ def late_join_state_va(code):
     return (end + 0xFFF) // 0x1000 * 0x1000
 
 
+# A weapon wears the camouflage its item holds (patch 44, client_patch.md
+# section 3.41): weapon_camo_026g.asm, in its own section `.srpw` at the page
+# after the late join's state page (weapon_camo_va). weapon_cook::
+# on_weapon_subresources_ready's `lea eax,[esp+20h] / push eax` (0x24B0D2,
+# the model loaded, before it is given to the weapon at 0x243A30) calls
+# weapon_ready, which asks for the camouflage's bake of each of the model's
+# surfaces when the weapon's merged config has `data/camouflage`, and does
+# the two instructions. No base relocation is under the site.
+WEAPON_CAMO_NAME = b".srpw\0\0\0"
+WEAPON_CAMO_CHARACTERISTICS = 0x60000020      # code, execute, read (as .srp)
+WEAPON_CAMO_HOOK = (0x24B0D2, bytes.fromhex("8d44242050"), 0, 0xE8)
+WEAPON_CAMO_ENTRY = bytes.fromhex("609c89e5") # pushad; pushfd; mov ebp,esp
+WEAPON_CAMO_NAME_FORMAT = b"srpw1_%s_%s_%d\0"
+
+
+def weapon_camo_va(late_join):
+    """Where `.srpw` is: the page after the late join's state page."""
+    return late_join_state_va(late_join) + LATE_JOIN_STATE_SIZE
+
+
 def hook_bytes(base, va, expected, offset, opcode):
     """The bytes a hook site gets: the call or jump to base+offset and nops."""
     return bytes([opcode]) + struct.pack("<i", base + offset - va - 5) + b"\x90" * (len(expected) - 5)
@@ -1707,6 +1730,39 @@ def add_section(data, cave):
     struct.pack_into("<H", out, headers.count_at, len(sections) + 1)
     struct.pack_into("<I", out, headers.size_of_image_at,
                      align(SECTION_RVA + len(cave), headers.section_alignment))
+    struct.pack_into("<I", out, headers.size_of_code_at,
+                     struct.unpack_from("<I", data, headers.size_of_code_at)[0] + raw_size)
+    struct.pack_into("<I", out, headers.security_at, security_offset + raw_size)
+    return out
+
+
+def add_code_section(data, name, va, code, characteristics):
+    """Appends a code section at `va` (the next aligned RVA after the last
+    section, the late join's state page) whose file bytes follow the last
+    file bytes (.srp's), and moves the Authenticode blob behind them, as
+    add_section does. Returns the new file contents."""
+    headers = Headers(data)
+    sections = headers.sections(data)
+    _, last_rva, last_vsize, _, _, _ = sections[-1]
+    align = lambda value, to: (value + to - 1) // to * to
+    slot = headers.table + 40 * len(sections)
+    if slot + 40 > headers.size_of_headers or any(data[slot:slot + 40]):
+        sys.exit(f"no free section table entry for {name.rstrip(bytes(1)).decode()}")
+    rva = va - IMAGE_BASE
+    if rva != align(last_rva + last_vsize, headers.section_alignment) \
+            or struct.unpack_from("<I", data, headers.size_of_image_at)[0] != rva:
+        sys.exit(f"{name.rstrip(bytes(1)).decode()} does not follow the last section")
+    raw = max(offset + size for _, _, _, offset, size, _ in sections)
+    security_offset, security_size = struct.unpack_from("<II", data, headers.security_at)
+    if security_offset != raw or security_offset + security_size != len(data) or raw % headers.file_alignment:
+        sys.exit("unexpected layout after the last section's bytes")
+    raw_size = align(len(code), headers.file_alignment)
+    if (raw + raw_size) % 8:
+        sys.exit("the certificate table would lose its 8-byte alignment")
+    out = bytearray(data[:raw]) + code + b"\xCC" * (raw_size - len(code)) + data[raw:]
+    out[slot:slot + 40] = name + struct.pack("<IIIIIIHHI", len(code), rva, raw_size, raw, 0, 0, 0, 0, characteristics)
+    struct.pack_into("<H", out, headers.count_at, len(sections) + 1)
+    struct.pack_into("<I", out, headers.size_of_image_at, align(rva + len(code), headers.section_alignment))
     struct.pack_into("<I", out, headers.size_of_code_at,
                      struct.unpack_from("<I", data, headers.size_of_code_at)[0] + raw_size)
     struct.pack_into("<I", out, headers.security_at, security_offset + raw_size)
@@ -2093,6 +2149,17 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
             patch(data, va, expected, hook_bytes(SHARED_UPGRADES_VA, va, expected, offset, opcode))
             if neutralize_relocs(data, [(va, va + len(expected))]):
                 sys.exit(f"{va:#x}: a base relocation under a hook of the shared upgrades")
+        weapon_camo = open(weapon_camo_bin(), "rb").read()
+        camo_va = weapon_camo_va(late_join)
+        name_at = weapon_camo.find(WEAPON_CAMO_NAME_FORMAT)
+        if not weapon_camo.startswith(WEAPON_CAMO_ENTRY) or name_at < 0 \
+                or struct.pack("<I", camo_va + name_at) not in weapon_camo[:name_at]:
+            sys.exit(f"weapon_camo_026g.section.bin: its entry is not where patch_026g.py calls it, or it was "
+                     f"assembled for another address (-DCAVE={camo_va:#x})")
+        va, expected, offset, opcode = WEAPON_CAMO_HOOK
+        patch(data, va, expected, hook_bytes(camo_va, va, expected, offset, opcode))
+        if neutralize_relocs(data, [(va, va + len(expected))]):
+            sys.exit("a base relocation under the weapon camouflage's hook")
         spot = open(spot_bin(), "rb").read()
         if SHARED_UPGRADES_OFFSET + len(shared_upgrades) > SPOT_OFFSET or SPOT_OFFSET + len(spot) > PICKUP_OFFSET:
             sys.exit("the shared upgrades' code, the spot code and the pickup code do not fit")
@@ -2128,6 +2195,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
         data = add_section(data, cave)
         if late_join is not None:
             add_state_section(data, late_join_state_va(late_join))
+            data = add_code_section(data, WEAPON_CAMO_NAME, weapon_camo_va(late_join), weapon_camo,
+                                    WEAPON_CAMO_CHARACTERISTICS)
     headers = Headers(data)
     struct.pack_into("<I", data, headers.checksum_at, pe_checksum(data, headers.checksum_at))
     return data, (f"certificate check, mutex, minimum VRAM check, hash interval {HASH_INTERVAL_MS} ms, "
@@ -2162,7 +2231,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
                      "the commit_suicide key (K) kills one's own player, "
                      "the scoreboard shows the places in the match and none whose player left, "
                      "a spot has no cooldown and a battery's body spots it, "
-                     "a model's LOD and screen factor at a wider field of view are the original's"
+                     "a model's LOD and screen factor at a wider field of view are the original's, "
+                     "a weapon wears the camouflage its item holds"
                      if late_join is not None else "")
                   + (f", default login server {server}" if server is not None else ""))
 
@@ -2197,6 +2267,10 @@ def stale_dll_bin():
 
 def mount_patches_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "mount_patches_026g.section.bin")
+
+
+def weapon_camo_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_camo_026g.section.bin")
 
 
 def spot_bin():

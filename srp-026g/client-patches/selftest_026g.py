@@ -1357,7 +1357,8 @@ def late_join_sites():
         [(P.WEAPON_DRAW_HOOK[0], len(P.WEAPON_DRAW_HOOK[1]))] +         [(P.SUICIDE_KEY_HOOK[0], len(P.SUICIDE_KEY_HOOK[1]))] + \
         [(va, len(old)) for va, old, _, _ in P.TAB_LIST_HOOKS] + [(P.TAB_LIST_LOOP_VA, len(P.TAB_LIST_LOOP[1]))] + \
         [(P.SPOT_COOLDOWN[0], len(P.SPOT_COOLDOWN[1])), (P.SPOT_HOOK[0], len(P.SPOT_HOOK[1]))] + \
-        [(va, len(old)) for va, old, _, _ in P.FOV_LOD_HOOKS]
+        [(va, len(old)) for va, old, _, _ in P.FOV_LOD_HOOKS] + \
+        [(P.WEAPON_CAMO_HOOK[0], len(P.WEAPON_CAMO_HOOK[1]))]
 
 
 def pickup_sites():
@@ -1510,6 +1511,52 @@ def test_statistics_count(original, image, before):
     check(not found and not any(inside(branch_target(text) or 0) for _, _, text in rows),
           "no rel32 branch of .text, no rel8 branch byte near them, no branch of clear or start_match and no 4-byte "
           "value aims inside the six bytes" + "".join(f"\n          {a:#x}" for a in found))
+
+
+def test_weapon_camo(original, image, before):
+    """Check 44: a weapon wears the camouflage its item holds (patch 44).
+    check_weapon_camo_026g.py runs the site and the code on made-up configs
+    and models."""
+    source = Image(original)
+    plain = lambda text: text.replace("[dword 0x", "[0x").replace("dword [", "[")
+    at = lambda start, size: {a: plain(t) for a, _, t in ndisasm(source.read(start, size), start)}
+    camo_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read())
+    code = open(P.weapon_camo_bin(), "rb").read()
+    start = at(0x24ACF0, 0x40)
+    model = at(0x24AD74, 0x20)
+    site = at(0x24B0CC, 0x20)
+    check(start.get(0x24ACF0) == "sub esp,byte +0x24" and start.get(0x24ACF3) == "push ebx"
+          and start.get(0x24ACF4) == "push ebp" and start.get(0x24ACFC) == "push esi" and start.get(0x24ACFD) == "push edi"
+          and start.get(0x24ACFE) == "mov edi,[esp+0x3c]" and start.get(0x24AD06) == "mov eax,[edi+0x108]"
+          and model.get(0x24AD7E) == "mov edi,eax" and model.get(0x24AD80) == "mov [esp+0x20],edi"
+          and source.read(0x24B18C, 3) == bytes.fromhex("c21400"),
+          "the original's weapon_cook::on_weapon_subresources_ready: 24h of locals and four registers, the "
+          "config's root at [[esp+3Ch]+108h], the model (counted) at [esp+20h], `ret 14h`; no push between")
+    check(site.get(0x24B0D2) == "lea eax,[esp+0x20]" and site.get(0x24B0D6) == "push eax"
+          and site.get(0x24B0D7) == "push edi" and site.get(0x24B0D8) == "lea ecx,[esp+0x2c]"
+          and site.get(0x24B0DC) == "call 0x243a30",
+          "the original at 0x24B0D2: `lea eax,[esp+20h]; push eax; push edi`, then the model goes to the weapon "
+          "(0x243A30)")
+    va, old, offset, opcode = P.WEAPON_CAMO_HOOK
+    hooked = image.read(va, len(old))
+    check(source.read(va, len(old)) == old and before.read(va, len(old)) == old and hooked[0] == opcode
+          and va + 5 + struct.unpack_from("<i", hooked, 1)[0] == camo_va + offset,
+          f"{va:#x}: `{old.hex()}` becomes a call to {camo_va + offset:#x}; the build without the late join keeps it")
+    texts = [plain(t) for _, _, t in ndisasm(code, camo_va)]
+    calls = sorted({branch_target(t) for t in texts if t.startswith("call ")} - {None})
+    outside = [c for c in calls if not camo_va <= c < camo_va + len(code)]
+    check(set(outside) == {0x11540, 0x127C0, 0x119590, 0x119760, 0x159700, 0x1539D0, 0xE45B0, 0xE4F90, 0xE5B60,
+                           0xF6B10, 0xF6C00, 0x420789}
+          and not [t for t in texts if t.startswith("jmp ") and not camo_va <= (branch_target(t) or 0) < camo_va + len(code)],
+          "the code calls the game's release, assign, type_to_int, the parameters' constructor, get_all_surfaces, "
+          "deallocate, appendf, allocate, query_resources, the config's lookup and key check and the allocation "
+          "name, and jumps nowhere outside")
+    hits = [hit for hit in aimed_inside(original, va, len(old), 0x82)
+            if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
+    check(not hits, "no rel32 branch of .text, no rel8 branch near it and no 4-byte value aims inside the site"
+          + "".join(f"\n          {a:#x}" for a in hits))
+    relocated = [r for kind, r in source.relocations().values() if kind == 3 and r + 4 > va and r < va + len(old)]
+    check(not relocated, "no base relocation under the site")
 
 
 def aimed_inside(original, va, size, near):
@@ -3696,12 +3743,12 @@ def test_late_join(original, without, server, source):
     image, before = Image(data), Image(without)
     headers = image.headers
     sections, old_sections = image.sections, before.sections
-    name, rva, vsize, raw, rsize, flags = sections[-2]
+    name, rva, vsize, raw, rsize, flags = sections[-3]
     align = lambda value, to: (value + to - 1) // to * to
     weapon_preview = open(P.weapon_preview_bin(), "rb").read()
     weapon_draw = open(P.weapon_draw_bin(), "rb").read()
     first_page = bytes(without[old_sections[-1][3]:old_sections[-1][3] + old_sections[-1][2]])
-    check(len(sections) == 9 and sections[:7] == old_sections[:7], "9 sections; the original's seven are untouched")
+    check(len(sections) == 10 and sections[:7] == old_sections[:7], "10 sections; the original's seven are untouched")
     check(name == P.SECTION_NAME and rva == P.SECTION_RVA and flags == P.SECTION_CHARACTERISTICS
           and vsize == P.WEAPON_PREVIEW_OFFSET + len(weapon_preview)
           and rsize == align(vsize, headers.file_alignment) and raw == old_sections[-1][3],
@@ -3788,25 +3835,33 @@ def test_late_join(original, without, server, source):
           f"the shell_32.dll check at +{P.STALE_DLL_OFFSET:#x} "
           f"and the kit change at +{P.KIT_CHANGE_OFFSET:#x}, the late-join code follows, then int3 padding, "
           f"the weapon preview at +{P.WEAPON_PREVIEW_OFFSET:#x} and int3 padding")
-    name, state_rva, state_size, state_raw, state_rsize, flags = sections[-1]
+    name, state_rva, state_size, state_raw, state_rsize, flags = sections[-2]
     check(name == P.LATE_JOIN_STATE_NAME and flags == P.LATE_JOIN_STATE_CHARACTERISTICS
           and state_size == P.LATE_JOIN_STATE_SIZE and (state_raw, state_rsize) == (0, 0)
           and state_rva == align(rva + vsize, headers.section_alignment)
           and P.IMAGE_BASE + state_rva == P.late_join_state_va(code),
           f".srpd at VA {P.IMAGE_BASE + state_rva:#x}: one page, uninitialized | read | write, no bytes in the "
           "file, on the page after the code (where the code looks for it)")
+    camo = open(P.weapon_camo_bin(), "rb").read()
+    name_w, rva_w, vsize_w, raw_w, rsize_w, flags_w = sections[-1]
+    check(name_w == P.WEAPON_CAMO_NAME and flags_w == P.WEAPON_CAMO_CHARACTERISTICS
+          and rva_w == state_rva + state_size and P.IMAGE_BASE + rva_w == P.weapon_camo_va(code)
+          and vsize_w == len(camo) and raw_w == raw + rsize and rsize_w == align(vsize_w, headers.file_alignment)
+          and bytes(data[raw_w:raw_w + vsize_w]) == camo and set(data[raw_w + vsize_w:raw_w + rsize_w]) <= {0xCC},
+          f".srpw at VA {P.IMAGE_BASE + rva_w:#x}: the {len(camo)} bytes of weapon_camo_026g.section.bin, "
+          "code | execute | read, on the page after .srpd, its file bytes right after .srp's")
     get = lambda blob, at: struct.unpack_from("<I", blob, at)[0]
-    check(get(data, headers.size_of_image_at) == state_rva + state_size
+    check(get(data, headers.size_of_image_at) == align(rva_w + vsize_w, headers.section_alignment)
           and get(data, headers.optional + 12) == get(without, headers.optional + 12) + state_size
-          and get(data, headers.size_of_code_at) == get(original, headers.size_of_code_at) + rsize
-          and headers.table + 40 * 9 <= headers.size_of_headers,
-          "SizeOfImage ends at .srpd, SizeOfUninitializedData grew by its page, SizeOfCode by .srp's file size; "
-          "the section table fits in the headers")
+          and get(data, headers.size_of_code_at) == get(original, headers.size_of_code_at) + rsize + rsize_w
+          and headers.table + 40 * 10 <= headers.size_of_headers,
+          "SizeOfImage ends at .srpw, SizeOfUninitializedData grew by .srpd's page, SizeOfCode by .srp's and "
+          ".srpw's file sizes; the section table fits in the headers")
     security_offset, security_size = image.directory(4)
     old_offset, old_size = struct.unpack_from("<II", original, headers.security_at)
-    check(security_offset == raw + rsize and security_offset + security_size == len(data) and security_offset % 8 == 0
+    check(security_offset == raw_w + rsize_w and security_offset + security_size == len(data) and security_offset % 8 == 0
           and bytes(data[security_offset:]) == bytes(original[old_offset:old_offset + old_size]),
-          f"certificate table at {security_offset:#x}: right after .srp's bytes, 8-byte aligned, last in the file, "
+          f"certificate table at {security_offset:#x}: right after .srpw's bytes, 8-byte aligned, last in the file, "
           "identical to the original's")
     same = all(image.directory(index) == before.directory(index) for index in range(16) if index != 4)
     check(same, "the other 15 data directories are those of the build without it")
@@ -3821,7 +3876,8 @@ def test_late_join(original, without, server, source):
                *((P.file_offset(va), len(old)) for va, old, _, _ in P.FORWARD_SCROLL_HOOKS),
                (headers.count_at, 2), (headers.size_of_code_at, 4), (headers.optional + 12, 4),
                (headers.size_of_image_at, 4), (headers.checksum_at, 4), (headers.security_at, 4),
-               (headers.table + 40 * 7 + 8, 4), (headers.table + 40 * 7 + 16, 4), (headers.table + 40 * 8, 40)]
+               (headers.table + 40 * 7 + 8, 4), (headers.table + 40 * 7 + 16, 4), (headers.table + 40 * 8, 40),
+               (headers.table + 40 * 9, 40)]
     # The entries of the relocation table that are disabled (scene::remove_model's
     # branch, uro_fov's least, the pickup's distance, the lobby camera's least,
     # the two constants of patch 40).
@@ -3924,6 +3980,7 @@ def test_late_join(original, without, server, source):
     test_pregame_progress(original, image, before)
     test_fov(original, image, before)
     test_fov_lod(original, image, before)
+    test_weapon_camo(original, image, before)
     test_pickup(original, image, before)
     test_weapon_random(original, image, before)
     test_kit_state(original, image, before)

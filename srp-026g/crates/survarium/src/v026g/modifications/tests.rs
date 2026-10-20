@@ -228,6 +228,24 @@ fn cosmetics_go_into_their_slots() {
 }
 
 #[test]
+fn a_weapon_wears_its_camouflage_beside_its_scope() {
+    for kind in [
+        "wpn_aslt",
+        "wpn_smg",
+        "wpn_sniper",
+        "wpn_shotgun",
+        "wpn_pistol",
+    ] {
+        assert_eq!(camo_slot(kind), WEAPON_CAMO_SLOT);
+    }
+    for kind in ["arm_tors", "arm_legs", "arm_head", ""] {
+        assert_eq!(camo_slot(kind), CAMO_SLOT);
+    }
+    assert_ne!(WEAPON_CAMO_SLOT, SCOPE_SLOT);
+    assert!(!DECAL_SLOTS.contains(&WEAPON_CAMO_SLOT));
+}
+
+#[test]
 fn a_scope_goes_on_a_weapon_it_has_a_variant_for() {
     use crate::v026g::scopes::fixtures::{self, AK_74N_PSO_1, COBRA, LONE_SCOPE, PSO_1, SVD_COBRA};
     let fits = fixtures::fits();
@@ -384,7 +402,11 @@ fn a_reroll_offers_three_on_an_item_of_few_types() {
     let choices = data
         .reroll_choices(backpack, &[1062, 1120, 1201], 1201, &mut rng)
         .expect("an offer");
-    assert!(choices.iter().all(|&id| kind(id) == kind(1201) && id != 1201));
+    assert!(
+        choices
+            .iter()
+            .all(|&id| kind(id) == kind(1201) && id != 1201)
+    );
 }
 
 #[test]

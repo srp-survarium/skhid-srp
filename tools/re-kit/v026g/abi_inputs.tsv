@@ -1,4 +1,7 @@
 va	name	location	role	basis
+0x00011540	vostok::intrusive_ptr<render_model_instance>::release	ECX	the intrusive pointer (count at +0D0h)	observed
+0x000127c0	vostok::buffer_string::assign	EAX	destination buffer_string	observed
+0x000127c0	vostok::buffer_string::assign	ECX	text	observed
 0x00014650	vostok::render::one_way_render_channel::owner_initialize	ECX	channel receiver	observed
 0x00014710	vostok::render::one_way_render_channel::owner_finalize	ECX	channel receiver	observed
 0x000147e0	on_mounted_resources	entry ESP+4	mount_ptr holder (engine_world+2C0h)	observed
@@ -534,6 +537,8 @@ va	name	location	role	basis
 0x000e06d0	vostok::resources::resource_children::unlink_child_resource	entry ESP+4	child resource pointer	observed
 0x000e07b0	vostok::resources::resource_children::unlink_from_children	ESI	resource_children owner	observed
 0x000e07e0	vostok::resources::resource_children::unlink_from_parents	ESI	resource_children owner	observed
+0x000e45b0	vostok::buffer_string::appendf	EAX	buffer_string	observed
+0x000e45b0	vostok::buffer_string::appendf	entry ESP+4	printf format, cdecl	observed
 0x000e4f40	vostok::memory::doug_lea_allocator::initialize_impl	ECX	allocator owner	observed
 0x000e4f40	vostok::memory::doug_lea_allocator::initialize_impl	entry ESP+4	arena base pointer	observed
 0x000e4f40	vostok::memory::doug_lea_allocator::initialize_impl	entry ESP+8	arena size low32	observed
@@ -568,6 +573,10 @@ va	name	location	role	basis
 0x000e7e80	vostok::resources::query_mount_physical	entry ESP+20	callback	observed
 0x000eb600	vostok::memory::doug_lea_allocator::usable_size_impl	entry ESP+4	allocation pointer	observed
 0x000f1850	vostok::resources::unmanaged_resource::~unmanaged_resource	ECX	unmanaged_resource receiver	inferred
+0x000f6b10	vostok::configs::binary_config_value::operator[]	EAX	table value	observed
+0x000f6b10	vostok::configs::binary_config_value::operator[]	EDI	key	observed
+0x000f6c00	vostok::configs::binary_config_value::value_exists	EAX	table value	observed
+0x000f6c00	vostok::configs::binary_config_value::value_exists	ESI	key	observed
 0x000f6df0	vostok::memory::writer_base::`scalar deleting destructor'	ECX	writer_base owner	observed
 0x000f6df0	vostok::memory::writer_base::`scalar deleting destructor'	entry ESP+4	deleting flags; only bit0 tested	observed
 0x000f6e30	vostok::memory::writer_base::open_chunk	EDI	writer_base owner	observed
@@ -737,6 +746,7 @@ va	name	location	role	basis
 0x00119110	vostok::render::engine::world::reset_grass	stack+4	by-value grass resource pointer retained/released by callback	inferred
 0x00119110	vostok::render::engine::world::reset_grass	stack+8	scene resource reference forwarded as raw scene EAX	inferred
 0x00119170	vostok::render::engine::world::set_gamma_correction_factor	stack+4	gamma correction factor float stored at global render context+0x60	inferred
+0x00119760	vostok::render::camouflage_decal_cook_parameters::camouflage_decal_cook_parameters	entry ESP+4	P, 8B8h bytes	observed
 0x001198b0	vostok::render::render_output_window::render_output_window	EDI	render_output_window owner	observed
 0x001198b0	vostok::render::render_output_window::render_output_window	entry ESP+4	constructor properties record	observed
 0x00119ab0	vostok::render::render_output_window::set_size	entry ESP+4	render_output_window owner	observed
@@ -879,6 +889,8 @@ va	name	location	role	basis
 0x00126750	vostok::render::skeleton_model_instance_cook::on_render_model_loaded	entry ESP+4	queries result	observed
 0x00126750	vostok::render::skeleton_model_instance_cook::on_render_model_loaded	entry ESP+8	shared callback state	observed
 0x00126af0	vostok::render::skeleton_model_instance_cook::on_all_subresources_ready	entry ESP+4	shared callback state	observed
+0x00127700	boost::function_invoker<bind(void(*)(A*,B*),a,b)>::invoke	entry ESP+4	function buffer {f, a, b}	observed
+0x00127700	boost::function_invoker<bind(void(*)(A*,B*),a,b)>::invoke	entry ESP+8	queries result	observed
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	ECX	cook owner	observed
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	entry ESP+4	queries_result pointer	observed
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	entry ESP+8	cook-data pointer	observed
@@ -1122,6 +1134,9 @@ va	name	location	role	basis
 0x001514a0	vostok::render::scene::select_volume_fog_instances	EAX	scene receiver	inferred
 0x001514a0	vostok::render::scene::select_volume_fog_instances	stack+4	frustum matrix pointer	inferred
 0x001514a0	vostok::render::scene::select_volume_fog_instances	stack+8	output fog parameter vector	inferred
+0x001539d0	vostok::memory::doug_lea_allocator::free_impl	ECX	allocator	observed
+0x001539d0	vostok::memory::doug_lea_allocator::free_impl	EAX	memory	observed
+0x001539d0	vostok::memory::doug_lea_allocator::free_impl	entry ESP+4	pointer it clears	observed
 0x00153de0	vostok::render::scene::update_streaming_texture_parameters	ECX	scene receiver	inferred
 0x00154020	vostok::render::scene::process_streaming	stack+4	scene receiver	inferred
 0x00154020	vostok::render::scene::process_streaming	stack+8	matrix pointer	inferred
@@ -2319,6 +2334,8 @@ va	name	location	role	basis
 0x00260e90	survarium::options_item_base::options_item_base	stack+4	parent tab	inferred
 0x00260e90	survarium::options_item_base::options_item_base	stack+8	option item id byte	inferred
 0x00260e90	survarium::options_item_base::options_item_base	stack+12	option item type	inferred
+0x002648e0	survarium::lobby_character::on_decals_baked	ECX	lobby_character	observed
+0x002648e0	survarium::lobby_character::on_decals_baked	entry ESP+8	P	observed
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+4	messaging client receiver	inferred
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+8	message identifier	inferred
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+12	one-byte read/acknowledgment action	inferred

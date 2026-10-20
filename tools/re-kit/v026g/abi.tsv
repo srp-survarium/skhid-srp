@@ -1,4 +1,6 @@
 va	name	source	ret_cleanup	result
+0x00011540	vostok::intrusive_ptr<render_model_instance>::release	manual	0	
+0x000127c0	vostok::buffer_string::assign	manual	0	
 0x00014650	vostok::render::one_way_render_channel::owner_initialize	manual	0	
 0x00014710	vostok::render::one_way_render_channel::owner_finalize	manual	0	
 0x000147e0	on_mounted_resources	manual	0	
@@ -177,6 +179,7 @@ va	name	source	ret_cleanup	result
 0x000e06d0	vostok::resources::resource_children::unlink_child_resource	manual	4	
 0x000e07b0	vostok::resources::resource_children::unlink_from_children	manual	0	
 0x000e07e0	vostok::resources::resource_children::unlink_from_parents	manual	0	
+0x000e45b0	vostok::buffer_string::appendf	manual	0	EAX: the buffer_string
 0x000e4f40	vostok::memory::doug_lea_allocator::initialize_impl	manual	16	
 0x000e4f80	vostok::memory::doug_lea_allocator::finalize_impl	manual		
 0x000e4f90	vostok::memory::doug_lea_allocator::malloc_impl	manual	4	
@@ -191,6 +194,8 @@ va	name	source	ret_cleanup	result
 0x000e7e80	vostok::resources::query_mount_physical	manual	0	
 0x000eb600	vostok::memory::doug_lea_allocator::usable_size_impl	manual	4	
 0x000f1850	vostok::resources::unmanaged_resource::~unmanaged_resource	manual	0	
+0x000f6b10	vostok::configs::binary_config_value::operator[]	manual	0	EAX: the child value (no end check)
+0x000f6c00	vostok::configs::binary_config_value::value_exists	manual	0	AL: the key is there
 0x000f6df0	vostok::memory::writer_base::`scalar deleting destructor'	manual	4	EAX: original owner pointer; storage may already be deleted
 0x000f6e30	vostok::memory::writer_base::open_chunk	manual	0	
 0x000f6e90	vostok::memory::writer_base::close_chunk	manual	0	
@@ -265,6 +270,8 @@ va	name	source	ret_cleanup	result
 0x001190b0	vostok::render::engine::world::set_grass	manual	8	
 0x00119110	vostok::render::engine::world::reset_grass	manual	8	
 0x00119170	vostok::render::engine::world::set_gamma_correction_factor	manual	4	
+0x00119590	type_to_int<camouflage_decal_cook_parameters*>::get	manual	0	EAX: the type id
+0x00119760	vostok::render::camouflage_decal_cook_parameters::camouflage_decal_cook_parameters	manual	4	EAX: P
 0x001198b0	vostok::render::render_output_window::render_output_window	manual	4	EAX: owner pointer
 0x00119ab0	vostok::render::render_output_window::set_size	manual	16	
 0x00119bf0	vostok::render::render_output_window::get_window_client_size	manual	0	EAX: output storage pointer
@@ -321,6 +328,7 @@ va	name	source	ret_cleanup	result
 0x00126670	vostok::render::skeleton_model_instance_cook::on_skeleton_loaded	manual	8	
 0x00126750	vostok::render::skeleton_model_instance_cook::on_render_model_loaded	manual	8	
 0x00126af0	vostok::render::skeleton_model_instance_cook::on_all_subresources_ready	manual	4	
+0x00127700	boost::function_invoker<bind(void(*)(A*,B*),a,b)>::invoke	manual	0	
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	manual	8	
 0x00135af0	vostok::render::material_effects_instance_cook::translate_query	manual	4	
 0x00135c20	vostok::render::material_effects_instance_cook::query_effects	manual	12	
@@ -415,6 +423,7 @@ va	name	source	ret_cleanup	result
 0x001512d0	vostok::render::scene::remove_decal	manual	4	
 0x00151370	vostok::render::scene::add_volume_fog	manual	8	
 0x001514a0	vostok::render::scene::select_volume_fog_instances	manual	8	
+0x001539d0	vostok::memory::doug_lea_allocator::free_impl	manual	0	
 0x00153de0	vostok::render::scene::update_streaming_texture_parameters	manual	0	
 0x00154020	vostok::render::scene::process_streaming	manual	28	
 0x00154a00	vostok::render::scene::process_ready_streaming_textures	manual	4	
@@ -967,6 +976,7 @@ va	name	source	ret_cleanup	result
 0x00258480	survarium::rifle_scope_cook::translate_query	manual	4	
 0x00258580	survarium::rifle_scope_cook::on_config_loaded	manual	4	
 0x00260e90	survarium::options_item_base::options_item_base	manual	12	
+0x002648e0	survarium::lobby_character::on_decals_baked	manual	12	
 0x0026b1b0	survarium::messaging_client::read_important_message	manual	12	
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	manual	12	AL: Observed constant1 on local return path
 0x0026d090	survarium::lobby_menu::on_mouse_move	manual	16	AL: Observed constant1 on local return path

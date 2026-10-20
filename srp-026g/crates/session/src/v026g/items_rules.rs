@@ -30,7 +30,7 @@
 //! - **Scopes** ([`survarium::v026g::scopes`], `docs/notes/weapon_scopes.md`).
 //!   [srp, the owner's rule of 2026-10-17] A scope item is bought once and
 //!   worn like a cosmetic: by any number of weapons, each holding its own
-//!   record, in slot 3 (a weapon takes no camouflage), one scope a weapon
+//!   record, in slot 3 (a weapon's camouflage goes into 2), one scope a weapon
 //!   (another replaces it). It goes only on a weapon the game data has a
 //!   variant of it for, and the record holds **that variant's dict id**,
 //!   not the scope item's: the client builds the weapon with the record's

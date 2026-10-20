@@ -1,5 +1,7 @@
 va	status	ref_021d	name
+0x00011540	inferred-high		vostok::intrusive_ptr<render_model_instance>::release
 0x00011b80	inferred-medium	0x00011ba9	raii_buffer::~raii_buffer
+0x000127c0	inferred-high		vostok::buffer_string::assign
 0x00012940	inferred-medium	0x0001262c	application_mutex_guard::on_crash
 0x00012b10	inferred-medium		vostok::crypt::close_cert_store
 0x00012be0	inferred-medium		vostok::crypt::close_cert_context
@@ -434,6 +436,7 @@ va	status	ref_021d	name
 0x000e39c0	inferred-medium	0x000afd89	vostok::threading::initialize_core_affinity
 0x000e3ee0	inferred-medium	0x000b0fb5	vostok::core::initialize
 0x000e4560	inferred-medium	0x000aff90	vostok::buffer_string::operator+=
+0x000e45b0	inferred-high		vostok::buffer_string::appendf
 0x000e45d0	inferred-medium	0x000affb7	vostok::buffer_string::appendf_va_list
 0x000e48e0	inferred-medium	0x000b01a5	__delayLoadHelper2
 0x000e4c80	inferred-medium	0x000b0509	__FUnloadDelayLoadedDLL2
@@ -566,6 +569,8 @@ va	status	ref_021d	name
 0x000f45f0	inferred-medium	0x000bce6a	PPM_CONTEXT::refresh
 0x000f5490	inferred-medium	0x000bda6c	PPM_CONTEXT::encodeBinSymbol
 0x000f55b0	inferred-medium	0x000bdb7d	PPM_CONTEXT::decodeBinSymbol
+0x000f6b10	inferred-high		vostok::configs::binary_config_value::operator[]
+0x000f6c00	inferred-high		vostok::configs::binary_config_value::value_exists
 0x000f70f0	inferred-medium	0x000be9be	vostok::resources::resource_base::resource_base
 0x000f7650	inferred-medium	0x000bedb5	malloc
 0x000f7680	inferred-medium	0x000bedfb	realloc
@@ -737,7 +742,9 @@ va	status	ref_021d	name
 0x00119320	inferred-medium	0x000d6c72	vostok::variant<32>::try_get<vostok::render::engine::world *>
 0x001193c0	inferred-medium	0x000d6cf1	vostok::buffer_vector<vostok::fixed_string<128> >::push_back
 0x00119570	inferred-medium	0x000d6ec3	vostok::detail::concrete_type_helper<vostok::render::material_effects_instance_cook_data *>::copy_helper
+0x00119590	inferred-high		type_to_int<camouflage_decal_cook_parameters*>::get
 0x00119690	inferred-medium	0x000d70ad	boost::detail::function::functor_manager<void (__cdecl*)(vostok::resources::queries_result &)>::manager
+0x00119760	inferred-high		vostok::render::camouflage_decal_cook_parameters::camouflage_decal_cook_parameters
 0x00119a60	inferred-medium	0x000d7324	vostok::render::render_output_window::`scalar deleting destructor'
 0x00119fb0	inferred-medium	0x000d769f	vostok::buffer_vector<vostok::render::scene *>::push_back
 0x0011a030	inferred-medium	0x000d770b	vostok::buffer_vector<vostok::render::scene_view *>::push_back
@@ -769,11 +776,14 @@ va	status	ref_021d	name
 0x00125b70	inferred-medium	0x000dda2a	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,vostok::render::skeleton_render_model_instance_cook,vostok::resources::queries_result &>,boost::_bi::list2<boost::_bi::value<vostok::render::skeleton_render_model_instance_cook *>,boost::arg<1> > > >::manager
 0x00125d20	inferred-medium	0x000ddb5d	vostok::render::static_model_instance_cook::translate_query
 0x00125f60	inferred-medium	0x000ddd50	vostok::render::static_model_instance_cook::on_subresources_loaded
+0x00126830	inferred-high		vostok::render::skeleton_model_instance_cook::on_bake_finished
+0x001268c0	inferred-high		vostok::render::skeleton_model_instance_cook::bake_decals
 0x00126cc0	inferred-medium	0x000de399	vostok::buffer_vector<vostok::math::float4x4>::resize
 0x00126db0	inferred-medium	0x000de475	vostok::variant<32>::try_get<vostok::render::static_model_instance_user_data>
 0x00126fb0	inferred-medium	0x000de50c	vostok::buffer_vector<vostok::variant<32> const *>::push_back
 0x001271d0	inferred-medium	0x000e0e2f	vostok::buffer_vector<vostok::resources::request>::resize
 0x00127500	inferred-medium	0x000de656	vostok::detail::concrete_type_helper<vostok::configs::binary_config_value>::copy_helper
+0x00127700	inferred-high		boost::function_invoker<bind(void(*)(A*,B*),a,b)>::invoke
 0x00127880	inferred-medium	0x000de792	vostok::render::tracer_model_instance_cook::translate_query
 0x00127920	inferred-medium	0x000de814	vostok::render::tracer_model_instance_cook::on_model_ready
 0x00127be0	inferred-medium	0x000de99b	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,vostok::render::tracer_model_instance_cook,vostok::resources::queries_result &>,boost::_bi::list2<boost::_bi::value<vostok::render::tracer_model_instance_cook *>,boost::arg<1> > > >::manager
@@ -787,6 +797,7 @@ va	status	ref_021d	name
 0x00129200	inferred-medium	0x000df6b0	vostok::render::skeleton_combined_render_model_instance_cook::on_resources_loaded
 0x001293b0	inferred-medium	0x000df789	vostok::render::skeleton_combined_model_instance_cook::translate_query
 0x00129530	inferred-medium	0x000df89c	vostok::render::skeleton_combined_model_instance_cook::on_resources_loaded
+0x00129830	inferred-high		vostok::render::skeleton_combined_model_instance_cook::bake_decals
 0x00129b10	inferred-medium	0x000dfa47	vostok::variant<32>::try_get<vostok::render::skeleton_combined_cook_data *>
 0x00129c40	inferred-medium	0x000dfc2e	vostok::detail::concrete_type_helper<vostok::render::skeleton_combined_cook_data *>::copy_helper
 0x0012a020	inferred-medium	0x000dfe6a	vostok::render::grass_cook::translate_query
@@ -798,10 +809,12 @@ va	status	ref_021d	name
 0x0012cc30	inferred-medium	0x000e1b7d	vostok::render::result_struct::get_smoothness_texture
 0x0012d1d0	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::translate_query
 0x0012db40	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::on_baked_texture_loaded
+0x0012dee0	inferred-high		vostok::render::camouflage_decal_texture_type_baker_cook::on_base_texture_loaded
 0x0012e510	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::on_textures_loaded
 0x0012ec40	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::process_compression
 0x00131b40	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture
 0x00131f90	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::remove_unwanted_files
+0x00133fb0	inferred-high		vostok::render::camouflage_decal_baker_cook::camouflage_decal_baker_cook
 0x00134020	inferred-medium		vostok::render::camouflage_decal_baker_cook::translate_query
 0x001348c0	inferred-medium	0x000e45b1	vostok::render::render_texture_cook::translate_query
 0x00134b10	inferred-medium	0x000e46ed	vostok::render::render_texture_cook::on_texture_loaded
@@ -855,6 +868,7 @@ va	status	ref_021d	name
 0x00153020	inferred-medium	0x000f54e3	stlp_std::priv::_Rb_tree<unsigned int,stlp_std::less<unsigned int>,stlp_std::pair<unsigned int const ,vostok::render::volume_fog_parameters>,stlp_std::priv::_Select1st<stlp_std::pair<unsigned int const ,vostok::render::volume_fog_parameters> >,stlp_std::priv::_MapTraitsT<stlp_std::pair<unsigned int const ,vostok::render::volume_fog_parameters> >,vostok::render::std_allocator<stlp_std::pair<unsigned int,vostok::render::volume_fog_parameters> > >::_M_insert
 0x00153380	inferred-medium	0x000f57f1	stlp_std::priv::__find_if<vostok::render::ambient_light * *,vostok::render::find_by_id_predicate<vostok::render::ambient_light> >
 0x00153410	inferred-medium	0x000f5015	stlp_std::find_if<vostok::render::ambient_volume * *,vostok::render::find_by_id_predicate<vostok::render::ambient_volume> >
+0x001539d0	inferred-high		vostok::memory::doug_lea_allocator::free_impl
 0x00153b50	inferred-medium	0x000f5a6d	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,vostok::render::moved_object_predicate_helper,vostok::collision::object const &>,boost::_bi::list2<boost::_bi::value<vostok::render::moved_object_predicate_helper *>,boost::arg<1> > > >::manager
 0x00153ea0	inferred-medium	0x00130690	vostok::render::remove_texture_predicate::operator()
 0x00155f60	inferred-medium	0x001319cf	vostok::buffer_vector<vostok::render::streamable_texture_info>::push_back
@@ -1116,6 +1130,7 @@ va	status	ref_021d	name
 0x00201cf0	inferred-medium	0x0015fa02	survarium::game_options::reset_bindings
 0x00201f20	inferred-medium	0x0015fb1f	survarium::game_options::apply_key_bindings
 0x00202150	inferred-medium	0x0015fcb8	vostok::memory::new_array_helper<vostok::fixed_string<64> >::call<vostok::memory::doug_lea_allocator>
+0x00204560	inferred-high		survarium::profile_skin_visual_cook::on_configs_loaded
 0x00205950	inferred-medium	0x00161fc6	vostok::buffer_vector<vostok::variant<32> const *>::resize
 0x00205cb0	inferred-medium	0x00162397	vostok::detail::concrete_type_helper<survarium::inventory_cooker_data *>::copy_helper
 0x00205d10	inferred-medium	0x00162400	vostok::detail::concrete_type_helper<vostok::collision::animated_object_cook_data>::copy_helper
@@ -1541,6 +1556,8 @@ va	status	ref_021d	name
 0x00262f00	inferred-medium	0x00197c1f	survarium::options_tab::~options_tab
 0x00262ff0	inferred-medium	0x00197c8c	survarium::options_tab::apply
 0x002630a0	inferred-medium	0x00197d24	survarium::options_tab::initialize_data
+0x002641a0	inferred-high		survarium::lobby_character::bake_decals
+0x002648e0	inferred-high		survarium::lobby_character::on_decals_baked
 0x00265420	inferred-medium		survarium::lobby_character::on_preview_decal_textures_loaded
 0x00266470	inferred-medium	0x000e4424	vostok::detail::concrete_type_helper<vostok::render::render_texture_cook_parameters>::copy_helper
 0x002678e0	inferred-medium		survarium::client_player_respawn_rule::on_kit_changed
@@ -1875,6 +1892,8 @@ va	status	ref_021d	name
 0x002efe80	inferred-medium	0x00159fa2	survarium::hud_game_effect_emitter::`scalar deleting destructor'
 0x002f02a0	inferred-medium		survarium::composite_game_effect_emitter::serialize
 0x002f0370	inferred-medium		survarium::composite_game_effect_emitter::get_child_by_name
+0x002f1430	inferred-high		survarium::item_config_cook::find_modifier_target
+0x002f14c0	inferred-high		survarium::make_item_config_request
 0x002f4b00	inferred-medium	0x001dd83f	survarium::timelimit_rule_core_cook::create_resource
 0x002f5570	inferred-medium	0x001dded5	survarium::shared_statistics::on_victory_item_event
 0x002f59e0	inferred-medium	0x001de057	survarium::shared_statistics::kill_event_arg
