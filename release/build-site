@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # usage: release/build-site --tree <checkout> [--with <resources.db.patch_<n>>]
 #
-# Builds the website's pages made from the game data, the Maps tab (/maps)
-# and the damage calculator (/damage), in <checkout> (release/release.sh: a
+# Builds the website's pages made from the game data, the Maps tab (/maps),
+# the damage calculator (/damage) and the wiki (/wiki), in <checkout> (release/release.sh: a
 # worktree of the commit it releases; by hand: yours, for a preview), from
 # the stock resources.db ($SKHID_STOCK_DB) with exactly the patches of the
 # offered-patch list (release/patches.tsv) over it, and --with the
@@ -15,18 +15,23 @@
 #      that makes main's pages byte for byte), dbgrab (tools/re-kit of
 #      <checkout>'s commit, built into the cache with the unpacker checked
 #      out as tools/vostok-resources-db in the main checkout; or
-#      $SKHID_DBGRAB);
+#      $SKHID_DBGRAB); srp-game-data and the example wiki_rules of
+#      <checkout>'s srp-026g (cargo --locked, its target folder in the cache);
 #   3. the calculator's build (srp-026g/scripts/damage-calc/build_site.py:
 #      its lobby icons), the Maps tab's (srp-026g/scripts/maps-tab/build.py,
 #      with those icons), then the calculator's again (it takes the maps'
-#      names, order and minimaps from the Maps tab);
-#   4. both built-from.tsv must name exactly the list's patches (and
+#      names, order and minimaps from the Maps tab); then srp's rules for the
+#      wiki (wiki_rules over the server data srp-game-data makes of the same
+#      archives, and over srp's test data) and the wiki's build
+#      (srp-026g/scripts/wiki/build.py, with the icons and those rules);
+#   4. the three built-from.tsv must name exactly the list's patches (and
 #      --with's), in any order (release.sh compares them so too); else it
 #      fails.
 # Relative paths (--with, $SKHID_STOCK_DB, $SKHID_PATCH_LIST, $SKHID_DBGRAB)
 # are of the folder it is run in.
-# Writes srp-026g/servers/web-server/{maps,damage}/ of <checkout> and the
-# cache, nothing else. About 2 minutes, at nice 10 (the downloads aside).
+# Writes srp-026g/servers/web-server/{maps,damage,wiki}/ of <checkout> and
+# the cache, nothing else. About 3 minutes, at nice 10 (the downloads and the
+# first build of srp's tools aside).
 . "$(dirname "$0")/lib.sh"
 
 tree='' with=''
@@ -40,8 +45,9 @@ while (($#)); do
 done
 [[ -n $tree ]] || usage 1
 tree=$(cd "$tree" && pwd) || die "--tree: no such folder"
-[[ -f $tree/srp-026g/scripts/maps-tab/build.py && -f $tree/srp-026g/scripts/damage-calc/build_site.py ]] ||
-    die "$tree has no srp-026g/scripts/maps-tab/build.py and damage-calc/build_site.py"
+[[ -f $tree/srp-026g/scripts/maps-tab/build.py && -f $tree/srp-026g/scripts/damage-calc/build_site.py &&
+    -f $tree/srp-026g/scripts/wiki/build.py ]] ||
+    die "$tree has no srp-026g/scripts/maps-tab/build.py, damage-calc/build_site.py and wiki/build.py"
 [[ -z $with || -f $with ]] || die "--with $with: no such file"
 # The builds run in <checkout>: every path they are given is absolute.
 [[ -z $with ]] || with=$(realpath -s -- "$with")
@@ -121,6 +127,17 @@ else
     dbgrab=$cache/dbgrab-target/release/dbgrab
 fi
 [[ -x $dbgrab ]] || die "dbgrab: $dbgrab is not a program"
+# srp's own tools of <checkout>'s commit, for the wiki: srp-game-data (the
+# server data of the archives) and wiki_rules (what srp decides of them).
+srp_target=$cache/srp-target
+say "building srp-game-data and wiki_rules of $(git -C "$tree" rev-parse --short HEAD) (nix develop) ..."
+for what in "-p resources-db --bin srp-game-data" "-p session --example wiki_rules"; do
+    # shellcheck disable=SC2086 # the words of $what
+    (cd "$ROOT" && nix develop ./srp-026g -c cargo build --quiet --release --locked \
+        --manifest-path "$tree/srp-026g/Cargo.toml" --target-dir "$srp_target" $what) || die "srp's $what did not build"
+done
+srp_game_data=$srp_target/release/srp-game-data wiki_rules=$srp_target/release/examples/wiki_rules
+[[ -x $srp_game_data && -x $wiki_rules ]] || die "srp-game-data or wiki_rules: not built in $srp_target"
 
 # 3. The pages: the calculator (its icons), the Maps tab, the calculator again.
 args=(--stock "$SKHID_STOCK_DB" --patches "$cache/patches" --list "$PATCH_LIST" --dbgrab "$dbgrab" --ffdec "$ffdec")
@@ -132,13 +149,30 @@ say "the Maps tab"
 build srp-026g/scripts/maps-tab/build.py "${args[@]}" --icons "$work/calc/icons/icons" --work "$work/maps" || die "the Maps tab's build failed"
 say "the calculator (the Maps tab's maps)"
 build srp-026g/scripts/damage-calc/build_site.py "${args[@]}" --work "$work/calc" || die "the calculator's build failed"
+say "srp's rules for the wiki"
+data_args=()
+while read -r name sha size urls; do
+    [[ -n $name ]] || continue
+    data_args+=(--patch "$cache/patches/$name=${urls%% *}")
+done <<<"$LIST"
+# The next release's patch has no address yet: srp reads none of it here.
+[[ -z $with ]] || data_args+=(--patch "$with=http://127.0.0.1/${with##*/}")
+"$srp_game_data" build --db "$SKHID_STOCK_DB" "${data_args[@]}" --out "$work/server-game-data.db" >"$work/srp-game-data.log" 2>&1 ||
+    die "srp-game-data build failed: $(tail -n 3 "$work/srp-game-data.log" | tr '\n' ' ')"
+SRP_GAME_DATA=$work/server-game-data.db "$wiki_rules" >"$work/rules.json" || die "wiki_rules failed on the server data"
+"$wiki_rules" --test-data >"$work/rules-test.json" || die "wiki_rules --test-data failed"
+say "the wiki"
+wiki_args=(--stock "$SKHID_STOCK_DB" --patches "$cache/patches" --list "$PATCH_LIST" --dbgrab "$dbgrab" --icons "$work/calc/icons/icons"
+    --rules "$work/rules.json" --rules-test "$work/rules-test.json" --work "$work/wiki")
+[[ -z $with ]] || wiki_args+=(--with "$with")
+build srp-026g/scripts/wiki/build.py "${wiki_args[@]}" || die "the wiki's build failed"
 
 # 4. What they were built from.
 want=$(site_wants "$with")
-for dir in maps damage; do
+for dir in maps damage wiki; do
     built=$tree/srp-026g/servers/web-server/$dir/built-from.tsv
     [[ -f $built && $(built_from "$built") == "$want" ]] ||
         die "$built does not name exactly the patches of $PATCH_LIST${with:+ and ${with##*/}}"
 done
-say "the Maps tab and the calculator: built in $tree/srp-026g/servers/web-server/ from the stock resources.db and $(grep -c . <<<"$want") patch(es):"
+say "the site's pages: built in $tree/srp-026g/servers/web-server/ from the stock resources.db and $(grep -c . <<<"$want") patch(es):"
 while read -r name sha; do say "  $name $sha"; done <<<"$want"

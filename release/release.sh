@@ -44,10 +44,10 @@
 #      --resources, the file is resources.db.patch_<the release's revision>,
 #      srp-game-data reads it, and it is neither published nor listed yet;
 #      live: the site's pages made from the game data (the Maps tab, the
-#      calculator): built from other patches than the list (and the
+#      calculator, the wiki): built from other patches than the list (and the
 #      --resources file) on main, they are rebuilt from those, last in the
 #      preflight and only when nothing else failed (release/build-site,
-#      about 2 min, in a worktree of the commit; a failure stops the run),
+#      about 3 min, in a worktree of the commit; a failure stops the run),
 #      and the server's source carries them (the server code is then built;
 #      --server-code no is refused, the dry run too);
 #      which server code differs between main and the target's tree;
@@ -732,9 +732,9 @@ record_release() {
         fi
         if [[ -n $site_tree ]]; then
             say
-            say "The Maps tab and the calculator (srp-026g/servers/web-server/maps/ and"
-            say "damage/) rebuilt from the offered patches by release/build-site, as the"
-            say "server has them now."
+            say "The site's pages (srp-026g/servers/web-server/maps/, damage/ and wiki/)"
+            say "rebuilt from the offered patches by release/build-site, as the server"
+            say "has them now."
         fi
         if [[ -n $SIM_NEXT ]]; then
             say
@@ -1004,20 +1004,21 @@ if [[ -n $rev ]] && ((rev >= MENUS_PATCH)) && [[ -z $(list_row "resources.db.pat
     ${resources##*/} != "resources.db.patch_$MENUS_PATCH" ]]; then
     problem "revision $rev needs resources.db.patch_$MENUS_PATCH (the menus) offered, and $PATCH_LIST has no row of it: release it (--resources) first"
 fi
-# The site's pages built from the game (the Maps tab, the calculator): each
+# The site's pages built from the game (the Maps tab, the calculator, the
+# wiki): each
 # from exactly the patches the release offers (with --resources, that one
 # too), so neither shows stale data. Built from others on main (a release
 # with new content always is): rebuilt below, at the end of the preflight
 # (release/build-site, in a worktree of the commit), nothing players see; the
 # server's source carries them (so the server code is built) and the record
 # commits them. A ref without them has nothing to build.
-SITE_PAGES=(srp-026g/servers/web-server/maps srp-026g/servers/web-server/damage)
+SITE_PAGES=(srp-026g/servers/web-server/maps srp-026g/servers/web-server/damage srp-026g/servers/web-server/wiki)
 site_tree='' site_stale=0 want=''
 if ((!test_server)) && [[ -n $main_commit ]]; then
     site_with=''
     if [[ -n $resources && -f $resources ]]; then site_with=$resources; fi
     want=$(site_wants "$site_with")
-    for page in "the Maps tab:maps" "the calculator:damage"; do
+    for page in "the Maps tab:maps" "the calculator:damage" "the wiki:wiki"; do
         IFS=: read -r what dir <<<"$page"
         built=srp-026g/servers/web-server/$dir/built-from.tsv
         if ! git -C "$REPO" cat-file -e "$main_commit:$built" 2>/dev/null; then
@@ -1030,7 +1031,7 @@ if ((!test_server)) && [[ -n $main_commit ]]; then
         fi
     done
     if ((site_stale)) && [[ $server_code == no ]]; then
-        problem "the Maps tab and the calculator are rebuilt by this release, and --server-code no builds no server code: the site would go on showing the old ones (leave --server-code out)"
+        problem "the site's pages are rebuilt by this release, and --server-code no builds no server code: the site would go on showing the old ones (leave --server-code out)"
     fi
 fi
 
@@ -1099,25 +1100,25 @@ if [[ -n $matches ]]; then okay "$TARGET_SITE/api/stats: $matches match(es) now"
 OLD_PATCHES=$(served_patches)
 say "  now      /patches: ${OLD_PATCHES:-(no list: a server from before patches)}"
 
-# The site's pages rebuilt (about 2 min), last in the preflight so far, and
+# The site's pages rebuilt (about 3 min), last in the preflight so far, and
 # only when nothing of it failed: a real run with a problem stops anyway.
 if ((site_stale)); then
     build_site=("$BUILD_SITE" --tree "$work/site")
     if [[ -n $resources ]]; then build_site+=(--with "$resources"); fi
     if ((DRY_RUN)); then
-        say "  [dry run] would rebuild the Maps tab and the calculator (about 2 min; the patches from ~/.cache/skhid-release/patches/, else downloaded) in a worktree of ${main_commit:0:7}: ${build_site[*]}"
+        say "  [dry run] would rebuild the site's pages (about 3 min; the patches from ~/.cache/skhid-release/patches/, else downloaded) in a worktree of ${main_commit:0:7}: ${build_site[*]}"
     elif ((${#problems[@]})); then
-        say "  note     the Maps tab and the calculator: not rebuilt, as the preflight has ${#problems[@]} problem(s) already"
+        say "  note     the site's pages: not rebuilt, as the preflight has ${#problems[@]} problem(s) already"
     else
-        say "  ...      rebuilding the Maps tab and the calculator (release/build-site, about 2 min; its log: $work/build-site.log)"
+        say "  ...      rebuilding the site's pages (release/build-site, about 3 min; its log: $work/build-site.log)"
         site_start=$(date +%s)
         if ! git -C "$REPO" worktree add --quiet --detach "$work/site" "$main_commit" 2>"$work/build-site.log"; then
-            problem "the Maps tab and the calculator: no worktree to rebuild them in: $(tr '\n' ' ' <"$work/build-site.log")"
+            problem "the site's pages: no worktree to rebuild them in: $(tr '\n' ' ' <"$work/build-site.log")"
         elif ! "${build_site[@]}" </dev/null >"$work/build-site.log" 2>&1; then
-            problem "the Maps tab and the calculator: the rebuild failed (release/build-site; its log: $work/build-site.log): $(tail -n 3 "$work/build-site.log" | tr '\n' ' ')"
+            problem "the site's pages: the rebuild failed (release/build-site; its log: $work/build-site.log): $(tail -n 3 "$work/build-site.log" | tr '\n' ' ')"
         else
             site_tree=$work/site
-            for page in "the Maps tab:maps" "the calculator:damage"; do
+            for page in "the Maps tab:maps" "the calculator:damage" "the wiki:wiki"; do
                 IFS=: read -r what dir <<<"$page"
                 if [[ $(built_from "$site_tree/srp-026g/servers/web-server/$dir/built-from.tsv") != "$want" ]]; then
                     problem "$what, rebuilt: its built-from.tsv does not name the patches this release offers"
@@ -1125,7 +1126,7 @@ if ((site_stale)); then
                 fi
             done
             if [[ -n $site_tree ]]; then
-                okay "the Maps tab and the calculator: rebuilt from the patches this release offers ($(span $(($(date +%s) - site_start)))); the server's source carries them, the record commits them"
+                okay "the site's pages: rebuilt from the patches this release offers ($(span $(($(date +%s) - site_start)))); the server's source carries them, the record commits them"
             fi
         fi
     fi
@@ -1250,9 +1251,9 @@ say "  /patches will offer:"
 say_offered
 say "  server code: $(if ((build_code)); then say "built before the swap (docker compose build srp26)"; else say "not built"; fi)"
 if [[ -n $site_tree ]]; then
-    say "  the Maps tab and the calculator: rebuilt from what /patches will offer (in the server's source; the record commits them)"
+    say "  the site's pages: rebuilt from what /patches will offer (in the server's source; the record commits them)"
 elif ((site_stale)); then
-    say "  the Maps tab and the calculator: a real run rebuilds them in its preflight (before the go) from what /patches will offer"
+    say "  the site's pages: a real run rebuilds them in its preflight (before the go) from what /patches will offer"
 fi
 if [[ -n $SIM_NEXT ]]; then
     say "  replays: what a match computes changes ($SIM_NEXT): recordings of games before revision $rev are refused from the swap on"
@@ -1471,7 +1472,7 @@ if ((DRY_RUN)); then
         say "[dry run] 7. no record (--test: no commit, no tag)"
     else
         say "[dry run] 7. once it went out, the record: git tag -a $(release_tag "$rev") ${main_commit:0:7} (the UTC time, the ZIP's and the server data's sha256) and git push origin refs/tags/$(release_tag "$rev");"
-        say "[dry run]    the commit \"Release revision $rev\" on ${main_commit:0:7} (REVISION = $rev, the README revision table's row, a changelog entry to word, release/patches.tsv as offered$( ((!site_stale)) || printf ", the rebuilt Maps tab and calculator")$([[ -z $SIM_NEXT ]] || printf ", %s for \`next\` in %s" "$rev" "$SIMULATION_CHANGES")), pushed as $(record_branch "$rev"), gh pr create, gh pr merge --merge"
+        say "[dry run]    the commit \"Release revision $rev\" on ${main_commit:0:7} (REVISION = $rev, the README revision table's row, a changelog entry to word, release/patches.tsv as offered$( ((!site_stale)) || printf ", the rebuilt site pages")$([[ -z $SIM_NEXT ]] || printf ", %s for \`next\` in %s" "$rev" "$SIMULATION_CHANGES")), pushed as $(record_branch "$rev"), gh pr create, gh pr merge --merge"
         say "[dry run]    it would ship (merged PRs): $(shipped_prs "$main_commit" | tr '\n' ';' | sed 's/;$//; s/;/; /g')"
     fi
     say

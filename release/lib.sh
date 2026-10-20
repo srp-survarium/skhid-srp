@@ -388,7 +388,8 @@ offered_of_list() {
     done <<<"$LIST${1:+$'\n'$1}"
 }
 
-# The site's pages made from the game (the Maps tab, the calculator), for
+# The site's pages made from the game (the Maps tab, the calculator, the
+# wiki), for
 # release.sh and build-site alike: the patches a page's built-from.tsv names
 # (built_from <file>), and the ones it must name (site_wants [<patch file>]:
 # LIST's and that file, not listed yet), each as `<name> <sha256>` lines in

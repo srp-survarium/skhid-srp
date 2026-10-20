@@ -838,12 +838,12 @@ if [[ -e $TEST_DIR/build-site-fails ]]; then echo "build.py: the Maps tab's buil
 . "$SKHID_RELEASE_ENV"
 rows=$(grep -v '^#' "$SKHID_PATCH_LIST" | cut -f1,2)
 if [[ -n $with && ! -e $TEST_DIR/build-site-wrong ]]; then rows+=$'\n'"${with##*/}"$'\t'"$(sha256sum <"$with" | cut -c1-64)"; fi
-for dir in maps damage; do
+for dir in maps damage wiki; do
     mkdir -p "$tree/srp-026g/servers/web-server/$dir"
     { echo "# The patches the $dir page was built from: name, sha256."; grep . <<<"$rows"; } >"$tree/srp-026g/servers/web-server/$dir/built-from.tsv"
     printf 'built from %s\n' "$(cut -f1 <<<"$rows" | tr '\n' ' ')" >"$tree/srp-026g/servers/web-server/$dir/page.js"
 done
-echo "the Maps tab and the calculator: built"
+echo "the site's pages: built"
 STANDIN
 chmod +x "$T/build-site"
 : >"$T/build-site.args"
@@ -1045,7 +1045,7 @@ echo "item 13" >"$T/p13/gameplay/items/d.options"
 "$bin" pack --dir "$T/p13" --out "$T/r13/resources.db.patch_13" >/dev/null
 # The site's pages on main, built from the list (patch_3, patch_12): the
 # release of new content rebuilds them (build-site's stand-in).
-for dir in maps damage; do
+for dir in maps damage wiki; do
     mkdir -p "$src/servers/web-server/$dir"
     grep -v '^#' "$T/patches.tsv" | cut -f1,2 >"$src/servers/web-server/$dir/built-from.tsv"
     echo "built by hand" >"$src/servers/web-server/$dir/page.js"
@@ -1062,13 +1062,13 @@ cd - >/dev/null
 check "release --resources (a relative path): rebuilds the site's pages with the new patch, in a worktree of the commit" bash -c \
     "test \"\$(grep -c . $T/build-site.args)\" = 1 && grep -q -- '^--tree $T/tmp/skhid-release\.[^ ]*/site --with $T/r13/resources.db.patch_13\$' $T/build-site.args"
 check "release --resources: ... in the preflight, before the maintenance" bash -c \
-    "r=\$(grep -n 'the Maps tab and the calculator: rebuilt from the patches this release offers' <<<\"\$1\" | head -n 1 | cut -d: -f1); p=\$(grep -n '3. planning the maintenance' <<<\"\$1\" | head -n 1 | cut -d: -f1); test -n \"\$r\" -a -n \"\$p\" && ((r < p))" _ "$out"
+    "r=\$(grep -n 'the site'\''s pages: rebuilt from the patches this release offers' <<<\"\$1\" | head -n 1 | cut -d: -f1); p=\$(grep -n '3. planning the maintenance' <<<\"\$1\" | head -n 1 | cut -d: -f1); test -n \"\$r\" -a -n \"\$p\" && ((r < p))" _ "$out"
 check "release --resources: ... the server's source carries them" bash -c \
     "grep -qx \$'resources.db.patch_13\t'\$(sha256sum <$T/r13/resources.db.patch_13 | cut -c1-64) $T/live/servers/web-server/maps/built-from.tsv && grep -qx 'built from resources.db.patch_3 resources.db.patch_12 resources.db.patch_13 ' $T/live/servers/web-server/damage/page.js"
 check "release --resources: ... the record commits them: main's pages built from main's list" bash -c \
-    "for d in maps damage; do cmp -s <(git -C $T/origin.git show main:srp-026g/servers/web-server/\$d/built-from.tsv | grep -v '^#') <(git -C $T/origin.git show main:release/patches.tsv | grep -v '^#' | cut -f1,2) || exit 1; done"
+    "for d in maps damage wiki; do cmp -s <(git -C $T/origin.git show main:srp-026g/servers/web-server/\$d/built-from.tsv | grep -v '^#') <(git -C $T/origin.git show main:release/patches.tsv | grep -v '^#' | cut -f1,2) || exit 1; done"
 check "release --resources: ... the record's commit: the pages, the list and its own files, and says so" bash -c \
-    "test \"\$(git -C $T/origin.git diff --name-only $pages_commit 'main^2' | tr '\n' ' ')\" = 'CHANGELOG-SKHID-026G.md release/patches.tsv srp-026g/client-patches/README.md srp-026g/client-patches/patch_026g.py srp-026g/crates/session/src/v026g/simulation_changes.tsv srp-026g/servers/web-server/damage/built-from.tsv srp-026g/servers/web-server/damage/page.js srp-026g/servers/web-server/maps/built-from.tsv srp-026g/servers/web-server/maps/page.js ' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q '^The Maps tab and the calculator (srp-026g/servers/web-server/maps/ and'"
+    "test \"\$(git -C $T/origin.git diff --name-only $pages_commit 'main^2' | tr '\n' ' ')\" = 'CHANGELOG-SKHID-026G.md release/patches.tsv srp-026g/client-patches/README.md srp-026g/client-patches/patch_026g.py srp-026g/crates/session/src/v026g/simulation_changes.tsv srp-026g/servers/web-server/damage/built-from.tsv srp-026g/servers/web-server/damage/page.js srp-026g/servers/web-server/maps/built-from.tsv srp-026g/servers/web-server/maps/page.js srp-026g/servers/web-server/wiki/built-from.tsv srp-026g/servers/web-server/wiki/page.js ' && git -C $T/origin.git log -1 --format=%B 'main^2' | grep -q '^The site'\''s pages (srp-026g/servers/web-server/maps/, damage/ and wiki/)'"
 check "release --resources: ... no worktree of the rebuild left" bash -c "! git -C $T/repo worktree list | grep -q '/site\$'"
 check "release --resources: publishes the patch" cmp -s "$T/r13/resources.db.patch_13" "$T/patches/resources.db.patch_13"
 check "release --resources: adds its row to the list" test "$(rows "$T/patches.tsv")" = "resources.db.patch_3 resources.db.patch_12 resources.db.patch_13"
@@ -1180,7 +1180,7 @@ check "release: the site's pages built from the list: not rebuilt" bash -c \
 : >"$T/state/admin.log"
 touch "$T/build-site-fails"
 expect_refused "release --resources: a failed rebuild of the site's pages stops the preflight" \
-    "the Maps tab and the calculator: the rebuild failed (release/build-site; its log: .*): build.py: the Maps tab's build failed" \
+    "the site's pages: the rebuild failed (release/build-site; its log: .*): build.py: the Maps tab's build failed" \
     "$here/release.sh" --resources "$T/r14/resources.db.patch_14"
 rm "$T/build-site-fails"
 check "release: ... before anything players see: no maintenance, nothing published, no lock" bash -c \
@@ -1193,13 +1193,13 @@ expect_refused "release --resources: rebuilt pages that name other patches stop 
 rm "$T/build-site-wrong"
 : >"$T/build-site.args"
 expect_refused "release --resources: pages to rebuild need the server code built: --server-code no refused" \
-    "the Maps tab and the calculator are rebuilt by this release, and --server-code no builds no server code" \
+    "the site's pages are rebuilt by this release, and --server-code no builds no server code" \
     "$here/release.sh" --resources "$T/r14/resources.db.patch_14" --server-code no
 check "release: ... without the 2-min rebuild" test ! -s "$T/build-site.args"
 out=$(setsid -w env SKHID_RELEASE_ENV="$(changed_env 's/^SKHID_LIVE_MIN_FREE_MB=.*/SKHID_LIVE_MIN_FREE_MB=999999999/')" \
     "$here/release.sh" --resources "$T/r14/resources.db.patch_14" </dev/null 2>&1) && fail "release.sh, too little disk: ran ($out)"
 check "release --resources: another preflight problem: the pages are not rebuilt (it stops anyway)" bash -c \
-    "grep -q 'MISSING  free on the live host: .* (SKHID_LIVE_MIN_FREE_MB)' <<<\"\$1\" && grep -q 'the Maps tab and the calculator: not rebuilt, as the preflight has 1 problem(s) already' <<<\"\$1\" && test ! -s $T/build-site.args" _ "$out"
+    "grep -q 'MISSING  free on the live host: .* (SKHID_LIVE_MIN_FREE_MB)' <<<\"\$1\" && grep -q 'the site'\''s pages: not rebuilt, as the preflight has 1 problem(s) already' <<<\"\$1\" && test ! -s $T/build-site.args" _ "$out"
 check "release: ... none of them planned or published anything" bash -c \
     "test ! -s $T/state/admin.log && test ! -e $T/patches/resources.db.patch_14 && test ! -e $T/lock"
 
@@ -1220,14 +1220,14 @@ check "release --dry-run: shows the swap and the restart" has "$out" "docker com
 check "release --dry-run: shows the build" has "$out" "build srp26"
 check "release --dry-run: says so" has "$out" "dry run: nothing was planned, uploaded or changed"
 check "release --dry-run: prints the rebuild of the site's pages with the new patch" has "$out" \
-    "^  \[dry run\] would rebuild the Maps tab and the calculator (about 2 min; .*) in a worktree of [0-9a-f]*: $T/build-site --tree $T/tmp/skhid-release\.[^ ]*/site --with $T/r14/resources.db.patch_14\$"
+    "^  \[dry run\] would rebuild the site's pages (about 3 min; .*) in a worktree of [0-9a-f]*: $T/build-site --tree $T/tmp/skhid-release\.[^ ]*/site --with $T/r14/resources.db.patch_14\$"
 check "release --dry-run: ... runs none" test ! -s "$T/build-site.args"
-check "release --dry-run: ... and the record it would make commits them" has "$out" "release/patches.tsv as offered, the rebuilt Maps tab and calculator"
+check "release --dry-run: ... and the record it would make commits them" has "$out" "release/patches.tsv as offered, the rebuilt site pages"
 check "release --dry-run: ... its server-code report has them changed, as the real run's" bash -c \
     "grep -q '^             CHANGED   servers/web-server/maps/ (a real run rebuilds it)\$' <<<\"\$1\" && grep -q '^             CHANGED   servers/web-server/damage/ (a real run rebuilds it)\$' <<<\"\$1\" && grep -q '^  server code: built before the swap' <<<\"\$1\"" _ "$out"
 run quiet --dry-run --resources "$T/r14/resources.db.patch_14" --server-code no --minutes 2 && fail "release.sh --dry-run --server-code no: no problem ($out)"
 check "release --dry-run --server-code no: refused as a real run is, the pages to rebuild" bash -c \
-    "grep -q 'MISSING  the Maps tab and the calculator are rebuilt by this release, and --server-code no builds no server code' <<<\"\$1\" && grep -q 'a real run would stop before the lock' <<<\"\$1\" && test ! -s $T/build-site.args" _ "$out"
+    "grep -q 'MISSING  the site'\''s pages are rebuilt by this release, and --server-code no builds no server code' <<<\"\$1\" && grep -q 'a real run would stop before the lock' <<<\"\$1\" && test ! -s $T/build-site.args" _ "$out"
 git_t -C "$T/repo" rm -q -r "$src/servers/web-server"
 commit "no site pages again (the rest of the runs)"
 
@@ -1244,12 +1244,15 @@ cat >"$T/sb/bin/nix" <<'STANDIN'
 # nix build ...: the python; nix shell <pkg> -c <command>: the command;
 # nix develop <flake> -c cargo build ... --manifest-path <m> --target-dir <t>:
 # a dbgrab in <t>/release that prints the main.rs it was built from (the
-# files of its source folder in $TEST_DIR/sb/dbgrab-src).
+# files of its source folder in $TEST_DIR/sb/dbgrab-src); for an
+# srp-026g/Cargo.toml, srp-game-data (writes the patches it is given into
+# --out) and examples/wiki_rules (prints what it read), each build's words a
+# line of $TEST_DIR/sb/srp-builds.
 case $1 in
 build) echo "$TEST_DIR/sb/py" ;;
 shell) while [[ $1 != -c ]]; do shift; done; shift; exec "$@" ;;
 develop)
-    manifest='' target=''
+    manifest='' target='' words=$*
     while (($#)); do
         case $1 in
         --manifest-path) manifest=$2; shift 2 ;;
@@ -1258,6 +1261,26 @@ develop)
         esac
     done
     dir=$(dirname "$manifest")
+    if [[ $manifest == */srp-026g/Cargo.toml ]]; then
+        printf '%s\n' "$words" >>"$TEST_DIR/sb/srp-builds"
+        mkdir -p "$target/release/examples"
+        cat >"$target/release/srp-game-data" <<'SH'
+#!/usr/bin/env bash
+out='' patches=''
+while (($#)); do
+    case $1 in
+    --out) out=$2; shift 2 ;;
+    --patch) test -f "${2%%=*}" || { echo "--patch $2: no such file" >&2; exit 1; }; patches+="${2%%=*} "; shift 2 ;;
+    --db) test -f "$2" || { echo "--db $2: no such file" >&2; exit 1; }; shift 2 ;;
+    *) shift ;;
+    esac
+done
+for p in $patches; do printf '%s ' "${p##*/}"; done >"$out"
+SH
+        printf '#!/bin/sh\nif [ "$1" = --test-data ]; then echo "the test data'"'"'s rules"; else echo "rules over $(cat "$SRP_GAME_DATA")"; fi\n' >"$target/release/examples/wiki_rules"
+        chmod +x "$target/release/srp-game-data" "$target/release/examples/wiki_rules"
+        exit 0
+    fi
     (cd "$dir" && find . -type f | sort | tr '\n' ' ') >"$TEST_DIR/sb/dbgrab-src"
     mkdir -p "${target:-$dir/target}/release"
     printf '#!/bin/sh\necho %q\n' "$(cat "$dir/src/main.rs")" >"${target:-$dir/target}/release/dbgrab"
@@ -1267,25 +1290,29 @@ esac
 STANDIN
 chmod +x "$T/sb/bin/nix"
 sb_repo() { # <dir> <main.rs>: a checkout whose commit has dbgrab's sources and the two builds
-    mkdir -p "$1/tools/re-kit/common/dbgrab/src" "$1/srp-026g/scripts/maps-tab" "$1/srp-026g/scripts/damage-calc"
+    mkdir -p "$1/tools/re-kit/common/dbgrab/src" "$1/srp-026g/scripts/maps-tab" "$1/srp-026g/scripts/damage-calc" "$1/srp-026g/scripts/wiki"
+    echo '[workspace]' >"$1/srp-026g/Cargo.toml"
     echo '[package]' >"$1/tools/re-kit/common/dbgrab/Cargo.toml"
     echo "$2" >"$1/tools/re-kit/common/dbgrab/src/main.rs"
     cat >"$1/srp-026g/scripts/maps-tab/build.py" <<'PY'
 import hashlib, os, pathlib, subprocess, sys
 opts = dict(zip(sys.argv[1::2], sys.argv[2::2]))
-for key in ("--stock", "--patches", "--list", "--dbgrab", "--ffdec", "--with"):
+for key in ("--stock", "--patches", "--list", "--dbgrab", "--ffdec", "--with", "--rules", "--rules-test"):
     if key in opts and not pathlib.Path(opts[key]).exists():
         sys.exit(f"{key} {opts[key]}: no such file here ({os.getcwd()})")
 rows = [line.split("\t")[:2] for line in pathlib.Path(opts["--list"]).read_text().splitlines() if line.strip() and not line.startswith("#")]
 if "--with" in opts and not os.path.exists(os.environ["TEST_DIR"] + "/sb/drop-with"):
     rows.append([pathlib.Path(opts["--with"]).name, hashlib.sha256(pathlib.Path(opts["--with"]).read_bytes()).hexdigest()])
 rows.sort(key=lambda row: int(row[0].rsplit("_", 1)[1]))
-out = pathlib.Path("srp-026g/servers/web-server", "maps" if sys.argv[0].endswith("/build.py") else "damage")
+out = pathlib.Path("srp-026g/servers/web-server", "wiki" if "/wiki/" in sys.argv[0] else "maps" if sys.argv[0].endswith("/build.py") else "damage")
 out.mkdir(parents=True, exist_ok=True)
 (out / "built-from.tsv").write_text("# The patches it was built from: name, sha256.\n" + "".join(f"{n}\t{s}\n" for n, s in rows))
 (out / "dbgrab.txt").write_text(subprocess.run([opts["--dbgrab"]], capture_output=True, text=True, check=True).stdout)
+if "--rules" in opts:
+    (out / "rules.txt").write_text(pathlib.Path(opts["--rules"]).read_text() + pathlib.Path(opts["--rules-test"]).read_text())
 PY
     cp "$1/srp-026g/scripts/maps-tab/build.py" "$1/srp-026g/scripts/damage-calc/build_site.py"
+    cp "$1/srp-026g/scripts/maps-tab/build.py" "$1/srp-026g/scripts/wiki/build.py"
     git_t -C "$1" init -q && git_t -C "$1" add -A && git_t -C "$1" commit -q -m "$2"
 }
 sb_repo "$T/sb/root" "the operator's dbgrab"
@@ -1305,12 +1332,17 @@ sb_run() { # <args...>: build-site in $T, its output into $out
 sb_run --with r5/resources.db.patch_5 || fail "build-site: $out"
 sb_rows=$( { grep -v '^#' "$T/patches.tsv" | cut -f1,2; printf 'resources.db.patch_5\t%s\n' "$(sha256sum <"$T/r5/resources.db.patch_5" | cut -c1-64)"; } | sort -V)
 check "build-site: relative --with, SKHID_STOCK_DB and SKHID_PATCH_LIST: the builds (in the tree) find them" bash -c \
-    "for d in maps damage; do test \"\$(grep -v '^#' $T/sb/tree/srp-026g/servers/web-server/\$d/built-from.tsv | sort -V)\" = \"\$1\" || exit 1; done" _ "$sb_rows"
+    "for d in maps damage wiki; do test \"\$(grep -v '^#' $T/sb/tree/srp-026g/servers/web-server/\$d/built-from.tsv | sort -V)\" = \"\$1\" || exit 1; done" _ "$sb_rows"
 check "build-site: a --with patch below the list's top, the pages naming it in another order: passes" has "$out" \
-    "^the Maps tab and the calculator: built in $T/sb/tree/srp-026g/servers/web-server/ from the stock resources.db and $(grep -c . <<<"$sb_rows") patch(es):"
+    "^the site's pages: built in $T/sb/tree/srp-026g/servers/web-server/ from the stock resources.db and $(grep -c . <<<"$sb_rows") patch(es):"
 check "build-site: dbgrab built from the tree's commit, not the checkout running it" grep -qx "the tree's dbgrab" "$T/sb/tree/srp-026g/servers/web-server/maps/dbgrab.txt"
 check "build-site: ... from a source folder made anew (an earlier one's file gone)" test "$(cat "$T/sb/dbgrab-src")" = "./Cargo.toml ./src/main.rs "
 check "build-site: ... its target kept" test -f "$T/sb/cache/skhid-release/dbgrab-target/kept"
+check "build-site: srp's tools for the wiki built from the tree's srp-026g, --locked" bash -c \
+    "test \"\$(grep -c . $T/sb/srp-builds)\" = 2 && ! grep -v -- '--locked --manifest-path $T/sb/tree/srp-026g/Cargo.toml' $T/sb/srp-builds"
+check "build-site: the wiki: srp's rules over the server data of the list's patches and --with's, and over the test data" grep -qx \
+    "rules over $(grep -v '^#' "$T/patches.tsv" | cut -f1 | tr '\n' ' ')resources.db.patch_5 " "$T/sb/tree/srp-026g/servers/web-server/wiki/rules.txt"
+check "build-site: ... and over the test data" grep -qx "the test data's rules" "$T/sb/tree/srp-026g/servers/web-server/wiki/rules.txt"
 touch "$T/sb/drop-with"
 sb_run --with r5/resources.db.patch_5 && fail "build-site, the pages without --with's patch: passed ($out)"
 check "build-site: pages that leave --with's patch out: fails" has "$out" \

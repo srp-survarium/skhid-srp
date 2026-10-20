@@ -194,13 +194,14 @@ The order, as it runs:
    `--resources`: the name is `resources.db.patch_<n>` (the release's revision),
    srp-game-data reads it over the stock db, it is neither published nor
    listed yet. Live: the website's pages made from the game data (the
-   Maps tab, the calculator): when main's `built-from.tsv` names other
-   patches than the list (and the `--resources` file), it rebuilds both
-   with `release/build-site` in a worktree of the commit (about 2 min; the
+   Maps tab, the calculator, the wiki): when main's `built-from.tsv` names other
+   patches than the list (and the `--resources` file), it rebuilds all three
+   with `release/build-site` in a worktree of the commit (about 3 min; the
    patches cached in `~/.cache/skhid-release/patches/`, FFDec 26.0.0
    downloaded there, dbgrab built there from the commit's `tools/re-kit` with the
    unpacker checked out as `tools/vostok-resources-db` in the main checkout,
-   or `$SKHID_DBGRAB`). Nobody rebuilds them by hand before a release. The
+   or `$SKHID_DBGRAB`; for the wiki, srp-game-data and the example
+   `wiki_rules` of the commit's srp-026g, built there too). Nobody rebuilds them by hand before a release. The
    rebuild comes after the other checks and is skipped when one of them
    failed. A failed rebuild is a problem like any other: the run stops before the go.
    The server's source carries the rebuilt pages, so the server code is
@@ -284,7 +285,7 @@ The order, as it runs:
      before, the record PRs left out), a `CHANGELOG-SKHID-026G.md` entry
      under the rule, `TODO` for the owner to word, with those PRs, and
      `release/patches.tsv` as the server offers it (the row
-     `upload-patch` added), the Maps tab and the calculator when
+     `upload-patch` added), the Maps tab, the calculator and the wiki when
      step 1 rebuilt them (so main's pages match its list, as the web-server
      test wants), and `<n>` in place of a `next` row of
      `simulation_changes.tsv` (said in the commit); pushed as
@@ -455,7 +456,7 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 | `release/upload-patch [--test] [--dry-run] <file>` | publishes one patch: `.tmp`, sha256 there, `chmod 644`, `mv -n`, GET must be 200 with the sha256, then its row in the list; never replaces one | the patches server, the list |
 | `release/add-mirror [--test] <name> <url>` | another URL of a listed patch: downloaded as the updater does, not a web page, the row's size and sha256, then appended to the row | the list (and the URL cache) |
 | `release/build-server-db [--test] [--out <file>]` | `server-game-data.db` from the stock db and the list's patches (each first URL GET 200 with the row's size and sha256; each mirror checked as above), `srp-game-data build --patch "<file>=<urls>"` | a local file |
-| `release/build-site --tree <checkout> [--with <patch>]` | the Maps tab and the calculator from the stock db and the list's patches (cached, each sha256 checked), FFDec 26.0.0, dbgrab; both `built-from.tsv` must name exactly those; release.sh runs it in its preflight, by hand it is a local preview (`--tree .`) | the checkout's `servers/web-server/{maps,damage}/`, the cache |
+| `release/build-site --tree <checkout> [--with <patch>]` | the Maps tab, the calculator and the wiki from the stock db and the list's patches (cached, each sha256 checked), FFDec 26.0.0, dbgrab, srp's `srp-game-data` and `wiki_rules`; the three `built-from.tsv` must name exactly those; release.sh runs it in its preflight, by hand it is a local preview (`--tree .`) | the checkout's `servers/web-server/{maps,damage,wiki}/`, the cache |
 | `release/build-zip [--test] [--ref <commit>] [--revision <n>] [--work <dir>]` | the players' ZIP from a fresh worktree of origin/main (never this checkout, never `git stash`): `--server`, `--site`, `--localization`, `--revision` (default: the site's exe's + 1; above it), no resources.db regions; the exe without a server too, both sha256 in `<work>/exe.sha256`; entries against the site's ZIP | a worktree, the ZIP |
 | `release/deploy --zip --server-data --revision [--label] [--dry-run]` | the swap on its own, in a window planned by hand: the release folder, the checks, the rollback on failure | the live host |
 | `release/rollback [--test] [--keep-db] [<folder>]` | a release folder's rollback | the target |
