@@ -2111,6 +2111,26 @@
       "pristine_sha256": "bbee2afba5bd9e28e81d5360bb8a76421c9c3d859a33e5b46c93625d80c41498",
       "reason": "Recover lexical field writes, implicit typed defaults and declaration order, identifier object keys, typed assignments and direct truth tests while retaining the explicit selectVoucher Boolean conversion. Native compilation uses checked helper scope encodings and explicit compiler-method capacity minimums for the two exchange handlers; the complete compressed release movie matches.",
       "result_sha256": "3fc652723522879c8617303c7f1bcbf4139fd4652fb9a33f68532b8225302926"
+    },
+    {
+      "class": "survarium.controls.InventoryList",
+      "compiler": "flex-mixed",
+      "composition": {
+        "ffdec_compiler": "ffdec-source",
+        "ffdec_methods": [
+          "QName(PackageNamespace(\"survarium.controls\"),\"InventoryList\")/instance/1/QName(PackageNamespace(\"\"),\"addFakeItems\")"
+        ]
+      },
+      "method_reservations": {
+        "QName(PackageNamespace(\"survarium.controls\"),\"InventoryList\")/instance/1/QName(PackageNamespace(\"\"),\"addFakeItems\")": {
+          "locals": 5
+        }
+      },
+      "patch": "survarium/controls/InventoryList.patch",
+      "patch_sha256": "ef1d929589711c11d4a5971e924047c1d9bd167b8236e4697cba73939f59c043",
+      "pristine_sha256": "df27750d74b7b19b27a8245593ca423e3cfb7ec4990d89368b1a298b4c6c624f",
+      "reason": "Recover original local and activation-slot declaration order, named local functions, implicit defaults, typed assignments, lexical writes, identifier object keys and preserved branch structure. The explicit mixed plan uses actual source-compiled addFakeItems with two explicit returns and five local slots; all other methods are native source output. The complete compressed release movie matches.",
+      "result_sha256": "db627e1da7a684f5ce5f2a4132a66ed4c7a41a961c8bec24d1cc5f098e1a64ba"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

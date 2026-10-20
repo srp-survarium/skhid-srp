@@ -147,7 +147,7 @@ class ConstructorSlotIntegration(unittest.TestCase):
                         }
                     }
                     static void coercionGuards(Path path)throws Exception {
-                        for(String mutation:List.of("valid","type","opcode","branch","handler")) {
+                        for(String mutation:List.of("valid","retained","type","opcode","branch","handler")) {
                             var reference=abc(path);var candidate=abc(path);
                             normalize(reference);
                             var before=constructor(reference);var after=constructor(candidate);
@@ -155,6 +155,10 @@ class ConstructorSlotIntegration(unittest.TestCase):
                             int site=cast(actual.code);var first=actual.code.get(site);var second=actual.code.get(site+1);
                             var target=expected.code.stream().filter(i->i.definition.instructionCode==0x80
                                 && Arrays.equals(i.operands,first.operands)).findFirst().orElseThrow();
+                            // An already matching pair must survive while the
+                            // independent constructor-write encoding is applied.
+                            if(mutation.equals("retained"))expected.insertInstruction(expected.code.indexOf(target)+1,
+                                new AVM2Instruction(0,0x80,target.operands.clone()),false,before);
                             if(mutation.equals("type"))second.operands[0]=candidate.instance_info.get(
                                 candidate.findClassByName("fixture.SlotProbe")).name_index;
                             if(mutation.equals("opcode"))actual.replaceInstruction(site+1,
@@ -173,7 +177,7 @@ class ConstructorSlotIntegration(unittest.TestCase):
                             }
                             before.setCode(expected);after.setCode(actual);byte[] saved=after.getCodeBytes().clone();
                             MovieSource.emitCompactOperations(reference,candidate);
-                            if(mutation.equals("valid")) {
+                            if(mutation.equals("valid") || mutation.equals("retained")) {
                                 MovieSource.retainDebugDirectives(reference,candidate);
                                 if(!Arrays.equals(before.getCodeBytes(),after.getCodeBytes()))
                                     throw new AssertionError("Valid constructor did not match");

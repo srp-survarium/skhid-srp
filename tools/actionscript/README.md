@@ -297,7 +297,9 @@ joins, and ambiguous stack operations. Both instructions use the same mutable
 slot assignment in [Adobe's runtime](https://github.com/adobe/avmplus/blob/master/core/MethodEnv.cpp#L879).
 Two adjacent `coerce` instructions with the same QName type can also fold to
 one: the first successful coercion already has that type. The whole-method
-branch and exception checks reject entry into the second coercion. An edited
+branch and exception checks reject entry into the second coercion. A pair
+already present in both inputs is retained while other encodings are matched.
+An edited
 method retains its actual compiler output and still requires call/cast review
 when that output differs from the baseline.
 
@@ -358,7 +360,7 @@ Use `--compiler reconstruction` with the pinned patch manifest to select these
 per-class compilers in one measurement. Classes without an override use
 `flex-strict`; every report row records the compiler actually used. Explicit
 `--compiler ffdec`, `ffdec-source`, `flex`, `flex-strict` or `flex-library` selects that compiler for every
-class, for comparison experiments. The per-class profile currently proves 231
+class, for comparison experiments. The per-class profile currently proves 232
 reconstructed classes, including easing, button, list, text, message, clan,
 debug and tutorial classes. Source fixes also recover local declaration order,
 static field slot order and explicit switch breaks where required.

@@ -1442,7 +1442,10 @@ public final class MovieSource {
                         && instruction.operands.length == 1
                         && compiled.constants.getMultiname(instruction.operands[0]).kind == 7
                         && emitted.get(next + 1).definition.instructionCode == opcode
-                        && Arrays.equals(instruction.operands, emitted.get(next + 1).operands)) {
+                        && Arrays.equals(instruction.operands, emitted.get(next + 1).operands)
+                        && !(wantedIndex + 1 < expected.size()
+                            && expected.get(wantedIndex + 1).definition.instructionCode == opcode
+                            && Arrays.equals(wanted.operands, expected.get(wantedIndex + 1).operands))) {
                     consumed = 2;
                     rewritten = true;
                 }

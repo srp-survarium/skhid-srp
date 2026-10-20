@@ -1308,3 +1308,33 @@ non-code bytes, and has the previously game-tested hash
 `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`.
 Its runtime record confirms byte identity with that earlier run, not a new
 game check.
+
+### InventoryList source and retained coercions
+
+`InventoryList` now independently reproduces the complete compressed release
+movie. The source restores local declaration order from debugger identities,
+captured-variable slot order, named local functions, implicit defaults, typed
+assignments, lexical field writes and identifier object keys. Explicit casts
+that belong to the original calls remain present. Empty branches, loop
+continuations, an early-return `else` and a typed return temporary recover the
+original control flow.
+
+Only `addFakeItems` uses the actual source compiler in its mixed plan. Two
+explicit source returns reproduce its disabled body, and an authenticated
+minimum of five local slots retains the unused capacity. Native compilation
+supplies every other method from the same source.
+
+The emitter now retains an identical adjacent coercion pair already present
+in both inputs. Previously it tried to fold that pair unnecessarily, preventing
+other valid encodings in the method from matching. The compiler regression
+checks that retaining both coercions still allows the independent constructor
+slot encoding to match. All 25 tests pass, including nine real-compiler
+integrations (159.891 seconds).
+
+There are now 232 authenticated reconstructions and 645 pristine successes:
+877 of 878 scripts have individual exact proofs. `LobbyMenu` remains, followed
+by the fresh matching whole-tree build.
+The fresh premium build preserves one authorized method change and identical
+non-code bytes, retaining the earlier game-tested hash
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`.
+The runtime record documents a byte-identical rebuild, not a new game run.
