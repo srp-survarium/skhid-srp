@@ -16,7 +16,7 @@ use std::net::SocketAddr;
 use std::time::Instant;
 
 use session::LockExt;
-use session::v026g::{quests, rewards, rules, tutorial, wire};
+use session::v026g::{quests, rules, tutorial, wire};
 use survarium::v026g::lobby::requests::{ClientMessage, id};
 use survarium::v026g::lobby::{self, NameRefusal, Ranked, important};
 
@@ -309,9 +309,24 @@ impl Core<'_> {
                 }
             }
             M::Sell { item_id, amount } => {
-                let sold = rules::sell(&mut who.account.locked(), item_id, amount);
+                let (sold, silver) = {
+                    let mut account = who.account.locked();
+                    let sold = rules::sell(&mut account, item_id, amount);
+                    (sold, account.generic_money)
+                };
                 match sold {
                     Ok(sold) => {
+                        log::info!(
+                            "{} (account {}) sold {} of dict {} (item {}) for {} silver; now {} \
+                             silver",
+                            who.name,
+                            who.account_id,
+                            sold.amount,
+                            sold.dict_id,
+                            sold.item_id,
+                            sold.money,
+                            silver
+                        );
                         self.send(addr, lobby::permitted_sold(sold.item_id, sold.amount));
                         self.push_account(who);
                         self.squads_dirty = true;
@@ -324,12 +339,20 @@ impl Core<'_> {
             }
             M::Repair { item_id, payment } => self.repair(who, item_id, payment),
             M::ExchangePremium { amount } => {
-                let exchanged = rules::exchange_premium(&mut who.account.locked(), amount);
-                self.exchanged(who, exchanged);
+                let exchanged = {
+                    let mut account = who.account.locked();
+                    rules::exchange_premium(&mut account, amount)
+                        .map(|silver| (silver, account.generic_money, account.premium_money))
+                };
+                self.exchanged(who, "exchanged", amount, exchanged);
             }
             M::BuyPremium { gold } => {
-                let bought = rules::buy_premium(&mut who.account.locked(), gold);
-                self.exchanged(who, bought);
+                let bought = {
+                    let mut account = who.account.locked();
+                    rules::buy_premium(&mut account, gold)
+                        .map(|silver| (silver, account.generic_money, account.premium_money))
+                };
+                self.exchanged(who, "bought", gold, bought);
             }
             // The premium shop (`shop`). `47 02` with a match id is the
             // results screen's "buy premium": the match's premium half is
@@ -484,10 +507,26 @@ impl Core<'_> {
     }
 
     /// The answer to `47 04`, either way: `83 47 04`, then the account with
-    /// its new silver and gold; or the game's text for the refusal.
-    fn exchanged(&mut self, who: &Who, result: Result<u32, rules::ActionError>) {
+    /// its new silver and gold; or the game's text for the refusal. `gold`
+    /// was asked for, and `verb` says which way (`bought` with silver, in
+    /// srp's own window, or `exchanged` for it); the result is the silver
+    /// paid or gained and the balances right after, read under the same
+    /// lock as the exchange.
+    fn exchanged(
+        &mut self,
+        who: &Who,
+        verb: &str,
+        gold: u32,
+        result: Result<(u32, u32, u32), rules::ActionError>,
+    ) {
         match result {
-            Ok(_) => {
+            Ok((silver, now_silver, now_gold)) => {
+                log::info!(
+                    "{} (account {}) {verb} {gold} gold for {silver} silver; now {now_silver} \
+                     silver, {now_gold} gold",
+                    who.name,
+                    who.account_id
+                );
                 self.send_made(who.addr, lobby::permitted_shop_event(4));
                 self.push_account(who);
             }
@@ -503,35 +542,64 @@ impl Core<'_> {
     /// money (a used-up card and silver or gold are not in `98`). `a` is
     /// the match and `b` the card's item id [PROVEN: the screen calls
     /// `use_drop_card(match id, voucher id)`, and 0x288D00 writes the two
-    /// in that order; `results.md` §3]. Only an item that is a drop card
-    /// of the account is taken, and the other order is still tried after.
+    /// in that order; `results.md` §3]. One card for each player of a
+    /// kept match, and only of a match it played in (`rewards::Results::
+    /// use_drop_card`, `drop_cards.md`); anything else is the game's
+    /// refusal and changes nothing. The other order is still tried after.
     fn use_drop_card(&mut self, who: &Who, a: u32, b: u32) {
-        let used = [(b, a), (a, b)].into_iter().find_map(|(card, match_id)| {
-            let level = self
-                .results
-                .find(match_id)
-                .map_or(0, |report| report.match_level);
-            rewards::use_drop_card(&mut who.account.locked(), card, level, &mut self.rng)
-        });
+        let mut refused = None;
+        let used = {
+            let mut account = who.account.locked();
+            [(b, a), (a, b)].into_iter().find_map(|(card, match_id)| {
+                match self.results.use_drop_card(
+                    match_id,
+                    who.account_id,
+                    &mut account,
+                    card,
+                    &mut self.rng,
+                ) {
+                    Ok((level, used)) => Some((match_id, card, level, used)),
+                    Err(why) => {
+                        // The proven order's reason is the one told.
+                        refused.get_or_insert(why);
+                        None
+                    }
+                }
+            })
+        };
         match used {
-            Some(Ok(used)) => {
+            Some((match_id, card, level, Ok(used))) => {
                 log::info!(
-                    "{} used a drop card: {} x dict {} ({} left)",
+                    "{} (account {}) used drop card {card} on match {match_id:#x} (level \
+                     {level}): {} x dict {} (item {}, rarity {}); {} cards left",
                     who.name,
+                    who.account_id,
                     used.dropped.count,
                     used.dropped.dict_id,
+                    used.dropped.item_id,
+                    used.dropped.rarity,
                     used.cards_left
                 );
                 self.send(who.addr, used.message);
                 self.push_account(who);
             }
-            Some(Err(error)) => {
+            Some((match_id, card, level, Err(error))) => {
                 // The card is spent and the item given: the pushes say so.
-                log::error!("{}'s drop could not be sent: {error}", who.name);
+                log::error!(
+                    "{} (account {}) used drop card {card} on match {match_id:#x} (level \
+                     {level}); its drop could not be sent: {error}",
+                    who.name,
+                    who.account_id
+                );
                 self.push_account(who);
             }
             None => {
-                log::info!("{}: no drop card {a} / {b} to use", who.name);
+                log::info!(
+                    "{} (account {}): drop card refused for {a:#x} / {b} ({})",
+                    who.name,
+                    who.account_id,
+                    refused.map_or_else(String::new, |why| why.to_string())
+                );
                 self.deny(who.addr, id::INVENTORY, text::DROP_CARD);
             }
         }
