@@ -1,0 +1,3520 @@
+--- a/LobbyMenu.as
++++ b/LobbyMenu.as
+@@ -115,11 +115,12 @@
+    public class LobbyMenu extends MovieClip
+    {
+       
++      public static var scaleFactor:Number = 1;
++      
+       public static var profileCost:uint;
+       
+       public static var id:LobbyMenu;
+       
+-      public static var scaleFactor:Number = 1;
+       
+       public static const INVENTORY_ELEMNENT_ID:uint = 2;
+       
+@@ -423,12 +424,12 @@
+          }
+          var rewards:Array = index == 0 ? this._tutorRewardsBattle : this._tutorRewardsItem;
+          var messData:Object = {
+-            "index":index,
+-            "label":label,
+-            "rewards":rewards,
+-            "showRewards":showRewards
++            index:index,
++            label:label,
++            rewards:rewards,
++            showRewards:showRewards
+          };
+-         this.survivalVisible = true;
++         survivalVisible = true;
+          var mess:* = Message.showMessage(message,messData);
+          mess.addEventListener(Event.REMOVED_FROM_STAGE,this.onMessRemoved);
+       }
+@@ -437,7 +438,7 @@
+       {
+          trace("onMessRemoved");
+          removeEventListener(Event.REMOVED_FROM_STAGE,this.onMessRemoved);
+-         this.survivalVisible = false;
++         survivalVisible = false;
+       }
+       
+       public function setTDMEnabled(value:Boolean) : void
+@@ -463,7 +464,7 @@
+          this.setTopmostLevel(target,false);
+          var spriteHighlight:MovieClip = (target as MovieClip).highlightRender;
+          trace("spriteHighlight",spriteHighlight);
+-         if(Boolean(spriteHighlight) && this.spriteHighlightContainer.contains(spriteHighlight))
++         if((spriteHighlight) && this.spriteHighlightContainer.contains(spriteHighlight))
+          {
+             this.spriteHighlightContainer.removeChild(spriteHighlight);
+          }
+@@ -480,13 +481,13 @@
+       
+       public function highlight_element(value:*, value2:Boolean = true) : void
+       {
+-         var target:InteractiveObject = null;
+-         var spriteHighlight:MovieClip = null;
+-         var origin:Point = null;
+-         var point:Point = null;
+-         var xOffset:int = 0;
+-         var yOffset:int = 0;
+-         var sizeOffset:int = 0;
++         var target:InteractiveObject;
++         var spriteHighlight:MovieClip;
++         var origin:Point;
++         var point:Point;
++         var xOffset:int;
++         var yOffset:int;
++         var sizeOffset:int;
+          trace("highlight_element",value,value2);
+          if(value2)
+          {
+@@ -547,9 +548,9 @@
+          var target:AmmoShareElement = e.target as AmmoShareElement;
+          this.setTopmostLevel(target,false);
+          target.removeEventListener(Event.REMOVED_FROM_STAGE,this.onRendererRemoved);
+-         this._removedIndex = target.arrayIndex;
++         _removedIndex = target.arrayIndex;
+          var spriteHighlight:MovieClip = (target as MovieClip).highlightRender;
+-         if(Boolean(spriteHighlight) && this.spriteHighlightContainer.contains(spriteHighlight))
++         if((spriteHighlight) && this.spriteHighlightContainer.contains(spriteHighlight))
+          {
+             this.spriteHighlightContainer.removeChild(spriteHighlight);
+          }
+@@ -585,7 +586,7 @@
+       {
+          this.inventory_list.filterItems(value);
+          this.inventory_list.ignoreSelection = true;
+-         this._inventoryHighlight = true;
++         _inventoryHighlight = true;
+          for(var i:uint = 0; i < value.length; i++)
+          {
+             this.highlight_element(this.inventory_list.getItemRenderer(value[i]),true);
+@@ -605,13 +606,13 @@
+       
+       public function clean_highlight() : void
+       {
+-         var renderer:MovieClip = null;
+-         while(Boolean(this.spriteHighlightContainer.numChildren))
++         while((this.spriteHighlightContainer.numChildren))
+          {
+             this.spriteHighlightContainer.removeChildAt(0);
+          }
+          for(var i:uint = 0; i < this.highlightArray.length; i++)
+          {
++            var renderer:MovieClip;
+             renderer = this.highlightArray[i];
+             this.setTopmostLevel(renderer,false);
+             renderer.removeEventListener(Event.RENDER,this.onRendererUpdate);
+@@ -627,7 +628,7 @@
+          this.setTopmostLevel(this.tipContainer,false);
+          if(this._inventoryHighlight)
+          {
+-            this._inventoryHighlight = false;
++            _inventoryHighlight = false;
+          }
+       }
+       
+@@ -651,11 +652,11 @@
+       
+       public function show_slide(text1:String, text2:String = "", closable:Boolean = true) : void
+       {
+-         var rendererClass:Class = null;
++         var rendererClass:Class;
+          if(this._tutorTextSlide == null)
+          {
+             rendererClass = getDefinitionByName("TutorialSlide") as Class;
+-            this._tutorTextSlide = new rendererClass();
++            _tutorTextSlide = new rendererClass();
+          }
+          this.tutorBack.alpha = 0.3;
+          this.tutorBack.width = MainScene.stageWidth;
+@@ -676,29 +677,29 @@
+       
+       private function onSlideClose(e:Event) : void
+       {
+-         if(Boolean(this._tutorTextSlide))
++         if((this._tutorTextSlide))
+          {
+             this._tutorTextSlide.removeEventListener(Event.CLOSE,this.onSlideClose);
+             removeChild(this.tutorBack);
+             removeChild(this._tutorTextSlide);
+-            this._tutorTextSlide = null;
++            _tutorTextSlide = null;
+             this.clean_highlight();
+          }
+       }
+       
+       public function set_tutorial_rewards(value:Array) : void
+       {
+-         var rewards:Array = null;
+-         var rewardname:String = null;
+          trace("set_tutorial_rewards",value);
+          for(var i:uint = 0; i < value.length; i++)
+          {
++            var rewards:Array;
++            var rewardname:String;
+             trace("iterate::",i,value[i].name,value[i].reward);
+             if(value[i].reward == undefined)
+             {
+-               this._tutorRewards = value;
+-               this._tutorRewardsItem = value;
+-               this._tutorRewardsBattle = value;
++               _tutorRewards = value;
++               _tutorRewardsItem = value;
++               _tutorRewardsBattle = value;
+                this._itemFactory.fillRewardItems(this._tutorRewards);
+                this._tutorRewardsD["tutorial_completed"] = this._tutorRewards;
+                this._tutorRewardsD["survival_item_notes_completed"] = this._tutorRewards;
+@@ -713,19 +714,19 @@
+             if(rewardname == "tutorial_completed")
+             {
+                trace("_tutorRewardsUpdated",rewards);
+-               this._tutorRewards = rewards;
+-               this._tutorRewardsNicname = rewards.concat();
++               _tutorRewards = rewards;
++               _tutorRewardsNicname = rewards.concat();
+                this._itemFactory.fillRewardItems(this._tutorRewardsNicname);
+             }
+             else if(rewardname == "survival_item_notes_completed")
+             {
+                trace("_tutorRewardsItemUpdated",rewards);
+-               this._tutorRewardsItem = rewards;
++               _tutorRewardsItem = rewards;
+             }
+             else if(rewardname == "survival_prepare_to_battle_notes_completed")
+             {
+                trace("_tutorRewardsBattleUpdated",rewards);
+-               this._tutorRewardsBattle = rewards;
++               _tutorRewardsBattle = rewards;
+             }
+          }
+       }
+@@ -734,10 +735,10 @@
+       {
+          trace("show_tutorial_complete_message");
+          var messageData:Object = {
+-            "label":LocalizationData.getName("tutorial_complete_label"),
+-            "reward_1":(Boolean(this._tutorRewards) && Boolean(this._tutorRewards[0]) ? this._tutorRewards[0].data : null),
+-            "reward_2":(Boolean(this._tutorRewards) && Boolean(this._tutorRewards[1]) ? this._tutorRewards[1].data : null),
+-            "reward_3":(Boolean(this._tutorRewards) && Boolean(this._tutorRewards[2]) ? this._tutorRewards[2].data : null)
++            label:LocalizationData.getName("tutorial_complete_label"),
++            reward_1:((this._tutorRewards) && (this._tutorRewards[0]) ? this._tutorRewards[0].data : null),
++            reward_2:((this._tutorRewards) && (this._tutorRewards[1]) ? this._tutorRewards[1].data : null),
++            reward_3:((this._tutorRewards) && (this._tutorRewards[2]) ? this._tutorRewards[2].data : null)
+          };
+          Message.showMessage("tutorial_complete",messageData,true);
+       }
+@@ -745,29 +746,29 @@
+       public function show_tutorial_complete_message2() : void
+       {
+          var messageData:Object = {
+-            "label":LocalizationData.getName("tutorial_complete_label2"),
+-            "reward_1":(Boolean(this._tutorRewardsBattle) && Boolean(this._tutorRewardsBattle[0]) ? this._tutorRewardsBattle[0].data : null),
+-            "reward_2":(Boolean(this._tutorRewardsBattle) && Boolean(this._tutorRewardsBattle[1]) ? this._tutorRewardsBattle[1].data : null),
+-            "reward_3":(Boolean(this._tutorRewardsBattle) && Boolean(this._tutorRewardsBattle[2]) ? this._tutorRewardsBattle[2].data : null)
++            label:LocalizationData.getName("tutorial_complete_label2"),
++            reward_1:((this._tutorRewardsBattle) && (this._tutorRewardsBattle[0]) ? this._tutorRewardsBattle[0].data : null),
++            reward_2:((this._tutorRewardsBattle) && (this._tutorRewardsBattle[1]) ? this._tutorRewardsBattle[1].data : null),
++            reward_3:((this._tutorRewardsBattle) && (this._tutorRewardsBattle[2]) ? this._tutorRewardsBattle[2].data : null)
+          };
+          Message.showMessage("tutorial_complete",messageData);
+       }
+       
+       public function show_tutorial_choose_name_message(textName:String = null) : void
+       {
+-         var rendererClass:Class = null;
++         var rendererClass:Class;
+          trace("show_tutorial_choose_name_message",textName);
+          if(this.tutorSlide1 == null)
+          {
+             rendererClass = getDefinitionByName("TutorSlide1") as Class;
+-            this.tutorSlide1 = new rendererClass();
++            tutorSlide1 = new rendererClass();
+          }
+          trace("show_tutorial_choose_name_message_rewards::",this._tutorRewards);
+          this.tutorSlide1.data = {
+-            "nickname":PlayerInfo.nickname,
+-            "reward_1":(Boolean(this._tutorRewardsNicname) && Boolean(this._tutorRewardsNicname[0]) ? this._tutorRewardsNicname[0].data : null),
+-            "reward_2":(Boolean(this._tutorRewardsNicname) && Boolean(this._tutorRewardsNicname[1]) ? this._tutorRewardsNicname[1].data : null),
+-            "reward_3":(Boolean(this._tutorRewardsNicname) && Boolean(this._tutorRewardsNicname[2]) ? this._tutorRewardsNicname[2].data : null)
++            nickname:PlayerInfo.nickname,
++            reward_1:((this._tutorRewardsNicname) && (this._tutorRewardsNicname[0]) ? this._tutorRewardsNicname[0].data : null),
++            reward_2:((this._tutorRewardsNicname) && (this._tutorRewardsNicname[1]) ? this._tutorRewardsNicname[1].data : null),
++            reward_3:((this._tutorRewardsNicname) && (this._tutorRewardsNicname[2]) ? this._tutorRewardsNicname[2].data : null)
+          };
+          this.tutorSlide1.x = (MainScene.stageWidth - this.tutorSlide1.width) / 2;
+          this.tutorSlide1.y = (MainScene.stageHeight - this.tutorSlide1.height) / 2;
+@@ -781,12 +782,12 @@
+       
+       private function onTutotNameClose(e:Event) : void
+       {
+-         if(Boolean(this.tutorSlide1))
++         if((this.tutorSlide1))
+          {
+             this.tutorSlide1.removeEventListener(Event.CLOSE,this.onTutotNameClose);
+             removeChild(this.tutorBack);
+             removeChild(this.tutorSlide1);
+-            this.tutorSlide1 = null;
++            tutorSlide1 = null;
+          }
+       }
+       
+@@ -922,9 +923,8 @@
+       
+       private function init() : void
+       {
+-         var styleObject:Object = null;
+-         var font:Font = null;
+          var style:StyleSheet = new StyleSheet();
++         var styleObject:Object;
+          styleObject = new Object();
+          styleObject.color = "#b3ea97";
+          style.setStyle("current",styleObject);
+@@ -978,34 +978,34 @@
+          styleObject.color = "#FEE1B5";
+          style.setStyle("tutorial_highlight",styleObject);
+          MainScene.textStyleSheet = style;
+-         this.topMenu = new SrvTopMenu();
+-         this.lobbyGameLoad = new SrvLobbyGameLoad();
+-         this.ranking = new SrvPlayerRanking();
+-         this.victory_screen = new SrvVictoryScreenReskin();
++         topMenu = new SrvTopMenu();
++         lobbyGameLoad = new SrvLobbyGameLoad();
++         ranking = new SrvPlayerRanking();
++         victory_screen = new SrvVictoryScreenReskin();
+          this.victory_screen.registerHintRenderer(new InventoryItemHint());
+          this.victory_screen.addEventListener("try_buy_maps",this.onBuyMaps);
+          this.victory_screen.addEventListener(Events.SHOW_PLAYER_INFO,this.onVSPlayerInfo);
+-         this.friendsMenu = new SrvFriendsMenuReskin();
+-         this.clanWindow = new SrvClanWindow();
+-         this.item_control = new SrvSelectedItemControl();
+-         this.dragRegion = new SrvDragRegion();
+-         this.bottom_panel = new SrvBottomPanel();
+-         this.invitesContainer = new InviteListContainer();
+-         this.charWindow = new SrvCharWindow();
++         friendsMenu = new SrvFriendsMenuReskin();
++         clanWindow = new SrvClanWindow();
++         item_control = new SrvSelectedItemControl();
++         dragRegion = new SrvDragRegion();
++         bottom_panel = new SrvBottomPanel();
++         invitesContainer = new InviteListContainer();
++         charWindow = new SrvCharWindow();
+          this.charWindow.registerRenderer(SrvSkillRendererCh);
+-         this.player_profile = new SrvLocalPlayerProfile();
+-         this.ammoShare = AmmoShareLite.getInstance();
++         player_profile = new SrvLocalPlayerProfile();
++         ammoShare = AmmoShareLite.getInstance();
+          this.ammoShare.registerRenderer(SrvAmmoElement);
+          this.player_profile.setAmmoShare(this.ammoShare);
+-         this.profileSelector = new SrvProfileSelector();
++         profileSelector = new SrvProfileSelector();
+          this.profileSelector.tabPage.addEventListener(MouseEvent.CLICK,this.onProfileContextMenu);
+          this.profileSelector.tabPage.addEventListener(Events.RENAME,this.onProfileRenameClicked);
+          this.player_profile.addChild(this.profileSelector);
+          this.profileSelector.x = 9;
+          this.profileSelector.y = 42;
+-         this.modifierWindow = new SrvModifiersControlReskin();
+-         this.notificationList = new SrvNotificationListSC();
+-         this.notificationListTemp = new SrvNotificationList();
++         modifierWindow = new SrvModifiersControlReskin();
++         notificationList = new SrvNotificationListSC();
++         notificationListTemp = new SrvNotificationList();
+          this.notificationList.registerRenderer(0,NotificationRendererSkinned);
+          this.notificationList.registerRenderer(1,NotificationQuestRendererSkinned);
+          this.notificationList.registerRenderer(2,NotificationInvitedRewardRenderer);
+@@ -1022,8 +1022,8 @@
+          this.notificationListTemp.registerRenderer(8,FactionRankNotif);
+          this.notificationListTemp.registerRenderer(9,PlayerRankNotif);
+          this.notificationListTemp.visible = true;
+-         this.chat = new SrvLobbyChat();
+-         this.inventory_list = new SrvInventoryReskin();
++         chat = new SrvLobbyChat();
++         inventory_list = new SrvInventoryReskin();
+          this.inventory_list.name = "inventory_list";
+          this.inventory_list.itemsTileList.addEventListener(ListEvent.ITEM_ROLL_OVER,this.showItemHint);
+          this.inventory_list.itemsTileList.addEventListener(ListEvent.ITEM_ROLL_OUT,this.hideItemHint);
+@@ -1039,15 +1039,15 @@
+          this.player_profile.profileItems.addEventListener(ListEvent.ITEM_ROLL_OVER,this.showPdItemHint);
+          this.player_profile.profileItems.addEventListener(ListEvent.ITEM_ROLL_OUT,this.hideItemHint);
+          this.player_profile.profileItems.addEventListener(PaperDollBase.PAPERDOLL_UPDATED,this.updateHintItem);
+-         this.shop_list = new SrvGangShop();
++         shop_list = new SrvGangShop();
+          this.shop_list.name = "inventory_list";
+-         this.questWindow = new SrvQuestWindowSkinned();
++         questWindow = new SrvQuestWindowSkinned();
+          this.questWindow.addEventListener(Event.CONNECT,this.showActivedQuestList);
+          this.questWindow.addEventListener(QuestWindow.GOTO_SHOP,this.showFactionInShop);
+-         this.squadList = new SrvSquadPanel();
++         squadList = new SrvSquadPanel();
+          this.squadList.setFriendsList(this.friendsMenu);
+-         this.questList = new SrvQuestsPanel();
+-         this.playerLoadingIndicator = new LoadingIndicator();
++         questList = new SrvQuestsPanel();
++         playerLoadingIndicator = new LoadingIndicator();
+          this.questWindow.register_external_renderer(this.questList);
+          this.chat.tapPageRenderer = this.bottom_panel.tabsBar;
+          this.shop_list.registerReputationsContainer(this.questWindow);
+@@ -1155,7 +1155,7 @@
+          stage.addEventListener(MouseCursorEvent.CURSOR_CHANGE,this.onChangeCursor);
+          this.parseSpriteSheets();
+          this.item_control.setModifiersIcons(this._modifiers_i);
+-         this._itemDescriptor = new ItemDescriptor("InventoryItems");
++         _itemDescriptor = new ItemDescriptor("InventoryItems");
+          this.inventory_list.registerItemDescriptor(this._itemDescriptor);
+          this.inventory_list.addEventListener(DragEvent.DRAG_START,this.dragCallback,false,-1);
+          this.inventory_list.addEventListener(DragEvent.DRAG_END,this.dragCallback,false,-1);
+@@ -1169,7 +1169,7 @@
+          this.shop_list.setInventory(this.inventory_list);
+          this.questWindow.register_inventory(this.inventory_list);
+          stage.addEventListener(Event.RESIZE,this.onStageResize);
+-         this.statusPanel = new SrvTopMenuContainer();
++         statusPanel = new SrvTopMenuContainer();
+          this.statusPanel.addEventListener(StatusPanel.SHOW_DAILY_MESSAGE,this.show_daily_reward_window_on_event);
+          this.statusPanel.addEventListener(StatusPanel.MATCH_SETTINGS,this.onMatchSettigsToggle);
+          this.statusPanel.matchSettings.addEventListener(MatchMakingSettings.TOURNAMENT_SELECTED,this.openTournamentWindow2);
+@@ -1192,6 +1192,7 @@
+          AmmoShareLite.setItemCard(this.item_control);
+          trace("Lobby::fonts_embed");
+          var fonts:Array = Font.enumerateFonts();
++         var font:Font;
+          for each(font in fonts)
+          {
+             trace(font.fontName + ":" + font.fontType);
+@@ -1205,21 +1206,21 @@
+       
+       private function onProfileRenameClicked(e:Event) : void
+       {
+-         var profileId:int = int(e.target.data.index);
++         var profileId:int = (e.target.data.index);
+          var profileName:String = e.target.data.name;
+          trace("onProfileRenameClicked",profileId,profileName);
+          this.showProfileRename({
+-            "profileId":profileId,
+-            "profileName":profileName
++            profileId:profileId,
++            profileName:profileName
+          });
+       }
+       
+       private function onProfileContextMenu(e:MouseEvent) : void
+       {
+-         var options:Array = null;
+          var sfEvent:MouseEventEx = e as MouseEventEx;
+          trace("onProfileContextMenu",sfEvent,e.target,e.currentTarget);
+          var mouseIdx:uint = sfEvent == null ? 0 : sfEvent.buttonIdx;
++         var options:Array;
+          trace("mouseIdx",mouseIdx,sfEvent.mouseIdx,sfEvent.buttonIdx);
+          if(mouseIdx == 0 && e.target is Button)
+          {
+@@ -1230,7 +1231,7 @@
+                if(this.player_profile.buyPremium.visible == false)
+                {
+                   this.player_profile.buyPremium.visible = true;
+-                  this.player_profile.buyPremium.setData({"options":this.statusPanel.getPremiumStore()});
++                  this.player_profile.buyPremium.setData({options:this.statusPanel.getPremiumStore()});
+                }
+             }
+             else
+@@ -1238,15 +1239,15 @@
+                this.player_profile.buyPremium.visible = false;
+             }
+          }
+-         else if(mouseIdx == 1 && e.target is Button && Boolean(e.target.enabled))
++         else if(mouseIdx == 1 && e.target is Button && (e.target.enabled))
+          {
+             options = [];
+             options.push({
+-               "name":LocalizationData.getName("profile_rename"),
+-               "profileId":e.target.data.index,
+-               "profileName":e.target.data.name,
+-               "click_function":this.showProfileRename,
+-               "callBack":true
++               name:LocalizationData.getName("profile_rename"),
++               profileId:e.target.data.index,
++               profileName:e.target.data.name,
++               click_function:this.showProfileRename,
++               callBack:true
+             });
+             SrvContextMenu.show(options);
+          }
+@@ -1255,13 +1256,13 @@
+       private function showProfileRename(value:Object) : void
+       {
+          Message.showMessage("rename",{
+-            "windowLabel":LocalizationData.getName("profile_rename_label"),
+-            "acceptLabel":LocalizationData.getName("ok"),
+-            "cancelLabel":LocalizationData.getName("cancel"),
+-            "defaultText":LocalizationData.getName("enter_profile_name"),
+-            "currentName":value.profileName,
+-            "externalInterface":"profile_rename",
+-            "externalData":value.profileId
++            windowLabel:LocalizationData.getName("profile_rename_label"),
++            acceptLabel:LocalizationData.getName("ok"),
++            cancelLabel:LocalizationData.getName("cancel"),
++            defaultText:LocalizationData.getName("enter_profile_name"),
++            currentName:value.profileName,
++            externalInterface:"profile_rename",
++            externalData:value.profileId
+          });
+       }
+       
+@@ -1292,30 +1293,30 @@
+       
+       private function show_tutorial(value:uint) : void
+       {
+-         var posOfLine:int = 0;
+-         var posOfLineY:int = 0;
+-         var profileLock:Sprite = null;
+-         var lock:Sprite = null;
+-         var openTabButton:Button = null;
+-         var emmoBtnY:int = 0;
+-         if(Boolean(this._tutorialSliders) && Boolean(this._tutorialSliders.parent))
++         var posOfLine:int;
++         var posOfLineY:int;
++         var profileLock:Sprite;
++         var lock:Sprite;
++         var openTabButton:Button;
++         var emmoBtnY:int;
++         if((this._tutorialSliders) && (this._tutorialSliders.parent))
+          {
+             removeChild(this._tutorialSliders);
+          }
+-         this._tutorialSliders = new TutorialSliders();
++         _tutorialSliders = new TutorialSliders();
+          if(value == 0)
+          {
+-            if(Boolean(this._tutorialSliders.parent))
++            if((this._tutorialSliders.parent))
+             {
+                removeChild(this._tutorialSliders);
+             }
+             lock = getChildByName("tutorialProfileLock") as Sprite;
+-            if(Boolean(lock))
++            if((lock))
+             {
+                removeChild(lock);
+             }
+             lock = getChildByName("tutorialInventoryLock") as Sprite;
+-            if(Boolean(lock))
++            if((lock))
+             {
+                removeChild(lock);
+             }
+@@ -1324,10 +1325,10 @@
+                this.inventory_list.focusCategory(-1);
+                this.inventory_list.lockControls(false);
+             }
+-            this._tutorialIndex = -1;
++            _tutorialIndex = -1;
+             return;
+          }
+-         this._tutorialIndex = value;
++         _tutorialIndex = value;
+          addChild(this._tutorialSliders);
+          this._tutorialSliders.background.width = MainScene.stageWidth;
+          this._tutorialSliders.background.height = MainScene.stageHeight;
+@@ -1449,20 +1450,20 @@
+          {
+             this.itemHintRenderer.alpha = 0;
+             TweenLite.to(this.itemHintRenderer,length,{
+-               "delay":delay,
+-               "alpha":1
++               delay:delay,
++               alpha:1
+             });
+          }
+       }
+       
+       private function updateHintItem(e:Event) : void
+       {
+-         var oldData:ItemData = null;
+-         var curerrentSlot:IPaperDollSlot = null;
+-         var newData:ItemData = null;
+          trace("updateHintItem",this.itemHintRendererSec.data);
+-         var hintTarget:ItemInfoRenderer = Boolean(this.itemHintRendererSec.parent) ? this.itemHintRendererSec : this.itemHintRenderer;
+-         if(Boolean(hintTarget.parent) && Boolean(hintTarget.data))
++         var hintTarget:ItemInfoRenderer = (this.itemHintRendererSec.parent) ? this.itemHintRendererSec : this.itemHintRenderer;
++         var oldData:ItemData;
++         var curerrentSlot:IPaperDollSlot;
++         var newData:ItemData;
++         if((hintTarget.parent) && (hintTarget.data))
+          {
+             oldData = hintTarget.data as ItemData;
+             curerrentSlot = this.player_profile.profileItems.getSlotAt(oldData.slotId);
+@@ -1492,7 +1493,7 @@
+       
+       private function showItemHint(e:ListEvent) : void
+       {
+-         var secondData:Object = null;
++         var secondData:Object;
+          if(!e.itemData || this.inventory_list.bundleList.visible && e.itemData.dictId == this.inventory_list.bundleList.itemId)
+          {
+             return;
+@@ -1501,12 +1502,12 @@
+          this.itemHintRenderer.mouseEnabled = this.itemHintRenderer.mouseChildren = false;
+          this.itemHintRendererSec.mouseEnabled = this.itemHintRendererSec.mouseChildren = false;
+          this.itemHintRenderer.displayOrange(true);
+-         if(Boolean(this._pdTarget))
++         if((this._pdTarget))
+          {
+             this._pdTarget.removeEventListener(Event.RENDER,this.onHintTargetRender);
+-            this._pdTarget = null;
+-         }
+-         this._pdTarget = e.itemRenderer as MovieClip;
++            _pdTarget = null;
++         }
++         _pdTarget = e.itemRenderer as MovieClip;
+          this._pdTarget.addEventListener(Event.RENDER,this.onHintTargetRender);
+          addChild(this.itemHintRenderer);
+          if(e.target is ScrollingList)
+@@ -1525,7 +1526,7 @@
+          {
+             secondData = null;
+          }
+-         if(Boolean(secondData))
++         if((secondData))
+          {
+             this.itemHintRenderer.displaylabel(true);
+             this.itemHintRendererSec.displaylabel(true);
+@@ -1548,16 +1549,16 @@
+          this.itemHintRenderer.alpha = 0;
+          TweenLite.killTweensOf(this.itemHintRenderer);
+          TweenLite.to(this.itemHintRenderer,length,{
+-            "delay":delay,
+-            "alpha":1
++            delay:delay,
++            alpha:1
+          });
+-         if(Boolean(this.itemHintRendererSec.parent))
++         if((this.itemHintRendererSec.parent))
+          {
+             this.itemHintRendererSec.alpha = 0;
+             TweenLite.killTweensOf(this.itemHintRendererSec);
+             TweenLite.to(this.itemHintRendererSec,length,{
+-               "delay":delay,
+-               "alpha":1
++               delay:delay,
++               alpha:1
+             });
+          }
+          this.setTopmostLevel(this.itemHintRenderer,true);
+@@ -1566,9 +1567,7 @@
+       
+       private function onHintTargetRender(e:Event) : void
+       {
+-         var maxPos:int = 0;
+-         var itemHintSecBottomPos:int = 0;
+-         if(Boolean(this._pdTarget) && Boolean(this._pdTarget.data) && this._pdTarget.data.descriptor == 0)
++         if((this._pdTarget) && (this._pdTarget.data) && this._pdTarget.data.descriptor == 0)
+          {
+             this.itemHintRenderer.y = this.inventory_list.y + this._pdTarget.y + this.inventory_list.bundleList.y + 55;
+          }
+@@ -1577,7 +1576,9 @@
+             this.itemHintRenderer.y = this.inventory_list.y + this._pdTarget.y + this.inventory_list.itemsTileList.y - 3;
+          }
+          var itemHintBottomPos:int = this.itemHintRenderer.y + this.itemHintRenderer.height;
+-         if(Boolean(this.itemHintRendererSec.parent))
++         var maxPos:int;
++         var itemHintSecBottomPos:int;
++         if((this.itemHintRendererSec.parent))
+          {
+             itemHintSecBottomPos = this.itemHintRenderer.y + this.itemHintRendererSec.height;
+             maxPos = Math.max(itemHintBottomPos,itemHintSecBottomPos);
+@@ -1590,7 +1591,7 @@
+          {
+             this.itemHintRenderer.y -= maxPos - MainScene.stageHeight;
+          }
+-         if(Boolean(this.itemHintRendererSec.parent))
++         if((this.itemHintRendererSec.parent))
+          {
+             this.itemHintRendererSec.y = this.itemHintRenderer.y;
+             this.itemHintRendererSec.x = this.itemHintRenderer.x - this.itemHintRenderer.width - 1;
+@@ -1599,10 +1600,10 @@
+       
+       private function hideItemHint(e:Event) : void
+       {
+-         if(Boolean(this._pdTarget))
++         if((this._pdTarget))
+          {
+             this._pdTarget.removeEventListener(Event.RENDER,this.onHintTargetRender);
+-            this._pdTarget = null;
++            _pdTarget = null;
+          }
+          trace("hideItemHint");
+          if(this.contains(this.itemHintRenderer))
+@@ -1621,7 +1622,7 @@
+          var reportData:Object = e;
+          this.show_victory_screen();
+          this.victory_screen.setData(reportData,true);
+-         if(Boolean(reportData) && Boolean(reportData.statistics_money))
++         if((reportData) && (reportData.statistics_money))
+          {
+             trace("showFullReaport::",reportData.statistics_money.autobuy_money,reportData.statistics_money.autorepair_money);
+             this.victory_screen.setSpendMoneyDetailed(reportData.statistics_money.autobuy_money_ammo_arr,reportData.statistics_money.autobuy_money_consulables_arr,reportData.statistics_money.autorepair_money_arr);
+@@ -1642,19 +1643,19 @@
+          this._wheelsMC.y = (stage.stageHeight - this._wheelsMC.height) / 2;
+          stage.addChild(this._wheelsMC);
+          TweenLite.to(this._wheelBack,1,{
+-            "delay":2,
+-            "alpha":0,
+-            "onComplete":this.hideWheels
++            delay:2,
++            alpha:0,
++            onComplete:this.hideWheels
+          });
+          TweenLite.to(this._wheelsMC,0,{
+-            "delay":2,
+-            "alpha":0
++            delay:2,
++            alpha:0
+          });
+       }
+       
+       private function hideWheels() : void
+       {
+-         if(Boolean(this._wheelBack.parent))
++         if((this._wheelBack.parent))
+          {
+             this._wheelsMC.playAnimation(false);
+             TweenLite.killTweensOf(this._wheelBack);
+@@ -1682,21 +1683,21 @@
+       private function test_craft_data() : void
+       {
+          var testObject:Object = {
+-            "craft_time":90 * 60,
+-            "regular_cost":12,
+-            "premium_cost":22,
+-            "success_chance_regular":12,
+-            "fail_chance_regular":88,
+-            "success_chance_gold":50,
+-            "fail_chance_gold":50
++            craft_time:90 * 60,
++            regular_cost:12,
++            premium_cost:22,
++            success_chance_regular:12,
++            fail_chance_regular:88,
++            success_chance_gold:50,
++            fail_chance_gold:50
+          };
+          this.fill_craft_data(testObject);
+       }
+       
+       public function fill_craft_data(value:Object) : void
+       {
+-         this._craftData = value;
+-         if(Boolean(this.craftWindow))
++         _craftData = value;
++         if((this.craftWindow))
+          {
+             this.craftWindow.fillCraftData(value);
+          }
+@@ -1704,21 +1705,21 @@
+       
+       public function fill_crafted_item(value:Object) : void
+       {
+-         var icon:Icon = null;
+          var itemData:ItemData = this.inventory_list.createItem(value.dict_id);
+-         if(Boolean(value.modifiers))
++         if((value.modifiers))
+          {
+             itemData.modifiers = (value.modifiers as Array).concat(itemData.modifiersDefault);
+          }
+          itemData.value = value.condition_or_stack;
+-         var rank:int = int(value.rarity_level);
++         var rank:int = (value.rarity_level);
+          itemData.rank = rank;
+          itemData.clipSize = 1;
+          itemData.upgrades = [];
+          this.inventory_list.fillModifiersDescription(itemData);
+          var modifiersIconContainer:IconContainer = IconContainer.getInstance("modifiers");
+          var newModifier:Object = value.new_modifier;
+-         if(Boolean(newModifier))
++         var icon:Icon;
++         if((newModifier))
+          {
+             this.inventory_list.fillModifierDescription(newModifier);
+             icon = modifiersIconContainer.getIcon(newModifier.icon);
+@@ -1765,15 +1766,15 @@
+       
+       public function show_choose_faction_message() : void
+       {
+-         var messageData:Object = {"acceptCallback":this.accept_show_quests_toggle};
++         var messageData:Object = {acceptCallback:this.accept_show_quests_toggle};
+          Message.showMessage("no_faction",messageData,true);
+       }
+       
+       public function on_item_sold(value:uint) : void
+       {
+          var itemData:ItemData = this.inventory_list.getInventoryItem(value) as ItemData;
+-         trace("on_item_sold::",value,itemData,Boolean(itemData) ? itemData.equipped : "nl",Boolean(itemData) ? itemData.slotTarget : "nl");
+-         if(Boolean(itemData) && Boolean(itemData.equipped) && Boolean(itemData.slotTarget))
++         trace("on_item_sold::",value,itemData,(itemData) ? itemData.equipped : "nl",(itemData) ? itemData.slotTarget : "nl");
++         if((itemData) && (itemData.equipped) && (itemData.slotTarget))
+          {
+             trace("on_item_sold::drop_upgrade_item",itemData.slotTarget,uint(itemData.itemId));
+             ExternalInterface.call("drop_upgrade_item",itemData.slotTarget,uint(itemData.itemId));
+@@ -1791,7 +1792,7 @@
+       public function handle_nickname_validation(result:Boolean, name:String = null, message:String = null) : void
+       {
+          trace("handle_nickname_validation",result,name,"message",message);
+-         if(Boolean(this.tutorSlide1))
++         if((this.tutorSlide1))
+          {
+             this.tutorSlide1.handleNicknameValidation(result,name,message);
+          }
+@@ -1837,8 +1838,8 @@
+       {
+          trace("update_inventory_item");
+          var temp_object:Object = {
+-            "id":8910,
+-            "condition_or_stack":75
++            id:8910,
++            condition_or_stack:75
+          };
+          this.update_inventory_item(temp_object);
+       }
+@@ -1852,21 +1853,19 @@
+       
+       private function test_matchmaking() : void
+       {
+-         var sp:Array;
+-         var i:uint;
+-         var level:int = 0;
+          var getSearchProp:Function = function():Object
+          {
+             ++level;
+             return {
+-               "value":1,
+-               "level":level
++               value:1,
++               level:level
+             };
+          };
++         var level:int;
+          trace("test_matchmaking");
+          level = -1;
+-         sp = [];
+-         for(i = 0; i < 30; i++)
++         var sp:Array = [];
++         for(var i:uint = 0; i < 30; i++)
+          {
+             sp.push(getSearchProp());
+          }
+@@ -1900,7 +1899,7 @@
+       private function dragCallback(e:DragEvent) : void
+       {
+          trace("DRAG_CALL_BACK::",e.type,this.player_profile.visible);
+-         if(Boolean(this.craftWindow) && Boolean(this.craftWindow.parent))
++         if((this.craftWindow) && (this.craftWindow.parent))
+          {
+             this.craftWindow.onDrag(e);
+          }
+@@ -1947,19 +1946,19 @@
+       {
+          var arr:Array = [];
+          arr.push({
+-            "name":"ilya@vostok.com",
+-            "status":0
++            name:"ilya@vostok.com",
++            status:0
+          });
+          arr.push({
+-            "name":"ilya10@vostok.com",
+-            "status":1
++            name:"ilya10@vostok.com",
++            status:1
+          });
+          for(var i:uint = 0; i < 9; i++)
+          {
+             arr.push({
+-               "name":"ilia" + i.toString(),
+-               "status":int(i / 3) + 1,
+-               "ready":true
++               name:"ilia" + i.toString(),
++               status:int(i / 3) + 1,
++               ready:true
+             });
+          }
+          this.fill_clan_team(arr);
+@@ -1968,12 +1967,12 @@
+       public function fill_clan_team(value:Array) : void
+       {
+          this._tournament.setPlayersData(value);
+-         this.squadList.lock(PlayerInfo.isInTeam && Boolean(this._tournament.parent));
++         this.squadList.lock(PlayerInfo.isInTeam && (this._tournament.parent));
+       }
+       
+       private function onMatchSettigsToggle() : void
+       {
+-         if(Boolean(this._tournament))
++         if((this._tournament))
+          {
+             this.updateTournamentPosition();
+          }
+@@ -1981,7 +1980,7 @@
+       
+       private function onTournamentClose(e:Event) : void
+       {
+-         if(Boolean(this._tournament.parent))
++         if((this._tournament.parent))
+          {
+             this.statusPanel.matchSettings.deselectClanMatchCheckbox();
+          }
+@@ -1989,7 +1988,7 @@
+       
+       private function onTournamentFold(e:Event) : void
+       {
+-         if(Boolean(this._tournament.parent))
++         if((this._tournament.parent))
+          {
+             this.updateTournamentPosition();
+          }
+@@ -1998,14 +1997,14 @@
+       public function checkbox_tournament_match_clicked(value:Boolean) : void
+       {
+          this.statusPanel.matchSettings.setTournamentResult(value);
+-         if(Boolean(this.statusPanel.matchSettings.checkBoxClan.selected))
++         if((this.statusPanel.matchSettings.checkBoxClan.selected))
+          {
+             if(!this._tournament.parent)
+             {
+                this.openTournamentWindow();
+             }
+          }
+-         else if(Boolean(this._tournament.parent))
++         else if((this._tournament.parent))
+          {
+             this.closeTournamentWindow();
+          }
+@@ -2053,7 +2052,7 @@
+       
+       private function closeTournamentWindow(e:Event = null) : void
+       {
+-         if(Boolean(this._tournament))
++         if((this._tournament))
+          {
+          }
+          ExternalInterface.call("clan_match_closed");
+@@ -2064,9 +2063,9 @@
+       private function openCraftWindow(e:Event) : void
+       {
+          var itemData:ItemData = this.item_control.getItemData().clone();
+-         this.craftWindow = new SrvMessageCraftItemSkinned();
++         craftWindow = new SrvMessageCraftItemSkinned();
+          this.craftWindow.setMessageData(0,itemData);
+-         if(Boolean(this._craftData))
++         if((this._craftData))
+          {
+             this.craftWindow.fillCraftData(this._craftData);
+          }
+@@ -2098,7 +2097,7 @@
+       
+       private function onCloseCraft(e:ButtonEvent = null) : void
+       {
+-         if(Boolean(e) && e.target == this.craftWindow.btnAccept)
++         if((e) && e.target == this.craftWindow.btnAccept)
+          {
+             if(this.craftWindow.btnAccept.label != LocalizationData.getName("btn_craft_accept"))
+             {
+@@ -2114,7 +2113,7 @@
+          removeChild(this.craftWindow);
+          removeChild(this.backBlack);
+          this.inventory_list.filterItem(-1);
+-         if(Boolean(this.craftWindow.dragItemSlot1.data))
++         if((this.craftWindow.dragItemSlot1.data))
+          {
+             this.inventory_list.selectItem(this.craftWindow.dragItemSlot1.data.itemId);
+          }
+@@ -2138,7 +2137,7 @@
+          MainScene.activePop = this.modifierWindow;
+          var itemData:ItemData = this.item_control.getItemData();
+          this.modifierWindow.setData(itemData);
+-         if(Boolean(itemData))
++         if((itemData))
+          {
+             trace("start_item_upgrade");
+             ExternalInterface.call("start_item_upgrade",itemData.itemId);
+@@ -2161,7 +2160,7 @@
+       private function updateSelectedItem(e:Event) : void
+       {
+          var otherData:ItemData = this.item_control.getItemData();
+-         if(Boolean(otherData) && this.modifierWindow.getItemId() == otherData.itemId)
++         if((otherData) && this.modifierWindow.getItemId() == otherData.itemId)
+          {
+             this.modifierWindow.setData(otherData,false);
+          }
+@@ -2207,21 +2206,21 @@
+       
+       private function updateItemCard(e:Event) : void
+       {
+-         var profile:int = 0;
+-         var relocate_object:Object = null;
+          trace("Lobby::updateItemCard",e.target,e.currentTarget);
+          var value:ItemData = e.target.data as ItemData;
++         var profile:int;
++         var relocate_object:Object;
+          if(value.isStack)
+          {
+             profile = this.player_profile.profileId;
+             relocate_object = {
+-               "profile":profile,
+-               "id":value.itemId,
+-               "dict_id":value.dictId,
+-               "sourceSlot":100,
+-               "targetSlot":value.slotId,
+-               "count":value.value,
+-               "faction_id":value.factionId
++               profile:profile,
++               id:value.itemId,
++               dict_id:value.dictId,
++               sourceSlot:100,
++               targetSlot:value.slotId,
++               count:value.value,
++               faction_id:value.factionId
+             };
+             relocate_object.condition_or_stack = value.count;
+             AmmoShareLite.getInstance().updateElement(relocate_object);
+@@ -2248,21 +2247,21 @@
+       private function test_update_invenory_item() : void
+       {
+          var modifier:Object = {
+-            "name":"sdf",
+-            "props":[{
+-               "prop_id":15,
+-               "prop_value":-0.8,
+-               "modifier_type":1
++            name:"sdf",
++            props:[{
++               prop_id:15,
++               prop_value:-0.8,
++               modifier_type:1
+             },{
+-               "prop_id":3,
+-               "prop_value":10,
+-               "modifier_type":0
++               prop_id:3,
++               prop_value:10,
++               modifier_type:0
+             }]
+          };
+          var data:Object = {
+-            "id":8994,
+-            "condition_or_stack":95,
+-            "modifiers":[modifier]
++            id:8994,
++            condition_or_stack:95,
++            modifiers:[modifier]
+          };
+          this.update_inventory_item(data);
+       }
+@@ -2291,10 +2290,10 @@
+       {
+          trace("testUnclokedFaction");
+          var data:Object = {
+-            "faction_id":4,
+-            "label":"Рептилоиды",
+-            "message_body":"Вы открыли путь к солнцу",
+-            "type":2
++            faction_id:4,
++            label:"Рептилоиды",
++            message_body:"Вы открыли путь к солнцу",
++            type:2
+          };
+          this.add_important_message(data);
+          this.setup_player_progress(4,2,222);
+@@ -2304,10 +2303,10 @@
+       {
+          trace("testUnclokedFaction");
+          var data:Object = {
+-            "faction_id":4,
+-            "label":"Рептилоиды",
+-            "message_body":"Вы открыли путь к солнцу",
+-            "type":2
++            faction_id:4,
++            label:"Рептилоиды",
++            message_body:"Вы открыли путь к солнцу",
++            type:2
+          };
+          this.add_important_message(data);
+       }
+@@ -2316,10 +2315,10 @@
+       {
+          trace("testUnclokedFaction");
+          var data:Object = {
+-            "faction_id":1,
+-            "label":"Доктор Сринтус",
+-            "message_body":"Мантра очищена",
+-            "type":2
++            faction_id:1,
++            label:"Доктор Сринтус",
++            message_body:"Мантра очищена",
++            type:2
+          };
+          this.add_important_message(data);
+       }
+@@ -2328,10 +2327,10 @@
+       {
+          trace("testInviteToSquad");
+          var data:Object = {
+-            "id":23 + this._invitesTemp,
+-            "sender_name":"123456789123456789" + this._invitesTemp,
+-            "message_body":"сквадиеще",
+-            "type":4
++            id:23 + this._invitesTemp,
++            sender_name:"123456789123456789" + this._invitesTemp,
++            message_body:"сквадиеще",
++            type:4
+          };
+          this.add_important_message(data);
+          ++this._invitesTemp;
+@@ -2344,10 +2343,10 @@
+       {
+          trace("testInviteToSquad2");
+          var data:Object = {
+-            "id":2,
+-            "sender_name":"Timka2",
+-            "message_body":"Vazzap2",
+-            "type":1
++            id:2,
++            sender_name:"Timka2",
++            message_body:"Vazzap2",
++            type:1
+          };
+          this.remove_important_message(23);
+       }
+@@ -2366,7 +2365,7 @@
+       private function onRequestPlayers(e:Event) : void
+       {
+          trace("onRequstPlayers",e.target);
+-         this._playerRequestTarget = e.target as MovieClip;
++         _playerRequestTarget = e.target as MovieClip;
+       }
+       
+       private function testIMChange(e:Event) : void
+@@ -2380,21 +2379,21 @@
+          for(var i:uint = 0; i < 6; i++)
+          {
+             test.push({
+-               "time":"01:22",
+-               "label":"supra_level",
+-               "result":"1:2",
+-               "match_result":3 * (i % 2),
+-               "reward":[{
+-                  "type":0,
+-                  "amount":6500
++               time:"01:22",
++               label:"supra_level",
++               result:"1:2",
++               match_result:3 * (i % 2),
++               reward:[{
++                  type:0,
++                  amount:6500
+                },{
+-                  "type":1,
+-                  "amount":50,
+-                  "param":1
++                  type:1,
++                  amount:50,
++                  param:1
+                },{
+-                  "type":2,
+-                  "amount":50,
+-                  "param":2
++                  type:2,
++                  amount:50,
++                  param:2
+                }]
+             });
+          }
+@@ -2406,76 +2405,76 @@
+          trace("testQuestChange::",e);
+          var array:Array = [];
+          array.push({
+-            "faction_id":1,
+-            "quest_icon":0,
+-            "quest_label":"ex1TraQuestRRR",
+-            "text":"1Sil\'veple la mue de cuartassone vi sonne juperne \nel cracasson si\nnme fur majleminto.",
+-            "reward":[{
+-               "type":0,
+-               "amount":6500
++            faction_id:1,
++            quest_icon:0,
++            quest_label:"ex1TraQuestRRR",
++            text:"1Sil\'veple la mue de cuartassone vi sonne juperne \nel cracasson si\nnme fur majleminto.",
++            reward:[{
++               type:0,
++               amount:6500
+             },{
+-               "type":1,
+-               "amount":50,
+-               "param":1
++               type:1,
++               amount:50,
++               param:1
+             },{
+-               "type":2,
+-               "amount":50,
+-               "param":2
++               type:2,
++               amount:50,
++               param:2
+             },{
+-               "type":3,
+-               "amount":50,
+-               "param":82
++               type:3,
++               amount:50,
++               param:82
+             }],
+-            "task":{
+-               "text":"*KILL BIL/n\nL1",
+-               "hint_text":"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
+-               "progress":0,
+-               "amount":2
++            task:{
++               text:"*KILL BIL/n\nL1",
++               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
++               progress:0,
++               amount:2
+             },
+-            "tasks":[{
+-               "text":"*KILL BIL/n\nL1",
+-               "hint_text":"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
+-               "progress":0,
+-               "amount":2
++            tasks:[{
++               text:"*KILL BIL/n\nL1",
++               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
++               progress:0,
++               amount:2
+             }],
+-            "info":"WarningText",
+-            "time_limit":50
++            info:"WarningText",
++            time_limit:50
+          });
+          array.push({
+-            "faction_id":1,
+-            "quest_icon":1,
+-            "quest_label":"ex2TraQuestRRR",
+-            "text":"2Sil\'veple la mue de cuartassone vi sonne jup\nerne el cracasson sinme fur majleminto.",
+-            "reward":[{
+-               "type":3,
+-               "amount":40,
+-               "param":68
++            faction_id:1,
++            quest_icon:1,
++            quest_label:"ex2TraQuestRRR",
++            text:"2Sil\'veple la mue de cuartassone vi sonne jup\nerne el cracasson sinme fur majleminto.",
++            reward:[{
++               type:3,
++               amount:40,
++               param:68
+             },{
+-               "type":1,
+-               "amount":40,
+-               "param":1
++               type:1,
++               amount:40,
++               param:1
+             },{
+-               "type":0,
+-               "amount":40
++               type:0,
++               amount:40
+             },{
+-               "type":2,
+-               "amount":40,
+-               "param":2
++               type:2,
++               amount:40,
++               param:2
+             }],
+-            "task":{
+-               "text":"*KILL BILL2",
+-               "hint_text":"ARE YOU STUPID? KILL THE FUCKING BILL",
+-               "progress":0,
+-               "amount":1
++            task:{
++               text:"*KILL BILL2",
++               hint_text:"ARE YOU STUPID? KILL THE FUCKING BILL",
++               progress:0,
++               amount:1
+             },
+-            "tasks":[{
+-               "text":"*KILL BIL/n\nL1",
+-               "hint_text":"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
+-               "progress":0,
+-               "amount":2
++            tasks:[{
++               text:"*KILL BIL/n\nL1",
++               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
++               progress:0,
++               amount:2
+             }],
+-            "info":"WarningText",
+-            "time_limit":60 * 120
++            info:"WarningText",
++            time_limit:60 * 120
+          });
+          trace("testQuestChange::",array.length);
+          this.show_quest_selector(array);
+@@ -2487,7 +2486,7 @@
+          PlayerInfo.premiumLeft = label;
+          this.statusPanel.btn_premium.stateIndex = state;
+          this.statusPanel.btn_premium.label = label;
+-         if(state != 0 && Boolean(this.statusPanel.btn_premium.discount))
++         if(state != 0 && (this.statusPanel.btn_premium.discount))
+          {
+             this.statusPanel.btn_premium.discount = 0;
+             this.updatePremiumDiscountTime();
+@@ -2505,7 +2504,7 @@
+       public function set_premium_discount_store(value:Array) : void
+       {
+          trace("set_premium_discount_store::",value);
+-         this._premiumStoreDiscount = value;
++         _premiumStoreDiscount = value;
+          this.statusPanel.setPremiumStoreDiscount(value);
+       }
+       
+@@ -2527,10 +2526,10 @@
+       
+       public function set_squad_player_type(index:uint, type:uint, weapon_dict_id:uint = 0) : void
+       {
+-         var iconId:uint = 0;
+-         if(Boolean(weapon_dict_id))
+-         {
+-            iconId = uint(this._itemDescriptor.getItemDescription(weapon_dict_id).icon);
++         var iconId:uint;
++         if((weapon_dict_id))
++         {
++            iconId = (this._itemDescriptor.getItemDescription(weapon_dict_id).icon);
+          }
+          trace("set_squad_player_type::",weapon_dict_id,iconId);
+          this.squadList.set_squad_player_type(index,type,iconId);
+@@ -2538,10 +2537,10 @@
+       
+       public function set_squad_player(index:uint, name:String, id:uint, ready:Boolean, type:uint = 0, weapon_dict_id:uint = 0) : void
+       {
+-         var iconId:uint = 0;
+-         if(Boolean(weapon_dict_id))
+-         {
+-            iconId = uint(this._itemDescriptor.getItemDescription(weapon_dict_id).icon);
++         var iconId:uint;
++         if((weapon_dict_id))
++         {
++            iconId = (this._itemDescriptor.getItemDescription(weapon_dict_id).icon);
+          }
+          this.squadList.set_squad_player(index,id,name,ready,type,iconId);
+          this.updateInvitesPos();
+@@ -2591,82 +2590,82 @@
+       protected function test_victory_screenData2() : void
+       {
+          this.fill_victory_screen_drop_item({
+-            "dict_id":70,
+-            "condition_or_stack":101,
+-            "value":45,
+-            "item_id":12534,
+-            "rarity_level":5
++            dict_id:70,
++            condition_or_stack:101,
++            value:45,
++            item_id:12534,
++            rarity_level:5
+          });
+       }
+       
+       protected function test_victory_screenData() : void
+       {
+          var modifiers:Array = [{
+-            "name":"sdf",
+-            "props":[{
+-               "prop_id":15,
+-               "prop_value":-0.8,
+-               "modifier_type":1
++            name:"sdf",
++            props:[{
++               prop_id:15,
++               prop_value:-0.8,
++               modifier_type:1
+             },{
+-               "prop_id":3,
+-               "prop_value":10,
+-               "modifier_type":0
++               prop_id:3,
++               prop_value:10,
++               modifier_type:0
+             }]
+          },{
+-            "name":"asdasd",
+-            "props":[{
+-               "prop_id":15,
+-               "prop_value":-0.8,
+-               "modifier_type":1
++            name:"asdasd",
++            props:[{
++               prop_id:15,
++               prop_value:-0.8,
++               modifier_type:1
+             },{
+-               "prop_id":3,
+-               "prop_value":10,
+-               "modifier_type":0
++               prop_id:3,
++               prop_value:10,
++               modifier_type:0
+             }]
+          }];
+          var scoreData:Object = {
+-            "name":"score_name",
+-            "profile_name":"name",
+-            "profile_play_time":"123c",
+-            "amount":100,
+-            "money":100,
+-            "experience":100,
+-            "reputation":100
++            name:"score_name",
++            profile_name:"name",
++            profile_play_time:"123c",
++            amount:100,
++            money:100,
++            experience:100,
++            reputation:100
+          };
+          var data:Object = {
+-            "score_components":[scoreData,scoreData,scoreData],
+-            "statistics_rating":new Object(),
+-            "statistics_exp":{
+-               "match_exp":33,
+-               "daily_exp":200,
+-               "daily_bonus_exp":100,
+-               "daily_exp":50,
+-               "quest_exp":50
++            score_components:[scoreData,scoreData,scoreData],
++            statistics_rating:new Object(),
++            statistics_exp:{
++               match_exp:33,
++               daily_exp:200,
++               daily_bonus_exp:100,
++               daily_exp:50,
++               quest_exp:50
+             },
+-            "statistics_money":new Object(),
+-            "statistics_reputation":{
+-               "faction_id":1,
+-               "quest_rep":50
++            statistics_money:new Object(),
++            statistics_reputation:{
++               faction_id:1,
++               quest_rep:50
+             },
+-            "title_1_player":"Cibbie&Huide4",
+-            "title_1_value_0":22,
+-            "title_0_player":"Where\'sYourWaterDude",
+-            "title_0_value_0":22,
+-            "title_2_player":"Krepish1998",
+-            "title_2_value_0":22,
+-            "title_3_player":"Cibbie&Huide",
+-            "title_3_value_0":22,
+-            "team1_score":0,
+-            "team2_score":0,
+-            "allow_drop_card":true,
+-            "dropped_item":{"value":80.5}
++            title_1_player:"Cibbie&Huide4",
++            title_1_value_0:22,
++            title_0_player:"Where\'sYourWaterDude",
++            title_0_value_0:22,
++            title_2_player:"Krepish1998",
++            title_2_value_0:22,
++            title_3_player:"Cibbie&Huide",
++            title_3_value_0:22,
++            team1_score:0,
++            team2_score:0,
++            allow_drop_card:true,
++            dropped_item:{value:80.5}
+          };
+          data.dropped_item = {
+-            "dict_id":46,
+-            "condition_or_stack":101,
+-            "value":0.333336,
+-            "item_id":12534,
+-            "rarity_level":5
++            dict_id:46,
++            condition_or_stack:101,
++            value:0.333336,
++            item_id:12534,
++            rarity_level:5
+          };
+          this.set_drop_items_properties([1000,5000,9000],15000);
+          if(!data.players)
+@@ -2681,98 +2680,99 @@
+          data.map_name = "someMapName";
+          this.fill_victory_screen(data);
+          var data2:Array = [{
+-            "faction_id":1,
+-            "bonus":22
++            faction_id:1,
++            bonus:22
+          }];
+          this.set_faction_bonus(data2);
+          var detailedArrmo:Array = [{
+-            "dict_id":243,
+-            "value":100
++            dict_id:243,
++            value:100
+          },{
+-            "dict_id":46,
+-            "value":20
++            dict_id:46,
++            value:20
+          },{
+-            "dict_id":70,
+-            "value":3
++            dict_id:70,
++            value:3
+          }];
+          this.fill_victory_screen_spend_money_detailed(detailedArrmo,[],[]);
+       }
+       
+       private function get_temp_players() : Array
+       {
+-         return [{
+-            "id":0,
+-            "team":0,
+-            "name":"Cibbie&Huide4",
+-            "kills":12,
+-            "deaths":22,
+-            "ping":22,
+-            "artifacts":33,
+-            "rank":int(Math.random() * 99)
++         var temp_players:Array = [{
++            id:0,
++            team:0,
++            name:"Cibbie&Huide4",
++            kills:12,
++            deaths:22,
++            ping:22,
++            artifacts:33,
++            rank:int(Math.random() * 99)
+          },{
+-            "id":0,
+-            "team":1,
+-            "name":"Cibbie&Huide",
+-            "kills":23,
+-            "deaths":18,
+-            "ping":22,
+-            "artifacts":33,
+-            "rank":int(Math.random() * 99)
++            id:0,
++            team:1,
++            name:"Cibbie&Huide",
++            kills:23,
++            deaths:18,
++            ping:22,
++            artifacts:33,
++            rank:int(Math.random() * 99)
+          },{
+-            "id":0,
+-            "team":1,
+-            "name":"Cibbie&Huide2",
+-            "kills":23,
+-            "deaths":18,
+-            "ping":22,
+-            "artifacts":33,
+-            "rank":int(Math.random() * 99)
++            id:0,
++            team:1,
++            name:"Cibbie&Huide2",
++            kills:23,
++            deaths:18,
++            ping:22,
++            artifacts:33,
++            rank:int(Math.random() * 99)
+          },{
+-            "id":0,
+-            "team":1,
+-            "name":"Cibbie&Huide3",
+-            "kills":23,
+-            "deaths":18,
+-            "ping":22,
+-            "artifacts":33,
+-            "rank":int(Math.random() * 99)
++            id:0,
++            team:1,
++            name:"Cibbie&Huide3",
++            kills:23,
++            deaths:18,
++            ping:22,
++            artifacts:33,
++            rank:int(Math.random() * 99)
+          },{
+-            "id":0,
+-            "team":0,
+-            "name":"Where\'sYourWaterDude",
+-            "kills":12,
+-            "deaths":43,
+-            "ping":22,
+-            "artifacts":33,
+-            "rank":int(Math.random() * 99)
++            id:0,
++            team:0,
++            name:"Where\'sYourWaterDude",
++            kills:12,
++            deaths:43,
++            ping:22,
++            artifacts:33,
++            rank:int(Math.random() * 99)
+          },{
+-            "id":0,
+-            "team":1,
+-            "name":"Krepish1998",
+-            "kills":1,
+-            "deaths":12,
+-            "ping":22,
+-            "artifacts":33,
+-            "rank":int(Math.random() * 99)
++            id:0,
++            team:1,
++            name:"Krepish1998",
++            kills:1,
++            deaths:12,
++            ping:22,
++            artifacts:33,
++            rank:int(Math.random() * 99)
+          },{
+-            "id":0,
+-            "team":1,
+-            "name":"Tongar",
+-            "kills":78,
+-            "deaths":2,
+-            "ping":22,
+-            "artifacts":12,
+-            "rank":int(Math.random() * 99)
++            id:0,
++            team:1,
++            name:"Tongar",
++            kills:78,
++            deaths:2,
++            ping:22,
++            artifacts:12,
++            rank:int(Math.random() * 99)
+          },{
+-            "id":0,
+-            "team":1,
+-            "name":"Ashtar",
+-            "kills":0,
+-            "deaths":14,
+-            "ping":22,
+-            "artifacts":12,
+-            "rank":int(Math.random() * 99)
++            id:0,
++            team:1,
++            name:"Ashtar",
++            kills:0,
++            deaths:14,
++            ping:22,
++            artifacts:12,
++            rank:int(Math.random() * 99)
+          }];
++         return temp_players;
+       }
+       
+       protected function test_victory_screen() : void
+@@ -2799,10 +2799,10 @@
+          this.set_squad_player_type(1,7,77);
+          this.set_squad_player_type(2,8,14);
+          var data:Object = {
+-            "id":2,
+-            "sender_name":"Timka2",
+-            "message_body":"Vazzap2",
+-            "type":SquadInviteList.SQUAD_INVITE
++            id:2,
++            sender_name:"Timka2",
++            message_body:"Vazzap2",
++            type:SquadInviteList.SQUAD_INVITE
+          };
+          this.add_important_message(data);
+       }
+@@ -2830,75 +2830,74 @@
+       
+       protected function test_someMessage(def:int = 400) : void
+       {
+-         var value:Object;
+-         var value2:Object = null;
+-         var testF:Function = null;
+          testF = function():void
+          {
+             show_system_message(0,"quest_message",value2,true);
+          };
+          trace("test_someMessage");
+-         value = {
+-            "faction_id":1,
+-            "quest_icon":5,
+-            "quest_label":"ex1TraQuestRRR",
+-            "text":"1Sil\'veple la mue de cfd\nsfsdf sdf sdfsd fsdf sdf sdf sdf sdf sdf sdf suartassone\n  vi sonne juperne \nel cracasson sinme fur majleminto.",
+-            "reward":[{
+-               "type":0,
+-               "amount":6500
++         var value:Object = {
++            faction_id:1,
++            quest_icon:5,
++            quest_label:"ex1TraQuestRRR",
++            text:"1Sil\'veple la mue de cfd\nsfsdf sdf sdfsd fsdf sdf sdf sdf sdf sdf sdf suartassone\n  vi sonne juperne \nel cracasson sinme fur majleminto.",
++            reward:[{
++               type:0,
++               amount:6500
+             },{
+-               "type":1,
+-               "amount":50,
+-               "param":1
++               type:1,
++               amount:50,
++               param:1
+             },{
+-               "type":2,
+-               "amount":50,
+-               "param":2
++               type:2,
++               amount:50,
++               param:2
+             }],
+-            "tasks":[{
+-               "text":"*KILL asdsadasdasdasdasd asd asdsa dsa dasdas dasdas das dasd asd asd asd asd asd as",
+-               "hint_text":"ARE YOU STUPID? KILL THE FUCKING BILL",
+-               "progress":0,
+-               "amount":2
++            tasks:[{
++               text:"*KILL asdsadasdasdasdasd asd asdsa dsa dasdas dasdas das dasd asd asd asd asd asd as",
++               hint_text:"ARE YOU STUPID? KILL THE FUCKING BILL",
++               progress:0,
++               amount:2
+             },{
+-               "text":"*KILL asdsadasdasdasdasd asd asdsa dsa dasdas dasdas das dasd asd asd asd asd asd as",
+-               "hint_text":"ARE YOU STUPID? KILL THE FUCKING BILL",
+-               "progress":0,
+-               "amount":2
++               text:"*KILL asdsadasdasdasdasd asd asdsa dsa dasdas dasdas das dasd asd asd asd asd asd as",
++               hint_text:"ARE YOU STUPID? KILL THE FUCKING BILL",
++               progress:0,
++               amount:2
+             }],
+-            "info":"WarningText",
+-            "status":2
++            info:"WarningText",
++            status:2
+          };
++         var value2:Object;
++         var testF:Function;
+          value2 = {
+-            "faction_id":2,
+-            "quest_icon":6,
+-            "quest_label":"ex1TraQuestRRR",
+-            "text":"1Sil\'veple la mue de cfd\nsfsdf sdf sdfsd fsdf sdf sdf sdf sdf sdf sdf suartassone\n  vi sonne juperne \nel cracasson sinme fur majleminto.",
+-            "reward":[{
+-               "type":0,
+-               "amount":7500
++            faction_id:2,
++            quest_icon:6,
++            quest_label:"ex1TraQuestRRR",
++            text:"1Sil\'veple la mue de cfd\nsfsdf sdf sdfsd fsdf sdf sdf sdf sdf sdf sdf suartassone\n  vi sonne juperne \nel cracasson sinme fur majleminto.",
++            reward:[{
++               type:0,
++               amount:7500
+             },{
+-               "type":1,
+-               "amount":150,
+-               "param":1
++               type:1,
++               amount:150,
++               param:1
+             },{
+-               "type":2,
+-               "amount":150,
+-               "param":2
++               type:2,
++               amount:150,
++               param:2
+             }],
+-            "tasks":[{
+-               "text":"*KILL asdsadasdasdasdasd asd asdsa dsa dasdas dasdas das dasd asd asd asd asd asd as",
+-               "hint_text":"ARE YOU STUPID? KILL THE FUCKING BILL",
+-               "progress":0,
+-               "amount":2
++            tasks:[{
++               text:"*KILL asdsadasdasdasdasd asd asdsa dsa dasdas dasdas das dasd asd asd asd asd asd as",
++               hint_text:"ARE YOU STUPID? KILL THE FUCKING BILL",
++               progress:0,
++               amount:2
+             },{
+-               "text":"*KILL asdsadasdasdasdasd asd asdsa dsa dasdas dasdas das dasd asd asd asd asd asd as",
+-               "hint_text":"ARE YOU STUPID? KILL THE FUCKING BILL",
+-               "progress":0,
+-               "amount":2
++               text:"*KILL asdsadasdasdasdasd asd asdsa dsa dasdas dasdas das dasd asd asd asd asd asd as",
++               hint_text:"ARE YOU STUPID? KILL THE FUCKING BILL",
++               progress:0,
++               amount:2
+             }],
+-            "info":"WarningText",
+-            "status":3
++            info:"WarningText",
++            status:3
+          };
+          this.show_system_message(0,"quest_message",value,true);
+          setTimeout(testF,def);
+@@ -2920,7 +2919,7 @@
+       protected function getItemTopParent(value:DisplayObject) : DisplayObject
+       {
+          var target:DisplayObject = value;
+-         while(Boolean(target))
++         while((target))
+          {
+             if(target.parent == this || !target.parent || target.parent == stage)
+             {
+@@ -2933,10 +2932,10 @@
+       
+       protected function test_important_messsage() : void
+       {
+-         var value:Object = null;
+          trace("test_important_messsage");
+          for(var i:int = 0; i < 1; i++)
+          {
++            var value:Object;
+             value = new Object();
+             value.id = 666;
+             value.request = true;
+@@ -2957,241 +2956,241 @@
+          this.clear_quests();
+          trace("test_quest_messsage");
+          this.add_quest({
+-            "status":0,
+-            "faction_id":1,
+-            "quest_icon":0,
+-            "quest_label":"ex1TraQuestRRR",
+-            "text":"1Sil\'veple la mue de cuartassone vi sonne juperne \nel cracasson si\nnme fur majleminto.",
+-            "reward":[{
+-               "type":0,
+-               "amount":1800
++            status:0,
++            faction_id:1,
++            quest_icon:0,
++            quest_label:"ex1TraQuestRRR",
++            text:"1Sil\'veple la mue de cuartassone vi sonne juperne \nel cracasson si\nnme fur majleminto.",
++            reward:[{
++               type:0,
++               amount:1800
+             },{
+-               "type":1,
+-               "amount":140,
+-               "param":1
++               type:1,
++               amount:140,
++               param:1
+             },{
+-               "type":2,
+-               "amount":50,
+-               "param":2
++               type:2,
++               amount:50,
++               param:2
+             }],
+-            "task":{
+-               "text":"Убить за бой 5 представителей бродяг",
+-               "hint_text":"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
+-               "progress":0,
+-               "amount":2
++            task:{
++               text:"Убить за бой 5 представителей бродяг",
++               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
++               progress:0,
++               amount:2
+             },
+-            "tasks":[{
+-               "text":"Вы должны быт одеты в экипировку Черного Рынка",
+-               "hint_text":"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
+-               "progress":0,
+-               "amount":2
++            tasks:[{
++               text:"Вы должны быт одеты в экипировку Черного Рынка",
++               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
++               progress:0,
++               amount:2
+             }],
+-            "info":"WarningText",
+-            "time_limit":50
++            info:"WarningText",
++            time_limit:50
+          });
+          this.add_quest({
+-            "status":0,
+-            "faction_id":2,
+-            "quest_icon":1,
+-            "quest_label":"Охота за головами",
+-            "text":"Нельзя сказать, что бродяги наши злейшие враги. Но, время от времени, их нужно ставить на место. Лучше всего это сделать на наглядном примере.",
+-            "reward":[{
+-               "type":1,
+-               "amount":40,
+-               "param":1
++            status:0,
++            faction_id:2,
++            quest_icon:1,
++            quest_label:"Охота за головами",
++            text:"Нельзя сказать, что бродяги наши злейшие враги. Но, время от времени, их нужно ставить на место. Лучше всего это сделать на наглядном примере.",
++            reward:[{
++               type:1,
++               amount:40,
++               param:1
+             },{
+-               "type":0,
+-               "amount":40
++               type:0,
++               amount:40
+             },{
+-               "type":2,
+-               "amount":40,
+-               "param":2
++               type:2,
++               amount:40,
++               param:2
+             }],
+-            "task":{
+-               "text":"Убить за бой 5 представителей бродяг",
+-               "hint_text":"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
+-               "progress":0,
+-               "amount":2
++            task:{
++               text:"Убить за бой 5 представителей бродяг",
++               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
++               progress:0,
++               amount:2
+             },
+-            "tasks":[{
+-               "text":"Убить за бой 5 представителей бродяг",
+-               "hint_text":"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
+-               "progress":0,
+-               "amount":2
++            tasks:[{
++               text:"Убить за бой 5 представителей бродяг",
++               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
++               progress:0,
++               amount:2
+             },{
+-               "text":"Вы должны быт одеты в экипировку Черного Рынка",
+-               "hint_text":"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
+-               "progress":0,
+-               "amount":2
++               text:"Вы должны быт одеты в экипировку Черного Рынка",
++               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
++               progress:0,
++               amount:2
+             }],
+-            "info":"WarningText",
+-            "time_limit":60 * 120
++            info:"WarningText",
++            time_limit:60 * 120
+          });
+          this.add_quest({
+-            "status":0,
+-            "faction_id":3,
+-            "quest_icon":2,
+-            "quest_label":"ex3TraQuestRRR",
+-            "text":"sinme fur majleminto.",
+-            "reward":[{
+-               "type":0,
+-               "amount":30
++            status:0,
++            faction_id:3,
++            quest_icon:2,
++            quest_label:"ex3TraQuestRRR",
++            text:"sinme fur majleminto.",
++            reward:[{
++               type:0,
++               amount:30
+             },{
+-               "type":1,
+-               "amount":30,
+-               "param":1
++               type:1,
++               amount:30,
++               param:1
+             },{
+-               "type":2,
+-               "amount":30,
+-               "param":2
++               type:2,
++               amount:30,
++               param:2
+             }],
+-            "task":{
+-               "text":"*KILL BILL3",
+-               "hint_text":"ARE YOU STUPID? KILL THE FUCKING BILL",
+-               "progress":0,
+-               "amount":1
++            task:{
++               text:"*KILL BILL3",
++               hint_text:"ARE YOU STUPID? KILL THE FUCKING BILL",
++               progress:0,
++               amount:1
+             },
+-            "tasks":[{
+-               "text":"*aaaa bbbb fg df dfg dfg dfg fdg fdg dfg fg dfg dfgdf gd dfg dfgdf gdfg dfg dfg dfg d121 123 12312312",
+-               "hint_text":"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
+-               "progress":0,
+-               "amount":2
++            tasks:[{
++               text:"*aaaa bbbb fg df dfg dfg dfg fdg fdg dfg fg dfg dfgdf gd dfg dfgdf gdfg dfg dfg dfg d121 123 12312312",
++               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
++               progress:0,
++               amount:2
+             },{
+-               "text":"*vvvvv",
+-               "hint_text":"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
+-               "progress":0,
+-               "amount":2
++               text:"*vvvvv",
++               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
++               progress:0,
++               amount:2
+             }],
+-            "info":"WarningText",
+-            "time_limit":15
++            info:"WarningText",
++            time_limit:15
+          });
+          this.add_quest({
+-            "status":0,
+-            "faction_id":3,
+-            "quest_icon":3,
+-            "quest_label":"ex4TraQuestRRR%%%",
+-            "text":"4Sil\'veple la mue de cuartassone vi sonne juperne el cracasson sinme fur majleminto.",
+-            "reward":[{
+-               "type":0,
+-               "amount":20,
+-               "param":0
++            status:0,
++            faction_id:3,
++            quest_icon:3,
++            quest_label:"ex4TraQuestRRR%%%",
++            text:"4Sil\'veple la mue de cuartassone vi sonne juperne el cracasson sinme fur majleminto.",
++            reward:[{
++               type:0,
++               amount:20,
++               param:0
+             },{
+-               "type":1,
+-               "amount":20,
+-               "param":2
++               type:1,
++               amount:20,
++               param:2
+             },{
+-               "type":2,
+-               "amount":20,
+-               "param":2
++               type:2,
++               amount:20,
++               param:2
+             }],
+-            "task":{
+-               "text":"*KILL BILL4",
+-               "hint_text":"ARE YOU STUPID? KILL THE FUCKING BILL",
+-               "progress":0,
+-               "amount":1
++            task:{
++               text:"*KILL BILL4",
++               hint_text:"ARE YOU STUPID? KILL THE FUCKING BILL",
++               progress:0,
++               amount:1
+             },
+-            "tasks":[{
+-               "text":"*KILL SRERE",
+-               "hint_text":"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
+-               "progress":0,
+-               "amount":2
++            tasks:[{
++               text:"*KILL SRERE",
++               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
++               progress:0,
++               amount:2
+             }],
+-            "info":"WarningText",
+-            "time_limit":20
++            info:"WarningText",
++            time_limit:20
+          });
+          this.add_quest({
+-            "status":0,
+-            "faction_id":3,
+-            "quest_icon":4,
+-            "quest_label":"ex5TraQuestRRR",
+-            "text":"5Sil\'veple la mue de cuartassone vi sonne juperne el cracasson sinme fur majleminto.",
+-            "reward":[{
+-               "type":0,
+-               "amount":10
++            status:0,
++            faction_id:3,
++            quest_icon:4,
++            quest_label:"ex5TraQuestRRR",
++            text:"5Sil\'veple la mue de cuartassone vi sonne juperne el cracasson sinme fur majleminto.",
++            reward:[{
++               type:0,
++               amount:10
+             },{
+-               "type":1,
+-               "amount":10,
+-               "param":2
++               type:1,
++               amount:10,
++               param:2
+             },{
+-               "type":2,
+-               "amount":10,
+-               "param":2
++               type:2,
++               amount:10,
++               param:2
+             },{
+-               "type":0,
+-               "amount":10,
+-               "param":66
++               type:0,
++               amount:10,
++               param:66
+             }],
+-            "task":{
+-               "text":"*KILL BILL5",
+-               "hint_text":"ARE YOU STUPID? KILL THE FUCKING BILL",
+-               "progress":0,
+-               "amount":1
++            task:{
++               text:"*KILL BILL5",
++               hint_text:"ARE YOU STUPID? KILL THE FUCKING BILL",
++               progress:0,
++               amount:1
+             },
+-            "tasks":[{
+-               "text":"*KILL BILL5",
+-               "hint_text":"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
+-               "progress":0,
+-               "amount":2
++            tasks:[{
++               text:"*KILL BILL5",
++               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
++               progress:0,
++               amount:2
+             }],
+-            "info":"WarningText",
+-            "time_limit":30
++            info:"WarningText",
++            time_limit:30
+          });
+          this.add_quest({
+-            "status":1,
+-            "faction_id":2,
+-            "quest_icon":4,
+-            "quest_label":"ex5TraQuestRRR",
+-            "text":"5Sil\'veple la mue de cuartassone vi sonne juperne el cracasson sinme fur majleminto.",
+-            "reward":[{
+-               "type":0,
+-               "amount":10
++            status:1,
++            faction_id:2,
++            quest_icon:4,
++            quest_label:"ex5TraQuestRRR",
++            text:"5Sil\'veple la mue de cuartassone vi sonne juperne el cracasson sinme fur majleminto.",
++            reward:[{
++               type:0,
++               amount:10
+             },{
+-               "type":1,
+-               "amount":10,
+-               "param":2
++               type:1,
++               amount:10,
++               param:2
+             },{
+-               "type":2,
+-               "amount":10,
+-               "param":2
++               type:2,
++               amount:10,
++               param:2
+             },{
+-               "type":0,
+-               "amount":10,
+-               "param":66
++               type:0,
++               amount:10,
++               param:66
+             }],
+-            "task":{
+-               "text":"*KILL BILL5",
+-               "hint_text":"ARE YOU STUPID? KILL THE FUCKING BILL",
+-               "progress":0,
+-               "amount":1
++            task:{
++               text:"*KILL BILL5",
++               hint_text:"ARE YOU STUPID? KILL THE FUCKING BILL",
++               progress:0,
++               amount:1
+             },
+-            "tasks":[{
+-               "text":"*KILL BILL5",
+-               "hint_text":"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
+-               "progress":0,
+-               "amount":2
++            tasks:[{
++               text:"*KILL BILL5",
++               hint_text:"ARE YOU STUPID? KILL \nTHE FUCKING BILL",
++               progress:0,
++               amount:2
+             }],
+-            "info":"WarningText",
+-            "time_limit":30
++            info:"WarningText",
++            time_limit:30
+          });
+       }
+       
+       protected function test_chat_messsage_add(e:Event = null) : void
+       {
+          this.add_chat_message({
+-            "type":1,
+-            "text":"FFF fg dfg dfg d dfgfd g dfg44xx " + this.messageIndex,
+-            "name":"leha",
+-            "color":"Blue"
++            type:1,
++            text:"FFF fg dfg dfg d dfgfd g dfg44xx " + this.messageIndex,
++            name:"leha",
++            color:"Blue"
+          });
+          this.add_chat_message({
+-            "type":1,
+-            "text":"FFF fg dfg dfg d dfgfd g dfg44xx " + this.messageIndex,
+-            "name":"[VG]leha"
++            type:1,
++            text:"FFF fg dfg dfg d dfgfd g dfg44xx " + this.messageIndex,
++            name:"[VG]leha"
+          });
+          this.add_chat_message({
+-            "type":1,
+-            "text":"FFF fg dfg dfg d dfgfd g dfg44xx " + this.messageIndex,
+-            "name":"[admin]leha"
++            type:1,
++            text:"FFF fg dfg dfg d dfgfd g dfg44xx " + this.messageIndex,
++            name:"[admin]leha"
+          });
+       }
+       
+@@ -3200,7 +3199,7 @@
+          if(this.messageTimeOut != -1)
+          {
+             clearTimeout(this.messageTimeOut);
+-            this.messageTimeOut = -1;
++            messageTimeOut = -1;
+          }
+       }
+       
+@@ -3208,11 +3207,11 @@
+       {
+          var i:int = 4;
+          this.add_tab({
+-            "id":i + 900,
+-            "name":"newOne" + i,
+-            "channel_to_send":5,
+-            "closable":false,
+-            "channels":[5,6,7]
++            id:i + 900,
++            name:"newOne" + i,
++            channel_to_send:5,
++            closable:false,
++            channels:[5,6,7]
+          });
+       }
+       
+@@ -3221,11 +3220,11 @@
+          for(var i:uint = 0; i < 3; i++)
+          {
+             this.add_tab({
+-               "id":900,
+-               "name":"leha" + i,
+-               "channel_to_send":5,
+-               "closable":(i == 2 ? false : true),
+-               "channels":[5,6,7]
++               id:900,
++               name:"leha" + i,
++               channel_to_send:5,
++               closable:(i == 2 ? false : true),
++               channels:[5,6,7]
+             });
+          }
+       }
+@@ -3267,10 +3266,6 @@
+       
+       public function try_buy_item(profile:uint, uid:uint, dict_uid:uint, sourceSlot:uint, targetSlot:uint, count:int, price:uint, seller:int = -1, onComplete:Function = null) : Boolean
+       {
+-         var icons:IconContainer = null;
+-         var itemData:Object = null;
+-         var iconRow:int = 0;
+-         var iconColumn:int = 0;
+          trace("Try_to_Buy_pr:" + profile + " uid:" + dict_uid + " src:" + sourceSlot + " tgt:" + targetSlot + " cnt:" + count + " price:" + price + " seller:" + seller);
+          var _obj:Object = new Object();
+          var _descr:Object = this._itemDescriptor.getItemDescription(dict_uid);
+@@ -3278,11 +3273,11 @@
+          {
+             itemData = this.inventory_list.getBundleData(dict_uid);
+             _descr = {
+-               "icon":itemData.iconId,
+-               "is_stack":itemData.isStack,
+-               "sellers":itemData.sellers,
+-               "name":itemData.name,
+-               "is_premium":itemData.isPremium
++               icon:itemData.iconId,
++               is_stack:itemData.isStack,
++               sellers:itemData.sellers,
++               name:itemData.name,
++               is_premium:itemData.isPremium
+             };
+          }
+          if(count != -1)
+@@ -3291,10 +3286,11 @@
+          }
+          else
+          {
+-            _obj.count = int((Boolean(_descr.is_premium) ? PlayerInfo.premiumMoney : PlayerInfo.genericMoney) / price);
++            _obj.count = int(((_descr.is_premium) ? PlayerInfo.premiumMoney : PlayerInfo.genericMoney) / price);
+          }
+          var lockedPremiumCost:uint = this.shop_list.getItemLockedCost(dict_uid);
+-         _obj.price = Boolean(lockedPremiumCost) ? lockedPremiumCost : price;
++         var icons:IconContainer;
++         _obj.price = (lockedPremiumCost) ? lockedPremiumCost : price;
+          _obj.seller = seller != -1 ? seller : this.shop_list.getItemSeller(dict_uid);
+          _obj.faction = _obj.seller;
+          _obj.sellers = _descr.sellers;
+@@ -3303,11 +3299,11 @@
+          _obj.name = _descr.name;
+          _obj.is_stack = _descr.is_stack;
+          _obj.weight = _descr.weight;
+-         if(Boolean(_descr.clip_size))
++         if((_descr.clip_size))
+          {
+             _obj.clip_size = _descr.clip_size;
+          }
+-         _obj.quick_slot_item_size = Boolean(_descr.fills_whole_pocket) ? 2 : 1;
++         _obj.quick_slot_item_size = (_descr.fills_whole_pocket) ? 2 : 1;
+          _obj.currentCount = this.inventory_list.getItemCount(dict_uid);
+          var category:int = ItemFactory.getCategory(_descr.category);
+          if(sourceSlot == 300)
+@@ -3344,7 +3340,7 @@
+          var iconIndex:int = 0;
+          if(sourceSlot == 300)
+          {
+-            iconIndex = int(_descr.icon);
++            iconIndex = _descr.icon;
+          }
+          else
+          {
+@@ -3353,6 +3349,9 @@
+             iconIndex = iconColumn * icons.rows + iconRow;
+          }
+          var icon:Sprite = icons.getIcon(iconIndex);
++         var itemData:Object;
++         var iconRow:int;
++         var iconColumn:int;
+          _obj.icon = icon;
+          _obj.sourceSlot = sourceSlot;
+          _obj.targetSlot = targetSlot;
+@@ -3382,27 +3381,27 @@
+       
+       private function relocate_to_paperdoll(value:Object = null) : void
+       {
+-         var new_data:ItemData = null;
+-         var _relocateArray:Array = null;
+          trace("relocate_to_paperdoll::valueIs",value.id,value.itemId);
+-         var id:uint = uint(value.id);
+-         var profile:uint = uint(this.player_profile.profileId);
+-         var dict_id:uint = uint(value.uid);
+-         var sourceSlot:uint = uint(value.sourceSlot);
+-         var targetSlot:uint = uint(value.targetSlot);
+-         var count:uint = uint(value.count);
+-         var faction_id:uint = uint(value.seller);
++         var id:uint = (value.id);
++         var profile:uint = (this.player_profile.profileId);
++         var dict_id:uint = (value.uid);
++         var sourceSlot:uint = (value.sourceSlot);
++         var targetSlot:uint = (value.targetSlot);
++         var count:uint = (value.count);
++         var faction_id:uint = (value.seller);
+          trace("relocate_to_paperdoll::",profile,id,dict_id,sourceSlot,targetSlot,count,"faction",faction_id,value.isStack,value.is_stack);
+          var relocate_object:Object = {
+-            "profile":profile,
+-            "id":id,
+-            "dict_id":dict_id,
+-            "sourceSlot":sourceSlot,
+-            "targetSlot":targetSlot,
+-            "count":count,
+-            "faction_id":faction_id
++            profile:profile,
++            id:id,
++            dict_id:dict_id,
++            sourceSlot:sourceSlot,
++            targetSlot:targetSlot,
++            count:count,
++            faction_id:faction_id
+          };
+-         if(Boolean(value.is_stack))
++         var new_data:ItemData;
++         var _relocateArray:Array;
++         if((value.is_stack))
+          {
+             relocate_object.condition_or_stack = this.inventory_list.getItemCount(dict_id);
+             new_data = null;
+@@ -3429,7 +3428,7 @@
+          {
+             value.onYes = this.relocate_to_paperdoll;
+          }
+-         else if(Boolean(value.onComplete))
++         else if((value.onComplete))
+          {
+             value.onYes = value.onComplete;
+          }
+@@ -3448,13 +3447,14 @@
+       
+       public function is_typing() : Boolean
+       {
+-         return stage.focus is TextField && (stage.focus as TextField).type == TextFieldType.INPUT;
++         var result:Boolean = stage.focus is TextField && (stage.focus as TextField).type == TextFieldType.INPUT;
++         return result;
+       }
+       
+       public function get_mouse_over() : Boolean
+       {
+          var topMost:* = Extensions.getTopMostEntity(mouseX * scaleX,mouseY * scaleY,true);
+-         if(Boolean(topMost) && Boolean(!(topMost is DragRegion)) && !(topMost is Stage))
++         if((topMost) && (!(topMost is DragRegion)) && !(topMost is Stage))
+          {
+             return true;
+          }
+@@ -3500,14 +3500,14 @@
+       
+       public function setup_player_profiles(value:Array) : void
+       {
+-         trace("setup_player_profiles",Boolean(value) ? value.length : null);
+-         this._playerProfiles = value;
++         trace("setup_player_profiles",(value) ? value.length : null);
++         _playerProfiles = value;
+          this.profileSelector.setupProfiles(value);
+       }
+       
+       public function fill_player_profile_items(value:Object) : void
+       {
+-         this._profileItems = value;
++         _profileItems = value;
+          this.player_profile.fillProfileItems(value);
+       }
+       
+@@ -3605,8 +3605,8 @@
+             {
+                this.backBlack.alpha = 0;
+                this.playerLoadingIndicator.alpha = 0;
+-               TweenLite.to(this.backBlack,0.1,{"alpha":1});
+-               TweenLite.to(this.playerLoadingIndicator,0.1,{"alpha":1});
++               TweenLite.to(this.backBlack,0.1,{alpha:1});
++               TweenLite.to(this.playerLoadingIndicator,0.1,{alpha:1});
+                addChildAt(this.backBlack,0);
+                this.backBlack.width = stageWidth;
+                this.backBlack.height = stageHeight;
+@@ -3659,7 +3659,7 @@
+       public function show_sync() : void
+       {
+          var sync:SrvSyncClip = this._top_container.getChildByName("sync") as SrvSyncClip;
+-         if(Boolean(sync))
++         if((sync))
+          {
+             return;
+          }
+@@ -3705,7 +3705,7 @@
+       
+       public function has_active_message() : Boolean
+       {
+-         return Message.isAnyMessage() != -1 || MainScene.activePop != null || Boolean(this._tutorialSliders) && Boolean(this._tutorialSliders.parent);
++         return Message.isAnyMessage() != -1 || MainScene.activePop != null || (this._tutorialSliders) && (this._tutorialSliders.parent);
+       }
+       
+       public function has_active_window() : Boolean
+@@ -3720,7 +3720,7 @@
+             return false;
+          }
+          var isAnyWindow:Boolean = !this._escapeHandled && (this._tutorialSliders && this._tutorialSliders.parent || this.craftWindow && this.craftWindow.parent || this._tournament && this._tournament.parent && this._tournament.visible && !this._tournament.isFold() || SrvContextMenu.visisble || MainScene.activeComponent != null || MainScene.activeWindow != null || Message.isAnyMessage() != -1 || MainScene.activePop != null || stage.focus is TextField);
+-         this._escapeHandled = false;
++         _escapeHandled = false;
+          return isAnyWindow;
+       }
+       
+@@ -3730,14 +3730,14 @@
+          {
+             return;
+          }
+-         this._escapeHandled = true;
++         _escapeHandled = true;
+          trace("close_active_window");
+          if(SrvContextMenu.visisble)
+          {
+             SrvContextMenu.hide();
+             return;
+          }
+-         if(Boolean(this._tutorialSliders) && Boolean(this._tutorialSliders.parent))
++         if((this._tutorialSliders) && (this._tutorialSliders.parent))
+          {
+             this.show_tutorial(0);
+             return;
+@@ -3754,12 +3754,12 @@
+             }
+             return;
+          }
+-         if(Boolean(this.craftWindow) && Boolean(this.craftWindow.parent))
++         if((this.craftWindow) && (this.craftWindow.parent))
+          {
+             this.onCloseCraft();
+             return;
+          }
+-         if(Boolean(this._tournament && this._tournament.parent) && Boolean(this._tournament.visible) && !this._tournament.isFold())
++         if((this._tournament && this._tournament.parent) && (this._tournament.visible) && !this._tournament.isFold())
+          {
+             this._tournament.fold();
+             return;
+@@ -3768,11 +3768,11 @@
+          {
+             Message.close(Message.isAnyMessage());
+          }
+-         else if(Boolean(MainScene.activePop) && Boolean(MainScene.activePop.closePopup))
++         else if((MainScene.activePop) && (MainScene.activePop.closePopup))
+          {
+             MainScene.activePop.closePopup();
+          }
+-         else if(Boolean(MainScene.activeWindow) && Boolean(MainScene.activeWindow.closeWindow))
++         else if((MainScene.activeWindow) && (MainScene.activeWindow.closeWindow))
+          {
+             MainScene.activeWindow.closeWindow();
+          }
+@@ -3864,43 +3864,38 @@
+          var getDayRewardData:Function = function(value:int):Object
+          {
+             var dropData:Object = {
+-               "dict_id":(value == 2 ? 18 : 185),
+-               "condition_or_stack":100,
+-               "rarity_level":0
++               dict_id:(value == 2 ? 18 : 185),
++               condition_or_stack:100,
++               rarity_level:0
+             };
+             dropData.progress = value;
+             return dropData;
+          };
+          var tempDailyRewardData:Object = {
+-            "current_day":4,
+-            "reward":4,
+-            "reward_item":{
+-               "dict_id":46,
+-               "condition_or_stack":12
++            current_day:4,
++            reward:4,
++            reward_item:{
++               dict_id:46,
++               condition_or_stack:12
+             },
+-            "data":[getDayRewardData(1),getDayRewardData(2),getDayRewardData(3),getDayRewardData(2),getDayRewardData(0),getDayRewardData(0),getDayRewardData(2)]
++            data:[getDayRewardData(1),getDayRewardData(2),getDayRewardData(3),getDayRewardData(2),getDayRewardData(0),getDayRewardData(0),getDayRewardData(2)]
+          };
+          this.set_daily_bonus_data(tempDailyRewardData);
+       }
+       
+       public function set_daily_bonus_data(value:Object) : void
+       {
+-         var progress:int = 0;
+-         this._dailyBonusData = value;
+-         if(Boolean(value))
+-         {
+-            progress = Boolean(value.data[value.current_day - 1]) ? int(value.data[value.current_day - 1].progress) : 0;
++         var progress:int;
++         _dailyBonusData = value;
++         if((value))
++         {
++            progress = (value.data[value.current_day - 1]) ? (value.data[value.current_day - 1].progress) : 0;
+             this.statusPanel.set_day_progress(progress);
+          }
+       }
+       
+       public function show_daily_reward_window(value:Boolean = true) : void
+       {
+-         var itemData:ItemData = null;
+-         var dropItem:Object = null;
+-         var dayData:Object = null;
+-         var dayIndex:int = 0;
+-         var rank:int = 0;
+          if(!this._dailyBonusData)
+          {
+             return;
+@@ -3922,6 +3917,11 @@
+          trace("messData::",messData.length);
+          for(var i:uint = 0; i < messData.length; i++)
+          {
++            var itemData:ItemData;
++            var dropItem:Object;
++            var dayData:Object;
++            var dayIndex:int;
++            var rank:int;
+             dropItem = messData[i];
+             dayData = new Object();
+             if(!dropItem)
+@@ -3944,19 +3944,19 @@
+          }
+          newData.completed = this._dailyBonusData.completed;
+          trace("dailyBonusData.reward_item.dict_id",this._dailyBonusData.reward_item.dict_id);
+-         if(Boolean(this._dailyBonusData.reward_item.dict_id))
++         if((this._dailyBonusData.reward_item.dict_id))
+          {
+             itemData = this.inventory_list.createItem(this._dailyBonusData.reward_item.dict_id);
+-            if(Boolean(this._dailyBonusData.reward_item.modifiers))
++            if((this._dailyBonusData.reward_item.modifiers))
+             {
+                itemData.modifiers = (this._dailyBonusData.reward_item.modifiers as Array).concat(itemData.modifiersDefault);
+             }
+             itemData.value = this._dailyBonusData.reward_item.condition_or_stack;
+-            rank = int(this._dailyBonusData.reward_item.rarity_level);
++            rank = (this._dailyBonusData.reward_item.rarity_level);
+             itemData.rank = rank;
+             itemData.clipSize = 1;
+             this.inventory_list.fillModifiersDescription(itemData);
+-            if(Boolean(itemData.itemDescription && itemData.superCategory == 5) && Boolean(itemData.category != 28) && itemData.category != 29)
++            if((itemData.itemDescription && itemData.superCategory == 5) && (itemData.category != 28) && itemData.category != 29)
+             {
+                itemData.tipText = Util.styledChar(itemData.name,"white") + "\n" + itemData.itemDescription;
+             }
+@@ -3980,23 +3980,23 @@
+       
+       public function fill_victory_screen_drop_item(value:Object) : void
+       {
+-         var rank:int = 0;
+          var dropItem:Object = value;
+          var itemData:ItemData = this.inventory_list.createItem(dropItem.dict_id);
++         var rank:int;
+          trace("fill_victory_screen_drop_item::",itemData);
+-         if(Boolean(itemData))
+-         {
+-            if(Boolean(dropItem.modifiers))
++         if((itemData))
++         {
++            if((dropItem.modifiers))
+             {
+                itemData.modifiers = (dropItem.modifiers as Array).concat(itemData.modifiersDefault);
+             }
+             trace("itemData::",itemData.name,itemData.dictId,itemData.modifiers,"|",itemData.modifiersDefault,"filledModifiers::",dropItem.modifiers);
+             itemData.value = dropItem.condition_or_stack;
+-            rank = int(dropItem.rarity_level);
++            rank = (dropItem.rarity_level);
+             itemData.rank = rank;
+             itemData.clipSize = 1;
+             this.inventory_list.fillModifiersDescription(itemData);
+-            if(Boolean(itemData.itemDescription && itemData.superCategory == 5) && Boolean(itemData.category != 28) && itemData.category != 29)
++            if((itemData.itemDescription && itemData.superCategory == 5) && (itemData.category != 28) && itemData.category != 29)
+             {
+                itemData.tipText = Util.styledChar(itemData.name,"white") + "\n" + itemData.itemDescription;
+             }
+@@ -4017,25 +4017,22 @@
+       
+       public function fill_victory_screen(value:Object) : void
+       {
+-         var dropItem:Object = null;
+-         var itemData:ItemData = null;
+-         var rank:int = 0;
+          trace("fill_victory_screen::data",value);
+-         if(Boolean(value.dropped_item))
++         if((value.dropped_item))
+          {
+             trace("fill_victory_screen::",value.dropped_item);
+-            if(Boolean(value.dropped_item.dict_id))
++            if((value.dropped_item.dict_id))
+             {
+                dropItem = value.dropped_item;
+                itemData = this.inventory_list.createItem(dropItem.dict_id);
+-               if(Boolean(itemData))
++               if((itemData))
+                {
+-                  if(Boolean(dropItem.modifiers))
++                  if((dropItem.modifiers))
+                   {
+                      itemData.modifiers = (dropItem.modifiers as Array).concat(itemData.modifiersDefault);
+                   }
+                   trace("droppedItem::",itemData.name,itemData.category,itemData.dictId,itemData.modifiers,"|",itemData.modifiersDefault,"filledModifiers::",dropItem.modifiers);
+-                  rank = int(dropItem.rarity_level);
++                  rank = (dropItem.rarity_level);
+                   itemData.rank = rank;
+                   itemData.value = dropItem.condition_or_stack;
+                   itemData.count = dropItem.value;
+@@ -4046,7 +4043,7 @@
+                   itemData.enabled = true;
+                   this.inventory_list.fillModifiersDescription(itemData);
+                   trace("modifiersDescription::",itemData.modifiersDescription);
+-                  if(Boolean(itemData.itemDescription && itemData.superCategory == 5) && Boolean(itemData.category != 28) && itemData.category != 29)
++                  if((itemData.itemDescription && itemData.superCategory == 5) && (itemData.category != 28) && itemData.category != 29)
+                   {
+                      itemData.tipText = Util.styledChar(itemData.name,"white") + "\n" + itemData.itemDescription;
+                   }
+@@ -4088,6 +4085,9 @@
+          var dateH:int = date.hours;
+          var minutes:Number = date.time / (1000 * 60);
+          var time:String = Util.getZeroString(dateH) + ":" + Util.getZeroString(dateM);
++         var dropItem:Object;
++         var itemData:ItemData;
++         var rank:int;
+          trace("initVSTime::",minutes,time,dateM,dateH);
+          value.time = time;
+          this.victory_screen.setData(value);
+@@ -4095,7 +4095,7 @@
+          this.add_notification(value);
+          this.updateReport(this.victory_screen.getData());
+          this.set_log_list(this._reports);
+-         if(Boolean(value.treasureItem))
++         if((value.treasureItem))
+          {
+             this.fill_victory_screen_drop_item(value.treasureItem);
+          }
+@@ -4258,7 +4258,6 @@
+       
+       protected function updateReport(value:Object) : void
+       {
+-         var reputation:Object = null;
+          var rewards:Array = [];
+          trace("updateReport",value);
+          if(!value)
+@@ -4266,28 +4265,29 @@
+             return;
+          }
+          rewards.push({
+-            "type":4,
+-            "amount":value.rating
++            type:4,
++            amount:value.rating
+          });
+          rewards.push({
+-            "type":0,
+-            "amount":value.exp
++            type:0,
++            amount:value.exp
+          });
+          var reputations:Object = value.statistics_reputation;
+-         if(Boolean(reputations))
++         var reputation:Object;
++         if((reputations))
+          {
+             reputation = reputations;
+             rewards.push({
+-               "type":1,
+-               "amount":reputation.statistics_reputation,
+-               "param":reputation.faction_id
++               type:1,
++               amount:reputation.statistics_reputation,
++               param:reputation.faction_id
+             });
+          }
+          trace("reportAddMOney::",value.money,reputations);
+          rewards.push({
+-            "type":2,
+-            "amount":value.money,
+-            "param":0
++            type:2,
++            amount:value.money,
++            param:0
+          });
+          value.reward = rewards;
+          this.notificationList.updateNotification(value);
+@@ -4314,9 +4314,6 @@
+       
+       public function replacePlayerName(nickname:String, newValue:String) : void
+       {
+-         var players:Array = null;
+-         var playersL:uint = 0;
+-         var j:uint = 0;
+          if(!this._reports)
+          {
+             return;
+@@ -4324,6 +4321,9 @@
+          var reportL:uint = this._reports.length;
+          for(var i:uint = 0; i < reportL; i++)
+          {
++            var players:Array;
++            var playersL:uint;
++            var j:uint;
+             players = this._reports[i].players;
+             playersL = players.length;
+             for(j = 0; j < playersL; j++)
+@@ -4436,8 +4436,8 @@
+       
+       public function add_important_message(value:Object) : void
+       {
+-         var st:String = null;
+-         var mess:* = undefined;
++         var st:String;
++         var mess:*;
+          trace("addImportantmessage",value);
+          for(st in value)
+          {
+@@ -4460,16 +4460,16 @@
+             value.label = LocalizationData.getName("action_premium_activated");
+             value.notificationType = 4;
+             value.reward = [{
+-               "type":Reward.MONEY,
+-               "amount":this._postRewardData.money,
+-               "param":0
++               type:Reward.MONEY,
++               amount:this._postRewardData.money,
++               param:0
+             },{
+-               "type":Reward.EXPERIENCE,
+-               "amount":this._postRewardData.experience
++               type:Reward.EXPERIENCE,
++               amount:this._postRewardData.experience
+             },{
+-               "type":Reward.REPUTATION,
+-               "amount":this._postRewardData.reputation,
+-               "param":this._postRewardData.factionId
++               type:Reward.REPUTATION,
++               amount:this._postRewardData.reputation,
++               param:this._postRewardData.factionId
+             }];
+             value.hideTimer = 15000;
+             this.add_notification(value);
+@@ -4487,12 +4487,12 @@
+             value.hideTimer = 15000;
+             value.notificationType = 9;
+             value.reward = [{
+-               "type":Reward.MONEY,
+-               "amount":value.reward_amount,
+-               "param":value.reward_id
++               type:Reward.MONEY,
++               amount:value.reward_amount,
++               param:value.reward_id
+             },{
+-               "type":Reward.POINT,
+-               "amount":1
++               type:Reward.POINT,
++               amount:1
+             }];
+             this.add_notification(value);
+             mess = Message.showMessage("message_unlock_level",value,false);
+@@ -4512,7 +4512,7 @@
+             if(!value.items || value.items.length == 0)
+             {
+                trace("waitForItems");
+-               this._unlockData = value;
++               _unlockData = value;
+                this.shop_list.addEventListener(GangShop.NEW_ITEMS_COUNT_CHANGED,this.onNewItemsCountChangeShop,false,0,true);
+             }
+             else
+@@ -4556,11 +4556,11 @@
+       
+       private function openUnlockedItem(e:Event) : void
+       {
+-         var selectedFaction:int = 0;
+          var mess:Object = e.target;
+          var data:Object = mess.getMessageData();
++         var selectedFaction:int;
+          trace("openUnlockedItem",data);
+-         if(Boolean(data))
++         if((data))
+          {
+             this.topMenu.selectActiveWindow(this.topMenu.SHOP_INDEX);
+             this.inventory_list.optionControl.reset();
+@@ -4570,7 +4570,7 @@
+                this.inventory_list.checkbox_all_traders.selected = false;
+                this.inventory_list.optionControl.dispatchEvent(new ListEvent(ListEvent.INDEX_CHANGE));
+             }
+-            selectedFaction = int(data.faction_id);
++            selectedFaction = (data.faction_id);
+             this.inventory_list.sellersTabPage.selectedIndex = selectedFaction;
+             this.inventory_list.selectItemDict(data.dictId);
+          }
+@@ -4583,7 +4583,7 @@
+          {
+             if(this._friendInvites[i].id == message_id)
+             {
+-               removeType = int(this._friendInvites[i].type);
++               removeType = (this._friendInvites[i].type);
+                this._friendInvites.splice(i,1);
+                break;
+             }
+@@ -4618,7 +4618,7 @@
+       
+       public function set_friends_list(value:Array) : void
+       {
+-         this._friends = value;
++         _friends = value;
+          this.chat.setPlayers(value);
+          this.friendsMenu.setPlayers(value);
+          this.bottom_panel.btnFriends.label = String(this.friendsMenu.getPlayersOnline());
+@@ -4664,7 +4664,7 @@
+       public function fill_char_info(value:Object) : void
+       {
+          var useCurrent:Boolean = value.experience_next_level == 0 || value.experience_next_level == undefined;
+-         var nextExp:uint = useCurrent ? uint(value.experience_current) : uint(value.experience_next_level);
++         var nextExp:uint = useCurrent ? (value.experience_current) : (value.experience_next_level);
+          trace("fill_char_info",value.experience_current,value.experience_next_level,nextExp,"useCurrent::",useCurrent,uint.MAX_VALUE);
+          this.statusPanel.player_progress = 100 * (value.experience_current / nextExp);
+          this.statusPanel.progress_hint = String(value.experience_current) + "/" + String(nextExp);
+@@ -4735,12 +4735,12 @@
+       
+       public function start_message(value:String, timeout:uint = 100) : void
+       {
+-         this._lasm = value;
++         _lasm = value;
+          if(this._tm != -1)
+          {
+             clearTimeout(this._tm);
+          }
+-         this._tm = setTimeout(this.actualInput,timeout);
++         _tm = setTimeout(this.actualInput,timeout);
+       }
+       
+       public function active_tab_id() : uint
+@@ -4770,7 +4770,7 @@
+       
+       public function add_chat_message(value:Object = null) : void
+       {
+-         if(Boolean(value))
++         if((value))
+          {
+             this.chat.got_message(value);
+          }
+@@ -4850,12 +4850,15 @@
+       
+       public function set_mm_sync_state(value:String, showLeaveButton:uint = 0) : void
+       {
+-         if(Boolean(value) && !showLeaveButton)
++         if((value) && !showLeaveButton)
+          {
+             ExternalInterface.call("sound_play",15);
+          }
+          this.statusPanel.lobbyGameSearch.sync_text = value;
+-         if(showLeaveButton != 1)
++         if(showLeaveButton == 1)
++         {
++         }
++         else
+          {
+             this.topMenu.lockInventory(true);
+             this.dragRegion.mouseEnabled = false;
+@@ -4916,7 +4919,7 @@
+          this.statusPanel.show_match_making(bool);
+          this.lobbyGameLoad.clearPlayers();
+          MainScene.activeMatchMaking = bool;
+-         if(Boolean(this.craftWindow))
++         if((this.craftWindow))
+          {
+             this.craftWindow.setMatchState(MainScene.activeMatchMaking ? 1 : 0);
+          }
+@@ -4993,8 +4996,8 @@
+       
+       public function show_system_message(id:Number, type:String, data:Object, fill:Boolean = true) : void
+       {
+-         var icons:IconContainer = null;
+-         var factionIcon:Icon = null;
++         var icons:IconContainer;
++         var factionIcon:Icon;
+          if(type == "quest_message")
+          {
+             icons = IconContainer.getInstance("factionItemIcons");
+@@ -5008,7 +5011,7 @@
+             this.add_notification(data);
+             return;
+          }
+-         if(Boolean(id))
++         if((id))
+          {
+             Message.close(id,true);
+          }
+@@ -5022,7 +5025,7 @@
+       
+       private function onPaperDollItemRollOut(e:ListEvent) : void
+       {
+-         if(Boolean(this.inventory_list.item_compare))
++         if((this.inventory_list.item_compare))
+          {
+             this.inventory_list.item_compare.setSecondaryWeapon(null);
+          }
+@@ -5031,11 +5034,11 @@
+       
+       private function onPaperDollItemRollOver(e:ListEvent) : void
+       {
+-         if(Boolean(this.inventory_list) && Boolean(this.inventory_list.item_compare))
++         if((this.inventory_list) && (this.inventory_list.item_compare))
+          {
+             this.inventory_list.item_compare.setSecondaryWeapon(e.itemData);
+          }
+-         if(Boolean(e) && Boolean(e.itemData))
++         if((e) && (e.itemData))
+          {
+             this.inventory_list.hoverItem(e.itemData.itemId);
+          }
+@@ -5049,7 +5052,7 @@
+       private function onInventoryListItemRollOver(e:ListEvent) : void
+       {
+          trace("onInventoryListItemRollOver",e.itemData);
+-         if(Boolean(e.itemData))
++         if((e.itemData))
+          {
+             this.player_profile.paperDoll.hoverItem(e.itemData.itemId);
+          }
+@@ -5124,7 +5127,7 @@
+          this.clanWindow.layoutData.alignH = "right";
+          this.clanWindow.layoutData.offsetV = 123;
+          this.clanWindow.layoutData.offsetH = -112;
+-         this._layout = new Layout();
++         _layout = new Layout();
+          this._layout.beforeReflow = this.updateRubberElements;
+          this._layout.tiedToStageSize = true;
+          MainScene.layout = this._layout;
+@@ -5134,13 +5137,12 @@
+       
+       private function clearType(e:Event) : void
+       {
+-         this._isWheeled = false;
++         _isWheeled = false;
+          removeEventListener(Event.RENDER,this.clearType);
+       }
+       
+       private function onMouseFnx(e:MouseEvent) : void
+       {
+-         var point3:Point = null;
+          if(!this._isWheeled)
+          {
+             addEventListener(Event.RENDER,this.clearType);
+@@ -5149,8 +5151,13 @@
+          {
+             e.stopImmediatePropagation();
+          }
+-         trace("onMouseFnx",Boolean(e.target) ? e.target.name : "null",e.target,Boolean(e.currentTarget) ? e.currentTarget.name : "null",Boolean(e.target) && Boolean(e.target.parent) ? e.target.parent.name : null);
+-         this._isWheeled = true;
++         trace("onMouseFnx",(e.target) ? e.target.name : "null",e.target,(e.currentTarget) ? e.currentTarget.name : "null",(e.target) && (e.target.parent) ? e.target.parent.name : null);
++         _isWheeled = true;
++         return;
++         var crt:* = undefined;
++         var point:Point = null;
++         var point2:Point = null;
++         var point3:Point;
+       }
+       
+       private function updateRubberElements() : void
+@@ -5171,101 +5178,84 @@
+       
+       private function parseSpriteSheets() : void
+       {
+-         var AmmoIcons:Class;
+-         var DecalsIcons:Class;
+-         var BundleIcons:Class;
+-         var _bundle_i:IconContainer;
+-         var VoucherIcons:Class;
+-         var _voucher_i:IconContainer;
+-         var CamoIconsBig:Class;
+-         var _camo_big_i:IconContainer;
+-         var WeaponIcons:Class;
+-         var EquipmentIcons:Class;
+-         var ModifierIcons:Class;
+-         var ProfileIcons:Class;
+-         var TopPanelIcons:Class;
+-         var FactionIcons:Class;
+-         var FactionIconsBig:Class;
+-         var FactionItemIcons:Class;
+-         var FilersIcons:Class;
+-         var FilersOverIcons:Class;
+-         var get_bitmap:Function = function(className:Class):BitmapData
++
++         var CamoIcons:Class = LobbyMenu_CamoIcons;
++         var bitmapData:BitmapData = get_bitmap(CamoIcons);
++         var _camo_i:IconContainer = new IconContainer("camo",72,72,bitmapData,true);
++         bitmapData.dispose();
++         var AmmoIcons:Class = LobbyMenu_AmmoIcons;
++         bitmapData = get_bitmap(AmmoIcons);
++         _ammo_i = new IconContainer("consumables",171,83,bitmapData,true,0,0,8,false);
++         bitmapData.dispose();
++         var DecalsIcons:Class = LobbyMenu_DecalsIcons;
++         bitmapData = get_bitmap(DecalsIcons);
++         _ammo_i = new IconContainer("decals",82,82,bitmapData,true,0,0,0,false);
++         bitmapData.dispose();
++         var BundleIcons:Class = LobbyMenu_BundleIcons;
++         bitmapData = get_bitmap(BundleIcons);
++         var _bundle_i:IconContainer = new IconContainer("bundles",171,92,bitmapData,true,0,0,0,false);
++         bitmapData.dispose();
++         var VoucherIcons:Class = LobbyMenu_VoucherIcons;
++         bitmapData = get_bitmap(VoucherIcons);
++         var _voucher_i:IconContainer = new IconContainer("vouchers",171,83,bitmapData,true,0,0,8,false);
++         bitmapData.dispose();
++         var CamoIconsBig:Class = LobbyMenu_CamoIconsBig;
++         bitmapData = get_bitmap(CamoIconsBig);
++         var _camo_big_i:IconContainer = new IconContainer("camo_big",140,140,bitmapData,true);
++         bitmapData.dispose();
++         var WeaponIcons:Class = LobbyMenu_WeaponIcons;
++         bitmapData = get_bitmap(WeaponIcons);
++         _weapons_i = new IconContainer("weapons",171,83,bitmapData,true,0,0,8,false);
++         bitmapData.dispose();
++         var EquipmentIcons:Class = LobbyMenu_EquipmentIcons;
++         bitmapData = get_bitmap(EquipmentIcons);
++         _equipment_i = new IconContainer("equipment",171,83,bitmapData,true,0,0,8,false);
++         bitmapData.dispose();
++         var ModifierIcons:Class = LobbyMenu_ModifierIcons;
++         bitmapData = get_bitmap(ModifierIcons);
++         _modifiers_i = new IconContainer("modifiers",38,38,bitmapData,true,0,0,0,false);
++         bitmapData.dispose();
++         var ProfileIcons:Class = LobbyMenu_ProfileIcons;
++         bitmapData = get_bitmap(ProfileIcons);
++         _iconContainer_profile = new IconContainer("profileIcons",64,58,bitmapData,true,5);
++         bitmapData.dispose();
++         var TopPanelIcons:Class = LobbyMenu_TopPanelIcons;
++         bitmapData = get_bitmap(TopPanelIcons);
++         new IconContainer("topIcons",91,91,bitmapData,false,0,2,2);
++         bitmapData.dispose();
++         var FactionIcons:Class = LobbyMenu_FactionIcons;
++         bitmapData = get_bitmap(FactionIcons);
++         new IconContainer("factionIcons",42,42,bitmapData,false,0,1,1);
++         bitmapData.dispose();
++         var FactionIconsBig:Class = LobbyMenu_FactionIconsBig;
++         bitmapData = get_bitmap(FactionIconsBig);
++         new IconContainer("factionIconsBig",66,66,bitmapData,false,0,2,2);
++         bitmapData.dispose();
++         var FactionItemIcons:Class = LobbyMenu_FactionItemIcons;
++         bitmapData = get_bitmap(FactionItemIcons);
++         new IconContainer("factionItemIcons",20,20,bitmapData,true);
++         bitmapData.dispose();
++         var FilersIcons:Class = LobbyMenu_FilersIcons;
++         bitmapData = get_bitmap(FilersIcons);
++         new IconContainer("filter_icons",26,26,bitmapData);
++         bitmapData.dispose();
++         var FilersOverIcons:Class = LobbyMenu_FilersOverIcons;
++         bitmapData = get_bitmap(FilersOverIcons);
++         new IconContainer("filter_over_icons",26,26,bitmapData);
++         bitmapData.dispose();
++         function get_bitmap(className:Class):BitmapData
+          {
+             var tempBitmap:Bitmap = new className();
+             var tempBitmapData:BitmapData = new BitmapData(tempBitmap.width,tempBitmap.height,true,0);
+             tempBitmapData.draw(tempBitmap);
+             tempBitmap = null;
+             return tempBitmapData;
+-         };
+-         var CamoIcons:Class = LobbyMenu_CamoIcons;
+-         var bitmapData:BitmapData = get_bitmap(CamoIcons);
+-         var _camo_i:IconContainer = new IconContainer("camo",72,72,bitmapData,true);
+-         bitmapData.dispose();
+-         AmmoIcons = LobbyMenu_AmmoIcons;
+-         bitmapData = get_bitmap(AmmoIcons);
+-         this._ammo_i = new IconContainer("consumables",171,83,bitmapData,true,0,0,8,false);
+-         bitmapData.dispose();
+-         DecalsIcons = LobbyMenu_DecalsIcons;
+-         bitmapData = get_bitmap(DecalsIcons);
+-         this._ammo_i = new IconContainer("decals",82,82,bitmapData,true,0,0,0,false);
+-         bitmapData.dispose();
+-         BundleIcons = LobbyMenu_BundleIcons;
+-         bitmapData = get_bitmap(BundleIcons);
+-         _bundle_i = new IconContainer("bundles",171,92,bitmapData,true,0,0,0,false);
+-         bitmapData.dispose();
+-         VoucherIcons = LobbyMenu_VoucherIcons;
+-         bitmapData = get_bitmap(VoucherIcons);
+-         _voucher_i = new IconContainer("vouchers",171,83,bitmapData,true,0,0,8,false);
+-         bitmapData.dispose();
+-         CamoIconsBig = LobbyMenu_CamoIconsBig;
+-         bitmapData = get_bitmap(CamoIconsBig);
+-         _camo_big_i = new IconContainer("camo_big",140,140,bitmapData,true);
+-         bitmapData.dispose();
+-         WeaponIcons = LobbyMenu_WeaponIcons;
+-         bitmapData = get_bitmap(WeaponIcons);
+-         this._weapons_i = new IconContainer("weapons",171,83,bitmapData,true,0,0,8,false);
+-         bitmapData.dispose();
+-         EquipmentIcons = LobbyMenu_EquipmentIcons;
+-         bitmapData = get_bitmap(EquipmentIcons);
+-         this._equipment_i = new IconContainer("equipment",171,83,bitmapData,true,0,0,8,false);
+-         bitmapData.dispose();
+-         ModifierIcons = LobbyMenu_ModifierIcons;
+-         bitmapData = get_bitmap(ModifierIcons);
+-         this._modifiers_i = new IconContainer("modifiers",38,38,bitmapData,true,0,0,0,false);
+-         bitmapData.dispose();
+-         ProfileIcons = LobbyMenu_ProfileIcons;
+-         bitmapData = get_bitmap(ProfileIcons);
+-         this._iconContainer_profile = new IconContainer("profileIcons",64,58,bitmapData,true,5);
+-         bitmapData.dispose();
+-         TopPanelIcons = LobbyMenu_TopPanelIcons;
+-         bitmapData = get_bitmap(TopPanelIcons);
+-         new IconContainer("topIcons",91,91,bitmapData,false,0,2,2);
+-         bitmapData.dispose();
+-         FactionIcons = LobbyMenu_FactionIcons;
+-         bitmapData = get_bitmap(FactionIcons);
+-         new IconContainer("factionIcons",42,42,bitmapData,false,0,1,1);
+-         bitmapData.dispose();
+-         FactionIconsBig = LobbyMenu_FactionIconsBig;
+-         bitmapData = get_bitmap(FactionIconsBig);
+-         new IconContainer("factionIconsBig",66,66,bitmapData,false,0,2,2);
+-         bitmapData.dispose();
+-         FactionItemIcons = LobbyMenu_FactionItemIcons;
+-         bitmapData = get_bitmap(FactionItemIcons);
+-         new IconContainer("factionItemIcons",20,20,bitmapData,true);
+-         bitmapData.dispose();
+-         FilersIcons = LobbyMenu_FilersIcons;
+-         bitmapData = get_bitmap(FilersIcons);
+-         new IconContainer("filter_icons",26,26,bitmapData);
+-         bitmapData.dispose();
+-         FilersOverIcons = LobbyMenu_FilersOverIcons;
+-         bitmapData = get_bitmap(FilersOverIcons);
+-         new IconContainer("filter_over_icons",26,26,bitmapData);
+-         bitmapData.dispose();
++         }
+       }
+       
+       private function onChangeCursor(e:MouseCursorEvent) : void
+       {
+-         var _new:uint = 0;
++         var _new:uint;
+          if(e.cursor == "ibeam")
+          {
+             _new = 6;
+@@ -5287,7 +5277,7 @@
+          this.updateRubberElements();
+          this._layout.beforeReflow = this.updateRubberElements;
+          this._layout.afterReflow = this.updateRubberElements;
+-         this._time = 0;
++         _time = 0;
+          if(stage.stageWidth / stage.stageHeight < 1.85)
+          {
+             scaleFactor = stage.stageWidth / this._superWidth;
+@@ -5362,8 +5352,8 @@
+          stage.addChild(this.fadeBack);
+          this.fadeBack.alpha = 1;
+          TweenLite.to(this.fadeBack,0.5,{
+-            "alpha":0,
+-            "onComplete":this.removeFadeSprite
++            alpha:0,
++            onComplete:this.removeFadeSprite
+          });
+          stage.addEventListener(Event.RESIZE,this.onStageResizeFade);
+       }
+@@ -5376,7 +5366,7 @@
+       
+       private function removeFadeSprite() : void
+       {
+-         if(Boolean(this.fadeBack) && stage.contains(this.fadeBack))
++         if((this.fadeBack) && stage.contains(this.fadeBack))
+          {
+             stage.removeChild(this.fadeBack);
+          }
+@@ -5390,7 +5380,7 @@
+          if(force)
+          {
+             this.fadeBack.alpha = 0;
+-            TweenLite.to(this.fadeBack,0.5,{"alpha":1});
++            TweenLite.to(this.fadeBack,0.5,{alpha:1});
+          }
+          else
+          {
+@@ -5400,39 +5390,38 @@
+       
+       private function test_clan_mamngment() : void
+       {
+-         var players:Array;
+-         var i:uint;
+          var createPermission:Function = function(value:String = null):Object
+          {
+-            return {
+-               "name":value,
+-               "invite_permission":true,
+-               "kick_permission":true,
+-               "change_rank_permission":false,
+-               "daily_message_permission":true
++            var object:Object = {
++               name:value,
++               invite_permission:true,
++               kick_permission:true,
++               change_rank_permission:false,
++               daily_message_permission:true
+             };
++            return object;
+          };
+          this.clanWindow.setState(3);
+          this.set_clan_daily_message("some Very Awful Daily Message\nsecond line text");
+          this.set_clan_ranks([createPermission("RankZero"),createPermission("Rank2"),createPermission("Rank3"),createPermission("Rank4")]);
+          this.set_clan_manage_permissions(createPermission());
+          this.set_clan_name("superClanName","SCN");
+-         players = [];
++         var players:Array = [];
+          players.push({
+-            "name":"Гиганский кролик",
+-            "label":"Status",
+-            "status":0,
+-            "rank":"Рядовой",
+-            "level":23
++            name:"Гиганский кролик",
++            label:"Status",
++            status:0,
++            rank:"Рядовой",
++            level:23
+          });
+-         for(i = 0; i < 10; i++)
++         for(var i:uint = 0; i < 10; i++)
+          {
+             players.push({
+-               "name":"Member" + i.toString(),
+-               "label":"Status",
+-               "status":0,
+-               "rank":"Рядовой",
+-               "level":1
++               name:"Member" + i.toString(),
++               label:"Status",
++               status:0,
++               rank:"Рядовой",
++               level:1
+             });
+          }
+          this.set_clan_players_list(players);
+@@ -5461,8 +5450,8 @@
+       
+       private function updateButtonsLocal(value:String) : void
+       {
+-         this.bottom_panel.btnFriends.data = {"name":LocalizationData.getName("btn_friends")};
+-         this.bottom_panel.btnShowLogList.data = {"name":LocalizationData.getName("btn_show_log_list_hint")};
++         this.bottom_panel.btnFriends.data = {name:LocalizationData.getName("btn_friends")};
++         this.bottom_panel.btnShowLogList.data = {name:LocalizationData.getName("btn_show_log_list_hint")};
+          this.bottom_panel.btnShowLogList.label = LocalizationData.getName("btn_show_log_list").toUpperCase();
+       }
+       
+@@ -5478,20 +5467,20 @@
+       {
+          var arr:Array = [];
+          arr.push({
+-            "bundle_id":666,
+-            "bundle_name":"666",
+-            "bundle_descr":"descr 666 is 666",
+-            "cost":666,
+-            "currency_type":1,
+-            "bundle_icon":1
++            bundle_id:666,
++            bundle_name:"666",
++            bundle_descr:"descr 666 is 666",
++            cost:666,
++            currency_type:1,
++            bundle_icon:1
+          });
+          arr.push({
+-            "bundle_id":555,
+-            "bundle_name":"555",
+-            "bundle_descr":"descr 555 is 555",
+-            "cost":555,
+-            "currency_type":0,
+-            "bundle_icon":0
++            bundle_id:555,
++            bundle_name:"555",
++            bundle_descr:"descr 555 is 555",
++            cost:555,
++            currency_type:0,
++            bundle_icon:0
+          });
+          this.setup_bundle_data(arr);
+       }
+@@ -5549,47 +5538,47 @@
+       private function testTRewards() : void
+       {
+          this.set_tutorial_rewards([{
+-            "name":"tutorial_completed",
+-            "reward":[{
+-               "type":Reward.ITEM,
+-               "param":214,
+-               "amount":100
++            name:"tutorial_completed",
++            reward:[{
++               type:Reward.ITEM,
++               param:214,
++               amount:100
+             },{
+-               "type":Reward.EXPERIENCE,
+-               "amount":5
++               type:Reward.EXPERIENCE,
++               amount:5
+             }]
+          },{
+-            "name":"survival_item_notes_completed",
+-            "reward":[{
+-               "type":Reward.ITEM,
+-               "param":214,
+-               "amount":200
++            name:"survival_item_notes_completed",
++            reward:[{
++               type:Reward.ITEM,
++               param:214,
++               amount:200
+             },{
+-               "type":Reward.EXPERIENCE,
+-               "amount":5
++               type:Reward.EXPERIENCE,
++               amount:5
+             }]
+          },{
+-            "name":"survival_prepare_to_battle_notes_completed",
+-            "reward":[{
+-               "type":Reward.ITEM,
+-               "param":214,
+-               "amount":300
++            name:"survival_prepare_to_battle_notes_completed",
++            reward:[{
++               type:Reward.ITEM,
++               param:214,
++               amount:300
+             },{
+-               "type":Reward.EXPERIENCE,
+-               "amount":5
++               type:Reward.EXPERIENCE,
++               amount:5
+             }]
+          }]);
+       }
+       
+       public function show_premium_discount(dataObject:Object) : void
+       {
+-         var data:Array = null;
+-         var discount:Number = NaN;
+-         var messData:Object = null;
+-         var i:uint = 0;
+-         var discount_data:Object = null;
++         var data:Array;
++         var discount:Number;
++         var messData:Object;
++         var i:uint;
++         var discount_data:Object;
+          data = dataObject.items;
+-         discount = Number(dataObject.discount);
++         discount = (dataObject.discount);
+          trace("show_premium_discount",data,discount);
+          messData = {};
+          for(i = 0; i < data.length; i++)
+@@ -5602,10 +5591,10 @@
+          Message.showMessage("premium_discount",messData);
+       }
+       
+-      public function show_premium_post_reward(money:uint, exp:uint, rep:uint, hours:uint = 0, timeLeft:uint = 3600, discount:Number = 1, factionId:int = -1) : void
+-      {
+-         var messData:Object = null;
+-         var notif:Object = null;
++      public function show_premium_post_reward(money:uint, exp:uint, rep:uint, hours:uint = 0, timeLeft:uint = 3600.0, discount:Number = 1, factionId:int = -1) : void
++      {
++         var messData:Object;
++         var notif:Object;
+          trace("show_premium_post_reward",money,exp,rep,hours,timeLeft,discount,factionId);
+          if(factionId == -1)
+          {
+@@ -5613,22 +5602,22 @@
+          }
+          MessagePostPremium.discount = discount;
+          messData = {
+-            "money":money,
+-            "experience":exp,
+-            "reputation":rep,
+-            "factionId":factionId,
+-            "options":this._premiumStoreDiscount
++            money:money,
++            experience:exp,
++            reputation:rep,
++            factionId:factionId,
++            options:this._premiumStoreDiscount
+          };
+-         this._postRewardData = messData;
++         _postRewardData = messData;
+          Message.showMessage("post_premium",messData);
+          notif = {
+-            "notificationType":0,
+-            "label":LocalizationData.getName("premium_post_reward_label")
++            notificationType:0,
++            label:LocalizationData.getName("premium_post_reward_label")
+          };
+          this._postRewardData.startTime = getTimer();
+          if(!this._discountTimer)
+          {
+-            this._discountTimer = new Timer(1000);
++            _discountTimer = new Timer(1000);
+             this._discountTimer.start();
+             this._discountTimer.addEventListener(TimerEvent.TIMER,this.updatePremiumDiscountTime);
+          }
+@@ -5639,8 +5628,8 @@
+       
+       private function updatePremiumDiscountTime(e:TimerEvent = null) : void
+       {
+-         var curTime:int = 0;
+-         var delta:int = 0;
++         var curTime:int;
++         var delta:int;
+          if(this.statusPanel.btn_premium.discount > 0)
+          {
+             curTime = getTimer();
+@@ -5654,7 +5643,7 @@
+          }
+          if(this.statusPanel.btn_premium.discount <= 0)
+          {
+-            if(Boolean(this._discountTimer))
++            if((this._discountTimer))
+             {
+                this._discountTimer.removeEventListener(TimerEvent.TIMER,this.updatePremiumDiscountTime);
+             }
+@@ -5670,10 +5659,10 @@
+          }
+          if(e.keyCode == 77)
+          {
+-            if(this.toggle)
++            if(!this.toggle)
+             {
+             }
+-            this.toggle = !this.toggle;
++            toggle = !this.toggle;
+             ++this.toggleIndex;
+             return;
+          }
+@@ -5723,13 +5712,13 @@
+       
+       public function handleInput(event:InputEvent) : void
+       {
+-         var details:InputDetails = null;
++         var details:InputDetails;
+          trace("STAGE::handleInput::",event.isDefaultPrevented(),event.handled);
+          details = event.details;
+          var index:uint = details.controllerIndex;
+          if(this._escapeHandled)
+          {
+-            this._escapeHandled = false;
++            _escapeHandled = false;
+             return;
+          }
+          switch(details.code)
+@@ -5740,23 +5729,24 @@
+                   trace("ESCAPEKeyDown");
+                   if(event.isDefaultPrevented())
+                   {
+-                     this._escapeHandled = true;
++                     _escapeHandled = true;
+                      addEventListener(Event.RENDER,this.cleanEscapeHandle);
+                   }
+                   else if(this.has_active_window())
+                   {
+                      this.close_active_window();
+-                     this._escapeHandled = true;
++                     _escapeHandled = true;
+                      addEventListener(Event.RENDER,this.cleanEscapeHandle);
+                   }
+                }
++               break;
+          }
+       }
+       
+       private function cleanEscapeHandle(e:Event) : void
+       {
+          removeEventListener(Event.RENDER,this.cleanEscapeHandle);
+-         this._escapeHandled = false;
++         _escapeHandled = false;
+       }
+    }
+ }

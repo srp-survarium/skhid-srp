@@ -37,6 +37,10 @@ class ScopeReserveIntegration(unittest.TestCase):
                         if(ScopeHelper.take(value)) return;
                         this.alpha=0.5;
                     }
+                    public function value(input:Object):Boolean {
+                        if(ScopeHelper.take(input)) return true;
+                        return this.alpha>0.2;
+                    }
                 }
             }''')
             seed = root / 'seed.swf'

@@ -1199,6 +1199,11 @@ public final class MovieSource {
         return found == 1;
     }
 
+    static boolean methodReturn(AVM2Instruction instruction) {
+        int opcode = instruction.definition.instructionCode;
+        return opcode == 0x47 || opcode == 0x48;
+    }
+
     // Omit or defer only the actual compiler's instance-scope prologue, across
     // a prefix whose lookups provably resolve without it. No nested scopes,
     // activations, handlers or incoming edges may defeat that proof. The full
@@ -1214,12 +1219,12 @@ public final class MovieSource {
             if (localRegister(expected.get(i), false) == 0 && expected.get(i + 1).definition.instructionCode == 0x30) {
                 expectedScope = i; break;
             }
-            if (expected.get(i).definition.instructionCode == 0x47) returns++;
+            if (methodReturn(expected.get(i))) returns++;
         }
         int limit = emitted.size();
         if (expectedScope >= 0) {
-            if (returns == 0 || expected.get(expectedScope - 1).definition.instructionCode != 0x47) return emitted;
-            for (int i = 2; i < emitted.size(); i++) if (emitted.get(i).definition.instructionCode == 0x47 && --returns == 0) {
+            if (returns == 0 || !methodReturn(expected.get(expectedScope - 1))) return emitted;
+            for (int i = 2; i < emitted.size(); i++) if (methodReturn(emitted.get(i)) && --returns == 0) {
                 limit = i + 1; break;
             }
             if (returns != 0 || limit == emitted.size()) return emitted;
@@ -1253,7 +1258,7 @@ public final class MovieSource {
         if (defaultEnd > 2) {
             int prefixReturns = 0;
             for (int i = 0; i + defaultEnd - 2 <= expected.size(); i++) {
-                if (i > 0 && prefixReturns > 0 && (expected.get(i - 1).definition.instructionCode == 0x47
+                if (i > 0 && prefixReturns > 0 && (methodReturn(expected.get(i - 1))
                         || (expectedScope >= 0 && i == expectedScope + 2))) {
                     boolean same = true;
                     for (int j = 2; j < defaultEnd; j++) {
@@ -1264,13 +1269,13 @@ public final class MovieSource {
                     if (same) {
                         int left = prefixReturns;
                         for (int j = defaultEnd; j < emitted.size(); j++)
-                            if (emitted.get(j).definition.instructionCode == 0x47 && --left == 0) {
+                            if (methodReturn(emitted.get(j)) && --left == 0) {
                                 defaultTarget = j + 1; break;
                             }
                         break;
                     }
                 }
-                if (expected.get(i).definition.instructionCode == 0x47) prefixReturns++;
+                if (methodReturn(expected.get(i))) prefixReturns++;
             }
             if (defaultTarget <= defaultEnd || defaultTarget >= emitted.size()) return emitted;
         }
@@ -1292,7 +1297,7 @@ public final class MovieSource {
                 continue;
             }
             if (!Set.of(0x10,0x11,0x12,0x20,0x21,0x24,0x25,0x26,0x27,0x28,0x29,
-                    0x2c,0x2d,0x2e,0x2f,0x46,0x47,0x4f,0x66,0x70,0x73,0x74,0x75,0x76,0x80,0x85).contains(op))
+                    0x2c,0x2d,0x2e,0x2f,0x46,0x47,0x48,0x4f,0x66,0x70,0x73,0x74,0x75,0x76,0x80,0x85).contains(op))
                 return emitted;
         }
         List<AVM2Instruction> result = new ArrayList<>();

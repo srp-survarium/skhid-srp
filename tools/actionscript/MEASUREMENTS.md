@@ -1338,3 +1338,29 @@ The fresh premium build preserves one authorized method change and identical
 non-code bytes, retaining the earlier game-tested hash
 `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`.
 The runtime record documents a byte-identical rebuild, not a new game run.
+
+### LobbyMenu completes individual script matching
+
+`LobbyMenu` now independently reproduces the entire compressed release movie.
+Its reconstructed source restores declaration and captured-variable order,
+named local functions, typed return temporaries, implicit defaults, lexical
+field assignments, identifier object keys and explicit empty control-flow
+branches. The original static slot order is expressed by declaring `scaleFactor`
+before `profileCost` and `id`. A floating literal preserves the stored numeric
+kind of the `timeLeft` default, and an authenticated constructor reservation
+retains stack capacity 32.
+
+The guarded scope emitter now accepts early value returns as well as void
+returns. It retains the returned expression and applies the same receiver,
+parameter, lookup and control-flow restrictions. The independent real-compiler
+fixture exercises a Boolean guard return and rejects unsafe mutations. All
+25 tests pass, including nine compiler integrations (168.612 seconds).
+
+There are now 233 authenticated reconstructions and 645 pristine successes:
+all 878 scripts have individual exact proofs. This is not yet a whole-tree
+artifact proof. A fresh full-tree compilation and assembly with complete
+compiled-record ownership remain required.
+The fresh premium feature rebuild changes only its authorized method and
+preserves non-code bytes. Its SHA-256 remains
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+identical to the earlier game-tested candidate; no new runtime run is claimed.

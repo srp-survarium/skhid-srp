@@ -22,8 +22,8 @@ public class ScopeFixture {
         if(MovieSource.localRegister(code.code.get(0),false)!=0 || code.code.get(1).definition.instructionCode!=0x30)
             throw new AssertionError("Missing compiler scope prologue");
         code.removeInstruction(1,body);code.removeInstruction(0,body);
-        if(name.equals("defer")) {
-            int site=0;while(code.code.get(site).definition.instructionCode!=0x47)site++;
+        if(!name.equals("omit")) {
+            int site=0;while(!MovieSource.methodReturn(code.code.get(site)))site++;
             code.insertInstruction(site+1,new AVM2Instruction(0,0xd0,null),false,body);
             code.insertInstruction(site+2,new AVM2Instruction(0,0x30,null),false,body);
         }
@@ -33,7 +33,7 @@ public class ScopeFixture {
         return body.getCode().code.stream().filter(i->!MovieSource.debugInstruction(i)).toList();
     }
     static void guards(Path input)throws Exception {
-        for(String name:List.of("omit","defer"))for(String mutation:List.of("valid","shadow","inherited-shadow",
+        for(String name:List.of("omit","defer","value"))for(String mutation:List.of("valid","shadow","inherited-shadow",
                 "missing-parent","duplicate-class","alias","scope-read","activation","nested","with",
                 "extra-local","prologue-entry","dynamic-name","handler","backedge","skip")) {
             if((mutation.equals("backedge") || mutation.equals("skip")) && name.equals("omit"))continue;
@@ -122,7 +122,7 @@ public class ScopeFixture {
         else {
             Path input=Path.of(args[0]);guards(input);
             var swf=MovieSource.read(input);var abc=MovieSource.findScript(swf,"fixture.ScopeProbe").abc;
-            normalize(abc,"omit");normalize(abc,"defer");((Tag)abc.parentTag).setModified(true);
+            normalize(abc,"omit");normalize(abc,"defer");normalize(abc,"value");((Tag)abc.parentTag).setModified(true);
             try(var out=Files.newOutputStream(Path.of(args[1]))){swf.saveTo(out);}
         }
         System.exit(0);

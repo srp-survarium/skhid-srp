@@ -216,7 +216,9 @@ unshadowed by the declaring class or any ancestor. Missing ancestors, method
 aliases, handlers, activations, nested functions, dynamic names and scope
 accesses are refused. Branches cannot enter the removed prologue, return into
 the prefix or bypass deferred scope setup. The complete method and control-flow
-comparison must still match. This follows ordinary instance lookup in
+comparison must still match. Both void and value-returning guards are supported;
+the returned expression remains the compiler's actual instruction sequence.
+This follows ordinary instance lookup in
 [Adobe's MethodEnv](https://github.com/adobe/avmplus/blob/master/core/MethodEnv.cpp#L1221);
 `with` scopes have different lookup rules and are excluded.
 
@@ -360,7 +362,7 @@ Use `--compiler reconstruction` with the pinned patch manifest to select these
 per-class compilers in one measurement. Classes without an override use
 `flex-strict`; every report row records the compiler actually used. Explicit
 `--compiler ffdec`, `ffdec-source`, `flex`, `flex-strict` or `flex-library` selects that compiler for every
-class, for comparison experiments. The per-class profile currently proves 232
+class, for comparison experiments. The per-class profile currently proves 233
 reconstructed classes, including easing, button, list, text, message, clan,
 debug and tutorial classes. Source fixes also recover local declaration order,
 static field slot order and explicit switch breaks where required.

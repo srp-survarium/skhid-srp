@@ -338,6 +338,16 @@
       "reconstruction_classes": 232,
       "reconstruction_manifest_sha256": "5b3c463e76efeeb05869905a0bbf2848948330c8e3197f1cd9f896fd867b9e40",
       "runtime_rerun": false
+    },
+    {
+      "candidate_movie_sha256": "1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3",
+      "changed_methods": 1,
+      "evidence": "The rebuilt movie is byte-identical to the candidate exercised by the recorded native-game check.",
+      "feature_manifest_sha256": "8da5aca531bed9c9f0278c956dd1118eaae86ec737eb9ac0450e12923201fde1",
+      "noncode_identical": true,
+      "reconstruction_classes": 233,
+      "reconstruction_manifest_sha256": "bef80b42896c83c9065b57b40a7d6831984a39c181c321ddc43974a2c1f2da42",
+      "runtime_rerun": false
     }
   ],
   "test_executable_sha256": "c92a49008b32f0c6442a712e098555194405bb25c8a32fb5ee5d6dd2f706e89c",

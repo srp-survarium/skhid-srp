@@ -2131,6 +2131,20 @@
       "pristine_sha256": "df27750d74b7b19b27a8245593ca423e3cfb7ec4990d89368b1a298b4c6c624f",
       "reason": "Recover original local and activation-slot declaration order, named local functions, implicit defaults, typed assignments, lexical writes, identifier object keys and preserved branch structure. The explicit mixed plan uses actual source-compiled addFakeItems with two explicit returns and five local slots; all other methods are native source output. The complete compressed release movie matches.",
       "result_sha256": "db627e1da7a684f5ce5f2a4132a66ed4c7a41a961c8bec24d1cc5f098e1a64ba"
+    },
+    {
+      "class": "LobbyMenu",
+      "compiler": "flex-strict",
+      "method_reservations": {
+        "QName(PackageNamespace(\"\"),\"LobbyMenu\")/instance-init": {
+          "stack": 32
+        }
+      },
+      "patch": "LobbyMenu.patch",
+      "patch_sha256": "d6ae7faf9237974b51d664c9b7b094ca7973a79e64f9f0a63758276892c4b007",
+      "pristine_sha256": "95a671784f167b4c6c88b618346c9c6029f857b716bc31de76a2c3f5b7098d73",
+      "reason": "Restore original local and captured-variable declaration order, named functions, implicit defaults, lexical field writes, identifier object keys, typed return temporaries, explicit empty branches and loop exits. Preserve explicit call conversions and represent the numeric default as a floating literal. Restore static slot order and reserve constructor stack capacity 32. Native compilation with guarded scope encoding reproduces the complete compressed release movie.",
+      "result_sha256": "133ab0540fea52e313487a7fc2f81611a355108c0e13948d2efa5e24913af9be"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",
