@@ -83,9 +83,11 @@ class LobbySourceTests(unittest.TestCase):
     def test_every_srp_class_is_in_the_tree_and_every_new_file_is_an_srp_class(self):
         # A new file not named in srp.json would be refused by the build;
         # one named but missing would never reach the players.
-        srp = [entry['class'] for entry in json.loads((TREE / 'srp.json').read_text())['classes']]
+        spec = json.loads((TREE / 'srp.json').read_text())
+        srp = [entry['class'] for entry in spec['classes']]
         _, added, removed = lobby.flash_tree.differences(TREE)
-        self.assertEqual(removed, [])
+        # A removed file is one of srp's classes of the release, listed.
+        self.assertEqual(removed, sorted(c.replace('.', '/') + '.as' for c in spec.get('removed', [])))
         self.assertEqual(sorted(p[:-3].replace('/', '.') for p in added),
                          sorted(c for c in srp if (TREE / 'src' / (c.replace('.', '/') + '.as')).exists()
                                 and c.replace('.', '/') + '.as' not in json.loads((TREE / 'movie.json').read_text())['sources']))
@@ -100,7 +102,7 @@ class LobbySourceTests(unittest.TestCase):
             self.assertEqual(build_feature.duplicate_functions(path.read_text(encoding='utf-8')), [], path.name)
 
     def test_the_exchange_and_the_server_agree_on_the_buy_gold_mark(self):
-        window = (TREE / 'src' / 'SrpExchange.as').read_text(encoding='utf-8')
+        window = (TREE / 'src' / 'survarium' / 'messages' / 'MessageMoneyExchange.as').read_text(encoding='utf-8')
         server = (HERE.parent / 'crates' / 'survarium' / 'src' / 'v026g' / 'lobby' / 'requests.rs').read_text(encoding='utf-8')
         sent = re.search(r'BUY_GOLD:uint = (0x[0-9A-Fa-f]+);', window)
         read = re.search(r'pub const BUY_PREMIUM: u32 = (0x[0-9A-Fa-f_]+);', server)
@@ -109,9 +111,9 @@ class LobbySourceTests(unittest.TestCase):
         self.assertEqual(int(sent.group(1), 16), int(read.group(1).replace('_', ''), 16))
 
     def test_every_exchange_text_is_in_every_language(self):
-        window = (TREE / 'src' / 'SrpExchange.as').read_text(encoding='utf-8')
+        window = (TREE / 'src' / 'survarium' / 'messages' / 'MessageMoneyExchange.as').read_text(encoding='utf-8')
         texts = re.search(r'TEXT:Object = \{(.*?)\};', window, re.S).group(1)
-        rows = re.findall(r'"(\w+)": \[(.*?)\]', texts, re.S)
+        rows = re.findall(r'"(\w+)": ?\[(.*?)\]', texts, re.S)
         self.assertGreater(len(rows), 5)
         for key, row in rows:
             self.assertEqual(len(re.findall(r'"[^"]+"', row)), 5, key)

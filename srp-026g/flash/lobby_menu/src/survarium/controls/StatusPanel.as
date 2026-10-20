@@ -604,7 +604,7 @@ package survarium.controls
       
       private function onRegulatMoneyAddClick(param1:ButtonEvent) : void
       {
-         SrpExchange.open(false);
+         MessageMoneyExchange.open(false);
       }
       
       public function setFactionProgress(value:Object) : void
@@ -835,7 +835,7 @@ package survarium.controls
       
       private function onPremiumMoneyAddClick(param1:Event) : void
       {
-         SrpExchange.open(true);
+         MessageMoneyExchange.open(true);
       }
       
       private function onKnowlengeBaseClick(e:Event) : void

@@ -348,7 +348,7 @@ download from revision 12 the movie ships in `resources.db.patch_12`.
 ## Lobby exchange, silver and gold both ways
 
 The lobby's gold-for-silver window is an exchange both ways (since revision
-23; source `../flash/lobby_menu/src/SrpExchange.as`). The gold box at the top of the lobby ("Get Gold", which asked to
+23; source: the window's class, `../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`). The gold box at the top of the lobby ("Get Gold", which asked to
 open the online store) opens it to buy gold; the silver box opens it to sell
 gold. The window has:
 
@@ -385,7 +385,7 @@ size is final when `Message` centres it; the swap button is added in
 `onRegulatMoneyAddClick`. The exe is not
 changed: the window calls the game's `exchange_premium_money`, which sends `47 04`
 with the u32 it is given. Gold for silver sends the gold, as the stock window
-did; silver for gold sends `0x40000000` + the gold (`SrpExchange.BUY_GOLD`),
+did; silver for gold sends `0x40000000` + the gold (`MessageMoneyExchange.BUY_GOLD`),
 which the server reads as `BuyPremium` (`requests::BUY_PREMIUM`). So the server
 must be released first; an older server refuses such an amount as more gold
 than the account has.
@@ -415,9 +415,9 @@ server do not change. Not in a release yet.
 
 ## Exchange window updates
 
-A change of `../flash/lobby_menu/src/SrpExchange.as` is built in by building the
-lobby movie (srp owns the class whole; FFDec compiles it, as revision 24's was). A method defined twice in the source is refused (FFDec
-keeps the last).
+A change of the window (`../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`) is built in by
+building the lobby movie: the window's own class, compiled as revision 24's was, every method of it the
+change does not touch byte for byte.
 
 The first such change (2026-10-20): an amount more than the Pay balance pays
 for becomes, as it is typed, the most it does, in the field typed in. Buying

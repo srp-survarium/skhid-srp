@@ -1,8 +1,8 @@
 {
-  "description": "srp's own classes of the lobby movie: each is owned whole by srp (any of its methods, fields and declarations may change or grow). A new one names abc_with, a class of the release whose ABC takes it (FFDec compiles it there, after that ABC's records), in this order.",
+  "description": "srp's own classes of the lobby movie: each is owned whole by srp (any of its methods, fields and declarations may change or grow). A new one names abc_with, a class of the release whose ABC takes it (FFDec compiles it there, after that ABC's records), in this order. \"removed\": srp's classes of the release gone from the tree (their code is in the game's classes now); the build takes them out of the movie.",
   "classes": [
     {"class": "SrpRooms"},
-    {"class": "SrpExchange"},
     {"class": "SrpPlayerGear", "abc_with": "LobbyMenu"}
-  ]
+  ],
+  "removed": ["SrpExchange"]
 }
