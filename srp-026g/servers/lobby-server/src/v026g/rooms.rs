@@ -1175,6 +1175,9 @@ impl Core<'_> {
         };
         let size = usize::from(room.spec.size);
         let room_minimum = u8::try_from(room.needs()).unwrap_or(u8::MAX);
+        // A PIN is the room's for its whole life: its every match pays
+        // nothing (the owner's of 2026-10-20).
+        let private = room.spec.pin.is_some();
         let members = room.members.clone();
         let unfit: Vec<(u32, Fit)> = members
             .iter()
@@ -1265,7 +1268,8 @@ impl Core<'_> {
             self.rooms.not_started(key, now);
             return;
         };
-        self.room_launching.insert(match_id, (map_id, room_minimum));
+        self.room_launching
+            .insert(match_id, (map_id, room_minimum, private));
         // Made at the match server before anyone is told: if it fails, its
         // players are back in the lobby (`launch`) and the room waits again,
         // nobody left marked as searching.

@@ -137,6 +137,7 @@ impl MatchHost for RegistryHost {
             // with (`rewards::Terms::at`).
             score_weights: None,
             vs_bots: setup.vs_bots,
+            private: setup.private,
             room_minimum: setup.room_minimum,
         };
         let ticket = match pool {
@@ -225,6 +226,7 @@ pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
         trusted_snapshot_ms: result.trusted_snapshot_ms,
         trusted_by: result.trusted_by,
         vs_bots: result.vs_bots,
+        private: result.private,
         players: result
             .players
             .into_iter()

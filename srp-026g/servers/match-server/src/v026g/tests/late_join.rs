@@ -1618,3 +1618,34 @@ fn a_newcomer_that_loads_again_gives_the_games_their_install_grace_again() {
     assert!(!bench.clients[place].disconnected);
     bench.assert_no_faults();
 }
+
+/// A room with a PIN's match (`MatchSetup::private`): its result says so,
+/// a late joiner's place in it too, so the rewards pay none of them (the
+/// owner's of 2026-10-20).
+#[test]
+fn a_private_rooms_result_says_so_with_its_late_joiner() {
+    let mut private = setup(2, MAP_BATTERIES);
+    private.private = true;
+    let mut bench = Bench::with_setup(private, Settings::default(), &[], &[], true);
+    bench.join_all();
+    bench.run_long(135_000);
+    assert!(bench.game().admitting());
+    let place = reserve(&mut bench);
+    bench.clients[place].connect();
+    assert!(bench.until(1_000, |b| b.clients[place].model.options.is_some()));
+    bench.clients[place].ready();
+    let at = bench.clock() / 50 * 50 + 100;
+    for client in &mut bench.clients {
+        client.sim.points_from = Some((at, [10, 3]));
+    }
+    assert!(bench.until(12_000, |b| b.clients[..place].iter().all(|c| c.closed)));
+    let result = bench.results.try_recv().unwrap();
+    assert!(result.private);
+    assert_eq!(result.players.len(), 3);
+    assert_eq!(result.players[place].account_id, 100 + place as u32);
+
+    // Any other match's does not.
+    let mut bench = Bench::growing(2, MAP_BATTERIES, Settings::default());
+    assert!(!bench.registry.formed(bench.match_id).unwrap().private);
+    bench.join_all();
+}

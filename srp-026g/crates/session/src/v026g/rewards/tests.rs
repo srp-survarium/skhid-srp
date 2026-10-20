@@ -76,6 +76,7 @@ fn result(players: Vec<PlayerResult>) -> MatchResult {
         trusted_by: 2,
         players,
         vs_bots: false,
+        private: false,
     }
 }
 
@@ -2739,6 +2740,165 @@ fn a_match_against_bots_pays_half_and_counts_no_quest() {
     assert!(report.players[0].reward.money < plain.money);
     // The screen of the player still comes out.
     assert!(report.screen_for(10).is_some());
+}
+
+/// Alice and Bob, and Carol, who came late (two minutes before the end)
+/// and stayed: each with the Scavengers' first quest (win with the base not
+/// robbed), which the match meets for Alice and Carol, and the day's first
+/// victory to come.
+fn private_room_players() -> (Vec<PlayerResult>, impl Fn() -> GameAccounts) {
+    let mut players = alice_and_bob();
+    let mut carol = player(2, 0, "Carol", counters_of(0, &[(event::KILL, 1)]));
+    carol.time_in_match_ms = 120_000;
+    players.push(carol);
+    let fresh = {
+        let players = players.clone();
+        move || {
+            let store = accounts(&players);
+            for player in &players {
+                let account = store.get(player.account_id).unwrap();
+                let mut account = account.locked();
+                account.extras.bonus = Default::default();
+                quests::choose_faction(&mut account, 1).unwrap();
+                account.quests = vec![QuestInstance {
+                    instance_id: 50,
+                    quest_id: 10101,
+                    games: 0,
+                    expires_at: NOW + 10_000,
+                }];
+                account.next_quest_instance = 51;
+            }
+            store
+        }
+    };
+    (players, fresh)
+}
+
+/// A room with a PIN's match pays nobody in it anything, the late joiner
+/// neither, and takes nothing (the owner's of 2026-10-20): no experience,
+/// silver, reputation, quest, daily bonus, drop or rating, no wear and no
+/// supplies; every account is as it was. Its screen still comes out with
+/// the match's numbers. The same match of a room without a PIN pays them.
+#[test]
+fn a_private_rooms_match_pays_nobody_anything() {
+    let (players, fresh) = private_room_players();
+    let quest = Quests::shared().quest(10101).unwrap();
+
+    let store = fresh();
+    let plain = Results::new()
+        .settle(&result(players.clone()), &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    assert!(!plain.private);
+    for player in &plain.players {
+        let reward = &player.reward;
+        assert!(reward.experience > 0 && reward.money > 0, "{reward:?}");
+        assert!(reward.reputation > 0 && reward.drop_chance > 0.0);
+        assert_ne!(reward.rating_after, reward.rating_before);
+    }
+    assert!(plain.players[0].reward.quest_money >= quest.money);
+    assert!(plain.players[0].reward.daily_bonus);
+    assert!(!plain.players[0].reward.worn.is_empty());
+
+    let mut private = result(players);
+    private.private = true;
+    let store = fresh();
+    let before: Vec<Account> = (10..=12).map(|id| account(&store, id)).collect();
+    let report = Results::new()
+        .settle(&private, &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    assert!(report.private);
+    assert_eq!(report.players.len(), 3);
+    for (player, before) in report.players.iter().zip(&before) {
+        let reward = &player.reward;
+        assert_eq!(reward.standing, Standing::Finished);
+        assert_eq!(
+            (
+                reward.experience,
+                reward.money,
+                reward.reputation,
+                reward.quest_money
+            ),
+            (0, 0, 0, 0),
+            "{reward:?}"
+        );
+        assert_eq!(reward.premium_bonus, (0, 0, 0));
+        assert!(reward.quest_reputation.is_empty() && reward.levels.is_empty());
+        assert_eq!((reward.level_money, reward.level_gold), (0, 0));
+        assert_eq!((reward.drop, reward.drop_chance), (None, 0.0));
+        assert!(!reward.daily_bonus && reward.daily_reward.is_none());
+        assert_eq!(reward.rating_after, reward.rating_before);
+        assert!(reward.worn.is_empty() && reward.defects.is_empty());
+        assert!(reward.supplies_used.is_empty());
+        assert!(player.notices.is_empty());
+        assert_eq!(player.full.quest_money, 0);
+        assert_eq!(player.full.dropped, None);
+        assert_eq!(player.full.drop_chances, [0.0; 4]);
+        assert_eq!(account(&store, player.account_id), *before);
+    }
+    // The screen: who won, the rows and their scores; nothing paid.
+    assert_eq!(report.stats.winner_team, 0);
+    assert_eq!(report.stats.rows.len(), 3);
+    assert!(report.stats.rows[0].score > 0);
+    assert_eq!(
+        report.players[0].reward.score,
+        plain.players[0].reward.score
+    );
+    for id in 10..=12 {
+        assert!(report.screen_for(id).is_some());
+    }
+}
+
+/// A room with a PIN's match takes no drop card ("private match"); a
+/// match of a room without one does.
+#[test]
+fn a_private_rooms_match_takes_no_drop_card() {
+    let players = alice_and_bob();
+    let store = accounts(&players);
+    let results = Results::new();
+    let card = Dictionary::shared().item_named(DROP_CARD).unwrap().dict_id;
+    let cards = store.get(10).unwrap().locked().add_item(card, 3);
+    let mut private = result(players.clone());
+    private.private = true;
+    results
+        .settle(&private, &store, &terms(), &mut Rng::new(3))
+        .unwrap();
+    let mut rng = Rng::new(5);
+    assert_eq!(
+        use_card_of(&results, &store, MATCH, 10, cards, &mut rng),
+        Err(DropCardRefusal::Private)
+    );
+    assert_eq!(DropCardRefusal::Private.to_string(), "private match");
+
+    let mut plain = result(players);
+    plain.match_id = MATCH + 1;
+    results
+        .settle(&plain, &store, &terms(), &mut Rng::new(3))
+        .unwrap();
+    assert_eq!(
+        use_card_of(&results, &store, MATCH + 1, 10, cards, &mut rng).map(|(_, left)| left),
+        Ok(2)
+    );
+}
+
+/// A report kept before rooms with a PIN paid nothing has no `private`:
+/// it is read as a match that paid.
+#[test]
+fn a_report_kept_without_the_private_mark_is_not_private() {
+    let players = alice_and_bob();
+    let store = accounts(&players);
+    let mut private = result(players);
+    private.private = true;
+    let report = Results::new()
+        .settle(&private, &store, &terms(), &mut Rng::new(3))
+        .unwrap();
+    let mut body = serde_json::to_value(&*report).unwrap();
+    body.as_object_mut().unwrap().remove("private").unwrap();
+    let rows = vec![(report_key(MATCH), body.to_string())];
+    let [kept] = &kept_reports(&rows)[..] else {
+        panic!("one report kept");
+    };
+    assert!(!kept.private);
+    assert_eq!(kept.match_id, MATCH);
 }
 
 #[test]

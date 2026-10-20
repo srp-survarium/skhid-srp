@@ -1781,6 +1781,10 @@ fn room_rules(lang: Lang, squads: bool) -> String {
             "Teams are balanced by gear, level and past results.",
             "Команди вирівнюються за спорядженням, рівнем і результатами минулих матчів.",
         ),
+        lang.tr(
+            "Private rooms (with a PIN) give no rewards.",
+            "Приватні кімнати (з PIN) не дають нагород.",
+        ),
     ];
     if !squads {
         items.push(lang.tr(
@@ -2946,6 +2950,7 @@ mod tests {
         assert!(en.contains("vote for 15 s between 3 maps"));
         assert!(en.contains("until its last 30 s"));
         assert!(en.contains("Squads are off"));
+        assert!(en.contains("Private rooms (with a PIN) give no rewards."));
         // Nothing of the queue's rules is left in it.
         assert!(!en.contains("countdown"));
         assert!(!en.contains("JOIN"));
@@ -2957,6 +2962,7 @@ mod tests {
         let uk = room_rules(Lang::Uk, false);
         assert!(uk.contains("15 с голосують за одну з 3 мап"));
         assert!(uk.contains("Загони вимкнено"));
+        assert!(uk.contains("Приватні кімнати (з PIN) не дають нагород."));
         assert_eq!(en.matches("<li>").count(), uk.matches("<li>").count());
     }
 
