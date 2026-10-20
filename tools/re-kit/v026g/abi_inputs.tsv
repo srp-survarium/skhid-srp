@@ -2812,7 +2812,25 @@ va	name	location	role	basis
 0x0031b390		entry ESP+4		auto
 0x0031b390		entry ESP+12		auto
 0x0031b390		entry ESP+8		auto
+0x0031b4b0	survarium::generic_anomaly_core::activate	ECX	generic_anomaly_core	observed
+0x0031b4b0	survarium::generic_anomaly_core::activate	stack+4	world, kept at +1ACh and given to the containers and zones	observed
+0x0031b530	survarium::generic_anomaly_core::deactivate	ECX	generic_anomaly_core	observed
+0x0031b5b0	survarium::generic_anomaly_core::tick	ECX	generic_anomaly_core (its tick delegate at +194h, function at +198h)	observed
+0x0031b5b0	survarium::generic_anomaly_core::tick	stack+4	time_delta_ms	observed
+0x0031b5b0	survarium::generic_anomaly_core::tick	stack+8	current_time_ms	observed
+0x0031b6c0	survarium::generic_anomaly_core::spawn_artefact	ECX	generic_anomaly_core	observed
+0x0031b6c0	survarium::generic_anomaly_core::spawn_artefact	stack+4	current_time_ms	observed
+0x0031b9a0	survarium::generic_anomaly_core::activate_damage_zone	ECX	generic_anomaly_core	observed
+0x0031b9a0	survarium::generic_anomaly_core::activate_damage_zone	stack+4	damage_zone_core	observed
+0x0031b9a0	survarium::generic_anomaly_core::activate_damage_zone	stack+8	passed on to the zone's slot 7 (+1Ch)	observed
 0x0031ba90	survarium::generic_anomaly_core::select_state	ESI	generic_anomaly_core	inferred
+0x0031bc10	survarium::anomaly_state::initialize	stack+4	anomaly_state	observed
+0x0031bc10	survarium::anomaly_state::initialize	stack+8	current_time_ms (end = it + active_time_sec*1000, state+2Ch)	observed
+0x0031bcb0	survarium::anomaly_state::execute	stack+4	anomaly_state	observed
+0x0031bcb0	survarium::anomaly_state::execute	stack+8	time_delta_ms	observed
+0x0031bcb0	survarium::anomaly_state::execute	stack+12	current_time_ms (past the end: energy = energy_on_exit)	observed
+0x0031bd50	survarium::anomaly_state::finalize	ESI	anomaly_state	observed
+0x0031bd50	survarium::anomaly_state::finalize	stack+4	bool passed on to each zone_group::finalize	observed
 0x0031c480	survarium::artefact_container_core::load	ECX	container	inferred
 0x0031c480	survarium::artefact_container_core::load	stack+4	config	inferred
 0x0031c530	survarium::artefact_container_core::serialize	ECX	container_secondary_receiver_full_object_plus_0x40	inferred
@@ -3014,6 +3032,12 @@ va	name	location	role	basis
 0x0033a6a0	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression	stack+12	substate context	inferred
 0x0033a6a0	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression	stack+20	metadata output pointer	inferred
 0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	EDX	throw-grenade state	inferred
+0x0033bcd0	survarium::generic_anomaly_core::on_artefact_container_use	ECX	generic_anomaly_core	observed
+0x0033bcd0	survarium::generic_anomaly_core::on_artefact_container_use	stack+4	artefact_container_core	observed
+0x0033bcd0	survarium::generic_anomaly_core::on_artefact_container_use	stack+8	current_time_ms	observed
+0x0033bd50	survarium::generic_anomaly_core::load	ECX	generic_anomaly_core	observed
+0x0033bd50	survarium::generic_anomaly_core::load	stack+4	config	observed
+0x0033c440	survarium::generic_anomaly_core::resolve_links	ECX	link_resolver subobject (core+4); each container's owner = ECX-4	observed
 0x0033cac0	survarium::medkit::medkit	stack+4	medkit receiver	inferred
 0x0033cac0	survarium::medkit::medkit	EAX	configuration	inferred
 0x0033d2b0	survarium::medkit::`scalar deleting destructor'	ECX	medkit receiver	inferred

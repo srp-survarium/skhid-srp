@@ -2367,6 +2367,31 @@ its screen factor (the original's at 20, 60 and 150 m). Against the build of
 code (0xC4BC60..0xC4BCED), the two scales (0xC4C0E0..0xC4C115) and the PE
 checksum, and in nothing else (compared byte by byte). **Not run in a game.**
 
+### 42. Dynamic anomalies (in progress: not in the build)
+
+The owner (2026-10-20): the release's London anomalies "appeared with
+artifacts and disappeared when artifacts were picked up, and they used to
+spawn in many lcoations". The scope, the plan and the rules:
+`../docs/notes/dynamic_anomalies.md`; the proof: `client_patch.md` section
+3.38.
+
+The release (0.28a2 to 0.46c2) had a timed anomaly class and an anomalies
+rule. Here a timed anomaly is a stock `generic_anomaly_core` whose states
+are the release's timeline by energy (charging, damage, artefact, after the
+pick-up, idle), marked by an `energy_maximum` above 0 (no stock core has
+one): the game's own state timers and its pick-up already play it. The exe
+adds only the rule's choice: every 30 s (from the start + 30 s, +-10 s), one
+idle timed core with a free artefact and no busy one within 15 m, while
+fewer than 16 are
+active, starts charging, its artefact due 24 s later.
+
+Milestone 1 (this): `dynamic_anomalies_026g.asm`, the choice as a routine
+over a table of cores, run on made-up cores by
+`check_dynamic_anomalies_026g.py` (Unicorn; NASM 2.16). It is not called
+and not in any build: the exe is unchanged. Next: the call from the world's
+tick and its place in the exe (milestone 2), London's data (3), the server's
+bots (4), a game (5).
+
 ## Not ported, not done
 
 - The 0.21d mode 3 battery patch is not needed: 0.26g serializes the
