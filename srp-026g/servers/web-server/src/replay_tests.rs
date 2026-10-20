@@ -66,7 +66,9 @@ fn planted(name: &str) -> Planted {
     .checked()
     .unwrap();
     std::fs::create_dir_all(&settings.modes_dir).unwrap();
-    let replays = Arc::new(Replays::new(Some(settings.clone()), 6));
+    // The replay's game was of 12: given whatever the last row of
+    // simulation_changes.tsv is (the refusals have their own tests).
+    let replays = Arc::new(Replays::new(Some(settings.clone()), 6).with_oldest_revision(11));
     std::fs::write(replays.sur_path(MATCH).unwrap(), REPLAY).unwrap();
     let sidecar = Sidecar {
         match_id: MATCH,

@@ -1278,6 +1278,13 @@ mod tests {
         .unwrap()
     }
 
+    /// Replays in `root`, giving recordings from revision 11 on whatever the
+    /// last row of `simulation_changes.tsv` is (the tests' recordings are of
+    /// 11 to 15; the refusals of older ones have their own tests).
+    fn desk(root: &Path) -> Replays {
+        Replays::new(Some(settings(root)), 6).with_oldest_revision(11)
+    }
+
     /// A download of `token` taken and given back at once: its match.
     fn take(replays: &Replays, token: &str, count: bool, now: Instant) -> Result<u32, Refused> {
         replays
@@ -1409,7 +1416,7 @@ mod tests {
     #[test]
     fn a_made_replay_is_ready_with_a_token_of_five_downloads_for_ten_minutes() {
         let root = temp("ready");
-        let replays = Replays::new(Some(settings(&root)), 6);
+        let replays = desk(&root);
         made(&replays, vec![Some(12), None, Some(11)]);
         let now = Instant::now();
         assert_eq!(replays.answer(ALICE, now).status, Status::None);
@@ -1485,7 +1492,7 @@ mod tests {
     #[test]
     fn three_live_tokens_an_account_and_one_ask_in_two_seconds() {
         let root = temp("tokens");
-        let replays = Replays::new(Some(settings(&root)), 6);
+        let replays = desk(&root);
         let mut now = Instant::now();
         let mut matches = Vec::new();
         for n in 0..4u32 {
@@ -1537,7 +1544,7 @@ mod tests {
     #[test]
     fn an_ask_is_refused_for_an_old_game_another_players_match_and_other_revisions() {
         let root = temp("refused");
-        let replays = Replays::new(Some(settings(&root)), 6);
+        let replays = desk(&root);
         made(&replays, vec![Some(14), Some(15)]);
         let mut now = Instant::now();
         let mut ask = |account, revision, known| {
@@ -1732,7 +1739,7 @@ mod tests {
     #[test]
     fn a_replay_made_while_the_asker_waits_says_why_it_is_refused() {
         let root = temp("why-later");
-        let replays = Replays::new(Some(settings(&root)), 6);
+        let replays = desk(&root);
         kept(&replays, MATCH);
         let now = Instant::now();
         assert_eq!(
@@ -1755,7 +1762,7 @@ mod tests {
     #[test]
     fn a_recording_without_a_replay_is_queued_once_and_answered_when_made() {
         let root = temp("queue");
-        let replays = Replays::new(Some(settings(&root)), 6);
+        let replays = desk(&root);
         let record_dir = replays.settings().unwrap().record_dir.clone();
         let now = Instant::now();
         // Nothing at all: gone; a known match of 4 places: not recorded.
@@ -1818,7 +1825,7 @@ mod tests {
     #[test]
     fn a_failed_or_deleted_or_unkept_recording_says_so() {
         let root = temp("fates");
-        let replays = Replays::new(Some(settings(&root)), 6);
+        let replays = desk(&root);
         kept(&replays, MATCH);
         let now = Instant::now();
         assert_eq!(
@@ -1854,7 +1861,7 @@ mod tests {
     #[test]
     fn a_failure_is_tried_again_only_when_its_cause_can_change() {
         let root = temp("retry");
-        let replays = Replays::new(Some(settings(&root)), 6);
+        let replays = desk(&root);
         let start = Instant::now();
         let mut at = start;
         // Asks of one account, each past the two seconds.
@@ -1907,7 +1914,7 @@ mod tests {
     #[test]
     fn a_burst_of_polls_is_looked_at_once_a_second_and_the_folder_listed_once() {
         let root = temp("burst");
-        let replays = Replays::new(Some(settings(&root)), 6);
+        let replays = desk(&root);
         let record_dir = replays.settings().unwrap().record_dir.clone();
         // A thousand other recordings in the folder.
         for n in 0..1000u32 {
@@ -1974,7 +1981,7 @@ mod tests {
     #[test]
     fn askers_of_one_match_share_its_one_job_and_each_gets_its_own_token() {
         let root = temp("shared");
-        let replays = Replays::new(Some(settings(&root)), 6);
+        let replays = desk(&root);
         kept(&replays, MATCH);
         let now = Instant::now();
         let players: Vec<u32> = (0..20).map(|n| 0x2_0000 + n).collect();
@@ -2027,7 +2034,7 @@ mod tests {
     #[test]
     fn other_matches_wait_in_line_up_to_twenty_and_a_busy_asker_is_queued_later() {
         let root = temp("line");
-        let replays = Replays::new(Some(settings(&root)), 6);
+        let replays = desk(&root);
         let now = Instant::now();
         let first = 0x500;
         for n in 0..=MAX_JOBS as u32 + 1 {
@@ -2072,7 +2079,7 @@ mod tests {
     #[test]
     fn a_token_downloads_one_at_a_time_and_an_account_three_at_most() {
         let root = temp("one-at-a-time");
-        let replays = Replays::new(Some(settings(&root)), 6);
+        let replays = desk(&root);
         let mut now = Instant::now();
         let mut tokens = Vec::new();
         for match_id in 0x100..0x103 {
@@ -2132,7 +2139,7 @@ mod tests {
     #[test]
     fn a_replay_whose_file_is_not_its_sidecars_is_not_given() {
         let root = temp("mismatch");
-        let replays = Replays::new(Some(settings(&root)), 6);
+        let replays = desk(&root);
         made(&replays, vec![Some(14)]);
         std::fs::write(replays.sur_path(MATCH).unwrap(), b"longer than it was").unwrap();
         let now = Instant::now();

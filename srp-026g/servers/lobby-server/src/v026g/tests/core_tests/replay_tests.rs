@@ -24,6 +24,9 @@ fn temp(name: &str) -> PathBuf {
 }
 
 /// Replays in `root` with a made replay of `MATCH` that `players` played.
+/// Its games were of 12 and 14, given from 11 on whatever the last row of
+/// `simulation_changes.tsv` is: the refusals of older recordings have their
+/// own tests (`replays_of`).
 fn replays(root: &std::path::Path, players: &[u32]) -> &'static Replays {
     let settings = ReplaySettings {
         replay_dir: root.join("replays"),
@@ -34,7 +37,9 @@ fn replays(root: &std::path::Path, players: &[u32]) -> &'static Replays {
     }
     .checked()
     .unwrap();
-    let replays: &'static Replays = Box::leak(Box::new(Replays::new(Some(settings), 6)));
+    let replays: &'static Replays = Box::leak(Box::new(
+        Replays::new(Some(settings), 6).with_oldest_revision(11),
+    ));
     std::fs::write(replays.sur_path(MATCH).unwrap(), b"0123456789ab").unwrap();
     let sidecar = Sidecar {
         match_id: MATCH,

@@ -419,7 +419,9 @@ fn the_thread_converts_what_is_queued_and_the_desk_hears_of_it() {
         .join(format!("rec026g_20261015-120000_{MATCH:08x}.srprec"));
     let config = write_recording(&recording, &[]);
     fs::write(settings.modes_dir.join(&config), b"config").unwrap();
-    let replays = Arc::new(Replays::new(Some(settings.clone()), 6));
+    // The recording's games were of 12 and 11: given whatever the last row
+    // of simulation_changes.tsv is (the refusals have their own tests).
+    let replays = Arc::new(Replays::new(Some(settings.clone()), 6).with_oldest_revision(11));
     let thread = start(replays.clone()).unwrap().unwrap();
     // Kept: nothing is made until someone asks.
     replays.recording_kept(MATCH);

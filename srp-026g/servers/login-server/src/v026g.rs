@@ -1256,7 +1256,8 @@ mod tests {
         for request in [&[0x02, 1, 2, 3, 4][..], &[0x01, 200, b'a']] {
             let mut stream = TcpStream::connect(addr).unwrap();
             stream.write_all(request).unwrap();
-            stream.shutdown(std::net::Shutdown::Write).unwrap();
+            // The server may have closed it already (not connected).
+            let _ = stream.shutdown(std::net::Shutdown::Write);
             let mut answer = Vec::new();
             let _ = stream.read_to_end(&mut answer);
             assert!(answer.is_empty());
