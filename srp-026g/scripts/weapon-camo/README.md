@@ -50,13 +50,13 @@ survey of models, materials and configs; regenerate it when guns.tsv changes).
 
 ## guns.tsv
 
-One texture a line: the texture, its donors (`28:` from 0.28a2), the model surfaces whose UVs use
+One texture a line: the texture, its donors (`28:` from 0.28a2; none for a weapon with no premium), the model surfaces whose UVs use
 it, the premium textures of the same UVs that get the same aoac, and the plain texture the donors
 were painted over when it is not ours (0.28a2 changed the Vityaz's, the AK-74N's and the
 Lancaster's). A donor is usable only on our UVs: the same plain texture in its build, or a model
 whose mesh UVs equal ours.
 
-Result (2026-10-20, live data of revision 24): 26 textures, 46 `_aoac` files, 43 weapon configs.
+Result (2026-10-20, live data of revision 24): 91 textures, 111 `_aoac` files, all 83 weapon configs.
 Painted by the suggestion (no parts.tsv yet), share of the texture's parts:
 
 | texture | donors | parts painted | of the parts |
@@ -67,7 +67,9 @@ Painted by the suggestion (no parts.tsv yet), share of the texture's parts:
 | izh_27_lancaster | lancaster_camo_st, 0.28a2 lancaster_camo | 2 of 83 | 21 % (both stocks) |
 | ak74_stock_wood (AK-74N) | ak74_stock_wood_camo_st, 0.28a2 _camo | 3 of 10 | 83 % |
 | ak_12 | ak_12_camo | 7 of 254 | 53 % |
-| the other 20 | one each | 2–12 parts | 48–96 % (stocks, magazines and barrel covers: few parts, most painted) |
+| the other 20 | one each | 2–13 parts | 49–96 % (stocks, magazines and barrel covers: few parts, most painted) |
+| 65 with no premium (the rest, 0.29a3 ports and pistols included) | none | 3–16 parts | 40–100 % (the large parts; a barrel too on the TOZ-66) |
 
-Not covered: the Vepr-12's magazine texture (its premium repainted under 1 %), the AK-12's magazine
-(our AK-12 has no magazine surface), the 0.29a3 weapons, weapons with no premium.
+Not in guns.tsv: textures of barrels, sights, suppressors and attachments of their own, the
+12-gauge shell, the SV-98's net, the premium-only `_camo` textures, the mp7's glow (no texture).
+The Vepr-12's magazine has no _aoac (its premium repainted under 1 % of it).

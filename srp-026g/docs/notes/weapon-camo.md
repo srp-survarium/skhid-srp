@@ -5,14 +5,16 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
 
 ## Rules
 
-- **Which weapons.** The weapons whose textures a premium weapon of a later build was painted over,
-  on the same UVs: 26 textures (46 `_aoac` files with the premium textures), 43 weapon configs (`scripts/weapon-camo/guns.tsv`,
-  `scripts/content-edit/weapon-camo-1.json`). Premium copies that share a model or UVs get it
-  too. A weapon without such a premium takes no camouflage (no `camo_available`).
+- **Which weapons.** Every weapon (all 83 weapon configs, pistols and 0.29a3 ports included):
+  91 textures, 111 `_aoac` files with the premium copies (`scripts/weapon-camo/guns.tsv`,
+  `scripts/content-edit/weapon-camo-1.json`). Not their barrels, sights, suppressors and
+  attachments when those have textures of their own, nor the 12-gauge shell, the SV-98's net or
+  the premium-only `_camo` textures.
 - **Where the paint goes.** On some parts of a weapon, never the whole: the parts (UV islands)
   `scripts/weapon-camo/parts.tsv` names, chosen by hand in the picker page. A weapon without a
   line there gets the suggestion: the large parts its premium painted (each at least 2 % of the
-  texture's parts: receiver, covers, handguard, stock, magazine). Small parts (triggers, bolts,
+  texture's parts: receiver, covers, handguard, stock, magazine); with no premium (65 textures),
+  the large parts, which can take in a barrel (the TOZ-66's): pick those before a release. Small parts (triggers, bolts,
   pins, sights, screws) stay bare. Most premiums were repainted as a whole, so "where the premium
   painted" alone would cover nearly the whole weapon (97 % of the AK-12's parts).
 - **Which camouflage.** Any camouflage item (category 25) that goes on armour; one at a time.
@@ -85,4 +87,4 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
   weapon's upgrade window beside the scope slot, `_slotAgreements` 2: [25]) waits for the movie's
   move to ActionScript source (`feat/lobby-from-source`), the owner's rule for new lobby work.
 - A match (first and third person) not yet seen.
-- Ported 0.29a3 weapons and weapons with no premium: no camouflage.
+- The picks: parts.tsv is empty; every texture is on the suggestion until the owner picks.

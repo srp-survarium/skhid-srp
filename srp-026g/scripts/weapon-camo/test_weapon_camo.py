@@ -64,6 +64,11 @@ class Test(unittest.TestCase):
         self.assertEqual(sum(1 for _, yes, _ in decisions.values() if yes), 2)
         self.assertEqual(w.suggest(decisions, labels), {labels[10, 10]})
 
+    def test_a_part_whole_uvs_away_lands_where_it_samples(self):
+        uv, tris = w.mesh_uv(mesh([(-5.8, 10.1, -5.6, 10.5)]))   # the TOZ-66 lays parts out so
+        labels = w.islands([(uv, tris)], (64, 64))
+        self.assertTrue(labels[19, 19] and not labels[40, 40])  # u 0.2..0.4, v 0.1..0.5
+
     def test_parts_tsv_names_parts_by_a_point_on_each(self):
         uv, tris = w.mesh_uv(mesh([(0, 0, 0.45, 1), (0.55, 0, 1, 1)]))
         labels = w.islands([(uv, tris)], (64, 64))

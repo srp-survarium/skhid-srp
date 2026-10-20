@@ -138,7 +138,9 @@ def islands(meshes, size):
                 if ra != rb:
                     parent[rb] = ra
             tri_keys.append((uv[t], n))
-    tri_keys = [(corners, find(n)) for corners, n in tri_keys]
+    # a part laid out whole UVs away (the TOZ-66's, u -6..11) samples the texture where its
+    # fraction falls: move each triangle by the whole part of its centre
+    tri_keys = [(corners - np.floor(corners.mean(0)), find(n)) for corners, n in tri_keys]
     ids = {}
     # triangles inside 0..1 first; one that tiles past it (a barrel's repeated strip) only fills
     # texels no other island has, so it never takes a part's texels
@@ -218,6 +220,12 @@ def paint_mask(base, donors, labels):
     sb = smooth(base)
     differs = [np.abs(smooth(d) - sb).max(axis=2) > DIFFER for d in donors]
     decisions = {}
+    if not donors:                     # no premium: every part may be painted (the suggestion and
+        for i in range(1, n + 1):      # parts.tsv choose)
+            area = (labels == i).sum()
+            if area:
+                decisions[i] = (area, True, ())
+        return labels > 0, decisions
     if len(donors) >= 2:
         a, b = donors[0], donors[1]
         h, w = labels.shape
@@ -347,6 +355,8 @@ def island_points(labels):
     h, w = labels.shape
     ys, xs = np.nonzero(labels)
     ids = labels[ys, xs]
+    if not len(ids):
+        return {}
     order = np.argsort(ids, kind='stable')
     ys, xs, ids = ys[order], xs[order], ids[order]
     starts = np.flatnonzero(np.r_[True, ids[1:] != ids[:-1]])
@@ -458,6 +468,7 @@ def main():
         base = texture_of(texture)
         size = base.shape[:2]
         imgs = [texture_of(d, size) for d in donors]
+        first = imgs[0] if imgs else base          # the premium the previews and the picker show
         plain = texture_of(compare, size) if compare else base
         meshes = []
         for s in surfaces:
@@ -473,7 +484,7 @@ def main():
               % (texture, len(imgs), len(decisions), sum(1 for _, y, _ in decisions.values() if y), len(chosen),
                  'parts.tsv' if texture in parts else 'suggested', 100 * mask.sum() / max(1, (labels > 0).sum())))
         if picker:
-            entries.append(picker_entry(texture, base, imgs[0], labels, island_points(labels), suggested, chosen,
+            entries.append(picker_entry(texture, base, first, labels, island_points(labels), suggested, chosen,
                                         texture in parts))
         if not mask.any():
             print('  nothing painted: no _aoac')
@@ -487,11 +498,11 @@ def main():
             written.append(name + '_aoac')
         if previews:
             os.makedirs(previews, exist_ok=True)
-            c = camo if camo is not None else imgs[0]
-            shown = bake(base, c, a, 4.0) if camo is not None else imgs[0]
+            c = camo if camo is not None else first
+            shown = bake(base, c, a, 4.0) if camo is not None else first
             sm = lambda img: Image.fromarray((np.clip(img, 0, 1) * 255).astype(np.uint8)).resize((512, 512), Image.LANCZOS)
             row = Image.new('RGB', (2560, 512))
-            for k, img in enumerate([base, imgs[0], np.repeat(mask[..., None], 3, 2).astype(np.float32), a,
+            for k, img in enumerate([base, first, np.repeat(mask[..., None], 3, 2).astype(np.float32), a,
                                      bake(base, c, a, 4.0)]):
                 row.paste(sm(img), (512 * k, 0))
             row.save(os.path.join(previews, texture.replace('/', '__') + '.png'))
