@@ -220,10 +220,24 @@ comparison must still match. This follows ordinary instance lookup in
 [Adobe's MethodEnv](https://github.com/adobe/avmplus/blob/master/core/MethodEnv.cpp#L1221);
 `with` scopes have different lookup rules and are excluded.
 
+That proof can also defer native compiler initializers for zero-valued locals
+and null `Array` locals across the same guards. The crossed prefix may read
+only the receiver and parameters; it cannot read or write the delayed locals.
+Each initializer must be a complete, distinct local store, and every path
+entering the subsequent body must pass through the moved initializers.
+Branches into the old initializer block, later backedges into the guards,
+other values/types and partial initializer matches are rejected. Scope setup
+and local initialization may occur at the same boundary or separate boundaries.
+All actual compiler instructions and capacity records are retained. An edited
+method that no longer matches retains its ordinary compiler layout; a changed
+call/cast ordering still requires explicit feature review.
+
 Some previously patched methods retain spare stack or local capacity that
 neither source compiler allocates. An authenticated reconstruction entry can
 declare `method_reservations`, mapping full method owner names to positive
-`stack` and/or `locals` minimums. The separate compiler finishing step keeps
+`stack` and/or `locals` minimums. These are exact compiler-output identities,
+including any disambiguating private-namespace suffix; missing or ambiguous
+owners are refused. The separate compiler finishing step keeps
 the greater of the actual compiler requirement and each explicit minimum.
 It never reads a reference body or changes instructions, scope bounds or
 other method records. Measurements retain and hash the raw
@@ -344,7 +358,7 @@ Use `--compiler reconstruction` with the pinned patch manifest to select these
 per-class compilers in one measurement. Classes without an override use
 `flex-strict`; every report row records the compiler actually used. Explicit
 `--compiler ffdec`, `ffdec-source`, `flex`, `flex-strict` or `flex-library` selects that compiler for every
-class, for comparison experiments. The per-class profile currently proves 229
+class, for comparison experiments. The per-class profile currently proves 231
 reconstructed classes, including easing, button, list, text, message, clan,
 debug and tutorial classes. Source fixes also recover local declaration order,
 static field slot order and explicit switch breaks where required.

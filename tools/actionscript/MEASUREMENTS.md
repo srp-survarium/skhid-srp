@@ -1266,3 +1266,45 @@ game-tested hash
 `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`.
 The runtime record identifies byte identity with the earlier game run; no new
 runtime check is claimed.
+
+### PlayerRanking and StatusPanel source reconstruction
+
+Both classes now independently reproduce the complete compressed release movie.
+`PlayerRanking` recovers local declaration order, implicit defaults, typed
+assignments, direct truth tests, lexical field writes and identifier object keys.
+Its native compiler hoists zero/null local initializers ahead of helper guards;
+the checked emitter can defer those actual stores past guards that cannot
+observe the locals. Scope setup and defaults may share a boundary or use
+separate boundaries. No instruction or capacity record is taken from the
+reference.
+
+The initializer proof accepts only distinct non-parameter local stores of zero
+or null coerced to `Array`. The crossed prefix can read only receiver/parameter
+registers. Local reads/writes, different values/types, activations, nested
+functions, handlers, incoming branches into the old initializers, skipped
+initialization and later backedges into the prefix are refused. Full method
+operands and control flow must still match.
+
+`StatusPanel` restores the same ordinary source forms while preserving its
+explicit `selectVoucher` Boolean conversion. The exchange handlers require
+explicit compiler capacities: regular-money stack five, premium-money stack
+nine and three locals. Their exact compiler owner names include the private
+namespace disambiguator. A missing disambiguator is correctly rejected as an
+unknown reserved method.
+
+All 25 tests pass, including nine real-compiler integrations (161.074 seconds).
+The new native fixture proves independent baseline equality, both initializer
+placements, rejected unsafe mutations and preservation of a source edit.
+An edited method retains ordinary compiler layout, so moving the null-Array
+coercion relative to helper calls changes its ordered call/cast fingerprint.
+The fixture checks rejection without explicit review and acceptance only with
+the known reviewed fingerprints.
+
+There are now 231 authenticated reconstructions and 645 pristine successes:
+876 of 878 scripts have individual exact proofs. `InventoryList` and `LobbyMenu`
+remain; the matching whole-tree build is still outstanding.
+The fresh premium rebuild again changes one authorized method, preserves all
+non-code bytes, and has the previously game-tested hash
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`.
+Its runtime record confirms byte identity with that earlier run, not a new
+game check.

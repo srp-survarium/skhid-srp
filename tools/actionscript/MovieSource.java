@@ -1228,14 +1228,62 @@ public final class MovieSource {
         if (bindings == null) return emitted;
         var boundaries = executablePositions(body.getCode().code);
         int params = abc.method_info.get(body.method_info).param_types.length;
+        // Native compilation hoists implicit local defaults before source
+        // guards. Only zero and null-Array stores may move past those guards:
+        // both are stack-neutral, non-throwing and cannot invoke user code.
+        // QName coerce types are already resolved by the verifier:
+        // https://github.com/adobe/avmplus/blob/master/core/Interpreter.cpp#L3403
+        // The crossed prefix may use only receiver/parameter registers; no
+        // local reads/writes, activation, closures or handlers can observe the
+        // delayed stores. Every moved instruction comes from compiled output.
+        int defaultEnd = 2, defaultTarget = -1;
+        Set<Integer> initialized = new HashSet<>();
+        while (defaultEnd + 1 < emitted.size()) {
+            int next = defaultEnd;
+            var value = emitted.get(next++);
+            if (value.definition.instructionCode == 0x20) {
+                var cast = emitted.get(next++);
+                if (cast.definition.instructionCode != 0x80 || !"Array".equals(publicName(abc, cast.operands[0]))) break;
+            } else if (value.definition.instructionCode != 0x24 || value.operands[0] != 0) break;
+            if (next >= emitted.size()) break;
+            int local = localRegister(emitted.get(next), true);
+            if (local <= params || local >= body.max_regs || !initialized.add(local)) break;
+            defaultEnd = next + 1;
+        }
+        if (defaultEnd > 2) {
+            int prefixReturns = 0;
+            for (int i = 0; i + defaultEnd - 2 <= expected.size(); i++) {
+                if (i > 0 && prefixReturns > 0 && (expected.get(i - 1).definition.instructionCode == 0x47
+                        || (expectedScope >= 0 && i == expectedScope + 2))) {
+                    boolean same = true;
+                    for (int j = 2; j < defaultEnd; j++) {
+                        var a = emitted.get(j); var b = expected.get(i + j - 2);
+                        if (a.definition.instructionCode != b.definition.instructionCode
+                                || !Arrays.equals(a.operands, b.operands)) same = false;
+                    }
+                    if (same) {
+                        int left = prefixReturns;
+                        for (int j = defaultEnd; j < emitted.size(); j++)
+                            if (emitted.get(j).definition.instructionCode == 0x47 && --left == 0) {
+                                defaultTarget = j + 1; break;
+                            }
+                        break;
+                    }
+                }
+                if (expected.get(i).definition.instructionCode == 0x47) prefixReturns++;
+            }
+            if (defaultTarget <= defaultEnd || defaultTarget >= emitted.size()) return emitted;
+        }
         for (int i = 0; i < emitted.size(); i++) {
             var instruction = emitted.get(i);
             for (int target : branchTargets(instruction)) {
                 int targetIndex = boundary(boundaries, target);
-                if (targetIndex < 2 || (i >= limit && targetIndex < limit)
-                        || (i < limit && targetIndex > limit)) return emitted;
+                if (targetIndex < defaultEnd || (i >= limit && targetIndex < limit)
+                        || (i < limit && targetIndex > limit)
+                        || (defaultTarget >= 0 && ((i >= defaultTarget && targetIndex < defaultTarget)
+                            || (i >= defaultEnd && i < defaultTarget && targetIndex > defaultTarget)))) return emitted;
             }
-            if (i < 2 || i >= limit) continue;
+            if (i < defaultEnd || i >= Math.max(limit, defaultTarget)) continue;
             int op = instruction.definition.instructionCode;
             int local = localRegister(instruction, false);
             if (local >= 0) { if (local > params) return emitted; continue; }
@@ -1248,14 +1296,21 @@ public final class MovieSource {
                 return emitted;
         }
         List<AVM2Instruction> result = new ArrayList<>();
-        for (int i = 2; i < emitted.size(); i++) {
+        for (int i = defaultEnd; i < emitted.size(); i++) {
             if (i == limit) result.addAll(emitted.subList(0, 2));
+            if (i == defaultTarget) result.addAll(emitted.subList(2, defaultEnd));
             var old = emitted.get(i);
             var instruction = new AVM2Instruction(old.getAddress(), old.definition, old.operands == null ? null : old.operands.clone());
             if (limit < emitted.size() && i < limit) {
                 int[] targets = branchTargets(instruction);
                 if (targets.length == 1 && boundary(boundaries, targets[0]) == limit)
                     instruction.operands[0] = (int)emitted.get(0).getAddress()
+                        - (int)instruction.getAddress() - instruction.getBytesLength();
+            }
+            if (defaultTarget >= 0 && i < defaultTarget) {
+                int[] targets = branchTargets(old);
+                if (targets.length == 1 && boundary(boundaries, targets[0]) == defaultTarget && defaultTarget != limit)
+                    instruction.operands[0] = (int)emitted.get(2).getAddress()
                         - (int)instruction.getAddress() - instruction.getBytesLength();
             }
             result.add(instruction);

@@ -2084,6 +2084,33 @@
       "pristine_sha256": "5e5b27011387c4aa81b6e5d25ae07589195acb803fe2b320f9c5a24db3780c60",
       "reason": "Recover implicit Boolean initialization; native source compilation plus checked unused instance-scope omission and explicit stack/local capacity minimums reproduces the complete compressed release movie.",
       "result_sha256": "7e9199c895248e0876cde0c082cbc5d2a19e42107796a81685f6309f93bd5853"
+    },
+    {
+      "class": "survarium.controls.PlayerRanking",
+      "compiler": "flex-library",
+      "patch": "survarium/controls/PlayerRanking.patch",
+      "patch_sha256": "b06087597913dca718f19963da0059f13e116a1695d038cbcf0756f1f05bbfc6",
+      "pristine_sha256": "8eed970f7b9998c0f6df3fc19db2f5c951f3c01841bba6f2bc764c5382cd1b1c",
+      "reason": "Recover local declaration order, implicit defaults, typed assignments, direct truth tests, lexical field writes and identifier object keys. Checked scope/default scheduling around helper guards preserves all compiled instructions and reproduces the complete compressed release movie.",
+      "result_sha256": "290ab4690f5a2f6785f344acd4a41908e82d6fbd7c17e6e8f4cd17a976906abd"
+    },
+    {
+      "class": "survarium.controls.StatusPanel",
+      "compiler": "flex-library",
+      "method_reservations": {
+        "QName(PackageNamespace(\"survarium.controls\"),\"StatusPanel\")/instance/1/QName(PrivateNamespace(\"survarium.controls:StatusPanel\",\"1\"),\"onPremiumMoneyAddClick\")": {
+          "locals": 3,
+          "stack": 9
+        },
+        "QName(PackageNamespace(\"survarium.controls\"),\"StatusPanel\")/instance/1/QName(PrivateNamespace(\"survarium.controls:StatusPanel\",\"1\"),\"onRegulatMoneyAddClick\")": {
+          "stack": 5
+        }
+      },
+      "patch": "survarium/controls/StatusPanel.patch",
+      "patch_sha256": "11897062536b776d57f5bea12ad9f1fca8497b667d76d15991528b48a470e872",
+      "pristine_sha256": "bbee2afba5bd9e28e81d5360bb8a76421c9c3d859a33e5b46c93625d80c41498",
+      "reason": "Recover lexical field writes, implicit typed defaults and declaration order, identifier object keys, typed assignments and direct truth tests while retaining the explicit selectVoucher Boolean conversion. Native compilation uses checked helper scope encodings and explicit compiler-method capacity minimums for the two exchange handlers; the complete compressed release movie matches.",
+      "result_sha256": "3fc652723522879c8617303c7f1bcbf4139fd4652fb9a33f68532b8225302926"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",
