@@ -6,7 +6,7 @@
   "release": "026g-rev24-cursor",
   "schema": 1,
   "sources": {
-    "cursor_fla/MainTimeline.as": "5b85f3b9930de98f0b5e8b09e0ddceaaae29be853bcdb39fcc47249d419fbda8",
-    "mouseSymbol.as": "440dd29b77b82996a8fde7b9c6af6d7a1a96eda7409ab6ebeafcd5494e35bb12"
+    "cursor_fla/MainTimeline.as": "0e322d68376c6b03b1f55ccf25fdabbf8ab25b0f29a2bac8303f2bc6ccb993b6",
+    "mouseSymbol.as": "c09e9b8b5bb4412fcaa600e2ead3071ad927847fe1e6136d56542d0d00a2e54e"
   }
 }
