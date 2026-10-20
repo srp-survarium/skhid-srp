@@ -46,6 +46,18 @@ package
         // The create window's start: the player's last room made by hand,
         // kept by the server (the owner's of 2026-10-20).
         public static const SETTINGS:int = FIRST + 9;
+        // The room's chat: its last lines on CHAT_CHANNEL, and its new ones
+        // from now on (asked when the "Room Chat" tab goes up; the owner's of
+        // 2026-10-20: "each room has its own chat").
+        public static const CHAT:int = FIRST + 30;
+        // srp's own chat channel for a room (the game's are 0 to 9; its
+        // client sends a line typed in a tab of channel 10 with id 0, and
+        // shows a received one in the tabs that list 10).
+        public static const CHAT_CHANNEL:int = 10;
+        // Our tab's id: far from the game's (0 squad, 1 general, 2 clan, 3
+        // match, 4 team, 5 clan team, then 6, 7, ... a private talk each).
+        public static const CHAT_TAB:int = 1000000;
+        public static const GENERAL_TAB:int = 1;
         public static const QUEUE:int = FIRST + 200000;
         public static const VOTE:int = FIRST + 3;
         public static const POOL:int = FIRST + 10;
@@ -136,6 +148,15 @@ package
             "code": ["code", "код", "код", "Code", "kod"],
             "leave": ["Leave", "Вийти", "Выйти", "Verlassen", "Opuść"],
             "leaveRoom": ["Leave room", "Вийти з кімнати", "Выйти из комнаты", "Raum verlassen", "Opuść pokój"],
+            // The chat tab, right of the general chat's (the owner's of
+            // 2026-10-20): each 108 px wide at most in the tab's Calibri Bold
+            // 15 px, which has every letter of them.
+            "roomChat": ["Room Chat", "Чат кімнати", "Чат комнаты", "Raum-Chat", "Czat pokoju"],
+            // The room's own lines, after the player's name.
+            "joinedRoom": ["joined the room", "приєднався до кімнати", "вошёл в комнату", "ist dem Raum beigetreten",
+                "dołączył do pokoju"],
+            "leftRoom": ["left the room", "вийшов з кімнати", "покинул комнату", "hat den Raum verlassen",
+                "opuścił pokój"],
             "joinMatch": ["Join match", "Увійти в матч", "Войти в матч", "Match beitreten", "Dołącz do meczu"],
             "joinIn": ["Into the match in %S s, or now with Join match", "У матч за %S с, або зараз: «Увійти в матч»",
                 "В матч через %S с, или сейчас: «Войти в матч»", "Ins Match in %S s, oder jetzt: Match beitreten",
@@ -503,8 +524,142 @@ package
             {
                 if (me != null && me._room != null && !me._shown)
                     me.show(true);
+                // The room's chat lines of the match did not reach this
+                // movie (its game's match chat dropped them): the tab is put
+                // up anew and given the room's last lines.
+                if (me != null)
+                    me.dropChatTab();
             }
             catch (err:Error)
+            {
+            }
+        }
+
+        // ------------------------------------------------- the room's chat
+        //
+        // A tab of the lobby's chat, "Room Chat", right of the general
+        // chat's, while we are in a room (the owner's of 2026-10-20): the
+        // lines typed in it go to the room's members (the game's own chat
+        // sends them on CHAT_CHANNEL), theirs come in on it. The server
+        // sends a member the room's lines once its tab asked (CHAT), with
+        // the last ones first (lobby.md 2.16.3, social.md 9.8).
+
+        // The start of LobbyMenu.add_chat_message: a line of the room's
+        // chat is shown as the general chat's (white), the room's own
+        // lines (no sender) in blue and in the player's language. Never
+        // stops the game's own handling (false).
+        public static function chatLine(value:*):Boolean
+        {
+            // A hook: nothing of it may throw into the game's code.
+            try
+            {
+                if (value == null || int(value.type) != CHAT_CHANNEL)
+                    return false;
+                if (!value.name)
+                {
+                    value.text = roomNotice(String(value.text));
+                    value.color = "Blue";
+                }
+                else if (value.color == undefined)
+                    value.color = "White";
+            }
+            catch (err:Error)
+            {
+            }
+            return false;
+        }
+
+        // "<name> joined the room" / "<name> left the room" (the server's
+        // words) in the player's language; any other text as it is.
+        private static function roomNotice(text:String):String
+        {
+            var lang:int = me != null ? me._lang : 0;
+            var keys:Array = ["joinedRoom", "leftRoom"];
+            for (var i:int = 0; i < keys.length; i++)
+            {
+                var words:String = " " + TEXT[keys[i]][0];
+                var at:int = text.length - words.length;
+                if (at > 0 && text.substr(at) == words)
+                    return text.substr(0, at) + " " + TEXT[keys[i]][lang];
+            }
+            return text;
+        }
+
+        // In BottomPanel.addTab, right after its tabs are sorted by id: ours
+        // goes right after the general chat's (the owner's of 2026-10-20),
+        // in place, before the bar is drawn from them.
+        public static function chatOrder(tabs:Array):void
+        {
+            // A hook: nothing of it may throw into the game's code.
+            try
+            {
+                var room:int = -1;
+                var general:int = -1;
+                for (var i:int = 0; i < tabs.length; i++)
+                {
+                    if (tabs[i].id == CHAT_TAB)
+                        room = i;
+                    else if (tabs[i].id == GENERAL_TAB)
+                        general = i;
+                }
+                if (room < 0 || general < 0 || room == general + 1)
+                    return;
+                var tab:Object = tabs.splice(room, 1)[0];
+                if (room < general)
+                    general--;
+                tabs.splice(general + 1, 0, tab);
+            }
+            catch (err:Error)
+            {
+            }
+        }
+
+        // The room whose chat our tab is up for; 0: no tab.
+        private var _chatKey:int = 0;
+
+        // Each frame: the tab follows the room we are in. Another room's
+        // chat (a switch) is a new tab, with that room's last lines.
+        private function syncChatTab():void
+        {
+            var key:int = _room != null ? int(_room.key) : 0;
+            if (key == _chatKey || _lobby == null)
+                return;
+            dropChatTab();
+            if (key == 0)
+                return;
+            // Tried once a room: a tab the game refuses is not asked for
+            // each frame.
+            _chatKey = key;
+            try
+            {
+                _lobby.add_tab({"id": CHAT_TAB, "name": say("roomChat"), "channels": [CHAT_CHANNEL],
+                    "channel_to_send": CHAT_CHANNEL, "closable": false, "save_history": true});
+                ask(CHAT, 1);
+            }
+            catch (e:Error)
+            {
+            }
+        }
+
+        private function dropChatTab():void
+        {
+            if (_chatKey == 0 || _lobby == null)
+                return;
+            _chatKey = 0;
+            // LobbyMenu.remove_tab's two halves, each on its own: one that
+            // throws leaves the other done.
+            try
+            {
+                _lobby.chat.removeTab(CHAT_TAB);
+            }
+            catch (e:Error)
+            {
+            }
+            try
+            {
+                _lobby.bottom_panel.removeTab(CHAT_TAB);
+            }
+            catch (e2:Error)
             {
             }
         }
@@ -751,6 +906,7 @@ package
             overPanels();
             alertNear();
             applyPlay(true);
+            syncChatTab();
         }
 
         // While open, ours is the lobby's top child: the lobby adds its own

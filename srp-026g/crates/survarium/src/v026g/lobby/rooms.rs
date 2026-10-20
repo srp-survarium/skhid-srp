@@ -52,6 +52,11 @@ pub const ROOM_JOIN_MATCH: u32 = ROOMS_FIRST + 8;
 /// room it made by hand, fitted to the pool and the rules now
 /// ([`room_form`]; the owner's of 2026-10-20).
 pub const ROOM_FORM: u32 = ROOMS_FIRST + 9;
+/// The asker's room chat: its last lines (20, `session::v026g::rooms`) as
+/// chat lines on [`super::channel::ROOM`], and from now on the room's new ones;
+/// the movie asks when it puts up its "Room Chat" tab (`social.md` §9.8).
+/// Answered with the state.
+pub const ROOM_CHAT: u32 = ROOMS_FIRST + 30;
 /// `ROOM_QUEUE_BASE + key`, key 1 to [`ROOM_KEY_MAX`]: wait in that full
 /// room's queue (its PIN, if it asks one, given just before), or join it if
 /// a place is free. Answered with the state.
@@ -134,6 +139,7 @@ pub enum RoomRequest {
     Unqueue,
     JoinMatch,
     Form,
+    Chat,
     Bits { chunk: u8, bits: u32 },
     Create(RoomSpec),
 }
@@ -179,6 +185,7 @@ pub fn room_request(start: u32, count: u8) -> Option<RoomRequest> {
         ROOM_UNQUEUE => R::Unqueue,
         ROOM_JOIN_MATCH => R::JoinMatch,
         ROOM_FORM => R::Form,
+        ROOM_CHAT => R::Chat,
         _ if (ROOM_VOTE_BASE..ROOM_VOTE_BASE + CARDS as u32).contains(&start) => R::Vote {
             card: (start - ROOM_VOTE_BASE) as u8,
         },
@@ -729,6 +736,13 @@ mod tests {
             room_request(ROOM_POOL_BASE + 15, 1),
             Some(RoomRequest::Pool { page: 15 })
         );
+        // The room chat past the pool's pages, before the kicks.
+        const {
+            assert!(ROOM_POOL_BASE + POOL_PAGES <= ROOM_CHAT);
+            assert!(ROOM_CHAT < ROOM_KICK_BASE);
+        }
+        assert_eq!(room_request(ROOM_CHAT, 1), Some(RoomRequest::Chat));
+        assert_eq!(room_request(ROOM_CHAT + 1, 1), None);
         assert_eq!(
             room_request(kick_start(19, 1000), 1),
             Some(RoomRequest::Kick {

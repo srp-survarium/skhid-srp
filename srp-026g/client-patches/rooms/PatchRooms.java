@@ -13,6 +13,8 @@
 //   TopMenu.changeActiveMenu      end    SrpRooms.topChanged(this)
 //   StatusPanel.play_button_clicked start if (SrpRooms.playPressed()) return;
 //   LobbyMenu.show_victory_screen  start  SrpRooms.afterMatch()
+//   LobbyMenu.add_chat_message    start  if (SrpRooms.chatLine(value)) return;
+//   BottomPanel.addTab   after its sortOn  SrpRooms.chatOrder(this._tabs)
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
@@ -26,7 +28,8 @@ import com.jpexs.decompiler.flash.tags.Tag;
 
 public class PatchRooms {
     private static final int GETLEX = 0x60, GETLOCAL0 = 0xd0, GETLOCAL1 = 0xd1, CALLPROPVOID = 0x4f,
-        CALLPROPERTY = 0x46, IFFALSE = 0x12, RETURNVOID = 0x47, PUSHTRUE = 0x26, RETURNVALUE = 0x48;
+        CALLPROPERTY = 0x46, IFFALSE = 0x12, RETURNVOID = 0x47, PUSHTRUE = 0x26, RETURNVALUE = 0x48,
+        GETPROPERTY = 0x66;
 
     // Inserts `SrpRooms.<name>(<argument>)` before the final returnvoid.
     private static void call(ABC abc, MethodBody body, int helper, String name, int argument)
@@ -95,6 +98,46 @@ public class PatchRooms {
         body.max_stack = Math.max(body.max_stack, 1);
         body.setCode(code);
         body.getCode().checkValidOffsets(body);
+    }
+
+    // Puts `SrpRooms.<name>(this.<field>)` right after the method's one call
+    // of `<method>` (a callpropvoid), passing the field as that call's own
+    // code reads it (the getproperty of `field` before it, whatever its
+    // namespace: a protected field is read only from its class).
+    private static void after(ABC abc, MethodBody body, int helper, String name, String method,
+            String field) throws Exception {
+        if (body.exceptions.length != 0)
+            throw new IOException("Unexpected exceptions in the method of " + name);
+        AVM2Code code = body.getCode();
+        int at = -1;
+        for (int i = 0; i < code.code.size(); i++) {
+            AVM2Instruction ins = code.code.get(i);
+            if (ins.definition.instructionCode == CALLPROPVOID && nameOf(abc, ins.operands[0]).equals(method)) {
+                if (at >= 0) throw new IOException("Two calls of " + method + " before " + name);
+                at = i;
+            }
+        }
+        if (at < 0) throw new IOException("No call of " + method + " before " + name);
+        int read = -1;
+        for (int i = at - 1; i >= 0 && read < 0; i--) {
+            AVM2Instruction ins = code.code.get(i);
+            if (ins.definition.instructionCode == GETPROPERTY && nameOf(abc, ins.operands[0]).equals(field))
+                read = ins.operands[0];
+        }
+        if (read < 0) throw new IOException("No read of " + field + " before " + name);
+        code.insertInstruction(at + 1, new AVM2Instruction(0, CALLPROPVOID,
+            new int[]{abc.constants.getPublicQnameId(name, true), 1}), body);
+        code.insertInstruction(at + 1, new AVM2Instruction(0, GETPROPERTY, new int[]{read}), body);
+        code.insertInstruction(at + 1, new AVM2Instruction(0, GETLOCAL0, new int[]{}), body);
+        code.insertInstruction(at + 1, new AVM2Instruction(0, GETLEX, new int[]{helper}), body);
+        body.max_stack = Math.max(body.max_stack, 2);
+        body.setCode(code);
+        body.getCode().checkValidOffsets(body);
+    }
+
+    private static String nameOf(ABC abc, int multiname) {
+        int index = abc.constants.getMultiname(multiname).name_index;
+        return index > 0 ? abc.constants.getString(index) : "";
     }
 
     // FFDec finds bodies by the class's own name, without its package.
@@ -209,6 +252,16 @@ public class PatchRooms {
         MethodBody results = method(lobbyAbc, lobby, "show_victory_screen");
         if (!changed.get(lobbyIndex).add(results)) throw new IOException("Two hooks share a body");
         prepend(lobbyAbc, results, lobbyHelper, "afterMatch");
+        // The room's chat: its lines' colour and words, and its tab's place.
+        MethodBody chatMessage = method(lobbyAbc, lobby, "add_chat_message");
+        if (!changed.get(lobbyIndex).add(chatMessage)) throw new IOException("Two hooks share a body");
+        guard(lobbyAbc, chatMessage, lobbyHelper, "chatLine");
+        int panelIndex = abcWith(swf, panel);
+        ABC panelAbc = blocks.get(panelIndex);
+        MethodBody addTab = method(panelAbc, panel, "addTab");
+        if (!changed.get(panelIndex).add(addTab)) throw new IOException("Two hooks share a body");
+        after(panelAbc, addTab, panelAbc.constants.getPublicQnameId("SrpRooms", true), "chatOrder", "sortOn",
+            "_tabs");
 
         // Play with rooms on: straight into a room, the game's own Play (its
         // search) not run. The same body has the `played` call at its end.

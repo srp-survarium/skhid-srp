@@ -43,8 +43,10 @@ import scope_context_menu_026g
 BASE_SHA256 = "12f0ee1dae4301d18405e956678ad1c9aa2c975ce2639c408722f5708548856b"
 RETAIL_SHA256 = "ab6f22d80d32fa4928403d19e3e054bd5316b2370e2550cefec0c9d22b959850"
 # The movie the steps make (FFDec 25.1.3). Set it anew, on purpose, when a
-# step changes. 88fa657a (2026-10-20): the create window starts with the
-# player's last room made by hand (the server's `S1;F`);
+# step changes. 556eba44 (2026-10-20): the room's chat, a "Room Chat" tab
+# right of the general chat while in a room (srp's channel 10); NOT yet
+# checked in the game. Before it, 88fa657a (2026-10-20): the create window
+# starts with the player's last room made by hand (the server's `S1;F`);
 # NOT yet checked in the game. Before it, 57258f9e (#209,
 # 2026-10-20): the rooms window tells a member
 # waiting during its room's match why it cannot go in (`J;-1;<why>`); NOT yet
@@ -53,7 +55,7 @@ RETAIL_SHA256 = "ab6f22d80d32fa4928403d19e3e054bd5316b2370e2550cefec0c9d22b95985
 # and the yellow tab in a room or a queue (#211: the owner checked d7907536;
 # then the review fixes: no double-click into Play, Leave on whatever the
 # game says of Play).
-RESULT_SHA256 = "88fa657a48250bd2729c875ff86f56c20a8acdc42c7ba06bd41fbf11161db1c9"
+RESULT_SHA256 = "556eba44bc0e2e397dee750ede8a79ca57dfa54cd975fc67743c35e65451518b"
 # Every lobby change, in the order they are built (each on the one before).
 STEPS = [
     ("the rooms window (rooms/SrpRooms.as)", rooms_026g),

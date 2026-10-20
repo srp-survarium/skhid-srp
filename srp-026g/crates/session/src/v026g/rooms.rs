@@ -49,6 +49,9 @@ pub const DRAFT_CHUNK: usize = 20;
 const SHORT_KEYS: std::ops::RangeInclusive<u32> = 1000..=9999;
 /// The largest key.
 const KEY_MAX: u32 = 99_999;
+/// The lines a room's chat keeps: what a member's "Room Chat" tab is
+/// given when it comes, and again after its match (`social.md` §9.8).
+pub const CHAT_KEPT: usize = 20;
 
 /// What a room is made with.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -123,6 +126,19 @@ pub struct Room {
     pub serial: u32,
     /// Who its owner took out: they may not come back.
     pub kicked: HashSet<u32>,
+    /// Its chat's last lines, the oldest first, [`CHAT_KEPT`] at most:
+    /// gone with the room.
+    pub chat: VecDeque<ChatLine>,
+}
+
+/// A line of a room's chat: a member's, or the room's own (a member came
+/// or went), whose sender is account 0 with no name.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ChatLine {
+    pub from: u32,
+    pub name: String,
+    pub tag: String,
+    pub body: String,
 }
 
 impl Room {
@@ -239,6 +255,17 @@ impl Rooms {
 
     pub fn key_of(&self, account_id: u32) -> Option<u32> {
         self.of_account.get(&account_id).copied()
+    }
+
+    /// A line in room `key`'s chat, kept with its last [`CHAT_KEPT`]; none
+    /// for a room that is gone.
+    pub fn say(&mut self, key: u32, line: ChatLine) {
+        if let Some(room) = self.rooms.get_mut(&key) {
+            if room.chat.len() >= CHAT_KEPT {
+                room.chat.pop_front();
+            }
+            room.chat.push_back(line);
+        }
     }
 
     fn next_serial(&mut self) -> u32 {
@@ -368,6 +395,7 @@ impl Rooms {
                 in_match: HashSet::new(),
                 serial,
                 kicked: HashSet::new(),
+                chat: VecDeque::new(),
             },
         );
         self.of_account.insert(owner, key);
@@ -1363,5 +1391,34 @@ mod tests {
         let [a, b] = sides(&parties[1..], 8, 12);
         assert_eq!((a.len(), b.len()), (2, 2));
         assert!(a.contains(&3) != a.contains(&5));
+    }
+
+    /// A room's chat keeps its last [`CHAT_KEPT`] lines and goes with it:
+    /// a room made later under the same key starts with none.
+    #[test]
+    fn a_rooms_chat_keeps_its_last_lines_and_goes_with_the_room() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let key = room_of(&mut rooms, 1, 6, None, now);
+        let line = |i: usize| ChatLine {
+            from: 1,
+            name: "Alice".to_owned(),
+            tag: String::new(),
+            body: format!("line {i}"),
+        };
+        for i in 0..CHAT_KEPT + 5 {
+            rooms.say(key, line(i));
+        }
+        let chat = &rooms.get(key).unwrap().chat;
+        assert_eq!(chat.len(), CHAT_KEPT);
+        assert_eq!(chat.front(), Some(&line(5)));
+        assert_eq!(chat.back(), Some(&line(CHAT_KEPT + 4)));
+        // Nobody left: the room and its chat are gone; a line for it is
+        // dropped.
+        rooms.leave(1);
+        rooms.say(key, line(0));
+        assert!(rooms.get(key).is_none());
+        let again = room_of(&mut rooms, 2, 6, None, now);
+        assert!(rooms.get(again).unwrap().chat.is_empty());
     }
 }

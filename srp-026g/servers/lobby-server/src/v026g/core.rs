@@ -100,6 +100,9 @@ pub(super) struct Player<'a> {
     /// The name it was last told is no player's (`st_player_not_found`),
     /// and when: not said again for each line (`social`).
     pub not_found: Option<(String, Instant)>,
+    /// The room whose chat it hears: the room it was in when its movie put
+    /// up its "Room Chat" tab, while it is in that room (`room_chat`).
+    pub room_chat: Option<u32>,
 }
 
 pub(super) enum Stage<'a> {
@@ -225,6 +228,9 @@ pub(super) struct Core<'a> {
     /// When a member who came while its room's match is played goes into
     /// it (`rooms::LATE_JOIN_WAIT` after it came, or at once on its ask).
     pub room_join_at: HashMap<u32, Instant>,
+    /// Each member's room at the last tick: who came and went is said in
+    /// the room's chat (`room_chat`).
+    pub room_seen: HashMap<u32, u32>,
 }
 
 impl<'a> Core<'a> {
@@ -274,6 +280,7 @@ impl<'a> Core<'a> {
             room_launching: HashMap::new(),
             room_codes: HashMap::new(),
             room_join_at: HashMap::new(),
+            room_seen: HashMap::new(),
         }
     }
 
@@ -656,6 +663,7 @@ impl<'a> Core<'a> {
             chat_allowance: super::social::CHAT_BURST,
             chat_at: now,
             not_found: None,
+            room_chat: None,
         };
         let mut link = Link {
             transport,
@@ -904,6 +912,7 @@ impl<'a> Core<'a> {
         self.collect_away(now);
         self.clan_matches(now);
         self.room_tick(now);
+        self.room_chat_tick();
         let online = self.online_counts();
         let accounts = self.accounts.len();
         if accounts != self.ranked.0 {

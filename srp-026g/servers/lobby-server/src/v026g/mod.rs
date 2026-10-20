@@ -107,6 +107,7 @@ mod patch_check;
 mod play;
 pub mod pvb;
 mod replay;
+mod room_chat;
 pub mod rooms;
 mod shop;
 mod social;

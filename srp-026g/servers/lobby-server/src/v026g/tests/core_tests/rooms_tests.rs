@@ -29,7 +29,7 @@ const NEXT: usize = 14;
 const VOTE_AND_WAIT: Duration = Duration::from_secs(32);
 
 /// The names of the rows of the one answer to a request at `start`.
-fn rows(world: &mut World, index: usize, start: u32, count: u8) -> Vec<String> {
+pub(super) fn rows(world: &mut World, index: usize, start: u32, count: u8) -> Vec<String> {
     let answers = answered(world, index, start, count);
     let [rows] = &answers[..] else {
         panic!("not one answer: {answers:?}");
