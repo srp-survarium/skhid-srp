@@ -1,0 +1,31 @@
+--- a/scaleform/clik/controls/ListItemRenderer.as
++++ b/scaleform/clik/controls/ListItemRenderer.as
+@@ -31,7 +31,7 @@
+       
+       public function set index(param1:uint) : void
+       {
+-         this._index = param1;
++         _index = param1;
+       }
+       
+       public function get selectable() : Boolean
+@@ -41,7 +41,7 @@
+       
+       public function set selectable(param1:Boolean) : void
+       {
+-         this._selectable = param1;
++         _selectable = param1;
+       }
+       
+       override public function get selected() : Boolean
+@@ -61,8 +61,8 @@
+       
+       public function setListData(param1:ListData) : void
+       {
+-         this.index = param1.index;
+-         this.selected = param1.selected;
++         index = param1.index;
++         selected = param1.selected;
+          label = param1.label || "";
+       }
+       

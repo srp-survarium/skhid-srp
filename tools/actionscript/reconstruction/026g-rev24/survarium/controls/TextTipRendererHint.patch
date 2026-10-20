@@ -1,0 +1,18 @@
+--- a/survarium/controls/TextTipRendererHint.as
++++ b/survarium/controls/TextTipRendererHint.as
+@@ -18,7 +18,6 @@
+       
+       override protected function invalidateData() : void
+       {
+-         var _loc3_:Number = NaN;
+          textField.wordWrap = false;
+          textField.multiline = false;
+          textField.text = _data.tipText;
+@@ -26,6 +25,7 @@
+          height = textField.textHeight;
+          var _loc1_:ConstrainedElement = constraints.getElement("textField");
+          var _loc2_:Number = Math.ceil(textField.textWidth + _loc1_.left + _loc1_.right + 5);
++         var _loc3_:Number;
+          _loc3_ = Math.ceil(textField.textHeight + _loc1_.top + _loc1_.bottom + 5);
+          width = _loc2_;
+          height = _loc3_;

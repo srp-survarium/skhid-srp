@@ -510,3 +510,38 @@ with one changed method and identical non-code data. The runtime evidence retain
 the original test's manifest hashes and records this later build separately.
 The game was not rerun: the newly produced movie is byte-identical to the tested
 candidate.
+
+## Setter spelling, loop exits and annotation order
+
+A follow-up twenty-class probe produced fourteen exact reconstructions. These
+recover unqualified setter assignments (including inherited setters), inline
+identifier object keys, local declaration order, implicit wildcard defaults and
+typed assignments. All fourteen successful patches were reviewed and their
+applied bytes checked against the retained compiler inputs.
+
+`MessageInfoBase` additionally matches after restoring its final switch-case
+`break`. Adding an explicit default break as well was rejected because it added
+one extra jump. `ButtonGroup` matches after restoring its first-entry loop break,
+removing decompiler-exposed iteration temporaries, recovering local declaration
+order and retaining required explicit defaults. Its repeated `Event` annotations
+must appear in the reverse source order to reproduce the release's metadata
+order with Flex. The original metadata-order check remains strict; four other
+framework classes with this correction still have differing method bodies.
+
+These sixteen reviewed patches bring the manifest to 107 classes. An isolated
+Flex optimization probe for `FontDebugControl` still emits the unused-local
+initialization instructions, so it does not repair that rejected reconstruction.
+
+A broader declaration-order proposal run covered 69 remaining classes. Sixty-seven
+compiled; two (`TextTipRendererHint` and `ItemDragSlot`) rebuilt exactly and were
+reviewed and promoted, bringing the manifest to 109. Sixty-five failed exact
+linking. Two failed compilation: `ItemCompare` still needs an explicit type
+conversion, and the private `TweenLite` object-key proposal incorrectly removed
+quotes around reserved words. No failed proposal was promoted. Declaration order
+alone does not resolve the other remaining differences.
+
+The 109-entry premium feature build again reproduces the tested candidate
+`1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+with one changed method and identical non-code data. Its manifest hashes are
+recorded as a subsequent rebuild in the runtime evidence; no new game run is
+claimed. Whole-tree reconstruction is still incomplete.

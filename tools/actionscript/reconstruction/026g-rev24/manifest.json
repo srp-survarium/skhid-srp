@@ -728,6 +728,150 @@
       "pristine_sha256": "1c1c980d5eca72783c2ef7c7c7fe6b81477050561df947448743f181ab070c8a",
       "reason": "Recover source spelling for implicit local defaults, direct truth tests, unqualified own-field assignments or identifier object keys where present; reviewed diff reproduces the complete release movie exactly.",
       "result_sha256": "4bb8414327456e2557d350f06f40c3e15634a7dd1cc2e540da4262b1da530060"
+    },
+    {
+      "class": "scaleform.clik.controls.ListItemRenderer",
+      "patch": "scaleform/clik/controls/ListItemRenderer.patch",
+      "patch_sha256": "34e7c1dded25a7dcf05a63f46541ad117f2ab3f1b898650b623113f8f048a00b",
+      "pristine_sha256": "7e78bd431e031ad24d9264d454b258169bb54dc22799ff57c8abcb65323c7bd9",
+      "reason": "Restore unqualified field and setter assignments, preserving the original initproperty instructions.",
+      "result_sha256": "532ccae0a9c0a0935e1308fadf079b5ddc84fe3f36c348aa330d282b2b41516e"
+    },
+    {
+      "class": "survarium.ammo.AmmoContainer",
+      "patch": "survarium/ammo/AmmoContainer.patch",
+      "patch_sha256": "061140943c1b87f8c3ffe44de6d3b125d691acf89bf4019dc2b8258a9585d983",
+      "pristine_sha256": "d7293180e43972febda95e86c472b16d48843a37b1e9def0b7fca979d431d4e2",
+      "reason": "Restore unqualified field and inherited y setter assignments.",
+      "result_sha256": "bc3a406bacc993645ad12bb5f4213a69e94daba0a8fce1f2230980b2716d062d"
+    },
+    {
+      "class": "survarium.buttons.ButtonQuestFaction",
+      "patch": "survarium/buttons/ButtonQuestFaction.patch",
+      "patch_sha256": "1b67bc68170f78774abc777d0333a1093d6506404c84225a786b3fd51f0ec3b9",
+      "pristine_sha256": "487ed2952e86af9c1450e22673178ca44d2300602844b34129763c1620b8c00d",
+      "reason": "Restore local declaration order, implicit defaults, unqualified field assignment and direct truth tests.",
+      "result_sha256": "0f43bdebf76a64504a2547f3c5ac454b1bffc95d97f174266658b48fde91f804"
+    },
+    {
+      "class": "survarium.buttons.CheckBoxValue",
+      "patch": "survarium/buttons/CheckBoxValue.patch",
+      "patch_sha256": "c3827414ec6fca99b4e197e0e4fd5cf6006d5485325e2bf9929a52893630f450",
+      "pristine_sha256": "b6c263a75fdec35daad6bb27cc2b051f284648c51c7fc287fd108e6e50a44de6",
+      "reason": "Restore unqualified field and money_type setter assignments and direct truth tests.",
+      "result_sha256": "cc6007a489a9f45beddff72d4d4fc11d831c7046336eeb2ebcd02061fa2defc9"
+    },
+    {
+      "class": "survarium.buttons.ModificatorButton",
+      "patch": "survarium/buttons/ModificatorButton.patch",
+      "patch_sha256": "a1fbba940dca51034b1cc5848d4ba47841e2c9e25f93a1c83b4c90380e7e7b27",
+      "pristine_sha256": "1cbdff311b66ee5b55e2a541d790dcac16367a8b739ef6dc22a911bbfbfc1c58",
+      "reason": "Restore unqualified field and content setter assignments and direct truth tests.",
+      "result_sha256": "e3992b1b99a7c1ace40523ccfbe555fa02fb135c2ac3a6d2e4237127203039b0"
+    },
+    {
+      "class": "survarium.controls.ContextList",
+      "patch": "survarium/controls/ContextList.patch",
+      "patch_sha256": "9d855cdd021644ab6d2bf1c8b42a91df78a6023db18fc85b1d695bef7f9cec81",
+      "pristine_sha256": "859a4089c4cfc87eea8fbc6b00cc886235d9b66bb0dc5d12e7e1355430a2ddba",
+      "reason": "Restore local declaration order, implicit defaults, unqualified field assignments and direct truth tests.",
+      "result_sha256": "8b83374d6ef2fa46d384adda286881a1775f2ea59ad0a8d938e4621ea35d7b19"
+    },
+    {
+      "class": "survarium.controls.QuestItemRenderer",
+      "patch": "survarium/controls/QuestItemRenderer.patch",
+      "patch_sha256": "98dacc0270f01960195943203296533ad4687f46768d7cc64253e344c44b78fb",
+      "pristine_sha256": "e0cc00a9d12920920355e8b38bac2201baf2ca83a7acf452bfade631e272a831",
+      "reason": "Restore identifier object keys including the inline hint literal, implicit defaults, field assignments and direct truth tests.",
+      "result_sha256": "ae9e0d096b3ec2879d11d1a9b625fa53c942d61edbc4d122ba1a0676ecc7bf12"
+    },
+    {
+      "class": "survarium.controls.ReputationRenderer",
+      "patch": "survarium/controls/ReputationRenderer.patch",
+      "patch_sha256": "ad6a944647c744b9f8f7987d91083c31bbfd94d175f212962da553765d1c0eac",
+      "pristine_sha256": "3171437e21dd0f9ab8c8b0ad78574d2507adddfd691658f5781e5362dcef3107",
+      "reason": "Restore the inline identifier object key, unqualified field assignment and direct truth tests.",
+      "result_sha256": "5ebac73a7ad6e857d6fa5f709ede4f3c31e60b9c89c7c3aeec8e5dfb49d7cab1"
+    },
+    {
+      "class": "survarium.data.LocalizationData",
+      "patch": "survarium/data/LocalizationData.patch",
+      "patch_sha256": "c1a0b5996d0b86204be96f594b39404c87944d38b931d1fa3b15acb0596fb3e0",
+      "pristine_sha256": "d91fe3b1d80dd34e125c7b80324577e2bc9adfcd465aa6b5bbd9bad55a047d94",
+      "reason": "Restore local declaration order, implicit defaults and direct truth tests.",
+      "result_sha256": "37107067ef7bce07641c580625372207098aa2b0e1a951616a454bd96ed8caa0"
+    },
+    {
+      "class": "survarium.messages.MessageAskRelocate",
+      "patch": "survarium/messages/MessageAskRelocate.patch",
+      "patch_sha256": "2439f938ac6913eaaf0e0d64657e5bf27e42f4c187b6e2f91c39e202b5be9940",
+      "pristine_sha256": "3dc4cf4f943343c3d7f6101a67edaba9967abf7b26162a4f9ed669b70a8cc8ec",
+      "reason": "Restore the implicit typed count assignment and identifier object keys, preserving callback arguments.",
+      "result_sha256": "05995386ee7bccfea083005136acd82e6ae41b489bc8fdd486e5abf9b41a93a8"
+    },
+    {
+      "class": "survarium.messages.MessageDailyReward",
+      "patch": "survarium/messages/MessageDailyReward.patch",
+      "patch_sha256": "01d175b58d2992e3db2d108c5e76d711a39c569e34005e39ff9163961da7acb2",
+      "pristine_sha256": "7377d1f73ddee7aaf825d30979812dc2528b07a66b0da990e566b1ac00a478e1",
+      "reason": "Restore local declaration order, implicit wildcard initialization, identifier object keys and direct truth tests.",
+      "result_sha256": "e3601ba64f506e904fee19f9ef67af59a6437a2c4ab2a78cd96c54db1f1cec8a"
+    },
+    {
+      "class": "survarium.messages.MessageFactionUnlock",
+      "patch": "survarium/messages/MessageFactionUnlock.patch",
+      "patch_sha256": "460ff32309981a24320516f2aefc89fb947731753f0b2d5370ebd60ab4bda916",
+      "pristine_sha256": "398a9d1d55fa29de3ea4074d60230d4f88fc368539b925dcc0b3a6449e7c264c",
+      "reason": "Restore identifier object keys, including the inline easing literal.",
+      "result_sha256": "f4ded7ef35e4889ca664cf5ac97676767e9c8f796d5b1ce9d9a7d746e70e603a"
+    },
+    {
+      "class": "survarium.player.ProfileSelector",
+      "patch": "survarium/player/ProfileSelector.patch",
+      "patch_sha256": "d9ddb5f90b0769cf4a8e5bb6f4689ba241f5f7b40f13100519cf079569c03d3c",
+      "pristine_sha256": "19a23fa64082162575d70f313aa13e666455230ff19c49fe6bace5268dee5468",
+      "reason": "Restore local declaration order while retaining explicit loop-counter initialization, unqualified field assignments and direct truth tests.",
+      "result_sha256": "3563c871f676e8e9d36c852688f647168bcf2d5cad05837e8358ff8247838ed3"
+    },
+    {
+      "class": "survarium.tutorial.NoteSlides",
+      "patch": "survarium/tutorial/NoteSlides.patch",
+      "patch_sha256": "3deb5b9234361e6ece6f6b1afbe12635270cdf94a5ee01d1fed734525716a3ff",
+      "pristine_sha256": "1c276ccb218d34df91528002812934139df3781ad469b8e49e8d3414f6fb422d",
+      "reason": "Restore the implicit typed frame assignment, implicit local defaults, field assignments, identifier object keys and direct truth tests; retain external-call arguments.",
+      "result_sha256": "b93f98abbdc15db37f254820273cf7f818f1c1aca0e7dc63ecb7d9632751fedf"
+    },
+    {
+      "class": "survarium.messages.MessageInfoBase",
+      "patch": "survarium/messages/MessageInfoBase.patch",
+      "patch_sha256": "d12271acc8038796013f684b441c4fa18bf4edfcf5b7a1491703f490c0a9fb74",
+      "pristine_sha256": "a6829bf5bd222b231a0ee992aa70d180c3131203676d54a8bc84e322d9463299",
+      "reason": "Restore the explicit final switch-case break and direct truth test, reproducing the original unreachable branch as well as executable behavior.",
+      "result_sha256": "4a718027708df5b1876eb62932ba8d3898de32ce51985f510128a4bff36a691c"
+    },
+    {
+      "class": "scaleform.clik.controls.ButtonGroup",
+      "patch": "scaleform/clik/controls/ButtonGroup.patch",
+      "patch_sha256": "aef34c0a987f44465d0974bef01b9539ed5f3089c9cb8421396ebfbf9079e6ad",
+      "pristine_sha256": "ec92c8474aedaf0a1bc9aa8eea615881445e32ed228438e727e046ade0d8a352",
+      "reason": "Restore Event annotation order, explicit defaults and local declaration order; remove decompiler-generated iteration temporaries and restore the first-entry loop break; retain field assignment and implicit-local spelling corrections.",
+      "result_sha256": "3e854bebd8efe3d6d9293bfe0568b57540ff56873f7e7af58f3793089cc4061d"
+    },
+    {
+      "class": "survarium.controls.TextTipRendererHint",
+      "patch": "survarium/controls/TextTipRendererHint.patch",
+      "patch_sha256": "44eceacb835834081831c79d3d54b53cd8a1a5691e0351248ce83adc9d7597ab",
+      "pristine_sha256": "f162aab54346438a6a2eed625754a3ef68004e0dfbb3445037137fa4d1a29666",
+      "reason": "Restore local declaration order and implicit Number initialization to reproduce register allocation and initialization instructions.",
+      "result_sha256": "8ec186e16d58a66973b9d23e333630831dcf927e343f42b26f0d20af139af93f"
+    },
+    {
+      "class": "survarium.paperdoll.ItemDragSlot",
+      "patch": "survarium/paperdoll/ItemDragSlot.patch",
+      "patch_sha256": "5ca8ff1929fdbc73fd2399243cb016e140cc689eb711faf7de22bddb43ad2e1b",
+      "pristine_sha256": "f8cf79b02004340c720a4ba7cea9674a907c2542d52d08fc1cdb89056128e47d",
+      "reason": "Restore local declaration order while retaining explicit loop initialization, alongside unqualified field assignments and direct truth tests.",
+      "result_sha256": "ac17cd42ff64562a89a5cea050f4e064736b9bd1cbd9b4a140b11cea1ff56f8b"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

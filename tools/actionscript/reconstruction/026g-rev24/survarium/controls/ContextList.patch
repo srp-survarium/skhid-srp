@@ -1,0 +1,48 @@
+--- a/survarium/controls/ContextList.as
++++ b/survarium/controls/ContextList.as
+@@ -63,16 +63,16 @@
+          {
+             return;
+          }
+-         this._pattern = param1;
++         _pattern = param1;
+       }
+       
+       protected function updateSize(param1:Event = null) : void
+       {
+-         var _loc6_:Graphics = null;
+          var _loc2_:ButtonBar = this.list;
+          var _loc3_:Sprite = this.contextBack;
+          var _loc4_:Sprite = this.contextBackOver;
+          var _loc5_:int = _loc2_.getMaxWidth();
++         var _loc6_:Graphics;
+          _loc2_.width = _loc5_ + 10;
+          _loc3_.height = this.newHeight + this.border * 2;
+          _loc3_.width = _loc5_;
+@@ -81,7 +81,7 @@
+          _loc4_.height = _loc3_.height - 8;
+          _loc4_.width = _loc3_.width - 6;
+          this.selectedBack.width = this.contextBack.width - 2;
+-         if(Boolean(this._pattern))
++         if(this._pattern)
+          {
+             this.spr.alpha = 0.2;
+             this.spr.x = _loc3_.x;
+@@ -96,7 +96,7 @@
+       
+       public function set data(param1:Object) : void
+       {
+-         var _loc2_:ButtonBar = null;
++         var _loc2_:ButtonBar;
+          _loc2_ = this.list;
+          var _loc3_:Sprite = this.contextBack;
+          var _loc4_:Sprite = this.contextBackOver;
+@@ -105,7 +105,7 @@
+          var _loc5_:* = param1;
+          _loc2_.dataProvider = new DataProvider(_loc5_);
+          _loc2_.height = _loc5_.length * this._rendererHeight;
+-         this.newHeight = _loc5_.length * this._rendererHeight;
++         newHeight = _loc5_.length * this._rendererHeight;
+          _loc2_.validateNow();
+          _loc2_.x = 2;
+          _loc2_.y = this.border;

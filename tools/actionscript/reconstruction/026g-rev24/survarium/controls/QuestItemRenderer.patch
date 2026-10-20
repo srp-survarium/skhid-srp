@@ -1,0 +1,157 @@
+--- a/survarium/controls/QuestItemRenderer.as
++++ b/survarium/controls/QuestItemRenderer.as
+@@ -57,15 +57,15 @@
+       
+       override public function get height() : Number
+       {
+-         return Boolean(_data) && Boolean(this.background) ? this.background.height : 0;
++         return _data && this.background ? this.background.height : 0;
+       }
+       
+       override public function set data(param1:Object) : void
+       {
+          _data = param1;
+-         if(Boolean(_data))
+-         {
+-            this._start_time = param1.start_time;
++         if(_data)
++         {
++            _start_time = param1.start_time;
+          }
+          invalidateData();
+       }
+@@ -79,19 +79,19 @@
+          this.rewardField.mouseEnabled = this.rewardBar.mouseEnabled = this.idTextField.mouseEnabled = this.taskList.mouseEnabled = this.questIcon.mouseEnabled = this.labelTextField.mouseEnabled = textField.mouseEnabled = false;
+          this.rewardBar.mouseChildren = this.taskList.mouseChildren = this.questIcon.mouseChildren = false;
+          this.taskList.setMaxFit(true);
+-         if(Boolean(this.rewardsBack))
++         if(this.rewardsBack)
+          {
+             this.rewardsBack.mouseEnabled = false;
+             this.rewardsBack.mouseChildren = false;
+          }
+-         if(Boolean(this.background))
++         if(this.background)
+          {
+             this.background.mouseEnabled = false;
+          }
+-         if(Boolean(this.timeTextField))
++         if(this.timeTextField)
+          {
+             this.timeTextField.mouseEnabled = false;
+-            this._inProgress = true;
++            _inProgress = true;
+          }
+          this.rewardsHint.tooltipRendererName = "SrvProfileTipRenderer";
+          textField.autoSize = TextFieldAutoSize.LEFT;
+@@ -101,7 +101,7 @@
+          }
+          if(!this._inProgress)
+          {
+-            this._scrollContent = new ScrollContent();
++            _scrollContent = new ScrollContent();
+             this._scrollContent.x = int(textField.x);
+             this._scrollContent.y = int(this.labelTextField.y);
+             addChild(this._scrollContent);
+@@ -112,7 +112,7 @@
+             this.factionIcon.x -= this._scrollContent.x;
+             this.factionIcon.y = 4;
+             this.taskList.x -= this._scrollContent.x;
+-            this._scrollContent.width = Boolean(this.timeTextField) ? 437 : 437;
++            this._scrollContent.width = this.timeTextField ? 437 : 437;
+             this._scrollContent.height = 139;
+             this._scrollContent.addContent(this.labelTextField);
+             this._scrollContent.addContent(textField);
+@@ -123,10 +123,10 @@
+       
+       protected function timerStep(param1:Event = null) : void
+       {
+-         var _loc2_:int = 0;
+-         if(Boolean(enabled) && Boolean(_data) && Boolean(_data.time_limit))
+-         {
+-            if(Boolean(this.timeTextField))
++         var _loc2_:int;
++         if(enabled && _data && _data.time_limit)
++         {
++            if(this.timeTextField)
+             {
+                _loc2_ = Math.max(0,_data.time_limit - (QuestWindow.getTime() - this._start_time));
+                this.timeTextField.text = Util.getTimeString(_loc2_);
+@@ -147,11 +147,11 @@
+       
+       override protected function updateText() : void
+       {
+-         var _loc1_:String = null;
+-         var _loc2_:Array = null;
+-         var _loc3_:uint = 0;
++         var _loc1_:String;
++         var _loc2_:Array;
++         var _loc3_:uint;
+          mouseChildren = true;
+-         if(Boolean(_data))
++         if(_data)
+          {
+             visible = true;
+             this.rewardBar.spacing = 20;
+@@ -166,27 +166,27 @@
+             this.taskList.y = int(textField.y + textField.textHeight + 10);
+             if(!this.rewardsHint.tipData)
+             {
+-               this.rewardsHint.tipData = {"name":LocalizationData.getName("quest_reward_info")};
++               this.rewardsHint.tipData = {name:LocalizationData.getName("quest_reward_info")};
+             }
+             this.taskList.dataProvider = new DataProvider(_data.tasks);
+             this.taskList.validateNow();
+             this.taskList.height = this.taskList.container.height * this.taskList.scaleY + 10;
+-            if(Boolean(this.factionIcon))
+-            {
+-               this.factionIcon.content = Boolean(_data.faction_icon) ? _data.faction_icon.clone() : null;
++            if(this.factionIcon)
++            {
++               this.factionIcon.content = _data.faction_icon ? _data.faction_icon.clone() : null;
+             }
+             trace("updateQuest::",_data.tasks,this.taskList.height,_data.faction_icon,this,this.factionIcon.parent,this.factionIcon.alpha,this.factionIcon.visible,this.factionIcon.numChildren);
+             _loc1_ = MainScene.showDebugInfo ? _data.dict_id : "";
+-            if(Boolean(this.idTextField) && this.idTextField.text != _loc1_)
++            if(this.idTextField && this.idTextField.text != _loc1_)
+             {
+                this.idTextField.text = _loc1_;
+             }
+             this.questIcon.gotoAndStop(_data.quest_icon + 1);
+-            if(Boolean(_data.reward))
++            if(_data.reward)
+             {
+                this.rewardBar.x = this.rewardField.x + this.rewardField.textWidth + 17;
+                _loc2_ = _data.reward as Array;
+-               if(Boolean(_loc2_))
++               if(_loc2_)
+                {
+                   _loc3_ = 0;
+                   while(_loc3_ < _loc2_.length)
+@@ -200,7 +200,7 @@
+             }
+             if(!this._inProgress)
+             {
+-               if(Boolean(this.questStatusContainer))
++               if(this.questStatusContainer)
+                {
+                   if(_data.status != undefined)
+                   {
+@@ -221,7 +221,7 @@
+                      this.questStatusContainer.visible = false;
+                   }
+                }
+-               if(Boolean(this._scrollContent))
++               if(this._scrollContent)
+                {
+                   this._scrollContent.invalidateData();
+                   this._scrollContent.validateNow();
+@@ -239,7 +239,7 @@
+          else
+          {
+             visible = false;
+-            if(Boolean(this.factionIcon))
++            if(this.factionIcon)
+             {
+                this.factionIcon.content = null;
+             }
