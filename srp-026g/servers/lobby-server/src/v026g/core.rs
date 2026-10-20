@@ -1001,6 +1001,10 @@ impl<'a> Core<'a> {
                     return;
                 };
                 self.push_account(&who);
+                // Its kits may have changed (the admin took an item it
+                // wore): its squad's view of it is compared again, as after
+                // a sale.
+                self.squads_dirty = true;
                 let (skills, reputations, quests) = {
                     let account = who.account.locked();
                     (

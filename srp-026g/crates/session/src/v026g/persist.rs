@@ -17,9 +17,11 @@ use rusqlite::{Connection, OptionalExtension, params};
 
 use super::account::{Account, Item, KIT_SLOTS, Kit, KitSlot, QuestInstance, Upgrade};
 use super::clans::Clan;
+use super::moderation::AdminAction;
 use crate::LockExt;
 use crate::persist::{DATA_DIR_VAR, DB_FILE, DB_VAR, DEFAULT_DATA_DIR, PersistError};
 
+mod admin_actions;
 mod balance;
 mod clans;
 mod extras;
@@ -129,6 +131,8 @@ const MIGRATIONS: &[&str] = &[
     balance::MIGRATION,
     // 8: the settings of an account's last room made by hand (`room_settings`).
     room_settings::MIGRATION,
+    // 9: the audit trail of the admin's account moderation (`admin_actions`).
+    admin_actions::MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
@@ -176,6 +180,20 @@ pub trait GameRepository: Send {
     fn delete_result(&mut self, _key: &str) -> Result<(), PersistError> {
         Ok(())
     }
+    /// Add a row to the admin's audit trail ([`AdminAction`]). (A
+    /// repository that keeps none drops it.)
+    fn save_admin_action(&mut self, _action: &AdminAction) -> Result<(), PersistError> {
+        Ok(())
+    }
+    /// The account's latest `limit` rows of the audit trail, the newest
+    /// first.
+    fn admin_actions(
+        &mut self,
+        _account_id: u32,
+        _limit: usize,
+    ) -> Result<Vec<AdminAction>, PersistError> {
+        Ok(Vec::new())
+    }
 }
 
 /// Accounts kept in memory. Clones share one set, so a test can keep one
@@ -185,6 +203,10 @@ pub struct MemoryGameRepository {
     inner: Arc<Mutex<(HashMap<u32, Account>, usize)>>,
     clans: Arc<Mutex<HashMap<u32, Clan>>>,
     results: Arc<Mutex<std::collections::BTreeMap<String, String>>>,
+    admin_actions: Arc<Mutex<Vec<AdminAction>>>,
+    /// Account writes and audit rows fail while it is on: a database
+    /// refusing them.
+    failing: Arc<Mutex<bool>>,
 }
 
 impl MemoryGameRepository {
@@ -195,6 +217,17 @@ impl MemoryGameRepository {
 
     pub fn get(&self, account_id: u32) -> Option<Account> {
         self.inner.locked().0.get(&account_id).cloned()
+    }
+
+    /// Make every account write and audit row fail (with `BadRow`), or
+    /// work again: a database that refuses them, for tests.
+    pub fn fail_saves(&self, failing: bool) {
+        *self.failing.locked() = failing;
+    }
+
+    /// Every row of the audit trail written so far, the oldest first.
+    pub fn all_admin_actions(&self) -> Vec<AdminAction> {
+        self.admin_actions.locked().clone()
     }
 }
 
@@ -211,6 +244,9 @@ impl GameRepository for MemoryGameRepository {
     }
 
     fn save(&mut self, account_id: u32, account: &Account) -> Result<(), PersistError> {
+        if *self.failing.locked() {
+            return Err(PersistError::BadRow(account_id, "disk full".into()));
+        }
         let mut inner = self.inner.locked();
         inner.0.insert(account_id, account.clone());
         inner.1 += 1;
@@ -256,6 +292,30 @@ impl GameRepository for MemoryGameRepository {
     fn delete_result(&mut self, key: &str) -> Result<(), PersistError> {
         self.results.locked().remove(key);
         Ok(())
+    }
+
+    fn save_admin_action(&mut self, action: &AdminAction) -> Result<(), PersistError> {
+        if *self.failing.locked() {
+            return Err(PersistError::BadRow(action.account_id, "disk full".into()));
+        }
+        self.admin_actions.locked().push(action.clone());
+        Ok(())
+    }
+
+    fn admin_actions(
+        &mut self,
+        account_id: u32,
+        limit: usize,
+    ) -> Result<Vec<AdminAction>, PersistError> {
+        Ok(self
+            .admin_actions
+            .locked()
+            .iter()
+            .rev()
+            .filter(|action| action.account_id == account_id)
+            .take(limit)
+            .cloned()
+            .collect())
     }
 }
 
@@ -744,6 +804,18 @@ impl GameRepository for SqliteGameRepository {
 
     fn delete_result(&mut self, key: &str) -> Result<(), PersistError> {
         results::delete(&self.connection, key)
+    }
+
+    fn save_admin_action(&mut self, action: &AdminAction) -> Result<(), PersistError> {
+        admin_actions::save(&self.connection, action)
+    }
+
+    fn admin_actions(
+        &mut self,
+        account_id: u32,
+        limit: usize,
+    ) -> Result<Vec<AdminAction>, PersistError> {
+        admin_actions::load(&self.connection, account_id, limit)
     }
 }
 

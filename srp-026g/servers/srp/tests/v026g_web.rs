@@ -341,6 +341,105 @@ fn the_page_changes_an_account_and_its_open_game_is_told() {
     stack.stop();
 }
 
+/// The value of the hidden field `name` the page shows (a plan's digest).
+fn hidden(body: &str, name: &str) -> String {
+    let start = format!("name={name} value=");
+    let at = body
+        .find(&start)
+        .unwrap_or_else(|| panic!("no {name} in {body}"))
+        + start.len();
+    body[at..]
+        .chars()
+        .take_while(char::is_ascii_hexdigit)
+        .collect()
+}
+
+/// `1 234 567`, as the page writes money.
+fn group(value: u32) -> String {
+    let digits = value.to_string();
+    let mut out = String::new();
+    for (index, digit) in digits.chars().enumerate() {
+        if index > 0 && (digits.len() - index).is_multiple_of(3) {
+            out.push(' ');
+        }
+        out.push(digit);
+    }
+    out
+}
+
+/// The admin's moderation of an account whose game is open: silver taken
+/// (never below 0) and a worn item taken away, each after its preview. The
+/// game is shown the new balance and an inventory and kits without the
+/// item; both are in the database at once, with their audit rows.
+#[test]
+fn moderation_reaches_the_open_game_and_the_database() {
+    let (stack, web) = start("moderation");
+    let mut alice = Game::signed_in(&stack, "WebFarmer", "farmer-password-1");
+    let id = stack.store.account_id_by_name("WebFarmer").unwrap();
+    let silver = stack.accounts.get(id).unwrap().locked().generic_money;
+    assert!(silver > 0);
+    alice.forget();
+
+    let asked = [
+        ("user", "WebFarmer"),
+        ("silver", "-99999999"),
+        ("money_reason", "farmed"),
+    ];
+    let preview = admin(web, &asked);
+    assert!(
+        preview.contains("yes: its game is sent the change at once"),
+        "{preview}"
+    );
+    let plan = hidden(&preview, "money_plan");
+    let mut confirm = asked.to_vec();
+    confirm.extend([("money_plan", plan.as_str()), ("confirm", "1")]);
+    let done = admin(web, &confirm);
+    assert!(done.contains(&format!("(-{})", group(silver))), "{done}");
+    alice.until("the new balance", |game| {
+        game.has(|message| matches!(message, Decoded::Money { generic: 0, .. }))
+    });
+    alice.forget();
+
+    let pistol = stack.accounts.get(id).unwrap().locked().inventory[0].item_id;
+    assert!(
+        stack.accounts.get(id).unwrap().locked().kits[0]
+            .slot_of(pistol)
+            .is_some()
+    );
+    let take = pistol.to_string();
+    let asked = [
+        ("tab", "items"),
+        ("items_user", "WebFarmer"),
+        ("take", take.as_str()),
+        ("items_reason", "duped"),
+    ];
+    let plan = hidden(&admin(web, &asked), "items_plan");
+    let mut confirm = asked.to_vec();
+    confirm.extend([("items_plan", plan.as_str()), ("confirm", "1")]);
+    let done = admin(web, &confirm);
+    assert!(done.contains("WebFarmer: 1 item(s) taken."), "{done}");
+    alice.until("the inventory without it", |game| {
+        game.has(|message| matches!(message, Decoded::Inventory { .. }))
+            && game
+                .lobby
+                .model
+                .inventory()
+                .iter()
+                .all(|item| item.item_id != pistol)
+    });
+    // The audit trail (in the database) has both, the newest first.
+    let actions = stack.accounts.admin_actions(id, 10).unwrap();
+    let kinds: Vec<&str> = actions.iter().map(|action| action.kind.as_str()).collect();
+    assert_eq!(kinds, ["items", "money"]);
+    assert!(
+        stack.accounts.get(id).unwrap().locked().kits[0]
+            .slot_of(pistol)
+            .is_none()
+    );
+    alice.assert_clean();
+    stack.stop();
+}
+
 #[test]
 fn the_operators_text_and_a_ban_reach_the_026g_lobby() {
     let (stack, web) = start("ban");

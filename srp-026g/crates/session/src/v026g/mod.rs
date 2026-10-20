@@ -24,7 +24,8 @@
 //!   takes.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, TryLockError};
+use std::time::{Duration, Instant};
 
 pub mod account;
 pub mod autobuy;
@@ -37,6 +38,7 @@ pub mod items_rules;
 pub mod known;
 pub mod matches_now;
 pub mod matchmaking;
+pub mod moderation;
 pub mod names;
 pub mod notices;
 pub mod pay;
@@ -56,8 +58,9 @@ pub use account::{Account, Item, Kit, KitSlot, QuestInstance};
 pub use persist::{GameRepository, MemoryGameRepository, SqliteGameRepository};
 pub use rules::ActionError;
 
-use crate::LockExt;
 use crate::persist::PersistError;
+use crate::{LockExt, RESET_WRITE_WAIT, ResetWrite};
+use moderation::AdminAction;
 
 struct Writer {
     repository: Box<dyn GameRepository>,
@@ -110,6 +113,8 @@ pub struct GameAccounts {
     /// [`rewards::Results::attached`] takes it.
     restored_results: Mutex<Vec<(String, String)>>,
     flush_hooks: Mutex<Vec<FlushHook>>,
+    /// The admin's audit rows not written yet ([`Self::write_admin`]).
+    pending_actions: Mutex<Vec<AdminAction>>,
 }
 
 impl Default for GameAccounts {
@@ -130,6 +135,7 @@ impl GameAccounts {
             bots: Mutex::new(HashSet::new()),
             restored_results: Mutex::new(Vec::new()),
             flush_hooks: Mutex::new(Vec::new()),
+            pending_actions: Mutex::new(Vec::new()),
         }
     }
 
@@ -200,6 +206,7 @@ impl GameAccounts {
             bots: Mutex::new(HashSet::new()),
             restored_results: Mutex::new(results),
             flush_hooks: Mutex::new(Vec::new()),
+            pending_actions: Mutex::new(Vec::new()),
         })
     }
 
@@ -492,6 +499,10 @@ impl GameAccounts {
                 }
             }
         }
+        // The admin's audit rows, after the accounts they tell of.
+        if let Err(error) = self.write_actions(&mut writer) {
+            log::error!("Admin audit rows not saved: {error}; retrying");
+        }
         // After the accounts: a match's report is never kept ahead of what
         // the match gave them.
         for hook in self.flush_hooks.locked().iter() {
@@ -522,6 +533,120 @@ impl GameAccounts {
             })
             .expect("failed to spawn the 0.26g saver thread");
         Some(saver)
+    }
+
+    /// The writer, waited for [`RESET_WRITE_WAIT`] at most: the saver holds
+    /// it for its whole pass, and an admin's request should not hang on a
+    /// long one. `None`: still busy.
+    fn writer_soon(writer: &Mutex<Writer>) -> Option<MutexGuard<'_, Writer>> {
+        let deadline = Instant::now() + RESET_WRITE_WAIT;
+        loop {
+            match writer.try_lock() {
+                Ok(writer) => return Some(writer),
+                Err(TryLockError::Poisoned(poisoned)) => return Some(poisoned.into_inner()),
+                Err(TryLockError::WouldBlock) if Instant::now() < deadline => {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(TryLockError::WouldBlock) => return None,
+            }
+        }
+    }
+
+    /// The admin changed the account (`moderation`, the admin page): it is
+    /// written now, on the caller's thread, with `action` added to the
+    /// audit trail; this account and the audit rows waiting, nothing else
+    /// (not the saver's whole pass). Call it with no account locked.
+    ///
+    /// Past [`RESET_WRITE_WAIT`] for the writer the write is left to the
+    /// saver, woken ([`ResetWrite::Pending`]); what the database refuses
+    /// stays for the saver to retry, and the first error is returned. In
+    /// every case the change stands in memory. A store kept in memory keeps
+    /// no audit rows: the log has them.
+    pub fn write_admin(&self, account_id: u32, action: AdminAction) -> ResetWrite {
+        let Some(writer) = &self.writer else {
+            return ResetWrite::Written;
+        };
+        self.pending_actions.locked().push(action);
+        self.mark_dirty(account_id);
+        let Some(mut writer) = Self::writer_soon(writer) else {
+            self.wake.notify_one();
+            return ResetWrite::Pending;
+        };
+        let mut result = Ok(());
+        if let Some(account) = self.get(account_id) {
+            let copy = account.locked().clone();
+            if writer.saved.get(&account_id) != Some(&copy) {
+                match writer.repository.save(account_id, &copy) {
+                    Ok(()) => {
+                        writer.saved.insert(account_id, copy);
+                    }
+                    Err(error) => {
+                        // Marked again (the saver may have taken the mark
+                        // meanwhile): it retries.
+                        self.dirty.locked().insert(account_id);
+                        result = Err(error);
+                    }
+                }
+            }
+        }
+        let actions = self.write_actions(&mut writer);
+        match result.and(actions) {
+            Ok(()) => ResetWrite::Written,
+            Err(error) => ResetWrite::Failed(error),
+        }
+    }
+
+    /// Write the audit rows waiting, in order; those that fail wait for the
+    /// next write. The first error is returned.
+    fn write_actions(&self, writer: &mut Writer) -> Result<(), PersistError> {
+        let waiting = std::mem::take(&mut *self.pending_actions.locked());
+        let mut result = Ok(());
+        let mut kept = Vec::new();
+        for action in waiting {
+            if result.is_ok() {
+                match writer.repository.save_admin_action(&action) {
+                    Ok(()) => continue,
+                    Err(error) => result = Err(error),
+                }
+            }
+            kept.push(action);
+        }
+        if !kept.is_empty() {
+            let mut pending = self.pending_actions.locked();
+            kept.append(&mut pending);
+            *pending = kept;
+        }
+        result
+    }
+
+    /// The account's latest `limit` rows of the admin's audit trail, the
+    /// newest first, those not written yet included. `Err` when the
+    /// database was busy past [`RESET_WRITE_WAIT`] or refused; empty for a
+    /// store kept in memory.
+    pub fn admin_actions(&self, account_id: u32, limit: usize) -> Result<Vec<AdminAction>, String> {
+        let Some(writer) = &self.writer else {
+            return Ok(Vec::new());
+        };
+        let Some(mut writer) = Self::writer_soon(writer) else {
+            return Err("the database is busy".to_owned());
+        };
+        // Under the writer: a row is either waiting or written, never both.
+        let mut actions: Vec<AdminAction> = self
+            .pending_actions
+            .locked()
+            .iter()
+            .rev()
+            .filter(|action| action.account_id == account_id)
+            .take(limit)
+            .cloned()
+            .collect();
+        let written = writer
+            .repository
+            .admin_actions(account_id, limit)
+            .map_err(|error| error.to_string())?;
+        actions.extend(written);
+        actions.truncate(limit);
+        Ok(actions)
     }
 }
 
@@ -821,5 +946,110 @@ mod tests {
         assert_eq!(board.top.len(), 2);
         assert_eq!(board.battles, 3);
         assert_eq!(GameAccounts::new().board(10), Board::default());
+    }
+
+    fn admin_action(account_id: u32, change: &str) -> AdminAction {
+        AdminAction {
+            at: 1,
+            admin: "t".into(),
+            account_id,
+            account: "Alice".into(),
+            kind: "money".into(),
+            change: change.into(),
+            reason: "farmed".into(),
+            before: "a".into(),
+            after: "b".into(),
+        }
+    }
+
+    #[test]
+    fn an_admin_change_is_written_at_once_with_its_audit_row() {
+        let repository = MemoryGameRepository::default();
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        let account = store.get_or_create(5, "Alice");
+        store.get_or_create(6, "Bob");
+        store.flush();
+        let saves = repository.saves();
+        account.locked().generic_money = 7;
+        // Bob changed too, but only the admin's account is written now.
+        store.get(6).unwrap().locked().generic_money = 9;
+        store.mark_dirty(6);
+        assert!(matches!(
+            store.write_admin(5, admin_action(5, "first")),
+            ResetWrite::Written
+        ));
+        assert_eq!(repository.saves(), saves + 1);
+        assert_eq!(repository.get(5).unwrap().generic_money, 7);
+        assert_ne!(repository.get(6).unwrap().generic_money, 9);
+        assert_eq!(repository.all_admin_actions(), [admin_action(5, "first")]);
+        assert_eq!(
+            store.admin_actions(5, 10).unwrap(),
+            [admin_action(5, "first")]
+        );
+        assert!(store.admin_actions(6, 10).unwrap().is_empty());
+        // A store kept in memory keeps the log only.
+        let memory = GameAccounts::new();
+        memory.get_or_create(5, "Alice");
+        assert!(matches!(
+            memory.write_admin(5, admin_action(5, "x")),
+            ResetWrite::Written
+        ));
+        assert!(memory.admin_actions(5, 10).unwrap().is_empty());
+    }
+
+    #[test]
+    fn an_admin_change_the_database_refused_is_an_error_and_retried() {
+        let repository = MemoryGameRepository::default();
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        let account = store.get_or_create(5, "Alice");
+        store.flush();
+        repository.fail_saves(true);
+        account.locked().premium_money = 3;
+        assert!(matches!(
+            store.write_admin(5, admin_action(5, "refused")),
+            ResetWrite::Failed(_)
+        ));
+        assert!(store.is_dirty(5));
+        assert!(repository.all_admin_actions().is_empty());
+        // Waiting rows are shown all the same, the newest first.
+        store.write_admin(5, admin_action(5, "second"));
+        let shown: Vec<String> = store
+            .admin_actions(5, 10)
+            .unwrap()
+            .into_iter()
+            .map(|action| action.change)
+            .collect();
+        assert_eq!(shown, ["second", "refused"]);
+        // The saver's next pass writes the account and the rows, in order.
+        repository.fail_saves(false);
+        store.flush();
+        assert_eq!(repository.get(5).unwrap().premium_money, 3);
+        let written: Vec<String> = repository
+            .all_admin_actions()
+            .into_iter()
+            .map(|action| action.change)
+            .collect();
+        assert_eq!(written, ["refused", "second"]);
+        assert_eq!(store.admin_actions(5, 1).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn an_admin_change_waits_for_a_busy_saver_only_so_long() {
+        let repository = MemoryGameRepository::default();
+        let store = Arc::new(GameAccounts::with_repository(Box::new(repository.clone())).unwrap());
+        store.get_or_create(5, "Alice").locked().generic_money = 4;
+        let held = store.writer.as_ref().unwrap().locked();
+        let pending = std::thread::scope(|scope| {
+            scope
+                .spawn(|| store.write_admin(5, admin_action(5, "busy")))
+                .join()
+                .unwrap()
+        });
+        assert!(matches!(pending, ResetWrite::Pending));
+        drop(held);
+        assert!(store.is_dirty(5));
+        store.flush();
+        assert_eq!(repository.get(5).unwrap().generic_money, 4);
+        assert_eq!(repository.all_admin_actions().len(), 1);
     }
 }

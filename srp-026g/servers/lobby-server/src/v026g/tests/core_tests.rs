@@ -1801,6 +1801,44 @@ fn a_client_that_leaves_ends_its_session_at_once() {
     assert!(world.core.links.is_empty());
 }
 
+/// The admin page's moderation (`session::v026g::moderation`): what it
+/// takes is gone from the open game's inventory and kits at once, and the
+/// game is sent nothing it would drop or crash on.
+#[test]
+fn an_item_the_admin_takes_leaves_the_open_game() {
+    use session::v026g::moderation::{Pick, plan_take, take};
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    world.take(alice);
+    let (pistol, ammo) = {
+        let account = world.account(alice);
+        (account.inventory[0].item_id, account.inventory[1].item_id)
+    };
+    assert!(world.account(alice).kits[0].slot_of(pistol).is_some());
+    world.change(alice, |account| {
+        let plan = plan_take(
+            account,
+            &[
+                Pick {
+                    item_id: pistol,
+                    units: None,
+                },
+                Pick {
+                    item_id: ammo,
+                    units: Some(1),
+                },
+            ],
+        )
+        .unwrap();
+        take(account, &plan);
+    });
+    let seen = world.clients[alice].1.model.inventory();
+    assert!(seen.iter().all(|item| item.item_id != pistol));
+    assert_eq!(seen.len(), world.account(alice).inventory.len());
+    assert_eq!(world.account(alice).kits[0].slot_of(pistol), None);
+    world.assert_clean();
+}
+
 #[test]
 fn other_servers_reach_a_client_through_the_inbox() {
     let mut world = World::new();

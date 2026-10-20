@@ -66,7 +66,13 @@ struct World {
 }
 
 fn world() -> World {
-    let accounts = Arc::new(GameAccounts::new());
+    world_with(GameAccounts::new())
+}
+
+/// The world with these 0.26g accounts (one kept in a repository: what is
+/// written, and the audit trail).
+fn world_with(accounts: GameAccounts) -> World {
+    let accounts = Arc::new(accounts);
     let told = Arc::new(Told::default());
     let web = Web {
         store: Arc::new(SessionStore::new()),
@@ -218,12 +224,20 @@ fn the_admin_changes_money_and_the_account() {
     assert!(refused.body.contains("Wrong token"));
     assert_eq!(world.balances(id), (silver, gold));
 
-    let done = world.admin(&[
+    // Money is moderation's: a preview, then the confirm (`moderation`).
+    let asked = [
         ("user", "tester"),
         ("gold", "+500"),
         ("silver", "-999999999"),
-    ]);
-    assert!(done.contains("now 0 silver"), "{done}");
+        ("money_reason", "test"),
+    ];
+    let preview = world.admin(&asked);
+    assert_eq!(world.balances(id), (silver, gold));
+    let plan = hidden(&preview, "money_plan");
+    let mut confirm = asked.to_vec();
+    confirm.extend([("money_plan", plan.as_str()), ("confirm", "1")]);
+    let done = world.admin(&confirm);
+    assert!(done.contains("tester: silver 2 000 → 0 (-2 000)"), "{done}");
     assert_eq!(world.balances(id), (0, gold + 500));
     assert_eq!(world.told.changed.locked()[..], [id]);
 
@@ -486,7 +500,7 @@ fn the_pages_are_the_026g_ones() {
     let admin = world.web.route(&get("/hidden"), "t");
     assert_eq!(admin.status, "200 OK");
     for tab in [
-        "money", "ban", "unban", "bans", "maint", "signups", "account", "item", "text",
+        "money", "ban", "unban", "bans", "maint", "signups", "account", "item", "items", "text",
     ] {
         assert!(admin.body.contains(&format!("id=tab-{tab}")), "{tab}");
     }
@@ -1073,4 +1087,387 @@ fn the_maps_and_the_calculator_are_built_from_the_offered_patches() {
         calculator, offered,
         "the calculator is built from other patches than release/patches.tsv: rebuild it with build_site.py (srp-026g/scripts/damage-calc/README.md)"
     );
+}
+
+/// The value of the hidden field `name` the page shows (a plan's digest).
+fn hidden(body: &str, name: &str) -> String {
+    let start = format!("name={name} value=");
+    let at = body
+        .find(&start)
+        .unwrap_or_else(|| panic!("no {name} in {body}"))
+        + start.len();
+    body[at..]
+        .chars()
+        .take_while(char::is_ascii_hexdigit)
+        .collect()
+}
+
+/// A world whose 0.26g accounts are kept in a repository in memory.
+fn kept_world() -> (World, session::v026g::MemoryGameRepository) {
+    let repository = session::v026g::MemoryGameRepository::default();
+    let accounts = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+    (world_with(accounts), repository)
+}
+
+/// Every field sent, then the confirm with the plan the preview showed.
+fn confirmed<'a>(
+    fields: &[(&'a str, &'a str)],
+    plan_field: &'a str,
+    plan: &'a str,
+) -> Vec<(&'a str, &'a str)> {
+    let mut all = fields.to_vec();
+    all.extend([(plan_field, plan), ("confirm", "1")]);
+    all
+}
+
+#[test]
+fn money_is_taken_after_a_preview_and_never_below_zero() {
+    let (world, repository) = kept_world();
+    let id = world.player("pain", "secret");
+    let other = world.player("bystander", "secret");
+    world.accounts.get(id).unwrap().locked().generic_money = 480_000;
+    world.accounts.get(id).unwrap().locked().premium_money = 7;
+    world.accounts.flush();
+    let others = world.balances(other);
+    let asked = [
+        ("user", "pain"),
+        ("silver", "-500000"),
+        ("money_reason", "farmed silver"),
+    ];
+
+    // The preview: before and after, what is really taken; nothing changed.
+    let preview = world.admin(&asked);
+    assert!(preview.contains("Check the change below"), "{preview}");
+    assert!(
+        preview.contains("480 000 → 0 (-480 000); -500 000 asked, never below 0"),
+        "{preview}"
+    );
+    assert!(preview.contains("7 → 7 (0)"), "{preview}");
+    assert!(preview.contains("no: it sees the change at its next sign-in"));
+    assert!(
+        preview.contains("name=confirm value=1>Apply to pain"),
+        "{preview}"
+    );
+    // Enter in a field presses the form's first button: the preview's.
+    let first = preview.find("<button").unwrap();
+    assert!(preview[first..].starts_with("<button>"), "{preview}");
+    assert_eq!(world.balances(id), (480_000, 7));
+    let plan = hidden(&preview, "money_plan");
+
+    // The confirm without the plan, or with another, is a preview again.
+    for wrong in ["", "00"] {
+        let body = world.admin(&confirmed(&asked, "money_plan", wrong));
+        assert!(body.contains("nothing was changed"), "{body}");
+        assert_eq!(world.balances(id), (480_000, 7));
+    }
+    // Without a reason nothing is applied.
+    let no_reason = [("user", "pain"), ("silver", "-500000")];
+    let body = world.admin(&confirmed(&no_reason, "money_plan", &plan));
+    assert!(body.contains("A reason is required"), "{body}");
+    assert!(!body.contains("name=confirm value=1"));
+    assert_eq!(world.balances(id), (480_000, 7));
+    assert!(world.told.changed.locked().is_empty());
+
+    let done = world.admin(&confirmed(&asked, "money_plan", &plan));
+    assert!(
+        done.contains("pain: silver 480 000 → 0 (-480 000), gold 7 → 7 (0)."),
+        "{done}"
+    );
+    assert!(!done.contains("name=confirm value=1"));
+    assert_eq!(world.balances(id), (0, 7));
+    // Written at once, with its audit row; the open game is told.
+    assert_eq!(repository.get(id).unwrap().generic_money, 0);
+    let actions = repository.all_admin_actions();
+    assert_eq!(actions.len(), 1);
+    assert_eq!(actions[0].account_id, id);
+    assert_eq!(actions[0].kind, "money");
+    assert_eq!(actions[0].reason, "farmed silver");
+    assert_eq!(actions[0].change, "silver -480000 (asked -500000), gold +0");
+    assert_eq!(actions[0].before, "480000 silver, 7 gold");
+    assert_eq!(actions[0].after, "0 silver, 7 gold");
+    assert_eq!(world.told.changed.locked()[..], [id]);
+
+    // A reload of the confirm changes nothing more.
+    let reload = world.admin(&confirmed(&asked, "money_plan", &plan));
+    assert!(reload.contains("nothing was changed") || reload.contains("Nothing would change"));
+    assert_eq!(world.balances(id), (0, 7));
+    assert_eq!(repository.all_admin_actions().len(), 1);
+    // The audit trail is shown with the account.
+    assert!(
+        reload.contains("Earlier moderation of this account"),
+        "{reload}"
+    );
+    assert!(reload.contains("farmed silver"));
+
+    // Gold by id, the other account untouched.
+    let gold = [
+        ("user", &*format!("#{id}")),
+        ("gold", "-10"),
+        ("money_reason", "farmed gold"),
+    ];
+    let preview = world.admin(&gold);
+    let plan = hidden(&preview, "money_plan");
+    let done = world.admin(&confirmed(&gold, "money_plan", &plan));
+    assert!(done.contains("gold 7 → 0 (-7)"), "{done}");
+    assert_eq!(world.balances(id), (0, 0));
+    assert_eq!(world.balances(other), others);
+    assert_eq!(repository.all_admin_actions().len(), 2);
+}
+
+#[test]
+fn money_of_an_online_account_reaches_its_game() {
+    let world = world();
+    let id = world.player("Mandalorienc", "secret");
+    let session = world.web.store.create_session(id);
+    let _held = world.web.store.hold(session).unwrap();
+    let asked = [
+        ("user", "mandalorienc"),
+        ("gold", "-100"),
+        ("money_reason", "farmed gold"),
+    ];
+    world.accounts.get(id).unwrap().locked().premium_money = 250;
+    let preview = world.admin(&asked);
+    assert!(
+        preview.contains("yes: its game is sent the change at once"),
+        "{preview}"
+    );
+    let plan = hidden(&preview, "money_plan");
+    // The game spends gold between the preview and the confirm: the plan
+    // no longer fits, and nothing is taken.
+    world.accounts.get(id).unwrap().locked().premium_money = 240;
+    let late = world.admin(&confirmed(&asked, "money_plan", &plan));
+    assert!(
+        late.contains("The account changed since the preview"),
+        "{late}"
+    );
+    assert_eq!(world.balances(id).1, 240);
+    let plan = hidden(&late, "money_plan");
+    world.admin(&confirmed(&asked, "money_plan", &plan));
+    assert_eq!(world.balances(id).1, 140);
+    assert_eq!(world.told.changed.locked()[..], [id]);
+}
+
+#[test]
+fn moderation_needs_the_token_the_address_and_a_known_account() {
+    let world = world();
+    let id = world.player("tester", "secret");
+    let before = world.balances(id);
+    let asked = [("user", "tester"), ("silver", "-5"), ("money_reason", "x")];
+    let plan = hidden(&world.admin(&asked), "money_plan");
+    let mut fields = vec![("token", "bad")];
+    fields.extend(confirmed(&asked, "money_plan", &plan));
+    let refused = world.web.route(&post("/hidden", &fields), "t");
+    assert!(refused.body.contains("Wrong token"));
+    assert!(!refused.body.contains("money_plan"));
+    let mut fields = vec![("token", "tok")];
+    fields.extend(confirmed(&asked, "money_plan", &plan));
+    let mut elsewhere = post("/hidden", &fields);
+    elsewhere.client = "203.0.113.5".parse().ok();
+    assert_eq!(world.web.route(&elsewhere, "t").status, "404 Not Found");
+    // Items alike.
+    let item = world.accounts.get(id).unwrap().locked().inventory[0].item_id;
+    let take = item.to_string();
+    let mut fields = vec![
+        ("token", "bad"),
+        ("tab", "items"),
+        ("items_user", "tester"),
+        ("take", &take),
+        ("items_reason", "x"),
+        ("confirm", "1"),
+    ];
+    assert!(
+        world
+            .web
+            .route(&post("/hidden", &fields), "t")
+            .body
+            .contains("Wrong token")
+    );
+    fields[0] = ("token", "tok");
+    let mut elsewhere = post("/hidden", &fields);
+    elsewhere.client = "203.0.113.5".parse().ok();
+    assert_eq!(world.web.route(&elsewhere, "t").status, "404 Not Found");
+    assert_eq!(world.balances(id), before);
+    assert!(
+        world
+            .accounts
+            .get(id)
+            .unwrap()
+            .locked()
+            .item(item)
+            .is_some()
+    );
+    assert!(world.told.changed.locked().is_empty());
+
+    // Unknown accounts.
+    for user in ["ghost", "#999999", "999999"] {
+        let body = world.admin(&[("user", user), ("silver", "-5"), ("money_reason", "x")]);
+        assert!(
+            body.contains("No 0.26g account has that id") || body.contains("No such user"),
+            "{user}: {body}"
+        );
+        assert!(!body.contains("money_plan"));
+        let body = world.admin(&[("tab", "items"), ("items_user", user)]);
+        assert!(!body.contains("name=take"), "{user}");
+    }
+}
+
+#[test]
+fn items_are_listed_previewed_and_taken_off_every_kit() {
+    let (world, repository) = kept_world();
+    let id = world.player("Fasojib", "secret");
+    let other = world.player("bystander", "secret");
+    let (pistol, ammo, units, kept) = {
+        let account = world.accounts.get(id).unwrap();
+        let mut account = account.locked();
+        let pistol = account.inventory[0].item_id;
+        let ammo = account.inventory[1].clone();
+        // The pistol is worn by every kit.
+        let slot = account.kits[0].slot_of(pistol).unwrap();
+        let worn = account.kits[0].slots[slot];
+        for kit in &mut account.kits {
+            kit.slots[slot] = worn;
+        }
+        let kept = account.inventory[2].item_id;
+        (pistol, ammo.item_id, ammo.condition_or_stack, kept)
+    };
+    let others = world.accounts.get(other).unwrap().locked().clone();
+    world.accounts.flush();
+
+    // The listing.
+    let list = world.admin(&[("tab", "items"), ("items_user", "fasojib")]);
+    assert!(list.contains("Tick the items to take"), "{list}");
+    assert!(
+        list.contains(&format!("name=take value={pistol} ")),
+        "{list}"
+    );
+    assert!(list.contains(&format!("name=u{ammo} ")), "{list}");
+    assert!(list.contains("kit 1*, slot"), "{list}");
+    assert!(list.contains("kit 3, slot"), "{list}");
+    assert!(!list.contains("items_plan"));
+
+    // The pistol whole, and all but 1 unit of the ammo.
+    let pistol_text = pistol.to_string();
+    let ammo_text = ammo.to_string();
+    let ammo_units = format!("u{ammo}");
+    let leave_one = (units - 1).to_string();
+    let asked = [
+        ("tab", "items"),
+        ("items_user", "Fasojib"),
+        ("take", pistol_text.as_str()),
+        ("take", ammo_text.as_str()),
+        (ammo_units.as_str(), leave_one.as_str()),
+        ("items_reason", "duped"),
+    ];
+    let preview = world.admin(&asked);
+    assert!(preview.contains("Would be taken"), "{preview}");
+    assert!(preview.contains("taken off its kits"), "{preview}");
+    assert!(preview.contains("(1 left)"), "{preview}");
+    assert!(preview.contains(&format!("name=take value={pistol} checked")));
+    assert!(preview.contains("name=confirm value=1>Apply: take them from Fasojib"));
+    let first = preview.find("<button").unwrap();
+    assert!(preview[first..].starts_with("<button>"));
+    let plan = hidden(&preview, "items_plan");
+    assert!(
+        world
+            .accounts
+            .get(id)
+            .unwrap()
+            .locked()
+            .item(pistol)
+            .is_some()
+    );
+
+    // Another choice than the preview's: nothing is taken.
+    let fewer = [
+        ("tab", "items"),
+        ("items_user", "Fasojib"),
+        ("take", pistol_text.as_str()),
+        ("items_reason", "duped"),
+    ];
+    let body = world.admin(&confirmed(&fewer, "items_plan", &plan));
+    assert!(body.contains("nothing was"), "{body}");
+    assert!(
+        world
+            .accounts
+            .get(id)
+            .unwrap()
+            .locked()
+            .item(pistol)
+            .is_some()
+    );
+    assert!(world.told.changed.locked().is_empty());
+
+    let done = world.admin(&confirmed(&asked, "items_plan", &plan));
+    assert!(done.contains("Fasojib: 2 item(s) taken."), "{done}");
+    assert!(!done.contains("name=confirm value=1"));
+    {
+        let account = world.accounts.get(id).unwrap();
+        let account = account.locked();
+        assert!(account.item(pistol).is_none());
+        assert_eq!(account.item(ammo).unwrap().condition_or_stack, 1);
+        assert!(account.item(kept).is_some());
+        assert!(account.kits.iter().all(|kit| kit.slot_of(pistol).is_none()));
+        let worn = account.kits[0].slot_of(ammo).unwrap();
+        assert_eq!(account.kits[0].slots[worn].unwrap().count, 1);
+        // The kits are valid: a repair finds nothing to change.
+        assert!(!account.clone().repair());
+        // Written at once.
+        assert_eq!(repository.get(id).unwrap(), *account);
+    }
+    assert_eq!(world.told.changed.locked()[..], [id]);
+    assert_eq!(*world.accounts.get(other).unwrap().locked(), others);
+    let actions = repository.all_admin_actions();
+    assert_eq!(actions.len(), 1);
+    assert_eq!(actions[0].kind, "items");
+    assert_eq!(actions[0].reason, "duped");
+    assert!(
+        actions[0].change.contains(&format!("item {pistol})")),
+        "{:?}",
+        actions[0]
+    );
+
+    // A reload: the pistol is gone, nothing more is taken.
+    let reload = world.admin(&confirmed(&asked, "items_plan", &plan));
+    assert!(
+        reload.contains(&format!("no item {pistol} now")),
+        "{reload}"
+    );
+    assert_eq!(
+        world
+            .accounts
+            .get(id)
+            .unwrap()
+            .locked()
+            .item(ammo)
+            .unwrap()
+            .condition_or_stack,
+        1
+    );
+    assert_eq!(repository.all_admin_actions().len(), 1);
+    assert_eq!(world.told.changed.locked().len(), 1);
+}
+
+#[test]
+fn a_moderation_the_database_refused_says_so() {
+    let (world, repository) = kept_world();
+    let id = world.player("pain", "secret");
+    world.accounts.flush();
+    repository.fail_saves(true);
+    let asked = [
+        ("user", "pain"),
+        ("silver", "-100"),
+        ("money_reason", "farmed"),
+    ];
+    let plan = hidden(&world.admin(&asked), "money_plan");
+    let done = world.admin(&confirmed(&asked, "money_plan", &plan));
+    assert!(
+        done.contains("Error: the change stands in memory only"),
+        "{done}"
+    );
+    assert_eq!(world.balances(id).0, 1_900);
+    // The saver writes it once the database takes it again.
+    repository.fail_saves(false);
+    world.accounts.flush();
+    assert_eq!(repository.get(id).unwrap().generic_money, 1_900);
+    assert_eq!(repository.all_admin_actions().len(), 1);
 }
