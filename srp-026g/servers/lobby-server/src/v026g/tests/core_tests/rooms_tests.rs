@@ -178,6 +178,7 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     );
     assert_eq!(setup.players.len(), 2, "no bots");
     assert!(!setup.vs_bots);
+    assert!(!setup.private, "no PIN: it pays");
     world.advance(Duration::from_secs(1));
     let playing = state(&mut world, alice);
     assert_eq!(header(&playing)[PHASE], "2");
@@ -1596,4 +1597,43 @@ fn a_room_makes_no_match_below_its_minimum() {
     for &player in &players[..3] {
         assert!(sent_to_match(&world.take(player)).is_none());
     }
+}
+
+/// A room with a PIN makes private matches (the owner's of 2026-10-20):
+/// the match server is told, and its result pays nobody anything; the
+/// room goes on after it as any other.
+#[test]
+fn a_room_with_a_pin_makes_matches_that_pay_nothing() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let key = create(&mut world, alice, spec(6), Some(1234));
+    rows(&mut world, bob, ROOM_PIN_BASE + 1234, 1);
+    rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
+    let held = [alice, bob].map(|player| {
+        let account = world.account(player);
+        (account.generic_money, account.exp_total)
+    });
+    world.advance(VOTE_AND_WAIT);
+    let (ticket, _) = sent_to_match(&world.take(alice)).expect("a match");
+    let setup = world.host.made.locked().last().unwrap().1.clone();
+    assert!(setup.private);
+    world.end_match(ticket, 0);
+    world.advance(Duration::from_secs(2));
+    let report = world.results.find(ticket).expect("its report");
+    assert!(report.private);
+    for player in &report.players {
+        let reward = &player.reward;
+        assert_eq!((reward.experience, reward.money, reward.drop), (0, 0, None));
+        assert_eq!(reward.rating_after, reward.rating_before);
+    }
+    for (player, held) in [alice, bob].into_iter().zip(held) {
+        let account = world.account(player);
+        assert_eq!((account.generic_money, account.exp_total), held);
+    }
+    assert_eq!(
+        header(&state(&mut world, alice))[PHASE],
+        "3",
+        "the next vote"
+    );
 }

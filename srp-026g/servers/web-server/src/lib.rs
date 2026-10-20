@@ -43,6 +43,7 @@
 mod damage;
 mod launcher;
 mod maps;
+mod moderation;
 mod password_reset;
 mod patches;
 mod stats;
@@ -222,6 +223,10 @@ struct AdminView {
     admin_text: Option<(String, String)>,
     /// The password tab: the account to confirm, or the user name typed.
     reset: password_reset::ResetView,
+    /// The 0.26g Money tab: the change previewed or made.
+    money: moderation::MoneyView,
+    /// The 0.26g Take items tab: the listing, the take previewed or made.
+    items: moderation::ItemsView,
 }
 
 /// Why the admin token was not taken.
@@ -403,6 +408,8 @@ struct Web {
     replay_downloads: AtomicU32,
     /// Failed `/replays/` lookups by address ([`REPLAY_FAILURES`]).
     replay_failures: Mutex<HashMap<Option<IpAddr>, ReplayFailures>>,
+    /// The admin's moderation previews waiting for their confirm.
+    plans: moderation::Plans,
     /// `Some`: the page of the 0.26g stack.
     game: Option<Game>,
 }
@@ -530,6 +537,7 @@ pub fn serve_on(
         resource_downloads: AtomicU32::new(0),
         replay_downloads: AtomicU32::new(0),
         replay_failures: Mutex::new(HashMap::new()),
+        plans: Default::default(),
         game,
     });
     for stream in listener.incoming() {
@@ -574,6 +582,15 @@ impl Request {
             .iter()
             .find(|(key, _)| key == name)
             .map_or("", |(_, value)| value.trim())
+    }
+
+    /// Every value of a field the form sends more than once (ticked
+    /// boxes of one name), in order.
+    fn fields<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a str> + 'a {
+        self.form
+            .iter()
+            .filter(move |(key, _)| key == name)
+            .map(|(_, value)| value.trim())
     }
 }
 
@@ -999,7 +1016,7 @@ impl Web {
         let g26 = self.game.is_some();
         let tab = match request.field("tab") {
             tab @ ("money" | "ban" | "unban" | "bans" | "maint" | "signups" | "password") => tab,
-            tab @ ("account" | "item" | "text") if g26 => tab,
+            tab @ ("account" | "item" | "items" | "text") if g26 => tab,
             _ => "money",
         };
         let refused = |message: String| {
@@ -1024,10 +1041,17 @@ impl Web {
         }
         let given = request.field("token");
         let mut reset = password_reset::ResetView::default();
+        let mut money = moderation::MoneyView::default();
+        let mut items = moderation::ItemsView::default();
         let message = match tab {
             "password" => {
                 let (message, view) = self.admin_reset_password(request, peer);
                 reset = view;
+                message
+            }
+            "items" => {
+                let (message, view) = self.admin_take_items(request, peer);
+                items = view;
                 message
             }
             "ban" => self.admin_ban(request, peer),
@@ -1038,7 +1062,11 @@ impl Web {
             "account" => self.admin_account_026g(request, peer),
             "item" => self.admin_item_026g(request, peer),
             "text" => self.admin_text_026g(request, peer),
-            _ if g26 => self.admin_money_026g(request, peer),
+            _ if g26 => {
+                let (message, view) = self.admin_moderate_money(request, peer);
+                money = view;
+                message
+            }
             _ => self.admin_money(request, peer),
         };
         let view = AdminView {
@@ -1050,6 +1078,8 @@ impl Web {
             g26,
             admin_text: self.game.as_ref().and_then(|game| game.lobby.admin_text()),
             reset,
+            money,
+            items,
         };
         page(lang, Form::Admin(Box::new(view)), &message)
     }
@@ -1704,7 +1734,7 @@ label.check{display:flex;gap:.5rem;align-items:center;font:inherit;font-size:.85
 .tabs>label{display:inline-block;margin:0 .25rem 0 0;padding:.45rem .9rem;border:1px solid var(--rule);border-bottom:0;border-radius:2px 2px 0 0;cursor:pointer;color:var(--ink-2);background:var(--bg)}\
 .tabs>input:checked+label{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}.tabs>input:focus-visible+label{outline:2px solid var(--accent)}\
 .panel{display:none;border:1px solid var(--rule);border-top:2px solid var(--accent);padding:.2rem 1rem 1rem;background:var(--panel)}\
-#tab-money:checked~.p-money,#tab-ban:checked~.p-ban,#tab-unban:checked~.p-unban,#tab-bans:checked~.p-bans,#tab-maint:checked~.p-maint,#tab-signups:checked~.p-signups,#tab-account:checked~.p-account,#tab-item:checked~.p-item,#tab-text:checked~.p-text,#tab-password:checked~.p-password{display:block}\
+#tab-money:checked~.p-money,#tab-ban:checked~.p-ban,#tab-unban:checked~.p-unban,#tab-bans:checked~.p-bans,#tab-maint:checked~.p-maint,#tab-signups:checked~.p-signups,#tab-account:checked~.p-account,#tab-item:checked~.p-item,#tab-text:checked~.p-text,#tab-password:checked~.p-password,#tab-items:checked~.p-items{display:block}.scroll{overflow-x:auto}.p-items td input{width:auto}.p-items td input.units{width:6.5rem;padding:.2rem .3rem}\
 button.quiet{background:0;color:var(--accent);border:1px solid var(--accent)}button.quiet:hover{background:color-mix(in srgb,var(--accent) 12%,transparent)}\
 table{width:100%;border-collapse:collapse;font-size:.85rem}th,td{text-align:left;padding:.35rem .4rem;border-bottom:1px solid var(--rule);vertical-align:top;word-break:break-word}\
 th{font:700 .72rem var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}\
@@ -1750,6 +1780,10 @@ fn room_rules(lang: Lang, squads: bool) -> String {
         lang.tr(
             "Teams are balanced by gear, level and past results.",
             "Команди вирівнюються за спорядженням, рівнем і результатами минулих матчів.",
+        ),
+        lang.tr(
+            "Private rooms (with a PIN) give no rewards.",
+            "Приватні кімнати (з PIN) не дають нагород.",
         ),
     ];
     if !squads {
@@ -2106,16 +2140,28 @@ fn admin_form(lang: Lang, view: &AdminView) -> String {
     };
     let password_tab = tab("password", lang.tr("Password", "Пароль"));
     let password_panel = password_reset::panel(lang, view);
+    // The 0.26g page's money is moderation's: a reason, a preview, a
+    // confirm. The 0.21d page's changes at once, for testing.
+    let money_panel = if view.g26 {
+        moderation::money_panel(lang, view)
+    } else {
+        format!(
+            "<div class=\"panel p-money\">\
+             <label for=u>{}</label><input id=u name=user maxlength=99>\
+             <label for=s>{}</label><input id=s name=silver placeholder=+10000>\
+             <label for=g>{}</label><input id=g name=gold placeholder=+500>\
+             <button>{}</button></div>",
+            lang.tr("User name", "Ім'я користувача"),
+            lang.tr("Silver, + or -", "Срібло, + або -"),
+            lang.tr("Gold, + or -", "Золото, + або -"),
+            lang.tr("Change", "Змінити"),
+        )
+    };
     format!(
         "<h1>{}</h1><form method=post action=\"\" autocomplete=off>\
          <input type=hidden name=lang value={code}>\
          <label for=t>{}</label><input id=t name=token type=password required value=\"{}\">\
-         <div class=tabs>{}{}{}{}{}{}{extra_tabs}{password_tab}\
-         <div class=\"panel p-money\">\
-         <label for=u>{}</label><input id=u name=user maxlength=99>\
-         <label for=s>{}</label><input id=s name=silver placeholder=+10000>\
-         <label for=g>{}</label><input id=g name=gold placeholder=+500>\
-         <button>{}</button></div>\
+         <div class=tabs>{}{}{}{}{}{}{extra_tabs}{password_tab}{money_panel}\
          <div class=\"panel p-ban\">\
          <label for=b>{}</label><input id=b name=ban_user maxlength=99>\
          <label for=h>{}</label><input id=h name=hours inputmode=numeric placeholder=24>\
@@ -2144,10 +2190,6 @@ fn admin_form(lang: Lang, view: &AdminView) -> String {
         tab("bans", lang.tr("Bans", "Бани")),
         tab("maint", lang.tr("Maintenance", "Роботи")),
         tab("signups", lang.tr("Signups", "Реєстрація")),
-        lang.tr("User name", "Ім'я користувача"),
-        lang.tr("Silver, + or -", "Срібло, + або -"),
-        lang.tr("Gold, + or -", "Золото, + або -"),
-        lang.tr("Change", "Змінити"),
         lang.tr(
             "User name, or an address or range (1.2.3.4, 1.2.3.0/24)",
             "Ім'я, або адреса чи діапазон (1.2.3.4, 1.2.3.0/24)"
@@ -2193,9 +2235,10 @@ fn admin_extras_026g(
     tab: &dyn Fn(&str, String) -> String,
 ) -> (String, String) {
     let tabs = format!(
-        "{}{}{}",
+        "{}{}{}{}",
         tab("account", lang.tr("Account", "Акаунт")),
-        tab("item", lang.tr("Item", "Предмет")),
+        tab("item", lang.tr("Give item", "Видати предмет")),
+        tab("items", lang.tr("Take items", "Забрати предмети")),
         tab("text", lang.tr("Text", "Текст")),
     );
     let standing = match &view.admin_text {
@@ -2230,7 +2273,7 @@ fn admin_extras_026g(
          <label for=l1>{}</label><input id=l1 name=line1 maxlength={max}>\
          <label for=l2>{}</label><input id=l2 name=line2 maxlength={max}>\
          <small>{}</small><br>\
-         <button>{}</button> <button name=clear_text value=1 class=quiet>{}</button></div>",
+         <button>{}</button> <button name=clear_text value=1 class=quiet>{}</button></div>{}",
         lang.tr("User name", "Ім'я користувача"),
         lang.tr("Premium hours, + or -", "Години преміуму, + або -"),
         lang.tr("Set the level (0 to 50)", "Встановити рівень (0–50)"),
@@ -2260,6 +2303,7 @@ fn admin_extras_026g(
         ),
         lang.tr("Show", "Показати"),
         lang.tr("Clear", "Прибрати"),
+        moderation::items_panel(lang, view),
     );
     (tabs, panels)
 }
@@ -2392,6 +2436,7 @@ mod tests {
             resource_downloads: AtomicU32::new(0),
             replay_downloads: AtomicU32::new(0),
             replay_failures: Mutex::new(HashMap::new()),
+            plans: Default::default(),
             game: None,
         }
     }
@@ -2905,6 +2950,7 @@ mod tests {
         assert!(en.contains("vote for 15 s between 3 maps"));
         assert!(en.contains("until its last 30 s"));
         assert!(en.contains("Squads are off"));
+        assert!(en.contains("Private rooms (with a PIN) give no rewards."));
         // Nothing of the queue's rules is left in it.
         assert!(!en.contains("countdown"));
         assert!(!en.contains("JOIN"));
@@ -2916,6 +2962,7 @@ mod tests {
         let uk = room_rules(Lang::Uk, false);
         assert!(uk.contains("15 с голосують за одну з 3 мап"));
         assert!(uk.contains("Загони вимкнено"));
+        assert!(uk.contains("Приватні кімнати (з PIN) не дають нагород."));
         assert_eq!(en.matches("<li>").count(), uk.matches("<li>").count());
     }
 

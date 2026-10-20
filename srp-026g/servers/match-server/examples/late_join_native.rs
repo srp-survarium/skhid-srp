@@ -67,6 +67,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .collect(),
         score_weights: None,
         vs_bots: false,
+        private: false,
         room_minimum: None,
     })?;
     let store = Arc::new(SessionStore::with_repository(

@@ -185,6 +185,11 @@ pub struct Account {
     /// The settings of the last room it made by hand, its create window's
     /// start ([`super::room_settings`]); none before its first.
     pub room_settings: Option<super::room_settings::RoomSettings>,
+    /// The matches whose results screen it used a drop card on, sorted,
+    /// of those whose reports are kept: one card a match
+    /// ([`super::rewards::Results::use_drop_card`]). Kept with the account,
+    /// so the mark is written with the card taken and the item given.
+    pub drop_cards: Vec<u32>,
 }
 
 /// The level reached with `total` experience, where it starts and where
@@ -256,6 +261,7 @@ impl Account {
             },
             map_plays: Vec::new(),
             room_settings: None,
+            drop_cards: Vec::new(),
         };
         for worn in &loadout.items {
             let Some(entry) = dictionary.item(worn.dict_id) else {

@@ -25,6 +25,20 @@ The rules the code and the tests follow, the owner's of 2026-10-16 to 10-19. Cod
     later is in (an experimental one out); the max level never below the maker's gear now;
     other values within today's ranges; nothing of the pool left: the default pool.
   - No button puts the defaults back (the owner's of 2026-10-20: "no need for that").
+  - **A PIN: no rewards** (the owner's of 2026-10-20: "let's remove rewards for private (pin)
+    games"; players farmed silver in 1 v 1 PIN rooms): every match of a room with a PIN pays
+    nobody in it anything, late joiners too. No experience, silver (the match's or a quest's),
+    reputation, quest progress, daily bonus, drop (silver's dict 214 too), rating or balance
+    rating; its results screen takes no drop card (refused and logged: "private match"). It
+    takes nothing either (srp's choice: nothing paid, nothing charged): no wear, no ammo or
+    consumables used, no autobuy or auto-repair after it. The results screen still opens with
+    the match's numbers (winner, rows, scores) and nothing paid. Its map still counts as
+    played (feeds nothing now). The lobby knows it when it makes the match (a PIN is the
+    room's for its whole life) and tells the match server (`MatchSetup::private`); the result
+    carries it to the rewards (`rewards::MatchResult::private`), which log once
+    "Match …: private room, no rewards". Rooms without a PIN, clan matches and Play vs Bots
+    pay as before. The site's room rules say so; no in-game text (it needs the lobby movie,
+    parked).
 - **Play:** goes straight into a room, no search shown: of the open rooms that let the player
   in, the one nearest its level however far (too few online to leave anyone out), then the
   fullest; no squad, friend or clan preference; none: a new room for it (8 v 8, any max level, 30 s, the whole pool, from

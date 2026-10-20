@@ -195,7 +195,7 @@ Dispatch: `servers/lobby-server/src/v026g/dispatch.rs`, `Core::handle`. "Writer"
 | `00` | moving items; the ammo window (`relocate_item`, `apply_profile_items`) | 0x2706F0 / 0x27070F | **real**: the move is applied or refused with a text; inventory, account and money pushed | `dispatch.rs`; `rules::move_items` | medium |
 | `01` | putting a cosmetic on an item | 0x2707C0 / 0x2707DA | **real**: `83 46 01` or a refusal, then the pushes | `items.rs` `attach_upgrade` | medium |
 | `02` | taking a cosmetic off one item (the host is patch 30's) | 0x2708C0 / 0x2708CE | **real**: `83 46 02` | `items.rs` `detach_upgrade` | medium |
-| `03` | using a drop card | 0x270AE0 / 0x270AEE | **being changed today**. The meaning of the two numbers is a GUESS; both orders are tried. | `dispatch.rs` `use_drop_card` | — |
+| `03` | using a drop card | 0x270AE0 / 0x270AEE | **real**: `98`, then the pushes; one card a finisher of a kept match, else the game's refusal (`drop_cards.md`). The order `<match> <card>` is PROVEN (`results.md` §3); the other is still tried | `dispatch.rs` `use_drop_card`; `rewards::Results::use_drop_card` | medium |
 | `04` | using an item (premium voucher) | 0x274400 / 0x27440D | **real**: `83 46 04`, services, pushes | `shop.rs` `use_item` | medium |
 | `05` | the decal editor | 0x270950 / 0x270960 | **real**: stored; no answer, as the client expects none | `items.rs` `place_upgrade` | medium |
 | `06` | opening the modification window | 0x270DC0 / 0x270DCD | **real**: `83 46 06` | `items.rs` `open_reroll` | medium |

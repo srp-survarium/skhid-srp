@@ -1801,6 +1801,44 @@ fn a_client_that_leaves_ends_its_session_at_once() {
     assert!(world.core.links.is_empty());
 }
 
+/// The admin page's moderation (`session::v026g::moderation`): what it
+/// takes is gone from the open game's inventory and kits at once, and the
+/// game is sent nothing it would drop or crash on.
+#[test]
+fn an_item_the_admin_takes_leaves_the_open_game() {
+    use session::v026g::moderation::{Pick, plan_take, take};
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    world.take(alice);
+    let (pistol, ammo) = {
+        let account = world.account(alice);
+        (account.inventory[0].item_id, account.inventory[1].item_id)
+    };
+    assert!(world.account(alice).kits[0].slot_of(pistol).is_some());
+    world.change(alice, |account| {
+        let plan = plan_take(
+            account,
+            &[
+                Pick {
+                    item_id: pistol,
+                    units: None,
+                },
+                Pick {
+                    item_id: ammo,
+                    units: Some(1),
+                },
+            ],
+        )
+        .unwrap();
+        take(account, &plan);
+    });
+    let seen = world.clients[alice].1.model.inventory();
+    assert!(seen.iter().all(|item| item.item_id != pistol));
+    assert_eq!(seen.len(), world.account(alice).inventory.len());
+    assert_eq!(world.account(alice).kits[0].slot_of(pistol), None);
+    world.assert_clean();
+}
+
 #[test]
 fn other_servers_reach_a_client_through_the_inbox() {
     let mut world = World::new();
@@ -2020,6 +2058,7 @@ impl World {
             trusted_by: 2,
             players,
             vs_bots: setup.vs_bots,
+            private: setup.private,
         };
         let terms = Terms::at(session::v026g::quests::now());
         let report = self
@@ -2088,6 +2127,7 @@ impl World {
             trusted_by: 0,
             players,
             vs_bots: setup.vs_bots,
+            private: setup.private,
         };
         let terms = Terms::at(session::v026g::quests::now());
         let report = self
@@ -2372,65 +2412,112 @@ fn the_results_wait_for_a_player_who_left_the_match_or_the_game() {
     world.assert_clean();
 }
 
+/// A drop card's answer: `98` with what it gave and the cards left, then
+/// the inventory and the account.
+fn assert_card_used(world: &mut World, player: usize, card: u32, left: u32) {
+    let decoded = world.take(player);
+    let dropped = position(&decoded, |message| {
+        matches!(
+            message,
+            Decoded::Drop { card_item_id, card_count, .. }
+                if *card_item_id == card && *card_count == left
+        )
+    })
+    .unwrap_or_else(|| panic!("{decoded:?}"));
+    let inventory = position(&decoded, |message| {
+        matches!(message, Decoded::Inventory { .. })
+    })
+    .unwrap();
+    let account = position(&decoded, |message| matches!(message, Decoded::Account(_))).unwrap();
+    assert!(dropped < inventory && inventory < account);
+    assert_eq!(
+        world.clients[player].1.model.inventory().len(),
+        world.account(player).inventory.len()
+    );
+}
+
+/// The drop-card loop of 2026-10-18..20: a card was taken on any results
+/// screen kept, as often as asked, so cards bought with silver turned
+/// into more silver. One card for each player that finished a match now
+/// (`drop_cards.md`).
 #[test]
-fn a_drop_card_is_used_from_the_results_screen() {
+fn a_drop_card_is_used_once_on_the_screen_of_a_match_played() {
     let mut world = World::new();
     let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let carol = world.connect("Carol");
     let card_dict = Dictionary::shared()
         .item_named("drop_card")
         .unwrap()
         .dict_id;
-    world.change(alice, |account| {
-        account.add_item(card_dict, 2);
-    });
-    let card = world
-        .account(alice)
-        .inventory
-        .iter()
-        .find(|item| item.dict_id == card_dict)
-        .unwrap()
-        .item_id;
+    for player in [alice, bob, carol] {
+        world.change(player, |account| {
+            account.add_item(card_dict, 2);
+        });
+    }
+    let card_of = |world: &World, player: usize| {
+        world
+            .account(player)
+            .inventory
+            .iter()
+            .find(|item| item.dict_id == card_dict)
+            .unwrap()
+            .item_id
+    };
+    let (card, bob_card, carol_card) = (
+        card_of(&world, alice),
+        card_of(&world, bob),
+        card_of(&world, carol),
+    );
     let pistol = world.account(alice).kits[0].slots[7].unwrap().item_id;
-
-    // Not a card, not an item: the game's own refusal.
-    for not_a_card in [pistol, 999] {
-        world.ask(alice, request::use_drop_card(not_a_card, 0));
+    let refused = |world: &mut World, player: usize, request: (u8, Vec<u8>)| {
+        let before = world.account(player).clone();
+        world.ask(player, request);
         assert_eq!(
-            denial(&world.take(alice), 0x46).as_deref(),
+            denial(&world.take(player), 0x46).as_deref(),
             Some("st_cannot_use_drop_card")
         );
+        assert_eq!(*world.account(player), before, "nothing changed");
+    };
+
+    let (first, team) = world.match_of(alice, bob);
+    world.end_match(first, team);
+    world.advance(Duration::from_secs(3));
+    for player in [alice, bob, carol] {
+        world.take(player);
     }
-    // A card: `98` with what it gave and the cards left, then the
-    // inventory and the account. The second time with the arguments the
-    // other way round (their order is a guess).
-    for (left, (a, b)) in [(1, (card, 0x77)), (0, (0x77, card))] {
-        world.ask(alice, request::use_drop_card(a, b));
-        let decoded = world.take(alice);
-        let dropped = position(&decoded, |message| {
-            matches!(
-                message,
-                Decoded::Drop { card_item_id, card_count, .. }
-                    if *card_item_id == card && *card_count == left
-            )
-        })
-        .unwrap_or_else(|| panic!("{decoded:?}"));
-        let inventory = position(&decoded, |message| {
-            matches!(message, Decoded::Inventory { .. })
-        })
-        .unwrap();
-        let account = position(&decoded, |message| matches!(message, Decoded::Account(_))).unwrap();
-        assert!(dropped < inventory && inventory < account);
-        assert_eq!(
-            world.clients[alice].1.model.inventory().len(),
-            world.account(alice).inventory.len()
-        );
+
+    // Not a card, not an item, a match not kept: the game's own refusal.
+    for not_a_card in [pistol, 999] {
+        refused(&mut world, alice, request::use_drop_card(not_a_card, first));
     }
-    // No card left.
-    world.ask(alice, request::use_drop_card(card, 0x77));
-    assert_eq!(
-        denial(&world.take(alice), 0x46).as_deref(),
-        Some("st_cannot_use_drop_card")
-    );
+    refused(&mut world, alice, request::use_drop_card(card, 0x77));
+    // Her card on her match's screen.
+    assert!(world.account(alice).drop_cards.is_empty());
+    world.ask(alice, request::use_drop_card(card, first));
+    assert_card_used(&mut world, alice, card, 1);
+    assert_eq!(world.account(alice).drop_cards, [first]);
+    // A second card for the same match: refused, and the card stays.
+    refused(&mut world, alice, request::use_drop_card(card, first));
+    // Carol was not in it.
+    refused(&mut world, carol, request::use_drop_card(carol_card, first));
+    assert!(world.account(carol).drop_cards.is_empty());
+    // Bob's own card is his, once; the arguments the other way round are
+    // still read.
+    world.ask(bob, request::use_drop_card(first, bob_card));
+    assert_card_used(&mut world, bob, bob_card, 1);
+    refused(&mut world, bob, request::use_drop_card(bob_card, first));
+
+    // Her next match takes her next card, once.
+    let (second, team) = world.match_of(alice, bob);
+    world.end_match(second, team);
+    world.advance(Duration::from_secs(3));
+    world.take(alice);
+    world.ask(alice, request::use_drop_card(card, second));
+    assert_card_used(&mut world, alice, card, 0);
+    refused(&mut world, alice, request::use_drop_card(card, first));
+    // Used, and no card left either.
+    refused(&mut world, alice, request::use_drop_card(card, second));
     world.assert_clean();
 }
 
