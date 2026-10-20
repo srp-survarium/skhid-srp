@@ -90,3 +90,38 @@ operands when their encoded widths remain unchanged. With that addition,
 before its frame functions, whereas the original stores it after them. The
 synthetic regression test covers constructor/class-initializer reordering and
 rejects altered instructions or stack metadata without creating an output movie.
+
+## Class binding and debugger layout
+
+The completed method-order batch accepted **81 of 172** compiled scripts.
+A subsequent batch with class-binding emission, automatic script slots and
+optional debugger parameter names accepted **239 of 292** selected scripts;
+52 were refused and one (`SrpRooms`) had failed compilation. Both batches took
+snapshots of the still-running full compiler sweep. Neither is a whole-tree
+rebuild.
+
+The class-binding difference is `getscopeobject 0` versus `findpropstrict` for
+the script's declared class. ASC's global-constant assignment branch emits the
+former ([Apache compiler source](https://github.com/apache/flex-sdk/blob/1644730bd54105c8aab234af7c1a08b2af17865d/modules/asc/src/java/macromedia/asc/semantics/CodeGenerator.java#L1335)).
+The narrow emission rule and its refused shapes are documented in the README.
+`BlueTexture` and `BtnChangeName` now pass complete compressed-file equality.
+
+Two additional failures, `ButtonBottomInviteArrow` and `ButtonChatTabBottom`,
+had matching executable instructions but original debugger file/line directives
+that were absent from compiler output. Straight-line source-map emission now
+reproduces their 1,297-byte and 2,021-byte ABCs, respectively. Both reconstruct
+the complete movie to the pinned SHA-256 above. These targeted checks happened
+after the 292-script batch and are not included in its 239 successes.
+
+Sixteen `LobbyMenu_*Icons` classes were refused because the importer appended
+an identical `ExcludeClass` annotation at a new metadata index. Runtime metadata
+comparison now resolves all names, keys and values before retaining the original
+index. A new measurement batch is running with this fix and debugger-map emission.
+Synthetic tests verify duplicate annotation relocation and reject changed values,
+scope operands, slots, defaults, executable instructions and verifier metadata.
+All eight tests, including the real Flex integration test, pass.
+
+Remaining observed issues include anonymous method ownership in `LobbyMenu`,
+class/script private namespace identity and namespace-set order, and decompiler
+source defects in `SrpRooms` (missing return paths and implicit int-to-String
+coercions rejected by strict Flex). The complete 878-script sweep is unfinished.

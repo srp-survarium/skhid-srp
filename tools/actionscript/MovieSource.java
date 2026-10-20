@@ -10,6 +10,7 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.abc.*;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.types.*;
 import com.jpexs.decompiler.flash.abc.types.traits.*;
 import com.jpexs.decompiler.flash.configuration.Configuration;
@@ -258,12 +259,20 @@ public final class MovieSource {
         return value;
     }
 
-    static List<Integer> runtimeMetadata(ABC abc, Trait trait) {
-        List<Integer> result = new ArrayList<>();
+    static List<List<String>> runtimeMetadata(ABC abc, Trait trait) {
+        List<List<String>> result = new ArrayList<>();
         if ((trait.kindFlags & Trait.ATTR_Metadata) == 0) return result;
         for (int id : trait.metadata) {
-            String name = abc.constants.getString(abc.metadata_info.get(id).name_index);
-            if (!name.equals("__go_to_definition_help") && !name.equals("__go_to_ctor_definition_help")) result.add(id);
+            MetadataInfo info = abc.metadata_info.get(id);
+            String name = abc.constants.getString(info.name_index);
+            if (name.equals("__go_to_definition_help") || name.equals("__go_to_ctor_definition_help")) continue;
+            // FFDec can append an identical metadata record under a new ID.
+            // Compare the complete resolved record, preserving order and every
+            // key/value, before reusing the original layout's metadata index.
+            List<String> value = new ArrayList<>(List.of(name));
+            for (int key : info.keys) value.add(abc.constants.getString(key));
+            for (int text : info.values) value.add(abc.constants.getString(text));
+            result.add(value);
         }
         return result;
     }
@@ -350,9 +359,119 @@ public final class MovieSource {
         compiled.resetMethodIndexing();
     }
 
+    // Recognize only the straight-line class-definition initializer emitted by
+    // ASC. Script entry uses its global object, containing the class trait.
+    // The layout emitter can express that class binding as a property lookup.
+    // This is an explicit code-generation rule, not body substitution.
+    static boolean classInitializer(ABC abc, ScriptInfo script, MethodBody body) {
+        if (script.traits.traits.size() != 1 || !(script.traits.traits.get(0) instanceof TraitClass trait)
+                || body == null || body.init_scope_depth < 0 || body.init_scope_depth > 1 || body.max_regs != 1
+                || body.exceptions.length != 0 || !body.traits.traits.isEmpty()) return false;
+        var code = body.getCode().code;
+        int n = code.size();
+        if (n < 10 || code.get(0).definition.instructionCode != 0xd0
+                || code.get(1).definition.instructionCode != 0x30) return false;
+        var binding = code.get(2);
+        if (binding.definition.instructionCode != 0x65 || binding.operands[0] != 0) return false;
+        int i = 3, scopes = 0;
+        while (i + 2 < n && code.get(i).definition.instructionCode == 0x5d
+                && code.get(i + 1).definition.instructionCode == 0x66
+                && code.get(i).operands[0] == code.get(i + 1).operands[0]
+                && code.get(i + 2).definition.instructionCode == 0x30) { i += 3; scopes++; }
+        if (scopes == 0 || i + 2 >= n || code.get(i).definition.instructionCode != 0x5d
+                || code.get(i + 1).definition.instructionCode != 0x66
+                || code.get(i).operands[0] != code.get(i + 1).operands[0]
+                || code.get(i + 2).definition.instructionCode != 0x58
+                || code.get(i + 2).operands[0] != trait.class_info) return false;
+        i += 3;
+        for (int j = 0; j < scopes; j++, i++)
+            if (i >= n || code.get(i).definition.instructionCode != 0x1d) return false;
+        return i + 2 == n && code.get(i).definition.instructionCode == 0x68
+            && code.get(i).operands[0] == trait.name_index && code.get(i + 1).definition.instructionCode == 0x47;
+    }
+
+    static void emitScriptClassBindings(ABC original, ABC compiled) throws IOException {
+        if (original.script_info.size() != compiled.script_info.size()) throw new IOException("Script count changed");
+        for (int i = 0; i < compiled.script_info.size(); i++) {
+            ScriptInfo script = compiled.script_info.get(i);
+            MethodBody body = compiled.findBody(script.init_index);
+            if (!classInitializer(compiled, script, body)) continue;
+            MethodBody reference = original.findBody(original.script_info.get(i).init_index);
+            if (reference == null || reference.getCode().code.size() < 3) continue;
+            var layout = reference.getCode().code.get(2);
+            if (layout.definition.instructionCode != 0x5d) continue;
+            int index = layout.operands[0];
+            Multiname binding = original.constants.getMultiname(index);
+            Multiname declared = compiled.constants.getMultiname(script.traits.traits.get(0).name_index);
+            // A singleton public package namespace is unambiguous. Private,
+            // protected, runtime and multi-namespace bindings are unsupported.
+            if (binding.kind != 0x09 || declared.kind != 0x07 || binding.name_index != declared.name_index) continue;
+            int[] namespaces = original.constants.getNamespaceSet(binding.namespace_set_index).namespaces;
+            if (namespaces.length != 1 || namespaces[0] != declared.namespace_index
+                    || compiled.constants.getNamespace(declared.namespace_index).kind != 0x16) continue;
+            var code = body.getCode();
+            code.code.set(2, new AVM2Instruction(code.code.get(2).getAddress(), 0x5d, new int[]{index}));
+            // The recognized body has no branches or exception offsets.
+            code.markOffsets();
+            body.setCode(code);
+        }
+    }
+
+    static void restoreScriptClassSlot(ABC original, ABC compiled) {
+        for (int i = 0; i < compiled.script_info.size(); i++) {
+            var before = original.script_info.get(i).traits.traits;
+            var after = compiled.script_info.get(i).traits.traits;
+            // With exactly one script trait and no script inheritance, the
+            // automatically assigned slot (0) is slot 1. Other slot layouts
+            // require a full slot map and are deliberately left unchanged.
+            if (before.size() == 1 && after.size() == 1 && before.get(0) instanceof TraitClass a
+                    && after.get(0) instanceof TraitClass b && a.name_index == b.name_index
+                    && a.class_info == b.class_info && a.slot_id == 0 && b.slot_id == 1) b.slot_id = 0;
+        }
+    }
+
+    static boolean debugInstruction(AVM2Instruction instruction) {
+        int opcode = instruction.definition.instructionCode;
+        return opcode == 0xef || opcode == 0xf0 || opcode == 0xf1;
+    }
+
+    static void retainStraightLineDebug(ABC original, ABC compiled) {
+        for (MethodBody body : compiled.bodies) {
+            MethodBody before = original.findBody(body.method_info);
+            if (before == null || before.exceptions.length != 0 || body.exceptions.length != 0) continue;
+            var emitted = body.getCode().code;
+            var layout = before.getCode().code;
+            if (emitted.stream().anyMatch(MovieSource::debugInstruction)
+                    || layout.stream().noneMatch(MovieSource::debugInstruction)
+                    || layout.stream().anyMatch(i -> i.isBranch() || i.isJump())) continue;
+            var executable = layout.stream().filter(i -> !debugInstruction(i)).toList();
+            if (executable.size() != emitted.size()) continue;
+            boolean identical = true;
+            for (int i = 0; i < emitted.size(); i++)
+                if (!Arrays.equals(executable.get(i).getBytes(), emitted.get(i).getBytes())) identical = false;
+            if (!identical) continue;
+            // Only debugger directives come from the reference's source map.
+            // Every executable instruction is the actual compiler instruction,
+            // already checked above. Branches/handlers need offset relocation
+            // and are unsupported by this initial source-map emitter.
+            List<AVM2Instruction> merged = new ArrayList<>();
+            int next = 0;
+            for (var instruction : layout) {
+                if (debugInstruction(instruction)) merged.add(new AVM2Instruction(0,
+                    instruction.definition.instructionCode, instruction.operands.clone()));
+                else merged.add(emitted.get(next++));
+            }
+            var code = body.getCode();
+            code.code = merged;
+            code.markOffsets();
+            body.setCode(code);
+        }
+    }
+
     // Conservative first layout linker. It never imports an original method
-    // body. All executable records and class/script definitions come from the
-    // compiler. Existing pool entries must retain their original indices and
+    // body. Executable records and class/script definitions come from the
+    // compiler, with the narrow class-binding emission rule above. Existing
+    // pool entries must retain their original indices and
     // values; unused appended constants, compiler debug names and Adobe editor
     // navigation metadata follow the original layout. A byte comparison of the
     // entire ABC must then pass. Runtime metadata is never silently restored.
@@ -387,6 +506,9 @@ public final class MovieSource {
         if (original.hasDecimalSupport() || original.hasFloatSupport() || original.hasFloat4Support())
             throw new IOException("Extended numeric ABC versions are not supported by this linker");
         restoreMethodOrder(original, compiled);
+        emitScriptClassBindings(original, compiled);
+        restoreScriptClassSlot(original, compiled);
+        retainStraightLineDebug(original, compiled);
         if (compiled.metadata_info.size() < original.metadata_info.size()) throw new IOException("Metadata pool compacted");
         for (int i = 0; i < original.metadata_info.size(); i++) {
             MetadataInfo a = original.metadata_info.get(i), b = compiled.metadata_info.get(i);
@@ -412,15 +534,41 @@ public final class MovieSource {
             if (!oldName.isEmpty() && !oldName.equals(newName))
                 throw new IOException("Nonempty debug method name changed at " + i);
             after.name_index = before.name_index;
+            // Parameter names are optional debugger information, independent
+            // of parameter types/defaults. Do not erase names present upstream.
+            if (!before.flagHas_paramnames()) {
+                after.unsetFlagHas_paramnames();
+                after.paramNames = new int[0];
+            }
         }
         compiled.constants = original.constants;
         compiled.metadata_info = original.metadata_info;
         byte[] rebuilt = abcBytes(compiled), expected = abcBytes(original);
         if (!Arrays.equals(rebuilt, expected)) {
+            Files.write(output.resolveSibling(output.getFileName() + ".rejected.abc"), rebuilt);
+            StringBuilder differences = new StringBuilder();
+            for (int i = 0; i < original.method_info.size(); i++) {
+                ByteArrayOutputStream a = new ByteArrayOutputStream(), b = new ByteArrayOutputStream();
+                new ABCOutputStream(a).writeMethodInfo(original.method_info.get(i));
+                new ABCOutputStream(b).writeMethodInfo(compiled.method_info.get(i));
+                if (!Arrays.equals(a.toByteArray(), b.toByteArray())) differences.append("method_info ").append(i)
+                    .append(" original=").append(HexFormat.of().formatHex(a.toByteArray()))
+                    .append(" compiled=").append(HexFormat.of().formatHex(b.toByteArray())).append('\n');
+            }
+            for (int i = 0; i < original.bodies.size(); i++) {
+                MethodBody a = original.bodies.get(i), b = compiled.bodies.get(i);
+                if (!Arrays.equals(record(original, a), record(compiled, b))) differences.append("body ").append(a.method_info)
+                    .append(" code_equal=").append(Arrays.equals(a.getCodeBytes(), b.getCodeBytes()))
+                    .append(" limits=").append(a.max_stack).append('/').append(b.max_stack).append(',')
+                    .append(a.max_regs).append('/').append(b.max_regs).append(',')
+                    .append(a.init_scope_depth).append('/').append(b.init_scope_depth).append(',')
+                    .append(a.max_scope_depth).append('/').append(b.max_scope_depth).append('\n');
+            }
+            Files.writeString(output.resolveSibling(output.getFileName() + ".differences.txt"), differences);
             int first = 0;
             while (first < Math.min(rebuilt.length, expected.length) && rebuilt[first] == expected[first]) first++;
             throw new IOException("Compiled ABC still differs at byte " + first + " (original " + expected.length
-                + " bytes, compiled " + rebuilt.length + "); no output written");
+                + " bytes, compiled " + rebuilt.length + "); no linked movie written");
         }
         ((Tag)compiled.parentTag).setModified(true);
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();

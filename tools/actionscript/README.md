@@ -136,9 +136,26 @@ stack limits, and exception tables. It restores named method ordering and
 method references when operand widths stay fixed. It preserves existing pool
 indices after checking every existing entry, and removes unused compiler additions.
 Empty debug method names and the Adobe editor's `__go_to_definition_help` and
-`__go_to_ctor_definition_help` annotations follow the original layout. Other
-metadata changes are refused. These layout data are separate from executable
-instructions; no original method body is used to fill a compiler mismatch.
+`__go_to_ctor_definition_help` annotations follow the original layout. Runtime
+annotations are compared by their complete resolved names, keys and values;
+duplicate records may reuse the original index, but changed values are refused.
+Added optional debugger parameter names are removed
+when the original has none; parameter types, defaults and other flags still
+have to match. A sole script class's explicit slot 1 can use the original
+automatically assigned slot encoding (0).
+
+There is also one explicit code-generation rule: for a script defining exactly
+one class, the generated global binding can use `findpropstrict` for that class
+instead of `getscopeobject 0`. The matcher requires the complete straight-line
+ASC class-initializer shape, a singleton public namespace, one register, and no
+exception handlers or body traits. It emits a new lookup instruction from the
+declared class binding; it never copies the original initializer. Unknown
+shapes, a different scope operand, and other instruction changes remain rejected.
+The original method bodies are never substituted for failed compiler output.
+Original debugger file/line/register directives can also be emitted for
+straight-line methods after every non-debug instruction compares equal to the
+compiler output. This source-map handling refuses branches and exception
+handlers; it cannot repair an executable instruction mismatch.
 
 The entire reconstructed ABC must equal the original, and every other ABC must
 also remain identical. Only then is linked code written. Original graphics are
@@ -181,3 +198,10 @@ metadata changes. Real compiler measurements are separate private artifacts.
 The optional compiler regression uses project-authored ActionScript. It reproduces
 the wildcard dependency failure, verifies its repair, tests method reordering,
 and checks that changed instructions or stack metadata produce no linked output.
+It also checks class-binding emission, automatic script slots and optional
+debugger parameter names, including rejection of a different scope, slot,
+parameter default or initializer instruction.
+The source-map test rejects an altered executable instruction in the method
+whose debugger directives would otherwise be restored.
+Duplicate runtime metadata records are accepted only when all their values match;
+the compiler regression also checks rejection of a changed annotation value.
