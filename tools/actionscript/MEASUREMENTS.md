@@ -410,3 +410,30 @@ Rebuilding the premium feature with the updated manifest and source-map linker
 again produces SHA-256
 `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`, with exactly
 one changed method and identical non-code content. Runtime remains unverified.
+
+## Comparison branches and MessageAsk reconstruction
+
+The compact emitter now handles all six comparisons followed by a Boolean
+branch, with optional logical negation and Boolean conversion. It retains the
+compiler's operand order and branch target. Negated ordered comparisons use the
+unordered-aware instructions (`ifnlt`, `ifnle`, `ifngt`, `ifnge`). Whole-method
+instruction, control-flow and exception-boundary matching is still required;
+stack/register limits and every other method record remain exact checks.
+
+The real Flex fixture covers equality, strict equality and all four ordered
+comparisons under both branch polarities, including negated equality. It rejects
+a branch or exception boundary entering a folded group, and rejects replacing
+`ifnlt` with `ifge`, which would change NaN behavior. All 13 tests pass.
+
+`MessageAsk` now rebuilds to the exact compressed release movie. Its source diff
+restores lexical declaration order in `configUI` (outer `sliderpos`, `ammount`,
+`totalW`, then nested `icon`), implicit numeric defaults in `update_slider`, and
+the original typed count expression. Field assignments, identifier object keys
+and truth tests also match. The compact emitter handles its ternary comparison;
+explicit `uint` conversions on external-call arguments remain in the source.
+The promoted patch reproduces the actual verified compiler input byte for byte.
+
+The premium feature rebuild with all five reconstruction entries again produces
+SHA-256 `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
+with one changed method and identical non-code content. Whole-tree equality and
+runtime behavior remain unverified.

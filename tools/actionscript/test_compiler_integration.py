@@ -78,6 +78,20 @@ class CompilerIntegration(unittest.TestCase):
                     }
                     public function item():* { return value.items[0]; }
                     public function identity(value:int=1):int { return value; }
+                    public function comparisons(left:*, right:*):int {
+                        var result:int=0;
+                        try {
+                            result += left == right ? 1 : 0;
+                            result += left != right ? 2 : 0;
+                            result += left === right ? 4 : 0;
+                            result += left !== right ? 8 : 0;
+                            result += left < right ? 16 : 0;
+                            result += left <= right ? 32 : 0;
+                            result += left > right ? 64 : 0;
+                            result += left >= right ? 128 : 0;
+                        } catch(error:Error) { return -1; }
+                        return result;
+                    }
                     public function compact(value:int):void {
                         while(value>0) { Math.max(value,1); value--; }
                         switch(value) {
@@ -142,6 +156,71 @@ class CompilerIntegration(unittest.TestCase):
                                 for (var methodBody : abc.bodies) MovieSource.exactCode(methodBody);
                                 if(args[2].startsWith("interface-")) {
                                     if(!abc.instance_info.get(cls).isInterface())throw new IOException("Expected interface");
+                                }
+                                if (args[2].startsWith("comparison-")) {
+                                    var owners=MovieSource.names(abc);
+                                    var body=abc.bodies.stream().filter(b -> owners.get(b.method_info).contains("\\\"comparisons\\\""))
+                                        .findFirst().orElseThrow();
+                                    var code=body.getCode();
+                                    if(args[2].equals("comparison-invert")) {
+                                        for(int i=0;i<code.code.size();i++) {
+                                            var jump=code.code.get(i);
+                                            if(jump.definition.instructionCode==0x12)
+                                                code.replaceInstruction(i,new AVM2Instruction(0,0x11,jump.operands.clone()),body);
+                                        }
+                                    } else if(args[2].equals("comparison-reference")) {
+                                        int folded=0;
+                                        for(int i=code.code.size()-2;i>=0;i--) {
+                                            int op=code.code.get(i).definition.instructionCode;
+                                            // Independent reference mapping for false branches, including
+                                            // equality followed by not. Do not call the production emitter.
+                                            int replacement=switch(op) {
+                                                case 0xab -> 0x14; case 0xac -> 0x1a;
+                                                case 0xad -> 0x0c; case 0xae -> 0x0d;
+                                                case 0xaf -> 0x0e; case 0xb0 -> 0x0f;
+                                                default -> 0;
+                                            };
+                                            if(replacement==0)continue;
+                                            int branch=i+1;
+                                            if(code.code.get(branch).definition.instructionCode==0x96) {
+                                                if(op!=0xab && op!=0xac)throw new IOException("Unexpected negation");
+                                                replacement=op==0xab?0x13:0x19;branch++;
+                                            }
+                                            if(code.code.get(branch).definition.instructionCode==0x76)branch++;
+                                            int branchOp=code.code.get(branch).definition.instructionCode;
+                                            if(branchOp==0x11)replacement=switch(replacement) {
+                                                case 0x14 -> 0x13; case 0x13 -> 0x14;
+                                                case 0x1a -> 0x19; case 0x19 -> 0x1a;
+                                                case 0x0c -> 0x15; case 0x0d -> 0x16;
+                                                case 0x0e -> 0x17; case 0x0f -> 0x18;
+                                                default -> throw new IOException("Unknown comparison");
+                                            };
+                                            else if(branchOp!=0x12)throw new IOException("Expected Boolean branch");
+                                            // Keep the existing branch until all preceding operations
+                                            // are removed, letting FFDec relocate its original target.
+                                            var jump=code.code.get(branch);
+                                            code.replaceInstruction(branch,new AVM2Instruction(0,replacement,jump.operands.clone()),body);
+                                            while(branch-->i)code.removeInstruction(i,body);
+                                            folded++;
+                                        }
+                                        if(folded!=8 || body.exceptions.length==0)throw new IOException("Missing comparison fixture: "+folded);
+                                    } else {
+                                        int index=-1;
+                                        for(int i=0;i<code.code.size();i++)if(code.code.get(i).definition.instructionCode==0xad){index=i;break;}
+                                        if(args[2].equals("comparison-nan")) {
+                                            var jump=code.code.stream().filter(i->i.definition.instructionCode==0x0c).findFirst().orElseThrow();
+                                            code.replaceInstruction(code.code.indexOf(jump),new AVM2Instruction(0,0x18,jump.operands.clone()),body);
+                                        } else {
+                                            if(index<0)throw new IOException("Missing less-than comparison");
+                                            int middle=(int)code.code.get(index+1).getAddress();
+                                            if(args[2].equals("comparison-handler"))body.exceptions[0].end=middle;
+                                            else if(args[2].equals("comparison-target")) {
+                                                var jump=code.code.stream().filter(i->i.definition.instructionCode==0x12).findFirst().orElseThrow();
+                                                jump.operands[0]=middle-(int)jump.getAddress()-jump.getBytesLength();
+                                            } else throw new IOException("Unknown comparison mutation");
+                                        }
+                                    }
+                                    body.setCode(code);((Tag)tag).setModified(true);changed++;continue;
                                 }
                                 if (args[2].startsWith("compact-")) {
                                     var owners=MovieSource.names(abc);
@@ -585,6 +664,35 @@ class CompilerIntegration(unittest.TestCase):
                 mutate(accepted_file, corrupted, "compact-" + mode)
                 result = tools.run("link-layout", compact_reference, corrupted, destination, "Probe",
                                    log=root / (mode + "-compact.log"))
+                self.assertNotEqual(result.returncode, 0, mode)
+                self.assertFalse(destination.exists(), mode)
+
+            comparison_reference = root / "comparison-reference.swf"
+            mutate(accepted_file, comparison_reference, "comparison-reference")
+            comparison_linked = root / "comparison-linked.swf"
+            result = tools.run("link-layout", comparison_reference, accepted_file, comparison_linked, "Probe",
+                               log=root / "comparison-link.log")
+            self.assertEqual(result.returncode, 0, (root / "comparison-link.log").read_text())
+            self.assertEqual(movie_source.uncompressed(comparison_reference), movie_source.uncompressed(comparison_linked))
+            inverted, inverted_reference, inverted_linked = (root / name for name in
+                ("comparison-inverted.swf", "comparison-inverted-reference.swf", "comparison-inverted-linked.swf"))
+            mutate(accepted_file, inverted, "comparison-invert")
+            mutate(inverted, inverted_reference, "comparison-reference")
+            result = tools.run("link-layout", inverted_reference, inverted, inverted_linked, "Probe",
+                               log=root / "comparison-inverted-link.log")
+            self.assertEqual(result.returncode, 0, (root / "comparison-inverted-link.log").read_text())
+            self.assertEqual(movie_source.uncompressed(inverted_reference), movie_source.uncompressed(inverted_linked))
+            for mode in ("target", "handler", "nan"):
+                corrupted, destination = root / (mode + "-comparison.swf"), root / (mode + "-comparison-linked.swf")
+                reference, candidate = comparison_reference, accepted_file
+                if mode == "nan":
+                    mutate(comparison_reference, corrupted, "comparison-nan")
+                    reference = corrupted
+                else:
+                    mutate(accepted_file, corrupted, "comparison-" + mode)
+                    candidate = corrupted
+                result = tools.run("link-layout", reference, candidate, destination, "Probe",
+                                   log=root / (mode + "-comparison.log"))
                 self.assertNotEqual(result.returncode, 0, mode)
                 self.assertFalse(destination.exists(), mode)
 

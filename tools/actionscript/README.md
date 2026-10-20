@@ -181,14 +181,21 @@ as the base class. Debugger directives preceding the reference binding are
 handled separately by the source-map check.
 The original method bodies are never substituted for failed compiler output.
 
-The emitter also supports two adjacent-instruction folds used by
+The emitter also supports adjacent-instruction folds used by
 [Apache Flex's pinned Encoder](https://github.com/apache/flex-sdk/blob/1644730bd54105c8aab234af7c1a08b2af17865d/modules/asc/src/java/macromedia/abc/Encoder.java):
 `findpropstrict` plus `getproperty` of the same QName becomes `getlex`, and
-`callproperty` plus `pop` becomes `callpropvoid`. This handles movies containing
-both compact and expanded encodings. A whole method must match after only these
+`callproperty` plus `pop` becomes `callpropvoid`. Comparisons followed by a
+Boolean branch can use the corresponding combined comparison branch, including
+an optional `not` and `convert_b`. This follows the same SDK's
+[CodeGenerator.If](https://github.com/apache/flex-sdk/blob/1644730bd54105c8aab234af7c1a08b2af17865d/modules/asc/src/java/macromedia/asc/semantics/CodeGenerator.java)
+and [Adobe's interpreter](https://github.com/adobe/avmplus/blob/master/core/Interpreter.cpp).
+Operand evaluation order is retained; negated ordered comparisons use `ifnlt`,
+`ifnle`, `ifngt` or `ifnge` to preserve unordered `NaN` behavior.
+This handles movies containing both compact and expanded encodings.
+A whole method must match after only these
 folds, including names, argument counts, branches, switch targets and exception
 boundaries. No control-flow or exception boundary may enter the middle of a
-folded pair. The output uses the compiler's operands and relocated control flow;
+folded group. The output uses the compiler's operands and relocated control flow;
 verifier limits and all other method records must still pass the exact checks.
 The rule does not reconcile other changes within an edited feature method.
 
@@ -239,12 +246,17 @@ tests, while the emitter reproduces the room hooks' compact lookup/call encoding
 `MessageApply` restores local declaration order and implicit typed defaults in
 `updatePattern`, plus direct truth tests. It also reproduces the complete
 compressed release movie.
+`MessageAsk` restores lexical declaration order, implicit numeric defaults and
+typed expressions, alongside field assignments, object keys and truth tests.
+Its ordered comparison also uses the verified compact branch encoding. The
+complete compressed release movie matches, including its explicit external-call
+argument conversions.
 
 Use `--compiler reconstruction` with the pinned patch manifest to select these
 per-class compilers in one measurement. Classes without an override use
 `flex-strict`; every report row records the compiler actually used. Explicit
 `--compiler ffdec`, `flex` or `flex-strict` still selects that compiler for every
-class, for comparison experiments. The per-class profile currently proves four
+class, for comparison experiments. The per-class profile currently proves five
 reconstructed classes, not the whole tree.
 
 ## Building a source feature

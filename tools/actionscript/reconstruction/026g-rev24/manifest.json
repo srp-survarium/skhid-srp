@@ -32,6 +32,14 @@
       "pristine_sha256": "727e0ae8b42d30cbef179f3e816d3495154656d52d0d415b8f31779ff793a593",
       "reason": "Restore original local declaration order and implicit typed defaults, plus direct truth tests.",
       "result_sha256": "e9dcc967355c3fb8f0e2740ecf8af28196af2a0366dcfabe3a98688fada8213c"
+    },
+    {
+      "class": "survarium.messages.MessageAsk",
+      "patch": "survarium/messages/MessageAsk.patch",
+      "patch_sha256": "18c74b30b645f8a04dfd88713ae7bdcece5db7d4a94834401431b4a529424e59",
+      "pristine_sha256": "8162e7b5f575479baac2af0b11391ed8b483e191f2137648d819107a821f5123",
+      "reason": "Restore lexical local declaration order, implicit typed defaults, direct truth tests, unqualified field assignments, identifier object keys and the typed count expression. Comparison branches use verified compact emission; external-call argument conversions remain explicit.",
+      "result_sha256": "5116d04b006c3c6cf492b08bc8ca0d153c1596414b79588b6d573a0f4806cedf"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

@@ -914,7 +914,23 @@ public final class MovieSource {
         return opcode == 0xef || opcode == 0xf0 || opcode == 0xf1;
     }
 
-    // ASC Encoder.OP_getproperty and OP_pop fold these exact adjacent pairs.
+    static int comparisonBranch(int opcode, boolean whenTrue) {
+        // Negated ordered comparisons must keep NaN unordered: !(a < b)
+        // uses ifnlt, not ifge. Operand order is unchanged for all six pairs.
+        return switch (opcode) {
+            case 0xab -> whenTrue ? 0x13 : 0x14; // equals
+            case 0xac -> whenTrue ? 0x19 : 0x1a; // strictequals
+            case 0xad -> whenTrue ? 0x15 : 0x0c; // lessthan
+            case 0xae -> whenTrue ? 0x16 : 0x0d; // lessequals
+            case 0xaf -> whenTrue ? 0x17 : 0x0e; // greaterthan
+            case 0xb0 -> whenTrue ? 0x18 : 0x0f; // greaterequals
+            default -> -1;
+        };
+    }
+
+    // ASC Encoder.OP_getproperty/OP_pop and CodeGenerator.If select these
+    // compact encodings. Comparison semantics also follow Adobe's interpreter:
+    // https://github.com/adobe/avmplus/blob/master/core/Interpreter.cpp
     // https://github.com/apache/flex-sdk/blob/1644730bd54105c8aab234af7c1a08b2af17865d/modules/asc/src/java/macromedia/abc/Encoder.java
     // Mixed-tool movies can contain both encodings in one method. Match the
     // entire method and its control-flow graph before selecting the shorter
@@ -935,6 +951,7 @@ public final class MovieSource {
             for (var wanted : expected) {
                 if (next == emitted.size()) { matching = false; break; }
                 var instruction = emitted.get(next);
+                var operandSource = instruction;
                 int opcode = instruction.definition.instructionCode, desired = wanted.definition.instructionCode;
                 int consumed = 1;
                 if (opcode != desired) {
@@ -947,16 +964,35 @@ public final class MovieSource {
                         && compiled.constants.getMultiname(instruction.operands[0]).kind == 0x07;
                     boolean discardedCall = desired == 0x4f && opcode == 0x46
                         && following.definition.instructionCode == 0x29;
-                    if (!lookup && !discardedCall) { matching = false; break; }
-                    consumed = 2;
+                    if (lookup || discardedCall) consumed = 2;
+                    else {
+                        // A comparison produces a Boolean. Optional logical
+                        // negation and Boolean conversion cannot change its
+                        // coercion side effects or the order of its operands.
+                        int branch = next + 1;
+                        boolean negate = false;
+                        if (emitted.get(branch).definition.instructionCode == 0x96) {
+                            negate = true; branch++;
+                        }
+                        if (branch < emitted.size() && emitted.get(branch).definition.instructionCode == 0x76) branch++;
+                        if (branch >= emitted.size()) { matching = false; break; }
+                        var jump = emitted.get(branch);
+                        int jumpOpcode = jump.definition.instructionCode;
+                        if ((jumpOpcode != 0x11 && jumpOpcode != 0x12)
+                                || comparisonBranch(opcode, (jumpOpcode == 0x11) != negate) != desired) {
+                            matching = false; break;
+                        }
+                        consumed = branch - next + 1;
+                        operandSource = jump;
+                    }
                     folded = true;
                 }
-                int[] branches = branchTargets(instruction);
-                if (branches.length == 0 && !Arrays.equals(wanted.operands, instruction.operands)) {
+                int[] branches = branchTargets(operandSource);
+                if (branches.length == 0 && !Arrays.equals(wanted.operands, operandSource.operands)) {
                     matching = false; break;
                 }
                 positions.put((int)instruction.getAddress(), result.size());
-                result.add(new AVM2Instruction(0, desired, instruction.operands == null ? null : instruction.operands.clone()));
+                result.add(new AVM2Instruction(0, desired, operandSource.operands == null ? null : operandSource.operands.clone()));
                 targets.add(branches);
                 var last = emitted.get(next + consumed - 1);
                 end = (int)last.getAddress() + last.getBytesLength();
@@ -965,7 +1001,7 @@ public final class MovieSource {
             if (!matching || !folded || next != emitted.size()) continue;
             positions.put(end, result.size());
             var oldPositions = executablePositions(layout);
-            // The interior of a folded pair has no output boundary. Branches,
+            // The interior of a folded group has no output boundary. Branches,
             // switch entries and exception boundaries may not enter it.
             for (int i = 0; i < result.size(); i++) {
                 int[] a = branchTargets(expected.get(i)), b = targets.get(i);
