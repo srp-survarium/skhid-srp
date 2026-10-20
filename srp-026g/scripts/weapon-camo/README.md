@@ -16,12 +16,14 @@ A camouflage reaches a weapon in three pieces, all in one content patch:
 ```bash
 # the players' files: the stock resources.db with every offered patch over it, flattened
 for db in resources.db resources.db.patch_12 ... resources.db.patch_<live>; do
-  for p in models/weapons/ material_instances/weapons/ textures/weapons/; do dbgrab $db get $p layer; done
+  for p in models/weapons/ material_instances/weapons/ textures/weapons/ \
+           textures/character/human/camo/ textures/character/human/base_camo/; do dbgrab $db get $p layer; done
   cp -f layer/* game/                                  # later patches over earlier ones
 done
 dbgrab resources.db get black_market_01_torso_aoac.options game     # the stock _aoac .options
 dbgrab <0.28a2 resources.db> get textures/weapons/ donor            # guns.tsv's 28: textures
 dbgrab server-game-data.db get gameplay/items/weapons/ live         # the live weapon configs
+dbgrab server-game-data.db get gameplay/items/upgrades/camouflages/ camos   # the camouflage items (picker)
 
 python3 -I weapon_camo.py guns.tsv game donor out --previews previews \
     --camo game/textures__character__human__camo__premium__city_camo.dds
@@ -34,13 +36,19 @@ Which parts are painted: `parts.tsv` (beside guns.tsv) names them per texture, a
 a texture with no line gets the suggestion, the large parts its premium painted. To choose:
 
 ```bash
-python3 -I weapon_camo.py guns.tsv game donor - --picker picker.html \
+python3 -I weapon_camo.py guns.tsv game donor - --picker picker.html --camos camos \
     --camo game/textures__character__human__camo__premium__city_camo.dds
 ```
 
-Open `picker.html` in a browser (about 15 MB, the textures inside). Click a part to paint it or
-leave it bare; "premium texture" shows the premium beneath, "Suggestion" and "None" set a whole
-texture, "Reset" goes back to parts.tsv. Copy or download the lines into `parts.tsv` and build again.
+Open `picker.html` in a browser (about 50 MB, the textures and meshes inside; the 3D view loads
+three.js r128 from cdnjs). The texture on the left, the weapon in 3D on the right, both showing
+the camouflage as the game's bake makes it (overlay with the aoac's shading, tiled 4 times).
+Click a part on either to paint it or leave it bare (a part of another texture of the same weapon
+switches to it); drag turns the weapon, the wheel zooms, right-drag moves it. Grey surfaces have
+no _aoac (barrels, sights of their own). The camouflage list is every camouflage item of the game
+data (`--camos`, 50); "premium texture" shows the premium beneath, "Suggestion" and "None" set a
+whole texture, "Reset" goes back to parts.tsv. Copy or download the lines into `parts.tsv` and
+build again.
 
 `--previews` writes, per texture: the plain texture, a premium donor, the mask, the aoac and the
 bake the game makes (`bake()`, checked against the game's own bake of the AK-12 with the City

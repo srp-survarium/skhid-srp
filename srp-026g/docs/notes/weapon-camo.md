@@ -63,9 +63,11 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
   about 44 %).
 - From the donors' parts, the suggestion keeps the large ones (`MIN_PART`); parts.tsv overrides
   it per texture (a UV point on each painted part; a point on no part stops the build).
-- The picker (`weapon_camo.py --picker page.html`): each texture with its parts outlined, the
-  painted ones under the camouflage; a click paints a part or leaves it bare; the premium texture
-  can be shown beneath; the page gives the parts.tsv lines (kept in the browser meanwhile).
+- The picker (`weapon_camo.py --picker page.html --camos <items>`): each texture with its parts
+  outlined and the weapon in 3D beside it, the painted parts under the camouflage as the bake
+  makes it, any of the game's 50 camouflage items; a click on either paints a part or leaves it
+  bare; the premium texture can be shown beneath; the page gives the parts.tsv lines (kept in the
+  browser meanwhile).
 - The aoac: G the mask, B the plain texture's fine shading on painted parts (×4, 0.5 elsewhere),
   R its broad shading (to 0.3, 1 elsewhere), so the camouflage keeps the part's wear and edges.
   DXT1 with mips, the stock files' header.

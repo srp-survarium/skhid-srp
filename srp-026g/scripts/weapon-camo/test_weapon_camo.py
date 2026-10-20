@@ -69,6 +69,16 @@ class Test(unittest.TestCase):
         labels = w.islands([(uv, tris)], (64, 64))
         self.assertTrue(labels[19, 19] and not labels[40, 40])  # u 0.2..0.4, v 0.1..0.5
 
+    def test_a_models_surfaces_from_flattened_files(self):
+        import tempfile, os
+        with tempfile.TemporaryDirectory() as d:
+            for f in ('models__weapons__uzi.skinned_model__render__uzisg1__converted_model',
+                      'models__weapons__uzi.skinned_model__render__uzisg1__export_properties',
+                      'models__weapons__uzi.skinned_model__render__bind_pose',
+                      'models__weapons__uzi_camo.skinned_model__render__x__converted_model'):
+                open(os.path.join(d, f), 'wb').close()
+            self.assertEqual(w.Files(d).surfaces('weapons/uzi'), ['uzisg1'])
+
     def test_parts_tsv_names_parts_by_a_point_on_each(self):
         uv, tris = w.mesh_uv(mesh([(0, 0, 0.45, 1), (0.55, 0, 1, 1)]))
         labels = w.islands([(uv, tris)], (64, 64))

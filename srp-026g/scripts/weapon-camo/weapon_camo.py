@@ -3,7 +3,7 @@
 
 usage: python3 -I weapon_camo.py <guns.tsv> <game folder> <donor folder> <out folder | ->
            [--only <texture>] [--camo <camouflage .dds>] [--previews <folder>]
-           [--picker <page.html>]
+           [--picker <page.html> [--camos <camouflage item folder>]]
 
 <game folder>   the players' game files at their game paths or flattened as dbgrab writes them
                 (models__weapons__uzi.skinned_model__settings): the stock resources.db with every
@@ -14,8 +14,11 @@ usage: python3 -I weapon_camo.py <guns.tsv> <game folder> <donor folder> <out fo
                 texture of the row (the same mask: the same UVs); must not exist yet (-: none)
 --previews      also writes <texture>.png there: the plain texture, a premium one, the mask, and the
                 texture as the game's bake would make it with --camo (default: the first donor)
---picker        also writes a page to choose the painted parts by hand (needs --camo): click a part
-                to paint it or not; the page gives the lines of parts.tsv
+--picker        also writes a page to choose the painted parts by hand (needs --camo): the texture
+                and the weapon in 3D side by side; click a part on either to paint it or not; the
+                page gives the lines of parts.tsv
+--camos         the camouflage items' configs (gameplay/items/upgrades/camouflages, as dbgrab writes
+                them): the picker offers each item's camouflage (textures from the game folder)
 
 Which parts are painted: parts.tsv beside guns.tsv names them (a UV point on each part) for the
 textures it has a line for; for the others, the large parts the premium painted (suggest()).
@@ -67,6 +70,15 @@ class Files:
         if p is None:
             raise FileNotFoundError(game_path)
         return open(p, 'rb').read()
+
+    def surfaces(self, model):
+        """The render surfaces of models/<model>.skinned_model (the ones with a converted_model)."""
+        d = os.path.join(self.root, 'models', *(model + '.skinned_model/render').split('/'))
+        if os.path.isdir(d):
+            return sorted(s for s in os.listdir(d) if os.path.exists(os.path.join(d, s, 'converted_model')))
+        pre = ('models/%s.skinned_model/render/' % model).replace('/', '__')
+        return sorted(f[len(pre):-len('__converted_model')] for f in self.flat
+                      if f.startswith(pre) and f.endswith('__converted_model'))
 
 
 def config_value(buf, path):
@@ -402,23 +414,65 @@ def data_url(img, fmt, **kw):
     return 'data:image/%s;base64,%s' % (fmt.lower(), base64.b64encode(b.getvalue()).decode())
 
 
-def picker_entry(texture, base, donor, labels, points, suggested, chosen, from_file):
+def picker_entry(texture, base, donor, labels, points, suggested, chosen, from_file, models):
     """The picker page's data for one texture: its images at PICKER texels, the parts' numbers as
-    a PNG (r + 256 g), a point on each part, the suggested parts and the parts painted now."""
-    small = lambda img: Image.fromarray((np.clip(img, 0, 1) * 255).astype(np.uint8)).resize((PICKER, PICKER), Image.LANCZOS)
+    a PNG (r + 256 g), the bake's shading (aoac R in r, B in g, as aoac() makes them on a painted
+    part), a point on each part, the suggested parts, the parts painted now and its models."""
+    small = lambda img, n=PICKER: Image.fromarray((np.clip(img, 0, 1) * 255).astype(np.uint8)).resize((n, n), Image.LANCZOS)
+    L = lum(base)
+    broad = blur(L, 12)
+    used = broad[labels > 0]
+    ref = max(np.percentile(used, 90) if used.size else 1.0, 1e-3)
+    shade = np.stack([1 - 0.7 * np.clip(1 - broad / ref, 0, 1), 0.5 + np.clip(4.0 * (L - blur(L, 4)), -0.5, 0.5),
+                      np.zeros_like(L)], 2)
     h, w = labels.shape
     ids = labels[(np.arange(PICKER) * h // PICKER)[:, None], (np.arange(PICKER) * w // PICKER)[None, :]].astype(np.uint32)
     rgb = np.stack([ids & 255, ids >> 8, np.zeros_like(ids)], 2).astype(np.uint8)
     return {'texture': texture, 'base': data_url(small(base), 'JPEG', quality=85),
-            'donor': data_url(small(donor), 'JPEG', quality=85), 'labels': data_url(Image.fromarray(rgb), 'PNG'),
+            'donor': data_url(small(donor), 'JPEG', quality=85) if donor is not base else None, 'labels': data_url(Image.fromarray(rgb), 'PNG'),
+            'shade': data_url(small(shade, PICKER // 2), 'JPEG', quality=85), 'models': models,
             'points': {str(i): '%.4f,%.4f' % p for i, p in points.items()},
             'suggested': sorted(suggested), 'chosen': sorted(chosen), 'from_file': from_file}
 
 
-def write_picker(path, entries, camo):
+def picker_model(game, model, textures):
+    """A model's surfaces for the picker's 3D view: the texture each uses (None: one with no _aoac,
+    drawn grey) and its mesh, gzipped: u32 vertices, u32 indices, f32 xyz each, f32 uv each, u16
+    indices."""
+    import base64
+    import gzip
+    out = []
+    for surface in game.surfaces(model):
+        buf = game.read('models/%s.skinned_model/render/%s/converted_model' % (model, surface))
+        uv, tris = mesh_uv(buf)
+        _, size, count = struct.unpack_from('<III', buf, 0)
+        xyz = np.frombuffer(buf, np.uint8, count=count * ((size - 4) // count), offset=12).reshape(count, -1)[:, :12]
+        blob = struct.pack('<II', count, tris.size) + xyz.tobytes() + uv.astype('<f4').tobytes() + tris.astype('<u2').tobytes()
+        out.append({'surface': surface, 'texture': textures.get('%s:%s' % (model, surface)),
+                    'mesh': base64.b64encode(gzip.compress(blob, 9, mtime=0)).decode()})
+    return out
+
+
+def picker_camos(folder, game):
+    """[(item, camouflage texture)] of the camouflage items' configs in `folder`."""
+    out = []
+    for f in sorted(os.listdir(folder)):
+        buf = open(os.path.join(folder, f), 'rb').read()
+        for i in range(8):
+            value = config_value(buf, 'modifications/0/modifiers/%d/value' % i)
+            if value is None:
+                break
+            if config_value(buf, 'modifications/0/modifiers/%d/path' % i) == ['data'] and value[0] == 'camouflage':
+                out.append((f.replace('__', '/').rsplit('/', 1)[-1].rsplit('.', 1)[0], value[1]))
+    return out
+
+
+def write_picker(path, entries, camos, models):
+    """camos: [(name, image)], the first shown first."""
     import json
-    tile = Image.fromarray((np.clip(camo, 0, 1) * 255).astype(np.uint8)).resize((512, 512), Image.LANCZOS)
-    data = {'camo': data_url(tile, 'JPEG', quality=85), 'guns': entries}
+    tile = lambda img: data_url(Image.fromarray((np.clip(img, 0, 1) * 255).astype(np.uint8)).resize((512, 512), Image.LANCZOS),
+                                'JPEG', quality=85)
+    data = {'camos': [{'name': n, 'image': tile(img)} for n, img in camos], 'guns': entries, 'models': models}
     page = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'picker.html'), encoding='utf-8').read()
     assert '/*DATA*/null' in page
     open(path, 'w', encoding='utf-8').write(page.replace('/*DATA*/null', json.dumps(data)))
@@ -442,7 +496,8 @@ def main():
     args = [a for a in sys.argv[1:]]
     opt = lambda name: args[args.index(name) + 1] if name in args else None
     only, camo_path, previews, picker = opt('--only'), opt('--camo'), opt('--previews'), opt('--picker')
-    for name in ('--only', '--camo', '--previews', '--picker'):
+    camos_dir = opt('--camos')
+    for name in ('--only', '--camo', '--previews', '--picker', '--camos'):
         if name in args:
             i = args.index(name)
             del args[i:i + 2]
@@ -484,8 +539,9 @@ def main():
               % (texture, len(imgs), len(decisions), sum(1 for _, y, _ in decisions.values() if y), len(chosen),
                  'parts.tsv' if texture in parts else 'suggested', 100 * mask.sum() / max(1, (labels > 0).sum())))
         if picker:
+            models = list(dict.fromkeys(s.split(':')[0] for s in surfaces))
             entries.append(picker_entry(texture, base, first, labels, island_points(labels), suggested, chosen,
-                                        texture in parts))
+                                        texture in parts, models))
         if not mask.any():
             print('  nothing painted: no _aoac')
             continue
@@ -507,7 +563,21 @@ def main():
                 row.paste(sm(img), (512 * k, 0))
             row.save(os.path.join(previews, texture.replace('/', '__') + '.png'))
     if picker:
-        write_picker(picker, entries, camo)
+        textures = {s: t for t, _, surfaces, _, _ in read_rows(table) for s in surfaces}
+        models = {m: picker_model(game, m, textures) for e in entries for m in e['models']}
+        camos = [(os.path.basename(camo_path).rsplit('.', 1)[0].rsplit('__', 1)[-1], camo)]
+        if camos_dir:                  # the items instead, --camo's first
+            items = []
+            for name, texture in picker_camos(camos_dir, game):
+                try:
+                    items.append((name, texture, load_rgb(game.read('textures/%s.dds' % texture))))
+                except FileNotFoundError:
+                    print('  camouflage %s: no textures/%s.dds in the game folder' % (name, texture))
+            same = lambda t: os.path.basename(camo_path).startswith(('textures/%s.dds' % t).replace('/', '__')) \
+                or camo_path.replace('\\', '/').endswith('textures/%s.dds' % t)
+            items.sort(key=lambda it: not same(it[1]))
+            camos = [(name, img) for name, _, img in items] or camos
+        write_picker(picker, entries, camos, models)
         print('picker: %s' % picker)
     print('%d textures written to %s' % (len(written), out))
 
