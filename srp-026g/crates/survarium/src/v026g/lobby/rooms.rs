@@ -30,6 +30,10 @@ pub const ROOM_PLAY: u32 = ROOMS_FIRST + 6;
 /// `ROOM_POOL_BASE + page`: the maps a room's pool may hold
 /// ([`room_pool`]), [`POOL_PAGE_ROWS`] a page.
 pub const ROOM_POOL_BASE: u32 = ROOMS_FIRST + 10;
+/// The rooms the asker's friends are members of ([`friend_rooms`]): a
+/// friend's right-click menu offers "Join room" by it (the owner's of
+/// 2026-10-20).
+pub const ROOM_FRIENDS: u32 = ROOMS_FIRST + 40;
 /// `ROOM_KICK_BASE + place + 20 × check` ([`kick_start`]): the owner takes
 /// the member at that place of the state's list out of the room; `check` is
 /// that state's serial modulo [`KICK_CHECKS`], so a kick made from an older
@@ -97,6 +101,9 @@ pub const LIST_ROWS: usize = 31;
 pub const MEMBERS_MAX: usize = 20;
 /// The most cards of a vote.
 pub const CARDS: usize = 3;
+/// The most rows of [`friend_rooms`] after its header: all a `91` holds
+/// (a friend list has 200 at most).
+pub const FRIEND_ROWS: usize = u8::MAX as usize - 1;
 /// The most bytes of a name in a row: a player's name is at most this long
 /// in the game (`limits::NAME` is the buffer's).
 const ROW_NAME: usize = 32;
@@ -134,6 +141,7 @@ pub enum RoomRequest {
     Unqueue,
     JoinMatch,
     Form,
+    Friends,
     Bits { chunk: u8, bits: u32 },
     Create(RoomSpec),
 }
@@ -179,6 +187,7 @@ pub fn room_request(start: u32, count: u8) -> Option<RoomRequest> {
         ROOM_UNQUEUE => R::Unqueue,
         ROOM_JOIN_MATCH => R::JoinMatch,
         ROOM_FORM => R::Form,
+        ROOM_FRIENDS => R::Friends,
         _ if (ROOM_VOTE_BASE..ROOM_VOTE_BASE + CARDS as u32).contains(&start) => R::Vote {
             card: (start - ROOM_VOTE_BASE) as u8,
         },
@@ -305,6 +314,20 @@ pub struct RoomRow {
     pub pin: bool,
     /// The owner's name: the room's.
     pub name: String,
+}
+
+/// A friend of the asker who is a member of a room, in [`friend_rooms`]:
+/// what joining it from the friend's menu needs (as the list's Join: a PIN
+/// asked first, Queue for a full room).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FriendRoom {
+    /// The friend's account, as its row of the friend list (`A3 07`) has it.
+    pub account_id: u32,
+    pub key: u32,
+    pub players: u8,
+    /// Players a side.
+    pub size: u8,
+    pub pin: bool,
 }
 
 /// A card of the vote.
@@ -677,6 +700,30 @@ fn form_names(form: &RoomForm) -> Vec<String> {
     names
 }
 
+/// `91` as the answer to `3B 00 <ROOM_FRIENDS> 1`, `place = ROOM_FRIENDS +
+/// i`: `S1;Y;<count>`, then a row a friend of the asker who is a member of
+/// a room (not one waiting in its queue; not of the asker's own room),
+/// `<account id>;<key>;<players>;<size>;<pin>`. At most [`FRIEND_ROWS`].
+pub fn friend_rooms(friends: &[FriendRoom]) -> Result<ServerMessage, WireError> {
+    at_most("friends in rooms", friends.len(), FRIEND_ROWS)?;
+    rows_at(ROOM_FRIENDS, friend_names(friends))
+}
+
+fn friend_names(friends: &[FriendRoom]) -> Vec<String> {
+    let mut names = vec![format!("{ROOMS_VERSION};Y;{}", friends.len())];
+    names.extend(friends.iter().map(|friend| {
+        format!(
+            "{};{};{};{};{}",
+            friend.account_id,
+            friend.key,
+            friend.players,
+            friend.size,
+            u8::from(friend.pin)
+        )
+    }));
+    names
+}
+
 /// `91` as the answer to a bits request: `S1;B;<chunk>;<entries in>`, at
 /// [`ROOM_BITS_BASE`].
 pub fn bits_answer(chunk: u8, entries: u32) -> Result<ServerMessage, WireError> {
@@ -729,6 +776,11 @@ mod tests {
             room_request(ROOM_POOL_BASE + 15, 1),
             Some(RoomRequest::Pool { page: 15 })
         );
+        // The friends' rooms: after the pool's last page, before the kicks.
+        const { assert!(ROOM_POOL_BASE + POOL_PAGES <= ROOM_FRIENDS && ROOM_FRIENDS < ROOM_KICK_BASE) };
+        assert_eq!(room_request(ROOM_FRIENDS, 1), Some(RoomRequest::Friends));
+        assert_eq!(room_request(ROOM_FRIENDS - 1, 1), None);
+        assert_eq!(room_request(ROOM_FRIENDS + 1, 1), None);
         assert_eq!(
             room_request(kick_start(19, 1000), 1),
             Some(RoomRequest::Kick {
@@ -826,6 +878,33 @@ mod tests {
             ..form
         };
         assert!(room_form(&form).is_err());
+    }
+
+    #[test]
+    fn the_friends_rooms_say_how_to_join_each() {
+        let friends = [
+            FriendRoom {
+                account_id: 4_000_000_001,
+                key: 99_999,
+                players: 20,
+                size: 10,
+                pin: true,
+            },
+            FriendRoom {
+                account_id: 7,
+                key: 12,
+                players: 1,
+                size: 8,
+                pin: false,
+            },
+        ];
+        assert_eq!(
+            friend_names(&friends),
+            ["S1;Y;2", "4000000001;99999;20;10;1", "7;12;1;8;0"]
+        );
+        assert_eq!(friend_names(&[]), ["S1;Y;0"]);
+        assert!(friend_rooms(&vec![friends[1]; FRIEND_ROWS]).is_ok());
+        assert!(friend_rooms(&vec![friends[1]; FRIEND_ROWS + 1]).is_err());
     }
 
     #[test]

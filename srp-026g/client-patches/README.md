@@ -572,6 +572,19 @@ for the next resource patch (built on `1091a19d…`, the craft window's movie: `
 deterministic with FFDec 25.1.3); this does not change the executable or reserve a
 release revision.
 
+## Join room in a friend's menu
+
+`friend_room_026g.py` (the owner's of 2026-10-20) adds **Join room** (**Queue for
+room** for a full one) to a friend's right-click menu while that friend is a
+member of a room. `FriendListRender.showContextMenu` calls
+`SrpFriendRoom.opened(items, this)` right after its `SrvContextMenu.show(items)`
+(`friend_room/PatchFriendRoom.java`, four instructions, no jump); the helper
+asks the lobby which friends are in a room (start 2 060 000 040, `S1;Y`,
+lobby.md §2.16.3) and adds the item to the open menu. It joins through
+`SrpRooms.joinFriend`, as the Rooms list's Join (a PIN room: its PIN field
+focused first). A step of `build_lobby_026g.py` after the rooms window; tests:
+`python -m unittest test_friend_room`. Not checked in the game yet.
+
 ## Building the lobby movie (one driver)
 
 The lobby movie is one file (`flash_movies/lobby_menu.swf`), and a patch that
@@ -585,7 +598,8 @@ the repository holds, in order, as `patch_026g.py` does for the exe:
 3. the exchange window's amounts (`exchange_update_026g.py`, #214);
 4. Buy on owned items (`buy_modified_026g.py`, #215);
 5. the craft window's menu and buttons (`craft_menu_026g.py`, #216);
-6. Optics in a weapon's menu (`scope_context_menu_026g.py`, #217).
+6. Optics in a weapon's menu (`scope_context_menu_026g.py`, #217);
+7. Join room in a friend's menu (`friend_room_026g.py`).
 
 A change of a step's source is built in by building again; a new lobby change
 is a new entry of `STEPS`. Never ship a movie made by running one step alone
@@ -607,7 +621,7 @@ the base (a change of theirs needs a new base); the exchange's later changes
 are a step.
 
 Since the rooms' window under a match's results (2026-10-20): `RESULT_SHA256` is
-`57f73166…` (the owner checked `d41b9655…` in the game; then #219's review fixes); with #211 (Leave room / Leave queue, the yellow tab) `a56cd0ed…` (the owner checked `d7907536…`; then the review fixes); with #209 (why a waiting member cannot go into its room's match, `J;-1;<why>`) `57258f9e…`, not yet checked in the game; with the remembered create window (the last room made by hand, `S1;F`) `88fa657a…`, not yet checked in the game. The first build of 2026-10-20 (`main` with
+`57f73166…` (the owner checked `d41b9655…` in the game; then #219's review fixes); with #211 (Leave room / Leave queue, the yellow tab) `a56cd0ed…` (the owner checked `d7907536…`; then the review fixes); with #209 (why a waiting member cannot go into its room's match, `J;-1;<why>`) `57258f9e…`, not yet checked in the game; with the remembered create window (the last room made by hand, `S1;F`) `88fa657a…`, not yet checked in the game; with Join room in a friend's menu (`S1;Y`) `822018b8…`, not yet checked in the game. The first build of 2026-10-20 (`main` with
 #212): sha256 `8841ba5c…`, deterministic
 with FFDec 25.1.3. Its 881 scripts decompile byte for byte to those of the
 movie the owner tested with #212 (`ed14345f…`, made the long way: the rooms

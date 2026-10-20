@@ -1275,6 +1275,11 @@ package
             {
                 next();
             }
+            else if (kind == "Y")
+            {
+                if (friendRooms != null)
+                    friendRooms(rows);
+            }
             else if (kind == "N")
             {
                 settle();
@@ -1998,6 +2003,7 @@ package
                 y += 6;
                 text(_content, say("pin"), x + 16, y + 4, 60, 15, DIM);
                 _joinPin = input(_content, x + 160, y, _pinText);
+                pinAsked(room);
             }
         }
 
@@ -2960,6 +2966,76 @@ package
                 ask(start + room.key, 1);
             }
             _fastUntil = getTimer() + 5000;
+        }
+
+        // ------------------------------------------------- a friend's room
+
+        // "Join room" in a friend's right-click menu (the owner's of
+        // 2026-10-20; friend_room/SrpFriendRoom.as): the menu asks which
+        // friends are in a room (`S1;Y`, lobby.md 2.16.3), and the answer
+        // goes to it.
+        public static const FRIEND_ROOMS:int = FIRST + 40;
+        public static var friendRooms:Function = null;
+        // The room of a friend whose PIN the list asks for (0: none), and
+        // when: its field takes the keys as the list is drawn in the next
+        // seconds (the list asked for comes then).
+        private var _pinFor:int = 0;
+        private var _pinForAt:int = 0;
+
+        // The friend's room joined as the list's Join does (Queue for a full
+        // one), the window open on the list; a room with a PIN is chosen in
+        // the list, its PIN asked first (its field focused; Join then).
+        // `room`: {key, players, size, pin}.
+        public static function joinFriend(room:Object):void
+        {
+            if (me == null || room == null)
+                return;
+            try
+            {
+                me.friendJoin(room);
+            }
+            catch (e:Error)
+            {
+            }
+        }
+
+        private function friendJoin(room:Object):void
+        {
+            _selKey = int(room.key);
+            _scrollPx = 0;
+            if (!_shown)
+                show(true);
+            // A member sees its room's view: the list is where a join is.
+            _view = "list";
+            _code = 0;
+            if (room.pin)
+            {
+                _pinFor = _selKey;
+                _pinForAt = getTimer();
+                _pinText = "";
+                if (_joinPin != null)
+                    _joinPin.text = "";
+                // The list as it is now: a member's window asks for none.
+                _listAt = getTimer();
+                ask(LIST, 32);
+                render();
+                return;
+            }
+            render();
+            joinRoom(room);
+        }
+
+        // The PIN field of the friend's room drawn: typed in first.
+        private function pinAsked(room:Object):void
+        {
+            if (_pinFor == 0 || room.key != _pinFor || _joinPin == null)
+                return;
+            if (getTimer() - _pinForAt > 3000)
+            {
+                _pinFor = 0;
+                return;
+            }
+            FocusManager.setFocus(_joinPin);
         }
 
         private function onAll(e:Event):void
