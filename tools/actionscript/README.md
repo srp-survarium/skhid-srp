@@ -156,9 +156,9 @@ Empty debug method names and the Adobe editor's `__go_to_definition_help` and
 `__go_to_ctor_definition_help` annotations follow the original layout. Runtime
 annotations are compared by their complete resolved names, keys and values;
 duplicate records may reuse the original index, but changed values are refused.
-Added optional debugger parameter names are removed
-when the original has none; parameter types, defaults and other flags still
-have to match. A sole script class, variable or constant's explicit slot 1 can
+Optional debugger parameter names follow the original source map for a uniquely
+matched method; parameter types, defaults and other flags still have to match.
+A sole script class, variable or constant's explicit slot 1 can
 use the original automatically assigned slot encoding (0), with its name, kind,
 type and initial value still checked. Other slot numbers remain unchanged.
 
@@ -169,6 +169,9 @@ ASC class-initializer shape, a singleton public namespace, one register, and no
 exception handlers or body traits. It emits a new lookup instruction from the
 declared class binding; it never copies the original initializer. Unknown
 shapes, a different scope operand, and other instruction changes remain rejected.
+Interfaces use the corresponding seven-instruction initializer with `pushnull`
+as the base class. Debugger directives preceding the reference binding are
+handled separately by the source-map check.
 The original method bodies are never substituted for failed compiler output.
 
 The emitter also supports two adjacent-instruction folds used by

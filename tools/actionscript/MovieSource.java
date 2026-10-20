@@ -722,10 +722,15 @@ public final class MovieSource {
                 || body.exceptions.length != 0 || !body.traits.traits.isEmpty()) return false;
         var code = body.getCode().code;
         int n = code.size();
-        if (n < 10 || code.get(0).definition.instructionCode != 0xd0
+        if (n < 7 || code.get(0).definition.instructionCode != 0xd0
                 || code.get(1).definition.instructionCode != 0x30) return false;
         var binding = code.get(2);
         if (binding.definition.instructionCode != 0x65 || binding.operands[0] != 0) return false;
+        if (abc.instance_info.get(trait.class_info).isInterface())
+            return n == 7 && code.get(3).definition.instructionCode == 0x20
+                && code.get(4).definition.instructionCode == 0x58 && code.get(4).operands[0] == trait.class_info
+                && code.get(5).definition.instructionCode == 0x68 && code.get(5).operands[0] == trait.name_index
+                && code.get(6).definition.instructionCode == 0x47;
         int i = 3, scopes = 0;
         while (i + 2 < n && code.get(i).definition.instructionCode == 0x5d
                 && code.get(i + 1).definition.instructionCode == 0x66
@@ -750,8 +755,10 @@ public final class MovieSource {
             MethodBody body = compiled.findBody(script.init_index);
             if (!classInitializer(compiled, script, body)) continue;
             MethodBody reference = original.findBody(original.script_info.get(i).init_index);
-            if (reference == null || reference.getCode().code.size() < 3) continue;
-            var layout = reference.getCode().code.get(2);
+            if (reference == null) continue;
+            var executable = reference.getCode().code.stream().filter(ins -> !debugInstruction(ins)).toList();
+            if (executable.size() < 3) continue;
+            var layout = executable.get(2);
             if (layout.definition.instructionCode != 0x5d) continue;
             int index = layout.operands[0];
             Multiname binding = original.constants.getMultiname(index);
@@ -1129,10 +1136,18 @@ public final class MovieSource {
                 throw new IOException("Unowned debug method name changed at " + i);
             after.name_index = before.name_index;
             // Parameter names are optional debugger information, independent
-            // of parameter types/defaults. Do not erase names present upstream.
+            // of positional parameter types/defaults. Restore the source map
+            // only for a uniquely matched method, retaining all other flags.
             if (!before.flagHas_paramnames()) {
                 after.unsetFlagHas_paramnames();
                 after.paramNames = new int[0];
+            } else {
+                if (!originalOwners.containsKey(i) || !originalOwners.get(i).equals(compiledOwners.get(i))
+                        || before.paramNames.length != before.param_types.length
+                        || before.param_types.length != after.param_types.length)
+                    throw new IOException("Unmatched debugger parameter names at " + i);
+                after.setFlagHas_paramnames();
+                after.paramNames = before.paramNames.clone();
             }
         }
         // Feature output retains appended constants. Every original entry was

@@ -262,8 +262,10 @@ The full linking pass over the earlier 878-script strict Flex sweep has finished
 This pass uses the newer linker but the older compiler import path. The separate
 native-import sweep subsequently finished with 864 compiled scripts and 14
 failures, including the two non-class imports described below. Its saved compiler
-predates the external-player-API fix; a new layout pass is running over those
-outputs. Neither report proves that all classes
+predates the external-player-API fix. The native layout pass finished with
+**614 exact compressed movies, 250 refused outputs and 14 compilation failures**;
+its linker snapshot predates compact-operation and interface support below.
+Neither report proves that all classes
 can rebuild together; whole-tree reconstruction remains incomplete.
 
 All **13 tests** pass with the feature gate, including real Flex builds. The
@@ -325,3 +327,27 @@ reproduces the exact movie for `TopMenu`. Rebuilding `premium-affordability`
 with this linker produces the same candidate SHA-256 recorded above: one changed
 method, all 7,758 methods reparsed, and identical non-code content. Runtime
 verification remains outstanding.
+
+## Interface initializers and debugger parameter names
+
+Five freshly compiled, unmodified framework interfaces now reproduce the complete
+compressed release movie: `IAssetLayoutFeatures`, `IFlexAsset`,
+`IFlexDisplayObject`, `ILayoutDirectionElement` and `IRepeaterClient` in `mx.core`.
+Their shorter interface initializer uses `pushnull` as the base class. The class
+binding rule now recognizes that exact seven-instruction shape and locates the
+reference binding independently of debugger directives.
+
+Debugger parameter names now follow the original source map for uniquely matched
+methods, including when the compiler omitted that optional metadata. Positional
+types, defaults, method identity and all non-debug flags remain checked. These
+interfaces previously differed in their generated `param1` names as well as the
+initializer encoding. No source correction or executable-body substitution is
+needed.
+
+All 13 tests pass, including a real compiled interface, debugger directives before
+its binding, rejection of a changed scope operand, and restoration of omitted
+parameter-name metadata while preserving the original constant pool.
+
+The separate 15-class feature-source probe applied candidate field-assignment,
+object-key and truth-test corrections. Every candidate compiled, but none passed
+exact linking. Those patches remain private and unpromoted.

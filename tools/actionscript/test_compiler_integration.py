@@ -136,9 +136,12 @@ class CompilerIntegration(unittest.TestCase):
                                     ((Tag)tag).setModified(true);
                                     continue;
                                 }
-                                int cls = abc.findClassByName("Probe");
+                                int cls = abc.findClassByName(args[2].startsWith("interface-") ? "ProbeContract" : "Probe");
                                 if (cls < 0) continue;
                                 for (var methodBody : abc.bodies) MovieSource.exactCode(methodBody);
+                                if(args[2].startsWith("interface-")) {
+                                    if(!abc.instance_info.get(cls).isInterface())throw new IOException("Expected interface");
+                                }
                                 if (args[2].startsWith("compact-")) {
                                     var owners=MovieSource.names(abc);
                                     var body=abc.bodies.stream().filter(b -> owners.get(b.method_info).contains("\\\"compact\\\""))
@@ -352,14 +355,14 @@ class CompilerIntegration(unittest.TestCase):
                                     abc.metadata_info.add(metadata);
                                     ((Tag)tag).setModified(true); changed++; continue;
                                 }
-                                if (java.util.Set.of("prepare", "binding", "scope", "slot", "paramnames", "optional", "binding-code", "debug-lines", "debug-flow").contains(args[2])) {
+                                if (java.util.Set.of("prepare", "binding", "scope", "slot", "paramnames", "optional", "binding-code", "debug-lines", "debug-flow", "interface-prepare", "interface-binding", "interface-scope").contains(args[2])) {
                                     var script = abc.script_info.get(0);
                                     var trait = (TraitClass)script.traits.traits.get(0);
                                     var name = abc.constants.getMultiname(trait.name_index);
                                     var multi = Multiname.createMultiname(false, name.name_index,
                                         abc.constants.getNamespaceSetId(new int[]{name.namespace_index}, true));
                                     int id = abc.constants.getMultinameId(multi, true);
-                                    if (args[2].equals("prepare")) {
+                                    if (args[2].equals("prepare") || args[2].equals("interface-prepare")) {
                                         for (var method : abc.method_info) {
                                             method.unsetFlagHas_paramnames(); method.paramNames = new int[0];
                                         }
@@ -392,10 +395,12 @@ class CompilerIntegration(unittest.TestCase):
                                         var code = body.getCode();
                                         if (code.code.get(2).definition.instructionCode != 0x65)
                                             throw new IOException("Expected compiler global-scope binding");
-                                        if (args[2].equals("binding")) {
+                                        if (args[2].equals("binding") || args[2].equals("interface-binding")) {
                                             code.code.set(2, new AVM2Instruction(code.code.get(2).getAddress(), 0x5d, new int[]{id}));
                                             trait.slot_id = 0;
-                                        } else if (args[2].equals("scope")) code.code.get(2).operands[0] = 1;
+                                            if(args[2].equals("interface-binding"))
+                                                code.code.add(2,new AVM2Instruction(0,0xf0,new int[]{35}));
+                                        } else if (args[2].equals("scope") || args[2].equals("interface-scope")) code.code.get(2).operands[0] = 1;
                                         else code.code.set(0, new AVM2Instruction(0, 0x20, new int[0]));
                                         code.markOffsets(); body.setCode(code);
                                     }
@@ -649,6 +654,14 @@ class CompilerIntegration(unittest.TestCase):
             mutate(prepared, named, "paramnames")
             tools.run("link-layout", prepared, named, unnamed, "Probe", log=root / "paramnames.log").check_returncode()
             self.assertEqual(movie_source.uncompressed(prepared), movie_source.uncompressed(unnamed))
+            restored_names = root / "restored-paramnames.swf"
+            cleared_names = root / "cleared-paramnames.swf"
+            # Keep the original pool, including the debugger name string, while
+            # testing a compiler that omitted the optional parameter-name flag.
+            mutate(named, cleared_names, "prepare")
+            result = tools.run("link-layout", named, cleared_names, restored_names, "Probe", log=root / "restore-paramnames.log")
+            self.assertEqual(result.returncode, 0, (root / "restore-paramnames.log").read_text())
+            self.assertEqual(movie_source.uncompressed(named), movie_source.uncompressed(restored_names))
             debug, debug_linked = root / "debug.swf", root / "debug-linked.swf"
             mutate(prepared, debug, "debug-lines")
             tools.run("link-layout", debug, prepared, debug_linked, "Probe", log=root / "debug.log").check_returncode()
@@ -703,6 +716,7 @@ class CompilerIntegration(unittest.TestCase):
             for script_name, declaration in (
                 ("fixtureNamespace", 'public namespace fixtureNamespace = "urn:source-fixture";'),
                 ("globalValue", 'public function globalValue(value:int):int { return value; }'),
+                ("ProbeContract", 'public interface ProbeContract { function get width():Number; function set width(value:Number):void; }'),
             ):
                 script_source = globals_dir / (script_name + ".as")
                 script_source.write_text("package { " + declaration + " }")
@@ -710,6 +724,10 @@ class CompilerIntegration(unittest.TestCase):
                 result = compiler("mxmlc.jar", ["-library-path=", "-source-path=" + str(globals_dir),
                                   "-output=" + str(reference), str(script_source)])
                 self.assertEqual(result.returncode, 0, result.stdout)
+                if script_name == "ProbeContract":
+                    prepared_interface = globals_dir / "interface-prepared.swf"
+                    mutate(reference, prepared_interface, "interface-prepare")
+                    reference = prepared_interface
                 result = tools.run("compile", reference, compiled, script_name, script_source,
                                    globals_dir / (script_name + "-snapshot"), "flex-strict", sdk,
                                    log=globals_dir / (script_name + "-compile.log"))
@@ -718,6 +736,21 @@ class CompilerIntegration(unittest.TestCase):
                                    log=globals_dir / (script_name + "-link.log"))
                 self.assertEqual(result.returncode, 0, (globals_dir / (script_name + "-link.log")).read_text())
                 self.assertEqual(movie_source.uncompressed(reference), movie_source.uncompressed(linked))
+                if script_name == "ProbeContract":
+                    interface_layout = globals_dir / "interface-layout.swf"
+                    mutate(reference, interface_layout, "interface-binding")
+                    destination = globals_dir / "interface-layout-linked.swf"
+                    result = tools.run("link-layout", interface_layout, compiled, destination, script_name,
+                                       log=globals_dir / "interface-layout.log")
+                    self.assertEqual(result.returncode, 0, (globals_dir / "interface-layout.log").read_text())
+                    self.assertEqual(movie_source.uncompressed(interface_layout), movie_source.uncompressed(destination))
+                    corrupted = globals_dir / "interface-scope.swf"
+                    mutate(compiled, corrupted, "interface-scope")
+                    destination = globals_dir / "interface-scope-linked.swf"
+                    result = tools.run("link-layout", interface_layout, corrupted, destination, script_name,
+                                       log=globals_dir / "interface-scope.log")
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(destination.exists())
                 if script_name == "fixtureNamespace":
                     automatic = globals_dir / "automatic-slot.swf"
                     mutate(reference, automatic, "namespace-slot-0")
