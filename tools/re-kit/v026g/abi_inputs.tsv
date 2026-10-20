@@ -510,6 +510,13 @@ va	name	location	role	basis
 0x0007ac10	vostok::network_core::buffer_writer::w	stack+4	buffer_writer	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	stack+8	source_bytes	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	EDI	byte_count	observed
+0x0007ef90	vostok::physics::bullet_character_controller::on_ground	EAX	bullet_character_controller	observed
+0x0007f050	vostok::physics::bullet_character_controller::end_jump	EAX	bullet_character_controller	observed
+0x0007fe40	vostok::physics::bullet_character_controller::set_landing_callback	EDI	bullet_character_controller	observed
+0x0007fe40	vostok::physics::bullet_character_controller::set_landing_callback	ECX	the delegate to copy (base_player -> on_physical_controller_landing)	observed
+0x0007fe40	vostok::physics::bullet_character_controller::set_landing_callback	entry ESP+4	float minimum landing speed (base_player passes its harmless speed +0x310)	observed
+0x000803d0	vostok::physics::bullet_character_controller::call_landing_callback	EAX	&delegate (controller +0x2C748)	observed
+0x000803d0	vostok::physics::bullet_character_controller::call_landing_callback	entry ESP+4	float landing speed, -(velocity.up) at the start of the landing tick	observed
 0x000804e0	vostok::network_core::buffer_writer::w<float>	EAX	float value pointer	observed
 0x000804e0	vostok::network_core::buffer_writer::w<float>	stack+4	buffer_writer receiver	observed
 0x000804e0	vostok::network_core::buffer_writer::w<float>	stack+8	diagnostic source filename	observed
@@ -2499,6 +2506,10 @@ va	name	location	role	basis
 0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	stack+8	float k, the modifier's weight (1.0 at the weapon draw)	observed
 0x002d6230	survarium::character_breath_vibration_params::load	entry ESP+8	configuration object pointer copied to EBX	observed
 0x002d6230	survarium::character_breath_vibration_params::load	entry ESP+4	destination parameter object; only present keys overwrite its scalar fields	observed
+0x002d7920	survarium::base_player::jump	entry ESP+4	base_player	observed
+0x002d7920	survarium::base_player::jump	EAX	jump direction, stored at base_player +0x338	observed
+0x002d8220	survarium::base_player::on_physical_controller_landing	ECX	base_player	observed
+0x002d8220	survarium::base_player::on_physical_controller_landing	entry ESP+4	float landing speed m/s, vertical only	observed
 0x002d84c0		entry ESP+4		auto
 0x002d9a60	survarium::base_player::hit	ECX	hit-receiver subobject	inferred
 0x002d9a60	survarium::base_player::hit	stack+12	bodypart index	inferred
