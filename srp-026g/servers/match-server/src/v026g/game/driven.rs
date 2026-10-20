@@ -519,7 +519,7 @@ impl Game {
                     continue;
                 }
                 let at = grid_up(clock + ROSTER_LEAD_MS);
-                self.roster_change(None, index, true, at, now);
+                let at = self.roster_change(None, index, true, at, now);
                 if let Some(drive) = self.drives[index].as_mut() {
                     drive.entered(at);
                 }

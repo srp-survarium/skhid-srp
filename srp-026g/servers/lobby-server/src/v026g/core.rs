@@ -222,8 +222,8 @@ pub(super) struct Core<'a> {
     /// The rooms (`rooms`).
     pub rooms: session::v026g::rooms::Rooms,
     /// The room matches being made, by the queue's match id: the map their
-    /// vote chose (`rooms`, `play::launch`).
-    pub room_launching: HashMap<u32, u8>,
+    /// vote chose and the room's minimum of players (`rooms`, `play::launch`).
+    pub room_launching: HashMap<u32, (u8, u8)>,
     /// Why a request or a Play left the account outside a room, said once
     /// with its next room state (`rooms`).
     pub room_codes: HashMap<u32, survarium::v026g::lobby::rooms::RoomCode>,
@@ -982,7 +982,7 @@ impl<'a> Core<'a> {
 
     fn notice(&mut self, notice: Notice, now: Instant) {
         match notice {
-            Notice::MatchFinished(finished) => self.match_finished(finished.match_id, now),
+            Notice::MatchFinished(finished) => self.match_finished(finished, now),
             Notice::Push {
                 account_id,
                 messages,

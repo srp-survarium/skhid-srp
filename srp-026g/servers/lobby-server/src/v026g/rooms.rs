@@ -983,6 +983,22 @@ impl Core<'_> {
         }
     }
 
+    /// The room's match was called off before its countdown (fewer than
+    /// its minimum could play it, `match.md` section 34): the room goes on
+    /// as for a match that could not be made, its vote and wait whole.
+    pub(super) fn room_match_not_made(&mut self, match_id: u32) {
+        self.room_launching.remove(&match_id);
+        if let Some(key) = self.rooms.match_not_made(match_id) {
+            log::info!(
+                "Room {key}: its match {match_id:#x} was called off before its countdown; the \
+                 room votes and waits again"
+            );
+            if self.maintenance_is_near() {
+                self.room_disband(key);
+            }
+        }
+    }
+
     /// The room is gone (a maintenance is near): its members are told so
     /// at their next state request.
     fn room_disband(&mut self, key: u32) {
@@ -1151,6 +1167,7 @@ impl Core<'_> {
             return;
         };
         let size = usize::from(room.spec.size);
+        let room_minimum = u8::try_from(room.needs()).unwrap_or(u8::MAX);
         let members = room.members.clone();
         let unfit: Vec<(u32, Fit)> = members
             .iter()
@@ -1239,7 +1256,7 @@ impl Core<'_> {
             self.rooms.not_started(key, now);
             return;
         };
-        self.room_launching.insert(match_id, map_id);
+        self.room_launching.insert(match_id, (map_id, room_minimum));
         // Made at the match server before anyone is told: if it fails, its
         // players are back in the lobby (`launch`) and the room waits again,
         // nobody left marked as searching.

@@ -1488,3 +1488,80 @@ fn a_member_shows_its_kits_from_the_list_and_from_the_room() {
     assert!(gear(&mut world, carol).is_empty());
     world.assert_clean();
 }
+
+/// A room's match carries the room's minimum to the match server, which
+/// starts it with who is in, or calls it off when fewer than that can play
+/// it (`match.md` section 34). Called off, it shows nobody results and
+/// pays nothing; its room votes and waits again, whole, and plays its next
+/// match with the members it has (the live room 5209 of 2026-10-20).
+#[test]
+fn a_room_whose_match_is_called_off_votes_again_and_plays_with_who_is_there() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let key = create(&mut world, alice, spec(8), None);
+    rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
+    world.take(alice);
+    world.take(bob);
+    world.advance(VOTE_AND_WAIT);
+    let (ticket, _) = sent_to_match(&world.take(alice)).expect("a match");
+    assert!(sent_to_match(&world.take(bob)).is_some());
+    let setup = world.host.made.locked().last().unwrap().1.clone();
+    assert_eq!(setup.room_minimum, Some(2), "1 v 1: two players");
+    let paid = |world: &World, index: usize| {
+        let account = world.account(index);
+        (account.generic_money, account.rating, account.level())
+    };
+    let before = [paid(&world, alice), paid(&world, bob)];
+
+    world.call_off(ticket);
+    world.advance(Duration::from_secs(1));
+    for index in [alice, bob] {
+        let decoded = world.take(index);
+        assert!(
+            decoded.iter().any(|message| matches!(
+                message,
+                Decoded::ClientState {
+                    state: ClientState::Lobby,
+                    ..
+                }
+            )),
+            "back in the lobby: {decoded:?}"
+        );
+        assert!(
+            !decoded
+                .iter()
+                .any(|message| matches!(message, Decoded::MatchStats { .. })),
+            "no results of a match that was not made: {decoded:?}"
+        );
+    }
+    assert_eq!(
+        [paid(&world, alice), paid(&world, bob)],
+        before,
+        "no pay, no rating"
+    );
+    assert!(world.results.find(ticket).is_none(), "no report");
+    let room = world.core.rooms.get(key).unwrap();
+    assert_eq!(room.members.len(), 2);
+    assert!(room.in_match.is_empty());
+    assert_eq!(
+        header(&state(&mut world, alice))[PHASE],
+        "3",
+        "the vote again"
+    );
+
+    // The vote and the wait, whole (no results to come back from), then
+    // the next match with the two.
+    world.take(alice);
+    world.take(bob);
+    world.advance(Duration::from_secs(16));
+    assert!(
+        sent_to_match(&world.take(alice)).is_none(),
+        "the 30 s at the least"
+    );
+    world.advance(Duration::from_secs(16));
+    let (again, _) = sent_to_match(&world.take(alice)).expect("Alice plays the next");
+    let (with_bob, _) = sent_to_match(&world.take(bob)).expect("Bob plays the next");
+    assert_eq!(again, with_bob);
+    assert_ne!(again, ticket);
+}

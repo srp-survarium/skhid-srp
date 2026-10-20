@@ -752,6 +752,20 @@ impl Rooms {
         room.after_match = true;
         Some(room.key)
     }
+
+    /// The room's match was called off before its countdown (fewer than
+    /// the room's minimum could play it): as a match that could not be
+    /// made, the room has its vote and its wait again, whole, with the
+    /// votes cast meanwhile; no results to come back from.
+    pub fn match_not_made(&mut self, match_id: u32) -> Option<u32> {
+        let room = self.rooms.values_mut().find(
+            |room| matches!(room.stage, Stage::InMatch { match_id: id, .. } if id == match_id),
+        )?;
+        room.stage = Stage::Waiting;
+        room.in_match.clear();
+        room.after_match = false;
+        Some(room.key)
+    }
 }
 
 /// The sides of a match of a room: `parties` (a squad, or one player, each

@@ -137,6 +137,7 @@ impl MatchHost for RegistryHost {
             // with (`rewards::Terms::at`).
             score_weights: None,
             vs_bots: setup.vs_bots,
+            room_minimum: setup.room_minimum,
         };
         let ticket = match pool {
             session::QueuePool::Standard => self.0.create(setup),
@@ -215,6 +216,7 @@ pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
             matches::MatchEnd::TimeLimit => rewards::MatchEnd::TimeLimit,
             matches::MatchEnd::Deserted => rewards::MatchEnd::Deserted,
             matches::MatchEnd::NoShow => rewards::MatchEnd::NoShow,
+            matches::MatchEnd::NotMade => rewards::MatchEnd::NotMade,
         },
         winner: result.winner,
         team_points: result.team_points,
@@ -305,6 +307,9 @@ impl Settler {
                         .join(", ")
                 );
             }
+            None if result.end == rewards::MatchEnd::NotMade => log::info!(
+                "Match {match_id:#x}: called off before its countdown; nothing to settle"
+            ),
             None => log::info!("Match {match_id:#x}: nobody came; nothing to settle"),
         }
         // Written before anyone is told: what a player is shown is kept.
@@ -314,7 +319,10 @@ impl Settler {
                 self.inbox.account_changed(player.account_id);
             }
         }
-        self.inbox.match_finished(MatchFinished { match_id });
+        self.inbox.match_finished(MatchFinished {
+            match_id,
+            not_made: result.end == rewards::MatchEnd::NotMade,
+        });
     }
 }
 

@@ -121,6 +121,7 @@ use super::{LateInputs, Settings};
 mod driven;
 mod late_join;
 mod live;
+mod start;
 use late_join::{Admission, LoadingProfile};
 
 /// A tick is final this long after it: the server's event horizon.
@@ -908,6 +909,12 @@ pub(crate) struct Game {
     /// The players who left by their own word (0xE0) and were not asked
     /// about yet ([`Game::take_quits`]): session and account.
     quits: Vec<(u32, u32)>,
+    /// By place: its player left by its own word (0xE0); the place never
+    /// comes back ([`start`]).
+    given_up: Vec<bool>,
+    /// The places the server entered so that the clients start a room's
+    /// match with the players who are in ([`start`]).
+    stand_ins: Vec<start::StandIn>,
     /// `SRP_RECORD_DIR`: every datagram of the match ([`super::record`]).
     recording: Option<Recording>,
 }
@@ -960,6 +967,8 @@ impl Game {
             result: None,
             result_made: false,
             quits: Vec::new(),
+            given_up: vec![false; players],
+            stand_ins: Vec::new(),
             recording: None,
             drives: Self::new_drives(&formed),
             walkers,
@@ -1413,6 +1422,7 @@ impl Game {
                     && let Some(place) = self.formed.places.get(index)
                 {
                     self.quits.push((peer.session_id, place.account_id));
+                    self.give_up(index);
                 }
                 self.leave(index, now);
             }
@@ -1853,7 +1863,9 @@ impl Game {
     }
 
     /// A roster change happens: everyone simulating but `except` hears it,
-    /// and the server's copy of the timelimit rule follows.
+    /// and the server's copy of the timelimit rule follows. Its tick: `at`,
+    /// or the one after the stand-ins' entry when that is not before it
+    /// ([`Game::after_stand_ins`]).
     fn roster_change(
         &mut self,
         except: Option<usize>,
@@ -1861,7 +1873,13 @@ impl Game {
         entered: bool,
         at: u32,
         now: Instant,
-    ) {
+    ) -> u32 {
+        let stand_in = self.is_stand_in_event(at, index, entered);
+        let at = if stand_in {
+            at
+        } else {
+            self.after_stand_ins(at)
+        };
         if entered && let Some(admission) = &mut self.admissions[index] {
             admission.enter();
         }
@@ -1923,23 +1941,31 @@ impl Game {
         self.events.push((at, index, entered));
         let bot = self.is_bot(index);
         if let Some(recording) = self.recording.as_mut() {
-            if entered && !bot {
+            if entered && !bot && !stand_in {
                 recording.entered(index);
             }
             let note = serde_json::json!({
-                "note": if entered { "entered" } else { "left" },
+                "note": match (entered, stand_in) {
+                    (true, false) => "entered",
+                    (false, false) => "left",
+                    (true, true) => "stand-in entered",
+                    (false, true) => "stand-in left",
+                },
                 "place": index,
                 "match_ms": at,
             });
             recording.note(&note, Instant::now());
         }
         let step = if entered {
-            self.first_entered.get_or_insert(at);
+            if !stand_in {
+                self.first_entered.get_or_insert(at);
+            }
             self.rule.on_player_entered(player, at)
         } else {
             self.rule.on_player_left(player, at)
         };
         self.log_transition(step, at);
+        at
     }
 
     fn log_transition(&self, step: Option<Transition>, at: u32) {
@@ -1971,7 +1997,7 @@ impl Game {
             .max()
             .unwrap_or(0);
         let at = grid_up(self.clock(now).max(left + 1) + ROSTER_LEAD_MS);
-        self.roster_change(Some(index), index, true, at, now);
+        let at = self.roster_change(Some(index), index, true, at, now);
         if let Some(peer) = self.peers[index].as_mut() {
             peer.entered_early = Some(at);
         }
@@ -3128,7 +3154,7 @@ impl Game {
             // hash, independently of this snapshot's transport ACK.
         } else if entering {
             let at = grid_up(clock.max(time + 1) + ROSTER_LEAD_MS);
-            self.roster_change(None, index, true, at, now);
+            let at = self.roster_change(None, index, true, at, now);
             log::info!("Match {id:#x}: player {index} entered at {at} ms");
         } else if !self.send_held_answers(index, time, now) {
             // Its clock was put at the match clock, or ahead of it by its
@@ -4636,7 +4662,7 @@ impl Game {
                 let mut in_match = 0u32;
                 let mut entered_at = None;
                 let mut left = false;
-                for (at, who, entered) in &self.events {
+                for (at, who, entered) in self.players_events() {
                     if *who != index {
                         continue;
                     }
@@ -4666,8 +4692,7 @@ impl Game {
                     team: place.team,
                     driven: place.driven,
                     entered: self
-                        .events
-                        .iter()
+                        .players_events()
                         .any(|(_, who, entered)| *who == index && *entered),
                     present_at_end: present.get(index).copied().unwrap_or(false),
                     left,
@@ -5055,6 +5080,7 @@ impl Game {
             }
         }
 
+        self.poll_start(now);
         self.check_end(clock, now);
         self.check_world_lost(now);
         self.check_bots_alone(now);
@@ -5305,8 +5331,7 @@ impl Game {
         self.empty_since.is_some()
             && self.first_entered.is_some_and(|first| {
                 let all_came = (0..self.players()).all(|index| {
-                    self.events
-                        .iter()
+                    self.players_events()
                         .any(|(_, who, entered)| *who == index && *entered)
                 });
                 all_came || self.clock(now) >= first + SEATS_COME_WITHIN_MS

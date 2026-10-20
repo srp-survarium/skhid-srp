@@ -133,7 +133,9 @@ impl Sim {
             .filter(|(at, _, _)| *at > self.base_time && *at <= time)
             .copied()
             .collect();
-        events.sort();
+        // As the game takes a tick's roster changes: by place, an entry
+        // before a leave (0x2D2180).
+        events.sort_by_key(|&(at, player, entered)| (at, player, !entered));
         for (at, player, entered) in events {
             rule.tick(at);
             if entered {
@@ -389,6 +391,13 @@ pub struct Client {
     pub skipped: Vec<(u8, Skip)>,
     /// What a correct server never causes.
     pub faults: Vec<String>,
+    /// Leaves the game drops (tick, player): sent before it played the
+    /// player's entry (`leave_match` 0x2D18A0 reads the entered mask of the
+    /// newest tick it played at or before the leave's, 0x2D1B4B..0x2D1B9D).
+    /// The simulation takes them all the same. A leave sent within the
+    /// roster's lead of the entry can be one; a stand-in's is held until
+    /// every game played the entry (`game/start.rs`).
+    pub dropped_leaves: Vec<(u32, u8)>,
     /// The scripted resource loader can be held pending while transport ACKs
     /// and normal simulation continue, independently of resource readiness.
     pub auto_prepare: bool,
@@ -477,6 +486,7 @@ impl Client {
             taken: Vec::new(),
             skipped: Vec::new(),
             faults: Vec::new(),
+            dropped_leaves: Vec::new(),
             auto_prepare: true,
             late_objects: 0,
             prepares: Vec::new(),
@@ -945,7 +955,23 @@ impl Client {
                 } else if let Some(at) = taken.time
                     && self.simulates
                 {
-                    self.sim.events.push((at, *player, false));
+                    // The game takes a leave only of a player in the
+                    // entered mask of the newest tick it played at or
+                    // before the leave's (`leave_match` 0x2D18A0,
+                    // 0x2D1B4B..0x2D1B9D): an entry it has not played yet
+                    // is not there, and the leave is dropped
+                    // (`dropped_leaves`). A copy of one taken is nothing.
+                    let event = (at, *player, false);
+                    if !self.sim.events.contains(&event) {
+                        let played = at.min(self.clock());
+                        let mask = self.sim.rule_at(played).mask;
+                        if mask & 1u32.checked_shl(u32::from(*player)).unwrap_or(0) == 0 {
+                            self.dropped_leaves.push((at, *player));
+                        }
+                    }
+                    // Taken all the same: the tests of other rules count on
+                    // it; a test of the leaves asserts `dropped_leaves`.
+                    self.sim.events.push(event);
                 }
             }
             ServerMessage::UploadRequest => {

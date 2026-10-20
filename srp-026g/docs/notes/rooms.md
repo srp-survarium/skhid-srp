@@ -54,6 +54,16 @@ The rules the code and the tests follow, the owner's of 2026-10-16 to 10-19. Cod
   on the card with most votes then, a tie or none drawn at random. Fewer members than the
   minimum stop it; a member changing kit stops nothing. A match that could not be made
   gives the room its wait again, the vote open, its votes kept.
+- **The match starts at the room's minimum** (the owner's of 2026-10-20: "threshold is 2
+  players though, not 4"; "just let people play, since rules are in rooms"; live, room 5209
+  sat in "Awaiting other players" with 2 of 5): the game itself waits for 80 % of the
+  match's places; the server starts it with who is in once that can't come (places given up
+  by Leave match) or 30 s after the first player is in, if the room's minimum is in with
+  one a side. A started countdown runs on whoever leaves. `match.md` §34.
+  - Fewer than the minimum, or nobody of a side, in or still able to come (everyone left
+    too): the match is called off before its countdown, as one that could not be made
+    (the vote and the wait again, whole); nothing of it counts (no results, pay, rating,
+    quest, wear); its players see the results screen's spinner until they close it.
 - **Who plays:** a member whose kit can't play (no weapon, too little ammo) or whose
   equipment is over the max level is marked red, counts for nothing, and is taken out of the
   room when the match starts without it (code 13 / 12); it may rejoin.
