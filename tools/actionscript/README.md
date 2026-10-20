@@ -590,6 +590,12 @@ fingerprints of the final, combined source. `--review-calls` builds without
 them, writes every unreviewed change with its before/after assembly to
 `review-calls.tsv`, and stops before writing a movie.
 
+`compare_decompiled.py --tools T A.swf B.swf OUT` exports two movies with the
+same FFDec and compares them script by script and method by method (with
+parameter and local names numbered, so dropped debug names do not count);
+`OUT/report.txt` lists every difference for review. It is how the lobby's
+source build was compared with the bytecode driver's last movie.
+
 `feature_source.py` shows a class's source as the features leave it, and
 records a feature's patch from an edited copy:
 

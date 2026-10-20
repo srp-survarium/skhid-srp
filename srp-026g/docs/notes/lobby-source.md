@@ -57,6 +57,9 @@ python3 srp-026g/client-patches/build_lobby_026g.py <lobby_menu.swf of resources
 - The movie must be `RESULT_SHA256` of `build_lobby_026g.py`. After a change the build refuses
   the new movie: check it in the game, then set `RESULT_SHA256` to it with a line on what it holds
   (`--any-result` writes it for a test build).
+- To see what a change does to the movie's code, compare it with the last one:
+  `python3 tools/actionscript/compare_decompiled.py --tools private/actionscript/tools.json old.swf new.swf OUT`
+  (every script and method as FFDec decompiles them; `OUT/report.txt`).
 - Tests: `python3 -m unittest discover` in `srp-026g/client-patches` and in `tools/actionscript`
   (`SRP_AS_TOOLS=private/actionscript/tools.json` adds the real-compiler tests).
 
