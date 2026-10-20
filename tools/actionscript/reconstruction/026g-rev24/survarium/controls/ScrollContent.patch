@@ -1,0 +1,282 @@
+--- a/survarium/controls/ScrollContent.as
++++ b/survarium/controls/ScrollContent.as
+@@ -85,25 +85,25 @@
+       
+       public function set elemntShift(param1:int) : void
+       {
+-         this._elemntShift = param1;
++         _elemntShift = param1;
+       }
+       
+       protected function set scrollPosition(param1:int) : void
+       {
+          if(!this._tween)
+          {
+-            this._scrollTween = true;
+-            this._tween = new Tween(500,this._scrlBar,{"position":param1},{
+-               "ease":Strong.easeOut,
+-               "onComplete":this.endTween
++            _scrollTween = true;
++            _tween = new Tween(500,this._scrlBar,{position:param1},{
++               ease:Strong.easeOut,
++               onComplete:this.endTween
+             });
+          }
+          else
+          {
+             this._tween.reset();
+             this._tween.paused = false;
+-            this._scrollTween = true;
+-            this._tween.props = {"position":param1};
++            _scrollTween = true;
++            this._tween.props = {position:param1};
+          }
+       }
+       
+@@ -144,16 +144,16 @@
+          {
+             if(param1.currentTarget.y > -this.scrolChildrens.y + this._mask.height)
+             {
+-               if(Boolean(this._scrlBar) && this._scrlBar.enabled)
++               if(this._scrlBar && this._scrlBar.enabled)
+                {
+-                  this.scrollPosition = param1.currentTarget.y - this._mask.height;
++                  scrollPosition = param1.currentTarget.y - this._mask.height;
+                }
+             }
+             else if(param1.currentTarget.y < -this.scrolChildrens.y)
+             {
+-               if(Boolean(this._scrlBar) && this._scrlBar.enabled)
++               if(this._scrlBar && this._scrlBar.enabled)
+                {
+-                  this.scrollPosition = param1.currentTarget.y;
++                  scrollPosition = param1.currentTarget.y;
+                }
+             }
+          }
+@@ -161,18 +161,18 @@
+       
+       protected function onSBarDragStart(param1:Event = null) : void
+       {
+-         if(Boolean(this._tween))
++         if(this._tween)
+          {
+             this._tween.reset();
+             this._tween.paused = true;
+          }
+-         this._scrollTween = false;
++         _scrollTween = false;
+       }
+       
+       protected function onSBarDragEnd(param1:Event = null) : void
+       {
+-         this._current_target = this.seekTarget();
+-         this.scrollPosition = this._targets[this._current_target];
++         _current_target = this.seekTarget();
++         scrollPosition = this._targets[this._current_target];
+       }
+       
+       protected function onTR(param1:Event) : void
+@@ -182,15 +182,15 @@
+       
+       protected function endTween(param1:* = null) : void
+       {
+-         this._current_target = this.seekTarget();
+-         this._scrollTween = false;
++         _current_target = this.seekTarget();
++         _scrollTween = false;
+       }
+       
+       override protected function configUI() : void
+       {
+          super.configUI();
+          var _loc1_:Class = getDefinitionByName("SrvScrollBarSkinned") as Class;
+-         this._scrlBar = new _loc1_();
++         _scrlBar = new _loc1_();
+          this._scrlBar.x = width - this._scrlBar.width - 3;
+          addChild(this._scrlBar);
+          this._scrlBar.focusTarget = this;
+@@ -201,15 +201,15 @@
+          this._scrlBar.scrollTarget = this;
+          this._scrlBar.addEventListener(Event.COMPLETE,this.onSBarDragEnd);
+          this._scrlBar.addEventListener(Event.SELECT,this.onSBarDragStart);
+-         if(Boolean(this._scrlBar.track))
++         if(this._scrlBar.track)
+          {
+             this._scrlBar.track.addEventListener(MouseEvent.MOUSE_DOWN,this.handleTrackPress,false,0,true);
+          }
+-         if(Boolean(this._scrlBar.upArrow))
++         if(this._scrlBar.upArrow)
+          {
+             this._scrlBar.upArrow.addEventListener(MouseEvent.MOUSE_DOWN,this.handleTrackPress,false,0,true);
+          }
+-         if(Boolean(this._scrlBar.downArrow))
++         if(this._scrlBar.downArrow)
+          {
+             this._scrlBar.downArrow.addEventListener(MouseEvent.MOUSE_DOWN,this.handleTrackPress,false,0,true);
+          }
+@@ -224,8 +224,8 @@
+             this.create_targets();
+             if(this.autoScroll)
+             {
+-               this._current_target = this.getLastTarget();
+-               this.scrollPosition = this._targets[this._current_target];
++               _current_target = this.getLastTarget();
++               scrollPosition = this._targets[this._current_target];
+             }
+             else
+             {
+@@ -236,7 +236,7 @@
+       
+       protected function updateElements(param1:int, param2:int) : void
+       {
+-         if(Boolean(this._mask))
++         if(this._mask)
+          {
+             this._mask.width = param1;
+             this._mask.height = param2;
+@@ -247,7 +247,7 @@
+       
+       protected function onResized(param1:Event) : void
+       {
+-         if(Boolean(this.mask))
++         if(this.mask)
+          {
+             this._mask.height = height;
+          }
+@@ -288,23 +288,23 @@
+          var _loc2_:int = this._current_target;
+          if(param1.delta > 0)
+          {
+-            this._current_target -= 1;
++            _current_target -= 1;
+          }
+          else
+          {
+-            this._current_target += 1;
++            _current_target += 1;
+          }
+          if(this._current_target < 0)
+          {
+-            this._current_target = 0;
++            _current_target = 0;
+          }
+          if(this._current_target > this._targets.length - 1)
+          {
+-            this._current_target = this._targets.length - 1;
+-         }
+-         if(Boolean(this._scrlBar) && this._scrlBar.enabled)
+-         {
+-            this.scrollPosition = this._targets[this._current_target];
++            _current_target = this._targets.length - 1;
++         }
++         if(this._scrlBar && this._scrlBar.enabled)
++         {
++            scrollPosition = this._targets[this._current_target];
+          }
+          if(_loc2_ != this._current_target)
+          {
+@@ -315,45 +315,45 @@
+       
+       protected function scrollToCurrent() : void
+       {
+-         this._current_target = this.seekTarget();
++         _current_target = this.seekTarget();
+       }
+       
+       protected function handleTrackPress(param1:MouseEvent) : void
+       {
+          if(this._scrlBar.thumb.y > this._scrlBar.mouseY)
+          {
+-            this._current_target -= 1;
++            _current_target -= 1;
+          }
+          else
+          {
+-            this._current_target += 1;
++            _current_target += 1;
+          }
+          if(this._current_target < 0)
+          {
+-            this._current_target = 0;
++            _current_target = 0;
+          }
+          if(this._current_target > this._targets.length - 1)
+          {
+-            this._current_target = this._targets.length - 1;
+-         }
+-         if(Boolean(this._scrlBar) && this._scrlBar.enabled)
+-         {
+-            this.scrollPosition = this._targets[this._current_target];
++            _current_target = this._targets.length - 1;
++         }
++         if(this._scrlBar && this._scrlBar.enabled)
++         {
++            scrollPosition = this._targets[this._current_target];
+          }
+          param1.stopImmediatePropagation();
+       }
+       
+       protected function create_targets() : void
+       {
+-         var _loc4_:DisplayObject = null;
+          this._targets.length = 0;
+          var _loc1_:Array = new Array();
+-         var _loc2_:uint = uint(this.scrolChildrens.numChildren);
++         var _loc2_:uint = (this.scrolChildrens.numChildren);
+          var _loc3_:uint = 0;
++         var _loc4_:DisplayObject;
+          while(_loc3_ < _loc2_)
+          {
+             _loc4_ = this.scrolChildrens.getChildAt(_loc3_) as DisplayObject;
+-            if(Boolean(_loc4_))
++            if(_loc4_)
+             {
+                _loc1_.push(_loc4_);
+             }
+@@ -374,28 +374,28 @@
+          }
+          if(this._current_target > this._targets.length)
+          {
+-            this._current_target = this._targets.length;
++            _current_target = this._targets.length;
+          }
+       }
+       
+       protected function updateSize() : void
+       {
+-         var _loc1_:uint = 0;
+-         var _loc2_:Sprite = null;
+-         this._max = 0;
+-         if(Boolean(this._scrlBar) && Boolean(numChildren))
++         var _loc1_:uint;
++         var _loc2_:Sprite;
++         _max = 0;
++         if(this._scrlBar && numChildren)
+          {
+             _loc1_ = 0;
+             while(_loc1_ < this.scrolChildrens.numChildren)
+             {
+                _loc2_ = this.scrolChildrens.getChildAt(_loc1_) as Sprite;
+-               if(Boolean(_loc2_))
++               if(_loc2_)
+                {
+-                  this._max = Math.max(_loc2_.height + _loc2_.y - this._elemntShift,this._max);
++                  _max = Math.max(_loc2_.height + _loc2_.y - this._elemntShift,this._max);
+                }
+                _loc1_++;
+             }
+-            this._max -= this._mask.height;
++            _max -= this._mask.height;
+             this._scrlBar.setScrollProperties(this._mask.height,0,this._max,1);
+             if(this._max <= 0)
+             {
+@@ -411,7 +411,7 @@
+             }
+             else
+             {
+-               this.scrollV = this._scrlBar.position;
++               scrollV = this._scrlBar.position;
+             }
+          }
+       }

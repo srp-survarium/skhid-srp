@@ -1564,6 +1564,114 @@
       "pristine_sha256": "e57c4f0b89a0afba679bdb1ce4761b3d4110c398143c1a0945da33d9e2de79ae",
       "reason": "Restore static/local/activation declaration order, captured parameter and named local function declarations, typed assignments, lexical compound writes, logical operands, explicit counter initialization and original loop control flow; imported-unit compilation reproduces the complete compressed release movie.",
       "result_sha256": "f6d7b3b2212eaf5c64bcb7361ab9891dc981ad5c98404d46f1239a8111de8d5f"
+    },
+    {
+      "class": "scaleform.clik.controls.Label",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/controls/Label.patch",
+      "patch_sha256": "e14694181fa085e2d2a43389283769e49a46e45b97b1378771a13c722cf4ea2f",
+      "pristine_sha256": "abdac730e1e72725ebc7f93f220169997ba2377d2dddefb4420ef088a0d42ecb",
+      "reason": "Restore lexical compound writes, the typed width return temporary and hoisted local declaration, and the final autosize switch break; imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "bb9cc7620feca15ed5e6fefcad25d9313062dfbe6d01781b1187442ca4547bea"
+    },
+    {
+      "class": "scaleform.clik.controls.ScrollingListSmooth",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/controls/ScrollingListSmooth.patch",
+      "patch_sha256": "5593376fe1c198a3a96353afaac59667146507634e60a4e3e2d6c0e20cb17243",
+      "pristine_sha256": "9ab8072e8161adeba5c1d706d9778b35b0275f319978ec40ba7d583372e239ea",
+      "reason": "Restore explicit Boolean/counter initialization and lexical scroll-target writes; imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "34158c913510330dde65f1621e8ad6f8a9400936ea77d54232c4a727f87553cf"
+    },
+    {
+      "class": "scaleform.clik.controls.ScrollingListSmoothDynam",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/controls/ScrollingListSmoothDynam.patch",
+      "patch_sha256": "2755743ce97047d26a79b4e5637c5ca37abad93913f775d9ea081639d66731d8",
+      "pristine_sha256": "6b1d0c79de79796fbc719a3287e733bf59b806bceb256650254f8094238c5790",
+      "reason": "Restore the typed scroll-position return temporary, explicit counter initialization and lexical row-count writes; imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "5d049f8feff2d2856270f911f438fd6c915ba3a466cfab05c5cf6d68ef136fe0"
+    },
+    {
+      "class": "scaleform.clik.controls.TileListSmoothR",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/controls/TileListSmoothR.patch",
+      "patch_sha256": "12f78d4add0eab5bdd9cb342b715741f561120a8c44068cfb6d3b50095a62189",
+      "pristine_sha256": "4d63cda781668ef27f80ee6b13769037b9de3bc42d3067c1475f897f7d71ed41",
+      "reason": "Restore explicit Boolean initialization, typed return temporary, typed assignments and lexical scroll-target writes; imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "6404d53eb51d1bff57943a3602d042b010461eb5ec63b5366fca94fb6f39363e"
+    },
+    {
+      "class": "mx.core.BitmapAsset",
+      "compiler": "flex-library",
+      "patch": "mx/core/BitmapAsset.patch",
+      "patch_sha256": "0b3c5a85b93d19bd91870c723e36cd1ad5a9e8344c76e23747967dfa8c3d6c01",
+      "pristine_sha256": "915062592c482409782f8fdc0bbdfbec861abaf563a5b58f54cbbd13b91cfbf7",
+      "reason": "Remove the decompiler-added namespace opening and restore local/static declaration order; explicit mx_internal qualification remains on VERSION, and imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "bbd45caad0cb879124fbad3b28a30d38884ce2d20da08e475b04b7dbffc51433"
+    },
+    {
+      "class": "scaleform.clik.controls.ScrollBar",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/controls/ScrollBar.patch",
+      "patch_sha256": "0b6e18b2454fbc72dc4f91e21366584c56ab1b81819c5385e3cd17f6cd16ddad",
+      "pristine_sha256": "9d8d0066ca00e74131a0787c92799377c9c2a2944e05cf05c14c73f4c2fc819e",
+      "reason": "Restore lexical compound writes to the position setter; imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "82a0201413359c62a4a3e45ec51750ffadc7594579fa8dbcbb935d526536863a"
+    },
+    {
+      "class": "scaleform.clik.controls.TileList",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/controls/TileList.patch",
+      "patch_sha256": "802fa951f3426ec16e52e991e1545dc56ede36528f9bb2e43dbd4ab020a9ef6d",
+      "pristine_sha256": "fcd4a2f1c2b3102058736f9903441def6c629d0d6114f5dc442ef1a9159d47b6",
+      "reason": "Restore local declaration order, explicit counter initialization, typed assignments, lexical scroll writes and final navigation switch breaks; imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "a89719bd444a36d83ca1625b622c91f2c413bbcb06056129492006c072f4f5d6"
+    },
+    {
+      "class": "scaleform.clik.controls.Button",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/controls/Button.patch",
+      "patch_sha256": "fc702009672b40d2fdabc996150958af902d87b2506f59dfbfa901c802c91b16",
+      "pristine_sha256": "67de67795913711e3d07c8bd7db64f0f5330ca9ae9f67bf66860b5dd31771b50",
+      "reason": "Restore local declaration order, explicit Boolean/counter initialization, lexical mouse-mask writes and final input/autosize switch breaks; imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "9c1141cdd98721321b3b7dd3bb70d2de5cd9957aba9843b7795306a92378d15f"
+    },
+    {
+      "class": "scaleform.clik.controls.ScrollingList",
+      "compiler": "flex-library",
+      "patch": "scaleform/clik/controls/ScrollingList.patch",
+      "patch_sha256": "738e020942a3346183527e641a3520dc99709cdfbbca9b550f6c04015f37c6de",
+      "pristine_sha256": "d3d777a09269491d449598840d78483a5f24f29a0dcea2f69ae74ef3fc238fb4",
+      "reason": "Restore local declaration order, explicit initializers, lexical writes and wrapping branch joins, including the empty STICK branch; imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "be3c8e23b8b13c35993e2775d2ed1c422fea1cf28415683a28f5e2acdee4ca23"
+    },
+    {
+      "class": "survarium.controls.ScrollContent",
+      "compiler": "flex-library",
+      "patch": "survarium/controls/ScrollContent.patch",
+      "patch_sha256": "a8f095de3e9bbed4879c381b1316c1315ce0d008d82d883d86b99fe2f2083969",
+      "pristine_sha256": "d0581f4d9f219412df218c2512a90bed4655f3e0735bde2286db59a5a7edaddc",
+      "reason": "Restore explicit integer initialization and lexical compound writes to scroll target and maximum; imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "50f17e04f50ecdc7a0e3545bbf98876f5cd710f96ce7ecca241c55e4b0bf3e22"
+    },
+    {
+      "class": "survarium.player.LocalPlayerProfile",
+      "compiler": "flex-library",
+      "patch": "survarium/player/LocalPlayerProfile.patch",
+      "patch_sha256": "8b11b1cf3e1caa134bb1e88559470a8515219b32781816869aaab4761755856b",
+      "pristine_sha256": "597a69b4e5e1f048601921c9b73ee42aaf8002209c965f6ca7b7a9e902bc9e94",
+      "reason": "Restore block-local declarations at their first assignments and the typed inventory-value expression; imported-unit compilation reproduces the complete compressed release movie, including retained debugger directives.",
+      "result_sha256": "38f0ed1fc10cb2ea44a8f6239a5d426de8c9c01956c0818dbcbdad6cfc743cab"
+    },
+    {
+      "class": "survarium.Util",
+      "compiler": "flex-library",
+      "patch": "survarium/Util.patch",
+      "patch_sha256": "23c4cf2ed4a32508acd9b7a85528cb4f149af94de6f7624157ed2041ba503574",
+      "pristine_sha256": "c55649a5d006c684b3bc92c84303b445bc0cdf8825c2a6789dabbe6bca904a1f",
+      "reason": "Restore the typed color return temporary, embedded number-format assignments, explicit counter initialization and original else-if branch join; imported-unit compilation reproduces the complete compressed release movie.",
+      "result_sha256": "244414bfc6cf7b90d996e18779de055d6945d56d42c4f2251fda21da16311640"
     }
   ],
   "movie_sha256": "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60",

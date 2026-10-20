@@ -857,3 +857,34 @@ this source-only addition. The premium example rebuilt against the final
 194-entry manifest retains its earlier tested movie hash, one changed method
 and identical non-code content. The new manifest identities are recorded as a
 subsequent rebuild; the game was not rerun.
+
+## Twelve further control and profile source reconstructions
+
+Twelve more classes reproduce the complete compressed release movie with the
+existing imported-unit compiler and linker:
+
+- `Label`, `ScrollingListSmooth`, `ScrollingListSmoothDynam`, `TileListSmoothR`,
+  `ScrollBar`, `ScrollingList`, `TileList` and `Button` restore local declaration
+  order, explicit initializers, typed return temporaries, lexical compound writes
+  and final switch breaks where required. `ScrollingList` also restores the
+  original wrapping branch joins, including its empty STICK branch. Matching
+  instruction names alone was insufficient: the branch targets must also match.
+- `BitmapAsset` removes the decompiler-added `use namespace mx_internal` directive,
+  while retaining explicit namespace qualification on `VERSION`. This restores
+  dynamic lookup namespace sets. Its static and local declarations also return
+  to their original order.
+- `ScrollContent` restores explicit integer initialization and lexical compound
+  writes to the scroll target and maximum.
+- `Util` restores its typed color return temporary, embedded number-format
+  assignments, explicit counters and an `else if` branch join.
+- `LocalPlayerProfile` restores block-local declarations at their first
+  assignments and the typed inventory-value expression. All debugger directives
+  and executable bytes match through the existing verified source-map handling.
+
+The manifest now contains 206 reviewed patches. With 645 distinct pristine
+successes, accumulated individual-script evidence covers 851 of 878 scripts;
+27 remain. This still does not constitute a whole-tree matching rebuild.
+Fourteen unit tests pass after these source-only changes. The premium example
+rebuilt against this manifest retains the previously tested movie hash, one
+changed method and identical non-code content. Its new manifest identities are
+recorded as a subsequent rebuild without claiming another native-game test.
