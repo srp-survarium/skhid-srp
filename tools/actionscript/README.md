@@ -434,6 +434,55 @@ every dependency ABC to remain byte-identical. Target ABC declarations,
 non-method traits, missing methods and ambiguous selections are refused.
 The explicit choices are included in the retained, authenticated plan.
 
+## Assembling a whole-tree baseline
+
+Compile every exported script with the reconstruction manifest, link every
+result, then assemble one movie from their compiled records:
+
+```sh
+python3 tools/actionscript/build_baseline.py --tools private/actionscript/tools.json \
+  --reconstruction tools/actionscript/reconstruction/026g-rev24/manifest.json \
+  --jobs 4 private/actionscript/rev24 private/actionscript/full-build
+```
+
+The final artifact is `full-build/assembled/rebuilt.swf`. The three stages retain
+their own inputs, reports and diagnostics. They can also be run separately:
+
+```sh
+python3 tools/actionscript/movie_source.py --tools private/actionscript/tools.json \
+  measure private/actionscript/rev24 private/actionscript/full-compiled \
+  --compiler reconstruction \
+  --source-patches tools/actionscript/reconstruction/026g-rev24/manifest.json \
+  --jobs 4 --compact
+
+python3 tools/actionscript/link_layout.py --tools private/actionscript/tools.json \
+  --jobs 4 --compact private/actionscript/rev24 private/actionscript/full-compiled \
+  private/actionscript/full-linked
+
+python3 tools/actionscript/assemble_baseline.py --tools private/actionscript/tools.json \
+  private/actionscript/rev24 private/actionscript/full-compiled \
+  private/actionscript/full-linked private/actionscript/full-assembled
+```
+
+The measurement can exit 1 because ordinary compiler layouts differ before
+linking. Its report must nevertheless be complete with every script compiled.
+Linking and assembly must both succeed. A subset of scripts, an incomplete run,
+a changed source or compiler artifact, or a non-exact linked result is refused.
+
+Assembly starts with empty method-signature, method-body, class and script
+tables. Each exported script supplies its own records from its authenticated
+linked compilation. Ownership follows script/class traits, initializers and
+nested `newfunction`/`newclass` sites. Shared ABCs receive each script's records
+from that script's separate compiler output. Every table entry must have exactly
+one owner; original executable records cannot fill a missing entry.
+
+Constant pools and non-executable metadata retain the verified linked layout.
+The assembled ABCs are serialized and reparsed, then transplanted into the raw
+original container and freshly compressed. Acceptance requires equality of the
+complete compressed movie. `rebuilt.swf` is the resulting artifact; `report.json`,
+`inputs.tsv` and `coverage.tsv` record its source build, hashes and per-script
+record coverage. No release installation is performed.
+
 ## Building a source feature
 
 Feature patches are separate from reconstruction patches and apply to the

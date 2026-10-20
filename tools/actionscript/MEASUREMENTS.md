@@ -1364,3 +1364,25 @@ The fresh premium feature rebuild changes only its authorized method and
 preserves non-code bytes. Its SHA-256 remains
 `1c7a3e7b9a51f4519d8bfa550cd48038f460fd4d9370232e844503039d1ce6e3`,
 identical to the earlier game-tested candidate; no new runtime run is claimed.
+
+### Whole-tree assembly tooling
+
+`build_baseline.py` now runs complete compilation, linking and assembly.
+The assembler authenticates the saved reconstruction, reports and compiler
+artifacts, then starts with empty executable record tables. Each script supplies
+its own method signatures, bodies and definitions from its linked compilation.
+Missing, shared or unowned records are refused; the final movie is freshly
+serialized and must match the complete release bytes.
+
+The real-compiler fixture independently compiles three scripts sharing one ABC,
+including an interface and a nested function. It verifies complete assembly in
+either input order, rejects absent/duplicate inputs and changed hashes, runs the
+public build command end to end, and rejects a compiler artifact changed after
+linking. The full suite passes 27 tests, including ten compiler integrations
+(225.382 seconds); the expanded public-command test then passes separately
+(43.698 seconds).
+
+A structural ownership audit of the pinned lobby covers all 878 scripts,
+8,052 method signatures, 7,758 bodies and 877 class definitions. This checks the
+assembler's coverage model, not source compilation. The fresh 878-script run is
+still in progress; its final artifact equality remains outstanding.
