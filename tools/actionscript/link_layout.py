@@ -11,10 +11,43 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import threading
 import zlib
 
 import movie_source as movie
 import source_patches
+
+
+class SerializationCache:
+    """Reuse serialization only for byte-identical, already linked code movies.
+
+    Every class still compiles and passes the linker independently. A successful
+    baseline rebuild normally supplies the same complete code movie, so repeating
+    compression of its unchanged assets adds no evidence. Keep only one entry to
+    bound memory, and serialize any different input normally.
+    """
+    def __init__(self, original, compressed):
+        self.original = original
+        self.compressed = compressed
+        self.lock = threading.Lock()
+        self.cached = None
+
+    def render(self, code, output):
+        code_bytes = code.read_bytes()
+        with self.lock:
+            hit = self.cached is not None and self.cached[0] == code_bytes
+            if hit:
+                _, raw, final = self.cached
+            else:
+                movie.transplant(self.original, code, output)
+                if code.read_bytes() != code_bytes:
+                    raise ValueError("Linked code changed during serialization")
+                raw = output.read_bytes()
+                final = b"CWS" + raw[3:8] + zlib.compress(raw[8:], 9) if self.compressed else raw
+                if self.cached is None:
+                    self.cached = (code_bytes, raw, final)
+        output.write_bytes(final)
+        return raw, final, hit
 
 
 def main():
@@ -46,6 +79,7 @@ def main():
     movie.code_movie(project / "original.swf", output / "code.swf")
     original = (project / "original.swf").read_bytes()
     original_raw = movie.uncompressed(project / "original.swf")
+    serialization = SerializationCache(project / "original.swf", original[:3] == b"CWS")
     report = {"schema": 1, "movie_sha256": manifest["movie_sha256"],
               "link_driver_sha256": movie.digest(output / "link_layout.py"),
               "compilation_report_sha256": hashlib.sha256(recorded).hexdigest(),
@@ -82,13 +116,12 @@ def main():
                                 folder / "linked-code.swf", row["class"], log=folder / "link.log")
             if process.returncode:
                 return dict(result, status="different", exit_code=process.returncode)
-            movie.transplant(project / "original.swf", folder / "linked-code.swf", folder / "linked.swf")
-            raw = (folder / "linked.swf").read_bytes()
             # Deterministic serialization, not reuse of the original compressed
-            # payload. The final file comparison independently proves equality.
-            final = b"CWS" + raw[3:8] + zlib.compress(raw[8:], 9) if original[:3] == b"CWS" else raw
-            (folder / "linked.swf").write_bytes(final)
+            # payload. Reuse its result only when the complete linked input bytes
+            # match. The final file comparison remains an independent gate.
+            raw, final, cache_hit = serialization.render(folder / "linked-code.swf", folder / "linked.swf")
             result.update(movie_exact=(raw == original_raw), file_exact=(final == original),
+                          serialization_cache_hit=cache_hit,
                           linked_code_sha256=movie.digest(folder / "linked-code.swf"),
                           movie_sha256=hashlib.sha256(final).hexdigest())
             result["status"] = "exact" if result["file_exact"] else "different"

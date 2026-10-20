@@ -1,10 +1,12 @@
 import csv
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import struct
 import tempfile
 import unittest
 import zlib
 
+from link_layout import SerializationCache
 import movie_source as movie
 
 
@@ -62,6 +64,42 @@ class MovieTests(unittest.TestCase):
         self.assertNotEqual(plain.read_bytes(), compressed.read_bytes())
         with self.assertRaises(ValueError):
             movie.uncompressed(self.file("trailing", compressed.read_bytes() + b"trailer"))
+
+    def test_parallel_serialization_reuses_only_identical_complete_code(self):
+        tags = [(1000, tag(1000, b"opaque assets", long=True)),
+                (82, tag(82, b"compiled abc")), (0, tag(0, b""))]
+        raw = swf(tags)
+        expected = b"CWS" + raw[3:8] + zlib.compress(raw[8:], 9)
+        original = self.file("original", expected)
+        code = self.file("code", swf(tags[1:]))
+        cache = SerializationCache(original, True)
+        with ThreadPoolExecutor(4) as workers:
+            results = list(workers.map(lambda n: cache.render(code, self.root / f"out-{n}"), range(12)))
+        self.assertEqual(sum(hit for _, _, hit in results), 11)
+        for n, (actual_raw, final, _) in enumerate(results):
+            self.assertEqual(actual_raw, raw)
+            self.assertEqual(final, expected)
+            self.assertEqual((self.root / f"out-{n}").read_bytes(), expected)
+
+    def test_serialization_cache_cannot_hide_changed_or_missing_abc(self):
+        asset = (1000, tag(1000, b"opaque assets", long=True))
+        end = (0, tag(0, b""))
+        old_abc = (82, tag(82, b"original abc"))
+        original = self.file("original", swf([asset, old_abc, end]))
+        code = self.file("code", swf([old_abc, end]))
+        cache = SerializationCache(original, False)
+        cache.render(code, self.root / "first")
+        new_abc = (82, tag(82, b"different abc"))
+        code.write_bytes(swf([new_abc, end]))
+        raw, final, hit = cache.render(code, self.root / "changed")
+        self.assertFalse(hit)
+        self.assertEqual(raw, swf([asset, new_abc, end]))
+        self.assertEqual(final, raw)
+        self.assertNotEqual(final, original.read_bytes())
+        code.write_bytes(swf([end]))
+        with self.assertRaisesRegex(ValueError, "block count"):
+            cache.render(code, self.root / "missing")
+        self.assertFalse((self.root / "missing").exists())
 
     def snapshot(self, name, abc, record="same"):
         folder = self.root / name

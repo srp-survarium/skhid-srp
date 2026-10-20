@@ -142,6 +142,11 @@ python3 tools/actionscript/link_layout.py --tools private/actionscript/tools.jso
 ```
 
 The linker verifies each input against its recorded compiler-output movie hash.
+Within a linking run, byte-identical complete linked code movies share one
+serialization result. The first result is freshly transplanted and compressed;
+the original compressed payload is never reused. Different code bytes are
+serialized separately, and every row still checks full movie equality. This
+avoids repeatedly compressing unchanged assets during a whole-tree measurement.
 It keeps the compiler's method bodies, signatures, class definitions, scope and
 stack limits, and exception tables. It restores named method and trait ordering.
 Class/file private namespaces are mapped by their compiler-generated owners,

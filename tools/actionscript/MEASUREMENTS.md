@@ -545,3 +545,19 @@ The 109-entry premium feature build again reproduces the tested candidate
 with one changed method and identical non-code data. Its manifest hashes are
 recorded as a subsequent rebuild in the runtime evidence; no new game run is
 claimed. Whole-tree reconstruction is still incomplete.
+
+## Reusing serialization of identical linked code
+
+The layout driver now retains one freshly serialized movie per run and reuses it
+only when another class's complete linked code movie has identical bytes. Every
+class still authenticates its compiler artifact and passes the exact linker;
+changed input is serialized independently, and every row checks both raw and
+compressed movie equality. The cache holds one entry and is protected across
+parallel workers.
+
+Nine container tests pass, including concurrent identical-input reuse, changed
+ABC content, and a missing ABC after populating the cache. Re-linking the focused
+ten-class source probe with this driver gives the same nine exact results and
+one rejection as before, with identical compiled-code, linked-code and movie
+hashes for every row. Eight serialization cache hits avoided repeated compression
+without changing any result.
