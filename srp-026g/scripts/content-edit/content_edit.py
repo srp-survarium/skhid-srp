@@ -37,7 +37,8 @@ Edits (edits.json):
                     the same file; files without `only_if`, the table or those entries are left alone
   "add_key":        [{"file", "table", "key", "text"}] a new text of a localization table
   "remove_item":    [{"file", "path", "value"}]        the one item equal to `value` of an indexed table of
-                                                       numbers (an item's `default_modifications`); the
+                                                       numbers (an item's `default_modifications`) or of
+                                                       strings (a weapon's `death` animations); the
                                                        later items move down in place, the count drops by 1
 New records and arrays are appended (arrays at 8-byte boundaries, as the files keep them); a table
 that grows gets a new array and the old one stays, unreferenced.
@@ -295,25 +296,28 @@ def add_key(buf, table, key, text):
     REC.pack_into(buf, toff, append_array(buf, new), i, c, ty, cnt + 1)
 
 
-def numbers_of(buf, path):
-    """The items of an indexed table of numbers, as numbers."""
+def items_of(buf, path):
+    """The items of an indexed table of numbers or strings, as numbers and (UTF-8) strings."""
     off = find(buf, path)
     if rec(buf, off)[3] != T_INDEXED:
         raise ValueError('%s is not an indexed table' % path)
     items = []
     for c in children(buf, off):
-        d, _, _, t, _ = rec(buf, c)
-        if t not in (T_INT, T_FLOAT):
-            raise ValueError('%s holds a non-number' % path)
-        items.append(as_number(t, d & 0xffffffff))
+        d, _, _, t, cnt = rec(buf, c)
+        if t in (T_INT, T_FLOAT):
+            items.append(as_number(t, d & 0xffffffff))
+        elif t == T_STR:
+            items.append(bytes(buf[d:d + cnt - 1]).decode())
+        else:
+            raise ValueError('%s holds an item that is neither a number nor a string' % path)
     return items
 
 
 def remove_item(buf, path, value):
-    """The one item equal to `value` of the indexed table of numbers `path` taken out: the later
+    """The one item equal to `value` of the indexed table of numbers or strings `path` taken out: the later
     items' records move down one place in the table's own array, its count drops by one (the last
     record stays, unreferenced). A value the table holds not exactly once is refused."""
-    items = numbers_of(buf, path)
+    items = items_of(buf, path)
     if items.count(value) != 1:
         raise ValueError('%s holds %r %d times, not once: the base is not the live data'
                          % (path, value, items.count(value)))
@@ -455,7 +459,7 @@ def main():
             old = {shifted(q, lst, at): v for q, v in old.items()}
         live_buf = bytearray(open(files[p], 'rb').read())
         for lst, values in removed.get(p, {}).items():
-            was, now = numbers_of(live_buf, lst), numbers_of(b, lst)
+            was, now = items_of(live_buf, lst), items_of(b, lst)
             want = list(was)
             for v in values:
                 want.remove(v)
