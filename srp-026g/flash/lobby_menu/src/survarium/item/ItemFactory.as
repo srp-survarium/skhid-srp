@@ -2,7 +2,6 @@ package survarium.item
 {
    import flash.utils.Dictionary;
    import survarium.Util;
-   import survarium.constants.Category;
    import survarium.constants.Reward;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
@@ -12,6 +11,17 @@ package survarium.item
    import survarium.data.PropertiesDescriptor;
    import survarium.interfaces.IItemFactory;
    import survarium.upgrade.UpgradeWindow;
+   import survarium.constants.Faction;
+   import survarium.constants.ItemCategory;
+   import survarium.constants.ItemDefaults;
+   import survarium.constants.ItemDictId;
+   import survarium.constants.ItemPlace;
+   import survarium.constants.ModificationState;
+   import survarium.constants.ModifierType;
+   import survarium.constants.PropertyDirection;
+   import survarium.constants.QuickSlotSize;
+   import survarium.constants.SuperCategory;
+   import survarium.constants.VoucherType;
    
    public class ItemFactory implements IItemFactory
    {
@@ -124,28 +134,28 @@ package survarium.item
       public static function getCategory(_cat:int) : int
       {
          var current_item_category_id:int = _cat;
-         if(current_item_category_id == 1 || current_item_category_id == 2 || current_item_category_id == 3 || current_item_category_id == 4 || current_item_category_id == 5 || current_item_category_id == 6 || current_item_category_id == 7)
+         if(current_item_category_id == ItemCategory.HELMETS || current_item_category_id == ItemCategory.MASKS || current_item_category_id == ItemCategory.BODY_ARMOR || current_item_category_id == ItemCategory.RIGS || current_item_category_id == ItemCategory.PANTS || current_item_category_id == ItemCategory.GLOVES || current_item_category_id == ItemCategory.BOOTS)
          {
-            return 1;
+            return SuperCategory.EQUIPMENT;
          }
-         if(current_item_category_id == 8 || current_item_category_id == 13 || current_item_category_id == 14 || current_item_category_id == 15 || current_item_category_id == 16 || current_item_category_id == 17)
+         if(current_item_category_id == ItemCategory.ASSAULT_RIFLES || current_item_category_id == ItemCategory.SNIPER_RIFLES || current_item_category_id == ItemCategory.SHOTGUNS || current_item_category_id == ItemCategory.SUBMACHINE_GUNS || current_item_category_id == ItemCategory.MACHINE_GUNS || current_item_category_id == ItemCategory.PISTOLS)
          {
-            return 2;
+            return SuperCategory.WEAPONS;
          }
-         if(current_item_category_id == 9 || current_item_category_id == 18 || current_item_category_id == 19 || current_item_category_id == 20 || current_item_category_id == 21)
+         if(current_item_category_id == ItemCategory.ASSAULT_RIFLE_AMMO || current_item_category_id == ItemCategory.SNIPER_RIFLE_AMMO || current_item_category_id == ItemCategory.SHOTGUN_AMMO || current_item_category_id == ItemCategory.PISTOL_AMMO || current_item_category_id == ItemCategory.MACHINE_GUN_AMMO)
          {
-            return 3;
+            return SuperCategory.AMMO;
          }
-         if(current_item_category_id == 25 || current_item_category_id == 26 || current_item_category_id == 27 || current_item_category_id == 28 || current_item_category_id == 29)
+         if(current_item_category_id == ItemCategory.CAMOUFLAGES || current_item_category_id == ItemCategory.DECALS || current_item_category_id == ItemCategory.VOUCHERS || current_item_category_id == ItemCategory.GENERIC_MONEY || current_item_category_id == ItemCategory.PREMIUM_MONEY)
          {
-            return 5;
+            return SuperCategory.UPGRADES;
          }
-         return 4;
+         return SuperCategory.ITEMS;
       }
       
       public static function isItemCraftable(value:ItemData) : Boolean
       {
-         return !value.isStack && value.descriptor <= 100 && !value.repairTime && (value.superCategory == 1 || value.superCategory == 2 || value.superCategory == 3);
+         return !value.isStack && value.descriptor <= ItemPlace.INVENTORY && !value.repairTime && (value.superCategory == SuperCategory.EQUIPMENT || value.superCategory == SuperCategory.WEAPONS || value.superCategory == SuperCategory.AMMO);
       }
       
       public function registerItemDescriptor(link:ItemDescriptor) : void
@@ -167,21 +177,21 @@ package survarium.item
          trace("createBaseItem",dictId,description);
          item = new ItemData();
          var superCategory:int = getCategory(description.category);
-         if(superCategory == 1)
+         if(superCategory == SuperCategory.EQUIPMENT)
          {
             icons = IconContainer.getInstance("equipment");
          }
-         else if(superCategory == 2)
+         else if(superCategory == SuperCategory.WEAPONS)
          {
             icons = IconContainer.getInstance("weapons");
          }
-         else if(superCategory == 5)
+         else if(superCategory == SuperCategory.UPGRADES)
          {
-            if(description.category == Category.VOUCHER || description.category == 28 || description.category == Category.GOLD)
+            if(description.category == ItemCategory.VOUCHERS || description.category == ItemCategory.GENERIC_MONEY || description.category == ItemCategory.PREMIUM_MONEY)
             {
                icons = IconContainer.getInstance("vouchers");
             }
-            else if(description.category == Category.DECAL)
+            else if(description.category == ItemCategory.DECALS)
             {
                icons = IconContainer.getInstance("decals");
             }
@@ -229,7 +239,7 @@ package survarium.item
          item.type = description.voucher_type;
          item.superCategory = superCategory;
          item.category = description.category;
-         item.isWeapon = superCategory == 2;
+         item.isWeapon = superCategory == SuperCategory.WEAPONS;
          item.isStack = description.is_stack;
          item.oneHanded = !description.double_handed;
          item.isPremium = description.is_premium;
@@ -260,29 +270,29 @@ package survarium.item
          item.itemLevel = description.level;
          if(description.camo_available == undefined)
          {
-            description.camo_available = 1;
+            description.camo_available = ItemDefaults.CAMO_AVAILABLE;
          }
          if(description.decal_available == undefined)
          {
-            description.decal_available = 0;
+            description.decal_available = ItemDefaults.DECAL_AVAILABLE;
          }
          item.sellers = description.sellers;
          item.camoAvailable = description.camo_available;
          item.decalAvailable = description.decal_available;
          if(description.upgrades_available == undefined)
          {
-            description.upgrades_available = 4;
+            description.upgrades_available = ItemDefaults.UPGRADES_AVAILABLE;
          }
          item.upgradesAvailable = description.upgrades_available;
          item.weight = description.weight;
          item.clipSize = description.clip_size;
-         item.quickSlotItemSize = description.fills_whole_pocket ? 2 : 1;
+         item.quickSlotItemSize = description.fills_whole_pocket ? QuickSlotSize.WHOLE : QuickSlotSize.HALF;
          item.clipsInBag = description.clips_in_bag;
          if(description.required_bags != undefined)
          {
             item.clipsInBag = 1 / description.required_bags;
          }
-         item.usable = item.category == Category.VOUCHER && (item.type == 3 || item.type == 0);
+         item.usable = item.category == ItemCategory.VOUCHERS && (item.type == VoucherType.PREMIUM || item.type == VoucherType.RENAME);
          var ammoList:String = "";
          var ammoIds:Array;
          var unusedText:String;
@@ -321,7 +331,7 @@ package survarium.item
          return item;
       }
       
-      public function createItem(dictId:uint, defaultFactionId:* = -1) : ItemData
+      public function createItem(dictId:uint, defaultFactionId:* = Faction.ANY) : ItemData
       {
          var factionIcons:IconContainer = IconContainer.getInstance("factionItemIcons");
          var description:Object = this._itemDescriptor.getItemDescription(dictId);
@@ -336,10 +346,10 @@ package survarium.item
             }
             else
             {
-               factionId = -1;
+               factionId = Faction.ANY;
             }
          }
-         if(factionId != -1 && factionIcons)
+         if(factionId != Faction.ANY && factionIcons)
          {
             sellerIcon = factionIcons.getIcon(factionId);
          }
@@ -349,7 +359,7 @@ package survarium.item
          }
          item.sellerIcon = sellerIcon;
          item.factionId = factionId;
-         trace("IL::create_item::",item.name,item.category,item.usable,item.type,item.category == Category.VOUCHER,description.descr);
+         trace("IL::create_item::",item.name,item.category,item.usable,item.type,item.category == ItemCategory.VOUCHERS,description.descr);
          return item;
       }
       
@@ -358,7 +368,7 @@ package survarium.item
          trace("IF::createItemData",itemInfo.dictId);
          if(itemInfo.dictId == undefined)
          {
-            itemInfo.dictId = 70;
+            itemInfo.dictId = ItemDictId.AMMO_9X18_MAKAROV;
          }
          var item:ItemData = this.createItem(itemInfo.dictId,itemInfo.faction_id);
          item.value = itemInfo.condition_or_stack;
@@ -408,10 +418,10 @@ package survarium.item
             propDesc = this._propsDescriptor.getPropertyDescription(prop.prop_id);
             if(propDesc)
             {
-               postfix = propDesc.modifier_type == 0 ? propDesc.postfix : "%";
+               postfix = propDesc.modifier_type == ModifierType.ADD ? propDesc.postfix : "%";
                sign = prop.prop_value >= 0 ? "+" : "";
-               color = propDesc.direction == 0 && prop.prop_value < 0 || propDesc.direction == 1 && prop.prop_value > 0 ? "green" : "red";
-               propValue = propDesc.modifier_type == 0 ? (prop.prop_value) : prop.prop_value * 100;
+               color = propDesc.direction == PropertyDirection.LOWER_IS_BETTER && prop.prop_value < 0 || propDesc.direction == PropertyDirection.HIGHER_IS_BETTER && prop.prop_value > 0 ? "green" : "red";
+               propValue = propDesc.modifier_type == ModifierType.ADD ? (prop.prop_value) : prop.prop_value * 100;
                line = propDesc.prop_name + ": " + Util.styledChar(sign + propValue + (postfix ? postfix : ""),color);
                modifier.textValue += line + "\n";
             }
@@ -465,10 +475,10 @@ package survarium.item
                propDesc = this._propsDescriptor.getPropertyDescription(prop.prop_id);
                if(propDesc)
                {
-                  postfix = propDesc.modifier_type == 0 ? propDesc.postfix : "%";
+                  postfix = propDesc.modifier_type == ModifierType.ADD ? propDesc.postfix : "%";
                   sign = prop.prop_value >= 0 ? "+" : "";
-                  color = propDesc.direction == 0 && prop.prop_value < 0 || propDesc.direction == 1 && prop.prop_value > 0 ? "green" : "red";
-                  propValue = propDesc.modifier_type == 0 ? (prop.prop_value) : prop.prop_value * 100;
+                  color = propDesc.direction == PropertyDirection.LOWER_IS_BETTER && prop.prop_value < 0 || propDesc.direction == PropertyDirection.HIGHER_IS_BETTER && prop.prop_value > 0 ? "green" : "red";
+                  propValue = propDesc.modifier_type == ModifierType.ADD ? (prop.prop_value) : prop.prop_value * 100;
                   line = propDesc.prop_name + ": " + Util.styledChar(sign + propValue + (postfix ? postfix : ""),color);
                   modifiers[i].textValue += line + "\n";
                }
@@ -484,16 +494,16 @@ package survarium.item
                {
                   propDesc.postfix = "";
                }
-               postfix = propDesc.modifier_type == 0 ? propDesc.postfix : "%";
+               postfix = propDesc.modifier_type == ModifierType.ADD ? propDesc.postfix : "%";
                sign = prop.prop_value >= 0 ? "+" : "";
                if(propDesc.modifier_type == undefined)
                {
-                  propDesc.modifier_type = 2;
+                  propDesc.modifier_type = ModifierType.INVALID;
                   propDesc.modifier_type = prop.modifier_type;
                }
-               propValue = propDesc.modifier_type == 0 ? (prop.prop_value) : prop.prop_value * 100;
+               propValue = propDesc.modifier_type == ModifierType.ADD ? (prop.prop_value) : prop.prop_value * 100;
                propValue = Math.round(propValue / 0.01) * 0.01;
-               color = propDesc.direction == 0 && prop.prop_value < 0 || propDesc.direction == 1 && prop.prop_value > 0 ? "green" : "red";
+               color = propDesc.direction == PropertyDirection.LOWER_IS_BETTER && prop.prop_value < 0 || propDesc.direction == PropertyDirection.HIGHER_IS_BETTER && prop.prop_value > 0 ? "green" : "red";
                totalLine = propDesc.prop_name + ": " + Util.styledChar(sign + propValue + postfix,color);
                if(!prop.modifier.textValue)
                {
@@ -542,7 +552,7 @@ package survarium.item
                item.value = reward.amount;
                item.name = "";
                item.isStack = true;
-               item.superCategory = Category.BASE_VOUCHER;
+               item.superCategory = SuperCategory.UPGRADES;
                item.tipText = LocalizationData.getName("experience");
                reward.data = item;
             }
@@ -553,7 +563,7 @@ package survarium.item
       
       protected function updateItemTipText(item:ItemData) : void
       {
-         var levelText:String = item.superCategory != 5 ? Util.styledChar(LocalizationData.getName("equipment_level") + " - " + item.itemLevel.toString(),"gray") : "";
+         var levelText:String = item.superCategory != SuperCategory.UPGRADES ? Util.styledChar(LocalizationData.getName("equipment_level") + " - " + item.itemLevel.toString(),"gray") : "";
          var tip:String = Util.styledChar(item.name,"white") + "\n" + (item.rank ? Util.styledChar(LocalizationData.getName("modified") + "\n","green") : "") + (item.ammoText ? LocalizationData.getName("ammo") + ":\n" + item.ammoText : "") + (levelText ? Util.styledChar(" \n","small") + levelText : "");
          item.tipText = tip;
       }
@@ -567,7 +577,7 @@ package survarium.item
          var modifierIcon:Icon;
          while(i < modifiers.length)
          {
-            if(modifiers[i].state == 1)
+            if(modifiers[i].state == ModificationState.DEFECT)
             {
                icons = IconContainer.getInstance("modifiers");
                modifierIcon = icons.getIcon(modifiers[i].icon);
@@ -612,20 +622,20 @@ package survarium.item
                   {
                      propDesc.postfix = "";
                   }
-                  postfix = propDesc.modifier_type == 0 ? propDesc.postfix : "%";
+                  postfix = propDesc.modifier_type == ModifierType.ADD ? propDesc.postfix : "%";
                   sign = prop.prop_value >= 0 ? "+" : "";
                   if(propDesc.modifier_type == undefined)
                   {
-                     propDesc.modifier_type = 2;
+                     propDesc.modifier_type = ModifierType.INVALID;
                      propDesc.modifier_type = prop.modifier_type;
                   }
-                  if(propDesc.modifier_type == 2)
+                  if(propDesc.modifier_type == ModifierType.INVALID)
                   {
                      throw Error("modifier_type at modifier " + modifiers[i].name + " for prop_id " + prop.prop_id + " is invalid");
                   }
                   trace("propValue::",propDesc.direction,prop.direction);
-                  propValue = propDesc.modifier_type == 0 ? (prop.prop_value) : prop.prop_value * 100;
-                  color = propDesc.direction == 0 && prop.prop_value < 0 || propDesc.direction == 1 && prop.prop_value > 0 ? "green" : "red";
+                  propValue = propDesc.modifier_type == ModifierType.ADD ? (prop.prop_value) : prop.prop_value * 100;
+                  color = propDesc.direction == PropertyDirection.LOWER_IS_BETTER && prop.prop_value < 0 || propDesc.direction == PropertyDirection.HIGHER_IS_BETTER && prop.prop_value > 0 ? "green" : "red";
                   propsText += propDesc.prop_name + ": " + Util.styledChar(sign + (int(propValue) == propValue ? propValue.toString() : propValue.toFixed(1)) + postfix,color) + "\n";
                }
             }

@@ -15,6 +15,16 @@ package survarium.controls
    import survarium.interfaces.IPlayerProfile;
    import survarium.messages.MessageMoneyExchange;
    import survarium.upgrade.UpgradeWindow;
+   import survarium.constants.ItemCategory;
+   import survarium.constants.ItemCondition;
+   import survarium.constants.ItemPlace;
+   import survarium.constants.ItemPrice;
+   import survarium.constants.ModificationState;
+   import survarium.constants.ModifierType;
+   import survarium.constants.MoneyType;
+   import survarium.constants.ProfileSlot;
+   import survarium.constants.PropertyDirection;
+   import survarium.constants.VoucherType;
    
    public class ItemCard extends MovieClip
    {
@@ -33,7 +43,7 @@ package survarium.controls
       
       protected var isStack:Boolean;
       
-      protected var _money_type:int = 0;
+      protected var _money_type:int = MoneyType.REGULAR;
       
       protected var _step:int = 0;
       
@@ -170,8 +180,8 @@ package survarium.controls
          {
             item = this._data;
             profile = parent["player_profile"];
-            price = item.category == 100 ? (item.cost) : (GangShop.getInstance().getItemPrice(item.dictId));
-            GangShop.buyFunction(profile.profileId,item.itemId,item.dictId,item.descriptor,100,item.count,price,item.seller,!item.isStack ? this.onItemBuyAccept : null);
+            price = item.category == ItemCategory.BUNDLE ? (item.cost) : (GangShop.getInstance().getItemPrice(item.dictId));
+            GangShop.buyFunction(profile.profileId,item.itemId,item.dictId,item.descriptor,ItemPlace.INVENTORY,item.count,price,item.seller,!item.isStack ? this.onItemBuyAccept : null);
          }
       }
       
@@ -186,7 +196,7 @@ package survarium.controls
          if(this._data.usable)
          {
             trace("useElement::",this._data.type,parent);
-            if(this._data.type == 0)
+            if(this._data.type == VoucherType.RENAME)
             {
                if(parent)
                {
@@ -281,7 +291,7 @@ package survarium.controls
          {
             price = this._data.isPremium ? (this._data.cost * PlayerInfo.premiumExchangeRate) : this._data.cost;
             trace("IC::itemCost::",price,this._data.cost,PlayerInfo.premiumExchangeRate);
-            sellPrice = price / 4 * (this._data.isStack ? 1 : this._data.value / 100);
+            sellPrice = price / ItemPrice.SELL_DIVISOR * (this._data.isStack ? 1 : this._data.value / ItemCondition.FULL);
             _cost = sellPrice;
          }
          _step = slotData.clip_size == undefined ? 1 : (slotData.clip_size);
@@ -403,7 +413,7 @@ package survarium.controls
          var modifierIcon:Icon;
          while(i < allModifiers.length)
          {
-            if(allModifiers[i].state == 1)
+            if(allModifiers[i].state == ModificationState.DEFECT)
             {
                modifierIcon = this._modifiersIconContainer.getIcon(allModifiers[i].icon);
                failModifiers.push({
@@ -447,20 +457,20 @@ package survarium.controls
                   {
                      propDescription.postfix = "";
                   }
-                  postfix = propDescription.modifier_type == 0 ? propDescription.postfix : "%";
+                  postfix = propDescription.modifier_type == ModifierType.ADD ? propDescription.postfix : "%";
                   sign = prop.prop_value >= 0 ? "+" : "";
                   if(propDescription.modifier_type == undefined)
                   {
-                     propDescription.modifier_type = 2;
+                     propDescription.modifier_type = ModifierType.INVALID;
                      propDescription.modifier_type = prop.modifier_type;
                   }
-                  if(propDescription.modifier_type == 2)
+                  if(propDescription.modifier_type == ModifierType.INVALID)
                   {
                      throw Error("modifier_type at modifier " + modifiers[i].name + " for prop_id " + prop.prop_id + " is invalid");
                   }
                   trace("propValue::",propDescription.direction,prop.direction);
-                  propValue = propDescription.modifier_type == 0 ? (prop.prop_value) : prop.prop_value * 100;
-                  color = propDescription.direction == 0 && prop.prop_value < 0 || propDescription.direction == 1 && prop.prop_value > 0 ? "green" : "red";
+                  propValue = propDescription.modifier_type == ModifierType.ADD ? (prop.prop_value) : prop.prop_value * 100;
+                  color = propDescription.direction == PropertyDirection.LOWER_IS_BETTER && prop.prop_value < 0 || propDescription.direction == PropertyDirection.HIGHER_IS_BETTER && prop.prop_value > 0 ? "green" : "red";
                   text += propDescription.prop_name + ": " + Util.styledChar(sign + (int(propValue) == propValue ? propValue.toString() : propValue.toFixed(1)) + postfix,color) + "\n";
                }
             }
@@ -474,12 +484,12 @@ package survarium.controls
          var canBuy:Boolean = this._data.canBuy;
          var price:uint;
          var sellPrice:Number;
-         isShopItems = this._data.descriptor == 200;
+         isShopItems = this._data.descriptor == ItemPlace.SHOP;
          if(!this.isShopItems)
          {
             canBuy = GangShop.getInstance().getItemBuyable(this._data.dictId);
          }
-         isQuickSlot = this._data.descriptor < 100 && this._data.slotId > 12;
+         isQuickSlot = this._data.descriptor < ItemPlace.INVENTORY && this._data.slotId > ProfileSlot.WEAPON_2_AMMO_2;
          isStack = this._data.isStack;
          if(this.isShopItems)
          {
@@ -488,7 +498,7 @@ package survarium.controls
          else
          {
             price = this._data.isPremium ? (this._data.cost * PlayerInfo.premiumExchangeRate) : this._data.cost;
-            sellPrice = price / 4 * (this._data.isStack ? 1 : this._data.value / 100);
+            sellPrice = price / ItemPrice.SELL_DIVISOR * (this._data.isStack ? 1 : this._data.value / ItemCondition.FULL);
             trace("IC::itemCost::",price,this._data.isPremium,this._data.cost,PlayerInfo.premiumExchangeRate,"sellCost::",sellPrice);
             _cost = sellPrice;
          }
@@ -515,7 +525,7 @@ package survarium.controls
       private function isUpgradeable(item:Object) : Boolean
       {
          var category:int = int(item.category);
-         return (category == 3 || category == 1 || category == 5 || category == 4) && (Boolean(this._data.camoAvailable) || Boolean(this._data.decalAvailable)) || UpgradeWindow.isWeaponCategory(category) && UpgradeWindow.hasScopes(int(item.dictId));
+         return (category == ItemCategory.BODY_ARMOR || category == ItemCategory.HELMETS || category == ItemCategory.PANTS || category == ItemCategory.RIGS) && (Boolean(this._data.camoAvailable) || Boolean(this._data.decalAvailable)) || UpgradeWindow.isWeaponCategory(category) && UpgradeWindow.hasScopes(int(item.dictId));
       }
    }
 }

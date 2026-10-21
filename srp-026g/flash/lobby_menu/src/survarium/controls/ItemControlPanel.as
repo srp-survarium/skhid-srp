@@ -16,6 +16,13 @@ package survarium.controls
    import survarium.interfaces.IInventoryItemFactory;
    import survarium.item.ItemFactory;
    import survarium.upgrade.UpgradeWindow;
+   import survarium.constants.ItemCategory;
+   import survarium.constants.ItemCondition;
+   import survarium.constants.ItemPlace;
+   import survarium.constants.ItemPrice;
+   import survarium.constants.ModificationState;
+   import survarium.constants.MoneyType;
+   import survarium.constants.ProfileSlot;
    
    public class ItemControlPanel extends MovieClip
    {
@@ -48,6 +55,9 @@ package survarium.controls
       
       private var backgroundWidth:uint = 574;
       
+      // meaning unknown: the most steps (or units) the buy and sell counter allows (maxCount, which nothing reads)
+      private static const MAX_COUNT_STEPS:int = 100;
+      
       private var _data:ItemData = null;
       
       private var _inventory:IInventoryItemFactory = null;
@@ -60,7 +70,7 @@ package survarium.controls
       
       private var _isStack:Boolean;
       
-      private var _money_type:int = 0;
+      private var _money_type:int = MoneyType.REGULAR;
       
       private var _step:int = 0;
       
@@ -180,12 +190,12 @@ package survarium.controls
             return;
          }
          var canBuy:Boolean = this._data.canBuy;
-         this._isShopItems = this._data.descriptor == 200 || this._data.descriptor == 300;
+         this._isShopItems = this._data.descriptor == ItemPlace.SHOP || this._data.descriptor == ItemPlace.BUNDLE;
          if(!this._isShopItems)
          {
             canBuy = this._data.canBuy;
          }
-         this._isQuickSlot = this._data.descriptor < 100 && this._data.slotId > 12;
+         this._isQuickSlot = this._data.descriptor < ItemPlace.INVENTORY && this._data.slotId > ProfileSlot.WEAPON_2_AMMO_2;
          this._isStack = this._data.isStack;
          if(this._isShopItems)
          {
@@ -194,7 +204,7 @@ package survarium.controls
          else
          {
             price = this._data.isPremium ? uint(this._data.cost * PlayerInfo.premiumExchangeRate) : this._data.cost;
-            sellPrice = price / 4 * (this._data.isStack ? 1 : this._data.value / 100);
+            sellPrice = price / ItemPrice.SELL_DIVISOR * (this._data.isStack ? 1 : this._data.value / ItemCondition.FULL);
             this._cost = sellPrice;
          }
          this._step = this._data.clipSize == 0 ? 1 : int(this._data.clipSize);
@@ -211,11 +221,11 @@ package survarium.controls
             while(i < modifierCount)
             {
                modifier = this._data.modifiers[i];
-               if(Boolean(modifier) && modifier.state == 1)
+               if(Boolean(modifier) && modifier.state == ModificationState.DEFECT)
                {
                   hasModifierToFix = true;
                }
-               if(Boolean(modifier) && Boolean(modifier.state == 0) && !modifier.isDefault)
+               if(Boolean(modifier) && Boolean(modifier.state == ModificationState.MODIFICATION) && !modifier.isDefault)
                {
                   this._rerollable = true;
                }
@@ -258,7 +268,7 @@ package survarium.controls
          {
             this.btn_item_craft.tipEnabled = false;
          }
-         this.btn_item_fix.enabled = !this._isShopItems && (this._data.value != 100 || hasModifierToFix) && this._data.enabled;
+         this.btn_item_fix.enabled = !this._isShopItems && (this._data.value != ItemCondition.FULL || hasModifierToFix) && this._data.enabled;
          this.btn_item_sell.data = {"name":this.btn_item_sell.label};
          this.btn_item_buy.data = {"name":this.btn_item_buy.label};
          this.btn_item_fix.data = {"name":this.btn_item_fix.label};
@@ -271,18 +281,18 @@ package survarium.controls
          this.btnSellBig.label = LocalizationData.getName("buy");
          if(this._isShopItems)
          {
-            maxCount = this._data.cost < 1 ? int(Math.min(Math.max(0,int((PlayerInfo.MAX_FREE_ITEMS_COUNT - this._data.value) / this._step)),100)) : int((this._data.isPremium ? PlayerInfo.premiumMoney : PlayerInfo.genericMoney) / this._data.cost);
+            maxCount = this._data.cost < 1 ? int(Math.min(Math.max(0,int((PlayerInfo.MAX_FREE_ITEMS_COUNT - this._data.value) / this._step)),MAX_COUNT_STEPS)) : int((this._data.isPremium ? PlayerInfo.premiumMoney : PlayerInfo.genericMoney) / this._data.cost);
          }
          else
          {
-            maxCount = Math.min(100 * this._step,this._data.isStack ? this._data.value : 1);
+            maxCount = Math.min(MAX_COUNT_STEPS * this._step,this._data.isStack ? this._data.value : 1);
          }
          var premiumLocked:Boolean = !this._data.canBuy && Boolean(this._data.premiumCost);
          this.btn_item_upgrade.enabled = !this._isShopItems && !this._isStack && this.isUpgradeable(this._data) && this._data.enabled;
          this.btn_item_upgrade.alpha = this.btn_item_upgrade.enabled ? 1 : 0.5;
          this.btn_item_upgrade.label = UpgradeWindow.isWeaponCategory(int(this._data.category)) ? LocalizationData.getName("scope_window_title") : LocalizationData.getName("btn_upgrade_label");
-         var condition:uint = this._isShopItems ? 100 : this._data.value;
-         var conditionRatio:Number = condition / 100;
+         var condition:uint = this._isShopItems ? ItemCondition.FULL : this._data.value;
+         var conditionRatio:Number = condition / ItemCondition.FULL;
          this.btn_item_fix.progress = conditionRatio;
          this.btn_item_fix.progressLabel = condition.toString() + "%";
          if(this._isQuickSlot || this._isStack)
@@ -309,7 +319,7 @@ package survarium.controls
       private function isUpgradeable(item:Object) : Boolean
       {
          var category:int = int(item.category);
-         return (category == 3 || category == 1 || category == 5 || category == 4) && (Boolean(this._data.camoAvailable) || Boolean(this._data.decalAvailable)) || UpgradeWindow.isWeaponCategory(category) && UpgradeWindow.hasScopes(int(item.dictId));
+         return (category == ItemCategory.BODY_ARMOR || category == ItemCategory.HELMETS || category == ItemCategory.PANTS || category == ItemCategory.RIGS) && (Boolean(this._data.camoAvailable) || Boolean(this._data.decalAvailable)) || UpgradeWindow.isWeaponCategory(category) && UpgradeWindow.hasScopes(int(item.dictId));
       }
       
       public function checkButtonEnabled(event:Event = null) : void
@@ -321,8 +331,8 @@ package survarium.controls
             this.btn_item_craft.alpha = this.btn_item_reroll.alpha = this.btn_item_upgrade.alpha = this.btn_item_buy.alpha = this.btn_item_sell.alpha = 0.5;
             return;
          }
-         var buyUnlocked:Boolean = !this._inventory.getElelementLocked(1);
-         var sellUnlocked:Boolean = !this._inventory.getElelementLocked(2);
+         var buyUnlocked:Boolean = !this._inventory.getElelementLocked(LobbyMenu.SHOP_ELEMNENT_ID);
+         var sellUnlocked:Boolean = !this._inventory.getElelementLocked(LobbyMenu.INVENTORY_ELEMNENT_ID);
          var premiumLocked:Boolean = !this._data.canBuy && this._data.premiumCost;
          var canAfford:Boolean = this._data.isPremium || !this._data.isPremium && PlayerInfo.genericMoney >= this._data.cost;
          this.btn_item_sell.enabled = this._data.enabled && sellUnlocked;
@@ -343,7 +353,7 @@ package survarium.controls
          this.btn_show_l.enabled = (buyable || premiumLocked) && buyUnlocked && sellUnlocked;
          this.btn_show_r.alpha = this.btn_show_r.enabled ? 1 : 0.5;
          this.btn_show_l.alpha = this.btn_show_l.enabled ? 1 : 0.5;
-         trace("ICP:checkButtonEnabled","canBuy",this._data.canBuy,buyable,"lockedPremium::",premiumLocked,this.btn_show_l.enabled,this.btn_item_sell.enabled,"locked::",this._inventory.getElelementLocked(2),this._inventory.getElelementLocked(1));
+         trace("ICP:checkButtonEnabled","canBuy",this._data.canBuy,buyable,"lockedPremium::",premiumLocked,this.btn_show_l.enabled,this.btn_item_sell.enabled,"locked::",this._inventory.getElelementLocked(LobbyMenu.INVENTORY_ELEMNENT_ID),this._inventory.getElelementLocked(LobbyMenu.SHOP_ELEMNENT_ID));
       }
       
       private function updateButtons() : void

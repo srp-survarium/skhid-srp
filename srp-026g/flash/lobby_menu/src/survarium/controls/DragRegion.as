@@ -8,6 +8,10 @@ package survarium.controls
    import survarium.interfaces.ILocalPaperDoll;
    import survarium.interfaces.IPaperDoll;
    import survarium.player.LocalPlayerProfile;
+   import survarium.constants.CosmeticSlot;
+   import survarium.constants.ItemCategory;
+   import survarium.constants.ItemPlace;
+   import survarium.constants.ProfileSlot;
    
    public class DragRegion extends DragSlot
    {
@@ -35,7 +39,7 @@ package survarium.controls
          trace("DG::handleDropEvent",slot,_playerProfile);
          if(event.dragTarget is IInventoryItemRenderer)
          {
-            if(item.descriptor == 100 && item.category == 25)
+            if(item.descriptor == ItemPlace.INVENTORY && item.category == ItemCategory.CAMOUFLAGES)
             {
                this.tryRelocateCamo(item);
                return false;
@@ -44,13 +48,13 @@ package survarium.controls
             {
                if(!item.isStack)
                {
-                  if(item.descriptor == 100)
+                  if(item.descriptor == ItemPlace.INVENTORY)
                   {
                      relocations = [{
                         profile:localProfile.profileId,
                         id:item.itemId,
                         dict_id:item.dictId,
-                        sourceSlot:100,
+                        sourceSlot:ItemPlace.INVENTORY,
                         targetSlot:slot,
                         count:1
                      }];
@@ -61,7 +65,7 @@ package survarium.controls
                   }
                   else
                   {
-                     MainScene.buyFunction(localProfile.profileId,item.itemId,item.dictId,200,slot,1,item.cost);
+                     MainScene.buyFunction(localProfile.profileId,item.itemId,item.dictId,ItemPlace.SHOP,slot,1,item.cost);
                   }
                }
                else
@@ -76,11 +80,11 @@ package survarium.controls
       private function tryRelocateCamo(camo:ItemData) : void
       {
          var paperDoll:IPaperDoll = _playerProfile.profileItems;
-         var weapon:ItemData = paperDoll.getSlotAt(2).data as ItemData;
+         var weapon:ItemData = paperDoll.getSlotAt(ProfileSlot.BODY).data as ItemData;
          if(weapon && weapon.camoAvailable)
          {
-            trace("relocate_upgrade_item_on_drop",weapon.itemId,uint(camo.itemId),uint(3));
-            ExternalInterface.call("relocate_upgrade_item",weapon.itemId,uint(camo.itemId),uint(3));
+            trace("relocate_upgrade_item_on_drop",weapon.itemId,uint(camo.itemId),uint(CosmeticSlot.CAMOUFLAGE));
+            ExternalInterface.call("relocate_upgrade_item",weapon.itemId,uint(camo.itemId),uint(CosmeticSlot.CAMOUFLAGE));
          }
       }
    }

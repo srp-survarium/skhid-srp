@@ -4,7 +4,6 @@ package survarium.item
    import flash.geom.ColorTransform;
    import flash.text.TextField;
    import survarium.Util;
-   import survarium.constants.Category;
    import survarium.constants.Colors;
    import survarium.controls.FixedText;
    import survarium.controls.ItemRendererBase;
@@ -12,6 +11,12 @@ package survarium.item
    import survarium.core.Icon;
    import survarium.data.ItemData;
    import survarium.upgrade.UpgradeWindow;
+   import survarium.constants.ItemCondition;
+   import survarium.constants.ItemPlace;
+   import survarium.constants.ItemRank;
+   import survarium.constants.MoneyType;
+   import survarium.constants.RendererState;
+   import survarium.constants.SuperCategory;
    
    public class ItemRendererInv extends ItemRendererBase
    {
@@ -87,12 +92,12 @@ package survarium.item
          super.draw();
       }
       
-      override public function updateState(itemState:uint = 0) : void
+      override public function updateState(itemState:uint = RendererState.ACTIVE) : void
       {
-         var contentAlpha:Number = itemState == 0 ? 1 : 0.6;
+         var contentAlpha:Number = itemState == RendererState.ACTIVE ? 1 : 0.6;
          if(iconRenderer)
          {
-            iconRenderer.alpha = itemState == 2 ? 0.6 : 1;
+            iconRenderer.alpha = itemState == RendererState.LOCKED ? 0.6 : 1;
          }
          this.textName.alpha = contentAlpha;
          this.brokenIcon.alpha = contentAlpha;
@@ -117,17 +122,17 @@ package survarium.item
          var item:ItemData = _data as ItemData;
          super.updateData();
          var isStack:Boolean = item.isStack;
-         var isShopItem:Boolean = item.descriptor == 200 || item.descriptor == 300;
+         var isShopItem:Boolean = item.descriptor == ItemPlace.SHOP || item.descriptor == ItemPlace.BUNDLE;
          var isOwnedItem:Boolean = !isStack && !isShopItem;
          this.bundleBackground.visible = item.fromBundle;
          this.textName.text = item.name;
          if(Boolean(item.rank))
          {
-            if(item.rank == 1)
+            if(item.rank == ItemRank.ONE)
             {
                nameColor = Colors.RANK_1;
             }
-            else if(_data.rank == 2)
+            else if(_data.rank == ItemRank.TWO)
             {
                nameColor = Colors.RANK_2;
             }
@@ -142,7 +147,7 @@ package survarium.item
          }
          this.textName.textField.textColor = nameColor;
          this.textLevel.text = item.itemLevel.toString();
-         this.textLevel.visible = item.itemLevel > 0 && item.superCategory != Category.BASE_VOUCHER;
+         this.textLevel.visible = item.itemLevel > 0 && item.superCategory != SuperCategory.UPGRADES;
          this.sellerIcon.visible = Boolean(item.sellerIcon);
          if(Boolean(this.sellerIcon.numChildren))
          {
@@ -170,9 +175,9 @@ package survarium.item
             }
             this.paintedIcon.visible = Boolean(item.upgrades) && item.upgrades.length > 0;
             this.updateScopeBadge(item,true);
-            this.damageIndicator.visible = isOwnedItem && item.value < 100;
-            this.damageIndicator.track.scaleX = _data.value / 100;
-            condition = _data.value / 100 * 510;
+            this.damageIndicator.visible = isOwnedItem && item.value < ItemCondition.FULL;
+            this.damageIndicator.track.scaleX = _data.value / ItemCondition.FULL;
+            condition = _data.value / ItemCondition.FULL * 510;
             trackColor = Util.getColor(Math.min(510 - condition,255),Math.min(condition,255),0);
             colorTransform = new ColorTransform();
             colorTransform.color = trackColor;
@@ -192,7 +197,7 @@ package survarium.item
          if(isShopItem)
          {
             this.labelCost.visible = true;
-            this.labelCost.moneyType = item.isPremium ? 1 : 0;
+            this.labelCost.moneyType = item.isPremium ? MoneyType.PREMIUM : MoneyType.REGULAR;
             this.labelCost.textField.textColor = item.isPremium ? Colors.GOLD : Colors.PRICE_REG;
             this.labelCost.cost = item.cost;
          }
@@ -211,7 +216,7 @@ package survarium.item
          }
          if(Boolean(this.bottomBackground))
          {
-            isShopRow = _data.descriptor == 200 || _data.descriptor == 300;
+            isShopRow = _data.descriptor == ItemPlace.SHOP || _data.descriptor == ItemPlace.BUNDLE;
             this.bottomBackground.height = isShopRow ? 54 : 34;
             this.bottomBackground.y = isShopRow ? 75 : 95;
          }

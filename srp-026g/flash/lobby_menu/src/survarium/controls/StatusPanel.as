@@ -31,6 +31,9 @@ package survarium.controls
    import survarium.messages.MessageMoneyExchange;
    import survarium.rooms.RoomsLook;
    import survarium.rooms.RoomsWindow;
+   import survarium.constants.ClanState;
+   import survarium.constants.Faction;
+   import survarium.constants.VoucherType;
    
    public class StatusPanel extends UIComponent
    {
@@ -46,6 +49,12 @@ package survarium.controls
       private var _time:int;
       
       private var _margin:uint = 3;
+      
+      // the player level shown as the top-rank icon in place of its number
+      private static const TOP_RANK_LEVEL:int = 100;
+      
+      // meaning not traced: set_day_progress hides the daily bonus text at this step
+      private static const DAILY_PROGRESS_LAST:int = 3;
       
       private var _anno_message:String = "";
       
@@ -139,7 +148,7 @@ package survarium.controls
       
       protected var _clanAbb:String = "";
       
-      protected var _clanState:uint = 0;
+      protected var _clanState:uint = ClanState.RESERVE;
       
       private var _notesLabels:Array = ["prepare_to_battle_notes","items_notes"];
       
@@ -241,7 +250,7 @@ package survarium.controls
       public function set active_faction(value:int) : void
       {
          this.panelFaction.btnActiveFaction.icon.mouseEnabled = false;
-         if(value != 0)
+         if(value != Faction.NONE)
          {
             this.panelFaction.btnActiveFaction.icon.gotoAndStop(value + 1);
          }
@@ -290,7 +299,7 @@ package survarium.controls
       
       public function set player_level(value:uint) : void
       {
-         if(value != 100)
+         if(value != TOP_RANK_LEVEL)
          {
             this.panel_player.top_rank_icon.visible = false;
             this.panel_player.txLevel.text = value.toString();
@@ -353,7 +362,7 @@ package survarium.controls
       
       public function setPlayerName(value:String) : void
       {
-         this.panel_player.textFieldName.text = (this._clanAbb) && (this._clanState == 3 || this._clanState == 4) ? "[" + this._clanAbb + "] " + value : value;
+         this.panel_player.textFieldName.text = (this._clanAbb) && (this._clanState == ClanState.OVERVIEW || this._clanState == ClanState.MANAGE) ? "[" + this._clanAbb + "] " + value : value;
          this.panel_player.textFieldName.mouseEnabled = false;
          this.panel_player.textFieldName.mouseChildren = false;
          this.updateIconPosition();
@@ -734,7 +743,7 @@ package survarium.controls
       
       public function showChangeNameMessage(e:ButtonEvent = null) : void
       {
-         var voucherId:uint = PlayerInfo.getVoucherId(0);
+         var voucherId:uint = PlayerInfo.getVoucherId(VoucherType.RENAME);
          var messageData:Object = {
             nickname:PlayerInfo.nickname,
             premiumCost:this.changeNameCostPremium,
@@ -769,7 +778,7 @@ package survarium.controls
          var textBonus:* = (this.right_corner.btnShowDailyMessage.content as MovieClip).getChildByName("textBonus");
          if((textBonus))
          {
-            textBonus.visible = value != 3;
+            textBonus.visible = value != DAILY_PROGRESS_LAST;
          }
       }
       
@@ -820,7 +829,7 @@ package survarium.controls
       
       private function onClickMessage(e:MouseEventEx = null) : void
       {
-         if(!e || e.buttonIdx == 0)
+         if(!e || e.buttonIdx == MouseEventEx.LEFT_BUTTON)
          {
             Message.showMessage("anno",{text:this._anno_message},true);
          }

@@ -21,6 +21,7 @@ package survarium.char
    import survarium.data.LocalizationData;
    import survarium.data.PropertiesDescriptor;
    import survarium.interfaces.ISkillRenderer;
+   import survarium.constants.PropertyDirection;
    
    public class CharWindow extends UIWindow
    {
@@ -28,6 +29,11 @@ package survarium.char
       protected const SKILL_LEVELS:uint = 25;
       
       protected const POINTS_PER_LEVEL:uint = 5;
+      
+      // a skill branch's tiers (one every POINTS_PER_LEVEL branch points) and the points of its last
+      private static const TIERS:int = 5;
+      
+      private static const LAST_TIER_POINTS:int = 20;
       
       protected var _data:Object;
       
@@ -348,7 +354,7 @@ package survarium.char
       {
          this.progressIndicator.value = Math.min(branchPoints + 1,this.progressIndicator.maximum - this.POINTS_PER_LEVEL);
          var unclockedData:Object = this.getBranchUnlockedLevel();
-         var level:uint = unclockedData.level * 5;
+         var level:uint = unclockedData.level * this.POINTS_PER_LEVEL;
          if(unclockedData.lastUnlocked == true)
          {
             this.progressIndicator.value = this.progressIndicator.maximum;
@@ -383,7 +389,7 @@ package survarium.char
                if(skillData.branch_points <= value)
                {
                   level = (int(skillData.branch_points / this.POINTS_PER_LEVEL));
-                  if(skillData.branch_points == 20 && skillData.newValue > 0)
+                  if(skillData.branch_points == LAST_TIER_POINTS && skillData.newValue > 0)
                   {
                      lastUnlocked = true;
                   }
@@ -395,7 +401,7 @@ package survarium.char
                value += skillData.newValue;
             }
          }
-         level = Math.min(5,level);
+         level = Math.min(TIERS,level);
          data.level = level;
          data.lastUnlocked = lastUnlocked;
          return data;
@@ -727,7 +733,7 @@ package survarium.char
             var data:Object = value[k];
             var propDescription:Object = this._propsDescriptor.getPropertyDescription(data.prop_id);
             data.new_value = data.prop_value;
-            if(propDescription.direction == 1)
+            if(propDescription.direction == PropertyDirection.HIGHER_IS_BETTER)
             {
                data.prefix = data.prop_value >= 0 ? "+" : "";
             }

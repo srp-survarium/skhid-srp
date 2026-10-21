@@ -7,7 +7,6 @@ package survarium.controls
    import flash.text.TextFieldAutoSize;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.interfaces.IDataRenderer;
-   import survarium.constants.Category;
    import survarium.constants.Colors;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
@@ -15,6 +14,11 @@ package survarium.controls
    import survarium.data.ItemDescriptor;
    import survarium.data.LocalizationData;
    import survarium.upgrade.UpgradeWindow;
+   import survarium.constants.ItemCategory;
+   import survarium.constants.ItemPlace;
+   import survarium.constants.ItemRank;
+   import survarium.constants.ModificationState;
+   import survarium.constants.SuperCategory;
    
    public class ItemInfoRenderer extends Sprite implements IDataRenderer
    {
@@ -129,7 +133,7 @@ package survarium.controls
                icon:modifierIcon,
                label:modifier.textValue
             };
-            if(modifier.state == 1)
+            if(modifier.state == ModificationState.DEFECT)
             {
                criticalModifiers.push(entry);
             }
@@ -177,7 +181,7 @@ package survarium.controls
             }
             return null;
          }
-         if(item.category != 22)
+         if(item.category != ItemCategory.SCOPES)
          {
             return null;
          }
@@ -202,7 +206,7 @@ package survarium.controls
          {
             hint += (hint.length > 0 ? "\n" : "") + LocalizationData.getName("can_be_installed_on") + ": " + names.join(", ");
          }
-         if(Boolean(item.itemId) && Boolean(UpgradeWindow.instance) && item.descriptor != 200)
+         if(Boolean(item.itemId) && Boolean(UpgradeWindow.instance) && item.descriptor != ItemPlace.SHOP)
          {
             names = UpgradeWindow.wearers(item);
             if(Boolean(names) && names.length > 0)
@@ -228,11 +232,11 @@ package survarium.controls
          trace("updateIIR::0",item);
          if(Boolean(this._data.rank))
          {
-            if(this._data.rank == 1)
+            if(this._data.rank == ItemRank.ONE)
             {
                nameColor = Colors.RANK_1;
             }
-            else if(this._data.rank == 2)
+            else if(this._data.rank == ItemRank.TWO)
             {
                nameColor = Colors.RANK_2;
             }
@@ -250,13 +254,13 @@ package survarium.controls
          this.sellerIcon = Boolean(item.sellerIcon) ? (item.sellerIcon as Icon).clone() : null;
          this.orangeOverlay.visible = false;
          this.itemName.x = this.itemAmmoName.x = Boolean(item.sellerIcon) ? 30 : 10;
-         if(Boolean(item.itemDescription && (item.category == 10 || item.superCategory == 5 || item.category == 100) && item.category != 28) && Boolean(item.category != 29) && item.category != Category.GOLD)
+         if(Boolean(item.itemDescription && (item.category == ItemCategory.MEDKITS || item.superCategory == SuperCategory.UPGRADES || item.category == ItemCategory.BUNDLE) && item.category != ItemCategory.GENERIC_MONEY) && Boolean(item.category != ItemCategory.PREMIUM_MONEY) && item.category != ItemCategory.PREMIUM_MONEY)
          {
-            this.textFieldDescription.y = item.isStack && item.descriptor < 100 ? 52 : 32;
+            this.textFieldDescription.y = item.isStack && item.descriptor < ItemPlace.INVENTORY ? 52 : 32;
             this.textFieldDescription.x = 11;
             this.textFieldDescription.width = 234;
             this.textFieldDescription.styleSheet = MainScene.textStyleSheet;
-            this.textFieldDescription.text = item.itemDescription + (item.descriptor == 300 ? "\n\n" + LocalizationData.getName("bundle_clik_hint") : "");
+            this.textFieldDescription.text = item.itemDescription + (item.descriptor == ItemPlace.BUNDLE ? "\n\n" + LocalizationData.getName("bundle_clik_hint") : "");
             this.textFieldDescription.autoSize = TextFieldAutoSize.LEFT;
             this.textFieldDescription.visible = true;
          }
@@ -270,7 +274,7 @@ package survarium.controls
             trace("isWeapon::",item.ammoText);
             this.itemAmmoName.text = item.ammoText;
          }
-         else if(item.isStack && item.descriptor < 100 && item.category != Category.GOLD)
+         else if(item.isStack && item.descriptor < ItemPlace.INVENTORY && item.category != ItemCategory.PREMIUM_MONEY)
          {
             this.itemAmmoName.text = item.tipText;
             this.itemAmmoName.visible = true;
@@ -292,18 +296,18 @@ package survarium.controls
          }
          this.textFieldItemLevel.text = item.itemLevel > 0 ? LocalizationData.getName("clan_players_level_label") + " " + String(item.itemLevel) : "";
          trace("INFOCAT::",item.isStack,item.descriptor);
-         if(item.isWeapon || item.superCategory == 4)
+         if(item.isWeapon || item.superCategory == SuperCategory.ITEMS)
          {
             iconFrame = item.iconId + (item.isWeapon ? 1 : 100);
             trace("a",item.iconId,iconFrame);
             this.textFieldItemLevel.visible = true;
          }
-         else if(item.superCategory == 1)
+         else if(item.superCategory == SuperCategory.EQUIPMENT)
          {
             trace("b",item.category);
             this.textFieldItemLevel.visible = true;
          }
-         else if(item.superCategory == 3)
+         else if(item.superCategory == SuperCategory.AMMO)
          {
             this.textFieldItemLevel.visible = true;
          }
@@ -360,11 +364,11 @@ package survarium.controls
          this.criticalModifiersList.y = this.criticalSeparator.visible ? this.criticalSeparator.y + this.criticalSeparator.height - 10 : this.modifiersList.y;
          this.criticalSeparator.textField.text = LocalizationData.getName("critical_damages");
          trace("ItemHint::",item.name,item.descriptor);
-         if(item.descriptor == 200)
+         if(item.descriptor == ItemPlace.SHOP)
          {
             this.textFieldStatus.text = LocalizationData.getName("item_hint_label_shop");
          }
-         else if(item.descriptor < 100)
+         else if(item.descriptor < ItemPlace.INVENTORY)
          {
             this.textFieldStatus.text = LocalizationData.getName("equipped");
          }

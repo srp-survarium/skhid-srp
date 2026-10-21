@@ -208,14 +208,14 @@ package survarium.controls
       
       protected function onClick(event:MouseEventEx) : void
       {
-         if(owner && event.buttonIdx == 0 && !MainScene.isShift)
+         if(owner && event.buttonIdx == MouseEventEx.LEFT_BUTTON && !MainScene.isShift)
          {
             (owner as FilterList).deselectAll();
             FilterList(owner).selectedIndex = this.index;
          }
          else
          {
-            event.buttonIdx = 0;
+            event.buttonIdx = MouseEventEx.LEFT_BUTTON;
             super.handleMousePress(event);
          }
       }

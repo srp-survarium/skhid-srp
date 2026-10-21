@@ -9,6 +9,9 @@ package survarium.controls
    import flash.utils.Timer;
    import scaleform.clik.layout.LayoutData;
    import scaleform.clik.motion.Tween;
+   import survarium.constants.ClanState;
+   import survarium.constants.Faction;
+   import survarium.constants.PremiumState;
    
    public class PlayerInfo extends MovieClip
    {
@@ -33,15 +36,15 @@ package survarium.controls
       
       public static var currentLevel:int = 0;
       
-      public static var activeFaction:int = 0;
+      public static var activeFaction:int = Faction.NONE;
       
-      public static var clanState:uint = 0;
+      public static var clanState:uint = ClanState.RESERVE;
       
       public static var premiumMoney:uint = 0;
       
       public static var genericMoney:uint = 0;
       
-      public static var premiumState:uint = 0;
+      public static var premiumState:uint = PremiumState.NONE;
       
       public static var premiumExchangeRate:uint = 0;
       

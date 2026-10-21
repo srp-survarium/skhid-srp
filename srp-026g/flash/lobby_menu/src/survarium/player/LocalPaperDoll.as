@@ -18,45 +18,53 @@ package survarium.player
    import survarium.interfaces.IPaperDollSlot;
    import survarium.item.ItemFactory;
    import survarium.paperdoll.PaperDollBase;
+   import survarium.constants.ItemCategory;
+   import survarium.constants.ProfileSlot;
+   import survarium.constants.AmmoView;
    
    public class LocalPaperDoll extends PaperDollBase implements ILocalPaperDoll
    {
       
+      // until the dictionary's slots_restrictions arrive (setSlotsRestrictions) a slot takes these
+      // item categories; the developers' defaults, not the restrictions' (back, legs, arms and foot differ)
       protected static var _slotAgreements:Object = {
-         slotHead:[1],
-         slotMask:[2],
-         slotBody:[3],
-         slotBack:[7],
-         slotLegs:[4],
-         slotArms:[5],
-         slotFoot:[6],
-         slotWpn1:[8],
-         slotWpn1A1:[9],
-         slotWpn1A2:[9],
-         slotWpn2:[8],
-         slotWpn2A1:[9],
-         slotWpn2A2:[9],
-         slotQck1:[10],
-         slotQck2:[10],
-         slotQck3:[10],
-         slotQck4:[10],
-         slotQck5:[10],
-         slotQck6:[10],
-         slotWpn5:[9],
-         slotWpn6:[9],
-         slotWpn7:[9],
-         slotWpn8:[9]
+         slotHead:[ItemCategory.HELMETS],
+         slotMask:[ItemCategory.MASKS],
+         slotBody:[ItemCategory.BODY_ARMOR],
+         slotBack:[ItemCategory.BOOTS],
+         slotLegs:[ItemCategory.RIGS],
+         slotArms:[ItemCategory.PANTS],
+         slotFoot:[ItemCategory.GLOVES],
+         slotWpn1:[ItemCategory.ASSAULT_RIFLES],
+         slotWpn1A1:[ItemCategory.ASSAULT_RIFLE_AMMO],
+         slotWpn1A2:[ItemCategory.ASSAULT_RIFLE_AMMO],
+         slotWpn2:[ItemCategory.ASSAULT_RIFLES],
+         slotWpn2A1:[ItemCategory.ASSAULT_RIFLE_AMMO],
+         slotWpn2A2:[ItemCategory.ASSAULT_RIFLE_AMMO],
+         slotQck1:[ItemCategory.MEDKITS],
+         slotQck2:[ItemCategory.MEDKITS],
+         slotQck3:[ItemCategory.MEDKITS],
+         slotQck4:[ItemCategory.MEDKITS],
+         slotQck5:[ItemCategory.MEDKITS],
+         slotQck6:[ItemCategory.MEDKITS],
+         slotWpn5:[ItemCategory.ASSAULT_RIFLE_AMMO],
+         slotWpn6:[ItemCategory.ASSAULT_RIFLE_AMMO],
+         slotWpn7:[ItemCategory.ASSAULT_RIFLE_AMMO],
+         slotWpn8:[ItemCategory.ASSAULT_RIFLE_AMMO]
       };
       
       protected var _inventory:IInventoryItemFactory;
       
       protected var _shareMode:Boolean = false;
       
-      protected var _ammo_indexes:Array = [8,9,11,12,19,20];
+      protected var _ammo_indexes:Array = [ProfileSlot.WEAPON_1_AMMO_1,ProfileSlot.WEAPON_1_AMMO_2,ProfileSlot.WEAPON_2_AMMO_1,ProfileSlot.WEAPON_2_AMMO_2,ProfileSlot.AMMO_5,ProfileSlot.AMMO_6];
       
-      protected var _ammo1_indexes:Array = [8,9,11];
+      protected var _ammo1_indexes:Array = [ProfileSlot.WEAPON_1_AMMO_1,ProfileSlot.WEAPON_1_AMMO_2,ProfileSlot.WEAPON_2_AMMO_1];
       
-      protected var _ammo2_indexes:Array = [12,19,20];
+      protected var _ammo2_indexes:Array = [ProfileSlot.WEAPON_2_AMMO_2,ProfileSlot.AMMO_5,ProfileSlot.AMMO_6];
+      
+      // _slots_index starts with the two weapons
+      private static const WEAPON_SLOTS:int = 2;
       
       protected var _last_slot:IPaperDollSlot;
       
@@ -172,9 +180,9 @@ package survarium.player
             fits = (_slotAgreements[_slots[i].name] as Array).indexOf(category) != -1;
             if(fits)
             {
-               if(category == 10 || category == 11 || category == 24)
+               if(category == ItemCategory.MEDKITS || category == ItemCategory.BOOBY_TRAPS || category == ItemCategory.GRENADES)
                {
-                  j = 13;
+                  j = ProfileSlot.QUICK_1;
                   while(j < _slots.length)
                   {
                      if(findFree)
@@ -193,8 +201,8 @@ package survarium.player
                            slot = _slots[j];
                            return j;
                         }
-                        slot = _slots[13];
-                        return 13;
+                        slot = _slots[ProfileSlot.QUICK_1];
+                        return ProfileSlot.QUICK_1;
                      }
                      j++;
                   }
@@ -293,15 +301,15 @@ package survarium.player
             isSlotFilled = false;
             if(_slotAgreements[_slots[i].name] && ((_slotAgreements[_slots[i].name] as Array).indexOf(category) != -1) && _slots[i].enabled)
             {
-               if(category == 9 || category == 18 || category == 19 || category == 20 || category == 21)
+               if(category == ItemCategory.ASSAULT_RIFLE_AMMO || category == ItemCategory.SNIPER_RIFLE_AMMO || category == ItemCategory.SHOTGUN_AMMO || category == ItemCategory.PISTOL_AMMO || category == ItemCategory.MACHINE_GUN_AMMO)
                {
-                  if(i == 8 || i == 9)
+                  if(i == ProfileSlot.WEAPON_1_AMMO_1 || i == ProfileSlot.WEAPON_1_AMMO_2)
                   {
-                     weaponSlot = _slots[7];
+                     weaponSlot = _slots[ProfileSlot.WEAPON_1];
                   }
-                  else if(i == 11 || i == 12)
+                  else if(i == ProfileSlot.WEAPON_2_AMMO_1 || i == ProfileSlot.WEAPON_2_AMMO_2)
                   {
-                     weaponSlot = _slots[10];
+                     weaponSlot = _slots[ProfileSlot.WEAPON_2];
                   }
                   if(this._doubleTwoHanded)
                   {
@@ -309,7 +317,7 @@ package survarium.player
                   }
                   else
                   {
-                     isSlotFilled = _slots[7].data && _slots[7].data.oneHanded == false || _slots[10].data && _slots[10].data.oneHanded == false;
+                     isSlotFilled = _slots[ProfileSlot.WEAPON_1].data && _slots[ProfileSlot.WEAPON_1].data.oneHanded == false || _slots[ProfileSlot.WEAPON_2].data && _slots[ProfileSlot.WEAPON_2].data.oneHanded == false;
                   }
                   trace("isSlotFilled::",this._doubleTwoHanded,isSlotFilled,oneHanded);
                   if(weaponSlot.data && (ItemFactory.getPair(dictId,weaponSlot.data.dictId)) && (!isSlotFilled || isSlotFilled && oneHanded))
@@ -325,7 +333,7 @@ package survarium.player
                else
                {
                   trace("b",this._doubleTwoHanded);
-                  isWeapon = category == 8 || category == 13 || category == 14 || category == 15 || category == 16 || category == 17;
+                  isWeapon = category == ItemCategory.ASSAULT_RIFLES || category == ItemCategory.SNIPER_RIFLES || category == ItemCategory.SHOTGUNS || category == ItemCategory.SUBMACHINE_GUNS || category == ItemCategory.MACHINE_GUNS || category == ItemCategory.PISTOLS;
                   if(isWeapon && !fromSlot)
                   {
                      if(this._doubleTwoHanded)
@@ -334,9 +342,9 @@ package survarium.player
                      }
                      else
                      {
-                        isSlotFilled = _slots[7].data && _slots[7].data.oneHanded == false || _slots[10].data && _slots[10].data.oneHanded == false;
+                        isSlotFilled = _slots[ProfileSlot.WEAPON_1].data && _slots[ProfileSlot.WEAPON_1].data.oneHanded == false || _slots[ProfileSlot.WEAPON_2].data && _slots[ProfileSlot.WEAPON_2].data.oneHanded == false;
                      }
-                     isSameWeapon = _slots[7].data && _slots[7].data.dictId == dictId && i == 10 || _slots[10].data && _slots[10].data.dictId == dictId && i == 7;
+                     isSameWeapon = _slots[ProfileSlot.WEAPON_1].data && _slots[ProfileSlot.WEAPON_1].data.dictId == dictId && i == ProfileSlot.WEAPON_2 || _slots[ProfileSlot.WEAPON_2].data && _slots[ProfileSlot.WEAPON_2].data.dictId == dictId && i == ProfileSlot.WEAPON_1;
                   }
                   if(!_slots[i].enabled)
                   {
@@ -443,11 +451,11 @@ package survarium.player
          var j:int;
          while(i < _dataProvider.length)
          {
-            if(_dataProvider[i].slotId == 7)
+            if(_dataProvider[i].slotId == ProfileSlot.WEAPON_1)
             {
                primaryIndex = (i);
             }
-            else if(_dataProvider[i].slotId == 10)
+            else if(_dataProvider[i].slotId == ProfileSlot.WEAPON_2)
             {
                secondaryIndex = (i);
             }
@@ -472,7 +480,7 @@ package survarium.player
                continue;
             }
             item = _dataProvider[i];
-            if(!getSlotPair(item.category,8))
+            if(!getSlotPair(item.category,ProfileSlot.WEAPON_1_AMMO_1))
             {
                continue;
             }
@@ -489,7 +497,7 @@ package survarium.player
                   {
                      if(item.value == 0)
                      {
-                        item.slotId = 999;
+                        item.slotId = ProfileSlot.NONE;
                      }
                      else
                      {
@@ -543,16 +551,16 @@ package survarium.player
                trace("pd_secondaryEnabled",this._secondaryEnabled,slot);
                slot.enabled = this._secondaryEnabled && (slot.data && slot.data.enabled || !slot.data);
                check_slot(getChildByName("slotWpn1"),getChildByName("slotWpn2"));
-               i = 3;
+               i = AmmoView.SLOTS_PER_WEAPON;
                while(i < this._ammo_indexes.length)
                {
                   _slots[this._ammo_indexes[i]].visible = !this._shareMode;
                   i++;
                }
             }
-            isSlotFilled = this._doubleTwoHanded ? false : _slots[7].data && !_slots[7].data.oneHanded || _slots[10].data && !_slots[10].data.oneHanded;
-            _slots[7].doubleEnabled = !isSlotFilled;
-            _slots[10].doubleEnabled = !isSlotFilled;
+            isSlotFilled = this._doubleTwoHanded ? false : _slots[ProfileSlot.WEAPON_1].data && !_slots[ProfileSlot.WEAPON_1].data.oneHanded || _slots[ProfileSlot.WEAPON_2].data && !_slots[ProfileSlot.WEAPON_2].data.oneHanded;
+            _slots[ProfileSlot.WEAPON_1].doubleEnabled = !isSlotFilled;
+            _slots[ProfileSlot.WEAPON_2].doubleEnabled = !isSlotFilled;
             dispatchEvent(new Event(PAPERDOLL_UPDATED));
          }
       }
@@ -565,7 +573,7 @@ package survarium.player
          {
             return;
          }
-         if(event.buttonIdx == 0)
+         if(event.buttonIdx == MouseEventEx.LEFT_BUTTON)
          {
             return;
          }
@@ -679,7 +687,7 @@ package survarium.player
          if(this._last_name != slotName)
          {
             listIndex = this._slots_index.indexOf(slotName);
-            if(listIndex < 2 && !slot.data && event.type != Events.DROP_IN)
+            if(listIndex < WEAPON_SLOTS && !slot.data && event.type != Events.DROP_IN)
             {
                this._inventory.selectCategory(_slotAgreements[slotName],true);
                emptyItem = new ItemData();

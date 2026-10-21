@@ -9,6 +9,8 @@ package survarium.controls
    import survarium.core.Icon;
    import survarium.data.PropertiesDescriptor;
    import survarium.item.ItemFactory;
+   import survarium.constants.ModifierType;
+   import survarium.constants.SuperCategory;
    
    public class ItemCompare extends MovieClip
    {
@@ -149,7 +151,7 @@ package survarium.controls
                   {
                      description = _propsDescriptor.getPropertyDescription(prop.prop_id);
                      baseValue = diff.indicator.value - diff.indicator.extra;
-                     upgradeValue = description.modifier_type == 0 ? prop.prop_value : baseValue * prop.prop_value;
+                     upgradeValue = description.modifier_type == ModifierType.ADD ? prop.prop_value : baseValue * prop.prop_value;
                      trace("_diff.indicator.value::",description.modifier_type,baseValue,diff.indicator.value,prop.prop_value,upgradeValue);
                      diff.indicator.upgrade = upgradeValue;
                      break;
@@ -249,7 +251,7 @@ package survarium.controls
                   }
                }
             }
-            if(modifierType == 0)
+            if(modifierType == ModifierType.ADD)
             {
                total = baseProperty.prop_value + modifier_value;
             }
@@ -257,7 +259,7 @@ package survarium.controls
             {
                total = baseProperty.prop_value * (1 + modifier_value);
             }
-            if(modifierType == 1)
+            if(modifierType == ModifierType.MULTIPLY)
             {
                modifier_value = baseProperty.prop_value * modifier_value;
             }
@@ -321,7 +323,7 @@ package survarium.controls
             _diff.visible = false;
             index++;
          }
-         if(!this._secondary || (prim_cat == 2 ? (prim_cat != ItemFactory.getCategory(this._secondary.category)) : this._primary.category != this._secondary.category))
+         if(!this._secondary || (prim_cat == SuperCategory.WEAPONS ? (prim_cat != ItemFactory.getCategory(this._secondary.category)) : this._primary.category != this._secondary.category))
          {
             dispatchEvent(new Event(Event.RESIZE));
             return;

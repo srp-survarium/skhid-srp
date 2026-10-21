@@ -10,6 +10,8 @@ package survarium.paperdoll
    import survarium.interfaces.ILocalPaperDoll;
    import survarium.interfaces.ILocalPlayerProfile;
    import survarium.interfaces.IPaperDollSlot;
+   import survarium.constants.ItemPlace;
+   import survarium.constants.ProfileSlot;
    
    public class ItemPaperDollSlot extends ItemDragSlot
    {
@@ -53,7 +55,7 @@ package survarium.paperdoll
             itemId = (_data.itemId);
             profileId = (playerProfile.profileId);
             dictId = (_data.dictId);
-            targetDescriptor = 100;
+            targetDescriptor = ItemPlace.INVENTORY;
             isDropped = true;
             relocation = {
                profile:profileId,
@@ -128,17 +130,17 @@ package survarium.paperdoll
          }
          else
          {
-            targetDescriptor = 100;
+            targetDescriptor = ItemPlace.INVENTORY;
          }
          trace("PDS:handleDropEvent::",event.dragTarget,event.dropTarget,enabled,highlighted,playerProfile._relocateFunction,"source:",sourceDescriptor);
-         if(item.descriptor == 200 && enabled == true && highlighted == true)
+         if(item.descriptor == ItemPlace.SHOP && enabled == true && highlighted == true)
          {
             buyCount = (item.count);
             if(item.isStack)
             {
                buyCount = -1;
             }
-            if(index == 7 || index == 10)
+            if(index == ProfileSlot.WEAPON_1 || index == ProfileSlot.WEAPON_2)
             {
                relocation = {
                   profile:profileId,
@@ -167,12 +169,12 @@ package survarium.paperdoll
             };
             trace("relocateFabrica:a");
             _relocateArray = [move];
-            if(index != 7 && index != 10)
+            if(index != ProfileSlot.WEAPON_1 && index != ProfileSlot.WEAPON_2)
             {
                trace_relocate(_relocateArray);
                result = playerProfile._relocateFunction(_relocateArray);
             }
-            else if(targetDescriptor != 100)
+            else if(targetDescriptor != ItemPlace.INVENTORY)
             {
                trace_relocate(_relocateArray);
                result = playerProfile._relocateFunction(_relocateArray);

@@ -5,6 +5,8 @@ package survarium.controls
    import survarium.ammo.AmmoSlider;
    import survarium.data.ItemData;
    import survarium.data.LocalizationData;
+   import survarium.constants.ItemPlace;
+   import survarium.constants.QuickSlotSize;
    
    public class ItemRendererQSlot extends ItemRendererBase
    {
@@ -27,14 +29,14 @@ package survarium.controls
          item = _data as ItemData;
          super.updateData();
          this.slider.renderer = "PDSliderCell";
-         isEquipped = item.descriptor != 0;
+         isEquipped = item.descriptor != ItemPlace.NONE;
          var capacity:int = isEquipped ? PlayerInfo.pocketSize : this.pocketSize;
          var totalCount:int = isEquipped ? item.count : item.value;
          this.slider.visible = true;
          this.slider.scaleRenders = false;
          this.slider.shiftInterval = 1;
          this.slider.minimum = 0;
-         var isDouble:Boolean = _data.quickSlotItemSize == 2;
+         var isDouble:Boolean = _data.quickSlotItemSize == QuickSlotSize.WHOLE;
          trace("IRQ::",item.name,item.descriptor,item.count,item.value,isDouble);
          this.textCount.visible = this.slider.visible = !isDouble;
          var slotSize:int = isDouble ? capacity : 1;

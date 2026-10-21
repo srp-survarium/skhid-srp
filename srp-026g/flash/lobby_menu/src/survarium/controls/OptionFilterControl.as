@@ -10,6 +10,8 @@ package survarium.controls
    import scaleform.clik.events.IndexEvent;
    import scaleform.clik.events.ListEvent;
    import survarium.data.LocalizationData;
+   import survarium.constants.ShopFilter;
+   import survarium.constants.WeaponHands;
    
    public class OptionFilterControl extends Sprite
    {
@@ -73,7 +75,7 @@ package survarium.controls
       public function set shopTab(value:ButtonBar) : void
       {
          _shopTab = value;
-         this._shopTab.selectedIndex = 0;
+         this._shopTab.selectedIndex = ShopFilter.SHOP_AND_INVENTORY;
          this._shopTab.addEventListener(IndexEvent.INDEX_CHANGE,this.onSortTypeChange);
       }
       
@@ -156,7 +158,7 @@ package survarium.controls
       public function getFilterOptions() : Object
       {
          return {
-            weapons:2,
+            weapons:WeaponHands.ALL,
             sortFirst:(this.sortTab.selectedIndex == 0 ? this.sortTypes[0] : this.sortTypes[1]),
             sortSecond:(this.sortTab.selectedIndex == 0 ? this.sortTypes[1] : this.sortTypes[0]),
             onlyEnabled:false,

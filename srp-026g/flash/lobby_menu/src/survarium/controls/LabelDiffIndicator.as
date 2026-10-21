@@ -6,6 +6,7 @@ package survarium.controls
    import scaleform.clik.utils.Constraints;
    import survarium.Util;
    import survarium.constants.Colors;
+   import survarium.constants.PropertyDirection;
    
    public class LabelDiffIndicator extends DiffIndicator
    {
@@ -124,7 +125,7 @@ package survarium.controls
          {
             betterColor = Colors.GREEN_DIFF;
             worseColor = Colors.RED_DIFF;
-            if(_direction == 0)
+            if(_direction == PropertyDirection.LOWER_IS_BETTER)
             {
                this.textFieldValue.textColor = _valueDiff < 0 ? worseColor : betterColor;
             }

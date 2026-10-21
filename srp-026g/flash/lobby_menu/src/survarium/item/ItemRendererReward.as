@@ -8,10 +8,11 @@ package survarium.item
    import scaleform.clik.controls.ToolTip;
    import scaleform.gfx.TextFieldEx;
    import survarium.Util;
-   import survarium.constants.Category;
    import survarium.constants.Colors;
    import survarium.controls.IconRenderer;
    import survarium.core.Icon;
+   import survarium.constants.ItemCategory;
+   import survarium.constants.SuperCategory;
    
    public class ItemRendererReward extends ToolTip
    {
@@ -78,8 +79,8 @@ package survarium.item
          }
          else
          {
-            isMoney = _data.category == Category.GOLD || _data.category == Category.REGULAR;
-            isVoucher = _data.superCategory == Category.BASE_VOUCHER;
+            isMoney = _data.category == ItemCategory.PREMIUM_MONEY || _data.category == ItemCategory.GENERIC_MONEY;
+            isVoucher = _data.superCategory == SuperCategory.UPGRADES;
             this._textFieldFormat.align = isVoucher ? TextFormatAlign.CENTER : TextFormatAlign.RIGHT;
             this.textField.defaultTextFormat = this._textFieldFormat;
             if(isMoney)
@@ -90,7 +91,7 @@ package survarium.item
             {
                this.textField.text = isVoucher ? Util.getMoneyString(_data.value) + " " + String(_data.name) : "x" + Util.getMoneyString(_data.value);
             }
-            this.textField.textColor = isVoucher ? (_data.category == Category.GOLD ? Colors.GOLD : Colors.REGULAR) : Colors.SILVER;
+            this.textField.textColor = isVoucher ? (_data.category == ItemCategory.PREMIUM_MONEY ? Colors.GOLD : Colors.REGULAR) : Colors.SILVER;
          }
       }
    }

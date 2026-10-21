@@ -16,6 +16,7 @@ package survarium.ammo
    import scaleform.clik.events.SliderEvent;
    import scaleform.clik.ui.InputDetails;
    import survarium.data.LocalizationData;
+   import survarium.constants.Cursor;
    
    public class AmmoSlider extends Slider
    {
@@ -267,8 +268,8 @@ package survarium.ammo
          if(this._selectValue != value)
          {
             _selectValue = value;
-            trace("set_mouse_cursor::",1);
-            ExternalInterface.call("set_mouse_cursor",1);
+            trace("set_mouse_cursor::",Cursor.ARROW);
+            ExternalInterface.call("set_mouse_cursor",Cursor.ARROW);
             this.updateThumb();
          }
       }
@@ -288,8 +289,8 @@ package survarium.ammo
          if(this._selectValue != newValue)
          {
             _selectValue = newValue;
-            cursorId = this._selectValue >= _value ? 10 : 11;
-            track.data = {name:LocalizationData.getName(cursorId == 10 ? "add" : "remove")};
+            cursorId = this._selectValue >= _value ? Cursor.ADD : Cursor.REMOVE;
+            track.data = {name:LocalizationData.getName(cursorId == Cursor.ADD ? "add" : "remove")};
             track.invalidateData();
             ExternalInterface.call("set_mouse_cursor",cursorId);
             this.updateThumb();

@@ -13,6 +13,9 @@ package survarium.ammo
    import survarium.controls.ScrollContent;
    import survarium.data.ItemData;
    import survarium.interfaces.IAmmoShare;
+   import survarium.constants.AmmoView;
+   import survarium.constants.ItemPlace;
+   import survarium.constants.ProfileSlot;
    
    public class AmmoShareLite extends UIComponent implements IAmmoShare
    {
@@ -45,7 +48,7 @@ package survarium.ammo
       
       protected var _slotsN:int = 0;
       
-      protected var _ammo_indexes:Array = [8,9,11,12,19,20,21,22];
+      protected var _ammo_indexes:Array = [ProfileSlot.WEAPON_1_AMMO_1,ProfileSlot.WEAPON_1_AMMO_2,ProfileSlot.WEAPON_2_AMMO_1,ProfileSlot.WEAPON_2_AMMO_2,ProfileSlot.AMMO_5,ProfileSlot.AMMO_6,ProfileSlot.AMMO_7,ProfileSlot.AMMO_8];
       
       protected var _ammoList:Array;
       
@@ -127,7 +130,7 @@ package survarium.ammo
          _renderer = rendererClass;
          var i:uint = 0;
          var element:AmmoShareElement;
-         while(i < 6)
+         while(i < AmmoView.SLOTS)
          {
             element = new this._renderer();
             this._emptyElements.push(element);
@@ -556,7 +559,7 @@ package survarium.ammo
       
       public function reflowElements() : void
       {
-         activeIndex = 4;
+         activeIndex = AmmoView.ALL;
          var stepY:int = 144 + 5;
          var stepX:int = 275 + 5;
          var shiftY:int = 0;
@@ -572,7 +575,7 @@ package survarium.ammo
             }
             if(element.pair == PAIR_AMMO1 || element.pair == PAIR_AMMO2)
             {
-               if(this.activeIndex == 0 && element.pair == PAIR_AMMO1 || this.activeIndex == 1 && element.pair == PAIR_AMMO2 || this.activeIndex == 4)
+               if(this.activeIndex == AmmoView.PRIMARY && element.pair == PAIR_AMMO1 || this.activeIndex == AmmoView.SECONDARY && element.pair == PAIR_AMMO2 || this.activeIndex == AmmoView.ALL)
                {
                   if(!element.parent)
                   {
@@ -813,7 +816,7 @@ package survarium.ammo
             profileId = this._profileID;
             dictId = slotItem.dictId;
             targetSlotId = slotItem.slotId;
-            sourceSlotId = slotItem.descriptor != 0 ? slotItem.descriptor : 100;
+            sourceSlotId = slotItem.descriptor != ItemPlace.NONE ? slotItem.descriptor : ItemPlace.INVENTORY;
             inventoryCount = slotItem.count;
             moveCount = slotItem.value;
             trace("prepare relocate item:",item.name,"target:",targetSlotId,"count:",moveCount,inventoryCount,"sr:",sourceSlotId,"name",slotItem.name,itemId,slotItem.itemId,"ds:",slotItem.descriptor);
@@ -849,7 +852,7 @@ package survarium.ammo
             profileId = this._profileID;
             dictId = (ammo.dictId);
             targetSlotId = element.index;
-            sourceSlotId = ammo.source_slot != undefined ? (ammo.source_slot) : 100;
+            sourceSlotId = ammo.source_slot != undefined ? (ammo.source_slot) : ItemPlace.INVENTORY;
             moveCount = element.slider.position;
             inventoryCount = (element.slider.value_storage);
             trace("prepare relocate:",element.name,"target:",targetSlotId,"source:",sourceSlotId,"count:",moveCount,inventoryCount,"name",ammo.name,element.pair,itemId,ammo.itemId,this.autoBuyCheckBox.selected);
@@ -889,7 +892,7 @@ package survarium.ammo
          {
             value.sortOn(["weapon_target","slot"],Array.NUMERIC);
          }
-         var _ammoSlots:uint = 6;
+         var _ammoSlots:uint = AmmoView.SLOTS;
          var _shift:uint = 0;
          var _element:AmmoShareElement;
          var current_index:uint = 0;
@@ -967,7 +970,7 @@ package survarium.ammo
                {
                   ammo2_slots++;
                }
-               if(this.activeIndex == 0 || this.activeIndex == 1 || this.activeIndex == 4)
+               if(this.activeIndex == AmmoView.PRIMARY || this.activeIndex == AmmoView.SECONDARY || this.activeIndex == AmmoView.ALL)
                {
                   if(!_element.parent)
                   {
@@ -1059,8 +1062,8 @@ package survarium.ammo
             {
                _element = this.getEmptyElement();
                _element.group = GROUP_AMMO;
-               _element.index = 999;
-               if(ammo1_slots < 3)
+               _element.index = ProfileSlot.NONE;
+               if(ammo1_slots < AmmoView.SLOTS_PER_WEAPON)
                {
                   _element.pair = PAIR_AMMO1;
                   ammo1_slots++;
@@ -1088,7 +1091,7 @@ package survarium.ammo
             k = 0;
             while(k < ln)
             {
-               if(this._elemetnsSlots[k].index == i + 13)
+               if(this._elemetnsSlots[k].index == i + ProfileSlot.QUICK_1)
                {
                   _elementSlot = this._elemetnsSlots[k];
                   break;
@@ -1100,7 +1103,7 @@ package survarium.ammo
                _elementSlot = new Object();
                this._elemetnsSlots.push(_elementSlot);
             }
-            _elementSlot.index = i + 13;
+            _elementSlot.index = i + ProfileSlot.QUICK_1;
             i++;
          }
          this._elemetnsSlots.length = this._slotsN;
@@ -1197,7 +1200,7 @@ package survarium.ammo
          while(i < ln)
          {
             _element = this._elemetns[i];
-            if(!_element.getData() && _element.pair != PAIR_ITEMS && _element.index != 999)
+            if(!_element.getData() && _element.pair != PAIR_ITEMS && _element.index != ProfileSlot.NONE)
             {
                list = this.getAmmoList(_element.pair,true);
                if(list.length && list[0])

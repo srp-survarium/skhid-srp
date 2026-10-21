@@ -12,6 +12,7 @@ package survarium.paperdoll
    import survarium.controls.ListDragSlot;
    import survarium.data.ItemData;
    import survarium.interfaces.IPaperDollSlot;
+   import survarium.constants.RendererState;
    
    public class ItemDragSlot extends ListDragSlot implements IPaperDollSlot
    {
@@ -211,8 +212,8 @@ package survarium.paperdoll
          this.setState("down");
          var sfEvent:MouseEventEx = e as MouseEventEx;
          var mouseIdx:uint = sfEvent == null ? 0 : sfEvent.mouseIdx;
-         var btnIdx:uint = sfEvent == null ? 0 : sfEvent.buttonIdx;
-         if(DragManager.inDrag() || !enabled || btnIdx != 0)
+         var btnIdx:uint = sfEvent == null ? MouseEventEx.LEFT_BUTTON : sfEvent.buttonIdx;
+         if(DragManager.inDrag() || !enabled || btnIdx != MouseEventEx.LEFT_BUTTON)
          {
             return;
          }
@@ -257,7 +258,7 @@ package survarium.paperdoll
          trace("updateSlotState",this.itemRenderer);
          if(this.itemRenderer)
          {
-            this.itemRenderer.updateState(_selected || _state == "over" ? 0 : 1);
+            this.itemRenderer.updateState(_selected || _state == "over" ? RendererState.ACTIVE : RendererState.NORMAL);
             this.itemRenderer.y = this._rendererY + (_state == "down" ? 1 : 0);
          }
       }

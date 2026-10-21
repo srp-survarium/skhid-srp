@@ -10,6 +10,7 @@ package survarium.player
    import survarium.Util;
    import survarium.constants.Events;
    import survarium.data.LocalizationData;
+   import survarium.constants.ProfileState;
    
    public class ProfileSelector extends MovieClip
    {
@@ -73,7 +74,7 @@ package survarium.player
          {
             this._profiles[i].index = i;
             profileName = "«" + this._profiles[i].name + "»";
-            if(this._profiles[i].state == 2)
+            if(this._profiles[i].state == ProfileState.PREMIUM_ONLY)
             {
                this._profiles[i].label = Util.styledChar(this._profiles[i].name,"highlight");
                this._profiles[i].levelLabel = "";
@@ -81,9 +82,9 @@ package survarium.player
             }
             else
             {
-               this._profiles[i].levelLabel = this._profiles[i].state == 1 ? "" : LocalizationData.getName("clan_players_level_label") + " " + int(this._profiles[i].level).toString();
+               this._profiles[i].levelLabel = this._profiles[i].state == ProfileState.INCOMPLETE ? "" : LocalizationData.getName("clan_players_level_label") + " " + int(this._profiles[i].level).toString();
                this._profiles[i].label = profileName;
-               if(this._profiles[i].state == 1 && this._profiles[i].hint_text)
+               if(this._profiles[i].state == ProfileState.INCOMPLETE && this._profiles[i].hint_text)
                {
                   this._profiles[i].tipText = this._profiles[i].hint_text;
                }

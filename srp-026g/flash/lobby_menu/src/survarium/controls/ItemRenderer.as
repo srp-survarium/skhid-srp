@@ -9,6 +9,9 @@ package survarium.controls
    import scaleform.clik.controls.ToolTip;
    import survarium.Util;
    import survarium.constants.Colors;
+   import survarium.constants.ItemCategory;
+   import survarium.constants.ItemCondition;
+   import survarium.constants.SuperCategory;
    
    public class ItemRenderer extends ToolTip
    {
@@ -68,14 +71,14 @@ package survarium.controls
          var colorTransform:ColorTransform;
          var isMoney:Boolean;
          this.iconRenderer.content = _data.icon;
-         this.damageIndicator.visible = !_data.isStack && _data.value < 100;
+         this.damageIndicator.visible = !_data.isStack && _data.value < ItemCondition.FULL;
          trace("IR::updateData",_data.name,_data.isStack,_data.value,this.damageIndicator.visible);
-         this.iconRenderer.y = _data.category == 26 ? -5 : -10;
+         this.iconRenderer.y = _data.category == ItemCategory.DECALS ? -5 : -10;
          if(!_data.isStack)
          {
             this.textCount.visible = false;
-            this.damageIndicator.track.width = 165 * _data.value / 100;
-            condition = _data.value / 100 * 510;
+            this.damageIndicator.track.width = 165 * _data.value / ItemCondition.FULL;
+            condition = _data.value / ItemCondition.FULL * 510;
             trackColor = Util.getColor(Math.min(510 - condition,255),Math.min(condition,255),0);
             colorTransform = new ColorTransform();
             colorTransform.color = trackColor;
@@ -84,12 +87,12 @@ package survarium.controls
          else
          {
             this.textCount.visible = true;
-            this._countTextFormat.align = _data.superCategory == 5 ? TextFormatAlign.CENTER : TextFormatAlign.RIGHT;
+            this._countTextFormat.align = _data.superCategory == SuperCategory.UPGRADES ? TextFormatAlign.CENTER : TextFormatAlign.RIGHT;
             this.textCount.defaultTextFormat = this._countTextFormat;
-            isMoney = _data.superCategory == 5;
+            isMoney = _data.superCategory == SuperCategory.UPGRADES;
             this.textCount.text = (isMoney ? "" : "x") + _data.value;
             this.textCount.y = 42 + (isMoney ? 0 : 5);
-            this.textCount.textColor = isMoney ? (_data.category == 29 ? Colors.GOLD : Colors.REGULAR) : Colors.SILVER;
+            this.textCount.textColor = isMoney ? (_data.category == ItemCategory.PREMIUM_MONEY ? Colors.GOLD : Colors.REGULAR) : Colors.SILVER;
          }
       }
    }

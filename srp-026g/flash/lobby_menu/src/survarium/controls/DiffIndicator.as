@@ -4,6 +4,7 @@ package survarium.controls
    import scaleform.clik.constants.InvalidationType;
    import scaleform.clik.controls.StatusIndicator;
    import scaleform.clik.motion.Tween;
+   import survarium.constants.PropertyDirection;
    
    public class DiffIndicator extends StatusIndicator
    {
@@ -137,7 +138,7 @@ package survarium.controls
                   this.mc_diff_negative_ghost.width = 0;
                   diffBar = this.mc_diff_positive_ghost;
                }
-               if(this._upgrade == 0 && (diffBar == this.mc_diff_positive_ghost && this._direction == 1 || diffBar == this.mc_diff_negative_ghost && this._direction == 0))
+               if(this._upgrade == 0 && (diffBar == this.mc_diff_positive_ghost && this._direction == PropertyDirection.HIGHER_IS_BETTER || diffBar == this.mc_diff_negative_ghost && this._direction == PropertyDirection.LOWER_IS_BETTER))
                {
                   diffBar.width = 0;
                }

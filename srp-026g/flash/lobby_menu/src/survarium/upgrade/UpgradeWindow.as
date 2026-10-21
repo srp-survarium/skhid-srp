@@ -18,6 +18,9 @@ package survarium.upgrade
    import survarium.data.IconContainer;
    import survarium.data.ItemData;
    import survarium.data.LocalizationData;
+   import survarium.constants.CosmeticSlot;
+   import survarium.constants.ItemCategory;
+   import survarium.constants.ItemDictId;
    
    public class UpgradeWindow extends UIComponent
    {
@@ -63,10 +66,10 @@ package survarium.upgrade
       public var camoSlot:UpgradeSlot;
       
       protected var _slotAgreements:Object = {
-         3:[25],
-         0:[26],
-         1:[26],
-         2:[26]
+         3:[ItemCategory.CAMOUFLAGES],
+         0:[ItemCategory.DECALS],
+         1:[ItemCategory.DECALS],
+         2:[ItemCategory.DECALS]
       };
       
       protected var _upgrades:Array;
@@ -95,7 +98,7 @@ package survarium.upgrade
       public static function addCompatibility(weaponDictId:int, scopeDictId:int) : Boolean
       {
          var scopes:Array = null;
-         if(scopeDictId >= 2101 && scopeDictId <= 2199)
+         if(scopeDictId >= ItemDictId.SHOP_SCOPE_FIRST && scopeDictId <= ItemDictId.SHOP_SCOPE_LAST)
          {
             scopes = scopePairs[weaponDictId] as Array;
             if(!scopes)
@@ -109,7 +112,7 @@ package survarium.upgrade
             }
             return true;
          }
-         if(scopeDictId == 69 || scopeDictId == 304 || scopeDictId == 362 || scopeDictId == 2206 || scopeDictId == 2207)
+         if(scopeDictId == ItemDictId.SCOPE_LEUPOLD || scopeDictId == ItemDictId.SCOPE_PSO_1 || scopeDictId == ItemDictId.SCOPE_GIPERON || scopeDictId == ItemDictId.SCOPE_EOTECH_552 || scopeDictId == ItemDictId.SCOPE_WALTHER_COMP2)
          {
             stockScopes[weaponDictId] = scopeDictId;
             return true;
@@ -119,7 +122,7 @@ package survarium.upgrade
       
       public static function isWeaponCategory(category:int) : Boolean
       {
-         return category == 8 || category == 13 || category == 14 || category == 15 || category == 16 || category == 17;
+         return category == ItemCategory.ASSAULT_RIFLES || category == ItemCategory.SNIPER_RIFLES || category == ItemCategory.SHOTGUNS || category == ItemCategory.SUBMACHINE_GUNS || category == ItemCategory.MACHINE_GUNS || category == ItemCategory.PISTOLS;
       }
       
       public static function hasScopes(weaponDictId:int) : Boolean
@@ -150,7 +153,7 @@ package survarium.upgrade
       
       public static function greyed(item:Object) : Boolean
       {
-         if(!instance || !instance.visible || hostDictId < 0 || !item || item.category != 22)
+         if(!instance || !instance.visible || hostDictId < 0 || !item || item.category != ItemCategory.SCOPES)
          {
             return false;
          }
@@ -194,10 +197,10 @@ package survarium.upgrade
          while(i < upgrades.length)
          {
             upgrade = upgrades[i];
-            if(Boolean(upgrade) && upgrade.param == 3)
+            if(Boolean(upgrade) && upgrade.param == CosmeticSlot.CAMOUFLAGE)
             {
                scope = inventoryItem(uint(upgrade.id));
-               if(Boolean(scope) && scope.category == 22)
+               if(Boolean(scope) && scope.category == ItemCategory.SCOPES)
                {
                   return scope;
                }
@@ -306,7 +309,7 @@ package survarium.upgrade
          hostDictId = Boolean(itemData) && isWeaponCategory(int(itemData.category)) ? int(itemData.dictId) : -1;
          if(hostDictId >= 0 && Boolean(this._inventory))
          {
-            this._inventory.selectCategory([22],false,true);
+            this._inventory.selectCategory([ItemCategory.SCOPES],false,true);
          }
          this.updateData(resetSlots);
       }
@@ -366,7 +369,7 @@ package survarium.upgrade
                   {
                      slot = this._slots[j];
                      trace("UW::slotId::",slot.visible,slot.index,this._data.upgrades[i].id,this._data.upgrades[i].param);
-                     if(slot.visible && slot.index == this._data.upgrades[i].param || slot.index == 3 && this._data.upgrades[i].param == undefined)
+                     if(slot.visible && slot.index == this._data.upgrades[i].param || slot.index == CosmeticSlot.CAMOUFLAGE && this._data.upgrades[i].param == undefined)
                      {
                         if(!slot.data || slot.data.itemId != this._data.upgrades[i].id)
                         {
@@ -446,7 +449,7 @@ package survarium.upgrade
             this.decalSlot.highlighted = false;
             this.decalSlot1.highlighted = false;
             this.decalSlot2.highlighted = false;
-            this.camoSlot.highlighted = category == 22 && fits(hostDictId,dictId) && Boolean(this.camoSlot.enabled);
+            this.camoSlot.highlighted = category == ItemCategory.SCOPES && fits(hostDictId,dictId) && Boolean(this.camoSlot.enabled);
             return;
          }
          var i:int = 0;
@@ -511,9 +514,9 @@ package survarium.upgrade
             return null;
          }
          trace("UW::create_item",item.iconId);
-         var iconContainer:IconContainer = item.category == 26 ? IconContainer.getInstance("decals") : (item.category == 22 ? IconContainer.getInstance("consumables") : this._iconContainerBig);
+         var iconContainer:IconContainer = item.category == ItemCategory.DECALS ? IconContainer.getInstance("decals") : (item.category == ItemCategory.SCOPES ? IconContainer.getInstance("consumables") : this._iconContainerBig);
          var icon:Icon = iconContainer.getIcon(item.iconId);
-         if(item.category == 22)
+         if(item.category == ItemCategory.SCOPES)
          {
             icon.scaleX = 0.55;
             icon.scaleY = 0.55;
@@ -545,10 +548,10 @@ package survarium.upgrade
          LocalizationData.addTextField(this.container.textField,"btn_upgrade_label");
          this.infoContainer.visible = false;
          this.btnCancel.enabled = true;
-         this.decalSlot.index = 0;
-         this.decalSlot1.index = 1;
-         this.decalSlot2.index = 2;
-         this.camoSlot.index = 3;
+         this.decalSlot.index = CosmeticSlot.DECAL_1;
+         this.decalSlot1.index = CosmeticSlot.DECAL_2;
+         this.decalSlot2.index = CosmeticSlot.DECAL_3;
+         this.camoSlot.index = CosmeticSlot.CAMOUFLAGE;
          this.configDecalSlot(this.decalSlot);
          this.configDecalSlot(this.decalSlot1);
          this.configDecalSlot(this.decalSlot2);
@@ -603,7 +606,7 @@ package survarium.upgrade
          var slot:UpgradeSlot = event.currentTarget as UpgradeSlot;
          if(Boolean(slot) && !slot.data)
          {
-            category = hostDictId >= 0 ? 22 : int(this._slotAgreements[slot.index]);
+            category = hostDictId >= 0 ? ItemCategory.SCOPES : int(this._slotAgreements[slot.index]);
             this._inventory.selectCategory([category]);
          }
       }
@@ -708,7 +711,7 @@ package survarium.upgrade
          stackTrace("onItemClciked");
          var slotData:Object = event.currentTarget.data;
          trace("onItemClicked:;",slotData ? slotData.category : null,event.target,event.currentTarget);
-         if(slotData && slotData.category == 26)
+         if(slotData && slotData.category == ItemCategory.DECALS)
          {
             if(event.target.name == "btnDrop")
             {
@@ -736,7 +739,7 @@ package survarium.upgrade
       
       private function onMouseItemClick(event:MouseEventEx) : void
       {
-         if(event.buttonIdx == 0)
+         if(event.buttonIdx == MouseEventEx.LEFT_BUTTON)
          {
             return;
          }
