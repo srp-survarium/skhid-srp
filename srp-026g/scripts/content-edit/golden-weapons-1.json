@@ -1,5 +1,5 @@
 {
- "_about": "Golden weapons, release 1 (2026-10-21, srp-026g/docs/notes/golden_weapons.md). The owner: \"remove modifiers except for silver from all premium weapons\" and make them \"upgradable just like any other weapon but with the first golden bonus already set\"; \"modifications on premium weapons can be rolled too (even silver)\". The 21 golden weapons (the 20 wpn_*_premium copies and the Neostead: every weapon whose first default modification is 1230, +10 % silver) lose every default modification (1230 included: srp gives each golden weapon 1230 as a modification of its own, the first, so it counts for the rank and can be rerolled; the client never offers a default for a reroll) and base_rarity_level 3 -> 0 (the plain weapons' value: the lobby's rank is min(3, base_rarity_level + modifications), so a base of 3 forbade every craft). Not changed: the MP7 special (premium, one default 2004, no silver), the VSSK camo (2054 2074 2094, not premium) and the four premium armour pieces.",
+ "_about": "Golden weapons, release 1 (2026-10-21, srp-026g/docs/notes/golden_weapons.md). The owner: \"remove modifiers except for silver from all premium weapons\" and make them \"upgradable just like any other weapon but with the first golden bonus already set\"; \"modifications on premium weapons can be rolled too (even silver)\"; the MP7 special joins them. The 22 golden weapons (the 20 wpn_*_premium copies and the Neostead, every weapon whose first default modification is 1230, +10 % silver; and the MP7 special, whose one default is 2004) lose every default modification (1230 included: srp gives each golden weapon 1230 as a modification of its own, the first, so it counts for the rank and can be rerolled; the client never offers a default for a reroll) and base_rarity_level 3 -> 0 (the plain weapons' value: the lobby's rank is min(3, base_rarity_level + modifications), so a base of 3 forbade every craft). Not changed: the VSSK camo (2054 2074 2094, not premium) and the four premium armour pieces.",
  "set": [
   {"file": "gameplay/items/weapons/wpn_kiparis_premium.options", "path": "parameters/base_rarity_level", "from": 3, "to": 0},
   {"file": "gameplay/items/weapons/wpn_uzi_premium.options", "path": "parameters/base_rarity_level", "from": 3, "to": 0},
@@ -21,7 +21,8 @@
   {"file": "gameplay/items/weapons/wpn_saiga_12_premium.options", "path": "parameters/base_rarity_level", "from": 3, "to": 0},
   {"file": "gameplay/items/weapons/wpn_vsk_94_premium.options", "path": "parameters/base_rarity_level", "from": 3, "to": 0},
   {"file": "gameplay/items/weapons/wpn_rem_700_premium.options", "path": "parameters/base_rarity_level", "from": 3, "to": 0},
-  {"file": "gameplay/items/weapons/wpn_neostead.options", "path": "parameters/base_rarity_level", "from": 3, "to": 0}
+  {"file": "gameplay/items/weapons/wpn_neostead.options", "path": "parameters/base_rarity_level", "from": 3, "to": 0},
+  {"file": "gameplay/items/weapons/wpn_mp7_silencer_special.options", "path": "parameters/base_rarity_level", "from": 3, "to": 0}
  ],
  "remove_item": [
   {"file": "gameplay/items/weapons/wpn_kiparis_premium.options", "path": "default_modifications", "value": 1230},
@@ -84,6 +85,7 @@
   {"file": "gameplay/items/weapons/wpn_rem_700_premium.options", "path": "default_modifications", "value": 2052},
   {"file": "gameplay/items/weapons/wpn_neostead.options", "path": "default_modifications", "value": 1230},
   {"file": "gameplay/items/weapons/wpn_neostead.options", "path": "default_modifications", "value": 2034},
-  {"file": "gameplay/items/weapons/wpn_neostead.options", "path": "default_modifications", "value": 2094}
+  {"file": "gameplay/items/weapons/wpn_neostead.options", "path": "default_modifications", "value": 2094},
+  {"file": "gameplay/items/weapons/wpn_mp7_silencer_special.options", "path": "default_modifications", "value": 2004}
  ]
 }

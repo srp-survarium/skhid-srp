@@ -201,6 +201,20 @@ game_data_bin() {
     printf '%s\n' "$ROOT/srp-026g/target/release/srp-game-data"
 }
 
+# Our srp-check-game-data (what srp checks of its game data at start):
+# $SRP_CHECK_GAME_DATA_BIN, else built from this checkout (at nice 10).
+check_data_bin() {
+    if [[ -n ${SRP_CHECK_GAME_DATA_BIN:-} ]]; then
+        printf '%s\n' "$SRP_CHECK_GAME_DATA_BIN"
+        return
+    fi
+    say "building srp-check-game-data (srp-026g, nix develop) ..." >&2
+    (cd "$ROOT" && nice -n 10 nix develop ./srp-026g -c bash -c \
+        'cd srp-026g && cargo build --quiet --release -p survarium --bin srp-check-game-data') >&2 ||
+        die "srp-check-game-data did not build"
+    printf '%s\n' "$ROOT/srp-026g/target/release/srp-check-game-data"
+}
+
 # The building steps (build-patch, build-server-db, build-zip) run at nice
 # 10, with every child: the release PC goes on doing other things.
 lower_priority() { renice -n 10 -p $$ >/dev/null 2>&1 || true; }

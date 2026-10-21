@@ -592,7 +592,8 @@ package survarium.controls
          item_data.modifiers = descrData.modifiers;
          item_data.modifiersDefault = descrData.modifiers;
          item_data.rank = descrData.rarity_level;
-         item_data.fromBundle = item_data.rank > 0;
+         // A golden weapon keeps its gold background with no descriptor rarity.
+         item_data.fromBundle = item_data.rank > 0 || ItemFactory.isGolden(dictId);
          var defModifersCount:uint = item_data.modifiersDefault.length;
          for(var i:uint = 0; i < defModifersCount; i++)
          {
@@ -2436,7 +2437,8 @@ package survarium.controls
                for(i = 0; i < inventoryCount; i++)
                {
                   itemData = this._inventoryItems[i];
-                  isFiltered = this._filterDictId == -1 ? (checkBaseOptions(itemData)) : this._filterDictId == itemData.dictId;
+                  // The craft's donors: the server's (a golden weapon also takes its plain weapon).
+                  isFiltered = this._filterDictId == -1 ? (checkBaseOptions(itemData)) : ItemFactory.isCraftDonor(itemData.dictId,this._filterDictId);
                   if(isFiltered)
                   {
                      relativeItem = shopDict[itemData.dictId];

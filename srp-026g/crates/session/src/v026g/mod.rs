@@ -261,11 +261,14 @@ impl GameAccounts {
     /// rule the silver bonus was a default of the item's config, which the
     /// golden-weapons patch takes off; after it, a silver bonus rerolled
     /// away stays away. The accounts it changed are written first and the
-    /// mark (`persist::GOLDEN_SILVER_GIVEN`) after them: a crash or a failed
-    /// write between leaves it unmarked, and the next start gives it again
-    /// to the golden weapons still without it (those written have it, and
-    /// are left alone). Returns `(items, accounts)` given; `None` when it
-    /// was done before, or for a store kept in memory.
+    /// mark (`persist::GOLDEN_SILVER_GIVEN`) after them. A crash between
+    /// leaves it unmarked; so does an account not written, and then srp
+    /// does not start ([`PersistError::NotWritten`]): running unmarked, a
+    /// silver bonus rerolled away could come back at a later start. Either
+    /// way the next start gives it again to the golden weapons still
+    /// without it (those written have it, and are left alone). Returns
+    /// `(items, accounts)` given; `None` when it was done before, or for a
+    /// store kept in memory.
     pub fn give_golden_silver_once(&self) -> Result<Option<(usize, usize)>, PersistError> {
         let Some(writer) = &self.writer else {
             return Ok(None);
@@ -284,22 +287,22 @@ impl GameAccounts {
             .copied()
             .filter(|&account_id| self.is_dirty(account_id))
             .collect();
-        if unsaved.is_empty() {
-            writer
-                .locked()
-                .repository
-                .mark_done(persist::GOLDEN_SILVER_GIVEN)?;
-            log::info!(
-                "Golden weapons: {items} of {} accounts got the silver bonus as their own first \
-                 modification, once",
-                accounts.len()
-            );
-        } else {
-            log::error!(
-                "Golden weapons: accounts {unsaved:?} not written; not marked done, so the next \
-                 start gives the silver bonus again to the golden weapons still without it"
-            );
+        if !unsaved.is_empty() {
+            return Err(PersistError::NotWritten(format!(
+                "golden weapons: the silver bonus given at start was not written for accounts \
+                 {unsaved:?}; srp does not start, and the next start gives it again to the \
+                 golden weapons still without it"
+            )));
         }
+        writer
+            .locked()
+            .repository
+            .mark_done(persist::GOLDEN_SILVER_GIVEN)?;
+        log::info!(
+            "Golden weapons: {items} of {} accounts got the silver bonus as their own first \
+             modification, once",
+            accounts.len()
+        );
         Ok(Some((items, accounts.len())))
     }
 
@@ -833,9 +836,11 @@ mod tests {
         };
         let mut marks = repository.clone();
 
-        // The write fails (as a crash before it would): not marked done.
+        // The write fails: not marked done, and srp does not start.
         repository.fail_account_saves(true);
-        assert_eq!(store.give_golden_silver_once().unwrap(), Some((1, 1)));
+        let error = store.give_golden_silver_once().unwrap_err();
+        assert!(matches!(error, PersistError::NotWritten(_)), "{error}");
+        assert!(error.to_string().contains("accounts [5]"), "{error}");
         assert!(store.is_dirty(5) && !store.is_dirty(6));
         assert!(kept(&repository).is_empty());
         assert!(!marks.is_done(persist::GOLDEN_SILVER_GIVEN).unwrap());

@@ -1478,12 +1478,15 @@ fn a_golden_weapon_is_upgraded_like_its_plain_weapon() {
 
     let mut rng = Rng::new(9);
     let mut account = rich();
-    // A plain rifle takes a golden one as its donor, and stays plain.
+    // A plain rifle takes no golden one as its donor: it would be lost.
     let plain = give(&mut account, "ak_74n", &[2000]);
     let golden = account.add_item(golden_rifle, FULL_CONDITION);
-    assert!(craft(&mut account, plain, golden, true, false, NOW, &mut rng).is_ok());
-    assert!(account.item(golden).is_none());
-    assert_eq!(account.item(plain).unwrap().dict_id, plain_rifle);
+    let before = account.clone();
+    assert_eq!(
+        craft(&mut account, plain, golden, true, false, NOW, &mut rng),
+        Err("a golden weapon is no donor for a plain one")
+    );
+    assert_eq!(account, before);
     // Two golden rifles, as two plain ones.
     let golden = account.add_item(golden_rifle, FULL_CONDITION);
     let other = account.add_item(golden_rifle, FULL_CONDITION);

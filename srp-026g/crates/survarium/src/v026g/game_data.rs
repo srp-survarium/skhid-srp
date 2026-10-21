@@ -258,7 +258,17 @@ pub fn from_env() -> Result<GameData, GameDataError> {
 /// parser takes from another ([`super::item_params::all`] and the like) is
 /// built from them and no other.
 pub fn init() -> Result<&'static GameData, GameDataError> {
-    let data = from_env()?;
+    init_with(from_env()?)
+}
+
+/// [`init`] with the server's game data in the file `data`, not
+/// `SRP_GAME_DATA`: what `srp-check-game-data` runs on data a release
+/// builds, so that data `srp` would refuse is refused before it ships.
+pub fn init_from(data: &Path) -> Result<&'static GameData, GameDataError> {
+    init_with(GameData::open(data)?)
+}
+
+fn init_with(data: GameData) -> Result<&'static GameData, GameDataError> {
     if SHARED.set(data).is_err() {
         return Err(error(
             "a table was used before the game's files were read; srp reads them first",

@@ -65,9 +65,10 @@
 //!   [LIKELY] The donor is another of the same item: the client's result
 //!   window shows the *donor's* dictionary entry as the upgraded item
 //!   (0x275B84 → 0x29F770 `dict_id`). [srp, the owner's rule of
-//!   2026-10-21] A golden weapon and its plain weapon count as the same
-//!   item ([`golden::kin`]): either is the donor of the other, and the
-//!   item keeps what it is (the lobby shows the item, not the donor).
+//!   2026-10-21] A golden weapon takes its plain weapon, or a golden
+//!   weapon of the same plain weapon, as its donor and stays golden (the
+//!   lobby shows the item, not the donor); a plain weapon takes no golden
+//!   one ([`golden::may_donate`]).
 //!   [srp] The modification gained is rolled as a drop's are, the one
 //!   lost is any of the item's own (a golden weapon's silver bonus too).
 //! - **Golden weapons** ([`golden`], the owner's rule of 2026-10-21): the
@@ -720,8 +721,16 @@ pub fn craft(
     if !is_gear(item) || !is_gear(donor) {
         return Err("not an item with modifications");
     }
-    if golden::kin(donor.dict_id) != golden::kin(item.dict_id) {
-        return Err("the donor is another item");
+    if !golden::may_donate(donor.dict_id, item.dict_id) {
+        return Err(
+            if golden::is_golden(donor.dict_id)
+                && golden::kin(donor.dict_id) == golden::kin(item.dict_id)
+            {
+                "a golden weapon is no donor for a plain one"
+            } else {
+                "the donor is another item"
+            },
+        );
     }
     if !defects(item).is_empty() || !defects(donor).is_empty() {
         return Err("a damaged item");

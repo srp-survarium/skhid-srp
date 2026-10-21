@@ -153,6 +153,27 @@ package survarium.item
          return SuperCategory.ITEMS;
       }
       
+      public static function isGolden(dictId:int) : Boolean
+      {
+         return ItemDictId.GOLDEN_WEAPONS.indexOf(dictId) != -1;
+      }
+      
+      // A golden weapon's plain weapon; anything else itself.
+      public static function plainOf(dictId:int) : int
+      {
+         var index:int = ItemDictId.GOLDEN_WEAPONS.indexOf(dictId);
+         return index == -1 ? dictId : int(ItemDictId.GOLDEN_PLAIN[index]);
+      }
+      
+      // Whether an item of donorDictId may be used up to upgrade one of
+      // itemDictId, as the server has it (golden::may_donate): the same
+      // item, or for a golden weapon its plain weapon and its other golden
+      // copies; never a golden weapon for a plain one.
+      public static function isCraftDonor(donorDictId:int, itemDictId:int) : Boolean
+      {
+         return donorDictId == itemDictId || isGolden(itemDictId) && plainOf(donorDictId) == plainOf(itemDictId);
+      }
+      
       public static function isItemCraftable(value:ItemData) : Boolean
       {
          return !value.isStack && value.descriptor <= ItemPlace.INVENTORY && !value.repairTime && (value.superCategory == SuperCategory.EQUIPMENT || value.superCategory == SuperCategory.WEAPONS || value.superCategory == SuperCategory.AMMO);
@@ -253,7 +274,8 @@ package survarium.item
          item.modifiers = description.modifiers;
          item.modifiersDefault = description.modifiers;
          item.rank = description.rarity_level;
-         item.fromBundle = item.rank > 0;
+         // A golden weapon keeps its gold background with no descriptor rarity.
+         item.fromBundle = item.rank > 0 || isGolden(dictId);
          var defaultCount:uint = item.modifiersDefault.length;
          var i:uint = 0;
          while(i < defaultCount)
