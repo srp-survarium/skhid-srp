@@ -76,9 +76,12 @@ USAGE (this script never touches the source exe):
     (checked in). A spot's hit on a battery's body comes from spot_026g.asm:
         nasm -f bin -DCAVE=0xA4257C0 spot_026g.asm -o spot_026g.section.bin
     (checked in). A weapon's camouflage comes from weapon_camo_026g.asm, in a
-    section of its own after the late join's state page:
-        nasm -f bin -DCAVE=0xA429000 weapon_camo_026g.asm -o weapon_camo_026g.section.bin
-    (checked in). The late-join code is late_join_026g.section.bin, checked in too; it is
+    section of its own after the late join's state page, and what it paints
+    (the camouflage, the decals) and the decal editor on a weapon from
+    weapon_decals_026g.asm, on that section's second page:
+        nasm -f bin -DCAVE=0xA429000 -DDECALS=0xA42A000 weapon_camo_026g.asm -o weapon_camo_026g.section.bin
+        nasm -f bin -DCAVE=0xA42A000 -DPREVIEW=0xA428E00 -DTABLE=0xA428F00 weapon_decals_026g.asm -o weapon_decals_026g.section.bin
+    (checked in; PREVIEW and TABLE are patch 32's and patch 45's states, checked). The late-join code is late_join_026g.section.bin, checked in too; it is
     made by `late_join_026g.py --write-bin`, which needs nasm, a C compiler
     for x86 and GNU ld (--late-join-bin=<file> names another one).
 
@@ -1568,6 +1571,31 @@ WEAPON_TABLE_HOOKS = (
     (0x24778F, bytes.fromhex("80bb9cf4000000742a"), 0xF, 0xE8),      # mt_draw's held item's transform: matrix
 )
 
+# Decals on a weapon (patch 46, README; client_patch.md section 3.43):
+# weapon_decals_026g.asm at WEAPON_DECALS_OFFSET of `.srpw`, the section's
+# second page; no state of its own (it reads patch 32's and patch 45's). It
+# begins with six `jmp near`: lookup (+0) and fill (+5), which patch 44 calls
+# once each (WEAPON_CAMO_DECALS_CALLS: what a weapon's bake paints, the
+# camouflage and the decals of `data/decals`), and the decal editor's four
+# sites, for a weapon above the workbench:
+# - the preview's pick, `call 0x264960` at 0x265999 of lobby_character's
+#   per-frame decal preview (0x265980): pick;
+# - the preview's matrix, `call 0x263D00` at 0x2659B2: decode;
+# - the editor's bake, 0x2641A0 (`push ebp / mov ebp,esp / and esp,-8`, the
+#   entry): `jmp bake` and a nop;
+# - the start's query, `call 0x264CF0` at 0x263938 (the end of 0x2636B0):
+#   start.
+# No base relocation is under a site and no branch aims inside one.
+WEAPON_DECALS_OFFSET = 0x1000
+WEAPON_DECALS_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19)  # lookup, fill, pick, decode, bake, start
+WEAPON_DECALS_HOOKS = (
+    (0x265999, bytes.fromhex("e8c2efffff"), 0xA, 0xE8),         # the preview's pick
+    (0x2659B2, bytes.fromhex("e849e3ffff"), 0xF, 0xE8),         # the preview's matrix
+    (0x2641A0, bytes.fromhex("558bec83e4f8"), 0x14, 0xE9),      # the editor's bake
+    (0x263938, bytes.fromhex("e8b3130000"), 0x19, 0xE8),        # the start's query
+)
+WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries patch 44 calls
+
 
 def weapon_camo_va(late_join):
     """Where `.srpw` is: the page after the late join's state page."""
@@ -2253,8 +2281,31 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
                or WEAPON_PREVIEW_VA + at + 5 + struct.unpack_from("<i", weapon_preview, at + 1)[0] != table_va
                for at in WEAPON_PREVIEW_CAMERA_JUMPS):
             sys.exit(f"weapon_preview_026g.section.bin does not jump to weapon_table_026g.asm (-DCAMERA={table_va:#x}?)")
+        weapon_decals = open(weapon_decals_bin(), "rb").read()
+        decals_va = camo_va + WEAPON_DECALS_OFFSET
+        decals_calls = {decals_va + entry: 0 for entry in WEAPON_CAMO_DECALS_CALLS}
+        for at in range(len(weapon_camo) - 4):
+            target = camo_va + at + 5 + struct.unpack_from("<i", weapon_camo, at + 1)[0]
+            if weapon_camo[at] == 0xE8 and target in decals_calls:
+                decals_calls[target] += 1
+        if WEAPON_TABLE_OFFSET + len(weapon_table) > WEAPON_DECALS_OFFSET \
+                or WEAPON_DECALS_OFFSET + len(weapon_decals) > 0x2000:
+            sys.exit("the weapon table's code and the weapon decals' do not fit in .srpw's two pages")
+        # its reads of patch 45's `on` and patch 32's mode
+        if any(weapon_decals[at] != 0xE9 for at in WEAPON_DECALS_ENTRIES) \
+                or list(decals_calls.values()) != [1] * len(WEAPON_CAMO_DECALS_CALLS) \
+                or weapon_decals.count(b"\x83\x3D" + struct.pack("<I", table_state) + b"\x00") != 1 \
+                or weapon_decals.count(b"\x80\x3D" + struct.pack("<I", preview_state) + b"\x00") != 1:
+            sys.exit(f"weapon_decals_026g.section.bin: its entries are not where patch_026g.py and patch 44 call "
+                     f"them, or it was assembled for other states (-DCAVE={decals_va:#x} "
+                     f"-DPREVIEW={preview_state:#x} -DTABLE={table_state:#x}; patch 44 with -DDECALS={decals_va:#x}?)")
         weapon_camo = weapon_camo + b"\xCC" * (WEAPON_STASH_OFFSET - len(weapon_camo)) + weapon_stash
         weapon_camo = weapon_camo + b"\xCC" * (WEAPON_TABLE_OFFSET - len(weapon_camo)) + weapon_table
+        weapon_camo = weapon_camo + b"\xCC" * (WEAPON_DECALS_OFFSET - len(weapon_camo)) + weapon_decals
+        for va, expected, offset, opcode in WEAPON_DECALS_HOOKS:
+            patch(data, va, expected, hook_bytes(decals_va, va, expected, offset, opcode))
+            if neutralize_relocs(data, [(va, va + len(expected))]):
+                sys.exit(f"{va:#x}: a base relocation under a hook of the weapon decals")
         for va, expected, offset, opcode in WEAPON_TABLE_HOOKS:
             patch(data, va, expected, hook_bytes(table_va, va, expected, offset, opcode))
             if neutralize_relocs(data, [(va, va + len(expected))]):
@@ -2336,7 +2387,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
                      "a spot has no cooldown and a battery's body spots it, "
                      "a model's LOD and screen factor at a wider field of view are the original's, "
                      "a weapon wears the camouflage its item holds, "
-                     "a weapon's upgrade window shows it in the air above the lobby's workbench"
+                     "a weapon's upgrade window shows it in the air above the lobby's workbench, "
+                     "a weapon wears the decals its item holds, placed on it above the workbench"
                      if late_join is not None else "")
                   + (f", default login server {server}" if server is not None else ""))
 
@@ -2451,6 +2503,10 @@ def weapon_stash_bin():
 
 def weapon_table_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_table_026g.section.bin")
+
+
+def weapon_decals_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_decals_026g.section.bin")
 
 
 def weapon_preview_bin():

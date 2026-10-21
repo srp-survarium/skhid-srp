@@ -1,7 +1,9 @@
 ; A weapon wears the camouflage its item holds (build 2777, patch 44,
-; client_patch.md section 3.41). Code of its own section `.srpw`, after the
-; late join's state page; patch_026g.py checks the entries.
-;   nasm -f bin -DCAVE=0xA429000 weapon_camo_026g.asm -o weapon_camo_026g.section.bin
+; client_patch.md section 3.41), and its decals (patch 46, section 3.43). Code
+; of its own section `.srpw`, after the late join's state page; patch_026g.py
+; checks the entries. DECALS is weapon_decals_026g.asm (`.srpw`+1000h), which
+; says what a surface is painted with: lookup (+0) and fill (+5).
+;   nasm -f bin -DCAVE=0xA429000 -DDECALS=0xA42A000 weapon_camo_026g.asm -o weapon_camo_026g.section.bin
 ;
 ; The stock game bakes a camouflage only onto the character's parts: the
 ; profile's visual (0x204560) fills a camouflage_decal_cook_parameters (P)
@@ -15,13 +17,15 @@
 ; weapon_cook::on_weapon_subresources_ready (0x24ACF0, `ret 14h`), when the
 ; weapon's model is loaded and before it is given to the weapon (0x243A30),
 ; calls `weapon_ready` in place of `lea eax,[esp+20h] / push eax` (0x24B0D2).
-; With `data/camouflage` a non-empty text, it asks, for each surface of the
-; model's render instance (at most MAX_SURFACES), for the bake the lobby's
-; editor asks for: one P from the game's allocator, the camouflage's
-; diffuse, `_nmap` and `_smap` names, the render instance (one reference
-; more), the surface's index, the scale (`data/camo_scale`, else 4.0 as
-; every stock bake), and a name of the baked files of its own,
-; `srpw1_<camouflage>_<object/model>_<surface>` with '/' and '\' as '_'.
+; With `data/camouflage` a non-empty text or decals in `data/decals`
+; (DECALS' lookup), it asks, for each surface of the model's render instance
+; (at most MAX_SURFACES), for the bake the lobby's editor asks for: one P
+; from the game's allocator, the camouflage's diffuse, `_nmap` and `_smap`
+; names and the decals' layers (DECALS' fill), the render instance (one
+; reference more), the surface's index, the scale (`data/camo_scale`, else
+; 4.0 as every stock bake), and a name of the baked files of its own,
+; `srpw1_<camouflage>_<object/model>_<surface>` (and the decals', by fill)
+; with '/' and '\' as '_'.
 ; The query runs on its own (no parent): the weapon is shown plain and
 ; takes the baked textures when they are ready, as a part in the decal
 ; editor does. Its callback `bake_done` lets go of the render instance and
@@ -32,9 +36,14 @@
 BITS 32
 ORG CAVE
 
+%ifndef DECALS
+%error DECALS is required
+%endif
+LOOKUP              equ DECALS + 0  ; patch 44's frame: eax = 0: nothing to paint; [ebp+CAMO] = the camouflage or ""
+FILL                equ DECALS + 5  ; edi = P, ebp = patch 44's frame: the camouflage's and the decals' layers
+
 has_key             equ 0x0F6C00    ; eax = table, esi = key: al = it is there
 child               equ 0x0F6B10    ; eax = table, edi = key: eax = the child (no end check)
-string_assign       equ 0x0127C0    ; eax = buffer_string, ecx = text
 string_appendf      equ 0x0E45B0    ; eax = buffer_string, cdecl (format, ...)
 allocate            equ 0x0E4F90    ; esi = allocator, eax = size, [esp+4] = where: eax; `ret 4`
 allocation_name     equ 0x420789    ; ecx = 0AC1220h: eax (the editor's argument of allocate)
@@ -52,17 +61,10 @@ EMPTY               equ 0x9DB708    ; ""
 BAKE_CLASS          equ 0x6C        ; camouflage_decal_baker_cook
 STOCK_SCALE         equ 0x9E4EB4    ; 4.0, every stock bake's
 KEY_DATA            equ 0x9FD6C4
-KEY_CAMOUFLAGE      equ 0x9FD704
 KEY_OBJECT          equ 0xA02AA0
 KEY_MODEL           equ 0xA048B8
-FORMAT_STRING       equ 0x9EDC00    ; "%s%s"
-SUFFIX_NMAP         equ 0x9EF6B0    ; "_nmap"
-SUFFIX_SMAP         equ 0x9EF6C0    ; "_smap"
 P_SIZE              equ 0x8B8
 P_CAMO_MATRIX       equ 0x4E0       ; the camouflage layer's float4x4; the constructor leaves it
-P_CAMO_DIFFUSE      equ 0x520       ; buffer_strings, 8Ch apart
-P_CAMO_NORMAL       equ 0x5AC
-P_CAMO_SMOOTHNESS   equ 0x6C4
 P_MODEL             equ 0x790       ; render instance, counted at +0D0h
 P_SURFACE           equ 0x794
 P_SCALE             equ 0x798
@@ -127,21 +129,9 @@ bake_weapon:
     mov edi, KEY_DATA
     call child
     mov [ebp+DATA], eax
-    mov esi, KEY_CAMOUFLAGE
-    call has_key
-    test al, al
-    jz .done
-    mov eax, [ebp+DATA]
-    mov edi, KEY_CAMOUFLAGE
-    call child
-    cmp word [eax+14h], T_STRING
-    jne .done
-    mov eax, [eax]
+    call LOOKUP                     ; the camouflage (or ""), the decals
     test eax, eax
     jz .done
-    cmp byte [eax], 0
-    je .done
-    mov [ebp+CAMO], eax
     mov eax, [STOCK_SCALE]
     mov [ebp+SCALE], eax
     mov eax, [ebp+DATA]
@@ -239,21 +229,6 @@ bake_surface:
     mov [edi+P_CAMO_MATRIX+14h], eax
     mov [edi+P_CAMO_MATRIX+28h], eax
     mov [edi+P_CAMO_MATRIX+3Ch], eax
-    lea eax, [edi+P_CAMO_DIFFUSE]
-    mov ecx, [ebp+CAMO]
-    call string_assign
-    push SUFFIX_NMAP
-    push dword [ebp+CAMO]
-    push FORMAT_STRING
-    lea eax, [edi+P_CAMO_NORMAL]
-    call string_appendf
-    add esp, 12
-    push SUFFIX_SMAP
-    push dword [ebp+CAMO]
-    push FORMAT_STRING
-    lea eax, [edi+P_CAMO_SMOOTHNESS]
-    call string_appendf
-    add esp, 12
     push ebx
     push dword [ebp+MODEL]
     push dword [ebp+CAMO]
@@ -261,6 +236,7 @@ bake_surface:
     lea eax, [edi+P_NAME]
     call string_appendf
     add esp, 16
+    call FILL                       ; the layers, and the decals' part of the name
     mov eax, [edi+P_NAME]           ; its text: '/' and '\' become '_'
     mov ecx, [edi+P_NAME+4]
 .name:

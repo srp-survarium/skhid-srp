@@ -592,6 +592,23 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.weapon_table_bin(), "rb").read(),
           f"{os.path.basename(P.weapon_table_bin())} is current ({len(fresh)} bytes)")
+    camo_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read())
+    decals = camo_va + P.WEAPON_DECALS_OFFSET
+    with tempfile.TemporaryDirectory() as tmp:
+        out = os.path.join(tmp, "out.bin")
+        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={camo_va:#x}", f"-DDECALS={decals:#x}",
+                        os.path.join(HERE, "weapon_camo_026g.asm"), "-o", out], check=True, timeout=60)
+        fresh = open(out, "rb").read()
+    check(fresh == open(P.weapon_camo_bin(), "rb").read(),
+          f"{os.path.basename(P.weapon_camo_bin())} is current ({len(fresh)} bytes)")
+    with tempfile.TemporaryDirectory() as tmp:
+        out = os.path.join(tmp, "out.bin")
+        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={decals:#x}", f"-DPREVIEW={state:#x}",
+                        f"-DTABLE={table_state:#x}", os.path.join(HERE, "weapon_decals_026g.asm"), "-o", out],
+                       check=True, timeout=60)
+        fresh = open(out, "rb").read()
+    check(fresh == open(P.weapon_decals_bin(), "rb").read(),
+          f"{os.path.basename(P.weapon_decals_bin())} is current ({len(fresh)} bytes)")
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.WEAPON_DRAW_VA:#x}", f"-DSTATE={state:#x}",
@@ -1379,7 +1396,8 @@ def late_join_sites():
         [(P.SPOT_COOLDOWN[0], len(P.SPOT_COOLDOWN[1])), (P.SPOT_HOOK[0], len(P.SPOT_HOOK[1]))] + \
         [(va, len(old)) for va, old, _, _ in P.FOV_LOD_HOOKS] + \
         [(P.WEAPON_CAMO_HOOK[0], len(P.WEAPON_CAMO_HOOK[1]))] + \
-        [(va, len(old)) for va, old, _, _ in P.WEAPON_TABLE_HOOKS]
+        [(va, len(old)) for va, old, _, _ in P.WEAPON_TABLE_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.WEAPON_DECALS_HOOKS]
 
 
 def pickup_sites():
@@ -1566,12 +1584,13 @@ def test_weapon_camo(original, image, before):
     texts = [plain(t) for _, _, t in ndisasm(code, camo_va)]
     calls = sorted({branch_target(t) for t in texts if t.startswith("call ")} - {None})
     outside = [c for c in calls if not camo_va <= c < camo_va + len(code)]
-    check(set(outside) == {0x11540, 0x127C0, 0x119590, 0x119760, 0x159700, 0x1539D0, 0xE45B0, 0xE4F90, 0xE5B60,
-                           0xF6B10, 0xF6C00, 0x420789}
+    decals_va = camo_va + P.WEAPON_DECALS_OFFSET
+    check(set(outside) == {0x11540, 0x119590, 0x119760, 0x159700, 0x1539D0, 0xE45B0, 0xE4F90, 0xE5B60,
+                           0xF6B10, 0xF6C00, 0x420789} | {decals_va + at for at in P.WEAPON_CAMO_DECALS_CALLS}
           and not [t for t in texts if t.startswith("jmp ") and not camo_va <= (branch_target(t) or 0) < camo_va + len(code)],
-          "the code calls the game's release, assign, type_to_int, the parameters' constructor, get_all_surfaces, "
+          "the code calls the game's release, type_to_int, the parameters' constructor, get_all_surfaces, "
           "deallocate, appendf, allocate, query_resources, the config's lookup and key check and the allocation "
-          "name, and jumps nowhere outside")
+          "name, and patch 46's lookup and fill (what is painted), and jumps nowhere outside")
     hits = [hit for hit in aimed_inside(original, va, len(old), 0x82)
             if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
     check(not hits, "no rel32 branch of .text, no rel8 branch near it and no 4-byte value aims inside the site"
@@ -1660,6 +1679,68 @@ def test_weapon_table(original, image, before):
           f"({len(code)} bytes), its state at 0x{P.WEAPON_TABLE_STATE_OFFSET:X} of .srpd; it begins with four "
           "`jmp near`, jumps only to the camera's setter outside itself, every branch inside it lands on an "
           "instruction, and no operand is an absolute address")
+
+
+def test_weapon_decals(original, image, before):
+    """Check 46: decals on a weapon (patch 46, WEAPON_DECALS_HOOKS).
+    check_weapon_decals_026g.py runs the bake and the four editor sites."""
+    source = Image(original)
+    rows = lambda img, va, size: [text for _, _, text in ndisasm(img.read(va, size), va)]
+    camo_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read())
+    decals_va = camo_va + P.WEAPON_DECALS_OFFSET
+    code = open(P.weapon_decals_bin(), "rb").read()
+    stock_texts = {
+        0x265999: ["call 0x264960"],
+        0x2659B2: ["call 0x263d00"],
+        0x2641A0: ["push ebp", "mov ebp,esp", "and esp,byte -0x8"],
+        0x263938: ["call 0x264cf0"],
+    }
+    for va, old, offset, opcode in P.WEAPON_DECALS_HOOKS:
+        entry = decals_va + offset
+        kind = "call" if opcode == 0xE8 else "jmp"
+        check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
+              and rows(source, va, len(old)) == stock_texts[va]
+              and rows(image, va, len(old)) == [f"{kind} {entry:#x}"] + ["nop"] * (len(old) - 5),
+              f"{va:#x}: `{' / '.join(stock_texts[va])}` in the original and the build without the late join, "
+              f"`{kind} {entry:#x}`" + (f" and {len(old) - 5} nop" if len(old) > 5 else "") + " here")
+        hits = [hit for hit in aimed_inside(original, va, len(old), 0x82)
+                if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
+        relocated = [r for kind, r in source.relocations().values() if kind == 3 and r + 4 > va and r < va + len(old)]
+        check(not hits and not relocated, f"{va:#x}: no branch or value aims inside the site, no base relocation "
+              "is under it" + "".join(f"\n          {a:#x}" for a in hits))
+    preview = {a: t for a, _, t in ndisasm(source.read(0x265980, 0x3C), 0x265980)}
+    check(preview.get(0x265986) == "mov esi,eax" and preview.get(0x265988) == "push byte +0x20"
+          and preview.get(0x2659A6) == "call 0x264a10" and preview.get(0x2659AB) == "push edx"
+          and rows(source, 0x284A8C, 7) == ["mov eax,ebx", "call 0x265980"]
+          and rows(source, 0x284A83, 9) == ["cmp byte [ebx+0xd514],0x0", "jz 0x284a93"],
+          "lobby_character's update calls the decal preview 0x265980 (eax = esi = the character) while +D514h "
+          "is set; it picks with the collision mask 20h, encodes (0x264A10) and unpacks the u64 at 0x2659B2")
+    bake_calls = sorted(branches_into(original, 0x2641A0, 0x2641A1))
+    check(bake_calls == ["0x263b46 rel32", "0x264f63 rel32", "0x265c4c rel32"],
+          "the editor's bake (0x2641A0) is called by the cancel (0x263B46), the start's callback (0x264F63) and "
+          "the click (0x265C4C) alone" + ("" if bake_calls == ["0x263b46 rel32", "0x264f63 rel32", "0x265c4c rel32"]
+                                          else f": {bake_calls}"))
+    start = rows(source, 0x263936, 7)
+    check(start == ["mov esi,ebp", "call 0x264cf0"] and source.read(0x263942, 3) == bytes.fromhex("c20800"),
+          "the editor's start (0x2636B0) ends `mov esi,ebp / call 0x264CF0` (the character) and `ret 8`")
+    texts = [t for _, _, t in ndisasm(code, decals_va)]
+    listing = ndisasm(code[:code.index(struct.pack("<4I", 0x20080000, 0x8A30CE00, 0x20080200, 0x8A30CE00))],
+                      decals_va)
+    targets = {branch_target(t) for _, _, t in listing if branch_target(t) is not None}
+    outside = {t for t in targets if not decals_va <= t < decals_va + len(code)}
+    starts = {a for a, _, _ in listing}
+    check(outside == {0xF6C00, 0xF6B10, 0x127C0, 0xE45B0, 0x263D00, 0x264A10, 0x264960, 0x26D130, 0x263950,
+                      0x511600, 0x277AA0, 0x264CF0, 0x2641A6}
+          and all(t in starts for t in targets - outside)
+          and [rows(image, decals_va + at, 5)[0].startswith("jmp ") for at in P.WEAPON_DECALS_ENTRIES]
+          == [True] * len(P.WEAPON_DECALS_ENTRIES)
+          and not [t for _, _, t in listing if re.search(r"(?:call|jmp) (?:dword )?\[(?!eax\+0x3c\])", t)]
+          and image.read(decals_va, len(code)) == code,
+          f"patch 46 at {decals_va:#x} (.srpw+{P.WEAPON_DECALS_OFFSET:#x}) is weapon_decals_026g.section.bin "
+          f"({len(code)} bytes); it begins with six `jmp near`, calls only the config's key check and lookup, "
+          "assign, appendf, the decal's unpacking and packing, the collision pick, the mouse's ray, the accept, "
+          "the movie call, find_item_by_id and the start's query, jumps only to the bake's body, every branch "
+          "inside it lands on an instruction, and its one indirect call is the inventory owner's (vtable+3Ch)")
 
 
 def aimed_inside(original, va, size, near):
@@ -3985,6 +4066,7 @@ def test_late_join(original, without, server, source):
     camo = open(P.weapon_camo_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_STASH_OFFSET - len(camo)) + open(P.weapon_stash_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_TABLE_OFFSET - len(camo)) + open(P.weapon_table_bin(), "rb").read()
+    camo = camo + b"\xCC" * (P.WEAPON_DECALS_OFFSET - len(camo)) + open(P.weapon_decals_bin(), "rb").read()
     name_w, rva_w, vsize_w, raw_w, rsize_w, flags_w = sections[-1]
     check(name_w == P.WEAPON_CAMO_NAME and flags_w == P.WEAPON_CAMO_CHARACTERISTICS
           and rva_w == state_rva + state_size and P.IMAGE_BASE + rva_w == P.weapon_camo_va(code)
@@ -3992,7 +4074,8 @@ def test_late_join(original, without, server, source):
           and bytes(data[raw_w:raw_w + vsize_w]) == camo and set(data[raw_w + vsize_w:raw_w + rsize_w]) <= {0xCC},
           f".srpw at VA {P.IMAGE_BASE + rva_w:#x}: weapon_camo_026g.section.bin, int3 padding, "
           f"weapon_stash_026g.section.bin at +{P.WEAPON_STASH_OFFSET:#x}, int3 padding and "
-          f"weapon_table_026g.section.bin at +{P.WEAPON_TABLE_OFFSET:#x} ({len(camo)} bytes), "
+          f"weapon_table_026g.section.bin at +{P.WEAPON_TABLE_OFFSET:#x}, int3 padding and "
+          f"weapon_decals_026g.section.bin at +{P.WEAPON_DECALS_OFFSET:#x} ({len(camo)} bytes), "
           "code | execute | read, on the page after .srpd, its file bytes right after .srp's")
     get = lambda blob, at: struct.unpack_from("<I", blob, at)[0]
     check(get(data, headers.size_of_image_at) == align(rva_w + vsize_w, headers.section_alignment)
@@ -4148,6 +4231,7 @@ def test_late_join(original, without, server, source):
     test_memory_defaults(original, image, before)
     test_weapon_preview(original, image, before)
     test_weapon_table(original, image, before)
+    test_weapon_decals(original, image, before)
     test_suicide_key(original, image, before)
     test_tab_list(original, image, before)
     test_tab_self(original, image, before)

@@ -818,6 +818,7 @@ va	status	ref_021d	name
 0x0012dee0	inferred-high		vostok::render::camouflage_decal_texture_type_baker_cook::on_base_texture_loaded
 0x0012e510	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::on_textures_loaded
 0x0012ec40	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::process_compression
+0x001307b0	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::render_decal_occlusion
 0x00131b40	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::check_loaded_baked_texture
 0x00131f90	inferred-medium		vostok::render::camouflage_decal_texture_type_baker_cook::remove_unwanted_files
 0x00133fb0	inferred-high		vostok::render::camouflage_decal_baker_cook::camouflage_decal_baker_cook
@@ -1567,9 +1568,24 @@ va	status	ref_021d	name
 0x00262f00	inferred-medium	0x00197c1f	survarium::options_tab::~options_tab
 0x00262ff0	inferred-medium	0x00197c8c	survarium::options_tab::apply
 0x002630a0	inferred-medium	0x00197d24	survarium::options_tab::initialize_data
+0x002636b0	inferred-medium		survarium::lobby_character::start_decal_edit
+0x00263950	inferred-medium		survarium::lobby_character::accept_decal_edit
+0x00263a70	inferred-medium		survarium::lobby_character::cancel_decal_edit
+0x00263b60	inferred-medium		survarium::lobby_character::pack_decal_value
+0x00263d00	inferred-medium		survarium::lobby_character::unpack_decal_value
 0x002641a0	inferred-high		survarium::lobby_character::bake_decals
 0x002648e0	inferred-high		survarium::lobby_character::on_decals_baked
+0x00264960	inferred-medium		survarium::lobby_character::pick_decal_place
+0x00264a10	inferred-medium		survarium::lobby_character::decal_value
+0x00264cf0	inferred-medium		survarium::lobby_character::query_decal_host
+0x00264ea0	inferred-medium		survarium::lobby_character::on_decal_host_loaded
+0x00264f80	inferred-medium		survarium::lobby_character::query_decal_textures
 0x00265420	inferred-medium		survarium::lobby_character::on_preview_decal_textures_loaded
+0x00265860	inferred-medium		survarium::lobby_character::show_decal_preview
+0x00265980	inferred-medium		survarium::lobby_character::update_decal_preview
+0x00265c20	inferred-medium		survarium::lobby_character::on_decal_click
+0x00265cb0	inferred-medium		survarium::lobby_character::on_decal_wheel
+0x00265f80	inferred-medium		survarium::lobby_character::place_decal_markers
 0x00266470	inferred-medium	0x000e4424	vostok::detail::concrete_type_helper<vostok::render::render_texture_cook_parameters>::copy_helper
 0x002678e0	inferred-medium		survarium::client_player_respawn_rule::on_kit_changed
 0x00267aa0	inferred-medium		survarium::client_timelimit_rule::tick
@@ -1577,6 +1593,7 @@ va	status	ref_021d	name
 0x0026ab90	inferred-medium	0x0019ad22	vostok::network_core::buffer_writer::w_string
 0x0026abe0	inferred-medium		survarium::messaging_client::process_incomming_packet
 0x0026ad30	inferred-medium		survarium::messaging_client::send_text_message
+0x0026d130	inferred-medium		survarium::lobby_menu::mouse_ray
 0x0026d3b0	inferred-medium	0x0019bc73	survarium::base_local_network_client::`scalar deleting destructor'
 0x0026d420	inferred-medium	0x0019bca7	survarium::base_local_network_client::~base_local_network_client
 0x0026d880	inferred-medium	0x0019c0d7	survarium::base_game_statistics_handler::clear
@@ -1735,6 +1752,7 @@ va	status	ref_021d	name
 0x00299ff0	inferred-medium	0x001b30a8	survarium::hud_game_effect_emitter::emit
 0x0029a5e0	inferred-medium	0x001b323f	survarium::sound_game_effect_emitter::emit
 0x0029a830	inferred-medium		survarium::lobby_menu::process_default_start_decal_edit
+0x0029a850	inferred-medium		survarium::lobby_menu::process_default_cancel_decal_edit
 0x0029a8b0	inferred-medium		survarium::lobby_menu::process_default_relocate_upgrade_item
 0x0029a9d0	inferred-medium		survarium::lobby_menu::process_default_drop_upgrade_item
 0x002a2fd0	inferred-medium		survarium::game_quest_progress_calculator::refresh_quest_ui_data

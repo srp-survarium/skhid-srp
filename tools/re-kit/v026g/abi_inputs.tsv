@@ -2353,8 +2353,32 @@ va	name	location	role	basis
 0x00260e90	survarium::options_item_base::options_item_base	stack+4	parent tab	inferred
 0x00260e90	survarium::options_item_base::options_item_base	stack+8	option item id byte	inferred
 0x00260e90	survarium::options_item_base::options_item_base	stack+12	option item type	inferred
+0x002636b0	survarium::lobby_character::start_decal_edit	EAX	the host item id	observed
+0x002636b0	survarium::lobby_character::start_decal_edit	entry ESP+4	lobby_character	observed
+0x002636b0	survarium::lobby_character::start_decal_edit	entry ESP+8	the decal item id	observed
+0x00263950	survarium::lobby_character::accept_decal_edit	ESI	lobby_character (editing, +D514h)	observed
+0x00263950	survarium::lobby_character::accept_decal_edit	entry ESP+4	the host item id	observed
+0x00263950	survarium::lobby_character::accept_decal_edit	entry ESP+8	the decal item id	observed
+0x00263a70	survarium::lobby_character::cancel_decal_edit	ESI	lobby_character	observed
+0x00263a70	survarium::lobby_character::cancel_decal_edit	entry ESP+4	passed on to place_decal_markers	observed
+0x00263b60	survarium::lobby_character::pack_decal_value	entry ESP+4	the decal frame float4x4 (point at +30h)	observed
+0x00263b60	survarium::lobby_character::pack_decal_value	entry ESP+8	size (float)	observed
+0x00263b60	survarium::lobby_character::pack_decal_value	entry ESP+12	roll (float, 0..2pi)	observed
+0x00263d00	survarium::lobby_character::unpack_decal_value	entry ESP+4	out float4x4	observed
+0x00263d00	survarium::lobby_character::unpack_decal_value	entry ESP+8	u64 low	observed
+0x00263d00	survarium::lobby_character::unpack_decal_value	entry ESP+12	u64 high	observed
 0x002648e0	survarium::lobby_character::on_decals_baked	ECX	lobby_character	observed
 0x002648e0	survarium::lobby_character::on_decals_baked	entry ESP+8	P	observed
+0x00264960	survarium::lobby_character::pick_decal_place	entry ESP+4	lobby_character	observed
+0x00264960	survarium::lobby_character::pick_decal_place	entry ESP+8	out point	observed
+0x00264960	survarium::lobby_character::pick_decal_place	entry ESP+12	out normal	observed
+0x00264960	survarium::lobby_character::pick_decal_place	entry ESP+16	collision mask (20h the character, 800h the markers)	observed
+0x00264960	survarium::lobby_character::pick_decal_place	entry ESP+20	out object id or 0	observed
+0x00264a10	survarium::lobby_character::decal_value	ESI	lobby_character	observed
+0x00264cf0	survarium::lobby_character::query_decal_host	ESI	lobby_character (+D520h the host)	observed
+0x00265860	survarium::lobby_character::show_decal_preview	EAX	the preview box float4x4 (world)	observed
+0x00265860	survarium::lobby_character::show_decal_preview	entry ESP+4	lobby_character	observed
+0x00265980	survarium::lobby_character::update_decal_preview	EAX	lobby_character	observed
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+4	messaging client receiver	inferred
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+8	message identifier	inferred
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+12	one-byte read/acknowledgment action	inferred
@@ -2365,6 +2389,9 @@ va	name	location	role	basis
 0x0026d090	survarium::lobby_menu::on_mouse_move	stack+8	signed relative X delta	inferred
 0x0026d090	survarium::lobby_menu::on_mouse_move	stack+12	signed relative Y delta	inferred
 0x0026d090	survarium::lobby_menu::on_mouse_move	stack+16	wheel delta forwarded unchanged	inferred
+0x0026d130	survarium::lobby_menu::mouse_ray	ESI	lobby menu (mouse +8Ch/+90h, camera rows +0Ch.., eye +3Ch)	observed
+0x0026d130	survarium::lobby_menu::mouse_ray	EDI	out direction	observed
+0x0026d130	survarium::lobby_menu::mouse_ray	entry ESP+4	out eye	observed
 0x0026e4e0	survarium::player_result_brief::deserialize	EDI	brief result output	inferred
 0x0026e4e0	survarium::player_result_brief::deserialize	ESI	reader	inferred
 0x0026e610	survarium::match_stats::deserialize	stack+4	match summary output	inferred
