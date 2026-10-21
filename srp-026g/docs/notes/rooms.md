@@ -188,9 +188,8 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   Play button reads "Leave room" (in the case of the game's own Play label) in red and takes
   the player out of the room, except when its row says it plays the room's match while it
   is in the lobby (its game started anew): then it is Play, back to its seat. The switch to
-  a lower max level ("Switch room") is yellow: its art tinted, its label white, as Leave
-  room's (the owner's of 2026-10-20, "art tinted, white text"; the whole button yellow did not
-  look good).
+  a lower max level ("Switch room") is the game's normal button, untinted (the owner's of
+  2026-10-21: neither the whole button yellow nor its art tinted looked good).
 - **In a room's queue it shows the same way** (the owner's of 2026-10-20): the Rooms tab is
   yellow; Play reads "Leave queue" in red and takes the player out of the queue.
 - **Window:** Rooms replaces Map in the top bar ("rooms" in every language; its own icon; locked with Clan and
