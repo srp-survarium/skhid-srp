@@ -24,7 +24,8 @@
 //! - There are no teams in the room: the sides are drawn when the match
 //!   starts (squads together, the sides as even as they can be).
 //! - After the match everyone is back in the room, and the next vote and
-//!   wait begin.
+//!   wait begin; except who came by Play and played it: it leaves the room
+//!   (the owner's of 2026-10-20, [`Rooms::match_over`]).
 //! - Play with nothing else chosen puts a player into an open room (no
 //!   PIN, a place free; [`Rooms::open_rooms`]), or makes a new one.
 //!
@@ -129,6 +130,12 @@ pub struct Room {
     /// Its chat's last lines, the oldest first, [`CHAT_KEPT`] at most:
     /// gone with the room.
     pub chat: VecDeque<ChatLine>,
+    /// The members who came by Play (into it, or Play made it for them),
+    /// not by a choice of this room (a join, a create, its queue): they
+    /// leave it when a match of it they played is over, for their next
+    /// Play to put them into the room nearest their level (the owner's of
+    /// 2026-10-20). Choosing the room later makes one a chosen member.
+    pub by_play: HashSet<u32>,
 }
 
 /// A line of a room's chat: a member's, or the room's own (a member came
@@ -396,6 +403,7 @@ impl Rooms {
                 serial,
                 kicked: HashSet::new(),
                 chat: VecDeque::new(),
+                by_play: HashSet::new(),
             },
         );
         self.of_account.insert(owner, key);
@@ -405,7 +413,9 @@ impl Rooms {
 
     /// The account joins room `key`, with the PIN it gave last (within
     /// [`PIN_LIFE`]) and its equipment level `gear`; it leaves the room it
-    /// was in. Joining the room it is in already is no change.
+    /// was in. It chose the room: it stays after a match, as its maker does
+    /// (Play's: [`Rooms::came_by_play`]). Joining the room it is in already
+    /// changes only that: one that came by Play has chosen it now.
     pub fn join(
         &mut self,
         account_id: u32,
@@ -414,8 +424,9 @@ impl Rooms {
         now: Instant,
     ) -> Result<(), Refused> {
         let pin = self.take_pin(account_id, now);
-        let room = self.rooms.get(&key).ok_or(Refused::Unknown)?;
+        let room = self.rooms.get_mut(&key).ok_or(Refused::Unknown)?;
         if room.members.contains(&account_id) {
+            room.by_play.remove(&account_id);
             return Ok(());
         }
         if room.kicked.contains(&account_id) {
@@ -443,6 +454,19 @@ impl Rooms {
         Ok(())
     }
 
+    /// The account came into its room by Play (into an open room, or one
+    /// Play made for it): it leaves the room after the first match of it
+    /// that it plays ([`Rooms::match_over`]).
+    pub fn came_by_play(&mut self, account_id: u32) {
+        if let Some(room) = self
+            .of_account
+            .get(&account_id)
+            .and_then(|key| self.rooms.get_mut(key))
+        {
+            room.by_play.insert(account_id);
+        }
+    }
+
     /// The rooms Play may put the account into: no PIN, a place free, its
     /// max level not under the account's equipment level `gear`, not one
     /// that turned it out.
@@ -465,6 +489,7 @@ impl Rooms {
         room.members.retain(|member| *member != account_id);
         room.votes.remove(&account_id);
         room.in_match.remove(&account_id);
+        room.by_play.remove(&account_id);
         room.serial = serial;
         if room.members.is_empty() {
             self.rooms.remove(&key);
@@ -768,17 +793,32 @@ impl Rooms {
     }
 
     /// The room's match (the queue's id) is over: everyone is back, and the
-    /// room waits for the next one (the next tick starts its vote).
-    pub fn match_over(&mut self, match_id: u32) -> Option<u32> {
+    /// room waits for the next one (the next tick starts its vote). Who came
+    /// by Play and played it leaves the room, as by Leave (the owner's of
+    /// 2026-10-20: its next Play may put it into a room of its level); one
+    /// that came by Play and did not play it (it came too late to go in)
+    /// stays for the next match. A room left empty is gone. The room's key
+    /// and who left it.
+    pub fn match_over(&mut self, match_id: u32) -> Option<(u32, Vec<u32>)> {
         let room = self.rooms.values_mut().find(
             |room| matches!(room.stage, Stage::InMatch { match_id: id, .. } if id == match_id),
         )?;
+        let key = room.key;
+        let leaving: Vec<u32> = room
+            .members
+            .iter()
+            .copied()
+            .filter(|member| room.by_play.contains(member) && room.in_match.contains(member))
+            .collect();
         // The cards and the votes for the next match stay: they were cast
         // while this one was played.
         room.stage = Stage::Waiting;
         room.in_match.clear();
         room.after_match = true;
-        Some(room.key)
+        for &member in &leaving {
+            self.leave(member);
+        }
+        Some((key, leaving))
     }
 
     /// The room's match was called off before its countdown (fewer than
@@ -975,7 +1015,7 @@ mod tests {
         // The next cards, and their vote while the match is played.
         rooms.tick(voted + wait, &mut first, |_| true);
         assert!(rooms.vote(2, 1));
-        assert_eq!(rooms.match_over(77), Some(key));
+        assert_eq!(rooms.match_over(77), Some((key, vec![])));
         let room = rooms.get(key).unwrap();
         assert_eq!((room.stage, room.last_map), (Stage::Waiting, cards[0]));
         // The next vote begins, its votes kept, 10 s longer after a match.
@@ -1158,6 +1198,55 @@ mod tests {
         rooms.leave(4);
         rooms.tick(now, &mut first, |_| true);
         assert_eq!(rooms.get(key).unwrap().stage, Stage::Waiting);
+    }
+
+    /// The owner's of 2026-10-20: who came by Play and played the match
+    /// leaves the room after it; who chose the room stays; one by Play that
+    /// did not play it stays for the next; choosing the room makes one a
+    /// chosen member; a room all of Play's is gone after its match.
+    #[test]
+    fn who_came_by_play_and_played_leaves_after_the_match() {
+        let now = Instant::now();
+        let mut rooms = Rooms::default();
+        let key = room_of(&mut rooms, 1, 6, None, now);
+        for account in 2..=5 {
+            rooms.join(account, 0, key, now).unwrap();
+        }
+        // 3, 4 and 5 by Play; 2 chose it; 1 made it.
+        for account in 3..=5 {
+            rooms.came_by_play(account);
+        }
+        // 4 chooses the room it is in: a chosen member now.
+        rooms.join(4, 0, key, now).unwrap();
+        // 5 came too late to go into the match.
+        rooms.started(key, 7, POOL[0], &[1, 2, 3, 4], now);
+        assert_eq!(rooms.match_over(7), Some((key, vec![3])));
+        assert_eq!(rooms.get(key).unwrap().members, [1, 2, 4, 5]);
+        assert_eq!(rooms.key_of(3), None);
+        assert!(!rooms.get(key).unwrap().kicked.contains(&3));
+        // 5 plays the next one, and leaves after it.
+        rooms.started(key, 8, POOL[0], &[1, 2, 4, 5], now);
+        assert_eq!(rooms.match_over(8), Some((key, vec![5])));
+        // Back by a join: chosen, it stays.
+        rooms.join(3, 0, key, now).unwrap();
+        rooms.started(key, 9, POOL[0], &[1, 2, 3, 4], now);
+        assert_eq!(rooms.match_over(9), Some((key, vec![])));
+
+        // A room Play made, every member by Play: gone with its match.
+        let quick = room_of(&mut rooms, 10, 8, None, now);
+        rooms.came_by_play(10);
+        rooms.join(11, 0, quick, now).unwrap();
+        rooms.came_by_play(11);
+        rooms.started(quick, 10, POOL[0], &[10, 11], now);
+        assert_eq!(rooms.match_over(10), Some((quick, vec![10, 11])));
+        assert!(rooms.get(quick).is_none());
+        // A match called off is no match played: nobody leaves.
+        let other = room_of(&mut rooms, 20, 8, None, now);
+        rooms.join(21, 0, other, now).unwrap();
+        rooms.came_by_play(21);
+        rooms.started(other, 11, POOL[0], &[20, 21], now);
+        assert_eq!(rooms.match_not_made(11), Some(other));
+        assert_eq!(rooms.key_of(21), Some(other));
     }
 
     #[test]
