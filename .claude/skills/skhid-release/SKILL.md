@@ -29,24 +29,26 @@ host and refuse while another run holds it.
 
 Ask, in this order:
 
-1. **Does it include new content?** If yes: **the path to the patch
-   database**, `resources.db.patch_<rev>` (a standalone archive in the
-   game's format, named for the release's revision, below; how it was made
-   doesn't matter). A folder of files at the paths the game reads them from
-   (`gameplay/items/...`) is packed into one by
-   `release/build-patch <folder> <rev>`. **The lobby movie**
-   (`flash_movies/lobby_menu.swf`), when any lobby change is new since the
-   last release, is built by `srp-026g/client-patches/build_lobby_026g.py`
-   alone, from ActionScript source: the committed tree
-   `srp-026g/flash/lobby_menu`, compiled whole in one Flex run over the
-   graphics of revision 24's movie (`python3 build_lobby_026g.py
-   <lobby_menu.swf of resources.db.patch_24> <out>`; it needs
-   `private/actionscript/tools.json`, seconds; README "Building the lobby
-   movie", `docs/notes/lobby-source.md`). Ship only the movie the owner
-   checked in the game: the build says whether it made `RESULT_SHA256`, the
-   movie last checked (the same tree gives the same bytes). Another movie of
-   `srp-026g/flash` builds the same way (`tools/actionscript/flash_tree.py
-   build`).
+1. **Does it include new content?** Content is whatever `release/content.tsv`
+   (the manifest: base patches, Flash movies, content packs, edit lists; its
+   header says how) makes that players do not have yet. Find out, and make
+   the patch, with **`release/build-content <revision>`** (the release's
+   revision, below; from a fresh worktree of `origin/main`, never `git
+   stash`). It builds every movie of `srp-026g/flash` from source (the lobby
+   by `build_lobby_026g.py`; seconds each; `private/actionscript/tools.json`),
+   composes the packs (`vostok-port`, `$SKHID_PACKS_DIR`), applies the edit
+   lists in order from the base, compares each file with the stock db and
+   every listed patch, and prints each file, why it is made (which row) and
+   whether players have it so already. Only the files that differ go into
+   `<out>/resources.db.patch_<revision>`, with `server-game-data.db` built of
+   the list and it and checked. A live file the manifest does not make stops
+   it (what made it?), nothing is written. "nothing to ship" means no
+   `--resources`. **Show the owner the file list** (and the lobby build's
+   line: whether it is `RESULT_SHA256`, the movie last checked in the game);
+   ship only movies the owner checked. Never put a patch folder together by
+   hand (`release/build-patch` is the step build-content runs). A merged PR
+   with a new edit list or pack that has no manifest row stops build-content:
+   the PR adds the row.
 2. **Any server-code change?** `release.sh` compares main's `srp-026g`
    build inputs with the target's tree and builds the image when they
    differ; the owner may know better (`--server-code yes|no`).
@@ -474,7 +476,8 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 
 | Script | Does | Writes |
 |---|---|---|
-| `release/build-patch <folder> <rev> [--out <file>]` | packs a folder into `resources.db.patch_<rev>` (read back and compared) | a local file |
+| `release/build-content <rev> [--out <folder>] [--tree] [--manifest]` | the next content patch of `release/content.tsv`: what differs from players' files (the stock db, the listed patches), each file with why; `server-game-data.db` with it | a local folder, the patch cache |
+| `release/build-patch <folder> <rev> [--out <file>]` | packs a folder into `resources.db.patch_<rev>` (read back and compared) | a local file | (build-content's step; never by hand)
 | `release/upload-patch [--test] [--dry-run] <file>` | publishes one patch: `.tmp`, sha256 there, `chmod 644`, `mv -n`, GET must be 200 with the sha256, then its row in the list; never replaces one | the patches server, the list |
 | `release/add-mirror [--test] <name> <url>` | another URL of a listed patch: downloaded as the updater does, not a web page, the row's size and sha256, then appended to the row | the list (and the URL cache) |
 | `release/build-server-db [--test] [--out <file>]` | `server-game-data.db` from the stock db and the list's patches (each first URL GET 200 with the row's size and sha256; each mirror checked as above), `srp-game-data build --patch "<file>=<urls>"` | a local file |

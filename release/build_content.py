@@ -1,0 +1,373 @@
+#!/usr/bin/env python3
+"""The files of players' resources.db as release/content.tsv says they should be, against what
+players have: release/build-content's work (run it, not this; --help there).
+
+    python3 -I build_content.py --stock <resources.db> --patches <folder> --list <patches.tsv>
+        --bin <srp-game-data> --tree <checkout> --manifest <content.tsv> --work <new folder>
+        [--tools <tools.json>] [--vostok-port <program>] [--packs <folder>]
+
+The manifest's rows, in this order of kinds (each kind's rows in their order):
+  base   resources.db.patch_<n>  <its sha256>  a published patch made outside these sources, taken
+         as it is: laid over the stock resources.db in ascending n, it is the base
+  movie  <name>                  -             srp-026g/flash/<name> compiled over its original's
+         graphics (the original from the archive its movie.json names: the stock db or a base row)
+  pack   <id>@<version>          <sha256 of its pack.json> | resources.db.patch_<n>
+         a resource-porter content pack, composed over the base and the movies by
+         `vostok-port pack patch` (its folder <packs>/<id>-<version>); or, with a base row's name,
+         a record: the pack is in that published patch, nothing is applied
+  edit   <file>.json             - | resources.db.patch_<n>
+         srp-026g/scripts/content-edit/<file>.json applied by content_edit.py to the files as the
+         rows above (and the edits before it) leave them; or, with a base row's name, a record
+Every Flash tree of srp-026g/flash needs a movie row and every edit list of content-edit a row.
+
+Writes into --work: world/ (every file a movie, pack or edit made, at its path), patch/ (those of
+them players do not have so: what the next patch carries; absent when there is none) and
+files.tsv (`<status> <path> <why> <live in>`, a line a file). Prints each file and why, and the
+checks; exits 1 on any problem (nothing in patch/ then).
+"""
+import argparse
+import fnmatch
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+
+KINDS = ('base', 'movie', 'pack', 'edit')
+PATCH = re.compile(r'^resources\.db\.patch_([1-9][0-9]{0,2})$')
+SHA = re.compile(r'^[0-9a-f]{64}$')
+LOBBY = 'lobby_menu'
+
+
+class Problem(Exception):
+    pass
+
+
+def sha256(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def run(command, what):
+    """Runs a command; its output is printed indented; a failure is a Problem."""
+    result = subprocess.run([str(c) for c in command], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True)
+    if result.returncode:
+        raise Problem(f'{what} failed:\n' + '\n'.join('    ' + line for line in result.stdout.splitlines()[-25:]))
+    return result.stdout
+
+
+def read_list(path):
+    """The offered-patch list: [(name, sha256)] in its order (release/lib.sh checked it)."""
+    rows = []
+    for line in Path(path).read_text().splitlines():
+        if line and not line.startswith('#'):
+            name, sha = line.split('\t')[:2]
+            rows.append((name, sha))
+    return rows
+
+
+def read_manifest(path, offered, tree):
+    """The rows, checked: [(kind, name, source, what, line)]."""
+    rows, seen, rank = [], set(), 0
+    for number, line in enumerate(Path(path).read_text(encoding='utf-8').splitlines(), 1):
+        at = f'{path}:{number}'
+        if not line.strip() or line.startswith('#'):
+            continue
+        fields = line.split('\t')
+        if len(fields) != 4 or not all(fields[:3]):
+            raise Problem(f'{at}: not <kind> <name> <source> <what> with tabs between')
+        kind, name, source, what = fields
+        if kind not in KINDS:
+            raise Problem(f'{at}: {kind} is not a kind ({", ".join(KINDS)})')
+        if KINDS.index(kind) < rank:
+            raise Problem(f'{at}: a {kind} row after the {KINDS[rank]} rows (the kinds go {", ".join(KINDS)})')
+        rank = KINDS.index(kind)
+        if (kind, name) in seen:
+            raise Problem(f'{at}: {kind} {name} is there twice')
+        seen.add((kind, name))
+        if kind == 'base':
+            if not PATCH.match(name):
+                raise Problem(f'{at}: a base row is a published resources.db.patch_<n>, not {name}')
+            if (name, source) not in offered:
+                raise Problem(f'{at}: {name} with sha256 {source} is not on the offered-patch list: '
+                              'a base row is a published patch players have')
+        elif kind == 'movie' and source != '-':
+            raise Problem(f'{at}: movie {name}: the source is `-` (the tree)')
+        elif kind == 'edit' and not (source == '-' or PATCH.match(source)):
+            raise Problem(f'{at}: edit {name}: the source is `-` (applied) or the base row that holds it')
+        elif kind == 'pack' and not (SHA.match(source) or PATCH.match(source)):
+            raise Problem(f'{at}: pack {name}: the source is the sha256 of its pack.json (composed) or the '
+                          'base row that holds it')
+        if kind in ('pack', 'edit') and PATCH.match(source) and ('base', source) not in seen:
+            raise Problem(f'{at}: {kind} {name} is in {source}, which is no base row above')
+        if kind == 'pack' and not re.match(r'^[a-z0-9._-]+@[A-Za-z0-9._-]+$', name):
+            raise Problem(f'{at}: a pack is named <id>@<version>, not {name}')
+        if kind == 'movie' and not (tree / 'srp-026g' / 'flash' / name / 'movie.json').is_file():
+            raise Problem(f'{at}: movie {name}: no srp-026g/flash/{name}/movie.json in {tree}')
+        if kind == 'edit' and not (edits_dir(tree) / name).is_file():
+            raise Problem(f'{at}: edit {name}: no srp-026g/scripts/content-edit/{name} in {tree}')
+        rows.append((kind, name, source, what, at))
+    trees = sorted(p.parent.name for p in (tree / 'srp-026g' / 'flash').glob('*/movie.json'))
+    lists = sorted(p.name for p in edits_dir(tree).glob('*.json'))
+    for kind, names in (('movie', trees), ('edit', lists)):
+        for name in names:
+            if (kind, name) not in seen:
+                where = f'srp-026g/flash/{name}' if kind == 'movie' else f'srp-026g/scripts/content-edit/{name}'
+                raise Problem(f'{where} has no {kind} row in {path}: everything the sources make is live, '
+                              f'so add its row (or take it out of the tree)')
+    return rows
+
+
+def edits_dir(tree):
+    return tree / 'srp-026g' / 'scripts' / 'content-edit'
+
+
+class Game:
+    """srp-game-data on archives."""
+
+    def __init__(self, binary, work):
+        self.binary, self.work, self.count = binary, work, 0
+
+    def layers(self, archives):
+        out = ['--db', archives[0]]
+        for archive in archives[1:]:
+            out += ['--patch', archive]
+        return out
+
+    def files(self, archives):
+        """{path: archive name} of every file the archives give."""
+        text = run([self.binary, 'files'] + self.layers(archives), 'srp-game-data files')
+        return {path: name for path, _, _, name in (line.split('\t') for line in text.splitlines())}
+
+    def get(self, archives, paths):
+        """{path: bytes} of those files as the archives give them."""
+        if not paths:
+            return {}
+        self.count += 1
+        folder = self.work / f'get-{self.count}'
+        listing = self.work / f'get-{self.count}.txt'
+        listing.write_text(''.join(p + '\n' for p in paths))
+        run([self.binary, 'get'] + self.layers(archives) + ['--out', folder, '--paths', listing], 'srp-game-data get')
+        got = {path: (folder / path).read_bytes() for path in paths}
+        shutil.rmtree(folder)
+        listing.unlink()
+        return got
+
+    def compare(self, archives, folder):
+        """{path: (status, archive or '')}: same, differs, new."""
+        text = run([self.binary, 'compare'] + self.layers(archives) + ['--dir', folder], 'srp-game-data compare')
+        out = {}
+        for line in text.splitlines():
+            status, path, *name = line.split(' ')
+            out[path] = (status, name[0] if name else '')
+        return out
+
+
+class World:
+    """The files the sources make: path -> bytes, and why (the rows that made them, in order)."""
+
+    def __init__(self):
+        self.bytes, self.why = {}, {}
+
+    def put(self, path, data, reason):
+        if self.bytes.get(path) == data:
+            return
+        self.bytes[path] = data
+        self.why.setdefault(path, []).append(reason)
+
+
+def build_movies(rows, tree, archive_of, game, tools, work, world):
+    stand_in = os.environ.get('SKHID_TEST_BUILD_MOVIE')
+    for kind, name, _, _, at in rows:
+        if kind != 'movie':
+            continue
+        movie_dir = tree / 'srp-026g' / 'flash' / name
+        spec = json.loads((movie_dir / 'movie.json').read_text())
+        archive = spec.get('archive')
+        if archive not in archive_of:
+            raise Problem(f'{at}: movie {name}: its original is in {archive} (movie.json), which is neither the '
+                          'stock resources.db nor a base row')
+        original = game.get([archive_of[archive]], [spec['movie']])[spec['movie']]
+        if sha256(original) != spec.get('movie_sha256'):
+            raise Problem(f'{at}: movie {name}: {spec["movie"]} of {archive} is not the original movie.json names')
+        folder = work / 'movies' / name
+        folder.mkdir(parents=True)
+        (folder / 'original.swf').write_bytes(original)
+        out = folder / 'built.swf'
+        if stand_in:
+            command = [stand_in, name, movie_dir, folder / 'original.swf', out]
+        elif name == LOBBY:
+            command = [sys.executable, '-I', tree / 'srp-026g' / 'client-patches' / 'build_lobby_026g.py',
+                       folder / 'original.swf', out, '--tools', tools]
+        else:
+            command = [sys.executable, tree / 'tools' / 'actionscript' / 'flash_tree.py', '--tools', tools,
+                       'build', movie_dir, folder / 'original.swf', out]
+        said = run(command, f'the build of movie {name}')
+        for line in said.strip().splitlines()[-2:]:
+            print(f'    {line}')
+        data = out.read_bytes()
+        world.put(spec['movie'], data, f'movie {name} (srp-026g/flash/{name})')
+        print(f'  movie {name}: {spec["movie"]}, {len(data)} bytes, sha256 {sha256(data)[:16]}…')
+
+
+def compose_packs(rows, base, vostok, packs_dir, work, world):
+    applied = [(name, source, at) for kind, name, source, _, at in rows if kind == 'pack' and SHA.match(source)]
+    if not applied:
+        return
+    if not vostok:
+        raise Problem('the manifest has packs to compose: SKHID_VOSTOK_PORT must name resource-porter\'s vostok-port')
+    if not packs_dir:
+        raise Problem('the manifest has packs to compose: SKHID_PACKS_DIR must name the folder of the packs')
+    command = [vostok, 'pack', 'patch', '--base-db', base[0]]
+    for patch in base[1:]:
+        command += ['--base-patch', patch]
+    for name, source, at in applied:
+        ident, version = name.split('@')
+        folder = Path(packs_dir) / f'{ident}-{version}'
+        manifest = folder / 'pack.json'
+        if not manifest.is_file():
+            raise Problem(f'{at}: pack {name}: no {manifest}')
+        if sha256(manifest.read_bytes()) != source:
+            raise Problem(f'{at}: pack {name}: {manifest} has sha256 {sha256(manifest.read_bytes())}, not {source}')
+        spec = json.loads(manifest.read_text())
+        if (spec.get('id'), str(spec.get('version'))) != (ident, version):
+            raise Problem(f'{at}: pack {name}: {manifest} says {spec.get("id")}@{spec.get("version")}')
+        command += ['--pack', folder]
+    movies = work / 'movies-for-packs'
+    for path, data in world.bytes.items():
+        target = movies / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        command += ['--replace', f'{path}={target}']
+    out = work / 'packs'
+    said = run(command + ['--out-dir', out], 'vostok-port pack patch')
+    for line in said.strip().splitlines()[-3:]:
+        print(f'    {line}')
+    reason = 'pack ' + ', '.join(name for name, _, _ in applied)
+    for file in sorted(p for p in out.rglob('*') if p.is_file()):
+        world.put(file.relative_to(out).as_posix(), file.read_bytes(), reason)
+
+
+def edit_paths(edits, known):
+    """The game paths an edit list reads: its `file`s and what its `files` globs match."""
+    paths = set()
+    for entries in edits.values():
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if 'file' in entry:
+                paths.add(entry['file'])
+            if 'files' in entry:
+                paths.update(fnmatch.filter(known, entry['files']))
+    return sorted(paths)
+
+
+def apply_edits(rows, tree, base, base_files, game, work, world):
+    tool = edits_dir(tree) / 'content_edit.py'
+    for kind, name, source, _, at in rows:
+        if kind != 'edit' or source != '-':
+            continue
+        edits = json.loads((edits_dir(tree) / name).read_text(encoding='utf-8'))
+        paths = edit_paths(edits, sorted(set(base_files) | set(world.bytes)))
+        movies = [p for p in paths if p.startswith('flash_movies/')]
+        if movies:
+            raise Problem(f'{at}: edit {name} names {movies[0]}: a movie changes in its source tree')
+        missing = [p for p in paths if p not in world.bytes and p not in base_files]
+        if missing:
+            raise Problem(f'{at}: edit {name}: {missing[0]} is in no archive of the base and made by no row above')
+        live = work / 'edits' / name / 'live'
+        out = work / 'edits' / name / 'out'
+        got = game.get(base, [p for p in paths if p not in world.bytes])
+        for path in paths:
+            target = live / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(world.bytes[path] if path in world.bytes else got[path])
+        said = run([sys.executable, '-I', tool, edits_dir(tree) / name, live, out], f'edit {name} (content_edit.py)')
+        print(f'  edit {name}: {said.strip().splitlines()[-2] if len(said.strip().splitlines()) > 1 else said.strip()}')
+        for file in sorted(p for p in out.rglob('*') if p.is_file()):
+            world.put(file.relative_to(out).as_posix(), file.read_bytes(), f'edit {name}')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    for option in ('stock', 'patches', 'list', 'bin', 'tree', 'manifest', 'work'):
+        parser.add_argument('--' + option, required=True, type=Path)
+    parser.add_argument('--tools', type=Path)
+    parser.add_argument('--vostok-port', type=Path)
+    parser.add_argument('--packs', type=Path)
+    args = parser.parse_args()
+    work = args.work
+    work.mkdir(parents=True)
+    game = Game(args.bin, work)
+    offered = read_list(args.list)
+    try:
+        rows = read_manifest(args.manifest, offered, args.tree)
+        base_rows = [name for kind, name, _, _, _ in rows if kind == 'base']
+        base_names = ['resources.db'] + sorted(base_rows, key=lambda n: int(PATCH.match(n).group(1)))
+        archive_of = {'resources.db': args.stock} | {n: args.patches / n for n in base_rows}
+        base = [archive_of[n] for n in base_names]
+        live = [args.stock] + [args.patches / name for name, _ in offered]
+        print(f'the base: the stock resources.db and {len(base_rows)} published patch(es): '
+              + ' '.join(n.removeprefix('resources.db.') for n in base_names[1:]))
+        if any(kind == 'movie' for kind, *_ in rows) and not os.environ.get('SKHID_TEST_BUILD_MOVIE') and \
+                not (args.tools and args.tools.is_file()):
+            raise Problem(f'the movies need a tools.json naming java and Flex (tools/actionscript/README.md): '
+                          f'{args.tools} is not a file (SKHID_FLASH_TOOLS names another)')
+        world = World()
+        print('the movies, from source:')
+        build_movies(rows, args.tree, archive_of, game, args.tools, work, world)
+        compose_packs(rows, base, args.vostok_port, args.packs, work, world)
+        base_files = game.files(base)
+        print('the edit lists, in order:')
+        apply_edits(rows, args.tree, base, base_files, game, work, world)
+
+        # What the sources make, against what players have.
+        folder = work / 'world'
+        for path, data in world.bytes.items():
+            target = folder / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+        compared = game.compare(live, folder) if world.bytes else {}
+        problems = []
+        live_files = game.files(live)
+        for path, name in sorted(live_files.items()):
+            if name not in base_names and path not in world.bytes:
+                problems.append(f'{path}: live from {name}, which is no base row, and made by no row of the '
+                                'manifest: what made it? (a patch put together by hand, or a row taken out)')
+        changed = sorted(p for p, (status, _) in compared.items() if status != 'same')
+        lines = []
+        print()
+        print(f'every file the movies, packs and edits make ({len(world.bytes)}), against what players have '
+              f'(the stock resources.db and the {len(offered)} offered patches):')
+        for path in sorted(world.bytes):
+            status, name = compared[path]
+            why = ', then '.join(world.why[path])
+            word = {'same': 'unchanged', 'differs': 'CHANGED', 'new': 'NEW'}[status]
+            where = f'live in {name}' if name else 'not in players\' files'
+            print(f'  {word:9} {path}: {why}; {where}')
+            lines.append(f'{status}\t{path}\t{why}\t{name or "-"}\n')
+        (work / 'files.tsv').write_text(''.join(lines))
+        if problems:
+            print()
+            for problem in problems:
+                print(f'PROBLEM: {problem}')
+            raise Problem(f'{len(problems)} live file(s) the manifest does not account for: no patch made')
+        print()
+        if not changed:
+            print('nothing to ship: players have every file as the manifest makes it')
+            return
+        patch = work / 'patch'
+        for path in changed:
+            target = patch / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(world.bytes[path])
+        print(f'the next patch: {len(changed)} file(s), {sum(len(world.bytes[p]) for p in changed)} bytes')
+    except Problem as problem:
+        sys.exit(f'build-content: {problem}')
+
+
+if __name__ == '__main__':
+    main()

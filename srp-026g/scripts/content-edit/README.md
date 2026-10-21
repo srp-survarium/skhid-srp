@@ -10,22 +10,22 @@ on other data.
 
 ## Making the patch
 
-```bash
-# the live files: the server game data the live server runs on holds the gameplay files;
-# other files (materials) come from the newest offered patch that has them
-dbgrab server-game-data.db get gameplay/items/ live/      # tools/re-kit/common/dbgrab
-dbgrab resources.db.patch_19 get collimator_glowing_dot_ x/ && cp x/*.material live/
-dbgrab resources.db.patch_20 get localization/ live/
-python3 -I content_edit.py weapon-balance-1.json live/ folder/
-cp lobby_menu.swf folder/flash_movies/                     # weapon balance 1: the movie with the ninth card row
-release/build-patch folder/ <revision>                    # resources.db.patch_<revision>
-```
+An edit list is live when it has its row in `release/content.tsv` (`edit<TAB><file>.json<TAB>-<TAB><what>`,
+after the edit rows already there: they are applied in that order). `release/build-content
+<revision>` applies every one to the files as the base patches and the packs leave them (so the
+`from` values are those, never a later release's), compares the results with what players have,
+and packs only the files that differ into `resources.db.patch_<revision>`, with the server game data
+(`release/build-content --help`). Nothing is put together by hand; a retune is a change
+of the list, built again from the same base. Any file of the game's archives can be edited, not
+only `gameplay/` (the server game data holds only the files srp reads).
 
-Then build the server data with it (`srp-game-data build`, or `release/release.sh`
-with the patch) and run `weapon_balance_1_changes_only_its_values`
+`content_edit.py` runs on its own for a check (`--check`) on a folder of files at their game paths
+(`srp-game-data get --db <resources.db> --patch <patch>... --out live/ <path>...`).
+
+Then run `weapon_balance_1_changes_only_its_values`
 (`crates/survarium/src/v026g/maps.rs`, ignored: it needs `SRP_TEST_RESOURCES_DB`,
-`SRP_TEST_SKHID_PATCHES` and `SRP_TEST_PATCH_WEAPON_BALANCE_1`). The server game data
-carries no localization tables: the test reads the texts in the patches themselves.
+`SRP_TEST_SKHID_PATCHES` and `SRP_TEST_PATCH_WEAPON_BALANCE_1`) when a change touches its files. The
+server game data carries no localization tables: the test reads the texts in the patches themselves.
 
 ## weapon-balance-1.json (2026-10-18)
 

@@ -9,9 +9,13 @@
 //! srp-game-data info <file>
 //! srp-game-data check <file> <archives>
 //! srp-game-data pack --dir <folder> --out <file>
+//! srp-game-data files <layers>
+//! srp-game-data get <layers> --out <folder> [--paths <file>] [<path>...]
+//! srp-game-data compare <layers> --dir <folder>
 //!
 //! <archives>: --dir <game folder> [--patch-url <base URL>]
 //!           | --db <resources.db> [--patch <file>[=<URL>[ <URL>]...]]... [--patch-url <base URL>]
+//! <layers>:   --db <resources.db> [--patch <resources.db.patch_<n>>]...
 //! ```
 //!
 //! See [`USAGE`].
@@ -30,6 +34,9 @@ const USAGE: &str = "usage:
   srp-game-data info <file>
   srp-game-data check <file> <archives>
   srp-game-data pack --dir <folder> --out <resources.db.patch_<n>>
+  srp-game-data files <layers>
+  srp-game-data get <layers> --out <folder> [--paths <file>] [<path>...]
+  srp-game-data compare <layers> --dir <folder>
 
 <archives> is one of
   --dir <game folder> [--patch-url <base URL>]
@@ -60,7 +67,17 @@ pack makes a patch of every file under <folder>, at its path there
 every file against the folder. --out must be called resources.db.patch_<n>
 (or resources.db), the names the game mounts.
 
-build and pack never overwrite --out.";
+<layers> is --db <resources.db> [--patch <resources.db.patch_<n>>]...: the
+archives as the game mounts them (the patches in ascending n), no URLs.
+files lists every file they give, one a line: <path> TAB <size> TAB <CRC-32,
+8 hex digits> TAB <the archive's name>. get writes the files named (each
+path once, as an argument or a line of --paths) at their paths under --out,
+a new folder; a path no archive has is refused. compare reads every file
+under --dir (at its path there, as pack takes it) and says, one a line,
+`same <path> <archive>`, `differs <path> <archive>` or `new <path>`: the
+same bytes as the archives give there, other bytes, or a file they lack.
+
+build and pack never overwrite --out, nor get its folder.";
 
 /// The archives the options name: `resources.db`, its patches with their
 /// URLs; and `--out`.
@@ -247,8 +264,183 @@ fn run(args: &[String]) -> Result<(), String> {
             check(&data, &db, &patches)
         }
         "pack" => pack(options),
+        "files" => {
+            let (overlay, names, rest) = layers(options, &[])?;
+            if !rest.paths.is_empty() {
+                return Err(format!("files takes no paths\n{USAGE}"));
+            }
+            for (path, index, entry) in overlay.files_under("") {
+                println!(
+                    "{path}\t{}\t{:08x}\t{}",
+                    entry.size, entry.hash, names[index]
+                );
+            }
+            Ok(())
+        }
+        "get" => get(options),
+        "compare" => {
+            for line in compare(options)? {
+                println!("{line}");
+            }
+            Ok(())
+        }
         _ => Err(USAGE.into()),
     }
+}
+
+/// What `files`, `get` and `compare` are given besides the archives.
+#[derive(Debug, Default)]
+struct Rest {
+    /// `--out`, `--dir`, `--paths`: those the command takes.
+    named: std::collections::BTreeMap<String, String>,
+    /// The words that are no option.
+    paths: Vec<String>,
+}
+
+/// `<layers>`: `--db <resources.db> [--patch <resources.db.patch_<n>>]...`,
+/// in the game's order (the patches by ascending n, whatever their order
+/// here), and the options of `takes`, each once.
+fn layered(options: &[String], takes: &[&str]) -> Result<(Vec<PathBuf>, Rest), String> {
+    let mut db = None;
+    let mut patches: Vec<(u32, PathBuf)> = Vec::new();
+    let mut rest = Rest::default();
+    let mut words = options.iter();
+    while let Some(word) = words.next() {
+        if !word.starts_with("--") {
+            rest.paths.push(word.clone());
+            continue;
+        }
+        let value = words
+            .next()
+            .ok_or_else(|| format!("{word} needs a value\n{USAGE}"))?;
+        match word.as_str() {
+            "--db" if db.is_none() => db = Some(PathBuf::from(value)),
+            "--patch" => {
+                let path = PathBuf::from(value);
+                let number = path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .and_then(patch_number)
+                    .ok_or_else(|| {
+                        format!(
+                            "{value}: the game mounts a patch only by the name \
+                             {PATCH_PREFIX}<n>, n from 1 to {LAST_PATCH}"
+                        )
+                    })?;
+                if patches.iter().any(|(seen, _)| *seen == number) {
+                    return Err(format!("{value}: two patches of one number"));
+                }
+                patches.push((number, path));
+            }
+            key if takes.contains(&key) && !rest.named.contains_key(key) => {
+                rest.named.insert(key.to_owned(), value.clone());
+            }
+            key => {
+                return Err(format!(
+                    "{key}: not an option here, or given twice\n{USAGE}"
+                ));
+            }
+        }
+    }
+    let db = db.ok_or_else(|| format!("--db <resources.db> is needed\n{USAGE}"))?;
+    patches.sort_by_key(|(number, _)| *number);
+    let archives = std::iter::once(db)
+        .chain(patches.into_iter().map(|(_, path)| path))
+        .collect();
+    Ok((archives, rest))
+}
+
+type Layers = resources_db::overlay::Overlay<std::fs::File>;
+
+/// The archives of `<layers>` over one another, and their names.
+fn layers(options: &[String], takes: &[&str]) -> Result<(Layers, Vec<String>, Rest), String> {
+    let (paths, rest) = layered(options, takes)?;
+    let mut archives = Vec::new();
+    let mut names = Vec::new();
+    for path in &paths {
+        let at = |cause: &dyn std::fmt::Display| format!("{}: {cause}", path.display());
+        let file = std::fs::File::open(path).map_err(|cause| at(&cause))?;
+        archives.push(Archive::new(file).map_err(|cause| at(&cause))?);
+        names.push(path.file_name().map_or_else(
+            || path.display().to_string(),
+            |n| n.to_string_lossy().into(),
+        ));
+    }
+    let overlay =
+        resources_db::overlay::Overlay::new(archives, &names).map_err(|e| e.to_string())?;
+    Ok((overlay, names, rest))
+}
+
+/// `get <layers> --out <folder> [--paths <file>] [<path>...]`.
+fn get(options: &[String]) -> Result<(), String> {
+    let (mut overlay, _, rest) = layers(options, &["--out", "--paths"])?;
+    let out = PathBuf::from(
+        rest.named
+            .get("--out")
+            .ok_or_else(|| format!("get needs --out <folder>\n{USAGE}"))?,
+    );
+    let mut paths = rest.paths.clone();
+    if let Some(list) = rest.named.get("--paths") {
+        let text = std::fs::read_to_string(list).map_err(|cause| format!("{list}: {cause}"))?;
+        paths.extend(
+            text.lines()
+                .filter(|line| !line.is_empty())
+                .map(str::to_owned),
+        );
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    for path in &paths {
+        if !seen.insert(path.as_str()) {
+            return Err(format!("{path}: named twice"));
+        }
+        if overlay.entry(path).is_none() {
+            return Err(format!("{path}: no archive has this file"));
+        }
+    }
+    is_new(&out)?;
+    std::fs::create_dir_all(&out).map_err(|cause| format!("{}: {cause}", out.display()))?;
+    for path in &paths {
+        let bytes = overlay
+            .read(path)
+            .map_err(|e| format!("{path}: {e}"))?
+            .ok_or_else(|| format!("{path}: no archive has this file"))?;
+        let target = out.join(path);
+        let at = |cause: std::io::Error| format!("{}: {cause}", target.display());
+        if let Some(folder) = target.parent() {
+            std::fs::create_dir_all(folder).map_err(at)?;
+        }
+        std::fs::write(&target, bytes).map_err(at)?;
+    }
+    println!("{}: {} file(s)", out.display(), paths.len());
+    Ok(())
+}
+
+/// `compare <layers> --dir <folder>`: its lines.
+fn compare(options: &[String]) -> Result<Vec<String>, String> {
+    let (mut overlay, names, rest) = layers(options, &["--dir"])?;
+    if !rest.paths.is_empty() {
+        return Err(format!("compare takes no paths\n{USAGE}"));
+    }
+    let dir = rest
+        .named
+        .get("--dir")
+        .ok_or_else(|| format!("compare needs --dir <folder>\n{USAGE}"))?;
+    let files = resources_db::pack::files_of(Path::new(dir)).map_err(|e| e.to_string())?;
+    let mut lines = Vec::new();
+    for (path, bytes) in &files {
+        let Some((index, _)) = overlay.entry(path) else {
+            lines.push(format!("new {path}"));
+            continue;
+        };
+        let name = &names[index];
+        let live = overlay
+            .read(path)
+            .map_err(|e| format!("{path}: {e}"))?
+            .unwrap_or_default();
+        let word = if &live == bytes { "same" } else { "differs" };
+        lines.push(format!("{word} {path} {name}"));
+    }
+    Ok(lines)
 }
 
 /// `check <file> <archives>`: whether `data` is, byte for byte, what

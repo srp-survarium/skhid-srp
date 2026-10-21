@@ -1,0 +1,59 @@
+# Everything that should be live in players' resources.db: release/build-content builds it, compares
+# it with what players have (the stock resources.db and every patch of release/patches.tsv, mounted
+# in order) and packs only the files that differ into the next resources.db.patch_<revision>.
+# A content change is a change of its source (an edit list, a pack, a Flash tree) and, for a new
+# one, its row here, in the same PR; nothing else. Never assemble a patch folder by hand.
+#
+# One row a line, tabs between: <kind> <name> <source> <what>. The kinds go in this order (each
+# kind's rows in theirs), which is the order they are laid over one another:
+#   base   resources.db.patch_<n>   <its sha256>   a published patch made outside these sources
+#          (ported maps, weapons and items), taken as it is. Laid over the stock db in ascending
+#          n, the base patches are what everything below starts from. Only a published patch, and
+#          only for content no source here makes again.
+#   movie  <name>   -   srp-026g/flash/<name> compiled over the graphics of its original (the
+#          archive its movie.json names: the stock db or a base row); lobby_menu by
+#          client-patches/build_lobby_026g.py. Every tree of srp-026g/flash has a row.
+#   pack   <id>@<version>   <sha256 of its pack.json>   a resource-porter content pack, composed
+#          over the base and the movies (vostok-port pack patch; the folder
+#          $SKHID_PACKS_DIR/<id>-<version>), its icons drawn into the lobby movie built from source.
+#          With a base row's name as the source: a record, the pack as it is in that patch.
+#   edit   <file>.json   -   srp-026g/scripts/content-edit/<file>.json applied by content_edit.py,
+#          in order, to the files as the rows above leave them ("from" values are the base's).
+#          With a base row's name as the source: a record, applied in that patch. Every edit list
+#          of content-edit has a row.
+# A new pack or edit list: a row at the end of its kind. A retune of an edit list or a movie
+# change: no row to add (the source changed). A pack's new version: its row's name and sha256.
+base	resources.db.patch_12	2b771e4b2040707434bb17aa27b1965aacba2ca355eb38634f504b61d6c8fab3	revision 12: the menus' Skhid movies (main_menu, login_menu with the login hint, lobby_menu), the Duty exoskeleton and the Bandit balaclava (their first packs), their texts and dictionary rows
+base	resources.db.patch_14	60a69dcc6b661d09c3143fb74d6806f6f1ba6d465af3c29bfa669a58ce9a404c	revision 14: map level_09 (game modes, models, environment probes), the renderer's shaders, the hud and lobby movies with it
+base	resources.db.patch_17	807b0e784c679a41009940d56ee76919d2bb5f14559154b927faf43405624081	revision 17: the STK2 Duty and Freedom exoskeleton sets, the Bandit balaclava, Cologne pre-rain's probes, the Mosin clip fix, the SVD damage (packs below), the lobby movie with their icons
+base	resources.db.patch_19	8bb0e952014e8420ecd1b959631ec9e62e2f7c6ad04e14293fd8d726a6f9840b	revision 19: the 0.29a3 weapons and the weapon scopes (#168: models, sounds, animations, configs, texts), the lobby movie with them
+base	resources.db.patch_20	7830ce1f175ea69c0e5fe34dbd3a47dfd6d606f102ff451422cf71471c723cc1	revision 20: the 0.21d maps (v021d_level_03, v021d_level_06), the hud and lobby movies with them
+base	resources.db.patch_21	0db1c4bcb6f3257d56db8da93e9b918878de39d140ef6eb3bb2e75ce785a0de3	revision 21: weapon balance 1 (edit row below) and the lobby movie's ninth card row
+base	resources.db.patch_22	8d89d7a472d3659f370822212874aa237edb2257c8a3640d70c21c6fda0c65a5	revision 22: the v0.11e maps (v011e_level_03, v011e_level_04), the hud and lobby movies with them
+base	resources.db.patch_23	f504ed4ceba7642df009dede3405236a4774f728c500f736f5a4921fe33141b0	revision 23: the STK2 Novice's knit cap (1821), four map projects fixed (maps-v011e 15, maps-021d 9), the lobby movie with its icon
+base	resources.db.patch_24	c87623b9f80238a6b9c21507bd194bfbce6622cfd26b3a6be66839c9046a21b4	revision 24: the exoskeleton bodies as armour without oxygen (pack below), the lobby movie with the rooms (the graphics srp-026g/flash/lobby_menu builds on)
+movie	cursor	-	the mouse cursor
+movie	debug_animations	-	the animation debug screen
+movie	hud	-	the match HUD (#264: hit marks and crosshair centred at any UI scale)
+movie	lobby_menu	-	the lobby: rooms, exchange, craft and upgrade windows, Optics, player kits, ...
+movie	login_menu	-	the login screen with the login hint
+movie	main_menu	-	the main menu with the FOV slider
+movie	player_icons	-	the players' icons over their heads
+movie	replay_player	-	the replay player
+pack	bandit-mask@12	resources.db.patch_17	the Bandit balaclava (1810)
+pack	cologne-probes@1	resources.db.patch_17	Cologne pre-rain (level_08 prerain_3): two environment probes take prerain_2's cubemaps
+pack	duty-exo@20	resources.db.patch_17	the Duty exoskeleton set
+pack	freedom-exo@4	resources.db.patch_17	the Freedom exoskeleton set
+pack	mosin-clip-fix@1	resources.db.patch_17	the Mosin-Nagant's third-person clip animations
+pack	svd-damage@1	resources.db.patch_17	the SVD: damage 1.1 -> 1.0 (#157)
+pack	maps-021d@7	resources.db.patch_20	the 0.21d maps
+pack	ui-rev20@1	resources.db.patch_20	revision 20's hud and lobby changes
+pack	maps-v011e@12	resources.db.patch_22	the v0.11e maps
+pack	novice@6	resources.db.patch_23	the Novice's knit cap
+pack	exo-body-armour@1	resources.db.patch_24	the Duty and Freedom exoskeleton bodies (1805, 1807) as armour without oxygen, their artefact slot working (over duty-exo 21, freedom-exo 5)
+edit	weapon-balance-1.json	resources.db.patch_21	weapon balance 1 (#182)
+edit	backpacks-1.json	-	backpacks may roll health regeneration (#194)
+edit	fall-damage-1.json	-	fall damage as in 0.27 (#200)
+edit	battery-pickup-1.json	-	battery pick-up 20 % faster (#221)
+edit	duty-name-uk-1.json	-	Ukrainian: the Duty faction is Долг (#222)
+edit	weapon-balance-2.json	-	weapon balance 2: AK-12, Socom16 (#242, #260), A-545 (#265)
