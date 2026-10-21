@@ -29,7 +29,7 @@ use survarium::v026g::prices;
 use survarium::v026g::quests::FACTIONS;
 use survarium::v026g::skills::{SkillError, SkillsTree};
 
-use super::account::{Account, KIT_SLOTS, KitSlot, cap_name};
+use super::account::{Account, KIT_SLOTS, KitSlot, cap_name, doubled_pockets};
 
 /// What a skills reset costs, in silver (0.21d's value) or in gold [choice:
 /// the same at the exchange rate].
@@ -103,6 +103,10 @@ pub enum ActionError {
     NoAmmo,
     /// An item of the kit is worn in a slot another worn item covers.
     CoveredSlot,
+    /// An item type would be in a second pocket of the kit: one pocket a
+    /// type ([`crate::v026g::account::doubled_pockets`]). The game has no
+    /// text of its own for it.
+    PocketTaken,
 }
 
 impl ActionError {
@@ -115,7 +119,8 @@ impl ActionError {
             | Self::NoSuchItem
             | Self::NotInSlot
             | Self::WrongSlot
-            | Self::CoveredSlot => "st_cannot_relocate_item",
+            | Self::CoveredSlot
+            | Self::PocketTaken => "st_cannot_relocate_item",
             Self::NotSold | Self::SellerLevel { .. } | Self::BadCount | Self::BadFaction => {
                 "st_cannot_buy_item"
             }
@@ -168,7 +173,8 @@ fn owned_stack(account: &Account, relocation: &Relocation) -> Option<u32> {
 /// the rounds wanted in all (`count_in_inventory`); what that is beyond the
 /// stack owned is bought first, by the clip, from whoever sells it
 /// ([`top_up`]). A stack moved in with no rounds leaves its slot empty: the
-/// client empties an ammo slot that way.
+/// client empties an ammo slot that way. A request that would leave an item
+/// type in two pockets of the kit is refused ([`ActionError::PocketTaken`]).
 pub fn move_items(
     account: &mut Account,
     kit_id: u32,
@@ -312,6 +318,13 @@ fn relocate_covering(
                 }
             }
         }
+    }
+    // One pocket an item type, judged on what the whole request leaves: the
+    // ammo window empties every pocket first and fills them again, and two
+    // pockets changing places name each other's slot.
+    let dict_of = |item_id| account.item(item_id).map(|item| item.dict_id);
+    if !doubled_pockets(&slots, dict_of).is_empty() {
+        return Err(ActionError::PocketTaken);
     }
     let kit = &mut account.kits[kit_index];
     if kit.slots != slots {
@@ -761,7 +774,8 @@ const AMMO_SLOTS: [usize; 8] = [8, 9, 11, 12, 19, 20, 21, 22];
 
 /// `2F`: whether the account may enter a battle with a kit: the kit must be
 /// its own and usable, wear nothing in a slot another worn item covers
-/// ([`Account::covered_items`]), hold a weapon, and each weapon must have its
+/// ([`Account::covered_items`]), hold no item type in two pockets
+/// ([`Account::doubled_pockets`]), hold a weapon, and each weapon must have its
 /// category's `minimum_count` of rounds that fit it, in the kit and owned.
 /// This is the client's own check before Play (0x2F7DA0, PROVEN; corrected
 /// 2026-10-12 after the first live session, where the server asked for a
@@ -781,6 +795,9 @@ pub fn check_play(account: &Account, kit_id: u32, now: u64) -> Result<(), Action
     // it as not loaded (`match_profile`).
     if !account.covered_items(kit).is_empty() {
         return Err(ActionError::CoveredSlot);
+    }
+    if !account.doubled_pockets(kit).is_empty() {
+        return Err(ActionError::PocketTaken);
     }
     let dictionary = Dictionary::shared();
     let mut weapons = 0;
@@ -949,6 +966,8 @@ mod tests {
             ActionError::BadFaction,
             ActionError::NoWeapon,
             ActionError::NoAmmo,
+            ActionError::CoveredSlot,
+            ActionError::PocketTaken,
         ];
         for error in errors {
             assert!(known.contains(&error.text_key()), "{error}");
@@ -1436,6 +1455,116 @@ mod tests {
             ),
             Err(ActionError::NotInSlot)
         );
+    }
+
+    /// One pocket an item type (`docs/notes/one-pocket-a-type.md`).
+    #[test]
+    fn an_item_type_goes_into_one_pocket() {
+        let mut account = rich_and_known(10_000);
+        let grenade_id = account.add_item(dict("rgd-5"), 3);
+        let grenade = account.item(grenade_id).unwrap().clone();
+        let medkit_id = account.add_item(dict("medkit"), 5);
+        let medkit = account.item(medkit_id).unwrap().clone();
+        move_items(
+            &mut account,
+            1,
+            &[relocation(&grenade, INVENTORY_SLOT, 13, 2)],
+            NOW,
+        )
+        .unwrap();
+        let before = account.clone();
+
+        // A second pocket of it, from the inventory: refused, nothing changed.
+        assert_eq!(
+            move_items(
+                &mut account,
+                1,
+                &[relocation(&grenade, INVENTORY_SLOT, 14, 1)],
+                NOW
+            ),
+            Err(ActionError::PocketTaken)
+        );
+        assert_eq!(account, before);
+        // Dragged from the shop onto a second pocket: nothing bought.
+        assert_eq!(
+            buy(&mut account, grenade.dict_id, 1, 0, 14, 1, NOW),
+            Err(ActionError::PocketTaken)
+        );
+        assert_eq!(account, before);
+        // The ammo window's request leaving it in two pockets (what the
+        // lobby asked when a second pocket of it was filled): refused.
+        let dialog = [
+            relocation(&grenade, 13, INVENTORY_SLOT, 2),
+            Relocation {
+                count_in_inventory: 3,
+                ..relocation(&grenade, 13, 13, 2)
+            },
+            Relocation {
+                count_in_inventory: 3,
+                ..relocation(&grenade, INVENTORY_SLOT, 14, 1)
+            },
+        ];
+        assert_eq!(
+            move_items(&mut account, 1, &dialog, NOW),
+            Err(ActionError::PocketTaken)
+        );
+        assert_eq!(account, before);
+
+        // Its own pocket takes more of it, and it may move to another one.
+        move_items(
+            &mut account,
+            1,
+            &[relocation(&grenade, INVENTORY_SLOT, 13, 3)],
+            NOW,
+        )
+        .unwrap();
+        assert_eq!(account.kits[0].slots[13].unwrap().count, 3);
+        move_items(&mut account, 1, &[relocation(&grenade, 13, 15, 3)], NOW).unwrap();
+        assert_eq!(account.kits[0].slots[13], None);
+        assert_eq!(
+            account.kits[0].slots[15],
+            Some(KitSlot {
+                item_id: grenade_id,
+                count: 3
+            })
+        );
+        // Other types in the other pockets; another kit has its own.
+        move_items(
+            &mut account,
+            1,
+            &[relocation(&medkit, INVENTORY_SLOT, 13, 2)],
+            NOW,
+        )
+        .unwrap();
+        move_items(
+            &mut account,
+            2,
+            &[relocation(&grenade, INVENTORY_SLOT, 13, 2)],
+            NOW,
+        )
+        .unwrap();
+        // One ammo in two ammo slots is no pocket's business.
+        let ammo = account.inventory[1].clone();
+        move_items(
+            &mut account,
+            1,
+            &[relocation(&ammo, INVENTORY_SLOT, 9, 20)],
+            NOW,
+        )
+        .unwrap();
+        assert_eq!(account.kits[0].slots[8].unwrap().item_id, ammo.item_id);
+        assert_eq!(account.kits[0].slots[9].unwrap().item_id, ammo.item_id);
+        // Nothing was bought or lost by any of it.
+        assert_eq!(account.inventory, before.inventory);
+        assert_eq!(account.generic_money, before.generic_money);
+        assert_eq!(check_play(&account, 1, NOW), Ok(()));
+
+        // A kit that breaks the rule (saved so before it) is no kit to play.
+        account.kits[0].slots[16] = Some(KitSlot {
+            item_id: grenade_id,
+            count: 1,
+        });
+        assert_eq!(check_play(&account, 1, NOW), Err(ActionError::PocketTaken));
     }
 
     #[test]

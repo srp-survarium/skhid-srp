@@ -290,8 +290,17 @@ package survarium.ammo
             trace("searchForVO::",move.dict_id,this._dataSlots[i].dictId,this._dataSlots[i].name);
             if(this._dataSlots[i].dictId == move.dict_id)
             {
-               item = this._dataSlots[i];
-               break;
+               // the target pocket's own item before another pocket's of its type: taking the first
+               // pocket's for a slider moved in a second pocket of the type (a kit saved before the
+               // rule of one pocket a type) emptied the second pocket
+               if(!item || this._dataSlots[i].slotId == move.targetSlot)
+               {
+                  item = this._dataSlots[i];
+               }
+               if(item.slotId == move.targetSlot)
+               {
+                  break;
+               }
             }
             i++;
          }
