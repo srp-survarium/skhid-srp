@@ -2169,28 +2169,6 @@ package
          }
       }
       
-      private function isHeldWeapon(itemId:uint) : Boolean
-      {
-         var first:uint = 0;
-         var second:uint = 0;
-         if(!this._profileItems || !this._profileItems.items)
-         {
-            return false;
-         }
-         for each(var slot:Object in this._profileItems.items)
-         {
-            if(slot.slotId == 7)
-            {
-               first = uint(slot.itemId);
-            }
-            else if(slot.slotId == 10)
-            {
-               second = uint(slot.itemId);
-            }
-         }
-         return itemId == first || first == 0 && itemId == second;
-      }
-
       private function openModifierWindow(e:Event) : void
       {
          if(this.modifierWindow.visible == true)
@@ -2211,9 +2189,8 @@ package
          this.dragRegion.mouseEnabled = false;
          MainScene.activePop = this.modifierWindow;
          this.modifierWindow.setData(itemData);
-         // the game shows a weapon in the hands of a kit holding it (weapon 1, or weapon 2 with no
-         // weapon 1); any other weapon it would show on the decal pose: the window is enough then
-         this._upgradeShown = Boolean(itemData) && (!weapon || this.isHeldWeapon(itemData.itemId));
+         // the game shows a weapon in the character's hands (patch 32), any other item as before
+         this._upgradeShown = Boolean(itemData);
          if(this._upgradeShown)
          {
             trace("start_item_upgrade");

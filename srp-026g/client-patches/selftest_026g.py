@@ -567,11 +567,20 @@ def test_bins():
     state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_PREVIEW_STATE_OFFSET
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
+        stash = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_STASH_OFFSET
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.WEAPON_PREVIEW_VA:#x}", f"-DSTATE={state:#x}",
-                        os.path.join(HERE, "weapon_preview_026g.asm"), "-o", out], check=True, timeout=60)
+                        f"-DFIND={stash:#x}", os.path.join(HERE, "weapon_preview_026g.asm"), "-o", out],
+                       check=True, timeout=60)
         fresh = open(out, "rb").read()
     check(fresh == open(P.weapon_preview_bin(), "rb").read(),
           f"{os.path.basename(P.weapon_preview_bin())} is current ({len(fresh)} bytes)")
+    with tempfile.TemporaryDirectory() as tmp:
+        out = os.path.join(tmp, "out.bin")
+        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={stash:#x}", f"-DSTATE={state:#x}",
+                        os.path.join(HERE, "weapon_stash_026g.asm"), "-o", out], check=True, timeout=60)
+        fresh = open(out, "rb").read()
+    check(fresh == open(P.weapon_stash_bin(), "rb").read(),
+          f"{os.path.basename(P.weapon_stash_bin())} is current ({len(fresh)} bytes)")
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.WEAPON_DRAW_VA:#x}", f"-DSTATE={state:#x}",
@@ -3663,12 +3672,32 @@ def test_weapon_preview(original, image, before):
     targets = {branch_target(text) for _, _, text in listing if branch_target(text) is not None}
     outside = {t for t in targets if not P.WEAPON_PREVIEW_VA <= t < P.WEAPON_PREVIEW_VA + len(code)}
     starts = {address for address, _, _ in listing}
-    check(outside == {0x284B10, 0x284B16, 0x2845C0}
+    stash_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_STASH_OFFSET
+    check(outside == {0x284B10, 0x284B16, 0x2845C0, stash_va}
           and all(t in starts for t in targets - outside)
           and all(P.WEAPON_PREVIEW_VA + offset in starts for _, _, offset, _ in P.WEAPON_PREVIEW_HOOKS)
+          and [address - P.WEAPON_PREVIEW_VA for address, _, text in listing if branch_target(text) == stash_va]
+          == list(P.WEAPON_PREVIEW_FIND_CALLS)
           and not [text for _, _, text in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[|\[(?:dword )?0x", text)],
-          "the code calls only setup_profile, jumps only to its body after the six bytes and to the camera's "
-          "setter, every branch inside it lands on an instruction, and no operand is an absolute address")
+          "the code calls only setup_profile and weapon_stash_026g.asm's find_kit_or_show (at its two finds), "
+          "jumps only to setup_profile's body after the six bytes and to the camera's setter, every branch "
+          "inside it lands on an instruction, and no operand is an absolute address")
+    stash = open(P.weapon_stash_bin(), "rb").read()
+    check(image.read(stash_va, len(stash)) == stash and P.weapon_preview_state(stash, stash_va) == state,
+          f"the weapon stash at {stash_va:#x} (.srpw+{P.WEAPON_STASH_OFFSET:#x}) is weapon_stash_026g.section.bin "
+          f"({len(stash)} bytes), its state patch 32's (+0Ch and +10h of it, inside WEAPON_PREVIEW_STATE_SIZE)")
+    listing = ndisasm(stash, stash_va)
+    targets = {branch_target(text) for _, _, text in listing if branch_target(text) is not None}
+    outside = {t for t in targets if not stash_va <= t < stash_va + len(stash)}
+    starts = {address for address, _, _ in listing}
+    absolute = {int(m, 16) for _, _, text in listing for m in re.findall(r"\[(?:dword )?(0x[0-9a-f]+)\]", text)}
+    check(outside == {0x1F0090, 0x277AA0, 0x270390, 0x284D10, 0x2F73F0, 0x0E4F90, 0x420789}
+          and all(t in starts for t in targets - outside) and stash_va in starts
+          and absolute == {0x1F1D9C4}
+          and not [text for _, _, text in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[", text)],
+          "the stash code calls only item_by_id, the inventory's find, the item and profile copies, the profile "
+          "ctor and the game's allocator, every branch inside it lands on an instruction, and its only absolute "
+          "operand is the game's allocator (0x1F1D9C4)")
     # The draw.
     va, old, offset, opcode = P.WEAPON_DRAW_HOOK
     check(stock.read(va, len(old)) == old and before.read(va, len(old)) == old
@@ -3843,12 +3872,14 @@ def test_late_join(original, without, server, source):
           f".srpd at VA {P.IMAGE_BASE + state_rva:#x}: one page, uninitialized | read | write, no bytes in the "
           "file, on the page after the code (where the code looks for it)")
     camo = open(P.weapon_camo_bin(), "rb").read()
+    camo = camo + b"\xCC" * (P.WEAPON_STASH_OFFSET - len(camo)) + open(P.weapon_stash_bin(), "rb").read()
     name_w, rva_w, vsize_w, raw_w, rsize_w, flags_w = sections[-1]
     check(name_w == P.WEAPON_CAMO_NAME and flags_w == P.WEAPON_CAMO_CHARACTERISTICS
           and rva_w == state_rva + state_size and P.IMAGE_BASE + rva_w == P.weapon_camo_va(code)
           and vsize_w == len(camo) and raw_w == raw + rsize and rsize_w == align(vsize_w, headers.file_alignment)
           and bytes(data[raw_w:raw_w + vsize_w]) == camo and set(data[raw_w + vsize_w:raw_w + rsize_w]) <= {0xCC},
-          f".srpw at VA {P.IMAGE_BASE + rva_w:#x}: the {len(camo)} bytes of weapon_camo_026g.section.bin, "
+          f".srpw at VA {P.IMAGE_BASE + rva_w:#x}: weapon_camo_026g.section.bin, int3 padding and "
+          f"weapon_stash_026g.section.bin at +{P.WEAPON_STASH_OFFSET:#x} ({len(camo)} bytes), "
           "code | execute | read, on the page after .srpd, its file bytes right after .srp's")
     get = lambda blob, at: struct.unpack_from("<I", blob, at)[0]
     check(get(data, headers.size_of_image_at) == align(rva_w + vsize_w, headers.section_alignment)

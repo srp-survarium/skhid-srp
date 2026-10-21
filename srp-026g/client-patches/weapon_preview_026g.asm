@@ -3,7 +3,8 @@
 ; (WEAPON_PREVIEW_* in patch_026g.py, which checks each hook's target). At
 ; .srp+2E50h, after the late-join code (which ends at +2E4Eh) and before
 ; `.srpd` (+3000h); its state at STATE, 0xE00 of `.srpd`.
-;   nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
+;   nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA429360 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
+; (FIND: weapon_stash_026g.asm, which also shows a weapon no kit holds)
 ;
 ; The lobby's 3D view is one character, survarium::lobby_character (lobby
 ; menu+694h), which shows one kit of the account's profile (lobby
@@ -38,6 +39,9 @@ ORG CAVE
 
 %ifndef STATE
 %error STATE is required
+%endif
+%ifndef FIND
+%define FIND find_kit               ; the build's: weapon_stash_026g.asm's find_kit_or_show (-DFIND)
 %endif
 
 %define SETUP_PROFILE   0x284B10    ; lobby_character::setup_profile, `ret 8`
@@ -79,7 +83,7 @@ start_cam:
     mov eax, [esi+MENU]
     mov eax, [eax+PROFILE]
     mov ecx, edi
-    call find_kit
+    call FIND
     inc edx
     setnz byte [ebx+MODE]           ; 1: a kit holds it
     or ebp, [ebx+MODE]
@@ -140,7 +144,7 @@ setup_hook:
     cmp byte [ecx+UPGRADE_MODE], 0
     je .restore
     mov ecx, [edx+ITEM]
-    call find_kit
+    call FIND
     test edx, edx
     js .restore
     mov [esp+16], edx               ; the weapon's kit

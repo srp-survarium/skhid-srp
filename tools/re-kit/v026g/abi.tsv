@@ -988,10 +988,12 @@ va	name	source	ret_cleanup	result
 0x0026e4e0	survarium::player_result_brief::deserialize	manual	0	
 0x0026e610	survarium::match_stats::deserialize	manual	4	
 0x0026f060	survarium::lobby_client::lobby_client	manual	8	
+0x0026f3b0	survarium::player_profile::~player_profile	manual	0	
 0x0026f3e0	survarium::lobby_client::~lobby_client	manual	0	
 0x0026f560	survarium::lobby_client::clear_profile_info	manual	4	
 0x0026ff90	survarium::lobby_client::query_match_stats	manual	4	
 0x00270100	survarium::lobby_client::read_status_info	manual	0	
+0x00270390	survarium::inventory_item_descr::operator=	manual	0	EAX = destination; clobbers ECX, EDX, XMM0
 0x00270400	survarium::lobby_client::read_enumerate_inventory_info	manual	4	
 0x00270570	survarium::lobby_client::read_player_skills	manual	4	
 0x00270660	survarium::lobby_client::status	manual	0	
@@ -1005,6 +1007,7 @@ va	name	source	ret_cleanup	result
 0x00271eb0	survarium::lobby_client::read_players_elo_list	manual	8	
 0x00274720	survarium::lobby_client::read_squad_info	manual	4	
 0x002749d0	survarium::lobby_client::squad_ready_count	manual	0	
+0x00277aa0	survarium::lobby_client::find_item_by_id	manual	0	EAX = the matching inventory_item_descr, or end; caller pops the argument
 0x0027a300	survarium::network_client::on_match_packet_received	manual	8	
 0x0027a790	survarium::network_client::close_current_match	manual	4	
 0x0027b1f0	survarium::network_client::tick	manual	8	
@@ -1014,6 +1017,9 @@ va	name	source	ret_cleanup	result
 0x0027c5f0	survarium::network_client::process_player_entered_match	manual	4	
 0x0027c690	survarium::network_client::process_player_left_match	manual	4	
 0x00284b10	survarium::lobby_character::setup_profile	manual	8	
+0x00284d10	survarium::player_profile::operator=	manual	0	EAX = destination; deep copy (every item record, the kits); clobbers ECX, EDX, XMM0; DF = 0
+0x00284dc0	survarium::player_profile::copy_body	manual	8	
+0x00284ea0	survarium::player_profile::copy_kit	manual	4	
 0x0028de20	survarium::lobby_menu::add_quest	manual	4	
 0x0028e690	survarium::lobby_menu::create_quest_ui_message	manual	12	
 0x0028f350	survarium::object_environment_probe::`scalar deleting destructor'	manual	4	
@@ -1140,6 +1146,8 @@ va	name	source	ret_cleanup	result
 0x002f5ac0	survarium::shared_statistics::serialize	manual	0	
 0x002f5be0	survarium::shared_statistics::deserialize	manual	0	
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	manual	20	
+0x002f73f0	survarium::player_profile::player_profile	manual	0	EAX = this; keeps EBX, ESI, EDI, EBP
+0x002f7c10	survarium::inventory_item_descr::inventory_item_descr	manual	0	the two buffer_vectors point at their inline storage (+20h..+60h, +6Ch..+B4h)
 0x002f81f0	survarium::usable_object::load	manual	4	
 0x002f8280	survarium::usable_object::resolve_links	manual	28	
 0x002f8300	survarium::usable_object::insert	manual	8	

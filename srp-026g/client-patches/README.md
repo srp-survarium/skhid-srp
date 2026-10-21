@@ -94,7 +94,8 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
 | `check_baked_texture_026g.py` | Runs the original's and patch 35's baked-texture list of the camouflage/decal baker (the look-up, the push and check_loaded_baked_texture) on made-up loads, among them those of the crash of 2026-10-17 (needs Unicorn) |
-| `weapon_preview_026g.asm`, `weapon_preview_026g.section.bin` | The source of patch 32's code (a weapon's upgrade window shows the weapon) and that code assembled for 0x2E50 of `.srp`, its state at 0xE00 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `weapon_preview_026g.asm`, `weapon_preview_026g.section.bin` | The source of patch 32's code (a weapon's upgrade window shows the weapon) and that code assembled for 0x2E50 of `.srp`, its state at 0xE00 of `.srpd`, `-DFIND` the stash code's address, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `weapon_stash_026g.asm`, `weapon_stash_026g.section.bin`, `check_weapon_stash_026g.py` | Patch 32's find_kit grown: a weapon no kit holds is shown in the chosen kit's hands from a scratch copy of the account's profile; assembled for 0x360 of `.srpw`; its check runs it with the game's own profile and record copies (needs Unicorn) |
 | `weapon_draw_026g.asm`, `weapon_draw_026g.section.bin` | The source of patch 32's draw (a weapon's window draws the player as the lobby does) and that code assembled for 0xD20 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_weapon_preview_026g.py` | Runs the original's and patch 32's upgrade window start and close (with the lobby camera's own setter), `setup_profile`'s entry, the lobby camera's three distance clamps and the player's decal pose on a made-up lobby, loaded as is and rebased (needs Unicorn) |
 | `check_forward_scroll_026g.py` | Runs the original's and the build's forward-effect compile, with patch 28's two hooks, on made-up materials and compares what each sends; runs the third hook against the game's own binding of `scene_time`; loaded as is and rebased (needs Unicorn). With `--rev12=` it compares the build with revision 12 byte by byte |
@@ -1818,8 +1819,12 @@ scrolling, before the shell_32.dll check); seven sites:
   weapon 1, or as its weapon 2 without a weapon 1, the character shows
   that kit (`setup_profile` 0x284B10 with that kit) and the camera looks at
   the weapon: height 1.05, distance 0.85, the side angle the original's.
-  Any other item (armour; a weapon only in the stash; a weapon 2 behind a
-  weapon 1) gets the original's values and nothing else;
+  A weapon no kit holds (only in the stash, or a weapon 2 behind a weapon
+  1; 2026-10-21) is shown the same way in the hands of the kit chosen in
+  the lobby, from a scratch copy of the account's profile in which it is
+  that kit's weapon 1 (`weapon_stash_026g.asm` at `.srpw`+360h, which patch
+  32's two finds call: client_patch.md section 3.30); the account's profile
+  is never written. Armour gets the original's values and nothing else;
 - 0x265F44 (exit_item_upgrade's call of the setter): after a weapon, the
   character shows the kit chosen in the lobby again (`setup_profile` with
   the profile's +4632h); the camera gets the original's values, a distance
@@ -1858,7 +1863,13 @@ weapon (in the chosen kit or another, weapon 1 or a lone weapon 2) it
 shows that kit and looks at it, and the close shows the chosen kit; the
 clamps give the original's results and flags in 1,500 cases; the decal
 pose is the window's mode as in the original, and 0 while a weapon is
-shown. The byte comparison with the build of `main` 5fba57f: 514 bytes
+shown. `check_weapon_stash_026g.py` runs the stash code with the game's
+own profile and record ctors and copies: a stash weapon, a weapon 2 behind
+a weapon 1 and one in no kit are the chosen kit's weapon 1 in the scratch
+(a deep copy of the record, a new revision each time, allocated once),
+the account's profile and inventory unwritten, and armour, an unknown
+item, a profile with no inventory behind it, a full table and a failed
+allocation give no kit. The byte comparison with the build of `main` 5fba57f: 514 bytes
 differ, all of them the patch's (section 3.30). **Run in a game (2026-10-17):** the first
 build (without the draw): the camera moved in, the character showed the
 weapon's kit, but in a T-pose with no weapon (the decal pose). **Not run:**

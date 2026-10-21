@@ -2359,12 +2359,15 @@ va	name	location	role	basis
 0x0026e610	survarium::match_stats::deserialize	EAX	reader	inferred
 0x0026f060	survarium::lobby_client::lobby_client	stack+4	lobby client storage	inferred
 0x0026f060	survarium::lobby_client::lobby_client	stack+8	game owner	inferred
+0x0026f3b0	survarium::player_profile::~player_profile	ECX	this	observed
 0x0026f3e0	survarium::lobby_client::~lobby_client	ECX	lobby client	inferred
 0x0026f560	survarium::lobby_client::clear_profile_info	stack+4	lobby client	inferred
 0x0026ff90	survarium::lobby_client::query_match_stats	EAX	lobby client receiver	inferred
 0x0026ff90	survarium::lobby_client::query_match_stats	stack+4	match identifier	inferred
 0x00270100	survarium::lobby_client::read_status_info	EDI	lobby client	inferred
 0x00270100	survarium::lobby_client::read_status_info	EAX	reader	inferred
+0x00270390	survarium::inventory_item_descr::operator=	EAX	source record	observed
+0x00270390	survarium::inventory_item_descr::operator=	EDI	destination record (constructed: its vectors point into itself)	observed
 0x00270400	survarium::lobby_client::read_enumerate_inventory_info	stack+4	lobby client	inferred
 0x00270400	survarium::lobby_client::read_enumerate_inventory_info	EAX	reader	inferred
 0x00270570	survarium::lobby_client::read_player_skills	stack+4	lobby client	inferred
@@ -2390,6 +2393,9 @@ va	name	location	role	basis
 0x00274720	survarium::lobby_client::read_squad_info	stack+4	lobby client	inferred
 0x00274720	survarium::lobby_client::read_squad_info	EAX	reader	inferred
 0x002749d0	survarium::lobby_client::squad_ready_count	ECX	lobby client receiver	inferred
+0x00277aa0	survarium::lobby_client::find_item_by_id	ECX	the inventory's begin (B4h records)	observed
+0x00277aa0	survarium::lobby_client::find_item_by_id	EDI	the inventory's end	observed
+0x00277aa0	survarium::lobby_client::find_item_by_id	entry ESP+4	pointer to the u32 item id	observed
 0x0027a300	survarium::network_client::on_match_packet_received	ECX	network_client receiver	observed
 0x0027a300	survarium::network_client::on_match_packet_received	stack+4	packet/message discriminator; low byte consumed by switch	observed
 0x0027a300	survarium::network_client::on_match_packet_received	stack+8	packet buffer_reader	observed
@@ -2411,6 +2417,12 @@ va	name	location	role	basis
 0x00284b10	survarium::lobby_character::setup_profile	EAX	the profile to copy (account profile, 0x4634 bytes)	observed
 0x00284b10	survarium::lobby_character::setup_profile	entry ESP+4	the lobby_character	observed
 0x00284b10	survarium::lobby_character::setup_profile	entry ESP+8	the kit to show (byte, 0..2)	observed
+0x00284d10	survarium::player_profile::operator=	ESI	destination profile (constructed)	observed
+0x00284d10	survarium::player_profile::operator=	EDI	source profile	observed
+0x00284dc0	survarium::player_profile::copy_body	entry ESP+4	destination profile	observed
+0x00284dc0	survarium::player_profile::copy_body	entry ESP+8	source profile	observed
+0x00284ea0	survarium::player_profile::copy_kit	EAX	destination kit (704h)	observed
+0x00284ea0	survarium::player_profile::copy_kit	entry ESP+4	source kit	observed
 0x0028de20	survarium::lobby_menu::add_quest	ESI	lobby menu	inferred
 0x0028de20	survarium::lobby_menu::add_quest	stack+4	quest record	inferred
 0x0028e690	survarium::lobby_menu::create_quest_ui_message	stack+4	menu receiver	inferred
@@ -2658,6 +2670,8 @@ va	name	location	role	basis
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	stack+12	diagnostic source line	observed
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	stack+16	diagnostic caller function name	observed
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	stack+20	diagnostic value label	observed
+0x002f73f0	survarium::player_profile::player_profile	ECX	this (4634h bytes)	observed
+0x002f7c10	survarium::inventory_item_descr::inventory_item_descr	ECX	this (B4h bytes)	observed
 0x002f81f0	survarium::usable_object::load	ECX	usable_receiver	inferred
 0x002f81f0	survarium::usable_object::load	stack+4	config	inferred
 0x002f8280	survarium::usable_object::resolve_links	ECX	link_resolver_receiver	inferred

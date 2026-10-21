@@ -54,8 +54,11 @@ USAGE (this script never touches the source exe):
         nasm -f bin read_order_026g.asm -o read_order_026g.bin
     (checked in). A weapon's upgrade window showing the weapon comes from
     weapon_preview_026g.asm:
-        nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
-    (checked in; STATE is 0xE00 of the late join's state page, checked), and its
+        nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA429360 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
+    (checked in; STATE is 0xE00 of the late join's state page, checked; FIND is
+    weapon_stash_026g.asm in `.srpw`, which also shows a weapon no kit holds:
+        nasm -f bin -DCAVE=0xA429360 -DSTATE=0xA428E00 weapon_stash_026g.asm -o weapon_stash_026g.section.bin
+    checked in), and its
     draw from weapon_draw_026g.asm:
         nasm -f bin -DCAVE=0xA425D20 -DSTATE=0xA428E00 weapon_draw_026g.asm -o weapon_draw_026g.section.bin
     (checked in). The warmup camera turned by a drag and moved by the wheel while
@@ -919,7 +922,7 @@ READ_ORDER_SHA256 = "3c49ddd03438f137bbf3ec844d41ed3c4247d6d815595f1d494a515e112
 WEAPON_PREVIEW_OFFSET = 0x2E50
 WEAPON_PREVIEW_VA = SECTION_VA + WEAPON_PREVIEW_OFFSET
 WEAPON_PREVIEW_STATE_OFFSET = 0xE00
-WEAPON_PREVIEW_STATE_SIZE = 12
+WEAPON_PREVIEW_STATE_SIZE = 20                 # its three dwords, then weapon_stash_026g.asm's two
 WEAPON_PREVIEW_LEAST = 0xA7AFA4
 WEAPON_PREVIEW_HOOKS = (
     (0x265E73, bytes.fromhex("e848e70100"), 0x00, 0xE8),            # start_item_upgrade's camera: start_cam
@@ -1518,6 +1521,13 @@ WEAPON_CAMO_CHARACTERISTICS = 0x60000020      # code, execute, read (as .srp)
 WEAPON_CAMO_HOOK = (0x24B0D2, bytes.fromhex("8d44242050"), 0, 0xE8)
 WEAPON_CAMO_ENTRY = bytes.fromhex("609c89e5") # pushad; pushfd; mov ebp,esp
 WEAPON_CAMO_NAME_FORMAT = b"srpw1_%s_%s_%d\0"
+# Patch 32's find_kit grown (client_patch.md section 3.30): weapon_stash_026g.asm
+# at WEAPON_STASH_OFFSET of `.srpw`, after the camouflage's code, which
+# weapon_preview_026g.asm's start_cam and setup_hook call (its two calls of
+# find_kit, -DFIND): a weapon no kit holds is shown in the chosen kit's hands
+# from a scratch copy of the account's profile.
+WEAPON_STASH_OFFSET = 0x360
+WEAPON_PREVIEW_FIND_CALLS = (0x2B, 0xCC)       # weapon_preview_026g.section.bin: the two `call FIND`
 
 
 def weapon_camo_va(late_join):
@@ -2065,6 +2075,11 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
             sys.exit(f"weapon_preview_026g.section.bin: its entries or its state are not where patch_026g.py "
                      f"puts them (assembled with -DCAVE={WEAPON_PREVIEW_VA:#x} "
                      f"-DSTATE={late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET:#x}?)")
+        stash_va = weapon_camo_va(late_join) + WEAPON_STASH_OFFSET
+        if any(weapon_preview[at] != 0xE8
+               or WEAPON_PREVIEW_VA + at + 5 + struct.unpack_from("<i", weapon_preview, at + 1)[0] != stash_va
+               for at in WEAPON_PREVIEW_FIND_CALLS):
+            sys.exit(f"weapon_preview_026g.section.bin does not call weapon_stash_026g.asm (-DFIND={stash_va:#x}?)")
         for va, expected, offset, opcode in WEAPON_PREVIEW_HOOKS:
             patch(data, va, expected, hook_bytes(WEAPON_PREVIEW_VA, va, expected, offset, opcode))
         if sorted(neutralize_relocs(data, [(va, va + len(expected)) for va, expected, _, _ in WEAPON_PREVIEW_HOOKS])) \
@@ -2156,6 +2171,14 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
                 or struct.pack("<I", camo_va + name_at) not in weapon_camo[:name_at]:
             sys.exit(f"weapon_camo_026g.section.bin: its entry is not where patch_026g.py calls it, or it was "
                      f"assembled for another address (-DCAVE={camo_va:#x})")
+        weapon_stash = open(weapon_stash_bin(), "rb").read()
+        if len(weapon_camo) > WEAPON_STASH_OFFSET or WEAPON_STASH_OFFSET + len(weapon_stash) > 0x1000:
+            sys.exit("the weapon camouflage's code and the weapon stash's do not fit in .srpw's page")
+        if weapon_preview_state(weapon_stash, camo_va + WEAPON_STASH_OFFSET) \
+                != late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET:
+            sys.exit(f"weapon_stash_026g.section.bin: assembled for another state "
+                     f"(-DSTATE={late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET:#x}?)")
+        weapon_camo = weapon_camo + b"\xCC" * (WEAPON_STASH_OFFSET - len(weapon_camo)) + weapon_stash
         va, expected, offset, opcode = WEAPON_CAMO_HOOK
         patch(data, va, expected, hook_bytes(camo_va, va, expected, offset, opcode))
         if neutralize_relocs(data, [(va, va + len(expected))]):
@@ -2341,6 +2364,10 @@ def warmup_look_calls(code):
     return [(WARMUP_LOOK_VA + at + struct.unpack_from("<i", code, at - 4)[0]) & 0xFFFFFFFF]
 
 
+def weapon_stash_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_stash_026g.section.bin")
+
+
 def weapon_preview_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_preview_026g.section.bin")
 
@@ -2357,15 +2384,16 @@ def weapon_draw_state(code):
     return WEAPON_DRAW_VA + 6 + struct.unpack_from("<i", code, 9)[0]
 
 
-def weapon_preview_state(code):
-    """The state address weapon_preview_026g.asm was assembled for: its
+def weapon_preview_state(code, base=WEAPON_PREVIEW_VA):
+    """The state address weapon_preview_026g.asm (at `base`; or another code
+    with the same routine, weapon_stash_026g.asm) was assembled for: its
     `state` routine is `call $+5` / `pop eax` / `lea eax,[eax+disp32]` /
     `ret`; 0 when it is not there exactly once."""
     head = bytes.fromhex("e80000000058" "8d80")
     at = code.find(head)
     if at < 0 or code.find(head, at + 1) >= 0 or code[at + 12:at + 13] != b"\xC3":
         return 0
-    return WEAPON_PREVIEW_VA + at + 5 + struct.unpack_from("<i", code, at + 8)[0]
+    return base + at + 5 + struct.unpack_from("<i", code, at + 8)[0]
 
 
 def late_join_bin():

@@ -1578,6 +1578,7 @@ va	status	ref_021d	name
 0x0026e4b0	inferred-medium	0x0019c679	survarium::player_result_brief::player_result_brief
 0x0026ece0	inferred-medium	0x0019c8dc	survarium::player_result_full::player_result_full
 0x0026edd0	inferred-medium	0x0019c939	survarium::player_result_full::deserialize
+0x0026f3b0	inferred-high		survarium::player_profile::~player_profile
 0x0026f8c0	inferred-medium	0x0019d244	survarium::lobby_client::disconnect
 0x0026fab0	inferred-medium		survarium::lobby_client::sign_in_on_message_received
 0x0026fc60	inferred-medium		survarium::lobby_client::find_inventory_item
@@ -1585,6 +1586,7 @@ va	status	ref_021d	name
 0x0026fe70	inferred-medium	0x0019d603	survarium::lobby_client::query_squad_member_contents
 0x0026ff00	inferred-medium	0x0019d672	survarium::lobby_client::query_player_match_stats
 0x00270070	inferred-medium	0x0019d75f	survarium::lobby_client::query_elo_players
+0x00270390	inferred-high		survarium::inventory_item_descr::operator=
 0x002706f0	inferred-medium	0x0019de6d	survarium::lobby_client::move_item
 0x002707c0	inferred-medium		survarium::lobby_client::send_attach_upgrade
 0x002708c0	inferred-medium		survarium::lobby_client::send_detach_upgrade
@@ -1651,6 +1653,9 @@ va	status	ref_021d	name
 0x00283bc0	inferred-medium	0x001a421e	survarium::lobby_camera::lobby_camera
 0x00283ef0	inferred-medium	0x001a4482	survarium::lobby_camera::tick
 0x00284b10	inferred-medium	0x001a481b	survarium::lobby_character::setup_profile
+0x00284d10	inferred-high		survarium::player_profile::operator=
+0x00284dc0	inferred-high		survarium::player_profile::copy_body
+0x00284ea0	inferred-high		survarium::player_profile::copy_kit
 0x00284f20	inferred-medium	0x001a4a3c	survarium::lobby_character::on_player_ready
 0x00285180	inferred-medium	0x001a4bc5	vostok::detail::concrete_type_helper<survarium::player_initial_info>::copy_helper
 0x002852a0	inferred-medium	0x001a4d1e	survarium::simple_game_project::`scalar deleting destructor'
@@ -1906,6 +1911,8 @@ va	status	ref_021d	name
 0x002f5570	inferred-medium	0x001dded5	survarium::shared_statistics::on_victory_item_event
 0x002f59e0	inferred-medium	0x001de057	survarium::shared_statistics::kill_event_arg
 0x002f6c10	inferred-medium		survarium::log_cast_loss_of_data_warning
+0x002f73f0	inferred-high		survarium::player_profile::player_profile
+0x002f7c10	inferred-high		survarium::inventory_item_descr::inventory_item_descr
 0x002f7cc0	inferred-medium		survarium::player_profile::serialize_dynamic
 0x002f81d0	inferred-medium	0x001e8994	survarium::collision_geometry_subscriber::`scalar deleting destructor'
 0x002fab70	inferred-high	0x001e0752	survarium::weapon_user_animations_selector::weapon_user_animations_selector

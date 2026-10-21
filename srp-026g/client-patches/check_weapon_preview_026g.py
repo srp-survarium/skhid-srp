@@ -17,7 +17,10 @@ and queries the character's resources) are stubs that write down how they
 were called. What must hold:
 - a window whose item is no kit's held weapon (armour, legs armour, a
   weapon only in the stash, a weapon 2 behind a weapon 1, an item index
-  past the profile's table, a kit past its count): the build leaves the
+  past the profile's table, a kit past its count) on this made-up lobby,
+  whose profile has no inventory behind it (weapon_stash_026g.asm, which
+  shows such a weapon from the inventory, has check_weapon_stash_026g.py):
+  the build leaves the
   camera, the character, the globals and the stubs' calls exactly as the
   original does, at the start and at the close;
 - a kit's held weapon (weapon 1, or weapon 2 without one; in the chosen kit
@@ -134,8 +137,8 @@ class Lobby:
             emu.hook_add(UC_HOOK_CODE, lambda e, a, z, u: CURRENT[key].stub(e, a, z, u), begin=at, end=at)
         pristine = {at + delta: bytes(emu.mem_read(at + delta, size)) for at, size in GLOBALS}
         state = base.late_join_state_va(open(base.late_join_bin(), "rb").read()) + base.WEAPON_PREVIEW_STATE_OFFSET
-        if base.Headers(data).sections(data)[-1][0] == base.LATE_JOIN_STATE_NAME:
-            pristine[state + delta] = bytes(12)
+        if any(name == base.LATE_JOIN_STATE_NAME for name, *_ in base.Headers(data).sections(data)):
+            pristine[state + delta] = bytes(base.WEAPON_PREVIEW_STATE_SIZE)
         return emu, stubs, pristine
 
     def fill_lobby(self, kits, chosen, count, items):
