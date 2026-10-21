@@ -4,20 +4,15 @@ The owner, 2026-10-20: "instead of doing patches, we want to fully transition to
 use that to compile all .swf, then we apply all we have already", "this can be stored in a repo".
 
 Every Flash movie of the game is a committed ActionScript source tree, `srp-026g/flash/<movie>/src`
-([../../flash/README.md](../../flash/README.md)). Each tree is revision 24's complete source, which
-rebuilds byte for byte. Every change of ours is an ordinary edit of a tree; nothing is patched in
-bytecode.
+([../../flash/README.md](../../flash/README.md)), first exported from revision 24. Every change of
+ours is an edit of a tree, and a movie is built from its whole tree; nothing is patched in bytecode.
 
 ## Where things are
 
-- `srp-026g/flash/<movie>/src`: the source (LF). `movie.json` pins the original movie and the
-  sha256 of every baseline file, which tells the build what changed.
-- `srp-026g/flash/<movie>/srp.json`: the movie's new classes (files that are not revision 24's), each
-  with `abc_with`, the class of the release whose ABC block takes it. lobby: the rooms window,
-  `survarium/rooms` (`RoomsWindow`, its views `RoomsList`, `RoomsCreate`, `RoomsRoom`, and
-  `RoomsWire`, `RoomsText`, `RoomsLook`), all in `BottomPanel`'s block.
-- `private/actionscript/` (ignored by git): `tools.json` (JDK, FFDec 25.1.3's full distribution, Flex
-  4.16.1; `tools/actionscript/README.md`).
+- `srp-026g/flash/<movie>/src`: the source (LF). `movie.json` names the original movie, whose
+  graphics, fonts and symbol bindings the build keeps.
+- `private/actionscript/` (ignored by git): `tools.json` (a JDK and Flex 4.16.1;
+  `tools/actionscript/README.md`).
 
 ## Writing a lobby feature
 
@@ -36,38 +31,26 @@ The owner, 2026-10-21: "we now got the source code" "and we just modify it".
 
 ## Making a change
 
-- **Edit a class:** edit its `.as` file, anything in it.
-- **Add a class:** add its file (any package) and name it in `srp.json`'s `new_classes` with its
-  `abc_with` (a class of the release; the rooms use `survarium.controls.BottomPanel`).
-- **Remove a class:** delete its file. Nothing may name it any more, and it must be the last script
-  of its ABC block (as srp's appended classes of the release were).
+Edit the tree: change any `.as` file, add a file for a new class (any package), delete the file of a
+class that goes. Then build.
 
 ## Building
 
 ```sh
-python3 srp-026g/client-patches/build_lobby_026g.py <lobby_menu.swf of resources.db.patch_24> <new lobby_menu.swf> [--work DIR]
-python3 tools/actionscript/flash_tree.py build srp-026g/flash/<movie> <the original> <new movie> [--work DIR]
+python3 srp-026g/client-patches/build_lobby_026g.py <lobby_menu.swf of resources.db.patch_24> <new lobby_menu.swf>
+python3 tools/actionscript/flash_tree.py build srp-026g/flash/<movie> <the original> <new movie>
 ```
 
-- The first is the lobby's, with its pinned `RESULT_SHA256`. The second works for any movie;
-  `flash_tree.py original srp-026g/flash/<movie> <archive> <out.swf>` cuts the original from its
+- One Flex run compiles the whole tree (about 5 seconds for the lobby); its code goes into the
+  original movie in place of the original's code. The graphics are the original's.
+- The build checks that every ABC block parses and every class a symbol is bound to is defined.
+  Whether the movie works is checked in the game.
+- `build_lobby_026g.py` says whether the movie is `RESULT_SHA256`, the one last checked in the game
+  (the same tree gives the same bytes). Set `RESULT_SHA256` when the owner has checked a new one.
+- `flash_tree.py original srp-026g/flash/<movie> <archive> <out.swf>` cuts an original from its
   archive.
-- The build compiles every file that is not revision 24's, whole; the others keep revision 24's
-  compiled code (it is what they compile to), and the graphics are revision 24's. A class that uses
-  what another edited class adds or changes is compiled after it; then every class is compiled once
-  more against all of them, so the order does not matter.
-- The lobby movie must be `RESULT_SHA256`. After a change the build refuses the new movie: check it
-  in the game, then set `RESULT_SHA256` to it, with a line on what it holds. `--any-result` writes it
-  for a test build.
-- To see what a change does to the code, compare with the last movie:
-  `python3 tools/actionscript/compare_decompiled.py --tools private/actionscript/tools.json old.swf new.swf OUT`
-  (`OUT/report.txt`, script by script and method by method).
-- Tests: `python3 -m unittest discover` in `srp-026g/client-patches` and in `tools/actionscript`.
-  `SRP_AS_TOOLS=private/actionscript/tools.json` adds the real-compiler tests.
-- When the baseline itself changes (a new release, the tools, the reconstruction), prove it:
-  `python3 tools/actionscript/flash_tree.py full srp-026g/flash/<movie> <the original> <work dir>`
-  compiles every file of the unedited tree and requires the original movie byte for byte (about 4
-  hours for the lobby).
+- Tests: `python3 -m unittest discover` in `srp-026g/client-patches` and in `tools/actionscript`;
+  `SRP_AS_TOOLS=private/actionscript/tools.json` adds a real compiler run.
 
 ## The port of 2026-10-20
 
@@ -140,3 +123,16 @@ The tree builds to `a3b76872…`. Against `bdd66ed5…` (this tree before):
 The login and main menu builders (`login_hint_026g.py`, `fov_slider_026g.py`) went the same way.
 Their released movies (patches 12 and 22) are the `login_menu` and `main_menu` trees, whose
 `SrpLoginHint.as` and `SrpFovSlider.as` are the repository's sources byte for byte.
+
+## One Flex run (2026-10-21)
+
+The owner: "we don't need anything for decomp matching now". The movies are no longer built over
+revision 24's compiled code: the whole tree is compiled in one Flex run, and none of the classes
+keeps revision 24's bytes. The byte-exact proof, the per-class compiler settings and the
+reconstruction diffs are in git history. The lobby of 6064476c built this way: `c3898574…` (882
+classes, 883 ABC blocks); the first such movie to be checked in the game.
+
+The HUD tree took three source fixes Flex asks for (those classes had been compiled with FFDec's
+compiler): `Minimap`'s `§default§` written as `["default"]` and a field initializer without
+`this.`, and `CombatLogRenderer.logItem` typed by its own package's `CombatLogItem` (the global one
+extends it).

@@ -416,7 +416,7 @@ server do not change. Not in a release yet.
 ## Exchange window updates
 
 A change of the window (`../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`) is built in by
-building the lobby movie: the window's own class, compiled whole as revision 24's was.
+building the lobby movie.
 
 The first such change (2026-10-20): an amount more than the Pay balance pays
 for becomes, as it is typed, the most it does, in the field typed in. Buying
@@ -482,9 +482,8 @@ This does not change the executable or reserve a release revision.
 The lobby movie is one file (`flash_movies/lobby_menu.swf`), and a patch that
 carries it replaces the players' movie whole. It is built one way only, from
 its ActionScript source tree, `../flash/lobby_menu/src`
-([lobby-source.md](../docs/notes/lobby-source.md)). The tree is revision 24's
-complete source, which rebuilds byte for byte (`tools/actionscript/flash_tree.py
-full`), with every lobby change as an ordinary edit of it:
+([lobby-source.md](../docs/notes/lobby-source.md)), with every lobby change as
+an edit of it:
 
 - the features written in the game's own classes: the exchange and Get Gold in
   `MessageMoneyExchange` (#214, #213; the ten `goToStore` and the premium
@@ -492,34 +491,26 @@ full`), with every lobby change as an ordinary edit of it:
   `InventoryList` (#215), the craft window's Buy/Sell and Continue in
   `InventoryList` and `MessageCraftItem` (#216), Optics in `InventoryList`
   (#217), the player gear in `LobbyMenu` and `PlayerRanking` (#232);
-- the rooms window, new UI, in `../flash/lobby_menu/src/survarium/rooms`
-  (named in `../flash/lobby_menu/srp.json`), and its parts in `TopMenu`,
-  `StatusPanel`, `LobbyMenu`, `BottomPanel` and `PlayerRanking`.
+- the rooms window, new UI, in `../flash/lobby_menu/src/survarium/rooms`, and
+  its parts in `TopMenu`, `StatusPanel`, `LobbyMenu`, `BottomPanel` and
+  `PlayerRanking`.
 
 ```sh
-python build_lobby_026g.py <patch_24's lobby_menu.swf> <new lobby_menu.swf> [--work DIR]
+python build_lobby_026g.py <patch_24's lobby_menu.swf> <new lobby_menu.swf>
 ```
 
-It needs `private/actionscript/tools.json` at the repository root (a JDK,
-FFDec 25.1.3's full distribution and Apache Flex 4.16.1:
-`tools/actionscript/README.md`; `--tools` names another). About 10 minutes.
-The files that are not the baseline's are compiled, each whole; the others
-keep revision 24's compiled code, and the graphics are revision 24's.
-Nothing is patched in bytecode; the steps that did (`rooms_026g.py` to
+It needs `private/actionscript/tools.json` at the repository root (a JDK and
+Apache Flex 4.16.1: `tools/actionscript/README.md`; `--tools` names another).
+One Flex run compiles the whole tree, and its code goes into revision 24's
+movie in place of all of its code; the graphics, fonts and symbol bindings are
+revision 24's. About 5 seconds; the same tree gives the same bytes. Nothing is
+patched in bytecode; the steps that did (`rooms_026g.py` to
 `player_gear_026g.py` and their Java patchers, on revision 23's movie) are in
 git history only.
 
-The result must be `RESULT_SHA256`, the movie last built: a changed tree or
-tool gives another, refused until `RESULT_SHA256` is set to it on purpose
-(`--any-result` for development). Since 2026-10-20: `bdd66ed5…`, the first
-build from source, of everything the bytecode driver's last movie had (main's
-`e626a01a…`: the rooms through #234, #213 to #217, the player gear); every
-method decompiles as that movie's does but for compiler encodings
-([lobby-source.md](../docs/notes/lobby-source.md) lists them). Since 2026-10-21:
-`a3b76872…`, the same features written in the game's classes and the rooms
-window in `survarium/rooms`, with no change of behaviour (lobby-source.md, "In
-the game's classes"). NOT yet checked in the game. Tests: `python -m unittest
-test_build_lobby`. Not in a release yet.
+The build says whether the movie is `RESULT_SHA256`, the one last checked in
+the game (a note, not a gate); none of the one-run builds is checked yet. Tests:
+`python -m unittest test_build_lobby`. Not in a release yet.
 
 ## What each patch does
 
