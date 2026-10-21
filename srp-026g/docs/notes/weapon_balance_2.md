@@ -59,6 +59,17 @@ resources.db patch (`scripts/content-edit/weapon-balance-2.json`).
   | 0.46c2 | 0.65 | none (`material_pierce` 6) |
   | **here** | 0.70 | 0.45 |
 
+## A-545
+
+- **Request (the owner, 2026-10-21):** "check whether devs ever nerfed a-545 TTK"; shown its
+  history (0.28a: damage 50 -> 45, piercing 30 -> 25, rate of fire 900 -> 800; 0.29a+ another
+  damage system), yes to 0.28a's nerf.
+- **Values:** `bullet_damage` 0.5 -> 0.45, `bullet_pierce` 0.3 -> 0.25, `rounds_per_minute`
+  900 -> 800; the card's props 1 (damage), 3 (piercing), 4 (rate of fire) to match.
+  0.28a2's recoil change (left/right 1.8 -> 2.0) is not taken.
+- **TTK** (torso, full-damage range): no armour 0.067 -> 0.150 s (2 -> 3 shots); armour 0.7
+  0.200 -> 0.300 s (4 -> 5 shots).
+
 ## Who computes it, release
 
 - Damage, piercing and reload time in the client's lockstep simulation (a `next` row of
