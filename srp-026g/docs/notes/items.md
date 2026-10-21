@@ -33,7 +33,9 @@ PROVEN by the data:
 - Types with `drop_weight` 0 never roll: 11 (weight, unused), 15 pockets,
   16 artefact slots, 17 ammo bags, 29 pocket size, 33..40 (the boosters'
   effects and the premium items' silver, experience and reputation
-  bonuses). They are only ever `default_modifications`.
+  bonuses). They are only ever `default_modifications` in the data; srp gives
+  the golden weapons their silver one (1230) as a modification of their own
+  ([golden_weapons.md](golden_weapons.md)).
 - Three defects have `required_modifications: [low, high]` (4030 pockets
   `[1030, 1039]`, 4040 artefact slots, 4050 ammo bags): the id range of the
   modifications that give what the defect takes.
@@ -153,7 +155,7 @@ srp's reading of what only the server knew:
 | a reroll offers three that fit in the replaced one's place (its own type too, another strength): of different types while the item has them, then other strengths of those, so an item of few types (a backpack, a balaclava) is offered three too | [srp] |
 | the payment is taken when the three are offered; an offer not chosen is kept and shown again when the window opens | [srp] |
 | each change of an item makes the next cost `reroll_modificator_multiplicator` (1.1) times more | GUESS: the number's use is not in the client; the per-item prices in `83 46 06`/`08` suggest the price was the item's own |
-| the donor must be another of the same item | LIKELY (the result window shows the donor's dictionary entry as the upgraded item) |
+| the donor must be another of the same item | LIKELY (the result window shows the donor's dictionary entry as the upgraded item); a golden weapon and its plain weapon count as the same item ([srp], the owner's rule of 2026-10-21, [golden_weapons.md](golden_weapons.md)) |
 | the craft's chance row is `rank(item) - rank(donor)`; success, then failure, then nothing | PROVEN for the row (the UI indexes it so); the roll is the server's |
 | a gained modification is rolled as a drop's; a lost one is any of the item's own | [srp] |
 | a repair takes the defects off at once; the wait only locks the item in the lobby | [srp] |

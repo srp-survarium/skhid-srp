@@ -251,7 +251,8 @@ pub fn from_env() -> Result<GameData, GameDataError> {
 }
 
 /// Reads the game's files ([`from_env`]), makes them this process's, and
-/// derives every table from them and checks it ([`super::tables::check`]).
+/// derives every table from them and checks it ([`super::tables::check`]),
+/// and that the golden weapons have the patch ([`super::golden::check`]).
 /// `srp` calls it before anything else: whatever is wrong stops it here.
 /// The files are the process's before the check, so that a table one
 /// parser takes from another ([`super::item_params::all`] and the like) is
@@ -265,6 +266,7 @@ pub fn init() -> Result<&'static GameData, GameDataError> {
     }
     let data = shared();
     super::tables::check(data)?;
+    super::golden::check(data)?;
     log::info!(
         "game data: {} ({} gameplay and text files, {} projects; made of {}; {} patch(es) offered at \
          /patches)",

@@ -1309,9 +1309,11 @@ fn wear_drops_and_pay_follow_the_modifications() {
     // And the client takes all of it.
     client_of(&account);
 
-    // A kit with a premium rifle and premium trousers: 10 % silver, 5 %
-    // experience and 5 % reputation with the Black Market.
-    let premium = give(&mut account, "ak_74n_premium", &[]);
+    // A kit with a golden rifle (its silver bonus its own modification, as
+    // a new one has it) and premium trousers (their bonuses defaults of the
+    // item): 10 % silver, 5 % experience and 5 % reputation with the Black
+    // Market.
+    let premium = account.add_item(dict("ak_74n_premium"), FULL_CONDITION);
     let trousers = give(&mut account, "bm_legs_4_premium", &[]);
     let dictionary = Dictionary::shared();
     for item_id in [premium, trousers] {
@@ -1386,4 +1388,225 @@ fn a_loaded_item_is_made_safe() {
     account.inventory.retain(|item| item.item_id != camo);
     account.sync_kits();
     assert!(account.item(vest).unwrap().upgrades.is_empty());
+}
+
+// ------------------------------------------------------- golden weapons
+
+const SILVER: u32 = golden::SILVER_BONUS;
+
+#[test]
+fn a_new_golden_weapon_has_the_silver_bonus_as_its_first_modification() {
+    let mut account = rich();
+    let rifle = account.add_item(dict("ak_74n_premium"), FULL_CONDITION);
+    let item = account.item(rifle).unwrap();
+    assert_eq!(item.modifications, [(SILVER, false)]);
+    // The lobby's rank 1 (no base rarity), so it can be upgraded.
+    assert_eq!(rank(item), 1);
+    assert_eq!(item_params(item.dict_id).unwrap().base_rarity_level, 0);
+    // The client takes it as it is.
+    let client = client_of(&account);
+    let shown = client
+        .inventory()
+        .iter()
+        .find(|item| item.item_id == rifle)
+        .unwrap();
+    let shown: Vec<(u32, bool)> = shown
+        .modifications
+        .iter()
+        .map(|m| (m.id, m.state))
+        .collect();
+    assert_eq!(shown, [(SILVER, false)]);
+    // A plain rifle has none.
+    let plain = account.add_item(dict("ak_74n"), FULL_CONDITION);
+    assert!(account.item(plain).unwrap().modifications.is_empty());
+    // Were one to drop, its rarity would count the silver bonus.
+    let mut rng = Rng::new(5);
+    let dropped = account.add_item(dict("ak_74n_premium"), FULL_CONDITION);
+    assert_eq!(roll_modifications(&mut account, dropped, 2, &mut rng), 2);
+    let held = own_modifications(account.item(dropped).unwrap());
+    assert_eq!((held.len(), held[0]), (2, SILVER));
+}
+
+#[test]
+fn a_golden_weapon_is_upgraded_like_its_plain_weapon() {
+    let table = Modifications::shared();
+    let (golden_rifle, plain_rifle) = (dict("ak_74n_premium"), dict("ak_74n"));
+    // The plain weapon's price: the same item level.
+    assert_eq!(item_level(golden_rifle), item_level(plain_rifle));
+    let price = table.craft.price(item_level(plain_rifle), false);
+    let (mut added, mut nothing, mut removed) = (0, 0, 0);
+    // The golden rifle (the silver bonus: rank 1) with a plain one as the
+    // donor (rank 0).
+    for seed in 0..400 {
+        let mut account = rich();
+        let rifle = account.add_item(golden_rifle, FULL_CONDITION);
+        let donor = account.add_item(plain_rifle, FULL_CONDITION);
+        let mut client = client_of(&account);
+        let mut rng = Rng::new(seed * 7 + 1);
+        let crafted = craft(&mut account, rifle, donor, false, false, NOW, &mut rng).unwrap();
+        assert_eq!(account.generic_money, 1_000_000 - price);
+        assert!(account.item(donor).is_none());
+        // It stays the golden rifle.
+        let item = account.item(rifle).unwrap();
+        assert_eq!(item.dict_id, golden_rifle);
+        let held = own_modifications(item);
+        match crafted {
+            Crafted::Added { modification, .. } => {
+                added += 1;
+                assert_eq!(held, [SILVER, modification]);
+                assert!(table.fits(plain_rifle, &[], modification));
+            }
+            Crafted::Nothing { .. } => {
+                nothing += 1;
+                assert_eq!(held, [SILVER]);
+            }
+            // A failure may take the silver bonus, as any modification.
+            Crafted::Removed { modification, .. } => {
+                removed += 1;
+                assert_eq!(modification, SILVER);
+                assert!(held.is_empty());
+            }
+            Crafted::Failed => panic!("refused"),
+        }
+        let message = lobby::permitted_crafted(rifle, crafted).unwrap();
+        takes(&mut client, &message, &account);
+    }
+    // The chances of a plain rifle with one modification and a plain donor.
+    assert!((60..140).contains(&added), "{added} gained");
+    assert!((60..140).contains(&removed), "{removed} lost");
+    assert_eq!(added + nothing + removed, 400);
+
+    let mut rng = Rng::new(9);
+    let mut account = rich();
+    // A plain rifle takes a golden one as its donor, and stays plain.
+    let plain = give(&mut account, "ak_74n", &[2000]);
+    let golden = account.add_item(golden_rifle, FULL_CONDITION);
+    assert!(craft(&mut account, plain, golden, true, false, NOW, &mut rng).is_ok());
+    assert!(account.item(golden).is_none());
+    assert_eq!(account.item(plain).unwrap().dict_id, plain_rifle);
+    // Two golden rifles, as two plain ones.
+    let golden = account.add_item(golden_rifle, FULL_CONDITION);
+    let other = account.add_item(golden_rifle, FULL_CONDITION);
+    assert!(craft(&mut account, golden, other, true, false, NOW, &mut rng).is_ok());
+    // Another weapon's plain copy is not its kin.
+    let golden = account.add_item(golden_rifle, FULL_CONDITION);
+    let ak_74m = give(&mut account, "ak_74m", &[]);
+    assert_eq!(
+        craft(&mut account, golden, ak_74m, false, false, NOW, &mut rng),
+        Err("the donor is another item")
+    );
+    // The silver bonus counts as a modification: a donor with two is
+    // more, and two more make three, the most.
+    let better = give(&mut account, "ak_74n", &[2000, 2010]);
+    assert_eq!(
+        craft(&mut account, golden, better, false, false, NOW, &mut rng),
+        Err("the donor has more modifications")
+    );
+    let full = account.add_item(golden_rifle, FULL_CONDITION);
+    account
+        .item_mut(full)
+        .unwrap()
+        .modifications
+        .extend([(2000, false), (2010, false)]);
+    assert_eq!(
+        craft(&mut account, full, ak_74m, false, false, NOW, &mut rng),
+        Err("the donor is another item")
+    );
+    let donor = give(&mut account, "ak_74n", &[]);
+    assert_eq!(
+        craft(&mut account, full, donor, false, false, NOW, &mut rng),
+        Err("the most modifications already")
+    );
+}
+
+#[test]
+fn the_silver_bonus_of_a_golden_weapon_rerolls_like_any_modification() {
+    let table = Modifications::shared();
+    let mut rng = Rng::new(11);
+    let mut account = rich();
+    let rifle = account.add_item(dict("ak_74n_premium"), FULL_CONDITION);
+    // The plain weapon's prices.
+    let level = item_level(dict("ak_74n"));
+    let window = reroll_window(&account, rifle, NOW).unwrap();
+    assert_eq!(
+        (window.regular_cost, window.premium_cost),
+        (
+            table.reroll.price(level, false, 0),
+            table.reroll.price(level, true, 0)
+        )
+    );
+    let mut client = client_of(&account);
+    let rolled = reroll(&mut account, rifle, SILVER, true, NOW, &mut rng).unwrap();
+    // Three of the plain weapon's, none of them the silver bonus (it never
+    // rolls: drop weight 0).
+    for choice in rolled.choices {
+        assert_ne!(choice, SILVER);
+        assert!(table.fits(dict("ak_74n"), &[], choice), "{choice}");
+    }
+    let message = lobby::permitted_reroll_result(rifle, rolled.choices, rolled.reroll_seconds);
+    takes(&mut client, &message, &account);
+    let chosen = choose_modifier(&mut account, rifle, SILVER, 2, NOW).unwrap();
+    assert_eq!(chosen.new_modification, rolled.choices[2]);
+    let item = account.item(rifle).unwrap();
+    assert_eq!(own_modifications(item), [rolled.choices[2]]);
+    // And without it, no more silver.
+    assert_eq!(table.bonuses(item.dict_id, &item.modifications).money, 0.0);
+}
+
+#[test]
+fn golden_weapons_owned_before_get_the_silver_bonus_once() {
+    let mut account = rich();
+    let golden_rifle = dict("ak_74n_premium");
+    // As the store had them before the rule: no modification of their own
+    // (the silver bonus was the config's).
+    let owned = |account: &mut Account, modifications: &[u32]| {
+        let item_id = account.add_item(golden_rifle, FULL_CONDITION);
+        account.item_mut(item_id).unwrap().modifications =
+            modifications.iter().map(|&id| (id, false)).collect();
+        item_id
+    };
+    let bare = owned(&mut account, &[]);
+    let one = owned(&mut account, &[2000]);
+    let full = owned(&mut account, &[2000, 2010, 2020]);
+    let has = owned(&mut account, &[SILVER]);
+    let damaged = owned(&mut account, &[]);
+    account
+        .item_mut(damaged)
+        .unwrap()
+        .modifications
+        .push((3000, true));
+    let plain = give(&mut account, "ak_74n", &[]);
+    let vss = account.add_item(dict("vss_premium"), FULL_CONDITION);
+    account.item_mut(vss).unwrap().modifications.clear();
+    // A kit wearing one: it shows another item.
+    let slot = (0..23)
+        .find(|&slot| Dictionary::shared().fits(golden_rifle, slot))
+        .unwrap();
+    account.kits[1].slots[usize::from(slot)] = Some(KitSlot {
+        item_id: bare,
+        count: 1,
+    });
+    let revision = account.kits[1].revision;
+
+    let done = give_golden_silver(&mut account);
+    assert_eq!(done.given, [bare, one, damaged, vss]);
+    assert_eq!(done.full, [full]);
+    let mods = |account: &Account, item_id| account.item(item_id).unwrap().modifications.clone();
+    assert_eq!(mods(&account, bare), [(SILVER, false)]);
+    assert_eq!(mods(&account, one), [(SILVER, false), (2000, false)]);
+    assert_eq!(
+        mods(&account, full),
+        [(2000, false), (2010, false), (2020, false)]
+    );
+    assert_eq!(mods(&account, has), [(SILVER, false)]);
+    assert_eq!(mods(&account, damaged), [(SILVER, false), (3000, true)]);
+    assert_eq!(mods(&account, vss), [(SILVER, false)]);
+    assert!(mods(&account, plain).is_empty());
+    assert_ne!(account.kits[1].revision, revision);
+    // The client takes it all.
+    client_of(&account);
+    // Once: a second run changes nothing.
+    let again = account.clone();
+    assert_eq!(give_golden_silver(&mut account).given, Vec::<u32>::new());
+    assert_eq!(account, again);
 }

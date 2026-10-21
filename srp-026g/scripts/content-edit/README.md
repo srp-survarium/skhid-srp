@@ -118,3 +118,13 @@ Applied to revision 24's server game data (`gameplay/items/weapons/wpn_ak_12*`,
 Applied to the stock resources.db's nine `.raw_options` (no Skhid patch up to 27 carries them):
 9 files edited, 0 unexpected differences. Sound only: no simulation change, nothing in the
 server game data.
+
+## golden-weapons-1.json (2026-10-21)
+
+| change | why |
+|---|---|
+| The 21 golden weapons (`wpn_*_premium`, `wpn_*_premium_2`, `wpn_neostead`: every weapon whose first default modification is 1230, +10 % silver): every `default_modifications` item taken off (`remove_item`; the table stays, empty, as the empty `additional_model_slots` of other item configs), `parameters/base_rarity_level` 3 -> 0 | the owner: "remove modifiers except for silver from all premium weapons", upgradable "just like any other weapon but with the first golden bonus already set", "modifications on premium weapons can be rolled too (even silver)". srp gives each golden weapon 1230 as a modification of its own, the first ([`../../docs/notes/golden_weapons.md`](../../docs/notes/golden_weapons.md)): the client never offers a default for a reroll, and the lobby's rank is `min(3, base_rarity_level + modifications)`, so a base of 3 forbade every craft |
+
+Applied to revision 26's server game data (`gameplay/items/weapons/`): 21 files edited, 0
+unexpected differences. srp refuses to start on data without it (`golden::check`). The patch also
+carries the lobby movie built from the tree (the craft result shows the item upgraded, not the donor).

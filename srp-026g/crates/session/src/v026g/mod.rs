@@ -233,11 +233,27 @@ impl GameAccounts {
     /// switch would stay worn for ever. Once in the database's life
     /// (`persist::GEAR_MENDED`), so an item found later, which arrives worn
     /// ([`pay::drop_condition`]), stays as found until its owner repairs it.
+    ///
+    /// The first time a database is opened by an srp with the golden-weapons
+    /// rule, every golden weapon in it gets the silver bonus as its own
+    /// first modification ([`Self::give_golden_silver`]): until then it was
+    /// a default of the item's config, which the golden-weapons patch takes
+    /// off. Once in the database's life (`persist::GOLDEN_SILVER_GIVEN`): a
+    /// silver bonus rerolled away later stays away.
     pub fn from_env() -> Result<Self, PersistError> {
         match SqliteGameRepository::from_env()? {
             Some(mut repository) => {
                 let mend = !pay::item_wear() && repository.first_time(persist::GEAR_MENDED)?;
+                let golden = repository.first_time(persist::GOLDEN_SILVER_GIVEN)?;
                 let store = Self::with_repository(Box::new(repository))?;
+                if golden {
+                    let (items, accounts) = store.give_golden_silver();
+                    store.flush();
+                    log::info!(
+                        "Golden weapons: {items} of {accounts} accounts got the silver bonus as \
+                         their own first modification, once"
+                    );
+                }
                 if mend {
                     let (items, accounts) = store.mend_gear();
                     store.flush();
@@ -250,6 +266,43 @@ impl GameAccounts {
             }
             None => Ok(Self::new()),
         }
+    }
+
+    /// Gives every account's golden weapons the silver bonus as their own
+    /// first modification ([`items_rules::give_golden_silver`]) and marks
+    /// the accounts it changed. Returns `(items, accounts)` changed. A
+    /// golden weapon that already has three modifications of its own keeps
+    /// them, and is logged.
+    pub fn give_golden_silver(&self) -> (usize, usize) {
+        let accounts: Vec<(u32, Arc<Mutex<Account>>)> = self
+            .accounts
+            .locked()
+            .iter()
+            .map(|(&id, account)| (id, Arc::clone(account)))
+            .collect();
+        let (mut items, mut changed) = (0, 0);
+        for (account_id, account) in accounts {
+            let done = {
+                let mut account = account.locked();
+                let done = items_rules::give_golden_silver(&mut account);
+                if !done.full.is_empty() {
+                    log::warn!(
+                        "Golden weapons: {} (account {account_id}) has golden weapons with three \
+                         modifications of their own; they keep them, without the silver bonus: \
+                         items {:?}",
+                        account.name,
+                        done.full
+                    );
+                }
+                done
+            };
+            if !done.given.is_empty() {
+                items += done.given.len();
+                changed += 1;
+                self.mark_dirty(account_id);
+            }
+        }
+        (items, changed)
     }
 
     /// Makes every account's weapons and armour whole
@@ -713,6 +766,41 @@ mod tests {
         assert!(!store.is_dirty(5));
         assert_eq!(store.flush(), 0);
         assert!(Arc::new(store).spawn_saver().is_none());
+    }
+
+    #[test]
+    fn the_golden_weapons_of_every_account_get_the_silver_bonus_once() {
+        use survarium::v026g::dictionary::Dictionary;
+        use survarium::v026g::golden::SILVER_BONUS;
+        use survarium::v026g::lobby::FULL_CONDITION;
+        let dict = |name: &str| Dictionary::shared().item_named(name).unwrap().dict_id;
+        let repository = MemoryGameRepository::default();
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        // Alice's golden rifle as the store had it before the rule: the
+        // silver bonus was the config's, not the item's.
+        let rifle = {
+            let account = store.get_or_create(5, "Alice");
+            let mut account = account.locked();
+            let rifle = account.add_item(dict("ak_74n_premium"), FULL_CONDITION);
+            account.item_mut(rifle).unwrap().modifications.clear();
+            rifle
+        };
+        store.get_or_create(6, "Bob");
+        store.flush();
+        assert_eq!(store.give_golden_silver(), (1, 1));
+        assert!(store.is_dirty(5) && !store.is_dirty(6));
+        store.flush();
+        assert_eq!(
+            repository
+                .get(5)
+                .unwrap()
+                .item(rifle)
+                .unwrap()
+                .modifications,
+            [(SILVER_BONUS, false)]
+        );
+        // Nothing left to give.
+        assert_eq!(store.give_golden_silver(), (0, 0));
     }
 
     #[test]

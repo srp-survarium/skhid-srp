@@ -442,6 +442,10 @@ impl SqliteGameRepository {
 /// whole when wear was switched off (`GameAccounts::from_env`).
 pub const GEAR_MENDED: &str = "gear_mended";
 
+/// The `g26_meta` key that says the golden weapons owned got the silver
+/// bonus as their own modification (`GameAccounts::from_env`).
+pub const GOLDEN_SILVER_GIVEN: &str = "golden_silver_given";
+
 fn schema_version(connection: &Connection) -> Result<i64, PersistError> {
     connection.execute_batch(
         "CREATE TABLE IF NOT EXISTS g26_meta (
