@@ -99,9 +99,9 @@ package survarium.clan
          }
       }
       
-      public function fillFoundPlayers(param1:Array) : void
+      public function fillFoundPlayers(players:Array) : void
       {
-         this.searchComponent.fillFoundPlayers(param1);
+         this.searchComponent.fillFoundPlayers(players);
       }
       
       public function init() : void
@@ -112,18 +112,18 @@ package survarium.clan
          this.updateButtons();
       }
       
-      private function createClanTeam(param1:Event = null) : void
+      private function createClanTeam(event:Event = null) : void
       {
          ExternalInterface.call("create_clan_team");
       }
       
       private function updateButtons() : void
       {
-         var _loc1_:Boolean = _isCommander;
-         var _loc2_:int;
-         this.btnDisbandTeam.visible = _loc1_ && this._fullSize;
-         this.btnAddPlayer.visible = _loc1_ && this._fullSize;
-         this.btnLeaveJoin.visible = !_loc1_ && this._fullSize;
+         var isLeader:Boolean = _isCommander;
+         var buttonWidth:int;
+         this.btnDisbandTeam.visible = isLeader && this._fullSize;
+         this.btnAddPlayer.visible = isLeader && this._fullSize;
+         this.btnLeaveJoin.visible = !isLeader && this._fullSize;
          this.btnDisbandTeam.enabled = _isCommander;
          this.btnBecomeCommander.visible = PlayerInfo.isTeamCommander && !this._hasCommander && this._fullSize;
          this.btnBecomeCommander.label = LocalizationData.getName("btn_become_commander");
@@ -157,9 +157,9 @@ package survarium.clan
          this.btnLeaveJoin.validateNow();
          if(!this.btnBecomeCommander.visible)
          {
-            _loc2_ = this.btnLeaveJoin.textField.textWidth + 15;
-            this.btnLeaveJoin.width = _loc2_;
-            this.btnLeaveJoin.x = (this.background.width - _loc2_) / 2;
+            buttonWidth = this.btnLeaveJoin.textField.textWidth + 15;
+            this.btnLeaveJoin.width = buttonWidth;
+            this.btnLeaveJoin.x = (this.background.width - buttonWidth) / 2;
          }
          else
          {
@@ -168,57 +168,57 @@ package survarium.clan
          }
       }
       
-      public function setPlayersData(param1:Array) : void
+      public function setPlayersData(players:Array) : void
       {
-         _hasCommander = param1.length && param1[0].status == 0;
-         _isCommander = this._hasCommander && param1[0].name == PlayerInfo.nickname;
+         _hasCommander = players.length && players[0].status == 0;
+         _isCommander = this._hasCommander && players[0].name == PlayerInfo.nickname;
          trace("TW::setPlayersData",this._hasCommander,_isCommander);
          _inTeam = false;
-         var _loc2_:uint = 0;
-         var _loc3_:uint;
-         while(_loc2_ < param1.length)
+         var i:uint = 0;
+         var status:uint;
+         while(i < players.length)
          {
-            _loc3_ = (param1[_loc2_].status);
-            param1[_loc2_].movableUp = _isCommander && (_loc3_ == STATE_INVITES || _loc3_ == STATE_RESERVE);
-            param1[_loc2_].movableDown = _isCommander && _loc3_ == STATE_SOLDIER;
-            param1[_loc2_].favoritable = this._isAdmin;
-            if(param1[_loc2_].name == PlayerInfo.nickname)
+            status = (players[i].status);
+            players[i].movableUp = _isCommander && (status == STATE_INVITES || status == STATE_RESERVE);
+            players[i].movableDown = _isCommander && status == STATE_SOLDIER;
+            players[i].favoritable = this._isAdmin;
+            if(players[i].name == PlayerInfo.nickname)
             {
                _inTeam = true;
             }
-            _loc2_++;
+            i++;
          }
          PlayerInfo.isInTeam = this._inTeam;
-         this.addSeparators(param1);
-         this.playersList.dataProvider = new DataProvider(param1);
+         this.addSeparators(players);
+         this.playersList.dataProvider = new DataProvider(players);
          this.updateButtons();
       }
       
-      protected function addSeparators(param1:Array) : void
+      protected function addSeparators(players:Array) : void
       {
-         var _loc2_:int = 0;
-         var _loc3_:uint;
-         var _loc4_:Object;
-         if(param1)
+         var lastStatus:int = 0;
+         var i:uint;
+         var separator:Object;
+         if(players)
          {
-            _loc3_ = 0;
-            while(_loc3_ < param1.length)
+            i = 0;
+            while(i < players.length)
             {
-               if(param1[_loc3_])
+               if(players[i])
                {
-                  if(_loc2_ != param1[_loc3_].status)
+                  if(lastStatus != players[i].status)
                   {
-                     _loc4_ = {
-                        status_text:LocalizationData.getName(this._statusLabels[param1[_loc3_].status]),
+                     separator = {
+                        status_text:LocalizationData.getName(this._statusLabels[players[i].status]),
                         isSeparator:true,
                         status:-1
                      };
-                     _loc2_ = (param1[_loc3_].status);
-                     param1.splice(_loc3_,0,_loc4_);
-                     _loc3_++;
+                     lastStatus = (players[i].status);
+                     players.splice(i,0,separator);
+                     i++;
                   }
                }
-               _loc3_++;
+               i++;
             }
          }
       }
@@ -244,12 +244,12 @@ package survarium.clan
          LocalizationData.addButton(this.btnAddPlayer,"btn_clan_team_invite_memeber");
       }
       
-      private function onBtnBecomeCommander(param1:ButtonEvent) : void
+      private function onBtnBecomeCommander(event:ButtonEvent) : void
       {
          this.createClanTeam();
       }
       
-      private function onBtnLeaveJoin(param1:ButtonEvent) : void
+      private function onBtnLeaveJoin(event:ButtonEvent) : void
       {
          if(this.btnLeaveJoin.label == LocalizationData.getName("btn_create_clan_team"))
          {
@@ -265,26 +265,26 @@ package survarium.clan
          }
       }
       
-      private function onPlayerListClicked(param1:ButtonEvent) : void
+      private function onPlayerListClicked(event:ButtonEvent) : void
       {
-         var _loc2_:Object;
-         trace("onPlayerListClicked::",param1.target,param1.currentTarget,param1.target.name);
-         if(param1.target.name == "btnAddToFavorite" || param1.target.name == "btnMovePlayerUp" || param1.target.name == "btnMovePlayer")
+         var player:Object;
+         trace("onPlayerListClicked::",event.target,event.currentTarget,event.target.name);
+         if(event.target.name == "btnAddToFavorite" || event.target.name == "btnMovePlayerUp" || event.target.name == "btnMovePlayer")
          {
-            _loc2_ = param1.target.parent.data;
-            if(param1.target.name == "btnAddToFavorite")
+            player = event.target.parent.data;
+            if(event.target.name == "btnAddToFavorite")
             {
-               selectedName = _loc2_.name;
+               selectedName = player.name;
                this.moveToCommander();
             }
-            else if(param1.target.name == "btnMovePlayerUp" || param1.target.name == "btnMovePlayer")
+            else if(event.target.name == "btnMovePlayerUp" || event.target.name == "btnMovePlayer")
             {
-               selectedName = _loc2_.name;
-               if(_loc2_.status == STATE_SOLDIER || _loc2_.status == STATE_INVITES)
+               selectedName = player.name;
+               if(player.status == STATE_SOLDIER || player.status == STATE_INVITES)
                {
                   this.moveToReserve();
                }
-               else if(_loc2_.status == STATE_RESERVE)
+               else if(player.status == STATE_RESERVE)
                {
                   this.moveToTeam();
                }
@@ -292,7 +292,7 @@ package survarium.clan
          }
       }
       
-      public function disbandTeam(param1:ButtonEvent = null) : void
+      public function disbandTeam(event:ButtonEvent = null) : void
       {
          if(this._isAdmin || _isCommander)
          {
@@ -304,82 +304,82 @@ package survarium.clan
          }
       }
       
-      private function onMouseItemClick(param1:MouseEventEx) : void
+      private function onMouseItemClick(event:MouseEventEx) : void
       {
-         var _loc2_:*;
-         if(param1.target && param1.target.parent is SrvClanTeamListRenderer)
+         var renderer:*;
+         if(event.target && event.target.parent is SrvClanTeamListRenderer)
          {
-            _loc2_ = param1.target.parent;
+            renderer = event.target.parent;
          }
-         else if(param1.target && param1.target.parent.parent is SrvClanTeamListRenderer)
+         else if(event.target && event.target.parent.parent is SrvClanTeamListRenderer)
          {
-            _loc2_ = param1.target.parent.parent;
+            renderer = event.target.parent.parent;
          }
          else
          {
-            _loc2_ = param1.target;
+            renderer = event.target;
          }
-         trace("onMouseItemClick:::",param1.target,param1.currentTarget,_loc2_);
-         if(param1.buttonIdx == 0 || this.playersList.enabled == false)
+         trace("onMouseItemClick:::",event.target,event.currentTarget,renderer);
+         if(event.buttonIdx == 0 || this.playersList.enabled == false)
          {
             return;
          }
-         this.showContextMenu(_loc2_);
+         this.showContextMenu(renderer);
       }
       
-      public function showContextMenu(param1:*) : void
+      public function showContextMenu(renderer:*) : void
       {
-         if(!param1 || param1.enabled == false || !param1.data)
+         if(!renderer || renderer.enabled == false || !renderer.data)
          {
             return;
          }
-         var _loc2_:Object = param1.data;
-         var _loc3_:Boolean = ClanWindow.getState() == 4;
-         var _loc4_:Boolean = _isCommander;
-         var _loc5_:Array = new Array();
-         trace("isCommander::",_loc4_,_loc3_);
-         if(_loc2_.status == STATE_COMMANDER)
+         var player:Object = renderer.data;
+         var isClanAdmin:Boolean = ClanWindow.getState() == 4;
+         var isLeader:Boolean = _isCommander;
+         var menuItems:Array = new Array();
+         trace("isCommander::",isLeader,isClanAdmin);
+         if(player.status == STATE_COMMANDER)
          {
-            _loc5_.push({
+            menuItems.push({
                name:LocalizationData.getName("oust_commander"),
                click_function:this.oustCommander
             });
          }
-         if(_loc2_.status == STATE_SOLDIER && _loc4_ && this._inTeam)
+         if(player.status == STATE_SOLDIER && isLeader && this._inTeam)
          {
-            _loc5_.push({
+            menuItems.push({
                name:LocalizationData.getName("move_to_reserve"),
                click_function:this.moveToReserve
             });
-            _loc5_.push({
+            menuItems.push({
                name:LocalizationData.getName("remove_from_team"),
                click_function:this.removeFromTeam
             });
          }
-         if(_loc2_.status == STATE_RESERVE && _loc4_ && this._inTeam)
+         if(player.status == STATE_RESERVE && isLeader && this._inTeam)
          {
-            _loc5_.push({
+            menuItems.push({
                name:LocalizationData.getName("move_to_team"),
                click_function:this.moveToTeam
             });
-            _loc5_.push({
+            menuItems.push({
                name:LocalizationData.getName("remove_from_team"),
                click_function:this.removeFromTeam
             });
          }
-         if(_loc2_.status == STATE_INVITES && _loc4_ && this._inTeam)
+         if(player.status == STATE_INVITES && isLeader && this._inTeam)
          {
-            _loc5_.push({
+            menuItems.push({
                name:LocalizationData.getName("move_to_reserve"),
                click_function:this.moveToReserve
             });
          }
-         trace("showContextMenu::",_loc2_.status,"options",_loc5_.length);
-         if(_loc5_.length)
+         trace("showContextMenu::",player.status,"options",menuItems.length);
+         if(menuItems.length)
          {
-            SrvContextMenu.show(_loc5_,0,0,this);
+            SrvContextMenu.show(menuItems,0,0,this);
          }
-         selectedName = _loc2_.name;
+         selectedName = player.name;
       }
       
       private function moveToTeam() : void
@@ -412,13 +412,13 @@ package survarium.clan
          ExternalInterface.call("oust_commander");
       }
       
-      private function onTextInputFocusOut(param1:FocusEvent) : void
+      private function onTextInputFocusOut(event:FocusEvent) : void
       {
          trace("onTextInputFocusOut",FocusManager.getFocus(),stage.focus,stage.focus ? this.searchComponent.contains(stage.focus) : null);
          stage.addEventListener(Event.RENDER,this.onRender);
       }
       
-      private function onRender(param1:Event) : void
+      private function onRender(event:Event) : void
       {
          ++this.renderFrames;
          if(this.renderFrames == 12 || stage.focus)
@@ -440,47 +440,47 @@ package survarium.clan
          }
       }
       
-      private function invitePlayerByName(param1:ListEvent) : void
+      private function invitePlayerByName(event:ListEvent) : void
       {
          trace("changeInputName::init");
-         if(!param1 || (SrvContextMenu.getInstance()) && (SrvContextMenu.getInstance().parent))
+         if(!event || (SrvContextMenu.getInstance()) && (SrvContextMenu.getInstance().parent))
          {
             return;
          }
-         var _loc2_:* = param1.itemData;
-         trace("changeInputName::",_loc2_);
-         if(_loc2_)
+         var selectedItem:* = event.itemData;
+         trace("changeInputName::",selectedItem);
+         if(selectedItem)
          {
             this.searchComponent.cleanUp();
             this.searchComponent.visible = false;
             this.searchComponent.x = 0;
             stage.focus = this;
-            trace("invite_player_to_clan_team",_loc2_.name);
-            ExternalInterface.call("invite_player_to_clan_team",_loc2_.name);
+            trace("invite_player_to_clan_team",selectedItem.name);
+            ExternalInterface.call("invite_player_to_clan_team",selectedItem.name);
          }
       }
       
-      private function inviteMember(param1:ButtonEvent) : void
+      private function inviteMember(event:ButtonEvent) : void
       {
          this.searchComponent.visible = true;
          stage.focus = this.searchComponent;
-         var _loc2_:Array = ClanWindow.getMembersList();
-         this.searchComponent.setFriendsList(_loc2_);
+         var members:Array = ClanWindow.getMembersList();
+         this.searchComponent.setFriendsList(members);
       }
       
-      private function showFullSize(param1:Boolean) : void
+      private function showFullSize(isFull:Boolean) : void
       {
-         _fullSize = param1;
-         this.btnClose.visible = this.btnHide.visible = this.background.visible = this.btnAddPlayer.visible = this.btnDisbandTeam.visible = this.playersList.visible = param1;
-         this.btnBecomeCommander.visible = this.btnLeaveJoin.visible = param1;
-         if(param1)
+         _fullSize = isFull;
+         this.btnClose.visible = this.btnHide.visible = this.background.visible = this.btnAddPlayer.visible = this.btnDisbandTeam.visible = this.playersList.visible = isFull;
+         this.btnBecomeCommander.visible = this.btnLeaveJoin.visible = isFull;
+         if(isFull)
          {
             this.updateButtons();
          }
-         this.btnShow.visible = this.smallBackground.visible = !param1;
+         this.btnShow.visible = this.smallBackground.visible = !isFull;
       }
       
-      private function onShowMe(param1:ButtonEvent) : void
+      private function onShowMe(event:ButtonEvent) : void
       {
          trace("TW::onShowMe");
          ExternalInterface.call("clan_team_window_opened");
@@ -489,20 +489,20 @@ package survarium.clan
          dispatchEvent(new Event(TOGGLE_FOLD));
       }
       
-      private function onCloseMe(param1:ButtonEvent) : void
+      private function onCloseMe(event:ButtonEvent) : void
       {
          this.showCloseMessage();
       }
       
       protected function showCloseMessage() : void
       {
-         var _loc1_:Object = {
+         var messageData:Object = {
             text:LocalizationData.getName(_isCommander ? "clan_window_close_message_commander" : "clan_window_close_message"),
             onYes:this.closeWindow,
             label_ok:LocalizationData.getName("ok"),
             label_cancel:LocalizationData.getName("cancel")
          };
-         Message.showMessage("apply",_loc1_,true,0,true);
+         Message.showMessage("apply",messageData,true,0,true);
       }
       
       protected function closeWindow() : void
@@ -511,7 +511,7 @@ package survarium.clan
          dispatchEvent(new Event(Event.CLOSE));
       }
       
-      private function onHideMe(param1:ButtonEvent) : void
+      private function onHideMe(event:ButtonEvent) : void
       {
          trace("TW::onHideMe");
          gotoAndStop(2);

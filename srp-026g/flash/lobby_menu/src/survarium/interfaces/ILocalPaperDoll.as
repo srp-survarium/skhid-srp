@@ -5,35 +5,35 @@ package survarium.interfaces
    public interface ILocalPaperDoll extends IPaperDoll
    {
       
-      function set ammoControl(param1:IAmmoControll) : void;
+      function set ammoControl(value:IAmmoControll) : void;
       
       function get ammoControl() : IAmmoControll;
       
       function get selectedIndex() : int;
       
-      function setSlotsRestrictions(param1:Array) : void;
+      function setSlotsRestrictions(restrictions:Array) : void;
       
-      function registerInventory(param1:IInventoryItemFactory) : void;
+      function registerInventory(inventory:IInventoryItemFactory) : void;
       
-      function enableSecondWeapon(param1:Boolean) : void;
+      function enableSecondWeapon(value:Boolean) : void;
       
-      function allowSecondaryTwoHandedWeapon(param1:Boolean) : void;
+      function allowSecondaryTwoHandedWeapon(value:Boolean) : void;
       
-      function lockSlot(param1:Boolean, param2:uint) : void;
+      function lockSlot(locked:Boolean, slotIndex:uint) : void;
       
-      function getSlot(param1:ItemData, param2:Boolean = false) : int;
+      function getSlot(item:ItemData, preferEmpty:Boolean = false) : int;
       
-      function hoverItem(param1:uint = 0) : void;
+      function hoverItem(itemId:uint = 0) : void;
       
       function clearSelection() : void;
       
-      function hasAgreements(param1:uint) : uint;
+      function hasAgreements(category:uint) : uint;
       
-      function selectAgeements(param1:int, param2:int, param3:Boolean = false, param4:Boolean = false, param5:int = 0) : void;
+      function selectAgeements(category:int, dictId:int, oneHanded:Boolean = false, fromSlot:Boolean = false, itemId:int = 0) : void;
       
       function deselectAgeements() : void;
       
-      function onItemUpdated(param1:uint = 0) : void;
+      function onItemUpdated(slotId:uint = 0) : void;
    }
 }
 

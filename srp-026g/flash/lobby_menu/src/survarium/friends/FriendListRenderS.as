@@ -16,9 +16,9 @@ package survarium.friends
          super();
       }
       
-      override public function setData(param1:Object) : void
+      override public function setData(newData:Object) : void
       {
-         this.data = param1;
+         this.data = newData;
          invalidateData();
       }
       

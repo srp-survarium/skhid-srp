@@ -7,21 +7,21 @@ package survarium.interfaces
    public interface IAmmoControll extends IEventDispatcher
    {
       
-      function updatePaperDollData(param1:IDataProvider, param2:Array) : void;
+      function updatePaperDollData(dataProvider:IDataProvider, slots:Array) : void;
       
-      function update(param1:Event = null, param2:String = "null") : String;
+      function update(event:Event = null, caller:String = "null") : String;
       
-      function fillItems(param1:Array) : void;
+      function fillItems(items:Array) : void;
       
-      function openSlots(param1:int, param2:int) : void;
+      function openSlots(slotsN:int, slotsA:int) : void;
       
-      function setSlotTarget(param1:uint, param2:Array = null) : void;
+      function setSlotTarget(slotId:uint, targets:Array = null) : void;
       
-      function registerShop(param1:*) : void;
+      function registerShop(shop:*) : void;
       
-      function registerInventory(param1:*) : void;
+      function registerInventory(inventory:*) : void;
       
-      function reflow(param1:Event = null, param2:String = "null", param3:int = -2) : void;
+      function reflow(event:Event = null, caller:String = "null", elementIndex:int = -2) : void;
    }
 }
 

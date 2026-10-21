@@ -62,16 +62,16 @@ package survarium.friends
          ExternalInterface.call("remove_friend",data.id);
       }
       
-      override public function set selected(param1:Boolean) : void
+      override public function set selected(value:Boolean) : void
       {
       }
       
-      public function set highlighted(param1:Boolean) : void
+      public function set highlighted(value:Boolean) : void
       {
-         super.selected = param1;
+         super.selected = value;
       }
       
-      public function handleCrossClick(param1:Event = null) : void
+      public function handleCrossClick(event:Event = null) : void
       {
          if(data.ignored)
          {
@@ -110,8 +110,8 @@ package survarium.friends
       
       public function sendMessage() : void
       {
-         var _loc1_:String = data.name;
-         ExternalInterface.call("start_friend_message",_loc1_);
+         var playerName:String = data.name;
+         ExternalInterface.call("start_friend_message",playerName);
          dispatchEvent(new Event(Event.CONNECT,true));
       }
       
@@ -124,13 +124,13 @@ package survarium.friends
          return 54;
       }
       
-      override protected function setState(param1:String) : void
+      override protected function setState(newState:String) : void
       {
          if(_data && _data.isSeparator)
          {
             return;
          }
-         super.setState(param1);
+         super.setState(newState);
       }
       
       override protected function updateText() : void
@@ -141,10 +141,10 @@ package survarium.friends
             return;
          }
          visible = true;
-         var _loc1_:Boolean = _data.isSeparator;
-         this.separator.visible = _loc1_;
+         var separatorRow:Boolean = _data.isSeparator;
+         this.separator.visible = separatorRow;
          this.status_indicator.visible = this.status_tx.visible = this.name_tx.visible = !this.separator.visible;
-         if(_loc1_)
+         if(separatorRow)
          {
             this.separator.textField.text = _data.status_text;
             this.menuButton.visible = false;
@@ -156,14 +156,14 @@ package survarium.friends
          this.name_tx.text = data.abbr ? "[" + data.abbr + "] " + data.name : data.name;
          this.name_tx.validateNow();
          this.menuButton.x = this.name_tx.textField.textWidth + this.name_tx.x + 7;
-         var _loc2_:Boolean = data.request != undefined;
-         var _loc3_:Boolean;
+         var isRequest:Boolean = data.request != undefined;
+         var canAnswer:Boolean;
          if(this.background)
          {
-            this.background.height = _loc2_ ? 54 : 27;
+            this.background.height = isRequest ? 54 : 27;
          }
-         this.btn_acccept.y = this.btn_cancel.y = _loc2_ ? 27 : 0;
-         if(_loc2_)
+         this.btn_acccept.y = this.btn_cancel.y = isRequest ? 27 : 0;
+         if(isRequest)
          {
             this.status_indicator.gotoAndStop("invite");
          }
@@ -185,23 +185,23 @@ package survarium.friends
          }
          this.status_tx.text = "";
          this.status_tx.visible = false;
-         if(_loc2_ && enabled)
+         if(isRequest && enabled)
          {
             this.btn_acccept.visible = true;
             this.btn_cancel.visible = true;
-            _loc3_ = false;
+            canAnswer = false;
             if(_data.sended != true)
             {
-               _loc3_ = true;
+               canAnswer = true;
             }
-            if(this.btn_acccept.enabled != _loc3_)
+            if(this.btn_acccept.enabled != canAnswer)
             {
-               this.btn_acccept.enabled = _loc3_;
+               this.btn_acccept.enabled = canAnswer;
                this.btn_acccept.validateNow();
             }
-            if(this.btn_cancel.enabled != _loc3_)
+            if(this.btn_cancel.enabled != canAnswer)
             {
-               this.btn_cancel.enabled = _loc3_;
+               this.btn_cancel.enabled = canAnswer;
                this.btn_cancel.validateNow();
             }
          }
@@ -236,121 +236,121 @@ package survarium.friends
          selectable = false;
       }
       
-      protected function showContextMenu(param1:Event = null) : void
+      protected function showContextMenu(event:Event = null) : void
       {
-         var _loc2_:Array;
-         var _loc3_:String;
-         var _loc4_:Boolean;
-         var _loc5_:Boolean;
-         var _loc6_:Boolean;
-         var _loc7_:Boolean;
-         var _loc8_:Boolean;
-         var _loc9_:Boolean;
-         var _loc10_:Array;
+         var menuItems:Array;
+         var playerName:String;
+         var alreadyIgnored:Boolean;
+         var inFriendList:Boolean;
+         var canMessage:Boolean;
+         var canInvite:Boolean;
+         var isStranger:Boolean;
+         var alreadyFriend:Boolean;
+         var claimOptions:Array;
          if(!data.ignored)
          {
             if(_data.status == -1)
             {
                return;
             }
-            _loc2_ = [];
-            _loc3_ = data.name;
-            _loc4_ = FriendsMenu.isIgnored(_loc3_);
-            _loc5_ = _data.status == 0 || _data.status == 1 || _data.status == 2 || _data.status == 3;
-            _loc6_ = _data.status == 0 || _data.status == 1 || _data.status == 4;
-            _loc7_ = _data.status == 0 || _data.status == 1 || _data.status == 3;
-            _loc8_ = _data.status == undefined;
-            if(_loc8_)
+            menuItems = [];
+            playerName = data.name;
+            alreadyIgnored = FriendsMenu.isIgnored(playerName);
+            inFriendList = _data.status == 0 || _data.status == 1 || _data.status == 2 || _data.status == 3;
+            canMessage = _data.status == 0 || _data.status == 1 || _data.status == 4;
+            canInvite = _data.status == 0 || _data.status == 1 || _data.status == 3;
+            isStranger = _data.status == undefined;
+            if(isStranger)
             {
-               _loc9_ = FriendsMenu.isFriend(_loc3_);
-               if(!_loc9_)
+               alreadyFriend = FriendsMenu.isFriend(playerName);
+               if(!alreadyFriend)
                {
-                  _loc2_.push({
+                  menuItems.push({
                      name:LocalizationData.getName("add_to_friends"),
                      click_function:this.addToFriends
                   });
                }
-               if(!_loc4_)
+               if(!alreadyIgnored)
                {
-                  _loc2_.push({
+                  menuItems.push({
                      name:LocalizationData.getName("add_to_ignore"),
                      click_function:this.addToIgnore
                   });
                }
             }
-            if(_loc6_)
+            if(canMessage)
             {
-               _loc2_.push({
+               menuItems.push({
                   name:LocalizationData.getName("send_message"),
                   click_function:this.sendMessage
                });
             }
-            if(_loc5_)
+            if(inFriendList)
             {
-               _loc2_.push({
+               menuItems.push({
                   name:LocalizationData.getName("remove_from_friends"),
                   click_function:this.removeFriend
                });
-               if(!_loc4_)
+               if(!alreadyIgnored)
                {
-                  _loc2_.push({
+                  menuItems.push({
                      name:LocalizationData.getName("add_to_ignore"),
                      click_function:this.addToIgnore
                   });
                }
-               _loc10_ = [];
-               _loc10_.push({
+               claimOptions = [];
+               claimOptions.push({
                   name:LocalizationData.getName("bot_or_cheater_claim"),
                   click_function:this.flagPlayer,
                   callBack:true,
                   index:1,
                   subIndex:1
                });
-               _loc10_.push({
+               claimOptions.push({
                   name:LocalizationData.getName("swearing_claim"),
                   click_function:this.flagPlayer,
                   callBack:true,
                   index:1,
                   subIndex:2
                });
-               _loc10_.push({
+               claimOptions.push({
                   name:LocalizationData.getName("non_sport_behavior_claim"),
                   click_function:this.flagPlayer,
                   callBack:true,
                   index:1,
                   subIndex:3
                });
-               _loc10_.push({
+               claimOptions.push({
                   name:LocalizationData.getName("account_trading_claim"),
                   click_function:this.flagPlayer,
                   callBack:true,
                   index:1,
                   subIndex:4
                });
-               _loc2_.push({
+               menuItems.push({
                   name:LocalizationData.getName("claim_player"),
-                  options:_loc10_
+                  options:claimOptions
                });
-               trace("showContextMenu::",_data.status,_loc7_);
+               trace("showContextMenu::",_data.status,canInvite);
             }
-            if(PlayerInfo.commander && !PlayerInfo.isSquadFull && (_loc5_ && _loc7_ || _loc8_) && !SquadList.isInSquad(_loc3_))
+            if(PlayerInfo.commander && !PlayerInfo.isSquadFull && (inFriendList && canInvite || isStranger) && !SquadList.isInSquad(playerName))
             {
-               _loc2_.push({
+               menuItems.push({
                   name:LocalizationData.getName("invite_to_squad"),
                   click_function:this.askToJoinSquad
                });
             }
-            if((PlayerInfo.isClanManager || PlayerInfo.isClanIviter) && !ClanWindow.isInClan(_loc3_))
+            if((PlayerInfo.isClanManager || PlayerInfo.isClanIviter) && !ClanWindow.isInClan(playerName))
             {
-               _loc2_.push({
+               menuItems.push({
                   name:LocalizationData.getName("invite_to_clan"),
                   click_function:this.askToJoinClan
                });
             }
             highlighted = true;
-            SrvContextMenu.show(_loc2_,0,0,this);
+            SrvContextMenu.show(menuItems,0,0,this);
             SrvContextMenu.getInstance().addEventListener(Event.REMOVED_FROM_STAGE,this.deselect);
-            this.askFriendRoom(_loc2_);
+            this.askFriendRoom(menuItems);
          }
          else
          {
@@ -369,39 +369,39 @@ package survarium.friends
          ExternalInterface.call("invite_player_to_clan",data.name);
       }
       
-      protected function flagPlayer(param1:Object) : void
+      protected function flagPlayer(option:Object) : void
       {
-         trace("comment_about_user",data.name,param1.index,param1.subIndex);
-         ExternalInterface.call("comment_about_user",data.name,param1.index,param1.subIndex);
+         trace("comment_about_user",data.name,option.index,option.subIndex);
+         ExternalInterface.call("comment_about_user",data.name,option.index,option.subIndex);
       }
       
-      protected function handleButtonClick(param1:ButtonEvent) : void
+      protected function handleButtonClick(event:ButtonEvent) : void
       {
-         var _loc2_:uint = param1.target == this.btn_acccept ? 0 : 1;
+         var answer:uint = event.target == this.btn_acccept ? 0 : 1;
          this.btn_acccept.enabled = false;
          this.btn_cancel.enabled = false;
          _data.sended = true;
          dispatchEvent(new Event(Event.CONNECT,true));
-         var _loc3_:uint = (_data.type);
+         var messageType:uint = (_data.type);
          if(data.id != 666)
          {
-            ExternalInterface.call("important_message_read",data.id,_loc2_,_loc3_);
+            ExternalInterface.call("important_message_read",data.id,answer,messageType);
          }
       }
       
-      protected function deselect(param1:Event = null) : void
+      protected function deselect(event:Event = null) : void
       {
          highlighted = false;
          SrvContextMenu.getInstance().removeEventListener(Event.REMOVED_FROM_STAGE,this.deselect);
       }
       
-      protected function onClick(param1:MouseEventEx) : void
+      protected function onClick(event:MouseEventEx) : void
       {
          if(!data)
          {
             return;
          }
-         if(param1.buttonIdx == 1 && _data.name)
+         if(event.buttonIdx == 1 && _data.name)
          {
             this.showContextMenu();
          }

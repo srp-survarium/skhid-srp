@@ -40,42 +40,42 @@ package survarium.friends
          this.list.addEventListener(ListEvent.ITEM_CLICK,this.onInviteItemClick);
       }
       
-      protected function onInviteItemClick(param1:ListEvent) : void
+      protected function onInviteItemClick(event:ListEvent) : void
       {
-         var _loc2_:Boolean;
-         var _loc3_:Object = param1.itemData;
-         if(_loc3_)
+         var canAccept:Boolean;
+         var invite:Object = event.itemData;
+         if(invite)
          {
-            if(_loc3_.type == SQUAD_INVITE)
+            if(invite.type == SQUAD_INVITE)
             {
-               _loc2_ = !PlayerInfo.isInSquad && !PlayerInfo.isInTeam;
+               canAccept = !PlayerInfo.isInSquad && !PlayerInfo.isInTeam;
             }
-            else if(_loc3_.type == MATCH_INVITE)
+            else if(invite.type == MATCH_INVITE)
             {
-               _loc2_ = !PlayerInfo.isInSquad;
+               canAccept = !PlayerInfo.isInSquad;
             }
             else
             {
-               _loc2_ = ClanWindow.getState() == 0;
+               canAccept = ClanWindow.getState() == 0;
             }
          }
-         trace("onInviteItemClick",_loc2_,param1.itemData,PlayerInfo.isInSquad,PlayerInfo.isInTeam);
-         if(!param1.itemData)
+         trace("onInviteItemClick",canAccept,event.itemData,PlayerInfo.isInSquad,PlayerInfo.isInTeam);
+         if(!event.itemData)
          {
             return;
          }
-         param1.itemData.acceptable = _loc2_;
-         Message.showMessage("invite",param1.itemData,true);
+         event.itemData.acceptable = canAccept;
+         Message.showMessage("invite",event.itemData,true);
       }
       
-      public function addInvite(param1:Object) : void
+      public function addInvite(invite:Object) : void
       {
-         this._data.unshift(param1);
+         this._data.unshift(invite);
          this.list.dataProvider = new DataProvider(this._data);
          this.list.playScrollTween();
          this.list.validateNow();
-         var _loc2_:Boolean = this.list.getScrollable();
-         if(!this._scrollBarEnabled && _loc2_)
+         var isScrollable:Boolean = this.list.getScrollable();
+         if(!this._scrollBarEnabled && isScrollable)
          {
             _scrollBarEnabled = true;
             this.scrollBar.visible = true;
@@ -86,7 +86,7 @@ package survarium.friends
                alpha:1
             });
          }
-         else if(this._scrollBarEnabled && !_loc2_)
+         else if(this._scrollBarEnabled && !isScrollable)
          {
             _scrollBarEnabled = false;
             TweenLite.to(this.list,0.2,{x:this.list.x - this.scrollBar.width - 4});
@@ -104,27 +104,27 @@ package survarium.friends
          this.scrollBar.visible = false;
       }
       
-      public function removeInvite(param1:uint) : void
+      public function removeInvite(inviteId:uint) : void
       {
-         var _loc2_:uint = this._data.length;
-         var _loc3_:int = 0;
-         while(_loc3_ < _loc2_)
+         var count:uint = this._data.length;
+         var i:int = 0;
+         while(i < count)
          {
-            if(this._data[_loc3_].id == param1)
+            if(this._data[i].id == inviteId)
             {
-               this._data.splice(_loc3_,1);
+               this._data.splice(i,1);
                break;
             }
-            _loc3_++;
+            i++;
          }
          invalidateData();
          this.list.dataProvider = new DataProvider(this._data);
          this.list.validateNow();
       }
       
-      public function set data(param1:Object) : void
+      public function set data(value:Object) : void
       {
-         _data = param1 as Array;
+         _data = value as Array;
          this.list.dataProvider = new DataProvider(this._data);
          invalidateData();
       }

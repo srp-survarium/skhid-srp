@@ -79,15 +79,15 @@ package survarium.upgrade
          _newFrame = "up";
          this.patternMC.alpha = 0.5;
          this.setTransitionSize(45,74);
-         var _loc1_:MovieClip = getChildByName("spriteAnchor") as MovieClip;
-         if(_loc1_ && contentCanvas)
+         var anchor:MovieClip = getChildByName("spriteAnchor") as MovieClip;
+         if(anchor && contentCanvas)
          {
             contentCanvas = new Sprite();
-            _loc1_.addChild(contentCanvas);
-            if(_loc1_.x == -30)
+            anchor.addChild(contentCanvas);
+            if(anchor.x == -30)
             {
-               _loc1_.x -= 9;
-               _loc1_.y -= 7;
+               anchor.x -= 9;
+               anchor.y -= 7;
                this.patternMC.y = 19;
             }
             else
@@ -97,167 +97,167 @@ package survarium.upgrade
             this.patternMC.x = -17;
             this.patternMC.width = this.patternMC.height = 140;
             this.patternMC.mask = this.maskSymbol2;
-            _loc1_.mask = this.maskSymbol;
+            anchor.mask = this.maskSymbol;
             setChildIndex(this.textField,0);
          }
          this.textField.mouseEnabled = false;
          this.textFieldLabel.mouseEnabled = false;
-         _loc1_.y += 13;
+         anchor.y += 13;
       }
       
-      public function setTransitionSize(param1:uint, param2:uint) : void
+      public function setTransitionSize(emptySize:uint, filledSize:uint) : void
       {
-         var _loc3_:int = (param1);
-         var _loc4_:int = (param2);
-         var _loc5_:Number = 10;
-         var _loc6_:Number = _loc4_ - _loc3_ / 2;
-         var _loc7_:Number = _loc6_;
-         posY = _loc6_;
-         var _loc8_:Number = 37;
-         var _loc9_:Number = 2;
+         var emptySide:int = (emptySize);
+         var filledSide:int = (filledSize);
+         var hoverGrow:Number = 10;
+         var emptyY:Number = filledSide - emptySide / 2;
+         var filledY:Number = emptyY;
+         posY = emptyY;
+         var centerX:Number = 37;
+         var borderPad:Number = 2;
          _transitionMap = {
             up:[{
                target:this.maskSymbol,
                options:{
-                  x:_loc8_,
-                  y:_loc6_,
-                  width:_loc3_,
-                  height:_loc3_
+                  x:centerX,
+                  y:emptyY,
+                  width:emptySide,
+                  height:emptySide
                }
             },{
                target:this.border,
                options:{
-                  x:_loc8_,
-                  y:_loc6_,
-                  width:_loc3_ + _loc9_,
-                  height:_loc3_ + _loc9_
+                  x:centerX,
+                  y:emptyY,
+                  width:emptySide + borderPad,
+                  height:emptySide + borderPad
                }
             }],
             over:[{
                target:this.maskSymbol,
                options:{
-                  x:_loc8_,
-                  y:_loc6_,
-                  width:_loc3_ + _loc5_,
-                  height:_loc3_ + _loc5_
+                  x:centerX,
+                  y:emptyY,
+                  width:emptySide + hoverGrow,
+                  height:emptySide + hoverGrow
                }
             },{
                target:this.border,
                options:{
-                  x:_loc8_,
-                  y:_loc6_,
-                  width:_loc3_ + _loc5_ + _loc9_,
-                  height:_loc3_ + _loc5_ + _loc9_
+                  x:centerX,
+                  y:emptyY,
+                  width:emptySide + hoverGrow + borderPad,
+                  height:emptySide + hoverGrow + borderPad
                }
             }],
             highlighted_up:[{
                target:this.maskSymbol,
                options:{
-                  x:_loc8_,
-                  y:_loc6_,
-                  width:_loc3_ + _loc5_,
-                  height:_loc3_ + _loc5_
+                  x:centerX,
+                  y:emptyY,
+                  width:emptySide + hoverGrow,
+                  height:emptySide + hoverGrow
                }
             },{
                target:this.border,
                options:{
-                  x:_loc8_,
-                  y:_loc6_,
-                  width:_loc3_ + _loc5_ + _loc9_,
-                  height:_loc3_ + _loc5_ + _loc9_
+                  x:centerX,
+                  y:emptyY,
+                  width:emptySide + hoverGrow + borderPad,
+                  height:emptySide + hoverGrow + borderPad
                }
             }],
             highlighted_over:[{
                target:this.maskSymbol,
                options:{
-                  x:_loc8_,
-                  y:_loc7_,
-                  width:_loc4_ + _loc5_,
-                  height:_loc4_ + _loc5_
+                  x:centerX,
+                  y:filledY,
+                  width:filledSide + hoverGrow,
+                  height:filledSide + hoverGrow
                }
             },{
                target:this.border,
                options:{
-                  x:_loc8_,
-                  y:_loc7_,
-                  width:_loc4_ + _loc5_ + _loc9_,
-                  height:_loc4_ + _loc5_ + _loc9_
+                  x:centerX,
+                  y:filledY,
+                  width:filledSide + hoverGrow + borderPad,
+                  height:filledSide + hoverGrow + borderPad
                }
             }],
             filled_up:[{
                target:this.maskSymbol,
                options:{
-                  x:_loc8_,
-                  y:_loc7_,
-                  width:_loc4_,
-                  height:_loc4_
+                  x:centerX,
+                  y:filledY,
+                  width:filledSide,
+                  height:filledSide
                }
             },{
                target:this.border,
                options:{
-                  x:_loc8_,
-                  y:_loc7_,
-                  width:_loc4_ + _loc9_,
-                  height:_loc4_ + _loc9_
+                  x:centerX,
+                  y:filledY,
+                  width:filledSide + borderPad,
+                  height:filledSide + borderPad
                }
             }],
             filled_over:[{
                target:this.maskSymbol,
                options:{
-                  x:_loc8_,
-                  y:_loc7_,
-                  width:_loc4_,
-                  height:_loc4_
+                  x:centerX,
+                  y:filledY,
+                  width:filledSide,
+                  height:filledSide
                }
             },{
                target:this.border,
                options:{
-                  x:_loc8_,
-                  y:_loc7_,
-                  width:_loc4_ + _loc9_,
-                  height:_loc4_ + _loc9_
+                  x:centerX,
+                  y:filledY,
+                  width:filledSide + borderPad,
+                  height:filledSide + borderPad
                }
             }],
             highlighted_filled_up:[{
                target:this.maskSymbol,
                options:{
-                  x:_loc8_,
-                  y:_loc7_,
-                  width:_loc4_ + _loc5_,
-                  height:_loc4_ + _loc5_
+                  x:centerX,
+                  y:filledY,
+                  width:filledSide + hoverGrow,
+                  height:filledSide + hoverGrow
                }
             },{
                target:this.border,
                options:{
-                  x:_loc8_,
-                  y:_loc7_,
-                  width:_loc4_ + _loc5_ + _loc9_,
-                  height:_loc4_ + _loc5_ + _loc9_
+                  x:centerX,
+                  y:filledY,
+                  width:filledSide + hoverGrow + borderPad,
+                  height:filledSide + hoverGrow + borderPad
                }
             }],
             highlighted_filled_over:[{
                target:this.maskSymbol,
                options:{
-                  x:_loc8_,
-                  y:_loc7_,
-                  width:_loc4_ + _loc5_,
-                  height:_loc4_ + _loc5_
+                  x:centerX,
+                  y:filledY,
+                  width:filledSide + hoverGrow,
+                  height:filledSide + hoverGrow
                }
             },{
                target:this.border,
                options:{
-                  x:_loc8_,
-                  y:_loc7_,
-                  width:_loc4_ + _loc5_ + _loc9_,
-                  height:_loc4_ + _loc5_ + _loc9_
+                  x:centerX,
+                  y:filledY,
+                  width:filledSide + hoverGrow + borderPad,
+                  height:filledSide + hoverGrow + borderPad
                }
             }]
          };
       }
       
-      private function onBorderResize(param1:Event) : void
+      private function onBorderResize(event:Event) : void
       {
-         var _loc2_:uint;
+         var padding:uint;
          this.textFieldLabel.y = this.posY + this.maskSymbol.height / 2 + 5;
          this.textField.y = this.textFieldLabel.y;
          this.maskSymbol2.x = this.maskSymbol.x;
@@ -271,9 +271,9 @@ package survarium.upgrade
          }
          if(this.selectedBorder)
          {
-            _loc2_ = 5;
-            this.selectedBorder.width = this.maskSymbol.width + _loc2_ * 2;
-            this.selectedBorder.height = this.maskSymbol.height + _loc2_ * 2;
+            padding = 5;
+            this.selectedBorder.width = this.maskSymbol.width + padding * 2;
+            this.selectedBorder.height = this.maskSymbol.height + padding * 2;
             this.selectedBorder.x = this.maskSymbol.x - this.selectedBorder.width / 2;
             this.selectedBorder.y = this.maskSymbol.y - this.selectedBorder.height / 2;
          }
@@ -284,14 +284,14 @@ package survarium.upgrade
          return this._owner;
       }
       
-      public function set owner(param1:UIComponent) : void
+      public function set owner(value:UIComponent) : void
       {
-         _owner = param1;
+         _owner = value;
       }
       
-      public function set label(param1:String) : void
+      public function set label(value:String) : void
       {
-         _label = param1;
+         _label = value;
          invalidateData();
       }
       
@@ -300,9 +300,9 @@ package survarium.upgrade
          return this._selectable;
       }
       
-      public function set selectable(param1:Boolean) : void
+      public function set selectable(value:Boolean) : void
       {
-         _selectable = param1;
+         _selectable = value;
       }
       
       public function get highlighted() : Boolean
@@ -310,13 +310,13 @@ package survarium.upgrade
          return this._highlighted;
       }
       
-      public function set highlighted(param1:Boolean) : void
+      public function set highlighted(value:Boolean) : void
       {
-         if(this._highlighted == param1)
+         if(this._highlighted == value)
          {
             return;
          }
-         _highlighted = param1;
+         _highlighted = value;
          this.setState("up");
          invalidateState();
          invalidateData();
@@ -327,9 +327,9 @@ package survarium.upgrade
          return this._selected;
       }
       
-      public function set selected(param1:Boolean) : void
+      public function set selected(value:Boolean) : void
       {
-         _selected = param1;
+         _selected = value;
          this.setState("up");
       }
       
@@ -338,11 +338,11 @@ package survarium.upgrade
          return _data;
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         if(_data != param1)
+         if(_data != value)
          {
-            _data = param1;
+            _data = value;
             stackTrace("US::setdata");
          }
          this.setState("up");
@@ -354,22 +354,22 @@ package survarium.upgrade
          return this._index;
       }
       
-      public function set index(param1:uint) : void
+      public function set index(value:uint) : void
       {
-         _index = param1;
-         _descriptor = param1;
+         _index = value;
+         _descriptor = value;
       }
       
-      public function setListData(param1:ListData) : void
+      public function setListData(listData:ListData) : void
       {
-         index = param1.index;
-         selected = param1.selected;
+         index = listData.index;
+         selected = listData.selected;
       }
       
-      public function setData(param1:Object) : void
+      public function setData(newData:Object) : void
       {
          _lastData = this.data;
-         this.data = param1;
+         this.data = newData;
          dispatchEvent(new Event(UPDATED,true));
          _lastData = null;
       }
@@ -388,24 +388,24 @@ package survarium.upgrade
          this.setData(null);
       }
       
-      override public function handleDragStartEvent(param1:DragEvent) : void
+      override public function handleDragStartEvent(event:DragEvent) : void
       {
          this.setState("over");
          content = null;
          this.textField.text = "  ";
       }
       
-      override public function handleDragEndEvent(param1:DragEvent, param2:Boolean) : void
+      override public function handleDragEndEvent(event:DragEvent, wasValidDrop:Boolean) : void
       {
-         trace("UT::handleDragEndEvent::",param1.dropTarget);
-         if(param1.dropTarget != this)
+         trace("UT::handleDragEndEvent::",event.dropTarget);
+         if(event.dropTarget != this)
          {
             this.dropSlot();
-            dispatchEvent(param1);
+            dispatchEvent(event);
          }
          else
          {
-            data = param1.dragData;
+            data = event.dragData;
             if(this.btnChange)
             {
                this.btnChange.enabled = false;
@@ -415,13 +415,13 @@ package survarium.upgrade
          trace("UT::handleDragEndEvent::end");
       }
       
-      override public function handleDropEvent(param1:DragEvent) : Boolean
+      override public function handleDropEvent(event:DragEvent) : Boolean
       {
          if(enabled == false || this.highlighted == false)
          {
             return false;
          }
-         dispatchEvent(param1);
+         dispatchEvent(event);
          return true;
       }
       
@@ -432,8 +432,8 @@ package survarium.upgrade
       
       protected function updateSlot() : void
       {
-         var _loc1_:int = 0;
-         var _loc2_:Number = NaN;
+         var slotSize:int = 0;
+         var iconScale:Number = NaN;
          if(_data != null)
          {
             if(Boolean(this.btnChange))
@@ -442,10 +442,10 @@ package survarium.upgrade
                this.btnDrop.visible = true;
             }
             content = _data.icon;
-            _loc1_ = 140;
-            _loc2_ = Math.min(_loc1_ / _content.width,_loc1_ / _content.height,1);
-            contentCanvas.x = (_loc1_ - _content.width) / 2;
-            contentCanvas.y = (_loc1_ - _content.height) / 2;
+            slotSize = 140;
+            iconScale = Math.min(slotSize / _content.width,slotSize / _content.height,1);
+            contentCanvas.x = (slotSize - _content.width) / 2;
+            contentCanvas.y = (slotSize - _content.height) / 2;
             if(Boolean(this.textFieldLabel))
             {
                this.textFieldLabel.text = "";
@@ -492,22 +492,22 @@ package survarium.upgrade
          return "";
       }
       
-      override protected function setState(param1:String) : void
+      override protected function setState(state:String) : void
       {
-         _state = param1;
-         var _loc2_:Array = _stateMap[param1];
-         var _loc3_:String = this.getStatePrefix();
-         if(_loc2_ == null || _loc2_.length == 0)
+         _state = state;
+         var states:Array = _stateMap[state];
+         var prefix:String = this.getStatePrefix();
+         if(states == null || states.length == 0)
          {
             return;
          }
-         var _loc4_:uint = _loc2_.length;
-         var _loc5_:uint = 0;
-         var _loc6_:String;
-         for(; _loc5_ < _loc4_; _loc5_++)
+         var stateCount:uint = states.length;
+         var i:uint = 0;
+         var frameLabel:String;
+         for(; i < stateCount; i++)
          {
-            _loc6_ = _loc3_ + _loc2_[_loc5_];
-            _newFrame = _loc6_;
+            frameLabel = prefix + states[i];
+            _newFrame = frameLabel;
             invalidateState();
             return;
          }
@@ -532,17 +532,17 @@ package survarium.upgrade
          }
       }
       
-      private function onDropClicked(param1:ButtonEvent) : void
+      private function onDropClicked(event:ButtonEvent) : void
       {
          this.dropSlot();
       }
       
       override protected function draw() : void
       {
-         var _loc1_:Array;
-         var _loc2_:uint;
-         var _loc3_:Object;
-         var _loc4_:Sprite;
+         var transitions:Array;
+         var i:uint;
+         var transition:Object;
+         var target:Sprite;
          trace("UT::redraw");
          if(isInvalid(InvalidationType.DATA))
          {
@@ -557,24 +557,24 @@ package survarium.upgrade
             }
             if(this._transitionMap[_newFrame])
             {
-               _loc1_ = this._transitionMap[_newFrame];
-               _loc2_ = 0;
-               while(_loc2_ < _loc1_.length)
+               transitions = this._transitionMap[_newFrame];
+               i = 0;
+               while(i < transitions.length)
                {
-                  _loc3_ = _loc1_[_loc2_];
-                  _loc4_ = _loc3_.target;
-                  if(_loc4_)
+                  transition = transitions[i];
+                  target = transition.target;
+                  if(target)
                   {
-                     if(_loc4_ === this.border)
+                     if(target === this.border)
                      {
                         addEventListener(Event.ENTER_FRAME,this.onBorderResize);
-                        _loc3_.options.onComplete = this.stopFrameHandle;
+                        transition.options.onComplete = this.stopFrameHandle;
                      }
-                     TweenLite.killTweensOf(_loc4_);
-                     _loc3_.options.ease = Back.easeOut;
-                     TweenLite.to(_loc4_,0.2,_loc3_.options);
+                     TweenLite.killTweensOf(target);
+                     transition.options.ease = Back.easeOut;
+                     TweenLite.to(target,0.2,transition.options);
                   }
-                  _loc2_++;
+                  i++;
                }
                _newFrame = null;
             }

@@ -23,14 +23,14 @@ package survarium.char
       public function PerkTipRenderer()
       {
          super();
-         var _loc1_:StyleSheet = MainScene.textStyleSheet;
-         this.textField.styleSheet = _loc1_;
-         this.textFieldProp.styleSheet = _loc1_;
+         var styleSheet:StyleSheet = MainScene.textStyleSheet;
+         this.textField.styleSheet = styleSheet;
+         this.textFieldProp.styleSheet = styleSheet;
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         _data = param1;
+         _data = value;
          this.invalidateData();
       }
       
@@ -63,20 +63,20 @@ package survarium.char
             this.textFieldProp.height = 1;
             this.textFieldProp.text = "";
          }
-         var _loc1_:uint = 8;
-         var _loc2_:uint = Math.max(this.MIN_SIZE,this.textFieldProp.textWidth + _loc1_ + 2);
+         var padding:uint = 8;
+         var tipWidth:uint = Math.max(this.MIN_SIZE,this.textFieldProp.textWidth + padding + 2);
          this.textField.wordWrap = true;
          this.textField.multiline = true;
-         this.textField.width = _loc2_;
+         this.textField.width = tipWidth;
          this.textField.text = _data.description_1;
          this.textField.height = this.textField.textHeight + 5;
-         trace("HINT::",_loc2_);
-         this.background.width = _loc2_ + _loc1_;
+         trace("HINT::",tipWidth);
+         this.background.width = tipWidth + padding;
          if(this.line.visible)
          {
             this.textFieldProp.y = this.textField.y + this.textField.textHeight + 13;
             this.line.y = this.textFieldProp.y - 4;
-            this.line.width = _loc2_ - 10;
+            this.line.width = tipWidth - 10;
             this.background.height = this.textFieldProp.y + this.textFieldProp.textHeight + 11;
          }
          else

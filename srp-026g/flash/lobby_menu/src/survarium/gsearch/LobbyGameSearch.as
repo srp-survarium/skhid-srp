@@ -67,12 +67,12 @@ package survarium.gsearch
          arrowLine = this.matchSearchProgress.whiteLine;
          this.textSearchLabel.y += 2;
          this.arrowLine.y += 3;
-         var _loc1_:TextField = this.matchSearchProgress.textFieldHint;
-         _loc1_.visible = false;
+         var hintField:TextField = this.matchSearchProgress.textFieldHint;
+         hintField.visible = false;
          this.matchSearchProgress.addChild(this.columnsContainer);
          this.textTime.width += 55;
-         var _loc2_:TextFormat = this.textTime.getTextFormat();
-         _loc2_.align = TextFormatAlign.CENTER;
+         var timeFormat:TextFormat = this.textTime.getTextFormat();
+         timeFormat.align = TextFormatAlign.CENTER;
          this.label_sync.width = 216;
          this.label_sync.height = 105;
          this.label_sync.multiline = true;
@@ -86,20 +86,20 @@ package survarium.gsearch
          this._timer.addEventListener(TimerEvent.TIMER,this.onTimerUpdate);
       }
       
-      override public function set x(param1:Number) : void
+      override public function set x(value:Number) : void
       {
-         super.x = int(param1);
+         super.x = int(value);
       }
       
-      override public function set y(param1:Number) : void
+      override public function set y(value:Number) : void
       {
-         super.y = int(param1);
+         super.y = int(value);
       }
       
-      private function onTimerUpdate(param1:TimerEvent) : void
+      private function onTimerUpdate(event:TimerEvent) : void
       {
-         var _loc2_:String = Util.getTimeString(this._startTime + this._timer.currentCount);
-         currentTime = _loc2_;
+         var timeString:String = Util.getTimeString(this._startTime + this._timer.currentCount);
+         currentTime = timeString;
          this.updateDots();
       }
       
@@ -113,59 +113,59 @@ package survarium.gsearch
          }
       }
       
-      public function updateTime(param1:int) : void
+      public function updateTime(startTime:int) : void
       {
-         _startTime = param1;
+         _startTime = startTime;
          this._timer.reset();
          this._timer.start();
-         var _loc2_:String = Util.getTimeString(this._startTime);
-         currentTime = _loc2_;
+         var timeString:String = Util.getTimeString(this._startTime);
+         currentTime = timeString;
       }
       
-      public function setSearchRange(param1:uint, param2:uint) : void
+      public function setSearchRange(minLevel:uint, maxLevel:uint) : void
       {
-         var _loc3_:Sprite = this.matchSearchProgress.whiteLine;
-         var _loc4_:Sprite = this.matchSearchProgress.rangeGate;
-         var _loc5_:uint = this.columnRenderers.length;
-         param2 = Math.min(_loc5_ - 1,param2);
-         var _loc6_:int = param2 - param1;
-         var _loc7_:Number = (_loc3_.width - 5) / (this.columnCount - 1);
-         if(_loc6_ == 0)
+         var line:Sprite = this.matchSearchProgress.whiteLine;
+         var gate:Sprite = this.matchSearchProgress.rangeGate;
+         var columnTotal:uint = this.columnRenderers.length;
+         maxLevel = Math.min(columnTotal - 1,maxLevel);
+         var span:int = maxLevel - minLevel;
+         var step:Number = (line.width - 5) / (this.columnCount - 1);
+         if(span == 0)
          {
-            _loc4_.x = int(_loc3_.x + param1 * _loc7_ + 2);
-            _loc4_.width = 1;
-            this.rangeLabel.text = LocalizationData.getName("search_range") + ":" + param1.toString();
+            gate.x = int(line.x + minLevel * step + 2);
+            gate.width = 1;
+            this.rangeLabel.text = LocalizationData.getName("search_range") + ":" + minLevel.toString();
          }
          else
          {
-            _loc4_.x = int(_loc3_.x + param1 * _loc7_ + 2);
-            _loc4_.width = _loc6_ * _loc7_ + 1;
-            this.rangeLabel.text = LocalizationData.getName("search_range") + ":" + param1.toString() + "–" + param2.toString();
-            trace("rangeGate::",_loc4_.width,_loc6_,_loc7_);
+            gate.x = int(line.x + minLevel * step + 2);
+            gate.width = span * step + 1;
+            this.rangeLabel.text = LocalizationData.getName("search_range") + ":" + minLevel.toString() + "–" + maxLevel.toString();
+            trace("rangeGate::",gate.width,span,step);
          }
-         var _loc8_:int = 0;
-         var _loc9_:MovieClip;
-         var _loc10_:int;
-         var _loc11_:int;
-         var _loc12_:ColorTransform;
-         while(_loc8_ < _loc5_)
+         var i:int = 0;
+         var column:MovieClip;
+         var fromLevel:int;
+         var toLevel:int;
+         var highlight:ColorTransform;
+         while(i < columnTotal)
          {
-            _loc9_ = this.columnRenderers[_loc8_];
-            _loc10_ = _loc8_ == 0 ? 0 : (this.columnRenderers[_loc8_ - 1].level + 1);
-            _loc11_ = (_loc9_.level);
-            if(_loc10_ < param1 || _loc11_ > param2)
+            column = this.columnRenderers[i];
+            fromLevel = i == 0 ? 0 : (this.columnRenderers[i - 1].level + 1);
+            toLevel = (column.level);
+            if(fromLevel < minLevel || toLevel > maxLevel)
             {
-               _loc9_.transform.colorTransform = new ColorTransform();
-               _loc9_.alpha = 0.15;
+               column.transform.colorTransform = new ColorTransform();
+               column.alpha = 0.15;
             }
             else
             {
-               _loc12_ = new ColorTransform();
-               _loc12_.color = 16758295;
-               _loc9_.transform.colorTransform = _loc12_;
-               _loc9_.alpha = 1;
+               highlight = new ColorTransform();
+               highlight.color = 16758295;
+               column.transform.colorTransform = highlight;
+               column.alpha = 1;
             }
-            _loc8_++;
+            i++;
          }
       }
       
@@ -199,77 +199,77 @@ package survarium.gsearch
          this._timer.stop();
       }
       
-      public function setSearchProperties(param1:Array, param2:Array = null) : void
+      public function setSearchProperties(columns:Array, extra:Array = null) : void
       {
-         var _loc3_:uint = param1.length;
-         columnCount = _loc3_;
-         var _loc4_:Sprite = this.matchSearchProgress.whiteLine;
-         var _loc5_:Number = (_loc4_.width - 5) / (this.columnCount - 1);
-         trace("setSearchProperties::",_loc3_,this.columnCount,_loc4_.width,_loc5_);
+         var columnTotal:uint = columns.length;
+         columnCount = columnTotal;
+         var line:Sprite = this.matchSearchProgress.whiteLine;
+         var step:Number = (line.width - 5) / (this.columnCount - 1);
+         trace("setSearchProperties::",columnTotal,this.columnCount,line.width,step);
          maxColumnValue = this.MIN_VALUE;
-         var _loc6_:int = 0;
-         var _loc7_:MovieClip;
-         var _loc8_:int;
-         var _loc9_:int;
-         while(_loc6_ < _loc3_)
+         var i:int = 0;
+         var column:MovieClip;
+         var columnValue:int;
+         var columnLevel:int;
+         while(i < columnTotal)
          {
-            maxColumnValue = Math.max(this.maxColumnValue,param1[_loc6_].value);
-            _loc6_++;
+            maxColumnValue = Math.max(this.maxColumnValue,columns[i].value);
+            i++;
          }
-         _loc6_ = 0;
-         while(_loc6_ < _loc3_)
+         i = 0;
+         while(i < columnTotal)
          {
-            if(!this.columnRenderers[_loc6_])
+            if(!this.columnRenderers[i])
             {
-               _loc7_ = new ColumnSearchProgress();
-               _loc7_.addEventListener(MouseEvent.ROLL_OVER,this.updateCountHint);
-               _loc7_.addEventListener(MouseEvent.ROLL_OUT,this.updateCountHint);
-               _loc7_.transform.colorTransform = new ColorTransform();
-               _loc7_.alpha = 0.15;
-               this.columnRenderers.push(_loc7_);
+               column = new ColumnSearchProgress();
+               column.addEventListener(MouseEvent.ROLL_OVER,this.updateCountHint);
+               column.addEventListener(MouseEvent.ROLL_OUT,this.updateCountHint);
+               column.transform.colorTransform = new ColorTransform();
+               column.alpha = 0.15;
+               this.columnRenderers.push(column);
             }
             else
             {
-               _loc7_ = this.columnRenderers[_loc6_];
+               column = this.columnRenderers[i];
             }
-            _loc7_.y = _loc4_.y - 6;
-            _loc7_.x = int(_loc4_.x + _loc5_ * _loc6_);
-            _loc7_.mc_back.width = _loc5_;
-            _loc7_.mc_back.height = this.maxColumnHeight;
-            _loc7_.mc_back.x = (5 - _loc5_) / 2;
-            _loc8_ = (param1[_loc6_].value);
-            _loc9_ = (param1[_loc6_].level);
-            trace("setSearchProperties::",_loc6_,_loc8_,_loc9_,_loc7_.x,_loc7_.mc_column.width,_loc5_,_loc4_.x,x);
-            _loc7_.mc_column.height = this.maxColumnHeight * (_loc8_ / this.maxColumnValue);
-            _loc7_.value = _loc8_;
-            _loc7_.level = _loc9_;
-            this.columnsContainer.addChild(_loc7_);
-            _loc6_++;
+            column.y = line.y - 6;
+            column.x = int(line.x + step * i);
+            column.mc_back.width = step;
+            column.mc_back.height = this.maxColumnHeight;
+            column.mc_back.x = (5 - step) / 2;
+            columnValue = (columns[i].value);
+            columnLevel = (columns[i].level);
+            trace("setSearchProperties::",i,columnValue,columnLevel,column.x,column.mc_column.width,step,line.x,x);
+            column.mc_column.height = this.maxColumnHeight * (columnValue / this.maxColumnValue);
+            column.value = columnValue;
+            column.level = columnLevel;
+            this.columnsContainer.addChild(column);
+            i++;
          }
       }
       
-      private function updateCountHint(param1:MouseEvent) : void
+      private function updateCountHint(event:MouseEvent) : void
       {
-         var _loc2_:MovieClip = param1.target as MovieClip;
-         var _loc3_:TextField = this.matchSearchProgress.textFieldHint;
-         if(param1.type == MouseEvent.ROLL_OVER)
+         var column:MovieClip = event.target as MovieClip;
+         var hintField:TextField = this.matchSearchProgress.textFieldHint;
+         if(event.type == MouseEvent.ROLL_OVER)
          {
-            _loc3_.visible = true;
-            _loc3_.text = String(_loc2_.value);
-            _loc3_.textColor = _loc2_.alpha == 1 ? 16758295 : 7236716;
-            _loc3_.x = _loc2_.x - _loc3_.textWidth / 2 + 3;
-            _loc3_.y = _loc2_.y - _loc2_.height - 18;
+            hintField.visible = true;
+            hintField.text = String(column.value);
+            hintField.textColor = column.alpha == 1 ? 16758295 : 7236716;
+            hintField.x = column.x - hintField.textWidth / 2 + 3;
+            hintField.y = column.y - column.height - 18;
          }
          else
          {
-            _loc3_.visible = false;
+            hintField.visible = false;
          }
       }
       
-      public function set sync_text(param1:String) : void
+      public function set sync_text(value:String) : void
       {
          trace("sync_text");
-         if(!this.contains(this.label_sync) || this.label_sync.text != param1)
+         if(!this.contains(this.label_sync) || this.label_sync.text != value)
          {
             addChild(this.label_sync);
             this.label_sync.x = this.matchSearchProgress.x + 4;
@@ -281,17 +281,17 @@ package survarium.gsearch
             this.rangeGate.visible = false;
             this.arrowLine.visible = false;
             this.columnsContainer.visible = false;
-            this.label_sync.text = param1;
+            this.label_sync.text = value;
             this.label_sync.y = (74 - this.label_sync.textHeight) / 2 + 6;
          }
       }
       
-      public function set currentTime(param1:String) : void
+      public function set currentTime(value:String) : void
       {
-         this.textTime.text = param1;
+         this.textTime.text = value;
       }
       
-      public function set averageTime(param1:String) : void
+      public function set averageTime(value:String) : void
       {
       }
       
@@ -312,11 +312,11 @@ package survarium.gsearch
          }
       }
       
-      public function setPlace(param1:uint, param2:uint) : void
+      public function setPlace(place:uint, queueSize:uint) : void
       {
       }
       
-      protected function leaveQuenue(param1:ButtonEvent) : void
+      protected function leaveQuenue(event:ButtonEvent) : void
       {
          ExternalInterface.call("leave_queue");
       }

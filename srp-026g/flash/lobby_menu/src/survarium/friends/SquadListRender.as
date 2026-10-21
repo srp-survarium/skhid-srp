@@ -40,9 +40,9 @@ package survarium.friends
          super();
       }
       
-      override public function setData(param1:Object) : void
+      override public function setData(newData:Object) : void
       {
-         this.data = param1;
+         this.data = newData;
          setState(_state);
          invalidateData();
       }
@@ -104,8 +104,8 @@ package survarium.friends
       
       protected function sendMessage() : void
       {
-         var _loc1_:String = data.name;
-         ExternalInterface.call("start_friend_message",_loc1_);
+         var playerName:String = data.name;
+         ExternalInterface.call("start_friend_message",playerName);
          dispatchEvent(new Event(Event.CONNECT,true));
       }
       
@@ -124,45 +124,45 @@ package survarium.friends
          ExternalInterface.call("disband_squad");
       }
       
-      protected function onClick(param1:MouseEventEx) : void
+      protected function onClick(event:MouseEventEx) : void
       {
-         var _loc2_:Array;
+         var menuItems:Array;
          if(!data)
          {
             return;
          }
-         if(param1.buttonIdx == 1)
+         if(event.buttonIdx == 1)
          {
-            _loc2_ = [];
+            menuItems = [];
             if(_data.name != PlayerInfo.nickname)
             {
-               _loc2_.push({
+               menuItems.push({
                   name:LocalizationData.getName("send_message"),
                   click_function:this.sendMessage
                });
             }
             if(PlayerInfo.commander)
             {
-               _loc2_.push({
+               menuItems.push({
                   name:LocalizationData.getName("disband_squad"),
                   click_function:this.disbandSquad
                });
                if(data.index != 0)
                {
-                  _loc2_.push({
+                  menuItems.push({
                      name:LocalizationData.getName("remove_from_squad"),
                      click_function:this.removeFromSquad
                   });
                }
-               SrvContextMenu.show(_loc2_,0,0,this);
+               SrvContextMenu.show(menuItems,0,0,this);
             }
             else
             {
-               _loc2_.push({
+               menuItems.push({
                   name:LocalizationData.getName("leave_squad"),
                   click_function:this.leaveSquad
                });
-               SrvContextMenu.show(_loc2_,0,0,this);
+               SrvContextMenu.show(menuItems,0,0,this);
             }
          }
       }

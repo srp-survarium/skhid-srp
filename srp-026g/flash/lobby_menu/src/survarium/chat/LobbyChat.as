@@ -96,22 +96,22 @@ package survarium.chat
          {
             return;
          }
-         var _loc1_:Array = _data.tabs[_activeMode];
-         if(!_loc1_)
+         var modeTabs:Array = _data.tabs[_activeMode];
+         if(!modeTabs)
          {
             return;
          }
-         var _loc2_:uint = _loc1_.length;
-         var _loc3_:LobbyChatTab;
-         var _loc4_:uint = 0;
-         while(_loc4_ < _loc2_)
+         var tabCount:uint = modeTabs.length;
+         var tab:LobbyChatTab;
+         var i:uint = 0;
+         while(i < tabCount)
          {
-            _loc3_ = this._tabs[_loc1_[_loc4_].id];
-            if(_loc3_)
+            tab = this._tabs[modeTabs[i].id];
+            if(tab)
             {
-               _loc3_.scrollToBottom();
+               tab.scrollToBottom();
             }
-            _loc4_++;
+            i++;
          }
       }
       
@@ -122,149 +122,149 @@ package survarium.chat
          {
             return;
          }
-         var _loc1_:LobbyChatTab = this._tabs[_data.tabs[_activeMode][_activeTab].id];
-         if(_loc1_)
+         var tab:LobbyChatTab = this._tabs[_data.tabs[_activeMode][_activeTab].id];
+         if(tab)
          {
-            _loc1_.ignoreFocus = true;
+            tab.ignoreFocus = true;
          }
       }
       
-      public function set tapPageRenderer(param1:ButtonBarBottom) : void
+      public function set tapPageRenderer(value:ButtonBarBottom) : void
       {
-         _tapPageRenderer = param1;
+         _tapPageRenderer = value;
          this._tapPageRenderer.addEventListener(ButtonEvent.CLICK,this.onTabIndexClick,false);
          this._tapPageRenderer.addEventListener(IndexEvent.INDEX_CHANGE,this.onTabIndexChange,false);
       }
       
-      public function setMode(param1:uint) : void
+      public function setMode(mode:uint) : void
       {
          clearTabs();
-         _activeMode = param1;
+         _activeMode = mode;
          updateChatSize();
       }
       
-      public function setPlayers(param1:Array, param2:Boolean = true) : void
+      public function setPlayers(players:Array, refresh:Boolean = true) : void
       {
-         _friends = param1;
-         if(_activeMode == -1 || !param1)
+         _friends = players;
+         if(_activeMode == -1 || !players)
          {
             return;
          }
-         var _loc3_:Array = _data.tabs[_activeMode];
-         if(!_loc3_)
+         var modeTabs:Array = _data.tabs[_activeMode];
+         if(!modeTabs)
          {
             return;
          }
-         var _loc4_:uint = _loc3_.length;
-         var _loc5_:LobbyChatTab;
-         var _loc6_:uint = 0;
-         while(_loc6_ < _loc4_)
+         var tabCount:uint = modeTabs.length;
+         var tab:LobbyChatTab;
+         var i:uint = 0;
+         while(i < tabCount)
          {
-            _loc5_ = this._tabs[_loc3_[_loc6_].id];
-            this.checkStatusIcon(_loc5_);
-            _loc6_++;
+            tab = this._tabs[modeTabs[i].id];
+            this.checkStatusIcon(tab);
+            i++;
          }
       }
       
-      protected function checkStatusIcon(param1:LobbyChatTab) : void
+      protected function checkStatusIcon(tab:LobbyChatTab) : void
       {
-         var _loc2_:Object;
-         var _loc3_:String;
-         var _loc4_:uint;
-         var _loc5_:int;
-         var _loc6_:Boolean;
-         if(param1 && this._friends)
+         var tabData:Object;
+         var playerName:String;
+         var i:uint;
+         var status:int;
+         var isOnline:Boolean;
+         if(tab && this._friends)
          {
-            param1.statusIndicator.visible = false;
-            param1.text_inpput.enabled = true;
-            _loc2_ = param1.getData();
-            if(!_loc2_)
+            tab.statusIndicator.visible = false;
+            tab.text_inpput.enabled = true;
+            tabData = tab.getData();
+            if(!tabData)
             {
                return;
             }
-            _loc3_ = _loc2_.name;
-            _loc4_ = 0;
-            while(_loc4_ < this._friends.length)
+            playerName = tabData.name;
+            i = 0;
+            while(i < this._friends.length)
             {
-               if(_loc3_ == this._friends[_loc4_].name)
+               if(playerName == this._friends[i].name)
                {
-                  _loc5_ = (this._friends[_loc4_].status);
-                  _loc6_ = _loc5_ == 0 || _loc5_ == 1 || _loc5_ == 3;
-                  param1.statusIndicator.gotoAndStop(_loc6_ ? "online" : "offline");
-                  param1.statusIndicator.tipData = {name:FriendsMenu.getStatus(_loc5_)};
-                  param1.statusIndicator.visible = true;
-                  param1.text_inpput.enabled = _loc6_;
+                  status = (this._friends[i].status);
+                  isOnline = status == 0 || status == 1 || status == 3;
+                  tab.statusIndicator.gotoAndStop(isOnline ? "online" : "offline");
+                  tab.statusIndicator.tipData = {name:FriendsMenu.getStatus(status)};
+                  tab.statusIndicator.visible = true;
+                  tab.text_inpput.enabled = isOnline;
                   return;
                }
-               _loc4_++;
+               i++;
             }
          }
       }
       
-      override public function focusTab(param1:uint) : void
+      override public function focusTab(tabId:uint) : void
       {
          stackTrace("focusTab:");
-         trace("selectActivereTabRenderer:: a",_activeTab,"focusTab:",param1);
-         super.focusTab(param1);
-         var _loc2_:int = (this._tapPageRenderer.dataProvider.length);
-         var _loc3_:uint = 0;
-         while(_loc3_ < _loc2_)
+         trace("selectActivereTabRenderer:: a",_activeTab,"focusTab:",tabId);
+         super.focusTab(tabId);
+         var count:int = (this._tapPageRenderer.dataProvider.length);
+         var i:uint = 0;
+         while(i < count)
          {
-            if(this._tapPageRenderer.dataProvider[_loc3_].id == param1)
+            if(this._tapPageRenderer.dataProvider[i].id == tabId)
             {
-               _selectedIndex = _loc3_;
+               _selectedIndex = i;
                break;
             }
-            _loc3_++;
+            i++;
          }
          trace("selectActivereTabRenderer:: b",_activeTab,"focusTab::",this._selectedIndex);
          if(this._tapPageRenderer && this._tapPageRenderer.selectedIndex != this._selectedIndex)
          {
             trace("selectActivereTabRenderer:: st",_activeTab,"focusTab",this._selectedIndex);
             this._tapPageRenderer.selectedIndex = this._selectedIndex;
-            if(this._tabs[param1] && !stage.focus)
+            if(this._tabs[tabId] && !stage.focus)
             {
                trace("ff:tab");
-               stage.focus = this._tabs[param1];
+               stage.focus = this._tabs[tabId];
             }
             trace("selectActivereTabRenderer:: end",_activeTab,"focusTab",stage.focus);
          }
       }
       
-      override public function submitText(param1:Event = null) : void
+      override public function submitText(event:Event = null) : void
       {
          if(_activeTab == -1 || !_data || !_data.tabs)
          {
             return;
          }
-         var _loc2_:LobbyChatTab = this._tabs[_data.tabs[_activeMode][_activeTab].id];
-         if(_loc2_)
+         var tab:LobbyChatTab = this._tabs[_data.tabs[_activeMode][_activeTab].id];
+         if(tab)
          {
-            _loc2_.submitText();
+            tab.submitText();
          }
       }
       
-      override public function clearChannel(param1:uint) : void
+      override public function clearChannel(channelId:uint) : void
       {
-         var _loc2_:LobbyChatTab;
-         _messages[param1] = "";
-         if(this._tabs[param1])
+         var tab:LobbyChatTab;
+         _messages[channelId] = "";
+         if(this._tabs[channelId])
          {
-            _loc2_ = this._tabs[param1];
-            _loc2_.text_chat.textField.removeEventListener(MouseEvent.CLICK,this.onTxClick);
-            _loc2_.text_chat.textField.removeEventListener(TextEvent.LINK,this.clickLinkHandler);
-            _loc2_.text_chat.textField.removeEventListener(MouseEvent.DOUBLE_CLICK,this.clickLinkHandlerDouble);
-            _loc2_.removeEventListener(Event.CLOSE,this.hideTab);
-            _loc2_.clear();
-            parent.removeChild(_loc2_);
-            trace("clearChannel",param1,this._selectedIndex);
-            if(this._selectedIndex > -1 && _data.tabs[_activeMode][this._selectedIndex].id == param1)
+            tab = this._tabs[channelId];
+            tab.text_chat.textField.removeEventListener(MouseEvent.CLICK,this.onTxClick);
+            tab.text_chat.textField.removeEventListener(TextEvent.LINK,this.clickLinkHandler);
+            tab.text_chat.textField.removeEventListener(MouseEvent.DOUBLE_CLICK,this.clickLinkHandlerDouble);
+            tab.removeEventListener(Event.CLOSE,this.hideTab);
+            tab.clear();
+            parent.removeChild(tab);
+            trace("clearChannel",channelId,this._selectedIndex);
+            if(this._selectedIndex > -1 && _data.tabs[_activeMode][this._selectedIndex].id == channelId)
             {
                this._tapPageRenderer.selectedIndex = -1;
                _activeTab = -1;
                _selectedIndex = -1;
             }
-            delete this._tabs[param1];
+            delete this._tabs[channelId];
          }
       }
       
@@ -279,14 +279,14 @@ package survarium.chat
          }
       }
       
-      protected function onTabIndexClick(param1:ButtonEvent) : void
+      protected function onTabIndexClick(event:ButtonEvent) : void
       {
-         if(!param1.target.data)
+         if(!event.target.data)
          {
             return;
          }
-         var _loc2_:LobbyChatTab = this._tabs[param1.target.data.id];
-         var _loc3_:Boolean;
+         var tab:LobbyChatTab = this._tabs[event.target.data.id];
+         var hasFocus:Boolean;
          trace("onTabIndex:ClickSt, changed:",this._changed,"_wasSelected:",this._wasSelected);
          if(this._changed)
          {
@@ -294,72 +294,72 @@ package survarium.chat
             trace("onTabIndex:Click_end");
             return;
          }
-         if(this._tapPageRenderer.selectedIndex != -1 && this._tapPageRenderer.getButtonAt(this._tapPageRenderer.selectedIndex) != param1.target as Button)
+         if(this._tapPageRenderer.selectedIndex != -1 && this._tapPageRenderer.getButtonAt(this._tapPageRenderer.selectedIndex) != event.target as Button)
          {
             trace("onTabIndex:Click_end");
             return;
          }
          trace("onTabIndexClick",this._tapPageRenderer.selectedIndex);
-         trace("setTabRendererToVisible::",!_loc2_.visible,"cl");
-         if(_loc2_)
+         trace("setTabRendererToVisible::",!tab.visible,"cl");
+         if(tab)
          {
-            _loc2_.visible = !_loc2_.visible;
-            if(!_loc2_.visible)
+            tab.visible = !tab.visible;
+            if(!tab.visible)
             {
                stage.focus = null;
                this.unfocusTab();
             }
             else
             {
-               parent.addChild(_loc2_);
-               _loc3_ = stage.focus != null;
-               if(!_loc3_)
+               parent.addChild(tab);
+               hasFocus = stage.focus != null;
+               if(!hasFocus)
                {
                   trace("ff:textField");
-                  stage.focus = _loc2_.text_inpput.textField;
+                  stage.focus = tab.text_inpput.textField;
                }
-               _loc2_.text_inpput.text = "";
+               tab.text_inpput.text = "";
             }
             this.clearIngnore(null,true);
          }
          trace("onTabIndex:Click_end");
       }
       
-      protected function getTabIndex(param1:int) : int
+      protected function getTabIndex(tabId:int) : int
       {
-         var _loc2_:int = (_data.tabs[_activeMode].length);
-         var _loc3_:uint = 0;
-         while(_loc3_ < _loc2_)
+         var count:int = (_data.tabs[_activeMode].length);
+         var i:uint = 0;
+         while(i < count)
          {
-            if(_data.tabs[_activeMode][_loc3_].id == param1)
+            if(_data.tabs[_activeMode][i].id == tabId)
             {
-               return _loc3_;
+               return i;
             }
-            _loc3_++;
+            i++;
          }
          return -1;
       }
       
-      protected function onTabIndexChange(param1:IndexEvent) : void
+      protected function onTabIndexChange(event:IndexEvent) : void
       {
-         var _loc2_:int = param1.index;
-         var _loc3_:Number;
-         var _loc4_:LobbyChatTab;
-         var _loc5_:Boolean;
-         if(param1.data)
+         var tabIndex:int = event.index;
+         var tabId:Number;
+         var tab:LobbyChatTab;
+         var hasFocus:Boolean;
+         if(event.data)
          {
-            trace("eventHasData",param1.data.id);
-            _loc2_ = this.getTabIndex(param1.data.id);
+            trace("eventHasData",event.data.id);
+            tabIndex = this.getTabIndex(event.data.id);
          }
-         trace("onTabIndex:Change",_loc2_,"event_index",param1.index,"==",this._last_index,stage.focus,"ignore",this._ignore_changed,"_wasSelected",this._wasSelected,"_changed",this._changed);
-         if(param1.index == -1 || this._wasSelected && this._ignore_changed && param1.index == this._last_index)
+         trace("onTabIndex:Change",tabIndex,"event_index",event.index,"==",this._last_index,stage.focus,"ignore",this._ignore_changed,"_wasSelected",this._wasSelected,"_changed",this._changed);
+         if(event.index == -1 || this._wasSelected && this._ignore_changed && event.index == this._last_index)
          {
             _wasSelected = true;
             this._tapPageRenderer.addEventListener(Event.ENTER_FRAME,this.clearIngnore);
             return;
          }
          this._tapPageRenderer.removeEventListener(Event.ENTER_FRAME,this.clearIngnore);
-         if(!this._ignore_changed || _loc2_ != this._last_index)
+         if(!this._ignore_changed || tabIndex != this._last_index)
          {
             trace("_changed = true","a");
             _changed = true;
@@ -369,48 +369,48 @@ package survarium.chat
          {
             _ignore_changed = false;
          }
-         _activeTab = _loc2_;
-         _selectedIndex = param1.index;
-         if(_data.tabs[_activeMode] && _data.tabs[_activeMode][_loc2_])
+         _activeTab = tabIndex;
+         _selectedIndex = event.index;
+         if(_data.tabs[_activeMode] && _data.tabs[_activeMode][tabIndex])
          {
-            _loc3_ = (_data.tabs[_activeMode][_loc2_].id);
+            tabId = (_data.tabs[_activeMode][tabIndex].id);
          }
          else
          {
             return;
          }
-         _loc4_ = this._tabs[_data.tabs[_activeMode][_activeTab].id];
+         tab = this._tabs[_data.tabs[_activeMode][_activeTab].id];
          trace("setTabRendererToVisible::",true,stage.focus);
-         if(_loc4_)
+         if(tab)
          {
-            if(!_loc4_.visible)
+            if(!tab.visible)
             {
-               _loc4_.scrollToBottom();
+               tab.scrollToBottom();
             }
-            _loc4_.visible = true;
-            parent.addChild(_loc4_);
-            if(stage.focus && (!_loc4_.contains(stage.focus)) || !stage.focus)
+            tab.visible = true;
+            parent.addChild(tab);
+            if(stage.focus && (!tab.contains(stage.focus)) || !stage.focus)
             {
-               _loc5_ = stage.focus != null;
-               if(!_loc5_)
+               hasFocus = stage.focus != null;
+               if(!hasFocus)
                {
-                  stage.focus = _loc4_.text_inpput.textField;
+                  stage.focus = tab.text_inpput.textField;
                }
                else
                {
-                  _loc4_.focusTextInput();
+                  tab.focusTextInput();
                }
                this.clearIngnore(null,true);
             }
          }
-         _last_index = _loc2_;
+         _last_index = tabIndex;
 
       }
       
-      protected function handleFocusOut(param1:FocusEvent) : void
+      protected function handleFocusOut(event:FocusEvent) : void
       {
-         trace("handleFocusOut:",param1.currentTarget.name,"event:props",param1.relatedObject,param1.target,param1.currentTarget);
-         var _loc2_:LobbyChatTab = param1.currentTarget as LobbyChatTab;
+         trace("handleFocusOut:",event.currentTarget.name,"event:props",event.relatedObject,event.target,event.currentTarget);
+         var tab:LobbyChatTab = event.currentTarget as LobbyChatTab;
          if(!hasEventListener(Event.RENDER))
          {
             trace("addEventListener::",stage.focus);
@@ -419,20 +419,20 @@ package survarium.chat
          trace("handleFocusOut:_end");
       }
       
-      protected function onRenderFocus(param1:Event = null) : void
+      protected function onRenderFocus(event:Event = null) : void
       {
-         trace("onRenderFocus",param1.target.name,stage.focus,this._changed,param1.currentTarget,_activeTab);
-         removeEventListener(param1.type,this.onRenderFocus);
+         trace("onRenderFocus",event.target.name,stage.focus,this._changed,event.currentTarget,_activeTab);
+         removeEventListener(event.type,this.onRenderFocus);
          if(_activeTab == -1)
          {
             return;
          }
-         var _loc2_:LobbyChatTab = this._tabs[_data.tabs[_activeMode][_activeTab].id];
+         var tab:LobbyChatTab = this._tabs[_data.tabs[_activeMode][_activeTab].id];
          if(this._changed)
          {
             return;
          }
-         if(!stage.focus || !_loc2_.contains(stage.focus) && _loc2_ != stage.focus)
+         if(!stage.focus || !tab.contains(stage.focus) && tab != stage.focus)
          {
             if(!stage.focus)
             {
@@ -440,39 +440,39 @@ package survarium.chat
             }
             else
             {
-               _loc2_.addEventListener(Event.RENDER,this.onClearSelectionFocus,false,0,true);
+               tab.addEventListener(Event.RENDER,this.onClearSelectionFocus,false,0,true);
             }
          }
          trace("onRenderFocus_end");
       }
       
-      protected function onClearSelectionFocus(param1:Event = null) : void
+      protected function onClearSelectionFocus(event:Event = null) : void
       {
-         var _loc2_:LobbyChatTab;
-         trace("onClearSelectionFocus",param1);
-         if(param1)
+         var tab:LobbyChatTab;
+         trace("onClearSelectionFocus",event);
+         if(event)
          {
-            _loc2_ = param1.currentTarget as LobbyChatTab;
-            _loc2_.removeEventListener(param1.type,this.onClearSelectionFocus);
+            tab = event.currentTarget as LobbyChatTab;
+            tab.removeEventListener(event.type,this.onClearSelectionFocus);
          }
          _ignore_changed = true;
          this.unfocusTab();
          trace("onClearSelectionFocus_end");
       }
       
-      protected function clearIngnore(param1:Event = null, param2:Boolean = false) : void
+      protected function clearIngnore(event:Event = null, force:Boolean = false) : void
       {
          trace("clearIngnore::",this._callCount);
          _callCount += 1;
-         if(this._callCount == 12 || param2)
+         if(this._callCount == 12 || force)
          {
-            if(param1)
+            if(event)
             {
-               this._tapPageRenderer.removeEventListener(param1.type,this.clearIngnore);
+               this._tapPageRenderer.removeEventListener(event.type,this.clearIngnore);
             }
             _wasSelected = false;
             _callCount = 0;
-            if(!param2)
+            if(!force)
             {
                _changed = false;
                trace("_changed = false","clearIngnore");
@@ -482,62 +482,62 @@ package survarium.chat
          trace("clearIngnore::_end");
       }
       
-      protected function clearChanged(param1:Event = null) : void
+      protected function clearChanged(event:Event = null) : void
       {
-         this._tapPageRenderer.removeEventListener(param1.type,this.clearChanged);
+         this._tapPageRenderer.removeEventListener(event.type,this.clearChanged);
          trace("_changed = false","clearChanged");
          _changed = false;
       }
       
-      override protected function get_styled_text(param1:Object) : String
+      override protected function get_styled_text(message:Object) : String
       {
-         if(int(param1.type) == ROOM_CHANNEL)
+         if(int(message.type) == ROOM_CHANNEL)
          {
-            this.roomLine(param1);
+            this.roomLine(message);
          }
-         var _loc2_:String = String(param1.color != undefined ? param1.color : getColor(param1.type));
-         var _loc3_:String;
-         var _loc4_:String;
-         var _loc5_:String;
-         var _loc6_:Boolean;
-         var _loc7_:Boolean;
-         trace("get_styled_text",_loc2_,param1.text,param1.color,param1.type,_data.name,param1.name);
-         if(!param1.name)
+         var nameStyle:String = String(message.color != undefined ? message.color : getColor(message.type));
+         var clanPrefix:String;
+         var playerName:String;
+         var textStyle:String;
+         var isAdmin:Boolean;
+         var isVg:Boolean;
+         trace("get_styled_text",nameStyle,message.text,message.color,message.type,_data.name,message.name);
+         if(!message.name)
          {
-            return styled(param1.time,TIME) + " " + styled(param1.text,_loc2_);
+            return styled(message.time,TIME) + " " + styled(message.text,nameStyle);
          }
-         _loc3_ = param1.abbr ? "[" + param1.abbr + "] " : "";
-         if(param1.type == 2)
+         clanPrefix = message.abbr ? "[" + message.abbr + "] " : "";
+         if(message.type == 2)
          {
-            return styled(param1.time,TIME) + " " + styled(_loc3_ + linked(param1.name + ": ","messager"),_loc2_) + " " + styledChar(param1.text,_loc2_);
+            return styled(message.time,TIME) + " " + styled(clanPrefix + linked(message.name + ": ","messager"),nameStyle) + " " + styledChar(message.text,nameStyle);
          }
-         if(_data && _data.name == param1.name)
+         if(_data && _data.name == message.name)
          {
             trace("ISLOCAL");
-            return styled(param1.time,TIME) + " " + styled(_loc3_ + linked(param1.name + ": ","name"),PLAYER) + " " + styledChar(param1.text,PLAYER_TEXT);
+            return styled(message.time,TIME) + " " + styled(clanPrefix + linked(message.name + ": ","name"),PLAYER) + " " + styledChar(message.text,PLAYER_TEXT);
          }
-         _loc4_ = param1.name;
-         _loc5_ = _loc2_;
-         _loc6_ = _loc3_.indexOf("[admin]") == 0;
-         if(_loc6_)
+         playerName = message.name;
+         textStyle = nameStyle;
+         isAdmin = clanPrefix.indexOf("[admin]") == 0;
+         if(isAdmin)
          {
-            _loc2_ = "GM";
-            _loc5_ = "GMText";
+            nameStyle = "GM";
+            textStyle = "GMText";
          }
          else
          {
-            _loc7_ = _loc3_.indexOf("[VG]") == 0;
-            if(_loc7_)
+            isVg = clanPrefix.indexOf("[VG]") == 0;
+            if(isVg)
             {
-               _loc2_ = "VG";
-               _loc5_ = "VGText";
+               nameStyle = "VG";
+               textStyle = "VGText";
             }
          }
-         if(_loc2_ == "White")
+         if(nameStyle == "White")
          {
-            _loc2_ = "WhiteNickname";
+            nameStyle = "WhiteNickname";
          }
-         return styled(param1.time,TIME) + " " + styled(_loc3_ + linked(param1.name + ": ","name"),_loc2_) + " " + styledChar(param1.text,_loc5_);
+         return styled(message.time,TIME) + " " + styled(clanPrefix + linked(message.name + ": ","name"),nameStyle) + " " + styledChar(message.text,textStyle);
       }
       
       override protected function configUI() : void
@@ -577,72 +577,72 @@ package survarium.chat
          }
       }
       
-      override protected function findAppropriateTab(param1:Object, param2:String) : void
+      override protected function findAppropriateTab(message:Object, messageText:String) : void
       {
-         var _loc3_:uint = 0;
-         var _loc4_:uint;
-         while(_loc3_ < _data.tabs[_activeMode].length)
+         var i:uint = 0;
+         var j:uint;
+         while(i < _data.tabs[_activeMode].length)
          {
-            if(param1.tab_id != undefined)
+            if(message.tab_id != undefined)
             {
-               if(_data.tabs[_activeMode][_loc3_].id == param1.tab_id)
+               if(_data.tabs[_activeMode][i].id == message.tab_id)
                {
-                  this._tabs[_data.tabs[_activeMode][_loc3_].id].addMessage(param2);
+                  this._tabs[_data.tabs[_activeMode][i].id].addMessage(messageText);
                   break;
                }
             }
-            else if(_data.tabs[_activeMode][_loc3_])
+            else if(_data.tabs[_activeMode][i])
             {
-               _loc4_ = 0;
-               while(_loc4_ < _data.tabs[_activeMode][_loc3_].channels.length)
+               j = 0;
+               while(j < _data.tabs[_activeMode][i].channels.length)
                {
-                  if(_data.tabs[_activeMode][_loc3_].channels[_loc4_] == param1.type)
+                  if(_data.tabs[_activeMode][i].channels[j] == message.type)
                   {
-                     this._tabs[_data.tabs[_activeMode][_loc3_].id].addMessage(param2);
+                     this._tabs[_data.tabs[_activeMode][i].id].addMessage(messageText);
                      break;
                   }
-                  _loc4_++;
+                  j++;
                }
             }
-            _loc3_++;
+            i++;
          }
       }
       
-      protected function onStageResize(param1:Event) : void
+      protected function onStageResize(event:Event) : void
       {
-         var _loc2_:int = Math.ceil(this._def_font_size / MainScene.scaleFactor);
-         var _loc3_:int = Math.ceil(this._def_font_size_big / MainScene.scaleFactor);
-         var _loc4_:uint = 0;
-         while(_loc4_ < _style.styleNames.length)
+         var fontSize:int = Math.ceil(this._def_font_size / MainScene.scaleFactor);
+         var bigFontSize:int = Math.ceil(this._def_font_size_big / MainScene.scaleFactor);
+         var i:uint = 0;
+         while(i < _style.styleNames.length)
          {
-            _loc7_ = _style.getStyle(_style.styleNames[_loc4_]);
-            _loc7_.fontSize = _loc2_;
-            _style.setStyle(_style.styleNames[_loc4_],_loc7_);
-            _loc4_++;
+            style = _style.getStyle(_style.styleNames[i]);
+            style.fontSize = fontSize;
+            _style.setStyle(_style.styleNames[i],style);
+            i++;
          }
-         var _loc5_:Number = (_loc2_ + 2) * this._fontScale;
-         var _loc6_:LobbyChatTab;
-         var _loc7_:Object;
-         var _loc8_:TextFormat;
-         var _loc9_:int;
-         var _loc10_:int;
-         for each(_loc6_ in this._tabs)
+         var lineHeight:Number = (fontSize + 2) * this._fontScale;
+         var tab:LobbyChatTab;
+         var style:Object;
+         var labelFormat:TextFormat;
+         var minHeight:int;
+         var maxHeight:int;
+         for each(tab in this._tabs)
          {
-            _loc9_ = int((this._min_tab_height - 82) / _loc5_) * _loc5_ + 82;
-            _loc10_ = int((this._max_tab_width - 82) / _loc5_) * _loc5_ + 82;
-            _loc6_.setSizeLimits(this._min_tab_width,_loc9_,this._max_tab_width,_loc10_);
-            trace("new_size",_loc6_.height,MainScene.scaleFactor,_loc2_);
-            _loc6_.height = int((_loc6_.height - 82) / _loc5_) * _loc5_ + 82;
-            _loc6_.x = MainScene.stageWidth - _loc6_.width - this._start_tab_shiftX;
-            _loc6_.y = MainScene.stageHeight - _loc6_.height - this._start_tab_shiftY;
-            _loc6_.prepareToResize();
-            _loc6_.text_chat.textField.text = "";
-            _loc6_.text_chat.invalidate();
-            _loc6_.text_inpput.textSize = _loc2_;
-            _loc8_ = _loc6_.labelTextField.textField.getTextFormat();
-            _loc8_.size = _loc3_;
-            _loc6_.labelTextField.textField.defaultTextFormat = _loc8_;
-            _loc6_.labelTextField.textField.setTextFormat(_loc8_);
+            minHeight = int((this._min_tab_height - 82) / lineHeight) * lineHeight + 82;
+            maxHeight = int((this._max_tab_width - 82) / lineHeight) * lineHeight + 82;
+            tab.setSizeLimits(this._min_tab_width,minHeight,this._max_tab_width,maxHeight);
+            trace("new_size",tab.height,MainScene.scaleFactor,fontSize);
+            tab.height = int((tab.height - 82) / lineHeight) * lineHeight + 82;
+            tab.x = MainScene.stageWidth - tab.width - this._start_tab_shiftX;
+            tab.y = MainScene.stageHeight - tab.height - this._start_tab_shiftY;
+            tab.prepareToResize();
+            tab.text_chat.textField.text = "";
+            tab.text_chat.invalidate();
+            tab.text_inpput.textSize = fontSize;
+            labelFormat = tab.labelTextField.textField.getTextFormat();
+            labelFormat.size = bigFontSize;
+            tab.labelTextField.textField.defaultTextFormat = labelFormat;
+            tab.labelTextField.textField.setTextFormat(labelFormat);
          }
       }
       
@@ -652,200 +652,200 @@ package survarium.chat
          {
             return;
          }
-         var _loc1_:Array = _data.tabs[_activeMode];
-         if(!_loc1_)
+         var modeTabs:Array = _data.tabs[_activeMode];
+         if(!modeTabs)
          {
             return;
          }
-         var _loc2_:uint = _loc1_.length;
-         var _loc3_:LobbyChatTab;
-         var _loc4_:uint = 0;
-         var _loc5_:uint = 0;
-         while(_loc5_ < _loc2_)
+         var tabCount:uint = modeTabs.length;
+         var tab:LobbyChatTab;
+         var unhandledCount:uint = 0;
+         var i:uint = 0;
+         while(i < tabCount)
          {
-            _loc3_ = this._tabs[_loc1_[_loc5_].id];
-            if(_loc3_ && !_loc3_.handled)
+            tab = this._tabs[modeTabs[i].id];
+            if(tab && !tab.handled)
             {
-               _loc4_++;
+               unhandledCount++;
             }
-            _loc5_++;
+            i++;
          }
-         trace("handleTabs::",_loc4_);
-         var _loc6_:uint = 30;
-         var _loc7_:Class = getDefinitionByName("SrvChatTab") as Class;
-         var _loc8_:uint = 0;
-         var _loc9_:Object;
-         var _loc10_:LobbyChatTab;
-         var _loc11_:int;
-         var _loc12_:int;
-         var _loc13_:Number;
-         var _loc14_:int;
-         var _loc15_:int;
-         var _loc16_:TextFormat;
-         while(_loc8_ < _loc2_)
+         trace("handleTabs::",unhandledCount);
+         var cascadeStep:uint = 30;
+         var tabClass:Class = getDefinitionByName("SrvChatTab") as Class;
+         var j:uint = 0;
+         var tabData:Object;
+         var newTab:LobbyChatTab;
+         var fontSize:int;
+         var bigFontSize:int;
+         var lineHeight:Number;
+         var minHeight:int;
+         var maxHeight:int;
+         var labelFormat:TextFormat;
+         while(j < tabCount)
          {
-            _loc9_ = _loc1_[_loc8_];
-            _loc3_ = this._tabs[_loc9_.id];
-            if(_loc9_ && !_loc3_)
+            tabData = modeTabs[j];
+            tab = this._tabs[tabData.id];
+            if(tabData && !tab)
             {
-               _loc10_ = new _loc7_();
-               _loc11_ = Math.ceil(this._def_font_size / MainScene.scaleFactor);
-               _loc12_ = Math.ceil(this._def_font_size_big / MainScene.scaleFactor);
-               _loc13_ = (_loc11_ + 2) * this._fontScale;
-               _loc10_.width = this._def_tab_width;
-               _loc10_.height = int((this._def_tab_height - 82) / _loc13_) * _loc13_ + 82;
-               _loc14_ = int((this._min_tab_height - 82) / _loc13_) * _loc13_ + 82;
-               _loc15_ = int((this._max_tab_width - 82) / _loc13_) * _loc13_ + 82;
-               _loc10_.setSizeLimits(this._min_tab_width,_loc14_,this._max_tab_width,_loc15_);
-               _loc10_.x = MainScene.stageWidth - _loc10_.width - 40 - _loc4_ * _loc6_;
-               _loc10_.y = MainScene.stageHeight - _loc10_.height - 70 - _loc4_ * _loc6_;
-               if(_loc4_)
+               newTab = new tabClass();
+               fontSize = Math.ceil(this._def_font_size / MainScene.scaleFactor);
+               bigFontSize = Math.ceil(this._def_font_size_big / MainScene.scaleFactor);
+               lineHeight = (fontSize + 2) * this._fontScale;
+               newTab.width = this._def_tab_width;
+               newTab.height = int((this._def_tab_height - 82) / lineHeight) * lineHeight + 82;
+               minHeight = int((this._min_tab_height - 82) / lineHeight) * lineHeight + 82;
+               maxHeight = int((this._max_tab_width - 82) / lineHeight) * lineHeight + 82;
+               newTab.setSizeLimits(this._min_tab_width,minHeight,this._max_tab_width,maxHeight);
+               newTab.x = MainScene.stageWidth - newTab.width - 40 - unhandledCount * cascadeStep;
+               newTab.y = MainScene.stageHeight - newTab.height - 70 - unhandledCount * cascadeStep;
+               if(unhandledCount)
                {
-                  _loc4_--;
+                  unhandledCount--;
                }
-               _loc10_.text_chat.textField.addEventListener(MouseEvent.CLICK,this.onTxClick);
-               _loc10_.text_chat.textField.addEventListener(TextEvent.LINK,this.clickLinkHandler);
-               _loc10_.text_chat.textField.addEventListener(MouseEvent.DOUBLE_CLICK,this.clickLinkHandlerDouble);
-               _loc10_.text_chat.textField.text = "";
-               _loc10_.text_chat.invalidate();
-               _loc10_.text_inpput.textSize = _loc11_;
-               _loc16_ = _loc10_.labelTextField.textField.getTextFormat();
-               _loc16_.size = _loc12_;
-               _loc10_.labelTextField.textField.defaultTextFormat = _loc16_;
-               _loc10_.labelTextField.textField.setTextFormat(_loc16_);
-               _loc10_.addEventListener(Event.CLOSE,this.hideTab);
-               _loc10_.addEventListener(Event.CHANNEL_MESSAGE,this.blinkTab);
-               _loc10_.addEventListener(FocusEvent.FOCUS_OUT,this.handleFocusOut);
-               TextFieldEx.setVerticalAlign(_loc10_.text_inpput.textField,TextFieldEx.VALIGN_CENTER);
-               TextFieldEx.setVerticalAlign(_loc10_.labelTextField.textField,TextFieldEx.VALIGN_CENTER);
-               _loc10_.owner = this;
-               _loc10_.setData(_loc9_);
-               _loc10_.name = "tab_" + _loc9_.name;
-               _loc10_.send_function = send_function;
-               _loc10_.setStyleSheet(_style);
-               _loc10_.visible = false;
-               this._tabs[_loc9_.id] = _loc10_;
-               this.checkStatusIcon(_loc10_);
+               newTab.text_chat.textField.addEventListener(MouseEvent.CLICK,this.onTxClick);
+               newTab.text_chat.textField.addEventListener(TextEvent.LINK,this.clickLinkHandler);
+               newTab.text_chat.textField.addEventListener(MouseEvent.DOUBLE_CLICK,this.clickLinkHandlerDouble);
+               newTab.text_chat.textField.text = "";
+               newTab.text_chat.invalidate();
+               newTab.text_inpput.textSize = fontSize;
+               labelFormat = newTab.labelTextField.textField.getTextFormat();
+               labelFormat.size = bigFontSize;
+               newTab.labelTextField.textField.defaultTextFormat = labelFormat;
+               newTab.labelTextField.textField.setTextFormat(labelFormat);
+               newTab.addEventListener(Event.CLOSE,this.hideTab);
+               newTab.addEventListener(Event.CHANNEL_MESSAGE,this.blinkTab);
+               newTab.addEventListener(FocusEvent.FOCUS_OUT,this.handleFocusOut);
+               TextFieldEx.setVerticalAlign(newTab.text_inpput.textField,TextFieldEx.VALIGN_CENTER);
+               TextFieldEx.setVerticalAlign(newTab.labelTextField.textField,TextFieldEx.VALIGN_CENTER);
+               newTab.owner = this;
+               newTab.setData(tabData);
+               newTab.name = "tab_" + tabData.name;
+               newTab.send_function = send_function;
+               newTab.setStyleSheet(_style);
+               newTab.visible = false;
+               this._tabs[tabData.id] = newTab;
+               this.checkStatusIcon(newTab);
                trace("LC::addTabToParent",parent);
-               parent.addChild(this._tabs[_loc9_.id]);
+               parent.addChild(this._tabs[tabData.id]);
             }
-            _loc8_++;
+            j++;
          }
       }
       
-      protected function blinkTab(param1:Event) : void
+      protected function blinkTab(event:Event) : void
       {
-         var _loc2_:Object = (param1.target as LobbyChatTab).getData();
-         var _loc3_:int;
-         trace("blinkTab::",_loc2_ ? _loc2_.id : "no_id");
-         if(_loc2_)
+         var tabData:Object = (event.target as LobbyChatTab).getData();
+         var i:int;
+         trace("blinkTab::",tabData ? tabData.id : "no_id");
+         if(tabData)
          {
-            _loc3_ = 0;
-            while(_loc3_ < this._tapPageRenderer.dataProvider.length)
+            i = 0;
+            while(i < this._tapPageRenderer.dataProvider.length)
             {
-               trace("IterateBottomData::",this._tapPageRenderer.dataProvider[_loc3_].id,_loc2_.id);
-               if(this._tapPageRenderer.dataProvider[_loc3_] && this._tapPageRenderer.dataProvider[_loc3_].id == _loc2_.id)
+               trace("IterateBottomData::",this._tapPageRenderer.dataProvider[i].id,tabData.id);
+               if(this._tapPageRenderer.dataProvider[i] && this._tapPageRenderer.dataProvider[i].id == tabData.id)
                {
-                  this._tapPageRenderer.dataProvider[_loc3_].blink = _loc2_.blink;
+                  this._tapPageRenderer.dataProvider[i].blink = tabData.blink;
                   break;
                }
-               _loc3_++;
+               i++;
             }
          }
          this._tapPageRenderer.dataProvider.invalidate();
       }
       
-      protected function hideTab(param1:Event) : void
+      protected function hideTab(event:Event) : void
       {
-         trace("hideTab::",param1.target);
+         trace("hideTab::",event.target);
          if(stage.focus)
          {
             stage.focus = null;
          }
-         param1.target.visible = false;
+         event.target.visible = false;
          this.unfocusTab();
       }
       
-      protected function onClose(param1:Event = null) : void
+      protected function onClose(event:Event = null) : void
       {
          ExternalInterface.call("hide_chat_button");
          visible = false;
          dispatchEvent(new Event(Event.CLOSE));
       }
       
-      protected function onTxClick(param1:MouseEventEx) : void
+      protected function onTxClick(event:MouseEventEx) : void
       {
-         _lastIdx = param1.buttonIdx;
+         _lastIdx = event.buttonIdx;
       }
       
-      protected function clickLinkHandlerDouble(param1:MouseEvent) : void
+      protected function clickLinkHandlerDouble(event:MouseEvent) : void
       {
          trace("clickLinkHandlerDouble");
       }
       
-      protected function clickLinkHandler(param1:TextEvent) : void
+      protected function clickLinkHandler(event:TextEvent) : void
       {
-         trace("clickLinkHandler",param1.text);
-         var _loc2_:LobbyChatTab = param1.target.parent.parent as LobbyChatTab;
-         if(_activeTab == -1 || _data.tabs[_activeMode][_activeTab].id != _loc2_.getData().id)
+         trace("clickLinkHandler",event.text);
+         var tab:LobbyChatTab = event.target.parent.parent as LobbyChatTab;
+         if(_activeTab == -1 || _data.tabs[_activeMode][_activeTab].id != tab.getData().id)
          {
-            this.focusTab(_loc2_.getData().id);
-            _loc4_ = _loc2_.text_chat.textField.getLineIndexAtPoint(_loc2_.text_chat.textField.mouseX,_loc2_.text_chat.textField.mouseY);
-            if(_loc4_ != -1)
+            this.focusTab(tab.getData().id);
+            lineIndex = tab.text_chat.textField.getLineIndexAtPoint(tab.text_chat.textField.mouseX,tab.text_chat.textField.mouseY);
+            if(lineIndex != -1)
             {
-               _loc5_ = _loc2_.text_chat.textField.getLineText(_loc4_);
-               trace("clickLinkHandler::text",_loc5_);
+               lineText = tab.text_chat.textField.getLineText(lineIndex);
+               trace("clickLinkHandler::text",lineText);
             }
          }
-         var _loc3_:Array = param1.text.split(":");
-         var _loc4_:int;
-         var _loc5_:String;
-         var _loc6_:Boolean;
-         var _loc7_:Array;
-         var _loc8_:Array;
-         var _loc9_:int;
-         if(_loc3_[0] == "name" && _data.name != _loc3_[1])
+         var linkParts:Array = event.text.split(":");
+         var lineIndex:int;
+         var lineText:String;
+         var isFriend:Boolean;
+         var claimOptions:Array;
+         var menuItems:Array;
+         var i:int;
+         if(linkParts[0] == "name" && _data.name != linkParts[1])
          {
-            _lastName = _loc3_[1];
-            _loc6_ = false;
+            _lastName = linkParts[1];
+            isFriend = false;
             if(this._friends)
             {
-               _loc9_ = 0;
-               while(_loc9_ < this._friends.length)
+               i = 0;
+               while(i < this._friends.length)
                {
-                  if(this._friends[_loc9_].name == this._lastName)
+                  if(this._friends[i].name == this._lastName)
                   {
-                     _loc6_ = true;
+                     isFriend = true;
                      break;
                   }
-                  _loc9_++;
+                  i++;
                }
             }
-            _loc7_ = [];
+            claimOptions = [];
             if(this._lastIdx == 1 && this._lastName)
             {
-               _loc8_ = [];
-               if(!_loc6_)
+               menuItems = [];
+               if(!isFriend)
                {
-                  _loc8_.push({
+                  menuItems.push({
                      name:LocalizationData.getName("add_to_friends"),
                      click_function:this.addToFriend
                   });
                }
-               _loc8_.push({
+               menuItems.push({
                   name:LocalizationData.getName("add_to_ignore"),
                   click_function:this.addToIgnore
                });
                if(_activeTab != -1 && _data.tabs[_activeMode][_activeTab].channels.length != 0)
                {
-                  _loc8_.push({
+                  menuItems.push({
                      name:LocalizationData.getName("send_message"),
                      click_function:this.privateMessage
                   });
                }
                if(PlayerInfo.commander && !PlayerInfo.isSquadFull && !SquadList.isInSquad(this._lastName))
                {
-                  _loc8_.push({
+                  menuItems.push({
                      name:LocalizationData.getName("invite_to_squad"),
                      click_function:this.addToSquad
                   });
@@ -853,14 +853,14 @@ package survarium.chat
             }
             else if(this._lastIdx == 0 && this._lastName && _activeTab != -1)
             {
-               if(_loc2_)
+               if(tab)
                {
-                  _loc2_.srartMessage(this._lastName + ", ");
+                  tab.srartMessage(this._lastName + ", ");
                }
             }
-            if(_loc8_ && _loc8_.length)
+            if(menuItems && menuItems.length)
             {
-               _loc7_.push({
+               claimOptions.push({
                   name:LocalizationData.getName("bot_or_cheater_claim"),
                   nickname:this._lastName,
                   click_function:this.flagPlayer,
@@ -868,7 +868,7 @@ package survarium.chat
                   index:1,
                   subIndex:1
                });
-               _loc7_.push({
+               claimOptions.push({
                   name:LocalizationData.getName("swearing_claim"),
                   nickname:this._lastName,
                   click_function:this.flagPlayer,
@@ -876,7 +876,7 @@ package survarium.chat
                   index:1,
                   subIndex:2
                });
-               _loc7_.push({
+               claimOptions.push({
                   name:LocalizationData.getName("non_sport_behavior_claim"),
                   nickname:this._lastName,
                   click_function:this.flagPlayer,
@@ -884,7 +884,7 @@ package survarium.chat
                   index:1,
                   subIndex:3
                });
-               _loc7_.push({
+               claimOptions.push({
                   name:LocalizationData.getName("account_trading_claim"),
                   nickname:this._lastName,
                   click_function:this.flagPlayer,
@@ -892,19 +892,19 @@ package survarium.chat
                   index:1,
                   subIndex:4
                });
-               _loc8_.push({
+               menuItems.push({
                   name:LocalizationData.getName("claim_player"),
-                  options:_loc7_
+                  options:claimOptions
                });
-               SrvContextMenu.show(_loc8_,0,0,this);
+               SrvContextMenu.show(menuItems,0,0,this);
             }
          }
       }
       
-      protected function flagPlayer(param1:Object) : void
+      protected function flagPlayer(item:Object) : void
       {
-         trace("comment_about_user",param1.nickname,param1.index,param1.subIndex);
-         ExternalInterface.call("comment_about_user",param1.nickname,param1.index,param1.subIndex);
+         trace("comment_about_user",item.nickname,item.index,item.subIndex);
+         ExternalInterface.call("comment_about_user",item.nickname,item.index,item.subIndex);
       }
       
       protected function addToSquad() : void
@@ -930,16 +930,16 @@ package survarium.chat
       // A line of a room's chat: a player's in the general chat's colour
       // (the exe gives channel 10 none), the room's own (no sender: who
       // joined or left) in blue and in the game's language.
-      protected function roomLine(param1:Object) : void
+      protected function roomLine(message:Object) : void
       {
-         if(!param1.name)
+         if(!message.name)
          {
-            param1.text = RoomsText.notice(String(param1.text));
-            param1.color = "Blue";
+            message.text = RoomsText.notice(String(message.text));
+            message.color = "Blue";
          }
-         else if(param1.color == undefined)
+         else if(message.color == undefined)
          {
-            param1.color = "White";
+            message.color = "White";
          }
       }
    }

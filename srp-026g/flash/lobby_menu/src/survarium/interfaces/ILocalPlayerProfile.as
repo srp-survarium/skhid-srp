@@ -5,37 +5,37 @@ package survarium.interfaces
    public interface ILocalPlayerProfile extends IPlayerProfile
    {
       
-      function set _relocateFunction(param1:Function) : void;
+      function set _relocateFunction(value:Function) : void;
       
       function get _relocateFunction() : Function;
       
       function get paperDoll() : ILocalPaperDoll;
       
-      function enableSecondWeapon(param1:Boolean) : void;
+      function enableSecondWeapon(value:Boolean) : void;
       
-      function allowSecondaryTwoHandedWeapon(param1:Boolean) : void;
+      function allowSecondaryTwoHandedWeapon(value:Boolean) : void;
       
-      function updateWeight(param1:Number, param2:Number) : void;
+      function updateWeight(current:Number, maximum:Number) : void;
       
-      function registerRelocateFunction(param1:Function) : void;
+      function registerRelocateFunction(callback:Function) : void;
       
-      function lock(param1:Boolean, param2:uint) : void;
+      function lock(locked:Boolean, slotIndex:uint) : void;
       
-      function onDrag(param1:DragEvent) : void;
+      function onDrag(event:DragEvent) : void;
       
       function fillEquippedItems() : void;
       
-      function refillItem(param1:uint) : void;
+      function refillItem(itemId:uint) : void;
       
       function handleUnresolvedItems() : void;
       
-      function setPlayerSpeed(param1:uint) : void;
+      function setPlayerSpeed(speed:uint) : void;
       
-      function swapQuickSlots(param1:int, param2:int) : void;
+      function swapQuickSlots(firstIndex:int, secondIndex:int) : void;
       
-      function setAutoRepair(param1:Boolean) : void;
+      function setAutoRepair(value:Boolean) : void;
       
-      function setAmmoShare(param1:IAmmoShare) : void;
+      function setAmmoShare(ammoShare:IAmmoShare) : void;
       
       function get_ammo_share() : IAmmoShare;
    }

@@ -16,16 +16,16 @@ package survarium.data
       
       protected var _descriptorName:String;
       
-      public function ItemDescriptor(param1:String) : void
+      public function ItemDescriptor(descriptorName:String) : void
       {
          super();
-         _descriptorName = param1;
+         _descriptorName = descriptorName;
          _descriptors[this._descriptorName] = this;
       }
       
-      public static function getItemDescriptor(param1:String) : ItemDescriptor
+      public static function getItemDescriptor(descriptorName:String) : ItemDescriptor
       {
-         return _descriptors[param1];
+         return _descriptors[descriptorName];
       }
       
       public function addFakeItemsToDictionary() : void
@@ -34,7 +34,7 @@ package survarium.data
          {
             _itemDescriptors = new Dictionary();
          }
-         var _loc1_:Array = [{
+         var d:Array = [{
             dictId:0,
             itemLevel:1,
             name:"item_debug_0",
@@ -63,44 +63,44 @@ package survarium.data
             category:1,
             icon:3
          }];
-         var _loc2_:uint = 0;
-         while(_loc2_ < _loc1_.length)
+         var i:uint = 0;
+         while(i < d.length)
          {
-            this._itemDescriptors[_loc1_[_loc2_].dictId] = _loc1_[_loc2_];
-            _loc2_++;
+            this._itemDescriptors[d[i].dictId] = d[i];
+            i++;
          }
       }
       
-      public function setItemsDictionary(param1:Array) : void
+      public function setItemsDictionary(d:Array) : void
       {
-         if(param1 == null)
+         if(d == null)
          {
             return;
          }
          _itemDescriptors = new Dictionary();
-         var _loc2_:uint = 0;
-         for(; _loc2_ < param1.length; _loc2_++)
+         var i:uint = 0;
+         for(; i < d.length; i++)
          {
-            if(param1[_loc2_].is_stack && param1[_loc2_].clip_size == undefined)
+            if(d[i].is_stack && d[i].clip_size == undefined)
             {
-               param1[_loc2_].clip_size = 1;
+               d[i].clip_size = 1;
             }
-            this._itemDescriptors[param1[_loc2_].dictId] = param1[_loc2_];
-            if(param1[_loc2_].item_properties == null)
+            this._itemDescriptors[d[i].dictId] = d[i];
+            if(d[i].item_properties == null)
             {
                continue;
             }
          }
       }
       
-      public function getItemDescription(param1:uint) : Object
+      public function getItemDescription(dictId:uint) : Object
       {
-         if(this._itemDescriptors[param1] == null)
+         if(this._itemDescriptors[dictId] == null)
          {
-            stackTrace("Wrong dictId [" + param1 + "] in getItemDescription");
+            stackTrace("Wrong dictId [" + dictId + "] in getItemDescription");
             return new Object();
          }
-         return this._itemDescriptors[param1];
+         return this._itemDescriptors[dictId];
       }
    }
 }

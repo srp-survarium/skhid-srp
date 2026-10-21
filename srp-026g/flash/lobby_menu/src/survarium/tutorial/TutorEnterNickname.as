@@ -46,22 +46,22 @@ package survarium.tutorial
          super();
       }
       
-      public function handleNicknameValidation(param1:Boolean, param2:String, param3:String) : void
+      public function handleNicknameValidation(result:Boolean, nickname:String, message:String) : void
       {
-         if(param2 == this.data.nickname)
+         if(nickname == this.data.nickname)
          {
-            param1 = true;
+            result = true;
          }
-         this.textInput.handleTextValidation(param1,param2,param3);
+         this.textInput.handleTextValidation(result,nickname,message);
       }
       
       override protected function configUI() : void
       {
          var try_enter_name:Function;
-         try_enter_name = function(param1:KeyboardEvent):void
+         try_enter_name = function(event:KeyboardEvent):void
          {
-            param1.preventDefault();
-            if(param1.keyCode == 13 && btnAccept.enabled)
+            event.preventDefault();
+            if(event.keyCode == 13 && btnAccept.enabled)
             {
                nextTutorial(null);
             }
@@ -98,7 +98,7 @@ package survarium.tutorial
          this.textInput.textInput.addEventListener(KeyboardEvent.KEY_DOWN,try_enter_name);
       }
       
-      private function onRemoved(param1:Event) : void
+      private function onRemoved(event:Event) : void
       {
          removeEventListener(Event.REMOVED_FROM_STAGE,this.onRemoved);
          this.rewardItem1.itemSlot.data = null;
@@ -106,7 +106,7 @@ package survarium.tutorial
          this.rewardItem3.itemSlot.data = null;
       }
       
-      private function onRedner(param1:Event) : void
+      private function onRedner(event:Event) : void
       {
          if(stage)
          {
@@ -116,14 +116,14 @@ package survarium.tutorial
          removeEventListener(Event.RENDER,this.onRedner);
       }
       
-      private function nextTutorial(param1:ButtonEvent) : void
+      private function nextTutorial(event:ButtonEvent) : void
       {
-         var _loc2_:String = this.textInput.textInput.text;
-         var _loc3_:uint = Math.pow(2,32) - 1;
-         trace("change_player_nickname",_loc2_,_loc3_,this.data.nickname);
-         if(_loc2_ != this.data.nickname)
+         var nickname:String = this.textInput.textInput.text;
+         var voucherId:uint = Math.pow(2,32) - 1;
+         trace("change_player_nickname",nickname,voucherId,this.data.nickname);
+         if(nickname != this.data.nickname)
          {
-            ExternalInterface.call("change_player_nickname",_loc2_,_loc3_);
+            ExternalInterface.call("change_player_nickname",nickname,voucherId);
          }
          ExternalInterface.call("tutorial_nickname_ok_clicked");
          dispatchEvent(new Event(Event.CLOSE));
@@ -136,22 +136,22 @@ package survarium.tutorial
          this.btnCancel.enabled = false;
       }
       
-      private function onExitClick(param1:ButtonEvent) : void
+      private function onExitClick(event:ButtonEvent) : void
       {
-         var _loc2_:Object = new Object();
-         _loc2_.text = LocalizationData.getName("tutorial_exit_warning");
-         _loc2_.onYes = this.skipTutorial;
-         Message.showMessage("apply",_loc2_,true);
+         var messageData:Object = new Object();
+         messageData.text = LocalizationData.getName("tutorial_exit_warning");
+         messageData.onYes = this.skipTutorial;
+         Message.showMessage("apply",messageData,true);
       }
       
-      private function skipTutorial(param1:* = null) : void
+      private function skipTutorial(event:* = null) : void
       {
          trace("skip_tutorial");
          ExternalInterface.call("skip_tutorial");
          dispatchEvent(new Event(Event.CLOSE));
       }
       
-      private function onTextInputStateChanged(param1:Event) : void
+      private function onTextInputStateChanged(event:Event) : void
       {
          this.btnAccept.enabled = this.textInput.enabled;
       }

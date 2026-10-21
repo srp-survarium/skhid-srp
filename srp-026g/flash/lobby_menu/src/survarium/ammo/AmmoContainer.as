@@ -33,9 +33,9 @@ package survarium.ammo
          LocalizationData.addTextField(this.tx_total_label,"ff_ammo_total_cost_label");
       }
       
-      private function onFocusIn(param1:FocusEvent) : void
+      private function onFocusIn(event:FocusEvent) : void
       {
-         if(param1.type == FocusEvent.FOCUS_IN)
+         if(event.type == FocusEvent.FOCUS_IN)
          {
             MainScene.activePop = this;
          }
@@ -50,10 +50,10 @@ package survarium.ammo
          dispatchEvent(new Event(Event.CLOSE,true));
       }
       
-      public function set shift(param1:int) : void
+      public function set shift(value:int) : void
       {
-         _shift = param1;
-         y = this.start_y + param1;
+         _shift = value;
+         y = this.start_y + value;
       }
       
       public function get shift() : int
@@ -61,10 +61,10 @@ package survarium.ammo
          return this._shift;
       }
       
-      override public function set y(param1:Number) : void
+      override public function set y(value:Number) : void
       {
-         super.y = param1;
-         this.maskSprite.y = -(param1 - this.start_y);
+         super.y = value;
+         this.maskSprite.y = -(value - this.start_y);
       }
    }
 }

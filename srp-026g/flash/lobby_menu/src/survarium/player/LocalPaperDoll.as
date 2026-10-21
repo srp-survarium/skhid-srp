@@ -83,18 +83,18 @@ package survarium.player
          super();
       }
       
-      public static function getSlotPair(param1:int, param2:int) : Boolean
+      public static function getSlotPair(category:int, slotIndex:int) : Boolean
       {
-         if((_slotAgreements[_slotNames[param2]] as Array).indexOf(param1) != -1)
+         if((_slotAgreements[_slotNames[slotIndex]] as Array).indexOf(category) != -1)
          {
             return true;
          }
          return false;
       }
       
-      public function set ammoControl(param1:IAmmoControll) : void
+      public function set ammoControl(value:IAmmoControll) : void
       {
-         _ammoControl = param1;
+         _ammoControl = value;
          addChild(this._ammoControl as DisplayObject);
       }
       
@@ -103,9 +103,9 @@ package survarium.player
          return this._ammoControl;
       }
       
-      override public function set dataProvider(param1:IDataProvider) : void
+      override public function set dataProvider(value:IDataProvider) : void
       {
-         super.dataProvider = param1;
+         super.dataProvider = value;
          this._ammoControl.updatePaperDollData(_dataProvider,_slots);
          this._ammoControl.update(null,"paperdoll");
       }
@@ -115,97 +115,97 @@ package survarium.player
          return this._slots_index.indexOf(this._last_name);
       }
       
-      public function hoverItem(param1:uint = 0) : void
+      public function hoverItem(itemId:uint = 0) : void
       {
-         trace("PD::hoverItem",param1);
-         if(!param1 && this._hoverIndex)
+         trace("PD::hoverItem",itemId);
+         if(!itemId && this._hoverIndex)
          {
             getSlotAt(this._hoverIndex).hover(false);
             _hoverIndex = 0;
             return;
          }
-         var _loc2_:uint = _slots.length;
-         var _loc3_:int = 0;
-         var _loc4_:Object;
-         while(_loc3_ < _loc2_)
+         var count:uint = _slots.length;
+         var i:int = 0;
+         var slot:Object;
+         while(i < count)
          {
-            _loc4_ = _slots[_loc3_];
-            if(_loc4_ && _loc4_.data && _loc4_.data.itemId == param1)
+            slot = _slots[i];
+            if(slot && slot.data && slot.data.itemId == itemId)
             {
-               _loc4_.hover();
-               _hoverIndex = _loc3_;
+               slot.hover();
+               _hoverIndex = i;
                return;
             }
-            _loc3_++;
+            i++;
          }
       }
       
-      public function enableSecondWeapon(param1:Boolean) : void
+      public function enableSecondWeapon(isEnabled:Boolean) : void
       {
-         trace("enableSecondWeapon::",param1);
-         _secondaryEnabled = param1;
+         trace("enableSecondWeapon::",isEnabled);
+         _secondaryEnabled = isEnabled;
          invalidate(InvalidationType.DATA);
       }
       
-      public function allowSecondaryTwoHandedWeapon(param1:Boolean) : void
+      public function allowSecondaryTwoHandedWeapon(isAllowed:Boolean) : void
       {
-         trace("allowSecondaryTwoHandedWeapon::",param1);
-         _doubleTwoHanded = param1;
+         trace("allowSecondaryTwoHandedWeapon::",isAllowed);
+         _doubleTwoHanded = isAllowed;
          invalidate(InvalidationType.DATA);
       }
       
-      public function getSlot(param1:ItemData, param2:Boolean = false) : int
+      public function getSlot(item:ItemData, findFree:Boolean = false) : int
       {
-         stackTrace("getSlot::" + String(param1));
-         if(!param1)
+         stackTrace("getSlot::" + String(item));
+         if(!item)
          {
             return -1;
          }
-         var _loc3_:int = 0;
-         var _loc4_:uint;
-         var _loc5_:IPaperDollSlot;
-         var _loc6_:Boolean;
-         var _loc7_:int;
-         while(_loc3_ < _slots.length)
+         var i:int = 0;
+         var category:uint;
+         var slot:IPaperDollSlot;
+         var fits:Boolean;
+         var j:int;
+         while(i < _slots.length)
          {
-            _loc4_ = param1.category;
-            _loc6_ = (_slotAgreements[_slots[_loc3_].name] as Array).indexOf(_loc4_) != -1;
-            if(_loc6_)
+            category = item.category;
+            fits = (_slotAgreements[_slots[i].name] as Array).indexOf(category) != -1;
+            if(fits)
             {
-               if(_loc4_ == 10 || _loc4_ == 11 || _loc4_ == 24)
+               if(category == 10 || category == 11 || category == 24)
                {
-                  _loc7_ = 13;
-                  while(_loc7_ < _slots.length)
+                  j = 13;
+                  while(j < _slots.length)
                   {
-                     if(param2)
+                     if(findFree)
                      {
-                        trace("j::",_loc7_,_slotsN + 12);
-                        if(!_slots[_loc7_].data || _loc7_ == _slotsN + 12)
+                        trace("j::",j,_slotsN + 12);
+                        if(!_slots[j].data || j == _slotsN + 12)
                         {
-                           _loc5_ = _slots[_loc7_];
-                           return _loc7_;
+                           slot = _slots[j];
+                           return j;
                         }
                      }
                      else
                      {
-                        if(_slots[_loc7_].data != null)
+                        if(_slots[j].data != null)
                         {
-                           _loc5_ = _slots[_loc7_];
-                           return _loc7_;
+                           slot = _slots[j];
+                           return j;
                         }
-                        _loc5_ = _slots[13];
+                        slot = _slots[13];
                         return 13;
                      }
-                     _loc7_++;
+                     j++;
                   }
                }
-               _loc5_ = _slots[_loc3_];
-               if(_loc5_ && _loc5_.highlighted)
+               slot = _slots[i];
+               if(slot && slot.highlighted)
                {
-                  return _loc3_;
+                  return i;
                }
             }
-            _loc3_++;
+            i++;
          }
          return -1;
       }
@@ -215,152 +215,152 @@ package survarium.player
          return "[LocalPaperDoll " + name + "]";
       }
       
-      public function setFillArray(param1:Array) : void
+      public function setFillArray(items:Array) : void
       {
-         this._ammoControl.fillItems(param1);
+         this._ammoControl.fillItems(items);
       }
       
-      public function setSlotsRestrictions(param1:Array) : void
+      public function setSlotsRestrictions(restrictions:Array) : void
       {
-         var _loc2_:String;
-         var _loc3_:int;
-         var _loc4_:Object;
-         for(_loc2_ in _slotAgreements)
+         var slotName:String;
+         var i:int;
+         var restriction:Object;
+         for(slotName in _slotAgreements)
          {
-            _slotAgreements[_loc2_] = new Array();
+            _slotAgreements[slotName] = new Array();
          }
-         _loc3_ = 0;
-         while(_loc3_ < param1.length)
+         i = 0;
+         while(i < restrictions.length)
          {
-            _loc4_ = param1[_loc3_];
-            _slotAgreements[_slotNames[_loc4_.slot_id]].push(_loc4_.category_id);
-            _loc3_++;
+            restriction = restrictions[i];
+            _slotAgreements[_slotNames[restriction.slot_id]].push(restriction.category_id);
+            i++;
          }
       }
       
-      public function registerInventory(param1:IInventoryItemFactory) : void
+      public function registerInventory(inventory:IInventoryItemFactory) : void
       {
-         _inventory = param1;
+         _inventory = inventory;
       }
       
-      override public function openSlots(param1:int, param2:int) : void
+      override public function openSlots(slotsN:int, slotsA:int) : void
       {
-         this._ammoControl.openSlots(param1,param2);
-         super.openSlots(param1,param2);
+         this._ammoControl.openSlots(slotsN,slotsA);
+         super.openSlots(slotsN,slotsA);
       }
       
-      public function hasAgreements(param1:uint) : uint
+      public function hasAgreements(category:uint) : uint
       {
          if(!enabled)
          {
             return 0;
          }
-         var _loc2_:uint = _slots.length;
-         var _loc3_:uint = 0;
-         var _loc4_:int = 0;
-         var _loc5_:Boolean;
-         while(_loc4_ < _loc2_)
+         var count:uint = _slots.length;
+         var filledCount:uint = 0;
+         var i:int = 0;
+         var isSlotFilled:Boolean;
+         while(i < count)
          {
-            _loc5_ = false;
-            if(_slotAgreements[_slots[_loc4_].name] && ((_slotAgreements[_slots[_loc4_].name] as Array).indexOf(param1) != -1) && _slots[_loc4_].enabled)
+            isSlotFilled = false;
+            if(_slotAgreements[_slots[i].name] && ((_slotAgreements[_slots[i].name] as Array).indexOf(category) != -1) && _slots[i].enabled)
             {
-               if(!_slots[_loc4_].data)
+               if(!_slots[i].data)
                {
                   return 1;
                }
-               _loc3_++;
+               filledCount++;
             }
-            _loc4_++;
+            i++;
          }
-         return _loc3_;
+         return filledCount;
       }
       
-      public function selectAgeements(param1:int, param2:int, param3:Boolean = false, param4:Boolean = false, param5:int = 0) : void
+      public function selectAgeements(category:int, dictId:int, oneHanded:Boolean = false, fromSlot:Boolean = false, itemId:int = 0) : void
       {
-         trace("selectAgeements",param1,param2,param3,param5);
+         trace("selectAgeements",category,dictId,oneHanded,itemId);
          if(!enabled)
          {
             return;
          }
-         var _loc6_:Boolean = false;
-         var _loc7_:uint = _slots.length;
-         var _loc8_:int = 0;
-         var _loc9_:Boolean;
-         var _loc10_:IPaperDollSlot;
-         var _loc11_:Boolean;
-         while(_loc8_ < _loc7_)
+         var isSameWeapon:Boolean = false;
+         var count:uint = _slots.length;
+         var i:int = 0;
+         var isSlotFilled:Boolean;
+         var weaponSlot:IPaperDollSlot;
+         var isWeapon:Boolean;
+         while(i < count)
          {
-            _loc9_ = false;
-            if(_slotAgreements[_slots[_loc8_].name] && ((_slotAgreements[_slots[_loc8_].name] as Array).indexOf(param1) != -1) && _slots[_loc8_].enabled)
+            isSlotFilled = false;
+            if(_slotAgreements[_slots[i].name] && ((_slotAgreements[_slots[i].name] as Array).indexOf(category) != -1) && _slots[i].enabled)
             {
-               if(param1 == 9 || param1 == 18 || param1 == 19 || param1 == 20 || param1 == 21)
+               if(category == 9 || category == 18 || category == 19 || category == 20 || category == 21)
                {
-                  if(_loc8_ == 8 || _loc8_ == 9)
+                  if(i == 8 || i == 9)
                   {
-                     _loc10_ = _slots[7];
+                     weaponSlot = _slots[7];
                   }
-                  else if(_loc8_ == 11 || _loc8_ == 12)
+                  else if(i == 11 || i == 12)
                   {
-                     _loc10_ = _slots[10];
+                     weaponSlot = _slots[10];
                   }
                   if(this._doubleTwoHanded)
                   {
-                     _loc9_ = false;
+                     isSlotFilled = false;
                   }
                   else
                   {
-                     _loc9_ = _slots[7].data && _slots[7].data.oneHanded == false || _slots[10].data && _slots[10].data.oneHanded == false;
+                     isSlotFilled = _slots[7].data && _slots[7].data.oneHanded == false || _slots[10].data && _slots[10].data.oneHanded == false;
                   }
-                  trace("isSlotFilled::",this._doubleTwoHanded,_loc9_,param3);
-                  if(_loc10_.data && (ItemFactory.getPair(param2,_loc10_.data.dictId)) && (!_loc9_ || _loc9_ && param3))
+                  trace("isSlotFilled::",this._doubleTwoHanded,isSlotFilled,oneHanded);
+                  if(weaponSlot.data && (ItemFactory.getPair(dictId,weaponSlot.data.dictId)) && (!isSlotFilled || isSlotFilled && oneHanded))
                   {
-                     _slots[_loc8_].highlighted = true;
+                     _slots[i].highlighted = true;
                      trace("a");
                   }
                   else
                   {
-                     _slots[_loc8_].highlighted = true;
+                     _slots[i].highlighted = true;
                   }
                }
                else
                {
                   trace("b",this._doubleTwoHanded);
-                  _loc11_ = param1 == 8 || param1 == 13 || param1 == 14 || param1 == 15 || param1 == 16 || param1 == 17;
-                  if(_loc11_ && !param4)
+                  isWeapon = category == 8 || category == 13 || category == 14 || category == 15 || category == 16 || category == 17;
+                  if(isWeapon && !fromSlot)
                   {
                      if(this._doubleTwoHanded)
                      {
-                        _loc9_ = false;
+                        isSlotFilled = false;
                      }
                      else
                      {
-                        _loc9_ = _slots[7].data && _slots[7].data.oneHanded == false || _slots[10].data && _slots[10].data.oneHanded == false;
+                        isSlotFilled = _slots[7].data && _slots[7].data.oneHanded == false || _slots[10].data && _slots[10].data.oneHanded == false;
                      }
-                     _loc6_ = _slots[7].data && _slots[7].data.dictId == param2 && _loc8_ == 10 || _slots[10].data && _slots[10].data.dictId == param2 && _loc8_ == 7;
+                     isSameWeapon = _slots[7].data && _slots[7].data.dictId == dictId && i == 10 || _slots[10].data && _slots[10].data.dictId == dictId && i == 7;
                   }
-                  if(!_slots[_loc8_].enabled)
+                  if(!_slots[i].enabled)
                   {
                   }
-                  if(!_loc11_ || !_loc6_ && (!_loc9_ || _loc9_ && (param3 || _slots[_loc8_].data != null && _slots[_loc8_].data.oneHanded == false)))
+                  if(!isWeapon || !isSameWeapon && (!isSlotFilled || isSlotFilled && (oneHanded || _slots[i].data != null && _slots[i].data.oneHanded == false)))
                   {
-                     _slots[_loc8_].highlighted = true;
+                     _slots[i].highlighted = true;
                   }
                }
             }
-            _loc8_++;
+            i++;
          }
       }
       
       public function deselectAgeements() : void
       {
-         var _loc1_:int = 0;
-         while(_loc1_ < _slots.length)
+         var i:int = 0;
+         while(i < _slots.length)
          {
-            if(_slots[_loc1_].enabled)
+            if(_slots[i].enabled)
             {
-               _slots[_loc1_].highlighted = false;
+               _slots[i].highlighted = false;
             }
-            _loc1_++;
+            i++;
          }
       }
       
@@ -374,28 +374,28 @@ package survarium.player
          }
       }
       
-      override protected function configSlot(param1:IPaperDollSlot) : void
+      override protected function configSlot(slot:IPaperDollSlot) : void
       {
       }
       
-      override protected function handleSlotListeners(param1:IPaperDollSlot) : void
+      override protected function handleSlotListeners(slot:IPaperDollSlot) : void
       {
-         super.handleSlotListeners(param1);
-         param1.addEventListener(MouseEvent.CLICK,this.onMouseItemClick);
-         param1.addEventListener(ButtonEvent.CLICK,this.updateSelectedSlot);
-         param1.addEventListener(Events.DROP_IN,this.updateSelectedSlot);
-         param1.addEventListener(ButtonEvent.CLICK,this.newItemClick);
-         param1.addEventListener(Events.DROP_IN,this.newItemClick);
+         super.handleSlotListeners(slot);
+         slot.addEventListener(MouseEvent.CLICK,this.onMouseItemClick);
+         slot.addEventListener(ButtonEvent.CLICK,this.updateSelectedSlot);
+         slot.addEventListener(Events.DROP_IN,this.updateSelectedSlot);
+         slot.addEventListener(ButtonEvent.CLICK,this.newItemClick);
+         slot.addEventListener(Events.DROP_IN,this.newItemClick);
       }
       
       override protected function configUI() : void
       {
          trace("LPD_base::configUI");
          super.configUI();
-         var _loc1_:Array = [_slotNames.indexOf("slotWpn1A1"),_slotNames.indexOf("slotWpn1A2"),_slotNames.indexOf("slotWpn2A1"),_slotNames.indexOf("slotWpn2A2"),_slotNames.indexOf("slotWpn5"),_slotNames.indexOf("slotWpn6"),_slotNames.indexOf("slotWpn7"),_slotNames.indexOf("slotWpn8")];
+         var ammoSlots:Array = [_slotNames.indexOf("slotWpn1A1"),_slotNames.indexOf("slotWpn1A2"),_slotNames.indexOf("slotWpn2A1"),_slotNames.indexOf("slotWpn2A2"),_slotNames.indexOf("slotWpn5"),_slotNames.indexOf("slotWpn6"),_slotNames.indexOf("slotWpn7"),_slotNames.indexOf("slotWpn8")];
          trace("LPD::configUI");
-         this._ammoControl.setSlotTarget(_slotNames.indexOf("slotWpn1"),_loc1_);
-         this._ammoControl.setSlotTarget(_slotNames.indexOf("slotWpn2"),_loc1_);
+         this._ammoControl.setSlotTarget(_slotNames.indexOf("slotWpn1"),ammoSlots);
+         this._ammoControl.setSlotTarget(_slotNames.indexOf("slotWpn2"),ammoSlots);
          this._ammoControl.setSlotTarget(_slotNames.indexOf("slotQck1"));
          this._ammoControl.setSlotTarget(_slotNames.indexOf("slotQck2"));
          this._ammoControl.setSlotTarget(_slotNames.indexOf("slotQck3"));
@@ -405,102 +405,102 @@ package survarium.player
          this._ammoControl.addEventListener(Event.CHANGE,this.updateQuickSlots);
       }
       
-      protected function updateQuickSlots(param1:Event) : void
+      protected function updateQuickSlots(event:Event) : void
       {
          trace("PD:updateQuickSlots");
-         var _loc2_:int = 1;
-         var _loc3_:ItemData;
-         var _loc4_:ItemData;
-         var _loc5_:Number;
-         while(_loc2_ < 7)
+         var i:int = 1;
+         var item:ItemData;
+         var inventoryItem:ItemData;
+         var count:Number;
+         while(i < 7)
          {
-            if(_slots[_loc2_ + 12].data)
+            if(_slots[i + 12].data)
             {
-               _loc3_ = _slots[_loc2_ + 12].data;
-               _loc4_ = this._inventory.getInventoryItem(_loc3_.itemId);
-               _loc5_ = _loc4_ ? _loc4_.value : 0;
-               _loc3_.count = _loc5_;
-               _slots[_loc2_ + 12].invalidateData();
+               item = _slots[i + 12].data;
+               inventoryItem = this._inventory.getInventoryItem(item.itemId);
+               count = inventoryItem ? inventoryItem.value : 0;
+               item.count = count;
+               _slots[i + 12].invalidateData();
             }
-            _loc2_++;
+            i++;
          }
       }
       
       override protected function sortAmmo() : void
       {
-         var _loc1_:int = -1;
-         var _loc2_:int = -1;
-         var _loc3_:int = 0;
-         var _loc4_:int = 0;
+         var primaryIndex:int = -1;
+         var secondaryIndex:int = -1;
+         var primaryAmmoCount:int = 0;
+         var secondaryAmmoCount:int = 0;
          if(!_dataProvider)
          {
             return;
          }
-         var _loc5_:uint = 0;
-         var _loc6_:uint;
-         var _loc7_:ItemData;
-         var _loc8_:ItemData;
-         var _loc9_:int;
-         while(_loc5_ < _dataProvider.length)
+         var i:uint = 0;
+         var weaponCount:uint;
+         var item:ItemData;
+         var weapon:ItemData;
+         var j:int;
+         while(i < _dataProvider.length)
          {
-            if(_dataProvider[_loc5_].slotId == 7)
+            if(_dataProvider[i].slotId == 7)
             {
-               _loc1_ = (_loc5_);
+               primaryIndex = (i);
             }
-            else if(_dataProvider[_loc5_].slotId == 10)
+            else if(_dataProvider[i].slotId == 10)
             {
-               _loc2_ = (_loc5_);
+               secondaryIndex = (i);
             }
-            if(_loc1_ != -1 && _loc2_ != -1)
+            if(primaryIndex != -1 && secondaryIndex != -1)
             {
                break;
             }
-            _loc5_++;
+            i++;
          }
-         if(_loc1_ != -1 && _loc1_ != -1 && _dataProvider[_loc1_] && _dataProvider[_loc2_] && ItemFactory.isSame(_dataProvider[_loc1_].dictId,_dataProvider[_loc2_].dictId))
+         if(primaryIndex != -1 && primaryIndex != -1 && _dataProvider[primaryIndex] && _dataProvider[secondaryIndex] && ItemFactory.isSame(_dataProvider[primaryIndex].dictId,_dataProvider[secondaryIndex].dictId))
          {
-            _loc6_ = 1;
+            weaponCount = 1;
          }
          else
          {
-            _loc6_ = 2;
+            weaponCount = 2;
          }
-         for(_loc5_ = 0; _loc5_ < _dataProvider.length; _loc5_++)
+         for(i = 0; i < _dataProvider.length; i++)
          {
-            if(_loc5_ == _loc1_ || _loc5_ == _loc2_)
+            if(i == primaryIndex || i == secondaryIndex)
             {
                continue;
             }
-            _loc7_ = _dataProvider[_loc5_];
-            if(!getSlotPair(_loc7_.category,8))
+            item = _dataProvider[i];
+            if(!getSlotPair(item.category,8))
             {
                continue;
             }
-            for(_loc9_ = 0; _loc9_ < _loc6_; _loc9_++)
+            for(j = 0; j < weaponCount; j++)
             {
-               _loc8_ = _loc9_ == 0 ? _dataProvider[_loc1_] : _dataProvider[_loc2_];
-               if(!_loc8_)
+               weapon = j == 0 ? _dataProvider[primaryIndex] : _dataProvider[secondaryIndex];
+               if(!weapon)
                {
                   continue;
                }
-               if(_loc8_)
+               if(weapon)
                {
-                  if(ItemFactory.getPair(_loc8_.dictId,_loc7_.dictId))
+                  if(ItemFactory.getPair(weapon.dictId,item.dictId))
                   {
-                     if(_loc7_.value == 0)
+                     if(item.value == 0)
                      {
-                        _loc7_.slotId = 999;
+                        item.slotId = 999;
                      }
                      else
                      {
-                        _loc7_.slotId = _loc9_ == 0 ? (this._ammo1_indexes[_loc3_]) : (this._ammo2_indexes[_loc4_]);
-                        if(_loc9_ == 0)
+                        item.slotId = j == 0 ? (this._ammo1_indexes[primaryAmmoCount]) : (this._ammo2_indexes[secondaryAmmoCount]);
+                        if(j == 0)
                         {
-                           _loc3_++;
+                           primaryAmmoCount++;
                         }
                         else
                         {
-                           _loc4_++;
+                           secondaryAmmoCount++;
                         }
                      }
                      continue;
@@ -519,9 +519,9 @@ package survarium.player
          {
             if(_dataProvider != null)
             {
-               function check_slot(param1:IPaperDollSlot, param2:IPaperDollSlot):void
+               function check_slot(slotA:IPaperDollSlot, slotB:IPaperDollSlot):void
                {
-                  if(param1.data && param2.data && ItemFactory.isSame(param1.data.dictId,param2.data.dictId))
+                  if(slotA.data && slotB.data && ItemFactory.isSame(slotA.data.dictId,slotB.data.dictId))
                   {
                      _shareMode = true;
                   }
@@ -557,80 +557,80 @@ package survarium.player
          }
       }
       
-      protected function onMouseItemClick(param1:MouseEventEx) : void
+      protected function onMouseItemClick(event:MouseEventEx) : void
       {
-         var _loc2_:IPaperDollSlot = param1.currentTarget as IPaperDollSlot;
-         trace("onMouseItemClick:::",param1.target,param1.currentTarget,_loc2_,_loc2_ ? _loc2_.enabled : "nl",_loc2_ ? _loc2_.data : "nl");
-         if(!_loc2_ || _loc2_.enabled == false || !_loc2_.data)
+         var slot:IPaperDollSlot = event.currentTarget as IPaperDollSlot;
+         trace("onMouseItemClick:::",event.target,event.currentTarget,slot,slot ? slot.enabled : "nl",slot ? slot.data : "nl");
+         if(!slot || slot.enabled == false || !slot.data)
          {
             return;
          }
-         if(param1.buttonIdx == 0)
+         if(event.buttonIdx == 0)
          {
             return;
          }
-         _contextIndex = _loc2_.index;
-         this.updateSelectedSlot(param1);
-         this._inventory.showContextMenu(_loc2_ as DragSlot);
+         _contextIndex = slot.index;
+         this.updateSelectedSlot(event);
+         this._inventory.showContextMenu(slot as DragSlot);
       }
       
-      private function newItemClick(param1:Event) : void
+      private function newItemClick(event:Event) : void
       {
-         var _loc2_:* = param1.target;
-         dispatchEvent(new ListEvent(ListEvent.ITEM_CLICK,true,false,param1.target.index,-1,-1,param1.target as IListItemRenderer,param1.target.data));
+         var target:* = event.target;
+         dispatchEvent(new ListEvent(ListEvent.ITEM_CLICK,true,false,event.target.index,-1,-1,event.target as IListItemRenderer,event.target.data));
       }
       
-      public function lockSlot(param1:Boolean, param2:uint) : void
+      public function lockSlot(isLocked:Boolean, lockedSlot:uint) : void
       {
-         var _loc3_:*;
-         var _loc4_:uint;
-         while(_loc4_ < _slots.length)
+         var slot:*;
+         var i:uint;
+         while(i < _slots.length)
          {
-            _loc3_ = _slots[_loc4_];
-            if(_loc3_)
+            slot = _slots[i];
+            if(slot)
             {
-               if(param1)
+               if(isLocked)
                {
-                  _loc3_.hideContent(true,false);
+                  slot.hideContent(true,false);
                }
                else
                {
-                  trace("showSlot::",_loc3_.name,_loc3_.isTemponary());
-                  _loc3_.hideContent(false,false);
-                  if((_loc3_.isTemponary()))
+                  trace("showSlot::",slot.name,slot.isTemponary());
+                  slot.hideContent(false,false);
+                  if((slot.isTemponary()))
                   {
-                     _loc3_.reset();
+                     slot.reset();
                   }
                }
             }
-            _loc4_++;
+            i++;
          }
-         _lockedSlot = param2;
+         _lockedSlot = lockedSlot;
       }
       
-      public function onItemUpdated(param1:uint = 0) : void
+      public function onItemUpdated(slotId:uint = 0) : void
       {
          trace("onItemUpdated",_dataProvider);
-         var _loc2_:ItemData = null;
-         var _loc3_:uint = 0;
-         while(_loc3_ < _dataProvider.length)
+         var item:ItemData = null;
+         var i:uint = 0;
+         while(i < _dataProvider.length)
          {
-            if(_dataProvider[_loc3_] && _dataProvider[_loc3_].slotId == param1)
+            if(_dataProvider[i] && _dataProvider[i].slotId == slotId)
             {
-               _loc2_ = _dataProvider[_loc3_];
+               item = _dataProvider[i];
             }
-            _loc3_++;
+            i++;
          }
-         trace("PD::data",_loc2_,this._last_slot);
+         trace("PD::data",item,this._last_slot);
          if(!this._last_slot || !this._last_slot.data || !this._last_slot.selected)
          {
             return;
          }
-         var _loc4_:int = (this._last_slot.data.slotId);
-         trace("PD:onItemUpdated::",_loc4_,param1,this._last_slot.data.name,"ups:",this._last_slot.data.upgrades);
-         if(_loc4_ == param1)
+         var lastSlotId:int = (this._last_slot.data.slotId);
+         trace("PD:onItemUpdated::",lastSlotId,slotId,this._last_slot.data.name,"ups:",this._last_slot.data.upgrades);
+         if(lastSlotId == slotId)
          {
-            dispatchEvent(new ListEvent(ListEvent.ITEM_CLICK,true,false,_loc4_,-1,-1,this._last_slot as IListItemRenderer,_loc2_));
+            dispatchEvent(new ListEvent(ListEvent.ITEM_CLICK,true,false,lastSlotId,-1,-1,this._last_slot as IListItemRenderer,item));
          }
       }
       
@@ -638,26 +638,26 @@ package survarium.player
       {
          trace("PD:selectAvailableSlot",this._last_name,this._last_slot);
          _last_name = "";
-         var _loc1_:uint = 0;
-         var _loc2_:int;
-         var _loc3_:int;
-         while(_loc1_ < this._slotSearch.length)
+         var i:uint = 0;
+         var slotIndex:int;
+         var listIndex:int;
+         while(i < this._slotSearch.length)
          {
-            _loc2_ = _slotNames.indexOf(this._slotSearch[_loc1_]);
-            if(_slots[_loc2_].data != null)
+            slotIndex = _slotNames.indexOf(this._slotSearch[i]);
+            if(_slots[slotIndex].data != null)
             {
                if(this._last_slot)
                {
                   this._last_slot.selected = false;
                }
-               _last_slot = _slots[_loc2_];
+               _last_slot = _slots[slotIndex];
                this._last_slot.selected = true;
-               _last_name = this._slotSearch[_loc1_];
-               _loc3_ = this._slots_index.indexOf(this._last_name);
-               dispatchEvent(new ListEvent(ListEvent.ITEM_CLICK,true,false,_loc2_,-1,-1,this._last_slot as IListItemRenderer,this._last_slot.data));
+               _last_name = this._slotSearch[i];
+               listIndex = this._slots_index.indexOf(this._last_name);
+               dispatchEvent(new ListEvent(ListEvent.ITEM_CLICK,true,false,slotIndex,-1,-1,this._last_slot as IListItemRenderer,this._last_slot.data));
                break;
             }
-            _loc1_++;
+            i++;
          }
          if(this._last_name == "" && this._last_slot)
          {
@@ -665,53 +665,53 @@ package survarium.player
          }
       }
       
-      private function updateSelectedSlot(param1:Event = null) : void
+      private function updateSelectedSlot(event:Event = null) : void
       {
-         trace("PD:updateSelectedSlot:",param1.type,param1.target.name,param1.target.data,param1.currentTarget,this._last_name);
-         var _loc2_:* = param1.currentTarget;
-         if(!_loc2_)
+         trace("PD:updateSelectedSlot:",event.type,event.target.name,event.target.data,event.currentTarget,this._last_name);
+         var slot:* = event.currentTarget;
+         if(!slot)
          {
             return;
          }
-         var _loc3_:String = _loc2_.name;
-         var _loc4_:int;
-         var _loc5_:ItemData;
-         if(this._last_name != _loc3_)
+         var slotName:String = slot.name;
+         var listIndex:int;
+         var emptyItem:ItemData;
+         if(this._last_name != slotName)
          {
-            _loc4_ = this._slots_index.indexOf(_loc3_);
-            if(_loc4_ < 2 && !_loc2_.data && param1.type != Events.DROP_IN)
+            listIndex = this._slots_index.indexOf(slotName);
+            if(listIndex < 2 && !slot.data && event.type != Events.DROP_IN)
             {
-               this._inventory.selectCategory(_slotAgreements[_loc3_],true);
-               _loc5_ = new ItemData();
+               this._inventory.selectCategory(_slotAgreements[slotName],true);
+               emptyItem = new ItemData();
                this.clearSelection();
-               this._inventory.setPrimaryItem(_loc5_);
-               _last_slot = _loc2_;
-               _loc2_.selected = true;
+               this._inventory.setPrimaryItem(emptyItem);
+               _last_slot = slot;
+               slot.selected = true;
                return;
             }
-            _last_name = _loc3_;
+            _last_name = slotName;
             if(this._last_slot)
             {
                this._last_slot.selected = false;
             }
-            _last_slot = _loc2_;
-            _loc2_.selected = true;
-            trace("updateSelectorSlot::",_loc4_,_loc2_.index);
-            if(_loc2_ && param1.type != Events.DROP_IN)
+            _last_slot = slot;
+            slot.selected = true;
+            trace("updateSelectorSlot::",listIndex,slot.index);
+            if(slot && event.type != Events.DROP_IN)
             {
-               this._inventory.selectCategory(_slotAgreements[_loc3_],!_loc2_.data);
-               if(_loc2_.data)
+               this._inventory.selectCategory(_slotAgreements[slotName],!slot.data);
+               if(slot.data)
                {
-                  this._inventory.selectItem(_loc2_.data.itemId);
+                  this._inventory.selectItem(slot.data.itemId);
                }
             }
          }
-         else if(_loc2_ && param1.type != Events.DROP_IN)
+         else if(slot && event.type != Events.DROP_IN)
          {
-            this._inventory.selectCategory(_slotAgreements[_loc3_],!_loc2_.data);
-            if(_loc2_.data)
+            this._inventory.selectCategory(_slotAgreements[slotName],!slot.data);
+            if(slot.data)
             {
-               this._inventory.selectItem(_loc2_.data.itemId);
+               this._inventory.selectItem(slot.data.itemId);
             }
          }
       }

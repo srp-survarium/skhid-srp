@@ -29,628 +29,628 @@ package survarium.item
          super();
       }
       
-      public static function setItemsCompatibility(param1:Array) : void
+      public static function setItemsCompatibility(pairs:Array) : void
       {
-         var _loc3_:Object = null;
-         var _loc2_:int = 0;
-         while(_loc2_ < param1.length)
+         var pair:Object = null;
+         var i:int = 0;
+         while(i < pairs.length)
          {
-            _loc3_ = param1[_loc2_];
-            if(!UpgradeWindow.addCompatibility(int(_loc3_.first_item_dict_id),int(_loc3_.second_item_dict_id)))
+            pair = pairs[i];
+            if(!UpgradeWindow.addCompatibility(int(pair.first_item_dict_id),int(pair.second_item_dict_id)))
             {
-               if(!_itemsAgreements[_loc3_.first_item_dict_id])
+               if(!_itemsAgreements[pair.first_item_dict_id])
                {
-                  _itemsAgreements[_loc3_.first_item_dict_id] = new Array();
+                  _itemsAgreements[pair.first_item_dict_id] = new Array();
                }
-               _itemsAgreements[_loc3_.first_item_dict_id].push(_loc3_.second_item_dict_id);
+               _itemsAgreements[pair.first_item_dict_id].push(pair.second_item_dict_id);
             }
-            _loc2_++;
+            i++;
          }
       }
       
-      public static function getItemCombableItemNames(param1:int) : Array
+      public static function getItemCombableItemNames(value:int) : Array
       {
-         var _loc2_:Array = getList(param1);
-         return _loc2_;
+         var result:Array = getList(value);
+         return result;
       }
       
-      public static function getList(param1:int) : Array
+      public static function getList(dictId:int) : Array
       {
-         var _loc2_:Array = new Array();
-         var _loc3_:Array;
-         var _loc4_:uint = 0;
-         var _loc5_:String;
-         var _loc6_:int;
-         if(_itemsAgreements[param1] != undefined)
+         var itemIds:Array = new Array();
+         var partners:Array;
+         var count:uint = 0;
+         var key:String;
+         var i:int;
+         if(_itemsAgreements[dictId] != undefined)
          {
-            _loc3_ = _itemsAgreements[param1];
-            _loc4_ = _loc3_.length;
-            _loc6_ = 0;
-            while(_loc6_ < _loc4_)
+            partners = _itemsAgreements[dictId];
+            count = partners.length;
+            i = 0;
+            while(i < count)
             {
-               _loc2_.push(_loc3_[_loc6_]);
-               _loc6_++;
+               itemIds.push(partners[i]);
+               i++;
             }
          }
-         for(_loc5_ in _itemsAgreements)
+         for(key in _itemsAgreements)
          {
-            if(_loc5_ != param1.toString())
+            if(key != dictId.toString())
             {
-               _loc3_ = _itemsAgreements[_loc5_];
-               if(_loc3_.indexOf(param1) != -1)
+               partners = _itemsAgreements[key];
+               if(partners.indexOf(dictId) != -1)
                {
-                  _loc2_.push(int(_loc5_));
+                  itemIds.push(int(key));
                }
             }
          }
-         _loc2_.sort(Array.NUMERIC);
-         return _loc2_;
+         itemIds.sort(Array.NUMERIC);
+         return itemIds;
       }
       
-      public static function getPair(param1:int, param2:int) : Boolean
+      public static function getPair(firstId:int, secondId:int) : Boolean
       {
-         var _loc3_:Boolean;
-         if(_itemsAgreements[param1] as Array && (_itemsAgreements[param1] as Array).indexOf(param2) != -1)
+         var paired:Boolean;
+         if(_itemsAgreements[firstId] as Array && (_itemsAgreements[firstId] as Array).indexOf(secondId) != -1)
          {
             return true;
          }
-         if(_itemsAgreements[param2] as Array && (_itemsAgreements[param2] as Array).indexOf(param1) != -1)
+         if(_itemsAgreements[secondId] as Array && (_itemsAgreements[secondId] as Array).indexOf(firstId) != -1)
          {
             return true;
          }
          return false;
       }
       
-      public static function isSame(param1:int, param2:int) : Boolean
+      public static function isSame(firstId:int, secondId:int) : Boolean
       {
-         var _loc3_:Array = getList(param1);
-         var _loc4_:Array = getList(param2);
-         if(_loc3_.length != _loc4_.length)
+         var firstList:Array = getList(firstId);
+         var secondList:Array = getList(secondId);
+         if(firstList.length != secondList.length)
          {
             return false;
          }
-         var _loc5_:int = 0;
-         while(_loc5_ < _loc3_.length)
+         var i:int = 0;
+         while(i < firstList.length)
          {
-            if(_loc3_[_loc5_] != _loc4_[_loc5_])
+            if(firstList[i] != secondList[i])
             {
                return false;
             }
-            _loc5_++;
+            i++;
          }
          return true;
       }
       
-      public static function getCategory(param1:int) : int
+      public static function getCategory(_cat:int) : int
       {
-         var _loc2_:int = param1;
-         if(_loc2_ == 1 || _loc2_ == 2 || _loc2_ == 3 || _loc2_ == 4 || _loc2_ == 5 || _loc2_ == 6 || _loc2_ == 7)
+         var current_item_category_id:int = _cat;
+         if(current_item_category_id == 1 || current_item_category_id == 2 || current_item_category_id == 3 || current_item_category_id == 4 || current_item_category_id == 5 || current_item_category_id == 6 || current_item_category_id == 7)
          {
             return 1;
          }
-         if(_loc2_ == 8 || _loc2_ == 13 || _loc2_ == 14 || _loc2_ == 15 || _loc2_ == 16 || _loc2_ == 17)
+         if(current_item_category_id == 8 || current_item_category_id == 13 || current_item_category_id == 14 || current_item_category_id == 15 || current_item_category_id == 16 || current_item_category_id == 17)
          {
             return 2;
          }
-         if(_loc2_ == 9 || _loc2_ == 18 || _loc2_ == 19 || _loc2_ == 20 || _loc2_ == 21)
+         if(current_item_category_id == 9 || current_item_category_id == 18 || current_item_category_id == 19 || current_item_category_id == 20 || current_item_category_id == 21)
          {
             return 3;
          }
-         if(_loc2_ == 25 || _loc2_ == 26 || _loc2_ == 27 || _loc2_ == 28 || _loc2_ == 29)
+         if(current_item_category_id == 25 || current_item_category_id == 26 || current_item_category_id == 27 || current_item_category_id == 28 || current_item_category_id == 29)
          {
             return 5;
          }
          return 4;
       }
       
-      public static function isItemCraftable(param1:ItemData) : Boolean
+      public static function isItemCraftable(value:ItemData) : Boolean
       {
-         return !param1.isStack && param1.descriptor <= 100 && !param1.repairTime && (param1.superCategory == 1 || param1.superCategory == 2 || param1.superCategory == 3);
+         return !value.isStack && value.descriptor <= 100 && !value.repairTime && (value.superCategory == 1 || value.superCategory == 2 || value.superCategory == 3);
       }
       
-      public function registerItemDescriptor(param1:ItemDescriptor) : void
+      public function registerItemDescriptor(link:ItemDescriptor) : void
       {
-         _itemDescriptor = param1;
+         _itemDescriptor = link;
       }
       
-      public function getInventoryItem(param1:uint) : ItemData
+      public function getInventoryItem(itemId:uint) : ItemData
       {
          return new ItemData();
       }
       
-      public function createBaseItem(param1:uint) : ItemData
+      public function createBaseItem(dictId:uint) : ItemData
       {
          trace("factory::",this._itemDescriptor);
-         var _loc2_:Object = this._itemDescriptor.getItemDescription(param1);
-         var _loc3_:ItemData;
-         var _loc4_:IconContainer;
-         trace("createBaseItem",param1,_loc2_);
-         _loc3_ = new ItemData();
-         var _loc5_:int = getCategory(_loc2_.category);
-         if(_loc5_ == 1)
+         var description:Object = this._itemDescriptor.getItemDescription(dictId);
+         var item:ItemData;
+         var icons:IconContainer;
+         trace("createBaseItem",dictId,description);
+         item = new ItemData();
+         var superCategory:int = getCategory(description.category);
+         if(superCategory == 1)
          {
-            _loc4_ = IconContainer.getInstance("equipment");
+            icons = IconContainer.getInstance("equipment");
          }
-         else if(_loc5_ == 2)
+         else if(superCategory == 2)
          {
-            _loc4_ = IconContainer.getInstance("weapons");
+            icons = IconContainer.getInstance("weapons");
          }
-         else if(_loc5_ == 5)
+         else if(superCategory == 5)
          {
-            if(_loc2_.category == Category.VOUCHER || _loc2_.category == 28 || _loc2_.category == Category.GOLD)
+            if(description.category == Category.VOUCHER || description.category == 28 || description.category == Category.GOLD)
             {
-               _loc4_ = IconContainer.getInstance("vouchers");
+               icons = IconContainer.getInstance("vouchers");
             }
-            else if(_loc2_.category == Category.DECAL)
+            else if(description.category == Category.DECAL)
             {
-               _loc4_ = IconContainer.getInstance("decals");
+               icons = IconContainer.getInstance("decals");
             }
             else
             {
-               _loc4_ = IconContainer.getInstance("camo");
+               icons = IconContainer.getInstance("camo");
             }
          }
          else
          {
-            _loc4_ = IconContainer.getInstance("consumables");
+            icons = IconContainer.getInstance("consumables");
          }
-         if(_loc2_.icon_row == undefined && _loc4_)
+         if(description.icon_row == undefined && icons)
          {
-            _loc2_.icon_row = _loc2_.icon % _loc4_.rows + 1;
-            _loc2_.icon_column = int(_loc2_.icon / _loc4_.rows) + 1;
-            trace("create_icon",_loc2_.icon,_loc2_.icon_row,_loc2_.icon_column);
+            description.icon_row = description.icon % icons.rows + 1;
+            description.icon_column = int(description.icon / icons.rows) + 1;
+            trace("create_icon",description.icon,description.icon_row,description.icon_column);
          }
-         var _loc6_:int = _loc2_.icon_row - 1;
-         var _loc7_:int = _loc2_.icon_column - 1;
-         var _loc8_:Icon;
-         trace("IL_icon",_loc3_.iconId,"|",_loc6_,_loc7_);
-         if(_loc4_)
+         var iconRow:int = description.icon_row - 1;
+         var iconColumn:int = description.icon_column - 1;
+         var icon:Icon;
+         trace("IL_icon",item.iconId,"|",iconRow,iconColumn);
+         if(icons)
          {
-            _loc3_.iconId = _loc7_ * _loc4_.rows + _loc6_;
-            _loc8_ = _loc4_.getIcon(_loc3_.iconId);
-            _loc3_.icon = _loc8_;
-            _loc3_.dragIcon = _loc8_.clone();
-            _loc3_.messIcon = _loc8_.clone();
+            item.iconId = iconColumn * icons.rows + iconRow;
+            icon = icons.getIcon(item.iconId);
+            item.icon = icon;
+            item.dragIcon = icon.clone();
+            item.messIcon = icon.clone();
          }
          else
          {
-            _loc3_.iconId = 0;
-            _loc8_ = new Icon();
-            _loc3_.icon = _loc8_;
-            _loc3_.dragIcon = _loc8_;
-            _loc3_.messIcon = _loc8_;
+            item.iconId = 0;
+            icon = new Icon();
+            item.icon = icon;
+            item.dragIcon = icon;
+            item.messIcon = icon;
          }
-         if(_loc2_.double_handed == undefined)
+         if(description.double_handed == undefined)
          {
-            _loc2_.double_handed = true;
+            description.double_handed = true;
          }
-         _loc3_.matchMakingLevel = _loc2_.match_making_level;
-         _loc3_.additionalSlots = _loc2_.additional_slots;
-         _loc3_.type = _loc2_.voucher_type;
-         _loc3_.superCategory = _loc5_;
-         _loc3_.category = _loc2_.category;
-         _loc3_.isWeapon = _loc5_ == 2;
-         _loc3_.isStack = _loc2_.is_stack;
-         _loc3_.oneHanded = !_loc2_.double_handed;
-         _loc3_.isPremium = _loc2_.is_premium;
-         _loc3_.name = _loc2_.name;
-         _loc3_.dictId = param1;
-         _loc3_.repairCostRatio = _loc2_.repair_cost_ratio;
-         if(_loc2_.modifiers == undefined)
+         item.matchMakingLevel = description.match_making_level;
+         item.additionalSlots = description.additional_slots;
+         item.type = description.voucher_type;
+         item.superCategory = superCategory;
+         item.category = description.category;
+         item.isWeapon = superCategory == 2;
+         item.isStack = description.is_stack;
+         item.oneHanded = !description.double_handed;
+         item.isPremium = description.is_premium;
+         item.name = description.name;
+         item.dictId = dictId;
+         item.repairCostRatio = description.repair_cost_ratio;
+         if(description.modifiers == undefined)
          {
-            _loc2_.modifiers = [];
+            description.modifiers = [];
          }
-         _loc3_.modifiers = _loc2_.modifiers;
-         _loc3_.modifiersDefault = _loc2_.modifiers;
-         _loc3_.rank = _loc2_.rarity_level;
-         _loc3_.fromBundle = _loc3_.rank > 0;
-         var _loc9_:uint = _loc3_.modifiersDefault.length;
-         var _loc10_:uint = 0;
-         while(_loc10_ < _loc9_)
+         item.modifiers = description.modifiers;
+         item.modifiersDefault = description.modifiers;
+         item.rank = description.rarity_level;
+         item.fromBundle = item.rank > 0;
+         var defaultCount:uint = item.modifiersDefault.length;
+         var i:uint = 0;
+         while(i < defaultCount)
          {
-            _loc3_.modifiersDefault[_loc10_].isDefault = true;
-            _loc10_++;
+            item.modifiersDefault[i].isDefault = true;
+            i++;
          }
-         _loc3_.properties = _loc2_.item_properties;
-         if(_loc2_.descr)
+         item.properties = description.item_properties;
+         if(description.descr)
          {
-            _loc3_.itemDescription = _loc2_.descr;
+            item.itemDescription = description.descr;
          }
-         _loc3_.cost = _loc2_.cost;
-         _loc3_.itemLevel = _loc2_.level;
-         if(_loc2_.camo_available == undefined)
+         item.cost = description.cost;
+         item.itemLevel = description.level;
+         if(description.camo_available == undefined)
          {
-            _loc2_.camo_available = 1;
+            description.camo_available = 1;
          }
-         if(_loc2_.decal_available == undefined)
+         if(description.decal_available == undefined)
          {
-            _loc2_.decal_available = 0;
+            description.decal_available = 0;
          }
-         _loc3_.sellers = _loc2_.sellers;
-         _loc3_.camoAvailable = _loc2_.camo_available;
-         _loc3_.decalAvailable = _loc2_.decal_available;
-         if(_loc2_.upgrades_available == undefined)
+         item.sellers = description.sellers;
+         item.camoAvailable = description.camo_available;
+         item.decalAvailable = description.decal_available;
+         if(description.upgrades_available == undefined)
          {
-            _loc2_.upgrades_available = 4;
+            description.upgrades_available = 4;
          }
-         _loc3_.upgradesAvailable = _loc2_.upgrades_available;
-         _loc3_.weight = _loc2_.weight;
-         _loc3_.clipSize = _loc2_.clip_size;
-         _loc3_.quickSlotItemSize = _loc2_.fills_whole_pocket ? 2 : 1;
-         _loc3_.clipsInBag = _loc2_.clips_in_bag;
-         if(_loc2_.required_bags != undefined)
+         item.upgradesAvailable = description.upgrades_available;
+         item.weight = description.weight;
+         item.clipSize = description.clip_size;
+         item.quickSlotItemSize = description.fills_whole_pocket ? 2 : 1;
+         item.clipsInBag = description.clips_in_bag;
+         if(description.required_bags != undefined)
          {
-            _loc3_.clipsInBag = 1 / _loc2_.required_bags;
+            item.clipsInBag = 1 / description.required_bags;
          }
-         _loc3_.usable = _loc3_.category == Category.VOUCHER && (_loc3_.type == 3 || _loc3_.type == 0);
-         var _loc11_:String = "";
-         var _loc12_:Array;
-         var _loc13_:String;
-         var _loc14_:uint;
-         var _loc15_:uint;
-         var _loc16_:String;
-         if(_loc3_.isWeapon)
+         item.usable = item.category == Category.VOUCHER && (item.type == 3 || item.type == 0);
+         var ammoList:String = "";
+         var ammoIds:Array;
+         var unusedText:String;
+         var ammoCount:uint;
+         var ammoIndex:uint;
+         var ammoName:String;
+         if(item.isWeapon)
          {
-            if(!_loc2_.ammo_text)
+            if(!description.ammo_text)
             {
-               _loc12_ = null;
-               if(_loc12_)
+               ammoIds = null;
+               if(ammoIds)
                {
-                  _loc13_ = "";
-                  _loc14_ = _loc12_.length;
-                  _loc3_.ammoText = "";
-                  _loc15_ = 0;
-                  while(_loc15_ < _loc14_)
+                  unusedText = "";
+                  ammoCount = ammoIds.length;
+                  item.ammoText = "";
+                  ammoIndex = 0;
+                  while(ammoIndex < ammoCount)
                   {
-                     _loc16_ = this._itemDescriptor.getItemDescription(_loc12_[_loc15_]).name;
-                     if(_loc16_)
+                     ammoName = this._itemDescriptor.getItemDescription(ammoIds[ammoIndex]).name;
+                     if(ammoName)
                      {
-                        _loc11_ += "   " + _loc16_ + "\n";
-                        _loc3_.ammoText += (_loc15_ == 0 ? "" : ", ") + _loc16_;
+                        ammoList += "   " + ammoName + "\n";
+                        item.ammoText += (ammoIndex == 0 ? "" : ", ") + ammoName;
                      }
-                     _loc15_++;
+                     ammoIndex++;
                   }
                }
-               _loc2_.ammo_text = _loc3_.ammoText;
+               description.ammo_text = item.ammoText;
             }
             else
             {
-               _loc3_.ammoText = _loc2_.ammo_text;
+               item.ammoText = description.ammo_text;
             }
          }
-         return _loc3_;
+         return item;
       }
       
-      public function createItem(param1:uint, param2:* = -1) : ItemData
+      public function createItem(dictId:uint, defaultFactionId:* = -1) : ItemData
       {
-         var _loc3_:IconContainer = IconContainer.getInstance("factionItemIcons");
-         var _loc4_:Object = this._itemDescriptor.getItemDescription(param1);
-         var _loc5_:ItemData = this.createBaseItem(param1);
-         var _loc6_:Icon;
-         var _loc7_:int = param2;
-         if(_loc4_ && _loc4_.sellers)
+         var factionIcons:IconContainer = IconContainer.getInstance("factionItemIcons");
+         var description:Object = this._itemDescriptor.getItemDescription(dictId);
+         var item:ItemData = this.createBaseItem(dictId);
+         var sellerIcon:Icon;
+         var factionId:int = defaultFactionId;
+         if(description && description.sellers)
          {
-            if((_loc4_.sellers as Array).length == 1)
+            if((description.sellers as Array).length == 1)
             {
-               _loc7_ = (_loc4_.sellers[0].faction_id);
+               factionId = (description.sellers[0].faction_id);
             }
             else
             {
-               _loc7_ = -1;
+               factionId = -1;
             }
          }
-         if(_loc7_ != -1 && _loc3_)
+         if(factionId != -1 && factionIcons)
          {
-            _loc6_ = _loc3_.getIcon(_loc7_);
+            sellerIcon = factionIcons.getIcon(factionId);
          }
          else
          {
-            _loc6_ = null;
+            sellerIcon = null;
          }
-         _loc5_.sellerIcon = _loc6_;
-         _loc5_.factionId = _loc7_;
-         trace("IL::create_item::",_loc5_.name,_loc5_.category,_loc5_.usable,_loc5_.type,_loc5_.category == Category.VOUCHER,_loc4_.descr);
-         return _loc5_;
+         item.sellerIcon = sellerIcon;
+         item.factionId = factionId;
+         trace("IL::create_item::",item.name,item.category,item.usable,item.type,item.category == Category.VOUCHER,description.descr);
+         return item;
       }
       
-      public function createItemData(param1:Object) : ItemData
+      public function createItemData(itemInfo:Object) : ItemData
       {
-         trace("IF::createItemData",param1.dictId);
-         if(param1.dictId == undefined)
+         trace("IF::createItemData",itemInfo.dictId);
+         if(itemInfo.dictId == undefined)
          {
-            param1.dictId = 70;
+            itemInfo.dictId = 70;
          }
-         var _loc2_:ItemData = this.createItem(param1.dictId,param1.faction_id);
-         _loc2_.value = param1.condition_or_stack;
-         if(param1.double_handed != undefined)
+         var item:ItemData = this.createItem(itemInfo.dictId,itemInfo.faction_id);
+         item.value = itemInfo.condition_or_stack;
+         if(itemInfo.double_handed != undefined)
          {
-            _loc2_.oneHanded = !param1.double_handed;
+            item.oneHanded = !itemInfo.double_handed;
          }
-         if(param1.modifiers != undefined)
+         if(itemInfo.modifiers != undefined)
          {
-            _loc2_.broken = this.getItemBroken(param1.modifiers);
-            _loc2_.modifiers = (param1.modifiers as Array).concat(_loc2_.modifiersDefault);
+            item.broken = this.getItemBroken(itemInfo.modifiers);
+            item.modifiers = (itemInfo.modifiers as Array).concat(item.modifiersDefault);
          }
-         if(param1.rarity_level != undefined)
+         if(itemInfo.rarity_level != undefined)
          {
-            _loc2_.rank = param1.rarity_level;
+            item.rank = itemInfo.rarity_level;
          }
-         if(param1.cost)
+         if(itemInfo.cost)
          {
-            _loc2_.cost = param1.cost;
+            item.cost = itemInfo.cost;
          }
-         _loc2_.camoItem = param1.camo_item;
-         _loc2_.decalItem = param1.decal_item;
-         this.updateItemTipText(_loc2_);
-         return _loc2_;
+         item.camoItem = itemInfo.camo_item;
+         item.decalItem = itemInfo.decal_item;
+         this.updateItemTipText(item);
+         return item;
       }
       
-      public function fillModifierDescription(param1:Object) : void
+      public function fillModifierDescription(modifier:Object) : void
       {
-         var _loc2_:Object;
+         var propDesc:Object;
          _propsDescriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
-         var _loc3_:Object = param1.props;
-         var _loc4_:Object;
-         var _loc5_:Number;
-         var _loc6_:String;
-         var _loc7_:String;
-         var _loc8_:String;
-         var _loc9_:String;
-         trace("modifier::",_loc3_);
-         param1.textValue = "";
-         for each(_loc4_ in _loc3_)
+         var props:Object = modifier.props;
+         var prop:Object;
+         var propValue:Number;
+         var postfix:String;
+         var sign:String;
+         var color:String;
+         var line:String;
+         trace("modifier::",props);
+         modifier.textValue = "";
+         for each(prop in props)
          {
-            _loc5_ = Number(_loc4_.prop_value);
-            if(_loc5_ != Number(_loc4_.prop_value))
+            propValue = Number(prop.prop_value);
+            if(propValue != Number(prop.prop_value))
             {
-               _loc5_ = Util.stringToNumber(_loc4_.prop_value);
+               propValue = Util.stringToNumber(prop.prop_value);
             }
-            _loc2_ = this._propsDescriptor.getPropertyDescription(_loc4_.prop_id);
-            if(_loc2_)
+            propDesc = this._propsDescriptor.getPropertyDescription(prop.prop_id);
+            if(propDesc)
             {
-               _loc6_ = _loc2_.modifier_type == 0 ? _loc2_.postfix : "%";
-               _loc7_ = _loc4_.prop_value >= 0 ? "+" : "";
-               _loc8_ = _loc2_.direction == 0 && _loc4_.prop_value < 0 || _loc2_.direction == 1 && _loc4_.prop_value > 0 ? "green" : "red";
-               _loc5_ = _loc2_.modifier_type == 0 ? (_loc4_.prop_value) : _loc4_.prop_value * 100;
-               _loc9_ = _loc2_.prop_name + ": " + Util.styledChar(_loc7_ + _loc5_ + (_loc6_ ? _loc6_ : ""),_loc8_);
-               param1.textValue += _loc9_ + "\n";
+               postfix = propDesc.modifier_type == 0 ? propDesc.postfix : "%";
+               sign = prop.prop_value >= 0 ? "+" : "";
+               color = propDesc.direction == 0 && prop.prop_value < 0 || propDesc.direction == 1 && prop.prop_value > 0 ? "green" : "red";
+               propValue = propDesc.modifier_type == 0 ? (prop.prop_value) : prop.prop_value * 100;
+               line = propDesc.prop_name + ": " + Util.styledChar(sign + propValue + (postfix ? postfix : ""),color);
+               modifier.textValue += line + "\n";
             }
          }
       }
       
-      public function fillModifiersDescription(param1:ItemData) : void
+      public function fillModifiersDescription(item:ItemData) : void
       {
          _propsDescriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
-         var _loc2_:Array = param1.modifiers;
-         trace("fillModifiersDescription::",param1.name,param1.itemId,_loc2_);
-         if(!_loc2_)
+         var modifiers:Array = item.modifiers;
+         trace("fillModifiersDescription::",item.name,item.itemId,modifiers);
+         if(!modifiers)
          {
             return;
          }
-         var _loc3_:String = "";
-         var _loc4_:Object = new Object();
-         var _loc5_:String = param1.name;
-         var _loc6_:Object;
-         var _loc7_:String;
-         var _loc8_:String;
-         var _loc9_:String;
-         var _loc10_:uint = 0;
-         var _loc11_:Object;
-         var _loc12_:Object;
-         var _loc13_:Number;
-         var _loc14_:String;
-         var _loc15_:String;
-         while(_loc10_ < _loc2_.length)
+         var summary:String = "";
+         var totals:Object = new Object();
+         var itemName:String = item.name;
+         var propDesc:Object;
+         var postfix:String;
+         var sign:String;
+         var color:String;
+         var i:uint = 0;
+         var props:Object;
+         var prop:Object;
+         var propValue:Number;
+         var line:String;
+         var totalLine:String;
+         while(i < modifiers.length)
          {
-            _loc11_ = _loc2_[_loc10_].props;
-            trace("modifier::",_loc3_,_loc11_);
-            _loc2_[_loc10_].textValue = "";
-            for each(_loc12_ in _loc11_)
+            props = modifiers[i].props;
+            trace("modifier::",summary,props);
+            modifiers[i].textValue = "";
+            for each(prop in props)
             {
-               if(_loc4_[_loc12_.prop_id] == undefined)
+               if(totals[prop.prop_id] == undefined)
                {
-                  trace("addPropValue::",_loc12_.prop_id,_loc12_.prop_value);
-                  _loc4_[_loc12_.prop_id] = {
-                     prop_id:_loc12_.prop_id,
+                  trace("addPropValue::",prop.prop_id,prop.prop_value);
+                  totals[prop.prop_id] = {
+                     prop_id:prop.prop_id,
                      prop_value:0,
-                     modifier:_loc2_[_loc10_]
+                     modifier:modifiers[i]
                   };
                }
-               _loc13_ = Number(_loc12_.prop_value);
-               if(_loc13_ != Number(_loc12_.prop_value))
+               propValue = Number(prop.prop_value);
+               if(propValue != Number(prop.prop_value))
                {
-                  _loc13_ = Util.stringToNumber(_loc12_.prop_value);
+                  propValue = Util.stringToNumber(prop.prop_value);
                }
-               _loc4_[_loc12_.prop_id].prop_value += _loc13_;
-               _loc6_ = this._propsDescriptor.getPropertyDescription(_loc12_.prop_id);
-               if(_loc6_)
+               totals[prop.prop_id].prop_value += propValue;
+               propDesc = this._propsDescriptor.getPropertyDescription(prop.prop_id);
+               if(propDesc)
                {
-                  _loc7_ = _loc6_.modifier_type == 0 ? _loc6_.postfix : "%";
-                  _loc8_ = _loc12_.prop_value >= 0 ? "+" : "";
-                  _loc9_ = _loc6_.direction == 0 && _loc12_.prop_value < 0 || _loc6_.direction == 1 && _loc12_.prop_value > 0 ? "green" : "red";
-                  _loc13_ = _loc6_.modifier_type == 0 ? (_loc12_.prop_value) : _loc12_.prop_value * 100;
-                  _loc14_ = _loc6_.prop_name + ": " + Util.styledChar(_loc8_ + _loc13_ + (_loc7_ ? _loc7_ : ""),_loc9_);
-                  _loc2_[_loc10_].textValue += _loc14_ + "\n";
+                  postfix = propDesc.modifier_type == 0 ? propDesc.postfix : "%";
+                  sign = prop.prop_value >= 0 ? "+" : "";
+                  color = propDesc.direction == 0 && prop.prop_value < 0 || propDesc.direction == 1 && prop.prop_value > 0 ? "green" : "red";
+                  propValue = propDesc.modifier_type == 0 ? (prop.prop_value) : prop.prop_value * 100;
+                  line = propDesc.prop_name + ": " + Util.styledChar(sign + propValue + (postfix ? postfix : ""),color);
+                  modifiers[i].textValue += line + "\n";
                }
             }
-            _loc10_++;
+            i++;
          }
-         for each(_loc12_ in _loc4_)
+         for each(prop in totals)
          {
-            _loc6_ = this._propsDescriptor.getPropertyDescription(_loc12_.prop_id);
-            if(_loc6_)
+            propDesc = this._propsDescriptor.getPropertyDescription(prop.prop_id);
+            if(propDesc)
             {
-               if(_loc6_.postfix == undefined)
+               if(propDesc.postfix == undefined)
                {
-                  _loc6_.postfix = "";
+                  propDesc.postfix = "";
                }
-               _loc7_ = _loc6_.modifier_type == 0 ? _loc6_.postfix : "%";
-               _loc8_ = _loc12_.prop_value >= 0 ? "+" : "";
-               if(_loc6_.modifier_type == undefined)
+               postfix = propDesc.modifier_type == 0 ? propDesc.postfix : "%";
+               sign = prop.prop_value >= 0 ? "+" : "";
+               if(propDesc.modifier_type == undefined)
                {
-                  _loc6_.modifier_type = 2;
-                  _loc6_.modifier_type = _loc12_.modifier_type;
+                  propDesc.modifier_type = 2;
+                  propDesc.modifier_type = prop.modifier_type;
                }
-               _loc13_ = _loc6_.modifier_type == 0 ? (_loc12_.prop_value) : _loc12_.prop_value * 100;
-               _loc13_ = Math.round(_loc13_ / 0.01) * 0.01;
-               _loc9_ = _loc6_.direction == 0 && _loc12_.prop_value < 0 || _loc6_.direction == 1 && _loc12_.prop_value > 0 ? "green" : "red";
-               _loc15_ = _loc6_.prop_name + ": " + Util.styledChar(_loc8_ + _loc13_ + _loc7_,_loc9_);
-               if(!_loc12_.modifier.textValue)
+               propValue = propDesc.modifier_type == 0 ? (prop.prop_value) : prop.prop_value * 100;
+               propValue = Math.round(propValue / 0.01) * 0.01;
+               color = propDesc.direction == 0 && prop.prop_value < 0 || propDesc.direction == 1 && prop.prop_value > 0 ? "green" : "red";
+               totalLine = propDesc.prop_name + ": " + Util.styledChar(sign + propValue + postfix,color);
+               if(!prop.modifier.textValue)
                {
-                  _loc12_.modifier.textValue = _loc15_;
+                  prop.modifier.textValue = totalLine;
                }
-               _loc3_ += _loc15_ + "\n";
+               summary += totalLine + "\n";
             }
          }
-         param1.modifiersDescription = _loc3_;
+         item.modifiersDescription = summary;
       }
       
-      public function getItemData(param1:uint) : Object
+      public function getItemData(dictId:uint) : Object
       {
-         var _loc2_:Object = this._itemDescriptor.getItemDescription(param1);
-         return _loc2_;
+         var result:Object = this._itemDescriptor.getItemDescription(dictId);
+         return result;
       }
       
-      public function setRewardIcons(param1:Object) : void
+      public function setRewardIcons(value:Object) : void
       {
-         _rewardIcons = param1;
+         _rewardIcons = value;
       }
       
-      public function fillRewardItems(param1:Array) : void
+      public function fillRewardItems(rewards:Array) : void
       {
-         var _loc2_:uint = param1.length;
-         var _loc3_:uint = 0;
-         var _loc4_:Object;
-         var _loc5_:ItemData;
-         while(_loc3_ < _loc2_)
+         var count:uint = rewards.length;
+         var i:uint = 0;
+         var reward:Object;
+         var item:ItemData;
+         while(i < count)
          {
-            _loc4_ = param1[_loc3_];
-            if(_loc4_.type == Reward.ITEM)
+            reward = rewards[i];
+            if(reward.type == Reward.ITEM)
             {
-               _loc5_ = this.createBaseItem(_loc4_.param);
-               if(_loc5_.isStack)
+               item = this.createBaseItem(reward.param);
+               if(item.isStack)
                {
-                  _loc5_.value = _loc4_.amount;
+                  item.value = reward.amount;
                }
-               _loc5_.tipText = _loc5_.name;
-               _loc4_.data = _loc5_;
+               item.tipText = item.name;
+               reward.data = item;
             }
-            else if(_loc4_.type == Reward.EXPERIENCE)
+            else if(reward.type == Reward.EXPERIENCE)
             {
-               _loc5_ = new ItemData();
-               _loc5_.icon = this._rewardIcons[_loc4_.type] ? (this._rewardIcons[_loc4_.type] as Icon).clone() : null;
-               _loc5_.value = _loc4_.amount;
-               _loc5_.name = "";
-               _loc5_.isStack = true;
-               _loc5_.superCategory = Category.BASE_VOUCHER;
-               _loc5_.tipText = LocalizationData.getName("experience");
-               _loc4_.data = _loc5_;
+               item = new ItemData();
+               item.icon = this._rewardIcons[reward.type] ? (this._rewardIcons[reward.type] as Icon).clone() : null;
+               item.value = reward.amount;
+               item.name = "";
+               item.isStack = true;
+               item.superCategory = Category.BASE_VOUCHER;
+               item.tipText = LocalizationData.getName("experience");
+               reward.data = item;
             }
-            trace("rewardCreated::",_loc5_.name,_loc5_.icon);
-            _loc3_++;
+            trace("rewardCreated::",item.name,item.icon);
+            i++;
          }
       }
       
-      protected function updateItemTipText(param1:ItemData) : void
+      protected function updateItemTipText(item:ItemData) : void
       {
-         var _loc2_:String = param1.superCategory != 5 ? Util.styledChar(LocalizationData.getName("equipment_level") + " - " + param1.itemLevel.toString(),"gray") : "";
-         var _loc3_:String = Util.styledChar(param1.name,"white") + "\n" + (param1.rank ? Util.styledChar(LocalizationData.getName("modified") + "\n","green") : "") + (param1.ammoText ? LocalizationData.getName("ammo") + ":\n" + param1.ammoText : "") + (_loc2_ ? Util.styledChar(" \n","small") + _loc2_ : "");
-         param1.tipText = _loc3_;
+         var levelText:String = item.superCategory != 5 ? Util.styledChar(LocalizationData.getName("equipment_level") + " - " + item.itemLevel.toString(),"gray") : "";
+         var tip:String = Util.styledChar(item.name,"white") + "\n" + (item.rank ? Util.styledChar(LocalizationData.getName("modified") + "\n","green") : "") + (item.ammoText ? LocalizationData.getName("ammo") + ":\n" + item.ammoText : "") + (levelText ? Util.styledChar(" \n","small") + levelText : "");
+         item.tipText = tip;
       }
       
-      protected function getFailModifiers(param1:Object) : Array
+      protected function getFailModifiers(itemInfo:Object) : Array
       {
-         var _loc2_:Array = param1.modifiers != null ? param1.modifiers : [];
-         var _loc3_:Array = [];
-         var _loc4_:uint = 0;
-         var _loc5_:IconContainer;
-         var _loc6_:Icon;
-         while(_loc4_ < _loc2_.length)
+         var modifiers:Array = itemInfo.modifiers != null ? itemInfo.modifiers : [];
+         var failed:Array = [];
+         var i:uint = 0;
+         var icons:IconContainer;
+         var modifierIcon:Icon;
+         while(i < modifiers.length)
          {
-            if(_loc2_[_loc4_].state == 1)
+            if(modifiers[i].state == 1)
             {
-               _loc5_ = IconContainer.getInstance("modifiers");
-               _loc6_ = _loc5_.getIcon(_loc2_[_loc4_].icon);
-               _loc3_.push({
-                  name:_loc2_[_loc4_].name,
-                  props:_loc2_[_loc4_].props,
-                  icon:_loc6_,
-                  state:_loc2_[_loc4_].state,
-                  fix_time_general:_loc2_[_loc4_].fix_time_general,
-                  fix_cost_general:_loc2_[_loc4_].fix_cost_general,
-                  fix_cost_gold:_loc2_[_loc4_].fix_cost_gold
+               icons = IconContainer.getInstance("modifiers");
+               modifierIcon = icons.getIcon(modifiers[i].icon);
+               failed.push({
+                  name:modifiers[i].name,
+                  props:modifiers[i].props,
+                  icon:modifierIcon,
+                  state:modifiers[i].state,
+                  fix_time_general:modifiers[i].fix_time_general,
+                  fix_cost_general:modifiers[i].fix_cost_general,
+                  fix_cost_gold:modifiers[i].fix_cost_gold
                });
             }
-            _loc4_++;
+            i++;
          }
-         this.fillModifiersNames(_loc3_);
-         return _loc3_;
+         this.fillModifiersNames(failed);
+         return failed;
       }
       
-      protected function fillModifiersNames(param1:Array) : void
+      protected function fillModifiersNames(modifiers:Array) : void
       {
-         var _loc2_:uint = 0;
-         var _loc3_:String;
-         var _loc4_:Object;
-         var _loc5_:Object;
-         var _loc6_:Object;
-         var _loc7_:String;
-         var _loc8_:String;
-         var _loc9_:Number;
-         var _loc10_:String;
-         while(_loc2_ < param1.length)
+         var i:uint = 0;
+         var propsText:String;
+         var props:Object;
+         var prop:Object;
+         var propDesc:Object;
+         var postfix:String;
+         var sign:String;
+         var propValue:Number;
+         var color:String;
+         while(i < modifiers.length)
          {
-            _loc3_ = "";
-            _loc4_ = param1[_loc2_].props;
-            trace("props::",_loc3_,_loc4_,this._propsDescriptor);
-            for each(_loc5_ in _loc4_)
+            propsText = "";
+            props = modifiers[i].props;
+            trace("props::",propsText,props,this._propsDescriptor);
+            for each(prop in props)
             {
-               _loc6_ = this._propsDescriptor.getPropertyDescription(_loc5_.prop_id);
-               if(_loc6_)
+               propDesc = this._propsDescriptor.getPropertyDescription(prop.prop_id);
+               if(propDesc)
                {
-                  if(_loc6_.postfix == undefined)
+                  if(propDesc.postfix == undefined)
                   {
-                     _loc6_.postfix = "";
+                     propDesc.postfix = "";
                   }
-                  _loc7_ = _loc6_.modifier_type == 0 ? _loc6_.postfix : "%";
-                  _loc8_ = _loc5_.prop_value >= 0 ? "+" : "";
-                  if(_loc6_.modifier_type == undefined)
+                  postfix = propDesc.modifier_type == 0 ? propDesc.postfix : "%";
+                  sign = prop.prop_value >= 0 ? "+" : "";
+                  if(propDesc.modifier_type == undefined)
                   {
-                     _loc6_.modifier_type = 2;
-                     _loc6_.modifier_type = _loc5_.modifier_type;
+                     propDesc.modifier_type = 2;
+                     propDesc.modifier_type = prop.modifier_type;
                   }
-                  if(_loc6_.modifier_type == 2)
+                  if(propDesc.modifier_type == 2)
                   {
-                     throw Error("modifier_type at modifier " + param1[_loc2_].name + " for prop_id " + _loc5_.prop_id + " is invalid");
+                     throw Error("modifier_type at modifier " + modifiers[i].name + " for prop_id " + prop.prop_id + " is invalid");
                   }
-                  trace("propValue::",_loc6_.direction,_loc5_.direction);
-                  _loc9_ = _loc6_.modifier_type == 0 ? (_loc5_.prop_value) : _loc5_.prop_value * 100;
-                  _loc10_ = _loc6_.direction == 0 && _loc5_.prop_value < 0 || _loc6_.direction == 1 && _loc5_.prop_value > 0 ? "green" : "red";
-                  _loc3_ += _loc6_.prop_name + ": " + Util.styledChar(_loc8_ + (int(_loc9_) == _loc9_ ? _loc9_.toString() : _loc9_.toFixed(1)) + _loc7_,_loc10_) + "\n";
+                  trace("propValue::",propDesc.direction,prop.direction);
+                  propValue = propDesc.modifier_type == 0 ? (prop.prop_value) : prop.prop_value * 100;
+                  color = propDesc.direction == 0 && prop.prop_value < 0 || propDesc.direction == 1 && prop.prop_value > 0 ? "green" : "red";
+                  propsText += propDesc.prop_name + ": " + Util.styledChar(sign + (int(propValue) == propValue ? propValue.toString() : propValue.toFixed(1)) + postfix,color) + "\n";
                }
             }
-            param1[_loc2_].name = _loc3_;
-            _loc2_++;
+            modifiers[i].name = propsText;
+            i++;
          }
       }
       
-      private function getItemBroken(param1:Array) : Boolean
+      private function getItemBroken(modifiers:Array) : Boolean
       {
-         if(!param1)
+         if(!modifiers)
          {
             return false;
          }
-         var _loc2_:uint = param1.length;
-         var _loc3_:uint = 0;
-         var _loc4_:Object;
-         while(_loc3_ < _loc2_)
+         var count:uint = modifiers.length;
+         var i:uint = 0;
+         var modifier:Object;
+         while(i < count)
          {
-            _loc4_ = param1[_loc3_];
-            if(_loc4_.state)
+            modifier = modifiers[i];
+            if(modifier.state)
             {
                return true;
             }
-            _loc3_++;
+            i++;
          }
          return false;
       }

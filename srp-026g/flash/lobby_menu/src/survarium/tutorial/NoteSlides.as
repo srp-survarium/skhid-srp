@@ -61,12 +61,12 @@ package survarium.tutorial
          this.updateSlideData();
       }
       
-      private function closeTutor(param1:ButtonEvent = null) : void
+      private function closeTutor(event:ButtonEvent = null) : void
       {
          Message.onClick(_id);
       }
       
-      private function prevSlide(param1:ButtonEvent) : void
+      private function prevSlide(event:ButtonEvent) : void
       {
          trace("prevSlide");
          this.container.gotoAndStop(this.container.currentFrame - 1);
@@ -77,30 +77,30 @@ package survarium.tutorial
       private function updateSlideData() : void
       {
          trace("updateSlideData",this.container.currentFrame);
-         var _loc1_:uint = this.container.currentFrame;
-         this.textFieldLabel.text = LocalizationData.getName("survival_notes") + ": " + LocalizationData.getName(this.notesLabel) + " " + String(_loc1_.toString() + "/" + this.container.totalFrames.toString());
+         var frame:uint = this.container.currentFrame;
+         this.textFieldLabel.text = LocalizationData.getName("survival_notes") + ": " + LocalizationData.getName(this.notesLabel) + " " + String(frame.toString() + "/" + this.container.totalFrames.toString());
          textField1 = this.container.getChildByName("text_field_1") as TextField;
          textField2 = this.container.getChildByName("text_field_2") as TextField;
          textField3 = this.container.getChildByName("text_field_3") as TextField;
          if(this.textField1)
          {
-            this.textField1.text = LocalizationData.getName(this.notesLabel + "_frame_" + _loc1_ + "_text_1").toUpperCase();
+            this.textField1.text = LocalizationData.getName(this.notesLabel + "_frame_" + frame + "_text_1").toUpperCase();
          }
          if(this.textField2)
          {
-            this.textField2.text = LocalizationData.getName(this.notesLabel + "_frame_" + _loc1_ + "_text_2").toUpperCase();
+            this.textField2.text = LocalizationData.getName(this.notesLabel + "_frame_" + frame + "_text_2").toUpperCase();
          }
          if(this.textField3)
          {
-            this.textField3.text = LocalizationData.getName(this.notesLabel + "_frame_" + _loc1_ + "_text_3").toUpperCase();
+            this.textField3.text = LocalizationData.getName(this.notesLabel + "_frame_" + frame + "_text_3").toUpperCase();
          }
       }
       
-      private function onRewardRemoved(param1:Event) : void
+      private function onRewardRemoved(event:Event) : void
       {
          trace("onRewardRemoved");
-         param1.target.removeEventListener(Event.REMOVED_FROM_STAGE,this.onRewardRemoved);
-         param1.target.itemSlot.data = null;
+         event.target.removeEventListener(Event.REMOVED_FROM_STAGE,this.onRewardRemoved);
+         event.target.itemSlot.data = null;
       }
       
       private function updateButtons() : void
@@ -113,24 +113,24 @@ package survarium.tutorial
          }
       }
       
-      private function nextSlide(param1:ButtonEvent) : void
+      private function nextSlide(event:ButtonEvent) : void
       {
-         var _loc2_:Array;
-         var _loc3_:Object;
+         var rewards:Array;
+         var messageData:Object;
          trace("nextSlide");
          if(this.container.currentFrame == this.container.totalFrames)
          {
             if(_data.showRewards)
             {
-               _loc2_ = _data.rewards;
-               _loc3_ = {
+               rewards = _data.rewards;
+               messageData = {
                   label:(LocalizationData.getName("survival_notes_complete") + "\n" + "\"" + LocalizationData.getName("survival_notes") + ", " + LocalizationData.getName(this.notesLabel)).toUpperCase() + "\"",
-                  reward_1:(_loc2_ && _loc2_[0] ? _loc2_[0].data : null),
-                  reward_2:(_loc2_ && _loc2_[1] ? _loc2_[1].data : null),
-                  reward_3:(_loc2_ && _loc2_[2] ? _loc2_[2].data : null),
+                  reward_1:(rewards && rewards[0] ? rewards[0].data : null),
+                  reward_2:(rewards && rewards[1] ? rewards[1].data : null),
+                  reward_3:(rewards && rewards[2] ? rewards[2].data : null),
                   notesIndex:this.notesIndex
                };
-               Message.showMessage("tutorial_complete",_loc3_);
+               Message.showMessage("tutorial_complete",messageData);
                this.closeTutor();
             }
             else

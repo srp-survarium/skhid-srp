@@ -152,9 +152,9 @@ package survarium.data
          super();
       }
       
-      public function set upgrades(param1:Array) : void
+      public function set upgrades(value:Array) : void
       {
-         _upgrades = param1;
+         _upgrades = value;
       }
       
       public function get upgrades() : Array
@@ -164,89 +164,89 @@ package survarium.data
       
       public function clone() : ItemData
       {
-         var _loc1_:ItemData = new ItemData();
-         var _loc2_:ItemData = this as ItemData;
-         trace("ItemDataClone::",_loc2_,_loc2_.icon,_loc2_.dragIcon,_loc2_.messIcon,_loc2_.sellerIcon);
-         if(_loc2_.icon)
+         var itemData:ItemData = new ItemData();
+         var origin:ItemData = this as ItemData;
+         trace("ItemDataClone::",origin,origin.icon,origin.dragIcon,origin.messIcon,origin.sellerIcon);
+         if(origin.icon)
          {
-            _loc1_.icon = _loc2_.icon.clone();
+            itemData.icon = origin.icon.clone();
          }
-         if(_loc2_.dragIcon)
+         if(origin.dragIcon)
          {
-            _loc1_.dragIcon = _loc2_.dragIcon.clone();
+            itemData.dragIcon = origin.dragIcon.clone();
          }
-         if(_loc2_.messIcon)
+         if(origin.messIcon)
          {
-            _loc1_.messIcon = _loc2_.messIcon.clone();
+            itemData.messIcon = origin.messIcon.clone();
          }
-         if(_loc2_.sellerIcon)
+         if(origin.sellerIcon)
          {
-            _loc1_.sellerIcon = _loc2_.sellerIcon.clone();
+            itemData.sellerIcon = origin.sellerIcon.clone();
          }
-         _loc1_.name = _loc2_.name;
-         _loc1_.decalItem = _loc2_.decalItem;
-         _loc1_.camoItem = _loc2_.camoItem;
-         _loc1_.upgrades = _loc2_.upgrades;
-         _loc1_.ammoText = _loc2_.ammoText;
-         _loc1_.superCategory = _loc2_.superCategory;
-         _loc1_.category = _loc2_.category;
-         _loc1_.value = _loc2_.value;
-         _loc1_.count = _loc2_.count;
-         _loc1_.dictId = _loc2_.dictId;
-         _loc1_.itemId = _loc2_.itemId;
-         _loc1_.iconId = _loc2_.iconId;
-         _loc1_.factionId = _loc2_.factionId;
-         _loc1_.descriptor = _loc2_.descriptor;
-         _loc1_.cost = _loc2_.cost;
-         _loc1_.price = _loc2_.price;
-         _loc1_.itemLevel = _loc2_.itemLevel;
-         _loc1_.clipSize = _loc2_.clipSize;
-         _loc1_.itemSize = _loc2_.itemSize;
-         _loc1_.quickSlotItemSize = _loc2_.quickSlotItemSize;
-         _loc1_.requiredBags = _loc2_.requiredBags;
-         _loc1_.clipsInBag = _loc2_.clipsInBag;
-         _loc1_.repairCostRatio = _loc2_.repairCostRatio;
-         _loc1_.modifierUpgraded = _loc2_.modifierUpgraded;
-         _loc1_.sellerLevel = _loc2_.sellerLevel;
-         _loc1_.slotId = _loc2_.slotId;
-         _loc1_.slotTarget = _loc2_.slotTarget;
-         _loc1_.weaponTarget = _loc2_.weaponTarget;
-         _loc1_.index = _loc2_.index;
-         _loc1_.type = _loc2_.type;
-         _loc1_.weight = _loc2_.weight;
-         _loc1_.rank = _loc2_.rank;
-         _loc1_.repairTime = _loc2_.repairTime;
-         _loc1_.repairTimeDelta = _loc2_.repairTimeDelta;
-         _loc1_.camoAvailable = _loc2_.camoAvailable;
-         _loc1_.decalAvailable = _loc2_.decalAvailable;
-         _loc1_.upgradesAvailable = _loc2_.upgradesAvailable;
-         _loc1_.isWeapon = _loc2_.isWeapon;
-         _loc1_.usable = _loc2_.usable;
-         _loc1_.showed = _loc2_.showed;
-         _loc1_.isNew = _loc2_.isNew;
-         _loc1_.enabled = _loc2_.enabled;
-         _loc1_.isStack = _loc2_.isStack;
-         _loc1_.oneHanded = _loc2_.oneHanded;
-         _loc1_.buyable = _loc2_.buyable;
-         _loc1_.buyValue = _loc2_.buyValue;
-         _loc1_.canBuy = _loc2_.canBuy;
-         _loc1_.equipped = _loc2_.equipped;
-         _loc1_.isPremium = _loc2_.isPremium;
-         _loc1_.name = _loc2_.name;
-         _loc1_.itemDescription = _loc2_.itemDescription;
-         _loc1_.modifiersDescription = _loc2_.modifiersDescription;
-         _loc1_.tipText = _loc2_.tipText;
-         _loc1_.lockText = _loc2_.lockText;
-         _loc1_.unlockLevelLabel = _loc2_.unlockLevelLabel;
-         _loc1_.modifiers = _loc2_.modifiers;
-         _loc1_.modifiersDefault = _loc2_.modifiersDefault;
-         _loc1_.properties = _loc2_.properties;
-         _loc1_.sellers = _loc2_.sellers;
-         _loc1_.broken = _loc2_.broken;
-         _loc1_.equipped = _loc2_.equipped;
-         _loc1_.fromBundle = _loc2_.fromBundle;
-         _loc1_.additionalSlots = _loc2_.additionalSlots;
-         return _loc1_;
+         itemData.name = origin.name;
+         itemData.decalItem = origin.decalItem;
+         itemData.camoItem = origin.camoItem;
+         itemData.upgrades = origin.upgrades;
+         itemData.ammoText = origin.ammoText;
+         itemData.superCategory = origin.superCategory;
+         itemData.category = origin.category;
+         itemData.value = origin.value;
+         itemData.count = origin.count;
+         itemData.dictId = origin.dictId;
+         itemData.itemId = origin.itemId;
+         itemData.iconId = origin.iconId;
+         itemData.factionId = origin.factionId;
+         itemData.descriptor = origin.descriptor;
+         itemData.cost = origin.cost;
+         itemData.price = origin.price;
+         itemData.itemLevel = origin.itemLevel;
+         itemData.clipSize = origin.clipSize;
+         itemData.itemSize = origin.itemSize;
+         itemData.quickSlotItemSize = origin.quickSlotItemSize;
+         itemData.requiredBags = origin.requiredBags;
+         itemData.clipsInBag = origin.clipsInBag;
+         itemData.repairCostRatio = origin.repairCostRatio;
+         itemData.modifierUpgraded = origin.modifierUpgraded;
+         itemData.sellerLevel = origin.sellerLevel;
+         itemData.slotId = origin.slotId;
+         itemData.slotTarget = origin.slotTarget;
+         itemData.weaponTarget = origin.weaponTarget;
+         itemData.index = origin.index;
+         itemData.type = origin.type;
+         itemData.weight = origin.weight;
+         itemData.rank = origin.rank;
+         itemData.repairTime = origin.repairTime;
+         itemData.repairTimeDelta = origin.repairTimeDelta;
+         itemData.camoAvailable = origin.camoAvailable;
+         itemData.decalAvailable = origin.decalAvailable;
+         itemData.upgradesAvailable = origin.upgradesAvailable;
+         itemData.isWeapon = origin.isWeapon;
+         itemData.usable = origin.usable;
+         itemData.showed = origin.showed;
+         itemData.isNew = origin.isNew;
+         itemData.enabled = origin.enabled;
+         itemData.isStack = origin.isStack;
+         itemData.oneHanded = origin.oneHanded;
+         itemData.buyable = origin.buyable;
+         itemData.buyValue = origin.buyValue;
+         itemData.canBuy = origin.canBuy;
+         itemData.equipped = origin.equipped;
+         itemData.isPremium = origin.isPremium;
+         itemData.name = origin.name;
+         itemData.itemDescription = origin.itemDescription;
+         itemData.modifiersDescription = origin.modifiersDescription;
+         itemData.tipText = origin.tipText;
+         itemData.lockText = origin.lockText;
+         itemData.unlockLevelLabel = origin.unlockLevelLabel;
+         itemData.modifiers = origin.modifiers;
+         itemData.modifiersDefault = origin.modifiersDefault;
+         itemData.properties = origin.properties;
+         itemData.sellers = origin.sellers;
+         itemData.broken = origin.broken;
+         itemData.equipped = origin.equipped;
+         itemData.fromBundle = origin.fromBundle;
+         itemData.additionalSlots = origin.additionalSlots;
+         return itemData;
       }
    }
 }

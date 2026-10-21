@@ -29,36 +29,36 @@ package survarium.clan
          this.createClanRenderer.setState(_state);
       }
       
-      public static function isInClan(param1:String) : Boolean
+      public static function isInClan(playerName:String) : Boolean
       {
          return false;
       }
       
       public static function getMembersList() : Array
       {
-         var _loc1_:Array;
-         var _loc2_:uint;
-         var _loc3_:Boolean;
-         var _loc4_:uint;
+         var members:Array;
+         var count:uint;
+         var selfSkipped:Boolean;
+         var i:uint;
          if(_clanMembers)
          {
-            _loc1_ = [];
-            _loc2_ = _clanMembers.length;
-            _loc3_ = false;
-            _loc4_ = 0;
-            while(_loc4_ < _loc2_)
+            members = [];
+            count = _clanMembers.length;
+            selfSkipped = false;
+            i = 0;
+            while(i < count)
             {
-               if(_loc3_ || _clanMembers[_loc4_].name != PlayerInfo.nickname)
+               if(selfSkipped || _clanMembers[i].name != PlayerInfo.nickname)
                {
-                  _loc1_.push(_clanMembers[_loc4_]);
+                  members.push(_clanMembers[i]);
                }
                else
                {
-                  _loc3_ = true;
+                  selfSkipped = true;
                }
-               _loc4_++;
+               i++;
             }
-            return _loc1_;
+            return members;
          }
          return [];
       }
@@ -88,36 +88,36 @@ package survarium.clan
          ExternalInterface.call("clan_window_opened");
       }
       
-      public function setPlayerData(param1:Array) : void
+      public function setPlayerData(players:Array) : void
       {
          if(this.createClanRenderer.visible)
          {
-            this.createClanRenderer.setPlayerData(param1);
+            this.createClanRenderer.setPlayerData(players);
          }
          else
          {
-            _clanMembers = param1;
-            this.manageClanRenderer.setPlayerData(param1);
+            _clanMembers = players;
+            this.manageClanRenderer.setPlayerData(players);
          }
       }
       
-      public function setClanName(param1:String, param2:String) : void
+      public function setClanName(clanName:String, abbreviation:String) : void
       {
-         this.manageClanRenderer.textFieldClan.text = param1 + " [" + param2 + "]";
-         this.manageClanRenderer.textFieldLabel.text = LocalizationData.getName("clan") + " [" + param2 + "]";
-         this.createClanRenderer.setClanName(param1,param2);
+         this.manageClanRenderer.textFieldClan.text = clanName + " [" + abbreviation + "]";
+         this.manageClanRenderer.textFieldLabel.text = LocalizationData.getName("clan") + " [" + abbreviation + "]";
+         this.createClanRenderer.setClanName(clanName,abbreviation);
       }
       
-      public function setState(param1:uint) : void
+      public function setState(state:uint) : void
       {
-         PlayerInfo.isClanManager = param1 == 1;
+         PlayerInfo.isClanManager = state == 1;
          if(this.lockBackground.visible)
          {
             this.lockBackground.visible = false;
             this.wheels.visible = false;
             this.wheels.playAnimation(false);
          }
-         _state = param1;
+         _state = state;
          if(_state < 3)
          {
             this.manageClanRenderer.visible = false;

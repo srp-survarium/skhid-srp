@@ -69,9 +69,9 @@ package survarium.ammo
          }
       }
       
-      public function set minimum_storage(param1:int) : void
+      public function set minimum_storage(value:int) : void
       {
-         _minimum_storage = param1;
+         _minimum_storage = value;
       }
       
       public function get minimum_storage() : int
@@ -79,17 +79,17 @@ package survarium.ammo
          return this._minimum_storage;
       }
       
-      public function set required(param1:int) : void
+      public function set required(value:int) : void
       {
-         if(param1 < minimum)
+         if(value < minimum)
          {
-            param1 = minimum;
+            value = minimum;
          }
-         else if(param1 > maximum)
+         else if(value > maximum)
          {
-            param1 = maximum;
+            value = maximum;
          }
-         _min_request = param1;
+         _min_request = value;
       }
       
       public function get required() : int
@@ -97,9 +97,9 @@ package survarium.ammo
          return this._min_request;
       }
       
-      public function set available(param1:int) : void
+      public function set available(value:int) : void
       {
-         _available = param1;
+         _available = value;
       }
       
       public function get available() : int
@@ -107,9 +107,9 @@ package survarium.ammo
          return this._available;
       }
       
-      public function set total(param1:int) : void
+      public function set total(value:int) : void
       {
-         _total = param1;
+         _total = value;
          this.updateThumb();
       }
       
@@ -118,9 +118,9 @@ package survarium.ammo
          return this._total;
       }
       
-      public function set maxSize(param1:uint) : void
+      public function set maxSize(value:uint) : void
       {
-         _maxSize = param1;
+         _maxSize = value;
       }
       
       public function get maxSize() : uint
@@ -128,26 +128,26 @@ package survarium.ammo
          return this._maxSize;
       }
       
-      public function set value_storage(param1:int) : void
+      public function set value_storage(newValue:int) : void
       {
-         if(param1 < this._minimum_storage)
+         if(newValue < this._minimum_storage)
          {
-            param1 = this._minimum_storage;
+            newValue = this._minimum_storage;
          }
-         if(param1 < this.available)
+         if(newValue < this.available)
          {
-            param1 = this.available;
+            newValue = this.available;
          }
-         if(param1 < minimum)
+         if(newValue < minimum)
          {
-            param1 = minimum;
+            newValue = minimum;
          }
-         _value_storage = param1;
+         _value_storage = newValue;
          if(value > this._value_storage)
          {
             value = this._value_storage;
          }
-         dispatchEvent(new SliderEvent(SliderEvent.VALUE_CHANGE,false,true,param1));
+         dispatchEvent(new SliderEvent(SliderEvent.VALUE_CHANGE,false,true,newValue));
          this.draw();
       }
       
@@ -156,46 +156,46 @@ package survarium.ammo
          return this._value_storage;
       }
       
-      public function set renderer(param1:String) : void
+      public function set renderer(value:String) : void
       {
-         if(param1 == "")
+         if(value == "")
          {
             return;
          }
-         var _loc2_:Class = getDefinitionByName(param1) as Class;
-         if(_loc2_ != null)
+         var rendererClass:Class = getDefinitionByName(value) as Class;
+         if(rendererClass != null)
          {
-            _itemRenderer = _loc2_;
+            _itemRenderer = rendererClass;
          }
          else
          {
-            trace("Error: " + this + ", The class " + param1 + " cannot be found in your library. Please ensure it is there.");
+            trace("Error: " + this + ", The class " + value + " cannot be found in your library. Please ensure it is there.");
          }
       }
       
-      override public function set value(param1:Number) : void
+      override public function set value(newValue:Number) : void
       {
-         if(param1 < minimum)
+         if(newValue < minimum)
          {
-            param1 = minimum;
+            newValue = minimum;
          }
-         else if(param1 > maximum)
+         else if(newValue > maximum)
          {
-            param1 = maximum;
+            newValue = maximum;
          }
-         _value = param1;
-         if(this._value_storage < param1)
+         _value = newValue;
+         if(this._value_storage < newValue)
          {
-            value_storage = param1;
+            value_storage = newValue;
          }
          _selectValue = _value;
          dispatchEvent(new SliderEvent(SliderEvent.VALUE_CHANGE,false,true,_value));
          this.draw();
       }
       
-      public function set scaleRenders(param1:Boolean) : void
+      public function set scaleRenders(value:Boolean) : void
       {
-         _scaleRenderers = param1;
+         _scaleRenderers = value;
       }
       
       override public function toString() : String
@@ -212,43 +212,43 @@ package survarium.ammo
          super.configUI();
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
-         if(param1.isDefaultPrevented())
+         if(event.isDefaultPrevented())
          {
             return;
          }
-         var _loc2_:InputDetails = param1.details;
-         var _loc3_:uint = _loc2_.controllerIndex;
-         var _loc4_:Boolean = _loc2_.value == InputValue.KEY_DOWN || _loc2_.value == InputValue.KEY_HOLD;
-         switch(_loc2_.navEquivalent)
+         var details:InputDetails = event.details;
+         var controllerIndex:uint = details.controllerIndex;
+         var keyPress:Boolean = details.value == InputValue.KEY_DOWN || details.value == InputValue.KEY_HOLD;
+         switch(details.navEquivalent)
          {
             case NavigationCode.RIGHT:
-               if(_loc4_ && value < this.total * _snapInterval)
+               if(keyPress && value < this.total * _snapInterval)
                {
                   value = value + _snapInterval;
-                  param1.handled = true;
+                  event.handled = true;
                }
                break;
             case NavigationCode.LEFT:
-               if(_loc4_)
+               if(keyPress)
                {
                   value = value - _snapInterval;
-                  param1.handled = true;
+                  event.handled = true;
                }
                break;
             case NavigationCode.HOME:
-               if(!_loc4_)
+               if(!keyPress)
                {
                   value = minimum;
-                  param1.handled = true;
+                  event.handled = true;
                }
                break;
             case NavigationCode.END:
-               if(!_loc4_)
+               if(!keyPress)
                {
                   value = maximum;
-                  param1.handled = true;
+                  event.handled = true;
                }
             break;
             default:
@@ -256,12 +256,12 @@ package survarium.ammo
          }
       }
       
-      protected function onMouseOver(param1:MouseEvent) : void
+      protected function onMouseOver(event:MouseEvent) : void
       {
          track.addEventListener(MouseEvent.MOUSE_MOVE,this.onMouseMove);
       }
       
-      protected function onMouseOut(param1:MouseEvent) : void
+      protected function onMouseOut(event:MouseEvent) : void
       {
          track.removeEventListener(MouseEvent.MOUSE_MOVE,this.onMouseMove);
          if(this._selectValue != value)
@@ -273,42 +273,42 @@ package survarium.ammo
          }
       }
       
-      protected function onMouseMove(param1:MouseEvent) : void
+      protected function onMouseMove(event:MouseEvent) : void
       {
-         var _loc2_:Point = globalToLocal(new Point(param1.stageX,param1.stageY));
-         var _loc3_:Number = _loc2_.x - (_dragOffset ? _dragOffset.x : 0);
-         var _loc4_:Number = this._trackWidth - offsetLeft - offsetRight;
-         var _loc5_:Number = (_loc3_ - offsetLeft) / _loc4_ * (_maximum - _minimum) + _minimum;
-         var _loc6_:uint;
-         _loc5_ = lockValue(_loc5_);
-         if(_loc5_ > this.total)
+         var localPoint:Point = globalToLocal(new Point(event.stageX,event.stageY));
+         var posX:Number = localPoint.x - (_dragOffset ? _dragOffset.x : 0);
+         var trackLength:Number = this._trackWidth - offsetLeft - offsetRight;
+         var newValue:Number = (posX - offsetLeft) / trackLength * (_maximum - _minimum) + _minimum;
+         var cursorId:uint;
+         newValue = lockValue(newValue);
+         if(newValue > this.total)
          {
-            _loc5_ = this.total;
+            newValue = this.total;
          }
-         if(this._selectValue != _loc5_)
+         if(this._selectValue != newValue)
          {
-            _selectValue = _loc5_;
-            _loc6_ = this._selectValue >= _value ? 10 : 11;
-            track.data = {name:LocalizationData.getName(_loc6_ == 10 ? "add" : "remove")};
+            _selectValue = newValue;
+            cursorId = this._selectValue >= _value ? 10 : 11;
+            track.data = {name:LocalizationData.getName(cursorId == 10 ? "add" : "remove")};
             track.invalidateData();
-            ExternalInterface.call("set_mouse_cursor",_loc6_);
+            ExternalInterface.call("set_mouse_cursor",cursorId);
             this.updateThumb();
          }
       }
       
-      override protected function trackPress(param1:MouseEvent) : void
+      override protected function trackPress(event:MouseEvent) : void
       {
          _trackPressed = true;
          track.focused = _focused;
-         var _loc2_:Number = this._trackWidth - offsetLeft - offsetRight;
-         var _loc3_:Point = globalToLocal(new Point(param1.stageX,param1.stageY));
-         var _loc4_:Number = _loc3_.x - (_dragOffset ? _dragOffset.x : 0);
-         var _loc5_:Number = lockValue((_loc4_ - offsetLeft) / _loc2_ * (_maximum - _minimum) + _minimum);
-         if(value == _loc5_ || _loc5_ > this.total)
+         var trackLength:Number = this._trackWidth - offsetLeft - offsetRight;
+         var localPoint:Point = globalToLocal(new Point(event.stageX,event.stageY));
+         var posX:Number = localPoint.x - (_dragOffset ? _dragOffset.x : 0);
+         var newValue:Number = lockValue((posX - offsetLeft) / trackLength * (_maximum - _minimum) + _minimum);
+         if(value == newValue || newValue > this.total)
          {
             return;
          }
-         value = _loc5_;
+         value = newValue;
          if(!liveDragging)
          {
             dispatchEvent(new SliderEvent(SliderEvent.VALUE_CHANGE,false,true,_value));
@@ -317,30 +317,30 @@ package survarium.ammo
          _dragOffset = {x:0};
       }
       
-      override protected function doDrag(param1:MouseEvent) : void
+      override protected function doDrag(event:MouseEvent) : void
       {
-         var _loc2_:Point = globalToLocal(new Point(param1.stageX,param1.stageY));
-         var _loc3_:Number = _loc2_.x - (_dragOffset ? _dragOffset.x : 0);
-         var _loc4_:Number = this._trackWidth - offsetLeft - offsetRight;
-         var _loc5_:Number = (_loc3_ - offsetLeft) / _loc4_ * (_maximum - _minimum) + _minimum;
-         var _loc6_:Number;
-         var _loc7_:Number = lockValue(_loc5_);
-         if(_loc5_ > _loc7_)
+         var localPoint:Point = globalToLocal(new Point(event.stageX,event.stageY));
+         var posX:Number = localPoint.x - (_dragOffset ? _dragOffset.x : 0);
+         var trackLength:Number = this._trackWidth - offsetLeft - offsetRight;
+         var newValue:Number = (posX - offsetLeft) / trackLength * (_maximum - _minimum) + _minimum;
+         var nextValue:Number;
+         var snappedValue:Number = lockValue(newValue);
+         if(newValue > snappedValue)
          {
-            _loc6_ = _loc7_ + _snapInterval;
+            nextValue = snappedValue + _snapInterval;
          }
          else
          {
-            _loc6_ = _loc7_ - _snapInterval;
+            nextValue = snappedValue - _snapInterval;
          }
-         _loc5_ = lockValue(_loc5_);
-         if(param1.target == thumb)
+         newValue = lockValue(newValue);
+         if(event.target == thumb)
          {
-            if(value == _loc5_)
+            if(value == newValue)
             {
                return;
             }
-            value = _loc5_;
+            value = newValue;
          }
          this.updateThumb();
          if(liveDragging)
@@ -357,93 +357,93 @@ package survarium.ammo
             return;
          }
          setChildIndex(track,0);
-         var _loc1_:uint = 0;
-         var _loc2_:MovieClip;
-         var _loc3_:uint;
-         while(_loc1_ < this._cells.length)
+         var i:uint = 0;
+         var cell:MovieClip;
+         var cellValue:uint;
+         while(i < this._cells.length)
          {
-            _loc2_ = this._cells[_loc1_];
-            _loc3_ = _loc1_ * snapInterval;
-            if(_loc3_ >= this._selectValue && _loc3_ < value && this._selectValue < value || _loc3_ >= value && _loc3_ < this._selectValue && this._selectValue >= value)
+            cell = this._cells[i];
+            cellValue = i * snapInterval;
+            if(cellValue >= this._selectValue && cellValue < value && this._selectValue < value || cellValue >= value && cellValue < this._selectValue && this._selectValue >= value)
             {
-               _loc2_.gotoAndStop(3);
+               cell.gotoAndStop(3);
             }
-            else if(_loc3_ < value)
+            else if(cellValue < value)
             {
-               _loc2_.gotoAndStop(4);
+               cell.gotoAndStop(4);
             }
-            else if(_loc3_ < this.total)
+            else if(cellValue < this.total)
             {
-               _loc2_.gotoAndStop(2);
+               cell.gotoAndStop(2);
                if(this._hoverCells)
                {
-                  _loc2_.gotoAndPlay("blink");
+                  cell.gotoAndPlay("blink");
                }
             }
             else
             {
-               _loc2_.gotoAndStop(1);
+               cell.gotoAndStop(1);
             }
-            _loc1_++;
+            i++;
          }
-         if(_loc2_)
+         if(cell)
          {
-            track.height = _loc2_.height;
-            track.width = this.total / snapInterval * (_loc2_.width + this.shiftInterval);
+            track.height = cell.height;
+            track.width = this.total / snapInterval * (cell.width + this.shiftInterval);
          }
       }
       
-      public function hoverCells(param1:Boolean) : void
+      public function hoverCells(hover:Boolean) : void
       {
          trace("hoverCells");
-         _hoverCells = param1;
+         _hoverCells = hover;
          this.updateThumb();
       }
       
       override protected function draw() : void
       {
-         var _loc1_:uint;
-         var _loc2_:uint;
-         var _loc3_:uint;
-         var _loc4_:MovieClip;
-         var _loc5_:uint;
+         var i:uint;
+         var cellCount:uint;
+         var j:uint;
+         var cell:MovieClip;
+         var cellWidth:uint;
          gotoAndPlay(!enabled ? "disabled" : (_focused ? "focused" : "default"));
          if(isInvalid(InvalidationType.SETTINGS))
          {
-            _loc1_ = 0;
-            while(_loc1_ < this._cells.length)
+            i = 0;
+            while(i < this._cells.length)
             {
-               _loc4_ = this._cells[_loc1_];
-               _loc4_.gotoAndStop(1);
-               removeChild(_loc4_);
-               _loc1_++;
+               cell = this._cells[i];
+               cell.gotoAndStop(1);
+               removeChild(cell);
+               i++;
             }
             this._cells.length = 0;
-            _loc2_ = maximum / snapInterval;
-            _loc3_ = 0;
-            while(_loc3_ < _loc2_)
+            cellCount = maximum / snapInterval;
+            j = 0;
+            while(j < cellCount)
             {
-               _loc4_ = new this._itemRenderer();
-               _loc4_.mouseEnabled = false;
-               _loc4_.mouseChildren = false;
-               this._cells[_loc3_] = _loc4_;
-               _loc4_.gotoAndStop(1);
+               cell = new this._itemRenderer();
+               cell.mouseEnabled = false;
+               cell.mouseChildren = false;
+               this._cells[j] = cell;
+               cell.gotoAndStop(1);
                if(this._scaleRenderers)
                {
-                  _loc5_ = 20 * this._maxSize / (maximum / snapInterval);
-                  _loc4_.width = _loc5_;
+                  cellWidth = 20 * this._maxSize / (maximum / snapInterval);
+                  cell.width = cellWidth;
                }
                else
                {
-                  _loc5_ = _loc4_.width;
+                  cellWidth = cell.width;
                }
-               _loc4_.x = 2 + _loc3_ * (_loc5_ + this.shiftInterval);
-               addChild(_loc4_);
-               _loc3_++;
+               cell.x = 2 + j * (cellWidth + this.shiftInterval);
+               addChild(cell);
+               j++;
             }
-            if(_loc4_)
+            if(cell)
             {
-               _trackWidth = _loc2_ * (_loc4_.width + this.shiftInterval);
+               _trackWidth = cellCount * (cell.width + this.shiftInterval);
             }
          }
          this.updateThumb();

@@ -204,7 +204,7 @@ package survarium.gsearch
          return taken;
       }
       
-      private function configUI(param1:Event) : void
+      private function configUI(event:Event) : void
       {
          removeEventListener(Event.RENDER,this.configUI);
          checkBoxClan = this.clanGame.checkBoxClan;
@@ -225,9 +225,9 @@ package survarium.gsearch
          this.pvbHookConfig();
       }
       
-      public function setEnabled(param1:Boolean) : void
+      public function setEnabled(value:Boolean) : void
       {
-         _enabled = param1;
+         _enabled = value;
          this.updateButtonEnabled();
       }
       
@@ -257,9 +257,9 @@ package survarium.gsearch
       
       protected function updateButtonEnabled() : void
       {
-         var _loc1_:Boolean = (PlayerInfo.clanState == 3 || PlayerInfo.clanState == 4) && !PlayerInfo.isInSquad;
-         this.checkBoxPVP.enabled = this.checkBoxClan.enabled = this._enabled && _loc1_;
-         if(!_loc1_)
+         var canPlayClan:Boolean = (PlayerInfo.clanState == 3 || PlayerInfo.clanState == 4) && !PlayerInfo.isInSquad;
+         this.checkBoxPVP.enabled = this.checkBoxClan.enabled = this._enabled && canPlayClan;
+         if(!canPlayClan)
          {
             if(this.checkBoxClan.selected)
             {
@@ -287,7 +287,7 @@ package survarium.gsearch
          this.pvbHookLayout();
       }
       
-      protected function initLocal(param1:String) : void
+      protected function initLocal(value:String) : void
       {
          this.checkBoxPVP.label = LocalizationData.getName("match_settings_checkbox_PVP").toUpperCase();
          this.checkBoxClan.label = LocalizationData.getName("match_settings_clan_match").toUpperCase();
@@ -320,11 +320,11 @@ package survarium.gsearch
          this.pvbHookLocal();
       }
       
-      public function setTournamentResult(param1:Boolean) : void
+      public function setTournamentResult(accepted:Boolean) : void
       {
-         var _loc2_:Boolean = param1 == true ? this._selectCall : !this._selectCall;
-         trace("setTournamentResult::",_loc2_,param1,this._selectCall);
-         this.checkBoxClan.selected = _loc2_;
+         var clanSelected:Boolean = accepted == true ? this._selectCall : !this._selectCall;
+         trace("setTournamentResult::",clanSelected,accepted,this._selectCall);
+         this.checkBoxClan.selected = clanSelected;
          this.checkBoxPVP.selected = !this.checkBoxClan.selected;
          this.updateLayout();
          this.pvbHookTournament();
@@ -332,33 +332,33 @@ package survarium.gsearch
       
       protected function showCloseMessage() : void
       {
-         var _loc1_:Object = {
+         var messageData:Object = {
             text:LocalizationData.getName(PlayerInfo.isCommander ? "clan_window_close_message_commander" : "clan_window_close_message"),
             onYes:this.closeWindow,
             label_ok:LocalizationData.getName("ok"),
             label_cancel:LocalizationData.getName("cancel")
          };
-         Message.showMessage("apply",_loc1_,true,0,true);
+         Message.showMessage("apply",messageData,true,0,true);
       }
       
       protected function closeWindow() : void
       {
          trace("TW::closeWindow");
          this.deselectClanMatchCheckbox();
-         var _loc1_:Boolean = this.checkBoxClan.selected;
-         trace("checkbox_tournament_match_clicked",_loc1_);
-         ExternalInterface.call("checkbox_tournament_match_clicked",_loc1_);
+         var clanSelected:Boolean = this.checkBoxClan.selected;
+         trace("checkbox_tournament_match_clicked",clanSelected);
+         ExternalInterface.call("checkbox_tournament_match_clicked",clanSelected);
       }
       
-      private function onTournamentSelected(param1:ButtonEvent) : void
+      private function onTournamentSelected(event:ButtonEvent) : void
       {
          trace("onTournamentSelected");
-         if(param1.target == this.checkBoxPVP)
+         if(event.target == this.checkBoxPVP)
          {
             this.checkBoxClan.selected = !this.checkBoxPVP.selected;
          }
-         var _loc2_:Boolean = this.checkBoxClan.selected;
-         _selectCall = _loc2_;
+         var clanSelected:Boolean = this.checkBoxClan.selected;
+         _selectCall = clanSelected;
          if(this.checkBoxClan.selected)
          {
             dispatchEvent(new Event(TOURNAMENT_SELECTED));
@@ -372,8 +372,8 @@ package survarium.gsearch
             return;
          }
          this.updateLayout();
-         trace("checkbox_tournament_match_clicked",_loc2_,this._selectCall);
-         ExternalInterface.call("checkbox_tournament_match_clicked",_loc2_);
+         trace("checkbox_tournament_match_clicked",clanSelected,this._selectCall);
+         ExternalInterface.call("checkbox_tournament_match_clicked",clanSelected);
       }
       
       public function pvbHookConfig() : void

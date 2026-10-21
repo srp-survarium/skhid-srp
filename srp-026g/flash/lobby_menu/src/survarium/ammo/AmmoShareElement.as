@@ -100,14 +100,14 @@ package survarium.ammo
          gotoAndStop(1);
       }
       
-      override public function set x(param1:Number) : void
+      override public function set x(value:Number) : void
       {
-         super.x = int(param1 * MainScene.scaleFactor) / MainScene.scaleFactor;
+         super.x = int(value * MainScene.scaleFactor) / MainScene.scaleFactor;
       }
       
-      public function set owner(param1:Sprite) : void
+      public function set owner(value:Sprite) : void
       {
-         _owner = param1;
+         _owner = value;
       }
       
       public function isPremium() : Boolean
@@ -125,12 +125,12 @@ package survarium.ammo
          return 144;
       }
       
-      override public function set height(param1:Number) : void
+      override public function set height(value:Number) : void
       {
-         super.height = param1;
+         super.height = value;
       }
       
-      public function setData(param1:ItemData = null, param2:Boolean = false) : void
+      public function setData(item:ItemData = null, applyCount:Boolean = false) : void
       {
          gotoAndStop(2);
          this.textFieldEquipped.visible = this.textFieldStorage.visible = true;
@@ -138,77 +138,77 @@ package survarium.ammo
          mouseEnabled = true;
          this.backpack_label.visible = this.stepper_storage.visible = this.slider.visible = true;
          this.weaponSlot.visible = true;
-         var _loc3_:ItemData = new ItemData();
-         _loc3_.name = param1.name;
-         _loc3_.dictId = param1.dictId;
-         _loc3_.category = param1.category;
-         _loc3_.itemId = param1.itemId;
-         _loc3_.slotId = param1.slotId;
-         _loc3_.icon = param1.icon.clone();
-         _loc3_.dragIcon = param1.icon.clone();
-         _loc3_.isStack = param1.isStack;
-         _loc3_.value = param1.value;
-         _loc3_.count = param1.count;
-         _loc3_.properties = param1.properties;
-         _loc3_.clipSize = param1.clipSize;
-         _loc3_.weight = param1.weight;
-         _loc3_.slotTarget = param1.slotTarget;
-         _loc3_.weaponTarget = param1.weaponTarget;
-         _loc3_.cost = param1.cost;
-         _loc3_.clipsInBag = param1.clipsInBag;
-         _loc3_.canBuy = param1.canBuy;
-         _loc3_.unlockLevelLabel = param1.unlockLevelLabel;
-         _loc3_.itemLevel = param1.itemLevel;
-         _loc3_.premiumCost = param1.premiumCost;
-         itemLevel = param1.itemLevel;
-         _data = _loc3_;
-         var _loc4_:Boolean = !(param1.canBuy == false && this._data.value == 0);
-         var _loc5_:Boolean = this.isPremium();
-         _item_price = _loc5_ ? this._data.premiumCost : this._data.cost;
-         var _loc6_:Object = param1.properties;
-         if(_loc6_)
+         var copy:ItemData = new ItemData();
+         copy.name = item.name;
+         copy.dictId = item.dictId;
+         copy.category = item.category;
+         copy.itemId = item.itemId;
+         copy.slotId = item.slotId;
+         copy.icon = item.icon.clone();
+         copy.dragIcon = item.icon.clone();
+         copy.isStack = item.isStack;
+         copy.value = item.value;
+         copy.count = item.count;
+         copy.properties = item.properties;
+         copy.clipSize = item.clipSize;
+         copy.weight = item.weight;
+         copy.slotTarget = item.slotTarget;
+         copy.weaponTarget = item.weaponTarget;
+         copy.cost = item.cost;
+         copy.clipsInBag = item.clipsInBag;
+         copy.canBuy = item.canBuy;
+         copy.unlockLevelLabel = item.unlockLevelLabel;
+         copy.itemLevel = item.itemLevel;
+         copy.premiumCost = item.premiumCost;
+         itemLevel = item.itemLevel;
+         _data = copy;
+         var unlocked:Boolean = !(item.canBuy == false && this._data.value == 0);
+         var premium:Boolean = this.isPremium();
+         _item_price = premium ? this._data.premiumCost : this._data.cost;
+         var properties:Object = item.properties;
+         if(properties)
          {
-            _loc8_ = "";
-            _loc9_ = PropertiesDescriptor.getPropertiesDescriptor("properties");
-            for each(_loc10_ in _loc6_)
+            hint = "";
+            descriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
+            for each(entry in properties)
             {
-               _loc11_ = _loc10_;
-               _loc12_ = _loc9_.getPropertyDescription(_loc11_.prop_id);
-               _loc8_ += _loc12_.prop_name + ": " + Util.styledChar(String(_loc11_.prop_value + (_loc12_.postfix ? _loc12_.postfix : "")),"highlight") + "\n";
+               prop = entry;
+               propInfo = descriptor.getPropertyDescription(prop.prop_id);
+               hint += propInfo.prop_name + ": " + Util.styledChar(String(prop.prop_value + (propInfo.postfix ? propInfo.postfix : "")),"highlight") + "\n";
             }
-            _loc8_ += Util.styledChar(String(_loc3_.itemLevel),"small") + "\n";
-            _loc8_ += LocalizationData.getName("item_level") + ": " + Util.styledChar(String(_loc3_.itemLevel),"highlight") + "\n";
+            hint += Util.styledChar(String(copy.itemLevel),"small") + "\n";
+            hint += LocalizationData.getName("item_level") + ": " + Util.styledChar(String(copy.itemLevel),"highlight") + "\n";
             this.ammoHintArea.tipData = {
-               tipText:_loc8_,
-               isPremium:_loc5_ || _loc3_.isPremium,
+               tipText:hint,
+               isPremium:premium || copy.isPremium,
                cost:this._item_price,
-               lock:!_loc4_ || _loc5_,
-               lockText:_loc3_.unlockLevelLabel
+               lock:!unlocked || premium,
+               lockText:copy.unlockLevelLabel
             };
          }
-         _clipSize = _loc3_.clipSize;
-         _clipsInBag = _loc3_.clipsInBag;
-         this.textField.text = _loc3_.name;
-         this.textField.textColor = _loc5_ ? Colors.GOLD : Colors.SILVER;
+         _clipSize = copy.clipSize;
+         _clipsInBag = copy.clipsInBag;
+         this.textField.text = copy.name;
+         this.textField.textColor = premium ? Colors.GOLD : Colors.SILVER;
          this.slider.shiftInterval = -3;
          this.slider.renderer = "ItemRoundCell";
          this.slider.alpha = 1;
          this.slider.enabled = true;
          this.weaponSlot.content = this._data.icon;
          this.slider.removeEventListener(SliderEvent.VALUE_CHANGE,this.onElementSlider);
-         var _loc7_:int = this._data.value;
-         var _loc8_:String;
-         var _loc9_:*;
-         var _loc10_:Object;
-         var _loc11_:Object;
-         var _loc12_:Object;
-         var _loc13_:ColorTransform;
+         var ownedCount:int = this._data.value;
+         var hint:String;
+         var descriptor:*;
+         var entry:Object;
+         var prop:Object;
+         var propInfo:Object;
+         var goldTint:ColorTransform;
          _max = int(int(this.available * this._clipsInBag) * this._clipSize);
          if(!this._data.canBuy)
          {
-            _max = Math.min(this._max,int(int(_loc7_ / this._clipSize) * this._clipSize));
+            _max = Math.min(this._max,int(int(ownedCount / this._clipSize) * this._clipSize));
          }
-         trace("ASE::max:",this._max,this.available,this._clipsInBag,this._clipSize,this._data.canBuy,this.index,"inv::",_loc7_,this._data.count,this._data.premiumCost);
+         trace("ASE::max:",this._max,this.available,this._clipsInBag,this._clipSize,this._data.canBuy,this.index,"inv::",ownedCount,this._data.count,this._data.premiumCost);
          focusable = true;
          _ignoreChange = true;
          this.stepper_storage.editable = true;
@@ -219,38 +219,38 @@ package survarium.ammo
          this.stepper_backpack.maximum = this._max;
          this.stepper_backpack.stepSize = this._clipSize;
          this.stepper_backpack.invalidateData();
-         this.stepper_backpack.enabled = _loc4_;
-         this.stepper_storage.enabled = _loc4_;
-         this.stepper_backpack.focusable = _loc4_;
-         this.stepper_storage.focusable = _loc4_;
-         this.stepper_storage.mouseEnabled = _loc4_;
-         this.stepper_backpack.mouseEnabled = _loc4_;
-         this.stepper_storage.mouseChildren = _loc4_;
-         this.stepper_backpack.mouseChildren = _loc4_;
-         this.slider.enabled = _loc4_;
+         this.stepper_backpack.enabled = unlocked;
+         this.stepper_storage.enabled = unlocked;
+         this.stepper_backpack.focusable = unlocked;
+         this.stepper_storage.focusable = unlocked;
+         this.stepper_storage.mouseEnabled = unlocked;
+         this.stepper_backpack.mouseEnabled = unlocked;
+         this.stepper_storage.mouseChildren = unlocked;
+         this.stepper_backpack.mouseChildren = unlocked;
+         this.slider.enabled = unlocked;
          this.slider.minimum = 0;
          this.slider.maximum = this._max;
-         this.slider.available = Math.min(this.clips(_loc7_),this._max);
+         this.slider.available = Math.min(this.clips(ownedCount),this._max);
          this.slider.total = this._max;
-         this.slider.minimum_storage = _loc7_;
-         if(this.slider.value_storage != _loc7_)
+         this.slider.minimum_storage = ownedCount;
+         if(this.slider.value_storage != ownedCount)
          {
-            this.slider.value_storage = _loc7_;
+            this.slider.value_storage = ownedCount;
          }
          this.slider.maxSize = this.available;
          this.slider.snapInterval = this._clipSize;
-         if(param2)
+         if(applyCount)
          {
             this.slider.value = this._data.count;
          }
          this.updateText();
          this.updateSteppers();
          _ignoreChange = false;
-         if(_loc5_)
+         if(premium)
          {
-            _loc13_ = new ColorTransform(0.7,0.7,0.7,1,136,103,15,0);
-            this.stepper_storage.nextBtn.transform.colorTransform = _loc13_;
-            this.stepper_storage.prevBtn.transform.colorTransform = _loc13_;
+            goldTint = new ColorTransform(0.7,0.7,0.7,1,136,103,15,0);
+            this.stepper_storage.nextBtn.transform.colorTransform = goldTint;
+            this.stepper_storage.prevBtn.transform.colorTransform = goldTint;
             this.textField.x = 133;
             this.lock_mc.y = this.textField.y + 6;
             this.lock_mc.x = this.textField.x - this.lock_mc.width - 4;
@@ -261,8 +261,8 @@ package survarium.ammo
             this.lock_mc.y = this.slider.y + 4;
             this.lock_mc.x = this.slider.x + 3;
          }
-         this.lock_mc.visible = !_loc4_ || _loc5_;
-         if(!_loc4_)
+         this.lock_mc.visible = !unlocked || premium;
+         if(!unlocked)
          {
             if(this._data.unlockLevelLabel)
             {
@@ -271,7 +271,7 @@ package survarium.ammo
                if(this.hintButton)
                {
                   this.hintButton.visible = this.lock.visible;
-                  this.hintButton.tipData = {name:LocalizationData.getName(param1.lockText) + " \"" + this.styledChar(param1.unlockLevelLabel,"yellow") + "\""};
+                  this.hintButton.tipData = {name:LocalizationData.getName(item.lockText) + " \"" + this.styledChar(item.unlockLevelLabel,"yellow") + "\""};
                }
             }
             this.textFieldLock2.y = this.lock_mc.y - 5;
@@ -295,9 +295,9 @@ package survarium.ammo
          this.slider.addEventListener(SliderEvent.VALUE_CHANGE,this.onElementSlider);
       }
       
-      protected function styledChar(param1:String, param2:String) : String
+      protected function styledChar(content:String, style:String) : String
       {
-         return "<" + param2 + ">" + param1 + "</" + param2 + ">";
+         return "<" + style + ">" + content + "</" + style + ">";
       }
       
       public function ignoreChange() : void
@@ -310,14 +310,14 @@ package survarium.ammo
          return this._data;
       }
       
-      public function update(param1:ItemData = null, param2:Boolean = false) : void
+      public function update(item:ItemData = null, force:Boolean = false) : void
       {
-         var _loc3_:int = this.slider.value;
-         this.setData(param1);
+         var prevValue:int = this.slider.value;
+         this.setData(item);
          _ignoreChange = true;
-         if(this.slider.value != _loc3_ && (param2 || _loc3_ <= param1.count))
+         if(this.slider.value != prevValue && (force || prevValue <= item.count))
          {
-            this.slider.value = _loc3_;
+            this.slider.value = prevValue;
          }
          _ignoreChange = false;
       }
@@ -351,25 +351,25 @@ package survarium.ammo
          {
             return 0;
          }
-         var _loc1_:uint = Math.ceil(this.slider.value / this._clipSize / this._clipsInBag);
-         return _loc1_;
+         var count:uint = Math.ceil(this.slider.value / this._clipSize / this._clipsInBag);
+         return count;
       }
       
-      public function setCount(param1:uint, param2:Boolean = true) : void
+      public function setCount(usedSlots:uint, clamp:Boolean = true) : void
       {
          if(!this._data)
          {
             return;
          }
-         var _loc3_:Number = int((this.available - param1) * this._clipsInBag) * this._data.weight;
-         var _loc4_:int = Math.max(int(_loc3_ / this._data.weight) * this._clipSize,0);
-         this.slider.available = Math.min(this.clips(this._data.value),_loc4_);
-         var _loc5_:int = this.clips(Math.max(this.slider.available,_loc4_));
-         if(this.slider.total != _loc5_)
+         var freeWeight:Number = int((this.available - usedSlots) * this._clipsInBag) * this._data.weight;
+         var capacity:int = Math.max(int(freeWeight / this._data.weight) * this._clipSize,0);
+         this.slider.available = Math.min(this.clips(this._data.value),capacity);
+         var newTotal:int = this.clips(Math.max(this.slider.available,capacity));
+         if(this.slider.total != newTotal)
          {
-            this.slider.total = _loc5_;
+            this.slider.total = newTotal;
          }
-         if(param2)
+         if(clamp)
          {
             if(this.slider.total < this.slider.value)
             {
@@ -384,31 +384,31 @@ package survarium.ammo
          {
             return 0;
          }
-         var _loc1_:Number = Math.max(0,(this.slider.value_storage - this._data.value) / this.slider.snapInterval);
-         trace("get_required_price::",_loc1_,this._item_price);
-         return _loc1_ * this._item_price;
+         var clipsToBuy:Number = Math.max(0,(this.slider.value_storage - this._data.value) / this.slider.snapInterval);
+         trace("get_required_price::",clipsToBuy,this._item_price);
+         return clipsToBuy * this._item_price;
       }
       
-      public function selectNewAmmo(param1:ListEvent) : void
+      public function selectNewAmmo(event:ListEvent) : void
       {
-         var _loc2_:AmmoShareLite = this._owner as AmmoShareLite;
-         if(!param1.itemData)
+         var ammoShare:AmmoShareLite = this._owner as AmmoShareLite;
+         if(!event.itemData)
          {
             this.disable();
             updated = true;
-            _loc2_.reflow(this);
+            ammoShare.reflow(this);
             dispatchEvent(new Event(Event.CHANGE));
             return;
          }
          this.slider.removeEventListener(SliderEvent.VALUE_CHANGE,this.onElementSlider);
          updated = true;
-         if(param1.itemData)
+         if(event.itemData)
          {
-            this.setData(param1.itemData as ItemData,true);
+            this.setData(event.itemData as ItemData,true);
          }
          this.updateText();
          this.slider.addEventListener(SliderEvent.VALUE_CHANGE,this.onElementSlider);
-         _loc2_.reflow(this);
+         ammoShare.reflow(this);
          dispatchEvent(new Event(Event.CHANGE));
       }
       
@@ -455,26 +455,26 @@ package survarium.ammo
          this.lock.mouseEnabled = this.textFieldLock2.mouseEnabled = this.textFieldLock.mouseEnabled = false;
       }
       
-      protected function onAutoBuyBtnClicked(param1:ButtonEvent) : void
+      protected function onAutoBuyBtnClicked(event:ButtonEvent) : void
       {
          dispatchEvent(new Event(Event.CHANGE));
       }
       
-      protected function stepperChange(param1:Event) : void
+      protected function stepperChange(event:Event) : void
       {
-         if(param1.target == this.stepper_backpack)
+         if(event.target == this.stepper_backpack)
          {
-            this.slider.value = param1.target.value;
+            this.slider.value = event.target.value;
          }
-         else if(param1.target == this.stepper_storage)
+         else if(event.target == this.stepper_storage)
          {
-            this.slider.value_storage = param1.target.value + this.slider.value;
+            this.slider.value_storage = event.target.value + this.slider.value;
          }
       }
       
-      protected function onElementSlider(param1:SliderEvent) : void
+      protected function onElementSlider(event:SliderEvent) : void
       {
-         var _loc2_:AmmoShareLite;
+         var ammoShare:AmmoShareLite;
          if(!focusable)
          {
             return;
@@ -483,8 +483,8 @@ package survarium.ammo
          {
             trace("ammo_count_updated",uint(this.slider.value),uint(this.slider.available));
             ExternalInterface.call("ammo_count_updated",uint(this.slider.value),uint(this.slider.available));
-            _loc2_ = this._owner as AmmoShareLite;
-            _loc2_.reflow(this);
+            ammoShare = this._owner as AmmoShareLite;
+            ammoShare.reflow(this);
             if(this._ignoreChange && this.get_required_price() == 0)
             {
                return;
@@ -494,7 +494,7 @@ package survarium.ammo
          }
       }
       
-      protected function updateText(param1:SliderEvent = null) : void
+      protected function updateText(event:SliderEvent = null) : void
       {
          if(!this._data)
          {
@@ -504,9 +504,9 @@ package survarium.ammo
          this.updateSteppers();
       }
       
-      protected function clips(param1:Number) : int
+      protected function clips(amount:Number) : int
       {
-         return int(param1 / this._clipSize) * this._clipSize;
+         return int(amount / this._clipSize) * this._clipSize;
       }
       
       protected function updateSteppers() : void
