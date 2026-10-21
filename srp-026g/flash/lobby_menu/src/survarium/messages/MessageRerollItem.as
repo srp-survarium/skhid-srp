@@ -90,7 +90,7 @@ package survarium.messages
          super();
       }
       
-      override protected function cleanUp(param1:Event = null) : void
+      override protected function cleanUp(event:Event = null) : void
       {
          this.itemRenderer.data = null;
          super.cleanUp();
@@ -98,16 +98,16 @@ package survarium.messages
       
       override protected function configUI() : void
       {
-         var _loc1_:Class = getDefinitionByName("SrvItemRendererFull") as Class;
-         var _loc2_:Array;
-         var _loc3_:uint;
-         var _loc4_:Array;
-         var _loc5_:IconContainer;
-         var _loc6_:uint;
-         var _loc7_:Object;
-         var _loc8_:Icon;
-         var _loc9_:Object;
-         itemRenderer = new _loc1_();
+         var rendererClass:Class = getDefinitionByName("SrvItemRendererFull") as Class;
+         var modifiers:Array;
+         var modifierCount:uint;
+         var options:Array;
+         var iconContainer:IconContainer;
+         var i:uint;
+         var modifier:Object;
+         var modifierIcon:Icon;
+         var option:Object;
+         itemRenderer = new rendererClass();
          this.itemRenderer.x = 10;
          this.itemRenderer.y = 42;
          addChildAt(this.itemRenderer,numChildren - 3);
@@ -143,30 +143,30 @@ package survarium.messages
             _rerollTimer = _data.rerollTime;
             this.itemRenderer.data = _data;
             _itemId = _data.itemId;
-            _loc2_ = _data.modifiers as Array;
-            if(_loc2_)
+            modifiers = _data.modifiers as Array;
+            if(modifiers)
             {
-               _loc3_ = _loc2_.length;
-               _loc4_ = [];
-               _loc5_ = IconContainer.getInstance("modifiers");
-               _loc6_ = 0;
-               while(_loc6_ < _loc3_)
+               modifierCount = modifiers.length;
+               options = [];
+               iconContainer = IconContainer.getInstance("modifiers");
+               i = 0;
+               while(i < modifierCount)
                {
-                  _loc7_ = _loc2_[_loc6_];
-                  if(!_loc7_.isDefault && _loc7_.state != 1)
+                  modifier = modifiers[i];
+                  if(!modifier.isDefault && modifier.state != 1)
                   {
-                     _loc8_ = _loc5_.getIcon(_loc7_.icon);
-                     _loc9_ = {
-                        id:_loc7_.id,
-                        icon:_loc8_,
-                        label:_loc7_.textValue
+                     modifierIcon = iconContainer.getIcon(modifier.icon);
+                     option = {
+                        id:modifier.id,
+                        icon:modifierIcon,
+                        label:modifier.textValue
                      };
-                     _loc4_.push(_loc9_);
+                     options.push(option);
                   }
-                  _loc6_++;
+                  i++;
                }
-               trace("modifiersToReroll",_loc3_,_loc4_.length);
-               this.modifiersList.dataProvider = new DataProvider(_loc4_);
+               trace("modifiersToReroll",modifierCount,options.length);
+               this.modifiersList.dataProvider = new DataProvider(options);
             }
             this.modifiersList.addEventListener(IndexEvent.INDEX_CHANGE,this.checkAcceptButton);
             this.modifiersList2.addEventListener(IndexEvent.INDEX_CHANGE,this.checkAcceptButton);
@@ -175,104 +175,104 @@ package survarium.messages
          this.checkAcceptButton();
       }
       
-      public function updateTimer(param1:Object) : void
+      public function updateTimer(rerollInfo:Object) : void
       {
-         if(_data && param1 && _data.itemId == param1.itemId)
+         if(_data && rerollInfo && _data.itemId == rerollInfo.itemId)
          {
-            _rerollTimer = param1.rerollTime;
+            _rerollTimer = rerollInfo.rerollTime;
             this.checkAcceptButton();
          }
       }
       
-      public function updateReroll(param1:Array) : void
+      public function updateReroll(newModifiers:Array) : void
       {
          this.lockWindow(false);
-         var _loc2_:uint = (this.modifiersList.selectedIndex);
-         var _loc3_:Array = param1;
-         var _loc4_:uint = _loc3_.length;
-         var _loc5_:IconContainer = IconContainer.getInstance("modifiers");
-         var _loc6_:Array = [];
-         var _loc7_:uint = 0;
-         var _loc8_:Object;
-         var _loc9_:Icon;
-         var _loc10_:Object;
-         while(_loc7_ < _loc4_)
+         var selectedModifier:uint = (this.modifiersList.selectedIndex);
+         var modifiers:Array = newModifiers;
+         var modifierCount:uint = modifiers.length;
+         var iconContainer:IconContainer = IconContainer.getInstance("modifiers");
+         var options:Array = [];
+         var i:uint = 0;
+         var modifier:Object;
+         var modifierIcon:Icon;
+         var option:Object;
+         while(i < modifierCount)
          {
-            _loc8_ = _loc3_[_loc7_];
-            _loc9_ = _loc5_.getIcon(_loc8_.icon);
-            _loc10_ = {
-               id:_loc8_.id,
-               icon:_loc9_,
-               label:_loc8_.textValue
+            modifier = modifiers[i];
+            modifierIcon = iconContainer.getIcon(modifier.icon);
+            option = {
+               id:modifier.id,
+               icon:modifierIcon,
+               label:modifier.textValue
             };
-            _loc6_.push(_loc10_);
-            _loc7_++;
+            options.push(option);
+            i++;
          }
-         this.showModifierSelection(_loc2_,_loc6_);
+         this.showModifierSelection(selectedModifier,options);
       }
       
-      public function updateModifiers(param1:Object) : void
+      public function updateModifiers(rerollData:Object) : void
       {
-         trace("modifiersToRerollUpgrade",param1);
+         trace("modifiersToRerollUpgrade",rerollData);
          closable = true;
-         Util.logObject(param1);
+         Util.logObject(rerollData);
          if(!this.rerollContainer.visible)
          {
             this.setChooseReollOptionState(false);
          }
-         var _loc2_:Array = param1.modifiers as Array;
-         var _loc3_:uint;
-         var _loc4_:Array;
-         var _loc5_:IconContainer;
-         var _loc6_:Boolean;
-         var _loc7_:int;
-         var _loc8_:Object;
-         var _loc9_:uint;
-         var _loc10_:Icon;
-         var _loc11_:Object;
+         var modifiers:Array = rerollData.modifiers as Array;
+         var modifierCount:uint;
+         var options:Array;
+         var iconContainer:IconContainer;
+         var noneRerolled:Boolean;
+         var rerolledIndex:int;
+         var modifier:Object;
+         var i:uint;
+         var modifierIcon:Icon;
+         var option:Object;
          this.lockWindow(false);
-         _rerollCost = param1.regular_cost;
-         _rerollCostGold = param1.premium_cost;
+         _rerollCost = rerollData.regular_cost;
+         _rerollCostGold = rerollData.premium_cost;
          this.checkBoxRegularCost.value = this._rerollCost;
          this.checkBoxPremiumCost.value = this._rerollCostGold;
-         if(_loc2_)
+         if(modifiers)
          {
-            _loc3_ = _loc2_.length;
-            _loc4_ = [];
-            _loc5_ = IconContainer.getInstance("modifiers");
-            _loc6_ = _loc3_ > 0;
-            _loc7_ = -1;
-            _loc9_ = 0;
-            while(_loc9_ < _loc3_)
+            modifierCount = modifiers.length;
+            options = [];
+            iconContainer = IconContainer.getInstance("modifiers");
+            noneRerolled = modifierCount > 0;
+            rerolledIndex = -1;
+            i = 0;
+            while(i < modifierCount)
             {
-               _loc8_ = _loc2_[_loc9_];
-               if(_loc8_.was_rerolled_before)
+               modifier = modifiers[i];
+               if(modifier.was_rerolled_before)
                {
-                  _loc6_ = false;
-                  _loc7_ = (_loc9_);
+                  noneRerolled = false;
+                  rerolledIndex = (i);
                }
-               _loc9_++;
+               i++;
             }
-            _loc9_ = 0;
-            while(_loc9_ < _loc3_)
+            i = 0;
+            while(i < modifierCount)
             {
-               _loc8_ = _loc2_[_loc9_];
-               _loc10_ = _loc5_.getIcon(_loc8_.icon);
-               _loc11_ = {
-                  id:_loc8_.id,
-                  icon:_loc10_,
-                  label:_loc8_.textValue,
-                  reroll_available:!_loc8_.was_rerolled_before,
-                  locked:_loc7_ == _loc9_ && _loc6_ == false
+               modifier = modifiers[i];
+               modifierIcon = iconContainer.getIcon(modifier.icon);
+               option = {
+                  id:modifier.id,
+                  icon:modifierIcon,
+                  label:modifier.textValue,
+                  reroll_available:!modifier.was_rerolled_before,
+                  locked:rerolledIndex == i && noneRerolled == false
                };
-               _loc4_.push(_loc11_);
-               _loc9_++;
+               options.push(option);
+               i++;
             }
-            trace("modifiersToReroll",_loc3_,_loc4_.length,_loc7_,_loc6_);
-            this.modifiersList.dataProvider = new DataProvider(_loc4_);
-            if(!_loc6_ && _loc7_ != -1)
+            trace("modifiersToReroll",modifierCount,options.length,rerolledIndex,noneRerolled);
+            this.modifiersList.dataProvider = new DataProvider(options);
+            if(!noneRerolled && rerolledIndex != -1)
             {
-               this.modifiersList.selectedIndex = _loc7_;
+               this.modifiersList.selectedIndex = rerolledIndex;
                this.modifiersList.enabled = false;
                this.modifiersList.mouseEnabled = false;
                this.modifiersList.mouseChildren = false;
@@ -281,39 +281,39 @@ package survarium.messages
          }
       }
       
-      private function unBtnClicked(param1:Event) : void
+      private function unBtnClicked(event:Event) : void
       {
-         this.checkBoxRegularCost.selected = param1.target == this.checkBoxRegularCost;
-         this.checkBoxPremiumCost.selected = param1.target == this.checkBoxPremiumCost;
+         this.checkBoxRegularCost.selected = event.target == this.checkBoxRegularCost;
+         this.checkBoxPremiumCost.selected = event.target == this.checkBoxPremiumCost;
          this.checkAcceptButton();
       }
       
-      protected function checkAcceptButton(param1:Event = null) : void
+      protected function checkAcceptButton(event:Event = null) : void
       {
-         var _loc2_:int;
-         var _loc3_:uint;
+         var selectedModifier:int;
+         var moneyType:uint;
          if(this.rerollContainer.visible)
          {
-            _loc3_ = this.getSelectedIndex();
-            _loc2_ = this.modifiersList.selectedIndex;
-            if(_loc2_ == -1)
+            moneyType = this.getSelectedIndex();
+            selectedModifier = this.modifiersList.selectedIndex;
+            if(selectedModifier == -1)
             {
                btnAccept.enabled = false;
                return;
             }
-            if(_loc3_ == 0)
+            if(moneyType == 0)
             {
                btnAccept.enabled = this._rerollCost <= PlayerInfo.genericMoney && !this._rerollTimer;
             }
-            else if(_loc3_ == 1)
+            else if(moneyType == 1)
             {
                btnAccept.enabled = true;
             }
          }
          else
          {
-            _loc2_ = this.modifiersList2.selectedIndex;
-            if(_loc2_ == -1)
+            selectedModifier = this.modifiersList2.selectedIndex;
+            if(selectedModifier == -1)
             {
                btnAccept.enabled = false;
             }
@@ -326,16 +326,16 @@ package survarium.messages
       
       protected function getSelectedIndex() : uint
       {
-         var _loc1_:uint;
+         var moneyType:uint;
          if(this.checkBoxRegularCost.selected)
          {
-            _loc1_ = 0;
+            moneyType = 0;
          }
          else
          {
-            _loc1_ = 1;
+            moneyType = 1;
          }
-         return _loc1_;
+         return moneyType;
       }
       
       protected function goToStore() : void
@@ -345,53 +345,53 @@ package survarium.messages
       
       protected function onNoMoneyEnought() : void
       {
-         var _loc1_:Object = {
+         var messageData:Object = {
             text:LocalizationData.getName("cant_buy_premium_message"),
             onYes:this.goToStore,
             label_ok:LocalizationData.getName("btn_add_premium_message"),
             label_cancel:LocalizationData.getName("cancel")
          };
-         Message.showMessage("apply",_loc1_,true);
+         Message.showMessage("apply",messageData,true);
       }
       
-      protected function showModifierSelection(param1:uint, param2:Array) : void
+      protected function showModifierSelection(selectedModifier:uint, options:Array) : void
       {
          this.setChooseReollOptionState(true);
          this.lockWindow(false);
-         this.modifiersList2.dataProvider = new DataProvider(param2);
+         this.modifiersList2.dataProvider = new DataProvider(options);
          btnAccept.enabled = false;
       }
       
-      private function setChooseReollOptionState(param1:Boolean) : void
+      private function setChooseReollOptionState(choosing:Boolean) : void
       {
-         this.rerollContainer.visible = !param1;
-         this.labelChooseModifier2.visible = param1;
+         this.rerollContainer.visible = !choosing;
+         this.labelChooseModifier2.visible = choosing;
          this.modifiersList2.selectedIndex = -1;
-         this.modifiersList2.visible = param1;
-         this.decriptionLabel.visible = !param1;
-         this.checkBoxRegularCost.visible = !param1;
-         this.checkBoxPremiumCost.visible = !param1;
-         this.modifiersList.enabled = !param1;
-         this.decriptionTimerLabel.visible = !param1;
-         this.background.height = !param1 ? 392 : 337;
+         this.modifiersList2.visible = choosing;
+         this.decriptionLabel.visible = !choosing;
+         this.checkBoxRegularCost.visible = !choosing;
+         this.checkBoxPremiumCost.visible = !choosing;
+         this.modifiersList.enabled = !choosing;
+         this.decriptionTimerLabel.visible = !choosing;
+         this.background.height = !choosing ? 392 : 337;
          this.lockBackground.height = this.background.height;
-         var _loc2_:int = 48;
-         var _loc3_:int = this.background.height - 3;
-         btnAccept.y = _loc3_ + 4 - _loc2_;
+         var buttonAreaHeight:int = 48;
+         var backgroundBottom:int = this.background.height - 3;
+         btnAccept.y = backgroundBottom + 4 - buttonAreaHeight;
          btnCancel.y = btnAccept.y;
-         btnAccept.label = LocalizationData.getName(!param1 ? "btn_reroll_change_label" : "btn_reroll_choose_label");
-         btnCancel.enabled = !param1;
-         btnClose.enabled = !param1;
+         btnAccept.label = LocalizationData.getName(!choosing ? "btn_reroll_change_label" : "btn_reroll_choose_label");
+         btnCancel.enabled = !choosing;
+         btnClose.enabled = !choosing;
       }
       
-      private function lockWindow(param1:Boolean) : void
+      private function lockWindow(locked:Boolean) : void
       {
-         this.wheels.playAnimation(param1);
-         this.wheels.visible = param1;
-         this.lockBackground.visible = param1;
-         mouseEnabled = !param1;
-         mouseChildren = !param1;
-         if(param1)
+         this.wheels.playAnimation(locked);
+         this.wheels.visible = locked;
+         this.lockBackground.visible = locked;
+         mouseEnabled = !locked;
+         mouseChildren = !locked;
+         if(locked)
          {
             btnAccept.enabled = false;
          }
@@ -411,35 +411,35 @@ package survarium.messages
          this.updateModifiers(this.modifiersList.dataProvider as Array);
       }
       
-      override protected function onMessageAccept(param1:ButtonEvent = null) : void
+      override protected function onMessageAccept(event:ButtonEvent = null) : void
       {
          if(!btnAccept.enabled)
          {
             return;
          }
-         var _loc2_:uint = this.modifiersList.selectedIndex;
-         var _loc3_:uint;
-         var _loc4_:uint;
+         var selectedModifier:uint = this.modifiersList.selectedIndex;
+         var moneyType:uint;
+         var modifierIndex:uint;
          if(this.rerollContainer.visible)
          {
-            _loc3_ = this.getSelectedIndex();
-            _loc4_ = _loc2_;
-            trace("reroll_item_modifier",uint(_loc3_));
-            if(_loc3_ == 1 && this._rerollCostGold > PlayerInfo.premiumMoney)
+            moneyType = this.getSelectedIndex();
+            modifierIndex = selectedModifier;
+            trace("reroll_item_modifier",uint(moneyType));
+            if(moneyType == 1 && this._rerollCostGold > PlayerInfo.premiumMoney)
             {
                this.onNoMoneyEnought();
             }
             else
             {
-               trace("reroll_item_modifier",uint(_data.itemId),uint(_loc4_));
-               ExternalInterface.call("reroll_item_modifier",_data.itemId,_loc4_,uint(_loc3_));
+               trace("reroll_item_modifier",uint(_data.itemId),uint(modifierIndex));
+               ExternalInterface.call("reroll_item_modifier",_data.itemId,modifierIndex,uint(moneyType));
                closable = false;
                this.lockWindow(true);
             }
          }
          else
          {
-            ExternalInterface.call("modifier_choosed",uint(_data.itemId),uint(_loc2_),uint(this.modifiersList2.selectedIndex));
+            ExternalInterface.call("modifier_choosed",uint(_data.itemId),uint(selectedModifier),uint(this.modifiersList2.selectedIndex));
             this.lockWindow(true);
          }
       }

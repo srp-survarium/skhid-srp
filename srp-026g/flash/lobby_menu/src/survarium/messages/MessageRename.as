@@ -34,25 +34,25 @@ package survarium.messages
          ExternalInterface.call("sound_play",13);
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
-         if(param1.isDefaultPrevented())
+         if(event.isDefaultPrevented())
          {
             return;
          }
-         var _loc2_:InputDetails = param1.details;
-         var _loc3_:uint = _loc2_.controllerIndex;
-         switch(_loc2_.code)
+         var details:InputDetails = event.details;
+         var controllerIndex:uint = details.controllerIndex;
+         switch(details.code)
          {
             case Keyboard.ENTER:
-               if(_loc2_.value == InputValue.KEY_UP)
+               if(details.value == InputValue.KEY_UP)
                {
                   this.onMessageAccept(null);
-                  param1.handled = true;
+                  event.handled = true;
                }
                break;
             case Keyboard.ESCAPE:
-               if(_loc2_.value == InputValue.KEY_UP)
+               if(details.value == InputValue.KEY_UP)
                {
                   if(stage.focus is TextField)
                   {
@@ -61,12 +61,12 @@ package survarium.messages
                }
                break;
             case Keyboard.BACKSPACE:
-               if(_loc2_.value == InputValue.KEY_UP)
+               if(details.value == InputValue.KEY_UP)
                {
                   if(!stage.focus is TextField)
                   {
                      this.onMessageCancel(null);
-                     param1.handled = true;
+                     event.handled = true;
                   }
                }
                break;
@@ -95,14 +95,14 @@ package survarium.messages
          addEventListener(Event.RENDER,this.onFocusRender);
       }
       
-      private function onFocusRender(param1:Event) : void
+      private function onFocusRender(event:Event) : void
       {
-         removeEventListener(param1.type,this.onFocusRender);
+         removeEventListener(event.type,this.onFocusRender);
          stage.focus = this.textInput;
          this.textInput.textField.setSelection(0,this.textInput.textField.text.length);
       }
       
-      private function requestKeyValidation(param1:Event = null) : void
+      private function requestKeyValidation(event:Event = null) : void
       {
          this.btnAccept.enabled = false;
          this.textInput.enabled = false;
@@ -111,26 +111,26 @@ package survarium.messages
          Message.onClick(_id,"yes");
       }
       
-      private function updatePromo(param1:Event) : void
+      private function updatePromo(event:Event) : void
       {
-         var _loc2_:String = this.textInput.text;
+         var newName:String = this.textInput.text;
          this.btnAccept.enabled = this.checkLocalKeyValidation();
       }
       
       protected function checkLocalKeyValidation() : Boolean
       {
-         var _loc1_:String = this.textInput.text;
-         trace("checkLocalNicknameValidation",_loc1_);
-         return _loc1_.length >= this.MIN_CHARS && _loc1_.length <= this.MAX_CHARS;
+         var newName:String = this.textInput.text;
+         trace("checkLocalNicknameValidation",newName);
+         return newName.length >= this.MIN_CHARS && newName.length <= this.MAX_CHARS;
       }
       
-      protected function onMessageCancel(param1:ButtonEvent) : void
+      protected function onMessageCancel(event:ButtonEvent) : void
       {
          Message.onClick(_id,"no");
          removeEventListener(InputEvent.INPUT,this.handleInput);
       }
       
-      protected function onMessageAccept(param1:ButtonEvent) : void
+      protected function onMessageAccept(event:ButtonEvent) : void
       {
          if(!this.btnAccept.enabled)
          {

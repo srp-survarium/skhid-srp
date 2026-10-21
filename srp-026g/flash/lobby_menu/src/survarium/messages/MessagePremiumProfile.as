@@ -50,57 +50,57 @@ package survarium.messages
          this.btnAccept.addEventListener(ButtonEvent.CLICK,this.onMessageAccept);
       }
       
-      public function setData(param1:Object) : void
+      public function setData(newData:Object) : void
       {
-         var _loc2_:int;
-         var _loc3_:Array;
-         var _loc4_:uint;
-         var _loc5_:Object;
-         var _loc6_:Boolean;
-         var _loc7_:String;
-         data = param1;
+         var selectedOption:int;
+         var options:Array;
+         var i:uint;
+         var option:Object;
+         var affordable:Boolean;
+         var discountText:String;
+         data = newData;
          if(this.data)
          {
-            _loc2_ = -1;
-            _loc3_ = this.data.options;
-            _loc4_ = 0;
-            while(_loc4_ < _loc3_.length)
+            selectedOption = -1;
+            options = this.data.options;
+            i = 0;
+            while(i < options.length)
             {
-               _loc5_ = _loc3_[_loc4_];
-               _loc6_ = PlayerInfo.premiumMoney >= _loc5_.value;
-               _loc5_.valid = _loc6_;
-               _loc5_.enabled = true;
-               trace("configPM::",_loc5_.label,"|",_loc5_.value2,_loc5_.discount_value);
-               Util.logObject(_loc5_);
-               if(_loc5_.text == undefined)
+               option = options[i];
+               affordable = PlayerInfo.premiumMoney >= option.value;
+               option.valid = affordable;
+               option.enabled = true;
+               trace("configPM::",option.label,"|",option.value2,option.discount_value);
+               Util.logObject(option);
+               if(option.text == undefined)
                {
-                  _loc5_.text = _loc5_.label;
+                  option.text = option.label;
                }
-               if(_loc5_.discount)
+               if(option.discount)
                {
-                  _loc7_ = Util.styledChar(LocalizationData.getName("discount"),"white") + " " + Util.styledChar(_loc5_.discount,"yellow");
+                  discountText = Util.styledChar(LocalizationData.getName("discount"),"white") + " " + Util.styledChar(option.discount,"yellow");
                }
                else
                {
-                  _loc7_ = "";
+                  discountText = "";
                }
-               _loc5_.label = Util.styledChar(_loc5_.text,"yellow") + " " + Util.styledChar(_loc5_.value2,"dark_yellow") + " " + _loc7_;
-               if(_loc6_ && _loc2_ == -1)
+               option.label = Util.styledChar(option.text,"yellow") + " " + Util.styledChar(option.value2,"dark_yellow") + " " + discountText;
+               if(affordable && selectedOption == -1)
                {
-                  _loc2_ = _loc4_;
+                  selectedOption = i;
                }
-               _loc4_++;
+               i++;
             }
-            _loc2_ = int(_loc3_.length / 2);
+            selectedOption = int(options.length / 2);
             this.btnAccept.enabled = true;
          }
          if(this.dropDownlist)
          {
             this.dropDownlist.menuWidth = 200;
-            this.dropDownlist.dataProvider = new DataProvider(_loc3_);
+            this.dropDownlist.dataProvider = new DataProvider(options);
             this.dropDownlist.addEventListener(ListEvent.INDEX_CHANGE,this.onPremiumSelected);
             this.dropDownlist.autoSize = "left";
-            this.dropDownlist.selectedIndex = _loc2_;
+            this.dropDownlist.selectedIndex = selectedOption;
             this.dropDownlist.validateNow();
             this.dropDownlist.autoSize = "none";
             this.moneyBackContainer.x = this.dropDownlist.x + this.dropDownlist.width + 3;
@@ -110,25 +110,25 @@ package survarium.messages
          }
       }
       
-      private function onPremiumSelected(param1:ListEvent = null) : void
+      private function onPremiumSelected(event:ListEvent = null) : void
       {
          if(this.dropDownlist.selectedIndex == -1)
          {
             return;
          }
-         var _loc2_:Object = this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex];
-         this.textFieldValue.text = Util.getMoneyString(_loc2_.value);
+         var option:Object = this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex];
+         this.textFieldValue.text = Util.getMoneyString(option.value);
       }
       
       protected function onNoMoneyEnought() : void
       {
-         var _loc1_:Object = {
+         var messageData:Object = {
             text:LocalizationData.getName("cant_buy_premium_message"),
             onYes:this.goToStore,
             label_ok:LocalizationData.getName("btn_add_premium_message"),
             label_cancel:LocalizationData.getName("cancel")
          };
-         Message.showMessage("apply",_loc1_,true,0,true);
+         Message.showMessage("apply",messageData,true,0,true);
       }
       
       protected function goToStore() : void
@@ -136,20 +136,20 @@ package survarium.messages
          MessageMoneyExchange.buyGold();
       }
       
-      protected function onMessageAccept(param1:ButtonEvent = null) : void
+      protected function onMessageAccept(event:ButtonEvent = null) : void
       {
          if(!this.btnAccept.enabled)
          {
             return;
          }
-         var _loc2_:Boolean = PlayerInfo.premiumMoney >= this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].value;
-         var _loc3_:uint;
-         if(_loc2_)
+         var affordable:Boolean = PlayerInfo.premiumMoney >= this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].value;
+         var premiumId:uint;
+         if(affordable)
          {
             this.btnAccept.enabled = false;
-            _loc3_ = this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].id;
-            trace("accept_premium:",_loc3_);
-            ExternalInterface.call("accept_premium",_loc3_);
+            premiumId = this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].id;
+            trace("accept_premium:",premiumId);
+            ExternalInterface.call("accept_premium",premiumId);
          }
          else
          {

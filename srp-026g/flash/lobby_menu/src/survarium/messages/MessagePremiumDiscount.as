@@ -194,9 +194,9 @@ package survarium.messages
          MessageMoneyExchange.buyGold();
       }
       
-      override protected function onMessageCancel(param0:ButtonEvent = null) : void
+      override protected function onMessageCancel(event:ButtonEvent = null) : void
       {
-         super.onMessageCancel(param0);
+         super.onMessageCancel(event);
          trace("accept_premium_with_discount:",-1,-1);
          ExternalInterface.call("accept_premium_with_discount",-1,-1);
       }

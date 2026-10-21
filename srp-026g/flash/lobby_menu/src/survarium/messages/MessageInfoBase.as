@@ -20,31 +20,31 @@ package survarium.messages
          ExternalInterface.call("sound_play",13);
       }
       
-      override protected function cleanUp(param1:Event = null) : void
+      override protected function cleanUp(e:Event = null) : void
       {
          super.cleanUp();
          removeEventListener(InputEvent.INPUT,this.handleInput);
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
-         if(param1.isDefaultPrevented())
+         if(event.isDefaultPrevented())
          {
             return;
          }
-         var _loc2_:InputDetails = param1.details;
-         var _loc3_:uint = _loc2_.controllerIndex;
-         switch(_loc2_.code)
+         var details:InputDetails = event.details;
+         var index:uint = details.controllerIndex;
+         switch(details.code)
          {
             case Keyboard.ENTER:
-               if(_loc2_.value == InputValue.KEY_UP)
+               if(details.value == InputValue.KEY_UP)
                {
                   this.onMessageAccept();
-                  param1.handled = true;
+                  event.handled = true;
                }
                break;
             case Keyboard.ESCAPE:
-               if(_loc2_.value == InputValue.KEY_UP)
+               if(details.value == InputValue.KEY_UP)
                {
                   if(stage.focus is TextField)
                   {
@@ -60,7 +60,7 @@ package survarium.messages
          super.configUI();
       }
       
-      protected function onMessageAccept(param1:ButtonEvent = null) : void
+      protected function onMessageAccept(event:ButtonEvent = null) : void
       {
          Message.onClick(_id);
          if(_data && _data.acceptCallback is Function)

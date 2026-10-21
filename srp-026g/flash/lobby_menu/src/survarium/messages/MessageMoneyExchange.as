@@ -137,25 +137,25 @@ package survarium.messages
 
       override protected function configUI() : void
       {
-         var _loc1_:Boolean;
+         var hasPremiumMoney:Boolean;
          super.configUI();
          this.exchangeStepper.setExchangeMoneyType(2);
          this.exchangeStepper.setExchangeMoneyFactor(PlayerInfo.premiumExchangeRate);
-         _loc1_ = PlayerInfo.premiumMoney > 0;
-         this.exchangeStepper.minimum = _loc1_ ? 1 : 0;
+         hasPremiumMoney = PlayerInfo.premiumMoney > 0;
+         this.exchangeStepper.minimum = hasPremiumMoney ? 1 : 0;
          this.exchangeStepper.value = this.exchangeStepper.minimum;
          this.exchangeStepper.maximum = Math.min(uint.MAX_VALUE,PlayerInfo.premiumMoney);
          this.exchangeStepper.editable = true;
          this.exchangeStepper.stepSize = 1;
-         this.exchangeStepper.enabled = _loc1_;
+         this.exchangeStepper.enabled = hasPremiumMoney;
          btnAccept.label = LocalizationData.getName("exchange_button");
-         btnAccept.enabled = _loc1_;
+         btnAccept.enabled = hasPremiumMoney;
          this.textFieldLabel.text = _data.label;
          this.configureExchange();
       }
 
       // The Exchange button and Enter.
-      override protected function onMessageAccept(param1:ButtonEvent = null) : void
+      override protected function onMessageAccept(event:ButtonEvent = null) : void
       {
          this.snap();
          this.refresh();

@@ -16,18 +16,18 @@ package survarium.messages
       
       public function MessageAccept()
       {
-         var _loc1_:Class;
-         var _loc2_:Class;
+         var rendererAccept:Class;
+         var rendererCancel:Class;
          super();
          if(!this.btnAccept)
          {
-            _loc1_ = getDefinitionByName("SrvButtonSkinned") as Class;
-            btnAccept = new _loc1_();
+            rendererAccept = getDefinitionByName("SrvButtonSkinned") as Class;
+            btnAccept = new rendererAccept();
          }
          if(!this.btnCancel)
          {
-            _loc2_ = getDefinitionByName("SrvButtonSkinned") as Class;
-            btnCancel = new _loc2_();
+            rendererCancel = getDefinitionByName("SrvButtonSkinned") as Class;
+            btnCancel = new rendererCancel();
          }
       }
       

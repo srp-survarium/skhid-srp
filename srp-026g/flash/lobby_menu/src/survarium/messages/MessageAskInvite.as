@@ -29,33 +29,33 @@ package survarium.messages
          super();
       }
       
-      override public function setMessageData(param1:int, param2:Object) : void
+      override public function setMessageData(id:int, messageData:Object) : void
       {
-         trace("SrvMessageInvited::",param2,this.textFieldName,this.textField);
-         super.setMessageData(param1,param2);
-         if(!param2)
+         trace("SrvMessageInvited::",messageData,this.textFieldName,this.textField);
+         super.setMessageData(id,messageData);
+         if(!messageData)
          {
             return;
          }
-         messageId = param2.id;
-         messageType = param2.type;
+         messageId = messageData.id;
+         messageType = messageData.type;
          this.textFieldName.multiline = true;
-         var _loc3_:TextFormat = this.textFieldName.getTextFormat();
-         _loc3_.leading = 0;
-         this.textFieldName.defaultTextFormat = _loc3_;
+         var nameFormat:TextFormat = this.textFieldName.getTextFormat();
+         nameFormat.leading = 0;
+         this.textFieldName.defaultTextFormat = nameFormat;
          this.textFieldName.autoSize = TextFieldAutoSize.LEFT;
-         this.textFieldName.text = param2.name;
-         this.textField.text = param2.text;
+         this.textFieldName.text = messageData.name;
+         this.textField.text = messageData.text;
          if(this.textField.numLines > 1 || this.textField.text == "")
          {
             this.textFieldName.y = this.textField.y + this.textField.textHeight + 5;
             btnAccept.y = btnCancel.y = this.textFieldName.y + this.textFieldName.textHeight + 12;
             this.background.height = btnAccept.y + btnAccept.height + 8;
          }
-         btnAccept.enabled = param2.acceptable;
+         btnAccept.enabled = messageData.acceptable;
       }
       
-      private function hideMe(param1:ButtonEvent) : void
+      private function hideMe(event:ButtonEvent) : void
       {
          super.onMessageCancel();
       }
@@ -68,14 +68,14 @@ package survarium.messages
          this.btnHide.addEventListener(ButtonEvent.CLICK,this.hideMe);
       }
       
-      override protected function onMessageCancel(param1:ButtonEvent = null) : void
+      override protected function onMessageCancel(event:ButtonEvent = null) : void
       {
          trace("important_message_read",this.messageId,uint(1),this.messageType);
          ExternalInterface.call("important_message_read",this.messageId,uint(1),this.messageType);
          super.onMessageCancel();
       }
       
-      override protected function onMessageAccept(param1:ButtonEvent = null) : void
+      override protected function onMessageAccept(event:ButtonEvent = null) : void
       {
          trace("important_message_read",this.messageId,uint(0),this.messageType);
          ExternalInterface.call("important_message_read",this.messageId,uint(0),this.messageType);

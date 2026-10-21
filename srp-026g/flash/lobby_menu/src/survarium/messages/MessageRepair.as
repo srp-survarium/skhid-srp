@@ -69,7 +69,7 @@ package survarium.messages
          super();
       }
       
-      override protected function cleanUp(param0:Event = null) : void
+      override protected function cleanUp(event:Event = null) : void
       {
          super.cleanUp();
          this.itemSlot.data = null;

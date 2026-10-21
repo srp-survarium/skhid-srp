@@ -43,9 +43,9 @@ package survarium.messages
          }
       }
       
-      private function onCheckBoxChanged(param1:ButtonEvent) : void
+      private function onCheckBoxChanged(event:ButtonEvent) : void
       {
-         if(param1.target == this.checkBoxRegularCost)
+         if(event.target == this.checkBoxRegularCost)
          {
             this.checkBoxRegularCost.selected = true;
             this.checkBoxPremiumCost.selected = false;
@@ -57,12 +57,12 @@ package survarium.messages
          }
       }
       
-      override protected function onMessageAccept(param1:ButtonEvent = null) : void
+      override protected function onMessageAccept(event:ButtonEvent = null) : void
       {
          super.onMessageAccept();
-         var _loc2_:uint = this.checkBoxRegularCost.selected ? 0 : 1;
+         var moneyType:uint = this.checkBoxRegularCost.selected ? 0 : 1;
          trace("reroll_ok_clicked",uint(_data.branch));
-         ExternalInterface.call("reroll_ok_clicked",uint(_data.branch),_loc2_);
+         ExternalInterface.call("reroll_ok_clicked",uint(_data.branch),moneyType);
       }
    }
 }
