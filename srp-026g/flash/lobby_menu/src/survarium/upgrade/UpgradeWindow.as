@@ -932,7 +932,7 @@ package survarium.upgrade
          var _loc2_:UpgradeSlot = param1.target as UpgradeSlot;
          var _loc3_:Object = _loc2_.getLastData();
          trace("updateData::",_loc2_.data,_loc3_);
-         if(_loc3_ && !_loc2_.data && !this.holds(_loc2_,uint(_loc3_.itemId)))
+         if(_loc3_ && !_loc2_.data && !this._moving && !this.holds(_loc2_,uint(_loc3_.itemId)))
          {
             trace("drop_upgrade_item::updated",this._data.itemId,_loc3_.itemId);
             ExternalInterface.call("drop_upgrade_item",this._data.itemId,uint(_loc3_.itemId));
@@ -942,6 +942,9 @@ package survarium.upgrade
       // Another slot of the window holds the item: a drag from one slot to another, whose drop
       // (relocate_upgrade_item, the move) comes before the slot it left is emptied (DragManager:
       // the target's drop, then the source's drag end). Dropping it then would take it off the item.
+      // set while onItemDropped empties the slot an item is moved from (no drop is sent for it)
+      private var _moving:Boolean = false;
+
       protected function holds(param1:UpgradeSlot, param2:uint) : Boolean
       {
          var _loc3_:uint = 0;
@@ -971,7 +974,11 @@ package survarium.upgrade
                trace("slotId::",param1.dragData.itemId,_loc4_.data ? _loc4_.data.itemId : "ff");
                if(_loc4_.data && _loc4_.data.itemId == param1.dragData.itemId)
                {
+                  // a move from another slot of this window: the relocate below moves it on the
+                  // server (keeping a decal's place), so emptying the slot it left sends no drop
+                  this._moving = true;
                   _loc4_.dropSlot();
+                  this._moving = false;
                }
                _loc2_++;
             }
