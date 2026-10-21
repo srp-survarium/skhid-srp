@@ -134,3 +134,12 @@ carries the lobby movie built from the tree (the craft result shows the item upg
 release apply this list to weapon-balance-2's output, not to the live file beside it (checked on
 revision 24's files: weapon-balance-2, then this list over its output: 22 files edited, 0
 unexpected differences).
+
+## death-poses-1.json (2026-10-21)
+
+| change | why |
+|---|---|
+| The face-down death pose out of the weapons' death animations (`remove_item` of a string, in `death` and in `death_hud`, the first-person list the game indexes with the same number): `rifles.user_animations` ak `death/on_site_back` and `death/on_site_fwd` (4 -> 2: `on_site_left`, `on_site_right`), `pistols_new.user_animations` tt33 `death/on_site_back` (2 -> 1: `on_site_left`) | the owner, testing the death camera (patch 46): "we need to remove one death pose which makes head look into arms"; the three end in that one pose, the arms in 16 % of the eyes' look cone, every other pose in none ([`../../docs/notes/death-poses.md`](../../docs/notes/death-poses.md)). The pick is the simulation's random over the list (`player_logic_dead_state`, 0x338330): it picks among the rest |
+
+Applied to the stock resources.db's two lists (no Skhid patch up to 27 carries them): 2 files
+edited, 0 unexpected differences. Nothing in the server game data (srp reads neither file).

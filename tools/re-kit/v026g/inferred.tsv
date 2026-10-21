@@ -2162,6 +2162,7 @@ va	status	ref_021d	name
 0x003341d0	inferred-medium		survarium::composite_game_effect::deactivate_effect
 0x00334310	inferred-medium		survarium::composite_game_effect::serialize
 0x00337480	inferred-medium		survarium::player_logic_stand_jump_state::serialize
+0x00338330	inferred-medium		survarium::player_logic_dead_state::activate
 0x00338850	inferred-medium	0x002073c6	boost::detail::function::functor_manager<boost::_bi::bind_t<enum vostok::animation::callback_return_type_enum,boost::_mfi::mf1<enum vostok::animation::callback_return_type_enum,survarium::player_logic_dead_state,vostok::animation::animation_callback_params &>,boost::_bi::list2<boost::_bi::value<survarium::player_logic_dead_state *>,boost::arg<1> > > >::manager
 0x00339900	inferred-high	0x001f86b6	survarium::weapon_core_shotgun_reload_state::weapon_core_shotgun_reload_state
 0x00339b70	inferred-medium	0x001f8701	survarium::weapon_core_shotgun_reload_state::`scalar deleting destructor'

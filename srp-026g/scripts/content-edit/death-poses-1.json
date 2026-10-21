@@ -1,0 +1,11 @@
+{
+ "_about": "Death poses 1 (2026-10-21): the face-down death pose, in which the corpse's eyes look into its own arms (the death camera, exe patch 46), taken out of the weapons' death animations. The pose is where these three animations end (srp-026g/docs/notes/death-poses.md): rifles' death/on_site_back and death/on_site_fwd, pistols' death/on_site_back. Each comes out of `death` and of `death_hud`, the first-person list the game indexes with the same number. The game picks a death animation at random among a list's items (weapon_user_animations_selector's random, uniform over the list), so the rest are picked the more often.",
+ "remove_item": [
+  {"file": "gameplay/items/weapons/common/rifles.user_animations", "path": "death", "value": "resources/animations/single/weapons/ak/player/stand/3rd_view/death/on_site_back"},
+  {"file": "gameplay/items/weapons/common/rifles.user_animations", "path": "death_hud", "value": "resources/animations/single/weapons/ak/player/stand/3rd_view/death/on_site_back"},
+  {"file": "gameplay/items/weapons/common/rifles.user_animations", "path": "death", "value": "resources/animations/single/weapons/ak/player/stand/3rd_view/death/on_site_fwd"},
+  {"file": "gameplay/items/weapons/common/rifles.user_animations", "path": "death_hud", "value": "resources/animations/single/weapons/ak/player/stand/3rd_view/death/on_site_fwd"},
+  {"file": "gameplay/items/weapons/common/pistols_new.user_animations", "path": "death", "value": "resources/animations/single/weapons/tt33/player/stand/3rd_view/death/on_site_back"},
+  {"file": "gameplay/items/weapons/common/pistols_new.user_animations", "path": "death_hud", "value": "resources/animations/single/weapons/tt33/player/stand/3rd_view/death/on_site_back"}
+ ]
+}
