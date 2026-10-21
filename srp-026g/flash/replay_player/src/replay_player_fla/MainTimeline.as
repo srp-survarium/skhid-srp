@@ -76,6 +76,9 @@ package replay_player_fla
       
       public var layout:Layout;
       
+      // The scale the controls are drawn at (onStageResize).
+      public var scaleFactor:Number = 1;
+      
       public var temp_data:Object;
       
       public var temp_players:Array;
@@ -142,10 +145,25 @@ package replay_player_fla
          stage.removeEventListener(Event.ENTER_FRAME,this.onEventRender,true);
       }
       
-      public function onStageResize(e:Event) : void
+      // The lobby and the HUD scale themselves from 1920 x 1080 (by the width up to
+      // an aspect of 1.85, by the height above); the replay's controls were drawn
+      // 1:1, half their size at 4K. They now take that scale, never below 1: at
+      // 1080p and below they are as they were. The layout anchors them to the
+      // scaled stage's edges.
+      public function onStageResize(e:Event = null) : void
       {
+         var w:Number = stage.stageWidth;
+         var h:Number = stage.stageHeight;
+         var factor:Number = w / h < 1.85 ? w / 1920 : h / 1080;
+         if(!(factor > 1))
+         {
+            factor = 1;
+         }
+         scaleFactor = factor;
+         scaleX = scaleY = factor;
+         this.layout.setScaleFactor(factor);
          this.layout.reflow();
-         this.freeViewButton.x = stage.stageWidth - this.freeViewButton.width - 10;
+         this.freeViewButton.x = stage.stageWidth / this.scaleFactor - this.freeViewButton.width - 10;
          this.freeViewButton.y = this.playersBar.y + this.playersBar.height + 4;
       }
       
@@ -385,7 +403,7 @@ package replay_player_fla
          this.playersBar.dataProvider = new DataProvider(players);
          this.playersBar.visible = players.length > 0;
          this.layout.reflow();
-         this.freeViewButton.x = stage.stageWidth - this.freeViewButton.width - 10;
+         this.freeViewButton.x = stage.stageWidth / this.scaleFactor - this.freeViewButton.width - 10;
          this.freeViewButton.y = this.playersBar.y + 25 * players.length - 30;
       }
       
@@ -574,6 +592,7 @@ package replay_player_fla
          this.layout.tiedToStageSize = true;
          addChild(this.layout);
          stage.addEventListener(Event.RESIZE,this.onStageResize);
+         this.onStageResize();
          this.btn_play.selected = true;
          this.stepper.addEventListener(IndexEvent.INDEX_CHANGE,this.onStepperUpdate);
          this.btn_play.addEventListener(ButtonEvent.CLICK,this.onPlayClicked);

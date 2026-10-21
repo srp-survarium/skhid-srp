@@ -75,31 +75,43 @@ package survarium.controls
             _functions[i] = items[i].click_function;
             i++;
          }
+         // The menu is on the stage, drawn at the lobby's scale (2 at 4K); it is
+         // placed in its own units: the mouse and the screen divided by that scale.
+         var scale:Number = MainScene.overlayScale;
+         _id.scaleX = _id.scaleY = scale;
+         var atX:Number = _stage.mouseX / scale;
+         var atY:Number = _stage.mouseY / scale;
          var offset:uint = 10;
          var list:ContextList = _id.contextList;
-         list.x = _stage.mouseX - offset / 2;
-         list.y = _stage.mouseY - offset - 2;
-         if(list.x < 0)
-         {
-            list.x = 4;
-         }
-         if(list.y < 0)
-         {
-            list.y = 4;
-         }
+         list.x = atX - offset / 2;
+         list.y = atY - offset - 2;
          list.setPatternt(_pattern);
          list.data = items;
          trace("contextShowed::",list.width);
          _stage.focus = _id.contextList.list;
-         if(list.x + list.width > _stage.stageWidth)
+         if(list.x + list.width > screenWidth())
          {
-            list.x = _stage.mouseX - list.width + 4;
+            list.x = atX - list.width + 4;
          }
-         if(list.y + list.height > _stage.stageHeight)
+         if(list.y + list.height > screenHeight())
          {
-            list.y = _stage.mouseY - list.height + 4 + 25;
+            list.y = atY - list.height + 4 + 25;
          }
+         // Kept on the screen at its edges (a tall menu near the bottom).
+         list.x = Math.max(4,Math.min(list.x,screenWidth() - list.width - 4));
+         list.y = Math.max(4,Math.min(list.y,screenHeight() - list.height - 4));
          setOwner(owner);
+      }
+      
+      // The screen in the menu's units.
+      private static function screenWidth() : Number
+      {
+         return _stage.stageWidth / (_id ? _id.scaleX : 1);
+      }
+      
+      private static function screenHeight() : Number
+      {
+         return _stage.stageHeight / (_id ? _id.scaleY : 1);
       }
       
       public static function setPatternt(pattern:BitmapData) : void
@@ -195,11 +207,16 @@ package survarium.controls
          _subMenu.x = this.contextList.x + this.contextList.width - 8;
          _subMenu.data = options;
          rowPos = this.contextList.y + rowPos * 25 - 4;
-         if(rowPos + _subMenu.height > (stage ? stage.stageHeight : 0))
+         if(rowPos + _subMenu.height > screenHeight())
          {
             rowPos -= (options.length - 1) * 25 - 4;
          }
-         _subMenu.y = rowPos;
+         // Left of the menu when it would go past the screen's right edge.
+         if(_subMenu.x + _subMenu.width > screenWidth())
+         {
+            _subMenu.x = this.contextList.x - _subMenu.width + 8;
+         }
+         _subMenu.y = Math.max(4,rowPos);
          addChild(_subMenu);
       }
       
@@ -295,9 +312,9 @@ package survarium.controls
          items.push(item);
          var list:ContextList = _id.contextList;
          list.data = items;
-         if(_stage != null && list.y + list.height > _stage.stageHeight)
+         if(_stage != null && list.y + list.height > screenHeight())
          {
-            list.y = Math.max(4,_stage.stageHeight - list.height - 4);
+            list.y = Math.max(4,screenHeight() - list.height - 4);
          }
          return true;
       }

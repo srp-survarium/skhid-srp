@@ -29,6 +29,11 @@ package
       
       public static var scaleFactor:Number;
       
+      // The scale of what the lobby puts on the stage itself, outside its scaled
+      // layout (tooltips, dragged icons, the context menu, the sync clip): the
+      // lobby's, never below 1 (LobbyMenu.onStageResize).
+      public static var overlayScale:Number = 1;
+      
       public static var textStyleSheet:StyleSheet;
       
       public static var buyFunction:Function;

@@ -57,8 +57,14 @@ package scaleform.clik.managers
          {
             scope = _stage;
          }
+         // The canvas is on the stage; it takes the scale the popup's owner is drawn
+         // at (a movie that scales itself: 2 at 4K), so a dropdown's list is as big
+         // as its box. The canvas, not the popup: a component takes a scale as a size.
+         var origin:Point = scope.localToGlobal(new Point(0,0));
+         _defaultPopupCanvas.scaleX = (scope.localToGlobal(new Point(100,0)).x - origin.x) / 100;
+         _defaultPopupCanvas.scaleY = (scope.localToGlobal(new Point(0,100)).y - origin.y) / 100;
          var p:Point = new Point(x,y);
-         p = scope.localToGlobal(p);
+         p = _defaultPopupCanvas.globalToLocal(scope.localToGlobal(p));
          mc.x = p.x;
          mc.y = p.y;
          _stage.setChildIndex(_defaultPopupCanvas,_stage.numChildren - 1);

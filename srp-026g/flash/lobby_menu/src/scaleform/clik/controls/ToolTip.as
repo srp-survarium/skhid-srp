@@ -5,6 +5,7 @@ package scaleform.clik.controls
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.events.TimerEvent;
+   import flash.geom.Point;
    import flash.utils.Timer;
    import flash.utils.getDefinitionByName;
    import scaleform.clik.constants.InvalidationType;
@@ -172,11 +173,18 @@ package scaleform.clik.controls
             this._tip_content.mouseEnabled = false;
             this._tip_content.mouseChildren = false;
          }
-         this._tip_content.x = stage.mouseX + 20;
-         this._tip_content.y = stage.mouseY + 20;
-         if(this._tip_content.y < 0)
+         // In the container's units: the lobby scales it as itself (2 at 4K).
+         var mouse:Point = tipContainer.globalToLocal(new Point(stage.mouseX,stage.mouseY));
+         var corner:Point = tipContainer.globalToLocal(new Point(stage.stageWidth,stage.stageHeight));
+         this._tip_content.x = mouse.x + 20;
+         this._tip_content.y = mouse.y + 20;
+         if(this._tip_content.x + this._tip_content.width > corner.x)
          {
-            this._tip_content.y = 4;
+            this._tip_content.x = mouse.x - this._tip_content.width + 4;
+         }
+         if(this._tip_content.y + this._tip_content.height > corner.y)
+         {
+            this._tip_content.y = mouse.y - this._tip_content.height - 4;
          }
          if(this._tip_content.x < 0)
          {
@@ -185,14 +193,6 @@ package scaleform.clik.controls
          if(this._tip_content.y < 0)
          {
             this._tip_content.y = 4;
-         }
-         if(this._tip_content.x + this._tip_content.width > stage.stageWidth)
-         {
-            this._tip_content.x = stage.mouseX - this._tip_content.width + 4;
-         }
-         if(this._tip_content.y + this._tip_content.height > stage.stageHeight)
-         {
-            this._tip_content.y = stage.mouseY - this._tip_content.height - 4;
          }
       }
       
