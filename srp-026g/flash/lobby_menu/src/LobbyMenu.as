@@ -4140,6 +4140,11 @@ package
          trace("initVSTime::",minutes,time,dateM,dateH);
          value.time = time;
          this.victory_screen.setData(value);
+         // A room with a PIN's match takes no drop card (`rooms.md`).
+         if(RoomsWindow.me != null && RoomsWindow.me.inPinRoom)
+         {
+            this.victory_screen.noCard(value.match_id);
+         }
          value.notificationType = 3;
          this.add_notification(value);
          this.updateReport(this.victory_screen.getData());
@@ -5074,7 +5079,8 @@ package
          {
             Message.close(id,true);
          }
-         Message.showMessage(type,data,false,id);
+         // Over the results screen, now (VictoryScreen.messageOver).
+         Message.showMessage(type,data,this.victory_screen.messageOver(type),id);
       }
       
       public function close_system_message(id:uint) : void
