@@ -37,6 +37,23 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
   `Documents/Survarium/streamed_textures/srpw1_*`, the 1 GiB baked-texture cache armour uses):
   three 2048² textures (diffuse, normal, smoothness), about 11 MB on disk and in video memory.
 
+## The weapon's upgrade window (patches 32 and 45)
+
+The owner (2026-10-21): "the camera would flow to the working table and the 3d model of the weapon
+would have been there", "that would allow you to rotate it", "with weapon in the air".
+
+- **What is shown.** The window's weapon with its scope and camouflage, as its item has them: the
+  kit that holds it, or the chosen kit holding it from a scratch profile (patch 32, never written
+  to the account). Armour windows are the stock ones.
+- **Where.** In the air above the workbench by the lobby's right wall (0.4 m over its top, between
+  the drill press and the vice); the camera flies there from the character in about a second and
+  back at the close, to the turn it had.
+- **Turning.** A drag turns the weapon (sideways: about the vertical; up and down: tilted, within
+  about 70 degrees), not the camera; the wheel brings the camera nearer or further (0.6 to 4.6 m).
+  Each window starts with the weapon level and side on.
+- **Lobby only.** Nothing a match or a replay sees; a game without patch 45 shows the weapon in the
+  character's hands (patch 32).
+
 ## The engine (client 0.26g, PROVEN unless tagged)
 
 - `camouflage_decal_texture_type_baker_cook` bakes a camouflage into a surface's textures only

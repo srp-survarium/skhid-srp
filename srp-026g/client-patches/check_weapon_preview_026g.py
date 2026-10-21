@@ -25,7 +25,8 @@ were called. What must hold:
   original does, at the start and at the close;
 - a kit's held weapon (weapon 1, or weapon 2 without one; in the chosen kit
   or another): setup_profile is called with that kit, the camera gets the
-  build's height and distance (the side angle stays), and the close calls
+  build's height and distance (patch 45's, the workbench's; the side angle
+  stays), and the close calls
   setup_profile with the chosen kit and keeps the original's camera values
   but a distance under 1.5;
 - setup_profile's hook gives the weapon's kit only while one is shown and
@@ -139,6 +140,8 @@ class Lobby:
         state = base.late_join_state_va(open(base.late_join_bin(), "rb").read()) + base.WEAPON_PREVIEW_STATE_OFFSET
         if any(name == base.LATE_JOIN_STATE_NAME for name, *_ in base.Headers(data).sections(data)):
             pristine[state + delta] = bytes(base.WEAPON_PREVIEW_STATE_SIZE)
+            table = state - base.WEAPON_PREVIEW_STATE_OFFSET + base.WEAPON_TABLE_STATE_OFFSET
+            pristine[table + delta] = bytes(base.WEAPON_TABLE_STATE_SIZE)
         return emu, stubs, pristine
 
     def fill_lobby(self, kits, chosen, count, items):
@@ -291,7 +294,10 @@ def kits_of(*kits):
 KITS = kits_of({WEAPON_1: AK, WEAPON_2: PISTOL, VEST_SLOT: VEST, LEGS: LEGS_ITEM},
                {WEAPON_2: PISTOL2, VEST_SLOT: VEST},
                {WEAPON_1: SVD, VEST_SLOT: VEST})
-HEIGHT, DISTANCE, NEAR_MIN, LEAST = 1.05, 0.85, 0.6, 1.5
+# A weapon shown: the build's camera is patch 45's, which looks at the weapon
+# above the workbench (weapon_table_026g.asm's bench_y and view_distance;
+# check_weapon_table_026g.py runs it); patch 32's own were 1.05 and 0.85.
+HEIGHT, DISTANCE, NEAR_MIN, LEAST = 1.3, 1.2, 0.6, 1.5
 
 
 def main():
@@ -367,8 +373,8 @@ def main():
         lobby.calls.clear()
         lobby.handler(EXIT_HANDLER, 0)
         assert not [c for c in lobby.calls if c[0] == "setup"]
-        # The distance the second start kept was the weapon's 0.85: the close
-        # does not aim at less than 1.5.
+        # The distance the second start kept was the weapon's (DISTANCE): the
+        # close does not aim at less than 1.5.
         assert lobby.camera()[:3] == (1.2, 0.0, 1.5), lobby.camera()
         say(f"a vest's window over the SVD's{rebased}: the chosen kit back, the original's camera; the close "
             "keeps no distance under 1.5")

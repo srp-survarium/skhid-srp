@@ -3,9 +3,10 @@
 ; (WEAPON_PREVIEW_* in patch_026g.py, which checks each hook's target). At
 ; .srp+2E50h, after the late-join code (which ends at +2E4Eh) and before
 ; `.srpd` (+3000h); its state at STATE, 0xE00 of `.srpd`.
-;   nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA42936F weapon_preview_026g.asm -o weapon_preview_026g.section.bin
+;   nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA42936F -DCAMERA=0xA429800 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
 ; (FIND: weapon_stash_026g.asm's find_kit_or_show, which also shows a weapon no kit holds;
-; its start, exit and setup_profile hooks reach start_cam, exit_cam and setup_hook through it)
+; its start, exit and setup_profile hooks reach start_cam, exit_cam and setup_hook through it;
+; CAMERA: weapon_table_026g.asm's camera, which shows it above the workbench)
 ;
 ; The lobby's 3D view is one character, survarium::lobby_character (lobby
 ; menu+694h), which shows one kit of the account's profile (lobby
@@ -43,6 +44,9 @@ ORG CAVE
 %endif
 %ifndef FIND
 %define FIND find_kit               ; the build's: weapon_stash_026g.asm's find_kit_or_show (-DFIND)
+%endif
+%ifndef CAMERA
+%define CAMERA CAMERA_SET          ; the build's: weapon_table_026g.asm's camera (-DCAMERA), then the setter
 %endif
 
 %define SETUP_PROFILE   0x284B10    ; lobby_character::setup_profile, `ret 8`
@@ -102,7 +106,7 @@ start_cam:
 .set:
     add esp, 48
     popad
-    jmp CAMERA_SET
+    jmp CAMERA
 
 ; 0x265F44 `call 0x2845C0` in exit_item_upgrade's 0x265F10 -> call
 ; exit_cam: esi = the character, eax = the camera, ecx = a local the setter
@@ -128,7 +132,7 @@ exit_cam:
 .set:
     add esp, 32
     popad
-    jmp CAMERA_SET
+    jmp CAMERA
 
 ; 0x284B10 (setup_profile's `push ebp / mov ebp,esp / and esp,-8`) -> jmp
 ; setup_hook. eax = the profile, [esp+4] the character, [esp+8] the kit.

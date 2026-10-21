@@ -568,10 +568,10 @@ def test_bins():
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         stash = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_STASH_OFFSET
+        table = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_TABLE_OFFSET
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.WEAPON_PREVIEW_VA:#x}", f"-DSTATE={state:#x}",
-                        f"-DFIND={stash + P.WEAPON_STASH_FIND:#x}", os.path.join(HERE, "weapon_preview_026g.asm"),
-                        "-o", out],
-                       check=True, timeout=60)
+                        f"-DFIND={stash + P.WEAPON_STASH_FIND:#x}", f"-DCAMERA={table:#x}",
+                        os.path.join(HERE, "weapon_preview_026g.asm"), "-o", out], check=True, timeout=60)
         fresh = open(out, "rb").read()
     check(fresh == open(P.weapon_preview_bin(), "rb").read(),
           f"{os.path.basename(P.weapon_preview_bin())} is current ({len(fresh)} bytes)")
@@ -583,6 +583,15 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.weapon_stash_bin(), "rb").read(),
           f"{os.path.basename(P.weapon_stash_bin())} is current ({len(fresh)} bytes)")
+    table_state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_TABLE_STATE_OFFSET
+    with tempfile.TemporaryDirectory() as tmp:
+        out = os.path.join(tmp, "out.bin")
+        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={table:#x}", f"-DSTATE={table_state:#x}",
+                        f"-DPREVIEW={state:#x}", os.path.join(HERE, "weapon_table_026g.asm"), "-o", out],
+                       check=True, timeout=60)
+        fresh = open(out, "rb").read()
+    check(fresh == open(P.weapon_table_bin(), "rb").read(),
+          f"{os.path.basename(P.weapon_table_bin())} is current ({len(fresh)} bytes)")
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.WEAPON_DRAW_VA:#x}", f"-DSTATE={state:#x}",
@@ -1369,7 +1378,8 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.TAB_LIST_HOOKS] + [(P.TAB_LIST_LOOP_VA, len(P.TAB_LIST_LOOP[1]))] + \
         [(P.SPOT_COOLDOWN[0], len(P.SPOT_COOLDOWN[1])), (P.SPOT_HOOK[0], len(P.SPOT_HOOK[1]))] + \
         [(va, len(old)) for va, old, _, _ in P.FOV_LOD_HOOKS] + \
-        [(P.WEAPON_CAMO_HOOK[0], len(P.WEAPON_CAMO_HOOK[1]))]
+        [(P.WEAPON_CAMO_HOOK[0], len(P.WEAPON_CAMO_HOOK[1]))] + \
+        [(va, len(old)) for va, old, _, _ in P.WEAPON_TABLE_HOOKS]
 
 
 def pickup_sites():
@@ -1568,6 +1578,88 @@ def test_weapon_camo(original, image, before):
           + "".join(f"\n          {a:#x}" for a in hits))
     relocated = [r for kind, r in source.relocations().values() if kind == 3 and r + 4 > va and r < va + len(old)]
     check(not relocated, "no base relocation under the site")
+
+
+def test_weapon_table(original, image, before):
+    """Check 45: a weapon's upgrade window shows it in the air above the
+    lobby's workbench (patch 45, WEAPON_TABLE_HOOKS). check_weapon_table_026g.py
+    runs the camera's handlers and tick and mt_draw's two sites."""
+    source = Image(original)
+    rows = lambda img, va, size: [text for _, _, text in ndisasm(img.read(va, size), va)]
+    camo_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read())
+    table_va = camo_va + P.WEAPON_TABLE_OFFSET
+    code = open(P.weapon_table_bin(), "rb").read()
+    stock_texts = {
+        0x284020: ["movss xmm0,dword [ebx+0xc8]"],
+        0x247576: ["cmp byte [ebp-0x1],0x0", "jnz 0x247592"],
+        0x24778F: ["cmp byte [ebx+0xf49c],0x0", "jz 0x2477c2"],
+    }
+    for va, old, offset, opcode in P.WEAPON_TABLE_HOOKS:
+        entry = table_va + offset
+        check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
+              and rows(source, va, len(old)) == stock_texts[va]
+              and rows(image, va, len(old)) == [f"call {entry:#x}"] + ["nop"] * (len(old) - 5),
+              f"{va:#x}: `{' / '.join(stock_texts[va])}` in the original and the build without the late join, "
+              f"`call {entry:#x}` and {len(old) - 5} nops here")
+        hits = [hit for hit in aimed_inside(original, va, len(old), 0x82)
+                if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
+        relocated = [r for kind, r in source.relocations().values() if kind == 3 and r + 4 > va and r < va + len(old)]
+        check(not hits and not relocated, f"{va:#x}: no branch or value aims inside the site, no base relocation "
+              "is under it" + "".join(f"\n          {a:#x}" for a in hits))
+    tick = {a: t for a, _, t in ndisasm(source.read(0x283FAD, 0xA3), 0x283FAD)}
+    check(tick.get(0x283FAD) == "movss dword [esp+0x10],xmm4" and tick.get(0x284028) == "addss xmm0,dword [ebx+0xb4]"
+          and tick.get(0x284038) == "movss dword [ebx+0xb4],xmm0" and tick.get(0x284040) == "movss xmm0,dword [ebx+0xcc]"
+          and tick.get(0x284048) == "addss xmm0,dword [ebx+0xb8]"
+          and rows(source, 0x283FB3, 2) == ["ja 0x284020"] and rows(source, 0x284004, 2) == ["jna 0x284020"]
+          and source.read(0x283EF0, 0x10) == bytes.fromhex("558bec83e4f081ece4000000538bd98b"),
+          "the lobby camera's tick (ebx = camera+4) keeps the frame's time, at most 0.1 s, at [esp+10h] and comes "
+          "to 0x284020 by both ways of the height's step; there it adds the drag's yaw (+CCh of the camera) to "
+          "the yaw (+B8h) and its pitch (+D0h) to the pitch (+BCh)")
+    ctor = [t for _, _, t in ndisasm(source.read(0x283BC0, 0x13C), 0x283BC0)]
+    writes = [a for a, _, t in ndisasm(source.read(0x283B00, 0x1000), 0x283B00)
+              if re.search(r"^movss (?:dword )?\[e[a-z]x\+0xa[08]\],", t)]
+    look = [t for _, _, t in ndisasm(source.read(0x2842F2, 0x58), 0x2842F2)]
+    check("movss dword [eax+0xa0],xmm0" in ctor and "movss dword [eax+0xa8],xmm0" in ctor
+          and writes == [0x283C34, 0x283C3C, 0x283FE3, 0x284018, 0x2841DA, 0x28421A]
+          and "lea esi,[ebx+0x9c]" in look and "movss xmm3,dword [esi]" in look,
+          "the camera's point (+A0h, +A4h, +A8h, the tick's esi = ebx+9Ch) is written by its constructor alone "
+          "but the height (+A4h, the tick's [ebx+0A0h]); the tick's other writes at +A0h/+A8h of ebx are the "
+          "height and the side angle")
+    character = [t for _, _, t in ndisasm(source.read(0x21CCAF, 0x28), 0x21CCAF)]
+    check(source.read(0x21CCD2, 5) == b"\xe8" + struct.pack("<i", 0x284730 - 0x21CCD7)
+          and "xorps xmm0,xmm0" in character and "movss dword [esp+0x2c],xmm0" in character
+          and "movss dword [esp+0x34],xmm0" in character
+          and rows(source, 0x21CCE6, 6) == ["mov [ebx+0x694],eax"],
+          "the lobby's own character (lobby menu+694h) is made at (0, 0, 0) (0x21CCD2 -> 0x284730): the stock "
+          "camera's point is the character's")
+    update = {a: t for a, _, t in ndisasm(source.read(0x2849F0, 0x93), 0x2849F0)}
+    mt = [t for _, _, t in ndisasm(source.read(0x2474A0, 0x3A0), 0x2474A0)]
+    callers = [h for h in branches_into(original, 0x2474A0, 0x2474A1)]
+    check(update.get(0x2849F4) == "mov ebx,[esp+0x4c]" and update.get(0x284A78) == "mov ecx,[ebx+0xd2b8]"
+          and update.get(0x284A7E) == "call 0x2474a0"
+          and source.read(0x2474A0, 10) == bytes.fromhex("558bec81ecec00000053")
+          and callers == ["0x1f7dce rel32", "0x284a7e rel32", "0x2474a0 as a value"]
+          and rows(source, 0x1F7CC6, 5) == ["mov ecx,0x2474a0"] and original.count(struct.pack("<I", 0x2474A0)) == 1
+          and len([t for t in mt if "ebp-0xe8" in t]) == 1 and "lea eax,[ebp-0xe8]" in mt,
+          "lobby_character's update (ebx = the character) draws its player (+D2B8h) by `call 0x2474A0` at "
+          "0x284A7E (return 0x284A83); player::mt_draw's prologue keeps that ebx at [ebp-0F0h]; mt_draw is called "
+          "from there, the match's 0x1F7DCE and the match's draw task (its address at 0x1F7CC6) alone; its "
+          "[ebp-0E8h] is the decal pose's transform alone")
+    texts = [t for _, _, t in ndisasm(code, table_va)]
+    listing = ndisasm(code[:code.index(bytes.fromhex("a008a80cb810bc1400"))], table_va)   # to `fields`
+    targets = {branch_target(t) for _, _, t in listing if branch_target(t) is not None}
+    outside = {t for t in targets if not table_va <= t < table_va + len(code)}
+    starts = {a for a, _, _ in listing}
+    check(outside == {0x2845C0} and all(t in starts for t in targets - outside)
+          and [rows(image, table_va + at, 5)[0].startswith("jmp ") for at in P.WEAPON_TABLE_ENTRIES] == [True] * 4
+          and not [t for _, _, t in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[|\[(?:dword )?0x", t)]
+          and image.read(table_va, len(code)) == code
+          and P.weapon_preview_state(code, table_va)
+          == P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_TABLE_STATE_OFFSET,
+          f"the weapon table at {table_va:#x} (.srpw+{P.WEAPON_TABLE_OFFSET:#x}) is weapon_table_026g.section.bin "
+          f"({len(code)} bytes), its state at 0x{P.WEAPON_TABLE_STATE_OFFSET:X} of .srpd; it begins with four "
+          "`jmp near`, jumps only to the camera's setter outside itself, every branch inside it lands on an "
+          "instruction, and no operand is an absolute address")
 
 
 def aimed_inside(original, va, size, near):
@@ -3678,16 +3770,20 @@ def test_weapon_preview(original, image, before):
     outside = {t for t in targets if not P.WEAPON_PREVIEW_VA <= t < P.WEAPON_PREVIEW_VA + len(code)}
     starts = {address for address, _, _ in listing}
     stash_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_STASH_OFFSET
-    check(outside == {0x284B10, 0x284B16, 0x2845C0, stash_va + P.WEAPON_STASH_FIND}
+    table_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_TABLE_OFFSET
+    check(outside == {0x284B10, 0x284B16, table_va, stash_va + P.WEAPON_STASH_FIND}
           and all(t in starts for t in targets - outside)
           and all(P.WEAPON_PREVIEW_VA + offset in starts for _, _, offset, _ in P.WEAPON_PREVIEW_HOOKS)
           and [address - P.WEAPON_PREVIEW_VA for address, _, text in listing
                if branch_target(text) == stash_va + P.WEAPON_STASH_FIND]
           == list(P.WEAPON_PREVIEW_FIND_CALLS)
+          and [address - P.WEAPON_PREVIEW_VA for address, _, text in listing if branch_target(text) == table_va]
+          == list(P.WEAPON_PREVIEW_CAMERA_JUMPS)
           and not [text for _, _, text in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[|\[(?:dword )?0x", text)],
           "the code calls only setup_profile and weapon_stash_026g.asm's find_kit_or_show (at its two finds), "
-          "jumps only to setup_profile's body after the six bytes and to the camera's setter, every branch "
-          "inside it lands on an instruction, and no operand is an absolute address")
+          "jumps only to setup_profile's body after the six bytes and to weapon_table_026g.asm's camera (at "
+          "start_cam's and exit_cam's ends, where it jumped to the camera's setter), every branch inside it "
+          "lands on an instruction, and no operand is an absolute address")
     stash = open(P.weapon_stash_bin(), "rb").read()
     check(image.read(stash_va, len(stash)) == stash and P.weapon_preview_state(stash, stash_va) == state,
           f"the weapon stash at {stash_va:#x} (.srpw+{P.WEAPON_STASH_OFFSET:#x}) is weapon_stash_026g.section.bin "
@@ -3888,13 +3984,15 @@ def test_late_join(original, without, server, source):
           "file, on the page after the code (where the code looks for it)")
     camo = open(P.weapon_camo_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_STASH_OFFSET - len(camo)) + open(P.weapon_stash_bin(), "rb").read()
+    camo = camo + b"\xCC" * (P.WEAPON_TABLE_OFFSET - len(camo)) + open(P.weapon_table_bin(), "rb").read()
     name_w, rva_w, vsize_w, raw_w, rsize_w, flags_w = sections[-1]
     check(name_w == P.WEAPON_CAMO_NAME and flags_w == P.WEAPON_CAMO_CHARACTERISTICS
           and rva_w == state_rva + state_size and P.IMAGE_BASE + rva_w == P.weapon_camo_va(code)
           and vsize_w == len(camo) and raw_w == raw + rsize and rsize_w == align(vsize_w, headers.file_alignment)
           and bytes(data[raw_w:raw_w + vsize_w]) == camo and set(data[raw_w + vsize_w:raw_w + rsize_w]) <= {0xCC},
-          f".srpw at VA {P.IMAGE_BASE + rva_w:#x}: weapon_camo_026g.section.bin, int3 padding and "
-          f"weapon_stash_026g.section.bin at +{P.WEAPON_STASH_OFFSET:#x} ({len(camo)} bytes), "
+          f".srpw at VA {P.IMAGE_BASE + rva_w:#x}: weapon_camo_026g.section.bin, int3 padding, "
+          f"weapon_stash_026g.section.bin at +{P.WEAPON_STASH_OFFSET:#x}, int3 padding and "
+          f"weapon_table_026g.section.bin at +{P.WEAPON_TABLE_OFFSET:#x} ({len(camo)} bytes), "
           "code | execute | read, on the page after .srpd, its file bytes right after .srp's")
     get = lambda blob, at: struct.unpack_from("<I", blob, at)[0]
     check(get(data, headers.size_of_image_at) == align(rva_w + vsize_w, headers.section_alignment)
@@ -4049,6 +4147,7 @@ def test_late_join(original, without, server, source):
     test_ai_arena(original, image, before)
     test_memory_defaults(original, image, before)
     test_weapon_preview(original, image, before)
+    test_weapon_table(original, image, before)
     test_suicide_key(original, image, before)
     test_tab_list(original, image, before)
     test_tab_self(original, image, before)

@@ -449,6 +449,8 @@ va	name	location	role	basis
 0x0004ad50	vostok::vfs::transfer_children::transfer_children	ECX	transfer_children	observed
 0x0004ad50	vostok::vfs::transfer_children::transfer_children	entry ESP+4	vfs_hashset (stored at +0)	observed
 0x0004fbd0	vostok::vfs::physical_path_mounter::mount_root	entry ESP+4	physical_path_mounter	observed
+0x000573c0	vostok::math::float4x4::create_translation	EAX	out matrix	observed
+0x000573c0	vostok::math::float4x4::create_translation	ECX	pointer to the float3	observed
 0x0005afe0	vostok::sound::sound_instance_proxy_internal::stop	ECX	sound_instance_proxy_internal receiver	inferred
 0x000621b0	vostok::render::animated_model_instance_cook::delete_resource	entry ESP+4	resource value; immediately dereferenced	observed
 0x00067089		entry ESP+4		auto
@@ -579,6 +581,9 @@ va	name	location	role	basis
 0x000e7e80	vostok::resources::query_mount_physical	entry ESP+16	flag argument	observed
 0x000e7e80	vostok::resources::query_mount_physical	entry ESP+20	callback	observed
 0x000eb600	vostok::memory::doug_lea_allocator::usable_size_impl	entry ESP+4	allocation pointer	observed
+0x000ee700	vostok::math::float4x4::multiply_affine	ECX	the second matrix (applied last)	observed
+0x000ee700	vostok::math::float4x4::multiply_affine	EDX	the first matrix (applied first)	observed
+0x000ee700	vostok::math::float4x4::multiply_affine	entry ESP+4	out matrix	observed
 0x000f1850	vostok::resources::unmanaged_resource::~unmanaged_resource	ECX	unmanaged_resource receiver	inferred
 0x000f6b10	vostok::configs::binary_config_value::operator[]	EAX	table value	observed
 0x000f6b10	vostok::configs::binary_config_value::operator[]	EDI	key	observed
@@ -1255,6 +1260,8 @@ va	name	location	role	basis
 0x0015ab00	vostok::render::skeleton_render_model_instance::get_bone_direction	ESI	output three-float vector	observed
 0x0015ab00	vostok::render::skeleton_render_model_instance::get_bone_direction	entry ESP+4 / +8 / +0xC	three point components	observed
 0x0015ab00	vostok::render::skeleton_render_model_instance::get_bone_direction	entry ESP+0x10 low16	bone index copiedEBX then forwardedECX and consumedCX	observed
+0x0015ae50	vostok::math::float4x4::create_rotation_y	ESI	out matrix	observed
+0x0015ae50	vostok::math::float4x4::create_rotation_y	entry ESP+4	float angle (radians)	observed
 0x0015af60	vostok::render::statistics_cpu_gpu::statistics_cpu_gpu	entry ESP+4	CPU/GPU statistics owner	observed
 0x0015af60	vostok::render::statistics_cpu_gpu::statistics_cpu_gpu	EAX	parent group pointer	observed
 0x0015af60	vostok::render::statistics_cpu_gpu::statistics_cpu_gpu	ECX	label character pointer	observed
@@ -1765,6 +1772,8 @@ va	name	location	role	basis
 0x001bde20	vostok::render::lights_db::add_light	ECX	lights_db receiver copied to EDI	inferred
 0x001bde20	vostok::render::lights_db::add_light	EAX	light ID copied to ESI	inferred
 0x001bde20	vostok::render::lights_db::add_light	stack+4	light_props pointer; type discriminator at+0x64	inferred
+0x001be3a0	vostok::math::float4x4::create_rotation_x	ESI	out matrix	observed
+0x001be3a0	vostok::math::float4x4::create_rotation_x	entry ESP+4	float angle (radians)	observed
 0x001be690	vostok::render::effect_editor_view_mode::compile	entry ESP+4	effect compiler object	observed
 0x001be980	vostok::render::effect_fill_environment_probe_face::compile	entry ESP+4	effect compiler object	observed
 0x001bed60	vostok::render::effect_fill_sky_ao_map::compile	entry ESP+4	effect compiler object	observed
@@ -2178,6 +2187,8 @@ va	name	location	role	basis
 0x0021d9d0	survarium::lobby_menu::on_operation_denied_received	stack+4	lobby menu	inferred
 0x0021d9d0	survarium::lobby_menu::on_operation_denied_received	ECX	message type	inferred
 0x0021d9d0	survarium::lobby_menu::on_operation_denied_received	EAX	error token string	inferred
+0x0021df00	survarium::lobby_menu::update_player_region	EAX	lobby menu (its character at +694h)	observed
+0x0021df00	survarium::lobby_menu::update_player_region	entry ESP+4	float the camera's distance	observed
 0x0021e170	survarium::lobby_menu::set_mouse_position	ECX	lobby receiver	inferred
 0x0021e170	survarium::lobby_menu::set_mouse_position	stack+4	signed X coordinate	inferred
 0x0021e170	survarium::lobby_menu::set_mouse_position	stack+8	signed Y coordinate	inferred
@@ -2320,6 +2331,7 @@ va	name	location	role	basis
 0x00244c50	survarium::weapon::remove_aimed_rifle_scope_from_scene	EDI	scene_reference	inferred
 0x00244e10		ECX		auto
 0x00245250		ECX		auto
+0x002474a0	survarium::player::mt_draw	ECX	the player	observed
 0x00256fa0	survarium::damage_zone_cook::delete_resource	stack+4	damage-zone object to destroy	inferred
 0x00257170	survarium::damage_zone_cook::calculate_max_requests_count	stack+4	config	inferred
 0x00257210	survarium::damage_zone_cook::calculate_buffer_size	stack+4	config	inferred
@@ -2414,6 +2426,26 @@ va	name	location	role	basis
 0x0027c5f0	survarium::network_client::process_player_entered_match	stack+4	network_client receiver	observed
 0x0027c690	survarium::network_client::process_player_left_match	ESI	network_client receiver	observed
 0x0027c690	survarium::network_client::process_player_left_match	stack+4	packet buffer_reader	observed
+0x00283bc0	survarium::lobby_camera::lobby_camera	EAX	this (lobby menu+10Ch)	observed
+0x00283bc0	survarium::lobby_camera::lobby_camera	ECX	lobby menu (+88h, +B4h: its time at [+9Ch]+584Ch)	observed
+0x00283bc0	survarium::lobby_camera::lobby_camera	entry ESP+4	collision scene (+B0h)	observed
+0x00283d30	survarium::lobby_camera::on_mouse_move	ECX	the camera	observed
+0x00283d30	survarium::lobby_camera::on_mouse_move	entry ESP+4	input world (the mouse: vtable+28h, buttons at +0Ch)	observed
+0x00283d30	survarium::lobby_camera::on_mouse_move	entry ESP+8	int dx (to +CCh, the yaw)	observed
+0x00283d30	survarium::lobby_camera::on_mouse_move	entry ESP+12	int dy (to +D0h, the pitch)	observed
+0x00283d30	survarium::lobby_camera::on_mouse_move	entry ESP+16	int wheel (to +C8h, -0.001 a unit)	observed
+0x00283eb0	survarium::lobby_camera::on_input_frame_end	ECX	the camera	observed
+0x00283ef0	survarium::lobby_camera::tick	ECX	camera+4 (the point +A0h..+A8h, yaw +B8h, pitch +BCh, distance +C4h of the camera)	observed
+0x002844d0	survarium::lobby_camera::collide_distance	EAX	the camera	observed
+0x002844d0	survarium::lobby_camera::collide_distance	ESI	the point (camera+A0h)	observed
+0x002844d0	survarium::lobby_camera::collide_distance	EDI	the distance (camera+C4h), in and out	observed
+0x002844d0	survarium::lobby_camera::collide_distance	entry ESP+4	the direction back from the point	observed
+0x002845c0	survarium::lobby_camera::set_target	EAX	the camera	observed
+0x002845c0	survarium::lobby_camera::set_target	ECX	where the distance target it replaces goes	observed
+0x002845c0	survarium::lobby_camera::set_target	XMM0	float height of the point	observed
+0x002845c0	survarium::lobby_camera::set_target	XMM1	float distance	observed
+0x002845c0	survarium::lobby_camera::set_target	entry ESP+4	float side angle (turns the view only)	observed
+0x002849f0	survarium::lobby_character::update	entry ESP+4	the lobby_character (kept in EBX)	observed
 0x00284b10	survarium::lobby_character::setup_profile	EAX	the profile to copy (account profile, 0x4634 bytes)	observed
 0x00284b10	survarium::lobby_character::setup_profile	entry ESP+4	the lobby_character	observed
 0x00284b10	survarium::lobby_character::setup_profile	entry ESP+8	the kit to show (byte, 0..2)	observed
