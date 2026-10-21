@@ -1089,6 +1089,110 @@ fn the_maps_and_the_calculator_are_built_from_the_offered_patches() {
         calculator, offered,
         "the calculator is built from other patches than release/patches.tsv: rebuild it with build_site.py (srp-026g/scripts/damage-calc/README.md)"
     );
+    let wiki = rows(include_str!("../../wiki/built-from.tsv"));
+    assert_eq!(
+        wiki, offered,
+        "the wiki is built from other patches than release/patches.tsv: rebuild it with release/build-site (srp-026g/scripts/wiki/README.md)"
+    );
+}
+
+#[test]
+fn the_wiki_is_built_from_this_codes_rules() {
+    // The wiki shows srp's own rules (who sells what, sell prices, what an
+    // item can roll and how likely): its build records what they are over
+    // the test data, and this fails a PR that changes them without
+    // building the wiki again.
+    let recorded = include_str!("../../wiki/rules-from.tsv")
+        .lines()
+        .find_map(|line| line.strip_prefix("rules-test\t"))
+        .expect("a rules-test row");
+    let now: String = openssl::sha::sha256(session::v026g::wiki::rules().as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    assert_eq!(
+        now, recorded,
+        "srp's rules the wiki shows changed since it was built: build it again with release/build-site (srp-026g/scripts/wiki/README.md)"
+    );
+}
+
+#[test]
+fn the_wiki_is_a_026g_page_under_the_sites_header() {
+    let world = world();
+    let home = world.web.route(&get("/"), "t").body;
+    assert!(home.contains("<a href=\"/wiki?lang=en\">Wiki</a>"));
+    for path in [
+        "/wiki",
+        "/wiki/ak_74m",
+        "/wiki/batteries",
+        "/wiki/map-level-09",
+    ] {
+        let page = world.web.route(&get(path), "t");
+        assert_eq!(page.status, "200 OK", "{path}");
+        assert!(
+            page.body
+                .starts_with("<!doctype html>\n<html lang=\"en\">\n"),
+            "{path}"
+        );
+        assert!(
+            page.body
+                .contains("<a href=\"/wiki?lang=en\" aria-current=page>Wiki</a>"),
+            "{path}"
+        );
+        assert!(
+            !page.body.contains("<!--SITE-HEADER-->") && !page.body.contains("{{"),
+            "{path}"
+        );
+        assert!(
+            !page.body.contains("<script>") && !page.body.contains("https://"),
+            "{path}"
+        );
+    }
+    let mut uk = get("/wiki/ak_74m");
+    uk.lang = Lang::Uk;
+    let uk = world.web.route(&uk, "t").body;
+    assert!(uk.starts_with("<!doctype html>\n<html lang=\"uk\">\n"));
+    assert!(uk.contains(" aria-current=page>Вікі</a>"));
+    assert_eq!(
+        world.web.route(&get("/wiki/no-such-page"), "t").status,
+        "404 Not Found"
+    );
+}
+
+#[test]
+fn every_page_and_file_of_the_wiki_is_served() {
+    // Every link between pages leads to one, and every file a page names
+    // (before its ?v=) is served: the wiki's own and the site's fonts.
+    let world = world();
+    let pages: Vec<String> = crate::wiki::addresses().collect();
+    assert!(pages.len() > 100, "{} pages", pages.len());
+    for path in &pages {
+        for lang in [Lang::En, Lang::Uk] {
+            let mut request = get(path);
+            request.lang = lang;
+            let page = world.web.route(&request, "t");
+            assert_eq!(page.status, "200 OK", "{path}");
+            for (at, _) in page.body.match_indices("href=\"/wiki") {
+                let link = &page.body[at + 6..];
+                let link = &link[..link.find(['?', '"', '#']).unwrap()];
+                assert!(pages.iter().any(|p| p == link), "{path} links to {link}");
+            }
+            for prefix in ["\"/wiki/", "\"/damage/"] {
+                for (at, _) in page.body.match_indices(prefix) {
+                    let Some((file, _)) = page.body[at + 1..].split_once("?v=") else {
+                        continue;
+                    };
+                    if file.contains(['"', ' ', '<', '\n']) {
+                        continue;
+                    }
+                    let (_, bytes) = crate::wiki::file(file)
+                        .or_else(|| crate::damage::file(file))
+                        .unwrap_or_else(|| panic!("{path} names {file}"));
+                    assert!(!bytes.is_empty(), "{file}");
+                }
+            }
+        }
+    }
 }
 
 /// The value of the hidden field `name` the page shows (a plan's one-time

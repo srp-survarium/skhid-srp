@@ -395,8 +395,9 @@ fn unit(rng: &mut Rng) -> f32 {
 }
 
 /// A `drop_weight` as a whole weight for [`Rng::pick`] (4.096 is the
-/// finest).
-fn weight(drop_weight: f32) -> u32 {
+/// finest): a roll picks a row by its weight over the sum of the weights
+/// of the rows it picks among (the site's wiki shows these chances).
+pub fn weight(drop_weight: f32) -> u32 {
     (drop_weight * 1000.0).round().max(0.0) as u32
 }
 

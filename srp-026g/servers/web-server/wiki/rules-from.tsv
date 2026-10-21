@@ -1,0 +1,4 @@
+# The SHA-256 of session::v026g::wiki::rules over srp's test data when the wiki was built
+# (cargo run -p session --example wiki_rules -- --test-data): a web-server test compares it
+# with the code's, so a change of srp's rules rebuilds the wiki.
+rules-test	84bf36022afcc3c2409bfa8549edbb909b9d1509a9572cb2fbb60a8f3148b7d1

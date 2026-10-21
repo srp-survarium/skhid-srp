@@ -48,6 +48,7 @@ mod password_reset;
 mod patches;
 mod stats;
 mod v026g;
+mod wiki;
 
 pub use patches::OfferedPatch;
 pub use v026g::{Game, LiveMatch, LivePhase, LiveStanding, LobbyLink, MatchCounter};
@@ -663,12 +664,13 @@ impl Web {
             self.resource(&mut stream, &request, &file);
             return;
         }
-        // The calculator's and the Maps tab's files on the 0.26g site; the
-        // calculator's fonts, which every page uses, on both.
+        // The calculator's, the Maps tab's and the wiki's files on the 0.26g
+        // site; the calculator's fonts, which every page uses, on both.
         let site_file = self.game.is_some() || request.path.starts_with(damage::FONTS);
         if site_file && matches!(request.method.as_str(), "GET" | "HEAD") {
             let file = damage::file(&request.path)
-                .or_else(|| self.game.as_ref().and_then(|_| maps::file(&request.path)));
+                .or_else(|| self.game.as_ref().and_then(|_| maps::file(&request.path)))
+                .or_else(|| self.game.as_ref().and_then(|_| wiki::file(&request.path)));
             if let Some((content_type, bytes)) = file {
                 damage::send(&mut stream, request.method == "HEAD", content_type, bytes);
                 return;
@@ -681,6 +683,8 @@ impl Web {
             damage::POLICY
         } else if self.game.is_some() && request.path == maps::PATH {
             maps::POLICY
+        } else if self.game.is_some() && wiki::serves(&request.path) {
+            wiki::POLICY
         } else {
             POLICY
         };
@@ -940,6 +944,11 @@ impl Web {
                     }
                     damage::PATH => return damage_page(request.lang),
                     maps::PATH => return maps_page(request.lang),
+                    path if wiki::serves(path) => {
+                        if let Some(page) = wiki_page(path, request.lang) {
+                            return page;
+                        }
+                    }
                     path if path.starts_with(launcher::FRESH) => {
                         return launcher::fresh(
                             launcher::language(path, request.lang),
@@ -1589,6 +1598,11 @@ fn maps_page(lang: Lang) -> Response {
     maps::page(lang, &tool_header(lang, maps::PATH))
 }
 
+/// A page of the wiki under the site's header; `None` when there is none.
+fn wiki_page(path: &str, lang: Lang) -> Option<Response> {
+    wiki::page(path, lang, &tool_header(lang, wiki::PATH))
+}
+
 /// The site's header over a page of its own look (the calculator's, the
 /// Maps tab's), `path` the page shown.
 fn tool_header(lang: Lang, path: &str) -> String {
@@ -1632,7 +1646,7 @@ fn site_header(
             String::new(),
         )
     };
-    // The calculator and the maps are the 0.26g game's.
+    // The calculator, the maps and the wiki are the 0.26g game's.
     let tab = |path: &str, name: &str| {
         format!(
             "<a href=\"{path}?lang={code}\"{}>{name}</a>",
@@ -1647,6 +1661,7 @@ fn site_header(
     let damage_link = if v026g {
         tab(damage::PATH, &lang.tr("Calculator", "Калькулятор"))
             + &tab(maps::PATH, &lang.tr("Maps", "Мапи"))
+            + &tab(wiki::PATH, &lang.tr("Wiki", "Вікі"))
     } else {
         String::new()
     };
@@ -3016,6 +3031,14 @@ mod tests {
         let web = web(None);
         assert_eq!(web.route(&get("/maps"), "t").status, "404 Not Found");
         assert!(!web.route(&get("/"), "t").body.contains("href=\"/maps"));
+    }
+
+    #[test]
+    fn the_wiki_is_the_026g_sites_only() {
+        let web = web(None);
+        assert_eq!(web.route(&get("/wiki"), "t").status, "404 Not Found");
+        assert_eq!(web.route(&get("/wiki/ak_74m"), "t").status, "404 Not Found");
+        assert!(!web.route(&get("/"), "t").body.contains("href=\"/wiki"));
     }
 
     #[test]

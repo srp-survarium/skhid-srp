@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hunter&#x27;s hood · Skhid wiki</title>
+<style>
+@font-face { font-family: "PT Sans"; font-weight: 400; font-style: normal; font-display: swap; src: url("/damage/fonts/pt-sans-regular.woff2?v=19379b36559b") format("woff2"); }
+@font-face { font-family: "PT Sans"; font-weight: 700; font-style: normal; font-display: swap; src: url("/damage/fonts/pt-sans-bold.woff2?v=543ae6522ad2") format("woff2"); }
+@font-face { font-family: "PT Sans"; font-weight: 400; font-style: italic; font-display: swap; src: url("/damage/fonts/pt-sans-italic.woff2?v=389e5d5b0e26") format("woff2"); }
+@font-face { font-family: "PT Sans Narrow"; font-weight: 400; font-style: normal; font-display: swap; src: url("/damage/fonts/pt-sans-narrow-regular.woff2?v=2091dd2f4f21") format("woff2"); }
+@font-face { font-family: "PT Sans Narrow"; font-weight: 700; font-style: normal; font-display: swap; src: url("/damage/fonts/pt-sans-narrow-bold.woff2?v=6595d92f7c3b") format("woff2"); }
+@font-face { font-family: "PT Mono"; font-weight: 400; font-style: normal; font-display: swap; src: url("/damage/fonts/pt-mono-regular.woff2?v=3124350adfce") format("woff2"); }
+@font-face { font-family: "Carlito"; font-weight: 700; font-style: normal; font-display: swap; src: url("/damage/fonts/carlito-bold.woff2?v=1e90d27fe705") format("woff2"); }
+
+:root {
+  --bg: #e9e6dc; --panel: #f5f3ec; --ink: #1f2420; --ink-2: #4d544c; --ink-3: #7b8277; --rule: #c9c5b6;
+  --accent: #b4501f; --good: #2f7a3a; --bad: #a3322a;
+  --font-display: "PT Sans Narrow", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-body: "PT Sans", "Segoe UI", Roboto, sans-serif;
+  --font-data: "PT Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #171a17; --panel: #1f231f; --ink: #e6e4da; --ink-2: #b4b6a8; --ink-3: #868a7e; --rule: #353a33;
+  --accent: #e07a43; --good: #6fbf73; --bad: #e0675c; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #171a17; --panel: #1f231f; --ink: #e6e4da; --ink-2: #b4b6a8; --ink-3: #868a7e; --rule: #353a33;
+  --accent: #e07a43; --good: #6fbf73; --bad: #e0675c; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--font-body); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 48px }
+.wrap { max-width: 1100px; margin: 0 auto; display: flow-root }
+a { color: var(--accent) }
+.crumbs { font: .8rem var(--font-data); color: var(--ink-3); margin: 0 0 6px }
+.crumbs a { color: var(--ink-2); text-decoration: none } .crumbs a:hover { color: var(--accent) }
+h1 { font: 700 2.1rem/1.05 var(--font-display); margin: 0 0 14px; border-bottom: 2px solid var(--ink); padding-bottom: 10px }
+h2 { font: 700 1.3rem var(--font-display); text-transform: uppercase; letter-spacing: .06em; margin: 26px 0 8px; border-bottom: 1px solid var(--rule); padding-bottom: 4px }
+h3 { font: 700 1rem var(--font-display); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); margin: 18px 0 6px }
+p, ul, ol { margin: 0 0 10px; max-width: 46rem } li { margin: .2rem 0 }
+.lead { color: var(--ink-2) }
+.muted, small { color: var(--ink-3) }
+.n, td.n, th.n { font-family: var(--font-data); text-align: right; white-space: nowrap }
+code { font: .85rem var(--font-data); background: var(--panel); border: 1px solid var(--rule); padding: 0 .25rem; border-radius: 2px }
+pre.formula { margin: 6px 0 12px; padding: 10px 12px; font: .85rem/1.65 var(--font-data); background: var(--panel); border: 1px solid var(--rule); overflow-x: auto; white-space: pre }
+.box { float: right; width: 300px; margin: 0 0 16px 22px; background: var(--panel); border: 1px solid var(--rule); padding: 12px 14px }
+.box .pic { display: block; width: 100%; height: auto; margin: 0 auto 6px; image-rendering: auto }
+.box h2 { margin: 0 0 6px; font-size: 1.1rem; border: 0; padding: 0; text-transform: none; letter-spacing: .02em }
+.box h3 { margin: 12px 0 4px; font-size: .8rem; border-top: 1px solid var(--rule); padding-top: 8px }
+.box dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; font-size: .88rem }
+.box dt { color: var(--ink-3) } .box dd { margin: 0; text-align: right; font-family: var(--font-data) }
+@media (max-width: 760px) { .box { float: none; width: auto; margin: 0 0 16px } }
+.scroll { overflow-x: auto; margin: 6px 0 14px; max-width: 100% }
+table { border-collapse: collapse; font-size: .88rem; min-width: 50% }
+th, td { text-align: left; padding: .3rem .5rem; border-bottom: 1px solid var(--rule); vertical-align: middle }
+th { font: 700 .72rem var(--font-display); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap }
+table.sort th { cursor: pointer; user-select: none } table.sort th:hover { color: var(--ink) }
+table.sort th[aria-sort=ascending]::after { content: " ▲" } table.sort th[aria-sort=descending]::after { content: " ▼" }
+tbody tr:hover { background: var(--panel) }
+td img.ic { width: 86px; height: 42px; object-fit: contain; display: block }
+td.pos { color: var(--good) } td.neg { color: var(--bad) }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin: 10px 0 18px }
+.tile { display: grid; gap: 4px; align-content: start; background: var(--panel); border: 1px solid var(--rule); padding: 10px 12px; text-decoration: none; color: var(--ink) }
+.tile:hover { border-color: var(--accent) }
+.tile b { font: 700 1.05rem var(--font-display); text-transform: uppercase; letter-spacing: .06em; color: var(--accent) }
+.tile span { font-size: .82rem; color: var(--ink-2) }
+.tile img { width: 100%; height: 64px; object-fit: contain }
+.find { width: min(100%, 22rem); padding: .4rem .6rem; background: var(--panel); color: inherit; border: 1px solid var(--rule); border-radius: 2px; font: inherit; margin: 4px 0 8px }
+.find:focus { outline: 0; border-color: var(--accent) }
+.cols { columns: 16rem; column-gap: 24px } .cols li { break-inside: avoid }
+.tag { font: 700 .68rem var(--font-display); letter-spacing: .08em; text-transform: uppercase; border: 1px solid var(--rule); padding: 0 .35rem; border-radius: 2px; color: var(--ink-2) }
+.stamp { font: .75rem var(--font-data); color: var(--ink-3); margin-top: 28px; border-top: 1px solid var(--rule); padding-top: 8px; clear: both }
+</style>
+<!--SITE-HEADER-->
+<div class="wrap">
+<p class="crumbs"><a href="/wiki?lang=en">Wiki</a> / <a href="/wiki/equipment?lang=en">Equipment</a> / </p>
+<h1>Hunter&#x27;s hood</h1>
+<aside class="box"><img class="pic" src="/wiki/icons/edge_helmet_1.webp?v=0ef47a51e8a8" alt="" width="171" height="83"><h2>Hunter&#x27;s hood</h2><dl><dt>Slot</dt><dd><a href="/wiki/equipment?lang=en">Helmet</a></dd><dt>Level</dt><dd>6</dd><dt>Price</dt><dd>10,450 silver</dd><dt>Sells for</dt><dd>2,612 silver</dd><dt>Full repair</dt><dd>1,045 silver</dd><dt>Weight</dt><dd>1 kg</dd></dl><h3>Card</h3><dl><dt>Armor</dt><dd>20</dd><dt>Isolation</dt><dd>20</dd><dt>Weight</dt><dd>1.0 kg</dd></dl></aside><p class="lead">The hood of sturdy hide will protect not only against the rain, but also from small debris and weak bullets.</p><h2>Protection</h2><div class="scroll"><table class=""><thead><tr><th>Part</th><th class=n>Bullets</th><th class=n>Blunt</th><th class=n>Slash</th><th class=n>Explosion</th><th class=n>Fire</th><th class=n>Electric</th><th class=n>Toxic</th><th class=n>Radiation</th></tr></thead><tbody><tr><td>Head</td><td class=n data-v="0.20000000298023224">20</td><td class=n data-v="0">0</td><td class=n data-v="0.20000000298023224">20</td><td class=n data-v="0.20000000298023224">20</td><td class=n data-v="0.20000000298023224">20</td><td class=n data-v="0.20000000298023224">20</td><td class=n data-v="0.20000000298023224">20</td><td class=n data-v="0.20000000298023224">20</td></tr></tbody></table></div><p class=muted><a href="/wiki/damage?lang=en">How armour works</a></p><h2><a href="/wiki/modifications?lang=en">Modifications</a></h2><h3>Bonuses it can roll</h3><div class="scroll"><table class="sort "><thead><tr><th>Bonus</th><th>Steps (chance of each)</th><th class=n>This bonus first</th></tr></thead><tbody><tr><td>Armor</td><td>+2 <small>(30 %)</small> · +3 <small>(24 %)</small> · +4 <small>(19 %)</small> · +5 <small>(15 %)</small> · +8 <small>(12 %)</small></td><td class=n data-v="0.25">25 %</td></tr><tr><td>Isolation</td><td>+5 <small>(30 %)</small> · +10 <small>(24 %)</small> · +15 <small>(19 %)</small> · +20 <small>(15 %)</small> · +25 <small>(12 %)</small></td><td class=n data-v="0.25">25 %</td></tr><tr><td>Weight</td><td>-5 % <small>(30 %)</small> · -8 % <small>(24 %)</small> · -10 % <small>(19 %)</small> · -12 % <small>(15 %)</small> · -15 % <small>(12 %)</small></td><td class=n data-v="0.25">25 %</td></tr><tr><td>Reliability</td><td>+5 % <small>(30 %)</small> · +10 % <small>(24 %)</small> · +15 % <small>(19 %)</small> · +20 % <small>(15 %)</small> · +25 % <small>(12 %)</small></td><td class=n data-v="0.25">25 %</td></tr></tbody></table></div><h3>Defects it can get</h3><div class="scroll"><table class="sort "><thead><tr><th>Defect</th><th>Steps (chance of each)</th><th class=n>This defect</th></tr></thead><tbody><tr><td>Armor</td><td>-10 <small>(100 %)</small></td><td class=n data-v="0.5">50 %</td></tr><tr><td>Isolation</td><td>-10 <small>(100 %)</small></td><td class=n data-v="0.5">50 %</td></tr></tbody></table></div><p class=muted>Each bonus once per item. The first column of chances is within a bonus.</p><h2>Where to get</h2><ul><li>Shop: <a href="/wiki/factions?lang=en">The Fringe Settlers</a>, rank 1 <small>(Hunter)</small> · 10,450 silver</li><li><a href="/wiki/drops?lang=en">Drops after a match</a></li></ul>
+<p class="stamp">Skhid revision 24 · from the game data and the server&#x27;s rules</p>
+</div>
+<script src="/wiki/wiki.js?v=36331aec803e"></script>
