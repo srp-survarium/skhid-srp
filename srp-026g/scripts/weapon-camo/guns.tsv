@@ -1,0 +1,98 @@
+# The weapons' textures that get an _aoac (weapon_camo.py), one a line, tabs between:
+# texture	donors: premium textures of the same UVs (28: from 0.28a2), two when there are two, none without
+# 	surfaces (model:surface) whose UVs use the texture	premium textures of the same UVs that get the same _aoac
+# 	the plain texture the donors were painted over, when it is not ours (28: 0.28a2's own)
+# Two donors
+weapons/uzi/uzi	weapons/uzi/uzi_camo_st,28:weapons/uzi/uzi_camo	weapons/uzi:uzisg1	weapons/uzi/uzi_camo_st
+weapons/sks/sks	weapons/sks/sks_camo_01,weapons/sks/sks_camo_st	weapons/sks:sks_sks_s1	weapons/sks/sks_camo_01,weapons/sks/sks_camo_st
+weapons/akmn/akmn	weapons/akmn/akmn_camo,weapons/akmn/akmn_camo_st	weapons/akmn/akmn:akmn1sg	weapons/akmn/akmn_camo,weapons/akmn/akmn_camo_st
+weapons/izh_27_lancaster/izh_27_lancaster	weapons/izh_27_lancaster/izh_27_lancaster_camo_st,28:weapons/izh_27_lancaster/izh_27_lancaster_camo	weapons/izh_27_lancaster/izh_27_lancaster_:izh_27_lancastersg1	weapons/izh_27_lancaster/izh_27_lancaster_camo_st	28:weapons/izh_27_lancaster/izh_27_lancaster
+weapons/ak_74n/ak74_stock_wood	weapons/ak_74n/ak74_stock_wood_camo_st,28:weapons/ak_74n/ak74_stock_wood_camo	weapons/ak74n/ak_74n:lowfbxasc032poly002sg3	weapons/ak_74n/ak74_stock_wood_camo_st	28:weapons/ak_74n/ak74_stock_wood
+# One donor
+weapons/akmn/akm_stock_wood	weapons/akmn/akmn_stock_camo	weapons/akmn/akmn:akmn1sg1	weapons/akmn/akmn_stock_camo
+weapons/ak_12/ak_12	weapons/ak_12/ak_12_camo	weapons/ak_12/ak_12:ak_12_sg	weapons/ak_12/ak_12_camo
+weapons/ak_74u/aks74u	weapons/ak_74u/aks74u_camo	weapons/ak74u:lowfbxasc032poly002sg4	weapons/ak_74u/aks74u_camo
+weapons/ak_74n/ak74n	28:weapons/ak_74n/ak74n_camo	weapons/ak74n/ak_74n:lowfbxasc032poly002sg1		28:weapons/ak_74n/ak74n
+weapons/kiparis/kiparis	28:weapons/kiparis/kiparis_camo	weapons/kiparis:kiparis_kiparis_s	
+weapons/vityaz/vityaz	28:weapons/vityaz/vityaz_camo	weapons/vityaz/vityaz:box001sg3		28:weapons/vityaz/vityaz
+weapons/neostead/neostead	weapons/neostead/neostead_camo	weapons/neostead/neostead:blinn2sg	weapons/neostead/neostead_camo
+weapons/rem_700/rem700	weapons/rem_700/rem700_camo	weapons/rem_700:object011sg	weapons/rem_700/rem700_camo
+weapons/saiga_12s/saiga_12s	weapons/saiga_12s/saiga_12_camo	weapons/saiga_12s/saiga_12s:saiga_12s_receiver_sg,weapons/saiga_12s/saiga_12s:saiga_12s_blocker_sg	weapons/saiga_12s/saiga_12_camo
+weapons/ak74m/ak74_stock_plastic	weapons/saiga_12s/saiga_12_stock_camo	weapons/saiga_12s/saiga_12s:ak74m_stock_plastic_sg,weapons/ak74m/ak74m:ak74lpsg5	weapons/saiga_12s/saiga_12_stock_camo
+weapons/vepr12/vepr12	weapons/vepr12/vepr_12_camo	weapons/vepr_12/vepr_12_short:vepr_12_receiver_sg	weapons/vepr12/vepr_12_camo
+weapons/vepr/vepr_main	weapons/vepr/vepr_main_camo	weapons/vepr:secondary002sg1	weapons/vepr/vepr_main_camo
+weapons/vepr/vepr_sec	weapons/vepr/vepr_sec_camo	weapons/vepr:secondary002sg	weapons/vepr/vepr_sec_camo
+weapons/vsk94/vsk_9a91	weapons/vsk94/vsk_9a91_camo	weapons/vsk_94/vsk_94:blinn1sg,weapons/a9_91/a9_91:blinn1sg	weapons/vsk94/vsk_9a91_camo
+weapons/vssk/vssk	weapons/vssk/vssk_camo_red	weapons/vssk/vssk:vssk_magazine_sg	weapons/vssk/vssk_camo_red
+weapons/vssk/vssk_brl	weapons/vssk/vssk_brl_camo_red	weapons/vssk/vssk:vssk_silenser_sg	weapons/vssk/vssk_brl_camo_red
+weapons/vss/vss	28:weapons/vss/vss_camo	weapons/vss/vss:vss_02_vss_receiversg1,weapons/sr3m/sr3m:sr3_lp002sg3,weapons/val/val:vss_receiversg1	
+weapons/vss/vss_stock_wood	28:weapons/vss/vss_stock_camo	weapons/vss/vss:vss_02_vss_receiversg3	
+weapons/vss/sr3m	28:weapons/vss/sr3m_camo	weapons/sr3m/sr3m:sr3_lp002sg1	
+weapons/vss/sr3_mag	28:weapons/vss/sr3_mag_camo	weapons/sr3m/sr3m:sr3_lp002sg7,weapons/val/val:vss_receiversg5	
+weapons/vss/stock_val	28:weapons/vss/stock_sr3m_camo	weapons/sr3m/sr3m:sr3_lp002sg5,weapons/val/val:vss_receiversg3	
+# No premium: the parts come from parts.tsv, else the suggestion (the large parts)
+weapons/a_545/a_545		weapons/a_545/a_545:a_545_sg1
+weapons/aek_919k/aek_919k		weapons/aek_919k/aek_919k:blinn3sg
+weapons/ak74m/ak74m		weapons/a_545/a_545:magazine_object006sg1,weapons/ak74m/ak74m:ak74lpsg4
+weapons/aps/aps		weapons/aps/aps:aps_s
+weapons/ash_12/ash-12		weapons/ash_12/ash_12:kolya_ash_12_sg
+weapons/benelli_m4_super90/benelli		weapons/benelli_m4/benelli_m4:benelli_s
+weapons/fn_fnc/fn_fnc_grip		weapons/fn_fnc/fn_fnc:gripsg
+weapons/fn_fnc/fn_fnc_handguard		weapons/fn_fnc/fn_fnc:handguardsg
+weapons/fn_fnc/fn_fnc_mag		weapons/fn_fnc/fn_fnc:magsg
+weapons/fn_fnc/fn_fnc_receiver		weapons/fn_fnc/fn_fnc:receiversg
+weapons/fn_fnc/fn_fnc_stock		weapons/fn_fnc/fn_fnc:stocksg
+weapons/fn_p90/fn_p90		weapons/fn_p90/fn_p90:fn_p90_s
+weapons/fort_17/fort_17		weapons/fort_17/fort_17:fort17_s
+weapons/hk416_a5/hk416_buttstock		weapons/hk416_a5/hk416_a5:hk416_buttstock_s
+weapons/hk416_a5/hk416_grip		weapons/hk416_a5/hk416_a5:hk416_grip_s
+weapons/hk416_a5/hk416_handguard		weapons/hk416_a5/hk416_a5:hk416_handguard_s
+weapons/hk416_a5/hk416_magazine		weapons/hk416_a5/hk416_a5:hk416_magazine_s
+weapons/hk416_a5/hk416_receiver		weapons/hk416_a5/hk416_a5:hk416_receiver_s
+weapons/hk_mp7/hk_mp7		weapons/hk_mp7/hk_mp7_silencer:hk_mp7_s
+weapons/hk_mp7/hk_mp7_black		weapons/hk_mp7/hk_mp7:hk_mp7_black_s
+weapons/kriss_vector/kriss_vector_body		weapons/kriss_vector/kriss_vector:kriss_vector_body_s
+weapons/kriss_vector/kriss_vector_mag		weapons/kriss_vector/kriss_vector:kriss_vector_mag_s
+weapons/kriss_vector/kriss_vector_stock		weapons/kriss_vector/kriss_vector:kriss_vector_stock_s
+weapons/m4a1/m4a1		weapons/m4a1/m4a1:m4a1_s
+weapons/magnum/magnum		weapons/magnum/magnum:object013sg
+weapons/mosin_nagant/mosin_nagant		weapons/mosin_nagant/mosin_nagant:mosin_nagant_mosin_nagant_s	weapons/sniper/mosin_nagant/mosin_nagant
+weapons/mp-153/mp-153		weapons/mp153/mp153:mp153_mp_153_s
+weapons/msbs/msbs_carbine_body		weapons/msbs/msbs_carbine:msbs_carbine_bodysg
+weapons/msbs/msbs_carbine_grip		weapons/msbs/msbs_carbine:msbs_carbine_gripsg
+weapons/msbs/msbs_carbine_mag		weapons/msbs/msbs_carbine:msbs_carbine_magsg
+weapons/msbs/msbs_carbine_receiver		weapons/msbs/msbs_carbine:msbs_carbine_receiversg
+weapons/pkp_pecheneg/pkp_pecheneg_uv1		weapons/pkp_pecheneg/pkp_pecheneg:pkp_pecheneg_uv1_s
+weapons/pkp_pecheneg/pkp_pecheneg_uv2		weapons/pkp_pecheneg/pkp_pecheneg:pkp_pecheneg_uv2_s
+weapons/pm/pm		weapons/pm/pm:pm_lp_pm001sg
+weapons/pp-2000/pp-2000		weapons/pp2000/pp2000:pp2000_sg
+weapons/pp9_klin/pp9_klin		weapons/pp9_klin/pp9_klin:pp9_klin_s
+weapons/ppsh/ppsh		weapons/ppsh/ppsh:lp_ppsh001sg6
+weapons/ppsh/ppsh_mag		weapons/ppsh/ppsh:lp_ppsh001sg7
+weapons/rem_870/rem870		weapons/rem_870:lp002sg
+weapons/rpd/rpd		weapons/rpd/rpd:rpd_s
+weapons/rpk/rpk		weapons/rpk/rpk:rpk_finalsg2
+weapons/rpk/rpk_pl		weapons/rpk/rpk:rpk_finalsg3
+weapons/socom16/socom		weapons/socom16/socom16:muzzle_socom16sg1
+weapons/soc_vepr/soc_vepr		weapons/soc_vepr/soc_vepr:soc_vepr_s
+weapons/spas12/spas12		weapons/spas_12/spas_12:_blinn4sg
+weapons/sr2m/sr2m		weapons/sr2m/sr2m:srsg1
+weapons/sv98/sv98		weapons/sv98/sv_98:sv98_s
+weapons/svd/svd		weapons/svd_riffle/svd:svd_sg
+weapons/svd/svd_chest		weapons/svd_riffle/svd:handguard_sg
+weapons/toz_122/toz122		weapons/toz_122:lpsg4
+weapons/toz_34/toz_34		weapons/toz34/toz_34:tozik34sg2
+weapons/toz_66/bm16		weapons/toz_66:bmlpsg
+weapons/tt33/tt		weapons/tt33:ttsg
+weapons/ump_45/ump_45		weapons/ump_45/ump_45:ump_45_mat_s
+weapons/valmetrk62/valmetrk62_grip		weapons/valmet_rk62/valmet_rk62:valmetrk62_grip_s
+weapons/valmetrk62/valmetrk62_mag		weapons/valmet_rk62/valmet_rk62:valmetrk62_mag_s
+weapons/valmetrk62/valmetrk62_reciever		weapons/valmet_rk62/valmet_rk62:valmetrk62_reciever_s
+weapons/vepr12/vepr12_add		weapons/vepr_12/vepr_12_short:vepr_12_atch_sg,weapons/vepr_12_camo/vepr_12_medium_camo:vepr_12_atch_sg
+weapons/vsk94/vsk_9a91_butt		weapons/a9_91/a9_91:blinn2sg,weapons/vsk_94/vsk_94:blinn2sg,weapons/vsk_94/vsk_94_camo:blinn2sg
+weapons/vz58/vz58_grip		weapons/vz58/vz58:vz58_grip_s
+weapons/vz58/vz58_handguard		weapons/vz58/vz58:vz58_handguard_s
+weapons/vz58/vz58_mag		weapons/vz58/vz58:vz58_mag_s
+weapons/vz58/vz58_receiver		weapons/vz58/vz58:vz58_receiver_s
+weapons/vz58/vz58_stock		weapons/vz58/vz58:vz58_stock_s
+weapons/winchester_1894/winchester_1894		weapons/winchester_1894:winchester_1894_winchester_1894_s

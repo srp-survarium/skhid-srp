@@ -30,7 +30,7 @@
 //! - **Scopes** ([`survarium::v026g::scopes`], `docs/notes/weapon_scopes.md`).
 //!   [srp, the owner's rule of 2026-10-17] A scope item is bought once and
 //!   worn like a cosmetic: by any number of weapons, each holding its own
-//!   record, in slot 3 (a weapon takes no camouflage), one scope a weapon
+//!   record, in slot 3 (a weapon's camouflage goes into 2), one scope a weapon
 //!   (another replaces it). It goes only on a weapon the game data has a
 //!   variant of it for, and the record holds **that variant's dict id**,
 //!   not the scope item's: the client builds the weapon with the record's
@@ -383,7 +383,7 @@ pub fn attach_upgrade(
 /// [`attach_upgrade`] with `scopes`. What was in the slot comes off the
 /// item; the cosmetic stays on every other item wearing it. On the item
 /// already in that slot it stays as it is (its value too); in another slot
-/// of it, it moves. A scope's record holds the variant made for the weapon
+/// of it, it moves, its value (a decal's place) with it. A scope's record holds the variant made for the weapon
 /// ([`modifications::record_dict_in`]).
 pub fn attach_upgrade_in(
     account: &mut Account,
@@ -430,6 +430,13 @@ pub fn attach_upgrade_in(
             detach_first: false,
         });
     }
+    // Moved from another slot of the host: its place goes with it (the
+    // answer carries it, and the client's record takes it from there).
+    let value = host
+        .upgrades
+        .iter()
+        .find(|held| held.id == upgrade_item_id && held.a == u32::from(record_dict))
+        .map_or(0, |held| held.value);
     let before = host.upgrades.len();
     host.upgrades.retain(|held| held.id != upgrade_item_id);
     let detach_first = host.upgrades.len() != before;
@@ -437,7 +444,7 @@ pub fn attach_upgrade_in(
     host.upgrades.push(Upgrade {
         id: upgrade_item_id,
         a: record_dict.into(),
-        value: 0,
+        value,
         param: slot,
     });
     // Only the host shows another cosmetic: every kit wearing it, the
@@ -447,7 +454,7 @@ pub fn attach_upgrade_in(
         host_item_id,
         upgrade_item_id,
         slot,
-        value: 0,
+        value,
         detach_first,
     })
 }
@@ -501,13 +508,16 @@ pub fn detach_upgrade(
 
 /// `46 05 <kit> <host> <upgrade> <u64>`: the decal editor's value for a
 /// cosmetic on an item (the client has written it into its own copy, and
-/// expects no answer). Each item wearing the cosmetic has its own.
+/// expects no answer). Each item wearing the cosmetic has its own. True
+/// when the host is a weapon: the client's copy is the inventory's, and
+/// its lobby shows the weapon with the new place only when it is sent the
+/// account (patch 46 bakes the decal when the weapon is built).
 pub fn place_upgrade(
     account: &mut Account,
     host_item_id: u32,
     upgrade_item_id: u32,
     value: u64,
-) -> Result<(), ItemError> {
+) -> Result<bool, ItemError> {
     let held = account
         .item_mut(host_item_id)
         .and_then(|host| {
@@ -518,7 +528,10 @@ pub fn place_upgrade(
         .ok_or(ItemError::Upgrade("the cosmetic is not on that item"))?;
     held.value = value;
     bump_kits_wearing(account, host_item_id);
-    Ok(())
+    let weapon = account.item(host_item_id).is_some_and(|host| {
+        item_params(host.dict_id).is_some_and(|params| modifications::is_weapon_kind(params.kind))
+    });
+    Ok(weapon)
 }
 
 // -------------------------------------------------------------- reroll

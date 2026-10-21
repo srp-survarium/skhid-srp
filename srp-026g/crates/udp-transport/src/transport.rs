@@ -543,7 +543,7 @@ impl Transport {
             }
             Recorded::Outside => return events,
         }
-        for message in &parsed.messages {
+        for message in in_send_order(&parsed.messages) {
             if message.low_level {
                 self.low_level_message(message.id, &mut events);
                 continue;
@@ -1503,6 +1503,34 @@ fn settle(outstanding: &mut HashMap<u64, u32>, serial: u64) {
             outstanding.remove(&serial);
         }
     }
+}
+
+/// The messages of a client datagram in the order the client sent them.
+/// The client's send queue is sorted by size and taken from its back
+/// (0x3FE580), so a datagram holds a tick's messages largest first, not in
+/// the order they were sent: the lobby movie's move of an upgrade to
+/// another slot, `drop_upgrade_item` then `relocate_upgrade_item` in one
+/// frame, came as `46 01` (unique id 0x22) before `46 02` (0x21), and done
+/// in that order took the upgrade off (live, 2026-10-21). A unique id is
+/// the message's place in the send order (the counter at
+/// `construct_packet`): the unique messages are taken by it, the nearest
+/// way round from the first one's (the window is 128 wide), each other
+/// message keeping its place.
+fn in_send_order<'m, 'a>(messages: &'m [wire::Message<'a>]) -> Vec<&'m wire::Message<'a>> {
+    let unique = |message: &wire::Message<'_>| !message.low_level && message.class == Class::Unique;
+    let mut order: Vec<&wire::Message<'a>> = messages.iter().collect();
+    let Some(first) = messages.iter().find(|m| unique(m)).and_then(|m| m.x) else {
+        return order;
+    };
+    let mut sorted: Vec<&wire::Message<'a>> = messages.iter().filter(|m| unique(m)).collect();
+    sorted.sort_by_key(|m| m.x.map_or(0, |x| x.wrapping_sub(first) as i8));
+    let mut sorted = sorted.into_iter();
+    for slot in &mut order {
+        if unique(slot) {
+            *slot = sorted.next().expect("as many as were taken out");
+        }
+    }
+    order
 }
 
 fn add_part(

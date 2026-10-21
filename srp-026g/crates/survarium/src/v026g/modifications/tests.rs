@@ -228,6 +228,67 @@ fn cosmetics_go_into_their_slots() {
 }
 
 #[test]
+fn a_weapon_wears_its_camouflage_beside_its_scope() {
+    for kind in [
+        "wpn_aslt",
+        "wpn_smg",
+        "wpn_sniper",
+        "wpn_shotgun",
+        "wpn_pistol",
+    ] {
+        assert_eq!(camo_slot(kind), WEAPON_CAMO_SLOT);
+    }
+    for kind in ["arm_tors", "arm_legs", "arm_head", ""] {
+        assert_eq!(camo_slot(kind), CAMO_SLOT);
+    }
+    assert_ne!(WEAPON_CAMO_SLOT, SCOPE_SLOT);
+    assert!(!DECAL_SLOTS.contains(&WEAPON_CAMO_SLOT));
+}
+
+#[test]
+fn a_weapon_wears_two_decals_beside_its_camouflage_and_scope() {
+    // A weapon config with `camo_available` and `decal_available` (the data
+    // patches of weapon-camo-1 and weapon-decals-1).
+    let rifle = ItemMods {
+        dict_id: 1,
+        modifications: 0,
+        defects: 0,
+        camo: true,
+        decal: true,
+    };
+    assert_eq!(cosmetic_slots(&rifle, "wpn_aslt", "drp_decl"), DECAL_SLOTS);
+    assert_eq!(
+        cosmetic_slots(&rifle, "wpn_pistol", "prm_decl"),
+        DECAL_SLOTS
+    );
+    assert_eq!(
+        cosmetic_slots(&rifle, "wpn_aslt", "drp_camo"),
+        [WEAPON_CAMO_SLOT]
+    );
+    // The four slots of a weapon's upgrade window are apart.
+    let mut slots = vec![SCOPE_SLOT, WEAPON_CAMO_SLOT];
+    slots.extend(DECAL_SLOTS);
+    slots.sort_unstable();
+    assert_eq!(slots, [0, 1, 2, 3]);
+    // Armour as before; nothing without the config's flags.
+    let vest = ItemMods {
+        dict_id: 2,
+        ..rifle
+    };
+    assert_eq!(cosmetic_slots(&vest, "arm_tors", "drp_decl"), DECAL_SLOTS);
+    assert_eq!(cosmetic_slots(&vest, "arm_tors", "drp_camo"), [CAMO_SLOT]);
+    let plain = ItemMods {
+        camo: false,
+        decal: false,
+        ..rifle
+    };
+    assert!(cosmetic_slots(&plain, "wpn_aslt", "drp_decl").is_empty());
+    assert!(cosmetic_slots(&plain, "wpn_aslt", "drp_camo").is_empty());
+    assert!(cosmetic_slots(&rifle, "wpn_aslt", "wpn_aslt").is_empty());
+    assert!(is_weapon_kind("wpn_smg") && !is_weapon_kind("arm_tors") && !is_weapon_kind(""));
+}
+
+#[test]
 fn a_scope_goes_on_a_weapon_it_has_a_variant_for() {
     use crate::v026g::scopes::fixtures::{self, AK_74N_PSO_1, COBRA, LONE_SCOPE, PSO_1, SVD_COBRA};
     let fits = fixtures::fits();
@@ -384,7 +445,11 @@ fn a_reroll_offers_three_on_an_item_of_few_types() {
     let choices = data
         .reroll_choices(backpack, &[1062, 1120, 1201], 1201, &mut rng)
         .expect("an offer");
-    assert!(choices.iter().all(|&id| kind(id) == kind(1201) && id != 1201));
+    assert!(
+        choices
+            .iter()
+            .all(|&id| kind(id) == kind(1201) && id != 1201)
+    );
 }
 
 #[test]

@@ -167,6 +167,17 @@ fn cosmetics_go_on_and_come_off() {
         .map(|upgrade| (upgrade.id, upgrade.param))
         .collect();
     assert_eq!(slots, [(camo, 3), (first, 1)]);
+    // Placed, then moved back: its place goes with it, in the answer too.
+    place_upgrade(&mut account, vest, first, 0x8130_4601_2008_6E4E).unwrap();
+    let back = attach_upgrade(&mut account, vest, first, 0).unwrap();
+    assert!(back.detach_first);
+    assert_eq!(back.value, 0x8130_4601_2008_6E4E);
+    let message = lobby::permitted_upgrade_attached(vest, first, 0, 0x8130_4601_2008_6E4E, true);
+    takes(&mut client, &message, &account);
+    let moved = attach_upgrade(&mut account, vest, first, 1).unwrap();
+    let message = lobby::permitted_upgrade_attached(vest, first, 1, moved.value, true);
+    takes(&mut client, &message, &account);
+    assert_eq!(moved.value, 0x8130_4601_2008_6E4E);
 
     // The camouflage onto the other vest too: this one keeps it.
     let shared = attach_upgrade(&mut account, other, camo, 3).unwrap();
@@ -180,8 +191,8 @@ fn cosmetics_go_on_and_come_off() {
     assert!(!again.detach_first);
     assert_eq!(account.item(other).unwrap().upgrades.len(), 1);
 
-    // The decal editor's value.
-    place_upgrade(&mut account, vest, first, 0x0102_0304_0506_0708).unwrap();
+    // The decal editor's value (a vest: nothing to send).
+    assert!(!place_upgrade(&mut account, vest, first, 0x0102_0304_0506_0708).unwrap());
     let held = |account: &Account, host: u32, upgrade: u32| {
         account
             .item(host)
@@ -1717,4 +1728,25 @@ fn golden_weapons_owned_before_get_the_silver_bonus_once() {
     let again = account.clone();
     assert_eq!(give_golden_silver(&mut account).given, Vec::<u32>::new());
     assert_eq!(account, again);
+#[test]
+fn a_decal_placed_on_a_weapon_asks_for_the_account() {
+    let mut account = rich();
+    let rifle = give(&mut account, "ak_74m", &[]);
+    let decal_id = account.add_item(decal(), FULL_CONDITION);
+    // A decal on the rifle (the data patch gives weapons `decal_available`).
+    account.item_mut(rifle).unwrap().upgrades.push(Upgrade {
+        id: decal_id,
+        a: u32::from(decal()),
+        value: 0,
+        param: 1,
+    });
+    let revision = account.kits[0].revision;
+    account.kits[0].slots[7] = Some(KitSlot {
+        item_id: rifle,
+        count: 1,
+    });
+    assert!(place_upgrade(&mut account, rifle, decal_id, 0x0102_0304_0506_0708).unwrap());
+    let held = account.item(rifle).unwrap().upgrades[0];
+    assert_eq!((held.value, held.param), (0x0102_0304_0506_0708, 1));
+    assert_ne!(account.kits[0].revision, revision);
 }

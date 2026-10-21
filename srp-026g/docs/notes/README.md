@@ -29,6 +29,7 @@ given), LIKELY or GUESS.
 | [progression_pace.md](progression_pace.md) | How long levels, faction ranks and gear tiers take, measured on the players' server, and the pay rates chosen from it |
 | [items.md](items.md) | Modifications, defects, cosmetics, reroll, craft, repair: the data, the wire, the rules |
 | [weapon_scopes.md](weapon_scopes.md) | Weapon scopes: how the client builds one, scope items bought once and put on any number of weapons (variants per weapon from the game data), what a release still needs |
+| [weapon-camo.md](weapon-camo.md) | Camouflage on weapons: which weapons and where the paint goes (premium weapons' masks), slot 2 beside the scope, the engine's bake and exe patch 44, the lobby slot still to come |
 | [match.md](match.md) | Match protocol: lockstep, handshake, message ids, snapshot and hash, time sync, input rules |
 | [transport.md](transport.md) | The UDP transport that matches **and now the lobby** use: header, acks, per-id lengths, multipart |
 | [static_info.md](static_info.md) | Match start (0xE4): match options, profiles with kits, byte layout |

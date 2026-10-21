@@ -45,10 +45,11 @@ pub const SCOPE_CATEGORY: u8 = 22;
 /// The weapons' categories: rifles (8), sniper rifles (13), shotguns (14),
 /// submachine guns (15), machine guns (16) and pistols (17).
 pub const WEAPON_CATEGORIES: [u8; 6] = [8, 13, 14, 15, 16, 17];
-/// The upgrade slot of a scope on a weapon: the camouflage's slot 3
-/// ([`super::modifications::CAMO_SLOT`]); a weapon takes no camouflage
-/// (no `camo_available`), so the slot is free. The client sends the slot of
-/// its window's drop (`relocate_upgrade_item`, 0x29A8B0) and checks none.
+/// The upgrade slot of a scope on a weapon: the armour camouflage's slot 3
+/// ([`super::modifications::CAMO_SLOT`]), free on a weapon, whose camouflage
+/// goes into 2 ([`super::modifications::WEAPON_CAMO_SLOT`]). The client sends
+/// the slot of its window's drop (`relocate_upgrade_item`, 0x29A8B0) and
+/// checks none.
 pub const SCOPE_SLOT: u8 = 3;
 /// The block of a variant's config that names its scope item and weapons.
 pub const FIT_KEY: &str = "srp_scope_fit";

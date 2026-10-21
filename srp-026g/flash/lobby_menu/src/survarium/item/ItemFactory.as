@@ -153,6 +153,13 @@ package survarium.item
          return SuperCategory.ITEMS;
       }
       
+      // The inventory tab whose filters list a category, for a tab's "all": as getCategory, but
+      // scopes are in the upgrades tab's filters (beside camouflages and decals)
+      public static function filterGroup(category:int) : int
+      {
+         return category == ItemCategory.SCOPES ? SuperCategory.UPGRADES : getCategory(category);
+      }
+      
       public static function isGolden(dictId:int) : Boolean
       {
          return ItemDictId.GOLDEN_WEAPONS.indexOf(dictId) != -1;

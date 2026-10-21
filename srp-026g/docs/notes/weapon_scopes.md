@@ -80,7 +80,7 @@ in `crates/session/src/v026g/items_rules.rs`.
   no pair: no scope is sold and none goes on a weapon** (the players' data until the release
   patch).
 - **Attach** (`46 01 <kit> <weapon> <scope> 3 <u64 0>`): only to a weapon the scope has a variant
-  for, only into slot 3 (the camouflage's; weapons take no camouflage), one scope a weapon (a
+  for, only into slot 3 (the armour camouflage's; a weapon's camouflage goes into 2), one scope a weapon (a
   second replaces the first). The record is `{scope item id, the variant's dict id, 0, 3}`. The
   scope stays one item of the inventory; any number of weapons wear it, each its own record (the
   rule of shared cosmetics, PR 149). After `83 46 01` the client writes its own copy of the
@@ -148,7 +148,12 @@ The lobby's `InventoryList` (`flash/lobby_menu/src/survarium/controls/InventoryL
 that predicate (`isUpgradeable`) and gives weapons the existing localized `scope_window_title`
 menu label (`upgradeLabelKey`). The existing
 `upgradeElelemnt` callback opens the normal editor; `UpgradeWindow.setData` selects
-category 22 and its normal slot handles attach, replace and detach. Compatibility
+category 22 and its normal slot handles attach, replace and detach.
+
+Since 2026-10-21 `scope_window_title` says Attachments, not Optics (`st_srp_attachments` in the six
+languages, `scripts/content-edit/weapon-attachments-1.json`; it was patch 19's `st_srp_optics`): the
+weapon's window has an Attachments page (the scope) and an Appearance page (camouflage and decals),
+[weapon-camo.md](weapon-camo.md#the-weapons-window-two-pages). Compatibility
 comes from the movie's existing `scopePairs`, populated by the game data. Weapons
 with no compatible scopes get no action. Armor keeps its cosmetic predicate and
 `btn_upgrade_label`; ownership, stack, disabled-item and locked-inventory checks
