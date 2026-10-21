@@ -26,7 +26,9 @@ data: `scripts/content-edit/golden-weapons-1.json`; the lobby: `LobbyMenu.fill_c
   either is the other's donor, `*_premium` and `*_premium_2` too. The item upgraded stays what
   it is (the golden weapon keeps its look and silver bonus). The Neostead has no plain weapon.
 - **Weapons owned before:** at the first start of the srp with this rule each golden weapon gets
-  the silver bonus as its first modification, once (`g26_meta` `golden_silver_given`). One that
+  the silver bonus as its first modification, once (`g26_meta` `golden_silver_given`, written
+  only after the changed accounts are; a failed write or a crash leaves it unmarked and the next
+  start gives it to the golden weapons still without it). One that
   already had three of its own keeps them (logged; none can have: the lobby showed rank 3).
 - **New ones** (shop, bundles, the admin) come with it.
 - **Data:** the patch takes every default modification off the 21 configs and sets

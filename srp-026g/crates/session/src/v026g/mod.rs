@@ -236,24 +236,13 @@ impl GameAccounts {
     ///
     /// The first time a database is opened by an srp with the golden-weapons
     /// rule, every golden weapon in it gets the silver bonus as its own
-    /// first modification ([`Self::give_golden_silver`]): until then it was
-    /// a default of the item's config, which the golden-weapons patch takes
-    /// off. Once in the database's life (`persist::GOLDEN_SILVER_GIVEN`): a
-    /// silver bonus rerolled away later stays away.
+    /// first modification ([`Self::give_golden_silver_once`]).
     pub fn from_env() -> Result<Self, PersistError> {
         match SqliteGameRepository::from_env()? {
             Some(mut repository) => {
                 let mend = !pay::item_wear() && repository.first_time(persist::GEAR_MENDED)?;
-                let golden = repository.first_time(persist::GOLDEN_SILVER_GIVEN)?;
                 let store = Self::with_repository(Box::new(repository))?;
-                if golden {
-                    let (items, accounts) = store.give_golden_silver();
-                    store.flush();
-                    log::info!(
-                        "Golden weapons: {items} of {accounts} accounts got the silver bonus as \
-                         their own first modification, once"
-                    );
-                }
+                store.give_golden_silver_once()?;
                 if mend {
                     let (items, accounts) = store.mend_gear();
                     store.flush();
@@ -268,19 +257,65 @@ impl GameAccounts {
         }
     }
 
+    /// [`Self::give_golden_silver`] once in the database's life: until the
+    /// rule the silver bonus was a default of the item's config, which the
+    /// golden-weapons patch takes off; after it, a silver bonus rerolled
+    /// away stays away. The accounts it changed are written first and the
+    /// mark (`persist::GOLDEN_SILVER_GIVEN`) after them: a crash or a failed
+    /// write between leaves it unmarked, and the next start gives it again
+    /// to the golden weapons still without it (those written have it, and
+    /// are left alone). Returns `(items, accounts)` given; `None` when it
+    /// was done before, or for a store kept in memory.
+    pub fn give_golden_silver_once(&self) -> Result<Option<(usize, usize)>, PersistError> {
+        let Some(writer) = &self.writer else {
+            return Ok(None);
+        };
+        let done = writer
+            .locked()
+            .repository
+            .is_done(persist::GOLDEN_SILVER_GIVEN)?;
+        if done {
+            return Ok(None);
+        }
+        let (items, accounts) = self.give_golden_silver();
+        self.flush();
+        let unsaved: Vec<u32> = accounts
+            .iter()
+            .copied()
+            .filter(|&account_id| self.is_dirty(account_id))
+            .collect();
+        if unsaved.is_empty() {
+            writer
+                .locked()
+                .repository
+                .mark_done(persist::GOLDEN_SILVER_GIVEN)?;
+            log::info!(
+                "Golden weapons: {items} of {} accounts got the silver bonus as their own first \
+                 modification, once",
+                accounts.len()
+            );
+        } else {
+            log::error!(
+                "Golden weapons: accounts {unsaved:?} not written; not marked done, so the next \
+                 start gives the silver bonus again to the golden weapons still without it"
+            );
+        }
+        Ok(Some((items, accounts.len())))
+    }
+
     /// Gives every account's golden weapons the silver bonus as their own
     /// first modification ([`items_rules::give_golden_silver`]) and marks
-    /// the accounts it changed. Returns `(items, accounts)` changed. A
-    /// golden weapon that already has three modifications of its own keeps
-    /// them, and is logged.
-    pub fn give_golden_silver(&self) -> (usize, usize) {
+    /// the accounts it changed. Returns the items given and the accounts
+    /// changed. A golden weapon that already has three modifications of
+    /// its own keeps them, and is logged.
+    pub fn give_golden_silver(&self) -> (usize, Vec<u32>) {
         let accounts: Vec<(u32, Arc<Mutex<Account>>)> = self
             .accounts
             .locked()
             .iter()
             .map(|(&id, account)| (id, Arc::clone(account)))
             .collect();
-        let (mut items, mut changed) = (0, 0);
+        let (mut items, mut changed) = (0, Vec::new());
         for (account_id, account) in accounts {
             let done = {
                 let mut account = account.locked();
@@ -298,7 +333,7 @@ impl GameAccounts {
             };
             if !done.given.is_empty() {
                 items += done.given.len();
-                changed += 1;
+                changed.push(account_id);
                 self.mark_dirty(account_id);
             }
         }
@@ -787,20 +822,46 @@ mod tests {
         };
         store.get_or_create(6, "Bob");
         store.flush();
-        assert_eq!(store.give_golden_silver(), (1, 1));
-        assert!(store.is_dirty(5) && !store.is_dirty(6));
-        store.flush();
-        assert_eq!(
+        let kept = |repository: &MemoryGameRepository| {
             repository
                 .get(5)
                 .unwrap()
                 .item(rifle)
                 .unwrap()
-                .modifications,
-            [(SILVER_BONUS, false)]
-        );
-        // Nothing left to give.
-        assert_eq!(store.give_golden_silver(), (0, 0));
+                .modifications
+                .clone()
+        };
+        let mut marks = repository.clone();
+
+        // The write fails (as a crash before it would): not marked done.
+        repository.fail_account_saves(true);
+        assert_eq!(store.give_golden_silver_once().unwrap(), Some((1, 1)));
+        assert!(store.is_dirty(5) && !store.is_dirty(6));
+        assert!(kept(&repository).is_empty());
+        assert!(!marks.is_done(persist::GOLDEN_SILVER_GIVEN).unwrap());
+
+        // The next start gives it again, writes it, then marks it done.
+        repository.fail_account_saves(false);
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        assert_eq!(store.give_golden_silver_once().unwrap(), Some((1, 1)));
+        assert_eq!(kept(&repository), [(SILVER_BONUS, false)]);
+        assert!(marks.is_done(persist::GOLDEN_SILVER_GIVEN).unwrap());
+
+        // Once: the silver bonus rerolled away stays away at later starts.
+        store
+            .get(5)
+            .unwrap()
+            .locked()
+            .item_mut(rifle)
+            .unwrap()
+            .modifications = vec![(2000, false)];
+        store.mark_dirty(5);
+        store.flush();
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        assert_eq!(store.give_golden_silver_once().unwrap(), None);
+        assert_eq!(kept(&repository), [(2000, false)]);
+        // A store kept in memory has no marks and nothing to give once.
+        assert_eq!(GameAccounts::new().give_golden_silver_once().unwrap(), None);
     }
 
     #[test]
