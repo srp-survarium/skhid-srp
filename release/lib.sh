@@ -389,6 +389,48 @@ read_patch_list() {
     if ((${#rows[@]})); then LIST=$(printf '%s\n' "${rows[@]}"); fi
 }
 
+# Every patch of LIST (read_patch_list first) in ~/.cache/skhid-release/patches/
+# ($XDG_CACHE_HOME), each checked by its size and sha256 there, else
+# downloaded there from its row's first URL (200, the row's size and
+# sha256). Sets PATCH_CACHE to that folder.
+PATCH_CACHE=''
+cache_patches() {
+    local name sha size urls file url status
+    PATCH_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/patches
+    mkdir -p "$PATCH_CACHE"
+    while read -r name sha size urls; do
+        [[ -n $name ]] || continue
+        file=$PATCH_CACHE/$name
+        if [[ -f $file && $(size_of "$file") == "$size" && $(sha256_of "$file") == "$sha" ]]; then
+            say "$name: in the cache"
+            continue
+        fi
+        url=${urls%% *}
+        say "$name: downloading $url ($size bytes)"
+        status=$(http_get "$url" "$file.part")
+        [[ $status == 200 ]] || die "GET $url answered $status, not 200 (in $PATCH_LIST)"
+        [[ $(size_of "$file.part") == "$size" && $(sha256_of "$file.part") == "$sha" ]] ||
+            die "GET $url did not give the $size bytes of sha256 $sha that $PATCH_LIST names"
+        mv "$file.part" "$file"
+    done <<<"$LIST"
+}
+
+# The sha256 of the stock db $1, hashed once and then cached by its size,
+# time and path (~/.cache/skhid-release/stock-db.sha256).
+stock_sha256() {
+    local cache key stock
+    cache=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/stock-db.sha256
+    key="$(stat -c '%s %Y' "$1") $(readlink -f "$1")"
+    stock=$(grep -F -- "$key " "$cache" 2>/dev/null | tail -n 1 || true)
+    stock=${stock##* }
+    if [[ -z $stock ]]; then
+        say "  ...      sha256 of $1 ($(size_of "$1") bytes; once, then cached by size and time)" >&2
+        stock=$(sha256_of "$1")
+        { mkdir -p "${cache%/*}" && printf '%s %s\n' "$key" "$stock" >>"$cache"; } 2>/dev/null || true
+    fi
+    printf '%s\n' "$stock"
+}
+
 # The row of <name> in LIST, or nothing.
 list_row() { grep -m1 -- "^$1 " <<<"$LIST" || true; }
 

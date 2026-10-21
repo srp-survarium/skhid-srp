@@ -21,7 +21,7 @@ root=$(dirname "$here")
 command -v python3 >/dev/null || { echo "test.sh: python3 is needed" >&2; exit 1; }
 
 if command -v shellcheck >/dev/null; then
-    (cd "$here" && shellcheck -x -s bash lib.sh build-patch upload-patch add-mirror build-server-db build-site build-zip deploy rollback setup-patches-server release.sh test.sh &&
+    (cd "$here" && shellcheck -x -s bash lib.sh build-patch build-content upload-patch add-mirror build-server-db build-site build-zip deploy rollback setup-patches-server release.sh test.sh &&
         shellcheck -s sh host-rollback.sh)
     echo "ok   shellcheck"
 else
@@ -1946,6 +1946,132 @@ check "release: no setting's value is printed" bash -c "! grep -qF 'SRP_DAILY_BO
 check "release: neither is in a command line of ssh, curl or docker" bash -c "! grep -qF -e '$token' -e '$admin_path' $T/args $T/log"
 check "release: the admin page was asked through curl's stdin, on the jump host" grep -q "^ssh jump curl .* -K -$" "$T/args"
 check "release: no other container was ever run" bash -c "! grep -q '^docker run' $T/log"
+
+# build-content <revision> [--out] [--tree] [--manifest]: the next content
+# patch from a manifest, against the stock db and the listed patches. A tree
+# of its own ($T/ctree): a Flash tree `m` whose original is in base patch
+# 40, edit lists and a content_edit.py that swaps a file's one line
+# ({"set": [{"file", "from", "to"}]}, refusing another `from`), a pack
+# folder; the movies are built by a stand-in (SKHID_TEST_BUILD_MOVIE: its
+# bytes name the tree's src/version and the original's sha256), the packs
+# by one of vostok-port (each pack's files/ into --out-dir).
+C=$T/ctree
+mkdir -p "$C/srp-026g/flash/m/src" "$C/srp-026g/scripts/content-edit" "$T/b40/flash_movies" "$T/b40/gameplay/items" "$T/packs/hat-1/files/gameplay/items"
+echo "movie original" >"$T/b40/flash_movies/m.swf"
+echo "ported item" >"$T/b40/gameplay/items/c.options"
+quiet "$bin" pack --dir "$T/b40" --out "$T/patches/resources.db.patch_40"
+printf '{"schema": 2, "movie": "flash_movies/m.swf", "archive": "resources.db.patch_40", "movie_sha256": "%s"}\n' \
+    "$(sha256sum <"$T/b40/flash_movies/m.swf" | cut -c1-64)" >"$C/srp-026g/flash/m/movie.json"
+echo 1 >"$C/srp-026g/flash/m/src/version"
+cat >"$C/srp-026g/scripts/content-edit/content_edit.py" <<'EOF'
+import json, os, sys
+edits, live, out = sys.argv[1:4]
+for e in json.load(open(edits))["set"]:
+    was = open(os.path.join(live, e["file"])).read()
+    if was != e["from"] + "\n":
+        sys.exit("%s: %r is not %r" % (e["file"], was, e["from"]))
+    os.makedirs(os.path.dirname(os.path.join(out, e["file"])), exist_ok=True)
+    open(os.path.join(out, e["file"]), "w").write(e["to"] + "\n")
+print("1 files edited, 0 unexpected differences")
+EOF
+edit_list() { printf '{"set": [{"file": "gameplay/items/%s", "from": "%s", "to": "%s"}]}\n' "$2" "$3" "$4" >"$C/srp-026g/scripts/content-edit/$1"; }
+edit_list e1.json a.options "old item" "new item"
+cat >"$T/build-movie" <<'EOF'
+#!/usr/bin/env bash
+printf 'built %s %s over %s\n' "$1" "$(cat "$2/src/version")" "$(sha256sum <"$3" | cut -c1-64)" >"$4"
+echo "$1: built"
+EOF
+cat >"$T/vostok-port" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >"$TEST_DIR/vostok-port.args"
+out='' packs=()
+while (($#)); do case $1 in --out-dir) out=$2; shift 2 ;; --pack) packs+=("$2"); shift 2 ;; *) shift ;; esac; done
+mkdir -p "$out"
+for p in "${packs[@]}"; do cp -r "$p/files/." "$out/"; done
+echo "pack patch: done"
+EOF
+chmod +x "$T/build-movie" "$T/vostok-port"
+echo "pack item" >"$T/packs/hat-1/files/gameplay/items/hat.options"
+printf '{"id": "hat", "version": "1"}\n' >"$T/packs/hat-1/pack.json"
+hat_sha=$(sha256sum <"$T/packs/hat-1/pack.json" | cut -c1-64)
+sha40=$(sha256sum <"$T/patches/resources.db.patch_40" | cut -c1-64)
+list_row_of() { printf '%s\t%s\t%s\t%s\n' "${1##*/}" "$(sha256sum <"$1" | cut -c1-64)" "$(stat -c %s "$1")" "$P/${1##*/}"; }
+{ grep '^#' "$here/patches.tsv"; list_row_of "$T/patches/resources.db.patch_40"; } >"$T/content-list.tsv"
+manifest() { # the rows, `kind name source` a line ('|' for a tab), into $T/content.tsv
+    { echo "# a manifest"; printf '%s\n' "$@" | tr '|' '\t' | sed 's/$/\twhat it is/'; } >"$T/content.tsv"
+}
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "edit|e1.json|-"
+bc_env=$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/content-list.tsv|")
+cat >"$T/bc" <<EOF
+#!/usr/bin/env bash
+SKHID_RELEASE_ENV=$bc_env SKHID_TEST_BUILD_MOVIE=$T/build-movie TEST_DIR=$T exec "$here/build-content" "\$@" --tree "$C" --manifest "$T/content.tsv"
+EOF
+chmod +x "$T/bc"
+bc=$T/bc
+out=$(cd "$T/work" && "$bc" 41 2>&1) || fail "build-content: $out"
+check "build-content: the patch of what differs" test -f "$T/work/content-rev41/resources.db.patch_41"
+check "build-content: ... the edit's file, and why" has "$out" "CHANGED   gameplay/items/a.options: edit e1.json; live in resources.db\$"
+check "build-content: ... the movie built from its tree, and why" has "$out" "CHANGED   flash_movies/m.swf: movie m (srp-026g/flash/m); live in resources.db.patch_40"
+check "build-content: ... only those two files" test "$(grep -c . "$T/work/content-rev41/files.tsv")" = 2
+quiet "$bin" get --db "$T/work/content-rev41/resources.db.patch_41" --out "$T/bc-get" flash_movies/m.swf
+check "build-content: ... the movie over the base's original" grep -qx "built m 1 over $(sha256sum <"$T/b40/flash_movies/m.swf" | cut -c1-64)" "$T/bc-get/flash_movies/m.swf"
+check "build-content: ... the server data offers the list's patches and the new one at the patches server" \
+    has "$("$bin" info "$T/work/content-rev41/server-game-data.db")" "resources.db.patch_41 .* urls $P/resources.db.patch_41"
+check "build-content: ... players' files with it are the manifest's" has "$out" "all 2 files the manifest makes are as it makes them"
+check "build-content: ... says what is next" has "$out" "next: release/release.sh --resources $T/work/content-rev41/resources.db.patch_41"
+expect_refused "build-content never overwrites" "already there" "$bc" 41 --out "$T/work/content-rev41"
+
+# Published: the manifest's world is live, nothing to ship.
+cp "$T/work/content-rev41/resources.db.patch_41" "$T/patches/"
+list_row_of "$T/patches/resources.db.patch_41" >>"$T/content-list.tsv"
+out=$("$bc" 42 --out "$T/work/c42" 2>&1) || fail "build-content after the release: $out"
+check "build-content: nothing to ship once it is live" has "$out" "nothing to ship: players have every file as the manifest makes it"
+check "build-content: ... every file unchanged, live in the patch that shipped it" \
+    bash -c "grep -q 'unchanged gameplay/items/a.options: edit e1.json; live in resources.db.patch_41' <<<\"\$1\" && test ! -e $T/work/c42/resources.db.patch_42" _ "$out"
+expect_refused "build-content: a revision not above the list's" "the list has patches up to 41" "$bc" 41 --out "$T/work/c41b"
+
+# A retune of an edit list: its file only; a movie's source: the movie only.
+edit_list e1.json a.options "old item" "newer item"
+echo 2 >"$C/srp-026g/flash/m/src/version"
+out=$("$bc" 42 --out "$T/work/c42b" 2>&1) || fail "build-content after a retune: $out"
+check "build-content: a retune and a movie change: both files, nothing else" \
+    bash -c "grep -q 'CHANGED   gameplay/items/a.options: edit e1.json; live in resources.db.patch_41' <<<\"\$1\" && grep -q 'CHANGED   flash_movies/m.swf' <<<\"\$1\" && grep -q 'the next patch: 2 file(s)' <<<\"\$1\"" _ "$out"
+edit_list e1.json a.options "old item" "new item"
+echo 1 >"$C/srp-026g/flash/m/src/version"
+
+# A pack composed over the base and the movies.
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "edit|e1.json|-"
+expect_refused "build-content: a pack needs vostok-port" "SKHID_VOSTOK_PORT must name" "$bc" 42 --out "$T/work/c42c"
+out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42d" 2>&1) || fail "build-content with a pack: $out"
+check "build-content: a pack's new file, and why" has "$out" "NEW       gameplay/items/hat.options: pack hat@1; not in players' files"
+check "build-content: ... over the base patches, the built movie in place of the base's" \
+    bash -c "grep -q -- '--base-patch $T/cache/skhid-release/patches/resources.db.patch_40' $T/vostok-port.args && grep -q -- '--replace flash_movies/m.swf=' $T/vostok-port.args"
+printf '{"id": "hat", "version": "2"}\n' >"$T/packs/hat-1/pack.json"
+expect_refused "build-content: a pack whose pack.json is not the row's" "not $hat_sha" \
+    env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42e"
+printf '{"id": "hat", "version": "1"}\n' >"$T/packs/hat-1/pack.json"
+
+# Loud: what the manifest cannot account for.
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-"
+expect_refused "build-content: an edit list without a row" "content-edit/e1.json has no edit row" "$bc" 42 --out "$T/work/c42f"
+mv "$C/srp-026g/scripts/content-edit/e1.json" "$T/e1.json"
+expect_refused "build-content: a live file no row makes (a row taken out)" \
+    "gameplay/items/a.options: live from resources.db.patch_41, which is no base row, and made by no row" "$bc" 42 --out "$T/work/c42g"
+check "build-content: ... and no patch" test ! -e "$T/work/c42g"
+mv "$T/e1.json" "$C/srp-026g/scripts/content-edit/e1.json"
+edit_list e2.json c.options "other item" "x"
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "edit|e1.json|-" "edit|e2.json|-"
+expect_refused "build-content: an edit list made for other values" "edit e2.json (content_edit.py) failed" "$bc" 42 --out "$T/work/c42h"
+rm "$C/srp-026g/scripts/content-edit/e2.json"
+manifest "base|resources.db.patch_40|$(printf '0%.0s' {1..64})" "movie|m|-" "edit|e1.json|-"
+expect_refused "build-content: a base row that is not the published patch" "is not on the offered-patch list" "$bc" 42 --out "$T/work/c42i"
+manifest "base|resources.db.patch_40|$sha40" "edit|e1.json|-" "movie|m|-"
+expect_refused "build-content: the kinds in their order" "a movie row after the edit rows" "$bc" 42 --out "$T/work/c42j"
+manifest "movie|m|-" "edit|e1.json|-"
+expect_refused "build-content: a movie's original in no base archive" "neither the stock resources.db nor a base row" "$bc" 42 --out "$T/work/c42k"
+manifest "base|resources.db.patch_40|$sha40" "edit|e1.json|-"
+expect_refused "build-content: a Flash tree without a row" "srp-026g/flash/m has no movie row" "$bc" 42 --out "$T/work/c42l"
+check "--help is build-content's usage" has "$("$here/build-content" --help)" "usage: release/build-content"
 
 echo
 if ((failures)); then

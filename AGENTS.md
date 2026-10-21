@@ -23,6 +23,23 @@
   server reads everything about maps and items from the game data it is given
   (`server-game-data.db`), never from tables kept in code.
 
+## Game content (resources.db)
+
+`release/content.tsv` lists everything that should be live in players' `resources.db`: the published
+base patches made outside this repo (maps, ported weapons and items), the Flash movies
+(`srp-026g/flash/<movie>`), resource-porter content packs, and the edit lists
+(`srp-026g/scripts/content-edit/*.json`, applied in order from the base). Its header says the format.
+
+- A content change is a change of its source in the PR: an edit list (new, or a retune of one), a
+  movie's ActionScript, a pack's new version. A new edit list or pack also adds its row to
+  `release/content.tsv` in the same PR; a movie edit or a retune needs no new row.
+- The release builds the patch: `release/build-content <revision>` builds everything the manifest
+  lists, compares it with what players have (the stock db and every listed patch), and packs only the
+  files that differ, printing each one and why; anything live that the manifest does not make stops
+  it. Then `release/release.sh --resources <that patch>`.
+- Never assemble a patch folder by hand, and never build a patch from the server game data or from
+  one release's files: a file left out, or taken from the wrong revision, reverts what players have.
+
 ## Game symbols
 
 Names of the 0.26g executable's functions, for reading and patching it, are in

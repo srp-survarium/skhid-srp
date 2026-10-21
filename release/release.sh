@@ -853,15 +853,7 @@ if command -v nix >/dev/null; then okay "nix"; else problem "nix is not installe
 command -v python3 >/dev/null || command -v nix >/dev/null || problem "python3 (or nix to get it)"
 if [[ -d $SKHID_GAME ]]; then okay "SKHID_GAME: $SKHID_GAME"; else problem "SKHID_GAME: $SKHID_GAME is not a folder (the original 0.26g install)"; fi
 if [[ -f $SKHID_STOCK_DB ]]; then
-    cache=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/stock-db.sha256
-    key="$(stat -c '%s %Y' "$SKHID_STOCK_DB") $(readlink -f "$SKHID_STOCK_DB")"
-    stock=$(grep -F -- "$key " "$cache" 2>/dev/null | tail -n 1 || true)
-    stock=${stock##* }
-    if [[ -z $stock ]]; then
-        say "  ...      sha256 of $SKHID_STOCK_DB ($(size_of "$SKHID_STOCK_DB") bytes; once, then cached by size and time)"
-        stock=$(sha256_of "$SKHID_STOCK_DB")
-        { mkdir -p "${cache%/*}" && printf '%s %s\n' "$key" "$stock" >>"$cache"; } 2>/dev/null || true
-    fi
+    stock=$(stock_sha256 "$SKHID_STOCK_DB")
     if [[ $stock == "$STOCK_SHA" ]]; then okay "SKHID_STOCK_DB: the stock resources.db (sha256 ${STOCK_SHA:0:12}…)"; else problem "SKHID_STOCK_DB: $SKHID_STOCK_DB has sha256 $stock, not the stock 0.26g one ($STOCK_SHA)"; fi
 else
     problem "SKHID_STOCK_DB: $SKHID_STOCK_DB: no such file (the stock 0.26g resources.db)"

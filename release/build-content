@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# usage: release/build-content <revision> [--out <folder>] [--tree <checkout>] [--manifest <file>]
+#
+# The next content patch, from the manifest of everything that should be
+# live in players' resources.db (release/content.tsv: the base patches, the
+# Flash movies, the content packs, the edit lists; its header says how):
+#   1. the offered-patch list (release/patches.tsv) and its patches, from
+#      ~/.cache/skhid-release/patches/ (size and sha256 checked) or
+#      downloaded there; the stock resources.db ($SKHID_STOCK_DB, its sha256);
+#   2. builds what the manifest says (release/build_content.py): every movie
+#      of srp-026g/flash from source, the packs composed (vostok-port), the
+#      edit lists applied in order (content_edit.py), over the base;
+#   3. compares each file it made with what players have (the stock db and
+#      every listed patch, mounted in order) and prints each one, why it is
+#      made (the rows) and whether players have it so already; a file a
+#      listed patch gives that is neither in a base row nor made by the
+#      manifest is a problem (what made it?), and nothing is written;
+#   4. packs the files that differ into resources.db.patch_<revision>
+#      (release/build-patch), then builds the server game data of the stock
+#      db, the list's patches and it (srp-game-data build, the new patch at
+#      $SKHID_PATCHES_URL/<its name>, where release/upload-patch puts it),
+#      and checks that players' files with it over them are the manifest's.
+#
+#   <revision>          the release's revision (the live exe's + 1), above
+#                       every listed patch
+#   --out <folder>      a new folder for resources.db.patch_<revision>,
+#                       server-game-data.db and files.tsv (every file made:
+#                       its status, path, why, the archive players have it
+#                       from); default ./content-rev<revision>
+#   --tree <checkout>   the sources (edit lists, content_edit.py, Flash
+#                       trees, the manifest) of another checkout; default
+#                       this one
+#   --manifest <file>   another manifest; default <tree>/release/content.tsv
+#
+# Settings (release.env): SKHID_STOCK_DB, SKHID_PATCHES_URL (the list's
+# server); SKHID_FLASH_TOOLS, the tools.json naming java and Flex 4.16.1
+# (default private/actionscript/tools.json of the main checkout); with packs
+# to compose, SKHID_VOSTOK_PORT (resource-porter's vostok-port) and
+# SKHID_PACKS_DIR (the packs' folders, <id>-<version>).
+# Writes only --out (and the cache). Next: release/release.sh --resources
+# <folder>/resources.db.patch_<revision>.
+. "$(dirname "$0")/lib.sh"
+here=$(cd "$(dirname "$0")" && pwd)
+STOCK_SHA=${SKHID_TEST_STOCK_SHA256:-$STOCK_DB_SHA256}
+
+revision='' out='' tree=$ROOT manifest=''
+while (($#)); do
+    case $1 in
+    -h | --help) usage ;;
+    --out) (($# >= 2)) || usage 1; out=$2; shift 2 ;;
+    --tree) (($# >= 2)) || usage 1; tree=$2; shift 2 ;;
+    --manifest) (($# >= 2)) || usage 1; manifest=$2; shift 2 ;;
+    -*) die "unknown option $1 (--help)" ;;
+    *) [[ -z $revision ]] || usage 1; revision=$1; shift ;;
+    esac
+done
+[[ -n $revision ]] || usage 1
+is_revision "$revision" || die "$revision: a revision is a number from 1 to 255"
+tree=$(cd "$tree" 2>/dev/null && pwd) || die "--tree: no such folder"
+manifest=${manifest:-$tree/release/content.tsv}
+[[ -f $manifest ]] || die "$manifest: no such file (the content manifest)"
+manifest=$(realpath -s -- "$manifest")
+name=resources.db.patch_$revision
+out=${out:-content-rev$revision}
+[[ ! -e $out ]] || die "$out: already there; never overwritten"
+need_cmds sha256sum curl
+lower_priority
+load_env SKHID_STOCK_DB
+use_patches live
+[[ -f $SKHID_STOCK_DB ]] || die "SKHID_STOCK_DB: $SKHID_STOCK_DB: no such file"
+[[ $(stock_sha256 "$SKHID_STOCK_DB") == "$STOCK_SHA" ]] ||
+    die "SKHID_STOCK_DB: $SKHID_STOCK_DB is not the stock 0.26g resources.db (sha256 $STOCK_SHA)"
+read_patch_list
+((revision > LIST_TOP)) || die "$name: the list has patches up to $LIST_TOP; the next is above them"
+cache_patches
+bin=$(game_data_bin)
+common=$(dirname "$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)")
+tools=${SKHID_FLASH_TOOLS:-$common/private/actionscript/tools.json}
+mkdir -p "$out"
+out=$(cd "$out" && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+args=(--stock "$SKHID_STOCK_DB" --patches "$PATCH_CACHE" --list "$PATCH_LIST" --bin "$bin"
+    --tree "$tree" --manifest "$manifest" --work "$work/build" --tools "$tools")
+[[ -z ${SKHID_VOSTOK_PORT:-} ]] || args+=(--vostok-port "$SKHID_VOSTOK_PORT")
+[[ -z ${SKHID_PACKS_DIR:-} ]] || args+=(--packs "$SKHID_PACKS_DIR")
+say "building $(basename "$manifest") of $tree ($(git -C "$tree" rev-parse --short HEAD 2>/dev/null || echo 'no git'))"
+if ! python -I "$here/build_content.py" "${args[@]}"; then
+    rmdir "$out" 2>/dev/null || true
+    die "no patch made"
+fi
+cp "$work/build/files.tsv" "$out/files.tsv"
+if [[ ! -d $work/build/patch ]]; then
+    say "files.tsv: $out/files.tsv; no patch, no server game data (release/build-server-db makes the list's)"
+    exit 0
+fi
+
+say
+"$here/build-patch" "$work/build/patch" "$revision" --out "$out/$name" | grep -v "^next: "
+say
+patches=()
+layers=(--db "$SKHID_STOCK_DB")
+while read -r row sha size urls; do
+    [[ -n $row ]] || continue
+    patches+=(--patch "$PATCH_CACHE/$row=$urls")
+    layers+=(--patch "$PATCH_CACHE/$row")
+done <<<"$LIST"
+url="$PATCHES_URL/$name"
+"$bin" build --db "$SKHID_STOCK_DB" "${patches[@]}" --patch "$out/$name=$url" --out "$out/$DATA_NAME" |
+    sed -n '/^resources\.db\.patch_[0-9]*: /p;/server-game-data\.db: /p'
+info=$("$bin" info "$out/$DATA_NAME")
+[[ $(offered_in "$info") == "$(offered_of_list "$name $(sha256_of "$out/$name") $(size_of "$out/$name") $url")" ]] ||
+    die "$out/$DATA_NAME does not offer exactly the list's patches and $name"
+# Players' files with the new patch over them: every file made, as made.
+compared=$("$bin" compare "${layers[@]}" --patch "$out/$name" --dir "$work/build/world")
+others=$(grep -v '^same ' <<<"$compared" || true)
+[[ -z $others ]] || die "players' files with $name are not the manifest's: $others"
+say "with $name over players' files, all $(grep -c . <<<"$compared") files the manifest makes are as it makes them"
+say "$out/$name: $(size_of "$out/$name") bytes, sha256 $(sha256_of "$out/$name")"
+say "$out/$DATA_NAME: sha256 $(sha256_of "$out/$DATA_NAME") (offers the list's patches and $name at $url)"
+say "next: release/release.sh --resources $out/$name"
