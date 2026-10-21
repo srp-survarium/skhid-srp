@@ -61,11 +61,11 @@ package survarium.controls
       protected var _levels:Object = {
          "level_01":new minimap_rudnya(),
          "level_02":new minimap_school(),
-         "level_03":this.level_03_map,
+         "level_03":level_03_map,
          "level_04":new minimap_zavod(),
-         "test":this.level_03_map,
-         "level_03_evn":this.level_03_map,
-         "level_03_rain":this.level_03_map,
+         "test":level_03_map,
+         "level_03_evn":level_03_map,
+         "level_03_rain":level_03_map,
          "level_05":new minimap_fort(),
          "level_06":new Map_06(),
          "level_07":new Map_07(),
@@ -103,7 +103,7 @@ package survarium.controls
          mouseEnabled = false;
          this.minimap.map_ground.addChild(this._mapBitmap);
          this.minimap.map_ground.y = 0;
-         this._minimapProps.§default§ = {
+         this._minimapProps["default"] = {
             "size":100,
             "posX":-256,
             "posY":-256
@@ -427,7 +427,7 @@ package survarium.controls
          }
          else
          {
-            _obj = this._minimapProps.§default§;
+            _obj = this._minimapProps["default"];
          }
          this._map_sx = _obj.size * 2;
          this._map_sy = _obj.size * 2;

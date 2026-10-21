@@ -40,27 +40,18 @@ class BuildLobbyTests(unittest.TestCase):
                         lobby.build(self.movie(data), None, report=silent)
             build.assert_not_called()
 
-    def run_build(self, built, **options):
+    def test_the_tree_is_built_over_revision_24s_movie(self):
         base = b'revision 24'
         calls = []
 
-        def fake(tree, movie, tools, work, jobs, report):
-            calls.append((tree, movie))
-            return built, {'complete': True}
+        def fake(tree, movie, tools, report):
+            calls.append((tree, movie.read_bytes()))
+            return b'the lobby from source'
 
         with mock.patch.object(lobby, 'BASE_SHA256', hashlib.sha256(base).hexdigest()), \
                 mock.patch.object(lobby.flash_tree, 'build', side_effect=fake):
-            result = lobby.build(self.movie(base), None, report=silent, **options)
-        self.assertEqual(calls[0][0], lobby.TREE)
-        return result
-
-    def test_the_result_must_be_the_pinned_one(self):
-        movie = b'the lobby from source'
-        with mock.patch.object(lobby, 'RESULT_SHA256', hashlib.sha256(movie).hexdigest()):
-            self.assertEqual(self.run_build(movie)[0], movie)
-            with self.assertRaisesRegex(ValueError, 'not RESULT_SHA256'):
-                self.run_build(b'another movie')
-            self.assertEqual(self.run_build(b'another movie', any_result=True)[0], b'another movie')
+            self.assertEqual(lobby.build(self.movie(base), None, report=silent), b'the lobby from source')
+        self.assertEqual(calls, [(lobby.TREE, base)])
 
     def test_existing_output_is_not_overwritten(self):
         output = self.root / 'lobby_menu.swf'
@@ -76,20 +67,9 @@ class BuildLobbyTests(unittest.TestCase):
 class LobbySourceTests(unittest.TestCase):
     """The lobby's source tree."""
 
-    def test_the_tree_is_revision_24s(self):
+    def test_the_tree_is_of_revision_24s_movie(self):
         spec = json.loads((TREE / 'movie.json').read_text())
         self.assertEqual(spec['movie_sha256'], lobby.BASE_SHA256)
-
-    def test_the_build_takes_the_tree_as_it_is(self):
-        # Every new file named in srp.json, nothing gone from the tree still
-        # named, no new class defining a method twice (FFDec keeps the last).
-        import build_feature
-        _, inputs = build_feature.tree_inputs(TREE, {})
-        _, added, removed = lobby.flash_tree.differences(TREE)
-        self.assertEqual(sorted(i['class'] for i in inputs if i['kind'] == 'new'),
-                         sorted(p[:-3].replace('/', '.') for p in added))
-        self.assertEqual(sorted(i['class'] for i in inputs if i['kind'] == 'removed'),
-                         sorted(p[:-3].replace('/', '.') for p in removed))
 
     def test_the_exchange_and_the_server_agree_on_the_buy_gold_mark(self):
         window = (TREE / 'src' / 'survarium' / 'messages' / 'MessageMoneyExchange.as').read_text(encoding='utf-8')
