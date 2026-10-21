@@ -1,0 +1,120 @@
+{
+ "_about": "Grenade bounces louder (the owner's suggestion, 2026-10-21; docs/notes/grenade_bounce.md). The bounce is the grenade material's (45) collision sound in game_materials/material.pairs: weapons/f1/f1_hit_ground, _wood, _metal, used by no other pair, each three samples sounds/single/weapons/f1/grenade_hit_<material>_0N. Their raw_options had a reload click's settings: spl_preset weapons_reloading (0.755 at 0 m, 0.135 at 3.5 m, silent from 9 m), volume_k 0.5 / 0.4 / 0.3, spl_value 20. Now a bullet impact's: spl_preset material_hit (1 at 0 m, 0.42 at 9 m, 0.21 at 16 m, silent from 35 m), volume_k doubled (1.0 / 0.8 / 0.6, the bullet hits on dirt 1.0 and metal 0.6), spl_value 75 (dirt, mud, ricochet hits). Live = stock 0.26g (no patch carries these files): take the live folder from the stock resources.db.",
+ "set": [
+  {
+   "file": "sounds/single/weapons/f1/grenade_hit_ground_01.raw_options",
+   "path": "options/volume_k",
+   "from": 0.5,
+   "to": 1.0
+  },
+  {
+   "file": "sounds/single/weapons/f1/grenade_hit_ground_01.raw_options",
+   "path": "options/spl_value",
+   "from": 20,
+   "to": 75
+  },
+  {
+   "file": "sounds/single/weapons/f1/grenade_hit_ground_02.raw_options",
+   "path": "options/volume_k",
+   "from": 0.5,
+   "to": 1.0
+  },
+  {
+   "file": "sounds/single/weapons/f1/grenade_hit_ground_02.raw_options",
+   "path": "options/spl_value",
+   "from": 20,
+   "to": 75
+  },
+  {
+   "file": "sounds/single/weapons/f1/grenade_hit_ground_03.raw_options",
+   "path": "options/volume_k",
+   "from": 0.5,
+   "to": 1.0
+  },
+  {
+   "file": "sounds/single/weapons/f1/grenade_hit_ground_03.raw_options",
+   "path": "options/spl_value",
+   "from": 20,
+   "to": 75
+  },
+  {
+   "file": "sounds/single/weapons/f1/grenade_hit_wood_01.raw_options",
+   "path": "options/volume_k",
+   "from": 0.4,
+   "to": 0.8
+  },
+  {
+   "file": "sounds/single/weapons/f1/grenade_hit_wood_01.raw_options",
+   "path": "options/spl_value",
+   "from": 20,
+   "to": 75
+  },
+  {
+   "file": "sounds/single/weapons/f1/grenade_hit_wood_02.raw_options",
+   "path": "options/volume_k",
+   "from": 0.4,
+   "to": 0.8
+  },
+  {
+   "file": "sounds/single/weapons/f1/grenade_hit_wood_02.raw_options",
+   "path": "options/spl_value",
+   "from": 20,
+   "to": 75
+  },
+  {
+   "file": "sounds/single/weapons/f1/grenade_hit_wood_03.raw_options",
+   "path": "options/volume_k",
+   "from": 0.4,
+   "to": 0.8
+  },
+  {
+   "file": "sounds/single/weapons/f1/grenade_hit_wood_03.raw_options",
+   "path": "options/spl_value",
+   "from": 20,
+   "to": 75
+  },
+  {
+   "file": "sounds/single/weapons/f1/grenade_hit_metal_01.raw_options",
+   "path": "options/volume_k",
+   "from": 0.3,
+   "to": 0.6
+  },
+  {
+   "file": "sounds/single/weapons/f1/grenade_hit_metal_01.raw_options",
+   "path": "options/spl_value",
+   "from": 20,
+   "to": 75
+  },
+  {
+   "file": "sounds/single/weapons/f1/grenade_hit_metal_02.raw_options",
+   "path": "options/volume_k",
+   "from": 0.3,
+   "to": 0.6
+  },
+  {
+   "file": "sounds/single/weapons/f1/grenade_hit_metal_02.raw_options",
+   "path": "options/spl_value",
+   "from": 20,
+   "to": 75
+  },
+  {
+   "file": "sounds/single/weapons/f1/grenade_hit_metal_03.raw_options",
+   "path": "options/volume_k",
+   "from": 0.3,
+   "to": 0.6
+  },
+  {
+   "file": "sounds/single/weapons/f1/grenade_hit_metal_03.raw_options",
+   "path": "options/spl_value",
+   "from": 20,
+   "to": 75
+  }
+ ],
+ "replace_string": [
+  {
+   "files": "sounds/single/weapons/f1/grenade_hit_*.raw_options",
+   "from": "weapons_reloading",
+   "to": "material_hit"
+  }
+ ]
+}
