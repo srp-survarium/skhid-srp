@@ -20,6 +20,11 @@ package survarium.rooms
         // The create window's start: the player's last room made by hand,
         // kept by the server (the owner's of 2026-10-20).
         public static const SETTINGS:int = FIRST + 9;
+        // The room's chat tab is up: its last lines, and its new ones from
+        // now on (answered with the state; social.md 9.8).
+        public static const CHAT:int = FIRST + 30;
+        // The asker's friends who are members of a room (`S1;Y`).
+        public static const FRIEND_ROOMS:int = FIRST + 40;
         public static const QUEUE:int = FIRST + 200000;
         public static const VOTE:int = FIRST + 3;
         public static const POOL:int = FIRST + 10;

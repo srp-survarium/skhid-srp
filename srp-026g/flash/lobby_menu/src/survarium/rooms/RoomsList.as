@@ -9,6 +9,7 @@ package survarium.rooms
     import flash.events.MouseEvent;
     import flash.text.TextField;
     import flash.utils.getTimer;
+    import scaleform.gfx.FocusManager;
     import scaleform.gfx.MouseEventEx;
 
     // The list, after the design: the table of the rooms on the left, the
@@ -44,6 +45,11 @@ package survarium.rooms
         // across redraws.
         internal var _joinPin:TextField;
         internal var _pinText:String = "";
+        // The friend's room whose PIN is asked (0: none), and when: its field
+        // takes the keys once drawn in the next seconds (the list asked for
+        // comes then).
+        private var _pinFor:int = 0;
+        private var _pinForAt:int = 0;
 
         public function RoomsList(win:RoomsWindow)
         {
@@ -203,6 +209,7 @@ package survarium.rooms
                 y += 6;
                 look.text(look._content, win.say("pin"), x + 16, y + 4, 60, 15, RoomsLook.DIM);
                 _joinPin = look.input(look._content, x + 160, y, _pinText);
+                pinAsked(room);
                 y += 30;
             }
             look.line(look._content, x + 16, y + 2, SIDE_W - 32);
@@ -447,6 +454,41 @@ package survarium.rooms
         private function onUnqueue(e:Event):void
         {
             win.ask(RoomsWire.UNQUEUE, 1);
+        }
+
+        // A friend's room (RoomsWindow.joinFriend; `room`: {key, players,
+        // size, pin}): chosen and joined as Join does; one with a PIN chosen,
+        // its PIN field given the keys (typed, then Join).
+        internal function joinFriend(room:Object):void
+        {
+            _selKey = int(room.key);
+            look._scrollPx = 0;
+            if (room.pin)
+            {
+                _pinFor = _selKey;
+                _pinForAt = getTimer();
+                _pinText = "";
+                if (_joinPin != null)
+                    _joinPin.text = "";
+                win.askList();
+                win.render();
+                return;
+            }
+            win.render();
+            joinRoom(room);
+        }
+
+        // The PIN field of the friend's room drawn: typed in first.
+        private function pinAsked(room:Object):void
+        {
+            if (_pinFor == 0 || room.key != _pinFor || _joinPin == null)
+                return;
+            if (getTimer() - _pinForAt > 3000)
+            {
+                _pinFor = 0;
+                return;
+            }
+            FocusManager.setFocus(_joinPin);
         }
     }
 }

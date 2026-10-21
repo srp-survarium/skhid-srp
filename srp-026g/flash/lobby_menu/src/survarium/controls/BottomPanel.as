@@ -22,6 +22,7 @@ package survarium.controls
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.utils.Constraints;
    import survarium.buttons.ButtonFriends;
+   import survarium.chat.LobbyChat;
    import survarium.data.LocalizationData;
    import survarium.rooms.RoomsWindow;
    
@@ -269,6 +270,7 @@ package survarium.controls
             "tabs_group_id":data.tabs_group_id
          });
          this._tabs.sortOn("id",Array.NUMERIC);
+         this.roomChatAfterGeneral();
          this.tabsBar.dataProvider = new DataProvider(this._tabs);
          this.tabsBar.dataProvider.invalidate();
          if(oldSelected != -1)
@@ -1661,6 +1663,35 @@ package survarium.controls
          catch(err:Error)
          {
          }
+      }
+
+      // The tabs sorted by id: a room's chat goes right after the general
+      // chat's (the owner's of 2026-10-20: "[General Chat] [Room Chat]").
+      private function roomChatAfterGeneral() : void
+      {
+         var room:int = -1;
+         var general:int = -1;
+         for(var i:int = 0; i < this._tabs.length; i++)
+         {
+            if(this._tabs[i].id == LobbyChat.ROOM_TAB)
+            {
+               room = i;
+            }
+            else if(this._tabs[i].id == LobbyChat.GENERAL_TAB)
+            {
+               general = i;
+            }
+         }
+         if(room < 0 || general < 0 || room == general + 1)
+         {
+            return;
+         }
+         var tab:Object = this._tabs.splice(room,1)[0];
+         if(room < general)
+         {
+            general--;
+         }
+         this._tabs.splice(general + 1,0,tab);
       }
    }
 }

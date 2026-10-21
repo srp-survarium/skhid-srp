@@ -269,6 +269,38 @@ package survarium.controls
             hide();
          }
       }
+
+      // A menu still open with these items (the same objects show was given)
+      // gets one more at its end, kept on the screen: an item known only
+      // after the menu opened (a friend's room). False: it was closed or
+      // another menu replaced it.
+      public static function addItem(items:Array, item:Object) : Boolean
+      {
+         if(!visisble || _id.contextList == null || _id.contextList.list == null)
+         {
+            return false;
+         }
+         var shown:Object = _id.contextList.list.dataProvider;
+         if(shown == null || shown.length != items.length)
+         {
+            return false;
+         }
+         for(var i:int = 0; i < items.length; i++)
+         {
+            if(shown[i] !== items[i])
+            {
+               return false;
+            }
+         }
+         items.push(item);
+         var list:ContextList = _id.contextList;
+         list.data = items;
+         if(_stage != null && list.y + list.height > _stage.stageHeight)
+         {
+            list.y = Math.max(4,_stage.stageHeight - list.height - 4);
+         }
+         return true;
+      }
    }
 }
 

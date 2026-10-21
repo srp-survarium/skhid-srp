@@ -14,6 +14,7 @@ package survarium.rooms
     import flash.utils.getDefinitionByName;
     import flash.utils.getTimer;
     import scaleform.gfx.MouseEventEx;
+    import survarium.chat.LobbyChat;
     import survarium.controls.BottomPanel;
     import survarium.controls.Message;
     import survarium.controls.SrvContextMenu;
@@ -112,6 +113,10 @@ package survarium.rooms
         internal var _seen:Object = null;
         private var _membersKey:int = 0;
         private var _membersAt:int = 0;
+        // The room whose chat tab is up (LobbyChat.ROOM_TAB); 0: none.
+        private var _chatKey:int = 0;
+        // Who waits for the friends' rooms (FriendListRender's menu).
+        private var _friendRooms:Function = null;
 
         // PlayerRanking.fillPlayers, first: rows of the rooms' range are
         // the window's answers (true: taken).
@@ -298,6 +303,104 @@ package survarium.rooms
             overPanels();
             roomView.alertNear();
             applyPlay(true);
+            syncChatTab();
+        }
+
+        // LobbyMenu.show_victory_screen: a match is over. The room's chat
+        // lines of the match did not reach the lobby (its game was in the
+        // match): the tab is put up anew and given the room's last lines.
+        public function matchOver():void
+        {
+            dropChatTab();
+        }
+
+        // Each frame: the chat's "Room Chat" tab, right of the general
+        // chat's, while we are in a room (the owner's of 2026-10-20: "each
+        // room has its own chat", "and you should be able to type in one").
+        // Another room's (a switch) is a new tab, with that room's last
+        // lines; asked once a room, so a tab the game refuses is not asked
+        // for each frame.
+        private function syncChatTab():void
+        {
+            var key:int = _room != null ? int(_room.key) : 0;
+            if (key == _chatKey || _lobby == null)
+                return;
+            dropChatTab();
+            if (key == 0)
+                return;
+            _chatKey = key;
+            try
+            {
+                _lobby.add_tab({"id": LobbyChat.ROOM_TAB, "name": say("roomChat"), "channels": [LobbyChat.ROOM_CHANNEL],
+                    "channel_to_send": LobbyChat.ROOM_CHANNEL, "closable": false, "save_history": true});
+                ask(RoomsWire.CHAT, 1);
+            }
+            catch (e:Error)
+            {
+            }
+        }
+
+        // A friend's right-click menu (FriendListRender): which friends are
+        // members of a room; `answer` gets them, {account, key, players,
+        // size, pin} each.
+        public function askFriendRooms(answer:Function):void
+        {
+            _friendRooms = answer;
+            // Not `ask`: the state's poll keeps its own pace.
+            RoomsWire.send(RoomsWire.FRIEND_ROOMS, 1);
+        }
+
+        // `S1;Y;<count>`, then `<account>;<key>;<players>;<size>;<pin>` a
+        // friend in a room.
+        private function takeFriendRooms(rows:Array):void
+        {
+            var answer:Function = _friendRooms;
+            _friendRooms = null;
+            if (answer == null)
+                return;
+            var rooms:Array = [];
+            for (var i:int = 1; i < rows.length; i++)
+            {
+                var f:Array = RoomsWire.fields(rows[i]);
+                if (f.length >= 5)
+                    rooms.push({"account": Number(f[0]), "key": int(f[1]), "players": int(f[2]), "size": int(f[3]),
+                        "pin": f[4] == "1"});
+            }
+            answer(rooms);
+        }
+
+        // "Join room" in a friend's menu: the window opens on the list with
+        // the friend's room chosen, joined as the list's Join does (Queue for
+        // a full one); a room with a PIN is chosen and its PIN asked first.
+        public function joinFriend(room:Object):void
+        {
+            if (!_shown)
+                show(true);
+            // A member sees its room's view: the list is where a join is.
+            _view = "list";
+            _code = 0;
+            listView.joinFriend(room);
+        }
+
+        // The list now (a member's window asks for none of itself).
+        internal function askList():void
+        {
+            _listAt = getTimer();
+            ask(RoomsWire.LIST, 32);
+        }
+
+        private function dropChatTab():void
+        {
+            if (_chatKey == 0 || _lobby == null)
+                return;
+            _chatKey = 0;
+            try
+            {
+                _lobby.remove_tab(LobbyChat.ROOM_TAB);
+            }
+            catch (e:Error)
+            {
+            }
         }
 
         // While open, ours is the lobby's top child but for the chat
@@ -669,6 +772,8 @@ package survarium.rooms
             }
             else if (kind == "G")
                 takeMembers(head, rows);
+            else if (kind == "Y")
+                takeFriendRooms(rows);
             else if (kind == "N")
             {
                 settle();

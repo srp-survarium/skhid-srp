@@ -66,8 +66,8 @@ use session::v026g::rooms::{self as model, Due, Refused, Spec, Stage};
 use session::v026g::{matchmaking, quests, rules};
 use session::{LockExt, QueuePool};
 use survarium::v026g::lobby::rooms::{
-    self as wire, Card, Fit, JoinHold, ListMember, Member, PoolEntry, RoomCode, RoomPhase,
-    RoomRequest, RoomRow, RoomSpec, RoomSwitch, RoomView,
+    self as wire, Card, Fit, FriendRoom, JoinHold, ListMember, Member, PoolEntry, RoomCode,
+    RoomPhase, RoomRequest, RoomRow, RoomSpec, RoomSwitch, RoomView,
 };
 use survarium::v026g::lobby::{self, ClientState};
 use survarium::v026g::maps;
@@ -268,6 +268,12 @@ impl Core<'_> {
                 let entries = self.room_entries();
                 self.send_made(who.addr, wire::room_pool(&entries, page));
             }
+            // The movie put up its "Room Chat" tab: the room's last lines,
+            // and its new ones from now on (`room_chat`).
+            RoomRequest::Chat => {
+                self.room_chat_listen(who);
+                self.send_room_state(who, RoomCode::None, now);
+            }
             // The create window's start: the asker's last room made by hand,
             // fitted to the pool and its equipment now.
             RoomRequest::Form => {
@@ -278,6 +284,11 @@ impl Core<'_> {
                     room_settings::form(account.room_settings.as_ref(), &entries, gear)
                 };
                 self.send_made(who.addr, wire::room_form(&form));
+            }
+            // A friend's right-click menu: which friends' rooms it may offer.
+            RoomRequest::Friends => {
+                let friends = self.friend_rooms(who);
+                self.send_made(who.addr, wire::friend_rooms(&friends));
             }
             RoomRequest::Bits { chunk, bits } => {
                 let entries = self.rooms.draft(who.account_id, chunk, bits, now);
@@ -817,6 +828,33 @@ impl Core<'_> {
         };
         let queued = self.rooms.queue_place(who.account_id);
         self.send_made(who.addr, wire::room_state(view.as_ref(), code, queued));
+    }
+
+    /// The asker's friends who are members of a room (not waiting in a
+    /// queue), but of the asker's own room: a friend's menu offers "Join
+    /// room" for these (the owner's of 2026-10-20). Any friend may see its
+    /// friend's room; friendship is both ways.
+    fn friend_rooms(&self, who: &Who) -> Vec<FriendRoom> {
+        let friends = self
+            .store
+            .account(who.account_id)
+            .map(|account| account.locked().friends.clone())
+            .unwrap_or_default();
+        let mine = self.rooms.key_of(who.account_id);
+        friends
+            .into_iter()
+            .filter_map(|account_id| {
+                let room = self.rooms.of(account_id)?;
+                (Some(room.key) != mine).then(|| FriendRoom {
+                    account_id,
+                    key: room.key,
+                    players: room.members.len() as u8,
+                    size: room.spec.size,
+                    pin: room.spec.pin.is_some(),
+                })
+            })
+            .take(wire::FRIEND_ROWS)
+            .collect()
     }
 
     fn room_list(

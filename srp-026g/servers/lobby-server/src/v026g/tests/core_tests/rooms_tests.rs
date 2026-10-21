@@ -6,9 +6,9 @@
 use session::v026g::matchmaking;
 use session::v026g::rooms::Stage;
 use survarium::v026g::lobby::rooms::{
-    ROOM_FORM, ROOM_JOIN_BASE, ROOM_JOIN_MATCH, ROOM_LEAVE, ROOM_MEMBERS_BASE, ROOM_PIN_BASE,
-    ROOM_PLAY, ROOM_QUEUE_BASE, ROOM_STATE, ROOM_UNQUEUE, ROOM_VOTE_BASE, ROOMS_LIST, RoomSpec,
-    bits_start, create_start, kick_start,
+    ROOM_FORM, ROOM_FRIENDS, ROOM_JOIN_BASE, ROOM_JOIN_MATCH, ROOM_LEAVE, ROOM_MEMBERS_BASE,
+    ROOM_PIN_BASE, ROOM_PLAY, ROOM_QUEUE_BASE, ROOM_STATE, ROOM_UNQUEUE, ROOM_VOTE_BASE,
+    ROOMS_LIST, RoomSpec, bits_start, create_start, kick_start,
 };
 
 use super::pvb_tests::with_gear;
@@ -29,7 +29,7 @@ const NEXT: usize = 14;
 const VOTE_AND_WAIT: Duration = Duration::from_secs(32);
 
 /// The names of the rows of the one answer to a request at `start`.
-fn rows(world: &mut World, index: usize, start: u32, count: u8) -> Vec<String> {
+pub(super) fn rows(world: &mut World, index: usize, start: u32, count: u8) -> Vec<String> {
     let answers = answered(world, index, start, count);
     let [rows] = &answers[..] else {
         panic!("not one answer: {answers:?}");
@@ -1636,4 +1636,112 @@ fn a_room_with_a_pin_makes_matches_that_pay_nothing() {
         "3",
         "the next vote"
     );
+}
+/// Two accounts made friends, both ways, as an accepted request does.
+fn befriend(world: &mut World, a: usize, b: usize) {
+    let (a, b) = (world.ids[a].0, world.ids[b].0);
+    world.store.account(a).unwrap().locked().friends.push(b);
+    world.store.account(b).unwrap().locked().friends.push(a);
+}
+
+fn friend_rooms(world: &mut World, index: usize) -> Vec<String> {
+    rows(world, index, ROOM_FRIENDS, 1)
+}
+
+/// The owner's of 2026-10-20: a friend's right-click menu offers "Join
+/// room" while the friend is a member of a room, and joins it as the list
+/// does. The answer names the friends in rooms (not one in no room, not one
+/// waiting in a queue, not someone who is no friend, not the asker's own
+/// room) with what the join needs: a PIN is asked first, a full room is
+/// queued for.
+#[test]
+fn a_friends_menu_knows_which_friends_are_in_a_room_and_joins_it_as_the_list() {
+    let mut world = World::new();
+    let me = world.connect("Me");
+    // Alice: a friend in a room with a PIN. Bob: a friend in no room.
+    // Carol: in a room, no friend. Dave: a friend waiting in a queue. Erin:
+    // a friend in a full room.
+    let [alice, bob, carol, dave, erin] =
+        ["Alice", "Bob", "Carol", "Dave", "Erin"].map(|name| world.connect(name));
+    for friend in [alice, bob, dave, erin] {
+        befriend(&mut world, me, friend);
+    }
+    assert_eq!(friend_rooms(&mut world, me), ["S1;Y;0"]);
+    let pinned = create(&mut world, alice, spec(8), Some(1234));
+    create(&mut world, carol, spec(8), None);
+    let full = create(&mut world, erin, spec(6), None);
+    for n in 1..12 {
+        let member = world.connect(&format!("Member{n}"));
+        rows(&mut world, member, ROOM_JOIN_BASE + full, 1);
+    }
+    assert_eq!(
+        rows(&mut world, dave, ROOM_QUEUE_BASE + full, 1),
+        [format!("S1;N;0;{full};1")]
+    );
+    let (alice_id, erin_id) = (world.ids[alice].0, world.ids[erin].0);
+    assert_eq!(
+        friend_rooms(&mut world, me),
+        [
+            "S1;Y;2".to_owned(),
+            format!("{alice_id};{pinned};1;8;1"),
+            format!("{erin_id};{full};12;6;0"),
+        ]
+    );
+    // Somebody else's friends are its own: Carol has none.
+    assert_eq!(friend_rooms(&mut world, carol), ["S1;Y;0"]);
+
+    // The full room: the movie queues, as the list's Queue.
+    assert_eq!(
+        rows(&mut world, me, ROOM_QUEUE_BASE + full, 1),
+        [format!("S1;N;0;{full};2")]
+    );
+    // A queue is no membership: still both rooms offered.
+    assert_eq!(friend_rooms(&mut world, me).len(), 3);
+    // The PIN room: refused without it (the queue kept), joined with it
+    // (the queue left).
+    assert_eq!(
+        rows(&mut world, me, ROOM_JOIN_BASE + pinned, 1),
+        [format!("S1;N;3;{full};2")]
+    );
+    assert_eq!(rows(&mut world, me, ROOM_PIN_BASE + 1234, 1), ["S1;K;1"]);
+    let joined = rows(&mut world, me, ROOM_JOIN_BASE + pinned, 1);
+    assert_eq!(header(&joined)[KEY], pinned.to_string(), "{joined:?}");
+    // In Alice's room now: hers is not offered, Erin's still is; Alice is
+    // offered nothing (Me is in her own room).
+    assert_eq!(
+        friend_rooms(&mut world, me),
+        ["S1;Y;1".to_owned(), format!("{erin_id};{full};12;6;0")]
+    );
+    assert_eq!(friend_rooms(&mut world, alice), ["S1;Y;0"]);
+    // Erin leaves her room: nothing of it is offered.
+    rows(&mut world, erin, ROOM_LEAVE, 1);
+    assert_eq!(friend_rooms(&mut world, me), ["S1;Y;0"]);
+    // Bob, in no room, is offered Me's room (Alice's), with its PIN.
+    let me_id = world.ids[me].0;
+    assert_eq!(
+        friend_rooms(&mut world, bob),
+        ["S1;Y;1".to_owned(), format!("{me_id};{pinned};2;8;1")]
+    );
+}
+
+/// A friend's room whose match is being played: joined from the friend's
+/// menu as from the list, the joiner sees the room first and goes into the
+/// match later (the late join's path).
+#[test]
+fn joining_a_friends_room_during_its_match_goes_the_late_join_path() {
+    let mut world = World::new();
+    let (key, ticket, _, players) = room_match_of_four(&mut world);
+    let me = world.connect("Me");
+    befriend(&mut world, me, players[1]);
+    let bob_id = world.ids[players[1]].0;
+    assert_eq!(
+        friend_rooms(&mut world, me),
+        ["S1;Y;1".to_owned(), format!("{bob_id};{key};4;6;0")]
+    );
+    world.host.admitting.locked().insert(ticket);
+    let joined = rows(&mut world, me, ROOM_JOIN_BASE + key, 1);
+    assert_eq!(header(&joined)[KEY], key.to_string(), "{joined:?}");
+    assert!(sent_to_match(&world.take(me)).is_none());
+    let waiting = state(&mut world, me);
+    assert!(waiting.iter().any(|row| row == "J;15"), "{waiting:?}");
 }

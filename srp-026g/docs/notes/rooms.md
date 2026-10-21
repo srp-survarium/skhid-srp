@@ -129,7 +129,33 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
 - **Joining from the list:** the Join button, a double-click on a room, or Enter with one chosen
   (Up and Down choose the room above or below)
   (Queue for a full room; the PIN typed first for a private one).
+- **Joining a friend's room** (the owner's of 2026-10-20: "it should also be possible to rmb
+  on friend and join his room, if he is in a room"): a friend's right-click menu has "Join
+  room" while that friend is a member of a room ("Queue for room" when it is full); not while
+  the friend only waits in a room's queue, not for the player's own room. It joins as the
+  list's Join: the Rooms window opens on the list with that room chosen; a PIN room focuses
+  its PIN field (typed, then Join); a running match is the usual late join (the room first).
+  Only friends see a friend's room (the lobby answers from the asker's own friend list).
 - **Chat:** stays over the Rooms window.
+- **Room chat** (the owner's of 2026-10-20: "each room has its own chat", "and you should be
+  able to type in one", "there should be to the right of [General Chat] [Room Chat]"):
+  - Tabs read [General Chat] [Room Chat]: the room's tab right after General, only while in
+    a room ("Room Chat", uk "Чат кімнати", ru "Чат комнаты", de "Raum-Chat", pl "Czat
+    pokoju"; 84 px at most in the tab's 108 px text field).
+  - What a member types in it reaches its room's members, shown with its name as in the
+    other channels; another room's members, its queue and players in no room never see it.
+  - Members only: a room's queue is not in it; whoever is put in from the queue is.
+  - Entering the room any way (make, join, Play, the queue, Switch room, a late join) puts a
+    member in it; leaving, a kick, a switch, the room gone (disbanded, nobody left) take it
+    out. A switch shows the new room's chat.
+  - A newcomer's tab gets the room's last 20 lines (kept with the room; nothing outlives
+    it).
+  - "X joined the room" / "X left the room" lines, in blue, in the player's language.
+  - In a match it gets nothing (the match chat is untouched); after it, the tab is given the
+    last 20 lines again, what was said during the match among them.
+  - Moderation is the other channels': the lobby's flood limit, an ignored player's lines
+    not shown, the game's length limit and its censor.
+  - Wire: `social.md` §9.8, `lobby.md` §2.16.3 (2 060 000 030).
 - **In a room it shows** (the owner's of 2026-10-19: players did not know they were in one):
   the top bar's Rooms tab, label and icon, is yellow while the player is in a room; the
   Play button reads "Leave room" (in the case of the game's own Play label) in red and takes

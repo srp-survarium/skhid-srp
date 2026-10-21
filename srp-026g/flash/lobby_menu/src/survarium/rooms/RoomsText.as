@@ -59,6 +59,20 @@ package survarium.rooms
             "code": ["code", "код", "код", "Code", "kod"],
             "leave": ["Leave", "Вийти", "Выйти", "Verlassen", "Opuść"],
             "leaveRoom": ["Leave room", "Вийти з кімнати", "Выйти из комнаты", "Raum verlassen", "Opuść pokój"],
+            // The chat's tab, right of the general chat's (the owner's of
+            // 2026-10-20): each 108 px wide at most in the tab's Calibri Bold
+            // 15 px, which has every letter of them.
+            "roomChat": ["Room Chat", "Чат кімнати", "Чат комнаты", "Raum-Chat", "Czat pokoju"],
+            // The room's own lines in its chat, after the player's name (the
+            // server says them in English).
+            "joinedRoom": ["joined the room", "приєднався до кімнати", "вошёл в комнату", "ist dem Raum beigetreten",
+                "dołączył do pokoju"],
+            "leftRoom": ["left the room", "вийшов з кімнати", "покинул комнату", "hat den Raum verlassen",
+                "opuścił pokój"],
+            // A friend's right-click menu, while the friend is in a room.
+            "joinRoom": ["Join room", "Увійти в кімнату", "Войти в комнату", "Raum beitreten", "Dołącz do pokoju"],
+            "queueRoom": ["Queue for room", "Черга в кімнату", "Очередь в комнату", "Raum-Warteschlange",
+                "Kolejka do pokoju"],
             "joinMatch": ["Join match", "Увійти в матч", "Войти в матч", "Match beitreten", "Dołącz do meczu"],
             "joinIn": ["Into the match in %S s, or now with Join match", "У матч за %S с, або зараз: «Увійти в матч»",
                 "В матч через %S с, или сейчас: «Войти в матч»", "Ins Match in %S s, oder jetzt: Match beitreten",
@@ -207,6 +221,23 @@ package survarium.rooms
         public static function known(key:String):Boolean
         {
             return TEXT[key] != null;
+        }
+
+        // A room's own line in its chat ("<name> joined the room", "<name>
+        // left the room": the server's English) in the game's language; any
+        // other text as it is.
+        public static function notice(text:String):String
+        {
+            var lang:int = language();
+            var keys:Array = ["joinedRoom", "leftRoom"];
+            for (var i:int = 0; i < keys.length; i++)
+            {
+                var words:String = " " + TEXT[keys[i]][0];
+                var at:int = text.length - words.length;
+                if (at > 0 && text.substr(at) == words)
+                    return text.substr(0, at) + " " + TEXT[keys[i]][lang];
+            }
+            return text;
         }
 
         public static function levelName(level:int, lang:int):String
