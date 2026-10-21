@@ -267,6 +267,48 @@ zip_revision() {
     if zip_extract "$1" "$ZIP_EXE" "$2"; then exe_revision "$2"; else printf 'unknown\n'; fi
 }
 
+# The patches a players' survarium_skhid.exe requires at its start (patch 49,
+# srp-026g/client-patches/README.md): the n of each bit set in the 32-byte
+# bitmap right after the patches' mount's "Cannot open" text, which is in the
+# exe once (patch_026g.py's required_patches_of reads it the same way), as
+# `<n> <n> ...`, in order; an empty line when it requires none. Fails when the
+# text is not there once: an exe from before patch 49, or not one of ours.
+exe_required_patches() {
+    python -I -c '
+import sys
+text = b"Cannot open resources.db.patch_%u (error %u). Please run the Skhid launcher again.\0"
+data = open(sys.argv[1], "rb").read()
+at = data.find(text)
+if at < 0 or data.find(text, at + 1) >= 0:
+    sys.exit(f"{sys.argv[1]}: no list of required patches (an exe from before patch 49?)")
+bitmap = data[at + len(text):at + len(text) + 32]
+print(" ".join(str(n) for n in range(8 * len(bitmap)) if bitmap[n >> 3] >> (n & 7) & 1))
+' "$1"
+}
+
+# The numbers of LIST's patches (read_patch_list first), as patch_026g.py's
+# --required-patches= takes them: `12,14,17`; nothing for an empty list.
+list_numbers() {
+    local name _ out=''
+    while read -r name _; do
+        if [[ -n $name ]]; then out+=${out:+,}$(patch_number "$name"); fi
+    done <<<"$LIST"
+    printf '%s\n' "$out"
+}
+
+# The ZIP's exe requires exactly the patches OFFERED names (check_release_files
+# or the like first): a game of this release stops at its start without one
+# of the patches its server offers (patch 49), and requires none the server
+# does not offer. <scratch> is a folder for the exe.
+check_exe_requires() {
+    local zip=$1 scratch=$2 want got
+    want=$(sed -n 's/^patch_\([0-9]*\) .*/\1/p' <<<"$OFFERED" | sort -n | paste -sd' ')
+    zip_extract "$zip" "$ZIP_EXE" "$scratch/exe" || die "$zip has no $ZIP_EXE"
+    got=$(exe_required_patches "$scratch/exe") || die "$zip: its exe holds no list of required patches (built before patch 49?)"
+    [[ $got == "$want" ]] ||
+        die "$zip: its exe requires the patches ${got:-(none)}, the server data offers ${want:-(none)}: a ZIP is built for its list (release/build-zip --patches)"
+}
+
 # GET <site>/download (the players' ZIP) into <file>; dies unless 200.
 fetch_site_zip() {
     local url=${1%/}/download status

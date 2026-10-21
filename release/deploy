@@ -8,7 +8,8 @@
 #   1. checks here: the ZIP's exe says patch revision <n>; the server data
 #      reads (srp-game-data info), offers no patch above <n>, offers
 #      patch_12 (the menus) from revision 12 on, and offers exactly the
-#      patches of release/patches.tsv;
+#      patches of release/patches.tsv, which the ZIP's exe requires, no
+#      more and no fewer (patch 49);
 #   2. takes the release lock on the jump host; reads srp26's container (its
 #      image ID, its data volume), the files in download/, the setting;
 #   3. makes the release folder release-rev<n>-<UTC YYYYMMDD-HHMM>[-<label>]
@@ -82,6 +83,7 @@ check_release_files "$zip" "$data" "$revision" "$work"
 read_patch_list
 [[ $OFFERED == "$(offered_of_list "")" ]] ||
     die "$data does not offer exactly the patches of $PATCH_LIST (build it with release/build-server-db)"
+check_exe_requires "$zip" "$work"
 say "ZIP: $zip, $ZIP_SIZE bytes, sha256 $ZIP_SHA, patch revision $revision"
 say "server data: $data, sha256 $DATA_SHA; /patches will offer:"
 say_offered

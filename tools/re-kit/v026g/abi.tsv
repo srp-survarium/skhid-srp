@@ -198,6 +198,7 @@ va	name	source	ret_cleanup	result
 0x000e7d20	vostok::resources::mount_by_config_helper::mount_by_config_helper	manual	0	EAX: the helper
 0x000e7d90	vostok::resources::mount_by_config_helper::query_db	manual	0	
 0x000e7e80	vostok::resources::query_mount_physical	manual	0	
+0x000e7ef0	vostok::resources::query_mount_archive	manual	0	
 0x000eb600	vostok::memory::doug_lea_allocator::usable_size_impl	manual	4	
 0x000ee700	vostok::math::float4x4::multiply_affine	manual	0	EAX = the out matrix = EDX * ECX (apply EDX first; the w column taken as 0, 0, 0, 1); caller pops
 0x000f1850	vostok::resources::unmanaged_resource::~unmanaged_resource	manual	0	
@@ -223,6 +224,7 @@ va	name	source	ret_cleanup	result
 0x00110e10	vostok::network::network_world::dispatch_callbacks	manual	0	
 0x00111860	vostok::logging::has_passed_filters	manual	0	AL = the line is written; the game asks it only while [0x1F1D60C] is set
 0x00111ed0	vostok::logging::log_message	manual	0	one line of Survarium_<user>.log: "<channel> <level>\t[time]\t<text>" (level 4: info)
+0x00113580	vostok::debug::terminate	manual		never returns (0x1134E0, then int3)
 0x001166f0	vostok::render::renderer_cook::allocate_resource	manual	20	EAX: output pointer/size buffer address
 0x00116730	vostok::render::renderer_cook::deallocate_resource	manual	4	
 0x00116750	vostok::render::renderer_cook::create_resource	manual	20	

@@ -72,6 +72,17 @@ revision 12 on the exe expects the menus of `resources.db.patch_12`: a
 release of revision 12 or later is refused unless patch_12 is offered (in
 the list, or the `--resources` file).
 
+**The exe requires its release's patches** (patch 49,
+`srp-026g/docs/notes/required-patches.md`). `build-zip` builds the exe with
+`--required-patches=` every patch of the list `release.sh` gives it
+(`--patches`: the list after `upload-patch` added the new one); a game
+started without one of them stops at once: "Cannot open
+resources.db.patch_<n> (error 2). Please run the Skhid launcher again."
+`release.sh` and `deploy` refuse a ZIP whose exe requires other patches
+than the server data offers. So a patch removed from the list is no longer
+required by the next release's exe, and every patch a release offers must
+be downloadable by every player (add the Drive mirror at publish time).
+
 **Replays, and a change of what a match computes.** A game is given a
 replay only when every game of its recording was of the oldest replayable
 revision or later: the last row of
@@ -482,7 +493,7 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 | `release/add-mirror [--test] <name> <url>` | another URL of a listed patch: downloaded as the updater does, not a web page, the row's size and sha256, then appended to the row | the list (and the URL cache) |
 | `release/build-server-db [--test] [--out <file>]` | `server-game-data.db` from the stock db and the list's patches (each first URL GET 200 with the row's size and sha256; each mirror checked as above), `srp-game-data build --patch "<file>=<urls>"` | a local file |
 | `release/build-site --tree <checkout> [--with <patch>]` | the Maps tab and the calculator from the stock db and the list's patches (cached, each sha256 checked), FFDec 26.0.0, dbgrab; both `built-from.tsv` must name exactly those; release.sh runs it in its preflight, by hand it is a local preview (`--tree .`) | the checkout's `servers/web-server/{maps,damage}/`, the cache |
-| `release/build-zip [--test] [--ref <commit>] [--revision <n>] [--work <dir>]` | the players' ZIP from a fresh worktree of origin/main (never this checkout, never `git stash`): `--server`, `--site`, `--localization`, `--revision` (default: the site's exe's + 1; above it), no resources.db regions; the exe without a server too, both sha256 in `<work>/exe.sha256`; entries against the site's ZIP | a worktree, the ZIP |
+| `release/build-zip [--test] [--ref <commit>] [--revision <n>] [--patches <list>] [--work <dir>]` | the players' ZIP from a fresh worktree of origin/main (never this checkout, never `git stash`): `--server`, `--site`, `--localization`, `--revision` (default: the site's exe's + 1; above it), `--required-patches` (every patch of the offered-patch list, or `--patches`'; release.sh passes its list with the new patch: the exe stops at its start without one, patch 49), no resources.db regions; the exe without a server too, both sha256 in `<work>/exe.sha256`; entries against the site's ZIP | a worktree, the ZIP |
 | `release/deploy --zip --server-data --revision [--label] [--dry-run]` | the swap on its own, in a window planned by hand: the release folder, the checks, the rollback on failure | the live host |
 | `release/rollback [--test] [--keep-db] [<folder>]` | a release folder's rollback | the target |
 | `release/setup-patches-server [--test] [--check]` | once: the patches folder and Caddy's site block for it (validate and reload; either failing puts the backup back) | the jump host's Caddy |

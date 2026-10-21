@@ -371,6 +371,20 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     once (patch 48, upgrade_preview_026g.asm on `.srpw`'s third page, its
     state at .srpd+D60h): the sites, the entries, the find patch 32 calls.
     check_upgrade_preview_026g.py runs it.
+49. the same build with --required-patches= (a release's offered patches):
+    the patches' mount stops the game when a required
+    resources.db.patch_<n> is not there (patch 49). The default build's
+    bitmap (the 32 bytes after the mount's "Cannot open" text) is zeros and
+    requires none; against the build without the option only the bitmap's
+    bytes and the PE checksum differ, bit n of byte n/8 set for each n
+    (1, 12, 14, 17, 255; revision 27's list), and patch_026g's
+    required_patches_of and release/lib.sh's exe_required_patches read the
+    list back; the probe's missing case tests the bit with `bt` on that
+    bitmap (plus the delta) and goes on to the same fatal call as an
+    unreadable file. 0, 256, a number twice, a build without the late join
+    and the option's text out of order are refused.
+    check_mount_patches_026g.py runs the code on folders missing a
+    required patch.
 """
 
 import ctypes
@@ -380,6 +394,7 @@ import json
 import math
 import os
 import re
+import shutil
 import struct
 import subprocess
 import sys
@@ -2667,13 +2682,13 @@ def test_mount_patches(original, image, before):
     check(state == page + P.MOUNT_STATE_OFFSET and P.MOUNT_STATE_OFFSET + size <= P.LATE_JOIN_STATE_SIZE,
           f"its state is {size} bytes at {state:#x}, +{P.MOUNT_STATE_OFFSET:#x} of the late join's state page "
           f"{page:#x}, inside it")
-    strings = code[code.index(b"../../%s.db.patch_%u\0"):len(code) - 4]
+    strings = code[code.index(b"../../%s.db.patch_%u\0"):len(code) - 4 - P.MOUNT_REQUIRED_SIZE]
     check(strings == b"../../%s.db.patch_%u\0"
           b"Cannot mount resources.db.patch_%u. Please run the Skhid launcher again.\0"
           b"Cannot open resources.db.patch_%u (error %u). Please run the Skhid launcher again.\0",
           "the texts it holds are the path's format, ../../%s.db.patch_%u, and the two fatal errors' "
           "(a patch that fails to mount; one that is there and cannot be opened)")
-    listing = ndisasm(code[:len(code) - 4 - len(strings)], P.MOUNT_PATCHES_VA)
+    listing = ndisasm(code[:len(code) - 4 - P.MOUNT_REQUIRED_SIZE - len(strings)], P.MOUNT_PATCHES_VA)
     end = P.MOUNT_PATCHES_VA + len(code)
     inside = lambda target: P.MOUNT_PATCHES_VA <= target < end
     outside = sorted({target for _, _, text in listing if (target := branch_target(text)) is not None
@@ -4288,6 +4303,89 @@ def test_revision_override(original, default, server):
         check(refused, f"--revision={revision}{'' if late_join else ' without the late join'} is refused")
 
 
+def test_required_patches(original, default, server):
+    """Check 49: a release's --required-patches= against the default build
+    of the same server: the mount's bitmap and the PE checksum, nothing else."""
+    code = open(P.late_join_bin(), "rb").read()
+    upload = open(P.default_bin("section"), "rb").read()
+    mount = open(P.mount_patches_bin(), "rb").read()
+    needed = len(mount) - 4 - P.MOUNT_REQUIRED_SIZE
+    image = Image(default)
+    bitmap_va = P.MOUNT_PATCHES_VA + needed
+    check(image.read(bitmap_va - len(P.MOUNT_UNREADABLE), len(P.MOUNT_UNREADABLE)) == P.MOUNT_UNREADABLE
+          and image.read(bitmap_va, P.MOUNT_REQUIRED_SIZE) == bytes(P.MOUNT_REQUIRED_SIZE)
+          and P.required_patches_of(bytes(default)) == [] and lib_required_patches(default) in ("", None),
+          f"the default build requires no patch: its bitmap at {bitmap_va:#x}, after the \"Cannot open\" text, is "
+          f"{P.MOUNT_REQUIRED_SIZE} zeros")
+    # The probe: a missing file (error 2 or 3) tests its n in the bitmap
+    # and goes on to the "Cannot open" fatal's push when the bit is set.
+    listing = ndisasm(mount[:needed - 200], P.MOUNT_PATCHES_VA)
+    texts = [text for _, _, text in listing]
+    bt = [i for i, text in enumerate(texts) if text.startswith("bt ")]
+    unreadable = P.MOUNT_PATCHES_VA + mount.index(P.MOUNT_UNREADABLE)
+    ok = len(bt) == 1
+    if ok:
+        i = bt[0]
+        fatal_push = listing[i + 2][0]
+        ok = (texts[i] == f"bt [edx+{bitmap_va:#x}],ecx" and texts[i - 2] == "mov edx,[esp]"
+              and texts[i - 1] == "mov ecx,[esp+0x8]" and texts[i + 1].startswith("jnc ")
+              and texts[i - 4] in ("cmp eax,byte +0x3", "cmp eax,0x3"))
+        ok = ok and texts[i - 3] == f"jnz {fatal_push:#x}" and texts[i + 2] == "push eax" \
+            and texts[i + 5] == f"lea eax,[edx+{unreadable:#x}]" and texts[i + 7] == "call 0x113580"
+    check(ok, "the probe tests a missing patch's n (error 2 or 3) with `bt` on the bitmap plus the delta; a set bit "
+          "goes on to the \"Cannot open resources.db.patch_%u (error %u)\" fatal as an unreadable file, a clear one "
+          "to the next n" + ("" if ok else "\n          " + "\n          ".join(texts[bt[0] - 6:bt[0] + 9] if bt else texts)))
+    checksum_at = P.Headers(default).checksum_at
+    bitmap_at = image.offset(bitmap_va)
+    for numbers in ((1, 12, 14, 17, 255), (12, 14, 17, *range(19, 28))):
+        data, description = P.build(original, "section", upload, server, code, required_patches=numbers)
+        changed = [i for i in range(max(len(data), len(default)))
+                   if i >= len(data) or i >= len(default) or data[i] != default[i]]
+        bitmap = Image(data).read(bitmap_va, P.MOUNT_REQUIRED_SIZE)
+        names = ", ".join(map(str, numbers))
+        check(len(data) == len(default) and bitmap == P.required_bitmap(numbers)
+              and all(bitmap[n >> 3] >> (n & 7) & 1 == (n in numbers) for n in range(256))
+              and P.required_patches_of(bytes(data)) == list(numbers)
+              and lib_required_patches(data) in (" ".join(map(str, numbers)), None)
+              and all(checksum_at <= i < checksum_at + 4 or bitmap_at <= i < bitmap_at + P.MOUNT_REQUIRED_SIZE
+                      for i in changed)
+              and description.endswith(f"without resources.db.patch_{', _'.join(map(str, numbers))}"
+                                       + ("" if server is None else f", default login server {server}")),
+              f"--required-patches={','.join(map(str, numbers))}: the bitmap has bit n of byte n/8 for {names}; "
+              f"besides it only the PE checksum differs ({len(changed)} bytes); patch_026g.py and release/lib.sh "
+              "read the list back")
+    for numbers, late_join in (((0,), code), ((256,), code), ((12, 12), code), ((12,), None)):
+        try:
+            P.build(original, "section", upload, server, late_join, required_patches=numbers)
+            refused = False
+        except SystemExit:
+            refused = True
+        check(refused, f"--required-patches={','.join(map(str, numbers))}"
+              f"{'' if late_join else ' without the late join'} is refused")
+    for text in ("14,12", "12,,14", "012", "", "12, 14"):
+        try:
+            P.parse_required_patches(text)
+            refused = False
+        except SystemExit:
+            refused = True
+        check(refused, f"--required-patches={text!r} is refused (increasing whole numbers, commas between)")
+
+
+def lib_required_patches(data):
+    """release/lib.sh's exe_required_patches of the exe `data`: what the
+    release reads back from a built exe; None where there is no bash (it
+    is read on the release's Linux machine)."""
+    if shutil.which("bash") is None or os.name == "nt":
+        return None
+    path = os.path.join(SCRATCH, "required-patches.exe")
+    with open(path, "wb") as out:
+        out.write(data)
+    lib = os.path.join(HERE, "..", "..", "release", "lib.sh")
+    result = subprocess.run(["bash", "-c", f'. "$1" && exe_required_patches "$2"', "-", lib, path],
+                            capture_output=True, text=True)
+    return result.stdout.strip() if result.returncode == 0 else f"failed: {result.stderr.strip()}"
+
+
 def test_late_join(original, without, server, source):
     """The default build with the late join against `without`, the build
     of the same server without it (checked by everything above)."""
@@ -4585,6 +4683,7 @@ def test_late_join(original, without, server, source):
     test_spot(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)
+    test_required_patches(original, data, server)
     test_hash_interval(original, image, "section")
     test_memory_check(original, image, "section")
     test_default_server(original, image, "section", server)

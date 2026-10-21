@@ -1196,6 +1196,31 @@ So of what the game logs, the dominant wait is the client's own send tick (a qua
 - **Decals and patch 48:** a decal dropped on the window's weapon is previewed as any upgrade ({decal, its dict id, 0, slot 0 or 1}; a put of the same decal into the slot it holds keeps its place). A place (`46 05`) is not previewed: the editor writes the value into the client's copy itself; the account the server sends after it (a weapon's) answers no queued change of the window only if none is queued (otherwise one leaves the queue early: a flicker at worst).
 - **Builds** (round 2, on feat/weapon-camo 10e3fe00): without a server sha256 `1c2651913f62b72a24f9b0d6b4a563d7825194df04bafaf590293349a74d4539`, with `--server=skhid.link:1234` `4ab70c800845ae9b5fcb1f6cb1e48324cb4069be6a15f103315be3f11d1685d8`.
 
+### 3.46 The game stops at its start without a patch its release requires (written 2026-10-21, README patch 49, the next release's revision; the rules: `required-patches.md`) — PROVEN in the code, the mount run with Unicorn; not run in a game
+
+**Why** (the crash analysis of 2026-10-21, `~/next-srp-steps.md` "Rev 28 guard"): players whose updater could not reach the patches server started the revision 27 exe without the launcher and without patch_26/27. Patch 27 (section 0.2) skips a missing number, so the game ran on older content than the server: a profile with an item id its data did not have (crash A, a buffer_vector assert at the match's start), and other animation ids than the other players' in the world snapshots (crash B).
+
+**The patch** (`mount_patches_026g.asm`, 759 bytes at `.srp`+400h, from 707; no new site): the probe's missing case. Before, `cmp eax,2` / `je .probe` / `cmp eax,3` / `je .probe` / `push eax` (the fatal's). Now:
+
+```
+0A425508  cmp eax,0x2
+0A42550B  jz 0xa425512                 ; not there
+0A42550D  cmp eax,0x3
+0A425510  jnz 0xa425522                ; there, unreadable: the fatal
+0A425512  mov edx,[esp]                ; the delta
+0A425515  mov ecx,[esp+0x8]            ; n
+0A425519  bt [edx+0xa4256d3],ecx       ; needed: bit n of byte n/8
+0A425520  jnc 0xa4254c4                ; not required: the next n
+0A425522  push eax                     ; the error: 2 or 3, or another
+          ... the "Cannot open resources.db.patch_%u (error %u)" fatal (0x113580), as before
+```
+
+`needed` (0xA4256D3 as built, 32 bytes) is right after the "Cannot open" text and before the state's address that ends the .bin; a register `bt` on memory takes the bit string from that byte (n 1..255, so bytes 0..31). The probe runs n from 1 up before anything is queued, so the first required patch missing stops the game before any mount, with the error CreateFileA gave (2; 3 when a folder of the path is missing). Nothing else of patch 27 changes: a required patch that is there is mounted as any; one that is there and not required too; a missing one not required is skipped.
+
+**The build:** the checked-in .bin's bitmap is zeros (`patch_026g.py` checks it, and the text before it), so a build without `--required-patches=` requires nothing. With it, `build()` writes `required_bitmap(numbers)` into its copy of the .bin; only those bytes and the PE checksum differ (selftest check 49). `required_patches_of(exe)` and `release/lib.sh`'s `exe_required_patches` read it back by finding the text (once in the exe) and the 32 bytes after it. A release: `release/build-zip --patches <list>` passes the numbers of every row of the offered-patch list (release.sh gives it its list after `upload-patch` added the new patch), checks both exes; `release.sh` and `release/deploy` refuse a ZIP whose exe requires other patches than the server data offers.
+
+**Builds** (this branch, on main 7f010cc1, no server): the default build `8f75d355eda63a17d7afc83dd99ecff7d368e07801771c1f5e72f7d62c84c27b`; with `--required-patches=12,14,17,19,20,21,22,23,24,25,26,27` (revision 27's list) `33c7cba9bb1e1558b97ef43be5296f45d963174f7597f21c6f5a6e76ac3c0cc6` (12 918 392 bytes each).
+
 ## 4. Mode 3 batteries: not needed in 0.26g
 
 - 0.26g splits the rule: `match_time_vi_spawn_rule` (vtable 0xA06C04) wraps `match_time_vi_spawn_rule_core` (vtable 0xA15CAC). The battery tick is no longer a vtable slot: the core's ctor 0x3147A0 stores a delegate `{this, 0x3148A0}` at +0x1C4 / +0x1C8 (0x3147F1). [V]
@@ -1368,7 +1393,7 @@ Please reinstall the application and try again" (string 0x9DEF00, pushed at
   zero) and starts the next step (0x176D0, 0xE5B60: the shaders' masks).
   `link_mount_ptr`, the engine's way to hold several mounts as one, is not
   in this build.
-- **The patch** (`mount_patches_026g.asm`, 707 bytes at `.srp`+400h, after
+- **The patch** (`mount_patches_026g.asm`, 759 bytes at `.srp`+400h since patch 49, 707 before, after
   the upload code and the longest default server's stub and name, which end
   at +21Dh, and before the pickup code at +800h):
   - 0xE7E3E `E8 AD 00 00 00` (`call 0E7EF0h`) becomes `E8 45 D6 33 0A`,
@@ -1378,7 +1403,9 @@ Please reinstall the application and try again" (string 0x9DEF00, pushed at
     with no access and OPEN_EXISTING, then `CloseHandle`, the imports at
     0x870048 and 0x870040) and writes down, in order, the n of each one
     that is there. A failed `CreateFileA` asks `GetLastError` (0x87005C):
-    2 (file not found) and 3 (path not found) are a missing n, skipped; any
+    2 (file not found) and 3 (path not found) are a missing n, skipped
+    unless the exe requires it (patch 49, section 3.46: then the same fatal
+    as an unreadable file, with that error); any
     other error (a folder by that name and access denied give 5, a sharing
     violation 32) is the fatal "Cannot open resources.db.patch_<n> (error
     <e>). Please run the Skhid launcher again." before anything is queued.
