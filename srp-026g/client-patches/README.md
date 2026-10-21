@@ -521,8 +521,11 @@ tool gives another, refused until `RESULT_SHA256` is set to it on purpose
 build from source, of everything the bytecode driver's last movie had (main's
 `e626a01a…`: the rooms through #234, #213 to #217, the player gear); every
 method decompiles as that movie's does but for compiler encodings
-([lobby-source.md](../docs/notes/lobby-source.md) lists them). NOT yet checked
-in the game. Tests: `python -m unittest test_build_lobby`. Not in a release yet.
+([lobby-source.md](../docs/notes/lobby-source.md) lists them). Since 2026-10-21:
+`a3b76872…`, the same features written in the game's classes and the rooms
+window in `survarium/rooms`, with no change of behaviour (lobby-source.md, "In
+the game's classes"). NOT yet checked in the game. Tests: `python -m unittest
+test_build_lobby`. Not in a release yet.
 
 ## What each patch does
 

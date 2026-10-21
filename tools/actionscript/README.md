@@ -12,7 +12,8 @@ This directory provides pinned private source exports, 233 reconstruction
 diffs over that pristine tree, a verified layout linker, a whole-tree build
 command, and a source-feature builder that recompiles only touched classes.
 Features may edit method bodies, add methods, traits, nested functions,
-constants and whole classes, and change the declarations they name; the
+constants and whole classes (in any package, naming each other), change the
+declarations they name, and take srp's own classes of the release out; the
 builder checks every untouched method and class byte for byte. The game's
 movies are committed source trees in `srp-026g/flash/`; the lobby movie of
 skhid-srp is built from its tree this way (see

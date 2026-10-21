@@ -49,13 +49,13 @@ OLDER = {
     "ab6f22d80d32fa4928403d19e3e054bd5316b2370e2550cefec0c9d22b959850": "the retail",
 }
 # The movie the source build makes. Set it anew, on purpose, when the tree
-# or a tool changes. RESULT (2026-10-20): the tree with every lobby change
-# main's bytecode driver had (its e626a01a: the rooms through #229 and
-# #233/#234, #213 to #217, #232's player gear), built with the tools of
-# feat/actionscript-source 7127f16; every method decompiles as e626a01a's
-# does but for compiler encodings (docs/notes/lobby-source.md); NOT yet
-# checked in the game.
-RESULT_SHA256 = "bdd66ed5a87c07f325ba177dc052bb81d2591b0222c55e1b875edf335c69ccad"
+# or a tool changes. RESULT (2026-10-21): bdd66ed5's lobby changes (the rooms
+# through #229 and #233/#234, #213 to #217, #232's player gear) written in
+# the game's classes, the rooms window in survarium/rooms, SrpExchange and
+# SrpRooms taken out; every method a change does not touch is revision 24's,
+# every moved one the same logic (docs/notes/lobby-source.md, "In the game's
+# classes"); not yet checked in the game.
+RESULT_SHA256 = "a3b76872f346b80180d2e4e44c977b6b2a892704043c7545eb361b7fb0e640f8"
 
 
 def build(movie, tools, project, work=None, jobs=4, report=print, any_result=False):
