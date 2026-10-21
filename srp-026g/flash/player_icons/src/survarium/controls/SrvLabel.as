@@ -27,8 +27,8 @@ package survarium.controls
          {
             element = constraints.getElement("textField");
          }
-         var _loc1_:Number = Math.ceil(textField.textHeight + element.top + element.bottom + 5);
-         return _loc1_;
+         var h:Number = Math.ceil(textField.textHeight + element.top + element.bottom + 5);
+         return h;
          var element:ConstrainedElement;
       }
       

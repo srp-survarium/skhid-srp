@@ -6,6 +6,7 @@ package survarium.buttons
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.utils.Constraints;
    import scaleform.gfx.MouseEventEx;
+   import survarium.constants.UiSound;
    
    public class ButtonClick extends Button
    {
@@ -55,7 +56,7 @@ package survarium.buttons
          super.handleMouseRelease(event);
          if(enabled)
          {
-            ExternalInterface.call("sound_play",0);
+            ExternalInterface.call("sound_play",UiSound.CLICK);
          }
       }
       
@@ -125,7 +126,7 @@ package survarium.buttons
       {
          if(enabled)
          {
-            ExternalInterface.call("sound_play",1);
+            ExternalInterface.call("sound_play",UiSound.HOVER);
          }
          var sfEvent:MouseEventEx = event as MouseEventEx;
          var mouseIdx:uint = sfEvent == null ? 0 : sfEvent.mouseIdx;

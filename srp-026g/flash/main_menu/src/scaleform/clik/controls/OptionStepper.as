@@ -69,22 +69,22 @@ package scaleform.clik.controls
          return super.enabled;
       }
       
-      override public function set enabled(param1:Boolean) : void
+      override public function set enabled(value:Boolean) : void
       {
-         if(param1 == super.enabled)
+         if(value == super.enabled)
          {
             return;
          }
-         super.enabled = param1;
+         super.enabled = value;
          mouseEnabled = this.enabled;
          tabEnabled = _focusable && this.enabled;
-         gotoAndPlay(param1 ? (_focused > 0 ? "focused" : "default") : "disabled");
+         gotoAndPlay(value ? (_focused > 0 ? "focused" : "default") : "disabled");
          if(!initialized)
          {
             return;
          }
          this.updateAfterStateChange();
-         this.prevBtn.enabled = this.nextBtn.enabled = param1;
+         this.prevBtn.enabled = this.nextBtn.enabled = value;
       }
       
       [Inspectable(defaultValue="true")]
@@ -93,9 +93,9 @@ package scaleform.clik.controls
          return _focusable;
       }
       
-      override public function set focusable(param1:Boolean) : void
+      override public function set focusable(value:Boolean) : void
       {
-         super.focusable = param1;
+         super.focusable = value;
       }
       
       public function get dataProvider() : IDataProvider
@@ -103,15 +103,15 @@ package scaleform.clik.controls
          return this._dataProvider;
       }
       
-      public function set dataProvider(param1:IDataProvider) : void
+      public function set dataProvider(value:IDataProvider) : void
       {
-         if(this._dataProvider != param1)
+         if(this._dataProvider != value)
          {
             if(this._dataProvider != null)
             {
                this._dataProvider.removeEventListener(Event.CHANGE,this.handleDataChange);
             }
-            _dataProvider = param1;
+            _dataProvider = value;
             selectedItem = null;
             if(this._dataProvider == null)
             {
@@ -128,14 +128,14 @@ package scaleform.clik.controls
          return this._selectedIndex;
       }
       
-      public function set selectedIndex(param1:int) : void
+      public function set selectedIndex(value:int) : void
       {
-         var _loc2_:Number = Math.max(0,Math.min(this._dataProvider.length - 1,param1));
-         if(_loc2_ == this._selectedIndex || _loc2_ == this._newSelectedIndex)
+         var newIndex:Number = Math.max(0,Math.min(this._dataProvider.length - 1,value));
+         if(newIndex == this._selectedIndex || newIndex == this._newSelectedIndex)
          {
             return;
          }
-         _newSelectedIndex = _loc2_;
+         _newSelectedIndex = newIndex;
          this.invalidateSelectedIndex();
       }
       
@@ -144,9 +144,9 @@ package scaleform.clik.controls
          return this._labelField;
       }
       
-      public function set labelField(param1:String) : void
+      public function set labelField(value:String) : void
       {
-         _labelField = param1;
+         _labelField = value;
          this.updateLabel();
       }
       
@@ -155,27 +155,27 @@ package scaleform.clik.controls
          return this._labelFunction;
       }
       
-      public function set labelFunction(param1:Function) : void
+      public function set labelFunction(value:Function) : void
       {
-         _labelFunction = param1;
+         _labelFunction = value;
          this.updateLabel();
       }
       
-      public function itemToLabel(param1:Object) : String
+      public function itemToLabel(item:Object) : String
       {
-         if(param1 == null)
+         if(item == null)
          {
             return "";
          }
          if(this._labelFunction != null)
          {
-            return this._labelFunction(param1);
+            return this._labelFunction(item);
          }
-         if(this._labelField != null && this._labelField in param1 && param1[this._labelField] != null)
+         if(this._labelField != null && this._labelField in item && item[this._labelField] != null)
          {
-            return param1[this._labelField];
+            return item[this._labelField];
          }
-         return param1.toString();
+         return item.toString();
       }
       
       public function invalidateSelectedIndex() : void
@@ -183,50 +183,50 @@ package scaleform.clik.controls
          invalidate(InvalidationType.SELECTED_INDEX);
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
-         if(param1.isDefaultPrevented())
+         if(event.isDefaultPrevented())
          {
             return;
          }
-         var _loc2_:InputDetails = param1.details;
-         var _loc3_:uint = _loc2_.controllerIndex;
-         var _loc4_:Boolean = _loc2_.value == InputValue.KEY_DOWN || _loc2_.value == InputValue.KEY_HOLD;
-         switch(_loc2_.navEquivalent)
+         var details:InputDetails = event.details;
+         var controllerIndex:uint = details.controllerIndex;
+         var keyPress:Boolean = details.value == InputValue.KEY_DOWN || details.value == InputValue.KEY_HOLD;
+         switch(details.navEquivalent)
          {
             case NavigationCode.RIGHT:
                if(this._selectedIndex < this._dataProvider.length - 1)
                {
-                  if(_loc4_)
+                  if(keyPress)
                   {
                      this.onNext(null);
                   }
-                  param1.handled = true;
+                  event.handled = true;
                }
                break;
             case NavigationCode.LEFT:
                if(this._selectedIndex > 0)
                {
-                  if(_loc4_)
+                  if(keyPress)
                   {
                      this.onPrev(null);
                   }
-                  param1.handled = true;
+                  event.handled = true;
                }
                break;
             case NavigationCode.HOME:
-               if(!_loc4_)
+               if(!keyPress)
                {
                   selectedIndex = 0;
                }
-               param1.handled = true;
+               event.handled = true;
                break;
             case NavigationCode.END:
-               if(!_loc4_)
+               if(!keyPress)
                {
                   selectedIndex = this._dataProvider.length - 1;
                }
-               param1.handled = true;
+               event.handled = true;
                break;
          }
       }
@@ -306,9 +306,9 @@ package scaleform.clik.controls
          {
             return;
          }
-         var _loc1_:int = this._selectedIndex;
+         var lastIndex:int = this._selectedIndex;
          _selectedIndex = this._newSelectedIndex;
-         dispatchEventAndSound(new IndexEvent(IndexEvent.INDEX_CHANGE,true,false,this._selectedIndex,_loc1_,this.dataProvider[this._selectedIndex]));
+         dispatchEventAndSound(new IndexEvent(IndexEvent.INDEX_CHANGE,true,false,this._selectedIndex,lastIndex,this.dataProvider[this._selectedIndex]));
          this.updateSelectedItem();
       }
       
@@ -317,7 +317,7 @@ package scaleform.clik.controls
          this._dataProvider.requestItemAt(this._selectedIndex,this.populateText);
       }
       
-      protected function handleDataChange(param1:Event) : void
+      protected function handleDataChange(event:Event) : void
       {
          invalidate(InvalidationType.DATA);
       }
@@ -350,20 +350,20 @@ package scaleform.clik.controls
          invalidateData();
       }
       
-      protected function populateText(param1:Object) : void
+      protected function populateText(item:Object) : void
       {
-         selectedItem = param1;
+         selectedItem = item;
          this.updateLabel();
          dispatchEventAndSound(new Event(Event.CHANGE));
       }
       
-      protected function onNext(param1:Object) : void
+      protected function onNext(event:Object) : void
       {
          selectedIndex += 1;
          this.invalidateSelectedIndex();
       }
       
-      protected function onPrev(param1:Object) : void
+      protected function onPrev(event:Object) : void
       {
          selectedIndex -= 1;
          this.invalidateSelectedIndex();
@@ -373,28 +373,28 @@ package scaleform.clik.controls
       {
          if(rest.length == 1)
          {
-            _loc4_ = rest[0].toString();
-            if(this._state != _loc4_ && _labelHash[_loc4_])
+            frameLabel = rest[0].toString();
+            if(this._state != frameLabel && _labelHash[frameLabel])
             {
-               _state = _newFrame = _loc4_;
+               _state = _newFrame = frameLabel;
                invalidateState();
             }
             return;
          }
-         var _loc2_:uint = (rest.length);
-         var _loc3_:uint = 0;
-         var _loc4_:String;
-         var _loc5_:String;
-         while(_loc3_ < _loc2_)
+         var count:uint = (rest.length);
+         var i:uint = 0;
+         var frameLabel:String;
+         var candidate:String;
+         while(i < count)
          {
-            _loc5_ = rest[_loc3_].toString();
-            if(_labelHash[_loc5_])
+            candidate = rest[i].toString();
+            if(_labelHash[candidate])
             {
-               _state = _newFrame = _loc5_;
+               _state = _newFrame = candidate;
                invalidateState();
                break;
             }
-            _loc3_++;
+            i++;
          }
       }
    }

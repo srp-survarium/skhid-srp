@@ -5,9 +5,9 @@ package
    public dynamic class HintLinePattern extends BitmapData
    {
       
-      public function HintLinePattern(param1:int = 1, param2:int = 2)
+      public function HintLinePattern(bitmapWidth:int = 1, bitmapHeight:int = 2)
       {
-         super(param1,param2);
+         super(bitmapWidth,bitmapHeight);
       }
    }
 }

@@ -65,9 +65,9 @@ package scaleform.clik.controls
          return this._margin;
       }
       
-      public function set margin(param1:Number) : void
+      public function set margin(value:Number) : void
       {
-         _margin = param1;
+         _margin = value;
          invalidateSize();
       }
       
@@ -76,20 +76,20 @@ package scaleform.clik.controls
          return this._padding;
       }
       
-      public function set padding(param1:Padding) : void
+      public function set padding(value:Padding) : void
       {
-         _padding = param1;
+         _padding = value;
          invalidateSize();
       }
       
       [Inspectable(name="padding",defaultValue="top:0,right:0,bottom:0,left:0")]
-      public function set inspectablePadding(param1:Object) : void
+      public function set inspectablePadding(value:Object) : void
       {
          if(!componentInspectorSetting)
          {
             return;
          }
-         padding = new Padding(param1.top,param1.right,param1.bottom,param1.left);
+         padding = new Padding(value.top,value.right,value.bottom,value.left);
       }
       
       [Inspectable(type="String")]
@@ -98,9 +98,9 @@ package scaleform.clik.controls
          return this._scrollBar;
       }
       
-      public function set scrollBar(param1:Object) : void
+      public function set scrollBar(value:Object) : void
       {
-         _scrollBarValue = param1;
+         _scrollBarValue = value;
          invalidate(InvalidationType.SCROLL_BAR);
       }
       
@@ -109,24 +109,24 @@ package scaleform.clik.controls
          return this._scrollPosition;
       }
       
-      public function set scrollPosition(param1:Number) : void
+      public function set scrollPosition(value:Number) : void
       {
-         param1 = Math.max(0,Math.min(_dataProvider.length - _totalRenderers,Math.round(param1)));
-         if(this._scrollPosition == param1)
+         value = Math.max(0,Math.min(_dataProvider.length - _totalRenderers,Math.round(value)));
+         if(this._scrollPosition == value)
          {
             return;
          }
-         _scrollPosition = param1;
+         _scrollPosition = value;
          invalidateData();
       }
       
-      override public function set selectedIndex(param1:int) : void
+      override public function set selectedIndex(value:int) : void
       {
-         if(param1 == _selectedIndex || param1 == _newSelectedIndex)
+         if(value == _selectedIndex || value == _newSelectedIndex)
          {
             return;
          }
-         _newSelectedIndex = param1;
+         _newSelectedIndex = value;
          invalidateSelectedIndex();
       }
       
@@ -135,15 +135,15 @@ package scaleform.clik.controls
          return _totalRenderers;
       }
       
-      public function set rowCount(param1:uint) : void
+      public function set rowCount(value:uint) : void
       {
-         var _loc2_:Number = this.rowHeight;
+         var h:Number = this.rowHeight;
          if(isNaN(this.rowHeight))
          {
             this.calculateRendererTotal(this.availableWidth,this.availableHeight);
          }
-         _loc2_ = this.rowHeight;
-         height = _loc2_ * param1 + this.margin * 2 + this.padding.top + this.padding.bottom;
+         h = this.rowHeight;
+         height = h * value + this.margin * 2 + this.padding.top + this.padding.bottom;
       }
       
       [Inspectable(defaultValue="0")]
@@ -152,17 +152,17 @@ package scaleform.clik.controls
          return isNaN(this._autoRowHeight) ? this._rowHeight : this._autoRowHeight;
       }
       
-      public function set rowHeight(param1:Number) : void
+      public function set rowHeight(value:Number) : void
       {
-         if(param1 == 0)
+         if(value == 0)
          {
-            param1 = NaN;
+            value = NaN;
             if(_inspector)
             {
                return;
             }
          }
-         _rowHeight = param1;
+         _rowHeight = value;
          _autoRowHeight = NaN;
          invalidateSize();
       }
@@ -177,56 +177,56 @@ package scaleform.clik.controls
          return Math.round(_height) - this.margin * 2;
       }
       
-      override public function scrollToIndex(param1:uint) : void
+      override public function scrollToIndex(index:uint) : void
       {
          if(_totalRenderers == 0)
          {
             return;
          }
-         if(param1 >= this._scrollPosition && param1 < this._scrollPosition + _totalRenderers)
+         if(index >= this._scrollPosition && index < this._scrollPosition + _totalRenderers)
          {
             return;
          }
-         if(param1 < this._scrollPosition)
+         if(index < this._scrollPosition)
          {
-            scrollPosition = param1;
+            scrollPosition = index;
          }
          else
          {
-            scrollPosition = param1 - (_totalRenderers - 1);
+            scrollPosition = index - (_totalRenderers - 1);
          }
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
-         if(param1.handled)
+         if(event.handled)
          {
             return;
          }
-         var _loc2_:IListItemRenderer = getRendererAt(_selectedIndex,this._scrollPosition);
-         if(_loc2_ != null)
+         var renderer:IListItemRenderer = getRendererAt(_selectedIndex,this._scrollPosition);
+         if(renderer != null)
          {
-            _loc2_.handleInput(param1);
-            if(param1.handled)
+            renderer.handleInput(event);
+            if(event.handled)
             {
                return;
             }
          }
-         var _loc3_:InputDetails = param1.details;
-         var _loc4_:Boolean = _loc3_.value == InputValue.KEY_DOWN || _loc3_.value == InputValue.KEY_HOLD;
-         switch(_loc3_.navEquivalent)
+         var details:InputDetails = event.details;
+         var keyPress:Boolean = details.value == InputValue.KEY_DOWN || details.value == InputValue.KEY_HOLD;
+         switch(details.navEquivalent)
          {
             case NavigationCode.UP:
                if(selectedIndex == -1)
                {
-                  if(_loc4_)
+                  if(keyPress)
                   {
                      selectedIndex = this.scrollPosition + _totalRenderers - 1;
                   }
                }
                else if(_selectedIndex > 0)
                {
-                  if(_loc4_)
+                  if(keyPress)
                   {
                      --selectedIndex;
                   }
@@ -238,7 +238,7 @@ package scaleform.clik.controls
                   }
                   else if(this.wrapping == WrappingMode.WRAP)
                   {
-                     if(_loc4_)
+                     if(keyPress)
                      {
                         selectedIndex = _dataProvider.length - 1;
                      }
@@ -252,14 +252,14 @@ package scaleform.clik.controls
             case NavigationCode.DOWN:
                if(_selectedIndex == -1)
                {
-                  if(_loc4_)
+                  if(keyPress)
                   {
                      selectedIndex = this._scrollPosition;
                   }
                }
                else if(_selectedIndex < _dataProvider.length - 1)
                {
-                  if(_loc4_)
+                  if(keyPress)
                   {
                      ++selectedIndex;
                   }
@@ -271,7 +271,7 @@ package scaleform.clik.controls
                   }
                   else if(this.wrapping == WrappingMode.WRAP)
                   {
-                     if(_loc4_)
+                     if(keyPress)
                      {
                         selectedIndex = 0;
                      }
@@ -283,25 +283,25 @@ package scaleform.clik.controls
                }
                break;
             case NavigationCode.END:
-               if(!_loc4_)
+               if(!keyPress)
                {
                   selectedIndex = _dataProvider.length - 1;
                }
                break;
             case NavigationCode.HOME:
-               if(!_loc4_)
+               if(!keyPress)
                {
                   selectedIndex = 0;
                }
                break;
             case NavigationCode.PAGE_UP:
-               if(_loc4_)
+               if(keyPress)
                {
                   selectedIndex = Math.max(0,_selectedIndex - _totalRenderers);
                }
                break;
             case NavigationCode.PAGE_DOWN:
-               if(_loc4_)
+               if(keyPress)
                {
                   selectedIndex = Math.min(_dataProvider.length - 1,_selectedIndex + _totalRenderers);
                }
@@ -309,7 +309,7 @@ package scaleform.clik.controls
             default:
                return;
          }
-         param1.handled = true;
+         event.handled = true;
       }
       
       override public function toString() : String
@@ -349,35 +349,35 @@ package scaleform.clik.controls
       
       override protected function drawLayout() : void
       {
-         var _loc1_:uint = _renderers.length;
-         var _loc2_:Number = this.rowHeight;
-         var _loc3_:Number = this.availableWidth - this.padding.horizontal;
-         var _loc4_:Number = this.margin + this.padding.left;
-         var _loc5_:Number = this.margin + this.padding.top;
-         var _loc6_:Boolean = isInvalid(InvalidationType.DATA);
-         var _loc7_:uint = 0;
-         var _loc8_:IListItemRenderer;
-         while(_loc7_ < _loc1_)
+         var l:uint = _renderers.length;
+         var h:Number = this.rowHeight;
+         var w:Number = this.availableWidth - this.padding.horizontal;
+         var rx:Number = this.margin + this.padding.left;
+         var ry:Number = this.margin + this.padding.top;
+         var dataWillChange:Boolean = isInvalid(InvalidationType.DATA);
+         var i:uint = 0;
+         var renderer:IListItemRenderer;
+         while(i < l)
          {
-            _loc8_ = getRendererAt(_loc7_);
-            _loc8_.x = _loc4_;
-            _loc8_.y = _loc5_ + _loc7_ * _loc2_;
-            _loc8_.width = _loc3_;
-            _loc8_.height = _loc2_;
-            if(!_loc6_)
+            renderer = getRendererAt(i);
+            renderer.x = rx;
+            renderer.y = ry + i * h;
+            renderer.width = w;
+            renderer.height = h;
+            if(!dataWillChange)
             {
-               _loc8_.validateNow();
+               renderer.validateNow();
             }
-            _loc7_++;
+            i++;
          }
          this.drawScrollBar();
       }
       
       protected function createScrollBar() : void
       {
-         var _loc1_:IScrollBar;
-         var _loc2_:Class;
-         var _loc3_:Object;
+         var sb:IScrollBar;
+         var classRef:Class;
+         var sbInst:Object;
          if(this._scrollBar)
          {
             this._scrollBar.removeEventListener(Event.SCROLL,this.handleScroll,false);
@@ -398,46 +398,46 @@ package scaleform.clik.controls
          {
             if(parent != null)
             {
-               _loc1_ = parent.getChildByName(this._scrollBarValue.toString()) as IScrollBar;
+               sb = parent.getChildByName(this._scrollBarValue.toString()) as IScrollBar;
             }
-            if(_loc1_ == null)
+            if(sb == null)
             {
-               _loc2_ = getDefinitionByName(this._scrollBarValue.toString()) as Class;
-               if(_loc2_)
+               classRef = getDefinitionByName(this._scrollBarValue.toString()) as Class;
+               if(classRef)
                {
-                  _loc1_ = new _loc2_() as IScrollBar;
+                  sb = new classRef() as IScrollBar;
                }
-               if(_loc1_)
+               if(sb)
                {
                   _autoScrollBar = true;
-                  _loc3_ = _loc1_ as Object;
-                  if(_loc3_ && this.thumbOffset)
+                  sbInst = sb as Object;
+                  if(sbInst && this.thumbOffset)
                   {
-                     _loc3_.offsetTop = this.thumbOffset.top;
-                     _loc3_.offsetBottom = this.thumbOffset.bottom;
+                     sbInst.offsetTop = this.thumbOffset.top;
+                     sbInst.offsetBottom = this.thumbOffset.bottom;
                   }
-                  _loc1_.addEventListener(MouseEvent.MOUSE_WHEEL,this.blockMouseWheel,false,0,true);
-                  container.addChild(_loc1_ as DisplayObject);
+                  sb.addEventListener(MouseEvent.MOUSE_WHEEL,this.blockMouseWheel,false,0,true);
+                  container.addChild(sb as DisplayObject);
                }
             }
          }
          else if(this._scrollBarValue is Class)
          {
-            _loc1_ = new (this._scrollBarValue as Class)() as IScrollBar;
-            _loc1_.addEventListener(MouseEvent.MOUSE_WHEEL,this.blockMouseWheel,false,0,true);
-            if(_loc1_ != null)
+            sb = new (this._scrollBarValue as Class)() as IScrollBar;
+            sb.addEventListener(MouseEvent.MOUSE_WHEEL,this.blockMouseWheel,false,0,true);
+            if(sb != null)
             {
                _autoScrollBar = true;
-               (_loc1_ as Object).offsetTop = this.thumbOffset.top;
-               (_loc1_ as Object).offsetBottom = this.thumbOffset.bottom;
-               container.addChild(_loc1_ as DisplayObject);
+               (sb as Object).offsetTop = this.thumbOffset.top;
+               (sb as Object).offsetBottom = this.thumbOffset.bottom;
+               container.addChild(sb as DisplayObject);
             }
          }
          else
          {
-            _loc1_ = this._scrollBarValue as IScrollBar;
+            sb = this._scrollBarValue as IScrollBar;
          }
-         _scrollBar = _loc1_;
+         _scrollBar = sb;
          invalidateSize();
          if(this._scrollBar == null)
          {
@@ -467,12 +467,12 @@ package scaleform.clik.controls
          {
             return;
          }
-         var _loc1_:Number = Math.max(0,_dataProvider.length - _totalRenderers);
-         var _loc2_:ScrollIndicator;
+         var max:Number = Math.max(0,_dataProvider.length - _totalRenderers);
+         var scrollIndicator:ScrollIndicator;
          if(this._scrollBar is ScrollIndicator)
          {
-            _loc2_ = this._scrollBar as ScrollIndicator;
-            _loc2_.setScrollProperties(_dataProvider.length - _totalRenderers,0,_dataProvider.length - _totalRenderers);
+            scrollIndicator = this._scrollBar as ScrollIndicator;
+            scrollIndicator.setScrollProperties(_dataProvider.length - _totalRenderers,0,_dataProvider.length - _totalRenderers);
          }
          this._scrollBar.position = this._scrollPosition;
          this._scrollBar.validateNow();
@@ -481,11 +481,11 @@ package scaleform.clik.controls
       override protected function changeFocus() : void
       {
          super.changeFocus();
-         var _loc1_:IListItemRenderer = getRendererAt(_selectedIndex,this._scrollPosition);
-         if(_loc1_ != null)
+         var renderer:IListItemRenderer = getRendererAt(_selectedIndex,this._scrollPosition);
+         if(renderer != null)
          {
-            _loc1_.displayFocus = focused > 0;
-            _loc1_.validateNow();
+            renderer.displayFocus = focused > 0;
+            renderer.validateNow();
          }
       }
       
@@ -507,78 +507,78 @@ package scaleform.clik.controls
          {
             return;
          }
-         var _loc1_:IListItemRenderer = getRendererAt(_selectedIndex,this.scrollPosition);
-         if(_loc1_ != null)
+         var renderer:IListItemRenderer = getRendererAt(_selectedIndex,this.scrollPosition);
+         if(renderer != null)
          {
-            _loc1_.selected = false;
-            _loc1_.validateNow();
+            renderer.selected = false;
+            renderer.validateNow();
          }
          super.selectedIndex = _newSelectedIndex;
          if(_selectedIndex < 0 || _selectedIndex >= _dataProvider.length)
          {
             return;
          }
-         _loc1_ = getRendererAt(_selectedIndex,this._scrollPosition);
-         if(_loc1_ != null)
+         renderer = getRendererAt(_selectedIndex,this._scrollPosition);
+         if(renderer != null)
          {
-            _loc1_.selected = true;
-            _loc1_.validateNow();
+            renderer.selected = true;
+            renderer.validateNow();
          }
          else
          {
             this.scrollToIndex(_selectedIndex);
-            _loc1_ = getRendererAt(_selectedIndex,this.scrollPosition);
-            _loc1_.selected = true;
-            _loc1_.validateNow();
+            renderer = getRendererAt(_selectedIndex,this.scrollPosition);
+            renderer.selected = true;
+            renderer.validateNow();
          }
       }
       
-      override protected function calculateRendererTotal(param1:Number, param2:Number) : uint
+      override protected function calculateRendererTotal(width:Number, height:Number) : uint
       {
-         var _loc3_:IListItemRenderer;
+         var renderer:IListItemRenderer;
          if(isNaN(this._rowHeight) && isNaN(this._autoRowHeight))
          {
-            _loc3_ = createRenderer(0);
-            _autoRowHeight = _loc3_.height;
-            cleanUpRenderer(_loc3_);
+            renderer = createRenderer(0);
+            _autoRowHeight = renderer.height;
+            cleanUpRenderer(renderer);
          }
          return (this.availableHeight - this.padding.vertical) / this.rowHeight >> 0;
       }
       
-      protected function handleScroll(param1:Event) : void
+      protected function handleScroll(event:Event) : void
       {
          scrollPosition = this._scrollBar.position;
       }
       
-      protected function populateData(param1:Array) : void
+      protected function populateData(data:Array) : void
       {
-         var _loc2_:uint = param1.length;
-         var _loc3_:uint = _renderers.length;
-         var _loc4_:uint = 0;
-         var _loc5_:IListItemRenderer;
-         var _loc6_:uint;
-         var _loc7_:ListData;
-         while(_loc4_ < _loc3_)
+         var dl:uint = data.length;
+         var l:uint = _renderers.length;
+         var i:uint = 0;
+         var renderer:IListItemRenderer;
+         var index:uint;
+         var listData:ListData;
+         while(i < l)
          {
-            _loc5_ = getRendererAt(_loc4_);
-            _loc6_ = this._scrollPosition + _loc4_;
-            _loc7_ = new ListData(_loc6_,itemToLabel(param1[_loc4_]),_selectedIndex == _loc6_);
-            _loc5_.enabled = _loc4_ >= _loc2_ ? false : true;
-            _loc5_.setListData(_loc7_);
-            _loc5_.setData(param1[_loc4_]);
-            _loc5_.validateNow();
-            _loc4_++;
+            renderer = getRendererAt(i);
+            index = this._scrollPosition + i;
+            listData = new ListData(index,itemToLabel(data[i]),_selectedIndex == index);
+            renderer.enabled = i >= dl ? false : true;
+            renderer.setListData(listData);
+            renderer.setData(data[i]);
+            renderer.validateNow();
+            i++;
          }
       }
       
-      override protected function scrollList(param1:int) : void
+      override protected function scrollList(delta:int) : void
       {
-         scrollPosition -= param1;
+         scrollPosition -= delta;
       }
       
-      protected function blockMouseWheel(param1:MouseEvent) : void
+      protected function blockMouseWheel(event:MouseEvent) : void
       {
-         param1.stopPropagation();
+         event.stopPropagation();
       }
    }
 }

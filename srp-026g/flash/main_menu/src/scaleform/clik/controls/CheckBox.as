@@ -2,6 +2,7 @@ package scaleform.clik.controls
 {
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
+   import survarium.constants.UiSound;
    
    public class CheckBox extends Button
    {
@@ -17,16 +18,16 @@ package scaleform.clik.controls
          _toggle = true;
       }
       
-      override protected function handleMouseRollOver(param1:MouseEvent) : void
+      override protected function handleMouseRollOver(event:MouseEvent) : void
       {
-         super.handleMouseRollOver(param1);
-         ExternalInterface.call("sound_play",1);
+         super.handleMouseRollOver(event);
+         ExternalInterface.call("sound_play",UiSound.HOVER);
       }
       
-      override protected function handleMouseRelease(param1:MouseEvent) : void
+      override protected function handleMouseRelease(event:MouseEvent) : void
       {
-         super.handleMouseRelease(param1);
-         ExternalInterface.call("sound_play",0);
+         super.handleMouseRelease(event);
+         ExternalInterface.call("sound_play",UiSound.CLICK);
       }
       
       override public function get autoRepeat() : Boolean
@@ -34,7 +35,7 @@ package scaleform.clik.controls
          return false;
       }
       
-      override public function set autoRepeat(param1:Boolean) : void
+      override public function set autoRepeat(value:Boolean) : void
       {
       }
       
@@ -43,7 +44,7 @@ package scaleform.clik.controls
          return true;
       }
       
-      override public function set toggle(param1:Boolean) : void
+      override public function set toggle(value:Boolean) : void
       {
       }
       

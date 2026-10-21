@@ -20,88 +20,88 @@ package scaleform.clik.controls
          super();
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
-         if(param1.handled)
+         if(event.handled)
          {
             return;
          }
-         var _loc2_:Button = _renderers[_selectedIndex] as Button;
-         if(_loc2_ != null)
+         var renderer:Button = _renderers[_selectedIndex] as Button;
+         if(renderer != null)
          {
-            _loc2_.handleInput(param1);
-            if(param1.handled)
+            renderer.handleInput(event);
+            if(event.handled)
             {
                return;
             }
          }
-         var _loc3_:InputDetails = param1.details;
-         var _loc4_:Boolean = _loc3_.value == InputValue.KEY_DOWN || _loc3_.value == InputValue.KEY_HOLD;
-         if(!_loc4_)
+         var details:InputDetails = event.details;
+         var keyPress:Boolean = details.value == InputValue.KEY_DOWN || details.value == InputValue.KEY_HOLD;
+         if(!keyPress)
          {
             return;
          }
-         var _loc5_:Boolean = false;
-         var _loc6_:Number;
-         switch(_loc3_.navEquivalent)
+         var navigated:Boolean = false;
+         var newIndex:Number;
+         switch(details.navEquivalent)
          {
             case NavigationCode.LEFT:
                if(_direction == DIRECTION_HORIZONTAL)
                {
-                  _loc6_ = this.getPrevIndex();
-                  _loc5_ = true;
+                  newIndex = this.getPrevIndex();
+                  navigated = true;
                }
                break;
             case NavigationCode.RIGHT:
                if(_direction == DIRECTION_HORIZONTAL)
                {
-                  _loc6_ = this.getNextIndex();
-                  _loc5_ = true;
+                  newIndex = this.getNextIndex();
+                  navigated = true;
                }
                break;
             case NavigationCode.UP:
                if(_direction == DIRECTION_VERTICAL)
                {
-                  _loc6_ = this.getPrevIndex();
-                  _loc5_ = true;
+                  newIndex = this.getPrevIndex();
+                  navigated = true;
                }
                break;
             case NavigationCode.DOWN:
                if(_direction == DIRECTION_VERTICAL)
                {
-                  _loc6_ = this.getNextIndex();
-                  _loc5_ = true;
+                  newIndex = this.getNextIndex();
+                  navigated = true;
                }
                break;
             default:
                break;
          }
-         if(_loc5_)
+         if(navigated)
          {
-            _loc6_ = Math.max(0,Math.min(_dataProvider.length - 1,_loc6_));
-            if(_loc6_ != _selectedIndex)
+            newIndex = Math.max(0,Math.min(_dataProvider.length - 1,newIndex));
+            if(newIndex != _selectedIndex)
             {
-               selectedIndex = _loc6_;
-               param1.handled = true;
+               selectedIndex = newIndex;
+               event.handled = true;
             }
          }
       }
       
       protected function getPrevIndex() : Number
       {
-         var _loc1_:Button;
-         var _loc2_:int;
+         var renderer:Button;
+         var i:int;
          if(_selectedIndex != 0)
          {
-            _loc2_ = _selectedIndex - 1;
-            while(_loc2_ >= 0)
+            i = _selectedIndex - 1;
+            while(i >= 0)
             {
-               _loc1_ = _renderers[_loc2_];
-               if(_loc1_.enabled)
+               renderer = _renderers[i];
+               if(renderer.enabled)
                {
-                  return _loc2_;
+                  return i;
                }
-               _loc2_--;
+               i--;
             }
          }
          return _selectedIndex;
@@ -109,19 +109,19 @@ package scaleform.clik.controls
       
       protected function getNextIndex() : Number
       {
-         var _loc1_:Button;
-         var _loc2_:int;
+         var renderer:Button;
+         var i:int;
          if(_selectedIndex != _renderers.length)
          {
-            _loc2_ = _selectedIndex + 1;
-            while(_loc2_ < _renderers.length)
+            i = _selectedIndex + 1;
+            while(i < _renderers.length)
             {
-               _loc1_ = _renderers[_loc2_];
-               if(_loc1_.enabled)
+               renderer = _renderers[i];
+               if(renderer.enabled)
                {
-                  return _loc2_;
+                  return i;
                }
-               _loc2_++;
+               i++;
             }
          }
          return _selectedIndex;
@@ -129,19 +129,19 @@ package scaleform.clik.controls
       
       override protected function updateRenderers() : void
       {
-         var _loc1_:Number = 0;
-         var _loc2_:Number = 0;
-         var _loc3_:int = -1;
+         var offsetX:Number = 0;
+         var offsetY:Number = 0;
+         var overflowIndex:int = -1;
          if(_renderers[0] is _itemRendererClass)
          {
             while(_renderers.length > _dataProvider.length)
             {
-               _loc6_ = _renderers.length - 1;
-               if(container.contains(_renderers[_loc6_]))
+               lastIndex = _renderers.length - 1;
+               if(container.contains(_renderers[lastIndex]))
                {
-                  container.removeChild(_renderers[_loc6_]);
+                  container.removeChild(_renderers[lastIndex]);
                }
-               _renderers.splice(_loc6_--,1);
+               _renderers.splice(lastIndex--,1);
             }
          }
          else
@@ -152,105 +152,105 @@ package scaleform.clik.controls
             }
             _renderers.length = 0;
          }
-         var _loc4_:uint = 0;
-         var _loc5_:uint = 0;
-         var _loc6_:int;
-         var _loc7_:Button;
-         var _loc8_:Boolean;
-         var _loc9_:int;
-         var _loc10_:Button;
-         while(_loc5_ < _dataProvider.length && _loc3_ == -1)
+         var groupOffset:uint = 0;
+         var i:uint = 0;
+         var lastIndex:int;
+         var renderer:Button;
+         var isNew:Boolean;
+         var j:int;
+         var extraRenderer:Button;
+         while(i < _dataProvider.length && overflowIndex == -1)
          {
-            _loc8_ = false;
-            if(_loc5_ < _renderers.length)
+            isNew = false;
+            if(i < _renderers.length)
             {
-               _loc7_ = _renderers[_loc5_];
+               renderer = _renderers[i];
             }
             else
             {
-               _loc7_ = new _itemRendererClass();
-               setupRenderer(_loc7_,_loc5_);
-               _loc8_ = true;
+               renderer = new _itemRendererClass();
+               setupRenderer(renderer,i);
+               isNew = true;
             }
-            populateRendererData(_loc7_,_loc5_);
+            populateRendererData(renderer,i);
             if(_autoSize == TextFieldAutoSize.NONE && _buttonWidth > 0)
             {
-               _loc7_.width = _buttonWidth;
+               renderer.width = _buttonWidth;
             }
             else if(_autoSize != TextFieldAutoSize.NONE)
             {
-               _loc7_.autoSize = _autoSize;
+               renderer.autoSize = _autoSize;
             }
-            _loc7_.validateNow();
+            renderer.validateNow();
             if(_direction == DIRECTION_HORIZONTAL)
             {
-               if(_width > _loc7_.width + _spacing + _loc1_ || _maxFit)
+               if(_width > renderer.width + _spacing + offsetX || _maxFit)
                {
-                  _loc7_.y = 0;
-                  _loc7_.x = _loc1_;
-                  _loc1_ += _loc7_.width + _spacing;
-                  if(_loc4_ != int((_loc5_ + 1) / this._groupRenderers) * this._groupMargin)
+                  renderer.y = 0;
+                  renderer.x = offsetX;
+                  offsetX += renderer.width + _spacing;
+                  if(groupOffset != int((i + 1) / this._groupRenderers) * this._groupMargin)
                   {
-                     _loc4_ = int((_loc5_ + 1) / this._groupRenderers) * this._groupMargin;
-                     _loc1_ += int((_loc5_ + 1) / this._groupRenderers) * this._groupMargin;
+                     groupOffset = int((i + 1) / this._groupRenderers) * this._groupMargin;
+                     offsetX += int((i + 1) / this._groupRenderers) * this._groupMargin;
                   }
                }
                else
                {
-                  _loc3_ = _loc5_;
-                  _loc7_ = null;
+                  overflowIndex = i;
+                  renderer = null;
                }
             }
-            else if(_height > _loc7_.height + _spacing + _loc2_)
+            else if(_height > renderer.height + _spacing + offsetY)
             {
-               _loc7_.x = 0;
-               _loc7_.y = _loc2_;
-               _loc2_ += _loc7_.height + _spacing;
+               renderer.x = 0;
+               renderer.y = offsetY;
+               offsetY += renderer.height + _spacing;
             }
             else
             {
-               _loc3_ = _loc5_;
-               _loc7_ = null;
+               overflowIndex = i;
+               renderer = null;
             }
-            if(_loc8_ && _loc7_ != null)
+            if(isNew && renderer != null)
             {
-               _loc7_.group = _group;
-               container.addChild(_loc7_);
-               _renderers.push(_loc7_);
+               renderer.group = _group;
+               container.addChild(renderer);
+               _renderers.push(renderer);
             }
-            _loc5_++;
+            i++;
          }
-         if(_loc3_ > -1)
+         if(overflowIndex > -1)
          {
-            _loc9_ = _renderers.length - 1;
-            while(_loc9_ >= _loc3_)
+            j = _renderers.length - 1;
+            while(j >= overflowIndex)
             {
-               _loc10_ = _renderers[_loc9_];
-               if(_loc10_)
+               extraRenderer = _renderers[j];
+               if(extraRenderer)
                {
-                  if(container.contains(_loc10_))
+                  if(container.contains(extraRenderer))
                   {
-                     container.removeChild(_loc10_);
+                     container.removeChild(extraRenderer);
                   }
-                  _renderers.splice(_loc9_,1);
+                  _renderers.splice(j,1);
                }
-               _loc9_--;
+               j--;
             }
          }
          selectedIndex = Math.min(_dataProvider.length - 1,_selectedIndex);
       }
       
-      override protected function handleButtonGroupChange(param1:Event) : void
+      override protected function handleButtonGroupChange(event:Event) : void
       {
          if(_group.selectedIndex != selectedIndex)
          {
             selectedIndex = _group.selectedIndex;
-            dispatchEvent(new ButtonBarEvent(ButtonBarEvent.BUTTON_SELECT,false,true,_selectedIndex,param1.target as Button));
+            dispatchEvent(new ButtonBarEvent(ButtonBarEvent.BUTTON_SELECT,false,true,_selectedIndex,event.target as Button));
          }
          else
          {
             selectedIndex = -1;
-            dispatchEvent(new ButtonBarEvent(ButtonBarEvent.BUTTON_SELECT,false,true,_selectedIndex,param1.target as Button));
+            dispatchEvent(new ButtonBarEvent(ButtonBarEvent.BUTTON_SELECT,false,true,_selectedIndex,event.target as Button));
          }
       }
    }

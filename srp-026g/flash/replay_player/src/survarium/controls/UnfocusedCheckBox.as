@@ -1,9 +1,9 @@
-// Compile with the native optimized profile.
 package survarium.controls
 {
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
    import survarium.buttons.ButtonClick;
+   import survarium.constants.UiSound;
    
    public class UnfocusedCheckBox extends ButtonClick
    {
@@ -30,7 +30,7 @@ package survarium.controls
          super.handleMouseRollOver(event);
          if(enabled)
          {
-            ExternalInterface.call("sound_play",1);
+            ExternalInterface.call("sound_play",UiSound.HOVER);
          }
       }
       
@@ -39,7 +39,7 @@ package survarium.controls
          super.handleMouseRelease(event);
          if(enabled)
          {
-            ExternalInterface.call("sound_play",0);
+            ExternalInterface.call("sound_play",UiSound.CLICK);
          }
       }
       

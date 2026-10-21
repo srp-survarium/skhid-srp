@@ -210,7 +210,7 @@ package survarium.paperdoll
          var sfEvent:MouseEventEx = e as MouseEventEx;
          var mouseIdx:uint = sfEvent == null ? 0 : sfEvent.mouseIdx;
          var btnIdx:uint = sfEvent == null ? 0 : sfEvent.buttonIdx;
-         if(DragManager.inDrag() || !enabled || btnIdx != 0)
+         if(DragManager.inDrag() || !enabled || btnIdx != MouseEventEx.LEFT_BUTTON)
          {
             return;
          }

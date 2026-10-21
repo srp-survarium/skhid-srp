@@ -18,13 +18,13 @@ package scaleform.clik.controls
          return this._data;
       }
       
-      public function set data(param1:Object) : void
+      public function set data(value:Object) : void
       {
-         if(this._data == param1)
+         if(this._data == value)
          {
             return;
          }
-         _data = param1;
+         _data = value;
          this.invalidateData();
       }
       

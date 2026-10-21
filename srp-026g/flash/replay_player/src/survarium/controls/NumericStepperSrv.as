@@ -4,6 +4,7 @@ package survarium.controls
    import flash.events.FocusEvent;
    import flash.events.KeyboardEvent;
    import flash.text.TextFieldType;
+   import flash.ui.Keyboard;
    import scaleform.clik.controls.NumericStepper;
    import scaleform.clik.events.IndexEvent;
    import scaleform.clik.events.InputEvent;
@@ -130,7 +131,7 @@ package survarium.controls
       
       protected function checkInputKeyForSubmit(event:KeyboardEvent) : void
       {
-         if(event.keyCode == 13)
+         if(event.keyCode == Keyboard.ENTER)
          {
             event.stopImmediatePropagation();
             value = int(textField.text);
@@ -139,8 +140,8 @@ package survarium.controls
       
       override protected function lockValue(value:Number) : Number
       {
-         var _loc2_:Number = Math.max(_minimum,Math.min(_maximum,stepSize * Math.round(value / stepSize)));
-         return _loc2_;
+         var newVal:Number = Math.max(_minimum,Math.min(_maximum,stepSize * Math.round(value / stepSize)));
+         return newVal;
       }
    }
 }

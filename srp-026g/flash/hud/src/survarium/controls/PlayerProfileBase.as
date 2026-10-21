@@ -35,14 +35,14 @@ package survarium.controls
          return this._profileId;
       }
       
-      public function registerInventory(param1:IItemFactory) : void
+      public function registerInventory(inventory:IItemFactory) : void
       {
-         _inventory = param1;
+         _inventory = inventory;
       }
       
-      public function updateAmmoBags(param1:uint) : void
+      public function updateAmmoBags(ammoBags:uint) : void
       {
-         _ammoBags = param1;
+         _ammoBags = ammoBags;
       }
       
       public function getAmmoBags() : uint
@@ -50,9 +50,9 @@ package survarium.controls
          return this._ammoBags;
       }
       
-      public function updatePocketSize(param1:uint) : void
+      public function updatePocketSize(pocketSize:uint) : void
       {
-         _pocketSize = param1;
+         _pocketSize = pocketSize;
       }
       
       public function getPocketSize() : uint
@@ -60,79 +60,79 @@ package survarium.controls
          return this._pocketSize;
       }
       
-      public function updateSlots(param1:uint, param2:uint) : void
+      public function updateSlots(artifactSlots:uint, itemSlots:uint) : void
       {
-         this.profileItems.openSlots(param2,param1);
+         this.profileItems.openSlots(itemSlots,artifactSlots);
       }
       
-      public function setupProfiles(param1:Array) : void
+      public function setupProfiles(profiles:Array) : void
       {
-         _profiles = param1;
+         _profiles = profiles;
       }
       
-      protected function getItemData(param1:Object) : ItemData
+      protected function getItemData(item:Object) : ItemData
       {
-         return this._inventory.createItemData(param1);
+         return this._inventory.createItemData(item);
       }
       
-      protected function handleUnresolvedItem(param1:Object) : void
+      protected function handleUnresolvedItem(item:Object) : void
       {
       }
       
-      public function fillProfileItems(param1:Object) : void
+      public function fillProfileItems(profile:Object) : void
       {
-         trace("PPB:fillProfileItems",param1.items.length,this.profileItems,this._inventory);
-         _profileId = param1.profileId;
-         var _loc2_:Array = param1.items;
-         var _loc3_:Array = new Array();
-         var _loc4_:uint = _loc2_.length;
-         var _loc5_:uint = 0;
-         var _loc6_:Object;
-         var _loc7_:ItemData;
-         var _loc8_:ItemData;
-         while(_loc5_ < _loc4_)
+         trace("PPB:fillProfileItems",profile.items.length,this.profileItems,this._inventory);
+         _profileId = profile.profileId;
+         var items:Array = profile.items;
+         var profileItemList:Array = new Array();
+         var count:uint = items.length;
+         var i:uint = 0;
+         var item:Object;
+         var baseData:ItemData;
+         var itemData:ItemData;
+         while(i < count)
          {
-            _loc6_ = _loc2_[_loc5_];
-            Util.logObject(_loc6_);
-            _loc7_ = this.getItemData(_loc6_);
-            if(!_loc7_)
+            item = items[i];
+            Util.logObject(item);
+            baseData = this.getItemData(item);
+            if(!baseData)
             {
-               this.handleUnresolvedItem(_loc6_);
+               this.handleUnresolvedItem(item);
             }
             else
             {
-               _loc8_ = this.createItem(_loc6_,_loc7_);
-               _loc3_.push(_loc8_);
-               trace("PPB:PlayerProfileAddItem::",_loc7_.name,"count:",_loc8_.value,_loc8_.cost,_loc2_[_loc5_].itemId,_loc2_[_loc5_].slotId,_loc2_[_loc5_].condition_or_stack,"icon::",_loc7_.iconId);
+               itemData = this.createItem(item,baseData);
+               profileItemList.push(itemData);
+               trace("PPB:PlayerProfileAddItem::",baseData.name,"count:",itemData.value,itemData.cost,items[i].itemId,items[i].slotId,items[i].condition_or_stack,"icon::",baseData.iconId);
             }
-            _loc5_++;
+            i++;
          }
-         if(param1.item_slots != undefined)
+         if(profile.item_slots != undefined)
          {
-            this.profileItems.openSlots(param1.item_slots,param1.artifact_slots);
+            this.profileItems.openSlots(profile.item_slots,profile.artifact_slots);
          }
-         this.profileItems.dataProvider = new DataProvider(_loc3_);
+         this.profileItems.dataProvider = new DataProvider(profileItemList);
          trace("PPB:invalidateItems");
       }
       
-      protected function createItem(param1:Object, param2:ItemData) : ItemData
+      protected function createItem(item:Object, baseData:ItemData) : ItemData
       {
-         trace("PPB:createItem::",param1,param2);
-         var _loc3_:ItemData = param2.clone();
-         if(param1.enabled != undefined)
+         trace("PPB:createItem::",item,baseData);
+         var itemData:ItemData = baseData.clone();
+         if(item.enabled != undefined)
          {
-            _loc3_.enabled = param1.enabled;
+            itemData.enabled = item.enabled;
          }
          else
          {
-            _loc3_.enabled = true;
+            itemData.enabled = true;
          }
-         _loc3_.value = _loc3_.isStack ? param1.condition_or_stack : param2.value;
-         _loc3_.slotId = param1.slotId;
-         return _loc3_;
+         itemData.value = itemData.isStack ? item.condition_or_stack : baseData.value;
+         itemData.slotId = item.slotId;
+         return itemData;
       }
       
-      protected function init(param1:Event) : void
+      protected function init(event:Event) : void
       {
          removeEventListener(Event.RENDER,this.init);
       }

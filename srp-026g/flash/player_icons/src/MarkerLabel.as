@@ -1,4 +1,3 @@
-// Compile with the native optimized profile.
 package
 {
    import survarium.controls.SrvLabel;

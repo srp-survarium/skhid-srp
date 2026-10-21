@@ -8,21 +8,21 @@ package scaleform.clik.interfaces
       
       function get data() : Object;
       
-      function set data(param1:Object) : void;
+      function set data(value:Object) : void;
       
       function get content() : Sprite;
       
-      function set content(param1:Sprite) : void;
+      function set content(value:Sprite) : void;
       
       function get descriptor() : uint;
       
-      function set descriptor(param1:uint) : void;
+      function set descriptor(value:uint) : void;
       
-      function handleDropEvent(param1:DragEvent) : Boolean;
+      function handleDropEvent(e:DragEvent) : Boolean;
       
-      function handleDragStartEvent(param1:DragEvent) : void;
+      function handleDragStartEvent(e:DragEvent) : void;
       
-      function handleDragEndEvent(param1:DragEvent, param2:Boolean) : void;
+      function handleDragEndEvent(e:DragEvent, wasValidDrop:Boolean) : void;
    }
 }
 

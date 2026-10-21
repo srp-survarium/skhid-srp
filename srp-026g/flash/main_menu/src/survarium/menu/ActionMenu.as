@@ -36,16 +36,16 @@ package survarium.menu
          super();
       }
       
-      public function setData(param1:Array, param2:Boolean) : void
+      public function setData(buttons:Array, promoEnabled:Boolean) : void
       {
-         trace("AM::setdata",this.menu_buttons,param1,this.btnPromo);
-         this.menu_buttons.dataProvider = new DataProvider(param1);
-         var _loc3_:uint = param1.length * 37;
-         this.menu_buttons.height = _loc3_;
-         if(param2)
+         trace("AM::setdata",this.menu_buttons,buttons,this.btnPromo);
+         this.menu_buttons.dataProvider = new DataProvider(buttons);
+         var buttonsHeight:uint = buttons.length * 37;
+         this.menu_buttons.height = buttonsHeight;
+         if(promoEnabled)
          {
             this.btnPromo.visible = true;
-            this.btnPromo.y = _loc3_ + 20;
+            this.btnPromo.y = buttonsHeight + 20;
             this.btnPromo.label = Settings.get_label("btn_promo_key_label");
             this.background.height = this.btnPromo.height + this.btnPromo.y + 14;
          }
@@ -53,14 +53,14 @@ package survarium.menu
          {
             this.btnPromo.visible = false;
             this.btnPromo.y = 0;
-            this.background.height = _loc3_ + 26;
+            this.background.height = buttonsHeight + 26;
          }
          this.tiledSprite.height = this.background.height - this.tiledSprite.y;
       }
       
-      public function simButton(param1:uint) : void
+      public function simButton(buttonIndex:uint) : void
       {
-         ExternalInterface.call("menu_button",this.menu_buttons.dataProvider[param1].action);
+         ExternalInterface.call("menu_button",this.menu_buttons.dataProvider[buttonIndex].action);
       }
       
       override protected function configUI() : void
@@ -88,12 +88,12 @@ package survarium.menu
          this.tiledSprite.setTile(new HintLinePattern());
       }
       
-      public function handlePromoKeyValidation(param1:Boolean, param2:String) : void
+      public function handlePromoKeyValidation(isValid:Boolean, warningText:String) : void
       {
-         this._promoMessage.handleCodeValidation(param1,param2);
+         this._promoMessage.handleCodeValidation(isValid,warningText);
       }
       
-      private function showPromo(param1:ButtonEvent) : void
+      private function showPromo(event:ButtonEvent) : void
       {
          _promoMessage = Message.showMessage("promo",{
             label_ok:Settings.get_label("button_ok"),
@@ -106,20 +106,20 @@ package survarium.menu
          ExternalInterface.call("menu_button","back");
       }
       
-      protected function takeAction(param1:ButtonBarEvent) : void
+      protected function takeAction(event:ButtonBarEvent) : void
       {
-         var _loc2_:String = this.menu_buttons.dataProvider[param1.index].action;
-         _current_action = _loc2_;
-         trace("button pressed:",param1.index,this.menu_buttons.dataProvider[param1.index].action,this._actions[_loc2_]);
-         if(this._actions[_loc2_] is Function)
+         var action:String = this.menu_buttons.dataProvider[event.index].action;
+         _current_action = action;
+         trace("button pressed:",event.index,this.menu_buttons.dataProvider[event.index].action,this._actions[action]);
+         if(this._actions[action] is Function)
          {
             trace("555");
-            this._actions[_loc2_]();
+            this._actions[action]();
          }
          else
          {
             trace("lll");
-            ExternalInterface.call("menu_button",_loc2_);
+            ExternalInterface.call("menu_button",action);
          }
          this.menu_buttons.selectedIndex = -1;
       }

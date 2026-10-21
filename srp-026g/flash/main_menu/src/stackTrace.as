@@ -1,14 +1,14 @@
 package
 {
-   public function stackTrace(param1:String) : void
+   public function stackTrace(v:String) : void
    {
-      if(param1 != null)
+      if(v != null)
       {
-         trace(param1);
+         trace(v);
       }
-      var _loc2_:Error = new Error();
-      var _loc3_:String = _loc2_.getStackTrace();
-      trace(_loc3_);
+      var tempError:Error = new Error();
+      var stackTrace:String = tempError.getStackTrace();
+      trace(stackTrace);
    }
 }
 

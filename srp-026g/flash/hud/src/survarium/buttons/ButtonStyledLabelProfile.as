@@ -37,7 +37,7 @@ package survarium.buttons
          tipEnabled = true;
       }
       
-      private function onRenameClick(param1:ButtonEvent) : void
+      private function onRenameClick(e:ButtonEvent) : void
       {
          trace("onRenameClick");
          dispatchEvent(new Event(Events.RENAME,true));
@@ -64,7 +64,7 @@ package survarium.buttons
       
       override protected function updateText() : void
       {
-         var _loc1_:int;
+         var offset:int;
          super.updateText();
          if(_data)
          {
@@ -81,8 +81,8 @@ package survarium.buttons
             this.iconDisabled.visible = !enabled;
             if(this.iconDisabled.visible)
             {
-               _loc1_ = (textField.width * scaleX - textField.textWidth) / 2;
-               this.iconDisabled.x = 1 / scaleX * (_loc1_ - this.iconDisabled.width);
+               offset = (textField.width * scaleX - textField.textWidth) / 2;
+               this.iconDisabled.x = 1 / scaleX * (offset - this.iconDisabled.width);
             }
          }
       }
