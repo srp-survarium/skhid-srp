@@ -2063,7 +2063,7 @@ package survarium.controls
             return;
          }
          trace("itemData::",itemData.enabled);
-         if((itemData) && (itemData.enabled || itemData.canBuy))
+         if((itemData) && (itemData.enabled || this.buyable(itemData)))
          {
             options = [];
             itemAvailable = itemData.descriptor <= 100 && itemData.enabled;
@@ -2156,7 +2156,7 @@ package survarium.controls
                });
             }
             trace("IL::context:",itemData.name,itemData.canBuy,itemData.descriptor,itemData.enabled,itemData.isPremium,itemData.cost);
-            if((itemData) && itemData.canBuy)
+            if((itemData) && this.buyable(itemData))
             {
                if(itemData.isStack || !itemData.isStack && (!itemData.rank || itemAvailable))
                {
@@ -2550,7 +2550,7 @@ package survarium.controls
       private function showWindowMenu(activeItem:DragSlot, craft:MessageCraftItem, upgrade:UpgradeWindow) : void
       {
          var item:Object = activeItem.data;
-         if(item == null || !(item.enabled || item.canBuy))
+         if(item == null || !(item.enabled || this.buyable(item)))
          {
             return;
          }
@@ -2561,7 +2561,7 @@ package survarium.controls
          // works on too), a stack or an item of no rarity. Sell for an owned
          // item (sellElement wants it enabled), not in the shop, and not one
          // the window holds: it would name an item no longer owned.
-         if(item.canBuy && (item.isStack || !item.rank || owned))
+         if(this.buyable(item) && (item.isStack || !item.rank || owned))
          {
             options.push({
                name:LocalizationData.getName("buy"),
@@ -2595,6 +2595,14 @@ package survarium.controls
             return null;
          }
          return lobby.modifierWindow;
+      }
+      
+      // Whether the shop sells this item now. An item's own canBuy is copied from
+      // the shop only when the list is filtered, so one bought since (in the
+      // upgrade window, whose list stays as it is) had none and showed no Buy.
+      private function buyable(item:Object) : Boolean
+      {
+         return item.canBuy || GangShop.getInstance().getItemBuyable(item.dictId);
       }
       
       private function findCraftWindow() : MessageCraftItem
