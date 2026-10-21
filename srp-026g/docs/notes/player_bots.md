@@ -242,13 +242,14 @@ the archive's index: a loader must follow them.
        the kit's lists. At a death the respawn rule (0x316AA0) sets the
        delay through the getter 0x2D5AE0 (index 0x3C, which sums the
        lists): `respawn_time × max(0, 1 + modifier)`, rounded up to the
-       50 ms grid; 8 s × 0.8 = 6.4 s. No use, no count check. LIKELY only:
-       that the -0.2 of default modification 1220 is in the booster's
-       parameters (the client applies modifications to an item's config,
-       `item_config_cook`; the defaults' path there was not traced). Other
-       passive adders of the same kind: `armor` (0x33F3A0) and the
-       artefacts (0x311AD0..); the medkit's adds (0x33D892, 0x33DDC1) run
-       only while it is active.
+       50 ms grid; 8 s × 0.8 = 6.4 s in Team Deathmatch, 10 s × 0.8 =
+       8 s in the battery modes (battery_respawn.md). No use, no count
+       check. LIKELY only: that the -0.2 of default modification 1220 is
+       in the booster's parameters (the client applies modifications to
+       an item's config, `item_config_cook`; the defaults' path there
+       was not traced). Other passive adders of the same kind: `armor`
+       (0x33F3A0) and the artefacts (0x311AD0..); the medkit's adds
+       (0x33D892, 0x33DDC1) run only while it is active.
    - `MatchPlayer::driven` (match server): `game/driven.rs` enters the
      place once a real client simulates (0xE9 300 ms ahead) and relays the
      stage 0 script's inputs (`v026g::drive`, moved there from `srp`) as a
