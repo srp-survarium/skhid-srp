@@ -14,8 +14,7 @@
 //! It asks its configured server for Skhid updates. Missing original game
 //! files come from a separate HTTPS mirror with compiled-in SHA-256 pins. No torrent, no listening
 //! port, no registry, no crash upload, no administrator rights.
-#![no_std]
-#![no_main]
+#![windows_subsystem = "windows"]
 
 extern crate alloc;
 
@@ -27,7 +26,6 @@ mod patches;
 mod pipe;
 mod replay;
 mod resources;
-mod rt;
 mod text;
 mod win;
 
@@ -86,8 +84,10 @@ mod exit {
     pub const PANIC: u32 = 3;
 }
 
-pub fn fatal_panic(info: &core::panic::PanicInfo) -> ! {
-    log!("internal error: {}", info.message());
+/// What a panic does (`main` makes it the panic hook): the log says it, and
+/// the program ends with its own code, not the abort's.
+fn fatal_panic(info: &std::panic::PanicHookInfo) {
+    log!("internal error: {}", info.payload_as_str().unwrap_or(""));
     unsafe { ExitProcess(exit::PANIC) }
 }
 
@@ -868,13 +868,8 @@ fn restart_launcher(session: &mut Session, layout: &Layout, product: &str) {
     }
 }
 
-/// Where Windows starts the program (the linker's `/ENTRY:entry`).
-///
-/// # Safety
-///
-/// Called by the loader only, once, as the process's first code.
-#[unsafe(no_mangle)]
-pub unsafe extern "system" fn entry() -> ! {
+fn main() {
+    std::panic::set_hook(Box::new(fatal_panic));
     let code = run();
     unsafe { ExitProcess(code) }
 }

@@ -1,0 +1,31 @@
+// The crash reporter's version information (../build.rs, ../../windows_build.rs
+// fills in the @...@: the Skhid release revision, or a local build's 0).
+
+1 VERSIONINFO
+FILEVERSION @VERSION_FIXED@
+PRODUCTVERSION @VERSION_FIXED@
+FILEFLAGSMASK 0x3F
+FILEFLAGS 0x0
+FILEOS 0x40004
+FILETYPE 0x2
+FILESUBTYPE 0x0
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "Skhid"
+            VALUE "FileDescription", "Skhid crash reporter"
+            VALUE "FileVersion", "@VERSION@"
+            VALUE "InternalName", "BugTrap"
+            VALUE "LegalCopyright", "© 2026 Skhid"
+            VALUE "OriginalFilename", "BugTrap.dll"
+            VALUE "ProductName", "Skhid"
+            VALUE "ProductVersion", "@PRODUCT_VERSION@"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

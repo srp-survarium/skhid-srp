@@ -10,8 +10,8 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
 outputs=(
-    bugtrap/target/i686-pc-windows-msvc/release/BugTrap.dll
-    updater/exe/target/i686-pc-windows-msvc/release/updater_skhid.exe
+    bugtrap/target/i686-win7-windows-msvc/release/BugTrap.dll
+    updater/exe/target/i686-win7-windows-msvc/release/updater_skhid.exe
 )
 
 build() {

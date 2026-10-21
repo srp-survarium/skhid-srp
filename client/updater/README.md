@@ -12,10 +12,13 @@ itself stays as the game ships it (an earlier updater changed parts of it
 in place: those get their stock bytes back once, "Restoring resources.db"
 below).
 
-A 32-bit Windows program of about 150 KB, without the Rust standard library
-and without a C runtime, like `../bugtrap`. It imports `kernel32.dll`,
-`user32.dll` (its message box), `winhttp.dll` and `advapi32.dll` (one
-registry value read for "Watch replay").
+An ordinary 32-bit Windows program of about 380 KB, like `../bugtrap`: Rust's
+standard library and Microsoft's C runtime, linked in (`+crt-static`, as
+`cl /MT`; no runtime DLL beside it), the game's icon, a version resource
+(Skhid, "Skhid updater", the release revision) and its `asInvoker` manifest.
+Windows 7 and later. It imports `kernel32.dll`, `user32.dll` (its message
+box), `winhttp.dll`, `advapi32.dll` (one registry value read for "Watch
+replay") and `ntdll.dll` (two functions of the standard library's).
 
 ## What it does, and does not
 
@@ -87,7 +90,7 @@ says so and does nothing.
 | Folder | What |
 |---|---|
 | `logic/` | Everything that needs no Windows, as a library with no dependencies: SHA-256, DEFLATE and CRC-32, the ZIP reader and its name rules, the text formats (the server's answer, the installed state, the earlier updaters' record of resources.db, the list of resources.db's patches, the quick check's record) and what the restore and the patch step decide, the launcher's pipe messages, command-line splitting, the server address and a patch's. `cargo test` there runs on any host |
-| `exe/` | The program: WinHTTP, files, the pipe, the install with its undo, the texts a player sees. Built for `i686-pc-windows-msvc` with `-Z build-std=core,alloc` and `rust-lld`, as `../bugtrap` |
+| `exe/` | The program: WinHTTP, files, the pipe, the install with its undo, the texts a player sees. Built for `i686-win7-windows-msvc` with `-Z build-std=std,panic_abort`, `rust-lld` and Microsoft's C runtime, as `../bugtrap`; `res/` holds its icon and version resource |
 | `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and the restore, Windows or Wine. `test_game_download.py`: the original game's download. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
 
 ## Watch replay
@@ -473,13 +476,17 @@ after a new overlay until the step has run with the server's list.
 
 ## Build and test
 
-Use the same nightly Rust as the game workspaces (`srp-026g/flake.nix`
-supplies it with `rust-src`). No Windows SDK is needed. The two locked
-dependencies of `exe/` are Microsoft's `windows-sys` and `windows-link`.
+Use the dev shell of `srp-026g/flake.nix` (`nix develop ./srp-026g`): the
+nightly Rust of the game workspaces with `rust-src`, `llvm-rc` and Microsoft's
+C runtime and import libraries for 32-bit x86 (`SKHID_MSVC_LIB`, as
+`../bugtrap/README.md` "Build" says). No Windows or Visual Studio installation
+is needed. The two locked dependencies of `exe/` are Microsoft's `windows-sys`
+and `windows-link`.
 
 ```sh
-./build.sh                                   # exe/target/i686-pc-windows-msvc/release/updater_skhid.exe
+./build.sh                                   # exe/target/i686-win7-windows-msvc/release/updater_skhid.exe
 SKHID_UPDATE_URL=https://test.example ./build.sh   # another default server
+SKHID_REVISION=27 ./build.sh                 # as release/build-zip builds revision 27
 (cd logic && cargo test)
 python tests/test_updater.py                 # Windows
 python tests/test_db_patches.py              # Windows or Wine (resources.db's patches, the restore)
@@ -488,11 +495,24 @@ python tests/test_game_download.py           # Windows or Wine
 SKHID_TEST_BUNDLE=<a players' zip> python tests/test_updater.py
 ```
 
-The build is reproducible: the same source, toolchain and `SKHID_UPDATE_URL`
-give the same exe, byte for byte, in any folder:
+The exe's resources (`exe/res/updater_skhid.rc`, `exe/build.rs`,
+`../windows_build.rs`): the icon `exe/res/skhid.ico`, the game's own (the
+original Survarium launcher's and `survarium.exe`'s, its 32-bit images of 16
+to 256 pixels, PNG-compressed: 45 KB); the version information, CompanyName
+and ProductName `Skhid`, FileDescription `Skhid updater`, FileVersion
+`<revision>.0.0.0`, ProductVersion `revision <revision>` (`SKHID_REVISION`,
+the release's patch revision; unset, a local build: `0.0.0.0`, `local
+build`), LegalCopyright, InternalName `updater_skhid`, OriginalFilename
+`updater_skhid.exe`; and the manifest `rust-lld` writes (`asInvoker`). As the
+revision is in the exe, every release ships a new `updater_skhid.exe`, and
+players' updaters replace themselves once at their next launcher start.
+
+The build is reproducible: the same source, toolchain, `SKHID_UPDATE_URL` and
+`SKHID_REVISION` give the same exe, byte for byte, in any folder:
 - `exe/.cargo/config.toml` gives `rust-lld` `/Brepro` (the PE stamp is a hash
   of the content, not the time) and `/DEBUG:NONE` (no PDB, which would record
-  the build folder), as `../bugtrap`;
+  the build folder), and Cargo `trim-paths` (no build, home or toolchain
+  folder in the panic locations), as `../bugtrap`;
 - `exe` and `logic` are one Cargo workspace (`Cargo.toml` here, one
   `Cargo.lock`). Cargo names a path dependency outside the workspace by its
   absolute path, and that name reaches the exe's symbols and their order. The
@@ -608,6 +628,23 @@ unset), by `../check-reproducible.sh` the same in two folders:
 `13c0095632d9d305afc0bed7b7972043ae57ed68e7320654a7da84111d5fed4c`;
 `BugTrap.dll` unchanged,
 `e8e190edd04b600bf146925e21597dc3b06ca5778aef61991634974b781acc6d`.
+
+Run on 2026-10-21 (Linux, Wine, headless), the build with the standard
+library, the C runtime, the icon and the version resource: the 74 unit tests;
+`test_db_patches.py` (48, one skipped: `SKHID_TEST_OLD_UPDATER`) and
+`test_game_download.py` (16, four skipped as before); `srp-026g/client-patches`'
+`test_release_overlay.py` and `test_linux_launcher.py` (41, one skipped); and, by hand, the
+updater of `main` before this change (the `no_std` one players have) taking a
+ZIP with this one: it replaced itself, and this one, started as the launcher
+starts it, did the patches and said `up to date`. `test_updater.py` and
+`test_replay.py` are not run: they need Windows. `../check-reproducible.sh`:
+the same in two folders, a local build (`SKHID_REVISION` unset)
+`updater_skhid.exe` 384,000 bytes, SHA-256
+`c9069bafff22ca5ac68b3e930a47bfbbfcd1afe406d728c484d8b608d0f9549f`,
+`BugTrap.dll` 214,528 bytes,
+`926290f043e71b9b624baa96cd6ddfbb83b4a770cea4b4f1569f34b804effea7`; with
+`SKHID_REVISION=27`, `04821712070e2989a9cf6d854020515e45afd8843aa892acc3b10a40d0b65226`
+and `5296c55fa24fd7abdd806fb449d1e703d7b0eed23351be8e4f3d1af0786758a6`.
 
 ## Not done
 

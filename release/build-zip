@@ -9,7 +9,8 @@
 #      build's revision is that + 1 (or --revision <n>, which must be above
 #      it; --test: any, from patch_026g.py's REVISION). Nothing is edited:
 #      the revision is passed to the build;
-#   3. bugtrap.dll and updater_skhid.exe (nix develop ./srp-026g), then
+#   3. bugtrap.dll and updater_skhid.exe (nix develop ./srp-026g,
+#      SKHID_REVISION=<n>: their version resource says it), then
 #      make_client_026g.py $SKHID_GAME ... --pack-zip --revision=<n>
 #      --server=$SKHID_GAME_SERVER --site=$SKHID_SITE
 #      --localization=$SKHID_LOCALIZATION (no resources.db regions: patches
@@ -97,11 +98,20 @@ fi
 
 # 3. The build.
 say "building bugtrap.dll and updater_skhid.exe (log: $work/build.log) ..."
-if ! (cd "$work/src" && nix develop ./srp-026g -c bash -c \
+# SKHID_REVISION: their version resource says this release's revision
+# (FileVersion <n>.0.0.0, ProductVersion "revision <n>"; client/windows_build.rs).
+if ! (cd "$work/src" && SKHID_REVISION=$revision nix develop ./srp-026g -c bash -c \
     'client/bugtrap/build.sh && bash client/updater/build.sh') >"$work/build.log" 2>&1; then
     tail -n 30 "$work/build.log" >&2
     die "the build failed (log: $work/build.log)"
 fi
+for built in client/bugtrap/target/i686-win7-windows-msvc/release/BugTrap.dll \
+    client/updater/exe/target/i686-win7-windows-msvc/release/updater_skhid.exe; do
+    python - "$work/src/$built" "revision $revision" <<'PY' || die "$built does not say revision $revision in its version resource"
+import sys
+sys.exit(sys.argv[2].encode("utf-16-le") + b"\0\0" not in open(sys.argv[1], "rb").read())
+PY
+done
 zip=$work/Survarium-0.26g-srp-files.zip
 (cd "$work/src/srp-026g/client-patches" &&
     python make_client_026g.py "$SKHID_GAME" "$zip" --pack-zip --revision="$revision" \
