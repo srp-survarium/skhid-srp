@@ -2051,7 +2051,8 @@ package survarium.controls
       // Ctrl+F over an open item list (the shop, the inventory, the craft and upgrade windows' list):
       // the box opens, or closes when it has the keys. Not over a message or a popup (the upgrade
       // window aside), and not while another text box has the keys. The exe sends Ctrl with each key
-      // (ctrlKey); the lobby also keeps whether Ctrl is down (MainScene.isCtrl).
+      // (ctrlKey); the lobby also keeps whether Ctrl is down (MainScene.isCtrl). Only ctrlKey closes
+      // the box: an isCtrl stuck down (Ctrl let go outside the game) must not close it on a typed f.
       private function onSearchKey(e:KeyboardEvent) : void
       {
          if(e.keyCode != KeyCode.F || !(e.ctrlKey || MainScene.isCtrl) || this._searchBox == null || !visible || stage == null)
@@ -2064,7 +2065,10 @@ package survarium.controls
          }
          if(this.searchFocused())
          {
-            this.closeSearch();
+            if(e.ctrlKey)
+            {
+               this.closeSearch();
+            }
             return;
          }
          if(stage.focus is TextField)

@@ -68,7 +68,8 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
 
 - **The search goes away, emptied, and the list shows everything again** after:
   - Esc while the box has the keys;
-  - Ctrl+F while the box has the keys;
+  - Ctrl+F while the box has the keys (only with the exe's Ctrl bit, `ctrlKey`: a Ctrl the lobby
+    thinks is still down, let go outside the game, never closes it on a typed f);
   - its ×;
   - the list closing.
 - **Switching Shop ↔ Inventory clears the search.** The game closes the one list and opens it

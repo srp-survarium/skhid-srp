@@ -3891,6 +3891,7 @@ package
                return;
             }
             stage.focus = this.inventory_list;
+            return;
          }
          if(stage.focus is TextField)
          {
