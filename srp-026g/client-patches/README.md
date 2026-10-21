@@ -2536,7 +2536,7 @@ round trip live); then the character's player is made again; a camouflage's firs
 of GPU and compression (the game's own log lines). Now the drop itself changes what the character
 is built from; what is sent is not changed and the server's account stays the truth.
 
-`upgrade_preview_026g.asm` at `.srpw`+2000h (1576 bytes, the section's third page), its state
+`upgrade_preview_026g.asm` at `.srpw`+2000h (1596 bytes, the section's third page), its state
 (A0h bytes: the window's item, the queue of changes, the revision last given and its upgrades,
 the last query's time and kit) at `.srpd`+E58h; six `jmp near`, its entries:
 
@@ -2567,6 +2567,10 @@ the last query's time and kit) at `.srpd`+E58h; six `jmp near`, its entries:
 - **made** (+19h): on_player_ready, `cmp byte [ebx+0D2C9h],0` at 0x284F7F (7 bytes): for the lobby's
   own character a log line "srp: lobby character's player made in <n> ms" (the lobby's clock,
   [menu+9Ch]+584Ch, since the query), then the original's comparison.
+
+The log lines go through the game's own function (`{0x9DAF4C | 1, 0, [0x1F1D614]}`, as every
+game line's caller builds it; round 2: the first build passed an empty one and nothing was
+written).
 
 A refusal: the account comes back without the change, the weapon's upgrades differ from those
 shown, the character is made again from the account's. Armour windows, the squad panels and a
