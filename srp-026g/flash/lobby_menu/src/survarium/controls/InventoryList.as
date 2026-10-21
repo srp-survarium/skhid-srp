@@ -458,6 +458,7 @@ package survarium.controls
       {
          trace("lockControls::",value);
          _inventoryLocked = value;
+         _controlsLocked = value;
          inventoryTabPage.mouseEnabled = !value;
          inventoryTabPage.mouseChildren = !value;
          btnClose.mouseEnabled = !value;
@@ -2048,7 +2049,7 @@ package survarium.controls
          var modifiersLength:uint;
          var i:uint;
          var modifier:Object;
-         if(this._inventoryLocked)
+         if(this._inventoryLocked || this._controlsLocked)
          {
             this.showCraftMenu(activeItem);
             return;
@@ -2612,6 +2613,11 @@ package survarium.controls
          var price:int = item.category == 100 ? int(item.cost) : int(GangShop.getInstance().getItemPrice(item.dictId));
          GangShop.buyFunction(profile.profileId,item.itemId,item.dictId,item.descriptor,100,1,price,-1);
       }
+
+      // lockControls' own lock (the craft window open): the server's lock of
+      // the inventory around a buy or sell sets and clears _inventoryLocked
+      // too, which must not end the craft window's menu while it is open.
+      private var _controlsLocked:Boolean = false;
    }
 }
 
