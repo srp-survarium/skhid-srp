@@ -60,14 +60,19 @@ class Launched:
     """The stand-in launcher with the updater it started, left running: what
     the updater said so far, and its end."""
 
-    def __init__(self, test):
+    def __init__(self, test, boxes=False):
+        """`boxes`: as the real launcher, it holds its instance mutex and
+        shows the updater's words in a modal box, reading nothing more until
+        [`click`]."""
         Launched.counter = getattr(Launched, "counter", 0) + 1
         self.test = test
         self.product = f"SkhidGate{os.getpid()}x{Launched.counter}"
         self.out = os.path.join(test.root, f"pipe-{Launched.counter}.bin")
         self.stop = os.path.join(test.root, f"stop-{Launched.counter}")
+        self.clicked = os.path.join(test.root, f"clicked-{Launched.counter}")
         command, env = windows([harness.FAKE_EXE, "launcher", self.product, windows_path(test.exe()),
-                                windows_path(self.out), windows_path(self.stop)])
+                                windows_path(self.out), windows_path(self.stop),
+                                *([windows_path(self.clicked)] if boxes else [])])
         self.process = wine.subprocess.Popen(command, cwd=test.x86, env=env,
                                              stdout=wine.subprocess.DEVNULL, stderr=wine.subprocess.DEVNULL)
         test.launched.append(self)
@@ -97,8 +102,13 @@ class Launched:
         self.wait_for(lambda: self.process.poll() is not None, seconds, "end")
         return self.process.returncode
 
+    def click(self):
+        """OK on the box."""
+        open(self.clicked, "w").close()
+
     def close(self):
         if self.process.poll() is None:
+            self.click()
             open(self.stop, "w").close()
             try:
                 self.process.wait(60)
@@ -213,6 +223,27 @@ class GateTest(wine.WineTest):
         launched = Launched(self)
         launched.wait_for_state(ERROR)
         self.assertTrue(any("this game is revision 0" in text for text in launched.texts()), launched.texts())
+
+    def test_a_launcher_with_a_box_open_is_waited_for_and_never_doubled(self):
+        # The real launcher shows the updater's words in a modal box and
+        # reads its pipe, and closes, only once the box is dismissed; it
+        # holds its instance mutex meanwhile. A second launcher started
+        # then would say "already running" and end, and the first close on
+        # the click: none left.
+        self.release(26, 26, least=27)
+        launched = Launched(self, boxes=True)
+        launched.wait_for_state(ERROR)
+        self.release(27, 26, 27, least=27)
+        launched.wait_for(lambda: "the launcher starts anew" in self.log(), 60, "the restart")
+        # Longer than the 15 s the wait once had: nothing started beside it.
+        time.sleep(25)
+        # (The updater waits first in the flush of its last message, which
+        # the launcher reads only after the click, then for the mutex.)
+        self.assertIsNone(self.restarted(), "a second launcher while the first holds its mutex")
+        self.assertIsNone(launched.process.poll())
+        # OK: it closes on the closed pipe, and the new one starts.
+        launched.click()
+        self.assert_restarted(launched, code=1)
 
     # --- the watch -------------------------------------------------------
 

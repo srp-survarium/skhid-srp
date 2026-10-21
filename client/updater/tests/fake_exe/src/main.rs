@@ -11,11 +11,14 @@
 //!   as it can) for reading, others may read and write it but not delete or
 //!   rename it, makes the file `<held>`, and lets go once the file
 //!   `<release>` is there.
-//! - `fake-exe.exe launcher <name> <updater> <out> <stop>`: the launcher's
+//! - `fake-exe.exe launcher <name> <updater> <out> <stop> [<ok>]`: the launcher's
 //!   end of its pipe: makes `\\.\pipe\vostok_updater_pipe-<name>`, starts
 //!   `<updater> update <pipe>`, writes every byte the updater sends into
 //!   `<out>`, says stop (the launcher's abort) once the file `<stop>` is
-//!   there, and ends with the updater's exit code once it is gone.
+//!   there, and ends with the updater's exit code once it is gone. With
+//!   `<ok>` it also holds the launcher's instance mutex until the pipe
+//!   closes, and takes the updater's words as a modal box: nothing more is
+//!   read until the file `<ok>` is there.
 #![windows_subsystem = "windows"]
 
 extern crate alloc;
@@ -37,8 +40,8 @@ use windows_sys::Win32::System::Environment::{GetCommandLineW, GetCurrentDirecto
 use windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW;
 use windows_sys::Win32::System::Pipes::{ConnectNamedPipe, CreateNamedPipeW, PeekNamedPipe};
 use windows_sys::Win32::System::Threading::{
-    CreateProcessW, ExitProcess, GetExitCodeProcess, INFINITE, PROCESS_INFORMATION, STARTUPINFOW,
-    Sleep, WaitForSingleObject,
+    CreateMutexW, CreateProcessW, ExitProcess, GetExitCodeProcess, INFINITE, PROCESS_INFORMATION,
+    STARTUPINFOW, Sleep, WaitForSingleObject,
 };
 
 /// What `get_local_version` of the launcher looks for in the game exe: the
@@ -122,8 +125,18 @@ fn hold(path: &str, held: &str, release: &str) -> u32 {
     0
 }
 
-/// The launcher's end of the pipe, and the updater it starts.
-fn launcher(name: &str, updater: &str, out: &str, stop: &str) -> u32 {
+/// The launcher's end of the pipe, and the updater it starts. With `clicked`
+/// (a path), as the real launcher: it holds its instance mutex
+/// (`<name>_or_its_installer_is_already_running`) until the pipe closes, and
+/// an updater's words (message 05) are a modal box: nothing more is read
+/// from the pipe until the file `clicked` is there (the player's click).
+fn launcher(name: &str, updater: &str, out: &str, stop: &str, clicked: &str) -> u32 {
+    let mutex = if clicked.is_empty() {
+        null_mut()
+    } else {
+        let mutex_name = alloc::format!("{name}_or_its_installer_is_already_running");
+        unsafe { CreateMutexW(null(), 1, wide(&mutex_name).as_ptr()) }
+    };
     let pipe_name = alloc::format!("\\\\.\\pipe\\vostok_updater_pipe-{name}");
     let pipe = unsafe {
         CreateNamedPipeW(
@@ -174,6 +187,7 @@ fn launcher(name: &str, updater: &str, out: &str, stop: &str) -> u32 {
     let output = create(out, FILE_SHARE_READ);
     let mut stopped = false;
     let mut buffer = [0_u8; 4096];
+    let mut frames: Vec<u8> = Vec::new();
     loop {
         let mut waiting = 0_u32;
         let ok =
@@ -189,6 +203,21 @@ fn launcher(name: &str, updater: &str, out: &str, stop: &str) -> u32 {
                 break;
             }
             unsafe { write(output, buffer.as_ptr(), read as usize) };
+            if !clicked.is_empty() {
+                // The frames read so far: a box for each 05, until OK.
+                frames.extend_from_slice(&buffer[..read as usize]);
+                while frames.len() >= 2 {
+                    let length = usize::from(u16::from_le_bytes([frames[0], frames[1]]));
+                    if frames.len() < 2 + length {
+                        break;
+                    }
+                    let boxed = length > 0 && frames[2] == 0x05;
+                    frames.drain(..2 + length);
+                    while boxed && !exists(clicked) {
+                        unsafe { Sleep(10) };
+                    }
+                }
+            }
             continue;
         }
         if !stopped && exists(stop) {
@@ -202,6 +231,10 @@ fn launcher(name: &str, updater: &str, out: &str, stop: &str) -> u32 {
     unsafe {
         CloseHandle(output);
         CloseHandle(pipe);
+        // The launcher quits on the closed pipe: its mutex goes with it.
+        if !mutex.is_null() {
+            CloseHandle(mutex);
+        }
     }
     let mut code = 8;
     unsafe {
@@ -223,7 +256,13 @@ fn main() {
         let argument = |at: usize| arguments.get(at).map_or("", String::as_str);
         match argument(1) {
             "hold" => ExitProcess(hold(argument(2), argument(3), argument(4))),
-            "launcher" => ExitProcess(launcher(argument(2), argument(3), argument(4), argument(5))),
+            "launcher" => ExitProcess(launcher(
+                argument(2),
+                argument(3),
+                argument(4),
+                argument(5),
+                argument(6),
+            )),
             _ => {}
         }
         let mut path = [0_u16; 1024];

@@ -132,7 +132,7 @@ game and closes it):
 | The server | The updater |
 |---|---|
 | answers as it did for this run (the same ZIP and `min-revision`) | nothing |
-| offers another ZIP or another `min-revision` | starts the launcher anew (state 15, the pipe closed, the launcher's mutex waited for, `launcher_skhid.exe -product_name=<product>` started: as after a new launcher), whose updater updates |
+| offers another ZIP or another `min-revision` | starts the launcher anew (state 15, the pipe closed, the launcher's mutex waited for, `launcher_skhid.exe -product_name=<product>` started: as after a new launcher), whose updater updates. A launcher with one of the updater's boxes open closes only once it is dismissed; the new one is never started while the old one holds its mutex (a second launcher would say "already running" and end, and the first then close: none left), and after an hour of waiting the updater ends without starting one |
 | answered at the start, then misses two answers in a row (no connection, a status but 503) | state 22: the launcher says "Server maintenance..." and turns PLAY (and Enter) off (`srp-026g/docs/notes/launcher.md` 5.4) |
 | answers again after that | starts the launcher anew |
 | did not answer at the start (PLAY with what was checked, "No update check: ...") | PLAY stays on while it does not answer; once it does, the launcher starts anew when its ZIP is not the one installed or it says a `min-revision` |
@@ -153,8 +153,9 @@ release now puts the ZIP in place while srp26 is stopped
 watch repairs an open launcher by itself. `tests/test_play_gate.py` plays
 the half release (with and without `min-revision`), the ZIP coming while
 the launcher is open, the server going away and coming back, an offline
-start, the original exe, an exe the updater does not know, and `check`
-replacing the updater.
+start, a launcher with a box open (never a second launcher beside it), the
+original exe, an exe the updater does not know, and `check` replacing the
+updater.
 
 ## Watch replay
 
@@ -713,7 +714,8 @@ and `5296c55fa24fd7abdd806fb449d1e703d7b0eed23351be8e4f3d1af0786758a6`.
 Run on 2026-10-21 (Linux, Wine, the stand-in launcher), with the revision
 gate and the watch: the 79 unit tests (the revision site read from a made
 PE and, with `SKHID_TEST_GAME_EXE`, from released exes of revisions 26 and
-27; `min-revision` read); the 8 scenarios of `test_play_gate.py`; the 48 of
+27; `min-revision` read); the 9 scenarios of `test_play_gate.py` (one with
+a stand-in launcher that holds its mutex and a modal box); the 48 of
 `test_db_patches.py` (one skipped as before; the one of a new overlay now
 has `check` run the new updater at once) and the 16 of
 `test_game_download.py` (four skipped as before). `test_updater.py` is not

@@ -929,18 +929,40 @@ fn finish_by_new(session: &mut Session, layout: &Layout, quiet: bool) -> u32 {
     }
 }
 
-/// The launcher was replaced while it runs. It is told that this updater is
-/// done, on which it closes; once it is gone, its new file is started. (The
-/// launcher allows one of itself at a time, by a named mutex: the new one
-/// must not start before the old one has let go of it.)
+/// How long [`restart_launcher`] waits for the launcher to close: it closes
+/// on the closed pipe only once its message loop runs again, which a box it
+/// shows (the updater's words) holds up until the player clicks OK.
+const LAUNCHER_GONE_MS: u64 = 60 * 60 * 1000;
+
+/// The launcher is to start anew: it was replaced, or the server changed
+/// while it stayed open (`gate::watch`). It is told that this updater is
+/// done, on which it closes; once it is gone, its file is started again.
+/// The launcher allows one of itself at a time, by a named mutex: a second
+/// one started while the first holds it says "already running" and ends,
+/// and the first then closes too, leaving none. So the new one is never
+/// started while the mutex is there: the wait has no short limit, and after
+/// [`LAUNCHER_GONE_MS`] the updater ends without starting one.
 fn restart_launcher(session: &mut Session, layout: &Layout, product: &str) {
     let launcher = format!("{}\\{}", layout.exe_dir, install::LAUNCHER_NAME);
-    log!("the launcher was replaced: it closes and {launcher} starts");
+    log!("the launcher starts anew: it closes and {launcher} starts");
     session.leave();
     let mutex = format!("{product}_or_its_installer_is_already_running");
-    let until = win::ticks() + 15_000;
-    while win::mutex_exists(&mutex) && win::ticks() < until {
+    let started = win::ticks();
+    let mut said = false;
+    while win::mutex_exists(&mutex) {
+        let waited = win::ticks().saturating_sub(started);
+        if waited >= LAUNCHER_GONE_MS {
+            log!("the launcher did not close in an hour: no other one is started");
+            return;
+        }
+        if !said && waited >= 15_000 {
+            log!("the launcher has not closed yet (a box of it may be open): waiting for it");
+            said = true;
+        }
         win::sleep(100);
+    }
+    if said {
+        log!("the launcher closed");
     }
     let command = format!("\"{launcher}\" -product_name={product}");
     if let Err(code) = win::start(&launcher, &command, &layout.exe_dir) {

@@ -347,8 +347,8 @@ pub fn patches_not_ready() -> String {
 pub fn behind(have: u8, need: u8) -> String {
     format!(
         "The server lets in game revision {need} and up; this game is revision {have}, and \
-         the update to it is not offered yet (the server is being updated). The launcher \
-         looks again by itself and updates the game.{PLAY_OFF}"
+         the update to it is not offered yet (the server is being updated). Click OK: the \
+         launcher keeps looking and starts anew with the update.{PLAY_OFF}"
     )
 }
 
