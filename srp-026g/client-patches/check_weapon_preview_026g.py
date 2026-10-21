@@ -134,7 +134,7 @@ class Lobby:
             emu.hook_add(UC_HOOK_CODE, lambda e, a, z, u: CURRENT[key].stub(e, a, z, u), begin=at, end=at)
         pristine = {at + delta: bytes(emu.mem_read(at + delta, size)) for at, size in GLOBALS}
         state = base.late_join_state_va(open(base.late_join_bin(), "rb").read()) + base.WEAPON_PREVIEW_STATE_OFFSET
-        if base.Headers(data).sections(data)[-1][0] == base.LATE_JOIN_STATE_NAME:
+        if any(section[0] == base.LATE_JOIN_STATE_NAME for section in base.Headers(data).sections(data)):
             pristine[state + delta] = bytes(12)
         return emu, stubs, pristine
 

@@ -167,6 +167,7 @@ va	name	source	ret_cleanup	result
 0x0006f109		auto	0	
 0x0006f181		auto	0	
 0x0006f561		auto	0	
+0x00075e20	vostok::physics::bullet_physics_world::ray_test	manual	32	the result at entry ESP+4: +0 the hit point, +1Ch the object (0: no hit)
 0x0007ab30	vostok::network_core::mutable_buffer::resize	manual	4	
 0x0007ac10	vostok::network_core::buffer_writer::w	manual	8	
 0x0007ef90	vostok::physics::bullet_character_controller::on_ground	manual	0	EAX low byte: 1 when |velocity.up| < 4.0 (0xA7AB10) and the last hit normal.up >= the walkable-slope dot (0x21E51D8); 0 if +0x203 is set
@@ -857,6 +858,8 @@ va	name	source	ret_cleanup	result
 0x001edbf0	survarium::game::play_ui_sound	manual	4	
 0x001f0090	survarium::items_dictionary::item_by_id	manual	4	
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	manual	0	
+0x001f3480	survarium::player::update_camera	manual	4	
+0x001f37a0	survarium::player::set_head_visibility	manual	4	
 0x001f3de0	vostok::network_core::buffer_writer::w<unsigned char>	manual	20	
 0x001f48a0	vostok::network_core::buffer_writer::w<unsigned int>	manual	20	
 0x001f6d50	survarium::game_world::register_cooks	manual	0	
@@ -865,6 +868,7 @@ va	name	source	ret_cleanup	result
 0x001f8190	survarium::game_world::switch_to_warmup_camera	manual	0	
 0x001f8200	survarium::game_world::switch_to_player_camera	manual	4	
 0x001f8270	survarium::game_world::switch_to_free_fly_camera	manual	4	
+0x001f8360	survarium::game_world::switch_to_spectator_camera	manual	0	
 0x001f83d0	survarium::game_world::set_game_project	manual	4	
 0x001f8650	survarium::game_world::on_project_loaded	manual	12	
 0x001f8b40	survarium::game_world::unload	manual	0	
@@ -930,11 +934,15 @@ va	name	source	ret_cleanup	result
 0x00240200	survarium::player_input_handler::on_mouse_move	manual	16	
 0x00241090	survarium::player_input_handler::on_before_processing	manual	4	
 0x00241170	survarium::player_input_handler::on_after_processing	manual	4	
+0x00241200	survarium::player_input_handler::alt_is_held	manual	0	EAX: 1 when the left or the right Alt key is down
 0x00241250	survarium::player_input_handler::process_first_person_mode	manual	8	
 0x002421c0	survarium::player_input_handler::process_third_person_mode	manual	0	
 0x00242200	survarium::player_input_handler::process_warmup_mode	manual	0	
+0x002422b0	survarium::player_input_handler::update_inverted_view	manual	8	
 0x00242460	survarium::player_input_handler::action_present	manual	12	AL: boolean found; output state is queued value or2 for persistent presence; higher EAX bits unspecified
 0x00242770	survarium::game_camera::set_position_direction	manual	4	
+0x00242d50	survarium::base_network_client::spectate_next_player	manual	0	
+0x00242f00	survarium::base_network_client::spectate_previous_player	manual	0	
 0x00243370	survarium::camera_director::set_position_direction	manual	4	
 0x00243440	survarium::camera_director::apply	manual	4	
 0x00243510	survarium::camera_director::switch_to_camera	manual	0	
@@ -970,6 +978,9 @@ va	name	source	ret_cleanup	result
 0x00258240	survarium::damage_zone_cook::construct_resource	manual	4	
 0x00258480	survarium::rifle_scope_cook::translate_query	manual	4	
 0x00258580	survarium::rifle_scope_cook::on_config_loaded	manual	4	
+0x0025d0e0	survarium::game_world::on_mouse_move	manual	16	AL: 1 (the move taken) while the hud's cursor is shown
+0x0025d130	survarium::game_world::set_cursor_position	manual	8	
+0x0025d160	survarium::game_world::set_pointer	manual	12	
 0x00260e90	survarium::options_item_base::options_item_base	manual	12	
 0x0026b1b0	survarium::messaging_client::read_important_message	manual	12	
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	manual	12	AL: Observed constant1 on local return path
@@ -1003,6 +1014,8 @@ va	name	source	ret_cleanup	result
 0x0027c1f0	survarium::network_client::register_message_in_stats	manual	4	
 0x0027c5f0	survarium::network_client::process_player_entered_match	manual	4	
 0x0027c690	survarium::network_client::process_player_left_match	manual	4	
+0x00283d30	survarium::lobby_camera::on_mouse_move	manual	16	AL: 1 while a drag button (mask 52h) is held
+0x002844d0	survarium::lobby_camera::process_collision	manual	4	
 0x00284b10	survarium::lobby_character::setup_profile	manual	8	
 0x0028de20	survarium::lobby_menu::add_quest	manual	4	
 0x0028e690	survarium::lobby_menu::create_quest_ui_message	manual	12	

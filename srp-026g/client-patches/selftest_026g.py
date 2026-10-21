@@ -341,12 +341,28 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     states of the page; no branch lands inside the two sites.
     check_fov_lod_026g.py runs the projection, select_lod and the screen
     factor of the original and the build.
+46. the same build: on the death screen a drag turns the camera, the wheel
+    does nothing (patch 46, death_camera_026g.asm in `.srpc`, the last
+    section, after `.srpd`). update_camera's `call 0x2422b0` (0x1F364B,
+    ebx the player) calls death_view; the game world's on_mouse_move jump
+    (check 32) goes to death_look. In the original: the view's update copies
+    the transform in modes 0 and 4 and its third-person step (0x2422DE)
+    reads the yaw, pitch and distance and writes the view and +35Ch alone;
+    a death sets no mode; a dead player's input is not sent (0x1F7883); the
+    handler's game world, game, client and local player; the window's size
+    (vtable+1Ch) and the look's step. The code: its exits (warmup_look, the
+    update, its step on the identity, then the turn times the eyes' rows),
+    calls (the pointer, the window's size, drag_end), the turn's limits,
+    absolute operands (its state, the options, its two constants) and
+    returns; branches inside land on instructions; no relocation under the
+    site, nothing aims inside it. check_death_camera_026g.py runs it.
 """
 
 import ctypes
 import hashlib
 import itertools
 import json
+import math
 import os
 import re
 import struct
@@ -529,6 +545,17 @@ def test_bins():
                            check=True, timeout=60)
             fresh = open(out, "rb").read()
         check(fresh == open(path, "rb").read(), f"{os.path.basename(path)} is current ({len(fresh)} bytes)")
+    late_join = open(P.late_join_bin(), "rb").read()
+    with tempfile.TemporaryDirectory() as tmp:
+        out = os.path.join(tmp, "out.bin")
+        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.death_camera_va(late_join):#x}",
+                        f"-DSTATE={P.late_join_state_va(late_join) + P.DEATH_CAMERA_STATE_OFFSET:#x}",
+                        f"-DLOOK={P.WARMUP_LOOK_VA:#x}", f"-DLOOK_STATE={state:#x}",
+                        f"-DDRAG_END={P.WARMUP_LIMITS_VA + P.WARMUP_DRAG_END_OFFSET:#x}",
+                        os.path.join(HERE, "death_camera_026g.asm"), "-o", out], check=True, timeout=60)
+        fresh = open(out, "rb").read()
+    check(fresh == open(P.death_camera_bin(), "rb").read(),
+          f"{os.path.basename(P.death_camera_bin())} is current ({len(fresh)} bytes)")
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.SUICIDE_KEY_VA:#x}",
@@ -1357,7 +1384,8 @@ def late_join_sites():
         [(P.WEAPON_DRAW_HOOK[0], len(P.WEAPON_DRAW_HOOK[1]))] +         [(P.SUICIDE_KEY_HOOK[0], len(P.SUICIDE_KEY_HOOK[1]))] + \
         [(va, len(old)) for va, old, _, _ in P.TAB_LIST_HOOKS] + [(P.TAB_LIST_LOOP_VA, len(P.TAB_LIST_LOOP[1]))] + \
         [(P.SPOT_COOLDOWN[0], len(P.SPOT_COOLDOWN[1])), (P.SPOT_HOOK[0], len(P.SPOT_HOOK[1]))] + \
-        [(va, len(old)) for va, old, _, _ in P.FOV_LOD_HOOKS]
+        [(va, len(old)) for va, old, _, _ in P.FOV_LOD_HOOKS] + \
+        [(P.DEATH_VIEW_HOOK[0], len(P.DEATH_VIEW_HOOK[1]))]
 
 
 def pickup_sites():
@@ -2824,9 +2852,12 @@ def test_warmup_look(original, image, before):
     slot = lambda vt, at: struct.unpack("<I", stock.read(vt + at, 4))[0]
     floats = lambda va: struct.unpack("<f", stock.read(va, 4))[0]
     sites = []
+    # The mouse move's jump goes to patch 46's death_look first, which goes
+    # on to warmup_look (check 46).
+    death_look = P.death_camera_va(open(P.late_join_bin(), "rb").read()) + P.DEATH_LOOK_OFFSET
     for (va, old, offset, opcode), base, original_texts, built in (
-            (P.WARMUP_LOOK_HOOK, P.WARMUP_LOOK_VA, ["push ebx", "push esi", "mov esi,ecx", "mov ecx,[esi+0x4b70]"],
-             [f"jmp {P.WARMUP_LOOK_VA:#x}"] + ["nop"] * 5),
+            (P.WARMUP_LOOK_HOOK, death_look, ["push ebx", "push esi", "mov esi,ecx", "mov ecx,[esi+0x4b70]"],
+             [f"jmp {death_look:#x}"] + ["nop"] * 5),
             (P.WARMUP_LIMITS_HOOK, P.WARMUP_LIMITS_VA, ["movss dword [esi+0x350],xmm0"],
              [f"call {P.WARMUP_LIMITS_VA + P.WARMUP_LIMITS_ENTRY_OFFSET:#x}"] + ["nop"] * 3)):
         new = P.hook_bytes(base, va, old, offset, opcode)
@@ -3017,6 +3048,138 @@ def test_warmup_keys(original, image, before):
               if (target := branch_target(text)) is not None and va < target < va + len(old)]
     check(not found, "nothing aims inside the site and no base relocation is under it"
           + "".join(f", {h:#x}" for h in found))
+
+
+def test_death_camera(original, image, before):
+    """Check 46: on the death screen a drag turns the camera; the wheel does
+    nothing (DEATH_*, death_camera_026g.asm in `.srpc`).
+    check_death_camera_026g.py runs it on made-up moves and views."""
+    stock = Image(original)
+    texts = lambda img, va, size: [text for _, _, text in ndisasm(img.read(va, size), va)]
+    at = lambda img, va, size: {address: text for address, _, text in ndisasm(img.read(va, size), va)}
+    late_join = open(P.late_join_bin(), "rb").read()
+    death_va = P.death_camera_va(late_join)
+    view_va = death_va + P.DEATH_VIEW_OFFSET
+    state = P.late_join_state_va(late_join) + P.DEATH_CAMERA_STATE_OFFSET
+    look_state = P.late_join_state_va(late_join) + P.WARMUP_LOOK_STATE_OFFSET
+    drag_end = P.WARMUP_LIMITS_VA + P.WARMUP_DRAG_END_OFFSET
+    # The site: update_camera's call of the view's update.
+    va, old, offset, opcode = P.DEATH_VIEW_HOOK
+    new = P.hook_bytes(death_va, va, old, offset, opcode)
+    camera = texts(stock, 0x1F3480, va - 0x1F3480)
+    check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new
+          and texts(stock, va, len(old)) == ["call 0x2422b0"] and texts(image, va, len(old)) == [f"call {view_va:#x}"]
+          and camera[:6] == ["push ebp", "mov ebp,esp", "and esp,byte -0x8", "sub esp,byte +0x44", "push ebx",
+                             "mov ebx,[ebp+0x8]"]
+          and not [t for t in camera[6:] if re.match(r"(mov|lea|pop|xchg|add|sub|and|or|xor|inc|dec) ebx\b", t)]
+          and at(stock, 0x1F3643, 8) == {0x1F3643: "mov ecx,[ebx+0xf470]", 0x1F3649: "push eax", 0x1F364A: "push ecx"},
+          f"{va:#x}: update_camera's `call 0x2422b0` (the handler and the transform pushed, ebx the player from "
+          f"[ebp+8], never written before it) in the original and the build without the late join, "
+          f"`call {view_va:#x}` (death_view) here")
+    hits = [h for h in aimed_inside(original, va, len(old), 0x80) if not va <= h < va + len(old)]
+    spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
+    found = hits[:len(hits) - len(spelled)]
+    found += [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+    found += [address for address, _, text in ndisasm(stock.read(0x1F3480, 0x1F366B - 0x1F3480), 0x1F3480)
+              if (target := branch_target(text)) is not None and va < target < va + len(old)]
+    check(not found, "nothing aims inside the site and no base relocation is under it"
+          + "".join(f", {h:#x}" for h in found))
+    # The view's update: modes 0 and 4 copy the transform; the others take
+    # the third-person step at 0x2422DE, which reads the handler's yaw, pitch
+    # and distance and writes its view and its changed flag alone.
+    update = texts(stock, 0x2422B0, 0x2422DE - 0x2422B0)
+    step = ndisasm(stock.read(0x2422DE, 0x242459 - 0x2422DE), 0x2422DE)
+    fields = sorted({int(m, 16) for _, _, t in step for m in re.findall(r"\[ebp\+(0x[0-9a-f]+)\]", t)})
+    check(update == ["sub esp,0xd4", "push ebx", "mov ebx,[esp+0xe0]", "push ebp", "mov ebp,[esp+0xe0]",
+                     "mov eax,[ebp+0x358]", "push esi", "push edi", "test eax,eax", "jz 0x2422d7",
+                     "cmp eax,byte +0x4", "jnz 0x2422de", "mov esi,ebx", "jmp 0x24243b"]
+          and step[0][2] == "xorps xmm0,xmm0" and fields == [0x48, 0x34C, 0x350, 0x354, 0x35C]
+          and "lea edi,[ebp+0x48]" in [t for _, _, t in step] and step[-1][2] == "ret 0x8"
+          and not [t for _, _, t in step if re.search(r"\b(eax|ebx|esi|edi|ebp)\b.*\b0x35[8c]\b", t)
+                   and "ebp+0x35c" not in t],
+          "the view's update (0x2422B0; the handler and the transform on the stack, `ret 8`): the modes 0 and 4 "
+          "copy the transform to the view (+48h); the others' step (0x2422DE, an instruction) reads the yaw "
+          "(+34Ch), pitch (+350h) and distance (+354h) and writes the view and the changed flag (+35Ch) alone")
+    # A death leaves the mode; a dead local player sends no input; the
+    # handler's world, game, client and local player; the kits' flag.
+    death = texts(stock, 0x1F28E0, 0x1F2985 - 0x1F28E0)
+    send = at(stock, 0x1F7883, 13)
+    chain = texts(stock, 0x2410F8, 0x241128 - 0x2410F8)
+    tick = texts(stock, 0x1F7E7E, 0x1F7E8F - 0x1F7E7E)
+    check(not [t for t in death if "0x358" in t] and "call 0x2d99c0" in death
+          and send == {0x1F7883: "cmp byte [eax+0x33c],0x0", 0x1F788A: "jz near 0x1f7928"}
+          and "mov eax,[esi+0x334]" in chain and "mov ecx,[eax+0x9c]" in chain and "mov eax,[ecx+0x53ac]" in chain
+          and "add eax,byte +0x4" in chain
+          and tick == ["mov eax,[ebx+0x9c]", "mov eax,[eax+0x53ac]", "add eax,byte +0x4", "mov eax,[eax]"],
+          "player::on_player_death (0x1F28E0) sets no mode of the input handler; game_world::tick builds and "
+          "sends the local player's input only while it is alive (+33Ch, 0x1F7883); the handler's +334h is the "
+          "game world (0x2410F8), whose +9Ch is the game, +53ACh its network client and +4 the local player "
+          "(0x1F7E7E); the kits' flag is the hud's +2DFh (check 32), the game world's +4DBh")
+    # The window's size and the look's step, as the player's look and the lobby's.
+    lobby = texts(stock, 0x283E0C, 0x283E6B - 0x283E0C)
+    look = texts(stock, 0x240226, 0x240330 - 0x240226)
+    floats = lambda va: struct.unpack("<f", stock.read(va, 4))[0]
+    check(lobby[:6] == ["mov ecx,[eax+0x5348]", "mov edx,[ecx]", "mov edx,[edx+0x1c]", "lea eax,[esp+0x8]",
+                        "push eax", "call edx"]
+          and "movss xmm3,dword [esp+0xc]" in lobby and "divss xmm3,dword [esp+0x8]" in lobby
+          and "mov esi,[edx+0x5348]" in look and "mov edx,[eax+0x1c]" in look
+          and "mulss xmm2,dword [dword 0xa74aec]" in look and "mulss xmm2,dword [dword 0x921948]" in look
+          and "mulss xmm1,dword [dword 0xa2dac4]" in look and "cmp [dword 0x1f1d9d3],bl" in look
+          and all(abs(floats(a) - value) < 1e-6 for a, value in ((0x921948, 0.1), (0xA2D7E8, 1 / 180),
+                                                                  (0x9CC970, math.pi), (0xA2DAC4, 0.95492965))),
+          "the render window (game+5348h) gives its width and height (floats) at the address on the stack and "
+          "pops it (vtable+1Ch, 0x283E0C); the player's look turns by a unit x sensitivity (0xA74AEC) x 0.1 x "
+          "pi/180, the pitch also x height / width x 0.9549 and inverted by mouse_invertion (0x1F1D9D3)")
+    # The code.
+    code = open(P.death_camera_bin(), "rb").read()
+    data_at = code.index(struct.pack("<f", math.pi / 180 * 0.1))
+    step_value, aspect, yaw_max, yaw_min, pitch_up, pitch_down = struct.unpack_from("<6f", code, data_at)
+    identity_at = (data_at + 24 + 15) // 16 * 16
+    identity = struct.pack("<16f", 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+    limits = [round(math.degrees(a), 4) for a in (yaw_max, yaw_min, pitch_up, pitch_down)] == [70, -70, 60, -40]
+    parts = ((0, data_at, ["call [eax+0x30]", "call [eax+0x1c]", f"call {drag_end:#x}"], ["ret 0x10"],
+              {P.WARMUP_LOOK_VA}, {0xA74AEC, 0x1F1D9D3, state, state + 4}
+              | {death_va + data_at + 4 * i for i in range(6)}),
+             (P.DEATH_VIEW_OFFSET, len(code), None, ["ret 0x8"], {P.DEATH_UPDATE_VA, P.DEATH_THIRD_VA},
+              {state, state + 4}))
+    good = image.read(death_va, len(code)) == code and limits \
+        and code[identity_at:identity_at + 64] == identity \
+        and set(code[data_at + 24:identity_at] + code[identity_at + 64:P.DEATH_VIEW_OFFSET]) <= {0xCC}
+    for begin, end, calls, rets, exits, absolute in parts:
+        listing = ndisasm(code[begin:end], death_va + begin)
+        starts = {address for address, _, _ in listing}
+        targets = [t for _, _, text in listing if (t := branch_target(text)) is not None and not text.startswith("call")]
+        made = [text for _, _, text in listing if text.startswith("call")]
+        inside = lambda t: death_va + begin <= t < death_va + end
+        good &= all(t in starts for t in targets if inside(t)) and {t for t in targets if not inside(t)} == exits
+        good &= [t for _, _, t in listing if t.startswith("ret")] == rets
+        good &= {int(m, 16) for _, _, t in listing for m in re.findall(r"\[(?:dword |byte )?(0x[0-9a-f]+)\]", t)} \
+            == absolute
+        if calls is None:                          # the third-person step's start, then the jump to it
+            third = [branch_target(t) for _, _, t in listing if t.startswith("call")]
+            good &= len(third) == 1 and texts(image, third[0], 0x1D) == update[:5] + ["push esi", "push edi",
+                                                                                   f"jmp {P.DEATH_THIRD_VA:#x}"]
+        else:
+            good &= made == calls
+    first = texts(image, death_va, 0x60)
+    good &= first[:2] == ["cmp byte [ecx+0x2e3],0x0", f"jz {death_va + 0x40:#x}"] \
+        and f"mov ebx,{look_state:#x}" in texts(image, death_va, data_at) \
+        and texts(image, view_va, 4) == ["mov eax,[esp+0x4]"] \
+        and f"push dword {death_va + identity_at:#x}" in texts(image, view_va, len(code) - P.DEATH_VIEW_OFFSET) \
+        and [t for t in texts(image, view_va, len(code) - P.DEATH_VIEW_OFFSET) if t.startswith(("mulps", "addps"))] \
+        == ["mulps xmm1,xmm4", "mulps xmm2,xmm5", "addps xmm1,xmm2", "mulps xmm0,xmm6", "addps xmm1,xmm0"] * 3
+    check(good and P.FOV_LOD_STATE_OFFSET + P.FOV_LOD_STATE_SIZE <= P.DEATH_CAMERA_STATE_OFFSET
+          and P.DEATH_CAMERA_STATE_OFFSET + P.DEATH_CAMERA_STATE_SIZE <= P.LATE_JOIN_STATE_SIZE
+          and abs(step_value - math.pi / 180 * 0.1) < 1e-9 and abs(aspect - 0.95492965) < 1e-7,
+          f"the code at {death_va:#x} (.srpc) is death_camera_026g.section.bin ({len(code)} bytes): death_look "
+          f"begins with warmup_look's test of the kits, leaves to warmup_look ({P.WARMUP_LOOK_VA:#x}) alone, "
+          "calls the hud's pointer (vtable+30h), the window's size (vtable+1Ch) and the end of a drag, keeps the "
+          f"drag in warmup_look's state ({look_state:#x}) and the turn at {state:#x} (the late join's page "
+          f"+{P.DEATH_CAMERA_STATE_OFFSET:#x}), reads the options sensitivity, mouse_invertion and its two constants (pi/180 "
+          "x 0.1, 0.9549) and the turn's limits (70 degrees either side, 60 up, 40 down); death_view leaves to "
+          "the view's update or its third-person step after the update's own start, which it gives the "
+          "identity, then multiplies the turn by the eyes' three rows; every branch inside lands on an "
+          "instruction; `ret 10h` and `ret 8`")
 
 
 def test_suicide_key(original, image, before):
@@ -3696,12 +3859,12 @@ def test_late_join(original, without, server, source):
     image, before = Image(data), Image(without)
     headers = image.headers
     sections, old_sections = image.sections, before.sections
-    name, rva, vsize, raw, rsize, flags = sections[-2]
+    name, rva, vsize, raw, rsize, flags = sections[-3]
     align = lambda value, to: (value + to - 1) // to * to
     weapon_preview = open(P.weapon_preview_bin(), "rb").read()
     weapon_draw = open(P.weapon_draw_bin(), "rb").read()
     first_page = bytes(without[old_sections[-1][3]:old_sections[-1][3] + old_sections[-1][2]])
-    check(len(sections) == 9 and sections[:7] == old_sections[:7], "9 sections; the original's seven are untouched")
+    check(len(sections) == 10 and sections[:7] == old_sections[:7], "10 sections; the original's seven are untouched")
     check(name == P.SECTION_NAME and rva == P.SECTION_RVA and flags == P.SECTION_CHARACTERISTICS
           and vsize == P.WEAPON_PREVIEW_OFFSET + len(weapon_preview)
           and rsize == align(vsize, headers.file_alignment) and raw == old_sections[-1][3],
@@ -3788,25 +3951,33 @@ def test_late_join(original, without, server, source):
           f"the shell_32.dll check at +{P.STALE_DLL_OFFSET:#x} "
           f"and the kit change at +{P.KIT_CHANGE_OFFSET:#x}, the late-join code follows, then int3 padding, "
           f"the weapon preview at +{P.WEAPON_PREVIEW_OFFSET:#x} and int3 padding")
-    name, state_rva, state_size, state_raw, state_rsize, flags = sections[-1]
+    name, state_rva, state_size, state_raw, state_rsize, flags = sections[-2]
     check(name == P.LATE_JOIN_STATE_NAME and flags == P.LATE_JOIN_STATE_CHARACTERISTICS
           and state_size == P.LATE_JOIN_STATE_SIZE and (state_raw, state_rsize) == (0, 0)
           and state_rva == align(rva + vsize, headers.section_alignment)
           and P.IMAGE_BASE + state_rva == P.late_join_state_va(code),
           f".srpd at VA {P.IMAGE_BASE + state_rva:#x}: one page, uninitialized | read | write, no bytes in the "
           "file, on the page after the code (where the code looks for it)")
+    death = open(P.death_camera_bin(), "rb").read()
+    name_c, rva_c, vsize_c, raw_c, rsize_c, flags_c = sections[-1]
+    check(name_c == P.DEATH_CAMERA_NAME and flags_c == P.DEATH_CAMERA_CHARACTERISTICS
+          and rva_c == state_rva + state_size and P.IMAGE_BASE + rva_c == P.death_camera_va(code)
+          and vsize_c == len(death) and raw_c == raw + rsize and rsize_c == align(vsize_c, headers.file_alignment)
+          and bytes(data[raw_c:raw_c + vsize_c]) == death and set(data[raw_c + vsize_c:raw_c + rsize_c]) <= {0xCC},
+          f".srpc at VA {P.IMAGE_BASE + rva_c:#x}: death_camera_026g.section.bin ({len(death)} bytes) and int3 "
+          "padding, code | execute | read, on the page after .srpd, its file bytes right after .srp's")
     get = lambda blob, at: struct.unpack_from("<I", blob, at)[0]
-    check(get(data, headers.size_of_image_at) == state_rva + state_size
+    check(get(data, headers.size_of_image_at) == align(rva_c + vsize_c, headers.section_alignment)
           and get(data, headers.optional + 12) == get(without, headers.optional + 12) + state_size
-          and get(data, headers.size_of_code_at) == get(original, headers.size_of_code_at) + rsize
-          and headers.table + 40 * 9 <= headers.size_of_headers,
-          "SizeOfImage ends at .srpd, SizeOfUninitializedData grew by its page, SizeOfCode by .srp's file size; "
-          "the section table fits in the headers")
+          and get(data, headers.size_of_code_at) == get(original, headers.size_of_code_at) + rsize + rsize_c
+          and headers.table + 40 * 10 <= headers.size_of_headers,
+          "SizeOfImage ends at .srpc, SizeOfUninitializedData grew by .srpd's page, SizeOfCode by .srp's and "
+          ".srpc's file sizes; the section table fits in the headers")
     security_offset, security_size = image.directory(4)
     old_offset, old_size = struct.unpack_from("<II", original, headers.security_at)
-    check(security_offset == raw + rsize and security_offset + security_size == len(data) and security_offset % 8 == 0
+    check(security_offset == raw_c + rsize_c and security_offset + security_size == len(data) and security_offset % 8 == 0
           and bytes(data[security_offset:]) == bytes(original[old_offset:old_offset + old_size]),
-          f"certificate table at {security_offset:#x}: right after .srp's bytes, 8-byte aligned, last in the file, "
+          f"certificate table at {security_offset:#x}: right after .srpc's bytes, 8-byte aligned, last in the file, "
           "identical to the original's")
     same = all(image.directory(index) == before.directory(index) for index in range(16) if index != 4)
     check(same, "the other 15 data directories are those of the build without it")
@@ -3821,7 +3992,8 @@ def test_late_join(original, without, server, source):
                *((P.file_offset(va), len(old)) for va, old, _, _ in P.FORWARD_SCROLL_HOOKS),
                (headers.count_at, 2), (headers.size_of_code_at, 4), (headers.optional + 12, 4),
                (headers.size_of_image_at, 4), (headers.checksum_at, 4), (headers.security_at, 4),
-               (headers.table + 40 * 7 + 8, 4), (headers.table + 40 * 7 + 16, 4), (headers.table + 40 * 8, 40)]
+               (headers.table + 40 * 7 + 8, 4), (headers.table + 40 * 7 + 16, 4), (headers.table + 40 * 8, 40),
+               (headers.table + 40 * 9, 40)]
     # The entries of the relocation table that are disabled (scene::remove_model's
     # branch, uro_fov's least, the pickup's distance, the lobby camera's least,
     # the two constants of patch 40).
@@ -3941,6 +4113,7 @@ def test_late_join(original, without, server, source):
     test_kit_change(original, image, before)
     test_warmup_look(original, image, before)
     test_warmup_keys(original, image, before)
+    test_death_camera(original, image, before)
     test_read_order(original, image, before)
     test_baked_texture_missing(original, image, before)
     test_ai_arena(original, image, before)

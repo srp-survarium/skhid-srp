@@ -1056,6 +1056,7 @@ va	status	ref_021d	name
 0x001f77e0	inferred-high	0x0015a9ee	survarium::game_world::tick
 0x001f8070	inferred-medium		survarium::game_world::select_profile
 0x001f8120	inferred-medium		survarium::game_world::local_player_profiles
+0x001f8360	inferred-medium		survarium::game_world::switch_to_spectator_camera
 0x001f96e0	inferred-medium	0x0015bd37	survarium::game_world::get_current_time_in_ms
 0x001fa2d0	inferred-medium	0x0015c5a9	vostok::buffer_vector<vostok::variant<32> >::push_back
 0x001fa420	inferred-medium	0x002282ea	survarium::hud_game_effect_emitter_cook::`scalar deleting destructor'
@@ -1292,9 +1293,13 @@ va	status	ref_021d	name
 0x0023f9d0	inferred-medium	0x00180abc	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf0<void,survarium::damage_sound_effect>,boost::_bi::list1<boost::_bi::value<survarium::damage_sound_effect *> > > >::manager
 0x0023fb40	inferred-medium	0x00180b98	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf3<void,survarium::damage_sound_effect,char const *,enum survarium::hit_affects_type_enum,enum survarium::affect_event_type_enum>,boost::_bi::list4<boost::_bi::value<survarium::damage_sound_effect *>,boost::arg<1>,boost::arg<2>,boost::arg<3> > > >::manager
 0x0023fca0	inferred-medium	0x0017e9a0	survarium::player_input_handler::`scalar deleting destructor'
+0x00241200	inferred-medium		survarium::player_input_handler::alt_is_held
+0x002422b0	inferred-medium		survarium::player_input_handler::update_inverted_view
 0x002425c0	inferred-medium	0x0017f882	vostok::buffer_vector<enum survarium::game_action_id>::push_back
 0x00242900	inferred-medium	0x00180cfa	survarium::game_camera::get_projection_matrix
 0x00242950	inferred-medium	0x0018457c	survarium::base_network_client::base_network_client
+0x00242d50	inferred-medium		survarium::base_network_client::spectate_next_player
+0x00242f00	inferred-medium		survarium::base_network_client::spectate_previous_player
 0x002431e0	inferred-medium	0x00193035	survarium::camera_director::camera_director
 0x00243770	inferred-medium	0x00184a1e	survarium::weapon::`scalar deleting destructor'
 0x00243790	inferred-medium	0x00184a3c	survarium::weapon::~weapon
@@ -1507,6 +1512,8 @@ va	status	ref_021d	name
 0x0025cd00	inferred-medium		survarium::game_world::on_keyboard_action
 0x0025cf60	inferred-medium		survarium::game_world::on_mouse_key_action
 0x0025d0e0	inferred-medium		survarium::game_world::on_mouse_move
+0x0025d130	inferred-medium		survarium::game_world::set_cursor_position
+0x0025d160	inferred-medium		survarium::game_world::set_pointer
 0x0025dd10	inferred-medium	0x00194968	survarium::grenade_set_cook::new_derived_resource
 0x0025e800	inferred-medium	0x00194fc4	survarium::artefact_cook::query_for_derived_resources
 0x0025ea90	inferred-medium	0x001951d3	survarium::artefact<survarium::artefact_spring_core>::~artefact<survarium::artefact_spring_core>
@@ -1558,6 +1565,10 @@ va	status	ref_021d	name
 0x0026d3b0	inferred-medium	0x0019bc73	survarium::base_local_network_client::`scalar deleting destructor'
 0x0026d420	inferred-medium	0x0019bca7	survarium::base_local_network_client::~base_local_network_client
 0x0026d880	inferred-medium	0x0019c0d7	survarium::base_game_statistics_handler::clear
+0x0026deb0	inferred-medium		survarium::base_local_network_client::switch_to_first_person_view
+0x0026df70	inferred-medium		survarium::base_local_network_client::follow_place_first_person
+0x0026e010	inferred-medium		survarium::base_local_network_client::switch_to_third_person_view
+0x0026e0d0	inferred-medium		survarium::base_local_network_client::follow_place_third_person
 0x0026e1d0	inferred-medium	0x0019c628	vostok::network_core::buffer_reader::r_string
 0x0026e4b0	inferred-medium	0x0019c679	survarium::player_result_brief::player_result_brief
 0x0026ece0	inferred-medium	0x0019c8dc	survarium::player_result_full::player_result_full
@@ -1633,7 +1644,9 @@ va	status	ref_021d	name
 0x00280f70	inferred-medium		survarium::lobby_menu_logic::state_by_name
 0x002812e0	inferred-medium		survarium::lobby_menu_logic::call
 0x00283bc0	inferred-medium	0x001a421e	survarium::lobby_camera::lobby_camera
+0x00283d30	inferred-medium		survarium::lobby_camera::on_mouse_move
 0x00283ef0	inferred-medium	0x001a4482	survarium::lobby_camera::tick
+0x002844d0	inferred-medium		survarium::lobby_camera::process_collision
 0x00284b10	inferred-medium	0x001a481b	survarium::lobby_character::setup_profile
 0x00284f20	inferred-medium	0x001a4a3c	survarium::lobby_character::on_player_ready
 0x00285180	inferred-medium	0x001a4bc5	vostok::detail::concrete_type_helper<survarium::player_initial_info>::copy_helper

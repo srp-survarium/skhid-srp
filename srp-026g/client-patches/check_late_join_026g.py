@@ -42,6 +42,13 @@ import late_join_026g as patch
 BASE, SLOT, COUNTER, STACK, STOP = 0x1000000, 0x1030000, 0x1031000, 0x2008000, 0x3000000
 
 
+def srp_section(data):
+    """The build's .srp entry (name, rva, size, raw, raw size, flags), found
+    by its name: sections of later patches (patch 46's .srpc) may follow .srpd."""
+    return next(section for section in patch.base.Headers(data).sections(data)
+                if section[0] == patch.base.SECTION_NAME)
+
+
 class Machine:
     def __init__(self, data):
         self.uc = Uc(UC_ARCH_X86, UC_MODE_32)
@@ -747,7 +754,8 @@ def native_preparation(data, grenades=0, traps=0):
     m = Machine(data)
     uc = m.uc
     cave = patch.base.LATE_JOIN_VA
-    state = patch.base.IMAGE_BASE + patch.base.Headers(data).sections(data)[-1][1]
+    state = patch.base.IMAGE_BASE + next(rva for name, rva, _, _, _, _ in patch.base.Headers(data).sections(data)
+                                         if name == patch.base.LATE_JOIN_STATE_NAME)
     nc, game, mc, options = 0x7000000, 0x8000000, 0x9000000, 0x6000000
     for address, size in ((nc, 0x1F3000), (game, 0x6000), (mc, 0x59000), (options, 0x60000),
                           (0x2260000, 4096), (0x1F1D000, 4096)):
@@ -1421,7 +1429,7 @@ def weapon_random_fails(original, changed):
     """weapon_random given the original as the build, and given copies of
     the build with one thing broken each, must fail."""
     image = patch.base.Headers(changed)
-    _, rva, _, raw, _, _ = image.sections(changed)[-2]
+    _, rva, _, raw, _, _ = srp_section(changed)
     cave = raw + patch.base.LATE_JOIN_OFFSET + patch.base.WEAPON_RANDOM_OFFSET
     code = bytes(changed[cave:cave + 0x80])
 
@@ -1524,7 +1532,7 @@ def kit_state_fails(original, changed):
     """kit_state given the original as the build, and copies of the build
     with one thing broken each, must fail."""
     image = patch.base.Headers(changed)
-    _, rva, _, raw, _, _ = image.sections(changed)[-2]
+    _, rva, _, raw, _, _ = srp_section(changed)
     cave = raw + patch.base.LATE_JOIN_OFFSET + patch.base.KIT_STATE_OFFSET
     code = bytes(changed[cave:cave + 0x90])
 
@@ -1744,7 +1752,7 @@ def first_world_fails(original, changed):
     """first_world given the original as the build, and copies of the build
     with one thing broken each, must fail."""
     image = patch.base.Headers(changed)
-    _, _, _, raw, _, _ = image.sections(changed)[-2]
+    _, _, _, raw, _, _ = srp_section(changed)
     cave = raw + patch.base.LATE_JOIN_OFFSET + patch.base.FIRST_LOAD_INPUT_HOOK[2]
     code = bytes(changed[cave:cave + 0xC0])
 
@@ -1932,10 +1940,13 @@ def check(original, nasm):
     old_security, old_size = struct.unpack_from("<II", original, patch.base.Headers(original).security_at)
     new_security, new_size = struct.unpack_from("<II", changed, h.security_at)
     assert old_size == new_size and original[old_security:] == changed[new_security:]
-    _, rva, size, _, _, flags = h.sections(changed)[-2]
-    assert flags == patch.base.SECTION_CHARACTERISTICS
+    # .srp, then .srpd (sections of later patches, such as patch 46's .srpc, may follow).
+    names = [name for name, _, _, _, _, _ in h.sections(changed)]
+    at = names.index(patch.base.LATE_JOIN_STATE_NAME)
+    _, rva, size, _, _, flags = h.sections(changed)[at - 1]
+    assert names[at - 1] == patch.base.SECTION_NAME and flags == patch.base.SECTION_CHARACTERISTICS
     assert struct.unpack_from("<I", changed, h.size_of_image_at)[0] >= rva + size
-    name, rva, size, _, raw_size, flags = h.sections(changed)[-1]
+    name, rva, size, _, raw_size, flags = h.sections(changed)[at]
     assert name.startswith(b".srpd") and size == 4096 and raw_size == 0 and flags == 0xC0000080
     print("PASS: native preparation/install/ACK/cleanup fixture; query/callback ABI; bounded profile decoding; history capacity; statistics loops; fixed masks; capability; native weapon binding; stable animation IDs; slot and weapon IDs; a slot's grenades and traps in front of the saved objects, and in the states to roll back to; an untouched grenade and trap save and load as one zero byte; a newcomer's scoreboard score through rollbacks, and every hud cell at a match's start; the hud during a countdown and during play; the new kit's weapons' random states at a spawn, alike in a game that drew from them and in one that loaded a world (and the original and three broken copies failing it); the new kit's weapons' kept state at a spawn: the time of the last tick at every spawn, the fire mode, ammunition, chamber, aim and recoil at a change of kit, alike in a game that played the kit and one that loaded a world, nothing else changed (and the original and five broken copies failing it); a first world's inputs and kit choices in time order, the kit choice the world's, the next kit after each tick as the games that played have it (and the original and three broken copies failing it); a replay's user seek empties every client weapon's sound queue and fx history as ~weapon does, a key frame in play and the original do not; ABI; PE checksum and certificate")
 

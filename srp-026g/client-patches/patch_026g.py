@@ -68,7 +68,11 @@ USAGE (this script never touches the source exe):
         nasm -f bin -DCAVE=0xA425980 suicide_key_026g.asm -o suicide_key_026g.section.bin
     (checked in). A spot's hit on a battery's body comes from spot_026g.asm:
         nasm -f bin -DCAVE=0xA4257C0 spot_026g.asm -o spot_026g.section.bin
-    (checked in). The late-join code is late_join_026g.section.bin, checked in too; it is
+    (checked in). The camera on the death screen comes from death_camera_026g.asm,
+    a section of its own, `.srpc`, on the page after the late join's state page:
+        nasm -f bin -DCAVE=0xA429000 -DSTATE=0xA428E60 -DLOOK=0xA425D40 -DLOOK_STATE=0xA428E20 -DDRAG_END=0xA425A98 death_camera_026g.asm -o death_camera_026g.section.bin
+    (checked in; STATE is 0xE60 of the late join's state page, LOOK_STATE warmup_look's, checked).
+    The late-join code is late_join_026g.section.bin, checked in too; it is
     made by `late_join_026g.py --write-bin`, which needs nasm, a C compiler
     for x86 and GNU ld (--late-join-bin=<file> names another one).
 
@@ -358,6 +362,23 @@ Patches:
   page; select_lod's x0.5 (0x16F2A4) and the factor's x100 (0x1590AF)
   call fov_lod_scale and fov_screen_scale, which multiply by k after the
   original's constant (k is 1 at 65 and less, and through a scope);
+- on the death screen a drag turns the camera; the wheel does nothing
+  (patch 46, with the late join, client_patch.md section 3.43, docs/notes/
+  death-camera.md). A death leaves the player's input handler in the first
+  person mode: the camera is the corpse's eyes (player+44Ch), and with the
+  kits shown the cursor takes every move. The game world's on_mouse_move
+  (0x25D0E0, WARMUP_LOOK_HOOK) jumps to death_look first: while the kits
+  are shown, the handler is in the first person mode and the local player
+  is dead, a drag as patch 31's (the lobby's buttons at once, the left one
+  past a click) turns a yaw and a pitch of its own (within 70 degrees
+  either side, 60 up, 40 down) and takes the move, and the wheel stays the
+  cursor's; any other move goes on to warmup_look. update_camera's call of
+  the view's update (0x1F364B) calls death_view, which turns the eyes' view
+  by them relative to the head's pose (the update's own third-person step
+  on the identity, times the eyes' transform) while that player is dead; a
+  live one clears them. The code
+  is death_camera_026g.asm, the section `.srpc`; a dead player sends no
+  input (0x1F7883), so nothing a match computes changes;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -862,6 +883,41 @@ WARMUP_KEYS_VA = SECTION_VA + WARMUP_KEYS_OFFSET
 WARMUP_KEYS_HOOK = (0x25CF60, bytes.fromhex("5556" "8bf1" "8b4c240c" "8b01"), 0, 0xE9)   # on_mouse_key_action: warmup_keys
 WARMUP_KEYS_STATE_OFFSET = 0xE30
 WARMUP_KEYS_STATE_SIZE = 4
+
+# The camera on the death screen (patch 46, README; client_patch.md section
+# 3.43; the rules: docs/notes/death-camera.md). A death leaves the player's
+# input handler in the first person mode (on_player_death 0x1F28E0 sets no
+# mode): update_camera (0x1F3480) gives the view's update (0x2422B0) the
+# eyes' transform (player+44Ch), which it copies (modes 0 and 4); the kits
+# and the cursor are shown, so the game world's handler takes every move and
+# the wheel. death_camera_026g.asm, in a section of its own (`.srpc`, code,
+# the page after the late join's state page, death_camera_va), has two
+# entries: death_look (DEATH_LOOK_OFFSET), where WARMUP_LOOK_HOOK's jump goes
+# instead of warmup_look, which it goes on to for every move but a dead local
+# player's with the kits shown in the first person mode: a drag as patch 31's
+# (its state, its drag_end) turns a yaw and a pitch of its own (8 bytes at
+# DEATH_CAMERA_STATE_OFFSET of the late join's state page) and is taken (1),
+# a move without a button the cursor's; and death_view (DEATH_VIEW_OFFSET),
+# which update_camera's `call 0x2422B0` (0x1F364B) calls: while that player
+# is dead, in the first person mode, the kits shown and a turn kept, the
+# update's own third-person step (0x2422DE) on the identity with that yaw
+# and pitch and the distance 0 (the handler's warmup fields borrowed and put
+# back), the turn times the eyes' (the head's) transform; a live
+# player clears the turn. No base relocation under the site; a dead local
+# player sends no input (game_world::tick 0x1F7883).
+DEATH_CAMERA_NAME = b".srpc\0\0\0"
+DEATH_CAMERA_CHARACTERISTICS = 0x60000020     # code, execute, read (as .srp)
+DEATH_LOOK_OFFSET, DEATH_VIEW_OFFSET = 0, 0x200   # the .asm's two entries
+DEATH_VIEW_HOOK = (0x1F364B, bytes.fromhex("e860ec0400"), DEATH_VIEW_OFFSET, 0xE8)   # update_camera: death_view
+DEATH_CAMERA_STATE_OFFSET = 0xE60             # after the FOV LOD scale's (FOV_LOD_STATE_OFFSET)
+DEATH_CAMERA_STATE_SIZE = 8
+DEATH_UPDATE_VA, DEATH_THIRD_VA = 0x2422B0, 0x2422DE   # the view's update and its third-person step
+# What the code leaves to: warmup_look (twice: not a death screen's move, a
+# move that is the cursor's), drag_end, the view's update and its step.
+DEATH_CAMERA_EXITS = (WARMUP_LOOK_VA, WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET, DEATH_UPDATE_VA, DEATH_THIRD_VA)
+DEATH_CAMERA_EXITS_EXPECTED = sorted([(0xE9, WARMUP_LOOK_VA), (0xE9, WARMUP_LOOK_VA),
+                                      (0xE8, WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET),
+                                      (0xE9, DEATH_UPDATE_VA), (0xE9, DEATH_THIRD_VA)])
 
 # The order of the archive reads (patch 33, README; client_patch.md section
 # 3.31). vostok::resources::hdd_manager_sorting_predicate::operator()
@@ -1502,6 +1558,11 @@ def late_join_state_va(code):
     return (end + 0xFFF) // 0x1000 * 0x1000
 
 
+def death_camera_va(late_join):
+    """Where `.srpc` is: the page after the late join's state page."""
+    return late_join_state_va(late_join) + LATE_JOIN_STATE_SIZE
+
+
 def hook_bytes(base, va, expected, offset, opcode):
     """The bytes a hook site gets: the call or jump to base+offset and nops."""
     return bytes([opcode]) + struct.pack("<i", base + offset - va - 5) + b"\x90" * (len(expected) - 5)
@@ -1707,6 +1768,39 @@ def add_section(data, cave):
     struct.pack_into("<H", out, headers.count_at, len(sections) + 1)
     struct.pack_into("<I", out, headers.size_of_image_at,
                      align(SECTION_RVA + len(cave), headers.section_alignment))
+    struct.pack_into("<I", out, headers.size_of_code_at,
+                     struct.unpack_from("<I", data, headers.size_of_code_at)[0] + raw_size)
+    struct.pack_into("<I", out, headers.security_at, security_offset + raw_size)
+    return out
+
+
+def add_code_section(data, name, va, code, characteristics):
+    """Appends a code section at `va` (the next aligned RVA after the last
+    section, the late join's state page) whose file bytes follow the last
+    file bytes (.srp's), and moves the Authenticode blob behind them, as
+    add_section does. Returns the new file contents."""
+    headers = Headers(data)
+    sections = headers.sections(data)
+    _, last_rva, last_vsize, _, _, _ = sections[-1]
+    align = lambda value, to: (value + to - 1) // to * to
+    slot = headers.table + 40 * len(sections)
+    if slot + 40 > headers.size_of_headers or any(data[slot:slot + 40]):
+        sys.exit(f"no free section table entry for {name.rstrip(bytes(1)).decode()}")
+    rva = va - IMAGE_BASE
+    if rva != align(last_rva + last_vsize, headers.section_alignment) \
+            or struct.unpack_from("<I", data, headers.size_of_image_at)[0] != rva:
+        sys.exit(f"{name.rstrip(bytes(1)).decode()} does not follow the last section")
+    raw = max(offset + size for _, _, _, offset, size, _ in sections)
+    security_offset, security_size = struct.unpack_from("<II", data, headers.security_at)
+    if security_offset != raw or security_offset + security_size != len(data) or raw % headers.file_alignment:
+        sys.exit("unexpected layout after the last section's bytes")
+    raw_size = align(len(code), headers.file_alignment)
+    if (raw + raw_size) % 8:
+        sys.exit("the certificate table would lose its 8-byte alignment")
+    out = bytearray(data[:raw]) + code + b"\xCC" * (raw_size - len(code)) + data[raw:]
+    out[slot:slot + 40] = name + struct.pack("<IIIIIIHHI", len(code), rva, raw_size, raw, 0, 0, 0, 0, characteristics)
+    struct.pack_into("<H", out, headers.count_at, len(sections) + 1)
+    struct.pack_into("<I", out, headers.size_of_image_at, align(rva + len(code), headers.section_alignment))
     struct.pack_into("<I", out, headers.size_of_code_at,
                      struct.unpack_from("<I", data, headers.size_of_code_at)[0] + raw_size)
     struct.pack_into("<I", out, headers.security_at, security_offset + raw_size)
@@ -1981,12 +2075,33 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
         if WARMUP_LOOK_STATE_OFFSET + WARMUP_LOOK_STATE_SIZE > WARMUP_KEYS_STATE_OFFSET \
                 or WARMUP_KEYS_STATE_OFFSET + WARMUP_KEYS_STATE_SIZE > LATE_JOIN_STATE_SIZE:
             sys.exit("the warmup keys' state is not between the warmup look's and the page's end")
-        for (va, expected, offset, opcode), base in ((WARMUP_LOOK_HOOK, WARMUP_LOOK_VA),
+        # Patch 46: the mouse move's jump goes to death_look, which goes on
+        # to warmup_look; update_camera's call of the view's update calls
+        # death_view.
+        death_camera = open(death_camera_bin(), "rb").read()
+        death_va = death_camera_va(late_join)
+        death_state = late_join_state_va(late_join) + DEATH_CAMERA_STATE_OFFSET
+        look_state = late_join_state_va(late_join) + WARMUP_LOOK_STATE_OFFSET
+        if death_camera[DEATH_LOOK_OFFSET:DEATH_LOOK_OFFSET + 7] != bytes.fromhex("80b9e302000000") \
+                or death_camera[DEATH_VIEW_OFFSET:DEATH_VIEW_OFFSET + 4] != bytes.fromhex("8b442404") \
+                or death_camera_exits(death_camera, death_va, DEATH_CAMERA_EXITS) != DEATH_CAMERA_EXITS_EXPECTED \
+                or death_camera.count(b"\xBB" + struct.pack("<I", look_state)) != 1 \
+                or not death_camera.count(struct.pack("<I", death_state)) \
+                or not death_camera.count(struct.pack("<I", death_state + 4)):
+            sys.exit(f"death_camera_026g.section.bin: its entries, its exits or its states are not where "
+                     f"patch_026g.py puts them (assembled with -DCAVE={death_va:#x} -DSTATE={death_state:#x} "
+                     f"-DLOOK={WARMUP_LOOK_VA:#x} -DLOOK_STATE={look_state:#x} "
+                     f"-DDRAG_END={WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET:#x}?)")
+        if FOV_LOD_STATE_OFFSET + FOV_LOD_STATE_SIZE > DEATH_CAMERA_STATE_OFFSET \
+                or DEATH_CAMERA_STATE_OFFSET + DEATH_CAMERA_STATE_SIZE > LATE_JOIN_STATE_SIZE:
+            sys.exit("the death camera's state is not between the FOV LOD scale's and the page's end")
+        for (va, expected, offset, opcode), base in ((WARMUP_LOOK_HOOK, death_va + DEATH_LOOK_OFFSET),
                                                      (WARMUP_LIMITS_HOOK, WARMUP_LIMITS_VA),
-                                                     (WARMUP_KEYS_HOOK, WARMUP_KEYS_VA)):
+                                                     (WARMUP_KEYS_HOOK, WARMUP_KEYS_VA),
+                                                     (DEATH_VIEW_HOOK, death_va)):
             patch(data, va, expected, hook_bytes(base, va, expected, offset, opcode))
             if neutralize_relocs(data, [(va, va + len(expected))]):
-                sys.exit(f"{va:#x}: a base relocation under a hook of the warmup camera")
+                sys.exit(f"{va:#x}: a base relocation under a hook of the warmup or the death camera")
         read_order = open(read_order_bin(), "rb").read()
         at = file_offset(READ_ORDER_VA)
         if len(read_order) != READ_ORDER_SIZE:
@@ -2128,6 +2243,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
         data = add_section(data, cave)
         if late_join is not None:
             add_state_section(data, late_join_state_va(late_join))
+            data = add_code_section(data, DEATH_CAMERA_NAME, death_camera_va(late_join), death_camera,
+                                    DEATH_CAMERA_CHARACTERISTICS)
     headers = Headers(data)
     struct.pack_into("<I", data, headers.checksum_at, pe_checksum(data, headers.checksum_at))
     return data, (f"certificate check, mutex, minimum VRAM check, hash interval {HASH_INTERVAL_MS} ms, "
@@ -2162,7 +2279,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
                      "the commit_suicide key (K) kills one's own player, "
                      "the scoreboard shows the places in the match and none whose player left, "
                      "a spot has no cooldown and a battery's body spots it, "
-                     "a model's LOD and screen factor at a wider field of view are the original's"
+                     "a model's LOD and screen factor at a wider field of view are the original's, "
+                     "a drag turns the camera on the death screen and the wheel does nothing there"
                      if late_join is not None else "")
                   + (f", default login server {server}" if server is not None else ""))
 
@@ -2265,6 +2383,24 @@ def warmup_look_calls(code):
     if at < 5 or code.find(find, at + 1) >= 0 or code[at - 5] != 0xE8:
         return []
     return [(WARMUP_LOOK_VA + at + struct.unpack_from("<i", code, at - 4)[0]) & 0xFFFFFFFF]
+
+
+def death_camera_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "death_camera_026g.section.bin")
+
+
+def death_camera_exits(code, va, targets):
+    """[(opcode, target)] of each `jmp rel32` (E9) or `call rel32` (E8) in
+    death_camera_026g.section.bin, assembled for `va`, whose target is one of
+    `targets`: what the code leaves to (a .bin assembled for another place,
+    or with other addresses, has none of them)."""
+    out = []
+    for at in range(len(code) - 4):
+        if code[at] in (0xE8, 0xE9):
+            target = (va + at + 5 + struct.unpack_from("<i", code, at + 1)[0]) & 0xFFFFFFFF
+            if target in targets:
+                out.append((code[at], target))
+    return sorted(out)
 
 
 def weapon_preview_bin():
