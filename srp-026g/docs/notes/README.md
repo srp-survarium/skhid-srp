@@ -25,6 +25,7 @@ given), LIKELY or GUESS.
 | [social.md](social.md) | Chat channels, friends, squads, clans, online stats |
 | [premium.md](premium.md) | Premium time, the shop's offers and bundles, items for gold, the daily bonus, the tutorial, a nickname change, autobuy and auto-repair, the level notice; their settings |
 | [results.md](results.md) | Match results screen, player details, drops, daily bonus, craft tables |
+| [drop_cards.md](drop_cards.md) | Drop cards: one per player of a match, own matches only, finished (the owner, 2026-10-20; the server refusal ships, the greyed button does not), the original screen's rule, what `allow_drop_card` is, the logging of sales and exchanges |
 | [progression_pace.md](progression_pace.md) | How long levels, faction ranks and gear tiers take, measured on the players' server, and the pay rates chosen from it |
 | [items.md](items.md) | Modifications, defects, cosmetics, reroll, craft, repair: the data, the wire, the rules |
 | [weapon_scopes.md](weapon_scopes.md) | Weapon scopes: how the client builds one, scope items bought once and put on any number of weapons (variants per weapon from the game data), what a release still needs |
@@ -39,9 +40,12 @@ given), LIKELY or GUESS.
 | [replay_sur.md](replay_sur.md) | The client's own replay file (`.sur`, `-match_replay`): its layout, and `srp-recording-to-sur`, which makes one from a match recording |
 | [replay_watch.md](replay_watch.md) | "Watch replay" from the lobby's History, the server side: conversion at match end, the lobby's `R1` answers and `9E` link, the download tokens, `/replays/<token>`, what is and is not reachable over HTTP |
 | [password-reset.md](password-reset.md) | The admin's password reset while srp runs: the page's Password tab (confirm step), a script's one POST and its answers, the curl from the jump host, the owner's rule (2026-10-18) |
+| [account-moderation.md](account-moderation.md) | The admin's Money and Take items tabs (the owner, 2026-10-20): the account's live silver, gold and items changed while srp runs, preview and confirm, never below 0, kits kept valid, the audit trail `g26_admin_actions` |
 | [launcher.md](launcher.md) | The game's launcher (`survarium_launcher.exe`): how it starts, its registry values, the pipe to its updater and every message on it, PLAY, the page, the buttons, the language. What was built from it: ../../client-patches/launcher/README.md |
-| [fall_damage.md](fall_damage.md) | Fall damage: the formula, the values (fatal_damage 1.0 as in 0.27, the owner, 2026-10-19), the lethal heights stock and now |
+| [fall_damage.md](fall_damage.md) | Fall damage: the formula, the values (fatal_damage 1.0 as in 0.27, the owner, 2026-10-19), the lethal heights stock and now; how speed counts (vertical only; what a jump or a steep slope adds) |
 | [battery_pickup.md](battery_pickup.md) | The battery pick-up 20 % faster: take_time 0.6 -> 0.5 (the owner, 2026-10-20), why the animation plays faster and is not cut, what the release needs |
+| [weapon_balance_2.md](weapon_balance_2.md) | Weapon balance 2 (the owner, 2026-10-20): AK-12 and premium damage 0.55 -> 0.5, piercing 0.45 -> 0.35 ("50 35 for ak-12"), the premium gives silver only; Socom16 damage 0.8 -> 0.6; each weapon in the builds at hand |
+| [battery_credit.md](battery_credit.md) | A player's battery events (put in, found, delivery shares, quests) paid per match, per kind, at most as many times as the map has batteries: the owner's rule against farming (2026-10-20), its catch |
 | [damage_calculator.md](damage_calculator.md) | The site's damage calculator (`/damage`): the owner's rules for it, the data it is built from, how it is served and kept up to date |
 | [maps_tab.md](maps_tab.md) | The site's Maps tab (`/maps`): spawns, batteries, chargers, containers and artefacts on every map; the owner's rules, rebuilt per release |
 | [spotting.md](spotting.md) | Spotting: no cooldown, a battery's body and its use box both spot it, the markers (the owner, 2026-10-19; exe patch 38) |

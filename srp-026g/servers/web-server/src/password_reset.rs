@@ -321,7 +321,7 @@ pub(crate) fn panel(lang: Lang, view: &super::AdminView) -> String {
 }
 
 /// `YYYY-MM-DD` (UTC) of a Unix time; [`clock_utc`] is its time of day.
-fn date_utc(at: u64) -> String {
+pub(crate) fn date_utc(at: u64) -> String {
     let (year, month, day) = civil_from_days(at / 86_400);
     format!("{year:04}-{month:02}-{day:02}")
 }

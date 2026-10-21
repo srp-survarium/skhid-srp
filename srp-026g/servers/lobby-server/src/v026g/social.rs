@@ -6,7 +6,8 @@
 //!   to everyone who subscribed to it, whatever their client's language
 //!   (as 0.21d's: the client shows a line by its channel byte alone);
 //!   private to the named player; match and team to the players the lobby
-//!   sent to the same match (and team); squad to the squad. Who that is
+//!   sent to the same match (and team); squad to the squad; srp's room
+//!   channel (10) to the room's members (`room_chat`). Who that is
 //!   the server knows itself, so the channel id a client sends is not
 //!   trusted. A player who ignores the sender is not sent the line. A
 //!   player may send [`CHAT_BURST`] lines at once and one a second after
@@ -147,7 +148,7 @@ impl Core<'_> {
             .map(|(id, _)| id)
     }
 
-    fn ignores(&self, account_id: u32, sender: u32) -> bool {
+    pub(super) fn ignores(&self, account_id: u32, sender: u32) -> bool {
         self.store
             .account(account_id)
             .is_some_and(|account| account.locked().ignored.contains(&sender))
@@ -209,6 +210,11 @@ impl Core<'_> {
         }
         player.chat_allowance -= 1.0;
         let (in_match, session_id) = (player.in_match, player.session_id);
+        // A room's own channel: its members (`room_chat`).
+        if channel == channel::ROOM {
+            self.room_say(who, body);
+            return;
+        }
 
         let subscribed = |id: u32| id != 0 && id != u32::MAX;
         let squad = self.store.squads().of(who.account_id);

@@ -7,11 +7,12 @@
 //!   and `rules::buy_premium`). `GET /exchange`, which the SHOP button of
 //!   the launchers already in players' hands opens, says so in the
 //!   launcher's language ([`in_the_game_now`]); nothing else of it is left.
-//! - The admin's tabs: money, the account (premium time, experience or
-//!   level, reputation), an item by its `items_dict` id or name, and the
-//!   operator's text (`A5` / `A6`) for everyone in the lobby. Bans,
-//!   maintenance and registration are the store's, which the 0.26g login
-//!   server and lobby read: they are the same code as for 0.21d.
+//! - The admin's tabs: money and items taken away (`crate::moderation`: a
+//!   reason, a preview and a confirm), the account (premium time,
+//!   experience or level, reputation), an item by its `items_dict` id or
+//!   name, and the operator's text (`A5` / `A6`) for everyone in the lobby.
+//!   Bans, maintenance and registration are the store's, which the 0.26g
+//!   login server and lobby read: they are the same code as for 0.21d.
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -183,7 +184,7 @@ impl Web {
 
     /// The 0.26g account the admin means by `text`: a user name it signs in
     /// with, or the name other players see if only one account has it.
-    fn find_026g(
+    pub(crate) fn find_026g(
         &self,
         game: &Game,
         lang: Lang,
@@ -216,41 +217,6 @@ impl Web {
     fn changed_026g(&self, game: &Game, account_id: u32) {
         game.accounts.mark_dirty(account_id);
         game.lobby.account_changed(account_id);
-    }
-
-    pub(crate) fn admin_money_026g(&self, request: &Request, peer: &str) -> String {
-        let lang = request.lang;
-        let Some(game) = &self.game else {
-            return String::new();
-        };
-        let user = request.field("user");
-        let (account_id, account) = match self.find_026g(game, lang, user) {
-            Ok(found) => found,
-            Err(message) => return message,
-        };
-        let (Some(silver), Some(gold)) =
-            (delta(request.field("silver")), delta(request.field("gold")))
-        else {
-            return lang.tr(
-                "Silver and gold are whole numbers, + or -, or empty.",
-                "Срібло і золото — цілі числа, + або -, або порожньо.",
-            );
-        };
-        let (silver_now, gold_now) = {
-            let mut account = account.locked();
-            account.generic_money = apply(account.generic_money, silver);
-            account.premium_money = apply(account.premium_money, gold);
-            (account.generic_money, account.premium_money)
-        };
-        self.changed_026g(game, account_id);
-        log::info!(
-            "Admin from {peer}: {user:?} silver {silver:+}, gold {gold:+} \
-             (now {silver_now} silver, {gold_now} gold)"
-        );
-        lang.tr(
-            &format!("{user}: now {silver_now} silver and {gold_now} gold."),
-            &format!("{user}: тепер {silver_now} срібла і {gold_now} золота."),
-        )
     }
 
     /// Premium time, experience or level, reputation: each field that is

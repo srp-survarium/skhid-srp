@@ -391,6 +391,8 @@ va	status	ref_021d	name
 0x0007e1b0	inferred-medium	0x0021f2f1	vostok::physics::bullet_character_controller::step_down
 0x0007ea80	inferred-medium	0x0021f822	vostok::physics::bullet_character_controller::step_down_sweep_test_impl
 0x0007eeb0	inferred-medium	0x0021fbe0	vostok::physics::bullet_character_controller::can_straighten
+0x0007ef90	inferred-medium	0x0021fc07	vostok::physics::bullet_character_controller::on_ground
+0x0007f050	inferred-medium		vostok::physics::bullet_character_controller::end_jump
 0x0007f100	inferred-medium	0x0021fc66	vostok::physics::bullet_character_controller::setup_shape_dim
 0x0007f1a0	inferred-medium	0x0021fcf1	vostok::physics::bullet_character_controller::setup_crouch_state
 0x0007f310	inferred-medium	0x0021fd8e	vostok::physics::bullet_character_controller::initialize
@@ -399,7 +401,9 @@ va	status	ref_021d	name
 0x0007f6d0	inferred-medium	0x0021ff5d	vostok::physics::bullet_character_controller::set_transform
 0x0007f7f0	inferred-medium	0x0021ffcb	vostok::physics::bullet_character_controller::serialize
 0x0007fb10	inferred-medium	0x0022010e	vostok::physics::bullet_character_controller::deserialize
+0x0007fe40	inferred-medium		vostok::physics::bullet_character_controller::set_landing_callback
 0x0007fea0	inferred-medium	0x00220232	vostok::physics::bullet_character_controller::update_slide_velocity
+0x000803d0	inferred-medium		vostok::physics::bullet_character_controller::call_landing_callback
 0x00081a70	inferred-medium		vostok::network_core::buffer_writer::w<class vostok::math::float3>
 0x00082590	inferred-high	0x00059784	vostok::physics::collision_shape_cook::translate_query
 0x000829e0	inferred-medium	0x00059aa0	vostok::physics::collision_shape_cook::on_collision_sources_loaded
@@ -1141,6 +1145,7 @@ va	status	ref_021d	name
 0x00208150	inferred-medium	0x00162fc4	survarium::chat_handler::`scalar deleting destructor'
 0x00208870	inferred-medium	0x001631f2	survarium::chat_handler::on_keyboard_action
 0x002089d0	inferred-medium	0x001632ff	survarium::chat_handler::on_message_typed
+0x00208ad0	inferred-medium		survarium::chat_handler::add_message
 0x00209230	inferred-medium	0x001636ee	survarium::chat_handler::filter_message
 0x00209330	inferred-medium	0x001637d0	survarium::chat_handler::add_to_recent_list
 0x0020a5f0	inferred-medium	0x0016410b	survarium::global_input_handler::`scalar deleting destructor'
@@ -1565,6 +1570,7 @@ va	status	ref_021d	name
 0x00268040	inferred-medium	0x00197f8e	survarium::timelimit_rule::`scalar deleting destructor'
 0x0026ab90	inferred-medium	0x0019ad22	vostok::network_core::buffer_writer::w_string
 0x0026abe0	inferred-medium		survarium::messaging_client::process_incomming_packet
+0x0026ad30	inferred-medium		survarium::messaging_client::send_text_message
 0x0026d3b0	inferred-medium	0x0019bc73	survarium::base_local_network_client::`scalar deleting destructor'
 0x0026d420	inferred-medium	0x0019bca7	survarium::base_local_network_client::~base_local_network_client
 0x0026d880	inferred-medium	0x0019c0d7	survarium::base_game_statistics_handler::clear
@@ -1821,10 +1827,12 @@ va	status	ref_021d	name
 0x002d6210	inferred-medium	0x001d2556	survarium::hit_initiator::`scalar deleting destructor'
 0x002d64c0	inferred-medium	0x001d274d	survarium::inventory_holder::`scalar deleting destructor'
 0x002d6600	inferred-medium	0x001d2b5e	survarium::base_player_creation_params::base_load
+0x002d6990	inferred-medium	0x001d2e62	survarium::base_player::base_player
 0x002d71f0	inferred-medium	0x001d3529	survarium::base_player::`scalar deleting destructor'
 0x002d7610	inferred-high	0x001d3740	survarium::base_player::on_broken_limb_affect
 0x002d7650	inferred-high	0x001d3773	survarium::base_player::tick_active_object
 0x002d7800	inferred-medium	0x001d3980	survarium::base_player::on_fire
+0x002d7920	inferred-medium		survarium::base_player::jump
 0x002d7b90	inferred-medium	0x001d3ca1	survarium::base_player::animation_id_resolver
 0x002d7c50	inferred-medium	0x001d3cee	survarium::base_player::animation_resolver
 0x002d7ca0	inferred-high	0x001d3d0d	survarium::base_player::time_calculator_id_resolver
@@ -2189,10 +2197,13 @@ va	status	ref_021d	name
 0x00340e80	inferred-medium	0x0020c5cb	vostok::animation::mixing::weight_lexeme::cloned_in_buffer
 0x00340fb0	inferred-medium	0x0020c62d	vostok::animation::mixing::multiplication_lexeme::cloned_in_buffer
 0x00341c80	inferred-medium	0x0020cc00	boost::detail::function::functor_manager<boost::_bi::bind_t<enum vostok::animation::callback_return_type_enum,boost::_mfi::mf1<enum vostok::animation::callback_return_type_enum,survarium::short_jump_start_state,vostok::animation::animation_callback_params &>,boost::_bi::list2<boost::_bi::value<survarium::short_jump_start_state *>,boost::arg<1> > > >::manager
+0x003421d0	inferred-medium	0x0020cec0	survarium::short_jump_landing_state::initialize
 0x00342480	inferred-medium	0x0020d048	boost::detail::function::functor_manager<boost::_bi::bind_t<enum vostok::animation::callback_return_type_enum,boost::_mfi::mf1<enum vostok::animation::callback_return_type_enum,survarium::short_jump_landing_state,vostok::animation::animation_callback_params &>,boost::_bi::list2<boost::_bi::value<survarium::short_jump_landing_state *>,boost::arg<1> > > >::manager
 0x00342c90	inferred-medium	0x0020d57a	boost::detail::function::functor_manager<boost::_bi::bind_t<enum vostok::animation::callback_return_type_enum,boost::_mfi::mf1<enum vostok::animation::callback_return_type_enum,survarium::jump_logic_state_prepare,vostok::animation::animation_callback_params &>,boost::_bi::list2<boost::_bi::value<survarium::jump_logic_state_prepare *>,boost::arg<1> > > >::manager
+0x003434a0	inferred-medium		survarium::jump_logic_state_start::on_jump_event
 0x00343720	inferred-medium	0x0020db74	vostok::buffer_vector<vostok::animation::mixing::animation_interval>::push_back
 0x003438c0	inferred-medium	0x0020dc93	boost::detail::function::functor_manager<boost::_bi::bind_t<enum vostok::animation::callback_return_type_enum,boost::_mfi::mf1<enum vostok::animation::callback_return_type_enum,survarium::jump_logic_state_start,vostok::animation::animation_callback_params &>,boost::_bi::list2<boost::_bi::value<survarium::jump_logic_state_start *>,boost::arg<1> > > >::manager
+0x003440e0	inferred-medium	0x0020dfae	survarium::jump_logic_state_landing::initialize
 0x003443f0	inferred-medium	0x0020e20a	boost::detail::function::functor_manager<boost::_bi::bind_t<enum vostok::animation::callback_return_type_enum,boost::_mfi::mf1<enum vostok::animation::callback_return_type_enum,survarium::jump_logic_state_landing,vostok::animation::animation_callback_params &>,boost::_bi::list2<boost::_bi::value<survarium::jump_logic_state_landing *>,boost::arg<1> > > >::manager
 0x003460b0	inferred-medium	0x0020fa1b	vostok::ui::ui_world::ui_world
 0x003461c0	inferred-medium	0x0020faae	vostok::ui::ui_world::set_base_screen_size
@@ -2283,6 +2294,8 @@ va	status	ref_021d	name
 0x003567b0	inferred-medium	0x0021b7d6	vostok::sound::proxy_statistic::fill_text_tree
 0x00356870	inferred-medium	0x0021b841	vostok::sound::sound_scene_statistic::fill_text_tree
 0x00356a40	inferred-medium	0x0021b986	vostok::physics::bt_character_controller::bt_character_controller
+0x00356b00	inferred-medium		vostok::physics::bt_character_controller::set_desired_walk_vector
+0x00356b90	inferred-medium	0x0021ba65	vostok::physics::bt_character_controller::set_air_control_vector
 0x00356c20	inferred-medium	0x0021bb7f	vostok::physics::bt_static_rigid_body::bt_static_rigid_body
 0x00356cc0	inferred-medium	0x0021bbf8	vostok::physics::bt_static_rigid_body::set_transform
 0x00356d00	inferred-medium	0x0021bc68	vostok::physics::bt_static_rigid_body::get_walker_behaviour

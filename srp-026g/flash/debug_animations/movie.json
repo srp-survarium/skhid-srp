@@ -1,0 +1,8 @@
+{
+  "schema": 2,
+  "movie": "flash_movies/debug_animations.swf",
+  "archive": "resources.db",
+  "archive_offset": 101247962,
+  "movie_size": 33714,
+  "movie_sha256": "67a7576c6fcbbf308bded935e7476ab7763cd9f49cedfd1379a72759c4486732"
+}

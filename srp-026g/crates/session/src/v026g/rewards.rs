@@ -79,6 +79,12 @@
 //!   in any match. It counts for no quest and no daily bonus, and, as every
 //!   match with a bot of the server's, moves no rating and no balance
 //!   rating.
+//! - **A room with a PIN's match** ([`MatchResult::private`]; the
+//!   owner's of 2026-10-20): pays nothing to anyone in it, late joiners
+//!   too: no experience, silver, reputation, quest, daily bonus, drop or
+//!   rating, and takes nothing (no wear, no supplies used, no autobuy or
+//!   auto-repair after it). Its screen opens with the match's numbers and
+//!   nothing paid, and takes no drop card.
 //! - **Wear** (only with `SRP_ITEM_WEAR=on`; off by the owner's choice,
 //!   [`pay::item_wear`]): every item of a kit the player used loses its
 //!   `degrade_per_match`; a kit's firearms share `degrade_per_use` for each
@@ -96,6 +102,10 @@
 //!   premium account. Together they are at most 1. A weapon or an armour
 //!   piece found so arrives worn, with one defect
 //!   ([`pay::drop_condition`], [`pay::drop_defect`]).
+//! - **A drop card** (`drop_card`, used on the results screen) is one
+//!   roll of `drop_card_drop` at the match's level, and only one for each
+//!   player that finished the match: [`Results::use_drop_card`]
+//!   (`docs/notes/drop_cards.md`).
 //! - **Ammo and consumables used** are taken off the stacks as far as
 //!   the last trusted snapshot proves them used, and the account's autobuy
 //!   and auto-repair boxes buy them back and repair what the match wore:
@@ -117,7 +127,9 @@
 //! | any, when no snapshot was trusted (`trusted_by` 0) | no counters and no winner: the fixed part of a match not won, wear, a drop; the rating stays (0.21d's unknown result) |
 //! | any, when one client alone vouched (`trusted_by` 1) | in full, as 0.21d paid a match one client was alone in (its numbers passed the match server's checks) |
 //!
-//! A match no client ever reached ([`MatchEnd::NoShow`]) has no report.
+//! A match no client ever reached ([`MatchEnd::NoShow`]) has no report, nor
+//! has a room's match called off before its countdown
+//! ([`MatchEnd::NotMade`]): no screen, pay, rating, quest or wear.
 //! A deserted match is a match all of whose players left early.
 //!
 //! # What the screen shows
@@ -137,7 +149,7 @@ use std::sync::{Arc, Mutex};
 
 use survarium::v021d;
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::drops::{self, Drops, Rng};
+use survarium::v026g::drops::{self, DropTable, Drops, Rng};
 use survarium::v026g::item_params::item_params;
 use survarium::v026g::lobby::{
     self, AccountBody, BonusColumn, FULL_CONDITION, FullResult, ItemDescr, ResultRow,
@@ -213,6 +225,8 @@ pub enum MatchEnd {
     TimeLimit,
     Deserted,
     NoShow,
+    /// A room's match called off before its countdown.
+    NotMade,
 }
 
 /// One roster place of a finished match (the match server's
@@ -277,6 +291,11 @@ pub struct MatchResult {
     /// [`Terms::pvb_pay`] of its silver and experience, and counts for no
     /// quest and no daily bonus.
     pub vs_bots: bool,
+    /// A match of a room with a PIN (the match server's
+    /// `MatchSetup::private`): it pays nothing to anyone in it, late
+    /// joiners too, and its screen takes no drop card (the owner's of
+    /// 2026-10-20; `docs/notes/rooms.md`).
+    pub private: bool,
 }
 
 impl MatchResult {
@@ -462,6 +481,11 @@ pub struct MatchReport {
     pub match_id: u32,
     pub end: MatchEnd,
     pub match_level: u16,
+    /// A room with a PIN's match ([`MatchResult::private`]): nothing was
+    /// paid, and its screen takes no drop card. Absent from a report kept
+    /// before it was known: not private.
+    #[serde(default)]
+    pub private: bool,
     /// The part of `97` every player gets.
     pub stats: lobby::MatchStats,
     /// By roster place.
@@ -968,25 +992,29 @@ impl Results {
         terms: &Terms,
         rng: &mut Rng,
     ) -> Option<Arc<MatchReport>> {
-        if result.end == MatchEnd::NoShow {
+        if matches!(result.end, MatchEnd::NoShow | MatchEnd::NotMade) {
             return None;
         }
         // An account's place it left and came back from counts for
         // nothing: its latest one is its result.
         let latest = result.latest_places();
         let result = &latest;
+        if result.private {
+            log::info!("Match {:#x}: private room, no rewards", result.match_id);
+        }
         let mut shared = Shared::of(result, terms);
         // Test bots (`super::bots`; none unless `SRP_BOT_ACCOUNTS` names
         // them) and the match server's own (in every match against bots):
         // a match with one in it moves no rating, and
         // a bot is paid no daily bonus (nor is the player of a match
-        // against bots, `settle_player`).
+        // against bots, `settle_player`). Nor does a room with a PIN's
+        // match move any.
         let bots: Vec<bool> = result
             .players
             .iter()
             .map(|player| player.driven || accounts.is_bot(player.account_id))
             .collect();
-        shared.unrated = bots.contains(&true);
+        shared.unrated = bots.contains(&true) || result.private;
 
         // What the screen's rows and the rating need of every account.
         let held: Vec<Option<(u16, u8, String)>> = result
@@ -1005,8 +1033,10 @@ impl Results {
         let mut players = Vec::with_capacity(result.players.len());
         for (index, player) in result.players.iter().enumerate() {
             let standing = shared.standing(player);
-            // Only a player who stayed has a game of its play period.
-            let game = if standing == Standing::Finished && held[index].is_some() {
+            // Only a player who stayed has a game of its play period; a
+            // private match is nobody's.
+            let game = if standing == Standing::Finished && held[index].is_some() && !result.private
+            {
                 self.inner
                     .locked()
                     .game_of_period(player.account_id, terms.now)
@@ -1080,6 +1110,7 @@ impl Results {
             match_id: result.match_id,
             end: result.end,
             match_level: result.match_level,
+            private: result.private,
             stats,
             players,
         });
@@ -1188,6 +1219,129 @@ impl Results {
         }
         Some(((money, experience, reputation), notices))
     }
+
+    /// `46 03`: the account uses a drop card on the results screen of
+    /// `match_id` ([`use_drop_card`], at the match's level). One card for
+    /// each player that finished the match, once (the owner's rule,
+    /// 2026-10-20; the original's screen takes one card too:
+    /// `docs/notes/drop_cards.md`). Refused, and nothing changed, for a
+    /// match not kept, one the account was not in or left before its end,
+    /// a room with a PIN's match (it gives nothing), one it used a card
+    /// for already, an item that is no drop card of the account, or a roll
+    /// that gave nothing. Lock the account before calling it, as for
+    /// [`Results::claim_premium`]; mark it dirty after.
+    /// Returns the match's level and what the card did.
+    ///
+    /// The mark is the account's own ([`Account::drop_cards`]): it is
+    /// checked and made under the account's lock, which the caller holds
+    /// from the check to the grant, and it is written in the same
+    /// transaction as the card taken and the item given. So a card is
+    /// never taken twice for a match, across a crash too. The results'
+    /// lock is held only to read the report and which marks are of reports
+    /// still kept, never over the roll.
+    pub fn use_drop_card(
+        &self,
+        match_id: u32,
+        account_id: u32,
+        account: &mut Account,
+        card_item_id: u32,
+        rng: &mut Rng,
+    ) -> Result<(u16, Result<DropCardUse, WireError>), DropCardRefusal> {
+        self.use_drop_card_from(
+            &Drops::shared().drop_card,
+            match_id,
+            account_id,
+            account,
+            card_item_id,
+            rng,
+        )
+    }
+
+    /// [`Results::use_drop_card`] with the table rolled.
+    fn use_drop_card_from(
+        &self,
+        table: &DropTable,
+        match_id: u32,
+        account_id: u32,
+        account: &mut Account,
+        card_item_id: u32,
+        rng: &mut Rng,
+    ) -> Result<(u16, Result<DropCardUse, WireError>), DropCardRefusal> {
+        let (report, kept) = {
+            let inner = self.inner.locked();
+            let report = inner.find(match_id).ok_or(DropCardRefusal::NoMatch)?;
+            // The marks of reports no longer kept go with the next card: a
+            // card for a match not kept is refused anyway.
+            let kept: Vec<u32> = account
+                .drop_cards
+                .iter()
+                .copied()
+                .filter(|&id| inner.find(id).is_some())
+                .collect();
+            (report, kept)
+        };
+        let standing = report
+            .player(account_id)
+            .filter(|_| account_id != 0)
+            .ok_or(DropCardRefusal::NotAPlayer)?
+            .reward
+            .standing;
+        if standing != Standing::Finished {
+            return Err(DropCardRefusal::NotFinished(standing));
+        }
+        if report.private {
+            return Err(DropCardRefusal::Private);
+        }
+        if account.drop_cards.contains(&match_id) {
+            return Err(DropCardRefusal::Used);
+        }
+        let used = use_card(account, card_item_id, report.match_level, table, rng)?;
+        // Marked even when its `98` cannot be written: the card is spent
+        // and the item given.
+        account.drop_cards = kept;
+        if let Err(at) = account.drop_cards.binary_search(&match_id) {
+            account.drop_cards.insert(at, match_id);
+        }
+        Ok((report.match_level, used))
+    }
+}
+
+/// Why [`Results::use_drop_card`] took no card.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DropCardRefusal {
+    /// No report of the match is kept.
+    NoMatch,
+    /// The account was not in the match.
+    NotAPlayer,
+    /// The account was not in the match at its end: it left early, or its
+    /// game never got into it.
+    NotFinished(Standing),
+    /// The account used a card for the match already.
+    Used,
+    /// A room with a PIN's match: it gives nothing
+    /// ([`MatchReport::private`]).
+    Private,
+    /// The item is no drop card of the account.
+    NoCard,
+    /// The roll gave nothing (`drop_card_drop` always gives: a table the
+    /// game data broke). The card is kept.
+    NoRoll,
+}
+
+impl std::fmt::Display for DropCardRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoMatch => f.write_str("no such match kept"),
+            Self::NotAPlayer => f.write_str("not a player of the match"),
+            Self::NotFinished(standing) => {
+                write!(f, "did not finish the match ({standing:?})")
+            }
+            Self::Used => f.write_str("a card was used for the match already"),
+            Self::Private => f.write_str("private match"),
+            Self::NoCard => f.write_str("no drop card of the account"),
+            Self::NoRoll => f.write_str("the drop card table rolled nothing; card kept"),
+        }
+    }
 }
 
 /// The id a screen's row names a player by.
@@ -1240,7 +1394,8 @@ struct Shared<'a> {
     stole: [bool; 2],
     /// The match level's multipliers: money, experience, reputation.
     multipliers: (f64, f64, f64),
-    /// A test bot was in the match: nobody's rating moves.
+    /// A test bot was in the match, or it is a room with a PIN's
+    /// ([`MatchResult::private`]): nobody's rating moves.
     unrated: bool,
 }
 
@@ -1364,11 +1519,11 @@ impl<'a> Shared<'a> {
     /// How the match moves each balance rating ([`balance::changes`]), by
     /// roster place; `None` for a player it does not move. The players
     /// are the ranking's: those who were in the match, one who left with
-    /// its team's result and nothing more. A match with a test bot, with
-    /// no known winner, or left by a whole side ([`MatchEnd::Deserted`]:
-    /// its winner is who stayed) moves none. Nor does a match of few
-    /// players ([`Terms::rated_players`], by default one against one and
-    /// two against one): it is not one more match of anybody's either, so
+    /// its team's result and nothing more. A match with a test bot, a room
+    /// with a PIN's, one with no known winner, or one left by a whole side
+    /// ([`MatchEnd::Deserted`]: its winner is who stayed) moves none. Nor
+    /// does a match of few players ([`Terms::rated_players`], by default
+    /// one against one and two against one): it is not one more match of anybody's either, so
     /// it adds nothing to how far a rating is trusted.
     ///
     /// Each counts for the share of the match it was in
@@ -1588,7 +1743,9 @@ impl<'a> Shared<'a> {
     /// Give one player what the match earned. `rating_change` is its part
     /// of [`Self::rating_changes`]; `game` which game of its play period
     /// this is (0: no drop is rolled); `bot` whether the account is a test
-    /// bot (no daily bonus).
+    /// bot (no daily bonus). A room with a PIN's match
+    /// ([`MatchResult::private`]) gives and takes nothing: only the
+    /// screen's numbers are filled.
     fn settle_player(
         &self,
         account: &mut Account,
@@ -1619,14 +1776,6 @@ impl<'a> Shared<'a> {
             return (reward, full, notices);
         }
 
-        // The rating.
-        if self.winner.is_some() && !self.unrated {
-            account.rating_before = account.rating;
-            account.rating = v021d::rating::moved(account.rating, rating_change);
-            reward.rating_after = account.rating;
-            full.elo_after = account.rating;
-        }
-
         // The kit the bonuses and the play time are shown with: the one
         // the account plays (the result does not say how long each was
         // used).
@@ -1635,6 +1784,22 @@ impl<'a> Shared<'a> {
             .unwrap_or(0)
             .min(KITS - 1);
         full.play_seconds[main] = clamp_u16(player.time_in_match_ms / 1000);
+        // A room with a PIN's match pays nothing and takes nothing: no
+        // experience, silver, reputation, quest, daily bonus, drop or
+        // rating, and no wear, supplies used or autobuy after it (the
+        // owner's of 2026-10-20). Its screen shows the match with nothing
+        // paid.
+        if self.result.private {
+            return (reward, full, notices);
+        }
+
+        // The rating.
+        if self.winner.is_some() && !self.unrated {
+            account.rating_before = account.rating;
+            account.rating = v021d::rating::moved(account.rating, rating_change);
+            reward.rating_after = account.rating;
+            full.elo_after = account.rating;
+        }
 
         if self.terms.wear {
             reward.worn = self.wear(account, player, main);
@@ -2078,26 +2243,50 @@ pub struct DropCardUse {
     pub message: ServerMessage,
 }
 
-/// `46 03 <card item id> <match id>`: use a drop card (the voucher
-/// `drop_card`, the screen's stash map): one card for one roll of the
-/// `drop_card_drop` table, which always gives. `match_level` is that of
-/// the match the screen shows ([`MatchReport::match_level`]). `None`, and
-/// nothing changed, when the item is no drop card of the account: deny
-/// with the game's `st_cannot_use_drop_card`.
+/// Use a drop card (the voucher `drop_card`, the screen's stash map): one
+/// card for one roll of the `drop_card_drop` table, which always gives.
+/// `match_level` is that of the match the screen shows
+/// ([`MatchReport::match_level`]). Refused, and nothing changed, when the
+/// item is no drop card of the account ([`DropCardRefusal::NoCard`]) or
+/// the roll gives nothing ([`DropCardRefusal::NoRoll`]): deny with the
+/// game's `st_cannot_use_drop_card`. The lobby goes through
+/// [`Results::use_drop_card`], which allows one card a finisher of a match.
 pub fn use_drop_card(
     account: &mut Account,
     card_item_id: u32,
     match_level: u16,
     rng: &mut Rng,
-) -> Option<Result<DropCardUse, WireError>> {
+) -> Result<Result<DropCardUse, WireError>, DropCardRefusal> {
+    use_card(
+        account,
+        card_item_id,
+        match_level,
+        &Drops::shared().drop_card,
+        rng,
+    )
+}
+
+/// [`use_drop_card`] with the table rolled.
+fn use_card(
+    account: &mut Account,
+    card_item_id: u32,
+    match_level: u16,
+    table: &DropTable,
+    rng: &mut Rng,
+) -> Result<Result<DropCardUse, WireError>, DropCardRefusal> {
     let dictionary = Dictionary::shared();
-    let card = dictionary.item_named(DROP_CARD)?.dict_id;
-    let owned = account.item(card_item_id)?;
+    let card = dictionary
+        .item_named(DROP_CARD)
+        .ok_or(DropCardRefusal::NoCard)?
+        .dict_id;
+    let owned = account.item(card_item_id).ok_or(DropCardRefusal::NoCard)?;
     if owned.dict_id != card || owned.condition_or_stack == 0 {
-        return None;
+        return Err(DropCardRefusal::NoCard);
     }
     let level = match_level.min(u16::from(u8::MAX)) as u8;
-    let rolled = drops::roll(&Drops::shared().drop_card, dictionary, level, 0, rng)?;
+    // Rolled before anything changes: a roll that gives nothing keeps the
+    // card.
+    let rolled = drops::roll(table, dictionary, level, 0, rng).ok_or(DropCardRefusal::NoRoll)?;
     let (dropped, shown) = give_drop(account, &rolled, false, rng);
     let cards_left = match account
         .inventory
@@ -2115,7 +2304,7 @@ pub fn use_drop_card(
         None => 0,
     };
     account.sync_kits();
-    Some(
+    Ok(
         lobby::drop(&shown, card_item_id, cards_left, dropped.rarity).map(|message| DropCardUse {
             dropped,
             cards_left,

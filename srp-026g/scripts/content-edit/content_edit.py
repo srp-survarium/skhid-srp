@@ -40,6 +40,9 @@ Edits (edits.json):
                     a new key of the named table in each file, in its place by name CRC: a bool,
                     an int, a float (a number with a point), a text, or an object (a named table of
                     those); a file that has the key already is refused
+  "remove_item":    [{"file", "path", "value"}]        the one item equal to `value` of an indexed table of
+                                                       numbers (an item's `default_modifications`); the
+                                                       later items move down in place, the count drops by 1
 New records and arrays are appended (arrays at 8-byte boundaries, as the files keep them); a table
 that grows gets a new array and the old one stays, unreferenced.
 
@@ -325,6 +328,35 @@ def add_value(buf, table, key, value):
     new = sorted(kids + [record], key=lambda r: REC.unpack(r)[2])
     d, i, c, ty, cnt = rec(buf, toff)
     REC.pack_into(buf, toff, append_array(buf, new), i, c, ty, cnt + 1)
+def numbers_of(buf, path):
+    """The items of an indexed table of numbers, as numbers."""
+    off = find(buf, path)
+    if rec(buf, off)[3] != T_INDEXED:
+        raise ValueError('%s is not an indexed table' % path)
+    items = []
+    for c in children(buf, off):
+        d, _, _, t, _ = rec(buf, c)
+        if t not in (T_INT, T_FLOAT):
+            raise ValueError('%s holds a non-number' % path)
+        items.append(as_number(t, d & 0xffffffff))
+    return items
+
+
+def remove_item(buf, path, value):
+    """The one item equal to `value` of the indexed table of numbers `path` taken out: the later
+    items' records move down one place in the table's own array, its count drops by one (the last
+    record stays, unreferenced). A value the table holds not exactly once is refused."""
+    items = numbers_of(buf, path)
+    if items.count(value) != 1:
+        raise ValueError('%s holds %r %d times, not once: the base is not the live data'
+                         % (path, value, items.count(value)))
+    off = find(buf, path)
+    kids = children(buf, off)
+    at = items.index(value)
+    for dst, src in zip(kids[at:], kids[at + 1:]):
+        buf[dst:dst + 24] = buf[src:src + 24]
+    d, i, crc, t, cnt = rec(buf, off)
+    REC.pack_into(buf, off, d, i, crc, t, cnt - 1)
 
 
 def shifted(path, lst, at):
@@ -443,6 +475,10 @@ def main():
             added.setdefault(p, []).append('%s/%s' % (table, e['key']))
             grown.setdefault(p, set()).add(table)
         print('value %s/%s: %d files' % (e['table'], e['key'], len(e['files'])))
+    removed = {}
+    for e in edits.get('remove_item', []):
+        remove_item(buf(e['file']), e['path'], e['value'])
+        removed.setdefault(e['file'], {}).setdefault(e['path'], []).append(e['value'])
 
     # read back: compare every value with the live file, by path
     renames = [('/%s/%s' % (e['table'], e['from']), '/%s/%s' % (e['table'], e['to']), e['from'], e['to'])
@@ -457,6 +493,18 @@ def main():
                 old[rn] = old.pop(ro)
         for lst, at in shifts.get(p, ()):
             old = {shifted(q, lst, at): v for q, v in old.items()}
+        live_buf = bytearray(open(files[p], 'rb').read())
+        for lst, values in removed.get(p, {}).items():
+            was, now = numbers_of(live_buf, lst), numbers_of(b, lst)
+            want = list(was)
+            for v in values:
+                want.remove(v)
+            ok = now == want
+            bad += not ok
+            print('%s%s /%s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, lst, was, now))
+            for d in (old, new):
+                for q in [q for q in d if q == '/' + lst or q.startswith('/%s[' % lst)]:
+                    del d[q]
         for q in sorted(set(old) | set(new)):
             o, n = old.get(q), new.get(q)
             if o == n:

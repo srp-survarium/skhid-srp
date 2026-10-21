@@ -114,6 +114,7 @@ use survarium::v026g::match_msgs::{
 };
 use udp_transport::{Event, SendError, Transport};
 
+use super::battery_cap;
 use super::record::{Recorder, Recording};
 use super::registry::{Formed, MatchEnd, MatchResult, PlayerResult};
 use super::{LateInputs, Settings};
@@ -121,6 +122,7 @@ use super::{LateInputs, Settings};
 mod driven;
 mod late_join;
 mod live;
+mod start;
 use late_join::{Admission, LoadingProfile};
 
 /// A tick is final this long after it: the server's event horizon.
@@ -908,6 +910,12 @@ pub(crate) struct Game {
     /// The players who left by their own word (0xE0) and were not asked
     /// about yet ([`Game::take_quits`]): session and account.
     quits: Vec<(u32, u32)>,
+    /// By place: its player left by its own word (0xE0); the place never
+    /// comes back ([`start`]).
+    given_up: Vec<bool>,
+    /// The places the server entered so that the clients start a room's
+    /// match with the players who are in ([`start`]).
+    stand_ins: Vec<start::StandIn>,
     /// `SRP_RECORD_DIR`: every datagram of the match ([`super::record`]).
     recording: Option<Recording>,
 }
@@ -960,6 +968,8 @@ impl Game {
             result: None,
             result_made: false,
             quits: Vec::new(),
+            given_up: vec![false; players],
+            stand_ins: Vec::new(),
             recording: None,
             drives: Self::new_drives(&formed),
             walkers,
@@ -1109,16 +1119,33 @@ impl Game {
         if self.result_made {
             return self.result.take();
         }
-        let end = if self.events.is_empty() && self.clock_start.is_none() {
+        let end = self.called_off(if self.events.is_empty() && self.clock_start.is_none() {
             MatchEnd::NoShow
         } else {
             MatchEnd::Deserted
-        };
+        });
         let present = vec![false; self.players()];
         self.result_made = true;
         let result = self.build_result(end, self.clock(now), &present);
         self.record_result(&result, now);
         Some(result)
+    }
+
+    /// A room's match that ends before its countdown, everyone gone (left,
+    /// lost, never come) or its world lost, was not made (`match.md`
+    /// section 34): [`MatchEnd::NotMade`] for [`MatchEnd::Deserted`] and
+    /// [`MatchEnd::NoShow`], as when `poll_start` calls it off. Nothing of
+    /// it counts, and its room votes and waits again, whole.
+    fn called_off(&self, end: MatchEnd) -> MatchEnd {
+        let room = self.formed.room_minimum.is_some();
+        let before_countdown = matches!(
+            self.rule.state,
+            rules::state::INACTIVE | rules::state::WAITING_FOR_PLAYERS
+        );
+        match end {
+            MatchEnd::Deserted | MatchEnd::NoShow if room && before_countdown => MatchEnd::NotMade,
+            end => end,
+        }
     }
 
     /// The match clock in ms: 0 until the first snapshot, then running from
@@ -1394,7 +1421,9 @@ impl Game {
                     if self.loaded_behind(index, now) {
                         return;
                     }
-                    if self.returns(index) {
+                    // Its place standing in: it enters once the stand-in
+                    // left (`start::send_stand_in_leaves`).
+                    if self.returns(index) && !self.stands_in(index) {
                         self.enter_early(index, now);
                     }
                     self.start_sync(index, true, now);
@@ -1413,6 +1442,7 @@ impl Game {
                     && let Some(place) = self.formed.places.get(index)
                 {
                     self.quits.push((peer.session_id, place.account_id));
+                    self.give_up(index);
                 }
                 self.leave(index, now);
             }
@@ -1843,17 +1873,20 @@ impl Game {
     }
 
     /// Whether the player at `index` is back in a match it left, with
-    /// others playing and a patched client to give a snapshot.
+    /// others playing and a patched client to give a snapshot. A place
+    /// that only stood in (`start`) was never left by a player: its game
+    /// comes as a new arrival.
     fn returns(&self, index: usize) -> bool {
-        self.events
-            .iter()
+        self.players_events()
             .any(|(_, who, entered)| *who == index && !*entered)
             && self.others_live(index)
             && !self.sources(index).is_empty()
     }
 
     /// A roster change happens: everyone simulating but `except` hears it,
-    /// and the server's copy of the timelimit rule follows.
+    /// and the server's copy of the timelimit rule follows. Its tick: `at`,
+    /// or the one after the stand-ins' entry when that is not before it
+    /// ([`Game::after_stand_ins`]).
     fn roster_change(
         &mut self,
         except: Option<usize>,
@@ -1861,7 +1894,13 @@ impl Game {
         entered: bool,
         at: u32,
         now: Instant,
-    ) {
+    ) -> u32 {
+        let stand_in = self.is_stand_in_event(at, index, entered);
+        let at = if stand_in {
+            at
+        } else {
+            self.after_stand_ins(at)
+        };
         if entered && let Some(admission) = &mut self.admissions[index] {
             admission.enter();
         }
@@ -1923,23 +1962,31 @@ impl Game {
         self.events.push((at, index, entered));
         let bot = self.is_bot(index);
         if let Some(recording) = self.recording.as_mut() {
-            if entered && !bot {
+            if entered && !bot && !stand_in {
                 recording.entered(index);
             }
             let note = serde_json::json!({
-                "note": if entered { "entered" } else { "left" },
+                "note": match (entered, stand_in) {
+                    (true, false) => "entered",
+                    (false, false) => "left",
+                    (true, true) => "stand-in entered",
+                    (false, true) => "stand-in left",
+                },
                 "place": index,
                 "match_ms": at,
             });
             recording.note(&note, Instant::now());
         }
         let step = if entered {
-            self.first_entered.get_or_insert(at);
+            if !stand_in {
+                self.first_entered.get_or_insert(at);
+            }
             self.rule.on_player_entered(player, at)
         } else {
             self.rule.on_player_left(player, at)
         };
         self.log_transition(step, at);
+        at
     }
 
     fn log_transition(&self, step: Option<Transition>, at: u32) {
@@ -1963,6 +2010,9 @@ impl Game {
     /// it is started: a snapshot after this entry has its player as the
     /// others have it (0.21d `enter_early`).
     fn enter_early(&mut self, index: usize, now: Instant) {
+        // After the place's last roster change, a stand-in's too (its leave
+        // is sent before this, `stands_in`): the games take a place's
+        // changes in the order of their ticks.
         let left = self
             .events
             .iter()
@@ -1971,7 +2021,7 @@ impl Game {
             .max()
             .unwrap_or(0);
         let at = grid_up(self.clock(now).max(left + 1) + ROSTER_LEAD_MS);
-        self.roster_change(Some(index), index, true, at, now);
+        let at = self.roster_change(Some(index), index, true, at, now);
         if let Some(peer) = self.peers[index].as_mut() {
             peer.entered_early = Some(at);
         }
@@ -1997,6 +2047,20 @@ impl Game {
         if let Some(peer) = self.peers[index].as_mut() {
             peer.time_confirmed = false;
             peer.set_times.clear();
+        }
+        if self.stands_in(index) {
+            if let Some(peer) = self.peers[index].as_mut() {
+                peer.stage = Stage::WaitingSnapshot {
+                    since: now,
+                    entering,
+                };
+            }
+            log::info!(
+                "Match {:#x}: player {index}'s place stands in; its game waits for the stand-in's \
+                 leave",
+                self.id
+            );
+            return;
         }
         if self.bot_waits(index) || !self.join_ready(index) {
             if let Some(peer) = self.peers[index].as_mut() {
@@ -2464,7 +2528,8 @@ impl Game {
     /// The roster changes after `time` for the client at `index`, which
     /// starts from a snapshot of then. Never its own leaving: a client told
     /// it left closes the match. Its own entry only if it entered early and
-    /// the snapshot (given up waiting for) is from before it.
+    /// the snapshot (given up waiting for) is from before it; never a
+    /// stand-in's of its place (`start`).
     fn roster_since(&self, index: usize, time: u32) -> Vec<(u32, ServerMessage)> {
         let early = self.peers[index]
             .as_ref()
@@ -2472,7 +2537,11 @@ impl Game {
         self.events
             .iter()
             .filter(|(at, who, entered)| {
-                *at > time && (*who != index || (*entered && early.is_some()))
+                *at > time
+                    && (*who != index
+                        || (*entered
+                            && early.is_some()
+                            && !self.is_stand_in_event(*at, *who, *entered)))
             })
             .map(|&(at, who, entered)| {
                 let (tick, player) = (tick_byte(at), who as u8);
@@ -3128,7 +3197,7 @@ impl Game {
             // hash, independently of this snapshot's transport ACK.
         } else if entering {
             let at = grid_up(clock.max(time + 1) + ROSTER_LEAD_MS);
-            self.roster_change(None, index, true, at, now);
+            let at = self.roster_change(None, index, true, at, now);
             log::info!("Match {id:#x}: player {index} entered at {at} ms");
         } else if !self.send_held_answers(index, time, now) {
             // Its clock was put at the match clock, or ahead of it by its
@@ -4617,7 +4686,26 @@ impl Game {
     fn build_result(&self, end: MatchEnd, clock: u32, present: &[bool]) -> MatchResult {
         let state = self.state.as_ref();
         let standing = state.and_then(|state| state.standing);
-        let statistics = state.and_then(|state| state.statistics.as_ref());
+        // A player's battery events pay, per kind, at most as many times as
+        // the map has batteries (docs/notes/battery_credit.md).
+        let statistics = state
+            .and_then(|state| state.statistics.clone())
+            .map(|mut statistics| {
+                for cut in battery_cap::cap(&mut statistics, self.batteries()) {
+                    log::info!(
+                        "Match {:#x}: place {}'s battery events \"{}\" counted {}, paid {} \
+                         (at most the map's {} batteries)",
+                        self.id,
+                        cut.place,
+                        cut.kind,
+                        cut.counted,
+                        cut.paid,
+                        self.batteries()
+                    );
+                }
+                statistics
+            });
+        let statistics = statistics.as_ref();
         let kills_deaths = state
             .and_then(|state| state.rules.as_ref())
             .map(|read| &read.kills_deaths);
@@ -4636,7 +4724,7 @@ impl Game {
                 let mut in_match = 0u32;
                 let mut entered_at = None;
                 let mut left = false;
-                for (at, who, entered) in &self.events {
+                for (at, who, entered) in self.players_events() {
                     if *who != index {
                         continue;
                     }
@@ -4666,8 +4754,7 @@ impl Game {
                     team: place.team,
                     driven: place.driven,
                     entered: self
-                        .events
-                        .iter()
+                        .players_events()
                         .any(|(_, who, entered)| *who == index && *entered),
                     present_at_end: present.get(index).copied().unwrap_or(false),
                     left,
@@ -4701,6 +4788,7 @@ impl Game {
             trusted_by: state.map_or(0, |state| state.vouchers),
             players,
             vs_bots: self.formed.vs_bots,
+            private: self.formed.private,
         }
     }
 
@@ -4710,6 +4798,7 @@ impl Game {
         if self.finished_at.is_some() {
             return;
         }
+        let end = self.called_off(end);
         let clock = self.clock(now);
         let present = self.present();
         let result = self.build_result(end, clock, &present);
@@ -4779,6 +4868,7 @@ impl Game {
         for index in 0..self.peers.len() {
             self.check_in_flight(index, now);
             let join_ready = self.join_ready(index);
+            let stands_in = self.stands_in(index);
             let Some(peer) = self.peers[index].as_mut() else {
                 continue;
             };
@@ -4795,6 +4885,15 @@ impl Game {
             let early = peer.entered_early;
             match peer.stage {
                 Stage::WaitingSnapshot { since, entering } => {
+                    if stands_in {
+                        // Its place stands in (`start`): its wait begins
+                        // when the stand-in has left.
+                        peer.stage = Stage::WaitingSnapshot {
+                            since: now,
+                            entering,
+                        };
+                        continue;
+                    }
                     if !join_ready {
                         continue;
                     }
@@ -5055,6 +5154,7 @@ impl Game {
             }
         }
 
+        self.poll_start(now);
         self.check_end(clock, now);
         self.check_world_lost(now);
         self.check_bots_alone(now);
@@ -5305,8 +5405,7 @@ impl Game {
         self.empty_since.is_some()
             && self.first_entered.is_some_and(|first| {
                 let all_came = (0..self.players()).all(|index| {
-                    self.events
-                        .iter()
+                    self.players_events()
                         .any(|(_, who, entered)| *who == index && *entered)
                 });
                 all_came || self.clock(now) >= first + SEATS_COME_WITHIN_MS

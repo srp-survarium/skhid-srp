@@ -89,6 +89,16 @@ pub struct MatchSetup {
     /// uploading worlds it is asked for (`Timing::pvb_stall`), and its
     /// result says so ([`MatchResult::vs_bots`]: the rewards pay less).
     pub vs_bots: bool,
+    /// A match of a room with a PIN: its result says so
+    /// ([`MatchResult::private`]: the rewards pay nothing).
+    pub private: bool,
+    /// A room's match: the room's own minimum of players to start (2 for
+    /// 1 v 1, 4, 6; `docs/notes/rooms.md`). With it, a match the clients'
+    /// own rule cannot start starts with the players who are in, and one
+    /// that not even that many can play is called off
+    /// ([`MatchEnd::NotMade`]; `docs/notes/match.md` section 34). `None`
+    /// (clan matches, against bots): the clients' rule alone.
+    pub room_minimum: Option<u8>,
 }
 
 /// Where the players of a made match connect.
@@ -187,6 +197,10 @@ pub(crate) struct Formed {
     pub initial_players: usize,
     /// [`MatchSetup::vs_bots`].
     pub vs_bots: bool,
+    /// [`MatchSetup::private`].
+    pub private: bool,
+    /// [`MatchSetup::room_minimum`].
+    pub room_minimum: Option<u8>,
 }
 
 /// How far a match is.
@@ -463,6 +477,8 @@ impl MatchRegistry {
                 growing_roster,
                 initial_players: options.players.len(),
                 vs_bots: setup.vs_bots,
+                private: setup.private,
+                room_minimum: setup.room_minimum,
             }),
         );
         let count = |which: fn(&Place) -> bool| {
@@ -832,6 +848,10 @@ pub enum MatchEnd {
     Deserted,
     /// No client ever connected.
     NoShow,
+    /// A room's match called off before its countdown: fewer than the
+    /// room's minimum can play it ([`MatchSetup::room_minimum`]). Nothing
+    /// of it counts, and its room makes another.
+    NotMade,
 }
 
 /// The standing value for "no team": a draw.
@@ -921,6 +941,8 @@ pub struct MatchResult {
     pub players: Vec<PlayerResult>,
     /// [`MatchSetup::vs_bots`].
     pub vs_bots: bool,
+    /// [`MatchSetup::private`].
+    pub private: bool,
 }
 
 /// Where finished matches go: the lobby's results and rewards code.

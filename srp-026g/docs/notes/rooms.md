@@ -2,8 +2,10 @@
 
 The rules the code and the tests follow, the owner's of 2026-10-16 to 10-19. Code: the wire
 `survarium::v026g::lobby::rooms`, the model `session::v026g::rooms`, the lobby
-`lobby-server/src/v026g/rooms.rs`, the movie `client-patches/rooms/SrpRooms.as`
-(`rooms_026g.py`). Contract: `lobby.md` §2.16.3.
+`lobby-server/src/v026g/rooms.rs`, the movie's window `flash/lobby_menu/src/survarium/rooms` (`RoomsWindow`
+and its views `RoomsList`, `RoomsCreate`, `RoomsRoom`; `RoomsWire`, `RoomsText`, `RoomsLook`) and its
+parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'s Esc and results,
+`BottomPanel`, `PlayerRanking`) ([lobby-source.md](lobby-source.md)). Contract: `lobby.md` §2.16.3.
 
 - **Only way to PvP:** every PvP match is a room's. The old queue, its level search, the
   Matches tab and its JOIN, the skewed map draw and PvP server bots are gone. Play vs Bots
@@ -25,6 +27,20 @@ The rules the code and the tests follow, the owner's of 2026-10-16 to 10-19. Cod
     later is in (an experimental one out); the max level never below the maker's gear now;
     other values within today's ranges; nothing of the pool left: the default pool.
   - No button puts the defaults back (the owner's of 2026-10-20: "no need for that").
+  - **A PIN: no rewards** (the owner's of 2026-10-20: "let's remove rewards for private (pin)
+    games"; players farmed silver in 1 v 1 PIN rooms): every match of a room with a PIN pays
+    nobody in it anything, late joiners too. No experience, silver (the match's or a quest's),
+    reputation, quest progress, daily bonus, drop (silver's dict 214 too), rating or balance
+    rating; its results screen takes no drop card (refused and logged: "private match"). It
+    takes nothing either (srp's choice: nothing paid, nothing charged): no wear, no ammo or
+    consumables used, no autobuy or auto-repair after it. The results screen still opens with
+    the match's numbers (winner, rows, scores) and nothing paid. Its map still counts as
+    played (feeds nothing now). The lobby knows it when it makes the match (a PIN is the
+    room's for its whole life) and tells the match server (`MatchSetup::private`); the result
+    carries it to the rewards (`rewards::MatchResult::private`), which log once
+    "Match …: private room, no rewards". Rooms without a PIN, clan matches and Play vs Bots
+    pay as before. The site's room rules say so; no in-game text (it needs the lobby movie,
+    parked).
 - **Play:** goes straight into a room, no search shown: of the open rooms that let the player
   in, the one nearest its level however far (too few online to leave anyone out), then the
   fullest; no squad, friend or clan preference; none: a new room for it (8 v 8, any max level, 30 s, the whole pool, from
@@ -32,12 +48,35 @@ The rules the code and the tests follow, the owner's of 2026-10-16 to 10-19. Cod
   joined at once. A player with a seat in a match goes back to it.
 - **Members:** stay in their room from match to match until they press Leave, the owner
   kicks them (only in a room with a PIN; they may not come back), the room is disbanded,
-  or their game is gone for good.
+  or their game is gone for good. Except who came by Play:
+- **Who came by Play leaves after its match** (the owner's of 2026-10-20: "people who pressed
+  Play, rather than entering a room, leave it after the match ends; then next time they'd have
+  a chance to land at their level; whoever explicitly entered a room stays in it"; "this is a
+  good idea to get people to not have to click the yellow button"):
+  - By Play: Play put it into an open room, or made a new room for it (its maker too: it
+    pressed Play, it made no room). Chosen: a room made by hand (its maker), Join from the
+    list (PIN too), its queue, "Switch room".
+  - When the room's match ends, each member by Play who played it leaves the room, as by
+    Leave (not kicked, no penalty; it may join again): it sees its results, then the lobby,
+    and its next Play takes the room nearest its level again. Chosen members stay.
+  - One by Play that did not play the match (it came too late to go in) stays, plays the next
+    one and leaves after it: Play is for a match, not for a trip back to the lobby.
+  - Joining the room (back after it left, or from inside it) makes one by Play a chosen
+    member. A match called off before its countdown was not played: nobody leaves.
+  - A room nobody is left in is gone, as always.
 - **Lost (game crashed, killed, link silent; or started anew):** the place is kept for about 90 s (the link's
   30 s + the session's 60 s), the member shown grey (`away`); Play within it goes back to the
   same seat, state kept (Play stays usable while their row says they play the match). After
   it the place is lost: they may join again as a new member. A game quit from its menu leaves
   the room at once.
+  - **Started anew** (the owner's of 2026-10-20: "i was in that weird state where the game was
+    not in a room, but i got thrown into a match regardless (twice)"): a new sign-in keeps the
+    place, but the room seats it in no match (nor sends it "match found"), and shows it grey,
+    until its new game is told the room: its movie asks where it is (at once, again every 2 s
+    until answered, then every 5 s outside a room), or it presses Play or Join match. Then it
+    plays as any member; one who comes while the match is played sees the room 15 s first. A
+    seat it had in the room's match stays its own: Play goes back to it. A new game not told
+    within 90 s of its sign-in loses the place.
 - **Leave match (its own word, 0xE0; the owner's of 2026-10-19):** takes the player out of
   its room as Leave does (not kicked; it may join again). Joining again while that match is
   played puts it into the same match as a late join (15 s or "Join match") as a new place,
@@ -45,7 +84,10 @@ The rules the code and the tests follow, the owner's of 2026-10-16 to 10-19. Cod
   counts (results, rewards, ratings, quests, map plays), the place it left for nothing.
 - **After a match (the owner's of 2026-10-20):** the results screen opens over the room's
   window: closing the results shows the room, not the lobby. A player in no room sees the
-  lobby after them, as before.
+  lobby after them, as before; so does one by Play that left with the match's end. The
+  movie still has the room of its last state when the results come, and opens the window
+  under them (`LobbyMenu.showRoomUnderResults`); `RoomsWindow.matchOver` asks the state at
+  once, and an answer of no room while the results are up hides the window again.
 - **Before each match:** once the minimum of players who can play is in, a vote on 3 cards
   (map + weather + mode) for the room's time to start: 15 s and the owner's wait together,
   10 s more after a match (players come back from results first), always whole, a full
@@ -54,6 +96,18 @@ The rules the code and the tests follow, the owner's of 2026-10-16 to 10-19. Cod
   on the card with most votes then, a tie or none drawn at random. Fewer members than the
   minimum stop it; a member changing kit stops nothing. A match that could not be made
   gives the room its wait again, the vote open, its votes kept.
+- **The match starts at the room's minimum** (the owner's of 2026-10-20: "threshold is 2
+  players though, not 4"; "just let people play, since rules are in rooms"; live, room 5209
+  sat in "Awaiting other players" with 2 of 5): the game itself waits for 80 % of the
+  match's places; the server starts it with who is in once that can't come (places given up
+  by Leave match) or 30 s after the first player is in, if the room's minimum is in with
+  one a side. A started countdown runs on whoever leaves. `match.md` §34.
+  - The room never makes a match of fewer than its minimum: a member whose game can't
+    play in it (an older game started anew) counts for nothing.
+  - Fewer than the minimum, or nobody of a side, in or still able to come (everyone left
+    too): the match is called off before its countdown, as one that could not be made
+    (the vote and the wait again, whole); nothing of it counts (no results, pay, rating,
+    quest, wear); its players see the results screen's spinner until they close it.
 - **Who plays:** a member whose kit can't play (no weapon, too little ammo) or whose
   equipment is over the max level is marked red, counts for nothing, and is taken out of the
   room when the match starts without it (code 13 / 12); it may rejoin.
@@ -101,7 +155,33 @@ The rules the code and the tests follow, the owner's of 2026-10-16 to 10-19. Cod
 - **Joining from the list:** the Join button, a double-click on a room, or Enter with one chosen
   (Up and Down choose the room above or below)
   (Queue for a full room; the PIN typed first for a private one).
+- **Joining a friend's room** (the owner's of 2026-10-20: "it should also be possible to rmb
+  on friend and join his room, if he is in a room"): a friend's right-click menu has "Join
+  room" while that friend is a member of a room ("Queue for room" when it is full); not while
+  the friend only waits in a room's queue, not for the player's own room. It joins as the
+  list's Join: the Rooms window opens on the list with that room chosen; a PIN room focuses
+  its PIN field (typed, then Join); a running match is the usual late join (the room first).
+  Only friends see a friend's room (the lobby answers from the asker's own friend list).
 - **Chat:** stays over the Rooms window.
+- **Room chat** (the owner's of 2026-10-20: "each room has its own chat", "and you should be
+  able to type in one", "there should be to the right of [General Chat] [Room Chat]"):
+  - Tabs read [General Chat] [Room Chat]: the room's tab right after General, only while in
+    a room ("Room Chat", uk "Чат кімнати", ru "Чат комнаты", de "Raum-Chat", pl "Czat
+    pokoju"; 84 px at most in the tab's 108 px text field).
+  - What a member types in it reaches its room's members, shown with its name as in the
+    other channels; another room's members, its queue and players in no room never see it.
+  - Members only: a room's queue is not in it; whoever is put in from the queue is.
+  - Entering the room any way (make, join, Play, the queue, Switch room, a late join) puts a
+    member in it; leaving, a kick, a switch, the room gone (disbanded, nobody left) take it
+    out. A switch shows the new room's chat.
+  - A newcomer's tab gets the room's last 20 lines (kept with the room; nothing outlives
+    it).
+  - "X joined the room" / "X left the room" lines, in blue, in the player's language.
+  - In a match it gets nothing (the match chat is untouched); after it, the tab is given the
+    last 20 lines again, what was said during the match among them.
+  - Moderation is the other channels': the lobby's flood limit, an ignored player's lines
+    not shown, the game's length limit and its censor.
+  - Wire: `social.md` §9.8, `lobby.md` §2.16.3 (2 060 000 030).
 - **In a room it shows** (the owner's of 2026-10-19: players did not know they were in one):
   the top bar's Rooms tab, label and icon, is yellow while the player is in a room; the
   Play button reads "Leave room" (in the case of the game's own Play label) in red and takes

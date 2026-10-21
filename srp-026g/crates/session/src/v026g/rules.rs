@@ -484,6 +484,8 @@ pub fn buy(
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Sold {
     pub item_id: u32,
+    /// The item's dictionary id.
+    pub dict_id: u16,
     /// What `83 47 01` carries: the units taken off a stack; 1 for an item
     /// that is no stack.
     pub amount: u32,
@@ -508,6 +510,7 @@ pub fn sell(account: &mut Account, item_id: u32, steps: u32) -> Result<Sold, Act
         .position(|item| item.item_id == item_id)
         .ok_or(ActionError::NoSuchItem)?;
     let owned = &account.inventory[index];
+    let dict_id = owned.dict_id;
     let is_stack = dictionary
         .item(owned.dict_id)
         .ok_or(ActionError::NoSuchItem)?
@@ -545,6 +548,7 @@ pub fn sell(account: &mut Account, item_id: u32, steps: u32) -> Result<Sold, Act
     account.sync_kits();
     Ok(Sold {
         item_id,
+        dict_id,
         amount,
         money,
     })
@@ -1859,6 +1863,7 @@ mod tests {
             sold,
             Sold {
                 item_id: bought[0].item_id,
+                dict_id: medkit,
                 amount: 3,
                 money: 3 * (record.cost / 4)
             }
