@@ -11,7 +11,7 @@
 //! | `46 05` place a decal | nothing: the client wrote the value itself and has no handler for an answer | `84 46`, then the inventory and the account |
 //! | `46 06` window opened | `83 46 06`, and `83 46 07` again for a change not chosen yet | `84 46` `st_cannot_select_rerolled_modification` |
 //! | `46 07` reroll | `83 46 07` and the money | `84 46`, then `83 46 06`: the window is locked until it is filled again |
-//! | `46 08` choose | `83 46 08` (the client changes its copies itself) | `84 46`, then `83 46 06` (and `07`) |
+//! | `46 08` choose | `83 46 08` (the client changes its copies itself; keeping the old one: the old one into itself) | `84 46`, then `83 46 06` (and `07`) |
 //! | `46 09` craft | `83 46 09`, then the inventory, the account and the money | `83 46 09 FE`: the window waits for a result, and shows `st_cannot_craft_item` for this one |
 //! | `47 03` repair | `83 47 03`, then the inventory (the client leaves the defects on its copy), the account and the money | `84 47` with the rule's text |
 //!
@@ -175,7 +175,9 @@ impl Core<'_> {
         }
     }
 
-    /// `46 08 <item> <old modification> <choice>`.
+    /// `46 08 <item> <old modification> <choice>`. Keeping the old one
+    /// is answered as a change of it into itself: the client's copies stay
+    /// as they are and the window shows the change over.
     pub(super) fn choose_modifier(&mut self, who: &Who, item_id: u32, old: u32, choice: u32) {
         let chosen = items_rules::choose_modifier(
             &mut who.account.locked(),
@@ -187,7 +189,11 @@ impl Core<'_> {
         match chosen {
             Ok(chosen) => {
                 self.accounts.mark_dirty(who.account_id);
-                self.squads_dirty = true;
+                if chosen.new_modification == chosen.old_modification {
+                    log::info!("{} keeps modification {old} of item {item_id}", who.name);
+                } else {
+                    self.squads_dirty = true;
+                }
                 let window = chosen.window;
                 let (changed, wait) = window.changed.unwrap_or((chosen.new_modification, 0));
                 debug_assert_eq!(changed, chosen.new_modification);

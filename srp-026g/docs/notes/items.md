@@ -94,7 +94,7 @@ own timer; `ItemControlPanel` shows `rerollTime / 60` minutes).
 | `46 05` | u32 active kit, **u32 host item, u32 cosmetic item**, u64 value | the decal editor 0x263950; the client then finds the host and the cosmetic's record and writes the value itself (0x270A1A..0x270AC6) |
 | `46 06` | u32 item | `item_reroll_opened` |
 | `46 07` | u32 item, u32 modification id (`item.mods[index]`), **bool gold** | `reroll_item_modifier(item, index, money type)` |
-| `46 08` | u32 item, u32 old modification id, **u32 the place of the choice (0..2)** | `modifier_choosed(item, index, modifiersList2.selectedIndex)`: the third is an index into the three offered, not an id |
+| `46 08` | u32 item, u32 old modification id, **u32 the place of the choice (0..2)**; srp's window sends 3 to keep the old one ([reroll-keep-old.md](reroll-keep-old.md)) | `modifier_choosed(item, index, modifiersList2.selectedIndex)`: the third is an index into the three offered, not an id |
 | `46 09` | **u32 item, u32 donor item, bool gold** | `craft_item(slot1.itemId, slot2.itemId, premium)` |
 | `47 03` | u32 item, u8 kind, u32 kit item if kind 2 | as before |
 
@@ -135,7 +135,8 @@ What the lobby checks or says itself (PROVEN, `lobby_menu.swf` and the
   available when paying with silver." Silver is disabled while the item's
   `reroll_time` runs; gold never. Not for a damaged item
   (`st_reroll_message_broken_item`). The window can not be closed between
-  the offer and the choice.
+  the offer and the choice. [srp, the owner's rule of 2026-10-21] Its Cancel button
+  then keeps the old modification ([reroll-keep-old.md](reroll-keep-old.md)).
 - Craft: both items not damaged and not in repair; both with fewer than
   three modifications; the item with no fewer than the donor
   (`st_craft_message_modifiers_difference`); not an equipped item while in
@@ -153,7 +154,7 @@ srp's reading of what only the server knew:
 | an item gets modifications of the types its mask names, one of a type, by `drop_weight` | LIKELY |
 | a dropped weapon or armour of rarity `n` gets `n` modifications | LIKELY (the rank shown is their count) |
 | a reroll offers three that fit in the replaced one's place (its own type too, another strength): of different types while the item has them, then other strengths of those, so an item of few types (a backpack, a balaclava) is offered three too | [srp] |
-| the payment is taken when the three are offered; an offer not chosen is kept and shown again when the window opens | [srp] |
+| the payment is taken when the three are offered, whatever is chosen, the old one kept too; an offer not chosen is kept (saved) and shown again when the window opens | [srp] |
 | each change of an item makes the next cost `reroll_modificator_multiplicator` (1.1) times more | GUESS: the number's use is not in the client; the per-item prices in `83 46 06`/`08` suggest the price was the item's own |
 | the donor must be another of the same item | LIKELY (the result window shows the donor's dictionary entry as the upgraded item); a golden weapon and its plain weapon count as the same item ([srp], the owner's rule of 2026-10-21, [golden_weapons.md](golden_weapons.md)) |
 | the craft's chance row is `rank(item) - rank(donor)`; success, then failure, then nothing | PROVEN for the row (the UI indexes it so); the roll is the server's |

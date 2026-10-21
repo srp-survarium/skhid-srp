@@ -24,10 +24,16 @@ package survarium.messages
    import survarium.data.LocalizationData;
    import survarium.constants.ModificationState;
    import survarium.constants.MoneyType;
-   
+   import survarium.constants.RerollChoice;
+   import survarium.rooms.RoomsText;
+
    public class MessageRerollItem extends MessageAccept
    {
-      
+
+      // The cancel button while the three are offered: the item keeps its modification (the change
+      // stays paid). English, Ukrainian, Russian, German, Polish.
+      private static const KEEP_OLD_LABEL:Array = ["Keep old","Не міняти","Не менять","Behalten","Zostaw stary"];
+
       public var lockedHint:ToolTip;
       
       public var buttonReroll:Button;
@@ -382,7 +388,7 @@ package survarium.messages
          btnAccept.y = backgroundBottom + 4 - buttonAreaHeight;
          btnCancel.y = btnAccept.y;
          btnAccept.label = LocalizationData.getName(!choosing ? "btn_reroll_change_label" : "btn_reroll_choose_label");
-         btnCancel.enabled = !choosing;
+         btnCancel.label = (!choosing ? LocalizationData.getName("cancel") : String(KEEP_OLD_LABEL[RoomsText.language()])).toUpperCase();
          btnClose.enabled = !choosing;
       }
       
@@ -444,6 +450,23 @@ package survarium.messages
             ExternalInterface.call("modifier_choosed",uint(_data.itemId),uint(selectedModifier),uint(this.modifiersList2.selectedIndex));
             this.lockWindow(true);
          }
+      }
+
+      // While the three are offered the cancel button keeps the old modification: the server's
+      // answer (83 46 08, the old one into itself) fills the window again, as after a choice.
+      override protected function onMessageCancel(event:ButtonEvent = null) : void
+      {
+         if(this.rerollContainer.visible)
+         {
+            super.onMessageCancel(event);
+            return;
+         }
+         if(event == null || event.currentTarget != btnCancel || this.modifiersList.selectedIndex < 0)
+         {
+            return;
+         }
+         ExternalInterface.call("modifier_choosed",uint(_data.itemId),uint(this.modifiersList.selectedIndex),RerollChoice.KEEP_OLD);
+         this.lockWindow(true);
       }
    }
 }

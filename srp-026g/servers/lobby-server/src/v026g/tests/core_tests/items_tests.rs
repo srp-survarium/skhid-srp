@@ -5,6 +5,7 @@
 use session::v026g::items_rules;
 use survarium::v026g::lobby::Crafted;
 use survarium::v026g::lobby::client_model::Decoded;
+use survarium::v026g::lobby::requests::KEEP_OLD_MODIFICATION;
 use survarium::v026g::modifications::Modifications;
 
 use super::*;
@@ -634,6 +635,79 @@ fn a_modification_is_rerolled_and_chosen() {
         denial(&world.take(alice), 0x46).as_deref(),
         Some("st_cannot_select_rerolled_modification")
     );
+    world.assert_clean();
+}
+
+/// `docs/notes/reroll-keep-old.md`: the window's "keep old", after the
+/// game was started again.
+#[test]
+fn a_rerolled_modification_may_be_kept() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    world.change(alice, |account| account.generic_money = 100_000);
+    let rifle = give(&mut world, alice, "ak_74m", &[2000, 2010]);
+
+    world.ask(alice, ask::reroll(rifle, 2000, false));
+    let decoded = world.take(alice);
+    let Decoded::Permitted(Permitted::RerollResult { choices, .. }) = decoded[0] else {
+        panic!("{:?}", decoded[0]);
+    };
+    assert_eq!(world.account(alice).generic_money, 100_000 - 2400);
+
+    // The game started again: the offer waits in the window, paid for.
+    let (account_id, _) = world.ids[alice];
+    let session = world.new_session(account_id);
+    let again = world.connect_session((account_id, session));
+    world.take(again);
+    world.ask(again, ask::open_reroll(rifle));
+    let decoded = world.take(again);
+    assert!(matches!(
+        decoded[1],
+        Decoded::Permitted(Permitted::RerollResult { choices: shown, .. }) if shown == choices
+    ));
+    assert_same_items(&mut world, again);
+
+    world.ask(again, ask::choose(rifle, 2000, KEEP_OLD_MODIFICATION));
+    let decoded = world.take(again);
+    let Decoded::Permitted(Permitted::ModifierChosen {
+        item_id,
+        old_modification,
+        new_modification,
+        rest,
+    }) = decoded[0]
+    else {
+        panic!("{:?}", decoded[0]);
+    };
+    assert_eq!(
+        (item_id, old_modification, new_modification),
+        (rifle, 2000, 2000)
+    );
+    // The change was made and paid: the next costs more.
+    assert_eq!(rest[..2], [2640, 13]);
+    assert_eq!(decoded.len(), 1);
+    assert_same_items(&mut world, again);
+    {
+        let account = world.account(again);
+        let item = account.item(rifle).unwrap();
+        assert_eq!(items_rules::own_modifications(item), [2000, 2010]);
+        assert_eq!(item.reroll.offer, None);
+        assert_eq!(account.generic_money, 100_000 - 2400);
+    }
+
+    // Answered: the window is the item's as it is, with no offer.
+    world.ask(again, ask::choose(rifle, 2000, KEEP_OLD_MODIFICATION));
+    let decoded = world.take(again);
+    assert_eq!(
+        denial(&decoded, 0x46).as_deref(),
+        Some("st_cannot_select_rerolled_modification")
+    );
+    assert!(matches!(
+        decoded.last(),
+        Some(Decoded::Permitted(Permitted::RerollWindow {
+            more: Some((2000, _)),
+            ..
+        }))
+    ));
     world.assert_clean();
 }
 
