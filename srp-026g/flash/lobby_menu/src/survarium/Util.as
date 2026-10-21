@@ -3,6 +3,7 @@ package survarium
    import avmplus.getQualifiedClassName;
    import flash.display.DisplayObject;
    import flash.display.Stage;
+   import survarium.constants.CharCode;
    
    public class Util
    {
@@ -156,7 +157,7 @@ package survarium
          while(i < _len)
          {
             charCode = value.charCodeAt(i);
-            if(charCode > 47 && charCode < 58 || charCode == 46)
+            if(charCode > CharCode.SLASH && charCode < CharCode.COLON || charCode == CharCode.PERIOD)
             {
                _finalString += value.charAt(i);
             }

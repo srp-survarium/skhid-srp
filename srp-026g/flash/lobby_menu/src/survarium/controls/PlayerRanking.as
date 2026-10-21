@@ -21,6 +21,16 @@ package survarium.controls
    public class PlayerRanking extends UIWindow
    {
       
+      // the tabs: the top 100 (top100) and the league around the player (my_place)
+      private static const TOP_TAB:int = 0;
+      
+      private static const MY_PLACE_TAB:int = 1;
+      
+      // the players a league shows, and the players before the player in "my place"
+      private static const LEAGUE_SIZE:int = 100;
+      
+      private static const HALF_LEAGUE:int = 50;
+      
       public var playerPlace:MovieClip;
       
       public var btnClanRank:Button;
@@ -91,7 +101,7 @@ package survarium.controls
       public function set totalPlayers(value:int) : void
       {
          _totalPlayers = value;
-         this._topLeague.length = Math.min(100,this._totalPlayers);
+         this._topLeague.length = Math.min(LEAGUE_SIZE,this._totalPlayers);
          var scrollIndex:int = this._start_index + this.list.scrollPosition;
          this.show_players_list(this._request_index,this._total_renderers,scrollIndex,false);
          invalidate(InvalidationType.SETTINGS);
@@ -136,7 +146,7 @@ package survarium.controls
             this._playersCache[playerIndex] = players[i];
             i++;
          }
-         if(this.tabBar.selectedIndex == 0)
+         if(this.tabBar.selectedIndex == TOP_TAB)
          {
             league = this._topLeague;
          }
@@ -172,8 +182,8 @@ package survarium.controls
             this._myLeague[i] = null;
             i++;
          }
-         this.request_players(0,100);
-         if(this.tabBar.selectedIndex != 0)
+         this.request_players(0,LEAGUE_SIZE);
+         if(this.tabBar.selectedIndex != TOP_TAB)
          {
             this.onIndexChange(null,true);
          }
@@ -190,13 +200,13 @@ package survarium.controls
       {
          this.tabBar.dataProvider = new DataProvider([{
             label:LocalizationData.getName("top100"),
-            id:0
+            id:TOP_TAB
          },{
             label:LocalizationData.getName("my_place"),
-            id:1
+            id:MY_PLACE_TAB
          }]);
          this.tabBar.addEventListener(ButtonEvent.CLICK,this.onIndexChange);
-         this.tabBar.selectedIndex = 0;
+         this.tabBar.selectedIndex = TOP_TAB;
       }
       
       protected function onListScroll(event:Event) : void
@@ -222,9 +232,9 @@ package survarium.controls
          {
             count = Math.max(0,this._totalPlayers - start);
          }
-         if(start + count - this._start_index > 100)
+         if(start + count - this._start_index > LEAGUE_SIZE)
          {
-            count = Math.max(0,100 - (start - this._start_index));
+            count = Math.max(0,LEAGUE_SIZE - (start - this._start_index));
          }
          if(count == 0)
          {
@@ -266,11 +276,11 @@ package survarium.controls
       protected function onIndexChange(event:Event, reload:Boolean = false) : void
       {
          trace("PR::change_league");
-         var leagueSize:uint = 100;
+         var leagueSize:uint = LEAGUE_SIZE;
          this.list.scrollBar.removeEventListener(Event.SCROLL,this.onListScroll);
          var scrollIndex:int = this._start_index + this.list.scrollPosition;
          var total:int;
-         if(this.tabBar.selectedIndex == 0)
+         if(this.tabBar.selectedIndex == TOP_TAB)
          {
             this.list.scrollPosition = 0;
             _lastScroll = 0;
@@ -280,16 +290,16 @@ package survarium.controls
             this.updateLocalPlayer(this._topLeague);
             this.list.dataProvider = new DataProvider(this._topLeague);
          }
-         else if(this.tabBar.selectedIndex == 1)
+         else if(this.tabBar.selectedIndex == MY_PLACE_TAB)
          {
             total = (this._totalPlayers);
-            if(this._player_data.place + 50 > total)
+            if(this._player_data.place + HALF_LEAGUE > total)
             {
                _start_index = Math.max(0,total - leagueSize);
             }
             else
             {
-               _start_index = Math.max(0,this._player_data.place - 50);
+               _start_index = Math.max(0,this._player_data.place - HALF_LEAGUE);
             }
             trace("init_my_league:: from:",this._start_index,"to:",this._start_index + leagueSize);
             this.list.scrollPosition = Math.max(0,this._player_data.place - this._start_index - this._total_renderers / 2);
@@ -365,7 +375,7 @@ package survarium.controls
       private function onPlayerRightClick(e:MouseEvent) : void
       {
          var ex:MouseEventEx = e as MouseEventEx;
-         if(ex == null || ex.buttonIdx != 1)
+         if(ex == null || ex.buttonIdx != MouseEventEx.RIGHT_BUTTON)
          {
             return;
          }

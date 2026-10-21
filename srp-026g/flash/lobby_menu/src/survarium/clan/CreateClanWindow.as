@@ -23,15 +23,10 @@ package survarium.clan
    import survarium.controls.SrvTextInput;
    import survarium.data.LocalizationData;
    import survarium.friends.FriendsMenu;
+   import survarium.constants.ClanState;
    
    public class CreateClanWindow extends UIComponent
    {
-      
-      public static const CLAN_RESERVE_STATE:uint = 0;
-      
-      public static const CLAN_REGISTRATION_STATE:uint = 1;
-      
-      public static const CLAN_INVITED_STATE:uint = 2;
       
       public var textFieldLabel:TextField;
       
@@ -111,7 +106,7 @@ package survarium.clan
       {
          super();
          this.lockArea.alpha = 0.7;
-         this.setState(CLAN_RESERVE_STATE);
+         this.setState(ClanState.RESERVE);
       }
       
       public function set totalPlayers(value:uint) : void
@@ -133,7 +128,7 @@ package survarium.clan
       public function setState(state:uint) : void
       {
          _state = state;
-         if(this._state < 3)
+         if(this._state < ClanState.OVERVIEW)
          {
             if(currentFrame != 1)
             {
@@ -144,21 +139,21 @@ package survarium.clan
          {
             gotoAndStop(2);
          }
-         this.btnAccept.visible = this.btnCancel.visible = this._state != CLAN_INVITED_STATE;
-         this.btnLeave.visible = this._state == CLAN_INVITED_STATE;
-         this.btnCancel.enabled = this.searchComponent.textInput.enabled = this._state == CLAN_REGISTRATION_STATE;
+         this.btnAccept.visible = this.btnCancel.visible = this._state != ClanState.INVITED;
+         this.btnLeave.visible = this._state == ClanState.INVITED;
+         this.btnCancel.enabled = this.searchComponent.textInput.enabled = this._state == ClanState.REGISTRATION;
          if(!this.btnCancel.enabled)
          {
             this.btnInvitePlayer.enabled = false;
          }
-         this.textInputClanName.enabled = this.textInputClanAbbreviation.enabled = this._state == CLAN_RESERVE_STATE;
-         this.clanInvitesList.enabled = this._state == CLAN_REGISTRATION_STATE;
-         this.textInputClanName.alpha = this.textInputClanAbbreviation.alpha = this._state == CLAN_RESERVE_STATE ? 1 : 0.7;
+         this.textInputClanName.enabled = this.textInputClanAbbreviation.enabled = this._state == ClanState.RESERVE;
+         this.clanInvitesList.enabled = this._state == ClanState.REGISTRATION;
+         this.textInputClanName.alpha = this.textInputClanAbbreviation.alpha = this._state == ClanState.RESERVE ? 1 : 0.7;
          this.clanInvitesList.alpha = this.clanInvitesList.enabled ? 1 : 0.5;
          this.btnReserveClanName.enabled = false;
-         this.moneyIcon2.visible = this.payRegistrationStepper.visible = this.btnPayRegistration.visible = this.textFieldCostValue.visible = this.moneyIcon.visible = this.textFieldRegister.visible = this._state != CLAN_RESERVE_STATE;
-         this.btnReserveClanName.visible = this._state == CLAN_RESERVE_STATE;
-         if(this._state == CLAN_RESERVE_STATE)
+         this.moneyIcon2.visible = this.payRegistrationStepper.visible = this.btnPayRegistration.visible = this.textFieldCostValue.visible = this.moneyIcon.visible = this.textFieldRegister.visible = this._state != ClanState.RESERVE;
+         this.btnReserveClanName.visible = this._state == ClanState.RESERVE;
+         if(this._state == ClanState.RESERVE)
          {
             this.lockArea.visible = true;
             this.lockArea.y = 233;

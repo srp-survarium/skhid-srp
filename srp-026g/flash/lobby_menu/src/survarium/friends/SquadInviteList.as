@@ -10,6 +10,7 @@ package survarium.friends
    import survarium.clan.ClanWindow;
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
+   import survarium.constants.ClanState;
    
    public class SquadInviteList extends UIComponent implements IDataRenderer
    {
@@ -56,7 +57,7 @@ package survarium.friends
             }
             else
             {
-               canAccept = ClanWindow.getState() == 0;
+               canAccept = ClanWindow.getState() == ClanState.RESERVE;
             }
          }
          trace("onInviteItemClick",canAccept,event.itemData,PlayerInfo.isInSquad,PlayerInfo.isInTeam);

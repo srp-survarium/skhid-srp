@@ -7,6 +7,7 @@ package survarium.controls
    import flash.utils.Dictionary;
    import scaleform.gfx.FocusManager;
    import survarium.messages.MessageBase;
+   import survarium.constants.MessageId;
    
    public class Message
    {
@@ -200,7 +201,7 @@ package survarium.controls
          }
       }
       
-      public static function showMessage(messageType:String, messageData:* = null, force:Boolean = false, messageId:uint = 0, keepCurrent:Boolean = false) : *
+      public static function showMessage(messageType:String, messageData:* = null, force:Boolean = false, messageId:uint = MessageId.AUTO, keepCurrent:Boolean = false) : *
       {
          trace("MESSAGE::showMessage::",messageId,messageType,force,"cur::",_currentRenderer,"hide::",_hideMessages,_stage.visible);
          if(!_stage)
@@ -213,7 +214,7 @@ package survarium.controls
          {
             return;
          }
-         if(messageId == 0)
+         if(messageId == MessageId.AUTO)
          {
             id = (_messIndex);
             ++_messIndex;

@@ -22,9 +22,13 @@ package survarium.controls
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.utils.Constraints;
    import survarium.buttons.ButtonFriends;
-   import survarium.chat.LobbyChat;
    import survarium.data.LocalizationData;
    import survarium.rooms.RoomsWindow;
+   import survarium.constants.CharCode;
+   import survarium.constants.ChatTab;
+   import survarium.constants.Language;
+   import survarium.constants.MatchJoinCode;
+   import survarium.constants.MatchPhase;
    
    public class BottomPanel extends UIComponent
    {
@@ -38,6 +42,53 @@ package survarium.controls
       public static const MATCHES_CARD_W:int = 382;
       
       public static const MATCHES_LEVEL_W:int = 110;
+      
+      // the "matches now" wire (srp's M2): the list asked at MATCHES_START, a join at JOIN_START + the match's key
+      public static const MATCHES_START:int = 2000000000;
+      
+      public static const JOIN_START:int = 2100000000;
+      
+      // the list's format: M1 rows, or M2 rows (with the join code, the key and the match level)
+      public static const MATCHES_M1:int = 1;
+      
+      public static const MATCHES_M2:int = 2;
+      
+      // _matchesState: asked (no list yet), listed, no answer
+      public static const MATCHES_ASKING:int = 0;
+      
+      public static const MATCHES_LISTED:int = 1;
+      
+      public static const MATCHES_NO_ANSWER:int = 2;
+      
+      // the words of matchesText; MATCHES_SAY_NONE: no word said
+      public static const MATCHES_SAY_NONE:int = -1;
+      
+      public static const MATCHES_WORD_TITLE:int = 0;
+      
+      public static const MATCHES_WORD_NONE:int = 1;
+      
+      public static const MATCHES_WORD_WAITING:int = 2;
+      
+      public static const MATCHES_WORD_STARTING:int = 3;
+      
+      public static const MATCHES_WORD_JOINING:int = 4;
+      
+      public static const MATCHES_WORD_FULL:int = 5;
+      
+      public static const MATCHES_WORD_CLOSED:int = 6;
+      
+      public static const MATCHES_WORD_CANNOT_JOIN:int = 7;
+      
+      public static const MATCHES_WORD_NO_ANSWER:int = 8;
+      
+      // MatchJoinCode.BALANCED..QUEUED have their words at MATCHES_WORD_REASONS + code (9..20)
+      public static const MATCHES_WORD_REASONS:int = 7;
+      
+      // meaning unknown: the movie drops a match key above it
+      public static const MATCHES_KEY_MAX:int = 99999999;
+      
+      // meaning unknown: the movie drops a match level above it
+      public static const MATCH_LEVEL_MAX:int = 999;
       
       public var tabsBar:ButtonBarBottom;
       
@@ -95,7 +146,7 @@ package survarium.controls
       
       protected var _matchesJoinAt:int = 0;
       
-      protected var _matchesSayKey:int = -1;
+      protected var _matchesSayKey:int = BottomPanel.MATCHES_SAY_NONE;
       
       protected var _matchesSayAt:int = 0;
       
@@ -113,11 +164,11 @@ package survarium.controls
       
       protected var _matchesDemoStep:int = 0;
       
-      protected var _matchesState:int = 0;
+      protected var _matchesState:int = BottomPanel.MATCHES_ASKING;
       
       protected var _matchesAnswered:Boolean = false;
       
-      protected var _matchesStart:int = 2000000000;
+      protected var _matchesStart:int = BottomPanel.MATCHES_START;
       
       protected var _matchesCount:int = 32;
       
@@ -168,7 +219,7 @@ package survarium.controls
                   {
                      place = Number(first.place);
                      name = String(first.nickname);
-                     if(place >= 2000000000)
+                     if(place >= BottomPanel.MATCHES_START)
                      {
                         taken = true;
                      }
@@ -179,7 +230,7 @@ package survarium.controls
                   }
                   if(taken && BottomPanel.matchesHolder)
                   {
-                     if(place >= 2100000000 || name.indexOf("J1;") == 0)
+                     if(place >= BottomPanel.JOIN_START || name.indexOf("J1;") == 0)
                      {
                         BottomPanel.matchesHolder.matchesJoinAnswer(name);
                      }
@@ -444,23 +495,23 @@ package survarium.controls
       
       protected function matchesWhyKey(code:int) : int
       {
-         if(code >= 2 && code <= 13)
+         if(code >= MatchJoinCode.BALANCED && code <= MatchJoinCode.QUEUED)
          {
-            return 7 + code;
+            return BottomPanel.MATCHES_WORD_REASONS + code;
          }
-         return -1;
+         return BottomPanel.MATCHES_SAY_NONE;
       }
       
       protected function matchesWord() : String
       {
-         return this.matchesText(0);
+         return this.matchesText(BottomPanel.MATCHES_WORD_TITLE);
       }
       
       protected function onMatchesLocal(value:String) : void
       {
          var i:int = 0;
          var friends:Array = this.matchesTable().friends;
-         this._matchesLang = 0;
+         this._matchesLang = Language.EN;
          i = 1;
          while(i < friends.length)
          {
@@ -571,7 +622,7 @@ package survarium.controls
          {
             this._matchesJoinKey = 0;
             this._matchesDemoWait = false;
-            this._matchesSayKey = -1;
+            this._matchesSayKey = BottomPanel.MATCHES_SAY_NONE;
             this.matchesShowSay();
          }
          if(value && !this._matchesWindow)
@@ -598,9 +649,9 @@ package survarium.controls
       protected function matchesBegin(now:int) : void
       {
          var age:int = now - this._matchesDataAt;
-         if(this._matchesState != 1 || age < 0 || age >= 6000)
+         if(this._matchesState != BottomPanel.MATCHES_LISTED || age < 0 || age >= 6000)
          {
-            this._matchesState = 0;
+            this._matchesState = BottomPanel.MATCHES_ASKING;
             this._matchesData = [];
          }
          this._matchesAnswered = false;
@@ -649,7 +700,7 @@ package survarium.controls
       
       protected function matchesCanJoin(row:Object) : Boolean
       {
-         return this._matchesVersion == 2 && row && row.join == true && int(row.key) > 0;
+         return this._matchesVersion == BottomPanel.MATCHES_M2 && row && row.join == true && int(row.key) > 0;
       }
       
       protected function onMatchesJoinClick(e:Event) : void
@@ -675,7 +726,7 @@ package survarium.controls
                   now = getTimer();
                   this._matchesJoinKey = int(row.key);
                   this._matchesJoinAt = now;
-                  this.matchesSay(-1,now);
+                  this.matchesSay(BottomPanel.MATCHES_SAY_NONE,now);
                   this.matchesRender();
                   this.matchesJoinAsk(this._matchesJoinKey,now);
                }
@@ -688,7 +739,7 @@ package survarium.controls
       
       protected function matchesJoinAsk(key:int, now:int) : void
       {
-         var start:int = 2100000000;
+         var start:int = BottomPanel.JOIN_START;
          var count:int = 1;
          start += key;
          if(BottomPanel.MATCHES_DEMO)
@@ -709,7 +760,7 @@ package survarium.controls
       
       public function matchesJoinAnswer(name:String) : void
       {
-         var say:int = 7;
+         var say:int = BottomPanel.MATCHES_WORD_CANNOT_JOIN;
          var result:String = null;
          var now:int = getTimer();
          var fields:Array = name.split(";");
@@ -741,11 +792,11 @@ package survarium.controls
          }
          if(result == "full")
          {
-            say = 5;
+            say = BottomPanel.MATCHES_WORD_FULL;
          }
          else if(result == "gone")
          {
-            say = 6;
+            say = BottomPanel.MATCHES_WORD_CLOSED;
          }
          if(fields.length >= 4 && this.matchesWhyKey(this.matchesNumber(fields[3])) >= 0)
          {
@@ -827,9 +878,9 @@ package survarium.controls
                   heard = this._matchesHeardAt;
                   limit = 12000;
                }
-               if(this._matchesState != 2 && now - heard >= limit)
+               if(this._matchesState != BottomPanel.MATCHES_NO_ANSWER && now - heard >= limit)
                {
-                  this._matchesState = 2;
+                  this._matchesState = BottomPanel.MATCHES_NO_ANSWER;
                   this._matchesData = [];
                   this.matchesRender();
                }
@@ -847,12 +898,12 @@ package survarium.controls
                {
                   this._matchesJoinKey = 0;
                   this._matchesDemoWait = false;
-                  this.matchesSay(8,now);
+                  this.matchesSay(BottomPanel.MATCHES_WORD_NO_ANSWER,now);
                   this.matchesRender();
                }
                if(this._matchesSayKey >= 0 && (now - this._matchesSayAt >= 8000 || now - this._matchesSayAt < 0))
                {
-                  this.matchesSay(-1,now);
+                  this.matchesSay(BottomPanel.MATCHES_SAY_NONE,now);
                }
             }
          }
@@ -867,10 +918,10 @@ package survarium.controls
          var row:Object = null;
          var list:Array = [];
          var now:int = getTimer();
-         this._matchesVersion = 1;
+         this._matchesVersion = BottomPanel.MATCHES_M1;
          if(rows.length > 0 && rows[0] && String(rows[0].nickname).indexOf("M2;") == 0)
          {
-            this._matchesVersion = 2;
+            this._matchesVersion = BottomPanel.MATCHES_M2;
          }
          i = 0;
          while(i < rows.length)
@@ -883,7 +934,7 @@ package survarium.controls
             i++;
          }
          this._matchesData = list;
-         this._matchesState = 1;
+         this._matchesState = BottomPanel.MATCHES_LISTED;
          this._matchesAnswered = true;
          this._matchesHeardAt = now;
          this._matchesDataAt = now;
@@ -930,7 +981,7 @@ package survarium.controls
                   if(fields.length >= 10)
                   {
                      key = this.matchesNumber(fields[9]);
-                     if(key < 1 || key > 99999999)
+                     if(key < 1 || key > BottomPanel.MATCHES_KEY_MAX)
                      {
                         key = -1;
                      }
@@ -938,7 +989,7 @@ package survarium.controls
                   if(fields.length >= 11)
                   {
                      matchLevel = this.matchesNumber(fields[10]);
-                     if(matchLevel > 999)
+                     if(matchLevel > BottomPanel.MATCH_LEVEL_MAX)
                      {
                         matchLevel = -1;
                      }
@@ -954,7 +1005,7 @@ package survarium.controls
                         "team1":team1,
                         "score":score,
                         "played":this.matchesNumber(fields[7]),
-                        "join":join == 1,
+                        "join":join == MatchJoinCode.MAY_JOIN,
                         "why":join,
                         "key":key,
                         "matchLevel":matchLevel
@@ -984,11 +1035,11 @@ package survarium.controls
          while(i < text.length)
          {
             code = int(text.charCodeAt(i));
-            if(code < 48 || code > 57)
+            if(code < CharCode.ZERO || code > CharCode.NINE)
             {
                return -1;
             }
-            result = result * 10 + (code - 48);
+            result = result * 10 + (code - CharCode.ZERO);
             i++;
          }
          return result;
@@ -1005,7 +1056,7 @@ package survarium.controls
          {
             rows.push({
                "nickname":texts[i],
-               "place":2000000000 + i,
+               "place":BottomPanel.MATCHES_START + i,
                "ranking":0,
                "ranking_diff":0
             });
@@ -1024,7 +1075,7 @@ package survarium.controls
          this._matchesDemoStep += 1;
          BottomPanel.matchesTake([{
             "nickname":"J1;ok;" + (String(this._matchesDemoKey + 1000)),
-            "place":2100000000,
+            "place":BottomPanel.JOIN_START,
             "ranking":0,
             "ranking_diff":0
          }]);
@@ -1032,7 +1083,7 @@ package survarium.controls
          {
             BottomPanel.matchesTake([{
                "nickname":"J1;" + result + ";" + String(this._matchesDemoKey) + codes[step],
-               "place":2100000000,
+               "place":BottomPanel.JOIN_START,
                "ranking":0,
                "ranking_diff":0
             }]);
@@ -1489,24 +1540,24 @@ package survarium.controls
          {
             this.matchesPut(rec.result,score,10266277);
          }
-         if(row.phase == 0)
+         if(row.phase == MatchPhase.GATHERING)
          {
-            word = this.matchesText(2);
+            word = this.matchesText(BottomPanel.MATCHES_WORD_WAITING);
          }
-         else if(row.phase == 1)
+         else if(row.phase == MatchPhase.COUNTDOWN)
          {
-            word = this.matchesText(3);
+            word = this.matchesText(BottomPanel.MATCHES_WORD_STARTING);
             wordColour = 16704178;
          }
          canJoin = this._matchesJoinKey == 0 && this.matchesCanJoin(row);
-         if(word == "" && !canJoin && this._matchesVersion == 2 && this.matchesWhyKey(int(row.why)) >= 0)
+         if(word == "" && !canJoin && this._matchesVersion == BottomPanel.MATCHES_M2 && this.matchesWhyKey(int(row.why)) >= 0)
          {
             word = this.matchesText(this.matchesWhyKey(int(row.why)));
             wordColour = 16704178;
          }
          if(this._matchesJoinKey != 0 && int(row.key) == this._matchesJoinKey)
          {
-            word = this.matchesText(4);
+            word = this.matchesText(BottomPanel.MATCHES_WORD_JOINING);
             wordColour = 16704178;
          }
          this.matchesPutFit(rec,word,wordColour);
@@ -1531,7 +1582,7 @@ package survarium.controls
          var minutes:int = 0;
          var seconds:int = 0;
          var text:String = "";
-         if(row.phase >= 2 && row.played >= 0)
+         if(row.phase >= MatchPhase.PLAYING && row.played >= 0)
          {
             total = int(row.played) + int((now - this._matchesDataAt) / 1000);
             minutes = int(total / 60);
@@ -1624,13 +1675,13 @@ package survarium.controls
          }
          if(this._matchesData.length == 0)
          {
-            if(this._matchesState == 0)
+            if(this._matchesState == BottomPanel.MATCHES_ASKING)
             {
                note = "…";
             }
             else
             {
-               note = this.matchesText(1);
+               note = this.matchesText(BottomPanel.MATCHES_WORD_NONE);
             }
          }
          this.matchesPut(this._matchesNote,note,8356742);
@@ -1673,11 +1724,11 @@ package survarium.controls
          var general:int = -1;
          for(var i:int = 0; i < this._tabs.length; i++)
          {
-            if(this._tabs[i].id == LobbyChat.ROOM_TAB)
+            if(this._tabs[i].id == ChatTab.ROOM)
             {
                room = i;
             }
-            else if(this._tabs[i].id == LobbyChat.GENERAL_TAB)
+            else if(this._tabs[i].id == ChatTab.GENERAL)
             {
                general = i;
             }

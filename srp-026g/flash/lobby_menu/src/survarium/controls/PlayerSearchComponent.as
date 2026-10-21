@@ -18,6 +18,7 @@ package survarium.controls
    import scaleform.clik.events.InputEvent;
    import scaleform.clik.ui.InputDetails;
    import survarium.data.LocalizationData;
+   import survarium.constants.FriendStatus;
    
    public class PlayerSearchComponent extends UIComponent
    {
@@ -311,7 +312,7 @@ package survarium.controls
             while(i < players.length)
             {
                status = (players[i].status);
-               if(status != 2)
+               if(status != FriendStatus.OFFLINE)
                {
                   result.push(players[i]);
                }

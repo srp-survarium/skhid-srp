@@ -7,6 +7,11 @@ package survarium.rooms
     import flash.events.MouseEvent;
     import flash.text.TextField;
     import flash.utils.getTimer;
+    import survarium.constants.RoomCode;
+    import survarium.constants.RoomFit;
+    import survarium.constants.RoomPhase;
+    import survarium.constants.UiSound;
+    import survarium.constants.GameMode;
 
     // The asker's room, after the design: what it is, the banner with the
     // countdown, the vote (always there) and the members, each place of the
@@ -14,8 +19,8 @@ package survarium.rooms
     // level that takes us.
     public class RoomsRoom
     {
-        // The vote's alert: the game's (6, its important message's), not
-        // the match's own start (15), the owner's; once a vote, when 10 s
+        // The vote's alert: the game's (UiSound.INVITE, its important
+        // message's), not the match's own start (UiSound.MATCH_FOUND), the owner's; once a vote, when 10 s
         // or less are left of it (the vote runs until the match starts, the
         // owner's of 2026-10-19), also with the window hidden.
         private static const ALERT_SECS:int = 10;
@@ -51,12 +56,12 @@ package survarium.rooms
             look.text(look._content, info, 16, 50, look._w - 32, 15, RoomsLook.GREY);
             // The banner: the phase and its time.
             var band:Shape = new Shape();
-            band.graphics.beginFill(room.phase == 0 ? 0x0A0E12 : 0x3C280C, 0.85);
+            band.graphics.beginFill(room.phase == RoomPhase.WAITING ? 0x0A0E12 : 0x3C280C, 0.85);
             band.graphics.drawRect(1, 76, look._w - 2, 50);
             band.graphics.endFill();
             look._content.addChild(band);
             _bannerLabel = look.text(look._content, "", 16, 90, 300, 15, RoomsLook.GREY);
-            _banner = look.text(look._content, "", 260, 82, 200, 30, room.phase == 0 ? RoomsLook.LIGHT : RoomsLook.GOLD);
+            _banner = look.text(look._content, "", 260, 82, 200, 30, room.phase == RoomPhase.WAITING ? RoomsLook.LIGHT : RoomsLook.GOLD);
             _bannerHint = look.text(look._content, "", 440, 91, look._w - 456, 15, RoomsLook.GREY);
             banner();
             var y:Number = 140;
@@ -88,19 +93,19 @@ package survarium.rooms
                 shade.graphics.beginFill(RoomsLook.GOLD, 1);
                 shade.graphics.drawRect(12, ch - 10, (cw - 24) * Math.min(1, share), 5);
                 shade.graphics.endFill();
-                var chosen:Boolean = room.phase == 1 && card.map == room.next;
+                var chosen:Boolean = room.phase == RoomPhase.COUNTDOWN && card.map == room.next;
                 shade.graphics.lineStyle(card.mine || chosen ? 3 : 1, chosen ? 0xFFFFFF : card.mine ? RoomsLook.GOLD : 0x26323C);
                 shade.graphics.drawRect(0, 0, cw, ch);
                 cell.addChild(shade);
                 // The vote is shut during the wait: its map marked, the rest dim.
-                if (room.phase == 1 && !chosen)
+                if (room.phase == RoomPhase.COUNTDOWN && !chosen)
                     cell.alpha = 0.45;
                 if (chosen)
                     look.text(cell, win.say("nextMap").toUpperCase(), cw - 120, 13, 108, 13, 0xFFFFFF, "right");
                 if (e != null)
                 {
                     var tag:Shape = new Shape();
-                    tag.graphics.lineStyle(1, e.mode == 4 ? 0xB23A2A : 0x5A8FB5);
+                    tag.graphics.lineStyle(1, e.mode == GameMode.TEAM_DEATHMATCH ? 0xB23A2A : 0x5A8FB5);
                     tag.graphics.beginFill(0x000000, 0.7);
                     tag.graphics.drawRect(10, 10, cw * 0.55, 24);
                     tag.graphics.endFill();
@@ -117,7 +122,7 @@ package survarium.rooms
                 look.route(cell, function(control:DisplayObject, e:MouseEvent):void
                 {
                     RoomsLook.clickSound();
-                    win.ask(RoomsWire.VOTE + Math.max(0, Math.min(2, int(control.name))), 1);
+                    win.ask(RoomsWire.VOTE + Math.max(0, Math.min(RoomsWire.LAST_CARD, int(control.name))), 1);
                 });
                 look._content.addChild(cell);
             }
@@ -167,12 +172,12 @@ package survarium.rooms
                 inner.addChild(hitArea);
                 _roomHits.push({"control": hitArea, "name": member.name, "place": m,
                     "how": LobbyMenu.PLAYER_INFO_BY_ROOM_PLACE,
-                    "player": m + 20 * (int(room.serial) % 495)});
-                look.text(inner, String(member.gear), mx, my + mid + 1, 26, 14, member.fit == 2 ? RoomsLook.RED : RoomsLook.DIM, "right");
+                    "player": m + RoomsWire.MEMBERS_MAX * (int(room.serial) % RoomsWire.KICK_CHECKS)});
+                look.text(inner, String(member.gear), mx, my + mid + 1, 26, 14, member.fit == RoomFit.GEAR ? RoomsLook.RED : RoomsLook.DIM, "right");
                 // A red mark: this kit cannot play the next match as it is
                 // now; the match starts without it and takes it out of the room.
                 var nameX:Number = mx + 34;
-                if (member.fit != 0)
+                if (member.fit != RoomFit.YES)
                 {
                     var mark:Shape = new Shape();
                     mark.graphics.beginFill(RoomsLook.RED, 1);
@@ -224,18 +229,18 @@ package survarium.rooms
                 for (var i:int = 0; i < win._room.members.length; i++)
                     if (win._room.members[i].me)
                         return win._room.members[i].fit;
-            return 0;
+            return RoomFit.YES;
         }
 
         internal function alertNear():void
         {
-            if (win._room == null || win._room.phase != 3 || _alerted)
+            if (win._room == null || win._room.phase != RoomPhase.VOTE || _alerted)
                 return;
             var left:int = win._room.secs - int((getTimer() - win._roomAt) / 1000);
             if (left <= ALERT_SECS)
             {
                 _alerted = true;
-                RoomsLook.gameSound(6);
+                RoomsLook.gameSound(UiSound.INVITE);
             }
         }
 
@@ -246,14 +251,14 @@ package survarium.rooms
                 return;
             var passed:int = int((getTimer() - win._roomAt) / 1000);
             var fit:int = myFit();
-            var unfit:String = fit == 1 ? win.say("unfitKit") : fit == 2 ? win.say("unfitGear") : "";
-            if (win._room.phase == 3)
+            var unfit:String = fit == RoomFit.KIT ? win.say("unfitKit") : fit == RoomFit.GEAR ? win.say("unfitGear") : "";
+            if (win._room.phase == RoomPhase.VOTE)
             {
                 _bannerLabel.text = win.say("voting").toUpperCase();
                 _banner.text = RoomsText.clock(win._room.secs - passed);
                 _bannerHint.text = unfit != "" ? unfit : win.say("voteNow");
             }
-            else if (win._room.phase == 1)
+            else if (win._room.phase == RoomPhase.COUNTDOWN)
             {
                 _bannerLabel.text = win.say("starts").toUpperCase();
                 _banner.text = RoomsText.clock(win._room.secs - passed);
@@ -261,7 +266,7 @@ package survarium.rooms
                 _bannerHint.text = unfit != "" ? unfit : (e != null ? win.say("nextMap") + ": " + win.levelName(e.level) + " · "
                     + win.weatherName(e.weather) + " · " + win.modeName(e.mode) : "");
             }
-            else if (win._room.phase == 2)
+            else if (win._room.phase == RoomPhase.IN_MATCH)
             {
                 _bannerLabel.text = win.say("playing").toUpperCase();
                 _banner.text = RoomsText.clock(win._room.secs + passed);
@@ -306,7 +311,7 @@ package survarium.rooms
             if (to == null || win._steps.length > 0)
                 return;
             win.busy(e);
-            win._code = 0;
+            win._code = RoomCode.NONE;
             win.ask(RoomsWire.JOIN + to.key, 1);
             win._fastUntil = getTimer() + 5000;
         }
@@ -314,7 +319,7 @@ package survarium.rooms
         private function onVote(e:Event):void
         {
             RoomsLook.clickSound();
-            win.ask(RoomsWire.VOTE + Math.max(0, Math.min(2, int(e.currentTarget.name))), 1);
+            win.ask(RoomsWire.VOTE + Math.max(0, Math.min(RoomsWire.LAST_CARD, int(e.currentTarget.name))), 1);
         }
 
         private function onKick(e:Event):void
@@ -322,7 +327,7 @@ package survarium.rooms
             // The place in the list this state gave, and that state's serial:
             // a kick from an older list does nothing.
             if (win._room != null)
-                win.ask(RoomsWire.KICK + int(e.currentTarget.data) + 20 * (int(win._room.serial) % 495), 1);
+                win.ask(RoomsWire.KICK + int(e.currentTarget.data) + RoomsWire.MEMBERS_MAX * (int(win._room.serial) % RoomsWire.KICK_CHECKS), 1);
         }
 
         // The whole name of the member at that place of our room (the state

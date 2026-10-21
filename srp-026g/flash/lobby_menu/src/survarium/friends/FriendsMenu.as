@@ -28,6 +28,7 @@ package survarium.friends
    import survarium.data.LocalizationData;
    import survarium.interfaces.IFriendsList;
    import survarium.interfaces.ISubSystem;
+   import survarium.constants.FriendStatus;
    
    public class FriendsMenu extends UIComponent implements IFriendsList, ISubSystem
    {
@@ -164,7 +165,7 @@ package survarium.friends
          {
             if(playerName == _friends[i].name)
             {
-               if(_friends[i].status != 2)
+               if(_friends[i].status != FriendStatus.OFFLINE)
                {
                   return true;
                }
@@ -184,7 +185,7 @@ package survarium.friends
             i = 0;
             while(i < players.length)
             {
-               if(players[i].status != 2)
+               if(players[i].status != FriendStatus.OFFLINE)
                {
                   online.push(players[i]);
                }
@@ -301,7 +302,7 @@ package survarium.friends
          while(i < players.length)
          {
             players[i].status_text = getStatus(players[i].status);
-            if(isFriends && players[i].status != 2)
+            if(isFriends && players[i].status != FriendStatus.OFFLINE)
             {
                ++this._online;
             }
@@ -503,7 +504,7 @@ package survarium.friends
       
       protected function keyDownHandler(event:KeyboardEvent) : void
       {
-         if(event.keyCode == 13 && this.text_inpput.textField.text.length > 2)
+         if(event.keyCode == Keyboard.ENTER && this.text_inpput.textField.text.length > 2)
          {
             this.hideHint();
             this.requestPlayersList();
@@ -677,7 +678,7 @@ package survarium.friends
                      separator = {
                         status_text:players[i].status_text,
                         isSeparator:true,
-                        status:-1
+                        status:FriendStatus.SEPARATOR
                      };
                      lastStatus = (players[i].status);
                      players.splice(i,0,separator);

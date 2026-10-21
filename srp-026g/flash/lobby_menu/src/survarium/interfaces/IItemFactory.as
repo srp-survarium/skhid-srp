@@ -2,13 +2,14 @@ package survarium.interfaces
 {
    import survarium.data.ItemData;
    import survarium.data.ItemDescriptor;
+   import survarium.constants.Faction;
    
    public interface IItemFactory
    {
       
       function createBaseItem(dictId:uint) : ItemData;
       
-      function createItem(dictId:uint, seller:* = -1) : ItemData;
+      function createItem(dictId:uint, seller:* = Faction.ANY) : ItemData;
       
       function createItemData(value:Object) : ItemData;
       

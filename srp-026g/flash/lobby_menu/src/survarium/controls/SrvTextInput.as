@@ -5,6 +5,8 @@ package survarium.controls
    import flash.events.TextEvent;
    import flash.external.ExternalInterface;
    import scaleform.clik.controls.TextInput;
+   import flash.ui.Keyboard;
+   import survarium.constants.UiSound;
    
    public class SrvTextInput extends TextInput
    {
@@ -86,21 +88,21 @@ package survarium.controls
          else if(event.type == KeyboardEvent.KEY_DOWN)
          {
             keyEvent = event as KeyboardEvent;
-            if(keyEvent.keyCode == 46 && textField.caretIndex <= textField.length - 1)
+            if(keyEvent.keyCode == Keyboard.DELETE && textField.caretIndex <= textField.length - 1)
             {
-               ExternalInterface.call("sound_play",8);
+               ExternalInterface.call("sound_play",UiSound.BACKSPACE);
                _last_input = textField.caretIndex;
             }
-            else if(keyEvent.keyCode == 8 && textField.caretIndex >= 1)
+            else if(keyEvent.keyCode == Keyboard.BACKSPACE && textField.caretIndex >= 1)
             {
-               ExternalInterface.call("sound_play",8);
+               ExternalInterface.call("sound_play",UiSound.BACKSPACE);
                _last_input = textField.caretIndex - 1;
             }
-            else if((keyEvent.keyCode == 37 || keyEvent.keyCode == 36) && textField.caretIndex >= 1)
+            else if((keyEvent.keyCode == Keyboard.LEFT || keyEvent.keyCode == Keyboard.HOME) && textField.caretIndex >= 1)
             {
                this.playSound();
             }
-            else if((keyEvent.keyCode == 39 || keyEvent.keyCode == 35) && textField.caretIndex <= textField.length - 1)
+            else if((keyEvent.keyCode == Keyboard.RIGHT || keyEvent.keyCode == Keyboard.END) && textField.caretIndex <= textField.length - 1)
             {
                this.playSound();
             }
@@ -113,7 +115,7 @@ package survarium.controls
       
       private function playSound() : void
       {
-         ExternalInterface.call("sound_play",4);
+         ExternalInterface.call("sound_play",UiSound.TYPE);
       }
    }
 }

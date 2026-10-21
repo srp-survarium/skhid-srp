@@ -19,19 +19,14 @@ package survarium.clan
    import survarium.controls.PlayerSearchComponent;
    import survarium.controls.SrvContextMenu;
    import survarium.data.LocalizationData;
+   import survarium.constants.ClanState;
+   import survarium.constants.ClanTeamRole;
+   import survarium.constants.MessageId;
    
    public class TournamentWindow extends UIComponent
    {
       
       private static var _isCommander:Boolean = false;
-      
-      public static const STATE_COMMANDER:uint = 0;
-      
-      public static const STATE_SOLDIER:uint = 1;
-      
-      public static const STATE_RESERVE:uint = 2;
-      
-      public static const STATE_INVITES:uint = 3;
       
       public static const TOGGLE_FOLD:String = "toggleFold";
       
@@ -106,7 +101,7 @@ package survarium.clan
       
       public function init() : void
       {
-         _isAdmin = ClanWindow.getState() == 4;
+         _isAdmin = ClanWindow.getState() == ClanState.MANAGE;
          this.btnDisbandTeam.label = this._isAdmin ? LocalizationData.getName("btn_disband_clan_team") : LocalizationData.getName("btn_leave_clan_team");
          ExternalInterface.call("clan_team_window_opened");
          this.updateButtons();
@@ -170,7 +165,7 @@ package survarium.clan
       
       public function setPlayersData(players:Array) : void
       {
-         _hasCommander = players.length && players[0].status == 0;
+         _hasCommander = players.length && players[0].status == ClanTeamRole.COMMANDER;
          _isCommander = this._hasCommander && players[0].name == PlayerInfo.nickname;
          trace("TW::setPlayersData",this._hasCommander,_isCommander);
          _inTeam = false;
@@ -179,8 +174,8 @@ package survarium.clan
          while(i < players.length)
          {
             status = (players[i].status);
-            players[i].movableUp = _isCommander && (status == STATE_INVITES || status == STATE_RESERVE);
-            players[i].movableDown = _isCommander && status == STATE_SOLDIER;
+            players[i].movableUp = _isCommander && (status == ClanTeamRole.INVITES || status == ClanTeamRole.RESERVE);
+            players[i].movableDown = _isCommander && status == ClanTeamRole.SOLDIER;
             players[i].favoritable = this._isAdmin;
             if(players[i].name == PlayerInfo.nickname)
             {
@@ -211,7 +206,7 @@ package survarium.clan
                      separator = {
                         status_text:LocalizationData.getName(this._statusLabels[players[i].status]),
                         isSeparator:true,
-                        status:-1
+                        status:ClanTeamRole.SEPARATOR
                      };
                      lastStatus = (players[i].status);
                      players.splice(i,0,separator);
@@ -280,11 +275,11 @@ package survarium.clan
             else if(event.target.name == "btnMovePlayerUp" || event.target.name == "btnMovePlayer")
             {
                selectedName = player.name;
-               if(player.status == STATE_SOLDIER || player.status == STATE_INVITES)
+               if(player.status == ClanTeamRole.SOLDIER || player.status == ClanTeamRole.INVITES)
                {
                   this.moveToReserve();
                }
-               else if(player.status == STATE_RESERVE)
+               else if(player.status == ClanTeamRole.RESERVE)
                {
                   this.moveToTeam();
                }
@@ -320,7 +315,7 @@ package survarium.clan
             renderer = event.target;
          }
          trace("onMouseItemClick:::",event.target,event.currentTarget,renderer);
-         if(event.buttonIdx == 0 || this.playersList.enabled == false)
+         if(event.buttonIdx == MouseEventEx.LEFT_BUTTON || this.playersList.enabled == false)
          {
             return;
          }
@@ -334,18 +329,18 @@ package survarium.clan
             return;
          }
          var player:Object = renderer.data;
-         var isClanAdmin:Boolean = ClanWindow.getState() == 4;
+         var isClanAdmin:Boolean = ClanWindow.getState() == ClanState.MANAGE;
          var isLeader:Boolean = _isCommander;
          var menuItems:Array = new Array();
          trace("isCommander::",isLeader,isClanAdmin);
-         if(player.status == STATE_COMMANDER)
+         if(player.status == ClanTeamRole.COMMANDER)
          {
             menuItems.push({
                name:LocalizationData.getName("oust_commander"),
                click_function:this.oustCommander
             });
          }
-         if(player.status == STATE_SOLDIER && isLeader && this._inTeam)
+         if(player.status == ClanTeamRole.SOLDIER && isLeader && this._inTeam)
          {
             menuItems.push({
                name:LocalizationData.getName("move_to_reserve"),
@@ -356,7 +351,7 @@ package survarium.clan
                click_function:this.removeFromTeam
             });
          }
-         if(player.status == STATE_RESERVE && isLeader && this._inTeam)
+         if(player.status == ClanTeamRole.RESERVE && isLeader && this._inTeam)
          {
             menuItems.push({
                name:LocalizationData.getName("move_to_team"),
@@ -367,7 +362,7 @@ package survarium.clan
                click_function:this.removeFromTeam
             });
          }
-         if(player.status == STATE_INVITES && isLeader && this._inTeam)
+         if(player.status == ClanTeamRole.INVITES && isLeader && this._inTeam)
          {
             menuItems.push({
                name:LocalizationData.getName("move_to_reserve"),
@@ -384,8 +379,8 @@ package survarium.clan
       
       private function moveToTeam() : void
       {
-         trace("change_status_clan_team_member",this.selectedName,STATE_SOLDIER);
-         ExternalInterface.call("change_status_clan_team_member",this.selectedName,STATE_SOLDIER);
+         trace("change_status_clan_team_member",this.selectedName,ClanTeamRole.SOLDIER);
+         ExternalInterface.call("change_status_clan_team_member",this.selectedName,ClanTeamRole.SOLDIER);
       }
       
       private function removeFromTeam() : void
@@ -396,8 +391,8 @@ package survarium.clan
       
       private function moveToReserve() : void
       {
-         trace("change_status_clan_team_member",this.selectedName,STATE_RESERVE);
-         ExternalInterface.call("change_status_clan_team_member",this.selectedName,STATE_RESERVE);
+         trace("change_status_clan_team_member",this.selectedName,ClanTeamRole.RESERVE);
+         ExternalInterface.call("change_status_clan_team_member",this.selectedName,ClanTeamRole.RESERVE);
       }
       
       private function moveToCommander() : void
@@ -502,7 +497,7 @@ package survarium.clan
             label_ok:LocalizationData.getName("ok"),
             label_cancel:LocalizationData.getName("cancel")
          };
-         Message.showMessage("apply",messageData,true,0,true);
+         Message.showMessage("apply",messageData,true,MessageId.AUTO,true);
       }
       
       protected function closeWindow() : void

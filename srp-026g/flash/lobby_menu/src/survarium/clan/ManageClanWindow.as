@@ -28,13 +28,15 @@ package survarium.clan
    import survarium.controls.SrvContextMenu;
    import survarium.data.LocalizationData;
    import survarium.friends.FriendsMenu;
+   import survarium.constants.ClanState;
    
    public class ManageClanWindow extends UIComponent
    {
       
-      public static const CLAN_OVERVIEW_STATE:uint = 3;
+      // the window's tabs (mainTabBar): the members and the settings
+      private static const MEMBERS_TAB:int = 0;
       
-      public static const CLAN_MANAGE_STATE:uint = 4;
+      private static const SETTINGS_TAB:int = 1;
       
       public var textFieldClan:TextField;
       
@@ -105,7 +107,7 @@ package survarium.clan
       public function ManageClanWindow()
       {
          super();
-         this.setState(CLAN_OVERVIEW_STATE);
+         this.setState(ClanState.OVERVIEW);
       }
       
       public function setClanProgress(minimum:uint, maximum:uint, current:uint, players:uint, level:uint) : void
@@ -123,18 +125,18 @@ package survarium.clan
       public function setState(value:uint) : void
       {
          _state = value;
-         var isAdmin:Boolean = this._state == CLAN_MANAGE_STATE;
+         var isAdmin:Boolean = this._state == ClanState.MANAGE;
          this.checkRanksEnabled(this.clanSettings.ranksList.selectedIndex);
          this.clanManage.btnLeaveClan.label = isAdmin ? LocalizationData.getName("btn_disband_clan_label") : LocalizationData.getName("btn_leave_clan_label");
-         if((this.mainTabBar.getButtonAt(1)))
+         if((this.mainTabBar.getButtonAt(SETTINGS_TAB)))
          {
-            this.mainTabBar.getButtonAt(1).enabled = isAdmin;
+            this.mainTabBar.getButtonAt(SETTINGS_TAB).enabled = isAdmin;
          }
       }
       
       private function checkRanksEnabled(index:int = 0) : void
       {
-         var isAdmin:Boolean = this._state == CLAN_MANAGE_STATE;
+         var isAdmin:Boolean = this._state == ClanState.MANAGE;
          this.clanSettings.checkBoxInviteRight.enabled = this.clanSettings.checkBoxKickRight.enabled = this.clanSettings.checkBoxChangeRankRight.enabled = this.clanSettings.checkBoxDailyMessageRight.enabled = this.clanSettings.checkBoxBattleCommanderRight.enabled = isAdmin && index > 0;
       }
       
@@ -206,7 +208,7 @@ package survarium.clan
       
       private function checkAddRankEnabled() : void
       {
-         var isAdmin:Boolean = this._state == CLAN_MANAGE_STATE;
+         var isAdmin:Boolean = this._state == ClanState.MANAGE;
          this.clanSettings.btnAddRank.enabled = isAdmin && this._freeRankSlotsAvailable;
       }
       
@@ -256,7 +258,7 @@ package survarium.clan
       private function onMouseItemClick(e:MouseEventEx) : void
       {
          var activeItem:*;
-         if(e.buttonIdx == 0)
+         if(e.buttonIdx == MouseEventEx.LEFT_BUTTON)
          {
             return;
          }
@@ -409,12 +411,12 @@ package survarium.clan
       
       private function onMainTabBarIndexChange(e:IndexEvent) : void
       {
-         if(this.clanSettings.visible && this.mainTabBar.selectedIndex == 0)
+         if(this.clanSettings.visible && this.mainTabBar.selectedIndex == MEMBERS_TAB)
          {
             ExternalInterface.call("clan_members_tab_opened");
          }
-         this.clanManage.visible = this.mainTabBar.selectedIndex == 0;
-         this.clanSettings.visible = this.mainTabBar.selectedIndex == 1;
+         this.clanManage.visible = this.mainTabBar.selectedIndex == MEMBERS_TAB;
+         this.clanSettings.visible = this.mainTabBar.selectedIndex == SETTINGS_TAB;
       }
       
       private function onNewIndex(e:ListEvent) : void
@@ -434,7 +436,7 @@ package survarium.clan
       
       private function leaveClan(e:ButtonEvent) : void
       {
-         var call:String = this._state == CLAN_OVERVIEW_STATE ? "leave_clan" : ExternalInterface.call("disband_clan");
+         var call:String = this._state == ClanState.OVERVIEW ? "leave_clan" : ExternalInterface.call("disband_clan");
          trace("onLeaveClan::",call);
          ExternalInterface.call(call);
       }

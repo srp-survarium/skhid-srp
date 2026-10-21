@@ -17,6 +17,10 @@ package survarium.friends
    import survarium.data.LocalizationData;
    import survarium.rooms.RoomsText;
    import survarium.rooms.RoomsWindow;
+   import survarium.constants.ClaimReason;
+   import survarium.constants.CommentKind;
+   import survarium.constants.FriendStatus;
+   import survarium.constants.ImportantMessageAnswer;
 
    public class FriendListRender extends ListItemBase
    {
@@ -171,11 +175,11 @@ package survarium.friends
          {
             this.status_indicator.gotoAndStop("offline");
          }
-         else if(_data.status == 0)
+         else if(_data.status == FriendStatus.LOBBY)
          {
             this.status_indicator.gotoAndStop("online");
          }
-         else if(_data.status == 1)
+         else if(_data.status == FriendStatus.IN_GAME)
          {
             this.status_indicator.gotoAndStop("ingame");
          }
@@ -249,16 +253,16 @@ package survarium.friends
          var claimOptions:Array;
          if(!data.ignored)
          {
-            if(_data.status == -1)
+            if(_data.status == FriendStatus.SEPARATOR)
             {
                return;
             }
             menuItems = [];
             playerName = data.name;
             alreadyIgnored = FriendsMenu.isIgnored(playerName);
-            inFriendList = _data.status == 0 || _data.status == 1 || _data.status == 2 || _data.status == 3;
-            canMessage = _data.status == 0 || _data.status == 1 || _data.status == 4;
-            canInvite = _data.status == 0 || _data.status == 1 || _data.status == 3;
+            inFriendList = _data.status == FriendStatus.LOBBY || _data.status == FriendStatus.IN_GAME || _data.status == FriendStatus.OFFLINE || _data.status == FriendStatus.AWAY;
+            canMessage = _data.status == FriendStatus.LOBBY || _data.status == FriendStatus.IN_GAME || _data.status == FriendStatus.INVITE;
+            canInvite = _data.status == FriendStatus.LOBBY || _data.status == FriendStatus.IN_GAME || _data.status == FriendStatus.AWAY;
             isStranger = _data.status == undefined;
             if(isStranger)
             {
@@ -303,29 +307,29 @@ package survarium.friends
                   name:LocalizationData.getName("bot_or_cheater_claim"),
                   click_function:this.flagPlayer,
                   callBack:true,
-                  index:1,
-                  subIndex:1
+                  index:CommentKind.CLAIM,
+                  subIndex:ClaimReason.BOT_OR_CHEATER
                });
                claimOptions.push({
                   name:LocalizationData.getName("swearing_claim"),
                   click_function:this.flagPlayer,
                   callBack:true,
-                  index:1,
-                  subIndex:2
+                  index:CommentKind.CLAIM,
+                  subIndex:ClaimReason.SWEARING
                });
                claimOptions.push({
                   name:LocalizationData.getName("non_sport_behavior_claim"),
                   click_function:this.flagPlayer,
                   callBack:true,
-                  index:1,
-                  subIndex:3
+                  index:CommentKind.CLAIM,
+                  subIndex:ClaimReason.NON_SPORT_BEHAVIOR
                });
                claimOptions.push({
                   name:LocalizationData.getName("account_trading_claim"),
                   click_function:this.flagPlayer,
                   callBack:true,
-                  index:1,
-                  subIndex:4
+                  index:CommentKind.CLAIM,
+                  subIndex:ClaimReason.ACCOUNT_TRADING
                });
                menuItems.push({
                   name:LocalizationData.getName("claim_player"),
@@ -377,13 +381,13 @@ package survarium.friends
       
       protected function handleButtonClick(event:ButtonEvent) : void
       {
-         var answer:uint = event.target == this.btn_acccept ? 0 : 1;
+         var answer:uint = event.target == this.btn_acccept ? ImportantMessageAnswer.ACCEPT : ImportantMessageAnswer.DECLINE;
          this.btn_acccept.enabled = false;
          this.btn_cancel.enabled = false;
          _data.sended = true;
          dispatchEvent(new Event(Event.CONNECT,true));
          var messageType:uint = (_data.type);
-         if(data.id != 666)
+         if(data.id != LobbyMenu.TEST_IMPORTANT_MESSAGE_ID)
          {
             ExternalInterface.call("important_message_read",data.id,answer,messageType);
          }
@@ -401,7 +405,7 @@ package survarium.friends
          {
             return;
          }
-         if(event.buttonIdx == 1 && _data.name)
+         if(event.buttonIdx == MouseEventEx.RIGHT_BUTTON && _data.name)
          {
             this.showContextMenu();
          }

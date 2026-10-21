@@ -72,7 +72,7 @@ package survarium.friends
          mouseChildren = true;
          this.leadIcon.visible = _data.index == 0;
          this.playerName.text = _data.name;
-         this.playerName.textColor = _data.index == 0 ? Colors.PLAYER : 16777215;
+         this.playerName.textColor = _data.index == 0 ? Colors.PLAYER : Colors.WHITE;
          this.iconReady.visible = _data.ready && !this.leadIcon.visible;
          this.objectIcon.gotoAndStop(_data.weapon + 1);
          if(this.readyBack)
@@ -131,7 +131,7 @@ package survarium.friends
          {
             return;
          }
-         if(event.buttonIdx == 1)
+         if(event.buttonIdx == MouseEventEx.RIGHT_BUTTON)
          {
             menuItems = [];
             if(_data.name != PlayerInfo.nickname)

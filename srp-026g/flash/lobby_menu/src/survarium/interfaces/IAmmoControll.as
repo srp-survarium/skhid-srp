@@ -2,6 +2,7 @@ package survarium.interfaces
 {
    import flash.events.Event;
    import flash.events.IEventDispatcher;
+   import survarium.constants.AmmoView;
    import scaleform.clik.interfaces.IDataProvider;
    
    public interface IAmmoControll extends IEventDispatcher
@@ -21,7 +22,7 @@ package survarium.interfaces
       
       function registerInventory(inventory:*) : void;
       
-      function reflow(event:Event = null, caller:String = "null", elementIndex:int = -2) : void;
+      function reflow(event:Event = null, caller:String = "null", elementIndex:int = AmmoView.USE_PAPERDOLL_SELECTION) : void;
    }
 }
 

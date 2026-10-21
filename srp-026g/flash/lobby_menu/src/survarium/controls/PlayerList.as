@@ -6,6 +6,7 @@ package survarium.controls
    import scaleform.clik.controls.ScrollingList;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.events.ListEvent;
+   import survarium.constants.TeamSide;
    
    public class PlayerList extends MovieClip
    {
@@ -167,7 +168,7 @@ package survarium.controls
             }
             i++;
          }
-         if(team == 1)
+         if(team == TeamSide.ALLY)
          {
             teamDP = this._team1DP;
          }
@@ -207,7 +208,7 @@ package survarium.controls
             }
             i++;
          }
-         if(team == 1)
+         if(team == TeamSide.ALLY)
          {
             teamDP = this._team1DP;
          }
@@ -293,7 +294,7 @@ package survarium.controls
             {
                this._players[i].score = 0;
             }
-            if(this._players[i].team == 1)
+            if(this._players[i].team == TeamSide.ALLY)
             {
                this._team1.push(this._players[i]);
             }

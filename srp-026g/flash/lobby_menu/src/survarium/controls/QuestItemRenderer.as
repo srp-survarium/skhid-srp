@@ -12,6 +12,7 @@ package survarium.controls
    import scaleform.clik.data.DataProvider;
    import survarium.Util;
    import survarium.data.LocalizationData;
+   import survarium.constants.QuestStatus;
    
    public class QuestItemRenderer extends ListItemRenderer
    {
@@ -207,7 +208,7 @@ package survarium.controls
                      this.questStatusContainer.visible = true;
                      this.questStatusContainer.textField.alpha = 0.8;
                      this.questStatusContainer.textField.text = LocalizationData.getName(String("quest_status_" + _data.status));
-                     if(_data.status == 3)
+                     if(_data.status == QuestStatus.FAILED)
                      {
                         this.rewardField.visible = this.rewardsHint.visible = this.rewardBar.visible = false;
                      }

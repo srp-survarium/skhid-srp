@@ -14,11 +14,16 @@ package survarium.rooms
     import flash.utils.getDefinitionByName;
     import flash.utils.getTimer;
     import scaleform.gfx.MouseEventEx;
-    import survarium.chat.LobbyChat;
     import survarium.controls.BottomPanel;
     import survarium.controls.Message;
     import survarium.controls.SrvContextMenu;
     import survarium.controls.TopMenu;
+    import survarium.constants.JoinHold;
+    import survarium.constants.RoomCode;
+    import survarium.constants.RoomPhase;
+    import survarium.constants.ChatChannel;
+    import survarium.constants.ChatTab;
+    import survarium.constants.Language;
 
     // Rooms, the players' "servers" (srp's own; the wire is lobby.md 2.16.3,
     // contract S1, RoomsWire), the only way PvP matches are made. The top
@@ -64,7 +69,7 @@ package survarium.rooms
         private var _panel:BottomPanel;
         // The lobby, from its first set_play_button_enabled on.
         private var _lobby:LobbyMenu;
-        internal var _lang:int = 0;
+        internal var _lang:int = Language.EN;
         internal var _gear:int = 0;
         internal var _shown:Boolean = false;
         internal var _view:String = "list";
@@ -83,7 +88,7 @@ package survarium.rooms
         internal var _total:int = 0;
         internal var _room:Object = null;
         internal var _roomAt:int = 0;
-        internal var _code:int = 0;
+        internal var _code:int = RoomCode.NONE;
         internal var _pool:Array = [];
         internal var _poolTotal:int = -1;
         internal var _steps:Array = [];
@@ -119,7 +124,7 @@ package survarium.rooms
         internal var _seen:Object = null;
         private var _membersKey:int = 0;
         private var _membersAt:int = 0;
-        // The room whose chat tab is up (LobbyChat.ROOM_TAB); 0: none.
+        // The room whose chat tab is up (ChatTab.ROOM); 0: none.
         private var _chatKey:int = 0;
         // Who waits for the friends' rooms (FriendListRender's menu).
         private var _friendRooms:Function = null;
@@ -349,8 +354,8 @@ package survarium.rooms
             _chatKey = key;
             try
             {
-                _lobby.add_tab({"id": LobbyChat.ROOM_TAB, "name": say("roomChat"), "channels": [LobbyChat.ROOM_CHANNEL],
-                    "channel_to_send": LobbyChat.ROOM_CHANNEL, "closable": false, "save_history": true});
+                _lobby.add_tab({"id": ChatTab.ROOM, "name": say("roomChat"), "channels": [ChatChannel.ROOM],
+                    "channel_to_send": ChatChannel.ROOM, "closable": false, "save_history": true});
                 ask(RoomsWire.CHAT, 1);
             }
             catch (e:Error)
@@ -396,7 +401,7 @@ package survarium.rooms
                 show(true);
             // A member sees its room's view: the list is where a join is.
             _view = "list";
-            _code = 0;
+            _code = RoomCode.NONE;
             listView.joinFriend(room);
         }
 
@@ -404,7 +409,7 @@ package survarium.rooms
         internal function askList():void
         {
             _listAt = getTimer();
-            ask(RoomsWire.LIST, 32);
+            ask(RoomsWire.LIST, RoomsWire.LIST_ASK_ROWS);
         }
 
         private function dropChatTab():void
@@ -414,7 +419,7 @@ package survarium.rooms
             _chatKey = 0;
             try
             {
-                _lobby.remove_tab(LobbyChat.ROOM_TAB);
+                _lobby.remove_tab(ChatTab.ROOM);
             }
             catch (e:Error)
             {
@@ -477,7 +482,7 @@ package survarium.rooms
 
         public function quickPlay():void
         {
-            _code = 0;
+            _code = RoomCode.NONE;
             _steps = [];
             if (!_shown)
                 show(true);
@@ -648,7 +653,7 @@ package survarium.rooms
             if (_poolTotal < 0 && _steps.length == 0 && _now - _poolAskedAt >= 3000)
             {
                 _poolAskedAt = _now;
-                ask(RoomsWire.POOL, 31);
+                ask(RoomsWire.POOL, RoomsWire.POOL_ASK_ROWS);
                 return;
             }
             if (_steps.length == 0)
@@ -661,7 +666,7 @@ package survarium.rooms
                 else if (_shown && _view == "list" && _now - _listAt >= 3000)
                 {
                     _listAt = _now;
-                    ask(RoomsWire.LIST, 32);
+                    ask(RoomsWire.LIST, RoomsWire.LIST_ASK_ROWS);
                 }
                 // Outside a room too: asked again until answered, then every
                 // 5 s, so a room the server holds us in always shows.
@@ -763,7 +768,7 @@ package survarium.rooms
                         "mode": int(p[4]), "extra": p[5] == "1"});
                 }
                 if (_pool.length < _poolTotal && rows.length > 1)
-                    ask(RoomsWire.POOL + page + 1, 31);
+                    ask(RoomsWire.POOL + page + 1, RoomsWire.POOL_ASK_ROWS);
                 else
                 {
                     createView.defaultPool();
@@ -814,7 +819,7 @@ package survarium.rooms
                 _queuePlace = queuePlace;
                 // Our own word (a PIN not of 4 digits) stays until the
                 // server has one of its own.
-                if (code == 0 && _code < 0)
+                if (code == RoomCode.NONE && _code < RoomCode.NONE)
                     code = _code;
                 var newCode:Boolean = code != _code;
                 _code = code;
@@ -846,11 +851,11 @@ package survarium.rooms
                 _room = {"key": int(head[2]), "level": int(head[3]), "max": int(head[4]), "size": int(head[5]),
                     "wait": int(head[6]), "phase": int(head[7]), "secs": int(head[8]), "owner": head[9] == "1",
                     "pool": int(head[10]), "serial": int(head[12]), "pin": head[13] == "1", "next": int(head[14]), "min": int(head[15]),
-                    "cards": [], "members": [], "last": 0, "switchTo": null, "joinIn": -1, "joinWhy": 0};
+                    "cards": [], "members": [], "last": 0, "switchTo": null, "joinIn": -1, "joinWhy": JoinHold.NONE};
                 _roomAt = getTimer();
                 // A new vote (another room, or after its match): its alert
                 // may sound again (`alertNear`).
-                if (was == null || was.key != _room.key || was.phase != 3)
+                if (was == null || was.key != _room.key || was.phase != RoomPhase.VOTE)
                     roomView._alerted = false;
                 for (var k:int = 1; k < rows.length; k++)
                 {
@@ -865,7 +870,7 @@ package survarium.rooms
                     {
                         // `J;<seconds>`, or `J;-1;<why>`: it cannot go in now.
                         _room.joinIn = int(r[1]);
-                        _room.joinWhy = r.length > 2 ? int(r[2]) : 0;
+                        _room.joinWhy = r.length > 2 ? int(r[2]) : JoinHold.NONE;
                     }
                     else if (r[0] == "W")
                         _room.switchTo = {"key": int(r[1]), "max": int(r[2]), "players": int(r[3]),
@@ -873,7 +878,7 @@ package survarium.rooms
                     else if (r[0] == "L")
                         _room.last = int(r[1]);
                 }
-                _code = 0;
+                _code = RoomCode.NONE;
                 applyPlay();
                 var parts:Array = [];
                 for (var q:int = 0; q < rows.length; q++)
@@ -899,18 +904,18 @@ package survarium.rooms
         // A level of 0 is any level.
         internal function levelText(level:int):String
         {
-            return level == 0 ? say("any") : String(level);
+            return level == RoomsWire.LEVEL_ANY ? say("any") : String(level);
         }
 
         // A listed room's state: waiting (for how many more), the countdown,
         // or its match and how long it has been played.
         internal function phaseText(room:Object):String
         {
-            if (room.phase == 3)
+            if (room.phase == RoomPhase.VOTE)
                 return say("voting") + " " + RoomsText.clock(room.secs);
-            if (room.phase == 1)
+            if (room.phase == RoomPhase.COUNTDOWN)
                 return say("countdown") + " " + RoomsText.clock(room.secs);
-            if (room.phase == 2)
+            if (room.phase == RoomPhase.IN_MATCH)
                 return say("inMatch") + " " + RoomsText.clock(room.secs);
             return say("waitingShort");
         }
@@ -1041,8 +1046,8 @@ package survarium.rooms
 
         internal function message(y:Number):void
         {
-            if (_code != 0)
-                look.text(look._content, _code < 0 ? say("pin4") : say("code" + _code), 14, y, look._w - 28, 15, 0xFF8A7A);
+            if (_code != RoomCode.NONE)
+                look.text(look._content, _code < RoomCode.NONE ? say("pin4") : say("code" + _code), 14, y, look._w - 28, 15, 0xFF8A7A);
         }
 
         private function tabLabel():void
@@ -1058,8 +1063,8 @@ package survarium.rooms
                 return;
             }
             var left:int = _room.secs - int((getTimer() - _roomAt) / 1000);
-            var tail:String = _room.phase == 1 || _room.phase == 3 ? RoomsText.clock(left)
-                : _room.phase == 2 ? say("inMatch") : _room.members.length + "/" + _room.size * 2;
+            var tail:String = _room.phase == RoomPhase.COUNTDOWN || _room.phase == RoomPhase.VOTE ? RoomsText.clock(left)
+                : _room.phase == RoomPhase.IN_MATCH ? say("inMatch") : _room.members.length + "/" + _room.size * 2;
             setTab(say("room") + " " + tail);
         }
 
@@ -1086,7 +1091,7 @@ package survarium.rooms
         // A PIN of other than 4 digits: said, nothing sent.
         internal function pinRefused():void
         {
-            _code = -1;
+            _code = RoomCode.PIN_NOT_4_DIGITS;
             render();
         }
 
@@ -1095,7 +1100,7 @@ package survarium.rooms
             try
             {
                 var ex:MouseEventEx = e as MouseEventEx;
-                if (ex == null || ex.buttonIdx != 1)
+                if (ex == null || ex.buttonIdx != MouseEventEx.RIGHT_BUTTON)
                     return;
                 var hits:Array = _view == "room" ? roomView._roomHits : listView._listHits;
                 for (var i:int = hits.length - 1; i >= 0; i--)

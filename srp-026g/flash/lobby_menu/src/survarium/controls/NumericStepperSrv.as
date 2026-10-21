@@ -7,6 +7,7 @@ package survarium.controls
    import scaleform.clik.controls.NumericStepper;
    import scaleform.clik.events.IndexEvent;
    import scaleform.clik.events.InputEvent;
+   import flash.ui.Keyboard;
    
    public class NumericStepperSrv extends NumericStepper
    {
@@ -131,7 +132,7 @@ package survarium.controls
       
       protected function checkInputKeyForSubmit(event:KeyboardEvent) : void
       {
-         if(event.keyCode == 13)
+         if(event.keyCode == Keyboard.ENTER)
          {
             event.stopImmediatePropagation();
             value = int(textField.text);

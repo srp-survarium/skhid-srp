@@ -5,6 +5,7 @@ package survarium.clan
    import survarium.controls.PlayerInfo;
    import survarium.controls.UIWindow;
    import survarium.data.LocalizationData;
+   import survarium.constants.ClanState;
    
    public class ClanWindow extends UIWindow
    {
@@ -110,7 +111,7 @@ package survarium.clan
       
       public function setState(state:uint) : void
       {
-         PlayerInfo.isClanManager = state == 1;
+         PlayerInfo.isClanManager = state == ClanState.REGISTRATION;
          if(this.lockBackground.visible)
          {
             this.lockBackground.visible = false;
@@ -118,7 +119,7 @@ package survarium.clan
             this.wheels.playAnimation(false);
          }
          _state = state;
-         if(_state < 3)
+         if(_state < ClanState.OVERVIEW)
          {
             this.manageClanRenderer.visible = false;
             this.createClanRenderer.visible = true;

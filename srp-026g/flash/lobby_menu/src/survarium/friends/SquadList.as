@@ -23,9 +23,13 @@ package survarium.friends
    import survarium.controls.SrvContextMenu;
    import survarium.data.LocalizationData;
    import survarium.interfaces.IFriendsList;
+   import survarium.constants.UiSound;
    
    public class SquadList extends UIComponent
    {
+      
+      // a squad's most members (crates/session/src/squads.rs)
+      private static const MAX_SQUAD_MEMBERS:int = 3;
       
       private static var _squadList:Array = [];
       
@@ -158,7 +162,7 @@ package survarium.friends
       
       protected function keyDownHandler(event:KeyboardEvent) : void
       {
-         if(event.keyCode == 13)
+         if(event.keyCode == Keyboard.ENTER)
          {
          }
       }
@@ -260,7 +264,7 @@ package survarium.friends
          TweenLite.to(this,0.2,{x:x + offset});
          TweenLite.to(this.border,0.2,{x:(this._hidden ? 93 - 7 : 93)});
          TweenLite.to(this.arrow,0.2,{x:(this._hidden ? 101 - 7 : 101)});
-         ExternalInterface.call("sound_play",16);
+         ExternalInterface.call("sound_play",UiSound.SQUAD_PANEL_SLIDE);
       }
       
       private function updateSize() : void
@@ -291,7 +295,7 @@ package survarium.friends
             i++;
          }
          PlayerInfo.isInSquad = memberCount > 0;
-         PlayerInfo.isSquadFull = memberCount == 3;
+         PlayerInfo.isSquadFull = memberCount == MAX_SQUAD_MEMBERS;
          this.onNewIndex();
       }
       
@@ -340,7 +344,7 @@ package survarium.friends
             type:savedType,
             weapon:savedWeapon
          };
-         _squadList.length = 3;
+         _squadList.length = MAX_SQUAD_MEMBERS;
          this.list.dataProvider = new DataProvider(_squadList);
          this.updateSize();
       }

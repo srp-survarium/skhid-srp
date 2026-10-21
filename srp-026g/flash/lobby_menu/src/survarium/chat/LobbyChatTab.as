@@ -20,6 +20,8 @@ package survarium.chat
    import scaleform.clik.core.UIComponent;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.events.ComponentEvent;
+   import survarium.constants.Cursor;
+   import survarium.constants.KeyCode;
    import survarium.controls.FixedTextDots;
    import survarium.data.LocalizationData;
    
@@ -264,7 +266,7 @@ package survarium.chat
          this.removeMoveListeners();
          if(event.target != this.back)
          {
-            ExternalInterface.call("set_mouse_cursor",1);
+            ExternalInterface.call("set_mouse_cursor",Cursor.ARROW);
          }
       }
       
@@ -272,19 +274,19 @@ package survarium.chat
       {
          if(mouseY < 50 && (event.target === this.back || event.target === this.dragger0 || event.target === this.dragger1))
          {
-            ExternalInterface.call("set_mouse_cursor",7);
+            ExternalInterface.call("set_mouse_cursor",Cursor.MOVE);
          }
          else if(event.target === this.dragger2)
          {
-            ExternalInterface.call("set_mouse_cursor",8);
+            ExternalInterface.call("set_mouse_cursor",Cursor.RESIZE_NESW);
          }
          else if(event.target === this.dragger3)
          {
-            ExternalInterface.call("set_mouse_cursor",9);
+            ExternalInterface.call("set_mouse_cursor",Cursor.RESIZE_NWSE);
          }
          else if(!(event.target is TextField) || event.target is TextField && (event.target as TextField).selectable == false)
          {
-            ExternalInterface.call("set_mouse_cursor",1);
+            ExternalInterface.call("set_mouse_cursor",Cursor.ARROW);
          }
       }
       
@@ -320,7 +322,7 @@ package survarium.chat
       {
          stage.removeEventListener(MouseEvent.MOUSE_MOVE,this.chResize);
          stage.removeEventListener(MouseEvent.MOUSE_UP,this.stopResize);
-         ExternalInterface.call("set_mouse_cursor",1);
+         ExternalInterface.call("set_mouse_cursor",Cursor.ARROW);
       }
       
       private function chMove(event:MouseEvent) : void
@@ -660,7 +662,7 @@ package survarium.chat
       protected function checkInputKeyForSubmit(event:KeyboardEvent) : void
       {
          trace("checkInputKeyForSubmit",event.keyCode);
-         if(event.keyCode == 150)
+         if(event.keyCode == KeyCode.CHAT_SUBMIT)
          {
             this.submitText();
          }

@@ -307,7 +307,7 @@ package survarium.controls
       {
          try
          {
-            var clan:Object = this.tabPage.dataProvider[3];
+            var clan:Object = this.tabPage.dataProvider[this.CLAN_INDEX];
             this._roomsTabOn = clan == null || clan.enabled !== false;
             this.tabPage.dataProvider[this.MAP_INDEX] = {
                "name":text,
@@ -326,7 +326,7 @@ package survarium.controls
       {
          try
          {
-            var clan:Object = this.tabPage.dataProvider[3];
+            var clan:Object = this.tabPage.dataProvider[this.CLAN_INDEX];
             if((clan == null || clan.enabled !== false) != this._roomsTabOn)
             {
                this.setRoomsTab(text);

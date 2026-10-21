@@ -14,6 +14,10 @@ package survarium.chat
    import scaleform.clik.events.IndexEvent;
    import scaleform.gfx.MouseEventEx;
    import scaleform.gfx.TextFieldEx;
+   import survarium.constants.ChatChannel;
+   import survarium.constants.ClaimReason;
+   import survarium.constants.CommentKind;
+   import survarium.constants.FriendStatus;
    import survarium.controls.ButtonBarBottom;
    import survarium.controls.PlayerInfo;
    import survarium.controls.SrvContextMenu;
@@ -72,16 +76,14 @@ package survarium.chat
       protected var _wasSelected:Boolean = false;
 
       // srp's chat of a room (the owner's of 2026-10-20: "each room has its
-      // own chat"): channel 10, no channel of the game's (its client sends a
-      // line typed in a tab of it with id 0, and gives a received one to the
-      // tabs that list it; social.md 9.8), and its tab, far from the game's
-      // ids (0 squad, 1 general, 2 clan, 3 match, 4 team, 5 clan team, then a
-      // private talk each). The rooms window puts the tab up while in a room.
-      public static const ROOM_CHANNEL:int = 10;
+      // own chat"): ChatChannel.ROOM, no channel of the game's (its client
+      // sends a line typed in a tab of it with id 0, and gives a received one
+      // to the tabs that list it; social.md 9.8), and its tab ChatTab.ROOM,
+      // far from the game's ids (ChatTab, then a private talk each). The rooms
+      // window puts the tab up while in a room.
 
-      public static const ROOM_TAB:uint = 1000000;
-
-      public static const GENERAL_TAB:uint = 1;
+      // clearIngnore clears the ignore state on its 12th call
+      private static const CLEAR_IGNORE_CALLS:int = 12;
 
       public function LobbyChat()
       {
@@ -189,7 +191,7 @@ package survarium.chat
                if(playerName == this._friends[i].name)
                {
                   status = (this._friends[i].status);
-                  isOnline = status == 0 || status == 1 || status == 3;
+                  isOnline = status == FriendStatus.LOBBY || status == FriendStatus.IN_GAME || status == FriendStatus.AWAY;
                   tab.statusIndicator.gotoAndStop(isOnline ? "online" : "offline");
                   tab.statusIndicator.tipData = {name:FriendsMenu.getStatus(status)};
                   tab.statusIndicator.visible = true;
@@ -464,7 +466,7 @@ package survarium.chat
       {
          trace("clearIngnore::",this._callCount);
          _callCount += 1;
-         if(this._callCount == 12 || force)
+         if(this._callCount == CLEAR_IGNORE_CALLS || force)
          {
             if(event)
             {
@@ -491,7 +493,7 @@ package survarium.chat
       
       override protected function get_styled_text(message:Object) : String
       {
-         if(int(message.type) == ROOM_CHANNEL)
+         if(int(message.type) == ChatChannel.ROOM)
          {
             this.roomLine(message);
          }
@@ -507,7 +509,7 @@ package survarium.chat
             return styled(message.time,TIME) + " " + styled(message.text,nameStyle);
          }
          clanPrefix = message.abbr ? "[" + message.abbr + "] " : "";
-         if(message.type == 2)
+         if(message.type == ChatChannel.SYSTEM)
          {
             return styled(message.time,TIME) + " " + styled(clanPrefix + linked(message.name + ": ","messager"),nameStyle) + " " + styledChar(message.text,nameStyle);
          }
@@ -822,7 +824,7 @@ package survarium.chat
                }
             }
             claimOptions = [];
-            if(this._lastIdx == 1 && this._lastName)
+            if(this._lastIdx == MouseEventEx.RIGHT_BUTTON && this._lastName)
             {
                menuItems = [];
                if(!isFriend)
@@ -851,7 +853,7 @@ package survarium.chat
                   });
                }
             }
-            else if(this._lastIdx == 0 && this._lastName && _activeTab != -1)
+            else if(this._lastIdx == MouseEventEx.LEFT_BUTTON && this._lastName && _activeTab != -1)
             {
                if(tab)
                {
@@ -865,32 +867,32 @@ package survarium.chat
                   nickname:this._lastName,
                   click_function:this.flagPlayer,
                   callBack:true,
-                  index:1,
-                  subIndex:1
+                  index:CommentKind.CLAIM,
+                  subIndex:ClaimReason.BOT_OR_CHEATER
                });
                claimOptions.push({
                   name:LocalizationData.getName("swearing_claim"),
                   nickname:this._lastName,
                   click_function:this.flagPlayer,
                   callBack:true,
-                  index:1,
-                  subIndex:2
+                  index:CommentKind.CLAIM,
+                  subIndex:ClaimReason.SWEARING
                });
                claimOptions.push({
                   name:LocalizationData.getName("non_sport_behavior_claim"),
                   nickname:this._lastName,
                   click_function:this.flagPlayer,
                   callBack:true,
-                  index:1,
-                  subIndex:3
+                  index:CommentKind.CLAIM,
+                  subIndex:ClaimReason.NON_SPORT_BEHAVIOR
                });
                claimOptions.push({
                   name:LocalizationData.getName("account_trading_claim"),
                   nickname:this._lastName,
                   click_function:this.flagPlayer,
                   callBack:true,
-                  index:1,
-                  subIndex:4
+                  index:CommentKind.CLAIM,
+                  subIndex:ClaimReason.ACCOUNT_TRADING
                });
                menuItems.push({
                   name:LocalizationData.getName("claim_player"),
@@ -928,7 +930,7 @@ package survarium.chat
       }
 
       // A line of a room's chat: a player's in the general chat's colour
-      // (the exe gives channel 10 none), the room's own (no sender: who
+      // (the exe gives ChatChannel.ROOM none), the room's own (no sender: who
       // joined or left) in blue and in the game's language.
       protected function roomLine(message:Object) : void
       {

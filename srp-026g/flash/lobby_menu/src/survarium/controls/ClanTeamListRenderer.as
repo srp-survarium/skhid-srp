@@ -3,6 +3,7 @@ package survarium.controls
    import flash.display.MovieClip;
    import scaleform.clik.controls.Button;
    import scaleform.clik.controls.ListItemRenderer;
+   import survarium.constants.ClanTeamRole;
    
    public class ClanTeamListRenderer extends ListItemRenderer
    {
@@ -38,8 +39,8 @@ package survarium.controls
          if(_data)
          {
             mouseChildren = true;
-            this.separator.visible = _data.status == -1;
-            this.favoritedIcon.visible = _data.status == 0 && !this.separator.visible;
+            this.separator.visible = _data.status == ClanTeamRole.SEPARATOR;
+            this.favoritedIcon.visible = _data.status == ClanTeamRole.COMMANDER && !this.separator.visible;
             this.playerName.visible = !this.separator.visible;
             isHovered = _state == "over" || _state == "down" || _selected;
             this.btnAddToFavorite.visible = !this.favoritedIcon.visible && !this.separator.visible && isHovered && _data.favoritable;

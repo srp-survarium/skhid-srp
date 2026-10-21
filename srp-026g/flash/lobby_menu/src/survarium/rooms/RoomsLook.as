@@ -18,6 +18,7 @@ package survarium.rooms
     import scaleform.clik.events.ButtonEvent;
     import scaleform.gfx.FocusManager;
     import scaleform.gfx.MouseEventEx;
+    import survarium.constants.UiSound;
 
     // The rooms window's look, the game's: its colours, the maps' renders,
     // and the parts its views are drawn of (texts, the game's buttons, the
@@ -373,7 +374,7 @@ package survarium.rooms
             tf.borderColor = 0x3A4854;
             tf.type = TextFieldType.INPUT;
             tf.restrict = "0-9";
-            tf.maxChars = 4;
+            tf.maxChars = RoomsWire.PIN_DIGITS;
             tf.selectable = true;
             tf.mouseEnabled = true;
             tf.tabEnabled = true;
@@ -413,7 +414,7 @@ package survarium.rooms
             // Only the left button presses (a right-click on a member is its
             // equipment, `onContentClick`).
             var ex:MouseEventEx = e as MouseEventEx;
-            if (ex != null && ex.buttonIdx != 0)
+            if (ex != null && ex.buttonIdx != MouseEventEx.LEFT_BUTTON)
                 return;
             for (var i:int = _routes.length - 1; i >= 0; i--)
             {
@@ -554,7 +555,7 @@ package survarium.rooms
         // The click the game's buttons make (ButtonClick: sound_play 0).
         internal static function clickSound():void
         {
-            gameSound(0);
+            gameSound(UiSound.CLICK);
         }
 
         internal static function gameSound(id:int):void
