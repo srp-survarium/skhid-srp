@@ -348,7 +348,10 @@ package
       protected var _playerProfiles:Array = [];
       
       protected var _profileItems:Object;
-      
+
+      // the upgrade window told the game (start_item_upgrade), so its close does too
+      protected var _upgradeShown:Boolean = false;
+
       protected var backBlack:Sprite = new BackBlack();
       
       private var _dailyBonusData:Object = null;
@@ -1972,8 +1975,12 @@ package
          this.modifierWindow.visible = false;
          this.player_profile.visible = this.inventory_list.visible;
          this.dragRegion.mouseEnabled = true;
-         trace("exit_item_upgrade",this.modifierWindow.getItemId());
-         ExternalInterface.call("exit_item_upgrade",this.modifierWindow.getItemId());
+         if(this._upgradeShown)
+         {
+            trace("exit_item_upgrade",this.modifierWindow.getItemId());
+            ExternalInterface.call("exit_item_upgrade",this.modifierWindow.getItemId());
+            this._upgradeShown = false;
+         }
          this.item_control.removeEventListener(Event.ACTIVATE,this.updateSelectedItem);
          MainScene.activePop = null;
          if(!this.item_control.mouseChildren)
@@ -2162,6 +2169,28 @@ package
          }
       }
       
+      private function isHeldWeapon(itemId:uint) : Boolean
+      {
+         var first:uint = 0;
+         var second:uint = 0;
+         if(!this._profileItems || !this._profileItems.items)
+         {
+            return false;
+         }
+         for each(var slot:Object in this._profileItems.items)
+         {
+            if(slot.slotId == 7)
+            {
+               first = uint(slot.itemId);
+            }
+            else if(slot.slotId == 10)
+            {
+               second = uint(slot.itemId);
+            }
+         }
+         return itemId == first || first == 0 && itemId == second;
+      }
+
       private function openModifierWindow(e:Event) : void
       {
          if(this.modifierWindow.visible == true)
@@ -2169,18 +2198,23 @@ package
             trace("!!modifierWindowIsOPened");
             return;
          }
+         var itemData:ItemData = this.item_control.getItemData();
+         var weapon:Boolean = Boolean(itemData) && UpgradeWindow.isWeaponCategory(int(itemData.category));
          this.inventory_list.focusCategory(5);
          this.inventory_list.mainTabBar.selectedIndex = 1;
          this.inventory_list.mainTabBar.enabled = false;
          this.inventory_list.inventoryTabPage.enabled = false;
-         this.inventory_list.selectCategory([25,26],false,true);
+         // what fits the window: a weapon's scopes and camouflages, an armour's decals and camouflages
+         this.inventory_list.selectCategory(weapon ? [22,25] : [25,26],false,true);
          this.inventory_list.toggleUpgradeMode();
          this.modifierWindow.visible = true;
          this.dragRegion.mouseEnabled = false;
          MainScene.activePop = this.modifierWindow;
-         var itemData:ItemData = this.item_control.getItemData();
          this.modifierWindow.setData(itemData);
-         if((itemData))
+         // the game shows a weapon in the hands of a kit holding it (weapon 1, or weapon 2 with no
+         // weapon 1); any other weapon it would show on the decal pose: the window is enough then
+         this._upgradeShown = Boolean(itemData) && (!weapon || this.isHeldWeapon(itemData.itemId));
+         if(this._upgradeShown)
          {
             trace("start_item_upgrade");
             ExternalInterface.call("start_item_upgrade",itemData.itemId);

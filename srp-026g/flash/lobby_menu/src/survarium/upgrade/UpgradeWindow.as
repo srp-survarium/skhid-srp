@@ -311,10 +311,6 @@ package survarium.upgrade
          this.infoContainer.y = MainScene.stageHeight - this.infoContainer.height - 100;
          this.infoContainer.visible = true;
          hostDictId = Boolean(param1) && isWeaponCategory(int(param1.category)) ? int(param1.dictId) : -1;
-         if(hostDictId >= 0 && Boolean(this._inventory))
-         {
-            this._inventory.selectCategory([22],false,true);
-         }
          this.updateData(param2);
       }
       

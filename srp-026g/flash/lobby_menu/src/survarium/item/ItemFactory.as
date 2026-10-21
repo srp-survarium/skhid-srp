@@ -143,6 +143,13 @@ package survarium.item
          return 4;
       }
       
+      // The inventory tab whose filters list a category, for a tab's "all": as getCategory, but
+      // scopes are in the upgrades tab's filters (beside camouflages and decals)
+      public static function filterGroup(category:int) : int
+      {
+         return category == 22 ? 5 : getCategory(category);
+      }
+      
       public static function isItemCraftable(param1:ItemData) : Boolean
       {
          return !param1.isStack && param1.descriptor <= 100 && !param1.repairTime && (param1.superCategory == 1 || param1.superCategory == 2 || param1.superCategory == 3);

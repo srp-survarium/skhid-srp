@@ -2501,7 +2501,7 @@ package survarium.controls
             for(i = 0; i < shopCount; i++)
             {
                itemData = this._shopItems[i];
-               if(category == ItemFactory.getCategory(itemData.category) && (checkBaseOptions(itemData)))
+               if(category == ItemFactory.filterGroup(itemData.category) && (checkBaseOptions(itemData)))
                {
                   filteredItemsShop.push(itemData);
                }
@@ -2512,7 +2512,7 @@ package survarium.controls
                for(i = 0; i < inventoryCount; i++)
                {
                   itemData = this._inventoryItems[i];
-                  if(category == ItemFactory.getCategory(itemData.category) && (checkBaseOptions(itemData)))
+                  if(category == ItemFactory.filterGroup(itemData.category) && (checkBaseOptions(itemData)))
                   {
                      relativeItem = shopDict[itemData.dictId];
                      if((relativeItem))
