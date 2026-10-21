@@ -2558,9 +2558,10 @@ package survarium.controls
          var held:Boolean = craft != null ? craft.holds(item.itemId) : item.itemId == upgrade.getItemId();
          var options:Array = [];
          // As the menu's own: Buy for an owned item (the one the window
-         // works on too), a stack or an item of no rarity. Sell for an owned
-         // item (sellElement wants it enabled), not in the shop, and not one
-         // the window holds: it would name an item no longer owned.
+         // works on too), a stack or an item of no rarity. Sell for every
+         // owned item, the window's own too, unless it is the account's last
+         // of its kind (a stack always); selling the window's item closes
+         // the window, which would name an item no longer owned.
          if(this.buyable(item) && (item.isStack || !item.rank || owned))
          {
             options.push({
@@ -2571,13 +2572,24 @@ package survarium.controls
                }
             });
          }
-         if(owned && item.enabled && !this.isShop && !held)
+         if(owned && !this.isShop && (item.isStack || this.ownedCopies(item.dictId) > 1))
          {
             options.push({
                name:LocalizationData.getName("sell"),
                click_function:function(e:* = null):void
                {
                   sellItem(item.itemId);
+                  if(held)
+                  {
+                     if(craft != null)
+                     {
+                        craft.dispatchEvent(new Event("closeCraft"));
+                     }
+                     else
+                     {
+                        upgrade.dispatchEvent(new Event(Event.CLOSE));
+                     }
+                  }
                }
             });
          }
@@ -2603,6 +2615,20 @@ package survarium.controls
       private function buyable(item:Object) : Boolean
       {
          return item.canBuy || GangShop.getInstance().getItemBuyable(item.dictId);
+      }
+
+      // How many items of this kind the account owns.
+      private function ownedCopies(dictId:uint) : int
+      {
+         var count:int = 0;
+         for each(var owned:ItemData in this._inventoryItemsDict)
+         {
+            if(owned != null && owned.dictId == dictId && owned.descriptor <= 100)
+            {
+               count++;
+            }
+         }
+         return count;
       }
       
       private function findCraftWindow() : MessageCraftItem
