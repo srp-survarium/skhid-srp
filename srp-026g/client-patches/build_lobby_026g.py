@@ -7,8 +7,9 @@ The lobby movie is one file (`flash_movies/lobby_menu.swf`), and a resources.db
 patch carrying it replaces the players' movie whole. It is built one way only,
 from source: srp-026g/flash/lobby_menu/src is the movie's complete ActionScript
 (revision 24's, which rebuilds byte for byte: tools/actionscript/flash_tree.py
-full), and every lobby change is an ordinary edit of that tree (srp's own
-classes, SrpRooms.as and the others, are files of it; srp.json names them).
+full), and every lobby change is an ordinary edit of that tree: of the game's
+classes, and new classes only for new UI (the rooms window, survarium/rooms;
+srp.json names them).
 Nothing is patched in bytecode.
 
 Only the files that are not the baseline's are compiled. Each changed class

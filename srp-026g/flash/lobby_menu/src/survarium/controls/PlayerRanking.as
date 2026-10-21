@@ -16,6 +16,7 @@ package survarium.controls
    import scaleform.gfx.MouseEventEx;
    import survarium.data.LocalizationData;
    import survarium.gsearch.MatchMakingSettings;
+   import survarium.rooms.RoomsWindow;
    
    public class PlayerRanking extends UIWindow
    {
@@ -108,7 +109,8 @@ package survarium.controls
       
       public function fillPlayers(param1:Array) : void
       {
-         if(SrpRooms.take(param1))
+         // The rooms' answers come as ranking rows of their own range.
+         if(RoomsWindow.take(param1))
          {
             return;
          }

@@ -109,6 +109,7 @@ package
    import survarium.player.LocalPlayerProfile;
    import survarium.player.ProfileSelector;
    import survarium.quest.QuestList;
+   import survarium.rooms.RoomsWindow;
    import survarium.tutorial.TextSlide;
    import survarium.upgrade.UpgradeWindow;
    
@@ -3559,7 +3560,11 @@ package
       
       public function set_equipment_level(value:uint) : void
       {
-         SrpRooms.gear(value);
+         // The player's own level: the rooms' make form starts its max level there.
+         if(RoomsWindow.me != null)
+         {
+            RoomsWindow.me.setGear(int(value));
+         }
       }
       
       public function update_profile_slots_count(artifactSlots:uint, itemSlots:uint) : void
@@ -3752,7 +3757,9 @@ package
       
       public function has_active_window() : Boolean
       {
-         if(SrpRooms.escapable())
+         // The rooms window counts while open (not under the results), so
+         // Esc closes it before it opens the game's menu.
+         if(RoomsWindow.me != null && RoomsWindow.me.escapable())
          {
             return true;
          }
@@ -3768,7 +3775,7 @@ package
       
       public function close_active_window() : void
       {
-         if(SrpRooms.closeWindow())
+         if(RoomsWindow.me != null && RoomsWindow.me.closeByEsc())
          {
             return;
          }
@@ -4203,7 +4210,7 @@ package
       
       public function show_victory_screen() : void
       {
-         SrpRooms.afterMatch();
+         this.showRoomUnderResults();
          dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP,true));
          trace("_top_container::this");
          this.notificationListTemp.stopTimer();
@@ -4288,7 +4295,12 @@ package
          {
             this.topMenu.lockInventory(false);
          }
-         SrpRooms.playState(this);
+         // In a room or a room's queue Play is the rooms' Leave (on);
+         // otherwise the game's own word (StatusPanel.showRoomsPlay).
+         if(RoomsWindow.me != null)
+         {
+            RoomsWindow.me.playEnabled(this,this.statusPanel.playBtn.enabled);
+         }
       }
       
       public function set_add_profile_button_enabled(value:Boolean) : void
@@ -5915,6 +5927,43 @@ package
          {
          }
          return true;
+      }
+      
+      // The rooms window while open: over the side panels (the lobby adds
+      // them again over it, and their hidden areas then take its clicks);
+      // the chat stays over it (the owner's of 2026-10-19).
+      public function layerRoomsWindow(window:DisplayObject) : void
+      {
+         var panels:Array = [this.squadList,this.questList];
+         for(var i:int = 0; i < panels.length; i++)
+         {
+            var panel:DisplayObject = panels[i] as DisplayObject;
+            if(panel != null && panel.parent == this && getChildIndex(panel) > getChildIndex(window))
+            {
+               setChildIndex(window,getChildIndex(panel));
+            }
+         }
+         if(this.chat != null && this.chat.parent == this && getChildIndex(this.chat) < getChildIndex(window))
+         {
+            setChildIndex(this.chat,getChildIndex(window));
+         }
+      }
+      
+      // A match's results: a player in a room gets the room's window opened
+      // first, so the results go over it and closing them shows the room
+      // (the owner's of 2026-10-20). Out of a room: nothing.
+      private function showRoomUnderResults() : void
+      {
+         try
+         {
+            if(RoomsWindow.me != null && RoomsWindow.me.inRoom && !RoomsWindow.me.shown)
+            {
+               RoomsWindow.me.show(true);
+            }
+         }
+         catch(err:Error)
+         {
+         }
       }
    }
 }

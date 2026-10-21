@@ -2,8 +2,10 @@
 
 The rules the code and the tests follow, the owner's of 2026-10-16 to 10-19. Code: the wire
 `survarium::v026g::lobby::rooms`, the model `session::v026g::rooms`, the lobby
-`lobby-server/src/v026g/rooms.rs`, the movie `flash/lobby_menu/src/SrpRooms.as`
-([lobby-source.md](lobby-source.md)). Contract: `lobby.md` §2.16.3.
+`lobby-server/src/v026g/rooms.rs`, the movie's window `flash/lobby_menu/src/survarium/rooms` (`RoomsWindow`
+and its views `RoomsList`, `RoomsCreate`, `RoomsRoom`; `RoomsWire`, `RoomsText`, `RoomsLook`) and its
+parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'s Esc and results,
+`BottomPanel`, `PlayerRanking`) ([lobby-source.md](lobby-source.md)). Contract: `lobby.md` §2.16.3.
 
 - **Only way to PvP:** every PvP match is a room's. The old queue, its level search, the
   Matches tab and its JOIN, the skewed map draw and PvP server bots are gone. Play vs Bots

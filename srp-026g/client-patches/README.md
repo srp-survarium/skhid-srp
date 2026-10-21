@@ -487,12 +487,15 @@ its ActionScript source tree, `../flash/lobby_menu/src`
 complete source, which rebuilds byte for byte (`tools/actionscript/flash_tree.py
 full`), with every lobby change as an ordinary edit of it:
 
-- srp's own classes, files of the tree named in `../flash/lobby_menu/srp.json`:
-  `SrpRooms` (the rooms), `SrpExchange` (#214), `SrpBuyGold` (#213),
-  `SrpCraftMenu` (#216), `SrpScopeContextMenu` (#217), `SrpPlayerGear` (#232);
-- their calls in the game's classes: `LobbyMenu`, `PlayerRanking`,
-  `InventoryList` (#215 to #217), the ten `goToStore` and the premium window's
-  gold button (#213), `MessageCraftItem` (#216).
+- the features written in the game's own classes: the exchange and Get Gold in
+  `MessageMoneyExchange` (#214, #213; the ten `goToStore` and the premium
+  window's gold button call it), Buy on owned items in `LobbyMenu` and
+  `InventoryList` (#215), the craft window's Buy/Sell and Continue in
+  `InventoryList` and `MessageCraftItem` (#216), Optics in `InventoryList`
+  (#217), the player gear in `LobbyMenu` and `PlayerRanking` (#232);
+- the rooms window, new UI, in `../flash/lobby_menu/src/survarium/rooms`
+  (named in `../flash/lobby_menu/srp.json`), and its parts in `TopMenu`,
+  `StatusPanel`, `LobbyMenu`, `BottomPanel` and `PlayerRanking`.
 
 ```sh
 python build_lobby_026g.py <patch_24's lobby_menu.swf> <new lobby_menu.swf> [--work DIR]
