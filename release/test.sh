@@ -1966,7 +1966,11 @@ echo 1 >"$C/srp-026g/flash/m/src/version"
 cat >"$C/srp-026g/scripts/content-edit/content_edit.py" <<'EOF'
 import json, os, sys
 edits, live, out = sys.argv[1:4]
-for e in json.load(open(edits))["set"]:
+for e in json.load(open(edits)).get("add_value", []):
+    for f in e["files"]:
+        os.makedirs(os.path.dirname(os.path.join(out, f)), exist_ok=True)
+        open(os.path.join(out, f), "w").write(open(os.path.join(live, f)).read() + e["key"] + "\n")
+for e in json.load(open(edits)).get("set", []):
     was = open(os.path.join(live, e["file"])).read()
     if was != e["from"] + "\n":
         sys.exit("%s: %r is not %r" % (e["file"], was, e["from"]))
@@ -2050,6 +2054,15 @@ printf '{"id": "hat", "version": "2"}\n' >"$T/packs/hat-1/pack.json"
 expect_refused "build-content: a pack whose pack.json is not the row's" "not $hat_sha" \
     env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42e"
 printf '{"id": "hat", "version": "1"}\n' >"$T/packs/hat-1/pack.json"
+
+# An edit list whose `files` is a list of paths (content_edit.py's add_value), not a glob.
+printf '{"add_value": [{"files": ["gameplay/items/c.options"], "table": "", "key": "k", "value": 1}]}\n' \
+    >"$C/srp-026g/scripts/content-edit/e2.json"
+manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "edit|e1.json|-" "edit|e2.json|-"
+out=$("$bc" 42 --out "$T/work/c42v" 2>&1) || fail "build-content with an add_value list: $out"
+check "build-content: an add_value list's file, read from the base" \
+    has "$out" "CHANGED   gameplay/items/c.options: edit e2.json; live in resources.db.patch_40"
+rm "$C/srp-026g/scripts/content-edit/e2.json"
 
 # Loud: what the manifest cannot account for.
 manifest "base|resources.db.patch_40|$sha40" "movie|m|-"

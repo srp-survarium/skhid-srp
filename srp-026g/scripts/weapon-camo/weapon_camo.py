@@ -3,7 +3,7 @@
 
 usage: python3 -I weapon_camo.py <guns.tsv> <game folder> <donor folder> <out folder | ->
            [--only <texture>] [--camo <camouflage .dds>] [--previews <folder>]
-           [--picker <page.html> [--camos <camouflage item folder>]]
+           [--picker <page.html> [--camos <camouflage item folder>]] [--pack <id>@<version>]
 
 <game folder>   the players' game files at their game paths or flattened as dbgrab writes them
                 (models__weapons__uzi.skinned_model__settings): the stock resources.db with every
@@ -17,6 +17,10 @@ usage: python3 -I weapon_camo.py <guns.tsv> <game folder> <donor folder> <out fo
 --picker        also writes a page to choose the painted parts by hand (needs --camo): the texture
                 and the weapon in 3D side by side; click a part on either to paint it or not; the
                 page gives the lines of parts.tsv
+--pack          the out folder is a content pack (release/content.tsv's kind `pack`): files/<path> and
+                pack.json, an add_file for each _aoac the game folder does not have, a replace_file
+                (its sha256) for one it has; the name is the folder's under $SKHID_PACKS_DIR
+                (<id>-<version>) and the manifest's row (<id>@<version>, the sha256 of pack.json)
 --camos         the camouflage items' configs (gameplay/items/upgrades/camouflages, as dbgrab writes
                 them): the picker offers each item's camouflage (textures from the game folder)
 
@@ -40,6 +44,8 @@ On a painted part B carries the plain texture's fine shading (scratches, edges) 
 shading, so the camouflage keeps the part's wear and shape; elsewhere G is 1, B 0.5 and R 1: the
 bake leaves the texture as it is.
 """
+import hashlib
+import json
 import os
 import struct
 import sys
@@ -496,12 +502,12 @@ def main():
     args = [a for a in sys.argv[1:]]
     opt = lambda name: args[args.index(name) + 1] if name in args else None
     only, camo_path, previews, picker = opt('--only'), opt('--camo'), opt('--previews'), opt('--picker')
-    camos_dir = opt('--camos')
-    for name in ('--only', '--camo', '--previews', '--picker', '--camos'):
+    camos_dir, pack = opt('--camos'), opt('--pack')
+    for name in ('--only', '--camo', '--previews', '--picker', '--camos', '--pack'):
         if name in args:
             i = args.index(name)
             del args[i:i + 2]
-    if len(args) != 4 or (picker and not camo_path):
+    if len(args) != 4 or (picker and not camo_path) or (pack and (args[3] == '-' or only or '@' not in pack)):
         sys.exit(__doc__)
     table, game, donor, out = args
     game, donor = Files(game), Files(donor)
@@ -547,7 +553,7 @@ def main():
             continue
         blob = dds_dxt1(a)
         for name in [texture] + premiums if out != '-' else []:
-            dst = os.path.join(out, 'textures', *('%s_aoac' % name).split('/'))
+            dst = os.path.join(out, *(['files'] if pack else []), 'textures', *('%s_aoac' % name).split('/'))
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             open(dst + '.dds', 'wb').write(blob)
             open(dst + '.options', 'wb').write(options)
@@ -579,7 +585,30 @@ def main():
             camos = [(name, img) for name, _, img in items] or camos
         write_picker(picker, entries, camos, models)
         print('picker: %s' % picker)
+    if pack:
+        write_pack(out, pack, written, game)
     print('%d textures written to %s' % (len(written), out))
+
+
+def write_pack(out, pack, written, game):
+    """pack.json of the pack in `out`: each _aoac's .dds and .options, added (or replacing the game's own,
+    pinned by its sha256), in path order."""
+    ident, version = pack.split('@', 1)
+    operations = []
+    for path in sorted({'textures/%s%s' % (name, ext) for name in written for ext in ('.dds', '.options')}):
+        try:
+            operations.append({'op': 'replace_file', 'path': path,
+                               'base_sha256': hashlib.sha256(game.read(path)).hexdigest()})
+        except FileNotFoundError:
+            operations.append({'op': 'add_file', 'path': path})
+    manifest = {'format_version': 1, 'id': ident, 'version': version, 'target_build': '0.26g',
+                'description': 'weapon camouflage masks: the _aoac textures of srp-026g/scripts/weapon-camo '
+                               '(guns.tsv, parts.tsv), so a weapon wears an armour camouflage (client patch 44)',
+                'operations': operations}
+    open(os.path.join(out, 'pack.json'), 'w').write(json.dumps(manifest, indent=2) + '\n')
+    print('pack %s: %d operations (%d replace an own file); pack.json sha256 %s' % (
+        pack, len(operations), sum(o['op'] == 'replace_file' for o in operations),
+        hashlib.sha256(open(os.path.join(out, 'pack.json'), 'rb').read()).hexdigest()))
 
 
 if __name__ == '__main__':

@@ -3,44 +3,48 @@
 The rules and the engine: `srp-026g/docs/notes/weapon-camo.md`. The exe side is client patch 44
 (`client-patches/weapon_camo_026g.asm`).
 
-A camouflage reaches a weapon in three pieces, all in one content patch:
+A camouflage reaches a weapon in three pieces, all made by `release/build-content` from the
+content manifest (`release/content.tsv`), never by hand:
 
-1. `<diffuse>_aoac.dds` (+ `.options`) beside each weapon diffuse that has a camouflaged premium
-   texture: `weapon_camo.py` with `guns.tsv` and `parts.tsv` (the painted parts);
-2. `parameters/camo_available` and a `data` table (`camo_scale`) in those weapons' configs:
-   `../content-edit/content_edit.py` with `../content-edit/weapon-camo-1.json`, then
-   `weapon-decals-1.json` (`decal_available` and `data/decals`: decals, client patch 47);
+1. `<diffuse>_aoac.dds` (+ `.options`) beside each weapon diffuse: the content pack
+   `weapon-camo@<version>` (the manifest's `pack` row), which `weapon_camo.py --pack` makes from
+   `guns.tsv` and `parts.tsv` (the painted parts);
+2. `parameters/camo_available` and a `data` table (`camo_scale`) in the weapons' configs:
+   `../content-edit/weapon-camo-1.json`, then `weapon-decals-1.json` (`decal_available` and
+   `data/decals`: decals, client patch 47), the manifest's `edit` rows, applied in order;
 3. the server reads both from its game data built of that patch (camouflage into slot 2 of a weapon).
 
-## Making the patch
+## Making the pack
+
+A new pack version when guns.tsv, parts.tsv or the tool changes: its folder under
+`$SKHID_PACKS_DIR` (`private/content-packs`) and its row in `release/content.tsv` (the name
+`weapon-camo@<version>`, the sha256 of its pack.json), in the same PR.
 
 ```bash
-# the players' files: the stock resources.db with every offered patch over it, flattened
-for db in resources.db resources.db.patch_12 ... resources.db.patch_<live>; do
-  for p in models/weapons/ material_instances/weapons/ textures/weapons/ \
-           textures/character/human/camo/ textures/character/human/base_camo/; do dbgrab $db get $p layer; done
-  cp -f layer/* game/                                  # later patches over earlier ones
-done
-dbgrab resources.db get black_market_01_torso_aoac.options game     # the stock _aoac .options
-dbgrab <0.28a2 resources.db> get textures/weapons/ donor            # guns.tsv's 28: textures
-dbgrab server-game-data.db get gameplay/items/weapons/ live         # the live weapon configs
-dbgrab server-game-data.db get gameplay/items/upgrades/camouflages/ camos   # the camouflage items (picker)
+# the players' files (the stock resources.db and every offered patch, as the game mounts them)
+L="--db $SKHID_STOCK_DB"; for p in ~/.cache/skhid-release/patches/resources.db.patch_*; do L="$L --patch $p"; done
+srp-game-data files $L | cut -f1 | grep -E '^(models/weapons/|textures/weapons/|textures/character/human/camo/)|black_market_01_torso_aoac.options$' >paths
+srp-game-data get $L --out game --paths paths
+# guns.tsv's 28: textures, from 0.28a2's resources.db
+srp-game-data files --db <0.28a2 resources.db> | cut -f1 | grep '^textures/weapons/' >donor-paths
+srp-game-data get --db <0.28a2 resources.db> --out donor --paths donor-paths
 
-python3 -I weapon_camo.py guns.tsv game donor out --previews previews \
-    --camo game/textures__character__human__camo__premium__city_camo.dds
-python3 -I ../content-edit/content_edit.py ../content-edit/weapon-camo-1.json live folder
-python3 -I ../content-edit/content_edit.py ../content-edit/weapon-decals-1.json folder decals   # patch 47
-cp -r decals/* folder/
-cp -r out/textures folder/
-release/build-patch folder <revision>
+python3 -I weapon_camo.py guns.tsv game donor $SKHID_PACKS_DIR/weapon-camo-<version> --pack weapon-camo@<version>
+python3 -I weapon_camo.py guns.tsv game donor - --previews previews \
+    --camo game/textures/character/human/camo/premium/city_camo.dds    # look at every preview
 ```
+
+The pack adds each `_aoac` (an `add_file`; a `replace_file` pinned by its sha256 for one the
+players' files already have) and prints pack.json's sha256 for the row. Version 1 (2026-10-21,
+the players' files of revision 26, 0.28a2's for the donors): 112 `_aoac` textures, 224 files,
+pack.json `8e93b030…a132e2`.
 
 Which parts are painted: `parts.tsv` (beside guns.tsv) names them per texture, a UV point on each;
 a texture with no line gets the suggestion, the large parts its premium painted. To choose:
 
 ```bash
 python3 -I weapon_camo.py guns.tsv game donor - --picker picker.html --camos camos \
-    --camo game/textures__character__human__camo__premium__city_camo.dds
+    --camo game/textures/character/human/camo/premium/city_camo.dds
 ```
 
 Open `picker.html` in a browser (about 50 MB, the textures and meshes inside; the 3D view loads

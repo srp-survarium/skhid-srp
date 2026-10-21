@@ -196,6 +196,13 @@ The owner (2026-10-21): "implement and allow put two decals on weapons".
   AK-12, then an Uzi: the lobby baked `srpw1_character_human_camo_premium_city_camo_weapons_ak_12_ak_12_0{d,n,s}`
   and the Uzi's, and the character's weapon showed the camouflage. The server kept the slot-2
   records at load.
+- 2026-10-21, on main for revision 27 (the integration of #244): patches 44, 45, 47 and 48 in
+  `.srpw` at 0xA42A000, after the death camera's `.srpc`; selftest and every
+  `check_*_026g.py` pass. The content comes from the manifest (`release/content.tsv`): the pack
+  `weapon-camo@1` (the masks), the edit lists weapon-camo-1, weapon-decals-1,
+  lobby-bench-light-1 and weapon-attachments-1; `release/build-content 27` makes it with every
+  edit list at 0 unexpected differences. **Lobby-tested only** (the camouflage, revision 25's
+  build); this build is not run in a game.
 
 ## Not done
 

@@ -90,8 +90,11 @@ Applied to revision 24's server game data (`gameplay/victory_items/`): 1 file ed
 |---|---|
 | all 83 weapon configs (every weapon one of whose surfaces has an `_aoac` from `../weapon-camo/guns.tsv`, premium copies included): `parameters/camo_available` true, and a new `data` table holding `camo_scale` 4.0 (the `add_value` edit: a new key in its place by name CRC) | the owner's: armour camouflages on weapons (`docs/notes/weapon-camo.md`). The lobby, the server (a camouflage into slot 2 of a weapon) and exe patch 44 key on `camo_available`; a camouflage's modification writes `data/camouflage` into a `data` table the host config has (none had one); patch 44 bakes with `data/camo_scale` |
 
-The patch carries the `_aoac` textures of `../weapon-camo/weapon_camo.py` beside these configs.
-Applied to revision 24's live configs (server game data): 83 files edited, 0 unexpected differences.
+The patch carries the `_aoac` textures of `../weapon-camo/weapon_camo.py` beside these configs (the
+content pack `weapon-camo@1`, `release/content.tsv`). Applied to revision 24's live configs (server
+game data): 83 files edited, 0 unexpected differences; in `release/build-content 27` (2026-10-21,
+after golden-weapons-1 and the other lists of the manifest): 83 files edited, 0 unexpected
+differences.
 
 ## weapon-balance-2.json (2026-10-20)
 
@@ -172,11 +175,10 @@ simulation change, nothing in the server game data.
 |---|---|
 | `projects/lobby_scene/day/client_project` (the lobby's scene): `client_objects[49]` (`ambient_light(3)`, at (4.929, 0.006, 4.347) on the floor under the workbench's end, colour 0xFFB3856B) `intensity` 1 (an int) -> 2.5 (a float, as `ambient_light(23)`'s 2.2), `radius` 3.1 -> 3.6 m | the owner, of patch 45's weapon above the workbench (`../../docs/notes/client_patch.md` section 3.42): "the lamp under the table should give more light, since now it is somewhat dark". It is the one light by the bench: the room's others are the ceiling point light at (1.672, 2.742, -0.643), 4.7 m away, and a blue spot (`back2`) at the far corner; the weapon at (4.25, 1.30, 3.05) is 1.95 m from it, now well inside its radius |
 
-The scene is the stock `resources.db`'s (no patch has it): take it with `dbgrab resources.db get
-projects/lobby_scene/day/client_project live/` (flattened names are fine) and
-`python3 -I content_edit.py lobby-bench-light-1.json live/ folder/`. Applied to the stock file
+The scene is the stock `resources.db`'s (no patch has it). Applied to the stock file
 (sha256 `e93de4fc…c0f8`): 1 file edited, 0 unexpected differences, 5 bytes changed; the result
-sha256 `3fa6be5e…7062`. Rendering only: no server data, no simulation change. Not seen in a game:
+sha256 `3fa6be5e…7062` (`release/build-content 27`, 2026-10-21: the same). Rendering only: no server
+data, no simulation change. Not seen in a game:
 how much brighter 2.5 is (the engine's ambient light is a fill light with a radius; the value is
 a first guess to tune).
 
@@ -184,13 +186,13 @@ a first guess to tune).
 
 | change | why |
 |---|---|
-| The 83 weapon configs of weapon-camo-1: `parameters/decal_available` true and an empty `data/decals` table | decals on weapons (client patch 47, `../../docs/notes/weapon-camo.md`): the lobby shows a weapon's two decal slots for `decal_available`, the server lets decals into its slots 0 and 1, and a decal upgrade appends its texture and place to `data/decals` (a modifier at a path the config lacks is skipped), which patch 46 bakes |
+| The 83 weapon configs of weapon-camo-1: `parameters/decal_available` true and an empty `data/decals` table | decals on weapons (client patch 47, `../../docs/notes/weapon-camo.md`): the lobby shows a weapon's two decal slots for `decal_available`, the server lets decals into its slots 0 and 1, and a decal upgrade appends its texture and place to `data/decals` (a modifier at a path the config lacks is skipped), which patch 47 bakes |
 
-Applied after weapon-camo-1, to its output: `content_edit.py weapon-camo-1.json live/ camo/`, then
-`content_edit.py weapon-decals-1.json camo/ decals/` and `cp -r decals/* camo/` (the second list
-writes the 83 configs again). Checked 2026-10-21 on the local game's server data (revision 27's
-files): 83 files edited by each list, 0 unexpected differences; the AK-12's `data` holds
-`decals[0]` and `camo_scale`, the type and count armour's `data/decals` has.
+Its manifest row follows weapon-camo-1's: it edits that list's output (it needs the `data` table).
+Checked 2026-10-21 on the local game's server data: 83 files edited by each list, 0 unexpected
+differences; the AK-12's `data` holds `decals[0]` and `camo_scale`, the type and count armour's
+`data/decals` has. In `release/build-content 27` (2026-10-21): 83 files edited, 0 unexpected
+differences.
 
 ## weapon-attachments-1.json (2026-10-21)
 
@@ -200,4 +202,6 @@ files): 83 files edited by each list, 0 unexpected differences; the AK-12's `dat
 
 Applied to the latest files the local game mounts (patch 23's english, german, original, polish and
 russian tables, patch 25's ukrainian, patch 19's `flash_movies_localizations.options`): 7 files
-edited, 0 unexpected differences. Text only; the patch also needs the lobby movie of the same change.
+edited, 0 unexpected differences; in `release/build-content 27` (2026-10-21, after the packs'
+tables and duty-name-uk-1): the same. Text only; the lobby movie of the same change is built from
+its tree.
