@@ -82,7 +82,9 @@
 #   4. during the countdown: release/upload-patch (with --resources:
 #      publishes it and adds its row to the list), release/build-server-db
 #      (of the list), release/build-zip (--ref: the commit checked in step
-#      1; --revision: the release's); checks the two files as release/deploy does; makes the release
+#      1; --revision: the release's; --patches: the list, with the new
+#      patch, whose every patch the exe requires at its start: patch 49);
+#      checks the two files as release/deploy does; makes the release
 #      folder $TARGET_DIR/release-rev<rev>-<UTC YYYYMMDD-HHMM>[-<label>] and
 #      stages both in it (sha256 checked there, chmod 644), with
 #      changed.txt; with server code to build: tags the running image (by
@@ -1325,7 +1327,7 @@ if [[ -n $resources ]]; then
 fi
 data=$work/$DATA_NAME
 zip=$work/zip/$ZIP_NAME
-build_zip=("$BUILD_ZIP" --ref "$main_commit" --revision "$rev" --work "$work/zip" "${step_flags[@]}")
+build_zip=("$BUILD_ZIP" --ref "$main_commit" --revision "$rev" --patches "$PATCH_LIST" --work "$work/zip" "${step_flags[@]}")
 if ((DRY_RUN)); then
     say "[dry run] 4. $( ((no_maint)) && printf 'after the go' || printf 'during the countdown'), build here: release/build-server-db${step_flags[*]:+ ${step_flags[*]}} --out $data"
     say "[dry run]    and: ${build_zip[*]}"
@@ -1344,6 +1346,7 @@ else
     check_release_files "$zip" "$data" "$rev" "$work"
     [[ $OFFERED == "$planned_offer" ]] ||
         die "$data does not offer what the preflight said (the list and the new patch): $(tr '\n' ' ' <<<"$OFFERED")"
+    check_exe_requires "$zip" "$work"
     say "ZIP: $ZIP_SIZE bytes, sha256 $ZIP_SHA, revision $rev; server data: sha256 $DATA_SHA; /patches will offer:"
     say_offered
     progress "4. staging in the release folder $TARGET_DIR/$REL (not in place yet)"

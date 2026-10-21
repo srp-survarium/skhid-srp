@@ -23,6 +23,13 @@ USAGE (this script never touches the source exe):
         a release's (release/build-zip passes it). Only the revision byte
         and the PE checksum differ; <n> is REVISION to 255. Not with
         --no-late-join, --cave=hash-mismatch or --cert-only
+    python patch_026g.py <survarium.exe> <survarium_srp.exe> --required-patches=<n>,<n>,...
+        the default build that stops at its start when one of these
+        resources.db.patch_<n> is not there (patch 49): a release's, the
+        patches of its offered-patch list (release/build-zip passes them).
+        Only the bitmap at the end of the patches' mount and the PE
+        checksum differ; each <n> is 1 to 255. Not with --no-late-join,
+        --cave=hash-mismatch or --cert-only
     python patch_026g.py <survarium.exe> --check [--cave=...] [--cert-only]
         every check and patch in memory, nothing written
     python selftest_026g.py
@@ -744,6 +751,18 @@ MOUNTED_OFFSET, MOUNT_ALL_OFFSET = 0, 0x88      # the .asm's two entries
 MOUNT_STATE_OFFSET = 0x800
 MOUNT_MAX_PATCHES = 255
 MOUNT_STATE_SIZE = 8 + 4 * (1 + MOUNT_MAX_PATCHES) + MOUNT_MAX_PATCHES
+# The patches an exe requires (patch 49, README; client_patch.md section 3.46):
+# a missing resources.db.patch_<n> whose bit is set stops the game at its
+# start with the "Cannot open resources.db.patch_<n> (error 2)" fatal, as
+# one that cannot be opened. The bitmap (bit n of byte n/8) is the .asm's
+# `needed`, the MOUNT_REQUIRED_SIZE bytes before the state's address at the
+# .bin's end, right after the "Cannot open" text (release/lib.sh's
+# exe_required_patches finds it so). build() writes it; the checked-in .bin
+# holds zeros, and a build without required_patches requires none. A
+# release passes its offered-patch list's numbers (release/build-zip), so
+# its exe never runs on older content than its server offers.
+MOUNT_REQUIRED_SIZE = (MOUNT_MAX_PATCHES + 1) // 8
+MOUNT_UNREADABLE = b"Cannot open resources.db.patch_%u (error %u). Please run the Skhid launcher again.\0"
 MOUNT_QUERY_VA, MOUNTED_VA = 0xE7E3E, 0x147E0
 MOUNT_QUERY_MOUNT_ARCHIVE = 0xE7EF0
 MOUNT_QUERY = (MOUNT_QUERY_VA, b"\xE8" + struct.pack("<i", MOUNT_QUERY_MOUNT_ARCHIVE - MOUNT_QUERY_VA - 5),
@@ -1970,7 +1989,7 @@ def add_code_section(data, name, va, code, characteristics):
     return out
 
 
-def build(original, mode, code=None, server=None, late_join=None, revision=None):
+def build(original, mode, code=None, server=None, late_join=None, revision=None, required_patches=None):
     """Returns (patched file, description). mode: "cert-only", "section" or
     "hash-mismatch"; code = the assembled .bin for that cave. An optional
     server embeds a default host:port in full builds only. late_join = the
@@ -1987,7 +2006,11 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
     revision: what the build with the late join says instead of REVISION
     (a release's, REVISION to 255). It is the revision byte and nothing
     else: every patch above is chosen by the kind of build, never by its
-    number."""
+    number.
+    required_patches: the n of each resources.db.patch_<n> (1 to 255) the
+    build with the late join requires at its start (patch 49; a release's
+    offered patches); none when not given. It is the mount's bitmap and
+    nothing else."""
     if hashlib.sha256(original).hexdigest() != EXE_SHA256:
         sys.exit("the source is not the original 0.26g survarium.exe (sha256 mismatch)")
     if server is not None:
@@ -2005,6 +2028,13 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
                      f"{REVISION_WITHOUT_LATE_JOIN}, or nothing)")
         if type(revision) is not int or not REVISION <= revision <= 255:
             sys.exit(f"--revision={revision}: a revision from {REVISION} (REVISION, the last release's) to 255")
+    if required_patches is not None:
+        if late_join is None:
+            sys.exit("--required-patches is of the default build, with the late join (the patches' mount)")
+        required_patches = sorted(required_patches)
+        if any(type(n) is not int or not 1 <= n <= MOUNT_MAX_PATCHES for n in required_patches) \
+                or len(set(required_patches)) != len(required_patches):
+            sys.exit(f"--required-patches: each patch once, a number from 1 to {MOUNT_MAX_PATCHES}: {required_patches}")
     if late_join is None:
         revision = REVISION_WITHOUT_LATE_JOIN
     elif revision is None:
@@ -2018,6 +2048,12 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
         if mount_patches[MOUNTED_OFFSET:MOUNTED_OFFSET + 5] != bytes.fromhex("e800000000") \
                 or mount_patches[MOUNT_ALL_OFFSET] != 0x60:
             sys.exit("mount_patches_026g.section.bin: its entries are not where patch_026g.py calls them")
+        needed = len(mount_patches) - 4 - MOUNT_REQUIRED_SIZE
+        if mount_patches[needed - len(MOUNT_UNREADABLE):needed] != MOUNT_UNREADABLE \
+                or any(mount_patches[needed:needed + MOUNT_REQUIRED_SIZE]):
+            sys.exit("mount_patches_026g.section.bin: no zeroed bitmap of the required patches after its "
+                     "\"Cannot open\" text (patch 49)")
+        mount_patches = mount_patches[:needed] + required_bitmap(required_patches or ()) + mount_patches[-4:]
         forward_scroll = open(forward_scroll_bin(), "rb").read()
         if forward_scroll[-4:] != struct.pack("<I", FORWARD_SCROLL_VA):
             sys.exit(f"forward_scroll_026g.section.bin was assembled for another address: -DCAVE={FORWARD_SCROLL_VA:#x}")
@@ -2564,9 +2600,41 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
                      "a weapon wears the camouflage its item holds, "
                      "a weapon's upgrade window shows it in the air above the lobby's workbench, "
                      "a weapon wears the decals its item holds, placed on it above the workbench, "
-                     "an upgrade dropped on a weapon in its window is shown at once"
+                     "an upgrade dropped on a weapon in its window is shown at once, "
+                     + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
+                        if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")
                   + (f", default login server {server}" if server is not None else ""))
+
+
+def required_bitmap(numbers):
+    """The mount's bitmap of the required patches: bit n of byte n/8."""
+    bitmap = bytearray(MOUNT_REQUIRED_SIZE)
+    for n in numbers:
+        bitmap[n >> 3] |= 1 << (n & 7)
+    return bytes(bitmap)
+
+
+def required_patches_of(exe):
+    """The n of every resources.db.patch_<n> a built exe requires (patch
+    49): the bitmap right after the mount's "Cannot open" text, which is in
+    the exe once; None when it is not (not a build with the patches' mount)."""
+    at = exe.find(MOUNT_UNREADABLE)
+    if at < 0 or exe.find(MOUNT_UNREADABLE, at + 1) >= 0:
+        return None
+    bitmap = exe[at + len(MOUNT_UNREADABLE):at + len(MOUNT_UNREADABLE) + MOUNT_REQUIRED_SIZE]
+    return [n for n in range(8 * MOUNT_REQUIRED_SIZE) if bitmap[n >> 3] >> (n & 7) & 1]
+
+
+def parse_required_patches(text):
+    """--required-patches=<n>,<n>,...: the numbers, each a whole number
+    without a sign or a leading zero, increasing (a list in revision order,
+    as release/patches.tsv); build() checks their range."""
+    numbers = text.split(",")
+    if not all(re.fullmatch(r"[1-9][0-9]{0,2}", n) for n in numbers) \
+            or [int(n) for n in numbers] != sorted(set(int(n) for n in numbers)):
+        sys.exit(f"--required-patches={text}: patch numbers from 1 to {MOUNT_MAX_PATCHES}, increasing, commas between")
+    return [int(n) for n in numbers]
 
 
 def parse_revision(text):
@@ -2769,7 +2837,7 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--") or a == "--check"]
     options = [a for a in sys.argv[1:] if a.startswith("--") and a != "--check"]
     mode, bin_path, server = "section", None, None
-    late_join, late_join_path, revision = True, None, None
+    late_join, late_join_path, revision, required = True, None, None, None
     for option in options:
         if option == "--cert-only":
             mode = "cert-only"
@@ -2785,6 +2853,8 @@ def main():
             server = parse_server(option[9:])
         elif option.startswith("--revision="):
             revision = parse_revision(option[11:])
+        elif option.startswith("--required-patches="):
+            required = parse_required_patches(option[len("--required-patches="):])
         else:
             sys.exit(f"unknown option {option}\n\n{__doc__}")
     if len(args) == 3:                                    # the draft's form: <exe> <out> <bin>
@@ -2802,9 +2872,11 @@ def main():
         late_join_code = open(late_join_path or late_join_bin(), "rb").read()
     elif late_join_path:
         sys.exit("--late-join-bin goes with the default build only")
-    if revision is not None and late_join_code is None:
-        sys.exit("--revision goes with the default build only (not --no-late-join, --cave=hash-mismatch or --cert-only)")
-    data, description = build(open(source, "rb").read(), mode, code, server, late_join_code, revision=revision)
+    if (revision is not None or required is not None) and late_join_code is None:
+        sys.exit("--revision and --required-patches go with the default build only "
+                 "(not --no-late-join, --cave=hash-mismatch or --cert-only)")
+    data, description = build(open(source, "rb").read(), mode, code, server, late_join_code, revision=revision,
+                              required_patches=required)
     if target != "--check":
         with open(target, "wb") as out:
             out.write(data)

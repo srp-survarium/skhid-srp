@@ -1,6 +1,6 @@
 ; The game mounts resources.db's patches (build 2777, patch revision 12,
 ; client_patch.md section 0.2). Two entries; patch_026g.py checks the hooks'
-; targets and the state address at the end:
+; targets and the state address at the end, and fills `needed` (patch 49):
 ;   nasm -f bin -DCAVE=0xA425400 -DSTATE=0xA428800 mount_patches_026g.asm -o mount_patches_026g.section.bin
 ;
 ; The start-up mount (mount_by_config_helper, 0xE7D20) mounts one archive:
@@ -34,7 +34,13 @@
 ; A patch file is "not there" when CreateFileA fails with
 ; ERROR_FILE_NOT_FOUND or ERROR_PATH_NOT_FOUND. Any other failure (a folder
 ; by that name, access denied, a sharing violation) stops the game with
-; "Cannot open resources.db.patch_<n> (error <e>)". A mount that failed
+; "Cannot open resources.db.patch_<n> (error <e>)". So does a patch that is
+; not there but that this exe requires (patch 49): `needed`, before the
+; state's address at the end, is a bitmap of n (bit n of byte n/8) that
+; patch_026g.py fills at build time with the release's patches
+; (--required-patches=, which release/build-zip takes from the offered-patch
+; list); the checked-in .bin holds zeros, so a build without the option
+; requires none. A mount that failed
 ; gives a null mount: for resources.db the game's own "Cannot mount
 ; resources", for a patch "Cannot mount resources.db.patch_<n>" (fatal
 ; 0x113580, which does not return). A patch that is there is never skipped.
@@ -162,7 +168,8 @@ mount_all:
     xor eax, eax
     mov [esp+COUNT], eax
     mov [esp+INDEX], eax
-    ; Which patches: every n from 1 to MAX_PATCHES whose file is there.
+    ; Which patches: every n from 1 to MAX_PATCHES whose file is there; one
+    ; that is not there and is required stops the game.
 .probe:
     mov eax, [esp+INDEX]
     cmp eax, MAX_PATCHES
@@ -185,10 +192,16 @@ mount_all:
     mov edx, [esp+DELTA]
     call [edx+GetLastError]
     cmp eax, ERROR_FILE_NOT_FOUND
-    je .probe                           ; not there
+    je .missing                         ; not there
     cmp eax, ERROR_PATH_NOT_FOUND
-    je .probe
-    push eax                            ; there, and it cannot be opened
+    jne .fatal                          ; there, and it cannot be opened
+.missing:
+    mov edx, [esp+DELTA]
+    mov ecx, [esp+INDEX]
+    bt [edx+needed], ecx
+    jnc .probe                          ; not there, and not required
+.fatal:                                 ; eax = the error
+    push eax
     push dword [esp+4+INDEX]
     mov edx, [esp+8+DELTA]
     lea eax, [edx+unreadable]
@@ -262,4 +275,6 @@ format_patch:
 patch_format:   db "../../%s.db.patch_%u", 0
 failed:         db "Cannot mount resources.db.patch_%u. Please run the Skhid launcher again.", 0
 unreadable:     db "Cannot open resources.db.patch_%u (error %u). Please run the Skhid launcher again.", 0
+needed:         times (MAX_PATCHES + 1) / 8 db 0 ; the patches this exe requires: bit n
+                                        ; of byte n/8 (bit 0 never set); patch_026g.py writes it
 state_at:       dd STATE                ; for patch_026g.py: where the code keeps its state

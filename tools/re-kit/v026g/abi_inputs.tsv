@@ -582,6 +582,12 @@ va	name	location	role	basis
 0x000e7e80	vostok::resources::query_mount_physical	entry ESP+12	descriptor	observed
 0x000e7e80	vostok::resources::query_mount_physical	entry ESP+16	flag argument	observed
 0x000e7e80	vostok::resources::query_mount_physical	entry ESP+20	callback	observed
+0x000e7ef0	vostok::resources::query_mount_archive	ESI	allocator	observed
+0x000e7ef0	vostok::resources::query_mount_archive	entry ESP+4	virtual path string ("resources")	observed
+0x000e7ef0	vostok::resources::query_mount_archive	entry ESP+8	file table's native path string (the archive's)	observed
+0x000e7ef0	vostok::resources::query_mount_archive	entry ESP+12	archive's native path string	observed
+0x000e7ef0	vostok::resources::query_mount_archive	entry ESP+16	descriptor (C string, the mount id)	observed
+0x000e7ef0	vostok::resources::query_mount_archive	entry ESP+20	callback (boost::function, copied into the task)	observed
 0x000eb600	vostok::memory::doug_lea_allocator::usable_size_impl	entry ESP+4	allocation pointer	observed
 0x000ee700	vostok::math::float4x4::multiply_affine	ECX	the second matrix (applied last)	observed
 0x000ee700	vostok::math::float4x4::multiply_affine	EDX	the first matrix (applied first)	observed
@@ -633,6 +639,7 @@ va	name	location	role	basis
 0x00111ed0	vostok::logging::log_message	entry ESP+1Ch	the channel's name	observed
 0x00111ed0	vostok::logging::log_message	entry ESP+20h	the level (4 info)	observed
 0x00111ed0	vostok::logging::log_message	entry ESP+24h	the format, its arguments after it (cdecl)	observed
+0x00113580	vostok::debug::terminate	entry ESP+4	printf-like format of the fatal message; its arguments follow	observed
 0x001166f0	vostok::render::renderer_cook::allocate_resource	entry ESP+4	output pointer/size buffer	observed
 0x00116730	vostok::render::renderer_cook::deallocate_resource	entry ESP+4	resource pointer	observed
 0x00116750	vostok::render::renderer_cook::create_resource	entry ESP+4	query object	observed

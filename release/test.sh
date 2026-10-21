@@ -665,6 +665,33 @@ printf 'other.example {\n}\n:%s {\n\tfile_server\n}\n' "$patches_port" >"$T/Cadd
 expect_refused "setup refuses another site on the port" "another site on port" "$here/setup-patches-server" --check
 
 # deploy
+# requiring.py <zip> [<n> ...]: the ZIP's exe made to require these patches
+# (patch 49: the patches' mount's "Cannot open" text with its bitmap after
+# it, at the exe's end), in place; nothing written when it already does.
+# `requiring.py <zip> old`: an exe from before patch 49 (no text).
+cat >"$T/requiring.py" <<'EOF'
+import sys, zipfile
+TEXT = b"Cannot open resources.db.patch_%u (error %u). Please run the Skhid launcher again.\0"
+EXE = "game/binaries/x86/survarium_skhid.exe"
+path = sys.argv[1]
+with zipfile.ZipFile(path) as z:
+    entries = {info.filename: z.read(info) for info in z.infolist()}
+exe = entries[EXE]
+at = exe.find(TEXT)
+old = exe if at < 0 else exe[:at]
+if sys.argv[2:] == ["old"]:
+    new = old
+else:
+    bitmap = bytearray(32)
+    for n in map(int, sys.argv[2:]):
+        bitmap[n >> 3] |= 1 << (n & 7)
+    new = old + TEXT + bytes(bitmap)
+if new != exe:
+    entries[EXE] = new
+    with zipfile.ZipFile(path, "w") as z:
+        for name, data in entries.items():
+            z.writestr(name, data)
+EOF
 python3 - "$T/work" <<'EOF'
 import sys, zipfile
 at = 0x380862 - 0x11000 + 0x400
@@ -675,6 +702,31 @@ for revision in range(2, 21):
         z.writestr("game/binaries/x86/survarium_skhid.exe", bytes(exe))
         z.writestr("game/binaries/x86/updater_skhid.exe", b"updater")
 EOF
+# Each requires the patches of the list (patch_3, patch_12), as a release's
+# exe does (release 13's stand-in build makes its own require 13 too).
+for revision in $(seq 2 20); do python3 "$T/requiring.py" "$T/work/r$revision.zip" 3 12; done
+# The required patches: lib.sh's exe_required_patches and list_numbers.
+lib_eval() { bash -c ". $(printf '%q' "$here/lib.sh") && $1" 2>&1; }
+# What the exe of the ZIP <zip> requires, or `fails: <what it said>`.
+required_of() {
+    lib_eval "zip_extract $(printf '%q' "$1") \$ZIP_EXE $T/work/req.exe && { exe_required_patches $T/work/req.exe || echo fails; }"
+}
+cp "$T/work/r12.zip" "$T/work/req.zip"
+check "exe_required_patches: a release's exe requires the list's patches" test "$(required_of "$T/work/req.zip")" = "3 12"
+python3 "$T/requiring.py" "$T/work/req.zip" 1 13 255
+check "exe_required_patches: 1, 13 and 255" test "$(required_of "$T/work/req.zip")" = "1 13 255"
+python3 "$T/requiring.py" "$T/work/req.zip"
+check "exe_required_patches: none, an empty line" test -z "$(required_of "$T/work/req.zip")"
+python3 "$T/requiring.py" "$T/work/req.zip" old
+check "exe_required_patches: an exe from before patch 49 fails" has "$(required_of "$T/work/req.zip")" \
+    "no list of required patches (an exe from before patch 49?)"
+python3 "$T/requiring.py" "$T/work/req.zip" 12
+python3 -c 'import sys, zipfile; open(sys.argv[2], "wb").write(zipfile.ZipFile(sys.argv[1]).read("game/binaries/x86/survarium_skhid.exe") * 2)' \
+    "$T/work/req.zip" "$T/work/req2.exe"
+check "exe_required_patches: the text twice fails (not one of ours)" has \
+    "$(lib_eval "exe_required_patches $T/work/req2.exe || echo fails")" "fails$"
+check "list_numbers: the list's patches, as --required-patches= takes them" test \
+    "$(lib_eval "use_patches live && read_patch_list && list_numbers")" = "3,12"
 cp "$T/work/r11.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
 echo "old data" >"$T/live/download/server-game-data.db"
 # The original menus' blobs the updater's restore to stock fetches.
@@ -707,6 +759,19 @@ mv "$T/live/download/resources/ab6f22d80000" "$T/ab6f.kept"
 expect_refused "deploy refuses when an original blob is gone from download/resources" "lacks the original blobs .*lobby_menu ab6f22d8" \
     "$here/deploy" --zip "$zip12" --server-data "$T/work/sgd.db" --revision 12
 mv "$T/ab6f.kept" "$T/live/download/resources/ab6f22d80000"
+# Patch 49: the ZIP's exe requires exactly the patches the data offers.
+cp "$zip12" "$T/work/req.zip"
+python3 "$T/requiring.py" "$T/work/req.zip" 12
+expect_refused "deploy refuses a ZIP whose exe requires fewer patches than the data offers" \
+    "its exe requires the patches 12, the server data offers 3 12" \
+    "$here/deploy" --zip "$T/work/req.zip" --server-data "$T/work/sgd.db" --revision 12
+python3 "$T/requiring.py" "$T/work/req.zip" 3 12 13
+expect_refused "deploy refuses a ZIP whose exe requires a patch the data does not offer" \
+    "its exe requires the patches 3 12 13, the server data offers 3 12" \
+    "$here/deploy" --zip "$T/work/req.zip" --server-data "$T/work/sgd.db" --revision 12
+python3 "$T/requiring.py" "$T/work/req.zip" old
+expect_refused "deploy refuses a ZIP whose exe is from before patch 49" "its exe holds no list of required patches" \
+    "$here/deploy" --zip "$T/work/req.zip" --server-data "$T/work/sgd.db" --revision 12
 check "deploy: the refusals changed nothing" test "$(tree)" = "$before"
 : >"$T/args"
 out=$(yes_to "$here/deploy" --zip "$zip12" --server-data "$T/work/sgd.db" --revision 12 --label test) || fail "deploy: $out"
@@ -840,15 +905,19 @@ git -C "$T/repo" archive HEAD:srp-026g Cargo.toml Cargo.lock Dockerfile .dockeri
     resources/binary-config-examples resources/game-026g scripts servers | tar -x -C "$T/live"
 cat >"$T/build-zip" <<'STANDIN'
 #!/usr/bin/env bash
-# build-zip --ref <commit> --revision <n> --work <dir> [--test]: the ZIP of
-# r<n>.zip and the exe's two sha256 (exe.sha256); its arguments are the
-# last line of $TEST_DIR/build-zip.args.
+# build-zip --ref <commit> --revision <n> --patches <list> --work <dir>
+# [--test]: the ZIP of r<n>.zip, its exe made to require the list's patches
+# (in r<n>.zip itself: that revision's ZIP is that one from then on; with
+# $TEST_DIR/build-zip-stale-required, all but the last), and the exe's two
+# sha256 (exe.sha256); its arguments are the last line of
+# $TEST_DIR/build-zip.args.
 printf '%s\n' "$*" >>"$TEST_DIR/build-zip.args"
 while (($#)); do
     case $1 in
     --work) work=$2; shift 2 ;;
     --ref) ref=$2; shift 2 ;;
     --revision) revision=$2; shift 2 ;;
+    --patches) patches=$2; shift 2 ;;
     *) shift ;;
     esac
 done
@@ -857,6 +926,10 @@ if [[ -e $TEST_DIR/build-zip-fails ]]; then echo "build-zip: the build failed" >
 if [[ -s $TEST_DIR/build-zip-sleep ]]; then sleep "$(cat "$TEST_DIR/build-zip-sleep")"; fi
 git -C "$TEST_DIR/repo" cat-file -e "$ref^{commit}" || exit 1
 mkdir -p "$work"
+numbers=$(grep -v '^#' "$patches" | cut -f1 | sed -n 's/^resources\.db\.patch_//p')
+if [[ -e $TEST_DIR/build-zip-stale-required ]]; then numbers=$(head -n -1 <<<"$numbers"); fi
+# shellcheck disable=SC2086 # one argument a number
+python3 "$TEST_DIR/requiring.py" "$TEST_DIR/work/r$revision.zip" $numbers
 cp "$TEST_DIR/work/r$revision.zip" "$work/Survarium-0.26g-srp-files.zip"
 printf '%s with-server\n%s without-server\n' "$(printf 'with %s' "$revision" | sha256sum | cut -c1-64)" \
     "$(printf 'without %s' "$revision" | sha256sum | cut -c1-64)" >"$work/exe.sha256"
@@ -1008,6 +1081,9 @@ run yes --minutes 2 --label a || fail "release.sh: $out"
 check "release: its revision is the live exe's + 1" has "$out" "the live exe is revision 11: this release is revision 12"
 check "release: ... built so, main's patch_026g.py not edited (REVISION 11 there)" bash -c \
     "tail -n 1 $T/build-zip.args | grep -q -- '--ref $released --revision 12 ' && git -C $T/repo show $released:srp-026g/client-patches/patch_026g.py | grep -qx 'REVISION = 11'"
+check "release: build-zip is given the offered-patch list, whose patches the exe requires (patch 49)" bash -c \
+    "tail -n 1 $T/build-zip.args | grep -q -- ' --patches $T/patches.tsv '"
+check "release: ... the released exe requires patch_3 and patch_12" test "$(required_of "$T/live/download/Survarium-0.26g-srp-files.zip")" = "3 12"
 check "release: plans the maintenance from the jump host" test "$(admin_log)" = "plan 2"
 check "release: sees the countdown on the launcher page" has "$out" 'the launcher says "Maintenance in [12] min"'
 check "release: finds the server code as live" has "$out" "the live tree is main's"
@@ -1120,6 +1196,8 @@ check "release --resources: ... the record's commit: the pages, the list and its
 check "release --resources: ... no worktree of the rebuild left" bash -c "! git -C $T/repo worktree list | grep -q '/site\$'"
 check "release --resources: publishes the patch" cmp -s "$T/r13/resources.db.patch_13" "$T/patches/resources.db.patch_13"
 check "release --resources: adds its row to the list" test "$(rows "$T/patches.tsv")" = "resources.db.patch_3 resources.db.patch_12 resources.db.patch_13"
+check "release --resources: ... before the ZIP's build, whose exe requires the new patch too (patch 49)" test \
+    "$(required_of "$T/live/download/Survarium-0.26g-srp-files.zip")" = "3 12 13"
 check "release --resources: the server data offers it" offers patch_13
 check "release --resources: /patches offers it" grep -q patch_13 "$T/site/patches"
 check "release --resources: its record: the tag 026g-rev13, REVISION 13 on main" bash -c "test -n \"\$(git -C $T/origin.git rev-parse -q --verify refs/tags/026g-rev13)\" && test \"\$1\" = 13" _ "$(main_revision)"
@@ -1700,6 +1778,20 @@ check "release: ... the maintenance planned, then cancelled" test "$(admin_log)"
 check "release: ... says so" has "$out" "^maintenance: cancelled"
 check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
 check "release: ... frees the lock" test ! -e "$T/lock"
+
+# A ZIP whose exe does not require every offered patch (patch 49): a stop
+# before the swap, the maintenance cancelled.
+before=$(tree)
+touch "$T/build-zip-stale-required"
+run yes --label stale || true
+rm "$T/build-zip-stale-required"
+offered=$(rows "$T/patches.tsv" | sed 's/resources\.db\.patch_//g')
+check "release: a ZIP whose exe requires fewer patches than offered stops it" has "$out" \
+    "its exe requires the patches ${offered% *}, the server data offers $offered: a ZIP is built for its list"
+check "release: ... before the swap" has "$out" "STOPPED before the swap"
+check "release: ... leaves the live files as they were" test "$(tree)" = "$before"
+check "release: ... the maintenance planned, then cancelled" bash -c "grep -q cancel $T/state/admin.log && test ! -e $T/state/maint"
+: >"$T/state/admin.log"
 
 # Ctrl-C while it waits for the planned time (to bash only, as a trap during
 # a sleep of a minute once waited for the sleep): cleaned up in a few

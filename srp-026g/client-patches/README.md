@@ -72,8 +72,8 @@ release's. The "Result" row is the build of the revision named in it.
 | `play_skhid.sh`, `LINUX.txt` | Linux Wine/DXVK launcher and instructions, included in the generated folder and ZIP |
 | `stale_dll_026g.asm`, `stale_dll_026g.section.bin` | The code of patch 25 (the sign-in reports a stale `shell_32.dll` in `%TEMP%`, a file one known cheat leaves behind) and that code assembled for 0xE00 of `.srp`; `patch_026g.py` reads the .bin |
 | `check_stale_dll_026g.py` | Runs patch 25's check on made-up machines, loaded as is and rebased (needs Unicorn) |
-| `mount_patches_026g.asm`, `mount_patches_026g.section.bin` | The code of patch 27 (the game mounts each `resources.db.patch_<n>` over `resources.db`) and that code assembled for 0x400 of `.srp`, its state at 0x800 of `.srpd`; `patch_026g.py` reads the .bin. Assembling the source again gives the same bytes |
-| `check_mount_patches_026g.py` | Runs patch 27's two hooks and its code on made-up game folders, loaded as is and rebased (needs Unicorn) |
+| `mount_patches_026g.asm`, `mount_patches_026g.section.bin` | The code of patch 27 (the game mounts each `resources.db.patch_<n>` over `resources.db`) and patch 49 (it stops at its start without a patch the exe requires) and that code assembled for 0x400 of `.srp`, its state at 0x800 of `.srpd`; `patch_026g.py` reads the .bin and writes the required patches' bitmap into its copy. Assembling the source again gives the same bytes |
+| `check_mount_patches_026g.py` | Runs patch 27's two hooks and its code on made-up game folders, with no patch required and with patch 49's required patches, loaded as is and rebased (needs Unicorn) |
 | `forward_scroll_026g.asm`, `forward_scroll_026g.section.bin` | The code of patch 28 (the transparent effects scroll as in 0.29, `scene_slomo` bound to 1.0) and that code assembled for 0xB00 of `.srp`; `patch_026g.py` reads the .bin. Assembling the source again gives the same bytes |
 | `replay_link_026g.asm`, `replay_link_026g.section.bin` | The source of patch 29's code ("Watch replay": the lobby's link starts the updater) and that code assembled, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_replay_link_026g.py` | Runs the original and patch 29's link callback on made-up links (needs Unicorn) |
@@ -1480,6 +1480,9 @@ engine_world+2D4h..2DCh go, and +2D4h is read nowhere after its callback
 stores it. The patches stay mounted to the end the same way.
 `../docs/notes/client_patch.md` section 0.2 has the addresses.
 
+A patch that is not there but that the exe requires stops the game too, as
+one that cannot be opened (patch 49, below).
+
 A file that is there and cannot be mounted stops the game: for
 `resources.db` with the game's own "Cannot mount resources", for a patch
 with "Cannot mount resources.db.patch_<n>. Please run the Skhid launcher
@@ -2691,6 +2694,49 @@ Checked: `selftest_026g.py` check 48 (the sites in the original and the build, t
 registers, the 0x87 reader's last call, setup_profile's ways to 0x284B89, the code's calls and
 branches, `.srpw`'s three pages); `check_upgrade_preview_026g.py` (Unicorn, the cases in its
 header: the game's own setup_profile, profile copy and config lookups). **Not run in a game.**
+
+### 49. The game stops at its start without a patch its release requires (the next release's revision)
+
+The crashes of 2026-10-21 (`../docs/notes/required-patches.md`): players whose updater could not
+download patch_26 and patch_27 started the revision 27 exe without the launcher; patch 27 skips a
+missing number, so the game ran on older content than the server's and crashed in matches (an
+unknown item id in a profile, other animation ids in a world snapshot). Now each release's exe
+knows the patches of its release and does not start without them.
+
+In `mount_patches_026g.asm` (patch 27), the probe's missing case (`CreateFileA` fails with 2, file
+not found, or 3, path not found) tests n in a bitmap of 32 bytes (`needed`, bit n of byte n/8,
+`bt [edx+needed],ecx`): a clear bit is a number skipped, as before; a set bit goes on to the same
+fatal call as a file that cannot be opened, before anything is mounted: "Cannot open
+resources.db.patch_<n> (error 2). Please run the Skhid launcher again." (error 3 for a missing
+folder on the way), the lowest such n. The code grows from 707 to 759 bytes at `.srp`+400h (before
+patch 30's +700h); nothing else changes and no new site.
+
+The bitmap sits right after the "Cannot open" text, before the state's address at the .bin's end.
+The checked-in .bin holds zeros: a build without the option requires no patch (local and test
+builds). `patch_026g.py --required-patches=12,14,17,...` (and `make_client_026g.py`, passing it on)
+writes it into the build's copy; only those bytes and the PE checksum differ. `release/build-zip`
+passes the numbers of every row of the offered-patch list (`release/patches.tsv`; `--test`:
+`patches-test.tsv`), which `release/release.sh` gives it with `--patches` after `upload-patch`
+added the release's new patch: one command, and each release's exe requires exactly what its
+server offers. `build-zip` reads both exes back (`lib.sh`'s `exe_required_patches`, which finds the
+text and reads the 32 bytes after it); `release.sh` and `release/deploy` refuse a ZIP whose exe
+requires other patches than the server data offers, or none (an exe from before patch 49).
+
+With the launcher nothing changes: its updater fetches the listed patches before PLAY is on. A
+game started some other way without a patch now stops at once with the message, before any
+match. A patch is never removed from a player's folder by this; one the list no longer offers is
+simply not required by the next release's exe (and still mounted when it is there). The lobby
+only (start-up): no row in `../crates/session/src/v026g/simulation_changes.tsv`.
+
+Checked: `selftest_026g.py` check 49 (the default build's bitmap zeros; the `bt` and its way to the
+fatal; against the build without the option only the bitmap and the checksum differ; the list
+read back by `patch_026g.py` and by `release/lib.sh`; bad lists refused) and check 27 (the texts,
+the ways out); `check_mount_patches_026g.py` (Unicorn, as is and rebased: a build requiring 1,
+12, 14, 17 and 255 on folders with all of them, with more, with a required one missing, path not
+found or a folder by its name; revision 27's list without 26 and 27, the case of 2026-10-21,
+stops at patch 26); `release/test.sh` (the stand-in build-zip given the list, the new patch
+required after `--resources`, a ZIP that requires fewer refused before the swap, `deploy`'s
+refusals). **Not run in a game.**
 
 ## Not ported, not done
 
