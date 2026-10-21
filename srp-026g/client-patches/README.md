@@ -2738,11 +2738,65 @@ stops at patch 26); `release/test.sh` (the stand-in build-zip given the list, th
 required after `--resources`, a ZIP that requires fewer refused before the swap, `deploy`'s
 refusals). **Not run in a game.**
 
+### 50. "Previous weapon" from a hand that holds no weapon takes no slot (the next release's revision)
+
+Every game applies every player's input (the server relays it as it came, `../docs/notes/match.md`
+section 20). In the player's mask (0x2D8BB0), action bit 26 (LIKELY "previous weapon") with an item
+in hands that is in neither weapon slot (a grenade or a medkit in use, LIKELY) took the slot number
+from `[which*4 + 0x927DEC]` with `which` = 0FFh: the dword at 0x9281E8, 2Fh, slot 47 of 23. The
+code then tested the dword 40h past the end of the 188h-byte inventory and called through it when
+it was not 0. One such input killed every game of the match that found something there, the
+sender's too (OPEN-ISSUES 26-24; 0.26i's notes name a fix of "crashes of all clients ... "bad"
+input of one of the clients").
+
+The ten bytes at 0x2D8D19 (`movzx eax,al` / `mov ebp,[eax*4+927DECh]`) become `cmp al,1` /
+`jnz short 2D8D7Dh` / `mov ebp,7` / `nop`: from slot 10 bit 26 still takes slot 7; from any other
+item it goes where the code goes for "no slot" (17h), as the original did whenever the stray dword
+was 0. ebp is not read on that way. The table address's base relocation (0x2D8D1F) is disabled.
+Bit 25 never read past the table (it takes slot 7 from such a hand) and is untouched. Every full
+build. A match computes otherwise only where the original read past the inventory: no row in
+`../crates/session/src/v026g/simulation_changes.tsv`, and games with and without it play together.
+
+Checked: `selftest_026g.py` check 50 (the original's and the build's code from bit 25's test to the
+slot's test, the table {7, 10}, 2Fh at 0x9281E8 in `.rdata`, no ebp read from 0x2D8D7D to the
+`pop ebp`, the one relocation, nothing aims inside); `check_relay_guards_026g.py` (Unicorn: every
+`which`, item or none, bits 25 and 26 four ways, three slots left by bits 12 and 13; the build
+and the original agree but on bit 26 from such a hand, where the original goes on with slot 47 and
+the build takes none; every full build alike). **Not run in a game.**
+
+### 51. A kit with no weapon is not picked (the next release's revision)
+
+The respawn of a player with nothing in slot 7 or slot 10 calls through a null hands object
+(0x1F25BF, `[player+0F47Ch]`) and kills every game of the match at one tick: seen live three times
+on 2026-10-12 (`../docs/notes/match.md` section 23). The server has sent every kit that could not
+be played with `KIT_NOT_LOADED` since (`lobby-server` `play.rs::match_profile`), so no game has a
+player for such a kit and a choice of it (0xDE, relayed as 0xF3) changes nothing. This patch makes
+the game itself refuse one, for a server or a profile that would send it.
+
+The place's tick (0x321790) took the newest kit choice as the next kit when it was under 3 and the
+place had a player for it. At 0x3217CC, `movzx eax,al` / `cmp dword [ecx+eax*4],0` / `jnz short
+3217D8h` (nine bytes) become a jump to thirteen instructions in the int3 run at 0x844DC2 (62 bytes,
+after SHA-256's round constants and the CRYPTOGAMS text, before the function at 0x844E00) and four
+int3. The new code tests the same player, then its inventory (+10Ch) for something in slot 7
+(+128h) or slot 10 (+134h), the two `base_player::initialize` (0x2DAC00) puts in hands: with one
+the choice is taken (0x3217D8), else the old kit is put back (0x3217D5), as for a kit with no
+player. A kit's player holds its weapons in its inventory from its making (patches 18 and 20 walk
+them before a spawn's initialize, LIKELY that also covers a kit never played). Not covered: a
+place's first kit (the lowest that has a player, 0x321820), which no choice sets; the server's
+rule keeps it a playable one. The null call itself stays: a hands object for a player with no
+weapon was not found, and a player left with nothing in hands would fault at its next input
+(0x2D8C75 reads `[player+128h]` without a test). Every full build. A match computes otherwise
+only for choices whose spawn killed every game: no row in `simulation_changes.tsv`.
+
+Checked: `selftest_026g.py` check 51 (the original's tick and the jump, the cave's code, the two
+slots against `base_player::initialize`'s and player::initialize's null call, the int3 run, no
+relocation, nothing aims inside the hook or into the run); `check_relay_guards_026g.py` (Unicorn,
+the whole tick to its `ret 0Ch`: choices 0, 1, 2, 3, 0FFh with no player, a player with no weapon,
+slot 7, slot 10, both, no inventory; the original takes every choice under 3 with a player, the
+build only one with a weapon; the stack as before; every full build alike). **Not run in a game.**
+
 ## Not ported, not done
 
 - The 0.21d mode 3 battery patch is not needed: 0.26g serializes the
   next-battery time. (Patch 9 above is another defect, 0.26g's own.)
-- A defect of the client itself is known and not patched: an input with the
-  "previous weapon" bit from a player who holds something other than its two
-  weapons can crash every client of a match
-  (`../docs/OPEN-ISSUES.md`, 26-24).
+- The "previous weapon" crash of `../docs/OPEN-ISSUES.md` 26-24 is patch 50.

@@ -878,6 +878,7 @@ va	name	source	ret_cleanup	result
 0x001f0090	survarium::items_dictionary::item_by_id	manual	4	
 0x001f0090	survarium::items_dictionary::item_by_id	manual	4	EAX = the entry: 3A0h bytes each from [dictionary+130h], +0 u16 the dict id (0x1F00D4), +228h u8 item_category
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	manual	0	
+0x001f2540	survarium::player::initialize	manual	16	after survarium::base_player::initialize (0x2DAC00) left nothing in hands (+12Ch 0) takes [this+0F47Ch] for the hands (+12Ch, +128h) and calls through it (vtable +10h, +14h, +18h): null in every match game, the crash at 0x1F25BF of a kit with nothing in slots 7 and 10 (match.md 23; patch 51 keeps such a kit from being picked)
 0x001f3480	survarium::player::update_camera	manual	4	
 0x001f37a0	survarium::player::set_head_visibility	manual	4	
 0x001f3de0	vostok::network_core::buffer_writer::w<unsigned char>	manual	20	
@@ -1127,9 +1128,11 @@ va	name	source	ret_cleanup	result
 0x002d7920	survarium::base_player::jump	manual	4	sets the controller's jump flag +0x2C70C
 0x002d8220	survarium::base_player::on_physical_controller_landing	manual	4	v > fatal speed +0x30C: hit fatal_damage +0x314 (modifier 30); v > harmless speed +0x310: fatal_damage x (v - harmless) / (fatal - harmless); else nothing
 0x002d84c0		auto	8	
+0x002d8bb0	survarium::base_player::process_quick_slots	manual	12	the weapon keys of one input: actions bits 12/13 slot 7/10; with an item in hands (+128h vtable +70h) `which` = 0/1 for slot 7/10 (table 0x927DF0), else 0FFh; bit 25 slot 7 (10 from slot 7), bit 26 slot 10 from slot 7, else [which*4+0x927DEC], for 0FFh the .rdata dword 0x9281E8 = 2Fh, slot 47 past the 188h-byte inventory (patch 50: no slot); then [inventory+10Ch+slot*4] vtable +50h, +4
 0x002d9a60	survarium::base_player::hit	manual	40	
 0x002d9ae0	survarium::base_player::hit	manual	32	
 0x002d9b90	survarium::base_player::hit_impl	manual	8	
+0x002dac00	survarium::base_player::initialize	manual	16	puts slot 7 ([inventory+128h]) in hands, else slot 10 (+134h), via 0x2FCAA0; neither: +12Ch = 0 and +128h kept
 0x002daf60	survarium::base_player::serialize	manual	16	
 0x002db490	survarium::base_player::deserialize	manual	28	
 0x002dc0b0	survarium::base_player::set_spotted	manual	4	
@@ -1297,6 +1300,7 @@ va	name	source	ret_cleanup	result
 0x0031db00	survarium::breath_vibration_calculator::deserialize	manual	8	
 0x0031eb80	survarium::weapon_core_base_state::serialize	manual	8	
 0x0031ebb0	survarium::weapon_core_base_state::deserialize	manual	12	
+0x00321790	survarium::game_world_core_client::player_slot::apply_profile_input	manual	12	the newest kit choice (0xF3) at or before the tick ([core+89D8h] lists, this+2Ch the index; node +4 next, +8 value, +20h time) becomes the next kit (this+0Dh) when under 3 and this has a player for it ([this+kit*4]), else the old one stays; patch 51 also asks that player's inventory for something in slot 7 or 10
 0x00321b90	survarium::bullet_manager::serialize	manual	4	
 0x00321c50	survarium::bullet_manager::deserialize	manual	4	
 0x003237e0	survarium::kd_stats_rule::on_event	manual	12	

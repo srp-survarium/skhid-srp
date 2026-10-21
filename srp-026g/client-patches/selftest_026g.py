@@ -385,6 +385,17 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     and the option's text out of order are refused.
     check_mount_patches_026g.py runs the code on folders missing a
     required patch.
+50. every full build: action bit 26 from a hand whose item is in neither
+    weapon slot takes no slot (patch 50, WEAPON_SWITCH), where the original
+    read slot 2Fh from 0x9281E8 and tested past the inventory. The ten bytes
+    at 0x2D8D19 and the code around them, the table {7, 10}, no ebp read on
+    the way of no slot, the table's one relocation disabled, nothing aims
+    inside them.
+51. every full build: the place's tick takes a kit choice only for a player
+    with something in slot 7 or 10 (patch 51, KIT_PICK_*): the jump at
+    0x3217CC, the cave in the int3 run at 0x844DC2, the two slots
+    base_player::initialize puts in hands, no relocation under them and
+    nothing aims inside. check_relay_guards_026g.py runs both.
 """
 
 import ctypes
@@ -763,6 +774,11 @@ def allowed_ranges(original, mode, cave_size, server=None):
     # Patch 43 gives back what that default withheld (test_tab_self).
     ranges.append((P.file_offset(P.TAB_SELF[0]), len(P.TAB_SELF[1])))
     rewritten.append((P.TAB_SELF[0], P.TAB_SELF[0] + len(P.TAB_SELF[1])))
+    # Patches 50 and 51: the weapon switch's ten bytes, the kit pick's hook
+    # and its cave in int3 padding (test_relay_guards).
+    for va, old, _ in (P.WEAPON_SWITCH, P.KIT_PICK_HOOK, P.KIT_PICK_CAVE_SITE):
+        ranges.append((P.file_offset(va), len(old)))
+        rewritten.append((va, va + len(old)))
     if server is not None:
         va, old = P.DEFAULT_SERVER_HOOK
         ranges.append((P.file_offset(va), len(old)))
@@ -3869,6 +3885,91 @@ def test_tab_list(original, image, before):
           "that is a pointer) and no base relocation is under them" + "".join(f", {h:#x}" for h in found + under))
 
 
+def test_relay_guards(original, image, before):
+    """Checks 50 and 51: a relayed input or kit choice no longer kills every
+    game of the match. Patch 50 (WEAPON_SWITCH): bit 26 from a hand with no
+    weapon takes no slot, where the original read slot 47 of 23. Patch 51
+    (KIT_PICK_*): the place's tick takes a kit choice only for a player with
+    something in slot 7 or 10. Every full build. check_relay_guards_026g.py
+    runs both."""
+    stock = Image(original)
+    rows = lambda img, va, size: [text for _, _, text in ndisasm(img.read(va, size), va)]
+    for va, old, new in (P.WEAPON_SWITCH, P.KIT_PICK_HOOK, P.KIT_PICK_CAVE_SITE):
+        check(stock.read(va, len(old)) == old and before.read(va, len(new)) == new == image.read(va, len(new)),
+              f"{va:#x}: the original's bytes, the new ones here and in the build without the late join")
+
+    # Patch 50.
+    head = ["test ecx,0x2000000", "jz 0x2d8d02", "mov al,[esp+0x17]", "cmp al,0x1", "jc 0x2d8cf6",
+            "mov ebp,0x7", "jmp short 0x2d8d28", "movzx edx,al", "mov ebp,[edx*4+0x927df4]", "jmp short 0x2d8d23",
+            "test ecx,0x4000000", "jz 0x2d8d23", "mov al,[esp+0x17]", "test al,al", "jnz 0x2d8d19",
+            "mov ebp,0xa", "jmp short 0x2d8d28"]
+    tail = ["cmp ebp,byte +0x17", "jz 0x2d8d7d", "mov ecx,[esi+0x10c]", "cmp dword [ecx+ebp*4+0x10c],byte +0x0"]
+    check(rows(stock, 0x2D8CDF, 0x2D8D36 - 0x2D8CDF) == head + ["movzx eax,al", "mov ebp,[eax*4+0x927dec]"] + tail,
+          "the original: bit 25 takes slot 7, or 10 from slot 7; bit 26 takes 10 from slot 7, else "
+          "[which*4+0x927DEC]; then [inventory+10Ch+slot*4]")
+    check(rows(image, 0x2D8CDF, 0x2D8D36 - 0x2D8CDF) == head + ["cmp al,0x1", "jnz 0x2d8d7d", "mov ebp,0x7", "nop"] + tail,
+          f"{P.WEAPON_SWITCH[0]:#x}: `cmp al,1` / `jnz short 0x2d8d7d` / `mov ebp,7` / `nop`, the rest the original's")
+    loop = rows(stock, 0x2D8C91, 0x2D8CD7 - 0x2D8C91)
+    check(loop[:5] == ["mov byte [esp+0x17],0xff", "mov ebp,0x17", "xor edi,edi", "mov edx,0x927df0", "jmp short 0x2d8ca8"]
+          and "mov [esp+0x17],al" in loop and loop[-2:] == ["cmp al,0x2", "jc 0x2d8ca4"]
+          and struct.unpack("<3I", stock.read(0x927DEC, 12))[1:] == (7, 10)
+          and struct.unpack("<I", stock.read(0x9281E8, 4))[0] == 0x2F
+          and [name.rstrip(b"\0") for name, rva, vsize, *_ in stock.sections if rva <= 0x9281E8 - P.IMAGE_BASE < rva + vsize] == [b".rdata"],
+          "which = 0FFh, or 0 / 1 for the table {7, 10} at 0x927DF0; [0x9281E8] (which 0FFh) is 2Fh, in .rdata")
+    after = rows(stock, 0x2D8D7D, 0x2D8ECD - 0x2D8D7D)
+    check(after[-1] == "pop ebp" and not [r for r in after[:-1] if "ebp" in r],
+          "from 0x2D8D7D to the `pop ebp` at 0x2D8ECC nothing reads ebp")
+    relocated = [v for kind, v in stock.relocations().values()
+                 if kind == 3 and P.WEAPON_SWITCH[0] - 4 < v < P.WEAPON_SWITCH[0] + len(P.WEAPON_SWITCH[1])]
+    found = aimed_inside(original, P.WEAPON_SWITCH[0], len(P.WEAPON_SWITCH[1]), 0x82)
+    check(relocated == [P.WEAPON_SWITCH_RELOCATION] and not found,
+          f"one base relocation under the ten bytes, the table's ({P.WEAPON_SWITCH_RELOCATION:#x}), and nothing "
+          "aims inside them" + "".join(f", {h:#x}" for h in found))
+
+    # Patch 51.
+    body = ["mov al,[eax+0x8]", "mov dl,[ecx+0xd]", "mov [ecx+0xd],al", "cmp al,0x3", "jnc 0x3217d5"]
+    check(rows(stock, 0x3217BF, 0x3217DB - 0x3217BF) == body + ["movzx eax,al", "cmp dword [ecx+eax*4],byte +0x0",
+                                                              "jnz 0x3217d8", "mov [ecx+0xd],dl", "ret 0xc"],
+          "the original: the choice is the next kit (place+0Dh) when under 3 and the place has its player, "
+          "else the old one back")
+    check(rows(image, 0x3217BF, 0x3217DB - 0x3217BF) == body + [f"jmp {P.KIT_PICK_CAVE_VA:#x}", "int3", "int3", "int3",
+                                                              "int3", "mov [ecx+0xd],dl", "ret 0xc"],
+          f"{P.KIT_PICK_VA:#x}: a jump to the cave and four int3")
+    check(rows(image, P.KIT_PICK_CAVE_VA, len(P.KIT_PICK_CAVE)) ==
+          ["movzx eax,al", "mov eax,[ecx+eax*4]", "test eax,eax", "jz 0x844df6", "mov eax,[eax+0x10c]", "test eax,eax",
+           "jz 0x844df6", "cmp dword [eax+0x128],byte +0x0", "jnz 0x844dfb", "cmp dword [eax+0x134],byte +0x0",
+           "jnz 0x844dfb", "jmp 0x3217d5", "jmp 0x3217d8"],
+          "the cave: the kit's player, its inventory, slot 7 or slot 10 -> 0x3217D8; else 0x3217D5")
+    respawn = rows(stock, 0x2DADC0, 0x2DAE12 - 0x2DADC0)
+    check(respawn[:3] == ["mov edi,[esi+0x10c]", "cmp [edi+0x128],ebx", "jz 0x2dade9"]
+          and "cmp [edi+0x134],ebx" in respawn and respawn[-1] == "mov [esi+0x12c],ebx"
+          and rows(stock, 0x1F25A4, 0x1F25C1 - 0x1F25A4) == ["cmp dword [esi+0x12c],byte +0x0", "jnz 0x1f25ef",
+                                                            "mov ecx,[esi+0xf47c]", "mov [esi+0x12c],ecx",
+                                                            "mov [esi+0x128],ecx", "mov edx,[ecx]"],
+          "base_player::respawn puts slot 7 ([inventory+128h]) or slot 10 (+134h) in hands, else 0; "
+          "player::respawn then calls through [player+0F47Ch]: the slots the cave tests")
+    start, size = P.KIT_PICK_PADDING
+    run = stock.read(start - 1, size + 2)
+    check(run[0] == 0 and run[1:-1] == b"\xCC" * size and run[-1] == 0x55
+          and stock.read(0x844D80, 0x42).endswith(b"CRYPTOGAMS by <appro@openssl.org>\0"),
+          "the cave lies in 62 int3 after the CRYPTOGAMS text's 0 and before a `push ebp`")
+    under = [v for kind, v in stock.relocations().values()
+             if kind == 3 and any(va - 4 < v < va + len(old) for va, old, _ in (P.KIT_PICK_HOOK, P.KIT_PICK_CAVE_SITE))]
+    # Before the run: the text, and before it SHA-256's 64 round constants
+    # (sha256_block_data_order's table, 0x428A2F98 .. 0xC67178F2): data, whose
+    # bytes branches_into reads as rel8 branches.
+    text = stock.read(start - 0x42, 0x42)
+    table = start - 0x42 - 0x100
+    data = stock.read(table, 4) == struct.pack("<I", 0x428A2F98) \
+        and stock.read(start - 0x46, 4) == struct.pack("<I", 0xC67178F2) and text.startswith(b"SHA256 block")
+    found = [f"{h:#x}" for h in aimed_inside(original, P.KIT_PICK_VA, len(P.KIT_PICK_HOOK[1]), 0x82) + under] \
+        + [h for h in branches_into(original, start, start + size)
+           if not (h.endswith(" rel8") and table <= int(h.split()[0], 16) < start)]
+    check(data and not found,
+          "no base relocation under the hook or the cave, nothing aims inside the hook or into the int3 run (the "
+          "bytes before it are SHA-256's round constants and the text)" + "".join(", " + h for h in found))
+
+
 def test_tab_self(original, image, before):
     """Check 43: the player's own row in the Tab list is gold (patch 43,
     TAB_SELF): game_world::on_activate gives the hud its player's name
@@ -4680,6 +4781,7 @@ def test_late_join(original, without, server, source):
     test_suicide_key(original, image, before)
     test_tab_list(original, image, before)
     test_tab_self(original, image, before)
+    test_relay_guards(original, image, before)
     test_spot(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)
