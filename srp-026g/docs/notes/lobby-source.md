@@ -139,3 +139,22 @@ The HUD tree took three source fixes Flex asks for (those classes had been compi
 compiler): `Minimap`'s `§default§` written as `["default"]` and a field initializer without
 `this.`, and `CombatLogRenderer.logItem` typed by its own package's `CombatLogItem` (the global one
 extends it).
+
+## The weapon window (#244, 2026-10-21)
+
+The weapon's upgrade window of #244 (camouflage and decals on weapons; `weapon-camo.md`), written
+in the classes that own it:
+
+- its two pages (Attachments: the scope; Appearance: the decals and the camouflage), their slots
+  in armour's places and the inventory's filter of each: `UpgradeWindow` (`showPage`,
+  `placeWeaponSlots`, `restoreSlots`, `weaponSlotCategory`, `isUpgradeableWeapon`); the title
+  bar's places are its constants;
+- the page arrows: `survarium/upgrade/PageArrow` (the Confirm button's art at arrow size), new UI;
+- a move of a decal between slots sends no drop for the slot it left: `UpgradeWindow.holds`;
+- the window's opening and its close (`start_item_upgrade` / `exit_item_upgrade` only for an item
+  the game shows): `LobbyMenu.openModifierWindow`, `closeModifierWindow`;
+- the Attachments button and menu entry for a weapon with any page: `InventoryList`, `ItemCard`,
+  `ItemControlPanel` (`isUpgradeable`); the upgrades tab's All lists scopes:
+  `ItemFactory.filterGroup`.
+
+Its texts are data: `scripts/content-edit/weapon-attachments-1.json` (a manifest row).
