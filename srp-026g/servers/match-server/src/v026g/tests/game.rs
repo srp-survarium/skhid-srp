@@ -10,6 +10,7 @@ use survarium::v026g::match_msgs::client_model::Skip;
 use survarium::v026g::match_msgs::players::{self, PlayerState};
 use survarium::v026g::match_msgs::rules::state;
 use survarium::v026g::match_msgs::snapshot::{PLAYER_STATE_CAP, SECTION_CAPS, Sections, event};
+use survarium::v026g::match_msgs::world;
 use survarium::v026g::match_msgs::{PlayerInput, ServerMessage, WireTime, id};
 use udp_transport::wire::{self, low_level};
 use udp_transport::{Direction, Table};
@@ -1757,7 +1758,7 @@ fn a_team_with_every_battery_home_ends_the_match_three_seconds_later() {
     // Team 0 brings the tenth battery home; player 0 has 5 kills.
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
         client.sim.kills_from = Some((at, 5));
     }
     // The next world asked for shows it, both clients vouch for it, and
@@ -1768,7 +1769,7 @@ fn a_team_with_every_battery_home_ends_the_match_three_seconds_later() {
     let result = bench.results.try_recv().expect("a result");
     assert_eq!(result.end, MatchEnd::ModeRule);
     assert_eq!(result.winner, Some(0));
-    assert_eq!(result.team_points, [10, 3]);
+    assert_eq!(result.team_points, [10, 0]);
     assert_eq!(result.trusted_by, 2);
     let ended_after = result.duration_ms - at;
     assert!((3_000..9_500).contains(&ended_after), "{ended_after}");
@@ -1801,7 +1802,7 @@ fn a_players_battery_events_are_paid_at_most_the_maps_battery_count_per_kind() {
         (at, 1, event::PUT_VICTORY_ITEM_IN_CONTAINER, 4),
     ];
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
         client.sim.events_from.clone_from(&events);
     }
     assert!(bench.until(12_000, |bench| {
@@ -2123,21 +2124,16 @@ fn a_world_no_game_could_load_goes_to_nobody() {
     // At its caps a world goes, as a real one does.
     let real = Sections::walk(&world).unwrap();
     let full = vec![0; SECTION_CAPS[0]];
-    assert_eq!(
-        Sections::fault(
-            &Sections {
-                bullets: &full,
-                ..real
-            }
-            .to_body()
-            .unwrap(),
-            2
-        ),
-        None
-    );
+    let at_cap = Sections {
+        bullets: &full,
+        ..real
+    }
+    .to_body()
+    .unwrap();
+    assert!(world::frame(&at_cap, 2).is_ok());
     let bodies = unloadable_worlds(&world);
     for (count, body) in bodies.iter().enumerate() {
-        assert!(Sections::fault(body, 2).is_some(), "world {count}");
+        assert!(world::frame(body, 2).is_err(), "world {count}");
         // One item time is one upload for the reassembler.
         bench.clients[0].upload(INITIAL_MS + 50 * count as u32, body);
         bench.run(100);
@@ -2416,14 +2412,14 @@ fn what_each_player_has_left_comes_with_the_result() {
     bench.run_long(130_000);
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
     }
     assert!(bench.until(12_000, |bench| {
         bench.clients.iter().all(|client| client.closed)
     }));
     let result = bench.results.try_recv().expect("a result");
     assert_eq!(result.end, MatchEnd::ModeRule);
-    assert_eq!(result.team_points, [10, 3]);
+    assert_eq!(result.team_points, [10, 0]);
     let supplies = result.players[0]
         .supplies
         .as_ref()

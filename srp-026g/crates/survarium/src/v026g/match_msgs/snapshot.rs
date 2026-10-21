@@ -162,14 +162,6 @@ impl<'a> Reader<'a> {
 /// section 36). Real worlds have at most 0x230, 0x45C, 0x3EC, 0, 0x76B
 /// and 0x57 (kept worlds of real games, 2026-10-12..21).
 pub const SECTION_CAPS: [usize; 6] = [0x2400, 0xC00, 0x2000, 0x4000, 0x800, 0xC00];
-const SECTION_NAMES: [&str; 6] = [
-    "bullets",
-    "statistics",
-    "game objects",
-    "physics",
-    "rules",
-    "effects",
-];
 /// The buffer of a player's state (`player_history_item` 0x3247D0, read
 /// by 0x33FD80), as [`SECTION_CAPS`]. Real states have at most 0x3A8.
 pub const PLAYER_STATE_CAP: usize = 0x1000;
@@ -279,53 +271,6 @@ impl<'a> Sections<'a> {
                 }
             })
             .collect()
-    }
-
-    /// What in `body` would kill a game that loads it, as words for the
-    /// log; `None` when nothing the server can see would. `places`: the
-    /// player slots the world may fill (the roster, at most
-    /// [`MAX_PLAYERS`]). A game reads a world with no check of its own
-    /// (`game_state_history_item::deserialize` 0x324D80, match.md section
-    /// 36), so it must:
-    /// - walk from the front ([`Self::walk`]): the reader has no end, and
-    ///   a length past the body reads past the buffer;
-    /// - have no mask bit at or past `places`: bit k is slot k with no
-    ///   bound, and the history item has 20 slots;
-    /// - have no section, nor player state, longer than its buffer
-    ///   ([`SECTION_CAPS`], [`PLAYER_STATE_CAP`]).
-    pub fn fault(body: &'a [u8], places: usize) -> Option<String> {
-        let Some(sections) = Self::walk(body) else {
-            return Some("no mask, player blocks and six sections from the front".to_owned());
-        };
-        let places = places.min(MAX_PLAYERS);
-        if let Some(bit) = (places..32).find(|bit| sections.active_clients_mask >> bit & 1 != 0) {
-            return Some(format!("a player at place {bit}, past the {places} places"));
-        }
-        let (blocks, _) = players::walk(body)?;
-        if let Some(block) = blocks
-            .iter()
-            .find(|block| block.state.len() > PLAYER_STATE_CAP)
-        {
-            return Some(format!(
-                "a state of {:#x} bytes for place {}, over {PLAYER_STATE_CAP:#x}",
-                block.state.len(),
-                block.place
-            ));
-        }
-        let lens = [
-            sections.bullets.len(),
-            sections.statistics.len(),
-            sections.objects.len(),
-            sections.physics.len(),
-            sections.rules.len(),
-            sections.effects.len(),
-        ];
-        (0..6).find(|&at| lens[at] > SECTION_CAPS[at]).map(|at| {
-            format!(
-                "{} of {:#x} bytes, over {:#x}",
-                SECTION_NAMES[at], lens[at], SECTION_CAPS[at]
-            )
-        })
     }
 
     /// The prefixes of the `left` sections that end at `end`, last first.

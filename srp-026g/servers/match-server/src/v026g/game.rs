@@ -106,7 +106,8 @@ use survarium::v026g::maps::mode;
 use survarium::v026g::match_msgs::client_model::EVENT_HORIZON_MS;
 use survarium::v026g::match_msgs::players::{self, Supplies};
 use survarium::v026g::match_msgs::rules::{self, TimelimitParams, TimelimitRule, Transition};
-use survarium::v026g::match_msgs::snapshot::{self, Rules, Sections, Standing, Statistics, event};
+use survarium::v026g::match_msgs::snapshot::{self, Rules, Standing, Statistics, event};
+use survarium::v026g::match_msgs::world;
 use survarium::v026g::match_msgs::upload::{Pushed, Reassembler, Upload};
 use survarium::v026g::match_msgs::{
     ClientMessage, FORCED_MISMATCH, Generation, PlayerInput, ServerMessage, TICK_MS, TimeReply,
@@ -745,7 +746,7 @@ struct Peer {
     inputs_moved: u32,
     /// Inputs with a rotation no client makes: not relayed.
     inputs_refused: u32,
-    /// Uploads no game could load (`Sections::fault`): sent to nobody.
+    /// Uploads no game could load (`world::validate`): sent to nobody.
     uploads_refused: u32,
     resyncs: u32,
     /// Resyncs since its reports last agreed with the right ones.
@@ -3614,6 +3615,9 @@ impl Game {
         let initial = self.snapshot.is_none() && self.requested_at.is_none();
         let joiner = self.waiting_entry(index);
         let places = self.snapshot_players();
+        let game_mode = self.game_mode();
+        let batteries = self.batteries();
+        let formed = Arc::clone(&self.formed);
         let id = self.id;
         let snapshot = Snapshot {
             time: upload.item_time,
@@ -3640,22 +3644,30 @@ impl Game {
             }
         }
         // A world no game could load goes to nobody: a game reads a world
-        // with no check of its own (match.md section 36), so its frame must
-        // walk from the front, its mask name no place past the roster, and
-        // no section or player state be over its buffer
-        // (`Sections::fault`). No real world was refused so (2203 kept
-        // worlds, 2026-10-12..21). Its client stays asked: a world of its
-        // that loads may still come.
-        if let Some(why) = Sections::fault(&snapshot.body, places) {
+        // with no check of its own (match.md section 36), so the server
+        // reads all of it first and refuses what it cannot read to the end
+        // or bound (`world::validate`, world_validation.md). Strict on
+        // purpose, and loud: each refusal is a warning with the part, the
+        // offset and the reason, a dump and a count in the player's
+        // summary line, so that a check too strict shows at once. No real
+        // world was refused so (2319 kept worlds, 2026-10-12..22). Its
+        // client stays asked: a world of its that loads may still come.
+        let context = world::Context {
+            time: snapshot.time,
+            places,
+            game_mode,
+            batteries,
+            respawn_points: Some(formed.map.respawn_points),
+            profiles: Some(&formed.profiles),
+        };
+        if let Err(refusal) = world::validate(&snapshot.body, &context) {
             peer.uploads_refused += 1;
-            if peer.uploads_refused <= REFUSED_LOGGED {
-                log::warn!(
-                    "Match {id:#x}: player {index}'s upload at {} ms ({} bytes) has {why}; sent to \
-                     nobody",
-                    snapshot.time,
-                    snapshot.body.len()
-                );
-            }
+            log::warn!(
+                "Match {id:#x}: player {index}'s upload at {} ms ({} bytes) refused, {refusal}; \
+                 sent to nobody",
+                snapshot.time,
+                snapshot.body.len()
+            );
             self.dump(&snapshot, index, "unloadable");
             return;
         }
