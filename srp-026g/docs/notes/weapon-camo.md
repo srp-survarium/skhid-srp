@@ -11,8 +11,10 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
   attachments when those have textures of their own, nor the 12-gauge shell, the SV-98's net or
   the premium-only `_camo` textures.
 - **Where the paint goes.** On some parts of a weapon, never the whole: the parts (UV islands)
-  `scripts/weapon-camo/parts.tsv` names, chosen by hand in the picker page. A weapon without a
-  line there gets the suggestion: the large parts its premium painted (each at least 2 % of the
+  `scripts/weapon-camo/parts.tsv` names, chosen by hand in the picker page (all 91 textures,
+  2026-10-21: 22 by the owner, the rest after them): the body (receiver, covers, handguard,
+  stock, grip, magazine); not barrels, muzzles, sights, rails, bolts, triggers, pins, nor a
+  magazine inside a pistol's grip. A weapon without a line there gets the suggestion: the large parts its premium painted (each at least 2 % of the
   texture's parts: receiver, covers, handguard, stock, magazine); with no premium (65 textures),
   the large parts, which can take in a barrel (the TOZ-66's): pick those before a release. Small parts (triggers, bolts,
   pins, sights, screws) stay bare. Most premiums were repainted as a whole, so "where the premium
@@ -89,4 +91,4 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
   weapon's upgrade window beside the scope slot, `_slotAgreements` 2: [25]) waits for the movie's
   move to ActionScript source (`feat/lobby-from-source`), the owner's rule for new lobby work.
 - A match (first and third person) not yet seen.
-- The picks: parts.tsv is empty; every texture is on the suggestion until the owner picks.
+- The other 69 textures' picks were made after the owner's 22, by looking (the MP7 black copies the owner's MP7): worth a pass in the picker.
