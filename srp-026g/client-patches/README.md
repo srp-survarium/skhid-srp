@@ -98,6 +98,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `weapon_stash_026g.asm`, `weapon_stash_026g.section.bin`, `check_weapon_stash_026g.py` | Patch 32's find_kit grown: a weapon no kit holds is shown in the chosen kit's hands from a scratch copy of the account's profile; assembled for 0x360 of `.srpw`; its check runs it with the game's own profile and record copies (needs Unicorn) |
 | `weapon_table_026g.asm`, `weapon_table_026g.section.bin`, `check_weapon_table_026g.py` | Patch 45: a weapon's upgrade window shows the weapon in the air above the lobby's workbench, turning about its middle, the camera flown there once it is, and a drag (the left button too, off the movie) turning it; assembled for 0x800 of `.srpw`, its state at 0xF00 of `.srpd`; its check runs the lobby's handlers, the camera's constructor and tick, its drag buttons and mt_draw's two sites with the game's own code (needs Unicorn) |
 | `weapon_decals_026g.asm`, `weapon_decals_026g.section.bin`, `check_weapon_decals_026g.py` | Patch 46: a weapon wears two decals (the bake patch 44 asks for paints them) and the lobby's decal editor places them on the weapon above the workbench; assembled for 0x1000 of `.srpw` (its second page), no state of its own; its check runs the bake with the game's own unpacking and the editor's four sites with the game's own encode (needs Unicorn) |
+| `upgrade_preview_026g.asm`, `upgrade_preview_026g.section.bin`, `check_upgrade_preview_026g.py` | Patch 47: an upgrade dropped on a weapon in its upgrade window is shown at once (the character made again from patch 32's scratch with the change, before the request leaves), the server's account staying the truth; on_player_ready logs the time the lobby character's player took; assembled for 0x2000 of `.srpw` (its third page), its state at 0xE58 of `.srpd`; its check runs the six sites with the game's own setup_profile, profile copy and config lookups (needs Unicorn) |
 | `weapon_draw_026g.asm`, `weapon_draw_026g.section.bin` | The source of patch 32's draw (a weapon's window draws the player as the lobby does) and that code assembled for 0xD20 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_weapon_preview_026g.py` | Runs the original's and patch 32's upgrade window start and close (with the lobby camera's own setter), `setup_profile`'s entry, the lobby camera's three distance clamps and the player's decal pose on a made-up lobby, loaded as is and rebased (needs Unicorn) |
 | `check_forward_scroll_026g.py` | Runs the original's and the build's forward-effect compile, with patch 28's two hooks, on made-up materials and compares what each sends; runs the third hook against the game's own binding of `scene_time`; loaded as is and rebased (needs Unicorn). With `--rev12=` it compares the build with revision 12 byte by byte |
@@ -2351,7 +2352,7 @@ flags are kept, eax as the original's `lea` leaves it. Since patch 46 the camouf
 its three names are patch 46's lookup and fill (`-DDECALS`), which add the weapon's decals: a
 weapon with decals and no camouflage is baked too.
 
-`.srpw` is a section of its own (code, two pages since patch 46: patch 44's 739 bytes, the stash's, patch 45's and patch 46's on the second page; raw bytes after `.srp`'s, the Authenticode blob
+`.srpw` is a section of its own (code, two pages since patch 46, three since patch 47: patch 44's 739 bytes, the stash's, patch 45's, patch 46's on the second page and patch 47's on the third; raw bytes after `.srp`'s, the Authenticode blob
 moved behind them, SizeOfImage and SizeOfCode grown), on the page after `.srpd`: `.srp`'s two pages
 are full. In the builds with the late join only.
 
@@ -2523,6 +2524,60 @@ transform: 202 checks) and
 `check_weapon_camo_026g.py` (the camouflage alone as before). **Not run in a game**: the preview on
 a weapon, the place the click gives and the bake of a decal on a weapon are read and emulated
 only.
+
+### 47. An upgrade dropped on a weapon in its window is shown at once (the next release's revision)
+
+The owner's request (2026-10-21): "can equipments in general be more responsive? I want the scope
+to be equipped and see the results a few frames after? Or camo?", and "the server can be in the
+background". Where the time went (`../docs/notes/client_patch.md` section 3.44): the lobby client
+sends its messages only at its own tick, every ~505 ms (the packet logs: a request leaves 0 to
+505 ms after the drop, 250 ms on average); the server answers in 2-3 ms (locally; a network's
+round trip live); then the character's player is made again; a camouflage's first bake is ~40 ms
+of GPU and compression (the game's own log lines). Now the drop itself changes what the character
+is built from; what is sent is not changed and the server's account stays the truth.
+
+`upgrade_preview_026g.asm` at `.srpw`+2000h (1576 bytes, the section's third page), its state
+(A0h bytes: the window's item, the queue of changes, the revision last given and its upgrades,
+the last query's time and kit) at `.srpd`+E58h; six `jmp near`, its entries:
+
+- **relocate** (+0): relocate_upgrade_item's handler (0x29A8B0), `mov edx,[esi+4620h]` at
+  0x29A9B2 (6 bytes, `call` and a nop), before it writes `46 01`; and **drop** (+5):
+  drop_upgrade_item's (0x29A9D0), `mov ecx,[esi+4620h]` at 0x29AACF, before patch 30's `46 02`.
+  For the window's weapon (patch 32's mode 1, its item the host, the lobby character's window
+  open): the change is queued ({upgrade, the record's dict id, slot}, or "take off"), a log line
+  is written ("srp: upgrade preview: item <host>, upgrade <id>, slot <n>") and setup_profile is
+  called at once. A scope's record holds the variant made for the weapon, as the server's
+  (`ScopeFits`): the first category-22 entry of the items dictionary whose config's
+  `srp_scope_fit` names the scope and the weapon (by name or dict id); none: nothing is queued.
+- **account** (+0Ah): the 0x87 reader's last call (`call 0x270320` at 0x270313): each account
+  answers the oldest queued change (srp pushes the account after every `46 01` / `46 02`, a
+  refusal too).
+- **find** (+0Fh): patch 32's two finds (`weapon_preview_026g.asm`, -DFIND) call it; it calls the
+  stash's find_kit_or_show, then, for the item a change was queued on and shown from the account's
+  profile, builds the character from the stash's scratch: the account's profile, the queue
+  applied to the weapon's record in order as the server applies it (a put leaves an identical
+  record as it is, else takes the upgrade and what is in its slot off and adds it when there is
+  room; a take-off takes it off), and a kit revision of its own (`0x80000000 | n`) that stays the
+  same while the weapon's upgrades are the same, so the account confirming the change makes
+  nothing again (setup_profile's early return).
+- **again** (+14h): setup_profile past its early return, `cmp dword [ebx+0D2C4h],-1` at 0x284B89
+  (7 bytes): for the lobby's own character, a player being made of the same kit's id and revision
+  is what is asked: it returns (a call waiting for that player is dropped: this one is newer);
+  with no player being made the query's start time and kit are kept.
+- **made** (+19h): on_player_ready, `cmp byte [ebx+0D2C9h],0` at 0x284F7F (7 bytes): for the lobby's
+  own character a log line "srp: lobby character's player made in <n> ms" (the lobby's clock,
+  [menu+9Ch]+584Ch, since the query), then the original's comparison.
+
+A refusal: the account comes back without the change, the weapon's upgrades differ from those
+shown, the character is made again from the account's. Armour windows, the squad panels and a
+match: the original's code. No base relocation is under a site and no branch aims inside one;
+the code holds absolute addresses (the exe is never rebased). The lobby only: no row in
+`../crates/session/src/v026g/simulation_changes.tsv`.
+
+Checked: `selftest_026g.py` check 47 (the sites in the original and the build, the handlers'
+registers, the 0x87 reader's last call, setup_profile's ways to 0x284B89, the code's calls and
+branches, `.srpw`'s three pages); `check_upgrade_preview_026g.py` (Unicorn, the cases in its
+header: the game's own setup_profile, profile copy and config lookups). **Not run in a game.**
 
 ## Not ported, not done
 

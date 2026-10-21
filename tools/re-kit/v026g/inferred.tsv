@@ -577,6 +577,7 @@ va	status	ref_021d	name
 0x000f55b0	inferred-medium	0x000bdb7d	PPM_CONTEXT::decodeBinSymbol
 0x000f6b10	inferred-high		vostok::configs::binary_config_value::operator[]
 0x000f6c00	inferred-high		vostok::configs::binary_config_value::value_exists
+0x000f6d50	inferred-medium		vostok::configs::binary_config_value::find_child_by_crc
 0x000f70f0	inferred-medium	0x000be9be	vostok::resources::resource_base::resource_base
 0x000f7650	inferred-medium	0x000bedb5	malloc
 0x000f7680	inferred-medium	0x000bedfb	realloc
@@ -687,6 +688,7 @@ va	status	ref_021d	name
 0x00111860	inferred-medium	0x000d0d66	vostok::logging::has_passed_filters
 0x00111910	inferred-medium	0x000d0ddb	vostok::logging::string_to_verbosity
 0x001119d0	inferred-medium	0x000d0e6c	vostok::logging::enumerate_filters
+0x00111ed0	inferred-medium		vostok::logging::log_message
 0x001122c0	inferred-medium	0x000d1582	vostok::buffer_vector<enum vostok::logging::format_specifier_enum>::push_back
 0x001125d0	inferred-medium	0x000d17c8	vostok::logging::log_file::append
 0x00112740	inferred-medium	0x000d1909	vostok::logging::log_file::goto_line
@@ -1609,6 +1611,8 @@ va	status	ref_021d	name
 0x0026fe70	inferred-medium	0x0019d603	survarium::lobby_client::query_squad_member_contents
 0x0026ff00	inferred-medium	0x0019d672	survarium::lobby_client::query_player_match_stats
 0x00270070	inferred-medium	0x0019d75f	survarium::lobby_client::query_elo_players
+0x00270260	inferred-medium		survarium::lobby_client::process_own_account
+0x00270320	inferred-medium		survarium::lobby_client::copy_account_items
 0x00270390	inferred-high		survarium::inventory_item_descr::operator=
 0x002706f0	inferred-medium	0x0019de6d	survarium::lobby_client::move_item
 0x002707c0	inferred-medium		survarium::lobby_client::send_attach_upgrade
@@ -1679,6 +1683,7 @@ va	status	ref_021d	name
 0x00283ef0	inferred-medium	0x001a4482	survarium::lobby_camera::tick
 0x002844d0	inferred-high		survarium::lobby_camera::collide_distance
 0x002845c0	inferred-high		survarium::lobby_camera::set_target
+0x00284730	inferred-medium		survarium::lobby_character::lobby_character
 0x002849f0	inferred-high		survarium::lobby_character::update
 0x00284b10	inferred-medium	0x001a481b	survarium::lobby_character::setup_profile
 0x00284d10	inferred-high		survarium::player_profile::operator=

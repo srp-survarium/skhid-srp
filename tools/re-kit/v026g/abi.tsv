@@ -202,6 +202,7 @@ va	name	source	ret_cleanup	result
 0x000f1850	vostok::resources::unmanaged_resource::~unmanaged_resource	manual	0	
 0x000f6b10	vostok::configs::binary_config_value::operator[]	manual	0	EAX: the child value (no end check)
 0x000f6c00	vostok::configs::binary_config_value::value_exists	manual	0	AL: the key is there
+0x000f6d50	vostok::configs::binary_config_value::find_child_by_crc	manual	0	EAX = the first child (18h bytes: +0 value or children, +8 name, +10h crc32 of the name, +14h u16 type 1 int 3 named 4 indexed 5 string, +16h u16 count) whose crc is not below the key's; children sorted by crc
 0x000f6df0	vostok::memory::writer_base::`scalar deleting destructor'	manual	4	EAX: original owner pointer; storage may already be deleted
 0x000f6e30	vostok::memory::writer_base::open_chunk	manual	0	
 0x000f6e90	vostok::memory::writer_base::close_chunk	manual	0	
@@ -219,6 +220,8 @@ va	name	source	ret_cleanup	result
 0x00110b80	vostok::network::network_world::tick	manual	4	
 0x00110dd0	vostok::network::network_world::clear_resources	manual	0	
 0x00110e10	vostok::network::network_world::dispatch_callbacks	manual	0	
+0x00111860	vostok::logging::has_passed_filters	manual	0	AL = the line is written; the game asks it only while [0x1F1D60C] is set
+0x00111ed0	vostok::logging::log_message	manual	0	one line of Survarium_<user>.log: "<channel> <level>\t[time]\t<text>" (level 4: info)
 0x001166f0	vostok::render::renderer_cook::allocate_resource	manual	20	EAX: output pointer/size buffer address
 0x00116730	vostok::render::renderer_cook::deallocate_resource	manual	4	
 0x00116750	vostok::render::renderer_cook::create_resource	manual	20	
@@ -335,6 +338,7 @@ va	name	source	ret_cleanup	result
 0x00126750	vostok::render::skeleton_model_instance_cook::on_render_model_loaded	manual	8	
 0x00126af0	vostok::render::skeleton_model_instance_cook::on_all_subresources_ready	manual	4	
 0x00127700	boost::function_invoker<bind(void(*)(A*,B*),a,b)>::invoke	manual	0	
+0x00134020	vostok::render::camouflage_decal_baker_cook::translate_query	manual	4	class 6Ch; asks 4 class-6Bh (107) camouflage_decal_texture_type_baker_cook queries per P, one per type d, n, f, s (names 0x9EE7A4..0x9EE7B0, the class at 0x1342E8): a log's "cook of '' [quid n][class 107] failed" is one of them (once per baked surface, before its d, n, s lines: LIKELY f, fresnel)
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	manual	8	
 0x00135af0	vostok::render::material_effects_instance_cook::translate_query	manual	4	
 0x00135c20	vostok::render::material_effects_instance_cook::query_effects	manual	12	
@@ -1012,6 +1016,7 @@ va	name	source	ret_cleanup	result
 0x0026f560	survarium::lobby_client::clear_profile_info	manual	4	
 0x0026ff90	survarium::lobby_client::query_match_stats	manual	4	
 0x00270100	survarium::lobby_client::read_status_info	manual	0	
+0x00270260	survarium::lobby_client::process_own_account	manual	4	the 0x87 reader: the account body (0x1F1070), revisions, active id, flags, experience; its last call 0x270320 (0x270313, esi = the lobby client) copies the items from the inventory
 0x00270390	survarium::inventory_item_descr::operator=	manual	0	EAX = destination; clobbers ECX, EDX, XMM0
 0x00270400	survarium::lobby_client::read_enumerate_inventory_info	manual	4	
 0x00270570	survarium::lobby_client::read_player_skills	manual	4	

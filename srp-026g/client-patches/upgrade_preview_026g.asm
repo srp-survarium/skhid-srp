@@ -1,5 +1,5 @@
 ; A weapon's upgrade window shows an upgrade dropped on the weapon at once
-; (build 2777, patch 47, client_patch.md section 3.43). Patch 32's lobby
+; (build 2777, patch 47, client_patch.md section 3.44). Patch 32's lobby
 ; character shows the window's weapon (weapon_preview_026g.asm,
 ; weapon_stash_026g.asm); the stock game shows what the server's account
 ; says, so a scope or a camouflage dropped on the weapon was seen only after

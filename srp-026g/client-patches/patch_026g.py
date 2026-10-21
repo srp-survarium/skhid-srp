@@ -1582,7 +1582,7 @@ WEAPON_TABLE_MATRIX_OFFSET = 0x50
 WEAPON_PREVIEW_CAMERA_JUMPS = (0x68, 0xA8)     # weapon_preview_026g.section.bin: the two `jmp CAMERA`
 WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14)  # camera, tick, cull, matrix, left: `jmp near` each
 # A weapon's upgrade window shows an upgrade dropped on the weapon at once
-# (patch 47, README; client_patch.md section 3.43): upgrade_preview_026g.asm
+# (patch 47, README; client_patch.md section 3.44): upgrade_preview_026g.asm
 # at UPGRADE_PREVIEW_OFFSET of `.srpw`, a page of its own (the second page is
 # the weapon decals', patch 46); its state at UPGRADE_PREVIEW_STATE_OFFSET of
 # `.srpd`, after the field of view's k (FOV_LOD_STATE_OFFSET) and before
@@ -2476,7 +2476,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
                      "a model's LOD and screen factor at a wider field of view are the original's, "
                      "a weapon wears the camouflage its item holds, "
                      "a weapon's upgrade window shows it in the air above the lobby's workbench, "
-                     "a weapon wears the decals its item holds, placed on it above the workbench"
+                     "a weapon wears the decals its item holds, placed on it above the workbench, "
+                     "an upgrade dropped on a weapon in its window is shown at once"
                      if late_join is not None else "")
                   + (f", default login server {server}" if server is not None else ""))
 

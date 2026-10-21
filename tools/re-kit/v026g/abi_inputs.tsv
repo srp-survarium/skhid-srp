@@ -589,6 +589,9 @@ va	name	location	role	basis
 0x000f6b10	vostok::configs::binary_config_value::operator[]	EDI	key	observed
 0x000f6c00	vostok::configs::binary_config_value::value_exists	EAX	table value	observed
 0x000f6c00	vostok::configs::binary_config_value::value_exists	ESI	key	observed
+0x000f6d50	vostok::configs::binary_config_value::find_child_by_crc	ECX	the children's begin	observed
+0x000f6d50	vostok::configs::binary_config_value::find_child_by_crc	EAX	the children's end	observed
+0x000f6d50	vostok::configs::binary_config_value::find_child_by_crc	entry ESP+8	&the key's crc32	observed
 0x000f6df0	vostok::memory::writer_base::`scalar deleting destructor'	ECX	writer_base owner	observed
 0x000f6df0	vostok::memory::writer_base::`scalar deleting destructor'	entry ESP+4	deleting flags; only bit0 tested	observed
 0x000f6e30	vostok::memory::writer_base::open_chunk	EDI	writer_base owner	observed
@@ -617,6 +620,17 @@ va	name	location	role	basis
 0x00110b80	vostok::network::network_world::tick	entry ESP+4	single_threaded byte	observed
 0x00110dd0	vostok::network::network_world::clear_resources	ECX	network-world receiver	observed
 0x00110e10	vostok::network::network_world::dispatch_callbacks	ECX	network-world receiver	observed
+0x00111860	vostok::logging::has_passed_filters	entry ESP+4	the channel's name ("game" 0x9FA4E4)	observed
+0x00111860	vostok::logging::has_passed_filters	entry ESP+8	the level (4 info)	observed
+0x00111ed0	vostok::logging::log_message	entry ESP+4	&a boost::function (empty: its manager 0)	observed
+0x00111ed0	vostok::logging::log_message	entry ESP+8	[0x1F1D610]	observed
+0x00111ed0	vostok::logging::log_message	entry ESP+0Ch	0x21E73B8	observed
+0x00111ed0	vostok::logging::log_message	entry ESP+10h	the source file's name	observed
+0x00111ed0	vostok::logging::log_message	entry ESP+14h	the line	observed
+0x00111ed0	vostok::logging::log_message	entry ESP+18h	the function's name	observed
+0x00111ed0	vostok::logging::log_message	entry ESP+1Ch	the channel's name	observed
+0x00111ed0	vostok::logging::log_message	entry ESP+20h	the level (4 info)	observed
+0x00111ed0	vostok::logging::log_message	entry ESP+24h	the format, its arguments after it (cdecl)	observed
 0x001166f0	vostok::render::renderer_cook::allocate_resource	entry ESP+4	output pointer/size buffer	observed
 0x00116730	vostok::render::renderer_cook::deallocate_resource	entry ESP+4	resource pointer	observed
 0x00116750	vostok::render::renderer_cook::create_resource	entry ESP+4	query object	observed
@@ -2409,6 +2423,8 @@ va	name	location	role	basis
 0x0026ff90	survarium::lobby_client::query_match_stats	stack+4	match identifier	inferred
 0x00270100	survarium::lobby_client::read_status_info	EDI	lobby client	inferred
 0x00270100	survarium::lobby_client::read_status_info	EAX	reader	inferred
+0x00270260	survarium::lobby_client::process_own_account	EAX	the message's reader (+4 the read position)	observed
+0x00270260	survarium::lobby_client::process_own_account	entry ESP+4	the lobby client	observed
 0x00270390	survarium::inventory_item_descr::operator=	EAX	source record	observed
 0x00270390	survarium::inventory_item_descr::operator=	EDI	destination record (constructed: its vectors point into itself)	observed
 0x00270400	survarium::lobby_client::read_enumerate_inventory_info	stack+4	lobby client	inferred
