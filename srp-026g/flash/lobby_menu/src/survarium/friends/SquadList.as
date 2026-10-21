@@ -28,7 +28,15 @@ package survarium.friends
    {
       
       private static var _squadList:Array = [];
-      
+
+      // srp's squads are of two (the owner's of 2026-10-20: "only allow for
+      // 2 people in a squad", "there shouldn't even be a button to accept a
+      // third person"; the server's SRP_SQUAD_SIZE): the panel has two
+      // places, and a squad of two is full, so nothing invites a third (the
+      // friends' and the chat's menus offer "Invite to squad" only while it
+      // is not). The game tells the movie no size: it is fixed here.
+      public static const SIZE:int = 2;
+
       public var list:ScrollingList;
       
       public var textFieldLabel:TextField;
@@ -172,7 +180,8 @@ package survarium.friends
          }
          var _loc2_:* = param1.itemData;
          var _loc3_:Object;
-         if(_loc2_)
+         // A search left open from before the squad filled invites nobody.
+         if(_loc2_ && !PlayerInfo.isSquadFull)
          {
             _loc3_ = _loc2_;
             trace("invite_to_squad::",_loc3_.name);
@@ -291,7 +300,7 @@ package survarium.friends
             _loc4_++;
          }
          PlayerInfo.isInSquad = _loc3_ > 0;
-         PlayerInfo.isSquadFull = _loc3_ == 3;
+         PlayerInfo.isSquadFull = _loc3_ >= SIZE;
          this.onNewIndex();
       }
       
@@ -340,7 +349,7 @@ package survarium.friends
             type:_loc7_,
             weapon:_loc8_
          };
-         _squadList.length = 3;
+         _squadList.length = SIZE;
          this.list.dataProvider = new DataProvider(_squadList);
          this.updateSize();
       }

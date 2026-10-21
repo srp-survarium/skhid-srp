@@ -2626,6 +2626,8 @@ mod reconnect_tests;
 mod replay_tests;
 mod room_chat_tests;
 mod rooms_tests;
+mod squad_rooms_tests;
+mod squad_size_tests;
 
 // ---- the premium shop, items for gold, the daily bonus, the tutorial, a
 // ---- nickname change (`shop`)

@@ -87,6 +87,27 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   room when the match starts without it (code 13 / 12); it may rejoin.
 - **Sides:** drawn at the start, as even as can be (every split by the same count), squads
   together; a room of one squad plays it on both sides.
+- **Squads** (of two, `SRP_SQUAD_SIZE=2`; the owner's of 2026-10-20: "we will allow squads
+  again (it is fine if it joins a room and disbalance it by making one team two people
+  more)"; `social.md` §9.8):
+  - The commander's Play, Join (the list, the PIN, the switch to a lower max level), create
+    and Queue take its mate along, out of its room or queue: a mate free in the lobby (its
+    game there, no match, no clan team). One who is not stays where it is. A member who is
+    not the commander goes alone.
+  - All or none: the room must take both (places, max level, not kicked; the commander's
+    PIN). A room without places for both: refused, "That room is full." (code 4; a mate's
+    gear over the max level: code 12); nobody moves. Play takes the open room that fits
+    both, or makes one.
+  - Queues hold players, not squads: a commander's Queue for a full room is refused (code
+    4); a room with places for both is joined at once.
+  - The draw keeps a squad on one side, even when that side has 2 more players; never more
+    than the room's size a side (a squad splits only when nothing else fits).
+  - Late join: both go in together (the first one's 15 s, or "Join match"), one
+    reservation, on the side with fewer players, then as any joiner; no side with 2 places:
+    they wait ("The match is full."). One whose mate plays the match goes to the mate's
+    side while it has a place. One of the two unfit (kit, gear, gone) does not hold the
+    other.
+  - Leaving the room, or the squad: the other stays in the room.
 - **Late joins:** a member who comes during the room's match (by Play, Join, its queue or a
   switch) sees the room first: who is in it and at what levels, to switch or make its own;
   it goes into the match 15 s later, or at once with "Join match". It goes in on the

@@ -132,7 +132,9 @@ Every setting has a default; none is needed on a dev PC.
   what a lead counts for when a player comes into a match being played
   (`matchmaking.md` §9).
   `SRP_SQUADS` (default on; `off`: no squads), `SRP_SQUADS_OFF_TEXT`
-  (`social.md` §9.4).
+  (`social.md` §9.4); `SRP_SQUAD_SIZE` (default 3; 2 or 3),
+  `SRP_SQUAD_FULL_TEXT` (default "Squads are limited to <size> players."):
+  the most players of a squad (`social.md` §9.9).
 - `SRP_EXPERIENCE_RATE` (default 2), `SRP_MONEY_RATE` (percent; unset:
   150 to 220 by the match's level), `SRP_REPUTATION_RATE` (percent,
   default 120): the rewards (`results.md` §10, §13; how long progression
