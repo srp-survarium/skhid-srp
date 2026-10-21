@@ -2053,23 +2053,25 @@ fn a_roster_of_three_waits_for_its_second_player_before_the_countdown() {
 }
 
 #[test]
-fn a_world_the_server_cannot_read_still_starts_the_match_but_gives_no_results() {
-    let mut bench = Bench::new(1, MAP_BATTERIES, Settings::default());
+fn a_world_that_reads_as_no_world_goes_to_nobody() {
+    let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
     bench.clients[0].connect();
     assert!(bench.until(1_000, |bench| bench.clients[0].model.options.is_some()));
-    // Not a mask, players and six sections: the server's reader may be
-    // what is wrong (no 0.26g world was seen when it was written).
+    // Not a mask, players and six sections: every game given it would
+    // load it.
     let odd = vec![0xEE; 777];
     bench.clients[0].upload(INITIAL_MS, &odd);
     assert!(bench.clients[0].model.send_ready());
     bench.clients[0].send(id::READY, &[], true);
-    assert!(bench.until(1_000, |bench| bench.stages() == "L"));
-    // It went out byte for byte. (The client model, as strict as the
-    // reader, calls it no world: the one fault here.)
-    assert_eq!(bench.clients[0].faults.len(), 1);
-    assert!(bench.clients[0].faults[0].contains("0xe8"));
-    assert_eq!(bench.game().observed(), None);
-    assert!(bench.game().has_clock());
+    bench.run(1_000);
+    assert_eq!(bench.game().uploads_refused(0), 1);
+    assert!(!bench.game().has_clock());
+    assert_eq!(bench.stages().as_bytes()[0], b'w');
+    // The next game's world starts the match, and the first game from it.
+    bench.join(1);
+    assert!(bench.until(5_000, |bench| bench.stages() == "LL"));
+    assert_eq!(bench.game().uploads_refused(1), 0);
+    bench.assert_no_faults();
 }
 
 #[test]

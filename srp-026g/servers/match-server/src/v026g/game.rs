@@ -745,6 +745,8 @@ struct Peer {
     inputs_moved: u32,
     /// Inputs with a rotation no client makes: not relayed.
     inputs_refused: u32,
+    /// Uploads that do not read as a world: sent to nobody.
+    uploads_refused: u32,
     resyncs: u32,
     /// Resyncs since its reports last agreed with the right ones.
     restores_unagreed: u32,
@@ -1308,6 +1310,7 @@ impl Game {
             inputs_relayed_late: 0,
             inputs_moved: 0,
             inputs_refused: 0,
+            uploads_refused: 0,
             resyncs: 0,
             restores_unagreed: 0,
             latest_input_ms: 0,
@@ -3628,6 +3631,25 @@ impl Game {
                 return;
             }
         }
+        // A world that does not split into its frame (a mask, the player
+        // blocks, six length-prefixed sections) goes to nobody: every game
+        // given it would load it, and the client's reader checks nothing
+        // (match.md section 20). Live, no real world was refused so (none of
+        // 143 initial worlds, nor of any later one, up to 2026-10-22). Its
+        // client stays asked: a world of its that reads may still come.
+        if Sections::candidates(&snapshot.body).is_empty() {
+            peer.uploads_refused += 1;
+            if peer.uploads_refused <= REFUSED_LOGGED {
+                log::warn!(
+                    "Match {id:#x}: player {index}'s upload at {} ms ({} bytes) does not read as \
+                     a world (a mask, players and six sections); sent to nobody",
+                    snapshot.time,
+                    snapshot.body.len()
+                );
+            }
+            self.dump(&snapshot, index, "unreadable");
+            return;
+        }
         peer.asked = None;
         peer.unanswered_since = None;
         if !initial && let Some(asked_at) = peer.wrong_world_asked.take() {
@@ -3647,19 +3669,6 @@ impl Game {
         peer.simulating_at = Some(now);
         if !initial && let Some(asked) = peer.asked_clock.take() {
             observe_upload(&mut peer.upload_offset, asked, snapshot.time);
-        }
-        // The server needs no more of a world than its bytes; that it does
-        // not split into its sections here says the reader is wrong (no
-        // 0.26g world was seen when it was written) as likely as the world.
-        // It is used, saved to look at, and gives no results.
-        if Sections::candidates(&snapshot.body).is_empty() {
-            log::warn!(
-                "Match {id:#x}: player {index}'s upload at {} ms ({} bytes) does not read as a \
-                 world (a mask, players and six sections); used as it is, without results",
-                snapshot.time,
-                snapshot.body.len()
-            );
-            self.dump(&snapshot, index, "unreadable");
         }
         if initial {
             self.first_snapshot(index, snapshot, now);
@@ -5916,7 +5925,8 @@ fn given_clock(set_times: &VecDeque<SetTimeSent>, now: Instant) -> Option<u32> {
 fn input_summary(peer: &Peer) -> String {
     format!(
         "{} inputs, {} first seen over {LATE_INPUT_MS} ms late on the way, {} too late to relay \
-         and discarded, {} moved, {} refused for their rotation, the latest {} ms, resynced {} \
+         and discarded, {} moved, {} refused for their rotation, {} uploads that read as no \
+         world, the latest {} ms, resynced {} \
          times, started once more after its first world {} times, round trip {} ms, {} messages \
          to it sent again, our seq skipped ahead {} times, {} of {} relays and roster changes \
          never acked, {} relayed late at their tick",
@@ -5925,6 +5935,7 @@ fn input_summary(peer: &Peer) -> String {
         peer.inputs_discarded,
         peer.inputs_moved,
         peer.inputs_refused,
+        peer.uploads_refused,
         peer.latest_input_ms,
         peer.resyncs,
         peer.reloads,
@@ -6111,6 +6122,14 @@ impl Game {
         self.peers[index]
             .as_ref()
             .map_or(0, |peer| peer.inputs_refused)
+    }
+
+    /// How many of its uploads were sent to nobody for not reading as a
+    /// world.
+    pub fn uploads_refused(&self, index: usize) -> u32 {
+        self.peers[index]
+            .as_ref()
+            .map_or(0, |peer| peer.uploads_refused)
     }
 
     pub fn rule_state(&self) -> u8 {
