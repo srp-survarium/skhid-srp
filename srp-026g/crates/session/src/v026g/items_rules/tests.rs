@@ -1728,6 +1728,8 @@ fn golden_weapons_owned_before_get_the_silver_bonus_once() {
     let again = account.clone();
     assert_eq!(give_golden_silver(&mut account).given, Vec::<u32>::new());
     assert_eq!(account, again);
+}
+
 #[test]
 fn a_decal_placed_on_a_weapon_asks_for_the_account() {
     let mut account = rich();
