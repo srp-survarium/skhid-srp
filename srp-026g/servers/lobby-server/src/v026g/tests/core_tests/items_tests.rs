@@ -2,6 +2,7 @@
 //! and the repair, each from the client's request to what its strict model
 //! holds afterwards.
 
+use session::v026g::account::Upgrade;
 use session::v026g::items_rules;
 use survarium::v026g::lobby::Crafted;
 use survarium::v026g::lobby::client_model::Decoded;
@@ -228,6 +229,41 @@ fn a_camouflage_and_decals_go_on_a_vest() {
         denial(&world.take(alice), 0x46).as_deref(),
         Some("st_cannot_upgrade_item")
     );
+    world.assert_clean();
+}
+
+#[test]
+fn a_decal_placed_on_a_weapon_sends_the_account() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let rifle = give(&mut world, alice, "ak_74m", &[]);
+    let decal_name = Dictionary::shared()
+        .items
+        .iter()
+        .find(|item| item.category == 26)
+        .unwrap()
+        .name
+        .clone();
+    let decal = give(&mut world, alice, &decal_name, &[]);
+    // The decal in slot 0 of the rifle (the data patch gives weapons
+    // `decal_available`; the stock data the tests read has none).
+    world.change(alice, |account| {
+        let a = u32::from(account.item(decal).unwrap().dict_id);
+        account.item_mut(rifle).unwrap().upgrades.push(Upgrade {
+            id: decal,
+            a,
+            value: 0,
+            param: 0,
+        });
+    });
+    world.ask(alice, ask::place(rifle, decal, 0x1122_3344_5566_7788));
+    let decoded = world.take(alice);
+    assert!(decoded.iter().any(|m| matches!(m, Decoded::Inventory { .. })));
+    assert_eq!(
+        world.account(alice).item(rifle).unwrap().upgrades[0].value,
+        0x1122_3344_5566_7788
+    );
+    assert_same_items(&mut world, alice);
     world.assert_clean();
 }
 

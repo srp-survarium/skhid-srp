@@ -486,13 +486,16 @@ pub fn detach_upgrade(
 
 /// `46 05 <kit> <host> <upgrade> <u64>`: the decal editor's value for a
 /// cosmetic on an item (the client has written it into its own copy, and
-/// expects no answer). Each item wearing the cosmetic has its own.
+/// expects no answer). Each item wearing the cosmetic has its own. True
+/// when the host is a weapon: the client's copy is the inventory's, and
+/// its lobby shows the weapon with the new place only when it is sent the
+/// account (patch 46 bakes the decal when the weapon is built).
 pub fn place_upgrade(
     account: &mut Account,
     host_item_id: u32,
     upgrade_item_id: u32,
     value: u64,
-) -> Result<(), ItemError> {
+) -> Result<bool, ItemError> {
     let held = account
         .item_mut(host_item_id)
         .and_then(|host| {
@@ -503,7 +506,10 @@ pub fn place_upgrade(
         .ok_or(ItemError::Upgrade("the cosmetic is not on that item"))?;
     held.value = value;
     bump_kits_wearing(account, host_item_id);
-    Ok(())
+    let weapon = account.item(host_item_id).is_some_and(|host| {
+        item_params(host.dict_id).is_some_and(|params| modifications::is_weapon_kind(params.kind))
+    });
+    Ok(weapon)
 }
 
 // -------------------------------------------------------------- reroll

@@ -95,7 +95,9 @@ pub const REROLL_CHOICES: usize = 3;
 pub const REROLL_WAIT_SECONDS: u32 = 6 * 3600;
 /// The upgrade slots of an item: decals in 0 and 1 (the lobby shows two
 /// for `decal_available`, 0x28779F), the camouflage in 3
-/// (`DragRegion.as`: `relocate_upgrade_item(item, camo, 3)`).
+/// (`DragRegion.as`: `relocate_upgrade_item(item, camo, 3)`). [srp] A
+/// weapon's decals are in 0 and 1 too (its 2 holds the camouflage, its 3
+/// the scope); patch 46 bakes them.
 pub const DECAL_SLOTS: [u8; 2] = [0, 1];
 pub const CAMO_SLOT: u8 = 3;
 /// [srp] The camouflage's slot on a weapon (one whose config has
@@ -109,11 +111,18 @@ pub const WEAPON_CAMO_SLOT: u8 = 2;
 /// ([`ItemParams::kind`](super::item_params::ItemParams::kind)): a weapon's
 /// (`wpn_*`) [`WEAPON_CAMO_SLOT`], any other item's [`CAMO_SLOT`].
 pub fn camo_slot(kind: &str) -> u8 {
-    if kind.starts_with("wpn_") {
+    if is_weapon_kind(kind) {
         WEAPON_CAMO_SLOT
     } else {
         CAMO_SLOT
     }
+}
+
+/// An item of type `kind` is a weapon (`wpn_*`): its camouflage is in
+/// [`WEAPON_CAMO_SLOT`], and the lobby builds it again with a decal's new
+/// place only from the account the server sends after `46 05` (patch 46).
+pub fn is_weapon_kind(kind: &str) -> bool {
+    kind.starts_with("wpn_")
 }
 
 /// What an item may be modified with, from its config ([`all_item_mods`]).
@@ -548,15 +557,23 @@ pub fn upgrade_slots_in(
     if upgrade.modification == 0 {
         return &[];
     }
-    if upgrade.kind.ends_with("_camo") && host.camo {
-        let weapon = item_params(host_dict_id)
-            .is_some_and(|params| camo_slot(params.kind) == WEAPON_CAMO_SLOT);
-        if weapon {
+    let host_kind = item_params(host_dict_id).map_or("", |params| params.kind);
+    cosmetic_slots(host, host_kind, upgrade.kind)
+}
+
+/// The slots a cosmetic of type `upgrade_kind` goes into on `host`, an item
+/// of type `host_kind`: a camouflage (`*_camo`) into [`CAMO_SLOT`] of one
+/// with `camo_available` ([`WEAPON_CAMO_SLOT`] on a weapon, [`camo_slot`]),
+/// a decal (`*_decl`) into the [`DECAL_SLOTS`] of one with
+/// `decal_available`, a weapon's as armour's.
+pub fn cosmetic_slots(host: &ItemMods, host_kind: &str, upgrade_kind: &str) -> &'static [u8] {
+    if upgrade_kind.ends_with("_camo") && host.camo {
+        if camo_slot(host_kind) == WEAPON_CAMO_SLOT {
             &[WEAPON_CAMO_SLOT]
         } else {
             &[CAMO_SLOT]
         }
-    } else if upgrade.kind.ends_with("_decl") && host.decal {
+    } else if upgrade_kind.ends_with("_decl") && host.decal {
         &DECAL_SLOTS
     } else {
         &[]

@@ -8,7 +8,7 @@
 //! |---|---|---|
 //! | `46 01` attach | `83 46 01`, then the inventory and the account | `84 46` `st_cannot_upgrade_item`, then the inventory and the account (the window showed the cosmetic in its slot already) |
 //! | `46 02` detach | `83 46 02`, then the same (also for a cosmetic that is gone: sold, Flash's `on_item_sold` asks after the sale) | the same |
-//! | `46 05` place a decal | nothing: the client wrote the value itself and has no handler for an answer | `84 46`, then the inventory and the account |
+//! | `46 05` place a decal | nothing: the client wrote the value itself and has no handler for an answer; on a weapon the inventory and the account (patch 46: the lobby builds the weapon again with it) | `84 46`, then the inventory and the account |
 //! | `46 06` window opened | `83 46 06`, and `83 46 07` again for a change not chosen yet | `84 46` `st_cannot_select_rerolled_modification` |
 //! | `46 07` reroll | `83 46 07` and the money | `84 46`, then `83 46 06`: the window is locked until it is filled again |
 //! | `46 08` choose | `83 46 08` (the client changes its copies itself) | `84 46`, then `83 46 06` (and `07`) |
@@ -80,11 +80,15 @@ impl Core<'_> {
     }
 
     /// `46 05 <kit> <host> <upgrade> <u64>`: the decal editor's value. The
-    /// client has written it into its own copy and reads no answer.
+    /// client has written it into its own copy and reads no answer. A
+    /// weapon's: the account too, which builds the weapon of the lobby's
+    /// view again with the decal's new place (patch 46; the stock editor
+    /// baked an armour's itself).
     pub(super) fn place_upgrade(&mut self, who: &Who, host: u32, upgrade: u32, value: u64) {
         let placed = items_rules::place_upgrade(&mut who.account.locked(), host, upgrade, value);
         match placed {
-            Ok(()) => {
+            Ok(true) => self.item_changed(who),
+            Ok(false) => {
                 self.accounts.mark_dirty(who.account_id);
                 self.squads_dirty = true;
             }

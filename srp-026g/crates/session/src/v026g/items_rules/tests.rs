@@ -180,8 +180,8 @@ fn cosmetics_go_on_and_come_off() {
     assert!(!again.detach_first);
     assert_eq!(account.item(other).unwrap().upgrades.len(), 1);
 
-    // The decal editor's value.
-    place_upgrade(&mut account, vest, first, 0x0102_0304_0506_0708).unwrap();
+    // The decal editor's value (a vest: nothing to send).
+    assert!(!place_upgrade(&mut account, vest, first, 0x0102_0304_0506_0708).unwrap());
     let held = |account: &Account, host: u32, upgrade: u32| {
         account
             .item(host)
@@ -1386,4 +1386,27 @@ fn a_loaded_item_is_made_safe() {
     account.inventory.retain(|item| item.item_id != camo);
     account.sync_kits();
     assert!(account.item(vest).unwrap().upgrades.is_empty());
+}
+
+#[test]
+fn a_decal_placed_on_a_weapon_asks_for_the_account() {
+    let mut account = rich();
+    let rifle = give(&mut account, "ak_74m", &[]);
+    let decal_id = account.add_item(decal(), FULL_CONDITION);
+    // A decal on the rifle (the data patch gives weapons `decal_available`).
+    account.item_mut(rifle).unwrap().upgrades.push(Upgrade {
+        id: decal_id,
+        a: u32::from(decal()),
+        value: 0,
+        param: 1,
+    });
+    let revision = account.kits[0].revision;
+    account.kits[0].slots[7] = Some(KitSlot {
+        item_id: rifle,
+        count: 1,
+    });
+    assert!(place_upgrade(&mut account, rifle, decal_id, 0x0102_0304_0506_0708).unwrap());
+    let held = account.item(rifle).unwrap().upgrades[0];
+    assert_eq!((held.value, held.param), (0x0102_0304_0506_0708, 1));
+    assert_ne!(account.kits[0].revision, revision);
 }
