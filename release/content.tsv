@@ -51,6 +51,8 @@ pack	ui-rev20@1	resources.db.patch_20	revision 20's hud and lobby changes
 pack	maps-v011e@12	resources.db.patch_22	the v0.11e maps
 pack	novice@6	resources.db.patch_23	the Novice's knit cap
 pack	exo-body-armour@1	resources.db.patch_24	the Duty and Freedom exoskeleton bodies (1805, 1807) as armour without oxygen, their artefact slot working (over duty-exo 21, freedom-exo 5)
+pack	army-balaclava@2	a89701003319783aada1ce4df4bcca9a7a147179fe14829d423e094b512cde40	the STK2 Army balaclava (1823), Renaissance Army, level 6 (masks-pack.md)
+pack	face-069d@2	215d1e935f997efb638fcb10f0ea4b2ed49f5ff276ecc67eec36628c05113f11	five 0.69d masks: Keffiyeh, 3-Hole Balaclava, Balaclava, Buff, Protective mask (1812-1816; masks-pack.md)
 edit	weapon-balance-1.json	resources.db.patch_21	weapon balance 1 (#182)
 edit	backpacks-1.json	-	backpacks may roll health regeneration (#194)
 edit	fall-damage-1.json	-	fall damage as in 0.27 (#200)
