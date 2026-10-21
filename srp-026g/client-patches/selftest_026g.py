@@ -351,7 +351,8 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     a death sets no mode; a dead player's input is not sent (0x1F7883); the
     handler's game world, game, client and local player; the window's size
     (vtable+1Ch) and the look's step. The code: its exits (warmup_look, the
-    update, its step), calls (the pointer, the window's size, drag_end),
+    update, its step on the identity, then the turn times the eyes' rows),
+    calls (the pointer, the window's size, drag_end), the turn's limits,
     absolute operands (its state, the options, its two constants) and
     returns; branches inside land on instructions; no relocation under the
     site, nothing aims inside it. check_death_camera_026g.py runs it.
@@ -3132,12 +3133,18 @@ def test_death_camera(original, image, before):
     # The code.
     code = open(P.death_camera_bin(), "rb").read()
     data_at = code.index(struct.pack("<f", math.pi / 180 * 0.1))
-    step_value, aspect = struct.unpack_from("<ff", code, data_at)
+    step_value, aspect, yaw_max, yaw_min, pitch_up, pitch_down = struct.unpack_from("<6f", code, data_at)
+    identity_at = (data_at + 24 + 15) // 16 * 16
+    identity = struct.pack("<16f", 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+    limits = [round(math.degrees(a), 4) for a in (yaw_max, yaw_min, pitch_up, pitch_down)] == [70, -70, 60, -40]
     parts = ((0, data_at, ["call [eax+0x30]", "call [eax+0x1c]", f"call {drag_end:#x}"], ["ret 0x10"],
-              {P.WARMUP_LOOK_VA}, {0xA74AEC, 0x1F1D9D3, death_va + data_at, death_va + data_at + 4, state, state + 4}),
+              {P.WARMUP_LOOK_VA}, {0xA74AEC, 0x1F1D9D3, state, state + 4}
+              | {death_va + data_at + 4 * i for i in range(6)}),
              (P.DEATH_VIEW_OFFSET, len(code), None, ["ret 0x8"], {P.DEATH_UPDATE_VA, P.DEATH_THIRD_VA},
               {state, state + 4}))
-    good = image.read(death_va, len(code)) == code and set(code[data_at + 8:P.DEATH_VIEW_OFFSET]) <= {0xCC}
+    good = image.read(death_va, len(code)) == code and limits \
+        and code[identity_at:identity_at + 64] == identity \
+        and set(code[data_at + 24:identity_at] + code[identity_at + 64:P.DEATH_VIEW_OFFSET]) <= {0xCC}
     for begin, end, calls, rets, exits, absolute in parts:
         listing = ndisasm(code[begin:end], death_va + begin)
         starts = {address for address, _, _ in listing}
@@ -3157,7 +3164,10 @@ def test_death_camera(original, image, before):
     first = texts(image, death_va, 0x60)
     good &= first[:2] == ["cmp byte [ecx+0x2e3],0x0", f"jz {death_va + 0x40:#x}"] \
         and f"mov ebx,{look_state:#x}" in texts(image, death_va, data_at) \
-        and texts(image, view_va, 4) == ["mov eax,[esp+0x4]"]
+        and texts(image, view_va, 4) == ["mov eax,[esp+0x4]"] \
+        and f"push dword {death_va + identity_at:#x}" in texts(image, view_va, len(code) - P.DEATH_VIEW_OFFSET) \
+        and [t for t in texts(image, view_va, len(code) - P.DEATH_VIEW_OFFSET) if t.startswith(("mulps", "addps"))] \
+        == ["mulps xmm1,xmm4", "mulps xmm2,xmm5", "addps xmm1,xmm2", "mulps xmm0,xmm6", "addps xmm1,xmm0"] * 3
     check(good and P.FOV_LOD_STATE_OFFSET + P.FOV_LOD_STATE_SIZE <= P.DEATH_CAMERA_STATE_OFFSET
           and P.DEATH_CAMERA_STATE_OFFSET + P.DEATH_CAMERA_STATE_SIZE <= P.LATE_JOIN_STATE_SIZE
           and abs(step_value - math.pi / 180 * 0.1) < 1e-9 and abs(aspect - 0.95492965) < 1e-7,
@@ -3166,8 +3176,10 @@ def test_death_camera(original, image, before):
           "calls the hud's pointer (vtable+30h), the window's size (vtable+1Ch) and the end of a drag, keeps the "
           f"drag in warmup_look's state ({look_state:#x}) and the turn at {state:#x} (the late join's page "
           f"+{P.DEATH_CAMERA_STATE_OFFSET:#x}), reads the options sensitivity, mouse_invertion and its two constants (pi/180 "
-          "x 0.1, 0.9549); death_view leaves to the view's update or its third-person step after the update's "
-          "own start; every branch inside lands on an instruction; `ret 10h` and `ret 8`")
+          "x 0.1, 0.9549) and the turn's limits (70 degrees either side, 60 up, 40 down); death_view leaves to "
+          "the view's update or its third-person step after the update's own start, which it gives the "
+          "identity, then multiplies the turn by the eyes' three rows; every branch inside lands on an "
+          "instruction; `ret 10h` and `ret 8`")
 
 
 def test_suicide_key(original, image, before):

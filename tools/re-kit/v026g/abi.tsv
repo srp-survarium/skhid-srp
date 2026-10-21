@@ -167,6 +167,7 @@ va	name	source	ret_cleanup	result
 0x0006f109		auto	0	
 0x0006f181		auto	0	
 0x0006f561		auto	0	
+0x00075e20	vostok::physics::bullet_physics_world::ray_test	manual	32	the result at entry ESP+4: +0 the hit point, +1Ch the object (0: no hit)
 0x0007ab30	vostok::network_core::mutable_buffer::resize	manual	4	
 0x0007ac10	vostok::network_core::buffer_writer::w	manual	8	
 0x0007ef90	vostok::physics::bullet_character_controller::on_ground	manual	0	EAX low byte: 1 when |velocity.up| < 4.0 (0xA7AB10) and the last hit normal.up >= the walkable-slope dot (0x21E51D8); 0 if +0x203 is set
@@ -858,6 +859,7 @@ va	name	source	ret_cleanup	result
 0x001f0090	survarium::items_dictionary::item_by_id	manual	4	
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	manual	0	
 0x001f3480	survarium::player::update_camera	manual	4	
+0x001f37a0	survarium::player::set_head_visibility	manual	4	
 0x001f3de0	vostok::network_core::buffer_writer::w<unsigned char>	manual	20	
 0x001f48a0	vostok::network_core::buffer_writer::w<unsigned int>	manual	20	
 0x001f6d50	survarium::game_world::register_cooks	manual	0	
@@ -1013,6 +1015,7 @@ va	name	source	ret_cleanup	result
 0x0027c5f0	survarium::network_client::process_player_entered_match	manual	4	
 0x0027c690	survarium::network_client::process_player_left_match	manual	4	
 0x00283d30	survarium::lobby_camera::on_mouse_move	manual	16	AL: 1 while a drag button (mask 52h) is held
+0x002844d0	survarium::lobby_camera::process_collision	manual	4	
 0x00284b10	survarium::lobby_character::setup_profile	manual	8	
 0x0028de20	survarium::lobby_menu::add_quest	manual	4	
 0x0028e690	survarium::lobby_menu::create_quest_ui_message	manual	12	

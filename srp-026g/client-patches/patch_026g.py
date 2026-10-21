@@ -370,11 +370,13 @@ Patches:
   (0x25D0E0, WARMUP_LOOK_HOOK) jumps to death_look first: while the kits
   are shown, the handler is in the first person mode and the local player
   is dead, a drag as patch 31's (the lobby's buttons at once, the left one
-  past a click) turns a yaw and a pitch of its own and takes the move, and
-  the wheel stays the cursor's; any other move goes on to warmup_look.
-  update_camera's call of the view's update (0x1F364B) calls death_view,
-  which turns the eyes' view by them (the update's own third-person step,
-  distance 0) while that player is dead; a live one clears them. The code
+  past a click) turns a yaw and a pitch of its own (within 70 degrees
+  either side, 60 up, 40 down) and takes the move, and the wheel stays the
+  cursor's; any other move goes on to warmup_look. update_camera's call of
+  the view's update (0x1F364B) calls death_view, which turns the eyes' view
+  by them relative to the head's pose (the update's own third-person step
+  on the identity, times the eyes' transform) while that player is dead; a
+  live one clears them. The code
   is death_camera_026g.asm, the section `.srpc`; a dead player sends no
   input (0x1F7883), so nothing a match computes changes;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
@@ -898,13 +900,14 @@ WARMUP_KEYS_STATE_SIZE = 4
 # a move without a button the cursor's; and death_view (DEATH_VIEW_OFFSET),
 # which update_camera's `call 0x2422B0` (0x1F364B) calls: while that player
 # is dead, in the first person mode, the kits shown and a turn kept, the
-# update's own third-person step (0x2422DE) with that yaw and pitch and the
-# distance 0 (the handler's warmup fields borrowed and put back); a live
+# update's own third-person step (0x2422DE) on the identity with that yaw
+# and pitch and the distance 0 (the handler's warmup fields borrowed and put
+# back), the turn times the eyes' (the head's) transform; a live
 # player clears the turn. No base relocation under the site; a dead local
 # player sends no input (game_world::tick 0x1F7883).
 DEATH_CAMERA_NAME = b".srpc\0\0\0"
 DEATH_CAMERA_CHARACTERISTICS = 0x60000020     # code, execute, read (as .srp)
-DEATH_LOOK_OFFSET, DEATH_VIEW_OFFSET = 0, 0x180   # the .asm's two entries
+DEATH_LOOK_OFFSET, DEATH_VIEW_OFFSET = 0, 0x200   # the .asm's two entries
 DEATH_VIEW_HOOK = (0x1F364B, bytes.fromhex("e860ec0400"), DEATH_VIEW_OFFSET, 0xE8)   # update_camera: death_view
 DEATH_CAMERA_STATE_OFFSET = 0xE60             # after the FOV LOD scale's (FOV_LOD_STATE_OFFSET)
 DEATH_CAMERA_STATE_SIZE = 8

@@ -2334,7 +2334,7 @@ third-person and warmup steps add it to the distance). The game builds and
 sends the local player's input only while it is alive (game_world::tick,
 `cmp byte [eax+33Ch],0` at 0x1F7883): a dead player sends nothing.
 
-**The patch** (builds with the late join; `death_camera_026g.asm`, 577
+**The patch** (builds with the late join; `death_camera_026g.asm`, 860
 bytes, in a section of its own, `.srpc`, on the page after the late join's
 state page, 0xA429000; its state, a yaw and a pitch, 8 bytes at the late
 join's state page +E60h):
@@ -2350,24 +2350,41 @@ join's state page +E60h):
   release). A drag's move turns the yaw by x and the pitch by y at the
   player's look's step (the option sensitivity, 0xA74AEC, x 0.1 x pi/180; the
   pitch also x height / width of the render window x 0.9549, and inverted by
-  mouse_invertion, 0x1F1D9D3), the pitch within 80 degrees, and is taken (1):
+  mouse_invertion, 0x1F1D9D3), within 70 degrees to either side, 60 up and
+  40 down (relative to the head, below), and is taken (1):
   neither the cursor's nor the player's handler's. The wheel in a drag is
   taken with it and changes nothing. Without a button the move, the wheel's
   too, goes on through warmup_look to the original: the cursor's. Every
   other move goes on to warmup_look as before.
 - update_camera's `call 0x2422B0` (0x1F364B, `DEATH_VIEW_HOOK`) calls
-  `death_view` (`.srpc`+180h): while that player is dead, the handler in
+  `death_view` (`.srpc`+200h): while that player is dead, the handler in
   the first person mode, the kits shown and the turn not 0, it runs the
   update's own third-person step (0x2422DE, after the update's own start)
-  with the turn's yaw and pitch and the distance 0, the handler's warmup
-  yaw, pitch and distance (+34Ch, +350h, +354h) borrowed and put back: the
-  eyes' place, the look turned about the world's up and then about its own
-  right. A live player gets the original update and the turn is cleared.
+  on the identity with the turn's yaw and pitch and the distance 0 (the
+  handler's warmup yaw, pitch and distance, +34Ch, +350h, +354h, borrowed
+  and put back): the turn L, the yaw about up and then the pitch about the
+  turned right. The view is then L times the eyes' transform (each of L's
+  rows x E.i + y E.j + z E.k), at the eyes' place: the look turned about the
+  head's own up and right. A live player gets the original update and the
+  turn is cleared.
 
-Free look, not an orbit: the death camera is the first person view, so
-turning it where it is keeps everything else as it was (the kill info, the
-HUD, the kits); the third-person step with a distance would orbit the eyes
-instead, one constant away.
+**Relative to the head** (the owner, after the first game test,
+2026-10-21: "the way the angle is set should be different for different
+death poses, I think, sometimes you can see inside of models", then "Can
+we maybe still orbit around eyes but take a pose into consideration?").
+The first build turned the view about the world's up: with the head rolled
+or lying on its side that swung the look into the corpse's own torso. The
+eyes' transform (player+44Ch) is the head's own, every frame: base_player's
+character head transform, the head bone's matrix times the body's
+(`animation::calculated_head_matrix`, 0.10b; the use ray of
+detect_usable_object starts at its place +47Ch along its forward +46Ch).
+Turning by it and keeping the turn within 70 degrees either side, 60 up
+and 40 down of the face's forward keeps the look in front of the face
+whatever the pose, with no table of poses (the numbers to be tuned in the
+game). The head itself is not drawn for the local player in the first
+person mode (mt_draw gives set_head_visibility 0x1F37A0 a 0 every frame,
+dead too: models 0, 5, 6, 7 hidden), so the eyes never see the face from
+inside; the eye point is not moved. Not an orbit (the owner's call).
 
 Camera only: the moves of a drag never reach the player's input handler,
 and a dead player sends no input anyway. Nothing a match computes: no row
@@ -2385,12 +2402,13 @@ operands and returns) and the layout checks of check 15 (ten sections,
 `.srpc` last); check 32 sees the mouse move's jump go to death_look.
 `check_death_camera_026g.py` (Unicorn) runs mouse moves through the input
 world's loop (the death screen's moves, wheel, click, right and left drags,
-an inverted and a slow mouse, the pitch's limit; a live player, a
+an inverted and a slow mouse, the pitch's and the yaw's limits; a live player, a
 spectator, third person, no local player, a death before the start, the
-kits hidden) and the view's update on a made-up eye transform (the build's
-turned view bit for bit the original's third-person step with distance 0;
-the warmup fields put back; a live player's turn cleared): 114 runs, seven
-broken builds fail. `check_late_join_026g.py`, `check_kit_change_026g.py`
+kits hidden) and the view's update on a made-up rolled and tilted eye
+transform (the build's view bit for bit the original's step on the identity
+times the eyes' rows, float32 in the build's order; the look in the head's
+frame the turn's alone; the warmup fields put back; a live player's turn
+cleared): 122 runs, eight broken builds fail. `check_late_join_026g.py`, `check_kit_change_026g.py`
 and `check_weapon_preview_026g.py` now find `.srp` and `.srpd` by their
 names (`.srpc` is the last section); every `check_*_026g.py` passes.
 Against the build of `main` ecb9916 the default build differs in the

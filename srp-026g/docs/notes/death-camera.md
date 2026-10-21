@@ -17,10 +17,18 @@ mouse button? Scroll shouldn't work though".
   turns once it has moved more than 8 units, so a click on a kit still picks it. During the
   drag the cursor is off the screen (a drag begun on a kit picks nothing) and it is back where
   the drag began at the release.
-- **Effect:** free look from where the eyes are: the drag turns the view about the world's up
-  (left/right) and about its own right (up/down), the step of the player's own mouse look
-  (sensitivity, invert); up/down within 80 degrees of the eyes' own. Releasing the button
-  stops; the view stays where it was turned until the respawn.
+- **Effect (the owner, after the first test, 2026-10-21: "sometimes you can see inside of
+  models"; "still orbit around eyes but take a pose into consideration"):** the camera stays
+  at the corpse's eyes and the drag turns it as the head would turn, relative to the head's
+  own pose, read every frame (the head bone's transform, player+44Ch): left/right about the
+  head's up, then up/down about the turned right, the step of the player's own mouse look
+  (sensitivity, invert). No per-pose tables: whatever pose the body falls in, the look stays
+  in a cone in front of the face: at most **70 degrees to either side, 60 up, 40 down** of
+  the face's forward (40 down stays short of the chest; to be tuned in the game). Releasing
+  the button stops; the view stays where it was turned until the respawn. Not an orbit.
+- **The head itself:** not drawn for the local player in first person (the game's
+  set_head_visibility, every frame, dead too), so the eyes never show the inside of the face;
+  no offset of the eye point.
 - **Without a button:** mouse moves are the cursor's, as before.
 - **The wheel:** does nothing on the death screen, with or without a button (no zoom, no
   distance).

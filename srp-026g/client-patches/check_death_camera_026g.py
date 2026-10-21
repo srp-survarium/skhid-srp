@@ -22,14 +22,16 @@ original; a left press that moves little is the cursor's (a click); past
 that, or with the lobby's buttons at once, a drag takes the hud's pointer
 off the screen, gives the player's handler nothing, and turns a yaw and a
 pitch by the player's look's step (the mouse's sensitivity, the window's
-height over its width, an inverted mouse), the pitch within 80 degrees; the
-wheel in a drag changes nothing; the first move after it puts the cursor
+height over its width, an inverted mouse), within 70 degrees to either side,
+60 up and 40 down; the wheel in a drag changes nothing; the first move after it puts the cursor
 back where the drag began. A live player, a dead one in another mode (the
 warmup's before the start: patch 31's drag; a spectator's), the kits
 hidden, no local player: the original's (or patch 31's). The view: while
 the player is dead, in the first person mode, the kits shown and the turn
-not 0, the eyes' transform turned as the update's own third-person step
-turns it with the distance 0 (bit for bit), the handler's warmup yaw,
+not 0, the eyes' transform turned as a head turns: the update's own
+third-person step on the identity (the turn) times the eyes' rows, at the
+eyes' place (bit for bit, float32 in the build's order; the look in the
+head's frame the turn's alone, whatever the pose), the handler's warmup yaw,
 pitch and distance as they were; a live player gets the original's view
 and the turn is cleared; any other case the original's view. The original
 does none of it. Says nothing about what the real hud, the render window
@@ -51,6 +53,9 @@ RENDER, RVT = kc.CLIENTS + 0x380000, kc.CLIENTS + 0x381000
 WINDOW_SIZE = kc.STUB + 0x200
 SENSITIVITY, INVERT = 0xA74AEC, 0x1F1D9D3
 W, H = 1920.0, 1080.0
+# The limits of the turn, relative to the head: 70 degrees to either side,
+# 60 up, 40 down (death_camera_026g.asm).
+YAW_MAX, PITCH_UP, PITCH_DOWN = (struct.unpack("<f", struct.pack("<f", math.radians(a)))[0] for a in (70, 60, -40))
 VERBOSE = "-v" in sys.argv
 
 
@@ -114,13 +119,19 @@ def expected_turn(turn, x, y, invert=0, sensitivity=1.0):
     v = f32(v * f32(0.95492965))
     if invert:
         v = -v
-    yaw = f32(yaw - f32(f32(x) * k))
+    yaw = maxss(minss(f32(yaw - f32(f32(x) * k)), YAW_MAX), -YAW_MAX)
     if y:
-        pitch = f32(pitch - f32(f32(y) * v))
-        limit = f32(math.radians(80))
-        if abs(pitch) > limit or math.isnan(pitch):
-            pitch = math.copysign(limit, pitch)
+        pitch = maxss(minss(f32(pitch - f32(f32(y) * v)), PITCH_UP), PITCH_DOWN)
     return yaw, pitch
+
+
+def minss(a, b):
+    """SSE minss: a when a < b, else b (b too when either is not a number)."""
+    return a if a < b else b
+
+
+def maxss(a, b):
+    return a if a > b else b
 
 
 def look_cases():
@@ -166,6 +177,10 @@ def look_cases():
         (RIGHT, 0, -3000, 0, cursor(300, -2800), away + size, True),
         (RIGHT, 0, -500, 0, cursor(300, -3300), size, True),
         (RIGHT, 0, 9000, 0, cursor(300, 5700), size, True)]
+    yield "the death screen: the yaw's limit", dead, [
+        (RIGHT, 4000, 0, 0, cursor(4300, 200), away + size, True),
+        (RIGHT, -9000, 0, 0, cursor(-4700, 200), size, True),
+        (RIGHT, 300, 0, 0, cursor(-4400, 200), size, True)]
     for name, keywords in (("a live player (the start's frame)", dict(dead, alive=1)),
                            ("a spectator (the input off)", dict(dead, mode=4)),
                            ("third person", dict(dead, mode=2)),
@@ -228,7 +243,7 @@ def eyes():
 
 
 class View(kc.Emu):
-    def __init__(self, data, alive=0, mode=0, kits=1, turn=(0.0, 0.0), warmup=WARMUP):
+    def __init__(self, data, alive=0, mode=0, kits=1, turn=(0.0, 0.0), warmup=WARMUP, transform=None):
         super().__init__(data)
         self.state = state_va(data)
         map_state(self.emu, self.state)
@@ -238,7 +253,7 @@ class View(kc.Emu):
         self.byte(WORLD + 0x4DB, kits)
         self.emu.mem_write(HANDLER + 0x34C, struct.pack("<3f", *warmup))
         self.emu.mem_write(HANDLER + 0x48, b"\xEE" * 64)
-        self.emu.mem_write(TRANSFORM, eyes())
+        self.emu.mem_write(TRANSFORM, transform or eyes())
         self.emu.mem_write(self.state, struct.pack("<2f", *turn))
 
     def run(self):
@@ -254,19 +269,35 @@ class View(kc.Emu):
                 struct.unpack("<2f", emu.mem_read(self.state, 8)), emu.mem_read(HANDLER + 0x35C, 1)[0])
 
 
-def third_person(original, yaw, pitch):
-    """The original update's own third-person step (mode 2) on the eyes with
-    this yaw and pitch and the distance 0: the view the build must give."""
-    view = View(original, mode=2, warmup=(yaw, pitch, 0.0))
+IDENTITY = struct.pack("<16f", 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+
+
+def third_person(original, yaw, pitch, transform=None):
+    """The original update's own third-person step (mode 2) on a transform
+    with this yaw and pitch and the distance 0."""
+    view = View(original, mode=2, warmup=(yaw, pitch, 0.0), transform=transform)
     return view.run()[0]
+
+
+def head_turned(original, yaw, pitch):
+    """The view the build must give: the turn L (the original's step on the
+    identity) times the eyes' rows, as float32 in the build's order, at the
+    eyes' place."""
+    turn = struct.unpack("<16f", third_person(original, yaw, pitch, IDENTITY))
+    e = struct.unpack("<16f", eyes())
+    rows = []
+    for r in range(3):
+        x, y, z = turn[4 * r:4 * r + 3]
+        rows += [f32(f32(f32(x * e[t]) + f32(y * e[4 + t])) + f32(z * e[8 + t])) for t in range(4)]
+    return struct.pack("<16f", *rows, *e[12:16])
 
 
 def view_cases(original):
     """(name, View's keywords, the view the original gives, the build's, the
     turn after it in the build)."""
     copy = eyes()
-    for yaw, pitch in ((0.5, 0.0), (-1.25, 0.3), (0.0, -0.6), (3.0, 1.3962634)):
-        turned = third_person(original, yaw, pitch)
+    for yaw, pitch in ((0.5, 0.0), (-1.2217305, 0.3), (0.0, -0.6981317), (1.2217305, 1.0471976)):
+        turned = head_turned(original, yaw, pitch)
         yield f"dead, the turn {yaw}, {pitch}", dict(turn=(yaw, pitch)), copy, turned, (yaw, pitch)
     yield "dead, no turn", dict(), copy, copy, (0.0, 0.0)
     yield "dead, a turn of -0.0", dict(turn=(-0.0, -0.0)), copy, copy, (-0.0, -0.0)
@@ -292,30 +323,25 @@ def check_view(data, patched, cases):
 
 def check_geometry(original):
     """The build's turned view keeps the eyes' place and an orthonormal
-    basis, and turns the eyes' look by the yaw about the world's up, then by
-    the pitch about its own right."""
+    basis, and is turned relative to the head, whatever its pose: in the
+    head's frame (its rows i right, j up, k forward) the look is the yaw
+    about the head's up then the pitch about the turned right, so the angle
+    from the face's forward is that of the turn alone (cos yaw cos pitch).
+    The game's step turns a positive pitch up and a positive yaw left."""
     checks = 0
     m = struct.unpack("<16f", eyes())
-    for yaw, pitch in ((0.5, 0.0), (-1.25, 0.3), (0.0, -0.6)):
-        v = struct.unpack("<16f", third_person(original, yaw, pitch))
+    e = [m[0:3], m[4:7], m[8:11]]
+    dot = lambda a, b: sum(x * y for x, y in zip(a, b))
+    for yaw, pitch in ((0.5, 0.0), (-1.2217305, 0.3), (0.0, -0.6981317), (1.2217305, 1.0471976)):
+        v = struct.unpack("<16f", head_turned(original, yaw, pitch))
         rows = [v[0:3], v[4:7], v[8:11]]
         assert all(abs(a - b) < 1e-6 for a, b in zip(v[12:15], m[12:15])), (yaw, pitch, v[12:15])
         for a in range(3):
             for b in range(3):
-                dot = sum(rows[a][t] * rows[b][t] for t in range(3))
-                assert abs(dot - (a == b)) < 1e-5, (yaw, pitch, a, b, dot)
-        # the forward row: the eyes' turned about the world's up (y) by the yaw ...
-        c, s = math.cos(yaw), math.sin(yaw)
-        k = m[8:11]
-        i = m[0:3]
-        spun = lambda r: (r[0] * c - r[2] * s, r[1], r[0] * s + r[2] * c)
-        k1, i1 = spun(k), spun(i)
-        if abs(sum(x * y for x, y in zip(k1, rows[2])) - 1) > 1e-5 and pitch == 0:
-            spun = lambda r: (r[0] * c + r[2] * s, r[1], -r[0] * s + r[2] * c)
-            k1, i1 = spun(k), spun(i)
-        # ... then about its right (i1) by the pitch: the angle between them
-        assert abs(sum(x * y for x, y in zip(i1, rows[0])) - 1) < 1e-5, (yaw, pitch)
-        assert abs(sum(x * y for x, y in zip(k1, rows[2])) - math.cos(pitch)) < 1e-5, (yaw, pitch)
+                assert abs(dot(rows[a], rows[b]) - (a == b)) < 1e-5, (yaw, pitch, a, b)
+        local = [dot(rows[2], axis) for axis in e]             # the look in the head's frame
+        expected = (-math.sin(yaw) * math.cos(pitch), math.sin(pitch), math.cos(yaw) * math.cos(pitch))
+        assert all(abs(a - b) < 1e-5 for a, b in zip(local, expected)), (yaw, pitch, local, expected)
         checks += 1
     return checks
 
@@ -334,14 +360,18 @@ def main():
     # limit on the pitch, one that leaves a borrowed field as it set it, one
     # that never clears the turn, and one that turns a spectator's view fail.
     view_at = base.death_camera_va(late_join) + base.DEATH_VIEW_OFFSET
+    death = open(base.death_camera_bin(), "rb").read()
+    at = death.index(bytes.fromhex("83b858030000000f85"), base.DEATH_VIEW_OFFSET)
+    CMP_MODE = death[at:at + 13].hex()                 # the mode's test and its `jnz near`
     for old, new, check in (("80b83c030000007405", "80b83c03000000eb05", "look"),
                             ("b0015f5e5bc21000", "30c05f5e5bc21000", "look"),
                             ("a8530f84", "a8530f85", "look"),
-                            ("81fac2b8b23f760a", "81fac2b8b23feb0a", "look"),
+                            ("920a863f", "00002041", "look"),              # 60 degrees up -> 10 radians
                             ("8f804c030000", "8f8000000000", "view"),
                             ("8325" + struct.pack("<I", state_va(patched)).hex() + "00",
                              "8325" + struct.pack("<I", state_va(patched)).hex() + "ff", "view"),
-                            ("83b858030000000f8581000000", "83b85803000000" + "90" * 6, "view")):
+                            (CMP_MODE, CMP_MODE[:14] + "90" * 6, "view"),
+                            ("0f107220", "0f107210", "view")):        # the head's forward row taken as its up
         old, new = bytes.fromhex(old), bytes.fromhex(new)
         assert len(old) == len(new)
         broken = bytearray(patched)
@@ -361,7 +391,7 @@ def main():
             checks += 1
         else:
             sys.exit(f"a broken build ({new.hex()}) passed")
-    print(f"patch 46: {checks} runs as expected (the original, the build and seven broken builds)")
+    print(f"patch 46: {checks} runs as expected (the original, the build and eight broken builds)")
 
 
 if __name__ == "__main__":

@@ -1646,6 +1646,7 @@ va	status	ref_021d	name
 0x00283bc0	inferred-medium	0x001a421e	survarium::lobby_camera::lobby_camera
 0x00283d30	inferred-medium		survarium::lobby_camera::on_mouse_move
 0x00283ef0	inferred-medium	0x001a4482	survarium::lobby_camera::tick
+0x002844d0	inferred-medium		survarium::lobby_camera::process_collision
 0x00284b10	inferred-medium	0x001a481b	survarium::lobby_character::setup_profile
 0x00284f20	inferred-medium	0x001a4a3c	survarium::lobby_character::on_player_ready
 0x00285180	inferred-medium	0x001a4bc5	vostok::detail::concrete_type_helper<survarium::player_initial_info>::copy_helper

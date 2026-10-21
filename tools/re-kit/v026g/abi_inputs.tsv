@@ -505,6 +505,8 @@ va	name	location	role	basis
 0x0006f561		entry ESP+8		auto
 0x0006f561		entry ESP+4		auto
 0x0006f561		entry ESP+16		auto
+0x00075e20	vostok::physics::bullet_physics_world::ray_test	ECX	the physics world (vtable 0x9E2EBC +48h; a player's +350h, the lobby menu's +3104h)	observed
+0x00075e20	vostok::physics::bullet_physics_world::ray_test	entry ESP+4	the result (28h bytes), then from*, direction*, length (float), filter group, filter mask, 0, 1 (the lobby: 10h, 8)	observed
 0x0007ab30	vostok::network_core::mutable_buffer::resize	EAX	mutable_buffer	observed
 0x0007ab30	vostok::network_core::mutable_buffer::resize	stack+4	requested_used_size	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	stack+4	buffer_writer	observed
@@ -2082,6 +2084,8 @@ va	name	location	role	basis
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	EDI	damage_collector	inferred
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	ESI	writer	inferred
 0x001f3480	survarium::player::update_camera	entry ESP+4	the player (its input handler at +F470h, null but for the local one)	observed
+0x001f37a0	survarium::player::set_head_visibility	ESI	the player	observed
+0x001f37a0	survarium::player::set_head_visibility	entry ESP+4	visible (byte; mt_draw gives 0 for the local player in modes 0 and 4, dead too): its models 0, 5, 6, 7 get 3, else 2	observed
 0x001f3de0	vostok::network_core::buffer_writer::w<unsigned char>	EAX	integer value pointer	observed
 0x001f3de0	vostok::network_core::buffer_writer::w<unsigned char>	stack+4	buffer_writer receiver	observed
 0x001f3de0	vostok::network_core::buffer_writer::w<unsigned char>	stack+8	diagnostic source filename	observed
@@ -2407,6 +2411,10 @@ va	name	location	role	basis
 0x0027c690	survarium::network_client::process_player_left_match	stack+4	packet buffer_reader	observed
 0x00283d30	survarium::lobby_camera::on_mouse_move	ECX	the lobby camera's input handler	observed
 0x00283d30	survarium::lobby_camera::on_mouse_move	entry ESP+4	the input world, then x, y and the wheel	observed
+0x002844d0	survarium::lobby_camera::process_collision	EAX	the lobby camera (its physics world at +B0h)	observed
+0x002844d0	survarium::lobby_camera::process_collision	ESI	the target point	observed
+0x002844d0	survarium::lobby_camera::process_collision	EDI	the distance (float*), cut to a hit's	observed
+0x002844d0	survarium::lobby_camera::process_collision	entry ESP+4	the direction from the target (float3*)	observed
 0x00284b10	survarium::lobby_character::setup_profile	EAX	the profile to copy (account profile, 0x4634 bytes)	observed
 0x00284b10	survarium::lobby_character::setup_profile	entry ESP+4	the lobby_character	observed
 0x00284b10	survarium::lobby_character::setup_profile	entry ESP+8	the kit to show (byte, 0..2)	observed
