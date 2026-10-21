@@ -383,6 +383,9 @@ package survarium.rooms
 
         public function show(value:Boolean):void
         {
+            // A player's right-click menu opened in the window goes with it.
+            if (!value && _shown && SrvContextMenu.visisble)
+                SrvContextMenu.hide();
             _shown = value;
             visible = value;
             // Enter in the list joins the room chosen (once on the stage).
