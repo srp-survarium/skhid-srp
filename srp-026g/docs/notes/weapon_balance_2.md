@@ -13,9 +13,10 @@ resources.db patch (`scripts/content-edit/weapon-balance-2.json`).
   for ak-12": damage 50 (0.27's), armour piercing 35, between 0.27d0's 40 and
   0.28a2's 30. 0.28a2 rebalanced the whole game; only the AK-12's own change is
   taken. Both rifles.
-- **Values:** both rifles `bullet_damage` 0.55 -> 0.5, `bullet_pierce` 0.45 -> 0.35
+- **Retuned (the owner, 2026-10-21):** "ak12 to have 40 penet": piercing 40 (0.27d0's).
+- **Values:** both rifles `bullet_damage` 0.55 -> 0.5, `bullet_pierce` 0.45 -> 0.4
   (f32 kept); the card's damage (prop 1) 55 -> 50 and armour piercing (prop 3)
-  45 -> 35. Unchanged: rate of fire 650, magazine 30, damage distances 20 / 50,
+  45 -> 40. Unchanged: rate of fire 650, magazine 30, damage distances 20 / 50,
   weight (0.27d0's other changes, distances 30 / 60, wear, repair cost, are not
   taken).
 - **Premium gives silver only (the owner, 2026-10-20):** the premium AK-12 is the
@@ -34,16 +35,17 @@ resources.db patch (`scripts/content-edit/weapon-balance-2.json`).
   | 0.28d0 | 0.45 / 0.45 | 0.30 / 0.30 |
   | 0.31a2 | 0.35 / 0.35 | 0.55 / 0.55 |
   | 0.46c2 | 0.26 / 0.26 | none (`material_pierce` 6: another scale) |
-  | **here** | 0.50 / 0.50 | 0.35 / 0.35 |
+  | **here** | 0.50 / 0.50 | 0.40 / 0.40 |
 
 ## Socom16
 
 - **Request (the owner, 2026-10-20):** "and also Socom16 75 → 50" (0.28a2's cut).
 - **Decision (the owner, 2026-10-20), shown the history below:** "seems like socom is
   nerfed too much, let's make it 60" (0.31a2's value).
-- **Values:** `bullet_damage` 0.8 -> 0.6 (live is 0.26g's 0.8, not 0.75: 0.27d0 had
+- **Retuned (the owner, 2026-10-21):** "socom16 is fine if it has 70 damage": 70.
+- **Values:** `bullet_damage` 0.8 -> 0.7 (live is 0.26g's 0.8, not 0.75: 0.27d0 had
   already cut it to 0.75; weapon balance 1 did not touch it); the card's damage
-  (prop 1) 80 -> 60. Piercing stays 0.45: 0.28a2 also cut it to 0.35, but the owner
+  (prop 1) 80 -> 70. Piercing stays 0.45: 0.28a2 also cut it to 0.35, but the owner
   named the damage only.
 - **In the builds at hand:**
 
@@ -55,7 +57,7 @@ resources.db patch (`scripts/content-edit/weapon-balance-2.json`).
   | 0.28d0 | 0.50 | 0.35 |
   | 0.31a2 | 0.60 | 0.40 |
   | 0.46c2 | 0.65 | none (`material_pierce` 6) |
-  | **here** | 0.60 | 0.45 |
+  | **here** | 0.70 | 0.45 |
 
 ## Who computes it, release
 
