@@ -1,7 +1,9 @@
 # SRP BugTrap (Rust, Win32)
 
 A local crash reporter for the native 32-bit Survarium client. The DLL is written
-in Rust, with small x86 assembly helpers for the compiler ABI. It implements all
+in Rust, built as an ordinary Windows DLL: Rust's standard library and
+Microsoft's C runtime, linked in (`+crt-static`, as `cl /MT`), and a version
+resource (Skhid, "Skhid crash reporter", the release revision). It implements all
 82 exported BugTrap names with their original ordinals and calling conventions.
 The installed 0.26g Skhid client has been tested under Wine Staging 11.8 / DXVK.
 
@@ -42,8 +44,9 @@ Dialog screenshots from Wine (client area): [English](crash-dialog.png),
 
 Nothing is uploaded automatically. Email/upload entry points fail with
 `ERROR_NOT_SUPPORTED`, and legacy support destinations are discarded. The DLL
-imports `kernel32.dll`, `user32.dll`, `gdi32.dll` and `shell32.dll` (for the browser
-link and the Documents folder of the start-up notice); it loads `dbghelp.dll` by absolute path from beside the EXE or the Windows
+imports `kernel32.dll`, `user32.dll`, `gdi32.dll`, `shell32.dll` (for the browser
+link and the Documents folder of the start-up notice) and `ntdll.dll` (two
+functions of the standard library's), no C runtime DLL; it loads `dbghelp.dll` by absolute path from beside the EXE or the Windows
 system directory when capturing a dump.
 
 ## Start-up notice: the game cannot save its files
@@ -248,30 +251,46 @@ Win32/DbgHelp may allocate internally. Callers must supply valid native pointers
 
 ## Build
 
-Use the same nightly Rust environment as the game workspaces;
-`srp-026g/flake.nix` supplies it with `rust-src`. The build also needs a host C
-linker for Cargo build scripts and `rust-lld` from that toolchain. No Windows
-SDK or proprietary compiler is required for the DLL when cross-building on Linux.
+Use the dev shell of `srp-026g/flake.nix`: the nightly Rust of the game
+workspaces with `rust-src`, `rust-lld`, `llvm-rc` (the version resource) and
+Microsoft's C runtime and import libraries for 32-bit x86
+(`SKHID_MSVC_LIB`: libcmt, libvcruntime, libucrt of the Visual Studio 2022
+build tools 14.44.17.14 and the Windows SDK 10.0.26100, fetched by `xwin` at
+those pinned versions, its output pinned by hash; the flake says more). The
+build also needs a host C linker for Cargo build scripts. No Windows or
+Visual Studio installation is needed.
 The two locked dependencies are Microsoft's `windows-sys` and `windows-link`.
 
 ```sh
 nix develop ./srp-026g
 cd client/bugtrap
-./build.sh
+./build.sh                       # a local build: version 0.0.0.0, "local build"
+SKHID_REVISION=27 ./build.sh     # as release/build-zip builds revision 27
 ```
 
-This uses `-Z build-std=core` and the `i686-pc-windows-msvc` target. Output:
-`target/i686-pc-windows-msvc/release/BugTrap.dll`.
+The target is `i686-win7-windows-msvc` (Windows 7 and later, as the game; the
+standard library of `i686-win7-windows-msvc` asks for Windows 10), its standard
+library built here with `-Z build-std=std,panic_abort`. Output:
+`target/i686-win7-windows-msvc/release/BugTrap.dll`. `DllMain` is called by the
+C runtime's `_DllMainCRTStartup`, which sets the runtime up first (no thread,
+no library load); `DllMain` then does what it always did and makes the panic
+hook end the game with `0xE0000001`, as the panic handler of the `no_std` DLL
+did. The version resource (`res/BugTrap.rc`, `build.rs`,
+`../windows_build.rs`): CompanyName and ProductName `Skhid`, FileDescription
+`Skhid crash reporter`, FileVersion `<revision>.0.0.0`, ProductVersion
+`revision <revision>` (a local build: `0.0.0.0`, `local build`),
+LegalCopyright, InternalName `BugTrap`, OriginalFilename `BugTrap.dll`.
 
-The build is reproducible: the same source and toolchain give the same DLL,
-byte for byte, in any folder. `rust-lld` gets `/Brepro` (the PE stamp is a
-hash of the content, not the time) and `/DEBUG:NONE` (no PDB: a PDB records
-the linker's command line, which for a DLL names a temporary folder of a
-random name, and the build folder, and the DLL's stamp and PDB identity would
-follow them). `../check-reproducible.sh` builds BugTrap and the updater twice,
-in two folders, and compares.
-It has no Rust standard-library runtime or C runtime DLL dependency. Unsafe code
-is confined to the native ABI, Win32 calls, fixed crash state and compiler helpers;
+The build is reproducible: the same source, toolchain and `SKHID_REVISION` give
+the same DLL, byte for byte, in any folder. `rust-lld` gets `/Brepro` (the PE
+stamp is a hash of the content, not the time) and `/DEBUG:NONE` (no PDB: a PDB
+records the linker's command line, which for a DLL names a temporary folder of
+a random name, and the build folder, and the DLL's stamp and PDB identity would
+follow them); Cargo's `trim-paths` keeps the build folder, the home folder and
+the toolchain's store path out of the panic locations
+(`.cargo/config.toml`). `../check-reproducible.sh` builds BugTrap and the
+updater twice, in two folders, and compares.
+Unsafe code is confined to the native ABI, Win32 calls and fixed crash state;
 Rust cannot make an already-corrupted game's memory safe.
 
 ## Verify
@@ -283,10 +302,8 @@ run `tests\build.cmd` to build them. VS2008 was used for validation.
 On Linux with Wine and an X server (Xvfb works), use an isolated test prefix:
 
 ```sh
-python3 tests/check_abi.py target/i686-pc-windows-msvc/release/BugTrap.dll
-WINEPREFIX=/path/to/test-prefix python3 tests/check_dumps.py target/i686-pc-windows-msvc/release
-rustc --edition 2024 --test src/arithmetic.rs -o target/arithmetic-test
-./target/arithmetic-test
+python3 tests/check_abi.py target/i686-win7-windows-msvc/release/BugTrap.dll
+WINEPREFIX=/path/to/test-prefix python3 tests/check_dumps.py target/i686-win7-windows-msvc/release
 rustc --edition 2024 --test tests/text_tests.rs -o target/text-tests
 ./target/text-tests
 rustc --edition 2024 -O --test src/zip.rs -o target/zip-test
@@ -297,11 +314,11 @@ The text tests cover automatic Windows UI language selection, regional variants,
 English fallback and the startup notice.
 For the dialog itself, `tests/build.cmd` also builds `ui_probe.exe`. On Linux
 it can be built with `i686-w64-mingw32-g++ -static -O2 tests/ui_probe.cpp
--o target/i686-pc-windows-msvc/release/ui_probe.exe -luser32 -lgdi32` (with the
+-o target/i686-win7-windows-msvc/release/ui_probe.exe -luser32 -lgdi32` (with the
 MinGW runtime libraries on the linker's search path). Run under Wine/Xvfb:
 
 ```sh
-WINEPREFIX=/path/to/test-prefix python3 tests/check_localization.py target/i686-pc-windows-msvc/release
+WINEPREFIX=/path/to/test-prefix python3 tests/check_localization.py target/i686-win7-windows-msvc/release
 ```
 
 This checks all five languages on real Win32 dialogs: ZIP, raw-dump fallback,
@@ -339,11 +356,11 @@ changes and checks all 82 legacy ordinals.
 
 Log collection has a separate integration test. Build `tests/logs_probe.cpp`
 with MinGW (`i686-w64-mingw32-g++ -static -municode -O2 tests/logs_probe.cpp
--o target/i686-pc-windows-msvc/release/logs_probe.exe -ladvapi32`) or MSVC
+-o target/i686-win7-windows-msvc/release/logs_probe.exe -ladvapi32`) or MSVC
 (`cl tests\logs_probe.cpp advapi32.lib`). Then run:
 
 ```sh
-WINEPREFIX=/path/to/disposable-prefix python3 tests/check_logs.py target/i686-pc-windows-msvc/release
+WINEPREFIX=/path/to/disposable-prefix python3 tests/check_logs.py target/i686-win7-windows-msvc/release
 ```
 
 This test redirects **that disposable prefix's Documents folder** to temporary
@@ -369,6 +386,17 @@ rustc --edition 2024 --test tests/sanitize_tests.rs -o /tmp/sanitize-tests
 /tmp/sanitize-tests
 ```
 Python `zipfile` checks every member and its CRC.
+
+Run on 2026-10-21 (Linux, Wine, Xvfb), the build with the standard library
+and the C runtime linked in, the C++ probes built with `clang-cl` against the
+same Microsoft libraries: `check_abi.py` passes (the 82 ordinals; `_fltused`,
+which the `no_std` DLL exported by mistake, is gone); `check_dumps.py` 17 of
+its 20 cases pass, and the three that use the test DbgHelp (`concurrent`,
+`snapshot-overlap`, `zip-blocked`) fail with the same probe exit codes (85,
+72) with the DLL built from `main` before this change (a test-environment
+problem of this Wine and these probes, not the DLL's);
+`check_localization.py` and `check_logs.py` pass; the text (4), sanitize (5)
+and ZIP (7) tests pass.
 
 For an **idle, disposable installed 0.26g client** with `survarium_skhid.exe`:
 

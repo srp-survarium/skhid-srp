@@ -16,8 +16,7 @@
 //!   `<updater> update <pipe>`, writes every byte the updater sends into
 //!   `<out>`, says stop (the launcher's abort) once the file `<stop>` is
 //!   there, and ends with the updater's exit code once it is gone.
-#![no_std]
-#![no_main]
+#![windows_subsystem = "windows"]
 
 extern crate alloc;
 
@@ -48,11 +47,8 @@ use windows_sys::Win32::System::Threading::{
 #[unsafe(no_mangle)]
 static VERSION_MARK: [u8; 48] = *b"survarium_version_header_mark!!\x000.26g0-fake\0\0\0\0\0";
 
-// The heap, the panic handler and the compiler's helpers: the updater's own.
-#[path = "../../../exe/src/rt.rs"]
-mod rt;
-
-pub fn fatal_panic(_: &core::panic::PanicInfo) -> ! {
+// A panic ends the program with 3, as the updater's does.
+fn fatal_panic(_: &std::panic::PanicHookInfo) {
     unsafe { ExitProcess(3) }
 }
 
@@ -218,11 +214,8 @@ fn launcher(name: &str, updater: &str, out: &str, stop: &str) -> u32 {
     code
 }
 
-/// # Safety
-///
-/// Called by the loader only, once, as the process's first code.
-#[unsafe(no_mangle)]
-pub unsafe extern "system" fn entry() -> ! {
+fn main() {
+    std::panic::set_hook(Box::new(fatal_panic));
     unsafe {
         let command = GetCommandLineW();
         let line = String::from_utf16_lossy(core::slice::from_raw_parts(command, length(command)));

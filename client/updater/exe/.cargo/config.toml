@@ -1,11 +1,17 @@
 [build]
-target = "i686-pc-windows-msvc"
+# Windows 7 and later, as the game: the `i686-pc-windows-msvc` standard
+# library asks for Windows 10. Its standard library is built here
+# (`build-std` below, from the toolchain's `rust-src`).
+target = "i686-win7-windows-msvc"
 # The workspace's target folder would be ../target; the exe stays where the
 # tools look for it.
 target-dir = "target"
 
-[target.i686-pc-windows-msvc]
+[target.i686-win7-windows-msvc]
 linker = "rust-lld"
+# Microsoft's C runtime linked in (`+crt-static`: libcmt, as `cl /MT`), from
+# SKHID_MSVC_LIB (build.rs), so the exe needs no runtime DLL beside it.
+#
 # The manifest says "as the user who started it". Without one, Windows takes
 # a 32-bit program with "update" in its name for an installer and asks for
 # administrator rights before it starts.
@@ -13,15 +19,22 @@ linker = "rust-lld"
 # Reproducible, as ../../bugtrap: /Brepro stamps the exe with a hash of its
 # content, and /DEBUG:NONE writes no PDB (it would name the build folder).
 rustflags = [
+    "-C", "target-feature=+crt-static",
     "-C", "link-arg=/Brepro",
     "-C", "link-arg=/DEBUG:NONE",
-    "-C", "link-arg=/ENTRY:entry",
-    "-C", "link-arg=/NODEFAULTLIB",
-    "-C", "link-arg=/SUBSYSTEM:WINDOWS,6.0",
+    # Microsoft's libraries name PDBs of their own, which are not here.
+    "-C", "link-arg=/IGNORE:4099",
+    "-C", "link-arg=/SUBSYSTEM:WINDOWS,6.1",
     "-C", "link-arg=/MANIFEST:EMBED",
     "-C", "link-arg=/MANIFESTUAC:level='asInvoker' uiAccess='false'",
 ]
 
+# No build folder, home folder or toolchain store path in the program's
+# panic locations: the standard library's sources are /rustc/<commit>/,
+# a crate of the registry its name and version, this crate's files src/.
+[profile.release]
+trim-paths = "all"
+
 [unstable]
-build-std = ["core", "alloc"]
-build-std-features = ["compiler-builtins-mem"]
+build-std = ["std", "panic_abort"]
+trim-paths = true

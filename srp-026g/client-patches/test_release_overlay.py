@@ -17,7 +17,7 @@ import make_client_026g as overlay
 
 # A program that writes down how it was started (client/updater/tests).
 STAND_IN = Path(overlay.HERE, '..', '..', 'client', 'updater', 'tests', 'fake_exe', 'target',
-                'i686-pc-windows-msvc', 'release', 'fake-exe.exe').resolve()
+                'i686-win7-windows-msvc', 'release', 'fake-exe.exe').resolve()
 
 
 class ReleaseTests(unittest.TestCase):

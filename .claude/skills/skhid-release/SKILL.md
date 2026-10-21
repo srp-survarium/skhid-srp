@@ -400,10 +400,11 @@ preflight: look at its `release.log`, finish or roll it back, then write
   the planned time` (it waits for it) or `5. staged after the planned
   time: the swap at once`.
 - The ZIP's entries against the current ZIP (build-zip's list, shown again
-  at the y/N before the swap and in `changed.txt`): `survarium_skhid.exe`
-  always differs (the revision); `updater_skhid.exe` only if the updater
-  changed (players get it at their next launcher start); anything else
-  must be explained by a merged change. Unexplained: answer no (that
+  at the y/N before the swap and in `changed.txt`): `survarium_skhid.exe`,
+  `updater_skhid.exe` and `bugtrap.dll` always differ (the revision: the
+  exe's byte, the other two's version resource, built with
+  `SKHID_REVISION=<n>`; players get the new updater at their next launcher
+  start); anything else must be explained by a merged change. Unexplained: answer no (that
   cancels cleanly).
 - After the swap: the checks, the srp.db copy on both ends; then a game
   updates, downloads the patches, signs in; an old game is refused. Ask

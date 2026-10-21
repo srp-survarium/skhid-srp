@@ -74,7 +74,7 @@ def main():
     p.add_argument("game", type=Path, help="directory containing survarium_skhid.exe")
     p.add_argument("--wine", default="wine")
     p.add_argument("--prefix", required=True, type=Path)
-    p.add_argument("--build", type=Path, default=Path(__file__).resolve().parents[1] / "target/i686-pc-windows-msvc/release")
+    p.add_argument("--build", type=Path, default=Path(__file__).resolve().parents[1] / "target/i686-win7-windows-msvc/release")
     p.add_argument("--output", required=True, type=Path)
     args = p.parse_args()
     game, build, output, prefix = (v.resolve() for v in (args.game, args.build, args.output, args.prefix))

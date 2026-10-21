@@ -211,8 +211,9 @@ survarium_skhid.exe -localization=english -server=<host>:<login port> -mt_alloca
 ```
 
 Or let `make_client_026g.py` do all of it, without touching the game folder.
-`bugtrap.dll` and `updater_skhid.exe` build reproducibly: the same commit and
-toolchain give the same files in any folder, so a release builds them afresh
+`bugtrap.dll` and `updater_skhid.exe` build reproducibly: the same commit,
+toolchain and `SKHID_REVISION` (the release revision their version resource
+says; `release/build-zip` sets it) give the same files in any folder, so a release builds them afresh
 instead of copying the last download's (`../../client/check-reproducible.sh`
 checks it; the downloads listed above were made with `--bugtrap=` naming a
 kept DLL). First build the crash reporter with `../../client/bugtrap/build.sh`,
@@ -250,7 +251,7 @@ PLAY button starts the game in the language chosen in it. The same input gives t
 same ZIP byte for byte, which the updater relies on. Back up the original `bugtrap.dll` and login certificate before
 installing. `--check` does every check and writes nothing. Existing ZIPs are
 never overwritten. `--bugtrap=<path>` selects another built DLL; by default
-the builder reads `client/bugtrap/target/i686-pc-windows-msvc/release/BugTrap.dll`.
+the builder reads `client/bugtrap/target/i686-win7-windows-msvc/release/BugTrap.dll`.
 
 Game content no longer goes into the ZIP: it ships as `resources.db.patch_<n>`
 files that the updater fetches from the server's `/patches` list

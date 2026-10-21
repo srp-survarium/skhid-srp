@@ -126,7 +126,7 @@ import launcher_pages  # noqa: E402
 import patch_launcher_026g as L  # noqa: E402
 
 UPDATER_EXE = os.path.abspath(os.path.join(
-    HERE, "..", "..", "client", "updater", "exe", "target", "i686-pc-windows-msvc", "release", L.UPDATER_NAME))
+    HERE, "..", "..", "client", "updater", "exe", "target", "i686-win7-windows-msvc", "release", L.UPDATER_NAME))
 # The extractor the updater runs, and the size and sha256 the updater is
 # built with (EXTRACTOR in client/updater/logic/src/game.rs; a test here
 # reads them from that file and compares).
@@ -135,7 +135,7 @@ EXTRACTOR_EXE = os.path.abspath(os.path.join(HERE, "..", "..", "client", "update
 EXTRACTOR_SIZE = 602624
 EXTRACTOR_SHA256 = "256feca8e274e5da655e2a284fabafd9f554365eb164862089dacd4e8276d282"
 BUGTRAP_DLL = os.path.abspath(os.path.join(
-    HERE, "..", "..", "client", "bugtrap", "target", "i686-pc-windows-msvc", "release", "BugTrap.dll"))
+    HERE, "..", "..", "client", "bugtrap", "target", "i686-win7-windows-msvc", "release", "BugTrap.dll"))
 # The same build-2777 mirror pinned in client/updater/logic/src/game.rs.
 GAME_URL = (
     "https://drive.usercontent.google.com/download?"
