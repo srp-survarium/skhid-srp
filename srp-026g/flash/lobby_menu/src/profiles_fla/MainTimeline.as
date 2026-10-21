@@ -24,6 +24,7 @@ package profiles_fla
    import flash.ui.*;
    import flash.utils.*;
    import flash.xml.*;
+   import survarium.constants.ProfileState;
    
    public dynamic class MainTimeline extends MovieClip
    {
@@ -44,7 +45,7 @@ package profiles_fla
       {
          this.profileTab.data = {
             label:"IX|set_1",
-            state:0
+            state:ProfileState.COMPLETE
          };
          this.profileTab.invalidateData();
       }
@@ -53,7 +54,7 @@ package profiles_fla
       {
          this.profileTab.data = {
             label:"IX|set_1",
-            state:2
+            state:ProfileState.PREMIUM_ONLY
          };
          this.profileTab.invalidateData();
          setTimeout(this.test,2000);

@@ -55,12 +55,39 @@ package
    import survarium.chat.LobbyChat;
    import survarium.clan.ClanWindow;
    import survarium.clan.TournamentWindow;
+   import survarium.constants.ChatChannel;
+   import survarium.constants.ClanState;
+   import survarium.constants.ClanTeamRole;
+   import survarium.constants.Cursor;
    import survarium.constants.Events;
+   import survarium.constants.Faction;
+   import survarium.constants.FriendStatus;
    import survarium.constants.GameMode;
+   import survarium.constants.ImportantMessageType;
+   import survarium.constants.InventoryTab;
+   import survarium.constants.ItemCategory;
+   import survarium.constants.ItemDictId;
+   import survarium.constants.ItemPlace;
+   import survarium.constants.KeyCode;
+   import survarium.constants.MatchMakingState;
+   import survarium.constants.MessageId;
+   import survarium.constants.ModifierType;
+   import survarium.constants.MoneyType;
+   import survarium.constants.NotificationType;
+   import survarium.constants.PlayButtonState;
+   import survarium.constants.PremiumState;
+   import survarium.constants.ProfileSlot;
+   import survarium.constants.ProfileState;
+   import survarium.constants.QuestStatus;
+   import survarium.constants.QuickSlotSize;
    import survarium.constants.Reward;
+   import survarium.constants.SuperCategory;
+   import survarium.constants.TeamSide;
+   import survarium.constants.TutorialHint;
+   import survarium.constants.UiSound;
+   import survarium.constants.VoucherType;
    import survarium.controls.BottomPanel;
    import survarium.controls.DragRegion;
-   import survarium.controls.FiltersWindow;
    import survarium.controls.GangShop;
    import survarium.controls.InventoryList;
    import survarium.controls.ItemCompare;
@@ -160,6 +187,42 @@ package
       // The server answers at once or never (no such place or member): an
       // ask with no answer by then is taken as unanswered.
       private static const PLAYER_INFO_WAIT_MS:int = 3000;
+
+      // show_survival_notes's index: which notes window opens.
+      private static const SURVIVAL_NOTES_BATTLE:int = 0;
+
+      private static const SURVIVAL_NOTES_ITEMS:int = 1;
+
+      // set_admin_message's type: by the code, 0 shows the text as a warning (set_warning_text), any other
+      // as an admin text; the exe never calls it.
+      private static const ADMIN_MESSAGE_WARNING:int = 0;
+
+      // set_autobuy's value: which of the kit's auto-buy and auto-repair boxes are ticked.
+      private static const AUTO_BUY:int = 1;
+
+      private static const AUTO_REPAIR:int = 2;
+
+      private static const AUTO_BUY_AND_REPAIR:int = 3;
+
+      // meaning unknown: the progress show_daily_reward_window takes a day's reward to need.
+      private static const DAILY_REWARD_PROGRESS_REQUIRED:int = 3;
+
+      // ui_properties prop_id (gameplay/static_game_parameters) the test items use: st_inv_arp and
+      // st_inv_item_weight.
+      private static const PROP_ARMOR_PIERCING:int = 3;
+
+      private static const PROP_ITEM_WEIGHT:int = 15;
+
+      // Ids of the test functions' messages and chat tabs (no meaning beyond the tests).
+      private static const TEST_INVITE_ID:int = 23;
+
+      // FriendListRender does not answer a message of this id to the exe.
+      public static const TEST_IMPORTANT_MESSAGE_ID:int = 666;
+
+      private static const TEST_CHAT_TAB_ID:int = 900;
+
+      // the tab test_chat_messsage_second adds (TEST_CHAT_TAB_ID + 4)
+      private static const TEST_CHAT_TAB_SECOND:int = 904;
 
       // The ask in flight: its name and when it was sent. One at a time: a
       // `93` carries nothing of the player it is about, so an answer is ours
@@ -313,7 +376,7 @@ package
       
       private var _tutorialSliders:TutorialSliders;
       
-      private var _tutorialIndex:int = -1;
+      private var _tutorialIndex:int = TutorialHint.NOT_SHOWN;
       
       private var _pdTarget:MovieClip;
       
@@ -439,24 +502,24 @@ package
       
       public function show_survival_notes(index:uint, showRewards:Boolean = true) : void
       {
-         if(index == 0)
+         if(index == SURVIVAL_NOTES_BATTLE)
          {
-            this.show_survival_notes_message(0,"prepare_to_battle_notes","notes_battle",showRewards);
+            this.show_survival_notes_message(SURVIVAL_NOTES_BATTLE,"prepare_to_battle_notes","notes_battle",showRewards);
          }
-         else if(index == 1)
+         else if(index == SURVIVAL_NOTES_ITEMS)
          {
-            this.show_survival_notes_message(1,"items_notes","notes_items",showRewards);
+            this.show_survival_notes_message(SURVIVAL_NOTES_ITEMS,"items_notes","notes_items",showRewards);
          }
       }
       
       public function show_survival_items_notes() : void
       {
-         this.show_survival_notes_message(1,"items_notes","notes_items");
+         this.show_survival_notes_message(SURVIVAL_NOTES_ITEMS,"items_notes","notes_items");
       }
       
       public function show_survival_battle_notes() : void
       {
-         this.show_survival_notes_message(0,"prepare_to_battle_notes","notes_battle");
+         this.show_survival_notes_message(SURVIVAL_NOTES_BATTLE,"prepare_to_battle_notes","notes_battle");
       }
       
       private function show_survival_notes_message(index:uint, label:String, message:String, showRewards:Boolean = true) : void
@@ -465,7 +528,7 @@ package
          {
             return;
          }
-         var rewards:Array = index == 0 ? this._tutorRewardsBattle : this._tutorRewardsItem;
+         var rewards:Array = index == SURVIVAL_NOTES_BATTLE ? this._tutorRewardsBattle : this._tutorRewardsItem;
          var messData:Object = {
             index:index,
             label:label,
@@ -689,7 +752,7 @@ package
       
       public function close_slide() : void
       {
-         ExternalInterface.call("sound_play",18);
+         ExternalInterface.call("sound_play",UiSound.TUTORIAL_SUCCESS);
          this.onSlideClose(null);
       }
       
@@ -1049,21 +1112,21 @@ package
          modifierWindow = new SrvModifiersControlReskin();
          notificationList = new SrvNotificationListSC();
          notificationListTemp = new SrvNotificationList();
-         this.notificationList.registerRenderer(0,NotificationRendererSkinned);
-         this.notificationList.registerRenderer(1,NotificationQuestRendererSkinned);
-         this.notificationList.registerRenderer(2,NotificationInvitedRewardRenderer);
-         this.notificationList.registerRenderer(3,NotificationMatchRenderer);
-         this.notificationList.registerRenderer(4,NotificationPremDiscount);
-         this.notificationList.registerRenderer(8,FactionRankNotif);
-         this.notificationList.registerRenderer(9,PlayerRankNotif);
+         this.notificationList.registerRenderer(NotificationType.PLAIN,NotificationRendererSkinned);
+         this.notificationList.registerRenderer(NotificationType.QUEST,NotificationQuestRendererSkinned);
+         this.notificationList.registerRenderer(NotificationType.INVITED_REWARD,NotificationInvitedRewardRenderer);
+         this.notificationList.registerRenderer(NotificationType.MATCH,NotificationMatchRenderer);
+         this.notificationList.registerRenderer(NotificationType.PREMIUM,NotificationPremDiscount);
+         this.notificationList.registerRenderer(NotificationType.FACTION_RANK,FactionRankNotif);
+         this.notificationList.registerRenderer(NotificationType.PLAYER_RANK,PlayerRankNotif);
          this.notificationList.visible = false;
-         this.notificationListTemp.registerRenderer(0,NotificationRendererSkinned);
-         this.notificationListTemp.registerRenderer(1,NotificationQuestRendererSkinned);
-         this.notificationListTemp.registerRenderer(2,NotificationInvitedRewardRenderer);
-         this.notificationListTemp.registerRenderer(3,NotificationMatchRenderer);
-         this.notificationListTemp.registerRenderer(4,NotificationPremDiscount);
-         this.notificationListTemp.registerRenderer(8,FactionRankNotif);
-         this.notificationListTemp.registerRenderer(9,PlayerRankNotif);
+         this.notificationListTemp.registerRenderer(NotificationType.PLAIN,NotificationRendererSkinned);
+         this.notificationListTemp.registerRenderer(NotificationType.QUEST,NotificationQuestRendererSkinned);
+         this.notificationListTemp.registerRenderer(NotificationType.INVITED_REWARD,NotificationInvitedRewardRenderer);
+         this.notificationListTemp.registerRenderer(NotificationType.MATCH,NotificationMatchRenderer);
+         this.notificationListTemp.registerRenderer(NotificationType.PREMIUM,NotificationPremDiscount);
+         this.notificationListTemp.registerRenderer(NotificationType.FACTION_RANK,FactionRankNotif);
+         this.notificationListTemp.registerRenderer(NotificationType.PLAYER_RANK,PlayerRankNotif);
          this.notificationListTemp.visible = true;
          chat = new SrvLobbyChat();
          inventory_list = new SrvInventoryReskin();
@@ -1262,14 +1325,14 @@ package
       {
          var sfEvent:MouseEventEx = e as MouseEventEx;
          trace("onProfileContextMenu",sfEvent,e.target,e.currentTarget);
-         var mouseIdx:uint = sfEvent == null ? 0 : sfEvent.buttonIdx;
+         var mouseIdx:uint = sfEvent == null ? MouseEventEx.LEFT_BUTTON : sfEvent.buttonIdx;
          var options:Array;
          trace("mouseIdx",mouseIdx,sfEvent.mouseIdx,sfEvent.buttonIdx);
-         if(mouseIdx == 0 && e.target is Button)
+         if(mouseIdx == MouseEventEx.LEFT_BUTTON && e.target is Button)
          {
             trace("onProfileIndexChange");
             Util.logObject(e.target.data);
-            if(e.target.data.state == 2)
+            if(e.target.data.state == ProfileState.PREMIUM_ONLY)
             {
                if(this.player_profile.buyPremium.visible == false)
                {
@@ -1282,7 +1345,7 @@ package
                this.player_profile.buyPremium.visible = false;
             }
          }
-         else if(mouseIdx == 1 && e.target is Button && (e.target.enabled))
+         else if(mouseIdx == MouseEventEx.RIGHT_BUTTON && e.target is Button && (e.target.enabled))
          {
             options = [];
             options.push({
@@ -1347,7 +1410,7 @@ package
             removeChild(this._tutorialSliders);
          }
          _tutorialSliders = new TutorialSliders();
-         if(value == 0)
+         if(value == TutorialHint.NONE)
          {
             if((this._tutorialSliders.parent))
             {
@@ -1363,12 +1426,12 @@ package
             {
                removeChild(lock);
             }
-            if(this._tutorialIndex == 2)
+            if(this._tutorialIndex == TutorialHint.EQUIP_ITEM)
             {
-               this.inventory_list.focusCategory(-1);
+               this.inventory_list.focusCategory(SuperCategory.NO_FOCUS);
                this.inventory_list.lockControls(false);
             }
-            _tutorialIndex = -1;
+            _tutorialIndex = TutorialHint.NOT_SHOWN;
             return;
          }
          _tutorialIndex = value;
@@ -1380,7 +1443,7 @@ package
          this._tutorialSliders.textContainer.x = (MainScene.stageWidth - 440) / 2;
          this._tutorialSliders.textContainer.y = 162;
          this._tutorialSliders.textContainer.gotoAndStop(value);
-         if(value == 1)
+         if(value == TutorialHint.OPEN_INVENTORY)
          {
             openTabButton = new SvButtonChrome();
             this._tutorialSliders.textContainer.addChild(openTabButton);
@@ -1389,13 +1452,13 @@ package
             openTabButton.label = LocalizationData.getName("tutorial_slide_1_button_label");
             openTabButton.addEventListener(ButtonEvent.CLICK,this.tutorOpenInventory);
          }
-         else if(value == 2)
+         else if(value == TutorialHint.EQUIP_ITEM)
          {
             posOfLine = this._tutorialSliders.textContainer.x - this._tutorialSliders.textContainer.line.x;
             this._tutorialSliders.textContainer.line.width = posOfLine - (this.player_profile.x + this.player_profile.width) - 20;
             this.handleFrontInventory();
             addChild(this.player_profile);
-            this.inventory_list.focusCategory(2);
+            this.inventory_list.focusCategory(SuperCategory.WEAPONS);
             this.inventory_list.lockControls(true);
             profileLock = new ProfielLickMC();
             profileLock.name = "tutorialProfileLock";
@@ -1409,7 +1472,7 @@ package
             addChild(profileLock);
             this.player_profile.profileItems.addEventListener(PaperDollBase.PAPERDOLL_UPDATED,this.onTutorilaPDItemDrop);
          }
-         else if(value == 3)
+         else if(value == TutorialHint.SHOW_AMMO)
          {
             posOfLine = this._tutorialSliders.textContainer.x - this._tutorialSliders.textContainer.line.x;
             this._tutorialSliders.textContainer.line.width = posOfLine - (this.player_profile.x + this.player_profile.width) - 20;
@@ -1431,14 +1494,14 @@ package
       private function onTutorialShowAmmo(e:Event) : void
       {
          trace("onTutorilaPDItemDrop");
-         this.show_tutorial(0);
+         this.show_tutorial(TutorialHint.NONE);
          this.player_profile.btnShowAmmo.addEventListener("CLICK",this.onTutorialShowAmmo);
       }
       
       private function onTutorilaPDItemDrop(e:Event) : void
       {
          trace("onTutorilaPDItemDrop");
-         this.show_tutorial(3);
+         this.show_tutorial(TutorialHint.SHOW_AMMO);
          this.player_profile.profileItems.removeEventListener(PaperDollBase.PAPERDOLL_UPDATED,this.onTutorilaPDItemDrop);
       }
       
@@ -1447,13 +1510,13 @@ package
          ExternalInterface.call("totrile_slider_complete",this._tutorialIndex);
          if(!this.inventory_list.visible)
          {
-            this.inventory_list.mainTabBar.selectedIndex = 1;
+            this.inventory_list.mainTabBar.selectedIndex = InventoryTab.INVENTORY;
             this.topMenu.selectActiveWindow(this.topMenu.INV_INDEX);
-            this.show_tutorial(2);
+            this.show_tutorial(TutorialHint.EQUIP_ITEM);
          }
          else
          {
-            this.show_tutorial(2);
+            this.show_tutorial(TutorialHint.EQUIP_ITEM);
          }
       }
       
@@ -1610,7 +1673,7 @@ package
       
       private function onHintTargetRender(e:Event) : void
       {
-         if((this._pdTarget) && (this._pdTarget.data) && this._pdTarget.data.descriptor == 0)
+         if((this._pdTarget) && (this._pdTarget.data) && this._pdTarget.data.descriptor == ItemPlace.NONE)
          {
             this.itemHintRenderer.y = this.inventory_list.y + this._pdTarget.y + this.inventory_list.bundleList.y + 55;
          }
@@ -1801,10 +1864,10 @@ package
       private function onBuyMaps(e:Event) : void
       {
          var pp:IPlayerProfile = this.player_profile;
-         var dict:uint = PlayerInfo.getVoucherDictId(1);
-         var id:uint = PlayerInfo.getVoucherId(1);
+         var dict:uint = PlayerInfo.getVoucherDictId(VoucherType.DROP_CARD);
+         var id:uint = PlayerInfo.getVoucherId(VoucherType.DROP_CARD);
          trace("onBuyMaps::",pp.profileId,id,dict);
-         this.try_buy_item(pp.profileId,id,dict,200,100,1,GangShop.getInstance().getItemPrice(dict),-1);
+         this.try_buy_item(pp.profileId,id,dict,ItemPlace.SHOP,ItemPlace.INVENTORY,1,GangShop.getInstance().getItemPrice(dict),Faction.ANY);
       }
       
       public function show_choose_faction_message() : void
@@ -1866,7 +1929,7 @@ package
       {
          this.show_shop_toggle();
          this.inventory_list.optionControl.reset();
-         this.inventory_list.inventoryTabPage.selectedIndex = 0;
+         this.inventory_list.inventoryTabPage.selectedIndex = SuperCategory.ALL;
          if(this.inventory_list.checkbox_all_traders.selected)
          {
             this.inventory_list.checkbox_all_traders.selected = false;
@@ -1964,7 +2027,7 @@ package
          }
          this.modifierWindow.removeEventListener(Event.CLOSE,this.closeModifierWindow);
          this.inventory_list.removeEventListener(Event.CLOSE,this.closeModifierWindow);
-         this.inventory_list.focusCategory(-1);
+         this.inventory_list.focusCategory(SuperCategory.NO_FOCUS);
          this.inventory_list.mainTabBar.enabled = true;
          this.inventory_list.inventoryTabPage.enabled = true;
          this.inventory_list.updateItemCard = true;
@@ -1990,11 +2053,11 @@ package
          var arr:Array = [];
          arr.push({
             name:"ilya@vostok.com",
-            status:0
+            status:ClanTeamRole.COMMANDER
          });
          arr.push({
             name:"ilya10@vostok.com",
-            status:1
+            status:ClanTeamRole.SOLDIER
          });
          for(var i:uint = 0; i < 9; i++)
          {
@@ -2112,7 +2175,7 @@ package
          {
             this.craftWindow.fillCraftData(this._craftData);
          }
-         this.craftWindow.setMatchState(MainScene.activeMatchMaking ? 1 : 0);
+         this.craftWindow.setMatchState(MainScene.activeMatchMaking ? MatchMakingState.SEARCHING : MatchMakingState.IDLE);
          this.craftWindow.x = (MainScene.stageWidth - this.craftWindow.width) / 2;
          this.craftWindow.y = (MainScene.stageHeight - this.craftWindow.height) / 2;
          this.craftWindow.btnCancel.addEventListener(ButtonEvent.CLICK,this.onCloseCraft);
@@ -2169,11 +2232,11 @@ package
             trace("!!modifierWindowIsOPened");
             return;
          }
-         this.inventory_list.focusCategory(5);
-         this.inventory_list.mainTabBar.selectedIndex = 1;
+         this.inventory_list.focusCategory(SuperCategory.UPGRADES);
+         this.inventory_list.mainTabBar.selectedIndex = InventoryTab.INVENTORY;
          this.inventory_list.mainTabBar.enabled = false;
          this.inventory_list.inventoryTabPage.enabled = false;
-         this.inventory_list.selectCategory([25,26],false,true);
+         this.inventory_list.selectCategory([ItemCategory.CAMOUFLAGES,ItemCategory.DECALS],false,true);
          this.inventory_list.toggleUpgradeMode();
          this.modifierWindow.visible = true;
          this.dragRegion.mouseEnabled = false;
@@ -2260,7 +2323,7 @@ package
                profile:profile,
                id:value.itemId,
                dict_id:value.dictId,
-               sourceSlot:100,
+               sourceSlot:ItemPlace.INVENTORY,
                targetSlot:value.slotId,
                count:value.value,
                faction_id:value.factionId
@@ -2292,13 +2355,13 @@ package
          var modifier:Object = {
             name:"sdf",
             props:[{
-               prop_id:15,
+               prop_id:PROP_ITEM_WEIGHT,
                prop_value:-0.8,
-               modifier_type:1
+               modifier_type:ModifierType.MULTIPLY
             },{
-               prop_id:3,
+               prop_id:PROP_ARMOR_PIERCING,
                prop_value:10,
-               modifier_type:0
+               modifier_type:ModifierType.ADD
             }]
          };
          var data:Object = {
@@ -2333,23 +2396,23 @@ package
       {
          trace("testUnclokedFaction");
          var data:Object = {
-            faction_id:4,
+            faction_id:Faction.BORDER,
             label:"Рептилоиды",
             message_body:"Вы открыли путь к солнцу",
-            type:2
+            type:ImportantMessageType.REPUTATION_LEVEL
          };
          this.add_important_message(data);
-         this.setup_player_progress(4,2,222);
+         this.setup_player_progress(Faction.BORDER,2,222);
       }
       
       private function testUnclokedFaction() : void
       {
          trace("testUnclokedFaction");
          var data:Object = {
-            faction_id:4,
+            faction_id:Faction.BORDER,
             label:"Рептилоиды",
             message_body:"Вы открыли путь к солнцу",
-            type:2
+            type:ImportantMessageType.REPUTATION_LEVEL
          };
          this.add_important_message(data);
       }
@@ -2358,10 +2421,10 @@ package
       {
          trace("testUnclokedFaction");
          var data:Object = {
-            faction_id:1,
+            faction_id:Faction.SCAVENGERS,
             label:"Доктор Сринтус",
             message_body:"Мантра очищена",
-            type:2
+            type:ImportantMessageType.REPUTATION_LEVEL
          };
          this.add_important_message(data);
       }
@@ -2370,10 +2433,10 @@ package
       {
          trace("testInviteToSquad");
          var data:Object = {
-            id:23 + this._invitesTemp,
+            id:TEST_INVITE_ID + this._invitesTemp,
             sender_name:"123456789123456789" + this._invitesTemp,
             message_body:"сквадиеще",
-            type:4
+            type:ImportantMessageType.CLAN_TEAM_INVITE
          };
          this.add_important_message(data);
          ++this._invitesTemp;
@@ -2389,9 +2452,9 @@ package
             id:2,
             sender_name:"Timka2",
             message_body:"Vazzap2",
-            type:1
+            type:ImportantMessageType.SQUAD_INVITE
          };
-         this.remove_important_message(23);
+         this.remove_important_message(TEST_INVITE_ID);
       }
       
       public function add_squad_invite(value:Object) : void
@@ -2402,7 +2465,7 @@ package
       
       private function testPremiumSettings() : void
       {
-         this.set_premium_state(1,"458д");
+         this.set_premium_state(PremiumState.ACTIVE,"458д");
       }
       
       private function onRequestPlayers(e:Event) : void
@@ -2427,14 +2490,14 @@ package
                result:"1:2",
                match_result:3 * (i % 2),
                reward:[{
-                  type:0,
+                  type:Reward.EXPERIENCE,
                   amount:6500
                },{
-                  type:1,
+                  type:Reward.REPUTATION,
                   amount:50,
-                  param:1
+                  param:Faction.SCAVENGERS
                },{
-                  type:2,
+                  type:Reward.MONEY,
                   amount:50,
                   param:2
                }]
@@ -2448,23 +2511,23 @@ package
          trace("testQuestChange::",e);
          var array:Array = [];
          array.push({
-            faction_id:1,
+            faction_id:Faction.SCAVENGERS,
             quest_icon:0,
             quest_label:"ex1TraQuestRRR",
             text:"1Sil\'veple la mue de cuartassone vi sonne juperne \nel cracasson si\nnme fur majleminto.",
             reward:[{
-               type:0,
+               type:Reward.EXPERIENCE,
                amount:6500
             },{
-               type:1,
+               type:Reward.REPUTATION,
                amount:50,
-               param:1
+               param:Faction.SCAVENGERS
             },{
-               type:2,
+               type:Reward.MONEY,
                amount:50,
                param:2
             },{
-               type:3,
+               type:Reward.ITEM,
                amount:50,
                param:82
             }],
@@ -2484,23 +2547,23 @@ package
             time_limit:50
          });
          array.push({
-            faction_id:1,
+            faction_id:Faction.SCAVENGERS,
             quest_icon:1,
             quest_label:"ex2TraQuestRRR",
             text:"2Sil\'veple la mue de cuartassone vi sonne jup\nerne el cracasson sinme fur majleminto.",
             reward:[{
-               type:3,
+               type:Reward.ITEM,
                amount:40,
                param:68
             },{
-               type:1,
+               type:Reward.REPUTATION,
                amount:40,
-               param:1
+               param:Faction.SCAVENGERS
             },{
-               type:0,
+               type:Reward.EXPERIENCE,
                amount:40
             },{
-               type:2,
+               type:Reward.MONEY,
                amount:40,
                param:2
             }],
@@ -2529,12 +2592,12 @@ package
          PlayerInfo.premiumLeft = label;
          this.statusPanel.btn_premium.stateIndex = state;
          this.statusPanel.btn_premium.label = label;
-         if(state != 0 && (this.statusPanel.btn_premium.discount))
+         if(state != PremiumState.NONE && (this.statusPanel.btn_premium.discount))
          {
             this.statusPanel.btn_premium.discount = 0;
             this.updatePremiumDiscountTime();
          }
-         if(state != 0 && this.player_profile.buyPremium.visible == true)
+         if(state != PremiumState.NONE && this.player_profile.buyPremium.visible == true)
          {
             this.player_profile.buyPremium.visible = false;
          }
@@ -2614,7 +2677,7 @@ package
       
       public function set_admin_message(type:uint, text1:String, text2:String = "") : void
       {
-         if(type == 0)
+         if(type == ADMIN_MESSAGE_WARNING)
          {
             this.set_warning_text(text1,text2);
          }
@@ -2633,7 +2696,7 @@ package
       protected function test_victory_screenData2() : void
       {
          this.fill_victory_screen_drop_item({
-            dict_id:70,
+            dict_id:ItemDictId.AMMO_9X18_MAKAROV,
             condition_or_stack:101,
             value:45,
             item_id:12534,
@@ -2646,24 +2709,24 @@ package
          var modifiers:Array = [{
             name:"sdf",
             props:[{
-               prop_id:15,
+               prop_id:PROP_ITEM_WEIGHT,
                prop_value:-0.8,
-               modifier_type:1
+               modifier_type:ModifierType.MULTIPLY
             },{
-               prop_id:3,
+               prop_id:PROP_ARMOR_PIERCING,
                prop_value:10,
-               modifier_type:0
+               modifier_type:ModifierType.ADD
             }]
          },{
             name:"asdasd",
             props:[{
-               prop_id:15,
+               prop_id:PROP_ITEM_WEIGHT,
                prop_value:-0.8,
-               modifier_type:1
+               modifier_type:ModifierType.MULTIPLY
             },{
-               prop_id:3,
+               prop_id:PROP_ARMOR_PIERCING,
                prop_value:10,
-               modifier_type:0
+               modifier_type:ModifierType.ADD
             }]
          }];
          var scoreData:Object = {
@@ -2687,7 +2750,7 @@ package
             },
             statistics_money:new Object(),
             statistics_reputation:{
-               faction_id:1,
+               faction_id:Faction.SCAVENGERS,
                quest_rep:50
             },
             title_1_player:"Cibbie&Huide4",
@@ -2723,7 +2786,7 @@ package
          data.map_name = "someMapName";
          this.fill_victory_screen(data);
          var data2:Array = [{
-            faction_id:1,
+            faction_id:Faction.SCAVENGERS,
             bonus:22
          }];
          this.set_faction_bonus(data2);
@@ -2734,7 +2797,7 @@ package
             dict_id:46,
             value:20
          },{
-            dict_id:70,
+            dict_id:ItemDictId.AMMO_9X18_MAKAROV,
             value:3
          }];
          this.fill_victory_screen_spend_money_detailed(detailedArrmo,[],[]);
@@ -2744,7 +2807,7 @@ package
       {
          var temp_players:Array = [{
             id:0,
-            team:0,
+            team:TeamSide.NONE,
             name:"Cibbie&Huide4",
             kills:12,
             deaths:22,
@@ -2753,7 +2816,7 @@ package
             rank:int(Math.random() * 99)
          },{
             id:0,
-            team:1,
+            team:TeamSide.ALLY,
             name:"Cibbie&Huide",
             kills:23,
             deaths:18,
@@ -2762,7 +2825,7 @@ package
             rank:int(Math.random() * 99)
          },{
             id:0,
-            team:1,
+            team:TeamSide.ALLY,
             name:"Cibbie&Huide2",
             kills:23,
             deaths:18,
@@ -2771,7 +2834,7 @@ package
             rank:int(Math.random() * 99)
          },{
             id:0,
-            team:1,
+            team:TeamSide.ALLY,
             name:"Cibbie&Huide3",
             kills:23,
             deaths:18,
@@ -2780,7 +2843,7 @@ package
             rank:int(Math.random() * 99)
          },{
             id:0,
-            team:0,
+            team:TeamSide.NONE,
             name:"Where\'sYourWaterDude",
             kills:12,
             deaths:43,
@@ -2789,7 +2852,7 @@ package
             rank:int(Math.random() * 99)
          },{
             id:0,
-            team:1,
+            team:TeamSide.ALLY,
             name:"Krepish1998",
             kills:1,
             deaths:12,
@@ -2798,7 +2861,7 @@ package
             rank:int(Math.random() * 99)
          },{
             id:0,
-            team:1,
+            team:TeamSide.ALLY,
             name:"Tongar",
             kills:78,
             deaths:2,
@@ -2807,7 +2870,7 @@ package
             rank:int(Math.random() * 99)
          },{
             id:0,
-            team:1,
+            team:TeamSide.ALLY,
             name:"Ashtar",
             kills:0,
             deaths:14,
@@ -2858,7 +2921,7 @@ package
          this.set_squad_commander_mode(false);
          trace("test_squad_messsage2");
          stage.addEventListener(FocusEvent.FOCUS_IN,this.logFocud);
-         this.remove_tab(904);
+         this.remove_tab(TEST_CHAT_TAB_SECOND);
       }
       
       private function logFocud(e:FocusEvent) : void
@@ -2879,19 +2942,19 @@ package
          };
          trace("test_someMessage");
          var value:Object = {
-            faction_id:1,
+            faction_id:Faction.SCAVENGERS,
             quest_icon:5,
             quest_label:"ex1TraQuestRRR",
             text:"1Sil\'veple la mue de cfd\nsfsdf sdf sdfsd fsdf sdf sdf sdf sdf sdf sdf suartassone\n  vi sonne juperne \nel cracasson sinme fur majleminto.",
             reward:[{
-               type:0,
+               type:Reward.EXPERIENCE,
                amount:6500
             },{
-               type:1,
+               type:Reward.REPUTATION,
                amount:50,
-               param:1
+               param:Faction.SCAVENGERS
             },{
-               type:2,
+               type:Reward.MONEY,
                amount:50,
                param:2
             }],
@@ -2907,24 +2970,24 @@ package
                amount:2
             }],
             info:"WarningText",
-            status:2
+            status:QuestStatus.COMPLETED
          };
          var value2:Object;
          var testF:Function;
          value2 = {
-            faction_id:2,
+            faction_id:Faction.BLACK_MARKET,
             quest_icon:6,
             quest_label:"ex1TraQuestRRR",
             text:"1Sil\'veple la mue de cfd\nsfsdf sdf sdfsd fsdf sdf sdf sdf sdf sdf sdf suartassone\n  vi sonne juperne \nel cracasson sinme fur majleminto.",
             reward:[{
-               type:0,
+               type:Reward.EXPERIENCE,
                amount:7500
             },{
-               type:1,
+               type:Reward.REPUTATION,
                amount:150,
-               param:1
+               param:Faction.SCAVENGERS
             },{
-               type:2,
+               type:Reward.MONEY,
                amount:150,
                param:2
             }],
@@ -2940,7 +3003,7 @@ package
                amount:2
             }],
             info:"WarningText",
-            status:3
+            status:QuestStatus.FAILED
          };
          this.show_system_message(0,"quest_message",value,true);
          setTimeout(testF,def);
@@ -2980,18 +3043,18 @@ package
          {
             var value:Object;
             value = new Object();
-            value.id = 666;
+            value.id = TEST_IMPORTANT_MESSAGE_ID;
             value.request = true;
             value.sender_name = "VikgNickName";
             value.message_body = "\'МнеПлеватЙожики\'";
-            value.type = 3;
+            value.type = ImportantMessageType.CLAN_INVITE;
             this.add_important_message(value);
          }
       }
       
       protected function test_important_messsage2() : void
       {
-         this.remove_important_message(666);
+         this.remove_important_message(TEST_IMPORTANT_MESSAGE_ID);
       }
       
       protected function test_quest_messsage(e:Event = null) : void
@@ -2999,20 +3062,20 @@ package
          this.clear_quests();
          trace("test_quest_messsage");
          this.add_quest({
-            status:0,
-            faction_id:1,
+            status:QuestStatus.OFFERED,
+            faction_id:Faction.SCAVENGERS,
             quest_icon:0,
             quest_label:"ex1TraQuestRRR",
             text:"1Sil\'veple la mue de cuartassone vi sonne juperne \nel cracasson si\nnme fur majleminto.",
             reward:[{
-               type:0,
+               type:Reward.EXPERIENCE,
                amount:1800
             },{
-               type:1,
+               type:Reward.REPUTATION,
                amount:140,
-               param:1
+               param:Faction.SCAVENGERS
             },{
-               type:2,
+               type:Reward.MONEY,
                amount:50,
                param:2
             }],
@@ -3032,20 +3095,20 @@ package
             time_limit:50
          });
          this.add_quest({
-            status:0,
-            faction_id:2,
+            status:QuestStatus.OFFERED,
+            faction_id:Faction.BLACK_MARKET,
             quest_icon:1,
             quest_label:"Охота за головами",
             text:"Нельзя сказать, что бродяги наши злейшие враги. Но, время от времени, их нужно ставить на место. Лучше всего это сделать на наглядном примере.",
             reward:[{
-               type:1,
+               type:Reward.REPUTATION,
                amount:40,
-               param:1
+               param:Faction.SCAVENGERS
             },{
-               type:0,
+               type:Reward.EXPERIENCE,
                amount:40
             },{
-               type:2,
+               type:Reward.MONEY,
                amount:40,
                param:2
             }],
@@ -3070,20 +3133,20 @@ package
             time_limit:60 * 120
          });
          this.add_quest({
-            status:0,
-            faction_id:3,
+            status:QuestStatus.OFFERED,
+            faction_id:Faction.RENAISSANCE,
             quest_icon:2,
             quest_label:"ex3TraQuestRRR",
             text:"sinme fur majleminto.",
             reward:[{
-               type:0,
+               type:Reward.EXPERIENCE,
                amount:30
             },{
-               type:1,
+               type:Reward.REPUTATION,
                amount:30,
-               param:1
+               param:Faction.SCAVENGERS
             },{
-               type:2,
+               type:Reward.MONEY,
                amount:30,
                param:2
             }],
@@ -3108,21 +3171,21 @@ package
             time_limit:15
          });
          this.add_quest({
-            status:0,
-            faction_id:3,
+            status:QuestStatus.OFFERED,
+            faction_id:Faction.RENAISSANCE,
             quest_icon:3,
             quest_label:"ex4TraQuestRRR%%%",
             text:"4Sil\'veple la mue de cuartassone vi sonne juperne el cracasson sinme fur majleminto.",
             reward:[{
-               type:0,
+               type:Reward.EXPERIENCE,
                amount:20,
                param:0
             },{
-               type:1,
+               type:Reward.REPUTATION,
                amount:20,
-               param:2
+               param:Faction.BLACK_MARKET
             },{
-               type:2,
+               type:Reward.MONEY,
                amount:20,
                param:2
             }],
@@ -3142,24 +3205,24 @@ package
             time_limit:20
          });
          this.add_quest({
-            status:0,
-            faction_id:3,
+            status:QuestStatus.OFFERED,
+            faction_id:Faction.RENAISSANCE,
             quest_icon:4,
             quest_label:"ex5TraQuestRRR",
             text:"5Sil\'veple la mue de cuartassone vi sonne juperne el cracasson sinme fur majleminto.",
             reward:[{
-               type:0,
+               type:Reward.EXPERIENCE,
                amount:10
             },{
-               type:1,
+               type:Reward.REPUTATION,
+               amount:10,
+               param:Faction.BLACK_MARKET
+            },{
+               type:Reward.MONEY,
                amount:10,
                param:2
             },{
-               type:2,
-               amount:10,
-               param:2
-            },{
-               type:0,
+               type:Reward.EXPERIENCE,
                amount:10,
                param:66
             }],
@@ -3179,24 +3242,24 @@ package
             time_limit:30
          });
          this.add_quest({
-            status:1,
-            faction_id:2,
+            status:QuestStatus.STATUS_1,
+            faction_id:Faction.BLACK_MARKET,
             quest_icon:4,
             quest_label:"ex5TraQuestRRR",
             text:"5Sil\'veple la mue de cuartassone vi sonne juperne el cracasson sinme fur majleminto.",
             reward:[{
-               type:0,
+               type:Reward.EXPERIENCE,
                amount:10
             },{
-               type:1,
+               type:Reward.REPUTATION,
+               amount:10,
+               param:Faction.BLACK_MARKET
+            },{
+               type:Reward.MONEY,
                amount:10,
                param:2
             },{
-               type:2,
-               amount:10,
-               param:2
-            },{
-               type:0,
+               type:Reward.EXPERIENCE,
                amount:10,
                param:66
             }],
@@ -3220,18 +3283,18 @@ package
       protected function test_chat_messsage_add(e:Event = null) : void
       {
          this.add_chat_message({
-            type:1,
+            type:ChatChannel.GENERAL,
             text:"FFF fg dfg dfg d dfgfd g dfg44xx " + this.messageIndex,
             name:"leha",
             color:"Blue"
          });
          this.add_chat_message({
-            type:1,
+            type:ChatChannel.GENERAL,
             text:"FFF fg dfg dfg d dfgfd g dfg44xx " + this.messageIndex,
             name:"[VG]leha"
          });
          this.add_chat_message({
-            type:1,
+            type:ChatChannel.GENERAL,
             text:"FFF fg dfg dfg d dfgfd g dfg44xx " + this.messageIndex,
             name:"[admin]leha"
          });
@@ -3250,11 +3313,11 @@ package
       {
          var i:int = 4;
          this.add_tab({
-            id:i + 900,
+            id:i + TEST_CHAT_TAB_ID,
             name:"newOne" + i,
-            channel_to_send:5,
+            channel_to_send:ChatChannel.MATCH,
             closable:false,
-            channels:[5,6,7]
+            channels:[ChatChannel.MATCH,ChatChannel.TEAM_1,ChatChannel.TEAM_2]
          });
       }
       
@@ -3263,11 +3326,11 @@ package
          for(var i:uint = 0; i < 3; i++)
          {
             this.add_tab({
-               id:900,
+               id:TEST_CHAT_TAB_ID,
                name:"leha" + i,
-               channel_to_send:5,
+               channel_to_send:ChatChannel.MATCH,
                closable:(i == 2 ? false : true),
-               channels:[5,6,7]
+               channels:[ChatChannel.MATCH,ChatChannel.TEAM_1,ChatChannel.TEAM_2]
             });
          }
       }
@@ -3297,8 +3360,8 @@ package
       public function set_autobuy(value:uint) : void
       {
          trace("set_auto_buy::",value);
-         this.player_profile.checkbox_autobuy.selected = value == 3 || value == 1;
-         this.player_profile.checkbox_autorepair.selected = value == 3 || value == 2;
+         this.player_profile.checkbox_autobuy.selected = value == AUTO_BUY_AND_REPAIR || value == AUTO_BUY;
+         this.player_profile.checkbox_autorepair.selected = value == AUTO_BUY_AND_REPAIR || value == AUTO_REPAIR;
       }
       
       public function set_autorepair(value:Boolean) : void
@@ -3312,7 +3375,7 @@ package
          trace("Try_to_Buy_pr:" + profile + " uid:" + dict_uid + " src:" + sourceSlot + " tgt:" + targetSlot + " cnt:" + count + " price:" + price + " seller:" + seller);
          var _obj:Object = new Object();
          var _descr:Object = this._itemDescriptor.getItemDescription(dict_uid);
-         if(sourceSlot == 300)
+         if(sourceSlot == ItemPlace.BUNDLE)
          {
             itemData = this.inventory_list.getBundleData(dict_uid);
             _descr = {
@@ -3334,7 +3397,7 @@ package
          var lockedPremiumCost:uint = this.shop_list.getItemLockedCost(dict_uid);
          var icons:IconContainer;
          _obj.price = (lockedPremiumCost) ? lockedPremiumCost : price;
-         _obj.seller = seller != -1 ? seller : this.shop_list.getItemSeller(dict_uid);
+         _obj.seller = seller != Faction.ANY ? seller : this.shop_list.getItemSeller(dict_uid);
          _obj.faction = _obj.seller;
          _obj.sellers = _descr.sellers;
          _obj.category = _descr.sellers;
@@ -3346,28 +3409,28 @@ package
          {
             _obj.clip_size = _descr.clip_size;
          }
-         _obj.quick_slot_item_size = (_descr.fills_whole_pocket) ? 2 : 1;
+         _obj.quick_slot_item_size = (_descr.fills_whole_pocket) ? QuickSlotSize.WHOLE : QuickSlotSize.HALF;
          _obj.currentCount = this.inventory_list.getItemCount(dict_uid);
          var category:int = ItemFactory.getCategory(_descr.category);
-         if(sourceSlot == 300)
+         if(sourceSlot == ItemPlace.BUNDLE)
          {
             icons = IconContainer.getInstance("bundles");
          }
-         else if(category == 1)
+         else if(category == SuperCategory.EQUIPMENT)
          {
             icons = IconContainer.getInstance("equipment");
          }
-         else if(category == 2)
+         else if(category == SuperCategory.WEAPONS)
          {
             icons = IconContainer.getInstance("weapons");
          }
-         else if(category == 5)
+         else if(category == SuperCategory.UPGRADES)
          {
-            if(_descr.category == FiltersWindow.CAT_VOUCHER || _descr.category == 28 || _descr.category == 29)
+            if(_descr.category == ItemCategory.VOUCHERS || _descr.category == ItemCategory.GENERIC_MONEY || _descr.category == ItemCategory.PREMIUM_MONEY)
             {
                icons = IconContainer.getInstance("vouchers");
             }
-            else if(_descr.category == 26)
+            else if(_descr.category == ItemCategory.DECALS)
             {
                icons = IconContainer.getInstance("decals");
             }
@@ -3381,7 +3444,7 @@ package
             icons = IconContainer.getInstance("consumables");
          }
          var iconIndex:int = 0;
-         if(sourceSlot == 300)
+         if(sourceSlot == ItemPlace.BUNDLE)
          {
             iconIndex = _descr.icon;
          }
@@ -3399,7 +3462,7 @@ package
          _obj.sourceSlot = sourceSlot;
          _obj.targetSlot = targetSlot;
          _obj.isPremium = lockedPremiumCost || _descr.is_premium;
-         if(targetSlot != 100)
+         if(targetSlot != ItemPlace.INVENTORY)
          {
             _obj.onYes = this.relocate_to_paperdoll;
          }
@@ -3408,7 +3471,7 @@ package
             _obj.onYes = onComplete;
          }
          trace("try_buy_info::",_descr.is_stack,_descr.name,this.inventory_list.hasItem(dict_uid),onComplete);
-         if(!_descr.is_stack && _descr.category != FiltersWindow.CAT_CAMO && (sourceSlot == 200 && this.inventory_list.hasItem(dict_uid)))
+         if(!_descr.is_stack && _descr.category != ItemCategory.CAMOUFLAGES && (sourceSlot == ItemPlace.SHOP && this.inventory_list.hasItem(dict_uid)))
          {
             _obj.text = LocalizationData.getName("already_in_inventory");
             _obj.onYes = this.show_buy_message;
@@ -3467,7 +3530,7 @@ package
       
       private function show_buy_message(value:Object) : void
       {
-         if(value.targetSlot != 100)
+         if(value.targetSlot != ItemPlace.INVENTORY)
          {
             value.onYes = this.relocate_to_paperdoll;
          }
@@ -3860,9 +3923,9 @@ package
          {
             return;
          }
-         if(!this.inventory_list.visible || this.inventory_list.visible && this.inventory_list.mainTabBar.selectedIndex != 0)
+         if(!this.inventory_list.visible || this.inventory_list.visible && this.inventory_list.mainTabBar.selectedIndex != InventoryTab.SHOP)
          {
-            this.inventory_list.mainTabBar.selectedIndex = 0;
+            this.inventory_list.mainTabBar.selectedIndex = InventoryTab.SHOP;
             this.topMenu.selectActiveWindow(this.topMenu.SHOP_INDEX);
          }
          else
@@ -3877,13 +3940,13 @@ package
          {
             return;
          }
-         if(!this.inventory_list.visible || this.inventory_list.visible && this.inventory_list.mainTabBar.selectedIndex != 1)
+         if(!this.inventory_list.visible || this.inventory_list.visible && this.inventory_list.mainTabBar.selectedIndex != InventoryTab.INVENTORY)
          {
             if(this.topMenu.inventoryLocked())
             {
                return;
             }
-            this.inventory_list.mainTabBar.selectedIndex = 1;
+            this.inventory_list.mainTabBar.selectedIndex = InventoryTab.INVENTORY;
             this.topMenu.selectActiveWindow(this.topMenu.INV_INDEX);
          }
          else
@@ -3984,7 +4047,7 @@ package
                dayData.last = true;
             }
             dayData.index = i;
-            dayData.progressRequired = 3;
+            dayData.progressRequired = DAILY_REWARD_PROGRESS_REQUIRED;
             dayData.progress = dropItem.progress;
             dayData.completed = dayIndex < this._dailyBonusData.current_day || dayIndex == this._dailyBonusData.current_day && dropItem.progress == dayData.progressRequired;
             dayData.dayLabel = LocalizationData.getName("day") + " " + dayIndex.toString();
@@ -4005,7 +4068,7 @@ package
             itemData.rank = rank;
             itemData.clipSize = 1;
             this.inventory_list.fillModifiersDescription(itemData);
-            if((itemData.itemDescription && itemData.superCategory == 5) && (itemData.category != 28) && itemData.category != 29)
+            if((itemData.itemDescription && itemData.superCategory == SuperCategory.UPGRADES) && (itemData.category != ItemCategory.GENERIC_MONEY) && itemData.category != ItemCategory.PREMIUM_MONEY)
             {
                itemData.tipText = Util.styledChar(itemData.name,"white") + "\n" + itemData.itemDescription;
             }
@@ -4045,7 +4108,7 @@ package
             itemData.rank = rank;
             itemData.clipSize = 1;
             this.inventory_list.fillModifiersDescription(itemData);
-            if((itemData.itemDescription && itemData.superCategory == 5) && (itemData.category != 28) && itemData.category != 29)
+            if((itemData.itemDescription && itemData.superCategory == SuperCategory.UPGRADES) && (itemData.category != ItemCategory.GENERIC_MONEY) && itemData.category != ItemCategory.PREMIUM_MONEY)
             {
                itemData.tipText = Util.styledChar(itemData.name,"white") + "\n" + itemData.itemDescription;
             }
@@ -4092,7 +4155,7 @@ package
                   itemData.enabled = true;
                   this.inventory_list.fillModifiersDescription(itemData);
                   trace("modifiersDescription::",itemData.modifiersDescription);
-                  if((itemData.itemDescription && itemData.superCategory == 5) && (itemData.category != 28) && itemData.category != 29)
+                  if((itemData.itemDescription && itemData.superCategory == SuperCategory.UPGRADES) && (itemData.category != ItemCategory.GENERIC_MONEY) && itemData.category != ItemCategory.PREMIUM_MONEY)
                   {
                      itemData.tipText = Util.styledChar(itemData.name,"white") + "\n" + itemData.itemDescription;
                   }
@@ -4145,7 +4208,7 @@ package
          {
             this.victory_screen.noCard(value.match_id);
          }
-         value.notificationType = 3;
+         value.notificationType = NotificationType.MATCH;
          this.add_notification(value);
          this.updateReport(this.victory_screen.getData());
          this.set_log_list(this._reports);
@@ -4273,15 +4336,15 @@ package
       public function set_play_button_state(value:uint) : void
       {
          var label:String = null;
-         if(value == 0)
+         if(value == PlayButtonState.PLAY)
          {
             label = "Play";
          }
-         else if(value == 1)
+         else if(value == PlayButtonState.LEAVE)
          {
             label = "btnLeave";
          }
-         else if(value == 2)
+         else if(value == PlayButtonState.READY)
          {
             label = "btn_ready";
          }
@@ -4329,11 +4392,11 @@ package
             return;
          }
          rewards.push({
-            type:4,
+            type:Reward.RATING,
             amount:value.rating
          });
          rewards.push({
-            type:0,
+            type:Reward.EXPERIENCE,
             amount:value.exp
          });
          var reputations:Object = value.statistics_reputation;
@@ -4342,16 +4405,16 @@ package
          {
             reputation = reputations;
             rewards.push({
-               type:1,
+               type:Reward.REPUTATION,
                amount:reputation.statistics_reputation,
                param:reputation.faction_id
             });
          }
          trace("reportAddMOney::",value.money,reputations);
          rewards.push({
-            type:2,
+            type:Reward.MONEY,
             amount:value.money,
-            param:0
+            param:MoneyType.REGULAR
          });
          value.reward = rewards;
          this.notificationList.updateNotification(value);
@@ -4507,26 +4570,26 @@ package
          {
             trace(st + ":" + value[st]);
          }
-         ExternalInterface.call("sound_play",6);
+         ExternalInterface.call("sound_play",UiSound.INVITE);
          value.run = true;
          value.request = true;
          value.name = value.sender_name;
-         if(value.type == 0 || value.type == undefined)
+         if(value.type == ImportantMessageType.FRIEND_REQUEST || value.type == undefined)
          {
             this._friendInvites.unshift(value);
-            value.status = 4;
+            value.status = FriendStatus.INVITE;
             value.status_text = value.message_body;
             this.friendsMenu.setInvites(this._friendInvites);
             this.bottom_panel.btnFriends.invites = this._friendInvites.length;
          }
-         else if(value.type == 7)
+         else if(value.type == ImportantMessageType.PREMIUM_ACTIVATED)
          {
             value.label = LocalizationData.getName("action_premium_activated");
-            value.notificationType = 4;
+            value.notificationType = NotificationType.PREMIUM;
             value.reward = [{
                type:Reward.MONEY,
                amount:this._postRewardData.money,
-               param:0
+               param:MoneyType.REGULAR
             },{
                type:Reward.EXPERIENCE,
                amount:this._postRewardData.experience
@@ -4538,18 +4601,18 @@ package
             value.hideTimer = 15000;
             this.add_notification(value);
          }
-         else if(value.type == 6)
+         else if(value.type == ImportantMessageType.REFERRAL_REWARD)
          {
             value.label = Util.styledChar(value.nickname,"gray_highlight") + "\n" + LocalizationData.getName("reach_level") + " " + Util.styledChar(value.level,"green");
-            value.notificationType = 2;
+            value.notificationType = NotificationType.INVITED_REWARD;
             value.hideTimer = 15000;
             this.add_notification(value);
          }
-         else if(value.type == 8)
+         else if(value.type == ImportantMessageType.SKILL_POINT_REWARD)
          {
             value.label = Util.styledChar(LocalizationData.getName("level") + " " + value.skill_level + " ","highlight") + LocalizationData.getName("achieved");
             value.hideTimer = 15000;
-            value.notificationType = 9;
+            value.notificationType = NotificationType.PLAYER_RANK;
             value.reward = [{
                type:Reward.MONEY,
                amount:value.reward_amount,
@@ -4562,7 +4625,7 @@ package
             mess = Message.showMessage("message_unlock_level",value,false);
             mess.addEventListener(Event.OPEN,this.openCharItem,false,0,true);
          }
-         else if(value.type == 2)
+         else if(value.type == ImportantMessageType.REPUTATION_LEVEL)
          {
             value.items = GangShop.getUnlockedItems(value.faction_id,value.level);
             trace("value.items",value.items);
@@ -4571,7 +4634,7 @@ package
             value.text = value.message_body;
             value.label = value.text;
             value.hideTimer = 15000;
-            value.notificationType = 8;
+            value.notificationType = NotificationType.FACTION_RANK;
             this.add_notification(value);
             if(!value.items || value.items.length == 0)
             {
@@ -4581,13 +4644,13 @@ package
             }
             else
             {
-               mess = Message.showMessage("message_unlock_rank",value,false,100 + this._messageIndex);
+               mess = Message.showMessage("message_unlock_rank",value,false,MessageId.RANK_UNLOCK + this._messageIndex);
                mess.addEventListener(Event.OPEN,this.openUnlockedItem,false,0,true);
             }
          }
          else
          {
-            if(value.type == 3 || value.type == 4)
+            if(value.type == ImportantMessageType.CLAN_INVITE || value.type == ImportantMessageType.CLAN_TEAM_INVITE)
             {
                value.text = "";
                value.label = value.sender_name;
@@ -4609,7 +4672,7 @@ package
          trace("onNewItemsCountChangeShop");
          this._unlockData.items = GangShop.getUnlockedItems(this._unlockData.faction_id,this._unlockData.level);
          this.shop_list.removeEventListener(GangShop.NEW_ITEMS_COUNT_CHANGED,this.onNewItemsCountChangeShop);
-         var mess:* = Message.showMessage("message_unlock_rank",this._unlockData,false,100 + this._messageIndex);
+         var mess:* = Message.showMessage("message_unlock_rank",this._unlockData,false,MessageId.RANK_UNLOCK + this._messageIndex);
          mess.addEventListener(Event.OPEN,this.openUnlockedItem,false,0,true);
       }
       
@@ -4653,7 +4716,7 @@ package
             }
          }
          trace("remove_important_message",message_id,removeType);
-         if(removeType == 0)
+         if(removeType == ImportantMessageType.FRIEND_REQUEST)
          {
             this.friendsMenu.setInvites(this._friendInvites);
             this.bottom_panel.btnFriends.invites = this._friendInvites.length;
@@ -4916,7 +4979,7 @@ package
       {
          if((value) && !showLeaveButton)
          {
-            ExternalInterface.call("sound_play",15);
+            ExternalInterface.call("sound_play",UiSound.MATCH_FOUND);
          }
          this.statusPanel.lobbyGameSearch.sync_text = value;
          if(showLeaveButton == 1)
@@ -4985,7 +5048,7 @@ package
          MainScene.activeMatchMaking = bool;
          if((this.craftWindow))
          {
-            this.craftWindow.setMatchState(MainScene.activeMatchMaking ? 1 : 0);
+            this.craftWindow.setMatchState(MainScene.activeMatchMaking ? MatchMakingState.SEARCHING : MatchMakingState.IDLE);
          }
          if(!bool)
          {
@@ -5068,10 +5131,10 @@ package
             factionIcon = icons.getIcon(data.faction_id);
             data.faction_icon = factionIcon;
             this.questWindow.fillRewardItems(data);
-            data.label = Util.styledChar(LocalizationData.getName(String("quest_status_" + data.status)),data.status == 3 ? "red" : "gold") + Util.styledChar("\n«" + data.quest_label + "»","gray_highlight");
-            data.hideTimer = data.status == 3 ? 15000 : 15000;
+            data.label = Util.styledChar(LocalizationData.getName(String("quest_status_" + data.status)),data.status == QuestStatus.FAILED ? "red" : "gold") + Util.styledChar("\n«" + data.quest_label + "»","gray_highlight");
+            data.hideTimer = data.status == QuestStatus.FAILED ? 15000 : 15000;
             trace("addFailedQuestNotification");
-            data.notificationType = 1;
+            data.notificationType = NotificationType.QUEST;
             this.add_notification(data);
             return;
          }
@@ -5323,15 +5386,15 @@ package
          var _new:uint;
          if(e.cursor == "ibeam")
          {
-            _new = 6;
+            _new = Cursor.IBEAM;
          }
          else if(e.cursor != "arrow")
          {
-            _new = 2;
+            _new = Cursor.BUTTON;
          }
          else
          {
-            _new = 1;
+            _new = Cursor.ARROW;
          }
          ExternalInterface.call("set_mouse_cursor",_new);
       }
@@ -5466,7 +5529,7 @@ package
             };
             return object;
          };
-         this.clanWindow.setState(3);
+         this.clanWindow.setState(ClanState.OVERVIEW);
          this.set_clan_daily_message("some Very Awful Daily Message\nsecond line text");
          this.set_clan_ranks([createPermission("RankZero"),createPermission("Rank2"),createPermission("Rank3"),createPermission("Rank4")]);
          this.set_clan_manage_permissions(createPermission());
@@ -5522,7 +5585,7 @@ package
       
       private function onKeyDownStage(e:KeyboardEvent) : void
       {
-         if(e.keyCode == 160)
+         if(e.keyCode == KeyCode.LEFT_SHIFT)
          {
             MainScene.isShift = true;
          }
@@ -5536,7 +5599,7 @@ package
             bundle_name:"666",
             bundle_descr:"descr 666 is 666",
             cost:666,
-            currency_type:1,
+            currency_type:MoneyType.PREMIUM,
             bundle_icon:1
          });
          arr.push({
@@ -5544,7 +5607,7 @@ package
             bundle_name:"555",
             bundle_descr:"descr 555 is 555",
             cost:555,
-            currency_type:0,
+            currency_type:MoneyType.REGULAR,
             bundle_icon:0
          });
          this.setup_bundle_data(arr);
@@ -5554,7 +5617,7 @@ package
       {
          this.clean_highlight();
          this.show_slide("text1");
-         this.highlight_element(this.player_profile.paperDoll.getSlotAt(7),true);
+         this.highlight_element(this.player_profile.paperDoll.getSlotAt(ProfileSlot.WEAPON_1),true);
          this.highlight_inventory_items([106,107]);
       }
       
@@ -5591,7 +5654,7 @@ package
       {
          this.clean_highlight();
          this.show_slide("testFactionTutor","",false);
-         this.set_quest_active_faction(0);
+         this.set_quest_active_faction(Faction.NONE);
          this.set_sybsystem_active("Quests",true);
          this.questWindow.setControlsEnabled(false);
          this.highlight_element(this.questWindow.btnJoin,true);
@@ -5606,7 +5669,7 @@ package
             name:"tutorial_completed",
             reward:[{
                type:Reward.ITEM,
-               param:214,
+               param:ItemDictId.GENERIC_MONEY,
                amount:100
             },{
                type:Reward.EXPERIENCE,
@@ -5616,7 +5679,7 @@ package
             name:"survival_item_notes_completed",
             reward:[{
                type:Reward.ITEM,
-               param:214,
+               param:ItemDictId.GENERIC_MONEY,
                amount:200
             },{
                type:Reward.EXPERIENCE,
@@ -5626,7 +5689,7 @@ package
             name:"survival_prepare_to_battle_notes_completed",
             reward:[{
                type:Reward.ITEM,
-               param:214,
+               param:ItemDictId.GENERIC_MONEY,
                amount:300
             },{
                type:Reward.EXPERIENCE,
@@ -5656,12 +5719,12 @@ package
          Message.showMessage("premium_discount",messData);
       }
       
-      public function show_premium_post_reward(money:uint, exp:uint, rep:uint, hours:uint = 0, timeLeft:uint = 3600.0, discount:Number = 1, factionId:int = -1) : void
+      public function show_premium_post_reward(money:uint, exp:uint, rep:uint, hours:uint = 0, timeLeft:uint = 3600.0, discount:Number = 1, factionId:int = Faction.ANY) : void
       {
          var messData:Object;
          var notif:Object;
          trace("show_premium_post_reward",money,exp,rep,hours,timeLeft,discount,factionId);
-         if(factionId == -1)
+         if(factionId == Faction.ANY)
          {
             factionId = PlayerInfo.activeFaction;
          }
@@ -5676,7 +5739,7 @@ package
          _postRewardData = messData;
          Message.showMessage("post_premium",messData);
          notif = {
-            notificationType:0,
+            notificationType:NotificationType.PLAIN,
             label:LocalizationData.getName("premium_post_reward_label")
          };
          this._postRewardData.startTime = getTimer();
@@ -5722,7 +5785,7 @@ package
          {
             return;
          }
-         if(e.keyCode == 77)
+         if(e.keyCode == Keyboard.M)
          {
             if(!this.toggle)
             {
@@ -5731,11 +5794,11 @@ package
             ++this.toggleIndex;
             return;
          }
-         if(e.keyCode == 27 && stage.focus is TextField && this.has_active_window())
+         if(e.keyCode == Keyboard.ESCAPE && stage.focus is TextField && this.has_active_window())
          {
             trace("onKeyDownStage::close_active_window");
          }
-         if(e.keyCode == 160)
+         if(e.keyCode == KeyCode.LEFT_SHIFT)
          {
             MainScene.isShift = false;
          }

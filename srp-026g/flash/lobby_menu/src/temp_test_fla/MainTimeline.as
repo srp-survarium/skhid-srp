@@ -1,6 +1,7 @@
 package temp_test_fla
 {
    import flash.display.MovieClip;
+   import survarium.constants.ItemPlace;
    import survarium.data.ItemData;
    
    public dynamic class MainTimeline extends MovieClip
@@ -20,7 +21,7 @@ package temp_test_fla
       {
          itemData = new ItemData();
          this.itemData.name = "name";
-         this.itemData.descriptor = 100;
+         this.itemData.descriptor = ItemPlace.INVENTORY;
          this.itemData.itemDescription = "itemDescription";
          this.tile.data = this.itemData;
       }
