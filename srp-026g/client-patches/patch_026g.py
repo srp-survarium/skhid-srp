@@ -1563,7 +1563,14 @@ WEAPON_PREVIEW_FIND_CALLS = (0x2B, 0xCC)       # weapon_preview_026g.section.bin
 # the game's functions' and finds its state with call/pop.
 WEAPON_TABLE_OFFSET = 0x800
 WEAPON_TABLE_STATE_OFFSET = 0xF00
-WEAPON_TABLE_STATE_SIZE = 0x48
+WEAPON_TABLE_STATE_SIZE = 0x90
+# The interface other patches read (weapon decals): while the state's TABLE
+# (+0) and READY (+28h) are 1, the transform the held weapon was last drawn
+# with at the bench, a float4x4 in rows (v * M, as the game's: row 3 the
+# translation), at +WEAPON_TABLE_MATRIX_OFFSET of the state, and a u32 stamp
+# at +WEAPON_TABLE_STAMP_OFFSET that grows by 1 at each one written.
+WEAPON_TABLE_STAMP_OFFSET = 0x48
+WEAPON_TABLE_MATRIX_OFFSET = 0x50
 WEAPON_PREVIEW_CAMERA_JUMPS = (0x68, 0xA8)     # weapon_preview_026g.section.bin: the two `jmp CAMERA`
 WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14)  # camera, tick, cull, matrix, left: `jmp near` each
 WEAPON_TABLE_HOOKS = (

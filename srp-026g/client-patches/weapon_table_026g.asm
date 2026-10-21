@@ -48,7 +48,12 @@
 ;                character makes no player (+D2C4h -1, +D2C8h 0), the table's
 ;                player's held item is drawn with the bench's transform
 ;                ([ebp-0E8h], the decal pose's buffer), its middle at BENCH,
-;                and the weapon is there (READY); before, in the hand.
+;                and the weapon is there (READY); before, in the hand. Once
+;                there, a refresh's new player (an attach) does not take it
+;                away: the current player's weapon stays at the bench until
+;                the new player replaces it. The transform is also kept at
+;                BENCH_MATRIX with a new STAMP (the interface for other
+;                patches: patch_026g.py WEAPON_TABLE_MATRIX_OFFSET).
 ;   +20 left     0x283D81 `test byte [eax+0Ch],52h / setne al` in the camera's
 ;                on_mouse_move (eax = the mouse's state, esi = the camera): a
 ;                button of 52h as before; at the bench, the left button too
@@ -97,6 +102,7 @@ ORG CAVE
 %define UPGRADE_MODE    0xD515      ; lobby_character: 1 while an upgrade window is open
 %define WEAPON_VTABLE   0xA04174    ; survarium::weapon
 %define WEAPON_MODEL    0x1810      ; weapon: its skeleton model instance
+%define DICTIONARY      0x25C       ; inventory item (the weapon's at +10h): its items_dict entry, +0 u16 the dict id
 %define MODEL_RENDER    0x108       ; skeleton model instance: its render instance
 %define SKELETON_VTABLE 0x9F0F24    ; vostok::render::skeleton_render_model_instance
 %define RENDER_MODEL    0x62B4      ; skeleton_render_model_instance: its skeleton_render_model
@@ -149,6 +155,8 @@ ORG CAVE
 %define WAITED          0x30        ; float: how long it has
 %define LEFT            0x34        ; the left button since it went down: 0 up, 1 the weapon's drag, 2 not
 %define MIDDLE          0x38        ; float4: the weapon's middle, in its model's space (w 0)
+%define STAMP           0x48        ; +1 at every bench transform written (the interface's frame stamp)
+%define BENCH_MATRIX    0x50        ; float4x4: the bench transform the held item was last drawn with
 %define CONST(label)    ((label) - STATE)
 
     jmp near camera
@@ -173,14 +181,17 @@ camera:
     mov eax, [esi+PITCH]
     mov [edi+SAVED_PITCH], eax
 .on:
+    xor eax, eax
+    cmp dword [edi+TABLE], 0
+    jne .again                      ; a weapon's window over a weapon's: the bench keeps its weapon
+    mov [edi+READY], eax            ; until the new player's is there, and the camera need not wait
+    mov [edi+WAITED], eax
+.again:
     mov dword [edi+TABLE], 1
     mov dword [edi+FLY], 1
     mov dword [edi+HOLD], 1
-    xor eax, eax
     mov [edi+SPIN], eax
     mov [edi+TILT], eax
-    mov [edi+READY], eax
-    mov [edi+WAITED], eax
     mov eax, [edi+CONST(bench_x)]
     mov [edi+TARGET_X], eax
     mov eax, [edi+CONST(bench_z)]
@@ -355,11 +366,14 @@ matrix:
     cmp dword [eax+BUILDING], -1
     jne .building
     cmp byte [eax+BUILD_AGAIN], 0
+    jne .building
     pop eax
-    je .bench
-    jmp .original
-.building:
+    jmp .bench
+.building:                          ; a player being made: the bench once shown keeps the
+    call base_eax                   ; current player's weapon there until the new one is
+    cmp dword [eax+READY], 0        ; (a refresh: a scope or a camouflage put on or off)
     pop eax
+    jne .bench
 .original:
     cmp byte [ebx+DECAL], 0
     jne .ret                        ; the 4 nops, then the decal pose's transform
@@ -418,10 +432,19 @@ matrix:
     push edx
     mov edx, eax
     call transform
-    pop edx
     movups xmm1, [edi+CONST(bench_x)]
     subps xmm1, xmm0
     movups [eax+30h], xmm1
+    lea edx, [edi+BENCH_MATRIX]     ; the interface: the transform drawn with, and a new stamp
+    movups xmm0, [eax]
+    movups [edx], xmm0
+    movups xmm0, [eax+10h]
+    movups [edx+10h], xmm0
+    movups xmm0, [eax+20h]
+    movups [edx+20h], xmm0
+    movups [edx+30h], xmm1
+    inc dword [edi+STAMP]
+    pop edx
     movups xmm0, [esp]
     movups xmm1, [esp+16]
     movups xmm2, [esp+32]
@@ -446,6 +469,31 @@ middle:
     lea eax, [edi + WEAPON_VTABLE - STATE]
     cmp [esi], eax
     jne .done
+    mov eax, [esi+DICTIONARY]       ; a weapon whose box does not serve: MIDDLES
+    test eax, eax
+    jz .model
+    movzx eax, word [eax]
+    lea edx, [edi+CONST(middles)]
+.find:
+    movzx ecx, word [edx]
+    test ecx, ecx
+    jz .model
+    add edx, 8
+    cmp ecx, eax
+    jne .find
+    lea ecx, [edi+MIDDLE]           ; its x, y, z (mm)
+    mov ebp, 3
+.mm:
+    movsx eax, word [edx-6]
+    cvtsi2ss xmm0, eax
+    mulss xmm0, [edi+CONST(millimetre)]
+    movss [ecx], xmm0
+    add edx, 2
+    add ecx, 4
+    dec ebp
+    jnz .mm
+    jmp .done
+.model:
     mov esi, [esi+WEAPON_MODEL]
     test esi, esi
     jz .done
@@ -471,8 +519,8 @@ middle:
     cmp dword [esi+BOX_MAX], 0x3F800000
     je .done                        ; the default box: the fallback
 .box:
-    movss xmm0, [esi+BOX_MIN]       ; the box's centre, rotY(pi): (-x, y, -z)
-    addss xmm0, [esi+BOX_MAX]
+    xorps xmm0, xmm0                ; the box's centre, rotY(pi), its x 0: (0, y, -z); the box
+                                    ; holds parts parked beside the weapon (the VSS's spare magazine)
     movss xmm1, [esi+BOX_MIN+4]
     addss xmm1, [esi+BOX_MAX+4]
     movss xmm2, [esi+BOX_MIN+8]
@@ -625,3 +673,35 @@ one:              dd 1.0
 close:            dd 1.0e-6         ; there: within 0.001 (squared)
 speed:            dd 1.1111112      ; the setter's: |change| * 1.111 a second (0xA2D9E4)
 hold_max:         dd 2.0            ; HOLD_MAX: the longest the camera waits for the weapon (s)
+millimetre:       dd 0.001
+; MIDDLES: the weapons whose box does not give their middle within 1 cm (a
+; default box; the Magnum's spare rounds; a body off the axis, the RPD's):
+; items_dict id, the middle of the posed gun (parts parked beside it left
+; out) in the model's space (mm), from the data (client_patch.md section 3.42)
+middles:          dw 12, 5, -2, 240     ; toz_122 (weapons/toz_122)
+                  dw 13, 10, -37, 88    ; ak_74u (weapons/ak74u)
+                  dw 14, 15, -4, 270    ; rem_700 (weapons/rem_700)
+                  dw 16, 1, -38, 275    ; toz_34 (weapons/toz34/toz_34)
+                  dw 56, -18, -18, 265  ; magnum (weapons/magnum/magnum)
+                  dw 77, -11, -37, 261  ; rpd (weapons/rpd/rpd)
+                  dw 80, 10, -30, 167   ; akmn (weapons/akmn/akmn)
+                  dw 90, 0, -22, 214    ; winchester_1894 (weapons/winchester_1894)
+                  dw 107, 15, 11, 221   ; mosin_nagant (weapons/mosin_nagant/mosin_nagant)
+                  dw 108, 0, -31, 276   ; izh_27_lancaster (weapons/izh_27_lancaster/izh_27_lancaster_)
+                  dw 110, 10, -25, 309  ; mp_153 (weapons/mp153/mp153)
+                  dw 125, 10, -17, 162  ; benelli_m4 (weapons/benelli_m4/benelli_m4)
+                  dw 216, 9, -53, 90    ; vepr (weapons/vepr)
+                  dw 220, 8, -28, 169   ; a_545 (weapons/a_545/a_545)
+                  dw 303, 2, 3, 179     ; a9_91 (weapons/a9_91/a9_91)
+                  dw 337, 0, -31, 276   ; izh_27_lancaster_premium (weapons/izh_27_lancaster/izh_27_lancaster_)
+                  dw 2214, 11, -29, 174 ; valmet (weapons/valmet_rk62/valmet_rk62)
+                  dw 2215, 10, -6, 141  ; soc_vepr (weapons/soc_vepr/soc_vepr)
+                  dw 2227, 9, -18, 255  ; saiga_12 (weapons/saiga_12s/saiga_12s)
+                  dw 2228, 9, -18, 255  ; saiga_12_premium (weapons/saiga_12s/saiga_12s_camo)
+                  dw 2241, 10, -30, 167 ; akmn_premium (weapons/akmn/akmn_camo)
+                  dw 2242, 10, -30, 167 ; akmn_premium_2 (weapons/akmn/akmn_camo_st)
+                  dw 2243, 10, -37, 88  ; ak_74u_premium (weapons/aks74u_camo/ak74u_camo)
+                  dw 2244, 9, -53, 90   ; vepr_premium (weapons/vepr_camo/vepr_camo)
+                  dw 2249, 15, -4, 270  ; rem_700_premium (weapons/rem_700_camo_st)
+                  dw 2251, 0, -31, 276  ; izh_27_lancaster_premium_2 (weapons/izh_27_lancaster_camo/izh_27_lancaster_camo_st)
+                  dw 0

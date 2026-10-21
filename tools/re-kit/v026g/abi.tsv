@@ -869,6 +869,7 @@ va	name	source	ret_cleanup	result
 0x001ec510	survarium::game::load_config_query	manual	12	
 0x001edbf0	survarium::game::play_ui_sound	manual	4	
 0x001f0090	survarium::items_dictionary::item_by_id	manual	4	
+0x001f0090	survarium::items_dictionary::item_by_id	manual	4	EAX = the entry: 3A0h bytes each from [dictionary+130h], +0 u16 the dict id (0x1F00D4), +228h u8 item_category
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	manual	0	
 0x001f3de0	vostok::network_core::buffer_writer::w<unsigned char>	manual	20	
 0x001f48a0	vostok::network_core::buffer_writer::w<unsigned int>	manual	20	

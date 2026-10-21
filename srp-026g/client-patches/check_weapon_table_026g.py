@@ -70,26 +70,43 @@ WEAPON_VTABLE, SKELETON_VTABLE = 0xA04174, 0x9F0F24
 ITEM, MODEL, RENDER, SKELETON = UI + 0x2000, UI + 0x4000, UI + 0x5000, UI + 0xC000   # a weapon's objects
 INVERSE_BINDS, BONE_POSES = UI + 0xD000, STACK - 0x3000
 
-# Two weapons as the data has them (resources.db, read 2026-10-21): the
-# render model's box (render/export_properties, min and max), bone 1's
+# Weapons as the data has them (resources.db, read 2026-10-21): the items_dict
+# id, the render model's box (render/export_properties, min and max), bone 1's
 # (`offset`) inverse bind (render/bind_pose) and pose of the 3rd-view idle
 # (animations/.../item/stand/3rd_view/idle.b-spline over the skeleton), as the
-# game keeps matrices (rows, v * M); and the middle of the weapon's mesh in
-# that pose (each vertex by its bone, the box of them), which the build must
-# put at the bench.
+# game keeps matrices (rows, v * M); and the middle of the gun's mesh in that
+# pose (each vertex by its bone, the box of them, parts parked beside it left
+# out: the VSS's second magazine), which the build must put at the bench
+# within 1 cm.
 FLIP = (-1.0, 0, 0, 0, 0, 1.0, 0, 0, 0, 0, -1.0, 0, 0, 0, 0, 1.0)
 WEAPONS = {
-    "AK-12": ((-0.022, -0.158, -0.673), (0.031, 0.111, 0.265), FLIP, FLIP, (-0.0045, -0.0235, 0.2036)),
-    "PM": ((-0.083, -0.072, -0.124), (0.021, 0.051, 0.034), FLIP,
+    "AK-12": (None, (-0.0224, -0.1585, -0.6726), (0.0315, 0.1114, 0.2654), FLIP, FLIP, (-0.0045, -0.0235, 0.2036)),
+    "PM": (89, (-0.083, -0.072, -0.124), (0.021, 0.051, 0.034), FLIP,
            (-0.999839, 0.012316, -0.012998, 0, 0.012093, 0.999780, 0.017123, 0, 0.013206, 0.016963, -0.999769, 0,
-            -0.013804, -0.000793, 0.200544, 1.0), (0.0165, -0.0124, 0.2458)),
+            -0.013804, -0.000793, 0.200544, 1.0), (-0.0212, -0.0136, 0.2457)),
+    "VSS": (308, (-0.2957, -0.0813, -0.5669), (0.021, 0.0833, 0.3269), FLIP,
+            (-0.999994, 0.003439, 0.000239, 0, 0.003440, 0.999987, 0.003642, 0, -0.000227, 0.003643, -0.999993, 0,
+             0.005773, 0.019322, 0.026358, 1.0), (0.0134, 0.0201, 0.1465)),
+    "AK-74U": (13, (-1.0, -1.0, -1.0), (1.0, 1.0, 1.0), FLIP, FLIP, (0.0096, -0.0373, 0.0882)),
 }
+DICTIONARY_ITEM = UI + 0xE000                  # the weapon's items_dict entry (+0 its u16 id)
+# weapon_table_026g.asm's MIDDLES (items_dict id: the posed gun's middle, m), read from its source
+def table_middles():
+    import os
+    import re
+    text = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_table_026g.asm")).read()
+    rows = re.findall(r"^(?:middles:)?\s+dw (\d+), (-?\d+), (-?\d+), (-?\d+)", text[text.index("middles:"):], re.M)
+    return {int(d): (int(x) / 1000, int(y) / 1000, int(z) / 1000) for d, x, y, z in rows}
+
+
+TABLE_MIDDLES = table_middles()
 
 # weapon_table_026g.asm's constants and state
 BENCH = (4.25, 1.30, 3.05)
 VIEW_YAW, VIEW_PITCH, VIEW_DISTANCE, MIDDLE_Z, TILT_MAX, HOLD_MAX = -math.pi / 2, -0.25, 1.2, 0.2, 1.2, 2.0
 TABLE, FLY, TARGET_X, TARGET_Z, TARGET_YAW, TARGET_PITCH, SAVED_YAW, SAVED_PITCH, SPIN, TILT, READY, HOLD, \
     WAITED, LEFT = range(0, 56, 4)
+STAMP, BENCH_MATRIX = base.WEAPON_TABLE_STAMP_OFFSET, base.WEAPON_TABLE_MATRIX_OFFSET   # the interface
 SPEEDS = (0xE0, 0xE4, 0xE8)                    # the camera's three steps' speeds: side, height, distance
 STEPS = ((0x98, 0xAC), (0x9C, 0xA4), (0xC0, 0xC4))  # their targets and values
 POINT_X, POINT_Y, POINT_Z, YAW, PITCH, TURN_YAW, TURN_PITCH, WHEEL = 0xA0, 0xA4, 0xA8, 0xB8, 0xBC, 0xCC, 0xD0, 0xC8
@@ -207,13 +224,15 @@ class Table:
     def weapon(self, name, vtable=WEAPON_VTABLE, box=None):
         """The player holds a weapon whose model is `name`'s (WEAPONS), its
         bones of the frame in mt_draw's frame; returns the middle it has."""
-        lower, upper, inverse_bind, pose, middle = WEAPONS[name]
+        dict_id, lower, upper, inverse_bind, pose, middle = WEAPONS[name]
         if box is not None:
             lower, upper = box
         lobby, d = self.lobby, self.delta
         lobby.word(PLAYER + 0x128, ITEM)
         lobby.word(ITEM, vtable + d)
         lobby.word(ITEM + 0x1810, MODEL)
+        lobby.word(ITEM + 0x25C, DICTIONARY_ITEM if dict_id is not None else 0)
+        self.emu.mem_write(DICTIONARY_ITEM, struct.pack("<H", dict_id or 0))
         lobby.word(MODEL + 0x108, RENDER)
         lobby.word(RENDER, SKELETON_VTABLE + d)
         lobby.word(RENDER + 0x62B4, SKELETON)
@@ -223,11 +242,17 @@ class Table:
         self.emu.mem_write(BONE_POSES, struct.pack("<16f", *FLIP) + struct.pack("<16f", *pose))
         lobby.word(FRAME - 0x0C, BONE_POSES)
         lobby.word(FRAME - 0x18, 2)
-        centre = [(a + b) / 2 for a, b in zip(lower, upper)]  # the box's centre, flipped, through bone 1
-        v = [-centre[0], centre[1], -centre[2]]
-        for mat in (inverse_bind, pose):
-            v = [sum(v[i] * mat[4 * i + k] for i in range(3)) + mat[12 + k] for k in range(3)]
-        assert box is not None or all(abs(a - b) < 1e-3 for a, b in zip(v, middle)), (name, v, middle)  # the box to 1 mm
+        if dict_id in TABLE_MIDDLES and box is None:   # the build's table
+            v = list(TABLE_MIDDLES[dict_id])
+        elif lower == (-1.0, -1.0, -1.0) and upper == (1.0, 1.0, 1.0):
+            v = [0.0, 0.0, MIDDLE_Z]
+        else:                                   # the box's centre, flipped, x 0, through bone 1
+            centre = [(a + b) / 2 for a, b in zip(lower, upper)]
+            v = [0.0, centre[1], -centre[2]]
+            for mat in (inverse_bind, pose):
+                v = [sum(v[i] * mat[4 * i + k] for i in range(3)) + mat[12 + k] for k in range(3)]
+        if box is None:
+            assert math.dist(v, middle) < 0.01, (name, v, middle)   # the gun's middle within 1 cm
         return v
 
     def left(self, buttons, over=0):
@@ -399,8 +424,11 @@ def main():
         table.lobby.handler(START_HANDLER, SVD)
         for n in range(20):
             table.frame()
+        table.lobby.word(table.state + READY, 1)          # the SVD at the bench
         table.lobby.handler(START_HANDLER, AK)
-        assert (table.flag(TABLE), table.s(SAVED_YAW)) == (1, from_f32(f32(-2.0)))
+        assert (table.flag(TABLE), table.s(SAVED_YAW), table.flag(READY)) == (1, from_f32(f32(-2.0)), 1)
+        table.frame()
+        assert table.flag(HOLD) == 0                       # the bench keeps its weapon: no wait
         assert math.isclose(table.s(TARGET_YAW), nearest_turn(VIEW_YAW, table.f(CAMERA + YAW)), abs_tol=1e-5)
         table.lobby.handler(START_HANDLER, VEST)
         assert (table.flag(TABLE), table.flag(FLY), table.s(TARGET_X), table.s(TARGET_Z), table.s(TARGET_YAW)) \
@@ -410,7 +438,8 @@ def main():
         for n in range(400):
             table.frame()
         assert not table.flag(FLY) and table.f(CAMERA + YAW) == from_f32(f32(-2.0))
-        say(f"windows over windows{rebased}: the AK's over the SVD's keeps the yaw kept at the first; a vest's "
+        say(f"windows over windows{rebased}: the AK's over the SVD's keeps the yaw kept at the first and the "
+            "bench its weapon (READY, no hold); a vest's "
             "over them flies back (the vest's own camera); the close leaves the stock camera")
 
         # The yaw it flies to: the nearest turn of -pi/2.
@@ -517,9 +546,21 @@ def main():
         for building in ("query", "again"):
             table, end, out, _, _, regs = bench_case(lambda t: t.weapon("AK-12"), building)
             assert end == HAND and out == regs and table.flag(READY) == 0, (building, hex(end))
+
+            def shown(t):
+                t.lobby.word(t.state + READY, 1)
+                return t.weapon("AK-12")
+            table, end, out, m, middle, regs = bench_case(shown, building)
+            assert end == DRAW_ITEM and out[UC_X86_REG_EAX] == FRAME - 0xE8 and table.flag(READY) == 1
+            at = [sum(middle[i] * m[4 * i + k] for i in range(3)) + m[12 + k] for k in range(3)]
+            assert all(abs(a - b) < 1e-5 for a, b in zip(at, BENCH)), at
         say(f"the character still making its player{rebased} (+D2C4h a query, or +D2C8h a setup_profile "
-            "waiting): the held item stays in the hand, READY 0, every register kept")
+            "waiting): before the bench showed a weapon, the held item stays in the hand, READY 0, every "
+            "register kept; once it did (a refresh: a scope or a camouflage put on), the current player's "
+            "weapon stays at the bench")
         for name, setup in (("AK-12", lambda t: t.weapon("AK-12")), ("PM", lambda t: t.weapon("PM")),
+                            ("the VSS (a spare magazine parked beside it in its box)", lambda t: t.weapon("VSS")),
+                            ("the AK-74U (a default box; the build's table)", lambda t: t.weapon("AK-74U")),
                             ("a default box", lambda t: (t.weapon("AK-12", box=((-1.0, -1.0, -1.0), (1.0, 1.0, 1.0))),
                                                          (0.0, 0.0, MIDDLE_Z))[1]),
                             ("not a weapon", lambda t: (t.weapon("AK-12", vtable=0xA04174 + 0x40),
@@ -529,8 +570,11 @@ def main():
             assert all(out[r] == v for r, v in regs.items() if r != UC_X86_REG_EAX)
             at = [sum(middle[i] * m[4 * i + k] for i in range(3)) + m[12 + k] for k in range(3)]
             assert all(abs(a - b) < 1e-5 for a, b in zip(at, BENCH)), (name, at)
+            # the interface: the transform drawn with, at BENCH_MATRIX, and the stamp
+            assert struct.unpack("<16f", table.emu.mem_read(table.state + BENCH_MATRIX, 64)) == m
+            assert table.flag(STAMP) == 1
             say(f"{name}{rebased}: its middle ({', '.join(f'{c:.4f}' for c in middle)}) of the model is drawn at "
-                "the bench, READY 1, every register but eax kept")
+                "the bench, READY 1, every register but eax kept; the transform at the state's +50h, its stamp +1")
 
         # The left button at the bench.
         table = Table(patched, delta)

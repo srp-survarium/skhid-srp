@@ -1043,6 +1043,48 @@ The owner's request (2026-10-21): "instead of focusing on players the camera wou
 - **Checked:** `check_weapon_table_026g.py` 28 checks (as is and rebased): the hold and the speeds given back, the 2 s limit, the character making its player (the held item in the hand, READY 0), the middle of the AK-12 and the PM at the bench and the fallbacks (a default box, not a weapon, no item), the left button (52h as the original; the left button not, but at the bench with its press off the movie; blocked when on it until let go; is_mouse_over_ui asked once a press); the round 1 cases. Selftest check 45 adds the site and the facts above (on_mouse_move reads only al after it; the weapon's, the instance's and the character's fields). **Not run in a game.**
 - **Builds** (round 2): without a server sha256 `56ade5122f6438550e35222109597951104c2e6818aca474c1a8a3d263b668c6`, with `--server=skhid.link:1234` `3867f3ff8b7bdcf8f66ff2cb341d9549bc29f0934acd8c2ca642622e4775b84f` (12 910 712 bytes each).
 
+**Round 3** (2026-10-21, after the owner's game run of round 2: "vss vintorez is not centered around the gun", "i mean rotating"; "when adding camo or scope, is it possible to not have the time where previous model disappears, empty screen is shown, and a new one appears"; and patch 46's need of the bench transform). `weapon_table_026g.asm` is 1 798 bytes (to `.srpw`+F06h), its state 90h bytes.
+
+- **Why the VSS turned off its middle** (PROVEN in the data, emulated offline). Its render box (`render/export_properties`, x −0.296..0.021) holds a second magazine (bone 8 `magazin2`, 491 vertices) parked 28 cm beside the gun in the bind pose; the round-2 middle took the box's centre, 13 cm to the side, so the gun turned about a point beside it. The SR-3M and the Val share it (their `magazin3`), the SKS parks its stripper clip 35 cm beside (16.5 cm off), the vz. 58, the MP-153 and the Winchester others. And 14 models have the exporter's default box (±1) and fell back to (0, 0, 0.2): the AK-74U, the Vepr, the TOZ-34, the IZh-27, the AKMN, the A-545, the TOZ-122 (4 to 12 cm off); the Magnum's box holds its spare rounds; the RPD's and the Mosin's bodies are off the axis.
+- **The fix.** The box's centre is taken with its x 0 (parts are parked beside the gun, not along it), then through bone 1 as before. The weapons this does not put within 1 cm of their middle are in a table MIDDLES (26 entries of 8 bytes: the items_dict id, the posed gun's middle in the model's space in mm, the parts parked beside it left out), found from the held weapon's items_dict entry (weapon+25Ch, the inventory item's +24Ch of its subobject at +10h, inventory_item's ctor's argument; the entry's +0 u16 is its id, item_by_id 0x1F00D4). The survey (every weapon of `items_dict`, 83, its config's `object/model`, all its surfaces' vertices posed by the 3rd-view idle, parts more than 10 cm beside bone 1's body left out) before and after:
+
+| weapon (items_dict id) | model | round 2 | now | how |
+|---|---|---|---|---|
+| sks (109) | `weapons/sks` | 16.5 cm | 0.7 cm | box |
+| sks_premium (2246) | `weapons/sks_camo/sks_camo` | 16.5 cm | 0.7 cm | box |
+| sks_premium_2 (2247) | `weapons/sks_camo/sks_camo_st` | 16.5 cm | 0.7 cm | box |
+| vss (308) | `weapons/vss/vss` | 13.0 cm | 0.8 cm | box |
+| vss_premium (335) | `weapons/vss/vss` | 13.0 cm | 0.8 cm | box |
+| sr3m (309) | `weapons/sr3m/sr3m` | 13.0 cm | 0.8 cm | box |
+| sr3m_premium (336) | `weapons/sr3m/sr3m` | 13.0 cm | 0.8 cm | box |
+| val (307) | `weapons/val/val` | 13.0 cm | 0.8 cm | box |
+| vepr (216) | `weapons/vepr` | 12.2 cm | 0.0 cm | table |
+| vepr_premium (2244) | `weapons/vepr_camo/vepr_camo` | 12.2 cm | 0.0 cm | table |
+| ak_74u (13) | `weapons/ak74u` | 11.8 cm | 0.1 cm | table |
+| ak_74u_premium (2243) | `weapons/aks74u_camo/ak74u_camo` | 11.8 cm | 0.1 cm | table |
+| magnum (56) | `weapons/magnum/magnum` | 9.5 cm | 0.0 cm | table |
+| vz58 (2213) | `weapons/vz58/vz58` | 9.0 cm | 0.6 cm | box |
+| toz_34 (16) | `weapons/toz34/toz_34` | 8.4 cm | 0.1 cm | table |
+| izh_27_lancaster (108) | `weapons/izh_27_lancaster/izh_27_lancaster_` | 8.2 cm | 0.0 cm | table |
+| izh_27_lancaster_premium (337) | `weapons/izh_27_lancaster/izh_27_lancaster_` | 8.2 cm | 0.0 cm | table |
+| izh_27_lancaster_premium_2 (2251) | `weapons/izh_27_lancaster_camo/izh_27_lancaster_camo_st` | 8.2 cm | 0.0 cm | table |
+| winchester_1894 (90) | `weapons/winchester_1894` | 8.0 cm | 0.1 cm | table |
+| mp_153 (110) | `weapons/mp153/mp153` | 6.5 cm | 0.1 cm | table |
+| akmn (80) | `weapons/akmn/akmn` | 4.6 cm | 0.0 cm | table |
+| akmn_premium (2241) | `weapons/akmn/akmn_camo` | 4.6 cm | 0.0 cm | table |
+| akmn_premium_2 (2242) | `weapons/akmn/akmn_camo_st` | 4.6 cm | 0.0 cm | table |
+| a_545 (220) | `weapons/a_545/a_545` | 4.3 cm | 0.1 cm | table |
+| toz_122 (12) | `weapons/toz_122` | 4.1 cm | 0.1 cm | table |
+| fort_17 (64) | `weapons/fort_17/fort_17` | 3.9 cm | 0.2 cm | box |
+| pm (89) | `weapons/pm/pm` | 3.8 cm | 0.7 cm | box |
+| aps (126) | `weapons/aps/aps` | 3.7 cm | 0.2 cm | box |
+
+  Every other weapon was within 3 cm before and is within 1 cm now (the largest 1.0 cm); none is off by more than 1.0 cm now. A scope's model (the `_n_<scope>` variants) shares its weapon's id and so its middle.
+- **No empty bench on a refresh.** An attach (a scope or a camouflage) makes the lobby build a new player (setup_profile → the query, +D2C4h, until on_player_ready). Round 2 drew the held item in the hand meanwhile, so the bench was empty until the new player came. Now, once the bench has shown a weapon in this window (READY), the current player's weapon stays at the bench through a rebuild, and the new player's is drawn there from its first frame; a weapon's window over a weapon's keeps READY too (no camera hold). **Not reachable:** keeping the old weapon until the new one's camouflage bake has landed: on_player_ready (0x284F20) puts the new player in at once and lets the old one go, so the old weapon cannot be drawn after it; the new one shows plain until its bake lands (the first time a camouflage is seen on that weapon: later ones come from the baked files' cache, faster).
+- **The interface** (`WEAPON_TABLE_STAMP_OFFSET`, `WEAPON_TABLE_MATRIX_OFFSET` in patch_026g.py): every time the held weapon is drawn at the bench, the transform it is drawn with (a float4x4, rows, v · M as the game's, row 3 the translation, 64 bytes) is kept at the state's +50h (`.srpd`+F50h) and the u32 at +48h (`.srpd`+F48h) grows by 1. Valid while the state's +0 (TABLE) and +28h (READY) are 1.
+- **Checked:** `check_weapon_table_026g.py` 32 checks (as is and rebased): the VSS's and the AK-74U's middles (its table) from the data at the bench within 1 cm of the gun's, the AK-12's and the PM's, the fallbacks; a rebuild after the bench was shown keeps the weapon at the bench, before it the hand; a window over a weapon's keeps READY; the transform at +50h and the stamp. The selftest as before. **Not run in a game.**
+- **Builds** (round 3): without a server sha256 `901a166ea43ff19dbf17682444c14afd7b782933c9e93f3f03dcea601ee8b71d`, with `--server=skhid.link:1234` `a9f93e91d94e877db1ba3f4e8b5e13506e0635b72c65562248fcd92a225fd21f` (12911224 bytes each).
+
 ## 4. Mode 3 batteries: not needed in 0.26g
 
 - 0.26g splits the rule: `match_time_vi_spawn_rule` (vtable 0xA06C04) wraps `match_time_vi_spawn_rule_core` (vtable 0xA15CAC). The battery tick is no longer a vtable slot: the core's ctor 0x3147A0 stores a delegate `{this, 0x3148A0}` at +0x1C4 / +0x1C8 (0x3147F1). [V]

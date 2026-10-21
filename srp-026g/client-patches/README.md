@@ -2427,6 +2427,24 @@ Round 2 (2026-10-21, after the owner's game run; 1 488 bytes, state 48h bytes):
   let go. Buttons 52h as before.
 - **The light** is data, not this patch: `../scripts/content-edit/lobby-bench-light-1.json`.
 
+Round 3 (2026-10-21; 1 798 bytes, state 90h bytes):
+
+- **The middle, for every weapon.** The box's centre is taken with its x 0 (a box holds parts
+  parked beside the gun: the VSS's, SR-3M's and Val's second magazine 28 cm, the SKS's stripper
+  clip 35 cm), and the 26 weapons that leaves more than 1 cm off (a default box: the AK-74U, Vepr,
+  TOZ-34, IZh-27, AKMN, A-545, TOZ-122 and their premiums; the Magnum, RPD, Mosin, Winchester,
+  MP-153, Remington 700, Benelli, Saiga, 9A-91, Valmet, SOK-94) have their middle in a table by
+  items_dict id (the held weapon's +25Ch entry, +0 its id). Every weapon of the data is within
+  1 cm (it was up to 16.5 cm): client_patch.md section 3.42 has the table.
+- **No empty bench on a refresh.** Once the bench showed a weapon, a rebuild (a scope or a
+  camouflage put on) keeps the current player's weapon there until the new player's comes. The
+  new weapon still shows plain until its camouflage bake lands (the old player is let go when the
+  new one comes in, on_player_ready: not reachable).
+- **The interface for other patches:** the transform the weapon is drawn with at the bench (16
+  floats, rows, v * M) at `.srpd`+F50h (the state's +50h, `WEAPON_TABLE_MATRIX_OFFSET`), a u32
+  stamp +1 each frame at +48h (`WEAPON_TABLE_STAMP_OFFSET`); valid while the state's +0 and +28h
+  are 1.
+
 What it leaves alone: what patch 32 shows and builds (the kit, the scratch profile, the
 character's pose and the decal pose, the least distance 0.6 while a weapon's window is open), the
 wheel (it moves the camera nearer or further, 0.6 to 4.6), armour windows, the squad panels, a
@@ -2437,7 +2455,7 @@ Checked: `selftest_026g.py` check 45 (the four sites in the original and the bui
 aiming inside them, no relocation; the tick's frame and adds, the camera's point written by its
 constructor alone, the character at the origin, mt_draw's caller and prologue and its decal
 buffer; the code's branches) and check 33 (patch 32's two jumps to it); `check_weapon_table_026g.py`
-(Unicorn, the cases in its header: 28 checks, as is and rebased) and `check_weapon_preview_026g.py`
+(Unicorn, the cases in its header: 32 checks, as is and rebased) and `check_weapon_preview_026g.py`
 (patch 32's cases with patch 45's camera). Round 1 (e93fb6f0) run in a game by the owner (the camera at the
 bench, the weapon there); **round 2 not run in a game**.
 
