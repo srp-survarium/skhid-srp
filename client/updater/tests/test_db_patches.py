@@ -903,15 +903,25 @@ class PatchTest(WineTest):
         patches = self.make_patches(14)
         self.assertEqual(self.run_updater(), 0, self.log())
         self.assertEqual(self.status(), "ready\r\n")
-        # A release replaces the updater: the new one is to do the rest, at
-        # the restart the launcher does. Until it has, `ready` refuses...
+        # A release replaces the updater: the new one is to do the rest (the
+        # launcher starts anew for it). By hand, the old one never asks for
+        # the list itself: it runs the new one at once, which does.
         new_updater = {f"{X86}/updater_skhid.exe".replace("/", "__"): self.updater_bytes + b"\0new build"}
         self.offer(self.bundle(**new_updater))
         self.site.requests.clear()
         self.assertEqual(self.run_updater(), 0, self.log())
         self.assertIn("the rest of the update is done by the new one", self.log())
-        self.assertNotIn("/patches", self.site.requests)
-        self.assertEqual(self.status(), "blocked overlay changed\r\n")
+        self.assertIn("this updater was replaced: the new one finishes the update", self.log())
+        self.assertEqual(self.site.requests, ["/api/client-files", "/download", "/api/client-files", "/patches"])
+        self.assertEqual(self.status(), "ready\r\n")
+        # A release whose list cannot be fetched: new files with the patches
+        # checked for the old ones. `ready` refuses...
+        self.offer(self.bundle(**{"README.txt": b"a new readme"}, **new_updater))
+        self.site.patch_list_status = 500
+        self.assertEqual(self.run_updater(), 1)
+        self.assertEqual(self.read("README.txt"), b"a new readme")
+        self.assert_blocked("The list of the game's patches could not be fetched.",
+                            status="blocked overlay changed\r\n")
         self.assertEqual(self.run_ready(), 1)
         # ... and so does a start without the server.
         self.site.close()
@@ -919,15 +929,9 @@ class PatchTest(WineTest):
         self.assertIn("the last run did not finish: blocked overlay changed", self.log())
         self.site = harness.Site()
         self.site.patches.update(patches)
-        self.write(f"{X86}/updater_skhid.url", self.site.url.encode())
-        # A release that replaces neither: the same, when its list cannot
-        # be fetched.
-        self.offer(self.bundle(**{"README.txt": b"a new readme"}, **new_updater))
         self.site.patch_list_status = 500
-        self.assertEqual(self.run_updater(), 1)
-        self.assertEqual(self.read("README.txt"), b"a new readme")
-        self.assert_blocked("The list of the game's patches could not be fetched.",
-                            status="blocked overlay changed\r\n")
+        self.write(f"{X86}/updater_skhid.url", self.site.url.encode())
+        self.offer(self.bundle(**{"README.txt": b"a new readme"}, **new_updater))
         # The list: checked, ready.
         self.site.patch_list_status = 200
         self.assertEqual(self.run_updater(), 0, self.log())

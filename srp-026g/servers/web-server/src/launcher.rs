@@ -2,7 +2,9 @@
 //! (`client-patches/launcher/README.md`).
 //!
 //! - `GET /api/client-files`: which archive `/download` hands out now, as its
-//!   SHA-256 and size. The updater compares it with what it installed last.
+//!   SHA-256 and size, and the least game revision the login server lets in
+//!   (`SRP_MIN_PATCH_REVISION`). The updater compares the archive with what
+//!   it installed last, and the revision with what the game exe says.
 //! - `GET /resources/<sha256>`: the original bytes of a `resources.db`
 //!   region an earlier updater wrote (the resource step, gone with the
 //!   patches), for the updater's one-time restore of the stock db when it
@@ -247,19 +249,24 @@ fn text(status: &'static str, body: String) -> Response {
 }
 
 /// `GET /api/client-files`: the format of `client/updater`
-/// (`skhid-client-files 1`, then a word and its value on each line).
-pub(super) fn client_files() -> Response {
-    client_files_of(available_download())
+/// (`skhid-client-files 1`, then a word and its value on each line): the
+/// archive `/download` hands out, and `min_revision`, the least game revision
+/// the login server lets in (`SRP_MIN_PATCH_REVISION`), with which the
+/// updater compares the game exe it installed.
+pub(super) fn client_files(min_revision: u8) -> Response {
+    client_files_of(available_download(), min_revision)
 }
 
-fn client_files_of(file: Option<&PathBuf>) -> Response {
+fn client_files_of(file: Option<&PathBuf>, min_revision: u8) -> Response {
     let Some(file) = file else {
         return text("404 Not Found", "no client files are offered here\n".into());
     };
     match offered(file) {
         Some(Offered { sha256, size, .. }) => text(
             "200 OK",
-            format!("skhid-client-files 1\nsha256 {sha256}\nsize {size}\n"),
+            format!(
+                "skhid-client-files 1\nsha256 {sha256}\nsize {size}\nmin-revision {min_revision}\n"
+            ),
         ),
         // Being replaced right now, or unreadable: the updater tries again.
         None => text(
@@ -1222,12 +1229,12 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let file = dir.join("files.zip");
         std::fs::write(&file, b"abc").unwrap();
-        let answer = client_files_of(Some(&file));
+        let answer = client_files_of(Some(&file), 27);
         assert_eq!(answer.status, "200 OK");
         assert_eq!(
             answer.body,
             "skhid-client-files 1\n\
-             sha256 ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\nsize 3\n"
+             sha256 ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\nsize 3\nmin-revision 27\n"
         );
         // Another archive in its place is seen without a restart.
         std::fs::write(
@@ -1235,14 +1242,14 @@ mod tests {
             b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
         )
         .unwrap();
-        assert!(client_files_of(Some(&file)).body.contains(
+        assert!(client_files_of(Some(&file), 27).body.contains(
             "sha256 248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1\nsize 56\n"
         ));
         assert_eq!(
-            client_files_of(Some(&dir.join("gone.zip"))).status,
+            client_files_of(Some(&dir.join("gone.zip")), 27).status,
             "503 Service Unavailable"
         );
-        assert_eq!(client_files_of(None).status, "404 Not Found");
+        assert_eq!(client_files_of(None, 27).status, "404 Not Found");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

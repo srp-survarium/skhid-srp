@@ -3,13 +3,17 @@
 //! (`srp-026g/client-patches/launcher/README.md`).
 //!
 //! It asks the server which archive of client files it offers now
-//! (`GET /api/client-files`: a SHA-256 and a size), compares that with what
+//! (`GET /api/client-files`: a SHA-256, a size, the least game revision it
+//! lets in), compares that with what
 //! it installed last (`updater_skhid.state` beside it) and with the files
 //! themselves, and when they differ downloads the archive (`GET /download`),
 //! checks it and puts its files in their places, itself and the launcher
-//! included. It tells the launcher what it is doing over the launcher's own
-//! pipe, in the messages of the original updater, so the launcher's window
-//! shows it as it always did.
+//! included; then it brings the game's patches to the server's list
+//! (`patches.rs`), says PLAY only for a game exe the server lets in, and
+//! watches the server while the launcher stays open (`gate.rs`). It tells
+//! the launcher what it is doing over the launcher's own pipe, in the
+//! messages of the original updater, so the launcher's window shows it as
+//! it always did.
 //!
 //! It asks its configured server for Skhid updates. Missing original game
 //! files come from a separate HTTPS mirror with compiled-in SHA-256 pins. No torrent, no listening
@@ -19,6 +23,7 @@
 extern crate alloc;
 
 mod game;
+mod gate;
 mod http;
 mod install;
 mod log;
@@ -105,6 +110,8 @@ struct Session {
     /// The launcher's line names a file ("Extracting file <name>") that the
     /// next state message must clear.
     named_file: bool,
+    /// What the server said that this run acted on, for [`gate::watch`].
+    seen: Option<gate::Seen>,
 }
 
 impl Session {
@@ -399,10 +406,14 @@ enum Done {
     Offline(String, String),
     Stopped,
     Failed(String),
+    /// The game exe says an older revision than the server lets in (the
+    /// words for the player): PLAY stays off, and the server is watched.
+    Behind(String),
 }
 
-/// The update: the overlay, then the restore of resources.db, then the
-/// patch step, all under the installation lock.
+/// The update: the overlay, then the revision gate (`gate::behind`), the
+/// restore of resources.db and the patch step, all under the installation
+/// lock.
 fn update(session: &mut Session, layout: &Layout, patch_look: patches::Look) -> Done {
     let _lock = match win::install_lock(&layout.exe_dir) {
         Ok(lock) => lock,
@@ -437,8 +448,18 @@ fn update(session: &mut Session, layout: &Layout, patch_look: patches::Look) -> 
             );
             return done;
         }
-        Done::Stopped | Done::Failed(_) => return done,
+        Done::Stopped | Done::Failed(_) | Done::Behind(_) => return done,
     };
+    // A game older than the server lets in is not played, whatever its
+    // patches: the server's update is not all offered yet.
+    if server.is_ok()
+        && let Some(message) = gate::behind(
+            layout,
+            session.seen.as_ref().and_then(|seen| seen.min_revision),
+        )
+    {
+        return Done::Behind(message);
+    }
     // Best effort: what an earlier updater wrote into resources.db in place
     // gets its stock bytes back, once.
     match resources::run(session, layout, server.ok()) {
@@ -471,9 +492,23 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
             .flat_map(|installed| installed.files.iter().map(|file| file.name.as_str())),
     );
     let mut manifest = match ask(session, server) {
-        Ok(manifest) => manifest,
+        Ok(manifest) => {
+            session.seen = Some(gate::Seen {
+                server: server.clone(),
+                archive: Some(manifest.sha256),
+                min_revision: manifest.min_revision,
+                online: true,
+            });
+            manifest
+        }
         Err(None) => return Done::Stopped,
         Err(Some(message)) => {
+            session.seen = Some(gate::Seen {
+                server: server.clone(),
+                archive: installed.as_ref().map(|installed| installed.archive),
+                min_revision: None,
+                online: false,
+            });
             if !game::present(layout) {
                 return Done::Failed(format!(
                     "The original game is not installed and the update server cannot be reached. {message}"
@@ -539,6 +574,12 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
         Err(None) => return Done::Stopped,
         Err(Some(message)) => return Done::Failed(message),
     };
+    // The server may have been given another archive meanwhile: this one is
+    // what the run acts on.
+    if let Some(seen) = &mut session.seen {
+        seen.archive = Some(manifest.sha256);
+        seen.min_revision = manifest.min_revision;
+    }
     session.state(state::DOWNLOADED);
     let files = match unpack(&archive) {
         Ok(files) => files,
@@ -782,6 +823,7 @@ fn run() -> u32 {
         last_progress: 0,
         started: 0,
         named_file: false,
+        seen: None,
     };
 
     if options.copy {
@@ -793,7 +835,13 @@ fn run() -> u32 {
         return exit::OK;
     }
 
-    let code = match update(&mut session, &layout, options.look) {
+    let product = options
+        .pipe_name
+        .as_deref()
+        .and_then(|name| name.strip_prefix(PIPE_PREFIX));
+    // `watch`: PLAY's state stands on what the server said; while the
+    // launcher stays open the server is watched (`gate::watch`).
+    let (code, watch) = match update(&mut session, &layout, options.look) {
         Done::UpToDate => {
             // "Checking" clears a file name the restore or the patch step
             // left in the launcher's line.
@@ -801,28 +849,28 @@ fn run() -> u32 {
                 session.state(state::CHECKING);
             }
             session.state(state::LATEST);
-            exit::OK
+            (exit::OK, true)
         }
-        Done::Installed { restart } => {
-            let product = options
-                .pipe_name
-                .as_deref()
-                .and_then(|name| name.strip_prefix(PIPE_PREFIX));
-            match product {
-                // The launcher itself was replaced: it closes, and its new
-                // file is started.
-                Some(product) if restart && session.pipe.is_some() => {
-                    restart_launcher(&mut session, &layout, product);
-                    log!("exit 0");
-                    return exit::OK;
-                }
-                // "Checking" clears the launcher's file name line.
-                _ => {
-                    session.state(state::CHECKING);
-                    session.state(state::LATEST);
-                }
+        Done::Installed { restart: true } => match product {
+            // The launcher or this updater was replaced: the launcher
+            // closes, and its new file is started, which starts the new
+            // updater: that one restores resources.db and does the patch
+            // step.
+            Some(product) if session.pipe.is_some() => {
+                restart_launcher(&mut session, &layout, product);
+                log!("exit 0");
+                return exit::OK;
             }
-            exit::OK
+            // No launcher to start again: the new updater is run here, and
+            // its outcome is this one's. PLAY is never said before the
+            // patch step ran.
+            _ => (finish_by_new(&mut session, &layout, options.quiet), false),
+        },
+        Done::Installed { restart: false } => {
+            // "Checking" clears the launcher's file name line.
+            session.state(state::CHECKING);
+            session.state(state::LATEST);
+            (exit::OK, true)
         }
         Done::Offline(message, _) => {
             log!("the server could not be asked: {message}");
@@ -831,20 +879,54 @@ fn run() -> u32 {
             }
             session.tell(&message);
             session.state(state::LATEST);
-            exit::OK
+            (exit::OK, true)
         }
         Done::Stopped => {
             log!("stopped");
-            exit::OK
+            (exit::OK, false)
         }
         Done::Failed(message) => {
             session.fail(&message);
-            exit::FAILED
+            (exit::FAILED, false)
+        }
+        Done::Behind(message) => {
+            session.fail(&message);
+            (exit::FAILED, true)
         }
     };
-    session.linger();
+    match (product, session.seen.take()) {
+        (Some(product), Some(seen)) if watch && session.pipe.is_some() => {
+            gate::watch(&mut session, &layout, product, &seen);
+        }
+        _ => session.linger(),
+    }
     log!("exit {code}");
     code
+}
+
+/// `check` by hand (no launcher) replaced this updater: the new one is run,
+/// as it was started, to finish the update (the restore and the patch step,
+/// which this one leaves to it); its exit code is this one's.
+fn finish_by_new(session: &mut Session, layout: &Layout, quiet: bool) -> u32 {
+    let exe = format!("{}\\{}", layout.exe_dir, layout.exe_name);
+    let command = format!("\"{exe}\" check{}", if quiet { " quiet" } else { "" });
+    log!("this updater was replaced: the new one finishes the update ({command})");
+    match win::run_wait(&exe, &command, &layout.exe_dir, "NUL", &mut || true) {
+        Ok(code) => {
+            log!("the new updater ended with {code}");
+            if code == exit::OK {
+                session.state(state::CHECKING);
+                session.state(state::LATEST);
+            } else if session.pipe.is_some() {
+                session.state(state::ERROR);
+            }
+            code
+        }
+        Err(code) => {
+            session.fail(&text::replaced_not_run(&win::error_text(code)));
+            exit::FAILED
+        }
+    }
 }
 
 /// The launcher was replaced while it runs. It is told that this updater is

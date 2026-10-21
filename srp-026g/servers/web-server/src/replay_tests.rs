@@ -111,6 +111,7 @@ fn web(replays: Option<Arc<Replays>>) -> Web {
             lobby: Arc::new(Quiet),
             matches: Arc::new(Quiet),
             patches: Vec::new(),
+            min_patch_revision: 0,
             replays,
         }),
     }

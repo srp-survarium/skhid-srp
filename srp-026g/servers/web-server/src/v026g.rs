@@ -111,6 +111,10 @@ pub struct Game {
     /// The patches of `resources.db` the players' updater is told to fetch
     /// (`GET /patches`): those the server's game data was made of.
     pub patches: Vec<crate::OfferedPatch>,
+    /// `SRP_MIN_PATCH_REVISION`: the least game revision the login server
+    /// lets in, which `/api/client-files` says (`min-revision`), so that the
+    /// updater keeps PLAY off for an older game (0: none).
+    pub min_patch_revision: u8,
     /// "Watch replay": the tokens the lobby gives, which `/replays/<token>`
     /// takes (`session::v026g::replays`); `None`: every such request is
     /// "not found".

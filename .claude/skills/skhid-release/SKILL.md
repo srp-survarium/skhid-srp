@@ -262,20 +262,36 @@ The order, as it runs:
    **y/N** (no answer in `$SKHID_SWAP_ANSWER_MINUTES`, default 10, is a
    no), then: notes srp's newest backup of srp.db, stops srp26, keeps the
    old files in the folder, puts the folder's rollback in, puts the server
-   data in place (a hard link renamed over the old file: atomic), sets
+   data **and the ZIP** in place (hard links renamed over the old files:
+   atomic; the ZIP goes in while srp26 is stopped, never after its start:
+   see below), sets
    `SRP_MIN_PATCH_REVISION=<rev>` (that line only; it must be at least the
    highest patch, or srp refuses to start) and runs
    `docker compose up -d --no-deps --force-recreate srp26` (after any
    `.env` change the container is made anew, never just restarted).
-6. **Checks, then the ZIP**: the container running, healthy, not
-   restarting; the log's `game data:` line; `/patches` exactly the list's.
-   Then srp.db: at its start srp copies it with `VACUUM INTO` to
+6. **Checks**: the container running, healthy, not restarting; the
+   log's `game data:` line; `/patches` exactly the list's;
+   `/api/client-files` names the new ZIP and (an srp that says it)
+   `min-revision <rev>`. Then srp.db: at its start srp copies it with `VACUUM INTO` to
    `backups/srp-<unix>.db` before it opens it, so that copy is the state
    just before the release; it is copied (`docker exec ... cat`) into the
    folder and, from live, to the jump host (`$SKHID_BACKUP_DIR`, default
    `/srv/skhid-backups/srp-db`: folder 700, files 600, a line in
-   `SHA256SUMS` there), its sha256 compared on both ends. Only then the
-   ZIP goes in place and `/api/client-files` must name it.
+   `SHA256SUMS` there), its sha256 compared on both ends.
+
+   **Why the ZIP goes in before the start.** The site is srp26: it answers
+   nothing while srp26 is stopped, and from the start on it serves the
+   new `/patches`, the new `min-revision` and (read from the file each
+   time) whatever ZIP is in `download/`. A ZIP put in after the start (as
+   before 2026-10-21) left a gap of the checks and the srp.db copy in which
+   a launcher found the old ZIP current, downloaded the new patch and
+   enabled PLAY: the old exe was then refused at its sign-in with the
+   game's "You're using an outdated version of the game." The updater now
+   also keeps PLAY off for an exe under `min-revision` and, while the
+   launcher stays open, asks the site every 10 s and starts the launcher
+   anew when it offers another ZIP or revision (`client/updater/README.md`,
+   "PLAY and the server's revision"). Put a ZIP by hand only with srp26
+   stopped, or together with its restart.
 7. **The record, live only, once it all went out** (never after a stop or
    a rollback: those leave no commit and no tag; `--test` makes neither):
    - an annotated tag `026g-rev<n>` on the commit that was built (main as

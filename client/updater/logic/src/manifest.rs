@@ -8,7 +8,12 @@
 //! skhid-client-files 1
 //! sha256 <64 hex digits>      the archive at /download
 //! size <bytes>
+//! min-revision <0-255>        the least game revision the server lets in
 //! ```
+//!
+//! `min-revision` (srp's `SRP_MIN_PATCH_REVISION`; servers before it do not
+//! say it) is what the login server compares with the revision the game
+//! exe says in its sign-in (`crate::revision`).
 //!
 //! ```text
 //! skhid-installed 1
@@ -48,6 +53,8 @@ pub enum ManifestError {
 pub struct Manifest {
     pub sha256: [u8; 32],
     pub size: u64,
+    /// The least game revision the server lets in; `None`: not said.
+    pub min_revision: Option<u8>,
 }
 
 pub(crate) fn lines(text: &[u8]) -> impl Iterator<Item = &[u8]> {
@@ -89,11 +96,19 @@ fn header(line: Option<&[u8]>, magic: &[u8]) -> Result<(), ManifestError> {
 pub fn parse_manifest(text: &[u8]) -> Result<Manifest, ManifestError> {
     let mut lines = lines(text);
     header(lines.next(), b"skhid-client-files")?;
-    let (mut sha256, mut size) = (None, None);
+    let (mut sha256, mut size, mut min_revision) = (None, None, None);
     for line in lines {
         match word(line) {
             (b"sha256", value) => sha256 = from_hex(value),
             (b"size", value) => size = number(value),
+            // A value that cannot be read is not the server's answer.
+            (b"min-revision", value) => {
+                min_revision = Some(
+                    number(value)
+                        .and_then(|value| u8::try_from(value).ok())
+                        .ok_or(ManifestError::Incomplete)?,
+                );
+            }
             _ => {}
         }
     }
@@ -106,7 +121,11 @@ pub fn parse_manifest(text: &[u8]) -> Result<Manifest, ManifestError> {
     if size > MAX_ARCHIVE_SIZE {
         return Err(ManifestError::TooLarge);
     }
-    Ok(Manifest { sha256, size })
+    Ok(Manifest {
+        sha256,
+        size,
+        min_revision,
+    })
 }
 
 /// A file that was installed, as the archive had it.
@@ -289,7 +308,8 @@ mod tests {
             manifest,
             Manifest {
                 sha256: sha,
-                size: 4_918_126
+                size: 4_918_126,
+                min_revision: None,
             }
         );
         // CRLF, an unknown line and no last line end are all fine.
@@ -301,9 +321,27 @@ mod tests {
             parse_manifest(&text).unwrap(),
             Manifest {
                 sha256: sha,
-                size: 5
+                size: 5,
+                min_revision: None,
             }
         );
+    }
+
+    #[test]
+    fn the_least_revision_let_in_is_read() {
+        let sha = digest(b"zip");
+        let with = |line: &str| {
+            let mut text = manifest_text(&sha, "5");
+            text.extend_from_slice(line.as_bytes());
+            parse_manifest(&text)
+        };
+        assert_eq!(with("min-revision 27\n").unwrap().min_revision, Some(27));
+        assert_eq!(with("min-revision 0").unwrap().min_revision, Some(0));
+        assert_eq!(with("min-revision 255\n").unwrap().min_revision, Some(255));
+        assert_eq!(with("").unwrap().min_revision, None);
+        for bad in ["min-revision 256\n", "min-revision\n", "min-revision x\n"] {
+            assert_eq!(with(bad), Err(ManifestError::Incomplete), "{bad}");
+        }
     }
 
     #[test]
@@ -437,10 +475,12 @@ mod tests {
         let same = Manifest {
             sha256: state.archive,
             size: 1,
+            min_revision: None,
         };
         let other = Manifest {
             sha256: digest(b"other"),
             size: 1,
+            min_revision: None,
         };
         let all_same = |_: &InstalledFile| Found::Same;
         assert_eq!(

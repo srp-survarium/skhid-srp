@@ -11,7 +11,9 @@ The game's own launcher (`survarium_launcher.exe`), patched so that it
   notice);
 - starts a **new updater** (`updater_skhid.exe`, `../../../client/updater`)
   that keeps the Skhid files of the game current from the same ZIP the
-  server's page offers, the launcher and the updater themselves included;
+  server's page offers, the launcher and the updater themselves included,
+  and the game's content patches (`resources.db.patch_<n>`) the server
+  lists, and enables PLAY only for a game the server lets in;
 - starts the game in the language chosen in its menu.
 
 The original launcher is not in this repository. The tools below work on
@@ -70,16 +72,30 @@ installs whenever the ZIP's checksum changes.
    itself in `game\binaries\x86`). The launcher's window opens as it
    always looked, with the server's page in it. The line at the bottom says
    "Checking game version...".
-2. `updater_skhid.exe` asks the server which ZIP it offers now. If it is the
-   one installed, and no file of it is missing or damaged: "The latest
-   version of the game is installed", PLAY is enabled. That takes a second.
-3. If not: the bar fills while the ZIP is downloaded ("... left", speed),
-   then "Extracting file ..." for each file, then PLAY. If the launcher
-   itself was among the files, its window closes and opens again by itself.
-4. PLAY (or Enter) starts `survarium_skhid.exe -localization=<language>
+2. `updater_skhid.exe` asks the server which ZIP it offers now. If it is
+   the one installed, and no file of it is missing or damaged, nothing is
+   downloaded. If not: the bar fills while the ZIP is downloaded ("...
+   left", speed), then "Extracting file ..." for each file. If the launcher
+   or the updater itself was among the files, the window closes and opens
+   again by itself, and the new updater goes on from here.
+3. Then the game's patches: the bar shows "checking" while a patch file
+   that changed since it was last checked is hashed, and a patch the
+   server lists that is missing or damaged is downloaded ("Extracting file
+   resources.db.patch_<n>" once it is in place). The first start after new
+   content downloads it; other starts take a second.
+4. "The latest version of the game is installed" and PLAY: only when the
+   game's files are the server's ZIP, its exe is a revision the server lets
+   in, and every patch the server lists is in place. Otherwise "Error" and a
+   box that says why; PLAY stays off (the next start tries again).
+5. While the window stays open the updater asks the server every 10
+   seconds. Is the server down (a release, a restart), the line says
+   "Server maintenance..." and PLAY is off. Is it back, or does it offer a
+   new ZIP, the window closes and opens again by itself and updates. So
+   PLAY never starts a game the server would refuse as outdated.
+6. PLAY (or Enter) starts `survarium_skhid.exe -localization=<language>
    -mt_allocator=768 -minimum_resources_memory_size=768` from
    `game\binaries\x86`, and the launcher closes.
-5. The language menu (EN, RU, UA, DE, PL) changes the launcher's texts and
+7. The language menu (EN, RU, UA, DE, PL) changes the launcher's texts and
    the page at once, is remembered, and is the language the game starts in.
 
 "Watch replay" in the lobby's History (game patch revision 14) does not go
@@ -207,24 +223,32 @@ they do not show live player data.
 
 ## How an update works
 
-The server (`servers/web-server`, the 0.26g page):
+The server (`servers/web-server`, the 0.26g page, in srp's own process:
+while srp is stopped none of it answers):
 
 - `GET /api/client-files` answers with the SHA-256 and size of the file it
-  hands out at `/download` (`SRP_DOWNLOAD_FILE`):
+  hands out at `/download` (`SRP_DOWNLOAD_FILE`), and the least game
+  revision the login server lets in (`SRP_MIN_PATCH_REVISION`; 0: none):
 
   ```
   skhid-client-files 1
   sha256 <64 hex digits>
   size <bytes>
+  min-revision <0-255>
   ```
 
-  It reads the file again when its size or time changes, so putting a new
-  ZIP in its place is all a release needs: no restart, no setting.
+  It reads the file again when its size or time changes; the revision is
+  srp's setting, read at its start.
+- `GET /patches` is the list of the game's content patches
+  (`resources.db.patch_<n>`, each with its SHA-256 and the addresses of its
+  file on the patches server): those the server's game data was made of,
+  read at srp's start.
 - `GET /resources/<sha256>` (64 lower-case hex digits, no other name) hands
   out the file of that name in the folder `resources` beside the download
-  file (`./download/resources/` of the compose file): the blobs of the
-  updater's resource step, whole or from a `Range`, `HEAD` too, five at a
-  time in slots of their own (they never take `/download`'s), "not found"
+  file (`./download/resources/` of the compose file): the stock bytes of
+  the `resources.db` regions earlier updaters rewrote in place, for the
+  updater's one-time restore. Whole or from a `Range`, `HEAD` too, five at
+  a time in slots of their own (they never take `/download`'s), "not found"
   for a name that is not there.
 - `GET /launcher/v2/<product>/?lang=<en|ru|ua|de|pl>` is the page.
 - `GET /launcher/places/<uk|en>` is what changes on that page (the board,
@@ -240,7 +264,14 @@ The server (`servers/web-server`, the 0.26g page):
   and a cancelled maintenance shown within that time, and the server
   stopped and started again with the page staying as it was meanwhile.
 
-The updater (`client/updater`):
+A release changes the ZIP, the patch list and the revision together: the
+ZIP is put in place while srp is stopped, and srp's start takes the new
+game data and setting (`release/release.sh`; `release/lib.sh`,
+`swap_server`). An updater never sees the new list and revision beside the
+old ZIP.
+
+The updater (`client/updater`), at every start, under a lock of the game
+folder (`updater_skhid.lock`):
 
 On a new installation, unpack the Skhid ZIP into an empty folder and start
 `Skhid.bat`. After contacting the update server, the updater downloads the
@@ -254,9 +285,12 @@ its known SHA-256 too. The updater adds missing original files and then runs
 the overlay update below. Allow about 10 GB free. Mirror configuration and
 verification details: [updater README](../../../client/updater/README.md#original-game-download-and-verification).
 
+The overlay (the Skhid files of the ZIP):
+
 1. Reads `updater_skhid.url` beside it (else the address it was built with)
-   and asks `/api/client-files`. HTTPS only, through Windows' own WinHTTP;
-   plain HTTP is taken for `127.0.0.1` and `localhost` alone.
+   and asks `/api/client-files`, three times at most. HTTPS only, through
+   Windows' own WinHTTP; plain HTTP is taken for `127.0.0.1` and
+   `localhost` alone. No answer: the offline case below.
 2. Compares the answer with `updater_skhid.state` beside it: the checksum of
    the ZIP it installed last, and the size and checksum of every file of it.
    An install is due when the ZIP is another one, when a file is missing, or
@@ -268,50 +302,89 @@ verification details: [updater README](../../../client/updater/README.md#origina
    written. A name that is not a plain relative path of ordinary characters
    refuses the whole archive (no `..`, no drive, no backslash).
 5. Writes each file that differs beside its place as `<name>.skhid-new`,
-   reads it back, and only when all are written renames them into place;
-   the file that was there becomes `<name>.skhid-old`. Windows allows
-   renaming a running program's file, so the launcher and the updater are
-   replaced the same way while they run. If one rename fails, those done
-   are undone: the game folder is as it was.
+   reads it back, and only when all are written renames them into place
+   (the launcher and the updater last); the file that was there becomes
+   `<name>.skhid-old`. Windows allows renaming a running program's file,
+   so the launcher and the updater are replaced the same way while they
+   run. If one rename fails, those done are undone: the game folder is as
+   it was.
 6. Files the ZIP before had and this one has not are deleted, if they still
    are what was installed.
-7. Writes `updater_skhid.state`. Leftover `.skhid-old` files are deleted at
-   the next start.
-8. The resource step, at every start (also when nothing was installed;
-   with no download when the server could not be asked; left to the new
-   updater when this run replaced the updater or the launcher): the
-   entries of `resources.db` the ZIP's plan `updater_skhid.resources` names
-   are rewritten in place from `/resources/<sha256>`, and those a plan no
-   longer names get their original bytes back. Best effort: a failure is
-   logged and tried again at the next start, and never fails the update,
-   keeps PLAY off or changes steps 1 to 7. While the game runs it holds
-   `resources.db`, and the step changes nothing. What it does, and what it
-   writes: [updater README](../../../client/updater/README.md#resources).
+7. Writes `updater_skhid.state`, and marks the patches unchecked
+   (`updater_skhid.patches.status`: `blocked overlay changed`): new files
+   may need other patches, so only step 10 with the server's list makes the
+   game playable again. Leftover `.skhid-old` files are deleted at the next
+   start.
 
 Where files go: an entry `game/...` goes into the game folder (two levels
 above `binaries\x86`, whatever its name), any other entry beside the game
 folder when that is named `game` (as the game is unpacked), else into it.
+
+When the launcher or the updater was among the files, the run ends here
+("Updating itself" below): steps 8 to 11 are the new updater's.
+
+8. The revision gate: the revision the installed `survarium_skhid.exe`
+   says in its sign-in (the byte the client patch writes at 0x380862, read
+   from the exe file) is compared with the answer's `min-revision`. Lower:
+   PLAY stays off with "The server lets in game revision n and up; this game
+   is revision r, and the update to it is not offered yet ..." (a server
+   whose ZIP is older than its setting: a release half put in place), and
+   the watch (11) starts the launcher anew once the server offers another
+   ZIP. An exe whose revision cannot be read is left to the login server.
+9. The restore, best effort, once: the `resources.db` regions an earlier
+   updater (before the patches) rewrote in place get their stock bytes
+   back, from the copies it kept, else from `/resources/<sha256>`. A failure
+   is logged and tried again at the next start; it never keeps PLAY off.
+   While the game runs it holds `resources.db`, and the step changes
+   nothing ([updater README](../../../client/updater/README.md#restoring-resourcesdb)).
+10. The patch step, required: `GET /patches`; every listed patch file in
+    the game folder is checked (hashed when it changed since its last hash,
+    or that was more than a week ago), a patch file the list has not is
+    deleted, and a listed patch that is missing or damaged is downloaded
+    from the first of its addresses that gives it, checked, and only then
+    renamed into place. PLAY stays off until every listed patch is in place
+    and no other is ([updater README](../../../client/updater/README.md#patches)).
+11. "The latest version of the game is installed", PLAY on. The updater
+    stays connected (a closed pipe would turn the line into "Error") and
+    asks `/api/client-files` every 10 s until the launcher closes: another
+    ZIP or `min-revision` starts the launcher anew, whose updater updates;
+    two answers missed in a row turn PLAY off ("Server maintenance...",
+    state 22) until the server answers again, which starts the launcher
+    anew too ([updater README](../../../client/updater/README.md#play-and-the-servers-revision)).
+
+The offline case: when `/api/client-files` does not answer (three tries),
+the original game is present, and the files the updater installed last are
+whole, the box says "No update check: <why>. ..." and the restore and the
+patch step run against the list kept from the last run: PLAY is on only
+when that run ended with every patch in place and the folder still is so
+(a first start with the server down, or one after a new overlay, keeps PLAY
+off). The watch then leaves PLAY on while the server stays away, and starts
+the launcher anew once it answers with a ZIP that is not the one installed,
+or with a `min-revision`.
 
 Updating itself: the launcher was replaced → the updater tells the launcher
 it is done (state 15) and closes the pipe, on which the launcher closes; the
 updater waits until the launcher's "only one of me" mutex is gone and starts
 the new `launcher_skhid.exe`. Only the updater was replaced → the same: the
 launcher is closed and started again, and that start runs the new updater,
-which does the restore and the patch step (the old one does neither after
-its install: so updater 0.2.0 never reads the `/patches` of 0.3.0).
+which does steps 8 to 11 (the old one does none of them after its install:
+so updater 0.2.0 never reads the `/patches` of 0.3.0).
 
 `updater_skhid.exe check` does the same by hand, without a launcher, and
 hashes every patch file whole where the launcher's run takes the quick
 check (the repair; `check quiet`: no message box; the exit code is 0 or 1).
+When it replaces the updater itself, it runs the new one (`check`) at once
+for steps 8 to 10 and ends with its exit code. It does not watch.
 
 ## When something goes wrong
 
 Every failure is said in words, in a box titled "Skhid updater", and written
-to `game\binaries\x86\updater_skhid.log`. Nothing is half installed.
+to `game\binaries\x86\updater_skhid.log`. Nothing is half installed: the
+ZIP's files go in all or none, and a patch file is a checked file or none.
 
 | What happened | What the player gets |
 |---|---|
-| The server cannot be reached (no internet, server down, firewall), three tries | The reason ("Cannot connect to skhid.link. The server may be down, or a firewall blocks updater_skhid.exe"), then PLAY is enabled if the original game is present and the installed Skhid files are complete, or were never checked (first start) |
+| The server cannot be reached (no internet, server down, firewall), three tries | The reason ("Cannot connect to skhid.link. The server may be down, or a firewall blocks updater_skhid.exe"), then PLAY if the original game is present, the installed Skhid files are whole (or were never installed by this updater) and the last patch step ended with every patch in place; else PLAY stays off ("The game's patches could not be checked: ...") |
 | The original game is missing and Drive returns an error, a sign-in page, a redirect or bytes that do not match the pinned SHA-256 | Installation stops, PLAY stays off, and no files from that download are extracted or run. Retry or configure another mirror; verification cannot be skipped |
 | ...and a file the updater installed is missing or damaged | "x86/survarium_skhid.exe is missing or damaged and cannot be repaired now: <reason>", status "Error", PLAY stays off |
 | The answer is not the server's (a Wi-Fi sign-in page, a proxy) | "The answer from <host> is not the update server's ..." |
@@ -322,11 +395,18 @@ to `game\binaries\x86\updater_skhid.log`. Nothing is half installed.
 | Not enough disk space | "Not enough free disk space for the update in <folder>: N MB needed, M MB free." |
 | The game folder cannot be written (Program Files, read-only) | "Cannot write <file>: Access is denied (error 5). Move the game out of Program Files or start the launcher as administrator; an antivirus can block it too." |
 | A file is held by another program (the game is running) | "Cannot replace <file>: ... (error 32). Nothing was changed. Another program holds the file: close the game and try again." |
-| The resource step fails (the game is running, a blob is missing or damaged on the server, the disk is full, another build of the game) | For a plan that only rewrites entries in place: nothing: no box, PLAY as usual, the game as it was (or, after a failed write, with its original bytes put back). The reason is in the log after `resources:`; it is tried again at the next start |
-| ...for a plan that grows `resources.db` (new items: a `tail`) | Status "Error", PLAY stays off, the db put back as shipped, and a box that says what to do: close the game, free disk space, delete a db of another build, check the connection, or send `updater_skhid.log` (`../../../client/updater/README.md`, "Resources"). The next start repairs it |
+| The server lets in a newer game than its ZIP (a release half put in place) | "The server lets in game revision n and up; this game is revision r, and the update to it is not offered yet (the server is being updated). The launcher looks again by itself and updates the game. PLAY stays off until this is done."; the window starts anew by itself once the server offers the new ZIP |
+| A patch cannot be had or put in place (the list cannot be fetched or read, every address of a patch fails, a wrong checksum, the game is running, an antivirus holds the file, the disk is full) | Status "Error", PLAY stays off, a box that says which and what to do, ending "PLAY stays off until this is done." The next start tries again (the cases: [updater README](../../../client/updater/README.md#patches)) |
+| The restore of `resources.db` fails (the game is running, a blob is missing on the server) | Nothing: no box, PLAY as usual. The reason is in the log after `resources:`; it is tried again at the next start |
+| The server goes away while the window is open (a release, a restart) | "Server maintenance...", PLAY off; once it answers, the window starts anew by itself and updates |
 | `updater_skhid.exe` is missing | The launcher's own box: "Cannot start updater_skhid.exe. Copy the files again." |
 | The launcher is closed during an update | The updater stops; nothing was changed, or everything was |
 | The updater is started from another folder than `game\binaries\x86` | "The updater must be in the game's folder game\binaries\x86 ..." |
+
+A game started some other way (`play_skhid.bat` runs `updater_skhid.exe
+ready`, which checks the patches against the last list, but not the server)
+can still be one the server refuses: the game then says "You're using an
+outdated version of the game." Start the launcher: it updates.
 
 The texts are English only (the launcher shows them in an ANSI message box,
 so only ASCII is safe). The launcher's own lines are in its five languages.
@@ -525,13 +605,15 @@ and that many bytes, the first being its type.
 | `02 0C` | "Download complete" |
 | `02 10`, then `07 <name>` and `01 ...` | "Extracting file <name>", the bar |
 | `02 0E` | "The latest version of the game is installed", PLAY enabled |
+| `02 16` | "Server maintenance...", PLAY (and Enter) off (`../../docs/notes/launcher.md` 5.4; said by the updater while the server stops answering) |
 | `02 01` | "Error" |
 | `05 <text>` | a message box with the text (at most 255 ASCII characters) |
 | `02 0F` and the pipe closed | the launcher closes |
 
 The launcher says `1B` (stop) when its window is closed. The updater stays
-connected after `02 0E` until then: a closed pipe would turn the line into
-"Error". Types 0, 24 and above 25 would crash the launcher (its table has no
+connected after `02 0E` until then (a closed pipe would turn the line into
+"Error"), asking the server every 10 s; to have the launcher start anew it
+says `02 0F` and closes the pipe, then starts `launcher_skhid.exe`. Types 0, 24 and above 25 would crash the launcher (its table has no
 bounds check), so the updater's tests check that none is ever sent. The
 whole protocol: `../../docs/notes/launcher.md`.
 
@@ -595,13 +677,24 @@ installation and service.
 - The launcher has no line for "could not check, playing with what is
   there": after the message box it says "The latest version of the game is
   installed".
-- The updater looks for a newer ZIP when the launcher starts, not while it
-  stays open.
+- While the launcher stays open the updater asks the server every 10 s:
+  a release reaches an open launcher within about that time (it starts
+  anew), and PLAY is off while the server is down. "Server maintenance..."
+  (state 22) is the original launcher's line and behaviour, read from its
+  code (`../../docs/notes/launcher.md` 5.4) and run with the stand-in
+  launcher of the updater's tests; not yet seen in the real launcher's
+  window.
+- The login server's refusal of an older game is the game's own "You're
+  using an outdated version of the game." (login answer 0x22): the login
+  server has no answer with words of its own. The launcher keeps PLAY from
+  starting such a game; a game started otherwise gets that line.
 - One launcher at a time (its mutex), as before.
 - The language is the one value still kept in the registry
   (`HKCU\Software\Vostok Games\Survarium`, `language`), by the launcher's
   own code.
-- `play_skhid.bat` still starts the game alone and looks for no update.
+- `play_skhid.bat` starts the game without the server: it runs
+  `updater_skhid.exe ready`, which checks the patches against the last
+  list, and looks for no update.
 
 ## Putting it on a server
 
@@ -615,9 +708,15 @@ installation and service.
    `launcher_skhid.exe`, the steps say to unpack it into the game's folder
    once, double-click `Skhid.bat` and press PLAY, with the start script and
    the command line folded under "Without the launcher"; for a ZIP without
-   it they are the steps as before. Nothing is
-   set by hand and no restart is needed.
-3. From then on a release is: build the ZIP, replace the file.
+   it they are the steps as before.
+3. From then on a release is `release/release.sh` (the `skhid-release`
+   skill): it builds the ZIP and the server data, and at the swap puts the
+   ZIP, the server data and `SRP_MIN_PATCH_REVISION` in place **while srp
+   is stopped**, then starts srp. Never replace the ZIP alone on a running
+   server: its exe revision must be the one srp lets in, and its patches
+   the ones srp lists (the updater then keeps PLAY off, "lets in game
+   revision n and up"). An open launcher sees the new ZIP within 10 s and
+   starts anew.
 4. Game content is not in the ZIP: it ships as `resources.db.patch_<n>`
    files on a patches server, listed by the game server at `/patches`
    (`../../../client/updater/README.md`, "Patches"). Keep

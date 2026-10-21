@@ -92,6 +92,7 @@ fn world_with(accounts: GameAccounts) -> World {
             lobby: told.clone(),
             matches: told.clone(),
             patches: Vec::new(),
+            min_patch_revision: 0,
             replays: None,
         }),
     };

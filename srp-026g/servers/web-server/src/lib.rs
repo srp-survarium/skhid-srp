@@ -935,7 +935,9 @@ impl Web {
                 match request.path.as_str() {
                     "/api/stats" => return stats::response(&self.store, game),
                     "/patches" => return patches::response(&game.patches),
-                    "/api/client-files" => return launcher::client_files(),
+                    "/api/client-files" => {
+                        return launcher::client_files(game.min_patch_revision);
+                    }
                     damage::PATH => return damage_page(request.lang),
                     maps::PATH => return maps_page(request.lang),
                     path if path.starts_with(launcher::FRESH) => {

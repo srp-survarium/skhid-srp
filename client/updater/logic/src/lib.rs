@@ -14,6 +14,7 @@ pub mod patches;
 pub mod pipe;
 pub mod replay;
 pub mod resources;
+pub mod revision;
 pub mod sha256;
 pub mod url;
 pub mod zip;

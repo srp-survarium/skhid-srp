@@ -111,6 +111,8 @@ started() { # the container runs: what srp does at a start
     echo "$n" >"$state/starts"
     echo running >"$state/state"
     echo "start $n $(cat "$state/running")" >>"$TEST_DIR/volume/srp.db"
+    # The ZIP the site offers from this start on.
+    { sha256sum <"$live/Survarium-0.26g-srp-files.zip" 2>/dev/null || echo none; } | cut -c1-64 >>"$TEST_DIR/zip-at-start"
     if [[ ! -e $TEST_DIR/patches-stale ]]; then
         offered | jq -Rn '[inputs | split(" ") | {key: .[0], value: {sha256: .[1], urls: .[2:]}}] | from_entries' >"$TEST_DIR/site/patches"
     fi
@@ -328,7 +330,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 data = open(zip_path, "rb").read()
             except FileNotFoundError:
                 return self.answer(404, "no client files are offered here\n")
-            return self.answer(200, f"skhid-client-files 1\nsha256 {hashlib.sha256(data).hexdigest()}\nsize {len(data)}\n")
+            # As srp: the least revision it lets in, its .env's.
+            least = ""
+            try:
+                for line in open(os.path.join(live, ".env")):
+                    if line.startswith("SRP_MIN_PATCH_REVISION="):
+                        least = "min-revision " + line.split("=", 1)[1].strip() + "\n"
+            except FileNotFoundError:
+                pass
+            return self.answer(200, f"skhid-client-files 1\nsha256 {hashlib.sha256(data).hexdigest()}\nsize {len(data)}\n{least}")
         if self.path == "/" + read("admin-path", "-"):
             open(os.path.join(state, "admin-seen.log"), "a").write("GET\n")
             return self.answer(200, "<form>the admin page</form>")
@@ -701,7 +711,9 @@ check "deploy sets the revision" grep -qx "SRP_MIN_PATCH_REVISION=12" "$T/live/.
 check "deploy keeps the rest of .env" test "$(grep -v '^SRP_MIN_PATCH_REVISION=' "$T/live/.env")" = $'SRP_ADMIN_TOKEN=very-secret\nOTHER=1'
 check "deploy never prints .env" bash -c "! grep -q very-secret <<<\"\$1\"" _ "$out"
 check "deploy makes srp26 anew" grep -q "docker compose up -d --no-deps --force-recreate srp26" "$T/log"
-check "deploy: the ZIP goes in after the restart" bash -c "a=\$(grep -n 'up -d --no-deps' $T/args | head -n1 | cut -d: -f1); z=\$(grep -n 'mv -f download/.Survarium-0.26g-srp-files.zip.new' $T/args | head -n1 | cut -d: -f1); test -n \"\$a\" -a -n \"\$z\" && ((a < z))"
+check "deploy: the ZIP goes in while srp26 is stopped, before its start" bash -c "s=\$(grep -n 'compose stop srp26' $T/args | head -n1 | cut -d: -f1); a=\$(grep -n 'up -d --no-deps' $T/args | head -n1 | cut -d: -f1); z=\$(grep -n 'mv -f download/.Survarium-0.26g-srp-files.zip.new' $T/args | head -n1 | cut -d: -f1); test -n \"\$s\" -a -n \"\$a\" -a -n \"\$z\" && ((s < z && z < a))"
+check "deploy: srp26 started with the new ZIP in place" test "$(tail -n 1 "$T/zip-at-start")" = "$(sha256sum <"$zip12" | cut -c1-64)"
+check "deploy: ... and the site says the new least revision" has "$out" "/api/client-files: the new ZIP (sha256 [0-9a-f]*, [0-9]* bytes), min-revision 12"
 check "deploy checks /patches and /api/client-files" has "$out" "/api/client-files: the new ZIP"
 check "deploy goes through the jump host" bash -c "grep -qx jump $T/log && grep -qx live $T/log"
 check "deploy leaves nothing half-done" bash -c "! ls $T/live/download/.*.new $F/*.part 2>/dev/null"
@@ -982,7 +994,8 @@ check "release: SRP_MIN_PATCH_REVISION=12" grep -qx "SRP_MIN_PATCH_REVISION=12" 
 check "release: the rest of .env as it was" test "$(grep -vc '^SRP_MIN_PATCH_REVISION=' "$T/live/.env")" = 5
 check "release: restarts srp26" grep -q "docker compose up -d --no-deps --force-recreate srp26" "$T/log"
 check "release: stops srp26 before it moves anything" bash -c "s=\$(grep -n 'compose stop srp26' $T/args | head -n1 | cut -d: -f1); b=\$(grep -n 'mv -f download/.server-game-data.db.new' $T/args | head -n1 | cut -d: -f1); test -n \"\$s\" -a -n \"\$b\" && ((s < b))"
-check "release: the ZIP goes in after the restart" bash -c "a=\$(grep -n 'up -d --no-deps' $T/args | head -n1 | cut -d: -f1); z=\$(grep -n 'mv -f download/.Survarium-0.26g-srp-files.zip.new' $T/args | head -n1 | cut -d: -f1); test -n \"\$a\" -a -n \"\$z\" && ((a < z))"
+check "release: the ZIP goes in while srp26 is stopped, before its start" bash -c "s=\$(grep -n 'compose stop srp26' $T/args | head -n1 | cut -d: -f1); a=\$(grep -n 'up -d --no-deps' $T/args | head -n1 | cut -d: -f1); z=\$(grep -n 'mv -f download/.Survarium-0.26g-srp-files.zip.new' $T/args | head -n1 | cut -d: -f1); test -n \"\$s\" -a -n \"\$a\" -a -n \"\$z\" && ((s < z && z < a))"
+check "release: srp26 started with the new ZIP in place" test "$(tail -n 1 "$T/zip-at-start")" = "$(sha256sum <"$(folder 12 a)/Survarium-0.26g-srp-files.zip" | cut -c1-64)"
 check "release: waits for no match" has "$out" "5. no match is running"
 check "release: checks /patches and /api/client-files" has "$out" "/api/client-files: the new ZIP"
 check "release: checks the log's game data line" has "$out" "log: INFO game data: .* 2 patch(es) offered"
