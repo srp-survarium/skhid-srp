@@ -87,7 +87,11 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   lobby after them, as before; so does one by Play that left with the match's end. The
   movie still has the room of its last state when the results come, and opens the window
   under them (`LobbyMenu.showRoomUnderResults`); `RoomsWindow.matchOver` asks the state at
-  once, and an answer of no room while the results are up hides the window again.
+  once. An answer of no room while the results are up leaves the window under them as it
+  is (the results stay open until the player closes them: hiding the window would change
+  the top menu's tab, which closes them; the owner's of 2026-10-21, "it shouldn't have
+  open-reopen flicker"); it is hidden as they close (`RoomsWindow.resultsClosed`), so
+  the lobby shows.
 - **Before each match:** once the minimum of players who can play is in, a vote on 3 cards
   (map + weather + mode) for the room's time to start: 15 s and the owner's wait together,
   10 s more after a match (players come back from results first), always whole, a full
