@@ -129,3 +129,8 @@ Applied to revision 26's server game data (`gameplay/items/weapons/`): 22 files 
 unexpected differences; server data built with it and the patches before passes `srp-check-game-data`. srp and
 `release/build-server-db` refuse data without it (`golden::check`). The patch also
 carries the lobby movie built from the tree (the craft result shows the item upgraded, not the donor).
+
+`wpn_ak_12_premium.options` is also weapon-balance-2's: a patch carries a file whole, so in one
+release apply this list to weapon-balance-2's output, not to the live file beside it (checked on
+revision 24's files: weapon-balance-2, then this list over its output: 22 files edited, 0
+unexpected differences).
