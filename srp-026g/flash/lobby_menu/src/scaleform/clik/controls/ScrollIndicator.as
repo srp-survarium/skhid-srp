@@ -60,13 +60,13 @@ package scaleform.clik.controls
          return super.enabled;
       }
       
-      override public function set enabled(param1:Boolean) : void
+      override public function set enabled(value:Boolean) : void
       {
-         if(param1 == super.enabled)
+         if(value == super.enabled)
          {
             return;
          }
-         super.enabled = param1;
+         super.enabled = value;
          gotoAndPlay(this.enabled ? "default" : "disabled");
       }
       
@@ -75,14 +75,14 @@ package scaleform.clik.controls
          return this._position;
       }
       
-      public function set position(param1:Number) : void
+      public function set position(value:Number) : void
       {
-         param1 = Math.max(this._minPosition,Math.min(this._maxPosition,param1));
-         if(param1 == this._position)
+         value = Math.max(this._minPosition,Math.min(this._maxPosition,value));
+         if(value == this._position)
          {
             return;
          }
-         _position = param1;
+         _position = value;
          dispatchEvent(new Event(Event.SCROLL));
          invalidateData();
       }
@@ -93,10 +93,10 @@ package scaleform.clik.controls
          return this._minThumbSize;
       }
       
-      public function set minThumbSize(param1:Number) : void
+      public function set minThumbSize(value:Number) : void
       {
-         param1 = Math.max(1,param1);
-         _minThumbSize = param1;
+         value = Math.max(1,value);
+         _minThumbSize = value;
          invalidateSize();
       }
       
@@ -111,33 +111,33 @@ package scaleform.clik.controls
          return this._scrollTarget;
       }
       
-      public function set scrollTarget(param1:Object) : void
+      public function set scrollTarget(value:Object) : void
       {
-         if(param1 is String)
+         if(value is String)
          {
-            if(!componentInspectorSetting || param1.toString() == "" || parent == null)
+            if(!componentInspectorSetting || value.toString() == "" || parent == null)
             {
                return;
             }
-            param1 = parent.getChildByName(param1.toString());
-            if(param1 == null)
+            value = parent.getChildByName(value.toString());
+            if(value == null)
             {
                return;
             }
          }
-         var _loc2_:Object = this._scrollTarget;
-         _scrollTarget = param1;
-         if(_loc2_ != null)
+         var oldTarget:Object = this._scrollTarget;
+         _scrollTarget = value;
+         if(oldTarget != null)
          {
-            _loc2_.removeEventListener(Event.SCROLL,this.handleTargetScroll,false);
-            if(_loc2_.scrollBar != null)
+            oldTarget.removeEventListener(Event.SCROLL,this.handleTargetScroll,false);
+            if(oldTarget.scrollBar != null)
             {
-               _loc2_.scrollBar = null;
+               oldTarget.scrollBar = null;
             }
          }
-         if(param1 is UIComponent && "scrollBar" in param1)
+         if(value is UIComponent && "scrollBar" in value)
          {
-            param1.scrollBar = this;
+            value.scrollBar = this;
             return;
          }
          if(this._scrollTarget == null)
@@ -157,59 +157,59 @@ package scaleform.clik.controls
       
       public function get availableHeight() : Number
       {
-         var _loc1_:Number = isNaN(this.thumb.height) ? 0 : this.thumb.height;
-         return (this.isHorizontal ? _width : _height) - _loc1_ + this.offsetBottom + this.offsetTop;
+         var thumbHeight:Number = isNaN(this.thumb.height) ? 0 : this.thumb.height;
+         return (this.isHorizontal ? _width : _height) - thumbHeight + this.offsetBottom + this.offsetTop;
       }
       
-      public function setScrollProperties(param1:Number, param2:Number, param3:Number, param4:Number = NaN) : void
+      public function setScrollProperties(pageSize:Number, minPosition:Number, maxPosition:Number, pageScrollSize:Number = NaN) : void
       {
-         this._pageSize = param1;
-         if(!isNaN(param4))
+         this._pageSize = pageSize;
+         if(!isNaN(pageScrollSize))
          {
-            this._pageScrollSize = param4;
+            this._pageScrollSize = pageScrollSize;
          }
-         this._minPosition = param2;
-         this._maxPosition = param3;
+         this._minPosition = minPosition;
+         this._maxPosition = maxPosition;
          invalidateSize();
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
-         if(param1.handled)
+         if(event.handled)
          {
             return;
          }
-         var _loc2_:InputDetails = param1.details;
-         if(_loc2_.value == InputValue.KEY_UP)
+         var details:InputDetails = event.details;
+         if(details.value == InputValue.KEY_UP)
          {
             return;
          }
-         var _loc3_:Boolean = this.direction == ScrollBarDirection.HORIZONTAL;
-         switch(_loc2_.navEquivalent)
+         var isHorizontal:Boolean = this.direction == ScrollBarDirection.HORIZONTAL;
+         switch(details.navEquivalent)
          {
             case NavigationCode.UP:
-               if(_loc3_)
+               if(isHorizontal)
                {
                   return;
                }
                position -= 1;
                break;
             case NavigationCode.DOWN:
-               if(_loc3_)
+               if(isHorizontal)
                {
                   return;
                }
                position += 1;
                break;
             case NavigationCode.LEFT:
-               if(!_loc3_)
+               if(!isHorizontal)
                {
                   return;
                }
                position -= 1;
                break;
             case NavigationCode.RIGHT:
-               if(!_loc3_)
+               if(!isHorizontal)
                {
                   return;
                }
@@ -224,7 +224,7 @@ package scaleform.clik.controls
             default:
                return;
          }
-         param1.handled = true;
+         event.handled = true;
       }
       
       override public function toString() : String
@@ -248,15 +248,15 @@ package scaleform.clik.controls
       
       override protected function draw() : void
       {
-         var _loc1_:TextField;
+         var target:TextField;
          if(isInvalid(InvalidationType.SIZE))
          {
             setActualSize(_width,_height);
             this.drawLayout();
             if(this._scrollTarget is TextField)
             {
-               _loc1_ = this._scrollTarget as TextField;
-               this.setScrollProperties(_loc1_.bottomScrollV - _loc1_.scrollV,1,_loc1_.maxScrollV);
+               target = this._scrollTarget as TextField;
+               this.setScrollProperties(target.bottomScrollV - target.scrollV,1,target.maxScrollV);
             }
             this.updateThumb();
          }
@@ -264,8 +264,8 @@ package scaleform.clik.controls
          {
             if(this._scrollTarget is TextField)
             {
-               _loc1_ = this._scrollTarget as TextField;
-               this.setScrollProperties(_loc1_.bottomScrollV - _loc1_.scrollV,1,_loc1_.maxScrollV);
+               target = this._scrollTarget as TextField;
+               this.setScrollProperties(target.bottomScrollV - target.scrollV,1,target.maxScrollV);
             }
             this.updateThumbPosition();
          }
@@ -282,9 +282,9 @@ package scaleform.clik.controls
       
       protected function updateThumb() : void
       {
-         var _loc1_:Number = Math.max(1,this._maxPosition - this._minPosition + this._pageSize);
-         var _loc2_:Number = (this.isHorizontal ? _width : _height) + this.offsetTop + this.offsetBottom;
-         this.thumb.height = Math.max(this._minThumbSize,Math.min(_height,this._pageSize / _loc1_ * _loc2_));
+         var per:Number = Math.max(1,this._maxPosition - this._minPosition + this._pageSize);
+         var trackHeight:Number = (this.isHorizontal ? _width : _height) + this.offsetTop + this.offsetBottom;
+         this.thumb.height = Math.max(this._minThumbSize,Math.min(_height,this._pageSize / per * trackHeight));
          if(this.thumb is UIComponent)
          {
             (this.thumb as UIComponent).validateNow();
@@ -294,27 +294,27 @@ package scaleform.clik.controls
       
       protected function updateThumbPosition() : void
       {
-         var _loc1_:Number = (this._position - this._minPosition) / (this._maxPosition - this._minPosition);
-         if(isNaN(_loc1_))
+         var percent:Number = (this._position - this._minPosition) / (this._maxPosition - this._minPosition);
+         if(isNaN(percent))
          {
-            _loc1_ = 0;
+            percent = 0;
          }
-         var _loc2_:Number = _loc1_ * this.availableHeight;
-         this.thumb.y = Math.max(-this.offsetTop,Math.min(this.availableHeight - this.offsetTop,_loc2_));
+         var yPos:Number = percent * this.availableHeight;
+         this.thumb.y = Math.max(-this.offsetTop,Math.min(this.availableHeight - this.offsetTop,yPos));
          this.thumb.visible = !(this._maxPosition == this._minPosition || isNaN(this._pageSize) || this._maxPosition == 0);
       }
       
-      protected function handleTargetScroll(param1:Event) : void
+      protected function handleTargetScroll(event:Event) : void
       {
          if(this._isDragging)
          {
             return;
          }
-         var _loc2_:TextField = this._scrollTarget as TextField;
-         if(_loc2_ != null)
+         var target:TextField = this._scrollTarget as TextField;
+         if(target != null)
          {
-            this.setScrollProperties(_loc2_.bottomScrollV - _loc2_.scrollV,1,_loc2_.maxScrollV);
-            position = _loc2_.scrollV;
+            this.setScrollProperties(target.bottomScrollV - target.scrollV,1,target.maxScrollV);
+            position = target.scrollV;
          }
       }
    }

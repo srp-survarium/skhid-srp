@@ -6,17 +6,17 @@ package survarium.interfaces
    public interface IItemFactory
    {
       
-      function createBaseItem(param1:uint) : ItemData;
+      function createBaseItem(dictId:uint) : ItemData;
       
-      function createItem(param1:uint, param2:* = -1) : ItemData;
+      function createItem(dictId:uint, seller:* = -1) : ItemData;
       
-      function createItemData(param1:Object) : ItemData;
+      function createItemData(value:Object) : ItemData;
       
-      function getInventoryItem(param1:uint) : ItemData;
+      function getInventoryItem(itemId:uint) : ItemData;
       
-      function registerItemDescriptor(param1:ItemDescriptor) : void;
+      function registerItemDescriptor(link:ItemDescriptor) : void;
       
-      function fillRewardItems(param1:Array) : void;
+      function fillRewardItems(value:Array) : void;
    }
 }
 

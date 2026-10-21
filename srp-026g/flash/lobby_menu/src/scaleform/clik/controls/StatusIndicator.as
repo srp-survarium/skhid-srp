@@ -28,9 +28,9 @@ package scaleform.clik.controls
          return this._maximum;
       }
       
-      public function set maximum(param1:Number) : void
+      public function set maximum(value:Number) : void
       {
-         _maximum = param1;
+         _maximum = value;
       }
       
       [Inspectable(defaultValue="0")]
@@ -39,13 +39,13 @@ package scaleform.clik.controls
          return this._minimum;
       }
       
-      public function set minimum(param1:Number) : void
+      public function set minimum(value:Number) : void
       {
-         if(this._minimum == param1)
+         if(this._minimum == value)
          {
             return;
          }
-         _minimum = param1;
+         _minimum = value;
          this.updatePosition();
       }
       
@@ -55,14 +55,14 @@ package scaleform.clik.controls
          return this._value;
       }
       
-      public function set value(param1:Number) : void
+      public function set value(value:Number) : void
       {
-         var _loc2_:Number = Math.max(this._minimum,Math.min(this._maximum,param1));
-         if(this._value == _loc2_)
+         var range:Number = Math.max(this._minimum,Math.min(this._maximum,value));
+         if(this._value == range)
          {
             return;
          }
-         _value = _loc2_;
+         _value = range;
          this.updatePosition();
       }
       
@@ -71,9 +71,9 @@ package scaleform.clik.controls
          return this._value;
       }
       
-      public function set position(param1:Number) : void
+      public function set position(value:Number) : void
       {
-         this.value = param1;
+         this.value = value;
       }
       
       override public function toString() : String
@@ -105,8 +105,8 @@ package scaleform.clik.controls
          {
             return;
          }
-         var _loc1_:Number = (this._value - this._minimum) / (this._maximum - this._minimum);
-         gotoAndStop(Math.max(1,Math.round(_loc1_ * totalFrames)));
+         var percent:Number = (this._value - this._minimum) / (this._maximum - this._minimum);
+         gotoAndStop(Math.max(1,Math.round(percent * totalFrames)));
       }
    }
 }

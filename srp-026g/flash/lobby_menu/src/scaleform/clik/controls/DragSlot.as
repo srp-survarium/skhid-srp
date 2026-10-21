@@ -60,9 +60,9 @@ package scaleform.clik.controls
          return _data;
       }
       
-      public function set data(param1:Object) : void
+      public function set data(value:Object) : void
       {
-         _data = param1;
+         _data = value;
          invalidateData();
       }
       
@@ -71,9 +71,9 @@ package scaleform.clik.controls
          return this._content;
       }
       
-      public function set content(param1:Sprite) : void
+      public function set content(value:Sprite) : void
       {
-         if(param1 != this._content)
+         if(value != this._content)
          {
             if(this._content)
             {
@@ -82,7 +82,7 @@ package scaleform.clik.controls
                   this.contentCanvas.removeChild(this._content);
                }
             }
-            _content = param1;
+            _content = value;
             if(this._content == null)
             {
                return;
@@ -102,28 +102,28 @@ package scaleform.clik.controls
          return this._descriptor;
       }
       
-      public function set descriptor(param1:uint) : void
+      public function set descriptor(value:uint) : void
       {
-         _descriptor = param1;
+         _descriptor = value;
       }
       
-      public function setStage(param1:Stage) : void
+      public function setStage(value:Stage) : void
       {
-         if(this._stageRef == null && param1 != null)
+         if(this._stageRef == null && value != null)
          {
-            _stageRef = param1;
-            DragManager.init(param1);
+            _stageRef = value;
+            DragManager.init(value);
          }
       }
       
       override protected function configUI() : void
       {
          super.configUI();
-         var _loc1_:Sprite = getChildByName("spriteAnchor") as Sprite;
-         if(_loc1_)
+         var anchor:Sprite = getChildByName("spriteAnchor") as Sprite;
+         if(anchor)
          {
-            this.contentCanvas.x = _loc1_.x;
-            this.contentCanvas.y = _loc1_.y;
+            this.contentCanvas.x = anchor.x;
+            this.contentCanvas.y = anchor.y;
          }
          addEventListener(MouseEvent.MOUSE_OVER,this.handleMouseOver,true,0,true);
          addEventListener(MouseEvent.MOUSE_DOWN,this.handleMouseDown,false,0,true);
@@ -149,7 +149,7 @@ package scaleform.clik.controls
          return "[CLIK DragSlot " + name + "]";
       }
       
-      protected function handleMouseOver(param1:MouseEvent) : void
+      protected function handleMouseOver(e:MouseEvent) : void
       {
          if(DragManager.inDrag())
          {
@@ -162,7 +162,7 @@ package scaleform.clik.controls
          }
       }
       
-      protected function handleMouseDown(param1:MouseEvent) : void
+      protected function handleMouseDown(e:MouseEvent) : void
       {
          if(DragManager.inDrag() || !enabled)
          {
@@ -177,7 +177,7 @@ package scaleform.clik.controls
          }
       }
       
-      protected function handleMouseRollOver(param1:MouseEvent) : void
+      protected function handleMouseRollOver(event:MouseEvent) : void
       {
          if(!enabled)
          {
@@ -186,7 +186,7 @@ package scaleform.clik.controls
          this.setState("over");
       }
       
-      protected function handleMouseRollOut(param1:MouseEvent) : void
+      protected function handleMouseRollOut(event:MouseEvent) : void
       {
          if(!enabled)
          {
@@ -203,73 +203,73 @@ package scaleform.clik.controls
          _mouseDownY = undefined;
       }
       
-      protected function handleMouseMove(param1:MouseEvent) : void
+      protected function handleMouseMove(e:MouseEvent) : void
       {
-         var _loc2_:DragEvent;
+         var dragStartEvent:DragEvent;
          if(mouseX > this._mouseDownX + 3 || mouseX < this._mouseDownX - 3 || mouseY > this._mouseDownY + 3 || mouseY < this._mouseDownY - 3)
          {
             this.cleanupDragListeners();
-            _loc2_ = new DragEvent(DragEvent.DRAG_START,_data,this,null,this._content);
-            dispatchEvent(_loc2_);
-            this.handleDragStartEvent(_loc2_);
+            dragStartEvent = new DragEvent(DragEvent.DRAG_START,_data,this,null,this._content);
+            dispatchEvent(dragStartEvent);
+            this.handleDragStartEvent(dragStartEvent);
          }
       }
       
-      protected function handleMouseUp(param1:MouseEvent) : void
+      protected function handleMouseUp(e:MouseEvent) : void
       {
          this.cleanupDragListeners();
          dispatchEvent(new ButtonEvent(ButtonEvent.CLICK));
       }
       
-      public function handleDragStartEvent(param1:DragEvent) : void
+      public function handleDragStartEvent(e:DragEvent) : void
       {
       }
       
-      public function handleDropEvent(param1:DragEvent) : Boolean
+      public function handleDropEvent(e:DragEvent) : Boolean
       {
-         var _loc2_:Boolean = true;
-         if(_loc2_)
+         var acceptDrop:Boolean = true;
+         if(acceptDrop)
          {
-            content = param1.dragSprite;
+            content = e.dragSprite;
          }
-         return _loc2_;
+         return acceptDrop;
       }
       
-      public function handleDragEndEvent(param1:DragEvent, param2:Boolean) : void
+      public function handleDragEndEvent(e:DragEvent, wasValidDrop:Boolean) : void
       {
-         if(param2)
+         if(wasValidDrop)
          {
             content = null;
          }
          else
          {
-            this.contentCanvas.addChild(param1.dragSprite);
-            param1.dragSprite.x = 0;
-            param1.dragSprite.y = 0;
+            this.contentCanvas.addChild(e.dragSprite);
+            e.dragSprite.x = 0;
+            e.dragSprite.y = 0;
          }
       }
       
-      protected function setState(param1:String) : void
+      protected function setState(state:String) : void
       {
-         _state = param1;
-         var _loc2_:Array = this._stateMap[param1];
-         if(_loc2_ == null || _loc2_.length == 0)
+         _state = state;
+         var states:Array = this._stateMap[state];
+         if(states == null || states.length == 0)
          {
             return;
          }
-         var _loc3_:uint = _loc2_.length;
-         var _loc4_:uint = 0;
-         var _loc5_:String;
-         while(_loc4_ < _loc3_)
+         var sl:uint = states.length;
+         var j:uint = 0;
+         var thisLabel:String;
+         while(j < sl)
          {
-            _loc5_ = _loc2_[_loc4_];
-            if(_labelHash[_loc5_])
+            thisLabel = states[j];
+            if(_labelHash[thisLabel])
             {
-               _newFrame = _loc5_;
+               _newFrame = thisLabel;
                invalidateState();
                return;
             }
-            _loc4_++;
+            j++;
          }
       }
    }

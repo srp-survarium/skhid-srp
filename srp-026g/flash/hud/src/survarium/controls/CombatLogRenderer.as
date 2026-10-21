@@ -1,6 +1,5 @@
 package survarium.controls
 {
-   import CombatLogItem;
    import flash.display.MovieClip;
    import flash.events.Event;
    
@@ -11,7 +10,7 @@ package survarium.controls
       
       protected var _owner:MovieClip;
       
-      public var logItem:CombatLogItem;
+      public var logItem:survarium.controls.CombatLogItem;
       
       public function CombatLogRenderer()
       {

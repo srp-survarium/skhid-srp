@@ -5,9 +5,9 @@ package
    public dynamic class LoginBackground extends BitmapData
    {
       
-      public function LoginBackground(param1:int = 2090, param2:int = 1080)
+      public function LoginBackground(bitmapWidth:int = 2090, bitmapHeight:int = 1080)
       {
-         super(param1,param2);
+         super(bitmapWidth,bitmapHeight);
       }
    }
 }

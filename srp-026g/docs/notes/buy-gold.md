@@ -1,7 +1,8 @@
 # "Get Gold" opens the exchange
 
-The rules the code and the tests follow. Code: `flash/lobby_menu/src/SrpBuyGold.as`; each `goToStore`, and the
-premium window's gold button, call `SrpBuyGold.open()` ([lobby-source.md](lobby-source.md)); the test:
+The rules the code and the tests follow. Code: the exchange window's
+`MessageMoneyExchange.buyGold()` (`flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`);
+each `goToStore`, and the premium window's gold button, call it ([lobby-source.md](lobby-source.md)); the test:
 `client-patches/test_build_lobby.py`. The owner's rule: 2026-10-20 ("it leads to a dead official
 website, instead it should just open gold trading menu").
 

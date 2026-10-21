@@ -85,7 +85,7 @@ package scaleform.clik.controls
          return false;
       }
       
-      override public function set autoRepeat(param1:Boolean) : void
+      override public function set autoRepeat(value:Boolean) : void
       {
       }
       
@@ -94,7 +94,7 @@ package scaleform.clik.controls
          return null;
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
       }
       
@@ -103,7 +103,7 @@ package scaleform.clik.controls
          return "";
       }
       
-      override public function set label(param1:String) : void
+      override public function set label(value:String) : void
       {
       }
       
@@ -112,9 +112,9 @@ package scaleform.clik.controls
          return super.selected;
       }
       
-      override public function set selected(param1:Boolean) : void
+      override public function set selected(value:Boolean) : void
       {
-         super.selected = param1;
+         super.selected = value;
       }
       
       override public function get toggle() : Boolean
@@ -122,40 +122,40 @@ package scaleform.clik.controls
          return super.toggle;
       }
       
-      override public function set toggle(param1:Boolean) : void
+      override public function set toggle(value:Boolean) : void
       {
-         super.toggle = param1;
+         super.toggle = value;
       }
       
       [Inspectable(name="menuPadding",defaultValue="top:0,right:0,bottom:0,left:0")]
-      public function set inspectableMenuPadding(param1:Object) : void
+      public function set inspectableMenuPadding(value:Object) : void
       {
          if(!componentInspectorSetting)
          {
             return;
          }
-         menuPadding = new Padding(param1.top,param1.right,param1.bottom,param1.left);
+         menuPadding = new Padding(value.top,value.right,value.bottom,value.left);
       }
       
       [Inspectable(name="menuOffset",defaultValue="top:0,right:0,bottom:0,left:0")]
-      public function set inspectableMenuOffset(param1:Object) : void
+      public function set inspectableMenuOffset(value:Object) : void
       {
          if(!componentInspectorSetting)
          {
             return;
          }
-         menuOffset = new Padding(param1.top,param1.right,param1.bottom,param1.left);
+         menuOffset = new Padding(value.top,value.right,value.bottom,value.left);
       }
       
       [Inspectable(name="thumbOffset",defaultValue="top:0,bottom:0")]
-      public function set inspectableThumbOffset(param1:Object) : void
+      public function set inspectableThumbOffset(value:Object) : void
       {
          if(!componentInspectorSetting)
          {
             return;
          }
-         thumbOffsetTop = Number(param1.top);
-         thumbOffsetBottom = Number(param1.bottom);
+         thumbOffsetTop = Number(value.top);
+         thumbOffsetBottom = Number(value.bottom);
       }
       
       [Inspectable(defaultValue="true")]
@@ -164,9 +164,9 @@ package scaleform.clik.controls
          return _focusable;
       }
       
-      override public function set focusable(param1:Boolean) : void
+      override public function set focusable(value:Boolean) : void
       {
-         super.focusable = param1;
+         super.focusable = value;
       }
       
       public function get selectedIndex() : int
@@ -174,21 +174,21 @@ package scaleform.clik.controls
          return this._selectedIndex;
       }
       
-      public function set selectedIndex(param1:int) : void
+      public function set selectedIndex(value:int) : void
       {
-         var _loc2_:CoreList;
-         var _loc3_:uint;
-         if(this._selectedIndex == param1)
+         var list:CoreList;
+         var scrollOffset:uint;
+         if(this._selectedIndex == value)
          {
             return;
          }
-         _selectedIndex = param1;
+         _selectedIndex = value;
          this.invalidateSelectedIndex();
          if(this._dropdownRef != null)
          {
-            _loc2_ = this._dropdownRef as CoreList;
-            _loc3_ = _loc2_ is ScrollingList ? ((_loc2_ as ScrollingList).scrollPosition) : 0;
-            dispatchEvent(new ListEvent(ListEvent.INDEX_CHANGE,true,false,this._selectedIndex,-1,-1,_loc2_.getRendererAt(this._selectedIndex,_loc3_),this._dataProvider[this._selectedIndex]));
+            list = this._dropdownRef as CoreList;
+            scrollOffset = list is ScrollingList ? ((list as ScrollingList).scrollPosition) : 0;
+            dispatchEvent(new ListEvent(ListEvent.INDEX_CHANGE,true,false,this._selectedIndex,-1,-1,list.getRendererAt(this._selectedIndex,scrollOffset),this._dataProvider[this._selectedIndex]));
          }
       }
       
@@ -197,9 +197,9 @@ package scaleform.clik.controls
          return this._dataProvider;
       }
       
-      public function set dataProvider(param1:IDataProvider) : void
+      public function set dataProvider(value:IDataProvider) : void
       {
-         if(this._dataProvider == param1)
+         if(this._dataProvider == value)
          {
             return;
          }
@@ -207,11 +207,11 @@ package scaleform.clik.controls
          {
             this._dataProvider.removeEventListener(Event.CHANGE,this.handleDataChange,false);
          }
-         _dataProvider = param1;
-         var _loc2_:int = (this._dataProvider.length);
-         if(!this.menuRowsFixed && _loc2_ > 0 && _loc2_ < this.menuRowCount)
+         _dataProvider = value;
+         var itemCount:int = (this._dataProvider.length);
+         if(!this.menuRowsFixed && itemCount > 0 && itemCount < this.menuRowCount)
          {
-            menuRowCount = _loc2_;
+            menuRowCount = itemCount;
          }
          if(this._dataProvider == null)
          {
@@ -226,9 +226,9 @@ package scaleform.clik.controls
          return this._labelField;
       }
       
-      public function set labelField(param1:String) : void
+      public function set labelField(value:String) : void
       {
-         _labelField = param1;
+         _labelField = value;
          invalidateData();
       }
       
@@ -237,31 +237,31 @@ package scaleform.clik.controls
          return this._labelFunction;
       }
       
-      public function set labelFunction(param1:Function) : void
+      public function set labelFunction(value:Function) : void
       {
-         _labelFunction = param1;
+         _labelFunction = value;
          invalidateData();
       }
       
-      public function itemToLabel(param1:Object) : String
+      public function itemToLabel(item:Object) : String
       {
-         if(param1 == null)
+         if(item == null)
          {
             return "";
          }
          if(this._labelFunction != null)
          {
-            return this._labelFunction(param1);
+            return this._labelFunction(item);
          }
-         if(param1 is String)
+         if(item is String)
          {
-            return param1.toString();
+            return item.toString();
          }
-         if(this._labelField != null && param1[this._labelField] != null)
+         if(this._labelField != null && item[this._labelField] != null)
          {
-            return param1[this._labelField];
+            return item[this._labelField];
          }
-         return param1.toString();
+         return item.toString();
       }
       
       public function open() : void
@@ -283,34 +283,34 @@ package scaleform.clik.controls
          invalidate(InvalidationType.SELECTED_INDEX);
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
-         trace("DM::handleInput",param1.handled);
-         if(param1.handled)
+         trace("DM::handleInput",event.handled);
+         if(event.handled)
          {
             return;
          }
          if(this._dropdownRef != null && this.selected)
          {
-            this._dropdownRef.handleInput(param1);
-            if(param1.handled)
+            this._dropdownRef.handleInput(event);
+            if(event.handled)
             {
                return;
             }
          }
-         super.handleInput(param1);
-         var _loc2_:InputDetails = param1.details;
-         var _loc3_:Boolean = _loc2_.value == InputValue.KEY_DOWN;
-         switch(_loc2_.navEquivalent)
+         super.handleInput(event);
+         var details:InputDetails = event.details;
+         var keyPress:Boolean = details.value == InputValue.KEY_DOWN;
+         switch(details.navEquivalent)
          {
             case NavigationCode.ESCAPE:
                if(this.selected)
                {
-                  if(_loc3_)
+                  if(keyPress)
                   {
                      this.close();
                   }
-                  param1.handled = true;
+                  event.handled = true;
                }
             default:
                break;
@@ -341,7 +341,7 @@ package scaleform.clik.controls
          }
       }
       
-      override protected function handleClick(param1:uint = 0) : void
+      override protected function handleClick(controllerIndex:uint = 0) : void
       {
          if(!_selected)
          {
@@ -354,29 +354,29 @@ package scaleform.clik.controls
          super.handleClick();
       }
       
-      protected function handleDataChange(param1:Event) : void
+      protected function handleDataChange(event:Event) : void
       {
          invalidate(InvalidationType.DATA);
       }
       
-      protected function populateText(param1:Object) : void
+      protected function populateText(item:Object) : void
       {
-         this.updateLabel(param1);
+         this.updateLabel(item);
          dispatchEvent(new Event(Event.CHANGE));
       }
       
-      protected function updateLabel(param1:Object) : void
+      protected function updateLabel(item:Object) : void
       {
-         _label = this.itemToLabel(param1);
+         _label = this.itemToLabel(item);
       }
       
-      protected function handleStageClick(param1:MouseEvent) : void
+      protected function handleStageClick(event:MouseEvent) : void
       {
-         if(this.contains(param1.target as DisplayObject))
+         if(this.contains(event.target as DisplayObject))
          {
             return;
          }
-         if(this._dropdownRef.contains(param1.target as DisplayObject))
+         if(this._dropdownRef.contains(event.target as DisplayObject))
          {
             return;
          }
@@ -385,55 +385,55 @@ package scaleform.clik.controls
       
       protected function showDropdown() : void
       {
-         var _loc1_:MovieClip;
-         var _loc2_:Class;
+         var menu:MovieClip;
+         var classRef:Class;
          if(this.dropdown == null)
          {
             return;
          }
          if(this.dropdown is String && this.dropdown != "")
          {
-            _loc2_ = getDefinitionByName(this.dropdown.toString()) as Class;
-            if(_loc2_ != null)
+            classRef = getDefinitionByName(this.dropdown.toString()) as Class;
+            if(classRef != null)
             {
-               _loc1_ = new _loc2_() as CoreList;
+               menu = new classRef() as CoreList;
             }
          }
-         if(_loc1_)
+         if(menu)
          {
             if(this.itemRenderer is String && this.itemRenderer != "")
             {
-               _loc1_.itemRenderer = getDefinitionByName(this.itemRenderer.toString()) as Class;
+               menu.itemRenderer = getDefinitionByName(this.itemRenderer.toString()) as Class;
             }
             else if(this.itemRenderer is Class)
             {
-               _loc1_.itemRenderer = this.itemRenderer as Class;
+               menu.itemRenderer = this.itemRenderer as Class;
             }
             if(this.scrollBar is String && this.scrollBar != "")
             {
-               _loc1_.scrollBar = getDefinitionByName(this.scrollBar.toString()) as Class;
+               menu.scrollBar = getDefinitionByName(this.scrollBar.toString()) as Class;
             }
             else if(this.scrollBar is Class)
             {
-               _loc1_.scrollBar = this.scrollBar as Class;
+               menu.scrollBar = this.scrollBar as Class;
             }
-            _loc1_.selectedIndex = this._selectedIndex;
-            _loc1_.width = this.menuWidth == -1 ? width + this.menuOffset.left + this.menuOffset.right : this.menuWidth;
-            _loc1_.dataProvider = this._dataProvider;
-            _loc1_.padding = this.menuPadding;
-            _loc1_.wrapping = this.menuWrapping;
-            _loc1_.margin = this.menuMargin;
-            _loc1_.thumbOffset = {
+            menu.selectedIndex = this._selectedIndex;
+            menu.width = this.menuWidth == -1 ? width + this.menuOffset.left + this.menuOffset.right : this.menuWidth;
+            menu.dataProvider = this._dataProvider;
+            menu.padding = this.menuPadding;
+            menu.wrapping = this.menuWrapping;
+            menu.margin = this.menuMargin;
+            menu.thumbOffset = {
                top:this.thumbOffsetTop,
                bottom:this.thumbOffsetBottom
             };
-            _loc1_.focusTarget = this;
-            _loc1_.rowCount = this.menuRowCount < 1 ? 5 : this.menuRowCount;
-            _loc1_.labelField = this._labelField;
-            _loc1_.labelFunction = this._labelFunction;
-            _loc1_.addEventListener(ListEvent.ITEM_CLICK,this.handleMenuItemClick,false,0,true);
-            _dropdownRef = _loc1_;
-            PopUpManager.show(_loc1_,x + this.menuOffset.left,this.menuDirection == "down" ? y + height + this.menuOffset.top : y - this._dropdownRef.height + this.menuOffset.bottom,parent);
+            menu.focusTarget = this;
+            menu.rowCount = this.menuRowCount < 1 ? 5 : this.menuRowCount;
+            menu.labelField = this._labelField;
+            menu.labelFunction = this._labelFunction;
+            menu.addEventListener(ListEvent.ITEM_CLICK,this.handleMenuItemClick,false,0,true);
+            _dropdownRef = menu;
+            PopUpManager.show(menu,x + this.menuOffset.left,this.menuDirection == "down" ? y + height + this.menuOffset.top : y - this._dropdownRef.height + this.menuOffset.bottom,parent);
          }
       }
       
@@ -446,9 +446,9 @@ package scaleform.clik.controls
          }
       }
       
-      protected function handleMenuItemClick(param1:ListEvent) : void
+      protected function handleMenuItemClick(event:ListEvent) : void
       {
-         selectedIndex = param1.index;
+         selectedIndex = event.index;
          this.close();
       }
    }

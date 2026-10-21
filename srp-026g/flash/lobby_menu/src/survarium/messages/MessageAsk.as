@@ -404,7 +404,7 @@ package survarium.messages
       
       protected function goToStore() : void
       {
-         SrpBuyGold.open();
+         MessageMoneyExchange.buyGold();
       }
       
       override protected function onMessageAccept(event:ButtonEvent = null) : void

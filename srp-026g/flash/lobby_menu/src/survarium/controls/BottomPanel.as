@@ -23,6 +23,7 @@ package survarium.controls
    import scaleform.clik.utils.Constraints;
    import survarium.buttons.ButtonFriends;
    import survarium.data.LocalizationData;
+   import survarium.rooms.RoomsWindow;
    
    public class BottomPanel extends UIComponent
    {
@@ -356,7 +357,12 @@ package survarium.controls
          this.tabsBar.setMaxSize(room);
          this.tabsBar.invalidate(InvalidationType.RENDERERS);
          this.placeMatchesTab();
-         SrpRooms.resize(this);
+         // The rooms window follows the screen.
+         this.hideMatchesTab();
+         if(RoomsWindow.me != null)
+         {
+            RoomsWindow.me.layout();
+         }
       }
       
       protected function onStageResize(event:Event = null) : void
@@ -508,7 +514,10 @@ package survarium.controls
          this.matchesTab.addEventListener(Event.ENTER_FRAME,this.onMatchesTabFrame);
          LocalizationData.addCallback(this.onMatchesLocal,"btn_friends");
          this.placeMatchesTab();
-         SrpRooms.attach(this);
+         // The tab is still made, and hidden at once; the rooms window (in
+         // the lobby, over this bar) is made with it.
+         this.hideMatchesTab();
+         this.makeRoomsWindow();
       }
       
       protected function onMatchesTabFrame(e:Event) : void
@@ -539,7 +548,12 @@ package survarium.controls
          used = this.tabsBar.container.width / this.tabsBar.container.scaleX;
          this.matchesTab.x = this.tabsBar.x + int(used);
          this.placeMatchesWindow();
-         SrpRooms.place(this);
+         // The rooms window follows the bar.
+         this.hideMatchesTab();
+         if(RoomsWindow.me != null)
+         {
+            RoomsWindow.me.layout();
+         }
       }
       
       protected function onMatchesTabClick(e:Event) : void
@@ -1620,6 +1634,33 @@ package survarium.controls
          this.matchesPut(this._matchesNote,note,8356742);
          this._matchesNote.visible = this._matchesData.length == 0;
          this.placeMatchesWindow();
+      }
+      
+      // The Matches tab (Skhid's list of running matches and their JOIN) is
+      // gone: every PvP match is a room's, listed and joined in the rooms
+      // window (the owner's of 2026-10-17).
+      private function hideMatchesTab() : void
+      {
+         if(this.matchesTab != null && this.matchesTab.visible)
+         {
+            this.matchesTab.visible = false;
+         }
+      }
+      
+      // The rooms window, made once, with the Matches tab: in the lobby, over
+      // this bar (survarium.rooms).
+      private function makeRoomsWindow() : void
+      {
+         try
+         {
+            if(RoomsWindow.me == null)
+            {
+               RoomsWindow.me = new RoomsWindow(this);
+            }
+         }
+         catch(err:Error)
+         {
+         }
       }
    }
 }

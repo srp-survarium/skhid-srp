@@ -38,7 +38,7 @@ package survarium.controls
          return this._cyclic;
       }
       
-      public function set cyclic(param1:Boolean) : void
+      public function set cyclic(value:Boolean) : void
       {
          _cyclic = false;
       }
@@ -54,21 +54,21 @@ package survarium.controls
          prevBtn.enabled = _newSelectedIndex > 0;
       }
       
-      override public function set selectedIndex(param1:int) : void
+      override public function set selectedIndex(value:int) : void
       {
-         if(_selectedIndex != -1 && _selectedIndex != param1)
+         if(_selectedIndex != -1 && _selectedIndex != value)
          {
             this.blink();
          }
-         super.selectedIndex = param1;
-         nextBtn.enabled = param1 + 1 < dataProvider.length;
-         prevBtn.enabled = param1 > 0;
+         super.selectedIndex = value;
+         nextBtn.enabled = value + 1 < dataProvider.length;
+         prevBtn.enabled = value > 0;
          this.updateLabel();
       }
       
-      public function set label(param1:String) : void
+      public function set label(value:String) : void
       {
-         _label = param1;
+         _label = value;
          this.updateLabel();
       }
       

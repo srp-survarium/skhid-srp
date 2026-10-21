@@ -174,7 +174,7 @@ package survarium.messages
       
       private function onPremiumMoneyAddClick(param1:Event) : void
       {
-         SrpBuyGold.open();
+         MessageMoneyExchange.buyGold();
       }
       
       private function onPremiumSelected(param1:ListEvent = null) : void
@@ -220,7 +220,7 @@ package survarium.messages
       
       protected function goToStore() : void
       {
-         SrpBuyGold.open();
+         MessageMoneyExchange.buyGold();
       }
       
       override protected function onMessageAccept(param1:ButtonEvent = null) : void

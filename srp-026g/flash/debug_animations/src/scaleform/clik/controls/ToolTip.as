@@ -41,9 +41,9 @@ package scaleform.clik.controls
          delay = 300;
       }
       
-      public static function set delay(param1:int) : void
+      public static function set delay(value:int) : void
       {
-         _tip_interval.delay = param1;
+         _tip_interval.delay = value;
       }
       
       public static function get delay() : int
@@ -56,30 +56,30 @@ package scaleform.clik.controls
          return this._tooltipRendererName;
       }
       
-      public function set tooltipRendererName(param1:String) : void
+      public function set tooltipRendererName(value:String) : void
       {
-         if(_inspector && param1 == "" || param1 == "")
+         if(_inspector && value == "" || value == "")
          {
             return;
          }
-         var _loc2_:Class = getDefinitionByName(param1) as Class;
-         if(_loc2_ != null)
+         var classRef:Class = getDefinitionByName(value) as Class;
+         if(classRef != null)
          {
-            _tooltipRenderer = _loc2_;
+            _tooltipRenderer = classRef;
          }
          else
          {
-            trace("Error: " + this + ", The class " + param1 + " cannot be found in your library. Please ensure it is there.");
+            trace("Error: " + this + ", The class " + value + " cannot be found in your library. Please ensure it is there.");
          }
       }
       
-      public function set tipData(param1:Object) : void
+      public function set tipData(value:Object) : void
       {
-         if(this._data == param1)
+         if(this._data == value)
          {
             return;
          }
-         _data = param1;
+         _data = value;
       }
       
       public function get tipData() : Object
@@ -108,7 +108,7 @@ package scaleform.clik.controls
          }
       }
       
-      protected function showTip(param1:Event = null) : *
+      protected function showTip(e:Event = null) : *
       {
          if(!this.tipEnabled)
          {
@@ -179,7 +179,7 @@ package scaleform.clik.controls
          }
       }
       
-      protected function handleMouseMoveOverTip(param1:MouseEvent) : void
+      protected function handleMouseMoveOverTip(event:MouseEvent) : void
       {
          if(!this._tooltipRenderer)
          {
@@ -201,12 +201,12 @@ package scaleform.clik.controls
             _lastTarget = this;
             _tip_interval.start();
             _tip_interval.addEventListener(TimerEvent.TIMER_COMPLETE,this.showTip);
-            param1.stopPropagation();
+            event.stopPropagation();
          }
          isOver = true;
       }
       
-      protected function handleMouseMoveOutTip(param1:MouseEvent) : void
+      protected function handleMouseMoveOutTip(event:MouseEvent) : void
       {
          if(!this._tooltipRenderer)
          {
@@ -230,7 +230,7 @@ package scaleform.clik.controls
          }
       }
       
-      protected function handleMouseMoveTip(param1:MouseEvent) : void
+      protected function handleMouseMoveTip(event:MouseEvent) : void
       {
          if(!this.isOver)
          {
@@ -254,7 +254,7 @@ package scaleform.clik.controls
          }
       }
       
-      protected function handleDeleted(param1:Event) : void
+      protected function handleDeleted(event:Event) : void
       {
          if((this._tip_content) && (this._tip_content.parent) && this._tip_content.parent.contains(this._tip_content))
          {

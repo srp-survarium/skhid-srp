@@ -1,10 +1,13 @@
 package survarium.controls
 {
    import com.greensock.TweenLite;
+   import flash.display.DisplayObject;
+   import flash.display.DisplayObjectContainer;
    import flash.display.MovieClip;
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
+   import flash.geom.ColorTransform;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
    import flash.text.TextFormat;
@@ -27,6 +30,9 @@ package survarium.controls
    import survarium.gsearch.MatchMakingSettings;
    import survarium.messages.MessageBase;
    import survarium.messages.MessageEnterName;
+   import survarium.messages.MessageMoneyExchange;
+   import survarium.rooms.RoomsLook;
+   import survarium.rooms.RoomsWindow;
    
    public class StatusPanel extends UIComponent
    {
@@ -146,6 +152,11 @@ package survarium.controls
       protected var _factionData:Object;
       
       protected var firstScale:int = 0;
+
+      // The game's own label of Play while it is the rooms' Leave, and ours.
+      private var _roomsPlayLabel:String;
+
+      private var _roomsOurLabel:String;
       
       public function StatusPanel()
       {
@@ -392,7 +403,10 @@ package survarium.controls
       
       public function show_match_making(bool:Boolean) : void
       {
-         if(SrpRooms.searchHidden(bool))
+         // The game's search panel is not shown to a room's member (or right
+         // after Play), whom the server sends to its room's match through the
+         // game's queue state (survarium.rooms).
+         if(bool && RoomsWindow.me != null && RoomsWindow.me.hidesSearch())
          {
             return;
          }
@@ -603,7 +617,7 @@ package survarium.controls
       
       private function onRegulatMoneyAddClick(param1:ButtonEvent) : void
       {
-         SrpExchange.open(false);
+         MessageMoneyExchange.open(false);
       }
       
       public function setFactionProgress(value:Object) : void
@@ -771,7 +785,7 @@ package survarium.controls
       
       private function play_button_clicked(e:ButtonEvent) : void
       {
-         if(SrpRooms.playPressed())
+         if(this.playRooms())
          {
             return;
          }
@@ -779,7 +793,10 @@ package survarium.controls
          this.playBtn.focused = 0;
          trace("play_button_clicked");
          ExternalInterface.call("play_button_clicked");
-         SrpRooms.played(this);
+         if(RoomsWindow.me != null)
+         {
+            RoomsWindow.me.played();
+         }
       }
       
       private function onClickOff() : void
@@ -834,7 +851,7 @@ package survarium.controls
       
       private function onPremiumMoneyAddClick(param1:Event) : void
       {
-         SrpExchange.open(true);
+         MessageMoneyExchange.open(true);
       }
       
       private function onKnowlengeBaseClick(e:Event) : void
@@ -850,7 +867,7 @@ package survarium.controls
       
       protected function goToStore() : void
       {
-         SrpBuyGold.open();
+         MessageMoneyExchange.buyGold();
       }
       
       protected function goToKnowledgeBase() : void
@@ -888,6 +905,121 @@ package survarium.controls
       private function showPremiumMessage(e:ButtonEvent) : void
       {
          this.showPremium();
+      }
+      
+      // Play in a room or a room's queue (survarium.rooms): "Leave room" or
+      // "Leave queue" (`word`), red, on whatever the game's own Play is (a
+      // squad's member, a kit the game refuses: Leave needs none of its
+      // conditions), grey from a press until its answer (`asking`).
+      // Otherwise the game's own label and look. `each`: the frame's call,
+      // which leaves the game's own Play enabled as the game sets it.
+      public function showRoomsPlay(leaving:Boolean, queued:Boolean, asking:Boolean, each:Boolean, nativePlay:Boolean, word:String) : void
+      {
+         var btn:* = this.playBtn;
+         if(leaving || queued || !each)
+         {
+            var on:Boolean = !asking && (leaving || queued || nativePlay);
+            if(btn.enabled != on)
+            {
+               btn.enabled = on;
+            }
+         }
+         // In the case of the game's own label (its Play is in capitals).
+         var gameLabel:String = this._roomsPlayLabel != null ? this._roomsPlayLabel : String(btn.label);
+         var label:String = word;
+         if(gameLabel != "" && gameLabel == gameLabel.toUpperCase())
+         {
+            label = label.toUpperCase();
+         }
+         if(leaving || queued)
+         {
+            // The game sets its own label again (its language): ours over it
+            // each time.
+            if(btn.label != label)
+            {
+               if(this._roomsPlayLabel == null)
+               {
+                  this._roomsPlayLabel = btn.label;
+               }
+               btn.label = label;
+            }
+            this._roomsOurLabel = label;
+            this.tintPlay(RoomsLook.RED_TINT);
+         }
+         else if(this._roomsPlayLabel != null)
+         {
+            if(btn.label == this._roomsOurLabel)
+            {
+               btn.label = this._roomsPlayLabel;
+            }
+            this._roomsPlayLabel = null;
+            this._roomsOurLabel = null;
+            this.tintPlay(new ColorTransform());
+         }
+      }
+
+      // Play's art tinted, its label not: the text stays white, as PLAY's
+      // (the owner's of 2026-10-20). Every part of the button but the one
+      // that holds its text field takes the tint.
+      private function tintPlay(tint:ColorTransform) : void
+      {
+         var box:DisplayObjectContainer = this.playBtn as DisplayObjectContainer;
+         if(box == null)
+         {
+            return;
+         }
+         box.transform.colorTransform = new ColorTransform();
+         var field:DisplayObject = null;
+         try
+         {
+            field = this.playBtn.textField as DisplayObject;
+         }
+         catch(err:Error)
+         {
+         }
+         for(var i:int = 0; i < box.numChildren; i++)
+         {
+            var part:DisplayObject = box.getChildAt(i);
+            if(field != null && (part == field || part is DisplayObjectContainer && DisplayObjectContainer(part).contains(field)))
+            {
+               continue;
+            }
+            part.transform.colorTransform = tint;
+         }
+      }
+      
+      // Rooms are srp's only PvP (survarium.rooms): Play goes straight into
+      // a room, no search shown; in a room it is "Leave room", in a room's
+      // queue "Leave queue" (true: done). The game's own Play, its search,
+      // is never run from this button (a JOIN and a match against bots call
+      // it themselves).
+      private function playRooms() : Boolean
+      {
+         var rooms:RoomsWindow = RoomsWindow.me;
+         try
+         {
+            if(rooms == null)
+            {
+               return false;
+            }
+            if(rooms.leavesRoom())
+            {
+               rooms.leaveRoom();
+            }
+            else if(rooms.leavesQueue())
+            {
+               rooms.leaveQueue();
+            }
+            else
+            {
+               rooms.quickPlay();
+            }
+            return true;
+         }
+         catch(err:Error)
+         {
+         }
+         return false;
       }
    }
 }

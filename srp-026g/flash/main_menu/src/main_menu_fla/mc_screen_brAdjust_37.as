@@ -44,7 +44,7 @@ package main_menu_fla
          this.__setProp_btn_set_mc_screen_brAdjust_Layer1_0();
       }
       
-      public function btn_set_action(param1:ButtonEvent = null) : void
+      public function btn_set_action(event:ButtonEvent = null) : void
       {
          visible = false;
          FocusManager.setModalClip(stage as Sprite);
@@ -52,14 +52,14 @@ package main_menu_fla
          parent.removeChild(this);
       }
       
-      public function setSize(param1:Number, param2:Number) : *
+      public function setSize(newWidth:Number, newHeight:Number) : *
       {
-         this.background.width = param1;
-         this.background.height = param2;
-         this.slider_gamma.y = param2 - 43;
-         this.slider_gamma.x = int(param1 / 2 - this.slider_gamma.width);
-         this.btn_set.y = param2 - 43;
-         this.btn_set.x = param1 - 200;
+         this.background.width = newWidth;
+         this.background.height = newHeight;
+         this.slider_gamma.y = newHeight - 43;
+         this.slider_gamma.x = int(newWidth / 2 - this.slider_gamma.width);
+         this.btn_set.y = newHeight - 43;
+         this.btn_set.x = newWidth - 200;
       }
       
       internal function __setProp_btn_set_mc_screen_brAdjust_Layer1_0() : *

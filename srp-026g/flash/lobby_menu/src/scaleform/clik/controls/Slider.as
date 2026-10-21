@@ -73,14 +73,14 @@ package scaleform.clik.controls
          return super.enabled;
       }
       
-      override public function set enabled(param1:Boolean) : void
+      override public function set enabled(value:Boolean) : void
       {
-         if(param1 == super.enabled)
+         if(value == super.enabled)
          {
             return;
          }
-         super.enabled = param1;
-         this.thumb.enabled = this.track.enabled = param1;
+         super.enabled = value;
+         this.thumb.enabled = this.track.enabled = value;
       }
       
       [Inspectable(defaultValue="true")]
@@ -89,9 +89,9 @@ package scaleform.clik.controls
          return _focusable;
       }
       
-      override public function set focusable(param1:Boolean) : void
+      override public function set focusable(value:Boolean) : void
       {
-         super.focusable = param1;
+         super.focusable = value;
          tabChildren = false;
       }
       
@@ -101,9 +101,9 @@ package scaleform.clik.controls
          return this._value;
       }
       
-      public function set value(param1:Number) : void
+      public function set value(value:Number) : void
       {
-         _value = this.lockValue(param1);
+         _value = this.lockValue(value);
          dispatchEvent(new SliderEvent(SliderEvent.VALUE_CHANGE,false,true,this._value));
          this.draw();
       }
@@ -114,9 +114,9 @@ package scaleform.clik.controls
          return this._maximum;
       }
       
-      public function set maximum(param1:Number) : void
+      public function set maximum(value:Number) : void
       {
-         _maximum = param1;
+         _maximum = value;
       }
       
       [Inspectable(defaultValue="0")]
@@ -125,9 +125,9 @@ package scaleform.clik.controls
          return this._minimum;
       }
       
-      public function set minimum(param1:Number) : void
+      public function set minimum(value:Number) : void
       {
-         _minimum = param1;
+         _minimum = value;
       }
       
       public function get position() : Number
@@ -135,9 +135,9 @@ package scaleform.clik.controls
          return this._value;
       }
       
-      public function set position(param1:Number) : void
+      public function set position(value:Number) : void
       {
-         _value = param1;
+         _value = value;
       }
       
       [Inspectable(defaultValue="false")]
@@ -146,9 +146,9 @@ package scaleform.clik.controls
          return this._snapping;
       }
       
-      public function set snapping(param1:Boolean) : void
+      public function set snapping(value:Boolean) : void
       {
-         _snapping = param1;
+         _snapping = value;
          this.invalidateSettings();
       }
       
@@ -158,9 +158,9 @@ package scaleform.clik.controls
          return this._snapInterval;
       }
       
-      public function set snapInterval(param1:Number) : void
+      public function set snapInterval(value:Number) : void
       {
-         _snapInterval = param1;
+         _snapInterval = value;
          this.invalidateSettings();
       }
       
@@ -169,43 +169,43 @@ package scaleform.clik.controls
          invalidate(InvalidationType.SETTINGS);
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
-         if(param1.isDefaultPrevented())
+         if(event.isDefaultPrevented())
          {
             return;
          }
-         var _loc2_:InputDetails = param1.details;
-         var _loc3_:uint = _loc2_.controllerIndex;
-         var _loc4_:Boolean = _loc2_.value == InputValue.KEY_DOWN || _loc2_.value == InputValue.KEY_HOLD;
-         switch(_loc2_.navEquivalent)
+         var details:InputDetails = event.details;
+         var index:uint = details.controllerIndex;
+         var keyPress:Boolean = details.value == InputValue.KEY_DOWN || details.value == InputValue.KEY_HOLD;
+         switch(details.navEquivalent)
          {
             case NavigationCode.RIGHT:
-               if(_loc4_)
+               if(keyPress)
                {
                   value += this._snapInterval;
-                  param1.handled = true;
+                  event.handled = true;
                }
                break;
             case NavigationCode.LEFT:
-               if(_loc4_)
+               if(keyPress)
                {
                   value -= this._snapInterval;
-                  param1.handled = true;
+                  event.handled = true;
                }
                break;
             case NavigationCode.HOME:
-               if(!_loc4_)
+               if(!keyPress)
                {
                   value = this.minimum;
-                  param1.handled = true;
+                  event.handled = true;
                }
                break;
             case NavigationCode.END:
-               if(!_loc4_)
+               if(!keyPress)
                {
                   value = this.maximum;
-                  param1.handled = true;
+                  event.handled = true;
                }
                break;
             default:
@@ -232,18 +232,18 @@ package scaleform.clik.controls
       
       override protected function draw() : void
       {
-         var _loc1_:Number;
+         var lst_x:Number;
          if(isInvalid(InvalidationType.STATE))
          {
             gotoAndPlay(!this.enabled ? "disabled" : (_focused ? "focused" : "default"));
          }
          if(isInvalid(InvalidationType.SIZE))
          {
-            _loc1_ = this.thumb.x;
+            lst_x = this.thumb.x;
             this.thumb.x = this.thumb.width;
             setActualSize(_width,_height);
             constraints.update(_width,_height);
-            this.thumb.x = _loc1_;
+            this.thumb.x = lst_x;
          }
          this.updateThumb();
       }
@@ -271,30 +271,30 @@ package scaleform.clik.controls
          {
             return;
          }
-         var _loc1_:Number = _width - this.offsetLeft - this.offsetRight;
-         this.thumb.x = (this._value - this._minimum) / (this._maximum - this._minimum) * _loc1_ - this.thumb.width / 2 + this.offsetLeft;
+         var trackWidth:Number = _width - this.offsetLeft - this.offsetRight;
+         this.thumb.x = (this._value - this._minimum) / (this._maximum - this._minimum) * trackWidth - this.thumb.width / 2 + this.offsetLeft;
       }
       
-      protected function beginDrag(param1:MouseEvent) : void
+      protected function beginDrag(e:MouseEvent) : void
       {
          _thumbPressed = true;
-         var _loc2_:Point = globalToLocal(new Point(param1.stageX,param1.stageY));
-         _dragOffset = {x:_loc2_.x - this.thumb.x - this.thumb.width / 2};
+         var lp:Point = globalToLocal(new Point(e.stageX,e.stageY));
+         _dragOffset = {x:lp.x - this.thumb.x - this.thumb.width / 2};
          stage.addEventListener(MouseEvent.MOUSE_MOVE,this.doDrag,false,0,true);
          stage.addEventListener(MouseEvent.MOUSE_UP,this.endDrag,false,0,true);
       }
       
-      protected function doDrag(param1:MouseEvent) : void
+      protected function doDrag(e:MouseEvent) : void
       {
-         var _loc2_:Point = globalToLocal(new Point(param1.stageX,param1.stageY));
-         var _loc3_:Number = _loc2_.x - this._dragOffset.x;
-         var _loc4_:Number = _width - this.offsetLeft - this.offsetRight;
-         var _loc5_:Number = this.lockValue((_loc3_ - this.offsetLeft) / _loc4_ * (this._maximum - this._minimum) + this._minimum);
-         if(this.value == _loc5_)
+         var lp:Point = globalToLocal(new Point(e.stageX,e.stageY));
+         var thumbPosition:Number = lp.x - this._dragOffset.x;
+         var trackWidth:Number = _width - this.offsetLeft - this.offsetRight;
+         var newValue:Number = this.lockValue((thumbPosition - this.offsetLeft) / trackWidth * (this._maximum - this._minimum) + this._minimum);
+         if(this.value == newValue)
          {
             return;
          }
-         _value = _loc5_;
+         _value = newValue;
          this.updateThumb();
          if(this.liveDragging)
          {
@@ -302,7 +302,7 @@ package scaleform.clik.controls
          }
       }
       
-      protected function endDrag(param1:MouseEvent) : void
+      protected function endDrag(e:MouseEvent) : void
       {
          stage.removeEventListener(MouseEvent.MOUSE_MOVE,this.doDrag,false);
          stage.removeEventListener(MouseEvent.MOUSE_UP,this.endDrag,false);
@@ -315,17 +315,17 @@ package scaleform.clik.controls
          _trackPressed = false;
       }
       
-      protected function trackPress(param1:MouseEvent) : void
+      protected function trackPress(e:MouseEvent) : void
       {
          _trackPressed = true;
          this.track.focused = _focused;
-         var _loc2_:Number = _width - this.offsetLeft - this.offsetRight;
-         var _loc3_:Number = this.lockValue((param1.localX * scaleX - this.offsetLeft) / _loc2_ * (this._maximum - this._minimum) + this._minimum);
-         if(this.value == _loc3_)
+         var trackWidth:Number = _width - this.offsetLeft - this.offsetRight;
+         var newValue:Number = this.lockValue((e.localX * scaleX - this.offsetLeft) / trackWidth * (this._maximum - this._minimum) + this._minimum);
+         if(this.value == newValue)
          {
             return;
          }
-         value = _loc3_;
+         value = newValue;
          if(!this.liveDragging)
          {
             dispatchEvent(new SliderEvent(SliderEvent.VALUE_CHANGE,false,true,this._value));
@@ -334,22 +334,22 @@ package scaleform.clik.controls
          _dragOffset = {x:0};
       }
       
-      protected function lockValue(param1:Number) : Number
+      protected function lockValue(lvalue:Number) : Number
       {
-         param1 = Math.max(this._minimum,Math.min(this._maximum,param1));
+         lvalue = Math.max(this._minimum,Math.min(this._maximum,lvalue));
          if(!this.snapping)
          {
-            return param1;
+            return lvalue;
          }
-         var _loc2_:Number = Math.round(param1 / this.snapInterval) * this.snapInterval;
-         return _loc2_;
+         var result:Number = Math.round(lvalue / this.snapInterval) * this.snapInterval;
+         return result;
       }
       
-      protected function scrollWheel(param1:Number) : void
+      protected function scrollWheel(delta:Number) : void
       {
          if(_focused)
          {
-            value -= param1 * this._snapInterval;
+            value -= delta * this._snapInterval;
             dispatchEvent(new Event(Event.CHANGE));
          }
       }

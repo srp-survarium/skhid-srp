@@ -348,7 +348,7 @@ download from revision 12 the movie ships in `resources.db.patch_12`.
 ## Lobby exchange, silver and gold both ways
 
 The lobby's gold-for-silver window is an exchange both ways (since revision
-23; source `../flash/lobby_menu/src/SrpExchange.as`). The gold box at the top of the lobby ("Get Gold", which asked to
+23; source: the window's class, `../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`). The gold box at the top of the lobby ("Get Gold", which asked to
 open the online store) opens it to buy gold; the silver box opens it to sell
 gold. The window has:
 
@@ -385,7 +385,7 @@ size is final when `Message` centres it; the swap button is added in
 `onRegulatMoneyAddClick`. The exe is not
 changed: the window calls the game's `exchange_premium_money`, which sends `47 04`
 with the u32 it is given. Gold for silver sends the gold, as the stock window
-did; silver for gold sends `0x40000000` + the gold (`SrpExchange.BUY_GOLD`),
+did; silver for gold sends `0x40000000` + the gold (`MessageMoneyExchange.BUY_GOLD`),
 which the server reads as `BuyPremium` (`requests::BUY_PREMIUM`). So the server
 must be released first; an older server refuses such an amount as more gold
 than the account has.
@@ -399,8 +399,8 @@ the server's, every text in every language): `python -m unittest test_build_lobb
 
 ## Get Gold opens the exchange
 
-`SrpBuyGold` (`../flash/lobby_menu/src/SrpBuyGold.as`) makes every "Get Gold" of the lobby open the exchange
-window above, to buy gold with silver, instead of the online store (a browser
+`MessageMoneyExchange.buyGold()` (`../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`)
+makes every "Get Gold" of the lobby open the exchange window above, to buy gold with silver, instead of the online store (a browser
 window on a dead site). The rules: `docs/notes/buy-gold.md`. The
 "Insufficient Gold Rubles" dialog's button calls `goToStore` of the window that
 showed it; the bodies of all ten (`ItemCard`, `StatusPanel`, `MessageAsk`,
@@ -408,16 +408,15 @@ showed it; the bodies of all ten (`ItemCard`, `StatusPanel`, `MessageAsk`,
 `MessagePremiumDiscount`, `MessagePremiumProfile`, `MessageRepair`,
 `MessageRerollItem`) and the premium window's gold button
 (`MessagePremium.onPremiumMoneyAddClick`, which asked first) become
-`SrpBuyGold.open()`. It shows the exchange with `showMessage`'s third
+`MessageMoneyExchange.buyGold()`. It shows the exchange with `showMessage`'s third
 and fifth arguments set, so it opens over a window still open instead of
 waiting behind it, and that window stays visible under it. The exe and the
 server do not change. Not in a release yet.
 
 ## Exchange window updates
 
-A change of `../flash/lobby_menu/src/SrpExchange.as` is built in by building the
-lobby movie (srp owns the class whole; FFDec compiles it, as revision 24's was). A method defined twice in the source is refused (FFDec
-keeps the last).
+A change of the window (`../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`) is built in by
+building the lobby movie.
 
 The first such change (2026-10-20): an amount more than the Pay balance pays
 for becomes, as it is typed, the most it does, in the field typed in. Buying
@@ -450,22 +449,18 @@ with 200 as before. Not in a release yet.
 
 ## The craft window: Buy and Sell, Continue and Exit
 
-`SrpCraftMenu` (`../flash/lobby_menu/src/SrpCraftMenu.as`): right-click on an item in the craft window's list
-("Upgrade") gives Buy and Sell only, and its result offers Continue and Exit (the rules: `docs/notes/craft-menu.md`).
-The window locks the inventory list (`lockControls(true)`), and
-`InventoryList.showContextMenu` ended at once on a locked list. Its read of
-the lock, `this._inventoryLocked`, becomes `SrpCraftMenu.locked(this._inventoryLocked,
-this, activeItem)`.
-While the list is locked and a `MessageCraftItem` is on the lobby, the helper
-shows its own menu (Buy by the list's rule; Sell for an owned item, not the
-item being upgraded or the donor the window holds) and returns true, so the
-method ends; otherwise it returns the lock as it was. Buy goes as the item
-card's (the dictionary id, the shop's price, the shop's seller); Sell through
-the list's public `sellItem`.
+`InventoryList` and `MessageCraftItem` (`../flash/lobby_menu/src/survarium`): right-click on an item in
+the craft window's list ("Upgrade") gives Buy and Sell only, and its result offers Continue and Exit (the
+rules: `docs/notes/craft-menu.md`). The window locks the inventory list (`lockControls(true)`), and
+`InventoryList.showContextMenu` ended at once on a locked list. On a locked list it now calls
+`showCraftMenu(activeItem)` first: while a `MessageCraftItem` is on the lobby (`findCraftWindow`) it
+shows that menu (Buy by the list's rule; Sell for an owned item, not the item being upgraded or the
+donor the window holds, `MessageCraftItem.holds`); otherwise nothing, as before. Buy goes as the
+item card's (`buyFromCraftMenu`: the dictionary id, the shop's price, the shop's seller); Sell
+through the list's `sellItem`.
 
 After an upgrade the window's result had one button, Ready, which closed it.
-`MessageCraftItem.fillCraftedItem` now ends with `SrpCraftMenu.result(this,
-result)`: the window's Cancel shows again as Exit (the lobby already closes
+`MessageCraftItem.fillCraftedItem` now ends with `offerContinue()` (but for a refused craft): the window's Cancel shows again as Exit (the lobby already closes
 the window on it, as on Ready), and the Ready button becomes Continue, side
 by side. Continue closes the window as Exit does, puts the main item (as the
 inventory has it now) on the item card (`setPrimaryItem`) and sends the
@@ -476,8 +471,8 @@ just closes. The words are the game's: `btn_exit_label` and
 
 ## Weapon scope context menu
 
-`SrpScopeContextMenu` (`../flash/lobby_menu/src/SrpScopeContextMenu.as`) adds the existing localized **Optics** action to a
-compatible weapon's right-click menu, in the inventory or an equipped slot. It
+`InventoryList` (`../flash/lobby_menu/src/survarium/controls/InventoryList.as`: `isUpgradeable`,
+`upgradeLabelKey`) adds the existing localized **Optics** action to a compatible weapon's right-click menu, in the inventory or an equipped slot. It
 opens the scope editor already shipped in revision 19. Armor still opens its
 camouflage/decal editor. See [weapon_scopes.md §5](../docs/notes/weapon_scopes.md#5-weapon-right-click-menu).
 This does not change the executable or reserve a release revision.
@@ -487,43 +482,36 @@ This does not change the executable or reserve a release revision.
 The lobby movie is one file (`flash_movies/lobby_menu.swf`), and a patch that
 carries it replaces the players' movie whole. It is built one way only, from
 its ActionScript source tree, `../flash/lobby_menu/src`
-([lobby-source.md](../docs/notes/lobby-source.md)). The tree is revision 24's
-complete source, which rebuilds byte for byte (`tools/actionscript/flash_tree.py
-full`), with every lobby change as an ordinary edit of it:
+([lobby-source.md](../docs/notes/lobby-source.md)), with every lobby change as
+an edit of it:
 
-- srp's own classes, files of the tree named in `../flash/lobby_menu/srp.json`:
-  `SrpRooms` (the rooms), `SrpExchange` (#214), `SrpBuyGold` (#213),
-  `SrpCraftMenu` (#216), `SrpScopeContextMenu` (#217), `SrpPlayerGear` (#232);
-- their calls in the game's classes: `LobbyMenu`, `PlayerRanking`,
-  `InventoryList` (#215 to #217), the ten `goToStore` and the premium window's
-  gold button (#213), `MessageCraftItem` (#216).
+- the features written in the game's own classes: the exchange and Get Gold in
+  `MessageMoneyExchange` (#214, #213; the ten `goToStore` and the premium
+  window's gold button call it), Buy on owned items in `LobbyMenu` and
+  `InventoryList` (#215), the craft window's Buy/Sell and Continue in
+  `InventoryList` and `MessageCraftItem` (#216), Optics in `InventoryList`
+  (#217), the player gear in `LobbyMenu` and `PlayerRanking` (#232);
+- the rooms window, new UI, in `../flash/lobby_menu/src/survarium/rooms`, and
+  its parts in `TopMenu`, `StatusPanel`, `LobbyMenu`, `BottomPanel` and
+  `PlayerRanking`.
 
 ```sh
-python build_lobby_026g.py <patch_24's lobby_menu.swf> <new lobby_menu.swf> [--work DIR]
+python build_lobby_026g.py <patch_24's lobby_menu.swf> <new lobby_menu.swf>
 ```
 
-It needs `private/actionscript/tools.json` at the repository root (a JDK,
-FFDec 25.1.3's full distribution and Apache Flex 4.16.1:
-`tools/actionscript/README.md`; `--tools` names another), and exports
-revision 24's source into `private/actionscript/rev24` the first time, for the
-baseline of a changed class (FFDec; `--project` names another place). About
-5 minutes. Only the files that are not the baseline's are compiled; each
-changed class first recompiles unchanged and must give revision 24's movie
-exactly; a changed game class may change only the methods and declarations its
-source diff touches (srp's classes change freely); every other method, trait
-and class, and every non-script tag, stays revision 24's byte for byte.
-Nothing is patched in bytecode; the steps that did (`rooms_026g.py` to
+It needs `private/actionscript/tools.json` at the repository root (a JDK and
+Apache Flex 4.16.1: `tools/actionscript/README.md`; `--tools` names another).
+One Flex run compiles the whole tree, and its code goes into revision 24's
+movie in place of all of its code; the graphics, fonts and symbol bindings are
+revision 24's. About 5 seconds; the same tree gives the same bytes. Nothing is
+patched in bytecode; the steps that did (`rooms_026g.py` to
 `player_gear_026g.py` and their Java patchers, on revision 23's movie) are in
 git history only.
 
-The result must be `RESULT_SHA256`, the movie last built: a changed tree or
-tool gives another, refused until `RESULT_SHA256` is set to it on purpose
-(`--any-result` for development). Since 2026-10-20: `bdd66ed5…`, the first
-build from source, of everything the bytecode driver's last movie had (main's
-`e626a01a…`: the rooms through #234, #213 to #217, the player gear); every
-method decompiles as that movie's does but for compiler encodings
-([lobby-source.md](../docs/notes/lobby-source.md) lists them). NOT yet checked
-in the game. Tests: `python -m unittest test_build_lobby`. Not in a release yet.
+The build says whether the movie is `RESULT_SHA256`, the one last checked in
+the game (a note, not a gate): since 2026-10-21 `8b099212…`, the tree of
+6064476c (the owner checked it in the game). Tests:
+`python -m unittest test_build_lobby`. Not in a release yet.
 
 ## What each patch does
 

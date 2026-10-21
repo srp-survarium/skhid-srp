@@ -1,6 +1,7 @@
 # The exchange window: amounts
 
-The rules the code follows. Code: `flash/lobby_menu/src/SrpExchange.as` (`limit`, `affordable`, `onEdit`;
+The rules the code follows. Code: the exchange window's class,
+`flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as` (`limit`, `affordable`, `onEdit`;
 [lobby-source.md](lobby-source.md)).
 The owner's rule: 2026-10-20 ("you type 10000 and only have 5500? you get 5500 in the window. Note
 if you type 100 gold, it will change to 55 too").

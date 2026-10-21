@@ -330,8 +330,8 @@ package scaleform.clik.controls
          {
             return lvalue;
          }
-         var _loc2_:Number = Math.round(lvalue / this.snapInterval) * this.snapInterval;
-         return _loc2_;
+         var result:Number = Math.round(lvalue / this.snapInterval) * this.snapInterval;
+         return result;
       }
       
       protected function scrollWheel(delta:Number) : void

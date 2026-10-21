@@ -4,6 +4,7 @@ package
    import flash.display.Sprite;
    import flash.events.Event;
    import flash.events.KeyboardEvent;
+   import flash.ui.Keyboard;
    import scaleform.clik.layout.Layout;
    import scaleform.clik.layout.LayoutData;
    import survarium.controls.Message;
@@ -161,7 +162,7 @@ package
       protected function onKeyDownK(e:KeyboardEvent) : void
       {
          var mc:MovieClip;
-         if(e.keyCode == 27)
+         if(e.keyCode == Keyboard.ESCAPE)
          {
             mc = stage.getChildByName("screenAdjust") as MovieClip;
             if(Message.isAnyMessage() != -1)

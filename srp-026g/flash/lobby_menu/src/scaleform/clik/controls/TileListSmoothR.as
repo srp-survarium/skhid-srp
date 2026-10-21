@@ -49,9 +49,9 @@ package scaleform.clik.controls
          super();
       }
       
-      override public function set dataProvider(param1:IDataProvider) : void
+      override public function set dataProvider(value:IDataProvider) : void
       {
-         super.dataProvider = param1;
+         super.dataProvider = value;
          if(this._scrollTween && this._tween)
          {
             this._tween.reset();
@@ -66,68 +66,68 @@ package scaleform.clik.controls
          return _scrollPosition;
       }
       
-      override public function set scrollPosition(param1:Number) : void
+      override public function set scrollPosition(value:Number) : void
       {
-         var _loc2_:Boolean = false;
-         _delta = param1 % this._pow;
-         var _loc3_:Number = _direction == DirectionMode.HORIZONTAL ? _totalRows : _totalColumns;
-         var _loc4_:Number = Math.ceil(_dataProvider.length / _loc3_);
-         var _loc5_:Number = _loc4_ - (_direction == DirectionMode.HORIZONTAL ? _totalColumns : _totalRows - 1 - this.extraRow);
-         if(param1 == _loc5_ * this._pow && param1 != 0)
+         var moved:Boolean = false;
+         _delta = value % this._pow;
+         var perLine:Number = _direction == DirectionMode.HORIZONTAL ? _totalRows : _totalColumns;
+         var lineCount:Number = Math.ceil(_dataProvider.length / perLine);
+         var maxScroll:Number = lineCount - (_direction == DirectionMode.HORIZONTAL ? _totalColumns : _totalRows - 1 - this.extraRow);
+         if(value == maxScroll * this._pow && value != 0)
          {
             _delta = this._pow;
          }
-         var _loc6_:int = int(param1 / this._pow);
-         if(param1 != _loc5_ * this._pow && this._lastDelta != _loc5_)
+         var lineIndex:int = int(value / this._pow);
+         if(value != maxScroll * this._pow && this._lastDelta != maxScroll)
          {
-            if(_loc6_ - this._lastDelta >= 1)
+            if(lineIndex - this._lastDelta >= 1)
             {
-               _loc9_ = 0;
-               while(_loc9_ < this._toMove)
+               i = 0;
+               while(i < this._toMove)
                {
-                  _loc10_ = this.getRendererAt(0);
+                  renderer = this.getRendererAt(0);
                   _renderers.shift();
-                  _renderers.push(_loc10_);
-                  _loc9_++;
+                  _renderers.push(renderer);
+                  i++;
                }
             }
-            else if(_loc6_ - this._lastDelta <= -1)
+            else if(lineIndex - this._lastDelta <= -1)
             {
-               _loc9_ = 0;
-               while(_loc9_ < this._toMove)
+               i = 0;
+               while(i < this._toMove)
                {
-                  _loc10_ = this.getRendererAt(_renderers.length - 1);
-                  _renderers.unshift(_loc10_);
+                  renderer = this.getRendererAt(_renderers.length - 1);
+                  _renderers.unshift(renderer);
                   _renderers.pop();
-                  _loc9_++;
+                  i++;
                }
             }
          }
-         _lastDelta = _loc6_;
-         var _loc7_:Number = _scrollPosition;
-         var _loc8_:int = (_renderers.length);
-         var _loc9_:int;
-         var _loc10_:IListItemRenderer;
-         _loc9_ = 0;
-         while(_loc9_ < _renderers.length)
+         _lastDelta = lineIndex;
+         var oldPosition:Number = _scrollPosition;
+         var rendererCount:int = (_renderers.length);
+         var i:int;
+         var renderer:IListItemRenderer;
+         i = 0;
+         while(i < _renderers.length)
          {
-            _loc10_ = this.getRendererAt(_loc9_);
+            renderer = this.getRendererAt(i);
             if(_direction == DirectionMode.VERTICAL)
             {
-               _loc10_.y = (_loc9_ / _totalColumns >> 0) * rowHeight + margin - _rowHeight / this._pow * this._delta;
+               renderer.y = (i / _totalColumns >> 0) * rowHeight + margin - _rowHeight / this._pow * this._delta;
             }
             else
             {
-               _loc10_.x = (_loc9_ / _totalRows >> 0) * columnWidth + margin - _columnWidth / this._pow * this._delta;
+               renderer.x = (i / _totalRows >> 0) * columnWidth + margin - _columnWidth / this._pow * this._delta;
             }
-            _loc9_++;
+            i++;
          }
-         param1 = Math.max(0,Math.min(_loc5_,int(param1 / this._pow)));
-         if(_scrollPosition == param1)
+         value = Math.max(0,Math.min(maxScroll,int(value / this._pow)));
+         if(_scrollPosition == value)
          {
             return;
          }
-         _scrollPosition = param1;
+         _scrollPosition = value;
          if(!this._scrollTween)
          {
             _scrollTarget = _scrollPosition * this._pow;
@@ -137,16 +137,16 @@ package scaleform.clik.controls
       
       override protected function refreshData() : void
       {
-         var _loc1_:Number = _direction == DirectionMode.HORIZONTAL ? _totalRows : _totalColumns;
-         var _loc2_:Number = Math.ceil(_dataProvider.length / _loc1_);
-         var _loc3_:Number = _loc2_ - (_direction == DirectionMode.HORIZONTAL ? _totalColumns : _totalRows - this.extraRow);
-         _scrollPosition = Math.max(0,Math.min(_loc3_,_scrollPosition));
-         var _loc4_:Number = _scrollPosition * _loc1_;
-         var _loc5_:Number = _loc4_ + _totalColumns * _totalRows - 1;
+         var perLine:Number = _direction == DirectionMode.HORIZONTAL ? _totalRows : _totalColumns;
+         var lineCount:Number = Math.ceil(_dataProvider.length / perLine);
+         var maxScroll:Number = lineCount - (_direction == DirectionMode.HORIZONTAL ? _totalColumns : _totalRows - this.extraRow);
+         _scrollPosition = Math.max(0,Math.min(maxScroll,_scrollPosition));
+         var startIndex:Number = _scrollPosition * perLine;
+         var endIndex:Number = startIndex + _totalColumns * _totalRows - 1;
          selectedIndex = Math.min(_dataProvider.length - 1,_selectedIndex);
          this.updateSelectedIndex();
-         _dataProvider.requestItemRange(_loc4_,_loc5_,populateData);
-         if(_scrollPosition == _loc3_ && scrollBar)
+         _dataProvider.requestItemRange(startIndex,endIndex,populateData);
+         if(_scrollPosition == maxScroll && scrollBar)
          {
             scrollPosition = (scrollBar as ScrollBar).position;
          }
@@ -158,9 +158,9 @@ package scaleform.clik.controls
          return this._draggable;
       }
       
-      public function set draggable(param1:Boolean) : void
+      public function set draggable(value:Boolean) : void
       {
-         if(param1)
+         if(value)
          {
             if(!this._draggable)
             {
@@ -171,7 +171,7 @@ package scaleform.clik.controls
          {
             removeEventListener(MouseEvent.MOUSE_DOWN,this.stDrag);
          }
-         _draggable = param1;
+         _draggable = value;
       }
       
       [Inspectable(defaultValue="0")]
@@ -180,9 +180,9 @@ package scaleform.clik.controls
          return this._scrollYPadding;
       }
       
-      public function set scrollYPadding(param1:int) : void
+      public function set scrollYPadding(value:int) : void
       {
-         _scrollYPadding = param1;
+         _scrollYPadding = value;
       }
       
       protected function get pos() : Number
@@ -190,28 +190,28 @@ package scaleform.clik.controls
          return _scrollPosition * this._pow + this._delta;
       }
       
-      protected function set pos(param1:Number) : void
+      protected function set pos(value:Number) : void
       {
-         scrollPosition = param1;
+         scrollPosition = value;
       }
       
-      override public function getRendererAt(param1:uint, param2:int = 0) : IListItemRenderer
+      override public function getRendererAt(itemIndex:uint, offset:int = 0) : IListItemRenderer
       {
          if(_renderers == null)
          {
             return null;
          }
-         var _loc3_:uint = param1 - param2 * (_direction == DirectionMode.HORIZONTAL ? _totalRows : _totalColumns);
-         if(_loc3_ >= _renderers.length)
+         var rendererIndex:uint = itemIndex - offset * (_direction == DirectionMode.HORIZONTAL ? _totalRows : _totalColumns);
+         if(rendererIndex >= _renderers.length)
          {
             return null;
          }
-         return _renderers[_loc3_] as IListItemRenderer;
+         return _renderers[rendererIndex] as IListItemRenderer;
       }
       
-      public function set softScroll(param1:Boolean) : void
+      public function set softScroll(value:Boolean) : void
       {
-         _softScroll = param1;
+         _softScroll = value;
       }
       
       public function get softScroll() : Boolean
@@ -219,37 +219,37 @@ package scaleform.clik.controls
          return this._softScroll;
       }
       
-      override public function set selectedIndex(param1:int) : void
+      override public function set selectedIndex(value:int) : void
       {
-         stackTrace("setSelectedIndex::" + String(name) + String(param1));
-         if(param1 == _selectedIndex || param1 == _newSelectedIndex)
+         stackTrace("setSelectedIndex::" + String(name) + String(value));
+         if(value == _selectedIndex || value == _newSelectedIndex)
          {
             return;
          }
-         _newSelectedIndex = param1;
+         _newSelectedIndex = value;
          invalidateSelectedIndex();
       }
       
-      public function forceScrollToSelected(param1:uint) : void
+      public function forceScrollToSelected(itemIndex:uint) : void
       {
          if(_totalRenderers == 0)
          {
             return;
          }
-         _newSelectedIndex = param1;
-         var _loc2_:Number = _direction == DirectionMode.HORIZONTAL ? _totalRows : _totalColumns;
-         var _loc3_:Number = _scrollPosition * _loc2_;
-         if(param1 >= _loc3_ && param1 < _loc3_ + _totalRows * _totalColumns)
+         _newSelectedIndex = itemIndex;
+         var perLine:Number = _direction == DirectionMode.HORIZONTAL ? _totalRows : _totalColumns;
+         var firstVisible:Number = _scrollPosition * perLine;
+         if(itemIndex >= firstVisible && itemIndex < firstVisible + _totalRows * _totalColumns)
          {
-            scrollPosition = (param1 / _loc2_ >> 0) * this._pow;
+            scrollPosition = (itemIndex / perLine >> 0) * this._pow;
          }
-         else if(param1 < _loc3_)
+         else if(itemIndex < firstVisible)
          {
-            scrollPosition = (param1 / _loc2_ >> 0) * this._pow;
+            scrollPosition = (itemIndex / perLine >> 0) * this._pow;
          }
          else
          {
-            scrollPosition = this._pow * (Math.floor(param1 / _loc2_) - (_direction == DirectionMode.HORIZONTAL ? _totalColumns : _totalRows) + 1);
+            scrollPosition = this._pow * (Math.floor(itemIndex / perLine) - (_direction == DirectionMode.HORIZONTAL ? _totalColumns : _totalRows) + 1);
          }
          validateNow();
          this.updateSelectedIndex();
@@ -257,84 +257,84 @@ package scaleform.clik.controls
       
       public function getActualScrollPosition() : Number
       {
-         var _loc1_:Number = _direction == DirectionMode.HORIZONTAL ? _totalRows : _totalColumns;
-         var _loc2_:Number = Math.ceil(_dataProvider.length / _loc1_);
-         var _loc3_:Number = _loc2_ - (_direction == DirectionMode.HORIZONTAL ? _totalColumns : _totalRows - this.extraRow);
-         var _loc4_:Number = Math.max(0,Math.min(_loc3_,_scrollPosition));
-         return _loc4_;
+         var perLine:Number = _direction == DirectionMode.HORIZONTAL ? _totalRows : _totalColumns;
+         var lineCount:Number = Math.ceil(_dataProvider.length / perLine);
+         var maxScroll:Number = lineCount - (_direction == DirectionMode.HORIZONTAL ? _totalColumns : _totalRows - this.extraRow);
+         var position:Number = Math.max(0,Math.min(maxScroll,_scrollPosition));
+         return position;
       }
       
-      override public function scrollToIndex(param1:uint) : void
+      override public function scrollToIndex(itemIndex:uint) : void
       {
          if(_totalRenderers == 0)
          {
             return;
          }
-         var _loc2_:Number = _direction == DirectionMode.HORIZONTAL ? _totalRows : _totalColumns;
-         var _loc3_:Number = _scrollPosition * _loc2_;
-         if(param1 >= _loc3_ && param1 < _loc3_ + _totalRows * _totalColumns)
+         var perLine:Number = _direction == DirectionMode.HORIZONTAL ? _totalRows : _totalColumns;
+         var firstVisible:Number = _scrollPosition * perLine;
+         if(itemIndex >= firstVisible && itemIndex < firstVisible + _totalRows * _totalColumns)
          {
             if(this._softScroll)
             {
-               _scrollTarget = (param1 / _loc2_ >> 0) * this._pow;
+               _scrollTarget = (itemIndex / perLine >> 0) * this._pow;
                this.scrollList(0);
             }
             else if(_scrollBar)
             {
-               scrollBar.position = (param1 / _loc2_ >> 0) * this._pow;
+               scrollBar.position = (itemIndex / perLine >> 0) * this._pow;
             }
             else
             {
-               scrollPosition = (param1 / _loc2_ >> 0) * this._pow;
+               scrollPosition = (itemIndex / perLine >> 0) * this._pow;
             }
          }
-         else if(param1 < _loc3_)
+         else if(itemIndex < firstVisible)
          {
             if(this._softScroll)
             {
-               _scrollTarget = (param1 / _loc2_ >> 0) * this._pow;
+               _scrollTarget = (itemIndex / perLine >> 0) * this._pow;
                this.scrollList(0);
             }
             else if(_scrollBar)
             {
-               _scrollBar.position = (param1 / _loc2_ >> 0) * this._pow;
+               _scrollBar.position = (itemIndex / perLine >> 0) * this._pow;
             }
             else
             {
-               scrollPosition = (param1 / _loc2_ >> 0) * this._pow;
+               scrollPosition = (itemIndex / perLine >> 0) * this._pow;
             }
          }
          else if(this._softScroll)
          {
-            _scrollTarget = this._pow * (Math.floor(param1 / _loc2_) - (_direction == DirectionMode.HORIZONTAL ? _totalColumns : _totalRows) + 1);
+            _scrollTarget = this._pow * (Math.floor(itemIndex / perLine) - (_direction == DirectionMode.HORIZONTAL ? _totalColumns : _totalRows) + 1);
             this.scrollList(0);
          }
          else if(_scrollBar)
          {
-            _scrollBar.position = this._pow * (Math.floor(param1 / _loc2_) - (_direction == DirectionMode.HORIZONTAL ? _totalColumns : _totalRows) + 1);
+            _scrollBar.position = this._pow * (Math.floor(itemIndex / perLine) - (_direction == DirectionMode.HORIZONTAL ? _totalColumns : _totalRows) + 1);
          }
          else
          {
-            scrollPosition = this._pow * (Math.floor(param1 / _loc2_) - (_direction == DirectionMode.HORIZONTAL ? _totalColumns : _totalRows) + 1);
+            scrollPosition = this._pow * (Math.floor(itemIndex / perLine) - (_direction == DirectionMode.HORIZONTAL ? _totalColumns : _totalRows) + 1);
          }
       }
       
       override protected function draw() : void
       {
-         var _loc1_:Number;
+         var maskHeight:Number;
          if(isInvalid(InvalidationType.SCROLL_BAR) || isInvalid(InvalidationType.SIZE))
          {
             this._mask.graphics.clear();
             this._mask.graphics.beginFill(0,0.2);
             if(height == 0 || scaleY == 0)
             {
-               _loc1_ = 0;
+               maskHeight = 0;
             }
             else
             {
-               _loc1_ = height / scaleY;
+               maskHeight = height / scaleY;
             }
-            this._mask.graphics.drawRect(0,0,width / scaleX,_loc1_);
+            this._mask.graphics.drawRect(0,0,width / scaleX,maskHeight);
             this._mask.graphics.endFill();
             this._mask.mouseChildren = false;
             this._mask.mouseEnabled = false;
@@ -362,29 +362,29 @@ package scaleform.clik.controls
          {
             setState("default");
          }
-         var _loc1_:Number = 1 + Math.ceil((_dataProvider.length - (_totalRows - this.extraRow) * _totalColumns) / (_direction == DirectionMode.HORIZONTAL ? _totalRows - this.extraRow : _totalColumns));
-         var _loc2_:Number = this._scrollPosition == _loc1_ && _loc1_ ? this._scrollPosition - 1 : this._scrollPosition;
-         var _loc3_:IListItemRenderer = this.getRendererAt(_selectedIndex,_loc2_);
-         trace("DISPLAY_FOCUS::",_loc3_,"this scroll::",this._scrollPosition,_loc1_,"getScroll::",_loc2_);
-         if(_loc3_ != null)
+         var maxScroll:Number = 1 + Math.ceil((_dataProvider.length - (_totalRows - this.extraRow) * _totalColumns) / (_direction == DirectionMode.HORIZONTAL ? _totalRows - this.extraRow : _totalColumns));
+         var offset:Number = this._scrollPosition == maxScroll && maxScroll ? this._scrollPosition - 1 : this._scrollPosition;
+         var renderer:IListItemRenderer = this.getRendererAt(_selectedIndex,offset);
+         trace("DISPLAY_FOCUS::",renderer,"this scroll::",this._scrollPosition,maxScroll,"getScroll::",offset);
+         if(renderer != null)
          {
             if(_noIndex)
             {
                if(focused > 0)
                {
-                  _loc3_.displayFocus = true;
-                  _loc3_.validateNow();
+                  renderer.displayFocus = true;
+                  renderer.validateNow();
                }
                else
                {
-                  _loc3_.displayFocus = false;
-                  _loc3_.validateNow();
+                  renderer.displayFocus = false;
+                  renderer.validateNow();
                }
             }
             else
             {
-               _loc3_.displayFocus = focused > 0;
-               _loc3_.validateNow();
+               renderer.displayFocus = focused > 0;
+               renderer.validateNow();
             }
          }
       }
@@ -399,20 +399,20 @@ package scaleform.clik.controls
          {
             return;
          }
-         var _loc1_:int = _selectedIndex;
-         var _loc2_:Number = 1 + Math.ceil((_dataProvider.length - (_totalRows - this.extraRow) * _totalColumns) / (_direction == DirectionMode.HORIZONTAL ? _totalRows - this.extraRow : _totalColumns));
-         var _loc3_:Number = this._scrollPosition == _loc2_ && _loc2_ ? this._scrollPosition - 1 : this._scrollPosition;
-         var _loc4_:IListItemRenderer = this.getRendererAt(_selectedIndex,_loc3_);
-         var _loc5_:Boolean;
-         var _loc6_:int;
-         var _loc7_:int;
-         var _loc8_:int;
-         var _loc9_:int;
-         var _loc10_:int;
-         if(_loc4_ != null)
+         var oldIndex:int = _selectedIndex;
+         var maxScroll:Number = 1 + Math.ceil((_dataProvider.length - (_totalRows - this.extraRow) * _totalColumns) / (_direction == DirectionMode.HORIZONTAL ? _totalRows - this.extraRow : _totalColumns));
+         var offset:Number = this._scrollPosition == maxScroll && maxScroll ? this._scrollPosition - 1 : this._scrollPosition;
+         var renderer:IListItemRenderer = this.getRendererAt(_selectedIndex,offset);
+         var pastEnd:Boolean;
+         var targetIndex:int;
+         var itemPos:int;
+         var visibleRows:int;
+         var visibleExtent:int;
+         var targetRow:int;
+         if(renderer != null)
          {
-            _loc4_.selected = false;
-            _loc4_.validateNow();
+            renderer.selected = false;
+            renderer.validateNow();
          }
          if(_selectedIndex != _newSelectedIndex)
          {
@@ -424,60 +424,60 @@ package scaleform.clik.controls
          {
             return;
          }
-         _loc4_ = this.getRendererAt(_selectedIndex,_loc3_);
-         if(_loc4_ != null)
+         renderer = this.getRendererAt(_selectedIndex,offset);
+         if(renderer != null)
          {
             if(direction == DirectionMode.VERTICAL)
             {
-               _loc5_ = _loc4_.y + rowHeight > (rowCount / columnCount - 1 - this.extraRow) * rowHeight;
+               pastEnd = renderer.y + rowHeight > (rowCount / columnCount - 1 - this.extraRow) * rowHeight;
             }
             else
             {
-               _loc5_ = _loc4_.x + columnWidth > (columnCount - 1) * columnWidth;
+               pastEnd = renderer.x + columnWidth > (columnCount - 1) * columnWidth;
             }
-            if(_loc5_)
+            if(pastEnd)
             {
                if(this._tween)
                {
                   this._tween.paused = true;
                }
-               _loc6_ = _selectedIndex - (_renderers.length - this._toMove * (2 + this.extraRow));
-               _scrollTarget = _loc6_ * this._pow;
-               this.scrollToIndex(_loc6_);
+               targetIndex = _selectedIndex - (_renderers.length - this._toMove * (2 + this.extraRow));
+               _scrollTarget = targetIndex * this._pow;
+               this.scrollToIndex(targetIndex);
             }
-            else if(_loc4_.y < 0 || _loc4_.x < 0)
+            else if(renderer.y < 0 || renderer.x < 0)
             {
                this.scrollToIndex(_selectedIndex);
             }
-            _loc4_.selected = true;
-            _loc4_.validateNow();
+            renderer.selected = true;
+            renderer.validateNow();
          }
          else
          {
             if(direction == DirectionMode.VERTICAL)
             {
-               _loc8_ = rowCount / columnCount;
-               _loc9_ = (_loc8_ - 1 - this.extraRow) * rowHeight;
-               _loc10_ = Math.ceil(_selectedIndex / (_loc8_ - 1 - this.extraRow));
-               _loc7_ = (_loc10_ - _loc3_) * rowHeight;
-               _loc5_ = _loc7_ > _loc9_;
+               visibleRows = rowCount / columnCount;
+               visibleExtent = (visibleRows - 1 - this.extraRow) * rowHeight;
+               targetRow = Math.ceil(_selectedIndex / (visibleRows - 1 - this.extraRow));
+               itemPos = (targetRow - offset) * rowHeight;
+               pastEnd = itemPos > visibleExtent;
             }
             else
             {
-               _loc7_ = (_selectedIndex / columnCount + _loc3_ - columnCount) * rowHeight;
-               _loc5_ = _loc7_ > (columnCount - 1) * columnWidth;
+               itemPos = (_selectedIndex / columnCount + offset - columnCount) * rowHeight;
+               pastEnd = itemPos > (columnCount - 1) * columnWidth;
             }
-            if(_loc5_)
+            if(pastEnd)
             {
                if(this._tween)
                {
                   this._tween.paused = true;
                }
-               _loc6_ = _selectedIndex + this._toMove * (1 + this.extraRow);
-               _scrollTarget = _loc6_ * this._pow;
-               this.scrollToIndex(_loc6_);
+               targetIndex = _selectedIndex + this._toMove * (1 + this.extraRow);
+               _scrollTarget = targetIndex * this._pow;
+               this.scrollToIndex(targetIndex);
             }
-            else if(_loc1_ < _selectedIndex)
+            else if(oldIndex < _selectedIndex)
             {
                this.scrollToIndex(_selectedIndex + 1);
             }
@@ -485,11 +485,11 @@ package scaleform.clik.controls
             {
                this.scrollToIndex(_selectedIndex);
             }
-            if(_loc4_)
+            if(renderer)
             {
-               _loc4_ = this.getRendererAt(_selectedIndex,_loc3_);
-               _loc4_.selected = true;
-               _loc4_.validateNow();
+               renderer = this.getRendererAt(_selectedIndex,offset);
+               renderer.selected = true;
+               renderer.validateNow();
             }
          }
          if(_scrollBar && _scrollBar.enabled == false)
@@ -500,53 +500,53 @@ package scaleform.clik.controls
       
       override protected function updateScrollBar() : void
       {
-         var _loc1_:Number;
-         var _loc2_:ScrollIndicator;
+         var maxScroll:Number;
+         var indicator:ScrollIndicator;
          if(_scrollBar == null)
          {
             return;
          }
          if(direction == DirectionMode.HORIZONTAL)
          {
-            _loc1_ = Math.ceil(_dataProvider.length / _totalRows) - _totalColumns;
+            maxScroll = Math.ceil(_dataProvider.length / _totalRows) - _totalColumns;
          }
          else
          {
-            _loc1_ = Math.ceil(_dataProvider.length / _totalColumns) - (_totalRows - this.extraRow);
+            maxScroll = Math.ceil(_dataProvider.length / _totalColumns) - (_totalRows - this.extraRow);
          }
          if(_scrollBar is ScrollIndicator)
          {
-            _loc2_ = _scrollBar as ScrollIndicator;
+            indicator = _scrollBar as ScrollIndicator;
             (_scrollBar as ScrollBar).trackScrollPageSize = this._pow;
-            _loc2_.setScrollProperties(_direction == DirectionMode.HORIZONTAL ? _totalColumns * this._pow : _totalRows * this._pow,0,(_loc1_ + 1) * this._pow,this._pow);
+            indicator.setScrollProperties(_direction == DirectionMode.HORIZONTAL ? _totalColumns * this._pow : _totalRows * this._pow,0,(maxScroll + 1) * this._pow,this._pow);
          }
-         if(_loc1_ < 0)
+         if(maxScroll < 0)
          {
             _lastDelta = 0;
             _scrollBar.position = 0;
          }
-         else if((_loc1_ + 1) * this._pow < _scrollBar.position)
+         else if((maxScroll + 1) * this._pow < _scrollBar.position)
          {
-            scrollPosition = (_loc1_ + 1) * this._pow;
-            _scrollBar.position = (_loc1_ + 1) * this._pow;
+            scrollPosition = (maxScroll + 1) * this._pow;
+            _scrollBar.position = (maxScroll + 1) * this._pow;
          }
          _scrollBar.validateNow();
       }
       
-      override protected function scrollList(param1:int) : void
+      override protected function scrollList(delta:int) : void
       {
-         var _loc2_:Number = this._pow * (1 + Math.ceil((_dataProvider.length - (_totalRows - this.extraRow) * _totalColumns) / (_direction == DirectionMode.HORIZONTAL ? _totalRows - this.extraRow : _totalColumns)));
+         var maxTarget:Number = this._pow * (1 + Math.ceil((_dataProvider.length - (_totalRows - this.extraRow) * _totalColumns) / (_direction == DirectionMode.HORIZONTAL ? _totalRows - this.extraRow : _totalColumns)));
          if(_scrollBar && _scrollBar.enabled || !_scrollBarValue)
          {
-            _scrollTarget -= param1 * this._pow;
+            _scrollTarget -= delta * this._pow;
          }
          else if(_scrollBarValue)
          {
             _scrollTarget = 0;
          }
-         if(this._scrollTarget > _loc2_)
+         if(this._scrollTarget > maxTarget)
          {
-            _scrollTarget = _loc2_;
+            _scrollTarget = maxTarget;
          }
          if(this._scrollTarget < 0)
          {
@@ -577,7 +577,7 @@ package scaleform.clik.controls
          }
          else
          {
-            if(param1 == 0)
+            if(delta == 0)
             {
                if(_direction == DirectionMode.VERTICAL)
                {
@@ -605,78 +605,78 @@ package scaleform.clik.controls
          {
             return;
          }
-         var _loc1_:ScrollIndicator = _scrollBar as ScrollIndicator;
-         var _loc2_:Number;
-         _loc1_.direction = _direction;
+         var indicator:ScrollIndicator = _scrollBar as ScrollIndicator;
+         var barHeight:Number;
+         indicator.direction = _direction;
          if(_direction == DirectionMode.VERTICAL)
          {
-            _loc1_.rotation = 0;
-            _loc1_.x = _width - _loc1_.width + margin;
-            _loc1_.y = margin;
-            _loc2_ = availableHeight;
-            _loc1_.height = _loc2_;
+            indicator.rotation = 0;
+            indicator.x = _width - indicator.width + margin;
+            indicator.y = margin;
+            barHeight = availableHeight;
+            indicator.height = barHeight;
          }
          else
          {
-            _loc1_.rotation = -90;
-            _loc1_.x = margin;
-            _loc1_.y = _height - margin + this._scrollYPadding;
-            _loc1_.width = availableWidth;
+            indicator.rotation = -90;
+            indicator.x = margin;
+            indicator.y = _height - margin + this._scrollYPadding;
+            indicator.width = availableWidth;
          }
          _scrollBar.validateNow();
       }
       
       override protected function createScrollBar() : void
       {
-         var _loc1_:ScrollBar = _scrollBar as ScrollBar;
-         if(_loc1_)
+         var bar:ScrollBar = _scrollBar as ScrollBar;
+         if(bar)
          {
             _scrollBar.removeEventListener(Event.COMPLETE,this.onSBarDragEnd);
             _scrollBar.removeEventListener(Event.SELECT,this.onSBarDragStart);
-            _loc1_.track.removeEventListener(MouseEvent.MOUSE_DOWN,this.handleTrackPress);
-            if(_loc1_.upArrow)
+            bar.track.removeEventListener(MouseEvent.MOUSE_DOWN,this.handleTrackPress);
+            if(bar.upArrow)
             {
-               _loc1_.upArrow.removeEventListener(MouseEvent.MOUSE_DOWN,this.handleTrackPress);
+               bar.upArrow.removeEventListener(MouseEvent.MOUSE_DOWN,this.handleTrackPress);
             }
-            if(_loc1_.downArrow)
+            if(bar.downArrow)
             {
-               _loc1_.downArrow.removeEventListener(MouseEvent.MOUSE_DOWN,this.handleTrackPress);
+               bar.downArrow.removeEventListener(MouseEvent.MOUSE_DOWN,this.handleTrackPress);
             }
          }
          super.createScrollBar();
-         if(_loc1_)
+         if(bar)
          {
             _scrollBar.addEventListener(Event.COMPLETE,this.onSBarDragEnd);
             _scrollBar.addEventListener(Event.SELECT,this.onSBarDragStart);
-            _loc1_.track.addEventListener(MouseEvent.MOUSE_DOWN,this.handleTrackPress);
-            if(_loc1_.upArrow)
+            bar.track.addEventListener(MouseEvent.MOUSE_DOWN,this.handleTrackPress);
+            if(bar.upArrow)
             {
-               _loc1_.upArrow.addEventListener(MouseEvent.MOUSE_DOWN,this.handleTrackPress);
+               bar.upArrow.addEventListener(MouseEvent.MOUSE_DOWN,this.handleTrackPress);
             }
-            if(_loc1_.downArrow)
+            if(bar.downArrow)
             {
-               _loc1_.downArrow.addEventListener(MouseEvent.MOUSE_DOWN,this.handleTrackPress);
+               bar.downArrow.addEventListener(MouseEvent.MOUSE_DOWN,this.handleTrackPress);
             }
          }
       }
       
-      override protected function calculateRendererTotal(param1:Number, param2:Number) : uint
+      override protected function calculateRendererTotal(totalWidth:Number, totalHeight:Number) : uint
       {
-         var _loc3_:Boolean = isNaN(_rowHeight) && isNaN(_autoRowHeight);
-         var _loc4_:Boolean = isNaN(_columnWidth) && isNaN(_autoColumnWidth);
-         var _loc5_:IListItemRenderer;
-         if(_loc3_ || _loc4_)
+         var measureRow:Boolean = isNaN(_rowHeight) && isNaN(_autoRowHeight);
+         var measureColumn:Boolean = isNaN(_columnWidth) && isNaN(_autoColumnWidth);
+         var renderer:IListItemRenderer;
+         if(measureRow || measureColumn)
          {
-            _loc5_ = createRenderer(0);
-            if(_loc3_)
+            renderer = createRenderer(0);
+            if(measureRow)
             {
-               _autoRowHeight = _loc5_.height;
+               _autoRowHeight = renderer.height;
             }
-            if(_loc4_)
+            if(measureColumn)
             {
-               _autoColumnWidth = _loc5_.width;
+               _autoColumnWidth = renderer.width;
             }
-            cleanUpRenderer(_loc5_);
+            cleanUpRenderer(renderer);
          }
          if(Math.floor(availableHeight / rowHeight) < Math.ceil(availableHeight / rowHeight))
          {
@@ -693,26 +693,26 @@ package scaleform.clik.controls
          return _totalRenderers;
       }
       
-      protected function goDrag(param1:MouseEvent) : void
+      protected function goDrag(event:MouseEvent) : void
       {
-         var _loc2_:int;
-         var _loc3_:int;
-         var _loc4_:int;
-         var _loc5_:Number;
+         var dragDelta:int;
+         var step:int;
+         var snapped:int;
+         var maxScroll:Number;
          if(_direction == DirectionMode.VERTICAL)
          {
             if(this._dragY == mouseY)
             {
                return;
             }
-            _loc3_ = _rowHeight / this._pow;
-            _loc4_ = int(mouseY * scaleY / _loc3_) * _loc3_;
-            _loc2_ = int((this._dragY - _loc4_) / _loc3_) * _loc3_;
-            if(_loc2_ == 0)
+            step = _rowHeight / this._pow;
+            snapped = int(mouseY * scaleY / step) * step;
+            dragDelta = int((this._dragY - snapped) / step) * step;
+            if(dragDelta == 0)
             {
                return;
             }
-            _dragY = _loc4_;
+            _dragY = snapped;
          }
          else
          {
@@ -720,43 +720,43 @@ package scaleform.clik.controls
             {
                return;
             }
-            _loc3_ = _columnWidth / this._pow;
-            _loc4_ = int(mouseX * scaleX / _loc3_) * _loc3_;
-            _loc2_ = int((this._dragX - _loc4_) / _loc3_) * _loc3_;
-            if(_loc2_ == 0)
+            step = _columnWidth / this._pow;
+            snapped = int(mouseX * scaleX / step) * step;
+            dragDelta = int((this._dragX - snapped) / step) * step;
+            if(dragDelta == 0)
             {
                return;
             }
-            _dragX = _loc4_;
+            _dragX = snapped;
          }
          if(_scrollBar)
          {
-            _scrollBar.position += _loc2_ / _loc3_;
+            _scrollBar.position += dragDelta / step;
          }
          else
          {
-            _loc5_ = this._pow * Math.ceil(1 + (_dataProvider.length - _totalRows * _totalColumns) / (_direction == DirectionMode.HORIZONTAL ? _totalRows : _totalColumns));
-            if(_scrollPosition * this._pow + this._delta + _loc2_ / _loc3_ > _loc5_)
+            maxScroll = this._pow * Math.ceil(1 + (_dataProvider.length - _totalRows * _totalColumns) / (_direction == DirectionMode.HORIZONTAL ? _totalRows : _totalColumns));
+            if(_scrollPosition * this._pow + this._delta + dragDelta / step > maxScroll)
             {
-               scrollPosition = Math.max(_loc5_,0);
+               scrollPosition = Math.max(maxScroll,0);
             }
-            else if(_scrollPosition * this._pow + this._delta + _loc2_ / _loc3_ < 0)
+            else if(_scrollPosition * this._pow + this._delta + dragDelta / step < 0)
             {
                scrollPosition = 0;
             }
             else
             {
-               scrollPosition = _scrollPosition * this._pow + this._delta + _loc2_ / _loc3_;
+               scrollPosition = _scrollPosition * this._pow + this._delta + dragDelta / step;
             }
          }
       }
       
-      protected function stDrag(param1:MouseEvent) : void
+      protected function stDrag(event:MouseEvent) : void
       {
-         var _loc2_:int = _rowHeight / this._pow;
+         var step:int = _rowHeight / this._pow;
          _dragX = mouseX * scaleX;
          _dragY = mouseY * scaleY;
-         if(param1.type == MouseEvent.MOUSE_DOWN)
+         if(event.type == MouseEvent.MOUSE_DOWN)
          {
             if(stage)
             {
@@ -783,7 +783,7 @@ package scaleform.clik.controls
          }
       }
       
-      protected function handleTrackPress(param1:MouseEvent) : void
+      protected function handleTrackPress(event:MouseEvent) : void
       {
          if((_scrollBar as ScrollBar).thumb.y > (_scrollBar as ScrollBar).mouseY)
          {
@@ -793,10 +793,10 @@ package scaleform.clik.controls
          {
             this.scrollList(-1);
          }
-         param1.stopImmediatePropagation();
+         event.stopImmediatePropagation();
       }
       
-      protected function onSBarDragStart(param1:Event = null) : void
+      protected function onSBarDragStart(event:Event = null) : void
       {
          if(this._tween)
          {
@@ -806,7 +806,7 @@ package scaleform.clik.controls
          }
       }
       
-      protected function onSBarDragEnd(param1:Event = null) : void
+      protected function onSBarDragEnd(event:Event = null) : void
       {
          if(_scrollBar)
          {
@@ -819,7 +819,7 @@ package scaleform.clik.controls
          this.scrollList(0);
       }
       
-      protected function endTween(param1:* = null) : void
+      protected function endTween(tween:* = null) : void
       {
          _scrollTween = false;
       }

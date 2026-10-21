@@ -27,15 +27,15 @@ package survarium.buttons
       
       override protected function configUI() : void
       {
-         var _loc1_:Object;
+         var styleObject:Object;
          super.configUI();
          preventAutosizing = false;
-         _loc1_ = new Object();
-         _loc1_.color = "#5b6261";
-         this.style.setStyle("gray",_loc1_);
-         _loc1_ = new Object();
-         _loc1_.color = "#BCCBCB";
-         this.style.setStyle("white",_loc1_);
+         styleObject = new Object();
+         styleObject.color = "#5b6261";
+         this.style.setStyle("gray",styleObject);
+         styleObject = new Object();
+         styleObject.color = "#BCCBCB";
+         this.style.setStyle("white",styleObject);
       }
    }
 }

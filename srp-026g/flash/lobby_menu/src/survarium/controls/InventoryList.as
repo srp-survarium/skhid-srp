@@ -1,6 +1,7 @@
 package survarium.controls
 {
    import flash.display.DisplayObject;
+   import flash.display.DisplayObjectContainer;
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.events.Event;
@@ -34,6 +35,8 @@ package survarium.controls
    import survarium.interfaces.ILocalPlayerProfile;
    import survarium.interfaces.IPaperDollSlot;
    import survarium.item.ItemFactory;
+   import survarium.messages.MessageCraftItem;
+   import survarium.upgrade.UpgradeWindow;
    
    public class InventoryList extends FiltersWindow implements IInventoryItemFactory
    {
@@ -2015,7 +2018,8 @@ package survarium.controls
       
       private function isUpgradeable(value:Object) : Boolean
       {
-         return SrpScopeContextMenu.isUpgradeable(value);
+         var cat:int = (value.category);
+         return (cat == 3 || cat == 1 || cat == 5 || cat == 4) && ((value.camoAvailable) || (value.decalAvailable)) || UpgradeWindow.isWeaponCategory(cat) && UpgradeWindow.hasScopes(int(value.dictId));
       }
       
       protected function onMouseItemClick(e:MouseEventEx) : void
@@ -2044,12 +2048,22 @@ package survarium.controls
          var modifiersLength:uint;
          var i:uint;
          var modifier:Object;
-         if(SrpCraftMenu.locked(this._inventoryLocked,this,activeItem))
+         // A window working on the inventory (craft, upgrade) has its own
+         // menu while it is open, whatever the inventory's lock says (the
+         // server locks and unlocks it around every buy and sell).
+         var craft:MessageCraftItem = this.findCraftWindow();
+         var upgrade:UpgradeWindow = this.findUpgradeWindow();
+         if(craft != null || upgrade != null)
+         {
+            this.showWindowMenu(activeItem,craft,upgrade);
+            return;
+         }
+         if(this._inventoryLocked)
          {
             return;
          }
          trace("itemData::",itemData.enabled);
-         if((itemData) && (itemData.enabled || itemData.canBuy))
+         if((itemData) && (itemData.enabled || this.buyable(itemData)))
          {
             options = [];
             itemAvailable = itemData.descriptor <= 100 && itemData.enabled;
@@ -2128,7 +2142,7 @@ package survarium.controls
                   if(this.isUpgradeable(itemData))
                   {
                      options.push({
-                        name:LocalizationData.getName(SrpScopeContextMenu.labelKey(activeItem.data)),
+                        name:LocalizationData.getName(this.upgradeLabelKey(itemData)),
                         click_function:this.upgradeElelemnt
                      });
                   }
@@ -2142,7 +2156,7 @@ package survarium.controls
                });
             }
             trace("IL::context:",itemData.name,itemData.canBuy,itemData.descriptor,itemData.enabled,itemData.isPremium,itemData.cost);
-            if((itemData) && itemData.canBuy)
+            if((itemData) && this.buyable(itemData))
             {
                if(itemData.isStack || !itemData.isStack && (!itemData.rank || itemAvailable))
                {
@@ -2162,7 +2176,7 @@ package survarium.controls
             }
             if((options.length))
             {
-               SrvContextMenu.show(options);
+               SrvContextMenu.show(options,0,0,this);
             }
          }
       }
@@ -2522,6 +2536,130 @@ package survarium.controls
          itemsTileList.dataProvider = new DataProvider(filteredItems);
          itemsTileList.validateNow();
          trace("items:Filled::");
+      }
+      
+      private function upgradeLabelKey(value:Object) : String
+      {
+         return UpgradeWindow.isWeaponCategory(int(value.category)) ? "scope_window_title" : "btn_upgrade_label";
+      }
+      
+      // The craft window ("Upgrade": two items of a kind make a better one)
+      // locks the list. While it is open, the right-click menu has Buy and
+      // Sell only, by the list's own rules for them; nothing else (no
+      // Upgrade). Locked otherwise: no menu.
+      private function showWindowMenu(activeItem:DragSlot, craft:MessageCraftItem, upgrade:UpgradeWindow) : void
+      {
+         var item:Object = activeItem.data;
+         if(item == null || !(item.enabled || this.buyable(item)))
+         {
+            return;
+         }
+         var owned:Boolean = item.descriptor <= 100;
+         var held:Boolean = craft != null ? craft.holds(item.itemId) : item.itemId == upgrade.getItemId();
+         var options:Array = [];
+         // As the menu's own: Buy for an owned item (the one the window
+         // works on too), a stack or an item of no rarity. Sell for every
+         // owned item, the window's own too, unless it is the account's last
+         // of its kind (a stack always); selling the window's item closes
+         // the window, which would name an item no longer owned.
+         if(this.buyable(item) && (item.isStack || !item.rank || owned))
+         {
+            options.push({
+               name:LocalizationData.getName("buy"),
+               click_function:function(e:* = null):void
+               {
+                  buyFromCraftMenu(item);
+               }
+            });
+         }
+         if(owned && !this.isShop && (item.isStack || this.ownedCopies(item.dictId) > 1))
+         {
+            options.push({
+               name:LocalizationData.getName("sell"),
+               click_function:function(e:* = null):void
+               {
+                  sellItem(item.itemId);
+                  if(held)
+                  {
+                     if(craft != null)
+                     {
+                        craft.dispatchEvent(new Event("closeCraft"));
+                     }
+                     else
+                     {
+                        upgrade.dispatchEvent(new Event(Event.CLOSE));
+                     }
+                  }
+               }
+            });
+         }
+         if(options.length > 0)
+         {
+            SrvContextMenu.show(options,0,0,craft != null ? craft : upgrade);
+         }
+      }
+
+      private function findUpgradeWindow() : UpgradeWindow
+      {
+         var lobby:LobbyMenu = parent as LobbyMenu;
+         if(lobby == null || lobby.modifierWindow == null || !lobby.modifierWindow.visible)
+         {
+            return null;
+         }
+         return lobby.modifierWindow;
+      }
+      
+      // Whether the shop sells this item now. An item's own canBuy is copied from
+      // the shop only when the list is filtered, so one bought since (in the
+      // upgrade window, whose list stays as it is) had none and showed no Buy.
+      private function buyable(item:Object) : Boolean
+      {
+         return item.canBuy || GangShop.getInstance().getItemBuyable(item.dictId);
+      }
+
+      // How many items of this kind the account owns.
+      private function ownedCopies(dictId:uint) : int
+      {
+         var count:int = 0;
+         for each(var owned:ItemData in this._inventoryItemsDict)
+         {
+            if(owned != null && owned.dictId == dictId && owned.descriptor <= 100)
+            {
+               count++;
+            }
+         }
+         return count;
+      }
+      
+      private function findCraftWindow() : MessageCraftItem
+      {
+         var lobby:DisplayObjectContainer = parent;
+         if(lobby == null)
+         {
+            return null;
+         }
+         for(var i:int = 0; i < lobby.numChildren; i++)
+         {
+            if(lobby.getChildAt(i) is MessageCraftItem)
+            {
+               return lobby.getChildAt(i) as MessageCraftItem;
+            }
+         }
+         return null;
+      }
+      
+      // As the item card's Buy: by the dictionary id, at the shop's price;
+      // the shop names the seller. A buy on an owned item is not asked
+      // whether the account wants another.
+      private function buyFromCraftMenu(item:Object) : void
+      {
+         var profile:* = parent != null ? parent["player_profile"] : null;
+         if(profile == null)
+         {
+            return;
+         }
+         var price:int = item.category == 100 ? int(item.cost) : int(GangShop.getInstance().getItemPrice(item.dictId));
+         GangShop.buyFunction(profile.profileId,item.itemId,item.dictId,item.descriptor,100,1,price,-1);
       }
    }
 }

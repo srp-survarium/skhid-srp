@@ -14,15 +14,15 @@ package cursor_fla
          addFrameScript(0,this.frame1);
       }
       
-      public function onMouseMove(param1:MouseEvent) : void
+      public function onMouseMove(event:MouseEvent) : void
       {
          this.mouse_mc.x = mouseX;
          this.mouse_mc.y = mouseY;
       }
       
-      public function setCursor(param1:uint) : void
+      public function setCursor(frame:uint) : void
       {
-         this.mouse_mc.gotoAndStop(param1);
+         this.mouse_mc.gotoAndStop(frame);
       }
       
       internal function frame1() : *

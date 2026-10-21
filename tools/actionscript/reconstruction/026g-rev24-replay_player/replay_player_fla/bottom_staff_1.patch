@@ -1,7 +1,0 @@
---- a/replay_player_fla/bottom_staff_1.as
-+++ b/replay_player_fla/bottom_staff_1.as
-@@ -1,3 +1,4 @@
-+// Compile with the native optimized profile.
- package replay_player_fla
- {
-    import adobe.utils.*;

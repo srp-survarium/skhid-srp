@@ -23,11 +23,11 @@ package survarium.messages
          return this._id;
       }
       
-      public function setMessageData(param1:int, param2:Object) : void
+      public function setMessageData(id:int, messageData:Object) : void
       {
-         trace("setMessageData::",param1,param2);
-         _id = param1;
-         _data = param2;
+         trace("setMessageData::",id,messageData);
+         _id = id;
+         _data = messageData;
          invalidateData();
       }
       
@@ -36,12 +36,12 @@ package survarium.messages
          return actualScaleX;
       }
       
-      public function set scale(param1:Number) : void
+      public function set scale(value:Number) : void
       {
-         setActualScale(param1,param1);
+         setActualScale(value,value);
       }
       
-      protected function cleanUp(param1:Event = null) : void
+      protected function cleanUp(event:Event = null) : void
       {
          removeEventListener(Event.REMOVED_FROM_STAGE,this.cleanUp);
          _data = null;

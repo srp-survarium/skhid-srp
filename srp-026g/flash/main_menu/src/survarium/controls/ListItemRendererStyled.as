@@ -9,21 +9,21 @@ package survarium.controls
       
       public function ListItemRendererStyled()
       {
-         var _loc1_:Object;
+         var style:Object;
          super();
          styleSheet = new StyleSheet();
-         _loc1_ = new Object();
-         _loc1_.color = "#FFFFFF";
-         _loc1_.fontSize = 11.5;
-         this.styleSheet.setStyle("white",_loc1_);
-         _loc1_ = new Object();
-         _loc1_.color = "#F4B717";
-         _loc1_.fontSize = 11.5;
-         this.styleSheet.setStyle("yellow",_loc1_);
-         _loc1_ = new Object();
-         _loc1_.color = "#A97E0E";
-         _loc1_.fontSize = 11.5;
-         this.styleSheet.setStyle("dark_yellow",_loc1_);
+         style = new Object();
+         style.color = "#FFFFFF";
+         style.fontSize = 11.5;
+         this.styleSheet.setStyle("white",style);
+         style = new Object();
+         style.color = "#F4B717";
+         style.fontSize = 11.5;
+         this.styleSheet.setStyle("yellow",style);
+         style = new Object();
+         style.color = "#A97E0E";
+         style.fontSize = 11.5;
+         this.styleSheet.setStyle("dark_yellow",style);
       }
       
       override protected function configUI() : void

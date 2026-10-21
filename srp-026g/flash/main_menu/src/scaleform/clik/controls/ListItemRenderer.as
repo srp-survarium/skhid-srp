@@ -20,7 +20,7 @@ package scaleform.clik.controls
          return _focusable;
       }
       
-      override public function set focusable(param1:Boolean) : void
+      override public function set focusable(value:Boolean) : void
       {
       }
       
@@ -29,9 +29,9 @@ package scaleform.clik.controls
          return this._index;
       }
       
-      public function set index(param1:uint) : void
+      public function set index(value:uint) : void
       {
-         _index = param1;
+         _index = value;
       }
       
       public function get selectable() : Boolean
@@ -39,9 +39,9 @@ package scaleform.clik.controls
          return this._selectable;
       }
       
-      public function set selectable(param1:Boolean) : void
+      public function set selectable(value:Boolean) : void
       {
-         _selectable = param1;
+         _selectable = value;
       }
       
       override public function get selected() : Boolean
@@ -49,9 +49,9 @@ package scaleform.clik.controls
          return super.selected;
       }
       
-      override public function set selected(param1:Boolean) : void
+      override public function set selected(value:Boolean) : void
       {
-         super.selected = param1;
+         super.selected = value;
       }
       
       override protected function draw() : void
@@ -59,16 +59,16 @@ package scaleform.clik.controls
          super.draw();
       }
       
-      public function setListData(param1:ListData) : void
+      public function setListData(listData:ListData) : void
       {
-         index = param1.index;
-         selected = param1.selected;
-         label = param1.label || "";
+         index = listData.index;
+         selected = listData.selected;
+         label = listData.label || "";
       }
       
-      public function setData(param1:Object) : void
+      public function setData(data:Object) : void
       {
-         this.data = param1;
+         this.data = data;
       }
       
       override public function toString() : String

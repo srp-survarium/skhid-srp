@@ -1,7 +1,10 @@
 package survarium.controls
 {
    import flash.display.MovieClip;
+   import flash.display.Shape;
    import flash.events.Event;
+   import flash.geom.Rectangle;
+   import flash.text.TextField;
    import scaleform.clik.controls.Button;
    import scaleform.clik.controls.ButtonBar;
    import scaleform.clik.core.UIComponent;
@@ -9,6 +12,9 @@ package survarium.controls
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.events.IndexEvent;
    import survarium.data.LocalizationData;
+   import survarium.rooms.RoomsLook;
+   import survarium.rooms.RoomsText;
+   import survarium.rooms.RoomsWindow;
    
    public class TopMenu extends UIComponent
    {
@@ -38,6 +44,19 @@ package survarium.controls
       protected var _byUser:Boolean = true;
       
       protected var _questButton:Button;
+
+      // The map's tab is the rooms' (survarium.rooms): on as the Clan tab
+      // is, chosen while the rooms window is open (not then a choice of the
+      // player's), our own icon on it and its label yellow in a room.
+      private var _roomsTabOn:Boolean = true;
+
+      private var _roomsSyncing:Boolean;
+
+      private var _roomsIcon:Shape;
+
+      private var _roomsLabel:TextField;
+
+      private var _roomsLabelColour:uint;
       
       public function TopMenu()
       {
@@ -192,7 +211,7 @@ package survarium.controls
             enabled:true
          }]);
          this.tabPage.addEventListener(IndexEvent.INDEX_CHANGE,this.changeActiveMenu);
-         SrpRooms.topMenu(this);
+         this.nameRoomsTab();
       }
       
       protected function changeActiveMenu(param1:IndexEvent) : void
@@ -263,7 +282,7 @@ package survarium.controls
             MainScene.activeWindow = null;
          }
          _byUser = true;
-         SrpRooms.topChanged(this);
+         this.roomsTabChanged();
       }
       
       protected function onClose(param1:Event) : void
@@ -279,6 +298,176 @@ package survarium.controls
          this.sceneContainer["charWindow"].visible = false;
          this.sceneContainer["inventory_list"].visible = false;
          this.sceneContainer["ranking"].visible = false;
+      }
+      
+      // The rooms' tab: its label (the rooms window's), on as the Clan tab
+      // is: the lobby locks its tabs for a moment while it loads, and ours
+      // then waits with them.
+      public function setRoomsTab(text:String) : void
+      {
+         try
+         {
+            var clan:Object = this.tabPage.dataProvider[3];
+            this._roomsTabOn = clan == null || clan.enabled !== false;
+            this.tabPage.dataProvider[this.MAP_INDEX] = {
+               "name":text,
+               "icon":6,
+               "enabled":this._roomsTabOn
+            };
+            this.tabPage.dataProvider.invalidate();
+         }
+         catch(e:Error)
+         {
+         }
+      }
+
+      // Each frame: the Clan tab's lock came or went, ours follows.
+      public function followClanTab(text:String) : void
+      {
+         try
+         {
+            var clan:Object = this.tabPage.dataProvider[3];
+            if((clan == null || clan.enabled !== false) != this._roomsTabOn)
+            {
+               this.setRoomsTab(text);
+            }
+         }
+         catch(e:Error)
+         {
+         }
+      }
+
+      // Each frame: our own icon on the rooms' tab, as the map's art (frame 6)
+      // is drawn darker than the others: a stack of three servers in the
+      // game icon's place, as bright as the tab makes its icon (its alpha
+      // and colour transform, copied). Yellow, and the label too, while
+      // `marked` (in a room or a room's queue; the owner's of 2026-10-20).
+      public function paintRoomsTab(marked:Boolean) : void
+      {
+         try
+         {
+            var tab:* = this.getRenderer(this.MAP_INDEX);
+            var art:MovieClip = tab.icon as MovieClip;
+            if(tab == null || art == null)
+            {
+               return;
+            }
+            if(this._roomsIcon == null || this._roomsIcon.parent != tab)
+            {
+               this._roomsIcon = new Shape();
+               var g:* = this._roomsIcon.graphics;
+               // One tone, as the skull of the Clan tab: three servers,
+               // each a small square and a bar to its right.
+               g.beginFill(0x4E5457,1);
+               for(var i:int = 0; i < 3; i++)
+               {
+                  g.drawRect(-13,-12 + i * 9,6,6);
+                  g.drawRect(-4,-12 + i * 9,17,6);
+               }
+               g.endFill();
+               tab.addChild(this._roomsIcon);
+            }
+            var box:Rectangle = art.getBounds(tab);
+            if(box.width > 0)
+            {
+               this._roomsIcon.x = Math.round(box.x + box.width / 2);
+               this._roomsIcon.y = Math.round(box.y + box.height / 2);
+            }
+            art.visible = false;
+            this._roomsIcon.alpha = art.alpha;
+            this._roomsIcon.transform.colorTransform = marked ? RoomsLook.YELLOW_TINT : art.transform.colorTransform;
+            this.colourRoomsLabel(tab.textField as TextField,marked);
+         }
+         catch(e:Error)
+         {
+         }
+      }
+
+      // The tab's label: yellow while marked, its own colour otherwise (the
+      // tab sets it again on each state: ours each frame).
+      private function colourRoomsLabel(field:TextField, marked:Boolean) : void
+      {
+         if(field == null)
+         {
+            return;
+         }
+         if(field != this._roomsLabel)
+         {
+            this._roomsLabel = field;
+            this._roomsLabelColour = field.textColor;
+         }
+         if(marked)
+         {
+            if(field.textColor != RoomsLook.YELLOW)
+            {
+               field.textColor = RoomsLook.YELLOW;
+            }
+         }
+         else if(field.textColor == RoomsLook.YELLOW)
+         {
+            field.textColor = this._roomsLabelColour;
+         }
+      }
+
+      // The rooms window opened or closed: our tab follows, chosen while it
+      // is open, without that choice opening or closing it again.
+      public function selectRoomsTab(on:Boolean) : void
+      {
+         this._roomsSyncing = true;
+         try
+         {
+            var at:int = this.tabPage.selectedIndex;
+            if(on && at != this.MAP_INDEX)
+            {
+               this.selectActiveWindow(this.MAP_INDEX);
+            }
+            else if(!on && at == this.MAP_INDEX)
+            {
+               this.selectActiveWindow(-1);
+            }
+         }
+         catch(e:Error)
+         {
+         }
+         this._roomsSyncing = false;
+      }
+      
+      // The tabs made: the map's (its index, which the game leaves off) is
+      // the rooms': Rooms, and the countdown while their window is hidden.
+      private function nameRoomsTab() : void
+      {
+         try
+         {
+            RoomsWindow.topMenu = this;
+            if(RoomsWindow.me != null)
+            {
+               RoomsWindow.me.retitle();
+            }
+            else
+            {
+               this.setRoomsTab(RoomsText.sayFirst("servers"));
+            }
+         }
+         catch(err:Error)
+         {
+         }
+      }
+
+      // A tab chosen: the rooms' opens their window; another closes it (as
+      // the game's own windows do).
+      private function roomsTabChanged() : void
+      {
+         try
+         {
+            RoomsWindow.topMenu = this;
+            if(RoomsWindow.me != null && !this._roomsSyncing)
+            {
+               RoomsWindow.me.tabChosen(this.tabPage.selectedIndex == this.MAP_INDEX);
+            }
+         }
+         catch(err:Error)
+         {
+         }
       }
    }
 }

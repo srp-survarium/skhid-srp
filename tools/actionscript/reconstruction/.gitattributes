@@ -1,3 +1,0 @@
-# Exact patch context and pinned hashes must survive checkout unchanged.
-*.patch -text -whitespace
-manifest.json text eol=lf

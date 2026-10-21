@@ -9,10 +9,10 @@ package scaleform.clik.events
       
       public var value:Number = -1;
       
-      public function SliderEvent(param1:String, param2:Boolean = false, param3:Boolean = true, param4:Number = -1)
+      public function SliderEvent(type:String, bubbles:Boolean = false, cancelable:Boolean = true, value:Number = -1)
       {
-         super(param1,param2,param3);
-         this.value = param4;
+         super(type,bubbles,cancelable);
+         this.value = value;
       }
       
       override public function clone() : Event
