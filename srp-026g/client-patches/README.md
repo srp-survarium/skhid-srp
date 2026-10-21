@@ -297,7 +297,8 @@ Other builds of the patch: `--cert-only` (only patch 1), `--cave=hash-mismatch`
 
 ## Login menu account hint
 
-`login_hint_026g.py` replaces the old registration button with plain text:
+The login movie's old registration button is replaced with plain text (released in
+`resources.db.patch_12`; its source is `../flash/login_menu`, srp's class `SrpLoginHint`):
 
 - English: "Account created on first sign-in"
 - Ukrainian: "Акаунт створюється під час першого входу"
@@ -310,46 +311,20 @@ removed from keyboard focus, and its browser callback is erased. All five game
 languages have a translation. The language comes from the native client's
 localization data, so it follows `-localization`.
 
-Build a new resource archive with Python 3, a JDK and JPEXS FFDec 26.0.0:
-
-```sh
-python login_hint_026g.py /original/game/resources.db /output/game/resources.db \
-  --ffdec=/path/to/ffdec.jar
-```
-
-`--java` and `--javac` can specify the JDK executables. The original archive is
-only read; an existing output is refused. Install the output as the client's
-`game/resources.db` while the game is closed, keeping the original for rollback.
-This archive is a separate output from the small `make_client_026g.py` overlay;
-include it when preparing a complete client distribution.
-
-The patch verifies the original build 2777 login movie's SHA-256 and edits one
-ActionScript block. All other movie tags and existing unrelated methods remain
-byte-identical. Recompressing the movie leaves enough room in its original
-archive entry; padding preserves the entry size and offsets, with four ignored
-trailer bytes retaining the original content CRC. Both the signed file table
-and the resource checksum validation remain intact. No archive signature bypass
-is added. The sources are in `login_hint/`;
-game assets are generated locally and are not checked in.
+The released movie keeps its archive entry's size and CRC (zero padding and
+four trailer bytes), so the signed file table stays intact. A change of it is
+an edit of `../flash/login_menu/src`, built like any movie of the trees
+(`tools/actionscript/flash_tree.py build`, [lobby-source.md](../docs/notes/lobby-source.md)).
+The bytecode builder that made it (`login_hint_026g.py`) is in git history only.
 
 ## Field-of-view slider
 
-`fov_slider_026g.py` puts a "FOV:" slider under gamma in Settings →
+srp's `SrpFovSlider` (`../flash/main_menu`) puts a "FOV:" slider under gamma in Settings →
 Graphics. The exe side is patch 22 (patch revision 11): the game's video
 option 7, a "FOV" slider labelled `st_fov_option` in all five languages, is
 bound to `uro_fov`, which the camera follows. `Settings.as` maps the option
-to `_slider_fov`, but the stock menu places no slider for it; this build
-adds one to `main_menu.swf` in a new resources.db:
-
-```sh
-python fov_slider_026g.py /original/game/resources.db /output/game/resources.db \
-  --ffdec=/path/to/ffdec.jar
-```
-
-It needs a JDK and JPEXS FFDec (tested with 25.1.3), as the login hint
-does. The input is only read; an existing output is refused. It compiles
-`fov_slider/SrpFovSlider.as` into `main_menu.swf` and calls it twice in
-`Settings.create_content`. The first call, before the options are bound,
+to `_slider_fov`, but the stock menu places no slider for it; the released
+`main_menu.swf` has one. `Settings.create_content` calls `SrpFovSlider` twice. The first call, before the options are bound,
 creates the slider on the Graphics frame, hidden, so the game binds option
 7 to it like its other controls (label, range, value, apply). The second
 call, before the final return, runs after the game has set the label, as
@@ -357,24 +332,23 @@ the login hint's calls run after the stock code. It shows the slider, makes
 it opaque (Scaleform leaves a slider made by script at alpha 0), adds the
 colon gamma has ("FOV:"), places it under gamma and moves the preset-button
 panel down to make room. Under Scaleform `ENTER_FRAME` never reached the
-slider, so nothing runs per frame. As with the login hint, one ActionScript
-block changes, every other tag and unrelated method stays byte-identical,
-and the archive entry keeps its size and CRC, so the signed file table is
-untouched. The input may already carry the login hint.
+slider, so nothing runs per frame. As with the login hint, the archive entry
+keeps its size and CRC, so the signed file table is untouched.
 
 With an exe before revision 11 the slider shows and does nothing: its
 option 7 names a console variable that does not exist. Without this
 archive, revision 11 still has the setting (`uro_fov 80` in the console or
-`user.cfg`), just no slider. `test_fov_slider.py` checks the build's
-refusals without game files. Checked live in the lobby and in a match on a
+`user.cfg`), just no slider. A change of it is an edit of `../flash/main_menu/src`
+(`tools/actionscript/flash_tree.py build`); the bytecode builder that made it
+(`fov_slider_026g.py`) is in git history only. Checked live in the lobby and in a match on a
 local server (with an earlier form of patch 22): the slider shows "FOV:"
 under gamma, changes the view and is saved to `user.cfg`. In the players'
 download from revision 12 the movie ships in `resources.db.patch_12`.
 
 ## Lobby exchange, silver and gold both ways
 
-`exchange_026g.py` turns the lobby's gold-for-silver window into an exchange
-both ways. The gold box at the top of the lobby ("Get Gold", which asked to
+The lobby's gold-for-silver window is an exchange both ways (since revision
+23; source: the window's class, `../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`). The gold box at the top of the lobby ("Get Gold", which asked to
 open the online store) opens it to buy gold; the silver box opens it to sell
 gold. The window has:
 
@@ -411,34 +385,22 @@ size is final when `Message` centres it; the swap button is added in
 `onRegulatMoneyAddClick`. The exe is not
 changed: the window calls the game's `exchange_premium_money`, which sends `47 04`
 with the u32 it is given. Gold for silver sends the gold, as the stock window
-did; silver for gold sends `0x40000000` + the gold (`SrpExchange.BUY_GOLD`),
+did; silver for gold sends `0x40000000` + the gold (`MessageMoneyExchange.BUY_GOLD`),
 which the server reads as `BuyPremium` (`requests::BUY_PREMIUM`). So the server
 must be released first; an older server refuses such an amount as more gold
 than the account has.
 
-The input is a lobby region with the matches list (sha256 `8a98cf0d…`, live
-since 14 Oct, or `48c3439f…`, with the JOIN reasons and the match level; the
-exchange changes other classes than the list's), not the retail movie, either as a whole `resources.db` or as
-the extracted `lobby_menu.swf` file. The output is of the
-same kind:
-
-```sh
-python exchange_026g.py <lobby_menu.swf entry> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar
-```
-
-The checks are those of the login hint: the input's sha256, every other method
-and tag byte for byte, the entry's size and CRC kept. The build is
-deterministic. Tests: `python -m unittest test_exchange`.
-
-Checked in a local lobby under Wine (2026-10-15, against this branch's
-server): the window opens centred, shows both directions with their balances
-and rate, the swap button works, and gold bought with silver reaches the top
-bar. Not in release overlays yet.
+Checked in a local lobby under Wine (2026-10-15): the window opens centred,
+shows both directions with their balances and rate, the swap button works,
+and gold bought with silver reaches the top bar. Its first build (a bytecode
+step on revision 22's movie) is in revision 23's movie; it is built from
+source now ("Building the lobby movie"). Tests (the buy-gold mark agrees with
+the server's, every text in every language): `python -m unittest test_build_lobby`.
 
 ## Get Gold opens the exchange
 
-`buy_gold_026g.py` makes every "Get Gold" of the lobby open the exchange
-window above, to buy gold with silver, instead of the online store (a browser
+`MessageMoneyExchange.buyGold()` (`../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`)
+makes every "Get Gold" of the lobby open the exchange window above, to buy gold with silver, instead of the online store (a browser
 window on a dead site). The rules: `docs/notes/buy-gold.md`. The
 "Insufficient Gold Rubles" dialog's button calls `goToStore` of the window that
 showed it; the bodies of all ten (`ItemCard`, `StatusPanel`, `MessageAsk`,
@@ -446,63 +408,32 @@ showed it; the bodies of all ten (`ItemCard`, `StatusPanel`, `MessageAsk`,
 `MessagePremiumDiscount`, `MessagePremiumProfile`, `MessageRepair`,
 `MessageRerollItem`) and the premium window's gold button
 (`MessagePremium.onPremiumMoneyAddClick`, which asked first) become
-`SrpBuyGold.open()`. It shows the exchange with `showMessage`'s third
+`MessageMoneyExchange.buyGold()`. It shows the exchange with `showMessage`'s third
 and fifth arguments set, so it opens over a window still open instead of
-waiting behind it, and that window stays visible under it. The
-build refuses a movie where one of them is missing or does not lead to the
-store, and checks that no method pushes `go_to_store` afterwards. The exe and
-the server do not change.
-
-The input is the live lobby movie (`flash_movies/lobby_menu.swf` of
-`resources.db.patch_24`, sha256 `3ca94f2a…`); the output is a new movie for a
-new `resources.db.patch_<n>`, as for the rooms:
-
-```sh
-# development only (a step of build_lobby_026g.py, which builds the movie that ships)
-python buy_gold_026g.py <lobby_menu.swf> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar --step-only
-```
-
-The build is deterministic (sha256 `b7cf70a8…` with FFDec 25.1.3). Tests:
-`python -m unittest test_buy_gold`. Not in a release yet.
+waiting behind it, and that window stays visible under it. The exe and the
+server do not change. Not in a release yet.
 
 ## Exchange window updates
 
-`exchange_update_026g.py` brings a change of `exchange/SrpExchange.as` to a
-live lobby movie, which has the window already: FFDec compiles the class anew
-over the one in the movie (`exchange/ReplaceExchange.java`). Only the window's
-ABC block changes; every method of every other class and every other
-script's initializer, found by name (the block's bodies may be renumbered),
-is checked byte for byte, and every constant they may point at keeps its
-index and value. A method defined twice in the source is refused (FFDec keeps
-the last).
+A change of the window (`../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`) is built in by
+building the lobby movie.
 
 The first such change (2026-10-20): an amount more than the Pay balance pays
 for becomes, as it is typed, the most it does, in the field typed in. Buying
 gold with 5,500 silver: 10,000 in Pay becomes 5,500, 100 in Receive becomes
 55. Selling gold works the same way with the gold balance. Silver is still
-whole gold: with 5,550 silver, anything over 5,500 becomes 5,500.
-
-```sh
-# development only (a step of build_lobby_026g.py, which builds the movie that ships)
-python exchange_update_026g.py <lobby_menu.swf> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar --step-only
-```
-
-The input is the movie with Get Gold (`b7cf70a8…`); the build is
-deterministic (`f900cc8b…` with FFDec 25.1.3). Tests:
-`python -m unittest test_exchange_update`. Not in a release yet.
+whole gold: with 5,550 silver, anything over 5,500 becomes 5,500. Not in a
+release yet.
 
 ## Buy for modified items
 
-`buy_modified_026g.py`: right-click on an owned item with modifications lists
-Buy, which buys a stock one (the rules: `docs/notes/buy-modified.md`). The
+`InventoryList.showContextMenu` and `LobbyMenu.try_buy_item` (in
+`../flash/lobby_menu/src`): right-click on an owned item with modifications lists Buy, which buys a stock one (the rules: `docs/notes/buy-modified.md`). The
 menu (`InventoryList.showContextMenu`) listed Buy for an item that is not a
 stack only when `!itemData.rank`; an owned item's rank is its number of
 modifications (the server's `roll_modifications`), and a dictionary item's
 is its rarity. The test becomes `!rank || itemAvailable`, the method's own
-"owned and enabled" (`descriptor <= 100 && enabled`): after `getproperty
-rank`, `convert_b; getlocal <itemAvailable>; not; bitand` (no jump added;
-the register from the method's debug name), and the `not` that followed
-stays. Shop, bundle and bundle-content entries are never `itemAvailable`, so
+"owned and enabled" (`descriptor <= 100 && enabled`). Shop, bundle and bundle-content entries are never `itemAvailable`, so
 they keep the old rule. `buyElement` and `try_buy_item` go by the dictionary
 id and the shop's
 price and seller, so nothing else changes; the server gives a new item
@@ -512,114 +443,75 @@ A buy on an owned item is not asked "This item is already purchased by you.
 Would you like to buy anyway?" any more. `LobbyMenu.try_buy_item`, which
 every buy goes through, asked it for a non-stack item the account has unless
 the buy came from a bundle (`sourceSlot != 300`); it asks it now only for a
-buy from the shop's list (`sourceSlot == 200`): `pushshort 300; equals;
-not` becomes `pushshort 200; equals; nop`. A buy on an owned item comes
+buy from the shop's list (`sourceSlot == 200`). A buy on an owned item comes
 with that item's own slot (100 or less), the victory screen's treasure maps
-with 200 as before.
-
-The input is the movie of the exchange update (`f900cc8b…`); the build is
-deterministic (`45452c50…` with FFDec 25.1.3):
-
-```sh
-# development only (a step of build_lobby_026g.py, which builds the movie that ships)
-python buy_modified_026g.py <lobby_menu.swf> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar --step-only
-```
-
-Tests: `python -m unittest test_buy_modified`. Not in a release yet.
+with 200 as before. Not in a release yet.
 
 ## The craft window: Buy and Sell, Continue and Exit
 
-`craft_menu_026g.py`: right-click on an item in the craft window's list
-("Upgrade") gives Buy and Sell only, and its result offers Continue and Exit (the rules: `docs/notes/craft-menu.md`).
-The window locks the inventory list (`lockControls(true)`), and
-`InventoryList.showContextMenu` ended at once on a locked list. Its read of
-the lock, `this._inventoryLocked`, becomes `SrpCraftMenu.locked(this._inventoryLocked,
-this, activeItem)`: five instructions after the `getproperty`, no jump added.
-While the list is locked and a `MessageCraftItem` is on the lobby, the helper
-shows its own menu (Buy by the list's rule; Sell for an owned item, not the
-item being upgraded or the donor the window holds) and returns true, so the
-method ends; otherwise it returns the lock as it was. Buy goes as the item
-card's (the dictionary id, the shop's price, the shop's seller); Sell through
-the list's public `sellItem`.
+`InventoryList` and `MessageCraftItem` (`../flash/lobby_menu/src/survarium`): right-click on an item in
+the craft window's list ("Upgrade") gives Buy and Sell only, and its result offers Continue and Exit (the
+rules: `docs/notes/craft-menu.md`). The window locks the inventory list (`lockControls(true)`), and
+`InventoryList.showContextMenu` ended at once on a locked list. On a locked list it now calls
+`showCraftMenu(activeItem)` first: while a `MessageCraftItem` is on the lobby (`findCraftWindow`) it
+shows that menu (Buy by the list's rule; Sell for an owned item, not the item being upgraded or the
+donor the window holds, `MessageCraftItem.holds`); otherwise nothing, as before. Buy goes as the
+item card's (`buyFromCraftMenu`: the dictionary id, the shop's price, the shop's seller); Sell
+through the list's `sellItem`.
 
 After an upgrade the window's result had one button, Ready, which closed it.
-`MessageCraftItem.fillCraftedItem` now ends with `SrpCraftMenu.result(this,
-result)`: the window's Cancel shows again as Exit (the lobby already closes
+`MessageCraftItem.fillCraftedItem` now ends with `offerContinue()` (but for a refused craft): the window's Cancel shows again as Exit (the lobby already closes
 the window on it, as on Ready), and the Ready button becomes Continue, side
 by side. Continue closes the window as Exit does, puts the main item (as the
 inventory has it now) on the item card (`setPrimaryItem`) and sends the
 list's `craft_item` event, which opens the Upgrade window for it again with
 an empty donor slot; an item with three modifications, or not craftable,
 just closes. The words are the game's: `btn_exit_label` and
-`btn_go_to_online_store` ("Continue").
-
-The input is the movie of Buy on owned items (`45452c50…`); the build is
-deterministic (`1091a19d…` with FFDec 25.1.3):
-
-```sh
-# development only (a step of build_lobby_026g.py, which builds the movie that ships)
-python craft_menu_026g.py <lobby_menu.swf> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar --step-only
-```
-
-Tests: `python -m unittest test_craft_menu`. Not in a release yet.
+`btn_go_to_online_store` ("Continue"). Not in a release yet.
 
 ## Weapon scope context menu
 
-`scope_context_menu_026g.py` adds the existing localized **Optics** action to a
-compatible weapon's right-click menu, in the inventory or an equipped slot. It
+`InventoryList` (`../flash/lobby_menu/src/survarium/controls/InventoryList.as`: `isUpgradeable`,
+`upgradeLabelKey`) adds the existing localized **Optics** action to a compatible weapon's right-click menu, in the inventory or an equipped slot. It
 opens the scope editor already shipped in revision 19. Armor still opens its
-camouflage/decal editor. See [weapon_scopes.md §5](../docs/notes/weapon_scopes.md#5-weapon-right-click-menu)
-for the build command and validation. The output is a `lobby_menu.swf` replacement
-for the next resource patch (built on `1091a19d…`, the craft window's movie: `2e4cb7d2…`,
-deterministic with FFDec 25.1.3); this does not change the executable or reserve a
-release revision.
+camouflage/decal editor. See [weapon_scopes.md §5](../docs/notes/weapon_scopes.md#5-weapon-right-click-menu).
+This does not change the executable or reserve a release revision.
 
-## Building the lobby movie (one driver)
+## Building the lobby movie (from source)
 
 The lobby movie is one file (`flash_movies/lobby_menu.swf`), and a patch that
-carries it replaces the players' movie whole. So it is built one way only:
-`build_lobby_026g.py` starts from revision 23's movie (`flash_movies/lobby_menu.swf`
-of `resources.db.patch_23`, sha256 `12f0ee1d…`) and applies every lobby change
-the repository holds, in order, as `patch_026g.py` does for the exe:
+carries it replaces the players' movie whole. It is built one way only, from
+its ActionScript source tree, `../flash/lobby_menu/src`
+([lobby-source.md](../docs/notes/lobby-source.md)), with every lobby change as
+an edit of it:
 
-1. the rooms window (`rooms_026g.py`, today's `rooms/SrpRooms.as`, #212 in it);
-2. Get Gold opens the exchange (`buy_gold_026g.py`, #213);
-3. the exchange window's amounts (`exchange_update_026g.py`, #214);
-4. Buy on owned items (`buy_modified_026g.py`, #215);
-5. the craft window's menu and buttons (`craft_menu_026g.py`, #216);
-6. Optics in a weapon's menu (`scope_context_menu_026g.py`, #217);
-7. Show player's information in the Rankings (`player_gear_026g.py`): a
-   right-click on any row shows that player's kits in the game's own window
-   ([player_gear.md](../docs/notes/player_gear.md)).
-
-A change of a step's source is built in by building again; a new lobby change
-is a new entry of `STEPS`. Never ship a movie made by running one step alone
-on some movie: it would lack the steps not run. Each step checks its own work
-(every method it does not change byte for byte); the steps' own lists of known
-inputs name the movies they were first built on, and the driver checks the
-base instead.
+- the features written in the game's own classes: the exchange and Get Gold in
+  `MessageMoneyExchange` (#214, #213; the ten `goToStore` and the premium
+  window's gold button call it), Buy on owned items in `LobbyMenu` and
+  `InventoryList` (#215), the craft window's Buy/Sell and Continue in
+  `InventoryList` and `MessageCraftItem` (#216), Optics in `InventoryList`
+  (#217), the player gear in `LobbyMenu` and `PlayerRanking` (#232);
+- the rooms window, new UI, in `../flash/lobby_menu/src/survarium/rooms`, and
+  its parts in `TopMenu`, `StatusPanel`, `LobbyMenu`, `BottomPanel` and
+  `PlayerRanking`.
 
 ```sh
-python build_lobby_026g.py <patch_23's lobby_menu.swf> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar
+python build_lobby_026g.py <patch_24's lobby_menu.swf> <new lobby_menu.swf>
 ```
 
-Each step's own script refuses to write a movie unless given `--step-only`
-(a development build of that one step). The driver's result must be
-`RESULT_SHA256`, the movie last checked: a changed source or FFDec gives
-another, refused until `RESULT_SHA256` is set to it on purpose (`--any-result`
-for development). The login hint and the exchange's first build are frozen in
-the base (a change of theirs needs a new base); the exchange's later changes
-are a step.
+It needs `private/actionscript/tools.json` at the repository root (a JDK and
+Apache Flex 4.16.1: `tools/actionscript/README.md`; `--tools` names another).
+One Flex run compiles the whole tree, and its code goes into revision 24's
+movie in place of all of its code; the graphics, fonts and symbol bindings are
+revision 24's. About 5 seconds; the same tree gives the same bytes. Nothing is
+patched in bytecode; the steps that did (`rooms_026g.py` to
+`player_gear_026g.py` and their Java patchers, on revision 23's movie) are in
+git history only.
 
-Since the rooms' window under a match's results (2026-10-20): `RESULT_SHA256` is
-`57f73166…` (the owner checked `d41b9655…` in the game; then #219's review fixes); with #211 (Leave room / Leave queue, the yellow tab) `a56cd0ed…` (the owner checked `d7907536…`; then the review fixes); with #209 (why a waiting member cannot go into its room's match, `J;-1;<why>`) `57258f9e…`, not yet checked in the game; with the remembered create window (the last room made by hand, `S1;F`) `88fa657a…`, not yet checked in the game; with Show player's information in the Rankings `d3f81436…` (`929f3f0a…`, then the review fixes), not yet checked in the game; with the Rooms list's members and a member's equipment on a right-click `e626a01a…` (`7fe79086…`, then the review fixes), not yet checked in the game. The first build of 2026-10-20 (`main` with
-#212): sha256 `8841ba5c…`, deterministic
-with FFDec 25.1.3. Its 881 scripts decompile byte for byte to those of the
-movie the owner tested with #212 (`ed14345f…`, made the long way: the rooms
-class compiled over Optics' movie); the bytecode is laid out differently (the
-rooms class compiled first), the non-script tags are the base's in both (every
-step keeps them). Tests: `python -m unittest test_build_lobby`. Not in a
-release yet.
+The build says whether the movie is `RESULT_SHA256`, the one last checked in
+the game (a note, not a gate): since 2026-10-21 `8b099212…`, the tree of
+6064476c (the owner checked it in the game). Tests:
+`python -m unittest test_build_lobby`. Not in a release yet.
 
 ## What each patch does
 

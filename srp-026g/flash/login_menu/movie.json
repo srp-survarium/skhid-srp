@@ -1,0 +1,8 @@
+{
+  "schema": 2,
+  "movie": "flash_movies/login_menu.swf",
+  "archive": "resources.db.patch_12",
+  "archive_offset": 38793522,
+  "movie_size": 3508744,
+  "movie_sha256": "20ab1d2289e1fe08df25ae2a33f37213f052b5b5d9eb1b3b77a568f126844261"
+}

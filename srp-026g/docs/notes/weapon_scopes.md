@@ -144,8 +144,9 @@ the scope editor for a weapon with `UpgradeWindow.hasScopes(dictId)`. The separa
 right-clicks and `LocalPaperDoll.onMouseItemClick` use `InventoryList.showContextMenu`,
 so both omit the action despite the working item-details button.
 
-`client-patches/scope_context_menu_026g.py` fixes that predicate and gives weapons
-the existing localized `scope_window_title` menu label. The existing
+The lobby's `InventoryList` (`flash/lobby_menu/src/survarium/controls/InventoryList.as`) fixes
+that predicate (`isUpgradeable`) and gives weapons the existing localized `scope_window_title`
+menu label (`upgradeLabelKey`). The existing
 `upgradeElelemnt` callback opens the normal editor; `UpgradeWindow.setData` selects
 category 22 and its normal slot handles attach, replace and detach. Compatibility
 comes from the movie's existing `scopePairs`, populated by the game data. Weapons
@@ -153,26 +154,13 @@ with no compatible scopes get no action. Armor keeps its cosmetic predicate and
 `btn_upgrade_label`; ownership, stack, disabled-item and locked-inventory checks
 remain in the original menu method.
 
-Build an extracted movie for the next resource patch (JDK and FFDec 25.1.3):
-
-```sh
-# development only: this one step; the movie that ships is build_lobby_026g.py's
-python3 srp-026g/client-patches/scope_context_menu_026g.py \
-  <the craft window's movie> /tmp/step.swf --ffdec /path/to/ffdec.jar --step-only
-python3 -m unittest discover -s srp-026g/client-patches -p test_scope_context_menu.py
-```
-
-The builder accepts the newest movie of the lobby patches' chain (since
-2026-10-20: revision 24's with Get Gold, the exchange update, Buy on owned items
-and the craft window, `1091a19d…`; the output with FFDec 25.1.3 is deterministic,
-its hash in the README) and refuses unknown or already patched inputs and existing
-outputs. The work of 2026-10-18 (built on revisions 19/20, never merged) was
-taken up again then. It changes one ABC block, verifies every
-unrelated existing method is byte-identical, and transplants that block into the
-original movie without round-tripping its Scaleform graphics. It is step 6 of
-`build_lobby_026g.py` (README "Building the lobby movie"): the movie that ships is
-that driver's, never this step's output alone (it would lack the steps not run);
-do not replace an already published patch. No executable, protocol or simulation change is needed.
+It is built with every other lobby change by `client-patches/build_lobby_026g.py`,
+from source ([lobby-source.md](lobby-source.md)): `InventoryList.isUpgradeable` also takes a
+weapon with scopes (`UpgradeWindow.isWeaponCategory`, `UpgradeWindow.hasScopes`), and the upgrade
+entry's label is `LocalizationData.getName(this.upgradeLabelKey(itemData))`; every other method
+stays revision 24's byte for byte. (The work of 2026-10-18, built on revisions 19/20, was taken up again on
+2026-10-20 as a bytecode step, and became this source feature the same day.)
+No executable, protocol or simulation change is needed.
 
 Validation of the first version (2026-10-18; the build of 2026-10-20 on the newer
 movie is checked in the game separately): built against both released input movies with FFDec

@@ -1,0 +1,8 @@
+{
+  "schema": 2,
+  "movie": "flash_movies/main_menu.swf",
+  "archive": "resources.db.patch_12",
+  "archive_offset": 42302266,
+  "movie_size": 1194596,
+  "movie_sha256": "edc60a3df39e8c5d1fa7df6eebe989a80f3b931d3d86e31d7b651306dc416267"
+}
