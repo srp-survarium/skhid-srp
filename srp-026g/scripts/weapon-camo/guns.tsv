@@ -18,7 +18,7 @@ weapons/vityaz/vityaz	28:weapons/vityaz/vityaz_camo	weapons/vityaz/vityaz:box001
 weapons/neostead/neostead	weapons/neostead/neostead_camo	weapons/neostead/neostead:blinn2sg	weapons/neostead/neostead_camo
 weapons/rem_700/rem700	weapons/rem_700/rem700_camo	weapons/rem_700:object011sg	weapons/rem_700/rem700_camo
 weapons/saiga_12s/saiga_12s	weapons/saiga_12s/saiga_12_camo	weapons/saiga_12s/saiga_12s:saiga_12s_receiver_sg,weapons/saiga_12s/saiga_12s:saiga_12s_blocker_sg	weapons/saiga_12s/saiga_12_camo
-weapons/ak74m/ak74_stock_plastic	weapons/saiga_12s/saiga_12_stock_camo	weapons/saiga_12s/saiga_12s:ak74m_stock_plastic_sg	weapons/saiga_12s/saiga_12_stock_camo
+weapons/ak74m/ak74_stock_plastic	weapons/saiga_12s/saiga_12_stock_camo	weapons/saiga_12s/saiga_12s:ak74m_stock_plastic_sg,weapons/ak74m/ak74m:ak74lpsg5	weapons/saiga_12s/saiga_12_stock_camo
 weapons/vepr12/vepr12	weapons/vepr12/vepr_12_camo	weapons/vepr_12/vepr_12_short:vepr_12_receiver_sg	weapons/vepr12/vepr_12_camo
 weapons/vepr/vepr_main	weapons/vepr/vepr_main_camo	weapons/vepr:secondary002sg1	weapons/vepr/vepr_main_camo
 weapons/vepr/vepr_sec	weapons/vepr/vepr_sec_camo	weapons/vepr:secondary002sg	weapons/vepr/vepr_sec_camo
@@ -56,7 +56,7 @@ weapons/kriss_vector/kriss_vector_mag		weapons/kriss_vector/kriss_vector:kriss_v
 weapons/kriss_vector/kriss_vector_stock		weapons/kriss_vector/kriss_vector:kriss_vector_stock_s
 weapons/m4a1/m4a1		weapons/m4a1/m4a1:m4a1_s
 weapons/magnum/magnum		weapons/magnum/magnum:object013sg
-weapons/mosin_nagant/mosin_nagant		weapons/mosin_nagant/mosin_nagant:mosin_nagant_mosin_nagant_s
+weapons/mosin_nagant/mosin_nagant		weapons/mosin_nagant/mosin_nagant:mosin_nagant_mosin_nagant_s	weapons/sniper/mosin_nagant/mosin_nagant
 weapons/mp-153/mp-153		weapons/mp153/mp153:mp153_mp_153_s
 weapons/msbs/msbs_carbine_body		weapons/msbs/msbs_carbine:msbs_carbine_bodysg
 weapons/msbs/msbs_carbine_grip		weapons/msbs/msbs_carbine:msbs_carbine_gripsg
