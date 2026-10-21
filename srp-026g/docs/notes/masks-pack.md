@@ -112,7 +112,24 @@ and drop weight from its config in the server game data.
 - The server version (`srp-game-data build`) is built with the patch; srp
   reads the new configs from it (`tables::check` passes). Every content
   release raises the revision.
-- With release/build-content (the content manifest, in progress), the packs
-  are two `pack` rows at the end of their kind:
-  - `army-balaclava@2` `a89701003319783aada1ce4df4bcca9a7a147179fe14829d423e094b512cde40`
-  - `face-069d@2` `215d1e935f997efb638fcb10f0ea4b2ed49f5ff276ecc67eec36628c05113f11`
+- In `release/content.tsv` the packs are two `pack` rows at the end of their
+  kind: `army-balaclava@2` (pack.json sha256
+  `a89701003319783aada1ce4df4bcca9a7a147179fe14829d423e094b512cde40`) and
+  `face-069d@2` (`215d1e935f997efb638fcb10f0ea4b2ed49f5ff276ecc67eec36628c05113f11`).
+  `release/build-content` composes them over the base and the movies built from
+  source: the six icons go into the lobby movie it builds (cells [10..13, 6],
+  [15, 6], [20, 6]; nothing else of the atlas changes).
+- **Where the packs live.** The release PC keeps them in
+  `private/content-packs/<id>-<version>/` of the main checkout
+  (`SKHID_PACKS_DIR` in `private/release/release.env`), with resource-porter's
+  `vostok-port` at `private/release-tools/vostok-port` (`SKHID_VOSTOK_PORT`: a
+  wrapper giving the binary its zlib; built from resource-porter
+  `feat/army-balaclava-stk2` 090a322). Another release machine copies the two
+  folders there (the row's sha256 checks the pack.json) or rebuilds them from
+  resource-porter: `examples/build-army-026` and `build-face-items-069d` over
+  the stock db and the released patches, `scripts/render-mask-026-icons.py`,
+  then `vostok-port pack from-bundle` (ids `army-balaclava` and `face-069d`,
+  version 2). The donor sources: the STK2 characters export
+  (`___surva_stk2_characters_port.7z`, the owner's download) with STK2's
+  `bandit_01_attach` textures (`/mnt/toshiba/surv-builds/STK2.7z`), and the 0.69d
+  files in `/mnt/hdd/Projects/face-items-069d/src069/files`.
