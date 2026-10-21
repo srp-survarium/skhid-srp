@@ -2,7 +2,8 @@
 ; `.srpw`+1000h, the section's second page (the first holds patches 44, 32's
 ; stash and 45). PREVIEW is patch 32's state (WEAPON_PREVIEW_STATE_OFFSET of
 ; `.srpd`), TABLE patch 45's (WEAPON_TABLE_STATE_OFFSET).
-;   nasm -f bin -DCAVE=0xA42A000 -DPREVIEW=0xA428E00 -DTABLE=0xA428F00 weapon_decals_026g.asm -o weapon_decals_026g.section.bin
+;   nasm -f bin -DCAVE=0xA42A000 -DPREVIEW=0xA428E00 -DTABLE=0xA428F00 -DPRESS=0xA428FA0 weapon_decals_026g.asm -o weapon_decals_026g.section.bin
+; (PRESS: this patch's 12 bytes, WEAPON_DECALS_STATE_OFFSET of `.srpd`)
 ;
 ; A decal item (category 26) on a weapon is an upgrade record in slot 0 or 1,
 ; as on armour; its modification appends {texture, <low_param>, <high_param>}
@@ -27,8 +28,10 @@
 ;               decals' part of the baked files' name
 ;   +A  pick    0x265999 `call 0x264960` in lobby_character's per-frame
 ;               decal preview (0x265980): for the weapon above the workbench
-;               (patch 45) the mouse's ray meets the weapon's long axis
-;               instead of the character's collision model
+;               (patch 45) the mouse's ray meets the weapon's long axis, in
+;               its model's space (the inverse of the transform patch 45
+;               publishes, times bone 1's skinning), instead of the
+;               character's collision model
 ;   +F  decode  0x2659B2 `call 0x263D00` there: the preview's box is the
 ;               weapon's decal at the weapon's transform at the bench
 ;   +14 bake    0x2641A0, the decal editor's bake (lobby_character, low,
@@ -43,6 +46,10 @@
 ;               index in `data/decals` (+D52Ch) counts the records of slots 0
 ;               and 1 only (the stock counts every record but slot 3's, and a
 ;               weapon's camouflage is in slot 2)
+;   +1E click   0x265C20, the character's mouse key handler: in a weapon's
+;               edit the left button's release places the decal only after a
+;               click (the cursor within 5 pixels of the press), not after a
+;               drag, which turns the weapon (patch 45's left button)
 ; A weapon's decal edit: patch 45's table on, patch 32's weapon shown, the
 ; character's upgrade window open (+D515h) and the edit's host (+D520h)
 ; that window's item. Anything else: the original's code.
@@ -54,6 +61,9 @@ ORG CAVE
 %endif
 %ifndef TABLE
 %error TABLE is required
+%endif
+%ifndef PRESS
+%error PRESS is required
 %endif
 
 ; the game
@@ -117,12 +127,33 @@ RECORDS             equ 0x60        ; item: begin, end of {id, dict id, u64, u8 
 RECORD_SIZE         equ 0x18
 RECORD_SLOT         equ 0x10
 
-; patch 32's state and patch 45's
+; the mouse
+LEFT_KEY            equ 0x151       ; the left button's code (0x3B9CA0)
+KIND_DOWN           equ 0           ; the kinds: gone down, let go (2: still held)
+KIND_UP             equ 1
+MOUSE_X             equ 0x8C        ; lobby menu: the cursor, pixels (0x26D130)
+MOUSE_Y             equ 0x90
+CLICK_SLOP          equ 5           ; a press and a release this near: a click
+CLICK_BODY          equ 0x265C26    ; after the handler's `push ebp / mov ebp,esp / and esp,-8`
+
+; the held weapon (patch 45's reads, weapon_table_026g.asm)
+PLAYER              equ 0xD2B8      ; lobby_character: its player
+HELD                equ 0x128       ; player: the held item
+WEAPON_VTABLE       equ 0xA04174    ; survarium::weapon
+WEAPON_MODEL        equ 0x1810      ; weapon: its skeleton model instance
+MODEL_RENDER        equ 0x108       ; skeleton model instance: its render instance
+SKELETON_VTABLE     equ 0x9F0F24    ; vostok::render::skeleton_render_model_instance
+SKINNING            equ 0x229C      ; skeleton_render_model_instance: the bones' skinning, transposed (0x15A801)
+
+; patch 32's state, patch 45's and this one's
 MODE                equ 0           ; patch 32: 1 while its window's weapon is shown
 ITEM                equ 4           ;   the window's item
 ON                  equ 0x00        ; patch 45: 1 while the weapon is at the bench
-SPIN                equ 0x20        ;   its turns
-TILT                equ 0x24
+READY               equ 0x28        ;   1 once it is drawn there
+BENCH_MATRIX        equ 0x50        ;   the transform it was last drawn with (rows, v * M)
+PRESSED             equ 0           ; PRESS: 1 from the left button's press in a weapon's edit
+PRESS_X             equ 4           ;   the cursor at the press
+PRESS_Y             equ 8
 
     jmp near lookup
     jmp near fill
@@ -130,6 +161,7 @@ TILT                equ 0x24
     jmp near decode
     jmp near bake
     jmp near start
+    jmp near click
 
 ; ---------------------------------------------------------------- the bake
 
@@ -366,58 +398,123 @@ is_weapon_edit:
     pop ecx
     ret
 
-; eax = out: the weapon's transform at the bench, as patch 45's matrix makes
-; it (rows, v * M): rotY(spin) * rotZ(tilt), the point CENTRE_Z along the
-; model's z at BENCH. Keeps every register but the x87 stack's use.
-bench_matrix:
-    fld dword [TABLE+SPIN]
-    fsincos                         ; st0 = cos a, st1 = sin a
-    fld dword [TABLE+TILT]
-    fsincos                         ; st0 = cos b, st1 = sin b, st2 = cos a, st3 = sin a
-    fld st1
-    fchs
-    fstp dword [eax+10h]            ; row 1: (-sin b, cos b, 0)
-    fst dword [eax+14h]
-    fld st0
-    fmul st0, st3
-    fstp dword [eax+00h]            ; row 0: (cos a cos b, cos a sin b, sin a)
-    fld st1
-    fmul st0, st3
-    fstp dword [eax+04h]
-    fld st3
-    fstp dword [eax+08h]
-    fld st0
-    fmul st0, st4
-    fchs
-    fstp dword [eax+20h]            ; row 2: (-sin a cos b, -sin a sin b, cos a)
-    fld st1
-    fmul st0, st4
-    fchs
-    fstp dword [eax+24h]
-    fld st2
-    fstp dword [eax+28h]
-    fcompp
-    fcompp
-    fld dword [centre_z]            ; row 3: BENCH - CENTRE_Z * row 2
-    fmul dword [eax+20h]
-    fsubr dword [bench_x]
-    fstp dword [eax+30h]
-    fld dword [centre_z]
-    fmul dword [eax+24h]
-    fsubr dword [bench_y]
-    fstp dword [eax+34h]
-    fld dword [centre_z]
-    fmul dword [eax+28h]
-    fsubr dword [bench_z]
-    fstp dword [eax+38h]
+; xmm0 = (x, y, z, w) * the matrix at edx (rows; w is read: a point's w 1, a
+; vector's 0). Uses xmm1..xmm3.
+row_times:
+    movaps xmm1, xmm0
+    shufps xmm1, xmm1, 0x00
+    movups xmm3, [edx]
+    mulps xmm1, xmm3
+    movaps xmm2, xmm0
+    shufps xmm2, xmm2, 0x55
+    movups xmm3, [edx+16]
+    mulps xmm2, xmm3
+    addps xmm1, xmm2
+    movaps xmm2, xmm0
+    shufps xmm2, xmm2, 0xAA
+    movups xmm3, [edx+32]
+    mulps xmm2, xmm3
+    addps xmm1, xmm2
+    movaps xmm2, xmm0
+    shufps xmm2, xmm2, 0xFF
+    movups xmm3, [edx+48]
+    mulps xmm2, xmm3
+    addps xmm1, xmm2
+    movaps xmm0, xmm1
+    ret
+
+; edi = out = the matrix at esi times the one at edx (rows, 4x4). Keeps
+; every register; uses xmm0..xmm3. out may be esi's.
+multiply:
     push ecx
+    sub esp, 64
     xor ecx, ecx
-    mov [eax+0Ch], ecx
-    mov [eax+18h], ecx
-    mov [eax+1Ch], ecx
-    mov [eax+2Ch], ecx
-    mov dword [eax+3Ch], 0x3F800000
+.row:
+    movups xmm0, [esi+ecx]
+    call row_times
+    movups [esp+ecx], xmm0
+    add ecx, 16
+    cmp ecx, 64
+    jb .row
+    xor ecx, ecx
+.copy:
+    movups xmm0, [esp+ecx]
+    movups [edi+ecx], xmm0
+    add ecx, 16
+    cmp ecx, 64
+    jb .copy
+    add esp, 64
     pop ecx
+    ret
+
+; eax = out, edx = the lobby character: out = the transform from the weapon
+; model's vertices (the bake's space) to the world as it is drawn at the
+; bench: the skinning of bone 1 (`offset`, the body's; its render instance's
+; matrix of the frame, kept transposed at +229Ch + 40h by 0x15A7FC: the
+; inverse bind times the pose) times the transform patch 45 drew the weapon
+; with (its state's +50h, valid while +0 and +28h are 1). ZF set when patch
+; 45 has not drawn it there; the identity for the skinning when the held item
+; is not a weapon with a skeleton instance. Keeps every register; uses
+; xmm0..xmm3.
+weapon_transform:
+    pushad
+    mov edi, eax
+    cmp dword [TABLE+ON], 1
+    jne .none
+    cmp dword [TABLE+READY], 1
+    jne .none
+    sub esp, 64                     ; [esp] = bone 1's skinning, rows
+    xorps xmm0, xmm0
+    movups [esp], xmm0
+    movups [esp+16], xmm0
+    movups [esp+32], xmm0
+    movups [esp+48], xmm0
+    mov eax, 0x3F800000
+    mov [esp], eax
+    mov [esp+14h], eax
+    mov [esp+28h], eax
+    mov [esp+3Ch], eax
+    mov eax, [edx+PLAYER]
+    test eax, eax
+    jz .skinned
+    mov eax, [eax+HELD]
+    test eax, eax
+    jz .skinned
+    cmp dword [eax], WEAPON_VTABLE
+    jne .skinned
+    mov eax, [eax+WEAPON_MODEL]
+    test eax, eax
+    jz .skinned
+    mov eax, [eax+MODEL_RENDER]
+    test eax, eax
+    jz .skinned
+    cmp dword [eax], SKELETON_VTABLE
+    jne .skinned
+    mov eax, [eax+SKINNING]
+    test eax, eax
+    jz .skinned
+    add eax, 40h                    ; bone 1, transposed
+%assign row 0
+%rep 4
+%assign col 0
+%rep 4
+    mov ecx, [eax+col*10h+row*4]
+    mov [esp+row*10h+col*4], ecx
+%assign col col+1
+%endrep
+%assign row row+1
+%endrep
+.skinned:
+    mov esi, esp
+    lea edx, [TABLE+BENCH_MATRIX]
+    call multiply                   ; edi = the skinning * the bench's
+    add esp, 64
+    test esp, esp
+    popad
+    ret
+.none:
+    cmp eax, eax
+    popad
     ret
 
 ; xmm0 = [%1] . [%2], three floats each; xmm1 is clobbered
@@ -432,24 +529,48 @@ bench_matrix:
     addss xmm0, xmm1
 %endmacro
 
+; [%1] = [%2] x [%3] (three floats each); xmm0, xmm1 clobbered
+%macro CROSS 3
+    movss xmm0, [%2+4]
+    mulss xmm0, [%3+8]
+    movss xmm1, [%2+8]
+    mulss xmm1, [%3+4]
+    subss xmm0, xmm1
+    movss [%1], xmm0
+    movss xmm0, [%2+8]
+    mulss xmm0, [%3]
+    movss xmm1, [%2]
+    mulss xmm1, [%3+8]
+    subss xmm0, xmm1
+    movss [%1+4], xmm0
+    movss xmm0, [%2]
+    mulss xmm0, [%3+4]
+    movss xmm1, [%2+4]
+    mulss xmm1, [%3]
+    subss xmm0, xmm1
+    movss [%1+8], xmm0
+%endmacro
+
 ; the weapon pick's frame
-W                   equ -40h        ; the weapon's transform
+W                   equ -40h        ; the weapon's transform (vertices to the world)
 ORIGIN              equ -4Ch        ; the ray, in the world
 DIRECTION           equ -58h
 RELATIVE            equ -64h        ; the origin - the transform's point
 LOCAL_ORIGIN        equ -70h        ; the ray in the weapon's space
 LOCAL_DIRECTION     equ -7Ch
-PICK_FRAME          equ 7Ch
+DUAL                equ -0ACh       ; the inverse's columns: row1 x row2, row2 x row0, row0 x row1, / det
+PICK_FRAME          equ 0ACh
 
 ; 0x265999 `call 0x264960` in the preview (and the click's pick, below):
 ; stdcall (character, &point, &normal, mask, &id), al = 1 and the point and
 ; normal written when the ray hits. For the weapon above the bench: the
-; mouse's ray (0x26D130) in the weapon's space (the inverse of the bench's
-; transform), the point of it nearest the model's z axis (its long axis
-; through the grip), when that is in front of the eye, within REACH of the
-; axis and between Z_MIN and Z_MAX along it: the point (y + Y_SHIFT) and the
-; normal (the ray's direction, reversed: the decal looks along the ray).
-; The decal's projection and occlusion find the surface. Else the original.
+; mouse's ray (0x26D130) in the weapon model's space (the inverse of
+; weapon_transform), the point of it nearest the model's z axis (its long
+; axis through the grip), when that is in front of the eye, within REACH of
+; the axis and between Z_MIN and Z_MAX along it: the point (y + Y_SHIFT) and
+; the normal (the ray's direction, reversed: the decal looks along the ray).
+; The decal's projection and occlusion find the surface. A weapon not yet
+; drawn at the bench misses. Else the original.
 pick:
     mov eax, [esp+4]
     call is_weapon_edit
@@ -462,14 +583,16 @@ weapon_pick:
     push ebx
     push esi
     push edi
+    lea eax, [ebp+W]
+    mov edx, [ebp+8]
+    call weapon_transform
+    jz .miss
     mov eax, [ebp+8]
     mov esi, [eax+MENU]
     lea edi, [ebp+DIRECTION]
     lea eax, [ebp+ORIGIN]
     push eax
     call RAY
-    lea eax, [ebp+W]
-    call bench_matrix
 %assign at 0
 %rep 3
     movss xmm0, [ebp+ORIGIN+at]
@@ -477,13 +600,44 @@ weapon_pick:
     movss [ebp+RELATIVE+at], xmm0
 %assign at at+4
 %endrep
+    CROSS ebp+DUAL, ebp+W+10h, ebp+W+20h
+    CROSS ebp+DUAL+0Ch, ebp+W+20h, ebp+W
+    CROSS ebp+DUAL+18h, ebp+W, ebp+W+10h
+    DOT ebp+W, ebp+DUAL             ; the determinant
+    movss xmm2, xmm0
+    andps xmm0, [abs_mask]
+    comiss xmm0, [least_det]
+    jb .miss                        ; no inverse
+    movss xmm0, [one]
+    divss xmm0, xmm2
+    movss xmm2, xmm0
+%assign at 0
+%rep 9
+    movss xmm0, [ebp+DUAL+at]
+    mulss xmm0, xmm2
+    movss [ebp+DUAL+at], xmm0
+%assign at at+4
+%endrep
 %assign row 0
 %rep 3
-    DOT ebp+RELATIVE, ebp+W+row*10h
+    DOT ebp+RELATIVE, ebp+DUAL+row*0Ch
     movss [ebp+LOCAL_ORIGIN+row*4], xmm0
-    DOT ebp+DIRECTION, ebp+W+row*10h
+    DOT ebp+DIRECTION, ebp+DUAL+row*0Ch
     movss [ebp+LOCAL_DIRECTION+row*4], xmm0
 %assign row row+1
+%endrep
+    DOT ebp+LOCAL_DIRECTION, ebp+LOCAL_DIRECTION
+    sqrtss xmm0, xmm0
+    comiss xmm0, [least_det]
+    jb .miss
+    movss xmm2, [one]
+    divss xmm2, xmm0
+%assign at 0
+%rep 3
+    movss xmm0, [ebp+LOCAL_DIRECTION+at]
+    mulss xmm0, xmm2
+    movss [ebp+LOCAL_DIRECTION+at], xmm0
+%assign at at+4
 %endrep
     ; t = -(o.x d.x + o.y d.y) / (d.x^2 + d.y^2); along the axis: -(o . d)
     movss xmm2, [ebp+LOCAL_DIRECTION]
@@ -560,7 +714,8 @@ weapon_pick:
 
 ; 0x2659B2 `call 0x263D00` in the preview (esi = the character), cdecl (out,
 ; low, high): the original's matrix, or for the weapon above the bench its
-; decal (weapon_matrix) at the weapon's transform there: out * W.
+; decal (weapon_matrix) times weapon_transform (as the bench draws it; the
+; preview picks nothing before the bench has).
 decode:
     push dword [esp+0Ch]
     push dword [esp+0Ch]
@@ -576,44 +731,21 @@ decode:
     add esp, 12
     push ebp
     mov ebp, esp
-    sub esp, 80h
+    sub esp, 40h
     push esi
     push edi
+    push edx
+    mov edx, esi                    ; the character
     mov esi, eax                    ; the decal
     lea eax, [ebp-40h]
-    call bench_matrix
-    lea edi, [ebp-80h]              ; the product, row by row
-%assign row 0
-%rep 4
-%assign col 0
-%rep 3
-    movss xmm0, [esi+row*10h]
-    mulss xmm0, [ebp-40h+col*4]
-    movss xmm1, [esi+row*10h+4]
-    mulss xmm1, [ebp-40h+10h+col*4]
-    addss xmm0, xmm1
-    movss xmm1, [esi+row*10h+8]
-    mulss xmm1, [ebp-40h+20h+col*4]
-    addss xmm0, xmm1
-%if row == 3
-    addss xmm0, [ebp-40h+30h+col*4]
-%endif
-    movss [edi+row*10h+col*4], xmm0
-%assign col col+1
-%endrep
-%assign row row+1
-%endrep
-%assign row 0
-%rep 4
-%assign col 0
-%rep 3
-    mov eax, [edi+row*10h+col*4]
-    mov [esi+row*10h+col*4], eax
-%assign col col+1
-%endrep
-%assign row row+1
-%endrep
+    call weapon_transform
+    jz .done                        ; not drawn there yet (the preview picked nothing)
+    mov edi, esi
+    lea edx, [ebp-40h]
+    call multiply                   ; the decal * the weapon's transform
+.done:
     mov eax, esi
+    pop edx
     pop edi
     pop esi
     mov esp, ebp
@@ -727,19 +859,77 @@ start:
     popad
     ret
 
+; 0x265C20, the character's mouse key handler (thiscall ecx = the character;
+; the input world, the code, the kind; al; `ret 0Ch`) -> jmp click + nop.
+; While a decal of the weapon above the bench is placed, the left button
+; (151h) places it on its release (kind 1, the original's) only when the
+; cursor moved CLICK_SLOP pixels or less since the press (kind 0): a drag
+; turns the weapon (patch 45) and places nothing (al 0, the release passed
+; on). Anything else: the original.
+click:
+    mov eax, ecx
+    call is_weapon_edit
+    jz .original
+    cmp byte [ecx+EDITING], 0
+    je .original
+    cmp dword [esp+8], LEFT_KEY
+    jne .original
+    cmp dword [esp+0Ch], KIND_DOWN
+    je .down
+    cmp dword [esp+0Ch], KIND_UP
+    jne .original
+    push edx
+    push ebx
+    xor ebx, ebx
+    xchg ebx, [PRESS+PRESSED]       ; a release ends the press
+    test ebx, ebx
+    jz .drag                        ; no press seen in the edit (the movie's "change"): no click
+    mov eax, [ecx+MENU]
+    mov edx, [eax+MOUSE_X]
+    sub edx, [PRESS+PRESS_X]
+    imul edx, edx
+    mov ebx, [eax+MOUSE_Y]
+    sub ebx, [PRESS+PRESS_Y]
+    imul ebx, ebx
+    add edx, ebx
+    cmp edx, CLICK_SLOP * CLICK_SLOP
+    pop ebx
+    pop edx
+    jbe .original
+    xor al, al
+    ret 0Ch
+.drag:
+    pop ebx
+    pop edx
+    xor al, al
+    ret 0Ch
+.down:
+    push edx
+    mov eax, [ecx+MENU]
+    mov edx, [eax+MOUSE_X]
+    mov [PRESS+PRESS_X], edx
+    mov edx, [eax+MOUSE_Y]
+    mov [PRESS+PRESS_Y], edx
+    mov dword [PRESS+PRESSED], 1
+    pop edx
+.original:
+    push ebp
+    mov ebp, esp
+    and esp, -8
+    jmp CLICK_BODY
+
 align 4, db 0
 ; a decal never placed (u64 0): the left side of the receiver for the first
 ; (x -, the side the bench shows), the right for the second, (0, 0.05, 0.12)
 ; of the model, size 0.15 (an eighth of a metre, halved), upright
 defaults:           dd 0x20080000, 0x8A30CE00, 0x20080200, 0x8A30CE00
+abs_mask:           dd 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF
 y_shift:            dd 1.0          ; Y_SHIFT: a weapon's y (-1..1) in the u64's 0..2
 size:               dd 0.5          ; SIZE: a weapon's decals are half a character's
+one:                dd 1.0
+least_det:          dd 1.0e-6
 least_across:       dd 1.0e-4       ; a ray within 0.6 degrees of the axis is taken along it
 reach_squared:      dd 0.0625       ; REACH: 0.25 m from the axis
 z_min:              dd -0.6         ; Z_MIN, Z_MAX: a rifle's stock to beyond a long muzzle
 z_max:              dd 1.4
-bench_x:            dd 4.25         ; patch 45's BENCH and CENTRE_Z (weapon_table_026g.asm)
-bench_y:            dd 1.30
-bench_z:            dd 3.05
-centre_z:           dd -0.18
 name_decal:         db "_%s_%08x%08x", 0

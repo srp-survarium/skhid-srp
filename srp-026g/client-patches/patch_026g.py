@@ -80,8 +80,9 @@ USAGE (this script never touches the source exe):
     (the camouflage, the decals) and the decal editor on a weapon from
     weapon_decals_026g.asm, on that section's second page:
         nasm -f bin -DCAVE=0xA429000 -DDECALS=0xA42A000 weapon_camo_026g.asm -o weapon_camo_026g.section.bin
-        nasm -f bin -DCAVE=0xA42A000 -DPREVIEW=0xA428E00 -DTABLE=0xA428F00 weapon_decals_026g.asm -o weapon_decals_026g.section.bin
-    (checked in; PREVIEW and TABLE are patch 32's and patch 45's states, checked). The late-join code is late_join_026g.section.bin, checked in too; it is
+        nasm -f bin -DCAVE=0xA42A000 -DPREVIEW=0xA428E00 -DTABLE=0xA428F00 -DPRESS=0xA428FA0 weapon_decals_026g.asm -o weapon_decals_026g.section.bin
+    (checked in; PREVIEW and TABLE are patch 32's and patch 45's states, PRESS
+    its own, 0xFA0 of the late join's state page, checked). The late-join code is late_join_026g.section.bin, checked in too; it is
     made by `late_join_026g.py --write-bin`, which needs nasm, a C compiler
     for x86 and GNU ld (--late-join-bin=<file> names another one).
 
@@ -1585,8 +1586,10 @@ WEAPON_TABLE_HOOKS = (
 
 # Decals on a weapon (patch 46, README; client_patch.md section 3.43):
 # weapon_decals_026g.asm at WEAPON_DECALS_OFFSET of `.srpw`, the section's
-# second page; no state of its own (it reads patch 32's and patch 45's). It
-# begins with six `jmp near`: lookup (+0) and fill (+5), which patch 44 calls
+# second page; its state (WEAPON_DECALS_STATE_SIZE bytes: the left button's
+# press) at WEAPON_DECALS_STATE_OFFSET of `.srpd`, after patch 45's, whose
+# published transform (WEAPON_TABLE_MATRIX_OFFSET) it reads, as patch 32's
+# mode and item. It begins with seven `jmp near`: lookup (+0) and fill (+5), which patch 44 calls
 # once each (WEAPON_CAMO_DECALS_CALLS: what a weapon's bake paints, the
 # camouflage and the decals of `data/decals`), and the decal editor's four
 # sites, for a weapon above the workbench:
@@ -1596,15 +1599,21 @@ WEAPON_TABLE_HOOKS = (
 # - the editor's bake, 0x2641A0 (`push ebp / mov ebp,esp / and esp,-8`, the
 #   entry): `jmp bake` and a nop;
 # - the start's query, `call 0x264CF0` at 0x263938 (the end of 0x2636B0):
-#   start.
+#   start;
+# - the character's mouse key handler, 0x265C20 (`push ebp / mov ebp,esp /
+#   and esp,-8`, the entry; in the input vtable 0xA09F6C): `jmp click` and a
+#   nop: the left button places the decal on a click, not after a drag.
 # No base relocation is under a site and no branch aims inside one.
 WEAPON_DECALS_OFFSET = 0x1000
-WEAPON_DECALS_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19)  # lookup, fill, pick, decode, bake, start
+WEAPON_DECALS_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19, 0x1E)  # lookup, fill, pick, decode, bake, start, click
+WEAPON_DECALS_STATE_OFFSET = 0xFA0
+WEAPON_DECALS_STATE_SIZE = 12
 WEAPON_DECALS_HOOKS = (
     (0x265999, bytes.fromhex("e8c2efffff"), 0xA, 0xE8),         # the preview's pick
     (0x2659B2, bytes.fromhex("e849e3ffff"), 0xF, 0xE8),         # the preview's matrix
     (0x2641A0, bytes.fromhex("558bec83e4f8"), 0x14, 0xE9),      # the editor's bake
     (0x263938, bytes.fromhex("e8b3130000"), 0x19, 0xE8),        # the start's query
+    (0x265C20, bytes.fromhex("558bec83e4f8"), 0x1E, 0xE9),      # the mouse key handler
 )
 WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries patch 44 calls
 
@@ -2303,14 +2312,21 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
         if WEAPON_TABLE_OFFSET + len(weapon_table) > WEAPON_DECALS_OFFSET \
                 or WEAPON_DECALS_OFFSET + len(weapon_decals) > 0x2000:
             sys.exit("the weapon table's code and the weapon decals' do not fit in .srpw's two pages")
-        # its reads of patch 45's `on` and patch 32's mode
+        press_state = late_join_state_va(late_join) + WEAPON_DECALS_STATE_OFFSET
+        if WEAPON_TABLE_STATE_OFFSET + WEAPON_TABLE_STATE_SIZE > WEAPON_DECALS_STATE_OFFSET \
+                or WEAPON_DECALS_STATE_OFFSET + WEAPON_DECALS_STATE_SIZE > LATE_JOIN_STATE_SIZE:
+            sys.exit("the weapon decals' state is not between the weapon table's and the page's end")
+        # its reads of patch 45's `on`, its transform and patch 32's mode; its press
         if any(weapon_decals[at] != 0xE9 for at in WEAPON_DECALS_ENTRIES) \
+                or weapon_decals.count(b"\x8D\x15" + struct.pack("<I", table_state + WEAPON_TABLE_MATRIX_OFFSET)) != 1 \
+                or weapon_decals.count(b"\xC7\x05" + struct.pack("<II", press_state, 1)) != 1 \
                 or list(decals_calls.values()) != [1] * len(WEAPON_CAMO_DECALS_CALLS) \
                 or weapon_decals.count(b"\x83\x3D" + struct.pack("<I", table_state) + b"\x00") != 1 \
                 or weapon_decals.count(b"\x80\x3D" + struct.pack("<I", preview_state) + b"\x00") != 1:
             sys.exit(f"weapon_decals_026g.section.bin: its entries are not where patch_026g.py and patch 44 call "
                      f"them, or it was assembled for other states (-DCAVE={decals_va:#x} "
-                     f"-DPREVIEW={preview_state:#x} -DTABLE={table_state:#x}; patch 44 with -DDECALS={decals_va:#x}?)")
+                     f"-DPREVIEW={preview_state:#x} -DTABLE={table_state:#x} -DPRESS={press_state:#x}; "
+                     f"patch 44 with -DDECALS={decals_va:#x}?)")
         weapon_camo = weapon_camo + b"\xCC" * (WEAPON_STASH_OFFSET - len(weapon_camo)) + weapon_stash
         weapon_camo = weapon_camo + b"\xCC" * (WEAPON_TABLE_OFFSET - len(weapon_camo)) + weapon_table
         weapon_camo = weapon_camo + b"\xCC" * (WEAPON_DECALS_OFFSET - len(weapon_camo)) + weapon_decals

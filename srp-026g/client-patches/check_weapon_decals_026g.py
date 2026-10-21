@@ -23,21 +23,30 @@ _<surface>` and `_<texture>_<high><low>` a decal ('/' and '\\' made '_'); a
 third decal, an entry that is no table or has no texture: not painted;
 `data/decals` empty and no camouflage: no query.
 
-The editor (a made-up lobby character, lobby menu, inventory and patch 32's
-and 45's states; the game's own 0x263D00, encode 0x264A10 and
+The editor (a made-up lobby character, lobby menu, inventory, held weapon
+with its skeleton instance and bones, and patch 32's and 45's states, patch
+45's own `matrix` run as mt_draw draws the weapon at the bench, which
+publishes the transform; the game's own 0x263D00, encode 0x264A10 and
 find_item_by_id 0x277AA0; stubs: the mouse's ray 0x26D130, the collision
 pick 0x264960, the accept 0x263950, the movie call 0x511600, the start's
 query 0x264CF0 and the inventory's owner): for armour, a weapon window with
 the table off, another item's edit and every site's original state, each
 hook does the original's (the pick and the query reached with the stack and
 registers the original gives them, the matrix the original's, the bake on
-at 0x2641A6 with the original's frame). For the weapon above the bench
-(spin and tilt of patch 45's state, patch 45's own transform run as it
-draws): the pick gives the point of the ray nearest the model's z axis (y +
+at 0x2641A6 with the original's frame, the key handler on at 0x265C26 with
+the original's frame). For the weapon above the bench (spin and tilt of
+patch 45's state; the transform patch 45 published, and bone 1's skinning
+read from the weapon's render instance, +229Ch, transposed): the pick gives
+the point of the ray, in the weapon model's space (the inverse of the
+skinning times the published transform), nearest the model's z axis (y +
 1.0) and the reversed direction, al 1, `ret 14h` and the callee-saved
 registers kept, a miss (behind the eye, 0.25 m off the axis, beyond the
-ends) al 0 and nothing written; the preview's matrix is the weapon's decal
-times patch 45's transform; the bake's click (1, 0) writes +D548h the game's
+ends, the weapon not yet drawn at the bench) al 0 and nothing written; a
+held item that is no weapon: the published transform alone; the preview's
+matrix is the weapon's decal times the skinning times the published
+transform; the left button's release places (the original's handler, its
+bake) after a press within 5 pixels, not after a drag or without a press
+(al 0, `ret 0Ch`); the bake's click (1, 0) writes +D548h the game's
 encode of the pick, accepts it (host, decal) and calls
 root.exit_decal_edit, al 1, `ret 10h`; a miss: al 0, nothing accepted; the
 start's and the cancel's calls: al 1, nothing called; the start's index
@@ -216,6 +225,9 @@ CHARACTER, MENU, MOVIE = 0x36000000, 0x36100000, 0x36200000
 PICK, RAY, ACCEPT, MOVIE_CALL, START_QUERY, OWNER_CALL = 0x264960, 0x26D130, 0x263950, 0x511600, 0x264CF0, 0x38000000
 BAKE, BAKE_BODY = 0x2641A0, 0x2641A6
 PREVIEW_PICK, PREVIEW_DECODE, START_SITE = 0x265999, 0x2659B2, 0x263938
+KEY_HANDLER, KEY_BODY = 0x265C20, 0x265C26
+WEAPON_VTABLE, SKELETON_VTABLE = 0xA04174, 0x9F0F24
+PLAYER = CHARACTER + 0x18000
 EXIT_DECAL_EDIT = 0xA0BD7C
 ITEM, OTHER = 0x1234567, 0x7654321
 INVENTORY = 0x1EA978
@@ -231,7 +243,7 @@ class EditRun:
             emu.mem_map(start, size, UC_PROT_ALL)
             if rsize:
                 emu.mem_write(start, bytes(data[raw:raw + min(rsize, vsize or rsize)]))
-        for at, size in ((STOP_AT, 0x1000), (HEAP, 0x400000), (STACK, 0x100000), (CHARACTER, 0x20000),
+        for at, size in ((STOP_AT, 0x1000), (HEAP, 0x400000), (STACK, 0x100000), (CHARACTER, 0x40000),
                          (MENU, 0x100000), (MOVIE, 0x1000), (OWNER_CALL, 0x1000)):
             emu.mem_map(at, size, UC_PROT_ALL)
         self.preview, self.table = states
@@ -331,51 +343,101 @@ class EditRun:
         return out
 
 
-def table_matrix(build, table_state, spin, tilt):
-    """Patch 45's own transform: its `matrix` entry run as mt_draw calls it for the table's player."""
-    emu = Uc(UC_ARCH_X86, UC_MODE_32)
-    headers = base.Headers(build)
-    for name, rva, vsize, raw, rsize, _ in headers.sections(build):
-        start = base.IMAGE_BASE + rva
-        size = (max(vsize, rsize) + 0xFFF) & ~0xFFF
-        emu.mem_map(start, size, UC_PROT_ALL)
-        if rsize:
-            emu.mem_write(start, bytes(build[raw:raw + min(rsize, vsize or rsize)]))
-    emu.mem_map(STACK, 0x100000, UC_PROT_ALL)
-    emu.mem_map(CHARACTER, 0x20000, UC_PROT_ALL)
-    player = CHARACTER + 0x10000
-    emu.mem_write(table_state, struct.pack("<I", 1))
-    emu.mem_write(table_state + 0x20, struct.pack("<2f", spin, tilt))
-    emu.mem_write(CHARACTER + 0xD2B8, struct.pack("<I", player))
-    emu.mem_write(CHARACTER + 0xD515, b"\1")
-    frame = STACK + 0x80000
-    emu.mem_write(frame + 4, struct.pack("<I", 0x284A83))
-    emu.mem_write(frame - 0xF0, struct.pack("<I", CHARACTER))
-    sp = frame - 0x200
-    emu.mem_write(sp, struct.pack("<I", 0x247794))
-    emu.reg_write(UC_X86_REG_ESP, sp)
-    emu.reg_write(UC_X86_REG_EBP, frame)
-    emu.reg_write(UC_X86_REG_EBX, player)
-    camo_va = base.weapon_camo_va(open(base.late_join_bin(), "rb").read())
-    emu.emu_start(camo_va + base.WEAPON_TABLE_OFFSET + 0xF, 0x2477C8, count=100_000)
-    assert emu.reg_read(UC_X86_REG_EIP) == 0x2477C8
-    return struct.unpack("<16f", emu.mem_read(emu.reg_read(UC_X86_REG_EAX), 64))
-
-
 def mul(a, b):
     """Row-vector 4x4 product a * b."""
     return tuple(sum(a[r * 4 + k] * b[k * 4 + c] for k in range(4)) for r in range(4) for c in range(4))
 
 
-def to_local(w, v, point):
-    """A world vector (or point) in the space of transform w (rows, orthonormal)."""
-    if point:
-        v = [v[i] - w[12 + i] for i in range(3)]
-    return tuple(sum(v[i] * w[r * 4 + i] for i in range(3)) for r in range(3))
+def rigid(yaw, pitch, move):
+    """rotY(yaw) * rotX(pitch), then the move (rows, v * M)."""
+    cy, sy, cp, sp = math.cos(yaw), math.sin(yaw), math.cos(pitch), math.sin(pitch)
+    ry = (cy, 0, -sy, 0, 0, 1, 0, 0, sy, 0, cy, 0, 0, 0, 0, 1)
+    rx = (1, 0, 0, 0, 0, cp, sp, 0, 0, -sp, cp, 0, 0, 0, 0, 1)
+    m = list(mul(ry, rx))
+    m[12:15] = move
+    return tuple(m)
 
 
-def expected_pick(w, origin, direction):
-    o, d = to_local(w, origin, True), to_local(w, direction, False)
+def inverse(m):
+    """The inverse of an affine row-vector 4x4 (its 3x3 by cofactors)."""
+    r = [m[0:3], m[4:7], m[8:11]]
+    cross = lambda a, b: (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+    c0, c1, c2 = cross(r[1], r[2]), cross(r[2], r[0]), cross(r[0], r[1])
+    det = sum(r[0][i] * c0[i] for i in range(3))
+    cols = [tuple(x / det for x in c) for c in (c0, c1, c2)]
+    out = [0.0] * 16
+    for i in range(3):
+        for j in range(3):
+            out[i * 4 + j] = cols[j][i]
+    t = m[12:15]
+    for j in range(3):
+        out[12 + j] = -sum(t[i] * out[i * 4 + j] for i in range(3))
+    out[15] = 1.0
+    return tuple(out)
+
+
+BIND_1 = rigid(0.3, 0.1, (0.01, 0.03, 0.05))      # bone 1's bind and its pose of the frame (the PM's
+POSE_1 = rigid(0.25, 0.05, (0.0, 0.02, 0.25))     # idle moves its body 20 cm): rigid, as the game's
+
+
+def draw_at_bench(run, weapon=True, ready=True):
+    """Patch 45's `matrix` entry run as mt_draw draws the table's player (its held item a weapon with a
+    skeleton instance, bones 0 and 1): it publishes the transform at its state's +50h. Returns (W, S1),
+    S1 the skinning of bone 1 the render instance keeps (transposed at +229Ch + 40h)."""
+    emu = run.emu
+    held = run.alloc(b"\0" * 0x2000)
+    model = run.alloc(b"\0" * 0x200)
+    instance = run.alloc(b"\0" * 0x6400)
+    render_model = run.alloc(b"\0" * 0x200)
+    invbinds = run.alloc(struct.pack("<32f", *rigid(0, 0, (0, 0, 0)), *inverse(BIND_1)))
+    bones = run.alloc(struct.pack("<32f", *rigid(0, 0, (0, 0, 0)), *POSE_1))
+    s1 = mul(inverse(BIND_1), POSE_1)
+    transposed = tuple(s1[c * 4 + r] for r in range(4) for c in range(4))
+    skinning = run.alloc(struct.pack("<16f", *rigid(0, 0, (0, 0, 0))) + struct.pack("<16f", *transposed))
+    run.word(held, WEAPON_VTABLE if weapon else 0x12345678)
+    run.word(held + 0x1810, model)
+    run.word(model + 0x108, instance)
+    run.word(instance, SKELETON_VTABLE)
+    run.word(instance + 0x62B4, render_model)
+    run.word(instance + 0x229C, skinning)
+    run.word(render_model + 0x140, invbinds)
+    emu.mem_write(render_model + 0x108, struct.pack("<6f", -0.031, -0.092, -0.265, 0.022, 0.111, 0.673))
+    run.word(PLAYER + 0x128, held)
+    run.word(CHARACTER + 0xD2B8, PLAYER)
+    emu.mem_write(CHARACTER + 0xD515, b"\1")             # the upgrade window open
+    run.word(CHARACTER + 0xD2C4, 0xFFFFFFFF if ready else 0x55)
+    run.word(CHARACTER + 0xD2C8, 0)
+    run.word(run.table + 0x28, 0)                      # READY: set by the draw
+    frame = STACK + 0x90000
+    emu.mem_write(frame + 4, struct.pack("<I", 0x284A83))
+    emu.mem_write(frame - 0xF0, struct.pack("<I", CHARACTER))
+    emu.mem_write(frame - 0x0C, struct.pack("<I", bones))
+    emu.mem_write(frame - 0x18, struct.pack("<I", 2))
+    sp = frame - 0x200
+    emu.mem_write(sp, struct.pack("<I", 0x247794))
+    emu.reg_write(UC_X86_REG_ESP, sp)
+    emu.reg_write(UC_X86_REG_EBP, frame)
+    emu.reg_write(UC_X86_REG_EBX, PLAYER)
+    camo_va = base.weapon_camo_va(open(base.late_join_bin(), "rb").read())
+    hook = emu.hook_add(UC_HOOK_CODE, lambda e, a, s, u: e.emu_stop(), begin=0x2477C2, end=0x2477C8)
+    emu.emu_start(camo_va + base.WEAPON_TABLE_OFFSET + 0xF, 0x2477C8, count=200_000)
+    emu.hook_del(hook)
+    at = emu.reg_read(UC_X86_REG_EIP)
+    assert at == (0x2477C8 if ready else 0x2477C2), hex(at)
+    w = run.floats(run.table + base.WEAPON_TABLE_MATRIX_OFFSET, 16)
+    return w, (s1 if weapon else rigid(0, 0, (0, 0, 0)))
+
+
+def apply(m, v, point):
+    """v * m (a point: w 1; a vector: w 0), three floats."""
+    return tuple(sum(v[i] * m[i * 4 + c] for i in range(3)) + (m[12 + c] if point else 0) for c in range(3))
+
+
+def expected_pick(m, origin, direction):
+    """m: the weapon model's vertices to the world."""
+    o, d = apply(inverse(m), origin, True), apply(inverse(m), direction, False)
+    n = math.sqrt(sum(x * x for x in d))
+    d = tuple(x / n for x in d)
     across = d[0] ** 2 + d[1] ** 2
     t = -(o[0] * d[0] + o[1] * d[1]) / across if across >= 1e-4 else -(o[0] * d[0] + o[1] * d[1] + o[2] * d[2])
     p = [o[i] + t * d[i] for i in range(3)]
@@ -407,6 +469,7 @@ def check_editor(original, build, say):
             run = EditRun(exe, (preview, table))
             run.set_states(*states, spin=0.4)
             prepare(run, upgrade, host)
+            run.emu.mem_write(CHARACTER + 0xD514, b"\1")
             # eax, ecx and edx at the bake's body and the start's query: the body and 0x264CF0 set them
             # before they read them; the bake's stack from its frame up (`and esp,-8` leaves a slot of
             # padding below it, which the body never reads)
@@ -416,15 +479,23 @@ def check_editor(original, build, say):
                    "decode": call_site(run, PREVIEW_DECODE, (STACK + 0x60000, 0x98074123, 0x76961E1C), regs,
                                        read=(STACK + 0x60000, 64)),
                    "bake": loose(run.run(BAKE, (CHARACTER, 1, 0, 0), regs, until=BAKE_BODY)),
-                   "start": loose(call_site(run, START_SITE, (), regs))}
+                   "start": loose(call_site(run, START_SITE, (), regs)),
+                   "key": loose(run.run(KEY_HANDLER, (0x4444, 0x151, 1), dict(regs, ecx=CHARACTER),
+                                        until=KEY_BODY))}
             results.append((out, run.calls))
         (o, oc), (b, bc) = results
-        say(o == b and oc == bc, f"{title}: the pick, the preview's matrix, the bake and the start's query as "
+        say(o == b and oc == bc, f"{title}: the pick, the preview's matrix, the bake, the start's query and the key "
+            "handler as "
             "the original's" + ("" if o == b and oc == bc else "".join(f"\n          {k}: {o[k]} / {b[k]}" for k in o if o[k] != b[k])))
 
     rng = random.Random(46)
-    for spin, tilt in ((0.0, 0.0), (0.7, 0.3), (-2.5, -1.1), (3.0, 1.2)):
-        w = table_matrix(build, table, spin, tilt)
+    for spin, tilt, weapon in ((0.0, 0.0, True), (0.7, 0.3, True), (-2.5, -1.1, True), (3.0, 1.2, True),
+                               (0.4, -0.2, False)):
+        probe = EditRun(build, (preview, table))
+        probe.set_states(1, 1, ITEM, spin, tilt)
+        w, s1 = draw_at_bench(probe, weapon)
+        m = mul(s1, w)
+        what = f"spin {spin}, tilt {tilt}" + ("" if weapon else ", no weapon held")
         # rays at points near the weapon's axis, from all sides, and misses
         for k in range(12):
             target = (rng.uniform(-0.04, 0.04), rng.uniform(-0.12, 0.1), rng.uniform(-0.3, 0.9))
@@ -434,45 +505,58 @@ def check_editor(original, build, say):
                 target = (0.0, 0.0, 1.6)                   # beyond the muzzle's end
             yaw, pitch = rng.uniform(-math.pi, math.pi), rng.uniform(-0.6, 0.6)
             d_local = (math.cos(pitch) * math.cos(yaw), math.sin(pitch), math.cos(pitch) * math.sin(yaw))
-            world_point = tuple(sum(target[i] * w[i * 4 + c] for i in range(3)) + w[12 + c] for c in range(3))
-            world_dir = tuple(sum(d_local[i] * w[i * 4 + c] for i in range(3)) for c in range(3))
+            world_point, world_dir = apply(m, target, True), apply(m, d_local, False)
             distance = -1.2 if k == 11 else 1.2           # the eye beyond the weapon: behind it
             origin = tuple(world_point[c] - distance * world_dir[c] for c in range(3))
             run = EditRun(build, (preview, table))
             run.set_states(1, 1, ITEM, spin, tilt)
+            draw_at_bench(run, weapon)
             prepare(run)
             run.ray = (origin, world_dir)
             sentinel = struct.pack("<6f", *([123.0] * 6))
             run.emu.mem_write(point, sentinel)
             out = call_site(run, PREVIEW_PICK, (CHARACTER, point, normal, 0x20, 0), regs)
-            want = expected_pick(w, origin, world_dir)
+            want = expected_pick(m, origin, world_dir)
             got_point, got_normal = run.floats(point, 3), run.floats(normal, 3)
             if want is None:
                 say(out["eax"] & 0xFF == 0 and bytes(run.emu.mem_read(point, 24)) == sentinel,
-                    f"spin {spin}, tilt {tilt}, ray {k}: a miss, al 0, nothing written")
+                    f"{what}, ray {k}: a miss, al 0, nothing written")
             else:
                 say(out["eax"] & 0xFF == 1 and close(got_point, want[0], 1e-4) and close(got_normal, want[1], 1e-4),
-                    f"spin {spin}, tilt {tilt}, ray {k}: the point {tuple(round(x, 4) for x in got_point)}, "
+                    f"{what}, ray {k}: the point {tuple(round(x, 4) for x in got_point)}, "
                     f"the normal the ray reversed")
-            say(out["kept"], f"spin {spin}, tilt {tilt}, ray {k}: ret 14h, ebx, esi, edi, ebp kept")
+            say(out["kept"], f"{what}, ray {k}: ret 14h, ebx, esi, edi, ebp kept")
         # the preview's matrix
         run = EditRun(build, (preview, table))
         run.set_states(1, 1, ITEM, spin, tilt)
+        draw_at_bench(run, weapon)
         prepare(run)
         out_at = STACK + 0x60000
         for value in ((0x98074123, 0x76961E1C), DEFAULTS[1]):
             call_site(run, PREVIEW_DECODE, (out_at, *value), regs)
             got = run.floats(out_at, 16)
             ref = BakeRun(build)
-            want = mul(weapon_space(ref.decode(*value)), w)
-            say(close(got, want, 1e-4), f"spin {spin}, tilt {tilt}: the preview's box is the weapon's decal "
-                f"{value[1]:08x}{value[0]:08x} at the bench's transform")
+            want = mul(mul(weapon_space(ref.decode(*value)), s1), w)
+            say(close(got, want, 1e-4), f"{what}: the preview's box is the weapon's decal "
+                f"{value[1]:08x}{value[0]:08x} at the weapon's transform at the bench")
+
+    # Before patch 45 has drawn the weapon at the bench (READY 0): every ray misses.
+    run = EditRun(build, (preview, table))
+    run.set_states(1, 1, ITEM)
+    draw_at_bench(run, ready=False)
+    prepare(run)
+    run.ray = (apply(m, (0.0, 0.0, 0.2), True), (0.0, 0.0, 1.0))
+    out = call_site(run, PREVIEW_PICK, (CHARACTER, point, normal, 0x20, 0), regs)
+    say(out["eax"] & 0xFF == 0 and out["kept"] and run.read(table + 0x28) == 0,
+        "the weapon not yet drawn at the bench (READY 0): a miss")
 
     # The bake's calls for the weapon.
-    w = table_matrix(build, table, 0.0, 0.0)
+    probe = EditRun(build, (preview, table))
+    probe.set_states(1, 1, ITEM)
+    w, s1 = draw_at_bench(probe)
+    m = mul(s1, w)
     target, d_local = (0.01, 0.05, 0.15), (1.0, 0.0, 0.0)
-    world_point = tuple(sum(target[i] * w[i * 4 + c] for i in range(3)) + w[12 + c] for c in range(3))
-    world_dir = tuple(sum(d_local[i] * w[i * 4 + c] for i in range(3)) for c in range(3))
+    world_point, world_dir = apply(m, target, True), apply(m, d_local, False)
     origin = tuple(world_point[c] - 1.0 * world_dir[c] for c in range(3))
     for title, args, hit in (("the click", (CHARACTER, 1, 0, 0), True), ("a click off the weapon", (CHARACTER, 1, 0, 0),
                                                                           False),
@@ -480,6 +564,7 @@ def check_editor(original, build, say):
                              ("the cancel's bake", (CHARACTER, 0, 0, 0), None)):
         run = EditRun(build, (preview, table))
         run.set_states(1, 1, ITEM)
+        draw_at_bench(run)
         prepare(run)
         run.ray = (origin, world_dir) if hit is not False else ((0.0, 5.0, 0.0), (0.0, 1.0, 0.0))
         out = run.run(BAKE, args, regs)
@@ -491,7 +576,7 @@ def check_editor(original, build, say):
             decoded = BakeRun(build).decode(value & 0xFFFFFFFF, value >> 32)
             place = (decoded[12] + 0.75 * decoded[8] / 1.5, decoded[13] + 0.75 * decoded[9] / 1.5 - Y_SHIFT,
                      decoded[14] + 0.75 * decoded[10] / 1.5)
-            want_place = expected_pick(w, origin, world_dir)[0]
+            want_place = expected_pick(m, origin, world_dir)[0]
             want_place = (want_place[0], want_place[1] - Y_SHIFT, want_place[2])
             say(out["eax"] & 0xFF == 1 and kept and close(place, want_place, 3e-3)
                 and close(tuple(x / 1.5 for x in decoded[8:11]), d_local, 1e-2)
@@ -503,6 +588,38 @@ def check_editor(original, build, say):
             say((out["eax"] & 0xFF) == (0 if hit is False else 1) and kept and not accepted
                 and not [c for c in run.calls if c[0] == "pick"],
                 f"{title}: al {0 if hit is False else 1}, ret 10h, nothing accepted")
+
+    # The left button in a weapon's edit: a click places (the original's release, its bake), a drag not.
+    for title, moves, press, editing, places in (
+            ("a click", (3, -2), True, True, True),
+            ("a drag", (30, 4), True, True, False),
+            ("a release with no press in the edit (the movie's change)", (0, 0), False, True, False),
+            ("not editing", (30, 4), True, False, False)):
+        run = EditRun(build, (preview, table))
+        run.set_states(1, 1, ITEM)
+        draw_at_bench(run)
+        prepare(run)
+        run.emu.mem_write(CHARACTER + 0xD514, bytes([editing]))
+        bakes = []
+        run.emu.hook_add(UC_HOOK_CODE, lambda e, a, s, u: (bakes.append(a), e.emu_stop()), begin=BAKE, end=BAKE)
+        run.word(MENU + 0x8C, 400)
+        run.word(MENU + 0x90, 300)
+        key_regs = dict(regs, ecx=CHARACTER)
+        down = run.run(KEY_HANDLER, (0x4444, 0x151, 0), key_regs) if press else None
+        run.word(MENU + 0x8C, 400 + moves[0])
+        run.word(MENU + 0x90, 300 + moves[1])
+        up = run.run(KEY_HANDLER, (0x4444, 0x151, 1), key_regs)
+        down_ok = down is None or (down["eax"] & 0xFF == 0 and down["esp"] == STACK + 0x80000 + 4 + 0xC
+                                   and down["eip"] == STOP_AT)
+        if places:
+            ok = down_ok and bakes == [BAKE]
+        else:
+            ok = down_ok and not bakes and up["eax"] & 0xFF == 0 and up["esp"] == STACK + 0x80000 + 4 + 0xC
+        say(ok and all(up[r] == key_regs[r] for r in ("ebx", "esi", "edi", "ebp")) if not places else ok,
+            f"{title}: " + ("the release goes on to the original's bake (1, 0, 0)" if places
+                            else "the release places nothing, al 0, ret 0Ch"))
+        say(run.read(base.late_join_state_va(late_join) + base.WEAPON_DECALS_STATE_OFFSET) == 0 or not editing,
+            f"{title}: the press is over after the release")
 
     # The start's index.
     records = ((3, 0x11), (2, 0x22), (0, 0x33), (1, 0x44))     # scope, camouflage, two decals

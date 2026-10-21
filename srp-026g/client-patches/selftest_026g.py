@@ -603,8 +603,10 @@ def test_bins():
           f"{os.path.basename(P.weapon_camo_bin())} is current ({len(fresh)} bytes)")
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
+        press = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_DECALS_STATE_OFFSET
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={decals:#x}", f"-DPREVIEW={state:#x}",
-                        f"-DTABLE={table_state:#x}", os.path.join(HERE, "weapon_decals_026g.asm"), "-o", out],
+                        f"-DTABLE={table_state:#x}", f"-DPRESS={press:#x}",
+                        os.path.join(HERE, "weapon_decals_026g.asm"), "-o", out],
                        check=True, timeout=60)
         fresh = open(out, "rb").read()
     check(fresh == open(P.weapon_decals_bin(), "rb").read(),
@@ -1723,6 +1725,7 @@ def test_weapon_decals(original, image, before):
         0x2659B2: ["call 0x263d00"],
         0x2641A0: ["push ebp", "mov ebp,esp", "and esp,byte -0x8"],
         0x263938: ["call 0x264cf0"],
+        0x265C20: ["push ebp", "mov ebp,esp", "and esp,byte -0x8"],
     }
     for va, old, offset, opcode in P.WEAPON_DECALS_HOOKS:
         entry = decals_va + offset
@@ -1749,6 +1752,14 @@ def test_weapon_decals(original, image, before):
           "the editor's bake (0x2641A0) is called by the cancel (0x263B46), the start's callback (0x264F63) and "
           "the click (0x265C4C) alone" + ("" if bake_calls == ["0x263b46 rel32", "0x264f63 rel32", "0x265c4c rel32"]
                                           else f": {bake_calls}"))
+    key = {a: t for a, _, t in ndisasm(source.read(0x265C20, 0x3C), 0x265C20)}
+    vtable = struct.unpack("<4I", source.read(0xA09F6C, 16))
+    check(key.get(0x265C29) == "cmp dword [ebp+0xc],0x151" and key.get(0x265C32) == "mov esi,ecx"
+          and key.get(0x265C36) == "cmp dword [ebp+0x10],byte +0x1" and key.get(0x265C4C) == "call 0x2641a0"
+          and source.read(0x265C58, 3) == bytes.fromhex("c20c00") and vtable[2] == 0x265C20
+          and sorted(h for h in branches_into(original, 0x265C20, 0x265C21) if not h.endswith("value")) == [],
+          "the character's mouse key handler 0x265C20 (its input vtable 0xA09F6C slot 2, called through it alone; "
+          "ecx = the character, `ret 0Ch`) bakes the edit's place on the left button's (151h) release (kind 1)")
     start = rows(source, 0x263936, 7)
     check(start == ["mov esi,ebp", "call 0x264cf0"] and source.read(0x263942, 3) == bytes.fromhex("c20800"),
           "the editor's start (0x2636B0) ends `mov esi,ebp / call 0x264CF0` (the character) and `ret 8`")
@@ -1759,16 +1770,17 @@ def test_weapon_decals(original, image, before):
     outside = {t for t in targets if not decals_va <= t < decals_va + len(code)}
     starts = {a for a, _, _ in listing}
     check(outside == {0xF6C00, 0xF6B10, 0x127C0, 0xE45B0, 0x263D00, 0x264A10, 0x264960, 0x26D130, 0x263950,
-                      0x511600, 0x277AA0, 0x264CF0, 0x2641A6}
+                      0x511600, 0x277AA0, 0x264CF0, 0x2641A6, 0x265C26}
           and all(t in starts for t in targets - outside)
           and [rows(image, decals_va + at, 5)[0].startswith("jmp ") for at in P.WEAPON_DECALS_ENTRIES]
           == [True] * len(P.WEAPON_DECALS_ENTRIES)
           and not [t for _, _, t in listing if re.search(r"(?:call|jmp) (?:dword )?\[(?!eax\+0x3c\])", t)]
           and image.read(decals_va, len(code)) == code,
           f"patch 46 at {decals_va:#x} (.srpw+{P.WEAPON_DECALS_OFFSET:#x}) is weapon_decals_026g.section.bin "
-          f"({len(code)} bytes); it begins with six `jmp near`, calls only the config's key check and lookup, "
+          f"({len(code)} bytes); it begins with seven `jmp near`, calls only the config's key check and lookup, "
           "assign, appendf, the decal's unpacking and packing, the collision pick, the mouse's ray, the accept, "
-          "the movie call, find_item_by_id and the start's query, jumps only to the bake's body, every branch "
+          "the movie call, find_item_by_id and the start's query, jumps only to the bake's and the key handler's "
+          "bodies, every branch "
           "inside it lands on an instruction, and its one indirect call is the inventory owner's (vtable+3Ch)")
 
 
