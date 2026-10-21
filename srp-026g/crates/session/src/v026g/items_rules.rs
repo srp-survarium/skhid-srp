@@ -44,7 +44,9 @@
 //!   times (`st_modifier_reroll_description`); the first change picks which
 //!   (the window locks the others, `was_rerolled_before`). A change offers
 //!   three modifications and the player takes one
-//!   (`MessageRerollItem`: the window can not be closed before). Paid in
+//!   (`MessageRerollItem`: the window can not be closed before), or
+//!   [srp, the owner's rule of 2026-10-21] keeps the old one: the window's
+//!   "keep old" button (`docs/notes/reroll-keep-old.md`). Paid in
 //!   silver it can be done once in six hours
 //!   (`st_modifier_reroll_timer_description`; the window disables silver
 //!   while the item's `reroll_time` runs), in gold at any time. A damaged
@@ -52,8 +54,10 @@
 //!   are `reroll.options`' by item level, [GUESS] times
 //!   `reroll_modificator_multiplicator` for each change made
 //!   ([`Reroll::price`](survarium::v026g::modifications::Reroll::price)).
-//!   [srp] The payment is taken when the three are offered; an offer not
-//!   answered (the client went away) is kept and shown again.
+//!   [srp] The payment is taken when the three are offered, whatever is
+//!   chosen; until the choice the item keeps the old one, and an offer not
+//!   answered (the client went away, a restart: it is saved) is kept and
+//!   shown again, with nothing more to pay.
 //! - **Craft.** The item and a donor: neither damaged nor in repair, the
 //!   item with fewer than three modifications and no fewer than the donor
 //!   (`MessageCraftItem`). The price is `craft.options`' by the item's
@@ -97,7 +101,7 @@ use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::drops::Rng;
 use survarium::v026g::golden;
 use survarium::v026g::item_params::item_params;
-use survarium::v026g::lobby::requests::RepairPayment;
+use survarium::v026g::lobby::requests::{KEEP_OLD_MODIFICATION, RepairPayment};
 use survarium::v026g::lobby::{Crafted, FULL_CONDITION, Repaired, limits};
 use survarium::v026g::modifications::{
     self, Bonuses, CraftOutcome, MAX_RANK, Modifications, REROLL_WAIT_SECONDS,
@@ -653,6 +657,7 @@ pub fn reroll(
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Chosen {
     pub old_modification: u32,
+    /// The one the item has now: the old one when it was kept.
     pub new_modification: u32,
     /// The window as it is now.
     pub window: RerollWindow,
@@ -660,7 +665,10 @@ pub struct Chosen {
 
 /// `46 08 <item> <old modification> <choice>`: take one of the three
 /// offered; `choice` is its place among them (the client sends the index
-/// of the row clicked, `MessageRerollItem.onMessageAccept`).
+/// of the row clicked, `MessageRerollItem.onMessageAccept`), or
+/// [`KEEP_OLD_MODIFICATION`]: none, the item keeps the old one
+/// (`docs/notes/reroll-keep-old.md`). Either way the offer is over; what
+/// the change cost was paid when it was made ([`reroll`]).
 pub fn choose_modifier(
     account: &mut Account,
     item_id: u32,
@@ -677,6 +685,17 @@ pub fn choose_modifier(
         .ok_or(ItemError::Reroll("nothing was offered"))?;
     if replaced != old_modification {
         return Err(ItemError::Reroll("another modification is being changed"));
+    }
+    if choice == KEEP_OLD_MODIFICATION {
+        // Nothing of the item changes: the offer goes, and the old one
+        // stays the one that may be changed again (it already is, since
+        // the change was paid).
+        item.reroll.offer = None;
+        return Ok(Chosen {
+            old_modification,
+            new_modification: old_modification,
+            window: window_of(item, now),
+        });
     }
     let new_modification = *choices
         .get(choice as usize)

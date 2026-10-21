@@ -200,7 +200,7 @@ Dispatch: `servers/lobby-server/src/v026g/dispatch.rs`, `Core::handle`. "Writer"
 | `05` | the decal editor | 0x270950 / 0x270960 | **real**: stored; no answer, as the client expects none | `items.rs` `place_upgrade` | medium |
 | `06` | opening the modification window | 0x270DC0 / 0x270DCD | **real**: `83 46 06` | `items.rs` `open_reroll` | medium |
 | `07` | changing a modification | 0x270E30 / 0x270E41 | **real**: paid, three choices drawn, `83 46 07` | `items.rs` `reroll_modifier` | medium |
-| `08` | picking one of the three | 0x270EE0 / 0x270EED | **real**: `83 46 08` | `items.rs` `choose_modifier` | medium |
+| `08` | picking one of the three, or keeping the old one (srp's window, `reroll-keep-old.md`) | 0x270EE0 / 0x270EED | **real**: `83 46 08` | `items.rs` `choose_modifier` | medium |
 | `09` | upgrading an item with a donor | 0x270F90 / 0x270FA1 | **real**: `83 46 09`; a failure is `83 46 09 FE` | `items.rs` `craft` | medium |
 | `0A` | the tutorial's "choose a weapon" step | 0x2A45D0 / 0x2A467C | **accepted, not answered** (no tutorial, `no-tutorial.md`; it was `89`, `87`, `8B`, `premium.md` §5.1) | `dispatch.rs` (logged) | high (that an `89` is awaited), LIKELY (the grant) |
 
