@@ -15,6 +15,8 @@ package survarium.rooms
     import flash.utils.getTimer;
     import scaleform.gfx.MouseEventEx;
     import survarium.controls.BottomPanel;
+    import survarium.controls.Message;
+    import survarium.controls.SrvContextMenu;
     import survarium.controls.TopMenu;
 
     // Rooms, the players' "servers" (srp's own; the wire is lobby.md 2.16.3,
@@ -255,12 +257,16 @@ package survarium.rooms
             return _shown && !resultsUp();
         }
 
-        // LobbyMenu.close_active_window: Esc hides the window (true).
+        // LobbyMenu.close_active_window: Esc hides the window (true), unless
+        // a message (a player's equipment too) or a right-click menu is open
+        // over it: Esc closes that first.
         public function closeByEsc():Boolean
         {
             try
             {
                 if (!_shown || MainScene.activePop != null || resultsUp())
+                    return false;
+                if (Message.isAnyMessage() != -1 || SrvContextMenu.visisble)
                     return false;
                 show(false);
                 return true;
