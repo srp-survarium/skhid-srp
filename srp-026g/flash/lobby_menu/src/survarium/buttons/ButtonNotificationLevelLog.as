@@ -18,18 +18,18 @@ package survarium.buttons
       
       override protected function updateText() : void
       {
-         var _loc1_:Array;
+         var rewards:Array;
          super.updateText();
          if(_data)
          {
             this.rewardField.text = LocalizationData.getName("reward");
             this.rewardBar.spacing = 5;
-            _loc1_ = _data.reward as Array;
-            if(_loc1_)
+            rewards = _data.reward as Array;
+            if(rewards)
             {
                this.rewardField.y = textField.y + textField.textHeight + 5;
                this.rewardBar.y = this.rewardField.y + 1;
-               this.rewardBar.dataProvider = new DataProvider(_loc1_);
+               this.rewardBar.dataProvider = new DataProvider(rewards);
                this.rewardBar.validateNow();
             }
             else

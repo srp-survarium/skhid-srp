@@ -36,12 +36,12 @@ package survarium.buttons
          trace("Contruct::DailyDropRenderer");
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         super.data = param1;
-         if(param1)
+         super.data = value;
+         if(value)
          {
-            selected = param1.selected;
+            selected = value.selected;
          }
          invalidateData();
       }
@@ -55,26 +55,26 @@ package survarium.buttons
          this.progressIndicator.gotoAndStop(3);
       }
       
-      override protected function handleMouseRelease(param1:MouseEvent) : void
+      override protected function handleMouseRelease(event:MouseEvent) : void
       {
       }
       
-      override protected function handleMousePress(param1:MouseEvent) : void
+      override protected function handleMousePress(event:MouseEvent) : void
       {
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
       }
       
-      protected function drawBackGround(param1:Graphics) : void
+      protected function drawBackGround(graphics:Graphics) : void
       {
-         var _loc2_:Matrix = new Matrix();
-         _loc2_.translate(-_data.index * 76,0);
-         param1.clear();
-         param1.beginBitmapFill(this.backTexture,_loc2_,true,true);
-         param1.drawRect(0,0,76,76);
-         param1.endFill();
+         var matrix:Matrix = new Matrix();
+         matrix.translate(-_data.index * 76,0);
+         graphics.clear();
+         graphics.beginBitmapFill(this.backTexture,matrix,true,true);
+         graphics.drawRect(0,0,76,76);
+         graphics.endFill();
       }
       
       override protected function draw() : void

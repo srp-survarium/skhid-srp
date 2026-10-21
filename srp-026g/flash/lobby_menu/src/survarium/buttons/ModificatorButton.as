@@ -17,10 +17,10 @@ package survarium.buttons
          stop();
       }
       
-      protected function set content(param1:Sprite) : void
+      protected function set content(value:Sprite) : void
       {
-         trace("content",this._content === param1);
-         if(this._content === param1)
+         trace("content",this._content === value);
+         if(this._content === value)
          {
             return;
          }
@@ -31,7 +31,7 @@ package survarium.buttons
                this.iconContainer.removeChild(this._content);
             }
          }
-         _content = param1;
+         _content = value;
          if(this._content == null)
          {
             return;
@@ -42,9 +42,9 @@ package survarium.buttons
          }
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         super.data = param1;
+         super.data = value;
          invalidateData();
       }
       

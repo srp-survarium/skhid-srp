@@ -35,31 +35,31 @@ package survarium.buttons
          }
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         if(param1 && param1.faction_enabled != undefined)
+         if(value && value.faction_enabled != undefined)
          {
-            enabled = param1.faction_enabled;
+            enabled = value.faction_enabled;
          }
-         _active = param1 && param1.selected;
-         super.data = param1;
+         _active = value && value.selected;
+         super.data = value;
          invalidateData();
          setState(state);
          invalidateState();
       }
       
-      override protected function handleMouseRelease(param1:MouseEvent) : void
+      override protected function handleMouseRelease(event:MouseEvent) : void
       {
          _autoRepeatEvent = null;
-         var _loc2_:MouseEventEx = param1 as MouseEventEx;
-         var _loc3_:uint = _loc2_ == null ? 0 : _loc2_.mouseIdx;
-         var _loc4_:uint = _loc2_ == null ? 0 : _loc2_.buttonIdx;
-         var _loc5_:ButtonEvent;
-         if(_loc4_ != 0)
+         var eventEx:MouseEventEx = event as MouseEventEx;
+         var mouseIndex:uint = eventEx == null ? 0 : eventEx.mouseIdx;
+         var buttonIndex:uint = eventEx == null ? 0 : eventEx.buttonIdx;
+         var clickEvent:ButtonEvent;
+         if(buttonIndex != 0)
          {
             return;
          }
-         _mouseDown ^= 1 << _loc3_;
+         _mouseDown ^= 1 << mouseIndex;
          if(_mouseDown == 0 && _repeatTimer)
          {
             _repeatTimer.stop();
@@ -69,11 +69,11 @@ package survarium.buttons
             _repeatTimer = null;
          }
          setState("release");
-         handleClick(_loc3_);
+         handleClick(mouseIndex);
          if(!_isRepeating)
          {
-            _loc5_ = new ButtonEvent(ButtonEvent.CLICK,true,false,_loc3_,_loc4_,false,false);
-            dispatchEvent(_loc5_);
+            clickEvent = new ButtonEvent(ButtonEvent.CLICK,true,false,mouseIndex,buttonIndex,false,false);
+            dispatchEvent(clickEvent);
          }
          _isRepeating = false;
       }

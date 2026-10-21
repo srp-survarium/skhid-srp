@@ -23,26 +23,26 @@ package survarium.buttons
       
       override protected function updateText() : void
       {
-         var _loc1_:Array;
-         var _loc2_:uint;
+         var rewards:Array;
+         var i:uint;
          super.updateText();
          if(_data)
          {
             this.questIcon.gotoAndStop(_data.icon);
             this.rewardField.text = LocalizationData.getName("reward");
             this.rewardBar.spacing = 5;
-            _loc1_ = _data.reward as Array;
-            if(_loc1_)
+            rewards = _data.reward as Array;
+            if(rewards)
             {
-               _loc2_ = 0;
-               while(_loc2_ < _loc1_.length)
+               i = 0;
+               while(i < rewards.length)
                {
-                  _loc1_[_loc2_].useMultiplier = _data.useMultiplier != undefined ? _data.useMultiplier : true;
-                  _loc2_++;
+                  rewards[i].useMultiplier = _data.useMultiplier != undefined ? _data.useMultiplier : true;
+                  i++;
                }
                this.rewardField.y = textField.y + textField.textHeight + 5;
                this.rewardBar.y = this.rewardField.y + 1;
-               this.rewardBar.dataProvider = new DataProvider(_loc1_);
+               this.rewardBar.dataProvider = new DataProvider(rewards);
                this.rewardBar.validateNow();
                background.height = this.rewardBar.y + 40;
             }

@@ -48,49 +48,49 @@ package survarium.buttons
          super();
       }
       
-      override public function set enabled(param1:Boolean) : void
+      override public function set enabled(value:Boolean) : void
       {
-         super.enabled = param1;
+         super.enabled = value;
          this.lockSprite.visible = enabled == false;
          this.updateDescription();
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         super.data = param1;
-         trace("SLR:data",param1 ? param1.enabled : "null");
-         if(param1 && param1.enabled != undefined)
+         super.data = value;
+         trace("SLR:data",value ? value.enabled : "null");
+         if(value && value.enabled != undefined)
          {
-            enabled = param1.enabled && !this._locked;
+            enabled = value.enabled && !this._locked;
          }
          this.updateDescription();
          invalidateData();
       }
       
-      public function showLock(param1:Boolean) : void
+      public function showLock(show:Boolean) : void
       {
-         this.lockSpriteRed.visible = this._locked || param1;
+         this.lockSpriteRed.visible = this._locked || show;
       }
       
-      public function set unlockable(param1:Boolean) : void
+      public function set unlockable(value:Boolean) : void
       {
-         _unlockable = param1;
+         _unlockable = value;
          if(!this._unlockable && this.hoverSprite.visible)
          {
             this.hoverSprite.visible = false;
          }
       }
       
-      public function lock(param1:Boolean) : void
+      public function lock(isLocked:Boolean) : void
       {
-         _locked = param1;
+         _locked = isLocked;
          this.lockSpriteRed.visible = this._locked;
-         var _loc2_:Boolean = true;
+         var dataEnabled:Boolean = true;
          if(_data && _data.enabled != undefined)
          {
-            _loc2_ = _data.enabled;
+            dataEnabled = _data.enabled;
          }
-         enabled = _loc2_ && !this._locked;
+         enabled = dataEnabled && !this._locked;
       }
       
       private function updateDescription() : void
@@ -111,9 +111,9 @@ package survarium.buttons
          invalidateData();
       }
       
-      override protected function handleMouseRollOver(param1:MouseEvent) : void
+      override protected function handleMouseRollOver(event:MouseEvent) : void
       {
-         super.handleMouseRollOver(param1);
+         super.handleMouseRollOver(event);
          this.hoverSprite.visible = enabled && !this._complete && !this._locked && this._unlockable;
          this.overSprite.visible = enabled && !this._locked;
          this.background.gotoAndStop(enabled ? 2 : 1);
@@ -123,9 +123,9 @@ package survarium.buttons
          }
       }
       
-      override protected function handleMouseRollOut(param1:MouseEvent) : void
+      override protected function handleMouseRollOut(event:MouseEvent) : void
       {
-         super.handleMouseRollOut(param1);
+         super.handleMouseRollOut(event);
          this.hoverSprite.visible = false;
          this.overSprite.visible = false;
          this.background.gotoAndStop(1);
@@ -155,11 +155,11 @@ package survarium.buttons
          this.iconContainer.addChildAt(this._perksIconsContainer,this.iconContainer.numChildren - 1);
       }
       
-      private function onSliderUpdate(param1:MouseEventEx) : void
+      private function onSliderUpdate(event:MouseEventEx) : void
       {
          if((enabled && data && !isInvalid(InvalidationType.DATA)) && !this._locked && !this.lockSpriteRed.visible)
          {
-            if(param1.buttonIdx == 0)
+            if(event.buttonIdx == 0)
             {
                if(!this._complete && this._unlockable)
                {
@@ -190,16 +190,16 @@ package survarium.buttons
       
       protected function updateData() : void
       {
-         var _loc1_:uint;
-         var _loc2_:int;
+         var currentValue:uint;
+         var maxValue:int;
          mouseChildren = true;
          visible = _data != null;
          if(_data)
          {
-            _loc1_ = (_data.newValue);
-            if(!enabled && _loc1_)
+            currentValue = (_data.newValue);
+            if(!enabled && currentValue)
             {
-               _loc1_ = 0;
+               currentValue = 0;
                _data.newValue = 0;
                dispatchEvent(new Event(Events.SKILL_UPDATE,true));
             }
@@ -207,16 +207,16 @@ package survarium.buttons
             this.textFieldLevel.text = LEVELS[_data.level - 1];
             this.skillProgressIndicator.minimum = 0;
             this.skillProgressIndicator.visible = true;
-            _loc2_ = (_data.maxValue);
-            _complete = _loc2_ == _loc1_;
+            maxValue = (_data.maxValue);
+            _complete = maxValue == currentValue;
             if(this.hoverSprite.visible && this._complete)
             {
                this.hoverSprite.visible = false;
             }
-            _data.resize = Boolean(_loc2_ > 1);
-            trace("slr_update_data",_data.name,_data.enabled,_loc1_,_loc2_,this._complete);
-            this.skillProgressIndicator.maximum = _loc2_;
-            this.skillProgressIndicator.value = _loc1_;
+            _data.resize = Boolean(maxValue > 1);
+            trace("slr_update_data",_data.name,_data.enabled,currentValue,maxValue,this._complete);
+            this.skillProgressIndicator.maximum = maxValue;
+            this.skillProgressIndicator.value = currentValue;
             this.skillProgressIndicator.enabled = enabled;
             this.skillProgressIndicator.invalidateData();
             this.skillProgressIndicator.validateNow();
@@ -225,7 +225,7 @@ package survarium.buttons
             this._perksIconsContainer.icons.gotoAndStop(_data.icon + 1);
             if(enabled)
             {
-               this._perksIconsContainer.alpha = _loc1_ > 0 ? 1 : 0.4;
+               this._perksIconsContainer.alpha = currentValue > 0 ? 1 : 0.4;
                this.skillProgressIndicator.alpha = 1;
             }
             else

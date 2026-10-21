@@ -21,13 +21,13 @@ package survarium.buttons
          super();
       }
       
-      public function set value(param1:Number) : void
+      public function set value(newValue:Number) : void
       {
-         if(this._value == param1)
+         if(this._value == newValue)
          {
             return;
          }
-         _value = param1;
+         _value = newValue;
          invalidateData();
       }
       
@@ -36,10 +36,10 @@ package survarium.buttons
          return this._value;
       }
       
-      public function set money_type(param1:Number) : void
+      public function set money_type(value:Number) : void
       {
-         _money_type = param1;
-         this.icon.gotoAndStop(param1 + 1);
+         _money_type = value;
+         this.icon.gotoAndStop(value + 1);
          invalidateData();
       }
       
@@ -48,9 +48,9 @@ package survarium.buttons
          return _toggle;
       }
       
-      override public function set toggle(param1:Boolean) : void
+      override public function set toggle(value:Boolean) : void
       {
-         _toggle = param1;
+         _toggle = value;
       }
       
       override protected function updateText() : void

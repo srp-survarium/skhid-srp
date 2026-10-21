@@ -18,9 +18,9 @@ package survarium.buttons
          super();
       }
       
-      public function set iconIndex(param1:uint) : void
+      public function set iconIndex(value:uint) : void
       {
-         _iconIndex = param1;
+         _iconIndex = value;
          this.icon.gotoAndStop(this._iconIndex + 1);
       }
       

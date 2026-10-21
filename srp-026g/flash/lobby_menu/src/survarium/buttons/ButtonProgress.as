@@ -28,20 +28,20 @@ package survarium.buttons
          }
       }
       
-      public function set progress(param1:Number) : void
+      public function set progress(value:Number) : void
       {
-         if(this._progressValue != param1)
+         if(this._progressValue != value)
          {
-            _progressValue = param1;
+            _progressValue = value;
             invalidateData();
          }
       }
       
-      public function set progressLabel(param1:String) : void
+      public function set progressLabel(value:String) : void
       {
-         if(this._progressLabel != param1)
+         if(this._progressLabel != value)
          {
-            _progressLabel = param1;
+            _progressLabel = value;
             invalidateData();
          }
       }

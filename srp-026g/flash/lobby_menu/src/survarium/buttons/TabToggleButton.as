@@ -32,15 +32,15 @@ package survarium.buttons
          }
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         super.data = param1;
+         super.data = value;
          invalidateData();
       }
       
       override protected function changeFocus() : void
       {
-         var _loc1_:String;
+         var frameLabel:String;
          if(!enabled)
          {
             return;
@@ -61,8 +61,8 @@ package survarium.buttons
             }
             else
             {
-               _loc1_ = "state" + _focused;
-               if(_focusIndicatorLabelHash[_loc1_])
+               frameLabel = "state" + _focused;
+               if(_focusIndicatorLabelHash[frameLabel])
                {
                   _newFocusIndicatorFrame = "state" + _focused;
                }
@@ -101,11 +101,11 @@ package survarium.buttons
             return;
          }
          trace("TTB::updateText",textField,this.icon);
-         var _loc1_:String = this.getLabel();
-         var _loc2_:ColorTransform;
-         if(textField.text != _loc1_)
+         var newLabel:String = this.getLabel();
+         var tint:ColorTransform;
+         if(textField.text != newLabel)
          {
-            textField.text = _loc1_;
+            textField.text = newLabel;
          }
          this.icon.gotoAndStop(_data.icon);
          this.icon.y = _state == "down" ? this._iconY + 1 : this._iconY;
@@ -117,19 +117,19 @@ package survarium.buttons
          else if(_state == "down" || selected)
          {
             this.icon.alpha = 1;
-            _loc2_ = new ColorTransform(2.4,2.4,2.4);
-            this.icon.transform.colorTransform = _loc2_;
+            tint = new ColorTransform(2.4,2.4,2.4);
+            this.icon.transform.colorTransform = tint;
          }
          else if(_state == "over")
          {
             this.icon.alpha = 1;
-            _loc2_ = new ColorTransform(2.4,2.4,2.4);
-            this.icon.transform.colorTransform = _loc2_;
+            tint = new ColorTransform(2.4,2.4,2.4);
+            this.icon.transform.colorTransform = tint;
          }
          else
          {
-            _loc2_ = new ColorTransform(2,2,2);
-            this.icon.transform.colorTransform = _loc2_;
+            tint = new ColorTransform(2,2,2);
+            this.icon.transform.colorTransform = tint;
             this.icon.alpha = 0.7;
          }
       }

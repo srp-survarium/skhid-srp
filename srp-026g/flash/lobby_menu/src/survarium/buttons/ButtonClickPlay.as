@@ -42,14 +42,14 @@ package survarium.buttons
          return this._subsystemName;
       }
       
-      public function set subsystem_name(param1:String) : void
+      public function set subsystem_name(value:String) : void
       {
-         _subsystemName = param1;
+         _subsystemName = value;
       }
       
-      override public function set enabled(param1:Boolean) : void
+      override public function set enabled(value:Boolean) : void
       {
-         if(param1)
+         if(value)
          {
             dispatchEvent(new Event(Events.SUBSYSTEM_ENABLED));
          }
@@ -57,16 +57,16 @@ package survarium.buttons
          {
             dispatchEvent(new Event(Events.SUBSYSTEM_DISABLED));
          }
-         super.enabled = param1;
+         super.enabled = value;
       }
       
-      override public function set visible(param1:Boolean) : void
+      override public function set visible(value:Boolean) : void
       {
-         if(!param1)
+         if(!value)
          {
             dispatchEvent(new Event(Events.SUBSYSTEM_DEACTIVATED));
          }
-         super.visible = param1;
+         super.visible = value;
       }
       
       public function get subsystem_enable() : Boolean
@@ -74,9 +74,9 @@ package survarium.buttons
          return enabled;
       }
       
-      public function set subsystem_enable(param1:Boolean) : void
+      public function set subsystem_enable(value:Boolean) : void
       {
-         enabled = param1;
+         enabled = value;
       }
       
       public function get subsystem_active() : Boolean
@@ -84,7 +84,7 @@ package survarium.buttons
          return visible && parent;
       }
       
-      public function set subsystem_active(param1:Boolean) : void
+      public function set subsystem_active(value:Boolean) : void
       {
          dispatchEvent(new Event(Events.SUBSYSTEM_ACTIVATED));
       }
@@ -103,63 +103,63 @@ package survarium.buttons
          this.textField2.text = _label;
       }
       
-      override protected function handleMouseRelease(param1:MouseEvent) : void
+      override protected function handleMouseRelease(event:MouseEvent) : void
       {
-         super.handleMouseRelease(param1);
+         super.handleMouseRelease(event);
          ExternalInterface.call("sound_play",3);
       }
       
-      override protected function setState(param1:String) : void
+      override protected function setState(state:String) : void
       {
          if(_data && _data is Object)
          {
-            _state = param1;
+            _state = state;
          }
-         if(param1 == "down")
+         if(state == "down")
          {
             ExternalInterface.call("sound_play",2);
          }
-         var _loc2_:Vector.<String> = getStatePrefixes();
-         var _loc3_:Array = _stateMap[param1];
-         if(_loc3_ == null || _loc3_.length == 0)
+         var prefixes:Vector.<String> = getStatePrefixes();
+         var states:Array = _stateMap[state];
+         if(states == null || states.length == 0)
          {
             return;
          }
-         var _loc4_:uint = _loc2_.length;
-         var _loc5_:uint = 0;
-         var _loc6_:String;
-         var _loc7_:uint;
-         var _loc8_:uint;
-         var _loc9_:String;
-         while(_loc5_ < _loc4_)
+         var prefixCount:uint = prefixes.length;
+         var i:uint = 0;
+         var prefix:String;
+         var stateCount:uint;
+         var j:uint;
+         var frameLabel:String;
+         while(i < prefixCount)
          {
-            _loc6_ = _loc2_[_loc5_];
-            _loc7_ = _loc3_.length;
-            _loc8_ = 0;
-            while(_loc8_ < _loc7_)
+            prefix = prefixes[i];
+            stateCount = states.length;
+            j = 0;
+            while(j < stateCount)
             {
-               _loc9_ = _loc6_ + _loc3_[_loc8_];
-               if(_labelHash[_loc9_])
+               frameLabel = prefix + states[j];
+               if(_labelHash[frameLabel])
                {
-                  _newFrame = _loc9_;
+                  _newFrame = frameLabel;
                   invalidateState();
                   return;
                }
-               _loc8_++;
+               j++;
             }
-            _loc5_++;
+            i++;
          }
       }
       
-      override protected function handleMouseRollOut(param1:MouseEvent) : void
+      override protected function handleMouseRollOut(event:MouseEvent) : void
       {
-         var _loc2_:MouseEventEx = param1 as MouseEventEx;
-         var _loc3_:uint = _loc2_ == null ? 0 : _loc2_.mouseIdx;
+         var eventEx:MouseEventEx = event as MouseEventEx;
+         var mouseIndex:uint = eventEx == null ? 0 : eventEx.mouseIdx;
          _mouseOver = false;
-         if(param1.buttonDown)
+         if(event.buttonDown)
          {
             dispatchEvent(new ButtonEvent(ButtonEvent.DRAG_OUT));
-            if(Boolean(_mouseDown & 1 << _loc3_))
+            if(Boolean(_mouseDown & 1 << mouseIndex))
             {
                if(stage != null)
                {
@@ -182,20 +182,20 @@ package survarium.buttons
          }
       }
       
-      override protected function handleMouseRollOver(param1:MouseEvent) : void
+      override protected function handleMouseRollOver(event:MouseEvent) : void
       {
          ExternalInterface.call("sound_play",1);
-         var _loc2_:MouseEventEx = param1 as MouseEventEx;
-         var _loc3_:uint = _loc2_ == null ? 0 : _loc2_.mouseIdx;
+         var eventEx:MouseEventEx = event as MouseEventEx;
+         var mouseIndex:uint = eventEx == null ? 0 : eventEx.mouseIdx;
          _mouseOver = true;
-         if(param1.buttonDown)
+         if(event.buttonDown)
          {
             dispatchEvent(new ButtonEvent(ButtonEvent.DRAG_OVER));
             if(!enabled)
             {
                return;
             }
-            if(lockDragStateChange && Boolean(_mouseDown << _loc3_ & 1))
+            if(lockDragStateChange && Boolean(_mouseDown << mouseIndex & 1))
             {
                return;
             }
