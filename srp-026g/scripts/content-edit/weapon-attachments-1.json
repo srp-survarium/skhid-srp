@@ -1,5 +1,5 @@
 {
- "_about": "The weapon's upgrade window and its button say Attachments, not Optics (the owner, 2026-10-21: 'it should also be not called optics and be called attachments'; srp-026g/docs/notes/weapon-camo.md, The weapon's upgrade window). The lobby movie's key scope_window_title (the weapon's button in the item panel and the inventory's menu, the title of the window's Attachments page) is mapped to a new text st_srp_attachments in the six localization tables instead of st_srp_optics (patch 19's 'Optics', which nothing else uses). The Appearance page's title is armour's btn_upgrade_label, unchanged.",
+ "_about": "The weapon's upgrade window and its button say Attachments, not Optics (the owner, 2026-10-21: 'it should also be not called optics and be called attachments'; srp-026g/docs/notes/weapon-camo.md, The weapon's upgrade window). The lobby movie's key scope_window_title (the weapon's button in the item panel and the inventory's menu, the title of the window's Attachments page) is mapped to a new text st_srp_attachments in the six localization tables instead of st_srp_optics (patch 19's 'Optics', which nothing else uses). The Appearance page's title is armour's btn_upgrade_label; its Ukrainian text is shortened to 'Вигляд' (the owner, 2026-10-21: 'вигляд is enough'), for armour too.",
  "add_key": [
   {"file": "localization/english/localization", "table": "strings", "key": "st_srp_attachments", "text": "Attachments"},
   {"file": "localization/german/localization", "table": "strings", "key": "st_srp_attachments", "text": "Anbauteile"},
@@ -9,6 +9,7 @@
   {"file": "localization/ukrainian/localization", "table": "strings", "key": "st_srp_attachments", "text": "Обвіс"}
  ],
  "replace_string": [
-  {"files": "localization/flash_movies_localizations.options", "from": "st_srp_optics", "to": "st_srp_attachments"}
+  {"files": "localization/flash_movies_localizations.options", "from": "st_srp_optics", "to": "st_srp_attachments"},
+  {"files": "localization/ukrainian/localization", "from": "Зовнішній вигляд", "to": "Вигляд"}
  ]
 }
