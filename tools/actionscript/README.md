@@ -16,7 +16,9 @@ python3 tools/actionscript/flash_tree.py original srp-026g/flash/<movie> <archiv
   as the original's) goes into the original movie in place of all of the
   original's code, where that code began. Everything else (graphics, fonts,
   sounds, exports, SymbolClass bindings) is the original's. About 5 seconds
-  for the lobby; the same tree gives the same bytes.
+  for the lobby. compc lays the code out by where the source lies, so every
+  tree is compiled from one place (`/tmp/srp-flash-build/<movie>`, one build
+  at a time): the same tree gives the same bytes from any checkout.
 - The build checks what the movie needs to load: every ABC block parses, and
   every class a SymbolClass tag binds is defined, once.
 - `original` cuts the original movie (the one whose graphics the build keeps)

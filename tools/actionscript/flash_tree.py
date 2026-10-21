@@ -16,9 +16,11 @@ version), against the Flash Player API (playerglobal.swc) only: every class
 the movie uses is in the tree.
 """
 import argparse
+import fcntl
 import hashlib
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -27,6 +29,10 @@ import swf
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
+# compc's output depends on where the source lies (not on what it says), so
+# every tree is compiled from one place: the same tree gives the same bytes
+# from any checkout.
+BUILD_ROOT = Path('/tmp/srp-flash-build')
 
 
 def sha(data):
@@ -111,8 +117,18 @@ def build(movie_dir, original_swf, tools, report=print):
     data = original_swf.read_bytes()
     if sha(data) != spec['movie_sha256']:
         raise ValueError(f"Not the original of {spec['movie']} (sha256 {sha(data)})")
-    with tempfile.TemporaryDirectory(prefix='srp-flash-') as work:
-        code = compile_tree(movie_dir / 'src', tools, swf.uncompressed(data)[3], Path(work))
+    place = BUILD_ROOT / movie_dir.resolve().name
+    place.mkdir(parents=True, exist_ok=True)
+    with (BUILD_ROOT / (place.name + '.lock')).open('w') as lock, \
+            tempfile.TemporaryDirectory(prefix='srp-flash-') as work:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if (place / 'src').exists():
+            shutil.rmtree(place / 'src')
+        shutil.copytree(movie_dir / 'src', place / 'src')
+        try:
+            code = compile_tree(place / 'src', tools, swf.uncompressed(data)[3], Path(work))
+        finally:
+            shutil.rmtree(place / 'src')
     movie = assemble(data, code)
     report(f'{movie_dir.name}: {check(movie)} classes in {len(code)} ABC blocks over the original\'s graphics')
     return movie

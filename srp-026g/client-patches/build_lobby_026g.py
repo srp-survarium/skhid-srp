@@ -39,8 +39,13 @@ OLDER = {
 }
 # The movie last checked in the game: the build says whether it made this one
 # (a note, not a gate). Set it when the owner has checked a new one, with a
-# line on what it holds. None yet: no one-run build has been checked in the game.
-RESULT_SHA256 = None
+# line on what it holds. RESULT (2026-10-21): the tree of 6064476c (the lobby's
+# features in the game's classes, the rooms in survarium/rooms, the craft and
+# upgrade windows' own right-click menus, Buy asking the shop, Sell on all but
+# the last of a kind), one Flex run. The owner checked c3898574…, built from
+# this tree before the build compiled every tree from one place: the same
+# code laid out by compc in another order ("good, it works").
+RESULT_SHA256 = "8b099212b42baffd663e00d5f7a6447f2edf664999c11d7e01bf4c94c656791e"
 
 
 def build(movie, tools, report=print):

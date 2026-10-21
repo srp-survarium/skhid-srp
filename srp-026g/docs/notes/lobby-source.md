@@ -129,8 +129,11 @@ Their released movies (patches 12 and 22) are the `login_menu` and `main_menu` t
 The owner: "we don't need anything for decomp matching now". The movies are no longer built over
 revision 24's compiled code: the whole tree is compiled in one Flex run, and none of the classes
 keeps revision 24's bytes. The byte-exact proof, the per-class compiler settings and the
-reconstruction diffs are in git history. The lobby of 6064476c built this way: `c3898574…` (882
-classes, 883 ABC blocks); the first such movie to be checked in the game.
+reconstruction diffs are in git history. The lobby of 6064476c built this way (882 classes, 883 ABC
+blocks) was checked in the game by the owner: "good, it works". compc lays the code out by where
+the source lies, so the build compiles every tree from one place (`/tmp/srp-flash-build/<movie>`);
+the tree of 6064476c gives `8b099212…` (`RESULT_SHA256`), the movie checked was `c3898574…`, the
+same tree compiled from another place.
 
 The HUD tree took three source fixes Flex asks for (those classes had been compiled with FFDec's
 compiler): `Minimap`'s `§default§` written as `["default"]` and a field initializer without
