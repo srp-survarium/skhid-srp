@@ -108,3 +108,13 @@ The two weapons in the builds at hand (damage / piercing; the card shows them x1
 
 Applied to revision 24's server game data (`gameplay/items/weapons/wpn_ak_12*`,
 `wpn_socom16`; patch 25 did not touch weapons): 3 files edited, 0 unexpected differences.
+
+## grenade-bounce-1.json (2026-10-21)
+
+| change | why |
+|---|---|
+| The nine grenade bounce samples (`sounds/single/weapons/f1/grenade_hit_{ground,wood,metal}_0{1,2,3}.raw_options`, the grenade material's collision sounds in `game_materials/material.pairs`): `spl_preset` `weapons_reloading` -> `material_hit`, `volume_k` doubled (ground 0.5 -> 1.0, wood 0.4 -> 0.8, metal 0.3 -> 0.6), `spl_value` 20 -> 75 | the owner: "make grenade bounce sounds louder". They had a reload click's settings (silent from 9 m, 0.03 at 5 m); now a bullet impact's (0.64 at 5 m, 0.40 at 10 m, silent from 35 m). Only the grenade pairs use these samples; bullets' impact sounds are untouched (`docs/notes/grenade_bounce.md`) |
+
+Applied to the stock resources.db's nine `.raw_options` (no Skhid patch up to 27 carries them):
+9 files edited, 0 unexpected differences. Sound only: no simulation change, nothing in the
+server game data.
