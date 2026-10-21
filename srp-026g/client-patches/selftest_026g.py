@@ -1720,6 +1720,24 @@ def test_weapon_decals(original, image, before):
     camo_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read())
     decals_va = camo_va + P.WEAPON_DECALS_OFFSET
     code = open(P.weapon_decals_bin(), "rb").read()
+    # A packed SSE operation on a 16-byte memory operand faults (#GP) unless the
+    # address is 16-byte aligned; Unicorn does not enforce it (the game crashed
+    # on patch 46's andps of a misaligned constant, 2026-10-21). Every such
+    # operand of .srpw's code at a fixed address must be aligned.
+    packed = re.compile(r"\b(andn?ps|x?orps|addps|subps|mulps|divps|minps|maxps|cmpps|sqrtps|rsqrtps|rcpps|"
+                        r"unpck[lh]ps|shufps|movaps|movdqa|pand|por|pxor|padd[bwdq]|psub[bwdq]|pcmpeq[bwd]|"
+                        r"andpd|xorpd|movapd)\b.*\[(?:dword )?(0x[0-9a-f]+)\]")
+    misaligned = []
+    for bin_path, base_va in ((P.weapon_camo_bin(), camo_va),
+                              (P.weapon_stash_bin(), camo_va + P.WEAPON_STASH_OFFSET),
+                              (P.weapon_table_bin(), camo_va + P.WEAPON_TABLE_OFFSET),
+                              (P.weapon_decals_bin(), decals_va)):
+        for address, _, text in ndisasm(open(bin_path, "rb").read(), base_va):
+            m = packed.search(text)
+            if m and int(m.group(2), 16) % 16:
+                misaligned.append(f"{address:#x} {text}")
+    check(not misaligned, "every packed SSE operand of .srpw's code at a fixed address is 16-byte aligned"
+          + "".join("; " + m for m in misaligned))
     stock_texts = {
         0x265999: ["call 0x264960"],
         0x2659B2: ["call 0x263d00"],

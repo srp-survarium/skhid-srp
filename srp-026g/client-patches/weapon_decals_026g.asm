@@ -923,6 +923,7 @@ align 4, db 0
 ; (x -, the side the bench shows), the right for the second, (0, 0.05, 0.12)
 ; of the model, size 0.15 (an eighth of a metre, halved), upright
 defaults:           dd 0x20080000, 0x8A30CE00, 0x20080200, 0x8A30CE00
+align 16, db 0                      ; andps reads it as 16 bytes: it must be 16-byte aligned (a #GP otherwise)
 abs_mask:           dd 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF
 y_shift:            dd 1.0          ; Y_SHIFT: a weapon's y (-1..1) in the u64's 0..2
 size:               dd 0.5          ; SIZE: a weapon's decals are half a character's
