@@ -3799,8 +3799,7 @@ package
          sync = new SrvSyncClip();
          sync.name = "sync";
          _back_back.name = "backblack";
-         sync.x = stage.stageWidth / 2 - sync.width / 2 + 30;
-         sync.y = stage.stageHeight / 2 - sync.height / 2;
+         this.placeSync(sync);
          this._top_container.addChild(sync);
          stage.addEventListener(Event.RESIZE,this.updateSyncScreen);
       }
@@ -3811,7 +3810,16 @@ package
          var _back_back:MovieClip = this._top_container.getChildByName("backblack") as MovieClip;
          _back_back.width = stage.stageWidth;
          _back_back.height = stage.stageHeight;
-         sync.x = stage.stageWidth / 2 - sync.width / 2 + 30;
+         this.placeSync(sync);
+      }
+      
+      // The sync clip is on the stage (in _top_container, which is not scaled):
+      // drawn at the lobby's scale, in the middle of the screen.
+      private function placeSync(sync:SrvSyncClip) : void
+      {
+         var scale:Number = MainScene.overlayScale;
+         sync.scaleX = sync.scaleY = scale;
+         sync.x = stage.stageWidth / 2 - sync.width / 2 + 30 * scale;
          sync.y = stage.stageHeight / 2 - sync.height / 2;
       }
       
@@ -5435,6 +5443,15 @@ package
          }
          Message.setScaleFactor(scaleFactor);
          MainScene.scaleFactor = scaleFactor;
+         MainScene.overlayScale = Math.max(1,scaleFactor);
+         if(this.tipContainer)
+         {
+            this.tipContainer.scaleX = this.tipContainer.scaleY = MainScene.overlayScale;
+         }
+         if(DragManager.getDragCanvas())
+         {
+            DragManager.getDragCanvas().scaleX = DragManager.getDragCanvas().scaleY = MainScene.overlayScale;
+         }
          this._front_container.scaleX = this._front_container.scaleY = scaleFactor;
          scaleX = scaleFactor;
          scaleY = scaleFactor;

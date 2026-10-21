@@ -67,7 +67,9 @@ package scaleform.clik.managers
          _dragTarget = e.dragData.dragIcon;
          _origDragSlot = e.dragTarget;
          var origin:Point = new Point(refSprite.x,refSprite.y);
-         var dest:Point = refSprite.localToGlobal(origin);
+         // In the canvas's units: the lobby scales it as itself (2 at 4K).
+         var dest:Point = _dragCanvas.globalToLocal(refSprite.localToGlobal(origin));
+         var mouse:Point = _dragCanvas.globalToLocal(new Point(_stage.mouseX,_stage.mouseY));
          if(_dragCanvas.numChildren)
          {
             _dragCanvas.removeChildAt(0);
@@ -81,8 +83,8 @@ package scaleform.clik.managers
             offsetX = _dragTarget.width / 2;
             offsetY = _dragTarget.height / 2;
          }
-         var dst_x:int = dest.x + offsetX - _stage.mouseX;
-         var dst_y:int = dest.y + offsetY - _stage.mouseY;
+         var dst_x:int = dest.x + offsetX - mouse.x;
+         var dst_y:int = dest.y + offsetY - mouse.y;
          trace("DragManager::handleStartDragEvent::",dest.x,dest.y,dst_x,dst_y);
          _dragTarget.x = dest.x;
          _dragTarget.y = dest.y;

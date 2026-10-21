@@ -50,6 +50,8 @@ package
          stage.addEventListener(KeyboardEvent.KEY_DOWN,this.onKeyDownK);
          addEventListener(BindKeyRender.START_KEYBIND,this.onStartKeybind,true);
          this.setlayout();
+         stage.addEventListener(Event.RESIZE,this.onStageResize);
+         this.onStageResize();
       }
       
       private function onStartKeybind(e:Event) : void
@@ -157,6 +159,25 @@ package
          layout = new Layout();
          this.layout.tiedToStageSize = true;
          addChild(this.layout);
+      }
+      
+      // The lobby and the HUD scale themselves from 1920 x 1080 (by the width up
+      // to an aspect of 1.85, by the height above); this menu was drawn 1:1, half
+      // its 1080p size on a 4K screen. It takes their scale now (2 at 4K), never
+      // below 1: at 1080p and below it is as it was. The layout centres the Esc
+      // menu and Settings in the scaled stage; the message boxes are scaled too.
+      protected function onStageResize(e:Event = null) : void
+      {
+         var w:Number = stage.stageWidth;
+         var h:Number = stage.stageHeight;
+         var factor:Number = w / h < 1.85 ? w / 1920 : h / 1080;
+         if(!(factor > 1))
+         {
+            factor = 1;
+         }
+         scaleX = scaleY = factor;
+         Message.setScaleFactor(factor);
+         this.layout.setScaleFactor(factor);
       }
       
       protected function onKeyDownK(e:KeyboardEvent) : void
