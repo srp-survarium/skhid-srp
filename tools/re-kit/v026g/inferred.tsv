@@ -232,6 +232,7 @@ va	status	ref_021d	name
 0x00057110	inferred-medium	0x0003e75b	vostok::sound::sound_order::`scalar deleting destructor'
 0x00057130	inferred-medium	0x0003e778	vostok::sound::sound_response::`scalar deleting destructor'
 0x00057340	inferred-medium	0x0003e8f2	vostok::memory::single_threading_single_size_allocator_policy<vostok::memory::single_size_buffer_allocator<16,vostok::threading::single_threading_policy>::node>::allocate
+0x000573c0	inferred-high		vostok::math::float4x4::create_translation
 0x000574a0	inferred-high	0x000284a0	vostok::math::create_scale
 0x00058760	inferred-medium	0x0003f8a0	vostok::sound::sound_scene::stop_produce_sound
 0x00058780	inferred-medium	0x0003f8b8	vostok::sound::sound_scene::stop_propagate_sound
@@ -530,6 +531,7 @@ va	status	ref_021d	name
 0x000ed090	inferred-medium	0x000b6745	vostok::console_commands::cc_help::execute
 0x000ed680	inferred-high	0x000b6be9	vostok::math::try_invert4x4
 0x000ee040	inferred-medium	0x000b758c	vostok::math::float4x4::try_invert
+0x000ee700	inferred-high		vostok::math::float4x4::multiply_affine
 0x000ef940	inferred-high	0x000b8aed	vostok::math::frustum::frustum
 0x000efcc0	inferred-medium	0x000b928b	vostok::memory::stack_allocator::realloc_impl
 0x000efdc0	inferred-medium	0x000b9351	vostok::resources::managed_cook::deallocate_resource
@@ -884,6 +886,7 @@ va	status	ref_021d	name
 0x00159ea0	inferred-medium	0x000f75cd	vostok::render::skeleton_render_model::skeleton_render_model
 0x00159f80	inferred-medium	0x000f7673	vostok::render::skeleton_render_model::`scalar deleting destructor'
 0x0015ad30	inferred-medium	0x000f8174	vostok::memory::new_array_helper<vostok::render::render_surface_instance>::call<vostok::memory::doug_lea_allocator>
+0x0015ae50	inferred-high		vostok::math::float4x4::create_rotation_y
 0x0015aff0	inferred-medium	0x000f82fc	vostok::render::strings_width
 0x0015b050	inferred-medium	0x000f833c	vostok::render::statistics_group::calc_sizes
 0x0015b130	inferred-medium	0x000f8412	vostok::render::make_ui_vertices
@@ -960,6 +963,7 @@ va	status	ref_021d	name
 0x001bd7b0	inferred-medium	0x0012fc95	vostok::render::lights_db::create
 0x001bd7f0	inferred-medium	0x0012fccf	vostok::render::fill_light
 0x001be0d0	inferred-medium	0x001303dc	vostok::buffer_vector<vostok::render::light_data>::insert
+0x001be3a0	inferred-high		vostok::math::float4x4::create_rotation_x
 0x001bf570	inferred-medium	0x00133103	vostok::render::register_effect_descriptors
 0x001c1190	inferred-medium	0x00134620	vostok::render::lpv_batched_geometry::add_vertex
 0x001c11d0	inferred-medium	0x00134655	vostok::render::lpv_batched_geometry::build
@@ -1208,6 +1212,8 @@ va	status	ref_021d	name
 0x0021c5e0	inferred-medium	0x0016e42f	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf4<void,survarium::network_client,enum vostok::connection_error_types_enum,enum vostok::handshaking_error_types_enum,enum vostok::socket_error_types_enum,unsigned int>,boost::_bi::list5<boost::_bi::value<survarium::network_client *>,boost::arg<1>,boost::arg<2>,boost::arg<3>,boost::arg<4> > > >::manage
 0x0021c910	inferred-medium	0x0016e8d5	survarium::base_game_scene::add_decal
 0x0021c980	inferred-medium	0x0016e93d	survarium::lobby_menu::lobby_menu
+0x0021df00	inferred-high		survarium::lobby_menu::update_player_region
+0x0021e450	inferred-high		survarium::lobby_menu::query_resources
 0x0021e840	inferred-medium	0x0016fe18	vostok::detail::concrete_type_helper<void *>::copy_helper
 0x0021e9a0	inferred-medium	0x0016e908	survarium::login_menu::input_priority
 0x0021e9b0	inferred-medium	0x0016ff8f	survarium::login_menu::login_menu
@@ -1651,7 +1657,12 @@ va	status	ref_021d	name
 0x00280f70	inferred-medium		survarium::lobby_menu_logic::state_by_name
 0x002812e0	inferred-medium		survarium::lobby_menu_logic::call
 0x00283bc0	inferred-medium	0x001a421e	survarium::lobby_camera::lobby_camera
+0x00283d30	inferred-high		survarium::lobby_camera::on_mouse_move
+0x00283eb0	inferred-high		survarium::lobby_camera::on_input_frame_end
 0x00283ef0	inferred-medium	0x001a4482	survarium::lobby_camera::tick
+0x002844d0	inferred-high		survarium::lobby_camera::collide_distance
+0x002845c0	inferred-high		survarium::lobby_camera::set_target
+0x002849f0	inferred-high		survarium::lobby_character::update
 0x00284b10	inferred-medium	0x001a481b	survarium::lobby_character::setup_profile
 0x00284d10	inferred-high		survarium::player_profile::operator=
 0x00284dc0	inferred-high		survarium::player_profile::copy_body

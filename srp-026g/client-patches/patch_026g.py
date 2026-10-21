@@ -54,11 +54,14 @@ USAGE (this script never touches the source exe):
         nasm -f bin read_order_026g.asm -o read_order_026g.bin
     (checked in). A weapon's upgrade window showing the weapon comes from
     weapon_preview_026g.asm:
-        nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA429360 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
+        nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA429360 -DCAMERA=0xA429800 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
     (checked in; STATE is 0xE00 of the late join's state page, checked; FIND is
     weapon_stash_026g.asm in `.srpw`, which also shows a weapon no kit holds:
         nasm -f bin -DCAVE=0xA429360 -DSTATE=0xA428E00 weapon_stash_026g.asm -o weapon_stash_026g.section.bin
-    checked in), and its
+    checked in; CAMERA is weapon_table_026g.asm in `.srpw`, which shows the
+    weapon in the air above the lobby's workbench:
+        nasm -f bin -DCAVE=0xA429800 -DSTATE=0xA428F00 -DPREVIEW=0xA428E00 weapon_table_026g.asm -o weapon_table_026g.section.bin
+    checked in; its STATE is 0xF00 of the late join's state page, checked), and its
     draw from weapon_draw_026g.asm:
         nasm -f bin -DCAVE=0xA425D20 -DSTATE=0xA428E00 weapon_draw_026g.asm -o weapon_draw_026g.section.bin
     (checked in). The warmup camera turned by a drag and moved by the wheel while
@@ -1528,6 +1531,35 @@ WEAPON_CAMO_NAME_FORMAT = b"srpw1_%s_%s_%d\0"
 # from a scratch copy of the account's profile.
 WEAPON_STASH_OFFSET = 0x360
 WEAPON_PREVIEW_FIND_CALLS = (0x2B, 0xCC)       # weapon_preview_026g.section.bin: the two `call FIND`
+# A weapon's upgrade window shows the weapon in the air above the lobby's
+# workbench (patch 45, README; client_patch.md section 3.42):
+# weapon_table_026g.asm at WEAPON_TABLE_OFFSET of `.srpw`, after the stash
+# code; its state (WEAPON_TABLE_STATE_SIZE bytes) at WEAPON_TABLE_STATE_OFFSET
+# of `.srpd`, after the others'. It begins with a table of four `jmp near`:
+# camera (+0), which patch 32's start_cam and exit_cam jump to instead of the
+# lobby camera's setter (WEAPON_PREVIEW_CAMERA_JUMPS, -DCAMERA), and the three
+# hooks' entries:
+# - the lobby camera's tick (0x283EF0, ebx = camera+4), `movss xmm0,
+#   [ebx+0C8h]` at 0x284020 (the drag's yaw of the frame; every tick passes
+#   it): tick, which turns the weapon by the drag and flies the camera;
+# - player::mt_draw (0x2474A0), `cmp byte [ebp-1],0 / jne 247592h` at
+#   0x247576 (a player not seen and not the world's own goes to the culled
+#   draw): cull, which sends the table's player to the draw path;
+# - mt_draw, `cmp byte [ebx+0F49Ch],0 / je 2477C2h` at 0x24778F (the held
+#   item's transform: the decal pose's or the hand's): matrix, which gives
+#   the table's player's held item the bench's transform.
+# No base relocation is under a site; the code holds no absolute address but
+# the game's functions' and finds its state with call/pop.
+WEAPON_TABLE_OFFSET = 0x800
+WEAPON_TABLE_STATE_OFFSET = 0xF00
+WEAPON_TABLE_STATE_SIZE = 0x28
+WEAPON_PREVIEW_CAMERA_JUMPS = (0x68, 0xA8)     # weapon_preview_026g.section.bin: the two `jmp CAMERA`
+WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF)    # camera, tick, cull, matrix: `jmp near` each
+WEAPON_TABLE_HOOKS = (
+    (0x284020, bytes.fromhex("f30f1083c8000000"), 0x5, 0xE8),        # the camera's tick: tick
+    (0x247576, bytes.fromhex("807dff007516"), 0xA, 0xE8),            # mt_draw's culled player: cull
+    (0x24778F, bytes.fromhex("80bb9cf4000000742a"), 0xF, 0xE8),      # mt_draw's held item's transform: matrix
+)
 
 
 def weapon_camo_va(late_join):
@@ -2178,7 +2210,34 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
                 != late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET:
             sys.exit(f"weapon_stash_026g.section.bin: assembled for another state "
                      f"(-DSTATE={late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET:#x}?)")
+        weapon_table = open(weapon_table_bin(), "rb").read()
+        table_va = camo_va + WEAPON_TABLE_OFFSET
+        table_state = late_join_state_va(late_join) + WEAPON_TABLE_STATE_OFFSET
+        preview_state = late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET
+        if WEAPON_STASH_OFFSET + len(weapon_stash) > WEAPON_TABLE_OFFSET \
+                or WEAPON_TABLE_OFFSET + len(weapon_table) > 0x1000:
+            sys.exit("the weapon stash's code and the weapon table's do not fit in .srpw's page")
+        if FOV_LOD_STATE_OFFSET + FOV_LOD_STATE_SIZE > WEAPON_TABLE_STATE_OFFSET \
+                or WEAPON_TABLE_STATE_OFFSET + WEAPON_TABLE_STATE_SIZE > LATE_JOIN_STATE_SIZE:
+            sys.exit("the weapon table's state is not between the others' and the page's end")
+        # Its state routine as patch 32's; its one read of patch 32's mode is
+        # `cmp byte [edi+PREVIEW-STATE],0` (edi = its state).
+        if weapon_preview_state(weapon_table, table_va) != table_state \
+                or weapon_table.count(b"\x80\xBF" + struct.pack("<i", preview_state - table_state) + b"\x00") != 1 \
+                or any(weapon_table[at] != 0xE9 for at in WEAPON_TABLE_ENTRIES):
+            sys.exit(f"weapon_table_026g.section.bin: its entries or its state are not where patch_026g.py puts "
+                     f"them (assembled with -DCAVE={table_va:#x} -DSTATE={table_state:#x} "
+                     f"-DPREVIEW={preview_state:#x}?)")
+        if any(weapon_preview[at] != 0xE9
+               or WEAPON_PREVIEW_VA + at + 5 + struct.unpack_from("<i", weapon_preview, at + 1)[0] != table_va
+               for at in WEAPON_PREVIEW_CAMERA_JUMPS):
+            sys.exit(f"weapon_preview_026g.section.bin does not jump to weapon_table_026g.asm (-DCAMERA={table_va:#x}?)")
         weapon_camo = weapon_camo + b"\xCC" * (WEAPON_STASH_OFFSET - len(weapon_camo)) + weapon_stash
+        weapon_camo = weapon_camo + b"\xCC" * (WEAPON_TABLE_OFFSET - len(weapon_camo)) + weapon_table
+        for va, expected, offset, opcode in WEAPON_TABLE_HOOKS:
+            patch(data, va, expected, hook_bytes(table_va, va, expected, offset, opcode))
+            if neutralize_relocs(data, [(va, va + len(expected))]):
+                sys.exit(f"{va:#x}: a base relocation under a hook of the weapon table")
         va, expected, offset, opcode = WEAPON_CAMO_HOOK
         patch(data, va, expected, hook_bytes(camo_va, va, expected, offset, opcode))
         if neutralize_relocs(data, [(va, va + len(expected))]):
@@ -2255,7 +2314,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
                      "the scoreboard shows the places in the match and none whose player left, "
                      "a spot has no cooldown and a battery's body spots it, "
                      "a model's LOD and screen factor at a wider field of view are the original's, "
-                     "a weapon wears the camouflage its item holds"
+                     "a weapon wears the camouflage its item holds, "
+                     "a weapon's upgrade window shows it in the air above the lobby's workbench"
                      if late_join is not None else "")
                   + (f", default login server {server}" if server is not None else ""))
 
@@ -2366,6 +2426,10 @@ def warmup_look_calls(code):
 
 def weapon_stash_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_stash_026g.section.bin")
+
+
+def weapon_table_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_table_026g.section.bin")
 
 
 def weapon_preview_bin():

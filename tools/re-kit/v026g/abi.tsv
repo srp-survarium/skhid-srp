@@ -152,6 +152,7 @@ va	name	source	ret_cleanup	result
 0x0004abc0	vostok::vfs::transfer_children::transfer_child	manual	12	
 0x0004ad50	vostok::vfs::transfer_children::transfer_children	manual	20	
 0x0004fbd0	vostok::vfs::physical_path_mounter::mount_root	manual	4	
+0x000573c0	vostok::math::float4x4::create_translation	manual	0	EAX = the matrix: identity rotation, the vector in row 3 (row-vector, v * M)
 0x0005afe0	vostok::sound::sound_instance_proxy_internal::stop	manual	0	
 0x000621b0	vostok::render::animated_model_instance_cook::delete_resource	manual	4	
 0x00067089		auto	0	
@@ -197,6 +198,7 @@ va	name	source	ret_cleanup	result
 0x000e7d90	vostok::resources::mount_by_config_helper::query_db	manual	0	
 0x000e7e80	vostok::resources::query_mount_physical	manual	0	
 0x000eb600	vostok::memory::doug_lea_allocator::usable_size_impl	manual	4	
+0x000ee700	vostok::math::float4x4::multiply_affine	manual	0	EAX = the out matrix = EDX * ECX (apply EDX first; the w column taken as 0, 0, 0, 1); caller pops
 0x000f1850	vostok::resources::unmanaged_resource::~unmanaged_resource	manual	0	
 0x000f6b10	vostok::configs::binary_config_value::operator[]	manual	0	EAX: the child value (no end check)
 0x000f6c00	vostok::configs::binary_config_value::value_exists	manual	0	AL: the key is there
@@ -479,6 +481,7 @@ va	name	source	ret_cleanup	result
 0x0015a9d0	vostok::render::skeleton_render_model_instance::get_bind_pose	manual	8	
 0x0015aa60	vostok::render::skeleton_render_model_instance::get_bone_matrix	manual	12	EAX (32bits): output matrix pointer
 0x0015ab00	vostok::render::skeleton_render_model_instance::get_bone_direction	manual	16	EAX (32bits): output three-float pointer
+0x0015ae50	vostok::math::float4x4::create_rotation_y	manual	0	rows (cos a, 0, sin a), (0, 1, 0), (-sin a, 0, cos a); caller pops
 0x0015af60	vostok::render::statistics_cpu_gpu::statistics_cpu_gpu	manual	4	EAX: owner address
 0x0015ba20	vostok::render::statistics_float::print	manual	4	
 0x0015bc70	vostok::render::statistics_cpu_gpu::print_name	manual	4	
@@ -719,6 +722,7 @@ va	name	source	ret_cleanup	result
 0x001bd2c0	vostok::render::stage_screen_image::clear_surfaces	manual	0	
 0x001bd320	vostok::render::stage_screen_image::execute	manual	4	
 0x001bde20	vostok::render::lights_db::add_light	manual	4	
+0x001be3a0	vostok::math::float4x4::create_rotation_x	manual	0	EAX = ESI; rows (1, 0, 0), (0, cos a, -sin a), (0, sin a, cos a); caller pops
 0x001be690	vostok::render::effect_editor_view_mode::compile	manual	12	
 0x001be980	vostok::render::effect_fill_environment_probe_face::compile	manual	12	
 0x001bed60	vostok::render::effect_fill_sky_ao_map::compile	manual	12	
@@ -908,6 +912,7 @@ va	name	source	ret_cleanup	result
 0x0021d5e0	survarium::lobby_menu::tick	manual	12	
 0x0021d720	survarium::lobby_menu::on_client_status_received	manual	4	
 0x0021d9d0	survarium::lobby_menu::on_operation_denied_received	manual	4	
+0x0021df00	survarium::lobby_menu::update_player_region	manual	4	projects the lobby character's feet and head (character+8, -0.1 and +2 m) and calls the movie's root.set_player_region
 0x0021e170	survarium::lobby_menu::set_mouse_position	manual	12	
 0x0021e260	survarium::lobby_menu::demo_play	manual	4	
 0x0021f3d0	survarium::login_menu::enable_button	manual	0	
@@ -971,6 +976,7 @@ va	name	source	ret_cleanup	result
 0x00244c50	survarium::weapon::remove_aimed_rifle_scope_from_scene	manual	0	
 0x00244e10		auto	16	
 0x00245250		auto	0	
+0x002474a0	survarium::player::mt_draw	manual	0	the held item (+128h) drawn by its vtable+48h with [ebp-0A8h] (the hand) or [ebp-0E8h] (the decal pose, translate(0, -10, 0)) at 0x2477C8; [ebp-0F0h] = the caller's EBX
 0x00256fa0	survarium::damage_zone_cook::delete_resource	manual	4	
 0x00257170	survarium::damage_zone_cook::calculate_max_requests_count	manual	4	
 0x00257210	survarium::damage_zone_cook::calculate_buffer_size	manual	4	
@@ -1016,6 +1022,13 @@ va	name	source	ret_cleanup	result
 0x0027c1f0	survarium::network_client::register_message_in_stats	manual	4	
 0x0027c5f0	survarium::network_client::process_player_entered_match	manual	4	
 0x0027c690	survarium::network_client::process_player_left_match	manual	4	
+0x00283bc0	survarium::lobby_camera::lobby_camera	manual	4	height 1.2, distance 1.96, the point (+A0h, +A8h) 0; vtables 0xA09EB4 (input) and 0xA09ED8 (+4)
+0x00283d30	survarium::lobby_camera::on_mouse_move	manual	16	AL = 1 while a drag turns the camera (a button of 52h held)
+0x00283eb0	survarium::lobby_camera::on_input_frame_end	manual	4	zeroes the frame's wheel (+C8h) and drag moves (+CCh, +D0h)
+0x00283ef0	survarium::lobby_camera::tick	manual	0	the camera world matrix at +48h; dt (at most 0.1 s) at [esp+10h] of its frame
+0x002844d0	survarium::lobby_camera::collide_distance	manual	4	[EDI] = the distance to the first hit of the collision scene (+B0h), when one
+0x002845c0	survarium::lobby_camera::set_target	manual	4	targets +9Ch (height), +98h (side angle), +C0h (distance); [ECX] = the distance target it replaces; speeds +E0h..+E8h = |change| * 1.111 a second
+0x002849f0	survarium::lobby_character::update	manual	12	gives its player (+D2B8h) the upgrade mode (+F49Ch) and the decal transform (+F4A0h), updates it (0x2DA9A0) and draws it (call 0x2474A0 at 0x284A7E, return 0x284A83)
 0x00284b10	survarium::lobby_character::setup_profile	manual	8	
 0x00284d10	survarium::player_profile::operator=	manual	0	EAX = destination; deep copy (every item record, the kits); clobbers ECX, EDX, XMM0; DF = 0
 0x00284dc0	survarium::player_profile::copy_body	manual	8	
