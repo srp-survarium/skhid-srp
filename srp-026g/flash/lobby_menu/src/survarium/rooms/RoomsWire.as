@@ -23,6 +23,8 @@ package survarium.rooms
         // The room's chat tab is up: its last lines, and its new ones from
         // now on (answered with the state; social.md 9.8).
         public static const CHAT:int = FIRST + 30;
+        // The asker's friends who are members of a room (`S1;Y`).
+        public static const FRIEND_ROOMS:int = FIRST + 40;
         public static const QUEUE:int = FIRST + 200000;
         public static const VOTE:int = FIRST + 3;
         public static const POOL:int = FIRST + 10;
