@@ -54,10 +54,14 @@ USAGE (this script never touches the source exe):
         nasm -f bin read_order_026g.asm -o read_order_026g.bin
     (checked in). A weapon's upgrade window showing the weapon comes from
     weapon_preview_026g.asm:
-        nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA42936F -DCAMERA=0xA429800 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
+        nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA42B00F -DCAMERA=0xA429800 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
     (checked in; STATE is 0xE00 of the late join's state page, checked; FIND is
-    weapon_stash_026g.asm in `.srpw`, which also shows a weapon no kit holds and
-    armour the chosen kit does not wear:
+    upgrade_preview_026g.asm in `.srpw`, which shows an upgrade dropped on the
+    window's weapon at once and calls weapon_stash_026g.asm's find first:
+        nasm -f bin -DCAVE=0xA42B000 -DSTATE=0xA428E58 -DPREVIEW=0xA428E00 -DFIND=0xA42936F upgrade_preview_026g.asm -o upgrade_preview_026g.section.bin
+    checked in; its STATE is 0xE58 of the late join's state page, checked;
+    weapon_stash_026g.asm also shows a weapon no kit holds and armour the
+    chosen kit does not wear:
         nasm -f bin -DCAVE=0xA429360 -DSTATE=0xA428E00 -DPREVIEW=0xA427E50 weapon_stash_026g.asm -o weapon_stash_026g.section.bin
     checked in; CAMERA is weapon_table_026g.asm in `.srpw`, which shows the
     weapon in the air above the lobby's workbench:
@@ -1577,6 +1581,42 @@ WEAPON_TABLE_STAMP_OFFSET = 0x48
 WEAPON_TABLE_MATRIX_OFFSET = 0x50
 WEAPON_PREVIEW_CAMERA_JUMPS = (0x68, 0xA8)     # weapon_preview_026g.section.bin: the two `jmp CAMERA`
 WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14)  # camera, tick, cull, matrix, left: `jmp near` each
+# A weapon's upgrade window shows an upgrade dropped on the weapon at once
+# (patch 47, README; client_patch.md section 3.43): upgrade_preview_026g.asm
+# at UPGRADE_PREVIEW_OFFSET of `.srpw`, a page of its own (the second page is
+# the weapon decals', patch 46); its state at UPGRADE_PREVIEW_STATE_OFFSET of
+# `.srpd`, after the field of view's k (FOV_LOD_STATE_OFFSET) and before
+# patch 45's. Six `jmp near`, the entries:
+# - relocate_upgrade_item's handler (0x29A8B0), `mov edx,[esi+4620h]` at
+#   0x29A9B2 (before its `46 01` is written): relocate, which queues the
+#   change for the window's weapon and makes the character again at once;
+# - drop_upgrade_item's handler (0x29A9D0), `mov ecx,[esi+4620h]` at
+#   0x29AACF (before patch 30's `46 02`): drop, the same;
+# - the 0x87 reader (0x270260), `call 0x270320` at 0x270313, its last call:
+#   account, the server's account answers the oldest queued change;
+# - patch 32's two `call FIND` (WEAPON_PREVIEW_FIND_CALLS): find, which calls
+#   weapon_stash_026g.asm's find_kit_or_show and builds the window's weapon
+#   from the scratch with the queue applied;
+# - setup_profile past its early return, `cmp dword [ebx+0D2C4h],-1` at
+#   0x284B89: again, which returns when the player being made is of the
+#   kit's id and revision asked;
+# - on_player_ready, `cmp byte [ebx+0D2C9h],0` at 0x284F7F: made, a log line
+#   with the time the lobby character's player took.
+# No base relocation is under a site and no branch aims inside one; the code
+# holds the absolute addresses of its state, patch 32's and its strings (the
+# exe is never rebased).
+UPGRADE_PREVIEW_OFFSET = 0x2000
+UPGRADE_PREVIEW_STATE_OFFSET = 0xE58
+UPGRADE_PREVIEW_STATE_SIZE = 0xA0
+UPGRADE_PREVIEW_FIND = 0x0F
+UPGRADE_PREVIEW_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19)  # relocate, drop, account, find, again, made
+UPGRADE_PREVIEW_HOOKS = (
+    (0x29A9B2, bytes.fromhex("8b9620460000"), 0x0, 0xE8),          # relocate_upgrade_item: relocate
+    (0x29AACF, bytes.fromhex("8b8e20460000"), 0x5, 0xE8),          # drop_upgrade_item: drop
+    (0x270313, bytes.fromhex("e808000000"), 0xA, 0xE8),            # the 0x87 reader's last call: account
+    (0x284B89, bytes.fromhex("83bbc4d20000ff"), 0x14, 0xE8),       # setup_profile past its early return: again
+    (0x284F7F, bytes.fromhex("80bbc9d2000000"), 0x19, 0xE8),       # on_player_ready: made
+)
 WEAPON_TABLE_HOOKS = (
     (0x284020, bytes.fromhex("f30f1083c8000000"), 0x5, 0xE8),        # the camera's tick: tick
     (0x247576, bytes.fromhex("807dff007516"), 0xA, 0xE8),            # mt_draw's culled player: cull
@@ -2164,11 +2204,12 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
                      f"puts them (assembled with -DCAVE={WEAPON_PREVIEW_VA:#x} "
                      f"-DSTATE={late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET:#x}?)")
         stash_va = weapon_camo_va(late_join) + WEAPON_STASH_OFFSET
+        upgrade_preview_va = weapon_camo_va(late_join) + UPGRADE_PREVIEW_OFFSET
         if any(weapon_preview[at] != 0xE8
                or WEAPON_PREVIEW_VA + at + 5 + struct.unpack_from("<i", weapon_preview, at + 1)[0]
-               != stash_va + WEAPON_STASH_FIND for at in WEAPON_PREVIEW_FIND_CALLS):
-            sys.exit(f"weapon_preview_026g.section.bin does not call weapon_stash_026g.asm "
-                     f"(-DFIND={stash_va + WEAPON_STASH_FIND:#x}?)")
+               != upgrade_preview_va + UPGRADE_PREVIEW_FIND for at in WEAPON_PREVIEW_FIND_CALLS):
+            sys.exit(f"weapon_preview_026g.section.bin does not call upgrade_preview_026g.asm "
+                     f"(-DFIND={upgrade_preview_va + UPGRADE_PREVIEW_FIND:#x}?)")
         for va, expected, offset, opcode in WEAPON_PREVIEW_HOOKS:
             if va in WEAPON_STASH_ENTRIES:              # through the stash's entry, which goes on to patch 32's
                 patch(data, va, expected, hook_bytes(stash_va, va, expected, WEAPON_STASH_ENTRIES[va][0], opcode))
@@ -2334,6 +2375,25 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
             patch(data, va, expected, hook_bytes(decals_va, va, expected, offset, opcode))
             if neutralize_relocs(data, [(va, va + len(expected))]):
                 sys.exit(f"{va:#x}: a base relocation under a hook of the weapon decals")
+        upgrade_preview = open(upgrade_preview_bin(), "rb").read()
+        upgrade_preview_state = late_join_state_va(late_join) + UPGRADE_PREVIEW_STATE_OFFSET
+        if WEAPON_DECALS_OFFSET + len(weapon_decals) > UPGRADE_PREVIEW_OFFSET \
+                or len(upgrade_preview) > 0x1000:
+            sys.exit("the weapon decals' code and the upgrade preview's do not fit in .srpw")
+        if FOV_LOD_STATE_OFFSET + FOV_LOD_STATE_SIZE > UPGRADE_PREVIEW_STATE_OFFSET \
+                or UPGRADE_PREVIEW_STATE_OFFSET + UPGRADE_PREVIEW_STATE_SIZE > WEAPON_TABLE_STATE_OFFSET:
+            sys.exit("the upgrade preview's state is not between the field of view's and the weapon table's")
+        if upgrade_preview_targets(upgrade_preview, upgrade_preview_va) \
+                != (stash_va + WEAPON_STASH_FIND, upgrade_preview_state, preview_state):
+            sys.exit(f"upgrade_preview_026g.section.bin: its entries, its state or its find are not where "
+                     f"patch_026g.py puts them (assembled with -DCAVE={upgrade_preview_va:#x} "
+                     f"-DSTATE={upgrade_preview_state:#x} -DPREVIEW={preview_state:#x} "
+                     f"-DFIND={stash_va + WEAPON_STASH_FIND:#x}?)")
+        weapon_camo = weapon_camo + b"\xCC" * (UPGRADE_PREVIEW_OFFSET - len(weapon_camo)) + upgrade_preview
+        for va, expected, offset, opcode in UPGRADE_PREVIEW_HOOKS:
+            patch(data, va, expected, hook_bytes(upgrade_preview_va, va, expected, offset, opcode))
+            if neutralize_relocs(data, [(va, va + len(expected))]):
+                sys.exit(f"{va:#x}: a base relocation under a hook of the upgrade preview")
         for va, expected, offset, opcode in WEAPON_TABLE_HOOKS:
             patch(data, va, expected, hook_bytes(table_va, va, expected, offset, opcode))
             if neutralize_relocs(data, [(va, va + len(expected))]):
@@ -2535,6 +2595,36 @@ def weapon_table_bin():
 
 def weapon_decals_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_decals_026g.section.bin")
+
+
+def upgrade_preview_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "upgrade_preview_026g.section.bin")
+
+
+def upgrade_preview_targets(code, va):
+    """upgrade_preview_026g.section.bin assembled at `va`: (the find's
+    `call`, its state, patch 32's state) when its six entries are `jmp
+    near`, find (+0Fh's) begins `push eax / call <find>` and the state is
+    the immediate of pop_op's `mov esi,<state>` (the one after account's
+    `call`), patch 32's that of preview's first `mov esi,<state>`; else None."""
+    if any(code[at] != 0xE9 for at in UPGRADE_PREVIEW_ENTRIES):
+        return None
+    target = lambda at: va + at + 5 + struct.unpack_from("<i", code, at + 1)[0] - va
+    find = target(UPGRADE_PREVIEW_FIND)
+    account = target(UPGRADE_PREVIEW_ENTRIES[2])
+    preview = target(UPGRADE_PREVIEW_ENTRIES[0])
+    if code[find] != 0x50 or code[find + 1] != 0xE8 or code[account] != 0xE8:
+        return None
+    pop_op = target(account)
+    # relocate: pushad / movzx edx,cl / mov eax,[esp+34h] / call preview
+    call_at = code.find(b"\xE8", preview)
+    if code[pop_op] != 0x60 or code[pop_op + 1] != 0xBE or call_at < 0:
+        return None
+    body = target(call_at)
+    if code[body] != 0xBE:
+        return None
+    return ((va + find + 1 + 5 + struct.unpack_from("<i", code, find + 2)[0]) & 0xFFFFFFFF,
+            struct.unpack_from("<I", code, pop_op + 2)[0], struct.unpack_from("<I", code, body + 1)[0])
 
 
 def weapon_preview_bin():

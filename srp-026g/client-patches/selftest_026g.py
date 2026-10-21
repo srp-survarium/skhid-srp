@@ -569,8 +569,9 @@ def test_bins():
         out = os.path.join(tmp, "out.bin")
         stash = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_STASH_OFFSET
         table = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_TABLE_OFFSET
+        upgrades = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.UPGRADE_PREVIEW_OFFSET
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.WEAPON_PREVIEW_VA:#x}", f"-DSTATE={state:#x}",
-                        f"-DFIND={stash + P.WEAPON_STASH_FIND:#x}", f"-DCAMERA={table:#x}",
+                        f"-DFIND={upgrades + P.UPGRADE_PREVIEW_FIND:#x}", f"-DCAMERA={table:#x}",
                         os.path.join(HERE, "weapon_preview_026g.asm"), "-o", out], check=True, timeout=60)
         fresh = open(out, "rb").read()
     check(fresh == open(P.weapon_preview_bin(), "rb").read(),
@@ -611,6 +612,15 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.weapon_decals_bin(), "rb").read(),
           f"{os.path.basename(P.weapon_decals_bin())} is current ({len(fresh)} bytes)")
+    upgrade_state = P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.UPGRADE_PREVIEW_STATE_OFFSET
+    with tempfile.TemporaryDirectory() as tmp:
+        out = os.path.join(tmp, "out.bin")
+        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={upgrades:#x}", f"-DSTATE={upgrade_state:#x}",
+                        f"-DPREVIEW={state:#x}", f"-DFIND={stash + P.WEAPON_STASH_FIND:#x}",
+                        os.path.join(HERE, "upgrade_preview_026g.asm"), "-o", out], check=True, timeout=60)
+        fresh = open(out, "rb").read()
+    check(fresh == open(P.upgrade_preview_bin(), "rb").read(),
+          f"{os.path.basename(P.upgrade_preview_bin())} is current ({len(fresh)} bytes)")
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.WEAPON_DRAW_VA:#x}", f"-DSTATE={state:#x}",
@@ -1399,7 +1409,8 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.FOV_LOD_HOOKS] + \
         [(P.WEAPON_CAMO_HOOK[0], len(P.WEAPON_CAMO_HOOK[1]))] + \
         [(va, len(old)) for va, old, _, _ in P.WEAPON_TABLE_HOOKS] + \
-        [(va, len(old)) for va, old, _, _ in P.WEAPON_DECALS_HOOKS]
+        [(va, len(old)) for va, old, _, _ in P.WEAPON_DECALS_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.UPGRADE_PREVIEW_HOOKS]
 
 
 def pickup_sites():
@@ -1731,7 +1742,8 @@ def test_weapon_decals(original, image, before):
     for bin_path, base_va in ((P.weapon_camo_bin(), camo_va),
                               (P.weapon_stash_bin(), camo_va + P.WEAPON_STASH_OFFSET),
                               (P.weapon_table_bin(), camo_va + P.WEAPON_TABLE_OFFSET),
-                              (P.weapon_decals_bin(), decals_va)):
+                              (P.weapon_decals_bin(), decals_va),
+                              (P.upgrade_preview_bin(), camo_va + P.UPGRADE_PREVIEW_OFFSET)):
         for address, _, text in ndisasm(open(bin_path, "rb").read(), base_va):
             m = packed.search(text)
             if m and int(m.group(2), 16) % 16:
@@ -1800,6 +1812,89 @@ def test_weapon_decals(original, image, before):
           "the movie call, find_item_by_id and the start's query, jumps only to the bake's and the key handler's "
           "bodies, every branch "
           "inside it lands on an instruction, and its one indirect call is the inventory owner's (vtable+3Ch)")
+
+
+def test_upgrade_preview(original, image, before):
+    """Check 47: a weapon's upgrade window shows an upgrade dropped on the
+    weapon at once (patch 47, UPGRADE_PREVIEW_HOOKS). check_upgrade_preview_026g.py
+    runs the sites with the game's setup_profile, profile copy and config lookups."""
+    source = Image(original)
+    rows = lambda img, va, size: [text for _, _, text in ndisasm(img.read(va, size), va)]
+    late_join = open(P.late_join_bin(), "rb").read()
+    code_va = P.weapon_camo_va(late_join) + P.UPGRADE_PREVIEW_OFFSET
+    stash_find = P.weapon_camo_va(late_join) + P.WEAPON_STASH_OFFSET + P.WEAPON_STASH_FIND
+    state = P.late_join_state_va(late_join) + P.UPGRADE_PREVIEW_STATE_OFFSET
+    preview_state = P.late_join_state_va(late_join) + P.WEAPON_PREVIEW_STATE_OFFSET
+    code = open(P.upgrade_preview_bin(), "rb").read()
+    stock_texts = {
+        0x29A9B2: ["mov edx,[esi+0x4620]"],
+        0x29AACF: ["mov ecx,[esi+0x4620]"],
+        0x270313: ["call 0x270320"],
+        0x284B89: ["cmp dword [ebx+0xd2c4],byte -0x1"],
+        0x284F7F: ["cmp byte [ebx+0xd2c9],0x0"],
+    }
+    for va, old, offset, opcode in P.UPGRADE_PREVIEW_HOOKS:
+        entry = code_va + offset
+        check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
+              and rows(source, va, len(old)) == stock_texts[va]
+              and rows(image, va, len(old)) == [f"call {entry:#x}"] + ["nop"] * (len(old) - 5),
+              f"{va:#x}: `{' / '.join(stock_texts[va])}` in the original and the build without the late join, "
+              f"`call {entry:#x}` and {len(old) - 5} nops here")
+        hits = [hit for hit in aimed_inside(original, va, len(old), 0x82)
+                if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
+        relocated = [r for kind, r in source.relocations().values() if kind == 3 and r + 4 > va and r < va + len(old)]
+        check(not hits and not relocated, f"{va:#x}: no branch or value aims inside the site, no base relocation "
+              "is under it" + "".join(f"\n          {a:#x}" for a in hits))
+    relocate = {a: t for a, _, t in ndisasm(source.read(0x29A9AE, 0x15), 0x29A9AE)}
+    drop = {a: t for a, _, t in ndisasm(source.read(0x29AAB2, 0x2A), 0x29AAB2)}
+    check(rows(source, 0x29A8C6, 4) == ["mov [esp+0x10],ecx"] and rows(source, 0x29A9EA, 4) == ["mov [esp+0x10],ecx"]
+          and rows(source, 0x29A8BE, 3) == ["mov esi,[eax+0x8]"] and rows(source, 0x29A984, 3) == ["mov al,[esi+0x38]"]
+          and rows(source, 0x29A987, 3) == ["mov edi,[esi+0x8]"] and rows(source, 0x29A98A, 3) == ["mov ebx,[esi+0x20]"]
+          and rows(source, 0x29A9A3, 6) == ["mov esi,[eax+0x6a0]"]
+          and relocate.get(0x29A9AE) == "mov ecx,[esp+0x14]" and relocate.get(0x29A9BE) == "call 0x2707c0"
+          and rows(source, 0x29A9D9, 6) == ["mov eax,[ebp+0x8]", "mov eax,[eax+0x8]"]
+          and rows(source, 0x29A9E7, 3) == ["mov edi,[eax+0x20]"]
+          and drop.get(0x29AAB6) == "mov esi,[eax+0x6a0]" and drop.get(0x29AACD) == "call eax"
+          and drop.get(0x29AAD7) == "call 0x2708c0",
+          "relocate_upgrade_item's handler (0x29A8B0) keeps its object, the lobby menu, at [esp+10h], and at "
+          "0x29A9B2 holds the host in edi, the upgrade in ebx, the slot in ecx and the account's profile in "
+          "esi before it sends (0x2707C0); drop_upgrade_item's (0x29A9D0) the upgrade in edi and the profile "
+          "in esi at 0x29AACF, the host at [[ebp+8]+8]+8, before patch 30's call (0x29AAD5)")
+    reader = [t for _, _, t in ndisasm(source.read(0x27030B, 0x14), 0x27030B)]
+    check(reader[:4] == ["mov esi,ebx", "mov [ebx+0x1ea96c],ecx", "call 0x270320", "pop edi"]
+          and branches_into(original, 0x270260, 0x270261) == ["0x274b3f rel32"],
+          "the 0x87 reader (0x270260, called from 0x274B3F alone) ends with `call 0x270320` (esi = the lobby "
+          "client), once for each account the server sends")
+    setup = {a: t for a, _, t in ndisasm(source.read(0x284B10, 0x200), 0x284B10)}
+    check(setup.get(0x284B5B) == "jnz 0x284b89" and setup.get(0x284B75) == "jnz 0x284b89"
+          and setup.get(0x284B7A) == "jnz 0x284b89" and setup.get(0x284B83) == "jz near 0x284cf8"
+          and setup.get(0x284B93) == "jz 0x284bc2" and setup.get(0x284BDA) == "call 0x284d10"
+          and setup.get(0x284BB2) == "mov byte [ebx+0xd2c8],0x1" and setup.get(0x284CB7) == "mov [ebx+0xd2c4],eax"
+          and setup.get(0x284CF8) == "pop edi" and setup.get(0x284CFE) == "ret 0x8"
+          and rows(source, 0x284F86, 10) == ["mov dword [ebx+0xd2c4],0xffffffff"]
+          and rows(source, 0x284F90, 6) == ["jnz near 0x2850ca"]
+          and setup.get(0x284B54) == "cmp [esi+ebx+0x76c],eax" and setup.get(0x284B6E) == "cmp esi,[edi+edx*4+0x45fc]",
+          "setup_profile comes to 0x284B89 by its early return's three jumps (kit id, revision, the last id) "
+          "and a waiting call (+D2C8h); with no query (+D2C4h -1) it copies the profile into the next copy "
+          "(0x284BDA) and queries, else it copies it into the one after and waits (+D2C8h 1); its end is at "
+          "0x284CF8; on_player_ready's comparison at 0x284F7F is read by the `jnz` after a `mov`")
+    listing = ndisasm(code[:code.index(b"srp_scope_fit\0")], code_va)
+    targets = {branch_target(t) for _, _, t in listing if branch_target(t) is not None}
+    outside = {t for t in targets if not code_va <= t < code_va + len(code)}
+    starts = {a for a, _, _ in listing}
+    check(outside == {0x284B10, 0x284CF8, 0x270320, 0x277AA0, 0x1F0090, 0x0F6C00, 0x0F6B10, 0x284D10, 0x2F73F0,
+                      0x0E4F90, 0x420789, 0x111ED0, 0x111860, stash_find}
+          and all(t in starts for t in targets - outside)
+          and all(code_va + at in starts and image.read(code_va + at, 1) == b"\xE9" for at in P.UPGRADE_PREVIEW_ENTRIES)
+          and not [t for _, _, t in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[", t)]
+          and image.read(code_va, len(code)) == code
+          and P.upgrade_preview_targets(code, code_va) == (stash_find, state, preview_state),
+          f"the upgrade preview at {code_va:#x} (.srpw+{P.UPGRADE_PREVIEW_OFFSET:#x}) is "
+          f"upgrade_preview_026g.section.bin ({len(code)} bytes), its state at 0x{P.UPGRADE_PREVIEW_STATE_OFFSET:X} "
+          "of .srpd, patch 32's read; it begins with six `jmp near`, calls only setup_profile, the inventory's "
+          "find, item_by_id, the config's has_key and child, the profile's ctor and copy, the allocator, the "
+          "log and the stash's find_kit_or_show, jumps only to setup_profile's end and the 0x87 reader's last "
+          "call outside itself, and every branch inside it lands on an instruction")
 
 
 def aimed_inside(original, va, size, near):
@@ -3911,16 +4006,19 @@ def test_weapon_preview(original, image, before):
     starts = {address for address, _, _ in listing}
     stash_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_STASH_OFFSET
     table_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_TABLE_OFFSET
-    check(outside == {0x284B10, 0x284B16, table_va, stash_va + P.WEAPON_STASH_FIND}
+    find_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.UPGRADE_PREVIEW_OFFSET \
+        + P.UPGRADE_PREVIEW_FIND
+    check(outside == {0x284B10, 0x284B16, table_va, find_va}
           and all(t in starts for t in targets - outside)
           and all(P.WEAPON_PREVIEW_VA + offset in starts for _, _, offset, _ in P.WEAPON_PREVIEW_HOOKS)
           and [address - P.WEAPON_PREVIEW_VA for address, _, text in listing
-               if branch_target(text) == stash_va + P.WEAPON_STASH_FIND]
+               if branch_target(text) == find_va]
           == list(P.WEAPON_PREVIEW_FIND_CALLS)
           and [address - P.WEAPON_PREVIEW_VA for address, _, text in listing if branch_target(text) == table_va]
           == list(P.WEAPON_PREVIEW_CAMERA_JUMPS)
           and not [text for _, _, text in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[|\[(?:dword )?0x", text)],
-          "the code calls only setup_profile and weapon_stash_026g.asm's find_kit_or_show (at its two finds), "
+          "the code calls only setup_profile and upgrade_preview_026g.asm's find (at its two finds; it calls "
+          "weapon_stash_026g.asm's find_kit_or_show first), "
           "jumps only to setup_profile's body after the six bytes and to weapon_table_026g.asm's camera (at "
           "start_cam's and exit_cam's ends, where it jumped to the camera's setter), every branch inside it "
           "lands on an instruction, and no operand is an absolute address")
@@ -4126,6 +4224,7 @@ def test_late_join(original, without, server, source):
     camo = camo + b"\xCC" * (P.WEAPON_STASH_OFFSET - len(camo)) + open(P.weapon_stash_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_TABLE_OFFSET - len(camo)) + open(P.weapon_table_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_DECALS_OFFSET - len(camo)) + open(P.weapon_decals_bin(), "rb").read()
+    camo = camo + b"\xCC" * (P.UPGRADE_PREVIEW_OFFSET - len(camo)) + open(P.upgrade_preview_bin(), "rb").read()
     name_w, rva_w, vsize_w, raw_w, rsize_w, flags_w = sections[-1]
     check(name_w == P.WEAPON_CAMO_NAME and flags_w == P.WEAPON_CAMO_CHARACTERISTICS
           and rva_w == state_rva + state_size and P.IMAGE_BASE + rva_w == P.weapon_camo_va(code)
@@ -4134,7 +4233,8 @@ def test_late_join(original, without, server, source):
           f".srpw at VA {P.IMAGE_BASE + rva_w:#x}: weapon_camo_026g.section.bin, int3 padding, "
           f"weapon_stash_026g.section.bin at +{P.WEAPON_STASH_OFFSET:#x}, int3 padding and "
           f"weapon_table_026g.section.bin at +{P.WEAPON_TABLE_OFFSET:#x}, int3 padding and "
-          f"weapon_decals_026g.section.bin at +{P.WEAPON_DECALS_OFFSET:#x} ({len(camo)} bytes), "
+          f"weapon_decals_026g.section.bin at +{P.WEAPON_DECALS_OFFSET:#x}, int3 padding and "
+          f"upgrade_preview_026g.section.bin at +{P.UPGRADE_PREVIEW_OFFSET:#x} ({len(camo)} bytes), "
           "code | execute | read, on the page after .srpd, its file bytes right after .srp's")
     get = lambda blob, at: struct.unpack_from("<I", blob, at)[0]
     check(get(data, headers.size_of_image_at) == align(rva_w + vsize_w, headers.section_alignment)
@@ -4291,6 +4391,7 @@ def test_late_join(original, without, server, source):
     test_weapon_preview(original, image, before)
     test_weapon_table(original, image, before)
     test_weapon_decals(original, image, before)
+    test_upgrade_preview(original, image, before)
     test_suicide_key(original, image, before)
     test_tab_list(original, image, before)
     test_tab_self(original, image, before)
