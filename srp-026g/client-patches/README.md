@@ -80,6 +80,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_shared_upgrades_026g.py` | Runs the original's and patch 30's upgrade-window drop and the `83 46 01` / `02` answers on made-up inventories with one upgrade on several items (needs Unicorn) |
 | `kit_change_026g.asm`, `kit_change_026g.section.bin` | The source of patch 31's code (a kit chosen before the match starts is played at once) and that code assembled for 0xEC0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `warmup_look_026g.asm`, `warmup_look_026g.section.bin` | The source of patch 31's camera before the start (while the kits are shown, a drag turns the warmup camera and the wheel moves it, as the lobby's character view) and that code assembled for 0xD40 of `.srp`, its state at 0xE20 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `death_camera_026g.asm`, `death_camera_026g.section.bin` | The source of patch 46's camera on the death screen (a drag turns the view from the corpse's eyes; the wheel does nothing) and that code assembled for `.srpc` (0xA429000), its state at 0xE60 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `warmup_keys_026g.asm`, `warmup_keys_026g.section.bin` | The same patch's buttons: one held from before the start (a drag of its camera) is not the player's until it is let go, and that code assembled for 0x9A8 of `.srp`, its state at 0xE30 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `warmup_limits_026g.asm`, `warmup_limits_026g.section.bin` | The same camera's end of a drag and its limits (the lobby camera's: distance 1.5 to 4.6, pitch within 60 degrees) and that code assembled for 0xA98 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `read_order_026g.asm`, `read_order_026g.bin` | The source of patch 33 (the order of the archive reads is a strict weak ordering) and that code assembled at 0x10BCC0, the 0x1A0 bytes of `hdd_manager_sorting_predicate` it replaces, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
@@ -91,6 +92,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
+| `check_death_camera_026g.py` | Runs the original's and patch 46's mouse moves through the game world's input handler (the death screen, a live player, spectators, a death before the start) and update_camera's call of the view's update on a made-up eye transform (needs Unicorn) |
 | `check_baked_texture_026g.py` | Runs the original's and patch 35's baked-texture list of the camouflage/decal baker (the look-up, the push and check_loaded_baked_texture) on made-up loads, among them those of the crash of 2026-10-17 (needs Unicorn) |
 | `weapon_preview_026g.asm`, `weapon_preview_026g.section.bin` | The source of patch 32's code (a weapon's upgrade window shows the weapon) and that code assembled for 0x2E50 of `.srp`, its state at 0xE00 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `weapon_draw_026g.asm`, `weapon_draw_026g.section.bin` | The source of patch 32's draw (a weapon's window draws the player as the lobby does) and that code assembled for 0xD20 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
@@ -2311,6 +2313,89 @@ says no, neither. Against the build of `main` b97133d (revision 25's exe,
 `12006dd9…a8b4`) the default build differs in file 0x1E8878..0x1E8879 and
 the PE checksum, and in nothing else (compared byte by byte). **Not run in
 a game.**
+
+### 46. On the death screen a drag turns the camera; the wheel does nothing (the next release's revision)
+
+The owner (2026-10-21): "when player dies they can still move camera
+around, with holding a mouse button? Scroll shouldn't work though". The
+rules: `../docs/notes/death-camera.md`.
+
+**The death screen today.** A death leaves the player's input handler in
+the first person mode (`player::on_player_death` 0x1F28E0 changes no mode;
+only the network clients' spectate and replay paths switch to 4 or 2):
+`player::update_camera` (0x1F3480) gives the view's update (0x2422B0) the
+eyes' transform (player+44Ch), which modes 0 and 4 copy as they are, so
+the camera is the corpse's eyes and does not move. The hud shows the kits
+and the cursor (0x2383B0) until the respawn (8 s in every mode's options),
+so the game world's input handler (priority 7) takes every mouse move and
+the wheel and answers 1: the player's handler (priority 10) gets none, and
+in the first person mode it would not use the wheel anyway (only the
+third-person and warmup steps add it to the distance). The game builds and
+sends the local player's input only while it is alive (game_world::tick,
+`cmp byte [eax+33Ch],0` at 0x1F7883): a dead player sends nothing.
+
+**The patch** (builds with the late join; `death_camera_026g.asm`, 577
+bytes, in a section of its own, `.srpc`, on the page after the late join's
+state page, 0xA429000; its state, a yaw and a pitch, 8 bytes at the late
+join's state page +E60h):
+
+- `WARMUP_LOOK_HOOK`'s jump (the first ten bytes of the game world's
+  on_mouse_move, 0x25D0E0) goes to `death_look` (`.srpc`+0) instead of
+  patch 31's warmup_look. While the kits are shown (hud+2DFh), the player's
+  handler is in the first person mode (+358h = 0) and the local player
+  (game+53ACh, +4) is dead (+33Ch = 0): a mouse button held is a drag as
+  patch 31's (its state and its drag_end: the lobby's buttons, right, 5th
+  and 7th, at once; the left one past 8 units, so a click stays the kits';
+  the hud's pointer off the screen during it, back where it began at the
+  release). A drag's move turns the yaw by x and the pitch by y at the
+  player's look's step (the option sensitivity, 0xA74AEC, x 0.1 x pi/180; the
+  pitch also x height / width of the render window x 0.9549, and inverted by
+  mouse_invertion, 0x1F1D9D3), the pitch within 80 degrees, and is taken (1):
+  neither the cursor's nor the player's handler's. The wheel in a drag is
+  taken with it and changes nothing. Without a button the move, the wheel's
+  too, goes on through warmup_look to the original: the cursor's. Every
+  other move goes on to warmup_look as before.
+- update_camera's `call 0x2422B0` (0x1F364B, `DEATH_VIEW_HOOK`) calls
+  `death_view` (`.srpc`+180h): while that player is dead, the handler in
+  the first person mode, the kits shown and the turn not 0, it runs the
+  update's own third-person step (0x2422DE, after the update's own start)
+  with the turn's yaw and pitch and the distance 0, the handler's warmup
+  yaw, pitch and distance (+34Ch, +350h, +354h) borrowed and put back: the
+  eyes' place, the look turned about the world's up and then about its own
+  right. A live player gets the original update and the turn is cleared.
+
+Free look, not an orbit: the death camera is the first person view, so
+turning it where it is keeps everything else as it was (the kill info, the
+HUD, the kits); the third-person step with a distance would orbit the eyes
+instead, one constant away.
+
+Camera only: the moves of a drag never reach the player's input handler,
+and a dead player sends no input anyway. Nothing a match computes: no row
+in `../crates/session/src/v026g/simulation_changes.tsv`; games with and
+without it play together, replays are unchanged. A death before the start
+(the warmup mode) keeps patch 31's orbit and wheel; spectators and replays
+(another mode, no kits) are the original's. `../docs/notes/client_patch.md`
+section 3.43.
+
+Checked: `selftest_026g.py` check 46 (the site, the view's update and its
+step, the mode a death leaves, the input a dead player does not send, the
+handler's world, game, client and local player, the window's size and the
+look's step as the game has them; the code's exits, calls, absolute
+operands and returns) and the layout checks of check 15 (ten sections,
+`.srpc` last); check 32 sees the mouse move's jump go to death_look.
+`check_death_camera_026g.py` (Unicorn) runs mouse moves through the input
+world's loop (the death screen's moves, wheel, click, right and left drags,
+an inverted and a slow mouse, the pitch's limit; a live player, a
+spectator, third person, no local player, a death before the start, the
+kits hidden) and the view's update on a made-up eye transform (the build's
+turned view bit for bit the original's third-person step with distance 0;
+the warmup fields put back; a live player's turn cleared): 114 runs, seven
+broken builds fail. `check_late_join_026g.py`, `check_kit_change_026g.py`
+and `check_weapon_preview_026g.py` now find `.srp` and `.srpd` by their
+names (`.srpc` is the last section); every `check_*_026g.py` passes.
+Against the build of `main` ecb9916 the default build differs in the
+headers, the two sites and the new section's 1 024 bytes (the certificate
+moved behind them). **Not run in a game.**
 
 ## Not ported, not done
 
