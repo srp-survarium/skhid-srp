@@ -52,6 +52,11 @@ pub enum PersistError {
     /// (`v026g::known`): srp does not start.
     #[error("{0}")]
     GameData(String),
+    /// A change made to the accounts once at start was not written for
+    /// every account it changed: srp does not start, and the next start
+    /// makes it again.
+    #[error("{0}")]
+    NotWritten(String),
 }
 
 /// Every durable field of one account, copied out of the store so that it

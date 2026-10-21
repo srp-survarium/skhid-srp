@@ -23,7 +23,10 @@ resources.db patch (`scripts/content-edit/weapon-balance-2.json`).
   plain one plus +10 % silver (default modification 1230). Its 2044 (reload time
   -15 %) and 2094 (reliability +25 %) defaults go. Kept as the item's own: name,
   description, icon, model (camo), `base_rarity_level` 3, `drop_weight` 0 (never
-  dropped). The other premium weapons are not changed here.
+  dropped). The other premium weapons are not changed here. Superseded by
+  [golden_weapons.md](golden_weapons.md) (2026-10-21): every golden weapon, this one
+  included, has no default bonus and base rarity 0; the silver bonus is its own
+  modification.
 - **In the builds at hand** (plain / premium; the card shows them x100):
 
   | build | damage | piercing |

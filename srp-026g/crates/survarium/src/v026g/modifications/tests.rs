@@ -498,15 +498,16 @@ fn reliability_slows_wear_and_premium_gear_pays_more() {
         data.wear_factor(rifle, &[(2090, true)], "degrade_per_match"),
         1.0
     );
-    // The premium rifle has 2094 as a default.
+    // The golden rifle's 2094 default is gone (`super::super::golden`).
     let premium = dict("ak_74n_premium");
-    let factor = data.wear_factor(premium, &[], "degrade_per_death");
-    assert!((factor - 0.75).abs() < 1e-6);
+    assert_eq!(data.wear_factor(premium, &[], "degrade_per_death"), 1.0);
 
-    // And 1230: 10 % more silver.
-    let bonuses = data.bonuses(premium, &[]);
+    // Its 1230 (10 % more silver) is a modification of its own: it pays
+    // as one, and without it nothing.
+    let bonuses = data.bonuses(premium, &[(1230, false)]);
     assert!((bonuses.money - 0.1).abs() < 1e-6);
     assert_eq!(bonuses.experience, 0.0);
+    assert_eq!(data.bonuses(premium, &[]), Bonuses::default());
     // Premium trousers: experience and the Black Market's reputation.
     let bonuses = data.bonuses(dict("bm_legs_4_premium"), &[]);
     assert!((bonuses.experience - 0.05).abs() < 1e-6);

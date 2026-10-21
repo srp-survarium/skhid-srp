@@ -51,6 +51,18 @@ export XDG_CACHE_HOME=$T/cache
 export SKHID_RELEASE_GO=1
 
 # The stand-ins.
+# srp-check-game-data: the test's stock db is no game data; it says yes
+# unless $TEST_DIR/check-data-fails is there.
+cat >"$T/bin/srp-check-game-data" <<'EOF'
+#!/usr/bin/env bash
+if [[ -e $TEST_DIR/check-data-fails ]]; then
+    echo "$1: srp would not start on it: golden weapons with default modifications" >&2
+    exit 1
+fi
+echo "$1: srp starts on it"
+EOF
+chmod +x "$T/bin/srp-check-game-data"
+export SRP_CHECK_GAME_DATA_BIN=$T/bin/srp-check-game-data
 cat >"$T/bin/ssh" <<'EOF'
 #!/usr/bin/env bash
 # ssh [-o <option>]... <host> <command>: runs the command here.
@@ -545,6 +557,13 @@ printf 'resources.db.patch_12\t%s\t1\t%s\nresources.db.patch_3\t%s\t1\t%s\n' "$s
 expect_refused "build-server-db refuses a list out of order" "not above the row before it" \
     env SKHID_RELEASE_ENV="$(changed_env "s|^SKHID_PATCH_LIST=.*|SKHID_PATCH_LIST=$T/bad.tsv|")" "$here/build-server-db" --out "$T/work/sgd2.db"
 check "build-server-db: no file left by a refusal" test ! -e "$T/work/sgd2.db"
+check "build-server-db: srp's start check on the data" has "$out" "srp starts on it"
+touch "$T/check-data-fails"
+expect_refused "build-server-db refuses data srp would not start on" \
+    "srp would not start on the built data; $T/work/sgd2.db not written: .*golden weapons" \
+    "$here/build-server-db" --out "$T/work/sgd2.db"
+rm "$T/check-data-fails"
+check "build-server-db: no file left by a refused check" test ! -e "$T/work/sgd2.db"
 out=$("$here/build-server-db" --test --out "$T/work/sgd-test.db" 2>&1) || fail "build-server-db --test: $out"
 check "build-server-db --test: the test list, the test URLs" has "$out" "  patch_12 sha256 $sha12 urls http://127.0.0.1:$test_patches_port/resources.db.patch_12"
 

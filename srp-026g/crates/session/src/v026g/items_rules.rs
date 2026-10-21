@@ -64,8 +64,18 @@
 //!   whatever happens (the answer names it, and the client drops it).
 //!   [LIKELY] The donor is another of the same item: the client's result
 //!   window shows the *donor's* dictionary entry as the upgraded item
-//!   (0x275B84 → 0x29F770 `dict_id`). [srp] The modification gained is
-//!   rolled as a drop's are, the one lost is any of the item's own.
+//!   (0x275B84 → 0x29F770 `dict_id`). [srp, the owner's rule of
+//!   2026-10-21] A golden weapon takes its plain weapon, or a golden
+//!   weapon of the same plain weapon, as its donor and stays golden (the
+//!   lobby shows the item, not the donor); a plain weapon takes no golden
+//!   one ([`golden::may_donate`]).
+//!   [srp] The modification gained is rolled as a drop's are, the one
+//!   lost is any of the item's own (a golden weapon's silver bonus too).
+//! - **Golden weapons** ([`golden`], the owner's rule of 2026-10-21): the
+//!   silver bonus is the item's own first modification, given when it is
+//!   made ([`Account::add_item`]) and once to those owned before
+//!   ([`give_golden_silver`]); from then on it rerolls, crafts and counts
+//!   for the rank as any modification.
 //! - **Repair.** In silver: what the window shows,
 //!   `(1 - condition) * repair_cost_ratio * cost` and each defect's
 //!   `fix_cost_general`, and the item is locked for the defects'
@@ -85,6 +95,7 @@
 
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::drops::Rng;
+use survarium::v026g::golden;
 use survarium::v026g::item_params::item_params;
 use survarium::v026g::lobby::requests::RepairPayment;
 use survarium::v026g::lobby::{Crafted, FULL_CONDITION, Repaired, limits};
@@ -710,8 +721,16 @@ pub fn craft(
     if !is_gear(item) || !is_gear(donor) {
         return Err("not an item with modifications");
     }
-    if donor.dict_id != item.dict_id {
-        return Err("the donor is another item");
+    if !golden::may_donate(donor.dict_id, item.dict_id) {
+        return Err(
+            if golden::is_golden(donor.dict_id)
+                && golden::kin(donor.dict_id) == golden::kin(item.dict_id)
+            {
+                "a golden weapon is no donor for a plain one"
+            } else {
+                "the donor is another item"
+            },
+        );
     }
     if !defects(item).is_empty() || !defects(donor).is_empty() {
         return Err("a damaged item");
@@ -967,25 +986,79 @@ pub fn mend_all(account: &mut Account) -> usize {
     mended.len()
 }
 
+/// What [`give_golden_silver`] did to one account.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct GoldenSilver {
+    /// The golden weapons that got the silver bonus as their first
+    /// modification.
+    pub given: Vec<u32>,
+    /// Golden weapons that already had three modifications of their own:
+    /// a fourth would be cut at the next load (`make_safe`), so they keep
+    /// theirs; for the log.
+    pub full: Vec<u32>,
+}
+
+/// The golden weapons of the account (`survarium::v026g::golden`) get
+/// the silver bonus as their own first modification, unless they hold a
+/// modification of its type already. Once in the database's life, for the
+/// golden weapons owned before the rule (their silver was a default of
+/// the item's config, which the golden-weapons patch takes off).
+pub fn give_golden_silver(account: &mut Account) -> GoldenSilver {
+    let table = Modifications::shared();
+    let silver_kind = table.modification(golden::SILVER_BONUS).map(|row| row.kind);
+    let mut done = GoldenSilver::default();
+    for item in &mut account.inventory {
+        if !golden::is_golden(item.dict_id) {
+            continue;
+        }
+        let held = own_modifications(item);
+        let has_silver = held.iter().any(|&id| {
+            id == golden::SILVER_BONUS || table.modification(id).map(|row| row.kind) == silver_kind
+        });
+        if has_silver {
+            continue;
+        }
+        if held.len() >= MAX_RANK {
+            done.full.push(item.item_id);
+            continue;
+        }
+        item.modifications.insert(0, (golden::SILVER_BONUS, false));
+        done.given.push(item.item_id);
+    }
+    for &item_id in &done.given {
+        bump_kits_wearing(account, item_id);
+    }
+    if !done.given.is_empty() {
+        account.sync_kits();
+    }
+    done
+}
+
 // ------------------------------------------------- matches and drops
 
-/// Gives a new item its modifications by the rarity a drop rolled; returns
-/// the rank the lobby shows for it (the item's `base_rarity_level` and
-/// its modifications, 3 at most).
+/// Gives a new item its modifications by the rarity a drop rolled: as many
+/// as the rarity, those it came with (a golden weapon's silver bonus)
+/// counted; returns the rank the lobby shows for it (the item's
+/// `base_rarity_level` and its modifications, 3 at most).
 pub fn roll_modifications(account: &mut Account, item_id: u32, rarity: u8, rng: &mut Rng) -> u8 {
     let Some(item) = account.item_mut(item_id) else {
         return 0;
     };
-    let rolled = Modifications::shared().roll_for_rarity(item.dict_id, rarity, rng);
-    item.modifications
-        .extend(rolled.into_iter().map(|id| (id, false)));
+    let table = Modifications::shared();
+    let mut held = own_modifications(item);
+    while held.len() < usize::from(rarity).min(MAX_RANK) {
+        let Some(id) = table.roll(item.dict_id, &held, rng) else {
+            break;
+        };
+        held.push(id);
+        item.modifications.push((id, false));
+    }
     let base = item_params(item.dict_id).map_or(0, |params| params.base_rarity_level);
     (usize::from(base) + rank(item)).min(MAX_RANK) as u8
 }
 
 /// What the item's wear is multiplied by: its "reliability"
-/// modifications (5 % to 25 % less; a premium weapon has one as a
-/// default).
+/// modifications (5 % to 25 % less).
 pub fn wear_factor(account: &Account, item_id: u32) -> f32 {
     account.item(item_id).map_or(1.0, |item| {
         Modifications::shared().wear_factor(item.dict_id, &item.modifications, "degrade_per_match")

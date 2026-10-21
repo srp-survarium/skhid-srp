@@ -14,7 +14,10 @@
 #      ~/.cache/skhid-release/patch-urls.checked);
 #   3. srp-game-data build --db $SKHID_STOCK_DB --patch "<file>=<urls>" ...
 #      --out <file> (the row's URLs, one space apart), then srp-game-data
-#      info <file>, which must name the list's patches and no other;
+#      info <file>, which must name the list's patches and no other, and
+#      srp-check-game-data <file>, what srp checks at start (every table,
+#      the golden weapons' content patch): data srp would refuse after the
+#      swap is refused here;
 #   4. prints what the server's /patches will offer the players' updater.
 #
 #   --test         the test environment's: release/patches-test.tsv on
@@ -42,6 +45,7 @@ use_patches "$which"
 [[ -f $SKHID_STOCK_DB ]] || die "SKHID_STOCK_DB: $SKHID_STOCK_DB: no such file"
 read_patch_list
 bin=$(game_data_bin)
+check=$(check_data_bin)
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -72,6 +76,10 @@ info=$("$bin" info "$work/$DATA_NAME")
 say "$info"
 offered=$(offered_in "$info")
 [[ $offered == "$(offered_of_list "")" ]] || die "the built data does not offer exactly the patches of $PATCH_LIST; $out not written"
+# What srp checks at start (every table; the golden weapons' content patch):
+# data it would refuse after the swap is refused here.
+checked=$("$check" "$work/$DATA_NAME" 2>&1) || die "srp would not start on the built data; $out not written: $checked"
+say "$checked"
 [[ ! -e $out ]] || die "$out: there now; never overwritten"
 mv "$work/$DATA_NAME" "$out"
 say

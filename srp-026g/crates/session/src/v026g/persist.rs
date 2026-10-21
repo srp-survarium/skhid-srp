@@ -208,6 +208,17 @@ pub trait GameRepository: Send {
     ) -> Result<Vec<AdminAction>, PersistError> {
         Ok(Vec::new())
     }
+    /// Whether what is done to the accounts once under `key` was done and
+    /// its accounts written ([`Self::mark_done`]). (A repository that keeps
+    /// no marks: never.)
+    fn is_done(&mut self, _key: &str) -> Result<bool, PersistError> {
+        Ok(false)
+    }
+    /// Marks `key` done: called only after the accounts it changed were
+    /// written, so a crash between leaves it to be done again, whole.
+    fn mark_done(&mut self, _key: &str) -> Result<(), PersistError> {
+        Ok(())
+    }
 }
 
 /// Accounts kept in memory. Clones share one set, so a test can keep one
@@ -227,6 +238,8 @@ pub struct MemoryGameRepository {
     gate: Arc<Mutex<()>>,
     /// Account writes waiting at the gate now.
     held: Arc<std::sync::atomic::AtomicUsize>,
+    /// The keys marked done ([`GameRepository::mark_done`]).
+    done: Arc<Mutex<std::collections::BTreeSet<String>>>,
 }
 
 impl MemoryGameRepository {
@@ -293,6 +306,15 @@ impl GameRepository for MemoryGameRepository {
         let mut inner = self.inner.locked();
         inner.0.insert(account_id, account.clone());
         inner.1 += 1;
+        Ok(())
+    }
+
+    fn is_done(&mut self, key: &str) -> Result<bool, PersistError> {
+        Ok(self.done.locked().contains(key))
+    }
+
+    fn mark_done(&mut self, key: &str) -> Result<(), PersistError> {
+        self.done.locked().insert(key.to_owned());
         Ok(())
     }
 
@@ -441,6 +463,11 @@ impl SqliteGameRepository {
 /// The `g26_meta` key that says the accounts' weapons and armour were made
 /// whole when wear was switched off (`GameAccounts::from_env`).
 pub const GEAR_MENDED: &str = "gear_mended";
+
+/// The `g26_meta` key that says the golden weapons owned got the silver
+/// bonus as their own modification, and the accounts were written
+/// (`GameAccounts::give_golden_silver_once`): it is written after them.
+pub const GOLDEN_SILVER_GIVEN: &str = "golden_silver_given";
 
 fn schema_version(connection: &Connection) -> Result<i64, PersistError> {
     connection.execute_batch(
@@ -715,6 +742,22 @@ impl GameRepository for SqliteGameRepository {
 
     fn describe(&self) -> String {
         self.path.clone()
+    }
+
+    fn is_done(&mut self, key: &str) -> Result<bool, PersistError> {
+        Ok(self
+            .connection
+            .query_row("SELECT 1 FROM g26_meta WHERE key = ?1", [key], |_| Ok(()))
+            .optional()?
+            .is_some())
+    }
+
+    fn mark_done(&mut self, key: &str) -> Result<(), PersistError> {
+        self.connection.execute(
+            "INSERT OR IGNORE INTO g26_meta (key, value) VALUES (?1, 1)",
+            [key],
+        )?;
+        Ok(())
     }
 
     fn load_clans(&mut self) -> Result<Vec<Clan>, PersistError> {
@@ -1087,6 +1130,24 @@ mod tests {
         drop(repository);
         let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
         assert!(!repository.first_time(GEAR_MENDED).unwrap());
+        assert_eq!(repository.version().unwrap(), version);
+    }
+
+    #[test]
+    fn a_mark_done_is_read_back_and_outlives_the_repository() {
+        let temp = TempDb::new("mark-done");
+        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
+        assert!(!repository.is_done(GOLDEN_SILVER_GIVEN).unwrap());
+        // Reading it marks nothing.
+        assert!(!repository.is_done(GOLDEN_SILVER_GIVEN).unwrap());
+        repository.mark_done(GOLDEN_SILVER_GIVEN).unwrap();
+        repository.mark_done(GOLDEN_SILVER_GIVEN).unwrap();
+        assert!(repository.is_done(GOLDEN_SILVER_GIVEN).unwrap());
+        assert!(!repository.is_done("another").unwrap());
+        let version = repository.version().unwrap();
+        drop(repository);
+        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
+        assert!(repository.is_done(GOLDEN_SILVER_GIVEN).unwrap());
         assert_eq!(repository.version().unwrap(), version);
     }
 

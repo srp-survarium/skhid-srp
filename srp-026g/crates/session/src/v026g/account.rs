@@ -11,6 +11,7 @@
 
 use survarium::v021d;
 use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::golden;
 use survarium::v026g::item_params;
 use survarium::v026g::loadouts::{self, Loadout};
 use survarium::v026g::lobby::{FULL_CONDITION, KIT_PREMIUM, KIT_READY, limits};
@@ -298,7 +299,10 @@ impl Account {
         }
     }
 
-    /// A new instance into the inventory; returns its id.
+    /// A new instance into the inventory; returns its id. A golden weapon
+    /// comes with its silver bonus as its own first modification
+    /// ([`golden::starting_modifications`]), whatever made it (the shop, a
+    /// bundle, the admin).
     pub fn add_item(&mut self, dict_id: u16, condition_or_stack: u32) -> u32 {
         let item_id = self.next_item_id;
         self.next_item_id += 1;
@@ -308,7 +312,7 @@ impl Account {
             condition_or_stack,
             repair_time: 0,
             reroll_time: 0,
-            modifications: Vec::new(),
+            modifications: golden::starting_modifications(dict_id),
             upgrades: Vec::new(),
             reroll: Reroll::default(),
         });

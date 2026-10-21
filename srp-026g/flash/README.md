@@ -55,6 +55,7 @@ ordinary source (the owner, 2026-10-21: no decompilation matching needed now).
   | item categories | `survarium.constants.ItemCategory` (names: `gameplay/item_categories` and the shop filters) |
   | `ItemFactory.getCategory`'s groups | `survarium.constants.SuperCategory` (the shop's tabs) |
   | `ItemData.descriptor` | `survarium.constants.ItemPlace` (inventory, shop, bundle; below 100 the profile slot) |
+  | golden weapons and their plain weapons | `survarium.constants.ItemDictId.GOLDEN_WEAPONS` / `GOLDEN_PLAIN` (srp's `golden::GOLDEN_WEAPONS`; a Rust test keeps them the same) |
   | gamepad buttons | `InputDelegate`'s `GAMEPAD_*` (the key codes Scaleform gives them) |
 
 ```sh
