@@ -6,12 +6,18 @@
 
 use std::path::PathBuf;
 
-use session::v026g::replays::{ReplaySettings, Replays, Sidecar};
+use session::v026g::replays::{ReplaySettings, Replays, Sidecar, oldest_replayable_here};
 use survarium::v026g::lobby::{REPLAY_ASK, REPLAY_START};
 
 use super::*;
 
 const MATCH: u32 = 0x1F07_C8FB;
+
+/// A game of today's revision: the oldest whose recordings are given, so
+/// a recording of its games plays whatever the last simulation change was.
+fn current() -> u8 {
+    oldest_replayable_here(0)
+}
 
 fn temp(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
@@ -40,7 +46,7 @@ fn replays(root: &std::path::Path, players: &[u32]) -> &'static Replays {
         match_id: MATCH,
         size: 12,
         sha256: "cd".repeat(32),
-        revisions: vec![Some(14), Some(12)],
+        revisions: vec![Some(current()), None, Some(current())],
         account_ids: players.to_vec(),
         made_at: 0,
     };
@@ -91,10 +97,10 @@ fn replays_off_answer_off_and_ask_nothing() {
 fn a_player_of_the_match_gets_the_link_before_a_ready_row() {
     let root = temp("ready");
     let mut world = World::new();
-    let alice = player(&mut world, "Alice", 14);
-    let bob = player(&mut world, "Bob", 14);
+    let alice = player(&mut world, "Alice", current());
+    let bob = player(&mut world, "Bob", current());
     let carol = player(&mut world, "Carol", 12);
-    let dave = player(&mut world, "Dave", 14);
+    let dave = player(&mut world, "Dave", current());
     let desk = replays(&root, &[world.ids[alice].0, world.ids[carol].0]);
     world.core.replays = Some(desk);
 
@@ -154,8 +160,8 @@ fn a_player_of_the_match_gets_the_link_before_a_ready_row() {
 fn a_preparing_row_carries_the_place_in_the_conversion_line() {
     let root = temp("line");
     let mut world = World::new();
-    let alice = player(&mut world, "Alice", 14);
-    let bob = player(&mut world, "Bob", 14);
+    let alice = player(&mut world, "Alice", current());
+    let bob = player(&mut world, "Bob", current());
     let desk = replays(&root, &[]);
     world.core.replays = Some(desk);
     // Two kept recordings with no replay yet (MATCH has one).

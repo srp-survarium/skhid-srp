@@ -22,6 +22,14 @@ const SESSION: u32 = 0x5EC2_E7A9;
 const TOKEN: &str = "0123456789abcdef0123456789abcdef";
 const ADDRESS: &str = "203.0.113.77:51234";
 
+/// The game revisions of the recording's places 0 and 1: one after today's,
+/// and today's (the oldest whose recordings are given), so a game of the
+/// newer plays it whatever the last simulation change was.
+fn revisions() -> (u8, u8) {
+    let today = replays::oldest_replayable_here(0);
+    (today + 1, today)
+}
+
 fn temp(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
         "srp-replay-{name}-{}-{}",
@@ -111,7 +119,8 @@ fn write_recording(path: &Path, secrets: &[&str]) -> String {
         10,
         &datagram(0xD8, None, &SESSION.to_le_bytes()),
     ));
-    for (place, revision) in [(0, 12), (1, 11), (0, 12)] {
+    let (newer, today) = revisions();
+    for (place, revision) in [(0, newer), (1, today), (0, newer)] {
         raw.extend(note(
             20,
             serde_json::json!({"note": "revision", "place": place, "revision": revision}),
@@ -196,7 +205,8 @@ fn a_kept_recording_becomes_a_replay_and_its_sidecar() {
             .collect::<String>()
     );
     assert_eq!(sidecar.account_ids, [1001, 1002, 1003]);
-    assert_eq!(sidecar.revisions, [Some(12), Some(11), None]);
+    let (newer, today) = revisions();
+    assert_eq!(sidecar.revisions, [Some(newer), Some(today), None]);
     let json = fs::read_to_string(settings.replay_dir.join("1f07c8fb.json")).unwrap();
     assert_eq!(Sidecar::parse(&json), Some(sidecar));
     // Nothing is left under `.part`, and nothing else is made.
@@ -429,7 +439,7 @@ fn the_thread_converts_what_is_queued_and_the_desk_hears_of_it() {
         played: true,
         places: 2,
     });
-    let first = replays.ask(1001, MATCH, Some(14), known, Instant::now());
+    let first = replays.ask(1001, MATCH, Some(revisions().0), known, Instant::now());
     assert_eq!(first, replays::Status::Preparing);
     // The movie's polls: each looks again while it is `preparing`.
     let mut status = None;
@@ -442,8 +452,8 @@ fn the_thread_converts_what_is_queued_and_the_desk_hears_of_it() {
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
-    // Revision 14's game: place 0 played with 12 and place 1 with 11, which
-    // 14 plays.
+    // The newer game: place 0 played with it and place 1 with today's, which
+    // it plays.
     assert_eq!(status, Some(replays::Status::Ready));
     replays.stop();
     thread.join().unwrap();

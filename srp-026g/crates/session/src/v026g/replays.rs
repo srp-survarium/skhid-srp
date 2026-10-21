@@ -1303,7 +1303,7 @@ mod tests {
             match_id,
             size: 1,
             sha256: "0".repeat(64),
-            revisions: vec![Some(14)],
+            revisions: vec![Some(current())],
             account_ids: Vec::new(),
             made_at: 0,
         };
@@ -1334,6 +1334,13 @@ mod tests {
             played: true,
             places: 10,
         })
+    }
+
+    /// A game of today's revision: the oldest whose recordings are given
+    /// ([`oldest_replayable_here`]), so a recording of its games plays
+    /// whatever revision the last simulation change was.
+    fn current() -> u8 {
+        oldest_replayable_here(0)
     }
 
     #[test]
@@ -1396,7 +1403,7 @@ mod tests {
         let now = Instant::now();
         assert_eq!(replays.answer(ALICE, now).status, Status::Off);
         assert_eq!(
-            replays.ask(ALICE, MATCH, Some(14), played(), now),
+            replays.ask(ALICE, MATCH, Some(current()), played(), now),
             Status::Off
         );
         assert_eq!(replays.sur_path(MATCH), None);
@@ -1410,11 +1417,11 @@ mod tests {
     fn a_made_replay_is_ready_with_a_token_of_five_downloads_for_ten_minutes() {
         let root = temp("ready");
         let replays = Replays::new(Some(settings(&root)), 6);
-        made(&replays, vec![Some(12), None, Some(11)]);
+        made(&replays, vec![Some(current()), None, Some(current())]);
         let now = Instant::now();
         assert_eq!(replays.answer(ALICE, now).status, Status::None);
         assert_eq!(
-            replays.ask(ALICE, MATCH, Some(14), played(), now),
+            replays.ask(ALICE, MATCH, Some(current()), played(), now),
             Status::Ready
         );
         let answer = replays.answer(ALICE, now);
@@ -1451,7 +1458,7 @@ mod tests {
         // A new ask gives a new token, which ends with its ten minutes.
         let later = now + ASK_EVERY;
         assert_eq!(
-            replays.ask(ALICE, MATCH, Some(14), played(), later),
+            replays.ask(ALICE, MATCH, Some(current()), played(), later),
             Status::Ready
         );
         let second = replays.answer(ALICE, later).ready.unwrap().token;
@@ -1495,7 +1502,7 @@ mod tests {
                 match_id,
                 size: 1,
                 sha256: "0".repeat(64),
-                revisions: vec![Some(14)],
+                revisions: vec![Some(current())],
                 account_ids: Vec::new(),
                 made_at: 0,
             };
@@ -1504,31 +1511,34 @@ mod tests {
         }
         for &match_id in &matches[..3] {
             assert_eq!(
-                replays.ask(ALICE, match_id, Some(14), None, now),
+                replays.ask(ALICE, match_id, Some(current()), None, now),
                 Status::Ready
             );
             // Asked again at once: it stands; another match: busy.
             assert_eq!(
-                replays.ask(ALICE, match_id, Some(14), None, now),
+                replays.ask(ALICE, match_id, Some(current()), None, now),
                 Status::Ready
             );
-            assert_eq!(replays.ask(ALICE, 0x999, Some(14), None, now), Status::Busy);
+            assert_eq!(
+                replays.ask(ALICE, 0x999, Some(current()), None, now),
+                Status::Busy
+            );
             assert_eq!(replays.answer(ALICE, now).status, Status::Busy);
             now += ASK_EVERY;
         }
         assert_eq!(
-            replays.ask(ALICE, matches[3], Some(14), None, now),
+            replays.ask(ALICE, matches[3], Some(current()), None, now),
             Status::Busy
         );
         // The same match again keeps its live token.
         now += ASK_EVERY;
         assert_eq!(
-            replays.ask(ALICE, matches[0], Some(14), None, now),
+            replays.ask(ALICE, matches[0], Some(current()), None, now),
             Status::Ready
         );
         // Another account has its own three.
         assert_eq!(
-            replays.ask(BOB, matches[3], Some(14), None, now),
+            replays.ask(BOB, matches[3], Some(current()), None, now),
             Status::Ready
         );
         let _ = std::fs::remove_dir_all(&root);
@@ -1538,7 +1548,9 @@ mod tests {
     fn an_ask_is_refused_for_an_old_game_another_players_match_and_other_revisions() {
         let root = temp("refused");
         let replays = Replays::new(Some(settings(&root)), 6);
-        made(&replays, vec![Some(14), Some(15)]);
+        let now_revision = current();
+        let newer = now_revision + 1;
+        made(&replays, vec![Some(now_revision), Some(newer)]);
         let mut now = Instant::now();
         let mut ask = |account, revision, known| {
             now += ASK_EVERY;
@@ -1554,7 +1566,7 @@ mod tests {
         assert_eq!(
             ask(
                 ALICE,
-                Some(14),
+                Some(now_revision),
                 Some(Known {
                     played: false,
                     places: 10
@@ -1562,10 +1574,17 @@ mod tests {
             ),
             Status::NotYours
         );
-        assert_eq!(ask(BOB, Some(15), None), Status::NotYours);
-        // Made by a revision 15 game: not for 14.
-        assert_eq!(ask(ALICE, Some(14), played()), Status::Incompatible);
-        assert_eq!(ask(ALICE, Some(15), played()), Status::Ready);
+        assert_eq!(ask(BOB, Some(newer), None), Status::NotYours);
+        // Made by a newer game too: not for the current one.
+        assert_eq!(
+            ask(ALICE, Some(now_revision), played()),
+            Status::Incompatible
+        );
+        assert_eq!(ask(ALICE, Some(newer), played()), Status::Ready);
+        // Made by a game before the last simulation change too: refused
+        // for every game.
+        made(&replays, vec![Some(now_revision - 1), Some(now_revision)]);
+        assert_eq!(ask(ALICE, Some(newer), played()), Status::Incompatible);
         // No token was given for any of the refusals.
         assert_eq!(replays.inner.locked().tokens.len(), 1);
         let _ = std::fs::remove_dir_all(&root);
@@ -1760,14 +1779,14 @@ mod tests {
         let now = Instant::now();
         // Nothing at all: gone; a known match of 4 places: not recorded.
         assert_eq!(
-            replays.ask(ALICE, MATCH, Some(14), played(), now),
+            replays.ask(ALICE, MATCH, Some(current()), played(), now),
             Status::Gone
         );
         assert_eq!(
             replays.ask(
                 BOB,
                 MATCH,
-                Some(14),
+                Some(current()),
                 Some(Known {
                     played: true,
                     places: 4
@@ -1782,7 +1801,7 @@ mod tests {
         // (Seen once the folder is listed anew.)
         let later = now + LISTING_KEPT;
         assert_eq!(
-            replays.ask(ALICE, MATCH, Some(14), played(), later),
+            replays.ask(ALICE, MATCH, Some(current()), played(), later),
             Status::Preparing
         );
         assert!(replays.inner.locked().jobs.is_empty());
@@ -1794,18 +1813,18 @@ mod tests {
         assert!(replays.jobs().is_empty());
         let later = later + ASK_EVERY;
         assert_eq!(
-            replays.ask(ALICE, MATCH, Some(14), played(), later),
+            replays.ask(ALICE, MATCH, Some(current()), played(), later),
             Status::Preparing
         );
         assert_eq!(
-            replays.ask(BOB, MATCH, Some(14), played(), later),
+            replays.ask(BOB, MATCH, Some(current()), played(), later),
             Status::Preparing
         );
         assert_eq!(replays.inner.locked().jobs, [MATCH]);
         assert_eq!(replays.next_job(), Some(MATCH));
         let answer = replays.answer(ALICE, later);
         assert_eq!((answer.status, answer.place), (Status::Preparing, 1));
-        made(&replays, vec![Some(14)]);
+        made(&replays, vec![Some(current())]);
         replays.job_done(MATCH, Ok(()), later);
         // The conversion's news is looked at by the next poll at once.
         let answer = replays.answer(ALICE, later);
@@ -1822,28 +1841,28 @@ mod tests {
         kept(&replays, MATCH);
         let now = Instant::now();
         assert_eq!(
-            replays.ask(ALICE, MATCH, Some(14), played(), now),
+            replays.ask(ALICE, MATCH, Some(current()), played(), now),
             Status::Preparing
         );
         assert_eq!(replays.next_job(), Some(MATCH));
         replays.job_done(MATCH, Err(Failure::Lasting), now);
         assert_eq!(replays.answer(ALICE, now).status, Status::Failed);
         assert_eq!(
-            replays.ask(BOB, MATCH, Some(14), played(), now),
+            replays.ask(BOB, MATCH, Some(current()), played(), now),
             Status::Failed
         );
-        made(&replays, vec![Some(14)]);
+        made(&replays, vec![Some(current())]);
         replays.recording_deleted(MATCH);
         assert!(!replays.sur_path(MATCH).unwrap().exists());
         assert!(!replays.json_path(MATCH).unwrap().exists());
         let later = now + FAILED_FOR;
         assert_eq!(
-            replays.ask(ALICE, MATCH, Some(14), played(), later),
+            replays.ask(ALICE, MATCH, Some(current()), played(), later),
             Status::Gone
         );
         replays.recording_not_kept(7);
         assert_eq!(
-            replays.ask(ALICE, 7, Some(14), played(), later + ASK_EVERY),
+            replays.ask(ALICE, 7, Some(current()), played(), later + ASK_EVERY),
             Status::NotRecorded
         );
         replays.stop();
@@ -1859,7 +1878,7 @@ mod tests {
         let mut at = start;
         // Asks of one account, each past the two seconds.
         let ask = |match_id: u32, now: Instant| {
-            let status = replays.ask(ALICE, match_id, Some(14), played(), now);
+            let status = replays.ask(ALICE, match_id, Some(current()), played(), now);
             (status, replays.jobs().contains(&match_id))
         };
         let fail = |match_id: u32, failure: Failure, now: Instant| {
@@ -1924,7 +1943,7 @@ mod tests {
         .unwrap();
         let now = Instant::now();
         assert_eq!(
-            replays.ask(ALICE, MATCH, Some(14), played(), now),
+            replays.ask(ALICE, MATCH, Some(current()), played(), now),
             Status::Preparing
         );
         let counts = |replays: &Replays| {
@@ -1947,7 +1966,7 @@ mod tests {
         assert_eq!(counts(&replays), (2, 1));
         // Another account's burst is its own one look, on the same listing.
         assert_eq!(
-            replays.ask(BOB, MATCH, Some(14), played(), next),
+            replays.ask(BOB, MATCH, Some(current()), played(), next),
             Status::Preparing
         );
         for _ in 0..80 {
@@ -1980,7 +1999,7 @@ mod tests {
         let players: Vec<u32> = (0..20).map(|n| 0x2_0000 + n).collect();
         for &player in &players {
             assert_eq!(
-                replays.ask(player, MATCH, Some(14), None, now),
+                replays.ask(player, MATCH, Some(current()), None, now),
                 Status::Preparing
             );
         }
@@ -1994,7 +2013,7 @@ mod tests {
         assert_eq!(replays.next_job(), Some(MATCH));
         let later = now + ASK_EVERY;
         assert_eq!(
-            replays.ask(players[0], MATCH, Some(14), None, later),
+            replays.ask(players[0], MATCH, Some(current()), None, later),
             Status::Preparing
         );
         assert!(replays.jobs().is_empty());
@@ -2016,7 +2035,7 @@ mod tests {
         // A later ask is answered from the file, with no job.
         let late = 0x3_0000;
         assert_eq!(
-            replays.ask(late, MATCH, Some(14), None, later),
+            replays.ask(late, MATCH, Some(current()), None, later),
             Status::Ready
         );
         assert!(replays.jobs().is_empty());
@@ -2035,13 +2054,13 @@ mod tests {
         }
         // The first is being converted; the others wait behind it.
         assert_eq!(
-            replays.ask(1, first, Some(14), None, now),
+            replays.ask(1, first, Some(current()), None, now),
             Status::Preparing
         );
         assert_eq!(replays.next_job(), Some(first));
         for n in 1..=MAX_JOBS as u32 {
             assert_eq!(
-                replays.ask(1 + n, first + n, Some(14), None, now),
+                replays.ask(1 + n, first + n, Some(current()), None, now),
                 Status::Preparing
             );
             assert_eq!(replays.answer(1 + n, now).figure(), u64::from(n) + 1);
@@ -2050,7 +2069,10 @@ mod tests {
         assert_eq!(replays.jobs().len(), MAX_JOBS);
         // One more is busy, and not queued.
         let past = first + MAX_JOBS as u32 + 1;
-        assert_eq!(replays.ask(99, past, Some(14), None, now), Status::Busy);
+        assert_eq!(
+            replays.ask(99, past, Some(current()), None, now),
+            Status::Busy
+        );
         assert_eq!(replays.answer(99, now).figure(), 0);
         assert_eq!(replays.jobs().len(), MAX_JOBS);
         // The line moves: each place one less.
@@ -2061,7 +2083,7 @@ mod tests {
         // The busy asker, asking again, is queued at the end.
         let later = now + ASK_EVERY;
         assert_eq!(
-            replays.ask(99, past, Some(14), None, later),
+            replays.ask(99, past, Some(current()), None, later),
             Status::Preparing
         );
         assert_eq!(replays.answer(99, later).figure(), MAX_JOBS as u64 + 1);
@@ -2078,7 +2100,7 @@ mod tests {
         for match_id in 0x100..0x103 {
             made_for_all(&replays, match_id);
             assert_eq!(
-                replays.ask(ALICE, match_id, Some(14), None, now),
+                replays.ask(ALICE, match_id, Some(current()), None, now),
                 Status::Ready
             );
             tokens.push(replays.answer(ALICE, now).ready.unwrap().token);
@@ -2100,7 +2122,7 @@ mod tests {
         let late = now + TOKEN_LIFETIME;
         made_for_all(&replays, 0x103);
         assert_eq!(
-            replays.ask(ALICE, 0x103, Some(14), None, late),
+            replays.ask(ALICE, 0x103, Some(current()), None, late),
             Status::Busy
         );
         for token in &tokens {
@@ -2109,7 +2131,7 @@ mod tests {
         drop(held);
         // Done: the tokens go, and the account gets a new one.
         assert_eq!(
-            replays.ask(ALICE, 0x103, Some(14), None, late + ASK_EVERY),
+            replays.ask(ALICE, 0x103, Some(current()), None, late + ASK_EVERY),
             Status::Ready
         );
         // Given back, a token downloads again, its four left.
@@ -2133,11 +2155,11 @@ mod tests {
     fn a_replay_whose_file_is_not_its_sidecars_is_not_given() {
         let root = temp("mismatch");
         let replays = Replays::new(Some(settings(&root)), 6);
-        made(&replays, vec![Some(14)]);
+        made(&replays, vec![Some(current())]);
         std::fs::write(replays.sur_path(MATCH).unwrap(), b"longer than it was").unwrap();
         let now = Instant::now();
         assert_eq!(
-            replays.ask(ALICE, MATCH, Some(14), played(), now),
+            replays.ask(ALICE, MATCH, Some(current()), played(), now),
             Status::Gone
         );
         let _ = std::fs::remove_dir_all(&root);
