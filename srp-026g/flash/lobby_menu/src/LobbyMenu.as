@@ -3881,6 +3881,17 @@ package
             this.show_tutorial(0);
             return;
          }
+         // The item list's search box (docs/notes/item-search.md): Esc in it clears and hides it.
+         // Over a message or a popup Esc only leaves the box, and the message closes first.
+         if(this.inventory_list.searchFocused())
+         {
+            if(Message.isAnyMessage() == -1 && (MainScene.activePop == null || MainScene.activePop == this.modifierWindow))
+            {
+               this.inventory_list.closeSearch();
+               return;
+            }
+            stage.focus = this.inventory_list;
+         }
          if(stage.focus is TextField)
          {
             if(stage.focus.parent is TextInput)
@@ -3919,7 +3930,7 @@ package
       
       public function show_character_toggle() : void
       {
-         if(this.has_active_message())
+         if(this.windowKeysOff())
          {
             return;
          }
@@ -3933,10 +3944,18 @@ package
          }
       }
       
+      // The exe's window keys (character, friends, shop, inventory): not over a message, and not
+      // with Ctrl held over an item list, where Ctrl+F is its search (InventoryList.onSearchKey;
+      // F is Friends' key by default, and the exe asks before the movie sees the F).
+      private function windowKeysOff() : Boolean
+      {
+         return this.has_active_message() || MainScene.isCtrl && this.inventory_list.visible;
+      }
+      
       public function show_friends_toggle() : void
       {
          trace("show_friends_toggle");
-         if(this.has_active_message())
+         if(this.windowKeysOff())
          {
             return;
          }
@@ -3946,7 +3965,7 @@ package
       
       public function show_shop_toggle() : void
       {
-         if(this.has_active_message())
+         if(this.windowKeysOff())
          {
             return;
          }
@@ -3963,7 +3982,7 @@ package
       
       public function show_inventory_toggle() : void
       {
-         if(this.has_active_message())
+         if(this.windowKeysOff())
          {
             return;
          }
@@ -5631,6 +5650,10 @@ package
          {
             MainScene.isShift = true;
          }
+         if(e.keyCode == KeyCode.LEFT_CONTROL || e.keyCode == KeyCode.RIGHT_CONTROL)
+         {
+            MainScene.isCtrl = true;
+         }
       }
       
       private function test_bandle_data() : void
@@ -5823,6 +5846,10 @@ package
       private function onKeyUpStage(e:KeyboardEvent) : void
       {
          trace("KEY_DOWN_CODE_STAGE:",name,e.keyCode,e.target,e.currentTarget,e.isDefaultPrevented(),MainScene.isShift,"stage::",stage.focus);
+         if(e.keyCode == KeyCode.LEFT_CONTROL || e.keyCode == KeyCode.RIGHT_CONTROL)
+         {
+            MainScene.isCtrl = false;
+         }
          if(e.isDefaultPrevented())
          {
             return;

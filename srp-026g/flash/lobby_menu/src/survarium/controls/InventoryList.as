@@ -5,9 +5,11 @@ package survarium.controls
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.events.Event;
+   import flash.events.KeyboardEvent;
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
    import flash.text.TextField;
+   import flash.ui.Keyboard;
    import flash.utils.Dictionary;
    import flash.utils.Timer;
    import scaleform.clik.constants.InvalidationType;
@@ -38,6 +40,7 @@ package survarium.controls
    import survarium.upgrade.UpgradeWindow;
    import survarium.constants.Faction;
    import survarium.constants.InventoryTab;
+   import survarium.constants.KeyCode;
    import survarium.constants.ItemCategory;
    import survarium.constants.ItemCondition;
    import survarium.constants.ItemDefaults;
@@ -53,6 +56,7 @@ package survarium.controls
    import survarium.constants.WeaponHands;
    import survarium.constants.ProfileSlot;
    import survarium.player.LocalPaperDoll;
+   import survarium.rooms.RoomsText;
    
    public class InventoryList extends FiltersWindow implements IInventoryItemFactory
    {
@@ -141,9 +145,87 @@ package survarium.controls
       
       protected var _filterselectedId:int = -1;
       
+      // The search box (Ctrl+F; docs/notes/item-search.md): it sits below the grid, over the item
+      // panel's buttons, centred on the list; the grid gives up SEARCH_ROW of its height while it
+      // shows. SEARCH_GAP: the box's distance from the grid.
+      private static const SEARCH_ROW:int = 34;
+      
+      private static const SEARCH_GAP:int = 2;
+      
+      // its clear button's place from the box's right and top
+      private static const SEARCH_CLEAR_RIGHT:int = 22;
+      
+      private static const SEARCH_CLEAR_TOP:int = 8;
+      
+      // the empty box's word, in the game's languages (Language: en, uk, ru, de, pl)
+      private static const SEARCH_WORD:Array = ["Search","Пошук","Поиск","Suche","Szukaj"];
+      
+      // A word typed shorter than this matches only as a part of the name; from SEARCH_SPREAD on,
+      // its letters in order with others between (at most SEARCH_SPREAD_MOST times its length
+      // apart); from SEARCH_TYPO on, also with one letter wrong, missing, extra or swapped, and
+      // from SEARCH_TYPO_TWO on with two.
+      private static const SEARCH_SPREAD:int = 3;
+      
+      private static const SEARCH_SPREAD_MOST:int = 3;
+      
+      private static const SEARCH_TYPO:int = 4;
+      
+      private static const SEARCH_TYPO_TWO:int = 8;
+      
+      // A word's match, best first: at the name's start, at a word's start, inside a word, its
+      // letters in order (less the further apart), with typos (less for each).
+      private static const MATCH_START:int = 400;
+      
+      private static const MATCH_WORD:int = 350;
+      
+      private static const MATCH_PART:int = 300;
+      
+      private static const MATCH_SPREAD:int = 250;
+      
+      private static const MATCH_SPREAD_LEAST:int = 200;
+      
+      private static const MATCH_TYPO:int = 150;
+      
+      private static const MATCH_TYPO_EACH:int = 25;
+      
+      // The search compares small letters without accents, and Cyrillic in Latin letters (so that
+      // "ak" finds АК-74М and a Ukrainian name finds its Russian spelling); every other letter and
+      // digit as it is, anything else separates words.
+      private static const SEARCH_LETTERS:Object = {
+         "à":"a","á":"a","â":"a","ã":"a","ä":"a","å":"a","ā":"a","ą":"a","Ą":"a",
+         "ç":"c","ć":"c","č":"c","Ć":"c","Č":"c",
+         "è":"e","é":"e","ê":"e","ë":"e","ę":"e","ě":"e","Ę":"e","Ě":"e",
+         "ì":"i","í":"i","î":"i","ï":"i",
+         "ł":"l","Ł":"l",
+         "ñ":"n","ń":"n","ň":"n","Ń":"n","Ň":"n",
+         "ò":"o","ó":"o","ô":"o","õ":"o","ö":"o","ø":"o",
+         "ś":"s","š":"s","Ś":"s","Š":"s","ß":"ss",
+         "ù":"u","ú":"u","û":"u","ü":"u","ů":"u","Ů":"u",
+         "ý":"y","ÿ":"y",
+         "ź":"z","ż":"z","ž":"z","Ź":"z","Ż":"z","Ž":"z",
+         "а":"a","б":"b","в":"v","г":"g","ґ":"g","д":"d","е":"e","ё":"e","є":"e","ж":"zh","з":"z",
+         "и":"i","і":"i","ї":"i","й":"i","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r",
+         "с":"s","т":"t","у":"u","ф":"f","х":"h","ц":"c","ч":"ch","ш":"sh","щ":"sch","ъ":"",
+         "ы":"y","ь":"","э":"e","ю":"yu","я":"ya"
+      };
+      
+      private var _searchBox:SrvTextInput;
+      
+      private var _searchClear:Button;
+      
+      // the words typed, as the search compares them; null: no search
+      private var _searchWords:Array;
+      
+      // the grid's height the box takes now (SEARCH_ROW while it shows)
+      private var _searchRow:int = 0;
+      
+      // an item name as the search compares it ([text, its words' starts]), by the name
+      private var _searchNames:Dictionary = new Dictionary();
+      
       public function InventoryList()
       {
          super();
+         addEventListener(Event.ADDED_TO_STAGE,this.listenSearchKey);
          itemsTileList.addEventListener(ListEvent.ITEM_ROLL_OVER,this.newItemOver);
          itemsTileList.addEventListener(ListEvent.ITEM_ROLL_OUT,this.newItemOut);
          itemsTileList.addEventListener(ListEvent.ITEM_CLICK,this.onItemPress);
@@ -252,6 +334,8 @@ package survarium.controls
       {
          if(visible && value == false)
          {
+            // a closed list (switching Shop and Inventory too) opens again without the search
+            this.closeSearch();
             dispatchEvent(new Event(Event.CLOSE));
          }
          var pp:MovieClip = parent["player_profile"];
@@ -1927,6 +2011,7 @@ package survarium.controls
          this.itemControlPanel.setInvenory(this);
          this.checkboxCompareItems.selected = true;
          this.checkboxCompareItems.addEventListener(ButtonEvent.CLICK,this.showCompareCheckbox);
+         this.makeSearch();
          LocalizationData.addCallback(this.onLocal,"checkbox_compare_items");
       }
       
@@ -1936,6 +2021,420 @@ package survarium.controls
          this.checkboxCompareItems.tooltipRendererName = "SrvProfileTipRenderer";
          this.checkboxCompareItems.tipData = {name:LocalizationData.getName("checkbox_compare_items_hint")};
          this.shopTab.dataProvider = new DataProvider([LocalizationData.getName("filter_shop_and_inventory"),LocalizationData.getName("filter_shop"),LocalizationData.getName("filter_inventory")]);
+         this._searchBox.defaultText = SEARCH_WORD[RoomsText.language()];
+      }
+      
+      // The search box (docs/notes/item-search.md): the friends window's name box, hidden until
+      // Ctrl+F, with the player search's clear button in it.
+      private function makeSearch() : void
+      {
+         _searchBox = new TextInputFriendName();
+         this._searchBox.visible = false;
+         this._searchBox.x = int((background.width - this._searchBox.width) / 2);
+         this._searchBox.y = this.itemControlPanel.y - SEARCH_ROW + SEARCH_GAP;
+         this._searchBox.addEventListener(Event.CHANGE,this.onSearchChange);
+         this._searchBox.textField.addEventListener(KeyboardEvent.KEY_UP,this.onSearchBoxKey);
+         addChild(this._searchBox);
+         _searchClear = new BtnCancelSearch();
+         this._searchClear.visible = false;
+         this._searchClear.x = this._searchBox.x + this._searchBox.width - SEARCH_CLEAR_RIGHT;
+         this._searchClear.y = this._searchBox.y + SEARCH_CLEAR_TOP;
+         this._searchClear.addEventListener(ButtonEvent.CLICK,this.onSearchClear);
+         addChild(this._searchClear);
+      }
+      
+      private function listenSearchKey(e:Event) : void
+      {
+         stage.addEventListener(KeyboardEvent.KEY_DOWN,this.onSearchKey,false,0,true);
+      }
+      
+      // Ctrl+F over an open item list (the shop, the inventory, the craft and upgrade windows' list):
+      // the box opens, or closes when it has the keys. Not over a message or a popup (the upgrade
+      // window aside), and not while another text box has the keys. The exe sends Ctrl with each key
+      // (ctrlKey); the lobby also keeps whether Ctrl is down (MainScene.isCtrl).
+      private function onSearchKey(e:KeyboardEvent) : void
+      {
+         if(e.keyCode != KeyCode.F || !(e.ctrlKey || MainScene.isCtrl) || this._searchBox == null || !visible || stage == null)
+         {
+            return;
+         }
+         if(Message.isAnyMessage() != -1 || MainScene.activePop != null && MainScene.activePop != this.findUpgradeWindow())
+         {
+            return;
+         }
+         if(this.searchFocused())
+         {
+            this.closeSearch();
+            return;
+         }
+         if(stage.focus is TextField)
+         {
+            return;
+         }
+         this._searchBox.visible = true;
+         this._searchClear.visible = true;
+         this.placeSearch();
+         // the keys go to the box on the next render: the exe sends the F's character after the key
+         // (as the chat's box takes them: LobbyChatTab.onRenderFocus)
+         this._searchBox.addEventListener(Event.RENDER,this.focusSearch);
+         stage.invalidate();
+      }
+      
+      private function focusSearch(e:Event) : void
+      {
+         this._searchBox.removeEventListener(Event.RENDER,this.focusSearch);
+         if(!this._searchBox.visible || stage == null)
+         {
+            return;
+         }
+         stage.focus = this._searchBox.textField;
+         this._searchBox.textField.setSelection(0,this._searchBox.textField.length);
+      }
+      
+      // Whether the search box has the keys (LobbyMenu.close_active_window: Esc closes it then).
+      public function searchFocused() : Boolean
+      {
+         return this._searchBox != null && this._searchBox.visible && stage != null && (stage.focus == this._searchBox.textField || stage.focus == this._searchBox);
+      }
+      
+      // Esc in the box, Ctrl+F again, its clear button, or the list closing: the box goes, empty,
+      // and the list shows everything again.
+      public function closeSearch() : void
+      {
+         if(this._searchBox == null || !this._searchBox.visible)
+         {
+            return;
+         }
+         var focused:Boolean = this.searchFocused();
+         this._searchBox.visible = false;
+         this._searchClear.visible = false;
+         this._searchBox.text = "";
+         if(focused)
+         {
+            stage.focus = this;
+         }
+         this.placeSearch();
+         if(this._searchWords != null)
+         {
+            _searchWords = null;
+            this.applySearch();
+         }
+      }
+      
+      private function onSearchClear(e:ButtonEvent) : void
+      {
+         this.closeSearch();
+      }
+      
+      // Enter leaves the box: the list stays as found, and the lobby's keys work again.
+      private function onSearchBoxKey(e:KeyboardEvent) : void
+      {
+         if(e.keyCode == Keyboard.ENTER && this.searchFocused())
+         {
+            stage.focus = this;
+         }
+      }
+      
+      private function onSearchChange(e:Event) : void
+      {
+         var words:Array = searchWords(this._searchBox.text);
+         if(words == null && this._searchWords == null)
+         {
+            return;
+         }
+         _searchWords = words;
+         this.applySearch();
+      }
+      
+      // The grid gives the box its row while the box shows; the fade at the grid's foot moves with it.
+      private function placeSearch() : void
+      {
+         var row:int = this._searchBox.visible ? SEARCH_ROW : 0;
+         if(row == this._searchRow)
+         {
+            return;
+         }
+         black_gradient.y -= row - this._searchRow;
+         _searchRow = row;
+         this.onFilterShowed();
+      }
+      
+      // The list again with the search's words (as filterItem asks it), the item chosen kept chosen
+      // while it is still listed, from the top.
+      private function applySearch() : void
+      {
+         var dataProvider:DataProvider = itemsTileList.dataProvider as DataProvider;
+         var chosen:Object = dataProvider != null && itemsTileList.selectedIndex >= 0 && itemsTileList.selectedIndex < dataProvider.length ? dataProvider[itemsTileList.selectedIndex] : null;
+         var supper:Array = optionControl.getSelectedIndexes();
+         var filterOptions:Object = optionControl.getFilterOptions();
+         var seller:int = sellersTabPage.selectedIndex != -1 ? (sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id) : Faction.NONE;
+         this.ApplyInventoryFilter(supper,this._filterDictId != -1 ? SuperCategory.ALL : (inventoryTabPage.selectedIndex),seller,filterOptions);
+         dataProvider = itemsTileList.dataProvider as DataProvider;
+         var index:int = -1;
+         for(var i:int = 0; chosen != null && dataProvider != null && i < dataProvider.length; i++)
+         {
+            if(dataProvider[i] == chosen)
+            {
+               index = i;
+               break;
+            }
+         }
+         itemsTileList.selectedIndex = index;
+         itemsTileList.scrollBar.position = 0;
+      }
+      
+      // The items of a list whose name matches every word typed, best first, in the list's own order
+      // among equals; the whole list without a search.
+      private function searchItems(items:Array) : Array
+      {
+         if(this._searchWords == null)
+         {
+            return items;
+         }
+         var found:Array = [];
+         for(var i:int = 0; i < items.length; i++)
+         {
+            var score:int = this.searchScore(items[i].name);
+            if(score > 0)
+            {
+               found.push({
+                  item:items[i],
+                  score:score,
+                  index:i
+               });
+            }
+         }
+         found.sort(byScore);
+         for(i = 0; i < found.length; i++)
+         {
+            found[i] = found[i].item;
+         }
+         return found;
+      }
+      
+      private static function byScore(a:Object, b:Object) : int
+      {
+         return b.score != a.score ? b.score - a.score : a.index - b.index;
+      }
+      
+      // A name against the words typed: the sum of each word's match, 0 when one does not match.
+      private function searchScore(name:*) : int
+      {
+         var text:String = name == null ? "" : String(name);
+         var form:Array = this._searchNames[text] as Array;
+         if(form == null)
+         {
+            form = searchForm(text);
+            this._searchNames[text] = form;
+         }
+         var total:int = 0;
+         for(var i:int = 0; i < this._searchWords.length; i++)
+         {
+            var score:int = wordScore(this._searchWords[i],form[0],form[1]);
+            if(score == 0)
+            {
+               return 0;
+            }
+            total += score;
+         }
+         return total;
+      }
+      
+      // The words typed as the search compares them; null when there are none.
+      private static function searchWords(text:String) : Array
+      {
+         var form:Array = searchForm(text == null ? "" : text);
+         var letters:String = form[0];
+         var starts:Array = form[1];
+         var words:Array = [];
+         for(var i:int = 0; i < starts.length; i++)
+         {
+            var word:String = letters.substring(starts[i],i + 1 < starts.length ? starts[i + 1] : letters.length);
+            if(word.length > 0)
+            {
+               words.push(word);
+            }
+         }
+         return words.length > 0 ? words : null;
+      }
+      
+      // A text as the search compares it: [its letters and digits (SEARCH_LETTERS), where each
+      // word starts in them].
+      private static function searchForm(text:String) : Array
+      {
+         var letters:String = "";
+         var starts:Array = [];
+         var inWord:Boolean = false;
+         for(var i:int = 0; i < text.length; i++)
+         {
+            var code:int = text.charCodeAt(i);
+            if(code >= 0x41 && code <= 0x5A || code >= 0xC0 && code <= 0xDE && code != 0xD7 || code >= 0x410 && code <= 0x42F)
+            {
+               code += 0x20;
+            }
+            else if(code >= 0x400 && code <= 0x40F)
+            {
+               code += 0x50;
+            }
+            else if(code == 0x490)
+            {
+               code = 0x491;
+            }
+            var letter:String = String.fromCharCode(code);
+            var latin:* = SEARCH_LETTERS[letter];
+            if(latin == null)
+            {
+               var digitOrLetter:Boolean = code >= 0x30 && code <= 0x39 || code >= 0x61 && code <= 0x7A || code >= 0xC0 && code != 0xD7 && code != 0xF7 && !(code >= 0x2000 && code <= 0x206F) && code != 0x2116;
+               if(!digitOrLetter)
+               {
+                  inWord = false;
+                  continue;
+               }
+               latin = letter;
+            }
+            if(!inWord)
+            {
+               starts.push(letters.length);
+               inWord = true;
+            }
+            letters += latin;
+         }
+         return [letters,starts];
+      }
+      
+      // One word typed against a name's letters (MATCH_*); 0: no match.
+      private static function wordScore(word:String, letters:String, starts:Array) : int
+      {
+         var at:int = letters.indexOf(word);
+         if(at == 0)
+         {
+            return MATCH_START;
+         }
+         if(at > 0)
+         {
+            for(; at != -1; at = letters.indexOf(word,at + 1))
+            {
+               if(starts.indexOf(at) != -1)
+               {
+                  return MATCH_WORD;
+               }
+            }
+            return MATCH_PART;
+         }
+         if(word.length >= SEARCH_SPREAD)
+         {
+            var span:int = spreadSpan(word,letters);
+            if(span != -1 && span <= word.length * SEARCH_SPREAD_MOST)
+            {
+               return Math.max(MATCH_SPREAD_LEAST,MATCH_SPREAD - (span - word.length));
+            }
+         }
+         if(word.length >= SEARCH_TYPO)
+         {
+            var typos:int = typoCount(word,letters,word.length >= SEARCH_TYPO_TWO ? 2 : 1);
+            if(typos != -1)
+            {
+               return MATCH_TYPO - typos * MATCH_TYPO_EACH;
+            }
+         }
+         return 0;
+      }
+      
+      // The shortest stretch of the letters that holds the word's letters in order; -1: none does.
+      private static function spreadSpan(word:String, letters:String) : int
+      {
+         var best:int = -1;
+         var first:String = word.charAt(0);
+         for(var from:int = letters.indexOf(first); from != -1; from = letters.indexOf(first,from + 1))
+         {
+            var at:int = from;
+            for(var k:int = 1; k < word.length && at != -1; k++)
+            {
+               at = letters.indexOf(word.charAt(k),at + 1);
+            }
+            if(at == -1)
+            {
+               // a later start finds the rest no sooner
+               break;
+            }
+            if(best == -1 || at - from + 1 < best)
+            {
+               best = at - from + 1;
+            }
+         }
+         return best;
+      }
+      
+      // The fewest typos (a letter wrong, missing, extra, or two swapped) that make the word a part
+      // of the letters, when at most `most`; -1 otherwise.
+      private static function typoCount(word:String, letters:String, most:int) : int
+      {
+         var m:int = word.length;
+         var n:int = letters.length;
+         var i:int;
+         var j:int;
+         var missing:int = 0;
+         for(i = 0; i < m; i++)
+         {
+            if(letters.indexOf(word.charAt(i)) == -1 && ++missing > most)
+            {
+               return -1;
+            }
+         }
+         // rows of the edit distance from the word's first i letters to a part of the letters
+         // ending at j (a part may start anywhere: row 0 is all 0)
+         var before:Array = new Array(n + 1);
+         var last:Array = new Array(n + 1);
+         var row:Array = new Array(n + 1);
+         for(j = 0; j <= n; j++)
+         {
+            last[j] = 0;
+         }
+         for(i = 1; i <= m; i++)
+         {
+            row[0] = i;
+            var least:int = i;
+            var w:int = word.charCodeAt(i - 1);
+            for(j = 1; j <= n; j++)
+            {
+               var t:int = letters.charCodeAt(j - 1);
+               var d:int = last[j - 1] + (w == t ? 0 : 1);
+               if(last[j] + 1 < d)
+               {
+                  d = last[j] + 1;
+               }
+               if(row[j - 1] + 1 < d)
+               {
+                  d = row[j - 1] + 1;
+               }
+               if(i > 1 && j > 1 && w == letters.charCodeAt(j - 2) && word.charCodeAt(i - 2) == t && before[j - 2] + 1 < d)
+               {
+                  d = before[j - 2] + 1;
+               }
+               row[j] = d;
+               if(d < least)
+               {
+                  least = d;
+               }
+            }
+            if(least > most)
+            {
+               return -1;
+            }
+            var spare:Array = before;
+            before = last;
+            last = row;
+            row = spare;
+         }
+         var result:int = most + 1;
+         for(j = 0; j <= n; j++)
+         {
+            if(last[j] < result)
+            {
+               result = last[j];
+            }
+         }
+         return result <= most ? result : -1;
       }
       
       private function showCompareCheckbox(e:ButtonEvent) : void
@@ -2026,11 +2525,16 @@ package survarium.controls
       protected function onFilterShowed(e:Event = null) : void
       {
          var pos:int = Math.max(optionControl.y,217 - 116);
-         var newHeight:int = 600;
+         var newHeight:int = 600 - this._searchRow;
          itemsTileList.height = newHeight;
          trace("onFilterShowed::",optionControl.y,newHeight,newHeight / itemsTileList.rowHeight,int(newHeight / itemsTileList.rowHeight) * itemsTileList.rowHeight);
          scrollBar.setSize(scrollBar.width,newHeight - 8);
          addChild(black_gradient);
+         if(this._searchBox != null)
+         {
+            setChildIndex(this._searchBox,numChildren - 1);
+            setChildIndex(this._searchClear,numChildren - 1);
+         }
       }
       
       private function isUpgradeable(value:Object) : Boolean
@@ -2460,6 +2964,7 @@ package survarium.controls
                }
             }
             sortItems(filteredItems,filteredItemsShop);
+            filteredItems = this.searchItems(filteredItems);
             trace("fillItems::",filteredItems.length);
             itemsTileList.dataProvider = new DataProvider(filteredItems);
             itemsTileList.validateNow();
@@ -2550,6 +3055,7 @@ package survarium.controls
             }
          }
          sortItems(filteredItems,filteredItemsShop);
+         filteredItems = this.searchItems(filteredItems);
          trace("fillItems::",filteredItems.length);
          itemsTileList.dataProvider = new DataProvider(filteredItems);
          itemsTileList.validateNow();

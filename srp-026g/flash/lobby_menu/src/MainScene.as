@@ -13,6 +13,9 @@ package
       
       public static var isShift:Boolean;
       
+      // whether a Ctrl key is down (LobbyMenu.onKeyDownStage; the item lists' Ctrl+F)
+      public static var isCtrl:Boolean;
+      
       public static var showDebugInfo:Boolean;
       
       public static var stage:DisplayObjectContainer;
