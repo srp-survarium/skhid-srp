@@ -50,7 +50,19 @@ would have been there", "that would allow you to rotate it", "with weapon in the
   back at the close, to the turn it had.
 - **Turning.** A drag turns the weapon (sideways: about the vertical; up and down: tilted, within
   about 70 degrees), not the camera; the wheel brings the camera nearer or further (0.6 to 4.6 m).
-  Each window starts with the weapon level and side on.
+  Each window starts with the weapon level and side on. It turns about its middle along its length
+  (and across), which sits at the bench point: the middle of the gun itself, not of parts the model
+  keeps beside it (the VSS's spare magazine), within 1 cm for every weapon.
+- **Changing it.** Putting a scope or a camouflage on keeps the weapon at the bench until the new
+  one replaces it (no empty bench); the new one may show plain for a moment while its camouflage
+  bakes.
+- **Buttons.** The right (and other) buttons as the lobby's; the left button too at the bench,
+  when its press is on the 3D view: not when it is on the window's controls or moves an item
+  (a camouflage, a scope dragged from the inventory) — until it is let go.
+- **Order.** The weapon appears at the bench first, then the camera flies to it (it waits for the
+  weapon at most 2 s).
+- **Light.** The lamp under the workbench (the scene's fill light there) is brighter, 2.5 times
+  (a content patch).
 - **Lobby only.** Nothing a match or a replay sees; a game without patch 45 shows the weapon in the
   character's hands (patch 32).
 

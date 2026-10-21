@@ -26,6 +26,12 @@ down. What must hold:
   exactly, and from then on the tick is the original's again; a window over
   a weapon's (armour) flies back too, a weapon's over a weapon's keeps the
   yaw and pitch kept at the first;
+- the camera holds at the window's start until the weapon is drawn at the
+  bench (at most 2 s), then flies with the setter's speeds;
+- the weapon's middle (its model's box through bone 1's inverse bind and
+  pose, as the data of the AK-12 and the PM has them) is drawn at the bench;
+  the held item stays in the hand while the character makes its player;
+- the left button drags at the bench when its press is off the movie;
 - mt_draw's culled test sends the table's player (the lobby character's,
   drawn by its update, its window open, the table on) to the draw path and
   everyone else where the original does; its held item's transform is the
@@ -47,7 +53,7 @@ from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC
 import patch_026g as base
 import check_weapon_preview_026g as lobby_check
 from check_weapon_preview_026g import Lobby, KITS, AK, SVD, VEST, START_HANDLER, EXIT_HANDLER, CAMERA, \
-    CHARACTER, SQUAD, MENU, PLAYER, STACK, f32, from_f32
+    CHARACTER, SQUAD, MENU, PLAYER, STACK, STUBS, UI, f32, from_f32
 
 CTOR, TICK = 0x283BC0, 0x283EF0
 RAY, PROJECT = 0x2844D0, 0x21DF00              # both `ret 4`
@@ -58,11 +64,51 @@ MATRIX, DECAL_PATH, HAND, DRAW_ITEM = 0x24778F, 0x247798, 0x2477C2, 0x2477C8
 LOBBY_DRAW = 0x284A83
 FRAME = STACK - 0x2000                         # a made-up mt_draw frame (ebp)
 OTHER_PLAYER = SQUAD                           # another player (64 KiB of memory, as PLAYER)
+LEFT_SITE, LEFT_END = 0x283D81, 0x283D88       # on_mouse_move's drag test, then `test al,al`
+OVER_UI = STUBS + 0x100                        # the lobby menu's vtable+24h, is_mouse_over_ui (a stub)
+WEAPON_VTABLE, SKELETON_VTABLE = 0xA04174, 0x9F0F24
+ITEM, MODEL, RENDER, SKELETON = UI + 0x2000, UI + 0x4000, UI + 0x5000, UI + 0xC000   # a weapon's objects
+INVERSE_BINDS, BONE_POSES = UI + 0xD000, STACK - 0x3000
+
+# Weapons as the data has them (resources.db, read 2026-10-21): the items_dict
+# id, the render model's box (render/export_properties, min and max), bone 1's
+# (`offset`) inverse bind (render/bind_pose) and pose of the 3rd-view idle
+# (animations/.../item/stand/3rd_view/idle.b-spline over the skeleton), as the
+# game keeps matrices (rows, v * M); and the middle of the gun's mesh in that
+# pose (each vertex by its bone, the box of them, parts parked beside it left
+# out: the VSS's second magazine), which the build must put at the bench
+# within 1 cm.
+FLIP = (-1.0, 0, 0, 0, 0, 1.0, 0, 0, 0, 0, -1.0, 0, 0, 0, 0, 1.0)
+WEAPONS = {
+    "AK-12": (None, (-0.0224, -0.1585, -0.6726), (0.0315, 0.1114, 0.2654), FLIP, FLIP, (-0.0045, -0.0235, 0.2036)),
+    "PM": (89, (-0.083, -0.072, -0.124), (0.021, 0.051, 0.034), FLIP,
+           (-0.999839, 0.012316, -0.012998, 0, 0.012093, 0.999780, 0.017123, 0, 0.013206, 0.016963, -0.999769, 0,
+            -0.013804, -0.000793, 0.200544, 1.0), (-0.0212, -0.0136, 0.2457)),
+    "VSS": (308, (-0.2957, -0.0813, -0.5669), (0.021, 0.0833, 0.3269), FLIP,
+            (-0.999994, 0.003439, 0.000239, 0, 0.003440, 0.999987, 0.003642, 0, -0.000227, 0.003643, -0.999993, 0,
+             0.005773, 0.019322, 0.026358, 1.0), (0.0134, 0.0201, 0.1465)),
+    "AK-74U": (13, (-1.0, -1.0, -1.0), (1.0, 1.0, 1.0), FLIP, FLIP, (0.0096, -0.0373, 0.0882)),
+}
+DICTIONARY_ITEM = UI + 0xE000                  # the weapon's items_dict entry (+0 its u16 id)
+# weapon_table_026g.asm's MIDDLES (items_dict id: the posed gun's middle, m), read from its source
+def table_middles():
+    import os
+    import re
+    text = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_table_026g.asm")).read()
+    rows = re.findall(r"^(?:middles:)?\s+dw (\d+), (-?\d+), (-?\d+), (-?\d+)", text[text.index("middles:"):], re.M)
+    return {int(d): (int(x) / 1000, int(y) / 1000, int(z) / 1000) for d, x, y, z in rows}
+
+
+TABLE_MIDDLES = table_middles()
 
 # weapon_table_026g.asm's constants and state
 BENCH = (4.25, 1.30, 3.05)
-VIEW_YAW, VIEW_PITCH, VIEW_DISTANCE, CENTRE_Z, TILT_MAX = -math.pi / 2, -0.25, 1.2, -0.18, 1.2
-TABLE, FLY, TARGET_X, TARGET_Z, TARGET_YAW, TARGET_PITCH, SAVED_YAW, SAVED_PITCH, SPIN, TILT = range(0, 40, 4)
+VIEW_YAW, VIEW_PITCH, VIEW_DISTANCE, MIDDLE_Z, TILT_MAX, HOLD_MAX = -math.pi / 2, -0.25, 1.2, 0.2, 1.2, 2.0
+TABLE, FLY, TARGET_X, TARGET_Z, TARGET_YAW, TARGET_PITCH, SAVED_YAW, SAVED_PITCH, SPIN, TILT, READY, HOLD, \
+    WAITED, LEFT = range(0, 56, 4)
+STAMP, BENCH_MATRIX = base.WEAPON_TABLE_STAMP_OFFSET, base.WEAPON_TABLE_MATRIX_OFFSET   # the interface
+SPEEDS = (0xE0, 0xE4, 0xE8)                    # the camera's three steps' speeds: side, height, distance
+STEPS = ((0x98, 0xAC), (0x9C, 0xA4), (0xC0, 0xC4))  # their targets and values
 POINT_X, POINT_Y, POINT_Z, YAW, PITCH, TURN_YAW, TURN_PITCH, WHEEL = 0xA0, 0xA4, 0xA8, 0xB8, 0xBC, 0xCC, 0xD0, 0xC8
 SIDE, HEIGHT_TARGET, DISTANCE, DISTANCE_TARGET = 0xAC, 0x9C, 0xC4, 0xC0
 
@@ -96,11 +142,26 @@ class Table:
 
             for at in (RAY, PROJECT):
                 emu.hook_add(UC_HOOK_CODE, ret4, begin=at + delta, end=at + delta)
-            for at in (CULL_ON, DRAW, DECAL_PATH, HAND, DRAW_ITEM):
+            for at in (CULL_ON, DRAW, DECAL_PATH, HAND, DRAW_ITEM, LEFT_END):
                 emu.hook_add(UC_HOOK_CODE, stop, begin=at + delta, end=at + delta)
+
+            def over_ui(e, address, size, _):        # thiscall, no argument: al
+                assert e.reg_read(UC_X86_REG_ECX) == MENU
+                box["over_calls"] += 1
+                e.reg_write(UC_X86_REG_EAX, 0xBADC0D00 | box["over"])
+                e.reg_write(UC_X86_REG_ECX, 0xBADC0DE1)
+                e.reg_write(UC_X86_REG_EDX, 0xBADC0DE2)
+                sp = e.reg_read(UC_X86_REG_ESP)
+                e.reg_write(UC_X86_REG_EIP, struct.unpack("<I", e.mem_read(sp, 4))[0])
+                e.reg_write(UC_X86_REG_ESP, sp + 4)
+
+            emu.hook_add(UC_HOOK_CODE, over_ui, begin=OVER_UI, end=OVER_UI)
         self.box = HOOKED[key]
         self.box["matrices"].clear()
         self.box["stops"] = set()
+        self.box["over"], self.box["over_calls"] = 0, 0
+        lobby.word(MENU, MENU + 0x800)                # the lobby menu's vtable: +24h is_mouse_over_ui
+        lobby.word(MENU + 0x800 + 0x24, OVER_UI)
         late_join = open(base.late_join_bin(), "rb").read()
         self.has_table = any(name == base.WEAPON_CAMO_NAME for name, *_ in base.Headers(data).sections(data))
         self.state = base.late_join_state_va(late_join) + base.WEAPON_TABLE_STATE_OFFSET + delta
@@ -160,6 +221,61 @@ class Table:
         return self.box["stop"], {r: emu.reg_read(r) for r in regs}
 
 
+    def weapon(self, name, vtable=WEAPON_VTABLE, box=None):
+        """The player holds a weapon whose model is `name`'s (WEAPONS), its
+        bones of the frame in mt_draw's frame; returns the middle it has."""
+        dict_id, lower, upper, inverse_bind, pose, middle = WEAPONS[name]
+        if box is not None:
+            lower, upper = box
+        lobby, d = self.lobby, self.delta
+        lobby.word(PLAYER + 0x128, ITEM)
+        lobby.word(ITEM, vtable + d)
+        lobby.word(ITEM + 0x1810, MODEL)
+        lobby.word(ITEM + 0x25C, DICTIONARY_ITEM if dict_id is not None else 0)
+        self.emu.mem_write(DICTIONARY_ITEM, struct.pack("<H", dict_id or 0))
+        lobby.word(MODEL + 0x108, RENDER)
+        lobby.word(RENDER, SKELETON_VTABLE + d)
+        lobby.word(RENDER + 0x62B4, SKELETON)
+        self.emu.mem_write(SKELETON + 0x108, struct.pack("<6f", *lower, *upper))
+        lobby.word(SKELETON + 0x140, INVERSE_BINDS)
+        self.emu.mem_write(INVERSE_BINDS, struct.pack("<16f", *FLIP) + struct.pack("<16f", *inverse_bind))
+        self.emu.mem_write(BONE_POSES, struct.pack("<16f", *FLIP) + struct.pack("<16f", *pose))
+        lobby.word(FRAME - 0x0C, BONE_POSES)
+        lobby.word(FRAME - 0x18, 2)
+        if dict_id in TABLE_MIDDLES and box is None:   # the build's table
+            v = list(TABLE_MIDDLES[dict_id])
+        elif lower == (-1.0, -1.0, -1.0) and upper == (1.0, 1.0, 1.0):
+            v = [0.0, 0.0, MIDDLE_Z]
+        else:                                   # the box's centre, flipped, x 0, through bone 1
+            centre = [(a + b) / 2 for a, b in zip(lower, upper)]
+            v = [0.0, centre[1], -centre[2]]
+            for mat in (inverse_bind, pose):
+                v = [sum(v[i] * mat[4 * i + k] for i in range(3)) + mat[12 + k] for k in range(3)]
+        if box is None:
+            assert math.dist(v, middle) < 0.01, (name, v, middle)   # the gun's middle within 1 cm
+        return v
+
+    def left(self, buttons, over=0):
+        """on_mouse_move's drag test with the mouse's buttons: al."""
+        emu = self.emu
+        self.emu.mem_write(STUBS + 0x200 + 0x0C, bytes([buttons]))
+        self.box["over"] = over
+        regs = {UC_X86_REG_EAX: STUBS + 0x200, UC_X86_REG_EBX: 0xB0B0B0B0, UC_X86_REG_ECX: 0xC0C0C0C0,
+                UC_X86_REG_EDX: 0xD0D0D0D0, UC_X86_REG_ESI: CAMERA, UC_X86_REG_EDI: 0xD1D1D1D1,
+                UC_X86_REG_EBP: 0xE0E0E0E0}
+        self.box["stops"] = {LEFT_END + self.delta}
+        self.box["stop"] = None
+        for register, value in regs.items():
+            emu.reg_write(register, value)
+        emu.reg_write(UC_X86_REG_ESP, STACK - 0x100)
+        emu.emu_start(LEFT_SITE + self.delta, 0, count=2000)
+        self.box["stops"] = set()
+        assert self.box["stop"] == LEFT_END and emu.reg_read(UC_X86_REG_ESP) == STACK - 0x100
+        assert all(emu.reg_read(r) == v for r, v in regs.items() if r != UC_X86_REG_EAX), \
+            "every register but eax kept (only al is read after)"
+        return emu.reg_read(UC_X86_REG_EAX) & 0xFF
+
+
 def nearest_turn(target, yaw):
     return yaw + math.remainder(target - yaw, 2 * math.pi)
 
@@ -194,6 +310,20 @@ def main():
         say(f"no weapon's window{rebased}: 90 ticks of the build, with a drag and the wheel, give every byte of "
             "the camera and every matrix of the original's")
 
+        # The weapon never drawn there: the camera goes anyway after HOLD_MAX.
+        other = Table(patched, delta)
+        other.lobby.handler(START_HANDLER, AK)
+        frames = 0
+        while other.flag(HOLD) and frames < 400:
+            other.frame()
+            frames += 1
+        assert other.flag(HOLD) == 0 and math.isclose(frames * 0.016, HOLD_MAX, abs_tol=0.02), frames
+        for n in range(10):
+            other.frame()
+        assert other.f(CAMERA + POINT_X) > 0.5
+        say(f"a weapon never drawn at the bench{rebased}: the camera goes after {frames} ticks "
+            f"({frames * 0.016:.2f} s, HOLD_MAX {HOLD_MAX})")
+
         # A weapon's window: the camera flies to the bench.
         table = Table(patched, delta)
         table.set_f(CAMERA + YAW, 0.4)
@@ -206,6 +336,21 @@ def main():
         assert math.isclose(table.s(TARGET_YAW), nearest_turn(VIEW_YAW, 0.4), abs_tol=1e-5)
         assert (round(table.f(CAMERA + HEIGHT_TARGET), 6), round(table.f(CAMERA + DISTANCE_TARGET), 6),
                 round(table.f(CAMERA + 0x98), 6)) == (BENCH[1], VIEW_DISTANCE, 0.37)
+        # The weapon not at the bench yet: the camera holds.
+        held = [table.f(CAMERA + at) for at in (POINT_X, POINT_Z, YAW, PITCH)]
+        for n in range(30):
+            table.frame()
+        assert table.flag(HOLD) == 1 and [table.f(CAMERA + at) for at in (POINT_X, POINT_Z, YAW, PITCH)] == held
+        assert [table.f(CAMERA + at) for at in SPEEDS] == [0.0, 0.0, 0.0]
+        # The weapon drawn there (mt_draw's matrix sets READY): it flies, the
+        # three steps with the setter's speeds again.
+        table.lobby.word(table.state + READY, 1)
+        table.frame()
+        assert table.flag(HOLD) == 0
+        for at, (target, now) in zip(SPEEDS, STEPS):
+            expected = abs(table.f(CAMERA + target) - table.f(CAMERA + now)) * from_f32(f32(1.1111112))
+            # the step after the speeds were set has moved `now` by one frame of them
+            assert math.isclose(table.f(CAMERA + at), expected, rel_tol=0.05, abs_tol=1e-6), (hex(at), expected)
         seconds = None
         for n in range(300):
             table.frame()
@@ -226,7 +371,9 @@ def main():
                         BENCH[2])
         assert all(abs(a - b) < 1e-3 for a, b in zip(eye, expected_eye)), (eye, expected_eye)
         assert math.isclose(table.f(CAMERA + SIDE), 0.37, abs_tol=1e-5)
-        say(f"a weapon's window{rebased}: the camera's point is at the bench {BENCH} within 1 cm after "
+        say(f"a weapon's window{rebased}: the camera holds (point, yaw and pitch kept, its steps' speeds 0) "
+            f"until the weapon is drawn at the bench, then gets the setter's speeds back; "
+            f"the camera's point is at the bench {BENCH} within 1 cm after "
             f"{seconds:.2f} s, then x and z exactly and the height within 0.001 (the camera's own step); its eye at ({eye[0]:.3f}, {eye[1]:.3f}, {eye[2]:.3f}): "
             f"{VIEW_DISTANCE} m in front of it along -x, {-VIEW_DISTANCE * math.sin(VIEW_PITCH):.3f} m above; "
             "the side angle the stock 0.37; the yaw and pitch it had kept")
@@ -277,8 +424,11 @@ def main():
         table.lobby.handler(START_HANDLER, SVD)
         for n in range(20):
             table.frame()
+        table.lobby.word(table.state + READY, 1)          # the SVD at the bench
         table.lobby.handler(START_HANDLER, AK)
-        assert (table.flag(TABLE), table.s(SAVED_YAW)) == (1, from_f32(f32(-2.0)))
+        assert (table.flag(TABLE), table.s(SAVED_YAW), table.flag(READY)) == (1, from_f32(f32(-2.0)), 1)
+        table.frame()
+        assert table.flag(HOLD) == 0                       # the bench keeps its weapon: no wait
         assert math.isclose(table.s(TARGET_YAW), nearest_turn(VIEW_YAW, table.f(CAMERA + YAW)), abs_tol=1e-5)
         table.lobby.handler(START_HANDLER, VEST)
         assert (table.flag(TABLE), table.flag(FLY), table.s(TARGET_X), table.s(TARGET_Z), table.s(TARGET_YAW)) \
@@ -288,7 +438,8 @@ def main():
         for n in range(400):
             table.frame()
         assert not table.flag(FLY) and table.f(CAMERA + YAW) == from_f32(f32(-2.0))
-        say(f"windows over windows{rebased}: the AK's over the SVD's keeps the yaw kept at the first; a vest's "
+        say(f"windows over windows{rebased}: the AK's over the SVD's keeps the yaw kept at the first and the "
+            "bench its weapon (READY, no hold); a vest's "
             "over them flies back (the vest's own camera); the close leaves the stock camera")
 
         # The yaw it flies to: the nearest turn of -pi/2.
@@ -325,6 +476,7 @@ def main():
                 lobby.word(FRAME + 4, caller + delta)
                 lobby.word(FRAME - 0xF0, CHARACTER)
                 lobby.word(CHARACTER + 0xD2B8, PLAYER)
+                lobby.word(CHARACTER + 0xD2C4, -1)
                 table.emu.mem_write(CHARACTER + 0xD515, bytes([opened]))
                 table.emu.mem_write(player + 0xF49C, bytes([decal]))
                 regs = {UC_X86_REG_EAX: 0xA0A0A0A0, UC_X86_REG_EBX: player, UC_X86_REG_ECX: 0xC0C0C0C0,
@@ -351,8 +503,8 @@ def main():
                     dot = sum(a * b for a, b in zip(rows[i], rows[j]))
                     assert math.isclose(dot, 1.0 if i == j else 0.0, abs_tol=1e-5), (i, j, dot)
             assert (m[3], m[7], m[11], m[15]) == (0.0, 0.0, 0.0, 1.0)
-            # (0, 0, CENTRE_Z) of the model is at the bench; up and the length turned by the spin and the tilt.
-            middle = [CENTRE_Z * m[8 + k] + m[12 + k] for k in range(3)]
+            # No held item: (0, 0, MIDDLE_Z) of the model at the bench; up and the length turned by the spin and the tilt.
+            middle = [MIDDLE_Z * m[8 + k] + m[12 + k] for k in range(3)]
             assert all(abs(a - b) < 1e-5 for a, b in zip(middle, BENCH)), middle
             spin, tilt = from_f32(f32(0.7)), from_f32(f32(-0.3))
             length = (-math.sin(spin) * math.cos(tilt), -math.sin(spin) * math.sin(tilt), math.cos(spin))
@@ -366,6 +518,88 @@ def main():
             "update, its window open, the table on): the draw path even when not seen, and the bench's "
             "transform in eax (orthonormal rows, the weapon's middle at the bench, its length along (-sin spin "
             "cos tilt, -sin spin sin tilt, cos spin)); the x87 stack as it was")
+
+        # The weapon's middle, and the character still making its player.
+        def bench_case(setup, building=None):
+            table = Table(patched, delta)
+            lobby = table.lobby
+            lobby.word(table.state + TABLE, 1)
+            lobby.word(table.state + SPIN, f32(0.9))
+            lobby.word(table.state + TILT, f32(0.4))
+            lobby.word(FRAME + 4, LOBBY_DRAW + delta)
+            lobby.word(FRAME - 0xF0, CHARACTER)
+            lobby.word(CHARACTER + 0xD2B8, PLAYER)
+            lobby.word(CHARACTER + 0xD2C4, -1)
+            table.emu.mem_write(CHARACTER + 0xD515, b"\x01")
+            if building == "query":
+                lobby.word(CHARACTER + 0xD2C4, 7)
+            elif building == "again":
+                table.emu.mem_write(CHARACTER + 0xD2C8, b"\x01")
+            middle = setup(table)
+            regs = {UC_X86_REG_EAX: 0xA0A0A0A0, UC_X86_REG_EBX: PLAYER, UC_X86_REG_ECX: 0xC0C0C0C0,
+                    UC_X86_REG_EDX: 0xD0D0D0D0, UC_X86_REG_ESI: 0x5E5E5E5E, UC_X86_REG_EDI: 0xD1D1D1D1,
+                    UC_X86_REG_EBP: FRAME}
+            end, out = table.site(MATRIX, (DECAL_PATH, HAND, DRAW_ITEM), regs)
+            m = struct.unpack("<16f", table.emu.mem_read(FRAME - 0xE8, 0x40))
+            return table, end, out, m, middle, regs
+
+        for building in ("query", "again"):
+            table, end, out, _, _, regs = bench_case(lambda t: t.weapon("AK-12"), building)
+            assert end == HAND and out == regs and table.flag(READY) == 0, (building, hex(end))
+
+            def shown(t):
+                t.lobby.word(t.state + READY, 1)
+                return t.weapon("AK-12")
+            table, end, out, m, middle, regs = bench_case(shown, building)
+            assert end == DRAW_ITEM and out[UC_X86_REG_EAX] == FRAME - 0xE8 and table.flag(READY) == 1
+            at = [sum(middle[i] * m[4 * i + k] for i in range(3)) + m[12 + k] for k in range(3)]
+            assert all(abs(a - b) < 1e-5 for a, b in zip(at, BENCH)), at
+        say(f"the character still making its player{rebased} (+D2C4h a query, or +D2C8h a setup_profile "
+            "waiting): before the bench showed a weapon, the held item stays in the hand, READY 0, every "
+            "register kept; once it did (a refresh: a scope or a camouflage put on), the current player's "
+            "weapon stays at the bench")
+        for name, setup in (("AK-12", lambda t: t.weapon("AK-12")), ("PM", lambda t: t.weapon("PM")),
+                            ("the VSS (a spare magazine parked beside it in its box)", lambda t: t.weapon("VSS")),
+                            ("the AK-74U (a default box; the build's table)", lambda t: t.weapon("AK-74U")),
+                            ("a default box", lambda t: (t.weapon("AK-12", box=((-1.0, -1.0, -1.0), (1.0, 1.0, 1.0))),
+                                                         (0.0, 0.0, MIDDLE_Z))[1]),
+                            ("not a weapon", lambda t: (t.weapon("AK-12", vtable=0xA04174 + 0x40),
+                                                        (0.0, 0.0, MIDDLE_Z))[1])):
+            table, end, out, m, middle, regs = bench_case(setup)
+            assert end == DRAW_ITEM and out[UC_X86_REG_EAX] == FRAME - 0xE8 and table.flag(READY) == 1
+            assert all(out[r] == v for r, v in regs.items() if r != UC_X86_REG_EAX)
+            at = [sum(middle[i] * m[4 * i + k] for i in range(3)) + m[12 + k] for k in range(3)]
+            assert all(abs(a - b) < 1e-5 for a, b in zip(at, BENCH)), (name, at)
+            # the interface: the transform drawn with, at BENCH_MATRIX, and the stamp
+            assert struct.unpack("<16f", table.emu.mem_read(table.state + BENCH_MATRIX, 64)) == m
+            assert table.flag(STAMP) == 1
+            say(f"{name}{rebased}: its middle ({', '.join(f'{c:.4f}' for c in middle)}) of the model is drawn at "
+                "the bench, READY 1, every register but eax kept; the transform at the state's +50h, its stamp +1")
+
+        # The left button at the bench.
+        table = Table(patched, delta)
+        stock = Table(original, delta)
+        for buttons in (0x00, 0x01, 0x02, 0x10, 0x40, 0x03):
+            assert table.left(buttons) == stock.left(buttons) == (1 if buttons & 0x52 else 0), hex(buttons)
+        assert table.box["over_calls"] == 0
+        lobby = table.lobby
+        lobby.word(table.state + TABLE, 1)
+        lobby.word(table.state + HOLD, 1)
+        assert table.left(0x01) == 0 and table.box["over_calls"] == 0          # still flying there
+        lobby.word(table.state + HOLD, 0)
+        assert table.left(0x01, over=0) == 1 and table.flag(LEFT) == 1         # a press off the movie
+        assert table.left(0x01, over=1) == 1 and table.box["over_calls"] == 1  # asked once, at the first move
+        assert table.left(0x00) == 0 and table.flag(LEFT) == 0                 # let go: the drag ends
+        assert table.left(0x01, over=1) == 0 and table.flag(LEFT) == 2         # a press on the movie: an item, a control
+        assert table.left(0x01, over=0) == 0 and table.box["over_calls"] == 2  # not until it is let go
+        assert table.left(0x00) == 0 and table.flag(LEFT) == 0
+        assert table.left(0x02, over=1) == 1                                   # the camera's own buttons as before
+        lobby.word(table.state + TABLE, 0)
+        assert table.left(0x01, over=0) == 0
+        say(f"the drag's buttons{rebased}: 52h as the original's, the left button not; at the bench (the "
+            "camera there) the left button too when its press is off the movie (is_mouse_over_ui asked once, at "
+            "its first move), not when it is on it (an item dragged, a control) until it is let go; every "
+            "register but eax kept")
 
     print(f"patch 45: {checks} checks passed")
 

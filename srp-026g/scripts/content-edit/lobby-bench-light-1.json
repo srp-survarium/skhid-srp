@@ -1,0 +1,18 @@
+{
+ "_about": "The lobby's workbench lit more (2026-10-21, the owner: \"the lamp under the table should give more light, since now it is somewhat dark\"; patch 45 shows a weapon's upgrade window's weapon in the air above the workbench, client_patch.md section 3.42). projects/lobby_scene/day/client_project, the lobby's scene: its ambient light under the workbench's end (client_objects[49], ambient_light(3), at (4.929, 0.006, 4.347), the warm 0xFFB3856B) is the only light by the bench; intensity 1 -> 2.5 and radius 3.1 -> 3.6 m, so that it reaches the weapon at (4.25, 1.30, 3.05), 1.95 m from it, with room to spare. Rendering only. The intensity is an int in the file (1, as the editor wrote it; ambient_light(23) beside it has the float 2.2): it becomes the float 2.5.",
+ "set": [
+  {
+   "file": "projects/lobby_scene/day/client_project",
+   "path": "client_objects[49]/intensity",
+   "from": 1,
+   "to": 2.5,
+   "as_float": true
+  },
+  {
+   "file": "projects/lobby_scene/day/client_project",
+   "path": "client_objects[49]/radius",
+   "from": 3.1,
+   "to": 3.6
+  }
+ ]
+}

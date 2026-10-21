@@ -67,7 +67,7 @@ were painted over when it is not ours (0.28a2 changed the Vityaz's, the AK-74N's
 Lancaster's). A donor is usable only on our UVs: the same plain texture in its build, or a model
 whose mesh UVs equal ours.
 
-Result (2026-10-21, live data of revision 24): 91 textures, 111 `_aoac` files, all 83 weapon configs,
+Result (2026-10-21, live data of revision 24): 91 textures, 112 `_aoac` files, all 83 weapon configs,
 every texture from parts.tsv (22 picked by the owner, the rest after them by the same rule: the
 body, not barrels, sights, rails, bolts or triggers). Before parts.tsv, the suggestion painted:
 
