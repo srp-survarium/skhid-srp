@@ -1269,6 +1269,7 @@ va	status	ref_021d	name
 0x0023a720	inferred-high	0x00183336	survarium::game_world_ui::set_broken_connection_message
 0x0023a7f0	inferred-high	0x001833ce	survarium::game_world_ui::set_player_online_status
 0x0023a930	inferred-medium		survarium::game_world_ui::show_cursor
+0x0023aa10	inferred-medium		survarium::game_world_ui::update_player_icons
 0x0023b200	inferred-medium	0x00183502	survarium::game_world_ui::update_ui
 0x0023b550	inferred-medium	0x00183771	survarium::game_world_ui::clear_player
 0x0023b740	inferred-medium		survarium::game_world_ui::update_local_player_state
