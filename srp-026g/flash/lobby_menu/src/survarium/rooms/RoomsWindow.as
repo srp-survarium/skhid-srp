@@ -308,6 +308,7 @@ package survarium.rooms
                 topMenu.paintRoomsTab(marked());
             overPanels();
             roomView.alertNear();
+            roomView.keepSwitchTint();
             applyPlay(true);
             syncChatTab();
         }
@@ -980,6 +981,7 @@ package survarium.rooms
             listView._stateCells = {};
             listView._listHits = [];
             roomView._roomHits = [];
+            roomView._switchBtn = null;
             createView._sliders = {};
             listView._joinPin = null;
             if (createView._makePin != null)

@@ -31,6 +31,8 @@ package survarium.rooms
         // player-gear feature), naming the member by its place in our room's
         // state and its serial (as a kick does).
         internal var _roomHits:Array = [];
+        // The footer's Switch room while the room view shows it.
+        internal var _switchBtn:* = null;
 
         public function RoomsRoom(win:RoomsWindow)
         {
@@ -201,7 +203,10 @@ package survarium.rooms
                 var to:Object = room.switchTo;
                 buttons.push([win.say("switchTo"), onSwitch, to]);
                 var made:Array = look.footer(buttons);
-                made[made.length - 1].transform.colorTransform = RoomsLook.YELLOW_TINT;
+                // Yellow as the Rooms tab, its label white as LEAVE ROOM's
+                // (the owner's choice of 2026-10-20, "art tinted, white text").
+                _switchBtn = made[made.length - 1];
+                RoomsLook.skinTint(_switchBtn, RoomsLook.YELLOW_TINT);
                 // Two buttons leave room for what the switch is; three do not.
                 if (buttons.length < 3)
                 {
@@ -225,6 +230,14 @@ package survarium.rooms
                     if (win._room.members[i].me)
                         return win._room.members[i].fit;
             return 0;
+        }
+
+        // Each frame: the skin redraws its parts on hover; the switch's yellow
+        // is put back.
+        internal function keepSwitchTint():void
+        {
+            if (_switchBtn != null)
+                RoomsLook.skinTint(_switchBtn, RoomsLook.YELLOW_TINT);
         }
 
         internal function alertNear():void

@@ -141,7 +141,8 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   left to the lobby, or is lost past the 90 s, has its row removed; coming back after the
   90 s is a new person (a new place, fresh state).
 - **Switch to a lower max level:** a member not playing a match is offered, beside Leave,
-  "Switch room", with what it is beside it ("A place free: room for gear up to level N", whose, how full): the open room (no PIN, a place free, not kicked from) of the lowest max
+  "Switch room", with why beside it ("Fairer match: opponents' gear up to level N"; then whose, how
+  full; the owner's of 2026-10-20: why to switch was not clear): the open room (no PIN, a place free, not kicked from) of the lowest max
   level that takes its equipment and is lower than its own room's (none set counts as the
   highest); then the fullest. One click joins it, out of the room it was in.
 - **Queue:** a full room offers "Queue": from no room only, one queue at a time, PIN asked
@@ -187,7 +188,9 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   Play button reads "Leave room" (in the case of the game's own Play label) in red and takes
   the player out of the room, except when its row says it plays the room's match while it
   is in the lobby (its game started anew): then it is Play, back to its seat. The switch to
-  a lower max level ("Switch room") is yellow.
+  a lower max level ("Switch room") is yellow: its art tinted, its label white, as Leave
+  room's (the owner's of 2026-10-20, "art tinted, white text"; the whole button yellow did not
+  look good).
 - **In a room's queue it shows the same way** (the owner's of 2026-10-20): the Rooms tab is
   yellow; Play reads "Leave queue" in red and takes the player out of the queue.
 - **Window:** Rooms replaces Map in the top bar ("rooms" in every language; its own icon; locked with Clan and
