@@ -14,9 +14,9 @@ package survarium.core
          super();
       }
       
-      private function onAdded(param1:Event) : void
+      private function onAdded(e:Event) : void
       {
-         trace("Icon::",param1.type,name,param1.target,param1.currentTarget,parent,this._bmp,numChildren);
+         trace("Icon::",e.type,name,e.target,e.currentTarget,parent,this._bmp,numChildren);
       }
       
       public function get bitmap() : Bitmap
@@ -24,11 +24,11 @@ package survarium.core
          return this._bmp;
       }
       
-      public function applyImage(param1:Icon) : void
+      public function applyImage(icon:Icon) : void
       {
-         if(param1.bitmap)
+         if(icon.bitmap)
          {
-            this.loadImage(new Bitmap(param1.bitmap.bitmapData));
+            this.loadImage(new Bitmap(icon.bitmap.bitmapData));
          }
       }
       
@@ -51,24 +51,24 @@ package survarium.core
          _bmp = null;
       }
       
-      public function loadImage(param1:Bitmap) : void
+      public function loadImage(bmp:Bitmap) : void
       {
          if(this._bmp != null)
          {
             removeChild(this._bmp);
          }
-         _bmp = param1;
+         _bmp = bmp;
          addChild(this._bmp);
       }
       
       public function clone() : Icon
       {
-         var _loc1_:Icon = new Icon();
+         var _clone:Icon = new Icon();
          if(this._bmp)
          {
-            _loc1_.loadImage(new Bitmap(this._bmp.bitmapData));
+            _clone.loadImage(new Bitmap(this._bmp.bitmapData));
          }
-         return _loc1_;
+         return _clone;
       }
       
       override public function toString() : String

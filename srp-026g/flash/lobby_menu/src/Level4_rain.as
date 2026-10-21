@@ -5,9 +5,9 @@ package
    public dynamic class Level4_rain extends BitmapData
    {
       
-      public function Level4_rain(param1:int = 1920, param2:int = 798)
+      public function Level4_rain(bitmapWidth:int = 1920, bitmapHeight:int = 798)
       {
-         super(param1,param2);
+         super(bitmapWidth,bitmapHeight);
       }
    }
 }

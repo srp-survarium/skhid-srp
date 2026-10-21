@@ -70,19 +70,19 @@ package survarium.controls
          return this._progressShift;
       }
       
-      public function set label(param1:String) : void
+      public function set label(value:String) : void
       {
-         _label = param1;
+         _label = value;
          if(this.golow)
          {
             (this.golow._progressTx as TextField).autoSize = TextFieldAutoSize.CENTER;
-            this.golow._progressTx.text = param1;
+            this.golow._progressTx.text = value;
          }
       }
       
-      public function set progress(param1:Number) : void
+      public function set progress(value:Number) : void
       {
-         if(param1)
+         if(value)
          {
             this.newFill.visible = true;
          }
@@ -90,7 +90,7 @@ package survarium.controls
          {
             this.newFill.visible = false;
          }
-         _progress = param1;
+         _progress = value;
          _progressShift = 0;
          invalidate(InvalidationType.DATA);
       }
@@ -100,15 +100,15 @@ package survarium.controls
          return this._progress;
       }
       
-      public function set progressLen(param1:Number) : void
+      public function set progressLen(value:Number) : void
       {
-         _progressShift = param1;
+         _progressShift = value;
          this.updatePosition();
       }
       
-      public function showProgress(param1:Boolean) : void
+      public function showProgress(show:Boolean) : void
       {
-         this.golow_tx.visible = param1;
+         this.golow_tx.visible = show;
       }
       
       override protected function configUI() : void
@@ -173,12 +173,12 @@ package survarium.controls
          }
       }
       
-      protected function onResize(param1:Event = null) : void
+      protected function onResize(event:Event = null) : void
       {
-         var _loc2_:Number = rotation * Math.PI / 180;
-         var _loc3_:Number = Math.abs(Math.cos(_loc2_));
-         var _loc4_:Number = Math.abs(Math.sin(_loc2_));
-         _size = (this.width * _loc3_ - this.height * _loc4_) / (Math.pow(_loc3_,2) - Math.pow(_loc4_,2));
+         var angle:Number = rotation * Math.PI / 180;
+         var cosA:Number = Math.abs(Math.cos(angle));
+         var sinA:Number = Math.abs(Math.sin(angle));
+         _size = (this.width * cosA - this.height * sinA) / (Math.pow(cosA,2) - Math.pow(sinA,2));
       }
       
       override protected function updatePosition() : void
@@ -192,25 +192,25 @@ package survarium.controls
             (this.golow_tx._progressTx as TextField).autoSize = TextFieldAutoSize.RIGHT;
             this.golow_tx._progressTx.text = _value + "/" + _maximum;
          }
-         var _loc1_:Number = this._size;
-         var _loc2_:Number;
+         var barSize:Number = this._size;
+         var ratio:Number;
          if(this._progress)
          {
-            _loc2_ = (_value - _minimum - this._progress) / (_maximum - _minimum);
+            ratio = (_value - _minimum - this._progress) / (_maximum - _minimum);
          }
          else
          {
-            _loc2_ = (_value - _minimum - this._progressShift) / (_maximum - _minimum);
+            ratio = (_value - _minimum - this._progressShift) / (_maximum - _minimum);
          }
          if(this.filled)
          {
-            this._mask.width = this.filled.width * _loc2_;
+            this._mask.width = this.filled.width * ratio;
          }
          if(this._progressShift)
          {
-            this._mask_new.x = _loc1_ * _loc2_;
-            _loc2_ = (this._progressShift - _minimum) / (_maximum - _minimum);
-            this._mask_new.width = this.filled.width / this.filled.scaleX * _loc2_;
+            this._mask_new.x = barSize * ratio;
+            ratio = (this._progressShift - _minimum) / (_maximum - _minimum);
+            this._mask_new.width = this.filled.width / this.filled.scaleX * ratio;
          }
       }
    }

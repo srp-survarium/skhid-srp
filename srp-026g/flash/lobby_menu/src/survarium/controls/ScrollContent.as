@@ -69,10 +69,10 @@ package survarium.controls
          addEventListener(MouseEvent.MOUSE_WHEEL,this.handleMouseWheel);
       }
       
-      public function set scrollV(param1:int) : void
+      public function set scrollV(value:int) : void
       {
-         var _loc2_:int = 0;
-         if(this.fromBottom && param1 == 0)
+         var unused:int = 0;
+         if(this.fromBottom && value == 0)
          {
             if(this.scrolChildrens.height < this._mask.height)
             {
@@ -80,20 +80,20 @@ package survarium.controls
                return;
             }
          }
-         this.scrolChildrens.y = -param1;
+         this.scrolChildrens.y = -value;
       }
       
-      public function set elemntShift(param1:int) : void
+      public function set elemntShift(value:int) : void
       {
-         _elemntShift = param1;
+         _elemntShift = value;
       }
       
-      protected function set scrollPosition(param1:int) : void
+      protected function set scrollPosition(value:int) : void
       {
          if(!this._tween)
          {
             _scrollTween = true;
-            _tween = new Tween(500,this._scrlBar,{position:param1},{
+            _tween = new Tween(500,this._scrlBar,{position:value},{
                ease:Strong.easeOut,
                onComplete:this.endTween
             });
@@ -103,7 +103,7 @@ package survarium.controls
             this._tween.reset();
             this._tween.paused = false;
             _scrollTween = true;
-            this._tween.props = {position:param1};
+            this._tween.props = {position:value};
          }
       }
       
@@ -112,54 +112,54 @@ package survarium.controls
          return this._scrlBar.position;
       }
       
-      override public function set width(param1:Number) : void
+      override public function set width(value:Number) : void
       {
-         super.width = param1;
-         this.updateElements(param1,height);
+         super.width = value;
+         this.updateElements(value,height);
       }
       
-      override public function set height(param1:Number) : void
+      override public function set height(value:Number) : void
       {
-         super.height = param1;
-         this.updateElements(width,param1);
+         super.height = value;
+         this.updateElements(width,value);
       }
       
-      public function addContent(param1:DisplayObject) : void
+      public function addContent(child:DisplayObject) : void
       {
-         param1.addEventListener(FocusEvent.FOCUS_IN,this.onFF);
-         this.scrolChildrens.addChild(param1);
+         child.addEventListener(FocusEvent.FOCUS_IN,this.onFF);
+         this.scrolChildrens.addChild(child);
          invalidateData();
       }
       
-      public function removeContent(param1:DisplayObject) : void
+      public function removeContent(child:DisplayObject) : void
       {
-         param1.removeEventListener(FocusEvent.FOCUS_IN,this.onFF);
-         this.scrolChildrens.removeChild(param1);
+         child.removeEventListener(FocusEvent.FOCUS_IN,this.onFF);
+         this.scrolChildrens.removeChild(child);
          invalidateData();
       }
       
-      protected function onFF(param1:FocusEvent) : void
+      protected function onFF(event:FocusEvent) : void
       {
-         if(param1.currentTarget is UIComponent)
+         if(event.currentTarget is UIComponent)
          {
-            if(param1.currentTarget.y > -this.scrolChildrens.y + this._mask.height)
+            if(event.currentTarget.y > -this.scrolChildrens.y + this._mask.height)
             {
                if(this._scrlBar && this._scrlBar.enabled)
                {
-                  scrollPosition = param1.currentTarget.y - this._mask.height;
+                  scrollPosition = event.currentTarget.y - this._mask.height;
                }
             }
-            else if(param1.currentTarget.y < -this.scrolChildrens.y)
+            else if(event.currentTarget.y < -this.scrolChildrens.y)
             {
                if(this._scrlBar && this._scrlBar.enabled)
                {
-                  scrollPosition = param1.currentTarget.y;
+                  scrollPosition = event.currentTarget.y;
                }
             }
          }
       }
       
-      protected function onSBarDragStart(param1:Event = null) : void
+      protected function onSBarDragStart(event:Event = null) : void
       {
          if(this._tween)
          {
@@ -169,18 +169,18 @@ package survarium.controls
          _scrollTween = false;
       }
       
-      protected function onSBarDragEnd(param1:Event = null) : void
+      protected function onSBarDragEnd(event:Event = null) : void
       {
          _current_target = this.seekTarget();
          scrollPosition = this._targets[this._current_target];
       }
       
-      protected function onTR(param1:Event) : void
+      protected function onTR(event:Event) : void
       {
          this.scrollToCurrent();
       }
       
-      protected function endTween(param1:* = null) : void
+      protected function endTween(tween:* = null) : void
       {
          _current_target = this.seekTarget();
          _scrollTween = false;
@@ -189,8 +189,8 @@ package survarium.controls
       override protected function configUI() : void
       {
          super.configUI();
-         var _loc1_:Class = getDefinitionByName("SrvScrollBarSkinned") as Class;
-         _scrlBar = new _loc1_();
+         var scrollBarClass:Class = getDefinitionByName("SrvScrollBarSkinned") as Class;
+         _scrlBar = new scrollBarClass();
          this._scrlBar.x = width - this._scrlBar.width - 3;
          addChild(this._scrlBar);
          this._scrlBar.focusTarget = this;
@@ -234,18 +234,18 @@ package survarium.controls
          }
       }
       
-      protected function updateElements(param1:int, param2:int) : void
+      protected function updateElements(newWidth:int, newHeight:int) : void
       {
          if(this._mask)
          {
-            this._mask.width = param1;
-            this._mask.height = param2;
-            this._back.width = param1;
-            this._back.height = param2;
+            this._mask.width = newWidth;
+            this._mask.height = newHeight;
+            this._back.width = newWidth;
+            this._back.height = newHeight;
          }
       }
       
-      protected function onResized(param1:Event) : void
+      protected function onResized(event:Event) : void
       {
          if(this.mask)
          {
@@ -261,32 +261,32 @@ package survarium.controls
       
       protected function seekTarget() : int
       {
-         var _loc1_:int = 0;
-         var _loc2_:int = 0;
-         while(_loc2_ < this._targets.length)
+         var prevIndex:int = 0;
+         var i:int = 0;
+         while(i < this._targets.length)
          {
-            if(this._scrlBar.position == this._targets[_loc2_])
+            if(this._scrlBar.position == this._targets[i])
             {
-               return _loc2_;
+               return i;
             }
-            if(this._targets[_loc2_] > this._scrlBar.position)
+            if(this._targets[i] > this._scrlBar.position)
             {
-               if(Math.abs(this._targets[_loc2_] - this._scrlBar.position) > Math.abs(this._targets[_loc1_] - this._scrlBar.position))
+               if(Math.abs(this._targets[i] - this._scrlBar.position) > Math.abs(this._targets[prevIndex] - this._scrlBar.position))
                {
-                  return _loc1_;
+                  return prevIndex;
                }
-               return _loc2_;
+               return i;
             }
-            _loc1_ = _loc2_;
-            _loc2_++;
+            prevIndex = i;
+            i++;
          }
-         return _loc2_;
+         return i;
       }
       
-      protected function handleMouseWheel(param1:MouseEvent) : void
+      protected function handleMouseWheel(event:MouseEvent) : void
       {
-         var _loc2_:int = this._current_target;
-         if(param1.delta > 0)
+         var prevTarget:int = this._current_target;
+         if(event.delta > 0)
          {
             _current_target -= 1;
          }
@@ -306,10 +306,10 @@ package survarium.controls
          {
             scrollPosition = this._targets[this._current_target];
          }
-         if(_loc2_ != this._current_target)
+         if(prevTarget != this._current_target)
          {
-            param1.preventDefault();
-            param1.stopImmediatePropagation();
+            event.preventDefault();
+            event.stopImmediatePropagation();
          }
       }
       
@@ -318,7 +318,7 @@ package survarium.controls
          _current_target = this.seekTarget();
       }
       
-      protected function handleTrackPress(param1:MouseEvent) : void
+      protected function handleTrackPress(event:MouseEvent) : void
       {
          if(this._scrlBar.thumb.y > this._scrlBar.mouseY)
          {
@@ -340,37 +340,37 @@ package survarium.controls
          {
             scrollPosition = this._targets[this._current_target];
          }
-         param1.stopImmediatePropagation();
+         event.stopImmediatePropagation();
       }
       
       protected function create_targets() : void
       {
          this._targets.length = 0;
-         var _loc1_:Array = new Array();
-         var _loc2_:uint = (this.scrolChildrens.numChildren);
-         var _loc3_:uint = 0;
-         var _loc4_:DisplayObject;
-         while(_loc3_ < _loc2_)
+         var children:Array = new Array();
+         var count:uint = (this.scrolChildrens.numChildren);
+         var i:uint = 0;
+         var child:DisplayObject;
+         while(i < count)
          {
-            _loc4_ = this.scrolChildrens.getChildAt(_loc3_) as DisplayObject;
-            if(_loc4_)
+            child = this.scrolChildrens.getChildAt(i) as DisplayObject;
+            if(child)
             {
-               _loc1_.push(_loc4_);
+               children.push(child);
             }
-            _loc3_++;
+            i++;
          }
-         _loc1_.sortOn("y",Array.NUMERIC);
+         children.sortOn("y",Array.NUMERIC);
          this._targets.push(0);
-         _loc2_ = _loc1_.length;
-         _loc3_ = 0;
-         while(_loc3_ < _loc2_)
+         count = children.length;
+         i = 0;
+         while(i < count)
          {
-            _loc4_ = _loc1_[_loc3_];
-            if(_loc4_.y + _loc4_.height - this._elemntShift > this._mask.height)
+            child = children[i];
+            if(child.y + child.height - this._elemntShift > this._mask.height)
             {
-               this._targets.push(_loc1_[_loc3_].y + _loc4_.height - this._mask.height - this._elemntShift);
+               this._targets.push(children[i].y + child.height - this._mask.height - this._elemntShift);
             }
-            _loc3_++;
+            i++;
          }
          if(this._current_target > this._targets.length)
          {
@@ -380,20 +380,20 @@ package survarium.controls
       
       protected function updateSize() : void
       {
-         var _loc1_:uint;
-         var _loc2_:Sprite;
+         var i:uint;
+         var child:Sprite;
          _max = 0;
          if(this._scrlBar && numChildren)
          {
-            _loc1_ = 0;
-            while(_loc1_ < this.scrolChildrens.numChildren)
+            i = 0;
+            while(i < this.scrolChildrens.numChildren)
             {
-               _loc2_ = this.scrolChildrens.getChildAt(_loc1_) as Sprite;
-               if(_loc2_)
+               child = this.scrolChildrens.getChildAt(i) as Sprite;
+               if(child)
                {
-                  _max = Math.max(_loc2_.height + _loc2_.y - this._elemntShift,this._max);
+                  _max = Math.max(child.height + child.y - this._elemntShift,this._max);
                }
-               _loc1_++;
+               i++;
             }
             _max -= this._mask.height;
             this._scrlBar.setScrollProperties(this._mask.height,0,this._max,1);

@@ -22,6 +22,10 @@ package survarium.player
    import survarium.interfaces.IItemFactory;
    import survarium.interfaces.ILocalPaperDoll;
    import survarium.interfaces.ILocalPlayerProfile;
+   import survarium.constants.AmmoView;
+   import survarium.constants.MoneyType;
+   import survarium.constants.SuperCategory;
+   import survarium.constants.UiSound;
    
    public class LocalPlayerProfile extends PlayerProfileBase implements ILocalPlayerProfile
    {
@@ -43,6 +47,15 @@ package survarium.player
       public var buyPremium:MovieClip;
       
       private var _weightC:Number = 0;
+      
+      // autobuy_changed's state: which of the auto buy (ammo) and auto repair boxes are ticked
+      private static const AUTOBUY_NONE:uint = 0;
+      
+      private static const AUTOBUY_AMMO:uint = 1;
+      
+      private static const AUTOBUY_REPAIR:uint = 2;
+      
+      private static const AUTOBUY_BOTH:uint = 3;
       
       private var _weightM:Number = 0;
       
@@ -123,7 +136,7 @@ package survarium.player
       
       public function getRelativeData(value:Object) : Object
       {
-         if(value.superCategory == 3)
+         if(value.superCategory == SuperCategory.AMMO)
          {
             return null;
          }
@@ -425,7 +438,7 @@ package survarium.player
          LocalizationData.addButton(this.checkbox_autorepair,"auto_repair_button_label");
          this.checkbox_autobuy.tooltipRendererName = "SrvProfileTipRendererStyled";
          this.checkbox_autorepair.tooltipRendererName = "SrvProfileTipRendererStyled";
-         this.ammoContainer.labelCostP.moneyType = 1;
+         this.ammoContainer.labelCostP.moneyType = MoneyType.PREMIUM;
          this.checkbox_autorepair.visible = true;
          this.checkbox_autorepair.enabled = true;
          this.checkbox_autorepair.addEventListener(ButtonEvent.CLICK,this.onAutoRepair);
@@ -455,17 +468,17 @@ package survarium.player
       {
          if(this.checkbox_autorepair.selected == false && this.checkbox_autobuy.selected == false)
          {
-            return 0;
+            return AUTOBUY_NONE;
          }
          if(this.checkbox_autorepair.selected == true && this.checkbox_autobuy.selected == true)
          {
-            return 3;
+            return AUTOBUY_BOTH;
          }
          if(this.checkbox_autorepair.selected == true)
          {
-            return 2;
+            return AUTOBUY_REPAIR;
          }
-         return 1;
+         return AUTOBUY_AMMO;
       }
       
       public function setAutoRepair(value:Boolean) : void
@@ -487,7 +500,7 @@ package survarium.player
          trace("onAmmoButton",this.btnShowAmmo.selected,this.ammoContainer);
          if(this.btnShowAmmo.selected)
          {
-            ExternalInterface.call("sound_play",10);
+            ExternalInterface.call("sound_play",UiSound.MENU_SLIDE_OUT);
             this.btnShowAmmo.label = LocalizationData.getName("hide_ammo");
             if(this._tween)
             {
@@ -501,7 +514,7 @@ package survarium.player
          }
          else
          {
-            ExternalInterface.call("sound_play",9);
+            ExternalInterface.call("sound_play",UiSound.MENU_SLIDE_IN);
             this.btnShowAmmo.label = LocalizationData.getName("show_ammo");
             if(this._tween)
             {
@@ -530,7 +543,7 @@ package survarium.player
       {
          if(e.index == 0)
          {
-            this._playerPaperDoll.ammoControl.reflow(null,"playerProfile",4);
+            this._playerPaperDoll.ammoControl.reflow(null,"playerProfile",AmmoView.ALL);
          }
          else
          {

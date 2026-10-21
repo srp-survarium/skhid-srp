@@ -1,6 +1,7 @@
 package survarium.rooms
 {
     import survarium.data.LocalizationData;
+    import survarium.constants.Language;
 
     // The rooms' words, in the game's five languages (English, Ukrainian,
     // Russian, German, Polish; the game's language is told by its own word
@@ -199,7 +200,7 @@ package survarium.rooms
         // The game's language: the index of its own word for Friends.
         public static function language():int
         {
-            var lang:int = 0;
+            var lang:int = Language.EN;
             var friends:String = LocalizationData.getName("btn_friends");
             for (var i:int = 1; i < FRIENDS.length; i++)
                 if (friends == FRIENDS[i])
@@ -234,7 +235,7 @@ package survarium.rooms
             var keys:Array = ["joinedRoom", "leftRoom"];
             for (var i:int = 0; i < keys.length; i++)
             {
-                var words:String = " " + TEXT[keys[i]][0];
+                var words:String = " " + TEXT[keys[i]][Language.EN];
                 var at:int = text.length - words.length;
                 if (at > 0 && text.substr(at) == words)
                     return text.substr(0, at) + " " + TEXT[keys[i]][lang];

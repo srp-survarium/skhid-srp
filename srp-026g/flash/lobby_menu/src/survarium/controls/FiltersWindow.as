@@ -16,17 +16,30 @@ package survarium.controls
    import scaleform.clik.interfaces.IListItemRenderer;
    import survarium.data.ItemDescriptor;
    import survarium.data.LocalizationData;
+   import survarium.constants.Cursor;
+   import survarium.constants.ItemCategory;
+   import survarium.constants.SuperCategory;
    
    public class FiltersWindow extends UIWindow
    {
       
-      public static const CAT_VOUCHER:uint = 27;
-      
-      public static const CAT_CAMO:uint = 25;
-      
       public var optionControl:OptionFilterControl;
       
       public var inventoryTabPage:ButtonBar;
+      
+      // the filter lists of the shop's tabs (optionControl.filterList: a tab's SuperCategory - 1)
+      private static const EQUIPMENT_FILTERS:int = 0;
+      
+      private static const WEAPON_FILTERS:int = 1;
+      
+      private static const AMMO_FILTERS:int = 2;
+      
+      private static const ITEM_FILTERS:int = 3;
+      
+      private static const UPGRADE_FILTERS:int = 4;
+      
+      // the "all" tab's (empty) list
+      private static const NO_FILTERS:int = 5;
       
       public var mainTabBar:ButtonBar = new ButtonBar();
       
@@ -69,64 +82,64 @@ package survarium.controls
          addEventListener(Event.RENDER,this.onStart);
       }
       
-      public function forEachItem(param1:Function) : void
+      public function forEachItem(callback:Function) : void
       {
       }
       
-      public function fillSellers(param1:Array) : void
+      public function fillSellers(sellers:Array) : void
       {
       }
       
-      public function registerItemDescriptor(param1:ItemDescriptor) : void
+      public function registerItemDescriptor(descriptor:ItemDescriptor) : void
       {
-         _itemDescriptor = param1;
+         _itemDescriptor = descriptor;
       }
       
-      public function registerDragListener(param1:*) : void
+      public function registerDragListener(listener:*) : void
       {
-         _dragListener = param1;
+         _dragListener = listener;
       }
       
-      public function focusCategory(param1:int) : void
+      public function focusCategory(category:int) : void
       {
-         trace("focusCategory::",param1,this.lastSelectedIndex);
+         trace("focusCategory::",category,this.lastSelectedIndex);
          this.inventoryTabPage.dataProvider = new DataProvider([{
             name:LocalizationData.getName("filter_all"),
             icon:1,
             index:1,
-            enabled:0 == param1 || param1 == -1
+            enabled:SuperCategory.ALL == category || category == SuperCategory.NO_FOCUS
          },{
             name:LocalizationData.getName("filter_equipment"),
             icon:2,
             index:2,
-            enabled:1 == param1 || param1 == -1
+            enabled:SuperCategory.EQUIPMENT == category || category == SuperCategory.NO_FOCUS
          },{
             name:LocalizationData.getName("filter_weapons"),
             icon:3,
             index:4,
-            enabled:2 == param1 || param1 == -1
+            enabled:SuperCategory.WEAPONS == category || category == SuperCategory.NO_FOCUS
          },{
             name:LocalizationData.getName("filter_ammo"),
             icon:4,
             index:5,
-            enabled:3 == param1 || param1 == -1
+            enabled:SuperCategory.AMMO == category || category == SuperCategory.NO_FOCUS
          },{
             name:LocalizationData.getName("filter_items"),
             icon:5,
             index:3,
-            enabled:4 == param1 || param1 == -1
+            enabled:SuperCategory.ITEMS == category || category == SuperCategory.NO_FOCUS
          },{
             name:LocalizationData.getName("filter_upgrades"),
             icon:6,
             index:6,
-            enabled:5 == param1 || param1 == -1
+            enabled:SuperCategory.UPGRADES == category || category == SuperCategory.NO_FOCUS
          }]);
-         if(param1 != -1)
+         if(category != SuperCategory.NO_FOCUS)
          {
             lastCategory = this.inventoryTabPage.selectedIndex;
             lastSelectedIndex = this.itemsTileList.selectedIndex;
             lastFilterIndexes = this.optionControl.filterList.getSelectedPositions();
-            this.inventoryTabPage.selectedIndex = param1;
+            this.inventoryTabPage.selectedIndex = category;
             trace("getLastSelectedIndex",this.itemsTileList.selectedIndex,this.lastFilterIndexes);
          }
          else
@@ -134,183 +147,183 @@ package survarium.controls
             this.inventoryTabPage.selectedIndex = this.lastCategory;
             this.itemsTileList.selectedIndex = this.lastSelectedIndex;
             trace("FC_selectPart::",this.itemsTileList.selectedIndex,"|",this.lastFilterIndexes);
-            if(this.lastFilterIndexes && this.lastCategory > 0)
+            if(this.lastFilterIndexes && this.lastCategory > SuperCategory.ALL)
             {
                this.optionControl.filterList.selectPart(this.lastFilterIndexes,this.lastCategory - 1);
             }
          }
       }
       
-      private function onMouseLeave(param1:Event) : void
+      private function onMouseLeave(event:Event) : void
       {
-         ExternalInterface.call("set_mouse_cursor",1);
+         ExternalInterface.call("set_mouse_cursor",Cursor.ARROW);
       }
       
-      private function onLocal(param1:String) : void
+      private function onLocal(localizedText:String) : void
       {
          this.init(null);
       }
       
-      private function init(param1:Event) : void
+      private function init(event:Event) : void
       {
          trace("FW::",this.optionControl,this.inventoryTabPage,this.itemsTileList);
          removeEventListener(Event.RENDER,this.init);
-         this.optionControl.filterList.registerDataProvider(0,new DataProvider([{
+         this.optionControl.filterList.registerDataProvider(EQUIPMENT_FILTERS,new DataProvider([{
             "icon":3,
             "name":"bronya",
             "tip":LocalizationData.getName("filter_body_armor"),
-            "sucat":3,
+            "sucat":ItemCategory.BODY_ARMOR,
             "selected":false
          },{
             "icon":1,
             "name":"kaska",
             "tip":LocalizationData.getName("filter_helmet"),
-            "sucat":1,
+            "sucat":ItemCategory.HELMETS,
             "selected":false
          },{
             "icon":6,
             "name":"perchatka",
             "tip":LocalizationData.getName("filter_gloves"),
-            "sucat":6,
+            "sucat":ItemCategory.GLOVES,
             "selected":false
          },{
             "icon":7,
             "name":"obuv",
             "tip":LocalizationData.getName("filter_boots"),
-            "sucat":7,
+            "sucat":ItemCategory.BOOTS,
             "selected":false
          },{
             "icon":5,
             "name":"nogi",
             "tip":LocalizationData.getName("filter_pants"),
-            "sucat":5,
+            "sucat":ItemCategory.PANTS,
             "selected":false
          },{
             "icon":2,
             "name":"maska",
             "tip":LocalizationData.getName("filter_mask"),
-            "sucat":2,
+            "sucat":ItemCategory.MASKS,
             "selected":false
          },{
             "icon":0,
             "name":"snaryazhenie",
             "tip":LocalizationData.getName("filter_rig"),
-            "sucat":4,
+            "sucat":ItemCategory.RIGS,
             "selected":false
          }]));
-         this.optionControl.filterList.registerDataProvider(1,new DataProvider([{
+         this.optionControl.filterList.registerDataProvider(WEAPON_FILTERS,new DataProvider([{
             "icon":8,
             "name":"pistolet",
             "tip":LocalizationData.getName("filter_pistol"),
-            "sucat":17,
+            "sucat":ItemCategory.PISTOLS,
             "selected":false
          },{
             "icon":9,
             "name":"gungun",
             "tip":LocalizationData.getName("filter_submachine_gun"),
-            "sucat":15,
+            "sucat":ItemCategory.SUBMACHINE_GUNS,
             "selected":false
          },{
             "icon":10,
             "name":"avtomat",
             "tip":LocalizationData.getName("filter_assault_rifle"),
-            "sucat":8,
+            "sucat":ItemCategory.ASSAULT_RIFLES,
             "selected":false
          },{
             "icon":11,
             "name":"pulemet",
             "tip":LocalizationData.getName("filter_machine_gun"),
-            "sucat":16,
+            "sucat":ItemCategory.MACHINE_GUNS,
             "selected":false
          },{
             "icon":12,
             "name":"drobovik",
             "tip":LocalizationData.getName("filter_shotgun"),
-            "sucat":14,
+            "sucat":ItemCategory.SHOTGUNS,
             "selected":false
          },{
             "icon":13,
             "name":"snaiperka",
             "tip":LocalizationData.getName("filter_sniper_rifle"),
-            "sucat":13,
+            "sucat":ItemCategory.SNIPER_RIFLES,
             "selected":false
          }]));
-         this.optionControl.filterList.registerDataProvider(2,new DataProvider([{
+         this.optionControl.filterList.registerDataProvider(AMMO_FILTERS,new DataProvider([{
             "icon":8,
             "name":"ammo_1",
             "tip":LocalizationData.getName("filter_ammo_pistol"),
-            "sucat":20,
+            "sucat":ItemCategory.PISTOL_AMMO,
             "selected":false
          },{
             "icon":10,
             "name":"ammo_3",
             "tip":LocalizationData.getName("filter_ammo_assault_rifle"),
-            "sucat":9,
+            "sucat":ItemCategory.ASSAULT_RIFLE_AMMO,
             "selected":false
          },{
             "icon":11,
             "name":"ammo_4",
             "tip":LocalizationData.getName("filter_ammo_machine_gun"),
-            "sucat":21,
+            "sucat":ItemCategory.MACHINE_GUN_AMMO,
             "selected":false
          },{
             "icon":12,
             "name":"ammo_5",
             "tip":LocalizationData.getName("filter_ammo_shotgun"),
-            "sucat":19,
+            "sucat":ItemCategory.SHOTGUN_AMMO,
             "selected":false
          },{
             "icon":13,
             "name":"ammo_6",
             "tip":LocalizationData.getName("filter_ammo_sniper_rifle"),
-            "sucat":18,
+            "sucat":ItemCategory.SNIPER_RIFLE_AMMO,
             "selected":false
          }]));
-         this.optionControl.filterList.registerDataProvider(3,new DataProvider([{
+         this.optionControl.filterList.registerDataProvider(ITEM_FILTERS,new DataProvider([{
             "icon":14,
             "name":"medkit",
             "tip":LocalizationData.getName("filter_medkit"),
-            "sucat":10,
+            "sucat":ItemCategory.MEDKITS,
             "selected":false
          },{
             "icon":15,
             "name":"traps",
             "tip":LocalizationData.getName("filter_mine"),
-            "sucat":11,
+            "sucat":ItemCategory.BOOBY_TRAPS,
             "selected":false
          },{
             "icon":16,
             "name":"grenade",
             "tip":LocalizationData.getName("filter_grenade"),
-            "sucat":24,
+            "sucat":ItemCategory.GRENADES,
             "selected":false
          }]));
-         this.optionControl.filterList.registerDataProvider(4,new DataProvider([{
+         this.optionControl.filterList.registerDataProvider(UPGRADE_FILTERS,new DataProvider([{
             "icon":18,
             "name":"decal",
             "tip":LocalizationData.getName("filter_decal"),
-            "sucat":26,
+            "sucat":ItemCategory.DECALS,
             "selected":false
          },{
             "icon":19,
             "name":"camo",
             "tip":LocalizationData.getName("filter_camo"),
-            "sucat":25,
+            "sucat":ItemCategory.CAMOUFLAGES,
             "selected":false
          },{
             "icon":20,
             "name":"vouchers",
             "tip":LocalizationData.getName("filter_vouchers"),
-            "sucat":27,
+            "sucat":ItemCategory.VOUCHERS,
             "selected":false
          },{
             "icon":13,
             "name":"scope",
             "tip":LocalizationData.getName("filter_scope"),
-            "sucat":22,
+            "sucat":ItemCategory.SCOPES,
             "selected":false
          }]));
-         this.optionControl.filterList.registerDataProvider(5,new DataProvider([]));
+         this.optionControl.filterList.registerDataProvider(NO_FILTERS,new DataProvider([]));
          if(Boolean(this.mainTabBar))
          {
             this.mainTabBar.dataProvider = new DataProvider([{"name":LocalizationData.getName("shop_label")},{"name":LocalizationData.getName("inventory_label")}]);
@@ -341,17 +354,17 @@ package survarium.controls
             "icon":6,
             "index":6
          }]);
-         this.optionControl.filterList.setDataProvider(5);
-         this.inventoryTabPage.selectedIndex = 0;
+         this.optionControl.filterList.setDataProvider(NO_FILTERS);
+         this.inventoryTabPage.selectedIndex = SuperCategory.ALL;
          this.itemsTileList.selectedIndex = -1;
       }
       
-      protected function hideME(param1:Event) : void
+      protected function hideME(event:Event) : void
       {
          visible = false;
       }
       
-      protected function onStart(param1:Event) : void
+      protected function onStart(event:Event) : void
       {
          removeEventListener(Event.RENDER,this.onStart);
          this.configureInventoryTab();
@@ -359,38 +372,38 @@ package survarium.controls
       
       protected function configureInventoryTab() : void
       {
-         this.inventoryTabPage.selectedIndex = 0;
+         this.inventoryTabPage.selectedIndex = SuperCategory.ALL;
          this.sellersTabPage.selectedIndex = 0;
          this.inventoryTabPage.addEventListener(IndexEvent.INDEX_CHANGE,this.changeInventoryFilter);
          this.optionControl.addEventListener(ListEvent.INDEX_CHANGE,this.changeInventoryFilterFromFilters);
       }
       
-      protected function changeInventoryFilter(param1:Event) : void
+      protected function changeInventoryFilter(event:Event) : void
       {
          trace("updateCurrentDatProvider");
-         if(this.inventoryTabPage.selectedIndex == 1)
+         if(this.inventoryTabPage.selectedIndex == SuperCategory.EQUIPMENT)
          {
-            this.optionControl.filterList.setDataProvider(0);
+            this.optionControl.filterList.setDataProvider(EQUIPMENT_FILTERS);
          }
-         else if(this.inventoryTabPage.selectedIndex == 2)
+         else if(this.inventoryTabPage.selectedIndex == SuperCategory.WEAPONS)
          {
-            this.optionControl.filterList.setDataProvider(1);
+            this.optionControl.filterList.setDataProvider(WEAPON_FILTERS);
          }
-         else if(this.inventoryTabPage.selectedIndex == 3)
+         else if(this.inventoryTabPage.selectedIndex == SuperCategory.AMMO)
          {
-            this.optionControl.filterList.setDataProvider(2);
+            this.optionControl.filterList.setDataProvider(AMMO_FILTERS);
          }
-         else if(this.inventoryTabPage.selectedIndex == 4)
+         else if(this.inventoryTabPage.selectedIndex == SuperCategory.ITEMS)
          {
-            this.optionControl.filterList.setDataProvider(3);
+            this.optionControl.filterList.setDataProvider(ITEM_FILTERS);
          }
-         else if(this.inventoryTabPage.selectedIndex == 5)
+         else if(this.inventoryTabPage.selectedIndex == SuperCategory.UPGRADES)
          {
-            this.optionControl.filterList.setDataProvider(4);
+            this.optionControl.filterList.setDataProvider(UPGRADE_FILTERS);
          }
          else
          {
-            this.optionControl.filterList.setDataProvider(5);
+            this.optionControl.filterList.setDataProvider(NO_FILTERS);
          }
          if(this.optionControl.filterList)
          {
@@ -401,24 +414,24 @@ package survarium.controls
          this.itemsTileList.scrollBar.position = 0;
       }
       
-      protected function dragCallback(param1:DragEvent = null) : void
+      protected function dragCallback(event:DragEvent = null) : void
       {
-         if(param1 && param1.type == DragEvent.DRAG_START)
+         if(event && event.type == DragEvent.DRAG_START)
          {
             trace("FW:dragCallback");
-            this.itemsTileList.selectedIndex = (param1.dragTarget as IListItemRenderer).index;
+            this.itemsTileList.selectedIndex = (event.dragTarget as IListItemRenderer).index;
          }
          if(this._dragListener is Function)
          {
-            (this._dragListener as Function)(param1);
+            (this._dragListener as Function)(event);
          }
       }
       
-      protected function changeInventoryFilterFromFilters(param1:Event) : void
+      protected function changeInventoryFilterFromFilters(event:Event) : void
       {
       }
       
-      protected function onNewIndex(param1:ListEvent) : void
+      protected function onNewIndex(event:ListEvent) : void
       {
       }
    }

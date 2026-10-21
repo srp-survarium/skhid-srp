@@ -5,9 +5,9 @@ package
    public dynamic class buttonRed_normal extends BitmapData
    {
       
-      public function buttonRed_normal(param1:int = 120, param2:int = 36)
+      public function buttonRed_normal(bitmapWidth:int = 120, bitmapHeight:int = 36)
       {
-         super(param1,param2);
+         super(bitmapWidth,bitmapHeight);
       }
    }
 }

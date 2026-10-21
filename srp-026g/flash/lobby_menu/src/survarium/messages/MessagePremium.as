@@ -18,9 +18,13 @@ package survarium.messages
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
    import survarium.data.LocalizationData;
+   import survarium.constants.MessageId;
    
    public class MessagePremium extends MessageAccept
    {
+      
+      // meaning unknown: the premium option the drop-down list starts on
+      private static const DEFAULT_OPTION:int = 3;
       
       public var list:ButtonBar;
       
@@ -63,31 +67,31 @@ package survarium.messages
          super();
       }
       
-      protected function updateTextFormat(param1:TextField, param2:String, param3:int = 55) : void
+      protected function updateTextFormat(field:TextField, caption:String, tabStop:int = 55) : void
       {
-         var _loc4_:String = param2;
-         var _loc5_:int = _loc4_.indexOf(" ");
-         var _loc6_:String = _loc4_.substr(0,_loc5_);
-         var _loc7_:String = _loc4_.substr(_loc5_ + 1,_loc4_.length);
-         var _loc8_:String = "\t" + _loc6_ + "\n" + _loc7_;
-         var _loc9_:TextFormat = param1.defaultTextFormat;
-         _loc9_.leftMargin = 0;
-         _loc9_.tabStops = [param3];
-         param1.defaultTextFormat = _loc9_;
-         param1.setTextFormat(_loc9_);
-         param1.text = _loc8_;
+         var fullText:String = caption;
+         var spaceIndex:int = fullText.indexOf(" ");
+         var firstWord:String = fullText.substr(0,spaceIndex);
+         var rest:String = fullText.substr(spaceIndex + 1,fullText.length);
+         var formatted:String = "\t" + firstWord + "\n" + rest;
+         var format:TextFormat = field.defaultTextFormat;
+         format.leftMargin = 0;
+         format.tabStops = [tabStop];
+         field.defaultTextFormat = format;
+         field.setTextFormat(format);
+         field.text = formatted;
       }
       
       override protected function configUI() : void
       {
-         var _loc1_:int;
-         var _loc2_:Array;
-         var _loc3_:uint;
-         var _loc4_:Object;
-         var _loc5_:Boolean;
-         var _loc6_:String;
-         var _loc7_:int;
-         var _loc8_:int;
+         var selectedOption:int;
+         var options:Array;
+         var i:uint;
+         var option:Object;
+         var affordable:Boolean;
+         var discountText:String;
+         var listSpace:int;
+         var listHeight:int;
          super.configUI();
          this.coin.gotoAndStop(2);
          this.coin.x += 2;
@@ -110,58 +114,58 @@ package survarium.messages
          this.textFieldValue.text = "0";
          if(_data)
          {
-            _loc1_ = -1;
-            _loc2_ = _data.options;
-            _loc3_ = 0;
-            while(_loc3_ < _loc2_.length)
+            selectedOption = -1;
+            options = _data.options;
+            i = 0;
+            while(i < options.length)
             {
-               _loc4_ = _loc2_[_loc3_];
-               _loc5_ = PlayerInfo.premiumMoney >= _loc4_.value;
-               _loc4_.valid = _loc5_;
-               _loc4_.enabled = true;
-               trace("configPM::",_loc4_.label,"|",_loc4_.value2);
-               Util.logObject(_loc4_);
-               if(_loc4_.text == undefined)
+               option = options[i];
+               affordable = PlayerInfo.premiumMoney >= option.value;
+               option.valid = affordable;
+               option.enabled = true;
+               trace("configPM::",option.label,"|",option.value2);
+               Util.logObject(option);
+               if(option.text == undefined)
                {
-                  _loc4_.text = _loc4_.label;
+                  option.text = option.label;
                }
-               if(_loc4_.discount)
+               if(option.discount)
                {
-                  _loc6_ = Util.styledChar(LocalizationData.getName("discount"),"white") + " " + Util.styledChar(_loc4_.discount,"yellow");
+                  discountText = Util.styledChar(LocalizationData.getName("discount"),"white") + " " + Util.styledChar(option.discount,"yellow");
                }
                else
                {
-                  _loc6_ = "";
+                  discountText = "";
                }
-               _loc4_.label = Util.styledChar(_loc4_.text,"yellow") + " " + Util.styledChar(_loc4_.value2,"dark_yellow") + " " + _loc6_;
-               if(_loc5_ && _loc1_ == -1)
+               option.label = Util.styledChar(option.text,"yellow") + " " + Util.styledChar(option.value2,"dark_yellow") + " " + discountText;
+               if(affordable && selectedOption == -1)
                {
-                  _loc1_ = _loc3_;
+                  selectedOption = i;
                }
-               _loc3_++;
+               i++;
             }
             if(this.list)
             {
-               _loc7_ = height / scaleY - (this.LIST_OFFSET_TOP + this.LIST_OFFSET_BOTTOM);
-               _loc8_ = _loc2_.length * 32;
-               this.list.height = _loc8_ + 5;
-               this.list.y = (_loc7_ - _loc8_) / 2 + this.LIST_OFFSET_TOP;
+               listSpace = height / scaleY - (this.LIST_OFFSET_TOP + this.LIST_OFFSET_BOTTOM);
+               listHeight = options.length * 32;
+               this.list.height = listHeight + 5;
+               this.list.y = (listSpace - listHeight) / 2 + this.LIST_OFFSET_TOP;
                btnAccept.x = int(btnAccept.x + 1);
                this.list.addEventListener(IndexEvent.INDEX_CHANGE,this.onPremiumSelected);
-               this.list.dataProvider = new DataProvider(_loc2_);
-               this.list.selectedIndex = _loc1_;
+               this.list.dataProvider = new DataProvider(options);
+               this.list.selectedIndex = selectedOption;
             }
-            _loc1_ = 3;
+            selectedOption = DEFAULT_OPTION;
             btnAccept.enabled = true;
          }
          if(this.dropDownlist)
          {
             this.dropDownlist.menuWidth = 200;
             this.textFieldChooseSub.text = LocalizationData.getName("choose_premium_subscription");
-            this.dropDownlist.dataProvider = new DataProvider(_loc2_);
+            this.dropDownlist.dataProvider = new DataProvider(options);
             this.dropDownlist.addEventListener(ListEvent.INDEX_CHANGE,this.onPremiumSelected);
             this.dropDownlist.autoSize = "left";
-            this.dropDownlist.selectedIndex = _loc1_;
+            this.dropDownlist.selectedIndex = selectedOption;
             this.dropDownlist.validateNow();
             this.dropDownlist.autoSize = "none";
             this.moneyBackContainer.x = this.dropDownlist.x + this.dropDownlist.width + 3;
@@ -172,20 +176,20 @@ package survarium.messages
          stage.focus = this.list;
       }
       
-      private function onPremiumMoneyAddClick(param1:Event) : void
+      private function onPremiumMoneyAddClick(event:Event) : void
       {
          MessageMoneyExchange.buyGold();
       }
       
-      private function onPremiumSelected(param1:ListEvent = null) : void
+      private function onPremiumSelected(event:ListEvent = null) : void
       {
          if(this.dropDownlist.selectedIndex == -1)
          {
             return;
          }
-         var _loc2_:Object = this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex];
-         this.textFieldValue.text = Util.getMoneyString(_loc2_.value);
-         if(_loc2_.discount)
+         var option:Object = this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex];
+         this.textFieldValue.text = Util.getMoneyString(option.value);
+         if(option.discount)
          {
             if(this.discountContainer.alpha == 0)
             {
@@ -199,7 +203,7 @@ package survarium.messages
                   delay:0.3
                });
             }
-            this.discountContainer.textField.text = LocalizationData.getName("discount") + " " + _loc2_.discount;
+            this.discountContainer.textField.text = LocalizationData.getName("discount") + " " + option.discount;
          }
          else if(this.discountContainer.alpha == 1)
          {
@@ -209,13 +213,13 @@ package survarium.messages
       
       protected function onNoMoneyEnought() : void
       {
-         var _loc1_:Object = {
+         var messageData:Object = {
             text:LocalizationData.getName("cant_buy_premium_message"),
             onYes:this.goToStore,
             label_ok:LocalizationData.getName("btn_add_premium_message"),
             label_cancel:LocalizationData.getName("cancel")
          };
-         Message.showMessage("apply",_loc1_,true,0,true);
+         Message.showMessage("apply",messageData,true,MessageId.AUTO,true);
       }
       
       protected function goToStore() : void
@@ -223,32 +227,32 @@ package survarium.messages
          MessageMoneyExchange.buyGold();
       }
       
-      override protected function onMessageAccept(param1:ButtonEvent = null) : void
+      override protected function onMessageAccept(event:ButtonEvent = null) : void
       {
          if(!btnAccept.enabled)
          {
             return;
          }
-         var _loc2_:uint = this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].id;
-         var _loc3_:Boolean = PlayerInfo.premiumMoney >= this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].value;
-         if(_loc3_)
+         var premiumId:uint = this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].id;
+         var affordable:Boolean = PlayerInfo.premiumMoney >= this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].value;
+         if(affordable)
          {
             super.onMessageAccept();
-            trace("ACCEPT_PREMIUM_MESSAGE:",_loc2_);
+            trace("ACCEPT_PREMIUM_MESSAGE:",premiumId);
             if(_data.victory == true)
             {
-               ExternalInterface.call("accept_premium_victory_screen",_loc2_,uint(_data.matchId));
+               ExternalInterface.call("accept_premium_victory_screen",premiumId,uint(_data.matchId));
             }
             else
             {
-               ExternalInterface.call("accept_premium",_loc2_);
+               ExternalInterface.call("accept_premium",premiumId);
             }
-            var _loc4_:Function = _data.onYes as Function;
+            var onYes:Function = _data.onYes as Function;
             _data.onNo = null;
             _data.onYes = null;
-            if(_loc4_ is Function)
+            if(onYes is Function)
             {
-               _loc4_(_data);
+               onYes(_data);
             }
          }
          else

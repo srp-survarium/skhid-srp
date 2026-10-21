@@ -24,14 +24,14 @@ package survarium.quest
          _tooltipRendererName = "SrvProfileTipRenderer";
       }
       
-      protected function timerStep(param1:Event = null) : void
+      protected function timerStep(event:Event = null) : void
       {
          invalidateData();
       }
       
-      override public function setData(param1:Object) : void
+      override public function setData(newData:Object) : void
       {
-         this.data = param1;
+         this.data = newData;
          if(_data)
          {
             _start_time = _data.start_time;
@@ -49,7 +49,7 @@ package survarium.quest
       
       override protected function updateText() : void
       {
-         var _loc1_:int;
+         var timeLeft:int;
          if(!data)
          {
             this.questIcon.visible = false;
@@ -61,8 +61,8 @@ package survarium.quest
          {
             if(this.textFieldTime)
             {
-               _loc1_ = Math.max(0,_data.time_limit - (QuestWindow.getTime() - this._start_time));
-               this.textFieldTime.text = Util.getTimeString(_loc1_);
+               timeLeft = Math.max(0,_data.time_limit - (QuestWindow.getTime() - this._start_time));
+               this.textFieldTime.text = Util.getTimeString(timeLeft);
             }
          }
          this.questIcon.visible = true;

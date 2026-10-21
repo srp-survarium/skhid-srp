@@ -11,6 +11,11 @@ package survarium.rooms
     import flash.utils.getTimer;
     import scaleform.gfx.FocusManager;
     import scaleform.gfx.MouseEventEx;
+    import flash.ui.Keyboard;
+    import survarium.constants.RoomCode;
+    import survarium.constants.RoomFit;
+    import survarium.constants.RoomPhase;
+    import survarium.constants.RoomSide;
 
     // The list, after the design: the table of the rooms on the left, the
     // room chosen on the right with its map's render, its facts and its
@@ -63,7 +68,7 @@ package survarium.rooms
             var tableW:Number = look._w - SIDE_W - 42;
             look.text(look._content, win.say("servers") + ": " + win._total, 14, 52, 200, 16, RoomsLook.LIGHT);
             win.message(52);
-            if (win._code != 0)
+            if (win._code != RoomCode.NONE)
                 look._content.getChildAt(look._content.numChildren - 1).x = 220;
             else if (win._queueKey != 0)
             {
@@ -116,10 +121,10 @@ package survarium.rooms
                 var e:Object = win.entry(room.map);
                 // No card leads alone yet (a tie, no votes): the start draws one.
                 look.text(row, e != null ? win.levelName(e.level) + " · " + win.weatherName(e.weather)
-                    : room.phase == 3 ? win.say("voting") : "", tw * cols[3], 10, tw * 0.27, 15, RoomsLook.GREY);
+                    : room.phase == RoomPhase.VOTE ? win.say("voting") : "", tw * cols[3], 10, tw * 0.27, 15, RoomsLook.GREY);
                 look.text(row, room.players + " / " + room.size * 2, tw * cols[4], 10, tw * 0.10, 17, RoomsLook.LIGHT);
                 _stateCells[String(room.key)] = look.text(row, win.phaseText(room), tw * cols[5], 10, tw * 0.16, 15,
-                    room.phase == 2 ? RoomsLook.GOLD : room.phase == 3 || room.phase == 1 ? 0x8FD18F : RoomsLook.GREY);
+                    room.phase == RoomPhase.IN_MATCH ? RoomsLook.GOLD : room.phase == RoomPhase.VOTE || room.phase == RoomPhase.COUNTDOWN ? 0x8FD18F : RoomsLook.GREY);
                 row.buttonMode = true;
                 row.mouseChildren = false;
                 row.name = String(room.key);
@@ -227,8 +232,8 @@ package survarium.rooms
         // it plays a side's, the room's size at most.
         private function memberRows(room:Object):int
         {
-            var n:int = Math.min(20, int(room.players));
-            return Math.max(1, room.phase == 2 ? Math.min(n, int(room.size)) : int((n + 1) / 2));
+            var n:int = Math.min(RoomsWire.MEMBERS_MAX, int(room.players));
+            return Math.max(1, room.phase == RoomPhase.IN_MATCH ? Math.min(n, int(room.size)) : int((n + 1) / 2));
         }
 
         // The chosen room's members: one column while they fit at 18 a row;
@@ -252,7 +257,7 @@ package survarium.rooms
             var playing:Boolean = false;
             var i:int;
             for (i = 0; i < all.length; i++)
-                if (all[i].side == 1 || all[i].side == 2)
+                if (all[i].side == RoomSide.FIRST || all[i].side == RoomSide.SECOND)
                     playing = true;
             var cols:Array;
             if (!playing && all.length * 18 <= _membersH)
@@ -265,8 +270,8 @@ package survarium.rooms
                 var rest:Array = [];
                 for (i = 0; i < all.length; i++)
                 {
-                    if (all[i].side == 1 || all[i].side == 2)
-                        cols[all[i].side - 1].push(all[i]);
+                    if (all[i].side == RoomSide.FIRST || all[i].side == RoomSide.SECOND)
+                        cols[all[i].side - RoomSide.FIRST].push(all[i]);
                     else
                         rest.push(all[i]);
                 }
@@ -293,18 +298,18 @@ package survarium.rooms
             row.graphics.beginFill(0x000000, 0.01);
             row.graphics.drawRect(0, 0, w, rowH);
             row.graphics.endFill();
-            if (m.side == 1 || m.side == 2)
+            if (m.side == RoomSide.FIRST || m.side == RoomSide.SECOND)
             {
-                row.graphics.beginFill(uint(SIDE_COLOURS[m.side - 1]), 1);
+                row.graphics.beginFill(uint(SIDE_COLOURS[m.side - RoomSide.FIRST]), 1);
                 row.graphics.drawRect(0, 2, 3, rowH - 4);
                 row.graphics.endFill();
             }
             box.addChild(row);
             var top:Number = int((rowH - size - 4) / 2);
             // The level in its own column, right-aligned: never under the name.
-            look.text(row, String(m.gear), 4, top + 1, 22, size - 1, m.fit == 2 ? RoomsLook.RED : RoomsLook.DIM, "right");
+            look.text(row, String(m.gear), 4, top + 1, 22, size - 1, m.fit == RoomFit.GEAR ? RoomsLook.RED : RoomsLook.DIM, "right");
             var nameX:Number = 30;
-            if (m.fit != 0)
+            if (m.fit != RoomFit.YES)
             {
                 var mark:Shape = new Shape();
                 mark.graphics.beginFill(RoomsLook.RED, 1);
@@ -337,7 +342,7 @@ package survarium.rooms
         {
             // The left button only: two right-clicks are no join.
             var ex:MouseEventEx = e as MouseEventEx;
-            if (ex != null && ex.buttonIdx != 0)
+            if (ex != null && ex.buttonIdx != MouseEventEx.LEFT_BUTTON)
                 return;
             pickRow(int(e.currentTarget.name));
         }
@@ -376,13 +381,13 @@ package survarium.rooms
         {
             try
             {
-                if (!win._shown || win._view != "list" || (e.keyCode != 13 && e.keyCode != 38 && e.keyCode != 40)
+                if (!win._shown || win._view != "list" || (e.keyCode != Keyboard.ENTER && e.keyCode != Keyboard.UP && e.keyCode != Keyboard.DOWN)
                     || win.resultsUp())
                     return;
                 var focus:TextField = win.stage != null ? win.stage.focus as TextField : null;
                 if (focus != null && focus != _joinPin && focus.text.length > 0)
                     return;
-                if (e.keyCode == 13)
+                if (e.keyCode == Keyboard.ENTER)
                 {
                     joinRoom(chosenRoom());
                     return;
@@ -391,7 +396,7 @@ package survarium.rooms
                 for (var i:int = 0; i < win._rooms.length; i++)
                     if (win._rooms[i].key == _selKey)
                         at = i;
-                var next:int = Math.max(0, Math.min(win._rooms.length - 1, at + (e.keyCode == 40 ? 1 : -1)));
+                var next:int = Math.max(0, Math.min(win._rooms.length - 1, at + (e.keyCode == Keyboard.DOWN ? 1 : -1)));
                 if (win._rooms.length == 0 || next == at)
                     return;
                 _selKey = win._rooms[next].key;
@@ -430,12 +435,12 @@ package survarium.rooms
             // A full room: wait in its queue (the server joins one a place
             // has freed for meanwhile).
             var start:int = room.players >= room.size * 2 ? RoomsWire.QUEUE : RoomsWire.JOIN;
-            win._code = 0;
+            win._code = RoomCode.NONE;
             win._steps = [];
             if (room.pin)
             {
                 var typed:String = _joinPin != null ? _joinPin.text : _pinText;
-                if (typed.length != 4)
+                if (typed.length != RoomsWire.PIN_DIGITS)
                 {
                     win.pinRefused();
                     return;

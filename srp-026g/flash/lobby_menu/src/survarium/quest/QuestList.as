@@ -14,6 +14,7 @@ package survarium.quest
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.interfaces.IDataRenderer;
    import survarium.data.LocalizationData;
+   import survarium.constants.UiSound;
    
    public class QuestList extends UIComponent implements IDataRenderer
    {
@@ -124,7 +125,7 @@ package survarium.quest
             onComplete:this.onTweenEnd
          });
          TweenLite.to(this.arrow,0.2,{x:(this._hidden ? 1 : -6)});
-         ExternalInterface.call("sound_play",17);
+         ExternalInterface.call("sound_play",UiSound.TASK_PANEL_SLIDE);
       }
       
       public function set data(value:Object) : void

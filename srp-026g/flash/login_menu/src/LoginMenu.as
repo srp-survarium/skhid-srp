@@ -21,6 +21,7 @@ package
    import scaleform.clik.layout.LayoutData;
    import scaleform.gfx.FocusManager;
    import scaleform.gfx.MouseCursorEvent;
+   import survarium.constants.Cursor;
    import survarium.controls.Message;
    import survarium.controls.SrvTextInput;
    import survarium.data.LocalizationData;
@@ -251,15 +252,15 @@ package
          var _new:uint;
          if(e.cursor == "ibeam")
          {
-            _new = 6;
+            _new = Cursor.IBEAM;
          }
          else if(e.cursor != "arrow")
          {
-            _new = 2;
+            _new = Cursor.BUTTON;
          }
          else
          {
-            _new = 1;
+            _new = Cursor.ARROW;
          }
          ExternalInterface.call("set_mouse_cursor",_new);
       }

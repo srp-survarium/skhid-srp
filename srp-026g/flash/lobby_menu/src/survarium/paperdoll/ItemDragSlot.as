@@ -12,6 +12,7 @@ package survarium.paperdoll
    import survarium.controls.ListDragSlot;
    import survarium.data.ItemData;
    import survarium.interfaces.IPaperDollSlot;
+   import survarium.constants.RendererState;
    
    public class ItemDragSlot extends ListDragSlot implements IPaperDollSlot
    {
@@ -45,9 +46,9 @@ package survarium.paperdoll
          super();
       }
       
-      public function set label(param1:String) : void
+      public function set label(value:String) : void
       {
-         _label = param1;
+         _label = value;
          invalidateState();
          invalidateData();
       }
@@ -62,9 +63,9 @@ package survarium.paperdoll
          return this._artifact;
       }
       
-      public function set artifact(param1:Boolean) : void
+      public function set artifact(value:Boolean) : void
       {
-         _artifact = param1;
+         _artifact = value;
       }
       
       public function get highlighted() : Boolean
@@ -72,10 +73,10 @@ package survarium.paperdoll
          return this._highlighted;
       }
       
-      public function set highlighted(param1:Boolean) : void
+      public function set highlighted(value:Boolean) : void
       {
-         _highlighted = param1;
-         if(enabled || param1)
+         _highlighted = value;
+         if(enabled || value)
          {
             this.setState("out");
          }
@@ -90,45 +91,45 @@ package survarium.paperdoll
          return _data;
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         if(_data != param1 && param1 && selected)
+         if(_data != value && value && selected)
          {
-            _data = param1;
+            _data = value;
             addEventListener(Event.RENDER,this.onResetClick);
          }
          else
          {
-            _data = param1;
+            _data = value;
          }
          this.setState(_state);
          invalidateData();
       }
       
-      public function hover(param1:Boolean = true) : void
+      public function hover(value:Boolean = true) : void
       {
          if(selected)
          {
             return;
          }
-         this.setState(param1 ? "over" : "out");
+         this.setState(value ? "over" : "out");
       }
       
-      public function hideContent(param1:Boolean, param2:Boolean) : void
+      public function hideContent(hide:Boolean, full:Boolean) : void
       {
-         var _loc3_:Number = param2 ? 0 : (param1 ? 0.5 : 1);
+         var itemAlpha:Number = full ? 0 : (hide ? 0.5 : 1);
       }
       
-      public function drawMultilineType(param1:Boolean) : void
+      public function drawMultilineType(value:Boolean) : void
       {
-         _drawMultilineType = param1;
+         _drawMultilineType = value;
       }
       
-      override public function setData(param1:Object) : void
+      override public function setData(data:Object) : void
       {
          _isTemponary = false;
          _realData = null;
-         this.data = param1;
+         this.data = data;
       }
       
       public function reset() : void
@@ -141,7 +142,7 @@ package survarium.paperdoll
          return this._isTemponary;
       }
       
-      public function dropSlot(param1:Boolean = true) : void
+      public function dropSlot(full:Boolean = true) : void
       {
          if(!this.data)
          {
@@ -153,25 +154,25 @@ package survarium.paperdoll
          dispatchEvent(new Event(Events.DROPED_IN));
       }
       
-      override public function handleDragStartEvent(param1:DragEvent) : void
+      override public function handleDragStartEvent(e:DragEvent) : void
       {
          this.setState("over");
          this.data = null;
          dispatchEvent(new Event(Events.DROPED_IN));
       }
       
-      override public function handleDragEndEvent(param1:DragEvent, param2:Boolean) : void
+      override public function handleDragEndEvent(e:DragEvent, wasValidDrop:Boolean) : void
       {
-         this.data = param1.dragData;
-         if(param1.dropTarget == null || param1.dropTarget is IPaperDollSlot || !param2 && param1.dropTarget != null && !(param1.dropTarget is IPaperDollSlot))
+         this.data = e.dragData;
+         if(e.dropTarget == null || e.dropTarget is IPaperDollSlot || !wasValidDrop && e.dropTarget != null && !(e.dropTarget is IPaperDollSlot))
          {
             this.dropSlot(false);
          }
       }
       
-      override public function handleDropEvent(param1:DragEvent) : Boolean
+      override public function handleDropEvent(e:DragEvent) : Boolean
       {
-         if(enabled == false || !param1.dropTarget)
+         if(enabled == false || !e.dropTarget)
          {
             return false;
          }
@@ -179,7 +180,7 @@ package survarium.paperdoll
          dispatchEvent(new Event(Events.DROP_IN));
          _realData = _data as ItemData;
          _isTemponary = true;
-         this.data = (param1.dragData as ItemData).clone();
+         this.data = (e.dragData as ItemData).clone();
          dispatchEvent(new Event(Events.DROPED_IN));
          return true;
       }
@@ -189,30 +190,30 @@ package survarium.paperdoll
          return "[ItemDragSlot " + name + "]";
       }
       
-      protected function trace_relocate(param1:Array) : void
+      protected function trace_relocate(items:Array) : void
       {
-         trace("trace_relocate",param1.length);
-         var _loc2_:int = 0;
-         while(_loc2_ < param1.length)
+         trace("trace_relocate",items.length);
+         var i:int = 0;
+         while(i < items.length)
          {
-            trace("items is:",param1[_loc2_].profile,param1[_loc2_].id,param1[_loc2_].dict_id,"sr:",param1[_loc2_].sourceSlot,"tg:",param1[_loc2_].targetSlot,param1[_loc2_].count);
-            _loc2_++;
+            trace("items is:",items[i].profile,items[i].id,items[i].dict_id,"sr:",items[i].sourceSlot,"tg:",items[i].targetSlot,items[i].count);
+            i++;
          }
       }
       
-      override protected function handleMouseUp(param1:MouseEvent) : void
+      override protected function handleMouseUp(e:MouseEvent) : void
       {
          this.setState("up");
-         super.handleMouseUp(param1);
+         super.handleMouseUp(e);
       }
       
-      override protected function handleMouseDown(param1:MouseEvent) : void
+      override protected function handleMouseDown(e:MouseEvent) : void
       {
          this.setState("down");
-         var _loc2_:MouseEventEx = param1 as MouseEventEx;
-         var _loc3_:uint = _loc2_ == null ? 0 : _loc2_.mouseIdx;
-         var _loc4_:uint = _loc2_ == null ? 0 : _loc2_.buttonIdx;
-         if(DragManager.inDrag() || !enabled || _loc4_ != 0)
+         var sfEvent:MouseEventEx = e as MouseEventEx;
+         var mouseIdx:uint = sfEvent == null ? 0 : sfEvent.mouseIdx;
+         var btnIdx:uint = sfEvent == null ? MouseEventEx.LEFT_BUTTON : sfEvent.buttonIdx;
+         if(DragManager.inDrag() || !enabled || btnIdx != MouseEventEx.LEFT_BUTTON)
          {
             return;
          }
@@ -225,7 +226,7 @@ package survarium.paperdoll
          }
       }
       
-      protected function onResetClick(param1:Event) : void
+      protected function onResetClick(e:Event) : void
       {
          removeEventListener(Event.RENDER,this.onResetClick);
          dispatchEvent(new Event(Events.DROP_IN));
@@ -233,11 +234,11 @@ package survarium.paperdoll
       
       override protected function updateSlot() : void
       {
-         var _loc1_:ItemData = this._data as ItemData;
-         trace("ItemDragSlot::updateData",name,_loc1_);
-         if(_loc1_)
+         var _data:ItemData = this._data as ItemData;
+         trace("ItemDragSlot::updateData",name,_data);
+         if(_data)
          {
-            _content = _loc1_.icon;
+            _content = _data.icon;
             contentCanvas.visible = false;
          }
          else
@@ -246,7 +247,7 @@ package survarium.paperdoll
          }
          if(this.itemRenderer)
          {
-            this.itemRenderer.data = _loc1_;
+            this.itemRenderer.data = _data;
             this.itemRenderer.invalidateData();
             this.itemRenderer.validateNow();
          }
@@ -257,7 +258,7 @@ package survarium.paperdoll
          trace("updateSlotState",this.itemRenderer);
          if(this.itemRenderer)
          {
-            this.itemRenderer.updateState(_selected || _state == "over" ? 0 : 1);
+            this.itemRenderer.updateState(_selected || _state == "over" ? RendererState.ACTIVE : RendererState.NORMAL);
             this.itemRenderer.y = this._rendererY + (_state == "down" ? 1 : 0);
          }
       }
@@ -275,29 +276,29 @@ package survarium.paperdoll
          return this._highlighted || _selected ? this.statesHighlighted : "";
       }
       
-      override protected function setState(param1:String) : void
+      override protected function setState(state:String) : void
       {
-         _state = param1;
-         var _loc2_:Array = _stateMap[param1];
-         var _loc3_:String = this.getStatePrefix();
-         trace("IDS::setState",param1,_loc3_);
-         if(_loc2_ == null || _loc2_.length == 0)
+         _state = state;
+         var states:Array = _stateMap[state];
+         var prefix:String = this.getStatePrefix();
+         trace("IDS::setState",state,prefix);
+         if(states == null || states.length == 0)
          {
             return;
          }
-         var _loc4_:uint = _loc2_.length;
-         var _loc5_:uint = 0;
-         var _loc6_:String;
-         while(_loc5_ < _loc4_)
+         var sl:uint = states.length;
+         var j:uint = 0;
+         var thisLabel:String;
+         while(j < sl)
          {
-            _loc6_ = _loc3_ + _loc2_[_loc5_];
-            if(_labelHash[_loc6_])
+            thisLabel = prefix + states[j];
+            if(_labelHash[thisLabel])
             {
-               _newFrame = _loc6_;
+               _newFrame = thisLabel;
                invalidateState();
                return;
             }
-            _loc5_++;
+            j++;
          }
       }
       

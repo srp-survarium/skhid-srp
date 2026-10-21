@@ -10,6 +10,8 @@ package survarium.rooms
     import flash.text.TextField;
     import flash.utils.getTimer;
     import survarium.controls.PlayerInfo;
+    import survarium.constants.GameMode;
+    import survarium.constants.RoomCode;
 
     // Making a room: size, players to start, max level, wait, PIN, the
     // modes, then the pool's tiles (a map and weather each). It starts as
@@ -18,7 +20,7 @@ package survarium.rooms
     public class RoomsCreate
     {
         private static const FORM_W:Number = 420;
-        private static const MODE_ORDER:Array = [2, 3, 4];
+        private static const MODE_ORDER:Array = [GameMode.GATHER_VICTORY_ITEMS, GameMode.VICTORY_ITEMS_SPAWN, GameMode.TEAM_DEATHMATCH];
         // A slider after the design: the label and the gold value on one
         // line, a thin track gold up to a round gold knob, its range small
         // under it, a line between one slider and the next. Dragged or clicked; while dragged only the
@@ -27,13 +29,15 @@ package survarium.rooms
         private static const TRACK_W:Number = 406;
         private static const KNOB_R:Number = 8;
         private static const SLIDER_H:Number = 64;
+        // The wait index sent when the wait is none of WAITS: 30 s.
+        private static const WAIT_INDEX_DEFAULT:int = 3;
 
         private var win:RoomsWindow;
         private var look:RoomsLook;
         private var _size:int = 8;
         // The players a side the room needs before its vote: 1 v 1 to 3 v 3.
         private var _minSide:int = 1;
-        private var _max:int = 0;
+        private var _max:int = RoomsWire.LEVEL_ANY;
         private var _wait:int = 30;
         // The pool's tiles out (by "level_weather") and the modes out.
         private var _off:Object = {};
@@ -59,12 +63,12 @@ package survarium.rooms
         internal function onNew(e:Event):void
         {
             win._view = "create";
-            win._code = 0;
+            win._code = RoomCode.NONE;
             look._scrollPx = 0;
-            _max = 0;
+            _max = RoomsWire.LEVEL_ANY;
             _makePinText = "";
             if (win._poolTotal < 0)
-                win.ask(RoomsWire.POOL, 31);
+                win.ask(RoomsWire.POOL, RoomsWire.POOL_ASK_ROWS);
             // The settings of the player's last room made by hand (the
             // defaults with none): the window starts with them. Not the PIN.
             _saved = null;
@@ -75,7 +79,7 @@ package survarium.rooms
         private function onBack(e:Event):void
         {
             win._view = "list";
-            win._code = 0;
+            win._code = RoomCode.NONE;
             look._scrollPx = 0;
             win.render();
         }
@@ -342,8 +346,8 @@ package survarium.rooms
             else
             {
                 // Any, then the player's own level up to 15: never below it.
-                list.push(0);
-                for (var m:int = Math.max(1, win._gear); m <= 15; m++)
+                list.push(RoomsWire.LEVEL_ANY);
+                for (var m:int = Math.max(1, win._gear); m <= RoomsWire.LEVEL_MAX; m++)
                     list.push(m);
             }
             return list;
@@ -351,8 +355,8 @@ package survarium.rooms
 
         private function valueOf(what:String):int
         {
-            if (what == "max" && _max != 0 && _max < win._gear)
-                _max = 0;
+            if (what == "max" && _max != RoomsWire.LEVEL_ANY && _max < win._gear)
+                _max = RoomsWire.LEVEL_ANY;
             return what == "size" ? _size : what == "min" ? _minSide : what == "wait" ? _wait : _max;
         }
 
@@ -467,7 +471,7 @@ package survarium.rooms
                 _minSide = s.min;
             if (stops("wait").indexOf(s.wait) >= 0)
                 _wait = s.wait;
-            if (s.max >= 0 && s.max <= 15)
+            if (s.max >= 0 && s.max <= RoomsWire.LEVEL_MAX)
                 _max = s.max;
             _modesOff = {};
             for (var m:int = 0; m < s.modesOff.length; m++)
@@ -477,8 +481,8 @@ package survarium.rooms
             for (i = 0; i < win._pool.length; i++)
             {
                 var p:Object = win._pool[i];
-                var chunk:uint = uint(s.bits[int(p.index / 20)]);
-                if ((chunk & (1 << (p.index % 20))) != 0)
+                var chunk:uint = uint(s.bits[int(p.index / RoomsWire.BITS_PER_CHUNK)]);
+                if ((chunk & (1 << (p.index % RoomsWire.BITS_PER_CHUNK))) != 0)
                     on[p.level + "_" + p.weather] = true;
             }
             _off = {};
@@ -505,7 +509,7 @@ package survarium.rooms
             for (var i:int = 0; i < win._pool.length; i++)
             {
                 var p:Object = win._pool[i];
-                if (_off[p.level + "_" + p.weather] != true && _modesOff[String(p.mode)] != true && p.index < 160)
+                if (_off[p.level + "_" + p.weather] != true && _modesOff[String(p.mode)] != true && p.index < RoomsWire.POOL_BITS)
                     return true;
             }
             return false;
@@ -535,12 +539,12 @@ package survarium.rooms
                 return;
             win.busy(e);
             var typedPin:String = _makePin != null ? _makePin.text : "";
-            if (typedPin.length > 0 && typedPin.length != 4)
+            if (typedPin.length > 0 && typedPin.length != RoomsWire.PIN_DIGITS)
             {
                 win.pinRefused();
                 return;
             }
-            win._code = 0;
+            win._code = RoomCode.NONE;
             win._steps = [];
             // The pool in pieces of 20 entries, each in by its bit.
             var chunks:Array = [0, 0, 0, 0, 0, 0, 0, 0];
@@ -548,21 +552,21 @@ package survarium.rooms
             for (var i:int = 0; i < win._pool.length; i++)
             {
                 var p:Object = win._pool[i];
-                if (_off[p.level + "_" + p.weather] == true || _modesOff[String(p.mode)] == true || p.index >= 160)
+                if (_off[p.level + "_" + p.weather] == true || _modesOff[String(p.mode)] == true || p.index >= RoomsWire.POOL_BITS)
                     continue;
-                chunks[int(p.index / 20)] |= 1 << (p.index % 20);
+                chunks[int(p.index / RoomsWire.BITS_PER_CHUNK)] |= 1 << (p.index % RoomsWire.BITS_PER_CHUNK);
                 any = true;
             }
-            var used:int = win._pool.length > 0 ? int((win._pool.length + 19) / 20) : 1;
-            for (var c:int = 0; c < used && c < 8; c++)
-                win._steps.push(RoomsWire.BITS + c * 1048576 + chunks[c]);
+            var used:int = win._pool.length > 0 ? int((win._pool.length + (RoomsWire.BITS_PER_CHUNK - 1)) / RoomsWire.BITS_PER_CHUNK) : 1;
+            for (var c:int = 0; c < used && c < RoomsWire.CHUNKS; c++)
+                win._steps.push(RoomsWire.BITS + c * RoomsWire.CHUNK_STEP + chunks[c]);
             var pinText:String = _makePin != null ? _makePin.text : "";
             var withPin:Boolean = pinText.length > 0;
             var wait:int = RoomsWire.WAITS.indexOf(_wait);
             if (wait < 0)
-                wait = 3;
+                wait = WAIT_INDEX_DEFAULT;
             valueOf("max");
-            var code:int = ((((_size - 6) * 16 + _max) * 10 + wait) * 2 + (withPin ? 1 : 0)) * 3 + (_minSide - 1);
+            var code:int = ((((_size - RoomsWire.SIZE_MIN) * RoomsWire.LEVELS + _max) * RoomsWire.WAIT_COUNT + wait) * 2 + (withPin ? 1 : 0)) * RoomsWire.MIN_SIDES + (_minSide - 1);
             win._steps.push(RoomsWire.CREATE + code);
             if (withPin)
                 win._steps.unshift(RoomsWire.PIN + int(pinText));

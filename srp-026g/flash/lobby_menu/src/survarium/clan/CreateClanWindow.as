@@ -23,15 +23,10 @@ package survarium.clan
    import survarium.controls.SrvTextInput;
    import survarium.data.LocalizationData;
    import survarium.friends.FriendsMenu;
+   import survarium.constants.ClanState;
    
    public class CreateClanWindow extends UIComponent
    {
-      
-      public static const CLAN_RESERVE_STATE:uint = 0;
-      
-      public static const CLAN_REGISTRATION_STATE:uint = 1;
-      
-      public static const CLAN_INVITED_STATE:uint = 2;
       
       public var textFieldLabel:TextField;
       
@@ -111,29 +106,29 @@ package survarium.clan
       {
          super();
          this.lockArea.alpha = 0.7;
-         this.setState(CLAN_RESERVE_STATE);
+         this.setState(ClanState.RESERVE);
       }
       
-      public function set totalPlayers(param1:uint) : void
+      public function set totalPlayers(value:uint) : void
       {
-         _playersRequired = param1;
+         _playersRequired = value;
       }
       
-      public function set clanPlayers(param1:uint) : void
+      public function set clanPlayers(value:uint) : void
       {
-         this.textFieldStatus.text = LocalizationData.getName("clan_players_ready") + param1.toString() + "/" + this._playersRequired.toString();
+         this.textFieldStatus.text = LocalizationData.getName("clan_players_ready") + value.toString() + "/" + this._playersRequired.toString();
       }
       
-      public function set registrationPaid(param1:Boolean) : void
+      public function set registrationPaid(value:Boolean) : void
       {
-         this.textFieldPaid.visible = param1;
+         this.textFieldPaid.visible = value;
          this.updateClanCreationEnabled();
       }
       
-      public function setState(param1:uint) : void
+      public function setState(state:uint) : void
       {
-         _state = param1;
-         if(this._state < 3)
+         _state = state;
+         if(this._state < ClanState.OVERVIEW)
          {
             if(currentFrame != 1)
             {
@@ -144,21 +139,21 @@ package survarium.clan
          {
             gotoAndStop(2);
          }
-         this.btnAccept.visible = this.btnCancel.visible = this._state != CLAN_INVITED_STATE;
-         this.btnLeave.visible = this._state == CLAN_INVITED_STATE;
-         this.btnCancel.enabled = this.searchComponent.textInput.enabled = this._state == CLAN_REGISTRATION_STATE;
+         this.btnAccept.visible = this.btnCancel.visible = this._state != ClanState.INVITED;
+         this.btnLeave.visible = this._state == ClanState.INVITED;
+         this.btnCancel.enabled = this.searchComponent.textInput.enabled = this._state == ClanState.REGISTRATION;
          if(!this.btnCancel.enabled)
          {
             this.btnInvitePlayer.enabled = false;
          }
-         this.textInputClanName.enabled = this.textInputClanAbbreviation.enabled = this._state == CLAN_RESERVE_STATE;
-         this.clanInvitesList.enabled = this._state == CLAN_REGISTRATION_STATE;
-         this.textInputClanName.alpha = this.textInputClanAbbreviation.alpha = this._state == CLAN_RESERVE_STATE ? 1 : 0.7;
+         this.textInputClanName.enabled = this.textInputClanAbbreviation.enabled = this._state == ClanState.RESERVE;
+         this.clanInvitesList.enabled = this._state == ClanState.REGISTRATION;
+         this.textInputClanName.alpha = this.textInputClanAbbreviation.alpha = this._state == ClanState.RESERVE ? 1 : 0.7;
          this.clanInvitesList.alpha = this.clanInvitesList.enabled ? 1 : 0.5;
          this.btnReserveClanName.enabled = false;
-         this.moneyIcon2.visible = this.payRegistrationStepper.visible = this.btnPayRegistration.visible = this.textFieldCostValue.visible = this.moneyIcon.visible = this.textFieldRegister.visible = this._state != CLAN_RESERVE_STATE;
-         this.btnReserveClanName.visible = this._state == CLAN_RESERVE_STATE;
-         if(this._state == CLAN_RESERVE_STATE)
+         this.moneyIcon2.visible = this.payRegistrationStepper.visible = this.btnPayRegistration.visible = this.textFieldCostValue.visible = this.moneyIcon.visible = this.textFieldRegister.visible = this._state != ClanState.RESERVE;
+         this.btnReserveClanName.visible = this._state == ClanState.RESERVE;
+         if(this._state == ClanState.RESERVE)
          {
             this.lockArea.visible = true;
             this.lockArea.y = 233;
@@ -186,48 +181,48 @@ package survarium.clan
          this.updateRegistrationStepper();
       }
       
-      public function setClanCreationCostProgress(param1:uint) : void
+      public function setClanCreationCostProgress(progress:uint) : void
       {
-         _registrationMoneyProgress = param1;
+         _registrationMoneyProgress = progress;
          this.updateClanCreationEnabled();
       }
       
-      public function setClanCreationCost(param1:uint) : void
+      public function setClanCreationCost(cost:uint) : void
       {
-         _clanCost = param1;
+         _clanCost = cost;
          this.updateClanCreationEnabled();
       }
       
-      public function setPlayerData(param1:Array) : void
+      public function setPlayerData(players:Array) : void
       {
-         this.clanInvitesList.dataProvider = new DataProvider(param1);
-         trace("setPlayerData::",param1.length);
+         this.clanInvitesList.dataProvider = new DataProvider(players);
+         trace("setPlayerData::",players.length);
       }
       
-      public function setClanName(param1:String, param2:String) : void
+      public function setClanName(clanName:String, abbreviation:String) : void
       {
-         this.textInputClanName.text = param1;
-         this.textInputClanAbbreviation.text = param2;
+         this.textInputClanName.text = clanName;
+         this.textInputClanAbbreviation.text = abbreviation;
          this.textInputClanAbbreviation.validateNow();
          this.updateBrackets();
       }
       
-      public function setClanPlayersRequired(param1:uint) : void
+      public function setClanPlayersRequired(count:uint) : void
       {
-         _playersRequired = param1;
+         _playersRequired = count;
       }
       
-      public function handleClanAbbreviationValidation(param1:Boolean, param2:String, param3:String = null) : void
+      public function handleClanAbbreviationValidation(isValid:Boolean, abbreviation:String, errorText:String = null) : void
       {
-         trace("handleClanAbbreviationValidation::",param1,param2,"l:",this._lastClanAbbreviation,param3);
-         if(this._lastClanAbbreviation != param2)
+         trace("handleClanAbbreviationValidation::",isValid,abbreviation,"l:",this._lastClanAbbreviation,errorText);
+         if(this._lastClanAbbreviation != abbreviation)
          {
             return;
          }
          this.loadingIndicatorAbb.gotoAndStop(1);
-         if(param1 == false)
+         if(isValid == false)
          {
-            this.warningContainerAbb.textField.text = param3;
+            this.warningContainerAbb.textField.text = errorText;
             this.warningContainerAbb.visible = true;
             if(this.warningContainerAbb.currentFrame == 1)
             {
@@ -240,17 +235,17 @@ package survarium.clan
          }
       }
       
-      public function handleClanNameValidation(param1:Boolean, param2:String, param3:String = null) : void
+      public function handleClanNameValidation(isValid:Boolean, clanName:String, errorText:String = null) : void
       {
-         trace("handleClanNameValidation::",param1,param2,"l:",this._lastClanName,param3);
-         if(this._lastClanName != param2)
+         trace("handleClanNameValidation::",isValid,clanName,"l:",this._lastClanName,errorText);
+         if(this._lastClanName != clanName)
          {
             return;
          }
          this.loadingIndicator.gotoAndStop(1);
-         if(param1 == false)
+         if(isValid == false)
          {
-            this.warningContainer.textField.text = param3;
+            this.warningContainer.textField.text = errorText;
             this.warningContainer.visible = true;
             if(this.warningContainer.currentFrame == 1)
             {
@@ -303,30 +298,30 @@ package survarium.clan
          this.updateRegistrationStepper();
       }
       
-      private function onNicknameChange(param1:Event) : void
+      private function onNicknameChange(event:Event) : void
       {
          this.btnInvitePlayer.enabled = this.searchComponent.textInput.text != "" && this.searchComponent.textInput.text != this.searchComponent.textInput.defaultText;
       }
       
-      private function onTextUpdate(param1:Event) : void
+      private function onTextUpdate(event:Event) : void
       {
          trace("onTextUpdate",this.textInputClanAbbreviation.textField.text,this.textInputClanAbbreviation.text);
          this.updateBrackets();
       }
       
-      private function onTextInputFocusOut(param1:FocusEvent) : void
+      private function onTextInputFocusOut(event:FocusEvent) : void
       {
          trace("onTextInputFocusOut::event");
          _frames = 0;
          stage.addEventListener(Event.EXIT_FRAME,this.onRednerAfterFocus);
       }
       
-      private function inputNamePress(param1:Event) : void
+      private function inputNamePress(event:Event) : void
       {
          stage.removeEventListener(Event.EXIT_FRAME,this.onRednerAfterFocus);
       }
       
-      private function onRednerAfterFocus(param1:Event) : void
+      private function onRednerAfterFocus(event:Event) : void
       {
          trace("onRednerAfterFocus::",this._frames,stage.focus);
          ++this._frames;
@@ -348,66 +343,66 @@ package survarium.clan
          this.searchComponent.cleanUp(false);
       }
       
-      private function onTextInputFocus(param1:FocusEvent) : void
+      private function onTextInputFocus(event:FocusEvent) : void
       {
-         trace("searchComponent::focusIn",stage.focus,param1.target,param1.currentTarget);
+         trace("searchComponent::focusIn",stage.focus,event.target,event.currentTarget);
          this.searchComponent.setFriendsList(FriendsMenu.getFriendsList());
       }
       
-      private function changeInputName(param1:ListEvent) : void
+      private function changeInputName(event:ListEvent) : void
       {
          trace("changeInputName::click");
-         if(!param1 || (SrvContextMenu.getInstance()) && (SrvContextMenu.getInstance().parent))
+         if(!event || (SrvContextMenu.getInstance()) && (SrvContextMenu.getInstance().parent))
          {
             return;
          }
-         var _loc2_:* = param1.itemData;
-         var _loc3_:Object;
-         trace("changeInputName::",_loc2_);
+         var selectedItem:* = event.itemData;
+         var player:Object;
+         trace("changeInputName::",selectedItem);
          stage.removeEventListener(Event.EXIT_FRAME,this.onRednerAfterFocus);
          this.searchComponent.removeEventListener(FocusEvent.FOCUS_OUT,this.onTextInputFocusOut);
          this.searchComponent.cleanUp();
-         if(_loc2_)
+         if(selectedItem)
          {
-            _loc3_ = _loc2_;
-            trace("value::",_loc3_.name);
-            this.searchComponent.textInput.text = _loc3_.name;
+            player = selectedItem;
+            trace("value::",player.name);
+            this.searchComponent.textInput.text = player.name;
             this.btnInvitePlayer.enabled = true;
          }
          this.searchComponent.addEventListener(FocusEvent.FOCUS_OUT,this.onTextInputFocusOut);
       }
       
-      private function cancelClanRegistration(param1:ButtonEvent) : void
+      private function cancelClanRegistration(event:ButtonEvent) : void
       {
          ExternalInterface.call("cancel_clan_registration");
       }
       
       private function updateRegistrationStepper() : void
       {
-         var _loc1_:int = Math.min(this._clanCost - this._registrationMoneyProgress,PlayerInfo.genericMoney);
-         trace("updateRegistrationStepper",_loc1_,this._clanCost,this._registrationMoneyProgress);
-         this.payRegistrationStepper.maximum = _loc1_;
+         var maxPayment:int = Math.min(this._clanCost - this._registrationMoneyProgress,PlayerInfo.genericMoney);
+         trace("updateRegistrationStepper",maxPayment,this._clanCost,this._registrationMoneyProgress);
+         this.payRegistrationStepper.maximum = maxPayment;
       }
       
-      private function leaveClan(param1:ButtonEvent) : void
+      private function leaveClan(event:ButtonEvent) : void
       {
          ExternalInterface.call("leave_clan");
       }
       
-      private function reserveClanName(param1:ButtonEvent) : void
+      private function reserveClanName(event:ButtonEvent) : void
       {
          trace("reserveClanName::",this.textInputClanName.text,this.textInputClanAbbreviation.text);
          ExternalInterface.call("reserve_clan_name",this.textInputClanName.text,this.textInputClanAbbreviation.text);
       }
       
-      private function onBuyRegistration(param1:ButtonEvent) : void
+      private function onBuyRegistration(event:ButtonEvent) : void
       {
          trace("onBuyRegistration::",this.payRegistrationStepper.value);
-         var _loc2_:uint = this.payRegistrationStepper.value;
-         ExternalInterface.call("buy_clan_registration",_loc2_);
+         var amount:uint = this.payRegistrationStepper.value;
+         ExternalInterface.call("buy_clan_registration",amount);
       }
       
-      private function requestAbbreviationValidation(param1:Event) : void
+      private function requestAbbreviationValidation(event:Event) : void
       {
          _lastClanAbbreviation = this.textInputClanAbbreviation.textField.text;
          this.updateBrackets();
@@ -419,12 +414,12 @@ package survarium.clan
       
       private function updateBrackets() : void
       {
-         var _loc1_:String = this.textInputClanAbbreviation.textField.text;
+         var abbreviation:String = this.textInputClanAbbreviation.textField.text;
          this.textFieldBrackets2.x = this.textInputClanAbbreviation.x + this.textInputClanAbbreviation.textField.textWidth + 12;
-         this.textFieldBrackets2.visible = this.textFieldBrackets.visible = _loc1_ != "" && _loc1_ != this.textInputClanAbbreviation.defaultText;
+         this.textFieldBrackets2.visible = this.textFieldBrackets.visible = abbreviation != "" && abbreviation != this.textInputClanAbbreviation.defaultText;
       }
       
-      private function requestNameValidation(param1:Event) : void
+      private function requestNameValidation(event:Event) : void
       {
          _lastClanName = this.textInputClanName.textField.text;
          trace("_lastClanName::",this._lastClanName);
@@ -433,7 +428,7 @@ package survarium.clan
          ExternalInterface.call("request_clan_name_validation",this._lastClanName);
       }
       
-      private function onInvitePlayerClicked(param1:ButtonEvent) : void
+      private function onInvitePlayerClicked(event:ButtonEvent) : void
       {
          trace("invite_player_to_clan::",this.searchComponent.textInput.text);
          ExternalInterface.call("invite_player_to_clan",this.searchComponent.textInput.text);
@@ -441,17 +436,17 @@ package survarium.clan
          this.btnInvitePlayer.enabled = false;
       }
       
-      private function onRegisterClanClicked(param1:ButtonEvent) : void
+      private function onRegisterClanClicked(event:ButtonEvent) : void
       {
          ExternalInterface.call("create_clan");
       }
       
-      private function onLocalization(param1:String = null) : void
+      private function onLocalization(value:String = null) : void
       {
          this.btnCancel.label = LocalizationData.getName("clan_cancel_button_label");
          this.btnLeave.label = LocalizationData.getName("clan_leave_button_label");
          this.btnReserveClanName.label = LocalizationData.getName("clan_reserve_name_button_label");
-         this.textFieldLabel.text = param1;
+         this.textFieldLabel.text = value;
          this.textFieldClanName.text = LocalizationData.getName("clan_name");
          this.textFieldAbbreviation.text = LocalizationData.getName("clan_abbreviation");
          this.textFieldAbbreviationInfo.text = LocalizationData.getName("clan_abbreviation_info");

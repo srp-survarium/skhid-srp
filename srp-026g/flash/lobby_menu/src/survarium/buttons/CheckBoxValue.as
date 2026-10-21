@@ -4,9 +4,16 @@ package survarium.buttons
    import flash.text.TextField;
    import scaleform.clik.constants.InvalidationType;
    import survarium.controls.UnfocusedCheckBox;
+   import survarium.constants.MoneyType;
    
    public class CheckBoxValue extends UnfocusedCheckBox
    {
+      
+      // money_type values beyond MoneyType.REGULAR and PREMIUM: the value icon's frame (money_type + 1) for a
+      // rename voucher (MessageEnterName) and a repair voucher (MessageRepair).
+      public static const RENAME_VOUCHER_ICON:int = 9;
+      
+      public static const REPAIR_VOUCHER_ICON:int = 10;
       
       public var textFieldValue:TextField;
       
@@ -21,13 +28,13 @@ package survarium.buttons
          super();
       }
       
-      public function set value(param1:Number) : void
+      public function set value(newValue:Number) : void
       {
-         if(this._value == param1)
+         if(this._value == newValue)
          {
             return;
          }
-         _value = param1;
+         _value = newValue;
          invalidateData();
       }
       
@@ -36,10 +43,10 @@ package survarium.buttons
          return this._value;
       }
       
-      public function set money_type(param1:Number) : void
+      public function set money_type(value:Number) : void
       {
-         _money_type = param1;
-         this.icon.gotoAndStop(param1 + 1);
+         _money_type = value;
+         this.icon.gotoAndStop(value + 1);
          invalidateData();
       }
       
@@ -48,9 +55,9 @@ package survarium.buttons
          return _toggle;
       }
       
-      override public function set toggle(param1:Boolean) : void
+      override public function set toggle(value:Boolean) : void
       {
-         _toggle = param1;
+         _toggle = value;
       }
       
       override protected function updateText() : void
@@ -67,7 +74,7 @@ package survarium.buttons
          }
          if(this.textFieldValue && this.icon)
          {
-            this.textFieldValue.x = this.icon.x + this.icon.width + 5 - (this._money_type != 0 ? (this._money_type == 1 ? 18 : 10) : 0);
+            this.textFieldValue.x = this.icon.x + this.icon.width + 5 - (this._money_type != MoneyType.REGULAR ? (this._money_type == MoneyType.PREMIUM ? 18 : 10) : 0);
          }
       }
       

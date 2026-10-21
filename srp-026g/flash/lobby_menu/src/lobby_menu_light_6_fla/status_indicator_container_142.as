@@ -43,35 +43,35 @@ package lobby_menu_light_6_fla
          this.__setProp_progress_bar_status_indicator_container_Layer1_0();
       }
       
-      public function set_progress(param1:int, param2:int) : void
+      public function set_progress(current:int, total:int) : void
       {
-         if(param1 > param2)
+         if(current > total)
          {
             return;
          }
          this._total.visible = true;
          this._current.visible = true;
-         var _loc3_:int = param1 / param2 * 100;
-         this._percent.text = _loc3_.toString() + "%";
-         this.progress_bar.value = _loc3_;
+         var percent:int = current / total * 100;
+         this._percent.text = percent.toString() + "%";
+         this.progress_bar.value = percent;
          this.progress_bar.progress = 0;
-         this._current.tx.text = param1.toString();
+         this._current.tx.text = current.toString();
          this._current.x = int(this.progress_bar.x - 3 + this.progress_bar.width * (this.progress_bar.value / 100));
-         this._total.tx.text = param2.toString();
+         this._total.tx.text = total.toString();
       }
       
-      public function set_percent(param1:int) : void
+      public function set_percent(percentValue:int) : void
       {
-         if(param1 > 100)
+         if(percentValue > 100)
          {
             return;
          }
-         var _loc2_:int = param1;
-         this._percent.text = _loc2_.toString() + "%";
-         if(_loc2_ == 100)
+         var percent:int = percentValue;
+         this._percent.text = percent.toString() + "%";
+         if(percent == 100)
          {
          }
-         this.progress_bar.value = _loc2_;
+         this.progress_bar.value = percent;
          this.progress_bar.progress = 0;
       }
       

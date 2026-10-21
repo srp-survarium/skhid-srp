@@ -1,17 +1,20 @@
 package survarium.constants
 {
+   // A reward's type.
    public class Reward
    {
       
-      public static const EXPERIENCE:uint = 0;
+      public static const EXPERIENCE:int = 0;
       
-      public static const REPUTATION:uint = 1;
+      public static const REPUTATION:int = 1;
       
-      public static const MONEY:uint = 2;
+      public static const MONEY:int = 2;
       
-      public static const ITEM:uint = 3;
+      public static const ITEM:int = 3;
       
-      public static const RATING:uint = 4;
+      public static const RATING:int = 4;
+      
+      public static const POINT:int = 5;
       
       public function Reward()
       {
@@ -19,4 +22,3 @@ package survarium.constants
       }
    }
 }
-

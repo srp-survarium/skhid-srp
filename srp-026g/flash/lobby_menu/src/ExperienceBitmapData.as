@@ -5,9 +5,9 @@ package
    public dynamic class ExperienceBitmapData extends BitmapData
    {
       
-      public function ExperienceBitmapData(param1:int = 43, param2:int = 40)
+      public function ExperienceBitmapData(bitmapWidth:int = 43, bitmapHeight:int = 40)
       {
-         super(param1,param2);
+         super(bitmapWidth,bitmapHeight);
       }
    }
 }

@@ -6,6 +6,7 @@ package survarium.controls
    import scaleform.clik.utils.Constraints;
    import survarium.Util;
    import survarium.constants.Colors;
+   import survarium.constants.PropertyDirection;
    
    public class LabelDiffIndicator extends DiffIndicator
    {
@@ -32,9 +33,9 @@ package survarium.controls
          return this._label;
       }
       
-      public function set label(param1:String) : void
+      public function set label(value:String) : void
       {
-         _label = param1;
+         _label = value;
          invalidateData();
       }
       
@@ -43,9 +44,9 @@ package survarium.controls
          return this._prefix;
       }
       
-      public function set prefix(param1:String) : void
+      public function set prefix(value:String) : void
       {
-         _prefix = param1;
+         _prefix = value;
          invalidateData();
       }
       
@@ -54,9 +55,9 @@ package survarium.controls
          return this._postfix;
       }
       
-      public function set postfix(param1:String) : void
+      public function set postfix(value:String) : void
       {
-         _postfix = param1;
+         _postfix = value;
          invalidateData();
       }
       
@@ -91,9 +92,9 @@ package survarium.controls
       
       override protected function updatePosition() : void
       {
-         var _loc1_:String;
-         var _loc2_:uint;
-         var _loc3_:uint;
+         var diffText:String;
+         var betterColor:uint;
+         var worseColor:uint;
          super.updatePosition();
          if(this._label)
          {
@@ -101,11 +102,11 @@ package survarium.controls
          }
          if(_valueDiff == 0)
          {
-            _loc1_ = "";
+            diffText = "";
          }
          else
          {
-            _loc1_ = (_valueDiff > 0 ? "+" : "") + Util.getNumberString(_valueDiff).toString();
+            diffText = (_valueDiff > 0 ? "+" : "") + Util.getNumberString(_valueDiff).toString();
          }
          this.textFieldValue.defaultTextFormat = this.textFieldValue.getTextFormat();
          this.textFieldDiff.defaultTextFormat = this.textFieldDiff.getTextFormat();
@@ -122,15 +123,15 @@ package survarium.controls
          }
          else
          {
-            _loc2_ = Colors.GREEN_DIFF;
-            _loc3_ = Colors.RED_DIFF;
-            if(_direction == 0)
+            betterColor = Colors.GREEN_DIFF;
+            worseColor = Colors.RED_DIFF;
+            if(_direction == PropertyDirection.LOWER_IS_BETTER)
             {
-               this.textFieldValue.textColor = _valueDiff < 0 ? _loc3_ : _loc2_;
+               this.textFieldValue.textColor = _valueDiff < 0 ? worseColor : betterColor;
             }
             else
             {
-               this.textFieldValue.textColor = _valueDiff < 0 ? _loc2_ : _loc3_;
+               this.textFieldValue.textColor = _valueDiff < 0 ? betterColor : worseColor;
             }
             if(this._prefix == "-" && _otherValue != 0)
             {

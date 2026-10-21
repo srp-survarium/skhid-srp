@@ -24,10 +24,10 @@ package survarium.buttons
          addEventListener(ButtonEvent.CLICK,this.onClicked,false,0,true);
       }
       
-      private function onClicked(param1:Event) : void
+      private function onClicked(event:Event) : void
       {
-         trace("onClicked::",param1.target);
-         if(param1.target == this)
+         trace("onClicked::",event.target);
+         if(event.target == this)
          {
             if(_ignoreClick == true)
             {

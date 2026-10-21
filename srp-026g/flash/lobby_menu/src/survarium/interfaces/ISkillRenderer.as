@@ -7,13 +7,13 @@ package survarium.interfaces
       
       function get data() : Object;
       
-      function set data(param1:Object) : void;
+      function set data(value:Object) : void;
       
-      function set unlockable(param1:Boolean) : void;
+      function set unlockable(value:Boolean) : void;
       
-      function showLock(param1:Boolean) : void;
+      function showLock(show:Boolean) : void;
       
-      function lock(param1:Boolean) : void;
+      function lock(locked:Boolean) : void;
       
       function invalidateData() : void;
    }

@@ -5,7 +5,7 @@ package scaleform.clik.interfaces
       
       function get data() : Object;
       
-      function set data(param1:Object) : void;
+      function set data(value:Object) : void;
    }
 }
 

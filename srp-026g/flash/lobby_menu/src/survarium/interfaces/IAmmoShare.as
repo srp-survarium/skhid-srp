@@ -8,23 +8,23 @@ package survarium.interfaces
    public interface IAmmoShare extends IUIComponent
    {
       
-      function set updateFunction(param1:Function) : void;
+      function set updateFunction(value:Function) : void;
       
-      function set autoBuyCheckBox(param1:Button) : void;
+      function set autoBuyCheckBox(value:Button) : void;
       
-      function set acceptButton(param1:Button) : void;
+      function set acceptButton(value:Button) : void;
       
-      function set cancelButton(param1:Button) : void;
+      function set cancelButton(value:Button) : void;
       
-      function set ammoBags(param1:uint) : void;
+      function set ammoBags(value:uint) : void;
       
-      function set pocketSize(param1:uint) : void;
+      function set pocketSize(value:uint) : void;
       
-      function setAmmo(param1:ButtonEvent = null) : void;
+      function setAmmo(event:ButtonEvent = null) : void;
       
-      function swapElements(param1:int, param2:int) : void;
+      function swapElements(firstIndex:int, secondIndex:int) : void;
       
-      function registerWeightTextField(param1:TextField) : void;
+      function registerWeightTextField(weightField:TextField) : void;
    }
 }
 

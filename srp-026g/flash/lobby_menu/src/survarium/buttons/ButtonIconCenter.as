@@ -23,13 +23,13 @@ package survarium.buttons
          tooltipRendererName = "SrvProfileTipRendererStyled";
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         if(param1 && param1.enabled != undefined)
+         if(value && value.enabled != undefined)
          {
-            enabled = param1.enabled;
+            enabled = value.enabled;
          }
-         super.data = param1;
+         super.data = value;
       }
       
       override protected function updateAfterStateChange() : void

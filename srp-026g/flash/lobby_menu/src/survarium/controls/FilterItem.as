@@ -47,9 +47,9 @@ package survarium.controls
          return this._index;
       }
       
-      public function set index(param1:uint) : void
+      public function set index(value:uint) : void
       {
-         _index = param1;
+         _index = value;
       }
       
       public function get selectable() : Boolean
@@ -57,9 +57,9 @@ package survarium.controls
          return this._selectable;
       }
       
-      public function set selectable(param1:Boolean) : void
+      public function set selectable(value:Boolean) : void
       {
-         _selectable = param1;
+         _selectable = value;
       }
       
       override public function get selected() : Boolean
@@ -67,14 +67,14 @@ package survarium.controls
          return _selected;
       }
       
-      override public function set selected(param1:Boolean) : void
+      override public function set selected(value:Boolean) : void
       {
-         var _loc2_:Boolean;
-         if(_selected == param1)
+         var showFocus:Boolean;
+         if(_selected == value)
          {
             return;
          }
-         _selected = param1;
+         _selected = value;
          if(_data)
          {
             _data.selected = _selected;
@@ -95,9 +95,9 @@ package survarium.controls
             }
             if(owner)
             {
-               _loc2_ = _selected && owner != null && checkOwnerFocused();
-               setState(_loc2_ && _focusIndicator == null ? "selecting" : "toggle");
-               displayFocus = _loc2_;
+               showFocus = _selected && owner != null && checkOwnerFocused();
+               setState(showFocus && _focusIndicator == null ? "selecting" : "toggle");
+               displayFocus = showFocus;
             }
          }
          else
@@ -113,25 +113,25 @@ package survarium.controls
          return super.enabled;
       }
       
-      override public function set enabled(param1:Boolean) : void
+      override public function set enabled(value:Boolean) : void
       {
-         var _loc2_:String;
-         super.enabled = param1;
+         var newState:String;
+         super.enabled = value;
          mouseChildren = false;
          if(super.enabled)
          {
-            _loc2_ = _displayFocus || _focused ? "over" : "up";
+            newState = _displayFocus || _focused ? "over" : "up";
          }
          else
          {
-            _loc2_ = "disabled";
+            newState = "disabled";
          }
-         setState(_loc2_);
+         setState(newState);
       }
       
-      public function setListData(param1:ListData) : void
+      public function setListData(listData:ListData) : void
       {
-         index = param1.index;
+         index = listData.index;
       }
       
       override protected function updateAfterStateChange() : void
@@ -152,11 +152,11 @@ package survarium.controls
          }
       }
       
-      public function setData(param1:Object) : void
+      public function setData(newData:Object) : void
       {
          focusable = false;
          mouseChildren = false;
-         _data = param1;
+         _data = newData;
          if(_data)
          {
             selected = _data.selected;
@@ -171,16 +171,16 @@ package survarium.controls
       
       override protected function updateText() : void
       {
-         var _loc1_:String;
+         var tipText:String;
          if(_data)
          {
-            _loc1_ = _data.tip;
+            tipText = _data.tip;
             if(textField)
             {
-               textField.text = _loc1_;
+               textField.text = tipText;
             }
-            _data.name = _loc1_;
-            label = _loc1_;
+            _data.name = tipText;
+            label = tipText;
          }
          else
          {
@@ -206,17 +206,17 @@ package survarium.controls
          }
       }
       
-      protected function onClick(param1:MouseEventEx) : void
+      protected function onClick(event:MouseEventEx) : void
       {
-         if(owner && param1.buttonIdx == 0 && !MainScene.isShift)
+         if(owner && event.buttonIdx == MouseEventEx.LEFT_BUTTON && !MainScene.isShift)
          {
             (owner as FilterList).deselectAll();
             FilterList(owner).selectedIndex = this.index;
          }
          else
          {
-            param1.buttonIdx = 0;
-            super.handleMousePress(param1);
+            event.buttonIdx = MouseEventEx.LEFT_BUTTON;
+            super.handleMousePress(event);
          }
       }
       

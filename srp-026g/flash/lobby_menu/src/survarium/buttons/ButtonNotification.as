@@ -4,6 +4,7 @@ package survarium.buttons
    import flash.display.MovieClip;
    import flash.text.TextField;
    import scaleform.clik.controls.ListItemRenderer;
+   import survarium.constants.ImportantMessageType;
    
    public class ButtonNotification extends ListItemRenderer
    {
@@ -41,39 +42,39 @@ package survarium.buttons
          return super.data;
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         var _loc2_:Number;
-         super.data = param1;
+         var textWidth:Number;
+         super.data = value;
          if(_data)
          {
             trace("NB::",_data.type);
             visible = true;
             this.textFieldNotification.text = _data.label;
-            _loc2_ = this.textFieldNotification.textWidth + 4;
-            this.emptyBack.width = _loc2_ + this.borderOffset;
+            textWidth = this.textFieldNotification.textWidth + 4;
+            this.emptyBack.width = textWidth + this.borderOffset;
             if(!_data.created)
             {
-               this.iconType.gotoAndStop(_data.type == 1 ? 1 : 2);
+               this.iconType.gotoAndStop(_data.type == ImportantMessageType.SQUAD_INVITE ? 1 : 2);
                this.icon.gotoAndPlay(2);
                this.textFieldNotification.width = 1;
                _data.created = true;
                this.background.width = 4;
                TweenLite.to(this.textFieldNotification,0.2,{
                   delay:0.2,
-                  width:_loc2_
+                  width:textWidth
                });
                TweenLite.to(this.background,0.2,{
                   delay:0.2,
-                  width:_loc2_ + this.borderOffset
+                  width:textWidth + this.borderOffset
                });
             }
             else
             {
                this.iconType.gotoAndStop(1);
                this.icon.gotoAndStop(1);
-               this.textFieldNotification.width = _loc2_;
-               this.background.width = _loc2_ + this.borderOffset;
+               this.textFieldNotification.width = textWidth;
+               this.background.width = textWidth + this.borderOffset;
             }
          }
          else

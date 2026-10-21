@@ -3,6 +3,7 @@ package survarium.controls
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
    import survarium.buttons.ButtonClick;
+   import survarium.constants.UiSound;
    
    public class UnfocusedCheckBox extends ButtonClick
    {
@@ -24,21 +25,21 @@ package survarium.controls
          _toggle = true;
       }
       
-      override protected function handleMouseRollOver(param1:MouseEvent) : void
+      override protected function handleMouseRollOver(event:MouseEvent) : void
       {
-         super.handleMouseRollOver(param1);
+         super.handleMouseRollOver(event);
          if(enabled)
          {
-            ExternalInterface.call("sound_play",1);
+            ExternalInterface.call("sound_play",UiSound.HOVER);
          }
       }
       
-      override protected function handleMouseRelease(param1:MouseEvent) : void
+      override protected function handleMouseRelease(event:MouseEvent) : void
       {
-         super.handleMouseRelease(param1);
+         super.handleMouseRelease(event);
          if(enabled)
          {
-            ExternalInterface.call("sound_play",0);
+            ExternalInterface.call("sound_play",UiSound.CLICK);
          }
       }
       
@@ -47,7 +48,7 @@ package survarium.controls
          return false;
       }
       
-      override public function set autoRepeat(param1:Boolean) : void
+      override public function set autoRepeat(value:Boolean) : void
       {
       }
       
@@ -56,7 +57,7 @@ package survarium.controls
          return true;
       }
       
-      override public function set toggle(param1:Boolean) : void
+      override public function set toggle(value:Boolean) : void
       {
       }
       

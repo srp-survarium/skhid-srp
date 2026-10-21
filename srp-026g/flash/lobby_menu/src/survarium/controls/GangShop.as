@@ -11,12 +11,21 @@ package survarium.controls
    import survarium.data.ItemData;
    import survarium.data.LocalizationData;
    import survarium.item.ItemFactory;
+   import survarium.constants.Faction;
+   import survarium.constants.ItemCategory;
+   import survarium.constants.ItemPlace;
+   import survarium.constants.QuickSlotSize;
+   import survarium.constants.SuperCategory;
    
    [Event(name="NEW_ITEMS_UNCLOKED",type="flash.events.Event")]
    public class GangShop extends UIComponent
    {
       
       public static var buyFunction:Function;
+      
+      // the shop is built when this page arrives: the last reputation level (0..10) of the last
+      // trading faction, Faction.BORDER (meaning not traced in the exe: setup_shop_data is not in 0.26g)
+      private static const LAST_SHOP_LEVEL:int = 10;
       
       public static const NEW_ITEMS_COUNT_CHANGED:String = "newItemsCountChanged";
       
@@ -175,7 +184,7 @@ package survarium.controls
          for(var i:uint = 0; i < l; i++)
          {
             var item:ItemData = this.createItem(p[i].dictId);
-            if(item.isStack && item.superCategory == 3)
+            if(item.isStack && item.superCategory == SuperCategory.AMMO)
             {
                this._ammoItems.push(item);
             }
@@ -191,8 +200,8 @@ package survarium.controls
             {
                this._items[seller] = [];
             }
-            var lvlTip:String = item.superCategory != 5 ? Util.styledChar(LocalizationData.getName("equipment_level") + " - " + item.itemLevel.toString(),"gray") : "";
-            var tipStr:String = item.name + "\n" + (item.category == 27 ? "" : "") + ((item.rank) ? Util.styledChar(LocalizationData.getName("modified") + "\n","green") : "") + ((item.ammoText) ? LocalizationData.getName("ammo") + ":\n" + item.ammoText : "") + ((lvlTip) ? Util.styledChar(" \n","small") + lvlTip : "");
+            var lvlTip:String = item.superCategory != SuperCategory.UPGRADES ? Util.styledChar(LocalizationData.getName("equipment_level") + " - " + item.itemLevel.toString(),"gray") : "";
+            var tipStr:String = item.name + "\n" + (item.category == ItemCategory.VOUCHERS ? "" : "") + ((item.rank) ? Util.styledChar(LocalizationData.getName("modified") + "\n","green") : "") + ((item.ammoText) ? LocalizationData.getName("ammo") + ":\n" + item.ammoText : "") + ((lvlTip) ? Util.styledChar(" \n","small") + lvlTip : "");
             item.tipText = tipStr;
             trace("setupShopItem::",p[i].dictId,item.name,"lockLabel::",this._names[seller][item.sellerLevel],"level::",seller,item.sellerLevel,"sc:",item.superCategory,"faction:",p[i].faction_id,p[i].seller,"mods::",item.modifiers,"cost::",p[i].cost,"cat",item.category);
             this._items[seller].push(item);
@@ -203,7 +212,7 @@ package survarium.controls
             item.buyValue = !item.canBuy;
             item.value = p[i].condition_or_stack;
             item.lockText = "item_sell_precondition_faction_" + seller;
-            if(seller == 0)
+            if(seller == Faction.NONE)
             {
                this._itemsBuyDict[item.dictId] = true;
             }
@@ -312,7 +321,7 @@ package survarium.controls
          this._reputations[seller][level] = reputation;
          if(!p.length)
          {
-            if(seller == 4 && level == 10)
+            if(seller == Faction.BORDER && level == LAST_SHOP_LEVEL)
             {
                this.setupShopItems(this._new_objects);
             }
@@ -326,7 +335,7 @@ package survarium.controls
             obj.factionId = seller;
             this._new_objects.push(obj);
          }
-         if(seller == 4 && level == 10)
+         if(seller == Faction.BORDER && level == LAST_SHOP_LEVEL)
          {
             this.setupShopItems(this._new_objects);
          }
@@ -656,21 +665,21 @@ package survarium.controls
          var descrData:Object = this._itemDescriptor.getItemDescription(value);
          var icons:IconContainer;
          var category:int = ItemFactory.getCategory(descrData.category);
-         if(category == 1)
+         if(category == SuperCategory.EQUIPMENT)
          {
             icons = IconContainer.getInstance("equipment");
          }
-         else if(category == 2)
+         else if(category == SuperCategory.WEAPONS)
          {
             icons = IconContainer.getInstance("weapons");
          }
-         else if(category == 5)
+         else if(category == SuperCategory.UPGRADES)
          {
-            if(descrData.category == FiltersWindow.CAT_VOUCHER || descrData.category == 28 || descrData.category == 29)
+            if(descrData.category == ItemCategory.VOUCHERS || descrData.category == ItemCategory.GENERIC_MONEY || descrData.category == ItemCategory.PREMIUM_MONEY)
             {
                icons = IconContainer.getInstance("vouchers");
             }
-            else if(descrData.category == 26)
+            else if(descrData.category == ItemCategory.DECALS)
             {
                icons = IconContainer.getInstance("decals");
             }
@@ -704,7 +713,7 @@ package survarium.controls
          {
             obj.modifiersDefault[i].isDefault = true;
          }
-         obj.isWeapon = category == 2;
+         obj.isWeapon = category == SuperCategory.WEAPONS;
          obj.oneHanded = !descrData.double_handed;
          obj.name = descrData.name;
          obj.itemLevel = descrData.level;
@@ -713,7 +722,7 @@ package survarium.controls
             obj.itemDescription = descrData.descr;
          }
          obj.properties = descrData.item_properties;
-         obj.descriptor = 200;
+         obj.descriptor = ItemPlace.SHOP;
          obj.category = descrData.category;
          obj.superCategory = category;
          obj.icon = icons.getIcon(obj.iconId);
@@ -754,7 +763,7 @@ package survarium.controls
                obj.ammoText = descrData.ammo_text;
             }
          }
-         obj.quickSlotItemSize = (descrData.fills_whole_pocket) ? 2 : 1;
+         obj.quickSlotItemSize = (descrData.fills_whole_pocket) ? QuickSlotSize.WHOLE : QuickSlotSize.HALF;
          this._itemsDict[value] = obj;
          return obj;
       }

@@ -19,9 +19,9 @@ package survarium.char
          super();
       }
       
-      public function registerRenderer(param1:Class) : void
+      public function registerRenderer(rendererClass:Class) : void
       {
-         _progressRenderer = param1;
+         _progressRenderer = rendererClass;
          invalidateData();
       }
       
@@ -37,64 +37,64 @@ package survarium.char
       
       override protected function updatePosition() : void
       {
-         var _loc1_:MovieClip;
-         var _loc2_:int = this._renderers.length;
-         var _loc3_:uint = 0;
-         while(_loc3_ < _loc2_)
+         var renderer:MovieClip;
+         var count:int = this._renderers.length;
+         var i:uint = 0;
+         while(i < count)
          {
-            _loc1_ = this._renderers[_loc3_];
-            _loc1_.gotoAndStop(_loc3_ < _value ? 1 : 2);
-            _loc3_++;
+            renderer = this._renderers[i];
+            renderer.gotoAndStop(i < _value ? 1 : 2);
+            i++;
          }
       }
       
       protected function updateRenderers() : void
       {
-         var _loc1_:int = _maximum;
-         var _loc2_:uint = 20;
-         var _loc3_:MovieClip;
+         var count:int = _maximum;
+         var angleStep:uint = 20;
+         var renderer:MovieClip;
          trace("updateRenderers",_maximum,this._progressRenderer);
          if(!this._progressRenderer)
          {
             return;
          }
-         var _loc4_:int = -90 - _loc1_ / 2 * _loc2_ + _loc2_ / 2;
-         var _loc5_:uint = _loc1_;
-         while(_loc5_ < this._renderers.length)
+         var angle:int = -90 - count / 2 * angleStep + angleStep / 2;
+         var i:uint = count;
+         while(i < this._renderers.length)
          {
-            _loc3_ = this._renderers[_loc5_];
-            _loc3_.gotoAndStop(1);
-            removeChild(_loc3_);
-            _loc5_++;
+            renderer = this._renderers[i];
+            renderer.gotoAndStop(1);
+            removeChild(renderer);
+            i++;
          }
-         var _loc6_:uint = 0;
-         var _loc7_:Number;
-         var _loc8_:Point;
-         var _loc9_:Number;
-         var _loc10_:Number;
-         while(_loc6_ < _loc1_)
+         var j:uint = 0;
+         var radians:Number;
+         var direction:Point;
+         var posX:Number;
+         var posY:Number;
+         while(j < count)
          {
-            if(!this._renderers[_loc6_])
+            if(!this._renderers[j])
             {
-               _loc3_ = new this._progressRenderer();
-               _loc3_.gotoAndStop(2);
-               this._renderers[_loc6_] = _loc3_;
-               trace("SPI:creteRednderer",_loc3_);
+               renderer = new this._progressRenderer();
+               renderer.gotoAndStop(2);
+               this._renderers[j] = renderer;
+               trace("SPI:creteRednderer",renderer);
             }
             else
             {
-               _loc3_ = this._renderers[_loc6_];
-               trace("SPI:updateRenderer",_loc3_);
+               renderer = this._renderers[j];
+               trace("SPI:updateRenderer",renderer);
             }
-            addChild(_loc3_);
-            _loc7_ = _loc4_ * (Math.PI / 180);
-            _loc8_ = new Point(Math.cos(_loc7_),Math.sin(_loc7_));
-            _loc9_ = _loc8_.x * this.radius;
-            _loc10_ = -this.radius + -_loc8_.y * this.radius;
-            _loc3_.x = _loc9_;
-            _loc3_.y = _loc10_;
-            _loc4_ += _loc2_;
-            _loc6_++;
+            addChild(renderer);
+            radians = angle * (Math.PI / 180);
+            direction = new Point(Math.cos(radians),Math.sin(radians));
+            posX = direction.x * this.radius;
+            posY = -this.radius + -direction.y * this.radius;
+            renderer.x = posX;
+            renderer.y = posY;
+            angle += angleStep;
+            j++;
          }
       }
    }

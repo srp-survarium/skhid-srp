@@ -39,8 +39,8 @@ package survarium.messages
       public function MessageDailyReward()
       {
          super();
-         var _loc1_:Class = getDefinitionByName("InventoryItemHint") as Class;
-         _hintRenderer = new _loc1_();
+         var hintClass:Class = getDefinitionByName("InventoryItemHint") as Class;
+         _hintRenderer = new hintClass();
       }
       
       override public function get width() : Number
@@ -48,18 +48,18 @@ package survarium.messages
          return this.MESSAGE_WIDTH;
       }
       
-      override public function set width(param1:Number) : void
+      override public function set width(value:Number) : void
       {
-         super.width = param1;
+         super.width = value;
       }
       
       override protected function configUI() : void
       {
          super.configUI();
          this.btnClose.addEventListener(ButtonEvent.CLICK,onMessageAccept,false,0,true);
-         var _loc1_:Array = _data.data as Array;
-         var _loc2_:*;
-         trace("FillLsitData",_loc1_,this.rewardsList.width,this.rewardsList.alpha,this.rewardsList.visible,_data.itemData);
+         var rewards:Array = _data.data as Array;
+         var dropSlot:*;
+         trace("FillLsitData",rewards,this.rewardsList.width,this.rewardsList.alpha,this.rewardsList.visible,_data.itemData);
          _hintRenderer.displaylabel(false);
          this.rewardsList.y -= 1;
          this.rewardsList.focusable = false;
@@ -72,7 +72,7 @@ package survarium.messages
          if(_data.itemData)
          {
             addChild(_hintRenderer);
-            _loc2_ = this.rewardContainer.dropSlot;
+            dropSlot = this.rewardContainer.dropSlot;
             this.rewardContainer.addEventListener(MouseEvent.MOUSE_OVER,this.showItemHint);
             this.rewardContainer.addEventListener(MouseEvent.MOUSE_OUT,this.hideItemHint);
             _hintRenderer.data = _data.itemData;
@@ -80,7 +80,7 @@ package survarium.messages
             _hintRenderer.x = this.MESSAGE_WIDTH;
             _hintRenderer.y = this.rewardContainer.y;
          }
-         this.rewardsList.dataProvider = new DataProvider(_loc1_);
+         this.rewardsList.dataProvider = new DataProvider(rewards);
          this.rewardsList.selectedIndex = _data.current_day - 1;
          this.textFieldLabel.styleSheet = MainScene.textStyleSheet;
          this.textFieldDescr.styleSheet = MainScene.textStyleSheet;
@@ -91,14 +91,14 @@ package survarium.messages
          this.rewardContainer.textFieldDescr.text = _data.completed ? LocalizationData.getName("daily_bonus_reward_complete") : LocalizationData.getName("daily_bonus_reward_description");
       }
       
-      override protected function cleanUp(param1:Event = null) : void
+      override protected function cleanUp(event:Event = null) : void
       {
-         super.cleanUp(param1);
+         super.cleanUp(event);
          _hintRenderer.data = null;
          removeChild(_hintRenderer);
       }
       
-      private function hideItemHint(param1:MouseEvent) : void
+      private function hideItemHint(event:MouseEvent) : void
       {
          if(_hintRenderer.alpha != 0)
          {
@@ -110,7 +110,7 @@ package survarium.messages
          }
       }
       
-      private function showItemHint(param1:MouseEvent) : void
+      private function showItemHint(event:MouseEvent) : void
       {
          _hintRenderer.visible = true;
          if(_hintRenderer.alpha == 0)

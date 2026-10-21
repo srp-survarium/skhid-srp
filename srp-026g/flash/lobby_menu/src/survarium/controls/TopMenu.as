@@ -79,9 +79,9 @@ package survarium.controls
          return this.getRenderer(this.CHAR_INDEX);
       }
       
-      public function set questButton(param1:Button) : void
+      public function set questButton(value:Button) : void
       {
-         _questButton = param1;
+         _questButton = value;
          this._questButton.toggle = true;
          this._questButton.addEventListener(ButtonEvent.CLICK,this.showQuests);
       }
@@ -91,7 +91,7 @@ package survarium.controls
          return this._questButton;
       }
       
-      private function showQuests(param1:ButtonEvent) : void
+      private function showQuests(event:ButtonEvent) : void
       {
          trace("TOP::showQuests");
          if(this.getActiveWindow() == this.QUESTS_INDEX)
@@ -104,21 +104,21 @@ package survarium.controls
          }
       }
       
-      private function setByUser(param1:Boolean) : void
+      private function setByUser(value:Boolean) : void
       {
-         trace("setByUser",param1);
-         _byUser = param1;
+         trace("setByUser",value);
+         _byUser = value;
          stackTrace("_affectByUser");
       }
       
-      public function selectActiveWindow(param1:int, param2:Boolean = true) : void
+      public function selectActiveWindow(windowIndex:int, byUser:Boolean = true) : void
       {
-         trace("selectActiveWindow::",param1,param2);
-         if(param1 != -1 && this.tabPage.selectedIndex != param1)
+         trace("selectActiveWindow::",windowIndex,byUser);
+         if(windowIndex != -1 && this.tabPage.selectedIndex != windowIndex)
          {
-            this.setByUser(param2);
+            this.setByUser(byUser);
          }
-         this.tabPage.selectedIndex = param1;
+         this.tabPage.selectedIndex = windowIndex;
       }
       
       public function getActiveWindow() : int
@@ -131,60 +131,60 @@ package survarium.controls
          return this.locked;
       }
       
-      public function setActiveFaction(param1:int) : void
+      public function setActiveFaction(faction:int) : void
       {
       }
       
-      public function getRenderer(param1:int) : MovieClip
+      public function getRenderer(tabIndex:int) : MovieClip
       {
-         return this.tabPage.getButtonAt(param1);
+         return this.tabPage.getButtonAt(tabIndex);
       }
       
-      public function lockIndex(param1:int, param2:Boolean) : void
+      public function lockIndex(tabIndex:int, isLocked:Boolean) : void
       {
-         var _loc3_:Object = this.tabPage.dataProvider[param1];
-         if(_loc3_)
+         var tabData:Object = this.tabPage.dataProvider[tabIndex];
+         if(tabData)
          {
-            _loc3_.enabled = !param2;
+            tabData.enabled = !isLocked;
          }
-         if(this.QUESTS_INDEX == param1)
+         if(this.QUESTS_INDEX == tabIndex)
          {
-            this._questButton.enabled = _loc3_.enabled;
+            this._questButton.enabled = tabData.enabled;
          }
-         trace("lockIndex",param1);
+         trace("lockIndex",tabIndex);
          this.tabPage.dataProvider.invalidate();
       }
       
-      public function lockInventory(param1:Boolean) : void
+      public function lockInventory(isLocked:Boolean) : void
       {
-         if(this.locked == param1)
+         if(this.locked == isLocked)
          {
             return;
          }
-         locked = param1;
+         locked = isLocked;
          this.tabPage.dataProvider[this.CHAR_INDEX] = {
             name:LocalizationData.getName("character"),
             icon:1,
-            enabled:!param1
+            enabled:!isLocked
          };
          this.tabPage.dataProvider[this.SHOP_INDEX] = {
             name:LocalizationData.getName("shop"),
             icon:3,
-            enabled:!param1
+            enabled:!isLocked
          };
          this.tabPage.dataProvider[this.INV_INDEX] = {
             name:LocalizationData.getName("inventrory"),
             icon:2,
-            enabled:!param1
+            enabled:!isLocked
          };
-         if((this.tabPage.selectedIndex == this.SHOP_INDEX || this.tabPage.selectedIndex == this.INV_INDEX || this.tabPage.selectedIndex == this.CHAR_INDEX) && param1 == true)
+         if((this.tabPage.selectedIndex == this.SHOP_INDEX || this.tabPage.selectedIndex == this.INV_INDEX || this.tabPage.selectedIndex == this.CHAR_INDEX) && isLocked == true)
          {
             this.tabPage.selectedIndex = -1;
          }
          this.tabPage.dataProvider.invalidate();
       }
       
-      protected function fill_windows(param1:String) : void
+      protected function fill_windows(section:String) : void
       {
          this.tabPage.dataProvider = new DataProvider([{
             name:LocalizationData.getName("character"),
@@ -214,7 +214,7 @@ package survarium.controls
          this.nameRoomsTab();
       }
       
-      protected function changeActiveMenu(param1:IndexEvent) : void
+      protected function changeActiveMenu(event:IndexEvent) : void
       {
          if(MainScene.activePop && MainScene.activePop.closePopup)
          {
@@ -285,7 +285,7 @@ package survarium.controls
          this.roomsTabChanged();
       }
       
-      protected function onClose(param1:Event) : void
+      protected function onClose(event:Event) : void
       {
          this.currentUI.removeEventListener(Event.CLOSE,this.onClose);
          this.tabPage.selectedIndex = -1;
@@ -307,7 +307,7 @@ package survarium.controls
       {
          try
          {
-            var clan:Object = this.tabPage.dataProvider[3];
+            var clan:Object = this.tabPage.dataProvider[this.CLAN_INDEX];
             this._roomsTabOn = clan == null || clan.enabled !== false;
             this.tabPage.dataProvider[this.MAP_INDEX] = {
                "name":text,
@@ -326,7 +326,7 @@ package survarium.controls
       {
          try
          {
-            var clan:Object = this.tabPage.dataProvider[3];
+            var clan:Object = this.tabPage.dataProvider[this.CLAN_INDEX];
             if((clan == null || clan.enabled !== false) != this._roomsTabOn)
             {
                this.setRoomsTab(text);

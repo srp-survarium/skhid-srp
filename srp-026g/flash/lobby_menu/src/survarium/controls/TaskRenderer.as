@@ -11,16 +11,16 @@ package survarium.controls
          super();
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         super.data = param1;
+         super.data = value;
          preventAutosizing = true;
          invalidateData();
       }
       
-      override public function setData(param1:Object) : void
+      override public function setData(newData:Object) : void
       {
-         this.data = param1;
+         this.data = newData;
       }
       
       override protected function configUI() : void

@@ -5,9 +5,9 @@ package
    public dynamic class LoadingTop extends BitmapData
    {
       
-      public function LoadingTop(param1:int = 1920, param2:int = 411)
+      public function LoadingTop(bitmapWidth:int = 1920, bitmapHeight:int = 411)
       {
-         super(param1,param2);
+         super(bitmapWidth,bitmapHeight);
       }
    }
 }

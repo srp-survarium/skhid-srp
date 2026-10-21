@@ -30,8 +30,18 @@ package
    import scaleform.clik.layout.LayoutData;
    import scaleform.gfx.Extensions;
    import survarium.Util;
+   import survarium.constants.BodyPartState;
    import survarium.constants.Colors;
+   import survarium.constants.CombatAction;
+   import survarium.constants.CombatLogTeam;
+   import survarium.constants.Faction;
+   import survarium.constants.ItemDictId;
+   import survarium.constants.MinimapPosition;
+   import survarium.constants.ProfileState;
    import survarium.constants.Reward;
+   import survarium.constants.SquadState;
+   import survarium.constants.Team;
+   import survarium.constants.TeamSide;
    import survarium.constants.UiSound;
    import survarium.controls.Minimap;
    import survarium.controls.PlayerProfileBase;
@@ -152,7 +162,12 @@ package
       
       private var _tutor:MovieClip = new SrvTutorialSliders();
       
-      private var _tutorState:int = 0;
+      // The tutorial panel: not shown, or slid in (onTutorialAdded).
+      private static const TUTOR_HIDDEN:int = 0;
+      
+      private static const TUTOR_SHOWN:int = 1;
+      
+      private var _tutorState:int = TUTOR_HIDDEN;
       
       private var _tutorVisible:Boolean = false;
       
@@ -214,7 +229,7 @@ package
       
       private function onTutorialAdded() : void
       {
-         _tutorState = 1;
+         _tutorState = TUTOR_SHOWN;
       }
       
       private function removeTutorial() : void
@@ -234,7 +249,7 @@ package
             if(this.contains(this._tutor))
             {
                removeChild(this._tutor);
-               _tutorState = 0;
+               _tutorState = TUTOR_HIDDEN;
             }
          }
          else
@@ -267,7 +282,7 @@ package
          if(bool)
          {
             addChild(this._tutor);
-            if(this._tutorState == 0)
+            if(this._tutorState == TUTOR_HIDDEN)
             {
                this.setTutorData();
                this.addTutorial();
@@ -500,14 +515,14 @@ package
          setTimeout(this.test_minimap_2,100);
          var m_objects:Array = [{
             player_id:10,
-            team:1,
+            team:Team.SECOND,
             player_pos_x:10,
             player_pos_y:-35 - Math.random() * 10,
             type:1,
             is_local_player:true
          },{
             player_id:23,
-            team:0,
+            team:Team.FIRST,
             player_pos_x:-0.0,
             player_pos_y:-35 - Math.random() * 10,
             type:10,
@@ -515,32 +530,32 @@ package
             is_carrying_item:true
          },{
             player_id:24,
-            team:1,
+            team:Team.SECOND,
             player_pos_x:-10,
             player_pos_y:-35 - Math.random() * 10,
             type:9
          },{
             player_id:25,
-            team:0,
+            team:Team.FIRST,
             player_pos_x:-20,
             player_pos_y:-35 - Math.random() * 10,
             type:8
          },{
             player_id:26,
-            team:0,
+            team:Team.FIRST,
             player_pos_x:-30,
             player_pos_y:-35 - Math.random() * 10,
             type:2
          },{
             player_id:27,
-            team:0,
+            team:Team.FIRST,
             player_pos_x:-40,
             player_pos_y:-35 - Math.random() * 10,
             type:2,
             is_carrying_item:true
          },{
             player_id:30,
-            team:1,
+            team:Team.SECOND,
             player_pos_x:-50,
             player_pos_y:-35 - Math.random() * 10,
             type:10,
@@ -556,14 +571,14 @@ package
          setTimeout(this.test_minimap_3,100);
          var m_objects:Array = [{
             player_id:10,
-            team:0,
+            team:Team.FIRST,
             player_pos_x:10,
             player_pos_y:-35 - Math.random() * 10,
             type:1,
             is_local_player:true
          },{
             player_id:23,
-            team:1,
+            team:Team.SECOND,
             player_pos_x:-0.0,
             player_pos_y:-35 - Math.random() * 10,
             type:10,
@@ -571,25 +586,25 @@ package
             is_carrying_item:true
          },{
             player_id:24,
-            team:0,
+            team:Team.FIRST,
             player_pos_x:-10,
             player_pos_y:-35 - Math.random() * 10,
             type:9
          },{
             player_id:25,
-            team:1,
+            team:Team.SECOND,
             player_pos_x:-20,
             player_pos_y:-35 - Math.random() * 10,
             type:8
          },{
             player_id:26,
-            team:1,
+            team:Team.SECOND,
             player_pos_x:-30,
             player_pos_y:-35 - Math.random() * 10,
             type:2
          },{
             player_id:27,
-            team:1,
+            team:Team.SECOND,
             player_pos_x:-40,
             player_pos_y:-35 - Math.random() * 10,
             type:2,
@@ -602,45 +617,45 @@ package
       {
          var m_objects:Array = [{
             player_id:23,
-            team:0,
+            team:Team.FIRST,
             player_pos_x:-0.0,
             player_pos_y:-35 - Math.random() * 10,
             type:10,
             is_squad_player:true
          },{
             player_id:70,
-            team:0,
+            team:Team.FIRST,
             player_pos_x:-60,
             player_pos_y:-35 - Math.random() * 10,
             type:10
          },{
             player_id:80,
-            team:0,
+            team:Team.FIRST,
             player_pos_x:-70,
             player_pos_y:-35 - Math.random() * 10,
             type:10
          },{
             player_id:90,
-            team:0,
+            team:Team.FIRST,
             player_pos_x:-80,
             player_pos_y:-35 - Math.random() * 10,
             type:10
          },{
             player_id:10,
-            team:0,
+            team:Team.FIRST,
             player_pos_x:10,
             player_pos_y:-35 - Math.random() * 10,
             type:1,
             is_local_player:true
          },{
             player_id:26,
-            team:0,
+            team:Team.FIRST,
             player_pos_x:-30,
             player_pos_y:-35 - Math.random() * 10,
             type:2
          },{
             player_id:27,
-            team:0,
+            team:Team.FIRST,
             player_pos_x:-40,
             player_pos_y:-35 - Math.random() * 10,
             type:2,
@@ -649,26 +664,26 @@ package
          this.update_players(m_objects);
          m_objects = [{
             player_id:23,
-            team:0,
+            team:Team.FIRST,
             player_pos_x:-0.0,
             player_pos_y:-35 - Math.random() * 10,
             type:10,
             is_squad_player:true
          },{
             player_id:70,
-            team:0,
+            team:Team.FIRST,
             player_pos_x:-60,
             player_pos_y:-35 - Math.random() * 10,
             type:10
          },{
             player_id:80,
-            team:0,
+            team:Team.FIRST,
             player_pos_x:-70,
             player_pos_y:-35 - Math.random() * 10,
             type:10
          },{
             player_id:90,
-            team:0,
+            team:Team.FIRST,
             player_pos_x:-80,
             player_pos_y:-35 - Math.random() * 10,
             type:10
@@ -700,7 +715,7 @@ package
             name:"tutorial_completed",
             reward:[{
                type:Reward.MONEY,
-               param:214,
+               param:ItemDictId.GENERIC_MONEY,
                amount:77
             }]
          }]);
@@ -736,10 +751,10 @@ package
          stage.addEventListener(MouseEvent.CLICK,this.testClick);
          this.add_log_message({
             who_name:"Test",
-            action_id:1,
+            action_id:CombatAction.KILL,
             victim_name:"super_logn_extra_icvon",
-            who_team:0,
-            victim_team:1,
+            who_team:CombatLogTeam.ALLY,
+            victim_team:CombatLogTeam.ENEMY,
             extra_icon:4
          });
       }
@@ -783,7 +798,7 @@ package
          {
             for(i = 0; i < value.length; i++)
             {
-               value[i].enabled = value[i].state == 0;
+               value[i].enabled = value[i].state == ProfileState.COMPLETE;
             }
          }
          this._profilePanel.profileSelector.setupProfiles(value);
@@ -814,33 +829,33 @@ package
       {
          var m_objects:Array = [{
             player_id:10,
-            team:1,
+            team:Team.SECOND,
             player_pos_x:-2,
             player_pos_y:-35 - Math.random() * 10,
             type:1,
             is_local_player:true
          },{
             player_id:23,
-            team:0,
+            team:Team.FIRST,
             player_pos_x:-10,
             player_pos_y:-35 - Math.random() * 10,
             type:10
          },{
             player_id:25,
-            team:0,
+            team:Team.FIRST,
             player_pos_x:-20,
             player_pos_y:-35 - Math.random() * 10,
             type:8
          },{
             player_id:27,
-            team:1,
+            team:Team.SECOND,
             player_pos_x:-40,
             player_pos_y:-35 - Math.random() * 10,
             type:2,
             is_carrying_item:false
          }];
          m_objects = [{
-            faction_id:1,
+            faction_id:Faction.SCAVENGERS,
             quest_icon:1,
             current_progress:4,
             required:5
@@ -851,84 +866,84 @@ package
          this.crosshair_enemy_hit(0.8);
          var temp_players:Array = [{
             id:10,
-            team:1,
+            team:TeamSide.ALLY,
             name:"fdgfdAAF",
             kills:12,
             deaths:22,
             ping:22,
             artifacts:33,
             rank:20,
-            squad_state:1,
+            squad_state:SquadState.IN_SQUAD,
             squad_id:1
          },{
             id:9,
-            team:1,
+            team:TeamSide.ALLY,
             name:"fdgfd1F",
             kills:12,
             deaths:22,
             ping:22,
             artifacts:33,
             rank:21,
-            squad_state:2,
+            squad_state:SquadState.STATE_2,
             squad_id:1
          },{
             id:8,
-            team:0,
+            team:TeamSide.NONE,
             name:"fdgfd2",
             kills:12,
             deaths:22,
             ping:22,
             artifacts:33,
             rank:4,
-            squad_state:0,
+            squad_state:SquadState.NONE,
             squad_id:0
          },{
             id:7,
-            team:0,
+            team:TeamSide.NONE,
             name:"fdgfd3",
             kills:12,
             deaths:22,
             ping:22,
             artifacts:33,
             rank:20,
-            squad_state:2,
+            squad_state:SquadState.STATE_2,
             squad_id:1
          },{
             id:6,
-            team:0,
+            team:TeamSide.NONE,
             name:"fdgfd4",
             kills:12,
             deaths:22,
             ping:22,
             artifacts:33,
             rank:4,
-            squad_state:2,
+            squad_state:SquadState.STATE_2,
             squad_id:2
          },{
             id:5,
-            team:0,
+            team:TeamSide.NONE,
             name:"fdgfd5",
             kills:12,
             deaths:22,
             ping:22,
             artifacts:33,
             rank:4,
-            squad_state:2,
+            squad_state:SquadState.STATE_2,
             squad_id:2
          },{
             id:4,
-            team:0,
+            team:TeamSide.NONE,
             name:"fdgfd6",
             kills:12,
             deaths:22,
             ping:22,
             artifacts:33,
             rank:4,
-            squad_state:2,
+            squad_state:SquadState.STATE_2,
             squad_id:2
          },{
             id:3,
-            team:0,
+            team:TeamSide.NONE,
             name:"fdgfd6",
             kills:12,
             deaths:22,
@@ -937,7 +952,7 @@ package
             rank:6
          },{
             id:2,
-            team:0,
+            team:TeamSide.NONE,
             name:"fdgfd1",
             kills:12,
             deaths:22,
@@ -946,7 +961,7 @@ package
             rank:1
          },{
             id:1,
-            team:0,
+            team:TeamSide.NONE,
             name:"fdgfd8",
             kills:12,
             deaths:22,
@@ -1024,9 +1039,9 @@ package
       
       public function set_minimap_position(value:uint) : void
       {
-         this.minimap.layoutData.alignV = value == 0 ? "top" : "bottom";
-         this.minimap.layoutData.offsetV = value == 0 ? 36 : -36;
-         this.minimap.visible = value != 2;
+         this.minimap.layoutData.alignV = value == MinimapPosition.TOP ? "top" : "bottom";
+         this.minimap.layoutData.offsetV = value == MinimapPosition.TOP ? 36 : -36;
+         this.minimap.visible = value != MinimapPosition.HIDDEN;
       }
       
       public function set_quests_progress(value:Array) : void
@@ -1691,12 +1706,12 @@ package
          this.damageInd.partHP(part,value,break_point);
       }
       
-      public function crit_player_body_part(part:uint, value:uint = 2) : void
+      public function crit_player_body_part(part:uint, value:uint = BodyPartState.BROKEN) : void
       {
          this.damageInd.crit(part,value);
       }
       
-      public function set_body_part_state(part:uint, value:uint = 2) : void
+      public function set_body_part_state(part:uint, value:uint = BodyPartState.BROKEN) : void
       {
          this.damageInd.crit(part,value);
       }
@@ -2016,8 +2031,8 @@ package
       public function set_artifacts_required(value:uint) : void
       {
          _artifacts = value;
-         this.set_artifacts_progress(0,0);
-         this.set_artifacts_progress(1,0);
+         this.set_artifacts_progress(Team.FIRST,0);
+         this.set_artifacts_progress(Team.SECOND,0);
          if(this.progress_indicator.layoutData)
          {
             this.progress_indicator.layoutData.offsetH = Math.ceil(this.progress_indicator.width / 2);
@@ -2064,8 +2079,8 @@ package
          }
          else
          {
-            this.set_artifacts_progress(0,team1);
-            this.set_artifacts_progress(1,team2);
+            this.set_artifacts_progress(Team.FIRST,team1);
+            this.set_artifacts_progress(Team.SECOND,team2);
          }
          if(this.progress_indicator.layoutData)
          {
@@ -2081,7 +2096,7 @@ package
       {
          this.progress_indicator.art_teams.team = team;
          this.progress_indicator.art_teams.set_progress(value,this._artifacts);
-         if(team == 0)
+         if(team == Team.FIRST)
          {
             this.progress_indicator.team_1_progress.text = String(value);
          }
@@ -2101,7 +2116,7 @@ package
       {
          if(this.progress_indicator.currentFrame == 1)
          {
-            if(team == 1)
+            if(team == Team.SECOND)
             {
                this.progress_indicator.team_1_progress.text = text;
                this.progress_indicator.capture_progress_bar_team_1.value = value;
@@ -2118,7 +2133,7 @@ package
          }
          else if(this.progress_indicator.currentFrame == 3)
          {
-            if(team == 1)
+            if(team == Team.SECOND)
             {
                this.progress_indicator.capture_progress_bar.percent = value;
                this.progress_indicator.team_1_progress.text = text;

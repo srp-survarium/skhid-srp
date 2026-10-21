@@ -23,9 +23,38 @@ package survarium.controls
    import survarium.data.ItemData;
    import survarium.data.ItemDescriptor;
    import survarium.data.LocalizationData;
+   import survarium.constants.ClaimReason;
+   import survarium.constants.CommentKind;
+   import survarium.constants.Compliment;
+   import survarium.constants.MatchResult;
+   import survarium.constants.PremiumState;
+   import survarium.constants.VoucherType;
    
    public class VictoryScreen extends MovieClip
    {
+      
+      // The score icons' frames (set_score_value); the reputation of faction n is SCORE_ICON_REPUTATION_BASE + n.
+      private static const SCORE_ICON_MONEY:int = 1;
+      
+      private static const SCORE_ICON_EXPERIENCE:int = 4;
+      
+      private static const SCORE_ICON_REPUTATION_BASE:int = 5;
+      
+      private static const SCORE_ICON_RATING:int = 10;
+      
+      // The best players' title icons' frames (set_title_value): titles 0..3 of the results (docs/notes/results.md).
+      private static const TITLE_ICON_BEST_PLAYER:int = 1;
+      
+      private static const TITLE_ICON_SHOOTER:int = 2;
+      
+      private static const TITLE_ICON_SUPPORT:int = 3;
+      
+      private static const TITLE_ICON_EXPLORER:int = 4;
+      
+      // A premium account's share of the match rewards, and the bonus shown for it.
+      private static const PREMIUM_MULTIPLIER:Number = 1.5;
+      
+      private static const PREMIUM_BONUS_PERCENT:int = 50;
       
       public var team1_ponts:MovieClip;
       
@@ -313,7 +342,7 @@ package survarium.controls
          {
             return;
          }
-         if(e.buttonIdx == 1)
+         if(e.buttonIdx == MouseEventEx.RIGHT_BUTTON)
          {
             button = e.target as Button;
             if(!button || !button.data || button.data.name == PlayerInfo.nickname)
@@ -355,32 +384,32 @@ package survarium.controls
             nickname:_data.name,
             click_function:this.flagPlayer,
             callBack:true,
-            index:1,
-            subIndex:1
+            index:CommentKind.CLAIM,
+            subIndex:ClaimReason.BOT_OR_CHEATER
          });
          subOptions.push({
             name:LocalizationData.getName("swearing_claim"),
             nickname:_data.name,
             click_function:this.flagPlayer,
             callBack:true,
-            index:1,
-            subIndex:2
+            index:CommentKind.CLAIM,
+            subIndex:ClaimReason.SWEARING
          });
          subOptions.push({
             name:LocalizationData.getName("non_sport_behavior_claim"),
             nickname:_data.name,
             click_function:this.flagPlayer,
             callBack:true,
-            index:1,
-            subIndex:3
+            index:CommentKind.CLAIM,
+            subIndex:ClaimReason.NON_SPORT_BEHAVIOR
          });
          subOptions.push({
             name:LocalizationData.getName("account_trading_claim"),
             nickname:_data.name,
             click_function:this.flagPlayer,
             callBack:true,
-            index:1,
-            subIndex:4
+            index:CommentKind.CLAIM,
+            subIndex:ClaimReason.ACCOUNT_TRADING
          });
          var subOptions2:Array = [];
          subOptions2.push({
@@ -388,24 +417,24 @@ package survarium.controls
             nickname:_data.name,
             click_function:this.flagPlayer,
             callBack:true,
-            index:2,
-            subIndex:1
+            index:CommentKind.COMPLIMENT,
+            subIndex:Compliment.FRIENDLY_USER
          });
          subOptions2.push({
             name:LocalizationData.getName("good_player_compliment"),
             nickname:_data.name,
             click_function:this.flagPlayer,
             callBack:true,
-            index:2,
-            subIndex:2
+            index:CommentKind.COMPLIMENT,
+            subIndex:Compliment.GOOD_PLAYER
          });
          subOptions2.push({
             name:LocalizationData.getName("born_leader_compliment"),
             nickname:_data.name,
             click_function:this.flagPlayer,
             callBack:true,
-            index:2,
-            subIndex:3
+            index:CommentKind.COMPLIMENT,
+            subIndex:Compliment.BORN_LEADER
          });
          arr.push({
             name:LocalizationData.getName("claim_player"),
@@ -457,7 +486,7 @@ package survarium.controls
          {
             return;
          }
-         var itemVoucherId:int = (PlayerInfo.getVoucherId(1));
+         var itemVoucherId:int = (PlayerInfo.getVoucherId(VoucherType.DROP_CARD));
          this.progressIndicator.gotoAndPlay(1);
          this.searchIcon.visible = false;
          _cardAsked = this._match_id;
@@ -680,7 +709,7 @@ package survarium.controls
          this.treasureItem.visible = false;
          this.droppedItem.visible = false;
          this.treasureItem.itemSlot.data = null;
-         var mapsCount:uint = PlayerInfo.getVoucherCount(1);
+         var mapsCount:uint = PlayerInfo.getVoucherCount(VoucherType.DROP_CARD);
          this.treasureCount.text = "x" + mapsCount.toString();
          this.treasureItem.mouseEnabled = mapsCount > 0;
          this.treasureItem.mouseChildren = this.treasureItem.mouseEnabled;
@@ -717,7 +746,7 @@ package survarium.controls
          trace("updateVoucherCount",this.treasureItem.itemSlot.data);
          if(this.treasureItem.itemSlot.data == null)
          {
-            mapsCount = PlayerInfo.getVoucherCount(1);
+            mapsCount = PlayerInfo.getVoucherCount(VoucherType.DROP_CARD);
             this.treasureCount.text = "x" + mapsCount.toString();
             if(!this._cache && !_cardsDone[this._match_id] && (!this._data || this._data && this._data.allow_drop_card != false))
             {
@@ -757,8 +786,8 @@ package survarium.controls
          {
             this._data.statistics_reputation = {};
          }
-         var isPremium:Boolean = PlayerInfo.premiumState != 0;
-         var premiumMultilplier:Number = !isPremium ? 0 : 1.5;
+         var isPremium:Boolean = PlayerInfo.premiumState != PremiumState.NONE;
+         var premiumMultilplier:Number = !isPremium ? 0 : PREMIUM_MULTIPLIER;
          var reputation:Object;
          trace("updatePremiumState",this._data.statistics_reputation,this._data.statistics_reputation_faction);
          this.premium_button.label = LocalizationData.getName("activate_premium").toUpperCase();
@@ -776,7 +805,7 @@ package survarium.controls
          var i:uint = 0;
          var statistics_reputation:int = int(reputation.match_rep) + int(reputation.quest_rep) + int(reputation.loyalty_bonus_rep) + int(reputation.premium_bonus_rep) + int(reputation.premium_items_rep);
          var target:MovieClip = i == 0 ? this.score_container.score_1 : this.score_container.score_2;
-         this.set_score_value(target,statistics_reputation,statistics_reputation * premiumMultilplier,reputation.faction_id + 5);
+         this.set_score_value(target,statistics_reputation,statistics_reputation * premiumMultilplier,reputation.faction_id + SCORE_ICON_REPUTATION_BASE);
          hintStr = "";
          hintStr = this.addToHint(hintStr,reputation.match_rep,"rep_reward_match");
          hintStr = this.addToHint(hintStr,reputation.quest_rep,"rep_reward_quest");
@@ -802,7 +831,7 @@ package survarium.controls
          this.score_container.score_4.hintArea.data = {name:hintStr};
          var statistics_rating:int = (this._data.statistics_rating.elo_after);
          this._data.rating = statistics_rating;
-         this.set_score_value(this.score_container.score_4,statistics_rating,statistics_rating + statistics_rating_delta,10);
+         this.set_score_value(this.score_container.score_4,statistics_rating,statistics_rating + statistics_rating_delta,SCORE_ICON_RATING);
          hintStr = "";
          hintStr = this.addToHint(hintStr,this._data.statistics_exp.match_exp,"exp_reward_match");
          hintStr = this.addToHint(hintStr,this._data.statistics_exp.premium_bonus_exp,"exp_reward_premium");
@@ -815,8 +844,8 @@ package survarium.controls
          var totalexp:int = this.updateTotalScore(this._data.statistics_exp,"exp");
          this.totalScore.section_3.scoreTotal.exp.text = totalexp.toString();
          reputation.statistics_reputation = totalrep;
-         this.set_score_value(target,totalrep,totalrep * premiumMultilplier,reputation.faction_id + 5);
-         this.set_score_value(this.score_container.score_0,totalexp,totalexp * premiumMultilplier,4);
+         this.set_score_value(target,totalrep,totalrep * premiumMultilplier,reputation.faction_id + SCORE_ICON_REPUTATION_BASE);
+         this.set_score_value(this.score_container.score_0,totalexp,totalexp * premiumMultilplier,SCORE_ICON_EXPERIENCE);
          this._data.exp = totalexp;
          this.totalScore.section_2.scorePremium.value.text = premiumMultilplier ? "+" + String((premiumMultilplier - 1) * 100) + "%" : "";
          this.updateScroreLayout();
@@ -824,7 +853,7 @@ package survarium.controls
       
       private function updateMoney() : void
       {
-         var premiumMultilplier:Number = PlayerInfo.premiumState != 0 ? 0 : 1.5;
+         var premiumMultilplier:Number = PlayerInfo.premiumState != PremiumState.NONE ? 0 : PREMIUM_MULTIPLIER;
          var hintStr:String = "";
          trace("updateMoney",this._data);
          if(!this._data)
@@ -849,7 +878,7 @@ package survarium.controls
          var totalmoney:int = this.updateTotalScore(this._data.statistics_money,"money");
          this.totalScore.section_3.scoreTotal.money.text = (totalmoney + wasted).toString();
          this._data.money = totalmoney + wasted;
-         this.set_score_value(this.score_container.score_3,totalmoney + wasted,(totalmoney + wasted) * premiumMultilplier,1);
+         this.set_score_value(this.score_container.score_3,totalmoney + wasted,(totalmoney + wasted) * premiumMultilplier,SCORE_ICON_MONEY);
          this.totalScore.section_3.scoreWasted.money.text = wasted.toString();
          this.totalScore.section_3.wastedRepair.value.text = this._autorepair_money;
          this.totalScore.section_3.wastedAmmo.value.text = this._autobuy_money_ammo;
@@ -1026,7 +1055,7 @@ package survarium.controls
          this.totalScore.section_2.scorePremium[key].text = value.toString();
          this.updateLocalScore("premium_items",this.totalScore.section_2.scoreEquipment,"premium_items_bonus");
          this.updateLocalScore("daily",this.totalScore.section_2.scoreDaily,"daily_bonus");
-         var bonus:Array = [50,50,50];
+         var bonus:Array = [PREMIUM_BONUS_PERCENT,PREMIUM_BONUS_PERCENT,PREMIUM_BONUS_PERCENT];
          bonus.length = this._profilesNames ? this._profilesNames.length : 1;
          this.updateLocalScore("premium",this.totalScore.section_2.scorePremium,null,bonus);
          return totalValue;
@@ -1155,7 +1184,7 @@ package survarium.controls
          {
             clip.textField.text = value.toString();
          }
-         if(icon == 10 && value_prem - value && value_prem)
+         if(icon == SCORE_ICON_RATING && value_prem - value && value_prem)
          {
             clip.textField.text += " (" + (value_prem - value > 0 ? "+" : "") + String(value_prem - value) + ")";
          }
@@ -1233,7 +1262,7 @@ package survarium.controls
          }
          trace("setDataVS",this.treasureItem.alpha,value.allow_drop_card);
          _data = value;
-         _victory = value.match_result > 2;
+         _victory = value.match_result > MatchResult.DEFEAT_MAX;
          _match_id = value.match_id;
          if(_cardsDone[this._match_id])
          {
@@ -1257,7 +1286,7 @@ package survarium.controls
          var startX:uint = 0;
          if(value.title_0_player)
          {
-            set_title_value(this.best_players_container.title0,1,value.title_0_player,value.title_0_value_0);
+            set_title_value(this.best_players_container.title0,TITLE_ICON_BEST_PLAYER,value.title_0_player,value.title_0_value_0);
             this.best_players_container.title0.x = posX + this.best_players_container.title0.shift;
             posX += this.best_players_container.title0.size + this.best_players_container.title0.shift;
             this.best_players_container.title0.visible = true;
@@ -1269,7 +1298,7 @@ package survarium.controls
          }
          if(value.title_1_player)
          {
-            set_title_value(this.best_players_container.title1,2,value.title_1_player,value.title_1_value_0,value.title_1_value_1);
+            set_title_value(this.best_players_container.title1,TITLE_ICON_SHOOTER,value.title_1_player,value.title_1_value_0,value.title_1_value_1);
             this.best_players_container.title1.x = posX + this.best_players_container.title1.shift;
             posX += this.best_players_container.title1.size + this.best_players_container.title1.shift;
             this.best_players_container.title1.visible = true;
@@ -1281,7 +1310,7 @@ package survarium.controls
          }
          if(value.title_2_player)
          {
-            set_title_value(this.best_players_container.title2,3,value.title_2_player,value.title_2_value_0,value.title_2_value_1);
+            set_title_value(this.best_players_container.title2,TITLE_ICON_SUPPORT,value.title_2_player,value.title_2_value_0,value.title_2_value_1);
             this.best_players_container.title2.x = posX + this.best_players_container.title2.shift;
             posX += this.best_players_container.title2.size + this.best_players_container.title2.shift;
             this.best_players_container.title2.visible = true;
@@ -1293,7 +1322,7 @@ package survarium.controls
          }
          if(value.title_3_player)
          {
-            set_title_value(this.best_players_container.title3,4,value.title_3_player,value.title_3_value_0,value.title_3_value_1);
+            set_title_value(this.best_players_container.title3,TITLE_ICON_EXPLORER,value.title_3_player,value.title_3_value_0,value.title_3_value_1);
             this.best_players_container.title3.x = posX + this.best_players_container.title3.shift;
             posX += this.best_players_container.title3.size + this.best_players_container.title3.shift;
             this.best_players_container.title3.visible = true;

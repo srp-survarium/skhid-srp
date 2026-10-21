@@ -10,6 +10,7 @@ package survarium.buttons
    import scaleform.clik.controls.Button;
    import scaleform.clik.controls.ListItemRenderer;
    import scaleform.clik.events.ButtonEvent;
+   import survarium.constants.ImportantMessageType;
    
    public class ButtonNotificationLog extends ListItemRenderer
    {
@@ -45,9 +46,9 @@ package survarium.buttons
          return this.background ? this.background.height : super.height;
       }
       
-      override public function set height(param1:Number) : void
+      override public function set height(value:Number) : void
       {
-         super.height = param1;
+         super.height = value;
       }
       
       public function clearTimer() : void
@@ -97,12 +98,12 @@ package survarium.buttons
          addEventListener(ButtonEvent.CLICK,this.onClicked,false,0,true);
       }
       
-      private function onClicked(param1:Event) : void
+      private function onClicked(event:Event) : void
       {
-         trace("onClicked::",param1.target);
-         if(_data && _data.type == 2)
+         trace("onClicked::",event.target);
+         if(_data && _data.type == ImportantMessageType.REPUTATION_LEVEL)
          {
-            if(param1.target == this)
+            if(event.target == this)
             {
                if(this._ignoreClick == true)
                {
@@ -120,7 +121,7 @@ package survarium.buttons
          }
       }
       
-      private function onCloseEvent(param1:Event = null) : void
+      private function onCloseEvent(event:Event = null) : void
       {
          dispatchEvent(new Event(Event.CLOSE));
       }
@@ -140,9 +141,9 @@ package survarium.buttons
          return super.data;
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         super.data = param1;
+         super.data = value;
          if(_data)
          {
             if(!this._hideTimer.hasEventListener(TimerEvent.TIMER_COMPLETE))

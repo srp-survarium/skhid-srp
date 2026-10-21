@@ -5,9 +5,9 @@ package
    public dynamic class square_btn_gray extends BitmapData
    {
       
-      public function square_btn_gray(param1:int = 37, param2:int = 38)
+      public function square_btn_gray(bitmapWidth:int = 37, bitmapHeight:int = 38)
       {
-         super(param1,param2);
+         super(bitmapWidth,bitmapHeight);
       }
    }
 }

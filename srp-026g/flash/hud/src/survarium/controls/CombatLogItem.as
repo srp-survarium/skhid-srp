@@ -4,6 +4,7 @@ package survarium.controls
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
    import survarium.constants.Colors;
+   import survarium.constants.CombatAction;
    
    public class CombatLogItem extends MovieClip
    {
@@ -50,11 +51,11 @@ package survarium.controls
          {
             this.object_icon.gotoAndStop(data.object_icon + 1);
          }
-         if(_action_id == 1)
+         if(_action_id == CombatAction.KILL)
          {
             this.victim_name.text = data.victim_name;
          }
-         if(_action_id == 1 || _action_id == 2)
+         if(_action_id == CombatAction.KILL || _action_id == CombatAction.SUICIDE)
          {
             this.extra_icon.gotoAndStop(data.extra_icon + 1);
             this.mastery_icon.gotoAndStop(data.mastery_icon);
@@ -81,7 +82,7 @@ package survarium.controls
             this.extra_icon.x = x;
             x += this.extra_icon.width + dx;
          }
-         if(this._data.action_id == 1)
+         if(this._data.action_id == CombatAction.KILL)
          {
             this.victim_name.textColor = this._colorCode[this._data.victim_team];
             this.victim_name.x = x;

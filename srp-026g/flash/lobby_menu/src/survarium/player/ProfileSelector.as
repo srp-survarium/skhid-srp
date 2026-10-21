@@ -10,6 +10,7 @@ package survarium.player
    import survarium.Util;
    import survarium.constants.Events;
    import survarium.data.LocalizationData;
+   import survarium.constants.ProfileState;
    
    public class ProfileSelector extends MovieClip
    {
@@ -36,19 +37,19 @@ package survarium.player
          return this._profiles[this._selectedProfile];
       }
       
-      public function getProfileData(param1:uint) : Object
+      public function getProfileData(value:uint) : Object
       {
-         return this._profiles[param1];
+         return this._profiles[value];
       }
       
-      public function selectProfile(param1:uint) : void
+      public function selectProfile(value:uint) : void
       {
-         _selectedProfile = param1;
-         trace("PS:selectProfile",param1,this.tabPage.selectedIndex);
+         _selectedProfile = value;
+         trace("PS:selectProfile",value,this.tabPage.selectedIndex);
          this.tabPage.removeEventListener(IndexEvent.INDEX_CHANGE,this.onProfileSelected);
-         if(this.tabPage.selectedIndex != param1)
+         if(this.tabPage.selectedIndex != value)
          {
-            this.tabPage.selectedIndex = param1;
+            this.tabPage.selectedIndex = value;
             this.tabPage.validateNow();
          }
          this.tabPage.addEventListener(IndexEvent.INDEX_CHANGE,this.onProfileSelected);
@@ -63,38 +64,38 @@ package survarium.player
          this.selectedTabGlow.x = this.tabPage.x + this.tabPage.selectedIndex * this.tabPage.buttonWidth - 51;
       }
       
-      public function setupProfiles(param1:Array) : void
+      public function setupProfiles(p:Array) : void
       {
-         _profiles = param1;
+         _profiles = p;
          trace("PL::setupProfiles",this._profiles);
-         var _loc2_:uint = 0;
-         var _loc3_:String;
-         while(_loc2_ < this._profiles.length)
+         var i:uint = 0;
+         var profileName:String;
+         while(i < this._profiles.length)
          {
-            this._profiles[_loc2_].index = _loc2_;
-            _loc3_ = "«" + this._profiles[_loc2_].name + "»";
-            if(this._profiles[_loc2_].state == 2)
+            this._profiles[i].index = i;
+            profileName = "«" + this._profiles[i].name + "»";
+            if(this._profiles[i].state == ProfileState.PREMIUM_ONLY)
             {
-               this._profiles[_loc2_].label = Util.styledChar(this._profiles[_loc2_].name,"highlight");
-               this._profiles[_loc2_].levelLabel = "";
-               this._profiles[_loc2_].tipText = LocalizationData.getName("premium_profile_hint");
+               this._profiles[i].label = Util.styledChar(this._profiles[i].name,"highlight");
+               this._profiles[i].levelLabel = "";
+               this._profiles[i].tipText = LocalizationData.getName("premium_profile_hint");
             }
             else
             {
-               this._profiles[_loc2_].levelLabel = this._profiles[_loc2_].state == 1 ? "" : LocalizationData.getName("clan_players_level_label") + " " + int(this._profiles[_loc2_].level).toString();
-               this._profiles[_loc2_].label = _loc3_;
-               if(this._profiles[_loc2_].state == 1 && this._profiles[_loc2_].hint_text)
+               this._profiles[i].levelLabel = this._profiles[i].state == ProfileState.INCOMPLETE ? "" : LocalizationData.getName("clan_players_level_label") + " " + int(this._profiles[i].level).toString();
+               this._profiles[i].label = profileName;
+               if(this._profiles[i].state == ProfileState.INCOMPLETE && this._profiles[i].hint_text)
                {
-                  this._profiles[_loc2_].tipText = this._profiles[_loc2_].hint_text;
+                  this._profiles[i].tipText = this._profiles[i].hint_text;
                }
                else
                {
-                  this._profiles[_loc2_].tipText = this._profiles[_loc2_].label + "\n" + Util.styledChar(LocalizationData.getName("player_equipment_level") + " " + int(this._profiles[_loc2_].level).toString(),"highlight");
+                  this._profiles[i].tipText = this._profiles[i].label + "\n" + Util.styledChar(LocalizationData.getName("player_equipment_level") + " " + int(this._profiles[i].level).toString(),"highlight");
                }
             }
-            this._profiles[_loc2_].editable = this.local;
-            trace("ProfileCreated",this._profiles[_loc2_].state);
-            _loc2_++;
+            this._profiles[i].editable = this.local;
+            trace("ProfileCreated",this._profiles[i].state);
+            i++;
          }
          this.tabPage.removeEventListener(IndexEvent.INDEX_CHANGE,this.onProfileSelected);
          this.tabPage.dataProvider = new DataProvider(this._profiles);
@@ -102,11 +103,11 @@ package survarium.player
          this.tabPage.addEventListener(IndexEvent.INDEX_CHANGE,this.onProfileSelected);
       }
       
-      protected function acceptCreateProfie(param1:TextField = null) : void
+      protected function acceptCreateProfie(value:TextField = null) : void
       {
       }
       
-      protected function onProfileSelected(param1:Event) : void
+      protected function onProfileSelected(e:Event) : void
       {
          trace("PS:onProfileSelected",this.tabPage.selectedIndex);
          if(this.tabPage.selectedIndex != -1)

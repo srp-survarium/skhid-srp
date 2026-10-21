@@ -17,55 +17,55 @@ package survarium.controls
       }
       
       [Inspectable(name="tileRenderer",defaultValue="")]
-      public function set tooltipRendererName(param1:String) : void
+      public function set tooltipRendererName(value:String) : void
       {
-         if(param1 == "")
+         if(value == "")
          {
             return;
          }
-         var _loc2_:Class = getDefinitionByName(param1) as Class;
-         if(_loc2_ != null)
+         var tileClass:Class = getDefinitionByName(value) as Class;
+         if(tileClass != null)
          {
-            this.setTile(new _loc2_());
+            this.setTile(new tileClass());
          }
          else
          {
-            trace("Error: " + this + ", The class " + param1 + " cannot be found in your library. Please ensure it is there.");
+            trace("Error: " + this + ", The class " + value + " cannot be found in your library. Please ensure it is there.");
          }
       }
       
-      override public function set width(param1:Number) : void
+      override public function set width(value:Number) : void
       {
-         super.width = param1;
+         super.width = value;
          this.redraw();
       }
       
-      override public function set height(param1:Number) : void
+      override public function set height(value:Number) : void
       {
-         super.height = param1;
+         super.height = value;
          this.redraw();
       }
       
-      public function setTile(param1:BitmapData) : void
+      public function setTile(tile:BitmapData) : void
       {
-         _tile = param1;
+         _tile = tile;
          this.redraw();
       }
       
       private function redraw() : void
       {
-         var _loc1_:Graphics;
-         var _loc2_:Matrix;
+         var g:Graphics;
+         var matrix:Matrix;
          if(this._tile)
          {
-            _loc1_ = this.graphics;
-            _loc1_.clear();
-            _loc2_ = new Matrix();
-            _loc2_.scale(100 / width,100 / height);
+            g = this.graphics;
+            g.clear();
+            matrix = new Matrix();
+            matrix.scale(100 / width,100 / height);
             trace("resize::",width,height);
-            _loc1_.beginBitmapFill(this._tile,_loc2_,true,true);
-            _loc1_.drawRect(0,0,100,100);
-            _loc1_.endFill();
+            g.beginBitmapFill(this._tile,matrix,true,true);
+            g.drawRect(0,0,100,100);
+            g.endFill();
          }
       }
    }

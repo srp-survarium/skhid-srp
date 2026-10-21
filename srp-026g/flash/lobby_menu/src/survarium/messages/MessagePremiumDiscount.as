@@ -14,9 +14,13 @@ package survarium.messages
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
    import survarium.data.LocalizationData;
+   import survarium.constants.MessageId;
    
    public class MessagePremiumDiscount extends MessageAccept
    {
+      
+      // meaning unknown: what accept_premium_with_discount gets for both its arguments when the offer is cancelled
+      private static const NO_OFFER:int = -1;
       
       public var dropDownlist:DropdownMenu;
       
@@ -186,7 +190,7 @@ package survarium.messages
             label_ok:LocalizationData.getName("btn_add_premium_message"),
             label_cancel:LocalizationData.getName("cancel")
          };
-         Message.showMessage("apply",object,true,0,true);
+         Message.showMessage("apply",object,true,MessageId.AUTO,true);
       }
       
       protected function goToStore() : void
@@ -194,11 +198,11 @@ package survarium.messages
          MessageMoneyExchange.buyGold();
       }
       
-      override protected function onMessageCancel(param0:ButtonEvent = null) : void
+      override protected function onMessageCancel(event:ButtonEvent = null) : void
       {
-         super.onMessageCancel(param0);
-         trace("accept_premium_with_discount:",-1,-1);
-         ExternalInterface.call("accept_premium_with_discount",-1,-1);
+         super.onMessageCancel(event);
+         trace("accept_premium_with_discount:",NO_OFFER,NO_OFFER);
+         ExternalInterface.call("accept_premium_with_discount",NO_OFFER,NO_OFFER);
       }
       
       override protected function onMessageAccept(event:ButtonEvent = null) : void

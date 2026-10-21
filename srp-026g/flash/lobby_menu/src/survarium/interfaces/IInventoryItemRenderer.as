@@ -5,7 +5,7 @@ package survarium.interfaces
    public interface IInventoryItemRenderer extends IUIComponent
    {
       
-      function hover(param1:Boolean = true) : void;
+      function hover(isHovered:Boolean = true) : void;
       
       function startItemDrag() : void;
    }

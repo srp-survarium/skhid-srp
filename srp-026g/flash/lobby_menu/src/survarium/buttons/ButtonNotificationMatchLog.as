@@ -7,6 +7,7 @@ package survarium.buttons
    import scaleform.clik.events.ButtonEvent;
    import survarium.constants.Colors;
    import survarium.data.LocalizationData;
+   import survarium.constants.MatchResult;
    
    public class ButtonNotificationMatchLog extends ButtonNotificationLog
    {
@@ -32,10 +33,10 @@ package survarium.buttons
          addEventListener(ButtonEvent.CLICK,this.onClicked,false,0,true);
       }
       
-      private function onClicked(param1:Event) : void
+      private function onClicked(event:Event) : void
       {
-         trace("onClicked::",param1.target);
-         if(param1.target == this)
+         trace("onClicked::",event.target);
+         if(event.target == this)
          {
             if(_ignoreClick == true)
             {
@@ -54,25 +55,25 @@ package survarium.buttons
       
       override protected function updateText() : void
       {
-         var _loc1_:Array;
+         var rewards:Array;
          super.updateText();
          if(_data)
          {
             this.rewardBar.mouseEnabled = this.line.mouseEnabled = false;
             this.rewardBar.mouseChildren = false;
             this.rewardBar.spacing = 5;
-            textField.text = LocalizationData.getName(_data.match_result > 2 ? "victory" : "defeat");
-            textField.textColor = _data.match_result > 2 ? Colors.GREEN : Colors.RED;
+            textField.text = LocalizationData.getName(_data.match_result > MatchResult.DEFEAT_MAX ? "victory" : "defeat");
+            textField.textColor = _data.match_result > MatchResult.DEFEAT_MAX ? Colors.GREEN : Colors.RED;
             this.textFieldLabel.text = "\"" + _data.map_name + "\"";
             this.textFieldTime.text = _data.time;
             this.textFieldResult.text = _data.result;
-            _loc1_ = _data.reward as Array;
-            trace("ButtonNotificationMatchLog::",_data.map_name,_loc1_);
-            if(_loc1_)
+            rewards = _data.reward as Array;
+            trace("ButtonNotificationMatchLog::",_data.map_name,rewards);
+            if(rewards)
             {
                this.rewardBar.visible = true;
                this.rewardBar.setMaxFit(true);
-               this.rewardBar.dataProvider = new DataProvider(_loc1_);
+               this.rewardBar.dataProvider = new DataProvider(rewards);
                this.rewardBar.validateNow();
             }
             else

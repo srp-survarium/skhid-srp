@@ -3,6 +3,7 @@ package survarium
    import avmplus.getQualifiedClassName;
    import flash.display.DisplayObject;
    import flash.display.Stage;
+   import survarium.constants.CharCode;
    
    public class Util
    {
@@ -14,240 +15,240 @@ package survarium
          super();
       }
       
-      public static function getTimeString(param1:int) : String
+      public static function getTimeString(value:int) : String
       {
-         var _loc2_:int = int(param1 / 60);
-         var _loc3_:int = param1 % 60;
-         var _loc4_:String = _loc2_ < 10 ? "0" + _loc2_.toString() : _loc2_.toString();
-         var _loc5_:String = _loc3_ < 10 ? "0" + _loc3_.toString() : _loc3_.toString();
-         return _loc4_ + ":" + _loc5_;
+         var minutes:int = int(value / 60);
+         var seconds:int = value % 60;
+         var st_min:String = minutes < 10 ? "0" + minutes.toString() : minutes.toString();
+         var st_sec:String = seconds < 10 ? "0" + seconds.toString() : seconds.toString();
+         return st_min + ":" + st_sec;
       }
       
-      public static function getTimeStringMinutes(param1:int) : String
+      public static function getTimeStringMinutes(value:int) : String
       {
-         var _loc2_:int = int(param1 / 60);
-         var _loc3_:int = param1 % 60;
-         var _loc4_:String = _loc3_ < 10 ? "0" + _loc3_.toString() : _loc3_.toString();
-         var _loc5_:String = _loc2_ < 10 ? "0" + _loc2_.toString() : _loc2_.toString();
-         return _loc5_ + ":" + _loc4_;
+         var hours:int = int(value / 60);
+         var minutes:int = value % 60;
+         var st_min:String = minutes < 10 ? "0" + minutes.toString() : minutes.toString();
+         var st_hours:String = hours < 10 ? "0" + hours.toString() : hours.toString();
+         return st_hours + ":" + st_min;
       }
       
-      public static function getTimeStringHours(param1:int) : String
+      public static function getTimeStringHours(value:int) : String
       {
-         var _loc2_:int = int(param1 / 60);
-         _loc2_ %= 24;
-         var _loc3_:int = param1 % 60;
-         var _loc4_:String = _loc3_ < 10 ? "0" + _loc3_.toString() : _loc3_.toString();
-         var _loc5_:String = _loc2_ < 10 ? "0" + _loc2_.toString() : _loc2_.toString();
-         return _loc5_ + ":" + _loc4_;
+         var hours:int = int(value / 60);
+         hours %= 24;
+         var minutes:int = value % 60;
+         var st_min:String = minutes < 10 ? "0" + minutes.toString() : minutes.toString();
+         var st_hours:String = hours < 10 ? "0" + hours.toString() : hours.toString();
+         return st_hours + ":" + st_min;
       }
       
-      public static function getColor(param1:uint, param2:uint, param3:uint) : uint
+      public static function getColor(r:uint, g:uint, b:uint) : uint
       {
-         var _loc4_:uint = (param1 << 16 | param2 << 8 | param3);
-         return _loc4_;
+         var color:uint = (r << 16 | g << 8 | b);
+         return color;
       }
       
-      public static function styledChar(param1:String, param2:String) : String
+      public static function styledChar(value:String, style:String) : String
       {
-         return "<" + param2 + ">" + param1 + "</" + param2 + ">";
+         return "<" + style + ">" + value + "</" + style + ">";
       }
       
-      public static function getIntString(param1:int) : String
+      public static function getIntString(value:int) : String
       {
-         var _loc2_:String;
-         var _loc3_:Number = param1;
-         if(param1 < 10000)
+         var string:String;
+         var number:Number = value;
+         if(value < 10000)
          {
-            return String(param1);
+            return String(value);
          }
-         if(param1 < 1000000)
+         if(value < 1000000)
          {
-            _loc2_ = (_loc3_ = _loc3_ / 1000).toString();
+            string = (number = number / 1000).toString();
          }
          else
          {
-            _loc2_ = (_loc3_ = _loc3_ / 1000000).toString();
+            string = (number = number / 1000000).toString();
          }
-         if(_loc3_ != int(_loc3_) && _loc2_.indexOf(".") < 3)
+         if(number != int(number) && string.indexOf(".") < 3)
          {
-            _loc2_ = _loc2_.substr(0,4);
+            string = string.substr(0,4);
          }
          else
          {
-            _loc2_ = _loc2_.substr(0,3);
+            string = string.substr(0,3);
          }
-         if(param1 < 1000000)
+         if(value < 1000000)
          {
-            _loc2_ += "k";
+            string += "k";
          }
          else
          {
-            _loc2_ += "m";
+            string += "m";
          }
-         return _loc2_;
+         return string;
       }
       
-      public static function getNumberString(param1:Number) : String
+      public static function getNumberString(value:Number) : String
       {
-         var _loc2_:String;
-         var _loc3_:Number = param1;
-         if(param1 < 10000)
+         var string:String;
+         var number:Number = value;
+         if(value < 10000)
          {
-            if(_loc3_ == int(_loc3_))
+            if(number == int(number))
             {
-               return String(_loc3_);
+               return String(number);
             }
             else
             {
-               return String(int(_loc3_ / 0.01) * 0.01);
+               return String(int(number / 0.01) * 0.01);
             }
          }
-         else if(param1 < 1000000)
+         else if(value < 1000000)
          {
-            _loc2_ = (_loc3_ = _loc3_ / 1000).toString();
+            string = (number = number / 1000).toString();
          }
          else
          {
-            _loc2_ = (_loc3_ = _loc3_ / 1000000).toString();
+            string = (number = number / 1000000).toString();
          }
-         if(_loc3_ != int(_loc3_) && _loc2_.indexOf(".") < 3)
+         if(number != int(number) && string.indexOf(".") < 3)
          {
-            _loc2_ = _loc2_.substr(0,4);
+            string = string.substr(0,4);
          }
          else
          {
-            _loc2_ = _loc2_.substr(0,3);
+            string = string.substr(0,3);
          }
-         if(param1 < 1000000)
+         if(value < 1000000)
          {
-            _loc2_ += "k";
+            string += "k";
          }
          else
          {
-            _loc2_ += "m";
+            string += "m";
          }
-         return _loc2_;
+         return string;
       }
       
-      public static function getHexString(param1:uint) : String
+      public static function getHexString(value:uint) : String
       {
-         var _loc2_:String = param1.toString(16);
-         var _loc3_:uint = (_loc2_.length);
-         var _loc4_:int;
-         if(_loc3_ < 6)
+         var _finalString:String = value.toString(16);
+         var _len:uint = (_finalString.length);
+         var i:int;
+         if(_len < 6)
          {
-            _loc4_ = (_loc3_);
-            while(_loc4_ < 6)
+            i = (_len);
+            while(i < 6)
             {
-               _loc2_ = "0" + _loc2_;
-               _loc4_++;
+               _finalString = "0" + _finalString;
+               i++;
             }
          }
-         return _loc2_;
+         return _finalString;
       }
       
-      public static function stringToNumber(param1:String) : Number
+      public static function stringToNumber(value:String) : Number
       {
-         var _loc2_:String = "";
-         var _loc3_:uint = (param1.length);
-         var _loc4_:int = 0;
-         var _loc5_:int;
-         while(_loc4_ < _loc3_)
+         var _finalString:String = "";
+         var _len:uint = (value.length);
+         var i:int = 0;
+         var charCode:int;
+         while(i < _len)
          {
-            _loc5_ = param1.charCodeAt(_loc4_);
-            if(_loc5_ > 47 && _loc5_ < 58 || _loc5_ == 46)
+            charCode = value.charCodeAt(i);
+            if(charCode > CharCode.SLASH && charCode < CharCode.COLON || charCode == CharCode.PERIOD)
             {
-               _loc2_ += param1.charAt(_loc4_);
+               _finalString += value.charAt(i);
             }
-            _loc4_++;
+            i++;
          }
-         return Number(_loc2_);
+         return Number(_finalString);
       }
       
-      public static function getZeroString(param1:Number, param2:uint = 2) : String
+      public static function getZeroString(value:Number, length:uint = 2) : String
       {
-         var _loc3_:String = param1.toString();
-         var _loc4_:uint = (_loc3_.length);
-         var _loc5_:int;
-         if(_loc4_ < param2)
+         var _finalString:String = value.toString();
+         var _len:uint = (_finalString.length);
+         var i:int;
+         if(_len < length)
          {
-            _loc5_ = (_loc4_);
-            while(_loc5_ < param2)
+            i = (_len);
+            while(i < length)
             {
-               _loc3_ = "0" + _loc3_;
-               _loc5_++;
+               _finalString = "0" + _finalString;
+               i++;
             }
          }
-         return _loc3_;
+         return _finalString;
       }
       
-      public static function getMoneyString(param1:Number) : String
+      public static function getMoneyString(value:Number) : String
       {
-         var _loc2_:String = param1.toString();
-         var _loc3_:uint = (_loc2_.length);
-         var _loc4_:int = (_loc3_);
-         while(_loc4_ > 0)
+         var _finalString:String = value.toString();
+         var _len:uint = (_finalString.length);
+         var i:int = (_len);
+         while(i > 0)
          {
-            _loc2_ = _loc2_.slice(0,_loc4_) + " " + _loc2_.slice(_loc4_,_loc2_.length);
-            _loc4_ -= 3;
+            _finalString = _finalString.slice(0,i) + " " + _finalString.slice(i,_finalString.length);
+            i -= 3;
          }
-         return _loc2_;
+         return _finalString;
       }
       
-      public static function getParentStack(param1:DisplayObject) : String
+      public static function getParentStack(value:DisplayObject) : String
       {
-         if(!param1)
+         if(!value)
          {
             return "null";
          }
-         var _loc2_:DisplayObject = param1;
-         var _loc3_:String = param1.toString();
-         while(_loc2_)
+         var target:DisplayObject = value;
+         var stack:String = value.toString();
+         while(target)
          {
-            if(!_loc2_.parent || _loc2_ is Stage)
+            if(!target.parent || target is Stage)
             {
-               return _loc3_;
+               return stack;
             }
-            _loc2_ = _loc2_.parent;
-            _loc3_ += ":" + _loc2_.toString() + "|" + getQualifiedClassName(_loc2_);
+            target = target.parent;
+            stack += ":" + target.toString() + "|" + getQualifiedClassName(target);
          }
-         return _loc3_;
+         return stack;
       }
       
-      public static function logObject(param1:Object) : void
+      public static function logObject(value:Object) : void
       {
-         var _loc2_:String;
-         for(_loc2_ in param1)
+         var str:String;
+         for(str in value)
          {
-            trace("object prop::",_loc2_,param1[_loc2_]);
+            trace("object prop::",str,value[str]);
          }
          trace("\n");
       }
       
-      public static function traceRelocate(param1:Array) : void
+      public static function traceRelocate(items:Array) : void
       {
-         trace("traceRelocate",param1.length);
-         var _loc2_:int = 0;
-         while(_loc2_ < param1.length)
+         trace("traceRelocate",items.length);
+         var i:int = 0;
+         while(i < items.length)
          {
-            trace("relocateItem:",param1[_loc2_].profile,param1[_loc2_].id,param1[_loc2_].dict_id,"sr:",param1[_loc2_].sourceSlot,"tg:",param1[_loc2_].targetSlot,"cnt:",param1[_loc2_].count);
-            _loc2_++;
+            trace("relocateItem:",items[i].profile,items[i].id,items[i].dict_id,"sr:",items[i].sourceSlot,"tg:",items[i].targetSlot,"cnt:",items[i].count);
+            i++;
          }
       }
       
-      public static function getRomanNumeral(param1:uint) : String
+      public static function getRomanNumeral(value:uint) : String
       {
-         var _loc2_:String = param1.toString();
-         var _loc3_:String = "";
-         var _loc4_:uint = (_loc2_.length);
-         var _loc5_:uint = 0;
-         while(_loc5_ < _loc4_)
+         var arabic:String = value.toString();
+         var roman:String = "";
+         var l:uint = (arabic.length);
+         var i:uint = 0;
+         while(i < l)
          {
-            _loc3_ = decimalPlaces[_loc5_][int(_loc2_.charAt(_loc4_ - _loc5_ - 1))] + _loc3_;
-            _loc5_++;
+            roman = decimalPlaces[i][int(arabic.charAt(l - i - 1))] + roman;
+            i++;
          }
-         return _loc3_;
+         return roman;
       }
    }
 }

@@ -58,7 +58,7 @@ package survarium.buttons
          this.btnCancel.addEventListener(ButtonEvent.CLICK,this.onCancelClicked);
       }
       
-      private function onCancelClicked(param1:ButtonEvent) : void
+      private function onCancelClicked(event:ButtonEvent) : void
       {
          ExternalInterface.call("cancel_player_clan_ivite",_data.id);
       }

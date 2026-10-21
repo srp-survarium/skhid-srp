@@ -7,6 +7,7 @@ package survarium.buttons
    import flash.text.TextFieldAutoSize;
    import scaleform.clik.controls.ListItemRenderer;
    import survarium.constants.Colors;
+   import survarium.constants.ModificationState;
    
    public class ModificatorListRenderer extends ListItemRenderer
    {
@@ -22,38 +23,38 @@ package survarium.buttons
       public function ModificatorListRenderer()
       {
          super();
-         var _loc1_:StyleSheet = new StyleSheet();
-         var _loc2_:Object;
-         _loc2_ = new Object();
-         _loc2_.color = "#b3ea97";
-         _loc1_.setStyle("current",_loc2_);
-         _loc2_ = new Object();
-         _loc2_.color = "#D79342";
-         _loc1_.setStyle("yellow",_loc2_);
-         _loc2_ = new Object();
-         _loc2_.color = "#5b6261";
-         _loc1_.setStyle("gray",_loc2_);
-         _loc2_ = new Object();
-         _loc2_.color = "#5b6261";
-         _loc2_.size = 2;
-         _loc2_.fontSize = 2;
-         _loc1_.setStyle("small",_loc2_);
-         _loc2_ = new Object();
-         _loc2_.color = "#87A816";
-         _loc1_.setStyle("green",_loc2_);
-         _loc2_ = new Object();
-         _loc2_.color = "#960F0E";
-         _loc1_.setStyle("red",_loc2_);
-         _loc2_ = new Object();
-         _loc2_.color = "#BCCBCB";
-         _loc1_.setStyle("white",_loc2_);
-         this.textFieldLabel.styleSheet = _loc1_;
+         var styleSheet:StyleSheet = new StyleSheet();
+         var style:Object;
+         style = new Object();
+         style.color = "#b3ea97";
+         styleSheet.setStyle("current",style);
+         style = new Object();
+         style.color = "#D79342";
+         styleSheet.setStyle("yellow",style);
+         style = new Object();
+         style.color = "#5b6261";
+         styleSheet.setStyle("gray",style);
+         style = new Object();
+         style.color = "#5b6261";
+         style.size = 2;
+         style.fontSize = 2;
+         styleSheet.setStyle("small",style);
+         style = new Object();
+         style.color = "#87A816";
+         styleSheet.setStyle("green",style);
+         style = new Object();
+         style.color = "#960F0E";
+         styleSheet.setStyle("red",style);
+         style = new Object();
+         style.color = "#BCCBCB";
+         styleSheet.setStyle("white",style);
+         this.textFieldLabel.styleSheet = styleSheet;
       }
       
-      protected function set content(param1:Sprite) : void
+      protected function set content(value:Sprite) : void
       {
-         trace("content",this._content === param1);
-         if(this._content === param1)
+         trace("content",this._content === value);
+         if(this._content === value)
          {
             return;
          }
@@ -64,7 +65,7 @@ package survarium.buttons
                this.iconContainer.removeChild(this._content);
             }
          }
-         _content = param1;
+         _content = value;
          if(this._content == null)
          {
             return;
@@ -75,9 +76,9 @@ package survarium.buttons
          }
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         super.data = param1;
+         super.data = value;
          invalidateData();
       }
       
@@ -90,7 +91,7 @@ package survarium.buttons
       
       override protected function updateText() : void
       {
-         var _loc1_:ColorTransform;
+         var tint:ColorTransform;
          super.updateText();
          if(_data)
          {
@@ -105,11 +106,11 @@ package survarium.buttons
             {
                alpha = _data.reroll_available ? 1 : 0.5;
             }
-            if(_data.state == 1)
+            if(_data.state == ModificationState.DEFECT)
             {
-               _loc1_ = new ColorTransform();
-               _loc1_.color = Colors.RED_DIFF;
-               this.iconContainer.transform.colorTransform = _loc1_;
+               tint = new ColorTransform();
+               tint.color = Colors.RED_DIFF;
+               this.iconContainer.transform.colorTransform = tint;
             }
             else
             {

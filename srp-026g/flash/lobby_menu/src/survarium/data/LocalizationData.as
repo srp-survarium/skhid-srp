@@ -20,88 +20,88 @@ package survarium.data
          super();
       }
       
-      public static function setData(param1:Object) : void
+      public static function setData(value:Object) : void
       {
-         _data = param1;
+         _data = value;
          _nullLocals = new Dictionary();
          updateFileds();
          updateCallbacks();
       }
       
-      public static function getName(param1:String) : String
+      public static function getName(value:String) : String
       {
-         if(_data && _data[param1] != undefined)
+         if(_data && _data[value] != undefined)
          {
-            return _data[param1];
+            return _data[value];
          }
-         _nullLocals[param1] = true;
-         return "#" + param1;
+         _nullLocals[value] = true;
+         return "#" + value;
       }
       
       public static function logNullLocals() : void
       {
-         var _loc1_:String = "";
-         var _loc2_:Object;
-         for(_loc2_ in _nullLocals)
+         var str:String = "";
+         var tx:Object;
+         for(tx in _nullLocals)
          {
-            _loc1_ += String(_loc2_) + "\n";
+            str += String(tx) + "\n";
          }
-         trace("logNullLocals::",_loc1_);
+         trace("logNullLocals::",str);
       }
       
-      public static function addCallback(param1:Function, param2:String) : void
+      public static function addCallback(fn:Function, value:String) : void
       {
          if(_data)
          {
-            param1(getName(param2));
+            fn(getName(value));
          }
          else
          {
-            _dict_callback[param1] = param2;
+            _dict_callback[fn] = value;
          }
       }
       
-      public static function addTextField(param1:TextField, param2:String) : void
+      public static function addTextField(tx:TextField, value:String) : void
       {
-         _dict[param1] = param2;
+         _dict[tx] = value;
          if(_data)
          {
-            param1.text = getName(param2);
+            tx.text = getName(value);
          }
       }
       
-      public static function addButton(param1:Button, param2:String) : void
+      public static function addButton(bt:Button, value:String) : void
       {
-         _dict[param1] = param2;
+         _dict[bt] = value;
          if(_data)
          {
-            param1.label = getName(param2);
+            bt.label = getName(value);
          }
       }
       
       protected static function updateCallbacks() : void
       {
-         var _loc1_:Object;
-         var _loc2_:Function;
-         for(_loc1_ in _dict_callback)
+         var fn:Object;
+         var fnc:Function;
+         for(fn in _dict_callback)
          {
-            _loc2_ = _loc1_ as Function;
-            _loc2_(getName(_dict_callback[_loc1_]));
+            fnc = fn as Function;
+            fnc(getName(_dict_callback[fn]));
          }
       }
       
       protected static function updateFileds() : void
       {
-         var _loc1_:Object;
-         for(_loc1_ in _dict)
+         var tx:Object;
+         for(tx in _dict)
          {
-            if(_loc1_ is TextField)
+            if(tx is TextField)
             {
-               _loc1_.text = getName(_dict[_loc1_]);
+               tx.text = getName(_dict[tx]);
             }
-            else if(_loc1_ is Button)
+            else if(tx is Button)
             {
-               _loc1_.label = getName(_dict[_loc1_]);
+               tx.label = getName(_dict[tx]);
             }
          }
       }

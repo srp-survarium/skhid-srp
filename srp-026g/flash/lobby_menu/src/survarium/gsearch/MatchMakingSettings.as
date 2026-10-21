@@ -16,6 +16,12 @@ package survarium.gsearch
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
    import survarium.data.LocalizationData;
+   import survarium.constants.CharCode;
+   import survarium.constants.ClanState;
+   import survarium.constants.GameMode;
+   import survarium.constants.Language;
+   import survarium.constants.MessageId;
+   import survarium.constants.PvbCode;
    
    public class MatchMakingSettings extends MovieClip
    {
@@ -45,6 +51,77 @@ package survarium.gsearch
       public static const PVB_WHY_RETRY:int = 19;
       
       public static const PVB_WHY_GENERIC:int = 20;
+      
+      // pvbWhy's "no reason": the player may start a bot match
+      public static const PVB_WHY_NONE:int = -1;
+      
+      // the words of pvbWords (pvbText keys; PVB_WHY_* are some of them too)
+      public static const PVB_WORD_TITLE:int = 0;
+      
+      public static const PVB_WORD_HINT:int = 1;
+      
+      public static const PVB_WORD_VS:int = 2;
+      
+      public static const PVB_WORD_BUSY:int = 3;
+      
+      public static const PVB_WORD_GEAR_MUST_BE:int = 4;
+      
+      public static const PVB_WORD_OR_LOWER:int = 5;
+      
+      public static const PVB_WORD_YOURS:int = 6;
+      
+      public static const PVB_WORD_CLOSE:int = 7;
+      
+      // PvbCode.IN_SQUAD..OFF have their words at PVB_WORD_REASONS + code (8..12)
+      public static const PVB_WORD_REASONS:int = 6;
+      
+      public static const PVB_WORD_AT_LIMIT:int = 13;
+      
+      public static const PVB_WORD_TRY_LATER:int = 14;
+      
+      public static const PVB_WORD_MAINTENANCE:int = 15;
+      
+      public static const PVB_WORD_CLAN_MATCH:int = 16;
+      
+      public static const PVB_WORD_UNKNOWN_CHOICE:int = 21;
+      
+      public static const PVB_WORD_DEMO_START:int = 22;
+      
+      // a bot match's start request: PVB_CHOOSE + size * PVB_SIZE_STEP + map (the server's B2 rows)
+      public static const PVB_SIZE_STEP:int = 1000;
+      
+      // the team sizes offered when the server gives none, and the one picked first
+      public static const PVB_SIZE_SMALL:int = 6;
+      
+      public static const PVB_SIZE_DEFAULT:int = 8;
+      
+      public static const PVB_SIZE_LARGE:int = 10;
+      
+      // meaning unknown: pvbData drops team sizes above it
+      public static const PVB_SIZE_MAX:int = 20;
+      
+      // the map level picked first: Rudnya (pvbLevelName)
+      public static const PVB_LEVEL_DEFAULT:int = 1;
+      
+      // the most gear level shown when the server gives none (the server's default SRP_PVB_MAX_GEAR)
+      public static const PVB_MAX_GEAR_DEFAULT:String = "5";
+      
+      // the rows of the size, mode and map menus (the server offers 16 bot maps)
+      public static const PVB_SIZE_ROWS:int = 3;
+      
+      public static const PVB_MODE_ROWS:int = 2;
+      
+      public static const PVB_MAP_ROWS:int = 16;
+      
+      // the demo menus' "no answer" rows (PVB_DEMO)
+      public static const PVB_DEMO_STATUS_NO_ANSWER:int = 10;
+      
+      public static const PVB_DEMO_PLAY_NO_ANSWER:int = 11;
+      
+      // the demo menus' row counts (PVB_DEMO)
+      public static const PVB_DEMO_STATUS_ROWS:int = 11;
+      
+      public static const PVB_DEMO_PLAY_ROWS:int = 12;
       
       public static var pvbHolder:MatchMakingSettings;
       
@@ -183,7 +260,7 @@ package survarium.gsearch
                {
                   place = Number(first.place);
                   name = String(first.nickname);
-                  if(place >= 2050000000 && place < 2052000000)
+                  if(place >= MatchMakingSettings.PVB_STATUS && place < MatchMakingSettings.PVB_END)
                   {
                      taken = true;
                   }
@@ -204,7 +281,7 @@ package survarium.gsearch
          return taken;
       }
       
-      private function configUI(param1:Event) : void
+      private function configUI(event:Event) : void
       {
          removeEventListener(Event.RENDER,this.configUI);
          checkBoxClan = this.clanGame.checkBoxClan;
@@ -225,9 +302,9 @@ package survarium.gsearch
          this.pvbHookConfig();
       }
       
-      public function setEnabled(param1:Boolean) : void
+      public function setEnabled(value:Boolean) : void
       {
-         _enabled = param1;
+         _enabled = value;
          this.updateButtonEnabled();
       }
       
@@ -257,9 +334,9 @@ package survarium.gsearch
       
       protected function updateButtonEnabled() : void
       {
-         var _loc1_:Boolean = (PlayerInfo.clanState == 3 || PlayerInfo.clanState == 4) && !PlayerInfo.isInSquad;
-         this.checkBoxPVP.enabled = this.checkBoxClan.enabled = this._enabled && _loc1_;
-         if(!_loc1_)
+         var canPlayClan:Boolean = (PlayerInfo.clanState == ClanState.OVERVIEW || PlayerInfo.clanState == ClanState.MANAGE) && !PlayerInfo.isInSquad;
+         this.checkBoxPVP.enabled = this.checkBoxClan.enabled = this._enabled && canPlayClan;
+         if(!canPlayClan)
          {
             if(this.checkBoxClan.selected)
             {
@@ -287,7 +364,7 @@ package survarium.gsearch
          this.pvbHookLayout();
       }
       
-      protected function initLocal(param1:String) : void
+      protected function initLocal(value:String) : void
       {
          this.checkBoxPVP.label = LocalizationData.getName("match_settings_checkbox_PVP").toUpperCase();
          this.checkBoxClan.label = LocalizationData.getName("match_settings_clan_match").toUpperCase();
@@ -320,11 +397,11 @@ package survarium.gsearch
          this.pvbHookLocal();
       }
       
-      public function setTournamentResult(param1:Boolean) : void
+      public function setTournamentResult(accepted:Boolean) : void
       {
-         var _loc2_:Boolean = param1 == true ? this._selectCall : !this._selectCall;
-         trace("setTournamentResult::",_loc2_,param1,this._selectCall);
-         this.checkBoxClan.selected = _loc2_;
+         var clanSelected:Boolean = accepted == true ? this._selectCall : !this._selectCall;
+         trace("setTournamentResult::",clanSelected,accepted,this._selectCall);
+         this.checkBoxClan.selected = clanSelected;
          this.checkBoxPVP.selected = !this.checkBoxClan.selected;
          this.updateLayout();
          this.pvbHookTournament();
@@ -332,33 +409,33 @@ package survarium.gsearch
       
       protected function showCloseMessage() : void
       {
-         var _loc1_:Object = {
+         var messageData:Object = {
             text:LocalizationData.getName(PlayerInfo.isCommander ? "clan_window_close_message_commander" : "clan_window_close_message"),
             onYes:this.closeWindow,
             label_ok:LocalizationData.getName("ok"),
             label_cancel:LocalizationData.getName("cancel")
          };
-         Message.showMessage("apply",_loc1_,true,0,true);
+         Message.showMessage("apply",messageData,true,MessageId.AUTO,true);
       }
       
       protected function closeWindow() : void
       {
          trace("TW::closeWindow");
          this.deselectClanMatchCheckbox();
-         var _loc1_:Boolean = this.checkBoxClan.selected;
-         trace("checkbox_tournament_match_clicked",_loc1_);
-         ExternalInterface.call("checkbox_tournament_match_clicked",_loc1_);
+         var clanSelected:Boolean = this.checkBoxClan.selected;
+         trace("checkbox_tournament_match_clicked",clanSelected);
+         ExternalInterface.call("checkbox_tournament_match_clicked",clanSelected);
       }
       
-      private function onTournamentSelected(param1:ButtonEvent) : void
+      private function onTournamentSelected(event:ButtonEvent) : void
       {
          trace("onTournamentSelected");
-         if(param1.target == this.checkBoxPVP)
+         if(event.target == this.checkBoxPVP)
          {
             this.checkBoxClan.selected = !this.checkBoxPVP.selected;
          }
-         var _loc2_:Boolean = this.checkBoxClan.selected;
-         _selectCall = _loc2_;
+         var clanSelected:Boolean = this.checkBoxClan.selected;
+         _selectCall = clanSelected;
          if(this.checkBoxClan.selected)
          {
             dispatchEvent(new Event(TOURNAMENT_SELECTED));
@@ -372,8 +449,8 @@ package survarium.gsearch
             return;
          }
          this.updateLayout();
-         trace("checkbox_tournament_match_clicked",_loc2_,this._selectCall);
-         ExternalInterface.call("checkbox_tournament_match_clicked",_loc2_);
+         trace("checkbox_tournament_match_clicked",clanSelected,this._selectCall);
+         ExternalInterface.call("checkbox_tournament_match_clicked",clanSelected);
       }
       
       public function pvbHookConfig() : void
@@ -384,19 +461,19 @@ package survarium.gsearch
          {
             MatchMakingSettings.pvbHolder = this;
             this.pvbOn = false;
-            this.pvbCode = -1;
+            this.pvbCode = PvbCode.UNKNOWN;
             this.pvbGear = -1;
             this.pvbMax = -1;
             this.pvbRunning = -1;
             this.pvbRunMax = -1;
-            this.pvbSizes = [6,8,10];
+            this.pvbSizes = [MatchMakingSettings.PVB_SIZE_SMALL,MatchMakingSettings.PVB_SIZE_DEFAULT,MatchMakingSettings.PVB_SIZE_LARGE];
             this.pvbMaps = [];
             this.pvbMapKey = "";
             this.pvbSizeKey = "";
-            this.pvbSize = 8;
+            this.pvbSize = MatchMakingSettings.PVB_SIZE_DEFAULT;
             this.pvbMap = 0;
-            this.pvbMode = 2;
-            this.pvbLevel = 1;
+            this.pvbMode = GameMode.GATHER_VICTORY_ITEMS;
+            this.pvbLevel = MatchMakingSettings.PVB_LEVEL_DEFAULT;
             this.pvbModeList = [];
             this.pvbLevelRows = [];
             this.pvbAsking = false;
@@ -424,9 +501,9 @@ package survarium.gsearch
             this.pvbRadio.addEventListener(ButtonEvent.CLICK,this.onPvbRadio);
             this.checkBoxPVP.addEventListener(ButtonEvent.CLICK,this.onPvbPvpClick,false,100);
             this.checkBoxClan.addEventListener(ButtonEvent.CLICK,this.onPvbClanClick,false,100);
-            this.pvbSizeMenu = this.pvbNewMenu(3);
-            this.pvbModeMenu = this.pvbNewMenu(2);
-            this.pvbMapMenu = this.pvbNewMenu(16);
+            this.pvbSizeMenu = this.pvbNewMenu(MatchMakingSettings.PVB_SIZE_ROWS);
+            this.pvbModeMenu = this.pvbNewMenu(MatchMakingSettings.PVB_MODE_ROWS);
+            this.pvbMapMenu = this.pvbNewMenu(MatchMakingSettings.PVB_MAP_ROWS);
             this.pvbSection.addChild(this.pvbSizeMenu);
             this.pvbSection.addChild(this.pvbModeMenu);
             this.pvbSection.addChild(this.pvbMapMenu);
@@ -487,7 +564,7 @@ package survarium.gsearch
                return;
             }
             this.pvbLang = this.pvbFindLang();
-            this.pvbRadio.label = this.pvbText(0).toUpperCase();
+            this.pvbRadio.label = this.pvbText(MatchMakingSettings.PVB_WORD_TITLE).toUpperCase();
             this.pvbFillMenus(true);
             this.pvbButtons();
             this.pvbLabel();
@@ -526,21 +603,21 @@ package survarium.gsearch
          var word:String = LocalizationData.getName("btn_friends");
          if(word == "Друзі")
          {
-            return 1;
+            return Language.UK;
          }
          if(word == "Друзья")
          {
-            return 2;
+            return Language.RU;
          }
          if(word == "Freunde")
          {
-            return 3;
+            return Language.DE;
          }
          if(word == "Znajomi")
          {
-            return 4;
+            return Language.PL;
          }
-         return 0;
+         return Language.EN;
       }
       
       protected function pvbWords() : Array
@@ -593,9 +670,9 @@ package survarium.gsearch
       
       protected function pvbModeName(mode:int) : String
       {
-         var key:String = mode == 4 ? "match_settings_checkbox_team_match" : "match_settings_checkbox_battery_charge";
+         var key:String = mode == GameMode.TEAM_DEATHMATCH ? "match_settings_checkbox_team_match" : "match_settings_checkbox_battery_charge";
          var word:String = LocalizationData.getName(key);
-         var spare:Array = mode == 4 ? ["Team Deathmatch","Командний бій","Командный бой","Kommandokampf","Walka drużynowa"] : ["Protective device","Захисний пристрій","Защитное устройство","Laden der Schutzeinrichtung","Urządzenie ochronne"];
+         var spare:Array = mode == GameMode.TEAM_DEATHMATCH ? ["Team Deathmatch","Командний бій","Командный бой","Kommandokampf","Walka drużynowa"] : ["Protective device","Захисний пристрій","Защитное устройство","Laden der Schutzeinrichtung","Urządzenie ochronne"];
          if(!word || word.length == 0 || word.charAt(0) == "#")
          {
             word = String(spare[this.pvbLang]);
@@ -619,53 +696,53 @@ package survarium.gsearch
       
       protected function pvbSizeName(size:int) : String
       {
-         return String(size) + this.pvbText(2) + String(size);
+         return String(size) + this.pvbText(MatchMakingSettings.PVB_WORD_VS) + String(size);
       }
       
       public function pvbReasonText(why:int) : String
       {
          var text:String = null;
-         if(why == 1)
+         if(why == PvbCode.GEAR_TOO_HIGH)
          {
-            text = this.pvbText(4);
+            text = this.pvbText(MatchMakingSettings.PVB_WORD_GEAR_MUST_BE);
             if(this.pvbMax >= 0)
             {
-               text = text + String(this.pvbMax) + this.pvbText(5);
+               text = text + String(this.pvbMax) + this.pvbText(MatchMakingSettings.PVB_WORD_OR_LOWER);
             }
             else
             {
-               text = text + "5" + this.pvbText(5);
+               text = text + MatchMakingSettings.PVB_MAX_GEAR_DEFAULT + this.pvbText(MatchMakingSettings.PVB_WORD_OR_LOWER);
             }
             if(this.pvbGear >= 0)
             {
-               text = text + this.pvbText(6) + String(this.pvbGear) + this.pvbText(7);
+               text = text + this.pvbText(MatchMakingSettings.PVB_WORD_YOURS) + String(this.pvbGear) + this.pvbText(MatchMakingSettings.PVB_WORD_CLOSE);
             }
             return text;
          }
-         if(why == 7)
+         if(why == PvbCode.AT_LIMIT)
          {
-            text = this.pvbText(13);
+            text = this.pvbText(MatchMakingSettings.PVB_WORD_AT_LIMIT);
             if(this.pvbRunning >= 0 && this.pvbRunMax > 0)
             {
                text = text + " (" + String(this.pvbRunning) + "/" + String(this.pvbRunMax) + ")";
             }
-            return text + this.pvbText(14);
+            return text + this.pvbText(MatchMakingSettings.PVB_WORD_TRY_LATER);
          }
-         if(why >= 2 && why <= 6)
+         if(why >= PvbCode.IN_SQUAD && why <= PvbCode.OFF)
          {
-            return this.pvbText(6 + why);
+            return this.pvbText(MatchMakingSettings.PVB_WORD_REASONS + why);
          }
-         if(why == 8)
+         if(why == PvbCode.MAINTENANCE)
          {
-            return this.pvbText(15);
+            return this.pvbText(MatchMakingSettings.PVB_WORD_MAINTENANCE);
          }
-         if(why == 9)
+         if(why == PvbCode.CLAN_TEAM)
          {
-            return this.pvbText(16);
+            return this.pvbText(MatchMakingSettings.PVB_WORD_CLAN_MATCH);
          }
-         if(why == 10)
+         if(why == PvbCode.UNKNOWN_CHOICE)
          {
-            return this.pvbText(21);
+            return this.pvbText(MatchMakingSettings.PVB_WORD_UNKNOWN_CHOICE);
          }
          if(why == MatchMakingSettings.PVB_WHY_CHECKING || why == MatchMakingSettings.PVB_WHY_NOANSWER || why == MatchMakingSettings.PVB_WHY_RETRY)
          {
@@ -678,21 +755,21 @@ package survarium.gsearch
       {
          if(PlayerInfo.isInSquad)
          {
-            return 2;
+            return PvbCode.IN_SQUAD;
          }
          if(this.checkBoxClan && this.checkBoxClan.selected)
          {
-            return 9;
+            return PvbCode.CLAN_TEAM;
          }
-         if(this.pvbCode == -1)
+         if(this.pvbCode == PvbCode.UNKNOWN)
          {
             return MatchMakingSettings.PVB_WHY_CHECKING;
          }
-         if(this.pvbCode == -2)
+         if(this.pvbCode == PvbCode.NO_ANSWER)
          {
             return MatchMakingSettings.PVB_WHY_NOANSWER;
          }
-         if(this.pvbCode != 0)
+         if(this.pvbCode != PvbCode.ALLOWED)
          {
             return this.pvbCode;
          }
@@ -700,7 +777,7 @@ package survarium.gsearch
          {
             return MatchMakingSettings.PVB_WHY_GENERIC;
          }
-         return -1;
+         return MatchMakingSettings.PVB_WHY_NONE;
       }
       
       protected function pvbNumber(value:Object) : int
@@ -717,11 +794,11 @@ package survarium.gsearch
          while(i < text.length)
          {
             code = int(text.charCodeAt(i));
-            if(code < 48 || code > 57)
+            if(code < CharCode.ZERO || code > CharCode.NINE)
             {
                return -1;
             }
-            result = result * 10 + (code - 48);
+            result = result * 10 + (code - CharCode.ZERO);
             i++;
          }
          return result;
@@ -771,7 +848,7 @@ package survarium.gsearch
          }
          if(this.pvbOn)
          {
-            text = this.pvbText(0);
+            text = this.pvbText(MatchMakingSettings.PVB_WORD_TITLE);
          }
          else if(this.checkBoxClan.selected)
          {
@@ -833,7 +910,7 @@ package survarium.gsearch
       
       protected function pvbKind(mode:int) : int
       {
-         return mode == 4 ? 4 : 2;
+         return mode == GameMode.TEAM_DEATHMATCH ? GameMode.TEAM_DEATHMATCH : GameMode.GATHER_VICTORY_ITEMS;
       }
       
       protected function pvbMapRow(id:int) : Object
@@ -962,7 +1039,7 @@ package survarium.gsearch
             key = key + String(row.id) + ":" + String(row.free) + ";";
             i++;
          }
-         key += this.pvbCode == 0 ? "a" : "b";
+         key += this.pvbCode == PvbCode.ALLOWED ? "a" : "b";
          if(!all && key == this.pvbMapKey)
          {
             return;
@@ -998,9 +1075,9 @@ package survarium.gsearch
             {
                label = "#" + String(row.id);
             }
-            if(int(row.free) == 0 && this.pvbCode == 0)
+            if(int(row.free) == 0 && this.pvbCode == PvbCode.ALLOWED)
             {
-               label += this.pvbText(3);
+               label += this.pvbText(MatchMakingSettings.PVB_WORD_BUSY);
             }
             rows.push({
                "label":label,
@@ -1012,7 +1089,7 @@ package survarium.gsearch
             }
             i++;
          }
-         this.pvbMapMenu.menuRowCount = rows.length > 0 ? (rows.length > 16 ? 16 : rows.length) : 1;
+         this.pvbMapMenu.menuRowCount = rows.length > 0 ? (rows.length > MatchMakingSettings.PVB_MAP_ROWS ? MatchMakingSettings.PVB_MAP_ROWS : rows.length) : 1;
          this.pvbMapMenu.dataProvider = new DataProvider(rows);
          this.pvbMapMenu.selectedIndex = at;
          this.pvbMapMenu.invalidateSelectedIndex();
@@ -1043,7 +1120,7 @@ package survarium.gsearch
          {
             return;
          }
-         clanRule = (PlayerInfo.clanState == 3 || PlayerInfo.clanState == 4) && !PlayerInfo.isInSquad;
+         clanRule = (PlayerInfo.clanState == ClanState.OVERVIEW || PlayerInfo.clanState == ClanState.MANAGE) && !PlayerInfo.isInSquad;
          if(this.pvbOn && (PlayerInfo.isInSquad || this.checkBoxClan.selected))
          {
             this.pvbOn = false;
@@ -1063,7 +1140,7 @@ package survarium.gsearch
          {
             this.checkBoxPVP.enabled = this._enabled && (allowed || this.pvbOn);
          }
-         this.pvbRadio.data = {"name":(why >= 0 ? this.pvbReasonText(why) : this.pvbText(1))};
+         this.pvbRadio.data = {"name":(why >= 0 ? this.pvbReasonText(why) : this.pvbText(MatchMakingSettings.PVB_WORD_HINT))};
          this.updateLayout();
       }
       
@@ -1120,7 +1197,7 @@ package survarium.gsearch
                this.pvbSelect(false);
                return;
             }
-            clanRule = (PlayerInfo.clanState == 3 || PlayerInfo.clanState == 4) && !PlayerInfo.isInSquad;
+            clanRule = (PlayerInfo.clanState == ClanState.OVERVIEW || PlayerInfo.clanState == ClanState.MANAGE) && !PlayerInfo.isInSquad;
             if(!clanRule && !this.checkBoxPVP.selected && !this.checkBoxClan.selected)
             {
                e.stopImmediatePropagation();
@@ -1183,7 +1260,7 @@ package survarium.gsearch
             else if(menu == this.pvbDemoStatusMenu)
             {
                this.pvbDemoStatus = at;
-               this.pvbCode = -1;
+               this.pvbCode = PvbCode.UNKNOWN;
                this.pvbButtons();
                this.pvbAsk(getTimer());
             }
@@ -1295,9 +1372,9 @@ package survarium.gsearch
       {
          this.pvbAsking = true;
          this.pvbAskedAt = now;
-         if(this.pvbCode == -2)
+         if(this.pvbCode == PvbCode.NO_ANSWER)
          {
-            this.pvbCode = -1;
+            this.pvbCode = PvbCode.UNKNOWN;
             this.pvbButtons();
          }
          if(MatchMakingSettings.PVB_DEMO)
@@ -1317,7 +1394,7 @@ package survarium.gsearch
             return;
          }
          why = this.pvbWhy();
-         if(why == 2 || why == 9)
+         if(why == PvbCode.IN_SQUAD || why == PvbCode.CLAN_TEAM)
          {
             Message.showMessage("ok",this.pvbReasonText(why));
             return;
@@ -1336,7 +1413,7 @@ package survarium.gsearch
             this.pvbDemoChooseRows(now);
             return;
          }
-         start = start + this.pvbSize * 1000 + this.pvbMap;
+         start = start + this.pvbSize * MatchMakingSettings.PVB_SIZE_STEP + this.pvbMap;
          this.pvbRequest(start,1);
       }
       
@@ -1404,7 +1481,7 @@ package survarium.gsearch
             while(i < parts.length)
             {
                n = this.pvbNumber(parts[i]);
-               if(n >= 1 && n <= 20)
+               if(n >= 1 && n <= MatchMakingSettings.PVB_SIZE_MAX)
                {
                   sizes.push(n);
                }
@@ -1413,7 +1490,7 @@ package survarium.gsearch
          }
          if(sizes.length == 0)
          {
-            sizes = [6,8,10];
+            sizes = [MatchMakingSettings.PVB_SIZE_SMALL,MatchMakingSettings.PVB_SIZE_DEFAULT,MatchMakingSettings.PVB_SIZE_LARGE];
          }
          defSize = f.length > 5 ? this.pvbNumber(f[5]) : -1;
          defMap = f.length > 6 ? this.pvbNumber(f[6]) : -1;
@@ -1515,7 +1592,7 @@ package survarium.gsearch
             this.pvbChoosing = false;
             if(MatchMakingSettings.PVB_DEMO)
             {
-               Message.showMessage("ok",this.pvbText(22) + this.pvbSizeName(this.pvbChooseSize) + ", " + this.pvbChosenMapName());
+               Message.showMessage("ok",this.pvbText(MatchMakingSettings.PVB_WORD_DEMO_START) + this.pvbSizeName(this.pvbChooseSize) + ", " + this.pvbChosenMapName());
                return;
             }
             try
@@ -1541,7 +1618,7 @@ package survarium.gsearch
                this.pvbRunning = this.pvbNumber(f[5]);
                this.pvbRunMax = this.pvbNumber(f[6]);
             }
-            if(code < 1 || code > 10)
+            if(code < PvbCode.GEAR_TOO_HIGH || code > PvbCode.UNKNOWN_CHOICE)
             {
                code = MatchMakingSettings.PVB_WHY_GENERIC;
             }
@@ -1589,9 +1666,9 @@ package survarium.gsearch
             if(this.pvbAsking && (now - this.pvbAskedAt >= MatchMakingSettings.PVB_WAIT_MS || now < this.pvbAskedAt))
             {
                this.pvbAsking = false;
-               if(this.pvbHeardAt == 0 || now - this.pvbHeardAt > 3 * MatchMakingSettings.PVB_POLL_MS || this.pvbCode == -1)
+               if(this.pvbHeardAt == 0 || now - this.pvbHeardAt > 3 * MatchMakingSettings.PVB_POLL_MS || this.pvbCode == PvbCode.UNKNOWN)
                {
-                  this.pvbCode = -2;
+                  this.pvbCode = PvbCode.NO_ANSWER;
                   this.pvbButtons();
                }
             }
@@ -1630,8 +1707,8 @@ package survarium.gsearch
          this.pvbDemoBox = new MovieClip();
          this.pvbDemoBox.x = this.trainingGame.x;
          addChild(this.pvbDemoBox);
-         this.pvbDemoStatusMenu = this.pvbNewMenu(11);
-         this.pvbDemoPlayMenu = this.pvbNewMenu(12);
+         this.pvbDemoStatusMenu = this.pvbNewMenu(MatchMakingSettings.PVB_DEMO_STATUS_ROWS);
+         this.pvbDemoPlayMenu = this.pvbNewMenu(MatchMakingSettings.PVB_DEMO_PLAY_ROWS);
          this.pvbDemoBox.addChild(this.pvbDemoStatusMenu);
          this.pvbDemoBox.addChild(this.pvbDemoPlayMenu);
          i = 0;
@@ -1683,12 +1760,12 @@ package survarium.gsearch
          var rows:Array = [];
          var head:String = null;
          var i:int = 0;
-         var free:String = code == 7 ? "0" : "1";
-         if(code >= 10)
+         var free:String = code == PvbCode.AT_LIMIT ? "0" : "1";
+         if(code >= MatchMakingSettings.PVB_DEMO_STATUS_NO_ANSWER)
          {
             return;
          }
-         head = "B1;" + String(code) + ";" + (code == 1 ? "7" : "3") + ";5;6.8.10;8;61;" + (code == 7 ? "5" : "2") + ";5";
+         head = "B1;" + String(code) + ";" + (code == PvbCode.GEAR_TOO_HIGH ? "7" : "3") + ";5;6.8.10;8;61;" + (code == PvbCode.AT_LIMIT ? "5" : "2") + ";5";
          rows.push(this.pvbDemoRow(head,MatchMakingSettings.PVB_STATUS));
          i = 0;
          while(i < 8)
@@ -1709,19 +1786,19 @@ package survarium.gsearch
       protected function pvbDemoChooseRows(now:int) : void
       {
          var code:int = this.pvbDemoPlay;
-         var place:int = MatchMakingSettings.PVB_CHOOSE + this.pvbChooseSize * 1000 + this.pvbChooseMap;
+         var place:int = MatchMakingSettings.PVB_CHOOSE + this.pvbChooseSize * MatchMakingSettings.PVB_SIZE_STEP + this.pvbChooseMap;
          var text:String = null;
-         if(code >= 11)
+         if(code >= MatchMakingSettings.PVB_DEMO_PLAY_NO_ANSWER)
          {
             return;
          }
-         if(code == 0)
+         if(code == PvbCode.ALLOWED)
          {
             text = "B2;ok;" + String(this.pvbChooseSize) + ";" + String(this.pvbChooseMap);
          }
          else
          {
-            text = "B2;no;" + String(code) + ";" + (code == 1 ? "7" : "3") + ";5;" + (code == 7 ? "5" : "2") + ";5";
+            text = "B2;no;" + String(code) + ";" + (code == PvbCode.GEAR_TOO_HIGH ? "7" : "3") + ";5;" + (code == PvbCode.AT_LIMIT ? "5" : "2") + ";5";
          }
          this.pvbDemoRows = [this.pvbDemoRow(text,place)];
          this.pvbDemoAt = now + 700;

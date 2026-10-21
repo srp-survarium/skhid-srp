@@ -1,9 +1,16 @@
 package survarium.constants
 {
+   // A match's game mode (docs/notes/modes_maps.md).
    public class GameMode
    {
       
-      public static const TEAM_DEATHMATCH:uint = 4;
+      // batteries ("Protective device")
+      public static const GATHER_VICTORY_ITEMS:int = 2;
+      
+      // timed batteries with chargers
+      public static const VICTORY_ITEMS_SPAWN:int = 3;
+      
+      public static const TEAM_DEATHMATCH:int = 4;
       
       public function GameMode()
       {
@@ -11,4 +18,3 @@ package survarium.constants
       }
    }
 }
-

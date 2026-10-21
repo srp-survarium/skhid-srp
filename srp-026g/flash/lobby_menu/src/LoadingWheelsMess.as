@@ -20,22 +20,22 @@ package
          addFrameScript(0,this.frame1);
       }
       
-      public function onRenderEnterFrame(param1:Event) : void
+      public function onRenderEnterFrame(event:Event) : void
       {
-         var _loc2_:int = 8;
-         this.roll1.rotation += _loc2_;
-         this.roll2.rotation -= _loc2_;
-         this.roll1Shadow.rotation += _loc2_;
-         this.roll1Shadow.rotation += _loc2_;
+         var step:int = 8;
+         this.roll1.rotation += step;
+         this.roll2.rotation -= step;
+         this.roll1Shadow.rotation += step;
+         this.roll1Shadow.rotation += step;
       }
       
-      public function playAnimation(param1:Boolean) : void
+      public function playAnimation(play:Boolean) : void
       {
-         if(param1 && !hasEventListener(Event.ENTER_FRAME))
+         if(play && !hasEventListener(Event.ENTER_FRAME))
          {
             addEventListener(Event.ENTER_FRAME,this.onRenderEnterFrame);
          }
-         else if(!param1 && hasEventListener(Event.ENTER_FRAME))
+         else if(!play && hasEventListener(Event.ENTER_FRAME))
          {
             removeEventListener(Event.ENTER_FRAME,this.onRenderEnterFrame);
          }

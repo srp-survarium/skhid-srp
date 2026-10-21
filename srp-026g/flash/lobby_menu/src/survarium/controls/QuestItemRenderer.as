@@ -12,6 +12,7 @@ package survarium.controls
    import scaleform.clik.data.DataProvider;
    import survarium.Util;
    import survarium.data.LocalizationData;
+   import survarium.constants.QuestStatus;
    
    public class QuestItemRenderer extends ListItemRenderer
    {
@@ -60,12 +61,12 @@ package survarium.controls
          return _data && this.background ? this.background.height : 0;
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         _data = param1;
+         _data = value;
          if(_data)
          {
-            _start_time = param1.start_time;
+            _start_time = value.start_time;
          }
          invalidateData();
       }
@@ -121,15 +122,15 @@ package survarium.controls
          }
       }
       
-      protected function timerStep(param1:Event = null) : void
+      protected function timerStep(event:Event = null) : void
       {
-         var _loc2_:int;
+         var timeLeft:int;
          if(enabled && _data && _data.time_limit)
          {
             if(this.timeTextField)
             {
-               _loc2_ = Math.max(0,_data.time_limit - (QuestWindow.getTime() - this._start_time));
-               this.timeTextField.text = Util.getTimeString(_loc2_);
+               timeLeft = Math.max(0,_data.time_limit - (QuestWindow.getTime() - this._start_time));
+               this.timeTextField.text = Util.getTimeString(timeLeft);
             }
          }
       }
@@ -147,9 +148,9 @@ package survarium.controls
       
       override protected function updateText() : void
       {
-         var _loc1_:String;
-         var _loc2_:Array;
-         var _loc3_:uint;
+         var debugId:String;
+         var rewards:Array;
+         var i:uint;
          mouseChildren = true;
          if(_data)
          {
@@ -176,23 +177,23 @@ package survarium.controls
                this.factionIcon.content = _data.faction_icon ? _data.faction_icon.clone() : null;
             }
             trace("updateQuest::",_data.tasks,this.taskList.height,_data.faction_icon,this,this.factionIcon.parent,this.factionIcon.alpha,this.factionIcon.visible,this.factionIcon.numChildren);
-            _loc1_ = MainScene.showDebugInfo ? _data.dict_id : "";
-            if(this.idTextField && this.idTextField.text != _loc1_)
+            debugId = MainScene.showDebugInfo ? _data.dict_id : "";
+            if(this.idTextField && this.idTextField.text != debugId)
             {
-               this.idTextField.text = _loc1_;
+               this.idTextField.text = debugId;
             }
             this.questIcon.gotoAndStop(_data.quest_icon + 1);
             if(_data.reward)
             {
                this.rewardBar.x = this.rewardField.x + this.rewardField.textWidth + 17;
-               _loc2_ = _data.reward as Array;
-               if(_loc2_)
+               rewards = _data.reward as Array;
+               if(rewards)
                {
-                  _loc3_ = 0;
-                  while(_loc3_ < _loc2_.length)
+                  i = 0;
+                  while(i < rewards.length)
                   {
-                     _loc2_[_loc3_].useMultiplier = _data.useMultiplier != undefined ? _data.useMultiplier : true;
-                     _loc3_++;
+                     rewards[i].useMultiplier = _data.useMultiplier != undefined ? _data.useMultiplier : true;
+                     i++;
                   }
                }
                this.rewardBar.dataProvider = new DataProvider(_data.reward);
@@ -207,7 +208,7 @@ package survarium.controls
                      this.questStatusContainer.visible = true;
                      this.questStatusContainer.textField.alpha = 0.8;
                      this.questStatusContainer.textField.text = LocalizationData.getName(String("quest_status_" + _data.status));
-                     if(_data.status == 3)
+                     if(_data.status == QuestStatus.FAILED)
                      {
                         this.rewardField.visible = this.rewardsHint.visible = this.rewardBar.visible = false;
                      }

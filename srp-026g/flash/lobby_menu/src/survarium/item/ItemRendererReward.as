@@ -8,10 +8,11 @@ package survarium.item
    import scaleform.clik.controls.ToolTip;
    import scaleform.gfx.TextFieldEx;
    import survarium.Util;
-   import survarium.constants.Category;
    import survarium.constants.Colors;
    import survarium.controls.IconRenderer;
    import survarium.core.Icon;
+   import survarium.constants.ItemCategory;
+   import survarium.constants.SuperCategory;
    
    public class ItemRendererReward extends ToolTip
    {
@@ -27,9 +28,9 @@ package survarium.item
          super();
       }
       
-      public function set data(param1:Object) : void
+      public function set data(value:Object) : void
       {
-         _data = param1;
+         _data = value;
          invalidateData();
       }
       
@@ -66,8 +67,8 @@ package survarium.item
       
       protected function updateData() : void
       {
-         var _loc1_:Boolean;
-         var _loc2_:Boolean;
+         var isMoney:Boolean;
+         var isVoucher:Boolean;
          this.iconRenderer.content = _data.icon ? (_data.icon as Icon).clone() : null;
          if(!_data.isStack)
          {
@@ -78,19 +79,19 @@ package survarium.item
          }
          else
          {
-            _loc1_ = _data.category == Category.GOLD || _data.category == Category.REGULAR;
-            _loc2_ = _data.superCategory == Category.BASE_VOUCHER;
-            this._textFieldFormat.align = _loc2_ ? TextFormatAlign.CENTER : TextFormatAlign.RIGHT;
+            isMoney = _data.category == ItemCategory.PREMIUM_MONEY || _data.category == ItemCategory.GENERIC_MONEY;
+            isVoucher = _data.superCategory == SuperCategory.UPGRADES;
+            this._textFieldFormat.align = isVoucher ? TextFormatAlign.CENTER : TextFormatAlign.RIGHT;
             this.textField.defaultTextFormat = this._textFieldFormat;
-            if(_loc1_)
+            if(isMoney)
             {
                this.textField.text = Util.getMoneyString(_data.value);
             }
             else
             {
-               this.textField.text = _loc2_ ? Util.getMoneyString(_data.value) + " " + String(_data.name) : "x" + Util.getMoneyString(_data.value);
+               this.textField.text = isVoucher ? Util.getMoneyString(_data.value) + " " + String(_data.name) : "x" + Util.getMoneyString(_data.value);
             }
-            this.textField.textColor = _loc2_ ? (_data.category == Category.GOLD ? Colors.GOLD : Colors.REGULAR) : Colors.SILVER;
+            this.textField.textColor = isVoucher ? (_data.category == ItemCategory.PREMIUM_MONEY ? Colors.GOLD : Colors.REGULAR) : Colors.SILVER;
          }
       }
    }

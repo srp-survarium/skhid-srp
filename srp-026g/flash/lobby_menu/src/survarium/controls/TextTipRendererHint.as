@@ -10,9 +10,9 @@ package survarium.controls
          super();
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         _data = param1;
+         _data = value;
          this.invalidateData();
       }
       
@@ -23,12 +23,12 @@ package survarium.controls
          textField.text = _data.tipText;
          width = textField.textWidth;
          height = textField.textHeight;
-         var _loc1_:ConstrainedElement = constraints.getElement("textField");
-         var _loc2_:Number = Math.ceil(textField.textWidth + _loc1_.left + _loc1_.right + 5);
-         var _loc3_:Number;
-         _loc3_ = Math.ceil(textField.textHeight + _loc1_.top + _loc1_.bottom + 5);
-         width = _loc2_;
-         height = _loc3_;
+         var element:ConstrainedElement = constraints.getElement("textField");
+         var newWidth:Number = Math.ceil(textField.textWidth + element.left + element.right + 5);
+         var newHeight:Number;
+         newHeight = Math.ceil(textField.textHeight + element.top + element.bottom + 5);
+         width = newWidth;
+         height = newHeight;
          constraints.update(width,height);
       }
    }

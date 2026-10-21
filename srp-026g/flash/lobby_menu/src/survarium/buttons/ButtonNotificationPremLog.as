@@ -20,10 +20,10 @@ package survarium.buttons
          addEventListener(ButtonEvent.CLICK,this.onClicked,false,0,true);
       }
       
-      private function onClicked(param1:Event) : void
+      private function onClicked(event:Event) : void
       {
-         trace("onClicked::",param1.target);
-         if(param1.target == this)
+         trace("onClicked::",event.target);
+         if(event.target == this)
          {
             if(_ignoreClick == true)
             {
@@ -42,20 +42,20 @@ package survarium.buttons
       
       override protected function updateText() : void
       {
-         var _loc1_:Array;
+         var rewards:Array;
          super.updateText();
          if(_data)
          {
             this.rewardBar.mouseEnabled = false;
             this.rewardBar.mouseChildren = false;
             this.rewardBar.spacing = 5;
-            _loc1_ = _data.reward as Array;
-            trace("ButtonNotificationPremLog::",_loc1_);
-            if(_loc1_)
+            rewards = _data.reward as Array;
+            trace("ButtonNotificationPremLog::",rewards);
+            if(rewards)
             {
                this.rewardBar.visible = true;
                this.rewardBar.setMaxFit(true);
-               this.rewardBar.dataProvider = new DataProvider(_loc1_);
+               this.rewardBar.dataProvider = new DataProvider(rewards);
                this.rewardBar.validateNow();
             }
             else

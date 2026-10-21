@@ -28,6 +28,9 @@ package survarium.controls
    import survarium.core.Icon;
    import survarium.data.IconContainer;
    import survarium.data.LocalizationData;
+   import survarium.constants.Faction;
+   import survarium.constants.QuestStatus;
+   import survarium.constants.Reward;
    
    public class QuestWindow extends UIWindow
    {
@@ -208,17 +211,17 @@ package survarium.controls
       {
          var isHover:Boolean = e.type == MouseEvent.ROLL_OVER;
          var target:MovieClip = e.currentTarget as MovieClip;
-         var factionIndex:int = target.name == "button1" ? 1 : 2;
+         var factionIndex:int = target.name == "button1" ? Faction.SCAVENGERS : Faction.BLACK_MARKET;
          trace("factionIndex::",target.name,e.currentTarget);
          var frame:int = isHover ? (factionIndex + 4) : factionIndex;
-         var glowTarget:MovieClip = factionIndex == 1 ? this.noFactionSelected.factionLabelBack : this.noFactionSelected.factionLabelBack2;
+         var glowTarget:MovieClip = factionIndex == Faction.SCAVENGERS ? this.noFactionSelected.factionLabelBack : this.noFactionSelected.factionLabelBack2;
          trace("showFactionInfoHover::",glowTarget,target,factionIndex,frame);
       }
       
       private function onLocal(value:String = "") : void
       {
-         var faction1Label:String = "«" + GangShop.getSellerName(1) + "»";
-         var faction1Label2:String = "«" + GangShop.getSellerName(2) + "»";
+         var faction1Label:String = "«" + GangShop.getSellerName(Faction.SCAVENGERS) + "»";
+         var faction1Label2:String = "«" + GangShop.getSellerName(Faction.BLACK_MARKET) + "»";
          this.noFactionSelected.factionLabel.text = faction1Label;
          this.noFactionSelected.factionLabel2.text = faction1Label2;
          this.noFactionSelected.factionLabelBack2.gotoAndStop(2);
@@ -382,9 +385,9 @@ package survarium.controls
       {
          return;
          var target:Object = e.target;
-         var _loc3_:Boolean;
-         var _loc4_:Boolean;
-         var _loc5_:Array;
+         var isSelectable:Boolean;
+         var isJoinable:Boolean;
+         var quests:Array;
       }
       
       protected function deselect(e:Event) : void
@@ -567,7 +570,7 @@ package survarium.controls
             _lastSelectedEnabled = e.data ? e.data.faction_enabled : true;
          }
          trace("onReputationIndexChange",this._lastSelected,this._lastSelectedEnabled,repRenderer,e.data,"_activeFaction",this._activeFaction);
-         if(e.data && (e.data.faction_id != this._activeFaction || this._activeFaction == -1 && !e.target.enabled))
+         if(e.data && (e.data.faction_id != this._activeFaction || this._activeFaction == Faction.ANY && !e.target.enabled))
          {
             this.showFactionInfo();
          }
@@ -637,7 +640,7 @@ package survarium.controls
          trace("QW::addQuestRewards:",value.reward,"|",value.tasks,factionIcon,value.faction_id);
          trace("questAddedAtTimer::",_initTime - _curTime,"|",getTime());
          Util.logObject(value);
-         if(value.proposal == false || value.proposal == undefined && value.status == 0)
+         if(value.proposal == false || value.proposal == undefined && value.status == QuestStatus.OFFERED)
          {
             this._quests.push(value);
          }
@@ -715,13 +718,13 @@ package survarium.controls
          trace("setFactionProgress::",value.length,value);
          if(value)
          {
-            value.length = 4;
+            value.length = Faction.TRADING_FACTIONS;
          }
          _factions = value;
          this._reputationsList.dataProvider = new DataProvider(this._factions);
          this._reputationsList.validateNow();
          this.resetFilter(null);
-         if(this._activeFaction != -1)
+         if(this._activeFaction != Faction.ANY)
          {
             this.setActiveFaction(this._activeFaction);
          }
@@ -741,7 +744,7 @@ package survarium.controls
          {
             for(i = 0; i < value.reward.length; i++)
             {
-               if(value.reward[i].type == 3)
+               if(value.reward[i].type == Reward.ITEM)
                {
                   item_descr = this._inventory.getItemData(value.reward[i].param);
                   value.reward[i].item_name = item_descr.name;
@@ -768,7 +771,7 @@ package survarium.controls
             }],
             info:this.dummy.infoTextField.text,
             time_limit:this.dummy.timeTextField.text,
-            status:1
+            status:QuestStatus.STATUS_1
          };
          this._quests.push(newQuest);
          this._questsList.dataProvider = new DataProvider(this._quests);

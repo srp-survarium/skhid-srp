@@ -5,9 +5,9 @@ package
    public dynamic class Level8_day extends BitmapData
    {
       
-      public function Level8_day(param1:int = 1920, param2:int = 680)
+      public function Level8_day(bitmapWidth:int = 1920, bitmapHeight:int = 680)
       {
-         super(param1,param2);
+         super(bitmapWidth,bitmapHeight);
       }
    }
 }

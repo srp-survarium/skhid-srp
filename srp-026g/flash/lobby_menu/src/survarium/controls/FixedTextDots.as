@@ -35,9 +35,9 @@ package survarium.controls
       {
       }
       
-      public function set textColor(param1:uint) : void
+      public function set textColor(value:uint) : void
       {
-         this.textField.textColor = param1;
+         this.textField.textColor = value;
       }
       
       public function get text() : String
@@ -45,19 +45,19 @@ package survarium.controls
          return this._text;
       }
       
-      public function set text(param1:String) : void
+      public function set text(value:String) : void
       {
-         if(this._text == param1)
+         if(this._text == value)
          {
             return;
          }
-         _text = param1;
+         _text = value;
          invalidateData();
       }
       
       override protected function draw() : void
       {
-         var _loc1_:int;
+         var charIndex:int;
          if(isInvalid(InvalidationType.SIZE))
          {
             _origin_width = width;
@@ -68,11 +68,11 @@ package survarium.controls
          if(isInvalid(InvalidationType.DATA) || isInvalid(InvalidationType.SIZE))
          {
             this.textField.text = this._text;
-            _loc1_ = this.textField.length;
-            while(this.textField.textWidth > this._origin_width - 3 && _loc1_)
+            charIndex = this.textField.length;
+            while(this.textField.textWidth > this._origin_width - 3 && charIndex)
             {
-               this.textField.text = this.textField.text.substr(0,_loc1_) + "..";
-               _loc1_--;
+               this.textField.text = this.textField.text.substr(0,charIndex) + "..";
+               charIndex--;
             }
          }
          super.draw();

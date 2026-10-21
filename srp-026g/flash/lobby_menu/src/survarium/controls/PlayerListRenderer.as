@@ -9,6 +9,8 @@ package survarium.controls
    import scaleform.clik.data.ListData;
    import scaleform.clik.interfaces.IListItemRenderer;
    import survarium.constants.Colors;
+   import survarium.constants.SquadState;
+   import survarium.constants.TeamSide;
    
    public class PlayerListRenderer extends Button implements IListItemRenderer
    {
@@ -47,7 +49,7 @@ package survarium.controls
          return _focusable;
       }
       
-      override public function set focusable(param1:Boolean) : void
+      override public function set focusable(value:Boolean) : void
       {
       }
       
@@ -56,9 +58,9 @@ package survarium.controls
          return this._index;
       }
       
-      public function set index(param1:uint) : void
+      public function set index(value:uint) : void
       {
-         _index = param1;
+         _index = value;
       }
       
       public function get selectable() : Boolean
@@ -66,27 +68,27 @@ package survarium.controls
          return this._selectable;
       }
       
-      public function set selectable(param1:Boolean) : void
+      public function set selectable(value:Boolean) : void
       {
-         _selectable = param1 && enabled;
+         _selectable = value && enabled;
       }
       
-      public function setListData(param1:ListData) : void
+      public function setListData(listData:ListData) : void
       {
-         index = param1.index;
-         selected = param1.selected;
+         index = listData.index;
+         selected = listData.selected;
       }
       
-      public function setData(param1:Object) : void
+      public function setData(data:Object) : void
       {
-         _data = param1;
+         _data = data;
          invalidateData();
       }
       
       public function updateData() : void
       {
-         var _loc1_:ColorTransform;
-         var _loc2_:int;
+         var colorTransform:ColorTransform;
+         var clr:int;
          if(_data)
          {
             this.ui_name.text = _data.name;
@@ -96,8 +98,8 @@ package survarium.controls
             }
             else
             {
-               _loc2_ = _data.isLocal ? (Colors.PLAYER) : 16777215;
-               this.ui_name.textColor = _loc2_;
+               clr = _data.isLocal ? (Colors.PLAYER) : 16777215;
+               this.ui_name.textColor = clr;
             }
             this.ui_kills.text = _data.kills;
             this.ui_deaths.text = _data.deaths;
@@ -110,9 +112,9 @@ package survarium.controls
             {
                if(_data.isLocal == true)
                {
-                  _loc1_ = new ColorTransform();
-                  _loc1_.color = 16777215;
-                  this.background.transform.colorTransform = _loc1_;
+                  colorTransform = new ColorTransform();
+                  colorTransform.color = 16777215;
+                  this.background.transform.colorTransform = colorTransform;
                   this.background.visible = true;
                   this.background.alpha = 0.15;
                }
@@ -125,16 +127,16 @@ package survarium.controls
             }
             if(this.squad_icon)
             {
-               if(_data.squad_state == 1 || _data.squad_state == 2)
+               if(_data.squad_state == SquadState.IN_SQUAD || _data.squad_state == SquadState.STATE_2)
                {
                   this.squad_icon.visible = true;
                   this.squad_icon.gotoAndStop(_data.squad_id);
-                  if(_data.team != 1)
+                  if(_data.team != TeamSide.ALLY)
                   {
                      this.ui_name.textColor = 16777215;
-                     _loc1_ = new ColorTransform();
-                     _loc1_.color = 16711680;
-                     this.squad_icon.transform.colorTransform = _loc1_;
+                     colorTransform = new ColorTransform();
+                     colorTransform.color = 16711680;
+                     this.squad_icon.transform.colorTransform = colorTransform;
                   }
                   else
                   {
@@ -146,9 +148,9 @@ package survarium.controls
                      {
                         this.ui_name.textColor = _data.isLocalSquad ? 11790999 : 16777215;
                      }
-                     _loc1_ = new ColorTransform();
-                     _loc1_.color = _data.isLocalSquad ? 11790999 : 10321495;
-                     this.squad_icon.transform.colorTransform = _loc1_;
+                     colorTransform = new ColorTransform();
+                     colorTransform.color = _data.isLocalSquad ? 11790999 : 10321495;
+                     this.squad_icon.transform.colorTransform = colorTransform;
                   }
                   if(_data.online != undefined && _data.online == false)
                   {

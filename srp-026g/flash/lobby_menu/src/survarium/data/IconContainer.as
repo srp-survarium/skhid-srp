@@ -24,20 +24,20 @@ package survarium.data
          _ids[name] = this;
          var times:int = -1;
          var baseTexture:BitmapData;
-         function create_icon(param1:int, param2:int, param3:Boolean):void
+         function create_icon(column:int, row:int, skipLeadingStep:Boolean):void
          {
-            var _loc4_:BitmapData = new BitmapData(iconW,iconH,true,0);
-            var _loc5_:Matrix = new Matrix();
-            if(param3)
+            var icon:BitmapData = new BitmapData(iconW,iconH,true,0);
+            var matrix:Matrix = new Matrix();
+            if(skipLeadingStep)
             {
-               _loc5_.translate(-(iconW + stepH) * param1 - stepH,-(iconH + stepV) * param2 - stepV);
+               matrix.translate(-(iconW + stepH) * column - stepH,-(iconH + stepV) * row - stepV);
             }
             else
             {
-               _loc5_.translate(-(iconW + stepH) * param1,-(iconH + stepV) * param2);
+               matrix.translate(-(iconW + stepH) * column,-(iconH + stepV) * row);
             }
-            _loc4_.draw(baseTexture,_loc5_,null,null,new Rectangle(0,0,iconW,iconH));
-            _icons.push(_loc4_);
+            icon.draw(baseTexture,matrix,null,null,new Rectangle(0,0,iconW,iconH));
+            _icons.push(icon);
          }
          var r:uint;
          var c:uint;
@@ -87,18 +87,18 @@ package survarium.data
          trace("IconCCreated::",name,this._icons.length);
       }
       
-      public static function getInstance(param1:String) : IconContainer
+      public static function getInstance(value:String) : IconContainer
       {
-         return _ids[param1];
+         return _ids[value];
       }
       
-      public function getIcon(param1:uint) : Icon
+      public function getIcon(iconID:uint) : Icon
       {
-         var _loc2_:Bitmap = new Bitmap(this._icons[param1],PixelSnapping.ALWAYS);
-         _loc2_.smoothing = true;
-         var _loc3_:Icon = new Icon();
-         _loc3_.loadImage(_loc2_);
-         return _loc3_;
+         var bmp:Bitmap = new Bitmap(this._icons[iconID],PixelSnapping.ALWAYS);
+         bmp.smoothing = true;
+         var icon:Icon = new Icon();
+         icon.loadImage(bmp);
+         return icon;
       }
       
       public function toString() : String

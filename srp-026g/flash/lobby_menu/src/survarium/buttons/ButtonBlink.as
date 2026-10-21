@@ -23,10 +23,10 @@ package survarium.buttons
          };
       }
       
-      public function set blink(param1:Boolean) : void
+      public function set blink(value:Boolean) : void
       {
-         trace("blink",param1);
-         setState(param1 ? "blink" : "up");
+         trace("blink",value);
+         setState(value ? "blink" : "up");
       }
    }
 }

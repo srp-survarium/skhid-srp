@@ -18,15 +18,15 @@ package survarium.controls
          super();
       }
       
-      public function set rendererStep(param1:uint) : void
+      public function set rendererStep(value:uint) : void
       {
-         _rendererStep = param1;
+         _rendererStep = value;
          invalidateData();
       }
       
-      public function registerRenderer(param1:Class) : void
+      public function registerRenderer(value:Class) : void
       {
-         _progressRenderer = param1;
+         _progressRenderer = value;
          invalidateData();
       }
       
@@ -42,54 +42,54 @@ package survarium.controls
       
       override protected function updatePosition() : void
       {
-         var _loc1_:MovieClip;
-         var _loc2_:int = this._renderers.length;
-         var _loc3_:uint = 0;
-         while(_loc3_ < _loc2_)
+         var renderer:MovieClip;
+         var rendererCount:int = this._renderers.length;
+         var j:uint = 0;
+         while(j < rendererCount)
          {
-            _loc1_ = this._renderers[_loc3_];
-            _loc1_.gotoAndStop(_loc3_ < _value ? 1 : 2);
-            _loc3_++;
+            renderer = this._renderers[j];
+            renderer.gotoAndStop(j < _value ? 1 : 2);
+            j++;
          }
       }
       
       protected function updateRenderers() : void
       {
-         var _loc1_:int = _maximum;
-         var _loc2_:MovieClip;
+         var rendererCount:int = _maximum;
+         var renderer:MovieClip;
          if(!this._progressRenderer)
          {
             return;
          }
-         var _loc3_:uint = 0;
-         while(_loc3_ < this._renderers.length)
+         var j:uint = 0;
+         while(j < this._renderers.length)
          {
-            _loc2_ = this._renderers[_loc3_];
-            _loc2_.gotoAndStop(1);
-            removeChild(_loc2_);
-            _loc3_++;
+            renderer = this._renderers[j];
+            renderer.gotoAndStop(1);
+            removeChild(renderer);
+            j++;
          }
-         var _loc4_:uint = 0;
-         var _loc5_:uint;
-         var _loc6_:uint;
-         while(_loc4_ < _loc1_)
+         var i:uint = 0;
+         var nx:uint;
+         var ny:uint;
+         while(i < rendererCount)
          {
-            if(!this._renderers[_loc4_])
+            if(!this._renderers[i])
             {
-               _loc2_ = new this._progressRenderer();
-               _loc2_.gotoAndStop(2);
-               this._renderers[_loc4_] = _loc2_;
+               renderer = new this._progressRenderer();
+               renderer.gotoAndStop(2);
+               this._renderers[i] = renderer;
             }
             else
             {
-               _loc2_ = this._renderers[_loc4_];
+               renderer = this._renderers[i];
             }
-            addChild(_loc2_);
-            _loc5_ = this._rendererStep * _loc4_;
-            _loc6_ = 0;
-            _loc2_.x = _loc5_;
-            _loc2_.y = _loc6_;
-            _loc4_++;
+            addChild(renderer);
+            nx = this._rendererStep * i;
+            ny = 0;
+            renderer.x = nx;
+            renderer.y = ny;
+            i++;
          }
       }
    }

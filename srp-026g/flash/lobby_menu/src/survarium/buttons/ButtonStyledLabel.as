@@ -29,9 +29,9 @@ package survarium.buttons
          trace("ButtonStyledLabel::configUIFinished");
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         super.data = param1;
+         super.data = value;
          label = _data.label;
          if(this.invalidOverlay)
          {

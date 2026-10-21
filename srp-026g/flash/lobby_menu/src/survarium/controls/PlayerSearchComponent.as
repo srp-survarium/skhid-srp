@@ -18,6 +18,7 @@ package survarium.controls
    import scaleform.clik.events.InputEvent;
    import scaleform.clik.ui.InputDetails;
    import survarium.data.LocalizationData;
+   import survarium.constants.FriendStatus;
    
    public class PlayerSearchComponent extends UIComponent
    {
@@ -49,32 +50,32 @@ package survarium.controls
          super();
       }
       
-      public function setDropDown(param1:Boolean) : void
+      public function setDropDown(value:Boolean) : void
       {
-         _dropDown = param1;
+         _dropDown = value;
       }
       
-      public function fillFoundPlayers(param1:Array) : void
+      public function fillFoundPlayers(players:Array) : void
       {
-         this.playersList.dataProvider = new DataProvider(param1);
+         this.playersList.dataProvider = new DataProvider(players);
          this.playersList.selectedIndex = 0;
          this.loadingIndicator.gotoAndStop(1);
          this.btnCancelSearch.visible = true;
          this.unpdatePlayerListHeight();
       }
       
-      public function setFriendsList(param1:Array) : void
+      public function setFriendsList(friends:Array) : void
       {
-         _friendsList = param1;
+         _friendsList = friends;
          if(!this.btnCancelSearch.visible)
          {
             this.unpdatePlayerList();
          }
       }
       
-      public function cleanUp(param1:Boolean = true) : void
+      public function cleanUp(clearText:Boolean = true) : void
       {
-         if(param1)
+         if(clearText)
          {
             this.textInput.text = "";
          }
@@ -114,53 +115,53 @@ package survarium.controls
          this.playersList.focusTarget = this.textInput;
       }
       
-      private function toggleOnlineFilter(param1:ButtonEvent) : void
+      private function toggleOnlineFilter(event:ButtonEvent) : void
       {
          this.unpdatePlayerList();
       }
       
-      private function onSearchClick(param1:MouseEvent) : void
+      private function onSearchClick(event:MouseEvent) : void
       {
          stage.focus = this;
          this.requestPlayersList();
       }
       
-      private function onInputFocus(param1:FocusHandlerEvent) : void
+      private function onInputFocus(event:FocusHandlerEvent) : void
       {
-         this.searchIcon.alpha = param1.type == FocusHandlerEvent.FOCUS_IN ? 0.8 : 0.3;
+         this.searchIcon.alpha = event.type == FocusHandlerEvent.FOCUS_IN ? 0.8 : 0.3;
       }
       
-      private function cancelSearch(param1:ButtonEvent) : void
+      private function cancelSearch(event:ButtonEvent) : void
       {
          this.textInput.text = "";
          this.unpdatePlayerList();
          this.showSearch(true);
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
-         trace("FM::handleInput::",param1.isDefaultPrevented());
-         if(param1.isDefaultPrevented())
+         trace("FM::handleInput::",event.isDefaultPrevented());
+         if(event.isDefaultPrevented())
          {
             return;
          }
-         var _loc2_:InputDetails = param1.details;
-         var _loc3_:uint = _loc2_.controllerIndex;
-         trace("KEY_STATE::",_loc2_.value,_loc2_.navEquivalent);
-         switch(_loc2_.code)
+         var details:InputDetails = event.details;
+         var controllerIndex:uint = details.controllerIndex;
+         trace("KEY_STATE::",details.value,details.navEquivalent);
+         switch(details.code)
          {
             case Keyboard.ESCAPE:
-               if(_loc2_.value == InputValue.KEY_DOWN || _loc2_.value == InputValue.KEY_UP)
+               if(details.value == InputValue.KEY_DOWN || details.value == InputValue.KEY_UP)
                {
                   if(stage.focus == this.textInput.textField || stage.focus == this.textInput.textField)
                   {
                      stage.focus = this;
-                     param1.preventDefault();
+                     event.preventDefault();
                   }
                }
                break;
             case Keyboard.ENTER:
-               if(_loc2_.value == InputValue.KEY_DOWN)
+               if(details.value == InputValue.KEY_DOWN)
                {
                   if(this.textInput.textField.text.length > 2)
                   {
@@ -172,13 +173,13 @@ package survarium.controls
          }
       }
       
-      protected function onLocalization(param1:String) : void
+      protected function onLocalization(key:String) : void
       {
          this.textInput.defaultText = LocalizationData.getName("players_list_filter_text");
          this.hintContainer.textField.text = LocalizationData.getName("friend_search_hint");
       }
       
-      protected function onLostEnter(param1:FocusEvent) : void
+      protected function onLostEnter(event:FocusEvent) : void
       {
          trace("onLostEnter");
          if(this.textInput.textField.text == "")
@@ -188,22 +189,22 @@ package survarium.controls
          this.hideHint();
       }
       
-      private function logListData(param1:Event) : void
+      private function logListData(event:Event) : void
       {
          trace("logListData",this.playersList.visible);
       }
       
-      protected function onStartEnter(param1:FocusEvent) : void
+      protected function onStartEnter(event:FocusEvent) : void
       {
          trace("onStartEnter");
          this.textInput.textField.removeEventListener(FocusEvent.FOCUS_IN,this.onStartEnter);
          this.textInput.text = "";
       }
       
-      protected function searchInput(param1:Event = null) : void
+      protected function searchInput(event:Event = null) : void
       {
-         var _loc2_:Array;
-         var _loc3_:Array;
+         var friends:Array;
+         var found:Array;
          this.hintContainer.visible = true;
          this.hintContainer.alpha = 0;
          if(this.hintContainer.alpha == 0 && !this.hintDelayed)
@@ -218,10 +219,10 @@ package survarium.controls
          this.showSearch(true);
          if(this.textInput.textField.text.length > 0)
          {
-            _loc2_ = this._friendsList;
-            _loc3_ = [];
-            _loc3_ = _loc3_.concat(this.filterPlayers(this.filterOnlinePlayers(_loc2_),this.textInput.textField.text));
-            this.playersList.dataProvider = new DataProvider(_loc3_);
+            friends = this._friendsList;
+            found = [];
+            found = found.concat(this.filterPlayers(this.filterOnlinePlayers(friends),this.textInput.textField.text));
+            this.playersList.dataProvider = new DataProvider(found);
             this.unpdatePlayerListHeight();
          }
          else
@@ -256,24 +257,24 @@ package survarium.controls
          stage.removeEventListener(MouseEvent.MOUSE_MOVE,this.onStageMouseMove);
       }
       
-      protected function requestPlayersList(param1:Event = null) : void
+      protected function requestPlayersList(event:Event = null) : void
       {
-         var _loc2_:String = this.textInput.textField.text;
-         if(_loc2_.length < 3 || _loc2_ == this.textInput.defaultText)
+         var query:String = this.textInput.textField.text;
+         if(query.length < 3 || query == this.textInput.defaultText)
          {
             return;
          }
          dispatchEvent(new Event(Event.CONNECT,true));
-         ExternalInterface.call("find_players",_loc2_);
+         ExternalInterface.call("find_players",query);
          this.loadingIndicator.gotoAndPlay(1);
          this.showSearch(false);
          this.btnCancelSearch.visible = false;
       }
       
-      protected function showSearch(param1:Boolean) : void
+      protected function showSearch(show:Boolean) : void
       {
-         this.searchIcon.visible = param1;
-         this.btnCancelSearch.enabled = !param1;
+         this.searchIcon.visible = show;
+         this.btnCancelSearch.enabled = !show;
       }
       
       protected function showHint() : void
@@ -286,65 +287,65 @@ package survarium.controls
          stage.addEventListener(MouseEvent.MOUSE_MOVE,this.onStageMouseMove);
       }
       
-      private function onStageMouseMove(param1:MouseEvent) : void
+      private function onStageMouseMove(event:MouseEvent) : void
       {
          this.hideHint();
       }
       
-      protected function filterOnlinePlayers(param1:Array) : Array
+      protected function filterOnlinePlayers(players:Array) : Array
       {
-         var _loc2_:Boolean = false;
+         var onlineOnly:Boolean = false;
          if(this.btnFilter)
          {
-            _loc2_ = !this.btnFilter.selected;
+            onlineOnly = !this.btnFilter.selected;
          }
-         if(!_loc2_)
+         if(!onlineOnly)
          {
-            return param1;
+            return players;
          }
-         var _loc3_:Array = [];
-         var _loc4_:uint;
-         var _loc5_:int;
-         if(param1 && param1.length)
+         var result:Array = [];
+         var i:uint;
+         var status:int;
+         if(players && players.length)
          {
-            _loc4_ = 0;
-            while(_loc4_ < param1.length)
+            i = 0;
+            while(i < players.length)
             {
-               _loc5_ = (param1[_loc4_].status);
-               if(_loc5_ != 2)
+               status = (players[i].status);
+               if(status != FriendStatus.OFFLINE)
                {
-                  _loc3_.push(param1[_loc4_]);
+                  result.push(players[i]);
                }
-               _loc4_++;
+               i++;
             }
          }
-         return _loc3_;
+         return result;
       }
       
-      protected function filterPlayers(param1:Array, param2:String) : Array
+      protected function filterPlayers(players:Array, query:String) : Array
       {
-         var _loc3_:Array = [];
-         var _loc4_:uint;
-         var _loc5_:String;
-         if(param2 == this.textInput.defaultText || param2 == "")
+         var result:Array = [];
+         var i:uint;
+         var playerName:String;
+         if(query == this.textInput.defaultText || query == "")
          {
-            return param1;
+            return players;
          }
-         param2 = param2.toLowerCase();
-         if(param1 && param1.length)
+         query = query.toLowerCase();
+         if(players && players.length)
          {
-            _loc4_ = 0;
-            while(_loc4_ < param1.length)
+            i = 0;
+            while(i < players.length)
             {
-               _loc5_ = (param1[_loc4_].name as String).toLowerCase();
-               if(_loc5_.indexOf(param2) != -1)
+               playerName = (players[i].name as String).toLowerCase();
+               if(playerName.indexOf(query) != -1)
                {
-                  _loc3_.push(param1[_loc4_]);
+                  result.push(players[i]);
                }
-               _loc4_++;
+               i++;
             }
          }
-         return _loc3_;
+         return result;
       }
    }
 }

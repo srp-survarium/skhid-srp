@@ -13,6 +13,9 @@ package survarium.ammo
    import survarium.controls.ScrollContent;
    import survarium.data.ItemData;
    import survarium.interfaces.IAmmoShare;
+   import survarium.constants.AmmoView;
+   import survarium.constants.ItemPlace;
+   import survarium.constants.ProfileSlot;
    
    public class AmmoShareLite extends UIComponent implements IAmmoShare
    {
@@ -45,7 +48,7 @@ package survarium.ammo
       
       protected var _slotsN:int = 0;
       
-      protected var _ammo_indexes:Array = [8,9,11,12,19,20,21,22];
+      protected var _ammo_indexes:Array = [ProfileSlot.WEAPON_1_AMMO_1,ProfileSlot.WEAPON_1_AMMO_2,ProfileSlot.WEAPON_2_AMMO_1,ProfileSlot.WEAPON_2_AMMO_2,ProfileSlot.AMMO_5,ProfileSlot.AMMO_6,ProfileSlot.AMMO_7,ProfileSlot.AMMO_8];
       
       protected var _ammoList:Array;
       
@@ -106,54 +109,54 @@ package survarium.ammo
          return _id;
       }
       
-      public static function setItemCard(param1:*) : void
+      public static function setItemCard(itemCard:*) : void
       {
-         _itemCard = param1;
+         _itemCard = itemCard;
          _itemCard.addEventListener(Event.COMPLETE,getInstance().acceptItemCard);
       }
       
-      public function set updateFunction(param1:Function) : void
+      public function set updateFunction(value:Function) : void
       {
-         _updateFunction = param1;
+         _updateFunction = value;
       }
       
-      public function registerWeightTextField(param1:TextField) : void
+      public function registerWeightTextField(weightField:TextField) : void
       {
-         tx_weigth = param1;
+         tx_weigth = weightField;
       }
       
-      public function registerRenderer(param1:Class) : void
+      public function registerRenderer(rendererClass:Class) : void
       {
-         _renderer = param1;
-         var _loc2_:uint = 0;
-         var _loc3_:AmmoShareElement;
-         while(_loc2_ < 6)
+         _renderer = rendererClass;
+         var i:uint = 0;
+         var element:AmmoShareElement;
+         while(i < AmmoView.SLOTS)
          {
-            _loc3_ = new this._renderer();
-            this._emptyElements.push(_loc3_);
-            _loc2_++;
+            element = new this._renderer();
+            this._emptyElements.push(element);
+            i++;
          }
       }
       
       protected function getEmptyElement() : AmmoShareElement
       {
-         var _loc1_:uint = 0;
-         var _loc2_:AmmoShareElement;
-         while(_loc1_ < this._emptyElements.length)
+         var i:uint = 0;
+         var element:AmmoShareElement;
+         while(i < this._emptyElements.length)
          {
-            _loc2_ = this._emptyElements[_loc1_];
-            if(!_loc2_.parent)
+            element = this._emptyElements[i];
+            if(!element.parent)
             {
-               return _loc2_;
+               return element;
             }
-            _loc1_++;
+            i++;
          }
          return null;
       }
       
-      public function set autoBuyCheckBox(param1:Button) : void
+      public function set autoBuyCheckBox(value:Button) : void
       {
-         _autoBuyCheckBox = param1;
+         _autoBuyCheckBox = value;
       }
       
       public function get autoBuyCheckBox() : Button
@@ -161,28 +164,28 @@ package survarium.ammo
          return this._autoBuyCheckBox;
       }
       
-      public function set acceptButton(param1:Button) : void
+      public function set acceptButton(value:Button) : void
       {
-         _btn_yes = param1;
+         _btn_yes = value;
          this._btn_yes.enabled = false;
          this._btn_yes.addEventListener(ButtonEvent.CLICK,this.setAmmo,false,0,true);
       }
       
-      public function set cancelButton(param1:Button) : void
+      public function set cancelButton(value:Button) : void
       {
-         _btn_cancel = param1;
+         _btn_cancel = value;
          this._btn_cancel.enabled = false;
          this._btn_cancel.addEventListener(ButtonEvent.CLICK,this.cancel,false,0,true);
       }
       
-      public function set ammoBags(param1:uint) : void
+      public function set ammoBags(value:uint) : void
       {
-         _ammoBags = param1;
+         _ammoBags = value;
       }
       
-      public function set pocketSize(param1:uint) : void
+      public function set pocketSize(value:uint) : void
       {
-         _pocketSize = param1;
+         _pocketSize = value;
       }
       
       public function getItemsList() : *
@@ -190,141 +193,141 @@ package survarium.ammo
          return null;
       }
       
-      public function getAmmoRenderer(param1:uint) : DisplayObject
+      public function getAmmoRenderer(elementIndex:uint) : DisplayObject
       {
-         trace("getAmmoRenderer",param1);
+         trace("getAmmoRenderer",elementIndex);
          if(this._elemetns)
          {
-            trace("_elemetns",this._elemetns[param1]);
-            if(this._elemetns[param1])
+            trace("_elemetns",this._elemetns[elementIndex]);
+            if(this._elemetns[elementIndex])
             {
-               this._elemetns[param1].arrayIndex = param1;
+               this._elemetns[elementIndex].arrayIndex = elementIndex;
             }
-            return this._elemetns[param1];
+            return this._elemetns[elementIndex];
          }
          trace("return _null");
          return null;
       }
       
-      public function highlightAmmoRendererSlider(param1:uint) : DisplayObject
+      public function highlightAmmoRendererSlider(elementIndex:uint) : DisplayObject
       {
-         trace("getAmmoRendererSlider",param1);
+         trace("getAmmoRendererSlider",elementIndex);
          if(this._elemetns)
          {
-            trace("_elemetns",this._elemetns[param1]);
-            if(this._elemetns[param1])
+            trace("_elemetns",this._elemetns[elementIndex]);
+            if(this._elemetns[elementIndex])
             {
-               this._elemetns[param1].arrayIndex = param1;
+               this._elemetns[elementIndex].arrayIndex = elementIndex;
             }
-            return this._elemetns[param1].slider;
+            return this._elemetns[elementIndex].slider;
          }
          trace("return _null");
          return null;
       }
       
-      public function highlightAmmoRendererCell(param1:uint, param2:Boolean) : void
+      public function highlightAmmoRendererCell(elementIndex:uint, hover:Boolean) : void
       {
-         trace("highlightAmmoRendererCell",param1);
+         trace("highlightAmmoRendererCell",elementIndex);
          if(this._elemetns)
          {
-            trace("_elemetns",this._elemetns[param1]);
-            if(this._elemetns[param1])
+            trace("_elemetns",this._elemetns[elementIndex]);
+            if(this._elemetns[elementIndex])
             {
-               this._elemetns[param1].slider.hoverCells(param2);
+               this._elemetns[elementIndex].slider.hoverCells(hover);
             }
          }
       }
       
-      public function swapElements(param1:int, param2:int) : void
+      public function swapElements(fromSlot:int, toSlot:int) : void
       {
-         var _loc3_:Object;
-         var _loc4_:Object;
-         var _loc5_:uint = this._elemetnsSlots.length;
-         var _loc6_:int = 0;
-         var _loc7_:Object;
-         while(_loc6_ < _loc5_)
+         var fromElement:Object;
+         var toElement:Object;
+         var count:uint = this._elemetnsSlots.length;
+         var i:int = 0;
+         var slotElement:Object;
+         while(i < count)
          {
-            _loc7_ = this._elemetnsSlots[_loc6_];
-            if(_loc7_.index == param1)
+            slotElement = this._elemetnsSlots[i];
+            if(slotElement.index == fromSlot)
             {
-               _loc3_ = _loc7_;
+               fromElement = slotElement;
             }
-            if(_loc7_.index == param2)
+            if(slotElement.index == toSlot)
             {
-               _loc4_ = _loc7_;
+               toElement = slotElement;
             }
-            if(_loc3_ && _loc4_)
+            if(fromElement && toElement)
             {
                break;
             }
-            _loc6_++;
+            i++;
          }
-         trace("swapElements",_loc3_,_loc4_,"|",param1,param2);
-         if(_loc3_ && _loc4_)
+         trace("swapElements",fromElement,toElement,"|",fromSlot,toSlot);
+         if(fromElement && toElement)
          {
-            trace("swapElements",_loc3_.data ? _loc3_.data.name : "null",_loc4_.data ? _loc4_.data.name : "null");
-            _loc3_.index = param2;
-            if(_loc3_.data)
+            trace("swapElements",fromElement.data ? fromElement.data.name : "null",toElement.data ? toElement.data.name : "null");
+            fromElement.index = toSlot;
+            if(fromElement.data)
             {
-               _loc3_.data.slotId = param2;
+               fromElement.data.slotId = toSlot;
             }
-            _loc4_.index = param1;
-            if(_loc4_.data)
+            toElement.index = fromSlot;
+            if(toElement.data)
             {
-               _loc4_.data.slotId = param1;
+               toElement.data.slotId = fromSlot;
             }
          }
          this.setAmmo();
       }
       
-      public function updateElement(param1:Object, param2:ItemData = null) : void
+      public function updateElement(move:Object, newItem:ItemData = null) : void
       {
-         trace("updateElement::",this._ammoList.length,this._elemetns.length,this._elemetnsSlots.length,this._dataSlots.length,param2 ? param2.count : "no_new_data");
-         var _loc3_:ItemData = null;
-         var _loc4_:int = 0;
-         while(_loc4_ < this._dataSlots.length)
+         trace("updateElement::",this._ammoList.length,this._elemetns.length,this._elemetnsSlots.length,this._dataSlots.length,newItem ? newItem.count : "no_new_data");
+         var item:ItemData = null;
+         var i:int = 0;
+         while(i < this._dataSlots.length)
          {
-            trace("searchForVO::",param1.dict_id,this._dataSlots[_loc4_].dictId,this._dataSlots[_loc4_].name);
-            if(this._dataSlots[_loc4_].dictId == param1.dict_id)
+            trace("searchForVO::",move.dict_id,this._dataSlots[i].dictId,this._dataSlots[i].name);
+            if(this._dataSlots[i].dictId == move.dict_id)
             {
-               _loc3_ = this._dataSlots[_loc4_];
+               item = this._dataSlots[i];
                break;
             }
-            _loc4_++;
+            i++;
          }
-         if(!_loc3_)
+         if(!item)
          {
-            if(param2)
+            if(newItem)
             {
-               _loc3_ = param2;
+               item = newItem;
             }
             else
             {
                return;
             }
          }
-         else if(param2)
+         else if(newItem)
          {
-            _loc3_.count += param2.value;
+            item.count += newItem.value;
          }
-         var _loc5_:int = 0;
-         var _loc6_:Object;
-         while(_loc5_ < this._elemetnsSlots.length)
+         var j:int = 0;
+         var slotElement:Object;
+         while(j < this._elemetnsSlots.length)
          {
-            _loc6_ = this._elemetnsSlots[_loc5_];
-            if(_loc6_.index == param1.targetSlot)
+            slotElement = this._elemetnsSlots[j];
+            if(slotElement.index == move.targetSlot)
             {
-               trace("update::",_loc3_.slotId,_loc3_.count);
-               _loc3_.descriptor = param1.sourceSlot;
-               _loc6_.data = _loc3_;
+               trace("update::",item.slotId,item.count);
+               item.descriptor = move.sourceSlot;
+               slotElement.data = item;
                this.setAmmo();
                break;
             }
-            _loc5_++;
+            j++;
          }
       }
       
-      protected function acceptItemCard(param1:Event = null) : void
+      protected function acceptItemCard(event:Event = null) : void
       {
          trace("acceptItemCardTotal::",_itemCard,this._elemetns);
          _relocateArray = new Array();
@@ -337,19 +340,19 @@ package survarium.ammo
          this.prepare_new_data();
       }
       
-      public function setProfileId(param1:int) : void
+      public function setProfileId(profileId:int) : void
       {
-         _profileID = param1;
+         _profileID = profileId;
       }
       
-      public function setSlots(param1:int = 0, param2:uint = 0) : void
+      public function setSlots(slotCount:int = 0, unused:uint = 0) : void
       {
-         _slotsN = param1;
+         _slotsN = slotCount;
       }
       
-      public function setShared(param1:Boolean) : void
+      public function setShared(shared:Boolean) : void
       {
-         _isShared = param1;
+         _isShared = shared;
       }
       
       public function getShared() : Boolean
@@ -357,83 +360,83 @@ package survarium.ammo
          return this._isShared;
       }
       
-      public function reflow(param1:AmmoShareElement) : void
+      public function reflow(source:AmmoShareElement) : void
       {
-         trace("ammmo_reflow_st",param1,param1 ? param1.index : "no_tg",this._isReflow);
+         trace("ammmo_reflow_st",source,source ? source.index : "no_tg",this._isReflow);
          if(this._isReflow)
          {
             return;
          }
          _isReflow = true;
-         var _loc2_:Number = 0;
-         var _loc3_:Number = 0;
-         var _loc4_:Boolean = true;
-         var _loc5_:AmmoShareElement;
-         var _loc6_:AmmoShareElement;
-         var _loc7_:uint = this._elemetns.length;
-         var _loc8_:int = 0;
-         var _loc9_:uint;
-         while(_loc8_ < _loc7_)
+         var otherCount:Number = 0;
+         var sum:Number = 0;
+         var allEmpty:Boolean = true;
+         var element:AmmoShareElement;
+         var other:AmmoShareElement;
+         var count:uint = this._elemetns.length;
+         var i:int = 0;
+         var j:uint;
+         while(i < count)
          {
-            _loc5_ = this._elemetns[_loc8_];
-            if(_loc5_.group != GROUP_ITEMS && (!param1 || _loc5_.pair == param1.pair && _loc5_.index != param1.index))
+            element = this._elemetns[i];
+            if(element.group != GROUP_ITEMS && (!source || element.pair == source.pair && element.index != source.index))
             {
-               _loc2_ = 0;
-               _loc9_ = 0;
-               while(_loc9_ < _loc7_)
+               otherCount = 0;
+               j = 0;
+               while(j < count)
                {
-                  _loc6_ = this._elemetns[_loc9_];
-                  if(_loc6_.index != _loc5_.index && _loc5_.group == _loc6_.group)
+                  other = this._elemetns[j];
+                  if(other.index != element.index && element.group == other.group)
                   {
-                     _loc2_ += _loc6_.getCount();
+                     otherCount += other.getCount();
                   }
-                  _loc9_++;
+                  j++;
                }
-               _loc5_.setCount(_loc2_,true);
-               if(_loc4_ && _loc5_.getCount() != 0)
+               element.setCount(otherCount,true);
+               if(allEmpty && element.getCount() != 0)
                {
-                  _loc4_ = false;
+                  allEmpty = false;
                }
             }
-            _loc8_++;
+            i++;
          }
          _totalPrice = 0;
          _totalPricePremium = 0;
-         for(_loc8_ = 0; _loc8_ < _loc7_; _loc8_++)
+         for(i = 0; i < count; i++)
          {
-            _loc5_ = this._elemetns[_loc8_];
-            if(_loc5_.isPremium())
+            element = this._elemetns[i];
+            if(element.isPremium())
             {
-               _totalPricePremium += _loc5_.get_required_price();
+               _totalPricePremium += element.get_required_price();
             }
             else
             {
-               _totalPrice += _loc5_.get_required_price();
+               _totalPrice += element.get_required_price();
             }
-            if(_loc5_.group == GROUP_ITEMS)
+            if(element.group == GROUP_ITEMS)
             {
                continue;
             }
-            if(param1 && _loc5_.pair != param1.pair)
+            if(source && element.pair != source.pair)
             {
-               _loc2_ = 0;
-               _loc9_ = 0;
-               while(_loc9_ < _loc7_)
+               otherCount = 0;
+               j = 0;
+               while(j < count)
                {
-                  _loc6_ = this._elemetns[_loc9_];
-                  if(_loc6_.index != _loc5_.index && _loc5_.group == _loc6_.group)
+                  other = this._elemetns[j];
+                  if(other.index != element.index && element.group == other.group)
                   {
-                     _loc2_ += _loc6_.getCount();
+                     otherCount += other.getCount();
                   }
-                  _loc9_++;
+                  j++;
                }
-               if(_loc4_)
+               if(allEmpty)
                {
-                  _loc5_.setCount(_loc2_,true);
+                  element.setCount(otherCount,true);
                }
                else
                {
-                  _loc5_.setCount(_loc2_,false);
+                  element.setCount(otherCount,false);
                }
             }
          }
@@ -441,108 +444,108 @@ package survarium.ammo
          {
             this._updateFunction(this._totalPrice,this._totalPricePremium);
          }
-         _loc9_ = 0;
-         while(_loc9_ < _loc7_)
+         j = 0;
+         while(j < count)
          {
-            _loc5_ = this._elemetns[_loc9_];
-            _loc5_.updateStorage();
-            _loc9_++;
+            element = this._elemetns[j];
+            element.updateStorage();
+            j++;
          }
          _isReflow = false;
          trace("reflow_end");
       }
       
-      public function getSlotData(param1:uint) : ItemData
+      public function getSlotData(slot:uint) : ItemData
       {
-         var _loc2_:int;
+         var i:int;
          trace("getSlotData::",this._ammoList);
          if(this._ammoList)
          {
-            _loc2_ = 0;
-            while(_loc2_ < this._ammoList.length)
+            i = 0;
+            while(i < this._ammoList.length)
             {
-               if(this._ammoList[_loc2_] && this._ammoList[_loc2_].slot == param1)
+               if(this._ammoList[i] && this._ammoList[i].slot == slot)
                {
-                  return this._ammoList[_loc2_];
+                  return this._ammoList[i];
                }
-               _loc2_++;
+               i++;
             }
          }
          return null;
       }
       
-      public function getAmmoList(param1:int, param2:Boolean = false, param3:int = -1) : Array
+      public function getAmmoList(weapon:int, excludeUsed:Boolean = false, exceptSlot:int = -1) : Array
       {
-         trace("getAmmoList",param1,this._ammoList,name,param3,param2);
+         trace("getAmmoList",weapon,this._ammoList,name,exceptSlot,excludeUsed);
          this._tempAmmoLst.length = 0;
-         var _loc4_:int = 0;
-         var _loc5_:Boolean;
-         var _loc6_:int;
-         var _loc7_:AmmoShareElement;
-         var _loc8_:ItemData;
-         while(_loc4_ < this._ammoList.length)
+         var i:int = 0;
+         var skip:Boolean;
+         var j:int;
+         var element:AmmoShareElement;
+         var elementData:ItemData;
+         while(i < this._ammoList.length)
          {
-            _loc5_ = false;
-            if(this._ammoList[_loc4_].weaponTarget != param1)
+            skip = false;
+            if(this._ammoList[i].weaponTarget != weapon)
             {
-               _loc5_ = true;
+               skip = true;
             }
             else
             {
-               this._ammoList[_loc4_].enabled = true;
-               if(param3 == -1 || this._ammoList[_loc4_].slotId != param3)
+               this._ammoList[i].enabled = true;
+               if(exceptSlot == -1 || this._ammoList[i].slotId != exceptSlot)
                {
-                  _loc6_ = 0;
-                  while(_loc6_ < this._elemetns.length)
+                  j = 0;
+                  while(j < this._elemetns.length)
                   {
-                     _loc7_ = this._elemetns[_loc6_];
-                     _loc8_ = _loc7_.getData();
-                     if(_loc8_)
+                     element = this._elemetns[j];
+                     elementData = element.getData();
+                     if(elementData)
                      {
-                        if(this._ammoList[_loc4_].dictId == _loc8_.dictId)
+                        if(this._ammoList[i].dictId == elementData.dictId)
                         {
-                           if(param2)
+                           if(excludeUsed)
                            {
-                              _loc5_ = true;
+                              skip = true;
                               break;
                            }
                            else
                            {
-                              this._ammoList[_loc4_].enabled = false;
+                              this._ammoList[i].enabled = false;
                            }
                         }
                      }
-                     _loc6_++;
+                     j++;
                   }
                }
             }
-            if(!_loc5_)
+            if(!skip)
             {
-               this._tempAmmoLst.push(this._ammoList[_loc4_]);
+               this._tempAmmoLst.push(this._ammoList[i]);
             }
-            _loc4_++;
+            i++;
          }
          trace("tempAmmoList:",this._tempAmmoLst);
          return this._tempAmmoLst;
       }
       
-      public function setAmmo(param1:ButtonEvent = null) : void
+      public function setAmmo(event:ButtonEvent = null) : void
       {
          _relocateArray = new Array();
-         var _loc2_:int = 0;
-         var _loc3_:AmmoShareElement;
-         while(_loc2_ < this._elemetns.length)
+         var i:int = 0;
+         var element:AmmoShareElement;
+         while(i < this._elemetns.length)
          {
-            _loc3_ = this._elemetns[_loc2_];
-            _loc3_.updated = false;
-            this.relocateAmmo(_loc3_);
-            _loc2_++;
+            element = this._elemetns[i];
+            element.updated = false;
+            this.relocateAmmo(element);
+            i++;
          }
-         _loc2_ = 0;
-         while(_loc2_ < this._elemetnsSlots.length)
+         i = 0;
+         while(i < this._elemetnsSlots.length)
          {
-            this.relocateItem(this._elemetnsSlots[_loc2_].data);
-            _loc2_++;
+            this.relocateItem(this._elemetnsSlots[i].data);
+            i++;
          }
          trace("ASL::apply_profile_items");
          ExternalInterface.call("apply_profile_items",this._relocateArray);
@@ -556,64 +559,64 @@ package survarium.ammo
       
       public function reflowElements() : void
       {
-         activeIndex = 4;
-         var _loc1_:int = 144 + 5;
-         var _loc2_:int = 275 + 5;
-         var _loc3_:int = 0;
-         var _loc4_:int = 0;
-         var _loc5_:AmmoShareElement;
+         activeIndex = AmmoView.ALL;
+         var stepY:int = 144 + 5;
+         var stepX:int = 275 + 5;
+         var shiftY:int = 0;
+         var shiftX:int = 0;
+         var element:AmmoShareElement;
          trace("reflowElemnts",this.activeIndex);
-         for(var _loc6_:uint = 0; _loc6_ < this._elemetns.length; _loc6_++)
+         for(var i:uint = 0; i < this._elemetns.length; i++)
          {
-            _loc5_ = this._elemetns[_loc6_];
-            if(!_loc5_)
+            element = this._elemetns[i];
+            if(!element)
             {
                continue;
             }
-            if(_loc5_.pair == PAIR_AMMO1 || _loc5_.pair == PAIR_AMMO2)
+            if(element.pair == PAIR_AMMO1 || element.pair == PAIR_AMMO2)
             {
-               if(this.activeIndex == 0 && _loc5_.pair == PAIR_AMMO1 || this.activeIndex == 1 && _loc5_.pair == PAIR_AMMO2 || this.activeIndex == 4)
+               if(this.activeIndex == AmmoView.PRIMARY && element.pair == PAIR_AMMO1 || this.activeIndex == AmmoView.SECONDARY && element.pair == PAIR_AMMO2 || this.activeIndex == AmmoView.ALL)
                {
-                  if(!_loc5_.parent)
+                  if(!element.parent)
                   {
-                     _loc5_.y = _loc3_;
-                     this._items_container.addContent(_loc5_);
+                     element.y = shiftY;
+                     this._items_container.addContent(element);
                   }
                }
-               else if(_loc5_.parent)
+               else if(element.parent)
                {
-                  this._items_container.removeContent(_loc5_);
+                  this._items_container.removeContent(element);
                }
             }
             else if(this.activeIndex == -1)
             {
-               _loc5_.y = _loc3_;
-               this._items_container.addContent(_loc5_);
+               element.y = shiftY;
+               this._items_container.addContent(element);
             }
             else
             {
-               this._items_container.removeContent(_loc5_);
+               this._items_container.removeContent(element);
             }
-            if(!_loc5_.parent)
+            if(!element.parent)
             {
                continue;
             }
-            _loc5_.y = _loc3_;
-            _loc5_.x = _loc4_;
-            _loc3_ += _loc1_;
-            if(_loc3_ / _loc1_ == 3)
+            element.y = shiftY;
+            element.x = shiftX;
+            shiftY += stepY;
+            if(shiftY / stepY == 3)
             {
-               _loc3_ = 0;
-               _loc4_ += _loc2_;
+               shiftY = 0;
+               shiftX += stepX;
             }
          }
       }
       
-      public function setData(param1:Array, param2:Array, param3:Boolean = false, param4:Boolean = false) : void
+      public function setData(ammoList:Array, slotItems:Array, unused:Boolean = false, softUpdate:Boolean = false) : void
       {
-         _data = param1;
-         _dataSlots = param2;
-         _softUpdate = param4;
+         _data = ammoList;
+         _dataSlots = slotItems;
+         _softUpdate = softUpdate;
          _ammoList = this._data;
          trace("invalidateASLData",this._data,this._softUpdate);
          invalidateData();
@@ -634,48 +637,48 @@ package survarium.ammo
          }
       }
       
-      internal function getCount(param1:AmmoShareElement) : Number
+      internal function getCount(exclude:AmmoShareElement) : Number
       {
-         var _loc2_:Number = 0;
-         var _loc3_:int = 0;
-         var _loc4_:AmmoShareElement;
-         for(; _loc3_ < this._elemetns.length; _loc3_++)
+         var count:Number = 0;
+         var i:int = 0;
+         var element:AmmoShareElement;
+         for(; i < this._elemetns.length; i++)
          {
-            _loc4_ = this._elemetns[_loc3_];
-            if(!_loc4_)
+            element = this._elemetns[i];
+            if(!element)
             {
                continue;
             }
-            if(_loc4_.group == GROUP_ITEMS)
+            if(element.group == GROUP_ITEMS)
             {
                continue;
             }
-            if(_loc4_.index != param1.index)
+            if(element.index != exclude.index)
             {
-               _loc2_ += _loc4_.getCount();
+               count += element.getCount();
             }
          }
-         return _loc2_;
+         return count;
       }
       
-      internal function getCost(param1:AmmoShareElement) : Number
+      internal function getCost(exclude:AmmoShareElement) : Number
       {
-         var _loc2_:Number = 0;
-         var _loc3_:int = 0;
-         var _loc4_:AmmoShareElement;
-         while(_loc3_ < this._elemetns.length)
+         var cost:Number = 0;
+         var i:int = 0;
+         var element:AmmoShareElement;
+         while(i < this._elemetns.length)
          {
-            _loc4_ = this._elemetns[_loc3_];
-            if(_loc4_.index != param1.index)
+            element = this._elemetns[i];
+            if(element.index != exclude.index)
             {
-               _loc2_ += _loc4_.isPremium() ? 0 : _loc4_.get_required_price();
+               cost += element.isPremium() ? 0 : element.get_required_price();
             }
-            _loc3_++;
+            i++;
          }
-         return _loc2_;
+         return cost;
       }
       
-      protected function config(param1:Event) : void
+      protected function config(event:Event) : void
       {
          removeEventListener(Event.ENTER_FRAME,this.config);
          addEventListener(Event.CHANGE,this.onChange);
@@ -699,50 +702,50 @@ package survarium.ammo
          }
       }
       
-      protected function updateAutoBuy(param1:Event) : void
+      protected function updateAutoBuy(event:Event) : void
       {
          trace("ASl::updateAutoBuy",this._autoBuyCheckBox.selected);
          ExternalInterface.call("ammo_autobuy_changed",this._autoBuyCheckBox.selected);
       }
       
-      protected function onChange(param1:Event) : void
+      protected function onChange(event:Event) : void
       {
-         var _loc2_:Number = 0;
-         var _loc3_:int = (this._elemetns.length);
-         var _loc4_:int = 0;
-         var _loc5_:AmmoShareElement;
-         var _loc6_:Number;
-         var _loc7_:ItemData;
-         while(_loc4_ < _loc3_)
+         var totalWeight:Number = 0;
+         var count:int = (this._elemetns.length);
+         var i:int = 0;
+         var element:AmmoShareElement;
+         var weight:Number;
+         var slotItem:ItemData;
+         while(i < count)
          {
-            _loc5_ = this._elemetns[_loc4_];
-            _loc6_ = 0;
-            if((_loc5_.getData()))
+            element = this._elemetns[i];
+            weight = 0;
+            if((element.getData()))
             {
-               _loc6_ = _loc5_.getWeight();
-               _loc2_ += _loc6_;
+               weight = element.getWeight();
+               totalWeight += weight;
             }
-            _loc4_++;
+            i++;
          }
-         _loc3_ = (this._elemetnsSlots.length);
-         _loc4_ = 0;
-         while(_loc4_ < this._elemetnsSlots.length)
+         count = (this._elemetnsSlots.length);
+         i = 0;
+         while(i < this._elemetnsSlots.length)
          {
-            _loc7_ = this._elemetnsSlots[_loc4_].data;
-            if(_loc7_)
+            slotItem = this._elemetnsSlots[i].data;
+            if(slotItem)
             {
-               _loc6_ = _loc7_.value * _loc7_.weight;
-               _loc2_ += _loc6_;
+               weight = slotItem.value * slotItem.weight;
+               totalWeight += weight;
             }
-            _loc4_++;
+            i++;
          }
-         trace("updateWeightOnChange::",this.tx_weigth,PlayerInfo.curWeight,this.aviableWeight,_loc2_,PlayerInfo.maxWeight,"calculated",Number(PlayerInfo.maxWeight - this.aviableWeight + _loc2_).toPrecision(2));
+         trace("updateWeightOnChange::",this.tx_weigth,PlayerInfo.curWeight,this.aviableWeight,totalWeight,PlayerInfo.maxWeight,"calculated",Number(PlayerInfo.maxWeight - this.aviableWeight + totalWeight).toPrecision(2));
          if(this.tx_weigth)
          {
          }
       }
       
-      protected function onControlChanges(param1:Event) : void
+      protected function onControlChanges(event:Event) : void
       {
          this.checkApplyButton();
       }
@@ -752,31 +755,31 @@ package survarium.ammo
          dispatchEvent(new Event(Event.CLOSE));
       }
       
-      protected function trace_relocate(param1:Array) : void
+      protected function trace_relocate(relocations:Array) : void
       {
-         trace("trace_relocate",param1.length);
-         var _loc2_:int = 0;
-         while(_loc2_ < param1.length)
+         trace("trace_relocate",relocations.length);
+         var i:int = 0;
+         while(i < relocations.length)
          {
-            trace("items is:",param1[_loc2_].profile,param1[_loc2_].id,param1[_loc2_].dict_id,"sr:",param1[_loc2_].sourceSlot,"tg:",param1[_loc2_].targetSlot,param1[_loc2_].count);
-            _loc2_++;
+            trace("items is:",relocations[i].profile,relocations[i].id,relocations[i].dict_id,"sr:",relocations[i].sourceSlot,"tg:",relocations[i].targetSlot,relocations[i].count);
+            i++;
          }
       }
       
       protected function prepare_new_data() : void
       {
-         var _loc1_:int = 0;
-         var _loc2_:AmmoShareElement;
-         while(_loc1_ < this._elemetns.length)
+         var i:int = 0;
+         var element:AmmoShareElement;
+         while(i < this._elemetns.length)
          {
-            _loc2_ = this._elemetns[_loc1_];
-            _loc2_.disable();
-            _loc1_++;
+            element = this._elemetns[i];
+            element.disable();
+            i++;
          }
          this.clear();
       }
       
-      protected function cancel(param1:ButtonEvent = null) : void
+      protected function cancel(event:ButtonEvent = null) : void
       {
          this.prepare_new_data();
          this._setData(this._ammoList);
@@ -785,97 +788,97 @@ package survarium.ammo
       
       protected function clearElements() : void
       {
-         var _loc1_:int = 0;
-         var _loc2_:AmmoShareElement;
-         while(_loc1_ < this._elemetns.length)
+         var i:int = 0;
+         var element:AmmoShareElement;
+         while(i < this._elemetns.length)
          {
-            _loc2_ = this._elemetns[_loc1_];
-            _loc2_.disable();
-            this._items_container.removeContent(_loc2_);
-            _loc1_++;
+            element = this._elemetns[i];
+            element.disable();
+            this._items_container.removeContent(element);
+            i++;
          }
          this._elemetns.length = 0;
       }
       
-      protected function relocateItem(param1:ItemData) : void
+      protected function relocateItem(item:ItemData) : void
       {
-         var _loc2_:ItemData = param1;
-         var _loc3_:uint;
-         var _loc4_:uint;
-         var _loc5_:uint;
-         var _loc6_:uint;
-         var _loc7_:uint;
-         var _loc8_:uint;
-         var _loc9_:uint;
-         if(_loc2_)
+         var slotItem:ItemData = item;
+         var itemId:uint;
+         var profileId:uint;
+         var dictId:uint;
+         var targetSlotId:uint;
+         var sourceSlotId:uint;
+         var inventoryCount:uint;
+         var moveCount:uint;
+         if(slotItem)
          {
-            _loc3_ = _loc2_.itemId == -1 ? 0 : _loc2_.itemId;
-            _loc4_ = this._profileID;
-            _loc5_ = _loc2_.dictId;
-            _loc6_ = _loc2_.slotId;
-            _loc7_ = _loc2_.descriptor != 0 ? _loc2_.descriptor : 100;
-            _loc8_ = _loc2_.count;
-            _loc9_ = _loc2_.value;
-            trace("prepare relocate item:",param1.name,"target:",_loc6_,"count:",_loc9_,_loc8_,"sr:",_loc7_,"name",_loc2_.name,_loc3_,_loc2_.itemId,"ds:",_loc2_.descriptor);
-            if(_loc8_)
+            itemId = slotItem.itemId == -1 ? 0 : slotItem.itemId;
+            profileId = this._profileID;
+            dictId = slotItem.dictId;
+            targetSlotId = slotItem.slotId;
+            sourceSlotId = slotItem.descriptor != ItemPlace.NONE ? slotItem.descriptor : ItemPlace.INVENTORY;
+            inventoryCount = slotItem.count;
+            moveCount = slotItem.value;
+            trace("prepare relocate item:",item.name,"target:",targetSlotId,"count:",moveCount,inventoryCount,"sr:",sourceSlotId,"name",slotItem.name,itemId,slotItem.itemId,"ds:",slotItem.descriptor);
+            if(inventoryCount)
             {
                this._relocateArray.push({
-                  profile:_loc4_,
-                  id:_loc3_,
-                  dict_id:_loc5_,
-                  targetSlot:_loc6_,
-                  count:_loc9_,
-                  sourceSlot:_loc7_,
-                  count_in_inventory:_loc8_,
+                  profile:profileId,
+                  id:itemId,
+                  dict_id:dictId,
+                  targetSlot:targetSlotId,
+                  count:moveCount,
+                  sourceSlot:sourceSlotId,
+                  count_in_inventory:inventoryCount,
                   auto_buy:this.autoBuyCheckBox.selected
                });
             }
          }
       }
       
-      protected function relocateAmmo(param1:AmmoShareElement) : void
+      protected function relocateAmmo(element:AmmoShareElement) : void
       {
-         var _loc2_:Object = param1.getData();
-         var _loc3_:uint;
-         var _loc4_:uint;
-         var _loc5_:uint;
-         var _loc6_:uint;
-         var _loc7_:uint;
-         var _loc8_:uint;
-         var _loc9_:uint;
-         if(_loc2_)
+         var ammo:Object = element.getData();
+         var itemId:uint;
+         var profileId:uint;
+         var dictId:uint;
+         var targetSlotId:uint;
+         var sourceSlotId:uint;
+         var moveCount:uint;
+         var inventoryCount:uint;
+         if(ammo)
          {
-            _loc3_ = _loc2_.itemId == -1 ? 0 : (_loc2_.itemId);
-            _loc4_ = this._profileID;
-            _loc5_ = (_loc2_.dictId);
-            _loc6_ = param1.index;
-            _loc7_ = _loc2_.source_slot != undefined ? (_loc2_.source_slot) : 100;
-            _loc8_ = param1.slider.position;
-            _loc9_ = (param1.slider.value_storage);
-            trace("prepare relocate:",param1.name,"target:",_loc6_,"source:",_loc7_,"count:",_loc8_,_loc9_,"name",_loc2_.name,param1.pair,_loc3_,_loc2_.itemId,this.autoBuyCheckBox.selected);
-            if(_loc9_)
+            itemId = ammo.itemId == -1 ? 0 : (ammo.itemId);
+            profileId = this._profileID;
+            dictId = (ammo.dictId);
+            targetSlotId = element.index;
+            sourceSlotId = ammo.source_slot != undefined ? (ammo.source_slot) : ItemPlace.INVENTORY;
+            moveCount = element.slider.position;
+            inventoryCount = (element.slider.value_storage);
+            trace("prepare relocate:",element.name,"target:",targetSlotId,"source:",sourceSlotId,"count:",moveCount,inventoryCount,"name",ammo.name,element.pair,itemId,ammo.itemId,this.autoBuyCheckBox.selected);
+            if(inventoryCount)
             {
                this._relocateArray.push({
-                  profile:_loc4_,
-                  id:_loc3_,
-                  dict_id:_loc5_,
-                  targetSlot:_loc6_,
-                  count:_loc8_,
-                  sourceSlot:_loc7_,
-                  count_in_inventory:_loc9_,
+                  profile:profileId,
+                  id:itemId,
+                  dict_id:dictId,
+                  targetSlot:targetSlotId,
+                  count:moveCount,
+                  sourceSlot:sourceSlotId,
+                  count_in_inventory:inventoryCount,
                   auto_buy:this.autoBuyCheckBox.selected
                });
             }
          }
       }
       
-      protected function clearData(param1:Event) : void
+      protected function clearData(event:Event) : void
       {
          removeEventListener(Event.ENTER_FRAME,this.clearData);
          this.prepare_new_data();
       }
       
-      protected function updateData(param1:Event) : void
+      protected function updateData(event:Event) : void
       {
          removeEventListener(Event.ENTER_FRAME,this.updateData);
          this._setData(this._data);
@@ -889,7 +892,7 @@ package survarium.ammo
          {
             value.sortOn(["weapon_target","slot"],Array.NUMERIC);
          }
-         var _ammoSlots:uint = 6;
+         var _ammoSlots:uint = AmmoView.SLOTS;
          var _shift:uint = 0;
          var _element:AmmoShareElement;
          var current_index:uint = 0;
@@ -967,7 +970,7 @@ package survarium.ammo
                {
                   ammo2_slots++;
                }
-               if(this.activeIndex == 0 || this.activeIndex == 1 || this.activeIndex == 4)
+               if(this.activeIndex == AmmoView.PRIMARY || this.activeIndex == AmmoView.SECONDARY || this.activeIndex == AmmoView.ALL)
                {
                   if(!_element.parent)
                   {
@@ -988,18 +991,18 @@ package survarium.ammo
             _element = this._elemetns[i];
             if(_element.pair != PAIR_ITEMS && _element.index == this._unsetted_slot)
             {
-               function getIndexOwned(param1:int):Boolean
+               function getIndexOwned(slotIndex:int):Boolean
                {
-                  var _loc2_:int = 0;
-                  var _loc3_:*;
-                  while(_loc2_ < ln)
+                  var slotPos:int = 0;
+                  var entry:*;
+                  while(slotPos < ln)
                   {
-                     _loc3_ = _elemetns[_loc2_];
-                     if(_loc3_.pair != PAIR_ITEMS && param1 == _loc3_.index)
+                     entry = _elemetns[slotPos];
+                     if(entry.pair != PAIR_ITEMS && slotIndex == entry.index)
                      {
                         return true;
                      }
-                     _loc2_++;
+                     slotPos++;
                   }
                   return false;
                }
@@ -1059,8 +1062,8 @@ package survarium.ammo
             {
                _element = this.getEmptyElement();
                _element.group = GROUP_AMMO;
-               _element.index = 999;
-               if(ammo1_slots < 3)
+               _element.index = ProfileSlot.NONE;
+               if(ammo1_slots < AmmoView.SLOTS_PER_WEAPON)
                {
                   _element.pair = PAIR_AMMO1;
                   ammo1_slots++;
@@ -1088,7 +1091,7 @@ package survarium.ammo
             k = 0;
             while(k < ln)
             {
-               if(this._elemetnsSlots[k].index == i + 13)
+               if(this._elemetnsSlots[k].index == i + ProfileSlot.QUICK_1)
                {
                   _elementSlot = this._elemetnsSlots[k];
                   break;
@@ -1100,7 +1103,7 @@ package survarium.ammo
                _elementSlot = new Object();
                this._elemetnsSlots.push(_elementSlot);
             }
-            _elementSlot.index = i + 13;
+            _elementSlot.index = i + ProfileSlot.QUICK_1;
             i++;
          }
          this._elemetnsSlots.length = this._slotsN;
@@ -1197,7 +1200,7 @@ package survarium.ammo
          while(i < ln)
          {
             _element = this._elemetns[i];
-            if(!_element.getData() && _element.pair != PAIR_ITEMS && _element.index != 999)
+            if(!_element.getData() && _element.pair != PAIR_ITEMS && _element.index != ProfileSlot.NONE)
             {
                list = this.getAmmoList(_element.pair,true);
                if(list.length && list[0])

@@ -21,7 +21,6 @@ package survarium.controls
    import scaleform.gfx.MouseEventEx;
    import scaleform.gfx.TextFieldEx;
    import survarium.Util;
-   import survarium.constants.Category;
    import survarium.constants.Events;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
@@ -37,6 +36,21 @@ package survarium.controls
    import survarium.item.ItemFactory;
    import survarium.messages.MessageCraftItem;
    import survarium.upgrade.UpgradeWindow;
+   import survarium.constants.Faction;
+   import survarium.constants.InventoryTab;
+   import survarium.constants.ItemCategory;
+   import survarium.constants.ItemCondition;
+   import survarium.constants.ItemDefaults;
+   import survarium.constants.ItemPlace;
+   import survarium.constants.ItemPrice;
+   import survarium.constants.ModificationState;
+   import survarium.constants.ModifierType;
+   import survarium.constants.PropertyDirection;
+   import survarium.constants.QuickSlotSize;
+   import survarium.constants.ShopFilter;
+   import survarium.constants.SuperCategory;
+   import survarium.constants.VoucherType;
+   import survarium.constants.WeaponHands;
    
    public class InventoryList extends FiltersWindow implements IInventoryItemFactory
    {
@@ -75,7 +89,7 @@ package survarium.controls
       
       private var _useItemId:uint;
       
-      private var _activeItems:int = 1;
+      private var _activeItems:int = InventoryTab.INVENTORY;
       
       private var _allwayShowControlPanel:Boolean = false;
       
@@ -193,7 +207,7 @@ package survarium.controls
       {
          isShop = value;
          label.text = LocalizationData.getName(this.isShop ? "shop" : "inventory_label");
-         this.shopTab.selectedIndex = this.isShop ? 1 : 2;
+         this.shopTab.selectedIndex = this.isShop ? ShopFilter.SHOP : ShopFilter.INVENTORY;
          this.itemControlPanel.toggleShop(value);
       }
       
@@ -272,14 +286,14 @@ package survarium.controls
          return false;
       }
       
-      public function selectItemDict(value:int, seller:int = -1) : void
+      public function selectItemDict(value:int, seller:int = Faction.ANY) : void
       {
          var l:int = (itemsTileList.dataProvider.length);
          for(var i:uint = 0; i < l; i++)
          {
             var itemData:ItemData;
             itemData = itemsTileList.dataProvider[i];
-            if(itemData.dictId == value && (itemData.factionId == seller || seller == -1))
+            if(itemData.dictId == value && (itemData.factionId == seller || seller == Faction.ANY))
             {
                itemsTileList.selectedIndex = i;
                return;
@@ -373,7 +387,7 @@ package survarium.controls
          var itemData:ItemData;
          for(i = 0; i < tempItems.length; i++)
          {
-            if((tempItems[i]) && ((seller != -1 && tempItems[i].seller == seller || seller == -1 && tempItems[i].canBuy == true)) && !handledObject[tempItems[i].dictId])
+            if((tempItems[i]) && ((seller != Faction.ANY && tempItems[i].seller == seller || seller == Faction.ANY && tempItems[i].canBuy == true)) && !handledObject[tempItems[i].dictId])
             {
                handledObject[tempItems[i].dictId] = true;
                value.push(tempItems[i]);
@@ -418,7 +432,7 @@ package survarium.controls
       
       public function onPlayerMoneyUpdate(e:Event = null) : void
       {
-         if(mainTabBar.selectedIndex == 0)
+         if(mainTabBar.selectedIndex == InventoryTab.SHOP)
          {
             itemsTileList.invalidate(InvalidationType.ALL);
          }
@@ -438,7 +452,7 @@ package survarium.controls
          for(var i:uint = 0; i < value.length; i++)
          {
             item = value[i];
-            if(item.category == CAT_VOUCHER)
+            if(item.category == ItemCategory.VOUCHERS)
             {
                if(PlayerInfo.getVoucherCount(item.type) == 0)
                {
@@ -449,7 +463,7 @@ package survarium.controls
          }
          var supper:Array = optionControl.getSelectedIndexes();
          var filterOptions:Object = optionControl.getFilterOptions();
-         var seller:int = sellersTabPage.selectedIndex != -1 ? (sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id) : 0;
+         var seller:int = sellersTabPage.selectedIndex != -1 ? (sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id) : Faction.NONE;
          var item:ItemData;
          this.ApplyInventoryFilter(supper,inventoryTabPage.selectedIndex,seller,filterOptions);
       }
@@ -472,7 +486,7 @@ package survarium.controls
       
       public function lock(elementId:uint, state:Boolean) : void
       {
-         if(elementId == 2)
+         if(elementId == LobbyMenu.INVENTORY_ELEMNENT_ID)
          {
             _inventoryLocked = state;
          }
@@ -485,7 +499,7 @@ package survarium.controls
       
       public function getElelementLocked(elementId:uint) : Boolean
       {
-         if(elementId == 2)
+         if(elementId == LobbyMenu.INVENTORY_ELEMNENT_ID)
          {
             return this._inventoryLocked;
          }
@@ -494,7 +508,7 @@ package survarium.controls
       
       private function handleLockedWindow() : void
       {
-         if(this._shopLocked && this._activeItems == 0 || this._inventoryLocked && this._activeItems == 1)
+         if(this._shopLocked && this._activeItems == InventoryTab.SHOP || this._inventoryLocked && this._activeItems == InventoryTab.INVENTORY)
          {
             itemsTileList.enabled = false;
             itemsTileList.invalidateData();
@@ -518,21 +532,21 @@ package survarium.controls
          var item_data:ItemData = new ItemData();
          var icons:IconContainer;
          var category:int = ItemFactory.getCategory(descrData.category);
-         if(category == 1)
+         if(category == SuperCategory.EQUIPMENT)
          {
             icons = IconContainer.getInstance("equipment");
          }
-         else if(category == 2)
+         else if(category == SuperCategory.WEAPONS)
          {
             icons = IconContainer.getInstance("weapons");
          }
-         else if(category == 5)
+         else if(category == SuperCategory.UPGRADES)
          {
-            if(descrData.category == CAT_VOUCHER || descrData.category == 28 || descrData.category == 29)
+            if(descrData.category == ItemCategory.VOUCHERS || descrData.category == ItemCategory.GENERIC_MONEY || descrData.category == ItemCategory.PREMIUM_MONEY)
             {
                icons = IconContainer.getInstance("vouchers");
             }
-            else if(descrData.category == Category.DECAL)
+            else if(descrData.category == ItemCategory.DECALS)
             {
                icons = IconContainer.getInstance("decals");
             }
@@ -564,7 +578,7 @@ package survarium.controls
          item_data.type = descrData.voucher_type;
          item_data.superCategory = category;
          item_data.category = descrData.category;
-         item_data.isWeapon = category == 2;
+         item_data.isWeapon = category == SuperCategory.WEAPONS;
          item_data.isStack = descrData.is_stack;
          item_data.oneHanded = !descrData.double_handed;
          item_data.isPremium = descrData.is_premium;
@@ -593,11 +607,11 @@ package survarium.controls
          item_data.itemLevel = descrData.level;
          if(descrData.camo_available == undefined)
          {
-            descrData.camo_available = 1;
+            descrData.camo_available = ItemDefaults.CAMO_AVAILABLE;
          }
          if(descrData.decal_available == undefined)
          {
-            descrData.decal_available = 0;
+            descrData.decal_available = ItemDefaults.DECAL_AVAILABLE;
          }
          item_data.sellers = descrData.sellers;
          item_data.icon = icons.getIcon(item_data.iconId);
@@ -607,18 +621,18 @@ package survarium.controls
          item_data.decalAvailable = descrData.decal_available;
          if(descrData.upgrades_available == undefined)
          {
-            descrData.upgrades_available = 4;
+            descrData.upgrades_available = ItemDefaults.UPGRADES_AVAILABLE;
          }
          item_data.upgradesAvailable = descrData.upgrades_available;
          item_data.weight = descrData.weight;
          item_data.clipSize = descrData.clip_size;
-         item_data.quickSlotItemSize = (descrData.fills_whole_pocket) ? 2 : 1;
+         item_data.quickSlotItemSize = (descrData.fills_whole_pocket) ? QuickSlotSize.WHOLE : QuickSlotSize.HALF;
          item_data.clipsInBag = descrData.clips_in_bag;
          if(descrData.required_bags != undefined)
          {
             item_data.clipsInBag = 1 / descrData.required_bags;
          }
-         item_data.usable = item_data.category == FiltersWindow.CAT_VOUCHER && (item_data.type == 3 || item_data.type == 0);
+         item_data.usable = item_data.category == ItemCategory.VOUCHERS && (item_data.type == VoucherType.PREMIUM || item_data.type == VoucherType.RENAME);
          var str:String = "";
          var ammoItems:Array;
          var ammoStr:String;
@@ -655,7 +669,7 @@ package survarium.controls
          return item_data;
       }
       
-      public function createItem(dictId:uint, seller:* = -1) : ItemData
+      public function createItem(dictId:uint, seller:* = Faction.ANY) : ItemData
       {
          var seller_icons:IconContainer = IconContainer.getInstance("factionItemIcons");
          var descrData:Object = _itemDescriptor.getItemDescription(dictId);
@@ -670,10 +684,10 @@ package survarium.controls
             }
             else
             {
-               factionId = -1;
+               factionId = Faction.ANY;
             }
          }
-         if(factionId != -1)
+         if(factionId != Faction.ANY)
          {
             seller_icon = seller_icons.getIcon(factionId);
          }
@@ -684,7 +698,7 @@ package survarium.controls
          item_data.sellerIcon = seller_icon;
          item_data.factionId = factionId;
          item_data.price = GangShop.getInstance().getItemPrice(dictId);
-         trace("IL::create_item::",item_data.name,item_data.category,item_data.usable,item_data.type,item_data.category == FiltersWindow.CAT_VOUCHER,descrData.descr);
+         trace("IL::create_item::",item_data.name,item_data.category,item_data.usable,item_data.type,item_data.category == ItemCategory.VOUCHERS,descrData.descr);
          return item_data;
       }
       
@@ -723,7 +737,7 @@ package survarium.controls
       
       protected function updateItemTipText(item:ItemData) : void
       {
-         var lvlTip:String = item.superCategory != 5 ? Util.styledChar(LocalizationData.getName("equipment_level") + " - " + item.itemLevel.toString(),"gray") : "";
+         var lvlTip:String = item.superCategory != SuperCategory.UPGRADES ? Util.styledChar(LocalizationData.getName("equipment_level") + " - " + item.itemLevel.toString(),"gray") : "";
          var tipStr:String = "" + ((item.rank) ? Util.styledChar(LocalizationData.getName("modified") + "\n","green") : "") + ((item.ammoText) ? LocalizationData.getName("ammo") + ":\n" + item.ammoText : "") + ((lvlTip) ? Util.styledChar(" \n","small") + lvlTip : "");
          item.tipText = tipStr;
       }
@@ -751,10 +765,10 @@ package survarium.controls
             propDescription = this._propsDescriptor.getPropertyDescription(modifierProp.prop_id);
             if((propDescription))
             {
-               propPostFix = propDescription.modifier_type == 0 ? propDescription.postfix : "%";
+               propPostFix = propDescription.modifier_type == ModifierType.ADD ? propDescription.postfix : "%";
                propPrefix = modifierProp.prop_value >= 0 ? "+" : "";
-               style = propDescription.direction == 0 && modifierProp.prop_value < 0 || propDescription.direction == 1 && modifierProp.prop_value > 0 ? "green" : "red";
-               propValue = propDescription.modifier_type == 0 ? modifierProp.prop_value : modifierProp.prop_value * 100;
+               style = propDescription.direction == PropertyDirection.LOWER_IS_BETTER && modifierProp.prop_value < 0 || propDescription.direction == PropertyDirection.HIGHER_IS_BETTER && modifierProp.prop_value > 0 ? "green" : "red";
+               propValue = propDescription.modifier_type == ModifierType.ADD ? modifierProp.prop_value : modifierProp.prop_value * 100;
                propHintTx = propDescription.prop_name + ": " + Util.styledChar(propPrefix + propValue + ((propPostFix) ? propPostFix : ""),style);
                modifier.textValue += propHintTx + "\n";
             }
@@ -807,10 +821,10 @@ package survarium.controls
                propDescription = this._propsDescriptor.getPropertyDescription(modifierProp.prop_id);
                if((propDescription))
                {
-                  propPostFix = propDescription.modifier_type == 0 ? propDescription.postfix : "%";
+                  propPostFix = propDescription.modifier_type == ModifierType.ADD ? propDescription.postfix : "%";
                   propPrefix = modifierProp.prop_value >= 0 ? "+" : "";
-                  style = propDescription.direction == 0 && modifierProp.prop_value < 0 || propDescription.direction == 1 && modifierProp.prop_value > 0 ? "green" : "red";
-                  propValue = propDescription.modifier_type == 0 ? modifierProp.prop_value : modifierProp.prop_value * 100;
+                  style = propDescription.direction == PropertyDirection.LOWER_IS_BETTER && modifierProp.prop_value < 0 || propDescription.direction == PropertyDirection.HIGHER_IS_BETTER && modifierProp.prop_value > 0 ? "green" : "red";
+                  propValue = propDescription.modifier_type == ModifierType.ADD ? modifierProp.prop_value : modifierProp.prop_value * 100;
                   propHintTx = propDescription.prop_name + ": " + Util.styledChar(propPrefix + propValue + ((propPostFix) ? propPostFix : ""),style);
                   modifiers[i].textValue += propHintTx + "\n";
                }
@@ -825,16 +839,16 @@ package survarium.controls
                {
                   propDescription.postfix = "";
                }
-               propPostFix = propDescription.modifier_type == 0 ? propDescription.postfix : "%";
+               propPostFix = propDescription.modifier_type == ModifierType.ADD ? propDescription.postfix : "%";
                propPrefix = modifierProp.prop_value >= 0 ? "+" : "";
                if(propDescription.modifier_type == undefined)
                {
-                  propDescription.modifier_type = 2;
+                  propDescription.modifier_type = ModifierType.INVALID;
                   propDescription.modifier_type = modifierProp.modifier_type;
                }
-               propValue = propDescription.modifier_type == 0 ? modifierProp.prop_value : modifierProp.prop_value * 100;
+               propValue = propDescription.modifier_type == ModifierType.ADD ? modifierProp.prop_value : modifierProp.prop_value * 100;
                propValue = Math.round(propValue / 0.01) * 0.01;
-               style = propDescription.direction == 0 && modifierProp.prop_value < 0 || propDescription.direction == 1 && modifierProp.prop_value > 0 ? "green" : "red";
+               style = propDescription.direction == PropertyDirection.LOWER_IS_BETTER && modifierProp.prop_value < 0 || propDescription.direction == PropertyDirection.HIGHER_IS_BETTER && modifierProp.prop_value > 0 ? "green" : "red";
                propHint = propDescription.prop_name + ": " + Util.styledChar(propPrefix + propValue + propPostFix,style);
                if(!modifierProp.modifier.textValue)
                {
@@ -948,7 +962,7 @@ package survarium.controls
             }
          }
          this.updateItemTipText(item);
-         if(item.category == CAT_VOUCHER)
+         if(item.category == ItemCategory.VOUCHERS)
          {
             PlayerInfo.setVoucherCount(item.dictId,item.value,item.type,item.itemId);
          }
@@ -993,7 +1007,7 @@ package survarium.controls
             }
          }
          this.fillModifiersDescription(item);
-         if(mainTabBar.selectedIndex == 1)
+         if(mainTabBar.selectedIndex == InventoryTab.INVENTORY)
          {
             supper = optionControl.getSelectedIndexes();
             filterOptions = optionControl.getFilterOptions();
@@ -1063,10 +1077,10 @@ package survarium.controls
             item.cost = itemData.cost;
             item.price = itemData.cost;
             item.sellerIcon = sellerIcons.getIcon(0);
-            item.factionId = 0;
+            item.factionId = Faction.NONE;
             item.canBuy = true;
-            item.descriptor = 300;
-            item.category = 100;
+            item.descriptor = ItemPlace.BUNDLE;
+            item.category = ItemCategory.BUNDLE;
             item.fromBundle = true;
             if(!itemData.bundle_items)
             {
@@ -1077,7 +1091,7 @@ package survarium.controls
             {
                newItem = this.createItem(bundleItems[j].dict_id);
                newItem.dragEnabled = false;
-               newItem.descriptor = 0;
+               newItem.descriptor = ItemPlace.NONE;
                newItem.canBuy = true;
                if(!newItem.modifiers)
                {
@@ -1085,7 +1099,7 @@ package survarium.controls
                }
                newItem.upgrades = [];
                newItem.sellerIcon = sellerIcons.getIcon(0);
-               newItem.value = newItem.isStack ? (bundleItems[j].amount) : 100;
+               newItem.value = newItem.isStack ? (bundleItems[j].amount) : ItemCondition.FULL;
                this.fillModifiersDescription(newItem);
                bundleItems[j] = newItem;
             }
@@ -1094,7 +1108,7 @@ package survarium.controls
          }
          var supper:Array = optionControl.getSelectedIndexes();
          var filterOptions:Object = optionControl.getFilterOptions();
-         var seller:int = sellersTabPage.selectedIndex != -1 ? sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id : 0;
+         var seller:int = sellersTabPage.selectedIndex != -1 ? sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id : Faction.NONE;
          var itemData:Object;
          var item:ItemData;
          var iconRow:int;
@@ -1110,9 +1124,9 @@ package survarium.controls
       {
          trace("setupInventoryData",p.length);
          _inventoryItems = p;
-         PlayerInfo.setVoucherCount(PlayerInfo.getVoucherDictId(0),0,0,0);
-         PlayerInfo.setVoucherCount(PlayerInfo.getVoucherDictId(1),0,1,0);
-         PlayerInfo.setVoucherCount(PlayerInfo.getVoucherDictId(2),0,2,0);
+         PlayerInfo.setVoucherCount(PlayerInfo.getVoucherDictId(VoucherType.RENAME),0,VoucherType.RENAME,0);
+         PlayerInfo.setVoucherCount(PlayerInfo.getVoucherDictId(VoucherType.DROP_CARD),0,VoucherType.DROP_CARD,0);
+         PlayerInfo.setVoucherCount(PlayerInfo.getVoucherDictId(VoucherType.REPAIR),0,VoucherType.REPAIR,0);
          this.addFakeItems(this._inventoryItems);
          if((this._ammoItems))
          {
@@ -1138,7 +1152,7 @@ package survarium.controls
                item = this.getInventoryItem(itemId);
                this.updateItem(item,itemData);
             }
-            item.descriptor = 100;
+            item.descriptor = ItemPlace.INVENTORY;
             inRepair = item.repairTime != 0;
             item.repairTime = itemData.repair_time;
             item.rerollTime = itemData.reroll_time;
@@ -1146,7 +1160,7 @@ package survarium.controls
             item.value = itemData.condition_or_stack;
             item.equipped = itemData.is_attached_to;
             item.slotTarget = itemData.is_attached_to;
-            trace("IV:addItem::",item.name,"rt::",item.repairTime,itemData.repair_time,"| icon:id",item.iconId,item.dictId,itemData.is_attached_to,item.itemId,item.rank,"category::",item.category,"vcat",CAT_VOUCHER,"cost::",item.cost,itemData.cost,item.icon,item.sellerIcon,item.messIcon);
+            trace("IV:addItem::",item.name,"rt::",item.repairTime,itemData.repair_time,"| icon:id",item.iconId,item.dictId,itemData.is_attached_to,item.itemId,item.rank,"category::",item.category,"vcat",ItemCategory.VOUCHERS,"cost::",item.cost,itemData.cost,item.icon,item.sellerIcon,item.messIcon);
             if((item.repairTime))
             {
                item.enabled = false;
@@ -1169,11 +1183,11 @@ package survarium.controls
                   item.timeDelta = timer.currentCount;
                }
             }
-            if(item.category == CAT_VOUCHER)
+            if(item.category == ItemCategory.VOUCHERS)
             {
                PlayerInfo.setVoucherCount(item.dictId,item.value,item.type,item.itemId);
             }
-            else if(item.isStack && item.superCategory == 3)
+            else if(item.isStack && item.superCategory == SuperCategory.AMMO)
             {
                this._ammoItems.push(item);
             }
@@ -1256,10 +1270,10 @@ package survarium.controls
          {
             factions[i].icon = factions[i].faction_id + 2;
          }
-         factions.length = Math.min(4,factions.length);
+         factions.length = Math.min(Faction.TRADING_FACTIONS,factions.length);
          factions.unshift({
             icon:2,
-            faction_id:0,
+            faction_id:Faction.NONE,
             name:LocalizationData.getName("non_faction_items")
          });
          sellersTabPage.dataProvider = new DataProvider(factions);
@@ -1293,7 +1307,7 @@ package survarium.controls
                      profile:pp.profileId,
                      id:value.itemId,
                      dict_id:value.dictId,
-                     sourceSlot:100,
+                     sourceSlot:ItemPlace.INVENTORY,
                      targetSlot:trgSlt,
                      count:1
                   }];
@@ -1307,7 +1321,7 @@ package survarium.controls
                _obj.profile = pp.profileId;
                _obj.id = value.itemId;
                _obj.dict_id = value.dictId;
-               _obj.sourceSlot = 100;
+               _obj.sourceSlot = ItemPlace.INVENTORY;
                _obj.targetSlot = trgSlt;
                _obj.name = value.name;
                _obj.onOK = pp._relocateFunction;
@@ -1365,7 +1379,7 @@ package survarium.controls
          }
          if(!deselect)
          {
-            mainTabBar.selectedIndex = 1;
+            mainTabBar.selectedIndex = InventoryTab.INVENTORY;
          }
          var providers:uint = optionControl.filterList.getDataProviderCount();
          var selectCount:uint = value.length;
@@ -1577,7 +1591,7 @@ package survarium.controls
       protected function onItemPress(e:ListEvent) : void
       {
          var value:ItemData = e.itemData as ItemData;
-         if(value.descriptor == 300)
+         if(value.descriptor == ItemPlace.BUNDLE)
          {
             trace("bundleList::",this.bundleList.itemId,value.itemId,value.dictId);
             if(this.bundleList.itemId == value.dictId)
@@ -1665,7 +1679,7 @@ package survarium.controls
          {
             var _modifiersIconContainer:IconContainer;
             var icon:Icon;
-            if(modifiers[j].state == 1)
+            if(modifiers[j].state == ModificationState.DEFECT)
             {
                _modifiersIconContainer = IconContainer.getInstance("modifiers");
                icon = _modifiersIconContainer.getIcon(modifiers[j].icon);
@@ -1708,20 +1722,20 @@ package survarium.controls
                   {
                      propDescription.postfix = "";
                   }
-                  propPostFix = propDescription.modifier_type == 0 ? propDescription.postfix : "%";
+                  propPostFix = propDescription.modifier_type == ModifierType.ADD ? propDescription.postfix : "%";
                   propPrefix = modifierProp.prop_value >= 0 ? "+" : "";
                   if(propDescription.modifier_type == undefined)
                   {
-                     propDescription.modifier_type = 2;
+                     propDescription.modifier_type = ModifierType.INVALID;
                      propDescription.modifier_type = modifierProp.modifier_type;
                   }
-                  if(propDescription.modifier_type == 2)
+                  if(propDescription.modifier_type == ModifierType.INVALID)
                   {
                      throw Error("modifier_type at modifier " + modificators[i].name + " for prop_id " + modifierProp.prop_id + " is invalid");
                   }
                   trace("propValue::",propDescription.direction,modifierProp.direction);
-                  propValue = propDescription.modifier_type == 0 ? (modifierProp.prop_value) : modifierProp.prop_value * 100;
-                  style = propDescription.direction == 0 && modifierProp.prop_value < 0 || propDescription.direction == 1 && modifierProp.prop_value > 0 ? "green" : "red";
+                  propValue = propDescription.modifier_type == ModifierType.ADD ? (modifierProp.prop_value) : modifierProp.prop_value * 100;
+                  style = propDescription.direction == PropertyDirection.LOWER_IS_BETTER && modifierProp.prop_value < 0 || propDescription.direction == PropertyDirection.HIGHER_IS_BETTER && modifierProp.prop_value > 0 ? "green" : "red";
                   hintText += propDescription.prop_name + ": " + Util.styledChar(propPrefix + (int(propValue) == propValue ? propValue.toString() : propValue.toFixed(1)) + propPostFix,style) + "\n";
                }
             }
@@ -1759,7 +1773,7 @@ package survarium.controls
          if((item) && (item.data))
          {
             value = item.data;
-            if(value.descriptor == 200 && !value.canBuy)
+            if(value.descriptor == ItemPlace.SHOP && !value.canBuy)
             {
                return;
             }
@@ -1787,7 +1801,7 @@ package survarium.controls
          }
          var shopCost:uint = value.cost;
          var itemCost:uint = _objData.isPremium ? (shopCost * PlayerInfo.premiumExchangeRate) : shopCost;
-         var sellCost:uint = itemCost / 4 * (_objData.isStack ? 1 : _objData.value / 100);
+         var sellCost:uint = itemCost / ItemPrice.SELL_DIVISOR * (_objData.isStack ? 1 : _objData.value / ItemCondition.FULL);
          _obj.price = sellCost;
          _obj.id = _objData.itemId;
          _obj.uid = _objData.dictId;
@@ -1828,7 +1842,7 @@ package survarium.controls
             return;
          }
          trace("useElement::",item.data.type);
-         if(item.data.type == 0)
+         if(item.data.type == VoucherType.RENAME)
          {
             parent["statusPanel"].showChangeNameMessage();
             return;
@@ -1875,7 +1889,7 @@ package survarium.controls
          sellersTabPage.container.doubleClickEnabled = true;
          sellersTabPage.container.addEventListener(MouseEvent.DOUBLE_CLICK,this.onBtnSelectAllClick);
          mainTabBar.addEventListener(IndexEvent.INDEX_CHANGE,this.changeActiveItems);
-         mainTabBar.selectedIndex = 1;
+         mainTabBar.selectedIndex = InventoryTab.INVENTORY;
          mainTabBar.visible = false;
          itemsTileList.addEventListener(MouseEvent.CLICK,this.onMouseItemClick);
          itemsTileList.addEventListener(ListEvent.ITEM_DOUBLE_CLICK,this.onItemDoubleClick);
@@ -1934,7 +1948,7 @@ package survarium.controls
             return;
          }
          var item:ItemData = e.itemData as ItemData;
-         var itemAvailable:Boolean = item.descriptor == 100;
+         var itemAvailable:Boolean = item.descriptor == ItemPlace.INVENTORY;
          var pp:ILocalPlayerProfile;
          var availableSlots:uint;
          var newSlot:int;
@@ -2019,14 +2033,14 @@ package survarium.controls
       private function isUpgradeable(value:Object) : Boolean
       {
          var cat:int = (value.category);
-         return (cat == 3 || cat == 1 || cat == 5 || cat == 4) && ((value.camoAvailable) || (value.decalAvailable)) || UpgradeWindow.isWeaponCategory(cat) && UpgradeWindow.hasScopes(int(value.dictId));
+         return (cat == ItemCategory.BODY_ARMOR || cat == ItemCategory.HELMETS || cat == ItemCategory.PANTS || cat == ItemCategory.RIGS) && ((value.camoAvailable) || (value.decalAvailable)) || UpgradeWindow.isWeaponCategory(cat) && UpgradeWindow.hasScopes(int(value.dictId));
       }
       
       protected function onMouseItemClick(e:MouseEventEx) : void
       {
          var activeItem:DragSlot = e.target as DragSlot;
          trace("onMouseItemClick:::",itemsTileList.selectedIndex,e.target,e.currentTarget,(activeItem) ? activeItem.enabled : "null");
-         if(!enabled || e.buttonIdx == 0 || itemsTileList.enabled == false)
+         if(!enabled || e.buttonIdx == MouseEventEx.LEFT_BUTTON || itemsTileList.enabled == false)
          {
             return;
          }
@@ -2066,7 +2080,7 @@ package survarium.controls
          if((itemData) && (itemData.enabled || this.buyable(itemData)))
          {
             options = [];
-            itemAvailable = itemData.descriptor <= 100 && itemData.enabled;
+            itemAvailable = itemData.descriptor <= ItemPlace.INVENTORY && itemData.enabled;
             if(itemAvailable)
             {
                if(itemData.usable)
@@ -2078,9 +2092,9 @@ package survarium.controls
                }
                if(!itemData.isStack && itemData.enabled)
                {
-                  if(!itemData.equipped && itemData.superCategory != 5)
+                  if(!itemData.equipped && itemData.superCategory != SuperCategory.UPGRADES)
                   {
-                     if(itemData.descriptor == 100)
+                     if(itemData.descriptor == ItemPlace.INVENTORY)
                      {
                         options.push({
                            name:LocalizationData.getName("wear"),
@@ -2098,7 +2112,7 @@ package survarium.controls
                   fixable = false;
                   rerollable = false;
                   br = false;
-                  if(itemData.value < 100)
+                  if(itemData.value < ItemCondition.FULL)
                   {
                      fixable = true;
                   }
@@ -2110,11 +2124,11 @@ package survarium.controls
                         modifier = itemData.modifiers[i];
                         if((modifier))
                         {
-                           if(!fixable && modifier.state == 1)
+                           if(!fixable && modifier.state == ModificationState.DEFECT)
                            {
                               fixable = true;
                            }
-                           else if(!rerollable && modifier.state == 0 && !modifier.isDefault)
+                           else if(!rerollable && modifier.state == ModificationState.MODIFICATION && !modifier.isDefault)
                            {
                               rerollable = true;
                            }
@@ -2167,7 +2181,7 @@ package survarium.controls
                   });
                }
             }
-            if((itemData.descriptor <= 100 && itemData.enabled || itemData.isStack) && !this.isShop)
+            if((itemData.descriptor <= ItemPlace.INVENTORY && itemData.enabled || itemData.isStack) && !this.isShop)
             {
                options.push({
                   name:LocalizationData.getName("sell"),
@@ -2257,7 +2271,7 @@ package survarium.controls
          _filterItems = value;
          var supper:Array = optionControl.getSelectedIndexes();
          var filterOptions:Object = optionControl.getFilterOptions();
-         var seller:int = sellersTabPage.selectedIndex != -1 ? (sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id) : 0;
+         var seller:int = sellersTabPage.selectedIndex != -1 ? (sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id) : Faction.NONE;
          this.ApplyInventoryFilter(supper,inventoryTabPage.selectedIndex,seller,filterOptions);
       }
       
@@ -2266,9 +2280,9 @@ package survarium.controls
          _filterDictId = itemDictId;
          var supper:Array = optionControl.getSelectedIndexes();
          var filterOptions:Object = optionControl.getFilterOptions();
-         var seller:int = sellersTabPage.selectedIndex != -1 ? (sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id) : 0;
+         var seller:int = sellersTabPage.selectedIndex != -1 ? (sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id) : Faction.NONE;
          trace("filterItem::",this._filterDictId,inventoryTabPage.selectedIndex);
-         this.ApplyInventoryFilter(supper,this._filterDictId != -1 ? 0 : (inventoryTabPage.selectedIndex),seller,filterOptions);
+         this.ApplyInventoryFilter(supper,this._filterDictId != -1 ? SuperCategory.ALL : (inventoryTabPage.selectedIndex),seller,filterOptions);
          if((itemDictId))
          {
             _filterselectedId = itemsTileList.selectedIndex;
@@ -2302,7 +2316,7 @@ package survarium.controls
          itemsTileList.validateNow();
       }
       
-      protected function ApplyInventoryFilter(categoryes:Array = null, category:uint = 0, seller:int = 0, options:Object = null) : void
+      protected function ApplyInventoryFilter(categoryes:Array = null, category:uint = SuperCategory.ALL, seller:int = Faction.NONE, options:Object = null) : void
       {
          function sortItems(inventory:Array, shop:Array):void
          {
@@ -2323,7 +2337,7 @@ package survarium.controls
          }
          function isEnabled(value:ItemData):Boolean
          {
-            if(value.descriptor == 100 || value.canBuy)
+            if(value.descriptor == ItemPlace.INVENTORY || value.canBuy)
             {
                return true;
             }
@@ -2331,7 +2345,7 @@ package survarium.controls
          }
          function isStacked(value:ItemData):Boolean
          {
-            if(value.isStack && value.value == 0 && value.descriptor != 200 && value.descriptor != 300)
+            if(value.isStack && value.value == 0 && value.descriptor != ItemPlace.SHOP && value.descriptor != ItemPlace.BUNDLE)
             {
                return false;
             }
@@ -2340,7 +2354,7 @@ package survarium.controls
          function isSeller(data:Object, value:int):Boolean
          {
             var i:int;
-            if(value != -1)
+            if(value != Faction.ANY)
             {
                return value == seller;
             }
@@ -2358,7 +2372,7 @@ package survarium.controls
          }
          function checkBaseOptions(value:ItemData):Boolean
          {
-            var isWeapon:Boolean = options.weapons == 2 || ItemFactory.getCategory(value.category) != 2 || (value.oneHanded && options.weapons == 0 || value.oneHanded == false && options.weapons == 1);
+            var isWeapon:Boolean = options.weapons == WeaponHands.ALL || ItemFactory.getCategory(value.category) != SuperCategory.WEAPONS || (value.oneHanded && options.weapons == WeaponHands.ONE_HANDED || value.oneHanded == false && options.weapons == WeaponHands.TWO_HANDED);
             return (options.allTraders || isSeller(value,value.factionId)) && isWeapon && (isStacked(value)) && (!options.onlyEnabled || (isEnabled(value)));
          }
          if((this._filterItems))
@@ -2366,9 +2380,9 @@ package survarium.controls
             this.filterInventoryItems();
             return;
          }
-         var showWeapons:Boolean = category == 2;
+         var showWeapons:Boolean = category == SuperCategory.WEAPONS;
          optionControl.showWeaponsSort(showWeapons);
-         var currentItems:Array = this._activeItems == 0 ? this._shopItems : this._inventoryItems;
+         var currentItems:Array = this._activeItems == InventoryTab.SHOP ? this._shopItems : this._inventoryItems;
          var sellerId:int;
          var filteredItems:Array;
          stackTrace("ApplyInventoryFilter");
@@ -2389,10 +2403,10 @@ package survarium.controls
          var relativeItem:ItemData;
          var i:uint;
          var shopFilter:Boolean;
-         sellerId = (options.allTraders) ? -1 : seller;
-         shopFilter = options.shopItems == 0 || options.shopItems == 1;
-         var inventoryFilter:Boolean = options.shopItems == 0 || options.shopItems == 2;
-         if(category == 0 || this._filterDictId != -1)
+         sellerId = (options.allTraders) ? Faction.ANY : seller;
+         shopFilter = options.shopItems == ShopFilter.SHOP_AND_INVENTORY || options.shopItems == ShopFilter.SHOP;
+         var inventoryFilter:Boolean = options.shopItems == ShopFilter.SHOP_AND_INVENTORY || options.shopItems == ShopFilter.INVENTORY;
+         if(category == SuperCategory.ALL || this._filterDictId != -1)
          {
             if(this._filterDictId == -1)
             {
@@ -2411,7 +2425,7 @@ package survarium.controls
                for(i = 0; i < this._bundleItems.length; i++)
                {
                   itemData = this._bundleItems[i];
-                  if(shopFilter && (sellerId == -1 || sellerId == 0))
+                  if(shopFilter && (sellerId == Faction.ANY || sellerId == Faction.NONE))
                   {
                      filteredItems.push(itemData);
                   }
@@ -2554,7 +2568,7 @@ package survarium.controls
          {
             return;
          }
-         var owned:Boolean = item.descriptor <= 100;
+         var owned:Boolean = item.descriptor <= ItemPlace.INVENTORY;
          var held:Boolean = craft != null ? craft.holds(item.itemId) : item.itemId == upgrade.getItemId();
          var options:Array = [];
          // As the menu's own: Buy for an owned item (the one the window
@@ -2623,7 +2637,7 @@ package survarium.controls
          var count:int = 0;
          for each(var owned:ItemData in this._inventoryItemsDict)
          {
-            if(owned != null && owned.dictId == dictId && owned.descriptor <= 100)
+            if(owned != null && owned.dictId == dictId && owned.descriptor <= ItemPlace.INVENTORY)
             {
                count++;
             }
@@ -2658,8 +2672,8 @@ package survarium.controls
          {
             return;
          }
-         var price:int = item.category == 100 ? int(item.cost) : int(GangShop.getInstance().getItemPrice(item.dictId));
-         GangShop.buyFunction(profile.profileId,item.itemId,item.dictId,item.descriptor,100,1,price,-1);
+         var price:int = item.category == ItemCategory.BUNDLE ? int(item.cost) : int(GangShop.getInstance().getItemPrice(item.dictId));
+         GangShop.buyFunction(profile.profileId,item.itemId,item.dictId,item.descriptor,ItemPlace.INVENTORY,1,price,Faction.ANY);
       }
    }
 }

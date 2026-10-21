@@ -14,6 +14,7 @@ package survarium.ammo
    import survarium.interfaces.ILocalPlayerProfile;
    import survarium.item.ItemFactory;
    import survarium.player.LocalPaperDoll;
+   import survarium.constants.AmmoView;
    
    public class AmmoShareControll extends Sprite implements IAmmoControll
    {
@@ -100,9 +101,9 @@ package survarium.ammo
          }
       }
       
-      public function reflow(event:Event = null, caller:String = "null", ind:int = -2) : void
+      public function reflow(event:Event = null, caller:String = "null", ind:int = AmmoView.USE_PAPERDOLL_SELECTION) : void
       {
-         _activeIndex = ind != -2 ? ind : (parent as ILocalPaperDoll).selectedIndex;
+         _activeIndex = ind != AmmoView.USE_PAPERDOLL_SELECTION ? ind : (parent as ILocalPaperDoll).selectedIndex;
          var _ammoShare:AmmoShareLite = AmmoShareLite.getInstance();
          _ammoShare.activeIndex = this._activeIndex;
          _ammoShare.reflowElements();

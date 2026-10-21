@@ -37,11 +37,11 @@ package survarium.controls
             this._icon.applyImage(_data.icon);
          }
          width = this.textField.textWidth;
-         var _loc1_:ConstrainedElement = this.constraints.getElement("textField");
-         var _loc2_:ConstrainedElement = this.constraints.getElement("spriteAnchor");
-         var _loc3_:Number = Math.ceil(this.textField.textWidth + _loc1_.left + _loc1_.right + 5 + this.spriteAnchor.width);
-         var _loc4_:Number = width;
-         width = _loc3_;
+         var textElement:ConstrainedElement = this.constraints.getElement("textField");
+         var iconElement:ConstrainedElement = this.constraints.getElement("spriteAnchor");
+         var newWidth:Number = Math.ceil(this.textField.textWidth + textElement.left + textElement.right + 5 + this.spriteAnchor.width);
+         var oldWidth:Number = width;
+         width = newWidth;
          this.constraints.update(width,height);
       }
    }

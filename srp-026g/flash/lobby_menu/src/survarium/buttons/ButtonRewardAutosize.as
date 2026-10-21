@@ -7,6 +7,7 @@ package survarium.buttons
    import survarium.Util;
    import survarium.constants.Reward;
    import survarium.controls.PlayerInfo;
+   import survarium.constants.MoneyType;
    
    public class ButtonRewardAutosize extends Button
    {
@@ -34,16 +35,16 @@ package survarium.buttons
          return textField != null ? textField.x + textField.textWidth : super.width;
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         _data = param1;
+         _data = value;
          this.updateContent();
          invalidateData();
       }
       
       protected function updateContent() : void
       {
-         var _loc1_:Boolean;
+         var useMultiplier:Boolean;
          if(_data.type == Reward.RATING)
          {
             this.icon.gotoAndStop(5);
@@ -51,7 +52,7 @@ package survarium.buttons
          }
          else if(_data.type == Reward.MONEY)
          {
-            this.icon.gotoAndStop(_data.param == 0 ? 1 : 2);
+            this.icon.gotoAndStop(_data.param == MoneyType.REGULAR ? 1 : 2);
             this.icon.visible = true;
          }
          else if(_data.type == Reward.EXPERIENCE)
@@ -90,11 +91,11 @@ package survarium.buttons
          }
          else
          {
-            _loc1_ = _data.useMultiplier;
-            textField.text = Util.getMoneyString(int(_data.amount * (_loc1_ ? (_data.type == Reward.REPUTATION ? PlayerInfo.questRewardsMultiplierReputation : PlayerInfo.questRewardsMultiplierMoney) : 1)));
+            useMultiplier = _data.useMultiplier;
+            textField.text = Util.getMoneyString(int(_data.amount * (useMultiplier ? (_data.type == Reward.REPUTATION ? PlayerInfo.questRewardsMultiplierReputation : PlayerInfo.questRewardsMultiplierMoney) : 1)));
          }
          textField.x = this.icon.getRect(this).x * 2 + this.icon.width + 3;
-         trace("BRW::updateContent",textField.text,_loc1_,_data.amount,"|",textField.x,"|",this.icon.getRect(this));
+         trace("BRW::updateContent",textField.text,useMultiplier,_data.amount,"|",textField.x,"|",this.icon.getRect(this));
       }
       
       override protected function draw() : void

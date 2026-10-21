@@ -40,28 +40,28 @@ package survarium.controls
          return this._subsystemName;
       }
       
-      public function set subsystem_name(param1:String) : void
+      public function set subsystem_name(value:String) : void
       {
-         _subsystemName = param1;
+         _subsystemName = value;
       }
       
-      public function activate(param1:Boolean, param2:Boolean = true) : void
+      public function activate(show:Boolean, byUser:Boolean = true) : void
       {
-         trace("activate",name,param1,param2);
-         if(param2)
+         trace("activate",name,show,byUser);
+         if(byUser)
          {
-            if(!visible && param1)
+            if(!visible && show)
             {
                trace("subsystem_activated",this._subsystemName);
                ExternalInterface.call("subsystem_activated",this._subsystemName);
             }
-            else if(visible && !param1)
+            else if(visible && !show)
             {
                trace("subsystem_deactivated",this._subsystemName);
                ExternalInterface.call("subsystem_deactivated",this._subsystemName);
             }
          }
-         visible = param1;
+         visible = show;
       }
       
       public function get subsystem_enable() : Boolean
@@ -69,18 +69,18 @@ package survarium.controls
          return enabled;
       }
       
-      public function set subsystem_enable(param1:Boolean) : void
+      public function set subsystem_enable(value:Boolean) : void
       {
-         trace("subsystem_enable",this,param1,enabled);
-         if(param1 && !enabled)
+         trace("subsystem_enable",this,value,enabled);
+         if(value && !enabled)
          {
             dispatchEvent(new Event(Events.SUBSYSTEM_ENABLED));
          }
-         else if(!param1 && enabled)
+         else if(!value && enabled)
          {
             dispatchEvent(new Event(Events.SUBSYSTEM_DISABLED));
          }
-         enabled = param1;
+         enabled = value;
       }
       
       public function get subsystem_active() : Boolean
@@ -88,9 +88,9 @@ package survarium.controls
          return visible && parent;
       }
       
-      public function set subsystem_active(param1:Boolean) : void
+      public function set subsystem_active(value:Boolean) : void
       {
-         if(!param1)
+         if(!value)
          {
             dispatchEvent(new Event(Events.SUBSYSTEM_DEACTIVATED));
          }
@@ -100,17 +100,17 @@ package survarium.controls
          }
       }
       
-      override public function set x(param1:Number) : void
+      override public function set x(value:Number) : void
       {
-         super.x = int(param1 * MainScene.scaleFactor) / MainScene.scaleFactor;
+         super.x = int(value * MainScene.scaleFactor) / MainScene.scaleFactor;
       }
       
-      override public function set y(param1:Number) : void
+      override public function set y(value:Number) : void
       {
-         super.y = int(param1 * MainScene.scaleFactor) / MainScene.scaleFactor;
+         super.y = int(value * MainScene.scaleFactor) / MainScene.scaleFactor;
       }
       
-      public function closeWindow(param1:Event = null) : void
+      public function closeWindow(event:Event = null) : void
       {
          MainScene.activeWindow = null;
          visible = false;

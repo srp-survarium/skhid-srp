@@ -17,6 +17,9 @@ package survarium.messages
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
    import survarium.data.LocalizationData;
+   import survarium.constants.MoneyType;
+   import survarium.constants.UiSound;
+   import survarium.constants.VoucherType;
    
    public class MessageEnterName extends MessageBase
    {
@@ -67,7 +70,7 @@ package survarium.messages
       {
          super();
          addEventListener(InputEvent.INPUT,this.handleInput,false,0,true);
-         ExternalInterface.call("sound_play",13);
+         ExternalInterface.call("sound_play",UiSound.MENU_MESSAGE);
       }
       
       override public function get width() : Number
@@ -146,8 +149,8 @@ package survarium.messages
          this.nickName.text = this._nickname;
          lastNickName = this._nickname;
          this.warning.visible = false;
-         this.radioButtonPremium.money_type = 1;
-         this.radioButtonVouchers.money_type = 9;
+         this.radioButtonPremium.money_type = MoneyType.PREMIUM;
+         this.radioButtonVouchers.money_type = CheckBoxValue.RENAME_VOUCHER_ICON;
          this.radioButtonPremium.value = _data.premiumCost;
          this.radioButtonVouchers.value = _data.vouchersCost;
          this.radioButtonVouchers.selected = _data.selectVoucher;
@@ -229,8 +232,8 @@ package survarium.messages
       
       protected function checkLocalNicknameValidation() : Boolean
       {
-         trace("_data.vouchersCost",_data.vouchersCost,PlayerInfo.getVoucherCount(0),this.radioButtonPremium.selected,_data.voucherId);
-         return this.lastNickName.length >= this.MIN_CHARS && this.lastNickName.length <= this.MAX_CHARS && (this.radioButtonPremium.selected ? _data.premiumCost <= PlayerInfo.premiumMoney : _data.vouchersCost <= PlayerInfo.getVoucherCount(0));
+         trace("_data.vouchersCost",_data.vouchersCost,PlayerInfo.getVoucherCount(VoucherType.RENAME),this.radioButtonPremium.selected,_data.voucherId);
+         return this.lastNickName.length >= this.MIN_CHARS && this.lastNickName.length <= this.MAX_CHARS && (this.radioButtonPremium.selected ? _data.premiumCost <= PlayerInfo.premiumMoney : _data.vouchersCost <= PlayerInfo.getVoucherCount(VoucherType.RENAME));
       }
       
       public function handleNicknameValidation(result:Boolean, nickname:String, message:String = null) : void

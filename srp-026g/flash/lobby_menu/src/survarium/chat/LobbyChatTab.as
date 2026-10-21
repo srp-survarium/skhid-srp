@@ -20,6 +20,8 @@ package survarium.chat
    import scaleform.clik.core.UIComponent;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.events.ComponentEvent;
+   import survarium.constants.Cursor;
+   import survarium.constants.KeyCode;
    import survarium.controls.FixedTextDots;
    import survarium.data.LocalizationData;
    
@@ -99,9 +101,9 @@ package survarium.chat
          this.statusIndicator.gotoAndStop(1);
       }
       
-      public function set owner(param1:LobbyChat) : void
+      public function set owner(value:LobbyChat) : void
       {
-         _owner = param1;
+         _owner = value;
       }
       
       public function get handled() : Boolean
@@ -109,25 +111,25 @@ package survarium.chat
          return this._hasMoved;
       }
       
-      override public function set x(param1:Number) : void
+      override public function set x(value:Number) : void
       {
-         super.x = int(param1 * MainScene.scaleFactor) / MainScene.scaleFactor;
+         super.x = int(value * MainScene.scaleFactor) / MainScene.scaleFactor;
       }
       
-      override public function set y(param1:Number) : void
+      override public function set y(value:Number) : void
       {
-         super.y = int(param1 * MainScene.scaleFactor) / MainScene.scaleFactor;
+         super.y = int(value * MainScene.scaleFactor) / MainScene.scaleFactor;
       }
       
-      override public function set width(param1:Number) : void
+      override public function set width(value:Number) : void
       {
-         this.text_inpput.setSize(param1 - 8 - this.text_inpput.x,this.text_inpput.height);
-         this.back.width = param1;
-         this.btn_close.x = param1 - this.btn_close.width - 5;
-         this.btn_hide.x = (this.btn_close.visible ? this.btn_close.x : param1) - this.btn_hide.width - 5;
-         this.text_chat.setSize(param1 - 13,this.text_chat.height);
-         this.dragger1.x = this.dragger3.x = param1 - 20;
-         this.enterArrow.x = param1 - 40;
+         this.text_inpput.setSize(value - 8 - this.text_inpput.x,this.text_inpput.height);
+         this.back.width = value;
+         this.btn_close.x = value - this.btn_close.width - 5;
+         this.btn_hide.x = (this.btn_close.visible ? this.btn_close.x : value) - this.btn_hide.width - 5;
+         this.text_chat.setSize(value - 13,this.text_chat.height);
+         this.dragger1.x = this.dragger3.x = value - 20;
+         this.enterArrow.x = value - 40;
          this.labelTextField.x = 51;
          invalidateSize();
       }
@@ -137,17 +139,17 @@ package survarium.chat
          return this.back.width;
       }
       
-      override public function set height(param1:Number) : void
+      override public function set height(value:Number) : void
       {
-         if(param1 < this._minHeight)
+         if(value < this._minHeight)
          {
-            param1 = this._minHeight;
+            value = this._minHeight;
          }
-         this.back.height = param1;
-         this.text_inpput.y = param1 - 38;
-         this.text_chat.setSize(this.text_chat.width,param1 - 105);
-         this.dragger2.y = this.dragger3.y = param1 - 20;
-         this.enterArrow.y = param1 - 28;
+         this.back.height = value;
+         this.text_inpput.y = value - 38;
+         this.text_chat.setSize(this.text_chat.width,value - 105);
+         this.dragger2.y = this.dragger3.y = value - 20;
+         this.enterArrow.y = value - 28;
          invalidateSize();
       }
       
@@ -156,9 +158,9 @@ package survarium.chat
          return this.back.height;
       }
       
-      public function setData(param1:Object) : void
+      public function setData(tabData:Object) : void
       {
-         _data = param1;
+         _data = tabData;
          invalidateData();
       }
       
@@ -178,38 +180,38 @@ package survarium.chat
          this.text_chat.position = this.text_chat.textField.maxScrollV;
       }
       
-      public function srartMessage(param1:String) : void
+      public function srartMessage(messageText:String) : void
       {
-         trace("srartMessage::",name,param1);
-         this.text_inpput.text = param1;
+         trace("srartMessage::",name,messageText);
+         this.text_inpput.text = messageText;
          this.text_inpput.addEventListener(Event.RENDER,this.onRender);
       }
       
-      public function setSizeLimits(param1:int, param2:int, param3:int, param4:int) : void
+      public function setSizeLimits(newMinWidth:int, newMinHeight:int, newMaxWidth:int, newMaxHeight:int) : void
       {
-         _minWidth = param1;
-         _minHeight = param2;
-         _maxWidth = param3;
-         _maxHeight = param4;
+         _minWidth = newMinWidth;
+         _minHeight = newMinHeight;
+         _maxWidth = newMaxWidth;
+         _maxHeight = newMaxHeight;
       }
       
-      public function submitText(param1:Event = null) : void
+      public function submitText(event:Event = null) : void
       {
          if(this.text_inpput.text == "")
          {
             return;
          }
-         var _loc2_:Boolean = this.sendText();
-         if(_loc2_)
+         var isSent:Boolean = this.sendText();
+         if(isSent)
          {
             this.text_inpput.text = "";
             this.text_inpput.textField.text = "";
          }
       }
       
-      public function setStyleSheet(param1:StyleSheet) : void
+      public function setStyleSheet(styleSheet:StyleSheet) : void
       {
-         this.text_chat.textField.styleSheet = param1;
+         this.text_chat.textField.styleSheet = styleSheet;
       }
       
       public function prepareToResize() : void
@@ -253,148 +255,148 @@ package survarium.chat
          removeEventListener(MouseEvent.MOUSE_MOVE,this.onMouseMove);
       }
       
-      private function onMouseIN(param1:MouseEvent) : void
+      private function onMouseIN(event:MouseEvent) : void
       {
          this.addMoveListeners();
-         this.onMouseMove(param1);
+         this.onMouseMove(event);
       }
       
-      private function onMouseLeave(param1:Event) : void
+      private function onMouseLeave(event:Event) : void
       {
          this.removeMoveListeners();
-         if(param1.target != this.back)
+         if(event.target != this.back)
          {
-            ExternalInterface.call("set_mouse_cursor",1);
+            ExternalInterface.call("set_mouse_cursor",Cursor.ARROW);
          }
       }
       
-      private function onMouseMove(param1:MouseEvent) : void
+      private function onMouseMove(event:MouseEvent) : void
       {
-         if(mouseY < 50 && (param1.target === this.back || param1.target === this.dragger0 || param1.target === this.dragger1))
+         if(mouseY < 50 && (event.target === this.back || event.target === this.dragger0 || event.target === this.dragger1))
          {
-            ExternalInterface.call("set_mouse_cursor",7);
+            ExternalInterface.call("set_mouse_cursor",Cursor.MOVE);
          }
-         else if(param1.target === this.dragger2)
+         else if(event.target === this.dragger2)
          {
-            ExternalInterface.call("set_mouse_cursor",8);
+            ExternalInterface.call("set_mouse_cursor",Cursor.RESIZE_NESW);
          }
-         else if(param1.target === this.dragger3)
+         else if(event.target === this.dragger3)
          {
-            ExternalInterface.call("set_mouse_cursor",9);
+            ExternalInterface.call("set_mouse_cursor",Cursor.RESIZE_NWSE);
          }
-         else if(!(param1.target is TextField) || param1.target is TextField && (param1.target as TextField).selectable == false)
+         else if(!(event.target is TextField) || event.target is TextField && (event.target as TextField).selectable == false)
          {
-            ExternalInterface.call("set_mouse_cursor",1);
+            ExternalInterface.call("set_mouse_cursor",Cursor.ARROW);
          }
       }
       
-      private function startResize(param1:Event) : void
+      private function startResize(event:Event) : void
       {
          _dragPoint = new Point(mouseX,mouseY);
          stage.addEventListener(MouseEvent.MOUSE_MOVE,this.chResize);
          stage.addEventListener(MouseEvent.MOUSE_UP,this.stopResize);
       }
       
-      private function startMoveTop(param1:Event) : void
+      private function startMoveTop(event:Event) : void
       {
          if(mouseY < 50)
          {
-            this.startMove(param1);
+            this.startMove(event);
          }
       }
       
-      private function startMove(param1:Event) : void
+      private function startMove(event:Event) : void
       {
          _dragPoint = new Point(mouseX,mouseY);
          stage.addEventListener(MouseEvent.MOUSE_MOVE,this.chMove);
          stage.addEventListener(MouseEvent.MOUSE_UP,this.stopMove);
       }
       
-      private function stopMove(param1:MouseEvent) : void
+      private function stopMove(event:MouseEvent) : void
       {
          stage.removeEventListener(MouseEvent.MOUSE_MOVE,this.chMove);
          stage.removeEventListener(MouseEvent.MOUSE_UP,this.stopMove);
       }
       
-      private function stopResize(param1:MouseEvent) : void
+      private function stopResize(event:MouseEvent) : void
       {
          stage.removeEventListener(MouseEvent.MOUSE_MOVE,this.chResize);
          stage.removeEventListener(MouseEvent.MOUSE_UP,this.stopResize);
-         ExternalInterface.call("set_mouse_cursor",1);
+         ExternalInterface.call("set_mouse_cursor",Cursor.ARROW);
       }
       
-      private function chMove(param1:MouseEvent) : void
+      private function chMove(event:MouseEvent) : void
       {
-         var _loc2_:int = this._dragPoint.x - mouseX;
-         var _loc3_:int = this._dragPoint.y - mouseY;
-         if(y - _loc3_ < 0)
+         var dx:int = this._dragPoint.x - mouseX;
+         var dy:int = this._dragPoint.y - mouseY;
+         if(y - dy < 0)
          {
-            _loc3_ = y;
+            dy = y;
          }
-         if(y - _loc3_ + this.height / this._myScaleFactor > MainScene.stageHeight)
+         if(y - dy + this.height / this._myScaleFactor > MainScene.stageHeight)
          {
-            _loc3_ = -(MainScene.stageHeight - (y + this.height / this._myScaleFactor));
+            dy = -(MainScene.stageHeight - (y + this.height / this._myScaleFactor));
          }
-         if(x - _loc2_ < 0)
+         if(x - dx < 0)
          {
-            _loc2_ = x;
+            dx = x;
          }
-         if(x - _loc2_ + this.width / this._myScaleFactor > MainScene.stageWidth)
+         if(x - dx + this.width / this._myScaleFactor > MainScene.stageWidth)
          {
-            _loc2_ = -(MainScene.stageWidth - (x + this.width / this._myScaleFactor));
+            dx = -(MainScene.stageWidth - (x + this.width / this._myScaleFactor));
          }
-         x = x - _loc2_;
-         y = y - _loc3_;
+         x = x - dx;
+         y = y - dy;
          _hasMoved = true;
       }
       
-      private function chResize(param1:MouseEvent) : void
+      private function chResize(event:MouseEvent) : void
       {
-         var _loc2_:Number;
+         var dw:Number;
          if(this._dragPoint.x < 80)
          {
-            _loc2_ = Math.min(Math.max(this._dragPoint.x - mouseX,this._minWidth - this.width),this._maxWidth - this.width);
-            _loc4_ = x;
-            x = x - _loc2_ / this._myScaleFactor;
-            width += _loc4_ - x;
+            dw = Math.min(Math.max(this._dragPoint.x - mouseX,this._minWidth - this.width),this._maxWidth - this.width);
+            oldX = x;
+            x = x - dw / this._myScaleFactor;
+            width += oldX - x;
          }
          else
          {
-            _loc2_ = Math.min(Math.max(mouseX - this._dragPoint.x,this._minWidth - this.width),this._maxWidth - this.width);
-            this._dragPoint.x += _loc2_;
-            width += _loc2_;
+            dw = Math.min(Math.max(mouseX - this._dragPoint.x,this._minWidth - this.width),this._maxWidth - this.width);
+            this._dragPoint.x += dw;
+            width += dw;
          }
-         var _loc3_:Number = Math.min(Math.max(mouseY - this._dragPoint.y,this._minHeight - this.back.height),this._maxHeight - this.back.height);
-         var _loc4_:Number;
-         this._dragPoint.y += _loc3_;
-         height = this.back.height + _loc3_;
+         var dh:Number = Math.min(Math.max(mouseY - this._dragPoint.y,this._minHeight - this.back.height),this._maxHeight - this.back.height);
+         var oldX:Number;
+         this._dragPoint.y += dh;
+         height = this.back.height + dh;
       }
       
-      protected function checkLenght(param1:int) : void
+      protected function checkLenght(maxLines:int) : void
       {
-         var _loc2_:TextField = this.text_chat.textField;
-         var _loc3_:int;
-         var _loc4_:int;
-         trace("currentLength::",_loc2_.numLines);
-         if(_loc2_.numLines > param1)
+         var chatField:TextField = this.text_chat.textField;
+         var cutPos:int;
+         var i:int;
+         trace("currentLength::",chatField.numLines);
+         if(chatField.numLines > maxLines)
          {
-            _loc3_ = -1;
-            _loc4_ = 0;
-            while(_loc4_ < _loc2_.numLines - param1)
+            cutPos = -1;
+            i = 0;
+            while(i < chatField.numLines - maxLines)
             {
-               _loc3_ = _loc2_.htmlText.indexOf("\n",_loc3_ + 1);
-               _loc4_++;
+               cutPos = chatField.htmlText.indexOf("\n",cutPos + 1);
+               i++;
             }
-            this.text_chat.htmlText = _loc2_.htmlText.substring(_loc3_ + 1,_loc2_.htmlText.length);
+            this.text_chat.htmlText = chatField.htmlText.substring(cutPos + 1,chatField.htmlText.length);
             this.text_chat.validateNow();
          }
       }
       
-      protected function addMessage(param1:String) : void
+      protected function addMessage(messageText:String) : void
       {
          _pos = this.text_chat.position;
          _was_last = this.text_chat.position == this.text_chat.textField.maxScrollV;
-         this.text_chat.appendHtml(param1 + this._nline);
+         this.text_chat.appendHtml(messageText + this._nline);
          this.text_chat.validateNow();
          this.text_chat.addEventListener(Event.RENDER,this.checkChat);
          if(!visible)
@@ -403,12 +405,12 @@ package survarium.chat
             {
                this._data.blink = true;
             }
-            trace("CHANNEL_MESSAGE::",name,param1,visible,parent);
+            trace("CHANNEL_MESSAGE::",name,messageText,visible,parent);
             dispatchEvent(new Event(Event.CHANNEL_MESSAGE));
          }
       }
       
-      protected function onClose(param1:Event = null) : void
+      protected function onClose(event:Event = null) : void
       {
          if(stage)
          {
@@ -417,14 +419,14 @@ package survarium.chat
          ExternalInterface.call("chat_tab_close",this._data.id);
       }
       
-      protected function onHide(param1:Event = null) : void
+      protected function onHide(event:Event = null) : void
       {
          dispatchEvent(new Event(Event.CLOSE));
       }
       
-      protected function checkChat(param1:Event) : void
+      protected function checkChat(event:Event) : void
       {
-         trace("checkChat::",param1);
+         trace("checkChat::",event);
          this.text_chat.removeEventListener(Event.RENDER,this.checkChat);
          this.checkLenght(this._maxLines);
          if(!this._was_last)
@@ -477,10 +479,10 @@ package survarium.chat
          this.dragger1.addEventListener(MouseEvent.MOUSE_DOWN,this.startMove);
          this.btn_close.addEventListener(ButtonEvent.CLICK,this.onClose);
          this.btn_hide.addEventListener(ButtonEvent.CLICK,this.onHide);
-         var _loc1_:TextFormat = this.text_inpput.textField.getTextFormat();
-         this.text_inpput.textField.setTextFormat(_loc1_);
-         this.text_inpput.textField.defaultTextFormat = _loc1_;
-         this.text_inpput.defaultTextFormat = _loc1_;
+         var inputFormat:TextFormat = this.text_inpput.textField.getTextFormat();
+         this.text_inpput.textField.setTextFormat(inputFormat);
+         this.text_inpput.textField.defaultTextFormat = inputFormat;
+         this.text_inpput.defaultTextFormat = inputFormat;
          this.text_inpput.addEventListener(KeyboardEvent.KEY_UP,this.checkInputKeyForSubmit,false,0,true);
          this.text_inpput.textField.addEventListener(FocusEvent.FOCUS_OUT,this.stop_enter_text,false,0,true);
          this.text_inpput.textField.addEventListener(FocusEvent.FOCUS_IN,this.start_enter_text,false,0,true);
@@ -503,10 +505,10 @@ package survarium.chat
          this.text_chat.selectable = true;
       }
       
-      protected function handleFocusIn(param1:FocusEvent) : void
+      protected function handleFocusIn(event:FocusEvent) : void
       {
-         trace("LCT::focusIn",this._data.id,this._data.name,"event:props",param1.relatedObject,param1.target,param1.currentTarget);
-         param1.stopImmediatePropagation();
+         trace("LCT::focusIn",this._data.id,this._data.name,"event:props",event.relatedObject,event.target,event.currentTarget);
+         event.stopImmediatePropagation();
          this._owner.focusTab(this._data.id);
       }
       
@@ -531,9 +533,9 @@ package survarium.chat
          }
       }
       
-      protected function onLocal(param1:String) : void
+      protected function onLocal(value:String) : void
       {
-         this.text_inpput.defaultText = param1;
+         this.text_inpput.defaultText = value;
       }
       
       protected function moveCaret() : void
@@ -541,24 +543,24 @@ package survarium.chat
          this.text_inpput.textField.setSelection(this.text_inpput.textField.text.length,this.text_inpput.textField.text.length);
       }
       
-      protected function onRenderFocus(param1:Event) : void
+      protected function onRenderFocus(event:Event) : void
       {
          stage.focus = this.text_inpput.textField;
          this.text_inpput.text = "";
          this.text_inpput.removeEventListener(Event.RENDER,this.onRenderFocus);
       }
       
-      protected function onRender(param1:Event) : void
+      protected function onRender(event:Event) : void
       {
          stage.focus = this.text_inpput;
          this.moveCaret();
          this.text_inpput.removeEventListener(Event.RENDER,this.onRender);
       }
       
-      protected function stop_enter_text(param1:FocusEvent = null) : void
+      protected function stop_enter_text(event:FocusEvent = null) : void
       {
-         trace("stop_enter text::",param1);
-         if(param1.relatedObject != null && param1.relatedObject != this.text_inpput && !this.ignoreFocus || this._isTyping && !this.ignoreFocus)
+         trace("stop_enter text::",event);
+         if(event.relatedObject != null && event.relatedObject != this.text_inpput && !this.ignoreFocus || this._isTyping && !this.ignoreFocus)
          {
             if(!this._started)
             {
@@ -576,10 +578,10 @@ package survarium.chat
          ignoreFocus = false;
       }
       
-      protected function start_enter_text(param1:FocusEvent = null) : void
+      protected function start_enter_text(event:FocusEvent = null) : void
       {
-         trace("start_enter text",param1.relatedObject,this.ignoreFocus);
-         if(param1.relatedObject != null && !this.ignoreFocus)
+         trace("start_enter text",event.relatedObject,this.ignoreFocus);
+         if(event.relatedObject != null && !this.ignoreFocus)
          {
             if(this._started)
             {
@@ -598,10 +600,10 @@ package survarium.chat
          this.text_inpput.addEventListener(ComponentEvent.STATE_CHANGE,this.onNewState);
       }
       
-      protected function stop_enter_text_area(param1:FocusEvent = null) : void
+      protected function stop_enter_text_area(event:FocusEvent = null) : void
       {
-         trace("stop_enter text area",param1.relatedObject,this.ignoreFocus,this._isTyping);
-         if(param1.relatedObject != null && param1.relatedObject != this.text_chat && !this.ignoreFocus || this._isTyping && !this.ignoreFocus)
+         trace("stop_enter text area",event.relatedObject,this.ignoreFocus,this._isTyping);
+         if(event.relatedObject != null && event.relatedObject != this.text_chat && !this.ignoreFocus || this._isTyping && !this.ignoreFocus)
          {
             if(!this._started)
             {
@@ -618,10 +620,10 @@ package survarium.chat
          ignoreFocus = false;
       }
       
-      protected function start_enter_text_area(param1:FocusEvent = null) : void
+      protected function start_enter_text_area(event:FocusEvent = null) : void
       {
-         trace("start_enter text area",param1.relatedObject,this.ignoreFocus);
-         if(param1.relatedObject != null && !this.ignoreFocus)
+         trace("start_enter text area",event.relatedObject,this.ignoreFocus);
+         if(event.relatedObject != null && !this.ignoreFocus)
          {
             if(this._started)
             {
@@ -640,27 +642,27 @@ package survarium.chat
       
       protected function sendText() : Boolean
       {
-         var _loc1_:int = (this._data.channel_to_send);
-         var _loc2_:*;
+         var channel:int = (this._data.channel_to_send);
+         var isValid:*;
          if(this._owner.send_function is Function)
          {
-            _loc2_ = this._owner.send_function(this.text_inpput,_loc1_);
-            trace("LCT::isValid",_loc2_);
-            return _loc2_;
+            isValid = this._owner.send_function(this.text_inpput,channel);
+            trace("LCT::isValid",isValid);
+            return isValid;
          }
          return false;
       }
       
-      protected function onNewState(param1:Event = null) : void
+      protected function onNewState(event:Event = null) : void
       {
          this.text_inpput.removeEventListener(ComponentEvent.STATE_CHANGE,this.onNewState);
          this.moveCaret();
       }
       
-      protected function checkInputKeyForSubmit(param1:KeyboardEvent) : void
+      protected function checkInputKeyForSubmit(event:KeyboardEvent) : void
       {
-         trace("checkInputKeyForSubmit",param1.keyCode);
-         if(param1.keyCode == 150)
+         trace("checkInputKeyForSubmit",event.keyCode);
+         if(event.keyCode == KeyCode.CHAT_SUBMIT)
          {
             this.submitText();
          }

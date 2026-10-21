@@ -15,9 +15,13 @@ package survarium.messages
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
    import survarium.data.LocalizationData;
+   import survarium.constants.MessageId;
    
    public class MessagePostPremium extends MessageAccept
    {
+      
+      // meaning unknown: the premium option the drop-down list starts on
+      private static const DEFAULT_OPTION:int = 3;
       
       public static var discount:Number = 1;
       
@@ -58,18 +62,18 @@ package survarium.messages
          this.coin.gotoAndStop(2);
          this.coin.x += 2;
          this.textFieldValue.x += 2;
-         var _loc1_:String = "";
-         var _loc2_:int;
-         var _loc3_:Array;
-         var _loc4_:uint;
-         var _loc5_:Object;
-         var _loc6_:Boolean;
-         var _loc7_:String;
-         var _loc8_:int;
-         var _loc9_:int;
+         var suffix:String = "";
+         var selectedOption:int;
+         var options:Array;
+         var i:uint;
+         var option:Object;
+         var affordable:Boolean;
+         var discountText:String;
+         var listSpace:int;
+         var listHeight:int;
          btnAccept.label = LocalizationData.getName("buy_post_premium").toUpperCase();
-         this.textFieldLabel.text = LocalizationData.getName("premium_post_reward_label").toUpperCase() + _loc1_;
-         this.textFieldDescr.text = LocalizationData.getName("premium_post_reward_descr").toUpperCase() + _loc1_;
+         this.textFieldLabel.text = LocalizationData.getName("premium_post_reward_label").toUpperCase() + suffix;
+         this.textFieldDescr.text = LocalizationData.getName("premium_post_reward_descr").toUpperCase() + suffix;
          this.textFieldValue.mouseEnabled = false;
          this.textFieldValue.x += 1;
          this.coin.x -= 1;
@@ -78,56 +82,56 @@ package survarium.messages
          this.textFieldValue.text = "0";
          if(_data)
          {
-            _loc2_ = -1;
-            _loc3_ = _data.options;
-            _loc4_ = 0;
-            while(_loc4_ < _loc3_.length)
+            selectedOption = -1;
+            options = _data.options;
+            i = 0;
+            while(i < options.length)
             {
-               _loc5_ = _loc3_[_loc4_];
-               _loc6_ = PlayerInfo.premiumMoney >= _loc5_.value;
-               _loc5_.valid = _loc6_;
-               _loc5_.enabled = true;
-               trace("configPM::",_loc5_.label,"|",_loc5_.value2);
-               if(_loc5_.text == undefined)
+               option = options[i];
+               affordable = PlayerInfo.premiumMoney >= option.value;
+               option.valid = affordable;
+               option.enabled = true;
+               trace("configPM::",option.label,"|",option.value2);
+               if(option.text == undefined)
                {
-                  _loc5_.text = _loc5_.label;
+                  option.text = option.label;
                }
-               if(_loc5_.discount)
+               if(option.discount)
                {
-                  _loc7_ = Util.styledChar(LocalizationData.getName("discount"),"white") + " " + Util.styledChar(_loc5_.discount,"yellow");
+                  discountText = Util.styledChar(LocalizationData.getName("discount"),"white") + " " + Util.styledChar(option.discount,"yellow");
                }
                else
                {
-                  _loc7_ = "";
+                  discountText = "";
                }
-               _loc5_.label = Util.styledChar(_loc5_.text,"yellow") + " " + Util.styledChar(_loc5_.value2,"dark_yellow") + " " + _loc7_;
-               if(_loc6_ && _loc2_ == -1)
+               option.label = Util.styledChar(option.text,"yellow") + " " + Util.styledChar(option.value2,"dark_yellow") + " " + discountText;
+               if(affordable && selectedOption == -1)
                {
-                  _loc2_ = _loc4_;
+                  selectedOption = i;
                }
-               _loc4_++;
+               i++;
             }
             if(this.list)
             {
-               _loc8_ = height / scaleY - (this.LIST_OFFSET_TOP + this.LIST_OFFSET_BOTTOM);
-               _loc9_ = _loc3_.length * 32;
-               this.list.height = _loc9_ + 5;
-               this.list.y = (_loc8_ - _loc9_) / 2 + this.LIST_OFFSET_TOP;
+               listSpace = height / scaleY - (this.LIST_OFFSET_TOP + this.LIST_OFFSET_BOTTOM);
+               listHeight = options.length * 32;
+               this.list.height = listHeight + 5;
+               this.list.y = (listSpace - listHeight) / 2 + this.LIST_OFFSET_TOP;
                btnAccept.x = int(btnAccept.x + 1);
                this.list.addEventListener(IndexEvent.INDEX_CHANGE,this.onPremiumSelected);
-               this.list.dataProvider = new DataProvider(_loc3_);
-               this.list.selectedIndex = _loc2_;
+               this.list.dataProvider = new DataProvider(options);
+               this.list.selectedIndex = selectedOption;
             }
-            _loc2_ = 3;
+            selectedOption = DEFAULT_OPTION;
             btnAccept.enabled = true;
          }
          if(this.dropDownlist)
          {
             this.dropDownlist.menuWidth = 200;
-            this.dropDownlist.dataProvider = new DataProvider(_loc3_);
+            this.dropDownlist.dataProvider = new DataProvider(options);
             this.dropDownlist.addEventListener(ListEvent.INDEX_CHANGE,this.onPremiumSelected);
             this.dropDownlist.autoSize = "left";
-            this.dropDownlist.selectedIndex = _loc2_;
+            this.dropDownlist.selectedIndex = selectedOption;
             this.dropDownlist.validateNow();
             this.dropDownlist.autoSize = "none";
             this.moneyBackContainer.x = this.dropDownlist.x + this.dropDownlist.width + 3;
@@ -157,15 +161,15 @@ package survarium.messages
          this.reward3.reward.x = (this.reward3.width - this.reward3.reward.width) / 2;
       }
       
-      private function onPremiumSelected(param1:ListEvent = null) : void
+      private function onPremiumSelected(event:ListEvent = null) : void
       {
          if(this.dropDownlist.selectedIndex == -1)
          {
             return;
          }
-         var _loc2_:Object = this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex];
-         this.textFieldValue.text = Util.getMoneyString(_loc2_.value);
-         if(_loc2_.discount)
+         var option:Object = this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex];
+         this.textFieldValue.text = Util.getMoneyString(option.value);
+         if(option.discount)
          {
             if(this.discountContainer.alpha == 0)
             {
@@ -179,7 +183,7 @@ package survarium.messages
                   delay:0.3
                });
             }
-            this.discountContainer.textField.text = LocalizationData.getName("discount") + " " + _loc2_.discount;
+            this.discountContainer.textField.text = LocalizationData.getName("discount") + " " + option.discount;
          }
          else if(this.discountContainer.alpha == 1)
          {
@@ -189,13 +193,13 @@ package survarium.messages
       
       protected function onNoMoneyEnought() : void
       {
-         var _loc1_:Object = {
+         var messageData:Object = {
             text:LocalizationData.getName("cant_buy_premium_message"),
             onYes:this.goToStore,
             label_ok:LocalizationData.getName("btn_add_premium_message"),
             label_cancel:LocalizationData.getName("cancel")
          };
-         Message.showMessage("apply",_loc1_,true,0,true);
+         Message.showMessage("apply",messageData,true,MessageId.AUTO,true);
       }
       
       protected function goToStore() : void
@@ -203,33 +207,33 @@ package survarium.messages
          MessageMoneyExchange.buyGold();
       }
       
-      override protected function onMessageAccept(param1:ButtonEvent = null) : void
+      override protected function onMessageAccept(event:ButtonEvent = null) : void
       {
          if(!btnAccept.enabled)
          {
             return;
          }
-         var _loc2_:uint = this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].id;
-         var _loc3_:Boolean = PlayerInfo.premiumMoney >= this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].value;
-         var _loc4_:Function;
-         if(_loc3_)
+         var premiumId:uint = this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].id;
+         var affordable:Boolean = PlayerInfo.premiumMoney >= this.dropDownlist.dataProvider[this.dropDownlist.selectedIndex].value;
+         var onYes:Function;
+         if(affordable)
          {
             super.onMessageAccept();
-            trace("ACCEPT_PREMIUM_MESSAGE_discount:",_loc2_,_data.matchId,_data.victory,"d::",discount);
+            trace("ACCEPT_PREMIUM_MESSAGE_discount:",premiumId,_data.matchId,_data.victory,"d::",discount);
             if(_data.victory == true)
             {
-               ExternalInterface.call("accept_premium_victory_screen",_loc2_,uint(_data.matchId));
+               ExternalInterface.call("accept_premium_victory_screen",premiumId,uint(_data.matchId));
             }
             else
             {
-               ExternalInterface.call("accept_premium_with_bonuses",_loc2_,discount,_data.money,_data.experience,_data.reputation);
+               ExternalInterface.call("accept_premium_with_bonuses",premiumId,discount,_data.money,_data.experience,_data.reputation);
             }
-            _loc4_ = _data.onYes as Function;
+            onYes = _data.onYes as Function;
             _data.onNo = null;
             _data.onYes = null;
-            if(_loc4_ is Function)
+            if(onYes is Function)
             {
-               _loc4_(_data);
+               onYes(_data);
             }
          }
          else

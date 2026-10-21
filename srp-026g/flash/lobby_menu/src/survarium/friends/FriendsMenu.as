@@ -28,6 +28,7 @@ package survarium.friends
    import survarium.data.LocalizationData;
    import survarium.interfaces.IFriendsList;
    import survarium.interfaces.ISubSystem;
+   import survarium.constants.FriendStatus;
    
    public class FriendsMenu extends UIComponent implements IFriendsList, ISubSystem
    {
@@ -95,8 +96,8 @@ package survarium.friends
          this.btnCancelSearch.addEventListener(ButtonEvent.CLICK,this.cancelSearch);
          this.btnCancelSearch.enabled = false;
          this.btnCancelSearch.visible = false;
-         var _loc1_:TextFormat = this.text_inpput.getTextFormat();
-         this.text_inpput.textField.defaultTextFormat = _loc1_;
+         var format:TextFormat = this.text_inpput.getTextFormat();
+         this.text_inpput.textField.defaultTextFormat = format;
          this.hintContainer.mouseEnabled = false;
          this.hintContainer.mouseChildren = false;
          this.loadingIndicator.mouseEnabled = false;
@@ -120,83 +121,83 @@ package survarium.friends
          return _friends;
       }
       
-      public static function getStatus(param1:int) : String
+      public static function getStatus(status:int) : String
       {
-         if(_statusMap[param1])
+         if(_statusMap[status])
          {
-            return LocalizationData.getName(_statusMap[param1]).toUpperCase();
+            return LocalizationData.getName(_statusMap[status]).toUpperCase();
          }
          return "";
       }
       
-      public static function isIgnored(param1:String) : Boolean
+      public static function isIgnored(playerName:String) : Boolean
       {
-         var _loc2_:int = 0;
-         while(_loc2_ < _ignored.length)
+         var i:int = 0;
+         while(i < _ignored.length)
          {
-            if(param1 == _ignored[_loc2_].name)
+            if(playerName == _ignored[i].name)
             {
                return true;
             }
-            _loc2_++;
+            i++;
          }
          return false;
       }
       
-      public static function isFriend(param1:String) : Boolean
+      public static function isFriend(playerName:String) : Boolean
       {
-         var _loc2_:int = 0;
-         while(_loc2_ < _friends.length)
+         var i:int = 0;
+         while(i < _friends.length)
          {
-            if(param1 == _friends[_loc2_].name)
+            if(playerName == _friends[i].name)
             {
                return true;
             }
-            _loc2_++;
+            i++;
          }
          return false;
       }
       
-      public static function isFriendOnline(param1:String) : Boolean
+      public static function isFriendOnline(playerName:String) : Boolean
       {
-         var _loc2_:int = 0;
-         while(_loc2_ < _friends.length)
+         var i:int = 0;
+         while(i < _friends.length)
          {
-            if(param1 == _friends[_loc2_].name)
+            if(playerName == _friends[i].name)
             {
-               if(_friends[_loc2_].status != 2)
+               if(_friends[i].status != FriendStatus.OFFLINE)
                {
                   return true;
                }
                return false;
             }
-            _loc2_++;
+            i++;
          }
          return false;
       }
       
-      protected static function filterOnlinePlayers(param1:Array) : Array
+      protected static function filterOnlinePlayers(players:Array) : Array
       {
-         var _loc2_:Array = [];
-         var _loc3_:uint;
-         if(param1 && param1.length)
+         var online:Array = [];
+         var i:uint;
+         if(players && players.length)
          {
-            _loc3_ = 0;
-            while(_loc3_ < param1.length)
+            i = 0;
+            while(i < players.length)
             {
-               if(param1[_loc3_].status != 2)
+               if(players[i].status != FriendStatus.OFFLINE)
                {
-                  _loc2_.push(param1[_loc3_]);
+                  online.push(players[i]);
                }
-               _loc3_++;
+               i++;
             }
          }
-         return _loc2_;
+         return online;
       }
       
-      override public function set enabled(param1:Boolean) : void
+      override public function set enabled(value:Boolean) : void
       {
-         if(param1)
+         if(value)
          {
             dispatchEvent(new Event(Events.SUBSYSTEM_ENABLED));
          }
@@ -204,16 +205,16 @@ package survarium.friends
          {
             dispatchEvent(new Event(Events.SUBSYSTEM_DISABLED));
          }
-         super.enabled = param1;
+         super.enabled = value;
       }
       
-      override public function set visible(param1:Boolean) : void
+      override public function set visible(value:Boolean) : void
       {
-         if(!param1)
+         if(!value)
          {
             dispatchEvent(new Event(Events.SUBSYSTEM_DEACTIVATED));
          }
-         super.visible = param1;
+         super.visible = value;
       }
       
       public function get subsystem_name() : String
@@ -221,9 +222,9 @@ package survarium.friends
          return this._subsystemName;
       }
       
-      public function set subsystem_name(param1:String) : void
+      public function set subsystem_name(value:String) : void
       {
-         _subsystemName = param1;
+         _subsystemName = value;
       }
       
       public function get subsystem_enable() : Boolean
@@ -231,9 +232,9 @@ package survarium.friends
          return enabled;
       }
       
-      public function set subsystem_enable(param1:Boolean) : void
+      public function set subsystem_enable(value:Boolean) : void
       {
-         enabled = param1;
+         enabled = value;
       }
       
       public function get subsystem_active() : Boolean
@@ -241,19 +242,19 @@ package survarium.friends
          return visible && parent;
       }
       
-      public function set subsystem_active(param1:Boolean) : void
+      public function set subsystem_active(value:Boolean) : void
       {
          dispatchEvent(new Event(Events.SUBSYSTEM_ACTIVATED));
       }
       
-      override public function set x(param1:Number) : void
+      override public function set x(value:Number) : void
       {
-         super.x = int(param1 * MainScene.scaleFactor) / MainScene.scaleFactor;
+         super.x = int(value * MainScene.scaleFactor) / MainScene.scaleFactor;
       }
       
-      override public function set y(param1:Number) : void
+      override public function set y(value:Number) : void
       {
-         super.y = int(param1 * MainScene.scaleFactor) / MainScene.scaleFactor;
+         super.y = int(value * MainScene.scaleFactor) / MainScene.scaleFactor;
       }
       
       public function getOnlineFriendsList() : Array
@@ -266,7 +267,7 @@ package survarium.friends
          return FriendsMenu.getFriendsList();
       }
       
-      protected function cancelSearch(param1:Event) : void
+      protected function cancelSearch(event:Event) : void
       {
          this.showSearch(true);
          this.text_inpput.text = "";
@@ -275,9 +276,9 @@ package survarium.friends
          this.onSelectBtn();
       }
       
-      public function setInvites(param1:Array) : void
+      public function setInvites(invites:Array) : void
       {
-         _invites = param1;
+         _invites = invites;
          this.onSelectBtn(null);
       }
       
@@ -286,9 +287,9 @@ package survarium.friends
          return this._online;
       }
       
-      public function setPlayers(param1:Array, param2:Boolean = true) : void
+      public function setPlayers(players:Array, isFriends:Boolean = true) : void
       {
-         if(param2)
+         if(isFriends)
          {
             _friends = new Array();
          }
@@ -297,99 +298,99 @@ package survarium.friends
             _ignored = new Array();
          }
          _online = 0;
-         var _loc3_:int = 0;
-         while(_loc3_ < param1.length)
+         var i:int = 0;
+         while(i < players.length)
          {
-            param1[_loc3_].status_text = getStatus(param1[_loc3_].status);
-            if(param2 && param1[_loc3_].status != 2)
+            players[i].status_text = getStatus(players[i].status);
+            if(isFriends && players[i].status != FriendStatus.OFFLINE)
             {
                ++this._online;
             }
-            if(param2)
+            if(isFriends)
             {
-               param1[_loc3_].ignored = false;
-               _friends.push(param1[_loc3_]);
+               players[i].ignored = false;
+               _friends.push(players[i]);
             }
             else
             {
-               param1[_loc3_].ignored = true;
-               _ignored.push(param1[_loc3_]);
+               players[i].ignored = true;
+               _ignored.push(players[i]);
             }
-            _loc3_++;
+            i++;
          }
          this.onSelectBtn();
       }
       
-      protected function repalceFoundPlayersByFriends(param1:Array) : void
+      protected function repalceFoundPlayersByFriends(foundPlayers:Array) : void
       {
-         if(!_friends || !param1)
+         if(!_friends || !foundPlayers)
          {
             return;
          }
-         var _loc2_:Object = new Object();
-         var _loc3_:uint = _friends.length;
-         var _loc4_:uint = 0;
-         while(_loc4_ < _loc3_)
+         var friendsById:Object = new Object();
+         var friendCount:uint = _friends.length;
+         var i:uint = 0;
+         while(i < friendCount)
          {
-            _loc8_ = _friends[_loc4_];
-            _loc2_[_loc8_.id] = _loc8_;
-            _loc4_++;
+            friend = _friends[i];
+            friendsById[friend.id] = friend;
+            i++;
          }
-         var _loc5_:uint = param1.length;
-         var _loc6_:uint = 0;
-         var _loc7_:String;
-         var _loc8_:Object;
-         var _loc9_:Object;
-         while(_loc6_ < _loc5_)
+         var foundCount:uint = foundPlayers.length;
+         var j:uint = 0;
+         var key:String;
+         var friend:Object;
+         var player:Object;
+         while(j < foundCount)
          {
-            _loc9_ = param1[_loc6_];
-            if(_loc2_[_loc9_.id])
+            player = foundPlayers[j];
+            if(friendsById[player.id])
             {
-               param1[_loc6_] = _loc2_[_loc9_.id];
+               foundPlayers[j] = friendsById[player.id];
                break;
             }
-            _loc6_++;
+            j++;
          }
-         for(_loc7_ in _loc2_)
+         for(key in friendsById)
          {
-            delete _loc2_[_loc7_];
+            delete friendsById[key];
          }
-         _loc2_ = null;
+         friendsById = null;
       }
       
-      public function fillFoundPlayers(param1:Array) : void
+      public function fillFoundPlayers(foundPlayers:Array) : void
       {
          this.loadingIndicator.gotoAndStop(1);
-         this.repalceFoundPlayersByFriends(param1);
-         this.playersList.dataProvider = new DataProvider(param1);
+         this.repalceFoundPlayersByFriends(foundPlayers);
+         this.playersList.dataProvider = new DataProvider(foundPlayers);
          this.playersList.selectedIndex = 0;
          invalidateData();
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
-         trace("FM::handleInput::",param1.isDefaultPrevented());
-         if(param1.isDefaultPrevented())
+         trace("FM::handleInput::",event.isDefaultPrevented());
+         if(event.isDefaultPrevented())
          {
             return;
          }
-         var _loc2_:InputDetails = param1.details;
-         var _loc3_:uint = _loc2_.controllerIndex;
-         trace("KEY_STATE::",_loc2_.value,_loc2_.navEquivalent);
-         switch(_loc2_.code)
+         var details:InputDetails = event.details;
+         var controllerIndex:uint = details.controllerIndex;
+         trace("KEY_STATE::",details.value,details.navEquivalent);
+         switch(details.code)
          {
             case Keyboard.ESCAPE:
-               if(_loc2_.value == InputValue.KEY_DOWN || _loc2_.value == InputValue.KEY_UP)
+               if(details.value == InputValue.KEY_DOWN || details.value == InputValue.KEY_UP)
                {
                   if(stage.focus == this.text_inpput.textField || stage.focus == this.text_inpput.textField)
                   {
                      stage.focus = this;
-                     param1.preventDefault();
+                     event.preventDefault();
                   }
                }
                break;
             case Keyboard.ENTER:
-               if(_loc2_.value == InputValue.KEY_DOWN)
+               if(details.value == InputValue.KEY_DOWN)
                {
                   if(this.text_inpput.textField.text.length > 2)
                   {
@@ -413,26 +414,26 @@ package survarium.friends
          this.playersList.rowStep = 2;
          this.playersList.rowHeight = 27;
          addEventListener(InputEvent.INPUT,this.handleInput,false,0,true);
-         var _loc1_:Class = getDefinitionByName("SrvScrollBarSkinned") as Class;
-         var _loc2_:ScrollBar = new _loc1_();
-         _loc2_.height = this.playersList.height;
-         _loc2_.y = this.playersList.y;
-         _loc2_.x = this.playersList.x + this.playersList.width - _loc2_.width;
-         addChild(_loc2_);
-         this.playersList.scrollBar = _loc2_;
+         var scrollBarClass:Class = getDefinitionByName("SrvScrollBarSkinned") as Class;
+         var listScrollBar:ScrollBar = new scrollBarClass();
+         listScrollBar.height = this.playersList.height;
+         listScrollBar.y = this.playersList.y;
+         listScrollBar.x = this.playersList.x + this.playersList.width - listScrollBar.width;
+         addChild(listScrollBar);
+         this.playersList.scrollBar = listScrollBar;
          this.findPlayer();
          this.btn_close.addEventListener(ButtonEvent.CLICK,this.closeMe);
          addEventListener(FocusEvent.FOCUS_IN,this.onFocusChange);
          addEventListener(FocusEvent.FOCUS_OUT,this.onFocusChange);
       }
       
-      private function toggleOnlineFilter(param1:ButtonEvent) : void
+      private function toggleOnlineFilter(event:ButtonEvent) : void
       {
          _showOfflinePlayers = this.btnFilter.selected;
          this.onSelectBtn();
       }
       
-      private function toggleIgnoreFilter(param1:ButtonEvent) : void
+      private function toggleIgnoreFilter(event:ButtonEvent) : void
       {
          this.onSelectBtn();
       }
@@ -445,39 +446,39 @@ package survarium.friends
          }
       }
       
-      protected function onNewIndex(param1:ListEvent = null) : void
+      protected function onNewIndex(event:ListEvent = null) : void
       {
       }
       
-      protected function filterFriends(param1:Event) : void
+      protected function filterFriends(event:Event) : void
       {
          this.onSelectBtn();
       }
       
-      protected function closeMe(param1:Event) : void
+      protected function closeMe(event:Event) : void
       {
          visible = false;
          dispatchEvent(new Event(Event.CLOSE));
       }
       
-      protected function closeComponent(param1:Event) : void
+      protected function closeComponent(event:Event) : void
       {
          this.onLostEnter(null);
          MainScene.activeComponent = null;
       }
       
-      protected function onFocusChange(param1:FocusEvent) : void
+      protected function onFocusChange(event:FocusEvent) : void
       {
-         _inFocus = param1.type == FocusEvent.FOCUS_IN;
+         _inFocus = event.type == FocusEvent.FOCUS_IN;
          addEventListener(Event.RENDER,this.afterFocusChange);
       }
       
-      protected function afterFocusChange(param1:Event) : void
+      protected function afterFocusChange(event:Event) : void
       {
          removeEventListener(Event.RENDER,this.afterFocusChange);
       }
       
-      protected function onLocalization(param1:String) : void
+      protected function onLocalization(localizedText:String) : void
       {
          this.text_inpput.defaultText = LocalizationData.getName("players_list_filter_text");
          this.btnFilter.tooltipRendererName = "SrvTextHintRenderer";
@@ -487,7 +488,7 @@ package survarium.friends
          this.hintContainer.textField.text = LocalizationData.getName("friend_search_hint");
       }
       
-      protected function onSelectBtn(param1:Event = null) : void
+      protected function onSelectBtn(event:Event = null) : void
       {
          trace("FL_ON_SELECT_BUTTON::");
          if(this.btnIgnore.selected == false)
@@ -501,39 +502,39 @@ package survarium.friends
          this.onNewIndex();
       }
       
-      protected function keyDownHandler(param1:KeyboardEvent) : void
+      protected function keyDownHandler(event:KeyboardEvent) : void
       {
-         if(param1.keyCode == 13 && this.text_inpput.textField.text.length > 2)
+         if(event.keyCode == Keyboard.ENTER && this.text_inpput.textField.text.length > 2)
          {
             this.hideHint();
             this.requestPlayersList();
          }
       }
       
-      protected function filterPlayers(param1:Array, param2:String) : Array
+      protected function filterPlayers(players:Array, filterText:String) : Array
       {
-         var _loc3_:Array = [];
-         var _loc4_:uint;
-         var _loc5_:String;
-         if(param2 == this.text_inpput.defaultText || param2 == "")
+         var matches:Array = [];
+         var i:uint;
+         var playerName:String;
+         if(filterText == this.text_inpput.defaultText || filterText == "")
          {
-            return param1;
+            return players;
          }
-         param2 = param2.toLowerCase();
-         if(param1 && param1.length)
+         filterText = filterText.toLowerCase();
+         if(players && players.length)
          {
-            _loc4_ = 0;
-            while(_loc4_ < param1.length)
+            i = 0;
+            while(i < players.length)
             {
-               _loc5_ = (param1[_loc4_].name as String).toLowerCase();
-               if(_loc5_.indexOf(param2) != -1)
+               playerName = (players[i].name as String).toLowerCase();
+               if(playerName.indexOf(filterText) != -1)
                {
-                  _loc3_.push(param1[_loc4_]);
+                  matches.push(players[i]);
                }
-               _loc4_++;
+               i++;
             }
          }
-         return _loc3_;
+         return matches;
       }
       
       protected function hideHint() : void
@@ -555,9 +556,9 @@ package survarium.friends
          });
       }
       
-      protected function searchInputFr(param1:Event = null) : void
+      protected function searchInputFr(event:Event = null) : void
       {
-         var _loc2_:Array;
+         var players:Array;
          if(this._runtimeSearch)
          {
             this.hintContainer.visible = true;
@@ -576,17 +577,17 @@ package survarium.friends
             {
                if(this._useSearchAsFilter)
                {
-                  _loc2_ = true ? _friends : _ignored;
+                  players = true ? _friends : _ignored;
                   if(!this._showOfflinePlayers)
                   {
-                     _loc2_ = filterOnlinePlayers(_loc2_);
+                     players = filterOnlinePlayers(players);
                   }
                   this._res.length = 0;
                   if(true && _invites)
                   {
                      _res = this._res.concat(this.filterPlayers(_invites,this.text_inpput.textField.text));
                   }
-                  _res = this._res.concat(this.filterPlayers(_loc2_,this.text_inpput.textField.text));
+                  _res = this._res.concat(this.filterPlayers(players,this.text_inpput.textField.text));
                   if(this._showPlayerGroups)
                   {
                      this.addSeparators(this._res);
@@ -605,7 +606,7 @@ package survarium.friends
          }
       }
       
-      protected function onLostEnterFr(param1:FocusEvent) : void
+      protected function onLostEnterFr(event:FocusEvent) : void
       {
          if(this.text_inpput.textField.text == "")
          {
@@ -614,115 +615,115 @@ package survarium.friends
          this.hideHint();
       }
       
-      protected function onStartEnterFr(param1:FocusEvent) : void
+      protected function onStartEnterFr(event:FocusEvent) : void
       {
          this.text_inpput.textField.removeEventListener(FocusEvent.FOCUS_IN,this.onStartEnterFr);
          this.text_inpput.text = "";
       }
       
-      protected function searchInput(param1:Event) : void
+      protected function searchInput(event:Event) : void
       {
       }
       
-      protected function onLostEnter(param1:FocusEvent) : void
+      protected function onLostEnter(event:FocusEvent) : void
       {
       }
       
-      protected function onStartEnter(param1:FocusEvent) : void
+      protected function onStartEnter(event:FocusEvent) : void
       {
       }
       
-      protected function findButtonClick(param1:ButtonEvent) : void
+      protected function findButtonClick(event:ButtonEvent) : void
       {
       }
       
-      protected function requestPlayersList(param1:Event = null) : void
+      protected function requestPlayersList(event:Event = null) : void
       {
-         var _loc2_:String = this.text_inpput.textField.text;
-         if(_loc2_.length < 3 || _loc2_ == this.text_inpput.defaultText)
+         var searchText:String = this.text_inpput.textField.text;
+         if(searchText.length < 3 || searchText == this.text_inpput.defaultText)
          {
             return;
          }
          dispatchEvent(new Event(Event.CONNECT,true));
-         ExternalInterface.call("find_players",_loc2_);
+         ExternalInterface.call("find_players",searchText);
          this.loadingIndicator.gotoAndPlay(1);
          this.showSearch(false);
       }
       
-      protected function showSearch(param1:Boolean) : void
+      protected function showSearch(show:Boolean) : void
       {
-         this.searchIcon.visible = param1;
-         this.btnCancelSearch.enabled = !param1;
-         this.btnCancelSearch.visible = !param1;
+         this.searchIcon.visible = show;
+         this.btnCancelSearch.enabled = !show;
+         this.btnCancelSearch.visible = !show;
       }
       
       protected function findPlayer() : void
       {
       }
       
-      protected function addSeparators(param1:Array) : void
+      protected function addSeparators(players:Array) : void
       {
-         var _loc2_:int = -1;
-         var _loc3_:uint;
-         var _loc4_:Object;
-         if(param1)
+         var lastStatus:int = -1;
+         var i:uint;
+         var separator:Object;
+         if(players)
          {
-            _loc3_ = 0;
-            while(_loc3_ < param1.length)
+            i = 0;
+            while(i < players.length)
             {
-               if(param1[_loc3_])
+               if(players[i])
                {
-                  if(_loc2_ != param1[_loc3_].status)
+                  if(lastStatus != players[i].status)
                   {
-                     _loc4_ = {
-                        status_text:param1[_loc3_].status_text,
+                     separator = {
+                        status_text:players[i].status_text,
                         isSeparator:true,
-                        status:-1
+                        status:FriendStatus.SEPARATOR
                      };
-                     _loc2_ = (param1[_loc3_].status);
-                     param1.splice(_loc3_,0,_loc4_);
-                     _loc3_++;
+                     lastStatus = (players[i].status);
+                     players.splice(i,0,separator);
+                     i++;
                   }
                }
-               _loc3_++;
+               i++;
             }
          }
       }
       
-      protected function gotoFriends(param1:ButtonEvent = null) : void
+      protected function gotoFriends(event:ButtonEvent = null) : void
       {
          _onFriends = true;
-         var _loc2_:Array = new Array();
+         var rows:Array = new Array();
          if(true && _invites && _invites.length)
          {
-            _loc2_ = _invites.concat();
+            rows = _invites.concat();
          }
-         var _loc3_:Array = this._showOfflinePlayers ? _friends : filterOnlinePlayers(_friends);
-         if(_loc3_)
+         var friends:Array = this._showOfflinePlayers ? _friends : filterOnlinePlayers(_friends);
+         if(friends)
          {
-            _loc3_.sortOn(["status","name"]);
+            friends.sortOn(["status","name"]);
          }
-         _loc2_ = _loc2_.concat(this.filterPlayers(_loc3_,this.text_inpput.textField.text));
+         rows = rows.concat(this.filterPlayers(friends,this.text_inpput.textField.text));
          if(this._showPlayerGroups)
          {
-            this.addSeparators(_loc2_);
+            this.addSeparators(rows);
          }
-         var _loc4_:int = this.playersList.scrollBar ? (this.playersList.scrollBar.position) : 0;
-         trace("SHOW_FRIENDS:",_loc2_.length);
-         this.playersList.dataProvider = new DataProvider(_loc2_);
+         var scrollPosition:int = this.playersList.scrollBar ? (this.playersList.scrollBar.position) : 0;
+         trace("SHOW_FRIENDS:",rows.length);
+         this.playersList.dataProvider = new DataProvider(rows);
          this.playersList.validateNow();
          if(this.playersList.scrollBar)
          {
-            this.playersList.scrollBar.position = _loc4_;
+            this.playersList.scrollBar.position = scrollPosition;
          }
       }
       
-      protected function gotoIgnored(param1:ButtonEvent = null) : void
+      protected function gotoIgnored(event:ButtonEvent = null) : void
       {
          _onFriends = false;
-         var _loc2_:Array = new Array();
-         _loc2_ = this.filterPlayers(_ignored,this.text_inpput.textField.text);
-         this.playersList.dataProvider = new DataProvider(_loc2_);
+         var rows:Array = new Array();
+         rows = this.filterPlayers(_ignored,this.text_inpput.textField.text);
+         this.playersList.dataProvider = new DataProvider(rows);
       }
    }
 }

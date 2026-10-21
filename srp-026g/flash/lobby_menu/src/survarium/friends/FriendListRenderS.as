@@ -3,6 +3,7 @@ package survarium.friends
    import flash.display.MovieClip;
    import scaleform.clik.controls.ListItemRenderer;
    import survarium.controls.FixedTextDots;
+   import survarium.constants.FriendStatus;
    
    public class FriendListRenderS extends ListItemRenderer
    {
@@ -16,9 +17,9 @@ package survarium.friends
          super();
       }
       
-      override public function setData(param1:Object) : void
+      override public function setData(newData:Object) : void
       {
-         this.data = param1;
+         this.data = newData;
          invalidateData();
       }
       
@@ -34,11 +35,11 @@ package survarium.friends
          {
             this.statusIndicator.gotoAndStop("offline");
          }
-         else if(_data.status == 0)
+         else if(_data.status == FriendStatus.LOBBY)
          {
             this.statusIndicator.gotoAndStop("online");
          }
-         else if(_data.status == 1)
+         else if(_data.status == FriendStatus.IN_GAME)
          {
             this.statusIndicator.gotoAndStop("ingame");
          }

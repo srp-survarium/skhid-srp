@@ -12,42 +12,42 @@ package survarium.data
       
       protected var _descriptorName:String;
       
-      public function PropertiesDescriptor(param1:String) : void
+      public function PropertiesDescriptor(descriptorName:String) : void
       {
          super();
-         _descriptorName = param1;
+         _descriptorName = descriptorName;
          _descriptors[this._descriptorName] = this;
       }
       
-      public static function getPropertiesDescriptor(param1:String) : PropertiesDescriptor
+      public static function getPropertiesDescriptor(descriptorName:String) : PropertiesDescriptor
       {
-         return _descriptors[param1];
+         return _descriptors[descriptorName];
       }
       
-      public function setPropertiesDictionary(param1:Array) : void
+      public function setPropertiesDictionary(d:Array) : void
       {
-         trace("setPropertiesDictionary::",param1.length);
-         if(param1 == null)
+         trace("setPropertiesDictionary::",d.length);
+         if(d == null)
          {
             return;
          }
          _propertyDescriptors = new Dictionary();
-         var _loc2_:uint = 0;
-         while(_loc2_ < param1.length)
+         var i:uint = 0;
+         while(i < d.length)
          {
-            this._propertyDescriptors[param1[_loc2_].prop_id] = param1[_loc2_];
-            _loc2_++;
+            this._propertyDescriptors[d[i].prop_id] = d[i];
+            i++;
          }
       }
       
-      public function getPropertyDescription(param1:uint) : Object
+      public function getPropertyDescription(propId:uint) : Object
       {
-         if(this._propertyDescriptors[param1] == null)
+         if(this._propertyDescriptors[propId] == null)
          {
-            stackTrace("Wrong dictId [" + param1 + "] in getPropertyDescription");
+            stackTrace("Wrong dictId [" + propId + "] in getPropertyDescription");
             return new Object();
          }
-         return this._propertyDescriptors[param1];
+         return this._propertyDescriptors[propId];
       }
    }
 }

@@ -3,6 +3,7 @@ package survarium.controls
    import flash.display.MovieClip;
    import scaleform.clik.controls.Button;
    import scaleform.clik.controls.ListItemRenderer;
+   import survarium.constants.ClanTeamRole;
    
    public class ClanTeamListRenderer extends ListItemRenderer
    {
@@ -26,26 +27,26 @@ package survarium.controls
          super();
       }
       
-      override public function setData(param1:Object) : void
+      override public function setData(newData:Object) : void
       {
-         _data = param1;
+         _data = newData;
          invalidateData();
       }
       
       override protected function updateText() : void
       {
-         var _loc1_:Boolean;
+         var isHovered:Boolean;
          if(_data)
          {
             mouseChildren = true;
-            this.separator.visible = _data.status == -1;
-            this.favoritedIcon.visible = _data.status == 0 && !this.separator.visible;
+            this.separator.visible = _data.status == ClanTeamRole.SEPARATOR;
+            this.favoritedIcon.visible = _data.status == ClanTeamRole.COMMANDER && !this.separator.visible;
             this.playerName.visible = !this.separator.visible;
-            _loc1_ = _state == "over" || _state == "down" || _selected;
-            this.btnAddToFavorite.visible = !this.favoritedIcon.visible && !this.separator.visible && _loc1_ && _data.favoritable;
-            this.btnMovePlayer.visible = !this.favoritedIcon.visible && !this.separator.visible && _loc1_ && _data.movableDown;
-            this.btnMovePlayerUp.visible = !this.favoritedIcon.visible && !this.separator.visible && _loc1_ && _data.movableUp;
-            this.iconReady.visible = !this.favoritedIcon.visible && !this.separator.visible && (!_loc1_ || this.btnMovePlayerUp.visible == false && this.btnMovePlayer.visible == false) && _data.ready == true;
+            isHovered = _state == "over" || _state == "down" || _selected;
+            this.btnAddToFavorite.visible = !this.favoritedIcon.visible && !this.separator.visible && isHovered && _data.favoritable;
+            this.btnMovePlayer.visible = !this.favoritedIcon.visible && !this.separator.visible && isHovered && _data.movableDown;
+            this.btnMovePlayerUp.visible = !this.favoritedIcon.visible && !this.separator.visible && isHovered && _data.movableUp;
+            this.iconReady.visible = !this.favoritedIcon.visible && !this.separator.visible && (!isHovered || this.btnMovePlayerUp.visible == false && this.btnMovePlayer.visible == false) && _data.ready == true;
             visible = true;
             this.separator.textField.text = _data.status_text;
             this.playerName.text = _data.name;

@@ -4,6 +4,7 @@ package survarium.controls
    import scaleform.clik.constants.InvalidationType;
    import scaleform.clik.controls.StatusIndicator;
    import scaleform.clik.motion.Tween;
+   import survarium.constants.PropertyDirection;
    
    public class DiffIndicator extends StatusIndicator
    {
@@ -46,9 +47,9 @@ package survarium.controls
          }
       }
       
-      public function set upgrade(param1:Number) : void
+      public function set upgrade(value:Number) : void
       {
-         _upgrade = param1;
+         _upgrade = value;
          invalidate(InvalidationType.DATA);
       }
       
@@ -57,9 +58,9 @@ package survarium.controls
          return this._upgrade;
       }
       
-      public function set extra(param1:Number) : void
+      public function set extra(value:Number) : void
       {
-         _extraValue = param1;
+         _extraValue = value;
          invalidate(InvalidationType.DATA);
       }
       
@@ -68,9 +69,9 @@ package survarium.controls
          return this._extraValue;
       }
       
-      public function set compare(param1:Number) : void
+      public function set compare(value:Number) : void
       {
-         _otherValue = param1;
+         _otherValue = value;
          if(this._otherValue > _maximum)
          {
             _otherValue = _maximum;
@@ -82,15 +83,15 @@ package survarium.controls
          invalidate(InvalidationType.DATA);
       }
       
-      public function set direction(param1:Boolean) : void
+      public function set direction(value:Boolean) : void
       {
-         _direction = param1;
+         _direction = value;
       }
       
       override protected function updatePosition() : void
       {
-         var _loc1_:Number;
-         var _loc2_:Sprite;
+         var ratio:Number;
+         var diffBar:Sprite;
          if(!enabled)
          {
             return;
@@ -98,13 +99,13 @@ package survarium.controls
          _valueDiff = this._otherValue - _value;
          if(this._valueDiff > 0)
          {
-            _loc1_ = (_value - _minimum) / (_maximum - _minimum);
+            ratio = (_value - _minimum) / (_maximum - _minimum);
          }
          else
          {
-            _loc1_ = (_value - _minimum + this._valueDiff) / (_maximum - _minimum);
+            ratio = (_value - _minimum + this._valueDiff) / (_maximum - _minimum);
          }
-         this.mc_value.width = this._size * _loc1_;
+         this.mc_value.width = this._size * ratio;
          if(this.mc_diff_positive_ghost && this.mc_diff_negative_ghost)
          {
             if(this._extraValue == 0 || this._valueDiff != 0)
@@ -119,27 +120,27 @@ package survarium.controls
                   if(this._extraValue > 0)
                   {
                      this.mc_diff_negative_ghost.width = 0;
-                     _loc2_ = this.mc_diff_positive_ghost;
+                     diffBar = this.mc_diff_positive_ghost;
                   }
                   else
                   {
                      this.mc_diff_positive_ghost.width = 0;
-                     _loc2_ = this.mc_diff_negative_ghost;
+                     diffBar = this.mc_diff_negative_ghost;
                   }
                }
                else if(this._extraValue > 0)
                {
                   this.mc_diff_positive_ghost.width = 0;
-                  _loc2_ = this.mc_diff_negative_ghost;
+                  diffBar = this.mc_diff_negative_ghost;
                }
                else
                {
                   this.mc_diff_negative_ghost.width = 0;
-                  _loc2_ = this.mc_diff_positive_ghost;
+                  diffBar = this.mc_diff_positive_ghost;
                }
-               if(this._upgrade == 0 && (_loc2_ == this.mc_diff_positive_ghost && this._direction == 1 || _loc2_ == this.mc_diff_negative_ghost && this._direction == 0))
+               if(this._upgrade == 0 && (diffBar == this.mc_diff_positive_ghost && this._direction == PropertyDirection.HIGHER_IS_BETTER || diffBar == this.mc_diff_negative_ghost && this._direction == PropertyDirection.LOWER_IS_BETTER))
                {
-                  _loc2_.width = 0;
+                  diffBar.width = 0;
                }
                else
                {
@@ -147,17 +148,17 @@ package survarium.controls
                   {
                      if(this._valueDiff > 0)
                      {
-                        _loc1_ = (_value - _minimum - this._extraValue) / (_maximum - _minimum);
+                        ratio = (_value - _minimum - this._extraValue) / (_maximum - _minimum);
                      }
                      else
                      {
-                        _loc1_ = (_value - _minimum + this._valueDiff - this._extraValue) / (_maximum - _minimum);
+                        ratio = (_value - _minimum + this._valueDiff - this._extraValue) / (_maximum - _minimum);
                      }
-                     this.mc_value.width = this._size * _loc1_;
+                     this.mc_value.width = this._size * ratio;
                   }
-                  _loc2_.x = this.mc_value.width + 1 + this.mc_value.x;
-                  _loc1_ = Math.abs(this._extraValue - _minimum) / (_maximum - _minimum);
-                  _loc2_.width = (this._size - 1) * _loc1_;
+                  diffBar.x = this.mc_value.width + 1 + this.mc_value.x;
+                  ratio = Math.abs(this._extraValue - _minimum) / (_maximum - _minimum);
+                  diffBar.width = (this._size - 1) * ratio;
                }
             }
          }
@@ -169,27 +170,27 @@ package survarium.controls
                if(this._upgrade > 0)
                {
                   this.mc_diff_negative.width = 0;
-                  _loc2_ = this.mc_diff_positive;
+                  diffBar = this.mc_diff_positive;
                }
                else
                {
                   this.mc_diff_positive.width = 0;
-                  _loc2_ = this.mc_diff_negative;
+                  diffBar = this.mc_diff_negative;
                }
             }
             else if(this._upgrade > 0)
             {
                this.mc_diff_positive.width = 0;
-               _loc2_ = this.mc_diff_negative;
+               diffBar = this.mc_diff_negative;
             }
             else
             {
                this.mc_diff_negative.width = 0;
-               _loc2_ = this.mc_diff_positive;
+               diffBar = this.mc_diff_positive;
             }
-            _loc1_ = Math.abs(this._upgrade - _minimum) / (_maximum - _minimum);
-            _loc2_.width = (this._size - 1) * _loc1_;
-            _loc2_.x = this.mc_value.width + 1 + this.mc_value.x;
+            ratio = Math.abs(this._upgrade - _minimum) / (_maximum - _minimum);
+            diffBar.width = (this._size - 1) * ratio;
+            diffBar.x = this.mc_value.width + 1 + this.mc_value.x;
          }
          else if(this._valueDiff == 0)
          {
@@ -203,27 +204,27 @@ package survarium.controls
                if(this._valueDiff > 0)
                {
                   this.mc_diff_negative.width = 0;
-                  _loc2_ = this.mc_diff_positive;
+                  diffBar = this.mc_diff_positive;
                }
                else
                {
                   this.mc_diff_positive.width = 0;
-                  _loc2_ = this.mc_diff_negative;
+                  diffBar = this.mc_diff_negative;
                }
             }
             else if(this._valueDiff > 0)
             {
                this.mc_diff_positive.width = 0;
-               _loc2_ = this.mc_diff_negative;
+               diffBar = this.mc_diff_negative;
             }
             else
             {
                this.mc_diff_negative.width = 0;
-               _loc2_ = this.mc_diff_positive;
+               diffBar = this.mc_diff_positive;
             }
-            _loc2_.x = this.mc_value.width + 1 + this.mc_value.x;
-            _loc1_ = Math.abs(this._valueDiff - _minimum) / (_maximum - _minimum);
-            _loc2_.width = (this._size - 1) * _loc1_;
+            diffBar.x = this.mc_value.width + 1 + this.mc_value.x;
+            ratio = Math.abs(this._valueDiff - _minimum) / (_maximum - _minimum);
+            diffBar.width = (this._size - 1) * ratio;
          }
       }
    }

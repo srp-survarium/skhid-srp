@@ -32,36 +32,36 @@ package survarium.debug
          _id = this;
       }
       
-      private static function updateFieldSize(param1:IndexEvent) : void
+      private static function updateFieldSize(event:IndexEvent) : void
       {
-         var _loc2_:Object;
-         var _loc3_:int;
-         var _loc4_:TextField;
-         var _loc5_:TextFormat;
-         for(_loc2_ in _field)
+         var owner:Object;
+         var i:int;
+         var field:TextField;
+         var format:TextFormat;
+         for(owner in _field)
          {
-            _loc3_ = 0;
-            while(_loc3_ < _field[_loc2_].length)
+            i = 0;
+            while(i < _field[owner].length)
             {
-               _loc4_ = _loc2_[_field[_loc2_][_loc3_]] as TextField;
-               if(!_loc4_)
+               field = owner[_field[owner][i]] as TextField;
+               if(!field)
                {
                   return;
                }
-               _loc5_ = _loc4_.getTextFormat();
-               _loc5_.size = _fieldSize[_loc2_] + (param1.target as NumericStepper).value;
-               _loc4_.setTextFormat(_loc5_);
-               _loc4_.defaultTextFormat = _loc5_;
-               _loc3_++;
+               format = field.getTextFormat();
+               format.size = _fieldSize[owner] + (event.target as NumericStepper).value;
+               field.setTextFormat(format);
+               field.defaultTextFormat = format;
+               i++;
             }
          }
       }
       
-      public static function addTextField(param1:Sprite, param2:Array) : void
+      public static function addTextField(owner:Sprite, fieldNames:Array) : void
       {
          return;
-         var _loc3_:int = 1;
-         var _loc4_:int = 2;
+         var unused1:int = 1;
+         var unused2:int = 2;
       }
       
       override protected function configUI() : void
@@ -73,34 +73,34 @@ package survarium.debug
          this.stepper.maximum = 20;
       }
       
-      private function updateFields(param1:Event = null) : void
+      private function updateFields(event:Event = null) : void
       {
-         var _loc2_:uint = 1;
-         var _loc3_:Object;
-         var _loc4_:int;
-         var _loc5_:TextField;
-         for(_loc3_ in textFields)
+         var row:uint = 1;
+         var key:Object;
+         var fontSize:int;
+         var field:TextField;
+         for(key in textFields)
          {
-            trace("updateFields",_loc2_,_loc3_,textFields[_loc3_],textFields[_loc3_] ? textFields[_loc3_].y : "d");
-            _loc4_ = _loc3_ as int;
-            if(!textFields[_loc4_])
+            trace("updateFields",row,key,textFields[key],textFields[key] ? textFields[key].y : "d");
+            fontSize = key as int;
+            if(!textFields[fontSize])
             {
-               _loc5_ = new TextField();
-               _loc5_.y = 15 + _loc2_ * 20;
-               textFields[_loc4_] = _loc5_;
-               addChild(_loc5_);
+               field = new TextField();
+               field.y = 15 + row * 20;
+               textFields[fontSize] = field;
+               addChild(field);
             }
             else
             {
-               _loc5_ = textFields[_loc4_];
-               _loc5_.y = 15 + _loc2_ * 20;
+               field = textFields[fontSize];
+               field.y = 15 + row * 20;
             }
-            _loc5_.text = _loc4_.toString() + "->" + String(_loc4_ + this.stepper.value);
-            _loc2_++;
+            field.text = fontSize.toString() + "->" + String(fontSize + this.stepper.value);
+            row++;
          }
       }
       
-      private function resetFields(param1:Event) : void
+      private function resetFields(event:Event) : void
       {
          this.stepper.value = 0;
       }

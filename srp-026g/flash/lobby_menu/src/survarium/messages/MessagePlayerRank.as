@@ -6,6 +6,7 @@ package survarium.messages
    import scaleform.clik.events.ButtonEvent;
    import survarium.controls.Message;
    import survarium.data.LocalizationData;
+   import survarium.constants.MoneyType;
    
    public class MessagePlayerRank extends MessageAccept
    {
@@ -30,10 +31,10 @@ package survarium.messages
          btnCancel.label = LocalizationData.getName("close");
          if(_data)
          {
-            this.icon.gotoAndStop(_data.reward_id == 0 ? 1 : 2);
+            this.icon.gotoAndStop(_data.reward_id == MoneyType.REGULAR ? 1 : 2);
             this.textFieldLabel.text = LocalizationData.getName("new_level_reached");
-            this.textFieldLabelGold.text = _data.reward_amount + " " + (_data.reward_id == 0 ? LocalizationData.getName("regular_money") : LocalizationData.getName("premium_money"));
-            this.textFieldLabelGold.textColor = _data.reward_id == 0 ? 12498861 : 15184993;
+            this.textFieldLabelGold.text = _data.reward_amount + " " + (_data.reward_id == MoneyType.REGULAR ? LocalizationData.getName("regular_money") : LocalizationData.getName("premium_money"));
+            this.textFieldLabelGold.textColor = _data.reward_id == MoneyType.REGULAR ? 12498861 : 15184993;
             this.textFieldLabelPoints.text = "+1" + " " + LocalizationData.getName("point");
          }
       }

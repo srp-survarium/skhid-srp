@@ -23,9 +23,13 @@ package survarium.friends
    import survarium.controls.SrvContextMenu;
    import survarium.data.LocalizationData;
    import survarium.interfaces.IFriendsList;
+   import survarium.constants.UiSound;
    
    public class SquadList extends UIComponent
    {
+      
+      // a squad's most members (crates/session/src/squads.rs)
+      private static const MAX_SQUAD_MEMBERS:int = 3;
       
       private static var _squadList:Array = [];
       
@@ -62,85 +66,85 @@ package survarium.friends
          super();
       }
       
-      public static function isInSquad(param1:String) : Boolean
+      public static function isInSquad(playerName:String) : Boolean
       {
-         var _loc2_:int = 0;
-         var _loc3_:Object;
-         while(_loc2_ < _squadList.length)
+         var i:int = 0;
+         var member:Object;
+         while(i < _squadList.length)
          {
-            _loc3_ = _squadList[_loc2_];
-            if(_loc3_ && _loc3_.name == param1)
+            member = _squadList[i];
+            if(member && member.name == playerName)
             {
                return true;
             }
-            _loc2_++;
+            i++;
          }
          return false;
       }
       
-      public function setFriendsList(param1:IFriendsList) : void
+      public function setFriendsList(friendsList:IFriendsList) : void
       {
-         _friendsList = param1;
+         _friendsList = friendsList;
       }
       
-      public function lock(param1:Boolean) : void
+      public function lock(locked:Boolean) : void
       {
-         this.textFieldLabel.alpha = param1 ? 0.6 : 1;
-         this.list.enabled = !param1;
-         if(param1 && this.searchComponent.visible)
+         this.textFieldLabel.alpha = locked ? 0.6 : 1;
+         this.list.enabled = !locked;
+         if(locked && this.searchComponent.visible)
          {
             this.closeComponent();
          }
-         this.htntArea.visible = this.lockIcon.visible = param1;
-         if(param1)
+         this.htntArea.visible = this.lockIcon.visible = locked;
+         if(locked)
          {
             this.htntArea.tipData = {name:LocalizationData.getName("squad_list_locked_hint")};
          }
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
-         trace("SL::handleInput::",param1.isDefaultPrevented());
-         if(param1.isDefaultPrevented())
+         trace("SL::handleInput::",event.isDefaultPrevented());
+         if(event.isDefaultPrevented())
          {
             return;
          }
-         var _loc2_:InputDetails = param1.details;
-         var _loc3_:uint = _loc2_.controllerIndex;
-         trace("details.code",_loc2_.code);
-         switch(_loc2_.code)
+         var details:InputDetails = event.details;
+         var controllerIndex:uint = details.controllerIndex;
+         trace("details.code",details.code);
+         switch(details.code)
          {
             case Keyboard.ESCAPE:
-               trace("closeSearchComponent::",_loc2_.value,InputValue.KEY_UP);
-               if(_loc2_.value == InputValue.KEY_UP)
+               trace("closeSearchComponent::",details.value,InputValue.KEY_UP);
+               if(details.value == InputValue.KEY_UP)
                {
                   if(this.searchComponent.visible == true && !(stage.focus is TextField))
                   {
                      this.closeComponent(null);
-                     param1.preventDefault();
+                     event.preventDefault();
                   }
                }
                break;
             case Keyboard.BACK:
-               if(_loc2_.value == InputValue.KEY_UP)
+               if(details.value == InputValue.KEY_UP)
                {
                   if(this.searchComponent.visible == true && !(stage.focus is TextField))
                   {
                      this.closeComponent(null);
-                     param1.preventDefault();
+                     event.preventDefault();
                   }
                }
             break;
          }
       }
       
-      protected function onLocalization(param1:String) : void
+      protected function onLocalization(value:String) : void
       {
          this.border.tooltipRendererName = "SrvTextHintRenderer";
          this.updateBordrerHint();
       }
       
-      protected function closeComponent(param1:Event = null) : void
+      protected function closeComponent(event:Event = null) : void
       {
          this.searchComponent.visible = false;
          this.searchComponent.cleanUp();
@@ -148,50 +152,50 @@ package survarium.friends
          MainScene.activeComponent = null;
       }
       
-      protected function searchInput(param1:Event) : void
+      protected function searchInput(event:Event) : void
       {
       }
       
-      protected function requestPlayersList(param1:String) : void
+      protected function requestPlayersList(searchText:String) : void
       {
       }
       
-      protected function keyDownHandler(param1:KeyboardEvent) : void
+      protected function keyDownHandler(event:KeyboardEvent) : void
       {
-         if(param1.keyCode == 13)
+         if(event.keyCode == Keyboard.ENTER)
          {
          }
       }
       
-      protected function addFriend(param1:ListEvent = null) : void
+      protected function addFriend(event:ListEvent = null) : void
       {
-         trace("try_add_friend",param1.target,param1.currentTarget);
-         if(!param1 || (SrvContextMenu.getInstance()) && (SrvContextMenu.getInstance().parent))
+         trace("try_add_friend",event.target,event.currentTarget);
+         if(!event || (SrvContextMenu.getInstance()) && (SrvContextMenu.getInstance().parent))
          {
             return;
          }
-         var _loc2_:* = param1.itemData;
-         var _loc3_:Object;
-         if(_loc2_)
+         var itemData:* = event.itemData;
+         var player:Object;
+         if(itemData)
          {
-            _loc3_ = _loc2_;
-            trace("invite_to_squad::",_loc3_.name);
-            ExternalInterface.call("invite_to_squad",_loc3_.name);
+            player = itemData;
+            trace("invite_to_squad::",player.name);
+            ExternalInterface.call("invite_to_squad",player.name);
          }
          this.searchComponent.cleanUp();
          this.searchComponent.visible = false;
          this.onLostEnter(null);
       }
       
-      protected function onNewIndex(param1:ListEvent = null) : void
+      protected function onNewIndex(event:ListEvent = null) : void
       {
       }
       
-      protected function onLostEnter(param1:FocusEvent) : void
+      protected function onLostEnter(event:FocusEvent) : void
       {
       }
       
-      protected function onStartEnter(param1:FocusEvent) : void
+      protected function onStartEnter(event:FocusEvent) : void
       {
       }
       
@@ -225,13 +229,13 @@ package survarium.friends
          addEventListener(FocusEvent.FOCUS_OUT,this.onFocusChange);
       }
       
-      protected function onFocusChange(param1:FocusEvent) : void
+      protected function onFocusChange(event:FocusEvent) : void
       {
-         _inFocus = param1.type == FocusEvent.FOCUS_IN;
+         _inFocus = event.type == FocusEvent.FOCUS_IN;
          addEventListener(Event.RENDER,this.afterFocusChange);
       }
       
-      protected function afterFocusChange(param1:Event) : void
+      protected function afterFocusChange(event:Event) : void
       {
          removeEventListener(Event.RENDER,this.afterFocusChange);
          if(this._inFocus && this.searchComponent.visible)
@@ -249,23 +253,23 @@ package survarium.friends
          this.border.data = {name:LocalizationData.getName(this._hidden ? "show_squad_list" : "hide_squad_list")};
       }
       
-      protected function onRenderReaction(param1:Event) : void
+      protected function onRenderReaction(event:Event) : void
       {
          _hidden = !this._hidden;
          this.updateBordrerHint();
          this.arrow.scaleX *= -1;
-         var _loc2_:int = -75 * this.arrow.scaleX;
-         layoutData.offsetH += _loc2_;
+         var offset:int = -75 * this.arrow.scaleX;
+         layoutData.offsetH += offset;
          this.closeComponent();
-         TweenLite.to(this,0.2,{x:x + _loc2_});
+         TweenLite.to(this,0.2,{x:x + offset});
          TweenLite.to(this.border,0.2,{x:(this._hidden ? 93 - 7 : 93)});
          TweenLite.to(this.arrow,0.2,{x:(this._hidden ? 101 - 7 : 101)});
-         ExternalInterface.call("sound_play",16);
+         ExternalInterface.call("sound_play",UiSound.SQUAD_PANEL_SLIDE);
       }
       
       private function updateSize() : void
       {
-         var _loc1_:Boolean = this.list.dataProvider[this.list.dataProvider.length - 1] != null;
+         var lastFilled:Boolean = this.list.dataProvider[this.list.dataProvider.length - 1] != null;
          trace("SL::updateSize::",this.background,this.list,this.border,"|",this.list.dataProvider.length);
          this.list.height = this.list.dataProvider.length * this.list.rowHeight;
          this.list.validateNow();
@@ -273,86 +277,86 @@ package survarium.friends
          this.border.setActualSize(this.border.width,this.background.height - 16);
          this.arrow.y = (this.background.height - 16 - this.arrow.height) / 2 + 8;
          this.overlay.height = this.background.height - 7;
-         var _loc2_:uint = 1;
-         var _loc3_:uint = 0;
-         var _loc4_:int = 0;
-         var _loc5_:Object;
-         while(_loc4_ < _squadList.length)
+         var allReady:uint = 1;
+         var memberCount:uint = 0;
+         var i:int = 0;
+         var member:Object;
+         while(i < _squadList.length)
          {
-            _loc5_ = _squadList[_loc4_];
-            if(_loc5_)
+            member = _squadList[i];
+            if(member)
             {
-               _loc3_++;
+               memberCount++;
             }
-            if(_loc5_ && !_loc5_.ready)
+            if(member && !member.ready)
             {
-               _loc2_ = 0;
+               allReady = 0;
             }
-            _loc4_++;
+            i++;
          }
-         PlayerInfo.isInSquad = _loc3_ > 0;
-         PlayerInfo.isSquadFull = _loc3_ == 3;
+         PlayerInfo.isInSquad = memberCount > 0;
+         PlayerInfo.isSquadFull = memberCount == MAX_SQUAD_MEMBERS;
          this.onNewIndex();
       }
       
-      private function onItemClick(param1:ListEvent) : void
+      private function onItemClick(event:ListEvent) : void
       {
          trace("onItemClick::",this.searchComponent.visible,PlayerInfo.commander);
          if(this.searchComponent.visible == true)
          {
             this.closeComponent();
          }
-         else if(!param1.itemData && PlayerInfo.commander)
+         else if(!event.itemData && PlayerInfo.commander)
          {
             this.searchComponent.setFriendsList(this._friendsList.getFriendsList());
             this.searchComponent.visible = true;
-            trace("AtPos::",param1.itemRenderer.y + 4 + 30);
-            this.searchComponent.y = param1.itemRenderer.y + 4 + 30;
+            trace("AtPos::",event.itemRenderer.y + 4 + 30);
+            this.searchComponent.y = event.itemRenderer.y + 4 + 30;
             stage.focus = this.searchComponent.textInput;
          }
       }
       
-      public function set_squad_player_type(param1:uint, param2:uint, param3:uint) : void
+      public function set_squad_player_type(slotIndex:uint, playerType:uint, weaponIcon:uint) : void
       {
-         trace("set_squad_player_type",param1,param2,_squadList[param1]);
-         var _loc4_:Object = _squadList[param1];
-         if(_loc4_)
+         trace("set_squad_player_type",slotIndex,playerType,_squadList[slotIndex]);
+         var member:Object = _squadList[slotIndex];
+         if(member)
          {
-            _loc4_.type = param2;
-            _loc4_.weapon = param3;
+            member.type = playerType;
+            member.weapon = weaponIcon;
          }
-         this._squadTypes[param1] = param2;
-         this._squadWeapons[param1] = param3;
+         this._squadTypes[slotIndex] = playerType;
+         this._squadWeapons[slotIndex] = weaponIcon;
          this.list.dataProvider = new DataProvider(_squadList);
          this.updateSize();
       }
       
-      public function set_squad_player(param1:uint, param2:uint, param3:String, param4:Boolean, param5:uint, param6:uint) : void
+      public function set_squad_player(slotIndex:uint, playerId:uint, playerName:String, isReady:Boolean, playerType:uint, weaponIcon:uint) : void
       {
-         var _loc7_:int = (this._squadTypes[param1]);
-         var _loc8_:int = (this._squadWeapons[param1]);
-         trace("set_squad_player",param1,_squadList.length,_loc7_);
-         _squadList[param1] = {
-            index:param1,
-            id:param2,
-            name:param3,
-            ready:param4,
-            type:_loc7_,
-            weapon:_loc8_
+         var savedType:int = (this._squadTypes[slotIndex]);
+         var savedWeapon:int = (this._squadWeapons[slotIndex]);
+         trace("set_squad_player",slotIndex,_squadList.length,savedType);
+         _squadList[slotIndex] = {
+            index:slotIndex,
+            id:playerId,
+            name:playerName,
+            ready:isReady,
+            type:savedType,
+            weapon:savedWeapon
          };
-         _squadList.length = 3;
+         _squadList.length = MAX_SQUAD_MEMBERS;
          this.list.dataProvider = new DataProvider(_squadList);
          this.updateSize();
       }
       
-      public function remove_squad_player(param1:uint) : void
+      public function remove_squad_player(slotIndex:uint) : void
       {
-         trace("remove_squad_player",param1,_squadList.length);
-         if(_squadList[param1])
+         trace("remove_squad_player",slotIndex,_squadList.length);
+         if(_squadList[slotIndex])
          {
-            _squadList[param1] = null;
+            _squadList[slotIndex] = null;
          }
-         if(param1 == 0)
+         if(slotIndex == 0)
          {
             _squadList.length = 1;
          }

@@ -2,6 +2,7 @@ package survarium.controls
 {
    import scaleform.clik.constants.InvalidationType;
    import scaleform.clik.controls.ToolTip;
+   import survarium.constants.RendererState;
    
    public class ItemRendererCore extends ToolTip
    {
@@ -11,9 +12,9 @@ package survarium.controls
          super();
       }
       
-      public function set data(param1:Object) : void
+      public function set data(value:Object) : void
       {
-         _data = param1;
+         _data = value;
          invalidateData();
       }
       
@@ -22,7 +23,7 @@ package survarium.controls
          return _data;
       }
       
-      public function updateState(param1:uint = 0) : void
+      public function updateState(value:uint = RendererState.ACTIVE) : void
       {
       }
       

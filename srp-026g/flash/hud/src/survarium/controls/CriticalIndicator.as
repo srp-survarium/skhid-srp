@@ -3,6 +3,7 @@ package survarium.controls
    import flash.display.MovieClip;
    import flash.geom.ColorTransform;
    import flash.text.TextField;
+   import survarium.constants.BodyPartState;
    
    public class CriticalIndicator extends MovieClip
    {
@@ -141,15 +142,15 @@ package survarium.controls
       public function crit(part_id:uint, value:uint) : void
       {
          var newValue:Number;
-         if(value == 0)
+         if(value == BodyPartState.HEALTHY)
          {
             newValue = 1;
          }
-         else if(value == 1)
+         else if(value == BodyPartState.CRITICAL)
          {
             newValue = 0.4;
          }
-         else if(value == 2)
+         else if(value == BodyPartState.BROKEN)
          {
             newValue = 0;
          }

@@ -21,6 +21,16 @@ package survarium.controls
    public class PlayerRanking extends UIWindow
    {
       
+      // the tabs: the top 100 (top100) and the league around the player (my_place)
+      private static const TOP_TAB:int = 0;
+      
+      private static const MY_PLACE_TAB:int = 1;
+      
+      // the players a league shows, and the players before the player in "my place"
+      private static const LEAGUE_SIZE:int = 100;
+      
+      private static const HALF_LEAGUE:int = 50;
+      
       public var playerPlace:MovieClip;
       
       public var btnClanRank:Button;
@@ -88,92 +98,92 @@ package survarium.controls
          this.playerPlace.background.gotoAndStop(1);
       }
       
-      public function set totalPlayers(param1:int) : void
+      public function set totalPlayers(value:int) : void
       {
-         _totalPlayers = param1;
-         this._topLeague.length = Math.min(100,this._totalPlayers);
-         var _loc2_:int = this._start_index + this.list.scrollPosition;
-         this.show_players_list(this._request_index,this._total_renderers,_loc2_,false);
+         _totalPlayers = value;
+         this._topLeague.length = Math.min(LEAGUE_SIZE,this._totalPlayers);
+         var scrollIndex:int = this._start_index + this.list.scrollPosition;
+         this.show_players_list(this._request_index,this._total_renderers,scrollIndex,false);
          invalidate(InvalidationType.SETTINGS);
       }
       
-      public function set player_data(param1:Object) : void
+      public function set player_data(value:Object) : void
       {
-         if(param1)
+         if(value)
          {
-            param1.is_local = true;
+            value.is_local = true;
          }
-         _player_data = param1;
+         _player_data = value;
          this.playerPlace.data = this._player_data;
       }
       
-      public function fillPlayers(param1:Array) : void
+      public function fillPlayers(players:Array) : void
       {
          // The rooms' answers come as ranking rows of their own range.
-         if(RoomsWindow.take(param1))
+         if(RoomsWindow.take(players))
          {
             return;
          }
-         if(NotificationListScrollContent.replayTake(param1))
+         if(NotificationListScrollContent.replayTake(players))
          {
             return;
          }
-         if(MatchMakingSettings.pvbTake(param1))
+         if(MatchMakingSettings.pvbTake(players))
          {
             return;
          }
-         if(BottomPanel.matchesTake(param1))
+         if(BottomPanel.matchesTake(players))
          {
             return;
          }
-         trace("fillPlayers:: filled",param1.length,"requested::",this._requestList.length);
-         var _loc2_:uint = 0;
-         var _loc3_:Array;
-         var _loc4_:int;
-         while(_loc2_ < param1.length)
+         trace("fillPlayers:: filled",players.length,"requested::",this._requestList.length);
+         var i:uint = 0;
+         var league:Array;
+         var playerIndex:int;
+         while(i < players.length)
          {
-            _loc4_ = this._requestList.shift();
-            this._playersCache[_loc4_] = param1[_loc2_];
-            _loc2_++;
+            playerIndex = this._requestList.shift();
+            this._playersCache[playerIndex] = players[i];
+            i++;
          }
-         if(this.tabBar.selectedIndex == 0)
+         if(this.tabBar.selectedIndex == TOP_TAB)
          {
-            _loc3_ = this._topLeague;
+            league = this._topLeague;
          }
          else
          {
-            _loc3_ = this._myLeague;
+            league = this._myLeague;
          }
-         _loc2_ = 0;
-         while(_loc2_ < _loc3_.length)
+         i = 0;
+         while(i < league.length)
          {
-            if(!_loc3_[_loc2_])
+            if(!league[i])
             {
-               _loc3_[_loc2_] = this._playersCache[this._start_index + _loc2_];
+               league[i] = this._playersCache[this._start_index + i];
             }
-            _loc2_++;
+            i++;
          }
-         this.updateLocalPlayer(_loc3_);
-         this.list.dataProvider = new DataProvider(_loc3_);
+         this.updateLocalPlayer(league);
+         this.list.dataProvider = new DataProvider(league);
       }
       
       public function onActivate() : void
       {
          _playersCache = new Dictionary();
-         var _loc1_:uint = 0;
-         while(_loc1_ < this._topLeague.length)
+         var i:uint = 0;
+         while(i < this._topLeague.length)
          {
-            this._topLeague[_loc1_] = null;
-            _loc1_++;
+            this._topLeague[i] = null;
+            i++;
          }
-         _loc1_ = 0;
-         while(_loc1_ < this._myLeague.length)
+         i = 0;
+         while(i < this._myLeague.length)
          {
-            this._myLeague[_loc1_] = null;
-            _loc1_++;
+            this._myLeague[i] = null;
+            i++;
          }
-         this.request_players(0,100);
-         if(this.tabBar.selectedIndex != 0)
+         this.request_players(0,LEAGUE_SIZE);
+         if(this.tabBar.selectedIndex != TOP_TAB)
          {
             this.onIndexChange(null,true);
          }
@@ -186,91 +196,91 @@ package survarium.controls
          }
       }
 
-      protected function onLocal(param1:String) : void
+      protected function onLocal(value:String) : void
       {
          this.tabBar.dataProvider = new DataProvider([{
             label:LocalizationData.getName("top100"),
-            id:0
+            id:TOP_TAB
          },{
             label:LocalizationData.getName("my_place"),
-            id:1
+            id:MY_PLACE_TAB
          }]);
          this.tabBar.addEventListener(ButtonEvent.CLICK,this.onIndexChange);
-         this.tabBar.selectedIndex = 0;
+         this.tabBar.selectedIndex = TOP_TAB;
       }
       
-      protected function onListScroll(param1:Event) : void
+      protected function onListScroll(event:Event) : void
       {
-         var _loc2_:int = Math.max(-20,Math.min(this._lastScroll - this.list.scrollPosition,20));
+         var scrolled:int = Math.max(-20,Math.min(this._lastScroll - this.list.scrollPosition,20));
          _request_index = this.list.scrollPosition;
-         var _loc3_:int = _loc2_ < 0 ? (this._total_renderers + _loc2_ + this._additionalRequest) : -this._additionalRequest;
-         _loc2_ = Math.abs(_loc2_);
-         trace("onListScroll",_loc3_,"scrolled::",_loc2_,Math.abs(_loc2_),this._minimumScrollUpdate);
-         if(_loc2_ > this._minimumScrollUpdate)
+         var offset:int = scrolled < 0 ? (this._total_renderers + scrolled + this._additionalRequest) : -this._additionalRequest;
+         scrolled = Math.abs(scrolled);
+         trace("onListScroll",offset,"scrolled::",scrolled,Math.abs(scrolled),this._minimumScrollUpdate);
+         if(scrolled > this._minimumScrollUpdate)
          {
             _lastScroll = this.list.scrollPosition;
-            this.request_players(Math.max(this._start_index + this._request_index + _loc3_,this._start_index),_loc2_);
+            this.request_players(Math.max(this._start_index + this._request_index + offset,this._start_index),scrolled);
          }
       }
       
-      protected function request_players(param1:int, param2:int, param3:Boolean = false) : void
+      protected function request_players(start:int, count:int, padded:Boolean = false) : void
       {
-         trace("request_players_init:: start:",param1,"count:",param2);
-         param2 += param3 ? this._additionalRequest * 2 : 0;
-         trace("request_players_count::",param1,param2,"total_players:",this._totalPlayers,"league_start:",this._start_index);
-         if(param1 + param2 > this._totalPlayers)
+         trace("request_players_init:: start:",start,"count:",count);
+         count += padded ? this._additionalRequest * 2 : 0;
+         trace("request_players_count::",start,count,"total_players:",this._totalPlayers,"league_start:",this._start_index);
+         if(start + count > this._totalPlayers)
          {
-            param2 = Math.max(0,this._totalPlayers - param1);
+            count = Math.max(0,this._totalPlayers - start);
          }
-         if(param1 + param2 - this._start_index > 100)
+         if(start + count - this._start_index > LEAGUE_SIZE)
          {
-            param2 = Math.max(0,100 - (param1 - this._start_index));
+            count = Math.max(0,LEAGUE_SIZE - (start - this._start_index));
          }
-         if(param2 == 0)
+         if(count == 0)
          {
             return;
          }
-         trace("request_players_st::",param1,param2);
-         var _loc4_:int = -1;
-         var _loc5_:int = -1;
-         var _loc6_:int = 0;
-         while(_loc6_ < param2)
+         trace("request_players_st::",start,count);
+         var firstMissing:int = -1;
+         var endMissing:int = -1;
+         var i:int = 0;
+         while(i < count)
          {
-            if(!this._playersCache[param1 + _loc6_])
+            if(!this._playersCache[start + i])
             {
-               if(_loc4_ == -1)
+               if(firstMissing == -1)
                {
-                  _loc4_ = _loc6_;
+                  firstMissing = i;
                }
-               _loc5_ = _loc6_ + 1;
+               endMissing = i + 1;
             }
-            _loc6_++;
+            i++;
          }
-         trace("request_players_end::",_loc4_,_loc5_);
-         param1 += _loc4_;
-         param2 = _loc5_ - _loc4_;
-         if(param2 <= 0)
+         trace("request_players_end::",firstMissing,endMissing);
+         start += firstMissing;
+         count = endMissing - firstMissing;
+         if(count <= 0)
          {
             return;
          }
-         _loc6_ = 0;
-         while(_loc6_ < param2)
+         i = 0;
+         while(i < count)
          {
-            this._requestList.push(param1 + _loc6_);
-            _loc6_++;
+            this._requestList.push(start + i);
+            i++;
          }
-         trace("request_players_values: ",param1,param2,"st:",this._start_index,this.list.scrollPosition,"requested::",this._requestList.length);
-         ExternalInterface.call("request_players_range",param1,param2);
+         trace("request_players_values: ",start,count,"st:",this._start_index,this.list.scrollPosition,"requested::",this._requestList.length);
+         ExternalInterface.call("request_players_range",start,count);
       }
       
-      protected function onIndexChange(param1:Event, param2:Boolean = false) : void
+      protected function onIndexChange(event:Event, reload:Boolean = false) : void
       {
          trace("PR::change_league");
-         var _loc3_:uint = 100;
+         var leagueSize:uint = LEAGUE_SIZE;
          this.list.scrollBar.removeEventListener(Event.SCROLL,this.onListScroll);
-         var _loc4_:int = this._start_index + this.list.scrollPosition;
-         var _loc5_:int;
-         if(this.tabBar.selectedIndex == 0)
+         var scrollIndex:int = this._start_index + this.list.scrollPosition;
+         var total:int;
+         if(this.tabBar.selectedIndex == TOP_TAB)
          {
             this.list.scrollPosition = 0;
             _lastScroll = 0;
@@ -280,84 +290,84 @@ package survarium.controls
             this.updateLocalPlayer(this._topLeague);
             this.list.dataProvider = new DataProvider(this._topLeague);
          }
-         else if(this.tabBar.selectedIndex == 1)
+         else if(this.tabBar.selectedIndex == MY_PLACE_TAB)
          {
-            _loc5_ = (this._totalPlayers);
-            if(this._player_data.place + 50 > _loc5_)
+            total = (this._totalPlayers);
+            if(this._player_data.place + HALF_LEAGUE > total)
             {
-               _start_index = Math.max(0,_loc5_ - _loc3_);
+               _start_index = Math.max(0,total - leagueSize);
             }
             else
             {
-               _start_index = Math.max(0,this._player_data.place - 50);
+               _start_index = Math.max(0,this._player_data.place - HALF_LEAGUE);
             }
-            trace("init_my_league:: from:",this._start_index,"to:",this._start_index + _loc3_);
+            trace("init_my_league:: from:",this._start_index,"to:",this._start_index + leagueSize);
             this.list.scrollPosition = Math.max(0,this._player_data.place - this._start_index - this._total_renderers / 2);
             _lastScroll = this.list.scrollPosition;
-            if(this._player_data.place + this._total_renderers / 2 > _loc5_)
+            if(this._player_data.place + this._total_renderers / 2 > total)
             {
-               _request_index = Math.max(0,_loc5_ - this._total_renderers);
+               _request_index = Math.max(0,total - this._total_renderers);
             }
             else
             {
                _request_index = Math.max(0,this._player_data.place - this._total_renderers / 2);
             }
-            this._myLeague.length = Math.min(_loc3_,this._totalPlayers - this._start_index);
+            this._myLeague.length = Math.min(leagueSize,this._totalPlayers - this._start_index);
             this.fillLists(this._myLeague,this._start_index);
             this.updateLocalPlayer(this._myLeague);
             this.list.dataProvider = new DataProvider(this._myLeague);
-            this.show_players_list(this._request_index,this._total_renderers,_loc4_,param2);
+            this.show_players_list(this._request_index,this._total_renderers,scrollIndex,reload);
             this.list.scrollBar.addEventListener(Event.SCROLL,this.onListScroll);
          }
       }
       
-      protected function show_players_list(param1:int, param2:int, param3:int, param4:Boolean) : void
+      protected function show_players_list(requestIndex:int, count:int, lastIndex:int, reload:Boolean) : void
       {
-         var _loc5_:int;
-         if(param4)
+         var shift:int;
+         if(reload)
          {
-            _loc5_ = this._total_renderers;
+            shift = this._total_renderers;
          }
          else
          {
-            _loc5_ = Math.max(-this._total_renderers,Math.min(param3 - param1,this._total_renderers));
+            shift = Math.max(-this._total_renderers,Math.min(lastIndex - requestIndex,this._total_renderers));
          }
-         var _loc6_:int = _loc5_ < 0 ? (param2 + _loc5_) : 0;
-         var _loc7_:int;
-         trace("show_players_list",this._start_index,"begin::",param1,param3,_loc5_,param2,"||",param3,param1);
-         if(_loc5_ != 0)
+         var offset:int = shift < 0 ? (count + shift) : 0;
+         var start:int;
+         trace("show_players_list",this._start_index,"begin::",requestIndex,lastIndex,shift,count,"||",lastIndex,requestIndex);
+         if(shift != 0)
          {
-            _loc7_ = param1 + _loc6_;
-            _loc7_ = Math.max(this._start_index,_loc7_ - this._additionalRequest);
-            this.request_players(_loc7_,Math.abs(_loc5_),true);
-         }
-      }
-      
-      protected function fillLists(param1:Array, param2:int = 0) : void
-      {
-         trace("fillLists",param1.length);
-         var _loc3_:int = 0;
-         while(_loc3_ < param1.length)
-         {
-            param1[_loc3_] = this._playersCache[param2 + _loc3_];
-            _loc3_++;
+            start = requestIndex + offset;
+            start = Math.max(this._start_index,start - this._additionalRequest);
+            this.request_players(start,Math.abs(shift),true);
          }
       }
       
-      protected function updateLocalPlayer(param1:Array) : void
+      protected function fillLists(league:Array, startIndex:int = 0) : void
       {
-         var _loc2_:uint;
-         if(this._player_data && param1)
+         trace("fillLists",league.length);
+         var i:int = 0;
+         while(i < league.length)
          {
-            _loc2_ = 0;
-            while(_loc2_ < param1.length)
+            league[i] = this._playersCache[startIndex + i];
+            i++;
+         }
+      }
+      
+      protected function updateLocalPlayer(league:Array) : void
+      {
+         var i:uint;
+         if(this._player_data && league)
+         {
+            i = 0;
+            while(i < league.length)
             {
-               if(param1[_loc2_] && param1[_loc2_].nickname == this._player_data.nickname)
+               if(league[i] && league[i].nickname == this._player_data.nickname)
                {
-                  param1[_loc2_] = this._player_data;
+                  league[i] = this._player_data;
                   break;
                }
-               _loc2_++;
+               i++;
             }
          }
       }
@@ -365,7 +375,7 @@ package survarium.controls
       private function onPlayerRightClick(e:MouseEvent) : void
       {
          var ex:MouseEventEx = e as MouseEventEx;
-         if(ex == null || ex.buttonIdx != 1)
+         if(ex == null || ex.buttonIdx != MouseEventEx.RIGHT_BUTTON)
          {
             return;
          }

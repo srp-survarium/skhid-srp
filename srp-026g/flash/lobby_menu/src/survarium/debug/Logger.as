@@ -24,74 +24,74 @@ package survarium.debug
          _id = this;
       }
       
-      public static function log(param1:Sprite, param2:String) : void
+      public static function log(target:Sprite, message:String) : void
       {
          if(!_stage)
          {
             return;
          }
-         if(!_field[param1])
+         if(!_field[target])
          {
-            _field[param1] = "";
+            _field[target] = "";
          }
          else
          {
-            _field[param1] += "\n" + param2;
+            _field[target] += "\n" + message;
          }
          if(!_stage)
          {
             return;
          }
-         var _loc3_:Rectangle = param1.getRect(_stage);
-         trace("logger::",param1,_loc3_);
+         var bounds:Rectangle = target.getRect(_stage);
+         trace("logger::",target,bounds);
          _id.graphics.clear();
          _id.graphics.lineStyle(2,16777215,1);
-         _id.graphics.drawRect(_loc3_.x,_loc3_.y,_loc3_.width,_loc3_.height);
+         _id.graphics.drawRect(bounds.x,bounds.y,bounds.width,bounds.height);
          if(_id)
          {
             _id.updateFields();
          }
       }
       
-      public static function registerStage(param1:Sprite) : void
+      public static function registerStage(stageSprite:Sprite) : void
       {
-         _stage = param1;
+         _stage = stageSprite;
       }
       
       override protected function configUI() : void
       {
       }
       
-      private function updateFields(param1:Event = null) : void
+      private function updateFields(event:Event = null) : void
       {
-         var _loc2_:Object;
-         var _loc3_:Rectangle;
-         var _loc4_:TextField;
+         var target:Object;
+         var bounds:Rectangle;
+         var field:TextField;
          if(!_stage)
          {
             return;
          }
          trace("updateFields",_field);
-         for(_loc2_ in _field)
+         for(target in _field)
          {
-            _loc3_ = _loc2_.getRect(_stage);
-            trace("iterate::",textFields[_loc2_],_field[_loc2_]);
-            if(!textFields[_loc2_])
+            bounds = target.getRect(_stage);
+            trace("iterate::",textFields[target],_field[target]);
+            if(!textFields[target])
             {
-               _loc4_ = new TextField();
-               textFields[_loc2_] = _loc4_;
-               addChild(_loc4_);
+               field = new TextField();
+               textFields[target] = field;
+               addChild(field);
             }
             else
             {
-               _loc4_ = textFields[_loc2_];
+               field = textFields[target];
             }
-            _loc4_.text = _field[_loc2_];
-            _loc4_.y = _loc3_.y - _loc3_.height;
+            field.text = _field[target];
+            field.y = bounds.y - bounds.height;
          }
       }
       
-      private function resetFields(param1:Event) : void
+      private function resetFields(event:Event) : void
       {
       }
    }

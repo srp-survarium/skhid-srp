@@ -23,7 +23,7 @@ package survarium.buttons
          this.btnChangeName.addEventListener(ButtonEvent.CLICK,this.onChangeName);
       }
       
-      private function onChangeName(param1:ButtonEvent) : void
+      private function onChangeName(event:ButtonEvent) : void
       {
          dispatchEvent(new Event(Events.RENAME));
       }

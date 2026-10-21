@@ -4,7 +4,6 @@ package survarium.item
    import flash.geom.ColorTransform;
    import flash.text.TextField;
    import survarium.Util;
-   import survarium.constants.Category;
    import survarium.constants.Colors;
    import survarium.controls.FixedText;
    import survarium.controls.ItemRendererBase;
@@ -12,6 +11,12 @@ package survarium.item
    import survarium.core.Icon;
    import survarium.data.ItemData;
    import survarium.upgrade.UpgradeWindow;
+   import survarium.constants.ItemCondition;
+   import survarium.constants.ItemPlace;
+   import survarium.constants.ItemRank;
+   import survarium.constants.MoneyType;
+   import survarium.constants.RendererState;
+   import survarium.constants.SuperCategory;
    
    public class ItemRendererInv extends ItemRendererBase
    {
@@ -49,24 +54,24 @@ package survarium.item
          super();
       }
       
-      protected function updateScopeBadge(param1:ItemData, param2:Boolean) : void
+      protected function updateScopeBadge(item:ItemData, show:Boolean) : void
       {
-         var _loc3_:Object = null;
+         var scope:Object = null;
          if(Boolean(this._scopeBadge) && Boolean(this._scopeBadge.parent))
          {
             this._scopeBadge.parent.removeChild(this._scopeBadge);
          }
          this._scopeBadge = null;
-         if(!param2 || !param1.isWeapon)
+         if(!show || !item.isWeapon)
          {
             return;
          }
-         _loc3_ = UpgradeWindow.attachedScope(param1);
-         if(!_loc3_ || !_loc3_.icon)
+         scope = UpgradeWindow.attachedScope(item);
+         if(!scope || !scope.icon)
          {
             return;
          }
-         this._scopeBadge = (_loc3_.icon as Icon).clone();
+         this._scopeBadge = (scope.icon as Icon).clone();
          this._scopeBadge.scaleX = 0.4;
          this._scopeBadge.scaleY = 0.4;
          this._scopeBadge.x = this.paintedIcon.x + this.paintedIcon.width - this._scopeBadge.width;
@@ -87,96 +92,96 @@ package survarium.item
          super.draw();
       }
       
-      override public function updateState(param1:uint = 0) : void
+      override public function updateState(itemState:uint = RendererState.ACTIVE) : void
       {
-         var _loc2_:Number = param1 == 0 ? 1 : 0.6;
+         var contentAlpha:Number = itemState == RendererState.ACTIVE ? 1 : 0.6;
          if(iconRenderer)
          {
-            iconRenderer.alpha = param1 == 2 ? 0.6 : 1;
+            iconRenderer.alpha = itemState == RendererState.LOCKED ? 0.6 : 1;
          }
-         this.textName.alpha = _loc2_;
-         this.brokenIcon.alpha = _loc2_;
-         this.paintedIcon.alpha = _loc2_;
-         this.textLevel.alpha = _loc2_;
-         this.textFieldInfo.alpha = _loc2_;
-         this.textFieldCount.alpha = _loc2_;
-         this.sellerIcon.alpha = _loc2_;
-         this.labelCost.alpha = _loc2_;
-         this.damageIndicator.alpha = _loc2_;
-         this.equippedSprite.alpha = _loc2_;
-         this.equippedBorder.alpha = _loc2_;
+         this.textName.alpha = contentAlpha;
+         this.brokenIcon.alpha = contentAlpha;
+         this.paintedIcon.alpha = contentAlpha;
+         this.textLevel.alpha = contentAlpha;
+         this.textFieldInfo.alpha = contentAlpha;
+         this.textFieldCount.alpha = contentAlpha;
+         this.sellerIcon.alpha = contentAlpha;
+         this.labelCost.alpha = contentAlpha;
+         this.damageIndicator.alpha = contentAlpha;
+         this.equippedSprite.alpha = contentAlpha;
+         this.equippedBorder.alpha = contentAlpha;
       }
       
       override protected function updateData() : void
       {
-         var _loc5_:uint = 0;
-         var _loc6_:int = 0;
-         var _loc7_:uint = 0;
-         var _loc8_:ColorTransform = null;
-         var _loc9_:Boolean = false;
-         var _loc1_:ItemData = _data as ItemData;
+         var nameColor:uint = 0;
+         var condition:int = 0;
+         var trackColor:uint = 0;
+         var colorTransform:ColorTransform = null;
+         var isShopRow:Boolean = false;
+         var item:ItemData = _data as ItemData;
          super.updateData();
-         var _loc2_:Boolean = _loc1_.isStack;
-         var _loc3_:Boolean = _loc1_.descriptor == 200 || _loc1_.descriptor == 300;
-         var _loc4_:Boolean = !_loc2_ && !_loc3_;
-         this.bundleBackground.visible = _loc1_.fromBundle;
-         this.textName.text = _loc1_.name;
-         if(Boolean(_loc1_.rank))
+         var isStack:Boolean = item.isStack;
+         var isShopItem:Boolean = item.descriptor == ItemPlace.SHOP || item.descriptor == ItemPlace.BUNDLE;
+         var isOwnedItem:Boolean = !isStack && !isShopItem;
+         this.bundleBackground.visible = item.fromBundle;
+         this.textName.text = item.name;
+         if(Boolean(item.rank))
          {
-            if(_loc1_.rank == 1)
+            if(item.rank == ItemRank.ONE)
             {
-               _loc5_ = Colors.RANK_1;
+               nameColor = Colors.RANK_1;
             }
-            else if(_data.rank == 2)
+            else if(_data.rank == ItemRank.TWO)
             {
-               _loc5_ = Colors.RANK_2;
+               nameColor = Colors.RANK_2;
             }
             else
             {
-               _loc5_ = Colors.RANK_3;
+               nameColor = Colors.RANK_3;
             }
          }
          else
          {
-            _loc5_ = Colors.LIGHT_GRAY;
+            nameColor = Colors.LIGHT_GRAY;
          }
-         this.textName.textField.textColor = _loc5_;
-         this.textLevel.text = _loc1_.itemLevel.toString();
-         this.textLevel.visible = _loc1_.itemLevel > 0 && _loc1_.superCategory != Category.BASE_VOUCHER;
-         this.sellerIcon.visible = Boolean(_loc1_.sellerIcon);
+         this.textName.textField.textColor = nameColor;
+         this.textLevel.text = item.itemLevel.toString();
+         this.textLevel.visible = item.itemLevel > 0 && item.superCategory != SuperCategory.UPGRADES;
+         this.sellerIcon.visible = Boolean(item.sellerIcon);
          if(Boolean(this.sellerIcon.numChildren))
          {
             this.sellerIcon.removeChildAt(0);
          }
-         if(Boolean(_loc1_.sellerIcon))
+         if(Boolean(item.sellerIcon))
          {
-            this.sellerIcon.addChild(_loc1_.sellerIcon);
+            this.sellerIcon.addChild(item.sellerIcon);
          }
          this.textLevel.x = Boolean(this.sellerIcon.numChildren) ? 24 : this.sellerIcon.x;
-         trace("IRV::updateData",_loc1_.name,_loc1_.isStack,_loc1_.value,"shop:",_loc3_,this.equippedSprite,this.equippedBorder,"|",_loc1_.itemLevel,this.textLevel.text);
-         if(_loc4_)
+         trace("IRV::updateData",item.name,item.isStack,item.value,"shop:",isShopItem,this.equippedSprite,this.equippedBorder,"|",item.itemLevel,this.textLevel.text);
+         if(isOwnedItem)
          {
             this.textFieldInfo.visible = MainScene.showDebugInfo;
             if(this.textFieldInfo.visible)
             {
-               this.textFieldInfo.text = _loc1_.itemId.toString();
+               this.textFieldInfo.text = item.itemId.toString();
             }
-            this.equippedSprite.visible = _loc1_.equipped;
-            this.equippedBorder.visible = _loc1_.equipped;
-            this.brokenIcon.visible = _loc1_.broken;
+            this.equippedSprite.visible = item.equipped;
+            this.equippedBorder.visible = item.equipped;
+            this.brokenIcon.visible = item.broken;
             if(this.brokenIcon.visible)
             {
                this.brokenIcon.x = this.equippedSprite.visible ? 145 : 160;
             }
-            this.paintedIcon.visible = Boolean(_loc1_.upgrades) && _loc1_.upgrades.length > 0;
-            this.updateScopeBadge(_loc1_,true);
-            this.damageIndicator.visible = _loc4_ && _loc1_.value < 100;
-            this.damageIndicator.track.scaleX = _data.value / 100;
-            _loc6_ = _data.value / 100 * 510;
-            _loc7_ = Util.getColor(Math.min(510 - _loc6_,255),Math.min(_loc6_,255),0);
-            _loc8_ = new ColorTransform();
-            _loc8_.color = _loc7_;
-            this.damageIndicator.track.transform.colorTransform = _loc8_;
+            this.paintedIcon.visible = Boolean(item.upgrades) && item.upgrades.length > 0;
+            this.updateScopeBadge(item,true);
+            this.damageIndicator.visible = isOwnedItem && item.value < ItemCondition.FULL;
+            this.damageIndicator.track.scaleX = _data.value / ItemCondition.FULL;
+            condition = _data.value / ItemCondition.FULL * 510;
+            trackColor = Util.getColor(Math.min(510 - condition,255),Math.min(condition,255),0);
+            colorTransform = new ColorTransform();
+            colorTransform.color = trackColor;
+            this.damageIndicator.track.transform.colorTransform = colorTransform;
             this.damageIndicator.track.alpha = 0.4;
          }
          else
@@ -186,24 +191,24 @@ package survarium.item
             this.equippedBorder.visible = false;
             this.brokenIcon.visible = false;
             this.paintedIcon.visible = false;
-            this.updateScopeBadge(_loc1_,false);
+            this.updateScopeBadge(item,false);
             this.damageIndicator.visible = false;
          }
-         if(_loc3_)
+         if(isShopItem)
          {
             this.labelCost.visible = true;
-            this.labelCost.moneyType = _loc1_.isPremium ? 1 : 0;
-            this.labelCost.textField.textColor = _loc1_.isPremium ? Colors.GOLD : Colors.PRICE_REG;
-            this.labelCost.cost = _loc1_.cost;
+            this.labelCost.moneyType = item.isPremium ? MoneyType.PREMIUM : MoneyType.REGULAR;
+            this.labelCost.textField.textColor = item.isPremium ? Colors.GOLD : Colors.PRICE_REG;
+            this.labelCost.cost = item.cost;
          }
          else
          {
             this.labelCost.visible = false;
          }
-         if(_loc2_ && !_loc3_)
+         if(isStack && !isShopItem)
          {
             this.textFieldCount.visible = true;
-            this.textFieldCount.text = "x" + _loc1_.value;
+            this.textFieldCount.text = "x" + item.value;
          }
          else
          {
@@ -211,9 +216,9 @@ package survarium.item
          }
          if(Boolean(this.bottomBackground))
          {
-            _loc9_ = _data.descriptor == 200 || _data.descriptor == 300;
-            this.bottomBackground.height = _loc9_ ? 54 : 34;
-            this.bottomBackground.y = _loc9_ ? 75 : 95;
+            isShopRow = _data.descriptor == ItemPlace.SHOP || _data.descriptor == ItemPlace.BUNDLE;
+            this.bottomBackground.height = isShopRow ? 54 : 34;
+            this.bottomBackground.y = isShopRow ? 75 : 95;
          }
       }
    }

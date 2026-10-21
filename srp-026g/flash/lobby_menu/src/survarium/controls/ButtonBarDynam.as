@@ -16,19 +16,19 @@ package survarium.controls
       
       override protected function updateRenderers() : void
       {
-         var _loc1_:Number = 0;
-         var _loc2_:Number = 0;
-         var _loc3_:int = -1;
+         var offsetX:Number = 0;
+         var offsetY:Number = 0;
+         var overflowIndex:int = -1;
          if(_renderers[0] is _itemRendererClass)
          {
             while(_renderers.length > _dataProvider.length)
             {
-               _loc5_ = _renderers.length - 1;
-               if(container.contains(_renderers[_loc5_]))
+               lastIndex = _renderers.length - 1;
+               if(container.contains(_renderers[lastIndex]))
                {
-                  container.removeChild(_renderers[_loc5_]);
+                  container.removeChild(_renderers[lastIndex]);
                }
-               _renderers.splice(_loc5_--,1);
+               _renderers.splice(lastIndex--,1);
             }
          }
          else
@@ -39,83 +39,83 @@ package survarium.controls
             }
             _renderers.length = 0;
          }
-         var _loc4_:uint = 0;
-         var _loc5_:int;
-         var _loc6_:Button;
-         var _loc7_:Boolean;
-         var _loc8_:int;
-         var _loc9_:Button;
-         while(_loc4_ < _dataProvider.length && _loc3_ == -1)
+         var i:uint = 0;
+         var lastIndex:int;
+         var renderer:Button;
+         var isNew:Boolean;
+         var j:int;
+         var extraRenderer:Button;
+         while(i < _dataProvider.length && overflowIndex == -1)
          {
-            _loc7_ = false;
-            if(_loc4_ < _renderers.length)
+            isNew = false;
+            if(i < _renderers.length)
             {
-               _loc6_ = _renderers[_loc4_];
+               renderer = _renderers[i];
             }
             else
             {
-               _loc6_ = new _itemRendererClass();
-               setupRenderer(_loc6_,_loc4_);
-               _loc7_ = true;
+               renderer = new _itemRendererClass();
+               setupRenderer(renderer,i);
+               isNew = true;
             }
-            populateRendererData(_loc6_,_loc4_);
+            populateRendererData(renderer,i);
             if(_autoSize == TextFieldAutoSize.NONE && _buttonWidth > 0)
             {
-               _loc6_.width = _buttonWidth;
+               renderer.width = _buttonWidth;
             }
             else if(_autoSize != TextFieldAutoSize.NONE)
             {
-               _loc6_.autoSize = _autoSize;
+               renderer.autoSize = _autoSize;
             }
-            _loc6_.validateNow();
+            renderer.validateNow();
             if(_direction == DIRECTION_HORIZONTAL)
             {
-               if(_width > _loc6_.width + _spacing + _loc1_ || _maxFit)
+               if(_width > renderer.width + _spacing + offsetX || _maxFit)
                {
-                  _loc6_.y = 0;
-                  _loc6_.x = _loc1_;
-                  _loc1_ += (this.useRect ? _loc6_.getRect(_loc6_).width : _loc6_.width) + _spacing;
+                  renderer.y = 0;
+                  renderer.x = offsetX;
+                  offsetX += (this.useRect ? renderer.getRect(renderer).width : renderer.width) + _spacing;
                }
                else
                {
-                  _loc3_ = _loc4_;
-                  _loc6_ = null;
+                  overflowIndex = i;
+                  renderer = null;
                }
             }
-            else if(_height > _loc6_.height + _spacing + _loc2_ || _maxFit)
+            else if(_height > renderer.height + _spacing + offsetY || _maxFit)
             {
-               _loc6_.x = 0;
-               _loc6_.y = _loc2_;
-               _loc2_ += _loc6_.getRect(_loc6_).height + _spacing;
+               renderer.x = 0;
+               renderer.y = offsetY;
+               offsetY += renderer.getRect(renderer).height + _spacing;
             }
             else
             {
-               _loc3_ = _loc4_;
-               _loc6_ = null;
+               overflowIndex = i;
+               renderer = null;
             }
-            if(_loc7_ && _loc6_ != null)
+            if(isNew && renderer != null)
             {
-               _loc6_.group = _group;
-               container.addChild(_loc6_);
-               _renderers.push(_loc6_);
+               renderer.group = _group;
+               container.addChild(renderer);
+               _renderers.push(renderer);
             }
-            _loc4_++;
+            i++;
          }
-         if(_loc3_ > -1)
+         if(overflowIndex > -1)
          {
-            _loc8_ = _renderers.length - 1;
-            while(_loc8_ >= _loc3_)
+            j = _renderers.length - 1;
+            while(j >= overflowIndex)
             {
-               _loc9_ = _renderers[_loc8_];
-               if(_loc9_)
+               extraRenderer = _renderers[j];
+               if(extraRenderer)
                {
-                  if(container.contains(_loc9_))
+                  if(container.contains(extraRenderer))
                   {
-                     container.removeChild(_loc9_);
+                     container.removeChild(extraRenderer);
                   }
-                  _renderers.splice(_loc8_,1);
+                  _renderers.splice(j,1);
                }
-               _loc8_--;
+               j--;
             }
          }
          selectedIndex = Math.min(_dataProvider.length - 1,_selectedIndex);

@@ -42,20 +42,20 @@ package survarium.controls
          return super.enabled;
       }
       
-      override public function set enabled(param1:Boolean) : void
+      override public function set enabled(value:Boolean) : void
       {
-         var _loc2_:String;
-         super.enabled = param1;
+         var state:String;
+         super.enabled = value;
          mouseChildren = true;
          if(super.enabled)
          {
-            _loc2_ = _displayFocus || _focused ? "over" : "up";
+            state = _displayFocus || _focused ? "over" : "up";
          }
          else
          {
-            _loc2_ = "disabled";
+            state = "disabled";
          }
-         setState(_loc2_);
+         setState(state);
       }
       
       public function get owner() : UIComponent
@@ -63,9 +63,9 @@ package survarium.controls
          return this._owner;
       }
       
-      public function set owner(param1:UIComponent) : void
+      public function set owner(value:UIComponent) : void
       {
-         _owner = param1;
+         _owner = value;
       }
       
       public function get selectable() : Boolean
@@ -73,9 +73,9 @@ package survarium.controls
          return this._selectable;
       }
       
-      public function set selectable(param1:Boolean) : void
+      public function set selectable(value:Boolean) : void
       {
-         _selectable = param1;
+         _selectable = value;
       }
       
       public function get selected() : Boolean
@@ -83,15 +83,15 @@ package survarium.controls
          return this._selected;
       }
       
-      public function set selected(param1:Boolean) : void
+      public function set selected(value:Boolean) : void
       {
-         _selected = param1;
+         _selected = value;
       }
       
-      public function set disabled(param1:Boolean) : void
+      public function set disabled(value:Boolean) : void
       {
-         enabled = !param1;
-         if(param1 == true)
+         enabled = !value;
+         if(value == true)
          {
             setState("disabled");
          }
@@ -111,13 +111,13 @@ package survarium.controls
          return _data;
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         if(_data == param1)
+         if(_data == value)
          {
             return;
          }
-         _data = param1;
+         _data = value;
          invalidateData();
       }
       
@@ -126,24 +126,24 @@ package survarium.controls
          return this._index;
       }
       
-      public function set index(param1:uint) : void
+      public function set index(value:uint) : void
       {
-         _index = param1;
-         _descriptor = param1;
+         _index = value;
+         _descriptor = value;
       }
       
-      public function setListData(param1:ListData) : void
+      public function setListData(listData:ListData) : void
       {
-         index = param1.index;
-         selected = param1.selected;
+         index = listData.index;
+         selected = listData.selected;
       }
       
-      public function setData(param1:Object) : void
+      public function setData(data:Object) : void
       {
-         this.data = param1;
+         this.data = data;
       }
       
-      override public function handleDragStartEvent(param1:DragEvent) : void
+      override public function handleDragStartEvent(e:DragEvent) : void
       {
          setState("over");
       }
