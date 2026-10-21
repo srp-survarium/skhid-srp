@@ -5951,12 +5951,18 @@ package
       
       // A match's results: a player in a room gets the room's window opened
       // first, so the results go over it and closing them shows the room
-      // (the owner's of 2026-10-20). Out of a room: nothing.
+      // (the owner's of 2026-10-20). Out of a room: nothing. The window is
+      // told the match is over (its chat, where we are now).
       private function showRoomUnderResults() : void
       {
          try
          {
-            if(RoomsWindow.me != null && RoomsWindow.me.inRoom && !RoomsWindow.me.shown)
+            if(RoomsWindow.me == null)
+            {
+               return;
+            }
+            RoomsWindow.me.matchOver();
+            if(RoomsWindow.me.inRoom && !RoomsWindow.me.shown)
             {
                RoomsWindow.me.show(true);
             }

@@ -14,6 +14,7 @@ package survarium.rooms
     import flash.utils.getDefinitionByName;
     import flash.utils.getTimer;
     import scaleform.gfx.MouseEventEx;
+    import survarium.chat.LobbyChat;
     import survarium.controls.BottomPanel;
     import survarium.controls.Message;
     import survarium.controls.SrvContextMenu;
@@ -112,6 +113,8 @@ package survarium.rooms
         internal var _seen:Object = null;
         private var _membersKey:int = 0;
         private var _membersAt:int = 0;
+        // The room whose chat tab is up (LobbyChat.ROOM_TAB); 0: none.
+        private var _chatKey:int = 0;
 
         // PlayerRanking.fillPlayers, first: rows of the rooms' range are
         // the window's answers (true: taken).
@@ -298,6 +301,55 @@ package survarium.rooms
             overPanels();
             roomView.alertNear();
             applyPlay(true);
+            syncChatTab();
+        }
+
+        // LobbyMenu.show_victory_screen: a match is over. The room's chat
+        // lines of the match did not reach the lobby (its game was in the
+        // match): the tab is put up anew and given the room's last lines.
+        public function matchOver():void
+        {
+            dropChatTab();
+        }
+
+        // Each frame: the chat's "Room Chat" tab, right of the general
+        // chat's, while we are in a room (the owner's of 2026-10-20: "each
+        // room has its own chat", "and you should be able to type in one").
+        // Another room's (a switch) is a new tab, with that room's last
+        // lines; asked once a room, so a tab the game refuses is not asked
+        // for each frame.
+        private function syncChatTab():void
+        {
+            var key:int = _room != null ? int(_room.key) : 0;
+            if (key == _chatKey || _lobby == null)
+                return;
+            dropChatTab();
+            if (key == 0)
+                return;
+            _chatKey = key;
+            try
+            {
+                _lobby.add_tab({"id": LobbyChat.ROOM_TAB, "name": say("roomChat"), "channels": [LobbyChat.ROOM_CHANNEL],
+                    "channel_to_send": LobbyChat.ROOM_CHANNEL, "closable": false, "save_history": true});
+                ask(RoomsWire.CHAT, 1);
+            }
+            catch (e:Error)
+            {
+            }
+        }
+
+        private function dropChatTab():void
+        {
+            if (_chatKey == 0 || _lobby == null)
+                return;
+            _chatKey = 0;
+            try
+            {
+                _lobby.remove_tab(LobbyChat.ROOM_TAB);
+            }
+            catch (e:Error)
+            {
+            }
         }
 
         // While open, ours is the lobby's top child but for the chat

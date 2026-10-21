@@ -41,8 +41,9 @@ From the chat tab descriptors (0x2093A0 general, 0x209583 team/match, 0x209FF0 s
 | 6/7 | team (`st_chat_channel_team`) | team | match id; channel byte = 6 + (lobby_client+0x1E57AC != 0); not sent if match id -1 |
 | 8 | squad (`st_chat_channel_squad`) | squad, team | channel_id[8] = squad_id; not sent if 0 |
 | 9 | clan team (`st_chat_channel_clan_team`) | clan team | channel_id[9] = clan team id; not sent if 0 — **NEW** |
+| 10 | srp's own: a room's chat (§9.8) | srp's movie's "Room Chat" only | 0 (any channel byte outside 1..9 takes the switch's default, 0x26AE57: id 0, the byte sent as it is) |
 
-0.21d had 0..8 with the same meanings (lobby_spec 5.4); channel 9 is new.
+0.21d had 0..8 with the same meanings (lobby_spec 5.4); channel 9 is new. Channel 10 is no channel of the game's: srp's lobby movie makes a tab that sends and lists it (§9.8).
 
 ### 1.2 0xA2 chat text (server → client) — was 0xC9
 
@@ -569,6 +570,50 @@ deliberate exception for these lines, at the owner's request).
   those are the clan's lines) and whether `add_to_recent_list("")` (0x209330)
   is harmless. If it shows a stray colon or a blank recent contact, set
   `SRP_QUEUE_CHAT_NAME` to a short name.
+
+### 9.8 A room's chat: srp's channel 10 (2026-10-20, `room_chat.rs`)
+
+The owner's: "each room has its own chat", "and you should be able to type in
+one", "there should be to the right of [General Chat] [Room Chat]" (the rules:
+`rooms.md`, "Room chat"). No exe change: channel 10 rides the game's own chat.
+
+- **The client, read in the exe (static, not run):** a line typed in a tab
+  whose `channel_to_send` is 10 goes out as any line. The chat input
+  (0x2086C6) runs its spam filter (0x2083F0) only for 1, 5, 6, 7; the sender
+  `messaging_client` 0x26AD30 shows the local echo first (`add_message`
+  0x208AD0 with the channel as it is), then its switch on `channel − 1`
+  (0x26AE57, `ja` past 8) gives any channel outside 1..9 the id 0, and `4C`
+  goes out with `channel_id` 0 and channel byte 10. An `A2` line of channel 10
+  is read like any other (0x26B6F0: the censor, `add_message`,
+  `add_to_recent_list`); `add_message` compares the channel only with 4 and 5
+  and passes it to the movie as the line's `type`. The lobby movie's chat
+  (`LobbyChat.got_message`) puts a line in each tab whose `channels` list its
+  `type`: the game's own tabs list 10 nowhere, so a stock movie drops it.
+- **srp's lobby movie** (source: `flash/lobby_menu/src`): the rooms window
+  (`RoomsWindow.syncChatTab`) adds, while its player is in a room, a tab
+  `{id 1000000, channels [10], channel_to_send 10, not closable,
+  save_history}` named "Room Chat" (uk/ru/de/pl in the movie) through the
+  game's `LobbyMenu.add_tab`; `BottomPanel.addTab` puts it right after the
+  general chat's tab (id 1) after its sort by id (`roomChatAfterGeneral`). It
+  then asks `2 060 000 030` (`lobby.md` §2.16.3); a switch to another room is
+  a new tab and a new ask, a match's results too (`RoomsWindow.matchOver`:
+  the lines of the match did not come). `LobbyChat.get_styled_text`
+  (`roomLine`) colours a channel-10 line as the general chat does ("White";
+  the exe gives channel 10 no colour) and the room's own lines (no sender)
+  "Blue", their English words in the player's language (`RoomsText.notice`).
+- **srp's lobby:** `4C` on channel 10 goes to the sender's room (the
+  `channel_id` is not read): an `A2` line of sender type 5, its account, name
+  and clan tag, channel 10, to every other member whose movie asked and who is
+  in no match, but those who ignore the sender. The flood allowance is the
+  other channels'. A line from a player in no room reaches nobody. The room
+  keeps its last 20 lines (`session::v026g::rooms::CHAT_KEPT`), given to the
+  asker (but an ignored sender's) before the answer; they go with the room.
+- **The room's own lines:** `<name> joined the room` / `<name> left the room`,
+  an `A2` of sender type 5, id 0, an empty name, no tag, channel 10, said on
+  the tick after the change whatever made it, kept with the other lines (no
+  join for a player alone in its room). The empty name is the queue chat's
+  (§9.7), which ran on the players' server so.
+- **Not checked in the game.**
 
 ## Correction (2026-10-12): the order of an accepted squad invite
 
