@@ -86,7 +86,9 @@ package survarium.upgrade
       protected var editData:Object = null;
       
       protected var _camoSlotY:Number;
-      
+
+      protected var _decalSlot2Y:Number;
+
       public function UpgradeWindow()
       {
          super();
@@ -125,6 +127,11 @@ package survarium.upgrade
       public static function hasScopes(param1:int) : Boolean
       {
          return Boolean(scopePairs[param1]);
+      }
+
+      public static function isUpgradeableWeapon(item:Object) : Boolean
+      {
+         return isWeaponCategory(int(item.category)) && (hasScopes(int(item.dictId)) || Boolean(item.camoAvailable));
       }
       
       public static function fits(param1:int, param2:int) : Boolean
@@ -328,16 +335,21 @@ package survarium.upgrade
             this.camoSlot.visible = this._data.camoAvailable > 0;
             if(hostDictId >= 0)
             {
+               // a weapon: the scope in slot 3, its camouflage in slot 2 (decalSlot2), below it
                this.decalSlot.visible = false;
                this.decalSlot1.visible = false;
-               this.decalSlot2.visible = false;
-               this.camoSlot.visible = true;
+               this.decalSlot2.visible = this._data.camoAvailable > 0;
+               this.camoSlot.visible = hasScopes(hostDictId);
                if(isNaN(this._camoSlotY))
                {
                   this._camoSlotY = this.camoSlot.y;
+                  this._decalSlot2Y = this.decalSlot2.y;
                }
                this.camoSlot.y = this.decalSlot.y;
                this.camoSlot.label = Boolean(stockScopes[hostDictId]) ? LocalizationData.getName("default_scope") : LocalizationData.getName("scope_slot");
+               this.decalSlot2.y = this.camoSlot.visible ? this._camoSlotY : this.decalSlot.y;
+               this.decalSlot2.label = LocalizationData.getName("camo_slot");
+               this.decalSlot2.contentCanvas.scaleX = this.decalSlot2.contentCanvas.scaleY = 1;
                this.container.textField.text = LocalizationData.getName("scope_window_title");
                this.infoContainer.infoDescr.text = LocalizationData.getName("scope_screen_hint");
                this.infoContainer.background.height = this.infoContainer.infoDescr.textHeight + 24;
@@ -346,6 +358,8 @@ package survarium.upgrade
             else if(!isNaN(this._camoSlotY))
             {
                this.camoSlot.y = this._camoSlotY;
+               this.decalSlot2.y = this._decalSlot2Y;
+               this.configDecalSlot(this.decalSlot2);
                this.container.textField.text = LocalizationData.getName("btn_upgrade_label");
                this.onLocal(null);
                this.infoContainer.y = MainScene.stageHeight - this.infoContainer.height - 100;
@@ -445,7 +459,7 @@ package survarium.upgrade
          {
             this.decalSlot.highlighted = false;
             this.decalSlot1.highlighted = false;
-            this.decalSlot2.highlighted = false;
+            this.decalSlot2.highlighted = param1 == 25 && this.decalSlot2.visible && Boolean(this.decalSlot2.enabled);
             this.camoSlot.highlighted = param1 == 22 && fits(hostDictId,param2) && Boolean(this.camoSlot.enabled);
             return;
          }
@@ -603,7 +617,7 @@ package survarium.upgrade
          var _loc2_:UpgradeSlot = param1.currentTarget as UpgradeSlot;
          if(Boolean(_loc2_) && !_loc2_.data)
          {
-            _loc3_ = hostDictId >= 0 ? 22 : int(this._slotAgreements[_loc2_.index]);
+            _loc3_ = hostDictId >= 0 ? (_loc2_ == this.decalSlot2 ? 25 : 22) : int(this._slotAgreements[_loc2_.index]);
             this._inventory.selectCategory([_loc3_]);
          }
       }
@@ -728,7 +742,7 @@ package survarium.upgrade
       {
          this.decalSlot.label = LocalizationData.getName("decal_slot");
          this.decalSlot1.label = LocalizationData.getName("decal_slot");
-         this.decalSlot2.label = LocalizationData.getName("decal_slot");
+         this.decalSlot2.label = LocalizationData.getName(hostDictId >= 0 ? "camo_slot" : "decal_slot");
          this.camoSlot.label = LocalizationData.getName("camo_slot");
          this.infoContainer.infoDescr.text = LocalizationData.getName("modification_screen_hint") + "\n" + LocalizationData.getName("modification_screen_edit_decal_hint");
          this.infoContainer.background.height = this.infoContainer.infoDescr.textHeight + 24;

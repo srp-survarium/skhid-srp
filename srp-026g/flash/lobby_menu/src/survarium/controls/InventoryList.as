@@ -2019,7 +2019,7 @@ package survarium.controls
       private function isUpgradeable(value:Object) : Boolean
       {
          var cat:int = (value.category);
-         return (cat == 3 || cat == 1 || cat == 5 || cat == 4) && ((value.camoAvailable) || (value.decalAvailable)) || UpgradeWindow.isWeaponCategory(cat) && UpgradeWindow.hasScopes(int(value.dictId));
+         return (cat == 3 || cat == 1 || cat == 5 || cat == 4) && ((value.camoAvailable) || (value.decalAvailable)) || UpgradeWindow.isUpgradeableWeapon(value);
       }
       
       protected function onMouseItemClick(e:MouseEventEx) : void

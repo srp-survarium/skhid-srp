@@ -49,8 +49,10 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
 - Only the character's parts (0x204560 → 0x129830) and the lobby's decal editor (0x2641A0) ask for
   a bake; weapon_cook never did. Patch 44 (`client-patches/weapon_camo_026g.asm`, client_patch.md
   §3.41) asks for one per weapon surface, as the editor does.
-- The lobby movie (revision 24) shows a weapon's upgrade window as the scope window only (its
-  `camoSlot`, index 3, takes category 22). **No slot for a weapon's camouflage yet** (below).
+- The lobby (`flash/lobby_menu/src/survarium/upgrade/UpgradeWindow.as`): a weapon's upgrade
+  window shows the scope slot (index 3, category 22) when the weapon takes scopes, and the
+  camouflage slot (decalSlot2, index 2, category 25) when it has `camo_available`; the Upgrade
+  button shows on a weapon with either (`isUpgradeableWeapon`).
 
 ## The masks (`scripts/weapon-camo/`)
 
@@ -86,9 +88,7 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
 
 ## Not done
 
-- **The lobby movie's slot.** A camouflage can be put on a weapon only by the server's request
-  (`46 01 … 2`); the movie offers no slot for it. Its change (a camouflage slot, index 2, in a
-  weapon's upgrade window beside the scope slot, `_slotAgreements` 2: [25]) waits for the movie's
-  move to ActionScript source (`feat/lobby-from-source`), the owner's rule for new lobby work.
+- Decals on weapons (the owner, 2026-10-21: "it should be nice if I could put a decal on the
+  weapon too"): the decal editor places decals on the character; weapons need it extended (exe).
 - A match (first and third person) not yet seen.
 - The other 69 textures' picks were made after the owner's 22, by looking (the MP7 black copies the owner's MP7): worth a pass in the picker.
