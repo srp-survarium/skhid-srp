@@ -93,6 +93,16 @@ class LobbySourceTests(unittest.TestCase):
         body = re.search(r'public static function buyGold\(\) : void\s*\{(.*?)\n      \}', source, re.S).group(1)
         self.assertRegex(body, r'Message\.showMessage\("exchange",\{\s*label:"",\s*srpBuyGold:true\s*\},true,0,true\);')
 
+    def test_the_weapon_window_title_is_in_every_language(self):
+        edits = json.loads((HERE.parent / 'scripts' / 'content-edit' / 'weapon-attachments-1.json').read_text(encoding='utf-8'))
+        added = {e['file']: e['key'] for e in edits['add_key'] if e['text']}
+        languages = ['english', 'german', 'original', 'polish', 'russian', 'ukrainian']
+        self.assertEqual(added, {f'localization/{l}/localization': 'st_srp_attachments' for l in languages})
+        [mapped] = edits['replace_string']
+        self.assertEqual(mapped['to'], 'st_srp_attachments')
+        window = (TREE / 'src' / 'survarium' / 'upgrade' / 'UpgradeWindow.as').read_text(encoding='utf-8')
+        self.assertIn('"scope_window_title"', window)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -148,7 +148,12 @@ The lobby's `InventoryList` (`flash/lobby_menu/src/survarium/controls/InventoryL
 that predicate (`isUpgradeable`) and gives weapons the existing localized `scope_window_title`
 menu label (`upgradeLabelKey`). The existing
 `upgradeElelemnt` callback opens the normal editor; `UpgradeWindow.setData` selects
-category 22 and its normal slot handles attach, replace and detach. Compatibility
+category 22 and its normal slot handles attach, replace and detach.
+
+Since 2026-10-21 `scope_window_title` says Attachments, not Optics (`st_srp_attachments` in the six
+languages, `scripts/content-edit/weapon-attachments-1.json`; it was patch 19's `st_srp_optics`): the
+weapon's window has an Attachments page (the scope) and an Appearance page (camouflage and decals),
+[weapon-camo.md](weapon-camo.md#the-weapons-window-two-pages). Compatibility
 comes from the movie's existing `scopePairs`, populated by the game data. Weapons
 with no compatible scopes get no action. Armor keeps its cosmetic predicate and
 `btn_upgrade_label`; ownership, stack, disabled-item and locked-inventory checks

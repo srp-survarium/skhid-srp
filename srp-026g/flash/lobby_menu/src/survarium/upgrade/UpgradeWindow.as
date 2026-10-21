@@ -1,6 +1,8 @@
 package survarium.upgrade
 {
+   import flash.display.DisplayObject;
    import flash.display.MovieClip;
+   import flash.display.Sprite;
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
@@ -87,6 +89,25 @@ package survarium.upgrade
       
       // each slot's x, y and scale as the movie places them (armour's window)
       protected var _slotPlaces:Array;
+
+      // A weapon's window has two pages, its attachments (the scope) and its appearance (the decals and
+      // the camouflage), turned by the arrows either side of the title.
+      public static const PAGE_ATTACHMENTS:int = 0;
+
+      public static const PAGE_APPEARANCE:int = 1;
+
+      protected var _page:int = PAGE_ATTACHMENTS;
+
+      protected var _hasAttachments:Boolean = false;
+
+      protected var _hasAppearance:Boolean = false;
+
+      protected var _pagePrev:Sprite;
+
+      protected var _pageNext:Sprite;
+
+      // the line between armour's decals and its camouflage
+      protected var _separator:DisplayObject;
 
       public function UpgradeWindow()
       {
@@ -331,25 +352,34 @@ package survarium.upgrade
             if(hostDictId >= 0)
             {
                // a weapon: the scope in slot 3, its camouflage in slot 2 (decalSlot2), its two decals in
-               // slots 0 and 1, in that order from the top
+               // slots 0 and 1. Every slot it has is shown while the slots are filled below; then
+               // showPage leaves the page's own.
                this.decalSlot.visible = this._data.decalAvailable > 0;
                this.decalSlot1.visible = this._data.decalAvailable > 1;
                this.decalSlot2.visible = this._data.camoAvailable > 0;
                this.camoSlot.visible = hasScopes(hostDictId);
+               this._hasAttachments = this.camoSlot.visible;
+               this._hasAppearance = this.decalSlot.visible || this.decalSlot2.visible;
+               // a new window opens on the attachments when the weapon takes scopes; the account's
+               // update keeps the page
+               if(param1 || !(this._page == PAGE_ATTACHMENTS ? this._hasAttachments : this._hasAppearance))
+               {
+                  this._page = this._hasAttachments ? PAGE_ATTACHMENTS : PAGE_APPEARANCE;
+               }
                this.placeWeaponSlots();
                this.camoSlot.label = Boolean(stockScopes[hostDictId]) ? LocalizationData.getName("default_scope") : LocalizationData.getName("scope_slot");
                this.decalSlot2.label = LocalizationData.getName("camo_slot");
                this.decalSlot2.contentCanvas.scaleX = this.decalSlot2.contentCanvas.scaleY = 1;
-               this.container.textField.text = LocalizationData.getName("scope_window_title");
-               this.infoContainer.infoDescr.text = LocalizationData.getName("scope_screen_hint") + (this._data.decalAvailable > 0 ? "\n" + LocalizationData.getName("modification_screen_edit_decal_hint") : "");
-               this.infoContainer.background.height = this.infoContainer.infoDescr.textHeight + 24;
-               this.infoContainer.y = MainScene.stageHeight - this.infoContainer.height - 100;
             }
             else if(Boolean(this._slotPlaces))
             {
                this.restoreSlots();
+               if(Boolean(this._separator))
+               {
+                  this._separator.visible = true;
+               }
                this.configDecalSlot(this.decalSlot2);
-               this.container.textField.text = LocalizationData.getName("btn_upgrade_label");
+               this.showTitle(LocalizationData.getName("btn_upgrade_label"),false);
                this.onLocal(null);
                this.infoContainer.y = MainScene.stageHeight - this.infoContainer.height - 100;
             }
@@ -387,6 +417,10 @@ package survarium.upgrade
                   _loc3_++;
                }
             }
+            if(hostDictId >= 0)
+            {
+               this.showPage(this._page,param1);
+            }
          }
          else
          {
@@ -394,46 +428,100 @@ package survarium.upgrade
             this.decalSlot2.data = this.decalSlot1.data = this.decalSlot.data = this.camoSlot.data = null;
          }
       }
-      
-      // A weapon's slots in one column from the top, the scope, the camouflage and the decals, as many as it
-      // takes: the armour window's places for three, the column 0.9 as tall for four.
+
+      // A weapon's slots in armour's places, as its appearance window has them: the appearance page
+      // its decals where armour's are (the second decal at the top, the first under it) and its
+      // camouflage at the bottom, under the line, where armour's camouflage is; the attachments page
+      // the scope at the top.
       protected function placeWeaponSlots() : void
       {
          var _loc1_:uint = 0;
-         var _loc2_:Array = [this.camoSlot,this.decalSlot2,this.decalSlot,this.decalSlot1];
-         var _loc3_:Array = new Array();
-         var _loc4_:Number = NaN;
-         var _loc5_:UpgradeSlot = null;
+         var _loc2_:UpgradeSlot = null;
          if(!this._slotPlaces)
          {
             this._slotPlaces = new Array();
             while(_loc1_ < this._slots.length)
             {
-               _loc5_ = this._slots[_loc1_];
-               this._slotPlaces.push([_loc5_.x,_loc5_.y,_loc5_.scaleX,_loc5_.scaleY]);
+               _loc2_ = this._slots[_loc1_];
+               this._slotPlaces.push([_loc2_.x,_loc2_.y,_loc2_.scaleX,_loc2_.scaleY]);
                _loc1_++;
             }
          }
-         _loc1_ = 0;
-         while(_loc1_ < _loc2_.length)
+         // _slots: decalSlot, decalSlot1, decalSlot2, camoSlot
+         this.placeSlot(this.decalSlot,this._slotPlaces[0]);
+         this.placeSlot(this.decalSlot1,this._slotPlaces[1]);
+         this.placeSlot(this.decalSlot2,this._slotPlaces[3]);
+         this.placeSlot(this.camoSlot,this._slotPlaces[1]);
+      }
+
+      protected function placeSlot(param1:UpgradeSlot, param2:Array) : void
+      {
+         param1.x = param2[0];
+         param1.y = param2[1];
+         param1.scaleX = param2[2];
+         param1.scaleY = param2[3];
+      }
+
+      // A weapon's page: its slots, the title between the arrows (none when the weapon has only one page),
+      // the hint, and, when `param2`, the inventory's filter on what goes in them, as the window's
+      // opening chooses it (scopes; camouflages and decals, armour's appearance filter).
+      protected function showPage(param1:int, param2:Boolean) : void
+      {
+         var _loc3_:Boolean = param1 == PAGE_ATTACHMENTS;
+         this._page = param1;
+         this.camoSlot.visible = _loc3_ && this._hasAttachments;
+         this.decalSlot.visible = !_loc3_ && this._data.decalAvailable > 0;
+         this.decalSlot1.visible = !_loc3_ && this._data.decalAvailable > 1;
+         this.decalSlot2.visible = !_loc3_ && this._data.camoAvailable > 0;
+         if(Boolean(this._separator))
          {
-            if(UpgradeSlot(_loc2_[_loc1_]).visible)
-            {
-               _loc3_.push(_loc2_[_loc1_]);
-            }
-            _loc1_++;
+            this._separator.visible = !_loc3_;
          }
-         _loc4_ = _loc3_.length > 3 ? 0.9 : 1;
-         _loc1_ = 0;
-         while(_loc1_ < _loc3_.length)
+         this.showTitle(LocalizationData.getName(_loc3_ ? "scope_window_title" : "btn_upgrade_label"),this._hasAttachments && this._hasAppearance);
+         this.infoContainer.infoDescr.text = _loc3_ ? LocalizationData.getName("scope_screen_hint") : LocalizationData.getName("modification_screen_hint") + (this._data.decalAvailable > 0 ? "\n" + LocalizationData.getName("modification_screen_edit_decal_hint") : "");
+         this.infoContainer.background.height = this.infoContainer.infoDescr.textHeight + 24;
+         this.infoContainer.y = MainScene.stageHeight - this.infoContainer.height - 100;
+         if(param2 && Boolean(this._inventory))
          {
-            _loc5_ = _loc3_[_loc1_];
-            _loc5_.scaleX = _loc5_.scaleY = _loc4_;
-            // a slot is 139 x 130 around (35.55, 44.25) of itself; the column's middle at x 96.55, its top at 28
-            _loc5_.x = 96.55 - 35.55 * _loc4_;
-            _loc5_.y = 28 + 21 * _loc4_ + _loc1_ * (_loc3_.length > 3 ? 123 : 142);
-            _loc1_++;
+            this._inventory.selectCategory(_loc3_ ? [22] : [25,26],false,true);
          }
+      }
+
+      // The window's title; with the page arrows, it keeps between them.
+      protected function showTitle(param1:String, param2:Boolean) : void
+      {
+         fitText(this.container.textField,param1,param2 ? 136 : 176);
+         if(Boolean(this._pagePrev))
+         {
+            this._pagePrev.visible = this._pageNext.visible = param2;
+         }
+      }
+
+      private function onPageArrow(param1:ButtonEvent) : void
+      {
+         if(hostDictId < 0 || !this._data || !(this._hasAttachments && this._hasAppearance))
+         {
+            return;
+         }
+         this.showPage(this._page == PAGE_ATTACHMENTS ? PAGE_APPEARANCE : PAGE_ATTACHMENTS,true);
+      }
+
+      // An arrow of the title bar: the lobby's page arrow (the bottom panel's tab bar pages with it),
+      // 0.85 of its size to keep inside the bar (5 to 32 above its line), the right one mirrored. It
+      // sits in a holder so that the button itself keeps its scale.
+      protected function addPageArrow(param1:Number, param2:Number) : Sprite
+      {
+         var _loc3_:Sprite = new Sprite();
+         var _loc4_:Button = new ButtonBottomInviteArrow();
+         _loc3_.addChild(_loc4_);
+         _loc3_.x = param1;
+         _loc3_.y = 6.6;
+         _loc3_.scaleX = 0.85 * param2;
+         _loc3_.scaleY = 0.85;
+         _loc3_.visible = false;
+         _loc4_.addEventListener(ButtonEvent.CLICK,this.onPageArrow);
+         this.container.addChild(_loc3_);
+         return _loc3_;
       }
 
       protected function restoreSlots() : void
@@ -619,6 +707,21 @@ package survarium.upgrade
          this.decalSlot1.setTransitionSize(95,105);
          this.decalSlot2.setTransitionSize(95,105);
          this._slots.push(this.decalSlot,this.decalSlot1,this.decalSlot2,this.camoSlot);
+         // the title bar is 180 wide from x 5; the arrows 15 wide, 3 in from its ends
+         this._pagePrev = this.addPageArrow(8,1);
+         this._pageNext = this.addPageArrow(182,-1);
+         var _loc2_:int = 0;
+         var _loc3_:DisplayObject;
+         while(_loc2_ < this.container.numChildren)
+         {
+            // the line above armour's camouflage (the bar lines are at 35 and 525.95)
+            _loc3_ = this.container.getChildAt(_loc2_);
+            if(!(_loc3_ is UIComponent) && Math.abs(_loc3_.y - 352) < 0.5 && _loc3_.height < 5)
+            {
+               this._separator = _loc3_;
+            }
+            _loc2_++;
+         }
          addEventListener(MouseEvent.CLICK,this.onMouseItemClick);
          var _loc1_:uint = 0;
          while(_loc1_ < this._slots.length)
