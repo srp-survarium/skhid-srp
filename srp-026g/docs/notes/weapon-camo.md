@@ -72,6 +72,40 @@ would have been there", "that would allow you to rotate it", "with weapon in the
 - **Lobby only.** Nothing a match or a replay sees; a game without patch 45 shows the weapon in the
   character's hands (patch 32).
 
+## The weapon's window: two pages
+
+The owner (2026-10-21): "it should also be not called optics and be called attachments", "we need
+to somehow differentiate skins/decals from real attachments like optics", "the menu should be only
+a single one still", "maybe it can be < appearance > and when you press on those < > you go to
+attachments", "scrolling form one preselects correct selection in upgrades in inventory", "the order
+of decals/camo should be exactly the same as in appearance", "with camo at the bottom separated by
+separator".
+
+- **One window, two pages.** Attachments: the scope (slot 3). Appearance: the decals (slots 0 and
+  1) and the camouflage (slot 2). One page at a time, in armour's window as drawn (three slots at
+  most, at scale 1).
+- **The title bar.** The page's name in the middle, an arrow button on each side (the lobby's page
+  arrow, `ButtonBottomInviteArrow`, the bottom panel's tab-bar arrows, 0.85 of its size, the right
+  one mirrored; its hover and pressed states). Either arrow turns to the other page. A weapon with
+  only one page (no scopes, or no camouflage or decal) has no arrows.
+- **Names.** Attachments: the movie's `scope_window_title` (`st_srp_attachments`, a new text in the
+  six languages: Attachments, Anbauteile, Dodatki, Обвес (russian and original), Обвіс;
+  `scripts/content-edit/weapon-attachments-1.json`). Appearance: armour's title,
+  `btn_upgrade_label` (Appearance, Verbesserungen, Wygląd, Внешний вид, Зовнішній вигляд). The
+  weapon's button in the item panel and its inventory menu entry say Attachments.
+- **Where the slots are.** Armour's places: the Appearance page has the second decal at the top,
+  the first under it, the line, the camouflage at the bottom (where armour has its decals, line and
+  camouflage); the Attachments page has the scope at the top, without the line.
+- **Which page opens.** Attachments when the weapon takes scopes, else Appearance; the account's
+  update after a change keeps the page.
+- **The inventory follows.** Opening and each turn select the inventory's filter of the page, as
+  armour's window opens on its own: scopes (22); camouflages and decals (25, 26).
+- **Changes.** Each slot sends its change when it is made, on either page; Confirm closes the
+  window. A turn changes nothing on the account.
+- **The hint** under the weapon: the scope's on Attachments, armour's (with the decal editor's
+  line) on Appearance.
+- **Armour** keeps its window: no arrows, its title, its slots where the movie has them.
+
 ## Decals (patch 46)
 
 The owner (2026-10-21): "implement and allow put two decals on weapons".
@@ -117,8 +151,11 @@ The owner (2026-10-21): "implement and allow put two decals on weapons".
   §3.41) asks for one per weapon surface, as the editor does.
 - The lobby (`flash/lobby_menu/src/survarium/upgrade/UpgradeWindow.as`): a weapon's upgrade
   window shows the scope slot (index 3, category 22) when the weapon takes scopes, and the
-  camouflage slot (decalSlot2, index 2, category 25) when it has `camo_available`; the Upgrade
-  button shows on a weapon with either (`isUpgradeableWeapon`).
+  camouflage slot (decalSlot2, index 2, category 25) when it has `camo_available`, and the decal
+  slots (decalSlot, decalSlot1) for `decal_available`, on two pages (`showPage`; the arrows
+  `addPageArrow`, the places `placeWeaponSlots`, armour's from `_slotPlaces`); the Attachments
+  button shows on a weapon with any (`isUpgradeableWeapon`). The slots are filled while all are
+  shown, then the page hides the other's: a slot keeps its item while hidden.
 
 ## The masks (`scripts/weapon-camo/`)
 
@@ -157,4 +194,6 @@ The owner (2026-10-21): "implement and allow put two decals on weapons".
 - Decals on weapons: written (patch 46, above), not run in a game: the preview on the weapon, the
   place a click gives and a weapon's decal bake are emulated only.
 - A match (first and third person) not yet seen.
+- The two-page window (arrows, places, the inventory's filter on a turn, the new texts): built,
+  not seen in a game.
 - The other 69 textures' picks were made after the owner's 22, by looking (the MP7 black copies the owner's MP7): worth a pass in the picker.

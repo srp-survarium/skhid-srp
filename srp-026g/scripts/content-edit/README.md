@@ -142,3 +142,13 @@ Applied after weapon-camo-1, to its output: `content_edit.py weapon-camo-1.json 
 writes the 83 configs again). Checked 2026-10-21 on the local game's server data (revision 27's
 files): 83 files edited by each list, 0 unexpected differences; the AK-12's `data` holds
 `decals[0]` and `camo_scale`, the type and count armour's `data/decals` has.
+
+## weapon-attachments-1.json (2026-10-21)
+
+| change | why |
+|---|---|
+| A new text `st_srp_attachments` in the six localization tables (Attachments, Anbauteile, Dodatki, Обвес in russian and original, Обвіс in ukrainian), and the lobby movie's key `scope_window_title` mapped to it in `localization/flash_movies_localizations.options` (was patch 19's `st_srp_optics`, "Optics", which nothing else uses) | the owner: the weapon's window "should also be not called optics and be called attachments"; its button and the title of its Attachments page say it (`../../docs/notes/weapon-camo.md`, the weapon's window: two pages). The Appearance page uses armour's `btn_upgrade_label` as it is |
+
+Applied to the latest files the local game mounts (patch 23's english, german, original, polish and
+russian tables, patch 25's ukrainian, patch 19's `flash_movies_localizations.options`): 7 files
+edited, 0 unexpected differences. Text only; the patch also needs the lobby movie of the same change.
