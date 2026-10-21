@@ -62,3 +62,4 @@ edit	weapon-balance-2.json	-	weapon balance 2: AK-12, Socom16 (#242, #260), A-54
 edit	grenade-bounce-1.json	-	grenade bounces louder: the bounce samples' impact settings (#266)
 edit	golden-weapons-1.json	-	golden weapons: only the silver bonus, upgradable as the plain weapon (#263; after weapon-balance-2)
 edit	death-poses-1.json	-	the face-down death pose out of the rifles' and pistols' death animations (the death camera looked into the arms)
+edit	crouch-steps-1.json	-	crouched steps audible: the walking steps at 40 % for the crouch pairs

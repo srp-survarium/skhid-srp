@@ -958,6 +958,7 @@ va	status	ref_021d	name
 0x00244c50	reviewed	0x001856ba	survarium::weapon::remove_aimed_rifle_scope_from_scene
 0x00244e10	reviewed	0x001857ac	survarium::weapon::draw
 0x00245250	reviewed	0x00185b0d	survarium::weapon::on_culled_player_draw
+0x00248ad0	reviewed	0x001881cd	survarium::step_manager::on_step
 0x00256fa0	reviewed	0x00190616	survarium::damage_zone_cook::delete_resource
 0x00257170	reviewed	0x001906f0	survarium::damage_zone_cook::calculate_max_requests_count
 0x00257210	reviewed	0x0019075a	survarium::damage_zone_cook::calculate_buffer_size
@@ -1022,6 +1023,7 @@ va	status	ref_021d	name
 0x00294a90	reviewed	0x001a9c2d	survarium::object_sound::remove
 0x002989d0	reviewed	0x001b22d2	survarium::damage_zone::damage_zone
 0x0029ab20	reviewed	0x00177271	survarium::lobby_menu::fill_match_statistic
+0x002a6520	reviewed	0x001b3d8a	survarium::player_equipment_sound_effect::on_foot_step
 0x002aec40	reviewed	0x000f0dff	vostok::render::stage_particles::is_effects_ready
 0x002c6f90	reviewed	0x001c4d2c	survarium::query_inventory_item
 0x002c7250	reviewed	0x001c4ff6	survarium::inventory_cook::translate_query

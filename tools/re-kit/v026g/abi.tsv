@@ -970,6 +970,7 @@ va	name	source	ret_cleanup	result
 0x00244c50	survarium::weapon::remove_aimed_rifle_scope_from_scene	manual	0	
 0x00244e10		auto	16	
 0x00245250		auto	0	
+0x00248ad0	survarium::step_manager::on_step	manual	12	
 0x00256fa0	survarium::damage_zone_cook::delete_resource	manual	4	
 0x00257170	survarium::damage_zone_cook::calculate_max_requests_count	manual	4	
 0x00257210	survarium::damage_zone_cook::calculate_buffer_size	manual	4	
@@ -1040,6 +1041,7 @@ va	name	source	ret_cleanup	result
 0x00294a90	survarium::object_sound::remove	manual	0	
 0x002989d0	survarium::damage_zone::damage_zone	manual	4	
 0x0029ab20	survarium::lobby_menu::fill_match_statistic	manual	16	
+0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	manual	8	
 0x002aec40	vostok::render::stage_particles::is_effects_ready	manual	0	EAX: normalized0/1 effect+1C non-null result
 0x002c6f90		auto	0	
 0x002c7250		auto	4	
