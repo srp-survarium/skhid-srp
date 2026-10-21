@@ -69,6 +69,8 @@ ORG CAVE
 %define LOG_FILTERED    0x1F1D60C
 %define LOG_A           0x1F1D610
 %define LOG_B           0x21E73B8
+%define LOG_SINK        0x1F1D614   ; the function the game's lines go through (0, none)
+%define LOG_MANAGER     0x9DAF4C    ; its boost::function manager
 %define CHANNEL_GAME    0x9FA4E4    ; "game"
 %define LEVEL_INFO      4
 
@@ -711,8 +713,11 @@ made:
     ret
 
 ; cdecl (format, a, b, c): a line of the game's log, channel "game", info,
-; as the game's own (0x27B326..0x27B35C). Every register but eax, ecx, edx
-; kept.
+; as the game's own (0x29A8E9..0x29A958, relocate_upgrade_item's "ui:
+; attach_upgrade"): the function it is written through is LOG_SINK's,
+; {LOG_MANAGER | 1, 0, LOG_SINK} (trivially copied, nothing to destroy
+; after), or none when LOG_SINK is 0 (an empty function writes nothing).
+; Every register but eax, ecx, edx kept.
 log:
     cmp dword [LOG_FILTERED], 0
     je .write
@@ -734,6 +739,12 @@ log:
     push eax
     push eax
     push eax
+    mov eax, [LOG_SINK]
+    test eax, eax
+    jz .function
+    mov dword [esp], LOG_MANAGER | 1
+    mov [esp+8], eax
+.function:
     mov eax, esp
     push dword [ebp+20]
     push dword [ebp+16]

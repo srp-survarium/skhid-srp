@@ -59,6 +59,7 @@ MADE_SITE, MADE_NEXT = 0x284F7F, 0x284F86
 ITEM_CTOR = 0x2F7C10
 GAME_ALLOCATOR, ALLOCATION_WHERE = 0x1F1D9C4, 0xAC1220
 LOG_FILTERED = 0x1F1D60C
+LOG_SINK, LOG_SINK_VALUE, LOG_MANAGER = 0x1F1D614, 0x5100C000, 0x9DAF4C
 
 CLIENT = 0x20000000                            # the lobby client: the profile at +1E6344h
 PROFILE = CLIENT + 0x1E6344
@@ -161,7 +162,11 @@ class Emu:
         elif address == LOG:
             fmt = self.text(self.u32(esp + 0x24)).replace("%u", "%d")
             args = tuple(self.u32(esp + 0x28 + 4 * i) for i in range(fmt.count("%d")))
-            self.calls.append(("log", self.u32(esp + 0x1C), self.u32(esp + 0x20), fmt % args))
+            function = self.u32(esp + 4)
+            # the function the game's own lines go through (0x29A8E9..0x29A921)
+            kind = "log" if (self.u32(function), self.u32(function + 8)) == (LOG_MANAGER | 1, LOG_SINK_VALUE) \
+                else "log without the game's function"
+            self.calls.append((kind, self.u32(esp + 0x1C), self.u32(esp + 0x20), fmt % args))
             self.ret(0, 0)
 
     def run(self, start, stop, regs, stack=()):
@@ -262,6 +267,7 @@ class Emu:
         self.u32(PROFILE - 0xC84, PLAYERS)
         self.u32(PLAYERS + 0x53A4, DICTIONARY)
         self.u32(LOG_FILTERED, 1)
+        self.u32(LOG_SINK, LOG_SINK_VALUE)
         self.dictionary(items)
         if window is not None:
             self.u32(self.preview_state + 4, window)
