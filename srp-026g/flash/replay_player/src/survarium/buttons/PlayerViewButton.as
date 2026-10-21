@@ -1,4 +1,3 @@
-// Compile with the native optimized profile.
 package survarium.buttons
 {
    import scaleform.clik.controls.Button;

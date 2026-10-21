@@ -1,4 +1,3 @@
-// Compile with the native optimized profile.
 package survarium.controls
 {
    import flash.events.MouseEvent;
