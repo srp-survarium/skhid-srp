@@ -5,6 +5,7 @@ package survarium.debug
    import flash.geom.ColorTransform;
    import flash.text.TextField;
    import flash.text.TextFormat;
+   import survarium.constants.TextAlign;
    
    public class DListItemRenderer extends Sprite
    {
@@ -26,6 +27,11 @@ package survarium.debug
       protected var txt:String;
       
       protected var txtColor:uint;
+      
+      // What the row shows: text, or a progress bar.
+      private static const ROW_TEXT:int = 1;
+      
+      private static const ROW_PROGRESS:int = 2;
       
       protected var state:int = -1;
       
@@ -94,11 +100,11 @@ package survarium.debug
                   txAlign = this._data.textAlign;
                   format = this.textField.getTextFormat();
                   format.align = "center";
-                  if(this._data.textAlign == 0)
+                  if(this._data.textAlign == TextAlign.LEFT)
                   {
                      format.align = "left";
                   }
-                  else if(this._data.textAlign == 1)
+                  else if(this._data.textAlign == TextAlign.CENTER)
                   {
                      format.align = "center";
                   }
@@ -123,22 +129,22 @@ package survarium.debug
                   this.textField.text = this._data.text;
                   txt = this._data.text;
                }
-               if(this.state != 1)
+               if(this.state != ROW_TEXT)
                {
                   this._progress.visible = false;
                   this._back.visible = false;
                   this._txback.visible = true;
-                  state = 1;
+                  state = ROW_TEXT;
                }
             }
             else
             {
-               if(this.state != 2)
+               if(this.state != ROW_PROGRESS)
                {
                   this._progress.visible = true;
                   this._back.visible = true;
                   this._txback.visible = false;
-                  state = 2;
+                  state = ROW_PROGRESS;
                }
                if(this._data.tot == undefined)
                {
@@ -159,9 +165,9 @@ package survarium.debug
                   pgColor = this._data.pgColor;
                   bgColor = this._data.bgColor;
                }
-               if(this.txAlign != 1)
+               if(this.txAlign != TextAlign.CENTER)
                {
-                  txAlign = 1;
+                  txAlign = TextAlign.CENTER;
                   format = this.textField.getTextFormat();
                   format.align = "center";
                   this.textField.defaultTextFormat = format;

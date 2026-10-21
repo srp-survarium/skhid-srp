@@ -8,7 +8,9 @@ package survarium.chat
    import scaleform.clik.core.UIComponent;
    import scaleform.clik.layout.LayoutData;
    import survarium.Util;
+   import survarium.constants.ChatChannel;
    import survarium.constants.Colors;
+   import survarium.constants.KeyCode;
    import survarium.constants.UiSound;
    
    public class Chat extends UIComponent
@@ -24,7 +26,7 @@ package survarium.chat
       
       protected static const NICKNAME_SQUAD:String = "SquadName";
       
-      protected static const PRIVATE_CHANNELS:Array = [4,1,3];
+      protected static const PRIVATE_CHANNELS:Array = [ChatChannel.PRIVATE,ChatChannel.GENERAL,ChatChannel.CLAN];
       
       public var ignoreFocus:Boolean = false;
       
@@ -487,7 +489,7 @@ package survarium.chat
       protected function checkInputKeyForSubmit(event:KeyboardEvent) : void
       {
          trace("checkInputKeyForSubmit::",event.keyCode);
-         if(event.keyCode == 150)
+         if(event.keyCode == KeyCode.CHAT_SUBMIT)
          {
             this.submitText();
          }

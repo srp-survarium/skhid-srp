@@ -2,6 +2,7 @@ package survarium.buttons
 {
    import scaleform.clik.controls.Button;
    import survarium.constants.Colors;
+   import survarium.constants.TeamSide;
    
    public class PlayerViewButton extends Button
    {
@@ -26,7 +27,7 @@ package survarium.buttons
       {
          if(_data)
          {
-            textField.textColor = _data.team == 2 ? Colors.ENEMY : Colors.OTHER_PLAYER;
+            textField.textColor = _data.team == TeamSide.ENEMY ? Colors.ENEMY : Colors.OTHER_PLAYER;
             textField.text = _data.name;
          }
       }

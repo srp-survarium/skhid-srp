@@ -9,7 +9,7 @@ package survarium.paperdoll
    import scaleform.clik.events.ListEvent;
    import scaleform.clik.interfaces.IDataProvider;
    import scaleform.clik.interfaces.IListItemRenderer;
-   import survarium.constants.Category;
+   import survarium.constants.SuperCategory;
    import survarium.data.ItemData;
    import survarium.data.LocalizationData;
    import survarium.interfaces.IPaperDoll;
@@ -19,6 +19,12 @@ package survarium.paperdoll
    {
       
       public static const PAPERDOLL_UPDATED:String = "paperDollUpdated";
+      
+      // Quick slot i (1..6) is profile slot i + QUICK_SLOT_OFFSET (13..18).
+      private static const QUICK_SLOT_OFFSET:int = 12;
+      
+      // One past the last quick slot number.
+      private static const QUICK_SLOT_END:int = 7;
       
       protected static var _slotNames:Array = ["slotHead","slotMask","slotBody","slotBack","slotLegs","slotArms","slotFoot","slotWpn1","slotWpn1A1","slotWpn1A2","slotWpn2","slotWpn2A1","slotWpn2A2","slotQck1","slotQck2","slotQck3","slotQck4","slotQck5","slotQck6","slotWpn5","slotWpn6","slotWpn7","slotWpn8"];
       
@@ -214,7 +220,7 @@ package survarium.paperdoll
                      continue;
                   }
                   slotData = newslots[i];
-                  isAmmoSlot = slotData && slotData.superCategory == Category.BASE_AMMO;
+                  isAmmoSlot = slotData && slotData.superCategory == SuperCategory.AMMO;
                   if(slotData && (isAmmoSlot && slotData.value != 0 || !isAmmoSlot))
                   {
                      slot.setData(slotData);
@@ -239,9 +245,9 @@ package survarium.paperdoll
          var slots:int = this._slotsN + this._slotsA;
          var i:uint = 1;
          var slotRenderer:IPaperDollSlot;
-         while(i < 7)
+         while(i < QUICK_SLOT_END)
          {
-            slotRenderer = this._slots[i + 12];
+            slotRenderer = this._slots[i + QUICK_SLOT_OFFSET];
             trace("handleQuickSlots",slotRenderer);
             if(i > slots)
             {

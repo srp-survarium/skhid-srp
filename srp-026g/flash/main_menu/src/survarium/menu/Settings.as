@@ -18,10 +18,14 @@ package survarium.menu
    import scaleform.clik.events.IndexEvent;
    import scaleform.clik.events.ListEvent;
    import survarium.buttons.CheckBoxMultiline;
+   import survarium.constants.KeyBindGroup;
    import survarium.controls.Message;
    
    public class Settings extends UIComponent
    {
+      
+      // The tab of the key bindings (opening it applies the keys).
+      private static const KEYS_TAB:int = 1;
       
       protected static var _labels_dict:Dictionary;
       
@@ -334,11 +338,11 @@ package survarium.menu
             i = 0;
             while(i < this._keys.length)
             {
-               if(this._keys[i].group_id == 0 && this.settings_content.keysLobby)
+               if(this._keys[i].group_id == KeyBindGroup.LOBBY && this.settings_content.keysLobby)
                {
                   this.settings_content.keysLobby.dataProvider.push(this._keys[i]);
                }
-               else if(this._keys[i].group_id == 1 && this.settings_content.keysChat)
+               else if(this._keys[i].group_id == KeyBindGroup.CHAT && this.settings_content.keysChat)
                {
                   this.settings_content.keysChat.dataProvider.push(this._keys[i]);
                }
@@ -698,7 +702,7 @@ package survarium.menu
          this.settings_content.gotoAndStop(this.tabs.selectedIndex + 1);
          this.create_labels(this.tabs.selectedIndex);
          this.create_content(this._content[this.tabs.selectedIndex]);
-         if(this.tabs.selectedIndex == 1)
+         if(this.tabs.selectedIndex == KEYS_TAB)
          {
             this.applyKeys();
          }
@@ -728,7 +732,7 @@ package survarium.menu
          this.create_labels(event.index == -1 ? 0 : this.tabs.selectedIndex);
          this.create_content(this._content[event.index == -1 ? 0 : this.tabs.selectedIndex]);
          _lastIndex = event.index;
-         if(event.index == 1)
+         if(event.index == KEYS_TAB)
          {
             this.applyKeys();
          }

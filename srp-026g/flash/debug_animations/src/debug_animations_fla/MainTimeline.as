@@ -24,6 +24,7 @@ package debug_animations_fla
    import flash.ui.*;
    import flash.utils.*;
    import flash.xml.*;
+   import survarium.constants.TextAlign;
    import survarium.debug.Row;
    
    public dynamic class MainTimeline extends MovieClip
@@ -136,13 +137,13 @@ package debug_animations_fla
             format.font = "tahoma";
             if(props[i].textAlign == undefined)
             {
-               props[i].textAlign = 0;
+               props[i].textAlign = TextAlign.LEFT;
             }
-            if(props[i].textAlign == 0)
+            if(props[i].textAlign == TextAlign.LEFT)
             {
                format.align = "left";
             }
-            else if(props[i].textAlign == 1)
+            else if(props[i].textAlign == TextAlign.CENTER)
             {
                format.align = "center";
             }
@@ -225,7 +226,7 @@ package debug_animations_fla
          stage.scaleMode = StageScaleMode.NO_SCALE;
          dataP = [{
             "width":80,
-            "textAlign":1
+            "textAlign":TextAlign.CENTER
          },{"width":100},{"width":50},{"width":20},{"width":20},{"width":100},{"width":100},{"width":40},{"width":25},{"width":80}];
          _ofsetX = 2;
          _ofsetY = 2;
@@ -241,7 +242,7 @@ package debug_animations_fla
          this.setProps(this.dataP);
          dataP = [{
             "width":20,
-            "textAlign":1
+            "textAlign":TextAlign.CENTER
          },{"width":40},{"width":40},{"width":20},{"width":20},{"width":100},{"width":100},{"width":40},{"width":25},{"width":80}];
          this.setProps(this.dataP);
          stage.scaleMode = "noScale";

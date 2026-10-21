@@ -9,6 +9,8 @@ package survarium.controls
    import scaleform.clik.data.ListData;
    import scaleform.clik.interfaces.IListItemRenderer;
    import survarium.constants.Colors;
+   import survarium.constants.SquadState;
+   import survarium.constants.TeamSide;
    
    public class PlayerListRenderer extends Button implements IListItemRenderer
    {
@@ -125,11 +127,11 @@ package survarium.controls
             }
             if(this.squad_icon)
             {
-               if(_data.squad_state == 1 || _data.squad_state == 2)
+               if(_data.squad_state == SquadState.IN_SQUAD || _data.squad_state == SquadState.STATE_2)
                {
                   this.squad_icon.visible = true;
                   this.squad_icon.gotoAndStop(_data.squad_id);
-                  if(_data.team != 1)
+                  if(_data.team != TeamSide.ALLY)
                   {
                      this.ui_name.textColor = 16777215;
                      colorTransform = new ColorTransform();

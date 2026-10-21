@@ -35,6 +35,7 @@ package replay_player_fla
    import scaleform.clik.layout.Layout;
    import scaleform.clik.layout.LayoutData;
    import scaleform.gfx.Extensions;
+   import survarium.constants.TeamSide;
    
    public dynamic class MainTimeline extends MovieClip
    {
@@ -601,7 +602,7 @@ package replay_player_fla
             this.temp_players.push({
                "id":this.i,
                "name":"Player" + this.i,
-               "team":(this.i < 4 ? 1 : 2)
+               "team":(this.i < 4 ? TeamSide.ALLY : TeamSide.ENEMY)
             });
          }
          temp_options = [];

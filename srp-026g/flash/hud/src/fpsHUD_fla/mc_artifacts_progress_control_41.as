@@ -24,6 +24,7 @@ package fpsHUD_fla
    import flash.ui.*;
    import flash.utils.*;
    import flash.xml.*;
+   import survarium.constants.Team;
    
    public dynamic class mc_artifacts_progress_control_41 extends MovieClip
    {
@@ -58,7 +59,7 @@ package fpsHUD_fla
             {
                art = this.slots[i];
             }
-            if(this.team == 0)
+            if(this.team == Team.FIRST)
             {
                if(i < value)
                {

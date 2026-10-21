@@ -8,6 +8,7 @@ package survarium.paperdoll
    import scaleform.clik.managers.DragManager;
    import scaleform.gfx.MouseEventEx;
    import survarium.constants.Events;
+   import survarium.constants.RendererState;
    import survarium.controls.ItemRendererCore;
    import survarium.controls.ListDragSlot;
    import survarium.data.ItemData;
@@ -255,7 +256,7 @@ package survarium.paperdoll
          trace("updateSlotState",this.itemRenderer);
          if(this.itemRenderer)
          {
-            this.itemRenderer.updateState(_selected || _state == "over" ? 0 : 1);
+            this.itemRenderer.updateState(_selected || _state == "over" ? RendererState.ACTIVE : RendererState.NORMAL);
             this.itemRenderer.y = this._rendererY + (_state == "down" ? 1 : 0);
          }
       }
