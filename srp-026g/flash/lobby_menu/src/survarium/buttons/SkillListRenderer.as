@@ -159,7 +159,7 @@ package survarium.buttons
       {
          if((enabled && data && !isInvalid(InvalidationType.DATA)) && !this._locked && !this.lockSpriteRed.visible)
          {
-            if(event.buttonIdx == 0)
+            if(event.buttonIdx == MouseEventEx.LEFT_BUTTON)
             {
                if(!this._complete && this._unlockable)
                {

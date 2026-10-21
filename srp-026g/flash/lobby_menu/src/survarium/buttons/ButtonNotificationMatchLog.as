@@ -7,6 +7,7 @@ package survarium.buttons
    import scaleform.clik.events.ButtonEvent;
    import survarium.constants.Colors;
    import survarium.data.LocalizationData;
+   import survarium.constants.MatchResult;
    
    public class ButtonNotificationMatchLog extends ButtonNotificationLog
    {
@@ -61,8 +62,8 @@ package survarium.buttons
             this.rewardBar.mouseEnabled = this.line.mouseEnabled = false;
             this.rewardBar.mouseChildren = false;
             this.rewardBar.spacing = 5;
-            textField.text = LocalizationData.getName(_data.match_result > 2 ? "victory" : "defeat");
-            textField.textColor = _data.match_result > 2 ? Colors.GREEN : Colors.RED;
+            textField.text = LocalizationData.getName(_data.match_result > MatchResult.DEFEAT_MAX ? "victory" : "defeat");
+            textField.textColor = _data.match_result > MatchResult.DEFEAT_MAX ? Colors.GREEN : Colors.RED;
             this.textFieldLabel.text = "\"" + _data.map_name + "\"";
             this.textFieldTime.text = _data.time;
             this.textFieldResult.text = _data.result;

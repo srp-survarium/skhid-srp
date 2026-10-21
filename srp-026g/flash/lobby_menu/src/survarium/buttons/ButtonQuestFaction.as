@@ -53,9 +53,9 @@ package survarium.buttons
          _autoRepeatEvent = null;
          var eventEx:MouseEventEx = event as MouseEventEx;
          var mouseIndex:uint = eventEx == null ? 0 : eventEx.mouseIdx;
-         var buttonIndex:uint = eventEx == null ? 0 : eventEx.buttonIdx;
+         var buttonIndex:uint = eventEx == null ? MouseEventEx.LEFT_BUTTON : eventEx.buttonIdx;
          var clickEvent:ButtonEvent;
-         if(buttonIndex != 0)
+         if(buttonIndex != MouseEventEx.LEFT_BUTTON)
          {
             return;
          }

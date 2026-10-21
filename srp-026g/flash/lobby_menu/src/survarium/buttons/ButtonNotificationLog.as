@@ -10,6 +10,7 @@ package survarium.buttons
    import scaleform.clik.controls.Button;
    import scaleform.clik.controls.ListItemRenderer;
    import scaleform.clik.events.ButtonEvent;
+   import survarium.constants.ImportantMessageType;
    
    public class ButtonNotificationLog extends ListItemRenderer
    {
@@ -100,7 +101,7 @@ package survarium.buttons
       private function onClicked(event:Event) : void
       {
          trace("onClicked::",event.target);
-         if(_data && _data.type == 2)
+         if(_data && _data.type == ImportantMessageType.REPUTATION_LEVEL)
          {
             if(event.target == this)
             {

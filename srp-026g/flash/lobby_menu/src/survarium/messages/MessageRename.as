@@ -11,6 +11,7 @@ package survarium.messages
    import scaleform.clik.ui.InputDetails;
    import survarium.controls.Message;
    import survarium.controls.SrvTextInput;
+   import survarium.constants.UiSound;
    
    public class MessageRename extends MessageBase
    {
@@ -31,7 +32,7 @@ package survarium.messages
       {
          super();
          addEventListener(InputEvent.INPUT,this.handleInput,false,0,true);
-         ExternalInterface.call("sound_play",13);
+         ExternalInterface.call("sound_play",UiSound.MENU_MESSAGE);
       }
       
       override public function handleInput(event:InputEvent) : void

@@ -14,6 +14,7 @@ package survarium.messages
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
    import survarium.data.LocalizationData;
+   import survarium.constants.MessageId;
    
    public class MessagePremiumProfile extends UIComponent
    {
@@ -128,7 +129,7 @@ package survarium.messages
             label_ok:LocalizationData.getName("btn_add_premium_message"),
             label_cancel:LocalizationData.getName("cancel")
          };
-         Message.showMessage("apply",messageData,true,0,true);
+         Message.showMessage("apply",messageData,true,MessageId.AUTO,true);
       }
       
       protected function goToStore() : void

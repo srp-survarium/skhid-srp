@@ -44,6 +44,9 @@ package survarium.messages
 
       private static const MAX_GOLD:uint = 10000000;
 
+      // The silver of one gold when the exchange rate is not known yet.
+      private static const FALLBACK_RATE:int = 100;
+
       private static const TEXT:Object = {
          "title":["Exchange","Обмін","Обмен","Tausch","Wymiana"],
          "pay":["Pay","Віддаєте","Отдаёте","Sie zahlen","Płacisz"],
@@ -366,7 +369,7 @@ package survarium.messages
 
       private function rate() : uint
       {
-         return PlayerInfo.premiumExchangeRate > 0 ? PlayerInfo.premiumExchangeRate : 100;
+         return PlayerInfo.premiumExchangeRate > 0 ? PlayerInfo.premiumExchangeRate : FALLBACK_RATE;
       }
 
       // Util.getMoneyString groups by threes and leaves a space at the end.

@@ -11,6 +11,7 @@ package survarium.tutorial
    import survarium.controls.Message;
    import survarium.controls.TextInputValidate;
    import survarium.data.LocalizationData;
+   import flash.ui.Keyboard;
    
    public class TutorEnterNickname extends UIComponent
    {
@@ -61,7 +62,7 @@ package survarium.tutorial
          try_enter_name = function(event:KeyboardEvent):void
          {
             event.preventDefault();
-            if(event.keyCode == 13 && btnAccept.enabled)
+            if(event.keyCode == Keyboard.ENTER && btnAccept.enabled)
             {
                nextTutorial(null);
             }

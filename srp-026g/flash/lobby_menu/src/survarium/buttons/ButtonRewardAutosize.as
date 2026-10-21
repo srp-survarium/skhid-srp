@@ -7,6 +7,7 @@ package survarium.buttons
    import survarium.Util;
    import survarium.constants.Reward;
    import survarium.controls.PlayerInfo;
+   import survarium.constants.MoneyType;
    
    public class ButtonRewardAutosize extends Button
    {
@@ -51,7 +52,7 @@ package survarium.buttons
          }
          else if(_data.type == Reward.MONEY)
          {
-            this.icon.gotoAndStop(_data.param == 0 ? 1 : 2);
+            this.icon.gotoAndStop(_data.param == MoneyType.REGULAR ? 1 : 2);
             this.icon.visible = true;
          }
          else if(_data.type == Reward.EXPERIENCE)

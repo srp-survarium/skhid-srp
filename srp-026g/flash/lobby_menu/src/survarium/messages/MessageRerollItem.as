@@ -22,6 +22,8 @@ package survarium.messages
    import survarium.core.Icon;
    import survarium.data.IconContainer;
    import survarium.data.LocalizationData;
+   import survarium.constants.ModificationState;
+   import survarium.constants.MoneyType;
    
    public class MessageRerollItem extends MessageAccept
    {
@@ -131,8 +133,8 @@ package survarium.messages
             this.labelChooseModifier2.text = LocalizationData.getName("choose_modifier");
             this.checkBoxRegularCost.selected = true;
             this.checkBoxPremiumCost.selected = false;
-            this.checkBoxRegularCost.money_type = 0;
-            this.checkBoxPremiumCost.money_type = 1;
+            this.checkBoxRegularCost.money_type = MoneyType.REGULAR;
+            this.checkBoxPremiumCost.money_type = MoneyType.PREMIUM;
             this.checkBoxRegularCost.toggle = false;
             this.checkBoxPremiumCost.toggle = false;
             this.checkBoxRegularCost.addEventListener(ButtonEvent.CLICK,this.unBtnClicked);
@@ -153,7 +155,7 @@ package survarium.messages
                while(i < modifierCount)
                {
                   modifier = modifiers[i];
-                  if(!modifier.isDefault && modifier.state != 1)
+                  if(!modifier.isDefault && modifier.state != ModificationState.DEFECT)
                   {
                      modifierIcon = iconContainer.getIcon(modifier.icon);
                      option = {
@@ -301,11 +303,11 @@ package survarium.messages
                btnAccept.enabled = false;
                return;
             }
-            if(moneyType == 0)
+            if(moneyType == MoneyType.REGULAR)
             {
                btnAccept.enabled = this._rerollCost <= PlayerInfo.genericMoney && !this._rerollTimer;
             }
-            else if(moneyType == 1)
+            else if(moneyType == MoneyType.PREMIUM)
             {
                btnAccept.enabled = true;
             }
@@ -329,11 +331,11 @@ package survarium.messages
          var moneyType:uint;
          if(this.checkBoxRegularCost.selected)
          {
-            moneyType = 0;
+            moneyType = MoneyType.REGULAR;
          }
          else
          {
-            moneyType = 1;
+            moneyType = MoneyType.PREMIUM;
          }
          return moneyType;
       }
@@ -425,7 +427,7 @@ package survarium.messages
             moneyType = this.getSelectedIndex();
             modifierIndex = selectedModifier;
             trace("reroll_item_modifier",uint(moneyType));
-            if(moneyType == 1 && this._rerollCostGold > PlayerInfo.premiumMoney)
+            if(moneyType == MoneyType.PREMIUM && this._rerollCostGold > PlayerInfo.premiumMoney)
             {
                this.onNoMoneyEnought();
             }

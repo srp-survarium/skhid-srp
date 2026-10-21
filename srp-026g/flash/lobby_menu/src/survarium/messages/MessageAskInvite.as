@@ -8,6 +8,7 @@ package survarium.messages
    import scaleform.clik.controls.Button;
    import scaleform.clik.events.ButtonEvent;
    import survarium.data.LocalizationData;
+   import survarium.constants.ImportantMessageAnswer;
    
    public class MessageAskInvite extends MessageAccept
    {
@@ -70,15 +71,15 @@ package survarium.messages
       
       override protected function onMessageCancel(event:ButtonEvent = null) : void
       {
-         trace("important_message_read",this.messageId,uint(1),this.messageType);
-         ExternalInterface.call("important_message_read",this.messageId,uint(1),this.messageType);
+         trace("important_message_read",this.messageId,uint(ImportantMessageAnswer.DECLINE),this.messageType);
+         ExternalInterface.call("important_message_read",this.messageId,uint(ImportantMessageAnswer.DECLINE),this.messageType);
          super.onMessageCancel();
       }
       
       override protected function onMessageAccept(event:ButtonEvent = null) : void
       {
-         trace("important_message_read",this.messageId,uint(0),this.messageType);
-         ExternalInterface.call("important_message_read",this.messageId,uint(0),this.messageType);
+         trace("important_message_read",this.messageId,uint(ImportantMessageAnswer.ACCEPT),this.messageType);
+         ExternalInterface.call("important_message_read",this.messageId,uint(ImportantMessageAnswer.ACCEPT),this.messageType);
          super.onMessageAccept();
       }
    }

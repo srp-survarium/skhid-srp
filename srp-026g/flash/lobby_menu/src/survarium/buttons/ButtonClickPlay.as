@@ -9,6 +9,7 @@ package survarium.buttons
    import scaleform.gfx.MouseEventEx;
    import survarium.constants.Events;
    import survarium.interfaces.ISubSystem;
+   import survarium.constants.UiSound;
    
    public class ButtonClickPlay extends Button implements ISubSystem
    {
@@ -106,7 +107,7 @@ package survarium.buttons
       override protected function handleMouseRelease(event:MouseEvent) : void
       {
          super.handleMouseRelease(event);
-         ExternalInterface.call("sound_play",3);
+         ExternalInterface.call("sound_play",UiSound.PLAY_CLICK_OUT);
       }
       
       override protected function setState(state:String) : void
@@ -117,7 +118,7 @@ package survarium.buttons
          }
          if(state == "down")
          {
-            ExternalInterface.call("sound_play",2);
+            ExternalInterface.call("sound_play",UiSound.PLAY_CLICK_IN);
          }
          var prefixes:Vector.<String> = getStatePrefixes();
          var states:Array = _stateMap[state];
@@ -184,7 +185,7 @@ package survarium.buttons
       
       override protected function handleMouseRollOver(event:MouseEvent) : void
       {
-         ExternalInterface.call("sound_play",1);
+         ExternalInterface.call("sound_play",UiSound.HOVER);
          var eventEx:MouseEventEx = event as MouseEventEx;
          var mouseIndex:uint = eventEx == null ? 0 : eventEx.mouseIdx;
          _mouseOver = true;

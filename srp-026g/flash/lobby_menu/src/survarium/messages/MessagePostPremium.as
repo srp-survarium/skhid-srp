@@ -15,9 +15,13 @@ package survarium.messages
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
    import survarium.data.LocalizationData;
+   import survarium.constants.MessageId;
    
    public class MessagePostPremium extends MessageAccept
    {
+      
+      // meaning unknown: the premium option the drop-down list starts on
+      private static const DEFAULT_OPTION:int = 3;
       
       public static var discount:Number = 1;
       
@@ -118,7 +122,7 @@ package survarium.messages
                this.list.dataProvider = new DataProvider(options);
                this.list.selectedIndex = selectedOption;
             }
-            selectedOption = 3;
+            selectedOption = DEFAULT_OPTION;
             btnAccept.enabled = true;
          }
          if(this.dropDownlist)
@@ -195,7 +199,7 @@ package survarium.messages
             label_ok:LocalizationData.getName("btn_add_premium_message"),
             label_cancel:LocalizationData.getName("cancel")
          };
-         Message.showMessage("apply",messageData,true,0,true);
+         Message.showMessage("apply",messageData,true,MessageId.AUTO,true);
       }
       
       protected function goToStore() : void

@@ -19,6 +19,10 @@ package survarium.messages
    import survarium.data.ItemData;
    import survarium.data.LocalizationData;
    import survarium.item.ItemFactory;
+   import survarium.constants.CraftResult;
+   import survarium.constants.ItemRank;
+   import survarium.constants.MatchMakingState;
+   import survarium.constants.MoneyType;
    
    public class MessageCraftItem extends MessageAccept
    {
@@ -134,7 +138,7 @@ package survarium.messages
          {
             return;
          }
-         if(this._matchState == 1 && !this.dragItemSlot3.visible)
+         if(this._matchState == MatchMakingState.SEARCHING && !this.dragItemSlot3.visible)
          {
             removedEquipped = false;
             slotItem = this.dragItemSlot1.data;
@@ -207,8 +211,8 @@ package survarium.messages
             this.checkBoxPremiumCost.addEventListener(ButtonEvent.CLICK,this.unBtnClicked);
             this.checkBoxRegularCost.selected = true;
             this.checkBoxPremiumCost.selected = false;
-            this.checkBoxRegularCost.money_type = 0;
-            this.checkBoxPremiumCost.money_type = 1;
+            this.checkBoxRegularCost.money_type = MoneyType.REGULAR;
+            this.checkBoxPremiumCost.money_type = MoneyType.PREMIUM;
             this.checkBoxRegularCost.toggle = false;
             this.checkBoxRegularCost.value = _regularCost;
             this.checkBoxPremiumCost.value = _pemiumCost;
@@ -246,7 +250,7 @@ package survarium.messages
          {
             droppedItem = event.target.data;
             trace("dropData::",droppedItem.name,droppedItem.equipped);
-            if(droppedItem.equipped && this._matchState == 1)
+            if(droppedItem.equipped && this._matchState == MatchMakingState.SEARCHING)
             {
                Message.showMessage("ok",LocalizationData.getName("craft_message_equipped_item"));
                event.target.data = null;
@@ -256,7 +260,7 @@ package survarium.messages
                Message.showMessage("ok",LocalizationData.getName("craft_message_broken_item"));
                event.target.data = null;
             }
-            else if(droppedItem.rank >= 3)
+            else if(droppedItem.rank >= ItemRank.MAX)
             {
                Message.showMessage("ok",LocalizationData.getName("craft_message_modifers_count"));
                event.target.data = null;
@@ -380,7 +384,7 @@ package survarium.messages
             {
                canCraft = false;
             }
-            else if(mainItem.rank == 3 || donorItem.rank == 3)
+            else if(mainItem.rank == ItemRank.MAX || donorItem.rank == ItemRank.MAX)
             {
                canCraft = false;
             }
@@ -408,15 +412,15 @@ package survarium.messages
          this.dragItemSlot3.data = craftedItem;
          this.dragItemSlot3.visible = true;
          this.dragItemSlot1.visible = this.dragItemSlot2.visible = false;
-         if(result == 0)
+         if(result == CraftResult.NOTHING)
          {
             this.labelNewModifier.text = "";
          }
          else
          {
-            this.labelNewModifier.text = result == 1 ? LocalizationData.getName("new_modifier") : LocalizationData.getName("lost_modifier");
+            this.labelNewModifier.text = result == CraftResult.ADDED ? LocalizationData.getName("new_modifier") : LocalizationData.getName("lost_modifier");
          }
-         this.labelNewModifier.textColor = result == 1 ? Colors.SOFT_GRAY : Colors.RED;
+         this.labelNewModifier.textColor = result == CraftResult.ADDED ? Colors.SOFT_GRAY : Colors.RED;
          this.newModiferRenderer.data = newModifier;
          this.newModiferRenderer.visible = newModifier != null;
          this.labelNewModifier.visible = true;
@@ -434,7 +438,7 @@ package survarium.messages
          btnCancel.visible = false;
          btnAccept.x = (width - btnAccept.width) / 2;
          btnAccept.label = LocalizationData.getName("btn_craft_accept");
-         if(result == 0)
+         if(result == CraftResult.NOTHING)
          {
             this.rerollContainer.background.height = 55;
             this.labelNewModifier.visible = false;
@@ -445,13 +449,13 @@ package survarium.messages
          else
          {
             this.rerollContainer.background.height = 51;
-            this.decriptionLabel.text = result == 1 ? LocalizationData.getName("craft_result_success_label") : LocalizationData.getName("craft_result_fail_label");
+            this.decriptionLabel.text = result == CraftResult.ADDED ? LocalizationData.getName("craft_result_success_label") : LocalizationData.getName("craft_result_fail_label");
             this.background.height = 341;
             this.updateLayout();
          }
-         this.decriptionLabel.textColor = result == 1 ? Colors.GOLD : Colors.SOFT_GRAY;
+         this.decriptionLabel.textColor = result == CraftResult.ADDED ? Colors.GOLD : Colors.SOFT_GRAY;
          this.lockWindow(false);
-         if(result == -2)
+         if(result == CraftResult.FAILED)
          {
             Message.showMessage("ok",LocalizationData.getName("cannot_craft_item"));
             dispatchEvent(new Event("closeCraft"));
@@ -531,8 +535,8 @@ package survarium.messages
          trace("onMessageAccept",this.dragItemSlot1.data,this.dragItemSlot2.data);
          if(this.dragItemSlot1.data && this.dragItemSlot2.data && !this.dragItemSlot3.visible)
          {
-            moneyType = uint(this.checkBoxPremiumCost.selected ? 1 : 0);
-            if(moneyType == 1 && _pemiumCost > PlayerInfo.premiumMoney)
+            moneyType = uint(this.checkBoxPremiumCost.selected ? MoneyType.PREMIUM : MoneyType.REGULAR);
+            if(moneyType == MoneyType.PREMIUM && _pemiumCost > PlayerInfo.premiumMoney)
             {
                this.onNoMoneyEnought();
             }
@@ -552,7 +556,7 @@ package survarium.messages
             dict_id:this.dragItemSlot1.data.dictId,
             new_modifier:null,
             rarity_level:1,
-            result:-2
+            result:CraftResult.FAILED
          });
       }
       
@@ -589,7 +593,7 @@ package survarium.messages
          // modifications, or that cannot be crafted, ends here as Exit.
          var item:ItemData = list.getInventoryItem(main.itemId);
          // As the game's own Upgrade entry: owned and enabled.
-         if(item == null || !item.enabled || item.rank >= 3 || !ItemFactory.isItemCraftable(item))
+         if(item == null || !item.enabled || item.rank >= ItemRank.MAX || !ItemFactory.isItemCraftable(item))
          {
             return;
          }

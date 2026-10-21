@@ -4,9 +4,16 @@ package survarium.buttons
    import flash.text.TextField;
    import scaleform.clik.constants.InvalidationType;
    import survarium.controls.UnfocusedCheckBox;
+   import survarium.constants.MoneyType;
    
    public class CheckBoxValue extends UnfocusedCheckBox
    {
+      
+      // money_type values beyond MoneyType.REGULAR and PREMIUM: the value icon's frame (money_type + 1) for a
+      // rename voucher (MessageEnterName) and a repair voucher (MessageRepair).
+      public static const RENAME_VOUCHER_ICON:int = 9;
+      
+      public static const REPAIR_VOUCHER_ICON:int = 10;
       
       public var textFieldValue:TextField;
       
@@ -67,7 +74,7 @@ package survarium.buttons
          }
          if(this.textFieldValue && this.icon)
          {
-            this.textFieldValue.x = this.icon.x + this.icon.width + 5 - (this._money_type != 0 ? (this._money_type == 1 ? 18 : 10) : 0);
+            this.textFieldValue.x = this.icon.x + this.icon.width + 5 - (this._money_type != MoneyType.REGULAR ? (this._money_type == MoneyType.PREMIUM ? 18 : 10) : 0);
          }
       }
       

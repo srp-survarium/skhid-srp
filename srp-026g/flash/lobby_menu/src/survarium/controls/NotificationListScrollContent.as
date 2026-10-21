@@ -22,6 +22,13 @@ package survarium.controls
    import scaleform.clik.layout.LayoutData;
    import survarium.Util;
    import survarium.data.LocalizationData;
+   import survarium.constants.Faction;
+   import survarium.constants.ImportantMessageType;
+   import survarium.constants.Language;
+   import survarium.constants.MoneyType;
+   import survarium.constants.NotificationType;
+   import survarium.constants.QuestStatus;
+   import survarium.constants.Reward;
    
    public class NotificationListScrollContent extends MovieClip
    {
@@ -39,6 +46,61 @@ package survarium.controls
       public static const REPLAY_PREPARE_MS:int = 180000;
       
       public static const REPLAY_DEMO_PREPARE_MS:int = 30000;
+      
+      // srp's replay prompt: its state (_rpState).
+      private static const RP_IDLE:int = 0;
+      
+      // asking the match server, polling
+      private static const RP_ASKING:int = 1;
+      
+      // the replay is ready to download
+      private static const RP_READY:int = 2;
+      
+      // a final message is shown: nothing to fetch
+      private static const RP_ENDED:int = 3;
+      
+      // the download was started
+      private static const RP_STARTED:int = 4;
+      
+      // The prompt's texts: an index into rpWords (rpText, rpFill, rpShow); RP_KEY_NONE is no text shown.
+      private static const RP_KEY_NONE:int = -1;
+      
+      private static const RP_KEY_TITLE:int = 0;
+      
+      private static const RP_KEY_DOWNLOAD:int = 1;
+      
+      private static const RP_KEY_CLOSE:int = 2;
+      
+      private static const RP_KEY_ASKING:int = 3;
+      
+      private static const RP_KEY_BEING_MADE:int = 4;
+      
+      private static const RP_KEY_READY_SIZE:int = 5;
+      
+      private static const RP_KEY_READY:int = 6;
+      
+      // the first of the final answers (rpFinalKey): not_recorded, gone, not_yours, old_game, incompatible, busy, failed, off
+      private static const RP_KEY_FIRST_FINAL:int = 7;
+      
+      private static const RP_KEY_NO_ANSWER:int = 15;
+      
+      private static const RP_KEY_STARTING:int = 16;
+      
+      private static const RP_KEY_MB:int = 17;
+      
+      private static const RP_KEY_PLACE_IN_LINE:int = 18;
+      
+      private static const RP_KEY_MADE_NOW:int = 19;
+      
+      private static const RP_KEY_WAITING:int = 20;
+      
+      private static const RP_KEY_STILL_PREPARING:int = 21;
+      
+      // The highest place in the replay server's line the prompt shows.
+      private static const RP_PLACE_MAX:int = 999;
+      
+      // meaning unknown: onShowQuestMessage shows the quest message only for a notification of this type
+      private static const QUEST_MESSAGE_TYPE:int = 3;
       
       public static var replayHolder:NotificationListScrollContent;
       
@@ -180,7 +242,7 @@ package survarium.controls
       {
          var notificationType:int = (notification.notificationType);
          var renderer:MovieClip;
-         if(notificationType == 3)
+         if(notificationType == NotificationType.MATCH)
          {
             renderer = new this._rendererTypes[notificationType]();
             renderer.addEventListener("showMessage",this.onMatchtMessage,false,0,true);
@@ -212,7 +274,7 @@ package survarium.controls
       private function onRelatedMessage(e:Event) : void
       {
          trace("onRelatedMessage::",e.target,e.currentTarget);
-         if(e.target.data && e.target.data.type == 2)
+         if(e.target.data && e.target.data.type == ImportantMessageType.REPUTATION_LEVEL)
          {
             Message.showMessage("message_unlock_rank",e.target.data,false);
          }
@@ -234,7 +296,7 @@ package survarium.controls
       private function onShowQuestMessage(e:Event) : void
       {
          trace("onShowQuestMessage::",e.target,e.currentTarget);
-         if(e.target.data && e.target.data.type == 3)
+         if(e.target.data && e.target.data.type == QUEST_MESSAGE_TYPE)
          {
             Message.showMessage("quest_message",e.target.data);
          }
@@ -265,7 +327,7 @@ package survarium.controls
          var i:int = 0;
          var child:DisplayObject = null;
          this._rpRows = new Dictionary(true);
-         this._rpState = 0;
+         this._rpState = RP_IDLE;
          this._rpMatch = 0;
          this._rpPolls = 0;
          this._rpStatus = "";
@@ -275,7 +337,7 @@ package survarium.controls
          this._rpPrepSeen = false;
          this._rpAskAt = 0;
          this._rpShownText = "";
-         this._rpShownKey = -1;
+         this._rpShownKey = RP_KEY_NONE;
          this._rpDemoStep = 0;
          this._rpDemoAdded = false;
          this._scrollContent.width = 310 + NotificationListScrollContent.HISTORY_EXTRA;
@@ -326,7 +388,7 @@ package survarium.controls
       
       public function historyRegistered(type:int) : void
       {
-         if(NotificationListScrollContent.REPLAY_DEMO && type == 3)
+         if(NotificationListScrollContent.REPLAY_DEMO && type == NotificationType.MATCH)
          {
             addEventListener(Event.ENTER_FRAME,this.onRpDemoFrame,false,0,true);
          }
@@ -450,7 +512,7 @@ package survarium.controls
          var frame:int = 1;
          try
          {
-            if(data && int(data.notificationType) == 1 && data.icon == undefined)
+            if(data && int(data.notificationType) == NotificationType.QUEST && data.icon == undefined)
             {
                if(data.quest_icon != undefined)
                {
@@ -726,7 +788,7 @@ package survarium.controls
          {
             data = row.data;
             this.historyRowParts(row,rec);
-            if(!data || int(data.notificationType) != 3)
+            if(!data || int(data.notificationType) != NotificationType.MATCH)
             {
                return;
             }
@@ -790,7 +852,7 @@ package survarium.controls
       {
          var buttonClass:Class = getDefinitionByName("SvButton2SmallFr") as Class;
          var button:Button = new buttonClass() as Button;
-         var label:String = this.rpText(0);
+         var label:String = this.rpText(RP_KEY_TITLE);
          var width:int = int(label.length * 7.3 + 18);
          var right:Number = 286 + NotificationListScrollContent.HISTORY_EXTRA;
          var map:TextField = null;
@@ -866,13 +928,13 @@ package survarium.controls
          var word:String = LocalizationData.getName("btn_friends");
          if(word == "Друзі")
          {
-            return 1;
+            return Language.UK;
          }
          if(word == "Друзья")
          {
-            return 2;
+            return Language.RU;
          }
-         return 0;
+         return Language.EN;
       }
       
       protected function rpWords() : Array
@@ -939,11 +1001,11 @@ package survarium.controls
          {
             if(finals[i] == status)
             {
-               return 7 + i;
+               return RP_KEY_FIRST_FINAL + i;
             }
             i++;
          }
-         return -1;
+         return RP_KEY_NONE;
       }
       
       protected function rpHex(value:uint) : String
@@ -969,13 +1031,13 @@ package survarium.controls
          {
             tenths = 1;
          }
-         text = String(Math.floor(tenths / 10)) + (this.rpLang() != 0 ? "," : ".") + String(tenths % 10);
-         return text + " " + this.rpText(17);
+         text = String(Math.floor(tenths / 10)) + (this.rpLang() != Language.EN ? "," : ".") + String(tenths % 10);
+         return text + " " + this.rpText(RP_KEY_MB);
       }
       
       public function replayBegin(id:uint) : void
       {
-         if(this._rpState == 1)
+         if(this._rpState == RP_ASKING)
          {
             return;
          }
@@ -992,8 +1054,8 @@ package survarium.controls
          this._rpPlace = 0;
          this._rpPrepSeen = false;
          this._rpAskAt = getTimer();
-         this._rpState = 1;
-         this.rpShow(3,false);
+         this._rpState = RP_ASKING;
+         this.rpShow(RP_KEY_ASKING,false);
          if(!NotificationListScrollContent.REPLAY_DEMO)
          {
             try
@@ -1034,7 +1096,7 @@ package survarium.controls
       protected function onRpTimer(e:TimerEvent) : void
       {
          var waited:int = 0;
-         if(this._rpState != 1)
+         if(this._rpState != RP_ASKING)
          {
             this.rpStop();
             return;
@@ -1046,8 +1108,8 @@ package survarium.controls
             if(waited >= this.rpPrepareLimit())
             {
                this.rpStop();
-               this._rpState = 3;
-               this.rpShow(21,false);
+               this._rpState = RP_ENDED;
+               this.rpShow(RP_KEY_STILL_PREPARING,false);
                return;
             }
             this.rpShowPreparing();
@@ -1055,8 +1117,8 @@ package survarium.controls
          else if(this._rpPolls > NotificationListScrollContent.REPLAY_POLLS)
          {
             this.rpStop();
-            this._rpState = 3;
-            this.rpShow(15,false);
+            this._rpState = RP_ENDED;
+            this.rpShow(RP_KEY_NO_ANSWER,false);
             return;
          }
          if(NotificationListScrollContent.REPLAY_DEMO)
@@ -1079,8 +1141,8 @@ package survarium.controls
          var status:String = fields.length > 1 ? String(fields[1]) : "";
          var hex:String = fields.length > 2 ? String(fields[2]).toLowerCase() : "";
          var size:Number = fields.length > 3 ? Number(fields[3]) : 0;
-         var key:int = -1;
-         if(this._rpState != 1)
+         var key:int = RP_KEY_NONE;
+         if(this._rpState != RP_ASKING)
          {
             return;
          }
@@ -1097,7 +1159,7 @@ package survarium.controls
          if(status == "preparing")
          {
             this._rpPrepSeen = true;
-            this._rpPlace = int(Math.min(size,999));
+            this._rpPlace = int(Math.min(size,RP_PLACE_MAX));
             this.rpShowPreparing();
             return;
          }
@@ -1105,15 +1167,15 @@ package survarium.controls
          if(status == "ready")
          {
             this.rpStop();
-            this._rpState = 2;
-            this.rpShow(this._rpSize > 0 ? 5 : 6,true);
+            this._rpState = RP_READY;
+            this.rpShow(this._rpSize > 0 ? RP_KEY_READY_SIZE : RP_KEY_READY,true);
             return;
          }
          key = this.rpFinalKey(status);
          if(key >= 0)
          {
             this.rpStop();
-            this._rpState = 3;
+            this._rpState = RP_ENDED;
             this.rpShow(key,false);
             return;
          }
@@ -1138,17 +1200,17 @@ package survarium.controls
          }
          if(this._rpPlace > 1)
          {
-            line = this.rpFill(18,[String(this._rpPlace),String(seconds)]);
+            line = this.rpFill(RP_KEY_PLACE_IN_LINE,[String(this._rpPlace),String(seconds)]);
          }
          else if(this._rpPlace == 1)
          {
-            line = this.rpFill(19,[String(seconds)]);
+            line = this.rpFill(RP_KEY_MADE_NOW,[String(seconds)]);
          }
          else
          {
-            line = this.rpFill(20,[String(seconds)]);
+            line = this.rpFill(RP_KEY_WAITING,[String(seconds)]);
          }
-         return this.rpFill(4,[line]);
+         return this.rpFill(RP_KEY_BEING_MADE,[line]);
       }
       
       protected function rpShowPreparing() : void
@@ -1156,9 +1218,9 @@ package survarium.controls
          var text:String = this.rpPreparingText();
          var message:Object = this._rpDialog;
          var high:Number = 0;
-         if(this._rpShownKey != 4 || !message || !message.textField)
+         if(this._rpShownKey != RP_KEY_BEING_MADE || !message || !message.textField)
          {
-            this.rpShow(4,false);
+            this.rpShow(RP_KEY_BEING_MADE,false);
             return;
          }
          if(text == this._rpShownText)
@@ -1172,12 +1234,12 @@ package survarium.controls
             this._rpShownText = text;
             if(message.textField.textHeight != high)
             {
-               this.rpShow(4,false);
+               this.rpShow(RP_KEY_BEING_MADE,false);
             }
          }
          catch(e:Error)
          {
-            this.rpShow(4,false);
+            this.rpShow(RP_KEY_BEING_MADE,false);
          }
       }
       
@@ -1187,11 +1249,11 @@ package survarium.controls
          var data:Object = null;
          var message:Object = null;
          var format:TextFormat = null;
-         if(key == 5)
+         if(key == RP_KEY_READY_SIZE)
          {
-            text = this.rpFill(5,[this.rpSizeText(this._rpSize)]);
+            text = this.rpFill(RP_KEY_READY_SIZE,[this.rpSizeText(this._rpSize)]);
          }
-         if(key == 4)
+         if(key == RP_KEY_BEING_MADE)
          {
             text = this.rpPreparingText();
          }
@@ -1199,8 +1261,8 @@ package survarium.controls
          this._rpShownText = text;
          data = {
             "text":text,
-            "label_ok":(download ? this.rpText(1) : null),
-            "label_cancel":this.rpText(2),
+            "label_ok":(download ? this.rpText(RP_KEY_DOWNLOAD) : null),
+            "label_cancel":this.rpText(RP_KEY_CLOSE),
             "onYes":this.onRpYes,
             "onNo":this.onRpNo
          };
@@ -1242,7 +1304,7 @@ package survarium.controls
          }
          this._rpDialog = null;
          this._rpDialogData = null;
-         this._rpShownKey = -1;
+         this._rpShownKey = RP_KEY_NONE;
          if(message)
          {
             try
@@ -1258,25 +1320,25 @@ package survarium.controls
       protected function onRpNo() : void
       {
          this.rpStop();
-         this._rpState = 0;
+         this._rpState = RP_IDLE;
          this._rpDialog = null;
          this._rpDialogData = null;
-         this._rpShownKey = -1;
+         this._rpShownKey = RP_KEY_NONE;
       }
       
       protected function onRpYes(data:Object = null) : void
       {
-         var ready:Boolean = this._rpState == 2 && this._rpStatus == "ready" && this._rpHex == this.rpHex(this._rpMatch);
+         var ready:Boolean = this._rpState == RP_READY && this._rpStatus == "ready" && this._rpHex == this.rpHex(this._rpMatch);
          this.rpStop();
          this._rpDialog = null;
          this._rpDialogData = null;
-         this._rpShownKey = -1;
+         this._rpShownKey = RP_KEY_NONE;
          if(!ready)
          {
-            this._rpState = 0;
+            this._rpState = RP_IDLE;
             return;
          }
-         this._rpState = 4;
+         this._rpState = RP_STARTED;
          if(!NotificationListScrollContent.REPLAY_DEMO)
          {
             try
@@ -1287,7 +1349,7 @@ package survarium.controls
             {
             }
          }
-         this.rpShow(16,false);
+         this.rpShow(RP_KEY_STARTING,false);
       }
       
       protected function rpDemoAnswer(poll:int) : void
@@ -1383,59 +1445,59 @@ package survarium.controls
       {
          var lang:int = this.rpLang();
          var quest:String = ["Victory contribution","Внесок у перемогу","Вклад в победу"][lang];
-         var seller:String = GangShop.getSellerName(1);
+         var seller:String = GangShop.getSellerName(Faction.SCAVENGERS);
          var rankText:Array = [": rank 3 reached. New items are available in the shop.",": досягнуто ранг 3. У крамниці з\'явилися нові предмети.",": достигнут ранг 3. В магазине появились новые предметы."];
          if(!seller || seller == "noSuchSeller")
          {
             seller = ["Scavengers","Бродяги","Бродяги"][lang];
          }
          return [{
-            "notificationType":1,
+            "notificationType":NotificationType.QUEST,
             "srpDemo":true,
             "hideTimer":15000,
-            "status":2,
-            "faction_id":1,
+            "status":QuestStatus.COMPLETED,
+            "faction_id":Faction.SCAVENGERS,
             "quest_icon":1,
             "quest_label":quest,
             "label":Util.styledChar(LocalizationData.getName("quest_status_2"),"gold") + Util.styledChar("\n«" + quest + "»","gray_highlight"),
             "reward":[{
-               "type":0,
+               "type":Reward.EXPERIENCE,
                "amount":1500
             },{
-               "type":1,
+               "type":Reward.REPUTATION,
                "amount":150,
-               "param":1
+               "param":Faction.SCAVENGERS
             },{
-               "type":2,
+               "type":Reward.MONEY,
                "amount":3000,
-               "param":0
+               "param":MoneyType.REGULAR
             }]
          },{
-            "notificationType":9,
+            "notificationType":NotificationType.PLAYER_RANK,
             "srpDemo":true,
-            "type":8,
+            "type":ImportantMessageType.SKILL_POINT_REWARD,
             "hideTimer":15000,
             "skill_level":12,
-            "reward_id":0,
+            "reward_id":MoneyType.REGULAR,
             "reward_amount":5000,
             "label":Util.styledChar(LocalizationData.getName("level") + " " + "12" + " ","highlight") + LocalizationData.getName("achieved"),
             "reward":[{
-               "type":2,
+               "type":Reward.MONEY,
                "amount":5000,
-               "param":0
+               "param":MoneyType.REGULAR
             },{
-               "type":5,
+               "type":Reward.POINT,
                "amount":1
             }]
          },{
-            "notificationType":8,
+            "notificationType":NotificationType.FACTION_RANK,
             "srpDemo":true,
             "hideTimer":15000,
-            "faction_id":1,
+            "faction_id":Faction.SCAVENGERS,
             "level":3,
             "label":"«" + seller + "»" + rankText[lang]
          },{
-            "notificationType":0,
+            "notificationType":NotificationType.PLAIN,
             "srpDemo":true,
             "hideTimer":15000,
             "label":LocalizationData.getName("premium_post_reward_label")
@@ -1460,7 +1522,7 @@ package survarium.controls
          {
          }
          rows = [{
-            "notificationType":3,
+            "notificationType":NotificationType.MATCH,
             "srpDemo":true,
             "hideTimer":5000,
             "match_id":484727998,
@@ -1469,22 +1531,22 @@ package survarium.controls
             "result":"38:41",
             "match_result":3,
             "reward":[{
-               "type":4,
+               "type":Reward.RATING,
                "amount":12
             },{
-               "type":0,
+               "type":Reward.EXPERIENCE,
                "amount":6500
             },{
-               "type":1,
+               "type":Reward.REPUTATION,
                "amount":50,
-               "param":1
+               "param":Faction.SCAVENGERS
             },{
-               "type":2,
+               "type":Reward.MONEY,
                "amount":1250,
-               "param":0
+               "param":MoneyType.REGULAR
             }]
          },{
-            "notificationType":3,
+            "notificationType":NotificationType.MATCH,
             "srpDemo":true,
             "hideTimer":5000,
             "match_id":1777910972,
@@ -1494,7 +1556,7 @@ package survarium.controls
             "match_result":1,
             "reward":null
          },{
-            "notificationType":3,
+            "notificationType":NotificationType.MATCH,
             "srpDemo":true,
             "hideTimer":5000,
             "match_id":0,

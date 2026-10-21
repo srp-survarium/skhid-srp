@@ -4,6 +4,7 @@ package survarium.buttons
    import flash.display.MovieClip;
    import flash.text.TextField;
    import scaleform.clik.controls.ListItemRenderer;
+   import survarium.constants.ImportantMessageType;
    
    public class ButtonNotification extends ListItemRenderer
    {
@@ -54,7 +55,7 @@ package survarium.buttons
             this.emptyBack.width = textWidth + this.borderOffset;
             if(!_data.created)
             {
-               this.iconType.gotoAndStop(_data.type == 1 ? 1 : 2);
+               this.iconType.gotoAndStop(_data.type == ImportantMessageType.SQUAD_INVITE ? 1 : 2);
                this.icon.gotoAndPlay(2);
                this.textFieldNotification.width = 1;
                _data.created = true;

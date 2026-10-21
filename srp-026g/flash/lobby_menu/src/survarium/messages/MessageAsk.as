@@ -15,9 +15,15 @@ package survarium.messages
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
    import survarium.data.LocalizationData;
+   import survarium.constants.ItemPlace;
+   import survarium.constants.MoneyType;
+   import survarium.constants.QuickSlotSize;
    
    public class MessageAsk extends MessageAccept
    {
+      
+      // The most steps the count slider offers.
+      private static const MAX_STEPS:int = 100;
       
       protected var _money_type:Boolean = false;
       
@@ -261,7 +267,7 @@ package survarium.messages
             {
                btnAccept.enabled = PlayerInfo.genericMoney >= ammount && sliderpos != 0;
             }
-            else if(this._money_type == 1)
+            else if(this._money_type == MoneyType.PREMIUM)
             {
                if(PlayerInfo.premiumMoney < this._price)
                {
@@ -300,34 +306,34 @@ package survarium.messages
          }
          if(_data.price != undefined && _data.sell == undefined)
          {
-            _maxTot = this._price < 1 ? Math.min(Math.max(0,int(int(InventoryList.MAX_FREE_ITEMS_COUNT - _data.currentCount) / this._step) * this._step),100 * this._step) : int(int(_money_tot / this._price)) * this._step;
+            _maxTot = this._price < 1 ? Math.min(Math.max(0,int(int(InventoryList.MAX_FREE_ITEMS_COUNT - _data.currentCount) / this._step) * this._step),MAX_STEPS * this._step) : int(int(_money_tot / this._price)) * this._step;
          }
          else
          {
             _maxTot = Math.ceil(_data.count / this._step) * this._step;
          }
          trace("race1::",this._price,_data.price,_maxTot,_data.count,this._step,_data.sell,PlayerInfo.pocketSize,_data.quick_slot_item_size,_money_tot);
-         var fullPocket:Boolean = _data.quick_slot_item_size == 2;
-         if(_data.targetSlot && _data.targetSlot != 100)
+         var fullPocket:Boolean = _data.quick_slot_item_size == QuickSlotSize.WHOLE;
+         if(_data.targetSlot && _data.targetSlot != ItemPlace.INVENTORY)
          {
-            if(_data.targetSlot < 100)
+            if(_data.targetSlot < ItemPlace.INVENTORY)
             {
-               _maxpos = Math.min(100 * this._step,_maxTot,fullPocket ? 1 : int(PlayerInfo.pocketSize));
+               _maxpos = Math.min(MAX_STEPS * this._step,_maxTot,fullPocket ? 1 : int(PlayerInfo.pocketSize));
             }
             else if(!_data.originData)
             {
-               _maxpos = Math.min(100 * this._step,_maxTot,int((PlayerInfo.maxWeight - PlayerInfo.curWeight) / _data.weight));
+               _maxpos = Math.min(MAX_STEPS * this._step,_maxTot,int((PlayerInfo.maxWeight - PlayerInfo.curWeight) / _data.weight));
             }
             else
             {
-               _maxpos = Math.min(100 * this._step,_maxTot,int((PlayerInfo.maxWeight - PlayerInfo.curWeight + _data.originData.weight * _data.originData.condition_or_stack) / _data.weight));
+               _maxpos = Math.min(MAX_STEPS * this._step,_maxTot,int((PlayerInfo.maxWeight - PlayerInfo.curWeight + _data.originData.weight * _data.originData.condition_or_stack) / _data.weight));
             }
          }
          else
          {
-            _maxpos = Math.min(_maxTot,100 * this._step);
+            _maxpos = Math.min(_maxTot,MAX_STEPS * this._step);
          }
-         if(this._money_type == 1)
+         if(this._money_type == MoneyType.PREMIUM)
          {
             if(_maxpos == 0)
             {
@@ -367,11 +373,11 @@ package survarium.messages
          {
             if(this.slider.visible)
             {
-               btnAccept.enabled = (_money_tot >= ammount || this._money_type == 1 && _maxpos == 1) && sliderpos != 0;
+               btnAccept.enabled = (_money_tot >= ammount || this._money_type == MoneyType.PREMIUM && _maxpos == 1) && sliderpos != 0;
             }
             else
             {
-               btnAccept.enabled = _money_tot >= 1 * this._price || this._money_type == 1;
+               btnAccept.enabled = _money_tot >= 1 * this._price || this._money_type == MoneyType.PREMIUM;
             }
          }
       }
@@ -424,12 +430,12 @@ package survarium.messages
             _data.count = uint(1);
          }
          trace("buy_ok_clicked",_data.uid,_data.count,_data.seller,_data.targetSlot,_data.sourceSlot,_data.id);
-         if(_data.sourceSlot == 300)
+         if(_data.sourceSlot == ItemPlace.BUNDLE)
          {
             trace("buy_shop_item",uint(_data.uid));
             ExternalInterface.call("buy_shop_item",uint(_data.uid));
          }
-         else if(_data.targetSlot == 100)
+         else if(_data.targetSlot == ItemPlace.INVENTORY)
          {
             ExternalInterface.call("buy_ok_clicked",_data.uid,uint(_data.count),uint(_data.seller),this._money_type);
          }

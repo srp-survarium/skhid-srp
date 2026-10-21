@@ -6,6 +6,7 @@ package survarium.buttons
    import survarium.Util;
    import survarium.controls.FixedText;
    import survarium.data.LocalizationData;
+   import survarium.constants.PremiumState;
    
    public class ButtonPremium extends ButtonClick
    {
@@ -87,7 +88,7 @@ package survarium.buttons
             }
             else
             {
-               str = this._stateIndex != 0 ? _label : LocalizationData.getName("premium").toUpperCase();
+               str = this._stateIndex != PremiumState.NONE ? _label : LocalizationData.getName("premium").toUpperCase();
             }
             textField.text = str;
          }
@@ -100,11 +101,11 @@ package survarium.buttons
          {
             return this.statesPremiumDiscount;
          }
-         if(this._stateIndex == 0)
+         if(this._stateIndex == PremiumState.NONE)
          {
             return statesDefault;
          }
-         if(this._stateIndex == 1)
+         if(this._stateIndex == PremiumState.ACTIVE)
          {
             return this.statesPremiumAvailable;
          }

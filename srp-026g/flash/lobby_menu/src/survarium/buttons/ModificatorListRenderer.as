@@ -7,6 +7,7 @@ package survarium.buttons
    import flash.text.TextFieldAutoSize;
    import scaleform.clik.controls.ListItemRenderer;
    import survarium.constants.Colors;
+   import survarium.constants.ModificationState;
    
    public class ModificatorListRenderer extends ListItemRenderer
    {
@@ -105,7 +106,7 @@ package survarium.buttons
             {
                alpha = _data.reroll_available ? 1 : 0.5;
             }
-            if(_data.state == 1)
+            if(_data.state == ModificationState.DEFECT)
             {
                tint = new ColorTransform();
                tint.color = Colors.RED_DIFF;

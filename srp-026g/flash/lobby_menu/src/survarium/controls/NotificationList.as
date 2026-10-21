@@ -12,6 +12,8 @@ package survarium.controls
    import flash.utils.getTimer;
    import scaleform.clik.layout.LayoutData;
    import scaleform.clik.motion.Tween;
+   import survarium.constants.ImportantMessageType;
+   import survarium.constants.NotificationType;
    
    public class NotificationList extends MovieClip
    {
@@ -113,7 +115,7 @@ package survarium.controls
          }
          var type:int = (value.notificationType);
          var itemRenderer:MovieClip;
-         if(type == 3)
+         if(type == NotificationType.MATCH)
          {
             itemRenderer = new this._rendererTypes[type]();
             itemRenderer.addEventListener("showMessage",this.onMatchtMessage,false,0,true);
@@ -175,7 +177,7 @@ package survarium.controls
       private function onRelatedMessage(e:Event) : void
       {
          trace("onRelatedMessage::",e.target,e.currentTarget);
-         if(e.target.data && e.target.data.type == 2)
+         if(e.target.data && e.target.data.type == ImportantMessageType.REPUTATION_LEVEL)
          {
             Message.showMessage("message_unlock_rank",e.target.data,false);
             this.hideItem(e.target as MovieClip);
@@ -185,7 +187,7 @@ package survarium.controls
       private function onShowQuestMessage(e:Event) : void
       {
          trace("onShowQuestMessage::",e.target,e.currentTarget);
-         if(e.target is e.target.data.notificationType == 1)
+         if(e.target is e.target.data.notificationType == NotificationType.QUEST)
          {
             Message.showMessage("quest_message",e.target.data);
             this.hideItem(e.target as MovieClip);
