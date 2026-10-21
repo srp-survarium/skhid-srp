@@ -458,7 +458,6 @@ package survarium.controls
       {
          trace("lockControls::",value);
          _inventoryLocked = value;
-         _controlsLocked = value;
          inventoryTabPage.mouseEnabled = !value;
          inventoryTabPage.mouseChildren = !value;
          btnClose.mouseEnabled = !value;
@@ -2049,9 +2048,18 @@ package survarium.controls
          var modifiersLength:uint;
          var i:uint;
          var modifier:Object;
-         if(this._inventoryLocked || this._controlsLocked)
+         // A window working on the inventory (craft, upgrade) has its own
+         // menu while it is open, whatever the inventory's lock says (the
+         // server locks and unlocks it around every buy and sell).
+         var craft:MessageCraftItem = this.findCraftWindow();
+         var upgrade:UpgradeWindow = this.findUpgradeWindow();
+         if(craft != null || upgrade != null)
          {
-            this.showCraftMenu(activeItem);
+            this.showWindowMenu(activeItem,craft,upgrade);
+            return;
+         }
+         if(this._inventoryLocked)
+         {
             return;
          }
          trace("itemData::",itemData.enabled);
@@ -2539,24 +2547,20 @@ package survarium.controls
       // locks the list. While it is open, the right-click menu has Buy and
       // Sell only, by the list's own rules for them; nothing else (no
       // Upgrade). Locked otherwise: no menu.
-      private function showCraftMenu(activeItem:DragSlot) : void
+      private function showWindowMenu(activeItem:DragSlot, craft:MessageCraftItem, upgrade:UpgradeWindow) : void
       {
-         var craft:MessageCraftItem = this.findCraftWindow();
-         if(craft == null)
-         {
-            return;
-         }
          var item:Object = activeItem.data;
          if(item == null || !(item.enabled || item.canBuy))
          {
             return;
          }
-         var owned:Boolean = item.descriptor <= 100 && item.enabled;
+         var owned:Boolean = item.descriptor <= 100;
+         var held:Boolean = craft != null ? craft.holds(item.itemId) : item.itemId == upgrade.getItemId();
          var options:Array = [];
-         // As the menu's own: Buy for an owned item, a stack or an item of
-         // no rarity. Sell for an owned item (sellElement wants it
-         // enabled), not in the shop, and not one of the two the window
-         // holds: the craft would name an item no longer owned.
+         // As the menu's own: Buy for an owned item (the one the window
+         // works on too), a stack or an item of no rarity. Sell for an owned
+         // item (sellElement wants it enabled), not in the shop, and not one
+         // the window holds: it would name an item no longer owned.
          if(item.canBuy && (item.isStack || !item.rank || owned))
          {
             options.push({
@@ -2567,7 +2571,7 @@ package survarium.controls
                }
             });
          }
-         if(owned && !this.isShop && !craft.holds(item.itemId))
+         if(owned && item.enabled && !this.isShop && !held)
          {
             options.push({
                name:LocalizationData.getName("sell"),
@@ -2579,8 +2583,18 @@ package survarium.controls
          }
          if(options.length > 0)
          {
-            SrvContextMenu.show(options,0,0,craft);
+            SrvContextMenu.show(options,0,0,craft != null ? craft : upgrade);
          }
+      }
+
+      private function findUpgradeWindow() : UpgradeWindow
+      {
+         var lobby:LobbyMenu = parent as LobbyMenu;
+         if(lobby == null || lobby.modifierWindow == null || !lobby.modifierWindow.visible)
+         {
+            return null;
+         }
+         return lobby.modifierWindow;
       }
       
       private function findCraftWindow() : MessageCraftItem
@@ -2613,11 +2627,6 @@ package survarium.controls
          var price:int = item.category == 100 ? int(item.cost) : int(GangShop.getInstance().getItemPrice(item.dictId));
          GangShop.buyFunction(profile.profileId,item.itemId,item.dictId,item.descriptor,100,1,price,-1);
       }
-
-      // lockControls' own lock (the craft window open): the server's lock of
-      // the inventory around a buy or sell sets and clears _inventoryLocked
-      // too, which must not end the craft window's menu while it is open.
-      private var _controlsLocked:Boolean = false;
    }
 }
 
