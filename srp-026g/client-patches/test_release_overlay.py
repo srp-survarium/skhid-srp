@@ -4,20 +4,13 @@ import hashlib
 import io
 import os
 from pathlib import Path
-import shutil
 import stat
-import subprocess
 import tempfile
-import time
 import unittest
 from unittest import mock
 import zipfile
 
 import make_client_026g as overlay
-
-# A program that writes down how it was started (client/updater/tests).
-STAND_IN = Path(overlay.HERE, '..', '..', 'client', 'updater', 'tests', 'fake_exe', 'target',
-                'i686-pc-windows-msvc', 'release', 'fake-exe.exe').resolve()
 
 
 class ReleaseTests(unittest.TestCase):
@@ -50,12 +43,12 @@ class ReleaseTests(unittest.TestCase):
         self.updater.write_bytes(updater + b"<requestedExecutionLevel level='asInvoker' uiAccess='false'/>")
         self.without_launcher = {'README.txt', 'LINUX.txt',
             'game/binaries/x86/survarium_skhid.exe', 'game/binaries/x86/bugtrap.dll',
-            'game/binaries/x86/play_skhid.bat', 'game/binaries/x86/play_skhid.sh',
+            'game/binaries/x86/play_skhid.sh',
             'game/resources/ssl/survarium_login_server.crt'}
         self.names = self.without_launcher | {
             'game/binaries/x86/launcher_skhid.exe', 'game/binaries/x86/updater_skhid.exe',
             'game/binaries/x86/7zr.exe',
-            'game/binaries/x86/updater_skhid.url', 'Skhid.bat', 'Skhid.sh',
+            'game/binaries/x86/updater_skhid.url',
         } | {f'game/binaries/x86/launcher_skhid/index-{blank}{code}.html'
              for blank in ('', 'blank-') for code in ('en', 'ru', 'ua', 'de', 'pl')}
 
@@ -96,7 +89,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn(b'localization=polish\nserver=\n', script.read_bytes())
         self.assertIn(b'LINUX.txt', paths['README.txt'].read_bytes())
         # The launcher is built from the game folder's own, for the server's
-        # page, and starts the game with what play_skhid.bat starts it with.
+        # page, and starts the game with the launch line.
         self.assertEqual(self.launcher.call_args.args[0], b'original launcher fixture')
         self.assertEqual(self.launcher.call_args.kwargs, dict(
             site='https://release.example', game_exe='survarium_skhid.exe',
@@ -108,52 +101,14 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn('href="https://release.example/"', offline)
         self.assertNotIn('survarium.com', offline)
         readme = paths['README.txt'].read_text(encoding='utf-8')
-        # One file to start, beside `game`; nothing to type, and the archive
-        # is downloaded once.
-        self.assertIn('double-click Skhid.bat in that folder', readme)
+        # The launcher is the file to start; nothing to type, and the
+        # archive is downloaded once. No start scripts on Windows.
+        self.assertIn('double-click game\\binaries\\x86\\launcher_skhid.exe in that folder', readme)
         self.assertIn('You download this archive once', readme)
-        self.assertNotIn('double-click game\\binaries', readme)
         self.assertIn('asks https://release.example whether', readme)
-        starter = paths['Skhid.bat'].read_bytes()
-        self.assertIn(b'start "" /d "%~dp0game\\binaries\\x86" "%~dp0game\\binaries\\x86\\launcher_skhid.exe"\r\n',
-                      starter)
-        self.assertEqual(starter.count(b'\n'), starter.count(b'\r\n'))
-        # The same for Linux: a Bash script with Unix line ends.
-        linux = paths['Skhid.sh'].read_bytes()
-        self.assertTrue(linux.startswith(b'#!/usr/bin/env bash\n'))
-        self.assertNotIn(b'\r', linux)
-        self.assertIn(b'game/binaries/x86/play_skhid.sh', linux)
-        self.assertIn('run bash Skhid.sh (the game) or bash Skhid.sh launcher', readme)
-
-    @unittest.skipUnless(os.name == 'nt' and STAND_IN.is_file(),
-                         'Windows, and the stand-in exe of client/updater/tests (build.sh there)')
-    def test_the_starter_starts_the_launcher_from_its_folder(self):
-        # A path with a space and a bracket, as a player's folder may have.
-        install = self.root / 'My games (old)' / 'Survarium'
-        folder = install / 'game' / 'binaries' / 'x86'
-        folder.mkdir(parents=True)
-        (install / 'Skhid.bat').write_bytes(overlay.starter())
-        run = lambda: subprocess.run(  # noqa: E731
-            ['cmd.exe', '/d', '/c', str(install / 'Skhid.bat')], cwd=self.root, stdin=subprocess.DEVNULL,
-            capture_output=True, timeout=60)
-        # Unpacked in the wrong place: it says where it belongs.
-        missing = run()
-        self.assertEqual(missing.returncode, 1)
-        self.assertIn(b'launcher_skhid.exe was not found', missing.stdout)
-        self.assertIn(b'the one that holds the', missing.stdout)
-        # In its place: the launcher is started, in its own folder.
-        launcher = folder / 'launcher_skhid.exe'
-        shutil.copyfile(STAND_IN, launcher)
-        started = run()
-        self.assertEqual((started.returncode, started.stdout, started.stderr), (0, b'', b''))
-        note = Path(str(launcher) + '.started.txt')
-        for _ in range(100):
-            if note.is_file() and note.stat().st_size:
-                break
-            time.sleep(0.1)
-        command_line, working_folder = note.read_bytes().decode('utf-16').splitlines()[:2]
-        self.assertEqual(command_line.strip().strip('"').lower(), str(launcher).lower())
-        self.assertEqual(working_folder.lower(), str(folder).lower())
+        self.assertIn('run bash play_skhid.sh launcher', readme)
+        self.assertNotIn('.bat', readme)
+        self.assertNotIn('Skhid.sh', readme)
 
     def test_the_same_input_gives_the_same_archive(self):
         # The updater installs whenever the archive's checksum changes, so a
@@ -163,15 +118,16 @@ class ReleaseTests(unittest.TestCase):
         self.build(second, '--pack-zip')
         self.assertEqual(first.read_bytes(), second.read_bytes())
 
-    def test_without_the_launcher_it_is_the_seven_files_of_before(self):
+    def test_without_the_launcher_it_is_the_six_player_files(self):
         archive = self.root / 'plain.zip'
         self.build(archive, '--pack-zip', '--no-launcher')
         self.launcher.assert_not_called()
         with zipfile.ZipFile(archive) as z:
             self.assertEqual(set(z.namelist()), self.without_launcher)
             readme = z.read('README.txt').decode('utf-8')
-        self.assertIn('double-click game\\binaries\\x86\\play_skhid.bat', readme)
+        self.assertIn('start game\\binaries\\x86\\survarium_skhid.exe with the options', readme)
         self.assertNotIn('launcher_skhid', readme)
+        self.assertNotIn('.bat', readme)
 
     def test_the_site_can_be_another_host_than_the_login_server(self):
         folder = self.root / 'other-site'

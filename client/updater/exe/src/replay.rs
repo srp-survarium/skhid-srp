@@ -10,7 +10,7 @@
 //! what is on the disk, renames it to `srp_<id>.sur` (a file of that name
 //! with the right bytes is used again without a download), keeps the ten
 //! newest replays, checks that the game's files are in place as `ready` does
-//! (`patches::ready`, the check of play_skhid.bat), and starts the game as
+//! (`patches::ready`, the check of play_skhid.sh), and starts the game as
 //! the launcher's PLAY does, with `-match_replay=<the file>`. A problem is a
 //! message box in the launcher's
 //! language and a line in `updater_skhid.log`; the log names the token by
@@ -111,7 +111,7 @@ pub fn run(arguments: &[String], quiet: bool) -> u32 {
     }
     prune(&folder, &request.file_name());
 
-    // The check play_skhid.bat and play_skhid.sh make (`updater_skhid.exe
+    // The check play_skhid.sh makes (`updater_skhid.exe
     // ready`, read only): while the patches of resources.db are not checked
     // in place (the last patch step did not end `ready`, or a patch file is
     // missing, damaged or extra), the game is not started; it would stop at

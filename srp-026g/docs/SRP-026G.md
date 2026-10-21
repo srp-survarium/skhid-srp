@@ -593,18 +593,18 @@ other builds. Detail: MATCH-SYNC-026G.md and `client_patch.md`.
 `client-patches/make_client_026g.py <game folder> <output>
 --server=<host>:<port>` makes the players' overlay without touching the game
 folder: `game/binaries/x86/survarium_skhid.exe` (the patched exe),
-`bugtrap.dll` (the Rust local crash reporter), `play_skhid.bat` and the Linux
-launcher `play_skhid.sh` beside them, srp's login certificate, a player
+`bugtrap.dll` (the Rust local crash reporter), the Linux launcher
+`play_skhid.sh` beside them, srp's login certificate, a player
 `README.txt` and `LINUX.txt`; and, unless `--no-launcher` is given, the game's
 launcher made to work again (`client-patches/launcher/README.md`):
 `launcher_skhid.exe`, `updater_skhid.exe` with `updater_skhid.url`, `7zr.exe`
 (the extractor the updater unpacks the original game with for a player who
-has none), the launcher's ten local pages, and `Skhid.bat` and `Skhid.sh`
-beside `game`, the one file a player starts. Build the Rust programs first with
+has none) and the launcher's ten local pages; `launcher_skhid.exe` is the
+one file a player starts. Build the Rust programs first with
 `../client/bugtrap/build.sh` and `../client/updater/build.sh`; the overlay
 builder includes them by default.
 `--pack-zip` creates the player archive directly instead of a folder, with exactly
-those files (23; seven with `--no-launcher`) and no source, symbols or tests.
+those files (20; six with `--no-launcher`) and no source, symbols or tests.
 `--check` writes nothing. The same input gives the same archive byte for byte:
 the updater installs whenever the archive the site offers has another checksum.
 The sites hand out this overlay (`Survarium-0.26g-srp-files.zip`), never the

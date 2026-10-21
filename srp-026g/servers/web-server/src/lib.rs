@@ -1934,8 +1934,8 @@ fn home(lang: Lang, stats: Stats) -> String {
             lang.tr("english", "ukrainian"),
             escape(address),
             lang.tr(
-                "Run it from the game's <code>game\\binaries\\x86</code> folder (the download's <code>play_skhid.bat</code> does).",
-                "Запускайте з теки гри <code>game\\binaries\\x86</code> (це робить <code>play_skhid.bat</code> із завантаження).",
+                "Run it from the game's <code>game\\binaries\\x86</code> folder.",
+                "Запускайте з теки гри <code>game\\binaries\\x86</code>.",
             ),
         )
     } else {
@@ -1953,36 +1953,29 @@ fn home(lang: Lang, stats: Stats) -> String {
         ),
     );
     // With the launcher in the download a player starts that and types
-    // nothing; the start script and the command line stay, folded away.
+    // nothing; the command line stays, folded away.
     let start = if with_launcher {
         format!(
             "{}<p><small>{}</small></p><details><summary>{}</summary><p>{}</p>{command_line}</details>",
             if installs_game {
                 lang.tr(
-                    "Run <code>Skhid.bat</code> and press <b>PLAY</b>. The first time, the launcher downloads the game (2.9 GB, from Google Drive), which takes a while. It keeps itself up to date.",
-                    "Запустіть <code>Skhid.bat</code> і натисніть <b>PLAY</b>. Першого разу лаунчер завантажує гру (2,9 ГБ, з Google Drive), на що потрібен час. Оновлюється він сам.",
+                    "Run <code>game\\binaries\\x86\\launcher_skhid.exe</code> and press <b>PLAY</b>. The first time, the launcher downloads the game (2.9 GB, from Google Drive), which takes a while. It keeps itself up to date.",
+                    "Запустіть <code>game\\binaries\\x86\\launcher_skhid.exe</code> і натисніть <b>PLAY</b>. Першого разу лаунчер завантажує гру (2,9 ГБ, з Google Drive), на що потрібен час. Оновлюється він сам.",
                 )
             } else {
                 lang.tr(
-                    "Run <code>Skhid.bat</code> and press <b>PLAY</b>. The launcher keeps itself up to date.",
-                    "Запустіть <code>Skhid.bat</code> і натисніть <b>PLAY</b>. Лаунчер оновлюється сам.",
+                    "Run <code>game\\binaries\\x86\\launcher_skhid.exe</code> and press <b>PLAY</b>. The launcher keeps itself up to date.",
+                    "Запустіть <code>game\\binaries\\x86\\launcher_skhid.exe</code> і натисніть <b>PLAY</b>. Лаунчер оновлюється сам.",
                 )
             },
-            if installs_game {
-                lang.tr(
-                    "Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh launcher</code>, see <code>LINUX.txt</code>.",
-                    "Windows попереджає про невідомого видавця? Дозвольте запуск.<br>Linux: <code>bash Skhid.sh launcher</code>, див. <code>LINUX.txt</code>.",
-                )
-            } else {
-                lang.tr(
-                    "Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash Skhid.sh</code>, see <code>LINUX.txt</code>.",
-                    "Windows попереджає про невідомого видавця? Дозвольте запуск.<br>Linux: <code>bash Skhid.sh</code>, див. <code>LINUX.txt</code>.",
-                )
-            },
+            lang.tr(
+                "Windows warns about an unknown publisher? Let it run.<br>Linux: <code>bash play_skhid.sh launcher</code> in <code>game/binaries/x86</code>, see <code>LINUX.txt</code>.",
+                "Windows попереджає про невідомого видавця? Дозвольте запуск.<br>Linux: <code>bash play_skhid.sh launcher</code> у теці <code>game/binaries/x86</code>, див. <code>LINUX.txt</code>.",
+            ),
             lang.tr("Without the launcher", "Без лаунчера"),
             lang.tr(
-                "<code>play_skhid.bat</code> in <code>game\\binaries\\x86</code> starts the game without updating it.",
-                "<code>play_skhid.bat</code> у теці <code>game\\binaries\\x86</code> запускає гру без оновлення.",
+                "<code>survarium_skhid.exe</code> in <code>game\\binaries\\x86</code> starts the game without updating it.",
+                "<code>survarium_skhid.exe</code> у теці <code>game\\binaries\\x86</code> запускає гру без оновлення.",
             ),
         )
     } else {
@@ -2075,8 +2068,8 @@ fn home(lang: Lang, stats: Stats) -> String {
             )
         } else if v026g {
             lang.tr(
-                "Download our files and unpack them over the game's <code>game</code> folder. They add <code>survarium_skhid.exe</code>, <code>play_skhid.bat</code> and, for Linux, <code>play_skhid.sh</code> beside the game's own exe, and replace two of the game's files: <code>bugtrap.dll</code> (the crash reporter) and one certificate. Keep copies of those two if you want the originals back; nothing else changes.",
-                "Завантажте наші файли й розпакуйте їх поверх теки <code>game</code> гри. Вони додають <code>survarium_skhid.exe</code>, <code>play_skhid.bat</code> і, для Linux, <code>play_skhid.sh</code> поруч із exe гри та замінюють два файли гри: <code>bugtrap.dll</code> (звіти про збої) і один сертифікат. Збережіть копії цих двох файлів, якщо хочете повернути оригінали; більше нічого не змінюється."
+                "Download our files and unpack them over the game's <code>game</code> folder. They add <code>survarium_skhid.exe</code> and, for Linux, <code>play_skhid.sh</code> beside the game's own exe, and replace two of the game's files: <code>bugtrap.dll</code> (the crash reporter) and one certificate. Keep copies of those two if you want the originals back; nothing else changes.",
+                "Завантажте наші файли й розпакуйте їх поверх теки <code>game</code> гри. Вони додають <code>survarium_skhid.exe</code> і, для Linux, <code>play_skhid.sh</code> поруч із exe гри та замінюють два файли гри: <code>bugtrap.dll</code> (звіти про збої) і один сертифікат. Збережіть копії цих двох файлів, якщо хочете повернути оригінали; більше нічого не змінюється."
             )
         } else {
             lang.tr("Download the patched game and unpack it.", "Завантажте пропатчену гру та розпакуйте її.")
@@ -3274,8 +3267,7 @@ mod tests {
             installs_game: false,
         };
         // With the launcher: one file to start, nothing to type, and the
-        // download is needed once. The script and the command line are
-        // folded away below.
+        // download is needed once. The command line is folded away below.
         for (lang, press, once, folded) in [
             (
                 Lang::En,
@@ -3293,18 +3285,21 @@ mod tests {
             let page = home(lang, stats(true));
             let steps = page.split("<ol>").nth(1).unwrap();
             let (shown, hidden) = steps.split_once("<details>").unwrap();
-            assert!(shown.contains("<code>Skhid.bat</code>"), "{shown}");
+            assert!(
+                shown.contains("<code>game\\binaries\\x86\\launcher_skhid.exe</code>"),
+                "{shown}"
+            );
             assert!(shown.contains(press), "{shown}");
             assert!(shown.contains(once), "{shown}");
-            assert!(!shown.contains("binaries"), "{shown}");
             // Where to unpack is said by what the folder holds, not by a
             // name a player may read as "inside game".
             assert!(!shown.contains("over the game's"), "{shown}");
             assert!(!shown.contains("поверх теки"), "{shown}");
             assert!(!shown.contains("<pre>"), "{shown}");
-            assert!(!shown.contains("play_skhid.bat"), "{shown}");
+            assert!(!shown.contains(".bat"), "{shown}");
+            assert!(!shown.contains("Skhid.sh"), "{shown}");
             assert!(hidden.contains(&format!("<summary>{folded}</summary>")));
-            assert!(hidden.contains("play_skhid.bat"));
+            assert!(!hidden.contains(".bat"), "{hidden}");
             assert!(hidden.contains("<pre>survarium_skhid.exe -localization="));
             assert_eq!(steps.matches("<details>").count(), 1);
             assert_eq!(steps.matches("</details>").count(), 1);
@@ -3352,9 +3347,12 @@ mod tests {
                 };
                 assert!(steps.contains(said), "{said}: {steps}");
             }
-            assert!(steps.contains("<code>Skhid.bat</code>"), "{steps}");
             assert!(
-                steps.contains("<code>bash Skhid.sh launcher</code>"),
+                steps.contains("<code>game\\binaries\\x86\\launcher_skhid.exe</code>"),
+                "{steps}"
+            );
+            assert!(
+                steps.contains("<code>bash play_skhid.sh launcher</code>"),
                 "{steps}"
             );
             assert_eq!(steps.matches("<details>").count(), 1);
@@ -3374,7 +3372,7 @@ mod tests {
         assert!(!page.contains("launcher_skhid.exe"));
         assert!(!page.contains("<details>"));
         assert!(page.contains("Start it with this command line:<pre>survarium_skhid.exe"));
-        assert!(page.contains("<code>play_skhid.bat</code>"));
+        assert!(!page.contains(".bat"));
     }
 
     #[test]

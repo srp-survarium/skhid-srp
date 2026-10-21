@@ -53,21 +53,16 @@ python ../make_client_026g.py <game folder> <new.zip> --pack-zip --server=<host>
 In the ZIP they are, all in `game/binaries/x86/`: `launcher_skhid.exe`,
 `updater_skhid.exe`, `updater_skhid.url` (the site, one line) and the folder
 `launcher_skhid/` with `index-<code>.html` and `index-blank-<code>.html` for
-`en`, `ru`, `ua`, `de`, `pl`. At the top of the ZIP, beside `game/`, is
-`Skhid.bat`: the one file a player starts. It starts `launcher_skhid.exe`
-in its folder and does nothing else; if the launcher is not where it looks
-(the ZIP was unpacked somewhere else), it says where the files belong.
-Beside it is `Skhid.sh`, the same for Linux: `bash Skhid.sh` runs
-`play_skhid.sh` (the game), `bash Skhid.sh launcher` the launcher under
-Wine.
+`en`, `ru`, `ua`, `de`, `pl`. `launcher_skhid.exe` is the one file a
+player starts; there is no start script on Windows. On Linux,
+`bash play_skhid.sh launcher` in the same folder starts it under Wine.
 
 The same input gives the same ZIP byte for byte. That matters: the updater
 installs whenever the ZIP's checksum changes.
 
 ## What a player sees
 
-1. Double-click `Skhid.bat` in the game's folder (or `launcher_skhid.exe`
-   itself in `game\binaries\x86`). The launcher's window opens as it
+1. Double-click `launcher_skhid.exe` in `game\binaries\x86`. The launcher's window opens as it
    always looked, with the server's page in it. The line at the bottom says
    "Checking game version...".
 2. `updater_skhid.exe` asks the server which ZIP it offers now. If it is the
@@ -243,7 +238,7 @@ The server (`servers/web-server`, the 0.26g page):
 The updater (`client/updater`):
 
 On a new installation, unpack the Skhid ZIP into an empty folder and start
-`Skhid.bat`. After contacting the update server, the updater downloads the
+`game\binaries\x86\launcher_skhid.exe`. After contacting the update server, the updater downloads the
 original 0.26g game from the Google Drive mirror if `survarium.exe` or
 `resources.db` is missing. It unpacks it with `7zr.exe`, 7-Zip's standalone
 extractor, which is a file of the Skhid ZIP beside the updater and is not
@@ -601,7 +596,8 @@ installation and service.
 - The language is the one value still kept in the registry
   (`HKCU\Software\Vostok Games\Survarium`, `language`), by the launcher's
   own code.
-- `play_skhid.bat` still starts the game alone and looks for no update.
+- `survarium_skhid.exe` started directly (or `bash play_skhid.sh` on Linux)
+  looks for no update.
 
 ## Putting it on a server
 
@@ -613,8 +609,8 @@ installation and service.
    get it at their next start; the others take it from the page once.
    The site's "How to play" follows the file: while the ZIP it offers holds
    `launcher_skhid.exe`, the steps say to unpack it into the game's folder
-   once, double-click `Skhid.bat` and press PLAY, with the start script and
-   the command line folded under "Without the launcher"; for a ZIP without
+   once, double-click `game\binaries\x86\launcher_skhid.exe` and press PLAY,
+   with the command line folded under "Without the launcher"; for a ZIP without
    it they are the steps as before. Nothing is
    set by hand and no restart is needed.
 3. From then on a release is: build the ZIP, replace the file.

@@ -36,7 +36,7 @@ registry value read for "Watch replay").
   the original game from the Google Drive mirror, checks a compiled-in
   SHA-256 and installs the missing original files before the Skhid overlay.
   A new player can unpack the overlay into an empty folder and start
-  `Skhid.bat`. No Google login, browser confirmation or administrator
+  `game\binaries\x86\launcher_skhid.exe`. No Google login, browser confirmation or administrator
   prompt is needed. Allow about 10 GB of free disk space. The game is
   unpacked with `7zr.exe`, a file of the Skhid archive beside the updater
   (`extractor/`): nothing that is run is downloaded on its own.
@@ -72,7 +72,7 @@ registry value read for "Watch replay").
 | `"<exe>" "copy" "<pipe>" ...` | the unpatched launcher | Answers "copy done" at once: nothing needs copying |
 | `updater_skhid.exe check` | a person, a script | The update without a launcher, every patch file hashed whole whatever the quick check's record says: the repair, when a patch file may be damaged in a way the quick check does not see (bytes changed in place with the size and the time kept, as no program does by chance). An error is a message box |
 | `updater_skhid.exe check quiet` | a script | No box either. Exit code 0: done or nothing to do; 1: failed (the reason is in the log) |
-| `updater_skhid.exe ready` (`quiet`: no box) | `play_skhid.bat`, `play_skhid.sh` before they start the game | Reads only: no lock, no server, nothing written but the log. Exit code 1 (and a box that says to start the launcher) when the last patch step did not end `ready` (a new overlay since, too), or the patch files are not now what its list says (one missing, damaged, or one more; looked at with the quick check); else 0 |
+| `updater_skhid.exe ready` (`quiet`: no box) | `play_skhid.sh` before it starts the game (and the `play_skhid.bat` older archives left in players' folders) | Reads only: no lock, no server, nothing written but the log. Exit code 1 (and a box that says to start the launcher) when the last patch step did not end `ready` (a new overlay since, too), or the patch files are not now what its list says (one missing, damaged, or one more; looked at with the quick check); else 0 |
 | `updater_skhid.exe replay <id> <token> <sha256> <size>` | the patched game (patch revision 14) | "Watch replay": fetches one replay and starts a second game that plays it (below). A problem is a message box |
 | `updater_skhid.exe replay <id> <token> <sha256> <size> quiet` | the tests | The same with no window at all: the problem is in the log and the exit code (1) |
 
@@ -120,11 +120,11 @@ nothing else with it. The updater (`exe/src/replay.rs`, the rules in
    always among them) and deletes the others and any other id's `.part`;
    no other name there is touched.
 6. Makes the check of `updater_skhid.exe ready` (read only, the one
-   `play_skhid.bat` and `play_skhid.sh` make): while the last patch step did
+   `play_skhid.sh` makes): while the last patch step did
    not end `ready` (a new overlay since, too), or the patch files are not
    now what its list says, the game is not started. The player is told that
-   Skhid has not finished updating `game\resources.db.patch_*`, to start `Skhid.bat`
-   (the launcher) and then ask for the replay again; the log has the
+   Skhid has not finished updating `game\resources.db.patch_*`, to start
+   `game\binaries\x86\launcher_skhid.exe` and then ask for the replay again; the log has the
    `ready: NOT READY: ...` line and `replay: FAILED (NotReady)`, the exit
    code is 1. The replay stays in the folder, checked, for the next ask.
 7. Starts the game as the launcher's PLAY does, from `game\binaries\x86`:
@@ -466,7 +466,7 @@ done." after it:
 The next start tries again. A file that is never half written in place:
 what the game mounts is a checked file or nothing.
 
-`ready` (play_skhid.bat, play_skhid.sh) checks the same as the offline case
+`ready` (play_skhid.sh) checks the same as the offline case
 (the status `ready`, the folder against the kept list, every file hashed)
 and refuses otherwise: also before the launcher has ever run the step, and
 after a new overlay until the step has run with the server's list.
