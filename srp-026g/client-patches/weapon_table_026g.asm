@@ -66,6 +66,12 @@
 ; only the lobby's own character), while the table is on. Anything else is
 ; the original's, byte for byte. The code finds its state with call/pop.
 ;
+;   The table's key, the items_dict id of the held weapon, comes from the
+;   record the player was built from (the character's own profile copy
+;   +18h + 4634h * +D2B4h, its kit +D2B5h's slot 7 or 10, the record's +4):
+;   every byte of it inside the character, each index checked. (Round 3 read
+;   weapon+25Ch, which is not a pointer for a held weapon: 2 for the VSS in
+;   the owner's crash of 2026-10-21 11:18:24.)
 ; The weapon's middle (the point that goes to BENCH): its skeleton model
 ; (weapon+1810h) has the render instance (+108h, skeleton_render_model_instance,
 ; vtable 0x9F0F24), whose model (+62B4h) holds the mesh's box (+108h min, +114h
@@ -102,7 +108,19 @@ ORG CAVE
 %define UPGRADE_MODE    0xD515      ; lobby_character: 1 while an upgrade window is open
 %define WEAPON_VTABLE   0xA04174    ; survarium::weapon
 %define WEAPON_MODEL    0x1810      ; weapon: its skeleton model instance
-%define DICTIONARY      0x25C       ; inventory item (the weapon's at +10h): its items_dict entry, +0 u16 the dict id
+%define COPIES          0x18        ; lobby_character: three player_profile copies of 4634h (the player's from)
+%define COPY_SIZE       0x4634
+%define SHOWN_COPY      0xD2B4      ; lobby_character: the current copy's index
+%define SHOWN_KIT       0xD2B5      ; lobby_character: the kit it shows
+%define KITS            0x57        ; player_profile: u8 kit count
+%define KIT             0x58        ; player_profile: kit k at +58h + k * 704h, 23 slots {u16 index, u16 amount} at +40h
+%define KIT_SIZE        0x704
+%define WEAPON_1        (0x40 + 4 * 7)
+%define WEAPON_2        (0x40 + 4 * 10)
+%define ITEMS           0x1564      ; player_profile: u8 item count
+%define ITEM_TABLE      0x1568      ; player_profile: records of B4h, +4 the u16 items_dict id
+%define ITEM_SIZE       0xB4
+%define MAX_ITEMS       0x45
 %define MODEL_RENDER    0x108       ; skeleton model instance: its render instance
 %define SKELETON_VTABLE 0x9F0F24    ; vostok::render::skeleton_render_model_instance
 %define RENDER_MODEL    0x62B4      ; skeleton_render_model_instance: its skeleton_render_model
@@ -469,10 +487,33 @@ middle:
     lea eax, [edi + WEAPON_VTABLE - STATE]
     cmp [esi], eax
     jne .done
-    mov eax, [esi+DICTIONARY]       ; a weapon whose box does not serve: MIDDLES
-    test eax, eax
-    jz .model
-    movzx eax, word [eax]
+    ; a weapon whose box does not serve: MIDDLES, by the items_dict id of the
+    ; record the character's player holds (all inside the character, every
+    ; index checked: the character's current copy, its kit's weapon 1, or 2
+    ; without a 1, as patch 32's find_kit)
+    mov eax, [ebp+CHARACTER]        ; is_table checked it
+    movzx ecx, byte [eax+SHOWN_COPY]
+    cmp ecx, 3
+    jae .model
+    imul ecx, ecx, COPY_SIZE
+    lea ecx, [eax+ecx+COPIES]       ; the copy
+    movzx edx, byte [eax+SHOWN_KIT]
+    cmp edx, 3
+    jae .model
+    cmp dl, [ecx+KITS]
+    jae .model
+    imul edx, edx, KIT_SIZE
+    movzx eax, word [ecx+edx+KIT+WEAPON_1]
+    cmp ax, -1
+    jne .held
+    movzx eax, word [ecx+edx+KIT+WEAPON_2]
+.held:
+    cmp eax, MAX_ITEMS
+    jae .model
+    cmp al, [ecx+ITEMS]
+    jae .model
+    imul eax, eax, ITEM_SIZE
+    movzx eax, word [ecx+eax+ITEM_TABLE+4]
     lea edx, [edi+CONST(middles)]
 .find:
     movzx ecx, word [edx]
