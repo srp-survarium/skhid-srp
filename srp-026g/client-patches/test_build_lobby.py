@@ -98,7 +98,7 @@ class LobbySourceTests(unittest.TestCase):
         added = {e['file']: e['key'] for e in edits['add_key'] if e['text']}
         languages = ['english', 'german', 'original', 'polish', 'russian', 'ukrainian']
         self.assertEqual(added, {f'localization/{l}/localization': 'st_srp_attachments' for l in languages})
-        [mapped] = edits['replace_string']
+        [mapped] = [e for e in edits['replace_string'] if e['files'].endswith('.options')]
         self.assertEqual(mapped['to'], 'st_srp_attachments')
         window = (TREE / 'src' / 'survarium' / 'upgrade' / 'UpgradeWindow.as').read_text(encoding='utf-8')
         self.assertIn('"scope_window_title"', window)
