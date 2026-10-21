@@ -166,7 +166,7 @@ srp's reading of what only the server knew:
 | wear is multiplied by `1 + value` of the item's "reliability" modifications | LIKELY |
 | the kit's items' `money_bonus` / `experience_bonus` / `reputation_bonus` (modifications 1230..1280, defaults of the premium items) add that share to a match's pay, shown in the screen's "premium items" column | LIKELY for the meaning; that the three bytes of the column are percents is GUESS |
 | any camouflage goes on any vest or trousers | [srp]: the data pairs none |
-| a weapon's decals in slots 0 and 1 (two, with `decal_available`), its camouflage in 2, its scope in 3 | [srp] (`weapon-camo.md`; client patches 44 to 46 bake and place them) |
+| a weapon's decal in slot 0 (one, with `decal_available`: the client keeps three upgrades an item), its camouflage in 2, its scope in 3 | [srp] (`weapon-camo.md`; client patches 44, 45 and 47 bake and place them) |
 | one cosmetic (camouflage, decal) is worn by any number of items at once, each with its own slot and value | [srp], the owner's rule (2026-10-16), with patch 30 of the client: §6 |
 
 ## 5. Not done

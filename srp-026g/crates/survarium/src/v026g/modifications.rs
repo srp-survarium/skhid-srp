@@ -94,11 +94,15 @@ pub const REROLL_CHOICES: usize = 3;
 /// available when paying with silver").
 pub const REROLL_WAIT_SECONDS: u32 = 6 * 3600;
 /// The upgrade slots of an item: decals in 0 and 1 (the lobby shows two
-/// for `decal_available`, 0x28779F), the camouflage in 3
-/// (`DragRegion.as`: `relocate_upgrade_item(item, camo, 3)`). [srp] A
-/// weapon's decals are in 0 and 1 too (its 2 holds the camouflage, its 3
-/// the scope); patch 47 bakes them.
+/// for `decal_available`, 0x28779F; a weapon one, [`WEAPON_DECAL_SLOTS`]), the camouflage in 3
+/// (`DragRegion.as`: `relocate_upgrade_item(item, camo, 3)`).
 pub const DECAL_SLOTS: [u8; 2] = [0, 1];
+/// [srp] A weapon's one decal slot ([`WEAPON_DECAL_SLOTS`]): the client
+/// keeps at most three upgrade records an item (`limits::UPGRADES`, an
+/// inline array of the item record; past it a fatal assert), and a scoped
+/// weapon holds its scope (3) and camouflage (2) besides. The owner,
+/// 2026-10-21: one decal on weapons for now. Patch 47 bakes it.
+pub const WEAPON_DECAL_SLOTS: [u8; 1] = [0];
 pub const CAMO_SLOT: u8 = 3;
 /// [srp] The camouflage's slot on a weapon (one whose config has
 /// `camo_available`, `srp-026g/scripts/weapon-camo`): 2, since a weapon's 3
@@ -565,7 +569,7 @@ pub fn upgrade_slots_in(
 /// of type `host_kind`: a camouflage (`*_camo`) into [`CAMO_SLOT`] of one
 /// with `camo_available` ([`WEAPON_CAMO_SLOT`] on a weapon, [`camo_slot`]),
 /// a decal (`*_decl`) into the [`DECAL_SLOTS`] of one with
-/// `decal_available`, a weapon's as armour's.
+/// `decal_available` ([`WEAPON_DECAL_SLOTS`] on a weapon).
 pub fn cosmetic_slots(host: &ItemMods, host_kind: &str, upgrade_kind: &str) -> &'static [u8] {
     if upgrade_kind.ends_with("_camo") && host.camo {
         if camo_slot(host_kind) == WEAPON_CAMO_SLOT {
@@ -574,7 +578,11 @@ pub fn cosmetic_slots(host: &ItemMods, host_kind: &str, upgrade_kind: &str) -> &
             &[CAMO_SLOT]
         }
     } else if upgrade_kind.ends_with("_decl") && host.decal {
-        &DECAL_SLOTS
+        if is_weapon_kind(host_kind) {
+            &WEAPON_DECAL_SLOTS
+        } else {
+            &DECAL_SLOTS
+        }
     } else {
         &[]
     }

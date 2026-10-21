@@ -111,6 +111,11 @@ package survarium.upgrade
       protected static const SEPARATOR_Y:Number = 352;
 
       protected static const SEPARATOR_MAX_HEIGHT:Number = 5;
+      
+      // A weapon's decals: one. The game keeps three upgrade records an item (an inline array of the
+      // item record), and a scoped weapon holds its scope and its camouflage besides (the server's
+      // WEAPON_DECAL_SLOTS; the owner, 2026-10-21).
+      protected static const WEAPON_DECALS:int = 1;
 
       // each slot's place as the movie has it (armour's window): [x, y, scaleX, scaleY] by slot
       protected var _slotPlaces:Dictionary;
@@ -374,10 +379,10 @@ package survarium.upgrade
             if(hostDictId >= 0)
             {
                // a weapon: its scope in camoSlot (CosmeticSlot.CAMOUFLAGE), its camouflage in decalSlot2
-               // (DECAL_3), its two decals in decalSlot and decalSlot1. Every slot it has is shown while
-               // the slots are filled below; then showPage leaves the page's own.
-               this.decalSlot.visible = this._data.decalAvailable > 0;
-               this.decalSlot1.visible = this._data.decalAvailable > 1;
+               // (DECAL_3), its one decal in decalSlot (DECAL_1). Every slot it has is shown while the
+               // slots are filled below; then showPage leaves the page's own.
+               this.decalSlot.visible = this.weaponDecals() > 0;
+               this.decalSlot1.visible = this.weaponDecals() > 1;
                this.decalSlot2.visible = this._data.camoAvailable > 0;
                this.camoSlot.visible = hasScopes(hostDictId);
                this._hasAttachments = this.camoSlot.visible;
@@ -452,8 +457,8 @@ package survarium.upgrade
       }
 
       // A weapon's slots in armour's places, as its appearance window has them: on the appearance page
-      // its decals where armour's are and its camouflage at the bottom, under the line, where armour's
-      // camouflage is; on the attachments page the scope at the top.
+      // its decal at the top, where armour's second decal is, and its camouflage at the bottom, under
+      // the line, where armour's camouflage is; on the attachments page the scope at the top.
       protected function placeWeaponSlots() : void
       {
          var i:uint = 0;
@@ -468,8 +473,8 @@ package survarium.upgrade
                i++;
             }
          }
-         this.placeSlot(this.decalSlot,this._slotPlaces[this.decalSlot]);
-         this.placeSlot(this.decalSlot1,this._slotPlaces[this.decalSlot1]);
+         this.placeSlot(this.decalSlot,this._slotPlaces[this.decalSlot1]);
+         this.placeSlot(this.decalSlot1,this._slotPlaces[this.decalSlot]);
          this.placeSlot(this.decalSlot2,this._slotPlaces[this.camoSlot]);
          this.placeSlot(this.camoSlot,this._slotPlaces[this.decalSlot1]);
       }
@@ -503,8 +508,8 @@ package survarium.upgrade
          var attachments:Boolean = page == PAGE_ATTACHMENTS;
          this._page = page;
          this.camoSlot.visible = attachments && this._hasAttachments;
-         this.decalSlot.visible = !attachments && this._data.decalAvailable > 0;
-         this.decalSlot1.visible = !attachments && this._data.decalAvailable > 1;
+         this.decalSlot.visible = !attachments && this.weaponDecals() > 0;
+         this.decalSlot1.visible = !attachments && this.weaponDecals() > 1;
          this.decalSlot2.visible = !attachments && this._data.camoAvailable > 0;
          if(Boolean(this._separator))
          {
@@ -520,6 +525,12 @@ package survarium.upgrade
          }
       }
 
+      // The decal slots a weapon's window shows: the item's, at most WEAPON_DECALS.
+      protected function weaponDecals() : int
+      {
+         return Math.min(int(this._data.decalAvailable),WEAPON_DECALS);
+      }
+      
       // The window's title; with the page arrows, it keeps between them.
       protected function showTitle(title:String, withArrows:Boolean) : void
       {

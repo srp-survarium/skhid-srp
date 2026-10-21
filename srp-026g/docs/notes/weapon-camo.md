@@ -20,9 +20,13 @@ where the premium (camouflaged) weapons have their paint; the tooling to do that
   pins, sights, screws) stay bare. Most premiums were repainted as a whole, so "where the premium
   painted" alone would cover nearly the whole weapon (97 % of the AK-12's parts).
 - **Which camouflage.** Any camouflage item (category 25) that goes on armour; one at a time.
-- **Slot.** [srp] A weapon's camouflage is in upgrade slot 2: slot 3 holds its scope, 0 and 1 are
-  the decal slots (`WEAPON_CAMO_SLOT`, `modifications::camo_slot`). A scope and a camouflage
-  are worn together. The client keeps a record in any slot.
+- **Slot.** [srp] A weapon's camouflage is in upgrade slot 2: slot 3 holds its scope, 0 its decal
+  (`WEAPON_CAMO_SLOT`, `modifications::camo_slot`). A scope and a camouflage are worn together.
+  The client keeps a record in any slot.
+- **Three upgrades an item.** The client keeps at most three upgrade records on an item (an inline
+  array of the item record, `limits::UPGRADES`; a fourth is a fatal assert), so a weapon has three
+  slots: scope (3), camouflage (2), one decal (0). The owner, 2026-10-21: "let's remove one decal
+  instead for now"; a second decal needs an exe change of that array (not done).
 - **Shared cosmetics.** As for armour (PR 149): one camouflage item on any number of items,
   weapons and armour mixed, each with its own record; sold, it comes off all.
 - **Tiling.** `data/camo_scale` of the weapon config (4.0 for all, the stock bakes' value): the
@@ -81,8 +85,8 @@ attachments", "scrolling form one preselects correct selection in upgrades in in
 of decals/camo should be exactly the same as in appearance", "with camo at the bottom separated by
 separator".
 
-- **One window, two pages.** Attachments: the scope (slot 3). Appearance: the decals (slots 0 and
-  1) and the camouflage (slot 2). One page at a time, in armour's window as drawn (three slots at
+- **One window, two pages.** Attachments: the scope (slot 3). Appearance: the decal (slot 0) and
+  the camouflage (slot 2). One page at a time, in armour's window as drawn (three slots at
   most, at scale 1).
 - **The title bar.** The page's name in the middle, an arrow button on each side. Either arrow
   turns to the other page. A weapon with only one page (no scopes, or no camouflage or decal) has
@@ -97,9 +101,9 @@ separator".
   `scripts/content-edit/weapon-attachments-1.json`). Appearance: armour's title,
   `btn_upgrade_label` (Appearance, Verbesserungen, Wygląd, Внешний вид, Зовнішній вигляд). The
   weapon's button in the item panel and its inventory menu entry say Attachments.
-- **Where the slots are.** Armour's places: the Appearance page has the second decal at the top,
-  the first under it, the line, the camouflage at the bottom (where armour has its decals, line and
-  camouflage); the Attachments page has the scope at the top, without the line.
+- **Where the slots are.** Armour's places: the Appearance page has the decal at the top (where
+  armour's second decal is), the line, the camouflage at the bottom (where armour's camouflage
+  is); the Attachments page has the scope at the top, without the line.
 - **Which page opens.** Attachments when the weapon takes scopes, else Appearance; the account's
   update after a change keeps the page.
 - **The inventory follows.** Opening and each turn select the inventory's filter of the page, as
@@ -112,13 +116,16 @@ separator".
 
 ## Decals (patch 47)
 
-The owner (2026-10-21): "implement and allow put two decals on weapons".
+The owner (2026-10-21): "implement and allow put two decals on weapons"; then, the client holding
+three upgrades an item: "let's remove one decal instead for now". One decal a weapon.
 
 - **Which weapons.** The same 83 configs (`scripts/content-edit/weapon-decals-1.json`, after
   weapon-camo-1): `parameters/decal_available` and an empty `data/decals`, as armour has.
-- **Which decals.** Any decal item (category 26); two at most, one each in the decal slots.
-- **Slots.** [srp] 0 and 1, as armour's (`DECAL_SLOTS`, `modifications::cosmetic_slots`): a
-  weapon holds its scope in 3, its camouflage in 2, its decals in 0 and 1, all at once.
+- **Which decals.** Any decal item (category 26); one, in the decal slot.
+- **Slots.** [srp] 0 (`WEAPON_DECAL_SLOTS`, `modifications::cosmetic_slots`; armour keeps 0 and
+  1): a weapon holds its scope in 3, its camouflage in 2, its decal in 0, all at once; the server
+  refuses a decal in slot 1 of a weapon. Patch 47 bakes up to two entries of `data/decals`; one
+  is all the slots give.
 - **Shared cosmetics.** As for armour: one decal item on any number of items, each with its own
   place.
 - **Placing one.** In the weapon's upgrade window (the weapon above the workbench, patch 45):
@@ -126,18 +133,16 @@ The owner (2026-10-21): "implement and allow put two decals on weapons".
   mouse's ray and lands on the first surface it meets. A click places it; a drag (either button)
   turns the weapon and places nothing, so its other side can be reached during the edit. The
   wheel with a modifier key: size or turn, as on armour. Cancel keeps the old place.
-- **Never placed** (just put in the slot): the first on the left side of the receiver, the
-  second on the right.
+- **Never placed** (just put in the slot): on the left side of the receiver.
 - **Size.** Half an armour decal's: 2.5 to 25 cm, 6 cm to start.
 - **Where it is kept.** The record's u64, as armour's, in the weapon's own space (its model's,
   grip at the origin).
 - **What a match sees.** Every game builds the weapon from its item's upgrades and bakes its
   decals, as the camouflage (patch 44); a game without patch 47 shows the weapon without them.
   No simulation change.
-- **Moving a decal** to the other decal slot (a drag from one to the other) keeps it on the weapon,
+- **Moving a decal** to another decal slot (armour's two; a weapon has one) keeps it on the item,
   where it was placed (2026-10-21, the owner: "move the same decal into another slot ... it doesn't
-  appear any longer": the window took it off after the move). A decal never placed takes the
-  default of its order on the weapon (the first: left, the second: right), not of its slot.
+  appear any longer": the window took it off after the move).
 - **After a place.** The server sends the account back (only for a weapon), the lobby builds the
   weapon again and bakes the new place: the weapon shows its old decals for a moment.
 - **Cost.** One bake per weapon surface for each new combination of camouflage and decals (the

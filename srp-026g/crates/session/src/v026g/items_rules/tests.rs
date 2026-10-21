@@ -1740,7 +1740,7 @@ fn a_decal_placed_on_a_weapon_asks_for_the_account() {
         id: decal_id,
         a: u32::from(decal()),
         value: 0,
-        param: 1,
+        param: 0,
     });
     let revision = account.kits[0].revision;
     account.kits[0].slots[7] = Some(KitSlot {
@@ -1749,6 +1749,6 @@ fn a_decal_placed_on_a_weapon_asks_for_the_account() {
     });
     assert!(place_upgrade(&mut account, rifle, decal_id, 0x0102_0304_0506_0708).unwrap());
     let held = account.item(rifle).unwrap().upgrades[0];
-    assert_eq!((held.value, held.param), (0x0102_0304_0506_0708, 1));
+    assert_eq!((held.value, held.param), (0x0102_0304_0506_0708, 0));
     assert_ne!(account.kits[0].revision, revision);
 }

@@ -186,7 +186,7 @@ a first guess to tune).
 
 | change | why |
 |---|---|
-| The 83 weapon configs of weapon-camo-1: `parameters/decal_available` true and an empty `data/decals` table | decals on weapons (client patch 47, `../../docs/notes/weapon-camo.md`): the lobby shows a weapon's two decal slots for `decal_available`, the server lets decals into its slots 0 and 1, and a decal upgrade appends its texture and place to `data/decals` (a modifier at a path the config lacks is skipped), which patch 47 bakes |
+| The 83 weapon configs of weapon-camo-1: `parameters/decal_available` true and an empty `data/decals` table | decals on weapons (client patch 47, `../../docs/notes/weapon-camo.md`): the lobby shows a weapon's one decal slot for `decal_available` (the client keeps three upgrades an item: scope, camouflage, decal), the server lets a decal into its slot 0, and a decal upgrade appends its texture and place to `data/decals` (a modifier at a path the config lacks is skipped), which patch 47 bakes |
 
 Its manifest row follows weapon-camo-1's: it edits that list's output (it needs the `data` table).
 Checked 2026-10-21 on the local game's server data: 83 files edited by each list, 0 unexpected

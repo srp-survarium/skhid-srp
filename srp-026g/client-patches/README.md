@@ -99,7 +99,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `weapon_preview_026g.asm`, `weapon_preview_026g.section.bin` | The source of patch 32's code (a weapon's upgrade window shows the weapon) and that code assembled for 0x2E50 of `.srp`, its state at 0xE00 of `.srpd`, `-DFIND` the stash code's address and `-DCAMERA` patch 45's camera (weapon_table_026g.asm), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `weapon_stash_026g.asm`, `weapon_stash_026g.section.bin`, `check_weapon_stash_026g.py` | Patch 32's find_kit grown: a weapon no kit holds is shown in the chosen kit's hands from a scratch copy of the account's profile; assembled for 0x360 of `.srpw`; its check runs it with the game's own profile and record copies (needs Unicorn) |
 | `weapon_table_026g.asm`, `weapon_table_026g.section.bin`, `check_weapon_table_026g.py` | Patch 45: a weapon's upgrade window shows the weapon in the air above the lobby's workbench, turning about its middle, the camera flown there once it is, and a drag (the left button too, off the movie) turning it; assembled for 0x800 of `.srpw`, its state at 0xF00 of `.srpd`; its check runs the lobby's handlers, the camera's constructor and tick, its drag buttons and mt_draw's two sites with the game's own code (needs Unicorn) |
-| `weapon_decals_026g.asm`, `weapon_decals_026g.section.bin`, `check_weapon_decals_026g.py` | Patch 47: a weapon wears two decals (the bake patch 44 asks for paints them) and the lobby's decal editor places them on the weapon above the workbench; assembled for 0x1000 of `.srpw` (its second page), no state of its own; its check runs the bake with the game's own unpacking and the editor's four sites with the game's own encode (needs Unicorn) |
+| `weapon_decals_026g.asm`, `weapon_decals_026g.section.bin`, `check_weapon_decals_026g.py` | Patch 47: a weapon wears a decal (the bake patch 44 asks for paints it; the code takes two, the server gives one slot) and the lobby's decal editor places them on the weapon above the workbench; assembled for 0x1000 of `.srpw` (its second page), no state of its own; its check runs the bake with the game's own unpacking and the editor's four sites with the game's own encode (needs Unicorn) |
 | `upgrade_preview_026g.asm`, `upgrade_preview_026g.section.bin`, `check_upgrade_preview_026g.py` | Patch 48: an upgrade dropped on a weapon in its upgrade window is shown at once (the character made again from patch 32's scratch with the change, before the request leaves), the server's account staying the truth; on_player_ready logs the time the lobby character's player took; assembled for 0x2000 of `.srpw` (its third page), its state at 0xD60 of `.srpd`; its check runs the six sites with the game's own setup_profile, profile copy and config lookups (needs Unicorn) |
 | `weapon_draw_026g.asm`, `weapon_draw_026g.section.bin` | The source of patch 32's draw (a weapon's window draws the player as the lobby does) and that code assembled for 0xD20 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_weapon_preview_026g.py` | Runs the original's and patch 32's upgrade window start and close (with the lobby camera's own setter), `setup_profile`'s entry, the lobby camera's three distance clamps and the player's decal pose on a made-up lobby, loaded as is and rebased (needs Unicorn) |
@@ -2576,9 +2576,9 @@ Against the build of `main` ecb9916 the default build differs in the
 headers, the two sites and the new section's 1 024 bytes (the certificate
 moved behind them). **Not run in a game.**
 
-### 47. A weapon wears two decals, placed on it above the workbench (the next release's revision)
+### 47. A weapon wears a decal, placed on it above the workbench (the next release's revision)
 
-The owner's request (2026-10-21): "implement and allow put two decals on weapons". The rules and
+The owner's request (2026-10-21): "implement and allow put two decals on weapons"; then the server gives a weapon one decal slot (0): the client keeps three upgrade records an item, and a scoped weapon holds its scope and camouflage besides (the owner, 2026-10-21: "let's remove one decal instead for now"); the code bakes up to two, as written. The rules and
 the data: `../docs/notes/weapon-camo.md`, `../scripts/content-edit/weapon-decals-1.json` (every
 weapon config with `data` gets `parameters/decal_available` and an empty `data/decals`, as
 armour's).
@@ -2620,8 +2620,8 @@ bytes, the left button's press) at `.srpd`+FA0h; it begins with seven `jmp near`
 
 Everything else, armour's decals, the squad panels and a match: the original's code. No base
 relocation is under a site and no branch aims inside one; the code holds absolute addresses (the
-exe is never rebased). The movie: a weapon's upgrade window shows the two decal slots when it has
-`decal_available` (`UpgradeWindow.as`). Rendering and the lobby only: no row in
+exe is never rebased). The movie: a weapon's upgrade window shows one decal slot when it has
+`decal_available` (`UpgradeWindow.as`, `WEAPON_DECALS`). Rendering and the lobby only: no row in
 `../crates/session/src/v026g/simulation_changes.tsv`; a game without the patch shows the weapon
 without its decals. `../docs/notes/client_patch.md` section 3.44.
 
