@@ -56,6 +56,11 @@
 //!   room and its queue, and may join again as a new member. Its game
 //!   started anew within that keeps the place; a game quit from its menu
 //!   (`FA`) leaves the room at once.
+//! - A game started anew (a new session) is not seated in a match, nor
+//!   sent "match found", until it has been told its room (`room_unseen`:
+//!   its movie asks the state, Play, Join match); one not told within
+//!   about 90 s loses the place. Live, 2026-10-20: a game that did not know
+//!   it was in a room was pulled into its matches.
 //! - A member that leaves the room's match by its own word (0xE0) leaves
 //!   the room (`room_left_matches`); joining it again while that match is
 //!   played, it goes into it late as a new place (the owner's of
@@ -281,6 +286,21 @@ impl Core<'_> {
 
     /// A room request (`3B` at a rooms' start).
     pub(super) fn room_request(&mut self, who: &Who, request: RoomRequest, now: Instant) {
+        // Every request but the list's, the create window's steps, a room's
+        // members and the friends' rooms is answered with the asker's room:
+        // its game knows it from then on.
+        if !matches!(
+            request,
+            RoomRequest::List { .. }
+                | RoomRequest::Pool { .. }
+                | RoomRequest::Form
+                | RoomRequest::Bits { .. }
+                | RoomRequest::Pin { .. }
+                | RoomRequest::Members { .. }
+                | RoomRequest::Friends
+        ) {
+            self.room_shown(who.account_id);
+        }
         match request {
             RoomRequest::List { count } => {
                 let list = self.room_list(who, count, now);
@@ -632,6 +652,7 @@ impl Core<'_> {
     /// new one; the lobby state, so the movie shows it. Its own room if it
     /// has one.
     pub(super) fn room_play(&mut self, who: &Who, now: Instant) {
+        self.room_shown(who.account_id);
         self.room_quick(who, now);
         self.send(who.addr, lobby::client_state(&ClientState::Lobby, None));
     }
@@ -707,7 +728,8 @@ impl Core<'_> {
             me: account_id == who.account_id,
             in_match: room.in_match.contains(&account_id),
             fit: self.member_fit(account_id),
-            away: !self.by_account.contains_key(&account_id),
+            away: !self.by_account.contains_key(&account_id)
+                || self.room_unseen.contains_key(&account_id),
             name: self.name_of(account_id).unwrap_or_default(),
         }
     }
@@ -1108,6 +1130,52 @@ impl Core<'_> {
         }
     }
 
+    /// The account signed in from a game started anew (closed or crashed,
+    /// not from its menu). Its room and its queue keep it, but that game
+    /// may not know of them (live, 2026-10-20: one in a room it did not
+    /// know of was pulled into its matches twice): it is seated in no
+    /// match until the room is shown in it (`room_shown`), and loses its
+    /// place if that is not within the 90 s a lost game has.
+    pub(super) fn room_restarted(&mut self, account_id: u32, now: Instant) {
+        if self.rooms.of(account_id).is_none() && self.rooms.queue_place(account_id).is_none() {
+            return;
+        }
+        let wait = self.settings.link_timeout + self.settings.session_grace;
+        log::info!(
+            "Account {account_id}: signed in from a game started anew; in no match of its room              until its game is told the room"
+        );
+        self.room_unseen.insert(account_id, now + wait);
+    }
+
+    /// The account's game was told its room (a request answered with its
+    /// state, or Play): the room plays with it again. One that comes while
+    /// its room's match is played sees the room first (`LATE_JOIN_WAIT`).
+    fn room_shown(&mut self, account_id: u32) {
+        if self.room_unseen.remove(&account_id).is_some() {
+            self.room_join_at.remove(&account_id);
+            log::info!("Account {account_id}: its game started anew was told its room");
+        }
+    }
+
+    /// Who signed in anew and was not told its room in time is out of it.
+    fn room_unseen_gone(&mut self, now: Instant) {
+        let late: Vec<u32> = self
+            .room_unseen
+            .iter()
+            .filter(|(_, until)| **until <= now)
+            .map(|(account_id, _)| *account_id)
+            .collect();
+        for account_id in late {
+            self.room_unseen.remove(&account_id);
+            if self.rooms.of(account_id).is_some() || self.rooms.queue_place(account_id).is_some() {
+                log::info!(
+                    "Account {account_id}: its game started anew was never told its room; out of it"
+                );
+                self.room_gone(account_id);
+            }
+        }
+    }
+
     /// A member of a room whose session ended.
     pub(super) fn room_gone(&mut self, account_id: u32) {
         if let Some(key) = self.rooms.leave(account_id) {
@@ -1119,6 +1187,7 @@ impl Core<'_> {
         self.rooms.forget_draft(account_id);
         self.rooms.forget_pin(account_id);
         self.room_codes.remove(&account_id);
+        self.room_unseen.remove(&account_id);
     }
 
     /// Who left its room's match by its own word (its game's 0xE0, which
@@ -1225,6 +1294,10 @@ impl Core<'_> {
     /// The member as its room's match takes it: free in the lobby, its
     /// active kit one Play would take, its game of the pool.
     fn room_ready(&self, account_id: u32) -> Option<Ready> {
+        // Its game started anew and does not know of the room yet.
+        if self.room_unseen.contains_key(&account_id) {
+            return None;
+        }
         let addr = *self.by_account.get(&account_id)?;
         let player = self.player(addr)?;
         if player.in_match.is_some() || player.connect.is_some() || player.queued_since.is_some() {
@@ -1274,6 +1347,7 @@ impl Core<'_> {
         });
         self.room_left_matches();
         self.room_failed_joins();
+        self.room_unseen_gone(now);
         if self.rooms.is_empty() {
             return;
         }

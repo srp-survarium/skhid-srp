@@ -71,6 +71,12 @@ package survarium.rooms
         private var _timer:Timer;
         private var _now:int = 0;
         internal var _askedAt:int = -100000;
+        // The last STATE asked, and whether one was ever answered: a game
+        // started anew may be in a room the server kept for it, and must
+        // learn it (live, 2026-10-20: one played matches it did not know of;
+        // the server seats it in none until then).
+        private var _stateAskedAt:int = -100000;
+        private var _stateKnown:Boolean = false;
         private var _listAt:int = -100000;
         internal var _fastUntil:int = 0;
         internal var _rooms:Array = [];
@@ -605,6 +611,8 @@ package survarium.rooms
         internal function ask(start:int, count:int):void
         {
             _askedAt = getTimer();
+            if (start == RoomsWire.STATE)
+                _stateAskedAt = _askedAt;
             RoomsWire.send(start, count);
         }
 
@@ -648,6 +656,10 @@ package survarium.rooms
                     _listAt = _now;
                     ask(RoomsWire.LIST, 32);
                 }
+                // Outside a room too: asked again until answered, then every
+                // 5 s, so a room the server holds us in always shows.
+                else if (_now - _stateAskedAt >= (_stateKnown ? 5000 : 2000))
+                    ask(RoomsWire.STATE, 1);
                 // The members at their own pace, whatever the state's poll
                 // (in a room, queued or not).
                 if (_shown && (_view == "list" || _view == "room"))
@@ -694,6 +706,8 @@ package survarium.rooms
             if (head[0] != "S1")
                 return;
             var kind:String = head[1];
+            if (kind == "R" || kind == "N")
+                _stateKnown = true;
             // Where we are now is known: Play follows it.
             if (_playAskedAt != 0 && (kind == "R" || kind == "N"))
             {

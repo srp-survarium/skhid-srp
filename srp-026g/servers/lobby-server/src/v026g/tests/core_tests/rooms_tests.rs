@@ -275,6 +275,98 @@ fn a_game_started_anew_keeps_its_room() {
     assert_eq!(header(&state(&mut world, alice))[MEMBERS], "2");
 }
 
+/// A member whose game is closed (not from its menu) and started again
+/// within the 90 s keeps its place, but its new game, which does not know
+/// of the room yet, is in no match of it (shown grey) until it asks where
+/// it is; then it plays as before. Live, 2026-10-20: a game that showed no
+/// room was pulled into the room's matches twice.
+#[test]
+fn a_game_started_anew_plays_no_match_of_its_room_until_it_is_told_the_room() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let key = create(&mut world, alice, spec(6), None);
+    rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
+    // Bob's game is killed; a new one signs in 10 s later.
+    world.silent_for(bob, Duration::from_secs(10));
+    let (account_id, _) = world.ids[bob];
+    let session = world.new_session(account_id);
+    let again = world.connect_session((account_id, session));
+    let room = state(&mut world, alice);
+    assert_eq!(header(&room)[MEMBERS], "2", "the place is kept: {room:?}");
+    assert!(
+        room.iter().any(|row| row.ends_with(";0;1;Bob")),
+        "grey: {room:?}"
+    );
+    world.take(alice);
+    world.take(again);
+    world.advance(VOTE_AND_WAIT);
+    assert!(
+        sent_to_match(&world.take(again)).is_none(),
+        "not told the room"
+    );
+    assert!(
+        sent_to_match(&world.take(alice)).is_none(),
+        "no match of one"
+    );
+    assert!(world.host.made.locked().is_empty());
+    // Its movie asks where it is: the room, and from now on it plays.
+    let told = state(&mut world, again);
+    assert_eq!(header(&told)[KEY], key.to_string(), "{told:?}");
+    assert!(told.iter().any(|row| row.ends_with(";0;0;Bob")), "{told:?}");
+    world.advance(VOTE_AND_WAIT);
+    let (to_alice, _) = sent_to_match(&world.take(alice)).expect("Alice plays");
+    let (to_bob, _) = sent_to_match(&world.take(again)).expect("Bob plays");
+    assert_eq!(to_alice, to_bob);
+}
+
+/// A game started anew that is never told its room loses the place 90 s
+/// after it signed in, as a lost one does, and is never sent to a match.
+#[test]
+fn a_game_started_anew_and_never_told_its_room_loses_it_in_90_s() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let key = create(&mut world, alice, spec(6), None);
+    rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
+    let (account_id, _) = world.ids[bob];
+    let session = world.new_session(account_id);
+    let again = world.connect_session((account_id, session));
+    world.take(again);
+    world.advance(Duration::from_secs(80));
+    assert_eq!(header(&state(&mut world, alice))[MEMBERS], "2");
+    world.advance(Duration::from_secs(10));
+    assert_eq!(header(&state(&mut world, alice))[MEMBERS], "1");
+    assert!(sent_to_match(&world.take(again)).is_none());
+    assert!(world.core.rooms.of(account_id).is_none());
+    assert!(state(&mut world, again)[0].starts_with("S1;N;"));
+}
+
+/// A member seated in its room's match whose game is started anew goes
+/// back to its seat by Play, as before; its new game is not sent to the
+/// match on its own.
+#[test]
+fn a_game_started_anew_goes_back_to_its_seat_in_the_rooms_match_by_play() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let key = create(&mut world, alice, spec(6), None);
+    rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
+    world.take(alice);
+    world.take(bob);
+    world.advance(VOTE_AND_WAIT);
+    let (match_id, _) = sent_to_match(&world.take(bob)).expect("a match");
+    let (account_id, _) = world.ids[bob];
+    let session = world.new_session(account_id);
+    let again = world.connect_session((account_id, session));
+    world.take(again);
+    world.advance(Duration::from_secs(20));
+    assert!(sent_to_match(&world.take(again)).is_none());
+    world.ask(again, request::ranking(ROOM_PLAY, 1));
+    let (back, _) = sent_to_match(&world.take(again)).expect("back to its seat");
+    assert_eq!(back, match_id);
+}
+
 /// A member is offered the open room of the lowest max level that takes it,
 /// lower than its own room's, and one click (a Join) moves it there; none
 /// over its equipment, none with a PIN, none in its own room (the owner's
