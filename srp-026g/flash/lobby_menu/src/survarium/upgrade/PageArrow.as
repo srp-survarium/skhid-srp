@@ -10,12 +10,37 @@ package survarium.upgrade
    // of 119, at the height's scale) and stretches between them; the arrow is drawn, not stretched.
    public class PageArrow extends ButtonClick
    {
+
       public static const WIDTH:Number = 21;
 
       public static const HEIGHT:Number = 24;
 
       // the art's ends, in its own pixels
       protected static const CAP:Number = 5;
+
+      // the arrow: a triangle 6 wide and 10 high, its middle at 17/36 of the height (above the face's
+      // bottom shadow), with a shadow a pixel down and right
+      protected static const ARROW_HALF_WIDTH:Number = 3;
+
+      protected static const ARROW_HALF_HEIGHT:Number = 5;
+
+      protected static const ARROW_MIDDLE:Number = 17 / 36;
+
+      protected static const SHADOW_OFFSET:Number = 1;
+
+      protected static const SHADOW_ALPHA:Number = 0.6;
+
+      // the arrow's colour on each face: light grey, lighter on hover, darker pressed, dim disabled
+      protected static const ARROW_UP:uint = 0xB4BEC4;
+
+      protected static const ARROW_OVER:uint = 0xE7F1EE;
+
+      protected static const ARROW_DOWN:uint = 0x8C979D;
+
+      protected static const ARROW_DISABLED:uint = 0x55606A;
+
+      // a near-invisible fill under the whole face: all of the button takes the mouse
+      protected static const HIT_ALPHA:Number = 0.01;
 
       protected static var _faces:Object;
 
@@ -56,80 +81,83 @@ package survarium.upgrade
          return _faces;
       }
 
-      // pointing right (the next page) or left
-      public function set pointRight(param1:Boolean) : void
+      protected static function arrowColour(face:String) : uint
       {
-         this._right = param1;
+         return face == "over" ? ARROW_OVER : (face == "down" ? ARROW_DOWN : (face == "disabled" ? ARROW_DISABLED : ARROW_UP));
+      }
+
+      // pointing right (the next page) or left
+      public function set pointRight(value:Boolean) : void
+      {
+         this._right = value;
          this._shown = null;
          this.show(_state);
       }
 
-      override protected function setState(param1:String) : void
+      override protected function setState(state:String) : void
       {
-         super.setState(param1);
+         super.setState(state);
          if(Boolean(this._face))
          {
-            this.show(param1);
+            this.show(state);
          }
       }
 
-      protected function show(param1:String) : void
+      protected function show(state:String) : void
       {
-         var _loc2_:Array = _stateMap ? _stateMap[param1] as Array : null;
-         var _loc3_:String = Boolean(_loc2_) && _loc2_.length > 0 ? String(_loc2_[0]) : "up";
-         if(!(_loc3_ in faces()))
+         var frames:Array = _stateMap ? _stateMap[state] as Array : null;
+         var face:String = Boolean(frames) && frames.length > 0 ? String(frames[0]) : "up";
+         if(!(face in faces()))
          {
-            _loc3_ = "up";
+            face = "up";
          }
-         if(_loc3_ == this._shown)
+         if(face == this._shown)
          {
             return;
          }
-         this._shown = _loc3_;
-         this.drawFace(faces()[_loc3_] as BitmapData);
-         this.drawGlyph(_loc3_ == "over" ? 15200750 : (_loc3_ == "down" ? 9213853 : (_loc3_ == "disabled" ? 5595242 : 11845316)));
+         this._shown = face;
+         this.drawFace(faces()[face] as BitmapData);
+         this.drawGlyph(arrowColour(face));
       }
 
-      protected function drawFace(param1:BitmapData) : void
+      protected function drawFace(art:BitmapData) : void
       {
-         var _loc2_:Number = HEIGHT / param1.height;
-         var _loc3_:Number = CAP * _loc2_;
-         var _loc4_:Number = (WIDTH - 2 * _loc3_) / (param1.width - 2 * CAP);
+         var scale:Number = HEIGHT / art.height;
+         var cap:Number = CAP * scale;
+         var stretch:Number = (WIDTH - 2 * cap) / (art.width - 2 * CAP);
          this._face.graphics.clear();
-         // a near-invisible fill under all: the whole button takes the mouse
-         this._face.graphics.beginFill(0,0.01);
+         this._face.graphics.beginFill(0,HIT_ALPHA);
          this._face.graphics.drawRect(0,0,WIDTH,HEIGHT);
          this._face.graphics.endFill();
-         this._face.graphics.beginBitmapFill(param1,new Matrix(_loc2_,0,0,_loc2_,0,0),false,true);
-         this._face.graphics.drawRect(0,0,_loc3_,HEIGHT);
+         this._face.graphics.beginBitmapFill(art,new Matrix(scale,0,0,scale,0,0),false,true);
+         this._face.graphics.drawRect(0,0,cap,HEIGHT);
          this._face.graphics.endFill();
-         this._face.graphics.beginBitmapFill(param1,new Matrix(_loc4_,0,0,_loc2_,_loc3_ - CAP * _loc4_,0),false,true);
-         this._face.graphics.drawRect(_loc3_,0,WIDTH - 2 * _loc3_,HEIGHT);
+         this._face.graphics.beginBitmapFill(art,new Matrix(stretch,0,0,scale,cap - CAP * stretch,0),false,true);
+         this._face.graphics.drawRect(cap,0,WIDTH - 2 * cap,HEIGHT);
          this._face.graphics.endFill();
-         this._face.graphics.beginBitmapFill(param1,new Matrix(_loc2_,0,0,_loc2_,WIDTH - _loc3_ - (param1.width - CAP) * _loc2_,0),false,true);
-         this._face.graphics.drawRect(WIDTH - _loc3_,0,_loc3_,HEIGHT);
+         this._face.graphics.beginBitmapFill(art,new Matrix(scale,0,0,scale,WIDTH - cap - (art.width - CAP) * scale,0),false,true);
+         this._face.graphics.drawRect(WIDTH - cap,0,cap,HEIGHT);
          this._face.graphics.endFill();
       }
 
-      // a triangle 6 wide and 10 high in the middle of the face (above its bottom shadow), with a shadow
-      // a pixel down and right; fills only (a line style would draw from the pen)
-      protected function drawGlyph(param1:uint) : void
+      // fills only (a line style would draw from the pen)
+      protected function drawGlyph(colour:uint) : void
       {
-         var _loc2_:Number = WIDTH / 2;
-         var _loc3_:Number = HEIGHT * 17 / 36;
+         var middleX:Number = WIDTH / 2;
+         var middleY:Number = HEIGHT * ARROW_MIDDLE;
          this._glyph.graphics.clear();
-         this.triangle(_loc2_ + 1,_loc3_ + 1,0,0.6);
-         this.triangle(_loc2_,_loc3_,param1,1);
+         this.triangle(middleX + SHADOW_OFFSET,middleY + SHADOW_OFFSET,0,SHADOW_ALPHA);
+         this.triangle(middleX,middleY,colour,1);
       }
 
-      protected function triangle(param1:Number, param2:Number, param3:uint, param4:Number) : void
+      protected function triangle(middleX:Number, middleY:Number, colour:uint, alpha:Number) : void
       {
-         var _loc5_:Number = this._right ? 1 : -1;
-         this._glyph.graphics.beginFill(param3,param4);
-         this._glyph.graphics.moveTo(param1 + 3 * _loc5_,param2);
-         this._glyph.graphics.lineTo(param1 - 3 * _loc5_,param2 - 5);
-         this._glyph.graphics.lineTo(param1 - 3 * _loc5_,param2 + 5);
-         this._glyph.graphics.lineTo(param1 + 3 * _loc5_,param2);
+         var direction:Number = this._right ? 1 : -1;
+         this._glyph.graphics.beginFill(colour,alpha);
+         this._glyph.graphics.moveTo(middleX + ARROW_HALF_WIDTH * direction,middleY);
+         this._glyph.graphics.lineTo(middleX - ARROW_HALF_WIDTH * direction,middleY - ARROW_HALF_HEIGHT);
+         this._glyph.graphics.lineTo(middleX - ARROW_HALF_WIDTH * direction,middleY + ARROW_HALF_HEIGHT);
+         this._glyph.graphics.lineTo(middleX + ARROW_HALF_WIDTH * direction,middleY);
          this._glyph.graphics.endFill();
       }
    }
