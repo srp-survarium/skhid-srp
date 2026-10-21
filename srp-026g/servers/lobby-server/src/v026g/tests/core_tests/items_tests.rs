@@ -267,6 +267,58 @@ fn a_decal_placed_on_a_weapon_sends_the_account() {
     world.assert_clean();
 }
 
+/// The owner's sequence on a Mosin (2026-10-21, the packet log of
+/// weapon-camo-27): a decal into slot 0, placed, then dragged into slot 1.
+/// The window's movie of 10e3fe00 sent the move (`46 01`, slot 1) and,
+/// for the slot it left, `46 02` in the same datagram (CLIK's DragManager:
+/// the target's drop, then the source's drag end), which took the decal
+/// off the weapon: "it doesn't appear any longer". The movie no longer
+/// drops a cosmetic another slot of the window holds; the move keeps its
+/// place.
+#[test]
+fn a_decal_dragged_to_the_other_slot_stays_with_its_place() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let vest = give(&mut world, alice, "edge_torso_2", &[]);
+    let decal_name = Dictionary::shared()
+        .items
+        .iter()
+        .find(|item| item.category == 26)
+        .unwrap()
+        .name
+        .clone();
+    let decal = give(&mut world, alice, &decal_name, &[]);
+    let placed = u64::from_le_bytes([0x4E, 0x6E, 0x08, 0x20, 0x01, 0x46, 0x30, 0x81]);
+    world.ask(alice, ask::attach(vest, decal, 0));
+    world.take(alice);
+    world.ask(alice, ask::place(vest, decal, placed));
+    world.take(alice);
+    // The fixed movie: the move alone.
+    world.ask(alice, ask::attach(vest, decal, 1));
+    let decoded = world.take(alice);
+    assert_eq!(
+        decoded[0],
+        Decoded::Permitted(Permitted::UpgradeAttached {
+            host_item_id: vest,
+            upgrade_item_id: decal,
+            slot: 1,
+            value: placed,
+            detach_first: true
+        })
+    );
+    let held = world.account(alice).item(vest).unwrap().upgrades.clone();
+    assert_eq!(held.len(), 1);
+    assert_eq!((held[0].param, held[0].value), (1, placed));
+    assert_same_items(&mut world, alice);
+    // The old movie's two requests: the decal ends off the item.
+    world.ask(alice, ask::attach(vest, decal, 0));
+    world.ask(alice, ask::detach(vest, decal));
+    world.take(alice);
+    assert!(world.account(alice).item(vest).unwrap().upgrades.is_empty());
+    assert_same_items(&mut world, alice);
+    world.assert_clean();
+}
+
 /// One camouflage on the worn vest and a spare one: putting it on the spare
 /// leaves the worn vest (and its kit) as they were; taking it off the worn
 /// vest refreshes the owner's kit, and the squadmate's cache of it when

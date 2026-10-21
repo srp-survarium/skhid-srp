@@ -167,6 +167,17 @@ fn cosmetics_go_on_and_come_off() {
         .map(|upgrade| (upgrade.id, upgrade.param))
         .collect();
     assert_eq!(slots, [(camo, 3), (first, 1)]);
+    // Placed, then moved back: its place goes with it, in the answer too.
+    place_upgrade(&mut account, vest, first, 0x8130_4601_2008_6E4E).unwrap();
+    let back = attach_upgrade(&mut account, vest, first, 0).unwrap();
+    assert!(back.detach_first);
+    assert_eq!(back.value, 0x8130_4601_2008_6E4E);
+    let message = lobby::permitted_upgrade_attached(vest, first, 0, 0x8130_4601_2008_6E4E, true);
+    takes(&mut client, &message, &account);
+    let moved = attach_upgrade(&mut account, vest, first, 1).unwrap();
+    let message = lobby::permitted_upgrade_attached(vest, first, 1, moved.value, true);
+    takes(&mut client, &message, &account);
+    assert_eq!(moved.value, 0x8130_4601_2008_6E4E);
 
     // The camouflage onto the other vest too: this one keeps it.
     let shared = attach_upgrade(&mut account, other, camo, 3).unwrap();

@@ -622,12 +622,15 @@ def check_editor(original, build, say):
             f"{title}: the press is over after the release")
 
     # The start's index.
-    records = ((3, 0x11), (2, 0x22), (0, 0x33), (1, 0x44))     # scope, camouflage, two decals
-    for title, raw, weapon_window, want_index, query in (
-            ("the first decal after a scope and a camouflage", 2, True, 0, True),
-            ("the second", 3, True, 1, True),
-            ("the camouflage's record", 1, True, None, False),
-            ("armour's window", 3, False, 7, True)):
+    stock = ((3, 0x11), (2, 0x22), (0, 0x33), (1, 0x44))       # scope, camouflage, two decals
+    moved = ((3, 0x11), (1, 0x44), (2, 0x22))                   # the owner's Mosin: a decal dragged to slot 1,
+    #                                                             its record pushed last, the camouflage after
+    for title, records, raw, weapon_window, want_index, query in (
+            ("the first decal after a scope and a camouflage", stock, 2, True, 0, True),
+            ("the second", stock, 3, True, 1, True),
+            ("the camouflage's record", stock, 1, True, None, False),
+            ("armour's window", stock, 3, False, 7, True),
+            ("a decal moved to slot 1, alone", moved, 1, True, 0, True)):
         run = EditRun(build, (preview, table))
         run.set_states(1 if weapon_window else 0, 1, ITEM)
         prepare(run)
