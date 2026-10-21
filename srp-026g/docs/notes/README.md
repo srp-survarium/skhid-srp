@@ -32,6 +32,7 @@ given), LIKELY or GUESS.
 | [weapon-camo.md](weapon-camo.md) | Camouflage on weapons: which weapons and where the paint goes (premium weapons' masks), slot 2 beside the scope, the engine's bake and exe patch 44, the lobby slot still to come |
 | [match.md](match.md) | Match protocol: lockstep, handshake, message ids, snapshot and hash, time sync, input rules |
 | [transport.md](transport.md) | The UDP transport that matches **and now the lobby** use: header, acks, per-id lengths, multipart |
+| [relay_trust.md](relay_trust.md) | What one client's bytes can do to another: every match message both ways and every lobby message with a player's data, its bytes, srp's check, the client's handling, coverage (COVERED / PATCHED / OPEN), the open gaps ranked |
 | [static_info.md](static_info.md) | Match start (0xE4): match options, profiles with kits, byte layout |
 | [matchmaking.md](matchmaking.md) | The player's level as the client computes it, the search screen, srp's queue rules (sides of 8, level range, match level, least-played map) |
 | [modes_maps.md](modes_maps.md) | Maps, game modes, map ids, rule classes, match settings now in data |

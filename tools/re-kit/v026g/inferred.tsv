@@ -366,6 +366,7 @@ va	status	ref_021d	name
 0x0007aa50	inferred-medium	0x0021c6d1	vostok::physics::normalized_safe
 0x0007ab10	inferred-high	0x0021c787	vostok::physics::bullet_character_controller::get_collision_group
 0x0007ab20	inferred-high	0x0021c78f	vostok::physics::bullet_character_controller::get_bt_collision_obect
+0x0007ab30	inferred-high		vostok::network_core::mutable_buffer::resize
 0x0007ac50	inferred-medium	0x0021c851	vostok::physics::get_wall_slide_vector
 0x0007af00	inferred-medium	0x0021ca4d	vostok::physics::get_slope_slide_vector
 0x0007b150	inferred-medium	0x0021cca5	vostok::physics::bullet_character_controller::bullet_character_controller
@@ -575,6 +576,8 @@ va	status	ref_021d	name
 0x000f45f0	inferred-medium	0x000bce6a	PPM_CONTEXT::refresh
 0x000f5490	inferred-medium	0x000bda6c	PPM_CONTEXT::encodeBinSymbol
 0x000f55b0	inferred-medium	0x000bdb7d	PPM_CONTEXT::decodeBinSymbol
+0x000f66d0	inferred-medium		vostok::math::half::operator float
+0x000f67b0	inferred-medium		vostok::math::operator+(half, half)
 0x000f6b10	inferred-high		vostok::configs::binary_config_value::operator[]
 0x000f6c00	inferred-high		vostok::configs::binary_config_value::value_exists
 0x000f6d50	inferred-medium		vostok::configs::binary_config_value::find_child_by_crc
@@ -1852,7 +1855,9 @@ va	status	ref_021d	name
 0x002bda60	inferred-medium	0x001bfdd6	Scaleform::Render::D3D1x::TextureManager::Reset
 0x002bdb10	inferred-medium	0x001bfe5e	Scaleform::Render::D3D1x::TextureManager::SetSamplerState
 0x002bde70	inferred-medium	0x001c0075	Scaleform::Render::D3D1x::TextureManager::processInitTextures
+0x002c5b60	inferred-medium		survarium::player_input::merge
 0x002c5b90	inferred-medium		vostok::network_core::buffer_writer::w<class vostok::math::half2>
+0x002c6640	inferred-medium		vostok::math::operator+(half2, half2)
 0x002c7df0	inferred-medium	0x001c592b	vostok::variant<32>::try_get<survarium::inventory_cooker_data *>
 0x002c7e90	inferred-medium	0x001c59aa	stlp_std::priv::_Impl_vector<enum survarium::profile_slot_enum,vostok::vectora_allocator<enum survarium::profile_slot_enum> >::_M_insert_overflow_aux
 0x002c7f60	inferred-medium	0x001c5ae2	vostok::detail::concrete_type_helper<survarium::booby_trap_set_cook_data>::copy_helper
@@ -2149,6 +2154,10 @@ va	status	ref_021d	name
 0x003171d0	inferred-medium		survarium::player_respawn_rule_base::select_respawn_points
 0x00317540	inferred-medium	0x001fd304	vostok::buffer_vector<survarium::respawn_point_core *>::push_back
 0x00317f10	inferred-medium	0x001f554f	survarium::timelimit_rule_core::tick
+0x00318400	inferred-high		survarium::client_update<struct survarium::player_input>::deserialize
+0x003184a0	inferred-high		survarium::client_update<struct survarium::player_input>::serialize
+0x00318540	inferred-high		survarium::client_update<struct survarium::profile_input>::deserialize
+0x003185a0	inferred-high		survarium::client_update<struct survarium::profile_input>::serialize
 0x003187e0	inferred-medium	0x001f5f48	survarium::server_game_project::`scalar deleting destructor'
 0x00318800	inferred-medium		survarium::server_game_project::set_game_world_core
 0x00319a70	inferred-medium	0x001f6856	survarium::damage_zone_core::tick
@@ -2207,9 +2216,15 @@ va	status	ref_021d	name
 0x00323f90	inferred-medium		survarium::bullet_manager_history_item::serialize
 0x00324090	inferred-medium		survarium::statistics_history_item::serialize
 0x00324110	inferred-medium		survarium::game_rules_history_item::serialize
+0x00324190	inferred-medium		survarium::game_rules_history_item::clear
 0x00324210	inferred-medium		survarium::game_objects_serialized_state::serialize
+0x00324290	inferred-medium		survarium::game_objects_history_item::clear
 0x00324310	inferred-medium		survarium::game_effect_player_history_item::serialize
 0x00324410	inferred-medium		survarium::physics_world_history_item::serialize
+0x00324490	inferred-medium		survarium::physics_world_history_item::clear
+0x00324510	inferred-high		survarium::game_state_history_item::game_state_history_item
+0x003246d0	inferred-medium		survarium::game_objects_history_item::game_objects_history_item
+0x003247d0	inferred-high		survarium::player_history_item::player_history_item
 0x00325ee0	inferred-medium		survarium::game_world_core::dump_hash_mismatches
 0x00328380	inferred-medium		survarium::create_folders_to_file
 0x003285d0	inferred-medium		survarium::game_world_core::dump_game_state
@@ -2245,6 +2260,7 @@ va	status	ref_021d	name
 0x0033a900	inferred-medium	0x00209520	boost::detail::function::function_obj_invoker0<boost::_bi::bind_t<bool,boost::_mfi::cmf1<bool,survarium::weapon_core_throw_grenade_state,bool>,boost::_bi::list2<boost::_bi::value<survarium::weapon_core_throw_grenade_state *>,boost::_bi::value<bool> > >,bool>::invoke
 0x0033f4e0	inferred-medium	0x0020baad	vostok::buffer_vector<survarium::armor::body_part_params>::push_back
 0x0033fd00	inferred-medium		survarium::player_serialized_state::serialize
+0x0033fd80	inferred-high		survarium::player_serialized_state::deserialize
 0x003402c0	inferred-medium		survarium::hit_player_game_effect_presenter::serialize
 0x00340930	inferred-high	0x0020c3b8	survarium::hit_animations_selector::hit_body_part::hit_body_part
 0x00340de0	inferred-medium	0x001b4257	survarium::hud_game_effect::`scalar deleting destructor'

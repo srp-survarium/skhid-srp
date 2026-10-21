@@ -168,6 +168,7 @@ va	status	ref_021d	name
 0x0006f181	verified	0x00051aeb	accumulate_fit
 0x0006f561	verified	0x00051ecb	inspect_error
 0x0007ab30	reviewed	0x00155e22	vostok::network_core::mutable_buffer::resize
+0x0007ab70	observed		vostok::network_core::mutable_buffer::reallocate
 0x0007ac10	reviewed	0x00155ebe	vostok::network_core::buffer_writer::w
 0x000804e0	reviewed	0x00158d51	vostok::network_core::buffer_writer::w<float>
 0x00080fa0	reviewed	0x00159507	vostok::network_core::buffer_writer::w<bool>
