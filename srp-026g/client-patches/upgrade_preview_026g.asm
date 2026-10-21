@@ -1,5 +1,5 @@
 ; A weapon's upgrade window shows an upgrade dropped on the weapon at once
-; (build 2777, patch 47, client_patch.md section 3.44). Patch 32's lobby
+; (build 2777, patch 48, client_patch.md section 3.45). Patch 32's lobby
 ; character shows the window's weapon (weapon_preview_026g.asm,
 ; weapon_stash_026g.asm); the stock game shows what the server's account
 ; says, so a scope or a camouflage dropped on the weapon was seen only after
@@ -34,7 +34,7 @@
 ; first category-22 entry whose config's `srp_scope_fit` names the scope
 ; and the weapon (by name or dict id); none: nothing is shown before the
 ; server's answer.
-;   nasm -f bin -DCAVE=0xA42B000 -DSTATE=0xA428E58 -DPREVIEW=0xA428E00 -DFIND=0xA42936F upgrade_preview_026g.asm -o upgrade_preview_026g.section.bin
+;   nasm -f bin -DCAVE=0xA42C000 -DSTATE=0xA428D60 -DPREVIEW=0xA428E00 -DFIND=0xA42A36F upgrade_preview_026g.asm -o upgrade_preview_026g.section.bin
 ; (STATE: its own, UPGRADE_PREVIEW_STATE_OFFSET of `.srpd`; PREVIEW: patch
 ; 32's state; FIND: weapon_stash_026g.asm's find_kit_or_show)
 BITS 32

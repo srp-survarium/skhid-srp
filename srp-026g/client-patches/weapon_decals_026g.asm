@@ -1,8 +1,8 @@
-; Patch 46: decals on a weapon (build 2777, client_patch.md section 3.43). At
+; Patch 47: decals on a weapon (build 2777, client_patch.md section 3.44). At
 ; `.srpw`+1000h, the section's second page (the first holds patches 44, 32's
 ; stash and 45). PREVIEW is patch 32's state (WEAPON_PREVIEW_STATE_OFFSET of
 ; `.srpd`), TABLE patch 45's (WEAPON_TABLE_STATE_OFFSET).
-;   nasm -f bin -DCAVE=0xA42A000 -DPREVIEW=0xA428E00 -DTABLE=0xA428F00 -DPRESS=0xA428FA0 weapon_decals_026g.asm -o weapon_decals_026g.section.bin
+;   nasm -f bin -DCAVE=0xA42B000 -DPREVIEW=0xA428E00 -DTABLE=0xA428F00 -DPRESS=0xA428FA0 weapon_decals_026g.asm -o weapon_decals_026g.section.bin
 ; (PRESS: this patch's 12 bytes, WEAPON_DECALS_STATE_OFFSET of `.srpd`)
 ;
 ; A decal item (category 26) on a weapon is an upgrade record in slot 0 or 1,

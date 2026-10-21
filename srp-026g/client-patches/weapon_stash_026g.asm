@@ -10,7 +10,7 @@
 ;     start, exit and setup_profile hooks come here first, then go on to it).
 ; At STASH_OFFSET of `.srpw`, after the weapon camouflage's code; its state
 ; at +0Ch of patch 32's.
-;   nasm -f bin -DCAVE=0xA429360 -DSTATE=0xA428E00 -DPREVIEW=0xA427E50 weapon_stash_026g.asm -o weapon_stash_026g.section.bin
+;   nasm -f bin -DCAVE=0xA42A360 -DSTATE=0xA428E00 -DPREVIEW=0xA427E50 weapon_stash_026g.asm -o weapon_stash_026g.section.bin
 ;
 ; The game's functions (client_patch.md section 3.30, read 2026-10-21):
 ;   item_by_id   0x1F0090  eax = items_dictionary, [esp+4] = u32 dict id;

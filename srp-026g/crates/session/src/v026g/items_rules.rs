@@ -511,7 +511,7 @@ pub fn detach_upgrade(
 /// expects no answer). Each item wearing the cosmetic has its own. True
 /// when the host is a weapon: the client's copy is the inventory's, and
 /// its lobby shows the weapon with the new place only when it is sent the
-/// account (patch 46 bakes the decal when the weapon is built).
+/// account (patch 47 bakes the decal when the weapon is built).
 pub fn place_upgrade(
     account: &mut Account,
     host_item_id: u32,

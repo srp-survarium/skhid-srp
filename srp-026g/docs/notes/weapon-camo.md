@@ -56,7 +56,7 @@ would have been there", "that would allow you to rotate it", "with weapon in the
 - **Changing it.** Putting a scope or a camouflage on keeps the weapon at the bench until the new
   one replaces it (no empty bench); the new one may show plain for a moment while its camouflage
   bakes.
-- **Shown at once** (patch 47, owner 2026-10-21: "the server can be in the background"). A
+- **Shown at once** (patch 48, owner 2026-10-21: "the server can be in the background"). A
   scope, camouflage or decal dropped on the window's weapon, or taken off it, is shown without
   waiting for the server: the lobby builds the weapon from its own copy with the change. The
   request is sent as before; the server's answer is the truth: confirmed, nothing changes on
@@ -110,7 +110,7 @@ separator".
   line) on Appearance.
 - **Armour** keeps its window: no arrows, its title, its slots where the movie has them.
 
-## Decals (patch 46)
+## Decals (patch 47)
 
 The owner (2026-10-21): "implement and allow put two decals on weapons".
 
@@ -132,7 +132,7 @@ The owner (2026-10-21): "implement and allow put two decals on weapons".
 - **Where it is kept.** The record's u64, as armour's, in the weapon's own space (its model's,
   grip at the origin).
 - **What a match sees.** Every game builds the weapon from its item's upgrades and bakes its
-  decals, as the camouflage (patch 44); a game without patch 46 shows the weapon without them.
+  decals, as the camouflage (patch 44); a game without patch 47 shows the weapon without them.
   No simulation change.
 - **Moving a decal** to the other decal slot (a drag from one to the other) keeps it on the weapon,
   where it was placed (2026-10-21, the owner: "move the same decal into another slot ... it doesn't
@@ -199,7 +199,7 @@ The owner (2026-10-21): "implement and allow put two decals on weapons".
 
 ## Not done
 
-- Decals on weapons: written (patch 46, above), not run in a game: the preview on the weapon, the
+- Decals on weapons: written (patch 47, above), not run in a game: the preview on the weapon, the
   place a click gives and a weapon's decal bake are emulated only.
 - A match (first and third person) not yet seen.
 - The two-page window (arrows, places, the inventory's filter on a turn, the new texts): built,

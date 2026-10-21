@@ -9,7 +9,7 @@ A camouflage reaches a weapon in three pieces, all in one content patch:
    texture: `weapon_camo.py` with `guns.tsv` and `parts.tsv` (the painted parts);
 2. `parameters/camo_available` and a `data` table (`camo_scale`) in those weapons' configs:
    `../content-edit/content_edit.py` with `../content-edit/weapon-camo-1.json`, then
-   `weapon-decals-1.json` (`decal_available` and `data/decals`: decals, client patch 46);
+   `weapon-decals-1.json` (`decal_available` and `data/decals`: decals, client patch 47);
 3. the server reads both from its game data built of that patch (camouflage into slot 2 of a weapon).
 
 ## Making the patch
@@ -29,7 +29,7 @@ dbgrab server-game-data.db get gameplay/items/upgrades/camouflages/ camos   # th
 python3 -I weapon_camo.py guns.tsv game donor out --previews previews \
     --camo game/textures__character__human__camo__premium__city_camo.dds
 python3 -I ../content-edit/content_edit.py ../content-edit/weapon-camo-1.json live folder
-python3 -I ../content-edit/content_edit.py ../content-edit/weapon-decals-1.json folder decals   # patch 46
+python3 -I ../content-edit/content_edit.py ../content-edit/weapon-decals-1.json folder decals   # patch 47
 cp -r decals/* folder/
 cp -r out/textures folder/
 release/build-patch folder <revision>

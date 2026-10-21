@@ -7,7 +7,7 @@
 ; turns it. At WEAPON_TABLE_OFFSET of `.srpw`, after the stash code; its state
 ; (WEAPON_TABLE_STATE_SIZE bytes) at STATE, WEAPON_TABLE_STATE_OFFSET of
 ; `.srpd`; patch 32's mode at PREVIEW (WEAPON_PREVIEW_STATE_OFFSET).
-;   nasm -f bin -DCAVE=0xA429800 -DSTATE=0xA428F00 -DPREVIEW=0xA428E00 weapon_table_026g.asm -o weapon_table_026g.section.bin
+;   nasm -f bin -DCAVE=0xA42A800 -DSTATE=0xA428F00 -DPREVIEW=0xA428E00 weapon_table_026g.asm -o weapon_table_026g.section.bin
 ;
 ; The lobby camera (lobby menu+10Ch; ctor 0x283BC0, tick 0x283EF0 with ecx =
 ; camera+4, setter 0x2845C0) looks at the point (+A0h, +A4h, +A8h) from the

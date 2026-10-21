@@ -54,18 +54,18 @@ USAGE (this script never touches the source exe):
         nasm -f bin read_order_026g.asm -o read_order_026g.bin
     (checked in). A weapon's upgrade window showing the weapon comes from
     weapon_preview_026g.asm:
-        nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA42B00F -DCAMERA=0xA429800 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
+        nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA42C00F -DCAMERA=0xA42A800 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
     (checked in; STATE is 0xE00 of the late join's state page, checked; FIND is
     upgrade_preview_026g.asm in `.srpw`, which shows an upgrade dropped on the
     window's weapon at once and calls weapon_stash_026g.asm's find first:
-        nasm -f bin -DCAVE=0xA42B000 -DSTATE=0xA428E58 -DPREVIEW=0xA428E00 -DFIND=0xA42936F upgrade_preview_026g.asm -o upgrade_preview_026g.section.bin
-    checked in; its STATE is 0xE58 of the late join's state page, checked;
+        nasm -f bin -DCAVE=0xA42C000 -DSTATE=0xA428D60 -DPREVIEW=0xA428E00 -DFIND=0xA42A36F upgrade_preview_026g.asm -o upgrade_preview_026g.section.bin
+    checked in; its STATE is 0xD60 of the late join's state page, checked;
     weapon_stash_026g.asm also shows a weapon no kit holds and armour the
     chosen kit does not wear:
-        nasm -f bin -DCAVE=0xA429360 -DSTATE=0xA428E00 -DPREVIEW=0xA427E50 weapon_stash_026g.asm -o weapon_stash_026g.section.bin
+        nasm -f bin -DCAVE=0xA42A360 -DSTATE=0xA428E00 -DPREVIEW=0xA427E50 weapon_stash_026g.asm -o weapon_stash_026g.section.bin
     checked in; CAMERA is weapon_table_026g.asm in `.srpw`, which shows the
     weapon in the air above the lobby's workbench:
-        nasm -f bin -DCAVE=0xA429800 -DSTATE=0xA428F00 -DPREVIEW=0xA428E00 weapon_table_026g.asm -o weapon_table_026g.section.bin
+        nasm -f bin -DCAVE=0xA42A800 -DSTATE=0xA428F00 -DPREVIEW=0xA428E00 weapon_table_026g.asm -o weapon_table_026g.section.bin
     checked in; its STATE is 0xF00 of the late join's state page, checked), and its
     draw from weapon_draw_026g.asm:
         nasm -f bin -DCAVE=0xA425D20 -DSTATE=0xA428E00 weapon_draw_026g.asm -o weapon_draw_026g.section.bin
@@ -83,14 +83,15 @@ USAGE (this script never touches the source exe):
     a section of its own, `.srpc`, on the page after the late join's state page:
         nasm -f bin -DCAVE=0xA429000 -DSTATE=0xA428E60 -DLOOK=0xA425D40 -DLOOK_STATE=0xA428E20 -DDRAG_END=0xA425A98 death_camera_026g.asm -o death_camera_026g.section.bin
     (checked in; STATE is 0xE60 of the late join's state page, LOOK_STATE warmup_look's, checked).
-    A weapon's camouflage comes from weapon_camo_026g.asm, in a
-    section of its own after the late join's state page, and what it paints
-    (the camouflage, the decals) and the decal editor on a weapon from
-    weapon_decals_026g.asm, on that section's second page:
-        nasm -f bin -DCAVE=0xA429000 -DDECALS=0xA42A000 weapon_camo_026g.asm -o weapon_camo_026g.section.bin
-        nasm -f bin -DCAVE=0xA42A000 -DPREVIEW=0xA428E00 -DTABLE=0xA428F00 -DPRESS=0xA428FA0 weapon_decals_026g.asm -o weapon_decals_026g.section.bin
+    A weapon's camouflage comes from weapon_camo_026g.asm, in a section of its
+    own, `.srpw`, on the page after `.srpc`, and what it paints (the camouflage,
+    the decals) and the decal editor on a weapon from weapon_decals_026g.asm, on
+    that section's second page:
+        nasm -f bin -DCAVE=0xA42A000 -DDECALS=0xA42B000 weapon_camo_026g.asm -o weapon_camo_026g.section.bin
+        nasm -f bin -DCAVE=0xA42B000 -DPREVIEW=0xA428E00 -DTABLE=0xA428F00 -DPRESS=0xA428FA0 weapon_decals_026g.asm -o weapon_decals_026g.section.bin
     (checked in; PREVIEW and TABLE are patch 32's and patch 45's states, PRESS
-    its own, 0xFA0 of the late join's state page, checked). The late-join code is late_join_026g.section.bin, checked in too; it is
+    its own, 0xFA0 of the late join's state page, checked).
+    The late-join code is late_join_026g.section.bin, checked in too; it is
     made by `late_join_026g.py --write-bin`, which needs nasm, a C compiler
     for x86 and GNU ld (--late-join-bin=<file> names another one).
 
@@ -925,6 +926,7 @@ WARMUP_KEYS_STATE_SIZE = 4
 # player sends no input (game_world::tick 0x1F7883).
 DEATH_CAMERA_NAME = b".srpc\0\0\0"
 DEATH_CAMERA_CHARACTERISTICS = 0x60000020     # code, execute, read (as .srp)
+DEATH_CAMERA_SIZE = 0x1000                     # .srpc's one page: `.srpw` follows it
 DEATH_LOOK_OFFSET, DEATH_VIEW_OFFSET = 0, 0x200   # the .asm's two entries
 DEATH_VIEW_HOOK = (0x1F364B, bytes.fromhex("e860ec0400"), DEATH_VIEW_OFFSET, 0xE8)   # update_camera: death_view
 DEATH_CAMERA_STATE_OFFSET = 0xE60             # after the FOV LOD scale's (FOV_LOD_STATE_OFFSET)
@@ -1582,8 +1584,8 @@ def death_camera_va(late_join):
 
 
 # A weapon wears the camouflage its item holds (patch 44, client_patch.md
-# section 3.41): weapon_camo_026g.asm, in its own section `.srpw` at the page
-# after the late join's state page (weapon_camo_va). weapon_cook::
+# section 3.41): weapon_camo_026g.asm, in its own section `.srpw` on the page
+# after `.srpc` (the death camera's one page; weapon_camo_va). weapon_cook::
 # on_weapon_subresources_ready's `lea eax,[esp+20h] / push eax` (0x24B0D2,
 # the model loaded, before it is given to the weapon at 0x243A30) calls
 # weapon_ready, which asks for the camouflage's bake of each of the model's
@@ -1643,11 +1645,11 @@ WEAPON_TABLE_MATRIX_OFFSET = 0x50
 WEAPON_PREVIEW_CAMERA_JUMPS = (0x68, 0xA8)     # weapon_preview_026g.section.bin: the two `jmp CAMERA`
 WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14)  # camera, tick, cull, matrix, left: `jmp near` each
 # A weapon's upgrade window shows an upgrade dropped on the weapon at once
-# (patch 47, README; client_patch.md section 3.44): upgrade_preview_026g.asm
+# (patch 48, README; client_patch.md section 3.45): upgrade_preview_026g.asm
 # at UPGRADE_PREVIEW_OFFSET of `.srpw`, a page of its own (the second page is
-# the weapon decals', patch 46); its state at UPGRADE_PREVIEW_STATE_OFFSET of
-# `.srpd`, after the field of view's k (FOV_LOD_STATE_OFFSET) and before
-# patch 45's. Six `jmp near`, the entries:
+# the weapon decals', patch 47); its state at UPGRADE_PREVIEW_STATE_OFFSET of
+# `.srpd`, after the patches' mount's (MOUNT_STATE_OFFSET) and before patch
+# 32's (WEAPON_PREVIEW_STATE_OFFSET). Six `jmp near`, the entries:
 # - relocate_upgrade_item's handler (0x29A8B0), `mov edx,[esi+4620h]` at
 #   0x29A9B2 (before its `46 01` is written): relocate, which queues the
 #   change for the window's weapon and makes the character again at once;
@@ -1667,7 +1669,7 @@ WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14)  # camera, tick, cull, matrix,
 # holds the absolute addresses of its state, patch 32's and its strings (the
 # exe is never rebased).
 UPGRADE_PREVIEW_OFFSET = 0x2000
-UPGRADE_PREVIEW_STATE_OFFSET = 0xE58
+UPGRADE_PREVIEW_STATE_OFFSET = 0xD60
 UPGRADE_PREVIEW_STATE_SIZE = 0xA0
 UPGRADE_PREVIEW_FIND = 0x0F
 UPGRADE_PREVIEW_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19)  # relocate, drop, account, find, again, made
@@ -1685,7 +1687,7 @@ WEAPON_TABLE_HOOKS = (
     (0x283D81, bytes.fromhex("f6400c520f95c0"), 0x14, 0xE8),        # the camera's drag buttons: left
 )
 
-# Decals on a weapon (patch 46, README; client_patch.md section 3.43):
+# Decals on a weapon (patch 47, README; client_patch.md section 3.44):
 # weapon_decals_026g.asm at WEAPON_DECALS_OFFSET of `.srpw`, the section's
 # second page; its state (WEAPON_DECALS_STATE_SIZE bytes: the left button's
 # press) at WEAPON_DECALS_STATE_OFFSET of `.srpd`, after patch 45's, whose
@@ -1720,8 +1722,8 @@ WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries pa
 
 
 def weapon_camo_va(late_join):
-    """Where `.srpw` is: the page after the late join's state page."""
-    return late_join_state_va(late_join) + LATE_JOIN_STATE_SIZE
+    """Where `.srpw` is: the page after `.srpc`, which is one page."""
+    return death_camera_va(late_join) + DEATH_CAMERA_SIZE
 
 
 def hook_bytes(base, va, expected, offset, opcode):
@@ -2410,7 +2412,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
         if WEAPON_STASH_OFFSET + len(weapon_stash) > WEAPON_TABLE_OFFSET \
                 or WEAPON_TABLE_OFFSET + len(weapon_table) > 0x1000:
             sys.exit("the weapon stash's code and the weapon table's do not fit in .srpw's page")
-        if FOV_LOD_STATE_OFFSET + FOV_LOD_STATE_SIZE > WEAPON_TABLE_STATE_OFFSET \
+        if DEATH_CAMERA_STATE_OFFSET + DEATH_CAMERA_STATE_SIZE > WEAPON_TABLE_STATE_OFFSET \
                 or WEAPON_TABLE_STATE_OFFSET + WEAPON_TABLE_STATE_SIZE > LATE_JOIN_STATE_SIZE:
             sys.exit("the weapon table's state is not between the others' and the page's end")
         # Its state routine as patch 32's; its one read of patch 32's mode is
@@ -2462,9 +2464,9 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
         if WEAPON_DECALS_OFFSET + len(weapon_decals) > UPGRADE_PREVIEW_OFFSET \
                 or len(upgrade_preview) > 0x1000:
             sys.exit("the weapon decals' code and the upgrade preview's do not fit in .srpw")
-        if FOV_LOD_STATE_OFFSET + FOV_LOD_STATE_SIZE > UPGRADE_PREVIEW_STATE_OFFSET \
-                or UPGRADE_PREVIEW_STATE_OFFSET + UPGRADE_PREVIEW_STATE_SIZE > WEAPON_TABLE_STATE_OFFSET:
-            sys.exit("the upgrade preview's state is not between the field of view's and the weapon table's")
+        if MOUNT_STATE_OFFSET + MOUNT_STATE_SIZE > UPGRADE_PREVIEW_STATE_OFFSET \
+                or UPGRADE_PREVIEW_STATE_OFFSET + UPGRADE_PREVIEW_STATE_SIZE > WEAPON_PREVIEW_STATE_OFFSET:
+            sys.exit("the upgrade preview's state is not between the patches' mount's and the weapon preview's")
         if upgrade_preview_targets(upgrade_preview, upgrade_preview_va) \
                 != (stash_va + WEAPON_STASH_FIND, upgrade_preview_state, preview_state):
             sys.exit(f"upgrade_preview_026g.section.bin: its entries, its state or its find are not where "

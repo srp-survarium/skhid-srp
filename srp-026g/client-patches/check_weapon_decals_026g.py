@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run patch 46, decals on a weapon (weapon_decals_026g.asm), in the default
+"""Run patch 47, decals on a weapon (weapon_decals_026g.asm), in the default
 build: the bake patch 44 asks for, and the lobby's decal editor on the
 weapon above the workbench.
 

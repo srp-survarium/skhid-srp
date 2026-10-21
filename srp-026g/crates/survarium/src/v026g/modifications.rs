@@ -97,7 +97,7 @@ pub const REROLL_WAIT_SECONDS: u32 = 6 * 3600;
 /// for `decal_available`, 0x28779F), the camouflage in 3
 /// (`DragRegion.as`: `relocate_upgrade_item(item, camo, 3)`). [srp] A
 /// weapon's decals are in 0 and 1 too (its 2 holds the camouflage, its 3
-/// the scope); patch 46 bakes them.
+/// the scope); patch 47 bakes them.
 pub const DECAL_SLOTS: [u8; 2] = [0, 1];
 pub const CAMO_SLOT: u8 = 3;
 /// [srp] The camouflage's slot on a weapon (one whose config has
@@ -120,7 +120,7 @@ pub fn camo_slot(kind: &str) -> u8 {
 
 /// An item of type `kind` is a weapon (`wpn_*`): its camouflage is in
 /// [`WEAPON_CAMO_SLOT`], and the lobby builds it again with a decal's new
-/// place only from the account the server sends after `46 05` (patch 46).
+/// place only from the account the server sends after `46 05` (patch 47).
 pub fn is_weapon_kind(kind: &str) -> bool {
     kind.starts_with("wpn_")
 }

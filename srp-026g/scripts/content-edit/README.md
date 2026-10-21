@@ -184,7 +184,7 @@ a first guess to tune).
 
 | change | why |
 |---|---|
-| The 83 weapon configs of weapon-camo-1: `parameters/decal_available` true and an empty `data/decals` table | decals on weapons (client patch 46, `../../docs/notes/weapon-camo.md`): the lobby shows a weapon's two decal slots for `decal_available`, the server lets decals into its slots 0 and 1, and a decal upgrade appends its texture and place to `data/decals` (a modifier at a path the config lacks is skipped), which patch 46 bakes |
+| The 83 weapon configs of weapon-camo-1: `parameters/decal_available` true and an empty `data/decals` table | decals on weapons (client patch 47, `../../docs/notes/weapon-camo.md`): the lobby shows a weapon's two decal slots for `decal_available`, the server lets decals into its slots 0 and 1, and a decal upgrade appends its texture and place to `data/decals` (a modifier at a path the config lacks is skipped), which patch 46 bakes |
 
 Applied after weapon-camo-1, to its output: `content_edit.py weapon-camo-1.json live/ camo/`, then
 `content_edit.py weapon-decals-1.json camo/ decals/` and `cp -r decals/* camo/` (the second list

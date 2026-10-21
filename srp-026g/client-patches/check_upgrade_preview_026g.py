@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run upgrade_preview_026g.asm (patch 47: client_patch.md section 3.44) in
+"""Run upgrade_preview_026g.asm (patch 48: client_patch.md section 3.45) in
 the build: its six hook sites as the game reaches them (the movie's
 relocate_upgrade_item and drop_upgrade_item handlers before they send, the
 0x87 reader's end, setup_profile past its early return, on_player_ready)

@@ -375,7 +375,9 @@ def main():
         old, new = bytes.fromhex(old), bytes.fromhex(new)
         assert len(old) == len(new)
         broken = bytearray(patched)
-        _, rva, vsize, raw, _, _ = base.Headers(broken).sections(broken)[-1]
+        # `.srpc` by its name (patch 44's `.srpw` follows it)
+        [(rva, vsize, raw)] = [(rva, vsize, raw) for name, rva, vsize, raw, _, _ in base.Headers(broken).sections(broken)
+                               if name == base.DEATH_CAMERA_NAME]
         start = raw + (view_at - base.IMAGE_BASE - rva if check == "view" else 0)
         at = broken.find(old, start, raw + vsize)
         assert at >= 0 and broken.find(old, at + 1, raw + vsize) < 0, old.hex()

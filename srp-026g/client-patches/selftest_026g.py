@@ -342,8 +342,8 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     check_fov_lod_026g.py runs the projection, select_lod and the screen
     factor of the original and the build.
 46. the same build: on the death screen a drag turns the camera, the wheel
-    does nothing (patch 46, death_camera_026g.asm in `.srpc`, the last
-    section, after `.srpd`). update_camera's `call 0x2422b0` (0x1F364B,
+    does nothing (patch 46, death_camera_026g.asm in `.srpc`, the section
+    after `.srpd`). update_camera's `call 0x2422b0` (0x1F364B,
     ebx the player) calls death_view; the game world's on_mouse_move jump
     (check 32) goes to death_look. In the original: the view's update copies
     the transform in modes 0 and 4 and its third-person step (0x2422DE)
@@ -356,6 +356,21 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     absolute operands (its state, the options, its two constants) and
     returns; branches inside land on instructions; no relocation under the
     site, nothing aims inside it. check_death_camera_026g.py runs it.
+44. the same build: a weapon wears the camouflage its item holds (patch
+    44, weapon_camo_026g.asm at the start of `.srpw`, the last section,
+    on the page after `.srpc`): its hook, its entry and name format, its
+    calls of patch 47's lookup and fill. check_weapon_camo_026g.py runs it.
+45. the same build: a weapon's upgrade window shows it above the lobby's
+    workbench (patch 45, weapon_table_026g.asm at `.srpw`+800h; patch 32
+    grown: weapon_stash_026g.asm at +360h): the sites, the entries, the
+    states. check_weapon_table_026g.py and check_weapon_stash_026g.py run them.
+47. the same build: decals on a weapon (patch 47, weapon_decals_026g.asm on
+    `.srpw`'s second page): the sites, the entries, the states it reads,
+    its 16-byte-aligned constants. check_weapon_decals_026g.py runs it.
+48. the same build: an upgrade dropped on a weapon in its window is shown at
+    once (patch 48, upgrade_preview_026g.asm on `.srpw`'s third page, its
+    state at .srpd+D60h): the sites, the entries, the find patch 32 calls.
+    check_upgrade_preview_026g.py runs it.
 """
 
 import ctypes
@@ -1631,7 +1646,7 @@ def test_weapon_camo(original, image, before):
           and not [t for t in texts if t.startswith("jmp ") and not camo_va <= (branch_target(t) or 0) < camo_va + len(code)],
           "the code calls the game's release, type_to_int, the parameters' constructor, get_all_surfaces, "
           "deallocate, appendf, allocate, query_resources, the config's lookup and key check and the allocation "
-          "name, and patch 46's lookup and fill (what is painted), and jumps nowhere outside")
+          "name, and patch 47's lookup and fill (what is painted), and jumps nowhere outside")
     hits = [hit for hit in aimed_inside(original, va, len(old), 0x82)
             if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
     check(not hits, "no rel32 branch of .text, no rel8 branch near it and no 4-byte value aims inside the site"
@@ -1752,7 +1767,7 @@ def test_weapon_table(original, image, before):
 
 
 def test_weapon_decals(original, image, before):
-    """Check 46: decals on a weapon (patch 46, WEAPON_DECALS_HOOKS).
+    """Check 47: decals on a weapon (patch 47, WEAPON_DECALS_HOOKS).
     check_weapon_decals_026g.py runs the bake and the four editor sites."""
     source = Image(original)
     rows = lambda img, va, size: [text for _, _, text in ndisasm(img.read(va, size), va)]
@@ -1761,7 +1776,7 @@ def test_weapon_decals(original, image, before):
     code = open(P.weapon_decals_bin(), "rb").read()
     # A packed SSE operation on a 16-byte memory operand faults (#GP) unless the
     # address is 16-byte aligned; Unicorn does not enforce it (the game crashed
-    # on patch 46's andps of a misaligned constant, 2026-10-21). Every such
+    # on patch 47's andps of a misaligned constant, 2026-10-21). Every such
     # operand of .srpw's code at a fixed address must be aligned.
     packed = re.compile(r"\b(andn?ps|x?orps|addps|subps|mulps|divps|minps|maxps|cmpps|sqrtps|rsqrtps|rcpps|"
                         r"unpck[lh]ps|shufps|movaps|movdqa|pand|por|pxor|padd[bwdq]|psub[bwdq]|pcmpeq[bwd]|"
@@ -1834,7 +1849,7 @@ def test_weapon_decals(original, image, before):
           == [True] * len(P.WEAPON_DECALS_ENTRIES)
           and not [t for _, _, t in listing if re.search(r"(?:call|jmp) (?:dword )?\[(?!eax\+0x3c\])", t)]
           and image.read(decals_va, len(code)) == code,
-          f"patch 46 at {decals_va:#x} (.srpw+{P.WEAPON_DECALS_OFFSET:#x}) is weapon_decals_026g.section.bin "
+          f"patch 47 at {decals_va:#x} (.srpw+{P.WEAPON_DECALS_OFFSET:#x}) is weapon_decals_026g.section.bin "
           f"({len(code)} bytes); it begins with seven `jmp near`, calls only the config's key check and lookup, "
           "assign, appendf, the decal's unpacking and packing, the collision pick, the mouse's ray, the accept, "
           "the movie call, find_item_by_id and the start's query, jumps only to the bake's and the key handler's "
@@ -1843,8 +1858,8 @@ def test_weapon_decals(original, image, before):
 
 
 def test_upgrade_preview(original, image, before):
-    """Check 47: a weapon's upgrade window shows an upgrade dropped on the
-    weapon at once (patch 47, UPGRADE_PREVIEW_HOOKS). check_upgrade_preview_026g.py
+    """Check 48: a weapon's upgrade window shows an upgrade dropped on the
+    weapon at once (patch 48, UPGRADE_PREVIEW_HOOKS). check_upgrade_preview_026g.py
     runs the sites with the game's setup_profile, profile copy and config lookups."""
     source = Image(original)
     rows = lambda img, va, size: [text for _, _, text in ndisasm(img.read(va, size), va)]
