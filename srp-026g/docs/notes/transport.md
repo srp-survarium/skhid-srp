@@ -200,6 +200,7 @@ Cases:
   - Joined packets must have the same destination port pkt+0x90 and must fit (0x3FCAC0–0x3FCB13).
   - The option reader 0x145C0 returns false when the key is absent. **So by default every client datagram holds exactly one message (single format)** (LIKELY: the option state codes are inferred).
 - **Ordering of sends.** As in 0.21d, the queue is sorted by size (0x3FE580) and popped from the back.
+  - So a datagram holds a tick's messages largest first, not in the order they were sent (PROVEN live, 2026-10-21: the lobby movie's `drop_upgrade_item` then `relocate_upgrade_item` came as `46 01`, unique id 22h, before `46 02`, 21h). A unique id is taken in send order: the server's transport hands a client datagram's unique messages to the lobby in unique-id order (`udp-transport` `in_send_order`; test `a_datagrams_unique_messages_reach_the_caller_in_their_send_order`); other messages keep their place.
 
 ## 3. Message encoding
 

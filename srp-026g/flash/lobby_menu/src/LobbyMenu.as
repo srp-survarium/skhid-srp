@@ -411,7 +411,10 @@ package
       protected var _playerProfiles:Array = [];
       
       protected var _profileItems:Object;
-      
+
+      // the upgrade window told the game (start_item_upgrade), so its close does too
+      protected var _upgradeShown:Boolean = false;
+
       protected var backBlack:Sprite = new BackBlack();
       
       private var _dailyBonusData:Object = null;
@@ -2039,8 +2042,12 @@ package
          this.modifierWindow.visible = false;
          this.player_profile.visible = this.inventory_list.visible;
          this.dragRegion.mouseEnabled = true;
-         trace("exit_item_upgrade",this.modifierWindow.getItemId());
-         ExternalInterface.call("exit_item_upgrade",this.modifierWindow.getItemId());
+         if(this._upgradeShown)
+         {
+            trace("exit_item_upgrade",this.modifierWindow.getItemId());
+            ExternalInterface.call("exit_item_upgrade",this.modifierWindow.getItemId());
+            this._upgradeShown = false;
+         }
          this.item_control.removeEventListener(Event.ACTIVATE,this.updateSelectedItem);
          MainScene.activePop = null;
          if(!this.item_control.mouseChildren)
@@ -2236,18 +2243,26 @@ package
             trace("!!modifierWindowIsOPened");
             return;
          }
+         var itemData:ItemData = this.item_control.getItemData();
+         var weapon:Boolean = Boolean(itemData) && UpgradeWindow.isWeaponCategory(int(itemData.category));
          this.inventory_list.focusCategory(SuperCategory.UPGRADES);
          this.inventory_list.mainTabBar.selectedIndex = InventoryTab.INVENTORY;
          this.inventory_list.mainTabBar.enabled = false;
          this.inventory_list.inventoryTabPage.enabled = false;
-         this.inventory_list.selectCategory([ItemCategory.CAMOUFLAGES,ItemCategory.DECALS],false,true);
+         // what fits the window: an armour's decals and camouflages; a weapon's window chooses by the
+         // page it opens on (its scopes, or its camouflages and decals: UpgradeWindow.showPage)
+         if(!weapon)
+         {
+            this.inventory_list.selectCategory([ItemCategory.CAMOUFLAGES,ItemCategory.DECALS],false,true);
+         }
          this.inventory_list.toggleUpgradeMode();
          this.modifierWindow.visible = true;
          this.dragRegion.mouseEnabled = false;
          MainScene.activePop = this.modifierWindow;
-         var itemData:ItemData = this.item_control.getItemData();
          this.modifierWindow.setData(itemData);
-         if((itemData))
+         // the game shows a weapon in the character's hands (patch 32), any other item as before
+         this._upgradeShown = Boolean(itemData);
+         if(this._upgradeShown)
          {
             trace("start_item_upgrade");
             ExternalInterface.call("start_item_upgrade",itemData.itemId);

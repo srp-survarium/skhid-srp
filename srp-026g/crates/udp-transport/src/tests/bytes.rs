@@ -1195,6 +1195,61 @@ fn messages_in_a_multi_datagram_reach_the_caller() {
 }
 
 #[test]
+fn a_datagrams_unique_messages_reach_the_caller_in_their_send_order() {
+    // Live, 2026-10-21: the lobby movie moved a decal to the other slot
+    // (drop_upgrade_item, then relocate_upgrade_item, in one frame); the
+    // client's send queue (by size) put `46 01` (unique id 0x22) before
+    // `46 02` (0x21) in one datagram, and taken in that order the decal
+    // came off. Here with unique ids 2 and 1, and a keep-alive after them.
+    let (mut transport, now) = connect_lobby();
+    let attach = [1, 1, 0, 0, 0, 0xD4, 0, 0, 0, 0xC9, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0];
+    let detach = [2, 1, 0, 0, 0, 0xC9, 0, 0, 0, 0xD4, 0, 0, 0];
+    let mut body = vec![0x46, 2, attach.len() as u8];
+    body.extend(attach);
+    body.extend([0x46, 1, detach.len() as u8]);
+    body.extend(detach);
+    body.push(0xFC);
+    let events = transport.receive(&client(1, 0xFF, &[], true, &body), now);
+    assert_eq!(
+        events,
+        [
+            Event::Message {
+                id: 0x46,
+                payload: detach.to_vec()
+            },
+            Event::Message {
+                id: 0x46,
+                payload: attach.to_vec()
+            },
+        ]
+    );
+}
+
+#[test]
+fn a_datagrams_unique_messages_are_put_in_send_order_across_the_ids_wrap() {
+    // Unique ids are a byte: 0xFF was sent before 0x01 (the connection's
+    // first message took 0x00). The order is taken the nearest way round
+    // from the first message's id, so 0xFF comes first, and both are new.
+    let (mut transport, now) = connect_lobby();
+    let mut body = vec![0x46, 0x01, 3, 7, 7, 7];
+    body.extend([0x46, 0xFF, 2, 9, 9]);
+    let events = transport.receive(&client(1, 0xFF, &[], true, &body), now);
+    assert_eq!(
+        events,
+        [
+            Event::Message {
+                id: 0x46,
+                payload: vec![9, 9]
+            },
+            Event::Message {
+                id: 0x46,
+                payload: vec![7, 7, 7]
+            },
+        ]
+    );
+}
+
+#[test]
 fn a_resent_unique_message_is_delivered_once_and_a_plain_one_again() {
     let (mut transport, now) = connect_lobby();
     let request = [0x2F, 1, 0xAA];

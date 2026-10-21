@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weapon Camo Parts</title>
+<!-- weapon_camo.py --picker fills DATA: the camouflages; per texture its images, its parts'
+     numbers (a PNG, r + 256 g), the bake's shading (aoac R in r, B in g), a point on each part,
+     the suggested and the painted parts, its models; per model its surfaces' meshes. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root { --bg: #f4f4f2; --panel: #ffffff; --ink: #1d1d1b; --dim: #6b6b66; --line: #d8d8d2; --on: #2f7d4f; --hot: #c9821b; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #161615; --panel: #20201e; --ink: #ecece6; --dim: #9a9a92; --line: #3a3a36; --on: #5cc489; --hot: #f0a83a; } }
+:root[data-theme="dark"] { --bg: #161615; --panel: #20201e; --ink: #ecece6; --dim: #9a9a92; --line: #3a3a36; --on: #5cc489; --hot: #f0a83a; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, sans-serif; display: grid; grid-template-columns: 240px 1fr; height: 100vh; }
+nav { border-right: 1px solid var(--line); overflow-y: auto; background: var(--panel); }
+nav button { display: flex; justify-content: space-between; width: 100%; padding: 5px 12px; border: 0; background: none; color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
+nav button:hover { background: var(--bg); }
+nav button.cur { background: var(--on); color: #fff; }
+nav button small { color: inherit; opacity: .7; }
+nav button.edited span::after { content: " •"; color: var(--hot); }
+main { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 10px 16px; gap: 8px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bar button, .bar label, .bar select { font: inherit; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); cursor: pointer; }
+.bar .grow { flex: 1; }
+.note { color: var(--dim); }
+.views { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.views > div { position: relative; min-height: 0; display: flex; justify-content: center; align-items: center; border: 1px solid var(--line); background: var(--panel); }
+#c { max-width: 100%; max-height: 100%; aspect-ratio: 1; cursor: crosshair; }
+#v { width: 100%; height: 100%; display: block; cursor: grab; }
+.tag { position: absolute; left: 8px; top: 6px; color: var(--dim); font-size: 12px; pointer-events: none; }
+textarea { width: 100%; height: 90px; font: 12px/1.3 ui-monospace, monospace; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; }
+@media (max-width: 800px) { body { grid-template-columns: 1fr; height: auto; } nav { max-height: 30vh; } .views { grid-template-columns: 1fr; } .views > div { height: 92vw; } }
+</style>
+</head>
+<body>
+<nav id="guns"></nav>
+<main>
+  <div class="bar">
+    <strong id="name"></strong><span class="note" id="count"></span><span class="grow"></span>
+    <select id="camoSel" title="camouflage"></select>
+    <select id="modelSel" title="the weapon shown in 3D"></select>
+    <label><input type="checkbox" id="premium"> premium texture</label>
+    <button id="reset" title="the parts in parts.tsv, or the suggestion when it has none">Reset</button>
+    <button id="suggest" title="the large parts (the premium's, when there is one)">Suggestion</button>
+    <button id="clear">None</button>
+  </div>
+  <div class="note">Click a part on the texture or on the weapon to paint it or leave it bare. Drag the weapon to turn it, wheel to zoom, right-drag to move. Grey surfaces take no camouflage. Picks are kept in this browser; copy the lines below into <code>parts.tsv</code>.</div>
+  <div class="views">
+    <div><span class="tag">texture</span><canvas id="c" width="1024" height="1024"></canvas></div>
+    <div><span class="tag">weapon</span><canvas id="v"></canvas></div>
+  </div>
+  <div class="bar"><span class="note">parts.tsv</span><span class="grow"></span><button id="copy">Copy</button><button id="save">Download</button></div>
+  <textarea id="out" readonly></textarea>
+</main>
+<script>
+const DATA = /*DATA*/null;
+const N = 1024, STORE = 'weapon-camo-parts';
+const $ = id => document.getElementById(id);
+const canvas = $('c'), ctx = canvas.getContext('2d');
+let stored = {};
+try { stored = JSON.parse(localStorage.getItem(STORE) || '{}'); } catch (e) { stored = {}; }
+
+function pixels(src, size) {
+  return new Promise(ok => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas'); c.width = c.height = size;
+      const x = c.getContext('2d'); x.drawImage(img, 0, 0, size, size);
+      ok(x.getImageData(0, 0, size, size).data);
+    };
+    img.src = src;
+  });
+}
+
+// per texture: chosen (a Set of part numbers) from this browser's picks, else the page's
+const guns = DATA.guns.map(g => {
+  const byPoint = {}; for (const [id, p] of Object.entries(g.points)) byPoint[p] = +id;
+  const chosen0 = [...g.chosen];
+  let chosen = new Set(g.chosen), edited = false;
+  if (stored[g.texture]) { chosen = new Set(stored[g.texture].map(p => byPoint[p]).filter(Boolean)); edited = true; }
+  return Object.assign(g, { byPoint, chosen0, chosen, edited, loaded: null, look: null });
+});
+const byTexture = {}; guns.forEach(g => byTexture[g.texture] = g);
+let cur = 0, hover = 0, camoIx = 0;
+const camos = DATA.camos.map(c => ({ name: c.name, src: c.image, px: null }));
+
+async function camo() { const c = camos[camoIx]; if (!c.px) c.px = await pixels(c.src, 512); return c.px; }
+
+async function load(g) {
+  if (g.loaded) return g.loaded;
+  const [base, donor, lab, shade] = await Promise.all([pixels(g.base, N), pixels(g.donor || g.base, N), pixels(g.labels, N), pixels(g.shade, N)]);
+  const ids = new Uint16Array(N * N), edge = new Uint8Array(N * N);
+  for (let i = 0; i < N * N; i++) ids[i] = lab[4 * i] + 256 * lab[4 * i + 1];
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const i = y * N + x, a = ids[i];
+    if ((x + 1 < N && ids[i + 1] !== a) || (y + 1 < N && ids[i + N] !== a)) edge[i] = 1;
+  }
+  return g.loaded = { base, donor, shade, ids, edge };
+}
+
+// a texture as the game's bake makes it with this camouflage (tiled 4 times, camo_scale 4):
+// c = camo on a painted part, overlay(c, aoac.B), c * aoac.R; flat = for the 2D view (bare parts
+// darker, part outlines)
+function paint(g, out, cpx, hov, flat) {
+  const L = g.loaded, bg = flat && $('premium').checked ? L.donor : L.base, sh = L.shade;
+  const on = new Uint8Array(65536); for (const id of g.chosen) on[id] = 1;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const i = y * N + x, p = 4 * i, id = L.ids[i];
+    let r = bg[p], gg = bg[p + 1], b = bg[p + 2];
+    if (id && on[id]) {
+      const q = 4 * (((y * 2) & 511) * 512 + ((x * 2) & 511)), R = sh[p] / 255, B = sh[p + 1] / 255;
+      const ov = c => (c < 0.5 ? 2 * c * B : 1 - 2 * (1 - c) * (1 - B)) * R * 255;
+      r = ov(cpx[q] / 255); gg = ov(cpx[q + 1] / 255); b = ov(cpx[q + 2] / 255);
+    } else if (id && flat) { r *= 0.75; gg *= 0.75; b *= 0.75; }
+    if (id && id === hov) { r = r * 0.6 + 100; gg = gg * 0.6 + 70; b = b * 0.6 + 10; }
+    if (flat && L.edge[i]) { r = r * 0.5 + 90; gg = gg * 0.5 + 90; b = b * 0.5 + 90; }
+    out[p] = r; out[p + 1] = gg; out[p + 2] = b; out[p + 3] = 255;
+  }
+}
+
+function lookCanvas(g) {
+  if (!g.look) { g.look = document.createElement('canvas'); g.look.width = g.look.height = N; }
+  return g.look;
+}
+
+async function draw() {
+  const g = guns[cur]; await load(g); const cpx = await camo(); if (g !== guns[cur]) return;
+  const img = ctx.createImageData(N, N); paint(g, img.data, cpx, hover, true); ctx.putImageData(img, 0, 0);
+  const lc = lookCanvas(g), lx = lc.getContext('2d'), li = lx.createImageData(N, N);
+  paint(g, li.data, cpx, hover, false); lx.putImageData(li, 0, 0);
+  if (g.tex) g.tex.needsUpdate = true;
+  render3d();
+}
+
+function lines() {
+  return ['# texture\tthe painted parts: a UV point on each (weapon_camo.py --picker)'].concat(guns.filter(g => g.edited || g.from_file).map(g =>
+    g.texture + '\t' + [...g.chosen].sort((a, b) => a - b).map(id => g.points[id]).join(' '))).join('\n') + '\n';
+}
+
+function save() {
+  const s = {}; for (const g of guns) if (g.edited) s[g.texture] = [...g.chosen].map(id => g.points[id]);
+  try { localStorage.setItem(STORE, JSON.stringify(s)); } catch (e) { }
+  $('out').value = lines();
+}
+
+function nav() {
+  const el = $('guns'); el.innerHTML = '';
+  guns.forEach((g, k) => {
+    const b = document.createElement('button');
+    b.className = (k === cur ? 'cur ' : '') + (g.edited ? 'edited' : '');
+    b.innerHTML = '<span></span><small></small>';
+    b.firstChild.textContent = g.texture.replace(/^weapons\//, '');
+    b.lastChild.textContent = g.chosen.size + '/' + Object.keys(g.points).length;
+    b.onclick = () => show(k);
+    el.appendChild(b);
+  });
+  const g = guns[cur];
+  $('name').textContent = g.texture;
+  $('count').textContent = g.chosen.size + ' parts painted of ' + Object.keys(g.points).length;
+}
+
+function change(g, chosen) { g.chosen = chosen; g.edited = true; save(); nav(); draw(); }
+function toggle(g, id) { const c = new Set(g.chosen); c.has(id) ? c.delete(id) : c.add(id); change(g, c); }
+
+function partAt(ev) {
+  const r = canvas.getBoundingClientRect(), L = guns[cur].loaded; if (!L) return 0;
+  const x = Math.floor((ev.clientX - r.left) / r.width * N), y = Math.floor((ev.clientY - r.top) / r.height * N);
+  return x >= 0 && y >= 0 && x < N && y < N ? L.ids[y * N + x] : 0;
+}
+
+let pending = false;
+function setHover(id) {
+  if (id === hover) return; hover = id;
+  if (!pending) { pending = true; requestAnimationFrame(() => { pending = false; draw(); }); }
+}
+canvas.addEventListener('click', ev => { const id = partAt(ev); if (id) toggle(guns[cur], id); });
+canvas.addEventListener('mousemove', ev => setHover(partAt(ev)));
+canvas.addEventListener('mouseleave', () => setHover(0));
+
+// ---- 3D: the weapon's surfaces; a surface with an _aoac texture shows it as baked
+const view = $('v');
+const hasGL = typeof THREE !== 'undefined';
+let renderer, scene, camera, group, meshes = [], shownModel = null;
+const orbit = { yaw: 0.6, pitch: 0.25, dist: 1, target: null, pan: null };
+const geoCache = {};
+
+async function geometry(model) {
+  if (geoCache[model]) return geoCache[model];
+  const out = [];
+  for (const s of DATA.models[model]) {
+    const bin = Uint8Array.from(atob(s.mesh), c => c.charCodeAt(0));
+    const buf = await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+    const [n, m] = new Uint32Array(buf, 0, 2);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(buf, 8, n * 3), 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(buf, 8 + 12 * n, n * 2), 2));
+    geo.setIndex(new THREE.BufferAttribute(new Uint16Array(buf, 8 + 20 * n, m), 1));
+    geo.computeVertexNormals();
+    out.push({ texture: s.texture, geo });
+  }
+  return geoCache[model] = out;
+}
+
+function init3d() {
+  if (!hasGL) { view.replaceWith(Object.assign(document.createElement('div'), { className: 'note', textContent: 'three.js did not load (offline?): no 3D view' })); return; }
+  renderer = new THREE.WebGLRenderer({ canvas: view, antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio || 1);
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(30, 1, 0.001, 100);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.75));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.6); camera.add(sun); sun.position.set(0.5, 1, 1); scene.add(camera);
+  new ResizeObserver(() => render3d()).observe(view.parentElement);
+}
+
+async function show3d() {
+  if (!hasGL) return;
+  const g = guns[cur], model = g.models[Math.min(+$('modelSel').value || 0, g.models.length - 1)];
+  if (model === shownModel) { render3d(); return; }
+  shownModel = model;
+  if (group) scene.remove(group);
+  group = new THREE.Group(); meshes = [];
+  const parts = await geometry(model); if (shownModel !== model) return;
+  const box = new THREE.Box3();
+  for (const p of parts) {
+    const t = p.texture && byTexture[p.texture];
+    let mat;
+    if (t) {
+      await load(t);
+      if (t !== g) { const cpx = await camo(), lc = lookCanvas(t), lx = lc.getContext('2d'), li = lx.createImageData(N, N); paint(t, li.data, cpx, 0, false); lx.putImageData(li, 0, 0); }
+      t.tex = t.tex || new THREE.CanvasTexture(lookCanvas(t));
+      t.tex.flipY = false; t.tex.wrapS = t.tex.wrapT = THREE.RepeatWrapping; t.tex.needsUpdate = true;
+      mat = new THREE.MeshLambertMaterial({ map: t.tex, side: THREE.DoubleSide });
+    } else mat = new THREE.MeshLambertMaterial({ color: 0x77776f, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(p.geo, mat); mesh.userData.gun = t || null;
+    group.add(mesh); meshes.push(mesh); box.expandByObject(mesh);
+  }
+  // the longest side across, the shortest toward the camera
+  const size = box.getSize(new THREE.Vector3()), axes = [['x', size.x], ['y', size.y], ['z', size.z]].sort((a, b) => b[1] - a[1]);
+  const basis = { x: new THREE.Vector3(1, 0, 0), y: new THREE.Vector3(0, 1, 0), z: new THREE.Vector3(0, 0, 1) };
+  const m = new THREE.Matrix4().makeBasis(basis[axes[0][0]], basis[axes[1][0]], basis[axes[2][0]]).transpose();
+  group.applyMatrix4(m);
+  const box2 = new THREE.Box3().setFromObject(group);
+  orbit.target = box2.getCenter(new THREE.Vector3()); orbit.size = box2.getSize(new THREE.Vector3());
+  orbit.dist = 0; orbit.yaw = 0; orbit.pitch = 0.15;
+  scene.add(group);
+  render3d();
+}
+
+function render3d() {
+  if (!hasGL || !orbit.target) return;
+  const w = view.parentElement.clientWidth, h = view.parentElement.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  if (!orbit.dist) {                    // the whole weapon in view, with a margin
+    const half = Math.tan(camera.fov * Math.PI / 360), sz = orbit.size;
+    orbit.dist = 1.15 * Math.max(sz.y / 2 / half, sz.x / 2 / (half * camera.aspect)) + sz.z / 2;
+  }
+  renderer.setClearColor(getComputedStyle(document.documentElement).getPropertyValue('--panel').trim() || '#ffffff');
+  const t = orbit.target, cp = Math.cos(orbit.pitch);
+  camera.position.set(t.x + orbit.dist * cp * Math.sin(orbit.yaw), t.y + orbit.dist * Math.sin(orbit.pitch), t.z + orbit.dist * cp * Math.cos(orbit.yaw));
+  camera.lookAt(t);
+  renderer.render(scene, camera);
+}
+
+const ray = hasGL ? new THREE.Raycaster() : null;
+function pick3d(ev) {
+  if (!hasGL || !meshes.length) return null;
+  const r = view.getBoundingClientRect();
+  ray.setFromCamera({ x: (ev.clientX - r.left) / r.width * 2 - 1, y: -(ev.clientY - r.top) / r.height * 2 + 1 }, camera);
+  const hit = ray.intersectObjects(meshes, false)[0];
+  if (!hit || !hit.object.userData.gun || !hit.uv) return null;
+  const g = hit.object.userData.gun, L = g.loaded; if (!L) return null;
+  const fr = v => v - Math.floor(v);
+  const x = Math.min(N - 1, Math.floor(fr(hit.uv.x) * N)), y = Math.min(N - 1, Math.floor(fr(hit.uv.y) * N));
+  return { g, id: L.ids[y * N + x] };
+}
+
+let drag = null;
+view.addEventListener('contextmenu', ev => ev.preventDefault());
+view.addEventListener('pointerdown', ev => { drag = { x: ev.clientX, y: ev.clientY, moved: false, pan: ev.button === 2 || ev.shiftKey }; try { view.setPointerCapture(ev.pointerId); } catch (e) { } });
+view.addEventListener('pointermove', ev => {
+  if (drag) {
+    const dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+    if (!drag.moved) return;
+    drag.x = ev.clientX; drag.y = ev.clientY;
+    if (drag.pan) {
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0), up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1);
+      const k = orbit.dist * 0.0015; orbit.target.addScaledVector(right, -dx * k).addScaledVector(up, dy * k);
+    } else { orbit.yaw -= dx * 0.008; orbit.pitch = Math.max(-1.5, Math.min(1.5, orbit.pitch + dy * 0.008)); }
+    render3d(); return;
+  }
+  const p = pick3d(ev); setHover(p && p.g === guns[cur] ? p.id : 0);
+});
+view.addEventListener('pointerup', ev => {
+  const d = drag; drag = null; if (!d || d.moved || d.pan) return;
+  const p = pick3d(ev); if (!p || !p.id) return;
+  if (p.g !== guns[cur]) { show(guns.indexOf(p.g), true).then(() => toggle(p.g, p.id)); } else toggle(p.g, p.id);
+});
+view.addEventListener('pointerleave', () => { if (!drag) setHover(0); });
+view.addEventListener('wheel', ev => { ev.preventDefault(); orbit.dist *= Math.exp(ev.deltaY * 0.001); render3d(); }, { passive: false });
+
+async function show(k, keepModel) {
+  const prev = shownModel;
+  cur = k; hover = 0; nav();
+  const g = guns[k], sel = $('modelSel');
+  sel.innerHTML = ''; g.models.forEach((m, i) => sel.appendChild(Object.assign(document.createElement('option'), { value: i, textContent: m })));
+  if (keepModel && g.models.includes(prev)) sel.value = g.models.indexOf(prev);
+  sel.style.display = g.models.length > 1 ? '' : 'none';
+  await draw(); await show3d();
+}
+
+$('premium').onchange = draw;
+$('modelSel').onchange = () => show3d();
+$('camoSel').onchange = async () => {
+  camoIx = +$('camoSel').value; const cpx = await camo();
+  for (const m of meshes) { const t = m.userData.gun; if (t && t !== guns[cur]) { const lx = lookCanvas(t).getContext('2d'), li = lx.createImageData(N, N); paint(t, li.data, cpx, 0, false); lx.putImageData(li, 0, 0); t.tex.needsUpdate = true; } }
+  draw();
+};
+camos.forEach((c, i) => $('camoSel').appendChild(Object.assign(document.createElement('option'), { value: i, textContent: c.name })));
+$('suggest').onclick = () => change(guns[cur], new Set(guns[cur].suggested));
+$('clear').onclick = () => change(guns[cur], new Set());
+$('reset').onclick = () => { const g = guns[cur]; g.chosen = new Set(g.chosen0); g.edited = false; save(); nav(); draw(); };
+$('copy').onclick = () => navigator.clipboard && navigator.clipboard.writeText(lines());
+$('save').onclick = () => {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([lines()], { type: 'text/tab-separated-values' }));
+  a.download = 'parts.tsv'; a.click();
+};
+
+init3d(); save(); show(0);
+</script>
+</body>
+</html>

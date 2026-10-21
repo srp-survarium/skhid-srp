@@ -252,7 +252,7 @@ def compose_packs(rows, base, vostok, packs_dir, work, world):
 
 
 def edit_paths(edits, known):
-    """The game paths an edit list reads: its `file`s and what its `files` globs match."""
+    """The game paths an edit list reads: its `file`s, its `files` lists and what its `files` globs match."""
     paths = set()
     for entries in edits.values():
         if not isinstance(entries, list):
@@ -260,7 +260,9 @@ def edit_paths(edits, known):
         for entry in entries:
             if 'file' in entry:
                 paths.add(entry['file'])
-            if 'files' in entry:
+            if isinstance(entry.get('files'), list):      # add_value: the game paths themselves
+                paths.update(entry['files'])
+            elif 'files' in entry:
                 paths.update(fnmatch.filter(known, entry['files']))
     return sorted(paths)
 

@@ -166,6 +166,7 @@ srp's reading of what only the server knew:
 | wear is multiplied by `1 + value` of the item's "reliability" modifications | LIKELY |
 | the kit's items' `money_bonus` / `experience_bonus` / `reputation_bonus` (modifications 1230..1280, defaults of the premium items) add that share to a match's pay, shown in the screen's "premium items" column | LIKELY for the meaning; that the three bytes of the column are percents is GUESS |
 | any camouflage goes on any vest or trousers | [srp]: the data pairs none |
+| a weapon's decal in slot 0 (one, with `decal_available`: the client keeps three upgrades an item), its camouflage in 2, its scope in 3 | [srp] (`weapon-camo.md`; client patches 44, 45 and 47 bake and place them) |
 | one cosmetic (camouflage, decal) is worn by any number of items at once, each with its own slot and value | [srp], the owner's rule (2026-10-16), with patch 30 of the client: §6 |
 
 ## 5. Not done
@@ -211,8 +212,10 @@ The server (`session::v026g::items_rules`):
 - `46 01`: the cosmetic goes into the slot of the host; what was in that
   slot comes off the host; every other item keeps what it wears. Already
   in that slot: nothing changes (its value kept). In another slot of the
-  host: it moves (`detach_first`). Only the kits wearing the host get new
-  revisions.
+  host: it moves (`detach_first`), its value (a decal's place) with it, in
+  the answer too. Only the kits wearing the host get new revisions. (The
+  lobby movie of a drag from slot to slot sent `46 02` for the slot left
+  after the `46 01`, taking it off; the movie no longer does, 2026-10-21.)
 - `46 02 <kit> <upgrade> <host>`: off that host alone. A cosmetic that is no
   item any more (the `on_item_sold` that follows a sale) is off: `83 46
   02`, not a refusal. A host that does not wear it: refused, then the

@@ -2034,7 +2034,7 @@ package survarium.controls
       private function isUpgradeable(value:Object) : Boolean
       {
          var cat:int = (value.category);
-         return (cat == ItemCategory.BODY_ARMOR || cat == ItemCategory.HELMETS || cat == ItemCategory.PANTS || cat == ItemCategory.RIGS) && ((value.camoAvailable) || (value.decalAvailable)) || UpgradeWindow.isWeaponCategory(cat) && UpgradeWindow.hasScopes(int(value.dictId));
+         return (cat == ItemCategory.BODY_ARMOR || cat == ItemCategory.HELMETS || cat == ItemCategory.PANTS || cat == ItemCategory.RIGS) && ((value.camoAvailable) || (value.decalAvailable)) || UpgradeWindow.isUpgradeableWeapon(value);
       }
       
       protected function onMouseItemClick(e:MouseEventEx) : void
@@ -2517,7 +2517,7 @@ package survarium.controls
             for(i = 0; i < shopCount; i++)
             {
                itemData = this._shopItems[i];
-               if(category == ItemFactory.getCategory(itemData.category) && (checkBaseOptions(itemData)))
+               if(category == ItemFactory.filterGroup(itemData.category) && (checkBaseOptions(itemData)))
                {
                   filteredItemsShop.push(itemData);
                }
@@ -2528,7 +2528,7 @@ package survarium.controls
                for(i = 0; i < inventoryCount; i++)
                {
                   itemData = this._inventoryItems[i];
-                  if(category == ItemFactory.getCategory(itemData.category) && (checkBaseOptions(itemData)))
+                  if(category == ItemFactory.filterGroup(itemData.category) && (checkBaseOptions(itemData)))
                   {
                      relativeItem = shopDict[itemData.dictId];
                      if((relativeItem))

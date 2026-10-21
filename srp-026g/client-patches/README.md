@@ -91,10 +91,16 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
+| `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
 | `check_death_camera_026g.py` | Runs the original's and patch 46's mouse moves through the game world's input handler (the death screen, a live player, spectators, a death before the start) and update_camera's call of the view's update on a made-up eye transform (needs Unicorn) |
 | `check_baked_texture_026g.py` | Runs the original's and patch 35's baked-texture list of the camouflage/decal baker (the look-up, the push and check_loaded_baked_texture) on made-up loads, among them those of the crash of 2026-10-17 (needs Unicorn) |
-| `weapon_preview_026g.asm`, `weapon_preview_026g.section.bin` | The source of patch 32's code (a weapon's upgrade window shows the weapon) and that code assembled for 0x2E50 of `.srp`, its state at 0xE00 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `weapon_preview_026g.asm`, `weapon_preview_026g.section.bin` | The source of patch 32's code (a weapon's upgrade window shows the weapon) and that code assembled for 0x2E50 of `.srp`, its state at 0xE00 of `.srpd`, `-DFIND` the stash code's address and `-DCAMERA` patch 45's camera (weapon_table_026g.asm), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `weapon_stash_026g.asm`, `weapon_stash_026g.section.bin`, `check_weapon_stash_026g.py` | Patch 32's find_kit grown: a weapon no kit holds is shown in the chosen kit's hands from a scratch copy of the account's profile; assembled for 0x360 of `.srpw`; its check runs it with the game's own profile and record copies (needs Unicorn) |
+| `weapon_table_026g.asm`, `weapon_table_026g.section.bin`, `check_weapon_table_026g.py` | Patch 45: a weapon's upgrade window shows the weapon in the air above the lobby's workbench, turning about its middle, the camera flown there once it is, and a drag (the left button too, off the movie) turning it; assembled for 0x800 of `.srpw`, its state at 0xF00 of `.srpd`; its check runs the lobby's handlers, the camera's constructor and tick, its drag buttons and mt_draw's two sites with the game's own code (needs Unicorn) |
+| `weapon_decals_026g.asm`, `weapon_decals_026g.section.bin`, `check_weapon_decals_026g.py` | Patch 47: a weapon wears a decal (the bake patch 44 asks for paints it; the code takes two, the server gives one slot) and the lobby's decal editor places them on the weapon above the workbench; assembled for 0x1000 of `.srpw` (its second page), no state of its own; its check runs the bake with the game's own unpacking and the editor's four sites with the game's own encode (needs Unicorn) |
+| `upgrade_preview_026g.asm`, `upgrade_preview_026g.section.bin`, `check_upgrade_preview_026g.py` | Patch 48: an upgrade dropped on a weapon in its upgrade window is shown at once (the character made again from patch 32's scratch with the change, before the request leaves), the server's account staying the truth; on_player_ready logs the time the lobby character's player took; assembled for 0x2000 of `.srpw` (its third page), its state at 0xD60 of `.srpd`; its check runs the six sites with the game's own setup_profile, profile copy and config lookups (needs Unicorn) |
 | `weapon_draw_026g.asm`, `weapon_draw_026g.section.bin` | The source of patch 32's draw (a weapon's window draws the player as the lobby does) and that code assembled for 0xD20 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_weapon_preview_026g.py` | Runs the original's and patch 32's upgrade window start and close (with the lobby camera's own setter), `setup_profile`'s entry, the lobby camera's three distance clamps and the player's decal pose on a made-up lobby, loaded as is and rebased (needs Unicorn) |
 | `check_forward_scroll_026g.py` | Runs the original's and the build's forward-effect compile, with patch 28's two hooks, on made-up materials and compares what each sends; runs the third hook against the game's own binding of `scene_time`; loaded as is and rebased (needs Unicorn). With `--rev12=` it compares the build with revision 12 byte by byte |
@@ -1820,9 +1826,18 @@ scrolling, before the shell_32.dll check); seven sites:
   when a kit of the account's profile holds the window's item as its
   weapon 1, or as its weapon 2 without a weapon 1, the character shows
   that kit (`setup_profile` 0x284B10 with that kit) and the camera looks at
-  the weapon: height 1.05, distance 0.85, the side angle the original's.
-  Any other item (armour; a weapon only in the stash; a weapon 2 behind a
-  weapon 1) gets the original's values and nothing else;
+  the weapon: height 1.05, distance 0.85, the side angle the original's
+  (since patch 45, which both ends now jump to instead of the setter, the
+  camera flies to the workbench and the weapon is drawn there: patch 45).
+  A weapon no kit holds (only in the stash, or a weapon 2 behind a weapon
+  1; 2026-10-21) is shown the same way in the hands of the kit chosen in
+  the lobby, from a scratch copy of the account's profile in which it is
+  that kit's weapon 1 (`weapon_stash_026g.asm` at `.srpw`+360h, which patch
+  32's two finds call: client_patch.md section 3.30); the account's profile
+  is never written. Armour gets the original's camera; armour the chosen kit
+  does not wear is shown worn, from the same kind of scratch (patch 32's
+  start, exit and setup_profile sites go through the stash code's entries
+  first);
 - 0x265F44 (exit_item_upgrade's call of the setter): after a weapon, the
   character shows the kit chosen in the lobby again (`setup_profile` with
   the profile's +4632h); the camera gets the original's values, a distance
@@ -1861,7 +1876,13 @@ weapon (in the chosen kit or another, weapon 1 or a lone weapon 2) it
 shows that kit and looks at it, and the close shows the chosen kit; the
 clamps give the original's results and flags in 1,500 cases; the decal
 pose is the window's mode as in the original, and 0 while a weapon is
-shown. The byte comparison with the build of `main` 5fba57f: 514 bytes
+shown. `check_weapon_stash_026g.py` runs the stash code with the game's
+own profile and record ctors and copies: a stash weapon, a weapon 2 behind
+a weapon 1 and one in no kit are the chosen kit's weapon 1 in the scratch
+(a deep copy of the record, a new revision each time, allocated once),
+the account's profile and inventory unwritten, and armour, an unknown
+item, a profile with no inventory behind it, a full table and a failed
+allocation give no kit. The byte comparison with the build of `main` 5fba57f: 514 bytes
 differ, all of them the patch's (section 3.30). **Run in a game (2026-10-17):** the first
 build (without the draw): the camera moved in, the character showed the
 weapon's kit, but in a T-pose with no weapon (the decal pose). **Not run:**
@@ -2314,6 +2335,146 @@ says no, neither. Against the build of `main` b97133d (revision 25's exe,
 the PE checksum, and in nothing else (compared byte by byte). **Not run in
 a game.**
 
+### 44. A weapon wears the camouflage its item holds (the next release's revision)
+
+The owner's request: the armour camouflages on the regular weapons, painted where the premium
+weapons are painted. The rules, the data and the masks: `../docs/notes/weapon-camo.md`,
+`../scripts/weapon-camo/`.
+
+weapon_cook::on_weapon_subresources_ready (0x24ACF0), when the weapon's model is loaded and before
+it is given to the weapon (0x243A30), calls `weapon_ready` (`.srpw`+0) in place of `lea
+eax,[esp+20h] / push eax` (0x24B0D2, five bytes, no address and no relocation under them). With a
+non-empty `data/camouflage` text in the weapon's merged config (a camouflage upgrade puts it
+there when the config has a `data` table), an `object/model` text and a model with a render
+instance, it asks for one class-6Ch bake for each of the instance's surfaces (at most 8), as the
+lobby's decal editor (0x2641A0) asks for one: a camouflage_decal_cook_parameters from the game's
+allocator with the camouflage's diffuse, `_nmap` and `_smap` names, the identity as the
+camouflage's matrix, the render instance (one reference more), the surface's index, the scale
+(`data/camo_scale`, else 4.0), and the baked files' name `srpw1_<camouflage>_<model>_<surface>`
+('/' and '\\' as '_'); its callback lets go of the reference and frees the parameters. The baker
+refuses a surface whose diffuse has no `_aoac` texture (it stays plain). Every register and the
+flags are kept, eax as the original's `lea` leaves it. Since patch 47 the camouflage's lookup and
+its three names are patch 47's lookup and fill (`-DDECALS`), which add the weapon's decals: a
+weapon with decals and no camouflage is baked too.
+
+`.srpw` is a section of its own (code, three pages: patch 44's 739 bytes, the stash's and patch
+45's on the first, patch 47's on the second and patch 48's on the third; raw bytes after `.srpc`'s,
+the Authenticode blob moved behind them, SizeOfImage and SizeOfCode grown), at 0xA42A000, the page
+after `.srpc` (patch 46's death camera, the page after `.srpd`): `.srp`'s two pages are full. It is
+the last section. In the builds with the late join only.
+
+Rendering only: no row in `../crates/session/src/v026g/simulation_changes.tsv`; games with and
+without it play together (without it the weapon is plain). `../docs/notes/client_patch.md`
+section 3.41.
+
+Checked: `selftest_026g.py` check 44 (the function's frame and the site in the original, the
+call, the code's calls into the game, nothing aiming inside the site, no relocation, `.srpw`'s
+section entry and the headers); `check_weapon_camo_026g.py` (Unicorn, the cases in its header).
+Run in a game on 2026-10-20 (a local server, an AK-12 and an Uzi with the City camouflage in
+slot 2): both baked and the lobby's character showed them. **Not run in a match.**
+
+### 45. A weapon's upgrade window shows the weapon above the workbench (the next release's revision)
+
+The owner's request (2026-10-21): "instead of focusing on players the camera would flow to the
+working table and the 3d model of the weapon would have been there", "that would allow you to
+rotate it", "with weapon in the air". Patch 32 still decides which weapon is shown and has the
+lobby's character hold it (a kit's weapon, or a stash weapon in the chosen kit's hands from a
+scratch profile), with its scope and camouflage; patch 45 draws that held weapon on its own above
+the workbench by the lobby's right wall and flies the camera there.
+
+`weapon_table_026g.asm` at `.srpw`+800h (812 bytes in round 1, 1 488 in round 2 below; after the stash code), its state (40 bytes, then 48h)
+at `.srpd`+F00h; it begins with four `jmp near` (its entries; a fifth, `left`, in round 2):
+
+- **camera** (+0): patch 32's start_cam and exit_cam end with `jmp camera` instead of `jmp
+  2845C0h` (the lobby camera's setter; `-DCAMERA` of `weapon_preview_026g.asm`, which without it
+  assembles to the old bytes). With patch 32's mode 1 (a weapon shown) the table goes on: the
+  camera's point is to fly to BENCH (4.25, 1.30, 3.05), its yaw to -pi/2 (the nearest turn of it
+  to the camera's yaw: it looks along +x, at the wall), its pitch to -0.25 (a little above); the
+  height 1.30 and the distance 1.2 go to the setter in place of patch 32's 1.05 and 0.85; the
+  camera's yaw and pitch are kept (once, not again for a window over a weapon's) and the weapon's
+  turn starts at 0. Mode 0 with the table on (the close, or an armour's window over a weapon's)
+  puts it off: the point flies back to the origin, the yaw and pitch to the ones kept. Then the
+  setter, every register but xmm0 and xmm1 the caller's.
+- **tick** (+5): the camera's tick, `movss xmm0,[ebx+0C8h]` at 0x284020 (8 bytes, every tick
+  passes it; ebx = camera+4, the frame's time at [esp+10h]) is `call tick` and 3 nops. While the
+  table is on, the drag's moves of the frame (+CCh yaw, +D0h pitch) turn the weapon (its spin, and
+  its tilt within +-1.2) and are taken from the camera. While the camera is the table's, its point
+  x and z, yaw and pitch move 5 * dt of the way to their targets each tick (the height, the
+  distance and the side angle by the camera's own steps); off and back within 0.001 of each, they
+  are set to them and the camera is the stock one again. Every register but xmm0 (the original's
+  load) kept.
+- **cull** (+0Ah): player::mt_draw's `cmp byte [ebp-1],0 / jne 247592h` at 0x247576 (6 bytes) is
+  `call cull` and a nop: the table's player takes the draw path even when its model was not seen
+  last frame (the camera looks away from it), so that its held item is drawn.
+- **matrix** (+0Fh): mt_draw's `cmp byte [ebx+0F49Ch],0 / je 2477C2h` at 0x24778F (9 bytes) is
+  `call matrix` and 4 nops: for the table's player the held item is drawn (weapon::draw, its
+  vtable+48h, which places the model, its locators and the scope) with the bench's transform,
+  built in the decal pose's buffer [ebp-0E8h]: rotY(spin) * rotZ(tilt), the point 0.18 m along -z
+  of the model (a rifle's middle; its grip is at the origin) at BENCH. Else the decal pose's or the
+  hand's, as the original.
+
+The table's player is the one mt_draw draws for lobby_character's update (its return address
+0x284A83), whose character (the update's ebx, which mt_draw's prologue keeps at [ebp-0F0h]) has it
+at +D2B8h and its upgrade window open (+D515h, only the lobby's own character), while the table is
+on. Every other player, every other time: the original's code, byte for byte. No base relocation
+is under a site and no branch aims inside one; the code holds no absolute address (its state by
+call/pop, the return address it looks for from it).
+
+Round 2 (2026-10-21, after the owner's game run; 1 488 bytes, state 48h bytes):
+
+- **The middle.** The weapon turns about its middle and the middle is at BENCH: the model's box
+  (render_model+108h, rotY(π) of the mesh, as the engine turns it) through bone 1's (`offset`)
+  inverse bind (+140h of the skeleton render model) and its pose of the frame (mt_draw's
+  [ebp−0Ch]), found from the held weapon (+1810h → +108h, vtable 0x9F0F24 checked → +62B4h).
+  A default ±1 box, a missing piece or not a weapon: (0, 0, 0.2) of the model. The first round
+  put (0, 0, −0.18) there, which was the stock's end (the box's frame is not the mesh's).
+- **The weapon first.** The camera holds at the window's start (its three steps' speeds 0) until
+  the weapon is drawn at the bench, which waits for the character's new player (+D2C4h −1,
+  +D2C8h 0; the held item stays in the hand until then), at most 2 s; then it flies.
+- **The left button** (`left`, +14h; 0x283D81 `test byte [eax+0Ch],52h / setne al`, 7 bytes, is
+  `call left` and 2 nops): at the bench a left-button drag turns the weapon too, when its press
+  is off the movie (the lobby menu's is_mouse_over_ui, asked once at the press's first move):
+  a press on a control or on an item being dragged (a camouflage, a scope) does not, until it is
+  let go. Buttons 52h as before.
+- **The light** is data, not this patch: `../scripts/content-edit/lobby-bench-light-1.json`.
+
+Round 3 (2026-10-21; 1 798 bytes, state 90h bytes):
+
+- **The middle, for every weapon.** The box's centre is taken with its x 0 (a box holds parts
+  parked beside the gun: the VSS's, SR-3M's and Val's second magazine 28 cm, the SKS's stripper
+  clip 35 cm), and the 26 weapons that leaves more than 1 cm off (a default box: the AK-74U, Vepr,
+  TOZ-34, IZh-27, AKMN, A-545, TOZ-122 and their premiums; the Magnum, RPD, Mosin, Winchester,
+  MP-153, Remington 700, Benelli, Saiga, 9A-91, Valmet, SOK-94) have their middle in a table by
+  items_dict id: round 3b (after the crash on the VSS: round 3 read weapon+25Ch, not a pointer for a
+  held weapon) takes it from the record the character's player was built from, inside the
+  character (its current copy +D2B4h, kit +D2B5h, slot 7 or 10, the record's +4), every index
+  checked, else the box's way. Round 3c: the table holds the middles in the bind space and they go
+  through bone 1's pose of the frame as the box's (the Vepr's `preview` animation puts its body
+  7 cm from where its 3rd-view idle does). Every weapon of the data is within
+  1 cm (it was up to 16.5 cm): client_patch.md section 3.42 has the table.
+- **No empty bench on a refresh.** Once the bench showed a weapon, a rebuild (a scope or a
+  camouflage put on) keeps the current player's weapon there until the new player's comes. The
+  new weapon still shows plain until its camouflage bake lands (the old player is let go when the
+  new one comes in, on_player_ready: not reachable).
+- **The interface for other patches:** the transform the weapon is drawn with at the bench (16
+  floats, rows, v * M) at `.srpd`+F50h (the state's +50h, `WEAPON_TABLE_MATRIX_OFFSET`), a u32
+  stamp +1 each frame at +48h (`WEAPON_TABLE_STAMP_OFFSET`); valid while the state's +0 and +28h
+  are 1.
+
+What it leaves alone: what patch 32 shows and builds (the kit, the scratch profile, the
+character's pose and the decal pose, the least distance 0.6 while a weapon's window is open), the
+wheel (it moves the camera nearer or further, 0.6 to 4.6), armour windows, the squad panels, a
+match. Rendering and the lobby only: no row in
+`../crates/session/src/v026g/simulation_changes.tsv`. `../docs/notes/client_patch.md` section 3.42.
+
+Checked: `selftest_026g.py` check 45 (the four sites in the original and the build, nothing
+aiming inside them, no relocation; the tick's frame and adds, the camera's point written by its
+constructor alone, the character at the origin, mt_draw's caller and prologue and its decal
+buffer; the code's branches) and check 33 (patch 32's two jumps to it); `check_weapon_table_026g.py`
+(Unicorn, the cases in its header: 32 checks, as is and rebased) and `check_weapon_preview_026g.py`
+(patch 32's cases with patch 45's camera). Round 1 (e93fb6f0) run in a game by the owner (the camera at the
+bench, the weapon there); **round 2 not run in a game**.
+
 ### 46. On the death screen a drag turns the camera; the wheel does nothing (the next release's revision)
 
 The owner (2026-10-21): "when player dies they can still move camera
@@ -2414,6 +2575,121 @@ names (`.srpc` is the last section); every `check_*_026g.py` passes.
 Against the build of `main` ecb9916 the default build differs in the
 headers, the two sites and the new section's 1 024 bytes (the certificate
 moved behind them). **Not run in a game.**
+
+### 47. A weapon wears a decal, placed on it above the workbench (the next release's revision)
+
+The owner's request (2026-10-21): "implement and allow put two decals on weapons"; then the server gives a weapon one decal slot (0): the client keeps three upgrade records an item, and a scoped weapon holds its scope and camouflage besides (the owner, 2026-10-21: "let's remove one decal instead for now"); the code bakes up to two, as written. The rules and
+the data: `../docs/notes/weapon-camo.md`, `../scripts/content-edit/weapon-decals-1.json` (every
+weapon config with `data` gets `parameters/decal_available` and an empty `data/decals`, as
+armour's).
+
+`weapon_decals_026g.asm` at `.srpw`+1000h (3145 bytes, the section's second page), its state (12
+bytes, the left button's press) at `.srpd`+FA0h; it begins with seven `jmp near`, its entries:
+
+- **lookup** (+0) and **fill** (+5), called by patch 44 (`weapon_camo_026g.asm`, -DDECALS): what a
+  weapon's bake paints. lookup: the camouflage (`data/camouflage`, as patch 44 read it) and the
+  decals (`data/decals`, where a decal upgrade appends {texture, low, high}, the record's u64
+  put in by the game's config merge); patch 44 bakes when there is either. fill: the
+  camouflage's layer of the parameters, and for each of the first two decals the layer P +
+  i*270h: the texture, `_nmap`, `_fmap`, `_smap` and the float4x4 the editor unpacks from the u64
+  (0x263D00), its point 1.0 lower (a weapon's y -1..1 in the u64's 0..2) and its two sides halved
+  (a weapon's decals are half a character's); `_<texture>_<high><low>` after the baked files'
+  name. A decal never placed (u64 0) goes on the left of the receiver, the second on the right.
+- **pick** (+0Ah): the decal preview's `call 0x264960` at 0x265999 (5 bytes): for the weapon above
+  the workbench (patch 45's table on, patch 32's weapon shown, the edit's host the window's item)
+  the mouse's ray in the weapon model's space (the inverse of bone 1's skinning of the frame, read
+  from the weapon's render instance, times the transform patch 45 publishes at `.srpd`+F50h; none
+  before patch 45 has drawn the weapon at the bench) gives the point of
+  it nearest the weapon's long axis and its direction reversed as the normal (the decal looks
+  along the ray; its projector and occlusion find the surface); a ray behind the eye, more than
+  0.25 m off the axis or beyond its ends misses. Else the original's pick on the character.
+- **decode** (+0Fh): the preview's `call 0x263D00` at 0x2659B2 (5 bytes): the weapon's decal at
+  the weapon's transform, so the preview's box is drawn on the weapon at the bench.
+- **bake** (+14h): the editor's bake, 0x2641A0 (`push ebp / mov ebp,esp / and esp,-8`, 6 bytes)
+  is `jmp bake` and a nop. For the weapon: the click picks, packs the u64 (0x264A10), accepts it
+  (0x263950: the record, `46 05`) and tells the movie (`root.exit_decal_edit`); the start's and
+  the cancel's bakes do nothing (the weapon keeps its textures). The server sends the account
+  after a weapon's `46 05`, the lobby builds the weapon again and patch 44 bakes the new place.
+- **start** (+19h): the start's `call 0x264CF0` at 0x263938 (5 bytes): on a weapon the decal's
+  index in `data/decals` counts the records of slots 0 and 1 (a weapon's camouflage is in slot
+  2); a record of another slot ends the edit with nothing queried.
+- **click** (+1Eh): the character's mouse key handler, 0x265C20 (6 bytes, `jmp click` and a nop),
+  which places the edit's decal on the left button's release: in a weapon's edit only when the
+  cursor is within 5 pixels of where the button went down. A drag (patch 45's left button turns
+  the weapon) places nothing; a release with no press seen (the movie's "change") neither.
+
+Everything else, armour's decals, the squad panels and a match: the original's code. No base
+relocation is under a site and no branch aims inside one; the code holds absolute addresses (the
+exe is never rebased). The movie: a weapon's upgrade window shows one decal slot when it has
+`decal_available` (`UpgradeWindow.as`, `WEAPON_DECALS`). Rendering and the lobby only: no row in
+`../crates/session/src/v026g/simulation_changes.tsv`; a game without the patch shows the weapon
+without its decals. `../docs/notes/client_patch.md` section 3.44.
+
+Checked: `selftest_026g.py` check 47 (the sites in the original and the build, their callers,
+nothing aiming inside, no relocation, the code's calls and branches, `.srpw`'s two pages) and
+check 44; `check_weapon_decals_026g.py` (Unicorn, the cases in its header, with patch 45's own
+transform: 202 checks) and
+`check_weapon_camo_026g.py` (the camouflage alone as before). **Not run in a game**: the preview on
+a weapon, the place the click gives and the bake of a decal on a weapon are read and emulated
+only.
+
+### 48. An upgrade dropped on a weapon in its window is shown at once (the next release's revision)
+
+The owner's request (2026-10-21): "can equipments in general be more responsive? I want the scope
+to be equipped and see the results a few frames after? Or camo?", and "the server can be in the
+background". Where the time went (`../docs/notes/client_patch.md` section 3.45): the lobby client
+sends its messages only at its own tick, every ~505 ms (the packet logs: a request leaves 0 to
+505 ms after the drop, 250 ms on average); the server answers in 2-3 ms (locally; a network's
+round trip live); then the character's player is made again; a camouflage's first bake is ~40 ms
+of GPU and compression (the game's own log lines). Now the drop itself changes what the character
+is built from; what is sent is not changed and the server's account stays the truth.
+
+`upgrade_preview_026g.asm` at `.srpw`+2000h (1596 bytes, the section's third page), its state
+(A0h bytes: the window's item, the queue of changes, the revision last given and its upgrades,
+the last query's time and kit) at `.srpd`+D60h, after the patches' mount's and before patch 32's; six `jmp near`, its entries:
+
+- **relocate** (+0): relocate_upgrade_item's handler (0x29A8B0), `mov edx,[esi+4620h]` at
+  0x29A9B2 (6 bytes, `call` and a nop), before it writes `46 01`; and **drop** (+5):
+  drop_upgrade_item's (0x29A9D0), `mov ecx,[esi+4620h]` at 0x29AACF, before patch 30's `46 02`.
+  For the window's weapon (patch 32's mode 1, its item the host, the lobby character's window
+  open): the change is queued ({upgrade, the record's dict id, slot}, or "take off"), a log line
+  is written ("srp: upgrade preview: item <host>, upgrade <id>, slot <n>") and setup_profile is
+  called at once. A scope's record holds the variant made for the weapon, as the server's
+  (`ScopeFits`): the first category-22 entry of the items dictionary whose config's
+  `srp_scope_fit` names the scope and the weapon (by name or dict id); none: nothing is queued.
+- **account** (+0Ah): the 0x87 reader's last call (`call 0x270320` at 0x270313): each account
+  answers the oldest queued change (srp pushes the account after every `46 01` / `46 02`, a
+  refusal too).
+- **find** (+0Fh): patch 32's two finds (`weapon_preview_026g.asm`, -DFIND) call it; it calls the
+  stash's find_kit_or_show, then, for the item a change was queued on and shown from the account's
+  profile, builds the character from the stash's scratch: the account's profile, the queue
+  applied to the weapon's record in order as the server applies it (a put leaves an identical
+  record as it is, else takes the upgrade and what is in its slot off and adds it when there is
+  room; a take-off takes it off), and a kit revision of its own (`0x80000000 | n`) that stays the
+  same while the weapon's upgrades are the same, so the account confirming the change makes
+  nothing again (setup_profile's early return).
+- **again** (+14h): setup_profile past its early return, `cmp dword [ebx+0D2C4h],-1` at 0x284B89
+  (7 bytes): for the lobby's own character, a player being made of the same kit's id and revision
+  is what is asked: it returns (a call waiting for that player is dropped: this one is newer);
+  with no player being made the query's start time and kit are kept.
+- **made** (+19h): on_player_ready, `cmp byte [ebx+0D2C9h],0` at 0x284F7F (7 bytes): for the lobby's
+  own character a log line "srp: lobby character's player made in <n> ms" (the lobby's clock,
+  [menu+9Ch]+584Ch, since the query), then the original's comparison.
+
+The log lines go through the game's own function (`{0x9DAF4C | 1, 0, [0x1F1D614]}`, as every
+game line's caller builds it; round 2: the first build passed an empty one and nothing was
+written).
+
+A refusal: the account comes back without the change, the weapon's upgrades differ from those
+shown, the character is made again from the account's. Armour windows, the squad panels and a
+match: the original's code. No base relocation is under a site and no branch aims inside one;
+the code holds absolute addresses (the exe is never rebased). The lobby only: no row in
+`../crates/session/src/v026g/simulation_changes.tsv`.
+
+Checked: `selftest_026g.py` check 48 (the sites in the original and the build, the handlers'
+registers, the 0x87 reader's last call, setup_profile's ways to 0x284B89, the code's calls and
+branches, `.srpw`'s three pages); `check_upgrade_preview_026g.py` (Unicorn, the cases in its
+header: the game's own setup_profile, profile copy and config lookups). **Not run in a game.**
 
 ## Not ported, not done
 

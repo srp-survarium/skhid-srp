@@ -36,6 +36,10 @@ Edits (edits.json):
                     the entry matching `like` with `values` set; a value "{a/b}" is that number of
                     the same file; files without `only_if`, the table or those entries are left alone
   "add_key":        [{"file", "table", "key", "text"}] a new text of a localization table
+  "add_value":      [{"files" (a list of game paths), "table" ("" the root), "key", "value"}]
+                    a new key of the named table in each file, in its place by name CRC: a bool,
+                    an int, a float (a number with a point), a text, or an object (a named table of
+                    those); a file that has the key already is refused
   "remove_item":    [{"file", "path", "value"}]        the one item equal to `value` of an indexed table of
                                                        numbers (an item's `default_modifications`) or of
                                                        strings (a weapon's `death` animations); the
@@ -310,6 +314,37 @@ def add_key(buf, table, key, text):
     REC.pack_into(buf, toff, append_array(buf, new), i, c, ty, cnt + 1)
 
 
+def value_record(buf, name_off, key, value):
+    """A 24-byte record of `value` named `key` (its name at `name_off`); a table's children and
+    texts are appended."""
+    crc = zlib.crc32(key.encode()) & 0xffffffff
+    if isinstance(value, dict):
+        kids = sorted((value_record(buf, append(buf, k.encode() + b'\0'), k, v) for k, v in value.items()),
+                      key=lambda r: REC.unpack(r)[2])
+        return REC.pack(append_array(buf, kids) if kids else 0, name_off, crc, T_NAMED, len(kids))
+    if isinstance(value, bool):
+        return REC.pack(int(value), name_off, crc, T_BOOL, 4)
+    if isinstance(value, int):
+        return REC.pack(value & 0xffffffff, name_off, crc, T_INT, 4)
+    if isinstance(value, float):
+        return REC.pack(struct.unpack('<I', struct.pack('<f', value))[0], name_off, crc, T_FLOAT, 4)
+    text = value.encode()
+    return REC.pack(append(buf, text + b'\0'), name_off, crc, T_STR, len(text) + 1)
+
+
+def add_value(buf, table, key, value):
+    """A new key of the named table `table` ('' the root), in its place by name CRC."""
+    toff = find(buf, table) if table else 0
+    assert rec(buf, toff)[3] == T_NAMED, (table, 'not a named table')
+    kids = [bytes(buf[c:c + 24]) for c in children(buf, toff)]
+    crc = zlib.crc32(key.encode()) & 0xffffffff
+    assert all(REC.unpack(r)[2] != crc for r in kids), (table, key, 'its CRC is taken')
+    record = value_record(buf, append(buf, key.encode() + b'\0'), key, value)
+    new = sorted(kids + [record], key=lambda r: REC.unpack(r)[2])
+    d, i, c, ty, cnt = rec(buf, toff)
+    REC.pack_into(buf, toff, append_array(buf, new), i, c, ty, cnt + 1)
+
+
 def items_of(buf, path):
     """The items of an indexed table of numbers or strings, as numbers and (UTF-8) strings."""
     off = find(buf, path)
@@ -541,6 +576,13 @@ def main():
         add_key(buf(e['file']), e['table'], e['key'], e['text'])
         added.setdefault(e['file'], []).append('/%s/%s' % (e['table'], e['key']))
         grown.setdefault(e['file'], set()).add('/' + e['table'])
+    for e in edits.get('add_value', []):
+        for p in e['files']:
+            add_value(buf(p), e['table'], e['key'], e['value'])
+            table = '/' + e['table'] if e['table'] else ''
+            added.setdefault(p, []).append('%s/%s' % (table, e['key']))
+            grown.setdefault(p, set()).add(table)
+        print('value %s/%s: %d files' % (e['table'], e['key'], len(e['files'])))
     removed = {}
     for e in edits.get('remove_item', []):
         remove_item(buf(e['file']), e['path'], e['value'])
