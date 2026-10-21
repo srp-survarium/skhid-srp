@@ -32,14 +32,14 @@ package survarium.menu
          super();
       }
       
-      override public function set selected(param1:Boolean) : void
+      override public function set selected(value:Boolean) : void
       {
          if(!_data)
          {
             return;
          }
-         super.selected = param1;
-         if(!param1)
+         super.selected = value;
+         if(!value)
          {
             this.btn_key.selected = false;
             this.btn_key.displayFocus = false;
@@ -49,43 +49,43 @@ package survarium.menu
          }
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         if(!param1)
+         if(!value)
          {
             return;
          }
-         if(param1.defKey == undefined)
+         if(value.defKey == undefined)
          {
-            param1.defKey = param1.key;
+            value.defKey = value.key;
          }
-         if(param1.defToggle == undefined)
+         if(value.defToggle == undefined)
          {
-            param1.defToggle = param1.toggle;
+            value.defToggle = value.toggle;
          }
-         _data = param1;
-         if(param1.enter)
+         _data = value;
+         if(value.enter)
          {
             dispatchEvent(new Event(Event.CHANGE,true));
             _enter_mode = false;
-            param1.enter = false;
+            value.enter = false;
          }
          invalidate(InvalidationType.DATA);
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
-         if(param1.isDefaultPrevented())
+         if(event.isDefaultPrevented())
          {
             return;
          }
-         param1.preventDefault();
-         var _loc2_:InputDetails = param1.details;
-         var _loc3_:uint = _loc2_.controllerIndex;
-         switch(_loc2_.code)
+         event.preventDefault();
+         var details:InputDetails = event.details;
+         var controllerIndex:uint = details.controllerIndex;
+         switch(details.code)
          {
             case Keyboard.ENTER:
-               if(_loc2_.value == InputValue.KEY_DOWN)
+               if(details.value == InputValue.KEY_DOWN)
                {
                   if(!this._enter_mode)
                   {
@@ -103,30 +103,30 @@ package survarium.menu
                   {
                      this.endKey();
                   }
-                  param1.handled = true;
+                  event.handled = true;
                }
                break;
             case Keyboard.LEFT:
-               if(_loc2_.value == InputValue.KEY_DOWN && this.chk_toggle.displayFocus == false && !this._enter_mode && this.chk_toggle.visible)
+               if(details.value == InputValue.KEY_DOWN && this.chk_toggle.displayFocus == false && !this._enter_mode && this.chk_toggle.visible)
                {
                   this.btn_key.displayFocus = false;
                   this.chk_toggle.displayFocus = true;
-                  param1.handled = true;
+                  event.handled = true;
                }
                break;
             case Keyboard.RIGHT:
-               if(_loc2_.value == InputValue.KEY_DOWN && this.btn_key.displayFocus == false)
+               if(details.value == InputValue.KEY_DOWN && this.btn_key.displayFocus == false)
                {
                   this.btn_key.displayFocus = true;
                   this.chk_toggle.displayFocus = false;
-                  param1.handled = true;
+                  event.handled = true;
                }
                break;
             case Keyboard.ESCAPE:
-               if(_loc2_.value == InputValue.KEY_DOWN)
+               if(details.value == InputValue.KEY_DOWN)
                {
                   this.endKey();
-                  param1.handled = true;
+                  event.handled = true;
                }
                break;
          }
@@ -161,12 +161,12 @@ package survarium.menu
          this.chk_toggle.addEventListener(ButtonEvent.CLICK,this.onCheckBox);
       }
       
-      private function overBtn(param1:MouseEvent) : void
+      private function overBtn(event:MouseEvent) : void
       {
          this.btn_key.gotoAndStop("over_k");
       }
       
-      private function upBtn(param1:MouseEvent) : void
+      private function upBtn(event:MouseEvent) : void
       {
          this.btn_key.gotoAndStop("up_k");
       }
@@ -219,9 +219,9 @@ package survarium.menu
          this.btn_key.enabled = _data.type != 0;
       }
       
-      protected function startKey(param1:Event) : void
+      protected function startKey(event:Event) : void
       {
-         trace("startKey::",param1 ? param1.type : "noevent");
+         trace("startKey::",event ? event.type : "noevent");
          if(!this.btn_key.enabled)
          {
             return;
@@ -233,14 +233,14 @@ package survarium.menu
          dispatchEvent(new Event(START_KEYBIND));
       }
       
-      protected function onMe(param1:Event = null) : void
+      protected function onMe(event:Event = null) : void
       {
          this.endKey();
       }
       
-      protected function endKey(param1:Event = null) : void
+      protected function endKey(event:Event = null) : void
       {
-         var _loc2_:TileList;
+         var list:TileList;
          if(this._enter_mode == false)
          {
             return;
@@ -249,10 +249,10 @@ package survarium.menu
          {
             stage.removeEventListener(Event.CANCEL,this.onMe);
          }
-         if(_loc2_)
+         if(list)
          {
-            stage.focus = _loc2_;
-            _loc2_.selectedIndex = index;
+            stage.focus = list;
+            list.selectedIndex = index;
          }
          if(data && data.key == undefined)
          {
@@ -264,12 +264,12 @@ package survarium.menu
             this.btn_key.gotoAndStop("up_k");
             this.btn_key.label = data.key;
          }
-         _loc2_ = this.parent.parent as TileList;
+         list = this.parent.parent as TileList;
          dispatchEvent(new Event(Event.CHANGE,true));
          _enter_mode = false;
       }
       
-      protected function onCheckBox(param1:ButtonEvent = null) : void
+      protected function onCheckBox(event:ButtonEvent = null) : void
       {
          _data.toggle = this.chk_toggle.selected;
          dispatchEvent(new Event(Event.CHANGE,true));

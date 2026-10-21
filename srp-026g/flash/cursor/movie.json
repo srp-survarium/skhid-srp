@@ -1,12 +1,8 @@
 {
+  "schema": 2,
   "movie": "flash_movies/cursor.swf",
-  "movie_sha256": "1e9bc9360600fe0e3d7aafa76df43f7b69a18d56aeb0966e52cf084ca2e7e479",
-  "reconstruction": "tools/actionscript/reconstruction/026g-rev24-cursor/manifest.json",
-  "reconstruction_sha256": "d75264333b940b646c21890b13eacbf07256c04275fc57fb90c062bcfb4fa797",
-  "release": "026g-rev24-cursor",
-  "schema": 1,
-  "sources": {
-    "cursor_fla/MainTimeline.as": "0e322d68376c6b03b1f55ccf25fdabbf8ab25b0f29a2bac8303f2bc6ccb993b6",
-    "mouseSymbol.as": "c09e9b8b5bb4412fcaa600e2ead3071ad927847fe1e6136d56542d0d00a2e54e"
-  }
+  "archive": "resources.db",
+  "archive_offset": 17949990,
+  "movie_size": 20458,
+  "movie_sha256": "1e9bc9360600fe0e3d7aafa76df43f7b69a18d56aeb0966e52cf084ca2e7e479"
 }

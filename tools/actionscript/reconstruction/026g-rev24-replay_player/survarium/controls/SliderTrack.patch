@@ -1,7 +1,0 @@
---- a/survarium/controls/SliderTrack.as
-+++ b/survarium/controls/SliderTrack.as
-@@ -1,3 +1,4 @@
-+// Compile with the native optimized profile.
- package survarium.controls
- {
-    import scaleform.clik.controls.Button;

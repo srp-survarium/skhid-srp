@@ -62,18 +62,18 @@ package scaleform.clik.controls
       
       public function getMaxWidth() : int
       {
-         var _loc1_:int = 0;
-         var _loc2_:Number = 0;
-         while(_loc2_ < this._renderers.length)
+         var maxWidth:int = 0;
+         var i:Number = 0;
+         while(i < this._renderers.length)
          {
-            trace("ButtonBat::getMax::",this._renderers.length,_loc1_,this._renderers[_loc2_].width,_width,actualWidth);
-            if(this._renderers[_loc2_].width > _loc1_)
+            trace("ButtonBat::getMax::",this._renderers.length,maxWidth,this._renderers[i].width,_width,actualWidth);
+            if(this._renderers[i].width > maxWidth)
             {
-               _loc1_ = (this._renderers[_loc2_].width);
+               maxWidth = (this._renderers[i].width);
             }
-            _loc2_++;
+            i++;
          }
-         return _loc1_;
+         return maxWidth;
       }
       
       override protected function initialize() : void
@@ -89,25 +89,25 @@ package scaleform.clik.controls
          return super.enabled;
       }
       
-      override public function set enabled(param1:Boolean) : void
+      override public function set enabled(value:Boolean) : void
       {
-         if(this.enabled == param1)
+         if(this.enabled == value)
          {
             return;
          }
-         super.enabled = param1;
-         var _loc2_:Number = 0;
-         while(_loc2_ < this._renderers.length)
+         super.enabled = value;
+         var i:Number = 0;
+         while(i < this._renderers.length)
          {
             if(this._itemRendererClass)
             {
-               (this._renderers[_loc2_] as this._itemRendererClass).enabled = param1;
+               (this._renderers[i] as this._itemRendererClass).enabled = value;
             }
             else
             {
-               (this._renderers[_loc2_] as UIComponent).enabled = param1;
+               (this._renderers[i] as UIComponent).enabled = value;
             }
-            _loc2_++;
+            i++;
          }
       }
       
@@ -117,9 +117,9 @@ package scaleform.clik.controls
          return _focusable;
       }
       
-      override public function set focusable(param1:Boolean) : void
+      override public function set focusable(value:Boolean) : void
       {
-         super.focusable = param1;
+         super.focusable = value;
       }
       
       public function get dataProvider() : IDataProvider
@@ -127,9 +127,9 @@ package scaleform.clik.controls
          return this._dataProvider;
       }
       
-      public function set dataProvider(param1:IDataProvider) : void
+      public function set dataProvider(value:IDataProvider) : void
       {
-         if(this._dataProvider == param1)
+         if(this._dataProvider == value)
          {
             return;
          }
@@ -137,7 +137,7 @@ package scaleform.clik.controls
          {
             this._dataProvider.removeEventListener(Event.CHANGE,this.handleDataChange,false);
          }
-         _dataProvider = param1;
+         _dataProvider = value;
          if(this._dataProvider == null)
          {
             return;
@@ -175,9 +175,9 @@ package scaleform.clik.controls
          return this._spacing;
       }
       
-      public function set spacing(param1:Number) : void
+      public function set spacing(value:Number) : void
       {
-         _spacing = param1;
+         _spacing = value;
          this.invalidateSettings();
       }
       
@@ -187,9 +187,9 @@ package scaleform.clik.controls
          return this._direction;
       }
       
-      public function set direction(param1:String) : void
+      public function set direction(value:String) : void
       {
-         _direction = param1;
+         _direction = value;
          this.invalidateSettings();
       }
       
@@ -199,18 +199,18 @@ package scaleform.clik.controls
          return this._autoSize;
       }
       
-      public function set autoSize(param1:String) : void
+      public function set autoSize(value:String) : void
       {
-         if(param1 == this._autoSize)
+         if(value == this._autoSize)
          {
             return;
          }
-         _autoSize = param1;
-         var _loc2_:Number = 0;
-         while(_loc2_ < this._renderers.length)
+         _autoSize = value;
+         var i:Number = 0;
+         while(i < this._renderers.length)
          {
-            (this._renderers[_loc2_] as this._itemRendererClass).autoSize = this._autoSize;
-            _loc2_++;
+            (this._renderers[i] as this._itemRendererClass).autoSize = this._autoSize;
+            i++;
          }
          this.invalidateSettings();
       }
@@ -221,9 +221,9 @@ package scaleform.clik.controls
          return this._buttonWidth;
       }
       
-      public function set buttonWidth(param1:Number) : void
+      public function set buttonWidth(value:Number) : void
       {
-         _buttonWidth = param1;
+         _buttonWidth = value;
          invalidate();
       }
       
@@ -232,25 +232,25 @@ package scaleform.clik.controls
          return this._selectedIndex;
       }
       
-      public function set selectedIndex(param1:int) : void
+      public function set selectedIndex(value:int) : void
       {
-         if(param1 == this._selectedIndex)
+         if(value == this._selectedIndex)
          {
             return;
          }
-         var _loc2_:int = this._selectedIndex;
-         var _loc3_:Button = this._renderers[_loc2_] as Button;
-         if(_loc3_)
+         var oldSelectedIndex:int = this._selectedIndex;
+         var renderer:Button = this._renderers[oldSelectedIndex] as Button;
+         if(renderer)
          {
-            _loc3_.selected = false;
+            renderer.selected = false;
          }
-         _selectedIndex = param1;
-         _loc3_ = this._renderers[this._selectedIndex] as Button;
-         if(_loc3_)
+         _selectedIndex = value;
+         renderer = this._renderers[this._selectedIndex] as Button;
+         if(renderer)
          {
-            _loc3_.selected = true;
+            renderer.selected = true;
          }
-         dispatchEvent(new IndexEvent(IndexEvent.INDEX_CHANGE,true,true,this._selectedIndex,_loc2_,this._dataProvider[this._selectedIndex]));
+         dispatchEvent(new IndexEvent(IndexEvent.INDEX_CHANGE,true,true,this._selectedIndex,oldSelectedIndex,this._dataProvider[this._selectedIndex]));
       }
       
       public function get selectedItem() : Object
@@ -268,9 +268,9 @@ package scaleform.clik.controls
          return this._labelField;
       }
       
-      public function set labelField(param1:String) : void
+      public function set labelField(value:String) : void
       {
-         _labelField = param1;
+         _labelField = value;
          invalidateData();
       }
       
@@ -279,9 +279,9 @@ package scaleform.clik.controls
          return this._labelFunction;
       }
       
-      public function set labelFunction(param1:Function) : void
+      public function set labelFunction(value:Function) : void
       {
-         _labelFunction = param1;
+         _labelFunction = value;
          invalidateData();
       }
       
@@ -290,99 +290,99 @@ package scaleform.clik.controls
          invalidate(InvalidationType.SETTINGS);
       }
       
-      public function itemToLabel(param1:Object) : String
+      public function itemToLabel(item:Object) : String
       {
-         if(param1 == null)
+         if(item == null)
          {
             return "";
          }
          if(this._labelFunction != null)
          {
-            return this._labelFunction(param1);
+            return this._labelFunction(item);
          }
-         if(param1 is String)
+         if(item is String)
          {
-            return param1 as String;
+            return item as String;
          }
-         if(this._labelField != null && param1[this._labelField] != null)
+         if(this._labelField != null && item[this._labelField] != null)
          {
-            return param1[this._labelField];
+            return item[this._labelField];
          }
-         return param1.toString();
+         return item.toString();
       }
       
-      public function getButtonAt(param1:int) : Button
+      public function getButtonAt(index:int) : Button
       {
-         if(param1 >= 0 && param1 < this._renderers.length)
+         if(index >= 0 && index < this._renderers.length)
          {
-            return this._renderers[param1];
+            return this._renderers[index];
          }
          return null;
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
-         if(param1.handled)
+         if(event.handled)
          {
             return;
          }
-         var _loc2_:Button = this._renderers[this._selectedIndex] as Button;
-         if(_loc2_ != null)
+         var renderer:Button = this._renderers[this._selectedIndex] as Button;
+         if(renderer != null)
          {
-            _loc2_.handleInput(param1);
-            if(param1.handled)
+            renderer.handleInput(event);
+            if(event.handled)
             {
                return;
             }
          }
-         var _loc3_:InputDetails = param1.details;
-         var _loc4_:Boolean = _loc3_.value == InputValue.KEY_DOWN || _loc3_.value == InputValue.KEY_HOLD;
-         if(!_loc4_)
+         var details:InputDetails = event.details;
+         var keyPress:Boolean = details.value == InputValue.KEY_DOWN || details.value == InputValue.KEY_HOLD;
+         if(!keyPress)
          {
             return;
          }
-         var _loc5_:Boolean = false;
-         var _loc6_:Number;
-         switch(_loc3_.navEquivalent)
+         var indexChanged:Boolean = false;
+         var newIndex:Number;
+         switch(details.navEquivalent)
          {
             case NavigationCode.LEFT:
                if(this._direction == DIRECTION_HORIZONTAL)
                {
-                  _loc6_ = this._selectedIndex - 1;
-                  _loc5_ = true;
+                  newIndex = this._selectedIndex - 1;
+                  indexChanged = true;
                }
                break;
             case NavigationCode.RIGHT:
                if(this._direction == DIRECTION_HORIZONTAL)
                {
-                  _loc6_ = this._selectedIndex + 1;
-                  _loc5_ = true;
+                  newIndex = this._selectedIndex + 1;
+                  indexChanged = true;
                }
                break;
             case NavigationCode.UP:
                if(this._direction == DIRECTION_VERTICAL)
                {
-                  _loc6_ = this._selectedIndex - 1;
-                  _loc5_ = true;
+                  newIndex = this._selectedIndex - 1;
+                  indexChanged = true;
                }
                break;
             case NavigationCode.DOWN:
                if(this._direction == DIRECTION_VERTICAL)
                {
-                  _loc6_ = this._selectedIndex + 1;
-                  _loc5_ = true;
+                  newIndex = this._selectedIndex + 1;
+                  indexChanged = true;
                }
                break;
             default:
                break;
          }
-         if(_loc5_)
+         if(indexChanged)
          {
-            _loc6_ = Math.max(0,Math.min(this._dataProvider.length - 1,_loc6_));
-            if(_loc6_ != this._selectedIndex)
+            newIndex = Math.max(0,Math.min(this._dataProvider.length - 1,newIndex));
+            if(newIndex != this._selectedIndex)
             {
-               selectedIndex = _loc6_;
-               param1.handled = true;
+               selectedIndex = newIndex;
+               event.handled = true;
             }
          }
       }
@@ -411,8 +411,8 @@ package scaleform.clik.controls
       
       override protected function draw() : void
       {
-         var _loc1_:Number;
-         var _loc2_:Button;
+         var i:Number;
+         var renderer:Button;
          if(isInvalid(InvalidationType.RENDERERS) || isInvalid(InvalidationType.DATA) || isInvalid(InvalidationType.SETTINGS) || isInvalid(InvalidationType.SIZE))
          {
             removeChild(this.container);
@@ -424,15 +424,15 @@ package scaleform.clik.controls
             if(this._autoResize)
             {
                _buttonWidth = this.getMaxWidth();
-               _loc1_ = 0;
-               while(_loc1_ < this._renderers.length)
+               i = 0;
+               while(i < this._renderers.length)
                {
-                  _loc2_ = this._renderers[_loc1_];
+                  renderer = this._renderers[i];
                   trace("setWidth::",this._buttonWidth,width);
-                  _loc2_.autoSize = TextFieldAutoSize.NONE;
-                  _loc2_.width = this._buttonWidth;
-                  _loc2_.validateNow();
-                  _loc1_++;
+                  renderer.autoSize = TextFieldAutoSize.NONE;
+                  renderer.width = this._buttonWidth;
+                  renderer.validateNow();
+                  i++;
                }
             }
          }
@@ -447,31 +447,31 @@ package scaleform.clik.controls
          }
       }
       
-      public function setMaxFit(param1:Boolean) : void
+      public function setMaxFit(value:Boolean) : void
       {
-         _maxFit = param1;
+         _maxFit = value;
       }
       
-      public function setMaxSize(param1:int) : void
+      public function setMaxSize(value:int) : void
       {
-         _maxSize = param1;
+         _maxSize = value;
       }
       
       protected function updateRenderers() : void
       {
-         var _loc1_:Number = 0;
-         var _loc2_:Number = 0;
-         var _loc3_:int = -1;
+         var nextX:Number = 0;
+         var nextY:Number = 0;
+         var overflowIndex:int = -1;
          if(this._renderers[0] is this._itemRendererClass)
          {
             while(this._renderers.length > this._dataProvider.length)
             {
-               _loc5_ = this._renderers.length - 1;
-               if(this.container.contains(this._renderers[_loc5_]))
+               lastIndex = this._renderers.length - 1;
+               if(this.container.contains(this._renderers[lastIndex]))
                {
-                  this.container.removeChild(this._renderers[_loc5_]);
+                  this.container.removeChild(this._renderers[lastIndex]);
                }
-               this._renderers.splice(_loc5_--,1);
+               this._renderers.splice(lastIndex--,1);
             }
          }
          else
@@ -482,91 +482,91 @@ package scaleform.clik.controls
             }
             this._renderers.length = 0;
          }
-         var _loc4_:uint = 0;
-         var _loc5_:int;
-         var _loc6_:Button;
-         var _loc7_:Boolean;
-         var _loc8_:int;
-         var _loc9_:Button;
-         while(_loc4_ < this._dataProvider.length && _loc3_ == -1)
+         var i:uint = 0;
+         var lastIndex:int;
+         var renderer:Button;
+         var isNew:Boolean;
+         var j:int;
+         var extraRenderer:Button;
+         while(i < this._dataProvider.length && overflowIndex == -1)
          {
-            _loc7_ = false;
-            if(_loc4_ < this._renderers.length)
+            isNew = false;
+            if(i < this._renderers.length)
             {
-               _loc6_ = this._renderers[_loc4_];
+               renderer = this._renderers[i];
             }
             else
             {
-               _loc6_ = new this._itemRendererClass();
-               this.setupRenderer(_loc6_,_loc4_);
-               _loc7_ = true;
+               renderer = new this._itemRendererClass();
+               this.setupRenderer(renderer,i);
+               isNew = true;
             }
-            this.populateRendererData(_loc6_,_loc4_);
+            this.populateRendererData(renderer,i);
             if(this._autoSize == TextFieldAutoSize.NONE && this._buttonWidth > 0)
             {
-               _loc6_.width = this._buttonWidth;
+               renderer.width = this._buttonWidth;
             }
             else if(this._autoSize != TextFieldAutoSize.NONE)
             {
-               _loc6_.autoSize = this._autoSize;
+               renderer.autoSize = this._autoSize;
             }
-            _loc6_.validateNow();
+            renderer.validateNow();
             if(this._direction == DIRECTION_HORIZONTAL)
             {
-               if(_width > _loc6_.width + this._spacing + _loc1_ || this._maxFit)
+               if(_width > renderer.width + this._spacing + nextX || this._maxFit)
                {
-                  _loc6_.y = 0;
-                  _loc6_.x = _loc1_;
-                  _loc1_ += _loc6_.width + this._spacing;
+                  renderer.y = 0;
+                  renderer.x = nextX;
+                  nextX += renderer.width + this._spacing;
                }
                else
                {
-                  _loc3_ = (_loc4_);
-                  _loc6_ = null;
+                  overflowIndex = (i);
+                  renderer = null;
                }
             }
-            else if(_height > _loc6_.height + this._spacing + _loc2_)
+            else if(_height > renderer.height + this._spacing + nextY)
             {
-               _loc6_.x = 0;
-               _loc6_.y = _loc2_;
-               _loc2_ += _loc6_.height + this._spacing;
+               renderer.x = 0;
+               renderer.y = nextY;
+               nextY += renderer.height + this._spacing;
             }
             else
             {
-               _loc3_ = (_loc4_);
-               _loc6_ = null;
+               overflowIndex = (i);
+               renderer = null;
             }
-            if(_loc7_ && _loc6_ != null)
+            if(isNew && renderer != null)
             {
-               _loc6_.group = this._group;
-               this.container.addChild(_loc6_);
-               this._renderers.push(_loc6_);
+               renderer.group = this._group;
+               this.container.addChild(renderer);
+               this._renderers.push(renderer);
             }
-            _loc4_++;
+            i++;
          }
-         if(_loc3_ > -1)
+         if(overflowIndex > -1)
          {
-            _loc8_ = this._renderers.length - 1;
-            while(_loc8_ >= _loc3_)
+            j = this._renderers.length - 1;
+            while(j >= overflowIndex)
             {
-               _loc9_ = this._renderers[_loc8_];
-               if(_loc9_)
+               extraRenderer = this._renderers[j];
+               if(extraRenderer)
                {
-                  if(this.container.contains(_loc9_))
+                  if(this.container.contains(extraRenderer))
                   {
-                     this.container.removeChild(_loc9_);
+                     this.container.removeChild(extraRenderer);
                   }
-                  this._renderers.splice(_loc8_,1);
+                  this._renderers.splice(j,1);
                }
-               _loc8_--;
+               j--;
             }
          }
          selectedIndex = Math.min(this._dataProvider.length - 1,this._selectedIndex);
       }
       
-      public function set autoResize(param1:Boolean) : void
+      public function set autoResize(value:Boolean) : void
       {
-         _autoResize = param1;
+         _autoResize = value;
       }
       
       public function get autoResize() : Boolean
@@ -574,58 +574,58 @@ package scaleform.clik.controls
          return this._autoResize;
       }
       
-      protected function populateData(param1:Array) : void
+      protected function populateData(data:Array) : void
       {
-         var _loc2_:uint = 0;
-         var _loc3_:Button;
-         while(_loc2_ < this._renderers.length)
+         var i:uint = 0;
+         var renderer:Button;
+         while(i < this._renderers.length)
          {
-            _loc3_ = this._renderers[_loc2_] as Button;
-            this.populateRendererData(_loc3_,_loc2_);
-            _loc3_.validateNow();
-            _loc2_++;
+            renderer = this._renderers[i] as Button;
+            this.populateRendererData(renderer,i);
+            renderer.validateNow();
+            i++;
          }
       }
       
-      protected function populateRendererData(param1:Button, param2:uint) : void
+      protected function populateRendererData(renderer:Button, index:uint) : void
       {
-         param1.label = this.itemToLabel(this._dataProvider.requestItemAt(param2));
-         param1.data = this._dataProvider.requestItemAt(param2);
-         param1.selected = param2 == this.selectedIndex;
+         renderer.label = this.itemToLabel(this._dataProvider.requestItemAt(index));
+         renderer.data = this._dataProvider.requestItemAt(index);
+         renderer.selected = index == this.selectedIndex;
       }
       
-      protected function setupRenderer(param1:Button, param2:uint) : void
+      protected function setupRenderer(renderer:Button, index:uint) : void
       {
-         param1.owner = this;
-         param1.focusable = false;
-         param1.focusTarget = this;
-         param1.toggle = true;
-         param1.allowDeselect = false;
+         renderer.owner = this;
+         renderer.focusable = false;
+         renderer.focusTarget = this;
+         renderer.toggle = true;
+         renderer.allowDeselect = false;
       }
       
-      protected function handleButtonGroupChange(param1:Event) : void
+      protected function handleButtonGroupChange(event:Event) : void
       {
-         var _loc2_:ButtonEvent = param1 as ButtonEvent;
+         var ev:ButtonEvent = event as ButtonEvent;
          if(this._group.selectedIndex != this.selectedIndex)
          {
             selectedIndex = this._group.selectedIndex;
-            dispatchEvent(new ButtonBarEvent(ButtonBarEvent.BUTTON_SELECT,false,true,this._selectedIndex,param1.target as Button));
+            dispatchEvent(new ButtonBarEvent(ButtonBarEvent.BUTTON_SELECT,false,true,this._selectedIndex,event.target as Button));
          }
       }
       
-      protected function handleDataChange(param1:Event) : void
+      protected function handleDataChange(event:Event) : void
       {
          invalidate(InvalidationType.DATA);
       }
       
       override protected function changeFocus() : void
       {
-         var _loc1_:Button = this._renderers[this._selectedIndex] as Button;
-         if(_loc1_ == null)
+         var renderer:Button = this._renderers[this._selectedIndex] as Button;
+         if(renderer == null)
          {
             return;
          }
-         _loc1_.displayFocus = _focused > 0;
+         renderer.displayFocus = _focused > 0;
       }
    }
 }

@@ -12,11 +12,11 @@ package scaleform.clik.events
       
       public var renderer:Button;
       
-      public function ButtonBarEvent(param1:String, param2:Boolean = false, param3:Boolean = true, param4:int = -1, param5:Button = null)
+      public function ButtonBarEvent(type:String, bubbles:Boolean = false, cancelable:Boolean = true, index:int = -1, renderer:Button = null)
       {
-         super(param1,param2,param3);
-         this.index = param4;
-         this.renderer = param5;
+         super(type,bubbles,cancelable);
+         this.index = index;
+         this.renderer = renderer;
       }
       
       override public function clone() : Event

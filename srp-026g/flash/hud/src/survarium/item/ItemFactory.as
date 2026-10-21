@@ -3,6 +3,7 @@ package survarium.item
    import flash.utils.Dictionary;
    import survarium.Util;
    import survarium.constants.Category;
+   import survarium.constants.ItemPlace;
    import survarium.constants.Reward;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
@@ -116,26 +117,26 @@ package survarium.item
          var current_item_category_id:int = _cat;
          if(current_item_category_id == 1 || current_item_category_id == 2 || current_item_category_id == 3 || current_item_category_id == 4 || current_item_category_id == 5 || current_item_category_id == 6 || current_item_category_id == 7)
          {
-            return 1;
+            return Category.BASE_EQUIPMENT;
          }
          if(current_item_category_id == 8 || current_item_category_id == 13 || current_item_category_id == 14 || current_item_category_id == 15 || current_item_category_id == 16 || current_item_category_id == 17)
          {
-            return 2;
+            return Category.BASE_WEAPON;
          }
          if(current_item_category_id == 9 || current_item_category_id == 18 || current_item_category_id == 19 || current_item_category_id == 20 || current_item_category_id == 21)
          {
-            return 3;
+            return Category.BASE_AMMO;
          }
-         if(current_item_category_id == 25 || current_item_category_id == 26 || current_item_category_id == 27 || current_item_category_id == 28 || current_item_category_id == 29)
+         if(current_item_category_id == Category.CAMO || current_item_category_id == Category.DECAL || current_item_category_id == Category.VOUCHER || current_item_category_id == Category.REGULAR || current_item_category_id == Category.GOLD)
          {
-            return 5;
+            return Category.BASE_VOUCHER;
          }
-         return 4;
+         return Category.BASE_CONSUMABLE;
       }
       
       public static function isItemCraftable(value:ItemData) : Boolean
       {
-         return !value.isStack && value.descriptor <= 100 && !value.repairTime && (value.superCategory == 1 || value.superCategory == 2 || value.superCategory == 3);
+         return !value.isStack && value.descriptor <= ItemPlace.INVENTORY && !value.repairTime && (value.superCategory == Category.BASE_EQUIPMENT || value.superCategory == Category.BASE_WEAPON || value.superCategory == Category.BASE_AMMO);
       }
       
       public function registerItemDescriptor(link:ItemDescriptor) : void
@@ -157,17 +158,17 @@ package survarium.item
          trace("createBaseItem",dictId,descrData);
          item_data = new ItemData();
          var category:int = getCategory(descrData.category);
-         if(category == 1)
+         if(category == Category.BASE_EQUIPMENT)
          {
             icons = IconContainer.getInstance("equipment");
          }
-         else if(category == 2)
+         else if(category == Category.BASE_WEAPON)
          {
             icons = IconContainer.getInstance("weapons");
          }
-         else if(category == 5)
+         else if(category == Category.BASE_VOUCHER)
          {
-            if(descrData.category == Category.VOUCHER || descrData.category == 28 || descrData.category == Category.GOLD)
+            if(descrData.category == Category.VOUCHER || descrData.category == Category.REGULAR || descrData.category == Category.GOLD)
             {
                icons = IconContainer.getInstance("vouchers");
             }
@@ -535,7 +536,7 @@ package survarium.item
       
       protected function updateItemTipText(item:ItemData) : void
       {
-         var lvlTip:String = item.superCategory != 5 ? Util.styledChar(LocalizationData.getName("equipment_level") + " - " + item.itemLevel.toString(),"gray") : "";
+         var lvlTip:String = item.superCategory != Category.BASE_VOUCHER ? Util.styledChar(LocalizationData.getName("equipment_level") + " - " + item.itemLevel.toString(),"gray") : "";
          var tipStr:String = Util.styledChar(item.name,"white") + "\n" + ((item.rank) ? Util.styledChar(LocalizationData.getName("modified") + "\n","green") : "") + ((item.ammoText) ? LocalizationData.getName("ammo") + ":\n" + item.ammoText : "") + ((lvlTip) ? Util.styledChar(" \n","small") + lvlTip : "");
          item.tipText = tipStr;
       }

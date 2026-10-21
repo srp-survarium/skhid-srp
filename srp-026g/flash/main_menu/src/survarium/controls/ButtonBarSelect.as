@@ -18,23 +18,23 @@ package survarium.controls
          super();
       }
       
-      public function set focusIndex(param1:int) : void
+      public function set focusIndex(value:int) : void
       {
-         if(param1 == this._focusIndex)
+         if(value == this._focusIndex)
          {
             return;
          }
-         var _loc2_:int = this._focusIndex;
-         var _loc3_:Button = _renderers[_loc2_] as Button;
-         if(_loc3_)
+         var lastFocusIndex:int = this._focusIndex;
+         var renderer:Button = _renderers[lastFocusIndex] as Button;
+         if(renderer)
          {
-            _loc3_.displayFocus = false;
+            renderer.displayFocus = false;
          }
-         _focusIndex = param1;
-         _loc3_ = _renderers[this._focusIndex] as Button;
-         if(_loc3_)
+         _focusIndex = value;
+         renderer = _renderers[this._focusIndex] as Button;
+         if(renderer)
          {
-            _loc3_.displayFocus = true;
+            renderer.displayFocus = true;
          }
       }
       
@@ -46,92 +46,92 @@ package survarium.controls
          }
       }
       
-      override public function set selectedIndex(param1:int) : void
+      override public function set selectedIndex(value:int) : void
       {
-         var _loc2_:int;
-         if(param1 == _selectedIndex)
+         var lastIndex:int;
+         if(value == _selectedIndex)
          {
             return;
          }
-         _loc2_ = _selectedIndex;
-         var _loc3_:Button = _renderers[_loc2_] as Button;
-         if(_loc3_)
+         lastIndex = _selectedIndex;
+         var renderer:Button = _renderers[lastIndex] as Button;
+         if(renderer)
          {
-            _loc3_.selected = false;
+            renderer.selected = false;
          }
-         _selectedIndex = param1;
-         focusIndex = param1;
-         _loc3_ = _renderers[_selectedIndex] as Button;
-         if(_loc3_)
+         _selectedIndex = value;
+         focusIndex = value;
+         renderer = _renderers[_selectedIndex] as Button;
+         if(renderer)
          {
-            _loc3_.selected = true;
+            renderer.selected = true;
          }
-         dispatchEvent(new IndexEvent(IndexEvent.INDEX_CHANGE,true,true,_selectedIndex,_loc2_,_dataProvider[_selectedIndex]));
+         dispatchEvent(new IndexEvent(IndexEvent.INDEX_CHANGE,true,true,_selectedIndex,lastIndex,_dataProvider[_selectedIndex]));
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
-         if(param1.handled)
+         if(event.handled)
          {
             return;
          }
-         var _loc2_:Button = _renderers[this._focusIndex] as Button;
-         if(_loc2_ != null)
+         var renderer:Button = _renderers[this._focusIndex] as Button;
+         if(renderer != null)
          {
-            _loc2_.handleInput(param1);
-            if(param1.handled)
+            renderer.handleInput(event);
+            if(event.handled)
             {
                return;
             }
          }
-         var _loc3_:InputDetails = param1.details;
-         var _loc4_:Boolean = _loc3_.value == InputValue.KEY_DOWN || _loc3_.value == InputValue.KEY_HOLD;
-         if(!_loc4_)
+         var details:InputDetails = event.details;
+         var keyPress:Boolean = details.value == InputValue.KEY_DOWN || details.value == InputValue.KEY_HOLD;
+         if(!keyPress)
          {
             return;
          }
-         var _loc5_:Boolean = false;
-         var _loc6_:Number;
-         switch(_loc3_.navEquivalent)
+         var nextIndexValid:Boolean = false;
+         var nextIndex:Number;
+         switch(details.navEquivalent)
          {
             case NavigationCode.LEFT:
                if(_direction == DIRECTION_HORIZONTAL)
                {
-                  _loc6_ = this._focusIndex - 1;
-                  _loc5_ = true;
+                  nextIndex = this._focusIndex - 1;
+                  nextIndexValid = true;
                }
                break;
             case NavigationCode.RIGHT:
                if(_direction == DIRECTION_HORIZONTAL)
                {
-                  _loc6_ = this._focusIndex + 1;
-                  _loc5_ = true;
+                  nextIndex = this._focusIndex + 1;
+                  nextIndexValid = true;
                }
                break;
             case NavigationCode.UP:
                if(_direction == DIRECTION_VERTICAL)
                {
-                  _loc6_ = this._focusIndex - 1;
-                  _loc5_ = true;
+                  nextIndex = this._focusIndex - 1;
+                  nextIndexValid = true;
                }
                break;
             case NavigationCode.DOWN:
                if(_direction == DIRECTION_VERTICAL)
                {
-                  _loc6_ = this._focusIndex + 1;
-                  _loc5_ = true;
+                  nextIndex = this._focusIndex + 1;
+                  nextIndexValid = true;
                }
                break;
             default:
                break;
          }
-         if(_loc5_)
+         if(nextIndexValid)
          {
-            _loc6_ = Math.max(0,Math.min(_dataProvider.length - 1,_loc6_));
-            if(_loc6_ != this._focusIndex)
+            nextIndex = Math.max(0,Math.min(_dataProvider.length - 1,nextIndex));
+            if(nextIndex != this._focusIndex)
             {
-               focusIndex = _loc6_;
-               param1.handled = true;
+               focusIndex = nextIndex;
+               event.handled = true;
             }
          }
       }

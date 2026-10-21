@@ -59,15 +59,15 @@ package debug_animations_fla
          addFrameScript(0,this.frame1);
       }
       
-      public function set vertival_offset(param1:Number) : *
+      public function set vertival_offset(value:Number) : *
       {
-         _ofsetX = param1;
+         _ofsetX = value;
          this.setOffset(this._ofsetX,this._ofsetY);
       }
       
-      public function set horizontal_offset(param1:Number) : *
+      public function set horizontal_offset(value:Number) : *
       {
-         _ofsetY = param1;
+         _ofsetY = value;
          this.setOffset(this._ofsetX,this._ofsetY);
       }
       
@@ -76,144 +76,144 @@ package debug_animations_fla
          return int(this.content.height);
       }
       
-      public function setOffset(param1:*, param2:*) : *
+      public function setOffset(offsetX:*, offsetY:*) : *
       {
-         var _loc3_:* = this._sx;
-         _ofsetX = param1;
-         _ofsetY = param2;
-         var _loc4_:int = 0;
-         var _loc5_:Row;
-         var _loc6_:*;
-         while(_loc4_ < this.columns.length)
+         var columnX:* = this._sx;
+         _ofsetX = offsetX;
+         _ofsetY = offsetY;
+         var i:int = 0;
+         var column:Row;
+         var header:*;
+         while(i < this.columns.length)
          {
-            _loc5_ = this.columns[_loc4_];
-            _loc6_ = this.columnsNames[_loc4_];
-            _loc5_.y = this._sy + 25;
-            _loc5_.x = _loc3_;
-            _loc5_.rowHeight = this.rowH + this._ofsetY;
-            _loc5_.updateElemetns();
-            _loc6_.y = this._sy + 5;
-            _loc6_.x = _loc3_ + this._name_ofsetX;
-            if(_loc5_.width)
+            column = this.columns[i];
+            header = this.columnsNames[i];
+            column.y = this._sy + 25;
+            column.x = columnX;
+            column.rowHeight = this.rowH + this._ofsetY;
+            column.updateElemetns();
+            header.y = this._sy + 5;
+            header.x = columnX + this._name_ofsetX;
+            if(column.width)
             {
-               _loc3_ += _loc5_.my_width + this._ofsetX;
+               columnX += column.my_width + this._ofsetX;
             }
-            _loc4_++;
+            i++;
          }
       }
       
-      public function setShift(param1:int, param2:int = 0) : *
+      public function setShift(shiftX:int, shiftY:int = 0) : *
       {
-         _sx = param1;
-         _sy = param2;
+         _sx = shiftX;
+         _sy = shiftY;
          this.setOffset(this._ofsetX,this._ofsetY);
       }
       
-      public function setProps(param1:Array, param2:int = 0) : *
+      public function setProps(props:Array, reserved:int = 0) : *
       {
-         var _loc3_:* = this._sx;
-         var _loc4_:int = 0;
-         var _loc5_:TextFormat;
-         var _loc6_:Rower;
-         var _loc7_:TextField;
-         while(_loc4_ < param1.length)
+         var columnX:* = this._sx;
+         var i:int = 0;
+         var format:TextFormat;
+         var column:Rower;
+         var header:TextField;
+         while(i < props.length)
          {
-            if(_loc4_ == this.columns.length || !this.columns[_loc4_])
+            if(i == this.columns.length || !this.columns[i])
             {
-               _loc6_ = new Rower();
-               _loc6_.mouseChildren = false;
-               _loc6_.mouseEnabled = false;
-               this.columns.push(_loc6_);
+               column = new Rower();
+               column.mouseChildren = false;
+               column.mouseEnabled = false;
+               this.columns.push(column);
             }
             else
             {
-               _loc6_ = this.columns[_loc4_];
+               column = this.columns[i];
             }
-            _loc6_.rowHeight = this.rowH + this._ofsetY;
-            _loc6_.my_width = param1[_loc4_].width;
-            _loc6_.columns = 1;
-            _loc5_ = new TextFormat();
-            _loc5_.font = "tahoma";
-            if(param1[_loc4_].textAlign == undefined)
+            column.rowHeight = this.rowH + this._ofsetY;
+            column.my_width = props[i].width;
+            column.columns = 1;
+            format = new TextFormat();
+            format.font = "tahoma";
+            if(props[i].textAlign == undefined)
             {
-               param1[_loc4_].textAlign = 0;
+               props[i].textAlign = 0;
             }
-            if(param1[_loc4_].textAlign == 0)
+            if(props[i].textAlign == 0)
             {
-               _loc5_.align = "left";
+               format.align = "left";
             }
-            else if(param1[_loc4_].textAlign == 1)
+            else if(props[i].textAlign == 1)
             {
-               _loc5_.align = "center";
+               format.align = "center";
             }
             else
             {
-               _loc5_.align = "right";
+               format.align = "right";
             }
-            if(!this.columnsNames[_loc4_])
+            if(!this.columnsNames[i])
             {
-               _loc7_ = new TextField();
-               _loc7_.textColor = 16777215;
-               this.columnsNames[_loc4_] = _loc7_;
-               _loc7_.selectable = false;
-               _loc7_.filters = [new DropShadowFilter(0,45,0,1,4,4,1.5)];
+               header = new TextField();
+               header.textColor = 16777215;
+               this.columnsNames[i] = header;
+               header.selectable = false;
+               header.filters = [new DropShadowFilter(0,45,0,1,4,4,1.5)];
             }
             else
             {
-               _loc7_ = this.columnsNames[_loc4_];
+               header = this.columnsNames[i];
             }
-            if(param1[_loc4_].name)
+            if(props[i].name)
             {
-               _loc7_.text = param1[_loc4_].name;
+               header.text = props[i].name;
             }
             else
             {
-               _loc7_.text = this.names[_loc4_];
+               header.text = this.names[i];
             }
-            _loc7_.width = param1[_loc4_].width - this._name_ofsetX;
-            _loc7_.setTextFormat(_loc5_);
-            _loc3_ += param1[_loc4_].width + this._ofsetX;
-            this.content.addChild(_loc6_);
-            this.content.addChild(_loc7_);
-            _loc4_++;
+            header.width = props[i].width - this._name_ofsetX;
+            header.setTextFormat(format);
+            columnX += props[i].width + this._ofsetX;
+            this.content.addChild(column);
+            this.content.addChild(header);
+            i++;
          }
-         while(_loc4_ < this.columns.length)
+         while(i < this.columns.length)
          {
-            _loc6_ = this.columns[_loc4_];
-            _loc7_ = this.columnsNames[_loc4_];
-            this.content.removeChild(_loc6_);
-            this.content.removeChild(_loc7_);
-            _loc4_++;
+            column = this.columns[i];
+            header = this.columnsNames[i];
+            this.content.removeChild(column);
+            this.content.removeChild(header);
+            i++;
          }
          this.setOffset(this._ofsetX,this._ofsetY);
       }
       
-      public function setData(param1:Array) : void
+      public function setData(rows:Array) : void
       {
-         var _loc2_:int;
-         var _loc3_:Array;
-         var _loc4_:int;
-         _loc2_ = 0;
-         while(_loc2_ < this.columns.length)
+         var i:int;
+         var row:Array;
+         var j:int;
+         i = 0;
+         while(i < this.columns.length)
          {
-            this.columns[_loc2_].length = param1.length;
-            _loc2_++;
+            this.columns[i].length = rows.length;
+            i++;
          }
-         _loc2_ = 0;
-         while(_loc2_ < param1.length)
+         i = 0;
+         while(i < rows.length)
          {
-            _loc3_ = param1[_loc2_];
-            _loc4_ = 0;
-            while(_loc4_ < _loc3_.length)
+            row = rows[i];
+            j = 0;
+            while(j < row.length)
             {
-               this.columns[_loc4_].elements[_loc2_].setData(param1[_loc2_][_loc4_]);
-               _loc4_++;
+               this.columns[j].elements[i].setData(rows[i][j]);
+               j++;
             }
-            _loc2_++;
+            i++;
          }
       }
       
-      public function onStageResize(param1:Event = null) : *
+      public function onStageResize(event:Event = null) : *
       {
          this.content.x = 0;
          this.content.y = 0;

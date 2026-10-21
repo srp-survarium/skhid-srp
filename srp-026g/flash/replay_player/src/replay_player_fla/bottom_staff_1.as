@@ -1,4 +1,3 @@
-// Compile with the native optimized profile.
 package replay_player_fla
 {
    import adobe.utils.*;

@@ -34,17 +34,17 @@ package scaleform.clik.events
       
       public var isKeyboard:Boolean = false;
       
-      public function ListEvent(param1:String, param2:Boolean = false, param3:Boolean = true, param4:int = -1, param5:int = -1, param6:int = -1, param7:IListItemRenderer = null, param8:Object = null, param9:uint = 0, param10:uint = 0, param11:Boolean = false)
+      public function ListEvent(type:String, bubbles:Boolean = false, cancelable:Boolean = true, index:int = -1, columnIndex:int = -1, rowIndex:int = -1, itemRenderer:IListItemRenderer = null, itemData:Object = null, controllerIdx:uint = 0, buttonIdx:uint = 0, isKeyboard:Boolean = false)
       {
-         super(param1,param2,param3);
-         this.itemRenderer = param7;
-         this.itemData = param8;
-         this.index = param4;
-         this.rowIndex = param6;
-         this.columnIndex = param5;
-         this.controllerIdx = param9;
-         this.buttonIdx = param10;
-         this.isKeyboard = param11;
+         super(type,bubbles,cancelable);
+         this.itemRenderer = itemRenderer;
+         this.itemData = itemData;
+         this.index = index;
+         this.rowIndex = rowIndex;
+         this.columnIndex = columnIndex;
+         this.controllerIdx = controllerIdx;
+         this.buttonIdx = buttonIdx;
+         this.isKeyboard = isKeyboard;
       }
       
       override public function clone() : Event

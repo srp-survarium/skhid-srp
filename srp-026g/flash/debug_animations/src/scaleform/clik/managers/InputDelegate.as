@@ -13,6 +13,31 @@ package scaleform.clik.managers
    public class InputDelegate extends EventDispatcher
    {
       
+      // The key codes Scaleform gives gamepad buttons.
+      protected static const GAMEPAD_A:uint = 96;
+      
+      protected static const GAMEPAD_B:uint = 97;
+      
+      protected static const GAMEPAD_X:uint = 98;
+      
+      protected static const GAMEPAD_Y:uint = 99;
+      
+      protected static const GAMEPAD_L1:uint = 100;
+      
+      protected static const GAMEPAD_L2:uint = 101;
+      
+      protected static const GAMEPAD_L3:uint = 102;
+      
+      protected static const GAMEPAD_R1:uint = 103;
+      
+      protected static const GAMEPAD_R2:uint = 104;
+      
+      protected static const GAMEPAD_R3:uint = 105;
+      
+      protected static const GAMEPAD_START:uint = 106;
+      
+      protected static const GAMEPAD_BACK:uint = 107;
+      
       private static var instance:InputDelegate;
       
       public static const MAX_KEY_CODES:uint = 1000;
@@ -42,35 +67,35 @@ package scaleform.clik.managers
          return instance;
       }
       
-      public function initialize(param1:Stage) : void
+      public function initialize(stage:Stage) : void
       {
-         this.stage = param1;
-         param1.addEventListener(KeyboardEvent.KEY_DOWN,this.handleKeyDown,false,0,true);
-         param1.addEventListener(KeyboardEvent.KEY_UP,this.handleKeyUp,false,0,true);
+         this.stage = stage;
+         stage.addEventListener(KeyboardEvent.KEY_DOWN,this.handleKeyDown,false,0,true);
+         stage.addEventListener(KeyboardEvent.KEY_UP,this.handleKeyUp,false,0,true);
       }
       
-      public function setKeyRepeat(param1:Number, param2:Boolean, param3:uint = 0) : void
+      public function setKeyRepeat(code:Number, repeat:Boolean, controllerIndex:uint = 0) : void
       {
-         var _loc4_:uint = param3 * MAX_KEY_CODES + param1;
-         if(param2)
+         var index:uint = controllerIndex * MAX_KEY_CODES + code;
+         if(repeat)
          {
-            this.keyHash[_loc4_] &= ~KEY_SUPRESSED;
+            this.keyHash[index] &= ~KEY_SUPRESSED;
          }
          else
          {
-            this.keyHash[_loc4_] |= KEY_SUPRESSED;
+            this.keyHash[index] |= KEY_SUPRESSED;
          }
       }
       
-      public function inputToNav(param1:String, param2:Number, param3:Boolean = false, param4:* = null) : String
+      public function inputToNav(type:String, code:Number, shiftKey:Boolean = false, value:* = null) : String
       {
          if(this.externalInputHandler != null)
          {
-            return this.externalInputHandler(param1,param2,param4);
+            return this.externalInputHandler(type,code,value);
          }
-         if(param1 == "key")
+         if(type == "key")
          {
-            switch(param2)
+            switch(code)
             {
                case Keyboard.UP:
                   return NavigationCode.UP;
@@ -86,7 +111,7 @@ package scaleform.clik.managers
                case Keyboard.BACKSPACE:
                   return NavigationCode.BACK;
                case Keyboard.TAB:
-                  if(param3)
+                  if(shiftKey)
                   {
                      return NavigationCode.SHIFT_TAB;
                   }
@@ -102,75 +127,75 @@ package scaleform.clik.managers
                   return NavigationCode.PAGE_UP;
                case Keyboard.ESCAPE:
                   return NavigationCode.ESCAPE;
-               case 96:
+               case GAMEPAD_A:
                   return NavigationCode.GAMEPAD_A;
-               case 97:
+               case GAMEPAD_B:
                   return NavigationCode.GAMEPAD_B;
-               case 98:
+               case GAMEPAD_X:
                   return NavigationCode.GAMEPAD_X;
-               case 99:
+               case GAMEPAD_Y:
                   return NavigationCode.GAMEPAD_Y;
-               case 100:
+               case GAMEPAD_L1:
                   return NavigationCode.GAMEPAD_L1;
-               case 101:
+               case GAMEPAD_L2:
                   return NavigationCode.GAMEPAD_L2;
-               case 102:
+               case GAMEPAD_L3:
                   return NavigationCode.GAMEPAD_L3;
-               case 103:
+               case GAMEPAD_R1:
                   return NavigationCode.GAMEPAD_R1;
-               case 104:
+               case GAMEPAD_R2:
                   return NavigationCode.GAMEPAD_R2;
-               case 105:
+               case GAMEPAD_R3:
                   return NavigationCode.GAMEPAD_R3;
-               case 106:
+               case GAMEPAD_START:
                   return NavigationCode.GAMEPAD_START;
-               case 107:
+               case GAMEPAD_BACK:
                   return NavigationCode.GAMEPAD_BACK;
             }
          }
          return null;
       }
       
-      public function readInput(param1:String, param2:int, param3:Function) : Object
+      public function readInput(type:String, code:int, callBack:Function) : Object
       {
          return null;
       }
       
-      protected function handleKeyDown(param1:KeyboardEvent) : void
+      protected function handleKeyDown(event:KeyboardEvent) : void
       {
-         var _loc2_:KeyboardEventEx = param1 as KeyboardEventEx;
-         var _loc3_:uint = _loc2_ == null ? 0 : _loc2_.controllerIdx;
-         var _loc4_:Number = param1.keyCode;
-         var _loc5_:uint = _loc3_ * MAX_KEY_CODES + _loc4_;
-         var _loc6_:uint = (this.keyHash[_loc5_]);
-         if(_loc6_ & KEY_PRESSED)
+         var sfEvent:KeyboardEventEx = event as KeyboardEventEx;
+         var controllerIdx:uint = sfEvent == null ? 0 : sfEvent.controllerIdx;
+         var code:Number = event.keyCode;
+         var keyStateIndex:uint = controllerIdx * MAX_KEY_CODES + code;
+         var keyState:uint = (this.keyHash[keyStateIndex]);
+         if(keyState & KEY_PRESSED)
          {
-            if((_loc6_ & KEY_SUPRESSED) == 0)
+            if((keyState & KEY_SUPRESSED) == 0)
             {
-               this.handleKeyPress(InputValue.KEY_HOLD,_loc4_,_loc3_,param1.ctrlKey,param1.altKey,param1.shiftKey);
+               this.handleKeyPress(InputValue.KEY_HOLD,code,controllerIdx,event.ctrlKey,event.altKey,event.shiftKey);
             }
          }
          else
          {
-            this.handleKeyPress(InputValue.KEY_DOWN,_loc4_,_loc3_,param1.ctrlKey,param1.altKey,param1.shiftKey);
-            this.keyHash[_loc5_] |= KEY_PRESSED;
+            this.handleKeyPress(InputValue.KEY_DOWN,code,controllerIdx,event.ctrlKey,event.altKey,event.shiftKey);
+            this.keyHash[keyStateIndex] |= KEY_PRESSED;
          }
       }
       
-      protected function handleKeyUp(param1:KeyboardEvent) : void
+      protected function handleKeyUp(event:KeyboardEvent) : void
       {
-         var _loc2_:KeyboardEventEx = param1 as KeyboardEventEx;
-         var _loc3_:uint = _loc2_ == null ? 0 : _loc2_.controllerIdx;
-         var _loc4_:Number = param1.keyCode;
-         var _loc5_:uint = _loc3_ * MAX_KEY_CODES + _loc4_;
-         this.keyHash[_loc5_] &= ~KEY_PRESSED;
-         this.handleKeyPress(InputValue.KEY_UP,_loc4_,_loc3_,param1.ctrlKey,param1.altKey,param1.shiftKey);
+         var sfEvent:KeyboardEventEx = event as KeyboardEventEx;
+         var controllerIdx:uint = sfEvent == null ? 0 : sfEvent.controllerIdx;
+         var code:Number = event.keyCode;
+         var keyStateIndex:uint = controllerIdx * MAX_KEY_CODES + code;
+         this.keyHash[keyStateIndex] &= ~KEY_PRESSED;
+         this.handleKeyPress(InputValue.KEY_UP,code,controllerIdx,event.ctrlKey,event.altKey,event.shiftKey);
       }
       
-      protected function handleKeyPress(param1:String, param2:Number, param3:Number, param4:Boolean, param5:Boolean, param6:Boolean) : void
+      protected function handleKeyPress(type:String, code:Number, controllerIdx:Number, ctrl:Boolean, alt:Boolean, shift:Boolean) : void
       {
-         var _loc7_:InputDetails = new InputDetails("key",param2,param1,this.inputToNav("key",param2,param6),param3,param4,param5,param6);
-         dispatchEvent(new InputEvent(InputEvent.INPUT,_loc7_));
+         var details:InputDetails = new InputDetails("key",code,type,this.inputToNav("key",code,shift),controllerIdx,ctrl,alt,shift);
+         dispatchEvent(new InputEvent(InputEvent.INPUT,details));
       }
    }
 }

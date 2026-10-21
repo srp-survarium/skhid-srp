@@ -5,7 +5,7 @@ package scaleform.clik.interfaces
       
       function get position() : Number;
       
-      function set position(param1:Number) : void;
+      function set position(value:Number) : void;
    }
 }
 

@@ -32,14 +32,14 @@ package scaleform.clik.managers
          super();
       }
       
-      public static function init(param1:Stage) : void
+      public static function init(stage:Stage) : void
       {
          if(_initialized)
          {
             return;
          }
          _initialized = true;
-         DragManager._stage = param1;
+         DragManager._stage = stage;
          _dragCanvas = new Sprite();
          _dragCanvas.mouseEnabled = _dragCanvas.mouseChildren = false;
          _stage.addChild(_dragCanvas);
@@ -56,98 +56,98 @@ package scaleform.clik.managers
          return _inDrag;
       }
       
-      public static function handleStartDragEvent(param1:DragEvent) : void
+      public static function handleStartDragEvent(e:DragEvent) : void
       {
-         if(param1.dragTarget == null || param1.dragSprite == null)
+         if(e.dragTarget == null || e.dragSprite == null)
          {
             return;
          }
-         var _loc2_:Sprite = param1.dragSprite;
-         _dragData = param1.dragData;
-         _dragTarget = param1.dragData.dragIcon;
-         _origDragSlot = param1.dragTarget;
-         var _loc3_:Point = new Point(_loc2_.x,_loc2_.y);
-         var _loc4_:Point = _loc2_.localToGlobal(_loc3_);
+         var refSprite:Sprite = e.dragSprite;
+         _dragData = e.dragData;
+         _dragTarget = e.dragData.dragIcon;
+         _origDragSlot = e.dragTarget;
+         var origin:Point = new Point(refSprite.x,refSprite.y);
+         var dest:Point = refSprite.localToGlobal(origin);
          if(_dragCanvas.numChildren)
          {
             _dragCanvas.removeChildAt(0);
             trace("CANVAS::removedChild");
          }
          _dragCanvas.addChild(_dragTarget);
-         var _loc5_:int = 0;
-         var _loc6_:int = 0;
+         var offsetX:int = 0;
+         var offsetY:int = 0;
          if(_dragTarget)
          {
-            _loc5_ = _dragTarget.width / 2;
-            _loc6_ = _dragTarget.height / 2;
+            offsetX = _dragTarget.width / 2;
+            offsetY = _dragTarget.height / 2;
          }
-         var _loc7_:int = _loc4_.x + _loc5_ - _stage.mouseX;
-         var _loc8_:int = _loc4_.y + _loc6_ - _stage.mouseY;
-         trace("DragManager::handleStartDragEvent::",_loc4_.x,_loc4_.y,_loc7_,_loc8_);
-         _dragTarget.x = _loc4_.x;
-         _dragTarget.y = _loc4_.y;
-         var _loc9_:int = 30;
-         if(_loc7_ > _loc9_)
+         var dst_x:int = dest.x + offsetX - _stage.mouseX;
+         var dst_y:int = dest.y + offsetY - _stage.mouseY;
+         trace("DragManager::handleStartDragEvent::",dest.x,dest.y,dst_x,dst_y);
+         _dragTarget.x = dest.x;
+         _dragTarget.y = dest.y;
+         var limit:int = 30;
+         if(dst_x > limit)
          {
-            _dragTarget.x -= _loc7_ - _loc9_;
+            _dragTarget.x -= dst_x - limit;
          }
-         if(_loc8_ > _loc9_)
+         if(dst_y > limit)
          {
-            _dragTarget.y -= _loc8_ - _loc9_;
+            _dragTarget.y -= dst_y - limit;
          }
          _inDrag = true;
          _stage.addEventListener(MouseEvent.MOUSE_UP,handleEndDragEvent,false,0,true);
-         var _loc10_:MovieClip = _dragTarget as MovieClip;
-         _loc10_.startDrag();
-         _loc10_.mouseEnabled = _loc10_.mouseChildren = false;
-         _loc10_.trackAsMenu = true;
+         var dragMC:MovieClip = _dragTarget as MovieClip;
+         dragMC.startDrag();
+         dragMC.mouseEnabled = dragMC.mouseChildren = false;
+         dragMC.trackAsMenu = true;
       }
       
-      public static function handleEndDragEvent(param1:MouseEvent) : void
+      public static function handleEndDragEvent(e:MouseEvent) : void
       {
          _stage.removeEventListener(MouseEvent.MOUSE_UP,handleEndDragEvent,false);
          _inDrag = false;
-         var _loc2_:Boolean = false;
-         var _loc3_:IDragSlot = findSpriteAncestorOf(_dragTarget.dropTarget) as IDragSlot;
-         trace("DragManager::handleEndDragEvent:",_loc3_,_loc3_ is IDragSlot,_loc3_ != _origDragSlot,_origDragSlot);
-         if(_loc3_ != null && _loc3_ is IDragSlot && _loc3_ != _origDragSlot)
+         var isValidDrop:Boolean = false;
+         var dropTarget:IDragSlot = findSpriteAncestorOf(_dragTarget.dropTarget) as IDragSlot;
+         trace("DragManager::handleEndDragEvent:",dropTarget,dropTarget is IDragSlot,dropTarget != _origDragSlot,_origDragSlot);
+         if(dropTarget != null && dropTarget is IDragSlot && dropTarget != _origDragSlot)
          {
-            _loc5_ = new DragEvent(DragEvent.DROP,_dragData,_origDragSlot,_loc3_,_dragTarget);
-            _loc2_ = _loc3_.handleDropEvent(_loc5_);
+            dropEvent = new DragEvent(DragEvent.DROP,_dragData,_origDragSlot,dropTarget,_dragTarget);
+            isValidDrop = dropTarget.handleDropEvent(dropEvent);
          }
          _dragTarget.stopDrag();
          _dragTarget.mouseEnabled = _dragTarget.mouseChildren = true;
          (_dragTarget as MovieClip).trackAsMenu = false;
          _dragCanvas.removeChild(_dragTarget);
-         var _loc4_:DragEvent = new DragEvent(DragEvent.DRAG_END,_dragData,_origDragSlot,_loc3_,_dragTarget);
-         var _loc5_:DragEvent;
-         if(param1.target is Stage)
+         var dragEndEvent:DragEvent = new DragEvent(DragEvent.DRAG_END,_dragData,_origDragSlot,dropTarget,_dragTarget);
+         var dropEvent:DragEvent;
+         if(e.target is Stage)
          {
-            _loc2_ = true;
-            _origDragSlot.handleDropEvent(_loc4_);
+            isValidDrop = true;
+            _origDragSlot.handleDropEvent(dragEndEvent);
          }
-         _origDragSlot.handleDragEndEvent(_loc4_,_loc2_);
-         _origDragSlot.dispatchEvent(_loc4_);
+         _origDragSlot.handleDragEndEvent(dragEndEvent,isValidDrop);
+         _origDragSlot.dispatchEvent(dragEndEvent);
          _dragTarget = null;
          _origDragSlot = null;
       }
       
-      protected static function handleStageAddedEvent(param1:Event) : void
+      protected static function handleStageAddedEvent(e:Event) : void
       {
       }
       
-      protected static function findSpriteAncestorOf(param1:DisplayObject) : IDragSlot
+      protected static function findSpriteAncestorOf(obj:DisplayObject) : IDragSlot
       {
-         while(param1 && !(param1 is IDragSlot))
+         while(obj && !(obj is IDragSlot))
          {
-            param1 = param1.parent;
+            obj = obj.parent;
          }
-         return param1 as IDragSlot;
+         return obj as IDragSlot;
       }
       
-      protected static function cloneDisplayObjectAsSprite(param1:DisplayObject) : DisplayObject
+      protected static function cloneDisplayObjectAsSprite(original:DisplayObject) : DisplayObject
       {
-         return param1;
+         return original;
       }
    }
 }

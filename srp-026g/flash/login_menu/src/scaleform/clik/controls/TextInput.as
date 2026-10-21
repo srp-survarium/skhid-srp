@@ -88,10 +88,10 @@ package scaleform.clik.controls
          return super.enabled;
       }
       
-      override public function set enabled(param1:Boolean) : void
+      override public function set enabled(value:Boolean) : void
       {
-         super.enabled = param1;
-         mouseChildren = param1;
+         super.enabled = value;
+         mouseChildren = value;
          super.tabEnabled = false;
          tabChildren = _focusable;
          this.setState(this.defaultState);
@@ -103,9 +103,9 @@ package scaleform.clik.controls
          return _focusable;
       }
       
-      override public function set focusable(param1:Boolean) : void
+      override public function set focusable(value:Boolean) : void
       {
-         _focusable = param1;
+         _focusable = value;
          if(!_focusable && this.enabled)
          {
             tabChildren = false;
@@ -121,10 +121,10 @@ package scaleform.clik.controls
          }
       }
       
-      public function set textSize(param1:Number) : void
+      public function set textSize(value:Number) : void
       {
-         this._textFormat.size = param1;
-         this.defaultTextFormat.size = param1;
+         this._textFormat.size = value;
+         this.defaultTextFormat.size = value;
          if(_focused || this._text != "" || this._defaultText == "")
          {
             this.textField.defaultTextFormat = this._textFormat;
@@ -143,10 +143,10 @@ package scaleform.clik.controls
          return this._text;
       }
       
-      public function set text(param1:String) : void
+      public function set text(value:String) : void
       {
          _isHtml = false;
-         _text = param1;
+         _text = value;
          invalidateData();
       }
       
@@ -155,10 +155,10 @@ package scaleform.clik.controls
          return this._text;
       }
       
-      public function set htmlText(param1:String) : void
+      public function set htmlText(value:String) : void
       {
          _isHtml = true;
-         _text = param1;
+         _text = value;
          invalidateData();
       }
       
@@ -168,9 +168,9 @@ package scaleform.clik.controls
          return this._defaultText;
       }
       
-      public function set defaultText(param1:String) : void
+      public function set defaultText(value:String) : void
       {
-         _defaultText = param1;
+         _defaultText = value;
          invalidateData();
       }
       
@@ -180,12 +180,12 @@ package scaleform.clik.controls
          return this._displayAsPassword;
       }
       
-      public function set displayAsPassword(param1:Boolean) : void
+      public function set displayAsPassword(value:Boolean) : void
       {
-         _displayAsPassword = param1;
+         _displayAsPassword = value;
          if(this.textField != null)
          {
-            this.textField.displayAsPassword = param1;
+            this.textField.displayAsPassword = value;
          }
       }
       
@@ -195,12 +195,12 @@ package scaleform.clik.controls
          return this._maxChars;
       }
       
-      public function set maxChars(param1:uint) : void
+      public function set maxChars(value:uint) : void
       {
-         _maxChars = param1;
+         _maxChars = value;
          if(this.textField != null)
          {
-            this.textField.maxChars = param1;
+            this.textField.maxChars = value;
          }
       }
       
@@ -210,14 +210,14 @@ package scaleform.clik.controls
          return this._editable;
       }
       
-      public function set selectable(param1:Boolean) : void
+      public function set selectable(value:Boolean) : void
       {
-         _selectable = param1;
+         _selectable = value;
          if(this.textField != null)
          {
             this.textField.selectable = this._selectable;
          }
-         focusable = param1;
+         focusable = value;
       }
       
       [Inspectable(defaultValue="true")]
@@ -226,14 +226,14 @@ package scaleform.clik.controls
          return this._editable;
       }
       
-      public function set editable(param1:Boolean) : void
+      public function set editable(value:Boolean) : void
       {
-         _editable = param1;
+         _editable = value;
          if(this.textField != null)
          {
             this.textField.type = this._editable && this.enabled ? TextFieldType.INPUT : TextFieldType.DYNAMIC;
          }
-         focusable = param1;
+         focusable = value;
       }
       
       override public function get tabEnabled() : Boolean
@@ -241,9 +241,9 @@ package scaleform.clik.controls
          return this.textField.tabEnabled;
       }
       
-      override public function set tabEnabled(param1:Boolean) : void
+      override public function set tabEnabled(value:Boolean) : void
       {
-         this.textField.tabEnabled = param1;
+         this.textField.tabEnabled = value;
       }
       
       override public function get tabIndex() : int
@@ -251,9 +251,9 @@ package scaleform.clik.controls
          return this.textField.tabIndex;
       }
       
-      override public function set tabIndex(param1:int) : void
+      override public function set tabIndex(value:int) : void
       {
-         this.textField.tabIndex = param1;
+         this.textField.tabIndex = value;
       }
       
       [Inspectable(defaultValue="false")]
@@ -262,14 +262,14 @@ package scaleform.clik.controls
          return this._actAsButton;
       }
       
-      public function set actAsButton(param1:Boolean) : void
+      public function set actAsButton(value:Boolean) : void
       {
-         if(this._actAsButton == param1)
+         if(this._actAsButton == value)
          {
             return;
          }
-         _actAsButton = param1;
-         if(param1)
+         _actAsButton = value;
+         if(value)
          {
             addEventListener(MouseEvent.ROLL_OVER,this.handleRollOver,false,0,true);
             addEventListener(MouseEvent.ROLL_OUT,this.handleRollOut,false,0,true);
@@ -286,12 +286,12 @@ package scaleform.clik.controls
          return this._alwaysShowSelection;
       }
       
-      public function set alwaysShowSelection(param1:Boolean) : void
+      public function set alwaysShowSelection(value:Boolean) : void
       {
-         _alwaysShowSelection = param1;
+         _alwaysShowSelection = value;
          if(this.textField != null)
          {
-            this.textField.alwaysShowSelection = param1;
+            this.textField.alwaysShowSelection = value;
          }
       }
       
@@ -310,96 +310,96 @@ package scaleform.clik.controls
          return this._textFormat;
       }
       
-      public function appendText(param1:String) : void
+      public function appendText(value:String) : void
       {
-         _text += param1;
+         _text += value;
          _isHtml = false;
          invalidateData();
       }
       
-      public function appendHtml(param1:String) : void
+      public function appendHtml(value:String) : void
       {
-         _text += param1;
+         _text += value;
          _isHtml = true;
          invalidateData();
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
-         var _loc2_:InputDetails;
-         var _loc3_:String;
-         var _loc4_:int;
-         var _loc5_:int;
-         var _loc6_:int;
-         var _loc7_:int;
-         if(param1.handled)
+         var details:InputDetails;
+         var navEquivalent:String;
+         var nexSpacePos:int;
+         var nextSpaceLine:int;
+         var caretLine:int;
+         var nexCaretPos:int;
+         if(event.handled)
          {
             return;
          }
-         _loc2_ = param1.details;
-         _loc3_ = param1.details.navEquivalent;
-         if((_loc3_ == NavigationCode.RIGHT || _loc3_ == NavigationCode.LEFT) && _loc2_.ctrlKey && _loc2_.value == InputValue.KEY_DOWN)
+         details = event.details;
+         navEquivalent = event.details.navEquivalent;
+         if((navEquivalent == NavigationCode.RIGHT || navEquivalent == NavigationCode.LEFT) && details.ctrlKey && details.value == InputValue.KEY_DOWN)
          {
-            if(_loc3_ == NavigationCode.RIGHT)
+            if(navEquivalent == NavigationCode.RIGHT)
             {
-               _loc4_ = this.textField.text.indexOf(" ",this.textField.caretIndex);
-               if(_loc4_ == -1)
+               nexSpacePos = this.textField.text.indexOf(" ",this.textField.caretIndex);
+               if(nexSpacePos == -1)
                {
-                  _loc4_ = this.textField.length;
+                  nexSpacePos = this.textField.length;
                }
-               _loc6_ = this.textField.getLineIndexOfChar(this.textField.caretIndex);
-               _loc5_ = this.textField.getLineIndexOfChar(_loc4_);
-               if(_loc6_ < _loc5_)
+               caretLine = this.textField.getLineIndexOfChar(this.textField.caretIndex);
+               nextSpaceLine = this.textField.getLineIndexOfChar(nexSpacePos);
+               if(caretLine < nextSpaceLine)
                {
-                  _loc7_ = this.textField.getLineOffset(_loc6_) + this.textField.getLineLength(_loc6_) - 2;
-                  if(this.textField.caretIndex != _loc7_ + 1)
+                  nexCaretPos = this.textField.getLineOffset(caretLine) + this.textField.getLineLength(caretLine) - 2;
+                  if(this.textField.caretIndex != nexCaretPos + 1)
                   {
-                     _loc4_ = _loc7_;
+                     nexSpacePos = nexCaretPos;
                   }
                   else
                   {
-                     _loc4_ = this.textField.getLineOffset(_loc6_ + 1) - 1;
+                     nexSpacePos = this.textField.getLineOffset(caretLine + 1) - 1;
                   }
                }
             }
             else
             {
-               _loc4_ = this.textField.caretIndex;
-               while(_loc4_ > 0)
+               nexSpacePos = this.textField.caretIndex;
+               while(nexSpacePos > 0)
                {
-                  if(this.textField.text.charAt(_loc4_ - 2) == " ")
+                  if(this.textField.text.charAt(nexSpacePos - 2) == " ")
                   {
                      break;
                   }
-                  _loc4_--;
+                  nexSpacePos--;
                }
-               _loc6_ = this.textField.getLineIndexOfChar(this.textField.caretIndex);
-               _loc5_ = this.textField.getLineIndexOfChar(_loc4_);
-               if(_loc6_ > _loc5_)
+               caretLine = this.textField.getLineIndexOfChar(this.textField.caretIndex);
+               nextSpaceLine = this.textField.getLineIndexOfChar(nexSpacePos);
+               if(caretLine > nextSpaceLine)
                {
-                  _loc7_ = this.textField.getLineOffset(_loc6_) + 1;
-                  if(this.textField.caretIndex != _loc7_ - 1)
+                  nexCaretPos = this.textField.getLineOffset(caretLine) + 1;
+                  if(this.textField.caretIndex != nexCaretPos - 1)
                   {
-                     _loc4_ = _loc7_;
+                     nexSpacePos = nexCaretPos;
                   }
                   else
                   {
-                     _loc4_ = this.textField.getLineOffset(_loc6_);
+                     nexSpacePos = this.textField.getLineOffset(caretLine);
                   }
                }
             }
-            if(_loc4_ != -1)
+            if(nexSpacePos != -1)
             {
-               this.textField.setSelection(_loc4_,_loc4_);
-               param1.handled = true;
+               this.textField.setSelection(nexSpacePos,nexSpacePos);
+               event.handled = true;
             }
          }
-         if(_loc3_ == NavigationCode.RIGHT && this.textField.caretIndex == this.textField.selectionEndIndex && this.textField.selectionEndIndex != this.textField.selectionBeginIndex)
+         if(navEquivalent == NavigationCode.RIGHT && this.textField.caretIndex == this.textField.selectionEndIndex && this.textField.selectionEndIndex != this.textField.selectionBeginIndex)
          {
-            param1.handled = true;
+            event.handled = true;
          }
-         trace("INPUTT:hold",_loc2_.value,_loc2_.value == InputValue.KEY_HOLD);
-         if(_loc2_.value == InputValue.KEY_DOWN || _loc2_.value == InputValue.KEY_HOLD)
+         trace("INPUTT:hold",details.value,details.value == InputValue.KEY_HOLD);
+         if(details.value == InputValue.KEY_DOWN || details.value == InputValue.KEY_HOLD)
          {
             return;
          }
@@ -480,7 +480,7 @@ package scaleform.clik.controls
          this.textField.addEventListener(FocusEvent.FOCUS_IN,this.handleTextFieldFocusIn,false,0,true);
       }
       
-      protected function handleTextFieldFocusIn(param1:FocusEvent) : void
+      protected function handleTextFieldFocusIn(e:FocusEvent) : void
       {
          FocusHandler.getInstance().setFocus(this);
       }
@@ -530,35 +530,35 @@ package scaleform.clik.controls
       {
          if(rest.length == 1)
          {
-            _loc4_ = rest[0].toString();
-            if(this._state != _loc4_ && _labelHash[_loc4_])
+            newState = rest[0].toString();
+            if(this._state != newState && _labelHash[newState])
             {
-               _state = _newFrame = _loc4_;
+               _state = _newFrame = newState;
                invalidateState();
             }
             return;
          }
-         var _loc2_:uint = (rest.length);
-         var _loc3_:uint = 0;
-         var _loc4_:String;
-         var _loc5_:String;
-         while(_loc3_ < _loc2_)
+         var count:uint = (rest.length);
+         var i:uint = 0;
+         var newState:String;
+         var frameLabel:String;
+         while(i < count)
          {
-            _loc5_ = rest[_loc3_].toString();
-            if(_labelHash[_loc5_])
+            frameLabel = rest[i].toString();
+            if(_labelHash[frameLabel])
             {
-               _state = _newFrame = _loc5_;
+               _state = _newFrame = frameLabel;
                invalidateState();
                break;
             }
-            _loc3_++;
+            i++;
          }
       }
       
       protected function updateAfterStateChange() : void
       {
-         var _loc1_:uint;
-         var _loc2_:uint;
+         var numControllers:uint;
+         var i:uint;
          if(!initialized)
          {
             return;
@@ -568,15 +568,15 @@ package scaleform.clik.controls
          {
             if(Extensions.isScaleform)
             {
-               _loc1_ = Extensions.numControllers;
-               _loc2_ = 0;
-               while(_loc2_ < _loc1_)
+               numControllers = Extensions.numControllers;
+               i = 0;
+               while(i < numControllers)
                {
-                  if(FocusManager.getFocus(_loc2_) == this)
+                  if(FocusManager.getFocus(i) == this)
                   {
-                     FocusManager.setFocus(this.textField,_loc2_);
+                     FocusManager.setFocus(this.textField,i);
                   }
-                  _loc2_++;
+                  i++;
                }
             }
             else
@@ -586,7 +586,7 @@ package scaleform.clik.controls
          }
       }
       
-      protected function handleRollOver(param1:MouseEvent) : void
+      protected function handleRollOver(event:MouseEvent) : void
       {
          if(focused || !this.enabled)
          {
@@ -595,7 +595,7 @@ package scaleform.clik.controls
          this.setState("over");
       }
       
-      protected function handleRollOut(param1:MouseEvent) : void
+      protected function handleRollOut(event:MouseEvent) : void
       {
          if(focused || !this.enabled)
          {
@@ -604,15 +604,15 @@ package scaleform.clik.controls
          this.setState("out","default");
       }
       
-      protected function handleMouseDown(param1:MouseEvent) : void
+      protected function handleMouseDown(event:MouseEvent) : void
       {
          if(focused || !this.enabled)
          {
             return;
          }
-         if(param1 is MouseEventEx)
+         if(event is MouseEventEx)
          {
-            FocusManager.setFocus(this.textField,(param1 as MouseEventEx).mouseIdx);
+            FocusManager.setFocus(this.textField,(event as MouseEventEx).mouseIdx);
          }
          else
          {
@@ -620,7 +620,7 @@ package scaleform.clik.controls
          }
       }
       
-      protected function handleTextChange(param1:Event) : void
+      protected function handleTextChange(event:Event) : void
       {
          _text = this._isHtml ? this.textField.htmlText : this.textField.text;
          dispatchEvent(new Event(Event.CHANGE));

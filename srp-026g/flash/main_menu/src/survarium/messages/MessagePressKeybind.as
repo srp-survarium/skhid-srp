@@ -4,6 +4,7 @@ package survarium.messages
    import flash.events.Event;
    import flash.external.ExternalInterface;
    import flash.text.TextField;
+   import survarium.constants.UiSound;
    
    public class MessagePressKeybind extends MessageBase
    {
@@ -17,10 +18,10 @@ package survarium.messages
       public function MessagePressKeybind()
       {
          super();
-         ExternalInterface.call("sound_play",13);
+         ExternalInterface.call("sound_play",UiSound.MENU_MESSAGE);
       }
       
-      override protected function cleanUp(param1:Event = null) : void
+      override protected function cleanUp(event:Event = null) : void
       {
          super.cleanUp();
       }

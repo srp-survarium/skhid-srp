@@ -71,21 +71,21 @@ package scaleform.clik.controls
          return super.enabled;
       }
       
-      override public function set enabled(param1:Boolean) : void
+      override public function set enabled(value:Boolean) : void
       {
-         if(param1 == super.enabled)
+         if(value == super.enabled)
          {
             return;
          }
-         super.enabled = param1;
-         mouseEnabled = tabEnabled = param1;
-         gotoAndPlay(param1 ? (_focused > 0 ? "focused" : "default") : "disabled");
+         super.enabled = value;
+         mouseEnabled = tabEnabled = value;
+         gotoAndPlay(value ? (_focused > 0 ? "focused" : "default") : "disabled");
          if(!initialized)
          {
             return;
          }
          this.updateAfterStateChange();
-         this.prevBtn.enabled = this.nextBtn.enabled = param1;
+         this.prevBtn.enabled = this.nextBtn.enabled = value;
       }
       
       [Inspectable(defaultValue="true")]
@@ -94,9 +94,9 @@ package scaleform.clik.controls
          return _focusable;
       }
       
-      override public function set focusable(param1:Boolean) : void
+      override public function set focusable(value:Boolean) : void
       {
-         super.focusable = param1;
+         super.focusable = value;
       }
       
       [Inspectable(defaultValue="10")]
@@ -105,10 +105,10 @@ package scaleform.clik.controls
          return this._maximum;
       }
       
-      public function set maximum(param1:Number) : void
+      public function set maximum(value:Number) : void
       {
-         _maximum = param1;
-         param1 = this._value;
+         _maximum = value;
+         value = this._value;
       }
       
       [Inspectable(defaultValue="0")]
@@ -117,10 +117,10 @@ package scaleform.clik.controls
          return this._minimum;
       }
       
-      public function set minimum(param1:Number) : void
+      public function set minimum(value:Number) : void
       {
-         _minimum = param1;
-         param1 = this._value;
+         _minimum = value;
+         value = this._value;
       }
       
       [Inspectable(name="value",defaultValue="0")]
@@ -129,18 +129,18 @@ package scaleform.clik.controls
          return this._value;
       }
       
-      public function set value(param1:Number) : void
+      public function set value(v:Number) : void
       {
-         param1 = this.lockValue(param1);
-         if(param1 == this._value)
+         v = this.lockValue(v);
+         if(v == this._value)
          {
             return;
          }
-         var _loc2_:Number = this._value;
-         _value = param1;
+         var previousValue:Number = this._value;
+         _value = v;
          if(initialized)
          {
-            dispatchEventAndSound(new IndexEvent(IndexEvent.INDEX_CHANGE,true,false,this.value,_loc2_,null));
+            dispatchEventAndSound(new IndexEvent(IndexEvent.INDEX_CHANGE,true,false,this.value,previousValue,null));
          }
          invalidate();
       }
@@ -150,9 +150,9 @@ package scaleform.clik.controls
          return this._labelFunction;
       }
       
-      public function set labelFunction(param1:Function) : void
+      public function set labelFunction(value:Function) : void
       {
-         _labelFunction = param1;
+         _labelFunction = value;
          this.updateLabel();
       }
       
@@ -166,50 +166,50 @@ package scaleform.clik.controls
          this.onPrev(null);
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
-         if(param1.isDefaultPrevented())
+         if(event.isDefaultPrevented())
          {
             return;
          }
-         var _loc2_:InputDetails = param1.details;
-         var _loc3_:uint = _loc2_.controllerIndex;
-         var _loc4_:Boolean = _loc2_.value == InputValue.KEY_DOWN || _loc2_.value == InputValue.KEY_HOLD;
-         switch(_loc2_.navEquivalent)
+         var details:InputDetails = event.details;
+         var index:uint = details.controllerIndex;
+         var keyPress:Boolean = details.value == InputValue.KEY_DOWN || details.value == InputValue.KEY_HOLD;
+         switch(details.navEquivalent)
          {
             case NavigationCode.RIGHT:
                if(this._value < this._maximum)
                {
-                  if(_loc4_)
+                  if(keyPress)
                   {
                      this.onNext(null);
                   }
-                  param1.handled = true;
+                  event.handled = true;
                }
                break;
             case NavigationCode.LEFT:
                if(this._value > this._minimum)
                {
-                  if(_loc4_)
+                  if(keyPress)
                   {
                      this.onPrev(null);
                   }
-                  param1.handled = true;
+                  event.handled = true;
                }
                break;
             case NavigationCode.HOME:
-               if(!_loc4_)
+               if(!keyPress)
                {
                   value = this._minimum;
                }
-               param1.handled = true;
+               event.handled = true;
                break;
             case NavigationCode.END:
-               if(!_loc4_)
+               if(!keyPress)
                {
                   value = this._maximum;
                }
-               param1.handled = true;
+               event.handled = true;
             break;
          }
       }
@@ -290,7 +290,7 @@ package scaleform.clik.controls
          this.prevBtn.displayFocus = this.nextBtn.displayFocus = _focused > 0;
       }
       
-      protected function handleDataChange(param1:Event) : void
+      protected function handleDataChange(event:Event) : void
       {
          invalidate(InvalidationType.DATA);
       }
@@ -315,20 +315,20 @@ package scaleform.clik.controls
       
       protected function updateLabel() : void
       {
-         var _loc1_:String = this._value.toString();
+         var label:String = this._value.toString();
          if(this._labelFunction != null)
          {
-            _loc1_ = this._labelFunction(this._value);
+            label = this._labelFunction(this._value);
          }
-         this.textField.text = _loc1_;
+         this.textField.text = label;
       }
       
-      protected function onNext(param1:ButtonEvent) : void
+      protected function onNext(event:ButtonEvent) : void
       {
          value = this._value + this.stepSize;
       }
       
-      protected function onPrev(param1:ButtonEvent) : void
+      protected function onPrev(event:ButtonEvent) : void
       {
          value = this._value - this.stepSize;
       }
@@ -337,35 +337,35 @@ package scaleform.clik.controls
       {
          if(rest.length == 1)
          {
-            _loc4_ = rest[0].toString();
-            if(this.state != _loc4_ && _labelHash[_loc4_])
+            frameLabel = rest[0].toString();
+            if(this.state != frameLabel && _labelHash[frameLabel])
             {
-               state = _newFrame = _loc4_;
+               state = _newFrame = frameLabel;
                invalidateState();
             }
             return;
          }
-         var _loc2_:uint = (rest.length);
-         var _loc3_:uint = 0;
-         var _loc4_:String;
-         var _loc5_:String;
-         while(_loc3_ < _loc2_)
+         var count:uint = (rest.length);
+         var i:uint = 0;
+         var frameLabel:String;
+         var candidate:String;
+         while(i < count)
          {
-            _loc5_ = rest[_loc3_].toString();
-            if(_labelHash[_loc5_])
+            candidate = rest[i].toString();
+            if(_labelHash[candidate])
             {
-               state = _newFrame = _loc5_;
+               state = _newFrame = candidate;
                invalidateState();
                break;
             }
-            _loc3_++;
+            i++;
          }
       }
       
-      protected function lockValue(param1:Number) : Number
+      protected function lockValue(value:Number) : Number
       {
-         var _loc2_:Number = Math.max(this._minimum,Math.min(this._maximum,this.stepSize * Math.round(param1 / this.stepSize)));
-         return _loc2_;
+         var newVal:Number = Math.max(this._minimum,Math.min(this._maximum,this.stepSize * Math.round(value / this.stepSize)));
+         return newVal;
       }
    }
 }

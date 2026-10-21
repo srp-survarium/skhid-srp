@@ -13,12 +13,12 @@ package scaleform.clik.events
       
       public var data:Object;
       
-      public function IndexEvent(param1:String, param2:Boolean = false, param3:Boolean = true, param4:int = -1, param5:int = -1, param6:Object = null)
+      public function IndexEvent(type:String, bubbles:Boolean = false, cancelable:Boolean = true, index:int = -1, lastIndex:int = -1, data:Object = null)
       {
-         super(param1,param2,param3);
-         this.index = param4;
-         this.lastIndex = param5;
-         this.data = param6;
+         super(type,bubbles,cancelable);
+         this.index = index;
+         this.lastIndex = lastIndex;
+         this.data = data;
       }
       
       override public function clone() : Event

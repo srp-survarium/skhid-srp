@@ -11,47 +11,47 @@ package scaleform.clik.interfaces
       
       function get x() : Number;
       
-      function set x(param1:Number) : void;
+      function set x(value:Number) : void;
       
       function get y() : Number;
       
-      function set y(param1:Number) : void;
+      function set y(value:Number) : void;
       
       function get width() : Number;
       
-      function set width(param1:Number) : void;
+      function set width(value:Number) : void;
       
       function get height() : Number;
       
-      function set height(param1:Number) : void;
+      function set height(value:Number) : void;
       
       function get enabled() : Boolean;
       
-      function set enabled(param1:Boolean) : void;
+      function set enabled(value:Boolean) : void;
       
       function get tabEnabled() : Boolean;
       
-      function set tabEnabled(param1:Boolean) : void;
+      function set tabEnabled(value:Boolean) : void;
       
       function get scale9Grid() : Rectangle;
       
-      function set scale9Grid(param1:Rectangle) : void;
+      function set scale9Grid(value:Rectangle) : void;
       
       function get alpha() : Number;
       
-      function set alpha(param1:Number) : void;
+      function set alpha(value:Number) : void;
       
       function get doubleClickEnabled() : Boolean;
       
-      function set doubleClickEnabled(param1:Boolean) : void;
+      function set doubleClickEnabled(value:Boolean) : void;
       
       function get focusTarget() : UIComponent;
       
-      function set focusTarget(param1:UIComponent) : void;
+      function set focusTarget(value:UIComponent) : void;
       
-      function validateNow(param1:Event = null) : void;
+      function validateNow(event:Event = null) : void;
       
-      function handleInput(param1:InputEvent) : void;
+      function handleInput(event:InputEvent) : void;
    }
 }
 

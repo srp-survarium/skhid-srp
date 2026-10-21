@@ -8,27 +8,27 @@ package scaleform.clik.interfaces
       
       function get index() : uint;
       
-      function set index(param1:uint) : void;
+      function set index(value:uint) : void;
       
       function get owner() : UIComponent;
       
-      function set owner(param1:UIComponent) : void;
+      function set owner(value:UIComponent) : void;
       
       function get selectable() : Boolean;
       
-      function set selectable(param1:Boolean) : void;
+      function set selectable(value:Boolean) : void;
       
       function get selected() : Boolean;
       
-      function set selected(param1:Boolean) : void;
+      function set selected(value:Boolean) : void;
       
       function get displayFocus() : Boolean;
       
-      function set displayFocus(param1:Boolean) : void;
+      function set displayFocus(value:Boolean) : void;
       
-      function setListData(param1:ListData) : void;
+      function setListData(listData:ListData) : void;
       
-      function setData(param1:Object) : void;
+      function setData(data:Object) : void;
    }
 }
 

@@ -32,6 +32,7 @@ package
    import survarium.Util;
    import survarium.constants.Colors;
    import survarium.constants.Reward;
+   import survarium.constants.UiSound;
    import survarium.controls.Minimap;
    import survarium.controls.PlayerProfileBase;
    import survarium.core.Icon;
@@ -278,7 +279,7 @@ package
             {
                if(this._tutor.currentFrame != this._tutor.totalFrames)
                {
-                  ExternalInterface.call("sound_play",18);
+                  ExternalInterface.call("sound_play",UiSound.TUTORIAL_SUCCESS);
                }
                this.removeTutorial();
             }

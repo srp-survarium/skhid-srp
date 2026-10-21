@@ -51,14 +51,14 @@ package scaleform.clik.controls
          return super.enabled;
       }
       
-      override public function set enabled(param1:Boolean) : void
+      override public function set enabled(value:Boolean) : void
       {
-         if(param1 == super.enabled)
+         if(value == super.enabled)
          {
             return;
          }
-         super.enabled = param1;
-         mouseEnabled = mouseChildren = param1;
+         super.enabled = value;
+         mouseEnabled = mouseChildren = value;
          this.setState(this.defaultState);
       }
       
@@ -68,14 +68,14 @@ package scaleform.clik.controls
          return this._text;
       }
       
-      public function set text(param1:String) : void
+      public function set text(value:String) : void
       {
-         if(param1 == null)
+         if(value == null)
          {
-            param1 == "";
+            value == "";
          }
          isHtml = false;
-         _text = param1;
+         _text = value;
          invalidateData();
       }
       
@@ -84,14 +84,14 @@ package scaleform.clik.controls
          return this._text;
       }
       
-      public function set htmlText(param1:String) : void
+      public function set htmlText(value:String) : void
       {
-         if(param1 == null)
+         if(value == null)
          {
-            param1 == "";
+            value == "";
          }
          isHtml = true;
-         _text = param1;
+         _text = value;
          invalidateData();
       }
       
@@ -101,13 +101,13 @@ package scaleform.clik.controls
          return this._autoSize;
       }
       
-      public function set autoSize(param1:String) : void
+      public function set autoSize(value:String) : void
       {
-         if(param1 == this._autoSize)
+         if(value == this._autoSize)
          {
             return;
          }
-         _autoSize = param1;
+         _autoSize = value;
          invalidateData();
       }
       
@@ -121,16 +121,16 @@ package scaleform.clik.controls
          return !this.enabled ? "disabled" : (focused ? "focused" : "default");
       }
       
-      public function appendText(param1:String) : void
+      public function appendText(value:String) : void
       {
-         _text += param1;
+         _text += value;
          isHtml = false;
          invalidateData();
       }
       
-      public function appendHtml(param1:String) : void
+      public function appendHtml(value:String) : void
       {
-         _text += param1;
+         _text += value;
          isHtml = true;
          invalidateData();
       }
@@ -158,33 +158,33 @@ package scaleform.clik.controls
          }
          if(!this.constraintsDisabled)
          {
-            _loc2_ = constraints.getElement("textField");
+            element = constraints.getElement("textField");
          }
-         var _loc1_:Number = Math.ceil(this.textField.textWidth + _loc2_.left + _loc2_.right + 5);
-         return _loc1_;
-         var _loc2_:ConstrainedElement;
+         var w:Number = Math.ceil(this.textField.textWidth + element.left + element.right + 5);
+         return w;
+         var element:ConstrainedElement;
       }
       
       protected function alignForAutoSize() : void
       {
-         var _loc1_:Number;
+         var oldWidth:Number;
          if(!initialized || this._autoSize == TextFieldAutoSize.NONE || this.textField == null)
          {
             return;
          }
-         _loc1_ = _width;
-         var _loc2_:Number = _width = this.calculateWidth();
-         var _loc3_:Number;
-         var _loc4_:Number;
+         oldWidth = _width;
+         var newWidth:Number = _width = this.calculateWidth();
+         var oldRight:Number;
+         var oldCenter:Number;
          switch(this._autoSize)
          {
             case TextFieldAutoSize.RIGHT:
-               _loc3_ = x + _loc1_;
-               x = _loc3_ - _loc2_;
+               oldRight = x + oldWidth;
+               x = oldRight - newWidth;
                break;
             case TextFieldAutoSize.CENTER:
-               _loc4_ = x + _loc1_ * 0.5;
-               x = _loc4_ - _loc2_ * 0.5;
+               oldCenter = x + oldWidth * 0.5;
+               x = oldCenter - newWidth * 0.5;
                break;
          }
       }
@@ -254,28 +254,28 @@ package scaleform.clik.controls
       {
          if(rest.length == 1)
          {
-            _loc4_ = rest[0].toString();
-            if(this.state != _loc4_ && _labelHash[_loc4_])
+            frameLabel = rest[0].toString();
+            if(this.state != frameLabel && _labelHash[frameLabel])
             {
-               state = _newFrame = _loc4_;
+               state = _newFrame = frameLabel;
                invalidateState();
             }
             return;
          }
-         var _loc2_:uint = (rest.length);
-         var _loc3_:uint = 0;
-         var _loc4_:String;
-         var _loc5_:String;
-         while(_loc3_ < _loc2_)
+         var count:uint = (rest.length);
+         var i:uint = 0;
+         var frameLabel:String;
+         var candidate:String;
+         while(i < count)
          {
-            _loc5_ = rest[_loc3_].toString();
-            if(_labelHash[_loc5_])
+            candidate = rest[i].toString();
+            if(_labelHash[candidate])
             {
-               state = _newFrame = _loc5_;
+               state = _newFrame = candidate;
                invalidateState();
                break;
             }
-            _loc3_++;
+            i++;
          }
       }
    }

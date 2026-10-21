@@ -13,6 +13,31 @@ package scaleform.clik.managers
    public class InputDelegate extends EventDispatcher
    {
       
+      // The key codes Scaleform gives gamepad buttons.
+      protected static const GAMEPAD_A:uint = 96;
+      
+      protected static const GAMEPAD_B:uint = 97;
+      
+      protected static const GAMEPAD_X:uint = 98;
+      
+      protected static const GAMEPAD_Y:uint = 99;
+      
+      protected static const GAMEPAD_L1:uint = 100;
+      
+      protected static const GAMEPAD_L2:uint = 101;
+      
+      protected static const GAMEPAD_L3:uint = 102;
+      
+      protected static const GAMEPAD_R1:uint = 103;
+      
+      protected static const GAMEPAD_R2:uint = 104;
+      
+      protected static const GAMEPAD_R3:uint = 105;
+      
+      protected static const GAMEPAD_START:uint = 106;
+      
+      protected static const GAMEPAD_BACK:uint = 107;
+      
       private static var instance:InputDelegate;
       
       public static const MAX_KEY_CODES:uint = 1000;
@@ -102,29 +127,29 @@ package scaleform.clik.managers
                   return NavigationCode.PAGE_UP;
                case Keyboard.ESCAPE:
                   return NavigationCode.ESCAPE;
-               case 96:
+               case GAMEPAD_A:
                   return NavigationCode.GAMEPAD_A;
-               case 97:
+               case GAMEPAD_B:
                   return NavigationCode.GAMEPAD_B;
-               case 98:
+               case GAMEPAD_X:
                   return NavigationCode.GAMEPAD_X;
-               case 99:
+               case GAMEPAD_Y:
                   return NavigationCode.GAMEPAD_Y;
-               case 100:
+               case GAMEPAD_L1:
                   return NavigationCode.GAMEPAD_L1;
-               case 101:
+               case GAMEPAD_L2:
                   return NavigationCode.GAMEPAD_L2;
-               case 102:
+               case GAMEPAD_L3:
                   return NavigationCode.GAMEPAD_L3;
-               case 103:
+               case GAMEPAD_R1:
                   return NavigationCode.GAMEPAD_R1;
-               case 104:
+               case GAMEPAD_R2:
                   return NavigationCode.GAMEPAD_R2;
-               case 105:
+               case GAMEPAD_R3:
                   return NavigationCode.GAMEPAD_R3;
-               case 106:
+               case GAMEPAD_START:
                   return NavigationCode.GAMEPAD_START;
-               case 107:
+               case GAMEPAD_BACK:
                   return NavigationCode.GAMEPAD_BACK;
             }
          }

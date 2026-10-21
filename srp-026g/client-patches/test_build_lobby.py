@@ -33,34 +33,25 @@ class BuildLobbyTests(unittest.TestCase):
     def test_a_movie_other_than_revision_24s_is_refused_before_any_compiler(self):
         with mock.patch.object(lobby.flash_tree, 'build') as build:
             with self.assertRaisesRegex(ValueError, "Not revision 24's lobby movie"):
-                lobby.build(self.movie(b'some other movie'), None, self.root / 'project', report=silent)
+                lobby.build(self.movie(b'some other movie'), None, report=silent)
             for data, name in [(b'revision 23', "revision 23's"), (b'retail', 'the retail')]:
                 with mock.patch.dict(lobby.OLDER, {hashlib.sha256(data).hexdigest(): name}):
                     with self.assertRaisesRegex(ValueError, f'This is {name} lobby movie'):
-                        lobby.build(self.movie(data), None, self.root / 'project', report=silent)
+                        lobby.build(self.movie(data), None, report=silent)
             build.assert_not_called()
 
-    def run_build(self, built, **options):
+    def test_the_tree_is_built_over_revision_24s_movie(self):
         base = b'revision 24'
         calls = []
 
-        def fake(tree, movie, tools, project, work, jobs, report):
-            calls.append((tree, movie))
-            return built, {'changed_methods': 1, 'added_methods': 2}
+        def fake(tree, movie, tools, report):
+            calls.append((tree, movie.read_bytes()))
+            return b'the lobby from source'
 
         with mock.patch.object(lobby, 'BASE_SHA256', hashlib.sha256(base).hexdigest()), \
                 mock.patch.object(lobby.flash_tree, 'build', side_effect=fake):
-            result = lobby.build(self.movie(base), None, self.root / 'project', report=silent, **options)
-        self.assertEqual(calls[0][0], lobby.TREE)
-        return result
-
-    def test_the_result_must_be_the_pinned_one(self):
-        movie = b'the lobby from source'
-        with mock.patch.object(lobby, 'RESULT_SHA256', hashlib.sha256(movie).hexdigest()):
-            self.assertEqual(self.run_build(movie)[0], movie)
-            with self.assertRaisesRegex(ValueError, 'not RESULT_SHA256'):
-                self.run_build(b'another movie')
-            self.assertEqual(self.run_build(b'another movie', any_result=True)[1]['added_methods'], 2)
+            self.assertEqual(lobby.build(self.movie(base), None, report=silent), b'the lobby from source')
+        self.assertEqual(calls, [(lobby.TREE, base)])
 
     def test_existing_output_is_not_overwritten(self):
         output = self.root / 'lobby_menu.swf'
@@ -74,32 +65,11 @@ class BuildLobbyTests(unittest.TestCase):
 
 
 class LobbySourceTests(unittest.TestCase):
-    """The lobby's source tree and srp's own classes in it."""
+    """The lobby's source tree."""
 
-    def test_the_tree_is_revision_24s(self):
+    def test_the_tree_is_of_revision_24s_movie(self):
         spec = json.loads((TREE / 'movie.json').read_text())
         self.assertEqual(spec['movie_sha256'], lobby.BASE_SHA256)
-
-    def test_every_srp_class_is_in_the_tree_and_every_new_file_is_an_srp_class(self):
-        # A new file not named in srp.json would be refused by the build;
-        # one named but missing would never reach the players.
-        spec = json.loads((TREE / 'srp.json').read_text())
-        srp = [entry['class'] for entry in spec['classes']]
-        _, added, removed = lobby.flash_tree.differences(TREE)
-        # A removed file is one of srp's classes of the release, listed.
-        self.assertEqual(removed, sorted(c.replace('.', '/') + '.as' for c in spec.get('removed', [])))
-        self.assertEqual(sorted(p[:-3].replace('/', '.') for p in added),
-                         sorted(c for c in srp if (TREE / 'src' / (c.replace('.', '/') + '.as')).exists()
-                                and c.replace('.', '/') + '.as' not in json.loads((TREE / 'movie.json').read_text())['sources']))
-        for cls in srp:
-            self.assertTrue((TREE / 'src' / (cls.replace('.', '/') + '.as')).is_file(), cls)
-
-    def test_no_srp_class_defines_a_method_twice(self):
-        # FFDec compiles them and keeps the last of two methods of one name.
-        import build_feature
-        for entry in json.loads((TREE / 'srp.json').read_text())['classes']:
-            path = TREE / 'src' / (entry['class'].replace('.', '/') + '.as')
-            self.assertEqual(build_feature.duplicate_functions(path.read_text(encoding='utf-8')), [], path.name)
 
     def test_the_exchange_and_the_server_agree_on_the_buy_gold_mark(self):
         window = (TREE / 'src' / 'survarium' / 'messages' / 'MessageMoneyExchange.as').read_text(encoding='utf-8')
