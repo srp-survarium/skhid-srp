@@ -1,3 +1,0 @@
-# Preserve exact patch context and pinned manifest hashes across platforms.
-*.patch -text -whitespace
-manifest.json text eol=lf

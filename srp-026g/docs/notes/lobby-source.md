@@ -12,99 +12,62 @@ bytecode.
 
 - `srp-026g/flash/<movie>/src`: the source (LF). `movie.json` pins the original movie and the
   sha256 of every baseline file, which tells the build what changed.
-- `srp-026g/flash/<movie>/srp.json`: srp's own classes of that movie. Each is owned whole: any of its
-  methods, fields and declarations may change or grow. A new one names `abc_with`, a class of the
-  release whose ABC takes it (FFDec compiles it there). Its `removed` lists srp's classes of the
-  release that are gone from the tree; the build takes them out of the movie.
-  - lobby: the rooms window, `survarium/rooms` (`RoomsWindow`, its views `RoomsList`, `RoomsCreate`,
-    `RoomsRoom`, and `RoomsWire`, `RoomsText`, `RoomsLook`); removed: `SrpExchange`, `SrpRooms`;
-  - login menu: `SrpLoginHint`;
-  - main menu: `SrpFovSlider`.
+- `srp-026g/flash/<movie>/srp.json`: the movie's new classes (files that are not revision 24's), each
+  with `abc_with`, the class of the release whose ABC block takes it. lobby: the rooms window,
+  `survarium/rooms` (`RoomsWindow`, its views `RoomsList`, `RoomsCreate`, `RoomsRoom`, and
+  `RoomsWire`, `RoomsText`, `RoomsLook`), all in `BottomPanel`'s block.
 - `private/actionscript/` (ignored by git): `tools.json` (JDK, FFDec 25.1.3's full distribution, Flex
-  4.16.1; `tools/actionscript/README.md`) and the pinned FFDec export of each original movie, which
-  the build makes the first time (the baseline source of a changed class).
+  4.16.1; `tools/actionscript/README.md`).
 
-## How a lobby feature is written
+## Writing a lobby feature
 
-The owner, 2026-10-21, on the lobby's `Srp*` classes: "Maybe some of them should literally be inside
-classes" "that already exist" "instead of being external entities".
+The owner, 2026-10-21: "we now got the source code" "and we just modify it".
 
-- **In the game's class it belongs to**, in that class's own style: its fields, its methods, its
-  helpers. The class that owns the behaviour owns the code:
-  - Get Gold and the exchange: the exchange window, `MessageMoneyExchange` (`buyGold`, `open`);
-    every caller calls it directly;
-  - a right-click menu: the list that builds it (`InventoryList`: Optics, the craft window's Buy and
-    Sell); a dialog's buttons: the dialog (`MessageCraftItem`: Continue and Exit);
-  - a request and its answer: the class that has the answer's handler (`LobbyMenu`: the player
-    gear's ask, `fill_victory_screen_player`); the click that asks: the window clicked
-    (`PlayerRanking`).
-- **New classes only for genuinely new UI**, in a package of their own (the rooms window:
-  `survarium/rooms`), named in `srp.json`. They may name each other. The game's classes call the
-  new UI's API (`RoomsWindow.me`), and keep what is theirs: `TopMenu` draws its own tab, `StatusPanel`
-  its own Play button, `LobbyMenu` decides Esc and the results, `BottomPanel` hides its Matches tab.
-  No static hook that is handed a game object to reach into.
-- **No `Srp*` class for a feature.** One of the release that is no longer needed goes into
-  `srp.json`'s `removed`.
+- Put the code in the game's class that owns the behaviour, in that class's style:
+  - Get Gold and the exchange: `MessageMoneyExchange` (`buyGold`, `open`);
+  - a right-click menu: the list that builds it (`InventoryList`); a dialog's buttons: the dialog
+    (`MessageCraftItem`);
+  - a request and its answer: the class with the answer's handler (`LobbyMenu`); the click that asks:
+    the window clicked (`PlayerRanking`).
+- New classes only for genuinely new UI, in a package of their own (the rooms window:
+  `survarium/rooms`). The game's classes call the new UI's API (`RoomsWindow.me`) and keep what is
+  theirs (`TopMenu` draws its own tab, `StatusPanel` its own Play button).
+- No `Srp*` class for a feature.
 
 ## Making a change
 
-- **srp's class:** edit `flash/<movie>/src/<path>.as`.
-- **A game class:** edit its file. Keep FFDec's layout of a method (the header line, then `{` and
-  `}` on lines of their own at the header's indent). The build reads the diff by method:
-  - a method whose text changed may change (the class's own name: its constructor);
-  - a method, `var` or `const` that is new, or whose declaration changed, may be added or
-    redeclared; one with an initial value lets the class initializer (`static`) or the
-    constructor change too;
-  - a removed method is refused;
-  - everything else of the class must compile to revision 24's bytes.
-- **Where in a game class:** new methods at the class's end, after every method it has; new fields
-  after its last field of their kind. Flex numbers locals through the whole file: a method put
-  before an untouched one can change that one's code (2026-10-21: four new methods in the middle of
-  `LobbyMenu` gave the untouched `test_bandle_data` an extra local initialisation), and the build
-  then refuses the class.
-- **No `try` in an edited game method:** it may change the method's flags, which an edit may not
-  (a `try` in `BottomPanel.createMatchesTab` did). Put it in a new method the edited one calls.
-- **A game class using another's new member:** the build compiles the class whose new members
-  another changed class uses first (Flex checks a member against the movie compiled so far); a use
-  both ways is refused.
-- **A new class:** a new file in the tree (any package), named in `srp.json` with its `abc_with`.
-  Each new class is first added as its declaration alone, then compiled whole (FFDec compiles a
-  class only against types the movie has).
-- **Removing srp's class of the release:** delete its file and list it in `srp.json`'s `removed`. Its
-  script, class and methods must be the last records of its ABC (as srp's appended classes are);
-  every other record stays byte for byte. The tree may not name it any more (comments too).
+- **Edit a class:** edit its `.as` file, anything in it.
+- **Add a class:** add its file (any package) and name it in `srp.json`'s `new_classes` with its
+  `abc_with` (a class of the release; the rooms use `survarium.controls.BottomPanel`).
+- **Remove a class:** delete its file. Nothing may name it any more, and it must be the last script
+  of its ABC block (as srp's appended classes of the release were).
 
-## Building and checking
+## Building
 
 ```sh
 python3 srp-026g/client-patches/build_lobby_026g.py <lobby_menu.swf of resources.db.patch_24> <new lobby_menu.swf> [--work DIR]
 python3 tools/actionscript/flash_tree.py build srp-026g/flash/<movie> <the original> <new movie> [--work DIR]
 ```
 
-- The first command is the lobby's, with its pinned `RESULT_SHA256`. The second works for any movie:
-  `flash_tree.py original srp-026g/flash/<movie> <archive> <out.swf>` cuts its original from the
-  archive its pin names.
-- A build takes about 5 minutes. Only files that are not the baseline's are compiled.
-- Each changed class first recompiles unchanged and must give the original movie exactly. Then:
-  - new classes compile (FFDec), then srp's classes, then the game classes;
-  - every method, trait, class header and script the change does not touch is checked byte for
-    byte against the original, as are all non-script tags.
-- `--work DIR` keeps the reports for review:
-  - `build/report.json`;
-  - `build/changes.tsv`: every method changed or added;
-  - `build/review-calls.tsv`: each edited game method whose sequence of calls, casts or `new`
-    changed, with its before/after assembly;
-  - `build/tree-changes.json`: the classes and the permissions derived from the diff.
-- The lobby movie must be `RESULT_SHA256` of `build_lobby_026g.py`. After a change the build refuses
-  the new movie: check it in the game, then set `RESULT_SHA256` to it, with a line on what it holds.
-  `--any-result` writes it for a test build.
-- To see what a change does to the code, compare the movie with the last one:
-  `python3 tools/actionscript/compare_decompiled.py --tools private/actionscript/tools.json old.swf new.swf OUT`.
-  It exports both with FFDec and compares every script and method (`OUT/report.txt`).
-- Full proof of a baseline tree, about 4 hours for the lobby:
-  `python3 tools/actionscript/flash_tree.py full srp-026g/flash/<movie> <the original> <work dir>`.
+- The first is the lobby's, with its pinned `RESULT_SHA256`. The second works for any movie;
+  `flash_tree.py original srp-026g/flash/<movie> <archive> <out.swf>` cuts the original from its
+  archive.
+- The build compiles every file that is not revision 24's, whole; the others keep revision 24's
+  compiled code (it is what they compile to), and the graphics are revision 24's. A class that uses
+  what another edited class adds or changes is compiled after it; then every class is compiled once
+  more against all of them, so the order does not matter.
+- The lobby movie must be `RESULT_SHA256`. After a change the build refuses the new movie: check it
+  in the game, then set `RESULT_SHA256` to it, with a line on what it holds. `--any-result` writes it
+  for a test build.
+- To see what a change does to the code, compare with the last movie:
+  `python3 tools/actionscript/compare_decompiled.py --tools private/actionscript/tools.json old.swf new.swf OUT`
+  (`OUT/report.txt`, script by script and method by method).
 - Tests: `python3 -m unittest discover` in `srp-026g/client-patches` and in `tools/actionscript`.
   `SRP_AS_TOOLS=private/actionscript/tools.json` adds the real-compiler tests.
+- When the baseline itself changes (a new release, the tools, the reconstruction), prove it:
+  `python3 tools/actionscript/flash_tree.py full srp-026g/flash/<movie> <the original> <work dir>`
+  compiles every file of the unedited tree and requires the original movie byte for byte (about 4
+  hours for the lobby).
 
 ## The port of 2026-10-20
 
@@ -156,7 +119,7 @@ package of its own; no behaviour changes:
 The tree builds to `a3b76872…`. Against `bdd66ed5…` (this tree before):
 
 - Every method, trait and class no change touches is revision 24's byte for byte (the build's
-  check).
+  check then).
 - Decompiled with FFDec, 860 of 889 scripts are the same text; the others are the edited game
   classes, the rooms package and the `Srp*` classes gone.
 - Each method of `SrpRooms` is the same source text in the package but for the names it now reaches

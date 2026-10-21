@@ -102,20 +102,8 @@ class ScopeDefaultIntegration(unittest.TestCase):
             run('link-layout', reference, candidate, rejected, 'fixture.DefaultProbe', name='rejected', success=False)
             self.assertFalse(rejected.exists())
             owner = 'QName(PackageNamespace("fixture"),"DefaultProbe")/instance/1/QName(PackageNamespace(""),"test")'
-            permissions = root / 'permissions.tsv'
-            permissions.write_text(owner + '\t-\t-\n')
             feature = root / 'feature.swf'
-            log = run('link-feature', reference, candidate, feature, 'fixture.DefaultProbe', permissions,
-                      name='feature-unreviewed', success=False)
-            self.assertIn('Unreviewed calls/casts changed', log)
-            self.assertFalse(feature.exists())
-            # The changed method retains the compiler's original placement of
-            # null's Array coercion before the helper calls. That changes the
-            # ordered call/cast fingerprint and requires explicit review.
-            permissions.write_text(
-                owner + '\t5376961e37472a61b2845ba355eb7fb84111c1f4a0b2382106b8d896dd173805'
-                '\t2b6f873c28737060a19cb515890c0f897e3b833d50fe3208f71617cda60571d6\n')
-            run('link-feature', reference, candidate, feature, 'fixture.DefaultProbe', permissions, name='feature')
+            run('link-feature', reference, candidate, feature, 'fixture.DefaultProbe', name='feature')
             run('snapshot', reference, root / 'reference-records', name='reference-records')
             run('snapshot', feature, root / 'feature-records', name='feature-records')
             comparison = movie_source.compare(reference, feature, root / 'reference-records', root / 'feature-records')

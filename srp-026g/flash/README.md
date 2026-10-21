@@ -32,6 +32,9 @@ to a repository of its own.
 ```sh
 # Is the tree the baseline?
 python3 tools/actionscript/flash_tree.py check srp-026g/flash/<movie>
+# Build the movie of the tree as it is: every file that is not the baseline's is compiled whole
+# (needs private/actionscript/tools.json; ../docs/notes/lobby-source.md)
+python3 tools/actionscript/flash_tree.py build srp-026g/flash/<movie> <original.swf> <new movie.swf>
 # Compile every script of the tree, link and assemble: the complete movie must be byte-identical to the
 # original (needs private/actionscript/tools.json: JDK, FFDec 25.1.3, Flex 4.16.1; hours for the lobby)
 python3 tools/actionscript/flash_tree.py full srp-026g/flash/<movie> <original.swf> <new work dir>

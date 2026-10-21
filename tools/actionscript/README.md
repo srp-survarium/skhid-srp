@@ -10,11 +10,8 @@ the compiler profiles, source/tool hashes, complete reports and artifact.
 
 This directory provides pinned private source exports, 233 reconstruction
 diffs over that pristine tree, a verified layout linker, a whole-tree build
-command, and a source-feature builder that recompiles only touched classes.
-Features may edit method bodies, add methods, traits, nested functions,
-constants and whole classes (in any package, naming each other), change the
-declarations they name, and take srp's own classes of the release out; the
-builder checks every untouched method and class byte for byte. The game's
+command, and a tree builder that compiles every edited or new file whole and
+keeps the release's compiled code for the files that are not. The game's
 movies are committed source trees in `srp-026g/flash/`; the lobby movie of
 skhid-srp is built from its tree this way (see
 `srp-026g/docs/notes/lobby-source.md`). The original 18-class list remains
@@ -529,14 +526,14 @@ traits and exception records from the selected compiler output. It preserves
 the authenticated original constant-pool prefix and relocates branches when
 operand widths change. Unknown owners, incompatible method layouts and ambiguous
 private namespace identities are rejected. Original executable bodies are never
-copied. The regular exact-baseline and feature-permission gates run afterward.
+copied. The regular exact-baseline gate runs afterward.
 This profile supports matching existing method layouts; it does not enable
 arbitrary additions of classes or methods.
 
 The measurement retains `compiler-composition.tsv` and its hash. Each
 `snapshot-mixed/` directory contains the shared source, selection file, both
 compiler outputs and their diagnostics. Feature builds use the same selection
-for fresh baseline and edited-source compilations and retain both sets of inputs.
+for edited-source compilations.
 
 `ffdec-source` uses FFDec's parser and generator with an adapter for explicit
 source `String(value)` calls. Once FFDec resolves the callee to its String
@@ -623,96 +620,44 @@ complete compressed movie. `rebuilt.swf` is the resulting artifact; `report.json
 `inputs.tsv` and `coverage.tsv` record its source build, hashes and per-script
 record coverage. No release installation is performed.
 
-## Building a source feature
-
-Feature patches are separate from reconstruction patches and apply to the
-reconstructed source. Their manifest pins the release, reconstruction manifest,
-baseline source, patch and resulting source. It names the qualified methods
-whose bodies the feature may change; copy those identities from `methods.tsv`.
-
-```sh
-python3 tools/actionscript/build_feature.py --tools private/actionscript/tools.json \
-  --reconstruction tools/actionscript/reconstruction/026g-rev24/manifest.json \
-  private/actionscript/rev24 \
-  tools/actionscript/features/premium-affordability/manifest.json \
-  private/actionscript/premium-affordability
-```
-
-The builder compiles only the classes named by the source diffs. For each, it
-first recompiles its unchanged reconstruction and requires the complete
-compressed release movie to match exactly. It then compiles the feature source
-and checks all other ABCs and every untouched method in the affected ABC,
-including other classes sharing that block. Signatures, class/script definitions
-and traits must remain exact. Every original pool entry retains its index and
-value; new constants are allowed, with their lexical namespaces relocated.
-
-Edited methods also retain the ordered sequence of call, construction, cast,
-coercion and throw instructions by default. A feature intentionally changing
-that sequence must record the reviewed `calls_casts.before` and
-`calls_casts.after` SHA-256 fingerprints on its method permission. Inspect the
-before/after assembly before recording an exception; mismatched fingerprints
-are refused. These fingerprints check the named instruction sequence, not all
-argument data flow or runtime behavior. The exact baseline and untouched-method
-checks remain mandatory even with such an exception.
-
-The final movie is independently reparsed. Its method changes must be confined
-to the permitted owners; non-code tags, frame settings, ABC names and loading
-flags must remain unchanged. A successful build writes `feature.swf`,
-`comparison.json`, and `report.json`, with source inputs, compiler artifacts and
-per-method hashes retained for review. No release files are installed or packaged.
-
-The included `premium-affordability` example updates the purchase button when
-the selected premium subscription exceeds the player's current premium balance.
-It changes only `MessagePremium.onPremiumSelected` and preserves its call/cast
-sequence. The build has passed these byte checks and a native-game UI check:
-Buy is disabled at 999 gold for the 1,000-gold option, enabled at 1,000 and 1,001,
-and updates when switching between the 1,000- and 2,500-gold options.
-[Runtime evidence](features/premium-affordability/runtime-verification.json)
-pins the tested movie, tools and private screenshots. The check completed no
-purchase; the current server disables tutorials for all accounts, so the test
-exercised its normal lobby flow. Build reports retain `runtime_verified: false`
-because compilation alone cannot establish these separate UI observations.
-
-### Source trees: additions, whole classes and new classes
+## Building a source tree
 
 The game's movies are committed source trees, `srp-026g/flash/<movie>`
 (`flash_tree.py`; `srp-026g/flash/README.md`), and a change is an edit of a
-tree. Building a tree compiles only the files that are not the baseline's:
+tree. The build is an ordinary build with a cache:
 
 ```sh
 python3 tools/actionscript/flash_tree.py build srp-026g/flash/<movie> <original.swf> <out.swf> [--work DIR]
 ```
 
-- a new file is a new class: `srp.json` names it and `abc_with`, a class whose
-  ABC takes it; FFDec compiles it there, after all of that ABC's records (the
-  `add-script` bridge operation), as srp's lobby classes always were;
-- a changed file of srp's own classes (`srp.json`) is owned whole: its methods,
-  traits and declarations may change and grow;
-- a changed game class may change the methods whose text changed, and add or
-  redeclare the methods, vars and consts its diff adds or changes
-  (`compare_decompiled.members` reads the diff by method); a removed method is
-  refused.
+- Every file that is not the baseline's is compiled whole, with the compiler
+  settings of the reconstruction manifest, and goes in as compiled.
+- A file that is the baseline's is not compiled: its compiled code is the
+  release's (the full proof shows every file recompiles to it). Graphics,
+  fonts and sounds are the release's.
+- A new file is a new class: `srp.json`'s `new_classes` names it with
+  `abc_with`, a class of the release whose ABC block takes it. FFDec compiles
+  it there, after that block's records (`add-script`). Every new class is
+  first added as its declaration alone, so new classes may name each other.
+- A file gone from the tree: its class is taken out of the movie
+  (`remove-script`). It must be the last script of its ABC block, and no file
+  may name it.
 
-New classes compile first, then srp's classes, then the game classes (Flex
-needs the new classes as dependencies). Each existing class first recompiles
-its baseline (the FFDec export with the reconstruction diffs, made once into
-the project directory) and must reproduce the complete compressed release
-movie (`--jobs` runs these in parallel); then its tree source compiles over the
-movie the classes before it left, and links.
+The compilers compile one class at a time against the movie compiled so far.
+Pass 1 compiles every changed and new class, retrying a class that does not
+compile yet (it uses something another edited class adds or changes) after
+the others. Pass 2 compiles each class again, against pass 1's movie (every
+declaration of the tree), into its ABC block as the build left it; blocks are
+compiled in parallel (`--jobs`). The result does not depend on the order.
 
-The link keeps every original record at its index: new methods, bodies,
-traits, classes, scripts and metadata come after the original ones, so every
-original operand keeps its meaning. The gate (`FeatureGate.java`) then
-requires every record the permissions do not name to be byte-identical:
-method signatures and bodies, class headers, traits and script records.
-Removing a method, a trait or a class is refused, as is changing a trait's
-kind; an edited method's activation (closure) traits may change with its body.
-Each link writes `feature-linked.swf.methods.tsv` (changed, added, unreviewed).
-The final movie is reparsed and compared with the release: every changed or
-added method must be one a class link reported, and `changes.tsv` lists them.
-An edited game method whose call, cast or construction sequence changed is
-listed with its before/after assembly in `review-calls.tsv`, for the review of
-the diff.
+The link (`link-feature`) lays an edited class's ABC out like the original's:
+original classes, scripts, methods and traits keep their indices and new ones
+follow, original pool entries keep their index and value. Nothing of the
+edited class is held to the original's bytes. Every other ABC block, and every
+record of another class in the same block, must be the input's: those were
+not compiled. The final movie's header and non-code tags must be the
+original's. Removing a method or field from an existing class is not supported
+yet (the layout keeps every original index); leave it unused instead.
 
 `compare_decompiled.py --tools T A.swf B.swf OUT` exports two movies with the
 same FFDec and compares them script by script and method by method (with
@@ -728,11 +673,8 @@ the corresponding compiled records. Both a direct file comparison and SHA-256
 confirm complete compressed-file equality. The 645 scripts without source
 corrections and all 233 reconstructed scripts participate in this build.
 
-The baseline, source-feature example and recorded Scaleform UI check are
-verified. The existing shipping patchers remain in place; adopting this
-workflow in a release is a separate change. A different release needs its own
-pinned export, reconstruction and whole-tree proof. Removed methods, traits
-or classes and changed trait kinds are rejected explicitly.
+A different release needs its own pinned export, reconstruction and
+whole-tree proof.
 
 ```sh
 python3 -m unittest discover -s tools/actionscript -v
@@ -764,15 +706,14 @@ Comparison fixtures exercise folding, expansion and mixed encodings in one
 method, including true and false branches, negation, exception boundaries, and
 rejection of incorrect NaN behavior or entry into an intermediate instruction.
 Feature tests compile an actual source edit with a new constant and an unrelated
-class in the same ABC. They reject changes to untouched instructions, verifier
-metadata, original pool entries and the retained class. They also reject an
-unreviewed constructor-to-call change and incorrect review fingerprints.
-`test_feature_additions.py` (also with `SRP_AS_TOOLS`) compiles a real
-feature adding a member, a nested function and a constant, and a new class;
-it checks that undeclared additions, an unpermitted redeclaration, a changed
-untouched method and a removed method are refused, and that an owned class
-may change its signatures. `test_feature.py` covers a tree's
-changes and the permissions derived from them; `test_flash_tree.py` the trees.
+class in the same ABC. The edited class goes in as compiled (its own changed
+instructions and verifier metadata too); a changed original pool entry or a
+change of the retained class is refused.
+`test_feature_additions.py` (also with `SRP_AS_TOOLS`) links real edits: added
+members, a nested function and a constant, a method put in the middle of the
+class, a `try` in an edited method, changed declarations and signatures, and a
+new class, with the classes that were not compiled unchanged.
+`test_feature.py` covers what a tree's build compiles; `test_flash_tree.py` the trees.
 The scope fixture checks omitted and deferred instance setup, inherited and
 local shadowing, incomplete hierarchies, duplicate classes, method aliases,
 unsafe scopes and branches. Its reservation checks prove that only the named

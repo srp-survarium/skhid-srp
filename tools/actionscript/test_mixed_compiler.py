@@ -113,10 +113,8 @@ class MixedCompilerIntegration(unittest.TestCase):
             rejected = root / 'edited-baseline-linked.swf'
             run('link-layout', reference, candidate, rejected, 'MixedProbe', name='edited-baseline-link', success=False)
             self.assertFalse(rejected.exists())
-            permissions = root / 'permissions.tsv'
-            permissions.write_text(owner + '\t-\t-\n' + owner + '/function[0]\t-\t-\n')
             feature = root / 'feature-linked.swf'
-            run('link-feature', reference, candidate, feature, 'MixedProbe', permissions, name='feature-link')
+            run('link-feature', reference, candidate, feature, 'MixedProbe', name='feature-link')
             run('snapshot', reference, root / 'reference-records', name='reference-records')
             run('snapshot', feature, root / 'feature-records', name='feature-records')
             comparison = movie_source.compare(reference, feature, root / 'reference-records', root / 'feature-records')
@@ -125,15 +123,13 @@ class MixedCompilerIntegration(unittest.TestCase):
             for value in ('newMixedFixtureKey', 'new-mixed-fixture-marker', '87654321'):
                 self.assertIn(value, assembly)
 
-            # An edit outside the selected/authorized method must survive compilation
-            # and then fail the untouched-method gate.
+            # An edit of another method goes in as compiled too: the file is
+            # compiled whole.
             unselected = root / 'MixedProbe-unselected.as'
             unselected.write_text(changed.read_text().replace('return value+secret;', 'return value+secret+1;'))
-            unauthorized = compile_from(reference, unselected, 'unselected')
-            log = run('link-feature', reference, unauthorized, root / 'unselected-feature.swf',
-                      'MixedProbe', permissions, name='unselected-link', success=False)
-            self.assertIn('Untouched method changed', log)
-            self.assertFalse((root / 'unselected-feature.swf').exists())
+            whole = compile_from(reference, unselected, 'unselected')
+            run('link-feature', reference, whole, root / 'unselected-feature.swf', 'MixedProbe', name='unselected-link')
+            self.assertTrue((root / 'unselected-feature.swf').exists())
 
             # Exercise composition rejection directly using already compiled inputs.
             # This helper also corrupts a retained constant to verify prefix authentication.

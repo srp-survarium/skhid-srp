@@ -416,8 +416,7 @@ server do not change. Not in a release yet.
 ## Exchange window updates
 
 A change of the window (`../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`) is built in by
-building the lobby movie: the window's own class, compiled as revision 24's was, every method of it the
-change does not touch byte for byte.
+building the lobby movie: the window's own class, compiled whole as revision 24's was.
 
 The first such change (2026-10-20): an amount more than the Pay balance pays
 for becomes, as it is typed, the most it does, in the field typed in. Buying
@@ -503,14 +502,9 @@ python build_lobby_026g.py <patch_24's lobby_menu.swf> <new lobby_menu.swf> [--w
 
 It needs `private/actionscript/tools.json` at the repository root (a JDK,
 FFDec 25.1.3's full distribution and Apache Flex 4.16.1:
-`tools/actionscript/README.md`; `--tools` names another), and exports
-revision 24's source into `private/actionscript/rev24` the first time, for the
-baseline of a changed class (FFDec; `--project` names another place). About
-5 minutes. Only the files that are not the baseline's are compiled; each
-changed class first recompiles unchanged and must give revision 24's movie
-exactly; a changed game class may change only the methods and declarations its
-source diff touches (srp's classes change freely); every other method, trait
-and class, and every non-script tag, stays revision 24's byte for byte.
+`tools/actionscript/README.md`; `--tools` names another). About 10 minutes.
+The files that are not the baseline's are compiled, each whole; the others
+keep revision 24's compiled code, and the graphics are revision 24's.
 Nothing is patched in bytecode; the steps that did (`rooms_026g.py` to
 `player_gear_026g.py` and their Java patchers, on revision 23's movie) are in
 git history only.

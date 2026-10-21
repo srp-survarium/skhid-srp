@@ -9,10 +9,10 @@
         reconstruction diffs, and write <movie dir>/src and movie.json
     flash_tree.py check <movie dir>
         is src/ the baseline (every file the hash movie.json pins)?
-    flash_tree.py --tools T build <movie dir> <original.swf> <out.swf> [--work DIR] [--project DIR]
+    flash_tree.py --tools T build <movie dir> <original.swf> <out.swf> [--work DIR]
         the movie of the tree as it is: every file that is not the baseline's
-        is compiled over the original, everything else stays the original's
-        byte for byte (tools/actionscript/build_feature.py)
+        is compiled whole; the others keep the original's compiled code
+        (tools/actionscript/build_feature.py)
     flash_tree.py --tools T full <movie dir> <original.swf> <work dir> [--jobs N]
         compile EVERY script of src/ (the baseline tree), link and assemble
         them, and require the complete compressed movie to be byte-identical
@@ -157,25 +157,7 @@ def project_from_tree(movie_dir, original_swf, project, files=None):
     return project
 
 
-def baseline_project(movie_dir, original_swf, project, tools, report=print):
-    """The release's pinned export in `project` (made from the original the first time): the
-    baseline source of a changed class, which must compile to the original exactly."""
-    spec = load(movie_dir)
-    if not project.exists():
-        report(f"Exporting {spec['movie']}'s ActionScript into {project} (once; FFDec)")
-        project.parent.mkdir(parents=True, exist_ok=True)
-        pending = project.with_name(project.name + '.partial')
-        if pending.exists():
-            shutil.rmtree(pending)
-        movie.init_project(original_swf, pending, tools, spec['release'])
-        pending.rename(project)
-    manifest = movie.verify_project(project)
-    if manifest['movie_sha256'] != spec['movie_sha256'] or manifest.get('release') != spec['release']:
-        raise ValueError(f"{project} is not the pinned export of {spec['release']}")
-    return project
-
-
-def build(movie_dir, original_swf, tools, project, work=None, jobs=4, report=print):
+def build(movie_dir, original_swf, tools, work=None, jobs=4, report=print):
     """The tree's movie (bytes) and the build report (None when the tree is the baseline)."""
     import build_feature
     spec = load(movie_dir)
@@ -185,10 +167,9 @@ def build(movie_dir, original_swf, tools, project, work=None, jobs=4, report=pri
     if differences(movie_dir) == ([], [], []):
         report('The tree is the baseline: the movie is the original')
         return data, None
-    project = baseline_project(movie_dir, original_swf, project, tools, report)
     with (tempfile.TemporaryDirectory(prefix='srp-flash-') if work is None else _new_dir(work)) as folder:
         output = Path(folder) / 'build'
-        result = build_feature.build(tools, REPO / spec['reconstruction'], project, movie_dir, output, jobs, log=report)
+        result = build_feature.build(tools, movie_dir, original_swf, output, jobs, log=report)
         return (output / 'feature.swf').read_bytes(), result
 
 
@@ -241,7 +222,6 @@ def main():
     make.add_argument('original', type=Path)
     make.add_argument('output', type=Path)
     make.add_argument('--work', type=Path, help='a new directory to keep the reports and compiler output in')
-    make.add_argument('--project', type=Path, help='the pinned export (default private/actionscript/<release>)')
     make.add_argument('--jobs', type=int, default=4)
     whole = commands.add_parser('full')
     whole.add_argument('movie_dir', type=Path)
@@ -265,8 +245,7 @@ def main():
     elif args.command == 'build':
         if args.output.exists():
             raise ValueError('Output already exists; choose a new path')
-        project = args.project or REPO / 'private' / 'actionscript' / load(args.movie_dir)['release']
-        data, _ = build(args.movie_dir, args.original.resolve(), args.tools.resolve(), project.resolve(),
+        data, _ = build(args.movie_dir, args.original.resolve(), args.tools.resolve(),
                         args.work.resolve() if args.work else None, args.jobs)
         with args.output.open('xb') as stream:
             stream.write(data)

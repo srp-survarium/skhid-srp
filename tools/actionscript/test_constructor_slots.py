@@ -235,20 +235,8 @@ class ConstructorSlotIntegration(unittest.TestCase):
             run('link-layout', reference, candidate, rejected, 'fixture.SlotProbe', name='rejected', success=False)
             self.assertFalse(rejected.exists())
             owner = 'QName(PackageNamespace("fixture"),"SlotProbe")/instance-init'
-            permissions = root / 'permissions.tsv'
-            permissions.write_text(owner + '\t-\t-\n')
             feature = root / 'feature.swf'
-            log = run('link-feature', reference, candidate, feature, 'fixture.SlotProbe', permissions,
-                      name='feature-unreviewed', success=False)
-            self.assertIn('Unreviewed calls/casts changed', log)
-            self.assertFalse(feature.exists())
-            # A changed method cannot use the whole-method encoding match.
-            # Its actual compiler output retains the second MovieClip coercion;
-            # the ordinary feature gate must require that explicit review.
-            permissions.write_text(
-                owner + '\tbd46e6d5a5a279e6bea4b4c9203a59fa31660f204aa86768861a19aa313212d5'
-                '\t33f5ae81a272bbda1dbf6dbdc1608ff176be0c050c251fa5fde5ff0514ccb50d\n')
-            run('link-feature', reference, candidate, feature, 'fixture.SlotProbe', permissions, name='feature')
+            run('link-feature', reference, candidate, feature, 'fixture.SlotProbe', name='feature')
             run('snapshot', feature, root / 'feature-records', name='feature-records')
             assembly = '\n'.join(p.read_text() for p in (root / 'feature-records').glob('abc-*/method-*.asm'))
             self.assertIn('edited-child', assembly)

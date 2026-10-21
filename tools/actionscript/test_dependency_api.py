@@ -101,10 +101,8 @@ class DependencyApiIntegration(unittest.TestCase):
             rejected = root / 'rejected.swf'
             run('link-layout', reference, candidate, rejected, 'ApiProbe', name='edited-baseline', success=False)
             self.assertFalse(rejected.exists())
-            permission = root / 'permission.tsv'
-            permission.write_text(owner + '\t-\t-\n')
             feature = root / 'feature.swf'
-            run('link-feature', reference, candidate, feature, 'ApiProbe', permission, name='feature-link')
+            run('link-feature', reference, candidate, feature, 'ApiProbe', name='feature-link')
             self.assertNotEqual(movie_source.uncompressed(reference), movie_source.uncompressed(feature))
 
             for number, member in enumerate(('Dependency/missing', 'Dependency/field', 'ApiProbe/selected')):

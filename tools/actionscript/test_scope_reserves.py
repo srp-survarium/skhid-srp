@@ -122,10 +122,8 @@ class ScopeReserveIntegration(unittest.TestCase):
             rejected = root / 'rejected.swf'
             run('link-layout', reference, candidate, rejected, 'fixture.ScopeProbe', name='rejected', success=False)
             self.assertFalse(rejected.exists())
-            permissions = root / 'permissions.tsv'
-            permissions.write_text(owners['defer'] + '\t-\t-\n')
             feature = root / 'feature.swf'
-            run('link-feature', reference, candidate, feature, 'fixture.ScopeProbe', permissions, name='feature')
+            run('link-feature', reference, candidate, feature, 'fixture.ScopeProbe', name='feature')
             run('snapshot', feature, root / 'feature-records', name='feature-records')
             comparison = movie_source.compare(reference, feature, root / 'reference-snapshot', root / 'feature-records')
             self.assertEqual({r['owner'] for r in comparison['method_changes']}, {owners['defer']})

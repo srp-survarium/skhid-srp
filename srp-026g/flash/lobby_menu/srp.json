@@ -1,6 +1,6 @@
 {
-  "description": "srp's own classes of the lobby movie: each is owned whole by srp (any of its methods, fields and declarations may change or grow). A new one names abc_with, a class of the release whose ABC takes it (FFDec compiles it there, after that ABC's records), in this order; new classes may name each other (each is first added as its declaration alone). \"removed\": srp's classes of the release gone from the tree (their code is in the game's classes now, or in new ones); the build takes them out of the movie.",
-  "classes": [
+  "description": "The lobby's new classes (files of the tree that are not revision 24's), each with abc_with: the class of the release whose ABC block takes it. They are compiled into that block in this order.",
+  "new_classes": [
     {"class": "survarium.rooms.RoomsText", "abc_with": "survarium.controls.BottomPanel"},
     {"class": "survarium.rooms.RoomsWire", "abc_with": "survarium.controls.BottomPanel"},
     {"class": "survarium.rooms.RoomsLook", "abc_with": "survarium.controls.BottomPanel"},
@@ -8,6 +8,5 @@
     {"class": "survarium.rooms.RoomsCreate", "abc_with": "survarium.controls.BottomPanel"},
     {"class": "survarium.rooms.RoomsRoom", "abc_with": "survarium.controls.BottomPanel"},
     {"class": "survarium.rooms.RoomsWindow", "abc_with": "survarium.controls.BottomPanel"}
-  ],
-  "removed": ["SrpExchange", "SrpRooms"]
+  ]
 }

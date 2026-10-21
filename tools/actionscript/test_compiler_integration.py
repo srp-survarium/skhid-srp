@@ -1,7 +1,6 @@
 """Optional real Flex regression test; requires SRP_AS_TOOLS=/path/to/tools.json."""
 import json
 import os
-import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -757,64 +756,39 @@ class CompilerIntegration(unittest.TestCase):
             self.assertEqual(result.returncode, 0, (root / "combined-link.log").read_text())
             self.assertEqual(movie_source.uncompressed(combined), movie_source.uncompressed(combined_linked))
 
-            # A real source feature may add constants and edit a selected body,
-            # while every other method/class and all old pool entries stay exact.
+            # An edited class goes in as compiled; the other class of its ABC
+            # and every old pool entry stay exact.
             feature_source = root / "feature-source.as"
             feature_source.write_text(source.read_text().replace('new Error("fixture")', 'new Error("source feature")'))
             feature_compiled, feature_linked = root / "feature-compiled.swf", root / "feature-linked.swf"
             result = tools.run("compile", combined, feature_compiled, "Probe", feature_source, root / "feature-snapshot",
                                "flex-strict", sdk, log=root / "feature-compile.log")
             self.assertEqual(result.returncode, 0, (root / "feature-compile.log").read_text())
-            owners = [owner for _, owner in movie_source.methods(root / "feature-snapshot")
-                      if '"Probe")/instance/1/' in owner and '"branches")' in owner]
-            self.assertEqual(len(owners), 1)
-            permission = root / "feature-permissions.tsv"
-            permission.write_text(owners[0] + "\t-\t-\n")
-            result = tools.run("link-feature", combined, feature_compiled, feature_linked, "Probe", permission,
+            result = tools.run("link-feature", combined, feature_compiled, feature_linked, "Probe",
                                log=root / "feature-link.log")
             self.assertEqual(result.returncode, 0, (root / "feature-link.log").read_text())
             self.assertNotEqual(movie_source.uncompressed(combined), movie_source.uncompressed(feature_linked))
-            for mode in ("code", "metadata", "pool", "other-class"):
+            for mode in ("code", "metadata"):
+                # The edited class's own records: as compiled.
+                corrupt = root / ("feature-" + mode + ".swf")
+                mutate(feature_compiled, corrupt, mode)
+                result = tools.run("link-feature", combined, corrupt, root / ("feature-own-" + mode + ".swf"), "Probe",
+                                   log=root / ("feature-own-" + mode + ".log"))
+                self.assertEqual(result.returncode, 0, mode)
+            for mode in ("pool", "other-class"):
                 corrupt = root / ("feature-" + mode + ".swf")
                 denied = root / ("feature-denied-" + mode + ".swf")
                 mutate(feature_compiled, corrupt, mode)
-                result = tools.run("link-feature", combined, corrupt, denied, "Probe", permission,
+                result = tools.run("link-feature", combined, corrupt, denied, "Probe",
                                    log=root / ("feature-denied-" + mode + ".log"))
                 self.assertNotEqual(result.returncode, 0, mode)
                 self.assertFalse(denied.exists())
-            # Removing construction changes a protected call, even in an
-            # authorized method. It needs the exact reviewed before/after pair.
-            feature_source.write_text(feature_source.read_text().replace('new Error("source feature")', 'Error("source feature")'))
-            changed_calls = root / "feature-calls.swf"
-            result = tools.run("compile", combined, changed_calls, "Probe", feature_source, root / "feature-calls-snapshot",
-                               "flex-strict", sdk, log=root / "feature-calls-compile.log")
-            self.assertEqual(result.returncode, 0, (root / "feature-calls-compile.log").read_text())
-            denied = root / "feature-calls-denied.swf"
-            result = tools.run("link-feature", combined, changed_calls, denied, "Probe", permission,
-                               log=root / "feature-calls-denied.log")
-            self.assertNotEqual(result.returncode, 0)
-            self.assertFalse(denied.exists())
-            fingerprints = re.search(r'([0-9a-f]{64}) -> ([0-9a-f]{64})', (root / "feature-calls-denied.log").read_text())
-            self.assertIsNotNone(fingerprints, (root / "feature-calls-denied.log").read_text())
-            permission.write_text(owners[0] + "\t" + fingerprints[1] + "\t" + fingerprints[2] + "\n")
-            result = tools.run("link-feature", combined, changed_calls, root / "feature-calls-reviewed.swf", "Probe", permission,
-                               log=root / "feature-calls-reviewed.log")
-            self.assertEqual(result.returncode, 0, (root / "feature-calls-reviewed.log").read_text())
-            permission.write_text(owners[0] + "\t" + fingerprints[1] + "\t" + "0" * 64 + "\n")
-            result = tools.run("link-feature", combined, changed_calls, root / "feature-calls-wrong-review.swf", "Probe", permission,
-                               log=root / "feature-calls-wrong-review.log")
-            self.assertNotEqual(result.returncode, 0)
-            self.assertFalse((root / "feature-calls-wrong-review.swf").exists())
             feature_source.write_text(source.read_text().replace('return target[key];', 'return target.new_feature_property;'))
             dynamic_compiled, dynamic_linked = root / "feature-dynamic.swf", root / "feature-dynamic-linked.swf"
             result = tools.run("compile", combined, dynamic_compiled, "Probe", feature_source, root / "feature-dynamic-snapshot",
                                "flex-strict", sdk, log=root / "feature-dynamic-compile.log")
             self.assertEqual(result.returncode, 0, (root / "feature-dynamic-compile.log").read_text())
-            inspect_owners = [owner for _, owner in movie_source.methods(root / "feature-dynamic-snapshot")
-                              if '"Probe")/instance/1/' in owner and '"inspect")' in owner]
-            self.assertEqual(len(inspect_owners), 1)
-            permission.write_text(inspect_owners[0] + "\t-\t-\n")
-            result = tools.run("link-feature", combined, dynamic_compiled, dynamic_linked, "Probe", permission,
+            result = tools.run("link-feature", combined, dynamic_compiled, dynamic_linked, "Probe",
                                log=root / "feature-dynamic-link.log")
             self.assertEqual(result.returncode, 0, (root / "feature-dynamic-link.log").read_text())
             mutate(dynamic_linked, root / "feature-pool-checked.swf", "feature-pool", combined)

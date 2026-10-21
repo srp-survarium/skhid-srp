@@ -120,10 +120,8 @@ class SourceCompilerIntegration(unittest.TestCase):
             rejected = root / 'edited-baseline.swf'
             run('link-layout', reference, candidate, rejected, 'fixture.SourceProbe', name='edited-baseline', success=False)
             self.assertFalse(rejected.exists())
-            permissions = root / 'permissions.tsv'
-            permissions.write_text(owner('explicit') + '\t-\t-\n' + owner('publicObject') + '\t-\t-\n')
             feature = root / 'feature.swf'
-            run('link-feature', reference, candidate, feature, 'fixture.SourceProbe', permissions, name='feature')
+            run('link-feature', reference, candidate, feature, 'fixture.SourceProbe', name='feature')
             run('snapshot', feature, root / 'feature-snapshot', name='feature-snapshot')
             changed_methods = movie_source.compare(reference, feature, root / 'source-snapshot', root / 'feature-snapshot')
             self.assertEqual({entry['owner'] for entry in changed_methods['method_changes']},

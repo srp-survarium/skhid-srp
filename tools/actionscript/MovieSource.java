@@ -526,7 +526,7 @@ public final class MovieSource {
         List<Trait> ordered = new ArrayList<>();
         for (Trait trait : before.traits) {
             Trait found = emitted.remove(List.of(trait.kindType, name(original, trait.name_index)));
-            if (found == null) throw new IOException(additions ? "Feature removed or re-kinded trait "
+            if (found == null) throw new IOException(additions ? "Not supported yet: removing (or changing the kind of) "
                 + name(original, trait.name_index) : "Trait identities changed");
             ordered.add(found);
         }
@@ -1167,7 +1167,8 @@ public final class MovieSource {
             mapping.put(entry.getKey(), index);
         }
         if (additions) for (var entry : before.entrySet())
-            if (!assigned.contains(entry.getKey())) throw new IOException("Feature removed method " + entry.getValue());
+            if (!assigned.contains(entry.getKey())) throw new IOException("Not supported yet: removing the method " + entry.getValue()
+                + " of a class of the release (leave it unused)");
         List<MethodInfo> infos = new ArrayList<>(Collections.nCopies(compiled.method_info.size(), null));
         for (var entry : mapping.entrySet()) infos.set(entry.getValue(), compiled.method_info.get(entry.getKey()));
         Map<Integer, MethodBody> bodies = new HashMap<>();
@@ -2178,7 +2179,7 @@ public final class MovieSource {
     // navigation metadata follow the original layout. A byte comparison of the
     // entire ABC must then pass. Runtime metadata is never silently restored.
     static void linkLayout(Path referenceFile, Path candidateFile, Path output, String cls) throws Exception {
-        linkLayout(referenceFile, candidateFile, output, cls, null);
+        linkLayout(referenceFile, candidateFile, output, cls, false);
     }
 
     static byte[] definitions(ABC abc) throws IOException {
@@ -2194,18 +2195,11 @@ public final class MovieSource {
         return bytes.toByteArray();
     }
 
-    static String callCastFingerprint(ABC abc, MethodBody body) throws Exception {
-        StringBuilder sequence = new StringBuilder();
-        for (var instruction : body.getCode().code) {
-            int op = instruction.definition.instructionCode;
-            if (op == 0x03 || (op >= 0x40 && op <= 0x4f) || op == 0x53 || op == 0x58
-                    || (op >= 0x70 && op <= 0x89) || op == 0xb2 || op == 0xb3)
-                sequence.append(instruction.toStringNoAddress(abc.constants, List.of())).append('\n');
-        }
-        return hash(sequence.toString().getBytes(StandardCharsets.UTF_8));
-    }
-
-    static void linkLayout(Path referenceFile, Path candidateFile, Path output, String cls, Path permissions) throws Exception {
+    // `feature`: the class's source was edited. Its ABC goes in as compiled,
+    // laid out like the original's (original classes, scripts, methods and
+    // traits keep their indices; new ones follow), and nothing in it is held
+    // to the original's bytes: only the other ABC blocks must be the input's.
+    static void linkLayout(Path referenceFile, Path candidateFile, Path output, String cls, boolean feature) throws Exception {
         SWF reference = read(referenceFile), candidate = read(candidateFile);
         if (reference.getAbcList().size() != candidate.getAbcList().size())
             throw new IOException("ABC block count changed");
@@ -2238,8 +2232,7 @@ public final class MovieSource {
             throw new IOException("Extended numeric ABC versions are not supported by this linker");
         for (MethodBody body : original.bodies) exactCode(body);
         for (MethodBody body : compiled.bodies) exactCode(body);
-        boolean feature = permissions != null;
-        if (feature) FeatureGate.restoreClassOrder(original, compiled);
+        if (feature) TreeClasses.restoreClassOrder(original, compiled);
         restoreNameReferences(original, compiled);
         if (feature) relocateAddedPoolNames(original, compiled);
         restoreMethodOrder(original, compiled, feature);
@@ -2260,7 +2253,7 @@ public final class MovieSource {
                     || original.script_info.size() != compiled.script_info.size()
                     || original.bodies.size() != compiled.bodies.size())
             throw new IOException("ABC record counts changed");
-        if (feature) FeatureGate.checkScriptOrder(original, compiled);
+        if (feature) TreeClasses.checkScriptOrder(original, compiled);
         for (int i = 0; i < original.instance_info.size(); i++) {
             retainDebugMetadata(original, compiled, original.instance_info.get(i).instance_traits, compiled.instance_info.get(i).instance_traits, feature);
             retainDebugMetadata(original, compiled, original.class_info.get(i).static_traits, compiled.class_info.get(i).static_traits, feature);
@@ -2293,26 +2286,27 @@ public final class MovieSource {
             } else {
                 if (!originalOwners.containsKey(i) || !originalOwners.get(i).equals(compiledOwners.get(i))
                         || before.paramNames.length != before.param_types.length
-                        || before.param_types.length != after.param_types.length)
-                    throw new IOException("Unmatched debugger parameter names at " + i);
+                        || before.param_types.length != after.param_types.length) {
+                    // An edited method whose parameters changed: no names.
+                    if (!feature) throw new IOException("Unmatched debugger parameter names at " + i);
+                    after.unsetFlagHas_paramnames();
+                    after.paramNames = new int[0];
+                    continue;
+                }
                 after.setFlagHas_paramnames();
                 after.paramNames = before.paramNames.clone();
             }
         }
         // Feature output retains appended constants. Every original entry was
         // checked above, so untouched operands retain their original meaning.
-        if (permissions == null) compiled.constants = original.constants;
+        if (!feature) compiled.constants = original.constants;
         // Every original metadata record was checked above; a feature's new
         // traits may reference records appended after them.
         if (!feature || compiled.metadata_info.size() == original.metadata_info.size())
             compiled.metadata_info = original.metadata_info;
         byte[] rebuilt = abcBytes(compiled), expected = abcBytes(original);
-        int classId = original.findClassByName(cls);
-        String ownerPrefix = classId >= 0 ? name(original, original.instance_info.get(classId).name_index) + "/"
-            : "script:" + original.script_info.get(source.scriptIndex).traits.traits.stream()
-                .map(t -> name(original, t.name_index)).sorted().toList() + "/";
-        String featureReport = permissions == null ? null : FeatureGate.check(original, compiled, ownerPrefix, permissions);
-        if (permissions == null && !Arrays.equals(rebuilt, expected)) {
+        if (feature) TreeClasses.checkOtherClasses(original, compiled, cls);
+        if (!feature && !Arrays.equals(rebuilt, expected)) {
             Files.write(output.resolveSibling(output.getFileName() + ".rejected.abc"), rebuilt);
             StringBuilder differences = new StringBuilder();
             for (int i = 0; i < original.method_info.size(); i++) {
@@ -2346,8 +2340,7 @@ public final class MovieSource {
             if (!Arrays.equals(i == home ? rebuilt : abcBytes(reference.getAbcList().get(i).getABC()), abcBytes(saved.getAbcList().get(i).getABC())))
                 throw new IOException("Serialized ABC differs at block " + i);
         Files.write(output, bytes.toByteArray(), StandardOpenOption.CREATE_NEW);
-        if (featureReport != null) Files.writeString(output.resolveSibling(output.getFileName() + ".methods.tsv"), featureReport);
-        System.out.println((permissions == null ? "Exact compiled ABC for " : "Verified feature ABC for ")
+        System.out.println((feature ? "Linked edited ABC for " : "Exact compiled ABC for ")
             + cls + ": " + rebuilt.length + " bytes; original bodies were not substituted");
     }
 
@@ -2388,19 +2381,19 @@ public final class MovieSource {
             return;
         }
         if (a[0].equals("link-feature")) {
-            if (a.length != 6) throw new IllegalArgumentException("link-feature ORIGINAL COMPILED OUTPUT CLASS PERMISSIONS.tsv");
-            linkLayout(Path.of(a[1]), Path.of(a[2]), Path.of(a[3]), a[4], Path.of(a[5]));
+            if (a.length != 5) throw new IllegalArgumentException("link-feature ORIGINAL COMPILED OUTPUT CLASS");
+            linkLayout(Path.of(a[1]), Path.of(a[2]), Path.of(a[3]), a[4], true);
             return;
         }
         if (a[0].equals("add-script")) {
             if (a.length != 6) throw new IllegalArgumentException("add-script INPUT OUTPUT ANCHOR_CLASS SOURCE SNAPSHOT");
-            FeatureGate.addScript(Path.of(a[1]), Path.of(a[2]), a[3], Path.of(a[4]));
+            TreeClasses.addScript(Path.of(a[1]), Path.of(a[2]), a[3], Path.of(a[4]));
             snapshot(read(Path.of(a[2])), Path.of(a[5]));
             return;
         }
         if (a[0].equals("remove-script")) {
             if (a.length != 6) throw new IllegalArgumentException("remove-script INPUT OUTPUT CLASS REPORT.tsv SNAPSHOT");
-            FeatureGate.removeScript(Path.of(a[1]), Path.of(a[2]), a[3], Path.of(a[4]));
+            TreeClasses.removeScript(Path.of(a[1]), Path.of(a[2]), a[3], Path.of(a[4]));
             snapshot(read(Path.of(a[2])), Path.of(a[5]));
             return;
         }

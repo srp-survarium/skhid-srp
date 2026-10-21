@@ -1,7 +1,8 @@
-"""Optional real-compiler test of feature additions; requires SRP_AS_TOOLS=/path/to/tools.json.
+"""Optional real-compiler test of edited and new classes; requires SRP_AS_TOOLS=/path/to/tools.json.
 
-A feature may add methods, traits, nested functions, constants and classes,
-and redeclare members it names; everything else must stay byte for byte.
+An edited class is compiled whole and goes in as compiled (methods anywhere,
+new members, changed declarations, a try anywhere); the classes that were not
+compiled keep their records.
 """
 import json
 import os
@@ -74,70 +75,45 @@ class FeatureAdditions(unittest.TestCase):
             self.compiled[name] = output
         return self.compiled[name]
 
-    def link(self, compiled, permissions, cls="Probe", name="link"):
-        table, output = self.root / ("link-" + name + ".tsv"), self.root / ("link-" + name + ".swf")
-        table.write_text("".join(line + "\n" for line in permissions))
+    def link(self, compiled, cls="Probe", name="link"):
+        output = self.root / ("link-" + name + ".swf")
         if output.exists():
             output.unlink()
-        result = self.tools.run("link-feature", self.movie, compiled, output, cls, table, log=self.root / (name + ".log"))
+        result = self.tools.run("link-feature", self.movie, compiled, output, cls, log=self.root / (name + ".log"))
         return result.returncode, (self.root / (name + ".log")).read_text(), output
 
-    def rows(self, output):
-        report = output.with_name(output.name + ".methods.tsv").read_text().splitlines()[1:]
-        return {line.split("\t")[0]: line.split("\t")[1] for line in report}
+    def records(self, movie, name):
+        snapshot = self.root / (name + "-snapshot")
+        if not snapshot.exists():
+            self.tools.run("snapshot", movie, snapshot, log=self.root / (name + "-snapshot.log")).check_returncode()
+        return movie_source.methods(snapshot)
+
+    def assert_links(self, name, text):
+        """The edited Probe goes in as compiled; Other and Main keep their records."""
+        status, log, output = self.link(self.compile(name, text), name=name)
+        self.assertEqual(status, 0, log)
+        old, new = self.records(self.movie, "original"), self.records(output, name + "-linked")
+        for key, row in old.items():
+            if '"Probe")' not in key[1]:
+                self.assertEqual(row["record_sha256"], new[key]["record_sha256"], key)
+        return old, new
 
     def test_added_members_nested_function_and_constant(self):
-        compiled = self.compile("feature", FEATURE)
-        status, log, output = self.link(compiled, ["edit\tProbe\texisting\t-\t-", "member\tProbe\textra", "member\tProbe\tadded"])
-        self.assertEqual(status, 0, log)
-        rows = self.rows(output)
-        self.assertEqual(sorted(rows.values()), ["added", "added", "changed"])
-        self.assertTrue(any(owner.endswith('"added")/function[0]') for owner in rows))
-        # The linked movie reparses, and the untouched class keeps its bytes.
-        snapshot = self.root / "feature-linked-snapshot"
-        self.tools.run("snapshot", output, snapshot, log=self.root / "feature-linked-snapshot.log").check_returncode()
-        before = self.root / "original-snapshot"
-        if not before.exists():
-            self.tools.run("snapshot", self.movie, before, log=self.root / "original-snapshot.log").check_returncode()
-        old, new = movie_source.methods(before), movie_source.methods(snapshot)
-        for key, row in old.items():
-            if '"existing")' not in key[1]:
-                self.assertEqual(row["record_sha256"], new[key]["record_sha256"], key)
+        old, new = self.assert_links("feature", FEATURE)
         self.assertEqual(len(new), len(old) + 2)
+        self.assertTrue(any(owner.endswith('"added")/function[0]') for _, owner in new))
 
-    def test_undeclared_additions_and_changes_are_refused(self):
-        compiled = self.compile("feature", FEATURE)
-        for permissions, message in [
-            (["edit\tProbe\texisting\t-\t-", "member\tProbe\textra"], "undeclared"),
-            (["edit\tProbe\texisting\t-\t-", "member\tProbe\tadded"], "undeclared member"),
-            (["member\tProbe\textra", "member\tProbe\tadded"], "Untouched method changed"),
-            (["edit\tProbe\texisting\t-\t-", "member\tProbe\textra", "member\tProbe\tadded", "member\tMissing\tkept"],
-             "no game class of this ABC"),
-        ]:
-            status, log, output = self.link(compiled, permissions, name="refused")
-            self.assertNotEqual(status, 0, permissions)
-            self.assertIn(message, log)
-            self.assertFalse(output.exists())
+    def test_a_method_in_the_middle_and_a_try_in_an_edited_method(self):
+        edited = PROBE.replace(
+            "public function existing(value:int):int { return value + count; }",
+            "public function existing(value:int):int { try { return value + helper(); } catch (e:Error) { } return count; }\n"
+            "        public function helper():int { var a:int = 2; var b:int = 3; return a * b + count; }")
+        old, new = self.assert_links("middle", edited)
+        self.assertEqual(len(new), len(old) + 1)
 
-    def test_a_redeclared_member_needs_its_permission(self):
-        compiled = self.compile("redeclared", PROBE.replace("count:int = 1", "count:int = 2"))
-        status, log, _ = self.link(compiled, ["member\tProbe\tuntouched"], name="redeclared-refused")
-        self.assertNotEqual(status, 0)
-        self.assertIn("changed the declaration of Probe instance count", log)
-        status, log, _ = self.link(compiled, ["member\tProbe\tcount"], name="redeclared")
-        self.assertEqual(status, 0, log)
-
-    def test_an_owned_class_may_change_signatures_but_not_lose_methods(self):
-        compiled = self.compile("owned", FEATURE.replace("untouched():String", "untouched(flag:Boolean = false):String"))
-        status, log, _ = self.link(compiled, ["edit\tProbe\texisting\t-\t-"], name="owned-refused")
-        self.assertNotEqual(status, 0)
-        status, log, output = self.link(compiled, ["class\tProbe"], name="owned")
-        self.assertEqual(status, 0, log)
-        self.assertIn("changed", self.rows(output).values())
-        removed = self.compile("removed", PROBE.replace('public function untouched():String { return "same"; }', ""))
-        status, log, _ = self.link(removed, ["class\tProbe"], name="removed")
-        self.assertNotEqual(status, 0)
-        self.assertIn("removed", log)
+    def test_a_changed_declaration_and_signature(self):
+        self.assert_links("redeclared", PROBE.replace("count:int = 1", "count:Number = 2").replace(
+            "untouched():String", "untouched(flag:Boolean = false):String"))
 
     def test_a_new_class_goes_after_the_abc_records(self):
         source = self.root / "NewHelper.as"
@@ -146,20 +122,15 @@ class FeatureAdditions(unittest.TestCase):
         result = self.tools.run("add-script", self.movie, added, "Other", source, self.root / "new-class-snapshot",
                                 log=self.root / "new-class.log")
         self.assertEqual(result.returncode, 0, (self.root / "new-class.log").read_text())
-        status, log, _ = self.link(added, ["member\tOther\tkept"], cls="Other", name="new-refused")
-        self.assertNotEqual(status, 0)
-        self.assertIn("undeclared class NewHelper", log)
-        status, log, output = self.link(added, ["class\tNewHelper"], cls="Other", name="new-class-linked")
+        status, log, output = self.link(added, cls="Other", name="new-class-linked")
         self.assertEqual(status, 0, log)
-        rows = self.rows(output)
-        self.assertTrue(rows and set(rows.values()) == {"added"})
-        self.assertTrue(any('"NewHelper")/static/' in owner for owner in rows))
+        old, new = self.records(self.movie, "original"), self.records(output, "new-class")
+        self.assertTrue(any('"NewHelper")/static/' in owner for _, owner in new.keys() - old.keys()))
         again = self.root / "new-class-again.swf"
         result = self.tools.run("add-script", added, again, "Other", source, self.root / "again-snapshot",
                                 log=self.root / "new-class-again.log")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("already has a class NewHelper", (self.root / "new-class-again.log").read_text())
-
 
     def add(self, movie, anchor, name, text, tag):
         source = self.root / tag / (name + ".as")
