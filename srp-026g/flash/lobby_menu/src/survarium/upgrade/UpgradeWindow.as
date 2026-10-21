@@ -85,9 +85,8 @@ package survarium.upgrade
       
       protected var editData:Object = null;
       
-      protected var _camoSlotY:Number;
-
-      protected var _decalSlot2Y:Number;
+      // each slot's x, y and scale as the movie places them (armour's window)
+      protected var _slotPlaces:Array;
 
       public function UpgradeWindow()
       {
@@ -131,7 +130,7 @@ package survarium.upgrade
 
       public static function isUpgradeableWeapon(item:Object) : Boolean
       {
-         return isWeaponCategory(int(item.category)) && (hasScopes(int(item.dictId)) || Boolean(item.camoAvailable));
+         return isWeaponCategory(int(item.category)) && (hasScopes(int(item.dictId)) || Boolean(item.camoAvailable) || Boolean(item.decalAvailable));
       }
       
       public static function fits(param1:int, param2:int) : Boolean
@@ -331,30 +330,24 @@ package survarium.upgrade
             this.camoSlot.visible = this._data.camoAvailable > 0;
             if(hostDictId >= 0)
             {
-               // a weapon: the scope in slot 3, its camouflage in slot 2 (decalSlot2), below it
-               this.decalSlot.visible = false;
-               this.decalSlot1.visible = false;
+               // a weapon: the scope in slot 3, its camouflage in slot 2 (decalSlot2), its two decals in
+               // slots 0 and 1, in that order from the top
+               this.decalSlot.visible = this._data.decalAvailable > 0;
+               this.decalSlot1.visible = this._data.decalAvailable > 1;
                this.decalSlot2.visible = this._data.camoAvailable > 0;
                this.camoSlot.visible = hasScopes(hostDictId);
-               if(isNaN(this._camoSlotY))
-               {
-                  this._camoSlotY = this.camoSlot.y;
-                  this._decalSlot2Y = this.decalSlot2.y;
-               }
-               this.camoSlot.y = this.decalSlot.y;
+               this.placeWeaponSlots();
                this.camoSlot.label = Boolean(stockScopes[hostDictId]) ? LocalizationData.getName("default_scope") : LocalizationData.getName("scope_slot");
-               this.decalSlot2.y = this.camoSlot.visible ? this._camoSlotY : this.decalSlot.y;
                this.decalSlot2.label = LocalizationData.getName("camo_slot");
                this.decalSlot2.contentCanvas.scaleX = this.decalSlot2.contentCanvas.scaleY = 1;
                this.container.textField.text = LocalizationData.getName("scope_window_title");
-               this.infoContainer.infoDescr.text = LocalizationData.getName("scope_screen_hint");
+               this.infoContainer.infoDescr.text = LocalizationData.getName("scope_screen_hint") + (this._data.decalAvailable > 0 ? "\n" + LocalizationData.getName("modification_screen_edit_decal_hint") : "");
                this.infoContainer.background.height = this.infoContainer.infoDescr.textHeight + 24;
                this.infoContainer.y = MainScene.stageHeight - this.infoContainer.height - 100;
             }
-            else if(!isNaN(this._camoSlotY))
+            else if(Boolean(this._slotPlaces))
             {
-               this.camoSlot.y = this._camoSlotY;
-               this.decalSlot2.y = this._decalSlot2Y;
+               this.restoreSlots();
                this.configDecalSlot(this.decalSlot2);
                this.container.textField.text = LocalizationData.getName("btn_upgrade_label");
                this.onLocal(null);
@@ -402,6 +395,62 @@ package survarium.upgrade
          }
       }
       
+      // A weapon's slots in one column from the top, the scope, the camouflage and the decals, as many as it
+      // takes: the armour window's places for three, the column 0.9 as tall for four.
+      protected function placeWeaponSlots() : void
+      {
+         var _loc1_:uint = 0;
+         var _loc2_:Array = [this.camoSlot,this.decalSlot2,this.decalSlot,this.decalSlot1];
+         var _loc3_:Array = new Array();
+         var _loc4_:Number = NaN;
+         var _loc5_:UpgradeSlot = null;
+         if(!this._slotPlaces)
+         {
+            this._slotPlaces = new Array();
+            while(_loc1_ < this._slots.length)
+            {
+               _loc5_ = this._slots[_loc1_];
+               this._slotPlaces.push([_loc5_.x,_loc5_.y,_loc5_.scaleX,_loc5_.scaleY]);
+               _loc1_++;
+            }
+         }
+         _loc1_ = 0;
+         while(_loc1_ < _loc2_.length)
+         {
+            if(UpgradeSlot(_loc2_[_loc1_]).visible)
+            {
+               _loc3_.push(_loc2_[_loc1_]);
+            }
+            _loc1_++;
+         }
+         _loc4_ = _loc3_.length > 3 ? 0.9 : 1;
+         _loc1_ = 0;
+         while(_loc1_ < _loc3_.length)
+         {
+            _loc5_ = _loc3_[_loc1_];
+            _loc5_.scaleX = _loc5_.scaleY = _loc4_;
+            // a slot is 139 x 130 around (35.55, 44.25) of itself; the column's middle at x 96.55, its top at 28
+            _loc5_.x = 96.55 - 35.55 * _loc4_;
+            _loc5_.y = 28 + 21 * _loc4_ + _loc1_ * (_loc3_.length > 3 ? 123 : 142);
+            _loc1_++;
+         }
+      }
+
+      protected function restoreSlots() : void
+      {
+         var _loc1_:uint = 0;
+         var _loc2_:UpgradeSlot = null;
+         while(_loc1_ < this._slots.length)
+         {
+            _loc2_ = this._slots[_loc1_];
+            _loc2_.x = this._slotPlaces[_loc1_][0];
+            _loc2_.y = this._slotPlaces[_loc1_][1];
+            _loc2_.scaleX = this._slotPlaces[_loc1_][2];
+            _loc2_.scaleY = this._slotPlaces[_loc1_][3];
+            _loc1_++;
+         }
+      }
+
       protected function cleanSlots() : void
       {
          var _loc1_:int = (this._slots.length);
@@ -453,8 +502,8 @@ package survarium.upgrade
          trace("UW::selectAgeements",param1,param2,this._slots);
          if(hostDictId >= 0)
          {
-            this.decalSlot.highlighted = false;
-            this.decalSlot1.highlighted = false;
+            this.decalSlot.highlighted = param1 == 26 && this.decalSlot.visible && Boolean(this.decalSlot.enabled);
+            this.decalSlot1.highlighted = param1 == 26 && this.decalSlot1.visible && Boolean(this.decalSlot1.enabled);
             this.decalSlot2.highlighted = param1 == 25 && this.decalSlot2.visible && Boolean(this.decalSlot2.enabled);
             this.camoSlot.highlighted = param1 == 22 && fits(hostDictId,param2) && Boolean(this.camoSlot.enabled);
             return;
@@ -613,7 +662,7 @@ package survarium.upgrade
          var _loc2_:UpgradeSlot = param1.currentTarget as UpgradeSlot;
          if(Boolean(_loc2_) && !_loc2_.data)
          {
-            _loc3_ = hostDictId >= 0 ? (_loc2_ == this.decalSlot2 ? 25 : 22) : int(this._slotAgreements[_loc2_.index]);
+            _loc3_ = hostDictId >= 0 ? (_loc2_ == this.decalSlot2 ? 25 : (_loc2_ == this.camoSlot ? 22 : 26)) : int(this._slotAgreements[_loc2_.index]);
             this._inventory.selectCategory([_loc3_]);
          }
       }

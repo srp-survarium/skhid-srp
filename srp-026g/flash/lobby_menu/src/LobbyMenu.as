@@ -2182,8 +2182,8 @@ package
          this.inventory_list.mainTabBar.selectedIndex = 1;
          this.inventory_list.mainTabBar.enabled = false;
          this.inventory_list.inventoryTabPage.enabled = false;
-         // what fits the window: a weapon's scopes and camouflages, an armour's decals and camouflages
-         this.inventory_list.selectCategory(weapon ? [22,25] : [25,26],false,true);
+         // what fits the window: a weapon's scopes, camouflages and decals, an armour's decals and camouflages
+         this.inventory_list.selectCategory(weapon ? [22,25,26] : [25,26],false,true);
          this.inventory_list.toggleUpgradeMode();
          this.modifierWindow.visible = true;
          this.dragRegion.mouseEnabled = false;

@@ -309,7 +309,7 @@ package survarium.controls
       private function isUpgradeable(param1:Object) : Boolean
       {
          var _loc2_:int = int(param1.category);
-         return (_loc2_ == 3 || _loc2_ == 1 || _loc2_ == 5 || _loc2_ == 4) && (Boolean(this._data.camoAvailable) || Boolean(this._data.decalAvailable)) || UpgradeWindow.isWeaponCategory(_loc2_) && (UpgradeWindow.hasScopes(int(param1.dictId)) || Boolean(this._data.camoAvailable));
+         return (_loc2_ == 3 || _loc2_ == 1 || _loc2_ == 5 || _loc2_ == 4) && (Boolean(this._data.camoAvailable) || Boolean(this._data.decalAvailable)) || UpgradeWindow.isWeaponCategory(_loc2_) && (UpgradeWindow.hasScopes(int(param1.dictId)) || Boolean(this._data.camoAvailable) || Boolean(this._data.decalAvailable));
       }
       
       public function checkButtonEnabled(param1:Event = null) : void
