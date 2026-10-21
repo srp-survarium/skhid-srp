@@ -20,10 +20,39 @@ Coverage words:
 - **OPEN**: a client can reach another client with bytes that hurt it (the risk given).
 - **N/A**: the server makes the bytes itself; no client chooses them.
 
-Two pull requests landing beside this one are marked "pending":
-PR #282 `fix/match-world-checks` (unreadable uploads dropped; the initial world needs two
-matching CRCs) and the branch `exe/relayed-input-crash-guards` (the bit-26 weapon slot and the
-null +0xF47C respawn; no PR number yet on 2026-10-22).
+Three branches act on what this note found:
+
+- **PR #282** `fix/match-world-checks` (match.md section 36 there). `Game::uploaded` drops an
+  upload that `snapshot.rs::Sections::fault(body, places)` faults. A fault is a world that:
+  - does not walk from the front (`Sections::walk`; the fallback from the end no longer counts);
+  - has a mask bit at or past the roster size;
+  - has a section over `SECTION_CAPS` (bullets 0x2400, statistics 0xC00, objects 0x2000,
+    physics 0x4000, rules 0x800, effects 0xC00, counted after the u16 length);
+  - has a player state over `PLAYER_STATE_CAP` 0x1000.
+
+  Such uploads are saved as `unloadable` and counted in `uploads_refused`. Also in #282:
+  `Game::vouched_recent` lets `recent` start a game only when a second game reported the same
+  CRC, or when only one game simulates (`usable_snapshot` and `newest_snapshot` both go through
+  it). `check_candidates` forgets `recent` when no agreement comes while another game reported
+  that tick. Tests: `a_world_no_game_could_load_goes_to_nobody` and
+  `an_upload_another_game_reported_otherwise_is_nobody_s_to_start_from`. All 2203 kept real
+  worlds pass.
+- **PR #286** `exe/relayed-input-crash-guards`:
+  - patch 50, at 0x2D8D19 in `process_quick_slots`: bit 26 from a hand with no weapon takes
+    no slot;
+  - patch 51, at 0x3217CC in `apply_profile_input` (a jump to a check at 0x844DD0): a kit
+    choice is taken only when that kit's player has a weapon in slot 7 or 10.
+
+  Checks: `check_relay_guards_026g.py` (Unicorn: all 72 combinations of hand and bit, and the
+  choices 0, 1, 2, 3 and 0xFF) and `selftest_026g.py` (1857 pass). A patch protects a game only
+  when every client of the match has the release. Still open: the assumption that a kit nobody
+  has played yet behaves the same; it needs the in-game test.
+- **Branch `fix/name-tag-charset`** (in progress, no PR number yet): the characters of account
+  names and clan tags (the owner also bans `@` in names).
+
+Two-vote initial world (#282's first plan): parked. In the battery modes, stale `first_finder`
+bytes make two games' initial worlds differ. The candidate fix is an exe reset at 0x3348A0,
+which is waiting for the owner.
 
 ## 1. Topology: who sends what to whom
 
@@ -150,8 +179,9 @@ length (the patched client's E0 chunk excepted); `udp_transport::wire::parse` an
   - Rotations: `yaw += dx` (0x2D8AD0), `dy` to the item in hands. Two relays merged into one node
     add their halves (0x2C5B60 -> 0x2C6640); srp never relays two for one time, and one under
     1024 stays a number (PROVEN, match.md section 20).
-- Status: rotations **COVERED** (`rotation_is_sane`); bit 26 **OPEN -> PATCHED pending
-  (exe/relayed-input-crash-guards)**; every other bit bounded in the client (no check needed);
+- Status: rotations **COVERED** (`rotation_is_sane`); bit 26 **PATCHED by PR #286** (patch 50,
+  0x2D8D19; needs every client on the release); every other bit bounded in the client (no check
+  needed);
   bits 29/30 harmless (LIKELY), a server refusal would only mark a modified client.
 
 ### 0xDE kit pick  (relayed as 0xF3)
@@ -169,7 +199,8 @@ length (the patched client's E0 chunk excepted); `udp_transport::wire::parse` an
   spawn (null +0xF47C, `player::respawn` 0x1F2540).
 - Status: **COVERED** for the value (the client bounds it) and for empty kits (only kits that
   pass `rules::check_play` go in with state 0: `lobby-server play.rs::match_profile`);
-  the exe side **PATCHED pending (exe/relayed-input-crash-guards)**.
+  the exe side **PATCHED by PR #286** (patch 51, 0x3217CC -> 0x844DD0: a choice of a kit with
+  no weapon in slot 7 or 10 is not taken; needs every client on the release).
 
 ### 0xDF hash report
 
@@ -201,10 +232,17 @@ chunk:  +----+---------------+------------+-----------+-------------------------
   decodes and has kills, deaths or events: `not_initial`); a later one only when asked (0xF6)
   and for a tick near the clock; it becomes the snapshot when its CRC is the majority's
   (`check_candidates`), and `recent` meanwhile when nothing contradicts it.
+- PR #282 adds, for every upload, initial or later: `Sections::fault` (front walk, mask bits
+  under the roster size, `SECTION_CAPS`, `PLAYER_STATE_CAP`), refused ones saved as
+  `unloadable` and counted in `uploads_refused`; and `vouched_recent` for `recent`.
 - What the client does with it: section 3 below (0xE8).
-- Status: **OPEN**, partly pending: unreadable worlds dropped and the initial world needing two
-  CRCs are **pending PR #282 (fix/match-world-checks)**; the section capacities and the mask
-  (audit items 3a, 3b) and the unvouched `recent` world (3d) are **OPEN** (section 6).
+- Status:
+  - frame, mask and caps (audit 3a, 3b, 3c): **COVERED by PR #282**;
+  - an unvouched `recent` world (audit 3d): **COVERED by PR #282** (`vouched_recent`), except
+    while one game is the only one simulating. That is **OPEN** and cannot be closed: there is
+    nobody to vouch;
+  - the initial world, which one client gives: frame and caps **COVERED by PR #282**; its
+    contents **OPEN** (the two-vote check is parked, see the top of this note).
 
 ### 0xE1 keep-alive
 
@@ -306,7 +344,8 @@ body (game_state_history_item::serialize 0x324BE0, read by 0x324D80):
     read, advance): a length past the end reads past the buffer.
   - What each section's own reader does with crafted contents (objects in list order with no
     length or id, client_patch.md section 3.14; physics; bullets) was not traced.
-- Status: **OPEN** (section 6, gaps 1 to 3); the frame walk itself **pending PR #282**.
+- Status: frame, mask bits and buffer caps **COVERED by PR #282** (`Sections::fault`); crafted
+  contents within them **OPEN** where no second game vouches (section 6, gaps 1 and 2).
 
 ### 0xE9 player entered, 0xEA player left
 
@@ -392,7 +431,8 @@ A2 (srp -> B): | A2 | u8 sender_type | u32 id | str name<=63 | [str tag<=15 if t
   `Chat.as`); the **name and the clan tag go in as HTML unescaped** (`styled(clanPrefix +
   linked(name ...))`, `LobbyChat.as::get_styled_text`, `GameChat.as`). A tag starting with
   `[admin]` or `[VG]` is drawn in the staff colours (`LobbyChat.as`).
-- Status: body and lengths **COVERED**; names in HTML **OPEN, low** (section 6, gap 6): no crash
+- Status: body and lengths **COVERED**; names in HTML **OPEN, low, in progress** (branch
+  `fix/name-tag-charset`; section 6, gap 4): no crash
   was found, it is markup in other players' chat.
 
 ### 0xA3 friend lists, search results; 0xA4 important message (from 0x4D, 0x4E)
@@ -421,7 +461,8 @@ A4:    | A4 | u8 type | u32 id | str name<=63 | str tag<=15 | u8 kind | str text
 - A name is made at the first sign-in from the login's part before `@`, any characters, cut to
   63 bytes (`session lib.rs::find_or_create`, `account::cap_name`); a rename (`49 03`/`49 04`,
   `names.rs`) is checked by the lobby.
-- Status: lengths **COVERED**; characters **OPEN, low** (gap 6).
+- Status: lengths **COVERED**; characters **OPEN, low, in progress** (branch
+  `fix/name-tag-charset`, which also bans `@` in names, the owner's rule; gap 4).
 
 ## 5. Coverage table
 
@@ -433,22 +474,23 @@ A4:    | A4 | u8 type | u32 id | str name<=63 | str tag<=15 | u8 kind | str text
 | D9 DA | port probe, ready   | client | game.rs::receive (stage)       | N/A (server only)  |
 | DB    | time reply          | client | game.rs::time_reply            | N/A (own clock)    |
 | DC DD | input               | client | game.rs::input                 | rotation COVERED;  |
-|  ->EB |  rotation, mask     |        |  window, dedup, rotation_is_.. | bit 26 PENDING exe |
+|  ->EB |  rotation, mask     |        |  window, dedup, rotation_is_.. | bit 26 PATCHED #286|
 |  ->EC |                     |        |                                | other bits bounded |
 | DE    | kit pick            | client | game.rs::profile_input;        | COVERED; exe side  |
-|  ->F3 |                     |        |  play.rs::match_profile        | PENDING exe        |
+|  ->F3 |                     |        |  play.rs::match_profile        | PATCHED #286       |
 | DF    | hash vote           | client | game.rs::hash, majority        | N/A (a vote)       |
 | E0    | leave               | client | game.rs::receive (give_up)     | N/A (server only)  |
-| E0+   | world chunk         | client | upload.rs, game.rs::uploaded,  | OPEN: caps, mask,  |
-|  ->E8 |                     |        |  first_snapshot, candidates    | recent; frame and  |
-|       |                     |        |                                | 2 votes PENDING#282|
+| E0+   | world chunk         | client | upload.rs, game.rs::uploaded,  | frame, mask, caps, |
+|  ->E8 |                     |        |  Sections::fault, candidates,  | vouched: COVERED   |
+|       |                     |        |  vouched_recent (#282)         | #282; contents of a|
+|       |                     |        |                                | lone world OPEN    |
 | E1    | keep-alive          | client | -                              | N/A                |
 | FA-FC | transport           | client | udp-transport                  | N/A                |
 | E3 E5 | ports, time         | server | -                              | N/A                |
 | E6 E7 | ping, offset        | server | -                              | N/A                |
 | E4    | static info         | server | static_info.rs::check_profile, | COVERED            |
 |       |                     | (accts)|  rules::move_items, make_safe  |                    |
-| E8    | world               | client | see E0+                        | OPEN (see E0+)     |
+| E8    | world               | client | see E0+                        | see E0+            |
 | E9 EA | roster change       | server | game.rs::roster_change         | N/A                |
 | EB EC | input relay         | client | see DC DD                      | see DC DD          |
 | ED EE | batched relay       | -      | never sent                     | N/A                |
@@ -458,50 +500,57 @@ A4:    | A4 | u8 type | u32 id | str name<=63 | str tag<=15 | u8 kind | str text
 | F6    | upload request      | server | -                              | N/A                |
 | FD    | kick                | server | udp-transport                  | N/A                |
 | A2    | chat line           | client | social.rs::chat, chat_text     | COVERED; names     |
-|       |                     |        |                                | in HTML OPEN low   |
+|       |                     |        |                                | in HTML OPEN, wip  |
 | A3 A4 | friends, important  | client | social.rs, Writer::str         | COVERED            |
 | A1 88 | squad, squad mate   | server | Writer::str, limits            | COVERED            |
 | 9A    | clan info           | server | clans::name_fault, wide limit  | COVERED            |
 | 91-97 | ranking, results    | server | Writer::str, limits            | COVERED            |
 | names | account names       | client | cap_name (63 bytes)            | length COVERED;    |
-|       |                     |        |                                | markup OPEN low    |
+|       |                     |        |                                | markup OPEN, wip   |
 +-------+---------------------+--------+--------------------------------+--------------------+
 ```
 
 ## 6. The open gaps, ranked
 
-1. **A world section longer than its buffer kills every game started from it** (audit 3a,
-   PROVEN path; the assertion is fatal). Caps: bullets 0x2400, statistics 0xC00, objects 0x2000,
-   physics 0x4000, rules 0x800, effects 0xC00, a player state 0x1000. Reach: the initial world
-   (any patched client, first to upload) and any world a client is started from. Fix, server:
-   refuse an upload whose sections or player states are over their caps, before it can be the
-   snapshot or `recent`. No false refusals: the client serializes into the same fixed buffers,
-   so its own worlds never exceed them; 2230 kept worlds of real clients (live and local) have
-   at most 0x230 / 0x45C / 0x3EC / 0 / 0x76B / 0x57 and a state of 0x3A8. srp's scripted test
-   client pads its bullets to 0x4000 (`scripted.rs`, `ballast`), which is over the cap: its
-   ballast must go elsewhere or stay under 0x2400. Confidence: high.
-2. **A world mask with a bit at 20 or above writes past the 20 player slots** (audit 3b, PROVEN
-   that nothing bounds it; the crash LIKELY). srp's walker takes any of 32 bits
-   (`match_msgs/players.rs::walk`). Fix, server: refuse a mask with a bit at or past the roster
-   size (at most 20). Real worlds: none of the 2230 has one. Confidence: high.
-3. **One client's unvouched world can start another client** (audit 3d). `uploaded` keeps an
-   upload as `recent` when nothing contradicts it yet, and `usable_snapshot` starts joiners and
-   resyncs from it; when no agreement comes (`check_candidates`, "no agreed hash ... not used",
-   331 such lines in the live log of 2026-10-22) `recent` stays. What crafted contents of the
-   opaque sections do was not traced, so gaps 1 and 2 are the only checks such a world gets.
-   Fix, server: forget `recent` when its candidate ends with no agreement while another real
-   client reported for that tick; with one simulating client there is nobody to vouch, and the
-   structural checks are what there is. Reach: one game (the one started), not all. Confidence
-   that it is reachable: high; that it crashes: depends on contents, not traced.
-4. **Bit 26 with a non-weapon in hands** (match.md section 20): every game calls through a dword
-   past the inventory. The server cannot tell it from a stock input.
-   **Pending (exe/relayed-input-crash-guards).**
-5. **A kit with no weapon, spawned** (match.md section 23): covered by srp since 2026-10-12;
-   the exe side **pending (exe/relayed-input-crash-guards)**.
-6. **Names and clan tags are HTML in other players' chat** (low; no crash found). The body is
-   escaped, the name and tag are not (`LobbyChat.as`, `GameChat.as`); a first sign-in takes any
-   characters. Fix, server: refuse `<`, `>`, `&`, `'`, `"` and control characters in a new
-   account name and a rename, or escape them in the movies. Not done here: not a crash.
+Re-ranked on 2026-10-22, with PR #282 and PR #286 in.
+
+1. **The initial world comes from one client, and its contents are its word** (OPEN). PR #282
+   checks its frame, mask and caps (`Sections::fault`). What its opaque sections hold (objects,
+   physics, bullets, player states past their head) is checked by nothing, and every game of
+   the match starts from it. Reach: all games. The planned fix, two games' initial worlds with
+   the same CRC, is parked: in the battery modes, stale `first_finder` bytes make two honest
+   initial worlds differ. The candidate fix is an exe reset at 0x3348A0, which waits for the
+   owner. Whether crafted contents crash a game was not traced (match.md section 35, 3d).
+2. **A world from the only game that simulates starts another game unvouched** (OPEN,
+   inherent). `vouched_recent` (PR #282) takes `recent` only when a second game reported the
+   same CRC, or when one game is all that simulates. In the second case nobody can vouch, and
+   the structural checks are all such a world gets. Reach: the game started from it, not all.
+   It cannot be closed on the server.
+3. **Patches 50 and 51 protect only the games that have them** (PATCHED by PR #286). The bit-26
+   slot (match.md section 20) and the kit-choice guard against the null +0xF47C respawn
+   (section 23) work only when every client of the match is on that release. srp's own kit
+   rule (`check_play`, since 2026-10-12) covers the respawn for any client meanwhile; bit 26 has
+   no server cover (the server cannot tell it from a stock input). Still open in #286: the
+   assumption about kits nobody has played yet, which needs the in-game test.
+4. **Names and clan tags are HTML in other players' chat** (OPEN, low, in progress on branch
+   `fix/name-tag-charset`; the owner also bans `@` in names). The body is escaped; the name and
+   the tag are not (`LobbyChat.as`, `GameChat.as`), and a first sign-in took any characters.
+   No crash was found: it is markup and the staff colours (`[admin]`, `[VG]`).
+
+Closed since the audit:
+- **A section over its buffer** (audit 3a: a fatal "mutable buffer overflow" in every game that
+  loads it): COVERED by PR #282 (`SECTION_CAPS`, `PLAYER_STATE_CAP`). The scripted test
+  client's ballast now fills the bullets to under their cap and the rest into the physics
+  (`scripted.rs`).
+- **A mask bit at or past the roster** (audit 3b: writes past the 20 player slots): COVERED by
+  PR #282 (`Sections::fault`).
+- **A frame that does not walk** (audit 3c: the reader has no end): COVERED by PR #282 (the front
+  walk alone; the fallback from the end no longer counts).
+- **An unvouched `recent` world while another game reported otherwise** (audit 3d): COVERED by
+  PR #282 (`vouched_recent`; `check_candidates` forgets it).
+- **Bit 26 from a hand with no weapon**: PATCHED by PR #286 (patch 50, 0x2D8D19).
+- **A kit choice with no weapon in slot 7 or 10**: PATCHED by PR #286 (patch 51, 0x3217CC ->
+  0x844DD0), beside srp's own kit rule.
 
 Ruled out in the audit (each in `match.md` section 35): the other action bits (all bounded in
 the client); a rotation merge to infinity (one relay per player per time); the kit byte (the
@@ -550,14 +599,17 @@ and clan-system parsers (never a player's line); the 0.21d chat server (not a 0.
   uploader U            server                        others        joiner / resynced J
   | <---- F6 (asked)    |                               |                |
   | E0 chunks ------->  | reassemble (upload.rs)        |                |
-  |                     | frame walk         [PR #282]  |                |
-  |                     | caps, mask         [gap 1, 2] |                |
+  |                     | Sections::fault    [PR #282]  |                |
+  |                     |  (walk, mask, caps; refused:  |                |
+  |                     |   unloadable)                 |                |
   |                     | CRC -> hashes[t][U]           |                |
   |                     | <------------------- DF {t, crc} (each)        |
   |                     | majority(t) == crc ?          |                |
   |                     |   yes: snapshot := world      |                |
   |                     |   no : dropped, recent cleared|                |
-  |                     |   none yet: recent := world   |   [gap 3]      |
+  |                     |   none yet: recent := world   |                |
+  |                     | vouched_recent: a 2nd CRC, or |   [gap 2]      |
+  |                     |  U is the only one simulating |                |
   |                     |------------- E5, replay, E8 {gen, world} ----->|
 ```
 
