@@ -1226,6 +1226,30 @@ fn a_datagrams_unique_messages_reach_the_caller_in_their_send_order() {
 }
 
 #[test]
+fn a_datagrams_unique_messages_are_put_in_send_order_across_the_ids_wrap() {
+    // Unique ids are a byte: 0xFF was sent before 0x01 (the connection's
+    // first message took 0x00). The order is taken the nearest way round
+    // from the first message's id, so 0xFF comes first, and both are new.
+    let (mut transport, now) = connect_lobby();
+    let mut body = vec![0x46, 0x01, 3, 7, 7, 7];
+    body.extend([0x46, 0xFF, 2, 9, 9]);
+    let events = transport.receive(&client(1, 0xFF, &[], true, &body), now);
+    assert_eq!(
+        events,
+        [
+            Event::Message {
+                id: 0x46,
+                payload: vec![9, 9]
+            },
+            Event::Message {
+                id: 0x46,
+                payload: vec![7, 7, 7]
+            },
+        ]
+    );
+}
+
+#[test]
 fn a_resent_unique_message_is_delivered_once_and_a_plain_one_again() {
     let (mut transport, now) = connect_lobby();
     let request = [0x2F, 1, 0xAA];
