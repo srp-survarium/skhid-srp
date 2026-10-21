@@ -200,8 +200,8 @@ package survarium.rooms
             {
                 var to:Object = room.switchTo;
                 buttons.push([win.say("switchTo"), onSwitch, to]);
+                // The game's own button, untinted (the owner's of 2026-10-21).
                 var made:Array = look.footer(buttons);
-                made[made.length - 1].transform.colorTransform = RoomsLook.YELLOW_TINT;
                 // Two buttons leave room for what the switch is; three do not.
                 if (buttons.length < 3)
                 {

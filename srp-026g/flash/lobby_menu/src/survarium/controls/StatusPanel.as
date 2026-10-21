@@ -1,8 +1,6 @@
 package survarium.controls
 {
    import com.greensock.TweenLite;
-   import flash.display.DisplayObject;
-   import flash.display.DisplayObjectContainer;
    import flash.display.MovieClip;
    import flash.events.Event;
    import flash.events.MouseEvent;
@@ -960,32 +958,11 @@ package survarium.controls
 
       // Play's art tinted, its label not: the text stays white, as PLAY's
       // (the owner's of 2026-10-20). Every part of the button but the one
-      // that holds its text field takes the tint.
+      // that holds its text field takes the tint (as the rooms window's
+      // Switch room).
       private function tintPlay(tint:ColorTransform) : void
       {
-         var box:DisplayObjectContainer = this.playBtn as DisplayObjectContainer;
-         if(box == null)
-         {
-            return;
-         }
-         box.transform.colorTransform = new ColorTransform();
-         var field:DisplayObject = null;
-         try
-         {
-            field = this.playBtn.textField as DisplayObject;
-         }
-         catch(err:Error)
-         {
-         }
-         for(var i:int = 0; i < box.numChildren; i++)
-         {
-            var part:DisplayObject = box.getChildAt(i);
-            if(field != null && (part == field || part is DisplayObjectContainer && DisplayObjectContainer(part).contains(field)))
-            {
-               continue;
-            }
-            part.transform.colorTransform = tint;
-         }
+         RoomsLook.skinTint(this.playBtn,tint);
       }
       
       // Rooms are srp's only PvP (survarium.rooms): Play goes straight into

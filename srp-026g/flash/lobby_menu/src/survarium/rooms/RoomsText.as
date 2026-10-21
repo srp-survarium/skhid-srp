@@ -78,10 +78,12 @@ package survarium.rooms
                 "В матч через %S с, или сейчас: «Войти в матч»", "Ins Match in %S s, oder jetzt: Match beitreten",
                 "Do meczu za %S s albo teraz: Dołącz do meczu"],
             "switchTo": ["Switch room", "Змінити кімнату", "Сменить комнату", "Raum wechseln", "Zmień pokój"],
-            // Short: they share the footer with two buttons.
-            "switchWhy": ["A place free: room for gear up to level %L", "Є місце: кімната для рівня спорядження до %L",
-                "Есть место: комната для снаряжения до %L", "Platz frei: Raum bis Ausrüstungsstufe %L",
-                "Wolne miejsce: pokój do poziomu %L"],
+            // Why to switch (the owner's of 2026-10-20: it was not clear):
+            // nobody's gear there is over the room's cap. Short: it shares
+            // the footer with two buttons (at most 364 px at 1280 wide).
+            "switchWhy": ["Fairer match: opponents' gear up to level %L", "Чесніший бій: спорядження суперників до рівня %L",
+                "Бой честнее: снаряжение соперников до уровня %L", "Fairer: Ausrüstung der Gegner bis Stufe %L",
+                "Uczciwszy mecz: sprzęt rywali do poziomu %L"],
             "switchWho": ["%N's room · %P players", "Кімната %N · гравців: %P", "Комната %N · игроков: %P",
                 "Raum von %N · %P Spieler", "Pokój %N · graczy: %P"],
             "countdown": ["Starts", "Старт", "Старт", "Start", "Start"],

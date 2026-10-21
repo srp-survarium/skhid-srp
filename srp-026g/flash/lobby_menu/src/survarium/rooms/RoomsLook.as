@@ -3,6 +3,7 @@ package survarium.rooms
     import flash.display.Bitmap;
     import flash.display.BitmapData;
     import flash.display.DisplayObject;
+    import flash.display.DisplayObjectContainer;
     import flash.display.Shape;
     import flash.display.Sprite;
     import flash.events.Event;
@@ -49,6 +50,34 @@ package survarium.rooms
         private static const RENDER_ONE:Object = {"12": "Level_v011e", "13": "Level_v011e"};
         private static const RENDER:Object = {"1": "day", "2": "rain", "3": "evn", "4": "night", "5": "prerain"};
         private static var _renders:Object = {};
+
+        // A game's button in a colour: its art tinted, its label left white
+        // (the owner's of 2026-10-20: the whole button tinted, its label too,
+        // did not look good). The skin redraws its parts on hover: a button
+        // kept so is tinted again each frame.
+        public static function skinTint(btn:*, tint:ColorTransform):void
+        {
+            var box:DisplayObjectContainer = btn as DisplayObjectContainer;
+            if (box == null)
+                return;
+            box.transform.colorTransform = new ColorTransform();
+            var field:DisplayObject = null;
+            try
+            {
+                field = btn.textField as DisplayObject;
+            }
+            catch (err:Error)
+            {
+            }
+            for (var i:int = 0; i < box.numChildren; i++)
+            {
+                var part:DisplayObject = box.getChildAt(i);
+                if (field != null && (part == field
+                    || (part is DisplayObjectContainer && DisplayObjectContainer(part).contains(field))))
+                    continue;
+                part.transform.colorTransform = tint;
+            }
+        }
 
         // The window's content (the views' parts) and its backdrop (the
         // frame under them).
