@@ -7,9 +7,9 @@ use std::time::Duration;
 use std::collections::BTreeSet;
 
 use survarium::v026g::match_msgs::client_model::Skip;
-use survarium::v026g::match_msgs::players::PlayerState;
+use survarium::v026g::match_msgs::players::{self, PlayerState};
 use survarium::v026g::match_msgs::rules::state;
-use survarium::v026g::match_msgs::snapshot::event;
+use survarium::v026g::match_msgs::snapshot::{PLAYER_STATE_CAP, SECTION_CAPS, Sections, event};
 use survarium::v026g::match_msgs::{PlayerInput, ServerMessage, WireTime, id};
 use udp_transport::wire::{self, low_level};
 use udp_transport::{Direction, Table};
@@ -2052,19 +2052,100 @@ fn a_roster_of_three_waits_for_its_second_player_before_the_countdown() {
     bench.assert_no_faults();
 }
 
+/// Worlds no game could load: the bytes given, and a real world but for
+/// one thing (match.md section 36).
+fn unloadable_worlds(world: &[u8]) -> Vec<Vec<u8>> {
+    let real = Sections::walk(world).expect("a world that walks");
+    let block = players::block_bytes(&[0xAB; 33], None);
+    let big_state = players::block_bytes(&[0xAB; PLAYER_STATE_CAP + 1], None);
+    let over = |at: usize| vec![0; SECTION_CAPS[at] + 1];
+    let (bullets, statistics, objects, physics, rules, effects) =
+        (over(0), over(1), over(2), over(3), over(4), over(5));
+    let worlds = [
+        // A place past the roster of two.
+        Sections {
+            active_clients_mask: 1 << 2,
+            players: &block,
+            ..real
+        },
+        // A place past the 20 slots of any game.
+        Sections {
+            active_clients_mask: 1 << 31,
+            players: &block,
+            ..real
+        },
+        Sections {
+            active_clients_mask: 1,
+            players: &big_state,
+            ..real
+        },
+        Sections {
+            bullets: &bullets,
+            ..real
+        },
+        Sections {
+            statistics: &statistics,
+            ..real
+        },
+        Sections {
+            objects: &objects,
+            ..real
+        },
+        Sections {
+            physics: &physics,
+            ..real
+        },
+        Sections {
+            rules: &rules,
+            ..real
+        },
+        Sections {
+            effects: &effects,
+            ..real
+        },
+    ];
+    let mut bodies = vec![vec![0xEE; 777]];
+    bodies.extend(worlds.iter().map(|world| world.to_body().unwrap()));
+    // A mask that names a player whose block is not there: the reader
+    // would take a section's length for the block's.
+    let mut torn = world.to_vec();
+    torn[..4].copy_from_slice(&1u32.to_le_bytes());
+    bodies.push(torn);
+    bodies
+}
+
 #[test]
-fn a_world_that_reads_as_no_world_goes_to_nobody() {
+fn a_world_no_game_could_load_goes_to_nobody() {
     let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
     bench.clients[0].connect();
     assert!(bench.until(1_000, |bench| bench.clients[0].model.options.is_some()));
-    // Not a mask, players and six sections: every game given it would
-    // load it.
-    let odd = vec![0xEE; 777];
-    bench.clients[0].upload(INITIAL_MS, &odd);
+    let world = bench.clients[0].sim.world(INITIAL_MS);
+    // At its caps a world goes, as a real one does.
+    let real = Sections::walk(&world).unwrap();
+    let full = vec![0; SECTION_CAPS[0]];
+    assert_eq!(
+        Sections::fault(
+            &Sections {
+                bullets: &full,
+                ..real
+            }
+            .to_body()
+            .unwrap(),
+            2
+        ),
+        None
+    );
+    let bodies = unloadable_worlds(&world);
+    for (count, body) in bodies.iter().enumerate() {
+        assert!(Sections::fault(body, 2).is_some(), "world {count}");
+        // One item time is one upload for the reassembler.
+        bench.clients[0].upload(INITIAL_MS + 50 * count as u32, body);
+        bench.run(100);
+        assert_eq!(bench.game().uploads_refused(0), count as u32 + 1);
+    }
     assert!(bench.clients[0].model.send_ready());
     bench.clients[0].send(id::READY, &[], true);
     bench.run(1_000);
-    assert_eq!(bench.game().uploads_refused(0), 1);
     assert!(!bench.game().has_clock());
     assert_eq!(bench.stages().as_bytes()[0], b'w');
     // The next game's world starts the match, and the first game from it.
@@ -2072,6 +2153,27 @@ fn a_world_that_reads_as_no_world_goes_to_nobody() {
     assert!(bench.until(5_000, |bench| bench.stages() == "LL"));
     assert_eq!(bench.game().uploads_refused(1), 0);
     bench.assert_no_faults();
+}
+
+/// Two games at two CRCs from one tick on: neither one's world is a
+/// world to start from, however new (`vouched_recent`, match.md section
+/// 36). Until 2026-10-22 the newest of them was what a game that had
+/// waited `SNAPSHOT_GIVE_UP` got.
+#[test]
+fn an_upload_another_game_reported_otherwise_is_nobody_s_to_start_from() {
+    let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    bench.run(3_000);
+    let from = bench.clients[0].clock() + 100;
+    bench.clients[0].sim.salt_from = Some((from, 3));
+    bench.clients[1].sim.salt_from = Some((from, 4));
+    // The first upload past the split: the other game reported its tick
+    // otherwise.
+    assert!(bench.until(10_000, |bench| {
+        bench.game().recent_time().is_some_and(|time| time > from)
+    }));
+    assert!(bench.game().newest_snapshot_time().unwrap() < from);
 }
 
 #[test]

@@ -18,8 +18,8 @@ use survarium::v026g::match_msgs::motion;
 use survarium::v026g::match_msgs::players::{self, PlayerState};
 use survarium::v026g::match_msgs::rules::{TimelimitParams, TimelimitRule, state};
 use survarium::v026g::match_msgs::snapshot::{
-    self, Battery, Container, Gather, KillsDeaths, PlayerStatistics, Respawn, Rules, Sections,
-    Statistics, StatisticsTail, Tdm, Timed, Timelimit, VictoryItemStatus,
+    self, Battery, Container, Gather, KillsDeaths, PlayerStatistics, Respawn, Rules, SECTION_CAPS,
+    Sections, Statistics, StatisticsTail, Tdm, Timed, Timelimit, VictoryItemStatus,
 };
 use survarium::v026g::match_msgs::{
     PlayerInput, ServerMessage, TICK_MS, WireTime, id, tick_byte, upload,
@@ -59,7 +59,9 @@ pub struct Sim {
     pub events_from: Vec<(u32, usize, usize, u16)>,
     /// From a tick on the world differs from the others' by this byte.
     pub salt_from: Option<(u32, u8)>,
-    /// Extra bytes in every world (a bigger upload).
+    /// Extra bytes in every world (a bigger upload): in the bullets, and
+    /// what is over their buffer in the physics, each under its cap
+    /// (`SECTION_CAPS`), as a real game's world would be.
     pub ballast: usize,
     /// From a tick on the world's game objects have this many bytes: the
     /// grenades and traps of a place this game installed, or started with.
@@ -280,7 +282,14 @@ impl Sim {
                 .map_or([true, true], |(_, teams)| teams),
         }
         .to_bytes();
-        let mut bullets = vec![0xB0; self.ballast];
+        // One byte of the bullets' left for the salt.
+        let in_bullets = self.ballast.min(SECTION_CAPS[0] - 1);
+        let mut bullets = vec![0xB0; in_bullets];
+        let physics = vec![0xB0; self.ballast - in_bullets];
+        assert!(
+            physics.len() <= SECTION_CAPS[3],
+            "more ballast than a world holds"
+        );
         if let Some((_, salt)) = self.salt_from.filter(|(from, _)| since(*from)) {
             bullets.push(salt);
         }
@@ -317,7 +326,7 @@ impl Sim {
             bullets: &bullets,
             statistics: &statistics,
             objects: &objects,
-            physics: &[],
+            physics: &physics,
             rules: &rules,
             effects: &[],
         }
