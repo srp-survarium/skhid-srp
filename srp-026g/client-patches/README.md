@@ -1824,7 +1824,10 @@ scrolling, before the shell_32.dll check); seven sites:
   the lobby, from a scratch copy of the account's profile in which it is
   that kit's weapon 1 (`weapon_stash_026g.asm` at `.srpw`+360h, which patch
   32's two finds call: client_patch.md section 3.30); the account's profile
-  is never written. Armour gets the original's values and nothing else;
+  is never written. Armour gets the original's camera; armour the chosen kit
+  does not wear is shown worn, from the same kind of scratch (patch 32's
+  start, exit and setup_profile sites go through the stash code's entries
+  first);
 - 0x265F44 (exit_item_upgrade's call of the setter): after a weapon, the
   character shows the kit chosen in the lobby again (`setup_profile` with
   the profile's +4632h); the camera gets the original's values, a distance

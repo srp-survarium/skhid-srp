@@ -569,7 +569,8 @@ def test_bins():
         out = os.path.join(tmp, "out.bin")
         stash = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_STASH_OFFSET
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.WEAPON_PREVIEW_VA:#x}", f"-DSTATE={state:#x}",
-                        f"-DFIND={stash:#x}", os.path.join(HERE, "weapon_preview_026g.asm"), "-o", out],
+                        f"-DFIND={stash + P.WEAPON_STASH_FIND:#x}", os.path.join(HERE, "weapon_preview_026g.asm"),
+                        "-o", out],
                        check=True, timeout=60)
         fresh = open(out, "rb").read()
     check(fresh == open(P.weapon_preview_bin(), "rb").read(),
@@ -577,7 +578,8 @@ def test_bins():
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={stash:#x}", f"-DSTATE={state:#x}",
-                        os.path.join(HERE, "weapon_stash_026g.asm"), "-o", out], check=True, timeout=60)
+                        f"-DPREVIEW={P.WEAPON_PREVIEW_VA:#x}", os.path.join(HERE, "weapon_stash_026g.asm"),
+                        "-o", out], check=True, timeout=60)
         fresh = open(out, "rb").read()
     check(fresh == open(P.weapon_stash_bin(), "rb").read(),
           f"{os.path.basename(P.weapon_stash_bin())} is current ({len(fresh)} bytes)")
@@ -3610,9 +3612,12 @@ def test_weapon_preview(original, image, before):
     }
     relocations = [rva for kind, rva in stock.relocations().values() if kind == 3]
     now = [rva for kind, rva in image.relocations().values() if kind == 3]
+    stash_entries_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_STASH_OFFSET
     for va, old, offset, opcode in P.WEAPON_PREVIEW_HOOKS:
         word = "call" if opcode == 0xE8 else "jmp"
         entry = P.WEAPON_PREVIEW_VA + offset
+        if va in P.WEAPON_STASH_ENTRIES:          # through weapon_stash_026g.asm's entry, which goes on to patch 32's
+            entry = stash_entries_va + P.WEAPON_STASH_ENTRIES[va][0]
         check(stock.read(va, len(old)) == old and before.read(va, len(old)) == old
               and rows(stock, va, len(old)) == stock_texts[va]
               and rows(image, va, len(old)) == [f"{word} {entry:#x}"] + ["nop"] * (len(old) - 5),
@@ -3673,10 +3678,11 @@ def test_weapon_preview(original, image, before):
     outside = {t for t in targets if not P.WEAPON_PREVIEW_VA <= t < P.WEAPON_PREVIEW_VA + len(code)}
     starts = {address for address, _, _ in listing}
     stash_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_STASH_OFFSET
-    check(outside == {0x284B10, 0x284B16, 0x2845C0, stash_va}
+    check(outside == {0x284B10, 0x284B16, 0x2845C0, stash_va + P.WEAPON_STASH_FIND}
           and all(t in starts for t in targets - outside)
           and all(P.WEAPON_PREVIEW_VA + offset in starts for _, _, offset, _ in P.WEAPON_PREVIEW_HOOKS)
-          and [address - P.WEAPON_PREVIEW_VA for address, _, text in listing if branch_target(text) == stash_va]
+          and [address - P.WEAPON_PREVIEW_VA for address, _, text in listing
+               if branch_target(text) == stash_va + P.WEAPON_STASH_FIND]
           == list(P.WEAPON_PREVIEW_FIND_CALLS)
           and not [text for _, _, text in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[|\[(?:dword )?0x", text)],
           "the code calls only setup_profile and weapon_stash_026g.asm's find_kit_or_show (at its two finds), "
@@ -3685,19 +3691,28 @@ def test_weapon_preview(original, image, before):
     stash = open(P.weapon_stash_bin(), "rb").read()
     check(image.read(stash_va, len(stash)) == stash and P.weapon_preview_state(stash, stash_va) == state,
           f"the weapon stash at {stash_va:#x} (.srpw+{P.WEAPON_STASH_OFFSET:#x}) is weapon_stash_026g.section.bin "
-          f"({len(stash)} bytes), its state patch 32's (+0Ch and +10h of it, inside WEAPON_PREVIEW_STATE_SIZE)")
+          f"({len(stash)} bytes), its state patch 32's (+0Ch..+17h of it, inside WEAPON_PREVIEW_STATE_SIZE)")
+    sites = all(image.read(va, 5) == bytes([opcode]) + struct.pack("<i", stash_va + entry - va - 5)
+                and image.read(stash_va + entry, 1) == b"\xE9"
+                for (va, _, _, opcode), (entry, _) in ((h, P.WEAPON_STASH_ENTRIES[h[0]]) for h in P.WEAPON_PREVIEW_HOOKS
+                                                       if h[0] in P.WEAPON_STASH_ENTRIES))
+    check(sites and len(P.WEAPON_STASH_ENTRIES) == 3,
+          "patch 32's start (0x265E73), exit (0x265F44) and setup_profile (0x284B10) sites go to the stash's "
+          "entries (+0, +5, +0Ah), each a jump")
     listing = ndisasm(stash, stash_va)
     targets = {branch_target(text) for _, _, text in listing if branch_target(text) is not None}
     outside = {t for t in targets if not stash_va <= t < stash_va + len(stash)}
     starts = {address for address, _, _ in listing}
     absolute = {int(m, 16) for _, _, text in listing for m in re.findall(r"\[(?:dword )?(0x[0-9a-f]+)\]", text)}
-    check(outside == {0x1F0090, 0x277AA0, 0x270390, 0x284D10, 0x2F73F0, 0x0E4F90, 0x420789}
+    check(outside == {0x1F0090, 0x2CA910, 0x277AA0, 0x270390, 0x284D10, 0x2F73F0, 0x0E4F90, 0x420789, 0x284B10}
+          | {P.WEAPON_PREVIEW_VA + preview for _, preview in P.WEAPON_STASH_ENTRIES.values()}
           and all(t in starts for t in targets - outside) and stash_va in starts
           and absolute == {0x1F1D9C4}
           and not [text for _, _, text in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[", text)],
-          "the stash code calls only item_by_id, the inventory's find, the item and profile copies, the profile "
-          "ctor and the game's allocator, every branch inside it lands on an instruction, and its only absolute "
-          "operand is the game's allocator (0x1F1D9C4)")
+          "the stash code calls only item_by_id, can_move_item_to_slot, the inventory's find, the item and "
+          "profile copies, the profile ctor, the game's allocator and setup_profile, leaves only to patch 32's "
+          "start_cam, exit_cam and setup_hook, every branch inside it lands on an instruction, and its only "
+          "absolute operand is the game's allocator (0x1F1D9C4)")
     # The draw.
     va, old, offset, opcode = P.WEAPON_DRAW_HOOK
     check(stock.read(va, len(old)) == old and before.read(va, len(old)) == old

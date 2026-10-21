@@ -54,10 +54,11 @@ USAGE (this script never touches the source exe):
         nasm -f bin read_order_026g.asm -o read_order_026g.bin
     (checked in). A weapon's upgrade window showing the weapon comes from
     weapon_preview_026g.asm:
-        nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA429360 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
+        nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA42936F weapon_preview_026g.asm -o weapon_preview_026g.section.bin
     (checked in; STATE is 0xE00 of the late join's state page, checked; FIND is
-    weapon_stash_026g.asm in `.srpw`, which also shows a weapon no kit holds:
-        nasm -f bin -DCAVE=0xA429360 -DSTATE=0xA428E00 weapon_stash_026g.asm -o weapon_stash_026g.section.bin
+    weapon_stash_026g.asm in `.srpw`, which also shows a weapon no kit holds and
+    armour the chosen kit does not wear:
+        nasm -f bin -DCAVE=0xA429360 -DSTATE=0xA428E00 -DPREVIEW=0xA427E50 weapon_stash_026g.asm -o weapon_stash_026g.section.bin
     checked in), and its
     draw from weapon_draw_026g.asm:
         nasm -f bin -DCAVE=0xA425D20 -DSTATE=0xA428E00 weapon_draw_026g.asm -o weapon_draw_026g.section.bin
@@ -922,7 +923,7 @@ READ_ORDER_SHA256 = "3c49ddd03438f137bbf3ec844d41ed3c4247d6d815595f1d494a515e112
 WEAPON_PREVIEW_OFFSET = 0x2E50
 WEAPON_PREVIEW_VA = SECTION_VA + WEAPON_PREVIEW_OFFSET
 WEAPON_PREVIEW_STATE_OFFSET = 0xE00
-WEAPON_PREVIEW_STATE_SIZE = 20                 # its three dwords, then weapon_stash_026g.asm's two
+WEAPON_PREVIEW_STATE_SIZE = 24                 # its three dwords, then weapon_stash_026g.asm's three
 WEAPON_PREVIEW_LEAST = 0xA7AFA4
 WEAPON_PREVIEW_HOOKS = (
     (0x265E73, bytes.fromhex("e848e70100"), 0x00, 0xE8),            # start_item_upgrade's camera: start_cam
@@ -1521,12 +1522,18 @@ WEAPON_CAMO_CHARACTERISTICS = 0x60000020      # code, execute, read (as .srp)
 WEAPON_CAMO_HOOK = (0x24B0D2, bytes.fromhex("8d44242050"), 0, 0xE8)
 WEAPON_CAMO_ENTRY = bytes.fromhex("609c89e5") # pushad; pushfd; mov ebp,esp
 WEAPON_CAMO_NAME_FORMAT = b"srpw1_%s_%s_%d\0"
-# Patch 32's find_kit grown (client_patch.md section 3.30): weapon_stash_026g.asm
-# at WEAPON_STASH_OFFSET of `.srpw`, after the camouflage's code, which
-# weapon_preview_026g.asm's start_cam and setup_hook call (its two calls of
-# find_kit, -DFIND): a weapon no kit holds is shown in the chosen kit's hands
-# from a scratch copy of the account's profile.
+# Patch 32 grown (client_patch.md section 3.30): weapon_stash_026g.asm at
+# WEAPON_STASH_OFFSET of `.srpw`, after the camouflage's code. An upgrade
+# window's item the lobby character does not show is shown on it from a
+# scratch copy of the account's profile: a weapon no kit holds in the chosen
+# kit's hands (find_kit_or_show, at WEAPON_STASH_FIND, which
+# weapon_preview_026g.asm's two finds call: -DFIND), armour the chosen kit
+# does not wear worn (patch 32's start, exit and setup_profile hooks go to
+# the stash's entries first, which go on to patch 32's: -DPREVIEW).
 WEAPON_STASH_OFFSET = 0x360
+WEAPON_STASH_FIND = 0x0F
+WEAPON_STASH_ENTRIES = {0x265E73: (0x00, 0x00), 0x265F44: (0x05, 0x6D), 0x284B10: (0x0A, 0xAD)}
+#   hook site: (the stash's entry, patch 32's entry it goes on to)
 WEAPON_PREVIEW_FIND_CALLS = (0x2B, 0xCC)       # weapon_preview_026g.section.bin: the two `call FIND`
 
 
@@ -2077,11 +2084,15 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
                      f"-DSTATE={late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET:#x}?)")
         stash_va = weapon_camo_va(late_join) + WEAPON_STASH_OFFSET
         if any(weapon_preview[at] != 0xE8
-               or WEAPON_PREVIEW_VA + at + 5 + struct.unpack_from("<i", weapon_preview, at + 1)[0] != stash_va
-               for at in WEAPON_PREVIEW_FIND_CALLS):
-            sys.exit(f"weapon_preview_026g.section.bin does not call weapon_stash_026g.asm (-DFIND={stash_va:#x}?)")
+               or WEAPON_PREVIEW_VA + at + 5 + struct.unpack_from("<i", weapon_preview, at + 1)[0]
+               != stash_va + WEAPON_STASH_FIND for at in WEAPON_PREVIEW_FIND_CALLS):
+            sys.exit(f"weapon_preview_026g.section.bin does not call weapon_stash_026g.asm "
+                     f"(-DFIND={stash_va + WEAPON_STASH_FIND:#x}?)")
         for va, expected, offset, opcode in WEAPON_PREVIEW_HOOKS:
-            patch(data, va, expected, hook_bytes(WEAPON_PREVIEW_VA, va, expected, offset, opcode))
+            if va in WEAPON_STASH_ENTRIES:              # through the stash's entry, which goes on to patch 32's
+                patch(data, va, expected, hook_bytes(stash_va, va, expected, WEAPON_STASH_ENTRIES[va][0], opcode))
+            else:
+                patch(data, va, expected, hook_bytes(WEAPON_PREVIEW_VA, va, expected, offset, opcode))
         if sorted(neutralize_relocs(data, [(va, va + len(expected)) for va, expected, _, _ in WEAPON_PREVIEW_HOOKS])) \
                 != WEAPON_PREVIEW_RELOCS:
             sys.exit("the base relocations under the weapon preview's sites are not where they were read")
@@ -2178,6 +2189,16 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
                 != late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET:
             sys.exit(f"weapon_stash_026g.section.bin: assembled for another state "
                      f"(-DSTATE={late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET:#x}?)")
+        stash_va = camo_va + WEAPON_STASH_OFFSET
+        entries = {va: (entry, preview) for va, (entry, preview) in WEAPON_STASH_ENTRIES.items()}
+        jumps = [WEAPON_PREVIEW_VA + preview for _, preview in sorted(entries.values())]
+        tails = sorted({stash_va + at + 5 + struct.unpack_from("<i", weapon_stash, at + 1)[0]
+                        for at in range(len(weapon_stash) - 4) if weapon_stash[at] == 0xE9}
+                       & {WEAPON_PREVIEW_VA + preview for _, preview in entries.values()})
+        if any(weapon_stash[entry] != 0xE9 for entry, _ in entries.values()) or tails != sorted(jumps) \
+                or weapon_stash[WEAPON_STASH_FIND] != 0xE8:
+            sys.exit(f"weapon_stash_026g.section.bin: its entries are not where patch_026g.py puts them, or it "
+                     f"does not go on to patch 32's (-DPREVIEW={WEAPON_PREVIEW_VA:#x}?)")
         weapon_camo = weapon_camo + b"\xCC" * (WEAPON_STASH_OFFSET - len(weapon_camo)) + weapon_stash
         va, expected, offset, opcode = WEAPON_CAMO_HOOK
         patch(data, va, expected, hook_bytes(camo_va, va, expected, offset, opcode))
