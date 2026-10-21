@@ -209,8 +209,10 @@ The server (`session::v026g::items_rules`):
 - `46 01`: the cosmetic goes into the slot of the host; what was in that
   slot comes off the host; every other item keeps what it wears. Already
   in that slot: nothing changes (its value kept). In another slot of the
-  host: it moves (`detach_first`). Only the kits wearing the host get new
-  revisions.
+  host: it moves (`detach_first`), its value (a decal's place) with it, in
+  the answer too. Only the kits wearing the host get new revisions. (The
+  lobby movie of a drag from slot to slot sent `46 02` for the slot left
+  after the `46 01`, taking it off; the movie no longer does, 2026-10-21.)
 - `46 02 <kit> <upgrade> <host>`: off that host alone. A cosmetic that is no
   item any more (the `on_item_sold` that follows a sale) is off: `83 46
   02`, not a refusal. A host that does not wear it: refused, then the

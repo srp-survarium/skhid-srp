@@ -134,6 +134,10 @@ The owner (2026-10-21): "implement and allow put two decals on weapons".
 - **What a match sees.** Every game builds the weapon from its item's upgrades and bakes its
   decals, as the camouflage (patch 44); a game without patch 46 shows the weapon without them.
   No simulation change.
+- **Moving a decal** to the other decal slot (a drag from one to the other) keeps it on the weapon,
+  where it was placed (2026-10-21, the owner: "move the same decal into another slot ... it doesn't
+  appear any longer": the window took it off after the move). A decal never placed takes the
+  default of its order on the weapon (the first: left, the second: right), not of its slot.
 - **After a place.** The server sends the account back (only for a weapon), the lobby builds the
   weapon again and bakes the new place: the weapon shows its old decals for a moment.
 - **Cost.** One bake per weapon surface for each new combination of camouflage and decals (the

@@ -932,11 +932,28 @@ package survarium.upgrade
          var _loc2_:UpgradeSlot = param1.target as UpgradeSlot;
          var _loc3_:Object = _loc2_.getLastData();
          trace("updateData::",_loc2_.data,_loc3_);
-         if(_loc3_ && !_loc2_.data)
+         if(_loc3_ && !_loc2_.data && !this.holds(_loc2_,uint(_loc3_.itemId)))
          {
             trace("drop_upgrade_item::updated",this._data.itemId,_loc3_.itemId);
             ExternalInterface.call("drop_upgrade_item",this._data.itemId,uint(_loc3_.itemId));
          }
+      }
+
+      // Another slot of the window holds the item: a drag from one slot to another, whose drop
+      // (relocate_upgrade_item, the move) comes before the slot it left is emptied (DragManager:
+      // the target's drop, then the source's drag end). Dropping it then would take it off the item.
+      protected function holds(param1:UpgradeSlot, param2:uint) : Boolean
+      {
+         var _loc3_:uint = 0;
+         while(_loc3_ < this._slots.length)
+         {
+            if(this._slots[_loc3_] != param1 && Boolean(this._slots[_loc3_].data) && uint(this._slots[_loc3_].data.itemId) == param2)
+            {
+               return true;
+            }
+            _loc3_++;
+         }
+         return false;
       }
       
       private function onItemDropped(param1:DragEvent) : void

@@ -368,7 +368,7 @@ pub fn attach_upgrade(
 /// [`attach_upgrade`] with `scopes`. What was in the slot comes off the
 /// item; the cosmetic stays on every other item wearing it. On the item
 /// already in that slot it stays as it is (its value too); in another slot
-/// of it, it moves. A scope's record holds the variant made for the weapon
+/// of it, it moves, its value (a decal's place) with it. A scope's record holds the variant made for the weapon
 /// ([`modifications::record_dict_in`]).
 pub fn attach_upgrade_in(
     account: &mut Account,
@@ -415,6 +415,13 @@ pub fn attach_upgrade_in(
             detach_first: false,
         });
     }
+    // Moved from another slot of the host: its place goes with it (the
+    // answer carries it, and the client's record takes it from there).
+    let value = host
+        .upgrades
+        .iter()
+        .find(|held| held.id == upgrade_item_id && held.a == u32::from(record_dict))
+        .map_or(0, |held| held.value);
     let before = host.upgrades.len();
     host.upgrades.retain(|held| held.id != upgrade_item_id);
     let detach_first = host.upgrades.len() != before;
@@ -422,7 +429,7 @@ pub fn attach_upgrade_in(
     host.upgrades.push(Upgrade {
         id: upgrade_item_id,
         a: record_dict.into(),
-        value: 0,
+        value,
         param: slot,
     });
     // Only the host shows another cosmetic: every kit wearing it, the
@@ -432,7 +439,7 @@ pub fn attach_upgrade_in(
         host_item_id,
         upgrade_item_id,
         slot,
-        value: 0,
+        value,
         detach_first,
     })
 }
