@@ -2437,7 +2437,9 @@ Round 3 (2026-10-21; 1 798 bytes, state 90h bytes):
   items_dict id: round 3b (after the crash on the VSS: round 3 read weapon+25Ch, not a pointer for a
   held weapon) takes it from the record the character's player was built from, inside the
   character (its current copy +D2B4h, kit +D2B5h, slot 7 or 10, the record's +4), every index
-  checked, else the box's way. Every weapon of the data is within
+  checked, else the box's way. Round 3c: the table holds the middles in the bind space and they go
+  through bone 1's pose of the frame as the box's (the Vepr's `preview` animation puts its body
+  7 cm from where its 3rd-view idle does). Every weapon of the data is within
   1 cm (it was up to 16.5 cm): client_patch.md section 3.42 has the table.
 - **No empty bench on a refresh.** Once the bench showed a weapon, a rebuild (a scope or a
   camouflage put on) keeps the current player's weapon there until the new player's comes. The

@@ -175,6 +175,7 @@ ORG CAVE
 %define MIDDLE          0x38        ; float4: the weapon's middle, in its model's space (w 0)
 %define STAMP           0x48        ; +1 at every bench transform written (the interface's frame stamp)
 %define BENCH_MATRIX    0x50        ; float4x4: the bench transform the held item was last drawn with
+%define BIND_MIDDLE     0x90        ; float4: the table's middle (bind space), before bone 1
 %define CONST(label)    ((label) - STATE)
 
     jmp near camera
@@ -474,7 +475,9 @@ matrix:
 
 ; The weapon's middle in its model's space to MIDDLE (x, y, z, 0). edi = the
 ; state, ebx = the player, ebp = mt_draw's frame. Uses xmm0..xmm3; keeps
-; every other register.
+; every other register. A middle in the bind space (the table's, else the
+; box's) goes through bone 1's inverse bind and its pose of this frame, so
+; whatever the weapon's animation (3rd-view idle, preview) its middle is.
 middle:
     pushad
     xorps xmm0, xmm0
@@ -487,6 +490,7 @@ middle:
     lea eax, [edi + WEAPON_VTABLE - STATE]
     cmp [esi], eax
     jne .done
+    xor ebx, ebx                    ; 1: the table's middle at BIND_MIDDLE
     ; a weapon whose box does not serve: MIDDLES, by the items_dict id of the
     ; record the character's player holds (all inside the character, every
     ; index checked: the character's current copy, its kit's weapon 1, or 2
@@ -522,18 +526,19 @@ middle:
     add edx, 8
     cmp ecx, eax
     jne .find
-    lea ecx, [edi+MIDDLE]           ; its x, y, z (mm)
-    mov ebp, 3
-.mm:
-    movsx eax, word [edx-6]
+    movsx eax, word [edx-6]         ; its x, y, z (mm, bind space)
     cvtsi2ss xmm0, eax
-    mulss xmm0, [edi+CONST(millimetre)]
-    movss [ecx], xmm0
-    add edx, 2
-    add ecx, 4
-    dec ebp
-    jnz .mm
-    jmp .done
+    movsx eax, word [edx-4]
+    cvtsi2ss xmm1, eax
+    movsx eax, word [edx-2]
+    cvtsi2ss xmm2, eax
+    unpcklps xmm0, xmm1
+    movlhps xmm0, xmm2
+    movss xmm1, [edi+CONST(millimetre)]
+    shufps xmm1, xmm1, 0
+    mulps xmm0, xmm1
+    movups [edi+BIND_MIDDLE], xmm0
+    inc ebx
 .model:
     mov esi, [esi+WEAPON_MODEL]
     test esi, esi
@@ -555,6 +560,11 @@ middle:
     jz .done
     cmp dword [ebp+BONE_COUNT], 2
     jb .done
+    test ebx, ebx
+    jz .own
+    movups xmm0, [edi+BIND_MIDDLE]
+    jmp .pose
+.own:
     cmp dword [esi+BOX_MIN], 0xBF800000
     jne .box
     cmp dword [esi+BOX_MAX], 0x3F800000
@@ -570,6 +580,7 @@ middle:
     movlhps xmm0, xmm2              ; (x, y, z, 0)
     movups xmm1, [edi+CONST(flip_half)]
     mulps xmm0, xmm1
+.pose:
     add edx, 64                     ; bone 1: its inverse bind, then its pose
     call transform
     lea edx, [ecx+64]
@@ -717,32 +728,34 @@ hold_max:         dd 2.0            ; HOLD_MAX: the longest the camera waits for
 millimetre:       dd 0.001
 ; MIDDLES: the weapons whose box does not give their middle within 1 cm (a
 ; default box; the Magnum's spare rounds; a body off the axis, the RPD's):
-; items_dict id, the middle of the posed gun (parts parked beside it left
-; out) in the model's space (mm), from the data (client_patch.md section 3.42)
+; items_dict id, the middle of the gun (parts parked beside it left out) in
+; its bind space (mm: the 3rd-view idle's middle through the inverse of bone
+; 1's skinning in that pose), which the code takes through bone 1 as the
+; box's, from the data (client_patch.md section 3.42)
 middles:          dw 12, 5, -2, 240     ; toz_122 (weapons/toz_122)
                   dw 13, 10, -37, 88    ; ak_74u (weapons/ak74u)
                   dw 14, 15, -4, 270    ; rem_700 (weapons/rem_700)
                   dw 16, 1, -38, 275    ; toz_34 (weapons/toz34/toz_34)
-                  dw 56, -18, -18, 265  ; magnum (weapons/magnum/magnum)
-                  dw 77, -11, -37, 261  ; rpd (weapons/rpd/rpd)
+                  dw 56, 1, 1, 96       ; magnum (weapons/magnum/magnum)
+                  dw 77, -28, -39, 231  ; rpd (weapons/rpd/rpd)
                   dw 80, 10, -30, 167   ; akmn (weapons/akmn/akmn)
-                  dw 90, 0, -22, 214    ; winchester_1894 (weapons/winchester_1894)
+                  dw 90, 4, -8, 40      ; winchester_1894 (weapons/winchester_1894)
                   dw 107, 15, 11, 221   ; mosin_nagant (weapons/mosin_nagant/mosin_nagant)
                   dw 108, 0, -31, 276   ; izh_27_lancaster (weapons/izh_27_lancaster/izh_27_lancaster_)
                   dw 110, 10, -25, 309  ; mp_153 (weapons/mp153/mp153)
                   dw 125, 10, -17, 162  ; benelli_m4 (weapons/benelli_m4/benelli_m4)
-                  dw 216, 9, -53, 90    ; vepr (weapons/vepr)
+                  dw 216, -5, -31, 21   ; vepr (weapons/vepr)
                   dw 220, 8, -28, 169   ; a_545 (weapons/a_545/a_545)
-                  dw 303, 2, 3, 179     ; a9_91 (weapons/a9_91/a9_91)
+                  dw 303, 11, -16, 178  ; a9_91 (weapons/a9_91/a9_91)
                   dw 337, 0, -31, 276   ; izh_27_lancaster_premium (weapons/izh_27_lancaster/izh_27_lancaster_)
                   dw 2214, 11, -29, 174 ; valmet (weapons/valmet_rk62/valmet_rk62)
                   dw 2215, 10, -6, 141  ; soc_vepr (weapons/soc_vepr/soc_vepr)
-                  dw 2227, 9, -18, 255  ; saiga_12 (weapons/saiga_12s/saiga_12s)
-                  dw 2228, 9, -18, 255  ; saiga_12_premium (weapons/saiga_12s/saiga_12s_camo)
+                  dw 2227, 10, -17, 256 ; saiga_12 (weapons/saiga_12s/saiga_12s)
+                  dw 2228, 10, -17, 256 ; saiga_12_premium (weapons/saiga_12s/saiga_12s_camo)
                   dw 2241, 10, -30, 167 ; akmn_premium (weapons/akmn/akmn_camo)
                   dw 2242, 10, -30, 167 ; akmn_premium_2 (weapons/akmn/akmn_camo_st)
                   dw 2243, 10, -37, 88  ; ak_74u_premium (weapons/aks74u_camo/ak74u_camo)
-                  dw 2244, 9, -53, 90   ; vepr_premium (weapons/vepr_camo/vepr_camo)
+                  dw 2244, -5, -31, 21  ; vepr_premium (weapons/vepr_camo/vepr_camo)
                   dw 2249, 15, -4, 270  ; rem_700_premium (weapons/rem_700_camo_st)
                   dw 2251, 0, -31, 276  ; izh_27_lancaster_premium_2 (weapons/izh_27_lancaster_camo/izh_27_lancaster_camo_st)
                   dw 0

@@ -88,9 +88,17 @@ WEAPONS = {
             (-0.999994, 0.003439, 0.000239, 0, 0.003440, 0.999987, 0.003642, 0, -0.000227, 0.003643, -0.999993, 0,
              0.005773, 0.019322, 0.026358, 1.0), (0.0134, 0.0201, 0.1465)),
     "AK-74U": (13, (-1.0, -1.0, -1.0), (1.0, 1.0, 1.0), FLIP, FLIP, (0.0096, -0.0373, 0.0882)),
+    # the Vepr: a default box; its bone 1 is 7 cm along in the 3rd-view idle, at the origin in
+    # its `preview` (which the lobby's weapon shows: the owner saw round 3b off by those 7 cm)
+    "Vepr (idle)": (216, (-1.0, -1.0, -1.0), (1.0, 1.0, 1.0), FLIP,
+                    (-0.999976, -0.006868, 0.000511, 0, -0.006862, 0.999920, 0.010598, 0, -0.000583, 0.010595,
+                     -0.999944, 0, 0.013903, -0.021218, 0.069836, 1.0), (0.0089, -0.0527, 0.0904)),
+    "Vepr (preview)": (216, (-1.0, -1.0, -1.0), (1.0, 1.0, 1.0), FLIP,
+                       (-0.999976, -0.006868, 0.000511, 0, -0.006862, 0.999920, 0.010598, 0, -0.000583, 0.010595,
+                        -0.999944, 0, 0.0, 0.0, 0.0, 1.0), (-0.0050, -0.0315, 0.0206)),
 }
 DICTIONARY_ITEM = UI + 0xE000                  # the weapon's items_dict entry (+0 its u16 id)
-# weapon_table_026g.asm's MIDDLES (items_dict id: the posed gun's middle, m), read from its source
+# weapon_table_026g.asm's MIDDLES (items_dict id: the gun's middle in the bind space, m), read from its source
 def table_middles():
     import os
     import re
@@ -259,13 +267,16 @@ class Table:
         self.emu.mem_write(BONE_POSES, struct.pack("<16f", *FLIP) + struct.pack("<16f", *pose))
         lobby.word(FRAME - 0x0C, BONE_POSES)
         lobby.word(FRAME - 0x18, 2)
-        if dict_id in TABLE_MIDDLES and box is None and not bad_record:   # the build's table
+        if dict_id in TABLE_MIDDLES and box is None and not bad_record:   # the build's table (bind space)
             v = list(TABLE_MIDDLES[dict_id])
         elif lower == (-1.0, -1.0, -1.0) and upper == (1.0, 1.0, 1.0):
-            v = [0.0, 0.0, MIDDLE_Z]
-        else:                                   # the box's centre, flipped, x 0, through bone 1
+            v = None
+        else:                                   # the box's centre, flipped, x 0
             centre = [(a + b) / 2 for a, b in zip(lower, upper)]
             v = [0.0, centre[1], -centre[2]]
+        if v is None:
+            v = [0.0, 0.0, MIDDLE_Z]
+        else:                                   # through bone 1's inverse bind and pose of the frame
             for mat in (inverse_bind, pose):
                 v = [sum(v[i] * mat[4 * i + k] for i in range(3)) + mat[12 + k] for k in range(3)]
         if box is None and not bad_record:
@@ -578,6 +589,9 @@ def main():
         for name, setup in (("AK-12", lambda t: t.weapon("AK-12")), ("PM", lambda t: t.weapon("PM")),
                             ("the VSS (a spare magazine parked beside it in its box)", lambda t: t.weapon("VSS")),
                             ("the AK-74U (a default box; the build's table)", lambda t: t.weapon("AK-74U")),
+                            ("the Vepr in its 3rd-view idle (the table, bind space)", lambda t: t.weapon("Vepr (idle)")),
+                            ("the Vepr in its preview (the same entry, bone 1 elsewhere)",
+                             lambda t: t.weapon("Vepr (preview)")),
                             ("the AK-74U, its copy's index out of range", lambda t: t.weapon("AK-74U", bad_record="copy")),
                             ("the AK-74U, its kit past the count", lambda t: t.weapon("AK-74U", bad_record="kit")),
                             ("the AK-74U, its record past the table", lambda t: t.weapon("AK-74U", bad_record="record")),
