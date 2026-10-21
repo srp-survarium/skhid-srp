@@ -1292,7 +1292,7 @@ package
                click_function:this.showProfileRename,
                callBack:true
             });
-            SrvContextMenu.show(options);
+            SrvContextMenu.show(options,0,0,this.player_profile);
          }
       }
       
@@ -5810,7 +5810,7 @@ package
       
       // The game's right-click menu with the one item, at the mouse: a
       // player of the Rankings window or of a room.
-      public static function showPlayerInfoMenu(nickname:String, player:uint, how:uint) : void
+      public static function showPlayerInfoMenu(nickname:String, player:uint, how:uint, owner:DisplayObject = null) : void
       {
          if(nickname == null || nickname == "")
          {
@@ -5822,7 +5822,7 @@ package
             {
                askPlayerInfo(nickname,player,how);
             }
-         }]);
+         }],0,0,owner);
       }
       
       private static function askPlayerInfo(nickname:String, player:uint, how:uint) : void

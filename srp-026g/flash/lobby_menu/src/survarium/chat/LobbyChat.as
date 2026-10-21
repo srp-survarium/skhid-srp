@@ -879,7 +879,7 @@ package survarium.chat
                   name:LocalizationData.getName("claim_player"),
                   options:_loc7_
                });
-               SrvContextMenu.show(_loc8_);
+               SrvContextMenu.show(_loc8_,0,0,this);
             }
          }
       }

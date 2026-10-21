@@ -383,9 +383,6 @@ package survarium.rooms
 
         public function show(value:Boolean):void
         {
-            // A player's right-click menu opened in the window goes with it.
-            if (!value && _shown && SrvContextMenu.visisble)
-                SrvContextMenu.hide();
             _shown = value;
             visible = value;
             // Enter in the list joins the room chosen (once on the stage).
@@ -968,7 +965,7 @@ package survarium.rooms
                     if (control.stage == null || !control.hitTestPoint(e.stageX, e.stageY, false))
                         continue;
                     var nick:String = hit.place != null ? roomView.wholeName(int(hit.place), String(hit.name)) : String(hit.name);
-                    LobbyMenu.showPlayerInfoMenu(nick, uint(hit.player), uint(hit.how));
+                    LobbyMenu.showPlayerInfoMenu(nick, uint(hit.player), uint(hit.how), this);
                     return;
                 }
             }

@@ -334,7 +334,7 @@ package survarium.friends
                });
             }
             highlighted = true;
-            SrvContextMenu.show(_loc2_);
+            SrvContextMenu.show(_loc2_,0,0,this);
             SrvContextMenu.getInstance().addEventListener(Event.REMOVED_FROM_STAGE,this.deselect);
          }
          else
@@ -343,7 +343,7 @@ package survarium.friends
             SrvContextMenu.show([{
                name:LocalizationData.getName("remove_from_ignore"),
                click_function:this.removeIgnored
-            }]);
+            }],0,0,this);
             SrvContextMenu.getInstance().addEventListener(Event.REMOVED_FROM_STAGE,this.deselect);
          }
       }

@@ -154,7 +154,7 @@ package survarium.friends
                      click_function:this.removeFromSquad
                   });
                }
-               SrvContextMenu.show(_loc2_);
+               SrvContextMenu.show(_loc2_,0,0,this);
             }
             else
             {
@@ -162,7 +162,7 @@ package survarium.friends
                   name:LocalizationData.getName("leave_squad"),
                   click_function:this.leaveSquad
                });
-               SrvContextMenu.show(_loc2_);
+               SrvContextMenu.show(_loc2_,0,0,this);
             }
          }
       }

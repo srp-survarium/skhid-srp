@@ -377,7 +377,7 @@ package survarium.clan
          trace("showContextMenu::",_loc2_.status,"options",_loc5_.length);
          if(_loc5_.length)
          {
-            SrvContextMenu.show(_loc5_);
+            SrvContextMenu.show(_loc5_,0,0,this);
          }
          selectedName = _loc2_.name;
       }

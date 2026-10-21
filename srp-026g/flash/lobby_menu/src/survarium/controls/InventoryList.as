@@ -2168,7 +2168,7 @@ package survarium.controls
             }
             if((options.length))
             {
-               SrvContextMenu.show(options);
+               SrvContextMenu.show(options,0,0,this);
             }
          }
       }
@@ -2579,7 +2579,7 @@ package survarium.controls
          }
          if(options.length > 0)
          {
-            SrvContextMenu.show(options);
+            SrvContextMenu.show(options,0,0,craft);
          }
       }
       

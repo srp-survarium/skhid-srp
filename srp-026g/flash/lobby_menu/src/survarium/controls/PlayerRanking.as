@@ -374,7 +374,7 @@ package survarium.controls
             var row:Object = this.rankingRow(at);
             if(row != null)
             {
-               LobbyMenu.showPlayerInfoMenu(String(row.nickname),uint(row.place),LobbyMenu.PLAYER_INFO_BY_PLACE);
+               LobbyMenu.showPlayerInfoMenu(String(row.nickname),uint(row.place),LobbyMenu.PLAYER_INFO_BY_PLACE,this);
                return;
             }
          }

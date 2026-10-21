@@ -281,7 +281,7 @@ package survarium.clan
          var itemData:Object = activeItem.data;
          if((options.length))
          {
-            SrvContextMenu.show(options);
+            SrvContextMenu.show(options,0,0,this);
          }
       }
       
