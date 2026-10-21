@@ -7,25 +7,25 @@ package scaleform.clik.interfaces
       
       function get length() : uint;
       
-      function requestItemAt(param1:uint, param2:Function = null) : Object;
+      function requestItemAt(index:uint, callBack:Function = null) : Object;
       
-      function requestItemRange(param1:int, param2:int, param3:Function = null) : Array;
+      function requestItemRange(startIndex:int, endIndex:int, callBack:Function = null) : Array;
       
-      function indexOf(param1:Object, param2:Function = null) : int;
+      function indexOf(item:Object, callBack:Function = null) : int;
       
       function cleanUp() : void;
       
-      function invalidate(param1:uint = 0) : void;
+      function invalidate(length:uint = 0) : void;
       
-      function addEventListener(param1:String, param2:Function, param3:Boolean = false, param4:int = 0, param5:Boolean = false) : void;
+      function addEventListener(type:String, listener:Function, useCapture:Boolean = false, priority:int = 0, useWeakReference:Boolean = false) : void;
       
-      function removeEventListener(param1:String, param2:Function, param3:Boolean = false) : void;
+      function removeEventListener(type:String, listener:Function, useCapture:Boolean = false) : void;
       
-      function dispatchEvent(param1:Event) : Boolean;
+      function dispatchEvent(event:Event) : Boolean;
       
-      function hasEventListener(param1:String) : Boolean;
+      function hasEventListener(type:String) : Boolean;
       
-      function willTrigger(param1:String) : Boolean;
+      function willTrigger(type:String) : Boolean;
    }
 }
 

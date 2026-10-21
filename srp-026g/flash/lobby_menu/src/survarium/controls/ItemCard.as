@@ -13,6 +13,7 @@ package survarium.controls
    import survarium.data.LocalizationData;
    import survarium.data.PropertiesDescriptor;
    import survarium.interfaces.IPlayerProfile;
+   import survarium.messages.MessageMoneyExchange;
    import survarium.upgrade.UpgradeWindow;
    
    public class ItemCard extends MovieClip
@@ -364,7 +365,7 @@ package survarium.controls
       
       protected function goToStore() : void
       {
-         ExternalInterface.call("go_to_store");
+         MessageMoneyExchange.buyGold();
       }
       
       public function checkButtonEnabled(param1:Event = null) : void

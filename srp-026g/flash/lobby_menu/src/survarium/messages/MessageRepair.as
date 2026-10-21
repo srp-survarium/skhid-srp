@@ -269,7 +269,7 @@ package survarium.messages
       
       protected function goToStore() : void
       {
-         ExternalInterface.call("go_to_store");
+         MessageMoneyExchange.buyGold();
       }
       
       protected function onNoMoneyEnought() : void

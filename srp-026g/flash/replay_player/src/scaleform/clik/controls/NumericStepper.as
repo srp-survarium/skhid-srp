@@ -356,8 +356,8 @@ package scaleform.clik.controls
       
       protected function lockValue(value:Number) : Number
       {
-         var _loc2_:Number = Math.max(this._minimum,Math.min(this._maximum,this.stepSize * Math.round(value / this.stepSize)));
-         return _loc2_;
+         var newVal:Number = Math.max(this._minimum,Math.min(this._maximum,this.stepSize * Math.round(value / this.stepSize)));
+         return newVal;
       }
    }
 }

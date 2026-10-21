@@ -191,7 +191,7 @@ package survarium.messages
       
       protected function goToStore() : void
       {
-         ExternalInterface.call("go_to_store");
+         MessageMoneyExchange.buyGold();
       }
       
       override protected function onMessageCancel(param0:ButtonEvent = null) : void

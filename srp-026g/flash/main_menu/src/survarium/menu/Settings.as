@@ -74,109 +74,109 @@ package survarium.menu
          super();
       }
       
-      public static function get_label(param1:String) : String
+      public static function get_label(key:String) : String
       {
-         if(!_labels_dict[param1])
+         if(!_labels_dict[key])
          {
-            return "#" + param1;
+            return "#" + key;
          }
-         return _labels_dict[param1];
+         return _labels_dict[key];
       }
       
-      override public function set x(param1:Number) : void
+      override public function set x(value:Number) : void
       {
-         super.x = int(param1);
+         super.x = int(value);
       }
       
-      override public function set y(param1:Number) : void
+      override public function set y(value:Number) : void
       {
-         super.y = int(param1);
+         super.y = int(value);
       }
       
-      public function setDataProvider(param1:uint, param2:uint, param3:Array) : void
+      public function setDataProvider(tabIndex:uint, elementId:uint, items:Array) : void
       {
-         if(!param3)
+         if(!items)
          {
             return;
          }
-         var _loc4_:* = this.settings_content[this._element_map[param1][param2]];
-         _loc4_.dataProvider = new DataProvider(param3);
+         var control:* = this.settings_content[this._element_map[tabIndex][elementId]];
+         control.dataProvider = new DataProvider(items);
       }
       
-      public function setValue(param1:uint, param2:uint, param3:Number, param4:Boolean = true) : void
+      public function setValue(tabIndex:uint, elementId:uint, value:Number, isBaseline:Boolean = true) : void
       {
-         var _loc5_:*;
+         var control:*;
          trace("setValue");
-         this._content_values[param1][param2] = param3;
-         if(param4)
+         this._content_values[tabIndex][elementId] = value;
+         if(isBaseline)
          {
             _ignoreChange = true;
-            _loc5_ = this.settings_content[this._element_map[param1][param2]];
-            this._elements[_loc5_] = param3;
+            control = this.settings_content[this._element_map[tabIndex][elementId]];
+            this._elements[control] = value;
          }
-         this.update_value(param1,param2,param4);
+         this.update_value(tabIndex,elementId,isBaseline);
          addEventListener(Event.RENDER,this.endRender);
       }
       
-      public function setValues(param1:uint, param2:Array, param3:Boolean = true) : void
+      public function setValues(tabIndex:uint, values:Array, isBaseline:Boolean = true) : void
       {
-         if(!param2)
+         if(!values)
          {
             return;
          }
-         var _loc4_:uint = 0;
-         var _loc5_:*;
-         while(_loc4_ < param2.length)
+         var i:uint = 0;
+         var control:*;
+         while(i < values.length)
          {
-            this._content_values[param1][param2[_loc4_].id] = param2[_loc4_].value;
-            if(param3)
+            this._content_values[tabIndex][values[i].id] = values[i].value;
+            if(isBaseline)
             {
-               _loc5_ = this.settings_content[this._element_map[param1][param2[_loc4_].id]];
-               this._elements[_loc5_] = param2[_loc4_].value;
+               control = this.settings_content[this._element_map[tabIndex][values[i].id]];
+               this._elements[control] = values[i].value;
             }
-            _loc4_++;
+            i++;
          }
-         if(this.tabs.selectedIndex == param1)
+         if(this.tabs.selectedIndex == tabIndex)
          {
-            this.update_values(param1);
+            this.update_values(tabIndex);
          }
       }
       
-      public function setKeybindings(param1:Array) : void
+      public function setKeybindings(keys:Array) : void
       {
-         _keys = param1;
-         var _loc2_:uint = 0;
-         while(_loc2_ < this._keys.length)
+         _keys = keys;
+         var i:uint = 0;
+         while(i < this._keys.length)
          {
-            this._keys[_loc2_].defKey = this._keys[_loc2_].key;
-            _loc2_++;
+            this._keys[i].defKey = this._keys[i].key;
+            i++;
          }
       }
       
-      public function setKeybind(param1:uint, param2:String, param3:Boolean) : void
+      public function setKeybind(actionId:uint, key:String, isDefault:Boolean) : void
       {
-         var _loc4_:uint;
+         var i:uint;
          if(this._keys)
          {
-            _loc4_ = 0;
-            while(_loc4_ < this._keys.length)
+            i = 0;
+            while(i < this._keys.length)
             {
-               if(this._keys[_loc4_].action_id == param1)
+               if(this._keys[i].action_id == actionId)
                {
-                  if(param3)
+                  if(isDefault)
                   {
-                     this._keys[_loc4_].defKey = param2;
+                     this._keys[i].defKey = key;
                   }
                   else
                   {
-                     this._keys[_loc4_].enter = true;
+                     this._keys[i].enter = true;
                   }
-                  this._keys[_loc4_].key = param2;
+                  this._keys[i].key = key;
                }
-               _loc4_++;
+               i++;
             }
          }
-         if(!param3)
+         if(!isDefault)
          {
             this.btn_cancel.label = this._cancelLabel;
             this.btn_accept.enabled = true;
@@ -196,15 +196,15 @@ package survarium.menu
          }
       }
       
-      public function selectIndex(param1:uint) : void
+      public function selectIndex(tabIndex:uint) : void
       {
-         this.tabs.selectedIndex = param1;
+         this.tabs.selectedIndex = tabIndex;
       }
       
-      public function setSettings(param1:uint, param2:Array) : void
+      public function setSettings(tabIndex:uint, settings:Array) : void
       {
-         this._content[param1] = param2;
-         if(param1 == this.tabs.selectedIndex)
+         this._content[tabIndex] = settings;
+         if(tabIndex == this.tabs.selectedIndex)
          {
             this.create_labels(this.tabs.selectedIndex);
             this.create_content(this._content[this.tabs.selectedIndex]);
@@ -213,10 +213,10 @@ package survarium.menu
       
       public function hide() : void
       {
-         var _loc1_:Object;
+         var messageData:Object;
          if(this.btn_accept.enabled)
          {
-            _loc1_ = {
+            messageData = {
                text:_labels_dict["apply_changes_msg"],
                selectedIndex:this._lastIndex,
                onNo:this.contre_pass_hide,
@@ -224,7 +224,7 @@ package survarium.menu
                label_ok:_labels_dict["button_ok"],
                label_cancel:_labels_dict["button_cancel"]
             };
-            Message.showMessage("applySettings",_loc1_,true);
+            Message.showMessage("applySettings",messageData,true);
          }
          else
          {
@@ -232,91 +232,91 @@ package survarium.menu
          }
       }
       
-      public function setLabels(param1:Array) : void
+      public function setLabels(labelList:Array) : void
       {
          _labels_dict = new Dictionary();
-         _labels = param1;
-         var _loc2_:Array = new Array();
-         var _loc3_:int = 1;
-         var _loc4_:int = 0;
-         var _loc5_:int;
-         while(_loc4_ < param1.length)
+         _labels = labelList;
+         var tabLabels:Array = new Array();
+         var tabCount:int = 1;
+         var i:int = 0;
+         var tabIndex:int;
+         while(i < labelList.length)
          {
-            trace("setLabels::",param1[_loc4_].name,param1[_loc4_].label);
-            _labels_dict[param1[_loc4_].name] = param1[_loc4_].label;
-            if(param1[_loc4_].name == "settings_label")
+            trace("setLabels::",labelList[i].name,labelList[i].label);
+            _labels_dict[labelList[i].name] = labelList[i].label;
+            if(labelList[i].name == "settings_label")
             {
-               this.textFieldLabel.text = param1[_loc4_].label;
+               this.textFieldLabel.text = labelList[i].label;
             }
-            else if(param1[_loc4_].name == "button_apply")
+            else if(labelList[i].name == "button_apply")
             {
-               this.btn_accept.label = param1[_loc4_].label;
+               this.btn_accept.label = labelList[i].label;
             }
-            else if(param1[_loc4_].name == "button_exit")
+            else if(labelList[i].name == "button_exit")
             {
-               _exitLabel = param1[_loc4_].label;
-               this.btn_cancel.label = param1[_loc4_].label;
+               _exitLabel = labelList[i].label;
+               this.btn_cancel.label = labelList[i].label;
             }
-            else if(param1[_loc4_].name == "button_cancel")
+            else if(labelList[i].name == "button_cancel")
             {
-               _cancelLabel = param1[_loc4_].label;
-               this.btn_cancel.label = param1[_loc4_].label;
+               _cancelLabel = labelList[i].label;
+               this.btn_cancel.label = labelList[i].label;
             }
             else
             {
-               _loc5_ = this._tabs_map.indexOf(param1[_loc4_].name);
-               if(_loc5_ != -1)
+               tabIndex = this._tabs_map.indexOf(labelList[i].name);
+               if(tabIndex != -1)
                {
-                  _loc2_[_loc5_] = param1[_loc4_].label;
-                  _loc3_ += 1;
+                  tabLabels[tabIndex] = labelList[i].label;
+                  tabCount += 1;
                }
             }
-            _loc4_++;
+            i++;
          }
-         this.tabs.dataProvider = new DataProvider(_loc2_);
+         this.tabs.dataProvider = new DataProvider(tabLabels);
          this.tabs.selectedIndex = 0;
          this.create_labels(this.tabs.selectedIndex == -1 ? 0 : (this.tabs.selectedIndex));
       }
       
-      public function create_labels(param1:uint) : void
+      public function create_labels(tabIndex:uint) : void
       {
-         if(!this._labels_map[param1])
+         if(!this._labels_map[tabIndex])
          {
             return;
          }
-         var _loc2_:int = 0;
-         var _loc3_:int;
-         var _loc4_:Object;
-         while(_loc2_ < this._labels_map[param1].length)
+         var i:int = 0;
+         var j:int;
+         var target:Object;
+         while(i < this._labels_map[tabIndex].length)
          {
-            for(_loc3_ = 0; _loc3_ < this._labels.length; _loc3_++)
+            for(j = 0; j < this._labels.length; j++)
             {
-               if(this._labels[_loc3_].name == this._labels_map[param1][_loc2_])
+               if(this._labels[j].name == this._labels_map[tabIndex][i])
                {
-                  _loc4_ = this.settings_content[this._labels_map[param1][_loc2_]];
-                  if(!_loc4_)
+                  target = this.settings_content[this._labels_map[tabIndex][i]];
+                  if(!target)
                   {
                      continue;
                   }
                   {
-                     if(_loc4_ is TextField)
+                     if(target is TextField)
                      {
-                        _loc4_.text = this._labels[_loc3_].label;
+                        target.text = this._labels[j].label;
                      }
-                     else if(_loc4_ is Button)
+                     else if(target is Button)
                      {
-                        _loc4_.label = this._labels[_loc3_].label;
+                        target.label = this._labels[j].label;
                      }
                   }
                }
             }
-            _loc2_++;
+            i++;
          }
       }
       
       protected function applyKeys() : void
       {
-         var _loc1_:uint;
+         var i:uint;
          if(this._keys)
          {
             if(this.settings_content.keysLobby)
@@ -331,22 +331,22 @@ package survarium.menu
             {
                this.settings_content.keysGame.dataProvider = new DataProvider();
             }
-            _loc1_ = 0;
-            while(_loc1_ < this._keys.length)
+            i = 0;
+            while(i < this._keys.length)
             {
-               if(this._keys[_loc1_].group_id == 0 && this.settings_content.keysLobby)
+               if(this._keys[i].group_id == 0 && this.settings_content.keysLobby)
                {
-                  this.settings_content.keysLobby.dataProvider.push(this._keys[_loc1_]);
+                  this.settings_content.keysLobby.dataProvider.push(this._keys[i]);
                }
-               else if(this._keys[_loc1_].group_id == 1 && this.settings_content.keysChat)
+               else if(this._keys[i].group_id == 1 && this.settings_content.keysChat)
                {
-                  this.settings_content.keysChat.dataProvider.push(this._keys[_loc1_]);
+                  this.settings_content.keysChat.dataProvider.push(this._keys[i]);
                }
                else if(this.settings_content.keysGame)
                {
-                  this.settings_content.keysGame.dataProvider.push(this._keys[_loc1_]);
+                  this.settings_content.keysGame.dataProvider.push(this._keys[i]);
                }
-               _loc1_++;
+               i++;
             }
             if(this.settings_content.keysChat)
             {
@@ -359,35 +359,35 @@ package survarium.menu
          }
       }
       
-      protected function onAccept(param1:Event) : void
+      protected function onAccept(event:Event) : void
       {
-         var _loc2_:Object;
-         var _loc3_:int;
-         var _loc4_:Object;
+         var control:Object;
+         var elementIndex:int;
+         var newValue:Object;
          trace("ST:onAccept");
-         for(_loc2_ in this._changed)
+         for(control in this._changed)
          {
-            if(this._changed[_loc2_])
+            if(this._changed[control])
             {
-               this._changed[_loc2_] = 0;
-               _loc3_ = (this._element_map[this.tabs.selectedIndex].indexOf(_loc2_.name));
-               if(_loc3_ != -1)
+               this._changed[control] = 0;
+               elementIndex = (this._element_map[this.tabs.selectedIndex].indexOf(control.name));
+               if(elementIndex != -1)
                {
-                  if(_loc2_ is OptionSlider || _loc2_ is OptionStepper || _loc2_ is DropdownMenu)
+                  if(control is OptionSlider || control is OptionStepper || control is DropdownMenu)
                   {
-                     _loc4_ = _loc2_.selectedIndex;
+                     newValue = control.selectedIndex;
                   }
-                  else if(_loc2_ is CheckBoxMultiline)
+                  else if(control is CheckBoxMultiline)
                   {
-                     _loc4_ = uint(_loc2_.selected);
+                     newValue = uint(control.selected);
                   }
-                  else if(false || _loc2_ is ListItemRenderer)
+                  else if(false || control is ListItemRenderer)
                   {
-                     _loc4_ = _loc2_.data.key;
+                     newValue = control.data.key;
                   }
                   if(this._content_values[this.tabs.selectedIndex])
                   {
-                     this._content_values[this.tabs.selectedIndex][_loc3_] = _loc4_;
+                     this._content_values[this.tabs.selectedIndex][elementIndex] = newValue;
                   }
                }
             }
@@ -402,16 +402,16 @@ package survarium.menu
          }
       }
       
-      protected function onCancel(param1:Event) : void
+      protected function onCancel(event:Event) : void
       {
-         var _loc2_:Object;
+         var control:Object;
          if(!this._changes)
          {
-            this.onExit(param1);
+            this.onExit(event);
          }
-         for(_loc2_ in this._changed)
+         for(control in this._changed)
          {
-            this._changed[_loc2_] = 0;
+            this._changed[control] = 0;
          }
          this.btn_accept.enabled = false;
          this.btn_cancel.label = this._exitLabel;
@@ -419,7 +419,7 @@ package survarium.menu
          ExternalInterface.call("cancel_changes",this.tabs.selectedIndex);
       }
       
-      protected function onExit(param1:Event) : void
+      protected function onExit(event:Event) : void
       {
          parent["action_select"].visible = true;
          this.hide();
@@ -429,10 +429,10 @@ package survarium.menu
       {
          this.btn_accept.enabled = false;
          this.btn_cancel.label = this._exitLabel;
-         var _loc1_:Graphics = this.bottomContainer.graphics;
-         _loc1_.beginFill(0,0.7);
-         _loc1_.drawRect(0,0,this.bottomContainer.width / this.bottomContainer.scaleX,this.bottomContainer.height / this.bottomContainer.scaleY);
-         _loc1_.endFill();
+         var g:Graphics = this.bottomContainer.graphics;
+         g.beginFill(0,0.7);
+         g.drawRect(0,0,this.bottomContainer.width / this.bottomContainer.scaleX,this.bottomContainer.height / this.bottomContainer.scaleY);
+         g.endFill();
          this.bottomContainer.tiledSprite.setTile(new HintLinePattern());
          this._labels_map[0] = ["s_friends","s_cross","s_chat","s_minimap","s_minimap_position","s_quest_propgress","s_seed_settings"];
          this._labels_map[1] = ["s_lobby","s_chat_keys","s_game","button_default_controls"];
@@ -449,171 +449,171 @@ package survarium.menu
          this.tabs.addEventListener(IndexEvent.INDEX_CHANGE,this.takeAction);
       }
       
-      protected function create_content(param1:Array) : void
+      protected function create_content(settings:Array) : void
       {
          SrpFovSlider.apply(this);
-         var _loc2_:Object;
-         var _loc3_:uint;
-         var _loc4_:int;
-         var _loc5_:*;
-         var _loc6_:Object;
-         var _loc7_:Array;
-         var _loc8_:int;
-         var _loc9_:Object;
-         var _loc10_:String;
-         if(!param1)
+         var key:Object;
+         var tabIndex:uint;
+         var i:int;
+         var control:*;
+         var setting:Object;
+         var items:Array;
+         var j:int;
+         var source:Object;
+         var field:String;
+         if(!settings)
          {
             return;
          }
-         for(_loc2_ in this._elements)
+         for(key in this._elements)
          {
-            delete this._elements[_loc2_];
+            delete this._elements[key];
          }
          _elements = new Dictionary();
-         _loc3_ = (this.tabs.selectedIndex);
-         _loc4_ = 0;
-         while(_loc4_ < param1.length)
+         tabIndex = (this.tabs.selectedIndex);
+         i = 0;
+         while(i < settings.length)
          {
-            _loc5_ = this.settings_content[this._element_map[this.tabs.selectedIndex][_loc4_]];
-            if(_loc5_)
+            control = this.settings_content[this._element_map[this.tabs.selectedIndex][i]];
+            if(control)
             {
-               _loc6_ = param1[_loc4_];
-               this._setters[_loc5_] = _loc6_.setter;
-               if(_loc6_)
+               setting = settings[i];
+               this._setters[control] = setting.setter;
+               if(setting)
                {
-                  _loc5_.label = _loc6_.label;
+                  control.label = setting.label;
                }
-               if(param1[_loc4_].dataProvider && ((!(param1[_loc4_].dataProvider is Array)) || param1[_loc4_].dataProvider is Array && param1[_loc4_].dataProvider.length))
+               if(settings[i].dataProvider && ((!(settings[i].dataProvider is Array)) || settings[i].dataProvider is Array && settings[i].dataProvider.length))
                {
-                  if(_loc5_ is OptionSlider)
+                  if(control is OptionSlider)
                   {
-                     _loc5_.dataProvider = param1[_loc4_].dataProvider;
+                     control.dataProvider = settings[i].dataProvider;
                   }
                   else
                   {
-                     _loc7_ = new Array();
-                     _loc8_ = 0;
-                     while(_loc8_ < param1[_loc4_].dataProvider.length)
+                     items = new Array();
+                     j = 0;
+                     while(j < settings[i].dataProvider.length)
                      {
-                        if(!(param1[_loc4_].dataProvider[_loc8_] is String))
+                        if(!(settings[i].dataProvider[j] is String))
                         {
-                           _loc7_[_loc8_] = new Object();
-                           _loc9_ = param1[_loc4_].dataProvider[_loc8_];
-                           for(_loc10_ in _loc9_)
+                           items[j] = new Object();
+                           source = settings[i].dataProvider[j];
+                           for(field in source)
                            {
-                              _loc7_[_loc8_][_loc10_] = _loc9_[_loc10_];
+                              items[j][field] = source[field];
                            }
                         }
                         else
                         {
-                           _loc7_[_loc8_] = param1[_loc4_].dataProvider[_loc8_];
+                           items[j] = settings[i].dataProvider[j];
                         }
-                        _loc8_++;
+                        j++;
                      }
-                     if(_loc5_ is DropdownMenu)
+                     if(control is DropdownMenu)
                      {
-                        _loc5_.enabled = _loc7_.length > 1;
+                        control.enabled = items.length > 1;
                      }
-                     _loc5_.dataProvider = new DataProvider(_loc7_);
+                     control.dataProvider = new DataProvider(items);
                   }
                }
-               else if(_loc6_ && _loc6_.data)
+               else if(setting && setting.data)
                {
-                  _loc5_.data = _loc6_.data;
+                  control.data = setting.data;
                }
-               if(_loc5_ is DropdownMenu)
+               if(control is DropdownMenu)
                {
-                  _loc5_.addEventListener(ListEvent.INDEX_CHANGE,this.someOneChangedIndex);
+                  control.addEventListener(ListEvent.INDEX_CHANGE,this.someOneChangedIndex);
                }
-               else if(_loc5_ is TileList)
+               else if(control is TileList)
                {
-                  _loc5_.addEventListener(Event.CHANGE,this.someOneChangedData);
+                  control.addEventListener(Event.CHANGE,this.someOneChangedData);
                }
-               else if(_loc5_ is OptionSlider || _loc5_ is OptionStepper)
+               else if(control is OptionSlider || control is OptionStepper)
                {
-                  _loc5_.addEventListener(IndexEvent.INDEX_CHANGE,this.someOneChangedIndex);
+                  control.addEventListener(IndexEvent.INDEX_CHANGE,this.someOneChangedIndex);
                }
-               else if(_loc5_ is CheckBoxMultiline)
+               else if(control is CheckBoxMultiline)
                {
-                  _loc5_.addEventListener(Event.SELECT,this.someOneSelected);
+                  control.addEventListener(Event.SELECT,this.someOneSelected);
                }
-               if(_loc5_ is UIComponent)
+               if(control is UIComponent)
                {
-                  _loc5_.invalidateData();
+                  control.invalidateData();
                }
             }
-            _loc4_++;
+            i++;
          }
          SrpFovSlider.finish(this);
       }
       
-      protected function someOneSelected(param1:Event) : void
+      protected function someOneSelected(event:Event) : void
       {
-         var _loc2_:int;
-         if(this._setters[param1.target] && !this._ignoreChange)
+         var elementIndex:int;
+         if(this._setters[event.target] && !this._ignoreChange)
          {
-            param1.target.selected = this._setters[param1.target](param1.target.selected);
-            _loc2_ = (this._element_map[this.tabs.selectedIndex].indexOf(param1.target.name));
-            this._content_values[this.tabs.selectedIndex][_loc2_] = param1.target.selectedIndex;
+            event.target.selected = this._setters[event.target](event.target.selected);
+            elementIndex = (this._element_map[this.tabs.selectedIndex].indexOf(event.target.name));
+            this._content_values[this.tabs.selectedIndex][elementIndex] = event.target.selectedIndex;
          }
-         if(param1.target.selected != this._elements[param1.target])
+         if(event.target.selected != this._elements[event.target])
          {
-            if(this._changed[param1.target] != 1)
+            if(this._changed[event.target] != 1)
             {
-               this._changed[param1.target] = 1;
+               this._changed[event.target] = 1;
                _changes += 1;
             }
          }
-         else if(this._changed[param1.target] != 0)
+         else if(this._changed[event.target] != 0)
          {
-            this._changed[param1.target] = 0;
+            this._changed[event.target] = 0;
             _changes -= 1;
          }
          this.checkButtons();
       }
       
-      protected function someOneChangedIndex(param1:Event) : void
+      protected function someOneChangedIndex(event:Event) : void
       {
-         var _loc2_:int;
-         if(this._setters[param1.target] && !this._ignoreChange)
+         var elementIndex:int;
+         if(this._setters[event.target] && !this._ignoreChange)
          {
-            param1.target.selectedIndex = this._setters[param1.target](param1.target.selectedIndex);
-            _loc2_ = (this._element_map[this.tabs.selectedIndex].indexOf(param1.target.name));
-            this._content_values[this.tabs.selectedIndex][_loc2_] = param1.target.selectedIndex;
+            event.target.selectedIndex = this._setters[event.target](event.target.selectedIndex);
+            elementIndex = (this._element_map[this.tabs.selectedIndex].indexOf(event.target.name));
+            this._content_values[this.tabs.selectedIndex][elementIndex] = event.target.selectedIndex;
          }
-         if(param1.target.selectedIndex != this._elements[param1.target])
+         if(event.target.selectedIndex != this._elements[event.target])
          {
-            if(this._changed[param1.target] != 1)
+            if(this._changed[event.target] != 1)
             {
-               this._changed[param1.target] = 1;
+               this._changed[event.target] = 1;
                _changes += 1;
             }
          }
-         else if(this._changed[param1.target] != 0)
+         else if(this._changed[event.target] != 0)
          {
-            this._changed[param1.target] = 0;
+            this._changed[event.target] = 0;
             _changes -= 1;
          }
          this.checkButtons();
       }
       
-      protected function someOneChangedData(param1:Event) : void
+      protected function someOneChangedData(event:Event) : void
       {
-         if(this._setters[param1.target] && !this._ignoreChange)
+         if(this._setters[event.target] && !this._ignoreChange)
          {
-            param1.target.data.key = this._setters[param1.target](uint(param1.target.data.key));
+            event.target.data.key = this._setters[event.target](uint(event.target.data.key));
          }
-         if(param1.target.data.key != param1.target.data.defKey || param1.target.data.toggle != param1.target.data.defToggle)
+         if(event.target.data.key != event.target.data.defKey || event.target.data.toggle != event.target.data.defToggle)
          {
-            if(this._changed[param1.target] != 1)
+            if(this._changed[event.target] != 1)
             {
-               this._changed[param1.target] = 1;
+               this._changed[event.target] = 1;
                _changes += 1;
             }
          }
-         else if(this._changed[param1.target] != 0)
+         else if(this._changed[event.target] != 0)
          {
-            this._changed[param1.target] = 0;
+            this._changed[event.target] = 0;
             _changes -= 1;
          }
          this.checkButtons();
@@ -633,55 +633,55 @@ package survarium.menu
          }
       }
       
-      protected function update_value(param1:uint, param2:uint, param3:Boolean = false) : void
+      protected function update_value(tabIndex:uint, elementId:uint, isBaseline:Boolean = false) : void
       {
-         var _loc4_:* = this.settings_content[this._element_map[param1][param2]];
-         var _loc5_:Object;
-         if(_loc4_ && this._content_values[param1][param2] != undefined)
+         var control:* = this.settings_content[this._element_map[tabIndex][elementId]];
+         var value:Object;
+         if(control && this._content_values[tabIndex][elementId] != undefined)
          {
-            _loc5_ = this._content_values[param1][param2];
-            if(param3)
+            value = this._content_values[tabIndex][elementId];
+            if(isBaseline)
             {
-               this._elements[_loc4_] = _loc5_;
+               this._elements[control] = value;
             }
-            if(_loc4_ is OptionSlider || _loc4_ is OptionStepper || _loc4_ is DropdownMenu)
+            if(control is OptionSlider || control is OptionStepper || control is DropdownMenu)
             {
-               if(param3 || this._changed[_loc4_] == undefined)
+               if(isBaseline || this._changed[control] == undefined)
                {
-                  this._changed[_loc4_] = 0;
+                  this._changed[control] = 0;
                }
-               if(param3 && _loc4_ is OptionSlider)
+               if(isBaseline && control is OptionSlider)
                {
-                  _loc4_.defaultValue = _loc5_;
+                  control.defaultValue = value;
                }
-               _loc4_.selectedIndex = _loc5_;
+               control.selectedIndex = value;
             }
-            else if(_loc4_ is CheckBoxMultiline)
+            else if(control is CheckBoxMultiline)
             {
-               if(param3 || this._changed[_loc4_] == undefined)
+               if(isBaseline || this._changed[control] == undefined)
                {
-                  this._changed[_loc4_] = 0;
+                  this._changed[control] = 0;
                }
-               _loc4_.selected = _loc5_;
+               control.selected = value;
             }
-            if(_loc4_ is UIComponent)
+            if(control is UIComponent)
             {
-               _loc4_.invalidateData();
+               control.invalidateData();
             }
          }
       }
       
-      protected function update_values(param1:uint, param2:Boolean = false) : void
+      protected function update_values(tabIndex:uint, isBaseline:Boolean = false) : void
       {
-         if(!this._content_values[param1])
+         if(!this._content_values[tabIndex])
          {
             return;
          }
-         var _loc3_:int = 0;
-         while(_loc3_ < this._content_values[param1].length)
+         var i:int = 0;
+         while(i < this._content_values[tabIndex].length)
          {
-            this.update_value(param1,_loc3_,param2);
-            _loc3_++;
+            this.update_value(tabIndex,i,isBaseline);
+            i++;
          }
       }
       
@@ -705,13 +705,13 @@ package survarium.menu
          this.update_values(this.tabs.selectedIndex,true);
       }
       
-      protected function takeAction(param1:IndexEvent) : void
+      protected function takeAction(event:IndexEvent) : void
       {
-         var _loc2_:Object;
-         ExternalInterface.call("options_tab_changed",uint(param1.index));
+         var messageData:Object;
+         ExternalInterface.call("options_tab_changed",uint(event.index));
          if(this.btn_accept.enabled)
          {
-            _loc2_ = {
+            messageData = {
                text:_labels_dict["apply_changes_msg"],
                selectedIndex:this._lastIndex,
                onNo:this.contre_pass,
@@ -719,31 +719,31 @@ package survarium.menu
                label_ok:_labels_dict["button_ok"],
                label_cancel:_labels_dict["button_cancel"]
             };
-            Message.showMessage("applySettings",_loc2_,true);
+            Message.showMessage("applySettings",messageData,true);
          }
          else
          {
-            this.settings_content.gotoAndStop(param1.index + 1);
+            this.settings_content.gotoAndStop(event.index + 1);
          }
-         this.create_labels(param1.index == -1 ? 0 : this.tabs.selectedIndex);
-         this.create_content(this._content[param1.index == -1 ? 0 : this.tabs.selectedIndex]);
-         _lastIndex = param1.index;
-         if(param1.index == 1)
+         this.create_labels(event.index == -1 ? 0 : this.tabs.selectedIndex);
+         this.create_content(this._content[event.index == -1 ? 0 : this.tabs.selectedIndex]);
+         _lastIndex = event.index;
+         if(event.index == 1)
          {
             this.applyKeys();
          }
          _ignoreChange = true;
-         this.update_values(param1.index,true);
+         this.update_values(event.index,true);
          addEventListener(Event.RENDER,this.endRender);
       }
       
-      protected function endRender(param1:Event) : void
+      protected function endRender(event:Event) : void
       {
          _ignoreChange = false;
          removeEventListener(Event.RENDER,this.endRender);
       }
       
-      protected function onRenderValues(param1:Event) : void
+      protected function onRenderValues(event:Event) : void
       {
          this.update_values(this.tabs.selectedIndex,true);
          removeEventListener(Event.ENTER_FRAME,this.onRenderValues);

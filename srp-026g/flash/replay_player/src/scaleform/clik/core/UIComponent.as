@@ -563,8 +563,8 @@ package scaleform.clik.core
       
       public function dispatchEventAndSound(event:Event) : Boolean
       {
-         var _loc2_:Boolean = super.dispatchEvent(event);
-         return _loc2_;
+         var ok:Boolean = super.dispatchEvent(event);
+         return ok;
       }
    }
 }

@@ -44,8 +44,8 @@ package survarium
       
       public static function getColor(r:uint, g:uint, b:uint) : uint
       {
-         var _loc4_:uint = (r << 16 | g << 8 | b);
-         return _loc4_;
+         var color:uint = (r << 16 | g << 8 | b);
+         return color;
       }
       
       public static function styledChar(value:String, style:String) : String

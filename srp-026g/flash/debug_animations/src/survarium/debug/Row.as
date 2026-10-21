@@ -20,9 +20,9 @@ package survarium.debug
          super();
       }
       
-      public function set my_width(param1:int) : void
+      public function set my_width(value:int) : void
       {
-         _my_width = param1;
+         _my_width = value;
          this.updateElemetnsW();
       }
       
@@ -31,81 +31,81 @@ package survarium.debug
          return this._my_width;
       }
       
-      public function set length(param1:int) : *
+      public function set length(value:int) : *
       {
-         Row.length = param1;
-         var _loc2_:int = 0;
-         var _loc3_:DebugItem1;
-         while(_loc2_ < param1)
+         Row.length = value;
+         var i:int = 0;
+         var item:DebugItem1;
+         while(i < value)
          {
-            if(this.elements.length <= _loc2_)
+            if(this.elements.length <= i)
             {
-               _loc3_ = new DebugItem1();
-               _loc3_.initProp(this.my_width);
-               this.elements.push(_loc3_);
-               _loc3_.y = _loc2_ * this.rowHeight;
+               item = new DebugItem1();
+               item.initProp(this.my_width);
+               this.elements.push(item);
+               item.y = i * this.rowHeight;
             }
             else
             {
-               _loc3_ = this.elements[_loc2_];
+               item = this.elements[i];
             }
-            if(!this.contains(_loc3_))
+            if(!this.contains(item))
             {
-               this.addChild(_loc3_);
+               this.addChild(item);
             }
-            _loc2_++;
+            i++;
          }
-         while(_loc2_ < this.elements.length)
+         while(i < this.elements.length)
          {
-            _loc3_ = this.elements[_loc2_];
-            this.removeChild(_loc3_);
-            _loc2_++;
+            item = this.elements[i];
+            this.removeChild(item);
+            i++;
          }
       }
       
-      public function set columns(param1:int) : *
+      public function set columns(value:int) : *
       {
-         var _loc2_:int = 0;
-         var _loc3_:DebugItem1;
-         while(_loc2_ < param1)
+         var i:int = 0;
+         var item:DebugItem1;
+         while(i < value)
          {
-            _loc3_ = new DebugItem1();
-            _loc3_.initProp(this.my_width);
-            addChild(_loc3_);
-            this.elements.push(_loc3_);
-            _loc3_.y = _loc2_ * this.rowHeight;
-            _loc2_++;
+            item = new DebugItem1();
+            item.initProp(this.my_width);
+            addChild(item);
+            this.elements.push(item);
+            item.y = i * this.rowHeight;
+            i++;
          }
       }
       
       public function updateElemetns() : void
       {
-         var _loc1_:int = 0;
-         var _loc2_:DebugItem1;
-         while(_loc1_ < this.elements.length)
+         var i:int = 0;
+         var item:DebugItem1;
+         while(i < this.elements.length)
          {
-            _loc2_ = this.elements[_loc1_];
-            _loc2_.y = _loc1_ * this.rowHeight;
-            _loc1_++;
+            item = this.elements[i];
+            item.y = i * this.rowHeight;
+            i++;
          }
       }
       
       public function updateElemetnsW() : void
       {
-         var _loc1_:int = 0;
-         var _loc2_:DebugItem1;
-         while(_loc1_ < this.elements.length)
+         var i:int = 0;
+         var item:DebugItem1;
+         while(i < this.elements.length)
          {
-            _loc2_ = this.elements[_loc1_];
-            _loc2_.initProp(this.my_width);
-            _loc1_++;
+            item = this.elements[i];
+            item.initProp(this.my_width);
+            i++;
          }
       }
       
-      public function addElement(param1:MovieClip) : *
+      public function addElement(element:MovieClip) : *
       {
-         addChild(param1);
-         this.elements.push(param1);
+         addChild(element);
+         this.elements.push(element);
       }
    }
 }

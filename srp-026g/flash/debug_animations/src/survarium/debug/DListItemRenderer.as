@@ -38,8 +38,8 @@ package survarium.debug
       public function DListItemRenderer()
       {
          super();
-         var _loc1_:TextFormat = this.textField.getTextFormat();
-         _loc1_.font = "tahoma";
+         var format:TextFormat = this.textField.getTextFormat();
+         format.font = "tahoma";
       }
       
       public function get data() : Object
@@ -47,31 +47,31 @@ package survarium.debug
          return this._data;
       }
       
-      public function set data(param1:Object) : void
+      public function set data(value:Object) : void
       {
-         if(!param1)
+         if(!value)
          {
             return;
          }
-         if(this._data == param1)
+         if(this._data == value)
          {
             return;
          }
-         _data = param1;
+         _data = value;
       }
       
-      public function setData(param1:Object) : void
+      public function setData(newData:Object) : void
       {
-         data = param1;
+         data = newData;
          this.updateValues();
       }
       
-      public function initProp(param1:int) : void
+      public function initProp(newWidth:int) : void
       {
-         this.textField.width = param1 - 2;
-         this._back.width = param1;
-         this._txback.width = param1;
-         myWidth = param1;
+         this.textField.width = newWidth - 2;
+         this._back.width = newWidth;
+         this._txback.width = newWidth;
+         myWidth = newWidth;
       }
       
       protected function configUI() : void
@@ -81,33 +81,33 @@ package survarium.debug
       
       protected function updateValues() : void
       {
-         var _loc1_:TextFormat;
-         var _loc2_:Boolean;
-         var _loc3_:ColorTransform;
+         var format:TextFormat;
+         var colorsChanged:Boolean;
+         var tint:ColorTransform;
          if(this._data)
          {
             if(this._data.cur == undefined)
             {
                if(this.txAlign != this._data.textAlign)
                {
-                  _loc1_ = this.textField.getTextFormat();
+                  format = this.textField.getTextFormat();
                   txAlign = this._data.textAlign;
-                  _loc1_ = this.textField.getTextFormat();
-                  _loc1_.align = "center";
+                  format = this.textField.getTextFormat();
+                  format.align = "center";
                   if(this._data.textAlign == 0)
                   {
-                     _loc1_.align = "left";
+                     format.align = "left";
                   }
                   else if(this._data.textAlign == 1)
                   {
-                     _loc1_.align = "center";
+                     format.align = "center";
                   }
                   else
                   {
-                     _loc1_.align = "right";
+                     format.align = "right";
                   }
-                  this.textField.setTextFormat(_loc1_);
-                  this.textField.defaultTextFormat = _loc1_;
+                  this.textField.setTextFormat(format);
+                  this.textField.defaultTextFormat = format;
                }
                if(this._txback.alpha != this._data.backgroundAlpha)
                {
@@ -152,19 +152,19 @@ package survarium.debug
                {
                   this._back.alpha = this._data.backgroundAlpha;
                }
-               _loc2_ = false;
+               colorsChanged = false;
                if(this.pgColor != this._data.pgColor || this.bgColor != this._data.bgColor)
                {
-                  _loc2_ = true;
+                  colorsChanged = true;
                   pgColor = this._data.pgColor;
                   bgColor = this._data.bgColor;
                }
                if(this.txAlign != 1)
                {
                   txAlign = 1;
-                  _loc1_ = this.textField.getTextFormat();
-                  _loc1_.align = "center";
-                  this.textField.defaultTextFormat = _loc1_;
+                  format = this.textField.getTextFormat();
+                  format.align = "center";
+                  this.textField.defaultTextFormat = format;
                }
                if(this.txtColor != this._data.txColor)
                {
@@ -177,14 +177,14 @@ package survarium.debug
                   txt = this._data.text;
                }
                this._progress.width = this.myWidth * (this._data.cur / this._data.tot);
-               if(_loc2_)
+               if(colorsChanged)
                {
-                  _loc3_ = this._progress.body.transform.colorTransform;
-                  _loc3_.color = this.pgColor;
-                  this._progress.body.transform.colorTransform = _loc3_;
-                  _loc3_ = this._back.body.transform.colorTransform;
-                  _loc3_.color = this.bgColor;
-                  this._back.body.transform.colorTransform = _loc3_;
+                  tint = this._progress.body.transform.colorTransform;
+                  tint.color = this.pgColor;
+                  this._progress.body.transform.colorTransform = tint;
+                  tint = this._back.body.transform.colorTransform;
+                  tint.color = this.bgColor;
+                  this._back.body.transform.colorTransform = tint;
                }
             }
          }

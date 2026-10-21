@@ -42,17 +42,17 @@ package survarium.menu
          return this._editable;
       }
       
-      public function set editable(param1:Boolean) : void
+      public function set editable(value:Boolean) : void
       {
-         if(param1 == this._editable)
+         if(value == this._editable)
          {
             return;
          }
-         _editable = param1;
+         _editable = value;
          addEventListener(Event.RENDER,this.onRender);
       }
       
-      private function onRender(param1:Event) : void
+      private function onRender(e:Event) : void
       {
          removeEventListener(Event.RENDER,this.onRender);
          this.textFieldValue.type = this._editable ? TextFieldType.INPUT : TextFieldType.DYNAMIC;
@@ -72,28 +72,28 @@ package survarium.menu
          }
       }
       
-      protected function onTextFocusOut(param1:Event) : void
+      protected function onTextFocusOut(e:Event) : void
       {
          trace("onTextFocusOut",this.slider.position);
          selectedIndex = this.slider.position;
       }
       
-      protected function onTextInput(param1:Event) : void
+      protected function onTextInput(e:Event) : void
       {
          trace("onTextInput|",this.textFieldValue.text,"|",Number(this.textFieldValue.text));
-         var _loc2_:Number = Math.round(Number(this.textFieldValue.text) / 0.01) * 0.01;
-         _loc2_ = _loc2_ < this.slider.maximum ? _loc2_ : this.slider.maximum;
-         _loc2_ = _loc2_ > this.slider.minimum ? _loc2_ : this.slider.minimum;
-         this.slider.position = _loc2_;
+         var value:Number = Math.round(Number(this.textFieldValue.text) / 0.01) * 0.01;
+         value = value < this.slider.maximum ? value : this.slider.maximum;
+         value = value > this.slider.minimum ? value : this.slider.minimum;
+         this.slider.position = value;
          this.slider.invalidateData();
       }
       
-      private function onSliderThumbClick(param1:ButtonEvent) : void
+      private function onSliderThumbClick(e:ButtonEvent) : void
       {
          trace("thumbClicked",this.slider.thumb,this.textFieldValue.type,this.textFieldValue.selectable,this.textFieldValue.mouseEnabled);
       }
       
-      protected function resetScreenAdjust(param1:Event) : void
+      protected function resetScreenAdjust(e:Event) : void
       {
          if(this.slider.value != this._defaultValue)
          {
@@ -101,9 +101,9 @@ package survarium.menu
          }
       }
       
-      public function set defaultValue(param1:Number) : void
+      public function set defaultValue(value:Number) : void
       {
-         _defaultValue = Math.round(param1 / 0.01) * 0.01;
+         _defaultValue = Math.round(value / 0.01) * 0.01;
       }
       
       public function get selectedIndex() : Number
@@ -111,11 +111,11 @@ package survarium.menu
          return this.slider.position;
       }
       
-      public function set label(param1:String) : void
+      public function set label(value:String) : void
       {
          if(this.textField)
          {
-            this.textField.text = param1;
+            this.textField.text = value;
          }
       }
       
@@ -124,21 +124,21 @@ package survarium.menu
          return this.slider.value;
       }
       
-      public function set dataProvider(param1:Object) : void
+      public function set dataProvider(value:Object) : void
       {
-         this.slider.maximum = param1.maximum;
-         this.slider.minimum = param1.minimum;
-         param1.snapInterval = Math.round(param1.snapInterval / 0.01) * 0.01;
-         this.slider.snapInterval = param1.snapInterval;
+         this.slider.maximum = value.maximum;
+         this.slider.minimum = value.minimum;
+         value.snapInterval = Math.round(value.snapInterval / 0.01) * 0.01;
+         this.slider.snapInterval = value.snapInterval;
          this.slider.invalidateData();
       }
       
-      public function set selectedIndex(param1:Number) : void
+      public function set selectedIndex(value:Number) : void
       {
          if(this.slider)
          {
-            param1 = Math.round(param1 / 0.01) * 0.01;
-            this.slider.position = param1;
+            value = Math.round(value / 0.01) * 0.01;
+            this.slider.position = value;
             this.slider.invalidateData();
          }
          if(this.textFieldValue)
@@ -147,7 +147,7 @@ package survarium.menu
          }
       }
       
-      protected function onSliderChange(param1:SliderEvent) : void
+      protected function onSliderChange(e:SliderEvent) : void
       {
          this.textFieldValue.text = this.slider.position.toString();
          dispatchEvent(new IndexEvent(IndexEvent.INDEX_CHANGE));

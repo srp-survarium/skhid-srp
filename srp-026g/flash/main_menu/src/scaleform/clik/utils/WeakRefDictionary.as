@@ -13,31 +13,31 @@ package scaleform.clik.utils
          this._dictionary = new Dictionary(true);
       }
       
-      public function setValue(param1:Object, param2:Object) : void
+      public function setValue(key:Object, value:Object) : void
       {
-         var _loc3_:Object = null;
-         var _loc4_:Object = null;
-         for(_loc3_ in this._dictionary)
+         var dvalue:Object = null;
+         var dkey:Object = null;
+         for(dvalue in this._dictionary)
          {
-            _loc4_ = this._dictionary[_loc3_];
-            if(param1 == _loc4_)
+            dkey = this._dictionary[dvalue];
+            if(key == dkey)
             {
-               delete this._dictionary[_loc3_];
+               delete this._dictionary[dvalue];
             }
          }
-         this._dictionary[param2] = param1;
+         this._dictionary[value] = key;
       }
       
-      public function getValue(param1:Object) : Object
+      public function getValue(key:Object) : Object
       {
-         var _loc2_:Object = null;
-         var _loc3_:Object = null;
-         for(_loc2_ in this._dictionary)
+         var dvalue:Object = null;
+         var dkey:Object = null;
+         for(dvalue in this._dictionary)
          {
-            _loc3_ = this._dictionary[_loc2_];
-            if(param1 == _loc3_)
+            dkey = this._dictionary[dvalue];
+            if(key == dkey)
             {
-               return _loc2_;
+               return dvalue;
             }
          }
          return null;

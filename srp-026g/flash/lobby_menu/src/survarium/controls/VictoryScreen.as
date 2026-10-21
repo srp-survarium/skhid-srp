@@ -407,7 +407,7 @@ package survarium.controls
             name:LocalizationData.getName("compliment_player"),
             options:subOptions2
          });
-         SrvContextMenu.show(arr);
+         SrvContextMenu.show(arr,0,0,this);
       }
       
       protected function flagPlayer(value:Object) : void

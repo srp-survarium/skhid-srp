@@ -109,6 +109,7 @@ package
    import survarium.player.LocalPlayerProfile;
    import survarium.player.ProfileSelector;
    import survarium.quest.QuestList;
+   import survarium.rooms.RoomsWindow;
    import survarium.tutorial.TextSlide;
    import survarium.upgrade.UpgradeWindow;
    
@@ -131,6 +132,48 @@ package
       public static const PLAYER_ELEMNENT_ID:uint = 3;
       
       public static const CHARWINDOW_ELEMNENT_ID:uint = 4;
+
+      // "Show player's information" outside the results screen (srp's own;
+      // the owner's of 2026-10-20: "you should be able to go to rankings and
+      // rmb to do the same", "for every single player"). A right-click on a
+      // player opens the game's right-click menu (SrvContextMenu, as the
+      // results screen's) with the game's own "Show player's information";
+      // it asks as the results screen's double-click on a row does
+      // (`victory_screen_request_player_data`, `3D 00 <player> <match>`),
+      // with a player no results row has (as srp's History asks for a
+      // replay), and the answer (`93`, fill_victory_screen_player) opens the
+      // game's own window (show_player_info), as the results screen's
+      // double-click does. The server answers from the account as it is now
+      // (servers/lobby-server/src/v026g/gear.rs; docs/notes/player_gear.md).
+      //
+      // The request's `player` (`3D 00 <how> <player>`): its `match` is then
+      // the place of a row of the ranking (1 the first; srp's
+      // lobby::GEAR_BY_PLACE), an account's id (lobby::GEAR_BY_ACCOUNT, the
+      // Rooms list's members) or a place of the asker's room with its check
+      // (lobby::GEAR_IN_ROOM, the room's window).
+      public static const PLAYER_INFO_BY_PLACE:uint = 0xFFFFFF03;
+
+      public static const PLAYER_INFO_BY_ACCOUNT:uint = 0xFFFFFF02;
+
+      public static const PLAYER_INFO_BY_ROOM_PLACE:uint = 0xFFFFFF04;
+
+      // The server answers at once or never (no such place or member): an
+      // ask with no answer by then is taken as unanswered.
+      private static const PLAYER_INFO_WAIT_MS:int = 3000;
+
+      // The ask in flight: its name and when it was sent. One at a time: a
+      // `93` carries nothing of the player it is about, so an answer is ours
+      // only as the answer to the one ask in flight.
+      private static var _playerInfoName:String;
+
+      private static var _playerInfoAt:int;
+
+      // The newest ask made while one was in flight, as [nickname, player,
+      // how]: sent when that one is answered (its answer, now stale, is
+      // dropped) or has waited PLAYER_INFO_WAIT_MS.
+      private static var _playerInfoNext:Array;
+
+      private static var _playerInfoWait:Timer;
       
       public var item_control:SrvSelectedItemControl;
       
@@ -1249,7 +1292,7 @@ package
                click_function:this.showProfileRename,
                callBack:true
             });
-            SrvContextMenu.show(options);
+            SrvContextMenu.show(options,0,0,this.player_profile);
          }
       }
       
@@ -3365,7 +3408,7 @@ package
             _obj.onYes = onComplete;
          }
          trace("try_buy_info::",_descr.is_stack,_descr.name,this.inventory_list.hasItem(dict_uid),onComplete);
-         if(!_descr.is_stack && _descr.category != FiltersWindow.CAT_CAMO && (sourceSlot != 300 && this.inventory_list.hasItem(dict_uid)))
+         if(!_descr.is_stack && _descr.category != FiltersWindow.CAT_CAMO && (sourceSlot == 200 && this.inventory_list.hasItem(dict_uid)))
          {
             _obj.text = LocalizationData.getName("already_in_inventory");
             _obj.onYes = this.show_buy_message;
@@ -3517,7 +3560,11 @@ package
       
       public function set_equipment_level(value:uint) : void
       {
-         SrpRooms.gear(value);
+         // The player's own level: the rooms' make form starts its max level there.
+         if(RoomsWindow.me != null)
+         {
+            RoomsWindow.me.setGear(int(value));
+         }
       }
       
       public function update_profile_slots_count(artifactSlots:uint, itemSlots:uint) : void
@@ -3710,7 +3757,9 @@ package
       
       public function has_active_window() : Boolean
       {
-         if(SrpRooms.escapable())
+         // The rooms window counts while open (not under the results), so
+         // Esc closes it before it opens the game's menu.
+         if(RoomsWindow.me != null && RoomsWindow.me.escapable())
          {
             return true;
          }
@@ -3726,7 +3775,7 @@ package
       
       public function close_active_window() : void
       {
-         if(SrpRooms.closeWindow())
+         if(RoomsWindow.me != null && RoomsWindow.me.closeByEsc())
          {
             return;
          }
@@ -4152,11 +4201,16 @@ package
       
       public function fill_victory_screen_player(value:Object) : void
       {
+         if(this.takePlayerInfo(value))
+         {
+            return;
+         }
          this.victory_screen.setPlayerData(value);
       }
       
       public function show_victory_screen() : void
       {
+         this.showRoomUnderResults();
          dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP,true));
          trace("_top_container::this");
          this.notificationListTemp.stopTimer();
@@ -4241,7 +4295,12 @@ package
          {
             this.topMenu.lockInventory(false);
          }
-         SrpRooms.playState(this);
+         // In a room or a room's queue Play is the rooms' Leave (on);
+         // otherwise the game's own word (StatusPanel.showRoomsPlay).
+         if(RoomsWindow.me != null)
+         {
+            RoomsWindow.me.playEnabled(this,this.statusPanel.playBtn.enabled);
+         }
       }
       
       public function set_add_profile_button_enabled(value:Boolean) : void
@@ -5747,6 +5806,164 @@ package
       {
          removeEventListener(Event.RENDER,this.cleanEscapeHandle);
          _escapeHandled = false;
+      }
+      
+      // The game's right-click menu with the one item, at the mouse: a
+      // player of the Rankings window or of a room.
+      public static function showPlayerInfoMenu(nickname:String, player:uint, how:uint, owner:DisplayObject = null) : void
+      {
+         if(nickname == null || nickname == "")
+         {
+            return;
+         }
+         SrvContextMenu.show([{
+            name:LocalizationData.getName("show_player_info_button_hint"),
+            click_function:function(e:* = null):void
+            {
+               askPlayerInfo(nickname,player,how);
+            }
+         }],0,0,owner);
+      }
+      
+      private static function askPlayerInfo(nickname:String, player:uint, how:uint) : void
+      {
+         if(!playerInfoInFlight())
+         {
+            sendPlayerInfoAsk(nickname,player,how);
+            return;
+         }
+         _playerInfoNext = [nickname,player,how];
+         if(_playerInfoWait == null)
+         {
+            _playerInfoWait = new Timer(PLAYER_INFO_WAIT_MS,1);
+            _playerInfoWait.addEventListener(TimerEvent.TIMER_COMPLETE,onPlayerInfoWait);
+         }
+         _playerInfoWait.reset();
+         _playerInfoWait.delay = Math.max(1,PLAYER_INFO_WAIT_MS - (getTimer() - _playerInfoAt));
+         _playerInfoWait.start();
+      }
+      
+      private static function playerInfoInFlight() : Boolean
+      {
+         return _playerInfoName != null && getTimer() - _playerInfoAt < PLAYER_INFO_WAIT_MS;
+      }
+      
+      private static function sendPlayerInfoAsk(nickname:String, player:uint, how:uint) : void
+      {
+         _playerInfoNext = null;
+         _playerInfoName = nickname;
+         _playerInfoAt = getTimer();
+         try
+         {
+            ExternalInterface.call("victory_screen_request_player_data",how,player);
+         }
+         catch(e:Error)
+         {
+         }
+      }
+      
+      private static function sendNextPlayerInfoAsk() : void
+      {
+         var next:Array = _playerInfoNext;
+         sendPlayerInfoAsk(String(next[0]),uint(next[1]),uint(next[2]));
+      }
+      
+      // The ask in flight got no answer: the newest one goes now.
+      private static function onPlayerInfoWait(e:TimerEvent) : void
+      {
+         if(_playerInfoNext != null && !playerInfoInFlight())
+         {
+            sendNextPlayerInfoAsk();
+         }
+      }
+      
+      // fill_victory_screen_player, first: the answer to our ask opens the
+      // window here, as VictoryScreen.setPlayerData and onVSPlayerInfo do
+      // for a row of the results (they keep it in the screen's data, which
+      // no results screen has here). Any other answer is the results
+      // screen's, as before.
+      private function takePlayerInfo(value:Object) : Boolean
+      {
+         // The results screen is showing: a `93` now is its answer. It is
+         // modal: no list of ours can be clicked; an ask of ours from
+         // before it opened is given up.
+         if(this.victory_screen != null && this.victory_screen.parent != null && this.victory_screen.visible)
+         {
+            _playerInfoName = null;
+            _playerInfoNext = null;
+            return false;
+         }
+         if(!playerInfoInFlight())
+         {
+            _playerInfoName = null;
+            return false;
+         }
+         var nickname:String = _playerInfoName;
+         _playerInfoName = null;
+         if(_playerInfoNext != null)
+         {
+            // Asked again since: this answer is the older ask's.
+            sendNextPlayerInfoAsk();
+            return true;
+         }
+         if(!value)
+         {
+            return true;
+         }
+         if(!(value is Array))
+         {
+            value.name = "";
+            value.level = 1;
+            value = [value];
+         }
+         try
+         {
+            this.show_player_info({
+               nickname:nickname,
+               profiles:value
+            });
+         }
+         catch(e:Error)
+         {
+         }
+         return true;
+      }
+      
+      // The rooms window while open: over the side panels (the lobby adds
+      // them again over it, and their hidden areas then take its clicks);
+      // the chat stays over it (the owner's of 2026-10-19).
+      public function layerRoomsWindow(window:DisplayObject) : void
+      {
+         var panels:Array = [this.squadList,this.questList];
+         for(var i:int = 0; i < panels.length; i++)
+         {
+            var panel:DisplayObject = panels[i] as DisplayObject;
+            if(panel != null && panel.parent == this && getChildIndex(panel) > getChildIndex(window))
+            {
+               setChildIndex(window,getChildIndex(panel));
+            }
+         }
+         if(this.chat != null && this.chat.parent == this && getChildIndex(this.chat) < getChildIndex(window))
+         {
+            setChildIndex(this.chat,getChildIndex(window));
+         }
+      }
+      
+      // A match's results: a player in a room gets the room's window opened
+      // first, so the results go over it and closing them shows the room
+      // (the owner's of 2026-10-20). Out of a room: nothing.
+      private function showRoomUnderResults() : void
+      {
+         try
+         {
+            if(RoomsWindow.me != null && RoomsWindow.me.inRoom && !RoomsWindow.me.shown)
+            {
+               RoomsWindow.me.show(true);
+            }
+         }
+         catch(err:Error)
+         {
+         }
       }
    }
 }

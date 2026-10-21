@@ -1,5 +1,6 @@
 package survarium.constants
 {
+   // Item categories (item_category). BASE_* are the groups ItemFactory.getCategory puts them in.
    public class Category
    {
       
@@ -13,9 +14,15 @@ package survarium.constants
       
       public static const VOUCHER:uint = 27;
       
-      public static const BASE_VOUCHER:uint = 5;
+      public static const BASE_EQUIPMENT:uint = 1;
+      
+      public static const BASE_WEAPON:uint = 2;
       
       public static const BASE_AMMO:uint = 3;
+      
+      public static const BASE_CONSUMABLE:uint = 4;
+      
+      public static const BASE_VOUCHER:uint = 5;
       
       public function Category()
       {
@@ -23,4 +30,3 @@ package survarium.constants
       }
    }
 }
-

@@ -37,14 +37,14 @@ package scaleform.clik.controls
       override protected function initialize() : void
       {
          super.initialize();
-         var _loc1_:Number = rotation;
+         var savedRotation:Number = rotation;
          rotation = 0;
          if(this.downArrow)
          {
             constraints.addElement("downArrow",this.downArrow,Constraints.BOTTOM);
          }
          constraints.addElement("track",track,Constraints.TOP | Constraints.BOTTOM);
-         rotation = _loc1_;
+         rotation = savedRotation;
       }
       
       override protected function preInitialize() : void
@@ -58,13 +58,13 @@ package scaleform.clik.controls
          return super.enabled;
       }
       
-      override public function set enabled(param1:Boolean) : void
+      override public function set enabled(value:Boolean) : void
       {
-         if(this.enabled == param1)
+         if(this.enabled == value)
          {
             return;
          }
-         super.enabled = param1;
+         super.enabled = value;
          gotoAndPlay(this.enabled ? "default" : "disabled");
          invalidate(InvalidationType.STATE);
       }
@@ -74,14 +74,14 @@ package scaleform.clik.controls
          return _position;
       }
       
-      override public function set position(param1:Number) : void
+      override public function set position(value:Number) : void
       {
-         param1 = Math.round(param1);
-         if(param1 == this.position)
+         value = Math.round(value);
+         if(value == this.position)
          {
             return;
          }
-         super.position = param1;
+         super.position = value;
          this.updateScrollTarget();
       }
       
@@ -91,13 +91,13 @@ package scaleform.clik.controls
          return this._trackMode;
       }
       
-      public function set trackMode(param1:String) : void
+      public function set trackMode(value:String) : void
       {
-         if(param1 == this._trackMode)
+         if(value == this._trackMode)
          {
             return;
          }
-         _trackMode = param1;
+         _trackMode = value;
          if(initialized)
          {
             track.autoRepeat = this.trackMode == ScrollBarTrackMode.SCROLL_PAGE;
@@ -159,7 +159,7 @@ package scaleform.clik.controls
       
       override protected function drawLayout() : void
       {
-         var _loc1_:Number;
+         var widthRatio:Number;
          thumb.y = track.y - offsetTop;
          if(isHorizontal)
          {
@@ -171,22 +171,22 @@ package scaleform.clik.controls
          }
          if(isHorizontal && actualWidth != width)
          {
-            _loc1_ = width / actualWidth;
-            scaleY = _loc1_;
+            widthRatio = width / actualWidth;
+            scaleY = widthRatio;
          }
       }
       
       override protected function updateThumb() : void
       {
-         var _loc1_:Number = Math.max(1,_maxPosition - _minPosition + _pageSize);
-         var _loc2_:Number = track.height + offsetTop + offsetBottom;
-         if(_pageSize >= _loc1_)
+         var totalRange:Number = Math.max(1,_maxPosition - _minPosition + _pageSize);
+         var trackLength:Number = track.height + offsetTop + offsetBottom;
+         if(_pageSize >= totalRange)
          {
             thumb.height = _minThumbSize;
          }
          else
          {
-            thumb.height = Math.max(_minThumbSize,Math.min(_loc2_,_pageSize / _loc1_ * _loc2_));
+            thumb.height = Math.max(_minThumbSize,Math.min(trackLength,_pageSize / totalRange * trackLength));
          }
          if(thumb is UIComponent)
          {
@@ -197,47 +197,47 @@ package scaleform.clik.controls
       
       override protected function updateThumbPosition() : void
       {
-         var _loc1_:Number = (_position - _minPosition) / (_maxPosition - _minPosition);
-         var _loc2_:Number = track.y - offsetTop;
-         var _loc3_:Number = Math.round(_loc1_ * this.availableHeight + _loc2_);
-         thumb.y = Math.max(_loc2_,Math.min(track.y + track.height - thumb.height + offsetBottom,_loc3_));
-         thumb.visible = !(isNaN(_loc1_) || isNaN(_pageSize) || _maxPosition <= 0 || _maxPosition == Infinity);
-         var _loc4_:Boolean = thumb.visible && this.enabled;
+         var percent:Number = (_position - _minPosition) / (_maxPosition - _minPosition);
+         var minY:Number = track.y - offsetTop;
+         var thumbY:Number = Math.round(percent * this.availableHeight + minY);
+         thumb.y = Math.max(minY,Math.min(track.y + track.height - thumb.height + offsetBottom,thumbY));
+         thumb.visible = !(isNaN(percent) || isNaN(_pageSize) || _maxPosition <= 0 || _maxPosition == Infinity);
+         var isScrollable:Boolean = thumb.visible && this.enabled;
          if(this.upArrow)
          {
-            this.upArrow.enabled = _loc4_ && _position > _minPosition;
+            this.upArrow.enabled = isScrollable && _position > _minPosition;
             this.upArrow.validateNow();
          }
          if(this.downArrow)
          {
-            this.downArrow.enabled = _loc4_ && _position < _maxPosition;
+            this.downArrow.enabled = isScrollable && _position < _maxPosition;
             this.downArrow.validateNow();
          }
-         track.enabled = track.mouseEnabled = _loc4_;
+         track.enabled = track.mouseEnabled = isScrollable;
       }
       
-      protected function handleUpArrowClick(param1:ButtonEvent) : void
+      protected function handleUpArrowClick(event:ButtonEvent) : void
       {
-         if(param1.isRepeat)
+         if(event.isRepeat)
          {
             this.scrollUp();
          }
       }
       
-      protected function handleUpArrowPress(param1:ButtonEvent) : void
+      protected function handleUpArrowPress(event:ButtonEvent) : void
       {
          this.scrollUp();
       }
       
-      protected function handleDownArrowClick(param1:ButtonEvent) : void
+      protected function handleDownArrowClick(event:ButtonEvent) : void
       {
-         if(param1.isRepeat)
+         if(event.isRepeat)
          {
             this.scrollDown();
          }
       }
       
-      protected function handleDownArrowPress(param1:ButtonEvent) : void
+      protected function handleDownArrowPress(event:ButtonEvent) : void
       {
          this.scrollDown();
       }
@@ -252,7 +252,7 @@ package scaleform.clik.controls
          _dragOffset = new Point(0,mouseY - thumb.y);
       }
       
-      protected function handleThumbPress(param1:Event) : void
+      protected function handleThumbPress(event:Event) : void
       {
          if(_isDragging)
          {
@@ -265,13 +265,13 @@ package scaleform.clik.controls
          dispatchEvent(new Event(Event.SELECT));
       }
       
-      protected function doDrag(param1:MouseEvent) : void
+      protected function doDrag(event:MouseEvent) : void
       {
-         var _loc2_:Number = (mouseY - this._dragOffset.y - track.y) / this.availableHeight;
-         position = _minPosition + _loc2_ * (_maxPosition - _minPosition);
+         var percent:Number = (mouseY - this._dragOffset.y - track.y) / this.availableHeight;
+         position = _minPosition + percent * (_maxPosition - _minPosition);
       }
       
-      protected function endDrag(param1:MouseEvent) : void
+      protected function endDrag(event:MouseEvent) : void
       {
          stage.removeEventListener(MouseEvent.MOUSE_MOVE,this.doDrag);
          stage.removeEventListener(MouseEvent.MOUSE_UP,this.endDrag);
@@ -279,16 +279,16 @@ package scaleform.clik.controls
          _isDragging = false;
       }
       
-      protected function handleTrackPress(param1:MouseEvent) : void
+      protected function handleTrackPress(event:MouseEvent) : void
       {
-         var _loc2_:Number;
-         if(param1.shiftKey || this.trackMode == ScrollBarTrackMode.SCROLL_TO_CURSOR)
+         var percent:Number;
+         if(event.shiftKey || this.trackMode == ScrollBarTrackMode.SCROLL_TO_CURSOR)
          {
-            _loc2_ = (mouseY - thumb.height / 2 - track.y) / this.availableHeight;
-            position = Math.round(_loc2_ * (_maxPosition - _minPosition) + _minPosition);
+            percent = (mouseY - thumb.height / 2 - track.y) / this.availableHeight;
+            position = Math.round(percent * (_maxPosition - _minPosition) + _minPosition);
             thumb.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_OVER));
             thumb.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN));
-            this.handleThumbPress(param1);
+            this.handleThumbPress(event);
             _dragOffset = new Point(0,thumb.height / 2);
          }
          if(_isDragging || this.position == this._trackScrollPosition)
@@ -302,9 +302,9 @@ package scaleform.clik.controls
          position += thumb.y < mouseY ? this.trackScrollPageSize : -this.trackScrollPageSize;
       }
       
-      protected function handleTrackClick(param1:ButtonEvent) : void
+      protected function handleTrackClick(event:ButtonEvent) : void
       {
-         if(param1.isRepeat)
+         if(event.isRepeat)
          {
             if(_isDragging || this.position == this._trackScrollPosition)
             {
@@ -327,9 +327,9 @@ package scaleform.clik.controls
          _scrollTarget.scrollV = _position;
       }
       
-      protected function handleMouseWheel(param1:MouseEvent) : void
+      protected function handleMouseWheel(event:MouseEvent) : void
       {
-         position -= (param1.delta > 0 ? 1 : -1) * _pageScrollSize;
+         position -= (event.delta > 0 ? 1 : -1) * _pageScrollSize;
       }
       
       override protected function changeFocus() : void

@@ -50,7 +50,7 @@ pub mod id {
 pub const INVENTORY_SLOT: u8 = 100;
 
 /// Added to the amount of `47 04` by srp's exchange window when it buys gold
-/// with silver (`SrpExchange.BUY_GOLD`). The stock window sends only gold
+/// with silver (`MessageMoneyExchange.BUY_GOLD`). The stock window sends only gold
 /// for silver, and no account has this much gold.
 pub const BUY_PREMIUM: u32 = 0x4000_0000;
 

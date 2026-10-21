@@ -77,55 +77,55 @@ package scaleform.clik.motion
       
       public var props:Object;
       
-      public function Tween(param1:Number, param2:Object = null, param3:Object = null, param4:Object = null)
+      public function Tween(tweenDuration:Number, tweenTarget:Object = null, tweenProps:Object = null, settings:Object = null)
       {
          super();
-         duration = param1;
-         target = param2;
-         if(param2 is DisplayObject)
+         duration = tweenDuration;
+         target = tweenTarget;
+         if(tweenTarget is DisplayObject)
          {
-            targetDO = DisplayObject(param2);
+            targetDO = DisplayObject(tweenTarget);
             transform = this.targetDO.transform;
          }
-         props = param3;
-         if(param4)
+         props = tweenProps;
+         if(settings)
          {
-            this.quickSet(param4);
+            this.quickSet(settings);
          }
-         if(param4 == null || param4.paused == null)
+         if(settings == null || settings.paused == null)
          {
             this.paused = false;
          }
       }
       
-      protected static function tick(param1:Event) : void
+      protected static function tick(evt:Event) : void
       {
-         var _loc2_:Number = getTimer();
-         var _loc3_:Number = _loc2_ - lastTime;
-         lastTime = _loc2_;
-         var _loc4_:Tween = firstTween;
-         while(_loc4_)
+         var t:Number = getTimer();
+         var delta:Number = t - lastTime;
+         lastTime = t;
+         var tween:Tween = firstTween;
+         while(tween)
          {
-            _loc4_.updatePosition(_loc4_.frameBased ? 1 : _loc3_);
-            _loc4_ = _loc4_.next;
+            tween.updatePosition(tween.frameBased ? 1 : delta);
+            tween = tween.next;
          }
       }
       
-      protected static function removeTween(param1:Tween) : void
+      protected static function removeTween(tween:Tween) : void
       {
-         if(param1.prev)
+         if(tween.prev)
          {
-            param1.prev.next = param1.next;
+            tween.prev.next = tween.next;
          }
-         if(param1.next)
+         if(tween.next)
          {
-            param1.next.prev = param1.prev;
+            tween.next.prev = tween.prev;
          }
-         if(param1 == firstTween)
+         if(tween == firstTween)
          {
-            firstTween = param1.next;
+            firstTween = tween.next;
          }
-         param1.prev = param1.next = null;
+         tween.prev = tween.next = null;
       }
       
       public static function removeAllTweens() : void
@@ -133,9 +133,9 @@ package scaleform.clik.motion
          firstTween = null;
       }
       
-      public function set position(param1:Number) : void
+      public function set position(value:Number) : void
       {
-         this.updatePosition(param1 + this.delay - this._position);
+         this.updatePosition(value + this.delay - this._position);
       }
       
       public function get position() : Number
@@ -148,14 +148,14 @@ package scaleform.clik.motion
          return this._paused;
       }
       
-      public function set paused(param1:Boolean) : void
+      public function set paused(value:Boolean) : void
       {
-         if(param1 == this._paused)
+         if(value == this._paused)
          {
             return;
          }
-         _paused = param1;
-         if(param1)
+         _paused = value;
+         if(value)
          {
             removeTween(this);
          }
@@ -179,47 +179,47 @@ package scaleform.clik.motion
          _position = 0;
       }
       
-      public function quickSet(param1:Object) : void
+      public function quickSet(props:Object) : void
       {
-         var _loc2_:String;
-         for(_loc2_ in param1)
+         var name:String;
+         for(name in props)
          {
-            this[_loc2_] = param1[_loc2_];
+            this[name] = props[name];
          }
       }
       
-      protected function constructProp(param1:String) : Prop
+      protected function constructProp(name:String) : Prop
       {
-         var _loc2_:Prop = new Prop();
-         _loc2_.name = param1;
-         _loc2_.prev = null;
+         var prop:Prop = new Prop();
+         prop.name = name;
+         prop.prev = null;
          if(this.firstProp)
          {
-            this.firstProp.prev = _loc2_;
+            this.firstProp.prev = prop;
          }
-         _loc2_.next = this.firstProp;
-         return firstProp = _loc2_;
+         prop.next = this.firstProp;
+         return firstProp = prop;
       }
       
       protected function init() : void
       {
          firstProp = null;
-         var _loc1_:Boolean = false;
-         var _loc2_:String;
-         var _loc3_:Prop;
-         for(_loc2_ in this.props)
+         var useMatrix:Boolean = false;
+         var name:String;
+         var prop:Prop;
+         for(name in this.props)
          {
-            if(this.fastTransform && this.transform && propsDO[_loc2_])
+            if(this.fastTransform && this.transform && propsDO[name])
             {
-               _loc1_ = true;
+               useMatrix = true;
             }
             else
             {
-               _loc3_ = this.constructProp(_loc2_);
-               _loc3_.delta = this.props[_loc2_] - (_loc3_.start = this.target[_loc2_]);
+               prop = this.constructProp(name);
+               prop.delta = this.props[name] - (prop.start = this.target[name]);
             }
          }
-         if(_loc1_)
+         if(useMatrix)
          {
             startMatrix = new Matrix(this.targetDO.scaleX,this.targetDO.rotation * degToRad,this.targetDO.alpha,this.targetDO.scaleY,this.targetDO.x,this.targetDO.y);
             deltaMatrix = new Matrix(isNaN(this.props.scaleX) ? 0 : this.props.scaleX - this.startMatrix.a,isNaN(this.props.rotation) ? 0 : (this.props.rotation - this.targetDO.rotation) * degToRad,isNaN(this.props.alpha) ? 0 : this.props.alpha - this.startMatrix.c,isNaN(this.props.scaleY) ? 0 : this.props.scaleY - this.startMatrix.d,isNaN(this.props.x) ? 0 : this.props.x - this.startMatrix.tx,isNaN(this.props.y) ? 0 : this.props.y - this.startMatrix.ty);
@@ -227,15 +227,15 @@ package scaleform.clik.motion
          props = null;
       }
       
-      protected function updatePosition(param1:Number) : void
+      protected function updatePosition(value:Number) : void
       {
          if(this.target == null)
          {
             paused = true;
-            _loc3_ = true;
+            complete = true;
             return;
          }
-         _position += param1;
+         _position += value;
          if(this._position <= this.delay)
          {
             return;
@@ -244,56 +244,56 @@ package scaleform.clik.motion
          {
             this.init();
          }
-         var _loc2_:Number = (this._position - this.delay) / this.duration;
-         var _loc3_:Boolean = _loc2_ >= 1;
-         if(_loc3_)
+         var ratio:Number = (this._position - this.delay) / this.duration;
+         var complete:Boolean = ratio >= 1;
+         if(complete)
          {
-            _loc2_ = 1;
+            ratio = 1;
             _position = this.duration + this.delay;
          }
          if(this.ease != null)
          {
-            _loc2_ = this.easeParam == null ? (this.ease(_loc2_,0,1,1)) : (this.ease(_loc2_,0,1,1,this.easeParam));
+            ratio = this.easeParam == null ? (this.ease(ratio,0,1,1)) : (this.ease(ratio,0,1,1,this.easeParam));
          }
          if(this.startMatrix)
          {
-            _loc5_ = this.startMatrix.b + this.deltaMatrix.b * _loc2_;
-            if(_loc5_)
+            r = this.startMatrix.b + this.deltaMatrix.b * ratio;
+            if(r)
             {
-               _loc6_ = Math.cos(_loc5_);
-               _loc7_ = Math.sin(_loc5_);
+               c = Math.cos(r);
+               s = Math.sin(r);
             }
             else
             {
-               _loc6_ = 1;
-               _loc7_ = 0;
+               c = 1;
+               s = 0;
             }
-            workingMatrix.a = _loc6_ * this.startMatrix.a + this.deltaMatrix.a * _loc2_;
-            workingMatrix.b = _loc7_;
-            workingMatrix.c = -_loc7_;
-            workingMatrix.d = _loc6_ * this.startMatrix.d + this.deltaMatrix.d * _loc2_;
-            workingMatrix.tx = this.startMatrix.tx + this.deltaMatrix.tx * _loc2_;
-            workingMatrix.ty = this.startMatrix.ty + this.deltaMatrix.ty * _loc2_;
+            workingMatrix.a = c * this.startMatrix.a + this.deltaMatrix.a * ratio;
+            workingMatrix.b = s;
+            workingMatrix.c = -s;
+            workingMatrix.d = c * this.startMatrix.d + this.deltaMatrix.d * ratio;
+            workingMatrix.tx = this.startMatrix.tx + this.deltaMatrix.tx * ratio;
+            workingMatrix.ty = this.startMatrix.ty + this.deltaMatrix.ty * ratio;
             this.transform.matrix = workingMatrix;
             if(this.deltaMatrix.c)
             {
-               this.targetDO.alpha = this.startMatrix.c + this.deltaMatrix.c * _loc2_;
+               this.targetDO.alpha = this.startMatrix.c + this.deltaMatrix.c * ratio;
             }
          }
-         var _loc4_:Prop = this.firstProp;
-         var _loc5_:Number;
-         var _loc6_:Number;
-         var _loc7_:Number;
-         while(_loc4_)
+         var prop:Prop = this.firstProp;
+         var r:Number;
+         var c:Number;
+         var s:Number;
+         while(prop)
          {
-            this.target[_loc4_.name] = _loc4_.start + _loc4_.delta * _loc2_;
-            _loc4_ = _loc4_.next;
+            this.target[prop.name] = prop.start + prop.delta * ratio;
+            prop = prop.next;
          }
          if(this.onChange != null)
          {
             this.onChange(this);
          }
-         if(_loc3_)
+         if(complete)
          {
             if(this.loop)
             {

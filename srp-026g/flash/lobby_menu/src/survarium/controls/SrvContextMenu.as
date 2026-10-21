@@ -47,7 +47,7 @@ package survarium.controls
          return _id;
       }
       
-      public static function show(param1:Array, param2:int = 0, param3:int = 0) : void
+      public static function show(param1:Array, param2:int = 0, param3:int = 0, owner:DisplayObject = null) : void
       {
          if(!_id)
          {
@@ -99,6 +99,7 @@ package survarium.controls
          {
             _loc7_.y = _stage.mouseY - _loc7_.height + 4 + 25;
          }
+         setOwner(owner);
       }
       
       public static function setPatternt(param1:BitmapData) : void
@@ -122,6 +123,7 @@ package survarium.controls
       
       public static function hide() : void
       {
+         setOwner(null);
          trace("hide",_stage.focus);
          _stage.removeChild(_id);
          _stage.removeEventListener(MouseEvent.MOUSE_DOWN,hideMe);
@@ -226,6 +228,45 @@ package survarium.controls
             {
                _loc3_();
             }
+         }
+      }
+      
+      // The window a menu was opened for (show's owner): while the menu is
+      // open it closes with it, however the window goes (hidden, closed,
+      // taken off the stage). A menu with no owner stays as before.
+      private static var _owner:DisplayObject;
+      
+      private static function setOwner(owner:DisplayObject) : void
+      {
+         if(_id == null)
+         {
+            return;
+         }
+         _id.removeEventListener(Event.ENTER_FRAME,watchOwner);
+         _owner = owner;
+         if(owner != null)
+         {
+            _id.addEventListener(Event.ENTER_FRAME,watchOwner);
+         }
+      }
+      
+      private static function watchOwner(e:Event) : void
+      {
+         if(_owner == null || !_id.parent)
+         {
+            return;
+         }
+         for(var at:DisplayObject = _owner; at != null; at = at.parent)
+         {
+            if(!at.visible)
+            {
+               hide();
+               return;
+            }
+         }
+         if(_owner.stage == null)
+         {
+            hide();
          }
       }
    }
