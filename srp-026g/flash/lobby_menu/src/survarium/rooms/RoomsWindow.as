@@ -309,9 +309,14 @@ package survarium.rooms
         // LobbyMenu.show_victory_screen: a match is over. The room's chat
         // lines of the match did not reach the lobby (its game was in the
         // match): the tab is put up anew and given the room's last lines.
+        // Where we are is asked at once: a member who came by Play has left
+        // the room with the match's end (the owner's of 2026-10-20), which
+        // the state answered before the match does not say.
         public function matchOver():void
         {
             dropChatTab();
+            _fastUntil = getTimer() + 5000;
+            ask(RoomsWire.STATE, 1);
         }
 
         // Each frame: the chat's "Room Chat" tab, right of the general
@@ -796,6 +801,15 @@ package survarium.rooms
                 var wasRoom:Boolean = _view == "room";
                 if (had || wasRoom)
                     _view = "list";
+                // Out of the room while the results are up (one by Play
+                // leaves with its match's end): the window opened under them
+                // goes, and closing them shows the lobby (rooms.md, "After a
+                // match").
+                if (had && _shown && resultsUp())
+                {
+                    show(false);
+                    return;
+                }
                 // Only when something shown changed: this answers every poll,
                 // and a view drawn anew under the mouse loses its clicks, its
                 // drag and the PIN being typed.

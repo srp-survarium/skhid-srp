@@ -1155,9 +1155,12 @@ fn a_finished_match_brings_its_players_back_to_the_lobby() {
     assert_eq!(world.store.match_count(), 0);
     assert!(world.core.matches.is_empty());
 
-    // They are in their room still: its next match starts by itself, its
-    // vote 10 s longer after a match.
-    world.advance(PLAY_TO_MATCH + session::v026g::rooms::AFTER_MATCH);
+    // Both came by Play: out of their room after its match (the owner's of
+    // 2026-10-20), and Play again makes the next one.
+    assert!(world.core.rooms.is_empty());
+    world.ask(alice, request::play(1));
+    world.ask(bob, request::play(1));
+    world.advance(PLAY_TO_MATCH);
     let again = sent_to_match(&world.take(alice)).expect("a second match").0;
     assert_ne!(again, match_id);
 

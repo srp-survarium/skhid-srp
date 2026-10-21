@@ -8,7 +8,9 @@
 use session::v026g::rooms::Stage;
 use survarium::v026g::lobby::rooms::{ROOM_JOIN_BASE, ROOM_LEAVE, ROOM_PLAY, ROOM_QUEUE_BASE};
 
-use super::rooms_tests::{KEY, MEMBERS, VOTE_AND_WAIT, create, header, rows, spec, state};
+use super::rooms_tests::{
+    KEY, MEMBERS, VOTE_AND_WAIT, create, header, room_match_starts, rows, spec, state,
+};
 use super::*;
 use crate::v026g::LiveView;
 
@@ -307,4 +309,38 @@ fn form_squad_named(world: &mut World, inviter: usize, invited: usize) {
     let name = |world: &World, index: usize| world.account(index).name.clone();
     let (a, b) = (name(world, inviter), name(world, invited));
     form_squad_of(world, (inviter, &a), (invited, &b));
+}
+
+/// Alice's Play takes Bob, her mate, into Carol's room: both came by Play
+/// and leave it together after its match (the owner's of 2026-10-20); her
+/// Join instead would have made both chosen members, who stay.
+#[test]
+fn a_squad_that_came_by_play_leaves_together_after_the_match() {
+    let mut world = World::new();
+    let carol = world.connect("Carol");
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    form_squad(&mut world, alice, bob);
+    let key = create(&mut world, carol, spec(6), None);
+    rows(&mut world, alice, ROOM_PLAY, 1);
+    assert_eq!(room_of(&world, alice), Some(key));
+    assert_eq!(room_of(&world, bob), Some(key));
+    let ticket = room_match_starts(&mut world, &[carol, alice, bob], VOTE_AND_WAIT);
+    world.end_match(ticket, 0);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(room_of(&world, alice), None);
+    assert_eq!(room_of(&world, bob), None);
+    assert_eq!(room_of(&world, carol), Some(key));
+
+    // Her Join: both chosen, both stay after the next match.
+    rows(&mut world, alice, ROOM_JOIN_BASE + key, 1);
+    assert_eq!(room_of(&world, bob), Some(key));
+    // The vote after a match is 10 s longer (its players come back from
+    // the results first).
+    let wait = VOTE_AND_WAIT + Duration::from_secs(10);
+    let ticket = room_match_starts(&mut world, &[carol, alice, bob], wait);
+    world.end_match(ticket, 0);
+    world.advance(Duration::from_secs(1));
+    assert_eq!(room_of(&world, alice), Some(key));
+    assert_eq!(room_of(&world, bob), Some(key));
 }
