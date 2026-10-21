@@ -138,21 +138,11 @@ impl AccountRecord {
     }
 
     /// Make a loaded account consistent: the next ids past every id in use,
-    /// no profile slot holding an item the inventory lost, and a name with
-    /// nothing no name may show ([`crate::v026g::names::made_safe`]). `true`
-    /// if anything changed.
+    /// and no profile slot holding an item the inventory lost. `true` if
+    /// anything changed.
     pub fn repair(&mut self) -> bool {
-        let mut changed = false;
-        if let Some(safe) = crate::v026g::names::made_safe(&self.name) {
-            log::warn!(
-                "Account {}: the name {:?} has characters no name may show; now {safe:?}",
-                self.id,
-                self.name
-            );
-            self.name = safe;
-            changed = true;
-        }
         let game = &mut self.game;
+        let mut changed = false;
         let next_item = game.inventory.iter().map(|item| item.item_id + 1).max();
         if let Some(next) = next_item.filter(|&next| next > game.next_item_id) {
             game.next_item_id = next;

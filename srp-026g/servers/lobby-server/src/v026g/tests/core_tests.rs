@@ -3284,6 +3284,32 @@ fn a_nickname_is_checked_and_changed() {
     world.assert_clean();
 }
 
+#[test]
+fn a_name_saved_before_the_rules_passes_its_own_check() {
+    let mut world = World::new();
+    // Shown as `john.doe` from before the name characters (a login's `.`).
+    let (account, _) = signed_in(world.store, "johndoe");
+    world.store.account(account).unwrap().locked().name = "john.doe".to_owned();
+    let session = world.new_session(account);
+    let john = world.connect_session((account, session));
+    world.take(john);
+    let check = |world: &mut World, name: &str| {
+        world.ask(john, request::profile_text(3, name));
+        match world.take(john).remove(0) {
+            Decoded::Permitted(Permitted::NicknameCheck { refusal, .. }) => refusal,
+            other => panic!("not a nickname check: {other:?}"),
+        }
+    };
+    // Its own name, in any case, is its to keep; another with a `.` is not.
+    assert_eq!(check(&mut world, "john.doe"), None);
+    assert_eq!(check(&mut world, "JOHN.DOE"), None);
+    assert_eq!(
+        check(&mut world, "jane.doe"),
+        Some(NameRefusal::WrongSymbol)
+    );
+    world.assert_clean();
+}
+
 /// No tutorial (`session::v026g::tutorial`): a new account is told every
 /// step is done, so its client runs none of it, and starts with 10 000
 /// silver, 500 gold, the steps' experience and the ammo; a step a client
@@ -3297,7 +3323,10 @@ fn a_new_account_has_no_tutorial_and_what_it_paid() {
     assert_eq!(told_money(&world.take(alice)), Some((10_000, 500)));
     assert_eq!(world.client(alice).model.tutorial().state(), State::Default);
     let account = world.account(alice);
-    assert_eq!((account.generic_money, account.premium_money), (10_000, 500));
+    assert_eq!(
+        (account.generic_money, account.premium_money),
+        (10_000, 500)
+    );
     assert_eq!(account.exp_total, 250);
     // The Scavengers' quests, never neutral.
     assert_eq!(account.quest_faction, 1);

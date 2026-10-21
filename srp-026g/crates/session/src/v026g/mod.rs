@@ -398,6 +398,36 @@ impl GameAccounts {
         account
     }
 
+    /// Every account's name as `store` has it, once both are loaded: a name
+    /// is made, repaired and made unique there only (`find_or_create`,
+    /// `make_names_safe`, both logged there), so the two copies are one.
+    /// How many changed.
+    pub fn take_names(&self, store: &crate::SessionStore) -> usize {
+        let accounts: Vec<_> = self
+            .accounts
+            .locked()
+            .iter()
+            .map(|(id, account)| (*id, account.clone()))
+            .collect();
+        let mut changed = 0;
+        for (account_id, account) in accounts {
+            let Some(name) = store
+                .account(account_id)
+                .map(|stored| stored.locked().name.clone())
+            else {
+                continue;
+            };
+            let mut account = account.locked();
+            if account.name != name {
+                account.name = name;
+                drop(account);
+                self.mark_dirty(account_id);
+                changed += 1;
+            }
+        }
+        changed
+    }
+
     /// The account with this id; at its first 0.26g sign-in it is made, as
     /// [`Self::get_or_create`] makes it, and given what the tutorial it no
     /// longer has paid ([`tutorial::signup_grant`]). Whether it was made

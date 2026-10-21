@@ -90,6 +90,10 @@ fn main() {
             std::process::exit(1);
         }
     };
+    let renamed = accounts.take_names(&store);
+    if renamed > 0 {
+        log::info!("srp: {renamed} 0.26g accounts took their names from the store");
+    }
     accounts.spawn_saver();
     let on_exit = (store.clone(), accounts.clone());
     let stop = ctrlc::set_handler(move || {

@@ -410,7 +410,7 @@ impl Core<'_> {
                 }
             }
             M::CheckNickname { nickname } => {
-                let refusal = self.nickname_refusal(&nickname, who.account_id);
+                let refusal = self.nickname_refusal(&nickname, who);
                 self.send(addr, lobby::permitted_nickname_check(&nickname, refusal));
             }
             M::ChangeNickname {

@@ -700,13 +700,6 @@ impl Account {
         self.uncover_kits();
         self.merge_pockets();
         self.sync_kits();
-        if let Some(safe) = super::names::made_safe(&self.name) {
-            log::warn!(
-                "0.26g account name {:?} has characters no name may show; now {safe:?}",
-                self.name
-            );
-            self.name = safe;
-        }
         self.name = cap_name(&self.name);
         self.clan_tag =
             survarium::v026g::lobby::cut(&self.clan_tag, limits::ACCOUNT_CLAN_TAG).to_owned();

@@ -226,12 +226,12 @@ pub enum NameFault {
 }
 
 /// The characters of `clan_name_regex` (the game's
-/// `gameplay/clans/clan_name.options`): Cyrillic, Latin, digits, the
-/// Ukrainian and German letters, `#`, the blank and `-`. (The `|` the
-/// regex's class also holds is its author's separator, not taken; nor is
-/// its `@`, by the owner's rule for names.)
+/// `gameplay/clans/clan_name.options`): the letters and digits of every
+/// name ([`super::names::base_char`]), `#`, the blank and `-`. (The `|`
+/// the regex's class also holds is its author's separator, not taken; nor
+/// is its `@`, by the owner's rule for names.)
 fn name_char(c: char) -> bool {
-    c.is_ascii_alphanumeric() || ('А'..='я').contains(&c) || "єЄІіЇїÄäÖöÜüß# -".contains(c)
+    super::names::base_char(c) || "# -".contains(c)
 }
 
 /// Abbreviations the lobby chat draws in the staff colours: a line whose
@@ -1779,7 +1779,7 @@ mod tests {
             name_fault(&"x".repeat(25), false),
             Some(NameFault::FewLetters)
         );
-        for good in ["Stalkers", "Черный рынок", "Fo-o #1"] {
+        for good in ["Stalkers", "Черный рынок", "Fo-o #1", "Ёжики", "Ґанок"] {
             assert_eq!(name_fault(good, false), None, "{good}");
         }
         for good in ["STK", "ЧР-1", "A1#bc"] {

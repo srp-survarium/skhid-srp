@@ -78,6 +78,54 @@ fn unix_now() -> u64 {
         .as_secs()
 }
 
+/// The loaded names that have what no name may show
+/// ([`v026g::names::made_safe`]), made safe and still no other account's
+/// name or login ([`v026g::names::unique`]): the ids of those renamed. The
+/// 0.26g accounts take these names ([`v026g::Accounts::take_names`]).
+fn make_names_safe(records: &mut [persist::AccountRecord]) -> HashSet<u32> {
+    let mut shown: HashMap<String, u32> = records
+        .iter()
+        .map(|record| (record.name.to_lowercase(), record.id))
+        .collect();
+    let logins: HashMap<String, u32> = records
+        .iter()
+        .map(|record| (record.login.clone(), record.id))
+        .collect();
+    let mut renamed = HashSet::new();
+    for record in records.iter_mut() {
+        let Some(safe) = v026g::names::made_safe(&record.name) else {
+            continue;
+        };
+        let id = record.id;
+        let other = |name: &str| {
+            let name = name.to_lowercase();
+            [shown.get(&name), logins.get(&name)]
+                .into_iter()
+                .flatten()
+                .copied()
+                .find(|&other| other != id)
+        };
+        if let Some(other) = other(&safe) {
+            log::error!(
+                "Account {id}: its name {:?} made safe is {safe:?}, the name or login of \
+                 account {other}; given another",
+                record.name
+            );
+        }
+        let name = v026g::names::unique(&safe, &format!("player_{id:08x}"), |name| {
+            other(name).is_some()
+        });
+        log::warn!(
+            "Account {id}: the name {:?} has characters no name may show; now {name:?}",
+            record.name
+        );
+        shown.insert(name.to_lowercase(), id);
+        record.name = name;
+        renamed.insert(id);
+    }
+    renamed
+}
+
 /// How often the saver writes the accounts changed since its last pass.
 pub const SAVE_INTERVAL: Duration = Duration::from_secs(2);
 /// Wrong passwords in a row a user name may give before it must wait.
@@ -466,11 +514,13 @@ impl SessionStore {
         let mut saved = HashMap::new();
         let mut dirty = HashSet::new();
         let mut next_account_id = loaded.next_account_id.max(1);
+        let mut records = loaded.accounts;
+        let renamed = make_names_safe(&mut records);
         {
             let mut accounts = store.accounts.locked();
             let mut logins = store.logins.locked();
-            for mut record in loaded.accounts {
-                if record.repair() {
+            for mut record in records {
+                if record.repair() || renamed.contains(&record.id) {
                     log::warn!("Account {} was repaired on loading", record.id);
                     dirty.insert(record.id);
                 } else {
@@ -789,25 +839,32 @@ impl SessionStore {
     /// built, before anyone else can reach it, so a reset right after it is
     /// not taken for the password it was made with). Ids are
     /// handed out in order. Other players see the display name, so a user
-    /// name with an `@` shows only its part before it; with nothing there,
-    /// the name falls back to a unique value derived from the id.
+    /// name with an `@` shows only its part before it, in name characters
+    /// ([`v026g::names::shown_name`]), and one no other account has
+    /// ([`v026g::names::unique`]); with no letter there, the name falls
+    /// back to a unique value derived from the id.
     fn find_or_create(
         &self,
         key: &str,
         user_name: &str,
         password_hash: Option<String>,
     ) -> (u32, Option<u64>) {
+        if let Some(&account_id) = self.logins.locked().get(key) {
+            return (account_id, None);
+        }
+        let account_id = self.next_account_id.fetch_add(1, Ordering::Relaxed);
+        // With no lock held: it looks at every account. [choice] Two
+        // sign-ups of one name at the same instant may still both get it.
+        let shown = user_name.split('@').next().unwrap_or_default();
+        let name = v026g::names::unique(
+            &v026g::names::shown_name(shown),
+            &format!("player_{account_id:08x}"),
+            |name| self.name_taken(name, account_id),
+        );
         let mut logins = self.logins.locked();
         if let Some(&account_id) = logins.get(key) {
             return (account_id, None);
         }
-        let account_id = self.next_account_id.fetch_add(1, Ordering::Relaxed);
-        let shown = user_name.split('@').next().unwrap_or_default();
-        let name = if shown.is_empty() {
-            format!("player_{account_id:08x}")
-        } else {
-            v021d::account::cap(&v026g::names::shown_name(shown))
-        };
         let mut account = Account::new(account_id, name);
         account.login = key.to_owned();
         account.password_hash = password_hash;
@@ -820,6 +877,24 @@ impl SessionStore {
         self.mark_dirty(account_id);
         self.save_soon();
         (account_id, Some(password_epoch))
+    }
+
+    /// Whether an account other than `except` is shown by `name`, or signs
+    /// in with it, case aside (a rename has the same rule). Locks every
+    /// account in turn: call it with none locked.
+    fn name_taken(&self, name: &str, except: u32) -> bool {
+        let login = persist::user_name_key(name);
+        if login
+            .and_then(|key| self.logins.locked().get(&key).copied())
+            .is_some_and(|id| id != except)
+        {
+            return true;
+        }
+        let accounts: Vec<_> = self.accounts.locked().values().cloned().collect();
+        accounts.iter().any(|account| {
+            let account = account.locked();
+            account.id != except && v026g::names::same_name(&account.name, name)
+        })
     }
 
     /// The account changed: the saver writes it on its next pass. Never
@@ -2411,13 +2486,18 @@ mod tests {
     fn the_admin_finds_an_account_by_user_name_or_by_a_shown_name_only_one_has() {
         let store = SessionStore::new();
         let a = store.sign_in("Alpha@one.test", b"pw").unwrap();
-        store.sign_in("alpha@two.test", b"pw").unwrap();
+        let a2 = store.sign_in("alpha@two.test", b"pw").unwrap();
         let b = store.sign_in("bravo@x.test", b"pw").unwrap();
         assert_eq!(store.find_account("ALPHA@one.test"), Some(a));
         assert_eq!(store.find_account("Bravo"), Some(b));
-        // Two accounts show "alpha": the user name is needed.
-        assert_eq!(store.find_account("alpha"), None);
+        // The second "alpha" is shown as another name.
+        assert_eq!(store.find_account("alpha"), Some(a));
+        assert_eq!(store.find_account("alpha_2"), Some(a2));
         assert_eq!(store.find_account("nobody"), None);
+        // Two shown by one name (saved before names were unique): the user
+        // name is needed.
+        store.account(a2).unwrap().locked().name = "Alpha".to_owned();
+        assert_eq!(store.find_account("alpha"), None);
     }
 
     #[test]
@@ -2441,16 +2521,68 @@ mod tests {
     }
 
     #[test]
-    fn a_saved_name_with_markup_is_made_safe_on_loading() {
-        let mut account = Account::new(7, "<b>x</b>".to_owned());
-        account.login = "x".to_owned();
-        let mut record = persist::AccountRecord::of(&account);
-        assert!(record.repair());
-        assert_eq!(record.name, "_b_x_/b_");
-        // A name merely outside the chosen characters stays.
-        let mut record = persist::AccountRecord::of(&Account::new(8, "a.b".to_owned()));
-        assert!(!record.repair());
-        assert_eq!(record.name, "a.b");
+    fn a_new_accounts_name_is_no_other_accounts() {
+        let store = SessionStore::new();
+        let name = |login: &str| {
+            let id = store.sign_in(login, b"pw").unwrap();
+            (id, store.account(id).unwrap().locked().name.clone())
+        };
+        let (first, shown) = name("john_doe");
+        assert_eq!(shown, "john_doe");
+        // Made of name characters, it would be the first's: in any case.
+        assert_eq!(name("john.doe@x.test").1, "john_doe_2");
+        assert_eq!(name("JOHN.DOE@y.test").1, "JOHN_DOE_3");
+        // Another account's login is taken too, as a rename's.
+        store.account(first).unwrap().locked().name = "Renamed".to_owned();
+        assert_eq!(name("john_doe@z.test").1, "john_doe_4");
+        // A letter no name takes is `_`, the rest stays.
+        assert_eq!(name("łukasz").1, "_ukasz");
+        // Nothing left but `_`: the id's name.
+        let (id, shown) = name("日本語");
+        assert_eq!(shown, format!("player_{id:08x}"));
+        // The number fits the client's 63 bytes.
+        let long = "x".repeat(70);
+        assert_eq!(name(&long).1, "x".repeat(63));
+        assert_eq!(
+            name(&format!("{long}@x.test")).1,
+            format!("{}_2", "x".repeat(61))
+        );
+    }
+
+    #[test]
+    fn a_saved_name_with_markup_is_made_safe_and_unique_on_loading() {
+        let record = |id: u32, login: &str, name: &str| {
+            let mut account = Account::new(id, name.to_owned());
+            account.login = login.to_owned();
+            persist::AccountRecord::of(&account)
+        };
+        let mut records = vec![
+            record(1, "one", "a@b"),
+            record(2, "two", "a_b"),
+            record(3, "three", "evil:victim"),
+            record(4, "evil_victim", "Victim"),
+            record(5, "five", "<b>x</b>"),
+            record(6, "six", "a.b"),
+            record(7, "seven", "\u{202E}<>"),
+        ];
+        let renamed = make_names_safe(&mut records);
+        let names: Vec<&str> = records.iter().map(|record| record.name.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                // Made safe, it would be account 2's name, or account 4's
+                // login.
+                "a_b_2",
+                "a_b",
+                "evil_victim_2",
+                "Victim",
+                "_b_x_/b_",
+                // A name merely outside the chosen characters stays.
+                "a.b",
+                "player_00000007",
+            ]
+        );
+        assert_eq!(renamed, HashSet::from([1, 3, 5, 7]));
     }
 
     #[test]

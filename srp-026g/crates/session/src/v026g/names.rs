@@ -25,29 +25,97 @@
 //! `GameChat.as`), so a chosen name takes [`name_char`] only, a new
 //! account's name is made of them ([`shown_name`]), and a name saved
 //! before has what no name may show made `_` on loading ([`made_safe`]).
+//! Either way the name is then one no other account has ([`unique`]).
 
 use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::lobby::{cut, limits};
 
 use super::account::{Account, cap_name};
 use super::premium::{RENAME_VOUCHER, Settings};
 
-/// A character of a chosen name: the game's own `account_name_regex`
-/// (`gameplay/clans/clan_name.options`: Latin, digits, Cyrillic `А`..`я`,
-/// the Ukrainian and German letters, `-`, `_`, `+`) and `Ё`, `ё`, `Ґ`, `ґ`,
-/// which it lacks. [choice: for those four] Not its blank inside a name (a
-/// rename refuses blanks) nor its `|` (its author's separator, as in
-/// [`super::clans`]). No `@` (the owner's rule).
+/// The letters and digits of every name, an account's or a clan's: the
+/// game's own regexes' (`gameplay/clans/clan_name.options`: Latin, digits,
+/// Cyrillic `А`..`я`, the Ukrainian and German letters) and `Ё`, `ё`, `Ґ`,
+/// `ґ`, which they lack. [choice: for those four] Each kind of name adds
+/// its own punctuation ([`name_char`], `clans::name_char`).
+pub fn base_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || ('А'..='я').contains(&c) || "ЁёҐґЄєІіЇїÄäÖöÜüß".contains(c)
+}
+
+/// A character of a chosen name: [`base_char`] and the `-`, `_`, `+` of
+/// the game's `account_name_regex`. Not its blank inside a name (a rename
+/// refuses blanks) nor its `|` (its author's separator). No `@` (the
+/// owner's rule).
 pub fn name_char(c: char) -> bool {
-    c.is_ascii_alphanumeric() || ('А'..='я').contains(&c) || "ЁёҐґЄєІіЇїÄäÖöÜüß-_+".contains(c)
+    base_char(c) || "-_+".contains(c)
 }
 
 /// What no name may show, however old: markup (`<`, `>`, `&`, `"`), the
 /// end of the name's link (`'`, `href='event:name:<name>: '`), its field
 /// separator (`:`, which `LobbyChat.as::clickLinkHandler` splits on, so
-/// the player menu would act on another name), `@` (the owner's rule) and
-/// control characters.
+/// the player menu would act on another name), `@` (the owner's rule),
+/// control characters, and the invisible ones that turn or hide the text
+/// around them ([`format_char`]).
 fn unsafe_char(c: char) -> bool {
-    c.is_control() || "<>&\"':@".contains(c)
+    c.is_control() || format_char(c) || "<>&\"':@".contains(c)
+}
+
+/// Unicode's format characters (category Cf: the direction overrides and
+/// isolates, zero-width spaces and joiners, the byte-order mark, the tags)
+/// and the line and paragraph separators: nothing a reader sees, so a name
+/// with one can pose as another or turn the line it is in.
+fn format_char(c: char) -> bool {
+    matches!(
+        u32::from(c),
+        0xAD | 0x600..=0x605
+            | 0x61C
+            | 0x6DD
+            | 0x70F
+            | 0x890..=0x891
+            | 0x8E2
+            | 0x180E
+            | 0x200B..=0x200F
+            | 0x2028..=0x202E
+            | 0x2060..=0x2064
+            | 0x2066..=0x206F
+            | 0xFEFF
+            | 0xFFF9..=0xFFFB
+            | 0x110BD
+            | 0x110CD
+            | 0x13430..=0x1343F
+            | 0x1BCA0..=0x1BCA3
+            | 0x1D173..=0x1D17A
+            | 0xE0001
+            | 0xE0020..=0xE007F
+    )
+}
+
+/// Whether two names are one for the players: the same but for case.
+pub fn same_name(a: &str, b: &str) -> bool {
+    a.to_lowercase() == b.to_lowercase()
+}
+
+/// The name an account gets: `name` cut to the client's 63 bytes, or
+/// `fallback` when it has no letter or digit (a login of only marks or
+/// letters no name takes is all `_`), and then, while `taken` says another
+/// account is shown by it, with `_2`, `_3`, ... (cut so the number fits).
+pub fn unique(name: &str, fallback: &str, taken: impl Fn(&str) -> bool) -> String {
+    let name = if name.chars().any(char::is_alphanumeric) {
+        name
+    } else {
+        fallback
+    };
+    let name = cap_name(name);
+    if !taken(&name) {
+        return name;
+    }
+    (2u32..)
+        .map(|n| {
+            let suffix = format!("_{n}");
+            format!("{}{suffix}", cut(&name, limits::NAME - suffix.len()))
+        })
+        .find(|candidate| !taken(candidate))
+        .expect("a number no account has")
 }
 
 /// The name a new account is shown by, from its login's part before an
@@ -229,6 +297,55 @@ mod tests {
         );
         assert_eq!(made_safe("evil:victim").as_deref(), Some("evil_victim"));
         assert_eq!(made_safe("a@b&c\"\u{1}").as_deref(), Some("a_b_c__"));
+    }
+
+    #[test]
+    fn invisible_and_turning_characters_are_in_no_name() {
+        // Right-to-left override, zero-width space and joiner, an isolate,
+        // the byte-order mark, a tag, the line separator.
+        let hidden = [
+            '\u{202E}',
+            '\u{200B}',
+            '\u{200D}',
+            '\u{2066}',
+            '\u{2069}',
+            '\u{FEFF}',
+            '\u{E0041}',
+            '\u{2028}',
+            '\u{AD}',
+        ];
+        for c in hidden {
+            assert!(!name_char(c), "{c:?}");
+            assert!(!shown_name(&format!("a{c}b")).contains(c), "{c:?}");
+            assert_eq!(
+                made_safe(&format!("a{c}b")).as_deref(),
+                Some("a_b"),
+                "{c:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_name_is_made_unique_and_has_a_letter() {
+        let taken = ["bob", "bob_2"];
+        let taken = |name: &str| taken.iter().any(|other| same_name(other, name));
+        assert_eq!(unique("alice", "player_1", taken), "alice");
+        assert_eq!(unique("BOB", "player_1", taken), "BOB_3");
+        assert_eq!(unique("___", "player_1", taken), "player_1");
+        assert_eq!(unique("", "player_1", taken), "player_1");
+        // The number fits the client's 63 bytes, at a character's end.
+        let long = "я".repeat(40);
+        let taken_long = |name: &str| name == cap_name(&long);
+        let made = unique(&long, "player_1", taken_long);
+        assert!(made.len() <= 63 && made.ends_with("_2"), "{made}");
+    }
+
+    #[test]
+    fn clans_and_accounts_share_their_letters() {
+        for c in ['Ё', 'ё', 'Ґ', 'ґ', 'Ї', 'ß', 'Z', '7'] {
+            assert!(base_char(c) && name_char(c), "{c:?}");
+        }
+        assert!(!base_char('_') && name_char('_'));
     }
 
     #[test]

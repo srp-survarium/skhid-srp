@@ -329,11 +329,16 @@ impl Core<'_> {
 
     // ---------------------------------------------------------- nicknames
 
-    /// What is wrong with `nickname` for the account, in the client's own
+    /// What is wrong with `nickname` for the player, in the client's own
     /// reasons: the name's own rules, then whether another account is
-    /// shown by it or signs in with it.
-    pub(super) fn nickname_refusal(&self, nickname: &str, account_id: u32) -> Option<NameRefusal> {
-        if let Some(refusal) = name_refusal(nickname, true) {
+    /// shown by it or signs in with it. The player's own name, case aside,
+    /// passes the name's rules: one saved before them (a `.` or a blank
+    /// from its login) is its to keep.
+    pub(super) fn nickname_refusal(&self, nickname: &str, who: &Who) -> Option<NameRefusal> {
+        let account_id = who.account_id;
+        if !names::same_name(nickname, &who.name)
+            && let Some(refusal) = name_refusal(nickname, true)
+        {
             return Some(refusal);
         }
         let shown = self.account_named(nickname, account_id).is_some();
@@ -348,7 +353,7 @@ impl Core<'_> {
     /// rename voucher or in gold.
     pub(super) fn change_nickname(&mut self, who: &Who, nickname: &str, voucher_item_id: u32) {
         let nickname = nickname.trim();
-        if let Some(refusal) = self.nickname_refusal(nickname, who.account_id) {
+        if let Some(refusal) = self.nickname_refusal(nickname, who) {
             log::info!(
                 "{}: the nickname `{nickname}` is refused: {refusal:?}",
                 who.name
