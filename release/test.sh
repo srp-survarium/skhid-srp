@@ -111,6 +111,8 @@ started() { # the container runs: what srp does at a start
     echo "$n" >"$state/starts"
     echo running >"$state/state"
     echo "start $n $(cat "$state/running")" >>"$TEST_DIR/volume/srp.db"
+    # The ZIP the site offers from this start on.
+    { sha256sum <"$live/Survarium-0.26g-srp-files.zip" 2>/dev/null || echo none; } | cut -c1-64 >>"$TEST_DIR/zip-at-start"
     if [[ ! -e $TEST_DIR/patches-stale ]]; then
         offered | jq -Rn '[inputs | split(" ") | {key: .[0], value: {sha256: .[1], urls: .[2:]}}] | from_entries' >"$TEST_DIR/site/patches"
     fi
@@ -328,7 +330,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 data = open(zip_path, "rb").read()
             except FileNotFoundError:
                 return self.answer(404, "no client files are offered here\n")
-            return self.answer(200, f"skhid-client-files 1\nsha256 {hashlib.sha256(data).hexdigest()}\nsize {len(data)}\n")
+            # As srp: the least revision it lets in, its .env's.
+            least = ""
+            try:
+                for line in open(os.path.join(live, ".env")):
+                    if line.startswith("SRP_MIN_PATCH_REVISION="):
+                        least = "min-revision " + line.split("=", 1)[1].strip() + "\n"
+            except FileNotFoundError:
+                pass
+            # An srp that did not take the setting: $T/state/client-files-min.
+            if read("client-files-min") is not None:
+                least = "min-revision " + read("client-files-min") + "\n"
+            return self.answer(200, f"skhid-client-files 1\nsha256 {hashlib.sha256(data).hexdigest()}\nsize {len(data)}\n{least}")
         if self.path == "/" + read("admin-path", "-"):
             open(os.path.join(state, "admin-seen.log"), "a").write("GET\n")
             return self.answer(200, "<form>the admin page</form>")
@@ -701,7 +714,9 @@ check "deploy sets the revision" grep -qx "SRP_MIN_PATCH_REVISION=12" "$T/live/.
 check "deploy keeps the rest of .env" test "$(grep -v '^SRP_MIN_PATCH_REVISION=' "$T/live/.env")" = $'SRP_ADMIN_TOKEN=very-secret\nOTHER=1'
 check "deploy never prints .env" bash -c "! grep -q very-secret <<<\"\$1\"" _ "$out"
 check "deploy makes srp26 anew" grep -q "docker compose up -d --no-deps --force-recreate srp26" "$T/log"
-check "deploy: the ZIP goes in after the restart" bash -c "a=\$(grep -n 'up -d --no-deps' $T/args | head -n1 | cut -d: -f1); z=\$(grep -n 'mv -f download/.Survarium-0.26g-srp-files.zip.new' $T/args | head -n1 | cut -d: -f1); test -n \"\$a\" -a -n \"\$z\" && ((a < z))"
+check "deploy: the ZIP goes in while srp26 is stopped, before its start" bash -c "s=\$(grep -n 'compose stop srp26' $T/args | head -n1 | cut -d: -f1); a=\$(grep -n 'up -d --no-deps' $T/args | head -n1 | cut -d: -f1); z=\$(grep -n 'mv -f download/.Survarium-0.26g-srp-files.zip.new' $T/args | head -n1 | cut -d: -f1); test -n \"\$s\" -a -n \"\$a\" -a -n \"\$z\" && ((s < z && z < a))"
+check "deploy: srp26 started with the new ZIP in place" test "$(tail -n 1 "$T/zip-at-start")" = "$(sha256sum <"$zip12" | cut -c1-64)"
+check "deploy: ... and the site says the new least revision" has "$out" "/api/client-files: the new ZIP (sha256 [0-9a-f]*, [0-9]* bytes), min-revision 12"
 check "deploy checks /patches and /api/client-files" has "$out" "/api/client-files: the new ZIP"
 check "deploy goes through the jump host" bash -c "grep -qx jump $T/log && grep -qx live $T/log"
 check "deploy leaves nothing half-done" bash -c "! ls $T/live/download/.*.new $F/*.part 2>/dev/null"
@@ -724,12 +739,25 @@ F=$(folder 13 wrong)
 check "deploy says when /patches is not the data's" has "$out" "/patches is {}, not"
 check "deploy: ... shows srp's log" has "$out" "srp26's last log lines:"
 check "deploy: ... rolls back" has "$out" "ROLLING BACK"
-check "deploy: ... the ZIP never moved" cmp -s "$zip12" "$T/live/download/Survarium-0.26g-srp-files.zip"
+check "deploy: ... the old ZIP back in place" cmp -s "$zip12" "$T/live/download/Survarium-0.26g-srp-files.zip"
 check "deploy: ... the setting back" grep -qx "SRP_MIN_PATCH_REVISION=12" "$T/live/.env"
 check "deploy: ... srp.db back from the new start's backup (its writes gone)" bash -c "! grep -q '^start $((starts + 1)) ' $T/volume/srp.db && grep -q '^start $((starts + 2)) ' $T/volume/srp.db"
 check "deploy: ... srp26 running again" test "$(cat "$T/docker/state")" = running
 check "deploy: ... the folder says rolled-back" grep -qx rolled-back "$F/state"
 check "deploy: ... nothing half-done" bash -c "! ls $T/live/download/.*.new 2>/dev/null"
+# /api/client-files that is not the release's after the start (the ZIP in
+# place before it): the rollback puts the old ZIP back.
+echo 11 >"$T/state/client-files-min"
+out=$(yes_to "$here/deploy" --zip "$T/work/r13.zip" --server-data "$T/work/sgd.db" --revision 13 --label notsaid || true)
+rm "$T/state/client-files-min"
+F=$(folder 13 notsaid)
+check "deploy says when /api/client-files is not the release's" has "$out" "/api/client-files says min-revision 11, not 13: srp26 did not take the new setting"
+check "deploy: ... srp started with the new ZIP, and again with the old one by the rollback" test "$(tail -n 2 "$T/zip-at-start" | tr '\n' ' ')" = "$(sha256sum <"$T/work/r13.zip" | cut -c1-64) $(sha256sum <"$zip12" | cut -c1-64) "
+check "deploy: ... rolls back" has "$out" "ROLLING BACK"
+check "deploy: ... the old ZIP back in place" cmp -s "$zip12" "$T/live/download/Survarium-0.26g-srp-files.zip"
+check "deploy: ... the setting back" grep -qx "SRP_MIN_PATCH_REVISION=12" "$T/live/.env"
+check "deploy: ... srp26 running again" test "$(cat "$T/docker/state")" = running
+check "deploy: ... the folder says rolled-back" grep -qx rolled-back "$F/state"
 out=$(echo n | setsid -w "$here/deploy" --zip "$zip12" --server-data "$T/work/sgd.db" --revision 12 2>&1 || true)
 check "deploy: a no stops before any write" has "$out" "stopped: not confirmed"
 
@@ -982,7 +1010,8 @@ check "release: SRP_MIN_PATCH_REVISION=12" grep -qx "SRP_MIN_PATCH_REVISION=12" 
 check "release: the rest of .env as it was" test "$(grep -vc '^SRP_MIN_PATCH_REVISION=' "$T/live/.env")" = 5
 check "release: restarts srp26" grep -q "docker compose up -d --no-deps --force-recreate srp26" "$T/log"
 check "release: stops srp26 before it moves anything" bash -c "s=\$(grep -n 'compose stop srp26' $T/args | head -n1 | cut -d: -f1); b=\$(grep -n 'mv -f download/.server-game-data.db.new' $T/args | head -n1 | cut -d: -f1); test -n \"\$s\" -a -n \"\$b\" && ((s < b))"
-check "release: the ZIP goes in after the restart" bash -c "a=\$(grep -n 'up -d --no-deps' $T/args | head -n1 | cut -d: -f1); z=\$(grep -n 'mv -f download/.Survarium-0.26g-srp-files.zip.new' $T/args | head -n1 | cut -d: -f1); test -n \"\$a\" -a -n \"\$z\" && ((a < z))"
+check "release: the ZIP goes in while srp26 is stopped, before its start" bash -c "s=\$(grep -n 'compose stop srp26' $T/args | head -n1 | cut -d: -f1); a=\$(grep -n 'up -d --no-deps' $T/args | head -n1 | cut -d: -f1); z=\$(grep -n 'mv -f download/.Survarium-0.26g-srp-files.zip.new' $T/args | head -n1 | cut -d: -f1); test -n \"\$s\" -a -n \"\$a\" -a -n \"\$z\" && ((s < z && z < a))"
+check "release: srp26 started with the new ZIP in place" test "$(tail -n 1 "$T/zip-at-start")" = "$(sha256sum <"$(folder 12 a)/Survarium-0.26g-srp-files.zip" | cut -c1-64)"
 check "release: waits for no match" has "$out" "5. no match is running"
 check "release: checks /patches and /api/client-files" has "$out" "/api/client-files: the new ZIP"
 check "release: checks the log's game data line" has "$out" "log: INFO game data: .* 2 patch(es) offered"
@@ -1407,7 +1436,7 @@ check "release: no new backup of srp.db, no release" has "$out" "srp made no bac
 check "release: ... rolled back" has "$out" "rolled back: srp26"
 check "release: ... srp.db kept as it is" bash -c "grep -q 'srp.db: kept as it is (the new srp made no backup' <<<\"\$1\" && test \$(grep -c . $T/volume/srp.db) -eq $((lines_before + 2))" _ "$out"
 check "release: ... srp26 running" test "$(cat "$T/docker/state")" = running
-check "release: ... the ZIP never moved" cmp -s "$T/work/r13.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
+check "release: ... the old ZIP back in place" cmp -s "$T/work/r13.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
 check "release: ... nothing staged" nothing_staged
 check "release: ... the setting as it was" grep -qx "SRP_MIN_PATCH_REVISION=13" "$T/live/.env"
 
@@ -1436,7 +1465,7 @@ check "release: srp refusing to start fails the release" has "$out" "srp26 is no
 check "release: ... shows why, from srp's log" has "$out" "srp refused to start:"
 check "release: ... the line that says why" has "$out" "  > ERROR srp: SRP_MIN_PATCH_REVISION is 13"
 check "release: ... rolls back" has "$out" "rolled back: srp26 .*/patches .* as before"
-check "release: ... the ZIP never moved" cmp -s "$T/work/r13.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
+check "release: ... the old ZIP back in place" cmp -s "$T/work/r13.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
 check "release: ... the server data back" test "$(sha256sum <"$T/live/download/server-game-data.db")" = "$data_before"
 check "release: ... the setting back" grep -qx "SRP_MIN_PATCH_REVISION=13" "$T/live/.env"
 check "release: ... the image back, by its ID" test "$(cat "$T/docker/running")|$(cat "$T/docker/latest")" = "$running_before|$running_before"
@@ -1863,7 +1892,7 @@ echo "ERROR srp: SRP_MIN_PATCH_REVISION is 13, below resources.db.patch_14. Set 
 run yes --now --label nowf || true
 rm -f "$T/refuse-start"
 check "release --now: srp refusing to start: rolled back" has "$out" "rolled back: srp26 .*/patches .* as before"
-check "release --now: ... the ZIP never moved" cmp -s "$T/work/r17.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
+check "release --now: ... the old ZIP back in place" cmp -s "$T/work/r17.zip" "$T/live/download/Survarium-0.26g-srp-files.zip"
 check "release --now: ... no record of 18" no_record 18
 # A match running: swapped anyway, and it says how many it ended.
 echo 1000 >"$T/state/busy"

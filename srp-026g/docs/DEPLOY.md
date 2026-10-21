@@ -170,14 +170,20 @@ Each is a release's mistake, never a player's: put the old
 the new one, and recreate the container.
 
 - **It is read once, at start.** A release that adds or changes a patch
-  goes out in this order: the patch file at its URL, then the new
-  `server-game-data.db` over the old one in `download/` and
-  `SRP_MIN_PATCH_REVISION` in `.env` set to the release's revision, then a
-  new container (`docker compose up -d --no-deps --force-recreate srp26`;
-  `restart` would keep the old setting). The log's
+  goes out in this order: the patch file at its URL, then, with srp26
+  stopped, the new `server-game-data.db` and the players' ZIP of that
+  revision over the old ones in `download/` and `SRP_MIN_PATCH_REVISION` in
+  `.env` set to the release's revision, then a new container. The ZIP
+  goes in with them, never after the start: the site serves whatever ZIP is
+  in `download/` at once, and the old ZIP beside the new `/patches` and
+  revision lets a launcher enable PLAY for a game the login server refuses
+  (`release/lib.sh`, `swap_server`; the release script does this). The
+  container is made anew (`docker compose up -d --no-deps --force-recreate
+  srp26`; `restart` would keep the old setting). The log's
   `game data: ...` line names what it was made of; `curl
   https://<the page>/patches` shows the list the updaters now get, and a
-  player's launcher fetches the new patch at its next start. Every patch
+  player's launcher fetches the new patch at its next start (an open
+  launcher starts itself anew within seconds and does it). Every patch
   goes with `SRP_MIN_PATCH_REVISION` (above): srp does not start without.
 - **Before the new container:** `srp-game-data info server-game-data.db`
   checks the file and prints its patches and URLs; `srp-game-data check

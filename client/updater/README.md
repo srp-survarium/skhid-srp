@@ -29,8 +29,9 @@ replay") and `ntdll.dll` (two functions of the standard library's).
   redirect of the update server is followed (a patch file's are, up to 5:
   "Patches"), no cookie kept.
 - `GET /api/client-files` → `skhid-client-files 1`, `sha256 <hex>`,
-  `size <bytes>`; `GET /download` → the ZIP. Both are routes of
-  `srp-026g/servers/web-server`.
+  `size <bytes>`, `min-revision <n>` (the least game revision the login
+  server lets in; an srp from before it does not say it); `GET /download`
+  → the ZIP. Both are routes of `srp-026g/servers/web-server`.
 - Installs only what passes every check, all files or none, and can replace
   the running launcher and itself. The steps, and what a player sees when
   one fails: `srp-026g/client-patches/launcher/README.md` ("How an update
@@ -56,6 +57,12 @@ replay") and `ntdll.dll` (two functions of the standard library's).
   not is deleted, a listed patch that is missing or damaged is downloaded
   from the first address that gives it. Required: PLAY stays off until
   every listed patch is in place ("Patches" below).
+- Keeps PLAY off for a game the server would refuse: a game exe that says
+  an older revision than the server's `min-revision`. While the launcher
+  stays open after the update it asks the server again every 10 s, turns
+  PLAY off while a server that answered stops answering, and starts the
+  launcher anew (whose updater updates) when the server offers another ZIP
+  or revision ("PLAY and the server's revision" below).
 - Writes `updater_skhid.state` (what is installed)
   and `updater_skhid.log` (what it did; no account name, no password; it
   does hold the game folder's path) beside itself. `updater_skhid.lock`
@@ -71,9 +78,9 @@ replay") and `ntdll.dll` (two functions of the standard library's).
 
 | Command line | Who | What |
 |---|---|---|
-| `"<exe>" "update" "\\.\pipe\vostok_updater_pipe-<product>" ...` (also `full_update`) | the launcher | The update, reported over the launcher's pipe in the messages of the original updater (`logic/src/pipe.rs`). It stays until the launcher says stop or goes away |
+| `"<exe>" "update" "\\.\pipe\vostok_updater_pipe-<product>" ...` (also `full_update`) | the launcher | The update, reported over the launcher's pipe in the messages of the original updater (`logic/src/pipe.rs`). It stays until the launcher says stop or goes away, asking the server every 10 s meanwhile ("PLAY and the server's revision") |
 | `"<exe>" "copy" "<pipe>" ...` | the unpatched launcher | Answers "copy done" at once: nothing needs copying |
-| `updater_skhid.exe check` | a person, a script | The update without a launcher, every patch file hashed whole whatever the quick check's record says: the repair, when a patch file may be damaged in a way the quick check does not see (bytes changed in place with the size and the time kept, as no program does by chance). An error is a message box |
+| `updater_skhid.exe check` | a person, a script | The update without a launcher, every patch file hashed whole whatever the quick check's record says: the repair, when a patch file may be damaged in a way the quick check does not see (bytes changed in place with the size and the time kept, as no program does by chance). When the ZIP replaces the updater itself, the new one is run at once (`check`, `quiet` as given) to restore resources.db and do the patch step, and its exit code is this one's. An error is a message box |
 | `updater_skhid.exe check quiet` | a script | No box either. Exit code 0: done or nothing to do; 1: failed (the reason is in the log) |
 | `updater_skhid.exe ready` (`quiet`: no box) | `play_skhid.bat`, `play_skhid.sh` before they start the game | Reads only: no lock, no server, nothing written but the log. Exit code 1 (and a box that says to start the launcher) when the last patch step did not end `ready` (a new overlay since, too), or the patch files are not now what its list says (one missing, damaged, or one more; looked at with the quick check); else 0 |
 | `updater_skhid.exe replay <id> <token> <sha256> <size>` | the patched game (patch revision 14) | "Watch replay": fetches one replay and starts a second game that plays it (below). A problem is a message box |
@@ -91,7 +98,64 @@ says so and does nothing.
 |---|---|
 | `logic/` | Everything that needs no Windows, as a library with no dependencies: SHA-256, DEFLATE and CRC-32, the ZIP reader and its name rules, the text formats (the server's answer, the installed state, the earlier updaters' record of resources.db, the list of resources.db's patches, the quick check's record) and what the restore and the patch step decide, the launcher's pipe messages, command-line splitting, the server address and a patch's. `cargo test` there runs on any host |
 | `exe/` | The program: WinHTTP, files, the pipe, the install with its undo, the texts a player sees. Built for `i686-win7-windows-msvc` with `-Z build-std=std,panic_abort`, `rust-lld` and Microsoft's C runtime, as `../bugtrap`; `res/` holds its icon and version resource |
-| `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and the restore, Windows or Wine. `test_game_download.py`: the original game's download. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
+| `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and the restore, Windows or Wine. `test_play_gate.py`: PLAY against the server's revision and the watch while the launcher stays open, Windows or Wine. `test_game_download.py`: the original game's download. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
+
+## PLAY and the server's revision
+
+The login server lets a game in when its exe says a patch revision of
+`SRP_MIN_PATCH_REVISION` or more (byte 7 of the sign-in's version field:
+`srp-026g/client-patches/patch_026g.py`, `REVISION_SITE`), and answers any
+other with the game's own "You're using an outdated version of the game."
+Nothing else is compared: not the patches, not the ZIP. So an updater that
+enables PLAY must know the exe it installed is one the server lets in
+(`exe/src/gate.rs`).
+
+**The revision gate.** `/api/client-files` says `min-revision <n>`, the
+server's setting. After the overlay the updater reads the revision the
+installed `survarium_skhid.exe` says (`logic/src/revision.rs`: the PE's
+sections give the file offset of 0x380862, where the patched exe has
+`C6 44 24 27 <revision> 90` and the original `8A 0D 9E AE 9D 00`, revision
+0). A lower revision than `n` keeps PLAY off ("Error", and "The server lets
+in game revision n and up; this game is revision r, and the update to it is
+not offered yet (the server is being updated). ..."), before the restore and
+the patch step. That is a server whose ZIP is older than its setting: a
+release half put in place. An exe whose site is neither (another program, a
+build whose site moved) or that cannot be read is logged and let through:
+the login server still decides. A server that says no `min-revision` (srp
+before it) is not checked.
+
+**The watch.** After its last message to the launcher (PLAY on, or off with
+the gate's words) the updater stays, as the launcher wants, and asks
+`/api/client-files` every 10 s until the launcher closes (PLAY starts the
+game and closes it):
+
+| The server | The updater |
+|---|---|
+| answers as it did for this run (the same ZIP and `min-revision`) | nothing |
+| offers another ZIP or another `min-revision` | starts the launcher anew (state 15, the pipe closed, the launcher's mutex waited for, `launcher_skhid.exe -product_name=<product>` started: as after a new launcher), whose updater updates. A launcher with one of the updater's boxes open closes only once it is dismissed; the new one is never started while the old one holds its mutex (a second launcher would say "already running" and end, and the first then close: none left), and after an hour of waiting the updater ends without starting one |
+| answered at the start, then misses two answers in a row (no connection, a status but 503) | state 22: the launcher says "Server maintenance..." and turns PLAY (and Enter) off (`srp-026g/docs/notes/launcher.md` 5.4) |
+| answers again after that | starts the launcher anew |
+| did not answer at the start (PLAY with what was checked, "No update check: ...") | PLAY stays on while it does not answer; once it does, the launcher starts anew when its ZIP is not the one installed or it says a `min-revision` |
+| answers 503 (busy, or reading a new ZIP) | no news |
+
+So a launcher left open over a release turns PLAY off while the server is
+down and updates once it is back, instead of starting the old exe into the
+"outdated version" refusal.
+
+**Why.** On 2026-10-21 players met that refusal after an update that
+enabled PLAY. The release put the new ZIP in place only after the server's
+restart and its checks (and the copy of srp.db to the jump host): in that
+time the server listed the new patch and let in only the new revision while
+it still offered the old ZIP. A launcher started then found the old ZIP
+current, downloaded the new patch, and enabled PLAY for the old exe. The
+release now puts the ZIP in place while srp26 is stopped
+(`release/lib.sh`, `swap_server`); the gate makes such a server loud and the
+watch repairs an open launcher by itself. `tests/test_play_gate.py` plays
+the half release (with and without `min-revision`), the ZIP coming while
+the launcher is open, the server going away and coming back, an offline
+start, a launcher with a box open (never a second launcher beside it), the
+original exe, an exe the updater does not know, and `check` replacing the
+updater.
 
 ## Watch replay
 
@@ -312,8 +376,8 @@ release that brings 0.3.0 ships its ZIP and an srp that writes `urls`
 together, and an updater asks for the ZIP before the list: 0.2.0 finds a
 new `updater_skhid.exe` in it, installs it, and leaves the rest of the
 update to it ("the rest of the update is done by the new one": the
-launcher restarts, which starts the new updater at once; by hand, the next
-`check` does it). Until then `ready` refuses (a new overlay). Tested
+launcher restarts, which starts the new updater at once; by hand, `check`
+runs the new updater at once). Until then `ready` refuses (a new overlay). Tested
 end to end (`test_db_patches.py`, with `SKHID_TEST_OLD_UPDATER`).
 
 **The files.** `GET <address>` of each entry, on whatever host the list
@@ -490,6 +554,7 @@ SKHID_REVISION=27 ./build.sh                 # as release/build-zip builds revis
 (cd logic && cargo test)
 python tests/test_updater.py                 # Windows
 python tests/test_db_patches.py              # Windows or Wine (resources.db's patches, the restore)
+python tests/test_play_gate.py               # Windows or Wine (PLAY and the server's revision, the watch)
 python tests/test_replay.py                  # Windows; the replay, in its no-window mode only
 python tests/test_game_download.py           # Windows or Wine
 SKHID_TEST_BUNDLE=<a players' zip> python tests/test_updater.py
@@ -645,6 +710,17 @@ the same in two folders, a local build (`SKHID_REVISION` unset)
 `926290f043e71b9b624baa96cd6ddfbb83b4a770cea4b4f1569f34b804effea7`; with
 `SKHID_REVISION=27`, `04821712070e2989a9cf6d854020515e45afd8843aa892acc3b10a40d0b65226`
 and `5296c55fa24fd7abdd806fb449d1e703d7b0eed23351be8e4f3d1af0786758a6`.
+
+Run on 2026-10-21 (Linux, Wine, the stand-in launcher), with the revision
+gate and the watch: the 79 unit tests (the revision site read from a made
+PE and, with `SKHID_TEST_GAME_EXE`, from released exes of revisions 26 and
+27; `min-revision` read); the 9 scenarios of `test_play_gate.py` (one with
+a stand-in launcher that holds its mutex and a modal box); the 48 of
+`test_db_patches.py` (one skipped as before; the one of a new overlay now
+has `check` run the new updater at once) and the 16 of
+`test_game_download.py` (four skipped as before). `test_updater.py` is not
+run: it needs Windows. Not seen: "Server maintenance..." in the real
+launcher's window.
 
 ## Not done
 

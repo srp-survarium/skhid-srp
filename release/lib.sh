@@ -727,10 +727,17 @@ restart_command() {
 #   swap_prepare <revision>  srp26 stopped; srp.db, the old files, the image
 #                            ID, the setting kept in the folder; the image
 #                            tagged; the rollback written
-#   swap_server <revision>   the server data and the setting (and source) in
-#                            place, srp26 made anew on them, checked:
-#                            running, its game data line, /patches
-#   swap_zip                 then the ZIP in place, /api/client-files
+#   swap_server <revision>   the server data, the ZIP and the setting (and
+#                            source) in place while srp26 is stopped, srp26
+#                            made anew on them, checked: running, its game
+#                            data line, /patches, /api/client-files
+#   swap_finish              the folder says released
+# The ZIP goes in with the server data, never after the start: the site
+# (srp26) answers nothing while it is stopped, and from its start on it
+# offers the new ZIP, the new /patches and takes the new revision at once.
+# A ZIP put in after the start left a time in which an updater found the
+# old ZIP current, fetched the new patches and enabled PLAY for a game the
+# login server refuses ("outdated version").
 # SWAP_STATE says how far it got, for swap_failed: `` (nothing), stopped
 # (only srp26 stopped and copies made: it is started again), moved (the
 # rollback runs), finished.
@@ -905,15 +912,22 @@ check_server() {
     say "/patches: $patches, as the server data says"
 }
 
-# /api/client-files names the new ZIP (sha256, size); a few tries (it may be
-# reading the file). Prints what failed and returns 1.
+# <revision>: /api/client-files names the new ZIP (sha256, size) and, when
+# the server says one (srp since min-revision), <revision> as the least
+# revision it lets in; a few tries (it may be reading the file). Prints what
+# failed and returns 1.
 check_client_files() {
-    local status _
+    local status _ min
     for _ in 1 2 3 4 5; do
         status=$(HTTP_TIMEOUT=60 http_get "$TARGET_SITE/api/client-files" "$SWAP_WORK/client-files")
         if [[ $status == 200 ]] && grep -qx "sha256 $ZIP_SHA" "$SWAP_WORK/client-files" &&
             grep -qx "size $ZIP_SIZE" "$SWAP_WORK/client-files"; then
-            say "/api/client-files: the new ZIP (sha256 $ZIP_SHA, $ZIP_SIZE bytes)"
+            min=$(sed -n 's/^min-revision //p' "$SWAP_WORK/client-files")
+            if [[ -n $min && $min != "$1" ]]; then
+                say "/api/client-files says min-revision $min, not $1: srp26 did not take the new setting"
+                return 1
+            fi
+            say "/api/client-files: the new ZIP (sha256 $ZIP_SHA, $ZIP_SIZE bytes), min-revision ${min:-(not said: an srp from before it)}"
             return 0
         fi
         sleep 2
@@ -922,12 +936,15 @@ check_client_files() {
     return 1
 }
 
-# <revision>: the server's files in place, srp26 made anew, check_server. A
-# failure shows srp's log and runs the rollback (swap_failed).
+# <revision>: the server's files and the ZIP in place, srp26 made anew,
+# check_server, check_client_files. A failure shows srp's log and runs the
+# rollback (swap_failed), which puts the old ZIP back too.
 swap_server() {
     ((DRY_RUN)) || SWAP_STATE=moved
     write_on live "$(put_command "$DATA_NAME")"
     SWAP_DONE+=("in place: download/$DATA_NAME")
+    write_on live "$(put_command "$ZIP_NAME")"
+    SWAP_DONE+=("in place: download/$ZIP_NAME")
     write_on live "$(min_revision_command "$1")"
     SWAP_DONE+=("SRP_MIN_PATCH_REVISION=$1 in .env (was $OLD_MIN)")
     if ((SWAP_SRC)); then
@@ -939,14 +956,12 @@ swap_server() {
     write_on live "cd $D && id=\$($TARGET_COMPOSE ps -aq srp26 | head -n 1) && docker inspect -f '{{.Image}}' \"\$id\" > $REL/image.new"
     ((DRY_RUN)) && return 0
     check_server || die "the new server did not come up as it must"
+    check_client_files "$1" || die "the site does not hand out the new ZIP"
     keep_db_backup || die "the pre-release copy of srp.db is not kept: rolling back rather than going on without it"
 }
 
-swap_zip() {
-    write_on live "$(put_command "$ZIP_NAME")"
-    SWAP_DONE+=("in place: download/$ZIP_NAME")
+swap_finish() {
     ((DRY_RUN)) && return 0
-    check_client_files || die "the site does not hand out the new ZIP"
     on_target "echo released > $REL_DIR/state"
     SWAP_STATE=finished
 }

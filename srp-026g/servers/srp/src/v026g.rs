@@ -434,6 +434,8 @@ pub struct Stack {
     pub login_addr: SocketAddr,
     pub lobby_addr: SocketAddr,
     pub match_addr: SocketAddr,
+    /// `SRP_MIN_PATCH_REVISION`, which the web page says to the updater.
+    pub min_patch_revision: u8,
     stop: Arc<AtomicBool>,
     /// The lobby's and the match server's threads: the ones [`Stack::stop`]
     /// waits for.
@@ -617,6 +619,7 @@ impl Stack {
             login_addr,
             lobby_addr,
             match_addr,
+            min_patch_revision: options.lobby.min_patch_revision,
             stop,
             threads,
         })
@@ -633,6 +636,7 @@ impl Stack {
                 inbox: self.inbox.clone(),
             }),
             patches: offered_patches(),
+            min_patch_revision: self.min_patch_revision,
             replays: Some(self.replays.clone()),
         }
     }

@@ -102,11 +102,14 @@
 #      The swap: srp26 stopped; srp.db, the old ZIP and server data (hard
 #      links), their sha256, the image ID, the setting (and the source) kept
 #      in the folder with its rollback, srp.db copied to the jump host too
-#      (live only); the server data (and source) in place,
-#      SRP_MIN_PATCH_REVISION=<rev>, srp26 made anew;
-#   6. checks the container, the log's game data line and /patches (exactly
-#      the list's patches), and only then puts the ZIP in place and checks
-#      /api/client-files. A failed check prints srp's log and runs the
+#      (live only); the server data (and source) and the ZIP in place,
+#      SRP_MIN_PATCH_REVISION=<rev>, srp26 made anew: the ZIP goes in while
+#      srp26 is stopped, so the site never offers the old ZIP beside the new
+#      /patches and revision (an updater would enable PLAY for a game the
+#      login server refuses);
+#   6. checks the container, the log's game data line, /patches (exactly
+#      the list's patches) and /api/client-files (the new ZIP and, from an
+#      srp that says it, min-revision <rev>). A failed check prints srp's log and runs the
 #      folder's rollback (srp.db, image, data, ZIP, setting, source: as
 #      before), with --now too. The run's output is the folder's release.log;
 #   7. live only, once it all went out (never after a stop or a rollback):
@@ -1435,9 +1438,9 @@ if ((!DRY_RUN)); then
     if ((build_code)); then say "  the image: main's source, built (the running one, $RUN_IMAGE, is tagged $BEFORE_TAG)"; fi
     say "  the ZIP's entries, against the live ZIP:"
     grep -E '^  (CHANGED|ADDED|REMOVED) |^updater_skhid.exe' "$work/build-zip.log" | sed 's/^ */    /' || say "    (no entry changed)"
-    say "Next: srp26 stopped, the old files kept in the release folder, the server data in place, the revision set,"
-    say "srp26 made anew (every lobby link drops; its start copies srp.db to backups/), checked; srp.db's copy kept;"
-    say "then the ZIP. A failed check rolls it all back."
+    say "Next: srp26 stopped, the old files kept in the release folder, the server data and the ZIP in place, the revision set,"
+    say "srp26 made anew (every lobby link drops; its start copies srp.db to backups/), checked; srp.db's copy kept."
+    say "A failed check rolls it all back."
     if ((now)); then
         say "(--now: every match running at the stop ends WITHOUT RESULTS; how many is said right before it)"
     elif ((no_maint)); then
@@ -1460,12 +1463,12 @@ progress "5. the swap"
 swap_prepare "$rev"
 ((DRY_RUN)) || phase=swapping
 swap_server "$rev"
-progress "6. the server is up on the new data; the ZIP"
-swap_zip
+progress "6. the server is up on the new data and offers the new ZIP"
+swap_finish
 
 # 6. After.
 if ((DRY_RUN)); then
-    say "[dry run] 6. after the restart: srp26 running, its log's \"game data:\" line, GET $TARGET_SITE/patches is exactly the list's; srp's new backup of srp.db kept in the folder$( [[ $TARGET == live ]] && printf ' and copied to the jump host'); then the ZIP, GET $TARGET_SITE/api/client-files names it"
+    say "[dry run] 6. after the restart: srp26 running, its log's \"game data:\" line, GET $TARGET_SITE/patches is exactly the list's, GET $TARGET_SITE/api/client-files names the ZIP (put in before the restart) and min-revision $rev; srp's new backup of srp.db kept in the folder$( [[ $TARGET == live ]] && printf ' and copied to the jump host')"
     say "[dry run] a failed check: srp's log, then sh $TARGET_DIR/$REL/rollback.sh $TARGET_DIR/$REL on the $TARGET host (srp.db, image, files, setting back)"
     if ((test_server)); then
         say "[dry run] 7. no record (--test: no commit, no tag)"

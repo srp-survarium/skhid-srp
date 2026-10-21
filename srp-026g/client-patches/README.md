@@ -246,8 +246,10 @@ a player has none; `--extractor=<path>` names another copy, which must be the sa
 `--site=https://<host>` names the server's web
 page when it is not `https://<host of --server>`. A player then unpacks the ZIP into
 the game's folder (the one that holds `game`) once and double-clicks `Skhid.bat`,
-which starts `launcher_skhid.exe`: it looks for a newer ZIP on that site, installs it, and its
-PLAY button starts the game in the language chosen in it. The same input gives the
+which starts `launcher_skhid.exe`: it looks for a newer ZIP on that site, installs it, brings the
+game's patches to the server's `/patches` list, and enables its PLAY button only for a game the
+server lets in (`launcher/README.md`, "How an update works"); PLAY starts the game in the
+language chosen in it. The same input gives the
 same ZIP byte for byte, which the updater relies on. Back up the original `bugtrap.dll` and login certificate before
 installing. `--check` does every check and writes nothing. Existing ZIPs are
 never overwritten. `--bugtrap=<path>` selects another built DLL; by default
