@@ -806,7 +806,7 @@ impl SessionStore {
         let name = if shown.is_empty() {
             format!("player_{account_id:08x}")
         } else {
-            v021d::account::cap(shown)
+            v021d::account::cap(&v026g::names::shown_name(shown))
         };
         let mut account = Account::new(account_id, name);
         account.login = key.to_owned();
@@ -2434,6 +2434,23 @@ mod tests {
         assert_eq!(name("dummy0").1, "dummy0");
         let (id, fallback) = name("@example.com");
         assert_eq!(fallback, format!("player_{id:08x}"));
+        // Shown by the game's name characters only: no markup for other
+        // players' chat.
+        assert_eq!(name("john.doe@example.com").1, "john_doe");
+        assert_eq!(name("<b>big</b>").1, "_b_big__b_");
+    }
+
+    #[test]
+    fn a_saved_name_with_markup_is_made_safe_on_loading() {
+        let mut account = Account::new(7, "<b>x</b>".to_owned());
+        account.login = "x".to_owned();
+        let mut record = persist::AccountRecord::of(&account);
+        assert!(record.repair());
+        assert_eq!(record.name, "_b_x_/b_");
+        // A name merely outside the chosen characters stays.
+        let mut record = persist::AccountRecord::of(&Account::new(8, "a.b".to_owned()));
+        assert!(!record.repair());
+        assert_eq!(record.name, "a.b");
     }
 
     #[test]

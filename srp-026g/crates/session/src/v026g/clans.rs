@@ -227,11 +227,18 @@ pub enum NameFault {
 
 /// The characters of `clan_name_regex` (the game's
 /// `gameplay/clans/clan_name.options`): Cyrillic, Latin, digits, the
-/// Ukrainian and German letters, `@`, `#`, the blank and `-`. (The `|` the
-/// regex's class also holds is its author's separator, not taken.)
+/// Ukrainian and German letters, `#`, the blank and `-`. (The `|` the
+/// regex's class also holds is its author's separator, not taken; nor is
+/// its `@`, by the owner's rule for names.)
 fn name_char(c: char) -> bool {
-    c.is_ascii_alphanumeric() || ('А'..='я').contains(&c) || "єЄІіЇїÄäÖöÜüß@# -".contains(c)
+    c.is_ascii_alphanumeric() || ('А'..='я').contains(&c) || "єЄІіЇїÄäÖöÜüß# -".contains(c)
 }
+
+/// Abbreviations the lobby chat draws in the staff colours: a line whose
+/// clan prefix (`"[" + abbr + "] "`) starts with `[admin]` or `[VG]`
+/// (`LobbyChat.as::get_styled_text`). Compared [`folded`], so a look-alike
+/// is refused with them.
+const STAFF_TAGS: [&str; 2] = ["admin", "vg"];
 
 /// The Latin letter a look-alike stands for (`clan_name_letters_replacement`
 /// of the same file): names that read the same are the same name.
@@ -287,6 +294,10 @@ pub fn name_fault(text: &str, tag: bool) -> Option<NameFault> {
     let letters = text.chars().filter(|c| c.is_alphabetic()).count();
     if count > *allowed.end() || letters < if tag { 1 } else { 2 } {
         return Some(NameFault::FewLetters);
+    }
+    // Taken by the staff, as the chat sees it.
+    if tag && STAFF_TAGS.contains(&folded(text).as_str()) {
+        return Some(NameFault::Taken);
     }
     None
 }
@@ -1771,9 +1782,21 @@ mod tests {
         for good in ["Stalkers", "Черный рынок", "Fo-o #1"] {
             assert_eq!(name_fault(good, false), None, "{good}");
         }
-        for good in ["STK", "ЧР-1", "A1@#bc"] {
+        for good in ["STK", "ЧР-1", "A1#bc"] {
             assert_eq!(name_fault(good, true), None, "{good}");
         }
+        // No `@`, and no markup for other players' chat.
+        for bad in ["A1@bc", "<b>", "[VG]", "a&b"] {
+            assert_eq!(name_fault(bad, true), Some(NameFault::WrongSymbol), "{bad}");
+        }
+        assert_eq!(name_fault("me@clan", false), Some(NameFault::WrongSymbol));
+        // The staff's abbreviations as the chat colours them, look-alikes
+        // too (Cyrillic а and м).
+        for staff in ["admin", "ADMIN", "аdмin"] {
+            assert_eq!(name_fault(staff, true), Some(NameFault::Taken), "{staff}");
+        }
+        // As a clan's name it is no prefix.
+        assert_eq!(name_fault("admin", false), None);
         // A 24-character Cyrillic name fits the client's 63 bytes.
         assert!("я".repeat(*NAME_CHARS.end()).len() <= 63);
         assert!("я".repeat(*TAG_CHARS.end()).len() <= 14);

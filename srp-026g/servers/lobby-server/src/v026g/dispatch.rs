@@ -16,7 +16,7 @@ use std::net::SocketAddr;
 use std::time::Instant;
 
 use session::LockExt;
-use session::v026g::{quests, rules, tutorial, wire};
+use session::v026g::{names, quests, rules, tutorial, wire};
 use survarium::v026g::lobby::requests::{ClientMessage, id};
 use survarium::v026g::lobby::{self, NameRefusal, Ranked, important};
 
@@ -32,8 +32,9 @@ mod text {
 /// What is wrong with a name a client asks about (`49 03`, `49 08`,
 /// `49 09`), in the client's own reasons. [choice] The original server's
 /// rules are not known; these are the ones srp can keep: three characters
-/// or more, no blanks, nothing that does not print, and within the 63
-/// bytes the client's buffers hold.
+/// or more, no blanks, the game's own characters ([`names::name_char`]: no
+/// markup for other players' chat, no `@`), and within the 63 bytes the
+/// client's buffers hold.
 pub(super) fn name_refusal(name: &str, nickname: bool) -> Option<NameRefusal> {
     if name.chars().count() < 3 {
         return Some(NameRefusal::Short);
@@ -41,10 +42,7 @@ pub(super) fn name_refusal(name: &str, nickname: bool) -> Option<NameRefusal> {
     if name.chars().any(char::is_whitespace) {
         return Some(NameRefusal::Space);
     }
-    if name
-        .chars()
-        .any(|c| c.is_control() || c == char::REPLACEMENT_CHARACTER)
-    {
+    if !name.chars().all(names::name_char) {
         return Some(NameRefusal::WrongSymbol);
     }
     if name.len() > lobby::limits::NAME {
@@ -708,5 +706,13 @@ mod tests {
         );
         assert_eq!(name_refusal("Сталкер", true), None);
         assert_eq!(name_refusal("abc", false), None);
+        // Nothing for other players' chat to take for markup, and no `@`.
+        for bad in ["a<b>c", "a&amp;b", "it's", "a:b", "me@mail", "a.b"] {
+            assert_eq!(
+                name_refusal(bad, true),
+                Some(NameRefusal::WrongSymbol),
+                "{bad}"
+            );
+        }
     }
 }
