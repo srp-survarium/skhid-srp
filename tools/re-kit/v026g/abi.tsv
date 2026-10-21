@@ -959,6 +959,7 @@ va	name	source	ret_cleanup	result
 0x00243980		auto	0	
 0x002439d0		auto	0	
 0x00243a30		auto	8	
+0x00243a30	survarium::weapon::load_weapon	manual	8	keeps the skeleton model instance at +1810h (0x243A9A) and the scope at +1808h
 0x00243bc0	survarium::weapon::calculate_locator	manual	16	
 0x00243cb0		auto	0	
 0x00243d40	survarium::weapon::set_foreground	manual	0	
@@ -1033,6 +1034,7 @@ va	name	source	ret_cleanup	result
 0x00284d10	survarium::player_profile::operator=	manual	0	EAX = destination; deep copy (every item record, the kits); clobbers ECX, EDX, XMM0; DF = 0
 0x00284dc0	survarium::player_profile::copy_body	manual	8	
 0x00284ea0	survarium::player_profile::copy_kit	manual	4	
+0x00284f20	survarium::lobby_character::on_player_ready	manual	4	the new player at +D2B8h; +D2C4h (the player query) back to -1 (0x284F86); setup_profile again when +D2C8h was set
 0x0028de20	survarium::lobby_menu::add_quest	manual	4	
 0x0028e690	survarium::lobby_menu::create_quest_ui_message	manual	12	
 0x0028f350	survarium::object_environment_probe::`scalar deleting destructor'	manual	4	

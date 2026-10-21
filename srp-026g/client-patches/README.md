@@ -96,7 +96,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_baked_texture_026g.py` | Runs the original's and patch 35's baked-texture list of the camouflage/decal baker (the look-up, the push and check_loaded_baked_texture) on made-up loads, among them those of the crash of 2026-10-17 (needs Unicorn) |
 | `weapon_preview_026g.asm`, `weapon_preview_026g.section.bin` | The source of patch 32's code (a weapon's upgrade window shows the weapon) and that code assembled for 0x2E50 of `.srp`, its state at 0xE00 of `.srpd`, `-DFIND` the stash code's address and `-DCAMERA` patch 45's camera (weapon_table_026g.asm), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `weapon_stash_026g.asm`, `weapon_stash_026g.section.bin`, `check_weapon_stash_026g.py` | Patch 32's find_kit grown: a weapon no kit holds is shown in the chosen kit's hands from a scratch copy of the account's profile; assembled for 0x360 of `.srpw`; its check runs it with the game's own profile and record copies (needs Unicorn) |
-| `weapon_table_026g.asm`, `weapon_table_026g.section.bin`, `check_weapon_table_026g.py` | Patch 45: a weapon's upgrade window shows the weapon in the air above the lobby's workbench, the camera flown there and a drag turning the weapon; assembled for 0x800 of `.srpw`, its state at 0xF00 of `.srpd`; its check runs the lobby's handlers, the camera's constructor and tick and mt_draw's two sites with the game's own code (needs Unicorn) |
+| `weapon_table_026g.asm`, `weapon_table_026g.section.bin`, `check_weapon_table_026g.py` | Patch 45: a weapon's upgrade window shows the weapon in the air above the lobby's workbench, turning about its middle, the camera flown there once it is, and a drag (the left button too, off the movie) turning it; assembled for 0x800 of `.srpw`, its state at 0xF00 of `.srpd`; its check runs the lobby's handlers, the camera's constructor and tick, its drag buttons and mt_draw's two sites with the game's own code (needs Unicorn) |
 | `weapon_draw_026g.asm`, `weapon_draw_026g.section.bin` | The source of patch 32's draw (a weapon's window draws the player as the lobby does) and that code assembled for 0xD20 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_weapon_preview_026g.py` | Runs the original's and patch 32's upgrade window start and close (with the lobby camera's own setter), `setup_profile`'s entry, the lobby camera's three distance clamps and the player's decal pose on a made-up lobby, loaded as is and rebased (needs Unicorn) |
 | `check_forward_scroll_026g.py` | Runs the original's and the build's forward-effect compile, with patch 28's two hooks, on made-up materials and compares what each sends; runs the third hook against the game's own binding of `scene_time`; loaded as is and rebased (needs Unicorn). With `--rev12=` it compares the build with revision 12 byte by byte |
@@ -2371,8 +2371,8 @@ lobby's character hold it (a kit's weapon, or a stash weapon in the chosen kit's
 scratch profile), with its scope and camouflage; patch 45 draws that held weapon on its own above
 the workbench by the lobby's right wall and flies the camera there.
 
-`weapon_table_026g.asm` at `.srpw`+800h (812 bytes, after the stash code), its state (40 bytes)
-at `.srpd`+F00h; it begins with four `jmp near` (its entries):
+`weapon_table_026g.asm` at `.srpw`+800h (812 bytes in round 1, 1 488 in round 2 below; after the stash code), its state (40 bytes, then 48h)
+at `.srpd`+F00h; it begins with four `jmp near` (its entries; a fifth, `left`, in round 2):
 
 - **camera** (+0): patch 32's start_cam and exit_cam end with `jmp camera` instead of `jmp
   2845C0h` (the lobby camera's setter; `-DCAMERA` of `weapon_preview_026g.asm`, which without it
@@ -2409,20 +2409,37 @@ on. Every other player, every other time: the original's code, byte for byte. No
 is under a site and no branch aims inside one; the code holds no absolute address (its state by
 call/pop, the return address it looks for from it).
 
+Round 2 (2026-10-21, after the owner's game run; 1 488 bytes, state 48h bytes):
+
+- **The middle.** The weapon turns about its middle and the middle is at BENCH: the model's box
+  (render_model+108h, rotY(π) of the mesh, as the engine turns it) through bone 1's (`offset`)
+  inverse bind (+140h of the skeleton render model) and its pose of the frame (mt_draw's
+  [ebp−0Ch]), found from the held weapon (+1810h → +108h, vtable 0x9F0F24 checked → +62B4h).
+  A default ±1 box, a missing piece or not a weapon: (0, 0, 0.2) of the model. The first round
+  put (0, 0, −0.18) there, which was the stock's end (the box's frame is not the mesh's).
+- **The weapon first.** The camera holds at the window's start (its three steps' speeds 0) until
+  the weapon is drawn at the bench, which waits for the character's new player (+D2C4h −1,
+  +D2C8h 0; the held item stays in the hand until then), at most 2 s; then it flies.
+- **The left button** (`left`, +14h; 0x283D81 `test byte [eax+0Ch],52h / setne al`, 7 bytes, is
+  `call left` and 2 nops): at the bench a left-button drag turns the weapon too, when its press
+  is off the movie (the lobby menu's is_mouse_over_ui, asked once at the press's first move):
+  a press on a control or on an item being dragged (a camouflage, a scope) does not, until it is
+  let go. Buttons 52h as before.
+- **The light** is data, not this patch: `../scripts/content-edit/lobby-bench-light-1.json`.
+
 What it leaves alone: what patch 32 shows and builds (the kit, the scratch profile, the
 character's pose and the decal pose, the least distance 0.6 while a weapon's window is open), the
 wheel (it moves the camera nearer or further, 0.6 to 4.6), armour windows, the squad panels, a
 match. Rendering and the lobby only: no row in
 `../crates/session/src/v026g/simulation_changes.tsv`. `../docs/notes/client_patch.md` section 3.42.
 
-Checked: `selftest_026g.py` check 45 (the three sites in the original and the build, nothing
+Checked: `selftest_026g.py` check 45 (the four sites in the original and the build, nothing
 aiming inside them, no relocation; the tick's frame and adds, the camera's point written by its
 constructor alone, the character at the origin, mt_draw's caller and prologue and its decal
 buffer; the code's branches) and check 33 (patch 32's two jumps to it); `check_weapon_table_026g.py`
-(Unicorn, the cases in its header: 14 checks, as is and rebased) and `check_weapon_preview_026g.py`
-(patch 32's cases with patch 45's camera). **Not run in a game**: the bench's place, the view, the
-drag's direction, the light there and a weapon's look in the air are guesses read from the lobby
-scene's data.
+(Unicorn, the cases in its header: 28 checks, as is and rebased) and `check_weapon_preview_026g.py`
+(patch 32's cases with patch 45's camera). Round 1 (e93fb6f0) run in a game by the owner (the camera at the
+bench, the weapon there); **round 2 not run in a game**.
 
 ## Not ported, not done
 

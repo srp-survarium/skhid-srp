@@ -1245,6 +1245,7 @@ va	name	location	role	basis
 0x0015a590	vostok::render::skeleton_render_model_instance::update_render_matrices	entry ESP+8	first matrix-array input	observed
 0x0015a590	vostok::render::skeleton_render_model_instance::update_render_matrices	entry ESP+0xC	second matrix-array input retained across first multiply output push	observed
 0x0015a590	vostok::render::skeleton_render_model_instance::update_render_matrices	entry ESP+0x10	matrix count	observed
+0x0015a590	vostok::render::skeleton_render_model_instance::update_render_matrices	entry ESP+8	the bones' matrices in model space (rows, v * M): skinned as model+140h (the inverse binds) * bone; the instance box (+62B8h) = rotY(pi) of the model's (+108h)	observed
 0x0015a9a0	vostok::render::skeleton_render_model_instance::get_locators_count	ECX	skeleton instance receiver replaced by its original-model resource pointer	observed
 0x0015a9b0	vostok::render::skeleton_render_model_instance::get_locator	ECX	skeleton instance receiver replaced by its original-model resource pointer	observed
 0x0015a9c0	vostok::render::skeleton_render_model_instance::get_locator	ECX	skeleton instance receiver replaced by its original-model resource pointer	observed
@@ -2300,6 +2301,9 @@ va	name	location	role	basis
 0x00243a30		ECX		auto
 0x00243a30		entry ESP+4		auto
 0x00243a30		entry ESP+8		auto
+0x00243a30	survarium::weapon::load_weapon	ECX	the weapon	observed
+0x00243a30	survarium::weapon::load_weapon	entry ESP+4	the weapon's skeleton model instance (its +108h: the skeleton_render_model_instance)	observed
+0x00243a30	survarium::weapon::load_weapon	entry ESP+8	the scope (or 0)	observed
 0x00243bc0	survarium::weapon::calculate_locator	stack+4	locator	inferred
 0x00243bc0	survarium::weapon::calculate_locator	EDI	output_matrix	inferred
 0x00243cb0		ECX		auto

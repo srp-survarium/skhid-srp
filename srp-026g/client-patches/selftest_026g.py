@@ -1593,6 +1593,7 @@ def test_weapon_table(original, image, before):
         0x284020: ["movss xmm0,dword [ebx+0xc8]"],
         0x247576: ["cmp byte [ebp-0x1],0x0", "jnz 0x247592"],
         0x24778F: ["cmp byte [ebx+0xf49c],0x0", "jz 0x2477c2"],
+        0x283D81: ["test byte [eax+0xc],0x52", "setnz al"],
     }
     for va, old, offset, opcode in P.WEAPON_TABLE_HOOKS:
         entry = table_va + offset
@@ -1651,15 +1652,43 @@ def test_weapon_table(original, image, before):
     outside = {t for t in targets if not table_va <= t < table_va + len(code)}
     starts = {a for a, _, _ in listing}
     check(outside == {0x2845C0} and all(t in starts for t in targets - outside)
-          and [rows(image, table_va + at, 5)[0].startswith("jmp ") for at in P.WEAPON_TABLE_ENTRIES] == [True] * 4
-          and not [t for _, _, t in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[|\[(?:dword )?0x", t)]
+          and [rows(image, table_va + at, 5)[0].startswith("jmp ") for at in P.WEAPON_TABLE_ENTRIES] == [True] * len(P.WEAPON_TABLE_ENTRIES)
+          and [t for _, _, t in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[", t)] == ["call [eax+0x24]"]
+          and not [t for _, _, t in listing if re.search(r"\[(?:dword )?0x", t)]
           and image.read(table_va, len(code)) == code
           and P.weapon_preview_state(code, table_va)
           == P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_TABLE_STATE_OFFSET,
           f"the weapon table at {table_va:#x} (.srpw+{P.WEAPON_TABLE_OFFSET:#x}) is weapon_table_026g.section.bin "
-          f"({len(code)} bytes), its state at 0x{P.WEAPON_TABLE_STATE_OFFSET:X} of .srpd; it begins with four "
-          "`jmp near`, jumps only to the camera's setter outside itself, every branch inside it lands on an "
-          "instruction, and no operand is an absolute address")
+          f"({len(code)} bytes), its state at 0x{P.WEAPON_TABLE_STATE_OFFSET:X} of .srpd; it begins with five "
+          "`jmp near`, jumps only to the camera's setter outside itself and calls only the lobby menu's "
+          "vtable+24h (is_mouse_over_ui), every branch inside it lands on an instruction, and no operand is an "
+          "absolute address")
+    mouse = {a: t for a, _, t in ndisasm(source.read(0x283D79, 0x13), 0x283D79)}
+    check(mouse.get(0x283D7F) == "call eax" and mouse.get(0x283D88) == "test al,al"
+          and mouse.get(0x283D8A) == "jz 0x283dbe"
+          and rows(source, 0x283D95, 6) == ["mov eax,[esi+0xb4]"] and rows(source, 0x283DC7, 6) == ["mov eax,[esi+0xdc]"]
+          and rows(source, 0x283E00, 6) == ["mov edx,[esi+0x88]"]
+          and rows(source, 0x283D3C, 6) == ["mov ecx,[esi+0x88]"] and rows(source, 0x283D44, 3) == ["mov edx,[eax+0x24]"]
+          and source.read(0x225220, 3) == bytes.fromhex("558bec"),
+          "the lobby camera's on_mouse_move tests the mouse's buttons (+0Ch) at 0x283D81 and reads only al of it "
+          "(every way after loads eax again); its wheel asks the lobby menu (+88h) vtable+24h (is_mouse_over_ui "
+          "0x225220, the movie's root.get_mouse_over)")
+    texts = lambda va, size: [t for _, _, t in ndisasm(source.read(va, size), va)]
+    check(texts(0x243656, 6) == ["mov dword [ebx],0xa04174"] and original.count(struct.pack("<I", 0xA04174)) == 2
+          and texts(0x243A9A, 6) == ["mov [ebx+0x1810],eax"]
+          and struct.unpack("<I", source.read(0xA04174 + 0x48, 4))[0] == 0x244E10
+          and texts(0x15A5AA, 6) == ["mov eax,[edi+0x62b4]"] and texts(0x15A5B0, 8) == ["movq xmm0,[eax+0x108]"]
+          and texts(0x15A77F, 5) == ["call 0xf1fd0"] and texts(0x15A7DC, 6) == ["mov edx,[edx+0x140]"]
+          and texts(0x15A7EC, 5) == ["call 0xee700"]
+          and struct.unpack("<I", source.read(0x9F0F24 + 0x54, 4))[0] == 0x15A4C0
+          and texts(0x284B89, 7) == ["cmp dword [ebx+0xd2c4],byte -0x1"]
+          and texts(0x284F86, 10) == ["mov dword [ebx+0xd2c4],0xffffffff"]
+          and texts(0x284BB2, 7) == ["mov byte [ebx+0xd2c8],0x1"],
+          "the weapon's middle: the weapon (vtable 0xA04174, its ctor's alone; +48h weapon::draw) keeps its "
+          "skeleton model at +1810h (load_weapon); skeleton_render_model_instance (vtable 0x9F0F24, +54h get_aabb) "
+          "takes its box from its model's +108h (0x15A5B0), turns it by rotY(pi) (0x15A77F) and skins with the "
+          "model's inverse binds (+140h) times the bones given (0x15A7EC); a lobby character makes its player "
+          "while +D2C4h is a query (-1 none, on_player_ready) or +D2C8h is set")
 
 
 def aimed_inside(original, va, size, near):

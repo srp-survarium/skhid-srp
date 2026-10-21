@@ -1542,9 +1542,9 @@ WEAPON_PREVIEW_FIND_CALLS = (0x2B, 0xCC)       # weapon_preview_026g.section.bin
 # workbench (patch 45, README; client_patch.md section 3.42):
 # weapon_table_026g.asm at WEAPON_TABLE_OFFSET of `.srpw`, after the stash
 # code; its state (WEAPON_TABLE_STATE_SIZE bytes) at WEAPON_TABLE_STATE_OFFSET
-# of `.srpd`, after the others'. It begins with a table of four `jmp near`:
+# of `.srpd`, after the others'. It begins with a table of five `jmp near`:
 # camera (+0), which patch 32's start_cam and exit_cam jump to instead of the
-# lobby camera's setter (WEAPON_PREVIEW_CAMERA_JUMPS, -DCAMERA), and the three
+# lobby camera's setter (WEAPON_PREVIEW_CAMERA_JUMPS, -DCAMERA), and the four
 # hooks' entries:
 # - the lobby camera's tick (0x283EF0, ebx = camera+4), `movss xmm0,
 #   [ebx+0C8h]` at 0x284020 (the drag's yaw of the frame; every tick passes
@@ -1554,18 +1554,23 @@ WEAPON_PREVIEW_FIND_CALLS = (0x2B, 0xCC)       # weapon_preview_026g.section.bin
 #   draw): cull, which sends the table's player to the draw path;
 # - mt_draw, `cmp byte [ebx+0F49Ch],0 / je 2477C2h` at 0x24778F (the held
 #   item's transform: the decal pose's or the hand's): matrix, which gives
-#   the table's player's held item the bench's transform.
+#   the table's player's held item the bench's transform, its middle at the
+#   bench, once the character makes no player;
+# - the lobby camera's on_mouse_move (0x283D30), `test byte [eax+0Ch],52h /
+#   setne al` at 0x283D81 (its drag buttons): left, which at the bench also
+#   drags with the left button pressed off the movie (is_mouse_over_ui).
 # No base relocation is under a site; the code holds no absolute address but
 # the game's functions' and finds its state with call/pop.
 WEAPON_TABLE_OFFSET = 0x800
 WEAPON_TABLE_STATE_OFFSET = 0xF00
-WEAPON_TABLE_STATE_SIZE = 0x28
+WEAPON_TABLE_STATE_SIZE = 0x48
 WEAPON_PREVIEW_CAMERA_JUMPS = (0x68, 0xA8)     # weapon_preview_026g.section.bin: the two `jmp CAMERA`
-WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF)    # camera, tick, cull, matrix: `jmp near` each
+WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14)  # camera, tick, cull, matrix, left: `jmp near` each
 WEAPON_TABLE_HOOKS = (
     (0x284020, bytes.fromhex("f30f1083c8000000"), 0x5, 0xE8),        # the camera's tick: tick
     (0x247576, bytes.fromhex("807dff007516"), 0xA, 0xE8),            # mt_draw's culled player: cull
     (0x24778F, bytes.fromhex("80bb9cf4000000742a"), 0xF, 0xE8),      # mt_draw's held item's transform: matrix
+    (0x283D81, bytes.fromhex("f6400c520f95c0"), 0x14, 0xE8),        # the camera's drag buttons: left
 )
 
 

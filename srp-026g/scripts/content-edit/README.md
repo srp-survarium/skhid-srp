@@ -116,3 +116,17 @@ The two weapons in the builds at hand (damage / piercing; the card shows them x1
 
 Applied to revision 24's server game data (`gameplay/items/weapons/wpn_ak_12*`,
 `wpn_socom16`; patch 25 did not touch weapons): 3 files edited, 0 unexpected differences.
+
+## lobby-bench-light-1.json (2026-10-21)
+
+| change | why |
+|---|---|
+| `projects/lobby_scene/day/client_project` (the lobby's scene): `client_objects[49]` (`ambient_light(3)`, at (4.929, 0.006, 4.347) on the floor under the workbench's end, colour 0xFFB3856B) `intensity` 1 (an int) -> 2.5 (a float, as `ambient_light(23)`'s 2.2), `radius` 3.1 -> 3.6 m | the owner, of patch 45's weapon above the workbench (`../../docs/notes/client_patch.md` section 3.42): "the lamp under the table should give more light, since now it is somewhat dark". It is the one light by the bench: the room's others are the ceiling point light at (1.672, 2.742, -0.643), 4.7 m away, and a blue spot (`back2`) at the far corner; the weapon at (4.25, 1.30, 3.05) is 1.95 m from it, now well inside its radius |
+
+The scene is the stock `resources.db`'s (no patch has it): take it with `dbgrab resources.db get
+projects/lobby_scene/day/client_project live/` (flattened names are fine) and
+`python3 -I content_edit.py lobby-bench-light-1.json live/ folder/`. Applied to the stock file
+(sha256 `e93de4fc…c0f8`): 1 file edited, 0 unexpected differences, 5 bytes changed; the result
+sha256 `3fa6be5e…7062`. Rendering only: no server data, no simulation change. Not seen in a game:
+how much brighter 2.5 is (the engine's ambient light is a fill light with a radius; the value is
+a first guess to tune).
