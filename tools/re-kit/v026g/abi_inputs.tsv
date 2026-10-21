@@ -2316,6 +2316,11 @@ va	name	location	role	basis
 0x00244c50	survarium::weapon::remove_aimed_rifle_scope_from_scene	EDI	scene_reference	inferred
 0x00244e10		ECX		auto
 0x00245250		ECX		auto
+0x00248ad0	survarium::step_manager::on_step	ECX	step_manager (+4 the game world)	observed
+0x00248ad0	survarium::step_manager::on_step	EAX	foot position (float3*; the ground ray starts 1 m above it, 2 m long)	observed
+0x00248ad0	survarium::step_manager::on_step	entry ESP+4	step direction (float3*)	observed
+0x00248ad0	survarium::step_manager::on_step	entry ESP+8	foot game material id (u16): the material pair with the ground gives the sound (pair+20h; none, no sound), decal, particle	observed
+0x00248ad0	survarium::step_manager::on_step	entry ESP+0Ch	view flag (byte): 1 when not the current player in first person	observed
 0x00256fa0	survarium::damage_zone_cook::delete_resource	stack+4	damage-zone object to destroy	inferred
 0x00257170	survarium::damage_zone_cook::calculate_max_requests_count	stack+4	config	inferred
 0x00257210	survarium::damage_zone_cook::calculate_buffer_size	stack+4	config	inferred
@@ -2467,6 +2472,9 @@ va	name	location	role	basis
 0x0029ab20	survarium::lobby_menu::fill_match_statistic	stack+8	match summary	inferred
 0x0029ab20	survarium::lobby_menu::fill_match_statistic	stack+12	full player result	inferred
 0x0029ab20	survarium::lobby_menu::fill_match_statistic	stack+16	selected player index	inferred
+0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	ESI	player_equipment_sound_effect (+38h logic selector, +3Ch player, +40h world); foot material = player u16 [0F2C4h + 4*state+24h + 2*third_person], state+24h: 1 crouch walk, 2 stand run, 3 sprint, 4 jump (boots walk_/run_/sprint_/jump_{1st,3rd}_view_material_id, copied to player+0F2C8h)	observed
+0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	entry ESP+4	foot position (float3*)	observed
+0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	entry ESP+8	step direction (float3*)	observed
 0x002aec40	vostok::render::stage_particles::is_effects_ready	ECX	stage_particles owner	observed
 0x002c6f90		EAX		auto
 0x002c6f90		entry ESP+4		auto

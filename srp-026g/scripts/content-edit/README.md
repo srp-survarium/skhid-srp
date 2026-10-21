@@ -143,3 +143,17 @@ unexpected differences).
 
 Applied to the stock resources.db's two lists (no Skhid patch up to 27 carries them): 2 files
 edited, 0 unexpected differences. Nothing in the server game data (srp reads neither file).
+
+## crouch-steps-1.json (2026-10-21)
+
+| change | why |
+|---|---|
+| The 80 crouch pairs of `game_materials/material.pairs` (foot materials `actor_crouch` 54, heard by others, and `actor_local_crouch` 57, heard by the player himself; every boots config gives them to crouch walking): `collision_sound` "" -> a copy of what the walking pair of the same ground plays (54 takes `actor` 10's, 57 takes `actor_local` 42's), `collision_sound_type` its kind (258 collection, 257 composite). 67 pairs get a sound; the 13 whose walking pair is silent stay silent | the owner: "when crouched player should still make sound, right now they don't at all, it should be lower volume (don't know by how much) but not 0". The pairs were empty, so `step_manager::on_step` played nothing (`docs/notes/crouch_steps.md`) |
+| The copies: every walking step sample (`sounds/single/material/step/<ground>/`, 22 folders, 506 samples) at `sounds/single/crouch/...`, `volume_k` x 0.4 (-8 dB; the distance curve kept); the 43 collections and 16 composites the walking pairs play at `sounds/collections/crouch/...` and `sounds/composite/crouch/...`, their filenames prefixed `crouch/` | a pair has no volume of its own, a sample's options do: the same steps at 40 %. 0.31a2 (which added crouch steps) is at 58 % of its walking at 1 m and about 10 % from 5 m |
+
+New edits for it: `copy` (a live file also at a new path), `scale` (a number of many files times a
+factor), `prefix_string` and `set_entry` (an indexed table's entry chosen by its keys, here a
+pair by its two materials). Applied to the stock resources.db's files (no Skhid patch up to 26 carries
+them): 1,578 files edited (1,577 new, 1,012 of them byte for byte), 0 unexpected differences;
+every new name a pair, collection or composite gives resolves to a new file. Sound only: no
+simulation change, nothing in the server game data.
