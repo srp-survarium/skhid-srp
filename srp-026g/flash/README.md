@@ -27,30 +27,33 @@ bytes):
 ## Cleaned up over the export
 
 The trees are no longer FFDec's text as it came out; they are meant to be read and edited as
-ordinary source (the owner, 2026-10-21: no decompilation matching needed now). The names below
-still compiled to the original movies byte for byte; the constants classes do not, by design.
+ordinary source (the owner, 2026-10-21: no decompilation matching needed now).
 
 - **Names.** FFDec calls a local `_loc2_` and a parameter `param1` where the bytecode has no name.
-  They have names now. Where possible they are the original ones:
-  - another movie's copy of the same function has them in its debug info (the hud, player-icons and
+  Every one has a name now. Where possible it is the original one:
+  - another movie's copy of the same function has it in its debug info (the hud, player-icons and
     replay movies carry debug info);
-  - the movie's own debug info or parameter table records them and FFDec ignored them.
+  - the movie's own debug info or parameter table records it and FFDec ignored it.
 
-  Otherwise the name comes from how the variable is used.
-- **Placeholders that stay.** Some lobby methods keep `_loc2_`/`param1`: srp's earlier patches
-  compiled FFDec text with debug info, so the shipped movie records exactly those names
-  (`UpgradeWindow`, `ItemRendererInv.updateData`, `ItemInfoRenderer.set data`, ...). Some
-  player-icons/replay interfaces keep their parameters too: their movie's parameter table holds
-  unrelated strings. The lobby's own game classes (`survarium/**`, the top-level scripts and the
-  timeline classes) are not cleaned yet: the lobby features are being moved into them first.
-- **Named numbers.** The static constants used in place of literals:
+  Otherwise the name comes from how the variable is used. The movies are built without debug
+  information, so a local's or a parameter's name is not in the compiled movie: renaming one
+  compiles to the same code.
+- **Named numbers.** A number that stands for something (an item category, a slot, a state, a
+  channel, a code of the server, a sound, a cursor, a key) is a static constant. The groups are
+  enum-like classes in each movie's `survarium/constants` (the lobby: `ItemCategory`,
+  `SuperCategory`, `ItemPlace`, `ProfileSlot`, `ModifierType`, `Faction`, `ChatChannel`,
+  `NotificationType`, `ClanState`, `RoomCode`, `PvbCode`, ...), each with where its values come
+  from. Numbers of one class only (a wire offset, a text table's index) are constants of that class.
+  A meaning that could not be established is named by its use and says so. Geometry, colours,
+  timings, timeline frames and arithmetic stay literal.
 
   | constant | where it is defined |
   | --- | --- |
   | UI sound ids (`sound_play`) | `survarium.constants.UiSound` (the order of `gameplay/ui_sounds`) |
-  | key codes | `flash.ui.Keyboard` |
+  | key codes | `flash.ui.Keyboard`; the others `survarium.constants.KeyCode` |
   | mouse buttons | `scaleform.gfx.MouseEventEx` |
-  | item categories and `ItemFactory.getCategory`'s groups | `survarium.constants.Category` (`BASE_*`) |
+  | item categories | `survarium.constants.ItemCategory` (names: `gameplay/item_categories` and the shop filters) |
+  | `ItemFactory.getCategory`'s groups | `survarium.constants.SuperCategory` (the shop's tabs) |
   | `ItemData.descriptor` | `survarium.constants.ItemPlace` (inventory, shop, bundle; below 100 the profile slot) |
   | gamepad buttons | `InputDelegate`'s `GAMEPAD_*` (the key codes Scaleform gives them) |
 
