@@ -336,7 +336,7 @@ mod tests {
     use crate::v026g::{quests as quest_rules, rules};
     use survarium::v026g::dictionary::Dictionary;
     use survarium::v026g::drops::Rng;
-    use survarium::v026g::loadouts::Loadouts;
+    use survarium::v026g::loadouts::{Loadouts, POCKET_SLOTS};
     use survarium::v026g::lobby::client_model::{Client, Decoded, ModelError};
     use survarium::v026g::lobby::requests::{INVENTORY_SLOT, Relocation};
     use survarium::v026g::lobby::{Delivery, FULL_CONDITION, KIT_READY, ServerId};
@@ -562,14 +562,21 @@ mod tests {
             .unwrap();
         assert_eq!(client.inventory().len(), account.inventory.len());
 
-        // Dress all three kits with whatever fits each slot.
+        // Dress all three kits with whatever fits each slot (a pocket with
+        // a type no other pocket holds).
         for kit in 1..=3 {
-            let mut moves = Vec::new();
+            let mut moves: Vec<Relocation> = Vec::new();
             for slot in 0..KIT_SLOTS as u8 {
+                let pocketed = |dict_id| {
+                    POCKET_SLOTS.contains(&slot)
+                        && moves.iter().any(|done| {
+                            done.dict_id == dict_id && POCKET_SLOTS.contains(&done.target_slot)
+                        })
+                };
                 let Some(item) = account
                     .inventory
                     .iter()
-                    .find(|item| dictionary.fits(item.dict_id, slot))
+                    .find(|item| dictionary.fits(item.dict_id, slot) && !pocketed(item.dict_id))
                 else {
                     continue;
                 };

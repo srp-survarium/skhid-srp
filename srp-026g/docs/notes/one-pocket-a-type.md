@@ -1,0 +1,55 @@
+# One pocket an item type
+
+The owner's rule of 2026-10-21. Code: `session::v026g::account` (`doubled_pockets`,
+`Account::merge_pockets`, `repair`), `rules::move_items` / `buy` / `check_play`
+(`ActionError::PocketTaken`), the load (`GameAccounts::with_repository`); the lobby:
+`LocalPaperDoll` (`pocketOf`, `pocketUnits`, `selectAgeements`, `getSlot`), `ItemPaperDollSlot`,
+`InventoryList`, `AmmoShareLite.updateElement`.
+
+- **The rule:** "people should be able to stack the same item type only once". In a kit, an item
+  type (one dictionary item: a grenade, a medkit, a booster) is in at most one pocket. Its units
+  in that pocket are capped by the pocket's size, as before.
+- **Pockets:** profile slots 13..18 (`loadouts::POCKET_SLOTS`), the only slots for drugs and
+  boosters (category 10), traps (11) and grenades (24), all stacks. The lobby shows the first
+  `pocket_slots` of them; the rest are artefact places (locked, empty) or hidden.
+- **Not covered:**
+  - ammo slots: the ammo window spreads one ammo over the ammo bags;
+  - weapons and armour: each one is one item in one slot already;
+  - other kits: each kit has its own pocket for a type.
+- **Why:** a booster works by being carried. At every spawn each item in the 23 slots adds its
+  modifiers to the player's lists, and the match sums them (`loadouts::BOT_RADIO`). A booster
+  fills a whole pocket, so N pockets gave its bonus N times:
+  - `speed_booster`: +5 % movement and +10 % stamina regeneration each;
+  - `respawn_booster`: -20 % respawn time each (five pockets: no respawn delay at all);
+  - the others likewise.
+  The server never checked that the pockets of a type held no more units than were owned, either.
+- **Server refuses** a move (`46 00`, the ammo window, a purchase dragged onto a pocket) that
+  leaves a type in two pockets of the kit. The check is on what the whole request leaves, so the
+  ammo window (every pocket emptied, then filled again) and two pockets changing places pass.
+  Nothing is changed or bought. The text is the game's `st_cannot_relocate_item` (the game has
+  none of its own for it). Play (`check_play`) refuses such a kit too.
+- **Kits saved before the rule,** at load (logged once) and in every `repair`:
+  - the first pocket of a type keeps it, with the most units any of its pockets held;
+  - the type's other pockets are emptied.
+  - Nothing is lost or made: a pocket only names units of the inventory's stack, so the units of
+    an emptied pocket stay in the storage.
+  - The most, not the sum: all pockets of a kit have one size, which the server does not know
+    (gear, modifications and skills set it in the exe). Each pocket held what fit it.
+- **Lobby, dragging from the inventory or the shop:** only the pocket that holds the type lights
+  up. Another pocket does not, and a drop there snaps back. Dropped on its own pocket, the drop
+  adds one unit up to the pocket's size (one for an item that fills a whole pocket). A pocket of
+  another type is replaced, as before.
+- **Lobby, dragging between pockets:** a drag from a pocket may go to any pocket (a move or a
+  swap leaves one pocket of the type).
+- **Lobby, a double click or "wear":** goes into the type's own pocket when the kit has one.
+- **The "4th grenade empties the slot" bug:** a client bug.
+  - The setup: grenades in two pockets (2 and 1), and the second pocket's slider moved.
+  - The cause: `AmmoShareLite.updateElement` took the first pocket of the type for the moved
+    one. So the request named the first pocket twice and left the second out, and the server
+    emptied it (the units stayed in the storage).
+  - The fix: it takes the target pocket's own item first. With one pocket a type the case no
+    longer arises.
+- **Match:** nothing a match computes changes. The kit sent at the start is what the match plays,
+  so no `next` row in `simulation_changes.tsv`.
+- **Release:** server and lobby movie (`build_lobby_026g.py`). The server alone already refuses;
+  an old lobby lights up a second pocket and the drop is refused with the text.

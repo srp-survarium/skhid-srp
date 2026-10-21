@@ -181,7 +181,15 @@ impl GameAccounts {
                      worn item covers; taken off to the inventory"
                 );
             }
-            if account.repair() || uncovered > 0 {
+            // Kits saved before the rule of one pocket an item type.
+            let merged = account.merge_pockets();
+            if merged > 0 {
+                log::warn!(
+                    "0.26g account {account_id}: {merged} pockets held an item type another \
+                     pocket of their kit held; merged into that pocket"
+                );
+            }
+            if account.repair() || uncovered > 0 || merged > 0 {
                 log::warn!("0.26g account {account_id} was not consistent; repaired");
                 for (host, record, why) in items_rules::upgrades_taken_off(&kept, &account) {
                     log::warn!(
@@ -1045,6 +1053,43 @@ mod tests {
         // Mended once: loaded again, there is nothing to do.
         let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
         assert!(!store.is_dirty(5) && !store.is_dirty(6));
+    }
+
+    /// A kit saved before the rule of one pocket an item type: the speed
+    /// booster in three pockets. Merged at load into the first, written
+    /// once, with the inventory as it was.
+    #[test]
+    fn kits_saved_with_a_type_in_two_pockets_are_merged_at_load() {
+        let mut repository = MemoryGameRepository::default();
+        let mut account = Account::new("Alice");
+        let speed = survarium::v026g::dictionary::Dictionary::shared()
+            .item_named("speed_booster")
+            .unwrap()
+            .dict_id;
+        let booster = account.add_item(speed, 3);
+        for pocket in [14, 15, 17] {
+            account.kits[0].slots[pocket] = Some(KitSlot {
+                item_id: booster,
+                count: 1,
+            });
+        }
+        repository.save(5, &account).unwrap();
+
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        {
+            let loaded = store.get(5).unwrap();
+            let loaded = loaded.locked();
+            let pockets: Vec<Option<u32>> = loaded.kits[0].slots[13..=18]
+                .iter()
+                .map(|slot| slot.map(|held| held.item_id))
+                .collect();
+            assert_eq!(pockets, [None, Some(booster), None, None, None, None]);
+            assert_eq!(loaded.inventory, account.inventory);
+        }
+        assert!(store.is_dirty(5));
+        assert_eq!(store.flush(), 1);
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        assert!(!store.is_dirty(5));
     }
 
     /// Data made without a patch: the accounts' items, modifications and

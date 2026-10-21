@@ -21,6 +21,8 @@ package survarium.player
    import survarium.constants.ItemCategory;
    import survarium.constants.ProfileSlot;
    import survarium.constants.AmmoView;
+   import survarium.constants.QuickSlotSize;
+   import survarium.controls.PlayerInfo;
    
    public class LocalPaperDoll extends PaperDollBase implements ILocalPaperDoll
    {
@@ -98,6 +100,34 @@ package survarium.player
             return true;
          }
          return false;
+      }
+      
+      // An item type goes into one pocket of a kit (docs/notes/one-pocket-a-type.md): the units of
+      // `item` a pocket holding `held` takes when one more is put in. The pocket's own type: one more,
+      // within the pocket's size (one of an item that fills a whole pocket); another: one.
+      public static function pocketUnits(held:ItemData, item:ItemData) : uint
+      {
+         if(!held || held.dictId != item.dictId)
+         {
+            return 1;
+         }
+         var size:int = item.quickSlotItemSize == QuickSlotSize.WHOLE ? 1 : PlayerInfo.pocketSize;
+         return Math.max(1,Math.min(held.value + 1,size));
+      }
+      
+      // The pocket holding an item of `dictId`, or -1.
+      public function pocketOf(dictId:int) : int
+      {
+         var i:int = ProfileSlot.QUICK_1;
+         while(i <= ProfileSlot.QUICK_6)
+         {
+            if(_slots[i] && _slots[i].data && _slots[i].data.dictId == dictId)
+            {
+               return i;
+            }
+            i++;
+         }
+         return -1;
       }
       
       public function set ammoControl(value:IAmmoControll) : void
@@ -182,6 +212,12 @@ package survarium.player
             {
                if(category == ItemCategory.MEDKITS || category == ItemCategory.BOOBY_TRAPS || category == ItemCategory.GRENADES)
                {
+                  // a type the kit has goes into its own pocket, never a second one
+                  j = this.pocketOf(item.dictId);
+                  if(j != -1)
+                  {
+                     return j;
+                  }
                   j = ProfileSlot.QUICK_1;
                   while(j < _slots.length)
                   {
@@ -296,6 +332,8 @@ package survarium.player
          var isSlotFilled:Boolean;
          var weaponSlot:IPaperDollSlot;
          var isWeapon:Boolean;
+         var pocket:int = this.pocketOf(dictId);
+         var isOtherPocket:Boolean;
          while(i < count)
          {
             isSlotFilled = false;
@@ -349,7 +387,10 @@ package survarium.player
                   if(!_slots[i].enabled)
                   {
                   }
-                  if(!isWeapon || !isSameWeapon && (!isSlotFilled || isSlotFilled && (oneHanded || _slots[i].data != null && _slots[i].data.oneHanded == false)))
+                  // one pocket a type: from the inventory or the shop, only the pocket that holds it
+                  // (an item dragged from a pocket only changes pockets)
+                  isOtherPocket = !fromSlot && i >= ProfileSlot.QUICK_1 && i <= ProfileSlot.QUICK_6 && pocket != -1 && pocket != i;
+                  if(!isOtherPocket && (!isWeapon || !isSameWeapon && (!isSlotFilled || isSlotFilled && (oneHanded || _slots[i].data != null && _slots[i].data.oneHanded == false))))
                   {
                      _slots[i].highlighted = true;
                   }

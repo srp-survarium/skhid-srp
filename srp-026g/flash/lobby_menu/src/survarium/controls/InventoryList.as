@@ -51,6 +51,8 @@ package survarium.controls
    import survarium.constants.SuperCategory;
    import survarium.constants.VoucherType;
    import survarium.constants.WeaponHands;
+   import survarium.constants.ProfileSlot;
+   import survarium.player.LocalPaperDoll;
    
    public class InventoryList extends FiltersWindow implements IInventoryItemFactory
    {
@@ -1992,7 +1994,7 @@ package survarium.controls
                         dict_id:dict_id,
                         sourceSlot:item.descriptor,
                         targetSlot:targetSlot,
-                        count:1
+                        count:newSlot >= ProfileSlot.QUICK_1 && newSlot <= ProfileSlot.QUICK_6 ? LocalPaperDoll.pocketUnits(pp.paperDoll.getSlotAt(newSlot).data as ItemData,item) : 1
                      }];
                      pp._relocateFunction(_relocateArray);
                   }

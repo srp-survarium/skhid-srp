@@ -12,6 +12,7 @@ package survarium.paperdoll
    import survarium.interfaces.IPaperDollSlot;
    import survarium.constants.ItemPlace;
    import survarium.constants.ProfileSlot;
+   import survarium.player.LocalPaperDoll;
    
    public class ItemPaperDollSlot extends ItemDragSlot
    {
@@ -199,7 +200,7 @@ package survarium.paperdoll
                      dict_id:dictId,
                      sourceSlot:sourceDescriptor,
                      targetSlot:targetDescriptor,
-                     count:1
+                     count:index >= ProfileSlot.QUICK_1 && index <= ProfileSlot.QUICK_6 ? LocalPaperDoll.pocketUnits(_data as ItemData,item) : 1
                   }];
                   trace_relocate(_relocateArray);
                   result = playerProfile._relocateFunction(_relocateArray);
