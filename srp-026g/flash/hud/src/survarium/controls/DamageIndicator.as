@@ -67,8 +67,9 @@ package survarium.controls
       public function hit(dir:Point, amount:Number, direct:Number = 0) : void
       {
          var bm2:MovieClip = new DirectionHitMark();
-         var px:Number = stage.stageWidth / 2;
-         var py:Number = stage.stageHeight / 2;
+         var centre:Point = this.screenCentre();
+         var px:Number = centre.x;
+         var py:Number = centre.y;
          var x:Number = px + dir.x * this._hitmark_radius;
          var y:Number = py + -dir.y * this._hitmark_radius;
          bm2.x = x;
@@ -93,6 +94,7 @@ package survarium.controls
          var ny:Number;
          var dir3:Number;
          _direction = value;
+         var centre:Point = null;
          for(st in this._hitmarks_dir)
          {
             if(!st || !st.parent)
@@ -106,8 +108,12 @@ package survarium.controls
                dir_orig = (this._hitmarks_orig[st]);
                new_direct = dir - this._direction + dir_orig;
                point = new Point(Math.cos(new_direct),Math.sin(new_direct));
-               px = stage.stageWidth / 2;
-               py = stage.stageHeight / 2;
+               if(centre == null)
+               {
+                  centre = this.screenCentre();
+               }
+               px = centre.x;
+               py = centre.y;
                nx = px + point.x * this._hitmark_radius;
                ny = py + -point.y * this._hitmark_radius;
                st.x = nx;
@@ -118,6 +124,15 @@ package survarium.controls
          }
       }
       
+      // The screen's centre where the marks are drawn. Their container is a
+      // child of the HUD, which scales itself from 1920 x 1080 (2 at 4K), so
+      // the stage's half size in pixels would be the bottom right corner
+      // there; its own coordinates of the centre are right at any scale.
+      protected function screenCentre() : Point
+      {
+         return this._hitmarkContainer.globalToLocal(new Point(stage.stageWidth / 2,stage.stageHeight / 2));
+      }
+
       public function crit(part_id:uint, value:uint) : void
       {
          this._criticalInd.crit(part_id,value);

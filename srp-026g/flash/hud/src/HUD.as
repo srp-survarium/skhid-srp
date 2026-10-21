@@ -2242,8 +2242,11 @@ package
          this.damageInd.scaleY = this.stageHeight / 720;
          this.effectContainer.scaleX = this.stageWidth / 1280;
          this.effectContainer.scaleY = this.stageHeight / 720;
-         this.crosshair.x = int(this.stageWidth / 2) + 0.5;
-         this.crosshair.y = int(this.stageHeight / 2) + 0.5;
+         // The middle of the centre pixel in screen pixels (the crosshair is
+         // drawn at 1:1, below): at a scale of 2 the half pixel in HUD units
+         // was a whole pixel off.
+         this.crosshair.x = (int(stage.stageWidth / 2) + 0.5) / this.scaleFactor;
+         this.crosshair.y = (int(stage.stageHeight / 2) + 0.5) / this.scaleFactor;
          this.contextInfo2.layoutData.offsetV = this.stageHeight / 3;
          this.damageDebug.layoutData.offsetV = this.stageHeight / 4;
          if(this.chat.layoutData)
