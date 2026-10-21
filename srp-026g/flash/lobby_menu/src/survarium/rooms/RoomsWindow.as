@@ -128,6 +128,9 @@ package survarium.rooms
         private var _chatKey:int = 0;
         // Who waits for the friends' rooms (FriendListRender's menu).
         private var _friendRooms:Function = null;
+        // Our room went while the results were up: the window, drawn as it
+        // was, waits under them and is hidden as they close.
+        private var _hideAfterResults:Boolean = false;
 
         // PlayerRanking.fillPlayers, first: rows of the rooms' range are
         // the window's answers (true: taken).
@@ -324,6 +327,20 @@ package survarium.rooms
             syncChatTab();
         }
 
+        // LobbyMenu.onVsRemoved: the results are closing. A window whose room
+        // went under them is hidden now, before the lobby is drawn again (no
+        // frame shows it).
+        public function resultsClosed():void
+        {
+            if (!_hideAfterResults)
+                return;
+            _hideAfterResults = false;
+            if (_room == null)
+                show(false);
+            else
+                render();
+        }
+
         // LobbyMenu.show_victory_screen: a match is over. The room's chat
         // lines of the match did not reach the lobby (its game was in the
         // match): the tab is put up anew and given the room's last lines.
@@ -509,6 +526,7 @@ package survarium.rooms
 
         public function show(value:Boolean):void
         {
+            _hideAfterResults = false;
             _shown = value;
             visible = value;
             // Enter in the list joins the room chosen (once on the stage).
@@ -828,12 +846,14 @@ package survarium.rooms
                 if (had || wasRoom)
                     _view = "list";
                 // Out of the room while the results are up (one by Play
-                // leaves with its match's end): the window opened under them
-                // goes, and closing them shows the lobby (rooms.md, "After a
-                // match").
+                // leaves with its match's end): the window under them stays as
+                // it is, untouched, and goes as they close (resultsClosed), so
+                // closing them shows the lobby (rooms.md, "After a match").
+                // Hidden now, it would deselect the top menu's Rooms tab, and
+                // the results close on any change of that tab (LobbyMenu.closeVS).
                 if (had && _shown && resultsUp())
                 {
-                    show(false);
+                    _hideAfterResults = true;
                     return;
                 }
                 // Only when something shown changed: this answers every poll,
@@ -1001,7 +1021,7 @@ package survarium.rooms
 
         internal function render():void
         {
-            if (!_shown)
+            if (!_shown || _hideAfterResults)
                 return;
             if (listView._joinPin != null)
                 listView._pinText = listView._joinPin.text;

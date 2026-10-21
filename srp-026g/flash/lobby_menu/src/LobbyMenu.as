@@ -5464,6 +5464,12 @@ package
       {
          this.topMenu.tabPage.removeEventListener(IndexEvent.INDEX_CHANGE,this.closeVS);
          this.victory_screen.removeEventListener(Event.REMOVED_FROM_STAGE,this.onVsRemoved);
+         // A room left under the results (by Play, with its match's end):
+         // its window goes with them (after closeVS is off: its tab changes).
+         if(RoomsWindow.me != null)
+         {
+            RoomsWindow.me.resultsClosed();
+         }
          removeChild(this._back_back);
          FocusManager.setModalClip(null);
          MainScene.activeWindow = null;
