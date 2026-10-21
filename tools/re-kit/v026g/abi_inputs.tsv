@@ -2752,7 +2752,7 @@ va	name	location	role	basis
 0x002fe550	survarium::inventory::deserialize	EAX	inventory	inferred
 0x002fe550	survarium::inventory::deserialize	ESI	reader	inferred
 0x002ffb80	survarium::inventory_item::inventory_item	EAX	item_storage	inferred
-0x002ffb80	survarium::inventory_item::inventory_item	entry ESP+4	kept at +24Ch: the items_dict entry (an item object's +25Ch, the subobject at +10h: a weapon's, 0x2DF104; weapon::draw reads an upgrade's at 0x24505F)	inferred
+0x002ffb80	survarium::inventory_item::inventory_item	entry ESP+4	kept at +24Ch (an item object's +25Ch with the subobject at +10h): an upgrade's items_dict entry as weapon::draw reads it (0x24505F); NOT a pointer for a held weapon (2 for the VSS, crash 2026-10-21)	observed
 0x002ffdf0		ECX		auto
 0x002ffdf0		entry ESP+4		auto
 0x002fff10		ECX		auto

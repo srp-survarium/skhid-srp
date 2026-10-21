@@ -221,7 +221,7 @@ class Table:
         return self.box["stop"], {r: emu.reg_read(r) for r in regs}
 
 
-    def weapon(self, name, vtable=WEAPON_VTABLE, box=None):
+    def weapon(self, name, vtable=WEAPON_VTABLE, box=None, bad_record=None):
         """The player holds a weapon whose model is `name`'s (WEAPONS), its
         bones of the frame in mt_draw's frame; returns the middle it has."""
         dict_id, lower, upper, inverse_bind, pose, middle = WEAPONS[name]
@@ -231,8 +231,25 @@ class Table:
         lobby.word(PLAYER + 0x128, ITEM)
         lobby.word(ITEM, vtable + d)
         lobby.word(ITEM + 0x1810, MODEL)
-        lobby.word(ITEM + 0x25C, DICTIONARY_ITEM if dict_id is not None else 0)
-        self.emu.mem_write(DICTIONARY_ITEM, struct.pack("<H", dict_id or 0))
+        # weapon+25Ch is no pointer for a held weapon (2 for the VSS in the
+        # owner's crash of 2026-10-21): the build must not read it
+        lobby.word(ITEM + 0x25C, 2)
+        # the record the player was built from: the character's copy 1, its
+        # kit 2's weapon 2 (no weapon 1), the record at index 5, +4 the dict id
+        copy = CHARACTER + 0x18 + 0x4634 * 1
+        self.emu.mem_write(CHARACTER + 0xD2B4, bytes([1, 2]))
+        self.emu.mem_write(copy + 0x57, bytes([3]))
+        self.emu.mem_write(copy + 0x1564, bytes([6]))
+        kit = copy + 0x58 + 2 * 0x704 + 0x40
+        self.emu.mem_write(kit + 4 * 7, struct.pack("<HH", 0xFFFF, 0))
+        self.emu.mem_write(kit + 4 * 10, struct.pack("<HH", 5, 1))
+        self.emu.mem_write(copy + 0x1568 + 5 * 0xB4 + 4, struct.pack("<H", dict_id or 0))
+        if bad_record == "copy":                  # an index out of its range: not read, the box's way
+            self.emu.mem_write(CHARACTER + 0xD2B4, bytes([3]))
+        elif bad_record == "kit":
+            self.emu.mem_write(copy + 0x57, bytes([2]))
+        elif bad_record == "record":
+            self.emu.mem_write(copy + 0x1564, bytes([5]))
         lobby.word(MODEL + 0x108, RENDER)
         lobby.word(RENDER, SKELETON_VTABLE + d)
         lobby.word(RENDER + 0x62B4, SKELETON)
@@ -242,7 +259,7 @@ class Table:
         self.emu.mem_write(BONE_POSES, struct.pack("<16f", *FLIP) + struct.pack("<16f", *pose))
         lobby.word(FRAME - 0x0C, BONE_POSES)
         lobby.word(FRAME - 0x18, 2)
-        if dict_id in TABLE_MIDDLES and box is None:   # the build's table
+        if dict_id in TABLE_MIDDLES and box is None and not bad_record:   # the build's table
             v = list(TABLE_MIDDLES[dict_id])
         elif lower == (-1.0, -1.0, -1.0) and upper == (1.0, 1.0, 1.0):
             v = [0.0, 0.0, MIDDLE_Z]
@@ -251,7 +268,7 @@ class Table:
             v = [0.0, centre[1], -centre[2]]
             for mat in (inverse_bind, pose):
                 v = [sum(v[i] * mat[4 * i + k] for i in range(3)) + mat[12 + k] for k in range(3)]
-        if box is None:
+        if box is None and not bad_record:
             assert math.dist(v, middle) < 0.01, (name, v, middle)   # the gun's middle within 1 cm
         return v
 
@@ -561,6 +578,9 @@ def main():
         for name, setup in (("AK-12", lambda t: t.weapon("AK-12")), ("PM", lambda t: t.weapon("PM")),
                             ("the VSS (a spare magazine parked beside it in its box)", lambda t: t.weapon("VSS")),
                             ("the AK-74U (a default box; the build's table)", lambda t: t.weapon("AK-74U")),
+                            ("the AK-74U, its copy's index out of range", lambda t: t.weapon("AK-74U", bad_record="copy")),
+                            ("the AK-74U, its kit past the count", lambda t: t.weapon("AK-74U", bad_record="kit")),
+                            ("the AK-74U, its record past the table", lambda t: t.weapon("AK-74U", bad_record="record")),
                             ("a default box", lambda t: (t.weapon("AK-12", box=((-1.0, -1.0, -1.0), (1.0, 1.0, 1.0))),
                                                          (0.0, 0.0, MIDDLE_Z))[1]),
                             ("not a weapon", lambda t: (t.weapon("AK-12", vtable=0xA04174 + 0x40),
