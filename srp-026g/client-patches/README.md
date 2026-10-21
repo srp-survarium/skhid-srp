@@ -2472,8 +2472,8 @@ the data: `../docs/notes/weapon-camo.md`, `../scripts/content-edit/weapon-decals
 weapon config with `data` gets `parameters/decal_available` and an empty `data/decals`, as
 armour's).
 
-`weapon_decals_026g.asm` at `.srpw`+1000h (2549 bytes, the section's second page), no state of its
-own; it begins with six `jmp near`, its entries:
+`weapon_decals_026g.asm` at `.srpw`+1000h (3145 bytes, the section's second page), its state (12
+bytes, the left button's press) at `.srpd`+FA0h; it begins with seven `jmp near`, its entries:
 
 - **lookup** (+0) and **fill** (+5), called by patch 44 (`weapon_camo_026g.asm`, -DDECALS): what a
   weapon's bake paints. lookup: the camouflage (`data/camouflage`, as patch 44 read it) and the
@@ -2486,7 +2486,9 @@ own; it begins with six `jmp near`, its entries:
   name. A decal never placed (u64 0) goes on the left of the receiver, the second on the right.
 - **pick** (+0Ah): the decal preview's `call 0x264960` at 0x265999 (5 bytes): for the weapon above
   the workbench (patch 45's table on, patch 32's weapon shown, the edit's host the window's item)
-  the mouse's ray in the weapon's space (the inverse of patch 45's transform) gives the point of
+  the mouse's ray in the weapon model's space (the inverse of bone 1's skinning of the frame, read
+  from the weapon's render instance, times the transform patch 45 publishes at `.srpd`+F50h; none
+  before patch 45 has drawn the weapon at the bench) gives the point of
   it nearest the weapon's long axis and its direction reversed as the normal (the decal looks
   along the ray; its projector and occlusion find the surface); a ray behind the eye, more than
   0.25 m off the axis or beyond its ends misses. Else the original's pick on the character.
@@ -2500,6 +2502,10 @@ own; it begins with six `jmp near`, its entries:
 - **start** (+19h): the start's `call 0x264CF0` at 0x263938 (5 bytes): on a weapon the decal's
   index in `data/decals` counts the records of slots 0 and 1 (a weapon's camouflage is in slot
   2); a record of another slot ends the edit with nothing queried.
+- **click** (+1Eh): the character's mouse key handler, 0x265C20 (6 bytes, `jmp click` and a nop),
+  which places the edit's decal on the left button's release: in a weapon's edit only when the
+  cursor is within 5 pixels of where the button went down. A drag (patch 45's left button turns
+  the weapon) places nothing; a release with no press seen (the movie's "change") neither.
 
 Everything else, armour's decals, the squad panels and a match: the original's code. No base
 relocation is under a site and no branch aims inside one; the code holds absolute addresses (the
@@ -2510,7 +2516,8 @@ without its decals. `../docs/notes/client_patch.md` section 3.43.
 
 Checked: `selftest_026g.py` check 46 (the sites in the original and the build, their callers,
 nothing aiming inside, no relocation, the code's calls and branches, `.srpw`'s two pages) and
-check 44; `check_weapon_decals_026g.py` (Unicorn, the cases in its header: 167 checks) and
+check 44; `check_weapon_decals_026g.py` (Unicorn, the cases in its header, with patch 45's own
+transform: 202 checks) and
 `check_weapon_camo_026g.py` (the camouflage alone as before). **Not run in a game**: the preview on
 a weapon, the place the click gives and the bake of a decal on a weapon are read and emulated
 only.

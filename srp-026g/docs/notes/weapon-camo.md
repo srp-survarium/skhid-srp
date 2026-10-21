@@ -79,9 +79,9 @@ The owner (2026-10-21): "implement and allow put two decals on weapons".
   place.
 - **Placing one.** In the weapon's upgrade window (the weapon above the workbench, patch 45):
   "change" on a decal's slot, then a click on the weapon where it goes; the decal looks along the
-  mouse's ray and lands on the first surface it meets. To reach its other side, turn the weapon
-  (drag) before "change". The wheel with a modifier key: size or turn, as on armour. Cancel keeps
-  the old place.
+  mouse's ray and lands on the first surface it meets. A click places it; a drag (either button)
+  turns the weapon and places nothing, so its other side can be reached during the edit. The
+  wheel with a modifier key: size or turn, as on armour. Cancel keeps the old place.
 - **Never placed** (just put in the slot): the first on the left side of the receiver, the
   second on the right.
 - **Size.** Half an armour decal's: 2.5 to 25 cm, 6 cm to start.
