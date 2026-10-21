@@ -268,6 +268,12 @@ impl Core<'_> {
                 let entries = self.room_entries();
                 self.send_made(who.addr, wire::room_pool(&entries, page));
             }
+            // The movie put up its "Room Chat" tab: the room's last lines,
+            // and its new ones from now on (`room_chat`).
+            RoomRequest::Chat => {
+                self.room_chat_listen(who);
+                self.send_room_state(who, RoomCode::None, now);
+            }
             // The create window's start: the asker's last room made by hand,
             // fitted to the pool and its equipment now.
             RoomRequest::Form => {

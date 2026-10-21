@@ -20,7 +20,8 @@ package survarium.chat
    import survarium.data.LocalizationData;
    import survarium.friends.FriendsMenu;
    import survarium.friends.SquadList;
-   
+   import survarium.rooms.RoomsText;
+
    public class LobbyChat extends Chat
    {
       
@@ -69,7 +70,19 @@ package survarium.chat
       protected var _tabs:Dictionary = new Dictionary();
       
       protected var _wasSelected:Boolean = false;
-      
+
+      // srp's chat of a room (the owner's of 2026-10-20: "each room has its
+      // own chat"): channel 10, no channel of the game's (its client sends a
+      // line typed in a tab of it with id 0, and gives a received one to the
+      // tabs that list it; social.md 9.8), and its tab, far from the game's
+      // ids (0 squad, 1 general, 2 clan, 3 match, 4 team, 5 clan team, then a
+      // private talk each). The rooms window puts the tab up while in a room.
+      public static const ROOM_CHANNEL:int = 10;
+
+      public static const ROOM_TAB:uint = 1000000;
+
+      public static const GENERAL_TAB:uint = 1;
+
       public function LobbyChat()
       {
          super();
@@ -478,6 +491,10 @@ package survarium.chat
       
       override protected function get_styled_text(param1:Object) : String
       {
+         if(int(param1.type) == ROOM_CHANNEL)
+         {
+            this.roomLine(param1);
+         }
          var _loc2_:String = String(param1.color != undefined ? param1.color : getColor(param1.type));
          var _loc3_:String;
          var _loc4_:String;
@@ -908,6 +925,22 @@ package survarium.chat
       protected function privateMessage() : void
       {
          ExternalInterface.call("start_friend_message",this._lastName);
+      }
+
+      // A line of a room's chat: a player's in the general chat's colour
+      // (the exe gives channel 10 none), the room's own (no sender: who
+      // joined or left) in blue and in the game's language.
+      protected function roomLine(param1:Object) : void
+      {
+         if(!param1.name)
+         {
+            param1.text = RoomsText.notice(String(param1.text));
+            param1.color = "Blue";
+         }
+         else if(param1.color == undefined)
+         {
+            param1.color = "White";
+         }
       }
    }
 }
