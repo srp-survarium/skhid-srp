@@ -54,6 +54,37 @@ would have been there", "that would allow you to rotate it", "with weapon in the
 - **Lobby only.** Nothing a match or a replay sees; a game without patch 45 shows the weapon in the
   character's hands (patch 32).
 
+## Decals (patch 46)
+
+The owner (2026-10-21): "implement and allow put two decals on weapons".
+
+- **Which weapons.** The same 83 configs (`scripts/content-edit/weapon-decals-1.json`, after
+  weapon-camo-1): `parameters/decal_available` and an empty `data/decals`, as armour has.
+- **Which decals.** Any decal item (category 26); two at most, one each in the decal slots.
+- **Slots.** [srp] 0 and 1, as armour's (`DECAL_SLOTS`, `modifications::cosmetic_slots`): a
+  weapon holds its scope in 3, its camouflage in 2, its decals in 0 and 1, all at once.
+- **Shared cosmetics.** As for armour: one decal item on any number of items, each with its own
+  place.
+- **Placing one.** In the weapon's upgrade window (the weapon above the workbench, patch 45):
+  "change" on a decal's slot, then a click on the weapon where it goes; the decal looks along the
+  mouse's ray and lands on the first surface it meets. To reach its other side, turn the weapon
+  (drag) before "change". The wheel with a modifier key: size or turn, as on armour. Cancel keeps
+  the old place.
+- **Never placed** (just put in the slot): the first on the left side of the receiver, the
+  second on the right.
+- **Size.** Half an armour decal's: 2.5 to 25 cm, 6 cm to start.
+- **Where it is kept.** The record's u64, as armour's, in the weapon's own space (its model's,
+  grip at the origin).
+- **What a match sees.** Every game builds the weapon from its item's upgrades and bakes its
+  decals, as the camouflage (patch 44); a game without patch 46 shows the weapon without them.
+  No simulation change.
+- **After a place.** The server sends the account back (only for a weapon), the lobby builds the
+  weapon again and bakes the new place: the weapon shows its old decals for a moment.
+- **Cost.** One bake per weapon surface for each new combination of camouflage and decals (the
+  same cache as the camouflage's, `srpw1_*` names with the decals' textures and places).
+- **On a camouflaged weapon** a surface without an `_aoac` texture (barrels, own sights) takes
+  neither; without a camouflage, decals go on any surface.
+
 ## The engine (client 0.26g, PROVEN unless tagged)
 
 - `camouflage_decal_texture_type_baker_cook` bakes a camouflage into a surface's textures only
@@ -105,7 +136,7 @@ would have been there", "that would allow you to rotate it", "with weapon in the
 
 ## Not done
 
-- Decals on weapons (the owner, 2026-10-21: "it should be nice if I could put a decal on the
-  weapon too"): the decal editor places decals on the character; weapons need it extended (exe).
+- Decals on weapons: written (patch 46, above), not run in a game: the preview on the weapon, the
+  place a click gives and a weapon's decal bake are emulated only.
 - A match (first and third person) not yet seen.
 - The other 69 textures' picks were made after the owner's 22, by looking (the MP7 black copies the owner's MP7): worth a pass in the picker.

@@ -116,3 +116,15 @@ The two weapons in the builds at hand (damage / piercing; the card shows them x1
 
 Applied to revision 24's server game data (`gameplay/items/weapons/wpn_ak_12*`,
 `wpn_socom16`; patch 25 did not touch weapons): 3 files edited, 0 unexpected differences.
+
+## weapon-decals-1.json (2026-10-21)
+
+| change | why |
+|---|---|
+| The 83 weapon configs of weapon-camo-1: `parameters/decal_available` true and an empty `data/decals` table | decals on weapons (client patch 46, `../../docs/notes/weapon-camo.md`): the lobby shows a weapon's two decal slots for `decal_available`, the server lets decals into its slots 0 and 1, and a decal upgrade appends its texture and place to `data/decals` (a modifier at a path the config lacks is skipped), which patch 46 bakes |
+
+Applied after weapon-camo-1, to its output: `content_edit.py weapon-camo-1.json live/ camo/`, then
+`content_edit.py weapon-decals-1.json camo/ decals/` and `cp -r decals/* camo/` (the second list
+writes the 83 configs again). Checked 2026-10-21 on the local game's server data (revision 27's
+files): 83 files edited by each list, 0 unexpected differences; the AK-12's `data` holds
+`decals[0]` and `camo_scale`, the type and count armour's `data/decals` has.
