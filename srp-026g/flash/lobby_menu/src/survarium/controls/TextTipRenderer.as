@@ -17,42 +17,42 @@ package survarium.controls
       public function TextTipRenderer()
       {
          super();
-         var _loc1_:uint = 6061383;
-         var _loc2_:uint = 13582914;
+         var darkColor:uint = 6061383;
+         var lightColor:uint = 13582914;
          constraints = new Constraints(this,ConstrainMode.COUNTER_SCALE);
          this.constraints.addElement("textField",this.textField,Constraints.ALL);
-         var _loc3_:StyleSheet = new StyleSheet();
-         var _loc4_:Object;
-         _loc4_ = new Object();
-         _loc4_.color = "#b3ea97";
-         _loc3_.setStyle("current",_loc4_);
-         _loc4_ = new Object();
-         _loc4_.color = "#D79342";
-         _loc3_.setStyle("yellow",_loc4_);
-         _loc4_ = new Object();
-         _loc4_.color = "#F2C98F";
-         _loc3_.setStyle("highlight",_loc4_);
-         _loc4_ = new Object();
-         _loc4_.color = "#e9b838";
-         _loc3_.setStyle("gold",_loc4_);
-         _loc4_ = new Object();
-         _loc4_.color = "#5b6261";
-         _loc3_.setStyle("gray",_loc4_);
-         _loc4_ = new Object();
-         _loc4_.color = "#5b6261";
-         _loc4_.size = 2;
-         _loc4_.fontSize = 2;
-         _loc3_.setStyle("small",_loc4_);
-         _loc4_ = new Object();
-         _loc4_.color = "#5c7d47";
-         _loc3_.setStyle("green",_loc4_);
-         _loc4_ = new Object();
-         _loc4_.color = "#cf4242";
-         _loc3_.setStyle("red",_loc4_);
-         _loc4_ = new Object();
-         _loc4_.color = "#BCCBCB";
-         _loc3_.setStyle("white",_loc4_);
-         this.textField.styleSheet = _loc3_;
+         var styles:StyleSheet = new StyleSheet();
+         var style:Object;
+         style = new Object();
+         style.color = "#b3ea97";
+         styles.setStyle("current",style);
+         style = new Object();
+         style.color = "#D79342";
+         styles.setStyle("yellow",style);
+         style = new Object();
+         style.color = "#F2C98F";
+         styles.setStyle("highlight",style);
+         style = new Object();
+         style.color = "#e9b838";
+         styles.setStyle("gold",style);
+         style = new Object();
+         style.color = "#5b6261";
+         styles.setStyle("gray",style);
+         style = new Object();
+         style.color = "#5b6261";
+         style.size = 2;
+         style.fontSize = 2;
+         styles.setStyle("small",style);
+         style = new Object();
+         style.color = "#5c7d47";
+         styles.setStyle("green",style);
+         style = new Object();
+         style.color = "#cf4242";
+         styles.setStyle("red",style);
+         style = new Object();
+         style.color = "#BCCBCB";
+         styles.setStyle("white",style);
+         this.textField.styleSheet = styles;
       }
       
       override protected function invalidateData() : void
@@ -62,11 +62,11 @@ package survarium.controls
          this.textField.text = _data.name;
          width = this.textField.textWidth;
          height = this.textField.textHeight;
-         var _loc1_:ConstrainedElement = this.constraints.getElement("textField");
-         var _loc2_:Number = Math.ceil(this.textField.textWidth + _loc1_.left + _loc1_.right + 5);
-         var _loc3_:Number = Math.ceil(this.textField.textHeight + _loc1_.top + _loc1_.bottom + 5);
-         width = _loc2_;
-         height = _loc3_;
+         var element:ConstrainedElement = this.constraints.getElement("textField");
+         var newWidth:Number = Math.ceil(this.textField.textWidth + element.left + element.right + 5);
+         var newHeight:Number = Math.ceil(this.textField.textHeight + element.top + element.bottom + 5);
+         width = newWidth;
+         height = newHeight;
          this.constraints.update(width,height);
       }
    }

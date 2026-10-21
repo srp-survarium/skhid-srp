@@ -30,10 +30,10 @@ package survarium.controls
          return _data;
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         var _loc2_:Boolean;
-         if(_data == param1)
+         var movedUp:Boolean;
+         if(_data == value)
          {
             return;
          }
@@ -45,7 +45,7 @@ package survarium.controls
          {
             this.background.gotoAndStop(index % 2 == 0 ? 1 : 2);
          }
-         _data = param1;
+         _data = value;
          if(_data)
          {
             this.txPlace.text = _data.place;
@@ -68,9 +68,9 @@ package survarium.controls
             }
             if(_data.ranking_diff != undefined && _data.ranking_diff != 0)
             {
-               _loc2_ = _data.ranking_diff > 0;
-               this.txRankingMoved.text = (_loc2_ ? "(+" : "(") + String(_data.ranking_diff) + ")";
-               this.txRankingMoved.textColor = !_loc2_ ? 16743007 : 16777215;
+               movedUp = _data.ranking_diff > 0;
+               this.txRankingMoved.text = (movedUp ? "(+" : "(") + String(_data.ranking_diff) + ")";
+               this.txRankingMoved.textColor = !movedUp ? 16743007 : 16777215;
                if(name != "playerPlace")
                {
                   this.txRankingMoved.x = int(this.txRanking.x + this.txRanking.textWidth) + 3;
@@ -79,7 +79,7 @@ package survarium.controls
                {
                   this.txRanking.x = int(this.txRankingMoved.x + this.txRankingMoved.getLineMetrics(0).x - this.txRanking.textWidth - this.txRanking.getLineMetrics(0).x) - 3;
                }
-               this.moveSing.gotoAndStop(_loc2_ ? "up" : "down");
+               this.moveSing.gotoAndStop(movedUp ? "up" : "down");
             }
             else
             {

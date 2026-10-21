@@ -69,64 +69,64 @@ package survarium.controls
          addEventListener(Event.RENDER,this.onStart);
       }
       
-      public function forEachItem(param1:Function) : void
+      public function forEachItem(callback:Function) : void
       {
       }
       
-      public function fillSellers(param1:Array) : void
+      public function fillSellers(sellers:Array) : void
       {
       }
       
-      public function registerItemDescriptor(param1:ItemDescriptor) : void
+      public function registerItemDescriptor(descriptor:ItemDescriptor) : void
       {
-         _itemDescriptor = param1;
+         _itemDescriptor = descriptor;
       }
       
-      public function registerDragListener(param1:*) : void
+      public function registerDragListener(listener:*) : void
       {
-         _dragListener = param1;
+         _dragListener = listener;
       }
       
-      public function focusCategory(param1:int) : void
+      public function focusCategory(category:int) : void
       {
-         trace("focusCategory::",param1,this.lastSelectedIndex);
+         trace("focusCategory::",category,this.lastSelectedIndex);
          this.inventoryTabPage.dataProvider = new DataProvider([{
             name:LocalizationData.getName("filter_all"),
             icon:1,
             index:1,
-            enabled:0 == param1 || param1 == -1
+            enabled:0 == category || category == -1
          },{
             name:LocalizationData.getName("filter_equipment"),
             icon:2,
             index:2,
-            enabled:1 == param1 || param1 == -1
+            enabled:1 == category || category == -1
          },{
             name:LocalizationData.getName("filter_weapons"),
             icon:3,
             index:4,
-            enabled:2 == param1 || param1 == -1
+            enabled:2 == category || category == -1
          },{
             name:LocalizationData.getName("filter_ammo"),
             icon:4,
             index:5,
-            enabled:3 == param1 || param1 == -1
+            enabled:3 == category || category == -1
          },{
             name:LocalizationData.getName("filter_items"),
             icon:5,
             index:3,
-            enabled:4 == param1 || param1 == -1
+            enabled:4 == category || category == -1
          },{
             name:LocalizationData.getName("filter_upgrades"),
             icon:6,
             index:6,
-            enabled:5 == param1 || param1 == -1
+            enabled:5 == category || category == -1
          }]);
-         if(param1 != -1)
+         if(category != -1)
          {
             lastCategory = this.inventoryTabPage.selectedIndex;
             lastSelectedIndex = this.itemsTileList.selectedIndex;
             lastFilterIndexes = this.optionControl.filterList.getSelectedPositions();
-            this.inventoryTabPage.selectedIndex = param1;
+            this.inventoryTabPage.selectedIndex = category;
             trace("getLastSelectedIndex",this.itemsTileList.selectedIndex,this.lastFilterIndexes);
          }
          else
@@ -141,17 +141,17 @@ package survarium.controls
          }
       }
       
-      private function onMouseLeave(param1:Event) : void
+      private function onMouseLeave(event:Event) : void
       {
          ExternalInterface.call("set_mouse_cursor",1);
       }
       
-      private function onLocal(param1:String) : void
+      private function onLocal(localizedText:String) : void
       {
          this.init(null);
       }
       
-      private function init(param1:Event) : void
+      private function init(event:Event) : void
       {
          trace("FW::",this.optionControl,this.inventoryTabPage,this.itemsTileList);
          removeEventListener(Event.RENDER,this.init);
@@ -346,12 +346,12 @@ package survarium.controls
          this.itemsTileList.selectedIndex = -1;
       }
       
-      protected function hideME(param1:Event) : void
+      protected function hideME(event:Event) : void
       {
          visible = false;
       }
       
-      protected function onStart(param1:Event) : void
+      protected function onStart(event:Event) : void
       {
          removeEventListener(Event.RENDER,this.onStart);
          this.configureInventoryTab();
@@ -365,7 +365,7 @@ package survarium.controls
          this.optionControl.addEventListener(ListEvent.INDEX_CHANGE,this.changeInventoryFilterFromFilters);
       }
       
-      protected function changeInventoryFilter(param1:Event) : void
+      protected function changeInventoryFilter(event:Event) : void
       {
          trace("updateCurrentDatProvider");
          if(this.inventoryTabPage.selectedIndex == 1)
@@ -401,24 +401,24 @@ package survarium.controls
          this.itemsTileList.scrollBar.position = 0;
       }
       
-      protected function dragCallback(param1:DragEvent = null) : void
+      protected function dragCallback(event:DragEvent = null) : void
       {
-         if(param1 && param1.type == DragEvent.DRAG_START)
+         if(event && event.type == DragEvent.DRAG_START)
          {
             trace("FW:dragCallback");
-            this.itemsTileList.selectedIndex = (param1.dragTarget as IListItemRenderer).index;
+            this.itemsTileList.selectedIndex = (event.dragTarget as IListItemRenderer).index;
          }
          if(this._dragListener is Function)
          {
-            (this._dragListener as Function)(param1);
+            (this._dragListener as Function)(event);
          }
       }
       
-      protected function changeInventoryFilterFromFilters(param1:Event) : void
+      protected function changeInventoryFilterFromFilters(event:Event) : void
       {
       }
       
-      protected function onNewIndex(param1:ListEvent) : void
+      protected function onNewIndex(event:ListEvent) : void
       {
       }
    }

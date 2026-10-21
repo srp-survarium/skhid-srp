@@ -613,7 +613,7 @@ package survarium.controls
          this.play_container.dropDownButton.label = selectedOption;
       }
       
-      private function onRegulatMoneyAddClick(param1:ButtonEvent) : void
+      private function onRegulatMoneyAddClick(e:ButtonEvent) : void
       {
          MessageMoneyExchange.open(false);
       }
@@ -847,7 +847,7 @@ package survarium.controls
          this.btnChangeName.setActualSize(newWidth,this.btnChangeName.height);
       }
       
-      private function onPremiumMoneyAddClick(param1:Event) : void
+      private function onPremiumMoneyAddClick(e:Event) : void
       {
          MessageMoneyExchange.open(true);
       }

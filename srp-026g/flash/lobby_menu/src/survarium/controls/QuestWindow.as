@@ -382,9 +382,9 @@ package survarium.controls
       {
          return;
          var target:Object = e.target;
-         var _loc3_:Boolean;
-         var _loc4_:Boolean;
-         var _loc5_:Array;
+         var isSelectable:Boolean;
+         var isJoinable:Boolean;
+         var quests:Array;
       }
       
       protected function deselect(e:Event) : void

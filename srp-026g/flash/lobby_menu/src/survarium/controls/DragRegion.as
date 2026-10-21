@@ -19,49 +19,49 @@ package survarium.controls
          super();
       }
       
-      public static function set playerProfile(param1:LocalPlayerProfile) : void
+      public static function set playerProfile(value:LocalPlayerProfile) : void
       {
-         _playerProfile = param1;
+         _playerProfile = value;
       }
       
-      override public function handleDropEvent(param1:DragEvent) : Boolean
+      override public function handleDropEvent(event:DragEvent) : Boolean
       {
-         var _loc2_:ItemData = param1.dragData as ItemData;
-         var _loc3_:ILocalPaperDoll = _playerProfile.profileItems as ILocalPaperDoll;
-         var _loc4_:LocalPlayerProfile = _playerProfile;
-         var _loc5_:int = _loc3_.getSlot(_loc2_);
-         var _loc6_:Array;
-         var _loc7_:Function;
-         trace("DG::handleDropEvent",_loc5_,_playerProfile);
-         if(param1.dragTarget is IInventoryItemRenderer)
+         var item:ItemData = event.dragData as ItemData;
+         var paperDoll:ILocalPaperDoll = _playerProfile.profileItems as ILocalPaperDoll;
+         var localProfile:LocalPlayerProfile = _playerProfile;
+         var slot:int = paperDoll.getSlot(item);
+         var relocations:Array;
+         var relocate:Function;
+         trace("DG::handleDropEvent",slot,_playerProfile);
+         if(event.dragTarget is IInventoryItemRenderer)
          {
-            if(_loc2_.descriptor == 100 && _loc2_.category == 25)
+            if(item.descriptor == 100 && item.category == 25)
             {
-               this.tryRelocateCamo(_loc2_);
+               this.tryRelocateCamo(item);
                return false;
             }
-            if(_loc5_ != -1)
+            if(slot != -1)
             {
-               if(!_loc2_.isStack)
+               if(!item.isStack)
                {
-                  if(_loc2_.descriptor == 100)
+                  if(item.descriptor == 100)
                   {
-                     _loc6_ = [{
-                        profile:_loc4_.profileId,
-                        id:_loc2_.itemId,
-                        dict_id:_loc2_.dictId,
+                     relocations = [{
+                        profile:localProfile.profileId,
+                        id:item.itemId,
+                        dict_id:item.dictId,
                         sourceSlot:100,
-                        targetSlot:_loc5_,
+                        targetSlot:slot,
                         count:1
                      }];
-                     _loc7_ = _loc4_._relocateFunction;
-                     trace("aaa",_loc4_,_loc4_._relocateFunction,_loc7_);
-                     _loc7_(_loc6_);
+                     relocate = localProfile._relocateFunction;
+                     trace("aaa",localProfile,localProfile._relocateFunction,relocate);
+                     relocate(relocations);
                      trace("bbb");
                   }
                   else
                   {
-                     MainScene.buyFunction(_loc4_.profileId,_loc2_.itemId,_loc2_.dictId,200,_loc5_,1,_loc2_.cost);
+                     MainScene.buyFunction(localProfile.profileId,item.itemId,item.dictId,200,slot,1,item.cost);
                   }
                }
                else
@@ -73,14 +73,14 @@ package survarium.controls
          return false;
       }
       
-      private function tryRelocateCamo(param1:ItemData) : void
+      private function tryRelocateCamo(camo:ItemData) : void
       {
-         var _loc2_:IPaperDoll = _playerProfile.profileItems;
-         var _loc3_:ItemData = _loc2_.getSlotAt(2).data as ItemData;
-         if(_loc3_ && _loc3_.camoAvailable)
+         var paperDoll:IPaperDoll = _playerProfile.profileItems;
+         var weapon:ItemData = paperDoll.getSlotAt(2).data as ItemData;
+         if(weapon && weapon.camoAvailable)
          {
-            trace("relocate_upgrade_item_on_drop",_loc3_.itemId,uint(param1.itemId),uint(3));
-            ExternalInterface.call("relocate_upgrade_item",_loc3_.itemId,uint(param1.itemId),uint(3));
+            trace("relocate_upgrade_item_on_drop",weapon.itemId,uint(camo.itemId),uint(3));
+            ExternalInterface.call("relocate_upgrade_item",weapon.itemId,uint(camo.itemId),uint(3));
          }
       }
    }

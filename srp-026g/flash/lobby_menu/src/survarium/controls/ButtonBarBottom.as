@@ -27,52 +27,52 @@ package survarium.controls
          super();
       }
       
-      override public function set selectedIndex(param1:int) : void
+      override public function set selectedIndex(value:int) : void
       {
-         if(param1 == _selectedIndex)
+         if(value == _selectedIndex)
          {
             return;
          }
-         var _loc2_:int = this._startIndex;
-         if(param1 < this._startIndex && param1 != -1)
+         var oldStartIndex:int = this._startIndex;
+         if(value < this._startIndex && value != -1)
          {
-            _startIndex = param1;
+            _startIndex = value;
          }
-         if(param1 > this._startIndex + _renderers.length - 1 && param1 != _dataProvider.length)
+         if(value > this._startIndex + _renderers.length - 1 && value != _dataProvider.length)
          {
             trace("hyer");
-            _startIndex = param1 - _renderers.length + 1;
+            _startIndex = value - _renderers.length + 1;
          }
-         if(_loc2_ != this._startIndex)
+         if(oldStartIndex != this._startIndex)
          {
             this.updateRenderers();
          }
-         var _loc3_:int = _selectedIndex;
-         var _loc4_:Button = _renderers[_loc3_ - this._startIndex] as Button;
-         if(_loc4_)
+         var lastIndex:int = _selectedIndex;
+         var renderer:Button = _renderers[lastIndex - this._startIndex] as Button;
+         if(renderer)
          {
-            _loc4_.selected = false;
+            renderer.selected = false;
          }
-         _selectedIndex = param1;
-         _loc4_ = _renderers[_selectedIndex - this._startIndex] as Button;
-         if(_loc4_)
+         _selectedIndex = value;
+         renderer = _renderers[_selectedIndex - this._startIndex] as Button;
+         if(renderer)
          {
-            _loc4_.selected = true;
+            renderer.selected = true;
          }
-         dispatchEvent(new IndexEvent(IndexEvent.INDEX_CHANGE,true,true,_selectedIndex,_loc3_,_dataProvider[_selectedIndex]));
+         dispatchEvent(new IndexEvent(IndexEvent.INDEX_CHANGE,true,true,_selectedIndex,lastIndex,_dataProvider[_selectedIndex]));
       }
       
-      public function removeRenderer(param1:Button) : void
+      public function removeRenderer(renderer:Button) : void
       {
-         var _loc2_:uint;
-         while(_loc2_ < _renderers.length)
+         var i:uint;
+         while(i < _renderers.length)
          {
-            if(_renderers[_loc2_] === param1)
+            if(_renderers[i] === renderer)
             {
-               _toRemove = _loc2_;
+               _toRemove = i;
                break;
             }
-            _loc2_++;
+            i++;
          }
       }
       
@@ -85,9 +85,9 @@ package survarium.controls
          this.btn_next.visible = false;
       }
       
-      protected function arrowClick(param1:ButtonEvent) : void
+      protected function arrowClick(event:ButtonEvent) : void
       {
-         if(param1.target === this.btn_next)
+         if(event.target === this.btn_next)
          {
             _startIndex += 1;
          }
@@ -98,35 +98,35 @@ package survarium.controls
          invalidateSettings();
       }
       
-      protected function removeRendererAt(param1:int) : void
+      protected function removeRendererAt(rendererIndex:int) : void
       {
-         if(container.contains(_renderers[param1]))
+         if(container.contains(_renderers[rendererIndex]))
          {
-            container.removeChild(_renderers[param1]);
+            container.removeChild(_renderers[rendererIndex]);
          }
-         _renderers.splice(param1--,1);
+         _renderers.splice(rendererIndex--,1);
       }
       
-      protected function updateRenderersOnResize(param1:Event) : void
+      protected function updateRenderersOnResize(event:Event) : void
       {
          this.updateRenderers();
       }
       
-      override protected function handleButtonGroupChange(param1:Event) : void
+      override protected function handleButtonGroupChange(event:Event) : void
       {
-         var _loc2_:ButtonEvent = param1 as ButtonEvent;
+         var buttonEvent:ButtonEvent = event as ButtonEvent;
          if(_group.selectedIndex != selectedIndex)
          {
             selectedIndex = _group.selectedIndex + this._startIndex;
-            dispatchEvent(new ButtonBarEvent(ButtonBarEvent.BUTTON_SELECT,false,true,_selectedIndex,param1.target as Button));
+            dispatchEvent(new ButtonBarEvent(ButtonBarEvent.BUTTON_SELECT,false,true,_selectedIndex,event.target as Button));
          }
       }
       
       override protected function updateRenderers() : void
       {
-         var _loc1_:Number = 0;
-         var _loc2_:Number = 0;
-         var _loc3_:int = -1;
+         var offsetX:Number = 0;
+         var offsetY:Number = 0;
+         var overflowIndex:int = -1;
          if(this._toRemove != -1)
          {
             this.removeRendererAt(this._toRemove);
@@ -136,12 +136,12 @@ package survarium.controls
          {
             while(_renderers.length > _dataProvider.length)
             {
-               _loc5_ = _renderers.length - 1;
-               if(container.contains(_renderers[_loc5_]))
+               lastIndex = _renderers.length - 1;
+               if(container.contains(_renderers[lastIndex]))
                {
-                  container.removeChild(_renderers[_loc5_]);
+                  container.removeChild(_renderers[lastIndex]);
                }
-               _renderers.splice(_loc5_--,1);
+               _renderers.splice(lastIndex--,1);
             }
          }
          else
@@ -152,61 +152,61 @@ package survarium.controls
             }
             _renderers.length = 0;
          }
-         var _loc4_:uint = 0;
-         var _loc5_:int;
-         var _loc6_:Button;
-         var _loc7_:Boolean;
-         var _loc8_:Number;
-         var _loc9_:int;
-         var _loc10_:Button;
-         while(_loc4_ < _dataProvider.length && _loc3_ == -1)
+         var i:uint = 0;
+         var lastIndex:int;
+         var renderer:Button;
+         var isNew:Boolean;
+         var requiredSize:Number;
+         var j:int;
+         var extraRenderer:Button;
+         while(i < _dataProvider.length && overflowIndex == -1)
          {
-            _loc7_ = false;
-            if(_loc4_ < _renderers.length)
+            isNew = false;
+            if(i < _renderers.length)
             {
-               _loc6_ = _renderers[_loc4_];
+               renderer = _renderers[i];
             }
             else
             {
-               _loc6_ = new _itemRendererClass();
-               _loc6_.addEventListener(Event.RESIZE,this.updateRenderersOnResize);
-               setupRenderer(_loc6_,_loc4_);
-               _loc7_ = true;
+               renderer = new _itemRendererClass();
+               renderer.addEventListener(Event.RESIZE,this.updateRenderersOnResize);
+               setupRenderer(renderer,i);
+               isNew = true;
             }
-            _loc6_.validateNow();
+            renderer.validateNow();
             if(_direction == DIRECTION_HORIZONTAL)
             {
-               _loc8_ = _buttonWidth + _spacing + _loc1_ + this.buttons_background.width;
-               if(_width > _buttonWidth + _spacing + _loc1_ || _maxFit && _maxSize > _loc8_)
+               requiredSize = _buttonWidth + _spacing + offsetX + this.buttons_background.width;
+               if(_width > _buttonWidth + _spacing + offsetX || _maxFit && _maxSize > requiredSize)
                {
-                  _loc6_.y = 0;
-                  _loc6_.x = _loc1_;
-                  _loc1_ += _loc6_.width + _spacing;
+                  renderer.y = 0;
+                  renderer.x = offsetX;
+                  offsetX += renderer.width + _spacing;
                }
                else
                {
-                  _loc3_ = (_loc4_);
-                  _loc6_ = null;
+                  overflowIndex = (i);
+                  renderer = null;
                }
             }
-            else if(_height > _loc6_.height + _spacing + _loc2_)
+            else if(_height > renderer.height + _spacing + offsetY)
             {
-               _loc6_.x = 0;
-               _loc6_.y = _loc2_;
-               _loc2_ += _loc6_.height + _spacing;
+               renderer.x = 0;
+               renderer.y = offsetY;
+               offsetY += renderer.height + _spacing;
             }
             else
             {
-               _loc3_ = (_loc4_);
-               _loc6_ = null;
+               overflowIndex = (i);
+               renderer = null;
             }
-            if(_loc7_ && _loc6_ != null)
+            if(isNew && renderer != null)
             {
-               _loc6_.group = _group;
-               container.addChild(_loc6_);
-               _renderers.push(_loc6_);
+               renderer.group = _group;
+               container.addChild(renderer);
+               _renderers.push(renderer);
             }
-            _loc4_++;
+            i++;
          }
          if(isInvalid(InvalidationType.DATA))
          {
@@ -225,28 +225,28 @@ package survarium.controls
                _startIndex = 0;
             }
          }
-         _loc4_ = 0;
-         while(_loc4_ < _renderers.length)
+         i = 0;
+         while(i < _renderers.length)
          {
-            _loc6_ = _renderers[_loc4_];
-            populateRendererData(_loc6_,_loc4_ + this._startIndex);
-            _loc4_++;
+            renderer = _renderers[i];
+            populateRendererData(renderer,i + this._startIndex);
+            i++;
          }
-         if(_loc3_ > -1)
+         if(overflowIndex > -1)
          {
-            _loc9_ = _renderers.length - 1;
-            while(_loc9_ >= _loc3_)
+            j = _renderers.length - 1;
+            while(j >= overflowIndex)
             {
-               _loc10_ = _renderers[_loc9_];
-               if(_loc10_)
+               extraRenderer = _renderers[j];
+               if(extraRenderer)
                {
-                  if(container.contains(_loc10_))
+                  if(container.contains(extraRenderer))
                   {
-                     container.removeChild(_loc10_);
+                     container.removeChild(extraRenderer);
                   }
-                  _renderers.splice(_loc9_,1);
+                  _renderers.splice(j,1);
                }
-               _loc9_--;
+               j--;
             }
             container.addChild(this.buttons_background);
             container.addChild(this.btn_prev);
@@ -255,8 +255,8 @@ package survarium.controls
             this.btn_prev.visible = true;
             this.btn_next.visible = true;
             this.btn_prev.enabled = this._startIndex > 0;
-            this.btn_next.enabled = this._startIndex < _dataProvider.length - _loc3_;
-            this.btn_prev.x = _loc1_ + 8;
+            this.btn_next.enabled = this._startIndex < _dataProvider.length - overflowIndex;
+            this.btn_prev.x = offsetX + 8;
             this.btn_next.x = this.btn_prev.x + this.btn_next.width + this.btn_prev.width - 2;
             this.buttons_background.x = this.btn_prev.x - 7;
          }

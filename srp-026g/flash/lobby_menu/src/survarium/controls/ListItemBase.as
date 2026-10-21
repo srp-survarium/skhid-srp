@@ -17,9 +17,9 @@ package survarium.controls
          preventAutosizing = true;
       }
       
-      override public function setData(param1:Object) : void
+      override public function setData(newData:Object) : void
       {
-         this.data = param1;
+         this.data = newData;
          updateText();
       }
       

@@ -29,16 +29,16 @@ package survarium.controls
          this.columnRenderers.push(this.columnProfile,this.columnPlayTime,this.columnValue,this.columnMoney,this.columnExperience,this.columnReputation);
       }
       
-      private function updateValue(param1:TextField, param2:Array, param3:Array, param4:int) : void
+      private function updateValue(field:TextField, values:Array, bonuses:Array, row:int) : void
       {
-         var _loc5_:String = param2[param4] != undefined ? param2[param4] : "";
-         var _loc6_:int = param3[param4] != undefined ? param3[param4] : null;
-         param1.text = _loc5_ + (_loc6_ && _loc6_ > 0 ? " (+" + _loc6_ + "%)" : "");
+         var valueText:String = values[row] != undefined ? values[row] : "";
+         var bonus:int = bonuses[row] != undefined ? bonuses[row] : null;
+         field.text = valueText + (bonus && bonus > 0 ? " (+" + bonus + "%)" : "");
       }
       
       override protected function invalidateData() : void
       {
-         var _loc1_:Array;
+         var columns:Array;
          trace("TVS::invalidateData",_data);
          if(!_data)
          {
@@ -47,52 +47,52 @@ package survarium.controls
          this.columnValue.visible = _data.showValues != undefined ? _data.showValues : true;
          if(!this.columnValue.visible)
          {
-            _loc4_ = 93;
-            this.columnMoney.x -= _loc4_;
-            this.columnExperience.x -= _loc4_;
-            this.columnReputation.x -= _loc4_;
-            this.background.width -= _loc4_;
+            shift = 93;
+            this.columnMoney.x -= shift;
+            this.columnExperience.x -= shift;
+            this.columnReputation.x -= shift;
+            this.background.width -= shift;
          }
-         _loc1_ = _data.columnsData as Array;
-         trace("TVS::invalidateData",_loc1_);
-         var _loc2_:int = 1;
-         var _loc3_:int = 0;
-         var _loc4_:int;
-         var _loc5_:Object;
-         var _loc6_:MovieClip;
-         var _loc7_:Array;
-         var _loc8_:Array;
-         while(_loc3_ < _loc1_.length)
+         columns = _data.columnsData as Array;
+         trace("TVS::invalidateData",columns);
+         var rowCount:int = 1;
+         var i:int = 0;
+         var shift:int;
+         var column:Object;
+         var renderer:MovieClip;
+         var values:Array;
+         var bonuses:Array;
+         while(i < columns.length)
          {
-            _loc5_ = _loc1_[_loc3_];
-            _loc6_ = this.columnRenderers[_loc3_];
-            trace("TVS::columns",_loc6_,_loc5_);
-            if(_loc5_.values is Array)
+            column = columns[i];
+            renderer = this.columnRenderers[i];
+            trace("TVS::columns",renderer,column);
+            if(column.values is Array)
             {
-               _loc7_ = _loc5_.values as Array;
+               values = column.values as Array;
             }
             else
             {
-               _loc7_ = [_loc5_.values];
+               values = [column.values];
             }
-            if(_loc5_.bonus is Array)
+            if(column.bonus is Array)
             {
-               _loc8_ = _loc5_.bonus as Array;
+               bonuses = column.bonus as Array;
             }
             else
             {
-               _loc8_ = [_loc5_.bonus];
+               bonuses = [column.bonus];
             }
-            _loc6_.textFieldLabel.text = _loc5_.label;
-            _loc6_.textFieldRow2.visible = _loc7_.length > 1;
-            _loc6_.textFieldRow3.visible = _loc7_.length > 2;
-            _loc2_ = Math.max(_loc2_,_loc7_.length);
-            this.updateValue(_loc6_.textFieldRow1,_loc7_,_loc8_,0);
-            this.updateValue(_loc6_.textFieldRow2,_loc7_,_loc8_,1);
-            this.updateValue(_loc6_.textFieldRow3,_loc7_,_loc8_,2);
-            _loc3_++;
+            renderer.textFieldLabel.text = column.label;
+            renderer.textFieldRow2.visible = values.length > 1;
+            renderer.textFieldRow3.visible = values.length > 2;
+            rowCount = Math.max(rowCount,values.length);
+            this.updateValue(renderer.textFieldRow1,values,bonuses,0);
+            this.updateValue(renderer.textFieldRow2,values,bonuses,1);
+            this.updateValue(renderer.textFieldRow3,values,bonuses,2);
+            i++;
          }
-         this.background.height = 140 - 24 * 3 + 24 * _loc2_;
+         this.background.height = 140 - 24 * 3 + 24 * rowCount;
       }
    }
 }

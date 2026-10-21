@@ -47,9 +47,9 @@ package survarium.controls
          }
       }
       
-      public function set autoSizeLists(param1:Boolean) : void
+      public function set autoSizeLists(value:Boolean) : void
       {
-         _autoSizeLists = param1;
+         _autoSizeLists = value;
          this.sizeLists();
       }
       
@@ -58,20 +58,20 @@ package survarium.controls
          return this._autoSizeLists;
       }
       
-      public function setRowSizes(param1:int, param2:int) : void
+      public function setRowSizes(smallRow:int, bigRow:int) : void
       {
-         _smallTeamRow = param1;
-         _bigTeamRow = param2;
+         _smallTeamRow = smallRow;
+         _bigTeamRow = bigRow;
       }
       
-      protected function onListIndexChange(param1:Event) : void
+      protected function onListIndexChange(e:Event) : void
       {
-         trace("HUD_PL::onListIndexChange::",param1.target.name,(param1.target as ScrollingList).selectedIndex);
-         if((param1.target as ScrollingList).selectedIndex == -1)
+         trace("HUD_PL::onListIndexChange::",e.target.name,(e.target as ScrollingList).selectedIndex);
+         if((e.target as ScrollingList).selectedIndex == -1)
          {
             return;
          }
-         if(param1.target == this.team1list)
+         if(e.target == this.team1list)
          {
             this.team2list.selectedIndex = -1;
          }
@@ -83,167 +83,167 @@ package survarium.controls
          this.team2list.validateNow();
       }
       
-      public function set_local_name(param1:String) : void
+      public function set_local_name(playerName:String) : void
       {
-         trace("HUD_PL::set_local_name",param1);
-         _playerName = param1;
-         var _loc2_:int = -1;
-         var _loc3_:uint;
+         trace("HUD_PL::set_local_name",playerName);
+         _playerName = playerName;
+         var squadId:int = -1;
+         var i:uint;
          if(this._players)
          {
-            _loc3_ = 0;
-            while(_loc3_ < this._players.length)
+            i = 0;
+            while(i < this._players.length)
             {
-               if(this._players[_loc3_].name == this._playerName)
+               if(this._players[i].name == this._playerName)
                {
-                  this._players[_loc3_].isLocal = true;
-                  _loc2_ = (this._players[_loc3_].squad_id);
+                  this._players[i].isLocal = true;
+                  squadId = (this._players[i].squad_id);
                }
-               _loc3_++;
+               i++;
             }
-            _loc3_ = 0;
-            while(_loc3_ < this._players.length)
+            i = 0;
+            while(i < this._players.length)
             {
-               if(this._players[_loc3_].squad_id == _loc2_)
+               if(this._players[i].squad_id == squadId)
                {
-                  this._players[_loc3_].isLocalSquad = true;
+                  this._players[i].isLocalSquad = true;
                }
-               _loc3_++;
+               i++;
             }
             this.splitTeams();
             this.populateTeams();
          }
       }
       
-      public function addPlayersList(param1:Array) : void
+      public function addPlayersList(players:Array) : void
       {
          trace("HUD_PL::addPlayersList!");
-         _players = param1;
-         var _loc2_:int = -1;
-         var _loc3_:uint = 0;
-         while(_loc3_ < this._players.length)
+         _players = players;
+         var squadId:int = -1;
+         var i:uint = 0;
+         while(i < this._players.length)
          {
-            trace("_players[t].score",this._players[_loc3_].score);
-            if(this._players[_loc3_].score == undefined)
+            trace("_players[t].score",this._players[i].score);
+            if(this._players[i].score == undefined)
             {
-               this._players[_loc3_].score = 0;
+               this._players[i].score = 0;
             }
-            trace("_players[t].score",this._players[_loc3_].score,this._players[_loc3_].rank);
-            if(this._players[_loc3_].name == this._playerName)
+            trace("_players[t].score",this._players[i].score,this._players[i].rank);
+            if(this._players[i].name == this._playerName)
             {
-               this._players[_loc3_].isLocal = true;
-               _loc2_ = (this._players[_loc3_].squad_id);
+               this._players[i].isLocal = true;
+               squadId = (this._players[i].squad_id);
             }
-            _loc3_++;
+            i++;
          }
-         _loc3_ = 0;
-         while(_loc3_ < this._players.length)
+         i = 0;
+         while(i < this._players.length)
          {
-            if(this._players[_loc3_].squad_id == _loc2_)
+            if(this._players[i].squad_id == squadId)
             {
-               this._players[_loc3_].isLocalSquad = true;
+               this._players[i].isLocalSquad = true;
             }
-            _loc3_++;
+            i++;
          }
          this.splitTeams();
          this.populateTeams();
       }
       
-      public function set_online_player(param1:String, param2:Boolean) : void
+      public function set_online_player(playerName:String, isOnline:Boolean) : void
       {
-         var _loc3_:DataProvider;
-         var _loc4_:uint;
-         var _loc5_:uint;
-         while(_loc5_ < this._players.length)
+         var teamDP:DataProvider;
+         var team:uint;
+         var i:uint;
+         while(i < this._players.length)
          {
-            if(this._players[_loc5_].name == param1)
+            if(this._players[i].name == playerName)
             {
-               if(this._players[_loc5_].online == param2)
+               if(this._players[i].online == isOnline)
                {
                   return;
                }
-               _loc4_ = (this._players[_loc5_].team);
+               team = (this._players[i].team);
                break;
             }
-            _loc5_++;
+            i++;
          }
-         if(_loc4_ == 1)
+         if(team == 1)
          {
-            _loc3_ = this._team1DP;
+            teamDP = this._team1DP;
          }
          else
          {
-            _loc3_ = this._team2DP;
+            teamDP = this._team2DP;
          }
-         var _loc6_:uint = 0;
-         while(_loc6_ < _loc3_.length)
+         var j:uint = 0;
+         while(j < teamDP.length)
          {
-            if(_loc3_[_loc6_].name == param1)
+            if(teamDP[j].name == playerName)
             {
-               _loc3_[_loc6_].online = param2;
-               _loc3_.invalidate();
+               teamDP[j].online = isOnline;
+               teamDP.invalidate();
                return;
             }
-            _loc6_++;
+            j++;
          }
       }
       
-      public function updatePlayer(param1:Object) : void
+      public function updatePlayer(player:Object) : void
       {
-         var _loc2_:DataProvider;
-         var _loc3_:uint;
-         var _loc4_:uint = 0;
-         while(_loc4_ < this._players.length)
+         var teamDP:DataProvider;
+         var team:uint;
+         var i:uint = 0;
+         while(i < this._players.length)
          {
-            if(this._players[_loc4_].id == param1.id)
+            if(this._players[i].id == player.id)
             {
-               _loc6_ = this._players[_loc4_];
-               if(param1.kills == _loc6_.kills && param1.deaths == _loc6_.deaths && param1.ping == _loc6_.ping && param1.artifacts == _loc6_.artifacts && param1.rank == _loc6_.rank)
+               oldPlayer = this._players[i];
+               if(player.kills == oldPlayer.kills && player.deaths == oldPlayer.deaths && player.ping == oldPlayer.ping && player.artifacts == oldPlayer.artifacts && player.rank == oldPlayer.rank)
                {
                   return;
                }
-               _loc3_ = (this._players[_loc4_].team);
+               team = (this._players[i].team);
                break;
             }
-            _loc4_++;
+            i++;
          }
-         if(_loc3_ == 1)
+         if(team == 1)
          {
-            _loc2_ = this._team1DP;
+            teamDP = this._team1DP;
          }
          else
          {
-            _loc2_ = this._team2DP;
+            teamDP = this._team2DP;
          }
-         var _loc5_:uint = 0;
-         var _loc6_:Object;
-         var _loc7_:uint;
-         while(_loc5_ < _loc2_.length)
+         var j:uint = 0;
+         var oldPlayer:Object;
+         var k:uint;
+         while(j < teamDP.length)
          {
-            if(_loc2_[_loc5_].id == param1.id)
+            if(teamDP[j].id == player.id)
             {
-               if(param1.score == undefined)
+               if(player.score == undefined)
                {
-                  param1.score = 0;
+                  player.score = 0;
                }
-               _loc2_[_loc5_].kills = param1.kills;
-               _loc2_[_loc5_].deaths = param1.deaths;
-               _loc2_[_loc5_].ping = param1.ping;
-               _loc2_[_loc5_].artifacts = param1.artifacts;
-               _loc2_[_loc5_].rank = param1.rank;
-               _loc2_[_loc5_].score = param1.score;
+               teamDP[j].kills = player.kills;
+               teamDP[j].deaths = player.deaths;
+               teamDP[j].ping = player.ping;
+               teamDP[j].artifacts = player.artifacts;
+               teamDP[j].rank = player.rank;
+               teamDP[j].score = player.score;
                trace("sortAfterUpdate::");
-               this.sortTeam(_loc2_);
-               _loc7_ = 0;
-               while(_loc7_ < _loc2_.length)
+               this.sortTeam(teamDP);
+               k = 0;
+               while(k < teamDP.length)
                {
-                  trace("teamDPS",_loc7_,_loc2_[_loc5_].name,_loc2_[_loc7_].score,_loc2_[_loc7_].rank,_loc2_[_loc7_].kills,_loc2_[_loc7_].deaths);
-                  _loc7_++;
+                  trace("teamDPS",k,teamDP[j].name,teamDP[k].score,teamDP[k].rank,teamDP[k].kills,teamDP[k].deaths);
+                  k++;
                }
-               _loc2_.invalidate();
+               teamDP.invalidate();
                return;
             }
-            _loc5_++;
+            j++;
          }
       }
       
@@ -256,21 +256,21 @@ package survarium.controls
          }
       }
       
-      private function sortTeam(param1:DataProvider) : void
+      private function sortTeam(teamDP:DataProvider) : void
       {
-         var _loc2_:uint;
-         while(_loc2_ < param1.length)
+         var i:uint;
+         while(i < teamDP.length)
          {
-            trace("team",_loc2_,param1[_loc2_].name,param1[_loc2_].score,param1[_loc2_].rank,param1[_loc2_].kills,param1[_loc2_].deaths);
-            _loc2_++;
+            trace("team",i,teamDP[i].name,teamDP[i].score,teamDP[i].rank,teamDP[i].kills,teamDP[i].deaths);
+            i++;
          }
-         trace("HUD_PL::sort",param1);
-         param1.sortOn(["score","rank","kills","deaths"],Array.NUMERIC | Array.DESCENDING);
-         _loc2_ = 0;
-         while(_loc2_ < param1.length)
+         trace("HUD_PL::sort",teamDP);
+         teamDP.sortOn(["score","rank","kills","deaths"],Array.NUMERIC | Array.DESCENDING);
+         i = 0;
+         while(i < teamDP.length)
          {
-            trace("team",_loc2_,param1[_loc2_].name,param1[_loc2_].score,param1[_loc2_].rank,param1[_loc2_].kills,param1[_loc2_].deaths);
-            _loc2_++;
+            trace("team",i,teamDP[i].name,teamDP[i].score,teamDP[i].rank,teamDP[i].kills,teamDP[i].deaths);
+            i++;
          }
       }
       
@@ -278,30 +278,30 @@ package survarium.controls
       {
          _team1 = new Array();
          _team2 = new Array();
-         var _loc1_:uint = 0;
-         while(_loc1_ < this._players.length)
+         var i:uint = 0;
+         while(i < this._players.length)
          {
-            if(this._players[_loc1_].kills == undefined)
+            if(this._players[i].kills == undefined)
             {
-               this._players[_loc1_].kills = 0;
+               this._players[i].kills = 0;
             }
-            if(this._players[_loc1_].deaths == undefined)
+            if(this._players[i].deaths == undefined)
             {
-               this._players[_loc1_].deaths = 0;
+               this._players[i].deaths = 0;
             }
-            if(this._players[_loc1_].score == undefined)
+            if(this._players[i].score == undefined)
             {
-               this._players[_loc1_].score = 0;
+               this._players[i].score = 0;
             }
-            if(this._players[_loc1_].team == 1)
+            if(this._players[i].team == 1)
             {
-               this._team1.push(this._players[_loc1_]);
+               this._team1.push(this._players[i]);
             }
             else
             {
-               this._team2.push(this._players[_loc1_]);
+               this._team2.push(this._players[i]);
             }
-            _loc1_++;
+            i++;
          }
       }
       
@@ -309,57 +309,57 @@ package survarium.controls
       {
          _team1DP = new DataProvider(this._team1);
          this.sortTeam(this._team1DP);
-         _loc4_ = 0;
-         while(_loc4_ < this._team1DP.length)
+         i = 0;
+         while(i < this._team1DP.length)
          {
-            trace("teamDP",_loc4_,this._team1DP[_loc4_].name,this._team1DP[_loc4_].score,this._team1DP[_loc4_].rank,this._team1DP[_loc4_].kills,this._team1DP[_loc4_].deaths);
-            _loc4_++;
+            trace("teamDP",i,this._team1DP[i].name,this._team1DP[i].score,this._team1DP[i].rank,this._team1DP[i].kills,this._team1DP[i].deaths);
+            i++;
          }
          _team2DP = new DataProvider(this._team2);
          this.sortTeam(this._team2DP);
          if(this._smallTeamRow != -1)
          {
-            _loc2_ = Math.max(this._team1DP.length,this._team2DP.length);
-            _loc3_ = _loc2_ > 8 ? this._bigTeamRow : this._smallTeamRow;
-            this.team1list.rowHeight = _loc3_;
-            this.team2list.rowHeight = _loc3_;
-            trace("populateTeamsSize::",_loc3_);
+            maxTeamSize = Math.max(this._team1DP.length,this._team2DP.length);
+            rowSize = maxTeamSize > 8 ? this._bigTeamRow : this._smallTeamRow;
+            this.team1list.rowHeight = rowSize;
+            this.team2list.rowHeight = rowSize;
+            trace("populateTeamsSize::",rowSize);
          }
          this.team1list.dataProvider = this._team1DP;
          this.team2list.dataProvider = this._team2DP;
          this.sizeLists();
-         var _loc1_:uint = 0;
-         var _loc2_:int;
-         var _loc3_:int;
-         var _loc4_:uint;
+         var count:uint = 0;
+         var maxTeamSize:int;
+         var rowSize:int;
+         var i:uint;
          if(this._team1)
          {
-            _loc1_ = this._team1DP.length;
-            _loc4_ = 0;
-            while(_loc4_ < _loc1_)
+            count = this._team1DP.length;
+            i = 0;
+            while(i < count)
             {
-               if(this._team1DP[_loc4_].name == this._playerName)
+               if(this._team1DP[i].name == this._playerName)
                {
-                  this.team1list.selectedIndex = _loc4_;
+                  this.team1list.selectedIndex = i;
                   this.team1list.validateNow();
                   return;
                }
-               _loc4_++;
+               i++;
             }
          }
          if(this._team2DP)
          {
-            _loc1_ = this._team2DP.length;
-            _loc4_ = 0;
-            while(_loc4_ < _loc1_)
+            count = this._team2DP.length;
+            i = 0;
+            while(i < count)
             {
-               if(this._team2DP[_loc4_].name == this._playerName)
+               if(this._team2DP[i].name == this._playerName)
                {
-                  this.team2list.selectedIndex = _loc4_;
+                  this.team2list.selectedIndex = i;
                   this.team2list.validateNow();
                   return;
                }
-               _loc4_++;
+               i++;
             }
          }
       }

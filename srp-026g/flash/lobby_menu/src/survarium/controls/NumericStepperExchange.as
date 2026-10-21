@@ -22,15 +22,15 @@ package survarium.controls
          this.iconMoney.gotoAndStop(1);
       }
       
-      public function setExchangeMoneyFactor(param1:uint) : void
+      public function setExchangeMoneyFactor(factor:uint) : void
       {
-         _exchangeFactor = param1;
+         _exchangeFactor = factor;
          invalidateData();
       }
       
-      public function setExchangeMoneyType(param1:uint) : void
+      public function setExchangeMoneyType(moneyType:uint) : void
       {
-         _exchangeType = param1;
+         _exchangeType = moneyType;
          invalidateData();
       }
       

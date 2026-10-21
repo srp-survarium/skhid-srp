@@ -40,14 +40,14 @@ package survarium.controls
          addEventListener(MouseEvent.MOUSE_DOWN,this.inFocusM6);
       }
       
-      public function registerCallBack(param1:Function) : void
+      public function registerCallBack(callback:Function) : void
       {
-         _fncCallBack = param1;
+         _fncCallBack = callback;
       }
       
-      public function registerDataProvider(param1:uint, param2:DataProvider) : void
+      public function registerDataProvider(providerId:uint, provider:DataProvider) : void
       {
-         this._providers[param1] = param2;
+         this._providers[providerId] = provider;
       }
       
       public function getDataProviderCount() : uint
@@ -55,9 +55,9 @@ package survarium.controls
          return this._providers.length;
       }
       
-      public function getDataProvider(param1:uint) : DataProvider
+      public function getDataProvider(providerId:uint) : DataProvider
       {
-         return this._providers[param1];
+         return this._providers[providerId];
       }
       
       public function clear_providers() : void
@@ -70,7 +70,7 @@ package survarium.controls
          super.configUI();
       }
       
-      protected function inFocusM6(param1:MouseEvent) : void
+      protected function inFocusM6(event:MouseEvent) : void
       {
          focusIndex = -1;
       }
@@ -91,30 +91,30 @@ package survarium.controls
          }
       }
       
-      public function setDataProvider(param1:uint) : void
+      public function setDataProvider(providerId:uint) : void
       {
-         var _loc2_:uint;
-         if(dataProvider == this._providers[param1])
+         var i:uint;
+         if(dataProvider == this._providers[providerId])
          {
             return;
          }
          _partDataMode = false;
-         dataProvider = this._providers[param1];
+         dataProvider = this._providers[providerId];
          if(dataProvider)
          {
-            _loc2_ = 0;
-            while(_loc2_ < dataProvider.length)
+            i = 0;
+            while(i < dataProvider.length)
             {
-               dataProvider[_loc2_].enabled = true;
-               _loc2_++;
+               dataProvider[i].enabled = true;
+               i++;
             }
          }
          dispatchEvent(new Event(NEW_DATA_PROVIDER));
       }
       
-      public function set focusIndex(param1:int) : void
+      public function set focusIndex(value:int) : void
       {
-         if(param1 == this._focusIndex)
+         if(value == this._focusIndex)
          {
             return;
          }
@@ -122,234 +122,234 @@ package survarium.controls
          {
             return;
          }
-         var _loc2_:int = this._focusIndex;
-         var _loc3_:Button = _renderers[_loc2_] as Button;
-         if(_loc3_)
+         var lastFocusIndex:int = this._focusIndex;
+         var renderer:Button = _renderers[lastFocusIndex] as Button;
+         if(renderer)
          {
-            _loc3_.displayFocus = false;
+            renderer.displayFocus = false;
          }
-         _focusIndex = param1;
-         _loc3_ = _renderers[this._focusIndex] as Button;
-         if(_loc3_)
+         _focusIndex = value;
+         renderer = _renderers[this._focusIndex] as Button;
+         if(renderer)
          {
-            _loc3_.displayFocus = true;
+            renderer.displayFocus = true;
          }
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
-         if(param1.handled)
+         if(event.handled)
          {
             return;
          }
-         var _loc2_:IListItemRenderer = getRendererAt(this._focusIndex,_scrollPosition);
-         if(_loc2_ != null)
+         var renderer:IListItemRenderer = getRendererAt(this._focusIndex,_scrollPosition);
+         if(renderer != null)
          {
-            _loc2_.handleInput(param1);
-            if(param1.handled)
+            renderer.handleInput(event);
+            if(event.handled)
             {
                return;
             }
          }
-         var _loc3_:InputDetails = param1.details;
-         var _loc4_:Boolean = _loc3_.value == InputValue.KEY_DOWN || _loc3_.value == InputValue.KEY_HOLD;
-         var _loc5_:int = -1;
-         var _loc6_:String = _loc3_.navEquivalent;
+         var details:InputDetails = event.details;
+         var keyPress:Boolean = details.value == InputValue.KEY_DOWN || details.value == InputValue.KEY_HOLD;
+         var nextIndex:int = -1;
+         var nav:String = details.navEquivalent;
          if(_direction == DirectionMode.HORIZONTAL)
          {
-            switch(_loc6_)
+            switch(nav)
             {
                case NavigationCode.RIGHT:
-                  _loc5_ = this._focusIndex + _totalRows;
+                  nextIndex = this._focusIndex + _totalRows;
                   break;
                case NavigationCode.LEFT:
-                  _loc5_ = this._focusIndex - _totalRows;
+                  nextIndex = this._focusIndex - _totalRows;
                   break;
                case NavigationCode.UP:
-                  _loc5_ = this._focusIndex - 1;
+                  nextIndex = this._focusIndex - 1;
                   break;
                case NavigationCode.DOWN:
-                  _loc5_ = this._focusIndex + 1;
+                  nextIndex = this._focusIndex + 1;
                break;
             }
          }
          else
          {
-            switch(_loc6_)
+            switch(nav)
             {
                case NavigationCode.DOWN:
-                  _loc5_ = this._focusIndex + _totalColumns;
+                  nextIndex = this._focusIndex + _totalColumns;
                   break;
                case NavigationCode.UP:
-                  _loc5_ = this._focusIndex - _totalColumns;
+                  nextIndex = this._focusIndex - _totalColumns;
                   break;
                case NavigationCode.LEFT:
-                  _loc5_ = this._focusIndex - 1;
+                  nextIndex = this._focusIndex - 1;
                   break;
                case NavigationCode.RIGHT:
-                  _loc5_ = this._focusIndex + 1;
+                  nextIndex = this._focusIndex + 1;
                break;
             }
          }
-         if(_loc5_ == -1)
+         if(nextIndex == -1)
          {
-            switch(_loc6_)
+            switch(nav)
             {
                case NavigationCode.HOME:
-                  _loc5_ = 0;
+                  nextIndex = 0;
                   break;
                case NavigationCode.END:
-                  _loc5_ = _dataProvider.length - 1;
+                  nextIndex = _dataProvider.length - 1;
                   break;
                case NavigationCode.PAGE_DOWN:
-                  _loc5_ = Math.min(_dataProvider.length - 1,this._focusIndex + _totalColumns * _totalRows);
+                  nextIndex = Math.min(_dataProvider.length - 1,this._focusIndex + _totalColumns * _totalRows);
                   break;
                case NavigationCode.PAGE_UP:
-                  _loc5_ = Math.max(0,this._focusIndex - _totalColumns * _totalRows);
+                  nextIndex = Math.max(0,this._focusIndex - _totalColumns * _totalRows);
                break;
             }
          }
-         if(_loc5_ != -1)
+         if(nextIndex != -1)
          {
-            if(!_loc4_)
+            if(!keyPress)
             {
-               param1.handled = true;
+               event.handled = true;
                return;
             }
-            if(_loc5_ >= 0 && _loc5_ < dataProvider.length)
+            if(nextIndex >= 0 && nextIndex < dataProvider.length)
             {
-               focusIndex = Math.max(0,Math.min(_dataProvider.length - 1,_loc5_));
-               param1.handled = true;
+               focusIndex = Math.max(0,Math.min(_dataProvider.length - 1,nextIndex));
+               event.handled = true;
             }
             else if(wrapping == WrappingMode.STICK)
             {
-               _loc5_ = Math.max(0,Math.min(_dataProvider.length - 1,_loc5_));
-               if(this._focusIndex != _loc5_)
+               nextIndex = Math.max(0,Math.min(_dataProvider.length - 1,nextIndex));
+               if(this._focusIndex != nextIndex)
                {
-                  focusIndex = _loc5_;
+                  focusIndex = nextIndex;
                }
-               param1.handled = true;
+               event.handled = true;
             }
             else if(wrapping == WrappingMode.WRAP)
             {
-               focusIndex = _loc5_ < 0 ? (_dataProvider.length - 1) : (this._focusIndex < _dataProvider.length - 1 ? (_dataProvider.length - 1) : 0);
-               param1.handled = true;
+               focusIndex = nextIndex < 0 ? (_dataProvider.length - 1) : (this._focusIndex < _dataProvider.length - 1 ? (_dataProvider.length - 1) : 0);
+               event.handled = true;
             }
          }
       }
       
       public function getSelectedPositions() : Array
       {
-         var _loc1_:Array = [];
-         var _loc2_:uint;
+         var positions:Array = [];
+         var i:uint;
          if(dataProvider)
          {
-            _loc2_ = 0;
-            while(_loc2_ < dataProvider.length)
+            i = 0;
+            while(i < dataProvider.length)
             {
-               if(dataProvider[_loc2_].selected == true)
+               if(dataProvider[i].selected == true)
                {
-                  _loc1_.push(_loc2_);
+                  positions.push(i);
                }
-               _loc2_++;
+               i++;
             }
          }
-         return _loc1_;
+         return positions;
       }
       
       public function getSelectedIndexes() : Array
       {
-         var _loc1_:uint;
-         var _loc2_:Object;
-         var _loc3_:uint;
+         var count:uint;
+         var item:Object;
+         var i:uint;
          this._selected.length = 0;
          if(dataProvider)
          {
-            _loc1_ = dataProvider.length;
-            _loc3_ = 0;
-            while(_loc3_ < _loc1_)
+            count = dataProvider.length;
+            i = 0;
+            while(i < count)
             {
-               _loc2_ = dataProvider[_loc3_];
-               if(_loc2_.selected == true)
+               item = dataProvider[i];
+               if(item.selected == true)
                {
-                  this._selected.push(_loc2_.sucat);
+                  this._selected.push(item.sucat);
                }
-               _loc3_++;
+               i++;
             }
             trace("getSelectedIndexes",this._partDataMode,this._selected.length);
             if(this._partDataMode && this._selected.length == 0)
             {
-               _loc3_ = 0;
-               while(_loc3_ < _loc1_)
+               i = 0;
+               while(i < count)
                {
-                  _loc2_ = dataProvider[_loc3_];
-                  trace("iterateData::",_loc2_.enabled);
-                  if(_loc2_.enabled != false)
+                  item = dataProvider[i];
+                  trace("iterateData::",item.enabled);
+                  if(item.enabled != false)
                   {
-                     this._selected.push(_loc2_.sucat);
+                     this._selected.push(item.sucat);
                   }
-                  _loc3_++;
+                  i++;
                }
             }
          }
          return this._selected;
       }
       
-      override public function set selectedIndex(param1:int) : void
+      override public function set selectedIndex(value:int) : void
       {
-         _newSelectedIndex = param1;
+         _newSelectedIndex = value;
          invalidateSelectedIndex();
-         focusIndex = param1;
+         focusIndex = value;
          dispatchEvent(new ListEvent(ListEvent.INDEX_CHANGE,true,false,_selectedIndex,-1,-1,getRendererAt(_selectedIndex),dataProvider[_selectedIndex]));
       }
       
       override protected function refreshData() : void
       {
-         var _loc1_:Number = _direction == DirectionMode.HORIZONTAL ? _totalRows : _totalColumns;
-         var _loc2_:Number = Math.ceil(_dataProvider.length / _loc1_);
-         var _loc3_:Number = _loc2_ - (_direction == DirectionMode.HORIZONTAL ? _totalColumns : _totalRows);
-         _scrollPosition = Math.max(0,Math.min(_loc3_,_scrollPosition));
-         var _loc4_:Number = _scrollPosition * _loc1_;
-         var _loc5_:Number = _loc4_ + _totalColumns * _totalRows - 1;
-         _dataProvider.requestItemRange(_loc4_,_loc5_,populateData);
+         var itemsPerSet:Number = _direction == DirectionMode.HORIZONTAL ? _totalRows : _totalColumns;
+         var totalSets:Number = Math.ceil(_dataProvider.length / itemsPerSet);
+         var maxScrollPosition:Number = totalSets - (_direction == DirectionMode.HORIZONTAL ? _totalColumns : _totalRows);
+         _scrollPosition = Math.max(0,Math.min(maxScrollPosition,_scrollPosition));
+         var startIndex:Number = _scrollPosition * itemsPerSet;
+         var endIndex:Number = startIndex + _totalColumns * _totalRows - 1;
+         _dataProvider.requestItemRange(startIndex,endIndex,populateData);
       }
       
-      public function focusPart(param1:Array, param2:uint = 0) : void
+      public function focusPart(positions:Array, providerId:uint = 0) : void
       {
-         trace("focusPart",param1,"id:",param2,_selectedIndex);
+         trace("focusPart",positions,"id:",providerId,_selectedIndex);
          _partDataMode = true;
-         var _loc3_:uint = 0;
-         while(_loc3_ < this._providers[param2].length)
+         var i:uint = 0;
+         while(i < this._providers[providerId].length)
          {
-            this._providers[param2][_loc3_].selected = false;
-            this._providers[param2][_loc3_].enabled = false;
-            _loc3_++;
+            this._providers[providerId][i].selected = false;
+            this._providers[providerId][i].enabled = false;
+            i++;
          }
-         _loc3_ = 0;
-         while(_loc3_ < param1.length)
+         i = 0;
+         while(i < positions.length)
          {
-            this._providers[param2][param1[_loc3_]].selected = true;
-            this._providers[param2][param1[_loc3_]].enabled = true;
-            _loc3_++;
+            this._providers[providerId][positions[i]].selected = true;
+            this._providers[providerId][positions[i]].enabled = true;
+            i++;
          }
          this.refreshData();
          dispatchEvent(new ListEvent(ListEvent.INDEX_CHANGE,true,false,_selectedIndex,-1,-1,getRendererAt(_selectedIndex),dataProvider[_selectedIndex]));
       }
       
-      public function selectPart(param1:Array, param2:uint = 0, param3:Boolean = false) : void
+      public function selectPart(positions:Array, providerId:uint = 0, unused:Boolean = false) : void
       {
-         trace("selectPart",param1,"id:",param2,_selectedIndex);
-         var _loc4_:uint = 0;
-         while(_loc4_ < this._providers[param2].length)
+         trace("selectPart",positions,"id:",providerId,_selectedIndex);
+         var i:uint = 0;
+         while(i < this._providers[providerId].length)
          {
-            this._providers[param2][_loc4_].selected = false;
-            _loc4_++;
+            this._providers[providerId][i].selected = false;
+            i++;
          }
-         _loc4_ = 0;
-         while(_loc4_ < param1.length)
+         i = 0;
+         while(i < positions.length)
          {
-            this._providers[param2][param1[_loc4_]].selected = true;
-            _loc4_++;
+            this._providers[providerId][positions[i]].selected = true;
+            i++;
          }
          this.refreshData();
          dispatchEvent(new ListEvent(ListEvent.INDEX_CHANGE,true,false,_selectedIndex,-1,-1,getRendererAt(_selectedIndex),dataProvider[_selectedIndex]));
@@ -358,27 +358,27 @@ package survarium.controls
       public function deselectAll() : void
       {
          trace("deselectAll");
-         var _loc1_:uint = 0;
-         var _loc2_:IListItemRenderer;
-         while(_loc1_ < _renderers.length)
+         var i:uint = 0;
+         var renderer:IListItemRenderer;
+         while(i < _renderers.length)
          {
-            _loc2_ = getRendererAt(_loc1_,scrollPosition);
-            _loc2_.selected = false;
-            _loc1_++;
+            renderer = getRendererAt(i,scrollPosition);
+            renderer.selected = false;
+            i++;
          }
       }
       
       public function selectAll() : void
       {
          trace("selectAll");
-         var _loc1_:uint = 0;
-         var _loc2_:IListItemRenderer;
-         while(_loc1_ < _renderers.length)
+         var i:uint = 0;
+         var renderer:IListItemRenderer;
+         while(i < _renderers.length)
          {
-            _loc2_ = getRendererAt(_loc1_,scrollPosition);
-            _loc2_.selected = true;
-            _loc2_.validateNow();
-            _loc1_++;
+            renderer = getRendererAt(i,scrollPosition);
+            renderer.selected = true;
+            renderer.validateNow();
+            i++;
          }
       }
       
@@ -388,10 +388,10 @@ package survarium.controls
          {
             return;
          }
-         var _loc1_:IListItemRenderer = getRendererAt(_selectedIndex,scrollPosition);
-         if(_loc1_ != null)
+         var renderer:IListItemRenderer = getRendererAt(_selectedIndex,scrollPosition);
+         if(renderer != null)
          {
-            _loc1_.validateNow();
+            renderer.validateNow();
          }
          _selectedIndex = _newSelectedIndex;
          invalidateSelectedIndex();
@@ -399,18 +399,18 @@ package survarium.controls
          {
             return;
          }
-         _loc1_ = getRendererAt(_selectedIndex,_scrollPosition);
-         if(_loc1_ != null)
+         renderer = getRendererAt(_selectedIndex,_scrollPosition);
+         if(renderer != null)
          {
-            _loc1_.selected = !_loc1_.selected;
-            _loc1_.validateNow();
+            renderer.selected = !renderer.selected;
+            renderer.validateNow();
          }
          else
          {
             scrollToIndex(_selectedIndex);
-            _loc1_ = getRendererAt(_selectedIndex,scrollPosition);
-            _loc1_.selected = !_loc1_.selected;
-            _loc1_.validateNow();
+            renderer = getRendererAt(_selectedIndex,scrollPosition);
+            renderer.selected = !renderer.selected;
+            renderer.validateNow();
          }
          dispatchEvent(new ListEvent(ListEvent.INDEX_CHANGE,true,false,_selectedIndex,-1,-1,getRendererAt(_selectedIndex),dataProvider[_selectedIndex]));
       }

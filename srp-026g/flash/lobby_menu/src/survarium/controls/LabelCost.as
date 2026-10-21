@@ -26,22 +26,22 @@ package survarium.controls
          }
       }
       
-      public function set moneyType(param1:uint) : void
+      public function set moneyType(value:uint) : void
       {
-         _moneyType = param1;
-         this.icon.gotoAndStop(param1 ? 2 : 1);
+         _moneyType = value;
+         this.icon.gotoAndStop(value ? 2 : 1);
          if(this.costBack)
          {
-            this.costBack.gotoAndStop(param1 ? 2 : 1);
+            this.costBack.gotoAndStop(value ? 2 : 1);
          }
       }
       
-      public function set cost(param1:uint) : void
+      public function set cost(value:uint) : void
       {
-         var _loc2_:String = Util.getMoneyString(param1);
-         if(this.textField.text != _loc2_)
+         var costText:String = Util.getMoneyString(value);
+         if(this.textField.text != costText)
          {
-            this.textField.text = _loc2_;
+            this.textField.text = costText;
          }
          if(this.moveIcon)
          {

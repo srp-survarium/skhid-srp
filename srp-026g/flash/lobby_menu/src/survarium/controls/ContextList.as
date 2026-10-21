@@ -41,74 +41,74 @@ package survarium.controls
          this.list.addEventListener(Event.RESIZE,this.updateSize);
       }
       
-      private function onButtonMouseOut(param1:MouseEvent) : void
+      private function onButtonMouseOut(event:MouseEvent) : void
       {
          this.selectedBack.visible = false;
       }
       
-      private function onButtonMouseOver(param1:MouseEvent) : void
+      private function onButtonMouseOver(event:MouseEvent) : void
       {
-         if(param1.target === this.list)
+         if(event.target === this.list)
          {
             return;
          }
          this.selectedBack.visible = true;
-         this.selectedBack.y = this.list.y + param1.target.y;
+         this.selectedBack.y = this.list.y + event.target.y;
          this.selectedBack.x = this.contextBack.x + 1;
       }
       
-      public function setPatternt(param1:BitmapData) : void
+      public function setPatternt(pattern:BitmapData) : void
       {
-         if(this._pattern == param1)
+         if(this._pattern == pattern)
          {
             return;
          }
-         _pattern = param1;
+         _pattern = pattern;
       }
       
-      protected function updateSize(param1:Event = null) : void
+      protected function updateSize(event:Event = null) : void
       {
-         var _loc2_:ButtonBar = this.list;
-         var _loc3_:Sprite = this.contextBack;
-         var _loc4_:Sprite = this.contextBackOver;
-         var _loc5_:int = _loc2_.getMaxWidth();
-         var _loc6_:Graphics;
-         _loc2_.width = _loc5_ + 10;
-         _loc3_.height = this.newHeight + this.border * 2;
-         _loc3_.width = _loc5_;
-         _loc4_.x = 3;
-         _loc4_.y = 2;
-         _loc4_.height = _loc3_.height - 8;
-         _loc4_.width = _loc3_.width - 6;
+         var buttonBar:ButtonBar = this.list;
+         var background:Sprite = this.contextBack;
+         var overBackground:Sprite = this.contextBackOver;
+         var maxWidth:int = buttonBar.getMaxWidth();
+         var g:Graphics;
+         buttonBar.width = maxWidth + 10;
+         background.height = this.newHeight + this.border * 2;
+         background.width = maxWidth;
+         overBackground.x = 3;
+         overBackground.y = 2;
+         overBackground.height = background.height - 8;
+         overBackground.width = background.width - 6;
          this.selectedBack.width = this.contextBack.width - 2;
          if(this._pattern)
          {
             this.spr.alpha = 0.2;
-            this.spr.x = _loc3_.x;
-            this.spr.y = _loc3_.y;
-            _loc6_ = this.spr.graphics;
-            _loc6_.clear();
-            _loc6_.beginBitmapFill(this._pattern,null,true,true);
-            _loc6_.drawRect(4,4,_loc3_.width - 8,_loc3_.height - 12);
-            _loc6_.endFill();
+            this.spr.x = background.x;
+            this.spr.y = background.y;
+            g = this.spr.graphics;
+            g.clear();
+            g.beginBitmapFill(this._pattern,null,true,true);
+            g.drawRect(4,4,background.width - 8,background.height - 12);
+            g.endFill();
          }
       }
       
-      public function set data(param1:Object) : void
+      public function set data(value:Object) : void
       {
-         var _loc2_:ButtonBar;
-         _loc2_ = this.list;
-         var _loc3_:Sprite = this.contextBack;
-         var _loc4_:Sprite = this.contextBackOver;
-         _loc2_.selectedIndex = -1;
-         _loc2_.autoResize = true;
-         var _loc5_:* = param1;
-         _loc2_.dataProvider = new DataProvider(_loc5_);
-         _loc2_.height = _loc5_.length * this._rendererHeight;
-         newHeight = _loc5_.length * this._rendererHeight;
-         _loc2_.validateNow();
-         _loc2_.x = 2;
-         _loc2_.y = this.border;
+         var buttonBar:ButtonBar;
+         buttonBar = this.list;
+         var background:Sprite = this.contextBack;
+         var overBackground:Sprite = this.contextBackOver;
+         buttonBar.selectedIndex = -1;
+         buttonBar.autoResize = true;
+         var items:* = value;
+         buttonBar.dataProvider = new DataProvider(items);
+         buttonBar.height = items.length * this._rendererHeight;
+         newHeight = items.length * this._rendererHeight;
+         buttonBar.validateNow();
+         buttonBar.x = 2;
+         buttonBar.y = this.border;
          this.updateSize();
       }
    }

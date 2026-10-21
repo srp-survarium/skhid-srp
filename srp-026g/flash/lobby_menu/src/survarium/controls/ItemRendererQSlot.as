@@ -22,33 +22,33 @@ package survarium.controls
       
       override protected function updateData() : void
       {
-         var _loc1_:ItemData;
-         var _loc2_:Boolean;
-         _loc1_ = _data as ItemData;
+         var item:ItemData;
+         var isEquipped:Boolean;
+         item = _data as ItemData;
          super.updateData();
          this.slider.renderer = "PDSliderCell";
-         _loc2_ = _loc1_.descriptor != 0;
-         var _loc3_:int = _loc2_ ? PlayerInfo.pocketSize : this.pocketSize;
-         var _loc4_:int = _loc2_ ? _loc1_.count : _loc1_.value;
+         isEquipped = item.descriptor != 0;
+         var capacity:int = isEquipped ? PlayerInfo.pocketSize : this.pocketSize;
+         var totalCount:int = isEquipped ? item.count : item.value;
          this.slider.visible = true;
          this.slider.scaleRenders = false;
          this.slider.shiftInterval = 1;
          this.slider.minimum = 0;
-         var _loc5_:Boolean = _data.quickSlotItemSize == 2;
-         trace("IRQ::",_loc1_.name,_loc1_.descriptor,_loc1_.count,_loc1_.value,_loc5_);
-         this.textCount.visible = this.slider.visible = !_loc5_;
-         var _loc6_:int = _loc5_ ? _loc3_ : 1;
-         this.slider.maximum = _loc6_ * 5;
-         this.slider.snapInterval = _loc6_;
-         this.slider.available = _loc3_;
-         this.slider.total = Math.min(_loc4_ * _loc6_,int(_loc3_ / _loc6_) * _loc6_);
-         var _loc7_:int = Math.min(_data.value,_loc4_) * _loc6_;
-         this.slider.value = _loc7_;
-         this.textCount.text = "x" + _loc7_.toString();
-         _loc1_.tipText = Util.styledChar(LocalizationData.getName("backpack") + ": ","gray") + Util.styledChar(_loc1_.value.toString(),"yellow") + Util.styledChar(", ","gray") + Util.styledChar(LocalizationData.getName("storage") + ": ","gray") + Util.styledChar((_loc4_ - _loc1_.value).toString(),"yellow");
-         trace("SLIDER_INFO",_loc4_,this.slider.value,this.slider.maximum,this.slider.total,this.slider.available,this.slider.snapInterval);
-         this.slider.mouseEnabled = _loc2_;
-         this.slider.mouseChildren = _loc2_;
+         var isDouble:Boolean = _data.quickSlotItemSize == 2;
+         trace("IRQ::",item.name,item.descriptor,item.count,item.value,isDouble);
+         this.textCount.visible = this.slider.visible = !isDouble;
+         var slotSize:int = isDouble ? capacity : 1;
+         this.slider.maximum = slotSize * 5;
+         this.slider.snapInterval = slotSize;
+         this.slider.available = capacity;
+         this.slider.total = Math.min(totalCount * slotSize,int(capacity / slotSize) * slotSize);
+         var loadedCount:int = Math.min(_data.value,totalCount) * slotSize;
+         this.slider.value = loadedCount;
+         this.textCount.text = "x" + loadedCount.toString();
+         item.tipText = Util.styledChar(LocalizationData.getName("backpack") + ": ","gray") + Util.styledChar(item.value.toString(),"yellow") + Util.styledChar(", ","gray") + Util.styledChar(LocalizationData.getName("storage") + ": ","gray") + Util.styledChar((totalCount - item.value).toString(),"yellow");
+         trace("SLIDER_INFO",totalCount,this.slider.value,this.slider.maximum,this.slider.total,this.slider.available,this.slider.snapInterval);
+         this.slider.mouseEnabled = isEquipped;
+         this.slider.mouseChildren = isEquipped;
          this.slider.invalidateSettings();
       }
    }

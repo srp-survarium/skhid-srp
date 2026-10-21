@@ -104,9 +104,9 @@ package survarium.controls
          this.outTimerP.addEventListener(TimerEvent.TIMER_COMPLETE,this.onTimerComplete);
       }
       
-      public static function set commander(param1:Boolean) : void
+      public static function set commander(value:Boolean) : void
       {
-         _commander = param1;
+         _commander = value;
       }
       
       public static function get commander() : Boolean
@@ -114,9 +114,9 @@ package survarium.controls
          return _commander;
       }
       
-      public static function set nickname(param1:String) : void
+      public static function set nickname(value:String) : void
       {
-         _name = param1;
+         _name = value;
       }
       
       public static function get nickname() : String
@@ -124,87 +124,87 @@ package survarium.controls
          return _name;
       }
       
-      public static function getVoucherId(param1:uint) : uint
+      public static function getVoucherId(voucherType:uint) : uint
       {
-         trace("getVoucherId::",param1,_vouchersType[param1] ? _vouchersType[param1].id : "noSuchVoucher");
-         if(!_vouchersType[param1])
+         trace("getVoucherId::",voucherType,_vouchersType[voucherType] ? _vouchersType[voucherType].id : "noSuchVoucher");
+         if(!_vouchersType[voucherType])
          {
             return 0;
          }
-         return _vouchersType[param1].id;
+         return _vouchersType[voucherType].id;
       }
       
-      public static function getVoucherCount(param1:uint) : uint
+      public static function getVoucherCount(voucherType:uint) : uint
       {
-         trace("getVoucherCount::",param1,_vouchersType[param1] ? _vouchersType[param1].count : "noSuchVoucher");
-         if(!_vouchersType[param1])
+         trace("getVoucherCount::",voucherType,_vouchersType[voucherType] ? _vouchersType[voucherType].count : "noSuchVoucher");
+         if(!_vouchersType[voucherType])
          {
             return 0;
          }
-         return _vouchersType[param1].count;
+         return _vouchersType[voucherType].count;
       }
       
-      public static function getVoucherDictId(param1:uint) : uint
+      public static function getVoucherDictId(voucherType:uint) : uint
       {
-         if(!_vouchersType[param1])
+         if(!_vouchersType[voucherType])
          {
             return 0;
          }
-         trace("getVoucherDictId::",param1,_vouchersType[param1].dictId);
-         return _vouchersType[param1].dictId;
+         trace("getVoucherDictId::",voucherType,_vouchersType[voucherType].dictId);
+         return _vouchersType[voucherType].dictId;
       }
       
-      public static function setVoucherCount(param1:uint, param2:uint, param3:uint, param4:uint) : void
+      public static function setVoucherCount(voucherDictId:uint, voucherCount:uint, voucherType:uint, voucherId:uint) : void
       {
-         var _loc5_:Object;
-         trace("setVoucherCount::",param1,param2,param3,param4);
-         if(!_vouchersDictId[param1])
+         var voucher:Object;
+         trace("setVoucherCount::",voucherDictId,voucherCount,voucherType,voucherId);
+         if(!_vouchersDictId[voucherDictId])
          {
-            _loc5_ = {
-               id:param4,
-               type:param3,
-               count:param2,
-               dictId:param1
+            voucher = {
+               id:voucherId,
+               type:voucherType,
+               count:voucherCount,
+               dictId:voucherDictId
             };
-            trace("createVaucher::",param3,param1,param4);
-            _vouchersDictId[param1] = _loc5_;
-            _vouchersType[param3] = _loc5_;
+            trace("createVaucher::",voucherType,voucherDictId,voucherId);
+            _vouchersDictId[voucherDictId] = voucher;
+            _vouchersType[voucherType] = voucher;
          }
          else
          {
-            if(param4 && _vouchersDictId[param1].id != param4)
+            if(voucherId && _vouchersDictId[voucherDictId].id != voucherId)
             {
-               trace("updateVoucherId::",param4);
-               _vouchersDictId[param1].id = param4;
+               trace("updateVoucherId::",voucherId);
+               _vouchersDictId[voucherDictId].id = voucherId;
             }
-            _vouchersDictId[param1].count = param2;
+            _vouchersDictId[voucherDictId].count = voucherCount;
          }
       }
       
-      public static function setVouchers(param1:Array) : void
+      public static function setVouchers(vouchers:Array) : void
       {
-         var _loc2_:uint = param1.length;
-         var _loc3_:uint = 0;
-         var _loc4_:uint;
-         var _loc5_:uint;
-         var _loc6_:Object;
-         while(_loc3_ < _loc2_)
+         var total:uint = vouchers.length;
+         var i:uint = 0;
+         var voucherType:uint;
+         var voucherDictId:uint;
+         var voucher:Object;
+         while(i < total)
          {
-            _loc4_ = (param1[_loc3_].type);
-            _loc5_ = (param1[_loc3_].dictId);
-            _loc6_ = {
-               type:_loc4_,
+            voucherType = (vouchers[i].type);
+            voucherDictId = (vouchers[i].dictId);
+            voucher = {
+               type:voucherType,
                count:0,
-               dictId:_loc5_
+               dictId:voucherDictId
             };
-            trace("createVaucher:;",_loc5_,_loc4_);
-            _vouchersDictId[_loc5_] = _loc6_;
-            _vouchersType[_loc4_] = _loc6_;
-            _loc3_++;
+            trace("createVaucher:;",voucherDictId,voucherType);
+            _vouchersDictId[voucherDictId] = voucher;
+            _vouchersType[voucherType] = voucher;
+            i++;
          }
       }
       
-      public function set premium_money_new(param1:int) : void
+      public function set premium_money_new(value:int) : void
       {
          _coinsPNew = 5000;
          this.outTimerP.reset();
@@ -212,22 +212,22 @@ package survarium.controls
          this.playerCoinsPNew.alpha = 0;
          this.playerCoinsPNew.x = 124;
          this.playerCoinsPNew.y = 48;
-         this.playerCoinsPNew.textColor = param1 < 0 ? 13369344 : 6749952;
+         this.playerCoinsPNew.textColor = value < 0 ? 13369344 : 6749952;
          new Tween(500,this.playerCoinsPNew,{
             x:124 + 15,
             alpha:1
          },{ease:Strong.easeOut});
-         if(param1 < 0)
+         if(value < 0)
          {
-            this.playerCoinsPNew.text = param1.toString();
+            this.playerCoinsPNew.text = value.toString();
          }
          else
          {
-            this.playerCoinsPNew.text = "+" + param1.toString();
+            this.playerCoinsPNew.text = "+" + value.toString();
          }
       }
       
-      public function set generic_money_new(param1:int) : void
+      public function set generic_money_new(value:int) : void
       {
          _coinsNew = 5000;
          this.outTimer.reset();
@@ -235,25 +235,25 @@ package survarium.controls
          this.playerCoinsNew.x = 124;
          this.playerCoinsNew.y = 23;
          this.playerCoinsNew.alpha = 0;
-         this.playerCoinsNew.textColor = param1 < 0 ? 13369344 : 6749952;
+         this.playerCoinsNew.textColor = value < 0 ? 13369344 : 6749952;
          new Tween(500,this.playerCoinsNew,{
             x:124 + 15,
             alpha:1
          },{ease:Strong.easeOut});
-         if(param1 < 0)
+         if(value < 0)
          {
-            this.playerCoinsNew.text = param1.toString();
+            this.playerCoinsNew.text = value.toString();
          }
          else
          {
-            this.playerCoinsNew.text = "+" + param1.toString();
+            this.playerCoinsNew.text = "+" + value.toString();
          }
       }
       
-      public function set premium_money(param1:int) : void
+      public function set premium_money(value:int) : void
       {
-         _coinsP = param1;
-         this.playerCoinsP.text = param1.toString();
+         _coinsP = value;
+         this.playerCoinsP.text = value.toString();
       }
       
       public function get premium_money() : int
@@ -261,10 +261,10 @@ package survarium.controls
          return this._coinsP;
       }
       
-      public function set generic_money(param1:int) : void
+      public function set generic_money(value:int) : void
       {
-         _coins = param1;
-         this.playerCoins.text = param1.toString();
+         _coins = value;
+         this.playerCoins.text = value.toString();
       }
       
       public function get generic_money() : int
@@ -272,35 +272,35 @@ package survarium.controls
          return this._coins;
       }
       
-      public function setData(param1:Object) : void
+      public function setData(newData:Object) : void
       {
-         nickname = param1.nickname;
-         premiumMoney = param1.premium_money;
-         genericMoney = param1.generic_money;
-         if(param1.premium_money_new != undefined && this.playerCoinsP.text != "")
+         nickname = newData.nickname;
+         premiumMoney = newData.premium_money;
+         genericMoney = newData.generic_money;
+         if(newData.premium_money_new != undefined && this.playerCoinsP.text != "")
          {
-            premium_money_new = param1.premium_money_new;
+            premium_money_new = newData.premium_money_new;
          }
-         else if(this.playerCoinsP.text != "" && param1.premium_money - this._coinsP != 0)
+         else if(this.playerCoinsP.text != "" && newData.premium_money - this._coinsP != 0)
          {
-            premium_money_new = param1.premium_money - this._coinsP;
+            premium_money_new = newData.premium_money - this._coinsP;
          }
-         if(param1.generic_money_new != undefined && this.playerCoins.text != "")
+         if(newData.generic_money_new != undefined && this.playerCoins.text != "")
          {
-            generic_money_new = param1.generic_money_new;
+            generic_money_new = newData.generic_money_new;
          }
-         else if(this.playerCoins.text != "" && param1.generic_money - this._coins != 0)
+         else if(this.playerCoins.text != "" && newData.generic_money - this._coins != 0)
          {
-            generic_money_new = param1.generic_money - this._coins;
+            generic_money_new = newData.generic_money - this._coins;
          }
-         premium_money = param1.premium_money;
-         generic_money = param1.generic_money;
+         premium_money = newData.premium_money;
+         generic_money = newData.generic_money;
          dispatchEvent(new Event(Event.CHANGE));
       }
       
-      protected function onTimerComplete(param1:Event) : void
+      protected function onTimerComplete(event:Event) : void
       {
-         if(param1.target == this.outTimer)
+         if(event.target == this.outTimer)
          {
             this.playerCoinsNew.alpha = 1;
             new Tween(500,this.playerCoinsNew,{

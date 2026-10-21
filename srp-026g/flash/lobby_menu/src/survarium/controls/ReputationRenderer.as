@@ -30,9 +30,9 @@ package survarium.controls
          super();
       }
       
-      override public function set data(param1:Object) : void
+      override public function set data(value:Object) : void
       {
-         _data = param1;
+         _data = value;
          if(_data)
          {
             _unlocked = _data.faction_enabled;
@@ -41,9 +41,9 @@ package survarium.controls
          invalidateData();
       }
       
-      public function showSelection(param1:Boolean) : void
+      public function showSelection(isSelected:Boolean) : void
       {
-         selected = param1;
+         selected = isSelected;
       }
       
       override protected function configUI() : void

@@ -35,46 +35,46 @@ package survarium.controls
          addEventListener(Event.EXIT_FRAME,this.redraw);
       }
       
-      public function redraw(param1:Event = null) : void
+      public function redraw(event:Event = null) : void
       {
          chift += this.factor2;
          chift2 = this.chift;
-         var _loc2_:Graphics = this.container.graphics;
-         _loc2_.clear();
-         _loc2_.lineStyle(this.size,6946681,1,false);
-         var _loc3_:uint = 40;
-         var _loc4_:uint = int(width / _loc3_);
-         var _loc5_:Number = Math.PI * 8 / _loc3_;
-         _loc2_.moveTo(0,0);
-         var _loc6_:Number = 1;
-         var _loc7_:Number = Math.PI / _loc3_;
+         var g:Graphics = this.container.graphics;
+         g.clear();
+         g.lineStyle(this.size,6946681,1,false);
+         var segments:uint = 40;
+         var segmentWidth:uint = int(width / segments);
+         var waveStep:Number = Math.PI * 8 / segments;
+         g.moveTo(0,0);
+         var prevAmp:Number = 1;
+         var envelopeStep:Number = Math.PI / segments;
          steps = this.chift * Math.PI;
-         var _loc8_:uint = 0;
-         var _loc9_:int;
-         var _loc10_:Number;
-         var _loc11_:Number;
-         var _loc12_:Number;
-         var _loc13_:Number;
-         while(_loc8_ < _loc3_)
+         var i:uint = 0;
+         var targetIndex:int;
+         var fromAmp:Number;
+         var toAmp:Number;
+         var amp:Number;
+         var smoothAmp:Number;
+         while(i < segments)
          {
-            _loc9_ = int(this.steps % 80 / 10);
-            _loc10_ = this.mathTargets[_loc9_];
-            _loc11_ = this.mathTargets[_loc9_ + 1];
-            _loc12_ = this.steps % 10 / 10 * (_loc11_ - _loc10_) + _loc10_;
-            _loc13_ = (_loc12_ + _loc6_) / 2;
-            _loc6_ = _loc12_;
+            targetIndex = int(this.steps % 80 / 10);
+            fromAmp = this.mathTargets[targetIndex];
+            toAmp = this.mathTargets[targetIndex + 1];
+            amp = this.steps % 10 / 10 * (toAmp - fromAmp) + fromAmp;
+            smoothAmp = (amp + prevAmp) / 2;
+            prevAmp = amp;
             chift2 += this.factor2 / 16;
             steps += width / 160;
-            _loc2_.lineTo(_loc8_ * _loc4_ - 5 * Math.cos(_loc13_ / 8),(Math.sin(_loc8_ * _loc7_) + 0.4) * 1 * Math.cos(_loc8_ * _loc5_ + this.steps) * _loc13_ * 1);
-            _loc8_++;
+            g.lineTo(i * segmentWidth - 5 * Math.cos(smoothAmp / 8),(Math.sin(i * envelopeStep) + 0.4) * 1 * Math.cos(i * waveStep + this.steps) * smoothAmp * 1);
+            i++;
          }
       }
       
       public function clean() : void
       {
          removeEventListener(Event.EXIT_FRAME,this.redraw);
-         var _loc1_:Graphics = this.container.graphics;
-         _loc1_.clear();
+         var g:Graphics = this.container.graphics;
+         g.clear();
       }
    }
 }

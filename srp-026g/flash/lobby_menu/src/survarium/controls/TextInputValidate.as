@@ -27,15 +27,15 @@ package survarium.controls
          super();
       }
       
-      public function setRequest(param1:String) : void
+      public function setRequest(request:String) : void
       {
-         _validateRequest = param1;
+         _validateRequest = request;
       }
       
-      public function setText(param1:String) : void
+      public function setText(newText:String) : void
       {
          this.textInput.removeEventListener(Event.CHANGE,this.updateText);
-         this.textInput.text = param1;
+         this.textInput.text = newText;
          this.textInput.validateNow();
          this.textInput.addEventListener(Event.CHANGE,this.updateText);
       }
@@ -52,7 +52,7 @@ package survarium.controls
          enabled = false;
       }
       
-      private function requestTextValidation(param1:Event = null) : void
+      private function requestTextValidation(event:Event = null) : void
       {
          trace("requestTextValidation::",this.textInput.text);
          this.loadingIndicator.gotoAndPlay(1);
@@ -60,11 +60,11 @@ package survarium.controls
          ExternalInterface.call(this._validateRequest,this.textInput.text);
       }
       
-      private function updateText(param1:Event) : void
+      private function updateText(event:Event) : void
       {
-         var _loc2_:String = this.textInput.text;
-         trace("updateText::",_loc2_);
-         _lastText = _loc2_;
+         var newText:String = this.textInput.text;
+         trace("updateText::",newText);
+         _lastText = newText;
          this.loadingIndicator.gotoAndStop(1);
          this.loadingIndicator.visible = false;
          enabled = false;
@@ -84,20 +84,20 @@ package survarium.controls
          return this._lastText.length >= this.MIN_CHARS && this._lastText.length <= this.MAX_CHARS;
       }
       
-      public function handleTextValidation(param1:Boolean, param2:String, param3:String = null) : void
+      public function handleTextValidation(isValid:Boolean, checkedText:String, warningText:String = null) : void
       {
-         trace("handleTextValidation",param1,param2,param3);
-         if(this._lastText != param2)
+         trace("handleTextValidation",isValid,checkedText,warningText);
+         if(this._lastText != checkedText)
          {
             return;
          }
          this.loadingIndicator.gotoAndStop(1);
          this.loadingIndicator.visible = false;
          this.textInput.enabled = true;
-         enabled = param1;
-         if(param1 == false)
+         enabled = isValid;
+         if(isValid == false)
          {
-            this.warning.showWarning(param3);
+            this.warning.showWarning(warningText);
             this.warning.visible = true;
          }
          else

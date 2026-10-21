@@ -21,15 +21,15 @@ package survarium.controls
          super();
       }
       
-      override public function setData(param1:Object) : void
+      override public function setData(newData:Object) : void
       {
-         _data = param1;
+         _data = newData;
          invalidateData();
       }
       
       override protected function updateText() : void
       {
-         var _loc1_:Boolean;
+         var isOnline:Boolean;
          if(_data)
          {
             visible = true;
@@ -39,9 +39,9 @@ package survarium.controls
             this.textRank.text = _data.default_rank == true ? LocalizationData.getName("clan_rank_" + _data.rank) : _data.rank;
             this.textLevel.text = _data.level;
             this.textStatus.text = _data.status;
-            _loc1_ = _data.online == undefined || _data.online == true;
-            this.textStatus.textColor = _loc1_ ? Colors.LIGHT_GRAY : Colors.NOT_READY;
-            alpha = _loc1_ ? 1 : 0.7;
+            isOnline = _data.online == undefined || _data.online == true;
+            this.textStatus.textColor = isOnline ? Colors.LIGHT_GRAY : Colors.NOT_READY;
+            alpha = isOnline ? 1 : 0.7;
          }
          else
          {

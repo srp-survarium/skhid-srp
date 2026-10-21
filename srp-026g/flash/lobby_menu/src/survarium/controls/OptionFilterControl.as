@@ -64,22 +64,22 @@ package survarium.controls
          return super.y;
       }
       
-      override public function set y(param1:Number) : void
+      override public function set y(value:Number) : void
       {
-         super.y = param1;
+         super.y = value;
          dispatchEvent(new Event(Event.RESIZE));
       }
       
-      public function set shopTab(param1:ButtonBar) : void
+      public function set shopTab(value:ButtonBar) : void
       {
-         _shopTab = param1;
+         _shopTab = value;
          this._shopTab.selectedIndex = 0;
          this._shopTab.addEventListener(IndexEvent.INDEX_CHANGE,this.onSortTypeChange);
       }
       
-      public function set checkbox_enabled_items(param1:Button) : void
+      public function set checkbox_enabled_items(value:Button) : void
       {
-         _checkbox_enabled_items = param1;
+         _checkbox_enabled_items = value;
          this._checkbox_enabled_items.addEventListener(ButtonEvent.CLICK,this.onBtnClick);
       }
       
@@ -88,9 +88,9 @@ package survarium.controls
          return this._checkbox_enabled_items;
       }
       
-      public function set checkbox_shop_items(param1:Button) : void
+      public function set checkbox_shop_items(value:Button) : void
       {
-         _checkbox_shop_items = param1;
+         _checkbox_shop_items = value;
          this._checkbox_shop_items.addEventListener(ButtonEvent.CLICK,this.onBtnClick);
       }
       
@@ -105,11 +105,11 @@ package survarium.controls
          _startY = int(this._startPosY * MainScene.scaleFactor) / MainScene.scaleFactor;
       }
       
-      private function onNewFilters(param1:Event) : void
+      private function onNewFilters(event:Event) : void
       {
-         var _loc2_:int;
-         var _loc3_:uint;
-         var _loc4_:uint;
+         var filterCount:int;
+         var cellWidth:uint;
+         var listWidth:uint;
          trace("newFilters");
          if(this.filterList.dataProvider == null || this.filterList.dataProvider.length == 0)
          {
@@ -124,28 +124,28 @@ package survarium.controls
          {
             this.filterList.visible = true;
             this.selectAll.visible = true;
-            _loc2_ = this.filterList.dataProvider.length;
-            _loc3_ = 64;
-            _loc4_ = _loc2_ * _loc3_;
-            this.filterList.width = _loc4_;
-            this.filterList.x = int((573 - (_loc4_ + _loc3_)) / 2 + _loc3_);
-            trace("filterspos:",_loc2_,this.filterList.x);
-            this.selectAll.x = this.filterList.x - _loc3_;
+            filterCount = this.filterList.dataProvider.length;
+            cellWidth = 64;
+            listWidth = filterCount * cellWidth;
+            this.filterList.width = listWidth;
+            this.filterList.x = int((573 - (listWidth + cellWidth)) / 2 + cellWidth);
+            trace("filterspos:",filterCount,this.filterList.x);
+            this.selectAll.x = this.filterList.x - cellWidth;
             this.checkAllButton();
          }
       }
       
-      private function checkAllButton(param1:Event = null) : void
+      private function checkAllButton(event:Event = null) : void
       {
-         var _loc2_:uint = this.filterList.getSelectedIndexes().length;
-         trace("checkAllButton",_loc2_);
-         this.selectAll.selected = _loc2_ == 0 || _loc2_ == this.filterList.dataProvider.length;
+         var selectedCount:uint = this.filterList.getSelectedIndexes().length;
+         trace("checkAllButton",selectedCount);
+         this.selectAll.selected = selectedCount == 0 || selectedCount == this.filterList.dataProvider.length;
       }
       
       private function get maxOffset() : int
       {
-         var _loc1_:int = (this.filterList.y - 16);
-         return _loc1_;
+         var offset:int = (this.filterList.y - 16);
+         return offset;
       }
       
       public function get enabled() : Boolean
@@ -165,47 +165,47 @@ package survarium.controls
          };
       }
       
-      public function showWeaponsSort(param1:Boolean) : void
+      public function showWeaponsSort(show:Boolean) : void
       {
       }
       
-      public function setSortTab(param1:ButtonBar) : void
+      public function setSortTab(tabBar:ButtonBar) : void
       {
-         if(!param1)
+         if(!tabBar)
          {
             return;
          }
-         sortTab = param1;
+         sortTab = tabBar;
          this.sortTab.selectedIndex = 0;
          this.sortTab.addEventListener(IndexEvent.INDEX_CHANGE,this.onSortTypeChange);
       }
       
-      public function setShowBtn(param1:Button) : void
+      public function setShowBtn(button:Button) : void
       {
-         if(!param1)
+         if(!button)
          {
             return;
          }
       }
       
-      public function setCheckBox(param1:Button) : void
+      public function setCheckBox(checkbox:Button) : void
       {
-         checkbox_all_traders = param1;
+         checkbox_all_traders = checkbox;
          this.checkbox_all_traders.addEventListener(ButtonEvent.CLICK,this.onBtnClick);
          LocalizationData.addButton(this.checkbox_all_traders,"all_factions");
       }
       
-      public function selectCategoty(param1:int) : void
+      public function selectCategoty(subCategory:int) : void
       {
-         var _loc2_:uint;
-         while(_loc2_ < this.filterList.dataProvider.length)
+         var i:uint;
+         while(i < this.filterList.dataProvider.length)
          {
-            if(this.filterList.dataProvider[_loc2_].sucat == param1)
+            if(this.filterList.dataProvider[i].sucat == subCategory)
             {
-               this.filterList.selectedIndex = _loc2_;
+               this.filterList.selectedIndex = i;
                return;
             }
-            _loc2_++;
+            i++;
          }
       }
       
@@ -219,7 +219,7 @@ package survarium.controls
          trace("hide",this._mask_step);
       }
       
-      public function onBtnSelectAllClick(param1:Event) : void
+      public function onBtnSelectAllClick(event:Event) : void
       {
          trace("onBtnSelectAllClick");
          this.filterList.deselectAll();
@@ -227,27 +227,27 @@ package survarium.controls
          dispatchEvent(new ListEvent(ListEvent.INDEX_CHANGE));
       }
       
-      public function reset(param1:Boolean = true) : void
+      public function reset(resetTraders:Boolean = true) : void
       {
          this.filterList.deselectAll();
-         if(param1)
+         if(resetTraders)
          {
             this.checkbox_all_traders.selected = true;
          }
          dispatchEvent(new ListEvent(ListEvent.INDEX_CHANGE));
       }
       
-      protected function onSortTypeChange(param1:Event) : void
+      protected function onSortTypeChange(event:Event) : void
       {
          dispatchEvent(new ListEvent(ListEvent.INDEX_CHANGE));
       }
       
-      protected function onBtnClick(param1:Event) : void
+      protected function onBtnClick(event:Event) : void
       {
          dispatchEvent(new ListEvent(ListEvent.INDEX_CHANGE));
       }
       
-      protected function onLocal(param1:String) : void
+      protected function onLocal(value:String) : void
       {
          if(this.sortTab)
          {
@@ -269,12 +269,12 @@ package survarium.controls
          this.filterList.columnWidth = 64;
       }
       
-      protected function onBtnResetClick(param1:Event) : void
+      protected function onBtnResetClick(event:Event) : void
       {
          this.reset();
       }
       
-      protected function onBtnShowClick(param1:Event) : void
+      protected function onBtnShowClick(event:Event) : void
       {
          if(this.enabled)
          {

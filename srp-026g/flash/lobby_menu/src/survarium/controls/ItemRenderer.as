@@ -26,9 +26,9 @@ package survarium.controls
          super();
       }
       
-      public function set data(param1:Object) : void
+      public function set data(value:Object) : void
       {
-         _data = param1;
+         _data = value;
          invalidateData();
       }
       
@@ -63,10 +63,10 @@ package survarium.controls
       
       protected function updateData() : void
       {
-         var _loc1_:int;
-         var _loc2_:uint;
-         var _loc3_:ColorTransform;
-         var _loc4_:Boolean;
+         var condition:int;
+         var trackColor:uint;
+         var colorTransform:ColorTransform;
+         var isMoney:Boolean;
          this.iconRenderer.content = _data.icon;
          this.damageIndicator.visible = !_data.isStack && _data.value < 100;
          trace("IR::updateData",_data.name,_data.isStack,_data.value,this.damageIndicator.visible);
@@ -75,21 +75,21 @@ package survarium.controls
          {
             this.textCount.visible = false;
             this.damageIndicator.track.width = 165 * _data.value / 100;
-            _loc1_ = _data.value / 100 * 510;
-            _loc2_ = Util.getColor(Math.min(510 - _loc1_,255),Math.min(_loc1_,255),0);
-            _loc3_ = new ColorTransform();
-            _loc3_.color = _loc2_;
-            this.damageIndicator.track.transform.colorTransform = _loc3_;
+            condition = _data.value / 100 * 510;
+            trackColor = Util.getColor(Math.min(510 - condition,255),Math.min(condition,255),0);
+            colorTransform = new ColorTransform();
+            colorTransform.color = trackColor;
+            this.damageIndicator.track.transform.colorTransform = colorTransform;
          }
          else
          {
             this.textCount.visible = true;
             this._countTextFormat.align = _data.superCategory == 5 ? TextFormatAlign.CENTER : TextFormatAlign.RIGHT;
             this.textCount.defaultTextFormat = this._countTextFormat;
-            _loc4_ = _data.superCategory == 5;
-            this.textCount.text = (_loc4_ ? "" : "x") + _data.value;
-            this.textCount.y = 42 + (_loc4_ ? 0 : 5);
-            this.textCount.textColor = _loc4_ ? (_data.category == 29 ? Colors.GOLD : Colors.REGULAR) : Colors.SILVER;
+            isMoney = _data.superCategory == 5;
+            this.textCount.text = (isMoney ? "" : "x") + _data.value;
+            this.textCount.y = 42 + (isMoney ? 0 : 5);
+            this.textCount.textColor = isMoney ? (_data.category == 29 ? Colors.GOLD : Colors.REGULAR) : Colors.SILVER;
          }
       }
    }

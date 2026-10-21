@@ -17,13 +17,13 @@ package survarium.controls
          super();
       }
       
-      public function set label(param1:String) : void
+      public function set label(value:String) : void
       {
-         if(this._label == param1)
+         if(this._label == value)
          {
             return;
          }
-         _label = param1;
+         _label = value;
          invalidateData();
       }
       

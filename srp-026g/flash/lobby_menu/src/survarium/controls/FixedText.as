@@ -46,8 +46,8 @@ package survarium.controls
          _text = this.textField.text;
          constraints = new Constraints(this,ConstrainMode.COUNTER_SCALE);
          this.constraints.addElement("textField",this.textField,Constraints.LEFT);
-         var _loc1_:TextFormat = this.textField.getTextFormat();
-         if(_loc1_.align == TextFormatAlign.CENTER)
+         var format:TextFormat = this.textField.getTextFormat();
+         if(format.align == TextFormatAlign.CENTER)
          {
             _resize = true;
          }
@@ -77,19 +77,19 @@ package survarium.controls
          return super.width;
       }
       
-      override public function set width(param1:Number) : void
+      override public function set width(value:Number) : void
       {
-         if(this._sw != param1)
+         if(this._sw != value)
          {
-            super.width = param1;
+            super.width = value;
             this.refresh();
          }
       }
       
       public function getWidth() : int
       {
-         var _loc1_:int = this.textField.textWidth < this._mw ? (this.textField.textWidth) : this._mw;
-         return _loc1_;
+         var visibleWidth:int = this.textField.textWidth < this._mw ? (this.textField.textWidth) : this._mw;
+         return visibleWidth;
       }
       
       public function get shift() : int
@@ -97,9 +97,9 @@ package survarium.controls
          return this._pos;
       }
       
-      public function set shift(param1:int) : void
+      public function set shift(value:int) : void
       {
-         _pos = param1;
+         _pos = value;
          if(this.textField)
          {
             this.textField.x = this.shift;
@@ -112,11 +112,11 @@ package survarium.controls
          return this._text;
       }
       
-      public function set text(param1:String) : void
+      public function set text(value:String) : void
       {
-         if(this._text != param1)
+         if(this._text != value)
          {
-            this.textField.text = param1;
+            this.textField.text = value;
             if(this._resize)
             {
                if(this.textField.textWidth > this._sw)
@@ -128,7 +128,7 @@ package survarium.controls
                   this.textField.width = this._sw;
                }
             }
-            _text = param1;
+            _text = value;
             if(this.textField.textWidth < this._sw)
             {
                if(this.mask)
@@ -167,7 +167,7 @@ package survarium.controls
          }
       }
       
-      protected function onTimer(param1:TimerEvent) : void
+      protected function onTimer(event:TimerEvent) : void
       {
          if(!this.textField)
          {

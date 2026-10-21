@@ -135,14 +135,14 @@ package survarium.controls
          return taken;
       }
       
-      override public function set x(param1:Number) : void
+      override public function set x(value:Number) : void
       {
-         super.x = int(param1 * MainScene.scaleFactor) / MainScene.scaleFactor;
+         super.x = int(value * MainScene.scaleFactor) / MainScene.scaleFactor;
       }
       
-      override public function set y(param1:Number) : void
+      override public function set y(value:Number) : void
       {
-         super.y = int(param1 * MainScene.scaleFactor) / MainScene.scaleFactor;
+         super.y = int(value * MainScene.scaleFactor) / MainScene.scaleFactor;
       }
       
       override public function get height() : Number
@@ -155,88 +155,88 @@ package survarium.controls
          return 420;
       }
       
-      public function updateNotification(param1:Object) : void
+      public function updateNotification(notification:Object) : void
       {
-         var _loc2_:uint;
-         while(_loc2_ < this._renderers.length)
+         var i:uint;
+         while(i < this._renderers.length)
          {
-            if(this._renderers[_loc2_].data == param1)
+            if(this._renderers[i].data == notification)
             {
-               this._renderers[_loc2_].data = param1;
-               this.historyUpdated(param1);
+               this._renderers[i].data = notification;
+               this.historyUpdated(notification);
                return;
             }
-            _loc2_++;
+            i++;
          }
       }
       
-      public function registerRenderer(param1:int, param2:Class) : void
+      public function registerRenderer(notificationType:int, rendererClass:Class) : void
       {
-         this._rendererTypes[param1] = param2;
-         this.historyRegistered(param1);
+         this._rendererTypes[notificationType] = rendererClass;
+         this.historyRegistered(notificationType);
       }
       
-      public function addNotification(param1:Object, param2:Boolean = false) : void
+      public function addNotification(notification:Object, prepend:Boolean = false) : void
       {
-         var _loc3_:int = (param1.notificationType);
-         var _loc4_:MovieClip;
-         if(_loc3_ == 3)
+         var notificationType:int = (notification.notificationType);
+         var renderer:MovieClip;
+         if(notificationType == 3)
          {
-            _loc4_ = new this._rendererTypes[_loc3_]();
-            _loc4_.addEventListener("showMessage",this.onMatchtMessage,false,0,true);
+            renderer = new this._rendererTypes[notificationType]();
+            renderer.addEventListener("showMessage",this.onMatchtMessage,false,0,true);
          }
-         else if(param1.quest_label)
+         else if(notification.quest_label)
          {
-            _loc4_ = new this._rendererTypes[_loc3_]();
-            _loc4_.addEventListener("showMessage",this.onShowQuestMessage,false,0,true);
+            renderer = new this._rendererTypes[notificationType]();
+            renderer.addEventListener("showMessage",this.onShowQuestMessage,false,0,true);
          }
          else
          {
-            _loc4_ = new this._rendererTypes[_loc3_]();
-            _loc4_.addEventListener("showMessage",this.onRelatedMessage,false,0,true);
+            renderer = new this._rendererTypes[notificationType]();
+            renderer.addEventListener("showMessage",this.onRelatedMessage,false,0,true);
          }
-         this.historyWiden(_loc4_,param1);
-         _loc4_.data = param1;
-         _loc4_.validateNow();
-         this.historyDecorate(_loc4_);
-         _loc4_.y = this._height;
-         _height += _loc4_.height + 1;
-         this._scrollContent.addContent(_loc4_);
+         this.historyWiden(renderer,notification);
+         renderer.data = notification;
+         renderer.validateNow();
+         this.historyDecorate(renderer);
+         renderer.y = this._height;
+         _height += renderer.height + 1;
+         this._scrollContent.addContent(renderer);
          this._scrollContent.validateNow();
-         trace("NSLC::addNotification",_loc4_.y,this._scrollContent.scrolChildrens.y,this._scrollContent.y);
-         this._renderers.push(_loc4_);
+         trace("NSLC::addNotification",renderer.y,this._scrollContent.scrolChildrens.y,this._scrollContent.y);
+         this._renderers.push(renderer);
          this.background.y = Math.min(Math.max(this._scrollContent.scrolChildrens.y,0),this.height - 5);
          this.background.height = this.height - this.background.y;
       }
       
-      private function onRelatedMessage(param1:Event) : void
+      private function onRelatedMessage(e:Event) : void
       {
-         trace("onRelatedMessage::",param1.target,param1.currentTarget);
-         if(param1.target.data && param1.target.data.type == 2)
+         trace("onRelatedMessage::",e.target,e.currentTarget);
+         if(e.target.data && e.target.data.type == 2)
          {
-            Message.showMessage("message_unlock_rank",param1.target.data,false);
+            Message.showMessage("message_unlock_rank",e.target.data,false);
          }
       }
       
-      private function onMatchtMessage(param1:Event) : void
+      private function onMatchtMessage(e:Event) : void
       {
-         if(this.historyDemoEvent(param1))
+         if(this.historyDemoEvent(e))
          {
             return;
          }
-         trace("onMatchtMessage::",param1.target,param1.currentTarget);
-         if(param1.target.data)
+         trace("onMatchtMessage::",e.target,e.currentTarget);
+         if(e.target.data)
          {
-            this.matchCalback(param1.target.data);
+            this.matchCalback(e.target.data);
          }
       }
       
-      private function onShowQuestMessage(param1:Event) : void
+      private function onShowQuestMessage(e:Event) : void
       {
-         trace("onShowQuestMessage::",param1.target,param1.currentTarget);
-         if(param1.target.data && param1.target.data.type == 3)
+         trace("onShowQuestMessage::",e.target,e.currentTarget);
+         if(e.target.data && e.target.data.type == 3)
          {
-            Message.showMessage("quest_message",param1.target.data);
+            Message.showMessage("quest_message",e.target.data);
          }
       }
       
@@ -244,13 +244,13 @@ package survarium.controls
       {
       }
       
-      public function clear(param1:Boolean = false) : void
+      public function clear(force:Boolean = false) : void
       {
-         var _loc2_:uint;
-         while(_loc2_ < this._renderers.length)
+         var i:uint;
+         while(i < this._renderers.length)
          {
-            removeChild(this._renderers[_loc2_]);
-            _loc2_++;
+            removeChild(this._renderers[i]);
+            i++;
          }
          this._renderers.length = 0;
       }

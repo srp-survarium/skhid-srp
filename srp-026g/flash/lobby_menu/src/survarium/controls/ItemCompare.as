@@ -49,130 +49,130 @@ package survarium.controls
       
       public function ItemCompare()
       {
-         var _loc2_:MovieClip = null;
+         var diff:MovieClip = null;
          this._spriteAnchor = new Sprite();
          super();
          this._spriteAnchor.x -= 130;
          this._spriteAnchor.y += 120;
          this._indicator = [this.diff_1,this.diff_2,this.diff_3,this.diff_4,this.diff_5,this.diff_6,this.diff_7,this.diff_8];
-         _loc2_ = MovieClip(this.getChildByName("diff_9"));
-         if(_loc2_)
+         diff = MovieClip(this.getChildByName("diff_9"));
+         if(diff)
          {
-            this._indicator.public::push(_loc2_);
+            this._indicator.public::push(diff);
          }
-         var _loc1_:int = 0;
-         while(_loc1_ < this._indicator.length)
+         var i:int = 0;
+         while(i < this._indicator.length)
          {
-            _loc2_ = this._indicator[_loc1_];
-            _loc2_.visible = false;
-            _loc2_.background.visible = false;
-            _loc1_++;
-         }
-      }
-      
-      public static function setItemsMaxValues(param1:Array) : void
-      {
-         var _loc2_:int = 0;
-         while(_loc2_ < param1.length)
-         {
-            _propsMax[param1[_loc2_].icon_id] = param1[_loc2_].max;
-            _propsMin[param1[_loc2_].icon_id] = param1[_loc2_].min;
-            _propsDir[param1[_loc2_].icon_id] = param1[_loc2_].direction;
-            _loc2_++;
+            diff = this._indicator[i];
+            diff.visible = false;
+            diff.background.visible = false;
+            i++;
          }
       }
       
-      public static function setPropsDescriptor(param1:PropertiesDescriptor) : void
+      public static function setItemsMaxValues(limits:Array) : void
       {
-         trace("setPropsDescriptor::",param1);
-         _propsDescriptor = param1;
+         var i:int = 0;
+         while(i < limits.length)
+         {
+            _propsMax[limits[i].icon_id] = limits[i].max;
+            _propsMin[limits[i].icon_id] = limits[i].min;
+            _propsDir[limits[i].icon_id] = limits[i].direction;
+            i++;
+         }
       }
       
-      public function fillModifiers(param1:Object) : void
+      public static function setPropsDescriptor(descriptor:PropertiesDescriptor) : void
       {
-         var _loc2_:Array = param1.modifiers;
-         if(!_loc2_)
+         trace("setPropsDescriptor::",descriptor);
+         _propsDescriptor = descriptor;
+      }
+      
+      public function fillModifiers(item:Object) : void
+      {
+         var modifiers:Array = item.modifiers;
+         if(!modifiers)
          {
             return;
          }
-         var _loc3_:Object = new Object();
-         var _loc4_:Object = new Object();
-         var _loc5_:uint = 0;
-         var _loc6_:Object;
-         var _loc7_:Object;
-         var _loc8_:int;
-         var _loc9_:Number;
-         while(_loc5_ < _loc2_.length)
+         var combined:Object = new Object();
+         var propTotals:Object = new Object();
+         var i:uint = 0;
+         var props:Object;
+         var prop:Object;
+         var propId:int;
+         var propValue:Number;
+         while(i < modifiers.length)
          {
-            _loc6_ = _loc2_[_loc5_].props;
-            for each(_loc7_ in _loc6_)
+            props = modifiers[i].props;
+            for each(prop in props)
             {
-               _loc8_ = _loc7_.prop_id;
-               if(_loc4_[_loc8_] == undefined)
+               propId = prop.prop_id;
+               if(propTotals[propId] == undefined)
                {
-                  _loc4_[_loc8_] = {
-                     prop_id:_loc8_,
+                  propTotals[propId] = {
+                     prop_id:propId,
                      prop_value:0
                   };
                }
-               _loc9_ = Number(_loc7_.prop_value);
-               if(_loc9_ != Number(_loc7_.prop_value))
+               propValue = Number(prop.prop_value);
+               if(propValue != Number(prop.prop_value))
                {
-                  _loc9_ = Util.stringToNumber(_loc7_.prop_value);
+                  propValue = Util.stringToNumber(prop.prop_value);
                }
-               _loc4_[_loc8_].prop_value += _loc9_;
+               propTotals[propId].prop_value += propValue;
             }
-            _loc5_++;
+            i++;
          }
-         _loc3_.props = _loc4_;
-         this.setModifiers(_loc3_);
+         combined.props = propTotals;
+         this.setModifiers(combined);
       }
       
-      public function setModifiers(param1:Object) : void
+      public function setModifiers(modifiers:Object) : void
       {
-         var _loc2_:uint = this._indicator.length;
-         var _loc3_:Object;
-         var _loc4_:uint;
-         var _loc5_:MovieClip;
-         var _loc6_:Object;
-         var _loc7_:Number;
-         var _loc8_:Number;
-         if(param1)
+         var count:uint = this._indicator.length;
+         var prop:Object;
+         var i:uint;
+         var diff:MovieClip;
+         var description:Object;
+         var baseValue:Number;
+         var upgradeValue:Number;
+         if(modifiers)
          {
-            for each(_loc3_ in param1.props)
+            for each(prop in modifiers.props)
             {
-               _loc4_ = 0;
-               while(_loc4_ < _loc2_)
+               i = 0;
+               while(i < count)
                {
-                  _loc5_ = this._indicator[_loc4_];
-                  if(_loc5_.id == _loc3_.prop_id)
+                  diff = this._indicator[i];
+                  if(diff.id == prop.prop_id)
                   {
-                     _loc6_ = _propsDescriptor.getPropertyDescription(_loc3_.prop_id);
-                     _loc7_ = _loc5_.indicator.value - _loc5_.indicator.extra;
-                     _loc8_ = _loc6_.modifier_type == 0 ? _loc3_.prop_value : _loc7_ * _loc3_.prop_value;
-                     trace("_diff.indicator.value::",_loc6_.modifier_type,_loc7_,_loc5_.indicator.value,_loc3_.prop_value,_loc8_);
-                     _loc5_.indicator.upgrade = _loc8_;
+                     description = _propsDescriptor.getPropertyDescription(prop.prop_id);
+                     baseValue = diff.indicator.value - diff.indicator.extra;
+                     upgradeValue = description.modifier_type == 0 ? prop.prop_value : baseValue * prop.prop_value;
+                     trace("_diff.indicator.value::",description.modifier_type,baseValue,diff.indicator.value,prop.prop_value,upgradeValue);
+                     diff.indicator.upgrade = upgradeValue;
                      break;
                   }
-                  _loc4_++;
+                  i++;
                }
             }
          }
          else
          {
-            _loc4_ = 0;
-            while(_loc4_ < _loc2_)
+            i = 0;
+            while(i < count)
             {
-               _loc5_ = this._indicator[_loc4_];
-               _loc5_.indicator.upgrade = 0;
-               _loc4_++;
+               diff = this._indicator[i];
+               diff.indicator.upgrade = 0;
+               i++;
             }
          }
       }
       
-      public function setPrimaryWeapon(param1:Object) : void
+      public function setPrimaryWeapon(item:Object) : void
       {
-         _primary = param1;
+         _primary = item;
          this.updateData();
       }
       
@@ -181,16 +181,16 @@ package survarium.controls
          return this._primary;
       }
       
-      public function setSecondaryWeapon(param1:Object) : void
+      public function setSecondaryWeapon(item:Object) : void
       {
-         if(this._secondary != param1 && this._primary != param1)
+         if(this._secondary != item && this._primary != item)
          {
-            _secondary = param1;
+            _secondary = item;
             this.updateData();
          }
       }
       
-      public function setIcon(param1:Sprite) : void
+      public function setIcon(icon:Sprite) : void
       {
          if(this._spriteAnchor.numChildren)
          {
@@ -220,75 +220,75 @@ package survarium.controls
          var propDescription:Object = null;
          var indicators:uint = this._indicator.length;
          var modifier_value:Number = 0;
-         function initPropValues(param1:Object, param2:Object):void
+         function initPropValues(baseProperty:Object, modifierList:Object):void
          {
             modifier_value = 0;
-            var _loc3_:Number = 0;
-            var _loc4_:int = 0;
-            var _loc5_:Object;
-            var _loc6_:Object;
-            var _loc7_:Number;
-            var _loc8_:Object;
-            if(param2)
+            var total:Number = 0;
+            var modifierType:int = 0;
+            var modifierEntry:Object;
+            var modifierProp:Object;
+            var propValue:Number;
+            var modifierDescription:Object;
+            if(modifierList)
             {
-               for each(_loc5_ in param2)
+               for each(modifierEntry in modifierList)
                {
-                  for each(_loc6_ in _loc5_.props)
+                  for each(modifierProp in modifierEntry.props)
                   {
-                     if(_loc6_.prop_id == propDescription.prop_id)
+                     if(modifierProp.prop_id == propDescription.prop_id)
                      {
-                        _loc7_ = Number(_loc6_.prop_value);
-                        if(_loc7_ != Number(_loc6_.prop_value))
+                        propValue = Number(modifierProp.prop_value);
+                        if(propValue != Number(modifierProp.prop_value))
                         {
-                           _loc7_ = Util.stringToNumber(String(_loc6_.prop_value));
+                           propValue = Util.stringToNumber(String(modifierProp.prop_value));
                         }
-                        modifier_value += _loc7_;
-                        _loc8_ = _propsDescriptor.getPropertyDescription(_loc6_.prop_id);
-                        _loc4_ = _loc8_.modifier_type;
+                        modifier_value += propValue;
+                        modifierDescription = _propsDescriptor.getPropertyDescription(modifierProp.prop_id);
+                        modifierType = modifierDescription.modifier_type;
                      }
                   }
                }
             }
-            if(_loc4_ == 0)
+            if(modifierType == 0)
             {
-               _loc3_ = param1.prop_value + modifier_value;
+               total = baseProperty.prop_value + modifier_value;
             }
             else
             {
-               _loc3_ = param1.prop_value * (1 + modifier_value);
+               total = baseProperty.prop_value * (1 + modifier_value);
             }
-            if(_loc4_ == 1)
+            if(modifierType == 1)
             {
-               modifier_value = param1.prop_value * modifier_value;
+               modifier_value = baseProperty.prop_value * modifier_value;
             }
-            _value = Number(_loc3_);
-            if(_value != Number(_loc3_))
+            _value = Number(total);
+            if(_value != Number(total))
             {
-               _value = Util.stringToNumber(String(_loc3_));
+               _value = Util.stringToNumber(String(total));
             }
          }
-         function initIndicatorValues(param1:MovieClip, param2:Object, param3:Number, param4:Number):void
+         function initIndicatorValues(diffClip:MovieClip, propertyInfo:Object, compareValue:Number, currentValue:Number):void
          {
-            _diff = param1;
+            _diff = diffClip;
             _diff.visible = true;
             addChild(_diff);
-            _diff.indicator.direction = param2.direction;
-            _diff.indicator.maximum = param2.max_value;
-            _diff.indicator.minimum = param2.min_value;
-            _diff.indicator.label = param2.prop_name;
+            _diff.indicator.direction = propertyInfo.direction;
+            _diff.indicator.maximum = propertyInfo.max_value;
+            _diff.indicator.minimum = propertyInfo.min_value;
+            _diff.indicator.label = propertyInfo.prop_name;
             _diff.indicator.upgrade = 0;
-            _diff.id = param2.prop_id;
-            if(param2.postfix != undefined)
+            _diff.id = propertyInfo.prop_id;
+            if(propertyInfo.postfix != undefined)
             {
-               _diff.indicator.postfix = param2.postfix;
+               _diff.indicator.postfix = propertyInfo.postfix;
             }
             else
             {
                _diff.indicator.postfix = "";
             }
             _diff.indicator.extra = modifier_value;
-            _diff.indicator.compare = param3;
-            _diff.indicator.value = param4;
+            _diff.indicator.compare = compareValue;
+            _diff.indicator.value = currentValue;
          }
          for each(var s:Object in this._primary.properties)
          {

@@ -25,11 +25,11 @@ package survarium.controls
          }
          if(!constraintsDisabled)
          {
-            _loc2_ = constraints.getElement("textField");
+            element = constraints.getElement("textField");
          }
-         var _loc1_:Number = Math.ceil(textField.textHeight + _loc2_.top + _loc2_.bottom + 5);
-         return _loc1_;
-         var _loc2_:ConstrainedElement;
+         var h:Number = Math.ceil(textField.textHeight + element.top + element.bottom + 5);
+         return h;
+         var element:ConstrainedElement;
       }
       
       override protected function alignForAutoSize() : void

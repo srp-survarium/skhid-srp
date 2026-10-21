@@ -47,7 +47,7 @@ package survarium.controls
          return _id;
       }
       
-      public static function show(param1:Array, param2:int = 0, param3:int = 0, owner:DisplayObject = null) : void
+      public static function show(items:Array, posX:int = 0, posY:int = 0, owner:DisplayObject = null) : void
       {
          if(!_id)
          {
@@ -67,57 +67,57 @@ package survarium.controls
          }
          _stage.addChild(_id);
          _id.addListeners();
-         var _loc4_:Array = [];
-         var _loc5_:int = 0;
-         while(_loc5_ < param1.length)
+         var names:Array = [];
+         var i:int = 0;
+         while(i < items.length)
          {
-            _loc4_[_loc5_] = param1[_loc5_].name;
-            _functions[_loc5_] = param1[_loc5_].click_function;
-            _loc5_++;
+            names[i] = items[i].name;
+            _functions[i] = items[i].click_function;
+            i++;
          }
-         var _loc6_:uint = 10;
-         var _loc7_:ContextList = _id.contextList;
-         _loc7_.x = _stage.mouseX - _loc6_ / 2;
-         _loc7_.y = _stage.mouseY - _loc6_ - 2;
-         if(_loc7_.x < 0)
+         var offset:uint = 10;
+         var list:ContextList = _id.contextList;
+         list.x = _stage.mouseX - offset / 2;
+         list.y = _stage.mouseY - offset - 2;
+         if(list.x < 0)
          {
-            _loc7_.x = 4;
+            list.x = 4;
          }
-         if(_loc7_.y < 0)
+         if(list.y < 0)
          {
-            _loc7_.y = 4;
+            list.y = 4;
          }
-         _loc7_.setPatternt(_pattern);
-         _loc7_.data = param1;
-         trace("contextShowed::",_loc7_.width);
+         list.setPatternt(_pattern);
+         list.data = items;
+         trace("contextShowed::",list.width);
          _stage.focus = _id.contextList.list;
-         if(_loc7_.x + _loc7_.width > _stage.stageWidth)
+         if(list.x + list.width > _stage.stageWidth)
          {
-            _loc7_.x = _stage.mouseX - _loc7_.width + 4;
+            list.x = _stage.mouseX - list.width + 4;
          }
-         if(_loc7_.y + _loc7_.height > _stage.stageHeight)
+         if(list.y + list.height > _stage.stageHeight)
          {
-            _loc7_.y = _stage.mouseY - _loc7_.height + 4 + 25;
+            list.y = _stage.mouseY - list.height + 4 + 25;
          }
          setOwner(owner);
       }
       
-      public static function setPatternt(param1:BitmapData) : void
+      public static function setPatternt(pattern:BitmapData) : void
       {
-         if(_pattern == param1)
+         if(_pattern == pattern)
          {
             return;
          }
-         _pattern = param1;
+         _pattern = pattern;
       }
       
-      public static function registerStage(param1:Stage) : void
+      public static function registerStage(stageRef:Stage) : void
       {
-         if(_stage == param1)
+         if(_stage == stageRef)
          {
             return;
          }
-         _stage = param1;
+         _stage = stageRef;
          _stage.addEventListener(MouseEvent.MOUSE_WHEEL,hideMe,true);
       }
       
@@ -136,28 +136,28 @@ package survarium.controls
          _id.removeListeners();
       }
       
-      protected static function hideMe(param1:MouseEvent) : void
+      protected static function hideMe(event:MouseEvent) : void
       {
-         if(_id && param1.target != _id && _id.parent && param1.currentTarget != _id && !(_id as DisplayObjectContainer).contains(param1.target as DisplayObject))
+         if(_id && event.target != _id && _id.parent && event.currentTarget != _id && !(_id as DisplayObjectContainer).contains(event.target as DisplayObject))
          {
             hide();
          }
       }
       
-      private function onMouse(param1:MouseEvent) : void
+      private function onMouse(event:MouseEvent) : void
       {
-         trace("onMouseEvent::",param1.target,param1.currentTarget,param1.relatedObject);
-         var _loc2_:Button = param1.target as Button;
-         if(!_loc2_)
+         trace("onMouseEvent::",event.target,event.currentTarget,event.relatedObject);
+         var button:Button = event.target as Button;
+         if(!button)
          {
             return;
          }
-         trace("button.y",_loc2_.y,_loc2_.owner);
-         if(_loc2_.data && _loc2_.data.options)
+         trace("button.y",button.y,button.owner);
+         if(button.data && button.data.options)
          {
-            this.addSubMenu(_loc2_.data.options,_loc2_.y / 23);
+            this.addSubMenu(button.data.options,button.y / 23);
          }
-         else if(_subMenu && !_subMenu.contains(_loc2_))
+         else if(_subMenu && !_subMenu.contains(button))
          {
             this.removeSubMenu();
          }
@@ -182,9 +182,9 @@ package survarium.controls
          _subMenu = null;
       }
       
-      protected function addSubMenu(param1:Array, param2:int) : void
+      protected function addSubMenu(options:Array, rowPos:int) : void
       {
-         trace("addSubMenu",param2);
+         trace("addSubMenu",rowPos);
          if(_subMenu)
          {
             removeChild(_subMenu);
@@ -193,40 +193,40 @@ package survarium.controls
          }
          _subMenu = new _subMenuRenderer();
          _subMenu.x = this.contextList.x + this.contextList.width - 8;
-         _subMenu.data = param1;
-         param2 = this.contextList.y + param2 * 25 - 4;
-         if(param2 + _subMenu.height > (stage ? stage.stageHeight : 0))
+         _subMenu.data = options;
+         rowPos = this.contextList.y + rowPos * 25 - 4;
+         if(rowPos + _subMenu.height > (stage ? stage.stageHeight : 0))
          {
-            param2 -= (param1.length - 1) * 25 - 4;
+            rowPos -= (options.length - 1) * 25 - 4;
          }
-         _subMenu.y = param2;
+         _subMenu.y = rowPos;
          addChild(_subMenu);
       }
       
-      protected function onSelect(param1:Event = null) : void
+      protected function onSelect(event:Event = null) : void
       {
-         trace("onSelect",param1.target,param1.type);
-         var _loc2_:Object = param1.target.data;
-         var _loc3_:Function;
-         if(_loc2_.options)
+         trace("onSelect",event.target,event.type);
+         var itemData:Object = event.target.data;
+         var callback:Function;
+         if(itemData.options)
          {
             return;
          }
          hide();
-         if(_loc2_.callBack)
+         if(itemData.callBack)
          {
-            _loc3_ = _loc2_.click_function;
-            if(_loc3_ is Function)
+            callback = itemData.click_function;
+            if(callback is Function)
             {
-               _loc3_(_loc2_);
+               callback(itemData);
             }
          }
          else
          {
-            _loc3_ = _loc2_.click_function;
-            if(_loc3_ is Function)
+            callback = itemData.click_function;
+            if(callback is Function)
             {
-               _loc3_();
+               callback();
             }
          }
       }

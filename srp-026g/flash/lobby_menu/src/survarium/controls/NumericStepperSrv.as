@@ -18,9 +18,9 @@ package survarium.controls
          super();
       }
       
-      override public function set maximum(param1:Number) : void
+      override public function set maximum(value:Number) : void
       {
-         _maximum = param1;
+         _maximum = value;
       }
       
       [Inspectable(defaultValue="false")]
@@ -29,17 +29,17 @@ package survarium.controls
          return this._editable;
       }
       
-      public function set editable(param1:Boolean) : void
+      public function set editable(value:Boolean) : void
       {
-         if(param1 == this._editable)
+         if(value == this._editable)
          {
             return;
          }
-         _editable = param1;
-         textField.type = param1 ? TextFieldType.INPUT : TextFieldType.DYNAMIC;
-         textField.tabEnabled = textField.mouseEnabled = param1;
+         _editable = value;
+         textField.type = value ? TextFieldType.INPUT : TextFieldType.DYNAMIC;
+         textField.tabEnabled = textField.mouseEnabled = value;
          trace("editable",this._editable);
-         if(param1)
+         if(value)
          {
             textField.maxChars = 4;
             textField.restrict = "0-9";
@@ -53,18 +53,18 @@ package survarium.controls
          }
       }
       
-      override public function set value(param1:Number) : void
+      override public function set value(v:Number) : void
       {
-         param1 = this.lockValue(param1);
-         if(param1 == _value)
+         v = this.lockValue(v);
+         if(v == _value)
          {
             return;
          }
-         var _loc2_:Number = _value;
-         _value = param1;
+         var previousValue:Number = _value;
+         _value = v;
          if(initialized)
          {
-            dispatchEventAndSound(new IndexEvent(IndexEvent.INDEX_CHANGE,true,false,value,_loc2_,null));
+            dispatchEventAndSound(new IndexEvent(IndexEvent.INDEX_CHANGE,true,false,value,previousValue,null));
          }
          invalidate();
       }
@@ -75,13 +75,13 @@ package survarium.controls
          textField.tabEnabled = textField.mouseEnabled = this._editable;
       }
       
-      override public function handleInput(param1:InputEvent) : void
+      override public function handleInput(event:InputEvent) : void
       {
          if(textField.selectionBeginIndex != 0 && textField.selectionEndIndex != 0)
          {
             return;
          }
-         super.handleInput(param1);
+         super.handleInput(event);
       }
       
       override protected function updateAfterStateChange() : void
@@ -105,12 +105,12 @@ package survarium.controls
          }
       }
       
-      protected function onTextFocusOut(param1:Event) : void
+      protected function onTextFocusOut(e:Event) : void
       {
          this.updateLabel();
       }
       
-      protected function onTextInput(param1:Event) : void
+      protected function onTextInput(e:Event) : void
       {
          value = int(textField.text);
       }
@@ -121,27 +121,27 @@ package survarium.controls
          {
             return;
          }
-         var _loc1_:String = _value.toString();
+         var label:String = _value.toString();
          if(_labelFunction != null)
          {
-            _loc1_ = _labelFunction(_value);
+            label = _labelFunction(_value);
          }
-         textField.text = _loc1_;
+         textField.text = label;
       }
       
-      protected function checkInputKeyForSubmit(param1:KeyboardEvent) : void
+      protected function checkInputKeyForSubmit(event:KeyboardEvent) : void
       {
-         if(param1.keyCode == 13)
+         if(event.keyCode == 13)
          {
-            param1.stopImmediatePropagation();
+            event.stopImmediatePropagation();
             value = int(textField.text);
          }
       }
       
-      override protected function lockValue(param1:Number) : Number
+      override protected function lockValue(value:Number) : Number
       {
-         var _loc2_:Number = Math.max(_minimum,Math.min(_maximum,stepSize * Math.round(param1 / stepSize)));
-         return _loc2_;
+         var newVal:Number = Math.max(_minimum,Math.min(_maximum,stepSize * Math.round(value / stepSize)));
+         return newVal;
       }
    }
 }
