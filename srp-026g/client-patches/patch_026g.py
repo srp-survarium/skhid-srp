@@ -1567,7 +1567,7 @@ WEAPON_PREVIEW_FIND_CALLS = (0x2B, 0xCC)       # weapon_preview_026g.section.bin
 # the game's functions' and finds its state with call/pop.
 WEAPON_TABLE_OFFSET = 0x800
 WEAPON_TABLE_STATE_OFFSET = 0xF00
-WEAPON_TABLE_STATE_SIZE = 0x90
+WEAPON_TABLE_STATE_SIZE = 0xA0
 # The interface other patches read (weapon decals): while the state's TABLE
 # (+0) and READY (+28h) are 1, the transform the held weapon was last drawn
 # with at the bench, a float4x4 in rows (v * M, as the game's: row 3 the
