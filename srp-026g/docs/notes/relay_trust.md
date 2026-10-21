@@ -47,8 +47,19 @@ Three branches act on what this note found:
   choices 0, 1, 2, 3 and 0xFF) and `selftest_026g.py` (1857 pass). A patch protects a game only
   when every client of the match has the release. Still open: the assumption that a kit nobody
   has played yet behaves the same; it needs the in-game test.
-- **Branch `fix/name-tag-charset`** (in progress, no PR number yet): the characters of account
-  names and clan tags (the owner also bans `@` in names).
+- **PR #288** `fix/name-tag-charset` (pending merge): the characters of account names and clan
+  names and tags. Its checks:
+  - a rename: lobby-server `v026g/dispatch.rs::name_refusal` -> `session::v026g::names::name_char`;
+  - a sign-up: `SessionStore::find_or_create` -> `names::shown_name`;
+  - names already saved: `names::made_safe`, run on load from `persist::AccountRecord::repair`
+    and `v026g::account::Account::repair`; it strips `< > & " ' : @` and control characters;
+  - clan names and tags: `clans::name_fault`, which bans `@` and refuses staff-like tags
+    (`admin`, `vg`: `STAFF_TAGS`);
+  - tests: `names::tests::*`, `dispatch::tests::a_name_is_checked_by_the_clients_reasons`,
+    `clans::tests::names_are_checked_by_the_games_own_characters`.
+
+  The chat code that puts names into HTML is ActionScript, in
+  `srp-026g/flash/lobby_menu/src/survarium/chat/` (`LobbyChat.as`, `Chat.as`).
 
 Two-vote initial world (#282's first plan): parked. In the battery modes, stale `first_finder`
 bytes make two games' initial worlds differ. The candidate fix is an exe reset at 0x3348A0,
@@ -431,9 +442,9 @@ A2 (srp -> B): | A2 | u8 sender_type | u32 id | str name<=63 | [str tag<=15 if t
   `Chat.as`); the **name and the clan tag go in as HTML unescaped** (`styled(clanPrefix +
   linked(name ...))`, `LobbyChat.as::get_styled_text`, `GameChat.as`). A tag starting with
   `[admin]` or `[VG]` is drawn in the staff colours (`LobbyChat.as`).
-- Status: body and lengths **COVERED**; names in HTML **OPEN, low, in progress** (branch
-  `fix/name-tag-charset`; section 6, gap 4): no crash
-  was found, it is markup in other players' chat.
+- Status: body and lengths **COVERED**; names and tags in HTML **COVERED by #288 (pending
+  merge)**: no name or tag can hold `< > & " ' : @` or a control character, and no tag can
+  be staff-like (the checks are at the top of this note and under "Account names").
 
 ### 0xA3 friend lists, search results; 0xA4 important message (from 0x4D, 0x4E)
 
@@ -454,15 +465,26 @@ A4:    | A4 | u8 type | u32 id | str name<=63 | str tag<=15 | u8 kind | str text
 - Server-made from accounts (social.md sections 2.1, 2.4, 3.2; results.md). Player-chosen parts:
   names (63), clan names and tags (`clans::name_fault`: letters, digits, a few symbols, no `<`),
   the clan's daily message (wide, `WIDE_TEXT` 245 units), kit contents (as 0xE4).
-- Status: **COVERED** by the limits and the clan name rule; account names as 0xA2.
+- Status: **COVERED** by the limits and the clan name rule (with #288, pending merge, it also bans
+  `@` and staff-like tags through `STAFF_TAGS`); account names as 0xA2.
 
 ### Account names (every message above, and 0xE4)
 
 - A name is made at the first sign-in from the login's part before `@`, any characters, cut to
   63 bytes (`session lib.rs::find_or_create`, `account::cap_name`); a rename (`49 03`/`49 04`,
   `names.rs`) is checked by the lobby.
-- Status: lengths **COVERED**; characters **OPEN, low, in progress** (branch
-  `fix/name-tag-charset`, which also bans `@` in names, the owner's rule; gap 4).
+- Status: lengths **COVERED**; characters **COVERED by #288 (pending merge)**:
+  - a rename: lobby-server `v026g/dispatch.rs::name_refusal` -> `session::v026g::names::name_char`;
+  - a sign-up: `SessionStore::find_or_create` -> `names::shown_name`;
+  - names already saved: `names::made_safe` on load (`persist::AccountRecord::repair`,
+    `v026g::account::Account::repair`), stripping `< > & " ' : @` and control characters;
+  - clan names and tags: `clans::name_fault` (no `@`; `STAFF_TAGS` refuses `admin`, `vg`);
+  - tests: `names::tests::*`, `dispatch::tests::a_name_is_checked_by_the_clients_reasons`,
+    `clans::tests::names_are_checked_by_the_games_own_characters`.
+
+  The movies these names reach are ActionScript in `srp-026g/flash/lobby_menu/src/survarium/chat/`
+  and `srp-026g/flash/hud/src/survarium/chat/GameChat.as`; they still do not escape a name
+  or tag.
 
 ## 5. Coverage table
 
@@ -500,19 +522,19 @@ A4:    | A4 | u8 type | u32 id | str name<=63 | str tag<=15 | u8 kind | str text
 | F6    | upload request      | server | -                              | N/A                |
 | FD    | kick                | server | udp-transport                  | N/A                |
 | A2    | chat line           | client | social.rs::chat, chat_text     | COVERED; names     |
-|       |                     |        |                                | in HTML OPEN, wip  |
+|       |                     |        |  + #288 names::name_char       | in HTML COVERED#288|
 | A3 A4 | friends, important  | client | social.rs, Writer::str         | COVERED            |
 | A1 88 | squad, squad mate   | server | Writer::str, limits            | COVERED            |
 | 9A    | clan info           | server | clans::name_fault, wide limit  | COVERED            |
 | 91-97 | ranking, results    | server | Writer::str, limits            | COVERED            |
-| names | account names       | client | cap_name (63 bytes)            | length COVERED;    |
-|       |                     |        |                                | markup OPEN, wip   |
+| names | account names       | client | cap_name (63 bytes); #288:     | length COVERED;    |
+|       |                     |        |  shown_name, made_safe         | markup COVERED#288 |
 +-------+---------------------+--------+--------------------------------+--------------------+
 ```
 
 ## 6. The open gaps, ranked
 
-Re-ranked on 2026-10-22, with PR #282 and PR #286 in.
+Re-ranked on 2026-10-22, with PR #282, PR #286 and PR #288 in.
 
 1. **The initial world comes from one client, and its contents are its word** (OPEN). PR #282
    checks its frame, mask and caps (`Sections::fault`). What its opaque sections hold (objects,
@@ -532,12 +554,12 @@ Re-ranked on 2026-10-22, with PR #282 and PR #286 in.
    rule (`check_play`, since 2026-10-12) covers the respawn for any client meanwhile; bit 26 has
    no server cover (the server cannot tell it from a stock input). Still open in #286: the
    assumption about kits nobody has played yet, which needs the in-game test.
-4. **Names and clan tags are HTML in other players' chat** (OPEN, low, in progress on branch
-   `fix/name-tag-charset`; the owner also bans `@` in names). The body is escaped; the name and
-   the tag are not (`LobbyChat.as`, `GameChat.as`), and a first sign-in took any characters.
-   No crash was found: it is markup and the staff colours (`[admin]`, `[VG]`).
-
 Closed since the audit:
+- **Names and clan tags as HTML in other players' chat** (low; no crash found): COVERED by #288
+  (pending merge). `names::name_char`, `names::shown_name`, `names::made_safe` and
+  `clans::name_fault` with `STAFF_TAGS` (section 4, "Account names"). The movies
+  (`srp-026g/flash/lobby_menu/src/survarium/chat/`, `GameChat.as`) still put names in unescaped,
+  so the server's character rule is the whole check.
 - **A section over its buffer** (audit 3a: a fatal "mutable buffer overflow" in every game that
   loads it): COVERED by PR #282 (`SECTION_CAPS`, `PLAYER_STATE_CAP`). The scripted test
   client's ballast now fills the bullets to under their cap and the rest into the physics
