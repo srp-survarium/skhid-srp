@@ -69,3 +69,4 @@ edit	weapon-decals-1.json	-	the same 83 weapon configs take a decal: parameters/
 edit	lobby-bench-light-1.json	-	the lobby's lamp under the workbench brighter, intensity 1 -> 2.5, radius 3.1 -> 3.6 m (#244, client patch 45 shows the weapon there)
 edit	weapon-attachments-1.json	-	the weapon window says Attachments: st_srp_attachments in the six localization tables, the lobby's scope_window_title mapped to it; Ukrainian Appearance is Вигляд (#244)
 edit	battery-respawn-1.json	-	battery modes: respawn 10 s, respawn_time 8 -> 10 in the 56 configs of modes 2 and 3 (Team Deathmatch keeps 8)
+edit	v011e-spawn-protection-1.json	-	the v0.11 maps (Vostok Radar Station, Chemical Plant): spawn protection 6 s, invulnerability_time 2 -> 6 on the 174 respawn points of their four projects (as 0.26g's maps)
