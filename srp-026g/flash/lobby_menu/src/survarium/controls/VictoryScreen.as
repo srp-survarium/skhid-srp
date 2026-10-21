@@ -115,6 +115,14 @@ package survarium.controls
       
       protected var _cache:Boolean = false;
       
+      // The matches whose drop card is used or refused this session (by
+      // match id): their slot stays grey, here and on a screen reopened.
+      // The server takes one card a player a match (`drop_cards.md`).
+      protected static var _cardsDone:Object = {};
+      
+      // The match a card is asked for, till its answer (0: none).
+      protected var _cardAsked:uint = 0;
+      
       protected var _lastName:String = "";
       
       protected var _totalWidth:Number = 583;
@@ -445,14 +453,75 @@ package survarium.controls
       private function onTreasureMapClick(e:Event) : void
       {
          trace("onTreasureMapClick::",this._match_id,this.treasureItem.mouseEnabled);
-         if(this.searchIcon.visible == false)
+         if(this.searchIcon.visible == false || _cardsDone[this._match_id])
          {
             return;
          }
          var itemVoucherId:int = (PlayerInfo.getVoucherId(1));
          this.progressIndicator.gotoAndPlay(1);
          this.searchIcon.visible = false;
+         _cardAsked = this._match_id;
          ExternalInterface.call("use_drop_card",this._match_id,itemVoucherId);
+      }
+      
+      // The card slot greyed: no card for this screen's match.
+      protected function greyCard() : void
+      {
+         this.treasureItem.alpha = 0.5;
+         this.treasureItem.mouseEnabled = false;
+         this.treasureItem.mouseChildren = false;
+         this.searchIcon.visible = false;
+         this.progressIndicator.gotoAndStop(1);
+      }
+      
+      // No card for this match: used or refused, or a room with a PIN's
+      // (LobbyMenu.fill_victory_screen), which the server refuses.
+      public function noCard(matchId:uint) : void
+      {
+         _cardsDone[matchId] = true;
+         if(matchId == this._match_id)
+         {
+            this.greyCard();
+         }
+      }
+      
+      // The lobby's refusal of the card asked (`84 46`,
+      // st_cannot_use_drop_card), which the exe shows as a message box.
+      protected function cardRefused() : void
+      {
+         if(this._cardAsked != 0)
+         {
+            this.noCard(this._cardAsked);
+            _cardAsked = 0;
+         }
+      }
+      
+      // The layer messages are drawn in (Message.initStage): a match's
+      // loading hid it (set_loading_level), and show_match_making leaves it
+      // hidden while this screen is up.
+      protected function showTop() : void
+      {
+         if(this.top_container)
+         {
+            this.top_container.visible = true;
+         }
+      }
+      
+      // A message box of the lobby's (LobbyMenu.show_system_message) while
+      // this screen is up: true when it is to be drawn now, over this
+      // screen. show_victory_screen keeps messages back till this screen
+      // closes (Message.hideMessages), so a refusal or an error ("debug",
+      // "ok") showed only once it was closed, as if under it. A box while
+      // a card is asked is that card's refusal: the slot greys.
+      public function messageOver(type:String) : Boolean
+      {
+         if(!parent || !visible || type != "debug" && type != "ok")
+         {
+            return false;
+         }
+         this.cardRefused();
+         this.showTop();
+         return true;
       }
       
       override public function set x(value:Number) : void
@@ -574,6 +643,7 @@ package survarium.controls
             playerInfo.profiles = value;
             this._data.playersCache[this._lastName] = playerInfo;
             trace("setPlayerData::",value.name,value.id,this._lastName,value.level,value.weapon1_data,value.weapon2_data);
+            this.showTop();
             dispatchEvent(new Event(Events.SHOW_PLAYER_INFO));
          }
       }
@@ -649,7 +719,7 @@ package survarium.controls
          {
             mapsCount = PlayerInfo.getVoucherCount(1);
             this.treasureCount.text = "x" + mapsCount.toString();
-            if(!this._cache && (!this._data || this._data && this._data.allow_drop_card != false))
+            if(!this._cache && !_cardsDone[this._match_id] && (!this._data || this._data && this._data.allow_drop_card != false))
             {
                this.treasureItem.mouseEnabled = mapsCount > 0;
                this.treasureItem.mouseChildren = this.treasureItem.mouseEnabled;
@@ -662,6 +732,7 @@ package survarium.controls
       {
          if(parent)
          {
+            this.showTop();
             parent["statusPanel"].showPremium({
                matchId:this._match_id,
                victory:true
@@ -1164,6 +1235,10 @@ package survarium.controls
          _data = value;
          _victory = value.match_result > 2;
          _match_id = value.match_id;
+         if(_cardsDone[this._match_id])
+         {
+            this.greyCard();
+         }
          _rewardsMultiplied = value.is_bonus_match;
          this.players_list.set_local_name(PlayerInfo.nickname);
          FocusManager.setModalClip(this);
@@ -1277,6 +1352,13 @@ package survarium.controls
       
       public function setDropItem(value:ItemData) : void
       {
+         // The card's item: its match takes no other card.
+         var matchId:uint = this._cardAsked != 0 ? this._cardAsked : this._match_id;
+         if(matchId != 0)
+         {
+            _cardsDone[matchId] = true;
+         }
+         _cardAsked = 0;
          this.treasureItem.alpha = 1;
          this.treasureItem.itemSlot.data = value;
          this.treasureItem.mouseEnabled = true;

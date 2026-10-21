@@ -196,6 +196,13 @@ package survarium.rooms
             return _room != null;
         }
 
+        // In a room with a PIN, whose matches take no drop card
+        // (LobbyMenu.fill_victory_screen; a PIN is the room's for life).
+        public function get inPinRoom():Boolean
+        {
+            return _room != null && _room.pin;
+        }
+
         // LobbyMenu.set_equipment_level: the player's own level.
         public function setGear(level:int):void
         {
