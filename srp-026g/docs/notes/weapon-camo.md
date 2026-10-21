@@ -84,10 +84,14 @@ separator".
 - **One window, two pages.** Attachments: the scope (slot 3). Appearance: the decals (slots 0 and
   1) and the camouflage (slot 2). One page at a time, in armour's window as drawn (three slots at
   most, at scale 1).
-- **The title bar.** The page's name in the middle, an arrow button on each side (the lobby's page
-  arrow, `ButtonBottomInviteArrow`, the bottom panel's tab-bar arrows, 0.85 of its size, the right
-  one mirrored; its hover and pressed states). Either arrow turns to the other page. A weapon with
-  only one page (no scopes, or no camouflage or decal) has no arrows.
+- **The title bar.** The page's name in the middle, an arrow button on each side. Either arrow
+  turns to the other page. A weapon with only one page (no scopes, or no camouflage or decal) has
+  no arrows.
+- **The arrows** (`PageArrow`; the owner, 2026-10-21: "buttons are good, though can we change their
+  color and make them slightly wider"): the window's Confirm button art (`button_normal_bitmap`,
+  `_hover_`, `_click_`, `_disabled_`: its slate blue-grey, lighter on hover, darker pressed) at
+  21 x 24, its ends kept and its middle stretched, with a drawn triangle (6 x 10, light grey, a
+  shadow): x 7 and 162, y 6.5 in the 180 x 27 bar. The title fits the 124 between them.
 - **Names.** Attachments: the movie's `scope_window_title` (`st_srp_attachments`, a new text in the
   six languages: Attachments, Anbauteile, Dodatki, Обвес (russian and original), Обвіс;
   `scripts/content-edit/weapon-attachments-1.json`). Appearance: armour's title,

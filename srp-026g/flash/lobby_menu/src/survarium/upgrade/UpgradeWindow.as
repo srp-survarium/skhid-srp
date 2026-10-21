@@ -2,7 +2,6 @@ package survarium.upgrade
 {
    import flash.display.DisplayObject;
    import flash.display.MovieClip;
-   import flash.display.Sprite;
    import flash.events.Event;
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
@@ -102,9 +101,9 @@ package survarium.upgrade
 
       protected var _hasAppearance:Boolean = false;
 
-      protected var _pagePrev:Sprite;
+      protected var _pagePrev:PageArrow;
 
-      protected var _pageNext:Sprite;
+      protected var _pageNext:PageArrow;
 
       // the line between armour's decals and its camouflage
       protected var _separator:DisplayObject;
@@ -490,7 +489,7 @@ package survarium.upgrade
       // The window's title; with the page arrows, it keeps between them.
       protected function showTitle(param1:String, param2:Boolean) : void
       {
-         fitText(this.container.textField,param1,param2 ? 136 : 176);
+         fitText(this.container.textField,param1,param2 ? 124 : 176);
          if(Boolean(this._pagePrev))
          {
             this._pagePrev.visible = this._pageNext.visible = param2;
@@ -506,20 +505,16 @@ package survarium.upgrade
          this.showPage(this._page == PAGE_ATTACHMENTS ? PAGE_APPEARANCE : PAGE_ATTACHMENTS,true);
       }
 
-      // An arrow of the title bar: the lobby's page arrow (the bottom panel's tab bar pages with it),
-      // 0.85 of its size to keep inside the bar (5 to 32 above its line), the right one mirrored. It
-      // sits in a holder so that the button itself keeps its scale.
-      protected function addPageArrow(param1:Number, param2:Number) : Sprite
+      // An arrow of the title bar (PageArrow: the Confirm button's art, 21 x 24), in the bar (5 to 32 above
+      // its line) from y 6.5.
+      protected function addPageArrow(param1:Number, param2:Boolean) : PageArrow
       {
-         var _loc3_:Sprite = new Sprite();
-         var _loc4_:Button = new ButtonBottomInviteArrow();
-         _loc3_.addChild(_loc4_);
+         var _loc3_:PageArrow = new PageArrow();
+         _loc3_.pointRight = param2;
          _loc3_.x = param1;
-         _loc3_.y = 6.6;
-         _loc3_.scaleX = 0.85 * param2;
-         _loc3_.scaleY = 0.85;
+         _loc3_.y = 6.5;
          _loc3_.visible = false;
-         _loc4_.addEventListener(ButtonEvent.CLICK,this.onPageArrow);
+         _loc3_.addEventListener(ButtonEvent.CLICK,this.onPageArrow);
          this.container.addChild(_loc3_);
          return _loc3_;
       }
@@ -707,9 +702,10 @@ package survarium.upgrade
          this.decalSlot1.setTransitionSize(95,105);
          this.decalSlot2.setTransitionSize(95,105);
          this._slots.push(this.decalSlot,this.decalSlot1,this.decalSlot2,this.camoSlot);
-         // the title bar is 180 wide from x 5; the arrows 15 wide, 3 in from its ends
-         this._pagePrev = this.addPageArrow(8,1);
-         this._pageNext = this.addPageArrow(182,-1);
+         // the title bar is 180 wide from x 5; the arrows 21 wide, 2 in from its ends; the title 124 wide
+         // between them (from 33 to 157)
+         this._pagePrev = this.addPageArrow(7,false);
+         this._pageNext = this.addPageArrow(162,true);
          var _loc2_:int = 0;
          var _loc3_:DisplayObject;
          while(_loc2_ < this.container.numChildren)
