@@ -20,7 +20,7 @@ drop weight from the dictionary and the config.
 - **Ids**: 1824 to 1862, the next free after 1823 (1817, 1818 stay reserved for the unshipped
   masks). 0.69d's own ids (896 to 2158) clash with the scopes (2001 to 2468).
 - **Textures**: 0.69d's DDS as they are (the formats of 0.26g's decals: DXT5 diffuse and normal
-  map, DXT1 fmap and smap; 0.26g has fmaps of 512² and of 16², with the same `.options`), each with 0.26g's `.options` of the same role (0.69d's
+  map, DXT1 fmap and smap; 0.26g's fmaps are 512² or 16²), each with 0.26g's `.options` of the same role (0.69d's
   hold the same values in its newer format).
 - **Where they go**: as any decal: two on a vest or trousers, one on a weapon (#273); Steam camo
   on any vest, trousers and weapon.
