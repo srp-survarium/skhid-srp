@@ -29,7 +29,8 @@ movies' source (`srp-026g/flash`) and the engine (2026-10-21); not yet seen in a
     scaled stage; message boxes are scaled by `Message.setScaleFactor`. Our FOV slider is placed
     from gamma inside Settings, so it moves with it.
   - Dropdown lists (Settings' monitor list, the lobby's): `PopUpManager.show` puts them on the
-    stage; its canvas now takes the scale its owner is drawn at (main_menu and lobby trees).
+    stage; its canvas now takes the scale its owner is drawn at, never below 1 (main_menu and lobby
+    trees).
   - `replay_player`: scaled; the layout anchors the controls to the scaled stage's edges, the
     free-view button to its right edge.
   - `cursor`: the symbol is scaled about its origin, the hot spot (about 23 x 30 px at 1:1).
