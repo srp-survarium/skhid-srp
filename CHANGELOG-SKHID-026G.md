@@ -488,3 +488,32 @@ kept and can be put back).
 - TODO: #242 Weapon balance 2: AK-12 50 / 35 (premium: silver only), Socom16 damage 60
 - TODO: #239 Battery events pay per match at most as many times as the map has batteries (anti-farming)
 - TODO: #245 Rooms with a PIN: their matches pay no rewards
+
+## 21 Oct, 13:10 — TODO: the owner's words (update required)
+
+<!-- Revision 27 (026g-rev27), released 2026-10-21 13:10 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #248 Flash movies as committed ActionScript source (baseline: all eight trees rebuild exactly)
+- TODO: #253 Rooms: room chat and Join room from a friend's menu (source tree)
+- TODO: #247 Fall damage: how speed counts
+- TODO: #254 Rooms: who came by Play leaves its room after the match it played (without squads)
+- TODO: #255 Rooms: a restarted game learns its room before the room plays with it (source tree)
+- TODO: #256 Replay tests: fixtures of today's revision, not 11-15
+- TODO: #257 Rooms: Switch room as the game's normal button, with why to switch
+- TODO: #259 Client programs: ordinary Windows binaries (std, static MSVC CRT, version info, icon)
+- TODO: #258 Updater: PLAY only for a game the server lets in; release puts the ZIP in before srp starts
+- TODO: #260 Weapon balance 2, retuned: AK-12 piercing 40, Socom16 damage 70
+- TODO: #264 HUD at 4K: hit marks and crosshair centred at any UI scale
+- TODO: #265 Weapon balance 2: the A-545 takes 0.28a's nerf
+- TODO: #266 Grenade bounces louder: impact sound settings (content-edit grenade-bounce-1)
+- TODO: #261 Results screen: drop card slot greys once used or refused; messages show over the screen
+- TODO: #262 Lobby source: names for every placeholder, named numbers in every movie
+- TODO: #263 Golden weapons: only the silver bonus, as the weapon's own modification; upgradable as the plain weapon
+- TODO: #267 release/build-content: the next content patch from a manifest of what should be live
+- TODO: #268 Reroll: keep the old modification (the price stays paid)
+- TODO: #269 Ported masks: the Army balaclava (1823) and five 0.69d masks, one content patch
+- TODO: #270 Patch 46: on the death screen a drag turns the camera; the wheel does nothing
+- TODO: #271 Death poses 1: remove the face-down death pose that looks into the arms
+- TODO: #272 Crouched steps audible at 40 % of walking
+- TODO: #273 Weapon camo, the workbench, decals and instant preview (#244) on main for revision 27
+- TODO: #274 Grenade bounce retuned: only the distance preset changes (mid_range)
