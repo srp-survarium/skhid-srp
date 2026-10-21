@@ -32,6 +32,7 @@ package
    import survarium.Util;
    import survarium.constants.Colors;
    import survarium.constants.Reward;
+   import survarium.constants.UiSound;
    import survarium.controls.Minimap;
    import survarium.controls.PlayerProfileBase;
    import survarium.core.Icon;
@@ -40,9 +41,6 @@ package
    import survarium.data.LocalizationData;
    import survarium.interfaces.IItemFactory;
    import survarium.item.ItemFactory;
-
-   config namespace SOUND;
-   SOUND const TUTORIAL_SUCCESS:int = 18;
    
    [SWF(backgroundColor="#666666")]
    public class HUD extends MovieClip
@@ -281,7 +279,7 @@ package
             {
                if(this._tutor.currentFrame != this._tutor.totalFrames)
                {
-                  ExternalInterface.call("sound_play",SOUND::TUTORIAL_SUCCESS);
+                  ExternalInterface.call("sound_play",UiSound.TUTORIAL_SUCCESS);
                }
                this.removeTutorial();
             }

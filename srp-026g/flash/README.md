@@ -31,44 +31,38 @@ to a repository of its own.
 
 ## Cleaned up over the export
 
-The trees are no longer FFDec's text as it came out. Every change below still compiles to the
-original movie byte for byte (`full`), and `movie.json` pins the cleaned text; `export` makes the
-raw FFDec tree again, without these changes.
+The trees are no longer FFDec's text as it came out; they are meant to be read and edited as
+ordinary source (the owner, 2026-10-21: no decompilation matching needed now). The names below
+still compiled to the original movies byte for byte; the constants classes do not, by design.
+`movie.json` pins the last byte-identical text, so `check` lists what changed since, and `full` only
+applies to a tree without such changes. `export` makes the raw FFDec tree again.
+
+Every tree compiles whole with Flex's `compc` (`-source-path=src -include-sources=src
+-strict=false`).
 
 - **Names.** FFDec calls a local `_loc2_` and a parameter `param1` where the bytecode has no name.
-  They have names now: the original one where another movie's copy of the same function has it in
-  its debug info (the hud, player-icons and replay movies carry debug info), or where the movie's
-  own debug info or parameter table records it and FFDec ignored it; otherwise one read from how
-  the variable is used. Local and parameter names do not reach the bytecode of a method without
-  debug info, which is why the rebuild stays identical.
+  They have names now. Where possible they are the original ones:
+  - another movie's copy of the same function has them in its debug info (the hud, player-icons and
+    replay movies carry debug info);
+  - the movie's own debug info or parameter table records them and FFDec ignored them.
+
+  Otherwise the name comes from how the variable is used.
 - **Placeholders that stay.** Some lobby methods keep `_loc2_`/`param1`: srp's earlier patches
   compiled FFDec text with debug info, so the shipped movie records exactly those names
   (`UpgradeWindow`, `ItemRendererInv.updateData`, `ItemInfoRenderer.set data`, ...). Some
   player-icons/replay interfaces keep their parameters too: their movie's parameter table holds
   unrelated strings. The lobby's own game classes (`survarium/**`, the top-level scripts and the
   timeline classes) are not cleaned yet: the lobby features are being moved into them first.
-- **Named numbers.** Sound ids, key codes, item categories and the like are Flex compile-time
-  constants, declared in the file that uses them:
+- **Named numbers.** The static constants used in place of literals:
 
-  ```as3
-  package survarium.buttons
-  {
-     import flash.external.ExternalInterface;
-
-     config namespace SOUND;
-     SOUND const CLICK:int = 0;
-     SOUND const HOVER:int = 1;
-     ...
-              ExternalInterface.call("sound_play",SOUND::CLICK);
-  ```
-
-  The compiler inlines `SOUND::CLICK` as the literal itself, so the bytecode does not change (a
-  `static const` would compile to a property lookup and change it). The build passes no `-define`
-  options; each file declares the constants it uses. The groups: `SOUND` (the order of
-  `gameplay/ui_sounds`), `KEY` (key codes), `CATEGORY` (`item_category`), `SUPER_CATEGORY`
-  (`ItemFactory.getCategory`), `PLACE` (`ItemData.descriptor`: inventory, shop, bundle; below 100
-  the profile slot), `MOUSE` (`MouseEventEx` buttons) and `GAMEPAD` (the key codes Scaleform gives
-  gamepad buttons, in `InputDelegate`).
+  | constant | where it is defined |
+  | --- | --- |
+  | UI sound ids (`sound_play`) | `survarium.constants.UiSound` (the order of `gameplay/ui_sounds`) |
+  | key codes | `flash.ui.Keyboard` |
+  | mouse buttons | `scaleform.gfx.MouseEventEx` |
+  | item categories and `ItemFactory.getCategory`'s groups | `survarium.constants.Category` (`BASE_*`) |
+  | `ItemData.descriptor` | `survarium.constants.ItemPlace` (inventory, shop, bundle; below 100 the profile slot) |
+  | gamepad buttons | `InputDelegate`'s `GAMEPAD_*` (the key codes Scaleform gives them) |
 
 ```sh
 # Is the tree the baseline?

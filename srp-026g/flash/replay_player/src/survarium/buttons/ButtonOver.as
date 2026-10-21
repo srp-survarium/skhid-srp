@@ -7,12 +7,7 @@ package survarium.buttons
    import scaleform.clik.controls.Button;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.gfx.MouseEventEx;
-
-   config namespace MOUSE;
-   MOUSE const LEFT_BUTTON:int = 0;
-   config namespace SOUND;
-   SOUND const CLICK:int = 0;
-   SOUND const HOVER:int = 1;
+   import survarium.constants.UiSound;
    
    public class ButtonOver extends Button
    {
@@ -111,7 +106,7 @@ package survarium.buttons
          var sfEvent:MouseEventEx = event as MouseEventEx;
          var mouseIdx:uint = sfEvent == null ? 0 : sfEvent.mouseIdx;
          var btnIdx:uint = sfEvent == null ? 0 : sfEvent.buttonIdx;
-         if(btnIdx != MOUSE::LEFT_BUTTON)
+         if(btnIdx != MouseEventEx.LEFT_BUTTON)
          {
             return;
          }
@@ -128,7 +123,7 @@ package survarium.buttons
       override protected function handleMouseRelease(event:MouseEvent) : void
       {
          super.handleMouseRelease(event);
-         ExternalInterface.call("sound_play",SOUND::CLICK);
+         ExternalInterface.call("sound_play",UiSound.CLICK);
       }
       
       override protected function handleMouseRollOut(event:MouseEvent) : void
@@ -166,7 +161,7 @@ package survarium.buttons
       
       override protected function handleMouseRollOver(event:MouseEvent) : void
       {
-         ExternalInterface.call("sound_play",SOUND::HOVER);
+         ExternalInterface.call("sound_play",UiSound.HOVER);
          var sfEvent:MouseEventEx = event as MouseEventEx;
          var mouseIdx:uint = sfEvent == null ? 0 : sfEvent.mouseIdx;
          if(event.buttonDown)

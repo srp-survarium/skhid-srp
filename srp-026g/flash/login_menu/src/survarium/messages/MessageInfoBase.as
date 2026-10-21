@@ -8,10 +8,8 @@ package survarium.messages
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.events.InputEvent;
    import scaleform.clik.ui.InputDetails;
+   import survarium.constants.UiSound;
    import survarium.controls.Message;
-
-   config namespace SOUND;
-   SOUND const MENU_MESSAGE:int = 13;
    
    public class MessageInfoBase extends MessageBase
    {
@@ -20,7 +18,7 @@ package survarium.messages
       {
          super();
          addEventListener(InputEvent.INPUT,this.handleInput,false,0,true);
-         ExternalInterface.call("sound_play",SOUND::MENU_MESSAGE);
+         ExternalInterface.call("sound_play",UiSound.MENU_MESSAGE);
       }
       
       override protected function cleanUp(e:Event = null) : void

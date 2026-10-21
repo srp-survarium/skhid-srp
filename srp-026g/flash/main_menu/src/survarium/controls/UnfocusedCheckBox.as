@@ -3,10 +3,7 @@ package survarium.controls
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
    import survarium.buttons.ButtonClick;
-
-   config namespace SOUND;
-   SOUND const CLICK:int = 0;
-   SOUND const HOVER:int = 1;
+   import survarium.constants.UiSound;
    
    public class UnfocusedCheckBox extends ButtonClick
    {
@@ -33,7 +30,7 @@ package survarium.controls
          super.handleMouseRollOver(event);
          if(enabled)
          {
-            ExternalInterface.call("sound_play",SOUND::HOVER);
+            ExternalInterface.call("sound_play",UiSound.HOVER);
          }
       }
       
@@ -42,7 +39,7 @@ package survarium.controls
          super.handleMouseRelease(event);
          if(enabled)
          {
-            ExternalInterface.call("sound_play",SOUND::CLICK);
+            ExternalInterface.call("sound_play",UiSound.CLICK);
          }
       }
       

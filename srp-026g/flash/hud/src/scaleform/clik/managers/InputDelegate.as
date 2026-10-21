@@ -9,24 +9,35 @@ package scaleform.clik.managers
    import scaleform.clik.events.InputEvent;
    import scaleform.clik.ui.InputDetails;
    import scaleform.gfx.KeyboardEventEx;
-
-   config namespace GAMEPAD;
-   GAMEPAD const A:int = 96;
-   GAMEPAD const B:int = 97;
-   GAMEPAD const X:int = 98;
-   GAMEPAD const Y:int = 99;
-   GAMEPAD const L1:int = 100;
-   GAMEPAD const L2:int = 101;
-   GAMEPAD const L3:int = 102;
-   GAMEPAD const R1:int = 103;
-   GAMEPAD const R2:int = 104;
-   GAMEPAD const R3:int = 105;
-   GAMEPAD const START:int = 106;
-   GAMEPAD const BACK:int = 107;
    
    [Event(name="input",type="scaleform.clik.events.InputEvent")]
    public class InputDelegate extends EventDispatcher
    {
+      
+      // The key codes Scaleform gives gamepad buttons.
+      protected static const GAMEPAD_A:uint = 96;
+      
+      protected static const GAMEPAD_B:uint = 97;
+      
+      protected static const GAMEPAD_X:uint = 98;
+      
+      protected static const GAMEPAD_Y:uint = 99;
+      
+      protected static const GAMEPAD_L1:uint = 100;
+      
+      protected static const GAMEPAD_L2:uint = 101;
+      
+      protected static const GAMEPAD_L3:uint = 102;
+      
+      protected static const GAMEPAD_R1:uint = 103;
+      
+      protected static const GAMEPAD_R2:uint = 104;
+      
+      protected static const GAMEPAD_R3:uint = 105;
+      
+      protected static const GAMEPAD_START:uint = 106;
+      
+      protected static const GAMEPAD_BACK:uint = 107;
       
       private static var instance:InputDelegate;
       
@@ -117,29 +128,29 @@ package scaleform.clik.managers
                   return NavigationCode.PAGE_UP;
                case Keyboard.ESCAPE:
                   return NavigationCode.ESCAPE;
-               case GAMEPAD::A:
+               case GAMEPAD_A:
                   return NavigationCode.GAMEPAD_A;
-               case GAMEPAD::B:
+               case GAMEPAD_B:
                   return NavigationCode.GAMEPAD_B;
-               case GAMEPAD::X:
+               case GAMEPAD_X:
                   return NavigationCode.GAMEPAD_X;
-               case GAMEPAD::Y:
+               case GAMEPAD_Y:
                   return NavigationCode.GAMEPAD_Y;
-               case GAMEPAD::L1:
+               case GAMEPAD_L1:
                   return NavigationCode.GAMEPAD_L1;
-               case GAMEPAD::L2:
+               case GAMEPAD_L2:
                   return NavigationCode.GAMEPAD_L2;
-               case GAMEPAD::L3:
+               case GAMEPAD_L3:
                   return NavigationCode.GAMEPAD_L3;
-               case GAMEPAD::R1:
+               case GAMEPAD_R1:
                   return NavigationCode.GAMEPAD_R1;
-               case GAMEPAD::R2:
+               case GAMEPAD_R2:
                   return NavigationCode.GAMEPAD_R2;
-               case GAMEPAD::R3:
+               case GAMEPAD_R3:
                   return NavigationCode.GAMEPAD_R3;
-               case GAMEPAD::START:
+               case GAMEPAD_START:
                   return NavigationCode.GAMEPAD_START;
-               case GAMEPAD::BACK:
+               case GAMEPAD_BACK:
                   return NavigationCode.GAMEPAD_BACK;
             }
          }

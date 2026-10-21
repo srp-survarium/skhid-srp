@@ -3,6 +3,7 @@ package survarium.item
    import flash.utils.Dictionary;
    import survarium.Util;
    import survarium.constants.Category;
+   import survarium.constants.ItemPlace;
    import survarium.constants.Reward;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
@@ -11,21 +12,6 @@ package survarium.item
    import survarium.data.LocalizationData;
    import survarium.data.PropertiesDescriptor;
    import survarium.interfaces.IItemFactory;
-
-   config namespace CATEGORY;
-   CATEGORY const CAMO:int = 25;
-   CATEGORY const DECAL:int = 26;
-   CATEGORY const VOUCHER:int = 27;
-   CATEGORY const REGULAR:int = 28;
-   CATEGORY const GOLD:int = 29;
-   config namespace PLACE;
-   PLACE const INVENTORY:int = 100;
-   config namespace SUPER_CATEGORY;
-   SUPER_CATEGORY const EQUIPMENT:int = 1;
-   SUPER_CATEGORY const WEAPON:int = 2;
-   SUPER_CATEGORY const AMMO:int = 3;
-   SUPER_CATEGORY const CONSUMABLE:int = 4;
-   SUPER_CATEGORY const VOUCHER:int = 5;
    
    public class ItemFactory implements IItemFactory
    {
@@ -131,26 +117,26 @@ package survarium.item
          var current_item_category_id:int = _cat;
          if(current_item_category_id == 1 || current_item_category_id == 2 || current_item_category_id == 3 || current_item_category_id == 4 || current_item_category_id == 5 || current_item_category_id == 6 || current_item_category_id == 7)
          {
-            return SUPER_CATEGORY::EQUIPMENT;
+            return Category.BASE_EQUIPMENT;
          }
          if(current_item_category_id == 8 || current_item_category_id == 13 || current_item_category_id == 14 || current_item_category_id == 15 || current_item_category_id == 16 || current_item_category_id == 17)
          {
-            return SUPER_CATEGORY::WEAPON;
+            return Category.BASE_WEAPON;
          }
          if(current_item_category_id == 9 || current_item_category_id == 18 || current_item_category_id == 19 || current_item_category_id == 20 || current_item_category_id == 21)
          {
-            return SUPER_CATEGORY::AMMO;
+            return Category.BASE_AMMO;
          }
-         if(current_item_category_id == CATEGORY::CAMO || current_item_category_id == CATEGORY::DECAL || current_item_category_id == CATEGORY::VOUCHER || current_item_category_id == CATEGORY::REGULAR || current_item_category_id == CATEGORY::GOLD)
+         if(current_item_category_id == Category.CAMO || current_item_category_id == Category.DECAL || current_item_category_id == Category.VOUCHER || current_item_category_id == Category.REGULAR || current_item_category_id == Category.GOLD)
          {
-            return SUPER_CATEGORY::VOUCHER;
+            return Category.BASE_VOUCHER;
          }
-         return SUPER_CATEGORY::CONSUMABLE;
+         return Category.BASE_CONSUMABLE;
       }
       
       public static function isItemCraftable(value:ItemData) : Boolean
       {
-         return !value.isStack && value.descriptor <= PLACE::INVENTORY && !value.repairTime && (value.superCategory == SUPER_CATEGORY::EQUIPMENT || value.superCategory == SUPER_CATEGORY::WEAPON || value.superCategory == SUPER_CATEGORY::AMMO);
+         return !value.isStack && value.descriptor <= ItemPlace.INVENTORY && !value.repairTime && (value.superCategory == Category.BASE_EQUIPMENT || value.superCategory == Category.BASE_WEAPON || value.superCategory == Category.BASE_AMMO);
       }
       
       public function registerItemDescriptor(link:ItemDescriptor) : void
@@ -172,17 +158,17 @@ package survarium.item
          trace("createBaseItem",dictId,descrData);
          item_data = new ItemData();
          var category:int = getCategory(descrData.category);
-         if(category == SUPER_CATEGORY::EQUIPMENT)
+         if(category == Category.BASE_EQUIPMENT)
          {
             icons = IconContainer.getInstance("equipment");
          }
-         else if(category == SUPER_CATEGORY::WEAPON)
+         else if(category == Category.BASE_WEAPON)
          {
             icons = IconContainer.getInstance("weapons");
          }
-         else if(category == SUPER_CATEGORY::VOUCHER)
+         else if(category == Category.BASE_VOUCHER)
          {
-            if(descrData.category == Category.VOUCHER || descrData.category == CATEGORY::REGULAR || descrData.category == Category.GOLD)
+            if(descrData.category == Category.VOUCHER || descrData.category == Category.REGULAR || descrData.category == Category.GOLD)
             {
                icons = IconContainer.getInstance("vouchers");
             }
@@ -550,7 +536,7 @@ package survarium.item
       
       protected function updateItemTipText(item:ItemData) : void
       {
-         var lvlTip:String = item.superCategory != SUPER_CATEGORY::VOUCHER ? Util.styledChar(LocalizationData.getName("equipment_level") + " - " + item.itemLevel.toString(),"gray") : "";
+         var lvlTip:String = item.superCategory != Category.BASE_VOUCHER ? Util.styledChar(LocalizationData.getName("equipment_level") + " - " + item.itemLevel.toString(),"gray") : "";
          var tipStr:String = Util.styledChar(item.name,"white") + "\n" + ((item.rank) ? Util.styledChar(LocalizationData.getName("modified") + "\n","green") : "") + ((item.ammoText) ? LocalizationData.getName("ammo") + ":\n" + item.ammoText : "") + ((lvlTip) ? Util.styledChar(" \n","small") + lvlTip : "");
          item.tipText = tipStr;
       }

@@ -2,10 +2,7 @@ package scaleform.clik.controls
 {
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
-
-   config namespace SOUND;
-   SOUND const CLICK:int = 0;
-   SOUND const HOVER:int = 1;
+   import survarium.constants.UiSound;
    
    public class CheckBox extends Button
    {
@@ -24,13 +21,13 @@ package scaleform.clik.controls
       override protected function handleMouseRollOver(event:MouseEvent) : void
       {
          super.handleMouseRollOver(event);
-         ExternalInterface.call("sound_play",SOUND::HOVER);
+         ExternalInterface.call("sound_play",UiSound.HOVER);
       }
       
       override protected function handleMouseRelease(event:MouseEvent) : void
       {
          super.handleMouseRelease(event);
-         ExternalInterface.call("sound_play",SOUND::CLICK);
+         ExternalInterface.call("sound_play",UiSound.CLICK);
       }
       
       override public function get autoRepeat() : Boolean

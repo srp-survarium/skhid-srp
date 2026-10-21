@@ -9,6 +9,7 @@ package
    import flash.external.ExternalInterface;
    import flash.text.TextField;
    import flash.text.TextFormat;
+   import flash.ui.Keyboard;
    import flash.utils.setTimeout;
    import scaleform.clik.constants.InvalidationType;
    import scaleform.clik.controls.Button;
@@ -25,10 +26,6 @@ package
    import survarium.data.LocalizationData;
    import survarium.messages.MessageApply;
    import survarium.messages.MessageEULA;
-
-   config namespace KEY;
-   KEY const ENTER:int = 13;
-   KEY const ESCAPE:int = 27;
    
    public class LoginMenu extends MovieClip
    {
@@ -81,7 +78,7 @@ package
          };
          onKeyDownK = function(e:KeyboardEvent):void
          {
-            if(e.keyCode == KEY::ESCAPE)
+            if(e.keyCode == Keyboard.ESCAPE)
             {
                if(Message.isAnyMessage() != -1)
                {
@@ -109,7 +106,7 @@ package
          try_enter_pass = function(e:KeyboardEvent):void
          {
             e.preventDefault();
-            if(e.keyCode == KEY::ENTER && sign_in_btn.enabled)
+            if(e.keyCode == Keyboard.ENTER && sign_in_btn.enabled)
             {
                sign_in_button_clicked(null);
             }

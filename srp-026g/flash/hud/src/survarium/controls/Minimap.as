@@ -103,7 +103,7 @@ package survarium.controls
          mouseEnabled = false;
          this.minimap.map_ground.addChild(this._mapBitmap);
          this.minimap.map_ground.y = 0;
-         this._minimapProps.§default§ = {
+         this._minimapProps["default"] = {
             "size":100,
             "posX":-256,
             "posY":-256
@@ -427,7 +427,7 @@ package survarium.controls
          }
          else
          {
-            _obj = this._minimapProps.§default§;
+            _obj = this._minimapProps["default"];
          }
          this._map_sx = _obj.size * 2;
          this._map_sy = _obj.size * 2;

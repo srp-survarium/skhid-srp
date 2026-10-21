@@ -4,6 +4,7 @@ package
    import flash.display.Sprite;
    import flash.events.Event;
    import flash.events.KeyboardEvent;
+   import flash.ui.Keyboard;
    import scaleform.clik.layout.Layout;
    import scaleform.clik.layout.LayoutData;
    import survarium.controls.Message;
@@ -14,9 +15,6 @@ package
    import survarium.messages.MessageApplySettings;
    import survarium.messages.MessageBase;
    import survarium.messages.MessageReassign;
-
-   config namespace KEY;
-   KEY const ESCAPE:int = 27;
    
    public class MainMenu extends MovieClip
    {
@@ -164,7 +162,7 @@ package
       protected function onKeyDownK(e:KeyboardEvent) : void
       {
          var mc:MovieClip;
-         if(e.keyCode == KEY::ESCAPE)
+         if(e.keyCode == Keyboard.ESCAPE)
          {
             mc = stage.getChildByName("screenAdjust") as MovieClip;
             if(Message.isAnyMessage() != -1)
