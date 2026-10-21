@@ -5,9 +5,9 @@ package
    public dynamic class play_selector_dropdown_bg extends BitmapData
    {
       
-      public function play_selector_dropdown_bg(param1:int = 248, param2:int = 250)
+      public function play_selector_dropdown_bg(bitmapWidth:int = 248, bitmapHeight:int = 250)
       {
-         super(param1,param2);
+         super(bitmapWidth,bitmapHeight);
       }
    }
 }

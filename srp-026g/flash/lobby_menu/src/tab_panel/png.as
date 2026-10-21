@@ -5,9 +5,9 @@ package tab_panel
    public dynamic class png extends BitmapData
    {
       
-      public function png(param1:int = 573, param2:int = 64)
+      public function png(bitmapWidth:int = 573, bitmapHeight:int = 64)
       {
-         super(param1,param2);
+         super(bitmapWidth,bitmapHeight);
       }
    }
 }

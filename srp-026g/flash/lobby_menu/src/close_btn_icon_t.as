@@ -5,9 +5,9 @@ package
    public dynamic class close_btn_icon_t extends BitmapData
    {
       
-      public function close_btn_icon_t(param1:int = 19, param2:int = 19)
+      public function close_btn_icon_t(bitmapWidth:int = 19, bitmapHeight:int = 19)
       {
-         super(param1,param2);
+         super(bitmapWidth,bitmapHeight);
       }
    }
 }

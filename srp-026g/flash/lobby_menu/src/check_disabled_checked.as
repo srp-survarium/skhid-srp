@@ -5,9 +5,9 @@ package
    public dynamic class check_disabled_checked extends BitmapData
    {
       
-      public function check_disabled_checked(param1:int = 21, param2:int = 21)
+      public function check_disabled_checked(bitmapWidth:int = 21, bitmapHeight:int = 21)
       {
-         super(param1,param2);
+         super(bitmapWidth,bitmapHeight);
       }
    }
 }

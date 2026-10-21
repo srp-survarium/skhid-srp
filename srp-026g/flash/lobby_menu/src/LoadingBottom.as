@@ -5,9 +5,9 @@ package
    public dynamic class LoadingBottom extends BitmapData
    {
       
-      public function LoadingBottom(param1:int = 1920, param2:int = 595)
+      public function LoadingBottom(bitmapWidth:int = 1920, bitmapHeight:int = 595)
       {
-         super(param1,param2);
+         super(bitmapWidth,bitmapHeight);
       }
    }
 }

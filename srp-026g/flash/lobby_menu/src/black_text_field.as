@@ -5,9 +5,9 @@ package
    public dynamic class black_text_field extends BitmapData
    {
       
-      public function black_text_field(param1:int = 4, param2:int = 31)
+      public function black_text_field(bitmapWidth:int = 4, bitmapHeight:int = 31)
       {
-         super(param1,param2);
+         super(bitmapWidth,bitmapHeight);
       }
    }
 }

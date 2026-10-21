@@ -14,9 +14,9 @@ package top_fla
          addFrameScript(0,this.frame1);
       }
       
-      public function set text(param1:String) : void
+      public function set text(value:String) : void
       {
-         this.textField.text = param1;
+         this.textField.text = value;
       }
       
       internal function frame1() : *

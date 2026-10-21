@@ -5,9 +5,9 @@ package
    public dynamic class tab_norma_glass extends BitmapData
    {
       
-      public function tab_norma_glass(param1:int = 185, param2:int = 50)
+      public function tab_norma_glass(bitmapWidth:int = 185, bitmapHeight:int = 50)
       {
-         super(param1,param2);
+         super(bitmapWidth,bitmapHeight);
       }
    }
 }

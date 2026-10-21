@@ -5,9 +5,9 @@ package
    public dynamic class corners_bitmap extends BitmapData
    {
       
-      public function corners_bitmap(param1:int = 60, param2:int = 60)
+      public function corners_bitmap(bitmapWidth:int = 60, bitmapHeight:int = 60)
       {
-         super(param1,param2);
+         super(bitmapWidth,bitmapHeight);
       }
    }
 }

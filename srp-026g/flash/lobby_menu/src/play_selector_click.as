@@ -5,9 +5,9 @@ package
    public dynamic class play_selector_click extends BitmapData
    {
       
-      public function play_selector_click(param1:int = 190, param2:int = 36)
+      public function play_selector_click(bitmapWidth:int = 190, bitmapHeight:int = 36)
       {
-         super(param1,param2);
+         super(bitmapWidth,bitmapHeight);
       }
    }
 }

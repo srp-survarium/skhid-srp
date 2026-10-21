@@ -5,9 +5,9 @@ package
    public dynamic class tab_disabled extends BitmapData
    {
       
-      public function tab_disabled(param1:int = 187, param2:int = 52)
+      public function tab_disabled(bitmapWidth:int = 187, bitmapHeight:int = 52)
       {
-         super(param1,param2);
+         super(bitmapWidth,bitmapHeight);
       }
    }
 }

@@ -16,9 +16,9 @@ package messages_fla
          addFrameScript(0,this.frame1);
       }
       
-      public function setTime(param1:String) : void
+      public function setTime(timeText:String) : void
       {
-         this.textField.text = param1;
+         this.textField.text = timeText;
          this.icon.x = this.textField.getLineMetrics(0).x - this.icon.width - 5;
       }
       

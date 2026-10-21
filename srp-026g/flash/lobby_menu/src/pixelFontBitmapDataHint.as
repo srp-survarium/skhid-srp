@@ -5,9 +5,9 @@ package
    public dynamic class pixelFontBitmapDataHint extends BitmapData
    {
       
-      public function pixelFontBitmapDataHint(param1:int = 7, param2:int = 7)
+      public function pixelFontBitmapDataHint(bitmapWidth:int = 7, bitmapHeight:int = 7)
       {
-         super(param1,param2);
+         super(bitmapWidth,bitmapHeight);
       }
    }
 }
