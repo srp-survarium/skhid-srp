@@ -92,6 +92,8 @@ Inline in 0x26ABE0: `u8 action`, then by action; afterwards `lobby_menu` 0x21D99
 
 Overflow: name > 63 runs into clan_abbr of the same 0x5C element, abbr > 15 into status; for the last element of the vector, > 19 abbr chars write past the element (heap). Counts are unchecked u16 (vector resize 0x26C790).
 
+**A friend's room (srp's own, 2026-10-20).** srp's lobby movie adds "Join room" to a friend's right-click menu (`FriendListRender.showContextMenu` and `askFriendRoom` in the lobby movie's source) while that friend is a member of a room: as the menu opens it asks the lobby which of the asker's friends are in a room (`3B` start 2 060 000 040, answer `S1;Y`, lobby.md §2.16.3) and matches the row by the friend's `id`, the `u32 id` of `A3 07` (the account id; the movie's `remove_friend` sends the same id back). Only friends: the lobby answers from the asker's own friend list. No exe change.
+
 ### 1.4 0xA4 important message (server → client) — was 0xCC, CHANGED
 
 Reader 0x26BBF0 (0.21d 0x19B964). PROVEN layout:

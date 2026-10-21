@@ -129,6 +129,13 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
 - **Joining from the list:** the Join button, a double-click on a room, or Enter with one chosen
   (Up and Down choose the room above or below)
   (Queue for a full room; the PIN typed first for a private one).
+- **Joining a friend's room** (the owner's of 2026-10-20: "it should also be possible to rmb
+  on friend and join his room, if he is in a room"): a friend's right-click menu has "Join
+  room" while that friend is a member of a room ("Queue for room" when it is full); not while
+  the friend only waits in a room's queue, not for the player's own room. It joins as the
+  list's Join: the Rooms window opens on the list with that room chosen; a PIN room focuses
+  its PIN field (typed, then Join); a running match is the usual late join (the room first).
+  Only friends see a friend's room (the lobby answers from the asker's own friend list).
 - **Chat:** stays over the Rooms window.
 - **Room chat** (the owner's of 2026-10-20: "each room has its own chat", "and you should be
   able to type in one", "there should be to the right of [General Chat] [Room Chat]"):

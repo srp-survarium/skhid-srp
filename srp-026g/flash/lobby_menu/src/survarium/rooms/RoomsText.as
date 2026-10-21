@@ -69,6 +69,10 @@ package survarium.rooms
                 "dołączył do pokoju"],
             "leftRoom": ["left the room", "вийшов з кімнати", "покинул комнату", "hat den Raum verlassen",
                 "opuścił pokój"],
+            // A friend's right-click menu, while the friend is in a room.
+            "joinRoom": ["Join room", "Увійти в кімнату", "Войти в комнату", "Raum beitreten", "Dołącz do pokoju"],
+            "queueRoom": ["Queue for room", "Черга в кімнату", "Очередь в комнату", "Raum-Warteschlange",
+                "Kolejka do pokoju"],
             "joinMatch": ["Join match", "Увійти в матч", "Войти в матч", "Match beitreten", "Dołącz do meczu"],
             "joinIn": ["Into the match in %S s, or now with Join match", "У матч за %S с, або зараз: «Увійти в матч»",
                 "В матч через %S с, или сейчас: «Войти в матч»", "Ins Match in %S s, oder jetzt: Match beitreten",

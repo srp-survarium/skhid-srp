@@ -5,6 +5,7 @@ package survarium.friends
    import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
    import flash.text.TextField;
+   import flash.utils.getTimer;
    import scaleform.clik.controls.Button;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.gfx.MouseEventEx;
@@ -14,7 +15,9 @@ package survarium.friends
    import survarium.controls.PlayerInfo;
    import survarium.controls.SrvContextMenu;
    import survarium.data.LocalizationData;
-   
+   import survarium.rooms.RoomsText;
+   import survarium.rooms.RoomsWindow;
+
    public class FriendListRender extends ListItemBase
    {
       
@@ -37,7 +40,18 @@ package survarium.friends
       public var status_indicator:MovieClip;
       
       public var separator:MovieClip;
-      
+
+      // The menu shown for a friend, waiting for the lobby to say whether
+      // the friend is in a room (askFriendRoom): its items, the friend's
+      // account and when it was asked; then the room its "Join room" joins.
+      private var _roomItems:Array;
+
+      private var _roomFriend:Number = 0;
+
+      private var _roomAskedAt:int = 0;
+
+      private var _friendRoom:Object;
+
       public function FriendListRender()
       {
          super();
@@ -336,6 +350,7 @@ package survarium.friends
             highlighted = true;
             SrvContextMenu.show(_loc2_,0,0,this);
             SrvContextMenu.getInstance().addEventListener(Event.REMOVED_FROM_STAGE,this.deselect);
+            this.askFriendRoom(_loc2_);
          }
          else
          {
@@ -389,6 +404,61 @@ package survarium.friends
          if(param1.buttonIdx == 1 && _data.name)
          {
             this.showContextMenu();
+         }
+      }
+
+      // "Join room" in a friend's menu while that friend is a member of a
+      // room (the owner's of 2026-10-20: "it should also be possible to rmb
+      // on friend and join his room, if he is in a room"). The menu opens as
+      // before; the lobby is asked which friends are in a room (`S1;Y`,
+      // lobby.md 2.16.3), and the item comes at the menu's end while it is
+      // still open ("Queue for room" for a full room). Friends only, not a
+      // search's players.
+      protected function askFriendRoom(items:Array) : void
+      {
+         this._roomItems = null;
+         if(RoomsWindow.me == null || !data || !FriendsMenu.isFriend(String(data.name)))
+         {
+            return;
+         }
+         this._roomItems = items;
+         this._roomFriend = Number(data.id);
+         this._roomAskedAt = getTimer();
+         RoomsWindow.me.askFriendRooms(this.takeFriendRooms);
+      }
+
+      // The friends in a room: {account, key, players, size, pin} each. An
+      // answer later than 5 s is for a menu long gone; a menu closed or
+      // replaced meanwhile is not changed (SrvContextMenu.addItem).
+      private function takeFriendRooms(rooms:Array) : void
+      {
+         var items:Array = this._roomItems;
+         this._roomItems = null;
+         if(items == null || getTimer() - this._roomAskedAt > 5000)
+         {
+            return;
+         }
+         for(var i:int = 0; i < rooms.length; i++)
+         {
+            if(Number(rooms[i].account) != this._roomFriend)
+            {
+               continue;
+            }
+            this._friendRoom = rooms[i];
+            var full:Boolean = rooms[i].players >= rooms[i].size * 2;
+            SrvContextMenu.addItem(items,{
+               "name":RoomsText.sayFirst(full ? "queueRoom" : "joinRoom"),
+               "click_function":this.joinFriendRoom
+            });
+            return;
+         }
+      }
+
+      private function joinFriendRoom() : void
+      {
+         if(RoomsWindow.me != null && this._friendRoom != null)
+         {
+            RoomsWindow.me.joinFriend(this._friendRoom);
          }
       }
    }
