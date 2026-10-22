@@ -57,7 +57,7 @@ RULES = [93, 91, RULE_CLASS, 94]
 # 2 the skull (Team Deathmatch). 0.27d's configs say 3, a frame 0.26g's movie has not.
 ICON = 1
 CAPTURE_AWARD = 100          # 0.27d gameplay/awards/events.options capture_the_point: shared, factor 100
-CAPTURE_REACH = 0.4          # m: a player's capsule radius, added round each shape
+CAPTURE_REACH = 0.38         # m: a player's capsule radius (default.player stand_capsule_width 0.76)
 CAPTURE_HALF_HEIGHT = 0.9    # m: half the capsule's height over its centre (player_bots_behaviour.md)
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 WEATHERS = {'day': 'day', 'evn': 'evening', 'rain': 'rain', 'prerain': 'prerain'}

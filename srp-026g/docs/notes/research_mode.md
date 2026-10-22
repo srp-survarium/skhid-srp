@@ -67,7 +67,7 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   Deathmatch's skull; `LobbyGameLoad.setMode` shows frame icon + 1), `st_mode_05_name`, and the
   units as `capture_zones[] {cp_id, position,
   shapes[] {type 0 sphere / 1 box / 2 cylinder, position, axis_x, axis_y, axis_z, half}}` in
-  world space, `capture_award` 100, `capture_reach` 0.4, `capture_half_height` 0.9.
+  world space, `capture_award` 100, `capture_reach` 0.38 (half the body's 0.76 m), `capture_half_height` 0.9 (half its 1.8 m standing, when the game gives none).
 - `projects/level_0N/<w>_5/client_project` (w day, evening, rain, prerain): 0.26g's `<w>_4`
   with what 0.27d's `_5` changed against its own `_4`: the units' props (chargers, antennas,
   turbines, transmitters, diesel generators, monitors: render visuals and collision objects),

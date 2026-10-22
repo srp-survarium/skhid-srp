@@ -298,7 +298,7 @@ static int read_params(struct rr_params *params, const cfg *root) {
     params->target = (u32)number(child(parameters, "resources_count")) * RR_MICRO;
     u32 restore = rounded(number(child(parameters, "restore_multiplier")) * 1000.0f);
     params->award = has(parameters, "capture_award") ? (u32)number(child(parameters, "capture_award")) : 100;
-    params->reach = has(parameters, "capture_reach") ? number(child(parameters, "capture_reach")) : 0.4f;
+    params->reach = has(parameters, "capture_reach") ? number(child(parameters, "capture_reach")) : 0.38f;
     params->half_height =
         has(parameters, "capture_half_height") ? number(child(parameters, "capture_half_height")) : 0.9f;
     const cfg *zones = child(parameters, RN_ZONES);
