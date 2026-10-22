@@ -149,6 +149,10 @@ class Table:
                 sp = e.reg_read(UC_X86_REG_ESP)
                 if address == PROJECT + delta:
                     box["matrices"].append(bytes(e.mem_read(e.reg_read(UC_X86_REG_EAX) + 0, 4)))
+                if address == RAY + delta:
+                    box["rays"] += 1
+                    if box["hit"] is not None:    # something in the way: the hit's distance over [edi]
+                        e.mem_write(e.reg_read(UC_X86_REG_EDI), struct.pack("<f", box["hit"]))
                 e.reg_write(UC_X86_REG_EIP, struct.unpack("<I", e.mem_read(sp, 4))[0])
                 e.reg_write(UC_X86_REG_ESP, sp + 8)
 
@@ -177,6 +181,7 @@ class Table:
         self.box["matrices"].clear()
         self.box["stops"] = set()
         self.box["over"], self.box["over_calls"] = 0, 0
+        self.box["hit"], self.box["rays"] = None, 0
         lobby.word(MENU, MENU + 0x800)                # the lobby menu's vtable: +24h is_mouse_over_ui
         lobby.word(MENU + 0x800 + 0x24, OVER_UI)
         late_join = open(base.late_join_bin(), "rb").read()
@@ -360,19 +365,13 @@ def main():
         assert (round(table.f(CAMERA + HEIGHT_TARGET), 6), round(table.f(CAMERA + DISTANCE_TARGET), 6),
                 round(table.f(CAMERA + 0x98), 6)) == (BENCH[1], VIEW_DISTANCE, 0.37)
         # The weapon not at the bench yet (READY 0): the camera flies anyway,
-        # from the first tick, its three steps' speeds RATE * |target - now|.
+        # from the first tick.
         before = [table.f(CAMERA + at) for at in (POINT_X, POINT_Z, YAW, PITCH, POINT_Y, DISTANCE)]
         table.frame()
         after = [table.f(CAMERA + at) for at in (POINT_X, POINT_Z, YAW, PITCH, POINT_Y, DISTANCE)]
         assert table.flag(READY) == 0 and all(a != b for a, b in zip(before, after)), (before, after)
-        # (set at 0x284020: after the tick's height step, before its side and distance steps, which then
-        # move 5 * dt = 8% of the way in a 16 ms tick; the first tick was 32 ms)
-        table.frame()
-        for at, (target, now), stepped in zip(SPEEDS, STEPS, (True, False, True)):
-            expected = abs(table.f(CAMERA + target) - table.f(CAMERA + now)) * 5.0 / (0.92 if stepped else 1.0)
-            assert expected > 0 and math.isclose(table.f(CAMERA + at), expected, rel_tol=1e-3), \
-                (hex(at), expected, table.f(CAMERA + at))
-        assert 0 < after[0] < BENCH[0] and 0 < after[1] < BENCH[2]
+        # the camera's own steps' speeds 0 while the flight moves them itself (round 5c)
+        assert [table.f(CAMERA + at) for at in SPEEDS] == [0.0, 0.0, 0.0] and table.flag(0x2C) == 1
         seconds = None
         for n in range(300):
             table.frame()
@@ -395,7 +394,7 @@ def main():
         assert all(abs(a - b) < 2e-3 for a, b in zip(eye, expected_eye)), (eye, expected_eye)
         assert math.isclose(table.f(CAMERA + SIDE), 0.37, abs_tol=1.001e-3)
         say(f"a weapon's window{rebased}: the camera flies at the start, before the weapon is at the bench "
-            f"(its point, yaw, pitch, height and distance move at the first tick, the steps' speeds 5 x the way left); "
+            f"(its point, yaw, pitch, height and distance move at the first tick, moved by it, the steps' speeds 0); "
             f"the camera's point is at the bench {BENCH} within 1 cm after "
             f"{seconds:.2f} s, then x and z exactly and the height within 0.001 (the camera's own step); its eye at ({eye[0]:.3f}, {eye[1]:.3f}, {eye[2]:.3f}): "
             f"{VIEW_DISTANCE} m in front of it along -x, {-VIEW_DISTANCE * math.sin(VIEW_PITCH):.3f} m above; "
@@ -482,6 +481,42 @@ def main():
             f"{top_back:.3f} (back) a 16 ms tick, each tick no more than the one before and never less than "
             f"3/4 of it while moving (no sudden stop of a step mid-flight, nothing at READY), the last move "
             f"{last_move * 1000:.2f} mm there and {last_back * 1000:.2f} mm back (no snap at the end)")
+
+        # The collision ray (round 5c, the owner's log of 2026-10-23): the
+        # window's player, once made, put something in the ray's way by the
+        # bench and the tick cut the distance to 0.6. Here the ray reports a
+        # hit at 0.6 from READY on: while the camera is the table's no ray is
+        # cast, the flight is as smooth as without it and rests at exactly
+        # the bench's distance, height and side angle; back at the stock
+        # camera the ray is the original's again.
+        hit = Table(patched, delta)
+        hit.set_f(CAMERA + YAW, 0.4)
+        hit.set_f(CAMERA + PITCH, 0.1)
+        hit.lobby.handler(START_HANDLER, AK)
+        clear = moves(hit, 12)
+        hit.box["hit"] = 0.6
+        hit.lobby.word(hit.state + READY, 1)
+        cut = moves(hit, 300)
+        ok_hit, (_, _, last_hit) = smooth(clear + cut)
+        resting = [hit.lobby.read(CAMERA + at) for at in (DISTANCE, POINT_Y, SIDE)]
+        assert ok_hit and hit.box["rays"] == 0 and resting == [f32(VIEW_DISTANCE), f32(BENCH[1]), f32(0.37)], \
+            (ok_hit, hit.box["rays"], [from_f32(v) for v in resting])
+        eye = hit.matrix()[12:15]
+        assert math.isclose(math.dist(eye, BENCH), VIEW_DISTANCE, abs_tol=1e-5), eye
+        hit.lobby.handler(EXIT_HANDLER, 0)
+        flown = 0
+        while hit.flag(FLY) and flown < 400:
+            back = moves(hit, 2)                # (one move a call: the tick before the last)
+            flown += 2
+        # the tick that gave the camera back casts the stock ray already
+        assert not hit.flag(FLY) and hit.box["rays"] <= 1, (flown, hit.box["rays"])
+        hit.frame()
+        # the stock camera's ray cuts it, to the least (1.5 again once back)
+        assert hit.box["rays"] >= 1 and hit.f(CAMERA + DISTANCE) == from_f32(f32(1.5)), hit.f(CAMERA + DISTANCE)
+        say(f"the collision ray{rebased}: with a hit at 0.6 from READY on, no ray while the camera is the "
+            "table's (there, at the bench, back): the flight as smooth (each tick no more than the one before), "
+            "at rest the distance exactly 1.2, the height 1.3 and the side angle 0.37, the eye 1.2 m from the "
+            "bench; once the stock camera is back its ray is cast and cuts the distance (to the least, 1.5) as the original's")
 
         # Windows over windows.
         table = Table(patched, delta)

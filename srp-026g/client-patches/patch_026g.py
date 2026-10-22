@@ -1690,7 +1690,10 @@ WEAPON_PREVIEW_FIND_CALLS = (0x2B, 0xCC)       # weapon_preview_026g.section.bin
 #   bench, once the character makes no player;
 # - the lobby camera's on_mouse_move (0x283D30), `test byte [eax+0Ch],52h /
 #   setne al` at 0x283D81 (its drag buttons): left, which at the bench also
-#   drags with the left button pressed off the movie (is_mouse_over_ui).
+#   drags with the left button pressed off the movie (is_mouse_over_ui);
+# - the camera's tick, `call 0x2844D0` at 0x284309 (its collision ray from
+#   the point back to the eye, which shortens the distance at a hit): ray,
+#   which casts none while the camera is the table's (round 5c).
 # No base relocation is under a site; the code holds no absolute address but
 # the game's functions' and finds its state with call/pop.
 WEAPON_TABLE_OFFSET = 0x800
@@ -1704,7 +1707,7 @@ WEAPON_TABLE_STATE_SIZE = 0xA0
 WEAPON_TABLE_STAMP_OFFSET = 0x48
 WEAPON_TABLE_MATRIX_OFFSET = 0x50
 WEAPON_PREVIEW_CAMERA_JUMPS = (0x68, 0xA8)     # weapon_preview_026g.section.bin: the two `jmp CAMERA`
-WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14)  # camera, tick, cull, matrix, left: `jmp near` each
+WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19)  # camera, tick, cull, matrix, left, ray: `jmp near` each
 # A weapon's upgrade window shows an upgrade dropped on the weapon at once
 # (patch 48, README; client_patch.md section 3.45): upgrade_preview_026g.asm
 # at UPGRADE_PREVIEW_OFFSET of `.srpw`, a page of its own (the second page is
@@ -1752,6 +1755,7 @@ WEAPON_TABLE_HOOKS = (
     (0x247576, bytes.fromhex("807dff007516"), 0xA, 0xE8),            # mt_draw's culled player: cull
     (0x24778F, bytes.fromhex("80bb9cf4000000742a"), 0xF, 0xE8),      # mt_draw's held item's transform: matrix
     (0x283D81, bytes.fromhex("f6400c520f95c0"), 0x14, 0xE8),        # the camera's drag buttons: left
+    (0x284309, bytes.fromhex("e8c2010000"), 0x19, 0xE8),            # the camera's collision ray: ray
 )
 
 # Decals on a weapon (patch 47, README; client_patch.md section 3.44):
@@ -1889,6 +1893,7 @@ INSTALLS = {
     0x247576: (INLINE, "mt_draw's culled player: cull", None, None),
     0x24778F: (INLINE, "mt_draw's held item's transform: matrix", None, None),
     0x283D81: (INLINE, "the lobby camera's drag buttons: left", None, None),
+    0x284309: (CALLEE, "the lobby camera's collision ray: ray", None, None),
     0x265999: (CALLEE, "the decal preview's pick: pick", None, None),
     0x2659B2: (CALLEE, "the decal preview's matrix: decode", None, None),
     0x2641A0: (ENTRY, "the decal editor's bake: bake", None, None),

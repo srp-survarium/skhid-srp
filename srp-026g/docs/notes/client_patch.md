@@ -1134,6 +1134,35 @@ The owner's request (2026-10-21): "instead of focusing on players the camera wou
   The other weapon checks and the self-test pass.
 - **Build** (local test, `--revision=30`): `survarium_skhid.camnow-r30.exe` sha256 `5d4e83b863cbf48c2b671869ec77d859719afba30bcbeb8100bd477cdbf5de44` (12 934 776 bytes; round 5's was `24735c9a…7a35`). **Not run in a game.**
 
+**Round 5c** (2026-10-23, the owner on round 5b: "still the same problem", "same jump", "it is camera transition jump", "happens for every weapon"). PROVEN in the game's own log, then emulated.
+
+- **The debug build.** A local debug exe (branch `debug/camlog`, not for release) logged the camera each frame for 3 s after a window's start or close (`srp camlog` lines). The owner's run (01:35:10):
+  - frames 1–25 are the smooth flight, the distance's current value coming down 1.96 → 1.34 toward 1.2;
+  - the window's player is made between frames 25 and 26 ("made in 334 ms"; the player pointer changes);
+  - on frame 26 the current distance is **0.60**, the floor patch 32 gives the tick's last clamp, and the eye moves **0.80 m** in one frame: the jump;
+  - from frame 38 the distance creeps back, but only to **1.0924** of 1.2, and stays there.
+  - On the close (01:35:20) the second frame is cut to 0.60 again, and the cut stops once the camera has left the bench.
+- **The cause.** The tick casts a collision ray from its point back toward the eye (0x284309 → 0x2844D0, through the lobby's collision scene at menu+3104h). At a hit it overwrites the current distance (+C4h) with the hit's, and 0x284316 clamps that to the least (0.6). The Unicorn checks stub that ray, so they never saw it.
+- **What the ray hits.** Not identified by its object; what is known:
+  - it appears in the ray's way the frame the window's player is made and goes when that player is replaced;
+  - its hit points while the camera rests lie about 0.1 m in front of the bench's eye (the eye at (3.19, 1.57, 3.05) where (3.09, 1.60, 3.05) is meant);
+  - so it is something the window's player brings near the bench, not the room;
+  - no frame before that player had a hit.
+- **Why only now.** With round 2's hold the camera flew only after READY, so it came onto the bench with that object already there. The cut grew smoothly as it approached, and nobody noticed a 1.09 instead of 1.2. Flying at once (round 5), the object appears mid-flight, already within reach of the ray: the cut is one frame.
+- **The fix** (`weapon_table_026g.asm`, 1 870 bytes, to `.srpw`+F4Eh; a sixth entry `ray`, +19h):
+  - **No ray while the camera is the table's.** 0x284309's `call 2844D0h` is `call ray`, which returns at once (`ret 4`, as the ray) while FLY is set: flying there, at the bench, flying back. The bench's view is made with nothing between its eye and the bench. Every other time it jumps to the game's ray. Declared CALLEE in `INSTALLS`.
+  - **The steps are moved by the flight itself.** While a flight eases, the flight moves the camera's own side angle, height and distance the way it moves the point, yaw and pitch: 5·dt of the way plus 0.01·dt, landing exactly. The three steps' speeds are 0 meanwhile, as round 2's hold had them. So all seven end together and the bench's distance is exactly 1.2 (round 5b's per-tick speeds left them within the steps' 0.001).
+  - **Simpler code.** One routine (`glide`) for both tables. No snap threshold, no time cap.
+- **Checked:**
+  - **`check_weapon_table_026g.py`: 44 checks (as is and rebased).**
+    - New case: the ray stub reports a hit at 0.6 from READY on. No ray is cast while the camera is the table's, the flight is as smooth, and it rests at exactly 1.2, 1.3 and 0.37 with the eye 1.2 m from the bench.
+    - Once the stock camera is back, its ray is cast and cuts the distance as the original's.
+    - Round 5b's bytes under the same hit: an eye move of 0.77 m in one frame (the owner's log: 0.80 m) and a rest at 0.6.
+    - The flight case: speeds 0 meanwhile.
+  - The self-test, check 45, has the new site.
+  - The other weapon checks pass.
+- **Build** (local test, `--revision=30`): `survarium_skhid.camnow-r30.exe` sha256 `ef9b3a2dd438c5677766f77338c5f3bb4396089e4a31e5a0b59a0fd9603b99a0` (12 934 776 bytes). **Not run in a game.**
+
 ### 3.43 On the death screen a drag turns the camera; the wheel does nothing (written 2026-10-21, README patch 46, the next release's revision; the rules: `death-camera.md`) — PROVEN in the code, the mouse moves and the view's update run with Unicorn; the first build run in a game
 
 The owner: "when player dies they can still move camera around, with holding a mouse button? Scroll shouldn't work though".

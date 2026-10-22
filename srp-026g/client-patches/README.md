@@ -2447,7 +2447,7 @@ scratch profile), with its scope and camouflage; patch 45 draws that held weapon
 the workbench by the lobby's right wall and flies the camera there.
 
 `weapon_table_026g.asm` at `.srpw`+800h (812 bytes in round 1, 1 488 in round 2 below; after the stash code), its state (40 bytes, then 48h)
-at `.srpd`+F00h; it begins with four `jmp near` (its entries; a fifth, `left`, in round 2):
+at `.srpd`+F00h; it begins with four `jmp near` (its entries; a fifth, `left`, in round 2; a sixth, `ray`, in round 5c):
 
 - **camera** (+0): patch 32's start_cam and exit_cam end with `jmp camera` instead of `jmp
   2845C0h` (the lobby camera's setter; `-DCAMERA` of `weapon_preview_026g.asm`, which without it
@@ -2561,9 +2561,19 @@ camera's own side angle, height and distance steps moved at the setter's constan
 stopped dead at 0.9 s while the point, yaw and pitch still glided, which then snapped 2 mm onto
 their targets at 1.6 s. Now a flight sets those steps' speeds to 5 × the way left each tick, so all
 seven ease out together, and the point, yaw and pitch land exactly (a least speed of 0.01 a second)
-instead of snapping. The bench and the wheel are unchanged; the close flies back the same way.
+instead of snapping (round 5c moves the three itself). The bench and the wheel are unchanged; the close flies back the same way.
 1 994 bytes. `check_weapon_table_026g.py` 42 checks (every tick's move no more than the one
 before, no sudden stop, no snap, there and back). Section 3.42, round 5b.
+
+Round 5c (2026-10-23, the owner: "same jump", and a per-frame camera log from a debug build): the
+jump was the camera's own collision ray (0x284309 -> 0x2844D0). It runs from the camera's point back
+to the eye and, at a hit, cuts the distance, which is then clamped to 0.6. The frame the window's
+player was made, something it brings near the bench came into the ray's way: the distance went
+1.34 -> 0.60 and the eye 0.80 m in one frame, then rested at 1.09 instead of 1.2. Now, while the
+camera is the table's (flying there, at the bench, flying back), no ray is cast (a sixth entry, `ray`,
++19h). The flight also moves the camera's own side angle, height and distance itself, so the bench's
+distance is exactly 1.2. 1 870 bytes. `check_weapon_table_026g.py` 44 checks (a ray hit at 0.6
+from READY on changes nothing). Section 3.42, round 5c.
 
 ### 46. On the death screen a drag turns the camera; the wheel does nothing (the next release's revision)
 
