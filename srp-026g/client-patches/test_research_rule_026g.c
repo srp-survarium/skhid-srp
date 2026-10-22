@@ -68,6 +68,7 @@ static void place(int i, int team, int zone) {
     players[i].position[0] = zone < 0 ? 1000.0f : 100.0f * (float)zone;
     players[i].position[1] = 0.5f;
     players[i].position[2] = 0;
+    players[i].half_height = 0.9f;
 }
 
 static void away(int i) { players[i].position[0] = 1000.0f; }
@@ -96,20 +97,37 @@ static void fresh(struct rr_state *s, const struct rr_params *p) {
 
 static void test_inside(void) {
     struct rr_params p = params_027d();
-    float in_cylinder[3] = {5.3f, 2.6f, 0}, out_cylinder[3] = {5.5f, 0, 0}, above[3] = {0, 2.8f, 0};
-    CHECK(rr_inside(&p, 0, in_cylinder));
-    CHECK(!rr_inside(&p, 0, out_cylinder));
-    CHECK(!rr_inside(&p, 0, above));
-    /* the box: 4 m along world z, 3 m along world x */
-    float box_z[3] = {100, 0, 4.3f}, box_x[3] = {103.3f, 0, 0}, box_far_x[3] = {103.5f, 0, 0};
-    CHECK(rr_inside(&p, 1, box_z));
-    CHECK(rr_inside(&p, 1, box_x));
-    CHECK(!rr_inside(&p, 1, box_far_x));
-    /* the sphere: the capsule's segment reaches down to it */
-    float over[3] = {200, 7.2f, 0}, high[3] = {200, 7.4f, 0}, side[3] = {206.3f, 0, 0};
-    CHECK(rr_inside(&p, 2, over));
-    CHECK(!rr_inside(&p, 2, high));
-    CHECK(rr_inside(&p, 2, side));
+    /* The capsule stands on the feet: 1.8 m tall standing (0.9 x 2), 0.4 m
+     * round. The cylinder of unit A: radius 5, y -1.8..1.8. */
+    float in_cylinder[3] = {5.3f, 1.0f, 0}, out_cylinder[3] = {5.5f, 0, 0};
+    CHECK(rr_inside(&p, 0, in_cylinder, 0.9f));
+    CHECK(!rr_inside(&p, 0, out_cylinder, 0.9f));
+    /* feet just under its top: in; just over it (a floor above): out */
+    float on_top[3] = {0, 1.75f, 0}, above[3] = {0, 1.85f, 0};
+    CHECK(rr_inside(&p, 0, on_top, 0.9f));
+    CHECK(!rr_inside(&p, 0, above, 0.9f));
+    /* below: a standing head reaches up into it, a crouched one (0.55) not */
+    float under[3] = {0, -3.2f, 0}, deep[3] = {0, -3.7f, 0};
+    CHECK(rr_inside(&p, 0, under, 0.9f));
+    CHECK(!rr_inside(&p, 0, under, 0.55f));
+    CHECK(!rr_inside(&p, 0, deep, 0.9f));
+    /* the edge of the capsule's bottom: round, not square */
+    float rim[3] = {5.1f, 1.75f, 0}, rim_out[3] = {5.3f, 1.75f, 0};
+    CHECK(rr_inside(&p, 0, rim, 0.9f));
+    CHECK(!rr_inside(&p, 0, rim_out, 0.9f));
+    /* the box: 4 m along world z, 3 m along world x; its corners are round
+     * to the capsule (0.3 and 0.3 out: 0.42 m away) */
+    float box_z[3] = {100, 0, 4.3f}, box_x[3] = {103.3f, 0, 0}, box_far_x[3] = {103.5f, 0, 0},
+          corner[3] = {103.3f, 0, 4.3f};
+    CHECK(rr_inside(&p, 1, box_z, 0.9f));
+    CHECK(rr_inside(&p, 1, box_x, 0.9f));
+    CHECK(!rr_inside(&p, 1, box_far_x, 0.9f));
+    CHECK(!rr_inside(&p, 1, corner, 0.9f));
+    /* the sphere: radius 6 at y 0 */
+    float over[3] = {200, 5.9f, 0}, high[3] = {200, 6.1f, 0}, side[3] = {206.3f, 0, 0};
+    CHECK(rr_inside(&p, 2, over, 0.9f));
+    CHECK(!rr_inside(&p, 2, high, 0.9f));
+    CHECK(rr_inside(&p, 2, side, 0.9f));
 }
 
 static void test_capture_alone(void) {

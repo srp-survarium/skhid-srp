@@ -70,7 +70,13 @@ enum {
 /* a player (base_player) */
 #define PLAYER_ALIVE 0x33C         /* m_is_alive */
 #define PLAYER_IN_WORLD 0x33F      /* in the world's tick lists */
-#define PLAYER_POSITION 0x43C      /* m_transform's translation (+40Ch row 3) */
+#define PLAYER_POSITION 0x43C      /* m_transform's translation (+40Ch row 3): the feet */
+#define PLAYER_PHYSICS 0x494       /* -> -> its character controller (0x2D942A) */
+/* the controller (get_transform 0x7F5C0: the player's transform is the
+ * capsule's centre moved down by heights[(stance + 2) % 3] + heights[stance],
+ * half the capsule's height: 0.9 m standing) */
+#define CONTROLLER_HEIGHTS 0x1D0   /* float[3] */
+#define CONTROLLER_STANCE 0x1F0    /* 0..2 */
 #define PLAYER_PROFILE 0x6B8       /* -> its match profile */
 #define PROFILE_TEAM 0x45EC
 /* shared_statistics */
@@ -339,6 +345,20 @@ static u32 team_of(const u8 *player) {
     return profile ? AT(profile, PROFILE_TEAM, u32) : RR_NOBODY;
 }
 
+/* Half the player's capsule's height, as get_transform (0x7F5C0) takes it
+ * off the capsule's centre to give the player's transform; the config's
+ * when the player has no controller or it says nothing sensible. */
+static float half_height_of(const struct rn_rule *rule, const u8 *player) {
+    u8 **physics = AT(player, PLAYER_PHYSICS, u8 **);
+    u8 *controller = physics ? *physics : 0;
+    if (!controller) return rule->params.half_height;
+    int stance = AT(controller, CONTROLLER_STANCE, int);
+    if (stance < 0 || stance > 2) return rule->params.half_height;
+    float half = AT(controller, CONTROLLER_HEIGHTS + 4 * ((stance + 2) % 3), float) +
+                 AT(controller, CONTROLLER_HEIGHTS + 4 * stance, float);
+    return half > 0.1f && half < 2.0f ? half : rule->params.half_height;
+}
+
 static void players_of(const struct rn_rule *rule, struct rr_player out[RR_PLAYERS]) {
     for (u32 i = 0; i < RR_PLAYERS; ++i) {
         out[i].alive = 0;
@@ -350,6 +370,7 @@ static void players_of(const struct rn_rule *rule, struct rr_player out[RR_PLAYE
         out[i].alive = player[PLAYER_ALIVE] && player[PLAYER_IN_WORLD];
         out[i].team = team > 1 ? RR_NOBODY : (u8)team;
         for (int axis = 0; axis < 3; ++axis) out[i].position[axis] = AT(player, PLAYER_POSITION + 4 * axis, float);
+        out[i].half_height = half_height_of(rule, player);
     }
 }
 

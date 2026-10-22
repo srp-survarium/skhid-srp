@@ -26,8 +26,12 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   - Nobody inside and nobody owns it: the progress falls back at half speed.
   - An owned unit stays owned with nobody inside; its owner inside fills its drained progress
     back up.
-- **Inside:** a living player whose capsule (radius 0.4 m, 0.9 m above and below its centre)
-  overlaps one of the unit's shapes (0.27d's trigger: boxes, cylinders; London's spheres).
+- **Inside:** a living player whose body overlaps one of the unit's shapes (0.27d's physics
+  trigger: boxes, cylinders; London's spheres): his capsule standing on his feet (the player's
+  transform), 1.8 m tall standing and 1.1 m crouched (half its height read from his controller as
+  the game's get_transform does), 0.38 m round (`default.player`: 0.76 m wide). A unit reaches no
+  higher than its shapes: a player on a floor above a shape's top is outside (client_patch.md
+  §3.50, "A player's transform is his feet"; the first build counted feet up to 0.9 m over it).
 - **Points:** owning 1, 2 or 3 units gives 0.075, 0.15 or 0.35 points a second (100 points in
   22:13, 11:07 or 4:46). Shown whole (rounded).
 - **End:** 3 s after a team reaches 100, or at the time limit (900 s; the time rule as in every
@@ -127,8 +131,8 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   by the game's constructor after its own cooks (the class is free in register_cook's table of
   0x206; refused, and the mode not loaded, if taken).
 - **Tick (50 ms):** only while the time rule is in play (core+18FE4h = 3); players by roster
-  place (entered, alive `+33Ch`, in the world `+33Fh`, team `+6B8h -> +45ECh`, position
-  `+43Ch`); then the statistics' tail: `m_team_points` = the scores, `m_winner_team` = the
+  place (entered, alive `+33Ch`, in the world `+33Fh`, team `+6B8h -> +45ECh`, feet `+43Ch`,
+  capsule half height from the controller `[[+494h]]`); then the statistics' tail: `m_team_points` = the scores, `m_winner_team` = the
   leader.
 - **Wire (rules blob, between the respawn rule and the kd rule; little-endian):**
 

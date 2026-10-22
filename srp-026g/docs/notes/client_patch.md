@@ -1316,11 +1316,30 @@ The old bytes' jumps all landed inside them; nothing else aims inside; no base r
 - **The world** (PROVEN): places at [core+18458h], 30h each, `[place + 4 * kit]` the player of
   kit `place[0Ch]` (tdm 0x3161F0); a player's team `[[player+6B8h]+45ECh]`, alive +33Ch, in the
   tick lists +33Fh, `m_transform` +40Ch (its translation +43Ch, read by the player's own code
-  0x2D9148 and restored by its deserialize 0x2DB8B9), pitch +48Ch; the time rule's state copied at
+  0x2D9148 and restored by its deserialize 0x2DB8B9: the feet, below), pitch +48Ch; the time rule's state copied at
   core+18FE4h (3 in play; written by its tick and deserialize); the game's own place
   core+18FDCh (client tdm 0x267852); the statistics `[core+18FA8h]`: a player's record 1F8h,
   `u16 events[28][3]` at +0Ch (the kill handler 0x2F4EB0), `m_team_points` +31D4h, the winner
   +31E4h (tdm 0x316257).
+- **A player's transform is his feet** (PROVEN, 2026-10-22). A living player's tick takes his
+  transform from his character controller (`[[player+494h]]`, 0x2D942A): `get_transform`
+  0x7F5C0 copies the controller's matrix (+80h; its row 3 the capsule's centre) and moves its
+  translation down by `heights[(stance + 2) % 3] + heights[stance]` (+1D0h float[3], the stance
+  +1F0h) times up (0xA7DC00: 0, 1, 0), half the capsule's height; 0x74620 turns that into the map's
+  frame and `rep movs` puts it at +40Ch (0x2D9461). The server's worlds keep the controller's
+  centre, 0.9 m over the feet standing (player_bots.md §4), and `default.player` gives the capsule:
+  0.76 m wide, 1.8 m standing, 1.1 m crouched. The first build took +43Ch for the capsule's centre
+  and tested ±0.9 m round it: a player's feet up to 0.9 m over a unit's top counted, so at School
+  the floor above units A and C (20.25-20.5 m, the boxes' tops 20.04 m) took them (the owner's
+  test, 2026-10-22). 0.27d's units are physics triggers: `capturable_zone_core`'s enter 0x324350
+  and leave 0x324420 get the colliding objects (each's owner, slot 1, the player) from the zone's
+  trigger shapes (the collision geometries' meshes, half extents their scale, 0x7A1F0) overlapping
+  the player's collision: no point, no height of its own. Now the capsule stands on the feet,
+  2 x half its height tall (read from the controller as get_transform does; the config's
+  `capture_half_height` without one), `capture_reach` round (0.38 m, half the width), and it is
+  inside when the nearest it comes to a shape is at most its radius (the capsule's segment against
+  the shape, a ternary search: the distance along a segment to a convex shape is convex); Bullet's
+  collision margin is not counted.
 - **Saving** (PROVEN): a writer's buffer at [writer+14h] (data +4, size +0Ch), grown by 0x7AB30
   (eax = buffer, push the size; `ret 4`); a reader's cursor at [reader+4] (tdm 0x3163D0). A rule
   writes field by field (tdm 0x316340) through `buffer_writer::w<unsigned char/short/int>` 0x1F3DE0

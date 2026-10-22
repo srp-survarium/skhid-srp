@@ -434,6 +434,30 @@ def main():
     run.word(CORE + RULES, 0)
     run.word(CORE + RULES + 4, 0)
 
+    # 6c. Inside: the player's transform is his feet, his capsule stands on
+    # it (1.8 m standing, half its height from his controller as the game's
+    # get_transform 0x7F5C0 takes it), 0.4 m round. Unit A: a box at y 0,
+    # 2 m up and down.
+    inner, _ = run.thiscall(vtable(run, cook, 9), cook, query)
+    run.thiscall(vtable(run, inner, 11), inner, CORE)
+    run.thiscall(vtable(run, inner, 8), inner, 2, 0)
+
+    def counted(feet_y, controller=None):
+        put(run, players[2], 1.0, feet_y)
+        run.word(players[2] + 0x494, controller or 0)
+        run.emu.mem_write(inner + R_STATE + 0x10, struct.pack("<I", 1 << 2))
+        run.thiscall(SYMBOLS["rn_tick"], inner, 50, time, 1)
+        return zone(run, inner, 0)["count"][0] == 1
+    crouched, body = run.allocate(4), run.allocate(0x200)
+    run.word(crouched, body)
+    run.emu.mem_write(body + 0x1D0, struct.pack("<3f", 0.275, 0.275, 0.275))
+    run.word(body + 0x1F0, 1)
+    check("inside: feet on the unit's top in, 0.1 m over it (a floor above) out; a standing head from 1.8 m "
+          "below in; the same crouched (half height 0.55 from the controller) out",
+          counted(1.9) and not counted(2.1) and counted(-3.5) and not counted(-3.5, crouched) and counted(-2.5, crouched))
+    put(run, players[2], 1000.0)
+    run.word(players[2] + 0x494, 0)
+
     # 7. The hud's points and completed.
     hud = run.allocate(0x100)
     run.emu.mem_write(hud + 0x94, b"\xff\xff")             # the hud state's constructor's (0x278D86)

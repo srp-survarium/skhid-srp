@@ -1836,3 +1836,4 @@ va	name	source	ret_cleanup	result
 0x002375c0	survarium::game_world_ui::show_parametrized_message	manual	16	
 0x000725e0	vostok::math::create_rotation	manual	0	[ESI]: float4x4, rows Rx(-x) Ry(-y) Rz(-z) (v * M)
 0x002d2770	survarium::game_world_core::deserialize	manual	12	
+0x0007f5c0	vostok::physics::bullet_character_controller::get_transform	manual	0	[ECX]: the controller's matrix (+80h), its translation moved down by heights[(stance+2)%3] + heights[stance] (half the capsule's height): the feet

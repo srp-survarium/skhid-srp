@@ -4314,3 +4314,5 @@ va	name	location	role	basis
 0x002d2770	survarium::game_world_core::deserialize	entry ESP+4	the world core (EBP in the body)	observed
 0x002d2770	survarium::game_world_core::deserialize	entry ESP+8	the snapshot (EBX in the body): the rules' reader {start, cursor, end} from +0B7EE4h	observed
 0x002d2770	survarium::game_world_core::deserialize	entry ESP+12	a dword passed on to every rule's deserialize (slot 16, [vtable+40h]) as its second argument: 0x2D2B42 push [esp+84h], push &reader, call, no clean-up	observed
+0x0007f5c0	vostok::physics::bullet_character_controller::get_transform	ESI	the controller ([[player+494h]]): +80h matrix, +1D0h float heights[3], +1F0h stance	observed
+0x0007f5c0	vostok::physics::bullet_character_controller::get_transform	ECX	the transform written (64 bytes)	observed

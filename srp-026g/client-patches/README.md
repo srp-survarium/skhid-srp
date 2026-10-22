@@ -2819,7 +2819,10 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   hierarchy (its base class descriptors reused), not tdm_rule_cook's (the first build's).
 - **The tick** (`research_rule_026g.c`): only in play (the time rule's state 3, world+18FE4h);
   the players of the places entered, alive (+33Ch) and in the world (+33Fh), their team (+6B8h ->
-  +45ECh) and position (+43Ch, the capsule's centre); the units' capture (0.27d's 0x324070), the
+  +45ECh), feet (+43Ch, the player's transform) and capsule (half its height from the character
+  controller, `[[+494h]]` +1D0h/+1F0h, as get_transform 0x7F5C0 takes it; 0.38 m round): inside a
+  unit when the capsule standing on the feet overlaps one of its shapes (the first build took the
+  feet for the capsule's centre: a floor up to 0.9 m over a unit took it); the units' capture (0.27d's 0x324070), the
   teams' points (0x31EEC0), the end 3 s after 100; the shares of a capture (0.27d's water-fill,
   0x31E920) counted in the statistics' events 6 and 18 (hundredths), a kill invader in event 10;
   the statistics' tail: `m_team_points` the scores, `m_winner_team` the leader.

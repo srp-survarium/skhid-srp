@@ -60,30 +60,62 @@ void rr_reset(struct rr_state *state, const struct rr_params *params) {
 
 static float absolute(float value) { return value < 0 ? -value : value; }
 
-static int inside_shape(const struct rr_params *params, const struct rr_shape *shape, const float p[3]) {
-    float d[3] = {p[0] - shape->centre[0], p[1] - shape->centre[1], p[2] - shape->centre[2]};
-    float local[3];
-    for (int axis = 0; axis < 3; ++axis)
-        local[axis] = shape->axes[axis][0] * d[0] + shape->axes[axis][1] * d[1] + shape->axes[axis][2] * d[2];
-    if (shape->type == RR_SPHERE) {
-        /* the capsule's axis is vertical: its nearest point to the centre */
-        float up = absolute(local[1]) - params->half_height;
-        float radius = shape->half[0] + params->reach;
-        up = up < 0 ? 0 : up;
-        return local[0] * local[0] + up * up + local[2] * local[2] <= radius * radius;
-    }
-    if (absolute(local[1]) > shape->half[1] + params->half_height) return 0;
-    if (shape->type == RR_BOX)
-        return absolute(local[0]) <= shape->half[0] + params->reach &&
-               absolute(local[2]) <= shape->half[2] + params->reach;
-    float radius = shape->half[0] + params->reach;
-    return local[0] * local[0] + local[2] * local[2] <= radius * radius;
+static float root(float value) {
+    float out;
+    __asm__("sqrtss %1, %0" : "=x"(out) : "x"(value));
+    return out;
 }
 
-int rr_inside(const struct rr_params *params, rr_u32 zone, const float position[3]) {
+static float positive(float value) { return value > 0 ? value : 0; }
+
+/* The squared distance from a point to a shape (0 inside it). */
+static float distance2(const struct rr_shape *shape, const float p[3]) {
+    float d[3] = {p[0] - shape->centre[0], p[1] - shape->centre[1], p[2] - shape->centre[2]};
+    float l[3];
+    for (int axis = 0; axis < 3; ++axis)
+        l[axis] = shape->axes[axis][0] * d[0] + shape->axes[axis][1] * d[1] + shape->axes[axis][2] * d[2];
+    if (shape->type == RR_SPHERE) {
+        float out = positive(root(l[0] * l[0] + l[1] * l[1] + l[2] * l[2]) - shape->half[0]);
+        return out * out;
+    }
+    if (shape->type == RR_BOX) {
+        float x = positive(absolute(l[0]) - shape->half[0]), y = positive(absolute(l[1]) - shape->half[1]),
+              z = positive(absolute(l[2]) - shape->half[2]);
+        return x * x + y * y + z * z;
+    }
+    float radial = positive(root(l[0] * l[0] + l[2] * l[2]) - shape->half[0]);
+    float axial = positive(absolute(l[1]) - shape->half[1]);
+    return radial * radial + axial * axial;
+}
+
+/* 0.27d's test is the physics' overlap of the unit's trigger shapes and the
+ * player's capsule (capturable_zone_core's enter 0x324350 gets the colliding
+ * objects' owners). Here: the capsule's segment, vertical, from reach above
+ * the feet to reach below its top, and the shape: the nearest they come
+ * (the distance along the segment is convex: a ternary search) is at most
+ * the capsule's radius. Bullet's collision margin is not counted. */
+static int inside_shape(const struct rr_params *params, const struct rr_shape *shape, const float feet[3],
+                        float half_height) {
+    float r = params->reach, lo = feet[1] + r, hi = feet[1] + 2 * half_height - r;
+    if (hi < lo) lo = hi = feet[1] + half_height;
+    float p[3] = {feet[0], lo, feet[2]};
+    for (int i = 0; i < 40 && hi - lo > 0.0005f; ++i) {
+        float a = lo + (hi - lo) / 3, b = hi - (hi - lo) / 3, da, db;
+        p[1] = a;
+        da = distance2(shape, p);
+        p[1] = b;
+        db = distance2(shape, p);
+        if (da <= db) hi = b;
+        else lo = a;
+    }
+    p[1] = (lo + hi) / 2;
+    return distance2(shape, p) <= r * r;
+}
+
+int rr_inside(const struct rr_params *params, rr_u32 zone, const float feet[3], float half_height) {
     const struct rr_zone_def *def = &params->zones[zone];
     for (rr_u32 s = 0; s < def->shape_count; ++s)
-        if (inside_shape(params, &def->shapes[s], position)) return 1;
+        if (inside_shape(params, &def->shapes[s], feet, half_height)) return 1;
     return 0;
 }
 
@@ -184,7 +216,7 @@ rr_u32 rr_tick(struct rr_state *state, const struct rr_params *params, const str
         for (rr_u32 i = 0; i < RR_PLAYERS; ++i) {
             const struct rr_player *player = &players[i];
             if (!(state->entered >> i & 1) || !player->alive || player->team > 1) continue;
-            if (rr_inside(params, z, player->position)) present[player->team] |= 1u << i;
+            if (rr_inside(params, z, player->position, player->half_height)) present[player->team] |= 1u << i;
         }
         for (rr_u32 t = 0; t < 2; ++t) {
             rr_u32 came = present[t] & ~zone->present[t];

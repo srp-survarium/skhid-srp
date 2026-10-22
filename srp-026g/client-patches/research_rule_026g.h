@@ -60,7 +60,7 @@ struct rr_params {
     rr_u32 zone_count;
     struct rr_zone_def zones[RR_MAX_ZONES];
     float reach;                       /* a player's capsule radius, m */
-    float half_height;                 /* a player's capsule half height, m */
+    float half_height;                 /* half a capsule's height, m, when the game gives none */
 };
 
 struct rr_zone {
@@ -82,11 +82,14 @@ struct rr_state {
     struct rr_zone zones[RR_MAX_ZONES];
 };
 
-/* One player as the world has him this tick. */
+/* One player as the world has him this tick: his capsule stands on
+ * `position` (the player's transform, the feet: research_mode.md "Inside")
+ * and is 2 x `half_height` tall, `reach` (rr_params) round. */
 struct rr_player {
     rr_u8 alive;                       /* alive and in the world */
     rr_u8 team;                        /* 0 or 1 (other: never counted) */
-    float position[3];                 /* the capsule's centre */
+    float position[3];                 /* the feet */
+    float half_height;                 /* half the capsule's height (0.9 standing) */
 };
 
 /* What a tick or an event asks the game to count (statistics events). */
@@ -111,7 +114,9 @@ void rr_reset(struct rr_state *, const struct rr_params *);
  * in thousandths; returns 0 when the parameters cannot be played. */
 int rr_prepare(struct rr_params *, rr_u32 restore_permille);
 
-int rr_inside(const struct rr_params *, rr_u32 zone, const float position[3]);
+/* Whether a capsule standing on `feet`, 2 x `half_height` tall and
+ * params->reach round, overlaps one of the zone's shapes. */
+int rr_inside(const struct rr_params *, rr_u32 zone, const float feet[3], float half_height);
 
 /* One tick of the match in play (the time rule's state 3): the zones, then
  * the teams' points. players[i] is roster place i (only `entered` ones are
