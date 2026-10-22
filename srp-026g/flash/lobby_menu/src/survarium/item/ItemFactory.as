@@ -19,7 +19,6 @@ package survarium.item
    import survarium.constants.ItemRank;
    import survarium.constants.ModificationState;
    import survarium.constants.ModifierType;
-   import survarium.constants.PropertyDirection;
    import survarium.constants.QuickSlotSize;
    import survarium.constants.SuperCategory;
    import survarium.constants.VoucherType;
@@ -482,7 +481,7 @@ package survarium.item
             {
                postfix = propDesc.modifier_type == ModifierType.ADD ? propDesc.postfix : "%";
                sign = prop.prop_value >= 0 ? "+" : "";
-               color = propDesc.direction == PropertyDirection.LOWER_IS_BETTER && prop.prop_value < 0 || propDesc.direction == PropertyDirection.HIGHER_IS_BETTER && prop.prop_value > 0 ? "green" : "red";
+               color = ModificationRolls.style(propDesc,prop.prop_id,ModificationRolls.value(prop));
                propValue = propDesc.modifier_type == ModifierType.ADD ? (prop.prop_value) : prop.prop_value * 100;
                line = propDesc.prop_name + ": " + Util.styledChar(sign + propValue + (postfix ? postfix : ""),color);
                modifier.textValue += line + "\n";
@@ -539,7 +538,7 @@ package survarium.item
                {
                   postfix = propDesc.modifier_type == ModifierType.ADD ? propDesc.postfix : "%";
                   sign = prop.prop_value >= 0 ? "+" : "";
-                  color = propDesc.direction == PropertyDirection.LOWER_IS_BETTER && prop.prop_value < 0 || propDesc.direction == PropertyDirection.HIGHER_IS_BETTER && prop.prop_value > 0 ? "green" : "red";
+                  color = ModificationRolls.style(propDesc,prop.prop_id,ModificationRolls.value(prop));
                   propValue = propDesc.modifier_type == ModifierType.ADD ? (prop.prop_value) : prop.prop_value * 100;
                   line = propDesc.prop_name + ": " + Util.styledChar(sign + propValue + (postfix ? postfix : ""),color);
                   modifiers[i].textValue += line + "\n";
@@ -565,7 +564,7 @@ package survarium.item
                }
                propValue = propDesc.modifier_type == ModifierType.ADD ? (prop.prop_value) : prop.prop_value * 100;
                propValue = Math.round(propValue / 0.01) * 0.01;
-               color = propDesc.direction == PropertyDirection.LOWER_IS_BETTER && prop.prop_value < 0 || propDesc.direction == PropertyDirection.HIGHER_IS_BETTER && prop.prop_value > 0 ? "green" : "red";
+               color = ModificationRolls.style(propDesc,prop.prop_id,ModificationRolls.value(prop));
                totalLine = propDesc.prop_name + ": " + Util.styledChar(sign + propValue + postfix,color);
                if(!prop.modifier.textValue)
                {
@@ -697,7 +696,7 @@ package survarium.item
                   }
                   trace("propValue::",propDesc.direction,prop.direction);
                   propValue = propDesc.modifier_type == ModifierType.ADD ? (prop.prop_value) : prop.prop_value * 100;
-                  color = propDesc.direction == PropertyDirection.LOWER_IS_BETTER && prop.prop_value < 0 || propDesc.direction == PropertyDirection.HIGHER_IS_BETTER && prop.prop_value > 0 ? "green" : "red";
+                  color = ModificationRolls.style(propDesc,prop.prop_id,ModificationRolls.value(prop));
                   propsText += propDesc.prop_name + ": " + Util.styledChar(sign + (int(propValue) == propValue ? propValue.toString() : propValue.toFixed(1)) + postfix,color) + "\n";
                }
             }

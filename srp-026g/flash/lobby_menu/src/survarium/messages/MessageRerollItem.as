@@ -22,6 +22,7 @@ package survarium.messages
    import survarium.core.Icon;
    import survarium.data.IconContainer;
    import survarium.data.LocalizationData;
+   import survarium.item.ModificationRolls;
    import survarium.constants.ModificationState;
    import survarium.constants.MoneyType;
    import survarium.constants.RerollChoice;
@@ -171,7 +172,7 @@ package survarium.messages
                         icon:modifierIcon,
                         label:modifier.textValue
                      };
-                     options.push(option);
+                     options.push(ModificationRolls.withRange(option,modifier));
                   }
                   i++;
                }
@@ -215,7 +216,7 @@ package survarium.messages
                icon:modifierIcon,
                label:modifier.textValue
             };
-            options.push(option);
+            options.push(ModificationRolls.withRange(option,modifier));
             i++;
          }
          this.showModifierSelection(selectedModifier,options);
@@ -275,7 +276,7 @@ package survarium.messages
                   reroll_available:!modifier.was_rerolled_before,
                   locked:rerolledIndex == i && noneRerolled == false
                };
-               options.push(option);
+               options.push(ModificationRolls.withRange(option,modifier));
                i++;
             }
             trace("modifiersToReroll",modifierCount,options.length,rerolledIndex,noneRerolled);
