@@ -16,6 +16,7 @@ package survarium.item
    import survarium.constants.ItemDefaults;
    import survarium.constants.ItemDictId;
    import survarium.constants.ItemPlace;
+   import survarium.constants.ItemRank;
    import survarium.constants.ModificationState;
    import survarium.constants.ModifierType;
    import survarium.constants.QuickSlotSize;
@@ -171,6 +172,36 @@ package survarium.item
          return index == -1 ? dictId : int(ItemDictId.GOLDEN_PLAIN[index]);
       }
       
+      // Modification 1230, +10 % silver, as the exe gives the movie a modification ({state, icon,
+      // name, props} from its ui_desc; the name is unused for a modification): the one srp gives a
+      // new golden weapon, in its first place (golden::starting_modifications). A test holds these
+      // to the data (survarium::v026g::golden::tests).
+      public static const GOLDEN_SILVER_ICON:int = 66;
+      
+      public static const GOLDEN_SILVER_PROP_ID:int = 126;
+      
+      public static const GOLDEN_SILVER_PROP_VALUE:String = "0.10";
+      
+      // The modifications of its own a new item of dictId has, as srp gives them
+      // (golden::starting_modifications): the silver bonus for a golden weapon, none for anything
+      // else. For entries of items not owned (the shop's, a bundle's contents); an owned item has
+      // the server's.
+      public static function startingModifiers(dictId:int) : Array
+      {
+         if(!isGolden(dictId))
+         {
+            return [];
+         }
+         return [{
+            state:ModificationState.MODIFICATION,
+            icon:GOLDEN_SILVER_ICON,
+            props:[{
+               prop_id:GOLDEN_SILVER_PROP_ID,
+               prop_value:GOLDEN_SILVER_PROP_VALUE
+            }]
+         }];
+      }
+      
       // Whether an item of donorDictId may be used up to upgrade one of
       // itemDictId, as the server has it (golden::may_donate): the same
       // item, or for a golden weapon its plain weapon and its other golden
@@ -180,9 +211,11 @@ package survarium.item
          return donorDictId == itemDictId || isGolden(itemDictId) && plainOf(donorDictId) == plainOf(itemDictId);
       }
       
+      // Skhid: not with three modifications (rank MAX; the server refuses its craft): the item
+      // panel's Upgrade and the right-click menu's entry are off then (owner 2026-10-22).
       public static function isItemCraftable(value:ItemData) : Boolean
       {
-         return !value.isStack && value.descriptor <= ItemPlace.INVENTORY && !value.repairTime && (value.superCategory == SuperCategory.EQUIPMENT || value.superCategory == SuperCategory.WEAPONS || value.superCategory == SuperCategory.AMMO);
+         return !value.isStack && value.descriptor <= ItemPlace.INVENTORY && !value.repairTime && value.rank < ItemRank.MAX && (value.superCategory == SuperCategory.EQUIPMENT || value.superCategory == SuperCategory.WEAPONS || value.superCategory == SuperCategory.AMMO);
       }
       
       public function registerItemDescriptor(link:ItemDescriptor) : void

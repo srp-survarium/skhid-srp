@@ -14,7 +14,7 @@ modification reroll of the Upgrade window; the price is paid anyway. Code:
 - **Pending:** nothing of the item changes until the answer. The server holds the offer (the old
   one and the three) with the item, saved with it.
 - **Price:** taken once, when the three are offered. Keeping the old one gives nothing back; the
-  change counts like any other: the next one costs 1.1 times more, silver waits six hours.
+  change counts like any other: the next one costs 1.1 times more (no wait since 2026-10-22).
 - **No second roll while one is pending:** asking again (silver or gold, any modification) shows
   the same three and takes nothing; a craft of the item is refused until the answer.
 - **One answer:** a choice or "keep old" ends the offer; a second answer is refused. The old and a

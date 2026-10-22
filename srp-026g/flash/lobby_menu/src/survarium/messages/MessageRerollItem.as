@@ -136,7 +136,9 @@ package survarium.messages
             this.labelText.text = LocalizationData.getName("item_modification");
             this.labelChooseModifier.text = LocalizationData.getName("choose_modifier");
             this.decriptionLabel.text = LocalizationData.getName("modifier_reroll_description");
-            this.decriptionTimerLabel.text = LocalizationData.getName("modifier_reroll_timer_description");
+            // Skhid: no "only one attempt in 6 hours" line: silver rerolls have no wait
+            // (items_rules: Reroll, the owner's rule of 2026-10-22)
+            this.decriptionTimerLabel.text = "";
             this.labelChooseModifier2.text = LocalizationData.getName("choose_modifier");
             this.checkBoxRegularCost.selected = true;
             this.checkBoxPremiumCost.selected = false;
