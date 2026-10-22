@@ -185,6 +185,12 @@ Patches:
   nothing in slot 7 or 10 was taken, and its spawn called through a null
   hands object (0x3217CC, a jump to thirteen instructions in int3 padding at
   0x844DD0: such a choice leaves the old kit, KIT_PICK_*);
+- the lobby's `stage.focus` with a focused object whose ActionScript
+  object is gone (patch 52, every full build): Scaleform's Stage.focus
+  getter (0x771FA0) read that object's traits through a null pointer
+  (access violation at 0x77200B, a key pressed in the lobby, 2026-10-22).
+  The 46 bytes at 0x771FED test the pointer as FocusManager.getFocus does
+  and read null instead (STAGE_FOCUS);
 - the late join (patch revision 5; the default build only, not
   --cave=hash-mismatch): a player enters a match that is being played.
   The game keeps room for twenty players from the first connection (three
@@ -570,7 +576,7 @@ HASH_INTERVAL_MS = 50                         # = one tick
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 27
+REVISION = 29
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -1189,6 +1195,40 @@ KIT_PICK_CAVE = (bytes.fromhex("0fb6c0" "8b0481" "85c0" "741c"            # movz
 KIT_PICK_CAVE_SITE = (KIT_PICK_CAVE_VA, bytes.fromhex("cc") * len(KIT_PICK_CAVE), KIT_PICK_CAVE)
 KIT_PICK_HOOK = (KIT_PICK_VA, bytes.fromhex("0fb6c0" "833c8100" "7503"),
                  bytes([0xE9]) + struct.pack("<i", KIT_PICK_CAVE_VA - (KIT_PICK_VA + 5)) + b"\xCC" * 4)
+# The lobby's `stage.focus` reads null for a focused object whose
+# ActionScript object is gone (patch 52, README; client_patch.md section
+# 3.49). Scaleform's flash.display.Stage focus getter (0x771FA0, called by
+# the thunk 0x7750F0 of the ThunkInfo "focus" at 0x8F1E40) takes MovieImpl's
+# focused InteractiveObject (the weak pointer of
+# FocusGroups[FocusGroupIndexes[0]], +3B64h + 40h x byte [+3F54h], locked
+# by 0x514370), its AvmInteractiveObj (vtable +4 of the interface at byte
+# [obj+41h], minus 1Ch) and that one's ActionScript object (the raw pointer
+# +8, else the collectible one +4, bit 0 cleared), and reads its traits'
+# type ([as3+14h], +3Ch) for an InteractiveObject (12h, or 17h and up)
+# with no test of either: Scaleform's Stage::focusGet tests only the
+# focused object (its FocusManager.getFocus tests the ActionScript object
+# too). That object is gone when the collector freed it while the display
+# object lived on (~DisplayObject calls AvmDisplayObj::ReleaseAS3Obj), and
+# AS3's removeChild leaves the focus where it is (only an unload resets it,
+# MovieImpl::ResetFocusForChar). The lobby then died at 0x77200B on a key:
+# lobby_menu's key handler (0x26CB80) invokes root.has_active_window, which
+# reads `stage.focus is DropdownMenu` (2026-10-22 04:44, a second after an
+# upgrade). The 46 bytes from 0x771FED (`test eax,eax` after the
+# interface call) to 0x77201B (the result's assignment) become the same
+# reads with both tests: no AvmInteractiveObj or no ActionScript object
+# goes to 0x772031, the null result, as a focused object of another type
+# did. ecx only, as before; eax at 0x77201B the object, as before. Every
+# jump of the old bytes stayed inside them; nothing else aims inside, and
+# no base relocation is under them. Every full build. The lobby and the
+# hud only.
+STAGE_FOCUS = (0x771FED,
+               bytes.fromhex("85c0" "7405" "83c0e4" "eb02" "33c0" "8b4808" "85c9" "7404" "8bc1" "eb03" "8b4004"
+                             "a801" "7401" "48" "8b4814" "8b493c" "83f912" "7405" "83f917" "7c16"),
+               # test eax,eax / jz null / mov ecx,[eax-14h] / test ecx,ecx / jnz +3 / mov ecx,[eax-18h] /
+               # and ecx,-2 / jz null / mov eax,ecx / mov ecx,[eax+14h] / mov ecx,[ecx+3Ch] / cmp ecx,12h /
+               # jz 0x77201B / cmp ecx,17h / jge 0x77201B / null: jmp short 0x772031 / 7 nop
+               bytes.fromhex("85c0" "7421" "8b48ec" "85c9" "7503" "8b48e8" "83e1fe" "7412" "89c8" "8b4814" "8b493c"
+                             "83f912" "740e" "83f917" "7d09" "eb1d") + b"\x90" * 7)
 
 # Spotting (patch 38, README; client_patch.md section 3.35; the rules:
 # ../docs/notes/spotting.md). base_player::apply_new_input (0x2D86E0): an
@@ -2188,6 +2228,10 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
         patch(data, *site)
         if neutralize_relocs(data, [(site[0], site[0] + len(site[1]))]):
             sys.exit(f"{site[0]:#x}: a base relocation under the kit pick's code")
+    # Every build: `stage.focus` reads null for a focused object without its
+    # ActionScript object (patch 52; no relocation under the 46 bytes).
+    patch(data, *STAGE_FOCUS)
+    rewritten.append((STAGE_FOCUS[0], STAGE_FOCUS[0] + len(STAGE_FOCUS[1])))
     if mode == "hash-mismatch":
         if len(cave) > HASH_MISMATCH_SIZE:
             sys.exit(f"the cave code is {len(cave)} bytes; {HASH_MISMATCH_SIZE} fit")
@@ -2649,6 +2693,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
     struct.pack_into("<I", data, headers.checksum_at, pe_checksum(data, headers.checksum_at))
     return data, (f"certificate check, mutex, minimum VRAM check, hash interval {HASH_INTERVAL_MS} ms, "
                   f"patch revision {revision}, battery rule, mount without a root, no journal by default, "
+                  "stage.focus null for a focused object without its ActionScript object, "
                   f"{upload_size} bytes of upload code {where} "
                   f"({len(relocs)} relocations disabled), {len(HOOKS)} snapshot hooks"
                   + (f", late join ({len(late_join)} bytes of code at {LATE_JOIN_VA:#x}, "

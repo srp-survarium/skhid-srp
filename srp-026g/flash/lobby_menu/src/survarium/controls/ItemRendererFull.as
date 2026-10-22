@@ -5,6 +5,7 @@ package survarium.controls
    import flash.text.TextField;
    import survarium.Util;
    import survarium.constants.Colors;
+   import survarium.item.ItemFactory;
    import survarium.data.ItemData;
    import survarium.constants.ItemCondition;
    import survarium.constants.ItemRank;
@@ -95,6 +96,11 @@ package survarium.controls
          else
          {
             nameColor = Colors.LIGHT_GRAY;
+         }
+         // Skhid: a golden item's name is gold, whatever its rank (golden_weapons.md, premium_armour.md)
+         if(ItemFactory.isGolden(item.dictId))
+         {
+            nameColor = Colors.GOLD;
          }
          this.textName.textField.textColor = nameColor;
          this.textLevel.text = item.itemLevel.toString();

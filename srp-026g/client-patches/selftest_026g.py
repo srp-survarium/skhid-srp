@@ -396,6 +396,13 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     0x3217CC, the cave in the int3 run at 0x844DC2, the two slots
     base_player::initialize puts in hands, no relocation under them and
     nothing aims inside. check_relay_guards_026g.py runs both.
+52. every full build: Scaleform's Stage focus getter (0x771FA0) gives null
+    for a focused object without its ActionScript object (patch 52,
+    STAGE_FOCUS), where the original read its traits through null: the 46
+    bytes at 0x771FED and the getter around them, its member pointer and
+    ThunkInfo "focus", no relocation under them, nothing aims inside, the
+    lobby's key handler invoking root.has_active_window; cert-only keeps
+    the original. check_stage_focus_026g.py runs it.
 """
 
 import ctypes
@@ -779,6 +786,9 @@ def allowed_ranges(original, mode, cave_size, server=None):
     for va, old, _ in (P.WEAPON_SWITCH, P.KIT_PICK_HOOK, P.KIT_PICK_CAVE_SITE):
         ranges.append((P.file_offset(va), len(old)))
         rewritten.append((va, va + len(old)))
+    # Patch 52: the Stage focus getter's 46 bytes (test_stage_focus).
+    ranges.append((P.file_offset(P.STAGE_FOCUS[0]), len(P.STAGE_FOCUS[1])))
+    rewritten.append((P.STAGE_FOCUS[0], P.STAGE_FOCUS[0] + len(P.STAGE_FOCUS[1])))
     if server is not None:
         va, old = P.DEFAULT_SERVER_HOOK
         ranges.append((P.file_offset(va), len(old)))
@@ -1113,10 +1123,14 @@ def test_start_up_folder(original, image, mode):
               and image.read(P.TAB_SELF[0], len(P.TAB_SELF[1])) == P.TAB_SELF[1],
               "cert-only: mounter::finish, the journal's default and on_activate's name (patch 43) are the "
               "original's")
+        check(image.read(P.STAGE_FOCUS[0], len(P.STAGE_FOCUS[1])) == P.STAGE_FOCUS[1],
+              "cert-only: the Stage focus getter (patch 52) is the original's")
         return
     check(image.read(P.TAB_SELF[0], len(P.TAB_SELF[2])) == P.TAB_SELF[2],
           f"{P.TAB_SELF[0]:#x}: patch 43's `jmp short` with the journal off by default: on_activate gives the hud "
           "its player's name (test_tab_self)")
+    check(image.read(P.STAGE_FOCUS[0], len(P.STAGE_FOCUS[2])) == P.STAGE_FOCUS[2],
+          f"{P.STAGE_FOCUS[0]:#x}: patch 52's tests in the Stage focus getter (test_stage_focus)")
     # mounter::finish from the read of the mount's root to its `ret 0Ch`.
     start, end = 0x46B04, 0x46B3D
     tail = ["mov eax,[eax+0x34]", "test eax,eax", "jnz 0x46b0f", "xor ecx,ecx", "jmp short 0x46b12",
@@ -3666,6 +3680,62 @@ def test_suicide_key(original, image, before):
           "relocation) and no base relocation is under it" + "".join(f", {h:#x}" for h in hits + under))
 
 
+def test_stage_focus(original, image, before):
+    """Check 52: Scaleform's Stage focus getter (0x771FA0) gives null for a
+    focused object without its ActionScript object (patch 52, STAGE_FOCUS),
+    where the original read that object's traits through null (the lobby's
+    access violation at 0x77200B, 2026-10-22). Every full build.
+    check_stage_focus_026g.py runs it."""
+    stock = Image(original)
+    rows = lambda img, at, size: [text for _, _, text in ndisasm(img.read(at, size), at)]
+    va, old, new = P.STAGE_FOCUS
+    check(stock.read(va, len(old)) == old and before.read(va, len(new)) == new == image.read(va, len(new)),
+          f"{va:#x}: the original's 46 bytes, the new ones here and in the build without the late join")
+    head = ["push ecx", "mov eax,[ecx+0x14]", "mov ecx,[eax+0x40]", "mov edx,[ecx+0x1a8]", "mov eax,[edx+0x8]",
+            "movzx edx,byte [eax+0x3f54]", "push esi", "lea ecx,[esp+0x4]", "shl edx,byte 0x6", "push ecx",
+            "lea ecx,[edx+eax+0x3b64]", "call 0x514370", "mov esi,[esp+0x4]", "test esi,esi", "jz 0x772031",
+            "inc dword [esi+0x4]", "mov ecx,esi", "call 0x505c90", "movzx eax,byte [esi+0x41]",
+            "mov edx,[esi+eax*4]", "lea ecx,[esi+eax*4]", "mov eax,[edx+0x4]", "call eax"]
+    tail = ["mov ecx,[esp+0xc]", "push eax", "call 0x790e40", "mov ecx,esi", "call 0x505c90", "pop esi", "pop ecx",
+            "ret 0x4", "push edi", "mov edi,[esp+0x10]", "mov ecx,[edi]", "test ecx,ecx"]
+    reads = ["mov ecx,[eax+0x14]", "mov ecx,[ecx+0x3c]", "cmp ecx,byte +0x12"]
+    check(rows(stock, 0x771FA0, 0x77203A - 0x771FA0) == head + [
+              "test eax,eax", "jz 0x771ff6", "add eax,byte -0x1c", "jmp short 0x771ff8", "xor eax,eax",
+              "mov ecx,[eax+0x8]", "test ecx,ecx", "jz 0x772003", "mov eax,ecx", "jmp short 0x772006",
+              "mov eax,[eax+0x4]", "test al,0x1", "jz 0x77200b", "dec eax"] + reads + [
+              "jz 0x77201b", "cmp ecx,byte +0x17", "jl 0x772031"] + tail,
+          "the original: the focus group's weak pointer (MovieImpl +3B64h + 40h x [+3F54h]) locked by 0x514370; "
+          "no focus -> 0x772031 (null); else the interface's vtable +4 minus 1Ch (0 for none), its raw pointer "
+          "(+8) or collectible one (+4, bit 0 cleared), and that object's traits type ([+14h], +3Ch) read untested: "
+          "12h or 17h and up -> 0x77201B (the result), else 0x772031")
+    check(rows(image, 0x771FA0, 0x77203A - 0x771FA0) == head + [
+              "test eax,eax", "jz 0x772012", "mov ecx,[eax-0x14]", "test ecx,ecx", "jnz 0x771ffb",
+              "mov ecx,[eax-0x18]", "and ecx,byte -0x2", "jz 0x772012", "mov eax,ecx"] + reads + [
+              "jz 0x77201b", "cmp ecx,byte +0x17", "jnl 0x77201b", "jmp short 0x772031"] + ["nop"] * 7 + tail,
+          "here the same reads with no interface or no ActionScript object -> 0x772031 (null); eax at 0x77201B "
+          "the object, as before")
+    # The getter is flash.display.Stage's `focus`: the static initializer
+    # sets the thunk's member pointer, and the ThunkInfo names it.
+    check(rows(stock, 0x865D10, 12) == ["mov eax,0x771fa0", "xor ecx,ecx", "mov [0xaff180],eax"]
+          and "call [dword 0xaff180]" in rows(stock, 0x7750F0, 0x35)
+          and struct.unpack("<I", stock.read(0x8F1E40, 4))[0] == 0x7750F0
+          and stock.read(struct.unpack("<I", stock.read(0x8F1E48, 4))[0], 6) == b"focus\0",
+          "0x865D10 makes 0x771FA0 the member pointer at 0xAFF180, which the thunk 0x7750F0 calls; the ThunkInfo "
+          "at 0x8F1E40 gives that thunk the name \"focus\"")
+    # The lobby's key handler asks the movie whether a window is open, which
+    # reads `stage.focus` (LobbyMenu.has_active_window).
+    check("push dword 0xa07404" in rows(stock, 0x26CBDB, 0x28) and "call 0x511600" in rows(stock, 0x26CBDB, 0x28)
+          and stock.read(0xA07404, 23) == b"root.has_active_window\0",
+          "0x26CBF9 invokes root.has_active_window (0xA07404) on every key in the lobby")
+    under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+    spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
+    hits = [h for h in aimed_inside(original, va, len(old), 0x82) if h not in spelled and not va <= h < va + len(old)
+            and starts_instruction(stock, h)]
+    check(not under and not hits,
+          "no base relocation under the 46 bytes, and no branch from outside them aims inside (their own jumps "
+          "stay inside)" + "".join(f", {h:#x}" for h in hits + under))
+
+
 def test_spot(original, image, before):
     """Check 38: spotting (patch 38, SPOT_*). check_spot_026g.py runs the
     input apply with the game's own spottable code on made-up hits."""
@@ -4783,6 +4853,7 @@ def test_late_join(original, without, server, source):
     test_tab_self(original, image, before)
     test_relay_guards(original, image, before)
     test_spot(original, image, before)
+    test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)
     test_required_patches(original, data, server)

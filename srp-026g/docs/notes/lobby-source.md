@@ -158,3 +158,16 @@ in the classes that own it:
   `ItemFactory.filterGroup`.
 
 Its texts are data: `scripts/content-edit/weapon-attachments-1.json` (a manifest row).
+
+## The item search (2026-10-22)
+
+Ctrl+F over an item list ([item-search.md](item-search.md)), written in the classes that own it:
+
+- the box, its keys and the matching: `InventoryList` (`makeSearch`, `onSearchKey`, `closeSearch`,
+  `applySearch`, `searchItems`); the search narrows what `ApplyInventoryFilter` lists, after the
+  list's own filters and sort; the grid's height while the box shows: `onFilterShowed`;
+- Esc in the box: `LobbyMenu.close_active_window`; the exe's window keys while Ctrl is held over the
+  list: `LobbyMenu.windowKeysOff`; the Ctrl keys: `onKeyDownStage`, `onKeyUpStage`,
+  `MainScene.isCtrl`, `KeyCode`;
+- the box's words in the five languages are the code's own (`InventoryList.SEARCH_WORD`, the
+  language by `RoomsText.language`); no content edit.

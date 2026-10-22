@@ -145,6 +145,11 @@ package survarium.item
          {
             nameColor = Colors.LIGHT_GRAY;
          }
+         // Skhid: a golden item's name is gold, whatever its rank (golden_weapons.md, premium_armour.md)
+         if(ItemFactory.isGolden(item.dictId))
+         {
+            nameColor = Colors.GOLD;
+         }
          this.textName.textField.textColor = nameColor;
          this.textLevel.text = item.itemLevel.toString();
          this.textLevel.visible = item.itemLevel > 0 && item.superCategory != SuperCategory.UPGRADES;

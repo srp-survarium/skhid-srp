@@ -469,6 +469,12 @@ pub const GEAR_MENDED: &str = "gear_mended";
 /// (`GameAccounts::give_golden_silver_once`): it is written after them.
 pub const GOLDEN_SILVER_GIVEN: &str = "golden_silver_given";
 
+/// The `g26_meta` key that says the premium armour owned got its premium
+/// bonuses as its own modifications, and the accounts were written
+/// (`GameAccounts::give_premium_armour_bonuses_once`): it is written after
+/// them.
+pub const PREMIUM_ARMOUR_GIVEN: &str = "premium_armour_given";
+
 fn schema_version(connection: &Connection) -> Result<i64, PersistError> {
     connection.execute_batch(
         "CREATE TABLE IF NOT EXISTS g26_meta (

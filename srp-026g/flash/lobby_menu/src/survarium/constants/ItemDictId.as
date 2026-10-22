@@ -82,6 +82,31 @@ package survarium.constants
          55 // uzi
       ];
       
+      // The premium armour (docs/notes/premium_armour.md), in the same places its plain pieces and
+      // the premium bonuses srp gives each as its own first modifications: the server's table
+      // (survarium::v026g::golden::PREMIUM_ARMOUR), which a test keeps the same. Golden items as the
+      // golden weapons are: their descriptor has no rarity since the premium-armour patch.
+      public static const PREMIUM_ARMOUR:Array = [
+         345, // scav_torso_4_premium
+         346, // scav_legs_4_premium
+         352, // bm_torso_4_premium
+         354 // bm_legs_4_premium
+      ];
+      
+      public static const PREMIUM_ARMOUR_PLAIN:Array = [
+         325, // scav_torso_4
+         326, // scav_legs_4
+         351, // bm_torso_4
+         353 // bm_legs_4
+      ];
+      
+      public static const PREMIUM_ARMOUR_BONUSES:Array = [
+         [1240,1250], // scav_torso_4_premium
+         [1240,1250], // scav_legs_4_premium
+         [1240,1260], // bm_torso_4_premium
+         [1240,1260] // bm_legs_4_premium
+      ];
+      
       public function ItemDictId()
       {
          super();

@@ -46,6 +46,7 @@ package
    import scaleform.gfx.InteractiveObjectEx;
    import scaleform.gfx.MouseCursorEvent;
    import scaleform.gfx.MouseEventEx;
+   import survarium.data.Relocation;
    import survarium.Util;
    import survarium.ammo.AmmoShareControll;
    import survarium.ammo.AmmoShareElement;
@@ -118,6 +119,7 @@ package
    import survarium.interfaces.IPlayerProfile;
    import survarium.item.InventoryItem;
    import survarium.item.ItemFactory;
+   import survarium.item.ModificationRolls;
    import survarium.managers.SubsystemManager;
    import survarium.messages.MessageAnnounce;
    import survarium.messages.MessageApply;
@@ -414,6 +416,10 @@ package
 
       // the upgrade window told the game (start_item_upgrade), so its close does too
       protected var _upgradeShown:Boolean = false;
+
+      // the upgrade window was opened from the shop: its list shows the inventory while it is open,
+      // the shop again after (shop-character-menu.md)
+      protected var _upgradeFromShop:Boolean = false;
 
       protected var backBlack:Sprite = new BackBlack();
       
@@ -1572,6 +1578,11 @@ package
          var oldData:ItemData;
          var curerrentSlot:IPaperDollSlot;
          var newData:ItemData;
+         if(hintTarget == this.itemHintRendererSec && this.craftOpen())
+         {
+            // The craft window's item, not an equipped one: the paper doll does not change it.
+            return;
+         }
          if((hintTarget.parent) && (hintTarget.data))
          {
             oldData = hintTarget.data as ItemData;
@@ -1600,6 +1611,12 @@ package
          }
       }
       
+      // Whether the craft (Upgrade) window is open.
+      private function craftOpen() : Boolean
+      {
+         return this.craftWindow != null && this.craftWindow.parent != null;
+      }
+
       private function showItemHint(e:ListEvent) : void
       {
          var secondData:Object;
@@ -1627,7 +1644,13 @@ package
          {
             this.itemHintRenderer.x = this.inventory_list.x + this._pdTarget.x - this.itemHintRenderer.width + 6;
          }
-         if(InventoryList.AllOW_COMPARE)
+         if(InventoryList.AllOW_COMPARE && this.craftOpen())
+         {
+            // With the item being upgraded, not the equipped one; none while the window has none
+            // (craft-menu.md, "Comparing items").
+            secondData = this.craftWindow.compareWith(e.itemData);
+         }
+         else if(InventoryList.AllOW_COMPARE)
          {
             secondData = this.player_profile.getRelativeData(e.itemData);
          }
@@ -1641,6 +1664,9 @@ package
             this.itemHintRendererSec.displaylabel(true);
             this.itemHintRenderer.itemCompare.setSecondaryWeapon(secondData);
             this.itemHintRendererSec.data = secondData;
+            // Both cards coloured, each against the other: the equipped (or the craft window's) one
+            // too (craft-menu.md, "Comparing items").
+            this.itemHintRendererSec.itemCompare.setSecondaryWeapon(e.itemData);
             addChild(this.itemHintRendererSec);
          }
          else
@@ -1674,6 +1700,49 @@ package
          this.setTopmostLevel(this.itemHintRendererSec,true);
       }
       
+      // A craft slot's item left of the window, compared with the other slot's; the item being
+      // upgraded always the left card (craft-menu.md, "Comparing items").
+      private function showCraftSlotHint(e:ListEvent) : void
+      {
+         if(!e.itemData || !this.craftOpen())
+         {
+            return;
+         }
+         this.hideItemHint(null);
+         var secondData:Object = InventoryList.AllOW_COMPARE ? this.craftWindow.slotCompareWith(e.itemRenderer) : null;
+         this.itemHintRenderer.mouseEnabled = this.itemHintRenderer.mouseChildren = false;
+         this.itemHintRendererSec.mouseEnabled = this.itemHintRendererSec.mouseChildren = false;
+         this.itemHintRenderer.displayOrange(true);
+         this.itemHintRenderer.displaylabel(secondData != null);
+         this.itemHintRenderer.itemCompare.setSecondaryWeapon(secondData);
+         this.itemHintRenderer.data = e.itemData;
+         addChild(this.itemHintRenderer);
+         this.itemHintRenderer.x = this.craftWindow.x - this.itemHintRenderer.width - 3;
+         this.itemHintRenderer.y = this.craftWindow.y;
+         if(secondData)
+         {
+            this.itemHintRendererSec.displaylabel(true);
+            this.itemHintRendererSec.data = secondData;
+            // both cards coloured, each against the other
+            this.itemHintRendererSec.itemCompare.setSecondaryWeapon(e.itemData);
+            addChild(this.itemHintRendererSec);
+            this.itemHintRendererSec.y = this.itemHintRenderer.y;
+            var hoveredMain:Boolean = e.itemRenderer == this.craftWindow.dragItemSlot1;
+            var left:ItemInfoRenderer = hoveredMain ? this.itemHintRenderer : this.itemHintRendererSec;
+            var right:ItemInfoRenderer = hoveredMain ? this.itemHintRendererSec : this.itemHintRenderer;
+            right.x = this.craftWindow.x - right.width - 3;
+            left.x = right.x - left.width - 1;
+            if(left.x < 0)
+            {
+               // no room on the left: both right of the window, in the same order
+               left.x = this.craftWindow.x + this.craftWindow.width + 3;
+               right.x = left.x + left.width + 1;
+            }
+         }
+         this.setTopmostLevel(this.itemHintRenderer,true);
+         this.setTopmostLevel(this.itemHintRendererSec,true);
+      }
+
       private function onHintTargetRender(e:Event) : void
       {
          if((this._pdTarget) && (this._pdTarget.data) && this._pdTarget.data.descriptor == ItemPlace.NONE)
@@ -1815,8 +1884,8 @@ package
       public function fill_crafted_item(value:Object) : void
       {
          // The exe names the donor's dictionary entry; the upgraded item is
-         // the window's first one, which differs for a golden weapon upgraded
-         // with its plain weapon (ItemFactory.isCraftDonor).
+         // the window's first one, which differs for a golden item upgraded
+         // with its plain item (ItemFactory.isCraftDonor).
          var main:Object = this.craftWindow ? this.craftWindow.dragItemSlot1.data : null;
          var itemData:ItemData = this.inventory_list.createItem(main ? main.dictId : value.dict_id);
          if((value.modifiers))
@@ -1838,6 +1907,8 @@ package
             icon = modifiersIconContainer.getIcon(newModifier.icon);
             newModifier.icon = icon;
             newModifier.label = newModifier.textValue;
+            // its range on hover, as in the reroll window (max-bonus.md)
+            ModificationRolls.withRange(newModifier,newModifier);
          }
          this.craftWindow.fillCraftedItem(itemData,value.result,newModifier);
       }
@@ -2034,12 +2105,28 @@ package
          }
          this.modifierWindow.removeEventListener(Event.CLOSE,this.closeModifierWindow);
          this.inventory_list.removeEventListener(Event.CLOSE,this.closeModifierWindow);
+         if(this._upgradeFromShop)
+         {
+            this.inventory_list.toggleShopMode(true);
+            _upgradeFromShop = false;
+         }
          this.inventory_list.focusCategory(SuperCategory.NO_FOCUS);
          this.inventory_list.mainTabBar.enabled = true;
          this.inventory_list.inventoryTabPage.enabled = true;
          this.inventory_list.updateItemCard = true;
          trace("closeModifierWindow::",this.item_control.mouseChildren);
+         // The keys go back to the lobby and the window leaves the display list (it was only
+         // hidden): the game turns the camera only when nothing of the movie is under the cursor
+         // (get_mouse_over) and no control has the keys (lobby.md, "The upgrade window's close").
+         if(stage != null && stage.focus != null && this.modifierWindow.contains(stage.focus as DisplayObject))
+         {
+            stage.focus = this;
+         }
          this.modifierWindow.visible = false;
+         if(this.modifierWindow.parent == this)
+         {
+            removeChild(this.modifierWindow);
+         }
          this.player_profile.visible = this.inventory_list.visible;
          this.dragRegion.mouseEnabled = true;
          if(this._upgradeShown)
@@ -2193,6 +2280,8 @@ package
          this.craftWindow.btnAccept.addEventListener(ButtonEvent.CLICK,this.onCloseCraft);
          this.craftWindow.btnClose.addEventListener(ButtonEvent.CLICK,this.onCloseCraft);
          this.craftWindow.addEventListener("closeCraft",this.closeCraftWindow);
+         this.craftWindow.addEventListener(ListEvent.ITEM_ROLL_OVER,this.showCraftSlotHint);
+         this.craftWindow.addEventListener(ListEvent.ITEM_ROLL_OUT,this.hideItemHint);
          this.craftWindow.dragItemSlot1.dragEnabled = false;
          this.craftWindow.dragItemSlot1.setData(itemData);
          addChild(this.backBlack);
@@ -2202,6 +2291,8 @@ package
          this.handleFrontInventory();
          this.inventory_list.lockControls(true);
          this.backBlack.alpha = 0.5;
+         // the item being upgraded is in the window's main slot: not listed (craft-menu.md)
+         this.inventory_list.hideCraftSlotted([itemData.itemId]);
          this.inventory_list.filterItem(itemData.dictId);
          this.inventory_list.selectItem(itemData.itemId);
       }
@@ -2226,6 +2317,14 @@ package
       
       private function closeCraftWindow(e:Event) : void
       {
+         // the compare card showed the window's item (MessageCraftItem.compareWith)
+         this.hideItemHint(null);
+         // The keys leave the window before it goes: a focus left on its removed buttons made the
+         // game's own stage.focus read crash on the next key (exe patch 52 guards the read).
+         if(stage != null && stage.focus != null && this.craftWindow.contains(stage.focus as DisplayObject))
+         {
+            stage.focus = this;
+         }
          this.inventory_list.lockControls(false);
          removeChild(this.craftWindow);
          removeChild(this.backBlack);
@@ -2244,7 +2343,20 @@ package
             return;
          }
          var itemData:ItemData = this.item_control.getItemData();
-         var weapon:Boolean = Boolean(itemData) && UpgradeWindow.isWeaponCategory(int(itemData.category));
+         // Only an owned item: the game's window looks the item up and crashed on one it lacks (a
+         // shop item on the card; shop-character-menu.md).
+         if(itemData == null || !this.inventory_list.owns(itemData.itemId))
+         {
+            return;
+         }
+         var weapon:Boolean = UpgradeWindow.isWeaponCategory(int(itemData.category));
+         // from the shop: the window lists what is owned, as from the inventory (the shop's list
+         // has no owned decals or camouflages)
+         _upgradeFromShop = this.inventory_list.isShop;
+         if(this._upgradeFromShop)
+         {
+            this.inventory_list.toggleShopMode(false);
+         }
          this.inventory_list.focusCategory(SuperCategory.UPGRADES);
          this.inventory_list.mainTabBar.selectedIndex = InventoryTab.INVENTORY;
          this.inventory_list.mainTabBar.enabled = false;
@@ -3515,15 +3627,8 @@ package
          var count:uint = (value.count);
          var faction_id:uint = (value.seller);
          trace("relocate_to_paperdoll::",profile,id,dict_id,sourceSlot,targetSlot,count,"faction",faction_id,value.isStack,value.is_stack);
-         var relocate_object:Object = {
-            profile:profile,
-            id:id,
-            dict_id:dict_id,
-            sourceSlot:sourceSlot,
-            targetSlot:targetSlot,
-            count:count,
-            faction_id:faction_id
-         };
+         var relocate_object:Object = Relocation.move(profile,id,dict_id,sourceSlot,targetSlot,count);
+         relocate_object.faction_id = faction_id;
          var new_data:ItemData;
          var _relocateArray:Array;
          if((value.is_stack))
@@ -3858,7 +3963,7 @@ package
             trace("has_active_window::DropdownMenu");
             return false;
          }
-         var isAnyWindow:Boolean = !this._escapeHandled && (this._tutorialSliders && this._tutorialSliders.parent || this.craftWindow && this.craftWindow.parent || this._tournament && this._tournament.parent && this._tournament.visible && !this._tournament.isFold() || SrvContextMenu.visisble || MainScene.activeComponent != null || MainScene.activeWindow != null || Message.isAnyMessage() != -1 || MainScene.activePop != null || stage.focus is TextField);
+         var isAnyWindow:Boolean = !this._escapeHandled && (this._tutorialSliders && this._tutorialSliders.parent || this.craftWindow && this.craftWindow.parent || this._tournament && this._tournament.parent && this._tournament.visible && !this._tournament.isFold() || SrvContextMenu.visisble || MainScene.activeComponent != null || MainScene.activeWindow != null || Message.isAnyMessage() != -1 || MainScene.activePop != null || stage.focus is TextField || this.friendsMenu.visible);
          _escapeHandled = false;
          return isAnyWindow;
       }
@@ -3879,6 +3984,18 @@ package
          if((this._tutorialSliders) && (this._tutorialSliders.parent))
          {
             this.show_tutorial(0);
+            return;
+         }
+         // The item list's search box (docs/notes/item-search.md): Esc in it empties it and leaves
+         // it. Over a message or a popup Esc only leaves the box, and the message closes first.
+         if(this.inventory_list.searchFocused())
+         {
+            if(Message.isAnyMessage() == -1 && (MainScene.activePop == null || MainScene.activePop == this.modifierWindow))
+            {
+               this.inventory_list.clearSearch();
+               return;
+            }
+            stage.focus = this.inventory_list;
             return;
          }
          if(stage.focus is TextField)
@@ -3911,6 +4028,13 @@ package
          {
             MainScene.activePop.closePopup();
          }
+         // Skhid: the friends list (F) closes on Esc too, before the windows; it used to let Esc
+         // through to the game's menu.
+         else if(this.friendsMenu.visible)
+         {
+            this.friendsMenu.visible = false;
+            this.bottom_panel.btnFriends.selected = false;
+         }
          else if((MainScene.activeWindow) && (MainScene.activeWindow.closeWindow))
          {
             MainScene.activeWindow.closeWindow();
@@ -3919,7 +4043,7 @@ package
       
       public function show_character_toggle() : void
       {
-         if(this.has_active_message())
+         if(this.windowKeysOff())
          {
             return;
          }
@@ -3933,10 +4057,25 @@ package
          }
       }
       
+      // The exe's window keys (character, friends, shop, inventory): not over a message, and not
+      // over an item list that takes typing, where letters are its search's (InventoryList.onSearchKey;
+      // the exe acts on a window key before the movie sees it).
+      // A window key that acts may open an item list before the movie sees the same key: the search
+      // then leaves that key alone (InventoryList.windowKeyActed).
+      private function windowKeysOff() : Boolean
+      {
+         if(this.has_active_message() || this.inventory_list.visible && this.inventory_list.takesTyping())
+         {
+            return true;
+         }
+         this.inventory_list.windowKeyActed();
+         return false;
+      }
+      
       public function show_friends_toggle() : void
       {
          trace("show_friends_toggle");
-         if(this.has_active_message())
+         if(this.windowKeysOff())
          {
             return;
          }
@@ -3946,7 +4085,7 @@ package
       
       public function show_shop_toggle() : void
       {
-         if(this.has_active_message())
+         if(this.windowKeysOff())
          {
             return;
          }
@@ -3963,7 +4102,7 @@ package
       
       public function show_inventory_toggle() : void
       {
-         if(this.has_active_message())
+         if(this.windowKeysOff())
          {
             return;
          }
@@ -4360,8 +4499,12 @@ package
          this.statusPanel.setStatusMessage(value,firstTime);
       }
       
+      // the Play button's state (PlayButtonState), for Enter's Play (lobbyKey)
+      private var _playState:uint = PlayButtonState.PLAY;
+      
       public function set_play_button_state(value:uint) : void
       {
+         _playState = value;
          var label:String = null;
          if(value == PlayButtonState.PLAY)
          {
@@ -5185,6 +5328,7 @@ package
             this.inventory_list.item_compare.setSecondaryWeapon(null);
          }
          this.inventory_list.hoverItem();
+         this.inventory_list.hoverScopesFor();
       }
       
       private function onPaperDollItemRollOver(e:ListEvent) : void
@@ -5196,12 +5340,15 @@ package
          if((e) && (e.itemData))
          {
             this.inventory_list.hoverItem(e.itemData.itemId);
+            this.linkScopeHovers(e.itemData);
          }
       }
       
       private function onInventoryListItemRollOut(e:ListEvent) : void
       {
          this.player_profile.paperDoll.hoverItem();
+         this.player_profile.paperDoll.hoverWeaponsFor();
+         this.inventory_list.hoverScopesFor();
       }
       
       private function onInventoryListItemRollOver(e:ListEvent) : void
@@ -5210,6 +5357,21 @@ package
          if((e.itemData))
          {
             this.player_profile.paperDoll.hoverItem(e.itemData.itemId);
+            this.linkScopeHovers(e.itemData);
+         }
+      }
+      
+      // A hovered weapon: the listed sights that fit it look hovered; a hovered sight: the kit's
+      // weapons it fits (weapon_scopes.md, section 4a).
+      private function linkScopeHovers(item:Object) : void
+      {
+         if(item.isWeapon)
+         {
+            this.inventory_list.hoverScopesFor(int(item.dictId));
+         }
+         else if(item.category == ItemCategory.SCOPES)
+         {
+            this.player_profile.paperDoll.hoverWeaponsFor(int(item.dictId));
          }
       }
       
@@ -5631,6 +5793,61 @@ package
          {
             MainScene.isShift = true;
          }
+         if(e.keyCode == KeyCode.LEFT_CONTROL || e.keyCode == KeyCode.RIGHT_CONTROL)
+         {
+            MainScene.isCtrl = true;
+         }
+         if(e.keyCode == Keyboard.R || e.keyCode == Keyboard.ENTER)
+         {
+            this.lobbyKey(e);
+         }
+      }
+      
+      // the key of lobbyKey that is down (a held key repeats its KEY_DOWN: Play and the rooms take
+      // the first only); 0 when none
+      private var _lobbyKeyDown:uint;
+      
+      // Skhid's lobby keys (docs/notes/lobby-keys.md), not while a text box has the keys, a
+      // message, popup, right-click menu or the results are up, nor with Ctrl or Alt:
+      // - R opens the rooms window, or closes it (not over an item list taking typing: R is its
+      //   search's there);
+      // - Enter presses Play on the lobby's main screen (no window open, not in a room), once per
+      //   press. Up, Down and Enter in the rooms list are RoomsList.onKey's.
+      private function lobbyKey(e:KeyboardEvent) : void
+      {
+         var repeat:Boolean = this._lobbyKeyDown == e.keyCode;
+         _lobbyKeyDown = e.keyCode;
+         if(repeat || e.ctrlKey || e.altKey || stage.focus is TextField || this.has_active_message() || SrvContextMenu.visisble)
+         {
+            return;
+         }
+         if(this.victory_screen != null && this.victory_screen.visible && this.victory_screen.stage != null)
+         {
+            return;
+         }
+         if(RoomsWindow.me == null)
+         {
+            return;
+         }
+         if(e.keyCode == Keyboard.R)
+         {
+            if(!(this.inventory_list.visible && this.inventory_list.takesTyping()))
+            {
+               this.topMenu.toggleRoomsTab();
+            }
+            return;
+         }
+         // not in a room or a room's queue (Play is the rooms' Leave then), and with no window, the
+         // friends list, the squad search or the tournament open
+         if(RoomsWindow.me.shown || RoomsWindow.me.marked() || MainScene.activeWindow != null || MainScene.activeComponent != null || this.friendsMenu.visible || this.craftWindow && this.craftWindow.parent || this._tournament && this._tournament.parent && this._tournament.visible && !this._tournament.isFold())
+         {
+            return;
+         }
+         var play:Button = this.statusPanel.playBtn;
+         if(this._playState == PlayButtonState.PLAY && play.enabled && play.visible)
+         {
+            play.dispatchEvent(new ButtonEvent(ButtonEvent.CLICK));
+         }
       }
       
       private function test_bandle_data() : void
@@ -5823,6 +6040,14 @@ package
       private function onKeyUpStage(e:KeyboardEvent) : void
       {
          trace("KEY_DOWN_CODE_STAGE:",name,e.keyCode,e.target,e.currentTarget,e.isDefaultPrevented(),MainScene.isShift,"stage::",stage.focus);
+         if(e.keyCode == KeyCode.LEFT_CONTROL || e.keyCode == KeyCode.RIGHT_CONTROL)
+         {
+            MainScene.isCtrl = false;
+         }
+         if(e.keyCode == this._lobbyKeyDown)
+         {
+            _lobbyKeyDown = 0;
+         }
          if(e.isDefaultPrevented())
          {
             return;

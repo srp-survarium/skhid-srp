@@ -195,7 +195,8 @@ package survarium.controls
             }
             item.sellerLevel = p[i].level;
             item.factionId = seller;
-            item.modifiers = item.modifiersDefault;
+            // A golden item's entry shows the bonuses it is bought with.
+            item.modifiers = ItemFactory.startingModifiers(item.dictId).concat(item.modifiersDefault);
             if(!this._items[seller])
             {
                this._items[seller] = [];

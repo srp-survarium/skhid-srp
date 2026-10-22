@@ -73,6 +73,35 @@ struct Writer {
 /// ([`GameAccounts::on_flush`]).
 pub type FlushHook = Box<dyn Fn(&mut dyn GameRepository) + Send + Sync>;
 
+/// Bonuses srp gives the items owned once in a database's life, when a
+/// rule makes a config default a modification of the item's own
+/// ([`GameAccounts::grant_once`]).
+struct OnceGrant {
+    /// The `g26_meta` key written once it is done.
+    mark: &'static str,
+    /// For the log: the rule, the items, what they get.
+    title: &'static str,
+    items: &'static str,
+    bonus: &'static str,
+    give: fn(&mut Account) -> items_rules::GoldenGrant,
+}
+
+const GOLDEN_SILVER: OnceGrant = OnceGrant {
+    mark: persist::GOLDEN_SILVER_GIVEN,
+    title: "Golden weapons",
+    items: "golden weapons",
+    bonus: "the silver bonus",
+    give: items_rules::give_golden_silver,
+};
+
+const PREMIUM_ARMOUR_BONUSES: OnceGrant = OnceGrant {
+    mark: persist::PREMIUM_ARMOUR_GIVEN,
+    title: "Premium armour",
+    items: "premium armour pieces",
+    bonus: "the premium bonuses",
+    give: items_rules::give_premium_armour_bonuses,
+};
+
 /// One line of [`GameAccounts::board`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BoardRow {
@@ -244,13 +273,16 @@ impl GameAccounts {
     ///
     /// The first time a database is opened by an srp with the golden-weapons
     /// rule, every golden weapon in it gets the silver bonus as its own
-    /// first modification ([`Self::give_golden_silver_once`]).
+    /// first modification ([`Self::give_golden_silver_once`]); the first
+    /// time with the premium-armour rule, every premium armour piece its
+    /// premium bonuses ([`Self::give_premium_armour_bonuses_once`]).
     pub fn from_env() -> Result<Self, PersistError> {
         match SqliteGameRepository::from_env()? {
             Some(mut repository) => {
                 let mend = !pay::item_wear() && repository.first_time(persist::GEAR_MENDED)?;
                 let store = Self::with_repository(Box::new(repository))?;
                 store.give_golden_silver_once()?;
+                store.give_premium_armour_bonuses_once()?;
                 if mend {
                     let (items, accounts) = store.mend_gear();
                     store.flush();
@@ -265,53 +297,14 @@ impl GameAccounts {
         }
     }
 
-    /// [`Self::give_golden_silver`] once in the database's life: until the
+    /// [`Self::give_golden_silver`] once in the database's life
+    /// (`persist::GOLDEN_SILVER_GIVEN`; [`Self::grant_once`]): until the
     /// rule the silver bonus was a default of the item's config, which the
     /// golden-weapons patch takes off; after it, a silver bonus rerolled
-    /// away stays away. The accounts it changed are written first and the
-    /// mark (`persist::GOLDEN_SILVER_GIVEN`) after them. A crash between
-    /// leaves it unmarked; so does an account not written, and then srp
-    /// does not start ([`PersistError::NotWritten`]): running unmarked, a
-    /// silver bonus rerolled away could come back at a later start. Either
-    /// way the next start gives it again to the golden weapons still
-    /// without it (those written have it, and are left alone). Returns
-    /// `(items, accounts)` given; `None` when it was done before, or for a
-    /// store kept in memory.
+    /// away stays away. Returns `(items, accounts)` given; `None` when it
+    /// was done before, or for a store kept in memory.
     pub fn give_golden_silver_once(&self) -> Result<Option<(usize, usize)>, PersistError> {
-        let Some(writer) = &self.writer else {
-            return Ok(None);
-        };
-        let done = writer
-            .locked()
-            .repository
-            .is_done(persist::GOLDEN_SILVER_GIVEN)?;
-        if done {
-            return Ok(None);
-        }
-        let (items, accounts) = self.give_golden_silver();
-        self.flush();
-        let unsaved: Vec<u32> = accounts
-            .iter()
-            .copied()
-            .filter(|&account_id| self.is_dirty(account_id))
-            .collect();
-        if !unsaved.is_empty() {
-            return Err(PersistError::NotWritten(format!(
-                "golden weapons: the silver bonus given at start was not written for accounts \
-                 {unsaved:?}; srp does not start, and the next start gives it again to the \
-                 golden weapons still without it"
-            )));
-        }
-        writer
-            .locked()
-            .repository
-            .mark_done(persist::GOLDEN_SILVER_GIVEN)?;
-        log::info!(
-            "Golden weapons: {items} of {} accounts got the silver bonus as their own first \
-             modification, once",
-            accounts.len()
-        );
-        Ok(Some((items, accounts.len())))
+        self.grant_once(&GOLDEN_SILVER)
     }
 
     /// Gives every account's golden weapons the silver bonus as their own
@@ -320,6 +313,71 @@ impl GameAccounts {
     /// changed. A golden weapon that already has three modifications of
     /// its own keeps them, and is logged.
     pub fn give_golden_silver(&self) -> (usize, Vec<u32>) {
+        self.grant(&GOLDEN_SILVER)
+    }
+
+    /// [`Self::give_premium_armour_bonuses`] once in the database's life
+    /// (`persist::PREMIUM_ARMOUR_GIVEN`; [`Self::grant_once`]): until the
+    /// rule the premium bonuses were defaults of the item's config, which
+    /// the premium-armour patch takes off; after it, a bonus rerolled away
+    /// stays away. Returns `(items, accounts)` given; `None` when it was
+    /// done before, or for a store kept in memory.
+    pub fn give_premium_armour_bonuses_once(&self) -> Result<Option<(usize, usize)>, PersistError> {
+        self.grant_once(&PREMIUM_ARMOUR_BONUSES)
+    }
+
+    /// Gives every account's premium armour the premium bonuses it lacks as
+    /// its own first modifications
+    /// ([`items_rules::give_premium_armour_bonuses`]) and marks the
+    /// accounts it changed. Returns the items given and the accounts
+    /// changed. A piece with no place left for a bonus keeps its own, and
+    /// is logged.
+    pub fn give_premium_armour_bonuses(&self) -> (usize, Vec<u32>) {
+        self.grant(&PREMIUM_ARMOUR_BONUSES)
+    }
+
+    /// `grant` once in the database's life. The accounts it changed are
+    /// written first and the mark (`grant.mark` in `g26_meta`) after them.
+    /// A crash between leaves it unmarked; so does an account not written,
+    /// and then srp does not start ([`PersistError::NotWritten`]): running
+    /// unmarked, a bonus rerolled away could come back at a later start.
+    /// Either way the next start gives it again to the items still without
+    /// it (those written have it, and are left alone).
+    fn grant_once(&self, grant: &OnceGrant) -> Result<Option<(usize, usize)>, PersistError> {
+        let Some(writer) = &self.writer else {
+            return Ok(None);
+        };
+        let done = writer.locked().repository.is_done(grant.mark)?;
+        if done {
+            return Ok(None);
+        }
+        let (items, accounts) = self.grant(grant);
+        self.flush();
+        let unsaved: Vec<u32> = accounts
+            .iter()
+            .copied()
+            .filter(|&account_id| self.is_dirty(account_id))
+            .collect();
+        if !unsaved.is_empty() {
+            return Err(PersistError::NotWritten(format!(
+                "{}: {} given at start was not written for accounts {unsaved:?}; srp does not \
+                 start, and the next start gives it again to the {} still without it",
+                grant.items, grant.bonus, grant.items
+            )));
+        }
+        writer.locked().repository.mark_done(grant.mark)?;
+        log::info!(
+            "{}: {items} of {} accounts got {} as their own first modifications, once",
+            grant.title,
+            accounts.len(),
+            grant.bonus
+        );
+        Ok(Some((items, accounts.len())))
+    }
+
+    /// Gives every account's items `grant` and marks the accounts it
+    /// changed; logs each account changed and each item with no place left.
+    fn grant(&self, grant: &OnceGrant) -> (usize, Vec<u32>) {
         let accounts: Vec<(u32, Arc<Mutex<Account>>)> = self
             .accounts
             .locked()
@@ -330,13 +388,24 @@ impl GameAccounts {
         for (account_id, account) in accounts {
             let done = {
                 let mut account = account.locked();
-                let done = items_rules::give_golden_silver(&mut account);
+                let done = (grant.give)(&mut account);
+                if !done.given.is_empty() {
+                    log::info!(
+                        "{}: {} (account {account_id}) got {}: items {:?}",
+                        grant.title,
+                        account.name,
+                        grant.bonus,
+                        done.given
+                    );
+                }
                 if !done.full.is_empty() {
                     log::warn!(
-                        "Golden weapons: {} (account {account_id}) has golden weapons with three \
-                         modifications of their own; they keep them, without the silver bonus: \
-                         items {:?}",
+                        "{}: {} (account {account_id}) has {} with three modifications of their \
+                         own; they keep them, without {}: items {:?}",
+                        grant.title,
                         account.name,
+                        grant.items,
+                        grant.bonus,
                         done.full
                     );
                 }
@@ -875,6 +944,95 @@ mod tests {
         assert_eq!(kept(&repository), [(2000, false)]);
         // A store kept in memory has no marks and nothing to give once.
         assert_eq!(GameAccounts::new().give_golden_silver_once().unwrap(), None);
+    }
+
+    #[test]
+    fn the_premium_armour_of_every_account_gets_its_bonuses_once() {
+        use survarium::v026g::dictionary::Dictionary;
+        use survarium::v026g::golden::{BLACK_MARKET_REPUTATION_BONUS, EXPERIENCE_BONUS};
+        use survarium::v026g::lobby::FULL_CONDITION;
+        let dict = |name: &str| Dictionary::shared().item_named(name).unwrap().dict_id;
+        let repository = MemoryGameRepository::default();
+        // The golden weapons' grant was done before: it is not done again.
+        repository
+            .clone()
+            .mark_done(persist::GOLDEN_SILVER_GIVEN)
+            .unwrap();
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        // Alice's Bandit jacket and golden rifle as the store had them
+        // before the rule: the bonuses were the config's, the silver bonus
+        // rerolled away.
+        let (jacket, rifle) = {
+            let account = store.get_or_create(5, "Alice");
+            let mut account = account.locked();
+            let jacket = account.add_item(dict("bm_torso_4_premium"), FULL_CONDITION);
+            account.item_mut(jacket).unwrap().modifications.clear();
+            let rifle = account.add_item(dict("ak_74n_premium"), FULL_CONDITION);
+            account.item_mut(rifle).unwrap().modifications = vec![(2000, false)];
+            (jacket, rifle)
+        };
+        store.get_or_create(6, "Bob");
+        store.flush();
+        let kept = |repository: &MemoryGameRepository, item_id| {
+            repository
+                .get(5)
+                .unwrap()
+                .item(item_id)
+                .unwrap()
+                .modifications
+                .clone()
+        };
+        let mut marks = repository.clone();
+
+        // The write fails: not marked done, and srp does not start.
+        repository.fail_account_saves(true);
+        let error = store.give_premium_armour_bonuses_once().unwrap_err();
+        assert!(matches!(error, PersistError::NotWritten(_)), "{error}");
+        assert!(error.to_string().contains("accounts [5]"), "{error}");
+        assert!(kept(&repository, jacket).is_empty());
+        assert!(!marks.is_done(persist::PREMIUM_ARMOUR_GIVEN).unwrap());
+
+        // The next start gives them again, writes them, then marks it done;
+        // the silver grant, done before, gives nothing.
+        repository.fail_account_saves(false);
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        assert_eq!(store.give_golden_silver_once().unwrap(), None);
+        assert_eq!(
+            store.give_premium_armour_bonuses_once().unwrap(),
+            Some((1, 1))
+        );
+        assert_eq!(
+            kept(&repository, jacket),
+            [
+                (EXPERIENCE_BONUS, false),
+                (BLACK_MARKET_REPUTATION_BONUS, false)
+            ]
+        );
+        assert_eq!(kept(&repository, rifle), [(2000, false)]);
+        assert!(marks.is_done(persist::PREMIUM_ARMOUR_GIVEN).unwrap());
+
+        // Once: a bonus rerolled away stays away at later starts.
+        store
+            .get(5)
+            .unwrap()
+            .locked()
+            .item_mut(jacket)
+            .unwrap()
+            .modifications = vec![(EXPERIENCE_BONUS, false), (1090, false)];
+        store.mark_dirty(5);
+        store.flush();
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        assert_eq!(store.give_premium_armour_bonuses_once().unwrap(), None);
+        assert_eq!(
+            kept(&repository, jacket),
+            [(EXPERIENCE_BONUS, false), (1090, false)]
+        );
+        assert_eq!(
+            GameAccounts::new()
+                .give_premium_armour_bonuses_once()
+                .unwrap(),
+            None
+        );
     }
 
     #[test]

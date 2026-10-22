@@ -12,7 +12,8 @@ data: `scripts/content-edit/golden-weapons-1.json`; the lobby: `ItemDictId` (the
   Vityaz, VSS, SR-3M, Lancaster ×2, AK-74N, AK-74U, AK-12, AKMN ×2, SKS ×2, Vepr, Vepr-12,
   Saiga-12, VSK-94, Remington 700) and the Neostead, whose first built-in bonus was +10 %
   silver (modification 1230); and the MP7 special (owner: it joins them; its one bonus, 2004,
-  goes). Not the VSSK camo (not premium) or the premium armour.
+  goes). Not the VSSK camo (not premium); the premium armour has the same treatment since
+  2026-10-22 ([premium_armour.md](premium_armour.md)).
 - **Plain weapon of each:** the same weapon for silver (`*_premium*` → its stem); the
   Neostead's is `neostead_2`, the MP7 special's the silenced MP7.
 - **What they keep:** the silver bonus only. Their other built-in bonuses (reload, reliability,
@@ -28,11 +29,14 @@ data: `scripts/content-edit/golden-weapons-1.json`; the lobby: `ItemDictId` (the
   for crafting"):
   - golden weapon + its plain weapon as donor: yes, it stays golden;
   - golden + golden of the same plain weapon (`akmn_premium` + `akmn_premium_2`): yes;
-  - plain weapon + a golden donor: no (the golden one would be used up). The server refuses
-    it; the craft window lists only the donors the server takes and refuses one a swap of the
-    two would make.
+  - plain weapon + a golden donor: yes (owner 2026-10-22: "if I press upgrade on lancaster, I
+    should get inside premium lancasters too"); the golden one is used up, the weapon stays plain.
+    The craft window lists every copy of the same plain weapon.
 - **Gold background:** golden weapons keep it in the shop and the inventory (the lobby knows
   them by its list, not by the item's rarity, which is 0 now).
+- **Gold name** (owner 2026-10-22): a golden weapon's name is gold (`Colors.GOLD`) in the shop,
+  the inventory and the item card, whatever its rank. A shop entry keeps rank 0 although it shows
+  the silver bonus: the shop's buy options are off for an item with a rank.
 - **Weapons owned before:** at the first start of the srp with this rule each golden weapon gets
   the silver bonus as its first modification, once (`g26_meta` `golden_silver_given`, written
   only after the changed accounts are; an account not written stops srp, and the next start
@@ -45,6 +49,17 @@ data: `scripts/content-edit/golden-weapons-1.json`; the lobby: `ItemDictId` (the
   without it (`golden::check`), and so does `release/build-server-db` (`srp-check-game-data`).
 - **Lobby:** the craft result showed the donor's entry (the exe names it); it shows the item
   upgraded.
+- **Shop and bundles show the silver bonus** (owner: "gold sold weapons in shop no longer show that
+  they have silver bonus"): a golden weapon not owned (a shop entry, a bundle's contents) shows
+  1230 in its first place, as srp gives it on purchase (`ItemFactory.startingModifiers`; a test
+  holds its icon and prop to the data). Owned ones show the server's modifications.
 - **Release:** a resources.db patch (the content edit; the lobby movie), the server data built
   with it, the server, the `next` row of `simulation_changes.tsv` (the bonuses change matches).
-  Not tested in the game yet.
+  Not tested in the game yet. A rollback past it goes without `--keep-db` (the granted silver
+  would add to an old default).
+- **Tech debt** ([tech-debt.md](tech-debt.md)): the silver bonus is a granted modification, not a config
+  default, so that it can be rerolled and takes a place. That needs special cases: srp grants it on
+  creation (`golden::starting_modifications`, `give_golden_silver` for owned ones), the lobby fakes it on
+  shop entries and bundle contents (`ItemFactory.startingModifiers`, `GangShop.setupShopItems`,
+  `InventoryList.setupBundleData`), and `golden::check` guards the data. A config default would need none
+  of these, but could not be rerolled and would add a 4th bonus.

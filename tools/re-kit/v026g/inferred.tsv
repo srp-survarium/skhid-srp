@@ -1603,6 +1603,7 @@ va	status	ref_021d	name
 0x0026ab90	inferred-medium	0x0019ad22	vostok::network_core::buffer_writer::w_string
 0x0026abe0	inferred-medium		survarium::messaging_client::process_incomming_packet
 0x0026ad30	inferred-medium		survarium::messaging_client::send_text_message
+0x0026cb80	inferred-medium		survarium::lobby_menu::on_keyboard_action
 0x0026d130	inferred-medium		survarium::lobby_menu::mouse_ray
 0x0026d3b0	inferred-medium	0x0019bc73	survarium::base_local_network_client::`scalar deleting destructor'
 0x0026d420	inferred-medium	0x0019bca7	survarium::base_local_network_client::~base_local_network_client

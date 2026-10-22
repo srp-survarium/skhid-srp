@@ -30,7 +30,9 @@ package survarium.rooms
     // menu's tab in place of Map (TopMenu's) opens one window over the
     // lobby, in three views: the list of the rooms (RoomsList), the making
     // of one (RoomsCreate), and the asker's own room with its vote
-    // (RoomsRoom); the Play button goes straight into a room (StatusPanel's).
+    // (RoomsRoom); a member sees two tabs, My room (its room) and All rooms
+    // (the list, browsed while it stays in its room; the owner's of
+    // 2026-10-22). The Play button goes straight into a room (StatusPanel's).
     // The window keeps the state the server answers, polls it, and draws the
     // view in its content (RoomsLook); the game's classes ask it what they
     // show: TopMenu its tab, StatusPanel its Play button, LobbyMenu Esc and
@@ -680,6 +682,9 @@ package survarium.rooms
                 {
                     if (_now - _askedAt >= (fast ? 1000 : 2000))
                         ask(RoomsWire.STATE, 1);
+                    // The All rooms tab: the list too, at its own pace.
+                    else if (_room != null && _shown && _view == "list" && _now - _listAt >= 3000)
+                        askList();
                 }
                 else if (_shown && _view == "list" && _now - _listAt >= 3000)
                 {
@@ -898,7 +903,14 @@ package survarium.rooms
                     else if (r[0] == "L")
                         _room.last = int(r[1]);
                 }
-                _code = RoomCode.NONE;
+                // Why a join from the All rooms tab (or a room made) left us
+                // here, said once; our own word (a PIN not of 4 digits) stays
+                // while we stay.
+                var roomCode:int = head.length > 16 ? int(head[16]) : RoomCode.NONE;
+                if (roomCode == RoomCode.NONE && _code < RoomCode.NONE && was != null && was.key == _room.key)
+                    roomCode = _code;
+                var codeChanged:Boolean = roomCode != _code;
+                _code = roomCode;
                 applyPlay();
                 var parts:Array = [];
                 for (var q:int = 0; q < rows.length; q++)
@@ -916,7 +928,7 @@ package survarium.rooms
                     if (!_shown)
                         show(true);
                 }
-                if (_shown && _view == "room" && changed)
+                if (_shown && ((_view == "room" && changed) || (_view != "room" && codeChanged)))
                     render();
             }
         }
@@ -1054,7 +1066,11 @@ package survarium.rooms
             bg.drawRect(1, RoomsLook.HEAD_H + 1, look._w - 2, 3);
             bg.endFill();
             look._backdrop.addChild(body);
-            look.text(look._content, title, 0, 10, look._w, 15, 0xD5D8DA, "center");
+            // A member: the tabs in place of the title.
+            if (_room != null)
+                drawTabs();
+            else
+                look.text(look._content, title, 0, 10, look._w, 15, 0xD5D8DA, "center");
             look.closeButton(onHide);
             if (_view == "room" && _room != null)
                 roomView.render();
@@ -1062,6 +1078,67 @@ package survarium.rooms
                 createView.render();
             else
                 listView.render();
+        }
+
+        // The header's two tabs while we are in a room (the owner's of
+        // 2026-10-22: "you still stay in the room, but you can look at other
+        // rooms"): My room, our room's view; All rooms, the list (a room made
+        // from it too). Chosen as the list's rows are: a dark gold fill and a
+        // gold bar, here along its bottom.
+        private function drawTabs():void
+        {
+            var tabW:Number = 160;
+            var x:Number = int((look._w - 2 * tabW) / 2);
+            var tabs:Array = [["myRoom", _view == "room"], ["allRooms", _view != "room"]];
+            for (var i:int = 0; i < tabs.length; i++)
+            {
+                var on:Boolean = tabs[i][1];
+                var tab:Sprite = new Sprite();
+                tab.x = x + i * tabW;
+                tab.y = 1;
+                tab.graphics.beginFill(on ? 0x3C2C10 : 0x000000, on ? 0.6 : 0.01);
+                tab.graphics.drawRect(0, 0, tabW, RoomsLook.HEAD_H);
+                tab.graphics.endFill();
+                if (on)
+                {
+                    tab.graphics.beginFill(RoomsLook.GOLD, 1);
+                    tab.graphics.drawRect(0, RoomsLook.HEAD_H - 3, tabW, 3);
+                    tab.graphics.endFill();
+                }
+                look.text(tab, say(tabs[i][0]), 0, 9, tabW, 15, on ? 0xFFFFFF : RoomsLook.GREY, "center");
+                tab.name = tabs[i][0];
+                tab.buttonMode = true;
+                tab.mouseChildren = false;
+                tab.addEventListener(MouseEvent.CLICK, onTab, false, 0, true);
+                look._content.addChild(tab);
+                look.route(tab, function(control:DisplayObject, e:MouseEvent):void
+                {
+                    pickTab(control.name);
+                });
+            }
+        }
+
+        private function onTab(e:MouseEvent):void
+        {
+            var ex:MouseEventEx = e as MouseEventEx;
+            if (ex != null && ex.buttonIdx != MouseEventEx.LEFT_BUTTON)
+                return;
+            pickTab(DisplayObject(e.currentTarget).name);
+        }
+
+        private function pickTab(which:String):void
+        {
+            var view:String = which == "myRoom" ? "room" : "list";
+            if (_room == null || view == _view)
+                return;
+            RoomsLook.clickSound();
+            _view = view;
+            _code = RoomCode.NONE;
+            look._scrollPx = 0;
+            if (view == "list")
+                askList();
+            render();
+            askMembers(true);
         }
 
         internal function message(y:Number):void

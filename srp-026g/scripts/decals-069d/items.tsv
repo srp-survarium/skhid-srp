@@ -1,0 +1,46 @@
+# The decals and the camouflage of the owner's pick from 0.69d (2026-10-22), in the owner's order.
+# dict_id: 0.26g's (the next free after 1823; 0.69d's own ids clash with the scopes, 2001-2468).
+# kind: flag (premium, 300 gold, as 0.26g's 4_x flags), holiday (premium, 300 gold; a 0.69d event
+# decal), drop (dropped, 1,000 silver, as 0.26g's 3_x decals), camo (premium camouflage, 300 gold).
+# icon: [row, col] of the lobby's atlas (decals: LobbyMenu_DecalsIcons, 82x82, cells free in
+# revision 27's movie; the camouflage: [2, 7] of LobbyMenu_CamoIcons and LobbyMenu_CamoIconsBig).
+# dict_id	069d_dict_id	069d_name	kind	row	col	english (the owner's word)
+1824	2041	char_decal_7_9	holiday	1	9	Herbs
+1825	2157	char_decal_7_27	holiday	1	10	Clover ornament
+1826	2158	char_decal_7_28	holiday	1	11	Horseshoe
+1827	896	char_decal_4_42	flag	2	9	USA
+1828	897	char_decal_4_43	flag	2	10	Canada
+1829	898	char_decal_4_44	flag	2	11	Brazil
+1830	899	char_decal_4_45	flag	2	12	Argentina
+1831	900	char_decal_4_46	flag	2	13	Australia
+1832	902	char_decal_4_47	flag	2	14	Finland
+1833	958	char_decal_4_48	flag	2	15	New Zealand
+1834	959	char_decal_4_49	flag	2	16	Ireland
+1835	960	char_decal_4_50	flag	2	17	Scotland
+1836	961	char_decal_4_51	flag	2	18	England
+1837	962	char_decal_4_52	flag	2	19	South Korea
+1838	963	char_decal_4_53	flag	2	20	Japan
+1839	964	char_decal_4_54	flag	2	21	China
+1840	969	char_decal_1_12	drop	3	22	Jarilo
+1841	1345	char_decal_4_55	flag	2	22	India
+1842	1346	char_decal_4_56	flag	2	23	Indonesia
+1843	1347	char_decal_4_57	flag	2	24	Malaysia
+1844	1348	char_decal_4_58	flag	2	25	Philippines
+1845	1349	char_decal_4_59	flag	2	26	Thailand
+1846	1350	char_decal_4_60	flag	2	27	Vietnam
+1847	1930	char_decal_4_61	flag	2	28	Bolivia
+1848	1931	char_decal_4_62	flag	2	29	Chile
+1849	1932	char_decal_4_63	flag	2	30	Colombia
+1850	1933	char_decal_4_64	flag	2	31	Ecuador
+1851	1934	char_decal_4_65	flag	2	32	Paraguay
+1852	1935	char_decal_4_66	flag	2	33	Peru
+1853	1936	char_decal_4_67	flag	2	34	Uruguay
+1854	1937	char_decal_4_68	flag	2	35	Venezuela
+1855	2064	char_decal_4_69	flag	2	36	Albania
+1856	2065	char_decal_4_70	flag	2	37	Cuba
+1857	2066	char_decal_4_71	flag	2	38	Slovenia
+1858	2067	char_decal_4_72	flag	2	39	Angola
+1859	2068	char_decal_4_73	flag	2	40	Nigeria
+1860	2070	char_decal_4_75	flag	2	41	Wales
+1861	2069	char_decal_4_74	flag	2	42	South Africa
+1862	840	camo_steam	camo	2	7	Steam camo

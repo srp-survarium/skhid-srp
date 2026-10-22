@@ -18,14 +18,26 @@
 //! counts for the rank, a reroll may replace it, a failed craft may take
 //! it.
 //!
-//! In a craft a golden weapon takes its plain weapon, or a golden weapon
-//! of the same plain weapon, as its donor; a plain weapon takes no golden
-//! one ([`may_donate`]).
+//! In a craft any copy of the same plain weapon is a donor for any other:
+//! its plain weapon, a golden one of it, both ways ([`may_donate`]).
+//!
+//! The premium armour (the Bandit and Survivor jackets and trousers,
+//! [`PREMIUM_ARMOUR`]; the owner, 2026-10-22: the golden weapons'
+//! treatment, `docs/notes/premium_armour.md`) had its plain piece's one
+//! default and two premium bonuses (+5 % experience, +5 % reputation with
+//! its faction) as defaults, and base rarity 3. The patch of
+//! `scripts/content-edit/premium-armour-1.json` takes the two premium
+//! bonuses off and sets the base rarity to 0: the plain piece's default
+//! stays a default, as the plain piece has it; the two bonuses are the
+//! piece's own first modifications, given when it is made and, once, to
+//! those owned before (`session::v026g::items_rules::
+//! give_premium_armour_bonuses`). Both groups are "golden" items here: the
+//! gold-bought copy of a plain item ([`is_golden`]).
 //!
 //! srp applies the rule to whatever data it reads ([`super::item_params`]
 //! gives a golden weapon no defaults and base rarity 0), and refuses to
-//! start on data whose golden weapons still have them ([`check`]): the
-//! players' lobby would show the silver twice and rank 3.
+//! start on data whose golden items still have them ([`check`]): the
+//! players' lobby would show the bonuses twice and rank 3.
 
 use binary_config_parser::tree::ConfigValue;
 
@@ -71,30 +83,121 @@ pub const GOLDEN_WEAPONS: [(&str, &str, u16, u16); 22] = [
     ("uzi_premium_2", "uzi", 2252, 55),
 ];
 
+/// Modification 1240: `parameters/experience_bonus` +0.05, on each piece
+/// of [`PREMIUM_ARMOUR`].
+pub const EXPERIENCE_BONUS: u32 = 1240;
+
+/// Modification 1250: `parameters/reputation_bonus` +0.05 with the
+/// Scavengers (`scav_rep_booster`), on the Survivor pieces.
+pub const SCAVENGER_REPUTATION_BONUS: u32 = 1250;
+
+/// Modification 1260: `parameters/reputation_bonus` +0.05 with the Black
+/// Market (`bm_rep_booster`), on the Bandit pieces.
+pub const BLACK_MARKET_REPUTATION_BONUS: u32 = 1260;
+
+/// The premium armour: `(name, its plain piece's name, dict id, the plain
+/// piece's dict id, its premium bonuses)`, by the dictionary of revision
+/// 26. Every armour piece with a base rarity (3) in the game's data: the
+/// Bandit bundle's (8) jacket and trousers and the Survivor bundle's (14).
+/// Their configs had the plain piece's one default (a pocket, an ammo bag,
+/// 2 % less stamina spent) and then these two; the plain piece is the same
+/// piece without them. The gold-sold `scav_torso_4` and `scav_legs_4` are
+/// those plain pieces: base rarity 0, no premium bonus, not here. srp goes
+/// by the names; the dict ids and bonuses are what the lobby keeps
+/// (`ItemDictId.PREMIUM_ARMOUR`, `PREMIUM_ARMOUR_PLAIN`,
+/// `PREMIUM_ARMOUR_BONUSES`), and a test holds them to the dictionary and
+/// the data.
+pub const PREMIUM_ARMOUR: [(&str, &str, u16, u16, [u32; 2]); 4] = [
+    (
+        "scav_torso_4_premium",
+        "scav_torso_4",
+        345,
+        325,
+        [EXPERIENCE_BONUS, SCAVENGER_REPUTATION_BONUS],
+    ),
+    (
+        "scav_legs_4_premium",
+        "scav_legs_4",
+        346,
+        326,
+        [EXPERIENCE_BONUS, SCAVENGER_REPUTATION_BONUS],
+    ),
+    (
+        "bm_torso_4_premium",
+        "bm_torso_4",
+        352,
+        351,
+        [EXPERIENCE_BONUS, BLACK_MARKET_REPUTATION_BONUS],
+    ),
+    (
+        "bm_legs_4_premium",
+        "bm_legs_4",
+        354,
+        353,
+        [EXPERIENCE_BONUS, BLACK_MARKET_REPUTATION_BONUS],
+    ),
+];
+
 /// Whether `name` (a dictionary name) is a golden weapon.
-pub fn is_golden_name(name: &str) -> bool {
+pub fn is_golden_weapon_name(name: &str) -> bool {
     GOLDEN_WEAPONS.iter().any(|&(golden, ..)| golden == name)
 }
 
-/// Whether `dict_id` is a golden weapon.
+/// The premium bonuses of the premium armour piece `name` (a dictionary
+/// name); `None` for anything else.
+pub fn armour_bonuses(name: &str) -> Option<&'static [u32]> {
+    PREMIUM_ARMOUR
+        .iter()
+        .find(|&&(premium, ..)| premium == name)
+        .map(|(.., bonuses)| &bonuses[..])
+}
+
+/// Whether `name` (a dictionary name) is a golden item: a golden weapon or
+/// a premium armour piece.
+pub fn is_golden_name(name: &str) -> bool {
+    is_golden_weapon_name(name) || armour_bonuses(name).is_some()
+}
+
+/// Whether `dict_id` is a golden item: a golden weapon or a premium armour
+/// piece.
 pub fn is_golden(dict_id: u16) -> bool {
     Dictionary::shared()
         .item(dict_id)
         .is_some_and(|item| is_golden_name(&item.name))
 }
 
-/// The plain weapon's name a golden weapon's `name` is a copy of:
-/// `akmn_premium_2` -> `akmn`, `neostead` -> `neostead_2`. `None` for any
-/// other name.
+/// Whether `dict_id` is a golden weapon.
+pub fn is_golden_weapon(dict_id: u16) -> bool {
+    Dictionary::shared()
+        .item(dict_id)
+        .is_some_and(|item| is_golden_weapon_name(&item.name))
+}
+
+/// Whether `dict_id` is a premium armour piece.
+pub fn is_premium_armour(dict_id: u16) -> bool {
+    Dictionary::shared()
+        .item(dict_id)
+        .is_some_and(|item| armour_bonuses(&item.name).is_some())
+}
+
+/// The plain item's name a golden item's `name` is a copy of:
+/// `akmn_premium_2` -> `akmn`, `neostead` -> `neostead_2`,
+/// `bm_torso_4_premium` -> `bm_torso_4`. `None` for any other name.
 pub fn plain_name(name: &str) -> Option<&'static str> {
     GOLDEN_WEAPONS
         .iter()
         .find(|&&(golden, ..)| golden == name)
         .map(|&(_, plain, ..)| plain)
+        .or_else(|| {
+            PREMIUM_ARMOUR
+                .iter()
+                .find(|&&(premium, ..)| premium == name)
+                .map(|&(_, plain, ..)| plain)
+        })
 }
 
-/// The weapon `dict_id` counts as in a craft: a golden weapon's plain
-/// weapon, when the dictionary has it; anything else itself.
+/// The item `dict_id` counts as in a craft: a golden item's plain item,
+/// when the dictionary has it; anything else itself.
 pub fn kin(dict_id: u16) -> u16 {
     kin_in(Dictionary::shared(), dict_id)
 }
@@ -108,29 +211,48 @@ fn kin_in(dictionary: &Dictionary, dict_id: u16) -> u16 {
 }
 
 /// Whether an item of `donor` may be used up to upgrade one of `item`:
-/// another of the same item, or (the owner's rule, 2026-10-21) for a
-/// golden weapon its plain weapon or a golden weapon of that plain weapon
-/// (`akmn_premium` and `akmn_premium_2`). Never a golden weapon for a plain
-/// one: the golden weapon would be lost. The lobby's craft window lists the
-/// same (`ItemFactory.isCraftDonor`).
+/// another of the same item, or (the owner's rules, 2026-10-21 and
+/// 2026-10-22; the premium armour too) any item of the same plain item:
+/// a golden item's plain item, a golden item of the same plain item
+/// (`akmn_premium` and `akmn_premium_2`), and a golden item for a plain one
+/// (the owner: "if I press upgrade on lancaster, I should get inside
+/// premium lancasters too"; the golden one is used up). The lobby's craft
+/// window lists the same (`ItemFactory.isCraftDonor`).
 pub fn may_donate(donor: u16, item: u16) -> bool {
-    donor == item || (is_golden(item) && kin(donor) == kin(item))
+    donor == item || kin(donor) == kin(item)
 }
 
 /// The modifications of its own a new item of `dict_id` has: the silver
-/// bonus for a golden weapon, none for anything else.
+/// bonus for a golden weapon, its two premium bonuses for a premium armour
+/// piece, none for anything else.
 pub fn starting_modifications(dict_id: u16) -> Vec<(u32, bool)> {
-    if is_golden(dict_id) {
+    let Some(item) = Dictionary::shared().item(dict_id) else {
+        return Vec::new();
+    };
+    if is_golden_weapon_name(&item.name) {
         vec![(SILVER_BONUS, false)]
+    } else if let Some(bonuses) = armour_bonuses(&item.name) {
+        bonuses.iter().map(|&id| (id, false)).collect()
     } else {
         Vec::new()
     }
 }
 
-/// The golden weapons of `data` whose config still has default
-/// modifications or a base rarity, each as `<name> (<config>)`: data
-/// made without the golden-weapons patch.
-pub fn unpatched(data: &GameData, dictionary: &Dictionary) -> Result<Vec<String>, GameDataError> {
+/// The patch that takes a golden weapon's defaults off.
+pub const WEAPONS_PATCH: &str = "scripts/content-edit/golden-weapons-1.json";
+
+/// The patch that takes a premium armour piece's premium bonuses off.
+pub const ARMOUR_PATCH: &str = "scripts/content-edit/premium-armour-1.json";
+
+/// The golden items of `data` made without their patch, each as
+/// `(<name> (<config>), the patch)`: a golden weapon whose config still
+/// has default modifications or a base rarity, a premium armour piece
+/// whose config still has one of its premium bonuses as a default or a
+/// base rarity (the plain piece's default stays).
+pub fn unpatched(
+    data: &GameData,
+    dictionary: &Dictionary,
+) -> Result<Vec<(String, &'static str)>, GameDataError> {
     let mut found = Vec::new();
     for item in dictionary
         .items
@@ -139,22 +261,37 @@ pub fn unpatched(data: &GameData, dictionary: &Dictionary) -> Result<Vec<String>
     {
         let config = super::game_data::config(data, &item.cfg_name)?
             .ok_or_else(|| GameDataError(format!("{}: no {}", item.name, item.cfg_name)))?;
-        let defaults = config
+        let defaults: Vec<i32> = config
             .get("default_modifications")
-            .is_some_and(|list| !list.children().is_empty());
+            .map(|list| {
+                list.children()
+                    .into_iter()
+                    .filter_map(ConfigValue::as_i32)
+                    .collect()
+            })
+            .unwrap_or_default();
         let rarity = config
             .get("parameters")
             .and_then(|p| p.get("base_rarity_level"))
             .and_then(ConfigValue::as_i32)
             .unwrap_or(0);
-        if defaults || rarity != 0 {
-            found.push(format!("{} ({})", item.name, item.cfg_name));
+        let (defaults_left, patch) = match armour_bonuses(&item.name) {
+            Some(bonuses) => (
+                defaults
+                    .iter()
+                    .any(|&id| u32::try_from(id).is_ok_and(|id| bonuses.contains(&id))),
+                ARMOUR_PATCH,
+            ),
+            None => (!defaults.is_empty(), WEAPONS_PATCH),
+        };
+        if defaults_left || rarity != 0 {
+            found.push((format!("{} ({})", item.name, item.cfg_name), patch));
         }
     }
     Ok(found)
 }
 
-/// Refuses `data` whose golden weapons still have their defaults
+/// Refuses `data` whose golden items still have their defaults
 /// ([`unpatched`]).
 pub fn check(data: &GameData) -> Result<(), GameDataError> {
     let dictionary = Dictionary::parse(
@@ -166,13 +303,37 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
     if found.is_empty() {
         return Ok(());
     }
+    let mut problems = Vec::new();
+    for (patch, what, gives) in [
+        (
+            WEAPONS_PATCH,
+            "golden weapons with default modifications or a base rarity",
+            "the silver bonus",
+        ),
+        (
+            ARMOUR_PATCH,
+            "premium armour with its premium bonuses as defaults or a base rarity",
+            "the experience and reputation bonuses",
+        ),
+    ] {
+        let items: Vec<&str> = found
+            .iter()
+            .filter(|(_, of)| *of == patch)
+            .map(|(item, _)| item.as_str())
+            .collect();
+        if !items.is_empty() {
+            problems.push(format!(
+                "{what}: {}. The data was made without the patch {patch}: srp gives them {gives} \
+                 as their own modifications, and the players' lobby would show them twice and \
+                 rank 3",
+                items.join(", ")
+            ));
+        }
+    }
     Err(GameDataError(format!(
-        "{}: golden weapons with default modifications or a base rarity: {}. The data was made \
-         without the golden-weapons patch (scripts/content-edit/golden-weapons-1.json): srp gives \
-         them the silver bonus as their own modification, and the players' lobby would show it \
-         twice and rank 3; build the data with every patch (srp-game-data build)",
+        "{}: {}; build the data with every patch (srp-game-data build)",
         data.origin,
-        found.join(", ")
+        problems.join("; ")
     )))
 }
 

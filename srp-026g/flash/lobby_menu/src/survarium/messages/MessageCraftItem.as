@@ -2,11 +2,14 @@ package survarium.messages
 {
    import flash.display.MovieClip;
    import flash.events.Event;
+   import flash.events.MouseEvent;
    import flash.external.ExternalInterface;
    import flash.text.TextField;
    import flash.utils.getDefinitionByName;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.events.DragEvent;
+   import scaleform.clik.events.ListEvent;
+   import scaleform.clik.interfaces.IListItemRenderer;
    import scaleform.gfx.TextFieldEx;
    import survarium.Util;
    import survarium.buttons.CheckBoxValue;
@@ -157,6 +160,7 @@ package survarium.messages
             {
                Message.showMessage("ok",LocalizationData.getName("craft_message_equipped_item"));
             }
+            this.hideSlotted();
          }
       }
       
@@ -203,6 +207,10 @@ package survarium.messages
             this.dragItemSlot2.data = null;
             this.dragItemSlot1.addEventListener(Events.DROPED_IN,this.onPaperDollSlot);
             this.dragItemSlot2.addEventListener(Events.DROPED_IN,this.onPaperDollSlot);
+            this.dragItemSlot1.addEventListener(MouseEvent.ROLL_OVER,this.onSlotOver);
+            this.dragItemSlot2.addEventListener(MouseEvent.ROLL_OVER,this.onSlotOver);
+            this.dragItemSlot1.addEventListener(MouseEvent.ROLL_OUT,this.onSlotOut);
+            this.dragItemSlot2.addEventListener(MouseEvent.ROLL_OUT,this.onSlotOut);
             this.dragItemSlot1.dispatchEvent(new Event(Events.DROPED_IN));
             this.dragItemSlot3.dragEnabled = false;
             this.dragItemSlot3.visible = false;
@@ -279,15 +287,15 @@ package survarium.messages
                   this.dragItemSlot1.data = null;
                }
             }
-            // A donor the server refuses (ItemFactory.isCraftDonor): a
-            // golden weapon is no donor for a plain one, which a swap of the
-            // two would make.
+            // A donor the server refuses (ItemFactory.isCraftDonor): one
+            // of another item.
             else if(!ItemFactory.isCraftDonor(this.dragItemSlot2.data.dictId,this.dragItemSlot1.data.dictId))
             {
                Message.showMessage("ok",LocalizationData.getName("cannot_craft_item"));
                this.dragItemSlot2.data = null;
             }
          }
+         this.hideSlotted();
          this.updateCraftChance();
          this.checkAcceptButton();
       }
@@ -609,6 +617,74 @@ package survarium.messages
          list.dispatchEvent(new Event(Events.CRAFFT_ITEM));
       }
       
+      // The item a hovered list item is compared with while this window is open: the item being
+      // upgraded (as upgraded, once the result shows); null while the window has none, and for
+      // the item itself (craft-menu.md, "Comparing items").
+      public function compareWith(item:Object) : Object
+      {
+         var main:Object = this.dragItemSlot1.data;
+         if(main == null || item == null || item.itemId == main.itemId)
+         {
+            return null;
+         }
+         var result:ItemData = this.dragItemSlot3.visible ? this.dragItemSlot3.data as ItemData : null;
+         if(result == null)
+         {
+            return main;
+         }
+         // The upgraded item as the inventory holds it: the result's own card is made from the
+         // dictionary (no place, no id, no upgrades), which would read "Equipped" without its scope.
+         var upgraded:ItemData = result.clone();
+         upgraded.descriptor = main.descriptor;
+         upgraded.itemId = main.itemId;
+         upgraded.upgrades = main.upgrades;
+         return upgraded;
+      }
+
+      // The list leaves out the items in the slots, so it shows what is moved (still owned).
+      private function hideSlotted() : void
+      {
+         var list:InventoryList = parent != null ? parent["inventory_list"] as InventoryList : null;
+         if(list == null)
+         {
+            return;
+         }
+         var ids:Array = [];
+         if(this.dragItemSlot1.data)
+         {
+            ids.push(this.dragItemSlot1.data.itemId);
+         }
+         if(this.dragItemSlot2.data)
+         {
+            ids.push(this.dragItemSlot2.data.itemId);
+         }
+         list.hideCraftSlotted(ids);
+      }
+
+      // A slot's item card for the lobby (craft-menu.md, "Comparing items"): ITEM_ROLL_OVER with
+      // the slot's item, slotCompareWith the other slot's.
+      private function onSlotOver(e:MouseEvent) : void
+      {
+         var slot:MovieClip = e.currentTarget as MovieClip;
+         if(slot == null || slot.data == null || this.dragItemSlot3.visible)
+         {
+            return;
+         }
+         dispatchEvent(new ListEvent(ListEvent.ITEM_ROLL_OVER,false,false,-1,-1,-1,slot as IListItemRenderer,slot.data));
+      }
+
+      private function onSlotOut(e:MouseEvent) : void
+      {
+         dispatchEvent(new ListEvent(ListEvent.ITEM_ROLL_OUT,false,false,-1,-1,-1,e.currentTarget as IListItemRenderer,null));
+      }
+
+      // The item a slot's card is compared with: the other slot's (the donor with the item being
+      // upgraded, and the other way round); null while that one is empty.
+      public function slotCompareWith(slot:Object) : Object
+      {
+         return slot == this.dragItemSlot1 ? this.dragItemSlot2.data : (slot == this.dragItemSlot2 ? this.dragItemSlot1.data : null);
+      }
+
       // The item being upgraded or the donor.
       public function holds(itemId:uint) : Boolean
       {
