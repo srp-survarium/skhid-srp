@@ -96,6 +96,10 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `research_026g.asm`, `research_rule_026g.c`, `research_rule_026g.h`, `research_native_026g.c` | The source of patch 53 (Research, mode 5): the three hooks and their stubs in assembly, the rule's logic in C on integers (no pointer into the game), and its side in the game (the cook, the rule's twenty slots, the hud) in C |
+| `research_026g.section.bin`, `research_026g.section.json` | That code built for the start of `.srpx` (0xA42D000), which `patch_026g.py` reads, and beside it its symbols and what built it. The same tools give the same bytes; another compiler gives other bytes that do the same, so the file is kept, not rebuilt for a release |
+| `research_026g.py` | Builds those two files (`--write-bin`) or says whether they are what the sources give here (`--check-bin`). Needs nasm, gcc for x86 (`-m32`, SSE2 scalar floats) and GNU ld |
+| `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
 | `check_death_camera_026g.py` | Runs the original's and patch 46's mouse moves through the game world's input handler (the death screen, a live player, spectators, a death before the start) and update_camera's call of the view's update on a made-up eye transform (needs Unicorn) |
@@ -2785,6 +2789,79 @@ ThunkInfo, the key handler's invoke, no relocation and no branch inside; cert-on
 both; another type and no focus null in both; no ActionScript object, and an interface that
 gives none, fault in the original at 0x77200B and 0x771FF8 and give null in the build; every
 full build the same). **Not run in a game.**
+
+### 53. Research, mode 5 (the next release's revision)
+
+Research as 0.27d shipped it (`../docs/notes/research_mode.md`: the rules, the data, the inventory
+of the builds; the owner, 2026-10-22: "will go into the next one", not revision 28). 0.26g has none
+of 0.27d's capture code and its rule and world-object layouts drifted (the rule base grew 78h, the
+world objects were reworked), so the rule is written again in C on 0.26g's interfaces, with 0.27d's
+disassembly as the spec, and the units are not world objects: the rule tests the players'
+positions against the units' shapes, which the mode config carries (`capture_zones`).
+
+- **The rule** (`research_native_026g.c`, `rn_rule`): game_match_rule_base (0x313900, type 5) and
+  0.26g's twenty slots: 7 events (a kill, `{killer, victim}`: "kill invader"), 8 and 9 a roster
+  place entered or left, 11 the world (its tick a delegate at the end of the world's second tick
+  list, numbered by the world's counter, as timelimit_rule_core's 0x318050), 12 the blackboard, 15
+  and 16 the state (21 + 96 bytes a unit, little-endian, `rr_write`'s layout; 15 writes it field
+  by field through the game's writers, as tdm does, so the hash mismatch dump names each field;
+  16 takes the reader and a dword it does not read and pops both, `ret 8`, as the game's rules
+  do: the first build's `ret 4` crashed both clients at their first synchronization,
+  `../docs/notes/client_patch.md` §3.50), 17 the hud's team points, 18 completed (the end time);
+  the rest the game's (0x266710 the delete, 0xF1900.. the resource's, 0x8FE10 the priority,
+  0x316540 the link resolver). Its vtables carry game_match_rule_base's RTTI locators.
+- **The cook**: a client rule cook as tdm_rule_core's (0x2F41E0, 0x2063F0: class at +8, the thread
+  at +14h, 8 at +18h, the game at +20h), class 0x1E0 (`RESEARCH_CLASS`; register_cook's table has
+  0x206 places and nothing registers 0x1E0; a taken class is left alone and Research is not
+  registered), its create reading `mode.parameters` through the game's own look-ups (0xF6B10,
+  0xF6C00). The mode configs list it: `rules [93, 91, 480, 94]`. Its vtable carries an RTTI
+  locator of its own, `research_rule_cook`: a translate_query_cook, shaped as tdm_rule_core_cook's
+  hierarchy (its base class descriptors reused), not tdm_rule_cook's (the first build's).
+- **The tick** (`research_rule_026g.c`): only in play (the time rule's state 3, world+18FE4h);
+  the players of the places entered, alive (+33Ch) and in the world (+33Fh), their team (+6B8h ->
+  +45ECh), feet (+43Ch, the player's transform) and capsule (half its height from the character
+  controller, `[[+494h]]` +1D0h/+1F0h, as get_transform 0x7F5C0 takes it; 0.38 m round): inside a
+  unit when the capsule standing on the feet overlaps one of its shapes (the first build took the
+  feet for the capsule's centre: a floor up to 0.9 m over a unit took it); the units' capture (0.27d's 0x324070), the
+  teams' points (0x31EEC0), the end 3 s after 100; the shares of a capture (0.27d's water-fill,
+  0x31E920) counted in the statistics' events 6 and 18 (hundredths), a kill invader in event 10;
+  the statistics' tail: `m_team_points` the scores, `m_winner_team` the leader.
+- **The hud**: `cmp dword [edi+20h],4 / jne 0x23B3FC` at 0x23B3DE of game_world_ui::update_ui
+  becomes a `call` of the hud stub: in mode 5 `rn_hud` sends `root.research_update` (numbers
+  only) at each change and every 60 frames, and the units' messages through the hud's
+  parameterised message (0x2375C0); then the compare and its branch. `cmp eax,4 / jne 0x23B36A` at
+  0x23B351 (the match's first message by mode) becomes a `jmp` of the welcome stub: mode 5's is
+  `st_start_match_welcome_message_5`.
+- **The section** `.srpx` (0xA42D000, after `.srpw`'s three pages) is the section of the later
+  patches' code. The exe's headers end at 400h, where the first section's bytes begin, and their
+  section table (at 210h) holds twelve entries: `.srpx` is the twelfth and last, so a later patch
+  that needs pages of its own takes some of `.srpx`'s at an offset of its own instead of a
+  section. It is code, data and writable. Research has +0: the 256 bytes of
+  `research_026g.asm` (three `jmp near`: register, hud, welcome), the C code and its constants
+  linked for where they run, int3 to +3000h, its state page (the cook, the hud's cache) zeroed.
+  +4000h on is the dynamic anomalies' (patch 42, #225, `DYNAMIC_ANOMALIES_OFFSET`).
+- **The register hook**: `mov eax,ebx / call 0x1EC170` at 0x1E9B4C of the game's constructor (after
+  its own client rule cooks) becomes a `call` of the register stub, which registers the cook once
+  and does the two instructions.
+
+A simulation change for mode 5 only: modes 2 to 4 compute what they did; no exe without the patch
+loads a mode-5 config (the class has no cook there), so a server offers Research only to games
+with it. No base relocation is under a site and no branch aims inside one.
+
+Checked: `test_research_rule_026g.c` (the rules: captures by 1 and 2 players, contested, the fall
+back, draining and taking, the owner refilling, the water-fill, the points and the end, kill
+invader, a place that left, the wire and its refusals); `check_research_026g.py` (Unicorn: the
+constructor's hook registers the cook once and goes on as the original, a taken class; the cook
+makes the rule from a mode config with the game's look-ups; set_game_world_core links the tick;
+a capture at 20 s and its event, nothing outside play, the points in the statistics' tail, kill
+invader, serialize (rr_write's bytes through the game's writers; with the hash mismatch dump on,
+the 88 fields by name) and deserialize (two arguments, 8 bytes popped), the game's own serialize
+and deserialize loops over a world's rules with esp as before, the hud's points (the alive counts
+left), completed; update_ui in mode 5 and 4, the messages; the first message by mode);
+`selftest_026g.py` check 53 (also: every slot of ours pops what tdm_rule_core's and
+tdm_rule_cook's in its place pop; the cook's RTTI hierarchy). The first local test (2026-10-22)
+crashed at the first synchronization (slot 16, fixed) on a scrambled level (pack 1's vectors,
+fixed in pack 2). **Not yet run in a game since.**
 
 ## Not ported, not done
 

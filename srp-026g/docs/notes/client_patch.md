@@ -1266,6 +1266,113 @@ The old bytes' jumps all landed inside them; nothing else aims inside; no base r
 
 **Checked:** `selftest_026g.py` check 52; `check_stage_focus_026g.py` (Unicorn 2.1.4): the original faults at 0x77200B with both pointers 0 (or the collectible 1) and at 0x771FF8 for an interface call that gives none; the build gives null; every other case the same in both.
 
+### 3.50 Research, mode 5 (written 2026-10-22, README patch 53, the next release's revision; the rules: `research_mode.md`) — PROVEN in the code, the hooks, the cook, the rule and the hud run with Unicorn with the game's own register_cook, rule constructor and config look-ups; not run in a game
+
+- **Rule cooks** (PROVEN): each is a static object `{+0 vtable, +8 class, +10h -1, +14h
+  GetCurrentThreadId(), +18h 8, +20h the game (client cooks)}`, made by its function (tdm's
+  0x2F41E0) and registered by `register_cook` 0x102D10 (`edi` = the cook): a vector at
+  [0xA86E00]..[0xA86E04] grown to 0x206 places on the first call, `cooks[class] = cook`. The
+  game's constructor makes the client ones and swaps their vtables (0x1E99C0..0x1E9B4C; tdm's
+  client vtable 0x9FD8AC; ebx = the game); the last registration is at 0x1E9B4C (`mov eax,ebx /
+  call 0x1EC170`). Classes in use found at the registrations: 0x0D..0x82, 0x12C..0x141, 0x200,
+  0x202, 0x203 (a few set elsewhere); 0x1E0 is in no registration and no query.
+- **A cook's create** (PROVEN, slot 9, thiscall, `ret 4`): client tdm 0x2063F0: `esi =
+  [0x1F1D9C4]`, `ecx = 0xACCC60`, 0x420789 (`lea eax,[ecx+8]`), `push eax`, `eax = size`, 0xE4F90
+  (allocate), the core constructor with the query (`[q]` the match options, `[q+0Ch]` the mode
+  config's root), +130h the game; slot 10 the size. Slot 7 (0x2F4290) is the shared translate:
+  it calls 9 with `[query+108h]` and 10.
+- **The cook's RTTI** (PROVEN): tdm_rule_cook's locator 0xA47134 (type descriptor 0xACCC38,
+  hierarchy 0xA47148: tdm_rule_cook, tdm_rule_core_cook, translate_query_cook, cook_base,
+  boost's noncopyable at +20h, attributes 1). No code of `.text` names any cook's type descriptor
+  (0xACCC38, tdm_rule_core_cook's 0xACCC0C, translate_query_cook's 0xAB8E58, cook_base's 0xAB8D2C)
+  or the locator: nothing casts a cook or asks its type, so a borrowed locator would only misname
+  it. The cook has its own all the same (`rn_cook_locator`): `.?AVresearch_rule_cook@srp@@`
+  (type_info's vftable 0x886A78, the first word of every type descriptor), its hierarchy shaped
+  as tdm_rule_core_cook's (locator 0xA524C0, hierarchy 0xA4718C: attributes 1, four bases) with
+  that hierarchy's base class descriptors of translate_query_cook 0xA38D74, cook_base 0xA38D24 and
+  noncopyable 0xA40010. The descriptor's second word (type_info's name cache) is written by
+  type_info::name: `.srpx` is writable.
+- **Rule vtables** (PROVEN, tdm 0xA15DA4, timelimit 0xA06E2C, kd 0xA177D4): 0 delete (0x266710:
+  the base vtables back, 0xF1850, free), 1..6 the resource's, 7 `on_event(type, time, data)`
+  `ret 0Ch` (a kill is type 1, `data = {killer, victim}`; 0 the match started), 8 / 9
+  `entered` / `left(place, time)` `ret 8`, 10 register_animations, 11 `set_game_world_core(core)`,
+  12 the blackboard (core+188B0h, 0x2D58F0), 13 `on_match_ready(time)`, 14 finished, 15
+  `serialize(writer)` `ret 4`, 16 `deserialize(reader, ?)` `ret 8` (the snapshot's rules loop in
+  0x2D2770, 0x2D2B42..0x2D2B5D: `push [esp+84h]` (its third argument), `push` the reader,
+  `call [vtable+40h]`, no clean-up; tdm 0x3163D0, timelimit 0x317FD0 and kd 0x323910 each `ret 8`
+  and none reads the second), 17 `fill_match_hud_state(hud, ?)` `ret 8`
+  (tdm: +90h, +92h the tickets, +94h, +95h the alive counts; kd 0x323980 writes from +98h on,
+  timelimit's 0x15A4B0 nothing; the hud state's constructor 0x278D00 sets +90h 0FFFFh, +92h 0,
+  +94h and +95h 0FFh, and only mode 4's last players (0x23B3DE) read the alive counts: Research
+  writes the points and leaves the counts, as modes 2 and 3 do), 18 `rule_completed(time)` `ret 4`
+  (al), 19 the priority (0x8FE10: 3); then at +108h the link resolver's one slot (0x316540, `ret
+  1Ch`). Base constructor 0x313900 (eax = this, push the type: 0 respawn, 1 gather, 2 timelimit, 3
+  kd, 4 tdm; at +10Ch); the code compares the type with 0 and 1 only.
+- **Ticks** (PROVEN): timelimit's set_game_world_core 0x318050 puts a delegate `{object,
+  function, previous, next, order, enabled}` (rule+110h) at the end of the world's list at
+  core+18850h (count, head, tail; order from the counter at [core+18FB0h]); atomic_tick 0x2D1E20
+  runs the seven lists (core+18840h.., 10h each; 0x2D1D20 sorts by +10h) as `function(ecx =
+  object, dt, time, step)` `ret 0Ch`, dt the time since the last (50 ms).
+- **The world** (PROVEN): places at [core+18458h], 30h each, `[place + 4 * kit]` the player of
+  kit `place[0Ch]` (tdm 0x3161F0); a player's team `[[player+6B8h]+45ECh]`, alive +33Ch, in the
+  tick lists +33Fh, `m_transform` +40Ch (its translation +43Ch, read by the player's own code
+  0x2D9148 and restored by its deserialize 0x2DB8B9: the feet, below), pitch +48Ch; the time rule's state copied at
+  core+18FE4h (3 in play; written by its tick and deserialize); the game's own place
+  core+18FDCh (client tdm 0x267852); the statistics `[core+18FA8h]`: a player's record 1F8h,
+  `u16 events[28][3]` at +0Ch (the kill handler 0x2F4EB0), `m_team_points` +31D4h, the winner
+  +31E4h (tdm 0x316257).
+- **A player's transform is his feet** (PROVEN, 2026-10-22). A living player's tick takes his
+  transform from his character controller (`[[player+494h]]`, 0x2D942A): `get_transform`
+  0x7F5C0 copies the controller's matrix (+80h; its row 3 the capsule's centre) and moves its
+  translation down by `heights[(stance + 2) % 3] + heights[stance]` (+1D0h float[3], the stance
+  +1F0h) times up (0xA7DC00: 0, 1, 0), half the capsule's height; 0x74620 turns that into the map's
+  frame and `rep movs` puts it at +40Ch (0x2D9461). The server's worlds keep the controller's
+  centre, 0.9 m over the feet standing (player_bots.md §4), and `default.player` gives the capsule:
+  0.76 m wide, 1.8 m standing, 1.1 m crouched. The first build took +43Ch for the capsule's centre
+  and tested ±0.9 m round it: a player's feet up to 0.9 m over a unit's top counted, so at School
+  the floor above units A and C (20.25-20.5 m, the boxes' tops 20.04 m) took them (the owner's
+  test, 2026-10-22). 0.27d's units are physics triggers: `capturable_zone_core`'s enter 0x324350
+  and leave 0x324420 get the colliding objects (each's owner, slot 1, the player) from the zone's
+  trigger shapes (the collision geometries' meshes, half extents their scale, 0x7A1F0) overlapping
+  the player's collision: no point, no height of its own. Now the capsule stands on the feet,
+  2 x half its height tall (read from the controller as get_transform does; the config's
+  `capture_half_height` without one), `capture_reach` round (0.38 m, half the width), and it is
+  inside when the nearest it comes to a shape is at most its radius (the capsule's segment against
+  the shape, a ternary search: the distance along a segment to a convex shape is convex); Bullet's
+  collision margin is not counted.
+- **Saving** (PROVEN): a writer's buffer at [writer+14h] (data +4, size +0Ch), grown by 0x7AB30
+  (eax = buffer, push the size; `ret 4`); a reader's cursor at [reader+4] (tdm 0x3163D0). A rule
+  writes field by field (tdm 0x316340) through `buffer_writer::w<unsigned char/short/int>` 0x1F3DE0
+  / 0x2F5DA0 / 0x1F48A0: eax = the value's address, push the writer, the source file, the line, the
+  function, the field's name; `ret 14h`. Each appends the value; with [0x1F1D32C] and [0x1F1D32D]
+  set (the hash mismatch dump) it first records `{next, type name, name, function, file, line,
+  size, writer+10h}` (20h bytes from 0x80450) at the end of the writer's list (+0 count, +8 head,
+  +0Ch tail). Research's serialize does the same, 88 fields (`m_points[0]` .. `C.marks[19]`): the
+  bytes `rr_write` gives (snapshot_rules.md 2.8) and each named in the dump; the first build
+  appended `rr_write`'s bytes in one piece, which wrote the same bytes and nothing in the dump.
+- **Config** (PROVEN): 0xF6B10 (eax = a table, edi = the key) gives the child (CRC look-up, then
+  the names); 0xF6C00 (esi = the key) says whether there is one; a value is 24 bytes, its data a
+  pointer for tables, strings and vectors, +14h the type, +16h the count (the respawn point's
+  reader 0x2F4580).
+- **The hud** (PROVEN): game_world_ui::update_ui (0x23B300..) shows the match's first message by
+  mode at 0x23B336 (2, 3, 4: `st_start_match_welcome_message`, `_2`, `_3`; 0x2375C0, ecx = the
+  key, `(ui, 21h, 14h, 6000)`, `ret 10h`: localised by 0x1FF0F0 into root.set_parameterized_
+  message), then each frame the teams' points (0x2364C0 → `root.set_game_progress`) and, for mode
+  4 only, `set_last_players` (0x23B3DE: `cmp dword [edi+20h],4`). The movie: [[[ui+8]+108h]+4],
+  `Invoke` 0x511600 (thiscall: name, result, args, count; `ret 10h`), a GFx value 18h bytes (+4 the
+  type: 4 uint, 5 number; +8 the value). The world from the ui: [[ui+18h]+4D4Ch]+1F8h, its rules
+  at +18824h (the minimap's 0x23AA21). `root.set_game_type` gets `mode.mode` (0x234D66).
+- **The first local test's crash** (PROVEN, 2026-10-22, the owner's two clients on map 184, both
+  at their first synchronization: `PRIV_INSTRUCTION` at 0x9FB814): the first build's slot 16 was
+  `deserialize(reader)` `ret 4`. The rules loop above left esp 4 bytes low; 0x2D2770's epilogue
+  (`pop edi/esi/ebp/ebx; add esp,68h; ret 0Ch`) then popped each register one slot off and returned
+  through the dword below its return address, a stale argument of 0x2D0B70's log call at 0x2D0F3D
+  (`push 0x9FB814`, the "net_sync" channel's name), whose first byte is `outsb`. The dump agrees:
+  esp 0x767F7754 is 0x2D0B70's frame minus 4, `[esp]` = edi = 8 (the loop's pushed dword), ebp
+  clobbered, the last real return address 0x27C0DE (`network_client::process_dynamic_match_info`).
+  Slot 16 takes the dword and pops it now; selftest check 53 compares every slot's `ret` with
+  tdm's, and `check_research_026g.py` runs the rule through the game's own loops.
+
 ## 4. Mode 3 batteries: not needed in 0.26g
 
 - 0.26g splits the rule: `match_time_vi_spawn_rule` (vtable 0xA06C04) wraps `match_time_vi_spawn_rule_core` (vtable 0xA15CAC). The battery tick is no longer a vtable slot: the core's ctor 0x3147A0 stores a delegate `{this, 0x3148A0}` at +0x1C4 / +0x1C8 (0x3147F1). [V]

@@ -76,8 +76,9 @@ pub(super) const PLAY_REFUSED: &str = "st_cant_change_ready_state";
 /// The maps offered, by `maps_dict` id (the owner's list of 2026-10-16):
 /// the day of each of the eight levels in batteries (mode 2: 61 Rudnya to
 /// 103) and in Team Deathmatch (mode 4: 117 to 138). No timed batteries
-/// (mode 3), no London (level 9, maps 181 to 183) and no level 88. The
-/// movie shows only the maps the status lists.
+/// (mode 3), no Research (mode 5: the server's bots play modes 2 to 4), no
+/// London (level 9, maps 181 to 183) and no level 88. The movie shows only
+/// the maps the status lists.
 pub const MAPS: [u8; 16] = [
     61, 67, 73, 79, 85, 91, 97, 103, 117, 120, 123, 126, 129, 132, 135, 138,
 ];
@@ -469,7 +470,10 @@ mod tests {
             assert!(!MAPS.contains(&london));
         }
         for map in maps::all() {
-            if map.level == 9 || map.level == 88 || map.mode == maps::mode::TIMED_BATTERIES {
+            if map.level == 9
+                || map.level == 88
+                || matches!(map.mode, maps::mode::TIMED_BATTERIES | maps::mode::RESEARCH)
+            {
                 assert!(!MAPS.contains(&map.id), "{} is offered", map.id);
             }
         }

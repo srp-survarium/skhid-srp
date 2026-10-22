@@ -94,7 +94,8 @@ impl LiveMatch {
 /// The score the match server last trusted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LiveStanding {
-    /// Batteries brought, or tickets left in a Team Deathmatch, by team.
+    /// Batteries brought, tickets left in a Team Deathmatch, or points in
+    /// Research, by team.
     pub points: [u16; 2],
     /// The team that leads; `None` for a draw.
     pub leader: Option<usize>,

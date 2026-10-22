@@ -204,7 +204,7 @@ impl TimelimitRule {
 
 /// The leader by points: more wins, equal is a draw. Modes 2 and 3 with the
 /// batteries in each team's container (0x313AA5..0x313ADC); also mode 4's
-/// tickets while they differ.
+/// tickets while they differ, and mode 5's shown points (`rr_leader`).
 pub fn winner_by_points(points: [u16; 2]) -> u8 {
     match points[0].cmp(&points[1]) {
         std::cmp::Ordering::Greater => 0,
@@ -252,9 +252,25 @@ pub fn tdm_finished(tickets: [u16; 2], alive: [u32; 2]) -> bool {
     (0..2).any(|team| tickets[team] == 0 && alive[team] == 0)
 }
 
+/// Research's points are kept in millionths (`research_mode.md`, "Wire").
+pub const RESEARCH_POINT: u32 = 1_000_000;
+
+/// Research ends (3 s later) when a team's points, in millionths, reach the
+/// mode config's `resources_count` (exe patch 53, `rr_tick`). The rule
+/// writes that end into its own bytes (`snapshot::Research::end`), which
+/// is what the server goes by; the shown scores are rounded and can say
+/// 100 a little before.
+pub fn research_finished(points: [u32; 2], goal: u32) -> bool {
+    goal != 0
+        && points
+            .iter()
+            .any(|&team| u64::from(team) >= u64::from(goal) * u64::from(RESEARCH_POINT))
+}
+
 /// Whether a mode rule that set its end at `completion` reports the match
 /// over at `time`: the gather rules at `completion ≤ time` (0x314230),
-/// Team Deathmatch at `completion < time` (0x316520).
+/// Team Deathmatch at `completion < time` (0x316520), Research at
+/// `completion ≤ time` (exe patch 53, `rr_completed`).
 pub fn mode_rule_completed(game_mode: u8, completion: u32, time: u32) -> bool {
     if game_mode == mode::TEAM_DEATHMATCH {
         completion < time
@@ -433,6 +449,20 @@ mod tests {
         assert!(!mode_rule_completed(mode::TEAM_DEATHMATCH, 5_000, 5_000));
         assert!(mode_rule_completed(mode::TEAM_DEATHMATCH, 5_000, 5_050));
         assert!(!mode_rule_completed(mode::BATTERIES, 5_000, 4_950));
+    }
+
+    #[test]
+    fn research_ends_at_the_goal_in_millionths() {
+        assert!(!research_finished([99_999_999, 0], 100));
+        assert!(research_finished([100_000_000, 0], 100));
+        assert!(research_finished([3, 100_000_000], 100));
+        assert!(!research_finished([0, 0], 0));
+        // Its end is the rule's end time, as the gather rules'.
+        assert!(!mode_rule_completed(mode::RESEARCH, 5_000, 4_950));
+        assert!(mode_rule_completed(mode::RESEARCH, 5_000, 5_000));
+        // The leader: more shown points, equal a draw.
+        assert_eq!(winner_by_points([100, 64]), 0);
+        assert_eq!(winner_by_points([37, 37]), DRAW);
     }
 
     #[test]
