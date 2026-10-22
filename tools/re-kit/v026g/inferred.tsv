@@ -335,6 +335,7 @@ va	status	ref_021d	name
 0x000758b0	inferred-medium	0x00056494	vostok::physics::bullet_physics_world::add
 0x00075a60	inferred-high	0x000565b5	vostok::physics::bullet_physics_world::remove
 0x00075aa0	inferred-medium	0x000565d3	vostok::physics::bullet_physics_world::move
+0x00075af0	inferred-medium		vostok::physics::bullet_physics_world::serialize
 0x00075b00	inferred-high	0x00056630	vostok::physics::bullet_physics_world::add
 0x00075b20	inferred-high	0x00056644	vostok::physics::bullet_physics_world::remove
 0x00075bd0	inferred-medium	0x00056656	vostok::physics::closest_ray_result_callback::needsCollision
@@ -2181,6 +2182,7 @@ va	status	ref_021d	name
 0x0031ee40	inferred-medium		survarium::single_game_effect::activate_effect
 0x0031f020	inferred-medium		survarium::single_game_effect::deactivate_effect
 0x00321790	inferred-medium		survarium::game_world_core_client::player_slot::apply_profile_input
+0x00321820	inferred-medium		survarium::game_world_core_client::player_slot::init
 0x003218e0	inferred-medium		survarium::game_world_core_client::serialize
 0x00321950	inferred-medium	0x001fe250	survarium::bullet_manager::bullet_functor_mt_allocator::bullet_functor_mt_allocator
 0x003219a0	inferred-medium	0x001fe299	survarium::bullet_manager::bullet_manager

@@ -32,6 +32,7 @@ pub mod rules;
 pub mod snapshot;
 pub mod static_info;
 pub mod upload;
+pub mod world;
 
 use client_model::COMPRESSED_SNAPSHOT_BUFFER;
 use upload::{Chunk, ChunkError};

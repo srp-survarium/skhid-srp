@@ -509,7 +509,7 @@ fn admission_is_closed_while_waiting_open_from_the_countdown_and_closed_at_the_e
     assert!(bench.game().admitting());
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
     }
     assert!(bench.until(12_000, |b| b.clients.iter().all(|c| c.closed)));
     assert!(
@@ -520,7 +520,7 @@ fn admission_is_closed_while_waiting_open_from_the_countdown_and_closed_at_the_e
     );
     let result = bench.results.try_recv().unwrap();
     assert_eq!(result.end, crate::v026g::MatchEnd::ModeRule);
-    assert_eq!(result.team_points, [10, 3]);
+    assert_eq!(result.team_points, [10, 0]);
     bench.assert_no_faults();
 }
 
@@ -765,7 +765,7 @@ fn ending_a_match_while_resources_load_never_enters_the_newcomer() {
     bench.clients[place].ready();
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
     }
     assert!(bench.until(12_000, |b| b.clients[..2].iter().all(|c| c.closed)));
     assert!(!bench.clients[0].entered().contains(&(place as u8)));
@@ -818,7 +818,7 @@ fn a_decided_match_closes_admission_before_the_results_delay() {
     bench.run_long(130_000);
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
     }
     bench.run_long(10_000);
     assert!(bench.clients.iter().all(|client| !client.closed));
@@ -1452,7 +1452,7 @@ fn the_registry_says_why_a_match_takes_no_joiner() {
     bench.run_long(110_000);
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
     }
     assert!(bench.until(15_000, |b| b.registry.closed(id, b.now())
         == Some(Closed::Ending)));
@@ -1636,7 +1636,7 @@ fn a_private_rooms_result_says_so_with_its_late_joiner() {
     bench.clients[place].ready();
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
     }
     assert!(bench.until(12_000, |b| b.clients[..place].iter().all(|c| c.closed)));
     let result = bench.results.try_recv().unwrap();

@@ -150,7 +150,7 @@ fn a_newcomer_still_catching_up_is_not_present_in_match_results() {
     assert!(!bench.clients[0].entered().contains(&(place as u8)));
     let at = bench.clock() / 50 * 50 + 100;
     for client in &mut bench.clients {
-        client.sim.points_from = Some((at, [10, 3]));
+        client.sim.points_from = Some((at, [10, 0]));
     }
     assert!(bench.until(12_000, |b| b.clients[..2].iter().all(|c| c.closed)));
     let result = bench.results.try_recv().unwrap();
