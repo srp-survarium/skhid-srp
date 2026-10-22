@@ -619,7 +619,18 @@ package survarium.messages
          {
             return null;
          }
-         return this.dragItemSlot3.visible && this.dragItemSlot3.data ? this.dragItemSlot3.data : main;
+         var result:ItemData = this.dragItemSlot3.visible ? this.dragItemSlot3.data as ItemData : null;
+         if(result == null)
+         {
+            return main;
+         }
+         // The upgraded item as the inventory holds it: the result's own card is made from the
+         // dictionary (no place, no id, no upgrades), which would read "Equipped" without its scope.
+         var upgraded:ItemData = result.clone();
+         upgraded.descriptor = main.descriptor;
+         upgraded.itemId = main.itemId;
+         upgraded.upgrades = main.upgrades;
+         return upgraded;
       }
 
       // The item being upgraded or the donor.

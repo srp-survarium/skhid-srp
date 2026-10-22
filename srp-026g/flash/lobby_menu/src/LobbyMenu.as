@@ -2246,6 +2246,8 @@ package
       
       private function closeCraftWindow(e:Event) : void
       {
+         // the compare card showed the window's item (MessageCraftItem.compareWith)
+         this.hideItemHint(null);
          this.inventory_list.lockControls(false);
          removeChild(this.craftWindow);
          removeChild(this.backBlack);
