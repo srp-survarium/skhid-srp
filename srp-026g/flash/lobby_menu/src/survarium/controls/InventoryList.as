@@ -23,6 +23,7 @@ package survarium.controls
    import scaleform.clik.events.ListEvent;
    import scaleform.gfx.MouseEventEx;
    import scaleform.gfx.TextFieldEx;
+   import survarium.data.Relocation;
    import survarium.Util;
    import survarium.constants.ItemRank;
    import survarium.constants.Events;
@@ -1428,14 +1429,7 @@ package survarium.controls
             {
                if(value.enabled)
                {
-                  _relocateArray = [{
-                     profile:pp.profileId,
-                     id:value.itemId,
-                     dict_id:value.dictId,
-                     sourceSlot:ItemPlace.INVENTORY,
-                     targetSlot:trgSlt,
-                     count:1
-                  }];
+                  _relocateArray = [Relocation.move(pp.profileId,value.itemId,value.dictId,ItemPlace.INVENTORY,trgSlt,1)];
                   pp._relocateFunction(_relocateArray);
                }
             }
@@ -2815,14 +2809,7 @@ package survarium.controls
                      profile = (pp.profileId);
                      dict_id = item.dictId;
                      targetSlot = (newSlot);
-                     _relocateArray = [{
-                        profile:profile,
-                        id:id,
-                        dict_id:dict_id,
-                        sourceSlot:item.descriptor,
-                        targetSlot:targetSlot,
-                        count:newSlot >= ProfileSlot.QUICK_1 && newSlot <= ProfileSlot.QUICK_6 ? LocalPaperDoll.pocketUnits(pp.paperDoll.getSlotAt(newSlot).data as ItemData,item) : 1
-                     }];
+                     _relocateArray = [Relocation.move(profile,id,dict_id,item.descriptor,targetSlot,newSlot >= ProfileSlot.QUICK_1 && newSlot <= ProfileSlot.QUICK_6 ? LocalPaperDoll.pocketUnits(pp.paperDoll.getSlotAt(newSlot).data as ItemData,item) : 1)];
                      pp._relocateFunction(_relocateArray);
                   }
                }

@@ -46,6 +46,7 @@ package
    import scaleform.gfx.InteractiveObjectEx;
    import scaleform.gfx.MouseCursorEvent;
    import scaleform.gfx.MouseEventEx;
+   import survarium.data.Relocation;
    import survarium.Util;
    import survarium.ammo.AmmoShareControll;
    import survarium.ammo.AmmoShareElement;
@@ -3626,15 +3627,8 @@ package
          var count:uint = (value.count);
          var faction_id:uint = (value.seller);
          trace("relocate_to_paperdoll::",profile,id,dict_id,sourceSlot,targetSlot,count,"faction",faction_id,value.isStack,value.is_stack);
-         var relocate_object:Object = {
-            profile:profile,
-            id:id,
-            dict_id:dict_id,
-            sourceSlot:sourceSlot,
-            targetSlot:targetSlot,
-            count:count,
-            faction_id:faction_id
-         };
+         var relocate_object:Object = Relocation.move(profile,id,dict_id,sourceSlot,targetSlot,count);
+         relocate_object.faction_id = faction_id;
          var new_data:ItemData;
          var _relocateArray:Array;
          if((value.is_stack))
