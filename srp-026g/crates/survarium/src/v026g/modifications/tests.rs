@@ -574,13 +574,20 @@ fn reliability_slows_wear_and_premium_gear_pays_more() {
     assert!((bonuses.money - 0.1).abs() < 1e-6);
     assert_eq!(bonuses.experience, 0.0);
     assert_eq!(data.bonuses(premium, &[]), Bonuses::default());
-    // Premium trousers: experience and the Black Market's reputation.
-    let bonuses = data.bonuses(dict("bm_legs_4_premium"), &[]);
+    // Premium trousers: experience and the Black Market's reputation, as
+    // modifications of their own (`super::super::golden`); without them,
+    // nothing.
+    let trousers = dict("bm_legs_4_premium");
+    assert_eq!(data.bonuses(trousers, &[]), Bonuses::default());
+    let bonuses = data.bonuses(trousers, &[(1240, false), (1260, false)]);
     assert!((bonuses.experience - 0.05).abs() < 1e-6);
     assert_eq!(bonuses.money, 0.0);
     assert!((bonuses.reputation[1] - 0.05).abs() < 1e-6);
     assert_eq!(bonuses.reputation[0], 0.0);
-    let bonuses = data.bonuses(dict("scav_torso_4_premium"), &[]);
+    let bonuses = data.bonuses(
+        dict("scav_torso_4_premium"),
+        &[(1240, false), (1250, false)],
+    );
     assert!((bonuses.reputation[0] - 0.05).abs() < 1e-6);
     assert_eq!(data.bonuses(rifle, &[(2000, false)]), Bonuses::default());
 }

@@ -12,7 +12,8 @@ data: `scripts/content-edit/golden-weapons-1.json`; the lobby: `ItemDictId` (the
   Vityaz, VSS, SR-3M, Lancaster ×2, AK-74N, AK-74U, AK-12, AKMN ×2, SKS ×2, Vepr, Vepr-12,
   Saiga-12, VSK-94, Remington 700) and the Neostead, whose first built-in bonus was +10 %
   silver (modification 1230); and the MP7 special (owner: it joins them; its one bonus, 2004,
-  goes). Not the VSSK camo (not premium) or the premium armour.
+  goes). Not the VSSK camo (not premium); the premium armour has the same treatment since
+  2026-10-22 ([premium_armour.md](premium_armour.md)).
 - **Plain weapon of each:** the same weapon for silver (`*_premium*` → its stem); the
   Neostead's is `neostead_2`, the MP7 special's the silenced MP7.
 - **What they keep:** the silver bonus only. Their other built-in bonuses (reload, reliability,

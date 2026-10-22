@@ -716,7 +716,7 @@ package survarium.controls
          item_data.modifiers = descrData.modifiers;
          item_data.modifiersDefault = descrData.modifiers;
          item_data.rank = descrData.rarity_level;
-         // A golden weapon keeps its gold background with no descriptor rarity.
+         // A golden item keeps its gold background with no descriptor rarity.
          item_data.fromBundle = item_data.rank > 0 || ItemFactory.isGolden(dictId);
          var defModifersCount:uint = item_data.modifiersDefault.length;
          for(var i:uint = 0; i < defModifersCount; i++)
@@ -1218,7 +1218,7 @@ package survarium.controls
                newItem.dragEnabled = false;
                newItem.descriptor = ItemPlace.NONE;
                newItem.canBuy = true;
-               // As the server gives it: a golden weapon with the silver bonus.
+               // As the server gives it: a golden item with its bonuses.
                newItem.modifiers = ItemFactory.startingModifiers(newItem.dictId).concat(newItem.modifiersDefault);
                newItem.upgrades = [];
                newItem.sellerIcon = sellerIcons.getIcon(0);
@@ -3191,7 +3191,7 @@ package survarium.controls
                for(i = 0; i < inventoryCount; i++)
                {
                   itemData = this._inventoryItems[i];
-                  // The craft's donors: the server's (a golden weapon also takes its plain weapon).
+                  // The craft's donors: the server's (a golden item also takes its plain item).
                   isFiltered = this._filterDictId == -1 ? (checkBaseOptions(itemData)) : ItemFactory.isCraftDonor(itemData.dictId,this._filterDictId);
                   if(isFiltered)
                   {
