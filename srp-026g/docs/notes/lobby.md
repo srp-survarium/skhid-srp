@@ -603,3 +603,17 @@ Paths in `srp-021d` (the srp-026g copy has the same layout). Request handling is
 8. The exact LZMA2 encoder settings: the client only sets the dictionary size from the unpacked size; any standard raw LZMA2 stream whose dictionary does not exceed it should decode (LIKELY). Not tested.
 9. Behaviour when a lobby push arrives before the Flash movie is ready (0.21d spec §6 risk) — not re-checked.
 10. The quest record (20 bytes) fields were not re-traced; the lookup of an unknown quest id now looks safe (0x28DE43), LIKELY.
+
+## The upgrade window's close
+
+The owner (2026-10-22, an old bug): "after leaving upgrade window, I cannot rmb or lmb and turn camera
+around character"; "we want to fix it too".
+
+- **Before:** the window (Modification, Attachment) was only hidden on close. It stayed in the
+  display list over the scene, and the lobby's keys could stay on one of its controls. The game turns
+  the camera only when the movie answers that nothing of it is under the cursor
+  (`root.get_mouse_over`).
+- **Now:** on close the keys go back to the lobby (`stage.focus`) if a control of the window had them,
+  and the window leaves the display list, as the craft window does. It is added again when it opens.
+- Code: `LobbyMenu.closeModifierWindow`. Lobby movie only.
+
