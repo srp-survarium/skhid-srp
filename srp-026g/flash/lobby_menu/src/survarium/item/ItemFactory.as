@@ -16,6 +16,7 @@ package survarium.item
    import survarium.constants.ItemDefaults;
    import survarium.constants.ItemDictId;
    import survarium.constants.ItemPlace;
+   import survarium.constants.ItemRank;
    import survarium.constants.ModificationState;
    import survarium.constants.ModifierType;
    import survarium.constants.PropertyDirection;
@@ -211,9 +212,11 @@ package survarium.item
          return donorDictId == itemDictId || isGolden(itemDictId) && plainOf(donorDictId) == plainOf(itemDictId);
       }
       
+      // Skhid: not with three modifications (rank MAX; the server refuses its craft): the item
+      // panel's Upgrade and the right-click menu's entry are off then (owner 2026-10-22).
       public static function isItemCraftable(value:ItemData) : Boolean
       {
-         return !value.isStack && value.descriptor <= ItemPlace.INVENTORY && !value.repairTime && (value.superCategory == SuperCategory.EQUIPMENT || value.superCategory == SuperCategory.WEAPONS || value.superCategory == SuperCategory.AMMO);
+         return !value.isStack && value.descriptor <= ItemPlace.INVENTORY && !value.repairTime && value.rank < ItemRank.MAX && (value.superCategory == SuperCategory.EQUIPMENT || value.superCategory == SuperCategory.WEAPONS || value.superCategory == SuperCategory.AMMO);
       }
       
       public function registerItemDescriptor(link:ItemDescriptor) : void
