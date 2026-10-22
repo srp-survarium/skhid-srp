@@ -67,6 +67,8 @@ what isn't").
 
 - **While the craft window is open:** its list leaves out the item in the main slot and the one in
   the donor slot. Taken out of a slot, an item is listed again.
+- **Items with three modifications** (rank 3) are not listed either: neither slot takes them (owner
+  2026-10-22: "items with 3 mods shouldn't show up in craft too").
 - **Only the list:** the items stay owned; nothing is sent to the server.
 - **Closed:** the inventory lists every item again, as before.
 - Code: `MessageCraftItem.hideSlotted`, `InventoryList.hideCraftSlotted`, `LobbyMenu.openCraftWindow`.

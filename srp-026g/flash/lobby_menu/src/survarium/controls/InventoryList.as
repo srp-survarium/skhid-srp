@@ -24,6 +24,7 @@ package survarium.controls
    import scaleform.gfx.MouseEventEx;
    import scaleform.gfx.TextFieldEx;
    import survarium.Util;
+   import survarium.constants.ItemRank;
    import survarium.constants.Events;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
@@ -3209,8 +3210,9 @@ package survarium.controls
                for(i = 0; i < inventoryCount; i++)
                {
                   itemData = this._inventoryItems[i];
-                  // The craft's donors: the server's (a golden item also takes its plain item).
-                  isFiltered = this._filterDictId == -1 ? (checkBaseOptions(itemData)) : ItemFactory.isCraftDonor(itemData.dictId,this._filterDictId) && this._craftSlotted.indexOf(itemData.itemId) == -1;
+                  // The craft's donors: the server's (a golden item also takes its plain item); not
+                  // one in the window's slots, nor one at the most modifications (craft-menu.md).
+                  isFiltered = this._filterDictId == -1 ? (checkBaseOptions(itemData)) : ItemFactory.isCraftDonor(itemData.dictId,this._filterDictId) && this._craftSlotted.indexOf(itemData.itemId) == -1 && itemData.rank < ItemRank.MAX;
                   if(isFiltered)
                   {
                      relativeItem = shopDict[itemData.dictId];
