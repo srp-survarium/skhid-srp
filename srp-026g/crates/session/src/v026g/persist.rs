@@ -28,6 +28,7 @@ mod drop_cards;
 mod extras;
 mod items;
 mod map_plays;
+mod presets;
 mod results;
 mod room_settings;
 
@@ -136,6 +137,8 @@ const MIGRATIONS: &[&str] = &[
     admin_actions::MIGRATION,
     // 10: the matches an account used a drop card on (`drop_cards`).
     drop_cards::MIGRATION,
+    // 11: the slots of an account's kit presets (`presets`).
+    presets::MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
@@ -609,6 +612,7 @@ impl GameRepository for SqliteGameRepository {
                         map_plays: Vec::new(),
                         room_settings: None,
                         drop_cards: Vec::new(),
+                        presets: [None; super::presets::PRESETS],
                     },
                 ))
             })?;
@@ -623,6 +627,7 @@ impl GameRepository for SqliteGameRepository {
             account.balance = balance::load(&transaction, account_id)?;
             account.room_settings = room_settings::load(&transaction, account_id)?;
             account.drop_cards = drop_cards::load(&transaction, account_id)?;
+            account.presets = presets::load(&transaction, account_id)?;
             {
                 let mut statement = transaction.prepare_cached(
                     "SELECT skill_id, points FROM g26_skills WHERE account_id = ?1 ORDER BY seq",
@@ -868,6 +873,7 @@ fn write_account(
     balance::save(transaction, account_id, account.balance)?;
     room_settings::save(transaction, account_id, account.room_settings.as_ref())?;
     drop_cards::save(transaction, account_id, &account.drop_cards)?;
+    presets::save(transaction, account_id, &account.presets)?;
     for (seq, &(skill_id, points)) in account.skills.iter().enumerate() {
         transaction.execute(
             "INSERT INTO g26_skills (account_id, seq, skill_id, points)

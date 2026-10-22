@@ -192,6 +192,9 @@ pub struct Account {
     /// ([`super::rewards::Results::use_drop_card`]). Kept with the account,
     /// so the mark is written with the card taken and the item given.
     pub drop_cards: Vec<u32>,
+    /// Its five kit presets, preset 1 first; none: empty
+    /// ([`super::presets`]).
+    pub presets: [Option<super::presets::Preset>; super::presets::PRESETS],
 }
 
 /// The pockets of a kit's `slots` ([`POCKET_SLOTS`]) holding an item type
@@ -290,6 +293,7 @@ impl Account {
             map_plays: Vec::new(),
             room_settings: None,
             drop_cards: Vec::new(),
+            presets: [None; super::presets::PRESETS],
         };
         for worn in &loadout.items {
             let Some(entry) = dictionary.item(worn.dict_id) else {

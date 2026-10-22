@@ -442,8 +442,10 @@ package survarium.rooms
 
         // Join (or Queue for a full room) as the button does; the PIN typed
         // goes first. A member joining another room leaves its own (the
-        // server's, as Leave).
-        private function joinRoom(room:Object):void
+        // server's, as Leave). A join asks first whether it offers one of our
+        // kit presets (presets.md; RoomsWindow.askOffer), then comes back
+        // with `preset`: 0 none, else put on before the join.
+        private function joinRoom(room:Object, preset:int = -1):void
         {
             if (room == null || win._steps.length > 0 || !joins(room))
                 return;
@@ -454,23 +456,36 @@ package survarium.rooms
             var start:int = room.players >= room.size * 2 ? RoomsWire.QUEUE : RoomsWire.JOIN;
             win._code = RoomCode.NONE;
             win._steps = [];
+            var typed:String = _joinPin != null ? _joinPin.text : _pinText;
+            if (room.pin && typed.length != RoomsWire.PIN_DIGITS)
+            {
+                win.pinRefused();
+                return;
+            }
+            if (start == RoomsWire.JOIN && preset < 0)
+            {
+                win.askOffer(room);
+                return;
+            }
+            var at:int = start + room.key;
+            if (start == RoomsWire.JOIN && preset > 0)
+                at = RoomsWire.PRESET + (preset - 1) * RoomsWire.PRESET_STEP + room.key;
             if (room.pin)
             {
-                var typed:String = _joinPin != null ? _joinPin.text : _pinText;
-                if (typed.length != RoomsWire.PIN_DIGITS)
-                {
-                    win.pinRefused();
-                    return;
-                }
-                var pin:int = int(typed);
-                win._steps.push(start + room.key);
-                win.ask(RoomsWire.PIN + pin, 1);
+                win._steps.push(at);
+                win.ask(RoomsWire.PIN + int(typed), 1);
             }
             else
             {
-                win.ask(start + room.key, 1);
+                win.ask(at, 1);
             }
             win._fastUntil = getTimer() + 5000;
+        }
+
+        // The join of `room` after its preset offer (RoomsWindow.takeOffer).
+        internal function joinWith(room:Object, preset:int):void
+        {
+            joinRoom(room, preset);
         }
 
         private function onUnqueue(e:Event):void

@@ -33,6 +33,12 @@ package survarium.rooms
         public static const JOIN:int = FIRST + 100000;
         // Who is in a room, for anyone (`S1;G`; a room with a PIN too).
         public static const MEMBERS:int = FIRST + 300000;
+        // Whether a join offers a kit preset (`S1;O`; presets.md): + key, 0 for
+        // the room Play would take.
+        public static const OFFER:int = FIRST + 400000;
+        // "Switch and enter": PRESET + (preset - 1) * PRESET_STEP + key (0: Play).
+        public static const PRESET:int = FIRST + 500000;
+        public static const PRESET_STEP:int = 100000;
         public static const BITS:int = FIRST + 1000000;
         public static const CREATE:int = FIRST + 10000000;
         public static const LAST:int = FIRST + 19999999;

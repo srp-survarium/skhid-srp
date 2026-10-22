@@ -71,13 +71,15 @@ use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::{self as policy, Closed, Worth};
+use session::v026g::presets::{self, Offer};
 use session::v026g::room_settings::{self, RoomSettings};
 use session::v026g::rooms::{self as model, Due, Refused, Spec, Stage};
 use session::v026g::{matchmaking, quests, rules};
 use session::{LockExt, QueuePool};
+use survarium::v026g::lobby::presets::PresetDone;
 use survarium::v026g::lobby::rooms::{
-    self as wire, Card, Fit, FriendRoom, JoinHold, ListMember, Member, PoolEntry, RoomCode,
-    RoomPhase, RoomRequest, RoomRow, RoomSpec, RoomSwitch, RoomView,
+    self as wire, Card, Fit, FriendRoom, JoinHold, ListMember, Member, OfferKind, PoolEntry,
+    RoomCode, RoomPhase, RoomRequest, RoomRow, RoomSpec, RoomSwitch, RoomView,
 };
 use survarium::v026g::lobby::{self, ClientState};
 use survarium::v026g::maps;
@@ -280,6 +282,7 @@ impl Core<'_> {
                 | RoomRequest::Pin { .. }
                 | RoomRequest::Members { .. }
                 | RoomRequest::Friends
+                | RoomRequest::Offer { .. }
         ) {
             self.room_shown(who.account_id);
         }
@@ -323,27 +326,7 @@ impl Core<'_> {
                 self.rooms.give_pin(who.account_id, pin, now);
                 self.send_made(who.addr, wire::pin_answer());
             }
-            // The movie's Play with rooms on: straight into a room, no
-            // search shown; the state answers it.
-            RoomRequest::Play => {
-                // A place in a match (closed early, or signed in again):
-                // back to it, as the game's own Play does (`play`).
-                let player = session::Player {
-                    session_id: who.session_id,
-                    account_id: who.account_id,
-                    profile_id: who.account.locked().active_kit,
-                };
-                if self.store.matchmaking().back_to_seat(player) {
-                    log::info!("{} pressed Play: back to its seat", who.name);
-                    if let Some(state) = self.player_mut(who.addr) {
-                        state.queued_since = Some(now);
-                    }
-                    self.queue_status(who.addr, now);
-                } else {
-                    self.room_quick(who, now);
-                }
-                self.send_room_state(who, RoomCode::None, now);
-            }
+            RoomRequest::Play => self.room_play_pressed(who, now),
             RoomRequest::Leave => {
                 if let Some(key) = self.rooms.leave(who.account_id) {
                     log::info!("{}: left room {key}", who.name);
@@ -375,29 +358,9 @@ impl Core<'_> {
                 }
                 self.send_room_state(who, RoomCode::None, now);
             }
-            RoomRequest::Join { key } => {
-                let code = match self.room_fit(who) {
-                    Err(code) => code,
-                    Ok(()) => match self.rooms.join(
-                        who.account_id,
-                        matchmaking::gear_level(&who.account.locked(), quests::now()),
-                        key,
-                        now,
-                    ) {
-                        Ok(()) => {
-                            log::info!("{}: joined room {key}", who.name);
-                            RoomCode::None
-                        }
-                        Err(refused) => code_of(refused),
-                    },
-                };
-                if code != RoomCode::None {
-                    log::info!("{}: join room {key}: refused ({code:?})", who.name);
-                }
-                // Into the room first: its match, if one is played, after
-                // `LATE_JOIN_WAIT` or on the member's ask (the tick).
-                self.send_room_state(who, code, now);
-            }
+            RoomRequest::Join { key } => self.room_join(who, key, now),
+            RoomRequest::Offer { key } => self.room_offer(who, key),
+            RoomRequest::PresetJoin { preset, key } => self.room_preset_join(who, preset, key, now),
             // A full room's queue (the owner's of 2026-10-17): from the lobby
             // only, one at a time; a room with a place is joined at once.
             RoomRequest::Queue { key } => {
@@ -456,6 +419,121 @@ impl Core<'_> {
                 }
                 self.send_room_state(who, code, now);
             }
+        }
+    }
+
+    /// The movie's Play with rooms on: straight into a room, no search
+    /// shown; the state answers it.
+    fn room_play_pressed(&mut self, who: &Who, now: Instant) {
+        // A place in a match (closed early, or signed in again): back to it,
+        // as the game's own Play does (`play`).
+        let player = session::Player {
+            session_id: who.session_id,
+            account_id: who.account_id,
+            profile_id: who.account.locked().active_kit,
+        };
+        if self.store.matchmaking().back_to_seat(player) {
+            log::info!("{} pressed Play: back to its seat", who.name);
+            if let Some(state) = self.player_mut(who.addr) {
+                state.queued_since = Some(now);
+            }
+            self.queue_status(who.addr, now);
+        } else {
+            self.room_quick(who, now);
+        }
+        self.send_room_state(who, RoomCode::None, now);
+    }
+
+    /// Join the room with that key; the state answers it.
+    fn room_join(&mut self, who: &Who, key: u32, now: Instant) {
+        let code = match self.room_fit(who) {
+            Err(code) => code,
+            Ok(()) => match self.rooms.join(
+                who.account_id,
+                matchmaking::gear_level(&who.account.locked(), quests::now()),
+                key,
+                now,
+            ) {
+                Ok(()) => {
+                    log::info!("{}: joined room {key}", who.name);
+                    RoomCode::None
+                }
+                Err(refused) => code_of(refused),
+            },
+        };
+        if code != RoomCode::None {
+            log::info!("{}: join room {key}: refused ({code:?})", who.name);
+        }
+        // Into the room first: its match, if one is played, after
+        // `LATE_JOIN_WAIT` or on the member's ask (the tick).
+        self.send_room_state(who, code, now);
+    }
+
+    /// Whether joining the room with `key` (0: the room Play would take
+    /// now) offers one of the asker's kit presets (`presets.md`): the one
+    /// with the highest gear level the room's max level allows. Nothing for
+    /// a room of any max level, for no room, or while the asker may join
+    /// none (the join then says why).
+    fn room_offer(&mut self, who: &Who, key: u32) {
+        let unix = quests::now();
+        let (gear, levels) = {
+            let account = who.account.locked();
+            (
+                matchmaking::gear_level(&account, unix),
+                presets::levels(&account, unix),
+            )
+        };
+        let target = match key {
+            0 if self.rooms.of(who.account_id).is_none() => {
+                self.room_for_play(who.account_id, gear)
+            }
+            0 => None,
+            key => Some(key),
+        };
+        let max_level = match self.room_fit(who) {
+            Ok(()) => target
+                .and_then(|key| self.rooms.get(key))
+                .map_or(0, |room| room.spec.max_level),
+            Err(_) => 0,
+        };
+        let (kind, preset, level) = match presets::offer(gear, max_level, &levels) {
+            Offer::None => (OfferKind::None, 0, 0),
+            Offer::Higher { preset, level } => (OfferKind::Higher, preset, level),
+            Offer::Fits { preset, level } => (OfferKind::Fits, preset, level),
+        };
+        if kind != OfferKind::None {
+            log::info!(
+                "{}: room {} (max level {max_level}) offers preset {preset} (level {level}; gear {gear})",
+                who.name,
+                target.unwrap_or(0)
+            );
+        }
+        let answer = wire::room_offer(
+            key,
+            target.unwrap_or(0),
+            kind,
+            preset,
+            level,
+            gear,
+            max_level,
+        );
+        self.send_made(who.addr, answer);
+    }
+
+    /// "Switch and enter": preset `preset` onto the kits, then the join of
+    /// the room with `key` (0: Play). A preset that could not be put on
+    /// joins nothing (code 14).
+    fn room_preset_join(&mut self, who: &Who, preset: u8, key: u32, now: Instant) {
+        match self.preset_apply(who, preset) {
+            Ok(applied) => {
+                self.send_presets(who, PresetDone::Applied, preset, applied.empty);
+                if key == 0 {
+                    self.room_play_pressed(who, now);
+                } else {
+                    self.room_join(who, key, now);
+                }
+            }
+            Err(_) => self.send_room_state(who, RoomCode::PresetRefused, now),
         }
     }
 

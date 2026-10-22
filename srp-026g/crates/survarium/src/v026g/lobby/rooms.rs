@@ -51,6 +51,18 @@ pub const ROOM_JOIN_BASE: u32 = ROOMS_FIRST + 100_000;
 /// room, for anyone looking at the list ([`room_members`]; since
 /// 2026-10-20, a movie before it never asks).
 pub const ROOM_MEMBERS_BASE: u32 = ROOMS_FIRST + 300_000;
+/// `ROOM_OFFER_BASE + key`, key 1 to [`ROOM_KEY_MAX`]: whether joining that
+/// room offers one of the asker's kit presets ([`room_offer`]); key 0: the
+/// room Play would take now. Asked before the join (`presets.md`, since
+/// 2026-10-23; a movie before it never asks).
+pub const ROOM_OFFER_BASE: u32 = ROOMS_FIRST + 400_000;
+/// `ROOM_PRESET_BASE + (preset − 1) × 100 000 + key`, preset 1 to
+/// [`PRESET_COUNT`], key 1 to [`ROOM_KEY_MAX`]: put that preset on the kits,
+/// then join that room ("Switch and enter"); key 0: then Play. Answered with
+/// the state.
+pub const ROOM_PRESET_BASE: u32 = ROOMS_FIRST + 500_000;
+/// An account's kit presets.
+pub const PRESET_COUNT: u8 = 5;
 /// Leave the queue the asker waits in. Answered with the state.
 pub const ROOM_UNQUEUE: u32 = ROOMS_FIRST + 7;
 /// Go into the asker's room's match being played now, without waiting for
@@ -137,23 +149,52 @@ pub struct RoomSpec {
 /// A room request, by its start.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RoomRequest {
-    List { count: u8 },
+    List {
+        count: u8,
+    },
     State,
     Leave,
     Play,
-    Vote { card: u8 },
-    Pool { page: u8 },
-    Kick { place: u8, check: u32 },
-    Pin { pin: u16 },
-    Join { key: u32 },
-    Queue { key: u32 },
-    Members { key: u32 },
+    Vote {
+        card: u8,
+    },
+    Pool {
+        page: u8,
+    },
+    Kick {
+        place: u8,
+        check: u32,
+    },
+    Pin {
+        pin: u16,
+    },
+    Join {
+        key: u32,
+    },
+    Queue {
+        key: u32,
+    },
+    Members {
+        key: u32,
+    },
+    /// Key 0: the room Play would take.
+    Offer {
+        key: u32,
+    },
+    /// Preset 1 to [`PRESET_COUNT`]; key 0: Play.
+    PresetJoin {
+        preset: u8,
+        key: u32,
+    },
     Unqueue,
     JoinMatch,
     Form,
     Chat,
     Friends,
-    Bits { chunk: u8, bits: u32 },
+    Bits {
+        chunk: u8,
+        bits: u32,
+    },
     Create(RoomSpec),
 }
 
@@ -240,6 +281,18 @@ pub fn room_request(start: u32, count: u8) -> Option<RoomRequest> {
                 key: start - ROOM_MEMBERS_BASE,
             }
         }
+        _ if (ROOM_OFFER_BASE..=ROOM_OFFER_BASE + ROOM_KEY_MAX).contains(&start) => R::Offer {
+            key: start - ROOM_OFFER_BASE,
+        },
+        _ if (ROOM_PRESET_BASE..ROOM_PRESET_BASE + u32::from(PRESET_COUNT) * 100_000)
+            .contains(&start) =>
+        {
+            let offset = start - ROOM_PRESET_BASE;
+            R::PresetJoin {
+                preset: (offset / 100_000) as u8 + 1,
+                key: offset % 100_000,
+            }
+        }
         _ if (ROOM_BITS_BASE..ROOM_BITS_BASE + CHUNKS * (1 << BITS_PER_CHUNK)).contains(&start) => {
             let offset = start - ROOM_BITS_BASE;
             R::Bits {
@@ -324,6 +377,10 @@ pub enum RoomCode {
     /// The asker's kit could not play (no weapon, too little ammo) when its
     /// room's match started: it was taken out of the room.
     KitUnfit = 13,
+    /// "Switch and enter": the preset could not be put on the kits (an
+    /// empty one, or the asker is in a match): nothing changed, no room
+    /// joined (`presets.md`).
+    PresetRefused = 14,
 }
 
 /// A room in [`room_list`].
@@ -823,6 +880,48 @@ pub fn pin_answer() -> Result<ServerMessage, WireError> {
     rows_at(ROOM_PIN_BASE, vec![format!("{ROOMS_VERSION};K;1")])
 }
 
+/// What [`room_offer`] says of a join (`presets.md`).
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OfferKind {
+    /// No popup: join as it is (a room of any max level, no preset that
+    /// fits higher, or no room).
+    None = 0,
+    /// The room allows more than the kits: a preset higher than the gear
+    /// fits ("Enter anyway" or "Switch and enter").
+    Higher = 1,
+    /// The gear is over the room's max level and a preset fits ("Exit" or
+    /// "Switch and enter").
+    Fits = 2,
+}
+
+/// The answer to `3B 00 <ROOM_OFFER_BASE + asked>`, one row at that start:
+/// `S1;O;<key>;<kind>;<preset>;<level>;<gear>;<max level>`: `key` the room
+/// (for Play, the one it would take; 0: none), `kind` an [`OfferKind`],
+/// `preset` 1 to [`PRESET_COUNT`] and its gear `level` (0 and 0 for none),
+/// the asker's `gear` now and the room's `max level`.
+pub fn room_offer(
+    asked: u32,
+    key: u32,
+    kind: OfferKind,
+    preset: u8,
+    level: u8,
+    gear: u8,
+    max_level: u8,
+) -> Result<ServerMessage, WireError> {
+    rows_at(
+        ROOM_OFFER_BASE + asked.min(ROOM_KEY_MAX),
+        vec![offer_name(key, kind, preset, level, gear, max_level)],
+    )
+}
+
+fn offer_name(key: u32, kind: OfferKind, preset: u8, level: u8, gear: u8, max_level: u8) -> String {
+    format!(
+        "{ROOMS_VERSION};O;{key};{};{preset};{level};{gear};{max_level}",
+        kind as u8
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1109,6 +1208,43 @@ mod tests {
         assert_eq!(friend_names(&[]), ["S1;Y;0"]);
         assert!(friend_rooms(&vec![friends[1]; FRIEND_ROWS]).is_ok());
         assert!(friend_rooms(&vec![friends[1]; FRIEND_ROWS + 1]).is_err());
+    }
+
+    #[test]
+    fn a_preset_offer_and_a_preset_join_have_starts_of_their_own() {
+        const {
+            assert!(ROOM_MEMBERS_BASE + ROOM_KEY_MAX < ROOM_OFFER_BASE);
+            assert!(ROOM_OFFER_BASE + ROOM_KEY_MAX < ROOM_PRESET_BASE);
+            assert!(ROOM_PRESET_BASE + PRESET_COUNT as u32 * 100_000 <= ROOM_BITS_BASE);
+        }
+        assert_eq!(
+            room_request(ROOM_OFFER_BASE, 1),
+            Some(RoomRequest::Offer { key: 0 })
+        );
+        assert_eq!(
+            room_request(ROOM_OFFER_BASE + ROOM_KEY_MAX, 1),
+            Some(RoomRequest::Offer { key: ROOM_KEY_MAX })
+        );
+        // The presets' joins right after.
+        assert_eq!(ROOM_OFFER_BASE + ROOM_KEY_MAX + 1, ROOM_PRESET_BASE);
+        assert_eq!(
+            room_request(ROOM_PRESET_BASE, 1),
+            Some(RoomRequest::PresetJoin { preset: 1, key: 0 })
+        );
+        assert_eq!(
+            room_request(ROOM_PRESET_BASE + 4 * 100_000 + ROOM_KEY_MAX, 1),
+            Some(RoomRequest::PresetJoin {
+                preset: 5,
+                key: ROOM_KEY_MAX
+            })
+        );
+        // The pool's bits right after the fifth preset.
+        assert_eq!(ROOM_PRESET_BASE + 5 * 100_000, ROOM_BITS_BASE);
+        assert_eq!(
+            offer_name(12, OfferKind::Fits, 3, 7, 11, 8),
+            "S1;O;12;2;3;7;11;8"
+        );
+        assert!(room_offer(12, 12, OfferKind::None, 0, 0, 4, 0).is_ok());
     }
 
     #[test]

@@ -2624,6 +2624,7 @@ mod feedback_tests;
 mod gear_tests;
 mod items_tests;
 mod patch_check_tests;
+mod presets_tests;
 mod pvb_tests;
 mod reconnect_tests;
 mod replay_tests;

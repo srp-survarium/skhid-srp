@@ -161,7 +161,24 @@ package survarium.rooms
                 "Ваш комплект не міг грати (немає зброї або мало набоїв): вас вивели з кімнати.",
                 "Ваш комплект не мог играть (нет оружия или мало патронов): вас вывели из комнаты.",
                 "Deine Ausrüstung konnte nicht spielen (keine Waffe oder zu wenig Munition): du wurdest aus dem Raum genommen.",
-                "Twój zestaw nie mógł grać (brak broni lub za mało amunicji): usunięto cię z pokoju."]
+                "Twój zestaw nie mógł grać (brak broni lub za mało amunicji): usunięto cię z pokoju."],
+            "code14": ["The preset could not be applied.", "Не вдалося застосувати пресет.", "Не удалось применить пресет.",
+                "Das Preset ließ sich nicht anwenden.", "Nie udało się zastosować zestawu."],
+            // A join's kit preset (presets.md): {gear} the kits' level now, {max}
+            // the room's, {n} and {level} the preset's.
+            "offerHigher": ["Room max level {max}, your gear {gear}. Preset {n} is level {level}.",
+                "Макс. рівень кімнати {max}, ваше спорядження {gear}. Пресет {n}: рівень {level}.",
+                "Макс. уровень комнаты {max}, ваше снаряжение {gear}. Пресет {n}: уровень {level}.",
+                "Max. Stufe des Raums {max}, deine Ausrüstung {gear}. Preset {n}: Stufe {level}.",
+                "Maks. poziom pokoju {max}, twój ekwipunek {gear}. Zestaw {n}: poziom {level}."],
+            "offerFits": ["Your gear {gear} is over the room's max level {max}. Preset {n} is level {level}.",
+                "Ваше спорядження {gear} вище макс. рівня кімнати {max}. Пресет {n}: рівень {level}.",
+                "Ваше снаряжение {gear} выше макс. уровня комнаты {max}. Пресет {n}: уровень {level}.",
+                "Deine Ausrüstung {gear} liegt über der max. Stufe {max}. Preset {n}: Stufe {level}.",
+                "Twój ekwipunek {gear} przekracza maks. poziom {max}. Zestaw {n}: poziom {level}."],
+            "enterAnyway": ["Enter anyway", "Увійти так", "Войти так", "Trotzdem rein", "Wejdź mimo to"],
+            "switchEnter": ["Switch and enter", "Змінити й увійти", "Сменить и войти", "Wechseln, rein", "Zmień i wejdź"],
+            "exit": ["Exit", "Вийти", "Выйти", "Abbrechen", "Wyjdź"]
         };
         private static const FRIENDS:Array = ["Friends", "Друзі", "Друзья", "Freunde", "Znajomi"];
         private static const LEVELS:Array = [

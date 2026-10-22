@@ -32,6 +32,9 @@ package survarium.constants
       
       public static const KIT_UNFIT:int = 13;
       
+      // "Switch and enter": the preset could not be applied (presets.md).
+      public static const PRESET_REFUSED:int = 14;
+      
       public function RoomCode()
       {
          super();

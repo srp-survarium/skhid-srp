@@ -7,13 +7,17 @@ package survarium.player
    import flash.external.*;
    import flash.text.TextField;
    import flash.utils.getDefinitionByName;
+   import flash.utils.getTimer;
    import scaleform.clik.controls.Button;
+   import scaleform.clik.controls.DropdownMenu;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.events.DragEvent;
    import scaleform.clik.events.IndexEvent;
+   import scaleform.clik.events.ListEvent;
    import scaleform.clik.motion.Tween;
    import survarium.Util;
+   import survarium.controls.Message;
    import survarium.controls.PlayerProfileBase;
    import survarium.data.ItemData;
    import survarium.data.LocalizationData;
@@ -26,6 +30,7 @@ package survarium.player
    import survarium.constants.MoneyType;
    import survarium.constants.SuperCategory;
    import survarium.constants.UiSound;
+   import survarium.rooms.RoomsText;
    
    public class LocalPlayerProfile extends PlayerProfileBase implements ILocalPlayerProfile
    {
@@ -73,9 +78,64 @@ package survarium.player
       
       protected var _convertedItems:Array;
       
+      // Kit presets (presets.md, the owner's of 2026-10-23): five snapshots of
+      // the three kits, kept by the server, chosen in a dropdown left of the
+      // title and saved or applied with the two buttons right of it. srp's
+      // wire: the ranking request at PRESETS_FIRST and on (lobby.md 2.16.4),
+      // answered with the list, `P1;L;<done>;<preset>;<empty>` and a row
+      // `<preset>;<saved>;<level>` each (level -1: none of its kits can play).
+      public static var me:LocalPlayerProfile;
+      
+      private static const PRESETS_FIRST:int = 2090000000;
+      
+      private static const PRESETS_LAST:int = PRESETS_FIRST + 99;
+      
+      private static const PRESET_SAVE:int = PRESETS_FIRST + 10;
+      
+      private static const PRESET_APPLY:int = PRESETS_FIRST + 20;
+      
+      private static const PRESET_COUNT:int = 5;
+      
+      // What the list's header says was done: applied, refused.
+      private static const PRESET_APPLIED:int = 2;
+      
+      private static const PRESET_REFUSED:int = 3;
+      
+      // The words, in the lobby's five languages (RoomsText.language).
+      private static const PRESET_WORDS:Object = {
+         "preset":["Preset","Пресет","Пресет","Preset","Zestaw"],
+         "level":["level","рівень","уровень","Stufe","poziom"],
+         "empty":["empty","порожній","пустой","leer","pusty"],
+         "unfit":["can't play","не для бою","не для боя","nicht spielbar","niegrywalny"],
+         "save":["Save","Зберегти","Сохранить","Speichern","Zapisz"],
+         "apply":["Apply","Застосувати","Применить","Anwenden","Zastosuj"],
+         "gone":["{n} slots left empty: those items are gone.","Порожніх слотів: {n}, цих предметів немає.","Пустых слотов: {n}, этих предметов нет.","{n} Plätze leer: diese Gegenstände fehlen.","Pustych miejsc: {n}, tych przedmiotów brak."],
+         "refused":["The preset could not be applied.","Не вдалося застосувати пресет.","Не удалось применить пресет.","Das Preset ließ sich nicht anwenden.","Nie udało się zastosować zestawu."]
+      };
+      
+      private var _presetMenu:DropdownMenu;
+      
+      private var _presetSave:*;
+      
+      private var _presetApply:*;
+      
+      // {known, saved, level} a preset, preset 1 first; the one chosen.
+      private var _presets:Array = [];
+      
+      private var _presetAt:int = 0;
+      
+      private var _presetLabels:String = "";
+      
+      private var _presetsAskedAt:int = -100000;
+      
+      // The kits locked (as the paper doll and the ammo button): no preset
+      // saved or applied.
+      private var _presetsLocked:Boolean = false;
+      
       public function LocalPlayerProfile()
       {
          super();
+         me = this;
          var rendererPremium:Class = getDefinitionByName("ProfileBuyPremium") as Class;
          buyPremium = new rendererPremium();
          _playerPaperDoll = profileItems as ILocalPaperDoll;
@@ -164,6 +224,7 @@ package survarium.player
       {
          profileItems.enabled = value;
          this.btnShowAmmo.enabled = value;
+         this.lockPresets(!value);
          if(this.btnShowAmmo.selected && value == false)
          {
             this.onAmmoButton();
@@ -234,6 +295,7 @@ package survarium.player
          }
          this._ammo_share.enabled = !state;
          this.btnShowAmmo.enabled = !state;
+         this.lockPresets(state);
       }
       
       public function onDrag(e:DragEvent) : void
@@ -396,6 +458,8 @@ package survarium.player
          }
          this._unresolvedItems.length = 0;
          super.fillProfileItems(data);
+         // The presets' levels follow the inventory: asked again.
+         this.askPresets();
          trace("PP:invalidateItems");
          this._playerInventory.invalidateList();
       }
@@ -456,6 +520,7 @@ package survarium.player
          this.btnShowAmmo.addEventListener(ButtonEvent.CLICK,this.onAmmoButton);
          this.ammoContainer.shift = -575;
          this.ammoContainer.addEventListener(Event.CLOSE,this.onAmmoButtonSwitch);
+         this.makePresets();
       }
       
       private function onAutoRepair(e:Event) : void
@@ -550,6 +615,212 @@ package survarium.player
             this._playerPaperDoll.ammoControl.reflow(null,"playerProfile",-1);
          }
       }
+      
+      // PlayerRanking.fillPlayers, first: rows of the presets' range are
+      // the list (true: taken).
+      public static function presetsTake(rows:Array) : Boolean
+      {
+         if(rows == null || rows.length == 0 || rows[0] == null)
+         {
+            return false;
+         }
+         var place:Number = Number(rows[0].place);
+         if(place < PRESETS_FIRST || place > PRESETS_LAST)
+         {
+            return false;
+         }
+         if(me != null)
+         {
+            try
+            {
+               me.takePresets(rows);
+            }
+            catch(e:Error)
+            {
+            }
+         }
+         return true;
+      }
+      
+      private static function presetWord(key:String) : String
+      {
+         return String(PRESET_WORDS[key][RoomsText.language()]);
+      }
+      
+      // The dropdown (the game's, as Player vs Bots' menus) left of the title,
+      // Save and Apply right of it: the title is centred in the header.
+      private function makePresets() : void
+      {
+         var i:int = 0;
+         while(i < PRESET_COUNT)
+         {
+            this._presets.push({
+               "known":false,
+               "saved":false,
+               "level":-1
+            });
+            i++;
+         }
+         var menuClass:Class = getDefinitionByName("SrvDropDownMenuP") as Class;
+         this._presetMenu = new menuClass() as DropdownMenu;
+         this._presetMenu.dropdown = "OptionScrollingList";
+         this._presetMenu.itemRenderer = "OptionsListRenderer";
+         this._presetMenu.scrollBar = "";
+         this._presetMenu.menuDirection = "down";
+         this._presetMenu.menuMargin = 0;
+         this._presetMenu.thumbOffsetTop = 0;
+         this._presetMenu.thumbOffsetBottom = 0;
+         this._presetMenu.menuRowsFixed = false;
+         this._presetMenu.menuRowCount = PRESET_COUNT;
+         this._presetMenu.x = 10;
+         this._presetMenu.y = 4;
+         this._presetMenu.width = 200;
+         this._presetMenu.menuWidth = 220;
+         this._presetMenu.addEventListener(ListEvent.INDEX_CHANGE,this.onPresetChosen);
+         addChild(this._presetMenu);
+         var buttonClass:Class = getDefinitionByName("SrvButtonSkinned") as Class;
+         this._presetSave = new buttonClass();
+         this._presetApply = new buttonClass();
+         this.placePresetButton(this._presetSave,presetWord("save"),376,this.onPresetSave);
+         this.placePresetButton(this._presetApply,presetWord("apply"),476,this.onPresetApply);
+         this.fillPresetMenu();
+      }
+      
+      private function placePresetButton(button:*, label:String, x:Number, handler:Function) : void
+      {
+         button.label = label;
+         button.x = x;
+         button.y = 2;
+         addChild(button);
+         // Its natural height (32): the game's button keeps its label there.
+         button.setSize(92,32);
+         button.addEventListener(ButtonEvent.CLICK,handler);
+      }
+      
+      private function fillPresetMenu() : void
+      {
+         var rows:Array = [];
+         var labels:String = "";
+         var i:int = 0;
+         while(i < PRESET_COUNT)
+         {
+            var preset:Object = this._presets[i];
+            var label:String = presetWord("preset") + " " + (i + 1);
+            if(preset.known)
+            {
+               label += ": " + (!preset.saved ? presetWord("empty") : (preset.level >= 0 ? presetWord("level") + " " + preset.level : presetWord("unfit")));
+            }
+            rows.push({"label":label});
+            labels += label + "|";
+            i++;
+         }
+         if(labels != this._presetLabels)
+         {
+            this._presetLabels = labels;
+            this._presetMenu.dataProvider = new DataProvider(rows);
+         }
+         this._presetMenu.selectedIndex = this._presetAt;
+         this._presetMenu.invalidateSelectedIndex();
+         this.lockPresets(this._presetsLocked);
+      }
+      
+      private function lockPresets(locked:Boolean) : void
+      {
+         this._presetsLocked = locked;
+         if(this._presetMenu == null)
+         {
+            return;
+         }
+         this._presetMenu.enabled = !locked;
+         this._presetSave.enabled = !locked;
+         this._presetApply.enabled = !locked && Boolean(this._presets[this._presetAt].saved);
+      }
+      
+      // The list now, at most every 2 s unless `now` (an account pushed is
+      // asked for once).
+      private function askPresets(now:Boolean = false) : void
+      {
+         if(!now && getTimer() - this._presetsAskedAt < 2000)
+         {
+            return;
+         }
+         this._presetsAskedAt = getTimer();
+         this.sendPresets(PRESETS_FIRST);
+      }
+      
+      private function sendPresets(start:int) : void
+      {
+         try
+         {
+            ExternalInterface.call("request_players_range",start,1);
+         }
+         catch(e:Error)
+         {
+         }
+      }
+      
+      // `P1;L;<done>;<preset>;<empty>`, then `<preset>;<saved>;<level>` each.
+      private function takePresets(rows:Array) : void
+      {
+         var head:Array = String(rows[0].nickname).split(";");
+         if(head[0] != "P1" || head[1] != "L")
+         {
+            return;
+         }
+         var i:int = 1;
+         while(i < rows.length && i <= PRESET_COUNT)
+         {
+            var f:Array = String(rows[i].nickname).split(";");
+            var at:int = int(f[0]) - 1;
+            if(at >= 0 && at < PRESET_COUNT && f.length >= 3)
+            {
+               this._presets[at] = {
+                  "known":true,
+                  "saved":f[1] == "1",
+                  "level":int(f[2])
+               };
+            }
+            i++;
+         }
+         this.fillPresetMenu();
+         var done:int = int(head[2]);
+         var empty:int = int(head[4]);
+         if(done == PRESET_APPLIED && empty > 0)
+         {
+            Message.showMessage("ok",presetWord("gone").split("{n}").join(String(empty)));
+         }
+         else if(done == PRESET_REFUSED)
+         {
+            Message.showMessage("ok",presetWord("refused"));
+         }
+      }
+      
+      private function onPresetChosen(e:ListEvent) : void
+      {
+         e.stopPropagation();
+         var at:int = this._presetMenu.selectedIndex;
+         if(at >= 0 && at < PRESET_COUNT && at != this._presetAt)
+         {
+            this._presetAt = at;
+            this.lockPresets(this._presetsLocked);
+         }
+      }
+      
+      private function onPresetSave(e:Event) : void
+      {
+         if(this._presetsLocked)
+         {
+            return;
+         }
+         this.sendPresets(PRESET_SAVE + this._presetAt + 1);
+      }
+      
+      private function onPresetApply(e:Event) : void
+      {
+         if(!this._presetsLocked && this._presets[this._presetAt].saved)
+         {
+            this.sendPresets(PRESET_APPLY + this._presetAt + 1);
+         }
+      }
    }
 }
-

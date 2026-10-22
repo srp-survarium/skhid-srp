@@ -212,6 +212,38 @@ pub fn move_items(
     Ok(())
 }
 
+/// The kit at `kit_index` emptied, then `moves` (each from the inventory)
+/// made into it by the moves' own rules ([`relocate`]): the item owned and
+/// fitting the slot, one item in one slot of a kit, a covering item taking
+/// off what it covers, one pocket an item type. Unlike [`move_items`] it
+/// never buys: a stack gets at most the units owned. All or nothing; a kit
+/// whose slots changed gets a new revision. A kit preset is put on with it
+/// (`super::presets`).
+pub fn fill_kit(
+    account: &mut Account,
+    kit_index: usize,
+    moves: &[Relocation],
+) -> Result<(), ActionError> {
+    let before = account
+        .kits
+        .get(kit_index)
+        .ok_or(ActionError::NoSuchKit)?
+        .clone();
+    account.kits[kit_index].slots = [None; KIT_SLOTS];
+    let filled = relocate(account, Dictionary::shared(), kit_index, moves);
+    let kit = &mut account.kits[kit_index];
+    if filled.is_err() {
+        *kit = before;
+        return filled;
+    }
+    kit.revision = if kit.slots == before.slots {
+        before.revision
+    } else {
+        before.revision.wrapping_add(1)
+    };
+    Ok(())
+}
+
 /// [`move_items`] with every item owned.
 ///
 /// The moves are made in order, and a move may name as its source a slot
