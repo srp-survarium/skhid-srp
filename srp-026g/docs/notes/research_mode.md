@@ -48,6 +48,12 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   - killing an enemy inside a unit his team does not own ("kill invader") is score 10, event 10.
   srp sends these weights (30, 30, 10) in a Research match's static info; the activity pay
   follows the score as for every event.
+- **Rewards: no cap** (the owner, 2026-10-22: "let's not cap it at all", "it takes a lot of time
+  to capture a point either way"). Captures, neutralisations and kill invader pay as their
+  score, with no per-match cap like the battery events' (`battery_credit.md`). The review of
+  #297 showed a 1v1 room can earn about 1,320 score per 15-minute match by trading units back
+  and forth; the owner knows and chose no cap. Exploiters are handled by the take-back policy
+  (only gains over 0.5M silver and gold are taken back). Do not add a cap without the owner.
 - **HUD:** the teams' points in Team Deathmatch's bars; the three units under them (letter,
   owner's colour: own team blue, other red, nobody grey; a ring for the capture of the team
   taking it); "Capturing unit..." while one's own player is inside a unit his team is taking;
@@ -173,11 +179,11 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   where the first section's bytes begin; moving every section's bytes to grow it would change
   every file offset the tools and the released records name). Eleven are taken (the seven of the
   game, `.srp`, `.srpd`, `.srpc`, `.srpw`). The twelfth, `.srpx` (0xA42D000, code, data and
-  writable), holds the code of every later patch that needs pages of its own, each at an offset
-  of its own: Research at +0 (code to +3000h, its state page +3000h), the dynamic anomalies
-  (patch 42, #225) at +4000h (`DYNAMIC_ANOMALIES_OFFSET`). #225 then adds no section: it
-  assembles `dynamic_anomalies_026g.asm` for 0xA431000 and puts its bytes into `.srpx` at
-  +4000h (int3 between), its two hooks aiming there.
+  writable), is the arena of every later patch (client_patch.md 0.3): blocks declared in
+  `patch_026g.py`'s `ARENA`, laid out in order. Research's are the first two, `research.code`
+  (0xA42D000, to +3000h) and `research.state` (0xA430000). The dynamic anomalies (patch 42,
+  #225) append theirs, `anomalies.code` at 0xA431000, the address
+  `dynamic_anomalies_026g.asm` is assembled for, and add no section.
 - **HUD:** update_ui (every frame): `root.research_update(own team, points 0, points 1, goal,
   Z, then cp_id, x, -z, owner, taking, progress %, inside 0, inside 1, own player inside)`, sent
   at a change and every 60 frames; the messages through the hud's parameterised message.

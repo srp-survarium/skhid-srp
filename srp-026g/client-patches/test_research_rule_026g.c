@@ -319,6 +319,31 @@ static void test_skhid_rates(void) {
     }
 }
 
+/* Both at 100 shown, one at the goal: not a draw (the review of #297). */
+static void test_leader_at_the_goal(void) {
+    struct rr_params p = params_027d();
+    struct rr_state s;
+    rr_u32 time = 0;
+    fresh(&s, &p);
+    s.points[0] = p.target - 3000;            /* 99.997: shows 100 */
+    s.points[1] = p.target - 500000;          /* 99.5: shows 100 too */
+    for (int z = 0; z < 3; ++z) {
+        s.zones[z].owner = 0;
+        s.zones[z].capturing = 0;
+        s.zones[z].progress = RR_FULL;
+    }
+    run(&s, &p, 50, &time, 0);
+    CHECK(s.points[0] == p.target && s.score[0] == 100 && s.score[1] == 100 && s.end_time != RR_NEVER);
+    CHECK(rr_leader(&s) == 0);
+    /* before the goal, equal shown scores are a draw */
+    struct rr_state t;
+    fresh(&t, &p);
+    t.points[0] = 37400000;
+    t.points[1] = 37200000;
+    t.score[0] = t.score[1] = 37;
+    CHECK(rr_leader(&t) == RR_NOBODY);
+}
+
 static void test_kill_invader(void) {
     struct rr_params p = params_027d();
     struct rr_state s;
@@ -404,6 +429,7 @@ int main(void) {
     test_water_fill();
     test_points_and_end();
     test_one_unit_rate();
+    test_leader_at_the_goal();
     test_skhid_rates();
     test_kill_invader();
     test_left_and_dead();

@@ -40,9 +40,13 @@
 //!   when it is sold ([`drop_gone_upgrades`]). After `83 46 01` the client's
 //!   own copy holds the scope item's dict id (0x275671) until the inventory
 //!   that follows every answer puts the variant's in its place.
-//! - **Reroll.** One modification of an item may be changed, any number of
-//!   times (`st_modifier_reroll_description`); the first change picks which
-//!   (the window locks the others, `was_rerolled_before`). A change offers
+//! - **Reroll.** The game's: one modification of an item may be changed,
+//!   any number of times (`st_modifier_reroll_description`); the first
+//!   change picks which (the window locks the others,
+//!   `was_rerolled_before`). [srp, the owner's rule of 2026-10-22] Any of
+//!   the item's own modifications may be changed, each any number of
+//!   times; the one changed last is only marked in the window
+//!   (`docs/notes/reroll-keep-old.md`). A change offers
 //!   three modifications and the player takes one
 //!   (`MessageRerollItem`: the window can not be closed before), or
 //!   [srp, the owner's rule of 2026-10-21] keeps the old one: the window's
@@ -550,8 +554,9 @@ pub struct RerollWindow {
     /// What the next change costs, in silver and in gold.
     pub regular_cost: u32,
     pub premium_cost: u32,
-    /// Once a modification was changed: its id (the one that may be
-    /// changed again) and the seconds until silver pays again, always 0 now.
+    /// Once a modification was changed: the id of the one changed last
+    /// (the window marks it; any may be changed) and the seconds until
+    /// silver pays again, always 0 now.
     pub changed: Option<(u32, u32)>,
     /// A paid change that waits for its choice (`83 46 07` again).
     pub offer: Option<[u32; 3]>,
@@ -586,10 +591,16 @@ pub struct Rerolled {
     /// What was taken: silver, gold. Both 0 for an offer made before and
     /// shown again.
     pub paid: (u32, u32),
+    /// The modification the three are offered for: the one asked for, or
+    /// the pending offer's when it is shown again.
+    pub replaced: u32,
+    /// The pending offer shown again (nothing was rolled or taken).
+    pub again: bool,
 }
 
 /// `46 07 <item> <modification> <gold>`: change `modification` of the
-/// item; three are offered in its place.
+/// item, any of its own (the one changed before locks nothing: the
+/// owner's rule of 2026-10-22); three are offered in its place.
 pub fn reroll(
     account: &mut Account,
     item_id: u32,
@@ -601,12 +612,15 @@ pub fn reroll(
     let item = account
         .item(item_id)
         .ok_or(ItemError::Reroll("no such item"))?;
-    if let Some((_, choices)) = item.reroll.offer {
-        // Paid for and not chosen yet: the same three.
+    if let Some((replaced, choices)) = item.reroll.offer {
+        // Paid for and not chosen yet: the same three, whichever
+        // modification is named.
         return Ok(Rerolled {
             choices,
             reroll_seconds: 0,
             paid: (0, 0),
+            replaced,
+            again: true,
         });
     }
     if !is_gear(item) {
@@ -621,11 +635,6 @@ pub fn reroll(
     let held = own_modifications(item);
     if !held.contains(&modification) {
         return Err(ItemError::Reroll("the item has no such modification"));
-    }
-    if item.reroll.modification != 0 && item.reroll.modification != modification {
-        return Err(ItemError::Reroll(
-            "another modification is the one to change",
-        ));
     }
     let table = Modifications::shared();
     let price = table
@@ -661,6 +670,8 @@ pub fn reroll(
         choices,
         reroll_seconds: 0,
         paid,
+        replaced: modification,
+        again: false,
     })
 }
 
@@ -698,8 +709,8 @@ pub fn choose_modifier(
     }
     if choice == KEEP_OLD_MODIFICATION {
         // Nothing of the item changes: the offer goes, and the old one
-        // stays the one that may be changed again (it already is, since
-        // the change was paid).
+        // stays the one changed last (it already is, since the change was
+        // paid).
         item.reroll.offer = None;
         return Ok(Chosen {
             old_modification,

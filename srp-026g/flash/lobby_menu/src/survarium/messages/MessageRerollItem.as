@@ -35,6 +35,15 @@ package survarium.messages
       // stays paid). English, Ukrainian, Russian, German, Polish.
       private static const KEEP_OLD_LABEL:Array = ["Keep old","Не міняти","Не менять","Behalten","Zostaw stary"];
 
+      // The window's rule line, in place of the game's st_modifier_reroll_description ("only one
+      // modifier"): any modifier may be changed (the owner's rule of 2026-10-22).
+      private static const REROLL_DESCRIPTION:Array = [
+         "You can change any modifier of an item, any number of times. You then choose one of three random modifiers.",
+         "Можна змінити будь-який модифікатор предмета, скільки завгодно разів. Потім оберіть один із трьох випадкових модифікаторів.",
+         "Можно изменить любой модификатор предмета, сколько угодно раз. Затем выберите один из трёх случайных модификаторов.",
+         "Du kannst jeden Modifikator eines Gegenstands beliebig oft ändern. Danach wählst du einen von drei zufälligen Modifikatoren.",
+         "Możesz zmienić dowolny modyfikator przedmiotu, dowolną liczbę razy. Następnie wybierasz jeden z trzech losowych modyfikatorów."];
+
       public var lockedHint:ToolTip;
       
       public var buttonReroll:Button;
@@ -135,7 +144,7 @@ package survarium.messages
             trace("in:data::",this.labelText,this.labelChooseModifier,this.decriptionLabel,this.buttonCraft,this.buttonReroll,this.checkBoxRegularCost,this.checkBoxPremiumCost,this.sellerIcon);
             this.labelText.text = LocalizationData.getName("item_modification");
             this.labelChooseModifier.text = LocalizationData.getName("choose_modifier");
-            this.decriptionLabel.text = LocalizationData.getName("modifier_reroll_description");
+            this.decriptionLabel.text = String(REROLL_DESCRIPTION[RoomsText.language()]);
             // Skhid: no "only one attempt in 6 hours" line: silver rerolls have no wait
             // (items_rules: Reroll, the owner's rule of 2026-10-22)
             this.decriptionTimerLabel.text = "";
@@ -269,12 +278,14 @@ package survarium.messages
             {
                modifier = modifiers[i];
                modifierIcon = iconContainer.getIcon(modifier.icon);
+               // Skhid: every modifier may be changed, each any number of times (the owner's rule
+               // of 2026-10-22): none is greyed out or locked; the one changed last is selected.
                option = {
                   id:modifier.id,
                   icon:modifierIcon,
                   label:modifier.textValue,
-                  reroll_available:!modifier.was_rerolled_before,
-                  locked:rerolledIndex == i && noneRerolled == false
+                  reroll_available:true,
+                  locked:false
                };
                options.push(ModificationRolls.withRange(option,modifier));
                i++;
@@ -284,10 +295,6 @@ package survarium.messages
             if(!noneRerolled && rerolledIndex != -1)
             {
                this.modifiersList.selectedIndex = rerolledIndex;
-               this.modifiersList.enabled = false;
-               this.modifiersList.mouseEnabled = false;
-               this.modifiersList.mouseChildren = false;
-               this.lockedHint.visible = true;
             }
          }
       }

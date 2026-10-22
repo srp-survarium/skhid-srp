@@ -2,7 +2,8 @@
 ; Lifebone's heal, one press fires every artefact of its kind. Its numbers
 ; are in the artefacts' configs (release/content.tsv artefacts-1.json); this
 ; is what the stock code could not read or do.
-;   nasm -f bin -DCAVE=0xA42C700 artefacts_026g.asm -o artefacts_026g.section.bin
+;   nasm -f bin -DCAVE=0xA431000 artefacts_026g.asm -o artefacts_026g.section.bin
+; (the arena's block artefacts.code, `.srpx`+4000h: patch_026g.py ARTEFACTS_VA)
 ; client_patch.md section 3.51; the rules: ../docs/notes/artefacts.md.
 ;
 ; A Spring (artefact_spring_core, type 6) keeps its config at +340h, filled

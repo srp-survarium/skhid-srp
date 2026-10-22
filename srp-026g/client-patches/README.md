@@ -57,7 +57,7 @@ release's. The "Result" row is the build of the revision named in it.
 
 | File | What |
 |---|---|
-| `patch_026g.py` | Builds the patched exe from the original. Python 3, nothing else |
+| `patch_026g.py` | Builds the patched exe from the original. Python 3, nothing else. Holds `ARENA` (the `.srpx` blocks), `INSTALLS`/`CALLBACKS`/`INSTALLED_VTABLES` (every installed function's model) and the checks of both (arena and call shapes, above; `docs/notes/client_patch.md` 0.3, 0.4) |
 | `snapshot_upload_026g.asm` | The source of the upload code (nasm) |
 | `snapshot_upload_026g.section.bin`, `.hash-mismatch.bin` | That code assembled, for the two places it can go; `patch_026g.py` reads them. Assembling the source again gives the same bytes |
 | `late_join_026g.asm`, `late_join_validate_026g.c`, `late_join_runtime_026g.c`, `late_join_install_026g.c`, `late_join_runtime_026g.h` | The source of the late-join code (patch 11): the hooks and the game's calling conventions in assembly, the checks of what the server sends and the bookkeeping in C |
@@ -91,7 +91,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `suicide_key_026g.asm`, `suicide_key_026g.section.bin` | The source of patch 34's code (the commit_suicide key kills one's own player) and that code assembled for 0x980 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `spot_026g.asm`, `spot_026g.section.bin` | The source of patch 38's code (a spot's hit on a battery's body spots the battery) and that code assembled for 0x7C0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
-| `artefacts_026g.asm`, `artefacts_026g.section.bin`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; assembled for 0x2700 of `.srpw` (its third page); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts (needs Unicorn) |
+| `artefacts_026g.asm`, `artefacts_026g.section.bin`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; assembled for 0xA431000, the arena's block `artefacts.code` (`.srpx`+4000h); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
@@ -117,6 +117,56 @@ release's. The "Result" row is the build of the revision named in it.
 | `run_battery_rule.ps1` | Runs the battery rule's handler (patch 9) out of any 0.26g exe on a made-up rule object, in the 32-bit Windows PowerShell: what an exe does with a put that is played again after a rollback. Starts nothing of the game |
 | `survarium_login_server.crt` | The login certificate (the same file as `../certs/survarium_login_server.crt`) |
 | `launcher/` | The game's launcher made to work again, and to keep these files current: its patch tool, the one piece of new code, the self-test and its own README. Its updater is `../../client/updater` |
+
+## The arena (`.srpx`) and call shapes
+
+Two things keep a new exe patch from the mistakes PR #297 shipped
+(`docs/notes/client_patch.md` sections 0.3 and 0.4).
+
+**`.srpx`, the arena.** The exe's section table holds twelve entries (it is
+at file 0x210 and the headers end at 0x400); the game's seven plus `.srp`,
+`.srpd`, `.srpc` and `.srpw` take eleven. The twelfth is `.srpx`, a growing
+arena, so a later patch need not add a section of its own. A patch that wants
+room declares its blocks in `patch_026g.py`'s `ARENA` — an
+`ArenaBlock(name, kind, size, align)` each (`kind` "code", "data" or
+"state") — the builder lays them out in that order and gives each its VA
+(`arena_layout`), and only the section's sizes and `SizeOfImage` grow. A
+block never moves once placed, every block's bytes are assembled for the VA
+the builder gives it, and the arena is byte-for-byte deterministic
+(`selftest_026g.py`'s `test_arena`). With no block declared there is no
+`.srpx`. Research (patch 53) is on it: its code and state are `ARENA`'s
+first two blocks, at the VAs it was built for, and the exe is byte for byte
+what main built before the arena. The old `.srp`/`.srpd`/`.srpc`/`.srpw` stay
+as they are; new patches append blocks (the artefacts, patch 54, took the third,
+`artefacts.code` at 0xA431000; the dynamic anomalies, #225, next:
+client_patch.md 0.3 says how).
+
+**Call shapes.** Every function a patch installs — a vtable slot, a delegate,
+a callback, a hook the game enters — declares in `patch_026g.py` the game's
+own function it stands in for (its model) or an explicit ABI (`INSTALLS`,
+`CALLBACKS`, `INSTALLED_VTABLES`). `build()` refuses an install it does not
+name (a call, jump or pointer into our code at any offset of any write), and
+a `*_vtable` of the arena's C code without a model (`audit_vtables`). The
+self-test (`test_call_shapes`) reads what ours pops from the built bytes
+(every `ret` reachable) and the model's from the original exe,
+`tools/re-kit/v026g/abi.tsv` having to agree where it has the row, and fails
+on a mismatch for: every SLOT, ENTRY (the model is the function at the site),
+CALLEE (the replaced call's target, less the pushes replaced with it) and ABI
+site (its declared pops); every CALLBACK; every slot of ours of every
+INSTALLED_VTABLES vtable (Research's rule, cook and link resolver: check 53's
+comparison, now the rule for every patch). It also flags an INSTALLS row no
+built variant installs. A negative test rejects a rule vtable slot 16 that
+pops 4 where tdm's pops 8 (Research's first `rn_deserialize`).
+**Driven through the game's caller.** A `ret` comparison cannot see the
+order of the arguments (Research's slot 7 took `(type, time, data)` where the
+game passes `(type, data, time)`: #297's review). So each slot of ours of each
+INSTALLED_VTABLES vtable, and each CALLBACK, names a case of its patch's
+Unicorn check that reaches it through the game's own caller (the loop or
+dispatcher that calls it in the game, with what the game passes there): the
+self-test fails a slot or callback with none, or a case its script does not
+have, and a negative test shows both refused. **Not checked here:** INLINE sites (a call of ours over other instructions) and
+JUMP sites (a jump into ours from the game's code), which are declared but
+left to each patch's own Unicorn check.
 
 ## How to apply
 
@@ -2801,7 +2851,9 @@ disassembly as the spec, and the units are not world objects: the rule tests the
 positions against the units' shapes, which the mode config carries (`capture_zones`).
 
 - **The rule** (`research_native_026g.c`, `rn_rule`): game_match_rule_base (0x313900, type 5) and
-  0.26g's twenty slots: 7 events (a kill, `{killer, victim}`: "kill invader"), 8 and 9 a roster
+  0.26g's twenty slots: 7 events (`(type, data, time)`, as the world's dispatcher 0x2D1EA0 passes
+  them; a kill, `{killer, victim}`: "kill invader"; the first build took `(type, time, data)`, fixed
+  after #297's review), 8 and 9 a roster
   place entered or left, 11 the world (its tick a delegate at the end of the world's second tick
   list, numbered by the world's counter, as timelimit_rule_core's 0x318050), 12 the blackboard, 15
   and 16 the state (21 + 96 bytes a unit, little-endian, `rr_write`'s layout; 15 writes it field
@@ -2833,14 +2885,13 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   parameterised message (0x2375C0); then the compare and its branch. `cmp eax,4 / jne 0x23B36A` at
   0x23B351 (the match's first message by mode) becomes a `jmp` of the welcome stub: mode 5's is
   `st_start_match_welcome_message_5`.
-- **The section** `.srpx` (0xA42D000, after `.srpw`'s three pages) is the section of the later
-  patches' code. The exe's headers end at 400h, where the first section's bytes begin, and their
-  section table (at 210h) holds twelve entries: `.srpx` is the twelfth and last, so a later patch
-  that needs pages of its own takes some of `.srpx`'s at an offset of its own instead of a
-  section. It is code, data and writable. Research has +0: the 256 bytes of
-  `research_026g.asm` (three `jmp near`: register, hud, welcome), the C code and its constants
-  linked for where they run, int3 to +3000h, its state page (the cook, the hud's cache) zeroed.
-  +4000h on is the dynamic anomalies' (patch 42, #225, `DYNAMIC_ANOMALIES_OFFSET`).
+- **The section** `.srpx` (0xA42D000, after `.srpw`'s three pages) is the arena of the later
+  patches (the twelfth and last section table entry; "The arena" above, client_patch.md 0.3).
+  Research has its first two blocks: `research.code` at 0xA42D000 (the 256 bytes of
+  `research_026g.asm`, three `jmp near`: register, hud, welcome; the C code and its constants
+  linked for where they run; int3 to +3000h) and `research.state` at 0xA430000 (the cook, the
+  hud's cache; zeroed). The next block, `artefacts.code` at 0xA431000, is patch 54's; #225's
+  dynamic anomalies go after it, at 0xA432000.
 - **The register hook**: `mov eax,ebx / call 0x1EC170` at 0x1E9B4C of the game's constructor (after
   its own client rule cooks) becomes a `call` of the register stub, which registers the cook once
   and does the two instructions.
@@ -2900,10 +2951,25 @@ does what no config of 0.26g could.
   its effect 0x313350, the time, state 4), and returns: a press of one cooling or active still
   fires the ready ones. A key-up goes on in action. Different kinds keep their keys.
 
-The code is `artefacts_026g.asm` at +2700h of `.srpw` (its third page, after the upgrade
-preview's code; patch 53's `.srpx` still starts at .srpw + 3 pages): six `jmp near` entries, 784
-bytes in all. No base relocation is under a site and nothing aims inside one. Only in the builds
-with the late join.
+The code is `artefacts_026g.asm` in the arena (`.srpx`, "The arena" above): its third block,
+`artefacts.code`, a code page at 0xA431000 after Research's two (`ARENA`, pinned in
+`ARENA_PINNED`; `ARTEFACTS_VA`): six `jmp near` entries, 784 bytes in all, int3 to the page's
+end. No base relocation is under a site and nothing aims inside one. Only in the builds with the
+late join.
+
+**Call shapes.** The six sites are declared in `INSTALLS`: Spring's active link 0x311BC0, its
+unlink 0x311DA0 and artefact_base::action 0x313300 are ENTRY (their first bytes jump to ours;
+ours goes on in the function or, for a key-down, returns `ret 8` itself: each pops what the
+function does, 0, 4 and 8, checked by the self-test against the original and `abi.tsv`); the
+loader's 0x33AE13, Lifebone's 0x3122AA and the stagger's 0x2DBD89 are JUMP (from the middle of
+the game's code, back at the same stack depth). The patch hands the game no pointer: no
+callback, no vtable. Each hook's arguments were read against the game's callers: the loader's
+registers (0x33AE0B), the link's eax (0x311946, 0x311A4F), the unlink's pushed Spring
+(0x311973), Lifebone's time at [esp+14h] with its four pushes, action's (pressed, time) as
+inventory::action 0x2FCAA0 pushes them for its vtable +2Ch call, the effect 0x313350's (the
+artefact, the time), increase_health's (time, amount) as the medkit at 0x33D9C3, the getter's
+(B, k) as 0x3118D0 passes them, and the stagger's sum at [esp+14h] (its argument slot) on both
+ways to 0x2DBD89.
 
 **Revisions.** It changes what a match computes (every game runs every press and every
 modifier), so a server asks for the release's revision, and
@@ -2912,7 +2978,8 @@ modifier), so a server asks for the release's revision, and
 exe require it). `../docs/notes/client_patch.md` section 3.51 has the proof.
 
 Checked: `selftest_026g.py` check 54 (the six sites and the two sizes before and after, no
-relocation or branch inside, the code, its exits and calls, its texts) and the `.srpw` layout;
+relocation or branch inside, the code, its exits and calls, its texts), the arena's layout
+(`artefacts.code` at 0xA431000) and the call shapes (the three ENTRY sites' `ret`);
 `check_artefacts_026g.py` (Unicorn, the game's own code: the loader with the config lookup on
 a binary config of the release's numbers, both Springs' links with the getter: aim time x0.95
 passive, x0.85 active, x0.7 for two active Springs, speed x1.05 / x1.15 / x1.3; Lifebone's
@@ -2920,10 +2987,14 @@ enable_active with made-up pools: pain, body and head full, a limb, a full pool 
 one left alone; an
 inventory of two Springs, an Onyx, a Spring cooling and one active: one press fires the ready
 Springs alone, the Onyx alone, a key-up nothing, a cooling Spring's key the ready one; the stagger with made-up hits: -0.45, -0.5 at
-most, an old hit out, and 0 with an active Spring in the build). The edited retail Spring config was read by
+most, an old hit out, and 0 with an active Spring in the build; through the game's own callers, a
+slot's key through inventory::action 0x2FCAA0 fires both Springs, whose own enable_active
+0x3118D0 links their nodes (aim x0.7, speed x1.3) and whose disable_active 0x311970 unlinks one's;
+52 / 51 checks). The edited retail Spring config was read by
 the build's loader too (aim -0.05 / -0.1, stopping power -1). Against the build of `main`
-5d834b9, the default build differs in the eight sites (0x25E7A9, 0x2EEA75, 0x2DBD89,
-0x311BC0, 0x311DA0, 0x3122AA, 0x313300, 0x33AE13), `.srpw`'s 784 bytes at 0xA42C700, its sizes and the headers that follow (compared
+5e03028, the default build differs in the eight sites (0x25E7A9, 0x2EEA75, 0x2DBD89,
+0x311BC0, 0x311DA0, 0x3122AA, 0x313300, 0x33AE13), `.srpx` one page longer (the artefacts'
+page at 0xA431000, its first four pages as they were) and the headers that follow (compared
 section by section). **Not run in a game.**
 
 ## Not ported, not done
