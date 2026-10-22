@@ -23,7 +23,7 @@ package survarium.controls
    import survarium.constants.ModifierType;
    import survarium.constants.MoneyType;
    import survarium.constants.ProfileSlot;
-   import survarium.constants.PropertyDirection;
+   import survarium.item.ModificationRolls;
    import survarium.constants.VoucherType;
    
    public class ItemCard extends MovieClip
@@ -470,7 +470,7 @@ package survarium.controls
                   }
                   trace("propValue::",propDescription.direction,prop.direction);
                   propValue = propDescription.modifier_type == ModifierType.ADD ? (prop.prop_value) : prop.prop_value * 100;
-                  color = propDescription.direction == PropertyDirection.LOWER_IS_BETTER && prop.prop_value < 0 || propDescription.direction == PropertyDirection.HIGHER_IS_BETTER && prop.prop_value > 0 ? "green" : "red";
+                  color = ModificationRolls.style(propDescription,prop.prop_id,ModificationRolls.value(prop));
                   text += propDescription.prop_name + ": " + Util.styledChar(sign + (int(propValue) == propValue ? propValue.toString() : propValue.toFixed(1)) + postfix,color) + "\n";
                }
             }
