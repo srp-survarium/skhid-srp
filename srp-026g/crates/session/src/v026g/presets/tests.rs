@@ -1,5 +1,7 @@
 use survarium::v026g::item_params::{covered_slots, item_params};
 use survarium::v026g::lobby::FULL_CONDITION;
+use survarium::v026g::lobby::requests::Relocation;
+use survarium::v026g::prices;
 
 use super::*;
 use crate::v026g::account::{Item, KitSlot};
@@ -10,9 +12,9 @@ fn dict(name: &str) -> u16 {
     Dictionary::shared().item_named(name).unwrap().dict_id
 }
 
-/// Alice: the starter kit in kit 1 (the TT-33 in slot 7, 50 rounds in
-/// slot 8), the Mosin carbine, 10 of its rounds and the PPSh-41 in the
-/// storage.
+/// Alice: preset 1 active, the starter kit in kit 1 (the TT-33 in slot 7,
+/// 50 rounds in slot 8), the Mosin carbine, 10 of its rounds and the
+/// PPSh-41 in the storage.
 fn alice() -> Account {
     Account::new("Alice")
 }
@@ -26,11 +28,24 @@ fn worn(account: &Account, kit: usize) -> Vec<(usize, u32, u32)> {
         .collect()
 }
 
+fn all_worn(account: &Account) -> Vec<Vec<(usize, u32, u32)>> {
+    (0..KITS).map(|kit| worn(account, kit)).collect()
+}
+
 fn put(account: &mut Account, kit: usize, slot: usize, item_id: u32, count: u32) {
     account.kits[kit].slots[slot] = Some(KitSlot { item_id, count });
 }
 
-/// What applying may never change: the items owned (ids, types, units,
+fn owned_id(account: &Account, name: &str) -> u32 {
+    account
+        .inventory
+        .iter()
+        .find(|item| item.dict_id == dict(name))
+        .unwrap()
+        .item_id
+}
+
+/// What choosing may never change: the items owned (ids, types, units,
 /// modifications), the next item id and the money.
 fn owned(account: &Account) -> (Vec<Item>, u32, u32, u32) {
     (
@@ -42,99 +57,219 @@ fn owned(account: &Account) -> (Vec<Item>, u32, u32, u32) {
 }
 
 /// The Mosin carbine and its rounds into kit 2.
-fn rifle_kit(account: &mut Account) -> (u32, u32) {
-    let rifle = account
-        .inventory
-        .iter()
-        .find(|item| item.dict_id == dict("mosin_nagant"))
-        .unwrap()
-        .item_id;
-    let rounds = account
-        .inventory
-        .iter()
-        .find(|item| item.dict_id == dict("ammo_7.62x54r_old"))
-        .unwrap()
-        .item_id;
+fn rifle_kit(account: &mut Account) {
+    let rifle = owned_id(account, "mosin_nagant");
+    let rounds = owned_id(account, "ammo_7.62x54r_old");
     put(account, 1, 10, rifle, 1);
     put(account, 1, 9, rounds, 10);
-    (rifle, rounds)
 }
 
 #[test]
-fn a_saved_preset_puts_the_three_kits_back() {
+fn a_new_account_wears_preset_1_and_the_others_are_empty() {
+    let account = alice();
+    assert_eq!(account.active_preset, 1);
+    assert_eq!(preset(&account, 1).unwrap(), snapshot(&account));
+    assert!(preset(&account, 1).unwrap().is_some());
+    for number in 2..=5 {
+        assert_eq!(preset(&account, number).unwrap(), None);
+    }
+    assert_eq!(preset(&account, 6), Err(PresetError::NoSuchPreset));
+}
+
+#[test]
+fn choosing_a_preset_keeps_the_kits_with_the_one_left() {
     let mut account = alice();
-    let (rifle, rounds) = rifle_kit(&mut account);
-    let kit1 = worn(&account, 0);
-    let kit2 = worn(&account, 1);
-    assert!(save(&mut account, 1).unwrap());
-    let saved = account.presets[0].unwrap();
-    assert_eq!(saved.slots(), 4);
+    let starter = all_worn(&account);
+
+    // An empty preset starts as the kits worn: nothing changes on them.
+    let before = account.clone();
+    assert_eq!(choose(&mut account, 2).unwrap(), Applied { empty: 0 });
+    assert_eq!(account.active_preset, 2);
+    assert_eq!(account.kits, before.kits);
+    assert_eq!(account.presets[0], snapshot(&before));
+    assert_eq!(account.presets[1], None);
+
+    // Preset 2 changed by hand: the rifle in kit 2, kit 1 empty.
+    account.kits[0].slots = [None; KIT_SLOTS];
+    rifle_kit(&mut account);
+    let rifle = all_worn(&account);
+    let before = owned(&account);
+    let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
+
+    // Back to 1: its kits on, 2 kept as it was left.
+    assert_eq!(choose(&mut account, 1).unwrap(), Applied { empty: 0 });
+    assert_eq!(account.active_preset, 1);
+    assert_eq!(all_worn(&account), starter);
+    assert_eq!(account.presets[0], None);
     assert_eq!(
-        saved.kits[1][10],
+        account.presets[1].unwrap().kits[1][10],
         Some(PresetSlot {
-            item_id: rifle,
+            item_id: owned_id(&account, "mosin_nagant"),
             dict_id: dict("mosin_nagant"),
             count: 1
         })
     );
-
-    // The kits changed since: kit 1 empty, the rifle in kit 3 too (an item
-    // may be in several kits), the PPSh in kit 2's other weapon slot.
-    let ppsh = account
-        .inventory
-        .iter()
-        .find(|item| item.dict_id == dict("ppsh"))
-        .unwrap()
-        .item_id;
-    account.kits[0].slots = [None; KIT_SLOTS];
-    put(&mut account, 1, 7, ppsh, 1);
-    put(&mut account, 2, 10, rifle, 1);
-    put(&mut account, 2, 9, rounds, 5);
-    let before = owned(&account);
-    let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
-
-    assert_eq!(apply(&mut account, 1).unwrap(), Applied { empty: 0 });
-    assert_eq!(worn(&account, 0), kit1);
-    assert_eq!(worn(&account, 1), kit2);
-    // Kit 3 was empty when saved: it is emptied.
-    assert!(worn(&account, 2).is_empty());
-    for (kit, revision) in account.kits.iter().zip(revisions) {
-        assert_eq!(kit.revision, revision + 1);
-    }
+    // Kits 1 and 2 changed, kit 3 (empty in both) did not.
+    let now: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
+    assert_eq!(now, [revisions[0] + 1, revisions[1] + 1, revisions[2]]);
     assert_eq!(owned(&account), before);
-    // The kit ids, names and the kit played stay.
+    // The kit played stays.
     assert_eq!(account.active_kit, 1);
-    assert_eq!(
-        account.kits.iter().map(|kit| kit.id).collect::<Vec<_>>(),
-        [1, 2, 3]
-    );
 
-    // Applied again: nothing changes, no new revision.
+    // And to 2 again.
+    choose(&mut account, 2).unwrap();
+    assert_eq!(all_worn(&account), rifle);
+    assert_eq!(owned(&account), before);
+
+    // The active one chosen again: nothing changes.
     let same = account.clone();
-    apply(&mut account, 1).unwrap();
+    assert_eq!(choose(&mut account, 2).unwrap(), Applied { empty: 0 });
     assert_eq!(account, same);
-
-    // The same items may be in several presets.
-    assert!(save(&mut account, 3).unwrap());
-    assert_eq!(account.presets[2], account.presets[0]);
+    assert_eq!(choose(&mut account, 0), Err(PresetError::NoSuchPreset));
+    assert_eq!(choose(&mut account, 6), Err(PresetError::NoSuchPreset));
+    assert_eq!(account, same);
 }
 
-#[test]
-fn an_empty_or_unknown_preset_changes_nothing() {
-    let mut account = alice();
-    let before = account.clone();
-    assert_eq!(apply(&mut account, 1), Err(PresetError::Empty));
-    assert_eq!(apply(&mut account, 0), Err(PresetError::NoSuchPreset));
-    assert_eq!(apply(&mut account, 6), Err(PresetError::NoSuchPreset));
-    assert_eq!(save(&mut account, 6), Err(PresetError::NoSuchPreset));
-    assert_eq!(account, before);
-    // Kits with nothing in them save an empty preset, which clears it.
-    assert!(save(&mut account, 2).unwrap());
+/// Preset 5: the PPSh-41 alone in kit 3; preset 1 active again.
+fn with_preset_5(account: &mut Account) {
+    choose(account, 5).unwrap();
     for kit in &mut account.kits {
         kit.slots = [None; KIT_SLOTS];
     }
-    assert!(!save(&mut account, 2).unwrap());
-    assert_eq!(account.presets[1], None);
+    let ppsh = owned_id(account, "ppsh");
+    put(account, 2, 7, ppsh, 1);
+    choose(account, 1).unwrap();
+}
+
+/// The kits after a change come back as they are after it: away to preset
+/// 5 and back to 1.
+fn kept(account: &mut Account, what: &str) {
+    let after = all_worn(account);
+    let kits = snapshot(account);
+    choose(account, 5).unwrap();
+    assert_ne!(all_worn(account), after, "{what}: preset 5 is other kits");
+    choose(account, 1).unwrap();
+    assert_eq!(all_worn(account), after, "{what}");
+    assert_eq!(snapshot(account), kits, "{what}");
+}
+
+/// The active preset is the kits: whatever changes them changes it, with
+/// nothing to save. Each way a kit changes, then away and back.
+#[test]
+fn every_change_of_the_kits_is_the_active_presets() {
+    let mut account = alice();
+    account.generic_money = 1_000_000;
+    with_preset_5(&mut account);
+    kept(&mut account, "as it starts");
+
+    // A move (`46 00`): the rifle into kit 1's second weapon slot.
+    let rifle = owned_id(&account, "mosin_nagant");
+    let rounds = owned_id(&account, "ammo_7.62x54r_old");
+    rules::move_items(
+        &mut account,
+        1,
+        &[
+            Relocation {
+                item_id: rifle,
+                dict_id: dict("mosin_nagant"),
+                source_slot: INVENTORY_SLOT,
+                target_slot: 10,
+                count: 1,
+                count_in_inventory: 0,
+            },
+            Relocation {
+                item_id: rounds,
+                dict_id: dict("ammo_7.62x54r_old"),
+                source_slot: INVENTORY_SLOT,
+                target_slot: 9,
+                count: 10,
+                count_in_inventory: 10,
+            },
+        ],
+        NOW,
+    )
+    .unwrap();
+    assert_eq!(
+        account.kits[0].slots[10].map(|held| held.item_id),
+        Some(rifle)
+    );
+    kept(&mut account, "a move");
+
+    // The ammo window asking for more rounds than owned: bought, in the kit.
+    let ammo = dict("ammo_7.62x25");
+    let pistol_rounds = account.kits[0].slots[8].unwrap().item_id;
+    rules::move_items(
+        &mut account,
+        1,
+        &[
+            Relocation {
+                item_id: pistol_rounds,
+                dict_id: ammo,
+                source_slot: 8,
+                target_slot: INVENTORY_SLOT,
+                count: 50,
+                count_in_inventory: 50,
+            },
+            Relocation {
+                item_id: pistol_rounds,
+                dict_id: ammo,
+                source_slot: INVENTORY_SLOT,
+                target_slot: 8,
+                count: 80,
+                count_in_inventory: 80,
+            },
+        ],
+        NOW,
+    )
+    .unwrap();
+    assert_eq!(account.kits[0].slots[8].unwrap().count, 80);
+    kept(&mut account, "the ammo window");
+
+    // A purchase dropped onto a slot, if one is sold at level 0.
+    let dictionary = Dictionary::shared();
+    let record = prices::price_list()
+        .iter()
+        .filter(|record| {
+            record.faction_id != 0 && record.level == 0 && dictionary.fits(record.dict_id, 10)
+        })
+        .min_by_key(|record| record.cost);
+    if let Some(record) = record {
+        let bought = rules::buy(
+            &mut account,
+            record.dict_id,
+            1,
+            record.faction_id,
+            10,
+            1,
+            NOW,
+        )
+        .unwrap();
+        assert_eq!(
+            account.kits[0].slots[10].map(|held| held.item_id),
+            Some(bought[0].item_id)
+        );
+        kept(&mut account, "a purchase onto a slot");
+    }
+
+    // A match's rounds: the stack down under what the slot took.
+    account.item_mut(pistol_rounds).unwrap().condition_or_stack = 30;
+    account.sync_kits();
+    assert_eq!(account.kits[0].slots[8].unwrap().count, 30);
+    kept(&mut account, "rounds fired");
+
+    // A sale of what a kit wears.
+    let pistol = account.kits[0].slots[7].unwrap().item_id;
+    rules::sell(&mut account, pistol, 1).unwrap();
+    assert_eq!(account.kits[0].slots[7], None);
+    kept(&mut account, "a sale");
+
+    // A repair at load: grenades in two pockets merged.
+    let grenades = account.add_item(dict("rgd-5"), 3);
+    put(&mut account, 0, 13, grenades, 1);
+    put(&mut account, 0, 15, grenades, 2);
+    assert!(account.repair());
+    assert_eq!(account.kits[0].slots[15], None);
+    kept(&mut account, "a repair");
 }
 
 #[test]
@@ -142,16 +277,23 @@ fn a_sold_item_leaves_its_slot_empty() {
     let mut account = alice();
     let pistol = account.kits[0].slots[7].unwrap().item_id;
     let rounds = account.kits[0].slots[8].unwrap();
-    save(&mut account, 1).unwrap();
+    starter_in_2(&mut account);
     rules::sell(&mut account, pistol, 1).unwrap();
-    assert!(account.item(pistol).is_none());
     let before = owned(&account);
 
-    assert_eq!(apply(&mut account, 1).unwrap(), Applied { empty: 1 });
+    assert_eq!(choose(&mut account, 2).unwrap(), Applied { empty: 1 });
     assert_eq!(account.kits[0].slots[7], None);
     assert_eq!(account.kits[0].slots[8], Some(rounds));
     // Nothing bought in its place.
     assert_eq!(owned(&account), before);
+}
+
+/// Preset 2 holds kit 1 as Alice starts; she plays preset 1 with nothing
+/// worn.
+fn starter_in_2(account: &mut Account) {
+    choose(account, 2).unwrap();
+    choose(account, 1).unwrap();
+    account.kits[0].slots = [None; KIT_SLOTS];
 }
 
 #[test]
@@ -159,22 +301,26 @@ fn a_stack_gets_what_is_owned_and_never_more() {
     let mut account = alice();
     let rounds = account.kits[0].slots[8].unwrap().item_id;
     let ammo = dict("ammo_7.62x25");
-    save(&mut account, 1).unwrap();
+    starter_in_2(&mut account);
 
     // Fired since: 20 left of the 50 saved.
     account.item_mut(rounds).unwrap().condition_or_stack = 20;
-    account.sync_kits();
     let before = owned(&account);
-    assert_eq!(apply(&mut account, 1).unwrap(), Applied { empty: 0 });
+    assert_eq!(choose(&mut account, 2).unwrap(), Applied { empty: 0 });
     assert_eq!(account.kits[0].slots[8].unwrap().count, 20);
     assert_eq!(owned(&account), before);
 
-    // Used up, then bought again (a new item): the stack owned now.
+    // Used up, then bought again (a new item): the stack owned now, at most
+    // the 50 kept.
+    choose(&mut account, 1).unwrap();
+    account.presets[1].as_mut().unwrap().kits[0][8]
+        .as_mut()
+        .unwrap()
+        .count = 50;
     account.inventory.retain(|item| item.item_id != rounds);
-    account.sync_kits();
     let again = account.add_item(ammo, 30);
     let before = owned(&account);
-    apply(&mut account, 1).unwrap();
+    choose(&mut account, 2).unwrap();
     assert_eq!(
         account.kits[0].slots[8],
         Some(KitSlot {
@@ -185,23 +331,27 @@ fn a_stack_gets_what_is_owned_and_never_more() {
     assert_eq!(owned(&account), before);
 
     // None owned: the slot stays empty, nothing is bought.
+    choose(&mut account, 1).unwrap();
     account.inventory.retain(|item| item.item_id != again);
-    account.sync_kits();
     let before = owned(&account);
-    assert_eq!(apply(&mut account, 1).unwrap(), Applied { empty: 1 });
+    assert_eq!(choose(&mut account, 2).unwrap(), Applied { empty: 1 });
     assert_eq!(account.kits[0].slots[8], None);
     assert_eq!(owned(&account), before);
 }
 
+fn empty_preset() -> Preset {
+    Preset {
+        kits: [[None; KIT_SLOTS]; KITS],
+    }
+}
+
 /// A preset whose data names what the account does not own (another
 /// account's item id, a stack of a type it has none of): nothing comes of
-/// it. Applying makes no item, takes none and moves no money.
+/// it. Choosing makes no item, takes none and moves no money.
 #[test]
-fn applying_makes_no_item_and_no_money() {
+fn choosing_makes_no_item_and_no_money() {
     let mut account = alice();
-    let mut preset = Preset {
-        kits: [[None; KIT_SLOTS]; KITS],
-    };
+    let mut preset = empty_preset();
     // An item id no item of the account has, of a weapon's type.
     preset.kits[0][7] = Some(PresetSlot {
         item_id: 999,
@@ -228,8 +378,7 @@ fn applying_makes_no_item_and_no_money() {
     });
     account.presets[4] = Some(preset);
     let before = owned(&account);
-    let applied = apply(&mut account, 5).unwrap();
-    assert_eq!(applied, Applied { empty: 3 });
+    assert_eq!(choose(&mut account, 5).unwrap(), Applied { empty: 3 });
     assert!(worn(&account, 0).is_empty());
     assert!(worn(&account, 1).is_empty());
     assert_eq!(worn(&account, 2), [(8, 2, 50)]);
@@ -248,10 +397,8 @@ fn an_item_type_goes_into_one_pocket() {
     let mut account = alice();
     let grenades = account.add_item(dict("rgd-5"), 3);
     let booster = account.add_item(dict("speed_booster"), 2);
-    let mut preset = Preset {
-        kits: [[None; KIT_SLOTS]; KITS],
-    };
-    // Saved before the rule: grenades in two pockets, a booster in two.
+    let mut preset = empty_preset();
+    // Kept from before the rule: grenades in two pockets, a booster in two.
     for (pocket, item_id, dict_id, count) in [
         (13, grenades, dict("rgd-5"), 1),
         (14, booster, dict("speed_booster"), 1),
@@ -264,9 +411,9 @@ fn an_item_type_goes_into_one_pocket() {
             count,
         });
     }
-    account.presets[0] = Some(preset);
+    account.presets[1] = Some(preset);
     let before = owned(&account);
-    assert_eq!(apply(&mut account, 1).unwrap(), Applied { empty: 2 });
+    assert_eq!(choose(&mut account, 2).unwrap(), Applied { empty: 2 });
     let pockets: Vec<Option<KitSlot>> = account.kits[0].slots[13..=16].to_vec();
     assert_eq!(
         pockets,
@@ -301,13 +448,13 @@ fn a_covering_item_takes_off_what_it_covers() {
     let helmet = account.add_item(zubr, FULL_CONDITION);
     let balaclava = account.add_item(1810, FULL_CONDITION);
 
-    // Saved with the helmet; the kit wears the balaclava now.
+    // Preset 2 with the helmet; preset 1 wears the balaclava.
+    choose(&mut account, 2).unwrap();
     put(&mut account, 0, 0, helmet, 1);
-    save(&mut account, 1).unwrap();
-    account.kits[0].slots[0] = None;
+    choose(&mut account, 1).unwrap();
     put(&mut account, 0, 1, balaclava, 1);
     let before = owned(&account);
-    assert_eq!(apply(&mut account, 1).unwrap(), Applied { empty: 0 });
+    assert_eq!(choose(&mut account, 2).unwrap(), Applied { empty: 0 });
     assert_eq!(
         account.kits[0].slots[0].map(|held| held.item_id),
         Some(helmet)
@@ -318,14 +465,14 @@ fn a_covering_item_takes_off_what_it_covers() {
 
     // A preset holding both (data from before the rule): the kit rule keeps
     // one, the balaclava put on last takes the helmet off.
-    let mut both = account.presets[0].unwrap();
+    let mut both = snapshot(&account).unwrap();
     both.kits[0][1] = Some(PresetSlot {
         item_id: balaclava,
         dict_id: 1810,
         count: 1,
     });
-    account.presets[1] = Some(both);
-    assert_eq!(apply(&mut account, 2).unwrap(), Applied { empty: 1 });
+    account.presets[2] = Some(both);
+    assert_eq!(choose(&mut account, 3).unwrap(), Applied { empty: 1 });
     assert_eq!(account.kits[0].slots[0], None);
     assert_eq!(
         account.kits[0].slots[1].map(|held| held.item_id),
@@ -351,34 +498,33 @@ fn best_torso() -> (u16, u8) {
 fn a_presets_level_is_the_rooms_measure_of_the_kits_it_gives() {
     let mut account = alice();
     let starter = matchmaking::gear_level(&account, NOW);
-    save(&mut account, 1).unwrap();
+    // The active one: the kits' own level.
     assert_eq!(level(&account, 1, NOW), Some(starter));
 
-    // A heavy torso in kit 2 with the rifle: the highest kit that plays.
+    // Preset 2: a heavy torso in kit 2 with the rifle, the highest kit that
+    // plays.
     let (torso, torso_level) = best_torso();
     assert!(torso_level > starter);
     let piece = account.add_item(torso, FULL_CONDITION);
+    choose(&mut account, 2).unwrap();
     rifle_kit(&mut account);
     put(&mut account, 1, 2, piece, 1);
-    save(&mut account, 2).unwrap();
-    let mut applied = account.clone();
-    apply(&mut applied, 2).unwrap();
+    assert_eq!(matchmaking::gear_level(&account, NOW), torso_level);
     assert_eq!(level(&account, 2, NOW), Some(torso_level));
-    assert_eq!(
-        level(&account, 2, NOW),
-        Some(matchmaking::gear_level(&applied, NOW))
-    );
+    choose(&mut account, 1).unwrap();
+    assert_eq!(level(&account, 2, NOW), Some(torso_level));
+    assert_eq!(level(&account, 1, NOW), Some(starter));
 
-    // The torso in a kit that cannot play (no weapon) does not count.
-    let mut account3 = account.clone();
-    for kit in &mut account3.kits {
+    // Preset 3: the torso in a kit that cannot play (no weapon).
+    choose(&mut account, 3).unwrap();
+    for kit in &mut account.kits {
         kit.slots = [None; KIT_SLOTS];
     }
-    put(&mut account3, 2, 2, piece, 1);
-    save(&mut account3, 3).unwrap();
-    assert_eq!(level(&account3, 3, NOW), None);
+    put(&mut account, 2, 2, piece, 1);
+    choose(&mut account, 1).unwrap();
+    assert_eq!(level(&account, 3, NOW), None);
     // An empty preset has none either.
-    assert_eq!(level(&account3, 4, NOW), None);
+    assert_eq!(level(&account, 4, NOW), None);
 
     // Sold since: the preset's level is that of what is left.
     rules::sell(&mut account, piece, 1).unwrap();
@@ -390,6 +536,19 @@ fn a_presets_level_is_the_rooms_measure_of_the_kits_it_gives() {
         [Some(starter), Some(starter), None, None, None]
     );
     assert_eq!(account, before);
+}
+
+#[test]
+fn a_loaded_account_has_an_active_preset_and_keeps_none_in_its_place() {
+    let mut account = alice();
+    account.active_preset = 9;
+    account.presets[0] = Some(empty_preset());
+    account.presets[3] = snapshot(&account);
+    assert!(account.repair());
+    assert_eq!(account.active_preset, 1);
+    assert_eq!(account.presets[0], None);
+    assert!(account.presets[3].is_some());
+    assert!(!account.repair());
 }
 
 #[test]

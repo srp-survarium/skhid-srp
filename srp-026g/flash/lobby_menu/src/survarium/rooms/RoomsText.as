@@ -162,8 +162,8 @@ package survarium.rooms
                 "Ваш комплект не мог играть (нет оружия или мало патронов): вас вывели из комнаты.",
                 "Deine Ausrüstung konnte nicht spielen (keine Waffe oder zu wenig Munition): du wurdest aus dem Raum genommen.",
                 "Twój zestaw nie mógł grać (brak broni lub za mało amunicji): usunięto cię z pokoju."],
-            "code14": ["The preset could not be applied.", "Не вдалося застосувати пресет.", "Не удалось применить пресет.",
-                "Das Preset ließ sich nicht anwenden.", "Nie udało się zastosować zestawu."],
+            "code14": ["The preset could not be chosen.", "Не вдалося обрати пресет.", "Не удалось выбрать пресет.",
+                "Das Preset ließ sich nicht wählen.", "Nie udało się wybrać zestawu."],
             // A join's kit preset (presets.md): {gear} the kits' level now, {max}
             // the room's, {n} and {level} the preset's.
             "offerHigher": ["Room max level {max}, your gear {gear}. Preset {n} is level {level}.",

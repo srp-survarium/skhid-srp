@@ -520,13 +520,13 @@ impl Core<'_> {
         self.send_made(who.addr, answer);
     }
 
-    /// "Switch and enter": preset `preset` onto the kits, then the join of
-    /// the room with `key` (0: Play). A preset that could not be put on
-    /// joins nothing (code 14).
+    /// "Switch and enter": preset `preset` the active one (its kits put on),
+    /// then the join of the room with `key` (0: Play). A preset that could
+    /// not be chosen joins nothing (code 14).
     fn room_preset_join(&mut self, who: &Who, preset: u8, key: u32, now: Instant) {
-        match self.preset_apply(who, preset) {
+        match self.preset_choose(who, preset) {
             Ok(applied) => {
-                self.send_presets(who, PresetDone::Applied, preset, applied.empty);
+                self.send_presets(who, PresetDone::Chosen, preset, applied.empty);
                 if key == 0 {
                     self.room_play_pressed(who, now);
                 } else {

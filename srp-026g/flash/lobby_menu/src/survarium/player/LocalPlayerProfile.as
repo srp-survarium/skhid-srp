@@ -77,12 +77,12 @@ package survarium.player
       protected var _unresolvedItems:Array = new Array();
       
       protected var _convertedItems:Array;
-      
-      // Kit presets (presets.md, the owner's of 2026-10-23): five snapshots of
-      // the three kits, kept by the server, chosen in a dropdown left of the
-      // title and saved or applied with the two buttons right of it. srp's
-      // wire: the ranking request at PRESETS_FIRST and on (lobby.md 2.16.4),
-      // answered with the list, `P1;L;<done>;<preset>;<empty>` and a row
+      // Kit presets (presets.md, the owner's of 2026-10-23): five sets of the
+      // three kits, one active, chosen in a dropdown left of the title. The
+      // active one is the kits: choosing another puts it on, and every change
+      // of the kits is the active one's (the server's). srp's wire: the
+      // ranking request at PRESETS_FIRST and on (lobby.md 2.16.4), answered
+      // with the list, `P1;L;<done>;<preset>;<empty>;<active>` and a row
       // `<preset>;<saved>;<level>` each (level -1: none of its kits can play).
       public static var me:LocalPlayerProfile;
       
@@ -90,16 +90,14 @@ package survarium.player
       
       private static const PRESETS_LAST:int = PRESETS_FIRST + 99;
       
-      private static const PRESET_SAVE:int = PRESETS_FIRST + 10;
-      
-      private static const PRESET_APPLY:int = PRESETS_FIRST + 20;
+      private static const PRESET_CHOOSE:int = PRESETS_FIRST + 10;
       
       private static const PRESET_COUNT:int = 5;
       
-      // What the list's header says was done: applied, refused.
-      private static const PRESET_APPLIED:int = 2;
+      // What the list's header says was done: chosen, refused.
+      private static const PRESET_CHOSEN:int = 1;
       
-      private static const PRESET_REFUSED:int = 3;
+      private static const PRESET_REFUSED:int = 2;
       
       // The words, in the lobby's five languages (RoomsText.language).
       private static const PRESET_WORDS:Object = {
@@ -107,19 +105,14 @@ package survarium.player
          "level":["level","рівень","уровень","Stufe","poziom"],
          "empty":["empty","порожній","пустой","leer","pusty"],
          "unfit":["can't play","не для бою","не для боя","nicht spielbar","niegrywalny"],
-         "save":["Save","Зберегти","Сохранить","Speichern","Zapisz"],
-         "apply":["Apply","Застосувати","Применить","Anwenden","Zastosuj"],
          "gone":["{n} slots left empty: those items are gone.","Порожніх слотів: {n}, цих предметів немає.","Пустых слотов: {n}, этих предметов нет.","{n} Plätze leer: diese Gegenstände fehlen.","Pustych miejsc: {n}, tych przedmiotów brak."],
-         "refused":["The preset could not be applied.","Не вдалося застосувати пресет.","Не удалось применить пресет.","Das Preset ließ sich nicht anwenden.","Nie udało się zastosować zestawu."]
+         "refused":["The preset could not be chosen.","Не вдалося обрати пресет.","Не удалось выбрать пресет.","Das Preset ließ sich nicht wählen.","Nie udało się wybrać zestawu."]
       };
       
       private var _presetMenu:DropdownMenu;
       
-      private var _presetSave:*;
-      
-      private var _presetApply:*;
-      
-      // {known, saved, level} a preset, preset 1 first; the one chosen.
+      // {known, saved, level} a preset, preset 1 first; the active one (0
+      // the first), as the server last said.
       private var _presets:Array = [];
       
       private var _presetAt:int = 0;
@@ -128,8 +121,11 @@ package survarium.player
       
       private var _presetsAskedAt:int = -100000;
       
+      // The menu set by us, not by the player: no choice to send.
+      private var _presetFilling:Boolean = false;
+      
       // The kits locked (as the paper doll and the ammo button): no preset
-      // saved or applied.
+      // chosen.
       private var _presetsLocked:Boolean = false;
       
       public function LocalPlayerProfile()
@@ -648,7 +644,7 @@ package survarium.player
       }
       
       // The dropdown (the game's, as Player vs Bots' menus) left of the title,
-      // Save and Apply right of it: the title is centred in the header.
+      // which is centred in the header.
       private function makePresets() : void
       {
          var i:int = 0;
@@ -678,23 +674,7 @@ package survarium.player
          this._presetMenu.menuWidth = 220;
          this._presetMenu.addEventListener(ListEvent.INDEX_CHANGE,this.onPresetChosen);
          addChild(this._presetMenu);
-         var buttonClass:Class = getDefinitionByName("SrvButtonSkinned") as Class;
-         this._presetSave = new buttonClass();
-         this._presetApply = new buttonClass();
-         this.placePresetButton(this._presetSave,presetWord("save"),376,this.onPresetSave);
-         this.placePresetButton(this._presetApply,presetWord("apply"),476,this.onPresetApply);
          this.fillPresetMenu();
-      }
-      
-      private function placePresetButton(button:*, label:String, x:Number, handler:Function) : void
-      {
-         button.label = label;
-         button.x = x;
-         button.y = 2;
-         addChild(button);
-         // Its natural height (32): the game's button keeps its label there.
-         button.setSize(92,32);
-         button.addEventListener(ButtonEvent.CLICK,handler);
       }
       
       private function fillPresetMenu() : void
@@ -714,33 +694,37 @@ package survarium.player
             labels += label + "|";
             i++;
          }
-         if(labels != this._presetLabels)
+         this._presetFilling = true;
+         try
          {
-            this._presetLabels = labels;
-            this._presetMenu.dataProvider = new DataProvider(rows);
+            if(labels != this._presetLabels)
+            {
+               this._presetLabels = labels;
+               this._presetMenu.dataProvider = new DataProvider(rows);
+            }
+            this._presetMenu.selectedIndex = this._presetAt;
+            this._presetMenu.invalidateSelectedIndex();
          }
-         this._presetMenu.selectedIndex = this._presetAt;
-         this._presetMenu.invalidateSelectedIndex();
+         finally
+         {
+            this._presetFilling = false;
+         }
          this.lockPresets(this._presetsLocked);
       }
       
       private function lockPresets(locked:Boolean) : void
       {
          this._presetsLocked = locked;
-         if(this._presetMenu == null)
+         if(this._presetMenu != null)
          {
-            return;
+            this._presetMenu.enabled = !locked;
          }
-         this._presetMenu.enabled = !locked;
-         this._presetSave.enabled = !locked;
-         this._presetApply.enabled = !locked && Boolean(this._presets[this._presetAt].saved);
       }
       
-      // The list now, at most every 2 s unless `now` (an account pushed is
-      // asked for once).
-      private function askPresets(now:Boolean = false) : void
+      // The list now, at most every 2 s (an account pushed asks for it).
+      private function askPresets() : void
       {
-         if(!now && getTimer() - this._presetsAskedAt < 2000)
+         if(getTimer() - this._presetsAskedAt < 2000)
          {
             return;
          }
@@ -759,13 +743,19 @@ package survarium.player
          }
       }
       
-      // `P1;L;<done>;<preset>;<empty>`, then `<preset>;<saved>;<level>` each.
+      // `P1;L;<done>;<preset>;<empty>;<active>`, then `<preset>;<saved>;<level>`
+      // each.
       private function takePresets(rows:Array) : void
       {
          var head:Array = String(rows[0].nickname).split(";");
          if(head[0] != "P1" || head[1] != "L")
          {
             return;
+         }
+         var active:int = int(head[5]) - 1;
+         if(active >= 0 && active < PRESET_COUNT)
+         {
+            this._presetAt = active;
          }
          var i:int = 1;
          while(i < rows.length && i <= PRESET_COUNT)
@@ -785,7 +775,7 @@ package survarium.player
          this.fillPresetMenu();
          var done:int = int(head[2]);
          var empty:int = int(head[4]);
-         if(done == PRESET_APPLIED && empty > 0)
+         if(done == PRESET_CHOSEN && empty > 0)
          {
             Message.showMessage("ok",presetWord("gone").split("{n}").join(String(empty)));
          }
@@ -795,31 +785,19 @@ package survarium.player
          }
       }
       
+      // A preset picked: it becomes the active one (its kits put on); the
+      // menu shows the active one again with the server's answer.
       private function onPresetChosen(e:ListEvent) : void
       {
          e.stopPropagation();
-         var at:int = this._presetMenu.selectedIndex;
-         if(at >= 0 && at < PRESET_COUNT && at != this._presetAt)
-         {
-            this._presetAt = at;
-            this.lockPresets(this._presetsLocked);
-         }
-      }
-      
-      private function onPresetSave(e:Event) : void
-      {
-         if(this._presetsLocked)
+         if(this._presetFilling || this._presetsLocked)
          {
             return;
          }
-         this.sendPresets(PRESET_SAVE + this._presetAt + 1);
-      }
-      
-      private function onPresetApply(e:Event) : void
-      {
-         if(!this._presetsLocked && this._presets[this._presetAt].saved)
+         var at:int = this._presetMenu.selectedIndex;
+         if(at >= 0 && at < PRESET_COUNT && at != this._presetAt)
          {
-            this.sendPresets(PRESET_APPLY + this._presetAt + 1);
+            this.sendPresets(PRESET_CHOOSE + at + 1);
          }
       }
    }

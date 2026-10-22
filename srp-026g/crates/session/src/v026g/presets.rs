@@ -1,14 +1,21 @@
 //! Kit presets (`docs/notes/presets.md`, the owner's of 2026-10-23): five
-//! snapshots of an account's three kits, saved and put on from the
-//! Character panel, and offered when the kits' gear does not suit a room.
+//! sets of an account's three kits, one of them active, chosen in the
+//! Character panel's dropdown, and offered when the kits' gear does not
+//! suit a room.
 //!
-//! A preset names owned items as a kit does (by item id; for a stack, its
-//! units). Kits share one inventory, so an item may be in several kits and
-//! in several presets; saving reserves, copies or moves nothing. Putting a
-//! preset on fills each kit through the moves' own rules
+//! **The active preset is the kits.** It is kept nowhere else: whatever
+//! changes a kit (a move, the ammo window, a purchase onto a slot, a sale,
+//! a craft, a match's ammo, a repair at load) changes it, with nothing to
+//! save and no path that could miss it. The other four are snapshots, kept
+//! with the account ([`Account::presets`]; the active one's place there is
+//! always empty).
+//!
+//! Choosing another preset ([`choose`]) keeps the kits as the snapshot of
+//! the one left and puts the chosen one on through the moves' own rules
 //! ([`rules::fill_kit`]): it never buys, never makes an item or money, and
 //! never takes what the account does not own; an item gone since leaves its
-//! slot empty.
+//! slot empty. A preset names owned items as a kit does; an item may be in
+//! several kits and several presets.
 
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::loadouts::POCKET_SLOTS;
@@ -21,8 +28,10 @@ use super::rules::{self, ActionError};
 
 /// The presets an account has.
 pub const PRESETS: usize = PRESET_COUNT as usize;
+/// The preset a new account (and one of before presets) has active.
+pub const FIRST_PRESET: u8 = 1;
 
-/// What a slot of a preset held when it was saved.
+/// What a slot of a preset held when it was left.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PresetSlot {
     pub item_id: u32,
@@ -51,8 +60,6 @@ impl Preset {
 pub enum PresetError {
     /// Not 1 to [`PRESETS`].
     NoSuchPreset,
-    /// Nothing saved in it.
-    Empty,
     /// The player is in a match or on its way to one: its kits stay as they
     /// are (the lobby's word).
     Busy,
@@ -77,11 +84,8 @@ fn index(number: u8) -> Result<usize, PresetError> {
         .ok_or(PresetError::NoSuchPreset)
 }
 
-/// The three kits as they are now into preset `number` (1 to [`PRESETS`]),
-/// replacing what it held. Kits with nothing in them leave it empty.
-/// Whether it holds anything now.
-pub fn save(account: &mut Account, number: u8) -> Result<bool, PresetError> {
-    let index = index(number)?;
+/// The three kits as they are now; none when they hold nothing.
+pub fn snapshot(account: &Account) -> Option<Preset> {
     let mut preset = Preset {
         kits: [[None; KIT_SLOTS]; KITS],
     };
@@ -96,12 +100,36 @@ pub fn save(account: &mut Account, number: u8) -> Result<bool, PresetError> {
             });
         }
     }
-    let any = preset.slots() > 0;
-    account.presets[index] = any.then_some(preset);
-    Ok(any)
+    (preset.slots() > 0).then_some(preset)
 }
 
-/// What putting a preset on did.
+/// Preset `number` as it is now: the active one is the kits; none: empty.
+pub fn preset(account: &Account, number: u8) -> Result<Option<Preset>, PresetError> {
+    let index = index(number)?;
+    Ok(if number == account.active_preset {
+        snapshot(account)
+    } else {
+        account.presets[index]
+    })
+}
+
+/// Make the account's presets whole: an active preset of 1 to [`PRESETS`]
+/// (the first otherwise), and nothing kept in its place (the kits are it).
+/// Whether anything changed.
+pub fn settle(account: &mut Account) -> bool {
+    let mut changed = false;
+    if index(account.active_preset).is_err() {
+        account.active_preset = FIRST_PRESET;
+        changed = true;
+    }
+    let active = usize::from(account.active_preset - 1);
+    if account.presets[active].take().is_some() {
+        changed = true;
+    }
+    changed
+}
+
+/// What choosing a preset did.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Applied {
     /// The preset's slots left empty: their items gone (sold, crafted away,
@@ -132,15 +160,13 @@ fn owned(account: &Account, saved: &PresetSlot) -> Option<u32> {
         .map(|item| item.item_id)
 }
 
-/// Preset `number` onto the three kits, all or nothing: each kit emptied
-/// and filled from it by the kit rules ([`rules::fill_kit`]). An item gone
+/// `preset` onto the three kits, all or nothing: each kit emptied and
+/// filled from it by the kit rules ([`rules::fill_kit`]). An item gone
 /// leaves its slot empty; a stack gets the units saved, at most those owned;
 /// a type a pocket of the kit already holds stays out of a second one.
 /// Nothing is bought, made or taken: the inventory and the money stay as
 /// they are.
-pub fn apply(account: &mut Account, number: u8) -> Result<Applied, PresetError> {
-    let index = index(number)?;
-    let preset = account.presets[index].ok_or(PresetError::Empty)?;
+fn put_on(account: &mut Account, preset: &Preset) -> Result<Applied, PresetError> {
     let mut changed = account.clone();
     let mut empty = 0;
     for (kit_index, saved) in preset.kits.iter().enumerate().take(changed.kits.len()) {
@@ -178,17 +204,49 @@ pub fn apply(account: &mut Account, number: u8) -> Result<Applied, PresetError> 
     Ok(Applied { empty })
 }
 
+/// Make preset `number` the active one, all or nothing. The kits as they
+/// are stay with the preset left (its snapshot); the chosen one is put on
+/// them ([`put_on`]). An empty preset chosen starts as the kits worn: they
+/// stay as they are [choice, `presets.md`]. The active one chosen again
+/// changes nothing.
+pub fn choose(account: &mut Account, number: u8) -> Result<Applied, PresetError> {
+    let index = index(number)?;
+    settle(account);
+    if number == account.active_preset {
+        return Ok(Applied { empty: 0 });
+    }
+    let left = usize::from(account.active_preset - 1);
+    let mut changed = account.clone();
+    let applied = match account.presets[index] {
+        Some(chosen) => put_on(&mut changed, &chosen)?,
+        None => Applied { empty: 0 },
+    };
+    changed.presets[left] = snapshot(account);
+    changed.presets[index] = None;
+    changed.active_preset = number;
+    *account = changed;
+    Ok(applied)
+}
+
 /// Preset `number`'s gear level, the measure of a room's max level
-/// ([`matchmaking::gear_level`]): that of the kits it would give now (on a
-/// copy of the account), the highest of those that can play. None: empty,
-/// or none of its kits can play.
+/// ([`matchmaking::gear_level`]): that of the kits it gives (the active
+/// one's, the kits now; another's, on a copy of the account with it put
+/// on), the highest of those that can play. None: empty, or none of its
+/// kits can play.
 pub fn level(account: &Account, number: u8, now: u64) -> Option<u8> {
-    let mut copy = account.clone();
-    apply(&mut copy, number).ok()?;
-    copy.kits
+    let preset = preset(account, number).ok()??;
+    let mut copy;
+    let kits = if number == account.active_preset {
+        account
+    } else {
+        copy = account.clone();
+        put_on(&mut copy, &preset).ok()?;
+        &copy
+    };
+    kits.kits
         .iter()
-        .any(|kit| rules::check_play(&copy, kit.id, now).is_ok())
-        .then(|| matchmaking::gear_level(&copy, now))
+        .any(|kit| rules::check_play(kits, kit.id, now).is_ok())
+        .then(|| matchmaking::gear_level(kits, now))
 }
 
 /// Every preset's [`level`], preset 1 first.

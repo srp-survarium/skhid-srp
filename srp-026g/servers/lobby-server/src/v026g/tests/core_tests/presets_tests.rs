@@ -1,10 +1,11 @@
 //! Kit presets (`presets`, `docs/notes/presets.md`): the Character panel's
-//! list, save and apply, and a room join that offers a preset ("Enter
-//! anyway" / "Exit" or "Switch and enter"), with "Switch and enter" putting
-//! it on before the join.
+//! list and its choice of the active preset, which the kits are (every kit
+//! change is the active preset's), and a room join that offers a preset
+//! ("Enter anyway" / "Exit" or "Switch and enter"), "Switch and enter"
+//! choosing it before the join.
 
 use session::v026g::{matchmaking, quests};
-use survarium::v026g::lobby::presets::{PRESET_APPLY_BASE, PRESET_SAVE_BASE, PRESETS_FIRST};
+use survarium::v026g::lobby::presets::{PRESET_CHOOSE_BASE, PRESETS_FIRST};
 use survarium::v026g::lobby::rooms::{
     ROOM_JOIN_BASE, ROOM_OFFER_BASE, ROOM_PRESET_BASE, ROOM_STATE, RoomSpec,
 };
@@ -32,15 +33,14 @@ fn asked(world: &mut World, index: usize, start: u32) -> (Vec<Vec<String>>, Vec<
     (lists, decoded)
 }
 
-fn gear(world: &World, index: usize) -> u8 {
-    matchmaking::gear_level(&world.account(index), quests::now())
+/// The header of the presets' list a choice of `preset` is answered with.
+fn choose(world: &mut World, index: usize, preset: u8) -> Vec<String> {
+    let (lists, _) = asked(world, index, PRESET_CHOOSE_BASE + u32::from(preset));
+    lists[0].clone()
 }
 
-/// The ammo `with_gear` puts in the first kit's slot 9 out again: back to
-/// the starter's gear.
-fn starter_gear(world: &mut World, index: usize) {
-    world.change(index, |account| account.kits[0].slots[9] = None);
-    assert_eq!(gear(world, index), 0);
+fn gear(world: &World, index: usize) -> u8 {
+    matchmaking::gear_level(&world.account(index), quests::now())
 }
 
 fn sent_account(decoded: &[Decoded]) -> bool {
@@ -49,72 +49,91 @@ fn sent_account(decoded: &[Decoded]) -> bool {
         .any(|message| matches!(message, Decoded::Account(_)))
 }
 
+fn kits(world: &World, index: usize) -> Vec<[Option<session::v026g::account::KitSlot>; 23]> {
+    world
+        .account(index)
+        .kits
+        .iter()
+        .map(|kit| kit.slots)
+        .collect()
+}
+
 #[test]
-fn presets_are_listed_saved_and_put_on() {
+fn the_dropdown_lists_the_presets_and_chooses_the_active_one() {
     let mut world = World::new();
     let alice = world.connect("Alice");
+    // Preset 1 active: the starter kit, level 0; the others empty.
     let (lists, _) = asked(&mut world, alice, PRESETS_FIRST);
     assert_eq!(
         lists,
         [[
-            "P1;L;0;0;0",
-            "1;0;-1",
+            "P1;L;0;0;0;1",
+            "1;1;0",
             "2;0;-1",
             "3;0;-1",
             "4;0;-1",
             "5;0;-1"
         ]]
     );
+    let starter = kits(&world, alice);
 
-    // The starter kit into preset 1, a level 5 kit into preset 2.
-    let (lists, _) = asked(&mut world, alice, PRESET_SAVE_BASE + 1);
-    assert_eq!(lists[0][..2], ["P1;L;1;1;0", "1;1;0"]);
-    let starter = world.account(alice).kits.clone();
-    with_gear(&mut world, alice, 5);
-    let geared = world.account(alice).kits.clone();
-    let (lists, _) = asked(&mut world, alice, PRESET_SAVE_BASE + 2);
+    // An empty preset chosen starts as the kits worn.
+    let (lists, decoded) = asked(&mut world, alice, PRESET_CHOOSE_BASE + 2);
     assert_eq!(
         lists,
-        [["P1;L;1;2;0", "1;1;0", "2;1;5", "3;0;-1", "4;0;-1", "5;0;-1"]]
+        [[
+            "P1;L;1;2;0;2",
+            "1;1;0",
+            "2;1;0",
+            "3;0;-1",
+            "4;0;-1",
+            "5;0;-1"
+        ]]
     );
-
-    // Preset 1 on: the kits as saved, the client sent its account.
-    let inventory = world.account(alice).inventory.clone();
-    let (lists, decoded) = asked(&mut world, alice, PRESET_APPLY_BASE + 1);
-    assert_eq!(lists[0][0], "P1;L;2;1;0");
     assert!(sent_account(&decoded));
-    assert_eq!(gear(&world, alice), 0);
-    let slots: Vec<_> = world
-        .account(alice)
-        .kits
-        .iter()
-        .map(|kit| kit.slots)
-        .collect();
-    assert_eq!(
-        slots,
-        starter.iter().map(|kit| kit.slots).collect::<Vec<_>>()
-    );
-    // Nothing bought, sold or made.
-    assert_eq!(world.account(alice).inventory, inventory);
-    // And back from the dropdown.
-    asked(&mut world, alice, PRESET_APPLY_BASE + 2);
-    assert_eq!(gear(&world, alice), 5);
-    let slots: Vec<_> = world
-        .account(alice)
-        .kits
-        .iter()
-        .map(|kit| kit.slots)
-        .collect();
-    assert_eq!(
-        slots,
-        geared.iter().map(|kit| kit.slots).collect::<Vec<_>>()
-    );
+    assert_eq!(kits(&world, alice), starter);
 
-    // An empty preset changes nothing.
-    let (lists, decoded) = asked(&mut world, alice, PRESET_APPLY_BASE + 4);
-    assert_eq!(lists[0][0], "P1;L;3;4;0");
-    assert!(!sent_account(&decoded));
+    // Changed in preset 2 (as a match's results change an account): its
+    // level follows, preset 1 stays as it was left.
+    with_gear(&mut world, alice, 5);
+    let geared = kits(&world, alice);
+    let inventory = world.account(alice).inventory.clone();
+    let (lists, _) = asked(&mut world, alice, PRESETS_FIRST);
+    assert_eq!(lists[0][..3], ["P1;L;0;0;0;2", "1;1;0", "2;1;5"]);
+
+    // Back to 1, then 2: each its own kits, nothing bought, sold or made.
+    assert_eq!(choose(&mut world, alice, 1)[0], "P1;L;1;1;0;1");
+    assert_eq!(kits(&world, alice), starter);
+    assert_eq!(gear(&world, alice), 0);
+    choose(&mut world, alice, 2);
+    assert_eq!(kits(&world, alice), geared);
     assert_eq!(gear(&world, alice), 5);
+    assert_eq!(world.account(alice).inventory, inventory);
+    world.assert_clean();
+}
+
+/// A move of the lobby (`46 00`) in the active preset is kept with it: away
+/// and back, the kits are as the move left them.
+#[test]
+fn a_move_in_the_kits_is_the_active_presets() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    choose(&mut world, alice, 2);
+    let (pistol, tt33) = {
+        let account = world.account(alice);
+        let pistol = account.kits[0].slots[7].unwrap().item_id;
+        (pistol, account.item(pistol).unwrap().dict_id)
+    };
+    world.ask(
+        alice,
+        request::move_item(1, pistol, tt33, 7, INVENTORY_SLOT, 1),
+    );
+    assert_eq!(world.account(alice).kits[0].slots[7], None);
+    let moved = kits(&world, alice);
+    choose(&mut world, alice, 1);
+    assert!(world.account(alice).kits[0].slots[7].is_some());
+    choose(&mut world, alice, 2);
+    assert_eq!(kits(&world, alice), moved);
     world.assert_clean();
 }
 
@@ -122,14 +141,16 @@ fn presets_are_listed_saved_and_put_on() {
 fn a_sold_item_is_counted_as_an_empty_slot() {
     let mut world = World::new();
     let alice = world.connect("Alice");
-    asked(&mut world, alice, PRESET_SAVE_BASE + 1);
+    // Preset 2 the starter too; preset 1 sells the pistol.
+    choose(&mut world, alice, 2);
+    choose(&mut world, alice, 1);
     let pistol = world.account(alice).kits[0].slots[7].unwrap().item_id;
     world.ask(alice, request::sell(pistol, 1));
     assert!(world.account(alice).item(pistol).is_none());
     let silver = world.account(alice).generic_money;
-    let (lists, _) = asked(&mut world, alice, PRESET_APPLY_BASE + 1);
-    // One slot empty; the preset now can not play (no weapon).
-    assert_eq!(lists[0][..2], ["P1;L;2;1;1", "1;1;-1"]);
+    let (lists, _) = asked(&mut world, alice, PRESET_CHOOSE_BASE + 2);
+    // One slot empty; preset 2 now can not play (no weapon).
+    assert_eq!(lists[0][..3], ["P1;L;1;2;1;2", "1;1;-1", "2;1;-1"]);
     assert_eq!(world.account(alice).kits[0].slots[7], None);
     assert_eq!(world.account(alice).generic_money, silver);
 }
@@ -148,11 +169,9 @@ fn gear_over_the_max_level_offers_the_highest_preset_that_fits() {
         },
         None,
     );
-    // Bob: preset 1 his starter kit (level 0), preset 2 of level 5, and
-    // he plays the level 5 kits.
-    asked(&mut world, bob, PRESET_SAVE_BASE + 1);
+    // Bob: preset 1 his starter kit (level 0); he plays preset 2, level 5.
+    choose(&mut world, bob, 2);
     with_gear(&mut world, bob, 5);
-    asked(&mut world, bob, PRESET_SAVE_BASE + 2);
     assert_eq!(
         rows(&mut world, bob, ROOM_OFFER_BASE + key, 1),
         [format!("S1;O;{key};2;1;0;5;3")]
@@ -162,10 +181,10 @@ fn gear_over_the_max_level_offers_the_highest_preset_that_fits() {
         rows(&mut world, bob, ROOM_JOIN_BASE + key, 1),
         ["S1;N;12;0;0"]
     );
-    // "Switch and enter": preset 1 on, then the join.
+    // "Switch and enter": preset 1 active, then the join.
     let (lists, decoded) = asked(&mut world, bob, ROOM_PRESET_BASE + key);
     assert!(sent_account(&decoded));
-    assert_eq!(lists[0][0], "P1;L;2;1;0");
+    assert_eq!(lists[0][0], "P1;L;1;1;0;1");
     let state = &lists[1];
     assert!(state[0].starts_with(&format!("S1;R;{key};")), "{state:?}");
     assert_eq!(gear(&world, bob), 0);
@@ -188,10 +207,11 @@ fn a_room_allowing_more_than_the_kits_offers_a_higher_preset() {
         None,
     );
     let open = create(&mut world, frank, spec(8), None);
-    // Carol saved a level 5 preset, and plays her starter kit now.
+    // Carol made preset 3 of level 5, and plays preset 1, her starter.
+    choose(&mut world, carol, 3);
     with_gear(&mut world, carol, 5);
-    asked(&mut world, carol, PRESET_SAVE_BASE + 3);
-    starter_gear(&mut world, carol);
+    choose(&mut world, carol, 1);
+    assert_eq!(gear(&world, carol), 0);
     assert_eq!(
         rows(&mut world, carol, ROOM_OFFER_BASE + key, 1),
         [format!("S1;O;{key};1;3;5;0;7")]
@@ -221,9 +241,8 @@ fn no_preset_that_fits_keeps_the_refusal() {
         },
         None,
     );
+    // Only presets over the max: the active one, level 5.
     with_gear(&mut world, dave, 5);
-    // Only a preset over the max.
-    asked(&mut world, dave, PRESET_SAVE_BASE + 1);
     assert_eq!(
         rows(&mut world, dave, ROOM_OFFER_BASE + key, 1),
         [format!("S1;O;{key};0;0;0;5;3")]
@@ -232,12 +251,16 @@ fn no_preset_that_fits_keeps_the_refusal() {
         rows(&mut world, dave, ROOM_JOIN_BASE + key, 1),
         ["S1;N;12;0;0"]
     );
-    // "Switch and enter" with an empty preset: nothing changes, no join.
-    let kits = world.account(dave).kits.clone();
+    // "Switch and enter" while its game is on its way to a match: nothing
+    // changes, no join (code 14).
+    let addr = world.clients[dave].0;
+    world.core.player_mut(addr).unwrap().in_match = Some(1);
+    let before = world.account(dave).clone();
     let (lists, decoded) = asked(&mut world, dave, ROOM_PRESET_BASE + 100_000 + key);
     assert_eq!(lists, [["S1;N;14;0;0"]]);
     assert!(!sent_account(&decoded));
-    assert_eq!(world.account(dave).kits, kits);
+    assert_eq!(*world.account(dave), before);
+    world.core.player_mut(addr).unwrap().in_match = None;
     assert_eq!(rows(&mut world, dave, ROOM_STATE, 1), ["S1;N;0;0;0"]);
 }
 
@@ -255,16 +278,17 @@ fn play_offers_a_preset_for_the_room_it_would_take() {
         },
         None,
     );
+    // Erin: preset 2 of level 5; she plays preset 1, her starter.
+    choose(&mut world, erin, 2);
     with_gear(&mut world, erin, 5);
-    asked(&mut world, erin, PRESET_SAVE_BASE + 1);
-    starter_gear(&mut world, erin);
+    choose(&mut world, erin, 1);
     assert_eq!(
         rows(&mut world, erin, ROOM_OFFER_BASE, 1),
-        [format!("S1;O;{key};1;1;5;0;7")]
+        [format!("S1;O;{key};1;2;5;0;7")]
     );
-    // "Switch and enter": preset 1 on, then Play, which takes that room.
-    let (lists, _) = asked(&mut world, erin, ROOM_PRESET_BASE);
-    assert_eq!(lists[0][0], "P1;L;2;1;0");
+    // "Switch and enter": preset 2 active, then Play, which takes that room.
+    let (lists, _) = asked(&mut world, erin, ROOM_PRESET_BASE + 100_000);
+    assert_eq!(lists[0][0], "P1;L;1;2;0;2");
     assert!(
         lists[1][0].starts_with(&format!("S1;R;{key};")),
         "{lists:?}"
