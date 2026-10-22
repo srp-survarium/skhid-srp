@@ -436,8 +436,11 @@ def main():
 
     # 7. The hud's points and completed.
     hud = run.allocate(0x100)
-    run.thiscall(vtable(run, rule, 17), rule, hud, 0)
-    check("fill_match_hud_state: the teams' points", run.read(hud + 0x90, 2) == 5 and run.read(hud + 0x92, 2) == 0)
+    run.emu.mem_write(hud + 0x94, b"\xff\xff")             # the hud state's constructor's (0x278D86)
+    _, cleanup = run.thiscall(vtable(run, rule, 17), rule, hud, 0)
+    check("fill_match_hud_state: the teams' points; the alive counts left as the hud state has them",
+          cleanup == 8 and run.read(hud + 0x90, 2) == 5 and run.read(hud + 0x92, 2) == 0
+          and run.read(hud + 0x94, 2) == 0xFFFF)
     run.word(rule + R_STATE + 12, time + 3000)
     done, _ = run.thiscall(vtable(run, rule, 18), rule, time + 2999)
     later, _ = run.thiscall(vtable(run, rule, 18), rule, time + 3000)

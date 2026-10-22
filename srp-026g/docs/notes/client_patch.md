@@ -1301,7 +1301,10 @@ The old bytes' jumps all landed inside them; nothing else aims inside; no base r
   0x2D2770, 0x2D2B42..0x2D2B5D: `push [esp+84h]` (its third argument), `push` the reader,
   `call [vtable+40h]`, no clean-up; tdm 0x3163D0, timelimit 0x317FD0 and kd 0x323910 each `ret 8`
   and none reads the second), 17 `fill_match_hud_state(hud, ?)` `ret 8`
-  (tdm: +90h, +92h the tickets, +94h, +95h the alive counts), 18 `rule_completed(time)` `ret 4`
+  (tdm: +90h, +92h the tickets, +94h, +95h the alive counts; kd 0x323980 writes from +98h on,
+  timelimit's 0x15A4B0 nothing; the hud state's constructor 0x278D00 sets +90h 0FFFFh, +92h 0,
+  +94h and +95h 0FFh, and only mode 4's last players (0x23B3DE) read the alive counts: Research
+  writes the points and leaves the counts, as modes 2 and 3 do), 18 `rule_completed(time)` `ret 4`
   (al), 19 the priority (0x8FE10: 3); then at +108h the link resolver's one slot (0x316540, `ret
   1Ch`). Base constructor 0x313900 (eax = this, push the type: 0 respawn, 1 gather, 2 timelimit, 3
   kd, 4 tdm; at +10Ch); the code compares the type with 0 and 1 only.

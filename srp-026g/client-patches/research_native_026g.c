@@ -86,7 +86,6 @@ enum {
 #define KITS 3
 /* match_hud_state (fill_match_hud_state) */
 #define HUD_TEAM_POINTS 0x90
-#define HUD_ALIVE 0x94
 /* game_world_ui */
 #define UI_GAME 0x18
 #define UI_HUD 0x8
@@ -498,12 +497,15 @@ THISCALL void rn_deserialize(struct rn_rule *rule, u8 *reader, u32 unused) {
     AT(reader, 4, u8 *) = at + size;
 }
 
+/* The teams' points, as tdm's 0x316430 puts its tickets. Its alive counts
+ * (+94h, +95h) stay as the hud state's constructor (0x278D00) leaves them,
+ * 0FFh, as in modes 2 and 3: only tdm's slot writes them (kd 0x323980 writes
+ * +98h on, timelimit's 0x15A4B0 nothing) and only mode 4's last players read
+ * them (update_ui 0x23B3DE). */
 THISCALL void rn_fill_hud(struct rn_rule *rule, u8 *hud, u32 unused) {
     (void)unused;
     AT(hud, HUD_TEAM_POINTS, u16) = rule->state.score[0];
     AT(hud, HUD_TEAM_POINTS + 2, u16) = rule->state.score[1];
-    hud[HUD_ALIVE] = 0;
-    hud[HUD_ALIVE + 1] = 0;
 }
 
 THISCALL u32 rn_completed(struct rn_rule *rule, u32 time) { return (u32)rr_completed(&rule->state, time); }
