@@ -115,7 +115,11 @@ package survarium.rooms
                 row.graphics.drawRect(0, 41, tableW - 12, 1);
                 row.graphics.endFill();
                 var tw:Number = tableW - 12;
-                look.text(row, (room.pin ? "PIN · " : "") + room.name, 10, 10, tw * 0.33, 17, on ? 0xFFFFFF : RoomsLook.LIGHT);
+                // Our own room (the All rooms tab) in the yellow of a member's
+                // Rooms tab.
+                var mine:Boolean = win._room != null && room.key == win._room.key;
+                look.text(row, (room.pin ? "PIN · " : "") + room.name, 10, 10, tw * 0.33, 17,
+                    mine ? RoomsLook.YELLOW : on ? 0xFFFFFF : RoomsLook.LIGHT);
                 look.text(row, String(room.level), tw * cols[1], 10, tw * 0.09, 17, RoomsLook.LIGHT);
                 look.text(row, win.levelText(room.max), tw * cols[2], 10, tw * 0.09, 17, RoomsLook.LIGHT);
                 var e:Object = win.entry(room.map);
@@ -146,9 +150,14 @@ package survarium.rooms
             for (var j:int = 0; j < win._rooms.length; j++)
                 if (win._rooms[j].key == _selKey)
                     joinable = win._rooms[j];
-            var joinWord:String = joinable != null && joinable.players >= joinable.size * 2 ? win.say("queue") : win.say("join");
-            look.footer(joinable != null ? [[win.say("new"), win.createView.onNew, null], [joinWord, onJoin, joinable]]
+            // A member queues for no room (from no room only): Join, off for
+            // a full room and for its own.
+            var joinWord:String = joinable != null && joinable.players >= joinable.size * 2 && win._room == null
+                ? win.say("queue") : win.say("join");
+            var made:Array = look.footer(joinable != null ? [[win.say("new"), win.createView.onNew, null], [joinWord, onJoin, joinable]]
                 : [[win.say("new"), win.createView.onNew, null]]);
+            if (joinable != null && !joins(joinable))
+                made[1].enabled = false;
             renderSide(sel, tableW + 28);
         }
 
@@ -424,11 +433,19 @@ package survarium.rooms
             joinRoom(room);
         }
 
+        // Whether Join takes us there: a member (the All rooms tab) not into
+        // its own room, nor a full one (its queue is from no room only).
+        private function joins(room:Object):Boolean
+        {
+            return win._room == null || (room.key != win._room.key && room.players < room.size * 2);
+        }
+
         // Join (or Queue for a full room) as the button does; the PIN typed
-        // goes first.
+        // goes first. A member joining another room leaves its own (the
+        // server's, as Leave).
         private function joinRoom(room:Object):void
         {
-            if (room == null || win._steps.length > 0)
+            if (room == null || win._steps.length > 0 || !joins(room))
                 return;
             win._busyAt = getTimer();
             win._stepsAt = win._busyAt;
