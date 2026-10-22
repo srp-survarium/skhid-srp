@@ -481,6 +481,10 @@ an empty donor slot; an item with three modifications, or not craftable,
 just closes. The words are the game's: `btn_exit_label` and
 `btn_go_to_online_store` ("Continue"). Not in a release yet.
 
+While the window is open, hovering an item of its list compares it with the item being upgraded
+(`MessageCraftItem.compareWith`), not the equipped one; with no item being upgraded, no compare
+card (`LobbyMenu.showItemHint`). Not in a release yet.
+
 ## Weapon scope context menu
 
 `InventoryList` (`../flash/lobby_menu/src/survarium/controls/InventoryList.as`: `isUpgradeable`,

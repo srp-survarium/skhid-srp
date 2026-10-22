@@ -703,3 +703,77 @@ fn the_lobby_knows_the_values_each_bonus_rolls() {
         "ModificationRolls.ROLLS should be, by this data:\n{table}"
     );
 }
+
+/// The lobby shows the premium bonuses (the golden weapons' silver, the
+/// premium armour's experience and reputation) in gold as the most there
+/// is (`ModificationRolls.isPremium`, by `ItemFactory.BONUS_UI`'s property
+/// and value; docs/notes/max-bonus.md). True while no modification gives
+/// that property more, and none rolls it (`ROLLS` would decide then).
+#[test]
+fn the_premium_bonuses_are_the_most_their_property_gives() {
+    use std::collections::BTreeMap;
+
+    let source = include_str!("../../../../../flash/lobby_menu/src/survarium/item/ItemFactory.as");
+    let start = source
+        .find("BONUS_UI:Array = [")
+        .expect("the lobby's BONUS_UI");
+    let rows = &source[start..];
+    let rows = &rows[rows.find('\n').unwrap() + 1..rows.find("\n      ];").unwrap()];
+    // `[<id>,<icon>,<prop id>,"<value>"], // <name>` a line.
+    let premium: BTreeMap<u32, f64> = rows
+        .lines()
+        .map(|line| {
+            let row = line.split("//").next().unwrap().trim();
+            let row = row.trim_end_matches(',').trim_start_matches('[');
+            let fields: Vec<&str> = row.trim_end_matches(']').split(',').collect();
+            let [_, _, prop_id, value] = fields[..] else {
+                panic!("a BONUS_UI row: {line}")
+            };
+            (
+                prop_id.trim().parse().unwrap(),
+                value.trim().trim_matches('"').parse().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(premium.len(), 4, "{premium:?}");
+
+    let data = Modifications::shared();
+    let taken = all_item_mods()
+        .iter()
+        .fold(0u64, |mask, item| mask | item.modifications);
+    let root = ConfigValue::parse(super::super::game_data::file(MODIFICATIONS_PATH)).unwrap();
+    let mut seen = 0;
+    for row in root.req("modifications").unwrap().children() {
+        let id = number(row.req("id").unwrap()).unwrap();
+        let Some(props) = row
+            .req("ui_desc")
+            .and_then(|desc| desc.req("props_list"))
+            .ok()
+        else {
+            continue;
+        };
+        for prop in props.children() {
+            let prop_id = u32::try_from(prop.i32_at("prop_id").unwrap()).unwrap();
+            let Some(&best) = premium.get(&prop_id) else {
+                continue;
+            };
+            seen += 1;
+            let value = prop.req("prop_value").unwrap();
+            let value = value
+                .as_str()
+                .and_then(|text| text.parse::<f64>().ok())
+                .or_else(|| value.as_f32().map(f64::from))
+                .unwrap_or_else(|| panic!("modification {id}: a prop_value"));
+            assert!(
+                value.abs() <= best.abs() + 1e-9,
+                "modification {id} gives property {prop_id} {value}, more than the premium {best}"
+            );
+            let modification = data.modification(id).unwrap();
+            assert!(
+                modification.drop_weight <= 0.0 || taken & (1 << modification.kind) == 0,
+                "modification {id} rolls property {prop_id}: ModificationRolls.ROLLS decides it"
+            );
+        }
+    }
+    assert!(seen >= premium.len(), "{seen}");
+}

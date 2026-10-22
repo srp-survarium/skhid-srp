@@ -608,6 +608,30 @@ package survarium.messages
          list.dispatchEvent(new Event(Events.CRAFFT_ITEM));
       }
       
+      // The item a hovered list item is compared with while this window is open: the item being
+      // upgraded (as upgraded, once the result shows); null while the window has none, and for
+      // the item itself (craft-menu.md, "Comparing items").
+      public function compareWith(item:Object) : Object
+      {
+         var main:Object = this.dragItemSlot1.data;
+         if(main == null || item == null || item.itemId == main.itemId)
+         {
+            return null;
+         }
+         var result:ItemData = this.dragItemSlot3.visible ? this.dragItemSlot3.data as ItemData : null;
+         if(result == null)
+         {
+            return main;
+         }
+         // The upgraded item as the inventory holds it: the result's own card is made from the
+         // dictionary (no place, no id, no upgrades), which would read "Equipped" without its scope.
+         var upgraded:ItemData = result.clone();
+         upgraded.descriptor = main.descriptor;
+         upgraded.itemId = main.itemId;
+         upgraded.upgrades = main.upgrades;
+         return upgraded;
+      }
+
       // The item being upgraded or the donor.
       public function holds(itemId:uint) : Boolean
       {

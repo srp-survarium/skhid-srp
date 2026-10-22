@@ -15,3 +15,7 @@ Known shortcuts and special cases to revisit; one bullet each, with where it liv
   modification id, so `ModificationRolls.ROLLS` (by property) decides gold and the reroll window's
   range. A test (`modifications::tests::the_lobby_knows_the_values_each_bonus_rolls`) fails when it
   differs from the game data and prints the table to paste. See [max-bonus.md](max-bonus.md).
+- **The lobby knows the premium bonuses by `ItemFactory.BONUS_UI`** (2026-10-22): they never roll,
+  so `ROLLS` leaves them out; `ModificationRolls.isPremium` makes a bonus of their property at their
+  value gold. A test (`modifications::tests::the_premium_bonuses_are_the_most_their_property_gives`)
+  fails when a modification gives that property more or rolls it. See [max-bonus.md](max-bonus.md).
