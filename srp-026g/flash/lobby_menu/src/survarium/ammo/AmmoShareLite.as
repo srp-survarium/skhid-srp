@@ -9,6 +9,7 @@ package survarium.ammo
    import scaleform.clik.core.UIComponent;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.events.SliderEvent;
+   import survarium.data.Relocation;
    import survarium.controls.PlayerInfo;
    import survarium.controls.ScrollContent;
    import survarium.data.ItemData;
@@ -819,6 +820,7 @@ package survarium.ammo
          var sourceSlotId:uint;
          var inventoryCount:uint;
          var moveCount:uint;
+         var move:Object;
          if(slotItem)
          {
             itemId = slotItem.itemId == -1 ? 0 : slotItem.itemId;
@@ -831,16 +833,10 @@ package survarium.ammo
             trace("prepare relocate item:",item.name,"target:",targetSlotId,"count:",moveCount,inventoryCount,"sr:",sourceSlotId,"name",slotItem.name,itemId,slotItem.itemId,"ds:",slotItem.descriptor);
             if(inventoryCount)
             {
-               this._relocateArray.push({
-                  profile:profileId,
-                  id:itemId,
-                  dict_id:dictId,
-                  targetSlot:targetSlotId,
-                  count:moveCount,
-                  sourceSlot:sourceSlotId,
-                  count_in_inventory:inventoryCount,
-                  auto_buy:this.autoBuyCheckBox.selected
-               });
+               move = Relocation.move(profileId,itemId,dictId,sourceSlotId,targetSlotId,moveCount);
+               move.count_in_inventory = inventoryCount;
+               move.auto_buy = this.autoBuyCheckBox.selected;
+               this._relocateArray.push(move);
             }
          }
       }
@@ -854,6 +850,7 @@ package survarium.ammo
          var targetSlotId:uint;
          var sourceSlotId:uint;
          var moveCount:uint;
+         var move:Object;
          var inventoryCount:uint;
          if(ammo)
          {
@@ -867,16 +864,10 @@ package survarium.ammo
             trace("prepare relocate:",element.name,"target:",targetSlotId,"source:",sourceSlotId,"count:",moveCount,inventoryCount,"name",ammo.name,element.pair,itemId,ammo.itemId,this.autoBuyCheckBox.selected);
             if(inventoryCount)
             {
-               this._relocateArray.push({
-                  profile:profileId,
-                  id:itemId,
-                  dict_id:dictId,
-                  targetSlot:targetSlotId,
-                  count:moveCount,
-                  sourceSlot:sourceSlotId,
-                  count_in_inventory:inventoryCount,
-                  auto_buy:this.autoBuyCheckBox.selected
-               });
+               move = Relocation.move(profileId,itemId,dictId,sourceSlotId,targetSlotId,moveCount);
+               move.count_in_inventory = inventoryCount;
+               move.auto_buy = this.autoBuyCheckBox.selected;
+               this._relocateArray.push(move);
             }
          }
       }

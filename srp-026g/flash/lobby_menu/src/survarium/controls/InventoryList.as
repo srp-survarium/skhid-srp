@@ -23,6 +23,7 @@ package survarium.controls
    import scaleform.clik.events.ListEvent;
    import scaleform.gfx.MouseEventEx;
    import scaleform.gfx.TextFieldEx;
+   import survarium.data.Relocation;
    import survarium.Util;
    import survarium.constants.ItemRank;
    import survarium.constants.Events;
@@ -1428,14 +1429,7 @@ package survarium.controls
             {
                if(value.enabled)
                {
-                  _relocateArray = [{
-                     profile:pp.profileId,
-                     id:value.itemId,
-                     dict_id:value.dictId,
-                     sourceSlot:ItemPlace.INVENTORY,
-                     targetSlot:trgSlt,
-                     count:1
-                  }];
+                  _relocateArray = [Relocation.move(pp.profileId,value.itemId,value.dictId,ItemPlace.INVENTORY,trgSlt,1)];
                   pp._relocateFunction(_relocateArray);
                }
             }
@@ -2815,16 +2809,7 @@ package survarium.controls
                      profile = (pp.profileId);
                      dict_id = item.dictId;
                      targetSlot = (newSlot);
-                     // an int local, never an expression in the field: the exe reads a move's count as an int's raw bits (relocate_item, 0x289234): a Number reaches it as 0
-                     var units:int = newSlot >= ProfileSlot.QUICK_1 && newSlot <= ProfileSlot.QUICK_6 ? LocalPaperDoll.pocketUnits(pp.paperDoll.getSlotAt(newSlot).data as ItemData,item) : 1;
-                     _relocateArray = [{
-                        profile:profile,
-                        id:id,
-                        dict_id:dict_id,
-                        sourceSlot:item.descriptor,
-                        targetSlot:targetSlot,
-                        count:units
-                     }];
+                     _relocateArray = [Relocation.move(profile,id,dict_id,item.descriptor,targetSlot,newSlot >= ProfileSlot.QUICK_1 && newSlot <= ProfileSlot.QUICK_6 ? LocalPaperDoll.pocketUnits(pp.paperDoll.getSlotAt(newSlot).data as ItemData,item) : 1)];
                      pp._relocateFunction(_relocateArray);
                   }
                }

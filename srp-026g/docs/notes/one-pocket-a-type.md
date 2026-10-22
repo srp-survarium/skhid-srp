@@ -63,6 +63,8 @@ The owner's rule of 2026-10-21. Code: `session::v026g::account` (`doubled_pocket
     small whole number. #277's `count: <cond> ? pocketUnits(...) : 1` reached the exe as a
     Number (an int or a uint return type alike: tried); the literal `count: 1` it replaced was an
     int (an experiment build with the literal back sent 1).
-  - The fix: the count goes through an `int` local (`var units:int = ...; count: units`) in
-    `ItemPaperDollSlot.handleDropEvent` and `InventoryList`'s double click. Any field of a move
-    the lobby builds must be an int literal or an int-typed variable, never an expression.
+  - The fix: every move the lobby builds for the exe is made by `survarium.data.Relocation.move`,
+    whose fields are typed parameters (an expression is coerced to an integer at the call): the
+    paper doll's drops, the inventory's double click and drop region, the relocate question, the
+    character's `relocate_to_paperdoll` and the ammo window's rows. Never build such an object
+    literal by hand.
