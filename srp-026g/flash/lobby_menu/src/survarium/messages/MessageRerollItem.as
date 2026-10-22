@@ -99,19 +99,6 @@ package survarium.messages
          super();
       }
       
-      // A bonus of the window shows the values it rolls on hover, the rolled one marked and the
-      // best in gold (ModificationRolls.rangeTip; the renderer's tip shows `name`).
-      private static function withRange(option:Object, modifier:Object) : Object
-      {
-         var tip:String = ModificationRolls.rangeTip(modifier);
-         if(tip)
-         {
-            option.name = tip;
-            option.rollRange = true;
-         }
-         return option;
-      }
-
       override protected function cleanUp(event:Event = null) : void
       {
          this.itemRenderer.data = null;
@@ -183,7 +170,7 @@ package survarium.messages
                         icon:modifierIcon,
                         label:modifier.textValue
                      };
-                     options.push(withRange(option,modifier));
+                     options.push(ModificationRolls.withRange(option,modifier));
                   }
                   i++;
                }
@@ -227,7 +214,7 @@ package survarium.messages
                icon:modifierIcon,
                label:modifier.textValue
             };
-            options.push(withRange(option,modifier));
+            options.push(ModificationRolls.withRange(option,modifier));
             i++;
          }
          this.showModifierSelection(selectedModifier,options);
@@ -287,7 +274,7 @@ package survarium.messages
                   reroll_available:!modifier.was_rerolled_before,
                   locked:rerolledIndex == i && noneRerolled == false
                };
-               options.push(withRange(option,modifier));
+               options.push(ModificationRolls.withRange(option,modifier));
                i++;
             }
             trace("modifiersToReroll",modifierCount,options.length,rerolledIndex,noneRerolled);

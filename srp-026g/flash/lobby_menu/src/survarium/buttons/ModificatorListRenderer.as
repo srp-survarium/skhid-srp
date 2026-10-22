@@ -107,7 +107,7 @@ package survarium.buttons
                this.lockIcon.visible = _data.locked;
             }
             // The reroll window's bonuses show their range on hover: `name` is the tip's text
-            // (MessageRerollItem, ModificationRolls.rangeTip).
+            // (ModificationRolls.withRange: the reroll window, the craft window's new bonus).
             _tooltipRenderer = _data.rollRange ? SrvProfileTipRendererStyled : null;
             if(_data.reroll_available != undefined)
             {

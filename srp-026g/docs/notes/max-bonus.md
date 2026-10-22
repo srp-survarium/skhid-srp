@@ -39,6 +39,7 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)): `survarium
 - The others grey, the current value white and in brackets; no gold in the tip (owner
   2026-10-22: a gold max there confused). The brackets mark it without relying on colour; plain
   ASCII, as the lobby's font lacks symbols.
+- The craft (upgrade) window's new bonus after a combine shows the same tip on hover.
 - No tip for a bonus that does not roll (the golden weapons' silver bonus).
 
 ## One source of truth

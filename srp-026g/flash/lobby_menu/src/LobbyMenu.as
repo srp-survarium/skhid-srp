@@ -118,6 +118,7 @@ package
    import survarium.interfaces.IPlayerProfile;
    import survarium.item.InventoryItem;
    import survarium.item.ItemFactory;
+   import survarium.item.ModificationRolls;
    import survarium.managers.SubsystemManager;
    import survarium.messages.MessageAnnounce;
    import survarium.messages.MessageApply;
@@ -1838,6 +1839,8 @@ package
             icon = modifiersIconContainer.getIcon(newModifier.icon);
             newModifier.icon = icon;
             newModifier.label = newModifier.textValue;
+            // its range on hover, as in the reroll window (max-bonus.md)
+            ModificationRolls.withRange(newModifier,newModifier);
          }
          this.craftWindow.fillCraftedItem(itemData,value.result,newModifier);
       }

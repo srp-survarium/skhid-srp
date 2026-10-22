@@ -91,6 +91,20 @@ package survarium.item
          return (value >= 0 ? "+" : "") + shown + (postfix ? postfix : "");
       }
 
+      // A bonus line of the reroll or craft window (ModificatorListRenderer) shows the values its
+      // modification rolls on hover, the rolled one marked (rangeTip; the renderer's tip shows
+      // `name`).
+      public static function withRange(option:Object, modifier:Object) : Object
+      {
+         var tip:String = rangeTip(modifier);
+         if(tip)
+         {
+            option.name = tip;
+            option.rollRange = true;
+         }
+         return option;
+      }
+      
       // A modification's range, one line: "Damage: +1%  +2%  [+3%]  +4%  +5%". The others grey,
       // the rolled one white in brackets (plain ASCII: the lobby's font lacks symbols); no gold
       // here (owner 2026-10-22: it confused). "" for one that does not roll.
