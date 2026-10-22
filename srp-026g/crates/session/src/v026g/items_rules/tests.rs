@@ -742,7 +742,7 @@ fn a_modification_is_changed_for_one_of_three() {
     let chosen = choose_modifier(&mut account, rifle, 2000, 1).unwrap();
     assert_eq!(chosen.old_modification, 2000);
     assert_eq!(chosen.new_modification, rolled.choices[1]);
-    // The next change costs a tenth more, and silver still waits.
+    // The next change costs a tenth more.
     assert_eq!(
         chosen.window,
         RerollWindow {

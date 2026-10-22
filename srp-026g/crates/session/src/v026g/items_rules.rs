@@ -546,7 +546,7 @@ pub struct RerollWindow {
     pub regular_cost: u32,
     pub premium_cost: u32,
     /// Once a modification was changed: its id (the one that may be
-    /// changed again) and the seconds until silver pays again.
+    /// changed again) and the seconds until silver pays again, always 0 now.
     pub changed: Option<(u32, u32)>,
     /// A paid change that waits for its choice (`83 46 07` again).
     pub offer: Option<[u32; 3]>,
