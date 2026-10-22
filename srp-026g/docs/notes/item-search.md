@@ -75,6 +75,9 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
      length in all; closer is better). "vntrz" finds Vintorez;
   5. a word of 4 or more letters: with one typo (a letter wrong, missing, extra, or two swapped);
      a word of 8 or more: with two. "mosni" finds Mosin. Each typo makes the match worse.
+- **The loose matches (4 and 5) only when nothing else matches** (owner 2026-10-22: "mask"
+  listed Master's gloves, a typo of "mast"). An item matching every word otherwise (a kind, a
+  level, the name) hides every item that needs a loose match.
 - **The item you chose** stays chosen while it is still listed. The list scrolls back to the top
   each time the search changes.
 
@@ -94,6 +97,8 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)):
 - **Esc while the box does not have the keys:** as before (it closes the window, and that clears
   the search).
 - **Esc and the friends list:** see `lobby-keys.md`.
+- **Ctrl+W in the box** (owner 2026-10-22) deletes the word before the caret; **Ctrl+U**
+  everything before the caret.
 - **Enter in the box:** gives the keys back to the lobby. The results stay. Enter is only the box's
   own key: the box takes no Enter or Esc meant for other windows.
 - **The game's keys while typing:** none fire. The exe asks `root.is_typing` before its lobby

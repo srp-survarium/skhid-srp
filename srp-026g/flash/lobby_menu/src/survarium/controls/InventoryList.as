@@ -2131,6 +2131,11 @@ package survarium.controls
       private function onSearchKey(e:KeyboardEvent) : void
       {
          var ctrl:Boolean = e.ctrlKey || MainScene.isCtrl;
+         if((e.keyCode == Keyboard.W || e.keyCode == Keyboard.U) && e.ctrlKey && this.searchFocused())
+         {
+            this.deleteLeft(e.keyCode == Keyboard.W);
+            return;
+         }
          var find:Boolean = e.keyCode == KeyCode.F && ctrl;
          if(!find && (ctrl || e.altKey || this._windowKey || !typesSearch(e.keyCode)) || !this.takesTyping())
          {
@@ -2181,6 +2186,31 @@ package survarium.controls
             return false;
          }
          return !(stage.focus is TextField) || this.searchFocused();
+      }
+      
+      // In the box (owner 2026-10-22): Ctrl+W deletes the word before the caret, with the spaces
+      // after it; Ctrl+U everything before the caret.
+      private function deleteLeft(word:Boolean) : void
+      {
+         var field:TextField = this._searchBox.textField;
+         var text:String = this._searchBox.text;
+         var end:int = Math.min(field.caretIndex,text.length);
+         var start:int = word ? end : 0;
+         while(start > 0 && text.charAt(start - 1) == " ")
+         {
+            start--;
+         }
+         while(start > 0 && text.charAt(start - 1) != " ")
+         {
+            start--;
+         }
+         if(start == end)
+         {
+            return;
+         }
+         this._searchBox.text = text.substring(0,start) + text.substring(end);
+         field.setSelection(start,start);
+         this.onSearchChange(null);
       }
       
       // the characters typed before the box had the keys (onSearchKey)
@@ -2345,7 +2375,8 @@ package survarium.controls
       }
       
       // The items of a list whose name matches every word typed, best first, in the list's own order
-      // among equals; the whole list without a search.
+      // among equals; the whole list without a search. The loose matches (letters spread, typos)
+      // only when nothing matches otherwise (owner 2026-10-22: "mask" listed Master's gloves).
       private function searchItems(items:Array) : Array
       {
          if(this._searchWords == null)
@@ -2353,17 +2384,27 @@ package survarium.controls
             return items;
          }
          var found:Array = [];
+         var exact:Boolean = false;
          for(var i:int = 0; i < items.length; i++)
          {
             var score:int = this.searchScore(items[i]);
             if(score > 0)
             {
+               exact ||= !this._searchLoose;
                found.push({
                   item:items[i],
                   score:score,
-                  index:i
+                  index:i,
+                  loose:this._searchLoose
                });
             }
+         }
+         if(exact)
+         {
+            found = found.filter(function(f:Object, i:int, a:Array):Boolean
+            {
+               return !f.loose;
+            });
          }
          found.sort(byScore);
          for(i = 0; i < found.length; i++)
@@ -2378,10 +2419,14 @@ package survarium.controls
          return b.score != a.score ? b.score - a.score : a.index - b.index;
       }
       
+      // whether the last item searchScore matched took a loose match (spread letters, typos)
+      private var _searchLoose:Boolean;
+      
       // An item against the words typed: the sum of each word's match (its name's; a number first,
       // its level's too), 0 when one does not match.
       private function searchScore(item:Object) : int
       {
+         _searchLoose = false;
          var text:String = item.name == null ? "" : String(item.name);
          var form:Array = this._searchNames[text] as Array;
          if(form == null)
@@ -2398,6 +2443,7 @@ package survarium.controls
             {
                return 0;
             }
+            _searchLoose ||= score < MATCH_PART;
             total += score;
          }
          return total;
