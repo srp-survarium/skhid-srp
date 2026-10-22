@@ -48,6 +48,12 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   - killing an enemy inside a unit his team does not own ("kill invader") is score 10, event 10.
   srp sends these weights (30, 30, 10) in a Research match's static info; the activity pay
   follows the score as for every event.
+- **Rewards: no cap** (the owner, 2026-10-22: "let's not cap it at all", "it takes a lot of time
+  to capture a point either way"). Captures, neutralisations and kill invader pay as their
+  score, with no per-match cap like the battery events' (`battery_credit.md`). The review of
+  #297 showed a 1v1 room can earn about 1,320 score per 15-minute match by trading units back
+  and forth; the owner knows and chose no cap. Exploiters are handled by the take-back policy
+  (only gains over 0.5M silver and gold are taken back). Do not add a cap without the owner.
 - **HUD:** the teams' points in Team Deathmatch's bars; the three units under them (letter,
   owner's colour: own team blue, other red, nobody grey; a ring for the capture of the team
   taking it); "Capturing unit..." while one's own player is inside a unit his team is taking;

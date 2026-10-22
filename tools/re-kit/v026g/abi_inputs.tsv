@@ -4322,3 +4322,13 @@ va	name	location	role	basis
 0x0027aa20	survarium::network_client::on_match_ready	entry ESP+4	the queries_result (the match's resource queries, done)	observed
 0x00126830	vostok::render::skeleton_model_instance_cook::on_bake_finished	entry ESP+4	the bind's first bound argument	observed
 0x00126830	vostok::render::skeleton_model_instance_cook::on_bake_finished	entry ESP+8	the cook parameters (freed here)	observed
+0x00316090	survarium::tdm_rule_core::on_event	entry ESP+12	the world's time ([core+18FC0h], pushed first by 0x2D1EA0)	observed
+0x003237e0	survarium::kd_stats_rule::on_event	stack+12	the world's time ([core+18FC0h], pushed first by 0x2D1EA0)	observed
+0x002d1ea0	survarium::game_world_core::rules_on_event	EDI	the world core: its rules [core+18824h..18828h]	observed
+0x002d1ea0	survarium::game_world_core::rules_on_event	entry ESP+4	the event type, passed on as each rule's on_event (slot 7) first argument	observed
+0x002d1ea0	survarium::game_world_core::rules_on_event	entry ESP+8	the event's data, passed on second; the world's time [core+18FC0h] third (pushed first)	observed
+0x002f5d40	survarium::shared_statistics::notify_listener	EAX	the statistics' event listener (statistics+31A0h; a boost::function, called when not 0): base_game_statistics_handler::on_event 0x26DB80	observed
+0x002f5d40	survarium::shared_statistics::notify_listener	entry ESP+4	u8 roster place	observed
+0x002f5d40	survarium::shared_statistics::notify_listener	entry ESP+8	the event (the statistics' events[e]: 2 a kill, 6/17/18 in hundredths)	observed
+0x002f5d40	survarium::shared_statistics::notify_listener	entry ESP+12	u16 the amount added	observed
+0x0026db80	survarium::base_game_statistics_handler::on_event	ECX	the statistics object itself ([core+18FA8h]; vtable 0xA0755C, this slot +44h): m_scores[place] (+31F0h) grows by amount x the event's weight (x 0.01 for 6, 17, 18)	observed

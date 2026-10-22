@@ -1293,8 +1293,11 @@ The old bytes' jumps all landed inside them; nothing else aims inside; no base r
   noncopyable 0xA40010. The descriptor's second word (type_info's name cache) is written by
   type_info::name: `.srpx` is writable.
 - **Rule vtables** (PROVEN, tdm 0xA15DA4, timelimit 0xA06E2C, kd 0xA177D4): 0 delete (0x266710:
-  the base vtables back, 0xF1850, free), 1..6 the resource's, 7 `on_event(type, time, data)`
-  `ret 0Ch` (a kill is type 1, `data = {killer, victim}`; 0 the match started), 8 / 9
+  the base vtables back, 0xF1850, free), 1..6 the resource's, 7 `on_event(type, data, time)`
+  `ret 0Ch` (a kill is type 1, `data = {killer, victim}`; 0 the match started; the world's
+  dispatcher 0x2D1EA0 pushes the time `[core+18FC0h]`, then its second argument, then its first,
+  and calls `[vtable+1Ch]`; the kill site 0x2D9EEE..0x2D9EF7 gives it `&{killer, victim}` and 1;
+  tdm 0x316090 and kd 0x3237E0 read the data at `[esp+8]`), 8 / 9
   `entered` / `left(place, time)` `ret 8`, 10 register_animations, 11 `set_game_world_core(core)`,
   12 the blackboard (core+188B0h, 0x2D58F0), 13 `on_match_ready(time)`, 14 finished, 15
   `serialize(writer)` `ret 4`, 16 `deserialize(reader, ?)` `ret 8` (the snapshot's rules loop in
@@ -1372,6 +1375,33 @@ The old bytes' jumps all landed inside them; nothing else aims inside; no base r
   clobbered, the last real return address 0x27C0DE (`network_client::process_dynamic_match_info`).
   Slot 16 takes the dword and pops it now; selftest check 53 compares every slot's `ret` with
   tdm's, and `check_research_026g.py` runs the rule through the game's own loops.
+- **The review of #297** (2026-10-22, after the merge; `fix/research-review`):
+  - **Slot 7's arguments** (PROVEN, CRITICAL): `rn_on_event` took `(type, time, data)`; the game
+    passes `(type, data, time)` (above). It read the time as the kill's bytes: before 65,536 ms of
+    game time a fault at the first death on every client, after it random killer and victim
+    places (up to 254 into the 20 places) and no kill invader. Now `(type, data, time)`, and a
+    kill's places out of 0..19 are refused. `check_research_026g.py` runs slot 7 through the
+    dispatcher 0x2D1EA0 with a kill and checks what it counted; with the first build's order
+    put back by a shim, the case fails. Every slot of ours, the tick and the cook are reached
+    the same way (client_patch.md §0.4, "through the game's own caller").
+  - **The scoreboard** (PROVEN): the game's event sites (the kill handler 0x2F4EB0, 0x2F4DE1)
+    add to the player's cell and then, when the statistics have an event listener (+31A0h, a
+    boost::function, not 0 once set), call it through 0x2F5D40 (eax = +31A0h; place, event,
+    amount; `ret 0Ch`); the listener is `base_game_statistics_handler::on_event` 0x26DB80 (vtable
+    0xA0755C slot +44h, §3.16), ecx the statistics object itself (`[core+18FA8h]`), which adds the
+    event's weight times the amount (x 0.01 for the hundredths events 6, 17, 18) to the player's
+    score (`m_scores`, +31F0h[place]). Research's counts did not call it: the Tab list's score grew at the
+    next world loaded only. `count()` calls it after each add, with what it added.
+  - **The leader at the goal**: both shown 100 (99.5 rounds up) was a draw. `rr_leader` takes
+    the millionths once a team reached the goal (the rule's end is set), and so does srp
+    (`rules::research_winner`).
+  - **A late joiner's first world**: the time rule's deserialize (0x31803E) sends event 0
+    before Research's deserialize runs, so slot 7's `publish()` wrote the fresh rule's 0 / 0
+    and a draw into the statistics' tail; `rn_deserialize` publishes the loaded state at its
+    end.
+  - **The hud's cache** is of a rule by its address; a new match's rule allocated where the
+    last one was found its owners there and could say "Unit A lost" at its first frame. The
+    cook's create forgets it.
 
 ## 4. Mode 3 batteries: not needed in 0.26g
 
@@ -1747,6 +1777,24 @@ function it stands in for (its **model**) or an explicit ABI:
   Today: Research's rule (tdm_rule_core, 0xA15DA4, 9 of 20 slots ours), its
   cook (tdm_rule_cook, 0x9FD8AC, 2 of 11) and its rule's link resolver (the
   game's own function only).
+
+Each slot of ours and each callback also names a case of its patch's Unicorn
+check that reaches it **through the game's own caller** (the last field of
+`INSTALLED_VTABLES`' rows and `CALLBACKS`'): the `ret` comparison cannot see
+the order of the arguments, and Research's slot 7 took `(type, time, data)`
+where the game's dispatcher 0x2D1EA0 passes `(type, data, time)` (#297's
+review, §3.50). The self-test fails a slot of ours or a callback without such
+a case, or with a case its script does not have; a negative test shows both.
+Research's cases: slot 7 through the dispatcher 0x2D1EA0 (with the first
+build's order put back by a shim, the case fails), 8 and 9 through the
+world's entered/left loops (0x2D2010, 0x2D2130), 11 and 12 through the
+world's set-core and blackboard loops (0x2D3B40, 0x2D5906), 15 and 16 through
+game_world_core's serialize and deserialize loops (0x2D2661, 0x2D2B42), 17
+through the hud's loop (0x2D36D0), 18 through the completed loop (0x2D2730),
+the cook's 9 and 10 through translate's calls (0x2F42B8..0x2F42CF), the tick
+through the tick list's runner 0x2D1D20; the late join's query callback
+through the game's boost invoker 0x202300, weapon_camo's bake through
+0x127700.
 
 The checks:
 
