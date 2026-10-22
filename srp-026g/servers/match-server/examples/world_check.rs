@@ -82,7 +82,9 @@ fn main() {
                         },
                     )
                 })
-                .reduce(|first, second| first.or(second))
+                // Either passing is a pass; else the log's roster's
+                // refusal, the one that says what is wrong.
+                .reduce(|logged, full| if full.is_ok() { full } else { logged })
                 .expect("two rosters"),
             None => {
                 guessed += 1;

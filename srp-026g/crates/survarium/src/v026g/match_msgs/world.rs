@@ -841,6 +841,20 @@ mod tests {
         );
     }
 
+    /// Live mode 3 worlds of matches that ended on time at 9 to 0 have
+    /// all 10 batteries in the winner's container: one more held than
+    /// counted. More points than batteries held is no game's.
+    #[test]
+    fn a_container_may_hold_more_batteries_than_its_team_has_points_not_fewer() {
+        for game_mode in [mode::BATTERIES, mode::TIMED_BATTERIES] {
+            let mut parts = Parts::new(game_mode);
+            parts.rules.gather.as_mut().unwrap().team_points = [0, 0];
+            assert_eq!(check(&parts.body(), game_mode, &profiles()), Ok(()));
+            parts.rules.gather.as_mut().unwrap().team_points = [1, 1];
+            refused(check(&parts.body(), game_mode, &profiles()), "rules", "mode rule");
+        }
+    }
+
     #[test]
     fn a_physics_section_with_anything_in_it_goes_to_nobody() {
         let whole = Parts::new(mode::BATTERIES).body();

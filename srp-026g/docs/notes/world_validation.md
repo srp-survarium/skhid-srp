@@ -140,9 +140,19 @@ bytes; the section has no inner lengths.
   roster;
 - modes 2 and 3: the map's batteries (mode 3: those placed so far), each
   free battery's position finite, no container user past the roster, no
-  battery past the map's in a container; what the containers hold adds
-  up to the team points, and each battery in a container says so
+  battery past the map's in a container; the team points add up to no
+  more than the containers hold, and each battery in a container says so
   (`Gather::read`).
+- **Loosened 2026-10-22:** the points and what the containers hold were
+  required to be equal. 19 of 20,167 worlds of a live sample were refused
+  by it: every one late in one of five mode 3 matches that ended on the
+  time limit at 9 to 0, 7 of them vouched for by two games. Each has all
+  10 batteries in the winner's container (`ff 01` for each, the container
+  listing all ten) and team points of 9. Why the tenth is in and not
+  counted was not traced [LIKELY the rule's completion, match.md section
+  26: once `+0x15C` is set the handler counts no put]. The points index
+  nothing; the batteries and containers still are checked one by one.
+  Test `a_container_may_hold_more_batteries_than_its_team_has_points_not_fewer`.
 
 ## 6. The physics
 
@@ -175,7 +185,10 @@ section's contents when the objects are checked).
 `world_check` over the five local sets (private/local-clients/runtime/
 snapshots, private/fov-rev11/snapshots, private/farming-evidence-20261020,
 private/editor-026, private/fov-slider), 2026-10-22: **2319 worlds, 2319
-pass**: 2152 checked, 41 initial, 123 unchecked, 3 wrong. 1433 of them
+pass**: 2152 checked, 41 initial, 123 unchecked, 3 wrong. The owner's
+live sample (20,167 worlds, run from the main session): 20,148 passed
+before the loosening of section 5; the 19 refused pass since, read with
+their real map, mode and roster. 1433 of them
 had their match (map, mode, roster) from the server logs; 886 were
 checked with the first match that lets them read. Without profiles the
 tool checks the kit bytes against the table's three entries only.
@@ -186,7 +199,10 @@ cargo run --release -p match-server --example world_check -- \
 ```
 
 It prints one `REFUSED <file>: <part> at <offset>: <reason>` line for
-each refused world, then the counts by dump kind and by reason.
+each refused world, then the counts by dump kind and by reason. With
+`--log` it tries the logged roster and the 20 places of a growing roster;
+a refusal is the logged roster's (until 2026-10-22 it was the 20 places',
+which said "20 players" of a match of 3).
 
 ## 8. Stats the server could log to learn the real ranges
 
@@ -206,6 +222,7 @@ collect stats. Proposed, one line per match at its end:
 `statistics_name_no_place_past_the_roster_and_hold_numbers`,
 `rules_of_another_time_or_with_other_respawn_points_go_to_nobody`,
 `rules_name_no_place_or_battery_the_match_does_not_have`,
+`a_container_may_hold_more_batteries_than_its_team_has_points_not_fewer`,
 `a_physics_section_with_anything_in_it_goes_to_nobody`,
 `a_refusal_says_where`. The match server's `a_world_no_game_could_load_goes_to_nobody`
 (the frame) stays as PR #282 has it.

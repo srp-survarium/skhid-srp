@@ -961,13 +961,21 @@ impl Gather {
             }
             None => None,
         };
-        // What the containers hold is what the teams have, and what the
-        // batteries say of themselves.
+        // The teams have no more points than the containers hold, and the
+        // batteries in a container say so of themselves. The containers can
+        // hold one more than the points: live mode 3 worlds of five matches
+        // that ended on time at 9 to 0 (2026-10-22) have all 10 batteries in
+        // the winner's container and points of 9, in every game's world
+        // (two vouched for them). Why the tenth is in and not counted was
+        // not traced [LIKELY the rule's completion, match.md section 26:
+        // once `+0x15C` is set the handler counts no put]. The points are
+        // not used to index anything; the batteries and containers are,
+        // and they are still checked one by one.
         let held: usize = containers
             .iter()
             .map(|container| container.items.len())
             .sum();
-        let consistent = held == usize::from(team_points[0]) + usize::from(team_points[1])
+        let consistent = usize::from(team_points[0]) + usize::from(team_points[1]) <= held
             && containers.iter().enumerate().all(|(id, container)| {
                 container.items.iter().all(|item| {
                     read.get(usize::from(*item)) == Some(&Battery::InContainer(id as u8))
