@@ -12,7 +12,10 @@ cook table's register_cook (0x102D10), game_match_rule_base's constructor
 and the hooks' sites. Intercepted (answered here): the allocator (0xE4F90),
 GetCurrentThreadId, the call the constructor's hook replaces (0x1EC170), a
 buffer's resize (0x7AB30), the movie's Invoke (0x511600) and the hud's message
-(0x2375C0). What each case checks is printed.
+(0x2375C0). The game's own loops over a world's rules (game_world_core's
+serialize and deserialize, 0x2D2661 and 0x2D2B42) run with the rule in a
+world's rules, so a slot that pops other than the game expects shows as esp
+moved. What each case checks is printed.
 """
 import json
 import os
@@ -173,6 +176,20 @@ class Run:
 
     def thiscall(self, function, this, *args):
         return self.call(function, args, {UC_X86_REG_ECX: this})
+
+    def span(self, start, until, regs, stack=()):
+        """The game's own code from `start` to `until` with esp at a frame
+        of its own (`stack`: dwords at esp, esp+4, ...); (eip, esp moved by)."""
+        emu = self.emu
+        sp = STACK + 0x6000
+        for i, value in enumerate(stack):
+            self.word(sp + 4 * i, value)
+        emu.reg_write(UC_X86_REG_ESP, sp)
+        for reg, value in regs.items():
+            emu.reg_write(reg, value)
+        self.stopped = None
+        emu.emu_start(start, until, count=5_000_000)
+        return emu.reg_read(UC_X86_REG_EIP), emu.reg_read(UC_X86_REG_ESP) - sp
 
 
 def vtable(run, obj, slot):
@@ -347,10 +364,45 @@ def main():
     source = run.allocate(512)
     run.emu.mem_write(source, blob)
     run.word(reader + 4, source)
-    run.thiscall(vtable(run, other, 16), other, reader)
-    check("deserialize reads it back: the same state",
-          run.read(reader + 4) == source + 309
-          and bytes(run.emu.mem_read(other + R_STATE, 0x138)) == bytes(run.emu.mem_read(rule + R_STATE, 0x138)))
+    _, cleanup = run.thiscall(vtable(run, other, 16), other, reader, 0x5A5A5A5A)
+    check("deserialize(reader, dword) reads it back, the same state, and pops both (ret 8, as the game's rules)",
+          cleanup == 8 and run.read(reader + 4) == source + 309
+          and bytes(run.emu.mem_read(other + R_STATE, 0x138)) == bytes(run.emu.mem_read(rule + R_STATE, 0x138)),
+          f"cleanup {cleanup}")
+
+    # 6b. The game's own loops over the world's rules (game_world_core's
+    # serialize 0x2D2661..0x2D2688 and deserialize 0x2D2B1A..0x2D2B5F, in
+    # 0x2D2770), with our rule in the world's rules: esp as it was after
+    # each, the bytes the same.
+    snapshot = FAKE
+    rules = run.allocate(4)
+    run.word(rules, rule)
+    run.word(CORE + RULES, rules)
+    run.word(CORE + RULES + 4, rules + 4)
+    loop_writer, loop_buffer = snapshot + 0xB7EF0, run.allocate(0x10)
+    run.emu.mem_write(loop_writer, bytes(0x20))
+    run.word(loop_writer + 0x14, loop_buffer)
+    run.word(loop_buffer + 4, run.allocate(0x10))
+    run.word(loop_buffer + 8, 0x10)
+    run.word(loop_buffer + 0xC, 0)
+    eip, moved = run.span(0x2D2661, 0x2D2688, {UC_X86_REG_EBP: CORE, UC_X86_REG_ESI: snapshot})
+    looped = bytes(run.emu.mem_read(run.read(loop_buffer + 4), run.read(loop_buffer + 0xC)))
+    check("the game's serialize loop (0x2D2661): esp as before, our 309 bytes in the snapshot's writer",
+          eip == 0x2D2688 and moved == 0 and looped == blob, f"esp moved {moved}, {len(looped)} bytes")
+    third = run.allocate(512)
+    run.emu.mem_write(third, blob)
+    run.word(snapshot + 0xB7EE4, third)
+    run.word(snapshot + 0xB7EEC, third + 309)
+    fresh, _ = run.thiscall(vtable(run, cook, 9), cook, query)
+    run.word(rules, fresh)
+    stack = [0] * 0x21 + [0x7E57]                          # [esp+84h]: the dword the loop passes on
+    eip, moved = run.span(0x2D2B1A, 0x2D2B5F, {UC_X86_REG_EBP: CORE, UC_X86_REG_EBX: snapshot}, stack)
+    check("the game's deserialize loop (0x2D2B42): esp as before, the cursor past our bytes, the same state",
+          eip == 0x2D2B5F and moved == 0 and run.read(STACK + 0x6000 + 0x58) == third + 309
+          and bytes(run.emu.mem_read(fresh + R_STATE, 0x138)) == bytes(run.emu.mem_read(rule + R_STATE, 0x138)),
+          f"esp moved {moved}, cursor {run.read(STACK + 0x6000 + 0x58):#x} of {third:#x}")
+    run.word(CORE + RULES, 0)
+    run.word(CORE + RULES + 4, 0)
 
     # 7. The hud's points and completed.
     hud = run.allocate(0x100)

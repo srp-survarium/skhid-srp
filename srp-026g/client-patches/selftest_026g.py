@@ -399,7 +399,9 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     original's instructions before and the hooks after, no relocation
     under one and no branch into one, the entries are jumps, the stubs
     leave only where they should, the C code names the game's functions
-    it calls. check_research_026g.py runs the hooks, the cook and the rule.
+    it calls, each slot of the rule's and the cook's vtables that is ours
+    pops what tdm_rule_core's (0xA15DA4) and tdm_rule_cook's (0x9FD8AC)
+    pops. check_research_026g.py runs the hooks, the cook and the rule.
 """
 
 import ctypes
@@ -1984,7 +1986,8 @@ def test_research(original, image, before):
     games). Here: the .bin is its .json's; each site is the original's
     instructions before and the hook after, with no relocation under it and
     no branch into it; the entries are jumps; the code's calls outside it are
-    the game's functions research_native_026g.c names."""
+    the game's functions research_native_026g.c names; each slot of ours
+    pops (its `ret`) what tdm's in the same place pops."""
     source = Image(original)
     plain = lambda text: text.replace("[dword 0x", "[0x").replace("dword [", "[")
     code = open(P.research_bin(), "rb").read()
@@ -2026,6 +2029,37 @@ def test_research(original, image, before):
                      (0xF6B10, "the config's child"), (0xF6C00, "the config's has"), (0x7AB30, "a buffer's resize"),
                      (0x511600, "the movie's invoke"), (0x2375C0, "the hud's message")):
         check(struct.pack("<I", va) in code[P.RESEARCH_ASM_SIZE:], f"the C code names {what} ({va:#x})")
+    # Every slot of ours pops what the game's counterpart pops (the rule's
+    # slot 16 popped 4 of its 8 bytes in the first build and crashed the game
+    # at its first synchronization: client_patch.md 3.50).
+    read32 = lambda img, va: struct.unpack("<I", img.read(va, 4))[0]
+    symbols = sorted(int(va, 16) for va in kept["symbols"].values())
+    for table, theirs_at, slots, what in (("rn_rule_vtable", 0xA15DA4, 20, "tdm_rule_core's"),
+                                          ("rn_cook_vtable", 0x9FD8AC, 11, "tdm_rule_cook's")):
+        ours_at = int(kept["symbols"][table], 16) + 4
+        compared = []
+        for slot in range(slots):
+            ours, theirs = read32(image, ours_at + 4 * slot), read32(source, theirs_at + 4 * slot)
+            if ours == theirs:
+                continue
+            end = min([va for va in symbols if va > ours] + [P.RESEARCH_VA + len(code)])
+            mine, game = popped(image, ours, end), popped(source, theirs, theirs + 0x400)
+            compared.append(slot)
+            check(mine is not None and mine == game,
+                  f"{table} slot {slot}: ours ({ours:#x}) pops {mine} bytes, {what} ({theirs:#x}) {game}")
+        check(len(compared) == {"rn_rule_vtable": 9, "rn_cook_vtable": 2}[table],
+              f"{table}: each of our own slots compared with {what} vtable {theirs_at:#x} ({compared})")
+
+
+def popped(image, start, end):
+    """The bytes the function at `start` pops: its first `ret`'s immediate
+    (None without a `ret` before `end`)."""
+    for _, _, text in ndisasm(image.read(start, end - start), start):
+        if text == "ret":
+            return 0
+        if text.startswith("ret "):
+            return int(text.split()[1], 16)
+    return None
 
 
 def aimed_inside(original, va, size, near):
