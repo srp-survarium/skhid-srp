@@ -25,17 +25,14 @@
 ;                patch 32's mode 1 (a weapon shown) turns the table on: the
 ;                camera's point is to go to BENCH (the height and the distance
 ;                by the setter), its yaw and pitch to the bench's view, the
-;                weapon's turn to 0, and the camera holds until the weapon is
-;                at the bench; mode 0 with the table on (a close, or an
+;                weapon's turn to 0, and the camera flies at once (round 5:
+;                no wait for the weapon); mode 0 with the table on (a close, or an
 ;                armour's window over a weapon's) turns it off: the point goes
 ;                back to the origin, the yaw and the pitch to what they were
 ;                before. Then the setter.
 ;   +5  tick     0x284020 `movss xmm0,[ebx+0C8h]` (the camera's tick, ebx =
 ;                camera+4, [esp+10h] the frame's time, at most 0.1 s): while
-;                the table is on and its weapon not yet drawn there (at most
-;                HOLD_MAX seconds) the camera holds (its three steps' speeds
-;                0), then they get the setter's speeds again and it flies;
-;                at the bench a drag turns the weapon (the yaw's move its
+;                the table is on a drag turns the weapon (the yaw's move its
 ;                spin, the pitch's its tilt) instead of the camera; while the
 ;                camera flies, its point, yaw and pitch move a share RATE * dt
 ;                of the way to their targets, and once off and there it is
@@ -48,7 +45,11 @@
 ;                character makes no player (+D2C4h -1, +D2C8h 0), the table's
 ;                player's held item is drawn with the bench's transform
 ;                ([ebp-0E8h], the decal pose's buffer), its middle at BENCH,
-;                and the weapon is there (READY); before, in the hand. Once
+;                and the weapon is there (READY); before, the decal pose's
+;                transform (10 m under the floor, where the stock decal
+;                editor puts it away): the camera flies meanwhile and the
+;                old player's weapon is seen neither in the hand nor at the
+;                bench (round 5). Once
 ;                there, a refresh's new player (an attach) does not take it
 ;                away: the current player's weapon stays at the bench until
 ;                the new player replaces it. The transform is also kept at
@@ -56,7 +57,7 @@
 ;                patches: patch_026g.py WEAPON_TABLE_MATRIX_OFFSET).
 ;   +20 left     0x283D81 `test byte [eax+0Ch],52h / setne al` in the camera's
 ;                on_mouse_move (eax = the mouse's state, esi = the camera): a
-;                button of 52h as before; at the bench, the left button too
+;                button of 52h as before; with the table on, the left button too
 ;                when its press is off the movie (the lobby menu's vtable+24h,
 ;                is_mouse_over_ui, false at the press's first move: not on a
 ;                control, not on an item being dragged), until it is let go.
@@ -141,21 +142,13 @@ ORG CAVE
 %define DRAW_ITEM       0x2477C8    ; eax = the item's transform
 
 ; The camera (lobby menu+10Ch), from the camera itself
-%define SIDE_TARGET     0x98
-%define HEIGHT_TARGET   0x9C
 %define POINT_X         0xA0
 %define HEIGHT          0xA4
 %define POINT_Z         0xA8
-%define SIDE            0xAC
 %define YAW             0xB8
 %define PITCH           0xBC
-%define DISTANCE_TARGET 0xC0
-%define DISTANCE        0xC4
 %define TURN_YAW        0xCC        ; a drag's moves of the frame
 %define TURN_PITCH      0xD0
-%define SIDE_SPEED      0xE0        ; the setter's speeds of the three steps
-%define HEIGHT_SPEED    0xE4
-%define DISTANCE_SPEED  0xE8
 
 ; The state, at STATE
 %define TABLE           0x00        ; 1: the weapon is at the bench
@@ -169,8 +162,7 @@ ORG CAVE
 %define SPIN            0x20        ; the weapon's turn about the vertical, by the drag's yaw
 %define TILT            0x24        ; and about the bench's length, by its pitch (within TILT_MAX)
 %define READY           0x28        ; 1: the window's weapon is drawn at the bench
-%define HOLD            0x2C        ; 1: the camera waits for it
-%define WAITED          0x30        ; float: how long it has
+                                    ; +2Ch, +30h: unused since round 5 (the camera's wait for it)
 %define LEFT            0x34        ; the left button since it went down: 0 up, 1 the weapon's drag, 2 not
 %define MIDDLE          0x38        ; float4: the weapon's middle, in its model's space (w 0)
 %define STAMP           0x48        ; +1 at every bench transform written (the interface's frame stamp)
@@ -203,12 +195,10 @@ camera:
     xor eax, eax
     cmp dword [edi+TABLE], 0
     jne .again                      ; a weapon's window over a weapon's: the bench keeps its weapon
-    mov [edi+READY], eax            ; until the new player's is there, and the camera need not wait
-    mov [edi+WAITED], eax
+    mov [edi+READY], eax            ; until the new player's is there
 .again:
     mov dword [edi+TABLE], 1
     mov dword [edi+FLY], 1
-    mov dword [edi+HOLD], 1
     mov [edi+SPIN], eax
     mov [edi+TILT], eax
     mov eax, [edi+CONST(bench_x)]
@@ -236,7 +226,6 @@ camera:
     je .set
     xor eax, eax
     mov [edi+TABLE], eax            ; FLY stays: the camera flies back
-    mov [edi+HOLD], eax
     mov [edi+TARGET_X], eax
     mov [edi+TARGET_Z], eax
     mov eax, [edi+SAVED_YAW]
@@ -262,38 +251,6 @@ tick:
     lea esi, [ebx-4]                ; the camera
     cmp dword [edi+TABLE], 0
     je .fly
-    cmp dword [edi+HOLD], 0
-    je .turn
-    ; the weapon not at the bench yet: hold, at most HOLD_MAX seconds
-    movss xmm0, [edi+WAITED]
-    addss xmm0, [esp+48+32+14h]
-    movss [edi+WAITED], xmm0
-    cmp dword [edi+READY], 0
-    jne .go
-    comiss xmm0, [edi+CONST(hold_max)]
-    jae .go
-    xor eax, eax
-    mov [esi+SIDE_SPEED], eax
-    mov [esi+HEIGHT_SPEED], eax
-    mov [esi+DISTANCE_SPEED], eax
-    jmp .out
-.go:
-    mov dword [edi+HOLD], 0         ; the setter's speeds: |target - now| * 1.111 a second
-    movups xmm1, [edi+CONST(abs_mask)]
-    lea edx, [edi+CONST(steps)]
-.speed:
-    movzx eax, byte [edx]
-    movzx ecx, byte [edx+1]
-    movss xmm0, [esi+eax]
-    subss xmm0, [esi+ecx]
-    andps xmm0, xmm1
-    mulss xmm0, [edi+CONST(speed)]
-    movzx ecx, byte [edx+2]
-    movss [esi+ecx], xmm0
-    add edx, 3
-    cmp byte [edx], 0
-    jne .speed
-.turn:
     movss xmm0, [esi+TURN_YAW]      ; the drag turns the weapon, not the camera
     addss xmm0, [edi+SPIN]
     movss [edi+SPIN], xmm0
@@ -393,6 +350,7 @@ matrix:
     cmp dword [eax+READY], 0        ; (a refresh: a scope or a camouflage put on or off)
     pop eax
     jne .bench
+    ret                             ; not shown yet: the decal pose's transform, 10 m under
 .original:
     cmp byte [ebx+DECAL], 0
     jne .ret                        ; the 4 nops, then the decal pose's transform
@@ -629,8 +587,6 @@ left:
     jz .up
     cmp dword [edi+TABLE], 0
     je .no
-    cmp dword [edi+HOLD], 0
-    jne .no
     mov eax, [edi+LEFT]
     cmp eax, 1
     je .drag
@@ -703,16 +659,12 @@ base_eax:
 
 ; the camera's offsets and the state's targets the flight moves, then 0
 fields:           db POINT_X, TARGET_X, POINT_Z, TARGET_Z, YAW, TARGET_YAW, PITCH, TARGET_PITCH, 0
-; the camera's steps: target, now, speed; then 0
-steps:            db SIDE_TARGET, SIDE, SIDE_SPEED, HEIGHT_TARGET, HEIGHT, HEIGHT_SPEED
-                  db DISTANCE_TARGET, DISTANCE, DISTANCE_SPEED, 0
 align 16, db 0
 bench_x:          dd 4.25           ; BENCH: above the workbench (top y 0.91, x 3.75..4.88, z 1.70..4.60)
 bench_y:          dd 1.30           ;   between its drill press (z < 2.40) and its vice (z > 3.50)
 bench_z:          dd 3.05
                   dd 1.0            ;   (w, for row 3)
 flip_half:        dd -0.5, 0.5, -0.5, 0.0   ; the box's centre, turned as the instance's box (rotY(pi))
-abs_mask:         dd 0x7FFFFFFF, 0, 0, 0
 view_yaw:         dd -1.5707964     ; the camera looks along +x, at the wall the bench stands at
 view_pitch:       dd -0.25          ; from a little above
 view_distance:    dd 1.2
@@ -723,8 +675,6 @@ two_pi:           dd 6.2831855
 rate:             dd 5.0            ; RATE: the share of the way a second
 one:              dd 1.0
 close:            dd 1.0e-6         ; there: within 0.001 (squared)
-speed:            dd 1.1111112      ; the setter's: |change| * 1.111 a second (0xA2D9E4)
-hold_max:         dd 2.0            ; HOLD_MAX: the longest the camera waits for the weapon (s)
 millimetre:       dd 0.001
 ; MIDDLES: the weapons whose box does not give their middle within 1 cm (a
 ; default box; the Magnum's spare rounds; a body off the axis, the RPD's):

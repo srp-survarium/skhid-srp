@@ -2549,6 +2549,13 @@ too (revisions 28 and 29 have the same code), for a weapon no kit holds and for 
 kit does not wear. Fixed by patch 48's `early` (below): the close waits for that player and the
 account's is made right after it. `../docs/notes/client_patch.md` section 3.42, round 4.
 
+Round 5 (2026-10-23, the owner: "yes, let's", to the camera flying at once instead of waiting about
+200 ms for the window's player): no hold. The camera flies to the bench from the window's first
+tick; the weapon appears above the bench when its player is made (until then the held item takes
+the decal pose's transform, 10 m under the floor: neither in the hand nor at the bench). A refresh
+keeps the bench's weapon as before; the close, the drag and the left button (with the table on)
+are unchanged. 1 742 bytes. `check_weapon_table_026g.py` 40 checks. Section 3.42, round 5.
+
 ### 46. On the death screen a drag turns the camera; the wheel does nothing (the next release's revision)
 
 The owner (2026-10-21): "when player dies they can still move camera
