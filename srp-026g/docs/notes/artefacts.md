@@ -49,3 +49,17 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the edit l
   the server asks for the release's revision.
 - The exe reads `passive/aim_time_mod` and `active/aim_time_mod`: it needs the edit list's
   resources.db patch (the release's exe requires its patches, patch 49).
+
+## Aim time at its limit (the owner's decision, 2026-10-23)
+
+- The aim-time modifiers add up: the getter 0x2D5AE0 (index 49) gives the weapon's `aim_time` x
+  max(0, 1 + the sum), floored at 0 by the game itself; scope-in 0x2E1B50 and scope-out 0x2E1BF0
+  use it. Sources on real data: Spring -0.05 passive / -0.10 active each (artefact slots 13..18),
+  the skill tree up to -0.10, gloves (modifications 1080..1084) and weapons (2070..2074) up to
+  -0.10 each.
+- The sum reaches -100 % only with five or six Springs all active and the other sources; the
+  passives alone stop at -0.30 (-0.60 with all others). At 0 the scope is instant for those
+  seconds; nothing faults (the timer 0x32FE40 snaps to the end; SSE exceptions masked) and every
+  game computes the same.
+- The owner: "Leave it" (asked whether to floor it at 25 % or lower Spring's values): no floor.
+
