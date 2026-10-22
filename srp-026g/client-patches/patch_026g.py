@@ -177,6 +177,14 @@ Patches:
   gave the hud its player's name only while the journal recorded: 0x1F9478
   `test eax,eax` becomes `jmp short 1F9487h` (patch 43, TAB_SELF), so the
   Tab list's own row is gold again;
+- two inputs one player's game relays to every game of the match, which
+  killed them all (patches 50 and 51, every full build): the "previous
+  weapon" bit from a hand that holds no weapon read a slot number 47 of
+  23 and called through what lay past the inventory (0x2D8D19, ten bytes:
+  no slot, WEAPON_SWITCH); and a kit choice for a kit whose player has
+  nothing in slot 7 or 10 was taken, and its spawn called through a null
+  hands object (0x3217CC, a jump to thirteen instructions in int3 padding at
+  0x844DD0: such a choice leaves the old kit, KIT_PICK_*);
 - the lobby's `stage.focus` with a focused object whose ActionScript
   object is gone (patch 52, every full build): Scaleform's Stage.focus
   getter (0x771FA0) read that object's traits through a null pointer
@@ -1128,6 +1136,65 @@ TAB_LIST_LOOP = (TAB_LIST_LOOP_VA,
 # The hud's lists and chat only.
 TAB_SELF = (0x1F9478, bytes.fromhex("85c0"), bytes.fromhex("eb0d"))
 
+# "Previous weapon" from a hand that holds no weapon (patch 50, README;
+# client_patch.md section 3.47; ../docs/notes/match.md section 20). The
+# player's mask (0x2D8BB0, esi = the player, ecx = the input's actions)
+# finds `which` ([esp+17h]) = 0 or 1 when the item in hands is in the first
+# or the second weapon slot of the table at 0x927DF0 = {7, 10}, else 0FFh.
+# Action bit 26 (0x4000000) with an item in hands and `which` not 0 took
+# `movzx eax,al` / `mov ebp,[eax*4+927DECh]`: for 1 the table's 7, for 0FFh
+# the dword at 0x9281E8 in .rdata, 2Fh, so slot 47 of 23, and 0x2D8D28 went
+# on to test [inventory+10Ch+47*4], 40h past the end of the 188h-byte
+# inventory, and to call through what it found there. That code runs for
+# every player in every game, the input being relayed: one input with that
+# bit from a player holding a grenade or a medkit killed every game it
+# found something there in. The ten bytes become `cmp al,1` / `jnz short
+# 2D8D7Dh` / `mov ebp,7` / `nop`: 1 is the table's 7 as before; 0FFh goes
+# to 0x2D8D7D, where the code goes for the "no slot" 17h (`cmp ebp,17h` /
+# `jz` at 0x2D8D23), as the original did whenever that dword was 0. ebp is
+# not read on that way (0x2D8D7D to the `pop ebp` at 0x2D8ECC). The
+# table's address had a base relocation (0x2D8D1F): disabled. Every full
+# build. A match computes otherwise only where the original read past the
+# inventory: no row in simulation_changes.tsv.
+WEAPON_SWITCH = (0x2D8D19, bytes.fromhex("0fb6c0" "8b2c85ec7d9200"), bytes.fromhex("3c01" "7560" "bd07000000" "90"))
+WEAPON_SWITCH_RELOCATION = 0x2D8D1F
+
+# A kit with no weapon is not picked (patch 51, README; client_patch.md
+# section 3.48; ../docs/notes/match.md section 23). The place's tick
+# 0x321790 (ecx = the place, `ret 0Ch`) takes the newest kit choice (a 0xF3
+# relay) at or before the tick as the next kit (place+0Dh) when it is under
+# 3 and the place has a player for it (`cmp dword [ecx+eax*4],0`, 0x3217CF),
+# else puts the old one back (0x3217D5). The next spawn plays it, and
+# player::respawn (0x1F2540) of a player with nothing in slot 7
+# ([inventory+128h]) or slot 10 ([inventory+134h]) after base_player::respawn
+# takes [player+0F47Ch] for the hands and calls through it: null in every
+# game, so every game of the match died at one tick (0x1F25BF, seen live
+# three times on 2026-10-12). A kit's player holds its weapons in its
+# inventory from its making (patches 18 and 20 walk them before the spawn's
+# initialize). `movzx eax,al` / `cmp dword [ecx+eax*4],0` / `jnz short
+# 3217D8h` (0x3217CC, nine bytes) becomes a jump to KIT_PICK_CAVE, in the
+# int3 run after the CRYPTOGAMS text that ends at 0x844DC1 (62 bytes, to the
+# function at 0x844E00), and four int3: the same test, then the player's
+# inventory (+10Ch) with something in slot 7 or slot 10, to 0x3217D8 (the
+# kit taken); otherwise to 0x3217D5 (the old kit put back). Nothing aims
+# inside the nine bytes (the `jnc` at 0x3217CA goes to 0x3217D5), and no
+# relocation is under them or in the cave. Every full build. The kit
+# choices a match computes otherwise are those whose spawn killed every
+# game: no row in simulation_changes.tsv. The server sends no such kit with
+# state 0 (lobby-server play.rs::match_profile), so no game has a player for
+# one: this is for a server that would.
+KIT_PICK_VA, KIT_PICK_TAKE, KIT_PICK_REFUSE = 0x3217CC, 0x3217D8, 0x3217D5
+KIT_PICK_CAVE_VA = 0x844DD0
+KIT_PICK_PADDING = (0x844DC2, 62)             # the int3 run the cave is in
+KIT_PICK_CAVE = (bytes.fromhex("0fb6c0" "8b0481" "85c0" "741c"            # movzx / mov eax,[ecx+eax*4] / test / jz
+                               "8b800c010000" "85c0" "7412"                # mov eax,[eax+10Ch] (the inventory) / test / jz
+                               "83b82801000000" "750e"                     # cmp dword [eax+128h],0 / jnz (slot 7)
+                               "83b83401000000" "7505")                    # cmp dword [eax+134h],0 / jnz (slot 10)
+                 + bytes([0xE9]) + struct.pack("<i", KIT_PICK_REFUSE - (KIT_PICK_CAVE_VA + 43))
+                 + bytes([0xE9]) + struct.pack("<i", KIT_PICK_TAKE - (KIT_PICK_CAVE_VA + 48)))
+KIT_PICK_CAVE_SITE = (KIT_PICK_CAVE_VA, bytes.fromhex("cc") * len(KIT_PICK_CAVE), KIT_PICK_CAVE)
+KIT_PICK_HOOK = (KIT_PICK_VA, bytes.fromhex("0fb6c0" "833c8100" "7503"),
+                 bytes([0xE9]) + struct.pack("<i", KIT_PICK_CAVE_VA - (KIT_PICK_VA + 5)) + b"\xCC" * 4)
 # The lobby's `stage.focus` reads null for a focused object whose
 # ActionScript object is gone (patch 52, README; client_patch.md section
 # 3.49). Scaleform's flash.display.Stage focus getter (0x771FA0, called by
@@ -2145,6 +2212,22 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
     # had withheld (patch 43; no relocation under the two bytes).
     patch(data, *TAB_SELF)
     rewritten.append((TAB_SELF[0], TAB_SELF[0] + len(TAB_SELF[1])))
+    # Every build: a relayed input or kit choice no longer kills every game
+    # of the match (patches 50 and 51).
+    patch(data, *WEAPON_SWITCH)
+    if neutralize_relocs(data, [(WEAPON_SWITCH[0], WEAPON_SWITCH[0] + len(WEAPON_SWITCH[1]))]) \
+            != [WEAPON_SWITCH_RELOCATION]:
+        sys.exit("the base relocation of the weapon slot table's load is not where it was read")
+    at = file_offset(KIT_PICK_PADDING[0])
+    if bytes(data[at:at + KIT_PICK_PADDING[1]]) != b"\xCC" * KIT_PICK_PADDING[1] \
+            or data[at - 1] == 0xCC or data[at + KIT_PICK_PADDING[1]] == 0xCC \
+            or not KIT_PICK_PADDING[0] <= KIT_PICK_CAVE_VA \
+            or KIT_PICK_CAVE_VA + len(KIT_PICK_CAVE) > sum(KIT_PICK_PADDING):
+        sys.exit("the kit pick's cave is not inside the int3 run it was read in")
+    for site in (KIT_PICK_CAVE_SITE, KIT_PICK_HOOK):
+        patch(data, *site)
+        if neutralize_relocs(data, [(site[0], site[0] + len(site[1]))]):
+            sys.exit(f"{site[0]:#x}: a base relocation under the kit pick's code")
     # Every build: `stage.focus` reads null for a focused object without its
     # ActionScript object (patch 52; no relocation under the 46 bytes).
     patch(data, *STAGE_FOCUS)

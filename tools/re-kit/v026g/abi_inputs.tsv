@@ -2129,6 +2129,7 @@ va	name	location	role	basis
 0x001f0090	survarium::items_dictionary::item_by_id	stack+4	item ID	inferred
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	EDI	damage_collector	inferred
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	ESI	writer	inferred
+0x001f2540	survarium::player::initialize	ECX	the player	observed
 0x001f3480	survarium::player::update_camera	entry ESP+4	the player (its input handler at +F470h, null but for the local one)	observed
 0x001f37a0	survarium::player::set_head_visibility	ESI	the player	observed
 0x001f37a0	survarium::player::set_head_visibility	entry ESP+4	visible (byte; mt_draw gives 0 for the local player in modes 0 and 4, dead too): its models 0, 5, 6, 7 get 3, else 2	observed
@@ -2654,6 +2655,8 @@ va	name	location	role	basis
 0x002d8220	survarium::base_player::on_physical_controller_landing	ECX	base_player	observed
 0x002d8220	survarium::base_player::on_physical_controller_landing	entry ESP+4	float landing speed m/s, vertical only	observed
 0x002d84c0		entry ESP+4		auto
+0x002d8bb0	survarium::base_player::process_quick_slots	EAX	the player (base_player, kept in ESI)	observed
+0x002d8bb0	survarium::base_player::process_quick_slots	entry ESP+4	the input (+4 the actions mask)	observed
 0x002d9a60	survarium::base_player::hit	ECX	hit-receiver subobject	inferred
 0x002d9a60	survarium::base_player::hit	stack+12	bodypart index	inferred
 0x002d9a60	survarium::base_player::hit	stack+16	damage type	inferred
@@ -2661,6 +2664,7 @@ va	name	location	role	basis
 0x002d9ae0	survarium::base_player::hit	stack+12	bodypart descriptor	inferred
 0x002d9b90	survarium::base_player::hit_impl	stack+4	player receiver	inferred
 0x002d9b90	survarium::base_player::hit_impl	stack+8	hit_info record	inferred
+0x002dac00	survarium::base_player::initialize	ECX	the player	observed
 0x002daf60	survarium::base_player::serialize	ECX	player	inferred
 0x002daf60	survarium::base_player::serialize	stack+4	writer	inferred
 0x002db490	survarium::base_player::deserialize	ECX	player	inferred
@@ -3011,6 +3015,8 @@ va	name	location	role	basis
 0x0031eb80	survarium::weapon_core_base_state::serialize	stack+4	writer	inferred
 0x0031ebb0	survarium::weapon_core_base_state::deserialize	ECX	weapon base state	inferred
 0x0031ebb0	survarium::weapon_core_base_state::deserialize	stack+4	reader	inferred
+0x00321790	survarium::game_world_core_client::player_slot::apply_profile_input	ECX	the player slot (a place): +0..+8 its kits' players, +0Ch the kit in use, +0Dh the next kit, +28h the core, +2Ch its kit choice list	observed
+0x00321790	survarium::game_world_core_client::player_slot::apply_profile_input	entry ESP+8	the tick's time: the newest choice at or before it is taken	observed
 0x00321b90	survarium::bullet_manager::serialize	EDI	bullet manager	inferred
 0x00321b90	survarium::bullet_manager::serialize	stack+4	writer	inferred
 0x00321c50	survarium::bullet_manager::deserialize	EAX	bullet manager	inferred
