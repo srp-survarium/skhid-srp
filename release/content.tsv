@@ -55,6 +55,7 @@ pack	army-balaclava@2	a89701003319783aada1ce4df4bcca9a7a147179fe14829d423e094b51
 pack	face-069d@2	215d1e935f997efb638fcb10f0ea4b2ed49f5ff276ecc67eec36628c05113f11	five 0.69d masks: Keffiyeh, 3-Hole Balaclava, Balaclava, Buff, Protective mask (1812-1816; masks-pack.md)
 pack	weapon-camo@1	8e93b0301e32c7e1b7e25e920267b2d7fa0dece20f3882b0568f0b7371a132e2	the weapons' camouflage masks: 112 _aoac textures (91 weapon textures and their premium copies) made by srp-026g/scripts/weapon-camo/weapon_camo.py --pack from guns.tsv and parts.tsv, so a weapon wears an armour camouflage (#244, client patch 44; weapon-camo.md)
 pack	decals-069d@1	b2c46c2a18a56c9cf8cd88ad065e24a16c8612b4f52da301ed9177729a4c2ba8	the owner's pick of 0.69d (2026-10-22): 38 decals (1824-1861: 34 flags, Herbs, Clover ornament, Horseshoe, Jarilo) and the Steam camouflage (1862), their icons in the decal and camouflage atlases (decals-069d.md)
+pack	dynamic-anomalies@1	cd5731c544732529594e311058fba8a40baf5ad5126cbef1c3b9b422da0716f2	dynamic anomalies (#225, client patch 42): the release's timed anomalies on every map, the 75 client projects of level_01 to level_09 and 5 particles, made by srp-026g/scripts/dynamic-anomalies/build.py --pack
 edit	weapon-balance-1.json	resources.db.patch_21	weapon balance 1 (#182)
 edit	backpacks-1.json	-	backpacks may roll health regeneration (#194)
 edit	fall-damage-1.json	-	fall damage as in 0.27 (#200)

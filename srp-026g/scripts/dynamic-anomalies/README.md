@@ -2,7 +2,7 @@
 
 `build.py` turns the anomaly places of the release builds into timed 0.26g
 `generic_anomaly_core`s, the kind exe patch 42 (`client-patches/dynamic_anomalies_026g.asm`)
-chooses from. It writes a patch folder: the client projects of level_01 to level_09
+chooses from. It writes a content pack (`--pack`) or a folder: the client projects of level_01 to level_09
 rewritten, plus the anomaly particles the game lacks. The rules are in
 `docs/notes/dynamic_anomalies.md`.
 
@@ -78,18 +78,29 @@ ones in a game is still to be seen.
 
 ## Commands
 
+The content ships as the pack `dynamic-anomalies@1` of `release/content.tsv`:
+`release/build-content` composes it over the base and makes the release's patch. Never pack
+the folder by hand. The pack's folder is made once into `$SKHID_PACKS_DIR`, over exactly what
+the manifest composes packs over: the stock db and its `base` rows' patches (12, 14, 17, 19
+to 24, from `~/.cache/skhid-release/patches/`).
+
 ```bash
-B=private/local-clients/base-patches R=/mnt/hdd/Projects/weapon-survey-20261016/work/builds
+P=~/.cache/skhid-release/patches R=/mnt/hdd/Projects/weapon-survey-20261016/work/builds
 python3 -I srp-026g/scripts/dynamic-anomalies/build.py \
-  --live <stock>/resources.db $(for n in 12 14 17 19 20 21 22 23; do echo --live $B/resources.db.patch_$n; done) \
-  --live private/rooms-test/resources.db.patch_24 \
+  --live <stock>/resources.db $(for n in 12 14 17 19 20 21 22 23 24; do echo --live $P/resources.db.patch_$n; done) \
   --release-natives $R/v028d0/out/game/resources.db \
   $(for f in $R/v031a2/out/game/resources.*.db; do echo --release-london $f; done) \
-  --out <folder>/content
-release/build-patch <folder>/content <revision> --out <folder>/resources.db.patch_<revision>
-python3 -I srp-026g/scripts/dynamic-anomalies/test_bcw.py $B/resources.db.patch_14 $R/v031a2/out/game/resources.03.db
+  --out $SKHID_PACKS_DIR/dynamic-anomalies-1 --pack dynamic-anomalies@1
+release/build-content <revision> --out <folder>
+python3 -I srp-026g/scripts/dynamic-anomalies/test_bcw.py $P/resources.db.patch_14 $R/v031a2/out/game/resources.03.db
 ```
 
+The pack.json's sha256 must be the manifest row's (2026-10-22:
+`cd5731c544732529594e311058fba8a40baf5ad5126cbef1c3b9b422da0716f2`); a different one means
+the inputs changed: a new version and its row. Without `--pack`, `--out` gets the files at
+their game paths, for a look. The bots' map files: `mapdata-dump --patch` with the patch
+`release/build-content` made.
+
 `DBGRAB` names dbgrab when it is not at `tools/re-kit/common/dbgrab/target/release/dbgrab`.
-The test build (2026-10-20): 75 projects, 3,870 places, 11,610 timed cores, 5 particles, 80 files,
-`resources.db.patch_29` (141,608,434 bytes).
+The pack (2026-10-22): 75 projects, 3,870 places, 11,610 timed cores, 5 particles, 80
+operations (75 replace a project).

@@ -5,16 +5,23 @@ anomaly particles they need. README.md has the rules and the commands.
 
     python build.py --live <resources.db> --live <resources.db.patch_N>... \\
         --release-natives <0.28d0 resources.db> \\
-        --release-london <0.31a2 resources.NN.db>... --out <folder> [--maps level_01,level_09]
+        --release-london <0.31a2 resources.NN.db>... --out <folder> [--maps level_01,level_09] \\
+        [--pack <id>@<version>]
 
 --live: the game the players have, stock first, then the live patches in
 release/patches.tsv order (a later archive's file wins). --release-*: the
-release builds' archives. Needs dbgrab (tools/re-kit/common/dbgrab;
+release builds' archives. --pack: the out folder is a content pack
+(release/content.tsv's kind `pack`): files/<path> and pack.json, a
+replace_file (the live file's sha256) for each project, an add_file for
+each particle; --live must then be exactly what the manifest's packs are
+composed over: the stock db and its base rows' patches. Needs dbgrab (tools/re-kit/common/dbgrab;
 DBGRAB names another). Prints per project what it did; refuses a project
 whose result names an object it does not have.
 """
 import argparse
 import collections
+import hashlib
+import json
 import os
 import re
 import subprocess
@@ -286,7 +293,21 @@ def main():
     parser.add_argument("--release-london", action="append", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--maps", default=",".join(f"level_0{i}" for i in range(1, 10)))
+    parser.add_argument("--pack", help="<id>@<version>: write a content pack (files/ and pack.json)")
     args = parser.parse_args()
+    if args.pack and not re.fullmatch(r"[a-z0-9._-]+@[A-Za-z0-9._-]+", args.pack):
+        raise SystemExit(f"--pack {args.pack}: a pack is named <id>@<version>")
+    operations = []
+
+    def put(name, data, base=None):
+        """Writes a game file into the out folder (under files/ for a pack) and notes its pack operation."""
+        path = os.path.join(args.out, *(["files"] if args.pack else []), name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as file:
+            file.write(data)
+        operations.append({"op": "add_file", "path": name} if base is None else
+                          {"op": "replace_file", "path": name, "base_sha256": hashlib.sha256(base).hexdigest()})
+
     live, natives, london = Archive(args.live), Archive(args.release_natives), Archive(args.release_london)
     maps = args.maps.split(",")
     if os.path.exists(args.out) and os.listdir(args.out):
@@ -297,8 +318,10 @@ def main():
         allowed = collections.defaultdict(set)
         projects = [n for n in live.names(r"projects/level_0\d/[a-z]+_\d/client_project") if n.split("/")[1] in maps]
         loaded = {}
+        originals = {}
         for name in projects:
-            loaded[name] = bcw.loads(live.read(name, tmp))
+            originals[name] = live.read(name, tmp)
+            loaded[name] = bcw.loads(originals[name])
             for obj in loaded[name]["client_objects"]:
                 allowed[obj["game_object_type"]] |= set(obj)
         particles, total = set(), collections.Counter()
@@ -315,10 +338,7 @@ def main():
             if again != bcw.loads(bcw.dump(result)) or [o for o in again["client_objects"] if o not in added] != \
                     [o for o in loaded[name]["client_objects"] if o not in removed]:
                 raise SystemExit(f"{name}: the written project does not read back as built")
-            path = os.path.join(args.out, name)
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, "wb") as file:
-                file.write(data)
+            put(name, data, originals[name])
             values = bcw.count(bcw.read(data))
             kinds = collections.Counter(o["game_object_type"] for o in added)
             gone = collections.Counter(o["game_object_type"] for o in removed)
@@ -339,14 +359,24 @@ def main():
             else:
                 source = london if london.has(name) else natives
                 data = convert_particle(source.read(name, tmp))
-                path = os.path.join(args.out, name)
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                with open(path, "wb") as file:
-                    file.write(data)
+                put(name, data)
                 print(f"{name}: from the release ({len(data)} bytes)")
             materials |= {s for s in strings(bcw.loads(data)) if s.startswith("fx/")}
         missing = sorted(m for m in materials if not live.has(f"material_instances/{m}.material"))
         print(f"materials the particles name: {len(materials)}; not in the game: {missing or 'none'}")
+    if args.pack:
+        ident, version = args.pack.split("@", 1)
+        manifest = {"format_version": 1, "id": ident, "version": version, "target_build": "0.26g",
+                    "description": "dynamic anomalies: the release's timed anomalies on every map (the client "
+                                   "projects of level_01 to level_09 and the particles they need, "
+                                   "srp-026g/scripts/dynamic-anomalies; client patch 42)",
+                    "operations": sorted(operations, key=lambda o: o["path"])}
+        with open(os.path.join(args.out, "pack.json"), "w") as file:
+            file.write(json.dumps(manifest, indent=2) + "\n")
+        with open(os.path.join(args.out, "pack.json"), "rb") as file:
+            digest = hashlib.sha256(file.read()).hexdigest()
+        print(f"pack {args.pack}: {len(operations)} operations "
+              f"({sum(o['op'] == 'replace_file' for o in operations)} replace a file); pack.json sha256 {digest}")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-# Dynamic anomalies (exe patch 42 and a resources.db patch)
+# Dynamic anomalies (exe patch 42 and the content pack `dynamic-anomalies`)
 
 The owner (2026-10-20): "the anomalies in the release of london were dynamic, they appeared
 with artifacts and disappeared when artifacts were picked up, and they used to spawn in many
@@ -6,11 +6,39 @@ lcoations"; "now there are just 7 static places". Start: "you should start worke
 for the current release.
 
 Then (2026-10-20): "we don't need first stage, … finish D properly and completely", as the
-release did it. The rules below are what the code and the data follow. Code:
-`client-patches/dynamic_anomalies_026g.asm` (README patch 42, `client_patch.md` §3.38),
-checks `client-patches/check_dynamic_anomalies_026g.py` and the self-test's check 42; data:
-`scripts/dynamic-anomalies/`; server: `match-server` `bots::anomalies`, `mapdata-dump --patch`.
+release did it. 2026-10-22: "we already have a lot of work done for them, so let's finish
+it", for the release after revision 28. The rules below are what the code and the data
+follow. Code: `client-patches/dynamic_anomalies_026g.asm` (README patch 42, `client_patch.md`
+§3.38), checks `client-patches/check_dynamic_anomalies_026g.py` and the self-test's check 42;
+data: `scripts/dynamic-anomalies/build.py --pack`, the `pack dynamic-anomalies@1` row of
+`release/content.tsv`; server: `match-server` `bots::anomalies`, `mapdata-dump --patch`.
 PROVEN = read in the code (addresses given); LIKELY = inferred, not read to the end.
+
+## Spec
+
+- **Where:** every map from the release (level_01 to level_09, every mode and weather); the
+  v021d_/v011e_ maps keep their anomalies. A place = three timed anomalies (lifebone, spring,
+  onyx) at one point; at most one of them lives at a time.
+- **An anomaly's life:** idle (nothing) -> charging 20 s (the charging particle, harmless) ->
+  damage 4 s (the damage zone) -> artefact (one artefact in its container, the zone on, until
+  someone takes it) -> after the pick-up: gone at once, 60 s rest -> idle.
+- **Which one charges:** first try at the match's start + 30 s (not in the warmup or the
+  countdown), then a try every 20 to 40 s. A try picks one idle anomaly at random that has a
+  free artefact and no busy anomaly within 15 m. None while 16 are active.
+- **Removed:** the always-on anomalies the release removed (the school's fruit cloud, Vostok's
+  electric pairs, the swamp, London's 7 patch_14 places).
+- **Rewards:** an artefact taken is the game's statistics event 5, paid as today (score, the
+  find-artefacts quest, the explorer award). Nothing new on the server.
+- **Late joiners, resyncs, rollbacks, replays:** nothing outside the world; the same choice
+  everywhere. The snapshot, its hash and the server's decoders are unchanged. Replays recorded
+  before the release are not watchable after it (`simulation_changes.tsv`).
+- **Bots** (testing only): keep off a timed anomaly's damage zone while a checked world shows
+  it charging, hurting or holding its artefact; never predict the next choice; take no
+  artefacts.
+- **Release:** exe patch 42 (every full build) and the content pack in one release; the exe
+  requires that release's content patch (patch 49), and the server refuses older exes.
+- **Not as the release:** no mochalka (0.26g has no such artefact); state switches a tick or
+  two late; no anomaly-detector zones (section 5).
 
 ## 1. The release mechanism (0.28a2 to 0.46c2)
 
@@ -185,7 +213,7 @@ PROVEN = read in the code (addresses given); LIKELY = inferred, not read to the 
 The release had timed anomalies on every map, not only London (every map config of 0.28a2,
 0.28d0, 0.31a2 and 0.46c2 has the same `anomalies` table; none of 0.26g's maps has one). So
 every map we ship from the release gets them (`scripts/dynamic-anomalies/build.py`, one
-resources.db patch). Places per mode 2 / 3 / 4, three timed anomalies per place:
+content pack). Places per mode 2 / 3 / 4, three timed anomalies per place:
 
 | map | from | places | the release removed (so here too) |
 |---|---|---|---|
@@ -226,17 +254,27 @@ resources.db patch). Places per mode 2 / 3 / 4, three timed anomalies per place:
   <each live patch> --patch <this release's> --out <dir>` (the new `--patch` lays patches over
   the db as the game mounts them; `--project level_09/day_N` for London).
 - More artefacts are found (every map, every 20 to 40 s): statistics event 5 (artefact) pays
-  score and the find-artefacts quest. An owner's call, not a code change.
+  score, the find-artefacts quest and the explorer award (`session` `rewards.rs`, event::ARTEFACT),
+  as today. An owner's call, not a code change.
 - The site's Maps tab draws one artefact marker per place (the kinds of a place's
   containers within 1.5 m together).
 
 ## 8. Release and test
 
-- **Release**: exe patch 42 (`.srpa`, the default build), the content patch (the
-  `build.py` output packed by `release/build-patch`), a server version (server data with
-  the patch, `SRP_MIN_PATCH_REVISION` = the release: a game without patch 42 never charges a
-  timed anomaly and would desync), the bots' map files dumped again, the `next` row of
-  `simulation_changes.tsv` (old replays are not watchable after it).
+- **Release** (the one after revision 28; one `release.sh` run with the content):
+  - exe patch 42 (`.srpa` at 0xA42D000, every full build);
+  - the content: the pack `dynamic-anomalies@1` (row in `release/content.tsv`). Its folder
+    is made once into `$SKHID_PACKS_DIR/dynamic-anomalies-1` by `build.py --pack
+    dynamic-anomalies@1` with `--live` = the stock db and the base rows' patches (12, 14, 17,
+    19 to 24), as `scripts/dynamic-anomalies/README.md` says; `release/build-content` then
+    composes it into the release's `resources.db.patch_<n>` (dry run 2026-10-22: see the PR);
+  - the release's exe requires that patch (patch 49) and `deploy` sets
+    `SRP_MIN_PATCH_REVISION`: a game without patch 42 never charges a timed anomaly and would
+    desync;
+  - the bots' map files dumped again (testing only, section 7);
+  - the `next` row of `simulation_changes.tsv` (old replays are not watchable after it).
 - **Test** (only with the owner's go): two clients on London; a late joiner; a resync; an
-  anomaly's whole life (charging → damage → artefact → pick-up → gone); another map. The
-  kit: `private/local-clients/dynamic-anomalies-test/HOW-TO-TEST.md`.
+  anomaly's whole life (charging -> damage -> artefact -> pick-up -> gone); another map, the
+  biggest project (level_02) loading. The kit:
+  `private/local-clients/dynamic-anomalies-test/HOW-TO-TEST.md` (built before the merge with
+  main: rebuild the exe and the content from this branch).
