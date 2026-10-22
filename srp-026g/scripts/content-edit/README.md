@@ -252,30 +252,45 @@ simulation change.
 | `client_objects[41]` (`ambient_light(23)`, at (-2.092, 3.294, 4.439), 0.16 m above the tree's top, intensity 2.2, radius 1.1, colour 0xFFF28653) taken out | the warm glow of the tree's top: nothing else is within its 1.1 m |
 | `client_objects[66]` (`sounds/new_year`, the collection `scapes/lobby/new_year`: `christmas_sounds_01..04`) taken out | the owner: "and christmas sounds". The lobby's other sounds stay: `background`, `lobby_room_tone`, `fire`, `lamp_drone`, `lamp_bzz`. The lobby has no music setting: its sound is these scene objects |
 | a new light, `point_light(7)` (`add_entry`, after the ceiling lamp's `point_light`; `client_objects[59]` in the result): the ceiling lamp's entry copied, every field kept (colour (1, 0.824, 0.702), `attenuation_power` 7.7, shadows) but `name`, `full_name`, `position` (4.81, 3.02, 2.91), `intensity` 3.28 -> 3 and `range` 8 -> 5 m (an int, as the original's) | the owner: "make the light above crafting table stronger by just making the close by lampe stronger, (same yellow light), not by just adding a new fake white light"; then, of the first version (the ceiling lamp 3.28 -> 4, range 8 -> 10): "the lamp above the table is still not bright". The bulb above the workbench (baked into `electric1.model`: a bare bulb in its socket, 0.21 m, the shape of `props/light/lamp`, on an arm from the wall, with the `lamp_bzz` sound) had no light of its own; the ceiling lamp is the same bulb, its light 0.16 m under it, so this one is too. The weapon at (4.25, 1.30, 3.05) is 1.81 m from it. Intensity 4 in the second version; 3 now that the second lamp lights the weapon too |
-| a second lamp over the artefact table, made as the bench one: `wire_set(2)` (a copy of the scene's `wire_set`, the plafond's cable: 7 points, 5 fragments, as the v0.11e maps' short wires; `wire_width` 0.02, the thinnest of the game's wires) from the `electric1` wire's centre at (3.40, 3.505, 4.225) down to (3.40, 3.310, 4.049); `props/light/lamp` at scale 0.9 hanging from it (its top, the model's origin, there), `rotation` x -0.885 (`render_visuals[67]` in the result: the entry of the scene's `lamp_on` copied, its model, rotation and scale changed); `point_light(8)`, the same copy as `point_light(7)`, just under the bulb's tip at (3.40, 3.01, 3.90), `intensity` 3, `range` 5 m; `lamp_bzz(2)`, a copy of `sounds/lamp_bzz` at the bulb (3.40, 3.25, 3.98) | the owner, of the second version: "almost amazing, one small problem is that light is behind the weapon, which drops shadows on it when looking, we can fix that by adding a second lamp + light source above the artifacts list its textures says таблица артефактов, there can be the same lamp going from the same wire original one did"; "i specifically chose that location, because wire is above the artefact table"; of the glowing `lamp_on` first put there: "spot is exact, but the lamp used not, it is also very bright, it should be the same lamp as above the table with wire"; of the plain bulb hanging straight: "see how lamp on the right has wire ... and is at an angle". See below |
+| a second lamp over the artefact table, made as the bench one: `wire_set(2)` (a copy of the scene's `wire_set`, the plafond's cable: 7 points, 5 fragments, as the v0.11e maps' short wires; `wire_width` 0.02, the thinnest of the game's wires) from the `electric1` wire's centre at (3.40, 3.505, 4.225) down to (3.40, 3.310, 4.049); `level/lobby/bench_bulb` (the content pack `lobby-bulb@1`, below) hanging from it, its origin (the socket's top) there, `rotation` y 1.571 (`render_visuals[67]` in the result: the entry of the scene's `lamp_on` copied, its model, rotation and scale changed); `point_light(8)`, the same copy as `point_light(7)`, 2.5 cm in front of the bulb's tip along its axis at (3.40, 3.17, 3.88), `intensity` 3, `range` 5 m; `lamp_bzz(2)`, a copy of `sounds/lamp_bzz` at the bulb (3.40, 3.24, 3.96) | the owner, of the second version: "almost amazing, one small problem is that light is behind the weapon, which drops shadows on it when looking, we can fix that by adding a second lamp + light source above the artifacts list its textures says таблица артефактов, there can be the same lamp going from the same wire original one did"; "i specifically chose that location, because wire is above the artefact table"; of the glowing `lamp_on` first put there: "spot is exact, but the lamp used not, it is also very bright, it should be the same lamp as above the table with wire"; of `props/light/lamp` hanging straight: "see how lamp on the right has wire ... and is at an angle"; of it tilted, its light 0.18 m under the tip: "good, but light is misaligned now", "also lamp is not transparent, like the one above the table". See below |
 
-The bench bulb, measured in `electric1.model` (its surfaces `electric_s`, the socket, and `wp_locker_s`, the
-glass; the drop wire is in `conc_low_s`, vertices 471..485, radius about 0.003): a drop wire leaves the
-main wire's centre at (5.096, 3.515, 2.921), bends at (5.024, 3.424, 2.921) and enters the socket's top at
-(4.920, 3.320, 2.919): 0.26 m, all in the plane z 2.92, towards the room (-x), 38 then 48 degrees from the
+The bench bulb, measured in `electric1.model` (its surfaces `electric_s`, the socket, material
+`level/lobby/electric`, and `wp_locker_s`, the glass, `level/lobby/glass_clone`, which draws see-through;
+the drop wire is in `conc_low_s`, vertices 471..485, radius about 0.003): a drop wire leaves the main
+wire's centre at (5.096, 3.515, 2.921), bends at (5.024, 3.424, 2.921) and enters the socket's top at
+(4.920, 3.320, 2.921): 0.26 m, all in the plane z 2.92, towards the room (-x), 38 then 48 degrees from the
 vertical. The bulb's axis (the principal axis of its vertices) is (-0.774, -0.634, -0.003): 50.7 degrees
 from the vertical towards -x, 0.192 m from the socket's top to the tip at (4.771, 3.198, 2.919) (the
-ceiling bulb, measured the same way, is 0.7 degrees off the vertical, 0.190 m). `props/light/lamp` is the
-same socket and pear bulb, 0.21 m, radius up to 0.056, with the plain `props/light/lamp_lights` material
-(`lamp_on` is the same mesh with the glowing `lamp_lights_light`): at 0.9 it is the bench bulb's size.
+ceiling bulb, measured the same way, is 0.7 degrees off the vertical, 0.190 m).
+
+No model of the db is that bulb: `props/light/lamp` (and `lamp_on`) is the same shape in one surface with
+one opaque material, and no lamp model has a glass surface of its own with a see-through material; a
+scene's `render_visuals` entry has no material override (every entry of the 84 projects holds
+`lib_name`, `position`, `rotation`, `scale`, `visual_name` and at most `sectors`). So the content pack
+`lobby-bulb@1` (`../lobby-bulb/make_pack.py`, from the stock resources.db) adds
+`models/level/lobby/bench_bulb.model`: `electric1`'s two surfaces' triangles of the bench bulb alone (36
+vertices and 34 triangles of the socket, 41 and 65 of the glass), the vertices as they are (normals,
+tangents, UVs into the lobby's atlases) moved by -(4.920, 3.320, 2.921), so its origin is the socket's
+top and it keeps the bench bulb's tilt; the two surfaces' materials are `electric1`'s; settings and
+export properties are the stock ones' (`props/light/lamp`'s settings: no collision, LOD0 only) with the
+counts and bounds of the new geometry, written by the script's config writer (each written file read
+back as the tree it was made from, and the writer checked against the seven stock configs it reads).
 
 The poster is `props/signboard/posters_014` at (3.583, 1.972, 4.627), scale 1.317: the "ТАБЛИЦА
 АРТЕФАКТОВ" strip of `props/signboard/posters_01` (its UVs u 0.89..1.0, v 0.02..0.33), x 3.12..3.68, y
 1.88..3.55 on the back wall (z 4.60). The `electric1` wire runs over it along x at z 4.16..4.25 (rings of
 6 vertices, radius 0.03; over x 3.40 its centre is at y 3.505, z 4.225). The new lamp is the bench one
-turned from the right wall to the back wall: its drop and tilt go towards -z (the room) instead of -x. The
-scene's angles are the negative of the right-handed ones (`posters_014`, rotation 0, faces -z, its
+turned from the right wall to the back wall: its drop and tilt go towards -z (the room) instead of -x.
+The scene's angles are the negative of the right-handed ones (`posters_014`, rotation 0, faces -z, its
 packed normal; `military_04` faces the room, -x, at y -1.571, and `military_06` at (1.571, 0.012,
-1.571); the lobby camera's yaw turns the same way, `../../docs/notes/client_patch.md` section 3.42), so
-x -0.885 turns the bulb's axis to (0, -0.634, -0.774): the placed model's vertices give 50.7 degrees
-towards -z, the top at (3.40, 3.310, 4.049) and the tip at (3.40, 3.191, 3.903). The light is 2.09 m from
-the weapon, on the camera's side (the camera at about (3.09, 1.60, 3.05) looking along +x).
-| lobby-bench-light-1 withdrawn: `client_objects[49]` (`ambient_light(3)`) back to the stock intensity 1 and radius 3.1 | the owner's "fake white light": the fill light on the floor |
+1.571); the lobby camera's yaw turns the same way, `../../docs/notes/client_patch.md` section 3.42), so y
+1.571 turns the bulb's -x tilt to -z: the placed model's vertices give the axis (0.003, -0.634, -0.774),
+50.7 degrees, the socket's top at the wire's end (3.40, 3.310, 4.049) and the tip at (3.40, 3.188,
+3.900). The game run of the version before this one showed that tilt (the bulb seen end-on from the
+lobby's camera, the drop wire towards it). Its light was then 0.18 m under the tip, the bench light's
+offset (the bench light, (4.81, 3.02, 2.91), is 0.18 m under its tip and 4 cm towards the wall: left as
+it is, the owner's "almost amazing"); now it is 2.7 cm from the tip along the axis, 2.22 m from the
+weapon, on the camera's side (the camera at about (3.09, 1.60, 3.05) looking along +x).
 
 `add_entry` takes a list of numbers for a vector (the position) and a list of vectors for an indexed
 table of them (the wire's points), and refuses a fraction for an int; an entry it adds before one added
@@ -288,7 +303,7 @@ intensity and range, and `attenuation_power` (the copy's 7.7).
 
 Applied to the stock file (sha256 `e93de4fc…c0f8`; patch 27's copy is lobby-bench-light-1's, no longer
 in the manifest): 1 file edited, 0 unexpected differences (`client_objects` 72 -> 74, `render_visuals`
-90 -> 73, `collision_objects` 92 -> 66, the new entries); the result sha256 `c48abe96…869c0`;
+90 -> 73, `collision_objects` 92 -> 66, the new entries); the result sha256 `bff80c88…8ecbc`;
 in `release/build-content 28` (2026-10-22, a dry run, after every other list): the same, every list
 at 0 unexpected differences, the scene packed over patch 27's. Rendering and
 sound only: no server data, no simulation change. `client_project.lua` (the editor's text of the
