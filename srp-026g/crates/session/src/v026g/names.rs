@@ -43,11 +43,12 @@ pub fn base_char(c: char) -> bool {
 }
 
 /// A character of a chosen name: [`base_char`] and the `-`, `_`, `+` of
-/// the game's `account_name_regex`. Not its blank inside a name (a rename
-/// refuses blanks) nor its `|` (its author's separator). No `@` (the
-/// owner's rule).
+/// the game's `account_name_regex`, and `.` (the owner, 2026-10-22:
+/// `john.doe`; nothing a name feeds reads it: the chat link splits on `:`).
+/// Not the regex's blank inside a name (a rename refuses blanks) nor its
+/// `|` (its author's separator). No `@` (the owner's rule).
 pub fn name_char(c: char) -> bool {
-    base_char(c) || "-_+".contains(c)
+    base_char(c) || "-_+.".contains(c)
 }
 
 /// What is wrong with a name a client asks about (`49 03`, `49 08`,
@@ -55,7 +56,8 @@ pub fn name_char(c: char) -> bool {
 /// which is its name ([`crate::SessionStore::sign_in_with_digest_from`]).
 /// [choice] The original server's rules are not known; these are the ones
 /// srp can keep: three characters or more, no blanks, the game's own
-/// characters ([`name_char`]: no markup for other players' chat, no `@`),
+/// characters and `.` ([`name_char`]: no markup for other players' chat,
+/// no `@`),
 /// and within the 63 bytes the client's buffers hold.
 pub fn name_refusal(name: &str, nickname: bool) -> Option<NameRefusal> {
     if name.chars().count() < 3 {
@@ -157,7 +159,7 @@ pub fn shown_name(login_part: &str) -> String {
 
 /// A saved name with what no name may show ([`unsafe_char`]) made `_`, or
 /// `None` when it has none. Only those: a name merely outside
-/// [`name_char`] (a `.` of a login) stays as players know it.
+/// [`name_char`] (a blank) stays as players know it.
 pub fn made_safe(name: &str) -> Option<String> {
     name.chars().any(unsafe_char).then(|| {
         name.chars()
@@ -297,12 +299,19 @@ mod tests {
 
     #[test]
     fn a_name_takes_the_games_characters_and_no_at() {
-        for good in ["Stalker_1", "Сталкер", "Їжак-2", "Ёжик", "Ґава", "Müller+"]
-        {
+        for good in [
+            "Stalker_1",
+            "Сталкер",
+            "Їжак-2",
+            "Ёжик",
+            "Ґава",
+            "Müller+",
+            "john.doe",
+        ] {
             assert!(good.chars().all(name_char), "{good}");
         }
         for bad in [
-            '@', '<', '>', '&', '\'', '"', ':', '.', ' ', '|', '[', ']', '\u{7}',
+            '@', '<', '>', '&', '\'', '"', ':', ' ', '|', '[', ']', '\u{7}',
         ] {
             assert!(!name_char(bad), "{bad:?}");
         }
@@ -310,7 +319,8 @@ mod tests {
 
     #[test]
     fn a_new_accounts_name_is_made_of_name_characters() {
-        assert_eq!(shown_name("john.doe"), "john_doe");
+        assert_eq!(shown_name("john.doe"), "john.doe");
+        assert_eq!(shown_name("john!doe"), "john_doe");
         assert_eq!(shown_name("<b>x</b>"), "_b_x__b_");
         assert_eq!(shown_name("Сталкер"), "Сталкер");
     }

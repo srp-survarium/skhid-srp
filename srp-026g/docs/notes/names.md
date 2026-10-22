@@ -2,8 +2,8 @@
 
 The rules the code and the tests follow. Code: `session::v026g::names` (`base_char`,
 `name_char`, `name_refusal`, `shown_name`, `made_safe`, `unique`, `same_name`), `session`
-`lib.rs` (`SessionStore::authenticate`, `find_or_create`, `name_taken`, `login_of_name`,
-`account_id_signing_in_as`, `make_names_safe` on loading), `v026g::Accounts::take_names`
+`lib.rs` (`SessionStore::authenticate`, `find_or_create`, `name_taken`, `make_names_safe` on
+loading), `v026g::Accounts::take_names`
 (srp's start), `lobby-server` `shop.rs::nickname_refusal`, `login-server` `v026g.rs`
 (`NICKNAME_REFUSED`), `session::v026g::clans::name_fault`, the edit list
 `scripts/content-edit/login-nickname-1.json` and the login movie's `LoginMenu.as`
@@ -19,72 +19,73 @@ longer say email and instead say nickname".
 - **Letters, one set for every name (`base_char`):** the game's own regexes'
   (`gameplay/clans/clan_name.options`): Latin letters, digits, Cyrillic A..ya, the Ukrainian
   and German letters (ye, i, yi; a, o, u umlaut, sharp s). Added: Cyrillic yo and Ukrainian
-  ghe (both cases), letters real players use. Account names add `-`, `_`, `+`; clan names add
+  ghe (both cases), letters real players use. Account names add `-`, `_`, `+`, `.`; clan names add
   `#`, `-` and the blank.
 - **A chosen name (rename, `49 03` / `49 04`):** 3 characters or more, no blank, at most the
-  client's 63 bytes, the letters above and `-`, `_`, `+` only. Not taken: the regex's blank
-  inside a name (a rename refuses blanks, as before), its `|` (the author's separator), and
-  **no `@`** (the owner, 2026-10-22). Anything else: `WrongSymbol`, the client's own reason
-  in the rename window. The player's own name, case aside, passes these rules (one saved
-  before them, with a `.` or a blank, is its to keep); it is still `Taken` if another account
-  has it.
+  client's 63 bytes, the letters above and `-`, `_`, `+`, `.` only. The `.` is srp's (the
+  owner, 2026-10-22: `john.doe` is a name); nothing a name feeds reads it (the chat link
+  `event:name:<name>: ` splits on `:`, markup needs `<`, `>`, `&`, quotes; no file or URL path
+  is made of a name). Not taken: the regex's blank inside a name (a rename refuses blanks, as
+  before), its `|` (the author's separator), and **no `@`** (the owner, 2026-10-22). Anything
+  else: `WrongSymbol`, the client's own reason in the rename window. The player's own name,
+  case aside, passes these rules (one saved before them, with a blank, is its to keep); it is
+  still `Taken` if another account has it.
 - **The login screen** (edit list `login-nickname-1.json`, the six localization tables; the
   login movie):
-  - the login field says the game's own word for a player's name, the rename window's
-    (`st_change_name_label`): Nickname, Name, Imię, Имя, Ім'я (`st_login_default_text`, and
-    `st_login_str`), not E-mail;
+  - the login field says Nickname, Spitzname, Nick, Никнейм (Russian and the "original"
+    copy), Нікнейм (`st_login_default_text`, and `st_login_str`), not E-mail. The owner,
+    2026-10-22: Нікнейм, Никнейм, Nickname; German and Polish take the game's own words for a
+    player's nickname (`st_clan_name_is_not_valid`'s Spitzname, the battle notes' nicki);
   - its envelope icon (`SpriteMail`) is hidden and a player's head and shoulders drawn in its
     place (`LoginMenu.as::drawPlayerIcon`);
   - "Invalid e-mail or password" says nickname (`..._invalid_user_or_password`, 0x0A);
   - the status of 0x23 (`..._user_not_confirmed`, "verify your e-mail", which srp never sent)
-    says a new nickname's rules: 3 or more letters, digits or `- _ +`, not another player's.
+    says a new nickname's rules: 3 or more letters, digits, dots or `- _ +`, not another
+    player's.
   - The site's sign-in line says the same (`web-server` `lib.rs`).
-- **A new account (first 0.26g sign-in):** the login typed is the nickname, and the name it is
-  shown by, as typed (case kept; the login is kept in lower case, as every login).
-  - It takes a chosen name's rules (`name_refusal`, above: no `@`, no `.`, no blank, 3 or more
-    characters, 63 bytes).
-  - It is no account's name or login, case aside, Cyrillic's too (`name_taken`). A name or a
-    login one account has is that account's sign-in (below), so a new account is refused for
-    it only when several accounts have it as their name (saved before names were unique).
+- **A new account (first 0.26g sign-in):** the login typed is the nickname it registers with,
+  and the name it is first shown by, as typed (case kept; the login is kept in lower case, as
+  every login).
+  - It takes a chosen name's rules (`name_refusal`, above: no `@`, a `.` taken, no blank, 3 or
+    more characters, 63 bytes).
+  - It is no account's login, case aside: an existing login is that account's sign-in (below).
+  - Its name is no other account's name or login, case aside, Cyrillic's too (`name_taken`),
+    as a rename's: a nickname another account is shown by is refused.
   - Refused: 0x23 (`NICKNAME_REFUSED`), the rules' text above. Nothing is made, nothing counts
     as a wrong password. The checks come after "registration closed", before the address's
     registration limit and the password's hash.
   - The 0.21d login server and srp's own accounts (tests, bots: `sign_in`, `sign_in_from`,
     `get_or_create_account`) keep the rule below.
-- **Signing in (0.26g):** a user name is, in order:
-  - an account's login, case aside: every old account signs in as before (an e-mail, often);
-  - or else the name the one account is shown by, case aside (`login_of_name`): an old account
-    also signs in by its name, a renamed one by its new name. A name several accounts have
-    (saved before names were unique) signs none of them in: they use their logins.
-  - Wrong passwords count for the account's login, either way (5 in a row lock it out for that
-    address). The password check, the lockout and the ban's reason (`account_id_signing_in_as`)
-    are otherwise unchanged.
-  - [choice] A login is looked up before a name: an old account shown by another one's login
-    (both saved before names were unique) signs in by its own login only.
+- **Signing in (0.26g):** with the account's login only, case aside: an old account's (an
+  e-mail, often) or the nickname a new one registered with. The owner, 2026-10-22: "the name
+  the player registered with should stay their login nickname; this allows people to separate
+  their ingame vs login nicknames". The name an account is shown by never signs it in; a
+  rename changes that name, never the login. The password check, the lockout (per login and
+  address) and the ban's reason are unchanged.
 - **A new account by any other sign-in (`Logins::Any`):** the login may hold anything (no
   control characters). The name it is shown by is the login's part before its first `@`, with
-  every character a chosen name may not have made `_`: `john.doe@x` shows as `john_doe`.
+  every character a chosen name may not have made `_`: `john.doe@x` shows as `john.doe`,
+  `john!doe@x` as `john_doe`.
 - **One name, one account:** a new account's name is no other account's name or login, case
   aside (a rename's rule). If it is, `_2`, `_3`, ... is added (the name cut so the number fits
-  the 63 bytes): `john.doe@x` with a `john_doe` already there is `john_doe_2`. A name with no
+  the 63 bytes): `john!doe@x` with a `john_doe` already there is `john_doe_2`. A name with no
   letter or digit left (a login of Chinese letters -> `___`) is `player_<id as 8 hex digits>`, as an empty one
   always was. [choice] The names are compared with no lock held: two sign-ups of one name at
   the same instant may still both get it (a new 0.26g nickname then gets its `_2`).
 - **A rename is checked the same way** (`nickname_refusal`): the rules above, then
   `name_taken`, which folds every letter's case (it compared ASCII case only: `СТАЛКЕР`
-  passed beside `Сталкер`, and a sign-in by that name would have found two accounts).
+  passed beside `Сталкер`). It changes the name only.
 - **A name saved before (on loading):** only what no name may show is made `_`: `<`, `>`,
   `&`, `"`, `'` (the end of the name's link), `:` (the link's field separator:
   `clickLinkHandler` splits on it, so the player menu would act on another name), `@`, control
   characters, and the invisible ones that turn or hide text (Unicode format characters: the
   right-to-left override, zero-width spaces and joiners, the isolates, the byte-order mark, the
-  tags; and the line and paragraph separators). A name merely outside the chosen set (a `.`
-  from a login, a blank) stays as players know it.
+  tags; and the line and paragraph separators). A name merely outside the chosen set (a
+  blank) stays as players know it.
   - The repaired name is made unique as a new one is. A clash with another account's name or
     login is logged as an error with both ids; every change as a warning; and saved. The
-    login is untouched; the account signs in by its repaired name, no longer the old one.
-  - Names saved before names were unique (two `stepan@...` both `stepan`) are kept; neither
-    signs in by that name (above).
+    sign-in is untouched: the login is not the name.
+  - Names saved before names were unique (two `stepan@...` both `stepan`) are kept.
 - **The two copies:** the store's name is the only one made or repaired. At srp's start the
   0.26g accounts take it (`take_names`, a count logged), so both are the same; a rename sets
   both, as before.

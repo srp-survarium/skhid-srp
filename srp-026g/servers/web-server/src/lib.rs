@@ -2084,8 +2084,8 @@ fn home(lang: Lang, stats: Stats) -> String {
             lang.tr("Download the patched game and unpack it.", "Завантажте пропатчену гру та розпакуйте її.")
         },
         lang.tr(
-            "Sign in with a nickname and a password: a new nickname registers itself (3 or more letters, digits or - _ +). Remember the password. An older account signs in with its login or its in-game name.",
-            "Увійдіть з ім'ям і паролем: нове ім'я реєструється саме (від 3 літер, цифр або - _ +). Запам'ятайте пароль. Старий акаунт входить зі своїм логіном або ігровим ім'ям."
+            "Sign in with a nickname and a password: a new nickname registers itself (3 or more letters, digits, dots or - _ +). Remember the password. It stays your login when you rename in the game; an older account keeps its login.",
+            "Увійдіть з нікнеймом і паролем: новий нікнейм реєструється сам (від 3 літер, цифр, крапок або - _ +). Запам'ятайте пароль. Він лишається вашим логіном і після перейменування в грі; старий акаунт зберігає свій логін."
         ),
         lang.tr("How matches start", "Як починаються матчі"),
     )

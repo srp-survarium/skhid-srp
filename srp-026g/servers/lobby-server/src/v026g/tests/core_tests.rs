@@ -3197,7 +3197,7 @@ fn a_nickname_is_checked_and_changed() {
     assert_eq!(check(&mut world, "Alice"), None);
     assert_eq!(check(&mut world, "Alisa"), None);
     assert_eq!(check(&mut world, "A B"), Some(NameRefusal::Space));
-    // Cyrillic case too: a 0.26g sign-in by the name finds one account.
+    // In Cyrillic's case too.
     assert_eq!(check(&mut world, "СТАЛКЕР"), Some(NameRefusal::Taken));
 
     let rename = |name: &str, voucher: u32| {
@@ -3291,7 +3291,7 @@ fn a_nickname_is_checked_and_changed() {
 #[test]
 fn a_name_saved_before_the_rules_passes_its_own_check() {
     let mut world = World::new();
-    // Shown as `john.doe` from before the name characters (a login's `.`).
+    // Shown as `john.doe` from before the name characters.
     let (account, _) = signed_in(world.store, "johndoe");
     world.store.account(account).unwrap().locked().name = "john.doe".to_owned();
     let session = world.new_session(account);
@@ -3304,13 +3304,12 @@ fn a_name_saved_before_the_rules_passes_its_own_check() {
             other => panic!("not a nickname check: {other:?}"),
         }
     };
-    // Its own name, in any case, is its to keep; another with a `.` is not.
+    // Its own name, in any case, is its to keep; a `.` is a name
+    // character, a blank is not.
     assert_eq!(check(&mut world, "john.doe"), None);
     assert_eq!(check(&mut world, "JOHN.DOE"), None);
-    assert_eq!(
-        check(&mut world, "jane.doe"),
-        Some(NameRefusal::WrongSymbol)
-    );
+    assert_eq!(check(&mut world, "jane.doe"), None);
+    assert_eq!(check(&mut world, "jane doe"), Some(NameRefusal::Space));
     world.assert_clean();
 }
 

@@ -103,7 +103,7 @@ const REGISTRATION_CLOSED: u8 =
     login_server_message_types_enum::user_restricted_by_access_level_message_type as u8;
 
 /// A new account's login, its nickname, is not one a rename may choose, or
-/// several accounts have it as their name. The client's "account not
+/// is another account's name. The client's "account not
 /// verified" status, which srp sent never before: its text says the
 /// nickname's rules instead (`scripts/content-edit/login-nickname-1.json`,
 /// `docs/notes/names.md`).
@@ -497,7 +497,7 @@ fn refusal_code(store: &SessionStore, user_name: &str, error: SignInError) -> u8
         SignInError::InvalidNickname | SignInError::NicknameTaken => NICKNAME_REFUSED,
         // A ban lifted this very moment has no reason left to tell.
         SignInError::Banned => store
-            .account_id_signing_in_as(user_name)
+            .account_id_by_name(user_name)
             .and_then(|account_id| store.account_ban(account_id))
             .map_or(BANNED, |ban| ban_code(&ban.reason)),
     }
@@ -1290,6 +1290,10 @@ mod tests {
             (account.name.clone(), account.login.clone())
         };
         assert_eq!((name.as_str(), login.as_str()), ("Сталкер_1", "сталкер_1"));
+        // A `.` is a name character.
+        let (_, reply) = sign_in(addr, b"John.Doe", &typed(b"test-password-1"));
+        let account = store.account_for_session(session_of(&reply)).unwrap();
+        assert_eq!(account.lock().unwrap().name, "John.Doe");
         // Again, in any case; the password is checked as before.
         let (_, reply) = sign_in(addr, "сталкер_1".as_bytes(), &remembered(DIGEST_1));
         session_of(&reply);
@@ -1301,7 +1305,7 @@ mod tests {
     fn a_new_nickname_takes_a_renames_rules_and_no_at() {
         let store = Arc::new(SessionStore::new());
         let addr = start(store.clone(), local_lobby());
-        for bad in ["me@mail.invalid", "ab", "two words", "a.b.c", "<b>x</b>"] {
+        for bad in ["me@mail.invalid", "ab", "two words", "a:b", "<b>x</b>"] {
             let (answer, reply) = sign_in(addr, bad.as_bytes(), &typed(b"test-password-1"));
             assert_eq!((answer, reply), (0x0B, vec![0x23]), "{bad}");
             assert_eq!(store.account_id_by_name(bad), None, "{bad}");
@@ -1322,33 +1326,54 @@ mod tests {
         store.account(id).unwrap().lock().unwrap().name = name.into();
     }
 
+    /// The account a reply's session is of.
+    fn account_of(store: &SessionStore, reply: &[u8]) -> u32 {
+        let account = store.account_for_session(session_of(reply)).unwrap();
+        account.lock().unwrap().id
+    }
+
     #[test]
-    fn an_old_account_signs_in_with_its_login_or_its_name() {
+    fn an_old_account_signs_in_with_its_login_only() {
         let store = Arc::new(SessionStore::new());
         let addr = start(store.clone(), local_lobby());
         let id = old_account(&store, "stepan@mail.invalid");
-        let account_of = |reply: &[u8]| {
-            let account = store.account_for_session(session_of(reply)).unwrap();
-            account.lock().unwrap().id
-        };
-        // Its login, as always, and its name, case aside.
-        for user_name in [
-            "stepan@mail.invalid",
-            "Stepan@Mail.invalid",
-            "stepan",
-            "STEPAN",
-        ] {
-            let (_, reply) = sign_in(addr, user_name.as_bytes(), &typed(b"test-password-1"));
-            assert_eq!(account_of(&reply), id, "{user_name}");
-            let (_, reply) = sign_in(addr, user_name.as_bytes(), &remembered(DIGEST_2));
-            assert_eq!(reply, [0x0A], "{user_name}");
+        assert_eq!(store.account(id).unwrap().lock().unwrap().name, "stepan");
+        // Its e-mail login, in any case; the password checked as before.
+        for login in ["stepan@mail.invalid", "Stepan@Mail.invalid"] {
+            let (_, reply) = sign_in(addr, login.as_bytes(), &typed(b"test-password-1"));
+            assert_eq!(account_of(&store, &reply), id, "{login}");
+            let (_, reply) = sign_in(addr, login.as_bytes(), &remembered(DIGEST_2));
+            assert_eq!(reply, [0x0A], "{login}");
         }
-        // After a rename, the new name; the old one is no account's.
+        // Not the name it is shown by: that is another account's name, no
+        // new account's login.
+        let (_, reply) = sign_in(addr, b"Stepan", &typed(b"test-password-1"));
+        assert_eq!(reply, [0x23]);
+        assert_eq!(store.account_id_by_name("stepan"), None);
+    }
+
+    #[test]
+    fn a_rename_changes_the_name_and_never_the_login() {
+        let store = Arc::new(SessionStore::new());
+        let addr = start(store.clone(), local_lobby());
+        let (_, reply) = sign_in(addr, b"Tester_1", &typed(b"test-password-1"));
+        let id = account_of(&store, &reply);
         rename(&store, id, "Hero");
-        let (_, reply) = sign_in(addr, b"hero", &remembered(DIGEST_1));
-        assert_eq!(account_of(&reply), id);
-        assert_eq!(store.account_id_signing_in_as("stepan"), None);
-        // A banned one is told why by either.
+        // The login it registered with signs in, in any case.
+        let (_, reply) = sign_in(addr, b"tester_1", &remembered(DIGEST_1));
+        assert_eq!(account_of(&store, &reply), id);
+        assert_eq!(store.account(id).unwrap().lock().unwrap().name, "Hero");
+        // The new name does not, and is no one's new login.
+        for name in [&b"Hero"[..], b"HERO"] {
+            let (_, reply) = sign_in(addr, name, &typed(b"test-password-1"));
+            assert_eq!(reply, [0x23]);
+        }
+        assert_eq!(store.account_id_by_name("hero"), None);
+        // Another account's login is that account's sign-in, whose password
+        // it is not.
+        let (_, reply) = sign_in(addr, b"TESTER_1", &typed(b"test-password-2"));
+        assert_eq!(reply, [0x0A]);
+        // A ban is told by the login.
         store.ban_account(
             id,
             session::Ban {
@@ -1356,64 +1381,7 @@ mod tests {
                 reason: "teamkilling".into(),
             },
         );
-        for user_name in [&b"Hero"[..], b"stepan@mail.invalid"] {
-            let (_, reply) = sign_in(addr, user_name, &remembered(DIGEST_1));
-            assert_eq!(reply, [0x1F]);
-        }
-    }
-
-    #[test]
-    fn a_nickname_that_is_a_name_or_a_login_is_no_new_account() {
-        let store = Arc::new(SessionStore::new());
-        let addr = start(store.clone(), local_lobby());
-        // Another account's name or login: that account, whose password it
-        // is not.
-        let stepan = old_account(&store, "stepan@mail.invalid");
-        let veteran = old_account(&store, "veteran");
-        rename(&store, veteran, "Hero");
-        for taken in ["Stepan", "VETERAN", "hero"] {
-            let (_, reply) = sign_in(addr, taken.as_bytes(), &typed(b"test-password-2"));
-            assert_eq!(reply, [0x0A], "{taken}");
-        }
-        assert_eq!(store.account_id_signing_in_as("stepan"), Some(stepan));
-        assert_eq!(store.account_id_signing_in_as("veteran"), Some(veteran));
-        assert_eq!(store.find_accounts(b"stepan", 0, 9).len(), 1);
-        assert_eq!(store.find_accounts(b"hero", 0, 9).len(), 1);
-        // A name two old accounts share: neither signs in by it, and nobody
-        // registers it.
-        let other = old_account(&store, "stepan@other.invalid");
-        rename(&store, other, "stepan");
-        let (_, reply) = sign_in(addr, b"stepan", &typed(b"test-password-1"));
-        assert_eq!(reply, [0x23]);
-        assert_eq!(store.account_id_by_name("stepan"), None);
-        assert_eq!(store.session_count(), 0);
-    }
-
-    #[test]
-    fn wrong_passwords_by_name_and_by_login_count_together() {
-        let store = SessionStore::new();
-        old_account(&store, "stepan@mail.invalid");
-        let from = "203.0.113.7".parse::<IpAddr>().unwrap();
-        let now = Instant::now();
-        for user_name in [
-            "stepan",
-            "Stepan",
-            "stepan@mail.invalid",
-            "STEPAN",
-            "stepan",
-        ] {
-            assert_eq!(
-                store
-                    .sign_in_with_digest_from(user_name, DIGEST_2, from, now)
-                    .map(|_| ()),
-                Err(SignInError::WrongPassword)
-            );
-        }
-        assert_eq!(
-            store
-                .sign_in_with_digest_from("stepan@mail.invalid", DIGEST_1, from, now)
-                .map(|_| ()),
-            Err(SignInError::TooManyAttempts)
-        );
+        let (_, reply) = sign_in(addr, b"Tester_1", &remembered(DIGEST_1));
+        assert_eq!(reply, [0x1F]);
     }
 }

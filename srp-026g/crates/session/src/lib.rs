@@ -154,8 +154,9 @@ pub enum SignInError {
     /// A new 0.26g account's login, which is its name, breaks a chosen
     /// name's rules ([`v026g::names::name_refusal`]).
     InvalidNickname,
-    /// A new 0.26g account's login is the name of several accounts (saved
-    /// before names were unique), case aside: none of them signs in by it.
+    /// A new 0.26g account's login, which is its name, is another
+    /// account's name, case aside (another's login is that account's
+    /// sign-in).
     NicknameTaken,
 }
 
@@ -165,8 +166,8 @@ enum Logins {
     /// Any user name; a new account is shown by its part before an `@`.
     Any,
     /// The 0.26g login server's: a new account's login is a chosen name
-    /// and the name it is shown by, and an account also signs in by the
-    /// name it is shown by.
+    /// and the name it is first shown by. It signs in with that login
+    /// only: a rename changes the name, never the login.
     Nicknames,
 }
 
@@ -696,29 +697,6 @@ impl SessionStore {
         self.logins.locked().get(&key).copied()
     }
 
-    /// The account a 0.26g sign-in as `user_name` is for: the one with that
-    /// login, or else the one account shown by that name, case aside.
-    pub fn account_id_signing_in_as(&self, user_name: &str) -> Option<u32> {
-        self.account_id_by_name(user_name).or_else(|| {
-            let login = self.login_of_name(user_name)?;
-            self.logins.locked().get(&login).copied()
-        })
-    }
-
-    /// The login of the one account shown by `name`, case aside; `None`
-    /// when no account is, or several are (saved before names were
-    /// unique). Locks every account in turn: call it with none locked.
-    fn login_of_name(&self, name: &str) -> Option<String> {
-        let name = name.trim();
-        let accounts: Vec<_> = self.accounts.locked().values().cloned().collect();
-        let mut found = accounts.iter().filter_map(|account| {
-            let account = account.locked();
-            v026g::names::same_name(&account.name, name).then(|| account.login.clone())
-        });
-        let first = found.next()?;
-        found.next().is_none().then_some(first)
-    }
-
     fn authenticate(
         &self,
         user_name: &str,
@@ -727,16 +705,7 @@ impl SessionStore {
         now: Instant,
         logins: Logins,
     ) -> Result<SignedIn, SignInError> {
-        let mut key = persist::user_name_key(user_name).ok_or(SignInError::InvalidUserName)?;
-        // A name no account signs in with is the name of the one account
-        // shown by it: the sign-in is that account's, and so is the count
-        // of its wrong passwords.
-        if logins == Logins::Nicknames
-            && !self.logins.locked().contains_key(&key)
-            && let Some(login) = self.login_of_name(user_name)
-        {
-            key = login;
-        }
+        let key = persist::user_name_key(user_name).ok_or(SignInError::InvalidUserName)?;
         // Wrong passwords count per name and address: a guesser locks out
         // only itself.
         let failure_key = match ip {
@@ -767,8 +736,9 @@ impl SessionStore {
                 if user_name.chars().any(char::is_control) {
                     return Err(SignInError::InvalidUserName);
                 }
-                // 0.26g: the login is the name, by a rename's rules, and is
-                // no account's name (none signs in by a name several have).
+                // 0.26g: the login is the name, by a rename's rules, and no
+                // other account's name or login (another's login is not
+                // here: it signed in to that account).
                 if logins == Logins::Nicknames {
                     let name = user_name.trim();
                     if v026g::names::name_refusal(name, true).is_some() {
@@ -2591,7 +2561,8 @@ mod tests {
         assert_eq!(fallback, format!("player_{id:08x}"));
         // Shown by the game's name characters only: no markup for other
         // players' chat.
-        assert_eq!(name("john.doe@example.com").1, "john_doe");
+        assert_eq!(name("john!doe@example.com").1, "john_doe");
+        assert_eq!(name("jane.doe@example.com").1, "jane.doe");
         assert_eq!(name("<b>big</b>").1, "_b_big__b_");
     }
 
@@ -2605,8 +2576,8 @@ mod tests {
         let (first, shown) = name("john_doe");
         assert_eq!(shown, "john_doe");
         // Made of name characters, it would be the first's: in any case.
-        assert_eq!(name("john.doe@x.test").1, "john_doe_2");
-        assert_eq!(name("JOHN.DOE@y.test").1, "JOHN_DOE_3");
+        assert_eq!(name("john!doe@x.test").1, "john_doe_2");
+        assert_eq!(name("JOHN!DOE@y.test").1, "JOHN_DOE_3");
         // Another account's login is taken too, as a rename's.
         store.account(first).unwrap().locked().name = "Renamed".to_owned();
         assert_eq!(name("john_doe@z.test").1, "john_doe_4");

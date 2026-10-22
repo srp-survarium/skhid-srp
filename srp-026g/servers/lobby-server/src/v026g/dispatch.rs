@@ -681,9 +681,10 @@ mod tests {
             Some(NameRefusal::WrongSymbol)
         );
         assert_eq!(name_refusal("Сталкер", true), None);
+        assert_eq!(name_refusal("john.doe", true), None);
         assert_eq!(name_refusal("abc", false), None);
         // Nothing for other players' chat to take for markup, and no `@`.
-        for bad in ["a<b>c", "a&amp;b", "it's", "a:b", "me@mail", "a.b"] {
+        for bad in ["a<b>c", "a&amp;b", "it's", "a:b", "me@mail", "a|b"] {
             assert_eq!(
                 name_refusal(bad, true),
                 Some(NameRefusal::WrongSymbol),

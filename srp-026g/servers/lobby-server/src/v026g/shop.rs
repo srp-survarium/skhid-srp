@@ -331,10 +331,9 @@ impl Core<'_> {
 
     /// What is wrong with `nickname` for the player, in the client's own
     /// reasons: the name's own rules, then whether another account is
-    /// shown by it or signs in with it, in any case, Cyrillic's too (a 0.26g
-    /// sign-in by a name finds one account only). The player's own name,
-    /// case aside, passes the name's rules: one saved before them (a `.` or
-    /// a blank from its login) is its to keep.
+    /// shown by it or signs in with it, in any case, Cyrillic's too. The
+    /// player's own name, case aside, passes the name's rules: one saved
+    /// before them (a blank) is its to keep. The login is never changed.
     pub(super) fn nickname_refusal(&self, nickname: &str, who: &Who) -> Option<NameRefusal> {
         if !names::same_name(nickname, &who.name)
             && let Some(refusal) = name_refusal(nickname, true)
