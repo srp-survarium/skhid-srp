@@ -327,7 +327,7 @@ def type_check(base, base_files, game, world):
     # weighed against all of 0.26g, not only the files this patch touches.
     corpus_paths = sorted(p for p in base_files
                           if p.endswith(('.options', '.raw_options', '.material', '/settings',
-                                         '/export_properties', '/hit_targets')))
+                                         '/export_properties', '/hit_targets', '/client_project')))
     corp = ctc.corpus_with(walk, game.get(base, corpus_paths))
     # The previous version of each changed file: the base's bytes, where the
     # base has it; None for a file no base archive has (a pack's new file).

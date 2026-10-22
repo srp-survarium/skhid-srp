@@ -19,7 +19,8 @@ The owner's rule against farming battery events and how srp keeps it. Code:
 - **The rule (option B, the owner chose it):** "Per player per match, each battery event kind
   (put in, stolen, rescued) pays at most as many times as the map has batteries (10). Above
   that, nothing." So one battery can pay up to N times per kind: the owner knew it.
-  - N is the map's `victory_items_count` (10 on every battery map); Team Deathmatch: no cap.
+  - N is the map's `victory_items_count` (10 on every battery map); Team Deathmatch and Research
+    (mode 5, whose captures count in events 6 and 18): no cap.
   - 20 put in and 19 found (`VICTORY_ITEM_FOUND`, weight 2.5, the results' "items" title): at
     most N each. 6 delivery share, 17 stolen delivery share, 18 rescued delivery share
     (hundredths of a delivery, shared among the carriers by distance): at most N × 100 each.

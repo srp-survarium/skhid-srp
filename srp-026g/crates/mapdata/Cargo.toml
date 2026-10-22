@@ -19,3 +19,7 @@ serde_json = { workspace = true }
 [[bin]]
 name = "mapdata-dump"
 path = "src/bin/mapdata-dump.rs"
+
+[[bin]]
+name = "mapdata-zones"
+path = "src/bin/mapdata-zones.rs"

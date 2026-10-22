@@ -17,8 +17,9 @@ use survarium::v026g::maps::{self, MapMode};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing};
+use survarium::v026g::match_msgs::static_info::score_weights as static_info_weights;
 use survarium::v026g::match_msgs::static_info::{
-    MatchOptions, MatchProfile, SCORE_EVENTS, SCORE_WEIGHTS, StaticInfo, StaticInfoError,
+    MatchOptions, MatchProfile, SCORE_EVENTS, StaticInfo, StaticInfoError,
 };
 
 /// Set in every [`static_id`], clear in every match id.
@@ -81,7 +82,8 @@ pub struct MatchSetup {
     /// clients' start rule (the countdown starts once `floor(0.8 × N)` of
     /// them, and at least one, are in). 1 to 20.
     pub players: Vec<MatchPlayer>,
-    /// The clients' score weights; `None` for the game's own.
+    /// The clients' score weights; `None` for srp's own of the map's mode
+    /// (`static_info::score_weights`: Research weighs its captures).
     pub score_weights: Option<[f32; SCORE_EVENTS]>,
     /// A match of one player against the server's own bots ("Player vs
     /// Bots", the lobby's `pvb`): its teams are fixed and it takes no late
@@ -124,7 +126,8 @@ impl MatchTicket {
 pub enum CreateError {
     /// No players, or more than 20.
     Roster(usize),
-    /// Not a map and mode the client can play.
+    /// Not a map and mode the client can play; with the server's bots in
+    /// the match, not one they play (modes 2 to 4).
     Map(u8),
     /// Two places have the same session.
     DuplicateSession(u32),
@@ -241,7 +244,8 @@ pub(crate) struct Live {
 /// The score of a match in play.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LiveStanding {
-    /// Batteries brought (modes 2, 3) or tickets left (mode 4), by team.
+    /// Batteries brought (modes 2, 3), tickets left (mode 4) or Research's
+    /// points (mode 5), by team.
     pub points: [u16; 2],
     /// The team that leads: 0, 1, or [`DRAW`].
     pub winner: u8,
@@ -387,6 +391,10 @@ impl MatchRegistry {
         let map = maps::map_mode(setup.map_id)
             .filter(|map| map.is_playable())
             .ok_or(CreateError::Map(setup.map_id))?;
+        // The server's bots play modes 2 to 4 (`bots`): none in Research.
+        if map.mode == maps::mode::RESEARCH && setup.players.iter().any(|player| player.driven) {
+            return Err(CreateError::Map(setup.map_id));
+        }
         let mut inner = self.inner();
         for (place, player) in setup.players.iter().enumerate() {
             // The server's own bots have no session to clash.
@@ -418,7 +426,9 @@ impl MatchRegistry {
             }
         }
         inner.last_id = match_id;
-        let score_weights = setup.score_weights.unwrap_or(SCORE_WEIGHTS);
+        let score_weights = setup
+            .score_weights
+            .unwrap_or_else(|| static_info_weights(map.mode));
         let places = setup
             .players
             .iter()
@@ -918,8 +928,8 @@ pub struct MatchResult {
     /// 0 or 1, [`DRAW`], or `None` when no trusted snapshot gave a
     /// standing (nobody is to be paid as a winner then).
     pub winner: Option<u8>,
-    /// Batteries home (modes 2, 3) or tickets left (mode 4), from the last
-    /// trusted snapshot.
+    /// Batteries home (modes 2, 3), tickets left (mode 4) or Research's
+    /// points (mode 5), from the last trusted snapshot.
     pub team_points: [u16; 2],
     /// The match clock when it ended, in ms.
     pub duration_ms: u32,

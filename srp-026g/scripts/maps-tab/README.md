@@ -8,6 +8,7 @@ points, each kind toggled on its own:
 - battery spawns (the battery mode) and chargers (the mode with chargers:
   its batteries come out of them, so it has no battery spawns to show);
 - the teams' battery containers;
+- Research's three units (mode 5), lettered A to C;
 - the teams' ammo stashes (resupply zones);
 - artefact spawns, one toggle per artefact.
 
@@ -69,8 +70,9 @@ What comes from where:
 
 | what | where in the game data |
 |---|---|
-| maps, modes, names | `maps_dict` ids whose `gameplay/game_modes/` config is mode 2, 3 or 4 and whose project exists (the server's rule, `crates/survarium/src/v026g/maps.rs`); names from the localization |
+| maps, modes, names | `maps_dict` ids whose `gameplay/game_modes/` config is mode 2 to 5 and whose project exists (the server's rule, `crates/survarium/src/v026g/maps.rs`); names from the localization |
 | respawn points, battery spawns, chargers, containers | the project's `server_objects`, shown only where the mode's `rules` read them (88 gather, 89 timed with chargers); a container where its collision zone is (its own position can be a pivot far off: level_04, level_06 and four more) |
+| Research units | the mode config's `parameters.capture_zones` (`cp_id`, `position`), shown where the mode's `rules` have Research's (480; `docs/notes/research_mode.md`) |
 | ammo stashes | `client_objects`: each `resupply_zone`'s collision zone, by team |
 | marker icons | `hud.swf` `Minimap._icons` (`PlayerBlue`, `Base`, `SpawnIcon`, `ResupplyIcon`), as SVG (FFDec), with each one's lightness and opacity so the page paints them in one blue and one red; the battery (the game's electrobox) is drawn flat after the real one, as the game has no flat icon of it (only a 96x64 photo-like one and an 11x9 glyph) |
 | spawn facing | the respawn point's rotation: yaw = y, or pi - y when x and z are pi; forward (-sin yaw, cos yaw) in x/z (on every map the points face the enemy's side) |

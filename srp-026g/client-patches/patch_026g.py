@@ -1895,21 +1895,34 @@ INSTALLS = {
     REPLAY_REATTACH_SLOT[0]: (SLOT, "replay_network_client's \"is this place mine\" (vtable 0x9FF344 +54h): "
                               "the thunk to is_player_current", None, None),
     SOUND_QUEUE_HOOK_VA: (JUMP, "a weapon's delayed sound: the full queue's cave", None, None),
+    # Research, patch 53 (in `.srpx`)
+    0x1E9B4C: (INLINE, "the game's constructor, `mov eax,ebx / call 0x1EC170`: register (it does both, the call "
+                       "as a tail jump with the return address moved past the nops)", None, None),
+    0x23B3DE: (INLINE, "update_ui after the teams' points: hud", None, None),
+    0x23B351: (JUMP, "update_ui's first message by mode: welcome", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
-# A vtable our code builds and installs (a rule's, a cook's): the game reads
-# it and calls through its slots, so each slot that stands in for a game slot
-# must pop what that slot does. (name, the vtable's VA in our code, [model
-# slot VA or None per slot, from slot 0]). The self-test reads each slot's
-# function from the built bytes and its model's ret from the original exe
-# (test_call_shapes), and fails on a mismatch. On main no patch builds a game
-# vtable (the late join writes the game's own vtable 0xA09F90 into the slot,
-# not one of ours). Research (#297, when it moves onto `.srpx`) adds its rule
-# vtable here, with tdm_rule_core's twenty slots (vtable 0xA15DA4) as the
-# models: slot 16 (rn_deserialize) would then have to pop 8, as the game's
-# does, and the wrong `ret 4` the first writing shipped would fail the build.
-INSTALLED_VTABLES = ()
+# A vtable our code builds and installs at run time (a rule's, a cook's):
+# the game calls through its slots, so each slot of ours must pop what the
+# game's own vtable pops in the same place (the self-test's generalisation of
+# check 53, test_call_shapes: our slot's function read from the built bytes,
+# up to the next symbol, the model's from the original exe; a slot that holds
+# the game's own function is the model itself). (what, the .section.json of
+# the code that holds it, its symbol (the RTTI locator, the slots after it),
+# the model vtable's first slot or None (every slot must be a game function),
+# the slots, how many of them are ours). Research's rule slot 16
+# (rn_deserialize) popped 4 where tdm's pops 8 in #297's first build and
+# crashed the game at its first sync: this is the check that catches it, for
+# every patch. Every `*_vtable` symbol of an arena block's code must be here
+# (audit_vtables).
+INSTALLED_VTABLES = (
+    ("Research's rule", "research_026g.section.json", "rn_rule_vtable", 0xA15DA4, 20, 9),
+    ("Research's cook", "research_026g.section.json", "rn_cook_vtable", 0x9FD8AC, 11, 2),
+    ("Research's rule's link resolver", "research_026g.section.json", "rn_resolver_vtable", None, 1, 0),
+)
+# The symbol map of each arena code block built from C ({block: .json}).
+ARENA_SYMBOLS = {"research.code": "research_026g.section.json"}
 # What our code hands the game at run time to call later (a callback, a
 # boost::function): no write of build() shows them, so each is declared with
 # the instruction that hands it over and the game's own function it stands
@@ -1997,18 +2010,19 @@ def audit_installs(data, writes, installs=None):
 # VA (arena_layout), and only the section's sizes and SizeOfImage grow.
 # Nothing else of the file moves: a block never moves once placed, a new
 # block goes at ARENA's end, and a block's bytes are assembled for the VA the
-# builder gives it (build() checks each, as for the sections before). With no
-# block declared there is no `.srpx`: the exe is byte for byte what it was
-# without the arena.
+# builder gives it (build() checks each, as for the sections before). The
+# file holds the whole arena (a state block as zeros, as Research's first
+# `.srpx` did), so a build is byte for byte what it was before the arena.
+# With no block declared there would be no `.srpx` at all.
 #   ArenaBlock(name, kind, size, align): name "<patch>.<what>", unique;
 #   kind "code" (bytes, int3 after them), "data" (bytes, zeros after them)
 #   or "state" (zeros: no bytes given); size the room it keeps, which its
 #   bytes never outgrow (grow a block only while it is the last); align a
 #   power of two from 16, 0x1000 for a page of its own.
-# Research (#297) and the dynamic anomalies (#225) take their pages so:
-#   ArenaBlock("research.code", "code", 0x3000, 0x1000),   # 0xA42D000
-#   ArenaBlock("research.state", "state", 0x1000, 0x1000), # 0xA430000
-#   ArenaBlock("anomalies.code", "code", ..., 0x1000),     # 0xA431000
+# A new patch appends its blocks at ARENA's end and takes its VAs from
+# ARENA_LAYOUT; the dynamic anomalies (#225), next, so:
+#   ArenaBlock("anomalies.code", "code", <its size>, 0x1000)  # 0xA431000
+# which is the +4000h of `.srpx` it is assembled for today.
 ARENA_NAME = b".srpx\0\0\0"
 ARENA_CHARACTERISTICS = 0xE0000060              # code, initialized data, execute, read, write
 ARENA_VA = 0xA42D000                            # weapon_camo_va + .srpw's three pages
@@ -2018,7 +2032,11 @@ ARENA_KINDS = ("code", "data", "state")
 ArenaBlock = collections.namedtuple("ArenaBlock", "name kind size align")
 
 
-ARENA = ()
+# In placement order; append only.
+ARENA = (
+    ArenaBlock("research.code", "code", 0x3000, 0x1000),     # patch 53: 0xA42D000
+    ArenaBlock("research.state", "state", 0x1000, 0x1000),   # its rule's cook and the hud's cache: 0xA430000
+)
 
 
 def arena_layout(blocks):
@@ -2039,12 +2057,16 @@ def arena_layout(blocks):
     return vas, at
 
 
+ARENA_LAYOUT = arena_layout(ARENA)[0]                      # {block: VA}
+ARENA_BLOCKS = {block.name: block for block in ARENA}
+
+
 def add_arena(data, blocks, contents):
     """Appends `.srpx` with the blocks at their VAs (arena_layout) and their
     bytes (`contents`: {name: bytes} of the code and data blocks), after the
     last section; returns the new file. No blocks: `data` as it is. The file
-    holds the arena up to the end of its last block with bytes; the state
-    after it is the loader's zeros (VirtualSize)."""
+    holds the whole arena: code blocks int3 after their bytes, data and state
+    blocks and the gaps zeros."""
     if not blocks:
         if contents:
             sys.exit(f".srpx: bytes for {', '.join(sorted(contents))}, which ARENA does not declare")
@@ -2057,10 +2079,7 @@ def add_arena(data, blocks, contents):
     if IMAGE_BASE + struct.unpack_from("<I", data, headers.size_of_image_at)[0] != ARENA_VA:
         sys.exit(f".srpx: the image does not end at {ARENA_VA:#x}, where the arena begins (has `.srpw` grown "
                  f"past its three pages?)")
-    # Zeros, each code block int3 after its bytes; the file ends with the
-    # last code or data block (a state block after it has no bytes there).
-    end = max((vas[b.name] - ARENA_VA + b.size for b in blocks if b.kind != "state"), default=0)
-    arena = bytearray(end)
+    arena = bytearray(size)
     for block in blocks:
         start = vas[block.name] - ARENA_VA
         body = contents.get(block.name, b"")
@@ -2070,16 +2089,76 @@ def add_arena(data, blocks, contents):
             arena[start:start + block.size] = body + b"\xCC" * (block.size - len(body))
         elif block.kind == "data":
             arena[start:start + len(body)] = body
-    out = add_code_section(data, ARENA_NAME, ARENA_VA, bytes(arena), ARENA_CHARACTERISTICS)
-    headers = Headers(out)
-    slot = headers.table + 40 * (len(headers.sections(out)) - 1)
-    struct.pack_into("<I", out, slot + 8, size)
-    if not arena:
-        struct.pack_into("<I", out, slot + 20, 0)       # no bytes in the file: no PointerToRawData
-    struct.pack_into("<I", out, headers.size_of_image_at,
-                     (ARENA_VA - IMAGE_BASE + size + headers.section_alignment - 1)
-                     // headers.section_alignment * headers.section_alignment)
-    return out
+    return add_code_section(data, ARENA_NAME, ARENA_VA, bytes(arena), ARENA_CHARACTERISTICS)
+
+
+# Research, mode 5 (patch 53, README; client_patch.md section 3.50;
+# docs/notes/research_mode.md): research_026g.section.bin (research_026g.py:
+# research_026g.asm's three entries and stubs, then the C code of
+# research_rule_026g.c and research_native_026g.c and its constant data,
+# linked for RESEARCH_VA) at the start of `.srpx`, the C code's state (the
+# rule's cook, the hud's cache) zeroed on the page at RESEARCH_STATE_OFFSET.
+# Three hooks, `call` or `jmp` to an entry:
+# - the game's constructor, `mov eax,ebx / call 0x1EC170` at 0x1E9B4C (after
+#   its own client rule cooks; ebx = the game): register, which registers the
+#   rule's cook (class RESEARCH_CLASS) and does the two instructions;
+# - game_world_ui::update_ui, `cmp dword [edi+20h],4 / jne 0x23B3FC` at
+#   0x23B3DE (after the teams' points went to the movie): hud, the units on
+#   the movie (root.research_update) and their messages, then the compare;
+# - update_ui, `cmp eax,4 / jne 0x23B36A` at 0x23B351 (the match's first
+#   message by mode): welcome, mode 5's st_start_match_welcome_message_5.
+# No base relocation is under a site and no branch aims inside one.
+#
+# Its code and state are the first two blocks of `.srpx`, the arena
+# (ARENA above: research.code, a code block of three pages, and
+# research.state, a page of state), at the VAs arena_layout gives them:
+# 0xA42D000 and 0xA430000, where research_026g.py links the code.
+RESEARCH_VA = ARENA_LAYOUT["research.code"]
+RESEARCH_STATE_VA = ARENA_LAYOUT["research.state"]
+RESEARCH_OFFSET = RESEARCH_VA - ARENA_VA
+RESEARCH_STATE_OFFSET = RESEARCH_STATE_VA - RESEARCH_VA
+RESEARCH_SIZE = RESEARCH_STATE_OFFSET + ARENA_BLOCKS["research.state"].size
+RESEARCH_ASM_SIZE = 0x100
+RESEARCH_CLASS = 0x1E0                         # research_native_026g.c RN_CLASS: the mode configs' rules[2]
+RESEARCH_ENTRIES = (0x0, 0x5, 0xA)             # register, hud, welcome: `jmp near` each
+RESEARCH_HOOKS = (
+    (0x1E9B4C, bytes.fromhex("8bc3e81d260000"), 0x0, 0xE8),     # the game's constructor: register
+    (0x23B3DE, bytes.fromhex("837f20047518"), 0x5, 0xE8),       # update_ui after the teams' points: hud
+    (0x23B351, bytes.fromhex("83f8047514"), 0xA, 0xE9),         # update_ui's first message: welcome
+)
+
+
+def research_layout(code):
+    """(VA, state VA, class) research_026g.section.bin was built for, read
+    from it: the target of the register stub's `jmp 0x1EC170` gives the VA,
+    the state's address and the class are found in the C code (0 for one that
+    is not there); (0, 0, 0) without the stub's jump, once."""
+    jmp = code.find(b"\x83\x04\x24\x02\xE9")                      # add dword [esp],2 / jmp rel32
+    if jmp < 0 or code.find(b"\x83\x04\x24\x02\xE9", jmp + 1) >= 0:
+        return (0, 0, 0)
+    va = (0x1EC170 - (jmp + 9) - struct.unpack_from("<i", code, jmp + 5)[0]) & 0xFFFFFFFF
+    c_code = code[RESEARCH_ASM_SIZE:]
+    return (va, RESEARCH_STATE_VA if struct.pack("<I", RESEARCH_STATE_VA) in c_code else 0,
+            RESEARCH_CLASS if struct.pack("<I", RESEARCH_CLASS) in c_code else 0)
+
+
+def audit_vtables(vtables=None, symbols=None):
+    """Every `*_vtable` symbol of the arena's C code is declared in
+    INSTALLED_VTABLES; else the build stops (a vtable our code hands the game
+    with no model would go unchecked)."""
+    import json
+    vtables = INSTALLED_VTABLES if vtables is None else vtables
+    if symbols is None:
+        symbols = {}
+        for name in sorted(set(ARENA_SYMBOLS.values())):
+            path = os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
+            symbols[name] = json.load(open(path))["symbols"]
+    declared = {(json_name, symbol) for _, json_name, symbol, _, _, _ in vtables}
+    for json_name, table in sorted(symbols.items()):
+        for symbol in sorted(table):
+            if symbol.endswith("_vtable") and (json_name, symbol) not in declared:
+                sys.exit(f"{json_name}: {symbol} is a vtable our code installs with no model: declare it in "
+                         f"patch_026g.py's INSTALLED_VTABLES (client_patch.md section 0.4)")
 
 
 def hook_bytes(base, va, expected, offset, opcode):
@@ -2357,9 +2436,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
     build with the late join requires at its start (patch 49; a release's
     offered patches); none when not given. It is the mount's bitmap and
     nothing else.
-    arena: (blocks, {name: bytes}) in place of ARENA and the patches' bytes
-    for it, for the self-test's made-up arenas; the build with the late join
-    only."""
+    arena: (blocks, {name: bytes}) appended after ARENA's own blocks, for
+    the self-test's made-up arenas; the build with the late join only."""
     if hashlib.sha256(original).hexdigest() != EXE_SHA256:
         sys.exit("the source is not the original 0.26g survarium.exe (sha256 mismatch)")
     if server is not None:
@@ -2918,15 +2996,32 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                                     DEATH_CAMERA_CHARACTERISTICS)
             data = add_code_section(data, WEAPON_CAMO_NAME, weapon_camo_va(late_join), weapon_camo,
                                     WEAPON_CAMO_CHARACTERISTICS)
-            # `.srpx`: each patch of the arena puts its blocks' bytes here,
-            # assembled for the VAs arena_layout(ARENA) gives them.
+            # `.srpx`, the arena: each patch of it puts its blocks' bytes in
+            # arena_bytes, assembled for the VAs ARENA_LAYOUT gives them.
             arena_bytes = {}
-            blocks, arena_bytes = arena if arena is not None else (ARENA, arena_bytes)
+            research = open(research_bin(), "rb").read()
+            if len(research) > RESEARCH_STATE_OFFSET or any(research[at] != 0xE9 for at in RESEARCH_ENTRIES) \
+                    or research_layout(research) != (RESEARCH_VA, RESEARCH_STATE_VA, RESEARCH_CLASS):
+                sys.exit(f"research_026g.section.bin was built for another place, state or class "
+                         f"(research_026g.py --write-bin: VA {RESEARCH_VA:#x}, state {RESEARCH_STATE_VA:#x})")
+            for va, expected, offset, opcode in RESEARCH_HOOKS:
+                patch(data, va, expected, hook_bytes(RESEARCH_VA, va, expected, offset, opcode))
+                if neutralize_relocs(data, [(va, va + len(expected))]):
+                    sys.exit(f"{va:#x}: a base relocation under a hook of Research")
+            arena_bytes["research.code"] = research
+            # The self-test's made-up blocks go after the patches' own: none
+            # of those moves.
+            blocks = ARENA
+            if arena is not None:
+                blocks = ARENA + tuple(arena[0])
+                arena_bytes.update(arena[1])
             data = add_arena(data, blocks, arena_bytes)
     if arena is not None and late_join is None:
         sys.exit("the arena (`.srpx`) is of the build with the late join")
     if mode != "cert-only":
         audit_installs(data, WRITES)
+    if late_join is not None:
+        audit_vtables()
     headers = Headers(data)
     struct.pack_into("<I", data, headers.checksum_at, pe_checksum(data, headers.checksum_at))
     return data, (f"certificate check, mutex, minimum VRAM check, hash interval {HASH_INTERVAL_MS} ms, "
@@ -2968,6 +3063,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "a weapon's upgrade window shows it in the air above the lobby's workbench, "
                      "a weapon wears the decals its item holds, placed on it above the workbench, "
                      "an upgrade dropped on a weapon in its window is shown at once, "
+                     f"Research (mode 5: rule class {RESEARCH_CLASS:#x}, its hud and messages), "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")
@@ -3038,6 +3134,10 @@ def mount_patches_bin():
 
 def weapon_camo_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_camo_026g.section.bin")
+
+
+def research_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "research_026g.section.bin")
 
 
 def spot_bin():

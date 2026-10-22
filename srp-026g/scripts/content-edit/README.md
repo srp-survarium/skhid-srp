@@ -27,11 +27,16 @@ only `gameplay/` (the server game data holds only the files srp reads).
 `release/build-content` also runs `release/content_type_check.py` over every file a pack or an edit
 makes: each key path that already exists in the stock or previous version of that file must keep its
 value type (a float2/3/4 vs an indexed table vs an int vs a float vs a string vs a named table). A
-key new to the file is allowed, unless 0.26g already uses that exact key path (in another config)
-with a type our bytes contradict; then it must use a 0.26g type or be listed in `build_content.py`'s
-`TYPE_ALLOWLIST` with a reason. It fails with the file, the path, the old type and the new type, and
-no patch is made. It reuses this folder's `content_edit.py` as the config reader (`walk`), and
-weighs new keys against a corpus of every base config file's key paths.
+key new to the file is allowed, unless 0.26g already uses that exact key path (in another config:
+items, materials, model settings, projects) with a type our bytes contradict; then it must use a
+0.26g type or be listed in `build_content.py`'s `TYPE_ALLOWLIST` with a reason. It fails with the
+file, the path, the old type and the new type, and no patch is made. It reuses this folder's
+`content_edit.py` as the config reader (`walk`), weighs new keys against a corpus of every base
+config file's key paths, and names paths as Research's pack builder does
+(`scripts/research-mode/make_pack.py`): a list entry by its `game_object_type` (a project's
+`client_objects[respawn_point]/position`), a colour ramp's `key0`, `key1`, ... as `key#`. So it is
+make_pack.py's own type check (which a pack builder runs at build time) applied at release time to
+every pack and edit list, whoever built it.
 
 This catches the two Research pack bugs (#297) that got past every other check: the builder wrote
 every vector (float2/3/4) as an indexed table through a `json.loads(json.dumps(...))` round-trip, so

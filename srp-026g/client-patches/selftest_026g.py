@@ -392,6 +392,17 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     ThunkInfo "focus", no relocation under them, nothing aims inside, the
     lobby's key handler invoking root.has_active_window; cert-only keeps
     the original. check_stage_focus_026g.py runs it.
+53. the same build: Research, mode 5 (patch 53, research_026g.section.bin
+    at the start of `.srpx`, the twelfth and last section, the later
+    patches' code, on the page after `.srpw`; its state at +3000h): the .bin is its .json's, the
+    three sites (the game's constructor, update_ui's two) are the
+    original's instructions before and the hooks after, no relocation
+    under one and no branch into one, the entries are jumps, the stubs
+    leave only where they should, the C code names the game's functions
+    it calls (each slot of the rule's and the cook's vtables that is ours
+    pops what tdm_rule_core's (0xA15DA4) and tdm_rule_cook's (0x9FD8AC)
+    pops: the call shapes' INSTALLED_VTABLES check, for every patch).
+    check_research_026g.py runs the hooks, the cook and the rule.
 """
 
 import ctypes
@@ -1483,7 +1494,8 @@ def late_join_sites():
         [(P.WEAPON_CAMO_HOOK[0], len(P.WEAPON_CAMO_HOOK[1]))] + \
         [(va, len(old)) for va, old, _, _ in P.WEAPON_TABLE_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.WEAPON_DECALS_HOOKS] + \
-        [(va, len(old)) for va, old, _, _ in P.UPGRADE_PREVIEW_HOOKS]
+        [(va, len(old)) for va, old, _, _ in P.UPGRADE_PREVIEW_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS]
 
 
 def pickup_sites():
@@ -1968,6 +1980,150 @@ def test_upgrade_preview(original, image, before):
           "find, item_by_id, the config's has_key and child, the profile's ctor and copy, the allocator, the "
           "log and the stash's find_kit_or_show, jumps only to setup_profile's end and the 0x87 reader's last "
           "call outside itself, and every branch inside it lands on an instruction")
+
+
+def test_research(original, image, before):
+    """Check 53: Research, mode 5 (patch 53, RESEARCH_HOOKS; research_026g.py,
+    check_research_026g.py runs the hooks, the cook and the rule on made-up
+    games). Here: the .bin is its .json's; each site is the original's
+    instructions before and the hook after, with no relocation under it and
+    no branch into it; the entries are jumps; the code's calls outside it are
+    the game's functions research_native_026g.c names. Each slot of ours
+    popping what tdm's in the same place pops is test_call_shapes'
+    (INSTALLED_VTABLES)."""
+    source = Image(original)
+    plain = lambda text: text.replace("[dword 0x", "[0x").replace("dword [", "[")
+    code = open(P.research_bin(), "rb").read()
+    kept = json.load(open(os.path.join(HERE, "research_026g.section.json")))
+    check(kept["size"] == len(code) and kept["sha256"] == hashlib.sha256(code).hexdigest()
+          and int(kept["va"], 16) == P.RESEARCH_VA,
+          f"research_026g.section.bin is its .json's ({len(code)} bytes for {P.RESEARCH_VA:#x}; "
+          "research_026g.py --check-bin builds it again where a C compiler is)")
+    originals = {0x1E9B4C: ["mov eax,ebx", "call 0x1ec170"], 0x23B3DE: ["cmp dword [edi+0x20],0x4", "jnz 0x23b3fc"],
+                 0x23B351: ["cmp eax,0x4", "jnz 0x23b36a"]}
+    loose = lambda text: text.replace("byte +", "")     # ndisasm 2.16 writes `byte +0x4`, 3.x `0x4`
+    for va, old, offset, opcode in P.RESEARCH_HOOKS:
+        rows = ndisasm(source.read(va, len(old)), va)
+        hooked = ndisasm(image.read(va, len(old)), va)
+        word = "call" if opcode == 0xE8 else "jmp"
+        check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
+              and [loose(text) for _, _, text in rows] == originals[va]
+              and hooked[0][2].startswith(word) and branch_target(hooked[0][2]) == P.RESEARCH_VA + offset
+              and all(text == "nop" for _, _, text in hooked[1:]),
+              f"{va:#x}: `{'; '.join(originals[va])}` becomes {hooked[0][2]} + {len(hooked) - 1} nop; "
+              "the build without the late join keeps it")
+        hits = [hit for hit in aimed_inside(original, va, len(old), 0x82)
+                if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
+        relocated = [r for kind, r in source.relocations().values() if kind == 3 and r + 4 > va and r < va + len(old)]
+        check(not hits and not relocated, f"{va:#x}: no branch aims inside the site, no base relocation under it")
+    entries = ndisasm(image.read(P.RESEARCH_VA, 15), P.RESEARCH_VA)
+    check([text.split()[0] for _, _, text in entries] == ["jmp"] * 3,
+          "the section starts with its three entries, `jmp near` each: register, hud, welcome")
+    stubs = code[:code.index(b"st_start_match_welcome_message_5")]
+    texts = [plain(t) for _, _, t in ndisasm(stubs, P.RESEARCH_VA)]
+    targets = {int(t.split()[-1], 16) for t in texts if t.startswith(("call ", "j")) and t.split()[-1].startswith("0x")}
+    outside = {c for c in targets if not P.RESEARCH_VA <= c < P.RESEARCH_VA + len(code)}
+    check(outside == {0x1EC170, 0x23B35B, 0x23B36A} and "mov [esp],0x23b3fc" in texts
+          and "mov ecx,0xa03aac" in texts,
+          "the stubs leave to the constructor's replaced call, update_ui's message (TDM's key or mode 5's) and its "
+          f"way on without one, and the hud's to update_ui past Team Deathmatch's part ({sorted(hex(c) for c in outside)}); "
+          "the C code calls the game through registers only")
+    for va, what in ((0x102D10, "register_cook"), (0xE4F90, "the cooks' allocate"), (0x313900, "the rule base's ctor"),
+                     (0xF6B10, "the config's child"), (0xF6C00, "the config's has"), (0x1F3DE0, "the u8 field writer"),
+                     (0x2F5DA0, "the u16 field writer"), (0x1F48A0, "the u32 field writer"),
+                     (0x511600, "the movie's invoke"), (0x2375C0, "the hud's message")):
+        check(struct.pack("<I", va) in code[P.RESEARCH_ASM_SIZE:], f"the C code names {what} ({va:#x})")
+    # Each slot of the rule's, the cook's and the link resolver's vtables
+    # that is ours pops what the game's counterpart pops: test_call_shapes,
+    # from INSTALLED_VTABLES (the same check for every patch's vtables).
+    read32 = lambda img, va: struct.unpack("<I", img.read(va, 4))[0]
+    # The cook's RTTI: its own complete object locator (research_rule_cook, a
+    # translate_query_cook as tdm_rule_core_cook is); the rule's the base's.
+    def type_name(img, td):
+        raw = img.read(td + 8, 64)
+        return raw[:raw.index(b"\0")].decode()
+
+    def hierarchy(img, locator):
+        signature, offset, _, td, chd = struct.unpack("<5I", img.read(locator, 20))
+        _, attributes, count, array = struct.unpack("<4I", img.read(chd, 16))
+        bases = [read32(img, array + 4 * i) for i in range(count)]
+        return (signature, offset, read32(img, td), type_name(img, td), attributes,
+                [(type_name(img, read32(img, b)),) + struct.unpack("<6I", img.read(b + 4, 24)) for b in bases])
+    cook_locator = read32(image, int(kept["symbols"]["rn_cook_vtable"], 16))
+    ours = hierarchy(image, cook_locator)
+    core = hierarchy(source, 0xA524C0)                    # tdm_rule_core_cook's locator (vtable 0xA12C14)
+    check(ours[:2] == (0, 0) and ours[2] == read32(source, 0xACCC38) and ours[3] == ".?AVresearch_rule_cook@srp@@"
+          and ours[4] == core[4] and ours[5][1:] == core[5][1:] and ours[5][0][1:6] == core[5][0][1:6]
+          and ours[5][0][0] == ours[3] and P.RESEARCH_VA <= cook_locator < P.RESEARCH_VA + len(code),
+          f"the cook's RTTI locator ({cook_locator:#x}) is its own: {ours[3]}, a translate_query_cook as "
+          f"tdm_rule_core_cook is ({[b[0] for b in ours[5]]})")
+    check(read32(image, int(kept["symbols"]["rn_rule_vtable"], 16)) == 0xA4C970
+          and hierarchy(source, 0xA4C970)[3] == ".?AVgame_match_rule_base@survarium@@",
+          "the rule's vtable has game_match_rule_base's locator (0xA4C970)")
+
+
+def instruction(image, va):
+    """(length, text) of the instruction at `va` (ndisasm, a window decoded
+    at a time and cached on the image), or None."""
+    cache = image.__dict__.setdefault("instructions", {})
+    if va not in cache:
+        try:
+            window = image.read(va, 0x200)
+        except ValueError:
+            return None
+        rows = ndisasm(window, va)
+        for (at, code_hex, text), following in zip(rows, rows[1:] + [None]):
+            if following is None or at + len(code_hex) // 2 > va + len(window) - 16:
+                break
+            cache.setdefault(at, (len(code_hex) // 2, text))
+        if va not in cache and rows:
+            cache[va] = (len(rows[0][1]) // 2, rows[0][2])
+    return cache.get(va)
+
+
+def function_pops(image, entry, limit=20000):
+    """The bytes the function at `entry` pops: every `ret n` reachable from
+    its entry, its branches followed (a body split by the compiler, a tail
+    jump into the game too), its calls stepped over. ({n, ...}, [what could
+    not be followed])."""
+    todo, seen, found, lost = [entry], set(), set(), []
+    while todo and len(seen) < limit:
+        va = todo.pop()
+        while va not in seen:
+            seen.add(va)
+            got = instruction(image, va)
+            if got is None:
+                lost.append(f"{va:#x}: outside the image")
+                break
+            length, text = got
+            op = text.split()[0] if text else ""
+            if op in ("ret", "retn"):
+                found.add(int(text.split()[1], 16) if len(text.split()) > 1 else 0)
+                break
+            if op in ("int3", "ud2", "hlt"):
+                break
+            target = branch_target(text)
+            if op == "jmp":
+                if target is None:
+                    lost.append(f"{va:#x}: {text}")
+                    break
+                va = target
+                continue
+            if (op.startswith("j") or op.startswith("loop")) and target is not None:
+                todo.append(target)
+            va += length
+    return found, lost
+
+
+def popped(image, start, end):
+    """The bytes the function at `start` pops: its first `ret`'s immediate
+    (None without a `ret` before `end`)."""
+    for _, _, text in ndisasm(image.read(start, end - start), start):
+        if text == "ret":
+            return 0
+        if text.startswith("ret "):
+            return int(text.split()[1], 16)
+    return None
 
 
 def aimed_inside(original, va, size, near):
@@ -4470,47 +4626,36 @@ def abi_cleanup():
         for row in csv.DictReader(f, delimiter="\t", quoting=csv.QUOTE_NONE):
             cleanup = row["ret_cleanup"]
             if cleanup not in ("", "None"):
-                values = {int(c) for c in cleanup.split()}
+                values = {int(c) for c in re.split(r"[ ,;/]+", cleanup.strip()) if c}
                 out.setdefault(int(row["va"], 16), -1 if len(values) != 1 else values.pop())
     return out
 
 
-def effective_cleanup(image, va, bound=0x800):
-    """The bytes `ret` pops at `va`, read from the image: a linear scan from
-    the entry to the first `ret` (its imm16, or 0 for a plain `ret`), or a
-    tail `jmp` into the game's code followed once (a thunk); None when neither
-    is reached (int3, an indirect or local jump, no instruction). Our installed
-    functions and their models are small stubs or tail calls, for which this
-    is exact; it is not a full control-flow cleanup."""
-    for _ in range(8):
-        try:
-            rows = ndisasm(image.read(va, bound), va)
-        except (ValueError, subprocess.CalledProcessError):
-            return None
-        for _, _, text in rows:
-            if text.startswith("ret"):
-                parts = text.split()
-                return int(parts[1], 16) if len(parts) > 1 else 0
-            if text == "int3" or text == "":
-                return None
-            if text.startswith("jmp "):
-                target = branch_target(text)
-                if target is not None and P.TEXT_VA <= target < P.TEXT_VA + P.TEXT_VSIZE:
-                    va = target
-                    break            # follow the tail call, scan from there
-                return None
-        else:
-            return None
-    return None
+def effective_cleanup(image, va):
+    """The bytes the function at `va` pops (function_pops), or None when its
+    rets differ, none is found or a branch could not be followed."""
+    if va is None:
+        return None
+    found, lost = function_pops(image, va)
+    return found.pop() if len(found) == 1 and not lost else None
+
+
+_ORIGINALS = {}
 
 
 def model_cleanup(original, image, model, abi):
-    """The bytes the model pops: re-kit abi.tsv first (hand-verified), else
-    read from the original exe. (cleanup or None, where it came from)."""
-    if model in abi and abi[model] >= 0:
-        return abi[model], "abi.tsv"
-    read = effective_cleanup(Image(original), model)
-    return read, "the original exe"
+    """The bytes the model pops, read from the original exe; when re-kit
+    abi.tsv has the model's row, its ret_cleanup must say the same (the
+    reviewed table and the bytes agree, or the check fails: a wrong
+    hand-written note is how Research's slot 16 went wrong). (cleanup or None,
+    where it came from)."""
+    source = _ORIGINALS.setdefault(hashlib.sha256(original).hexdigest(), Image(original))
+    read = effective_cleanup(source, model)
+    if abi.get(model, -1) >= 0:
+        if abi[model] != read:
+            return None, f"abi.tsv says {abi[model]}, the original exe {read}"
+        return read, "the original exe, as abi.tsv"
+    return read, "the original exe; no abi.tsv row"
 
 
 def our_function_va(data, install, writes):
@@ -4582,19 +4727,52 @@ def _call_shapes_body(original, data):
         ours = effective_cleanup(image, our_va) if our_va not in (None, -1) else None
         check(want is not None and ours == want,
               f"{what}: `ret {ours}` pops what its model {model:#x} does (`ret {want}`, {whence})")
-    # 3. Every vtable our code builds (a rule's, a cook's): each slot that
-    # stands in for a game slot pops what that slot does.
-    for name, table_va, models in P.INSTALLED_VTABLES:
-        for slot, model in enumerate(models):
+    # 3. Every vtable our code builds (a rule's, a cook's): each slot of ours
+    # pops what the game's vtable pops in the same place (check 53, for
+    # every patch).
+    check_vtables(original, image, P.INSTALLED_VTABLES, arena_symbols())
+
+
+def arena_symbols():
+    """{.section.json: {symbol: VA}} of the arena's C code (ARENA_SYMBOLS)."""
+    out = {}
+    for name in sorted(set(P.ARENA_SYMBOLS.values())):
+        out[name] = {k: int(v, 16) for k, v in json.load(open(os.path.join(HERE, name)))["symbols"].items()}
+    return out
+
+
+def check_vtables(original, image, vtables, symbols):
+    """Each declared vtable's slots against its model's: a slot that is the
+    game's own function is its model; a slot of ours must pop (its first
+    `ret` before the next symbol of its code) what the model's slot pops; a
+    vtable without a model must hold only the game's functions. The number of
+    our own slots is the declaration's (a slot that changes owner is seen)."""
+    source = Image(original)
+    abi = abi_cleanup()
+    read32 = lambda img, va: struct.unpack("<I", img.read(va, 4))[0]
+    in_text = lambda va: P.TEXT_VA <= va < P.TEXT_VA + P.TEXT_VSIZE
+    for what, json_name, symbol, model, slots, own in vtables:
+        table = symbols[json_name]
+        ours_at = table[symbol] + 4                        # the RTTI locator, then the slots
+        compared = []
+        for slot in range(slots):
+            ours = read32(image, ours_at + 4 * slot)
+            theirs = read32(source, model + 4 * slot) if model is not None else None
+            if in_text(ours) and (model is None or ours == theirs):
+                continue                                   # the game's own function
+            compared.append(slot)
             if model is None:
+                check(False, f"{what} vtable slot {slot}: {ours:#x} is ours, but the vtable has no model")
                 continue
-            our_va = struct.unpack_from("<I", data, image.offset(table_va + 4 * slot))[0]
-            want, whence = model_cleanup(original, image, model, abi)
-            ours = effective_cleanup(image, our_va)
-            check(want is not None and ours == want,
-                  f"{name} slot {slot}: `ret {ours}` pops what its model {model:#x} does (`ret {want}`, {whence})")
-    if not P.INSTALLED_VTABLES:
-        check(True, "no patch on main builds a game vtable of its own (the late join installs the game's own)")
+            mine, lost = function_pops(image, ours)
+            want, whence = model_cleanup(original, image, theirs, abi)
+            check(want is not None and mine == {want} and not lost,
+                  f"{what} vtable slot {slot}: ours ({ours:#x}) pops {sorted(mine)} bytes, the model's "
+                  f"({theirs:#x}, vtable {model:#x}) {want} ({whence})"
+                  + (f"; not followed: {lost[:2]}" if lost else ""))
+        check(len(compared) == own,
+              f"{what} vtable ({symbol}): {own} slots of ours, each compared with "
+              + (f"vtable {model:#x}'s ({compared})" if model is not None else "none (the game's functions only)"))
 
 
 def test_call_shapes_negative(original):
@@ -4605,31 +4783,48 @@ def test_call_shapes_negative(original):
     `ret 8`)."""
     print("  call shapes: the check rejects a wrong ret and an undeclared install")
     image = Image(original)
-    # A fake installed vtable: our code `ret 4`, its model the game's
-    # tdm_rule_core::deserialize (slot 16, 0xA15DA4 + 64), which pops 8 (as
-    # Research's rn_deserialize had to). The function and the table live in a
-    # made-up `.srpx` block; the check reads the slot and compares.
-    model = struct.unpack_from("<I", original, image.offset(0xA15DA4 + 4 * 16))[0]
-    want, _ = model_cleanup(original, image, model, abi_cleanup())
+    # A made-up rule vtable in made-up `.srpx` blocks (after the arena's own):
+    # tdm_rule_core's twenty slots (vtable 0xA15DA4), but slot 16, the
+    # deserialize, ours and `ret 4` where tdm's pops 8: Research's first
+    # rn_deserialize.
+    read32 = lambda va: struct.unpack_from("<I", original, image.offset(va))[0]
+    model = read32(0xA15DA4 + 4 * 16)
+    want = popped(image, model, model + 0x400)
     code = open(P.default_bin("section"), "rb").read()
     late_join = open(P.late_join_bin(), "rb").read()
     blocks = (P.ArenaBlock("fake.code", "code", 0x1000, 0x1000),
               P.ArenaBlock("fake.table", "data", 0x1000, 0x1000))
-    layout, _ = P.arena_layout(blocks)
+    layout, _ = P.arena_layout(P.ARENA + blocks)
     fn_va, table_va = layout["fake.code"], layout["fake.table"]
-    body = bytes.fromhex("c20400")                              # ret 4 (pops 4, not the model's 8)
-    data, _ = P.build(original, "section", code, None, late_join,
-                      arena=(blocks, {"fake.code": body, "fake.table": struct.pack("<I", fn_va)}))
-    saved = P.INSTALLED_VTABLES
-    P.INSTALLED_VTABLES = (("fake rule vtable", table_va, [model]),)
-    captured = []
+    slots = [read32(0xA15DA4 + 4 * i) for i in range(20)]
+    slots[16] = fn_va
+    for wrong, name in ((bytes.fromhex("c20400"), "pops 4"), (bytes.fromhex("c20800"), "pops 8")):
+        table = struct.pack("<I", 0) + struct.pack("<20I", *slots)
+        data, _ = P.build(original, "section", code, None, late_join,
+                          arena=(blocks, {"fake.code": wrong, "fake.table": table}))
+        symbols = {"fake.json": {"fake_rule_vtable": table_va, "fake_deserialize": fn_va}}
+        captured = []
+        saved = globals()["check"]
+        globals()["check"] = lambda ok, text: captured.append((ok, text))
+        try:
+            check_vtables(original, Image(data), (("a made-up rule", "fake.json", "fake_rule_vtable",
+                                                     0xA15DA4, 20, 1),), symbols)
+        finally:
+            globals()["check"] = saved
+        failed = [text for ok, text in captured if not ok]
+        if name == "pops 4":
+            check(want == 8 and any("slot 16" in text for text in failed),
+                  f"a rule vtable slot 16 that pops 4 where tdm_rule_core's ({model:#x}) pops {want} is rejected "
+                  "(Research's first rn_deserialize)")
+        else:
+            check(not failed, "... the same slot popping 8 passes")
+    # A vtable symbol of the arena's code with no declaration stops the build.
     try:
-        test_call_shapes(original, data, report=lambda ok, text: captured.append((ok, text)))
-    finally:
-        P.INSTALLED_VTABLES = saved
-    rejected = any(not ok and "fake rule vtable slot 0" in text for ok, text in captured)
-    check(rejected and want == 8,
-          f"a slot that pops 4 where its model {model:#x} pops {want} is rejected (Research's rule slot 16)")
+        P.audit_vtables(vtables=(), symbols={"fake.json": {"fake_rule_vtable": table_va}})
+        refused = False
+    except SystemExit:
+        refused = True
+    check(refused, "a `*_vtable` of the arena's code with no INSTALLED_VTABLES row is refused")
     # An undeclared install: a call into our code with no INSTALLS row.
     fake_writes = [(0x500000, bytes(5), b"\xE8" + struct.pack("<i", P.SECTION_VA - 0x500000 - 5))]
     headers = P.Headers(data)                                   # any built exe with our sections
@@ -4644,22 +4839,30 @@ def test_call_shapes_negative(original):
 def test_arena(original):
     """`.srpx`, the arena of the later patches (client_patch.md section 0.3).
     Deterministic, no overlaps, every block inside the section, the headers
-    and the PE checksum right; and the build with no block declared is byte
-    for byte the build without the arena (main's exe does not change)."""
+    and the PE checksum right; blocks appended after ARENA's own move none of
+    them; Research's blocks at the VAs it was built for; and with no block at
+    all there is no `.srpx`."""
     print("  the arena (.srpx)")
     code = open(P.default_bin("section"), "rb").read()
     late_join = open(P.late_join_bin(), "rb").read()
     without, _ = P.build(original, "section", code, None, late_join)
-    # No block: `.srpx` does not exist, the exe is unchanged.
+    # No block added: the exe is the build's; no block at all: no `.srpx`.
     none, _ = P.build(original, "section", code, None, late_join, arena=((), {}))
-    check(none == without and not any(n.startswith(b".srpx") for n, *_ in Image(none).headers.sections(none)),
-          "no block declared: no .srpx, the exe is byte for byte the build without the arena")
+    bare = bytes(P.add_arena(bytearray(b"MZ"), (), {}))
+    check(none == without and bare == b"MZ",
+          "no block added: the exe is byte for byte the build's; with no block at all add_arena adds no section")
+    check(P.ARENA_LAYOUT == {"research.code": 0xA42D000, "research.state": 0xA430000}
+          and [b.name for b in P.ARENA[:2]] == ["research.code", "research.state"],
+          "ARENA's first blocks are Research's, at 0xA42D000 (code) and 0xA430000 (state), the VAs "
+          "research_026g.py links it for; the next block (#225's) goes at 0xA431000")
     # Blocks of each kind, out of alignment order, built twice: the same bytes.
     blocks = (P.ArenaBlock("a.code", "code", 0x2800, 0x1000),
               P.ArenaBlock("a.state", "state", 0x1000, 0x1000),
               P.ArenaBlock("b.data", "data", 0x40, 0x10),
               P.ArenaBlock("b.code", "code", 0x80, 0x40))
-    layout, size = P.arena_layout(blocks)
+    layout, size = P.arena_layout(P.ARENA + blocks)
+    check(all(layout[b.name] == va for b, va in zip(P.ARENA, P.ARENA_LAYOUT.values())),
+          "blocks appended after ARENA's own leave every one of them where it was")
     contents = {"a.code": b"\x90" * 0x10 + b"\xc3", "b.data": b"hello\0", "b.code": b"\xc3"}
     one, _ = P.build(original, "section", code, None, late_join, arena=(blocks, contents))
     two, _ = P.build(original, "section", code, None, late_join, arena=(blocks, dict(contents)))
@@ -4673,21 +4876,24 @@ def test_arena(original):
           and P.IMAGE_BASE + rva == P.ARENA_VA and rva == align(prev[1] + prev[2], image.headers.section_alignment),
           f".srpx at {P.ARENA_VA:#x}: code | data | execute | read | write, on the page after .srpw")
     # Every block inside, aligned, in order, none overlapping the next.
-    placed = sorted(((layout[b.name], layout[b.name] + b.size, b) for b in blocks))
+    placed = sorted(((layout[b.name], layout[b.name] + b.size, b) for b in P.ARENA + blocks))
     inside = all(rva <= va - P.IMAGE_BASE and end - P.IMAGE_BASE <= rva + vsize for va, end, _ in placed)
-    aligned = all(layout[b.name] % b.align == 0 for b in blocks)
+    aligned = all(layout[b.name] % b.align == 0 for b in P.ARENA + blocks)
     overlaps = [b.name for (lo, hi, b), (lo2, _, _) in zip(placed, placed[1:]) if hi > lo2]
     check(inside and aligned and not overlaps and vsize == size,
-          f"the {len(blocks)} blocks are aligned, inside .srpx and do not overlap; VirtualSize {vsize:#x} = the "
-          f"arena's size ({', '.join(f'{b.name} @ {layout[b.name]:#x}' for b in blocks)})")
+          f"the {len(P.ARENA + blocks)} blocks are aligned, inside .srpx and do not overlap; VirtualSize "
+          f"{vsize:#x} = the arena's size ({', '.join(f'{b.name} @ {layout[b.name]:#x}' for b in P.ARENA + blocks)})")
     # The code and data bytes are where the layout puts them; the gaps int3.
     body = bytes(one[raw:raw + rsize])
     at = lambda va: va - P.ARENA_VA
     ok = (body[at(layout['a.code']):at(layout['a.code']) + len(contents['a.code'])] == contents['a.code']
           and set(body[at(layout['a.code']) + len(contents['a.code']):at(layout['a.code']) + 0x2800]) <= {0xCC}
           and body[at(layout['b.data']):at(layout['b.data']) + len(contents['b.data'])] == contents['b.data']
-          and body[at(layout['b.code']):at(layout['b.code']) + 1] == b"\xc3")
-    check(ok, "each code and data block holds its bytes, padded with int3 (code) or zeros (data)")
+          and body[at(layout['b.code']):at(layout['b.code']) + 1] == b"\xc3"
+          and not any(body[at(layout['a.state']):at(layout['a.state']) + 0x1000])
+          and not any(body[at(P.RESEARCH_STATE_VA):at(P.RESEARCH_STATE_VA) + 0x1000]))
+    check(ok, "each code and data block holds its bytes, padded with int3 (code) or zeros (data); "
+          "each state block is zeros")
     # The headers and the PE checksum, as test_pe checks them for the sections.
     get = lambda at: struct.unpack_from("<I", one, at)[0]
     checksum = P.pe_checksum(one, image.headers.checksum_at)
@@ -4722,12 +4928,12 @@ def test_late_join(original, without, server, source):
     image, before = Image(data), Image(without)
     headers = image.headers
     sections, old_sections = image.sections, before.sections
-    name, rva, vsize, raw, rsize, flags = sections[-4]
+    name, rva, vsize, raw, rsize, flags = sections[-5]
     align = lambda value, to: (value + to - 1) // to * to
     weapon_preview = open(P.weapon_preview_bin(), "rb").read()
     weapon_draw = open(P.weapon_draw_bin(), "rb").read()
     first_page = bytes(without[old_sections[-1][3]:old_sections[-1][3] + old_sections[-1][2]])
-    check(len(sections) == 11 and sections[:7] == old_sections[:7], "11 sections; the original's seven are untouched")
+    check(len(sections) == 12 and sections[:7] == old_sections[:7], "12 sections; the original's seven are untouched")
     check(name == P.SECTION_NAME and rva == P.SECTION_RVA and flags == P.SECTION_CHARACTERISTICS
           and vsize == P.WEAPON_PREVIEW_OFFSET + len(weapon_preview)
           and rsize == align(vsize, headers.file_alignment) and raw == old_sections[-1][3],
@@ -4814,7 +5020,7 @@ def test_late_join(original, without, server, source):
           f"the shell_32.dll check at +{P.STALE_DLL_OFFSET:#x} "
           f"and the kit change at +{P.KIT_CHANGE_OFFSET:#x}, the late-join code follows, then int3 padding, "
           f"the weapon preview at +{P.WEAPON_PREVIEW_OFFSET:#x} and int3 padding")
-    name, state_rva, state_size, state_raw, state_rsize, flags = sections[-3]
+    name, state_rva, state_size, state_raw, state_rsize, flags = sections[-4]
     check(name == P.LATE_JOIN_STATE_NAME and flags == P.LATE_JOIN_STATE_CHARACTERISTICS
           and state_size == P.LATE_JOIN_STATE_SIZE and (state_raw, state_rsize) == (0, 0)
           and state_rva == align(rva + vsize, headers.section_alignment)
@@ -4822,7 +5028,7 @@ def test_late_join(original, without, server, source):
           f".srpd at VA {P.IMAGE_BASE + state_rva:#x}: one page, uninitialized | read | write, no bytes in the "
           "file, on the page after the code (where the code looks for it)")
     death = open(P.death_camera_bin(), "rb").read()
-    name_c, rva_c, vsize_c, raw_c, rsize_c, flags_c = sections[-2]
+    name_c, rva_c, vsize_c, raw_c, rsize_c, flags_c = sections[-3]
     check(name_c == P.DEATH_CAMERA_NAME and flags_c == P.DEATH_CAMERA_CHARACTERISTICS
           and rva_c == state_rva + state_size and P.IMAGE_BASE + rva_c == P.death_camera_va(code)
           and vsize_c == len(death) and raw_c == raw + rsize and rsize_c == align(vsize_c, headers.file_alignment)
@@ -4834,7 +5040,7 @@ def test_late_join(original, without, server, source):
     camo = camo + b"\xCC" * (P.WEAPON_TABLE_OFFSET - len(camo)) + open(P.weapon_table_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_DECALS_OFFSET - len(camo)) + open(P.weapon_decals_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.UPGRADE_PREVIEW_OFFSET - len(camo)) + open(P.upgrade_preview_bin(), "rb").read()
-    name_w, rva_w, vsize_w, raw_w, rsize_w, flags_w = sections[-1]
+    name_w, rva_w, vsize_w, raw_w, rsize_w, flags_w = sections[-2]
     check(name_w == P.WEAPON_CAMO_NAME and flags_w == P.WEAPON_CAMO_CHARACTERISTICS
           and rva_w == align(rva_c + vsize_c, headers.section_alignment) and P.IMAGE_BASE + rva_w == P.weapon_camo_va(code)
           and vsize_w == len(camo) and raw_w == raw_c + rsize_c and rsize_w == align(vsize_w, headers.file_alignment)
@@ -4845,18 +5051,31 @@ def test_late_join(original, without, server, source):
           f"weapon_decals_026g.section.bin at +{P.WEAPON_DECALS_OFFSET:#x}, int3 padding and "
           f"upgrade_preview_026g.section.bin at +{P.UPGRADE_PREVIEW_OFFSET:#x} ({len(camo)} bytes), "
           "code | execute | read, on the page after .srpc, its file bytes right after .srpc's")
+    research = open(P.research_bin(), "rb").read()
+    research = research + b"\xCC" * (P.RESEARCH_STATE_OFFSET - len(research)) + bytes(P.RESEARCH_SIZE - P.RESEARCH_STATE_OFFSET)
+    name_r, rva_r, vsize_r, raw_r, rsize_r, flags_r = sections[-1]
+    check(name_r == P.ARENA_NAME and flags_r == P.ARENA_CHARACTERISTICS
+          and rva_r == align(rva_w + vsize_w, headers.section_alignment) and P.IMAGE_BASE + rva_r == P.ARENA_VA
+          and P.RESEARCH_VA == P.ARENA_LAYOUT["research.code"] == P.ARENA_VA
+          and P.RESEARCH_STATE_VA == P.ARENA_LAYOUT["research.state"] == P.ARENA_VA + 0x3000
+          and vsize_r == P.RESEARCH_SIZE and raw_r == raw_w + rsize_w and rsize_r == align(vsize_r, headers.file_alignment)
+          and bytes(data[raw_r:raw_r + vsize_r]) == research,
+          f".srpx, the arena, at VA {P.IMAGE_BASE + rva_r:#x}: its blocks research.code "
+          f"(research_026g.section.bin, int3 padding) and research.state (+{P.RESEARCH_STATE_OFFSET:#x}, the page "
+          "zeroed) at the VAs ARENA_LAYOUT gives them; code | data | execute | read | write, on the page after "
+          ".srpw, its file bytes right after .srpw's")
     get = lambda blob, at: struct.unpack_from("<I", blob, at)[0]
-    check(get(data, headers.size_of_image_at) == align(rva_w + vsize_w, headers.section_alignment)
+    check(get(data, headers.size_of_image_at) == align(rva_r + vsize_r, headers.section_alignment)
           and get(data, headers.optional + 12) == get(without, headers.optional + 12) + state_size
           and get(data, headers.size_of_code_at) == get(original, headers.size_of_code_at) + rsize + rsize_c + rsize_w
-          and headers.table + 40 * len(sections) <= headers.size_of_headers,
-          "SizeOfImage ends at .srpw, SizeOfUninitializedData grew by .srpd's page, SizeOfCode by .srp's, "
-          ".srpc's and .srpw's file sizes; the section table fits in the headers")
+          + rsize_r and headers.table + 40 * len(sections) <= headers.size_of_headers,
+          "SizeOfImage ends at .srpx, SizeOfUninitializedData grew by .srpd's page, SizeOfCode by .srp's, "
+          ".srpc's, .srpw's and .srpx's file sizes; the section table fits in the headers (its last entry)")
     security_offset, security_size = image.directory(4)
     old_offset, old_size = struct.unpack_from("<II", original, headers.security_at)
-    check(security_offset == raw_w + rsize_w and security_offset + security_size == len(data) and security_offset % 8 == 0
+    check(security_offset == raw_r + rsize_r and security_offset + security_size == len(data) and security_offset % 8 == 0
           and bytes(data[security_offset:]) == bytes(original[old_offset:old_offset + old_size]),
-          f"certificate table at {security_offset:#x}: right after .srpw's bytes, 8-byte aligned, last in the file, "
+          f"certificate table at {security_offset:#x}: right after .srpx's bytes, 8-byte aligned, last in the file, "
           "identical to the original's")
     same = all(image.directory(index) == before.directory(index) for index in range(16) if index != 4)
     check(same, "the other 15 data directories are those of the build without it")
@@ -4872,7 +5091,7 @@ def test_late_join(original, without, server, source):
                (headers.count_at, 2), (headers.size_of_code_at, 4), (headers.optional + 12, 4),
                (headers.size_of_image_at, 4), (headers.checksum_at, 4), (headers.security_at, 4),
                (headers.table + 40 * 7 + 8, 4), (headers.table + 40 * 7 + 16, 4), (headers.table + 40 * 8, 40),
-               (headers.table + 40 * 9, 40), (headers.table + 40 * 10, 40)]
+               (headers.table + 40 * 9, 40), (headers.table + 40 * 10, 40), (headers.table + 40 * 11, 40)]
     # The entries of the relocation table that are disabled (scene::remove_model's
     # branch, uro_fov's least, the pickup's distance, the lobby camera's least,
     # the two constants of patch 40).
@@ -5002,6 +5221,7 @@ def test_late_join(original, without, server, source):
     test_weapon_table(original, image, before)
     test_weapon_decals(original, image, before)
     test_upgrade_preview(original, image, before)
+    test_research(original, image, before)
     test_suicide_key(original, image, before)
     test_tab_list(original, image, before)
     test_tab_self(original, image, before)

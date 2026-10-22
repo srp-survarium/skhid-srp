@@ -16,10 +16,12 @@ use survarium::v026g::match_msgs::client_model::{ClientModel, Skip, Taken};
 use survarium::v026g::match_msgs::late_join::{CONNECT_CAPABILITY, Prepare, Prepared, Status};
 use survarium::v026g::match_msgs::motion;
 use survarium::v026g::match_msgs::players::{self, PlayerState};
-use survarium::v026g::match_msgs::rules::{TimelimitParams, TimelimitRule, state};
+use survarium::v026g::match_msgs::rules::{
+    END_DELAY_MS, RESEARCH_POINT, TimelimitParams, TimelimitRule, state,
+};
 use survarium::v026g::match_msgs::snapshot::{
-    self, Battery, Container, Gather, KillsDeaths, PlayerStatistics, Respawn, Rules, Sections,
-    Statistics, StatisticsTail, Tdm, Timed, Timelimit, VictoryItemStatus,
+    self, Battery, Container, Gather, KillsDeaths, PlayerStatistics, Research, ResearchUnit,
+    Respawn, Rules, Sections, Statistics, StatisticsTail, Tdm, Timed, Timelimit, VictoryItemStatus,
 };
 use survarium::v026g::match_msgs::{
     PlayerInput, ServerMessage, TICK_MS, WireTime, id, tick_byte, upload,
@@ -120,10 +122,10 @@ impl Sim {
     }
 
     fn batteries(&self) -> usize {
-        if self.game_mode() == mode::TEAM_DEATHMATCH {
-            0
-        } else {
+        if mode::WITH_BATTERIES.contains(&self.game_mode()) {
             maps::map_mode(self.map_id).map_or(0, |map| map.victory_items_count as usize)
+        } else {
+            0
         }
     }
 
@@ -223,7 +225,7 @@ impl Sim {
         .encode();
         // Modes 2 and 3: each team's points are batteries in its container
         // (team 0's is container 0 here); the others lie about.
-        let gather = tdm.is_none().then(|| {
+        let gather = mode::WITH_BATTERIES.contains(&self.game_mode()).then(|| {
             let batteries = self.batteries();
             let home = [usize::from(points[0]), usize::from(points[1])];
             let mut containers = vec![Container::default(); 2];
@@ -255,6 +257,24 @@ impl Sim {
                 }),
             }
         });
+        // Mode 5: the points are Research's shown ones, whole; three units
+        // of nobody's; its end 3 s after the points that reach the goal.
+        let research = (self.game_mode() == mode::RESEARCH).then(|| {
+            let goal = maps::map_mode(self.map_id).map_or(0, |map| map.resources_count);
+            let end = self
+                .points_from
+                .filter(|(from, points)| {
+                    since(*from) && points.iter().any(|&team| u32::from(team) >= goal)
+                })
+                .map(|(from, _)| from + END_DELAY_MS);
+            Research {
+                points: points.map(|team| u32::from(team) * RESEARCH_POINT),
+                scores: points,
+                end,
+                entered: rule.mask,
+                units: vec![ResearchUnit::default(); 3],
+            }
+        });
         let rules = Rules {
             timelimit: Timelimit {
                 start: rule.start,
@@ -273,6 +293,7 @@ impl Sim {
             }),
             gather,
             tdm,
+            research,
             kills_deaths,
             team_respawn: self
                 .team_respawn_from

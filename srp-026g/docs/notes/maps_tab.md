@@ -12,6 +12,8 @@ served by `servers/web-server/src/maps.rs`.
   - battery containers;
   - ammo stashes (the teams' resupply zones);
   - artefact spawns.
+- Research (mode 5) shows its three units, A to C, where its config puts them (`parameters.capture_zones`), as the
+  HUD draws one nobody owns (a white letter on grey; its icon is drawn in code, not one of `_icons`).
 - The markers are the game's own HUD minimap icons (hud.swf `Minimap._icons`), painted in one blue and one red alike
   (players, containers, ammo stashes: no discs). The battery is the game's electrobox drawn flat (the game has no
   flat icon of it). Artefacts are their lobby icons alone, no circle.

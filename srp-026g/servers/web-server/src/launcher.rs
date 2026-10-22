@@ -446,11 +446,11 @@ fn mode_name(lang: Lang, map: &maps::MapMode) -> String {
 /// - Players: each team's, of those who have not left.
 /// - Started: how long ago play began; before that, what the match waits for.
 /// - Time left: to the time limit, in whole minutes rounded up. A match can
-///   end sooner (the tickets or the batteries, or everyone leaving), so it
-///   is "at most".
-/// - Score: tickets left in a Team Deathmatch, batteries brought otherwise,
-///   the leader's in bold; only of a match in play, and only as fresh as
-///   [`session::v026g::matches_now::SCORE_AGE`].
+///   end sooner (the tickets, the batteries, Research's points, or everyone
+///   leaving), so it is "at most".
+/// - Score: tickets left in a Team Deathmatch, points in Research, batteries
+///   brought otherwise, the leader's in bold; only of a match in play, and
+///   only as fresh as [`session::v026g::matches_now::SCORE_AGE`].
 ///
 /// Which match is listed and which score is told are the rules the lobby's
 /// list of the matches has too ([`session::v026g::matches_now`]).

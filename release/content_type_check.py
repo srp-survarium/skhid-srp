@@ -31,7 +31,7 @@ import struct
 import sys
 
 T_BOOL, T_INT, T_FLOAT, T_NAMED, T_INDEXED, T_STR = 0, 1, 2, 3, 4, 5
-INDEX = re.compile(r"\[\d+\]")
+INDEX = re.compile(r"\[[^\]]*\]")
 
 
 def type_name(t):
@@ -51,20 +51,46 @@ def load_walk(content_edit_dir):
     return module.walk
 
 
+RAMP_KEY = re.compile(r"/key\d+(?=/|$)")
+ENTRY = re.compile(r"\[(\d+)\]")
+
+
+def normalise(path, kinds_of_entries):
+    """A value's structural path, as Research's pack builder names them
+    (scripts/research-mode/make_pack.py, project_paths): an indexed table's
+    entry is `[<its game_object_type>]` when it has one (a project's
+    client_objects hold objects of many types, each with its own keys) and
+    `[]` otherwise; a colour ramp's `key0`, `key1`, ... are one `key#` (the
+    game reads `key%d` from 0 while there is one, so a ramp may have more
+    keys than 0.26g's have)."""
+    out, at = [], 0
+    for match in ENTRY.finditer(path):
+        out.append(path[at:match.start()])
+        prefix = path[:match.end()]
+        kind = kinds_of_entries.get(prefix)
+        out.append(f"[{kind}]" if kind else "[]")
+        at = match.end()
+    out.append(path[at:])
+    return RAMP_KEY.sub("/key#", "".join(out))
+
+
 def types_of(walk, data):
-    """{normalised path: {type, ...}} of a config: every value's type, the
-    indices of indexed tables folded to `[]` (every entry of a table shares a
-    structural path), the leaf key kept. None when the bytes are not a config
-    walk reads (a texture, a sound, a model): the check does not apply."""
+    """{normalised path: {type, ...}} of a config: every value's type at its
+    structural path (normalise). None when the bytes are not a config walk
+    reads (a texture, a sound, a model): the check does not apply."""
     try:
         values = walk(bytearray(data))
-    except (AssertionError, IndexError, ValueError, KeyError, struct.error):
+    except (AssertionError, IndexError, ValueError, KeyError, struct.error, RecursionError):
         return None
     if not values or values[0][1] not in (T_NAMED, T_INDEXED):
         return None
+    kinds_of_entries = {}
+    for path, t, value in values:
+        if t == T_STR and path.endswith("]/game_object_type"):
+            kinds_of_entries[path[:-len("/game_object_type")]] = value.decode("utf-8", "replace")
     out = {}
     for path, t, _ in values:
-        out.setdefault(INDEX.sub("[]", path), set()).add(t)
+        out.setdefault(normalise(path, kinds_of_entries), set()).add(t)
     return out
 
 
