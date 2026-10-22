@@ -30,6 +30,7 @@ given), LIKELY or GUESS.
 | [items.md](items.md) | Modifications, defects, cosmetics, reroll, craft, repair: the data, the wire, the rules |
 | [weapon_scopes.md](weapon_scopes.md) | Weapon scopes: how the client builds one, scope items bought once and put on any number of weapons (variants per weapon from the game data), what a release still needs |
 | [weapon-camo.md](weapon-camo.md) | Camouflage on weapons: which weapons and where the paint goes (premium weapons' masks), slot 2 beside the scope, the engine's bake and exe patch 44, the lobby slot still to come |
+| [decals-069d.md](decals-069d.md) | The 0.69d decals (34 flags, Herbs, Clover ornament, Horseshoe, Jarilo) and the Steam camouflage: ids 1824-1862, prices, icon cells, the pack |
 | [match.md](match.md) | Match protocol: lockstep, handshake, message ids, snapshot and hash, time sync, input rules |
 | [transport.md](transport.md) | The UDP transport that matches **and now the lobby** use: header, acks, per-id lengths, multipart |
 | [static_info.md](static_info.md) | Match start (0xE4): match options, profiles with kits, byte layout |
@@ -51,6 +52,7 @@ given), LIKELY or GUESS.
 | [crouch_steps.md](crouch_steps.md) | Crouched steps audible at 40 % of walking (the owner, 2026-10-21): why crouching was silent (the crouch foot materials' empty pairs), what 0.31a2 did, the copies, who hears them |
 | [weapon_balance_2.md](weapon_balance_2.md) | Weapon balance 2 (the owner, 2026-10-20): AK-12 and premium damage 0.55 -> 0.5, piercing 0.45 -> 0.35 ("50 35 for ak-12"), the premium gives silver only; Socom16 damage 0.8 -> 0.6; each weapon in the builds at hand |
 | [golden_weapons.md](golden_weapons.md) | Golden weapons (the owner, 2026-10-21): only the silver bonus, as the weapon's own first modification; upgraded, rerolled and crafted as the plain weapon, with it as the donor; the owned ones given it once |
+| [tech-debt.md](tech-debt.md) | Known shortcuts and special cases to revisit, one bullet each |
 | [one-pocket-a-type.md](one-pocket-a-type.md) | One pocket an item type (the owner, 2026-10-21): a grenade, medkit or booster in at most one pocket of a kit (boosters added their bonus once a pocket); the server refuses a second, kits saved before are merged at load, the lobby lights up only the type's own pocket; the "4th grenade empties the slot" client bug |
 | [reroll-keep-old.md](reroll-keep-old.md) | Keeping the old modification after a reroll (the owner, 2026-10-21): the window's "Keep old" takes none of the three offered, the price stays paid; the offer kept until answered, one answer, no second roll meanwhile |
 | [battery_credit.md](battery_credit.md) | A player's battery events (put in, found, delivery shares, quests) paid per match, per kind, at most as many times as the map has batteries: the owner's rule against farming (2026-10-20), its catch |
@@ -60,6 +62,8 @@ given), LIKELY or GUESS.
 | [fov_lod.md](fov_lod.md) | Models at a high field of view: why they went out sooner (LOD and screen factor by size on the screen), the scale table, the fix (exe patch 40) |
 | [death-camera.md](death-camera.md) | The camera on the death screen: a held mouse button turns the view from the corpse's eyes, the wheel does nothing (the owner, 2026-10-21; exe patch 46) |
 | [required-patches.md](required-patches.md) | The game requires its release's patches (2026-10-21 crashes; exe patch 49): a release's exe stops at its start without a patch its server offers, built in from the offered-patch list by `release/build-zip`, checked by `release.sh` and `deploy` |
+| [item-search.md](item-search.md) | Item search (the owner, 2026-10-22): Ctrl+F over the shop, the inventory or the craft and upgrade windows' list opens a box above the item panel's buttons; the list follows each key, by the shown name, accents and Cyrillic folded, typos tolerated; Esc, Enter and the exe's window keys |
+| [max-bonus.md](max-bonus.md) | The best bonus in gold (the owner, 2026-10-22): a bonus at the strongest of the five values its type rolls shows gold, not green, everywhere bonuses are listed; the reroll window shows a bonus's range on hover; the movie's table checked against the data |
 | [ui_scale.md](ui_scale.md) | The UI at high resolutions: how each Flash movie follows the screen size, what is drawn 1:1 at 4K and how small, the HUD centring fixes |
 | [launcher_updater.md](launcher_updater.md) | The game's own updater (`survarium_updater.exe`), which the Skhid launcher does not use: its arguments, what it said on the pipe, what it did on the network |
 | [../DEPLOY.md](../DEPLOY.md) | The Docker files for the 0.26g server beside the live 0.21d one (ports table), certificates, the players' overlay. Nothing is deployed |

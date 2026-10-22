@@ -42,6 +42,10 @@ package survarium.buttons
          style = new Object();
          style.color = "#87A816";
          styleSheet.setStyle("green",style);
+         // A bonus at the best value it rolls (ModificationRolls.style).
+         style = new Object();
+         style.color = "#e9b838";
+         styleSheet.setStyle("gold",style);
          style = new Object();
          style.color = "#960F0E";
          styleSheet.setStyle("red",style);
@@ -102,6 +106,9 @@ package survarium.buttons
             {
                this.lockIcon.visible = _data.locked;
             }
+            // The reroll window's bonuses show their range on hover: `name` is the tip's text
+            // (ModificationRolls.withRange: the reroll window, the craft window's new bonus).
+            _tooltipRenderer = _data.rollRange ? SrvProfileTipRendererStyled : null;
             if(_data.reroll_available != undefined)
             {
                alpha = _data.reroll_available ? 1 : 0.5;

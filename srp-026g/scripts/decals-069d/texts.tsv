@@ -1,0 +1,42 @@
+# The names, 0.69d0's own (localization/<language>/localization), in 0.26g's six languages.
+# Fixed: English "Clover оrnament" (a Cyrillic o) and "Flag Of"; Polish "Flaga Nigeri"; a trailing space.
+key	english	german	original	polish	russian	ukrainian
+st_character_decals_7_9_name	Herbs	Kräuter	Травы	Zioła	Травы	Трави
+st_character_decals_7_27_name	Clover ornament	Kleeornament	Орнамент клевера	Ozdobna koniczyna	Орнамент клевера	Орнамент конюшини
+st_character_decals_7_28_name	Horseshoe	Hufeisen	Подкова	Podkowa	Подкова	Підкова
+st_character_decals_4_42_name	Flag of the USA	Flagge der USA	Флаг США	Flaga USA	Флаг США	Прапор США
+st_character_decals_4_43_name	Flag of Canada	Flagge von Kanada	Флаг Канады	Flaga Kanady	Флаг Канады	Прапор Канади
+st_character_decals_4_44_name	Flag of Brazil	Flagge von Brasilien	Флаг Бразилии	Flaga Brazylii	Флаг Бразилии	Прапор Бразилії
+st_character_decals_4_45_name	Flag of Argentina	Flagge von Argentinien	Флаг Аргентины	Flaga Argentyny	Флаг Аргентины	Прапор Аргентини
+st_character_decals_4_46_name	Flag of Australia	Flagge von Australien	Флаг Австралии	Flaga Australii	Флаг Австралии	Прапор Австралії
+st_character_decals_4_47_name	Flag of Finland	Finnische Flagge	Флаг Финляндии	Flaga Finlandii	Флаг Финляндии	Прапор Фінляндії
+st_character_decals_4_48_name	Flag of New Zealand	Neuseeländische Flagge	Флаг Новой Зеландии	Flaga Nowej Zelandii	Флаг Новой Зеландии	Прапор Нової Зеландії
+st_character_decals_4_49_name	Flag of Ireland	Irische Flagge	Флаг Ирландии	Flaga Irlandii	Флаг Ирландии	Прапор Ірландії
+st_character_decals_4_50_name	Flag of Scotland	Schottische Flagge	Флаг Шотландии	Flaga Szkocji	Флаг Шотландии	Прапор Шотландії
+st_character_decals_4_51_name	Flag of England	Englische Flagge	Флаг Англии	Flaga Anglii	Флаг Англии	Прапор Англії
+st_character_decals_4_52_name	Flag of South Korea	Südkoreanische Flagge	Флаг Южной Кореи	Flaga Korei Płd.	Флаг Южной Кореи	Прапор Південної Кореї
+st_character_decals_4_53_name	Flag of Japan	Japanische Flagge	Флаг Японии	Flaga Japonii	Флаг Японии	Прапор Японії
+st_character_decals_4_54_name	Flag of China	Chinesische Flagge	Флаг Китая	Flaga Chin	Флаг Китая	Прапор Китаю
+st_character_decals_1_12_name	Jarilo	Jarilo	Ярило	Jaryło	Ярило	Ярило
+st_character_decals_4_55_name	Flag of India	Flagge von Indien	Флаг Индии	Flaga Indii	Флаг Индии	Прапор Індії
+st_character_decals_4_56_name	Flag of Indonesia	Flagge von Indonesien	Флаг Индонезии	Flaga Indonezji	Флаг Индонезии	Прапор Індонезії
+st_character_decals_4_57_name	Flag of Malaysia	Flagge von Malaysia	Флаг Малайзии	Flaga Malezji	Флаг Малайзии	Прапор Малайзії
+st_character_decals_4_58_name	Flag of the Philippines	Flagge der Philippinen	Флаг Филиппин	Flaga Filipin	Флаг Филиппин	Прапор Філіппін
+st_character_decals_4_59_name	Flag of Thailand	Flagge von Thailand	Флаг Таиланда	Flaga Tajlandii	Флаг Таиланда	Прапор Таїланду
+st_character_decals_4_60_name	Flag of Vietnam	Flagge von Vietnam	Флаг Вьетнама	Flaga Wietnamu	Флаг Вьетнама	Прапор В'єтнаму
+st_character_decals_4_61_name	Flag of Bolivia	Flagge von Bolivien	Флаг Боливии	Flaga Boliwii	Флаг Боливии	Прапор Болівії
+st_character_decals_4_62_name	Flag of Chile	Flagge von Chile	Флаг Чили	Flaga Chile	Флаг Чили	Прапор Чилі
+st_character_decals_4_63_name	Flag of Colombia	Flagge von Kolumbien	Флаг Колумбии	Flaga Kolumbii	Флаг Колумбии	Прапор Колумбії
+st_character_decals_4_64_name	Flag of Ecuador	Flagge von Ecuador	Флаг Эквадора	Flaga Ekwadoru	Флаг Эквадора	Прапор Еквадору
+st_character_decals_4_65_name	Flag of Paraguay	Flagge von Paraguay	Флаг Парагвая	Flaga Paragwaju	Флаг Парагвая	Прапор Парагваю
+st_character_decals_4_66_name	Flag of Peru	Flagge von Peru	Флаг Перу	Flaga Peru	Флаг Перу	Прапор Перу
+st_character_decals_4_67_name	Flag of Uruguay	Flagge von Uruguay	Флаг Уругвая	Flaga Urugwaju	Флаг Уругвая	Прапор Уругваю
+st_character_decals_4_68_name	Flag of Venezuela	Flagge von Venezuela	Флаг Венесуэлы	Flaga Wenezueli	Флаг Венесуэлы	Прапор Венесуели
+st_character_decals_4_69_name	Flag of Albania	Flagge Albaniens	Флаг Албании	Flaga Albanii	Флаг Албании	Прапор Албанії
+st_character_decals_4_70_name	Flag of Cuba	Flagge Kubas	Флаг Кубы	Flaga Kuby	Флаг Кубы	Прапор Куби
+st_character_decals_4_71_name	Flag of Slovenia	Flagge Sloweniens	Флаг Словении	Flaga Słowenii	Флаг Словении	Прапор Словенії
+st_character_decals_4_72_name	Flag of Angola	Flagge Angolas	Флаг Анголы	Flaga Angoli	Флаг Анголы	Прапор Анголи
+st_character_decals_4_73_name	Flag of Nigeria	Flagge Nigerias	Флаг Нигерии	Flaga Nigerii	Флаг Нигерии	Прапор Нігерії
+st_character_decals_4_75_name	Flag of Wales	Flagge von Wales	Флаг Уэльса	Flaga Walii	Флаг Уэльса	Прапор Уельсу
+st_character_decals_4_74_name	Flag of South Africa	Flagge Südafrikas	Флаг ЮАР	Flaga Południowej Afryki	Флаг ЮАР	Прапор ПАР
+st_camo_steam	Steam camo	Tarnung "Dampf"	"Steam" камуфляж	"Steam" kamuflaż	"Steam" камуфляж	"Steam"-камуфляж

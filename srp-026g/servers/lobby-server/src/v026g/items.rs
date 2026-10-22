@@ -125,7 +125,7 @@ impl Core<'_> {
     /// The window as it is, after a refusal: the client's is locked until
     /// it is filled again.
     fn refill_reroll_window(&mut self, who: &Who, item_id: u32) {
-        let window = items_rules::reroll_window(&who.account.locked(), item_id, quests::now());
+        let window = items_rules::reroll_window(&who.account.locked(), item_id);
         if let Ok(window) = window {
             self.send_reroll_window(who, &window);
         }
@@ -133,7 +133,7 @@ impl Core<'_> {
 
     /// `46 06 <item>`.
     pub(super) fn open_reroll(&mut self, who: &Who, item_id: u32) {
-        let window = items_rules::reroll_window(&who.account.locked(), item_id, quests::now());
+        let window = items_rules::reroll_window(&who.account.locked(), item_id);
         match window {
             Ok(window) => self.send_reroll_window(who, &window),
             Err(error) => self.refuse_item(who, id::INVENTORY, "a reroll window", error),
@@ -188,7 +188,6 @@ impl Core<'_> {
             item_id,
             old,
             choice,
-            quests::now(),
         );
         match chosen {
             Ok(chosen) => {

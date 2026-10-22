@@ -36,7 +36,8 @@ pub fn item_descr_at(item: &Item, now: u64) -> ItemDescr {
         dict_id: item.dict_id,
         condition_or_stack: item.condition_or_stack,
         repair_time: items_rules::seconds_left(item.repair_time, now),
-        reroll_time: items_rules::seconds_left(item.reroll_time, now),
+        // no wait between rerolls (items_rules: Reroll)
+        reroll_time: 0,
         modifications: item
             .modifications
             .iter()

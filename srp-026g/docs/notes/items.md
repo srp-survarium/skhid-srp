@@ -133,7 +133,9 @@ What the lobby checks or says itself (PROVEN, `lobby_menu.swf` and the
   number of times. When you change the modifier you will be prompted to
   choose one of three random modifiers." "Only one attempt in 6 hours is
   available when paying with silver." Silver is disabled while the item's
-  `reroll_time` runs; gold never. Not for a damaged item
+  `reroll_time` runs; gold never. [srp, the owner's rule of 2026-10-22] No
+  wait: srp sends `reroll_time` 0 and the window shows no six-hour line.
+  Not for a damaged item
   (`st_reroll_message_broken_item`). The window can not be closed between
   the offer and the choice. [srp, the owner's rule of 2026-10-21] Its Cancel button
   then keeps the old modification ([reroll-keep-old.md](reroll-keep-old.md)).

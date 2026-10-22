@@ -237,11 +237,11 @@ class ReleaseTests(unittest.TestCase):
 
     def test_a_release_names_the_revision_of_the_default_exe(self):
         call, _ = self.build(self.root / 'default')
-        self.assertEqual(call.kwargs, {'revision': None})
+        self.assertEqual(call.kwargs, {'revision': None, 'required_patches': None})
         code = Path(overlay.P.late_join_bin()).read_bytes()
         call, _ = self.build(self.root / 'release', '--revision=17')
         self.assertEqual((call.args[1:], call.kwargs),
-                         (('section', mock.ANY, 'release.example:2234', code), {'revision': 17}))
+                         (('section', mock.ANY, 'release.example:2234', code), {'revision': 17, 'required_patches': None}))
         refused = (('--revision=17', '--no-late-join'), ('--revision=17', '--cave=hash-mismatch'),
                    ('--revision=017',), ('--revision=x',))
         for n, options in enumerate(refused):
