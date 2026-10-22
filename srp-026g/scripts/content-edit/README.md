@@ -257,7 +257,9 @@ simulation change.
 The `set` paths are the live file's indices: `remove_entry` is applied after every other edit. Applied
 to the stock file (sha256 `e93de4fc…c0f8`; patch 27's copy is lobby-bench-light-1's, no longer in the
 manifest): 1 file edited, 0 unexpected differences (`client_objects` 72 -> 70, `render_visuals` 90 -> 72,
-`collision_objects` 92 -> 66, the lamp's two values); the result sha256 `7f8544ec…ac96a`. Rendering
+`collision_objects` 92 -> 66, the lamp's two values); the result sha256 `7f8544ec…ac96a`; in
+`release/build-content 28` (2026-10-22, a dry run, after every other list): the same, every list at
+0 unexpected differences, the scene packed over patch 27's. Rendering
 and sound only: no server data, no simulation change. `client_project.lua` (the editor's text of the
 scene, which the game does not read) is left as it is. Not seen in a game: the lamp lights the whole
 room, so the room is brighter too; 4 and 10 m are a first guess to tune.
