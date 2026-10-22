@@ -17,13 +17,10 @@ usage: python3 -I make_pack.py --stock <folder> --donor <folder> [--base-files <
 
 Every input is checked against inputs.sha256. What the pack holds:
 - items_dict row 758 (artefact_sponge, category 12, a stack, base cost 0, as Lifebone's 54);
-- gameplay/items/artefacts/artefact_sponge.options: what 0.26g's artefact cook (the exe's Sponge
-  patch) reads: Lifebone's keys and types, the passive as a regeneration modifier of the toxin
-  pool (`infection`), data/active/grenade (the config below) and data/active/damage_zone
-  (0.28d0's zone, as 0.28d0 has it);
-- gameplay/items/artefacts/artefact_sponge_grenade.options: 0.26g's RGD-5 (its keys and types)
-  as the thrown Sponge: toxic splash 0.05-1.5 in 10 m (pierce 0.15: 0.26g's splash does nothing
-  at 0), 3 s fuse, throw power 15, the Sponge's model and 0.28d0's explosion particle;
+- gameplay/items/artefacts/artefact_sponge.options: 0.28d0's file, which exe patch 55 (0.28d0's
+  artefact_sponge_core written again for 0.26g) reads as it is, with two numbers of the owner's
+  static toxin rule (PASSIVE: the passive keeps the toxin pool `infection` full while the Sponge
+  is owned) and the description key srp's own text (0.28d0 names Spring's);
 - the model item/artefacts/artefact_sponge (0.28d0's files as they are: the model format is
   0.26g's; its material item/artefacts_sponge is 0.26g's own);
 - the particles of the Sponge (PARTICLES): 0.28d0's without MarginMultiplier (0.26g's particle
@@ -52,10 +49,19 @@ sys.path.insert(0, str(HERE.parent / 'research-mode'))
 import bcw  # noqa: E402
 
 PACK_ID = 'sponge'
-VERSION = '1'
+VERSION = '2'
 DICT_ID = 758
 CONFIG = 'gameplay/items/artefacts/artefact_sponge.options'
-GRENADE = 'gameplay/items/artefacts/artefact_sponge_grenade.options'
+# The owner's static toxin rule (2026-10-22): while a Sponge is owned its passive keeps infection
+# full. The passive is a regeneration modifier of the pool (exe patch 55, Lifebone's callback
+# 0x312590): speed (s + regen_add) x regen_mul, timeout (t + timeout_add s) x timeout_mul,
+# threshold (th + threshold_add) x threshold_mul. 0.28d0 has {0, 1, 0, 1, 1.5, 1}: regen_add
+# 1000 refills the pool at the next regeneration tick, timeout_mul 0 takes the delay after a hit
+# away; the threshold stays 0.28d0's (+1.5: past full).
+PASSIVE = {'regen_add': (0, 1000), 'timeout_mul': (1, 0)}
+# 0.28d0's ui_desc names Spring's description (st_artefact_spring_description); the Sponge's own
+# is texts.tsv's.
+DESCRIPTION = ('st_artefact_spring_description', 'st_artefact_sponge_description')
 MODEL = 'models/item/artefacts/artefact_sponge.model/'
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 # 0.28d0's texts, in its six languages; the description and activation hint are texts.tsv's.
@@ -177,78 +183,33 @@ def check_types(made, model, where, skip=()):
 
 
 def sponge_config(donor, lifebone):
-    """The Sponge as 0.26g's artefact cook and the exe's Sponge patch read it."""
-    zone = donor['data']['active']['damage_zone']
-    config = {
-        'parameters': {'weight': 0.1},
-        'ui_desc': {
-            'combat_log_icon': 17,
-            'text_descriptions': {'name': 'st_artefact_sponge_name', 'description': 'st_artefact_sponge_description'},
-            'icon': [22, 1],
-            'props_list': {},
-        },
-        'object': {
-            'particle_on_spawn': 'fx/artifacts/pre_mochalka1',
-            'model': 'item/artefacts/artefact_sponge',
-            'sound_on_spawn': [257, 'artefacts/artefact_appear_default'],
-        },
-        'data': {
-            'pickup_hint': 'st_sponge_pickup_hint',
-            'activation_hint': 'st_sponge_activation_hint',
-            'type': 12,
-            'amount': 1,
-            'spawn_sec': 2,
-            'cooldown_sec': 0,
-            'effect': 'artefact_spring',
-            'passive': {'regeneration_modifiers': [{
-                'body_part': 'infection', 'regen_add': 1000.0, 'regen_mul': 1, 'timeout_add': 0, 'timeout_mul': 0,
-                'threshold_add': 1.5, 'threshold_mul': 1}]},
-            'active': {
-                'duration': 0,
-                'remove_affects': [],
-                'grenade': GRENADE,
-                'duration_s': 10,
-                'damage_zone': copy.deepcopy(zone),
-            },
-        },
-    }
+    """0.28d0's artefact_sponge.options as exe patch 55 reads it: the file as it is but PASSIVE and
+    DESCRIPTION."""
+    config = copy.deepcopy(donor)
+    passive = config['data']['passive']
+    for key, (was, now) in PASSIVE.items():
+        if passive.get(key) != was or type(passive[key]) is not int:
+            sys.exit(f'donor {CONFIG}: data/passive/{key} is {passive.get(key)!r}, not {was}')
+        passive[key] = now
+    names = config['ui_desc']['text_descriptions']
+    if names.get('description') != DESCRIPTION[0]:
+        sys.exit(f'donor {CONFIG}: ui_desc/text_descriptions/description is {names.get("description")!r}')
+    names['description'] = DESCRIPTION[1]
     # What 0.28d0 says the Sponge is, so a later donor cannot slip in unnoticed.
-    for key, want in (('type', 12), ('amount', 1), ('spawn_sec', 2), ('effect', 'artefact_spring')):
+    for key, want in (('type', 12), ('amount', 1), ('spawn_sec', 2), ('effect', 'artefact_spring'),
+                      ('activation_timeout_s', 3), ('cooldown_sec', 0)):
         if donor['data'][key] != want:
             sys.exit(f'donor {CONFIG}: data/{key} is {donor["data"][key]!r}, not {want!r}')
+    active = donor['data']['active']
+    for key, want in (('duration_s', 10), ('throw_power', 15), ('splash_pierce', 0), ('splash_radius', 10),
+                      ('splash_damage_type', 'toxic')):
+        if active[key] != want:
+            sys.exit(f'donor {CONFIG}: data/active/{key} is {active[key]!r}, not {want!r}')
     if donor['ui_desc']['icon'] != [22, 1] or donor['ui_desc']['combat_log_icon'] != 17:
         sys.exit(f'donor {CONFIG}: not the icons [22, 1] and 17')
-    check_types(config, lifebone, 'artefact_sponge.options', skip={('data', 'active', 'damage_zone')})
-    return config
-
-
-def grenade_config(rgd5):
-    """0.26g's RGD-5 as the thrown Sponge: its keys and types, the Sponge's values."""
-    config = copy.deepcopy(rgd5)
-    parameters, data = config['parameters'], config['data']
-    for key, value in (('weight', 0.1), ('splash_max_damage', 1.5), ('splash_min_damage', 0.05), ('splash_radius', 10),
-                       ('splash_pierce', 0.15), ('stamina_damage', 0), ('stopping_power', 0.0)):
-        if key not in parameters:
-            sys.exit(f'rgd-5.options: no parameters/{key}')
-        parameters[key] = value
-    config['ui_desc'] = {
-        'combat_log_icon': 17,
-        'text_descriptions': {'name': 'st_artefact_sponge_name', 'description': 'st_artefact_sponge_description'},
-        'icon': [22, 1],
-        'props_list': [],
-    }
-    for key, value in (('preview_model', 'item/artefacts/artefact_sponge'), ('model', 'item/artefacts/artefact_sponge'),
-                       ('ttl_ms', 3000), ('throw_power', 15), ('splash_max_damage', 1.5), ('splash_min_damage', 0.05),
-                       ('splash_radius', 10), ('splash_pierce', 0.15), ('splash_damage_type', 'toxic'),
-                       ('splash_affected_bodies', [6, 0, 1, 7, 11, 12]), ('stamina_damage', 0),
-                       ('stopping_power', 0.0), ('particle_explosion', 'fx/artifacts/mochalka_explosion'),
-                       ('sound_explosion', [257, 'weapons/f1'])):
-        if key not in data:
-            sys.exit(f'rgd-5.options: no data/{key}')
-        data[key] = value
-    check_types(config, rgd5, 'artefact_sponge_grenade.options')
-    if set(config) != set(rgd5) or set(parameters) != set(rgd5['parameters']) or set(data) != set(rgd5['data']):
-        sys.exit('artefact_sponge_grenade.options: not the keys of rgd-5.options')
+    # the keys every 0.26g artefact reader shares with Lifebone's are of Lifebone's types (the
+    # passive and the active are the Sponge's own, read by the exe's patch alone)
+    check_types(config, lifebone, 'artefact_sponge.options', skip={('data', 'passive'), ('data', 'active')})
     return config
 
 
@@ -367,7 +328,8 @@ def main():
     spring = bcw.loads(stock.read('gameplay/items/artefacts/artefact_spring.options'))
     if spring['data']['effect'] != 'artefact_spring':
         sys.exit('0.26g has no effect artefact_spring (artefact_spring.options data/effect)')
-    files[GRENADE] = bcw.dump(grenade_config(bcw.loads(stock.read('gameplay/items/weapons/rgd-5.options'))))
+    log.append(f'{CONFIG}: 0.28d0\'s but ' + ', '.join(f'data/passive/{k} {a} -> {b}' for k, (a, b) in PASSIVE.items())
+               + f', the description {DESCRIPTION[1]}')
 
     for path in sorted(p[len('donor/'):] for p in sums if p.startswith('donor/' + MODEL)):
         files[path] = donor.read(path)
@@ -445,8 +407,8 @@ def main():
         'id': PACK_ID,
         'version': VERSION,
         'target_build': '0.26g',
-        'description': 'the Sponge (items_dict 758, 0.28d0\'s artefact_sponge): its config and thrown grenade, '
-                       'model, particles, materials, textures and texts',
+        'description': 'the Sponge (items_dict 758, 0.28d0\'s artefact_sponge): its config (0.28d0\'s, the passive '
+                       'keeping infection full), model, particles, materials, textures and texts',
         'operations': operations,
         'notes': ['made by srp-026g/scripts/sponge/make_pack.py from inputs.sha256 and texts.tsv',
                   'donor: Survarium 0.28d0'] + log,

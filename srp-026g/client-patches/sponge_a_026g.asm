@@ -1,6 +1,6 @@
-; The Sponge (exe patch 55 path A): the hooks of artefact type 12, in front
+; The Sponge (exe patch 55): the hooks of artefact type 12, in front
 ; of the C code of sponge_a_026g.c at +0xC000 of `.srpx` (sponge_a_026g.py
-; builds it; patch_026g.py puts it there). client_patch.md, patch 55 path A.
+; builds it; patch_026g.py puts it there). client_patch.md, patch 55.
 ;
 ;   +00  construct  the artefact cook's construct 0x25E660 at its type switch
 ;                   (0x25E68A `cmp eax,5 / ja`): type 12 (eax 9) is ours

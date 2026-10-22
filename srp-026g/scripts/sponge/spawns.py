@@ -57,7 +57,7 @@ def main():
             per_map[path] += 1
             before = ' + '.join(f"{a['dict_id']} x{a['count']}" for a in artefacts)
             pools[f'{obj["full_name"]}: {before} -> {before} + {DICT_ID} x1'] += 1
-    about = ('the Sponge (items_dict 758, pack sponge@1) in the maps\' anomalies: every generic_anomaly_core '
+    about = ('the Sponge (items_dict 758, pack sponge@2) in the maps\' anomalies: every generic_anomaly_core '
              'with an artefact container gets {dict_id 758, count 1} after its last artefact kind '
              '(made by srp-026g/scripts/sponge/spawns.py)')
     # An entry a line: the list reads as the cores it changes.

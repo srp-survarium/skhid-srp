@@ -1882,9 +1882,8 @@ def weapon_camo_va(late_join):
 # end there). Its pages: Research's code (+0, RESEARCH_OFFSET) and state
 # (+3000h); the dynamic anomalies of patch 42 (#225, not merged) take
 # DYNAMIC_ANOMALIES_OFFSET (+4000h) on, assembled for EXTENSION_VA plus it;
-# the Sponge's patch 55 path B (another branch) +8000h, SPONGE_B_OFFSET; the
-# Sponge's patch 55 path A +C000h, SPONGE_A_OFFSET (its code, state at
-# +F000h). Pages no patch of this build fills are int3.
+# +8000h..+BFFFh free; the Sponge's patch 55 +C000h, SPONGE_A_OFFSET (its
+# code, state at +F000h). Pages no patch of this build fills are int3.
 EXTENSION_NAME = b".srpx\0\0\0"
 EXTENSION_CHARACTERISTICS = 0xE0000060         # code, initialized data, execute, read, write
 EXTENSION_VA = 0xA42D000                       # weapon_camo_va + .srpw's three pages
@@ -1903,7 +1902,7 @@ RESEARCH_HOOKS = (
     (0x23B351, bytes.fromhex("83f8047514"), 0xA, 0xE9),         # update_ui's first message: welcome
 )
 
-# The Sponge, artefact type 12, path A (patch 55, README; client_patch.md
+# The Sponge, artefact type 12 (patch 55, README; client_patch.md
 # section 3.52; docs/notes/sponge.md): sponge_a_026g.section.bin
 # (sponge_a_026g.py: sponge_a_026g.asm's eight entries and stubs, then the C
 # code of sponge_a_026g.c and its constant data, linked for SPONGE_A_VA) at
@@ -1925,7 +1924,6 @@ RESEARCH_HOOKS = (
 #   with no instigator, inflictor or item): a zone a sponge ticks names its
 #   thrower (kill credit), its inflictor and it.
 # No base relocation is under a site and no branch aims inside one.
-SPONGE_B_OFFSET = 0x8000                       # reserved for patch 55 path B (another branch)
 SPONGE_A_OFFSET = 0xC000
 SPONGE_A_VA = EXTENSION_VA + SPONGE_A_OFFSET
 SPONGE_A_ASM_SIZE = 0x200
@@ -2812,9 +2810,9 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             research += b"\xCC" * (RESEARCH_STATE_OFFSET - len(research)) + bytes(RESEARCH_SIZE - RESEARCH_STATE_OFFSET)
             extension = b"\xCC" * RESEARCH_OFFSET + research
             sponge = open(sponge_a_bin(), "rb").read()
-            if not (RESEARCH_OFFSET + RESEARCH_SIZE <= DYNAMIC_ANOMALIES_OFFSET < SPONGE_B_OFFSET < SPONGE_A_OFFSET
+            if not (RESEARCH_OFFSET + RESEARCH_SIZE <= DYNAMIC_ANOMALIES_OFFSET < SPONGE_A_OFFSET
                     and SPONGE_A_OFFSET + SPONGE_A_SIZE <= 0x10000):
-                sys.exit("the pages of .srpx overlap: Research, patch 42, patch 55 path B, patch 55 path A")
+                sys.exit("the pages of .srpx overlap: Research, patch 42, patch 55")
             if len(sponge) > SPONGE_A_STATE_OFFSET or any(sponge[at] != 0xE9 for at in SPONGE_A_ENTRIES) \
                     or sponge_a_layout(sponge) != (SPONGE_A_VA, SPONGE_A_STATE_VA):
                 sys.exit(f"sponge_a_026g.section.bin was built for another place or state "

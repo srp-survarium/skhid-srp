@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Run patch 55 path A (the Sponge, artefact type 12: sponge_a_026g.asm,
+"""Run patch 55 (the Sponge, artefact type 12: sponge_a_026g.asm,
 sponge_a_026g.c) in the default build on made-up cooks, inventories,
 players, worlds and zones, and 0.28d0's own sponge code on the same inputs.
 
     python check_sponge_a_026g.py <original survarium.exe> [--v028d0 <0.28d0 survarium.exe>]
-                                  [--options <artefact_sponge.options>]
+                                  [--options <artefact_sponge.options>] [--pack <sponge-2 folder>]
 
 Requires Python `unicorn`. The built exe's sections are loaded as they are
 and its code runs as machine code; the game's own code runs where the patch
@@ -28,7 +28,10 @@ model calls. With --v028d0 (the file as shipped: its x86 BCJ filter is undone
 here) 0.28d0's action 0x514580, its passive's callback 0x514380, its throw
 0x514620 with its launch 0x5146E0 and its splash's damage (0x5412AE..0x5412DC)
 run on the same numbers, and must agree. --options checks the config this
-script writes against the 0.28d0 file. What each case checks is printed.
+script writes against the 0.28d0 file. --pack (or SRP_SPONGE_PACK) names the
+content pack's folder: its artefact_sponge.options is read by the build's cook
+and its passive run through the game's regeneration tick (0x32A4B0). What
+each case checks is printed.
 """
 import argparse
 import json
@@ -51,6 +54,8 @@ import bcw  # noqa: E402
 SYMBOLS = {name: int(va, 16) for name, va in json.load(open(os.path.join(HERE, "sponge_a_026g.section.json")))
            ["symbols"].items()}
 VA, STATE = base.SPONGE_A_VA, base.SPONGE_A_STATE_VA
+# the content pack (release/content.tsv sponge@2), in the main checkout's private folder
+PACK = os.path.join(HERE, "..", "..", "..", "skhid-srp", "private", "content-packs", "sponge-2")
 HEAP, STACK, FAKE, CORE, CONFIG = 0x30000000, 0x21000000, 0x22000000, 0x40000000, 0x50000000
 STOP = FAKE + 0x10
 NEVER = 0xFFFFFFFF
@@ -372,7 +377,7 @@ class Game:
         self.pools = {}
         previous = 0
         for name in ("head", "body", "pain", "infection"):
-            pool = r.allocate(0x300)
+            pool = r.allocate(0x400)
             text = r.allocate(16)
             r.emu.mem_write(text, name.encode() + b"\0")
             r.word(pool + 0x80, text)
@@ -492,6 +497,8 @@ def main():
     parser.add_argument("original")
     parser.add_argument("--v028d0", help="0.28d0's binaries/x86/survarium.exe as shipped")
     parser.add_argument("--options", help="0.28d0's gameplay/items/artefacts/artefact_sponge.options")
+    parser.add_argument("--pack", default=os.environ.get("SRP_SPONGE_PACK", PACK),
+                        help="the content pack's folder (sponge@2: private/content-packs/sponge-2)")
     args = parser.parse_args()
     original = open(args.original, "rb").read()
     code = open(base.default_bin("section"), "rb").read()
@@ -1440,6 +1447,78 @@ def main():
           (spent_use & 0xFF) == 0 and (ready_use & 0xFF) == 1 and len(z_ticks) == 200
           and ("zone_off", z_zone, 0) in events and r.read(z + STATE_AT) == 3 and r.read(z + S_EXPLODE) == NEVER,
           f"{spent_use:#x} {ready_use:#x} ticks {len(z_ticks)}")
+
+    # 15. The content pack's own config (release/content.tsv sponge@2, SRP_SPONGE_PACK or --pack: its
+    #     folder), loaded as the game loads it: the cook reads it, and its passive keeps infection full.
+    pack_config = os.path.join(args.pack, "files", "gameplay", "items", "artefacts", "artefact_sponge.options")
+    if os.path.exists(pack_config):
+        prun = Run(pe_sections(built))
+        pgame = Game(prun, open(pack_config, "rb").read())
+        p = prun
+        pvt = lambda obj, slot: p.read(p.read(obj) + 4 * slot)
+        psponge = p.allocate(S_SIZE, 0xAB)
+        made, _ = p.thiscall(0x25E660, pgame.cook, psponge, pgame.resource_ptr, p.allocate(4), pgame.scene)
+        size, _ = p.thiscall(0x25E770, pgame.cook, pgame.resource_ptr)
+        phit = splash_of(p, psponge + S_SPLASH)
+        check("the pack's artefact_sponge.options (0.28d0's file but the passive's regen_add 1000 and timeout_mul "
+              "0): a sponge of 688h bytes; duration 10000, fuse 3000, throw power 15, the passive {1000, 1, 0, 0, "
+              "1.5, 1}, the splash 0.28d0's (radius 10, 0.05..1.5, pierce 0: no damage of its own, toxic)",
+              made == psponge and size == S_SIZE and p.read(psponge + S_DURATION) == 10000
+              and p.read(psponge + S_TIMEOUT) == 3000 and p.readf(psponge + S_POWER) == 15.0
+              and p.readf(psponge + S_PASSIVE + 0x1C, 6) == [1000.0, 1.0, 0.0, 0.0, 1.5, 1.0]
+              and phit["radius"] == 10.0 and phit["min"] == f32(0.05) and phit["max"] == 1.5
+              and phit["pierce"] == 0.0 and phit["type"] == TOXIC and phit["bodies"][:6] == [6, 0, 1, 7, 11, 12],
+              f"{p.readf(psponge + S_PASSIVE + 0x1C, 6)} {phit}")
+        # the infection pool as the regeneration tick (0x32A4B0) reads it: Hmax +9Ch, H +A0h, speed +A4h,
+        # threshold +A8h, the timeout +ACh, the last hit +B0h, its modifiers +2E8h
+        pool = pgame.pools["infection"]
+        owner_of = p.allocate(0x400)
+        p.word(owner_of + 0x3B0, pgame.player)
+        p.word(pool + 0x7C, owner_of)
+        p.emu.mem_write(pool + 0x9C, struct.pack("<ffffI", 1.0, 1.0, 0.0, 1.0, 0))
+        p.word(pool + 0x30, pool + 0x3C)
+        p.word(pool + 0x34, pool + 0x3C)
+        p.word(pool + 0xD4, 4)
+        p.stub(lambda r: None, 4, at=0x32B920)
+        p.stub(lambda r: None, 0, at=0x32A9C0)
+        p.word(psponge + 0x25C, pgame.dict_item)
+        p.emu.mem_write(psponge + COUNT, struct.pack("<H", 1))
+        p.word(pgame.inventory + 0x10C + 4 * 13, psponge)
+        p.word(psponge + 0xD0, 2)
+        p.thiscall(pvt(psponge, 10), psponge, pgame.inventory, 13)
+        p.thiscall(pvt(psponge, 12), psponge)
+
+        def toxic(h, timeout, dt):
+            p.float(pool + 0xA0, h)
+            p.word(pool + 0xAC, timeout)
+            p.word(pool + 0xB0, 20000)                        # the hit, just now
+            p.call(0x32A4B0, (dt, 20000), {UC_X86_REG_EDI: pool})
+            return round(p.readf(pool + 0xA0), 5)
+        full = [toxic(0.25, 0, 50), toxic(0.0001, 8000, 1)]
+        p.thiscall(pvt(psponge, 33), psponge)
+        without = toxic(0.25, 0, 50)
+        p.thiscall(pvt(psponge, 31), psponge)
+        p.float(pool + 0xA8, 0.0)
+        threshold0 = toxic(0.25, 0, 50)
+        p.float(pool + 0xA8, 1.0)
+        check("owned (picked up: its node on infection, 0x313470), a toxic hit's damage is back to full at the next "
+              "regeneration tick (0x32A4B0, the game's: 50 ms; a 1 ms tick with a regeneration timeout of 8 s too: "
+              "timeout_mul 0); not owned, the pool does not regenerate (speed 0); with a threshold of 0 full too",
+              full == [1.0, 1.0] and without == 0.25 and threshold0 == 1.0, f"{full} {without} {threshold0}")
+        # the passive's links (14a, 14b) with the pack's numbers: a load of a held state, a death, a removal
+        p.emu.mem_write(pgame.player + 0x33C, b"\x00")
+        p.thiscall(pvt(psponge, 29), psponge, 50, 30000)
+        dead = (p.read(psponge + STATE_AT), toxic(0.25, 0, 50))
+        p.emu.mem_write(pgame.player + 0x33C, b"\x01")
+        p.thiscall(pvt(psponge, 14), psponge)
+        back = toxic(0.25, 0, 50)
+        p.call(0x2FC680, regs={UC_X86_REG_EAX: 13, UC_X86_REG_ESI: pgame.inventory})
+        removed = toxic(0.25, 0, 50)
+        check("with its links: the holder dead (state 5, out) the pool stays hit; back (state 3) full again; taken "
+              "out of the inventory, it stays hit", dead == (5, 0.25) and back == 1.0 and removed == 0.25
+              and p.read(pool + 0x2EC) == 0, f"{dead} {back} {removed}")
+    else:
+        print(f"  --  the content pack's config not checked (no {pack_config}: SRP_SPONGE_PACK or --pack)")
 
     # 13. 0.28d0's own sponge code on the same numbers (its layout: artefact_sponge_core, client_patch.md).
     if args.v028d0:

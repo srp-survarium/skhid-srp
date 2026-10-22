@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The Sponge's code (exe patch 55 path A): builds sponge_a_026g.section.bin,
+"""The Sponge's code (exe patch 55): builds sponge_a_026g.section.bin,
 the code patch_026g.py puts at +0xC000 of the section `.srpx`.
 
     python sponge_a_026g.py --write-bin [--nasm /path/to/nasm]

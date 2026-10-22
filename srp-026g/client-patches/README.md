@@ -101,10 +101,10 @@ release's. The "Result" row is the build of the revision named in it.
 | `research_026g.section.bin`, `research_026g.section.json` | That code built for the start of `.srpx` (0xA42D000), which `patch_026g.py` reads, and beside it its symbols and what built it. The same tools give the same bytes; another compiler gives other bytes that do the same, so the file is kept, not rebuilt for a release |
 | `research_026g.py` | Builds those two files (`--write-bin`) or says whether they are what the sources give here (`--check-bin`). Needs nasm, gcc for x86 (`-m32`, SSE2 scalar floats) and GNU ld |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
-| `sponge_a_026g.asm`, `sponge_a_026g.c` | The source of patch 55 path A (the Sponge, artefact type 12): the eight hooks and their stubs in assembly, and 0.28d0's artefact_sponge_core written again in C on 0.26g's interfaces (the object, its vtables, the cook's query, the throw, the explosion, the zone, the passive, the state) |
+| `sponge_a_026g.asm`, `sponge_a_026g.c` | The source of patch 55 (the Sponge, artefact type 12): the eight hooks and their stubs in assembly, and 0.28d0's artefact_sponge_core written again in C on 0.26g's interfaces (the object, its vtables, the cook's query, the throw, the explosion, the zone, the passive, the state) |
 | `sponge_a_026g.section.bin`, `sponge_a_026g.section.json` | That code built for +C000h of `.srpx` (0xA439000), which `patch_026g.py` reads, and beside it its symbols and what built it; kept, not rebuilt for a release, as Research's |
 | `sponge_a_026g.py` | Builds those two files (`--write-bin`) or says whether they are what the sources give here (`--check-bin`). Needs nasm, gcc for x86 (`-m32`, SSE2 scalar floats) and GNU ld |
-| `check_sponge_a_026g.py` | Checks of patch 55 path A: runs the built exe's hooks and the sponge's slots with the game's own cook, Rattle constructor, config look-ups, splash and damage zone code on made-up items, players and worlds (needs Unicorn); with `--v028d0` the same inputs through 0.28d0's own code, with `--options` the config read from a decoded `artefact_sponge.options` |
+| `check_sponge_a_026g.py` | Checks of patch 55: runs the built exe's hooks and the sponge's slots with the game's own cook, Rattle constructor, config look-ups, splash and damage zone code on made-up items, players and worlds (needs Unicorn); with `--v028d0` the same inputs through 0.28d0's own code, with `--options` the config read from a decoded `artefact_sponge.options` |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
 | `check_death_camera_026g.py` | Runs the original's and patch 46's mouse moves through the game world's input handler (the death screen, a live player, spectators, a death before the start) and update_camera's call of the view's update on a made-up eye transform (needs Unicorn) |
@@ -2930,17 +2930,21 @@ the build's loader too (aim -0.05 / -0.1, stopping power -1). Against the build 
 0x311BC0, 0x311DA0, 0x3122AA, 0x313300, 0x33AE13), `.srpw`'s 784 bytes at 0xA42C700, its sizes and the headers that follow (compared
 section by section). **Not run in a game.**
 
-### 55. The Sponge, path A: artefact type 12 as 0.28d0's code (the next release's revision)
+### 55. The Sponge: artefact type 12 as 0.28d0's code (the next release's revision)
 
 The Sponge (`artefact_sponge`, data type 12, the item of dictionary 758) is a thrown artefact of
-0.28: held in the grenade slot and thrown as a grenade, it explodes after its fuse into a splash
-and a toxic damage zone of a few seconds, and while it is carried it has a passive (the
+0.28: carried in an artefact slot and thrown on its key as a grenade, it explodes after its fuse
+into a splash and a toxic damage zone of ten seconds, and while it is owned it has a passive (the
 regeneration modifier Lifebone's has). 0.26g has none of its code: the artefact cooks know types
-3, 6, 7 and 8, and the throw state takes the slot's item for a grenade set. Path A writes 0.28d0's
-code again in C (artefact_sponge_core 0x5136E0..0x515270, its cook 0x46A740..0x46AEA6 and the
-config reader 0x5439E0 of the decoded 0.28d0 exe) on 0.26g's interfaces, as Research is written,
-and it reads 0.28d0's `artefact_sponge.options` as it is. The item, configs, model, particles,
-texts and spawning are not this patch's (path B's branch). The rules: `../docs/notes/sponge.md`.
+3, 6, 7 and 8, and the throw state takes the slot's item for a grenade set. The patch writes
+0.28d0's code again in C (artefact_sponge_core 0x5136E0..0x515270, its cook 0x46A740..0x46AEA6
+and the config reader 0x5439E0 of the decoded 0.28d0 exe) on 0.26g's interfaces, as Research is
+written, and it reads 0.28d0's `artefact_sponge.options` as it is. The content is pack `sponge@2`
+(`../scripts/sponge/make_pack.py`: item 758, 0.28d0's config with the owner's static toxin rule in
+its passive, regen_add 1000 and timeout_mul 0, 0.28d0's model, particles, materials and textures,
+texts in six languages) and the edit list `sponge-spawns-1` (one Sponge in each of the 200 map
+anomaly cores with an artefact container); the hud movie draws its combat-log icon
+(`SpongeLogIcon`). The rules: `../docs/notes/sponge.md`.
 
 - **The object** (`sponge_a_026g.c`, 0x688 bytes): Rattle's `artefact<artefact_rattle_core>`
   (artefact_base 0x312FD0 and the drawable at +340h, built by Rattle's constructor 0x25FA10), then
@@ -2995,16 +2999,17 @@ texts and spawning are not this patch's (path B's branch). The rules: `../docs/n
   takes each thing out of what it went into first: the zone off, the drawables out of the
   scene's list, the geometry it made destroyed and freed, the body out of the physics world.
 - **The section**: `sponge_a_026g.asm` (eight `jmp near`, 200h bytes) and the C code at +C000h of
-  `.srpx` (0xA439000), its state page at +F000h zeroed. +8000h is path B's (another branch),
-  +4000h patch 42's.
+  `.srpx` (0xA439000), its state page at +F000h zeroed. +4000h is patch 42's, +8000h..+BFFFh
+  free.
 
 What it does that 0.28d0 does not, and why: `../docs/notes/client_patch.md` section 3.52 (the
 splash of 0.28d0's config does no damage there either: `splash_pierce` 0).
 
 **Revisions.** A sponge exists only in a match with item 758, which no resources.db of a release
 before this one has; a game with it runs this code in every game of the match, so it is in the
-`next` row of `../crates/session/src/v026g/simulation_changes.tsv`. Only in the builds with the
-late join.
+`next` row of `../crates/session/src/v026g/simulation_changes.tsv`. The exe needs the pack's
+config: patch 49 makes the release's exe require its resources.db patch. Only in the builds with
+the late join.
 
 Checked: `selftest_026g.py` check 55 (the eight sites before and after, no relocation under one
 and no branch into one, the entries and the stubs' exits, the `.srpx` layout);
@@ -3017,8 +3022,10 @@ arguments against the original, serialization round trips in every state, the dr
 revive, patch 54's press; a removal while armed, a load turning the passive out and in, a late
 joiner's zone and a thrower who left, a tap, the destructor in the air and with the zone on, a
 container's can_use on a spent sponge; with `--v028d0` 0.28d0's own action, passive, throw and
-splash on the same inputs give the same numbers, and its tap leaves the sponge unarmed). **Not
-run in a game.**
+splash on the same inputs give the same numbers, and its tap leaves the sponge unarmed; with the
+pack (`--pack`, `SRP_SPONGE_PACK`) the cook reads the pack's own `artefact_sponge.options` and the
+game's regeneration tick 0x32A4B0 fills infection again after a toxic hit while it is owned, not
+after a death or a removal). **Not run in a game.**
 
 ## Not ported, not done
 

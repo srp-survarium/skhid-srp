@@ -408,7 +408,7 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     its remove_affects, artefact_base::action's entry, the player's
     stagger) and the two sizes of a Spring, the hooks and sizes in the
     build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
-55. the same build: the Sponge, path A (patch 55, sponge_a_026g.section.bin at
+55. the same build: the Sponge (patch 55, sponge_a_026g.section.bin at
     +C000h of `.srpx`; its state at +F000h): the .bin is its .json's, the
     eight sites (the artefact cook's construct and size switches and its
     query's entry, the throw-grenade state's way in, is_ready, throw and the
@@ -2104,7 +2104,7 @@ def test_research(original, image, before):
 
 
 def test_sponge_a(original, image, before):
-    """Check 55: the Sponge, path A (patch 55, SPONGE_A_*; sponge_a_026g.py,
+    """Check 55: the Sponge (patch 55, SPONGE_A_*; sponge_a_026g.py,
     check_sponge_a_026g.py runs the cook, the throw state's sites, the fuse,
     the splash, the zone and the serialization on made-up games). Here: the
     .bin is its .json's; each site is the original's instructions before and
@@ -4936,13 +4936,13 @@ def test_late_join(original, without, server, source):
     check(name_r == P.EXTENSION_NAME and flags_r == P.EXTENSION_CHARACTERISTICS
           and rva_r == align(rva_w + vsize_w, headers.section_alignment) and P.IMAGE_BASE + rva_r == P.EXTENSION_VA
           and P.RESEARCH_VA == P.EXTENSION_VA + P.RESEARCH_OFFSET and P.RESEARCH_OFFSET == 0
-          and P.RESEARCH_SIZE <= P.DYNAMIC_ANOMALIES_OFFSET < P.SPONGE_B_OFFSET < P.SPONGE_A_OFFSET
+          and P.RESEARCH_SIZE <= P.DYNAMIC_ANOMALIES_OFFSET < P.SPONGE_A_OFFSET
           and P.SPONGE_A_VA == P.EXTENSION_VA + P.SPONGE_A_OFFSET
           and vsize_r == P.SPONGE_A_OFFSET + P.SPONGE_A_SIZE and raw_r == raw_w + rsize_w
           and rsize_r == align(vsize_r, headers.file_alignment) and bytes(data[raw_r:raw_r + vsize_r]) == extension,
           f".srpx at VA {P.IMAGE_BASE + rva_r:#x}: research_026g.section.bin, int3 padding to its state page at "
           f"+{P.RESEARCH_STATE_OFFSET:#x}, the page zeroed; int3 over patch 42's (+{P.DYNAMIC_ANOMALIES_OFFSET:#x}) "
-          f"and patch 55 path B's (+{P.SPONGE_B_OFFSET:#x}) pages; sponge_a_026g.section.bin at "
+          f"pages and the free ones after them; sponge_a_026g.section.bin at "
           f"+{P.SPONGE_A_OFFSET:#x}, int3 padding to its state page at +{P.SPONGE_A_OFFSET + P.SPONGE_A_STATE_OFFSET:#x}, "
           "the page zeroed; code | data | execute | read | write, on the page after .srpw, its file bytes right "
           "after .srpw's")

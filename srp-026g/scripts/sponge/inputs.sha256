@@ -1,7 +1,6 @@
 # sha256 and the input each file is (make_pack.py --stock: 0.26g as the manifest's packs are composed over it; --donor: 0.28d0), at its game path
 4f990998e543800bd208ef3e5d40cb50df29ef6389fa3d6e5b83e51f1b0d842b  stock/gameplay/items/artefacts/artefact_lifebone.options
 c94aae41d475b4664b16f31660c4baa300f02f339cddfd6e3662c92a89bab292  stock/gameplay/items/artefacts/artefact_spring.options
-896d71a7b57826849d3eba0c5acb6422c9a38f9dbc3925283a1387a1730dd105  stock/gameplay/items/weapons/rgd-5.options
 e28f7564faa79f3d3d234ec1895a6095bc804433c47c58ac6371a47d23deb8e6  stock/material_instances/fx/artifacts/caustic.material
 9b89a3fe0bbab74e711a96aa31643b94fe93ce0975a9ae4c4b18217bb8593e49  stock/material_instances/fx/artifacts/dust.material
 45cc1dda3ff02956d3167c0c9b4377f878af84bb1c5c17307f0c4f205edddcc5  stock/material_instances/fx/artifacts/dust_tiled.material

@@ -1,5 +1,5 @@
 {
- "_about": "the Sponge (items_dict 758, pack sponge@1) in the maps' anomalies: every generic_anomaly_core with an artefact container gets {dict_id 758, count 1} after its last artefact kind (made by srp-026g/scripts/sponge/spawns.py)",
+ "_about": "the Sponge (items_dict 758, pack sponge@2) in the maps' anomalies: every generic_anomaly_core with an artefact container gets {dict_id 758, count 1} after its last artefact kind (made by srp-026g/scripts/sponge/spawns.py)",
  "add_entry": [
   {"files": "projects/level_01/day_2/client_project", "list": "client_objects[236]/artefacts", "after": {"dict_id": 54, "count": 10}, "like": {"dict_id": 54, "count": 10}, "values": {"dict_id": 758, "count": 1}},
   {"files": "projects/level_01/day_2/client_project", "list": "client_objects[238]/artefacts", "after": {"dict_id": 74, "count": 10}, "like": {"dict_id": 74, "count": 10}, "values": {"dict_id": 758, "count": 1}},

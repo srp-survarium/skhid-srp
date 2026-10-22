@@ -1,4 +1,4 @@
-/* The Sponge (artefact_sponge, data type 12), exe patch 55 path A: 0.28d0's
+/* The Sponge (artefact_sponge, data type 12), exe patch 55: 0.28d0's
  * artefact_sponge_core (0x5136E0..0x515270), its wrapper and cook
  * (0x46A740..0x46AEA6) and its cook data reader (0x5439E0) written again on
  * 0.26g build 2777's own interfaces.
@@ -8,7 +8,7 @@
  * game's own constructor 0x25FA10), then the sponge's own fields (struct
  * sponge). Every address is a VA of the original exe (image base 0x10000; it
  * is never rebased); the proof of each is in docs/notes/client_patch.md
- * (patch 55 path A) and tools/re-kit/v026g. The code keeps its mutable state
+ * (patch 55) and tools/re-kit/v026g. The code keeps its mutable state
  * (the zone being ticked, for the zone's hit hook) on the section's state
  * page (-DSP_STATE_VA).
  *
