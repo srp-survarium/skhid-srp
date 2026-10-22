@@ -45,6 +45,7 @@ package
    import survarium.constants.UiSound;
    import survarium.controls.Minimap;
    import survarium.controls.PlayerProfileBase;
+   import survarium.controls.ResearchUnits;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
    import survarium.data.ItemDescriptor;
@@ -194,6 +195,12 @@ package
       protected var _pointsTimer:Timer = new Timer(3000);
       
       protected const GAME_MODE_TEAMDEATHMATCH:uint = 4;
+      
+      // Research (mode 5): the teams' points in Team Deathmatch's bars
+      // (progress_indicator's frame 5) and the units under them.
+      protected const GAME_MODE_RESEARCH:uint = 5;
+      
+      public var researchUnits:ResearchUnits;
       
       protected var grid_sprite:Sprite = new Sprite();
       
@@ -403,6 +410,9 @@ package
          addChild(this.container_icon);
          progress_indicator = new SrvMatchProgress();
          addChild(this.progress_indicator);
+         researchUnits = new ResearchUnits();
+         this.researchUnits.visible = false;
+         addChild(this.researchUnits);
          pregameInfo = new SrvContextInfoPregame();
          addChild(this.pregameInfo);
          this.pregameInfo.premiumMembers.visible = false;
@@ -1821,6 +1831,17 @@ package
       public function set_game_type(type:uint) : void
       {
          _gameType = type;
+         this.researchUnits.visible = type == this.GAME_MODE_RESEARCH;
+         if(type == this.GAME_MODE_RESEARCH)
+         {
+            this.progress_indicator.gotoAndStop(this.GAME_MODE_TEAMDEATHMATCH + 1);
+            if(this.progress_indicator.team1LastPlayers)
+            {
+               this.progress_indicator.team1LastPlayers.visible = false;
+               this.progress_indicator.team2LastPlayers.visible = false;
+            }
+            return;
+         }
          this.progress_indicator.gotoAndStop(this._gameType + 1);
       }
       
@@ -1831,7 +1852,7 @@ package
       
       public function set_match_time(time:String) : void
       {
-         if(this._gameType == this.GAME_MODE_TEAMDEATHMATCH)
+         if(this._gameType == this.GAME_MODE_TEAMDEATHMATCH || this._gameType == this.GAME_MODE_RESEARCH)
          {
             this.progress_indicator.match_time_2_tdm.text = time;
          }
@@ -2021,7 +2042,7 @@ package
       
       public function set_tickets_required(value:uint) : void
       {
-         if(this._gameType == this.GAME_MODE_TEAMDEATHMATCH)
+         if(this._gameType == this.GAME_MODE_TEAMDEATHMATCH || this._gameType == this.GAME_MODE_RESEARCH)
          {
             this.progress_indicator.team_1_score.maximum = value;
             this.progress_indicator.team_2_score.maximum = value;
@@ -2066,7 +2087,18 @@ package
       public function set_game_progress(team1:uint, team2:uint) : void
       {
          trace("set_game_progress::",team1,team2);
-         if(this._gameType == this.GAME_MODE_TEAMDEATHMATCH)
+         if(this._gameType == this.GAME_MODE_RESEARCH && this.progress_indicator.team_1_score)
+         {
+            this.progress_indicator.team1Progress.visible = this.progress_indicator.team_1_score.visible = true;
+            this.progress_indicator.team2Progress.visible = this.progress_indicator.team_2_score.visible = true;
+            this.progress_indicator.team1LastPlayers.visible = false;
+            this.progress_indicator.team2LastPlayers.visible = false;
+            this.progress_indicator.team_1_score.value = team1;
+            this.progress_indicator.team_2_score.value = team2;
+            this.progress_indicator.team1Progress.text = String(team1);
+            this.progress_indicator.team2Progress.text = String(team2);
+         }
+         else if(this._gameType == this.GAME_MODE_TEAMDEATHMATCH)
          {
             this.progress_indicator.team1Progress.visible = this.progress_indicator.team_1_score.visible = team1 > 0;
             this.progress_indicator.team2Progress.visible = this.progress_indicator.team_2_score.visible = team2 > 0;
@@ -2090,6 +2122,52 @@ package
          {
             this.layout.reflow();
          }
+      }
+      
+      // Research (mode 5), every frame the state changes and every second
+      // (research_native_026g.c rn_hud): the game's own team, the teams'
+      // points, the points to win, the number of units, then nine numbers a
+      // unit: cp_id, x, -z (the minimap's pos_x, pos_y), owner, the team
+      // taking it, its capture 0..100, the players of team 0 and 1 inside,
+      // whether the game's own player is inside. A team is 0, 1 or 2 (none).
+      public function research_update(... values) : void
+      {
+         var ownTeam:uint = uint(values[0]);
+         var goal:uint = uint(values[3]);
+         var count:uint = uint(values[4]);
+         var units:Array = [];
+         var i:uint = 0;
+         var at:uint;
+         while(i < count && 5 + 9 * i + 8 < values.length)
+         {
+            at = 5 + 9 * i;
+            units.push({
+               "cp_id":uint(values[at]),
+               "pos_x":Number(values[at + 1]),
+               "pos_y":Number(values[at + 2]),
+               "owner":uint(values[at + 3]),
+               "capturing":uint(values[at + 4]),
+               "progress":Number(values[at + 5]),
+               "inside_0":uint(values[at + 6]),
+               "inside_1":uint(values[at + 7]),
+               "local":uint(values[at + 8]) != 0
+            });
+            i++;
+         }
+         if(this._gameType != this.GAME_MODE_RESEARCH)
+         {
+            this.set_game_type(this.GAME_MODE_RESEARCH);
+         }
+         if(this.progress_indicator.team_1_score && this.progress_indicator.team_1_score.maximum != goal)
+         {
+            this.progress_indicator.team_1_score.maximum = goal;
+            this.progress_indicator.team_2_score.maximum = goal;
+         }
+         this.researchUnits.update(units,ownTeam);
+         this.researchUnits.x = this.progress_indicator.x + this.progress_indicator.width / 2;
+         this.researchUnits.y = this.progress_indicator.y + this.progress_indicator.height + 22;
+         this.minimap.setResearchUnits(units,ownTeam);
+         this.tabMinimap.setResearchUnits(units,ownTeam);
       }
       
       public function set_artifacts_progress(team:uint, value:uint) : void

@@ -1,0 +1,177 @@
+package survarium.controls
+{
+   import flash.display.Graphics;
+   import flash.display.Shape;
+   import flash.display.Sprite;
+   import survarium.data.LocalizationData;
+
+   // Research (mode 5): the research units under the teams' points. One circle
+   // a unit, its letter, filled in the colour of its owner (the game's own
+   // team blue, the other red, nobody grey), a ring as far round as the
+   // capture of the team taking it, and under them "Capturing unit..." while
+   // the game's own player is inside a unit his team is taking. The exe
+   // (research_native_026g.c) sends the state with HUD.research_update.
+   public class ResearchUnits extends Sprite
+   {
+
+      public static const OWN:uint = 0x3D9AE8;
+
+      public static const ENEMY:uint = 0xE8443D;
+
+      public static const NOBODY:uint = 0x8A8A8A;
+
+      public static const NO_TEAM:uint = 2;
+
+      protected static const RADIUS:Number = 14;
+
+      protected static const RING:Number = 4;
+
+      protected static const SPACING:Number = 40;
+
+      protected var _units:Array = [];
+
+      protected var _caption:DefaultLabel3;
+
+      public function ResearchUnits()
+      {
+         super();
+         mouseEnabled = false;
+         mouseChildren = false;
+         this._caption = new DefaultLabel3();
+         this._caption.y = RADIUS + RING + 6;
+         this._caption.visible = false;
+         addChild(this._caption);
+      }
+
+      public static function colourOf(team:uint, ownTeam:uint) : uint
+      {
+         if(team == NO_TEAM)
+         {
+            return NOBODY;
+         }
+         return team == ownTeam ? OWN : ENEMY;
+      }
+
+      // A unit's letter by its cp_id: A, B, C as 0.27d named them.
+      public static function drawLetter(g:Graphics, cpId:uint, size:Number) : void
+      {
+         var h:Number = size;
+         var w:Number = size * 0.7;
+         g.lineStyle(2,0xFFFFFF,1);
+         if(cpId == 0)
+         {
+            g.moveTo(-w / 2,h / 2);
+            g.lineTo(0,-h / 2);
+            g.lineTo(w / 2,h / 2);
+            g.moveTo(-w / 4,h / 8);
+            g.lineTo(w / 4,h / 8);
+         }
+         else if(cpId == 1)
+         {
+            g.moveTo(-w / 2,h / 2);
+            g.lineTo(-w / 2,-h / 2);
+            g.lineTo(w / 6,-h / 2);
+            g.curveTo(w / 2,-h / 2,w / 2,-h / 4);
+            g.curveTo(w / 2,0,w / 6,0);
+            g.lineTo(-w / 2,0);
+            g.moveTo(w / 6,0);
+            g.curveTo(w / 2,0,w / 2,h / 4);
+            g.curveTo(w / 2,h / 2,w / 6,h / 2);
+            g.lineTo(-w / 2,h / 2);
+         }
+         else
+         {
+            g.moveTo(w / 2,-h / 3);
+            g.curveTo(w / 3,-h / 2,0,-h / 2);
+            g.curveTo(-w / 2,-h / 2,-w / 2,0);
+            g.curveTo(-w / 2,h / 2,0,h / 2);
+            g.curveTo(w / 3,h / 2,w / 2,h / 3);
+         }
+         g.lineStyle();
+      }
+
+      // The ring: an arc from the top, clockwise, `part` of the way round.
+      public static function drawRing(g:Graphics, radius:Number, width:Number, part:Number, colour:uint) : void
+      {
+         var steps:int = Math.max(1,Math.ceil(part * 48));
+         var i:int = 0;
+         var a:Number;
+         if(part <= 0)
+         {
+            return;
+         }
+         g.beginFill(colour,1);
+         while(i <= steps)
+         {
+            a = -Math.PI / 2 + 2 * Math.PI * part * i / steps;
+            if(i == 0)
+            {
+               g.moveTo(Math.cos(a) * (radius + width),Math.sin(a) * (radius + width));
+            }
+            else
+            {
+               g.lineTo(Math.cos(a) * (radius + width),Math.sin(a) * (radius + width));
+            }
+            i++;
+         }
+         i = steps;
+         while(i >= 0)
+         {
+            a = -Math.PI / 2 + 2 * Math.PI * part * i / steps;
+            g.lineTo(Math.cos(a) * radius,Math.sin(a) * radius);
+            i--;
+         }
+         g.endFill();
+      }
+
+      // units: [{cp_id, owner, capturing, progress (0..100), inside_0, inside_1, local}]
+      public function update(units:Array, ownTeam:uint) : void
+      {
+         var i:int = 0;
+         var unit:Object;
+         var shape:Shape;
+         var g:Graphics;
+         var capturing:Boolean = false;
+         while(this._units.length < units.length)
+         {
+            shape = new Shape();
+            addChild(shape);
+            this._units.push(shape);
+         }
+         while(this._units.length > units.length)
+         {
+            removeChild(this._units.pop());
+         }
+         while(i < units.length)
+         {
+            unit = units[i];
+            shape = this._units[i];
+            shape.x = (i - (units.length - 1) / 2) * SPACING;
+            g = shape.graphics;
+            g.clear();
+            g.beginFill(0,0.45);
+            g.drawCircle(0,0,RADIUS + RING);
+            g.endFill();
+            g.beginFill(colourOf(unit.owner,ownTeam),0.9);
+            g.drawCircle(0,0,RADIUS);
+            g.endFill();
+            if(unit.capturing != NO_TEAM && unit.progress > 0 && !(unit.owner == unit.capturing && unit.progress >= 100))
+            {
+               drawRing(g,RADIUS,RING,unit.progress / 100,colourOf(unit.capturing,ownTeam));
+            }
+            drawLetter(g,unit.cp_id,RADIUS);
+            if(unit.local && unit.capturing == ownTeam && !(unit.owner == ownTeam && unit.progress >= 100))
+            {
+               capturing = true;
+            }
+            i++;
+         }
+         if(capturing)
+         {
+            this._caption.text = LocalizationData.getName("research_capturing");
+            this._caption.x = -this._caption.width / 2;
+         }
+         this._caption.visible = capturing;
+      }
+   }
+}
