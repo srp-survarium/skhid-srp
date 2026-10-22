@@ -41,20 +41,11 @@ PATCH = re.compile(r'^resources\.db\.patch_([1-9][0-9]{0,2})$')
 SHA = re.compile(r'^[0-9a-f]{64}$')
 LOBBY = 'lobby_menu'
 
-# The value-type check's allowlist (content_type_check.py): a new key whose
-# type no 0.26g file already uses at that name, with the reason it is right.
-# (game path or '*', key name): reason. Everything else a pack or an edit adds
-# must keep the type the stock or previous version has at that path, or use a
-# type 0.26g uses at that key name; a vector rewritten as an indexed table
-# (the Research pack bug) is refused.
-TYPE_ALLOWLIST = {
-    ('*', 'camo_available'): 'patch 44: a new weapon parameter, a bool (weapon-camo-1)',
-    ('*', 'decal_available'): 'patch 47: a new weapon parameter, a bool (weapon-decals-1)',
-    ('*', 'camouflage'): 'patch 44: data/camouflage, a new named table on a weapon (weapon-camo-1)',
-    ('*', 'decals'): 'patch 47: data/decals, a new named table on a weapon (weapon-decals-1)',
-    ('*', 'st_srp_attachments'): 'a new localization string key (weapon-attachments-1)',
-    ('*', 'st_inv_magazine_size'): 'a new localization string key (weapon-balance-1)',
-}
+# The value-type check's allowlist (content_type_check.py): a NEW key whose
+# type is not one 0.26g uses at that structural path, with the reason it is
+# right: {(game path, structural path): reason}. It never lets a key that
+# exists change its type. Empty: today's content needs none.
+TYPE_ALLOWLIST = {}
 
 
 class Problem(Exception):
@@ -325,23 +316,32 @@ def type_check(base, base_files, game, world):
     # The corpus of the types 0.26g already uses at each key name: every base
     # config file (the stock db and the base patches), so a new key's type is
     # weighed against all of 0.26g, not only the files this patch touches.
-    corpus_paths = sorted(p for p in base_files
-                          if p.endswith(('.options', '.raw_options', '.material', '/settings',
-                                         '/export_properties', '/hit_targets', '/client_project')))
-    corp = ctc.corpus_with(walk, game.get(base, corpus_paths))
+    corpus_paths = sorted(p for p in base_files if p.endswith(ctc.CONFIG_SUFFIXES))
+    corpus = game.get(base, corpus_paths)
+    corp = ctc.corpus_with(walk, corpus)
     # The previous version of each changed file: the base's bytes, where the
     # base has it; None for a file no base archive has (a pack's new file).
     had = [p for p in sorted(world.bytes) if p in base_files]
     previous = game.get(base, had)
     problems = []
+    # A file at a config path the reader refuses is a problem, never a file
+    # the check skips (a table out of CRC order, a broken record): the made
+    # files, their previous versions and every base config alike.
+    for label, files in (('made', world.bytes), ('previous', previous), ('base', corpus)):
+        for path in sorted(p for p in files if p.endswith(ctc.CONFIG_SUFFIXES)):
+            try:
+                ctc.parse(walk, files[path])
+            except ctc.NotAConfig as why:
+                problems.append(f'{path} ({label}): a config the reader refuses ({why})')
     for path in sorted(world.bytes):
         problems += ctc.violations(walk, previous.get(path), world.bytes[path], path, corp, TYPE_ALLOWLIST)
     if problems:
         print()
         for problem in problems:
             print(f'TYPE: {problem}')
-        raise Problem(f'{len(problems)} value-type change(s) the manifest does not account for: no patch made '
-                      '(a key keeps its type; a new key uses a 0.26g type or an allowlist row in build_content.py)')
+        raise Problem(f'{len(problems)} value-type problem(s) the manifest does not account for: no patch made '
+                      '(a key keeps its type; a new key uses a 0.26g type or an allowlist row in build_content.py; '
+                      'a config parses)')
     print(f'value types: every key the base has keeps its type across {len(world.bytes)} file(s)')
 
 

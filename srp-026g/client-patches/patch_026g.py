@@ -1793,10 +1793,13 @@ def weapon_camo_va(late_join):
 # in its place pops (its `ret n`), or the caller's stack is off by the
 # difference: Research's rule slot 16 (#297) popped 4 bytes where the game's
 # rules pop 8, and the game died at the first sync. build() fails on a call,
-# jump or pointer into our code that is not declared here
-# (audit_installs); selftest_026g.py (test_call_shapes) reads the built bytes
-# and the original's and fails on any shape that is not its model's. The
-# kinds, by what the site was in the original:
+# jump or pointer into our code, at any offset of any write, that is not
+# declared here (audit_installs). selftest_026g.py (test_call_shapes) reads
+# what ours pops from the built bytes and its model's from the original exe
+# and fails on a mismatch for every SLOT, ENTRY, CALLEE and ABI site (and
+# every CALLBACK and INSTALLED_VTABLES slot); INLINE and JUMP sites are
+# declared but not checked by it (each patch's Unicorn check covers them).
+# The kinds, by what the site was in the original:
 #   SLOT    a pointer the game calls through (a vtable slot, a delegate), at
 #           the site: the model is the function the original's pointer names;
 #   ENTRY   a function's first bytes jump to ours, or its body is ours in
@@ -1809,8 +1812,7 @@ def weapon_camo_va(late_join):
 #   ABI     a call of ours that pops what `pops` says, for the reason `why`
 #           (the site's instructions have an effect no model gives);
 #   JUMP    a jump into ours from the middle of the game's code: every way
-#           back is at the stack depth the site's instructions leave (the
-#           self-test follows the stack through ours).
+#           back must be at the stack depth the site's instructions leave.
 # {site VA: (kind, what, pops, why)}; pops and why for ABI only.
 SLOT, ENTRY, CALLEE, INLINE, ABI, JUMP = "slot", "entry", "callee", "inline", "abi", "jump"
 INSTALLS = {
@@ -1947,19 +1949,21 @@ def is_cave(old):
 
 
 def our_ranges(data, writes):
-    """[(lo, hi)] of our code: the sections build() adds (`.srp` and after),
-    the caves it wrote into the padding and the code over on_hash_mismatch."""
+    """[(lo, hi)] of our code: the executable sections build() adds (`.srp`
+    and after; not `.srpd`, state), the caves it wrote into the padding and
+    the code over on_hash_mismatch."""
     headers = Headers(data)
-    ours = [(IMAGE_BASE + rva, IMAGE_BASE + rva + vsize) for name, rva, vsize, _, _, _ in headers.sections(data)
-            if name.startswith(b".srp")]
+    ours = [(IMAGE_BASE + rva, IMAGE_BASE + rva + vsize) for name, rva, vsize, _, _, flags in headers.sections(data)
+            if name.startswith(b".srp") and flags & 0x20000000]
     return ours + [(va, va + len(new)) for va, old, new in writes if is_cave(old) or va == HASH_MISMATCH_VA]
 
 
 def installs_of(data, writes):
-    """{site VA: (how, our VA)} of every function build() made the game call:
-    `call` (E8) or `jmp` (E9) written into the game's code to our code, a
-    pointer written into the game's data that names our code ("pointer"),
-    a body replaced in place ("body")."""
+    """{site VA: (how, our VA, the original's bytes from the site)} of every
+    function build() made the game call, found at any offset of any write
+    into the game's sections: a `call` (E8) or `jmp` (E9) rel32 to our code,
+    any other 4 bytes that name our code ("pointer": a slot, a delegate, a
+    `push imm32`, a `mov imm32`), and a body replaced in place ("body")."""
     ours = our_ranges(data, writes)
     inside = lambda target: any(lo <= target < hi for lo, hi in ours)
     out = {}
@@ -1967,13 +1971,19 @@ def installs_of(data, writes):
         if is_cave(old) or va == HASH_MISMATCH_VA:
             continue
         if va in BODIES and len(new) == BODIES[va]:
-            out[va] = ("body", va)
-        elif len(new) >= 5 and new[0] in (0xE8, 0xE9):
-            target = (va + 5 + struct.unpack_from("<i", new, 1)[0]) & 0xFFFFFFFF
-            if inside(target):
-                out[va] = ("call" if new[0] == 0xE8 else "jmp", target)
-        elif len(new) == 4 and inside(struct.unpack("<I", new)[0]):
-            out[va] = ("pointer", struct.unpack("<I", new)[0])
+            out[va] = ("body", va, old)
+            continue
+        taken = set()
+        for at in range(len(new) - 4):
+            if new[at] in (0xE8, 0xE9) and at + 5 <= len(new):
+                target = (va + at + 5 + struct.unpack_from("<i", new, at + 1)[0]) & 0xFFFFFFFF
+                if inside(target):
+                    out[va + at] = ("call" if new[at] == 0xE8 else "jmp", target, old[at:])
+                    taken.update(range(at, at + 5))
+        for at in range(len(new) - 3):
+            value = struct.unpack_from("<I", new, at)[0]
+            if at not in taken and inside(value):
+                out[va + at] = ("pointer", value, old[at:])
     return out
 
 
@@ -1982,12 +1992,11 @@ def audit_installs(data, writes, installs=None):
     (or `installs`), with a kind that fits the site; else the build stops."""
     installs = INSTALLS if installs is None else installs
     pushes = re.compile(rb"(?:[\x50-\x57]|\x6A.|\x68.{4})*", re.S)
-    for va, (how, target) in sorted(installs_of(data, writes).items()):
+    for va, (how, target, old) in sorted(installs_of(data, writes).items()):
         if va not in installs:
             sys.exit(f"{va:#x}: a {how} into our code ({target:#x}) with no call shape declared: give it a kind "
                      f"and its model in patch_026g.py's INSTALLS (client_patch.md section 0.4)")
         kind = installs[va][0]
-        old = next(o for v, o, _ in writes if v == va)
         fits = {"call": (CALLEE, INLINE, ABI), "jmp": (ENTRY, JUMP), "pointer": (SLOT,), "body": (ENTRY,)}[how]
         if kind not in fits:
             sys.exit(f"{va:#x}: a {how} into our code declared {kind}; a {how} is {' or '.join(fits)}")
@@ -2059,6 +2068,25 @@ def arena_layout(blocks):
 
 ARENA_LAYOUT = arena_layout(ARENA)[0]                      # {block: VA}
 ARENA_BLOCKS = {block.name: block for block in ARENA}
+# The VA every block of ARENA has, written down when the block was added: a
+# block's code is linked or assembled for it, so a change of a size or an
+# alignment that would move a later block stops the build (check_arena)
+# instead of moving it. A new block adds its row here.
+ARENA_PINNED = {
+    "research.code": 0xA42D000,
+    "research.state": 0xA430000,
+}
+
+
+def check_arena(blocks=ARENA, pinned=None):
+    """ARENA's layout is ARENA_PINNED's, block for block; else the build stops."""
+    pinned = ARENA_PINNED if pinned is None else pinned
+    layout = arena_layout(blocks)[0]
+    if layout != pinned:
+        moved = sorted(set(layout) ^ set(pinned)) + sorted(n for n in set(layout) & set(pinned) if layout[n] != pinned[n])
+        sys.exit(".srpx: the blocks are not where ARENA_PINNED has them (" + ", ".join(
+            f"{n}: {layout.get(n, 0):#x} for {pinned.get(n, 0):#x}" for n in moved)
+            + "): a placed block never moves; a new block adds its row to ARENA_PINNED")
 
 
 def add_arena(data, blocks, contents):
@@ -3011,6 +3039,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             arena_bytes["research.code"] = research
             # The self-test's made-up blocks go after the patches' own: none
             # of those moves.
+            check_arena()
             blocks = ARENA
             if arena is not None:
                 blocks = ARENA + tuple(arena[0])

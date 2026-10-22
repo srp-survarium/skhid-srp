@@ -2096,9 +2096,12 @@ def function_pops(image, entry, limit=20000):
                 lost.append(f"{va:#x}: outside the image")
                 break
             length, text = got
-            op = text.split()[0] if text else ""
+            words = text.split()
+            while words and words[0] in ("rep", "repe", "repz", "repne", "repnz", "bnd"):
+                words = words[1:]                          # `rep ret`, `bnd ret`: a ret
+            op = words[0] if words else ""
             if op in ("ret", "retn"):
-                found.add(int(text.split()[1], 16) if len(text.split()) > 1 else 0)
+                found.add(int(words[1], 16) if len(words) > 1 else 0)
                 break
             if op in ("int3", "ud2", "hlt"):
                 break
@@ -2112,6 +2115,8 @@ def function_pops(image, entry, limit=20000):
             if (op.startswith("j") or op.startswith("loop")) and target is not None:
                 todo.append(target)
             va += length
+    if todo or len(seen) >= limit:
+        lost.append(f"{entry:#x}: more than {limit} instructions, not all followed")
     return found, lost
 
 
@@ -4658,18 +4663,26 @@ def model_cleanup(original, image, model, abi):
     return read, "the original exe; no abi.tsv row"
 
 
-def our_function_va(data, install, writes):
-    """Where our installed function is: the target of the call/jmp written at
-    the site, or the pointer written there (a slot), read from the built
-    exe's writes."""
-    for va, old, new in writes:
-        if va != install:
-            continue
-        if len(new) >= 5 and new[0] in (0xE8, 0xE9):
-            return (va + 5 + struct.unpack_from("<i", new, 1)[0]) & 0xFFFFFFFF
-        if len(new) == 4:
-            return struct.unpack("<I", new)[0]
-    return None
+def callee_pushes(code):
+    """The bytes the pushes before a replaced `call` pushed (`push r32`,
+    `push imm8`, `push imm32`: four each); None for anything else."""
+    pushed, at = 0, 0
+    while at < len(code):
+        if 0x50 <= code[at] <= 0x57:
+            at += 1
+        elif code[at] == 0x6A:
+            at += 2
+        elif code[at] == 0x68:
+            at += 5
+        else:
+            return None
+        pushed += 4
+    return pushed if at == len(code) else None
+
+
+# Every site test_call_shapes saw installed, over every variant built: an
+# INSTALLS row no variant installs is stale (main checks at its end).
+INSTALLED_SEEN = set()
 
 
 def test_call_shapes(original, data, report=None):
@@ -4703,25 +4716,48 @@ def _call_shapes_body(original, data):
         print(f"        {exit}")
     check(audited and all(va in P.INSTALLS for va in installs),
           f"every one of the {len(installs)} functions the game calls of ours is declared in INSTALLS")
-    # 2. Each pointer the game calls through (a slot) and each run-time
-    # callback pops what its model does.
+    INSTALLED_SEEN.update(installs)
+    # 2. Each function the game calls of ours pops what its model does: a
+    # slot's (the function the original's pointer named), an entry's (the
+    # function at the site), a callee's (the replaced call's target, less the
+    # bytes of the pushes replaced with it), an ABI's (its declared pops),
+    # each run-time callback's. Ours is read from the built bytes, every
+    # `ret` reachable from its entry (function_pops); the model's from the
+    # original exe (abi.tsv agreeing where it has the row).
     abi = abi_cleanup()
-    slots = [(va, P.INSTALLS[va][1], None) for va, (kind, *_) in P.INSTALLS.items()
-             if kind == P.SLOT and va in installs]
+    source = Image(original)
+    for site, (how, target, old) in sorted(installs.items()):
+        kind, what, pops, _ = P.INSTALLS[site]
+        if kind in (P.JUMP, P.INLINE):
+            continue
+        if kind == P.SLOT:
+            model = struct.unpack("<I", source.read(site, 4))[0]
+            want, whence = model_cleanup(original, image, model, abi)
+            whence = f"its model {model:#x}, {whence}"
+        elif kind == P.ENTRY:
+            want, whence = model_cleanup(original, image, site, abi)
+            whence = f"the original's function at the site, {whence}"
+        elif kind == P.CALLEE:
+            model = (site + len(old) + struct.unpack_from("<i", old, len(old) - 4)[0]) & 0xFFFFFFFF
+            pushed = callee_pushes(old[:-5])
+            want, whence = model_cleanup(original, image, model, abi)
+            whence = f"its model {model:#x}, {whence}" + (f", less the {pushed} bytes pushed at the site"
+                                                          if pushed else "")
+            want = None if want is None or pushed is None else want - pushed
+        else:                                              # ABI
+            want, whence = pops, "declared"
+        found, lost = function_pops(image, target)
+        ours = found.pop() if len(found) == 1 and not lost else None
+        check(want is not None and ours == want,
+              f"{site:#x} {kind} ({what}): ours ({target:#x}) pops {ours if ours is not None else sorted(found)}, "
+              f"as it must: {want} ({whence})" + (f"; not followed: {lost[:2]}" if lost else ""))
     callbacks = []
     for what, name, before_bytes, model, _why in P.CALLBACKS:
         code = open(os.path.join(HERE, f"{name}_026g.section.bin"), "rb").read()
         at = code.find(before_bytes)
-        base = {"late_join": P.LATE_JOIN_VA, "weapon_camo": P.weapon_camo_va(open(P.late_join_bin(), "rb").read())}[name]
         got = -1 if at < 0 or code.find(before_bytes, at + 1) >= 0 \
             else struct.unpack_from("<I", code, at + len(before_bytes))[0]
         callbacks.append((got, what, model))
-    for site, what, model in slots:
-        model_va = struct.unpack_from("<I", original, Image(original).offset(site))[0]
-        want, whence = model_cleanup(original, image, model_va, abi)
-        ours = effective_cleanup(image, our_function_va(data, site, P.WRITES))
-        check(want is not None and ours == want,
-              f"{what}: `ret {ours}` pops what its model {model_va:#x} does (`ret {want}`, {whence})")
     for our_va, what, model in callbacks:
         want, whence = model_cleanup(original, image, model, abi)
         ours = effective_cleanup(image, our_va) if our_va not in (None, -1) else None
@@ -4827,13 +4863,23 @@ def test_call_shapes_negative(original):
     check(refused, "a `*_vtable` of the arena's code with no INSTALLED_VTABLES row is refused")
     # An undeclared install: a call into our code with no INSTALLS row.
     fake_writes = [(0x500000, bytes(5), b"\xE8" + struct.pack("<i", P.SECTION_VA - 0x500000 - 5))]
-    headers = P.Headers(data)                                   # any built exe with our sections
     try:
         P.audit_installs(data, fake_writes, installs={})
         refused = False
     except SystemExit:
         refused = True
     check(refused, "a call into our code with no INSTALLS row is rejected")
+    # ... and one written anywhere in a write: a `push imm32` of our code's
+    # address in the middle of rewritten bytes.
+    fake_writes = [(0x500000, bytes(8), b"\x90\x90\x68" + struct.pack("<I", P.SECTION_VA + 0x10) + b"\x90")]
+    found = P.installs_of(data, fake_writes)
+    try:
+        P.audit_installs(data, fake_writes, installs={})
+        refused = False
+    except SystemExit:
+        refused = True
+    check(refused and list(found) == [0x500003] and found[0x500003][0] == "pointer",
+          "a `push imm32` of our code's address inside a write (at +3) is found and, undeclared, rejected")
 
 
 def test_arena(original):
@@ -4904,6 +4950,16 @@ def test_arena(original):
           and security[0] == raw + rsize and security[0] + security[1] == len(one),
           "SizeOfImage ends past .srpx, its file bytes follow .srpw's, the certificate table stays last, "
           "the PE checksum is right")
+    # A block of ARENA whose size or alignment would move a later one stops
+    # the build: the VAs are pinned (ARENA_PINNED).
+    grown = (P.ArenaBlock("research.code", "code", 0x4000, 0x1000),) + P.ARENA[1:]
+    try:
+        P.check_arena(grown)
+        refused = False
+    except SystemExit:
+        refused = True
+    check(refused, "research.code grown to 0x4000 (research.state would move to 0xA431000) stops the build: "
+          "the arena's VAs are pinned (ARENA_PINNED)")
     # A block whose bytes do not fit, and bytes for no block, are refused.
     for bad, why in (((P.ArenaBlock("x.code", "code", 4, 16), ), "a block its bytes outgrow"),
                      ((P.ArenaBlock("x.code", "code", 0x20, 16), ), "bytes for an undeclared block")):
@@ -5310,6 +5366,9 @@ def main():
         code = None if mode == "cert-only" else open(P.default_bin(mode), "rb").read()
         data, description = P.build(original, mode, code, server)
         print("  " + description)
+        if mode != "cert-only":                            # the variant's own installs, for the stale check
+            P.audit_installs(data, P.WRITES)
+            INSTALLED_SEEN.update(P.installs_of(data, P.WRITES))
         check(hashlib.sha256(original).hexdigest() == P.EXE_SHA256, "the original in memory is untouched")
         image = Image(data)
         cave = b"" if code is None else P.split_code(code)[0]
@@ -5340,6 +5399,9 @@ def main():
             out.write(data)
         print(f"  written: {path} (sha256 {hashlib.sha256(data).hexdigest()})")
         test_windows(path, source, mode)
+    stale = sorted(set(P.INSTALLS) - INSTALLED_SEEN)
+    check(not stale, f"every INSTALLS row is installed by some variant built here ({len(INSTALLED_SEEN)} sites)"
+          + (": stale " + ", ".join(f"{va:#x}" for va in stale) if stale else ""))
     print()
     print(f"{len(failures)} FAILED" if failures else "all checks passed")
     sys.exit(1 if failures else 0)

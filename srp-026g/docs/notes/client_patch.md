@@ -1664,9 +1664,11 @@ It only grows. A patch that wants room declares its blocks in
 builder lays them out in that order, each at the next multiple of its
 alignment after the one before (`arena_layout`; `ARENA_LAYOUT` holds the
 VAs), and only the section's `VirtualSize`/`SizeOfRawData` and the image's
-`SizeOfImage` grow. A block never moves once placed, a patch takes its VAs
-from `ARENA_LAYOUT` (and checks its `.bin` was built for them, as Research
-does), and the file holds the whole arena (code blocks int3 after their
+`SizeOfImage` grow. A block never moves once placed: `ARENA_PINNED` writes
+down every block's VA when it is added, and `build()` stops if a size or an
+alignment change would move one (`check_arena`). A patch takes its VAs from
+`ARENA_LAYOUT` (and checks its `.bin` was built for them, as Research does),
+and the file holds the whole arena (code blocks int3 after their
 bytes, data and state blocks and the gaps zeros), byte-for-byte
 deterministic.
 
@@ -1699,7 +1701,8 @@ bytes there itself. On the arena:
 
 1. append its block to `ARENA`, after Research's:
    `ArenaBlock("anomalies.code", "code", <its size, a page multiple>, 0x1000)`
-   (state of its own, if any, as one more block after it);
+   (state of its own, if any, as one more block after it), and its row to
+   `ARENA_PINNED`: `"anomalies.code": 0xA431000`;
 2. take its VA from `ARENA_LAYOUT["anomalies.code"]` (0xA431000, so its
    `.bin` does not change), check its `.bin` was assembled for it, aim its
    hooks there, and put its bytes into `arena_bytes["anomalies.code"]` in
@@ -1747,32 +1750,46 @@ function it stands in for (its **model**) or an explicit ABI:
 
 The checks:
 
-1. `build()` fails on any call, jump or pointer into our code that `INSTALLS`
-   does not declare, or whose kind does not fit the site (`audit_installs`),
-   and on any `*_vtable` symbol of the arena's C code (`ARENA_SYMBOLS`) that
+1. `build()` fails on any call (E8), jump (E9) or other 4 bytes naming our
+   code (a pointer, a `push imm32`, a `mov imm32`), at any offset of any write
+   into the game's sections (`installs_of`), that `INSTALLS` does not declare,
+   or whose kind does not fit the site (`audit_installs`); and on any
+   `*_vtable` symbol of the arena's C code (`ARENA_SYMBOLS`) that
    `INSTALLED_VTABLES` does not declare (`audit_vtables`). A new installed
    function or vtable cannot ship undeclared.
 2. The self-test (`test_call_shapes`) reads what each of ours pops from the
    built bytes, every `ret` reachable from its entry with its branches
    followed (a body the compiler split, a tail jump into the game:
-   `function_pops`), and the model's the same way from the original exe; when
-   `tools/re-kit/v026g/abi.tsv` has the model's row its `ret_cleanup` must
-   say the same (a wrong row fails, as Research's first note would have). It
-   fails on any mismatch — for every SLOT, every callback and every slot of
-   ours of every installed vtable (check 53's comparison, generalised: it
-   lives here now, for all patches). `test_call_shapes_negative` builds a
-   made-up rule vtable whose slot 16 pops 4 where tdm_rule_core's pops 8 and
-   checks it is rejected (and the same slot at 8 passes), an undeclared
-   `*_vtable` and an undeclared install.
+   `function_pops`; an instruction cap reached is a failure, not a pass), and
+   the model's the same way from the original exe; where
+   `tools/re-kit/v026g/abi.tsv` has the model's row its `ret_cleanup` must say
+   the same. It fails on a mismatch for:
+   - every SLOT (model: the function the original's pointer named);
+   - every ENTRY (model: the function at the site; a body in place too);
+   - every CALLEE (model: the replaced call's target, less the bytes of the
+     pushes replaced with it: `kit_view` 4 - 4 = 0, `detach_first` 8 - 8 = 0);
+   - every ABI (its declared pops);
+   - every CALLBACK;
+   - every slot of ours of every INSTALLED_VTABLES vtable (check 53's
+     comparison, generalised).
+   Today that is 10 ENTRY, 18 CALLEE, 1 ABI and 1 SLOT site, 2 callbacks and
+   Research's 11 own vtable slots. Over the variants it builds it also flags
+   an `INSTALLS` row that none installs (a stale row).
+   `test_call_shapes_negative` builds a made-up rule vtable whose slot 16
+   pops 4 where tdm_rule_core's pops 8 and checks it is rejected (and the same
+   slot at 8 passes), and refuses an undeclared vtable, an undeclared install
+   and a `push imm32` of our code's address inside a write.
 
 On main the installed pointers are the replay camera's "is this place mine"
 slot (model `is_this_place_mine`, `ret 4`), the callbacks `query_completed`
 (model `on_match_ready`, `ret 4`) and `bake_done` (model `on_bake_finished`,
 `ret 0`), and Research's three vtables above (its rule slot 16 now `ret 8`).
 
-**Not covered.** JUMP hooks (a jump or call inside the game's own code, not a
-function the game calls through a pointer) are declared but not
-`ret`-checked: their stack balance at the return point stays covered by each
-patch's own Unicorn check and by the relocation and no-branch-into-a-hook
-checks. Nor are the in-place rewrites of the game's code (STAGE_FOCUS, the
-scoreboard's loop), which install nothing.
+**Not covered.** INLINE sites (a call of ours over instructions that were not
+a call) and JUMP sites (a jump into ours from the middle of the game's code)
+are declared but not `ret`-checked: their stack balance at the return point
+stays covered by each patch's own Unicorn check and by the relocation and
+no-branch-into-a-hook checks. Nor are the in-place rewrites of the game's code
+(STAGE_FOCUS, the scoreboard's loop), which install nothing. Not yet either:
+that every slot of ours is reached through the game's own call site with its
+arguments in their order (the Research follow-up).

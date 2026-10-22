@@ -25,18 +25,31 @@ only `gameplay/` (the server game data holds only the files srp reads).
 ### The value-type check
 
 `release/build-content` also runs `release/content_type_check.py` over every file a pack or an edit
-makes: each key path that already exists in the stock or previous version of that file must keep its
-value type (a float2/3/4 vs an indexed table vs an int vs a float vs a string vs a named table). A
-key new to the file is allowed, unless 0.26g already uses that exact key path (in another config:
-items, materials, model settings, projects) with a type our bytes contradict; then it must use a
-0.26g type or be listed in `build_content.py`'s `TYPE_ALLOWLIST` with a reason. It fails with the
-file, the path, the old type and the new type, and no patch is made. It reuses this folder's
-`content_edit.py` as the config reader (`walk`), weighs new keys against a corpus of every base
-config file's key paths, and names paths as Research's pack builder does
-(`scripts/research-mode/make_pack.py`): a list entry by its `game_object_type` (a project's
-`client_objects[respawn_point]/position`), a colour ramp's `key0`, `key1`, ... as `key#`. So it is
-make_pack.py's own type check (which a pack builder runs at build time) applied at release time to
-every pack and edit list, whoever built it.
+makes, value by value (types: a float2/3/4, an indexed table, an int, a float, a string, a named
+table):
+
+- a value at a key path the previous version of the file has keeps the type it had there; a list
+  entry is itself in that path, by its `game_object_type` and its own `full_name` or `name`
+  (`client_objects[light:bulb_2]/intensity`), else by its index, so an entry an edit moved or took
+  out is never compared with the one now at its index;
+- a value at a path new to the file, where 0.26g already uses that structural path (any base
+  config: items, materials, model settings, projects; and the file's previous version), has one of
+  the types used there; a path 0.26g has no precedent for is free;
+- a file at a config path (`.options`, `.raw_options`, `.material`, `/settings`,
+  `/export_properties`, `/hit_targets`, `/client_project`) that the reader refuses (a table out of
+  CRC order, a broken record) stops the build; it is never skipped. The same for every base config.
+  (A root that is not a table is a config there: base patch 19's ported textures' `.options` are a
+  lone `true`.)
+
+A new key that has to take another type than 0.26g's goes in `build_content.py`'s `TYPE_ALLOWLIST`
+as (game path, structural path) with the reason; a row never lets a key that exists change its
+type. It is empty: today's content needs none. The check fails with the file, the path, the old type
+and the new type, and no patch is made. It reuses this folder's `content_edit.py` as the reader
+(`walk`) and names structural paths as Research's pack builder does
+(`scripts/research-mode/make_pack.py`): a list entry by its `game_object_type`
+(`client_objects[respawn_point]/position`), otherwise `[]`, a colour ramp's `key0`, `key1`, ... as
+`key#`. So it is make_pack.py's pack-time check applied at release time to every pack and edit
+list, whoever built it.
 
 This catches the two Research pack bugs (#297) that got past every other check: the builder wrote
 every vector (float2/3/4) as an indexed table through a `json.loads(json.dumps(...))` round-trip, so

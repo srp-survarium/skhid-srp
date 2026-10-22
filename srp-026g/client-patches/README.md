@@ -143,15 +143,21 @@ client_patch.md 0.3 says how).
 a callback, a hook the game enters — declares in `patch_026g.py` the game's
 own function it stands in for (its model) or an explicit ABI (`INSTALLS`,
 `CALLBACKS`, `INSTALLED_VTABLES`). `build()` refuses an install it does not
-name, nor a `*_vtable` of the arena's C code without a model
-(`audit_vtables`); the self-test reads what ours pops from the built bytes
-and the model's from the original exe, `tools/re-kit/v026g/abi.tsv` having to
-agree where it has the row, and fails on any mismatch (`test_call_shapes`).
-That covers Research's rule, cook and link-resolver vtables (check 53's
-per-slot comparison, now the rule for every patch), with a negative test
-that a slot popping the wrong number of bytes is rejected — Research's first
-rule slot 16 (`ret 4` where the rules `ret 8`). Jumps inside the game's code
-are covered by each patch's own check instead.
+name (a call, jump or pointer into our code at any offset of any write), and
+a `*_vtable` of the arena's C code without a model (`audit_vtables`). The
+self-test (`test_call_shapes`) reads what ours pops from the built bytes
+(every `ret` reachable) and the model's from the original exe,
+`tools/re-kit/v026g/abi.tsv` having to agree where it has the row, and fails
+on a mismatch for: every SLOT, ENTRY (the model is the function at the site),
+CALLEE (the replaced call's target, less the pushes replaced with it) and ABI
+site (its declared pops); every CALLBACK; every slot of ours of every
+INSTALLED_VTABLES vtable (Research's rule, cook and link resolver: check 53's
+comparison, now the rule for every patch). It also flags an INSTALLS row no
+built variant installs. A negative test rejects a rule vtable slot 16 that
+pops 4 where tdm's pops 8 (Research's first `rn_deserialize`). **Not
+checked here:** INLINE sites (a call of ours over other instructions) and
+JUMP sites (a jump into ours from the game's code), which are declared but
+left to each patch's own Unicorn check.
 
 ## How to apply
 
