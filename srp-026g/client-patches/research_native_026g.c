@@ -99,7 +99,15 @@ enum {
 #define RESOLVE_LINKS 0x316540     /* ret 1Ch */
 #define RULE_BASE_LOCATOR 0xA4C970 /* game_match_rule_base's RTTI locators */
 #define LINK_RESOLVER_LOCATOR 0xA4C95C
-#define COOK_LOCATOR 0xA47134      /* the client tdm rule cook's (its vtable 0x9FD8AC) */
+/* MSVC's RTTI of the cook (rn_cook_locator): type_info's vftable (every type
+ * descriptor's first word, tdm_rule_cook's 0xACCC38 among them) and the base
+ * class descriptors of tdm_rule_core_cook's hierarchy (0xA4718C), which is
+ * the cook's shape: translate_query_cook (with cook_base) and boost's
+ * noncopyable at +20h. */
+#define TYPE_INFO_VFTABLE 0x886A78
+#define BCD_TRANSLATE_QUERY_COOK 0xA38D74
+#define BCD_COOK_BASE 0xA38D24
+#define BCD_NONCOPYABLE 0xA40010
 
 /* ---- the state page --------------------------------------------------- */
 
@@ -486,8 +494,43 @@ THISCALL void *rn_cook_create(u8 *cook, u8 *query) {
     return rule;
 }
 
+/* The cook's own RTTI, as MSVC lays it out (x86): research_rule_cook, a
+ * translate_query_cook; its complete object locator before the vtable. No
+ * code of the game casts a cook or asks its type (no reference to any cook's
+ * type descriptor in .text), but the locator names the cook for what it is,
+ * not tdm's. The type descriptor's second word is type_info's cache of the
+ * undecorated name, written by type_info::name: the section is writable. */
+struct rn_type_descriptor {
+    u32 vftable;
+    u32 spare;
+    char name[sizeof ".?AVresearch_rule_cook@srp@@"];
+};
+struct rn_base_class {
+    const struct rn_type_descriptor *type;
+    u32 contained, mdisp, pdisp, vdisp, attributes;
+    const void *hierarchy;
+};
+struct rn_hierarchy {
+    u32 signature, attributes, count;
+    const u32 *bases;
+};
+struct rn_locator {
+    u32 signature, offset, cd_offset;
+    const struct rn_type_descriptor *type;
+    const struct rn_hierarchy *hierarchy;
+};
+extern const struct rn_hierarchy rn_cook_hierarchy;
+__attribute__((used)) const struct rn_type_descriptor rn_cook_type = {TYPE_INFO_VFTABLE, 0,
+                                                                      ".?AVresearch_rule_cook@srp@@"};
+__attribute__((used)) const struct rn_base_class rn_cook_base = {&rn_cook_type, 3, 0, 0xFFFFFFFF, 0, 0x40,
+                                                                 &rn_cook_hierarchy};
+__attribute__((used)) const u32 rn_cook_bases[4] = {(u32)&rn_cook_base, BCD_TRANSLATE_QUERY_COOK, BCD_COOK_BASE,
+                                                    BCD_NONCOPYABLE};
+__attribute__((used)) const struct rn_hierarchy rn_cook_hierarchy = {0, 1, 4, rn_cook_bases};
+__attribute__((used)) const struct rn_locator rn_cook_locator = {0, 0, 0, &rn_cook_type, &rn_cook_hierarchy};
+
 __attribute__((used)) const u32 rn_cook_vtable[1 + 11] = {
-    COOK_LOCATOR, 0x36760, 0xFDA90, 0xF7760, 0x372420, 0x372420, 0x36780, 0x1FA420, 0x2F4290, 0x75AF0,
+    (u32)&rn_cook_locator, 0x36760, 0xFDA90, 0xF7760, 0x372420, 0x372420, 0x36780, 0x1FA420, 0x2F4290, 0x75AF0,
     (u32)rn_cook_create, (u32)rn_cook_size,
 };
 

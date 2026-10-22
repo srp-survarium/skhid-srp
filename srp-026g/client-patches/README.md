@@ -2807,13 +2807,15 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   dword it does not read and pops both, `ret 8`, as the game's rules do: the first build's `ret 4`
   crashed both clients at their first synchronization, `../docs/notes/client_patch.md` §3.50), 17
   the hud's team points, 18 completed (the end time); the rest the game's (0x266710 the delete, 0xF1900.. the resource's,
-  0x8FE10 the priority, 0x316540 the link resolver). The vtables carry game_match_rule_base's RTTI
+  0x8FE10 the priority, 0x316540 the link resolver). Its vtables carry game_match_rule_base's RTTI
   locators.
 - **The cook**: a client rule cook as tdm_rule_core's (0x2F41E0, 0x2063F0: class at +8, the thread
   at +14h, 8 at +18h, the game at +20h), class 0x1E0 (`RESEARCH_CLASS`; register_cook's table has
   0x206 places and nothing registers 0x1E0; a taken class is left alone and Research is not
   registered), its create reading `mode.parameters` through the game's own look-ups (0xF6B10,
-  0xF6C00). The mode configs list it: `rules [93, 91, 480, 94]`.
+  0xF6C00). The mode configs list it: `rules [93, 91, 480, 94]`. Its vtable carries an RTTI
+  locator of its own, `research_rule_cook`: a translate_query_cook, shaped as tdm_rule_core_cook's
+  hierarchy (its base class descriptors reused), not tdm_rule_cook's (the first build's).
 - **The tick** (`research_rule_026g.c`): only in play (the time rule's state 3, world+18FE4h);
   the players of the places entered, alive (+33Ch) and in the world (+33Fh), their team (+6B8h ->
   +45ECh) and position (+43Ch, the capsule's centre); the units' capture (0.27d's 0x324070), the

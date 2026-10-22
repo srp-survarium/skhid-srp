@@ -2049,6 +2049,29 @@ def test_research(original, image, before):
                   f"{table} slot {slot}: ours ({ours:#x}) pops {mine} bytes, {what} ({theirs:#x}) {game}")
         check(len(compared) == {"rn_rule_vtable": 9, "rn_cook_vtable": 2}[table],
               f"{table}: each of our own slots compared with {what} vtable {theirs_at:#x} ({compared})")
+    # The cook's RTTI: its own complete object locator (research_rule_cook, a
+    # translate_query_cook as tdm_rule_core_cook is); the rule's the base's.
+    def type_name(img, td):
+        raw = img.read(td + 8, 64)
+        return raw[:raw.index(b"\0")].decode()
+
+    def hierarchy(img, locator):
+        signature, offset, _, td, chd = struct.unpack("<5I", img.read(locator, 20))
+        _, attributes, count, array = struct.unpack("<4I", img.read(chd, 16))
+        bases = [read32(img, array + 4 * i) for i in range(count)]
+        return (signature, offset, read32(img, td), type_name(img, td), attributes,
+                [(type_name(img, read32(img, b)),) + struct.unpack("<6I", img.read(b + 4, 24)) for b in bases])
+    cook_locator = read32(image, int(kept["symbols"]["rn_cook_vtable"], 16))
+    ours = hierarchy(image, cook_locator)
+    core = hierarchy(source, 0xA524C0)                    # tdm_rule_core_cook's locator (vtable 0xA12C14)
+    check(ours[:2] == (0, 0) and ours[2] == read32(source, 0xACCC38) and ours[3] == ".?AVresearch_rule_cook@srp@@"
+          and ours[4] == core[4] and ours[5][1:] == core[5][1:] and ours[5][0][1:6] == core[5][0][1:6]
+          and ours[5][0][0] == ours[3] and P.RESEARCH_VA <= cook_locator < P.RESEARCH_VA + len(code),
+          f"the cook's RTTI locator ({cook_locator:#x}) is its own: {ours[3]}, a translate_query_cook as "
+          f"tdm_rule_core_cook is ({[b[0] for b in ours[5]]})")
+    check(read32(image, int(kept["symbols"]["rn_rule_vtable"], 16)) == 0xA4C970
+          and hierarchy(source, 0xA4C970)[3] == ".?AVgame_match_rule_base@survarium@@",
+          "the rule's vtable has game_match_rule_base's locator (0xA4C970)")
 
 
 def popped(image, start, end):

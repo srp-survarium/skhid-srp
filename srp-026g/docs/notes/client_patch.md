@@ -1281,6 +1281,17 @@ The old bytes' jumps all landed inside them; nothing else aims inside; no base r
   (allocate), the core constructor with the query (`[q]` the match options, `[q+0Ch]` the mode
   config's root), +130h the game; slot 10 the size. Slot 7 (0x2F4290) is the shared translate:
   it calls 9 with `[query+108h]` and 10.
+- **The cook's RTTI** (PROVEN): tdm_rule_cook's locator 0xA47134 (type descriptor 0xACCC38,
+  hierarchy 0xA47148: tdm_rule_cook, tdm_rule_core_cook, translate_query_cook, cook_base,
+  boost's noncopyable at +20h, attributes 1). No code of `.text` names any cook's type descriptor
+  (0xACCC38, tdm_rule_core_cook's 0xACCC0C, translate_query_cook's 0xAB8E58, cook_base's 0xAB8D2C)
+  or the locator: nothing casts a cook or asks its type, so a borrowed locator would only misname
+  it. The cook has its own all the same (`rn_cook_locator`): `.?AVresearch_rule_cook@srp@@`
+  (type_info's vftable 0x886A78, the first word of every type descriptor), its hierarchy shaped
+  as tdm_rule_core_cook's (locator 0xA524C0, hierarchy 0xA4718C: attributes 1, four bases) with
+  that hierarchy's base class descriptors of translate_query_cook 0xA38D74, cook_base 0xA38D24 and
+  noncopyable 0xA40010. The descriptor's second word (type_info's name cache) is written by
+  type_info::name: `.srpx` is writable.
 - **Rule vtables** (PROVEN, tdm 0xA15DA4, timelimit 0xA06E2C, kd 0xA177D4): 0 delete (0x266710:
   the base vtables back, 0xF1850, free), 1..6 the resource's, 7 `on_event(type, time, data)`
   `ret 0Ch` (a kill is type 1, `data = {killer, victim}`; 0 the match started), 8 / 9
