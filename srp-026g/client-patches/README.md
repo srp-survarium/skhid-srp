@@ -2445,7 +2445,7 @@ Round 2 (2026-10-21, after the owner's game run; 1 488 bytes, state 48h bytes):
   is off the movie (the lobby menu's is_mouse_over_ui, asked once at the press's first move):
   a press on a control or on an item being dragged (a camouflage, a scope) does not, until it is
   let go. Buttons 52h as before.
-- **The light** is data, not this patch: `../scripts/content-edit/lobby-bench-light-1.json`.
+- **The light** is data, not this patch: `../scripts/content-edit/lobby-scene-2.json` (it replaced lobby-bench-light-1).
 
 Round 3 (2026-10-21; 1 798 bytes, state 90h bytes):
 

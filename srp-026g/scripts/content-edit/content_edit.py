@@ -57,6 +57,13 @@ Edits (edits.json):
                     the one entry of the indexed table `list` whose keys match `where`: each key of
                     `from` must hold that value, then takes the value in `to` (a number keeps its type,
                     a string is appended)
+  "remove_entry":   [{"file", "list", "where"}]        the one entry of the indexed table `list` whose keys
+                                                       match `where` taken out (a scene's object, model or
+                                                       collision); the later entries move down in place, the
+                                                       count drops by 1. Applied last: the paths of the edits
+                                                       above are the live file's
+In `where` (and set_entry's `from`) a float, or a vector (a position: a list of numbers), matches
+within 0.0005, as the editor's text (`client_project.lua`) prints them; ints and strings exactly.
 A copy is read back against the file it was copied from: byte for byte when nothing edits it.
 New records and arrays are appended (arrays at 8-byte boundaries, as the files keep them); a table
 that grows gets a new array and the old one stays, unreferenced.
@@ -239,13 +246,24 @@ def value_of(buf, off):
     d, _, _, t, cnt = rec(buf, off)
     if t == T_STR:
         return bytes(buf[d:d + cnt - 1]).decode()
+    if t > T_STR:
+        return list(struct.unpack('<%df' % (t - 4), bytes(buf[d:d + 4 * (t - 4)])))
     return as_number(t, d & 0xffffffff) if t != T_BOOL else d & 1
+
+
+def same(got, want):
+    """A float or a vector within 0.0005 of `want` (the editor prints three decimals); else equal."""
+    if isinstance(got, list):
+        return isinstance(want, list) and len(got) == len(want) and all(same(g, w) for g, w in zip(got, want))
+    if isinstance(got, float) and isinstance(want, (int, float)) and not isinstance(want, bool):
+        return abs(got - want) <= 5e-4
+    return got == want
 
 
 def matches(buf, entry, want):
     for k, v in want.items():
         c = child(buf, entry, k)
-        if c is None or value_of(buf, c) != v:
+        if c is None or not same(value_of(buf, c), v):
             return False
     return True
 
@@ -445,7 +463,7 @@ def set_entry(buf, path, where, frm, to):
     entry = children(buf, lst)[at]
     for k, v in frm.items():
         c = child(buf, entry, k)
-        if c is None or value_of(buf, c) != v:
+        if c is None or not same(value_of(buf, c), v):
             raise ValueError('%s[%d]/%s is %r, not %r: the base is not the live data'
                              % (path, at, k, None if c is None else value_of(buf, c), v))
     for k, v in to.items():
@@ -459,6 +477,38 @@ def set_entry(buf, path, where, frm, to):
         else:
             set_number(buf, '%s[%d]/%s' % (path, at, k), value_of(buf, c), v)
     return at
+
+
+def remove_entry(buf, path, where):
+    """The one entry of the indexed table `path` whose keys match `where` taken out: the later entries'
+    records move down one place in the table's own array, its count drops by one (the last record and
+    the entry's own values stay, unreferenced). Returns the entry's index; an entry matched not exactly
+    once is refused."""
+    lst = find(buf, path)
+    if rec(buf, lst)[3] != T_INDEXED:
+        raise ValueError('%s is not an indexed table' % path)
+    kids = children(buf, lst)
+    hit = [i for i, e in enumerate(kids) if rec(buf, e)[3] == T_NAMED and matches(buf, e, where)]
+    if len(hit) != 1:
+        raise ValueError('%s: %d entries match %r, not 1: the base is not the live data' % (path, len(hit), where))
+    at = hit[0]
+    for dst, src in zip(kids[at:], kids[at + 1:]):
+        buf[dst:dst + 24] = buf[src:src + 24]
+    d, i, crc, t, cnt = rec(buf, lst)
+    REC.pack_into(buf, lst, d, i, crc, t, cnt - 1)
+    return at
+
+
+def unshifted(path, lst, at):
+    """A path of the file before entry `at` of the table `lst` was taken out, after it; None for a
+    path of the entry itself."""
+    head = lst + '['
+    if not path.startswith(head):
+        return path
+    k, rest = path[len(head):].split(']', 1)
+    if int(k) == at:
+        return None
+    return '%s%d]%s' % (head, int(k) - (int(k) > at), rest)
 
 
 def game_path(name):
@@ -587,6 +637,15 @@ def main():
     for e in edits.get('remove_item', []):
         remove_item(buf(e['file']), e['path'], e['value'])
         removed.setdefault(e['file'], {}).setdefault(e['path'], []).append(e['value'])
+    dropped, shrunk = {}, {}
+    for e in edits.get('remove_entry', []):
+        at = remove_entry(buf(e['file']), e['list'], e['where'])
+        lst = '/' + e['list']
+        print('remove %s[%d] %s' % (e['list'], at, json.dumps(e['where'], ensure_ascii=False)))
+        dropped.setdefault(e['file'], []).append((lst, at))
+        shrunk.setdefault(e['file'], {}).setdefault(lst, 0)
+        shrunk[e['file']][lst] += 1
+        allowed[e['file']] = {q for q in (unshifted(q, lst, at) for q in allowed.get(e['file'], ())) if q is not None}
 
     # read back: compare every value with the live file, by path
     renames = [('/%s/%s' % (e['table'], e['from']), '/%s/%s' % (e['table'], e['to']), e['from'], e['to'])
@@ -605,6 +664,8 @@ def main():
                 old[rn] = old.pop(ro)
         for lst, at in shifts.get(p, ()):
             old = {shifted(q, lst, at): v for q, v in old.items()}
+        for lst, at in dropped.get(p, ()):
+            old = {unshifted(q, lst, at): v for q, v in old.items() if unshifted(q, lst, at) is not None}
         for lst, values in removed.get(p, {}).items():
             was, now = items_of(source, lst), items_of(b, lst)
             want = list(was)
@@ -625,7 +686,8 @@ def main():
                 (o and n and o[0] == n[0] == T_STR and any(q.endswith('/' + k.decode()) and n[1] == x + o[1]
                                                            for k, x in prefixed.get(p, ()))) or \
                 (o is None and any(q == a or q.startswith(a + '/') for a in added.get(p, ()))) or \
-                (q in grown.get(p, ()) and o and n and o[0] == n[0] and n[1] == o[1] + 1)
+                (q in grown.get(p, ()) and o and n and o[0] == n[0] and n[1] == o[1] + 1) or \
+                (o and n and o[0] == n[0] and o[1] - n[1] == shrunk.get(p, {}).get(q, 0) > 0)
             bad += not ok
             print('%s%s %s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, q, show(o), show(n)))
     if copies:

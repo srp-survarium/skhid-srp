@@ -182,6 +182,9 @@ data, no simulation change. Not seen in a game:
 how much brighter 2.5 is (the engine's ambient light is a fill light with a radius; the value is
 a first guess to tune).
 
+Withdrawn on 2026-10-22 by lobby-scene-2 below (the owner saw the fill light as a fake white light):
+the list and its manifest row are removed, so the scene is built from the stock file again.
+
 ## weapon-decals-1.json (2026-10-21)
 
 | change | why |
@@ -240,3 +243,21 @@ with it passes `srp-check-game-data`. srp and `release/build-server-db` refuse d
 (`golden::check`). The patch also carries the lobby movie built from the tree (the pieces' bonuses on
 shop and bundle entries, gold background and name, the plain piece as a craft donor). Not a
 simulation change.
+
+## lobby-scene-2.json (2026-10-22)
+
+| change | why |
+|---|---|
+| `projects/lobby_scene/day/client_project` (the lobby's scene): the New Year tree in the corner by the door taken out (a new edit, `remove_entry`: an indexed table's entry matched by its keys, here the name and the position): `render_visuals[0..17]`, the fir `flora/elka_green_05` at (-2.043, 0.561, 4.355) in a chemical barrel at (-2.035, -0.003, 4.409); its ornaments, the `fx/stars` garland (the `new_year_stars` model), 4 Zarya and 2 RGO grenades, 4 artefact coils; the gifts under it, 2 vodka bottles, a toy Niva (scale 0.15), a trap and a givokost artefact; and their 26 `collision_objects[0..25]` | the owner: "can you remove the christmas tree and gifts from the lobby" |
+| `client_objects[41]` (`ambient_light(23)`, at (-2.092, 3.294, 4.439), 0.16 m above the tree's top, intensity 2.2, radius 1.1, colour 0xFFF28653) taken out | the warm glow of the tree's top: nothing else is within its 1.1 m |
+| `client_objects[66]` (`sounds/new_year`, the collection `scapes/lobby/new_year`: `christmas_sounds_01..04`) taken out | the owner: "and christmas sounds". The lobby's other sounds stay: `background`, `lobby_room_tone`, `fire`, `lamp_drone`, `lamp_bzz`. The lobby has no music setting: its sound is these scene objects |
+| `client_objects[59]` (`point_light`, the ceiling lamp at (1.672, 2.742, -0.643), colour (1, 0.824, 0.702) kept) `intensity` 3.28 -> 4, `range` 8 -> 10 m | the owner: "make the light above crafting table stronger by just making the close by lampe stronger, (same yellow light), not by just adding a new fake white light". It is the room's one warm light with a lamp of its own (the electric1 model's fixture at (1.69, 2.96, -0.63)); the weapon at (4.25, 1.30, 3.05) is 4.73 m from it. The same fixture above the bench (4.82, 3.23, 2.92, with the `lamp_bzz` sound) has no light of its own: giving it one would be a new light |
+| lobby-bench-light-1 withdrawn: `client_objects[49]` (`ambient_light(3)`) back to the stock intensity 1 and radius 3.1 | the owner saw it as the fake white light |
+
+The `set` paths are the live file's indices: `remove_entry` is applied after every other edit. Applied
+to the stock file (sha256 `e93de4fc…c0f8`; patch 27's copy is lobby-bench-light-1's, no longer in the
+manifest): 1 file edited, 0 unexpected differences (`client_objects` 72 -> 70, `render_visuals` 90 -> 72,
+`collision_objects` 92 -> 66, the lamp's two values); the result sha256 `7f8544ec…ac96a`. Rendering
+and sound only: no server data, no simulation change. `client_project.lua` (the editor's text of the
+scene, which the game does not read) is left as it is. Not seen in a game: the lamp lights the whole
+room, so the room is brighter too; 4 and 10 m are a first guess to tune.
