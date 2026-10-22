@@ -1659,6 +1659,9 @@ package
             this.itemHintRendererSec.displaylabel(true);
             this.itemHintRenderer.itemCompare.setSecondaryWeapon(secondData);
             this.itemHintRendererSec.data = secondData;
+            // In the craft window both cards are coloured, each against the other (craft-menu.md);
+            // the equipped one elsewhere is not, as before.
+            this.itemHintRendererSec.itemCompare.setSecondaryWeapon(this.craftOpen() ? e.itemData : null);
             addChild(this.itemHintRendererSec);
          }
          else
@@ -1715,6 +1718,8 @@ package
          {
             this.itemHintRendererSec.displaylabel(true);
             this.itemHintRendererSec.data = secondData;
+            // both cards coloured, each against the other
+            this.itemHintRendererSec.itemCompare.setSecondaryWeapon(e.itemData);
             addChild(this.itemHintRendererSec);
             this.itemHintRendererSec.y = this.itemHintRenderer.y;
             var hoveredMain:Boolean = e.itemRenderer == this.craftWindow.dragItemSlot1;
