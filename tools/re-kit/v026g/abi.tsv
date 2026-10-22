@@ -1837,3 +1837,21 @@ va	name	source	ret_cleanup	result
 0x000725e0	vostok::math::create_rotation	manual	0	[ESI]: float4x4, rows Rx(-x) Ry(-y) Rz(-z) (v * M)
 0x002d2770	survarium::game_world_core::deserialize	manual	12	
 0x0007f5c0	vostok::physics::bullet_character_controller::get_transform	manual	0	[ECX]: the controller's matrix (+80h), its translation moved down by heights[(stance+2)%3] + heights[stance] (half the capsule's height): the feet
+0x00054e10	survarium::replay_network_client::is_this_place_mine	manual	4	AL: 1 when the place is the one the replay is on (the stock slot is a stub: xor al,al)
+0x0027aa20	survarium::network_client::on_match_ready	manual	4	
+0x00126830	vostok::render::skeleton_model_instance_cook::on_bake_finished	manual	0	
+0x001f2100	survarium::player::~player	manual	0	
+0x00219e60	survarium::network_client::~network_client	manual	0	
+0x00242900	survarium::game_camera::get_projection_matrix	manual	8	EAX: the matrix
+0x0025cf60	survarium::game_world::on_mouse_key_action	manual	12	AL: taken
+0x002641a0	survarium::lobby_character::bake_decals	manual	16	AL: baked
+0x00265c20	survarium::lobby_character::on_decal_click	manual	12	
+0x00270320	survarium::lobby_client::copy_account_items	manual	0	
+0x00277cf0	survarium::lobby_client::find_item_holding_upgrade	manual	0	
+0x00275220	survarium::lobby_client::process_detach_upgrade	manual	8	
+0x002708c0	survarium::lobby_client::send_detach_upgrade	manual	8	
+0x002d8100	survarium::base_player::register_animations	manual	4	
+0x00316820	survarium::player_respawn_rule_base::tick	manual	12	
+0x002d4ab0		auto	0	
+0x002d4b50		auto	0	
+0x00321820		auto	4	

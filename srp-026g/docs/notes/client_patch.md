@@ -1644,3 +1644,152 @@ Please reinstall the application and try again" (string 0x9DEF00, pushed at
   Not known from the code alone: whether every small archive mounts as the
   retail one does (the mounter reads the 256 signature bytes after the
   file table, section 0.1).
+
+### 0.3 `.srpx`, the arena of the later patches (generic tooling, 2026-10-22) — PROVEN bytes: the exe is byte for byte main's build with Research on it; the self-test's arena checks pass
+
+The exe's section table has room for twelve entries: it begins at file 0x210
+and the headers end at 0x400, where the first section's bytes begin, so
+0x400 - 0x210 = 0x1F0 = 12 x 40 bytes. The game's seven sections and ours,
+`.srp`, `.srpd`, `.srpc` and `.srpw`, take eleven. The twelfth and last is
+`.srpx`, which Research (patch 53, #297) made first: code, initialized data
+and writable (0xE0000060), on the page after `.srpw`'s three pages
+(`ARENA_VA` = 0xA42D000). It is now an arena every later patch's code, data
+and state goes in, so no patch needs a PE section of its own again (the
+table is full).
+
+It only grows. A patch that wants room declares its blocks in
+`patch_026g.py`'s `ARENA`, in placement order, append only: an
+`ArenaBlock(name, kind, size, align)` each (`kind` "code", "data" or
+"state"; `align` a power of two from 16, 0x1000 for a page of its own). The
+builder lays them out in that order, each at the next multiple of its
+alignment after the one before (`arena_layout`; `ARENA_LAYOUT` holds the
+VAs), and only the section's `VirtualSize`/`SizeOfRawData` and the image's
+`SizeOfImage` grow. A block never moves once placed: `ARENA_PINNED` writes
+down every block's VA when it is added, and `build()` stops if a size or an
+alignment change would move one (`check_arena`). A patch takes its VAs from
+`ARENA_LAYOUT` (and checks its `.bin` was built for them, as Research does),
+and the file holds the whole arena (code blocks int3 after their
+bytes, data and state blocks and the gaps zeros), byte-for-byte
+deterministic.
+
+```
+section table (0x210..0x400): 12 slots
+  .text .rdata .data STLPORT_ .tls .rsrc .reloc   (the game's 7)
+  .srp .srpd .srpc .srpw                           (ours, 8..11)
+  .srpx                                            (the arena, 12)
+
+.srpx  (VA 0xA42D000, grows ->)
+  +0        research.code   (code,  0x3000, page)   -> 0xA42D000
+  +0x3000   research.state  (state, 0x1000, page)   -> 0xA430000
+  +0x4000   (next: #225's anomalies.code)           -> 0xA431000
+  ...each new patch's blocks appended, nothing before them moves
+```
+
+**Research on the arena.** `ARENA` is Research's two blocks; `RESEARCH_VA`
+and `RESEARCH_STATE_VA` are `ARENA_LAYOUT["research.code"]` and
+`["research.state"]`, the VAs `research_026g.py` links for. The build is byte
+for byte what main built before the arena existed (Research writing `.srpx`
+itself): the default exe, `--revision` with `--required-patches`,
+`--no-late-join`, `--cave=hash-mismatch`, `--cert-only` and `--server`,
+compared by sha256 against main 5d834b9f's tool. `DYNAMIC_ANOMALIES_OFFSET`
+is gone: nothing reserves room ahead, the next block simply goes after the
+last.
+
+**Adopting it: the dynamic anomalies (#225).** #225 assembles
+`dynamic_anomalies_026g.asm` for 0xA431000 (`.srpx` + 0x4000) and puts its
+bytes there itself. On the arena:
+
+1. append its block to `ARENA`, after Research's:
+   `ArenaBlock("anomalies.code", "code", <its size, a page multiple>, 0x1000)`
+   (state of its own, if any, as one more block after it), and its row to
+   `ARENA_PINNED`: `"anomalies.code": 0xA431000`;
+2. take its VA from `ARENA_LAYOUT["anomalies.code"]` (0xA431000, so its
+   `.bin` does not change), check its `.bin` was assembled for it, aim its
+   hooks there, and put its bytes into `arena_bytes["anomalies.code"]` in
+   `build()` (beside `arena_bytes["research.code"]`); drop its own
+   `add_code_section` / `.srpx` code;
+3. declare its hooks in `INSTALLS` (and any vtable or callback it hands the
+   game in `INSTALLED_VTABLES` / `CALLBACKS`, section 0.4), or `build()`
+   refuses them;
+4. the self-test's `.srpx` check reads the blocks from `ARENA_LAYOUT`; add the
+   anomalies' bytes to what it expects there.
+
+A patch after it does the same with the next block.
+
+### 0.4 Call shapes: every installed function has a model (generic tooling, 2026-10-22) — PROVEN bytes, the self-test's shape checks pass
+
+A function the game calls through a pointer our code hands it (a vtable slot,
+a delegate, a callback) must pop off the stack exactly what the game's own
+function in its place pops (its `ret imm16`), or the game's caller is left
+with the stack off by the difference. Research's rule slot 16
+(`rn_deserialize`) popped 4 bytes where the game's rules end `ret 8`, from a
+wrong hand-written note, and the game died at the first sync (#297; fixed
+there, and check 53 compared Research's own vtables with tdm's). This makes
+that comparison the rule for every patch.
+
+Every function a patch installs declares, in `patch_026g.py`, the game's own
+function it stands in for (its **model**) or an explicit ABI:
+
+- `INSTALLS` names each site where the game calls or enters our code, by the
+  shape the site had in the original: **SLOT** (a pointer the game calls
+  through: the model is the function the original's pointer named), **ENTRY**
+  (a function's first bytes jump to ours, or its body is ours in place: the
+  model is that function), **CALLEE** (`[push ...] call F` calls ours: the
+  model is F), **INLINE** (a call of ours where the site was other
+  instructions), **ABI** (pops what the declaration says, with the reason),
+  **JUMP** (a jump into ours from the middle of the game's code).
+- `CALLBACKS` names the functions our code hands the game at run time (no
+  write of `build()` shows them), with the instruction that hands each over
+  and its model.
+- `INSTALLED_VTABLES` names each vtable our code builds and installs (a
+  rule's, a cook's): the `.section.json` symbol of its locator, the model
+  vtable (the game's own in the same role) and how many slots are ours.
+  Today: Research's rule (tdm_rule_core, 0xA15DA4, 9 of 20 slots ours), its
+  cook (tdm_rule_cook, 0x9FD8AC, 2 of 11) and its rule's link resolver (the
+  game's own function only).
+
+The checks:
+
+1. `build()` fails on any call (E8), jump (E9) or other 4 bytes naming our
+   code (a pointer, a `push imm32`, a `mov imm32`), at any offset of any write
+   into the game's sections (`installs_of`), that `INSTALLS` does not declare,
+   or whose kind does not fit the site (`audit_installs`); and on any
+   `*_vtable` symbol of the arena's C code (`ARENA_SYMBOLS`) that
+   `INSTALLED_VTABLES` does not declare (`audit_vtables`). A new installed
+   function or vtable cannot ship undeclared.
+2. The self-test (`test_call_shapes`) reads what each of ours pops from the
+   built bytes, every `ret` reachable from its entry with its branches
+   followed (a body the compiler split, a tail jump into the game:
+   `function_pops`; an instruction cap reached is a failure, not a pass), and
+   the model's the same way from the original exe; where
+   `tools/re-kit/v026g/abi.tsv` has the model's row its `ret_cleanup` must say
+   the same. It fails on a mismatch for:
+   - every SLOT (model: the function the original's pointer named);
+   - every ENTRY (model: the function at the site; a body in place too);
+   - every CALLEE (model: the replaced call's target, less the bytes of the
+     pushes replaced with it: `kit_view` 4 - 4 = 0, `detach_first` 8 - 8 = 0);
+   - every ABI (its declared pops);
+   - every CALLBACK;
+   - every slot of ours of every INSTALLED_VTABLES vtable (check 53's
+     comparison, generalised).
+   Today that is 10 ENTRY, 18 CALLEE, 1 ABI and 1 SLOT site, 2 callbacks and
+   Research's 11 own vtable slots. Over the variants it builds it also flags
+   an `INSTALLS` row that none installs (a stale row).
+   `test_call_shapes_negative` builds a made-up rule vtable whose slot 16
+   pops 4 where tdm_rule_core's pops 8 and checks it is rejected (and the same
+   slot at 8 passes), and refuses an undeclared vtable, an undeclared install
+   and a `push imm32` of our code's address inside a write.
+
+On main the installed pointers are the replay camera's "is this place mine"
+slot (model `is_this_place_mine`, `ret 4`), the callbacks `query_completed`
+(model `on_match_ready`, `ret 4`) and `bake_done` (model `on_bake_finished`,
+`ret 0`), and Research's three vtables above (its rule slot 16 now `ret 8`).
+
+**Not covered.** INLINE sites (a call of ours over instructions that were not
+a call) and JUMP sites (a jump into ours from the middle of the game's code)
+are declared but not `ret`-checked: their stack balance at the return point
+stays covered by each patch's own Unicorn check and by the relocation and
+no-branch-into-a-hook checks. Nor are the in-place rewrites of the game's code
+(STAGE_FOCUS, the scoreboard's loop), which install nothing. Not yet either:
+that every slot of ours is reached through the game's own call site with its
+arguments in their order (the Research follow-up).

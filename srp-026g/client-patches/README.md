@@ -57,7 +57,7 @@ release's. The "Result" row is the build of the revision named in it.
 
 | File | What |
 |---|---|
-| `patch_026g.py` | Builds the patched exe from the original. Python 3, nothing else |
+| `patch_026g.py` | Builds the patched exe from the original. Python 3, nothing else. Holds `ARENA` (the `.srpx` blocks), `INSTALLS`/`CALLBACKS`/`INSTALLED_VTABLES` (every installed function's model) and the checks of both (arena and call shapes, above; `docs/notes/client_patch.md` 0.3, 0.4) |
 | `snapshot_upload_026g.asm` | The source of the upload code (nasm) |
 | `snapshot_upload_026g.section.bin`, `.hash-mismatch.bin` | That code assembled, for the two places it can go; `patch_026g.py` reads them. Assembling the source again gives the same bytes |
 | `late_join_026g.asm`, `late_join_validate_026g.c`, `late_join_runtime_026g.c`, `late_join_install_026g.c`, `late_join_runtime_026g.h` | The source of the late-join code (patch 11): the hooks and the game's calling conventions in assembly, the checks of what the server sends and the bookkeeping in C |
@@ -116,6 +116,48 @@ release's. The "Result" row is the build of the revision named in it.
 | `run_battery_rule.ps1` | Runs the battery rule's handler (patch 9) out of any 0.26g exe on a made-up rule object, in the 32-bit Windows PowerShell: what an exe does with a put that is played again after a rollback. Starts nothing of the game |
 | `survarium_login_server.crt` | The login certificate (the same file as `../certs/survarium_login_server.crt`) |
 | `launcher/` | The game's launcher made to work again, and to keep these files current: its patch tool, the one piece of new code, the self-test and its own README. Its updater is `../../client/updater` |
+
+## The arena (`.srpx`) and call shapes
+
+Two things keep a new exe patch from the mistakes PR #297 shipped
+(`docs/notes/client_patch.md` sections 0.3 and 0.4).
+
+**`.srpx`, the arena.** The exe's section table holds twelve entries (it is
+at file 0x210 and the headers end at 0x400); the game's seven plus `.srp`,
+`.srpd`, `.srpc` and `.srpw` take eleven. The twelfth is `.srpx`, a growing
+arena, so a later patch need not add a section of its own. A patch that wants
+room declares its blocks in `patch_026g.py`'s `ARENA` — an
+`ArenaBlock(name, kind, size, align)` each (`kind` "code", "data" or
+"state") — the builder lays them out in that order and gives each its VA
+(`arena_layout`), and only the section's sizes and `SizeOfImage` grow. A
+block never moves once placed, every block's bytes are assembled for the VA
+the builder gives it, and the arena is byte-for-byte deterministic
+(`selftest_026g.py`'s `test_arena`). With no block declared there is no
+`.srpx`. Research (patch 53) is on it: its code and state are `ARENA`'s
+first two blocks, at the VAs it was built for, and the exe is byte for byte
+what main built before the arena. The old `.srp`/`.srpd`/`.srpc`/`.srpw` stay
+as they are; new patches append blocks (the dynamic anomalies, #225, next:
+client_patch.md 0.3 says how).
+
+**Call shapes.** Every function a patch installs — a vtable slot, a delegate,
+a callback, a hook the game enters — declares in `patch_026g.py` the game's
+own function it stands in for (its model) or an explicit ABI (`INSTALLS`,
+`CALLBACKS`, `INSTALLED_VTABLES`). `build()` refuses an install it does not
+name (a call, jump or pointer into our code at any offset of any write), and
+a `*_vtable` of the arena's C code without a model (`audit_vtables`). The
+self-test (`test_call_shapes`) reads what ours pops from the built bytes
+(every `ret` reachable) and the model's from the original exe,
+`tools/re-kit/v026g/abi.tsv` having to agree where it has the row, and fails
+on a mismatch for: every SLOT, ENTRY (the model is the function at the site),
+CALLEE (the replaced call's target, less the pushes replaced with it) and ABI
+site (its declared pops); every CALLBACK; every slot of ours of every
+INSTALLED_VTABLES vtable (Research's rule, cook and link resolver: check 53's
+comparison, now the rule for every patch). It also flags an INSTALLS row no
+built variant installs. A negative test rejects a rule vtable slot 16 that
+pops 4 where tdm's pops 8 (Research's first `rn_deserialize`). **Not
+checked here:** INLINE sites (a call of ours over other instructions) and
+JUMP sites (a jump into ours from the game's code), which are declared but
+left to each patch's own Unicorn check.
 
 ## How to apply
 
@@ -2832,14 +2874,13 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   parameterised message (0x2375C0); then the compare and its branch. `cmp eax,4 / jne 0x23B36A` at
   0x23B351 (the match's first message by mode) becomes a `jmp` of the welcome stub: mode 5's is
   `st_start_match_welcome_message_5`.
-- **The section** `.srpx` (0xA42D000, after `.srpw`'s three pages) is the section of the later
-  patches' code. The exe's headers end at 400h, where the first section's bytes begin, and their
-  section table (at 210h) holds twelve entries: `.srpx` is the twelfth and last, so a later patch
-  that needs pages of its own takes some of `.srpx`'s at an offset of its own instead of a
-  section. It is code, data and writable. Research has +0: the 256 bytes of
-  `research_026g.asm` (three `jmp near`: register, hud, welcome), the C code and its constants
-  linked for where they run, int3 to +3000h, its state page (the cook, the hud's cache) zeroed.
-  +4000h on is the dynamic anomalies' (patch 42, #225, `DYNAMIC_ANOMALIES_OFFSET`).
+- **The section** `.srpx` (0xA42D000, after `.srpw`'s three pages) is the arena of the later
+  patches (the twelfth and last section table entry; "The arena" above, client_patch.md 0.3).
+  Research has its first two blocks: `research.code` at 0xA42D000 (the 256 bytes of
+  `research_026g.asm`, three `jmp near`: register, hud, welcome; the C code and its constants
+  linked for where they run; int3 to +3000h) and `research.state` at 0xA430000 (the cook, the
+  hud's cache; zeroed). The next patch's block (#225's dynamic anomalies) goes after them, at
+  0xA431000.
 - **The register hook**: `mov eax,ebx / call 0x1EC170` at 0x1E9B4C of the game's constructor (after
   its own client rule cooks) becomes a `call` of the register stub, which registers the cook once
   and does the two instructions.

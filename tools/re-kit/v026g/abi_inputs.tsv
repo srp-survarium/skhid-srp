@@ -4285,7 +4285,7 @@ va	name	location	role	basis
 0x002f4250	survarium::tdm_rule_core_cook::create_resource	ECX	the cook	observed
 0x002f4250	survarium::tdm_rule_core_cook::create_resource	entry ESP+4	query: +0 the match options, +0Ch the mode config's root	observed
 0x00316090	survarium::tdm_rule_core::on_event	entry ESP+4	the event type (0 match started, 1 a kill)	observed
-0x00316090	survarium::tdm_rule_core::on_event	entry ESP+12	the event's data (a kill: u8 killer, u8 victim)	observed
+0x00316090	survarium::tdm_rule_core::on_event	entry ESP+8	the event's data (a kill: u8 killer, u8 victim; read at 0x316106 as [esp+18h] after four pushes)	observed
 0x00316590	survarium::tdm_rule_core::on_player_entered_match	entry ESP+4	u8 roster place	observed
 0x00316340	survarium::tdm_rule_core::serialize	entry ESP+4	writer: its buffer at +14h (data +4, size +0Ch)	observed
 0x003163d0	survarium::tdm_rule_core::deserialize	entry ESP+4	reader: its cursor at +4	observed
@@ -4316,3 +4316,9 @@ va	name	location	role	basis
 0x002d2770	survarium::game_world_core::deserialize	entry ESP+12	a dword passed on to every rule's deserialize (slot 16, [vtable+40h]) as its second argument: 0x2D2B42 push [esp+84h], push &reader, call, no clean-up	observed
 0x0007f5c0	vostok::physics::bullet_character_controller::get_transform	ESI	the controller ([[player+494h]]): +80h matrix, +1D0h float heights[3], +1F0h stance	observed
 0x0007f5c0	vostok::physics::bullet_character_controller::get_transform	ECX	the transform written (64 bytes)	observed
+0x00054e10	survarium::replay_network_client::is_this_place_mine	ECX	the replay network client	observed
+0x00054e10	survarium::replay_network_client::is_this_place_mine	entry ESP+4	the roster place	observed
+0x0027aa20	survarium::network_client::on_match_ready	ECX	the network client	observed
+0x0027aa20	survarium::network_client::on_match_ready	entry ESP+4	the queries_result (the match's resource queries, done)	observed
+0x00126830	vostok::render::skeleton_model_instance_cook::on_bake_finished	entry ESP+4	the bind's first bound argument	observed
+0x00126830	vostok::render::skeleton_model_instance_cook::on_bake_finished	entry ESP+8	the cook parameters (freed here)	observed

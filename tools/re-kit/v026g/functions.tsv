@@ -1788,3 +1788,4 @@ va	status	ref_021d	name
 0x00236610	observed		survarium::game_world_ui::set_last_players
 0x00511600	observed		Scaleform::GFx::Movie::Invoke
 0x000725e0	observed		vostok::math::create_rotation
+0x00054e10	observed		survarium::replay_network_client::is_this_place_mine
