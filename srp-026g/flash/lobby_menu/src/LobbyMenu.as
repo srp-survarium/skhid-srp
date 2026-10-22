@@ -1573,6 +1573,11 @@ package
          var oldData:ItemData;
          var curerrentSlot:IPaperDollSlot;
          var newData:ItemData;
+         if(hintTarget == this.itemHintRendererSec && this.craftOpen())
+         {
+            // The craft window's item, not an equipped one: the paper doll does not change it.
+            return;
+         }
          if((hintTarget.parent) && (hintTarget.data))
          {
             oldData = hintTarget.data as ItemData;
@@ -1601,6 +1606,12 @@ package
          }
       }
       
+      // Whether the craft (Upgrade) window is open.
+      private function craftOpen() : Boolean
+      {
+         return this.craftWindow != null && this.craftWindow.parent != null;
+      }
+
       private function showItemHint(e:ListEvent) : void
       {
          var secondData:Object;
@@ -1628,7 +1639,13 @@ package
          {
             this.itemHintRenderer.x = this.inventory_list.x + this._pdTarget.x - this.itemHintRenderer.width + 6;
          }
-         if(InventoryList.AllOW_COMPARE)
+         if(InventoryList.AllOW_COMPARE && this.craftOpen())
+         {
+            // With the item being upgraded, not the equipped one; none while the window has none
+            // (craft-menu.md, "Comparing items").
+            secondData = this.craftWindow.compareWith(e.itemData);
+         }
+         else if(InventoryList.AllOW_COMPARE)
          {
             secondData = this.player_profile.getRelativeData(e.itemData);
          }

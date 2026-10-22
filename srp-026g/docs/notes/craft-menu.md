@@ -38,3 +38,20 @@ while Continue keeps you in the same 'Upgrade' window").
 - **A refused craft** (`cannot_craft_item`): the window closes by itself, as before; no buttons.
 - **Words:** the game's own "Exit" (`btn_exit_label`) and "Continue" (`btn_go_to_online_store`, the
   store dialog's Continue), in every game language.
+
+## Comparing items
+
+The owner's rule: 2026-10-22 ("comparing items in upgrade window shouldn't compare equipped to what
+is there, but instead upgradable item to a what will be the donor; if no upgradable item is set,
+then pop up doesn't show up").
+
+- **When:** the "Comparing items" checkbox is on and the craft (Upgrade) window is open.
+- **Hovering an item of the list** compares it with the item being upgraded (the main slot), not
+  the equipped one: its card beside the hovered one, and the hovered card's bars against it.
+- **No item being upgraded** (the main slot empty): no compare card, the hovered card alone.
+- **The item being upgraded itself** in the list: no compare card (nothing to compare).
+- **After an upgrade** (the result shows): compared with the upgraded item.
+- **The window's main and donor slots** show no card on hover, before and after: unchanged.
+- **Elsewhere** (the window closed): compared with the equipped item, as before.
+- Code: `MessageCraftItem.compareWith`, `LobbyMenu.showItemHint` (and `updateHintItem`, which leaves
+  the compare card alone while the window is open).

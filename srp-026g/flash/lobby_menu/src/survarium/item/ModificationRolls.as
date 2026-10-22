@@ -58,16 +58,39 @@ package survarium.item
          return number;
       }
 
-      // Whether the value of a bonus reaches the best its property rolls: never for one that does
-      // not roll (the premium items' silver, experience and reputation bonuses, pockets, slots).
+      // Whether the value of a bonus reaches the best its property rolls, or, for a property that
+      // does not roll, the premium bonus that gives it (isPremium); never for the rest (pockets,
+      // slots, ammo bags).
       public static function isBest(propId:uint, value:Number) : Boolean
       {
          var rolls:Array = ROLLS[propId] as Array;
          if(!rolls)
          {
-            return false;
+            return isPremium(propId,value);
          }
-         var best:Number = rolls[rolls.length - 1];
+         return reaches(value,rolls[rolls.length - 1]);
+      }
+
+      // Whether a bonus is a premium one, the most there is (owner 2026-10-22): the golden weapons'
+      // silver, the premium armour's experience and reputation (ItemFactory.BONUS_UI, by the same
+      // property and value). They never roll; srp's
+      // modifications::tests::the_premium_bonuses_are_the_most_their_property_gives checks that
+      // no modification gives the property more, nor rolls it.
+      public static function isPremium(propId:uint, value:Number) : Boolean
+      {
+         var row:Array;
+         for each(row in ItemFactory.BONUS_UI)
+         {
+            if(uint(row[2]) == propId && reaches(value,Number(row[3])))
+            {
+               return true;
+            }
+         }
+         return false;
+      }
+
+      private static function reaches(value:Number, best:Number) : Boolean
+      {
          return value * best > 0 && Math.abs(value) >= Math.abs(best) - EPSILON;
       }
 
