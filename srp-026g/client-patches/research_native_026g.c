@@ -1,4 +1,4 @@
-/* Research (exe patch 52): the rule on 0.26g build 2777's own interfaces.
+/* Research (exe patch 53): the rule on 0.26g build 2777's own interfaces.
  *
  * - a rule cook of class RN_CLASS (the mode configs' rules [93, 91, 1E0h, 94]),
  *   registered by the game's constructor (research_026g.asm, entry
@@ -9,7 +9,7 @@
  *   movie's root.research_update, the units' messages, the end's.
  *
  * Every address is a VA of the original exe (image base 0x10000; it is never
- * rebased). The proof of each is in docs/notes/client_patch.md section 3.49
+ * rebased). The proof of each is in docs/notes/client_patch.md section 3.50
  * and tools/re-kit/v026g. The logic is research_rule_026g.c. The code keeps
  * its mutable state in the section's own page (RN_STATE, -DRN_STATE_VA).
  */

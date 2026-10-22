@@ -256,7 +256,7 @@ pub fn tdm_finished(tickets: [u16; 2], alive: [u32; 2]) -> bool {
 pub const RESEARCH_POINT: u32 = 1_000_000;
 
 /// Research ends (3 s later) when a team's points, in millionths, reach the
-/// mode config's `resources_count` (exe patch 52, `rr_tick`). The rule
+/// mode config's `resources_count` (exe patch 53, `rr_tick`). The rule
 /// writes that end into its own bytes (`snapshot::Research::end`), which
 /// is what the server goes by; the shown scores are rounded and can say
 /// 100 a little before.
@@ -270,7 +270,7 @@ pub fn research_finished(points: [u32; 2], goal: u32) -> bool {
 /// Whether a mode rule that set its end at `completion` reports the match
 /// over at `time`: the gather rules at `completion ≤ time` (0x314230),
 /// Team Deathmatch at `completion < time` (0x316520), Research at
-/// `completion ≤ time` (exe patch 52, `rr_completed`).
+/// `completion ≤ time` (exe patch 53, `rr_completed`).
 pub fn mode_rule_completed(game_mode: u8, completion: u32, time: u32) -> bool {
     if game_mode == mode::TEAM_DEATHMATCH {
         completion < time

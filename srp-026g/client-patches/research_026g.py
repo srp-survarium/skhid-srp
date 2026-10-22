@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Research's code (exe patch 52): builds research_026g.section.bin, the code
-patch_026g.py puts into the section `.srpr`.
+"""Research's code (exe patch 53): builds research_026g.section.bin, the code
+patch_026g.py puts at the start of the section `.srpx`.
 
     python research_026g.py --write-bin [--nasm /path/to/nasm]
         assembles research_026g.asm and compiles research_rule_026g.c and

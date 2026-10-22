@@ -110,7 +110,7 @@ All 74 shipped level configs, PROVEN from `gameplay/game_modes/<name>.options` a
 | 0x5D (93) | timelimit_rule_core (0x317DA0, 0x150) | 0x2F4A09 / 0x9FD944 | 0x5C (`timelimit_rule_cook` ctor 0x162776) |
 | 0x5E (94) | kd_stats_rule (0x323790, 0x1B8) | 0x2CCDA9 | 0x5D (vt 0x819A68, 0x151723) |
 | 0x5F | pvp_match_core_cook (sibling `match.md`) | 0x2CBB69 | — |
-| 0x1E0 (480) | skhid's research rule (exe patch 52, mode 5; `research_mode.md`) | the game's constructor, after its own cooks | — |
+| 0x1E0 (480) | skhid's research rule (exe patch 53, mode 5; `research_mode.md`) | the game's constructor, after its own cooks | — |
 
 Other shifts seen on the way: project 0x41 → 0x40, game materials 0x52 → 0x51 (LIKELY: same request order), default.player 0x55 → 0x54 (LIKELY).
 
@@ -223,7 +223,7 @@ A rule ends the match by answering true to `rule_completed(t)` (vtable slot 18).
 - Statistics: `m_team_points[0..1]` := the tickets (0x316257..0x316278), `m_active_in_match_players_mask` := the active mask.
 - With `tickets_count` 0 in a config both respawn flags are cleared at match start (event 0, 0x31609B..0x3160D1): elimination without respawns. No shipped config uses it.
 
-### Mode 5, Research (skhid's rule 480, exe patch 52; added 2026-10-22)
+### Mode 5, Research (skhid's rule 480, exe patch 53; added 2026-10-22)
 
 Not 0.26g's: 0.27d's rules as `research_mode.md` has them, the rule's bytes in snapshot_rules.md §2.8.
 

@@ -162,7 +162,7 @@ Per player i < N (N = match options +0x577B5, stored at rule+0x1B0 by the constr
 - Modes 2 and 3: nothing in the blob says P, and the gather rule after the respawn rule has no fixed length. `Rules::decode` takes the P (smallest first) with which the gather rule reads exactly to the kd stats, its containers holding as many batteries as the two team points say and each of those batteries naming that container. The match server compares the P found with the map's (§2.3) and logs a difference.
 - Mode 5: the research rule (§2.8) is 21 + 96·Z bytes, Z its own byte 20 (3 on every map: 309 bytes), so, as in mode 4, the length gives P.
 
-### 2.8 The research rule (class 480 = 0x1E0, mode 5) — 21 + 96·Z bytes (exe patch 52, `rr_write` / `rr_read`; added 2026-10-22)
+### 2.8 The research rule (class 480 = 0x1E0, mode 5) — 21 + 96·Z bytes (exe patch 53, `rr_write` / `rr_read`; added 2026-10-22)
 
 Not 0.26g's: srp's own rule for Research (`research_mode.md`), loaded by the configs'
 `rules [93, 91, 480, 94]`, so between the respawn rule and the kd stats. Little-endian.

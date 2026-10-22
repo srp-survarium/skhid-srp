@@ -5,8 +5,8 @@ The owner's rules: Research comes back as 0.27 shipped it, its rules unchanged (
 though, and will go into the next one" and "we need to find everything associated with the
 release too" (2026-10-22). Not in revision 28.
 
-Code: exe patch 52 (`client-patches/research_rule_026g.c` the rules, `research_native_026g.c`
-the game's side, `research_026g.asm` the hooks; README "52."); the hud movie
+Code: exe patch 53 (`client-patches/research_rule_026g.c` the rules, `research_native_026g.c`
+the game's side, `research_026g.asm` the hooks; README "53."); the hud movie
 (`flash/hud`: `HUD.research_update`, `survarium.controls.ResearchUnits`,
 `ResearchMinimapPoint`, `Minimap.setResearchUnits`); the content (`scripts/research-mode`,
 pack `research-mode@1`); srp (`maps::mode::RESEARCH`, `match_msgs::rules::Research`,
@@ -92,7 +92,7 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   data with 109 projects); `vostok-port pack probes`: no probe missing; `release/build-site` with
   that patch (the Maps tab with the units).
 
-## The exe (patch 52)
+## The exe (patch 53)
 
 - **Rule:** `rn_rule` = game_match_rule_base (type 5) + the 0.26g rule slots (event 7: kills;
   8/9 enter/leave; 11 the world: its tick a delegate of the world's second list, after the time
@@ -117,6 +117,15 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   | +8 | u32 x2 | those players by roster place |
   | +16 | u32 x20 | each place's mark: its share of the capture at entry, 1e9 = all |
 
+- **Section:** the exe's section table has room for twelve entries (its headers end at 400h,
+  where the first section's bytes begin; moving every section's bytes to grow it would change
+  every file offset the tools and the released records name). Eleven are taken (the seven of the
+  game, `.srp`, `.srpd`, `.srpc`, `.srpw`). The twelfth, `.srpx` (0xA42D000, code, data and
+  writable), holds the code of every later patch that needs pages of its own, each at an offset
+  of its own: Research at +0 (code to +3000h, its state page +3000h), the dynamic anomalies
+  (patch 42, #225) at +4000h (`DYNAMIC_ANOMALIES_OFFSET`). #225 then adds no section: it
+  assembles `dynamic_anomalies_026g.asm` for 0xA431000 and puts its bytes into `.srpx` at
+  +4000h (int3 between), its two hooks aiming there.
 - **HUD:** update_ui (every frame): `root.research_update(own team, points 0, points 1, goal,
   Z, then cp_id, x, -z, owner, taking, progress %, inside 0, inside 1, own player inside)`, sent
   at a change and every 60 frames; the messages through the hud's parameterised message.
@@ -151,12 +160,13 @@ Left out, and why:
 
 ## Release impact
 
-- Exe: patch 52 (a new section `.srpr`; the twelfth and last the PE section table holds).
+- Exe: patch 53. Simulation change for mode 5 only. Its code is in a new section, `.srpx`, the
+  section of the later patches' code (below).
   Simulation change: a match of mode 5 needs it; modes 2-4 do not change.
 - Content: pack `research-mode@1` and the hud movie (content.tsv); the server data with it
   makes the 25 maps playable.
 - srp: mode 5 in the maps, rooms, results and pay; a server that offers Research asks for the
-  revision with patch 52.
+  revision with patch 53.
 
 ## Tests
 

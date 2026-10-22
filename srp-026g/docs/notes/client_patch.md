@@ -1221,7 +1221,7 @@ So of what the game logs, the dominant wait is the client's own send tick (a qua
 
 **Builds** (this branch, on main 7f010cc1, no server): the default build `8f75d355eda63a17d7afc83dd99ecff7d368e07801771c1f5e72f7d62c84c27b`; with `--required-patches=12,14,17,19,20,21,22,23,24,25,26,27` (revision 27's list) `33c7cba9bb1e1558b97ef43be5296f45d963174f7597f21c6f5a6e76ac3c0cc6` (12 918 392 bytes each).
 
-### 3.49 Research, mode 5 (written 2026-10-22, README patch 52, the release after revision 28; the rules: `research_mode.md`) — PROVEN in the code, the hooks, the cook, the rule and the hud run with Unicorn with the game's own register_cook, rule constructor and config look-ups; not run in a game
+### 3.50 Research, mode 5 (written 2026-10-22, README patch 53, the release after revision 28; the rules: `research_mode.md`) — PROVEN in the code, the hooks, the cook, the rule and the hud run with Unicorn with the game's own register_cook, rule constructor and config look-ups; not run in a game
 
 - **Rule cooks** (PROVEN): each is a static object `{+0 vtable, +8 class, +10h -1, +14h
   GetCurrentThreadId(), +18h 8, +20h the game (client cooks)}`, made by its function (tdm's

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run patch 52 (Research, mode 5: research_026g.asm, research_native_026g.c,
+"""Run patch 53 (Research, mode 5: research_026g.asm, research_native_026g.c,
 research_rule_026g.c) in the default build on made-up games, worlds and huds.
 
     python check_research_026g.py <original survarium.exe>

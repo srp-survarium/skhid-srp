@@ -1745,15 +1745,13 @@ def weapon_camo_va(late_join):
     return death_camera_va(late_join) + DEATH_CAMERA_SIZE
 
 
-# Research, mode 5 (patch 52, README; client_patch.md section 3.49;
+# Research, mode 5 (patch 53, README; client_patch.md section 3.50;
 # docs/notes/research_mode.md): research_026g.section.bin (research_026g.py:
 # research_026g.asm's three entries and stubs, then the C code of
 # research_rule_026g.c and research_native_026g.c and its constant data,
-# linked for RESEARCH_VA) in its own section `.srpr` on the page after `.srpw`
-# (whose three pages end there), the C code's state (the rule's cook, the
-# hud's cache) zeroed on the section's last page. The section is code, data
-# and writable (RESEARCH_CHARACTERISTICS): the twelfth and last entry the
-# exe's section table has room for. Three hooks, `call` or `jmp` to an entry:
+# linked for RESEARCH_VA) at the start of `.srpx`, the C code's state (the
+# rule's cook, the hud's cache) zeroed on the page at RESEARCH_STATE_OFFSET.
+# Three hooks, `call` or `jmp` to an entry:
 # - the game's constructor, `mov eax,ebx / call 0x1EC170` at 0x1E9B4C (after
 #   its own client rule cooks; ebx = the game): register, which registers the
 #   rule's cook (class RESEARCH_CLASS) and does the two instructions;
@@ -1763,9 +1761,22 @@ def weapon_camo_va(late_join):
 # - update_ui, `cmp eax,4 / jne 0x23B36A` at 0x23B351 (the match's first
 #   message by mode): welcome, mode 5's st_start_match_welcome_message_5.
 # No base relocation is under a site and no branch aims inside one.
-RESEARCH_NAME = b".srpr\0\0\0"
-RESEARCH_CHARACTERISTICS = 0xE0000060          # code, initialized data, execute, read, write
-RESEARCH_VA = 0xA42D000                        # weapon_camo_va + .srpw's three pages
+#
+# `.srpx` is the section of the later patches' code: the twelfth and last
+# entry the exe's section table has room for (its headers end at 400h, where
+# the first section's bytes begin, and the table at 210h holds twelve), so
+# a patch that needs a page of its own takes one of this section's, at an
+# offset of its own, rather than a section. It is code, data and writable
+# (EXTENSION_CHARACTERISTICS), on the page after `.srpw` (whose three pages
+# end there). Its pages: Research's code (+0, RESEARCH_OFFSET) and state
+# (+3000h); the dynamic anomalies of patch 42 (#225, not merged) take
+# DYNAMIC_ANOMALIES_OFFSET (+4000h) on, assembled for EXTENSION_VA plus it.
+EXTENSION_NAME = b".srpx\0\0\0"
+EXTENSION_CHARACTERISTICS = 0xE0000060         # code, initialized data, execute, read, write
+EXTENSION_VA = 0xA42D000                       # weapon_camo_va + .srpw's three pages
+RESEARCH_OFFSET = 0x0
+DYNAMIC_ANOMALIES_OFFSET = 0x4000              # reserved for patch 42 (#225)
+RESEARCH_VA = EXTENSION_VA + RESEARCH_OFFSET
 RESEARCH_ASM_SIZE = 0x100
 RESEARCH_STATE_OFFSET = 0x3000
 RESEARCH_STATE_VA = RESEARCH_VA + RESEARCH_STATE_OFFSET
@@ -2610,8 +2621,10 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             data = add_code_section(data, WEAPON_CAMO_NAME, weapon_camo_va(late_join), weapon_camo,
                                     WEAPON_CAMO_CHARACTERISTICS)
             research = open(research_bin(), "rb").read()
-            if weapon_camo_va(late_join) + (len(weapon_camo) + 0xFFF) // 0x1000 * 0x1000 != RESEARCH_VA:
-                sys.exit(f".srpw does not end at RESEARCH_VA {RESEARCH_VA:#x}")
+            if weapon_camo_va(late_join) + (len(weapon_camo) + 0xFFF) // 0x1000 * 0x1000 != EXTENSION_VA:
+                sys.exit(f".srpw does not end at EXTENSION_VA {EXTENSION_VA:#x}")
+            if RESEARCH_OFFSET + RESEARCH_SIZE > DYNAMIC_ANOMALIES_OFFSET:
+                sys.exit("Research's pages run into the dynamic anomalies' in .srpx")
             if len(research) > RESEARCH_STATE_OFFSET or any(research[at] != 0xE9 for at in RESEARCH_ENTRIES) \
                     or research_layout(research) != (RESEARCH_VA, RESEARCH_STATE_VA, RESEARCH_CLASS):
                 sys.exit(f"research_026g.section.bin was built for another place, state or class "
@@ -2621,7 +2634,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                 if neutralize_relocs(data, [(va, va + len(expected))]):
                     sys.exit(f"{va:#x}: a base relocation under a hook of Research")
             research += b"\xCC" * (RESEARCH_STATE_OFFSET - len(research)) + bytes(RESEARCH_SIZE - RESEARCH_STATE_OFFSET)
-            data = add_code_section(data, RESEARCH_NAME, RESEARCH_VA, research, RESEARCH_CHARACTERISTICS)
+            extension = b"\xCC" * RESEARCH_OFFSET + research
+            data = add_code_section(data, EXTENSION_NAME, EXTENSION_VA, extension, EXTENSION_CHARACTERISTICS)
     headers = Headers(data)
     struct.pack_into("<I", data, headers.checksum_at, pe_checksum(data, headers.checksum_at))
     return data, (f"certificate check, mutex, minimum VRAM check, hash interval {HASH_INTERVAL_MS} ms, "

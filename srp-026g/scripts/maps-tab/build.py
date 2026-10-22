@@ -63,7 +63,7 @@ TYPES = {"js": "text/javascript; charset=utf-8", "webp": "image/webp", "svg": "i
 # project can hold objects no rule of its mode reads (level_05 has a station
 # in modes 2 and 4): those are not shown.
 GATHER, TIMED = 88, 89
-# Research's rule (480, exe patch 52; docs/notes/research_mode.md) reads its
+# Research's rule (480, exe patch 53; docs/notes/research_mode.md) reads its
 # units from the mode config (`parameters.capture_zones`), not the project.
 RESEARCH = 480
 SITE = "/maps"

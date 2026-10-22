@@ -1,5 +1,5 @@
-; Research (exe patch 52): the three hooks of the mode, in front of the C code
-; of research_rule_026g.c and research_native_026g.c in the section `.srpr`
+; Research (exe patch 53): the three hooks of the mode, in front of the C code
+; of research_rule_026g.c and research_native_026g.c at the start of `.srpx`
 ; (research_026g.py builds it; patch_026g.py puts it after `.srpw`).
 ;
 ;   +0  register  game's constructor 0x1E9B4C (`mov eax,ebx / call 0x1EC170`,

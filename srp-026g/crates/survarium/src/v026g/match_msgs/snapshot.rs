@@ -85,7 +85,7 @@ pub mod event {
     /// The end of the match for a player whose protection value is 0
     /// (results.md §9).
     pub const NEW_PLAYER_MATCH: usize = 27;
-    /// Research (mode 5, exe patch 52; `research_mode.md`) counts in three
+    /// Research (mode 5, exe patch 53; `research_mode.md`) counts in three
     /// of these places: a unit captured, a player's share of it in
     /// hundredths (a battery's delivery share otherwise);
     pub const RESEARCH_CAPTURE: usize = BRING_VICTORY_ITEM;
@@ -695,7 +695,7 @@ impl Tdm {
     }
 }
 
-/// A research unit as Research's rule writes it (exe patch 52, `rr_write`):
+/// A research unit as Research's rule writes it (exe patch 53, `rr_write`):
 /// 96 bytes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ResearchUnit {
@@ -767,7 +767,7 @@ impl ResearchUnit {
     }
 }
 
-/// Research's rule (class 480, exe patch 52; `research_mode.md`, "Wire"):
+/// Research's rule (class 480, exe patch 53; `research_mode.md`, "Wire"):
 /// 21 bytes and 96 a unit; mode 5. Its own bytes say how many units it
 /// has, so, as Team Deathmatch's, it is read from the kd stats back.
 #[derive(Clone, Debug, PartialEq, Eq)]

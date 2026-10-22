@@ -93,10 +93,10 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
-| `research_026g.asm`, `research_rule_026g.c`, `research_rule_026g.h`, `research_native_026g.c` | The source of patch 52 (Research, mode 5): the three hooks and their stubs in assembly, the rule's logic in C on integers (no pointer into the game), and its side in the game (the cook, the rule's twenty slots, the hud) in C |
-| `research_026g.section.bin`, `research_026g.section.json` | That code built for `.srpr` (0xA42D000), which `patch_026g.py` reads, and beside it its symbols and what built it. The same tools give the same bytes; another compiler gives other bytes that do the same, so the file is kept, not rebuilt for a release |
+| `research_026g.asm`, `research_rule_026g.c`, `research_rule_026g.h`, `research_native_026g.c` | The source of patch 53 (Research, mode 5): the three hooks and their stubs in assembly, the rule's logic in C on integers (no pointer into the game), and its side in the game (the cook, the rule's twenty slots, the hud) in C |
+| `research_026g.section.bin`, `research_026g.section.json` | That code built for the start of `.srpx` (0xA42D000), which `patch_026g.py` reads, and beside it its symbols and what built it. The same tools give the same bytes; another compiler gives other bytes that do the same, so the file is kept, not rebuilt for a release |
 | `research_026g.py` | Builds those two files (`--write-bin`) or says whether they are what the sources give here (`--check-bin`). Needs nasm, gcc for x86 (`-m32`, SSE2 scalar floats) and GNU ld |
-| `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 52: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
+| `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
 | `check_death_camera_026g.py` | Runs the original's and patch 46's mouse moves through the game world's input handler (the death screen, a live player, spectators, a death before the start) and update_camera's call of the view's update on a made-up eye transform (needs Unicorn) |
@@ -2742,7 +2742,7 @@ stops at patch 26); `release/test.sh` (the stand-in build-zip given the list, th
 required after `--resources`, a ZIP that requires fewer refused before the swap, `deploy`'s
 refusals). **Not run in a game.**
 
-### 52. Research, mode 5 (the release after revision 28)
+### 53. Research, mode 5 (the release after revision 28)
 
 Research as 0.27d shipped it (`../docs/notes/research_mode.md`: the rules, the data, the inventory
 of the builds; the owner, 2026-10-22: "will go into the next one", not revision 28). 0.26g has none
@@ -2776,11 +2776,14 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   parameterised message (0x2375C0); then the compare and its branch. `cmp eax,4 / jne 0x23B36A` at
   0x23B351 (the match's first message by mode) becomes a `jmp` of the welcome stub: mode 5's is
   `st_start_match_welcome_message_5`.
-- **The section** `.srpr` (0xA42D000, after `.srpw`'s three pages): the 256 bytes of
+- **The section** `.srpx` (0xA42D000, after `.srpw`'s three pages) is the section of the later
+  patches' code. The exe's headers end at 400h, where the first section's bytes begin, and their
+  section table (at 210h) holds twelve entries: `.srpx` is the twelfth and last, so a later patch
+  that needs pages of its own takes some of `.srpx`'s at an offset of its own instead of a
+  section. It is code, data and writable. Research has +0: the 256 bytes of
   `research_026g.asm` (three `jmp near`: register, hud, welcome), the C code and its constants
-  linked for where they run, int3 to +3000h, the state page (the cook, the hud's cache) zeroed. It
-  is code, data and writable, and the twelfth and last entry the exe's section table has room for
-  (a later patch adds to a section that is there).
+  linked for where they run, int3 to +3000h, its state page (the cook, the hud's cache) zeroed.
+  +4000h on is the dynamic anomalies' (patch 42, #225, `DYNAMIC_ANOMALIES_OFFSET`).
 - **The register hook**: `mov eax,ebx / call 0x1EC170` at 0x1E9B4C of the game's constructor (after
   its own client rule cooks) becomes a `call` of the register stub, which registers the cook once
   and does the two instructions.
@@ -2796,7 +2799,7 @@ constructor's hook registers the cook once and goes on as the original, a taken 
 makes the rule from a mode config with the game's look-ups; set_game_world_core links the tick;
 a capture at 20 s and its event, nothing outside play, the points in the statistics' tail, kill
 invader, serialize and deserialize, the hud's points, completed; update_ui in mode 5 and 4, the
-messages; the first message by mode); `selftest_026g.py` check 52. **Not run in a game.**
+messages; the first message by mode); `selftest_026g.py` check 53. **Not run in a game.**
 
 ## Not ported, not done
 

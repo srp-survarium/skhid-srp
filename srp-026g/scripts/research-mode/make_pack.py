@@ -19,7 +19,7 @@ usage: python3 -I make_pack.py --stock <folder> --donor <folder> --london <folde
 Every input is checked against inputs.sha256. What the pack holds, per map and weather of 0.27d
 (24) and London's day (25 maps):
 - gameplay/game_modes/level_0N_<w>_5.options: 0.27d's config (its parameters, as the owner
-  approved them unchanged) with rules [93, 91, RULE_CLASS, 94] (exe patch 52's class), the map's
+  approved them unchanged) with rules [93, 91, RULE_CLASS, 94] (exe patch 53's class), the map's
   project, and the units: mode.parameters.capture_zones[] = {cp_id, position, shapes[] {type,
   position, axis_x, axis_y, axis_z, half}} from the capturable_zone objects and the
   collision_geometry they name, in world space; capture_award 100 (0.27d's capture_the_point,
@@ -48,7 +48,7 @@ import bcw  # noqa: E402
 
 PACK_ID = 'research-mode'
 VERSION = '1'
-RULE_CLASS = 0x1E0           # client-patches/research_native_026g.c RN_CLASS (patch 52)
+RULE_CLASS = 0x1E0           # client-patches/research_native_026g.c RN_CLASS (patch 53)
 RULES = [93, 91, RULE_CLASS, 94]
 CAPTURE_AWARD = 100          # 0.27d gameplay/awards/events.options capture_the_point: shared, factor 100
 CAPTURE_REACH = 0.4          # m: a player's capsule radius, added round each shape
@@ -82,7 +82,7 @@ MODELS = ('item/quest/quest_stellage/transmitter/transmitter_cable_corner', 'pro
           'props/box/props_boxes_base_a_set', 'vehicle/construct&utility/tractor')
 # What 0.26g cannot load of the mode's objects, and why (research_mode.md, "Left out").
 LEFT_OUT = {
-    'capturable_zone': 'the units: in the config (capture_zones), read by exe patch 52',
+    'capturable_zone': 'the units: in the config (capture_zones), read by exe patch 53',
     'effect_zone': "the spawn's invulnerability zone: 0.26g's projects have none (the respawn points give 6 s)",
     'generic_anomaly_core': "level_03's extra anomaly: 0.27d's anomaly format, not the mode's",
 }
@@ -463,7 +463,7 @@ def main():
         'version': VERSION,
         'target_build': '0.26g',
         'description': 'Research (mode 5) as 0.27d shipped it: 25 maps (8 levels x 3 weathers, London day), '
-                       'their configs for exe patch 52, the units\' props, texts (research_mode.md)',
+                       'their configs for exe patch 53, the units\' props, texts (research_mode.md)',
         'operations': operations,
         'server': {'maps': maps},
         'notes': ['made by srp-026g/scripts/research-mode/make_pack.py from inputs.sha256 and texts.tsv',

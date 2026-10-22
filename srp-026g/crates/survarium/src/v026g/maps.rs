@@ -45,7 +45,7 @@ pub mod mode {
     /// Team Deathmatch with tickets; rule 90.
     pub const TEAM_DEATHMATCH: u8 = 4;
     /// Research: three units to capture, the first team to 100 points
-    /// wins; rule 480, exe patch 52 (`docs/notes/research_mode.md`).
+    /// wins; rule 480, exe patch 53 (`docs/notes/research_mode.md`).
     pub const RESEARCH: u8 = 5;
     /// The modes a match can be.
     pub const ALL: [u8; 4] = [BATTERIES, TIMED_BATTERIES, TEAM_DEATHMATCH, RESEARCH];

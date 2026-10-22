@@ -1,4 +1,4 @@
-# srp's own texts of Research (the hud's messages exe patch 52 shows); 0.27d's are read from the donor.
+# srp's own texts of Research (the hud's messages exe patch 53 shows); 0.27d's are read from the donor.
 # Terms as 0.27d translated them: unit = Installation / instalacja / установка.
 key	english	german	original	polish	russian	ukrainian
 st_research_unit_a_captured	Unit A captured	Installation A eingenommen	Установка A захвачена	Instalacja A zdobyta	Установка A захвачена	Установку A захоплено

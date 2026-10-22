@@ -385,9 +385,9 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     and the option's text out of order are refused.
     check_mount_patches_026g.py runs the code on folders missing a
     required patch.
-52. the same build: Research, mode 5 (patch 52, research_026g.section.bin
-    in `.srpr`, the twelfth and last section, on the page after `.srpw`,
-    its state on the section's last page): the .bin is its .json's, the
+53. the same build: Research, mode 5 (patch 53, research_026g.section.bin
+    at the start of `.srpx`, the twelfth and last section, the later
+    patches' code, on the page after `.srpw`; its state at +3000h): the .bin is its .json's, the
     three sites (the game's constructor, update_ui's two) are the
     original's instructions before and the hooks after, no relocation
     under one and no branch into one, the entries are jumps, the stubs
@@ -1965,7 +1965,7 @@ def test_upgrade_preview(original, image, before):
 
 
 def test_research(original, image, before):
-    """Check 52: Research, mode 5 (patch 52, RESEARCH_HOOKS; research_026g.py,
+    """Check 53: Research, mode 5 (patch 53, RESEARCH_HOOKS; research_026g.py,
     check_research_026g.py runs the hooks, the cook and the rule on made-up
     games). Here: the .bin is its .json's; each site is the original's
     instructions before and the hook after, with no relocation under it and
@@ -4582,11 +4582,12 @@ def test_late_join(original, without, server, source):
     research = open(P.research_bin(), "rb").read()
     research = research + b"\xCC" * (P.RESEARCH_STATE_OFFSET - len(research)) + bytes(P.RESEARCH_SIZE - P.RESEARCH_STATE_OFFSET)
     name_r, rva_r, vsize_r, raw_r, rsize_r, flags_r = sections[-1]
-    check(name_r == P.RESEARCH_NAME and flags_r == P.RESEARCH_CHARACTERISTICS
-          and rva_r == align(rva_w + vsize_w, headers.section_alignment) and P.IMAGE_BASE + rva_r == P.RESEARCH_VA
+    check(name_r == P.EXTENSION_NAME and flags_r == P.EXTENSION_CHARACTERISTICS
+          and rva_r == align(rva_w + vsize_w, headers.section_alignment) and P.IMAGE_BASE + rva_r == P.EXTENSION_VA
+          and P.RESEARCH_VA == P.EXTENSION_VA + P.RESEARCH_OFFSET and P.RESEARCH_OFFSET == 0
           and vsize_r == P.RESEARCH_SIZE and raw_r == raw_w + rsize_w and rsize_r == align(vsize_r, headers.file_alignment)
           and bytes(data[raw_r:raw_r + vsize_r]) == research,
-          f".srpr at VA {P.IMAGE_BASE + rva_r:#x}: research_026g.section.bin, int3 padding to its state page at "
+          f".srpx at VA {P.IMAGE_BASE + rva_r:#x}: research_026g.section.bin, int3 padding to its state page at "
           f"+{P.RESEARCH_STATE_OFFSET:#x}, the page zeroed; code | data | execute | read | write, on the page "
           "after .srpw, its file bytes right after .srpw's")
     get = lambda blob, at: struct.unpack_from("<I", blob, at)[0]
@@ -4594,13 +4595,13 @@ def test_late_join(original, without, server, source):
           and get(data, headers.optional + 12) == get(without, headers.optional + 12) + state_size
           and get(data, headers.size_of_code_at) == get(original, headers.size_of_code_at) + rsize + rsize_c + rsize_w
           + rsize_r and headers.table + 40 * len(sections) <= headers.size_of_headers,
-          "SizeOfImage ends at .srpr, SizeOfUninitializedData grew by .srpd's page, SizeOfCode by .srp's, "
-          ".srpc's, .srpw's and .srpr's file sizes; the section table fits in the headers (its last entry)")
+          "SizeOfImage ends at .srpx, SizeOfUninitializedData grew by .srpd's page, SizeOfCode by .srp's, "
+          ".srpc's, .srpw's and .srpx's file sizes; the section table fits in the headers (its last entry)")
     security_offset, security_size = image.directory(4)
     old_offset, old_size = struct.unpack_from("<II", original, headers.security_at)
     check(security_offset == raw_r + rsize_r and security_offset + security_size == len(data) and security_offset % 8 == 0
           and bytes(data[security_offset:]) == bytes(original[old_offset:old_offset + old_size]),
-          f"certificate table at {security_offset:#x}: right after .srpr's bytes, 8-byte aligned, last in the file, "
+          f"certificate table at {security_offset:#x}: right after .srpx's bytes, 8-byte aligned, last in the file, "
           "identical to the original's")
     same = all(image.directory(index) == before.directory(index) for index in range(16) if index != 4)
     check(same, "the other 15 data directories are those of the build without it")
