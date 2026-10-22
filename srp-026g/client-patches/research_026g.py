@@ -14,7 +14,9 @@ patch_026g.py puts at the start of the section `.srpx`.
 Requires NASM, a C compiler for x86 (gcc: `-m32`, SSE2 scalar floats) and GNU
 ld; CC and LD name others than `cc` and `ld`. Another compiler gives other
 bytes that do the same: the checked-in .bin is the one the players' exe has,
-and the .json names what made it.
+and the .json names what made it. Nix's compiler wrapper adds hardening flags
+(stack protector, fortify, PIC, ...) that change the code; the compiler runs
+with NIX_HARDENING_ENABLE empty, so a nix-shell gives the same bytes.
 
 The layout (patch_026g.py's RESEARCH_*): at RESEARCH_VA the 256 bytes of
 research_026g.asm (three `jmp near` entries at 0, 5 and 0Ah, its stubs), the
@@ -46,6 +48,10 @@ CFLAGS = ["-m32", "-Os", "-std=c11", "-ffreestanding", "-fno-pic", "-fno-builtin
           "-fno-asynchronous-unwind-tables", "-fno-unwind-tables", "-Wall", "-Wextra", "-Werror"]
 
 
+# Nix's cc wrapper: no hardening flags of its own (see the module's text).
+COMPILER_ENV = {**os.environ, "NIX_HARDENING_ENABLE": ""}
+
+
 def c_payload(directory):
     """The C code linked at RESEARCH_VA + ASM_SIZE: (bytes, {symbol: VA})."""
     c_va = base.RESEARCH_VA + ASM_SIZE
@@ -63,7 +69,7 @@ SECTIONS {{
     for name in C_SOURCES:
         obj = directory / (name + ".o")
         subprocess.run([os.environ.get("CC", "cc"), *CFLAGS, f"-DRN_STATE_VA={base.RESEARCH_STATE_VA:#x}",
-                        "-c", str(HERE / (name + ".c")), "-o", str(obj)], check=True)
+                        "-c", str(HERE / (name + ".c")), "-o", str(obj)], check=True, env=COMPILER_ENV)
         objects.append(str(obj))
     subprocess.run([os.environ.get("LD", "ld"), "-m", "elf_i386", "-T", str(script), "--oformat=binary",
                     "-Map", str(link_map), *objects, "-o", str(binary)], check=True)
