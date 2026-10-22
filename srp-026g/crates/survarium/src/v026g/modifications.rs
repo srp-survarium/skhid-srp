@@ -89,10 +89,6 @@ pub const MAX_RANK: usize = 3;
 pub const PRICE_LEVELS: usize = 16;
 /// The modifications a reroll offers (`83 46 07`).
 pub const REROLL_CHOICES: usize = 3;
-/// The wait after a reroll paid in silver: the game's own text,
-/// `st_modifier_reroll_timer_description` ("Only one attempt in 6 hours is
-/// available when paying with silver").
-pub const REROLL_WAIT_SECONDS: u32 = 6 * 3600;
 /// The upgrade slots of an item: decals in 0 and 1 (the lobby shows two
 /// for `decal_available`, 0x28779F; a weapon one, [`WEAPON_DECAL_SLOTS`]), the camouflage in 3
 /// (`DragRegion.as`: `relocate_upgrade_item(item, camo, 3)`).

@@ -644,7 +644,7 @@ fn a_modification_is_changed_for_one_of_three() {
     let mut rng = Rng::new(5);
 
     // The window of an item nothing was changed on.
-    let window = reroll_window(&account, rifle, NOW).unwrap();
+    let window = reroll_window(&account, rifle).unwrap();
     assert_eq!(
         window,
         RerollWindow {
@@ -661,7 +661,7 @@ fn a_modification_is_changed_for_one_of_three() {
     expected.extend([0x60, 0x09, 0, 0, 12, 0, 0, 0, 0]);
     assert_eq!(bytes(&message), expected);
     takes(&mut client, &message, &account);
-    assert!(reroll_window(&account, 999, NOW).is_err());
+    assert!(reroll_window(&account, 999).is_err());
 
     // A modification it has not, and a defect's id.
     assert_eq!(
@@ -686,10 +686,10 @@ fn a_modification_is_changed_for_one_of_three() {
         Err(ItemError::NotEnoughGold)
     );
 
-    // Paid in silver: three are offered, and silver waits six hours.
+    // Paid in silver: three are offered, and silver does not wait (the owner's rule of 2026-10-22).
     let rolled = reroll(&mut account, rifle, 2000, false, NOW, &mut rng).unwrap();
     assert_eq!(rolled.paid, (2400, 0));
-    assert_eq!(rolled.reroll_seconds, 6 * 3600);
+    assert_eq!(rolled.reroll_seconds, 0);
     assert_eq!(account.generic_money, 1_000_000 - 2400);
     let table = Modifications::shared();
     for &choice in &rolled.choices {
@@ -705,7 +705,8 @@ fn a_modification_is_changed_for_one_of_three() {
             offer: Some((2000, rolled.choices))
         }
     );
-    assert_eq!(u64::from(item.reroll_time), NOW + 6 * 3600);
+    // No wait before the next silver reroll (the owner's rule of 2026-10-22).
+    assert_eq!(item.reroll_time, 0);
     // Nothing of the item changed yet.
     assert_eq!(own_modifications(item), [2000, 2010]);
     let message = lobby::permitted_reroll_result(rifle, rolled.choices, rolled.reroll_seconds);
@@ -714,7 +715,7 @@ fn a_modification_is_changed_for_one_of_three() {
     for choice in rolled.choices {
         expected.extend(choice.to_le_bytes());
     }
-    expected.extend([0x60, 0x54, 0, 0]);
+    expected.extend([0, 0, 0, 0]);
     assert_eq!(bytes(&message), expected);
     takes(&mut client, &message, &account);
 
@@ -723,32 +724,32 @@ fn a_modification_is_changed_for_one_of_three() {
     let again = reroll(&mut account, rifle, 2000, true, NOW + 60, &mut rng).unwrap();
     assert_eq!(again.choices, rolled.choices);
     assert_eq!(again.paid, (0, 0));
-    assert_eq!(again.reroll_seconds, 6 * 3600 - 60);
+    assert_eq!(again.reroll_seconds, 0);
     assert_eq!(account.premium_money, 1_000);
-    let window = reroll_window(&account, rifle, NOW + 60).unwrap();
+    let window = reroll_window(&account, rifle).unwrap();
     assert_eq!(window.offer, Some(rolled.choices));
-    assert_eq!(window.changed, Some((2000, 6 * 3600 - 60)));
+    assert_eq!(window.changed, Some((2000, 0)));
 
     // The choice: by its place among the three; the old one is named.
     assert_eq!(
-        choose_modifier(&mut account, rifle, 2010, 1, NOW),
+        choose_modifier(&mut account, rifle, 2010, 1),
         Err(ItemError::Reroll("another modification is being changed"))
     );
     assert_eq!(
-        choose_modifier(&mut account, rifle, 2000, 4, NOW),
+        choose_modifier(&mut account, rifle, 2000, 4),
         Err(ItemError::Reroll("no such choice"))
     );
-    let chosen = choose_modifier(&mut account, rifle, 2000, 1, NOW).unwrap();
+    let chosen = choose_modifier(&mut account, rifle, 2000, 1).unwrap();
     assert_eq!(chosen.old_modification, 2000);
     assert_eq!(chosen.new_modification, rolled.choices[1]);
-    // The next change costs a tenth more, and silver still waits.
+    // The next change costs a tenth more.
     assert_eq!(
         chosen.window,
         RerollWindow {
             item_id: rifle,
             regular_cost: 2640,
             premium_cost: 13,
-            changed: Some((rolled.choices[1], 6 * 3600)),
+            changed: Some((rolled.choices[1], 0)),
             offer: None
         }
     );
@@ -756,26 +757,22 @@ fn a_modification_is_changed_for_one_of_three() {
     // In the old one's place.
     assert_eq!(own_modifications(item), [rolled.choices[1], 2010]);
     assert_eq!(item.reroll.offer, None);
-    let message = lobby::permitted_modifier_chosen(
-        rifle,
-        2000,
-        chosen.new_modification,
-        [2640, 13, 6 * 3600],
-    );
+    let message =
+        lobby::permitted_modifier_chosen(rifle, 2000, chosen.new_modification, [2640, 13, 0]);
     let mut expected = vec![0x83, 0x46, 0x08];
     expected.extend(rifle.to_le_bytes());
     expected.extend(2000_u32.to_le_bytes());
     expected.extend(chosen.new_modification.to_le_bytes());
-    expected.extend([0x50, 0x0A, 0, 0, 13, 0, 0, 0, 0x60, 0x54, 0, 0]);
+    expected.extend([0x50, 0x0A, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0]);
     assert_eq!(bytes(&message), expected);
     takes(&mut client, &message, &account);
     assert_eq!(
-        choose_modifier(&mut account, rifle, 2000, 0, NOW),
+        choose_modifier(&mut account, rifle, 2000, 0),
         Err(ItemError::Reroll("nothing was offered"))
     );
 
-    // Only that modification may be changed again; silver not before the
-    // six hours are over, gold at once.
+    // Only that modification may be changed again, in gold or silver at once
+    // (no wait: the owner's rule of 2026-10-22).
     let new = chosen.new_modification;
     assert_eq!(
         reroll(&mut account, rifle, 2010, true, NOW, &mut rng),
@@ -783,27 +780,15 @@ fn a_modification_is_changed_for_one_of_three() {
             "another modification is the one to change"
         ))
     );
-    assert_eq!(
-        reroll(
-            &mut account,
-            rifle,
-            new,
-            false,
-            NOW + 6 * 3600 - 1,
-            &mut rng
-        ),
-        Err(ItemError::Reroll("silver pays once in six hours"))
-    );
     let rolled = reroll(&mut account, rifle, new, true, NOW + 100, &mut rng).unwrap();
     assert_eq!(rolled.paid, (0, 13));
     assert_eq!(account.premium_money, 1_000 - 13);
-    // Gold starts no wait: the silver one runs on.
-    assert_eq!(rolled.reroll_seconds, 6 * 3600 - 100);
-    let chosen = choose_modifier(&mut account, rifle, new, 0, NOW + 100).unwrap();
+    assert_eq!(rolled.reroll_seconds, 0);
+    let chosen = choose_modifier(&mut account, rifle, new, 0).unwrap();
     assert_eq!(chosen.window.regular_cost, 2904);
-    // After the wait silver pays again.
-    let later = NOW + 6 * 3600;
-    assert_eq!(reroll_window(&account, rifle, later).unwrap().changed, {
+    // Silver pays again at once.
+    let later = NOW + 200;
+    assert_eq!(reroll_window(&account, rifle).unwrap().changed, {
         Some((chosen.new_modification, 0))
     });
     let rolled = reroll(
@@ -886,21 +871,21 @@ fn a_change_may_be_given_up_for_the_old_one() {
 
     // Keep the old one: named as the one being changed.
     assert_eq!(
-        choose_modifier(&mut account, rifle, 2010, KEEP_OLD_MODIFICATION, NOW),
+        choose_modifier(&mut account, rifle, 2010, KEEP_OLD_MODIFICATION),
         Err(ItemError::Reroll("another modification is being changed"))
     );
     let before = account.clone();
-    let kept = choose_modifier(&mut account, rifle, 2000, KEEP_OLD_MODIFICATION, NOW).unwrap();
+    let kept = choose_modifier(&mut account, rifle, 2000, KEEP_OLD_MODIFICATION).unwrap();
     assert_eq!(kept.old_modification, 2000);
     assert_eq!(kept.new_modification, 2000);
-    // The change counts for the price, and silver waits as after any.
+    // The change counts for the price; no wait.
     assert_eq!(
         kept.window,
         RerollWindow {
             item_id: rifle,
             regular_cost: 2640,
             premium_cost: 13,
-            changed: Some((2000, 6 * 3600)),
+            changed: Some((2000, 0)),
             offer: None
         }
     );
@@ -920,13 +905,13 @@ fn a_change_may_be_given_up_for_the_old_one() {
     expected.item_mut(rifle).unwrap().reroll.offer = None;
     assert_eq!(account, expected);
     // The client's copies stay as they were.
-    let message = lobby::permitted_modifier_chosen(rifle, 2000, 2000, [2640, 13, 6 * 3600]);
+    let message = lobby::permitted_modifier_chosen(rifle, 2000, 2000, [2640, 13, 0]);
     takes(&mut client, &message, &account);
 
     // Answered once: neither a choice nor keeping it again.
     for choice in [0, KEEP_OLD_MODIFICATION] {
         assert_eq!(
-            choose_modifier(&mut account, rifle, 2000, choice, NOW),
+            choose_modifier(&mut account, rifle, 2000, choice),
             Err(ItemError::Reroll("nothing was offered"))
         );
     }
@@ -937,7 +922,7 @@ fn a_change_may_be_given_up_for_the_old_one() {
     let rolled = reroll(&mut account, rifle, 2000, true, NOW + 60, &mut rng).unwrap();
     assert_eq!(rolled.paid, (0, 13));
     assert_eq!(account.premium_money, 1_000 - 13);
-    let chosen = choose_modifier(&mut account, rifle, 2000, 2, NOW + 60).unwrap();
+    let chosen = choose_modifier(&mut account, rifle, 2000, 2).unwrap();
     assert_eq!(chosen.new_modification, rolled.choices[2]);
     assert_eq!(
         own_modifications(account.item(rifle).unwrap()),
@@ -1645,7 +1630,7 @@ fn the_silver_bonus_of_a_golden_weapon_rerolls_like_any_modification() {
     let rifle = account.add_item(dict("ak_74n_premium"), FULL_CONDITION);
     // The plain weapon's prices.
     let level = item_level(dict("ak_74n"));
-    let window = reroll_window(&account, rifle, NOW).unwrap();
+    let window = reroll_window(&account, rifle).unwrap();
     assert_eq!(
         (window.regular_cost, window.premium_cost),
         (
@@ -1663,7 +1648,7 @@ fn the_silver_bonus_of_a_golden_weapon_rerolls_like_any_modification() {
     }
     let message = lobby::permitted_reroll_result(rifle, rolled.choices, rolled.reroll_seconds);
     takes(&mut client, &message, &account);
-    let chosen = choose_modifier(&mut account, rifle, SILVER, 2, NOW).unwrap();
+    let chosen = choose_modifier(&mut account, rifle, SILVER, 2).unwrap();
     assert_eq!(chosen.new_modification, rolled.choices[2]);
     let item = account.item(rifle).unwrap();
     assert_eq!(own_modifications(item), [rolled.choices[2]]);

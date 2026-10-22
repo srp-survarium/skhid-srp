@@ -37,6 +37,7 @@ package survarium.controls
    import survarium.interfaces.ILocalPlayerProfile;
    import survarium.interfaces.IPaperDollSlot;
    import survarium.item.ItemFactory;
+   import survarium.item.ModificationRolls;
    import survarium.messages.MessageCraftItem;
    import survarium.upgrade.UpgradeWindow;
    import survarium.constants.Faction;
@@ -49,7 +50,6 @@ package survarium.controls
    import survarium.constants.ItemPrice;
    import survarium.constants.ModificationState;
    import survarium.constants.ModifierType;
-   import survarium.constants.PropertyDirection;
    import survarium.constants.QuickSlotSize;
    import survarium.constants.ShopFilter;
    import survarium.constants.SuperCategory;
@@ -892,7 +892,7 @@ package survarium.controls
             {
                propPostFix = propDescription.modifier_type == ModifierType.ADD ? propDescription.postfix : "%";
                propPrefix = modifierProp.prop_value >= 0 ? "+" : "";
-               style = propDescription.direction == PropertyDirection.LOWER_IS_BETTER && modifierProp.prop_value < 0 || propDescription.direction == PropertyDirection.HIGHER_IS_BETTER && modifierProp.prop_value > 0 ? "green" : "red";
+               style = ModificationRolls.style(propDescription,modifierProp.prop_id,ModificationRolls.value(modifierProp));
                propValue = propDescription.modifier_type == ModifierType.ADD ? modifierProp.prop_value : modifierProp.prop_value * 100;
                propHintTx = propDescription.prop_name + ": " + Util.styledChar(propPrefix + propValue + ((propPostFix) ? propPostFix : ""),style);
                modifier.textValue += propHintTx + "\n";
@@ -948,7 +948,7 @@ package survarium.controls
                {
                   propPostFix = propDescription.modifier_type == ModifierType.ADD ? propDescription.postfix : "%";
                   propPrefix = modifierProp.prop_value >= 0 ? "+" : "";
-                  style = propDescription.direction == PropertyDirection.LOWER_IS_BETTER && modifierProp.prop_value < 0 || propDescription.direction == PropertyDirection.HIGHER_IS_BETTER && modifierProp.prop_value > 0 ? "green" : "red";
+                  style = ModificationRolls.style(propDescription,modifierProp.prop_id,ModificationRolls.value(modifierProp));
                   propValue = propDescription.modifier_type == ModifierType.ADD ? modifierProp.prop_value : modifierProp.prop_value * 100;
                   propHintTx = propDescription.prop_name + ": " + Util.styledChar(propPrefix + propValue + ((propPostFix) ? propPostFix : ""),style);
                   modifiers[i].textValue += propHintTx + "\n";
@@ -973,7 +973,7 @@ package survarium.controls
                }
                propValue = propDescription.modifier_type == ModifierType.ADD ? modifierProp.prop_value : modifierProp.prop_value * 100;
                propValue = Math.round(propValue / 0.01) * 0.01;
-               style = propDescription.direction == PropertyDirection.LOWER_IS_BETTER && modifierProp.prop_value < 0 || propDescription.direction == PropertyDirection.HIGHER_IS_BETTER && modifierProp.prop_value > 0 ? "green" : "red";
+               style = ModificationRolls.style(propDescription,modifierProp.prop_id,ModificationRolls.value(modifierProp));
                propHint = propDescription.prop_name + ": " + Util.styledChar(propPrefix + propValue + propPostFix,style);
                if(!modifierProp.modifier.textValue)
                {
@@ -1858,7 +1858,7 @@ package survarium.controls
                   }
                   trace("propValue::",propDescription.direction,modifierProp.direction);
                   propValue = propDescription.modifier_type == ModifierType.ADD ? (modifierProp.prop_value) : modifierProp.prop_value * 100;
-                  style = propDescription.direction == PropertyDirection.LOWER_IS_BETTER && modifierProp.prop_value < 0 || propDescription.direction == PropertyDirection.HIGHER_IS_BETTER && modifierProp.prop_value > 0 ? "green" : "red";
+                  style = ModificationRolls.style(propDescription,modifierProp.prop_id,ModificationRolls.value(modifierProp));
                   hintText += propDescription.prop_name + ": " + Util.styledChar(propPrefix + (int(propValue) == propValue ? propValue.toString() : propValue.toFixed(1)) + propPostFix,style) + "\n";
                }
             }
