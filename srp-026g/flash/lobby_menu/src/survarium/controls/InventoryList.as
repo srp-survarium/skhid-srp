@@ -384,13 +384,10 @@ package survarium.controls
          var pp:MovieClip = parent["player_profile"];
          trace("II:visible",pp);
          super.visible = value;
-         if(this.isShop)
+         // the character menu (kits, paper doll) on the left in the shop too (owner 2026-10-22)
+         pp.visible = value;
+         if(!this.isShop)
          {
-            pp.visible = false;
-         }
-         else
-         {
-            pp.visible = value;
             this._item_control.visible = value;
             if(!this._activated)
             {
