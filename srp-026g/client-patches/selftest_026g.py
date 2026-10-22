@@ -408,6 +408,17 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     its remove_affects, artefact_base::action's entry, the player's
     stagger) and the two sizes of a Spring, the hooks and sizes in the
     build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
+55. the same build: the Sponge (patch 55, sponge_a_026g.section.bin at
+    +C000h of `.srpx`; its state at +F000h): the .bin is its .json's, the
+    eight sites (the artefact cook's construct and size switches and its
+    query's entry, the throw-grenade state's way in, is_ready, throw and the
+    pull substate's pin, the damage zone's hit) are the original's
+    instructions before and the hooks after, no relocation under one and no
+    branch into one, the entries are jumps, the stubs leave only where they
+    should, the C code names the game's functions it calls, the sponge's
+    vtable is Rattle's but for ten slots of ours, each popping what Rattle's
+    pops. check_sponge_a_026g.py runs the cook, the press, the throw, the
+    fuse, the splash, the zone and the serialization, and 0.28d0's own code.
 """
 
 import ctypes
@@ -1509,7 +1520,8 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.UPGRADE_PREVIEW_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
-        [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES]
+        [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES] + \
+        [(va, len(old)) for va, old, _, _ in P.SPONGE_A_HOOKS]
 
 
 def pickup_sites():
@@ -2089,6 +2101,101 @@ def test_research(original, image, before):
     check(read32(image, int(kept["symbols"]["rn_rule_vtable"], 16)) == 0xA4C970
           and hierarchy(source, 0xA4C970)[3] == ".?AVgame_match_rule_base@survarium@@",
           "the rule's vtable has game_match_rule_base's locator (0xA4C970)")
+
+
+def test_sponge_a(original, image, before):
+    """Check 55: the Sponge (patch 55, SPONGE_A_*; sponge_a_026g.py,
+    check_sponge_a_026g.py runs the cook, the throw state's sites, the fuse,
+    the splash, the zone and the serialization on made-up games). Here: the
+    .bin is its .json's; each site is the original's instructions before and
+    the hook after, with no relocation under it and no branch into it; the
+    entries are jumps; the stubs leave only to the sites' ways on and the
+    original calls they replace; the C code names the game's functions it
+    calls; each slot of the sponge's vtable that is ours pops (its `ret`)
+    what Rattle's (0xA06124) pops in the same place."""
+    source = Image(original)
+    code = open(P.sponge_a_bin(), "rb").read()
+    kept = json.load(open(os.path.join(HERE, "sponge_a_026g.section.json")))
+    check(kept["size"] == len(code) and kept["sha256"] == hashlib.sha256(code).hexdigest()
+          and int(kept["va"], 16) == P.SPONGE_A_VA and image.read(P.SPONGE_A_VA, len(code)) == code,
+          f"sponge_a_026g.section.bin is its .json's and in the build at {P.SPONGE_A_VA:#x} ({len(code)} bytes; "
+          "sponge_a_026g.py --check-bin builds it again where a C compiler is)")
+    originals = {
+        0x25E68A: ["cmp eax,0x5", "ja near 0x25e737"], 0x25E79A: ["cmp eax,0x5", "ja 0x25e7d2"],
+        0x25E800: ["push ebp", "mov ebp,esp", "and esp,-0x8"],
+        0x2E40C6: ["mov eax,[ecx]", "mov edx,[eax+0x64]", "call edx", "call 0x30a090"],
+        0x33A677: ["mov ecx,[esi+0x17c]", "mov edx,[ecx+0x268]"],
+        0x33A7BB: ["mov ecx,[esi+0x17c]", "add edi,0x44c", "push edi", "lea eax,[esp+0x14]", "push eax",
+                   "mov al,[esi+0x180]", "push ecx", "call 0x30a250"],
+        0x3103C9: ["mov esi,[esi+0x138]", "mov ecx,[esi+0x17c]", "push eax", "push ecx", "call 0x30a120"],
+        0x319C8B: ["push ebx", "push ebx", "sub esp,0x8", "fstp [esp+0x4]", "fld [esp+0x20]",
+                   "fstp [esp]", "push edx", "lea edx,[esp+0x3c]", "push edx", "mov edx,[esp+0xb4]",
+                   "push ebx", "push edx", "call eax"]}
+    loose = lambda text: text.replace("byte +", "").replace("byte -", "-").replace("dword ", "")
+    for va, old, offset, opcode in P.SPONGE_A_HOOKS:
+        rows = ndisasm(source.read(va, len(old)), va)
+        hooked = ndisasm(image.read(va, len(old)), va)
+        check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
+              and [loose(text) for _, _, text in rows] == originals[va]
+              and hooked[0][2].startswith("jmp") and branch_target(hooked[0][2]) == P.SPONGE_A_VA + offset
+              and all(text == "nop" for _, _, text in hooked[1:]),
+              f"{va:#x}: `{'; '.join(originals[va])}` becomes {hooked[0][2]} + {len(hooked) - 1} nop; "
+              "the build without the late join keeps it" + ("" if [loose(t) for _, _, t in rows] == originals[va]
+                                                              else f" (ndisasm: {[loose(t) for _, _, t in rows]})"))
+        hits = [hit for hit in aimed_inside(original, va, len(old), 0x82)
+                if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
+        relocated = [r for kind, r in source.relocations().values() if kind == 3 and r + 4 > va and r < va + len(old)]
+        check(not hits and not relocated, f"{va:#x}: no branch aims inside the site, no base relocation under it"
+              + "".join(f", {h:#x}" for h in hits + relocated))
+    entries = ndisasm(image.read(P.SPONGE_A_VA, 0x28), P.SPONGE_A_VA)
+    check([text.split()[0] for _, _, text in entries] == ["jmp"] * 8,
+          "the section starts with its eight entries, `jmp near` each: construct, size, query, predicate, ready, "
+          "throw, pull, zone_hit")
+    stubs = code[:P.SPONGE_A_ASM_SIZE]
+    end = stubs.rstrip(b"\xCC")
+    texts = [t for _, _, t in ndisasm(end, P.SPONGE_A_VA)]
+    targets = {int(t.split()[-1], 16) for t in texts if t.startswith(("call ", "j")) and t.split()[-1].startswith("0x")}
+    outside = {c for c in targets if not P.SPONGE_A_VA <= c < P.SPONGE_A_VA + len(code)}
+    check(outside == {0x25E737, 0x25E693, 0x25E7D2, 0x25E79F, 0x25E806, 0x30A090, 0x2E40D2, 0x33A683, 0x33A696,
+                      0x33A692, 0x30A250, 0x33A7D9, 0x30A120, 0x3103DC, 0x319CAC},
+          "the stubs leave to the switches' defaults and tables, the query's way on, each throw-state site's way "
+          f"on and the call each replaces, and the zone hit's way on ({sorted(hex(c) for c in outside)})")
+    for va, what in ((0xF6B10, "the config's child"), (0xF6C00, "the config's has"), (0xE4F90, "the cooks' allocate"),
+                     (0x25FA10, "Rattle's constructor"), (0x2605F0, "Rattle's loader"), (0x2EE8D0, "the cook's finish"),
+                     (0xE5B60, "the resource query"), (0x313200, "artefact_base's tick"),
+                     (0x313670, "artefact_base's serialize"), (0x313760, "artefact_base's deserialize"),
+                     (0x2D5AE0, "the modifiers' getter"), (0x2E58B0, "find_pool"), (0x339630, "the splash"),
+                     (0x2FC680, "remove_from_slot"), (0x3080B0, "a game object's activate"),
+                     (0x319A70, "the zone's tick"), (0x319D30, "the zone's off"),
+                     (0x2F8C30, "a collision geometry's load"), (0x7A390, "the shape's make"),
+                     (0x357100, "the body's make"), (0x3576C0, "the linear velocity's set"),
+                     (0x309F00, "the hand's transform"), (0x1F3DE0, "the u8 field writer"),
+                     (0x1F48A0, "the u32 field writer"), (0x301DE0, "the matrix field writer"),
+                     (0x81A70, "the vector field writer")):
+        check(struct.pack("<I", va) in code[P.SPONGE_A_ASM_SIZE:], f"the C code names {what} ({va:#x})")
+    read32 = lambda img, va: struct.unpack("<I", img.read(va, 4))[0]
+    symbols = sorted(int(va, 16) for va in kept["symbols"].values())
+    ours_at = int(kept["symbols"]["sp_vtable"], 16) + 4
+    compared = []
+    for slot in range(36):
+        ours, theirs = read32(image, ours_at + 4 * slot), read32(source, 0xA06124 + 4 * slot)
+        if ours == theirs:
+            continue
+        stop = min([va for va in symbols if va > ours] + [P.SPONGE_A_VA + len(code)])
+        mine = popped(image, ours, stop)
+        game = popped(source, theirs, theirs + 0x400)
+        compared.append(slot)
+        check(mine is not None and mine == game,
+              f"sp_vtable slot {slot} (+{4 * slot:#x}): ours ({ours:#x}) pops {mine} bytes, Rattle's ({theirs:#x}) {game}")
+    check(compared == [0, 11, 13, 14, 26, 27, 28, 29, 31, 33] and read32(image, ours_at - 4) == read32(source, 0xA06120),
+          f"sp_vtable: Rattle's 36 slots and RTTI locator but ten of ours ({compared}): dtor, action, removed, "
+          "revived, serialize, deserialize, set_world, tick, enable_passive, disable_passive")
+    drawable = int(kept["symbols"]["sp_drawable_vtable"], 16)
+    draw = read32(image, drawable + 4)
+    check(read32(image, drawable) == read32(source, 0xA061B4)
+          and popped(image, draw, min([va for va in symbols if va > draw] + [P.SPONGE_A_VA + len(code)]))
+          == popped(source, 0x25FB80, 0x25FF50),
+          "the drawable's vtable: Rattle's locator, our draw popping what Rattle's 0x25FB80 pops")
 
 
 def popped(image, start, end):
@@ -4822,15 +4929,23 @@ def test_late_join(original, without, server, source):
           "code | execute | read, on the page after .srpc, its file bytes right after .srpc's")
     research = open(P.research_bin(), "rb").read()
     research = research + b"\xCC" * (P.RESEARCH_STATE_OFFSET - len(research)) + bytes(P.RESEARCH_SIZE - P.RESEARCH_STATE_OFFSET)
+    sponge = open(P.sponge_a_bin(), "rb").read()
+    sponge = sponge + b"\xCC" * (P.SPONGE_A_STATE_OFFSET - len(sponge)) + bytes(P.SPONGE_A_SIZE - P.SPONGE_A_STATE_OFFSET)
+    extension = research + b"\xCC" * (P.SPONGE_A_OFFSET - len(research)) + sponge
     name_r, rva_r, vsize_r, raw_r, rsize_r, flags_r = sections[-1]
     check(name_r == P.EXTENSION_NAME and flags_r == P.EXTENSION_CHARACTERISTICS
           and rva_r == align(rva_w + vsize_w, headers.section_alignment) and P.IMAGE_BASE + rva_r == P.EXTENSION_VA
           and P.RESEARCH_VA == P.EXTENSION_VA + P.RESEARCH_OFFSET and P.RESEARCH_OFFSET == 0
-          and vsize_r == P.RESEARCH_SIZE and raw_r == raw_w + rsize_w and rsize_r == align(vsize_r, headers.file_alignment)
-          and bytes(data[raw_r:raw_r + vsize_r]) == research,
+          and P.RESEARCH_SIZE <= P.DYNAMIC_ANOMALIES_OFFSET < P.SPONGE_A_OFFSET
+          and P.SPONGE_A_VA == P.EXTENSION_VA + P.SPONGE_A_OFFSET
+          and vsize_r == P.SPONGE_A_OFFSET + P.SPONGE_A_SIZE and raw_r == raw_w + rsize_w
+          and rsize_r == align(vsize_r, headers.file_alignment) and bytes(data[raw_r:raw_r + vsize_r]) == extension,
           f".srpx at VA {P.IMAGE_BASE + rva_r:#x}: research_026g.section.bin, int3 padding to its state page at "
-          f"+{P.RESEARCH_STATE_OFFSET:#x}, the page zeroed; code | data | execute | read | write, on the page "
-          "after .srpw, its file bytes right after .srpw's")
+          f"+{P.RESEARCH_STATE_OFFSET:#x}, the page zeroed; int3 over patch 42's (+{P.DYNAMIC_ANOMALIES_OFFSET:#x}) "
+          f"pages and the free ones after them; sponge_a_026g.section.bin at "
+          f"+{P.SPONGE_A_OFFSET:#x}, int3 padding to its state page at +{P.SPONGE_A_OFFSET + P.SPONGE_A_STATE_OFFSET:#x}, "
+          "the page zeroed; code | data | execute | read | write, on the page after .srpw, its file bytes right "
+          "after .srpw's")
     get = lambda blob, at: struct.unpack_from("<I", blob, at)[0]
     check(get(data, headers.size_of_image_at) == align(rva_r + vsize_r, headers.section_alignment)
           and get(data, headers.optional + 12) == get(without, headers.optional + 12) + state_size
@@ -4994,6 +5109,7 @@ def test_late_join(original, without, server, source):
     test_tab_self(original, image, before)
     test_spot(original, image, before)
     test_artefacts(original, image, before)
+    test_sponge_a(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

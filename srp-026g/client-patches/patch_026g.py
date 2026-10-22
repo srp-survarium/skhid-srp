@@ -1881,7 +1881,9 @@ def weapon_camo_va(late_join):
 # (EXTENSION_CHARACTERISTICS), on the page after `.srpw` (whose three pages
 # end there). Its pages: Research's code (+0, RESEARCH_OFFSET) and state
 # (+3000h); the dynamic anomalies of patch 42 (#225, not merged) take
-# DYNAMIC_ANOMALIES_OFFSET (+4000h) on, assembled for EXTENSION_VA plus it.
+# DYNAMIC_ANOMALIES_OFFSET (+4000h) on, assembled for EXTENSION_VA plus it;
+# +8000h..+BFFFh free; the Sponge's patch 55 +C000h, SPONGE_A_OFFSET (its
+# code, state at +F000h). Pages no patch of this build fills are int3.
 EXTENSION_NAME = b".srpx\0\0\0"
 EXTENSION_CHARACTERISTICS = 0xE0000060         # code, initialized data, execute, read, write
 EXTENSION_VA = 0xA42D000                       # weapon_camo_va + .srpw's three pages
@@ -1898,6 +1900,47 @@ RESEARCH_HOOKS = (
     (0x1E9B4C, bytes.fromhex("8bc3e81d260000"), 0x0, 0xE8),     # the game's constructor: register
     (0x23B3DE, bytes.fromhex("837f20047518"), 0x5, 0xE8),       # update_ui after the teams' points: hud
     (0x23B351, bytes.fromhex("83f8047514"), 0xA, 0xE9),         # update_ui's first message: welcome
+)
+
+# The Sponge, artefact type 12 (patch 55, README; client_patch.md
+# section 3.52; docs/notes/sponge.md): sponge_a_026g.section.bin
+# (sponge_a_026g.py: sponge_a_026g.asm's eight entries and stubs, then the C
+# code of sponge_a_026g.c and its constant data, linked for SPONGE_A_VA) at
+# SPONGE_A_OFFSET of `.srpx`, the C code's state (the zone a sponge ticks)
+# zeroed on the page at SPONGE_A_STATE_OFFSET. 0.28d0's artefact_sponge_core
+# written again on 0.26g's interfaces. Eight hooks, `jmp` each:
+# - the artefact cook's construct 0x25E660 at its type switch (`cmp eax,5 /
+#   ja near`, 0x25E68A) and its size 0x25E770 at its own (`cmp eax,5 / ja
+#   short`, 0x25E79A): type 12 (eax 9 there) is a sponge, else the switch;
+# - its query of the model and spawn effects 0x25E800 (the entry's `push ebp
+#   / mov ebp,esp / and esp,-8`): a sponge's asks for a damage zone too;
+# - the throw-grenade state, where it takes the item in the grenade slot for
+#   a grenade set: its way in 0x2E4090 at 0x2E40C6 (vtable +64h and
+#   0x30A090: a null dereference for any other item), its is_ready at
+#   0x33A677 (the grenade's exploded flag), its throw at 0x33A7BB (`call
+#   0x30A250`), the pull substate's pin at 0x3103C9 (`call 0x30A120`): a
+#   sponge's own, else the original;
+# - the damage zone's hit loop 0x319AF0 at 0x319C8B (the receiver's vt+20h
+#   with no instigator, inflictor or item): a zone a sponge ticks names its
+#   thrower (kill credit), its inflictor and it.
+# No base relocation is under a site and no branch aims inside one.
+SPONGE_A_OFFSET = 0xC000
+SPONGE_A_VA = EXTENSION_VA + SPONGE_A_OFFSET
+SPONGE_A_ASM_SIZE = 0x200
+SPONGE_A_STATE_OFFSET = 0x3000
+SPONGE_A_STATE_VA = SPONGE_A_VA + SPONGE_A_STATE_OFFSET
+SPONGE_A_SIZE = SPONGE_A_STATE_OFFSET + 0x1000
+SPONGE_A_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19, 0x1E, 0x23)
+SPONGE_A_HOOKS = (
+    (0x25E68A, bytes.fromhex("83f8050f87a4000000"), 0x0, 0xE9),             # construct's type switch
+    (0x25E79A, bytes.fromhex("83f8057733"), 0x5, 0xE9),                     # size's type switch
+    (0x25E800, bytes.fromhex("558bec83e4f8"), 0xA, 0xE9),                   # the query's entry
+    (0x2E40C6, bytes.fromhex("8b018b5064ffd2e8be5f0200"), 0xF, 0xE9),       # the throw state's way in
+    (0x33A677, bytes.fromhex("8b8e7c0100008b9168020000"), 0x14, 0xE9),      # is_ready's grenade
+    (0x33A7BB, bytes.fromhex("8b8e7c01000081c74c040000578d442414508a868001000051e877fafcff"), 0x19, 0xE9),
+    (0x3103C9, bytes.fromhex("8bb6380100008b8e7c0100005051e8449dffff"), 0x1E, 0xE9),  # the pin
+    (0x319C8B, bytes.fromhex("535383ec08d95c2404d9442420d91c24528d54243c528b9424b40000005352ffd0"),
+     0x23, 0xE9),                                                           # the zone's hit
 )
 
 
@@ -2766,6 +2809,20 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                     sys.exit(f"{va:#x}: a base relocation under a hook of Research")
             research += b"\xCC" * (RESEARCH_STATE_OFFSET - len(research)) + bytes(RESEARCH_SIZE - RESEARCH_STATE_OFFSET)
             extension = b"\xCC" * RESEARCH_OFFSET + research
+            sponge = open(sponge_a_bin(), "rb").read()
+            if not (RESEARCH_OFFSET + RESEARCH_SIZE <= DYNAMIC_ANOMALIES_OFFSET < SPONGE_A_OFFSET
+                    and SPONGE_A_OFFSET + SPONGE_A_SIZE <= 0x10000):
+                sys.exit("the pages of .srpx overlap: Research, patch 42, patch 55")
+            if len(sponge) > SPONGE_A_STATE_OFFSET or any(sponge[at] != 0xE9 for at in SPONGE_A_ENTRIES) \
+                    or sponge_a_layout(sponge) != (SPONGE_A_VA, SPONGE_A_STATE_VA):
+                sys.exit(f"sponge_a_026g.section.bin was built for another place or state "
+                         f"(sponge_a_026g.py --write-bin: VA {SPONGE_A_VA:#x}, state {SPONGE_A_STATE_VA:#x})")
+            for va, expected, offset, opcode in SPONGE_A_HOOKS:
+                patch(data, va, expected, hook_bytes(SPONGE_A_VA, va, expected, offset, opcode))
+                if neutralize_relocs(data, [(va, va + len(expected))]):
+                    sys.exit(f"{va:#x}: a base relocation under a hook of the Sponge")
+            sponge += b"\xCC" * (SPONGE_A_STATE_OFFSET - len(sponge)) + bytes(SPONGE_A_SIZE - SPONGE_A_STATE_OFFSET)
+            extension += b"\xCC" * (SPONGE_A_OFFSET - len(extension)) + sponge
             data = add_code_section(data, EXTENSION_NAME, EXTENSION_VA, extension, EXTENSION_CHARACTERISTICS)
     headers = Headers(data)
     struct.pack_into("<I", data, headers.checksum_at, pe_checksum(data, headers.checksum_at))
@@ -2885,6 +2942,27 @@ def weapon_camo_bin():
 
 def research_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "research_026g.section.bin")
+
+
+def sponge_a_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "sponge_a_026g.section.bin")
+
+
+def sponge_a_layout(code):
+    """(VA, state VA) sponge_a_026g.section.bin was built for, read from it:
+    the size stub's `jmp 0x25E7D2` (its first) gives the VA, the state's
+    address is in the zone hit stub; (0, 0) where neither is."""
+    at = 0x5 + 5 + struct.unpack_from("<i", code, 0x6)[0] if len(code) > 0x10 and code[0x5] == 0xE9 else -1
+    if not 0 <= at < SPONGE_A_ASM_SIZE - 0x10 or code[at:at + 4] != b"\x83\xf8\x09\x74" \
+            or code[at + 5:at + 8] != b"\x83\xf8\x05":
+        return (0, 0)
+    ja = at + 8                                                # cmp eax,9 / je / cmp eax,5 / ja rel32
+    if code[ja:ja + 2] != b"\x0f\x87":
+        return (0, 0)
+    va = (0x25E7D2 - (ja + 6) - struct.unpack_from("<i", code, ja + 2)[0]) & 0xFFFFFFFF
+    zone_hit = 0x23 + 5 + struct.unpack_from("<i", code, 0x24)[0]
+    state = struct.unpack_from("<I", code, zone_hit + 2)[0] if code[zone_hit:zone_hit + 2] == b"\x3b\x3d" else 0
+    return (va, state)
 
 
 def spot_bin():
