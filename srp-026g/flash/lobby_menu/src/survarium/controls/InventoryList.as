@@ -2209,6 +2209,7 @@ package survarium.controls
             return;
          }
          this._searchBox.text = text.substring(0,start) + text.substring(end);
+         this._searchBox.validateNow();
          field.setSelection(start,start);
          this.onSearchChange(null);
       }
@@ -2247,6 +2248,7 @@ package survarium.controls
          if(typed != "")
          {
             this._searchBox.text += typed;
+            this._searchBox.validateNow();
             this.onSearchChange(null);
          }
          this._searchBox.textField.setSelection(this._searchBox.textField.length,this._searchBox.textField.length);

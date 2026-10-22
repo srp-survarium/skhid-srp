@@ -5679,8 +5679,9 @@ package
          }
       }
       
-      // Enter is down (a held key repeats its KEY_DOWN; Play takes the first only)
-      private var _enterDown:Boolean;
+      // the key of lobbyKey that is down (a held key repeats its KEY_DOWN: Play and the rooms take
+      // the first only); 0 when none
+      private var _lobbyKeyDown:uint;
       
       // Skhid's lobby keys (docs/notes/lobby-keys.md), not while a text box has the keys, a
       // message, popup, right-click menu or the results are up, nor with Ctrl or Alt:
@@ -5690,12 +5691,9 @@ package
       //   press. Up, Down and Enter in the rooms list are RoomsList.onKey's.
       private function lobbyKey(e:KeyboardEvent) : void
       {
-         var repeat:Boolean = e.keyCode == Keyboard.ENTER && this._enterDown;
-         if(e.keyCode == Keyboard.ENTER)
-         {
-            _enterDown = true;
-         }
-         if(repeat || e.ctrlKey || e.altKey || MainScene.isCtrl || stage.focus is TextField || this.has_active_message() || SrvContextMenu.visisble)
+         var repeat:Boolean = this._lobbyKeyDown == e.keyCode;
+         _lobbyKeyDown = e.keyCode;
+         if(repeat || e.ctrlKey || e.altKey || stage.focus is TextField || this.has_active_message() || SrvContextMenu.visisble)
          {
             return;
          }
@@ -5715,7 +5713,9 @@ package
             }
             return;
          }
-         if(RoomsWindow.me.shown || RoomsWindow.me.inRoom || MainScene.activeWindow != null || this.craftWindow && this.craftWindow.parent)
+         // not in a room or a room's queue (Play is the rooms' Leave then), and with no window, the
+         // friends list, the squad search or the tournament open
+         if(RoomsWindow.me.shown || RoomsWindow.me.marked() || MainScene.activeWindow != null || MainScene.activeComponent != null || this.friendsMenu.visible || this.craftWindow && this.craftWindow.parent || this._tournament && this._tournament.parent && this._tournament.visible && !this._tournament.isFold())
          {
             return;
          }
@@ -5920,9 +5920,9 @@ package
          {
             MainScene.isCtrl = false;
          }
-         if(e.keyCode == Keyboard.ENTER)
+         if(e.keyCode == this._lobbyKeyDown)
          {
-            _enterDown = false;
+            _lobbyKeyDown = 0;
          }
          if(e.isDefaultPrevented())
          {
