@@ -10,6 +10,7 @@ package survarium.player
    import scaleform.clik.interfaces.IDataProvider;
    import scaleform.clik.interfaces.IListItemRenderer;
    import scaleform.gfx.MouseEventEx;
+   import survarium.upgrade.UpgradeWindow;
    import survarium.constants.Events;
    import survarium.data.ItemData;
    import survarium.interfaces.IAmmoControll;
@@ -153,6 +154,35 @@ package survarium.player
          return this._slots_index.indexOf(this._last_name);
       }
       
+      // The kit's weapons (slots 1 and 2) a hovered sight fits look hovered too; -1 ends it
+      // (weapon_scopes.md, section 4a).
+      private var _linkedHovers:Array = [];
+
+      public function hoverWeaponsFor(scopeDictId:int = -1) : void
+      {
+         for each(var linked:int in this._linkedHovers)
+         {
+            if(linked != this._hoverIndex)
+            {
+               getSlotAt(linked).hover(false);
+            }
+         }
+         _linkedHovers = [];
+         if(scopeDictId < 0)
+         {
+            return;
+         }
+         for each(var index:int in [ProfileSlot.WEAPON_1,ProfileSlot.WEAPON_2])
+         {
+            var slot:IPaperDollSlot = getSlotAt(index);
+            if(slot != null && slot.data != null && UpgradeWindow.fits(int(slot.data.dictId),scopeDictId))
+            {
+               slot.hover();
+               this._linkedHovers.push(index);
+            }
+         }
+      }
+
       public function hoverItem(itemId:uint = 0) : void
       {
          trace("PD::hoverItem",itemId);

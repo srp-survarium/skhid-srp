@@ -48,10 +48,33 @@ then pop up doesn't show up").
 - **When:** the "Comparing items" checkbox is on and the craft (Upgrade) window is open.
 - **Hovering an item of the list** compares it with the item being upgraded (the main slot), not
   the equipped one: its card beside the hovered one, and the hovered card's bars against it.
+- **Both cards are coloured**, each against the other: a better value green, a worse one red, on
+  the item being upgraded's card too (owner 2026-10-22: "when hovering the relative changes should
+  be green <-> red"). So is the equipped item's card when an inventory item is compared with it
+  (owner 2026-10-22: "we should do the same thing for comparisons in character <-> inventory").
 - **No item being upgraded** (the main slot empty): no compare card, the hovered card alone.
 - **The item being upgraded itself** in the list: no compare card (nothing to compare).
 - **After an upgrade** (the result shows): compared with the upgraded item.
-- **The window's main and donor slots** show no card on hover, before and after: unchanged.
+- **Hovering the window's donor slot** shows the donor's card compared with the item being upgraded;
+  **hovering the main slot**, the item being upgraded compared with the donor (owner 2026-10-22:
+  "when hovering in upgrade window itself, it should still compare donor to receiver"). The other
+  slot empty: the card alone. Once the result shows: no card on the slots, as before.
+- **The item being upgraded is always the left card** of the two (owner 2026-10-22: "the upgradable
+  one should always be on left"), whichever slot is hovered; the list's compare already had it there.
 - **Elsewhere** (the window closed): compared with the equipped item, as before.
 - Code: `MessageCraftItem.compareWith`, `LobbyMenu.showItemHint` (and `updateHintItem`, which leaves
   the compare card alone while the window is open).
+
+## Items in the slots
+
+The owner's rule: 2026-10-22 ("once you move an item to donor/receiver, it should disappear from
+the inventory ... it still is in inventory, it is just a visual thing ... to know what is moved and
+what isn't").
+
+- **While the craft window is open:** its list leaves out the item in the main slot and the one in
+  the donor slot. Taken out of a slot, an item is listed again.
+- **Items with three modifications** (rank 3) are not listed either: neither slot takes them (owner
+  2026-10-22: "items with 3 mods shouldn't show up in craft too").
+- **Only the list:** the items stay owned; nothing is sent to the server.
+- **Closed:** the inventory lists every item again, as before.
+- Code: `MessageCraftItem.hideSlotted`, `InventoryList.hideCraftSlotted`, `LobbyMenu.openCraftWindow`.

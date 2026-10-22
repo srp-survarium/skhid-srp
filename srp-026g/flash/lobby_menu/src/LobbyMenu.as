@@ -1659,6 +1659,9 @@ package
             this.itemHintRendererSec.displaylabel(true);
             this.itemHintRenderer.itemCompare.setSecondaryWeapon(secondData);
             this.itemHintRendererSec.data = secondData;
+            // Both cards coloured, each against the other: the equipped (or the craft window's) one
+            // too (craft-menu.md, "Comparing items").
+            this.itemHintRendererSec.itemCompare.setSecondaryWeapon(e.itemData);
             addChild(this.itemHintRendererSec);
          }
          else
@@ -1692,6 +1695,49 @@ package
          this.setTopmostLevel(this.itemHintRendererSec,true);
       }
       
+      // A craft slot's item left of the window, compared with the other slot's; the item being
+      // upgraded always the left card (craft-menu.md, "Comparing items").
+      private function showCraftSlotHint(e:ListEvent) : void
+      {
+         if(!e.itemData || !this.craftOpen())
+         {
+            return;
+         }
+         this.hideItemHint(null);
+         var secondData:Object = InventoryList.AllOW_COMPARE ? this.craftWindow.slotCompareWith(e.itemRenderer) : null;
+         this.itemHintRenderer.mouseEnabled = this.itemHintRenderer.mouseChildren = false;
+         this.itemHintRendererSec.mouseEnabled = this.itemHintRendererSec.mouseChildren = false;
+         this.itemHintRenderer.displayOrange(true);
+         this.itemHintRenderer.displaylabel(secondData != null);
+         this.itemHintRenderer.itemCompare.setSecondaryWeapon(secondData);
+         this.itemHintRenderer.data = e.itemData;
+         addChild(this.itemHintRenderer);
+         this.itemHintRenderer.x = this.craftWindow.x - this.itemHintRenderer.width - 3;
+         this.itemHintRenderer.y = this.craftWindow.y;
+         if(secondData)
+         {
+            this.itemHintRendererSec.displaylabel(true);
+            this.itemHintRendererSec.data = secondData;
+            // both cards coloured, each against the other
+            this.itemHintRendererSec.itemCompare.setSecondaryWeapon(e.itemData);
+            addChild(this.itemHintRendererSec);
+            this.itemHintRendererSec.y = this.itemHintRenderer.y;
+            var hoveredMain:Boolean = e.itemRenderer == this.craftWindow.dragItemSlot1;
+            var left:ItemInfoRenderer = hoveredMain ? this.itemHintRenderer : this.itemHintRendererSec;
+            var right:ItemInfoRenderer = hoveredMain ? this.itemHintRendererSec : this.itemHintRenderer;
+            right.x = this.craftWindow.x - right.width - 3;
+            left.x = right.x - left.width - 1;
+            if(left.x < 0)
+            {
+               // no room on the left: both right of the window, in the same order
+               left.x = this.craftWindow.x + this.craftWindow.width + 3;
+               right.x = left.x + left.width + 1;
+            }
+         }
+         this.setTopmostLevel(this.itemHintRenderer,true);
+         this.setTopmostLevel(this.itemHintRendererSec,true);
+      }
+
       private function onHintTargetRender(e:Event) : void
       {
          if((this._pdTarget) && (this._pdTarget.data) && this._pdTarget.data.descriptor == ItemPlace.NONE)
@@ -2213,6 +2259,8 @@ package
          this.craftWindow.btnAccept.addEventListener(ButtonEvent.CLICK,this.onCloseCraft);
          this.craftWindow.btnClose.addEventListener(ButtonEvent.CLICK,this.onCloseCraft);
          this.craftWindow.addEventListener("closeCraft",this.closeCraftWindow);
+         this.craftWindow.addEventListener(ListEvent.ITEM_ROLL_OVER,this.showCraftSlotHint);
+         this.craftWindow.addEventListener(ListEvent.ITEM_ROLL_OUT,this.hideItemHint);
          this.craftWindow.dragItemSlot1.dragEnabled = false;
          this.craftWindow.dragItemSlot1.setData(itemData);
          addChild(this.backBlack);
@@ -2222,6 +2270,8 @@ package
          this.handleFrontInventory();
          this.inventory_list.lockControls(true);
          this.backBlack.alpha = 0.5;
+         // the item being upgraded is in the window's main slot: not listed (craft-menu.md)
+         this.inventory_list.hideCraftSlotted([itemData.itemId]);
          this.inventory_list.filterItem(itemData.dictId);
          this.inventory_list.selectItem(itemData.itemId);
       }
@@ -5251,6 +5301,7 @@ package
             this.inventory_list.item_compare.setSecondaryWeapon(null);
          }
          this.inventory_list.hoverItem();
+         this.inventory_list.hoverScopesFor();
       }
       
       private function onPaperDollItemRollOver(e:ListEvent) : void
@@ -5262,12 +5313,15 @@ package
          if((e) && (e.itemData))
          {
             this.inventory_list.hoverItem(e.itemData.itemId);
+            this.linkScopeHovers(e.itemData);
          }
       }
       
       private function onInventoryListItemRollOut(e:ListEvent) : void
       {
          this.player_profile.paperDoll.hoverItem();
+         this.player_profile.paperDoll.hoverWeaponsFor();
+         this.inventory_list.hoverScopesFor();
       }
       
       private function onInventoryListItemRollOver(e:ListEvent) : void
@@ -5276,6 +5330,21 @@ package
          if((e.itemData))
          {
             this.player_profile.paperDoll.hoverItem(e.itemData.itemId);
+            this.linkScopeHovers(e.itemData);
+         }
+      }
+      
+      // A hovered weapon: the listed sights that fit it look hovered; a hovered sight: the kit's
+      // weapons it fits (weapon_scopes.md, section 4a).
+      private function linkScopeHovers(item:Object) : void
+      {
+         if(item.isWeapon)
+         {
+            this.inventory_list.hoverScopesFor(int(item.dictId));
+         }
+         else if(item.category == ItemCategory.SCOPES)
+         {
+            this.player_profile.paperDoll.hoverWeaponsFor(int(item.dictId));
          }
       }
       

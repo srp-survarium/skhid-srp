@@ -24,6 +24,7 @@ package survarium.controls
    import scaleform.gfx.MouseEventEx;
    import scaleform.gfx.TextFieldEx;
    import survarium.Util;
+   import survarium.constants.ItemRank;
    import survarium.constants.Events;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
@@ -145,6 +146,10 @@ package survarium.controls
       protected var _filterDictId:int = -1;
       
       protected var _filterselectedId:int = -1;
+
+      // The craft window's items in its slots (craft-menu.md, "Items in the slots"): left out of
+      // its list, still owned.
+      private var _craftSlotted:Array = [];
       
       // The search box (docs/notes/item-search.md), always there under the grid: the grid is
       // SEARCH_ROW shorter (the fade at its foot moves up with it), and the box sits in that row,
@@ -379,13 +384,10 @@ package survarium.controls
          var pp:MovieClip = parent["player_profile"];
          trace("II:visible",pp);
          super.visible = value;
-         if(this.isShop)
+         // the character menu (kits, paper doll) on the left in the shop too (owner 2026-10-22)
+         pp.visible = value;
+         if(!this.isShop)
          {
-            pp.visible = false;
-         }
-         else
-         {
-            pp.visible = value;
             this._item_control.visible = value;
             if(!this._activated)
             {
@@ -1587,6 +1589,26 @@ package survarium.controls
          return this._inventoryItemsDict[itemId];
       }
       
+      // The dictionary ids of the weapons in the chosen kit's two weapon slots.
+      public function kitWeaponDicts() : Array
+      {
+         var ids:Array = [];
+         var pp:ILocalPlayerProfile = parent != null ? parent["player_profile"] as ILocalPlayerProfile : null;
+         if(pp == null || pp.paperDoll == null)
+         {
+            return ids;
+         }
+         for each(var slot:int in [ProfileSlot.WEAPON_1,ProfileSlot.WEAPON_2])
+         {
+            var weapon:ItemData = pp.paperDoll.getSlotAt(slot) != null ? pp.paperDoll.getSlotAt(slot).data as ItemData : null;
+            if(weapon != null)
+            {
+               ids.push(weapon.dictId);
+            }
+         }
+         return ids;
+      }
+
       public function getItemCount(dictId:uint) : uint
       {
          for(var i:uint = 0; i < this._inventoryItems.length; i++)
@@ -1629,6 +1651,43 @@ package survarium.controls
          return null;
       }
       
+      // The listed sights that fit a hovered weapon look hovered too; -1 ends it (weapon_scopes.md,
+      // section 4a).
+      private var _linkedHovers:Array = [];
+
+      public function hoverScopesFor(weaponDictId:int = -1) : void
+      {
+         var dataProvider:DataProvider = itemsTileList.dataProvider as DataProvider;
+         var position:Number = itemsTileList.getActualScrollPosition();
+         var renderer:IInventoryItemRenderer;
+         for each(var linked:int in this._linkedHovers)
+         {
+            renderer = linked != this._hoverIndex ? itemsTileList.getRendererAt(linked,position) as IInventoryItemRenderer : null;
+            if(renderer != null)
+            {
+               renderer.hover(false);
+            }
+         }
+         _linkedHovers = [];
+         if(weaponDictId < 0 || dataProvider == null)
+         {
+            return;
+         }
+         for(var i:int = 0; i < dataProvider.length; i++)
+         {
+            var itemData:Object = dataProvider[i];
+            if(itemData != null && itemData.category == ItemCategory.SCOPES && UpgradeWindow.fits(weaponDictId,int(itemData.dictId)))
+            {
+               renderer = itemsTileList.getRendererAt(i,position) as IInventoryItemRenderer;
+               if(renderer != null)
+               {
+                  renderer.hover();
+                  this._linkedHovers.push(i);
+               }
+            }
+         }
+      }
+
       public function hoverItem(value:int = 0) : void
       {
          var dataProvider:DataProvider = itemsTileList.dataProvider as DataProvider;
@@ -2350,6 +2409,16 @@ package survarium.controls
          this.applySearch();
       }
       
+      // The craft window's slots hold these items: its list leaves them out.
+      public function hideCraftSlotted(itemIds:Array) : void
+      {
+         _craftSlotted = itemIds;
+         if(this._filterDictId != -1)
+         {
+            this.applySearch();
+         }
+      }
+
       // The list again with the search's words (as filterItem asks it), the item chosen kept chosen
       // while it is still listed, from the top.
       private function applySearch() : void
@@ -3033,6 +3102,10 @@ package survarium.controls
       public function filterItem(itemDictId:int) : void
       {
          _filterDictId = itemDictId;
+         if(itemDictId == -1)
+         {
+            _craftSlotted = [];
+         }
          var supper:Array = optionControl.getSelectedIndexes();
          var filterOptions:Object = optionControl.getFilterOptions();
          var seller:int = sellersTabPage.selectedIndex != -1 ? (sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id) : Faction.NONE;
@@ -3191,8 +3264,9 @@ package survarium.controls
                for(i = 0; i < inventoryCount; i++)
                {
                   itemData = this._inventoryItems[i];
-                  // The craft's donors: the server's (a golden item also takes its plain item).
-                  isFiltered = this._filterDictId == -1 ? (checkBaseOptions(itemData)) : ItemFactory.isCraftDonor(itemData.dictId,this._filterDictId);
+                  // The craft's donors: the server's (a golden item also takes its plain item); not
+                  // one in the window's slots, nor one at the most modifications (craft-menu.md).
+                  isFiltered = this._filterDictId == -1 ? (checkBaseOptions(itemData)) : ItemFactory.isCraftDonor(itemData.dictId,this._filterDictId) && this._craftSlotted.indexOf(itemData.itemId) == -1 && itemData.rank < ItemRank.MAX;
                   if(isFiltered)
                   {
                      relativeItem = shopDict[itemData.dictId];

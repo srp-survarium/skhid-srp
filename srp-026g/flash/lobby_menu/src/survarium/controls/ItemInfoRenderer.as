@@ -7,6 +7,7 @@ package survarium.controls
    import flash.text.TextFieldAutoSize;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.interfaces.IDataRenderer;
+   import survarium.Util;
    import survarium.constants.Colors;
    import survarium.item.ItemFactory;
    import survarium.core.Icon;
@@ -192,6 +193,10 @@ package survarium.controls
          }
          weaponIds = UpgradeWindow.weaponsFor(item.dictId);
          names = new Array();
+         // the chosen kit's weapons (slot 1 or 2) in gold (owner 2026-10-22: "it should in gold
+         // highlight your weapon, if it is in the list"; weapon_scopes.md)
+         var kit:Array = UpgradeWindow.kitWeapons();
+         var owned:Object = new Object();
          i = 0;
          while(i < weaponIds.length)
          {
@@ -200,6 +205,19 @@ package survarium.controls
             if(Boolean(weaponName) && names.indexOf(weaponName) == -1)
             {
                names.push(weaponName);
+            }
+            if(Boolean(weaponName) && kit.indexOf(weaponIds[i]) != -1)
+            {
+               owned[weaponName] = true;
+            }
+            i = ++i;
+         }
+         i = 0;
+         while(i < names.length)
+         {
+            if(owned[names[i]])
+            {
+               names[i] = Util.styledChar(names[i],"gold");
             }
             i = ++i;
          }
