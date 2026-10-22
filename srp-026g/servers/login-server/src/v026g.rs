@@ -1384,4 +1384,30 @@ mod tests {
         let (_, reply) = sign_in(addr, b"Tester_1", &remembered(DIGEST_1));
         assert_eq!(reply, [0x1F]);
     }
+
+    #[test]
+    fn a_reset_account_is_claimed_by_its_login_only() {
+        let store = Arc::new(SessionStore::new());
+        let addr = start(store.clone(), local_lobby());
+        let id = old_account(&store, "stepan@mail.invalid");
+        rename(&store, id, "Hero");
+        store.reset_password(id).unwrap();
+        // Its names, old and new, reach no account's password: refused as
+        // another account's name, or made a new account of their own.
+        let (_, reply) = sign_in(addr, b"Hero", &typed(b"test-password-2"));
+        assert_eq!(reply, [0x23]);
+        let (_, reply) = sign_in(addr, b"stepan", &typed(b"test-password-2"));
+        assert_ne!(account_of(&store, &reply), id);
+        let password_hash = |id| {
+            let account = store.account(id).unwrap();
+            account.lock().unwrap().password_hash.clone()
+        };
+        assert_eq!(password_hash(id), None);
+        // Its login takes the next password, and only that one then.
+        let (_, reply) = sign_in(addr, b"stepan@mail.invalid", &typed(b"test-password-2"));
+        assert_eq!(account_of(&store, &reply), id);
+        assert!(password_hash(id).is_some());
+        let (_, reply) = sign_in(addr, b"stepan@mail.invalid", &remembered(DIGEST_1));
+        assert_eq!(reply, [0x0A]);
+    }
 }

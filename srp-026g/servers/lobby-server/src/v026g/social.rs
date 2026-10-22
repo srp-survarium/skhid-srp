@@ -139,13 +139,10 @@ fn mate_revision(account: &Account) -> u32 {
 }
 
 impl Core<'_> {
-    /// The account named `name`, ignoring ASCII case, online or not.
+    /// The account named `name`, in any letter's case (Cyrillic's too, as
+    /// names are unique), online or not.
     pub(super) fn account_named(&self, name: &str, except: u32) -> Option<u32> {
-        self.store
-            .find_accounts(name.as_bytes(), except, usize::MAX)
-            .into_iter()
-            .find(|(_, found)| found.eq_ignore_ascii_case(name))
-            .map(|(id, _)| id)
+        self.store.account_shown_as(name, except)
     }
 
     pub(super) fn ignores(&self, account_id: u32, sender: u32) -> bool {

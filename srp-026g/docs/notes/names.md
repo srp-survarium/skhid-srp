@@ -75,6 +75,10 @@ longer say email and instead say nickname".
 - **A rename is checked the same way** (`nickname_refusal`): the rules above, then
   `name_taken`, which folds every letter's case (it compared ASCII case only: `СТАЛКЕР`
   passed beside `Сталкер`). It changes the name only.
+- **Finding a player by name** (friend, squad and clan requests, private lines:
+  `account_named` -> `SessionStore::account_shown_as`): in every letter's case too, as names
+  are unique so (`сталкер` finds `Сталкер`). Never at sign-in: a name signs no account in, so
+  an account whose password the admin reset takes a new one from its login only.
 - **A name saved before (on loading):** only what no name may show is made `_`: `<`, `>`,
   `&`, `"`, `'` (the end of the name's link), `:` (the link's field separator:
   `clickLinkHandler` splits on it, so the player menu would act on another name), `@`, control

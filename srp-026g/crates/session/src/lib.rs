@@ -1175,6 +1175,23 @@ impl SessionStore {
         found
     }
 
+    /// The account other than `except` shown by `name`, in every letter's
+    /// case ([`v026g::names::same_name`], the case names are unique in);
+    /// of two (saved before names were unique), the older. For finding a
+    /// player in the lobby, never for signing in. Locks every account in
+    /// turn: call it with none locked.
+    pub fn account_shown_as(&self, name: &str, except: u32) -> Option<u32> {
+        let accounts: Vec<_> = self.accounts.locked().values().cloned().collect();
+        accounts
+            .iter()
+            .filter_map(|account| {
+                let account = account.locked();
+                (account.id != except && v026g::names::same_name(&account.name, name))
+                    .then_some(account.id)
+            })
+            .min()
+    }
+
     /// Every account by rating, best first (then by name): the ranking.
     /// Locks each account in turn, so the caller must hold none.
     pub fn ranking(&self) -> Vec<survarium::v021d::lobby::Ranked> {

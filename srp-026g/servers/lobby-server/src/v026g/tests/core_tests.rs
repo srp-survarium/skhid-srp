@@ -3197,8 +3197,11 @@ fn a_nickname_is_checked_and_changed() {
     assert_eq!(check(&mut world, "Alice"), None);
     assert_eq!(check(&mut world, "Alisa"), None);
     assert_eq!(check(&mut world, "A B"), Some(NameRefusal::Space));
-    // In Cyrillic's case too.
+    // In Cyrillic's case too; and a player is found by name so.
     assert_eq!(check(&mut world, "СТАЛКЕР"), Some(NameRefusal::Taken));
+    let stalker_id = world.ids[stalker].0;
+    assert_eq!(world.core.account_named("сталкер", 0), Some(stalker_id));
+    assert_eq!(world.core.account_named("сталкер", stalker_id), None);
 
     let rename = |name: &str, voucher: u32| {
         let (id, mut body) = request::profile_text(4, name);
