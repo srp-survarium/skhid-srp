@@ -12,5 +12,9 @@ with inventory ... not character, but character menu ... with 3 profiles current
   there opened the shop card's item, which the game does not have, and the game crashed in
   `lobby_character::place_decal_markers` (0x265F80, a null read at 0x265FE4). The modification
   window now opens only for an owned item (`LobbyMenu.openModifierWindow`).
+- **The modification window opened from the shop** lists the inventory (what can go on the item)
+  while it is open, and the shop again when it closes. It listed the shop's decals and camouflages:
+  one dropped in a circle was not owned, the drop failed with an error and the drag stayed on the
+  cursor. A drop of an item not owned is now ignored (`UpgradeWindow.onItemDropped`).
 - **Nothing else changes:** the shop's list and its item card are as before. Server: nothing.
 - Code: `InventoryList.set visible`.

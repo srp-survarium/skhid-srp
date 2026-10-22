@@ -1019,6 +1019,12 @@ package survarium.upgrade
             slot = event.target as UpgradeSlot;
             trace("updateData::");
             item = this.create_item(event.dragData.itemId);
+            // an item not owned (none should be listed): nothing to put, and no error that would
+            // leave the drag on the cursor
+            if(item == null)
+            {
+               return;
+            }
             slot.setData(item);
             trace("relocate_upgrade_item",this._data.itemId,uint(slot.data.itemId),uint(slot.index));
             ExternalInterface.call("relocate_upgrade_item",this._data.itemId,uint(slot.data.itemId),uint(slot.index));
