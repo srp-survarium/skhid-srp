@@ -409,6 +409,16 @@ package survarium.controls
          }
       }
 
+      // R (LobbyMenu.lobbyKey): the rooms' tab chosen, as a click on it, or left when it is chosen.
+      public function toggleRoomsTab() : void
+      {
+         if(!this._roomsTabOn)
+         {
+            return;
+         }
+         this.selectActiveWindow(this.tabPage.selectedIndex == this.MAP_INDEX ? -1 : int(this.MAP_INDEX));
+      }
+      
       // The rooms window opened or closed: our tab follows, chosen while it
       // is open, without that choice opening or closing it again.
       public function selectRoomsTab(on:Boolean) : void

@@ -3,6 +3,7 @@ package survarium.controls
    import flash.display.DisplayObject;
    import flash.display.DisplayObjectContainer;
    import flash.display.MovieClip;
+   import flash.display.Shape;
    import flash.display.Sprite;
    import flash.events.Event;
    import flash.events.KeyboardEvent;
@@ -145,17 +146,31 @@ package survarium.controls
       
       protected var _filterselectedId:int = -1;
       
-      // The search box (Ctrl+F; docs/notes/item-search.md): it sits below the grid, over the item
-      // panel's buttons, centred on the list; the grid gives up SEARCH_ROW of its height while it
-      // shows. SEARCH_GAP: the box's distance from the grid.
-      private static const SEARCH_ROW:int = 34;
+      // The search box (docs/notes/item-search.md), always there under the grid: the grid is
+      // SEARCH_ROW shorter (the fade at its foot moves up with it), and the box sits in that row,
+      // centred between the grid's foot and the item panel's buttons (placeSearch),
+      // centred on the list: the friends window's name box SEARCH_WIDE times as wide, its text and
+      // height SEARCH_GROW px bigger. All in the list's own units: the lobby scales the list.
+      private static const SEARCH_ROW:int = 40;
       
-      private static const SEARCH_GAP:int = 2;
+      // where the item panel's buttons start below its y (its art; measured in the game: the
+      // panel's bounds reach higher than what shows)
+      private static const SEARCH_PANEL_TOP:int = 19;
       
-      // its clear button's place from the box's right and top
-      private static const SEARCH_CLEAR_RIGHT:int = 22;
+      private static const SEARCH_WIDE:Number = 1.25;
       
-      private static const SEARCH_CLEAR_TOP:int = 8;
+      private static const SEARCH_GROW:int = 4;
+      
+      // a magnifier at the box's right (drawn: the friends search's is part of its window's art):
+      // its place from the right, its size, its grey (the empty box's word's), and the text's gap
+      // before it
+      private static const SEARCH_ICON_RIGHT:int = 10;
+      
+      private static const SEARCH_ICON_SIZE:int = 13;
+      
+      private static const SEARCH_ICON_COLOUR:uint = 0xAAAAAA;
+      
+      private static const SEARCH_ICON_GAP:int = 4;
       
       // the empty box's word, in the game's languages (Language: en, uk, ru, de, pl)
       private static const SEARCH_WORD:Array = ["Search","Пошук","Поиск","Suche","Szukaj"];
@@ -175,6 +190,32 @@ package survarium.controls
       // A word's match, best first: at the name's start, at a word's start, inside a word, its
       // letters in order (less the further apart), with typos (less for each).
       private static const MATCH_START:int = 400;
+      
+      // A number as the first word is the item's level first (owner 2026-10-22): an item of that
+      // level matches it above any name, so "15" lists the level 15 items first (then the names
+      // with 15 in them, as "74" still finds the AK-74).
+      private static const MATCH_LEVEL:int = 1000;
+      
+      // A word naming a kind of item (owner 2026-10-22), or its start from 3 letters on, matches
+      // the items of that kind above any name: [the words (en, uk, ru), the category, or with group
+      // the super category].
+      private static const MATCH_KIND:int = 450;
+      
+      private static const SEARCH_KIND_LEAST:int = 3;
+      
+      private static const SEARCH_KINDS:Array = [
+         {words:["gear","equipment","спорядження","снаряжение","экипировка"],group:SuperCategory.EQUIPMENT},
+         {words:["items","предмети","предметы"],group:SuperCategory.ITEMS},
+         {words:["helmet","шолом","шлем"],category:ItemCategory.HELMETS},
+         {words:["mask","маска"],category:ItemCategory.MASKS},
+         {words:["body","armour","armor","vest","бронежилет"],category:ItemCategory.BODY_ARMOR},
+         {words:["rig","розвантаження","разгрузка"],category:ItemCategory.RIGS},
+         {words:["gloves","рукавички","перчатки"],category:ItemCategory.GLOVES},
+         {words:["pants","trousers","штани","штаны"],category:ItemCategory.PANTS},
+         {words:["boots","черевики","ботинки"],category:ItemCategory.BOOTS}];
+      
+      // SEARCH_KINDS' words as the search compares them (made once)
+      private static var _kindForms:Array;
       
       private static const MATCH_WORD:int = 350;
       
@@ -211,13 +252,10 @@ package survarium.controls
       
       private var _searchBox:SrvTextInput;
       
-      private var _searchClear:Button;
+      private var _searchIcon:Sprite;
       
       // the words typed, as the search compares them; null: no search
       private var _searchWords:Array;
-      
-      // the grid's height the box takes now (SEARCH_ROW while it shows)
-      private var _searchRow:int = 0;
       
       // an item name as the search compares it ([text, its words' starts]), by the name
       private var _searchNames:Dictionary = new Dictionary();
@@ -335,7 +373,7 @@ package survarium.controls
          if(visible && value == false)
          {
             // a closed list (switching Shop and Inventory too) opens again without the search
-            this.closeSearch();
+            this.clearSearch();
             dispatchEvent(new Event(Event.CLOSE));
          }
          var pp:MovieClip = parent["player_profile"];
@@ -2024,50 +2062,85 @@ package survarium.controls
          this._searchBox.defaultText = SEARCH_WORD[RoomsText.language()];
       }
       
-      // The search box (docs/notes/item-search.md): the friends window's name box, hidden until
-      // Ctrl+F, with the player search's clear button in it.
+      // The search box (docs/notes/item-search.md): the friends window's name box, always there,
+      // with a magnifier at its right; the grid gives it its row (onFilterShowed).
       private function makeSearch() : void
       {
          _searchBox = new TextInputFriendName();
-         this._searchBox.visible = false;
-         this._searchBox.x = int((background.width - this._searchBox.width) / 2);
-         this._searchBox.y = this.itemControlPanel.y - SEARCH_ROW + SEARCH_GAP;
+         var w:int = int(this._searchBox.width * SEARCH_WIDE);
+         var h:int = int(this._searchBox.height) + SEARCH_GROW;
+         this._searchBox.setSize(w,h);
+         var margin:int = SEARCH_ICON_RIGHT + SEARCH_ICON_SIZE + SEARCH_ICON_GAP;
+         this._searchBox.getTextFormat().rightMargin = margin;
+         this._searchBox.defaultTextFormat.rightMargin = margin;
+         this._searchBox.textSize = Number(this._searchBox.getTextFormat().size) + SEARCH_GROW;
+         this._searchBox.x = int((background.width - w) / 2);
          this._searchBox.addEventListener(Event.CHANGE,this.onSearchChange);
          this._searchBox.textField.addEventListener(KeyboardEvent.KEY_UP,this.onSearchBoxKey);
          addChild(this._searchBox);
-         _searchClear = new BtnCancelSearch();
-         this._searchClear.visible = false;
-         this._searchClear.x = this._searchBox.x + this._searchBox.width - SEARCH_CLEAR_RIGHT;
-         this._searchClear.y = this._searchBox.y + SEARCH_CLEAR_TOP;
-         this._searchClear.addEventListener(ButtonEvent.CLICK,this.onSearchClear);
-         addChild(this._searchClear);
+         _searchIcon = this.makeSearchIcon();
+         this._searchIcon.x = this._searchBox.x + w - SEARCH_ICON_RIGHT - SEARCH_ICON_SIZE;
+         this._searchIcon.addEventListener(MouseEvent.CLICK,this.onSearchIcon);
+         addChild(this._searchIcon);
+         black_gradient.y -= SEARCH_ROW;
+         this.placeSearch();
+      }
+      
+      // The box (and its magnifier) centred in its row: from the grid's foot to the item panel's
+      // buttons.
+      private function placeSearch() : void
+      {
+         var top:Number = itemsTileList.y + itemsTileList.height;
+         var bottom:Number = this.itemControlPanel.y + SEARCH_PANEL_TOP;
+         var h:Number = this._searchBox.height;
+         this._searchBox.y = Math.round(top + (bottom - top - h) / 2);
+         this._searchIcon.y = this._searchBox.y + Math.round((h - SEARCH_ICON_SIZE) / 2);
       }
       
       private function listenSearchKey(e:Event) : void
       {
          stage.addEventListener(KeyboardEvent.KEY_DOWN,this.onSearchKey,false,0,true);
+         stage.addEventListener(KeyboardEvent.KEY_UP,this.onSearchKeyUp,false,0,true);
       }
       
-      // Ctrl+F over an open item list (the shop, the inventory, the craft and upgrade windows' list):
-      // the box opens, or closes when it has the keys. Not over a message or a popup (the upgrade
-      // window aside), and not while another text box has the keys. The exe sends Ctrl with each key
-      // (ctrlKey); the lobby also keeps whether Ctrl is down (MainScene.isCtrl). Only ctrlKey closes
-      // the box: an isCtrl stuck down (Ctrl let go outside the game) must not close it on a typed f.
+      // A window key (S, I, C) acted on this key press (LobbyMenu.windowKeysOff): it may have just
+      // opened this list, and its letter is not the search's. Until the key comes up.
+      private var _windowKey:Boolean;
+      
+      public function windowKeyActed() : void
+      {
+         _windowKey = true;
+      }
+      
+      private function onSearchKeyUp(e:KeyboardEvent) : void
+      {
+         _windowKey = false;
+      }
+      
+      // Over an open item list (the shop, the inventory, the craft and upgrade windows' list), while
+      // no other text box has the keys and no message or popup is up (the upgrade window aside):
+      // - typing a letter, a digit or a key of a letter of another layout gives the box the keys and
+      //   puts that key's character at its end. The keys go to the box on the next render (a focus
+      //   set here does not hold, and the key's own character is gone by then), so the characters
+      //   typed until then are kept here (_searchTyped): the key's charCode, else its letter or
+      //   digit;
+      // - Ctrl+F gives the box the keys with its text chosen (or chooses it, when it has them).
+      // The exe sends Ctrl with each key (ctrlKey); the lobby also keeps whether Ctrl is down
+      // (MainScene.isCtrl), which can stay stuck (Ctrl let go outside the game): only typing then
+      // is off.
       private function onSearchKey(e:KeyboardEvent) : void
       {
-         if(e.keyCode != KeyCode.F || !(e.ctrlKey || MainScene.isCtrl) || this._searchBox == null || !visible || stage == null)
-         {
-            return;
-         }
-         if(Message.isAnyMessage() != -1 || MainScene.activePop != null && MainScene.activePop != this.findUpgradeWindow())
+         var ctrl:Boolean = e.ctrlKey || MainScene.isCtrl;
+         var find:Boolean = e.keyCode == KeyCode.F && ctrl;
+         if(!find && (ctrl || e.altKey || this._windowKey || !typesSearch(e.keyCode)) || !this.takesTyping())
          {
             return;
          }
          if(this.searchFocused())
          {
-            if(e.ctrlKey)
+            if(find && e.ctrlKey)
             {
-               this.closeSearch();
+               this._searchBox.textField.setSelection(0,this._searchBox.textField.length);
             }
             return;
          }
@@ -2075,19 +2148,84 @@ package survarium.controls
          {
             return;
          }
-         this._searchBox.visible = true;
-         this._searchClear.visible = true;
-         this.placeSearch();
-         // the keys go to the box on the next render: the exe sends the F's character after the key
-         // (as the chat's box takes them: LobbyChatTab.onRenderFocus)
+         if(!find)
+         {
+            _searchTyped += e.charCode > 32 ? String.fromCharCode(e.charCode) : keyLetter(e.keyCode);
+            this._searchBox.addEventListener(Event.RENDER,this.focusTyped);
+            stage.invalidate();
+            return;
+         }
+         // Ctrl+F: the keys go to the box on the next render, as the exe sends the F's character
+         // after the key (as the chat's box takes them: LobbyChatTab.onRenderFocus)
          this._searchBox.addEventListener(Event.RENDER,this.focusSearch);
          stage.invalidate();
+      }
+      
+      // A key that types a letter or a digit: A to Z, 0 to 9 (the row and the pad), and the keys
+      // other layouts put letters on (; = , - . / ` [ \ ] ').
+      private static function typesSearch(code:uint) : Boolean
+      {
+         return code >= 65 && code <= 90 || code >= 48 && code <= 57 || code >= 96 && code <= 105 || code >= 186 && code <= 192 || code >= 219 && code <= 222;
+      }
+      
+      // Whether typing over the list would go to its search (LobbyMenu.windowKeysOff: the exe's
+      // window keys then do nothing, as their letters are the search's).
+      public function takesTyping() : Boolean
+      {
+         if(this._searchBox == null || !visible || stage == null)
+         {
+            return false;
+         }
+         if(Message.isAnyMessage() != -1 || MainScene.activePop != null && MainScene.activePop != this.findUpgradeWindow())
+         {
+            return false;
+         }
+         return !(stage.focus is TextField) || this.searchFocused();
+      }
+      
+      // the characters typed before the box had the keys (onSearchKey)
+      private var _searchTyped:String = "";
+      
+      // A letter key's lower case letter, a digit key's digit; "" for the others.
+      private static function keyLetter(code:uint) : String
+      {
+         if(code >= 65 && code <= 90)
+         {
+            return String.fromCharCode(code + 32);
+         }
+         if(code >= 48 && code <= 57)
+         {
+            return String.fromCharCode(code);
+         }
+         if(code >= 96 && code <= 105)
+         {
+            return String.fromCharCode(code - 48);
+         }
+         return "";
+      }
+      
+      private function focusTyped(e:Event) : void
+      {
+         this._searchBox.removeEventListener(Event.RENDER,this.focusTyped);
+         var typed:String = this._searchTyped;
+         _searchTyped = "";
+         if(!visible || stage == null)
+         {
+            return;
+         }
+         stage.focus = this._searchBox.textField;
+         if(typed != "")
+         {
+            this._searchBox.text += typed;
+            this.onSearchChange(null);
+         }
+         this._searchBox.textField.setSelection(this._searchBox.textField.length,this._searchBox.textField.length);
       }
       
       private function focusSearch(e:Event) : void
       {
          this._searchBox.removeEventListener(Event.RENDER,this.focusSearch);
-         if(!this._searchBox.visible || stage == null)
+         if(!visible || stage == null)
          {
             return;
          }
@@ -2095,29 +2233,28 @@ package survarium.controls
          this._searchBox.textField.setSelection(0,this._searchBox.textField.length);
       }
       
-      // Whether the search box has the keys (LobbyMenu.close_active_window: Esc closes it then).
+      // Whether the search box has the keys (LobbyMenu.close_active_window: Esc clears it then).
       public function searchFocused() : Boolean
       {
-         return this._searchBox != null && this._searchBox.visible && stage != null && (stage.focus == this._searchBox.textField || stage.focus == this._searchBox);
+         return this._searchBox != null && stage != null && (stage.focus == this._searchBox.textField || stage.focus == this._searchBox);
       }
       
-      // Esc in the box, Ctrl+F again, its clear button, or the list closing: the box goes, empty,
-      // and the list shows everything again.
-      public function closeSearch() : void
+      // Esc in the box, or the list closing: the box empty, without the keys, and the list shows
+      // everything again.
+      public function clearSearch() : void
       {
-         if(this._searchBox == null || !this._searchBox.visible)
+         if(this._searchBox == null)
          {
             return;
          }
-         var focused:Boolean = this.searchFocused();
-         this._searchBox.visible = false;
-         this._searchClear.visible = false;
-         this._searchBox.text = "";
-         if(focused)
+         if(this.searchFocused())
          {
             stage.focus = this;
          }
-         this.placeSearch();
+         if(this._searchBox.text != "")
+         {
+            this._searchBox.text = "";
+         }
          if(this._searchWords != null)
          {
             _searchWords = null;
@@ -2125,9 +2262,42 @@ package survarium.controls
          }
       }
       
-      private function onSearchClear(e:ButtonEvent) : void
+      // A magnifier SEARCH_ICON_SIZE square: a ring (two circles, even-odd) and a handle down to the
+      // right, fills only (a line style would draw a stray line from the pen).
+      private function makeSearchIcon() : Sprite
       {
-         this.closeSearch();
+         var icon:Sprite = new Sprite();
+         var r:Number = SEARCH_ICON_SIZE * 0.36;
+         var c:Number = r + 0.5;
+         icon.graphics.beginFill(SEARCH_ICON_COLOUR);
+         icon.graphics.drawCircle(c,c,r);
+         icon.graphics.drawCircle(c,c,r - 1.6);
+         icon.graphics.endFill();
+         var a:Number = c + r * 0.7;
+         var b:Number = SEARCH_ICON_SIZE - 0.5;
+         var t:Number = 1.1;
+         icon.graphics.beginFill(SEARCH_ICON_COLOUR);
+         icon.graphics.moveTo(a - t,a + t);
+         icon.graphics.lineTo(a + t,a - t);
+         icon.graphics.lineTo(b + t,b - t);
+         icon.graphics.lineTo(b - t,b + t);
+         icon.graphics.lineTo(a - t,a + t);
+         icon.graphics.endFill();
+         // the whole square takes the click
+         icon.graphics.beginFill(0,0.01);
+         icon.graphics.drawRect(0,0,SEARCH_ICON_SIZE,SEARCH_ICON_SIZE);
+         icon.graphics.endFill();
+         icon.buttonMode = true;
+         return icon;
+      }
+      
+      // the magnifier gives the box the keys
+      private function onSearchIcon(e:MouseEvent) : void
+      {
+         if(stage != null)
+         {
+            stage.focus = this._searchBox.textField;
+         }
       }
       
       // Enter leaves the box: the list stays as found, and the lobby's keys work again.
@@ -2148,19 +2318,6 @@ package survarium.controls
          }
          _searchWords = words;
          this.applySearch();
-      }
-      
-      // The grid gives the box its row while the box shows; the fade at the grid's foot moves with it.
-      private function placeSearch() : void
-      {
-         var row:int = this._searchBox.visible ? SEARCH_ROW : 0;
-         if(row == this._searchRow)
-         {
-            return;
-         }
-         black_gradient.y -= row - this._searchRow;
-         _searchRow = row;
-         this.onFilterShowed();
       }
       
       // The list again with the search's words (as filterItem asks it), the item chosen kept chosen
@@ -2198,7 +2355,7 @@ package survarium.controls
          var found:Array = [];
          for(var i:int = 0; i < items.length; i++)
          {
-            var score:int = this.searchScore(items[i].name);
+            var score:int = this.searchScore(items[i]);
             if(score > 0)
             {
                found.push({
@@ -2221,10 +2378,11 @@ package survarium.controls
          return b.score != a.score ? b.score - a.score : a.index - b.index;
       }
       
-      // A name against the words typed: the sum of each word's match, 0 when one does not match.
-      private function searchScore(name:*) : int
+      // An item against the words typed: the sum of each word's match (its name's; a number first,
+      // its level's too), 0 when one does not match.
+      private function searchScore(item:Object) : int
       {
-         var text:String = name == null ? "" : String(name);
+         var text:String = item.name == null ? "" : String(item.name);
          var form:Array = this._searchNames[text] as Array;
          if(form == null)
          {
@@ -2234,7 +2392,8 @@ package survarium.controls
          var total:int = 0;
          for(var i:int = 0; i < this._searchWords.length; i++)
          {
-            var score:int = wordScore(this._searchWords[i],form[0],form[1]);
+            var word:String = this._searchWords[i];
+            var score:int = i == 0 && /^[0-9]+$/.test(word) && item.itemLevel != null && int(item.itemLevel) == int(word) ? MATCH_LEVEL : (kindOf(word,item) ? MATCH_KIND : wordScore(word,form[0],form[1]));
             if(score == 0)
             {
                return 0;
@@ -2242,6 +2401,44 @@ package survarium.controls
             total += score;
          }
          return total;
+      }
+      
+      // Whether a word typed names the item's kind (SEARCH_KINDS).
+      private static function kindOf(word:String, item:Object) : Boolean
+      {
+         if(word.length < SEARCH_KIND_LEAST)
+         {
+            return false;
+         }
+         if(_kindForms == null)
+         {
+            _kindForms = [];
+            for each(var kind:Object in SEARCH_KINDS)
+            {
+               var forms:Array = [];
+               for each(var name:String in kind.words)
+               {
+                  forms.push(searchForm(name)[0]);
+               }
+               _kindForms.push(forms);
+            }
+         }
+         for(var i:int = 0; i < SEARCH_KINDS.length; i++)
+         {
+            var k:Object = SEARCH_KINDS[i];
+            if(k.group != null ? item.superCategory != k.group : item.category != k.category)
+            {
+               continue;
+            }
+            for each(var f:String in _kindForms[i])
+            {
+               if(f.indexOf(word) == 0)
+               {
+                  return true;
+               }
+            }
+         }
+         return false;
       }
       
       // The words typed as the search compares them; null when there are none.
@@ -2529,15 +2726,16 @@ package survarium.controls
       protected function onFilterShowed(e:Event = null) : void
       {
          var pos:int = Math.max(optionControl.y,217 - 116);
-         var newHeight:int = 600 - this._searchRow;
+         var newHeight:int = 600 - SEARCH_ROW;
          itemsTileList.height = newHeight;
          trace("onFilterShowed::",optionControl.y,newHeight,newHeight / itemsTileList.rowHeight,int(newHeight / itemsTileList.rowHeight) * itemsTileList.rowHeight);
          scrollBar.setSize(scrollBar.width,newHeight - 8);
          addChild(black_gradient);
          if(this._searchBox != null)
          {
+            this.placeSearch();
             setChildIndex(this._searchBox,numChildren - 1);
-            setChildIndex(this._searchClear,numChildren - 1);
+            setChildIndex(this._searchIcon,numChildren - 1);
          }
       }
       

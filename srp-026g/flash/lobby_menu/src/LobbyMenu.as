@@ -3858,7 +3858,7 @@ package
             trace("has_active_window::DropdownMenu");
             return false;
          }
-         var isAnyWindow:Boolean = !this._escapeHandled && (this._tutorialSliders && this._tutorialSliders.parent || this.craftWindow && this.craftWindow.parent || this._tournament && this._tournament.parent && this._tournament.visible && !this._tournament.isFold() || SrvContextMenu.visisble || MainScene.activeComponent != null || MainScene.activeWindow != null || Message.isAnyMessage() != -1 || MainScene.activePop != null || stage.focus is TextField);
+         var isAnyWindow:Boolean = !this._escapeHandled && (this._tutorialSliders && this._tutorialSliders.parent || this.craftWindow && this.craftWindow.parent || this._tournament && this._tournament.parent && this._tournament.visible && !this._tournament.isFold() || SrvContextMenu.visisble || MainScene.activeComponent != null || MainScene.activeWindow != null || Message.isAnyMessage() != -1 || MainScene.activePop != null || stage.focus is TextField || this.friendsMenu.visible);
          _escapeHandled = false;
          return isAnyWindow;
       }
@@ -3881,13 +3881,13 @@ package
             this.show_tutorial(0);
             return;
          }
-         // The item list's search box (docs/notes/item-search.md): Esc in it clears and hides it.
-         // Over a message or a popup Esc only leaves the box, and the message closes first.
+         // The item list's search box (docs/notes/item-search.md): Esc in it empties it and leaves
+         // it. Over a message or a popup Esc only leaves the box, and the message closes first.
          if(this.inventory_list.searchFocused())
          {
             if(Message.isAnyMessage() == -1 && (MainScene.activePop == null || MainScene.activePop == this.modifierWindow))
             {
-               this.inventory_list.closeSearch();
+               this.inventory_list.clearSearch();
                return;
             }
             stage.focus = this.inventory_list;
@@ -3923,6 +3923,13 @@ package
          {
             MainScene.activePop.closePopup();
          }
+         // Skhid: the friends list (F) closes on Esc too, before the windows; it used to let Esc
+         // through to the game's menu.
+         else if(this.friendsMenu.visible)
+         {
+            this.friendsMenu.visible = false;
+            this.bottom_panel.btnFriends.selected = false;
+         }
          else if((MainScene.activeWindow) && (MainScene.activeWindow.closeWindow))
          {
             MainScene.activeWindow.closeWindow();
@@ -3946,11 +3953,18 @@ package
       }
       
       // The exe's window keys (character, friends, shop, inventory): not over a message, and not
-      // with Ctrl held over an item list, where Ctrl+F is its search (InventoryList.onSearchKey;
-      // F is Friends' key by default, and the exe asks before the movie sees the F).
+      // over an item list that takes typing, where letters are its search's (InventoryList.onSearchKey;
+      // the exe acts on a window key before the movie sees it).
+      // A window key that acts may open an item list before the movie sees the same key: the search
+      // then leaves that key alone (InventoryList.windowKeyActed).
       private function windowKeysOff() : Boolean
       {
-         return this.has_active_message() || MainScene.isCtrl && this.inventory_list.visible;
+         if(this.has_active_message() || this.inventory_list.visible && this.inventory_list.takesTyping())
+         {
+            return true;
+         }
+         this.inventory_list.windowKeyActed();
+         return false;
       }
       
       public function show_friends_toggle() : void
@@ -4380,8 +4394,12 @@ package
          this.statusPanel.setStatusMessage(value,firstTime);
       }
       
+      // the Play button's state (PlayButtonState), for Enter's Play (lobbyKey)
+      private var _playState:uint = PlayButtonState.PLAY;
+      
       public function set_play_button_state(value:uint) : void
       {
+         _playState = value;
          var label:String = null;
          if(value == PlayButtonState.PLAY)
          {
@@ -5655,6 +5673,57 @@ package
          {
             MainScene.isCtrl = true;
          }
+         if(e.keyCode == Keyboard.R || e.keyCode == Keyboard.ENTER)
+         {
+            this.lobbyKey(e);
+         }
+      }
+      
+      // Enter is down (a held key repeats its KEY_DOWN; Play takes the first only)
+      private var _enterDown:Boolean;
+      
+      // Skhid's lobby keys (docs/notes/lobby-keys.md), not while a text box has the keys, a
+      // message, popup, right-click menu or the results are up, nor with Ctrl or Alt:
+      // - R opens the rooms window, or closes it (not over an item list taking typing: R is its
+      //   search's there);
+      // - Enter presses Play on the lobby's main screen (no window open, not in a room), once per
+      //   press. Up, Down and Enter in the rooms list are RoomsList.onKey's.
+      private function lobbyKey(e:KeyboardEvent) : void
+      {
+         var repeat:Boolean = e.keyCode == Keyboard.ENTER && this._enterDown;
+         if(e.keyCode == Keyboard.ENTER)
+         {
+            _enterDown = true;
+         }
+         if(repeat || e.ctrlKey || e.altKey || MainScene.isCtrl || stage.focus is TextField || this.has_active_message() || SrvContextMenu.visisble)
+         {
+            return;
+         }
+         if(this.victory_screen != null && this.victory_screen.visible && this.victory_screen.stage != null)
+         {
+            return;
+         }
+         if(RoomsWindow.me == null)
+         {
+            return;
+         }
+         if(e.keyCode == Keyboard.R)
+         {
+            if(!(this.inventory_list.visible && this.inventory_list.takesTyping()))
+            {
+               this.topMenu.toggleRoomsTab();
+            }
+            return;
+         }
+         if(RoomsWindow.me.shown || RoomsWindow.me.inRoom || MainScene.activeWindow != null || this.craftWindow && this.craftWindow.parent)
+         {
+            return;
+         }
+         var play:Button = this.statusPanel.playBtn;
+         if(this._playState == PlayButtonState.PLAY && play.enabled && play.visible)
+         {
+            play.dispatchEvent(new ButtonEvent(ButtonEvent.CLICK));
+         }
       }
       
       private function test_bandle_data() : void
@@ -5850,6 +5919,10 @@ package
          if(e.keyCode == KeyCode.LEFT_CONTROL || e.keyCode == KeyCode.RIGHT_CONTROL)
          {
             MainScene.isCtrl = false;
+         }
+         if(e.keyCode == Keyboard.ENTER)
+         {
+            _enterDown = false;
          }
          if(e.isDefaultPrevented())
          {
