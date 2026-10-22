@@ -1005,6 +1005,8 @@ fn every_modification_of_an_item_may_be_changed() {
     assert_eq!(rolled.paid, (3194, 0));
     let again = reroll(&mut account, rifle, second, true, NOW, &mut rng).unwrap();
     assert_eq!((again.choices, again.paid), (rolled.choices, (0, 0)));
+    assert_eq!((rolled.replaced, rolled.again), (first, false));
+    assert_eq!((again.replaced, again.again), (first, true));
     assert_eq!(
         choose_modifier(&mut account, rifle, second, 0),
         Err(ItemError::Reroll("another modification is being changed"))

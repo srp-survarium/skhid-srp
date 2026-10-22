@@ -591,6 +591,11 @@ pub struct Rerolled {
     /// What was taken: silver, gold. Both 0 for an offer made before and
     /// shown again.
     pub paid: (u32, u32),
+    /// The modification the three are offered for: the one asked for, or
+    /// the pending offer's when it is shown again.
+    pub replaced: u32,
+    /// The pending offer shown again (nothing was rolled or taken).
+    pub again: bool,
 }
 
 /// `46 07 <item> <modification> <gold>`: change `modification` of the
@@ -607,12 +612,15 @@ pub fn reroll(
     let item = account
         .item(item_id)
         .ok_or(ItemError::Reroll("no such item"))?;
-    if let Some((_, choices)) = item.reroll.offer {
-        // Paid for and not chosen yet: the same three.
+    if let Some((replaced, choices)) = item.reroll.offer {
+        // Paid for and not chosen yet: the same three, whichever
+        // modification is named.
         return Ok(Rerolled {
             choices,
             reroll_seconds: 0,
             paid: (0, 0),
+            replaced,
+            again: true,
         });
     }
     if !is_gear(item) {
@@ -662,6 +670,8 @@ pub fn reroll(
         choices,
         reroll_seconds: 0,
         paid,
+        replaced: modification,
+        again: false,
     })
 }
 
