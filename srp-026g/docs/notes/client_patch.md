@@ -1221,6 +1221,51 @@ So of what the game logs, the dominant wait is the client's own send tick (a qua
 
 **Builds** (this branch, on main 7f010cc1, no server): the default build `8f75d355eda63a17d7afc83dd99ecff7d368e07801771c1f5e72f7d62c84c27b`; with `--required-patches=12,14,17,19,20,21,22,23,24,25,26,27` (revision 27's list) `33c7cba9bb1e1558b97ef43be5296f45d963174f7597f21c6f5a6e76ac3c0cc6` (12 918 392 bytes each).
 
+### 3.49 `stage.focus` reads null for a focused object without its ActionScript object (written 2026-10-22, README patch 52, the next release's revision) — PROVEN in the code and Scaleform's source, the getter run with Unicorn; not run in a game
+
+**Why** (the owner's local game, 2026-10-22 04:44, `Survarium-#2777_261022-044410.dmp`, r28 of main): `ACCESS_VIOLATION` reading 0x14 at 0x77200B, in the lobby, about a second after an upgrade. The minidump holds the threads' stacks only (no modules, no heap); the crash report's "frames" are not a stack walk. From the crashed thread's stack:
+
+```
+0x767FF258  0x775125   the Stage focus getter's thunk (0x7750F0), after `call [0xAFF180]`
+0x767FF270  0x8F1E40   its ThunkInfo ("focus" at 0xA09EA8)
+...         0x78E271 .. 0x7C7E12   the AS3 VM (LobbyMenu.has_active_window)
+0x767FF698  0xA07404   "root.has_active_window"
+0x767FF8B8  0x511644   the movie's invoke (0x511600)
+            0x26CBFE   lobby_menu's key handler 0x26CB80 (0x26CBF9 `push 0xA07404` / `call 0x511600`)
+```
+
+`LobbyMenu.has_active_window` reads `stage.focus is DropdownMenu`; the exe invokes it on every key in the lobby.
+
+**The getter** (0x771FA0 = Scaleform's `Instances::fl_display::Stage::focusGet`, the Scaleform GFx 4 source outside the repo (`scaleform-gfx/Src/GFx/AS3/Obj/Display/AS3_Obj_Display_Stage.cpp`); the static initializer 0x865D10 puts it in 0xAFF180): `[this+14h]` +40h +1A8h +8 = MovieImpl; `lea ecx,[MovieImpl + 3B64h + 40h * byte [MovieImpl+3F54h]]` = `FocusGroups[FocusGroupIndexes[0]].LastFocused`, a weak pointer locked by 0x514370; `[obj+41h]` the AvmInteractiveObj interface's index, its vtable +4 minus 1Ch the AvmDisplayObj; `GetAS3Obj()` = `[avm+8]` (pAS3RawPtr) or `[avm+4]` (pAS3CollectiblePtr, bit 0 cleared, the collector's mark); `[as3+14h]` the traits, `+3Ch` the type: 12h or 17h and up an InteractiveObject (0x77201B, the result via 0x790E40), else null (0x772031). The source tests `focused` but not the object (`IsInteractiveObject(ido->GetTraitsType())`); `FocusManager.getFocus` tests both.
+
+**When the object is gone:** `~DisplayObject` (the AS3 side) calls `AvmDisplayObj::ReleaseAS3Obj` (both pointers 0); a display object then lives on while anything holds it (during a collection its release is delayed to the collection's end). AS3's `removeChild` (`AvmDisplayObjContainer::RemoveChildAt`) does not touch the focus; only `InteractiveObject::OnEventUnload` calls `MovieImpl::ResetFocusForChar`. Which object it was at 04:44 is not in a stack-only dump (esi 0x0D4386A0).
+
+**The patch** (`STAGE_FOCUS`, every full build: with and without the late join and over on_hash_mismatch), 46 bytes at 0x771FED:
+
+```
+00771FED  test eax,eax              ; the interface call gave none
+00771FEF  jz 0x772012
+00771FF1  mov ecx,[eax-0x14]        ; raw pointer (+8 of eax-1Ch)
+00771FF4  test ecx,ecx
+00771FF6  jnz 0x771ffb
+00771FF8  mov ecx,[eax-0x18]        ; collectible pointer (+4)
+00771FFB  and ecx,byte -0x2         ; bit 0 cleared, as the old `test al,1` / `dec eax`
+00771FFE  jz 0x772012               ; no ActionScript object
+00772000  mov eax,ecx
+00772002  mov ecx,[eax+0x14]
+00772005  mov ecx,[ecx+0x3c]
+00772008  cmp ecx,byte +0x12
+0077200B  jz 0x77201b
+0077200D  cmp ecx,byte +0x17
+00772010  jnl 0x77201b
+00772012  jmp short 0x772031        ; null
+00772014  7 x nop
+```
+
+The old bytes' jumps all landed inside them; nothing else aims inside; no base relocation under them. ecx only; eax at 0x77201B the object as before.
+
+**Checked:** `selftest_026g.py` check 52; `check_stage_focus_026g.py` (Unicorn 2.1.4): the original faults at 0x77200B with both pointers 0 (or the collectible 1) and at 0x771FF8 for an interface call that gives none; the build gives null; every other case the same in both.
+
 ## 4. Mode 3 batteries: not needed in 0.26g
 
 - 0.26g splits the rule: `match_time_vi_spawn_rule` (vtable 0xA06C04) wraps `match_time_vi_spawn_rule_core` (vtable 0xA15CAC). The battery tick is no longer a vtable slot: the core's ctor 0x3147A0 stores a delegate `{this, 0x3148A0}` at +0x1C4 / +0x1C8 (0x3147F1). [V]

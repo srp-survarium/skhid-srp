@@ -92,6 +92,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
+| `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -2737,6 +2738,47 @@ found or a folder by its name; revision 27's list without 26 and 27, the case of
 stops at patch 26); `release/test.sh` (the stand-in build-zip given the list, the new patch
 required after `--resources`, a ZIP that requires fewer refused before the swap, `deploy`'s
 refusals). **Not run in a game.**
+
+### 52. A key in the lobby no longer kills the game when the focus is on a dead object (the next release's revision)
+
+The owner's local game died on 2026-10-22 at 04:44 in the lobby, about a second after an upgrade
+(the second of two upgrades five seconds apart): `ACCESS_VIOLATION` reading 0x14 at
+0x77200B. The crash report's own frames (0xFFFFFBD8, 0x786310, 0) are not the stack; the dump's
+stack is: lobby_menu's key handler (0x26CB80) invokes `root.has_active_window` (0x26CBF9, through
+0x511600 and the AS3 VM), `LobbyMenu.has_active_window` reads `stage.focus is DropdownMenu`, and
+the Stage focus getter's thunk (0x7750F0, member pointer 0xAFF180, ThunkInfo "focus" at
+0x8F1E40) calls the getter 0x771FA0 (return address 0x775125 on the stack).
+
+The getter is Scaleform's `Instances::fl_display::Stage::focusGet`: it locks MovieImpl's focused
+InteractiveObject (the weak pointer of `FocusGroups[FocusGroupIndexes[0]]`), takes its
+AvmInteractiveObj and that one's ActionScript object (`GetAS3Obj`: the raw pointer, else the
+collectible one) and reads the object's traits type for an InteractiveObject, without testing
+the object. Scaleform's own `FocusManager.getFocus` tests it (`if (ido && ...)`), and so do the
+key dispatch (`MovieRoot::OnKeyDown`) and the focus events (`HasAS3Obj`). The display object
+outlives its ActionScript object when the collector frees that object (`~DisplayObject` calls
+`AvmDisplayObj::ReleaseAS3Obj`), and AS3's `removeChild` leaves the focus where it is (only an
+unload resets it, `MovieImpl::ResetFocusForChar`): a focused object that was taken off the
+stage, and then collected while something still held its display object, is such a one. The dump
+holds the stacks only, so which object it was is not in it; neither patch 52 nor the lobby needs
+to know. At the crash esi (the focused object) was 0x0D4386A0, eax and ecx 0.
+
+**The patch.** In every full build (with and without the late join, and
+`--cave=hash-mismatch`), the 46 bytes from 0x771FED (`test eax,eax` after the interface call) to
+0x77201B (the result's assignment) become the same reads with both tests: no AvmInteractiveObj,
+or no ActionScript object (both pointers 0, the collectible one with only its bit 0), goes to
+0x772031, the null result a focused object of another type already got. `stage.focus` is then
+null, as it is in Flash for an object no longer on the stage, and the key goes on as with no
+focus (the key dispatch already skipped such an object). ecx is the only register used, as
+before; at 0x77201B eax is the object, as before. Every jump of the old bytes stayed inside them,
+nothing else aims inside, no base relocation is under them. The lobby and the hud only: no row
+in `../crates/session/src/v026g/simulation_changes.tsv`.
+
+Checked: `selftest_026g.py` check 52 (the getter before and after, its member pointer and
+ThunkInfo, the key handler's invoke, no relocation and no branch inside; cert-only keeps it);
+`check_stage_focus_026g.py` (Unicorn: focused InteractiveObjects by either pointer given by
+both; another type and no focus null in both; no ActionScript object, and an interface that
+gives none, fault in the original at 0x77200B and 0x771FF8 and give null in the build; every
+full build the same). **Not run in a game.**
 
 ## Not ported, not done
 

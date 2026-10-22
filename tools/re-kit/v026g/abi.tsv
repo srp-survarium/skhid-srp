@@ -1018,6 +1018,7 @@ va	name	source	ret_cleanup	result
 0x00265860	survarium::lobby_character::show_decal_preview	manual	4	
 0x00265980	survarium::lobby_character::update_decal_preview	manual	0	
 0x0026b1b0	survarium::messaging_client::read_important_message	manual	12	
+0x0026cb80	survarium::lobby_menu::on_keyboard_action	manual	12	first, for every key in the lobby, invokes root.has_active_window (0x26CBF9, its name 0xA07404, through 0x511600) on the lobby's movie; LobbyMenu.has_active_window reads stage.focus (the access violation at 0x77200B of 2026-10-22, patch 52); Esc then root.close_active_window (0xA0741C)
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	manual	12	AL: Observed constant1 on local return path
 0x0026d090	survarium::lobby_menu::on_mouse_move	manual	16	AL: Observed constant1 on local return path
 0x0026d130	survarium::lobby_menu::mouse_ray	manual	4	the normalized direction at [EDI], the eye at [entry ESP+4]
@@ -1799,6 +1800,8 @@ va	name	source	ret_cleanup	result
 0x0044635d		auto	0	
 0x00446d42		auto	0	
 0x00447290		auto	16	
+0x00511600		manual	16	AL: the invoke's result; ECX's +0Ch (the GFx movie) vtable +0C4h (Invoke) given the four stack slots, in a profiler scope (0x2B8850)
+0x00771fa0	Scaleform::GFx::AS3::Instances::fl_display::Stage::focusGet	manual	4	the stage.focus getter (thunk 0x7750F0, member pointer 0xAFF180 set at 0x865D10, ThunkInfo "focus" 0x8F1E40): the focus group's weak pointer (MovieImpl+3B64h + 40h x byte [+3F54h], locked by 0x514370), its AvmInteractiveObj (vtable +4 of the interface at byte [obj+41h], minus 1Ch), [avm+8] raw or [avm+4] collectible (bit 0 cleared), traits [+14h] type +3Ch 12h or >= 17h: the result via 0x790E40, else emptied (0x772031); the object untested (0x77200B reads [0+14h]; patch 52 tests it)
 0x00824910		auto	0	
 0x00824c68		auto	0	
 0x00824c9c		auto	0	
