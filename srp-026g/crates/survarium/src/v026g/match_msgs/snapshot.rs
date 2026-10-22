@@ -1370,12 +1370,18 @@ impl Decoded<'_> {
     pub fn standing(&self, game_mode: u8, teams: &[u8]) -> Option<Standing> {
         let tail = self.statistics.as_ref().map(|statistics| statistics.tail);
         if game_mode == mode::RESEARCH {
-            let points = self
-                .rules
-                .as_ref()
-                .and_then(|rules| rules.research.as_ref())
-                .map(|research| research.scores)
-                .or(tail.map(|tail| tail.team_points))?;
+            let research = self.rules.as_ref().and_then(|rules| rules.research.as_ref());
+            if let Some(research) = research {
+                return Some(Standing {
+                    points: research.scores,
+                    winner: rules::research_winner(
+                        research.scores,
+                        research.points,
+                        research.end.is_some(),
+                    ),
+                });
+            }
+            let points = tail.map(|tail| tail.team_points)?;
             return Some(Standing {
                 points,
                 winner: rules::winner_by_points(points),
@@ -2035,6 +2041,28 @@ mod tests {
             Some(Standing {
                 points: [40, 40],
                 winner: rules::DRAW
+            })
+        );
+    }
+
+    #[test]
+    fn a_research_match_at_the_goal_is_won_by_the_millionths() {
+        // Both show 100: team 1 reached the goal, team 0 has 99.6.
+        let mut rule = research();
+        rule.points = [99_600_000, 100_000_000];
+        rule.scores = [100, 100];
+        rule.end = Some(TIME + 3_000);
+        let mut statistics = player_bytes();
+        statistics.extend(EMPTY_PLAYER);
+        statistics.extend([100, 0, 100, 0, 0, 0, 0, 1, 0, 0, 0]);
+        let whole = body(&statistics, &research_rules(&rule));
+        let decoded = decode(TIME, &whole, 2, mode::RESEARCH, 0).unwrap();
+        assert_eq!(decoded.rules.as_ref().unwrap().research, Some(rule.clone()));
+        assert_eq!(
+            decoded.standing(mode::RESEARCH, &[0, 1]),
+            Some(Standing {
+                points: [100, 100],
+                winner: 1
             })
         );
     }
