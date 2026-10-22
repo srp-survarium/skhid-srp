@@ -10,6 +10,7 @@ package survarium.player
    import scaleform.clik.interfaces.IDataProvider;
    import scaleform.clik.interfaces.IListItemRenderer;
    import scaleform.gfx.MouseEventEx;
+   import survarium.upgrade.UpgradeWindow;
    import survarium.constants.Events;
    import survarium.data.ItemData;
    import survarium.interfaces.IAmmoControll;
@@ -105,14 +106,14 @@ package survarium.player
       // An item type goes into one pocket of a kit (docs/notes/one-pocket-a-type.md): the units of
       // `item` a pocket holding `held` takes when one more is put in. The pocket's own type: one more,
       // within the pocket's size (one of an item that fills a whole pocket); another: one.
-      public static function pocketUnits(held:ItemData, item:ItemData) : uint
+      public static function pocketUnits(held:ItemData, item:ItemData) : int
       {
          if(!held || held.dictId != item.dictId)
          {
             return 1;
          }
          var size:int = item.quickSlotItemSize == QuickSlotSize.WHOLE ? 1 : PlayerInfo.pocketSize;
-         return Math.max(1,Math.min(held.value + 1,size));
+         return int(Math.max(1,Math.min(held.value + 1,size)));
       }
       
       // The pocket holding an item of `dictId`, or -1.
@@ -153,6 +154,35 @@ package survarium.player
          return this._slots_index.indexOf(this._last_name);
       }
       
+      // The kit's weapons (slots 1 and 2) a hovered sight fits look hovered too; -1 ends it
+      // (weapon_scopes.md, section 4a).
+      private var _linkedHovers:Array = [];
+
+      public function hoverWeaponsFor(scopeDictId:int = -1) : void
+      {
+         for each(var linked:int in this._linkedHovers)
+         {
+            if(linked != this._hoverIndex)
+            {
+               getSlotAt(linked).hover(false);
+            }
+         }
+         _linkedHovers = [];
+         if(scopeDictId < 0)
+         {
+            return;
+         }
+         for each(var index:int in [ProfileSlot.WEAPON_1,ProfileSlot.WEAPON_2])
+         {
+            var slot:IPaperDollSlot = getSlotAt(index);
+            if(slot != null && slot.data != null && UpgradeWindow.fits(int(slot.data.dictId),scopeDictId))
+            {
+               slot.hover();
+               this._linkedHovers.push(index);
+            }
+         }
+      }
+
       public function hoverItem(itemId:uint = 0) : void
       {
          trace("PD::hoverItem",itemId);

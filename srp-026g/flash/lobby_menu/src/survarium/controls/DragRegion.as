@@ -3,6 +3,7 @@ package survarium.controls
    import flash.external.ExternalInterface;
    import scaleform.clik.controls.DragSlot;
    import scaleform.clik.events.DragEvent;
+   import survarium.data.Relocation;
    import survarium.data.ItemData;
    import survarium.interfaces.IInventoryItemRenderer;
    import survarium.interfaces.ILocalPaperDoll;
@@ -50,14 +51,7 @@ package survarium.controls
                {
                   if(item.descriptor == ItemPlace.INVENTORY)
                   {
-                     relocations = [{
-                        profile:localProfile.profileId,
-                        id:item.itemId,
-                        dict_id:item.dictId,
-                        sourceSlot:ItemPlace.INVENTORY,
-                        targetSlot:slot,
-                        count:1
-                     }];
+                     relocations = [Relocation.move(localProfile.profileId,item.itemId,item.dictId,ItemPlace.INVENTORY,slot,1)];
                      relocate = localProfile._relocateFunction;
                      trace("aaa",localProfile,localProfile._relocateFunction,relocate);
                      relocate(relocations);

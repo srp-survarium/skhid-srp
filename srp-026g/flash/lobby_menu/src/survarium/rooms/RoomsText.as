@@ -12,6 +12,9 @@ package survarium.rooms
         private static const TEXT:Object = {
             "servers": ["Rooms", "Кімнати", "Комнаты", "Räume", "Pokoje"],
             "room": ["Room", "Кімната", "Комната", "Raum", "Pokój"],
+            // The window's tabs while in a room (the owner's of 2026-10-22).
+            "myRoom": ["My room", "Моя кімната", "Моя комната", "Mein Raum", "Mój pokój"],
+            "allRooms": ["All rooms", "Усі кімнати", "Все комнаты", "Alle Räume", "Wszystkie pokoje"],
             "create": ["Create", "Створити", "Создать", "Erstellen", "Utwórz"],
             "new": ["New room", "Нова кімната", "Новая комната", "Neuer Raum", "Nowy pokój"],
             "back": ["Back", "Назад", "Назад", "Zurück", "Wstecz"],

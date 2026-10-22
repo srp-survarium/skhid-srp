@@ -1040,7 +1040,7 @@ The owner's request (2026-10-21): "instead of focusing on players the camera wou
 - **Why the pivot was at the end** (PROVEN in the data and the code, emulated). A weapon's mesh (its `converted_model` vertices) is not in the frame of its render model's box (`render/export_properties` `bounding_box`, kept at render_model+108h by load_properties 0x1582C0): the box is rotY(π) of the mesh, the engine turns it back (skeleton_render_model_instance::update_render_matrices 0x15A590 copies the model's box to the instance's +62B8h and transforms it by rotY(π), 0x15A77F). The AK-12's mesh lies along +z (z −0.265..0.673), its box along −z (−0.673..0.265): the first round's CENTRE_Z −0.18, read from the box, was 0.38 m from the middle, by the stock's end. And a weapon is drawn posed: the bones mt_draw gives weapon::draw ([ebp−0Ch], [ebp−18h] of them; bone matrices in model space, rows, as update_render_matrices skins with the model's inverse binds +140h × each bone, 0x15A7DC..0x15A7EC) are its 3rd-view idle; bone 1 (`offset`, the body's, every weapon of the data) moves the PM's and the APS's body 20 cm along +z.
 - **The middle at the bench** (PROVEN in the code; the arithmetic emulated on the AK-12's and the PM's data). The held item (player+128h), when a weapon (vtable 0xA04174, its ctor's alone), has its skeleton model at +1810h (load_weapon 0x243A9A), its render instance at +108h (skeleton_render_model_instance, vtable 0x9F0F24), the model at +62B4h: the middle = (−cx, cy, −cz) of the model's box centre × bone 1's inverse bind × bone 1's pose of the frame; row 3 of the transform = BENCH − middle × the rotation, so the weapon turns about it. A box of ±1 (the exporter's default in the model's `render/export_properties`: 14 weapon models of the data, the A-545, AK-74U, AKMN, IZh-27, both Mosins, TOZ-122, TOZ-34 and Vepr with their camo copies), anything missing or not a weapon: (0, 0, 0.2) of the model. The middles along the length (z, the posed mesh's box, from the data): AK-12 0.204, SVD 0.326, PKP 0.256, Mosin 0.221 (box ±1: 0.2 used, 2 cm off), Remington 870 0.242, KRISS 0.161, Uzi 0.085, PM 0.246, APS 0.265, MP7 −0.050, PP-2000 −0.076, P90 −0.028, ASh-12 −0.005, Magnum −0.009; a constant would have been up to 0.28 m off.
 - **The weapon first, then the camera** (PROVEN in the code, emulated). A lobby character makes its player while +D2C4h holds the player's query (setup_profile 0x284CB7; −1 none: the ctor, on_player_ready 0x284F86) or +D2C8h is set (a setup_profile waiting for it, 0x284BB2). Until then the table's player's held item stays in its hand (the old player's weapon, the chosen kit's); after, it is drawn at the bench and READY is set. The window's start sets HOLD: the tick then holds the camera (the three steps' speeds +E0h, +E4h, +E8h 0, the flight not stepped) until READY, at most 2 s; then the speeds the setter gives (|target − now| · 1.111 a second) and the flight. A weapon its kit already shows needs no new player: READY at the next draw.
-- **The light** (data, `../../scripts/content-edit/lobby-bench-light-1.json`): the scene's ambient light under the workbench's end (`client_objects[49]`, ambient_light(3), (4.929, 0.006, 4.347), the only light by the bench; the room's ceiling point light is 4.7 m away) intensity 1 → 2.5, radius 3.1 → 3.6 m. In the content patch, not the exe; another session builds it.
+- **The light** (data, `../../scripts/content-edit/lobby-scene-2.json`, which replaced lobby-bench-light-1 on 2026-10-22): a point light of the bulb above the workbench (`point_light(7)` at (4.81, 3.02, 2.91), 1.81 m from BENCH, behind it seen from the camera: the ceiling lamp's `point_light` copied, its warm colour, intensity 3, range 5 m) and a second bulb made as the bench one (`level/lobby/bench_bulb`, the bench bulb's own socket and see-through glass cut out of `electric1` by the content pack lobby-bulb@1, tilted 50.7 degrees on a drop wire, a `wire_set`, from the `electric1` wire over the artefact table poster) with `point_light(8)` at its tip, (3.40, 3.17, 3.88), intensity 1.15, range 4 m, attenuation_power 2 (the poster behind it half as lit, BENCH as with 3, 5 m, 7.7), 2.22 m from BENCH on the camera's side; raising the ceiling lamp itself, the PR's first version, left the bench dark. The first version (lobby-bench-light-1, revision 27) raised the ambient fill light under the workbench's end (`client_objects[49]`, ambient_light(3)) intensity 1 → 2.5, radius 3.1 → 3.6 m; the owner saw it as a fake white light. In the content patch, not the exe.
 - **Checked:** `check_weapon_table_026g.py` 28 checks (as is and rebased): the hold and the speeds given back, the 2 s limit, the character making its player (the held item in the hand, READY 0), the middle of the AK-12 and the PM at the bench and the fallbacks (a default box, not a weapon, no item), the left button (52h as the original; the left button not, but at the bench with its press off the movie; blocked when on it until let go; is_mouse_over_ui asked once a press); the round 1 cases. Selftest check 45 adds the site and the facts above (on_mouse_move reads only al after it; the weapon's, the instance's and the character's fields). **Not run in a game.**
 - **Builds** (round 2): without a server sha256 `56ade5122f6438550e35222109597951104c2e6818aca474c1a8a3d263b668c6`, with `--server=skhid.link:1234` `3867f3ff8b7bdcf8f66ff2cb341d9549bc29f0934acd8c2ca642622e4775b84f` (12 910 712 bytes each).
 
@@ -1221,7 +1221,52 @@ So of what the game logs, the dominant wait is the client's own send tick (a qua
 
 **Builds** (this branch, on main 7f010cc1, no server): the default build `8f75d355eda63a17d7afc83dd99ecff7d368e07801771c1f5e72f7d62c84c27b`; with `--required-patches=12,14,17,19,20,21,22,23,24,25,26,27` (revision 27's list) `33c7cba9bb1e1558b97ef43be5296f45d963174f7597f21c6f5a6e76ac3c0cc6` (12 918 392 bytes each).
 
-### 3.50 Research, mode 5 (written 2026-10-22, README patch 53, the release after revision 28; the rules: `research_mode.md`) — PROVEN in the code, the hooks, the cook, the rule and the hud run with Unicorn with the game's own register_cook, rule constructor and config look-ups; not run in a game
+### 3.49 `stage.focus` reads null for a focused object without its ActionScript object (written 2026-10-22, README patch 52, the next release's revision) — PROVEN in the code and Scaleform's source, the getter run with Unicorn; not run in a game
+
+**Why** (the owner's local game, 2026-10-22 04:44, `Survarium-#2777_261022-044410.dmp`, r28 of main): `ACCESS_VIOLATION` reading 0x14 at 0x77200B, in the lobby, about a second after an upgrade. The minidump holds the threads' stacks only (no modules, no heap); the crash report's "frames" are not a stack walk. From the crashed thread's stack:
+
+```
+0x767FF258  0x775125   the Stage focus getter's thunk (0x7750F0), after `call [0xAFF180]`
+0x767FF270  0x8F1E40   its ThunkInfo ("focus" at 0xA09EA8)
+...         0x78E271 .. 0x7C7E12   the AS3 VM (LobbyMenu.has_active_window)
+0x767FF698  0xA07404   "root.has_active_window"
+0x767FF8B8  0x511644   the movie's invoke (0x511600)
+            0x26CBFE   lobby_menu's key handler 0x26CB80 (0x26CBF9 `push 0xA07404` / `call 0x511600`)
+```
+
+`LobbyMenu.has_active_window` reads `stage.focus is DropdownMenu`; the exe invokes it on every key in the lobby.
+
+**The getter** (0x771FA0 = Scaleform's `Instances::fl_display::Stage::focusGet`, the Scaleform GFx 4 source outside the repo (`scaleform-gfx/Src/GFx/AS3/Obj/Display/AS3_Obj_Display_Stage.cpp`); the static initializer 0x865D10 puts it in 0xAFF180): `[this+14h]` +40h +1A8h +8 = MovieImpl; `lea ecx,[MovieImpl + 3B64h + 40h * byte [MovieImpl+3F54h]]` = `FocusGroups[FocusGroupIndexes[0]].LastFocused`, a weak pointer locked by 0x514370; `[obj+41h]` the AvmInteractiveObj interface's index, its vtable +4 minus 1Ch the AvmDisplayObj; `GetAS3Obj()` = `[avm+8]` (pAS3RawPtr) or `[avm+4]` (pAS3CollectiblePtr, bit 0 cleared, the collector's mark); `[as3+14h]` the traits, `+3Ch` the type: 12h or 17h and up an InteractiveObject (0x77201B, the result via 0x790E40), else null (0x772031). The source tests `focused` but not the object (`IsInteractiveObject(ido->GetTraitsType())`); `FocusManager.getFocus` tests both.
+
+**When the object is gone:** `~DisplayObject` (the AS3 side) calls `AvmDisplayObj::ReleaseAS3Obj` (both pointers 0); a display object then lives on while anything holds it (during a collection its release is delayed to the collection's end). AS3's `removeChild` (`AvmDisplayObjContainer::RemoveChildAt`) does not touch the focus; only `InteractiveObject::OnEventUnload` calls `MovieImpl::ResetFocusForChar`. Which object it was at 04:44 is not in a stack-only dump (esi 0x0D4386A0).
+
+**The patch** (`STAGE_FOCUS`, every full build: with and without the late join and over on_hash_mismatch), 46 bytes at 0x771FED:
+
+```
+00771FED  test eax,eax              ; the interface call gave none
+00771FEF  jz 0x772012
+00771FF1  mov ecx,[eax-0x14]        ; raw pointer (+8 of eax-1Ch)
+00771FF4  test ecx,ecx
+00771FF6  jnz 0x771ffb
+00771FF8  mov ecx,[eax-0x18]        ; collectible pointer (+4)
+00771FFB  and ecx,byte -0x2         ; bit 0 cleared, as the old `test al,1` / `dec eax`
+00771FFE  jz 0x772012               ; no ActionScript object
+00772000  mov eax,ecx
+00772002  mov ecx,[eax+0x14]
+00772005  mov ecx,[ecx+0x3c]
+00772008  cmp ecx,byte +0x12
+0077200B  jz 0x77201b
+0077200D  cmp ecx,byte +0x17
+00772010  jnl 0x77201b
+00772012  jmp short 0x772031        ; null
+00772014  7 x nop
+```
+
+The old bytes' jumps all landed inside them; nothing else aims inside; no base relocation under them. ecx only; eax at 0x77201B the object as before.
+
+**Checked:** `selftest_026g.py` check 52; `check_stage_focus_026g.py` (Unicorn 2.1.4): the original faults at 0x77200B with both pointers 0 (or the collectible 1) and at 0x771FF8 for an interface call that gives none; the build gives null; every other case the same in both.
+
+### 3.50 Research, mode 5 (written 2026-10-22, README patch 53, the next release's revision; the rules: `research_mode.md`) — PROVEN in the code, the hooks, the cook, the rule and the hud run with Unicorn with the game's own register_cook, rule constructor and config look-ups; not run in a game
 
 - **Rule cooks** (PROVEN): each is a static object `{+0 vtable, +8 class, +10h -1, +14h
   GetCurrentThreadId(), +18h 8, +20h the game (client cooks)}`, made by its function (tdm's

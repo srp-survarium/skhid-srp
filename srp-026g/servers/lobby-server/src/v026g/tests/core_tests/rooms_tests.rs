@@ -16,7 +16,8 @@ use super::*;
 use crate::v026g::LiveView;
 
 /// Fields of the state's header (`S1;R;<key>;<level>;<max level>;<size>;
-/// <wait>;<phase>;<secs>;<owner>;<pool>;<members>;<serial>;<pin>`).
+/// <wait>;<phase>;<secs>;<owner>;<pool>;<members>;<serial>;<pin>;<next map>;
+/// <min players>;<code>`).
 const KEY: usize = 2;
 const LEVEL: usize = 3;
 const PHASE: usize = 7;
@@ -24,6 +25,7 @@ const OWNER: usize = 9;
 const MEMBERS: usize = 11;
 const SERIAL: usize = 12;
 const NEXT: usize = 14;
+const CODE: usize = 16;
 /// From two players to the match: the vote's 15 s, the wait of [`spec`]
 /// (15 s), and a little more.
 const VOTE_AND_WAIT: Duration = Duration::from_secs(32);
@@ -104,7 +106,7 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     assert_eq!(
         alone[0],
         format!(
-            "S1;R;{key};0;0;6;15;0;0;1;{};1;{serial};0;0;2",
+            "S1;R;{key};0;0;6;15;0;0;1;{};1;{serial};0;0;2;0",
             world.core.settings.maps.len()
         )
     );
@@ -429,6 +431,38 @@ fn a_member_is_offered_a_room_of_a_lower_max_level() {
     assert_eq!(header(&state(&mut world, alice))[MEMBERS], "1");
     // In Erin's, nothing lower is open: no offer.
     assert_eq!(switch_of(&state(&mut world, bob)), None);
+}
+
+/// A member browses the list from its room (the All rooms tab, the owner's
+/// of 2026-10-22): its own room is in it; a Join of another room takes it
+/// out of its own, as Leave does; a refused one leaves it where it was and
+/// says why, once.
+#[test]
+fn a_member_joins_another_room_from_the_list() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let carol = world.connect("Carol");
+    let dave = world.connect("Dave");
+    let first = create(&mut world, alice, spec(8), None);
+    rows(&mut world, bob, ROOM_JOIN_BASE + first, 1);
+    let open = create(&mut world, carol, spec(8), None);
+    let private = create(&mut world, dave, spec(8), Some(1234));
+    // The list names Bob's room.
+    let list = rows(&mut world, bob, ROOMS_LIST, 32);
+    assert_eq!(list[0], format!("S1;L;3;{first}"));
+    // A wrong PIN: still in his room, told why once.
+    rows(&mut world, bob, ROOM_PIN_BASE + 4321, 1);
+    let refused = rows(&mut world, bob, ROOM_JOIN_BASE + private, 1);
+    assert_eq!(header(&refused)[KEY], first.to_string());
+    assert_eq!(header(&refused)[CODE], "3");
+    assert_eq!(header(&state(&mut world, bob))[CODE], "0", "said once");
+    // Into Carol's, out of Alice's.
+    let moved = rows(&mut world, bob, ROOM_JOIN_BASE + open, 1);
+    assert_eq!(header(&moved)[KEY], open.to_string());
+    assert_eq!(header(&moved)[MEMBERS], "2");
+    assert_eq!(header(&moved)[CODE], "0");
+    assert_eq!(header(&state(&mut world, alice))[MEMBERS], "1");
 }
 
 /// A PIN keeps a room closed until it is given; the owner takes a member

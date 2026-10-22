@@ -25,6 +25,8 @@ package survarium.interfaces
       
       function hoverItem(itemId:uint = 0) : void;
       
+      function hoverWeaponsFor(scopeDictId:int = -1) : void;
+      
       function clearSelection() : void;
       
       function hasAgreements(category:uint) : uint;
