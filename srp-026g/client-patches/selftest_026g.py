@@ -4752,17 +4752,18 @@ def _call_shapes_body(original, data):
               f"{site:#x} {kind} ({what}): ours ({target:#x}) pops {ours if ours is not None else sorted(found)}, "
               f"as it must: {want} ({whence})" + (f"; not followed: {lost[:2]}" if lost else ""))
     callbacks = []
-    for what, name, before_bytes, model, _why in P.CALLBACKS:
+    for what, name, before_bytes, model, _why, driven in P.CALLBACKS:
         code = open(os.path.join(HERE, f"{name}_026g.section.bin"), "rb").read()
         at = code.find(before_bytes)
         got = -1 if at < 0 or code.find(before_bytes, at + 1) >= 0 \
             else struct.unpack_from("<I", code, at + len(before_bytes))[0]
-        callbacks.append((got, what, model))
-    for our_va, what, model in callbacks:
+        callbacks.append((got, what, model, driven))
+    for our_va, what, model, driven in callbacks:
         want, whence = model_cleanup(original, image, model, abi)
         ours = effective_cleanup(image, our_va) if our_va not in (None, -1) else None
         check(want is not None and ours == want,
               f"{what}: `ret {ours}` pops what its model {model:#x} does (`ret {want}`, {whence})")
+        check_driven(f"{what}", driven)
     # 3. Every vtable our code builds (a rule's, a cook's): each slot of ours
     # pops what the game's vtable pops in the same place (check 53, for
     # every patch).
@@ -4787,7 +4788,7 @@ def check_vtables(original, image, vtables, symbols):
     abi = abi_cleanup()
     read32 = lambda img, va: struct.unpack("<I", img.read(va, 4))[0]
     in_text = lambda va: P.TEXT_VA <= va < P.TEXT_VA + P.TEXT_VSIZE
-    for what, json_name, symbol, model, slots, own in vtables:
+    for what, json_name, symbol, model, slots, own, driven in vtables:
         table = symbols[json_name]
         ours_at = table[symbol] + 4                        # the RTTI locator, then the slots
         compared = []
@@ -4806,9 +4807,24 @@ def check_vtables(original, image, vtables, symbols):
                   f"{what} vtable slot {slot}: ours ({ours:#x}) pops {sorted(mine)} bytes, the model's "
                   f"({theirs:#x}, vtable {model:#x}) {want} ({whence})"
                   + (f"; not followed: {lost[:2]}" if lost else ""))
+            check_driven(f"{what} vtable slot {slot}", driven.get(slot))
         check(len(compared) == own,
               f"{what} vtable ({symbol}): {own} slots of ours, each compared with "
               + (f"vtable {model:#x}'s ({compared})" if model is not None else "none (the game's functions only)"))
+
+
+def check_driven(what, driven):
+    """A function of ours the game calls through a pointer (a vtable slot,
+    a callback) has a case of its patch's Unicorn check that reaches it
+    through the game's own caller (INSTALLED_VTABLES' and CALLBACKS' last
+    field): the `ret` comparison cannot see the order of the arguments
+    (Research's slot 7, #297's review). The case must be in its script; the
+    script runs it (a patch's check is run with the patch)."""
+    script, case = driven if driven else (None, None)
+    text = open(os.path.join(HERE, script)).read() if script and os.path.exists(os.path.join(HERE, script)) else ""
+    check(bool(case) and case in text,
+          f"{what}: reached through the game's own caller in {script}: \"{case}\"" if case
+          else f"{what}: no case of its check reaches it through the game's own caller (declare one)")
 
 
 def test_call_shapes_negative(original):
@@ -4844,7 +4860,10 @@ def test_call_shapes_negative(original):
         globals()["check"] = lambda ok, text: captured.append((ok, text))
         try:
             check_vtables(original, Image(data), (("a made-up rule", "fake.json", "fake_rule_vtable",
-                                                     0xA15DA4, 20, 1),), symbols)
+                                                     0xA15DA4, 20, 1,
+                                                     {16: (P.RESEARCH_CHECK,
+                                                           "the game's deserialize loop (0x2D2B42)")}),),
+                          symbols)
         finally:
             globals()["check"] = saved
         failed = [text for ok, text in captured if not ok]
@@ -4861,6 +4880,19 @@ def test_call_shapes_negative(original):
     except SystemExit:
         refused = True
     check(refused, "a `*_vtable` of the arena's code with no INSTALLED_VTABLES row is refused")
+    # A slot of ours with no case through the game's caller, or with a case
+    # its script does not have, is refused.
+    for driven, name in (({}, "no case"), ({16: (P.RESEARCH_CHECK, "no such case of the check")}, "a missing case")):
+        captured = []
+        saved = globals()["check"]
+        globals()["check"] = lambda ok, text: captured.append((ok, text))
+        try:
+            check_vtables(original, Image(data), (("a made-up rule", "fake.json", "fake_rule_vtable",
+                                                     0xA15DA4, 20, 1, driven),), symbols)
+        finally:
+            globals()["check"] = saved
+        check(any(not ok and "caller" in text for ok, text in captured),
+              f"a slot of ours with {name} through the game's own caller is refused")
     # An undeclared install: a call into our code with no INSTALLS row.
     fake_writes = [(0x500000, bytes(5), b"\xE8" + struct.pack("<i", P.SECTION_VA - 0x500000 - 5))]
     try:

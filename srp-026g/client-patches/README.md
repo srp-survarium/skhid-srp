@@ -154,8 +154,15 @@ site (its declared pops); every CALLBACK; every slot of ours of every
 INSTALLED_VTABLES vtable (Research's rule, cook and link resolver: check 53's
 comparison, now the rule for every patch). It also flags an INSTALLS row no
 built variant installs. A negative test rejects a rule vtable slot 16 that
-pops 4 where tdm's pops 8 (Research's first `rn_deserialize`). **Not
-checked here:** INLINE sites (a call of ours over other instructions) and
+pops 4 where tdm's pops 8 (Research's first `rn_deserialize`).
+**Driven through the game's caller.** A `ret` comparison cannot see the
+order of the arguments (Research's slot 7 took `(type, time, data)` where the
+game passes `(type, data, time)`: #297's review). So each slot of ours of each
+INSTALLED_VTABLES vtable, and each CALLBACK, names a case of its patch's
+Unicorn check that reaches it through the game's own caller (the loop or
+dispatcher that calls it in the game, with what the game passes there): the
+self-test fails a slot or callback with none, or a case its script does not
+have, and a negative test shows both refused. **Not checked here:** INLINE sites (a call of ours over other instructions) and
 JUMP sites (a jump into ours from the game's code), which are declared but
 left to each patch's own Unicorn check.
 
@@ -2842,7 +2849,9 @@ disassembly as the spec, and the units are not world objects: the rule tests the
 positions against the units' shapes, which the mode config carries (`capture_zones`).
 
 - **The rule** (`research_native_026g.c`, `rn_rule`): game_match_rule_base (0x313900, type 5) and
-  0.26g's twenty slots: 7 events (a kill, `{killer, victim}`: "kill invader"), 8 and 9 a roster
+  0.26g's twenty slots: 7 events (`(type, data, time)`, as the world's dispatcher 0x2D1EA0 passes
+  them; a kill, `{killer, victim}`: "kill invader"; the first build took `(type, time, data)`, fixed
+  after #297's review), 8 and 9 a roster
   place entered or left, 11 the world (its tick a delegate at the end of the world's second tick
   list, numbered by the world's counter, as timelimit_rule_core's 0x318050), 12 the blackboard, 15
   and 16 the state (21 + 96 bytes a unit, little-endian, `rr_write`'s layout; 15 writes it field

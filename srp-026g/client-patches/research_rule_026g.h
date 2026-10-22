@@ -133,7 +133,8 @@ rr_u32 rr_kill(const struct rr_state *, rr_u8 killer, rr_u8 victim, rr_u8 killer
 void rr_entered(struct rr_state *, rr_u8 place);
 void rr_left(struct rr_state *, rr_u8 place);
 
-/* 0, 1, or RR_NOBODY for equal scores. */
+/* 0, 1, or RR_NOBODY: by the shown scores, equal a draw; once a team
+ * reached the goal (end_time set), by the millionths. */
 rr_u32 rr_leader(const struct rr_state *);
 int rr_completed(const struct rr_state *, rr_u32 time);
 

@@ -1918,28 +1918,60 @@ BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
 # crashed the game at its first sync: this is the check that catches it, for
 # every patch. Every `*_vtable` symbol of an arena block's code must be here
 # (audit_vtables).
+#
+# The last field: {slot: (check script, case)} for each slot of ours, the
+# case of that patch's Unicorn check that reaches the slot through the
+# game's own call site (the loop or dispatcher that calls it in the game,
+# with what the game passes there), not by calling our function directly.
+# A `ret` comparison cannot see the order of the arguments: Research's slot 7
+# took (type, time, data) where the game passes (type, data, time) (#297's
+# review). The self-test fails a slot of ours with no such case, or a case
+# its script does not have (test_call_shapes).
+RESEARCH_CHECK = "check_research_026g.py"
 INSTALLED_VTABLES = (
-    ("Research's rule", "research_026g.section.json", "rn_rule_vtable", 0xA15DA4, 20, 9),
-    ("Research's cook", "research_026g.section.json", "rn_cook_vtable", 0x9FD8AC, 11, 2),
-    ("Research's rule's link resolver", "research_026g.section.json", "rn_resolver_vtable", None, 1, 0),
+    ("Research's rule", "research_026g.section.json", "rn_rule_vtable", 0xA15DA4, 20, 9, {
+        7: (RESEARCH_CHECK, "driven: slot 7, on_event(type, data, time), through the dispatcher 0x2D1EA0"),
+        8: (RESEARCH_CHECK, "driven: slot 8, entered(place, time), through the world's loop 0x2D2010"),
+        9: (RESEARCH_CHECK, "driven: slot 9, left(place, time), through the world's loop 0x2D2130"),
+        11: (RESEARCH_CHECK, "driven: slot 11, set_game_world_core, through the world's loop 0x2D3B40"),
+        12: (RESEARCH_CHECK, "driven: slot 12, the blackboard, through the world's loop 0x2D5906"),
+        15: (RESEARCH_CHECK, "the game's serialize loop (0x2D2661)"),
+        16: (RESEARCH_CHECK, "the game's deserialize loop (0x2D2B42)"),
+        17: (RESEARCH_CHECK, "driven: slot 17, fill_match_hud_state(hud, ?), through the hud's loop 0x2D36D0"),
+        18: (RESEARCH_CHECK, "driven: slot 18, rule_completed(time), through the world's loop 0x2D2730"),
+    }),
+    ("Research's cook", "research_026g.section.json", "rn_cook_vtable", 0x9FD8AC, 11, 2, {
+        9: (RESEARCH_CHECK, "driven: the cook's create and size through translate 0x2F4290's calls"),
+        10: (RESEARCH_CHECK, "driven: the cook's create and size through translate 0x2F4290's calls"),
+    }),
+    ("Research's rule's link resolver", "research_026g.section.json", "rn_resolver_vtable", None, 1, 0, {}),
 )
 # The symbol map of each arena code block built from C ({block: .json}).
 ARENA_SYMBOLS = {"research.code": "research_026g.section.json"}
 # What our code hands the game at run time to call later (a callback, a
-# boost::function): no write of build() shows them, so each is declared with
-# the instruction that hands it over and the game's own function it stands
-# in for: (what, the code's name, the bytes before the pointer in that
-# instruction (the code holds them once), the model, why that model).
+# boost::function, a tick delegate): no write of build() shows them, so each
+# is declared with the instruction that hands it over and the game's own
+# function it stands in for: (what, the code's name, the bytes before the
+# pointer in that instruction (the code holds them once), the model, why
+# that model, (check script, the case that calls it through the game's own
+# caller)) (the last as INSTALLED_VTABLES' slots).
 CALLBACKS = (
     ("the late join's query: query_completed", "late_join", bytes.fromhex("6a00566a008d83"), 0x27AA20,
      "0x27D280 makes the network client's boost member callback of its resource queries; its one other "
      "call (0x27B04C) binds 0x27AA20, the client's own queries_completed (ecx = the client, [esp+4] the "
      "queries_result); the marker is the `push 0 / push esi / push 0 / lea eax,[ebx+query_completed]` "
-     "before `push eax` (query_completed's VA follows the lea's `8D 83`)"),
+     "before `push eax` (query_completed's VA follows the lea's `8D 83`)",
+     ("check_late_join_026g.py", "m.start(0x202300, args=(BASE + 0x30000, results))")),
     ("a weapon's camouflage bake: bake_done", "weapon_camo", b"\xC7\x40\x08", 0x126830,
      "BIND_MANAGER 0x9ED148 binds a `void (*)(A*, B*)`; the game binds 0x126830 with it at 0x126A2C "
      "(a bake query of query_resources 0xE5B60, as weapon_camo's); the marker is bind's "
-     "`mov dword [eax+8], bake_done` (bake_done's VA follows `C7 40 08`)"),
+     "`mov dword [eax+8], bake_done` (bake_done's VA follows `C7 40 08`)",
+     ("check_weapon_camo_026g.py", "the callback deallocates P from the game's allocator")),
+    ("Research's tick: rn_tick", "research", bytes.fromhex("c78114010000"), 0x317F10,
+     "rn_set_core puts it in the world's second tick list as timelimit_rule_core's set_game_world_core "
+     "(0x318050) puts its tick 0x317F10; the list's runner 0x2D1D20 calls it with ecx the object and "
+     "(dt, time, step); the marker is `mov dword [ecx+114h], rn_tick` (the delegate's function)",
+     (RESEARCH_CHECK, "driven: the tick (the delegate, as timelimit's) through the tick list's runner 0x2D1D20")),
 )
 
 
@@ -2181,7 +2213,7 @@ def audit_vtables(vtables=None, symbols=None):
         for name in sorted(set(ARENA_SYMBOLS.values())):
             path = os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
             symbols[name] = json.load(open(path))["symbols"]
-    declared = {(json_name, symbol) for _, json_name, symbol, _, _, _ in vtables}
+    declared = {(row[1], row[2]) for row in vtables}
     for json_name, table in sorted(symbols.items()):
         for symbol in sorted(table):
             if symbol.endswith("_vtable") and (json_name, symbol) not in declared:

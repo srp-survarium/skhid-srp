@@ -84,6 +84,8 @@ enum {
 #define STATS_EVENTS 0xC           /* u16 events[28][3] */
 #define STATS_TEAM_POINTS 0x31D4   /* u16 m_team_points[2] */
 #define STATS_WINNER 0x31E4        /* m_winner_team */
+#define STATS_LISTENER 0x31A0      /* the hud's listener (a boost::function: 0 when none) */
+#define STATS_NOTIFY 0x2F5D40      /* eax = statistics+31A0h; push amount, event, place; ret 0Ch */
 /* the statistics' events a unit counts (snapshot_rules.md section 3.1) */
 #define EVENT_CAPTURE 6            /* hundredths: a unit taken, the shares of `award` */
 #define EVENT_KILL_INVADER 10      /* one: an enemy killed inside a unit his team was taking */
@@ -374,14 +376,27 @@ static void players_of(const struct rn_rule *rule, struct rr_player out[RR_PLAYE
     }
 }
 
+/* An event counted as the game's own sites count one (the kill handler
+ * 0x2F4EB0, 0x2F4DE1): the player's cell, then, when the statistics have
+ * their listener (+31A0h, set while a hud shows them), its call through
+ * 0x2F5D40 (eax = +31A0h; place, event, amount; ret 0Ch). The listener is
+ * the hud's on_event 0x26DB80: the player's score (+31F0h) grows by the
+ * event's weight times the amount (hundredths for events 6, 17, 18), so the
+ * Tab list shows it at once, not at the next world loaded. */
 static void count(struct rn_rule *rule, u32 place, u32 event, u32 amount) {
     u8 *statistics = AT(rule->core, CORE_STATISTICS, u8 *);
-    u8 *at = place_of(rule, place);
+    u8 *at = place < RR_PLAYERS ? place_of(rule, place) : 0;
     if (!statistics || !at || event >= EVENTS) return;
     u32 kit = at[PLACE_KIT] < KITS ? at[PLACE_KIT] : 0;
     u16 *cell = &AT(statistics, STATS_PLAYER * place + STATS_EVENTS + event * 2 * KITS + 2 * kit, u16);
-    u32 sum = *cell + amount;
+    u32 sum = *cell + amount, added = (sum > 0xFFFF ? 0xFFFF : sum) - *cell;
     *cell = (u16)(sum > 0xFFFF ? 0xFFFF : sum);
+    if (!added || !AT(statistics, STATS_LISTENER, u32)) return;
+    u8 *listener = statistics + STATS_LISTENER;
+    __asm__ volatile("push %[amount]\n\tpush %[event]\n\tpush %[place]\n\tcall *%[fn]"
+                     : "+a"(listener), [amount] "+c"(added), [event] "+d"(event) /* clobbered by the call */
+                     : [place] "r"(place), [fn] "r"(STATS_NOTIFY)
+                     : "memory", "cc");
 }
 
 static void give(struct rn_rule *rule, const struct rr_award *awards, u32 count_of) {
@@ -417,12 +432,18 @@ THISCALL void rn_tick(struct rn_rule *rule, u32 dt, u32 time, u32 step) {
     publish(rule);
 }
 
-THISCALL void rn_on_event(struct rn_rule *rule, u32 type, u32 time, const u8 *data) {
+/* Slot 7, on_event(type, data, time): the world's dispatcher 0x2D1EA0
+ * pushes the core's time ([core+18FC0h]), then its second argument, then
+ * its first; the kill site (0x2D9EEE..0x2D9EF7) gives it 1 and
+ * &{killer, victim} (tdm 0x316090 and kd 0x3237E0 read the data at
+ * [esp+8]). The first build took (type, time, data): it read the time as
+ * the kill's bytes. */
+THISCALL void rn_on_event(struct rn_rule *rule, u32 type, const u8 *data, u32 time) {
     (void)time;
     if (!rule->valid || !rule->core) return;
     if (type == 0) {
         publish(rule);
-    } else if (type == 1 && data && data[0] != 0xFF) {
+    } else if (type == 1 && data && data[0] < RR_PLAYERS && data[1] < RR_PLAYERS) {
         struct rr_award award;
         u32 killer = team_of(player_of(rule, data[0])), victim = team_of(player_of(rule, data[1]));
         if (killer > 1 || victim > 1) return;
@@ -516,6 +537,11 @@ THISCALL void rn_deserialize(struct rn_rule *rule, u8 *reader, u32 unused) {
     u32 size = rr_serialized_size(&rule->state);
     if (!rr_read(&rule->state, &rule->params, at, size)) rr_reset(&rule->state, &rule->params);
     AT(reader, 4, u8 *) = at + size;
+    /* A late joiner's first world: the time rule's deserialize (0x31803E)
+     * sends event 0 before ours runs, so slot 7's publish() wrote the fresh
+     * rule's 0 / 0 and a draw into the statistics' tail; the tail is the
+     * loaded state's from here. */
+    if (rule->valid && rule->core) publish(rule);
 }
 
 /* The teams' points, as tdm's 0x316430 puts its tickets. Its alive counts
@@ -554,6 +580,9 @@ THISCALL u32 rn_cook_size(void *cook) {
 THISCALL void *rn_cook_create(u8 *cook, u8 *query) {
     struct rn_rule *rule = allocate(sizeof(struct rn_rule));
     if (!rule) return 0;
+    /* The hud's cache is of a rule by its address; a new match's rule may
+     * be allocated where the last one was: forget the last one's. */
+    G->hud.rule = 0;
     rule_base(rule, RN_TYPE);
     u8 *base = rule->base;
     memset(base + 0x110, 0, sizeof *rule - 0x110);

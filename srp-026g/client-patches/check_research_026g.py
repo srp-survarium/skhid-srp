@@ -41,6 +41,8 @@ COOKS, REGISTERED, THREAD_ID = 0xA86E00, STATE + 0x24, 0x870118
 ALLOCATE, CTOR_CALL, RESIZE, INVOKE, MESSAGE = 0xE4F90, 0x1EC170, 0x7AB30, 0x511600, 0x2375C0
 # the field writers' hash mismatch dump: its switches, its record's allocation, type_info::name
 DUMP_ON, DUMP_RECORD, TYPE_NAME = 0x1F1D32C, 0x80450, 0x420724
+# the statistics' listener: +31A0h, called through 0x2F5D40 (place, event, amount)
+LISTENER, NOTIFY = 0x31A0, 0x2F5D40
 # rn_rule (research_native_026g.c's _Static_asserts)
 R_CORE, R_VALID, R_PARAMS, R_STATE, R_SIZE = 0x128, 0x134, 0x138, 0x7E0, 0x918
 P_ZONES, ZONE_DEF = 0x64, 0x214
@@ -93,11 +95,11 @@ class Run:
             start = base.IMAGE_BASE + rva
             emu.mem_map(start, (max(vsize, rsize) + 0xFFF) & ~0xFFF, UC_PROT_ALL)
             emu.mem_write(start, bytes(data[raw:raw + min(rsize, vsize or rsize)]))
-        for at, size in ((HEAP, 0x100000), (STACK, 0x10000), (SENTINEL, 0x1000), (CORE, 0x20000),
+        for at, size in ((HEAP, 0x1000000), (STACK, 0x10000), (SENTINEL, 0x1000), (CORE, 0x20000),
                          (CONFIG, 0x10000), (FAKE, 0x100000)):
             emu.mem_map(at, size, UC_PROT_ALL)
         self.heap = HEAP
-        self.invokes, self.messages, self.stopped = [], [], None
+        self.invokes, self.messages, self.stopped, self.notified = [], [], None, []
         # GetCurrentThreadId: a stub returning 77h
         emu.mem_write(SENTINEL + 0x100, bytes.fromhex("b877000000c3"))
         self.word(THREAD_ID, SENTINEL + 0x100)
@@ -153,6 +155,10 @@ class Run:
             self.ret(self.allocate(0x20), 0)
         elif address == TYPE_NAME:
             self.ret(SENTINEL + 0x200, 4)
+        elif address == NOTIFY:
+            self.notified.append((emu.reg_read(UC_X86_REG_EAX), self.read(sp + 4), self.read(sp + 8),
+                                  self.read(sp + 0xC)))
+            self.ret(0, 0xC)
         elif address == MESSAGE:
             self.messages.append((self.string(emu.reg_read(UC_X86_REG_ECX)), self.read(sp + 4), self.read(sp + 8),
                                   self.read(sp + 0xC), self.read(sp + 0x10)))
@@ -231,6 +237,134 @@ def zone(run, rule, z):
     at = rule + R_STATE + S_ZONES + ZONE * z
     return {"progress": run.read(at), "capturing": run.read(at + 4, 1), "owner": run.read(at + 5, 1),
             "count": (run.read(at + 6, 1), run.read(at + 7, 1))}
+
+
+def driven(run, cook, query, check):
+    """Each slot of ours, the tick and the cook's create and size, reached
+    through the game's own call site with what the game passes there, so a
+    slot that takes its arguments in another order shows (patch_026g.py's
+    INSTALLED_VTABLES and CALLBACKS name these cases: the self-test fails a
+    slot of ours with none). Serialize and deserialize: section 6b."""
+    print("  10. through the game's own call sites")
+    players, statistics = world(run)
+    run.word(statistics + LISTENER, 1)                     # a listener (the hud's) is there
+    run.word(CORE + 0x18FC0, 0x2A000)                      # the world's time: [core+18FC0h]
+    # the cook: translate (0x2F4290) calls create with the query it made
+    # (0x2F42B8..0x2F42C2) and then size (0x2F42C6..0x2F42CD)
+    run.emu.reg_write(UC_X86_REG_ESI, 0)
+    cached = run.read(STATE + 0x28)                        # rn_globals.hud.rule: section 8's rule
+    eip, moved = run.span(0x2F42B8, 0x2F42CF, {UC_X86_REG_EBX: cook, UC_X86_REG_EDI: query})
+    rule, size = run.emu.reg_read(UC_X86_REG_ESI), run.emu.reg_read(UC_X86_REG_EAX)
+    check("driven: the cook's create and size through translate 0x2F4290's calls (0x2F42B8..0x2F42CF)",
+          eip == 0x2F42CF and moved == 0 and size == R_SIZE and run.read(rule) == SYMBOLS["rn_rule_vtable"] + 4
+          and run.read(rule + R_VALID) == 1, f"esp moved {moved}, size {size:#x}")
+    check("a new rule clears the hud's cache of the last one (a rule made where the last one was has no stale "
+          "owners: no \"Unit A lost\" at a match's first frame)", cached != 0 and run.read(STATE + 0x28) == 0)
+    rules = run.allocate(4)
+    run.word(rules, rule)
+    run.word(CORE + RULES, rules)
+    run.word(CORE + RULES + 4, rules + 4)
+    eip, moved = run.span(0x2D3B2B, 0x2D3B51, {UC_X86_REG_EBP: CORE})
+    check("driven: slot 11, set_game_world_core, through the world's loop 0x2D3B40",
+          eip == 0x2D3B51 and moved == 0 and run.read(rule + R_CORE) == CORE
+          and run.read(CORE + TICK_LIST + 4) == rule + 0x110, f"esp moved {moved}")
+    eip, moved = run.span(0x2D58F0, 0x2D5917, {UC_X86_REG_EDI: CORE})
+    check("driven: slot 12, the blackboard, through the world's loop 0x2D5906",
+          eip == 0x2D5917 and moved == 0 and run.read(rule + R_CORE + 4) == CORE + 0x188B0, f"esp moved {moved}")
+    ok = True
+    for place in (0, 1, 2):
+        eip, moved = run.span(0x2D1FFF, 0x2D202A, {UC_X86_REG_EDI: CORE}, [0] * 8 + [place, 0x2A000])
+        ok = ok and eip == 0x2D202A and moved == 0
+    check("driven: slot 8, entered(place, time), through the world's loop 0x2D2010",
+          ok and run.read(rule + R_STATE + 0x10) == 0b111)
+    # the tick: the second tick list's runner calls the delegate with
+    # (dt, time, step), as atomic_tick 0x2D1E20 has it call 0x2D1D20
+    put(run, players[0], 1.0)
+    time = 0x2A000
+    for _ in range(400):
+        time += 50
+        run.call(0x2D1D20, args=(CORE + TICK_LIST, 50, time, 1))
+    a = zone(run, rule, 0)
+    check("driven: the tick (the delegate, as timelimit's) through the tick list's runner 0x2D1D20",
+          a["owner"] == 0 and a["progress"] == FULL and run.emu.reg_read(UC_X86_REG_ESP) == STACK + 0x8000,
+          str(a))
+    # a kill through the dispatcher 0x2D1EA0, as the kill site 0x2D9EEE gives
+    # it (1, &{killer, victim}): team 1's place 1 inside A, which team 0 owns
+    put(run, players[1], 2.0)
+    time += 50
+    run.call(0x2D1D20, args=(CORE + TICK_LIST, 50, time, 1))
+    data = run.allocate(4)
+    run.emu.mem_write(data, bytes([0, 1]))
+
+    def kill(slot7=None):
+        if slot7 is not None:
+            run.emu.mem_write(rule, struct.pack("<I", slot7))
+        before = (run.read(statistics + 0xC + 6 * 10, 2), len(run.notified))
+        try:
+            run.call(0x2D1EA0, args=(1, data), regs={UC_X86_REG_EDI: CORE})
+            fine = run.emu.reg_read(UC_X86_REG_ESP) == STACK + 0x8000
+        except UcError:
+            fine = False
+        return fine and run.read(statistics + 0xC + 6 * 10, 2) == before[0] + 1 \
+            and run.notified[before[1]:] == [(statistics + LISTENER, 0, 10, 1)]
+    good = kill()
+    check("driven: slot 7, on_event(type, data, time), through the dispatcher 0x2D1EA0: kill invader for "
+          "place 0, the statistics' listener told (0, event 10, 1)", good, str(run.notified[-1:]))
+    # the first build's order, (type, time, data): a shim that swaps the
+    # last two arguments before our slot 7, through the same dispatcher
+    vtable_copy = run.allocate(0x60)
+    run.emu.mem_write(vtable_copy, bytes(run.emu.mem_read(run.read(rule), 0x50)))
+    shim = run.allocate(0x20)
+    target = vtable(run, rule, 7)
+    run.emu.mem_write(shim, bytes.fromhex("8b44240887442 40c89442408".replace(" ", "")) + b"\xE9"
+                      + struct.pack("<i", target - (shim + 12 + 5)))
+    run.word(vtable_copy + 4 * 7, shim)
+    real = run.read(rule)
+    bad = kill(vtable_copy)
+    run.word(rule, real)
+    check("... the first build's order (type, time, data) fails the same case", not bad)
+    # A late joiner's first world: the time rule's deserialize sent event 0
+    # (publish: the fresh rule's 0 / 0, a draw); our deserialize, through
+    # the world's loop, leaves the loaded state's points in the tail.
+    writer, buffer = CORE + 0x1F000, run.allocate(0x10)
+    run.emu.mem_write(writer, bytes(0x20))
+    run.word(writer + 0x14, buffer)
+    run.word(buffer + 4, run.allocate(0x10))
+    run.word(buffer + 8, 0x10)
+    run.word(buffer + 0xC, 0)
+    run.word(rule + R_STATE + 8, 41 | 7 << 16)              # shown 41 / 7
+    run.span(0x2D2661, 0x2D2688, {UC_X86_REG_EBP: CORE, UC_X86_REG_ESI: CORE + 0x1F000 - 0xB7EF0})
+    blob = bytes(run.emu.mem_read(run.read(buffer + 4), run.read(buffer + 0xC)))
+    run.emu.mem_write(statistics + 0x31D4, bytes(4))
+    run.word(statistics + 0x31E4, 2)
+    source = run.allocate(512)
+    run.emu.mem_write(source, blob)
+    snapshot2 = run.allocate(0xB7F00)
+    run.word(snapshot2 + 0xB7EE4, source)
+    run.word(snapshot2 + 0xB7EEC, source + len(blob))
+    eip, moved = run.span(0x2D2B1A, 0x2D2B5F, {UC_X86_REG_EBP: CORE, UC_X86_REG_EBX: snapshot2},
+                          [0] * 0x21 + [0x7E57])
+    check("a loaded world's statistics tail is its state's: 41 / 7, team 0 leads (deserialize publishes, after "
+          "the time rule's event 0)", eip == 0x2D2B5F and moved == 0 and run.read(statistics + 0x31D4, 2) == 41
+          and run.read(statistics + 0x31D6, 2) == 7 and run.read(statistics + 0x31E4) == 0)
+    eip, moved = run.span(0x2D2119, 0x2D214A, {UC_X86_REG_EBP: CORE}, [0] * 8 + [2, time])
+    check("driven: slot 9, left(place, time), through the world's loop 0x2D2130",
+          eip == 0x2D214A and moved == 0 and run.read(rule + R_STATE + 0x10) == 0b011, f"esp moved {moved}")
+    hud = run.allocate(0x100)
+    run.emu.mem_write(hud + 0x90, b"\xff\xff\x00\x00\xff\xff")
+    _, moved = run.call(0x2D36B0, args=(CORE, hud, 0), until=0x2D36E2)
+    check("driven: slot 17, fill_match_hud_state(hud, ?), through the hud's loop 0x2D36D0",
+          moved == -20 and run.read(hud + 0x90, 2) == run.read(rule + R_STATE + 8, 2)
+          and run.read(hud + 0x94, 2) == 0xFFFF, f"esp {moved}")
+    snapshot = run.allocate(0xC0C00)
+    run.word(rule + R_STATE + 12, 0x2A000 + 3000)
+    run.word(CORE + 0x18FC0, 0x2A000 + 2999)
+    early, moved_early = run.span(0x2D271D, 0x2D274B, {UC_X86_REG_EBP: CORE, UC_X86_REG_ESI: snapshot})
+    run.word(CORE + 0x18FC0, 0x2A000 + 3000)
+    late, moved_late = run.span(0x2D271D, 0x2D2753, {UC_X86_REG_EBP: CORE, UC_X86_REG_ESI: snapshot})
+    run.word(rule + R_STATE + 12, 0xFFFFFFFF)
+    check("driven: slot 18, rule_completed(time), through the world's loop 0x2D2730: on at the end time",
+          early == 0x2D274B and late == 0x2D2753 and moved_early == 0 and moved_late == 0)
 
 
 def main():
@@ -347,11 +481,11 @@ def main():
     run.thiscall(SYMBOLS["rn_tick"], rule, 50, time, 1)
     data = run.allocate(4)
     run.emu.mem_write(data, bytes([0, 1]))
-    _, cleanup = run.thiscall(vtable(run, rule, 7), rule, 1, time, data)
+    _, cleanup = run.thiscall(vtable(run, rule, 7), rule, 1, data, time)
     check("killing an enemy inside one's unit counts event 10 for the killer",
           cleanup == 12 and run.read(statistics + 0xC + 6 * 10, 2) == 1)
     run.emu.mem_write(data, bytes([1, 0]))
-    run.thiscall(vtable(run, rule, 7), rule, 1, time, data)
+    run.thiscall(vtable(run, rule, 7), rule, 1, data, time)
     check("a kill in one's own unit counts nothing", run.read(statistics + 0x1F8 + 0xC + 6 * 10, 2) == 0)
 
     # 6. The state saved and loaded.
@@ -522,6 +656,8 @@ def main():
         ok = run.emu.reg_read(UC_X86_REG_EIP) == until and (
             until == 0x23B36A or (ecx == key if key else run.string(ecx) == "st_start_match_welcome_message_5"))
         check(f"mode {mode}'s first message", ok, f"ecx {ecx:#x}")
+
+    driven(run, cook, query, check)
 
     failed = results.count(False)
     if failed:
