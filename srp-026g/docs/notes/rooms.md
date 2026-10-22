@@ -157,6 +157,20 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
 - **Maintenance:** within 30 min of one, no vote or match starts and no room is made; a room
   not playing is disbanded at once, one playing after its match (code 9 to its members and
   queue).
+- **Browsing rooms from a room** (the owner's of 2026-10-22: "it should be possible to browse
+  rooms while being in the rooms yourself ... you still stay in the room, but you can look at
+  other rooms, if you exit rooms and enter them again you end up in your room, you cannot join
+  room you are already in, but you can join other rooms"):
+  - A member's window has two tabs at its top, in place of its title: My room (the room's
+    view, as before) and All rooms (the list). In no room: the list, no tabs, as before.
+  - All rooms is the list as anyone sees it; the member stays in its room meanwhile.
+  - Its own room is in the list, its name in the Rooms tab's yellow; Join is off for it.
+  - Join on another room: out of its own, as Leave, and into that one; the window shows My
+    room again, the new one's. A full room: Join is off (a queue is from no room only).
+  - A join refused (a wrong PIN, its gear over the max level, a full room, kicked) leaves it
+    in its room, said in the list as outside a room (the state's `code`, `lobby.md` §2.16.3).
+  - New room from it: made as from no room, out of the old one.
+  - The window, closed and opened again, shows My room.
 - **Joining from the list:** the Join button, a double-click on a room, or Enter with one chosen
   (Up and Down choose the room above or below)
   (Queue for a full room; the PIN typed first for a private one).

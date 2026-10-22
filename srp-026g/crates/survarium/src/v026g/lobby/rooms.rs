@@ -590,7 +590,9 @@ pub fn room_list(
 ///   the full room whose queue it waits in and its place there, 1 the
 ///   first; 0 and 0 when it waits in none);
 /// - in one: `S1;R;<key>;<level>;<max level>;<size>;<wait>;<phase>;<secs>;<owner>;
-///   <pool>;<members>;<serial>;<pin>;<next map>;<min players>`, then a row a card, `C;<i>;<map_id>;
+///   <pool>;<members>;<serial>;<pin>;<next map>;<min players>;<code>` (`code`
+///   as above: why a join of another room, or a room made, left it in this
+///   one), then a row a card, `C;<i>;<map_id>;
 ///   <votes>;<mine>`, a row a member, `P;<i>;<gear>;<owner>;<me>;
 ///   <in match>;<fit>;<away>;<name>` (`fit`: [`Fit`]; `away` 1: its game is
 ///   gone for now), a row `W;<key>;<max level>;<players>;<size>;<name>` when
@@ -615,7 +617,7 @@ pub fn room_state(
     at_most("room cards", room.cards.len(), CARDS)?;
     at_most("room members", room.members.len(), MEMBERS_MAX)?;
     let mut names = vec![format!(
-        "{ROOMS_VERSION};R;{};{};{};{};{};{};{};{};{};{};{};{};{};{}",
+        "{ROOMS_VERSION};R;{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}",
         room.key,
         room.level,
         room.max_level,
@@ -629,7 +631,8 @@ pub fn room_state(
         room.serial,
         u8::from(room.pin),
         room.next_map,
-        room.min_players
+        room.min_players,
+        code as u8
     )];
     names.extend(room.cards.iter().enumerate().map(|(index, card)| {
         format!(
