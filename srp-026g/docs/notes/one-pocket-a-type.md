@@ -53,3 +53,9 @@ The owner's rule of 2026-10-21. Code: `session::v026g::account` (`doubled_pocket
   so no `next` row in `simulation_changes.tsv`.
 - **Release:** server and lobby movie (`build_lobby_026g.py`). The server alone already refuses;
   an old lobby lights up a second pocket and the drop is refused with the text.
+- **Revision 28's bug, fixed in the next:** every drop on a pocket left it empty ("medkit x0",
+  then gone; the owner, 2026-10-22). `LocalPaperDoll.pocketUnits` returned a `uint`, and the exe
+  reads a move's `count` as an int: Scaleform gave it 0, so the request (`46 00`, logged:
+  `... 64 0E 00000000 ...`, slot 100 -> 14, count 0) asked for no units, which the server takes
+  as leaving the pocket empty. It returns an `int` now, as the literal `1` it replaced was.
+
