@@ -53,7 +53,7 @@ item, 0x324D80):
 | player head | kit bytes, bools, floats | `world::player_head` | done |
 | statistics | reads to its end; places and numbers | `world::statistics` | done |
 | rules | reads to its end; places, batteries, points | `world::rules` | done |
-| physics | | | next |
+| physics | empty | `world::physics` | done |
 | effects | | | next |
 | bullets | | | next |
 | player state past its head | | | next |
@@ -144,7 +144,33 @@ bytes; the section has no inner lengths.
   up to the team points, and each battery in a container says so
   (`Gather::read`).
 
-## 6. Proof against kept worlds
+## 6. The physics
+
+**What the reader trusts:** nothing; it reads nothing.
+- The world's physics object has two virtuals for the section:
+  - slot +0x40: `game_world_core::serialize` 0x2D2570 calls it with the
+    section's writer (0x2D26C7..0x2D26D9);
+  - slot +0x44: world apply 0x2D2770 calls it with the section's reader
+    (0x2D2BEE..0x2D2C18).
+- Both are on `[core+0x18FA4]`, which the core's constructor 0x2CFE90
+  sets from one of its arguments (0x2D00AC).
+- `vostok::physics::bullet_physics_world` (vtable 0x9E2EBC, written by its
+  constructor 0x74950) is the only physics world 0.26g has. In its vtable
+  the two slots sit between `move` (+0x3C) and `ray_test` (+0x48), new
+  since the engine source (whose `physics::world` has no such virtuals).
+  They are `ret 4` (0x75AF0) and `ret 8` (0x15A4B0). PROVEN for the
+  vtable; that the core's object is of that class is LIKELY (the only
+  implementation).
+- So a game writes no physics bytes and reads none.
+
+**The bound the server checks** (`world::physics`): the section is empty.
+Any byte there is not a game's. All 2319 kept worlds have 0 bytes.
+
+The scripted test client's ballast went into the physics past the
+bullets' cap; it now goes into the game objects (to be made a real
+section's contents when the objects are checked).
+
+## 7. Proof against kept worlds
 
 `world_check` over the five local sets (private/local-clients/runtime/
 snapshots, private/fov-rev11/snapshots, private/farming-evidence-20261020,
@@ -162,7 +188,7 @@ cargo run --release -p match-server --example world_check -- \
 It prints one `REFUSED <file>: <part> at <offset>: <reason>` line for
 each refused world, then the counts by dump kind and by reason.
 
-## 7. Stats the server could log to learn the real ranges
+## 8. Stats the server could log to learn the real ranges
 
 For the bounds marked "observed, not traced", the owner offered to
 collect stats. Proposed, one line per match at its end:
@@ -170,7 +196,7 @@ collect stats. Proposed, one line per match at its end:
 - the `last_hit_enemy_id` values seen;
 - whether any statistics section was empty.
 
-## 8. Tests
+## 9. Tests
 
 `world.rs` tests: `a_world_that_reads_in_every_mode_goes`,
 `a_kit_byte_names_a_usable_kit_of_the_place`,
@@ -180,6 +206,7 @@ collect stats. Proposed, one line per match at its end:
 `statistics_name_no_place_past_the_roster_and_hold_numbers`,
 `rules_of_another_time_or_with_other_respawn_points_go_to_nobody`,
 `rules_name_no_place_or_battery_the_match_does_not_have`,
+`a_physics_section_with_anything_in_it_goes_to_nobody`,
 `a_refusal_says_where`. The match server's `a_world_no_game_could_load_goes_to_nobody`
 (the frame) stays as PR #282 has it.
 

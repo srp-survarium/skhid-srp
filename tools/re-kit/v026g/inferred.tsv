@@ -335,6 +335,7 @@ va	status	ref_021d	name
 0x000758b0	inferred-medium	0x00056494	vostok::physics::bullet_physics_world::add
 0x00075a60	inferred-high	0x000565b5	vostok::physics::bullet_physics_world::remove
 0x00075aa0	inferred-medium	0x000565d3	vostok::physics::bullet_physics_world::move
+0x00075af0	inferred-medium		vostok::physics::bullet_physics_world::serialize
 0x00075b00	inferred-high	0x00056630	vostok::physics::bullet_physics_world::add
 0x00075b20	inferred-high	0x00056644	vostok::physics::bullet_physics_world::remove
 0x00075bd0	inferred-medium	0x00056656	vostok::physics::closest_ray_result_callback::needsCollision

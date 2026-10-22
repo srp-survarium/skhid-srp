@@ -282,23 +282,26 @@ impl Sim {
                 .map_or([true, true], |(_, teams)| teams),
         }
         .to_bytes();
-        // One byte of the bullets' left for the salt.
+        // One byte of the bullets' left for the salt. The rest of the
+        // ballast goes into the game objects: a game's physics section is
+        // always empty (`world::physics`).
         let in_bullets = self.ballast.min(SECTION_CAPS[0] - 1);
         let mut bullets = vec![0xB0; in_bullets];
-        let physics = vec![0xB0; self.ballast - in_bullets];
-        assert!(
-            physics.len() <= SECTION_CAPS[3],
-            "more ballast than a world holds"
-        );
+        let physics = Vec::new();
         if let Some((_, salt)) = self.salt_from.filter(|(from, _)| since(*from)) {
             bullets.push(salt);
         }
-        let objects = vec![
+        let mut objects = vec![
             0;
             self.late_objects_from
                 .filter(|(from, _)| since(*from))
                 .map_or(0, |(_, bytes)| bytes)
         ];
+        objects.resize(objects.len() + self.ballast - in_bullets, 0xB0);
+        assert!(
+            objects.len() <= SECTION_CAPS[2],
+            "more ballast than a world holds"
+        );
         // The player blocks: a state, and an animation state after it.
         let mut mask = 0u32;
         let mut blocks = Vec::new();
