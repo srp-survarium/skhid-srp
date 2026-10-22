@@ -2026,7 +2026,8 @@ def test_research(original, image, before):
           f"way on without one, and the hud's to update_ui past Team Deathmatch's part ({sorted(hex(c) for c in outside)}); "
           "the C code calls the game through registers only")
     for va, what in ((0x102D10, "register_cook"), (0xE4F90, "the cooks' allocate"), (0x313900, "the rule base's ctor"),
-                     (0xF6B10, "the config's child"), (0xF6C00, "the config's has"), (0x7AB30, "a buffer's resize"),
+                     (0xF6B10, "the config's child"), (0xF6C00, "the config's has"), (0x1F3DE0, "the u8 field writer"),
+                     (0x2F5DA0, "the u16 field writer"), (0x1F48A0, "the u32 field writer"),
                      (0x511600, "the movie's invoke"), (0x2375C0, "the hud's message")):
         check(struct.pack("<I", va) in code[P.RESEARCH_ASM_SIZE:], f"the C code names {what} ({va:#x})")
     # Every slot of ours pops what the game's counterpart pops (the rule's

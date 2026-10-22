@@ -2803,12 +2803,13 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   0.26g's twenty slots: 7 events (a kill, `{killer, victim}`: "kill invader"), 8 and 9 a roster
   place entered or left, 11 the world (its tick a delegate at the end of the world's second tick
   list, numbered by the world's counter, as timelimit_rule_core's 0x318050), 12 the blackboard, 15
-  and 16 the state (21 + 96 bytes a unit, little-endian, `rr_write`; 16 takes the reader and a
-  dword it does not read and pops both, `ret 8`, as the game's rules do: the first build's `ret 4`
-  crashed both clients at their first synchronization, `../docs/notes/client_patch.md` §3.50), 17
-  the hud's team points, 18 completed (the end time); the rest the game's (0x266710 the delete, 0xF1900.. the resource's,
-  0x8FE10 the priority, 0x316540 the link resolver). Its vtables carry game_match_rule_base's RTTI
-  locators.
+  and 16 the state (21 + 96 bytes a unit, little-endian, `rr_write`'s layout; 15 writes it field
+  by field through the game's writers, as tdm does, so the hash mismatch dump names each field;
+  16 takes the reader and a dword it does not read and pops both, `ret 8`, as the game's rules
+  do: the first build's `ret 4` crashed both clients at their first synchronization,
+  `../docs/notes/client_patch.md` §3.50), 17 the hud's team points, 18 completed (the end time);
+  the rest the game's (0x266710 the delete, 0xF1900.. the resource's, 0x8FE10 the priority,
+  0x316540 the link resolver). Its vtables carry game_match_rule_base's RTTI locators.
 - **The cook**: a client rule cook as tdm_rule_core's (0x2F41E0, 0x2063F0: class at +8, the thread
   at +14h, 8 at +18h, the game at +20h), class 0x1E0 (`RESEARCH_CLASS`; register_cook's table has
   0x206 places and nothing registers 0x1E0; a taken class is left alone and Research is not

@@ -1319,8 +1319,15 @@ The old bytes' jumps all landed inside them; nothing else aims inside; no base r
   `u16 events[28][3]` at +0Ch (the kill handler 0x2F4EB0), `m_team_points` +31D4h, the winner
   +31E4h (tdm 0x316257).
 - **Saving** (PROVEN): a writer's buffer at [writer+14h] (data +4, size +0Ch), grown by 0x7AB30
-  (eax = buffer, push the size; `ret 4`; the u8 writer 0x1F3DE0); a reader's cursor at
-  [reader+4] (tdm 0x3163D0).
+  (eax = buffer, push the size; `ret 4`); a reader's cursor at [reader+4] (tdm 0x3163D0). A rule
+  writes field by field (tdm 0x316340) through `buffer_writer::w<unsigned char/short/int>` 0x1F3DE0
+  / 0x2F5DA0 / 0x1F48A0: eax = the value's address, push the writer, the source file, the line, the
+  function, the field's name; `ret 14h`. Each appends the value; with [0x1F1D32C] and [0x1F1D32D]
+  set (the hash mismatch dump) it first records `{next, type name, name, function, file, line,
+  size, writer+10h}` (20h bytes from 0x80450) at the end of the writer's list (+0 count, +8 head,
+  +0Ch tail). Research's serialize does the same, 88 fields (`m_points[0]` .. `C.marks[19]`): the
+  bytes `rr_write` gives (snapshot_rules.md 2.8) and each named in the dump; the first build
+  appended `rr_write`'s bytes in one piece, which wrote the same bytes and nothing in the dump.
 - **Config** (PROVEN): 0xF6B10 (eax = a table, edi = the key) gives the child (CRC look-up, then
   the names); 0xF6C00 (esi = the key) says whether there is one; a value is 24 bytes, its data a
   pointer for tables, strings and vectors, +14h the type, +16h the count (the respawn point's

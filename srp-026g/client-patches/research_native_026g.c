@@ -46,7 +46,14 @@ enum {
 #define RULE_BASE_CTOR 0x313900    /* eax = this, push type; ret 4 */
 #define CONFIG_CHILD 0xF6B10       /* eax = table, edi = key: the child */
 #define CONFIG_HAS 0xF6C00         /* eax = table, esi = key: al */
-#define BUFFER_RESIZE 0x7AB30      /* eax = buffer, push size; ret 4 */
+/* buffer_writer::w<unsigned char/short/int> (tdm_rule_core::serialize 0x316340):
+ * eax = the value's address; push the writer, the source file, the line, the
+ * function, the field's name; ret 14h. They append the value to the writer's
+ * buffer (its size grown by 0x7AB30) and, with [0x1F1D32C] and [0x1F1D32D]
+ * set (the hash mismatch dump), record the field's name, type and place. */
+#define WRITE_U8 0x1F3DE0
+#define WRITE_U16 0x2F5DA0
+#define WRITE_U32 0x1F48A0
 #define HUD_INVOKE 0x511600        /* thiscall movie (name, result, args, count); ret 10h */
 #define HUD_MESSAGE 0x2375C0       /* ecx = key; (ui, 21h, 14h, ms); ret 10h */
 
@@ -238,12 +245,18 @@ static void rule_base(void *rule, u32 type) {
                      : "ecx", "edx", "memory", "cc");
 }
 
-static void resize(void *buffer, u32 size) {
-    u32 ignored;
-    __asm__ volatile("push %[size]\n\tcall *%[fn]"
-                     : "=a"(ignored)
-                     : "a"(buffer), [size] "r"(size), [fn] "r"(BUFFER_RESIZE)
-                     : "ecx", "edx", "memory", "cc");
+static const char RN_FILE[] = ".\\research_native_026g.c";
+static const char RN_SERIALIZE[] = "srp::research_rule::serialize";
+
+/* One field through the game's writer of its size; `ordinal` stands for the
+ * line (the field's place in the state). */
+static void field(u8 *writer, u32 size, const void *value, u32 ordinal, const char *name) {
+    u32 fn = size == 1 ? WRITE_U8 : size == 2 ? WRITE_U16 : WRITE_U32;
+    __asm__ volatile("push %[name]\n\tpush %[function]\n\tpush %[line]\n\tpush %[file]\n\tpush %[writer]\n\t"
+                     "call *%[fn]"
+                     : "+a"(value), [name] "+c"(name), [line] "+d"(ordinal) /* the writers clobber all three */
+                     : [function] "i"(RN_SERIALIZE), [file] "i"(RN_FILE), [writer] "r"(writer), [fn] "r"(fn)
+                     : "memory", "cc");
 }
 
 typedef struct {
@@ -431,11 +444,46 @@ THISCALL void rn_set_core(struct rn_rule *rule, u8 *core) {
 
 THISCALL void rn_set_blackboard(struct rn_rule *rule, void *blackboard) { rule->blackboard = blackboard; }
 
+/* The fields' names in the hash mismatch dump, in rr_write's order; a unit's
+ * by its letter (cp_id 0, 1, 2: A, B, C), short for the section's room. */
+#define RN_MARK(z, i) #z ".marks[" #i "]"
+#define RN_MARKS(z)                                                                                                \
+    RN_MARK(z, 0), RN_MARK(z, 1), RN_MARK(z, 2), RN_MARK(z, 3), RN_MARK(z, 4), RN_MARK(z, 5), RN_MARK(z, 6),          \
+        RN_MARK(z, 7), RN_MARK(z, 8), RN_MARK(z, 9), RN_MARK(z, 10), RN_MARK(z, 11), RN_MARK(z, 12), RN_MARK(z, 13),  \
+        RN_MARK(z, 14), RN_MARK(z, 15), RN_MARK(z, 16), RN_MARK(z, 17), RN_MARK(z, 18), RN_MARK(z, 19)
+#define RN_ZONE(z)                                                                                                 \
+    {#z ".progress", #z ".capturing", #z ".owner", #z ".count[0]", #z ".count[1]", #z ".present[0]",                 \
+     #z ".present[1]", RN_MARKS(z)}
+static const char *const RN_ZONE_FIELDS[RR_MAX_ZONES][7 + RR_PLAYERS] = {RN_ZONE(A), RN_ZONE(B), RN_ZONE(C)};
+_Static_assert(RR_MAX_ZONES == 3 && RR_PLAYERS == 20, "RN_ZONE_FIELDS names three zones of twenty marks");
+
+/* The state field by field through the game's writers, as tdm_rule_core's
+ * serialize (0x316340) does: the bytes rr_write gives (little-endian, 21 + 96
+ * a unit, what the server's decoder reads), and in the hash mismatch dump
+ * each field named. */
 THISCALL void rn_serialize(struct rn_rule *rule, u8 *writer) {
-    u8 *buffer = AT(writer, 0x14, u8 *);
-    u32 size = rr_serialized_size(&rule->state), at = AT(buffer, 0xC, u32);
-    resize(buffer, at + size);
-    rr_write(&rule->state, AT(buffer, 4, u8 *) + at);
+    const struct rr_state *state = &rule->state;
+    u32 n = 0;
+    field(writer, 4, &state->points[0], n++, "m_points[0]");
+    field(writer, 4, &state->points[1], n++, "m_points[1]");
+    field(writer, 2, &state->score[0], n++, "m_score[0]");
+    field(writer, 2, &state->score[1], n++, "m_score[1]");
+    field(writer, 4, &state->end_time, n++, "m_end_time");
+    field(writer, 4, &state->entered, n++, "m_entered");
+    u8 zones = (u8)state->zone_count;
+    field(writer, 1, &zones, n++, "m_zone_count");
+    for (u32 z = 0; z < state->zone_count && z < RR_MAX_ZONES; ++z) {
+        const struct rr_zone *zone = &state->zones[z];
+        const char *const *names = RN_ZONE_FIELDS[z];
+        field(writer, 4, &zone->progress, n++, names[0]);
+        field(writer, 1, &zone->capturing, n++, names[1]);
+        field(writer, 1, &zone->owner, n++, names[2]);
+        field(writer, 1, &zone->count[0], n++, names[3]);
+        field(writer, 1, &zone->count[1], n++, names[4]);
+        field(writer, 4, &zone->present[0], n++, names[5]);
+        field(writer, 4, &zone->present[1], n++, names[6]);
+        for (u32 i = 0; i < RR_PLAYERS; ++i) field(writer, 4, &zone->marks[i], n++, names[7 + i]);
+    }
 }
 
 /* Slot 16 takes two arguments and pops both (`ret 8`): the snapshot's rules

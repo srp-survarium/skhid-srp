@@ -11,7 +11,7 @@ cook table's register_cook (0x102D10), game_match_rule_base's constructor
 (0x313900), the config's look-ups (0xF6B10, 0xF6C00, the CRC table they build)
 and the hooks' sites. Intercepted (answered here): the allocator (0xE4F90),
 GetCurrentThreadId, the call the constructor's hook replaces (0x1EC170), a
-buffer's resize (0x7AB30), the movie's Invoke (0x511600) and the hud's message
+buffer's resize (0x7AB30, under the game's field writers), the movie's Invoke (0x511600) and the hud's message
 (0x2375C0). The game's own loops over a world's rules (game_world_core's
 serialize and deserialize, 0x2D2661 and 0x2D2B42) run with the rule in a
 world's rules, so a slot that pops other than the game expects shows as esp
@@ -39,6 +39,8 @@ HEAP, STACK, SENTINEL, CORE, CONFIG, FAKE = 0x30000000, 0x21000000, 0x22000000, 
 STOP = SENTINEL + 0x10
 COOKS, REGISTERED, THREAD_ID = 0xA86E00, STATE + 0x24, 0x870118
 ALLOCATE, CTOR_CALL, RESIZE, INVOKE, MESSAGE = 0xE4F90, 0x1EC170, 0x7AB30, 0x511600, 0x2375C0
+# the field writers' hash mismatch dump: its switches, its record's allocation, type_info::name
+DUMP_ON, DUMP_RECORD, TYPE_NAME = 0x1F1D32C, 0x80450, 0x420724
 # rn_rule (research_native_026g.c's _Static_asserts)
 R_CORE, R_VALID, R_PARAMS, R_STATE, R_SIZE = 0x128, 0x134, 0x138, 0x7E0, 0x918
 P_ZONES, ZONE_DEF = 0x64, 0x214
@@ -147,6 +149,10 @@ class Run:
                 values.append(struct.unpack("<d", emu.mem_read(args + 0x18 * i + 8, 8))[0] if kind == 5 else None)
             self.invokes.append((emu.reg_read(UC_X86_REG_ECX), name, self.read(sp + 8), values))
             self.ret(1, 0x10)
+        elif address == DUMP_RECORD:
+            self.ret(self.allocate(0x20), 0)
+        elif address == TYPE_NAME:
+            self.ret(SENTINEL + 0x200, 4)
         elif address == MESSAGE:
             self.messages.append((self.string(emu.reg_read(UC_X86_REG_ECX)), self.read(sp + 4), self.read(sp + 8),
                                   self.read(sp + 0xC), self.read(sp + 0x10)))
@@ -357,8 +363,32 @@ def main():
     run.thiscall(vtable(run, rule, 15), rule, writer)
     written = run.read(buffer + 0xC) - 0x23
     blob = bytes(run.emu.mem_read(run.read(buffer + 4) + 0x23, written))
-    check("serialize appends 21 + 96 x 3 bytes", written == 309 and blob[20] == 3 and blob[21 + 5] == 0
+    state = bytes(run.emu.mem_read(rule + R_STATE, 0x18 + 3 * ZONE))
+    expected = state[:20] + state[20:21] + b"".join(state[0x18 + ZONE * z:0x18 + ZONE * z + 96] for z in range(3))
+    check("serialize appends 21 + 96 x 3 bytes through the game's writers: rr_write's layout, the server's",
+          written == 309 and blob == expected and blob[20] == 3 and blob[21 + 5] == 0
           and struct.unpack_from("<I", blob, 21)[0] == FULL, f"{written} bytes")
+    run.emu.mem_write(DUMP_ON, b"\x01\x01")
+    dumped, dump_buffer = run.allocate(0x20), run.allocate(0x10)
+    run.word(dumped + 0x14, dump_buffer)
+    run.word(dump_buffer + 4, run.allocate(0x10))
+    run.word(dump_buffer + 8, 0x10)
+    run.thiscall(vtable(run, rule, 15), rule, dumped)
+    run.emu.mem_write(DUMP_ON, b"\x00\x00")
+    records, at = [], run.read(dumped + 8)
+    while at and len(records) < 200:
+        records.append((run.string(run.read(at + 8)), run.read(at + 0x18), run.string(run.read(at + 0xC))))
+        at = run.read(at)
+    zone_names = lambda u: ([f"{u}.progress", f"{u}.capturing", f"{u}.owner", f"{u}.count[0]", f"{u}.count[1]",
+                             f"{u}.present[0]", f"{u}.present[1]"] + [f"{u}.marks[{i}]" for i in range(20)])
+    names = ["m_points[0]", "m_points[1]", "m_score[0]", "m_score[1]", "m_end_time", "m_entered", "m_zone_count"] \
+        + zone_names("A") + zone_names("B") + zone_names("C")
+    sizes = [4, 4, 2, 2, 4, 4, 1] + ([4, 1, 1, 1, 1, 4, 4] + [4] * 20) * 3
+    dumped_bytes = bytes(run.emu.mem_read(run.read(dump_buffer + 4), run.read(dump_buffer + 0xC)))
+    check("with the hash mismatch dump on, the writers record the 88 fields by name, size and function",
+          [r[0] for r in records] == names and [r[1] for r in records] == sizes
+          and {r[2] for r in records} == {"srp::research_rule::serialize"} and run.read(dumped) == 88
+          and dumped_bytes == blob, f"{len(records)} records")
     other, _ = run.thiscall(vtable(run, cook, 9), cook, query)
     reader = run.allocate(8)
     source = run.allocate(512)
