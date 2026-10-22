@@ -29,6 +29,11 @@
 ;             being made; a call waiting for it is dropped, this is newer)
 ;   made      on_player_ready: one log line with the time the player took
 ;             (the lobby's own character)
+;   early     setup_profile's early return (what is asked is what is shown)
+;             only while no player is being made (the lobby's own
+;             character): a player being made of another revision of that
+;             kit (patch 32's scratch: a window closed at once) is made
+;             again after it, as the original does for another kit
 ; Nothing sent to the server changes. A scope's record holds the variant
 ; made for the weapon (srp's ScopeFits): found in the items dictionary, the
 ; first category-22 entry whose config's `srp_scope_fit` names the scope
@@ -147,6 +152,7 @@ ORG CAVE
     jmp near find                   ; +0Fh patch 32's two finds (weapon_preview_026g.asm -DFIND)
     jmp near again                  ; +14h 0x284B89 (setup_profile past its early return)
     jmp near made                   ; +19h 0x284F7F (on_player_ready)
+    jmp near early                  ; +1Eh 0x284B7C (setup_profile's early return)
 
 ; 0x29A9B2 `mov edx,[esi+4620h]` -> call relocate + nop: edi = the host,
 ; ebx = the upgrade, cl = the slot, esi = the account's profile, eax = the
@@ -687,6 +693,35 @@ again:
     pop ecx
     pop eax
     cmp dword [ebx+QUERY], -1
+    ret
+
+; 0x284B7C `cmp byte [ebx+0D2C8h],0` -> call early + 2 nops: setup_profile's
+; last test before its early return (`jz 284CF8h`, the only reader of the
+; flags): the kit asked, its id and revision, are the shown copy's and the
+; last asked id (+4) is its id. The original returns when no call waits
+; (+D2C8h 0), whatever player is being made; for the lobby's own character
+; also only when none is (+D2C4h -1). Patch 32's scratch keeps the chosen
+; kit's id with a revision of its own, so a window closed while the
+; scratch's player is still being made asked for the shown copy and
+; returned: the scratch's player came after, the window's weapon in the
+; hands (the owner, 2026-10-23). Now that call waits for it (+D2C8h, at
+; 0x284BB2) and on_player_ready makes the account's again (0x2850C5); a call
+; for what is being made returns at `again`. ZF set: the early return.
+; Every register kept.
+early:
+    cmp byte [ebx+AGAIN], 0
+    jne .ret                        ; a call waits: on, as the original
+    push eax
+    mov eax, [ebx+MENU]
+    cmp [eax+MENU_CHARACTER], ebx
+    jne .original                   ; a squad mate's: the original's
+    cmp dword [ebx+QUERY], -1       ; ZF: no player being made
+    pop eax
+    ret
+.original:
+    cmp eax, eax
+    pop eax
+.ret:
     ret
 
 ; 0x284F7F `cmp byte [ebx+0D2C9h],0` -> call made + 2 nops: on_player_ready,
