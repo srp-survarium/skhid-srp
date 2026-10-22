@@ -1743,6 +1743,18 @@ package survarium.controls
                return;
             }
          }
+         // The shop lists no owned item: a kit item chosen there (the character menu,
+         // shop-character-menu.md) is the card's item all the same, so its menu acts on it.
+         if(this.isShop && this.owns(value))
+         {
+            this.setPrimaryItem(this._inventoryItemsDict[value]);
+         }
+      }
+
+      // Whether the account owns this item (by its id).
+      public function owns(itemId:uint) : Boolean
+      {
+         return this._inventoryItemsDict != null && this._inventoryItemsDict[itemId] != null;
       }
       
       public function setPrimaryItem(value:ItemData) : void

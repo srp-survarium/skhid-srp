@@ -416,6 +416,10 @@ package
       // the upgrade window told the game (start_item_upgrade), so its close does too
       protected var _upgradeShown:Boolean = false;
 
+      // the upgrade window was opened from the shop: its list shows the inventory while it is open,
+      // the shop again after (shop-character-menu.md)
+      protected var _upgradeFromShop:Boolean = false;
+
       protected var backBlack:Sprite = new BackBlack();
       
       private var _dailyBonusData:Object = null;
@@ -2100,6 +2104,11 @@ package
          }
          this.modifierWindow.removeEventListener(Event.CLOSE,this.closeModifierWindow);
          this.inventory_list.removeEventListener(Event.CLOSE,this.closeModifierWindow);
+         if(this._upgradeFromShop)
+         {
+            this.inventory_list.toggleShopMode(true);
+            _upgradeFromShop = false;
+         }
          this.inventory_list.focusCategory(SuperCategory.NO_FOCUS);
          this.inventory_list.mainTabBar.enabled = true;
          this.inventory_list.inventoryTabPage.enabled = true;
@@ -2322,7 +2331,20 @@ package
             return;
          }
          var itemData:ItemData = this.item_control.getItemData();
-         var weapon:Boolean = Boolean(itemData) && UpgradeWindow.isWeaponCategory(int(itemData.category));
+         // Only an owned item: the game's window looks the item up and crashed on one it lacks (a
+         // shop item on the card; shop-character-menu.md).
+         if(itemData == null || !this.inventory_list.owns(itemData.itemId))
+         {
+            return;
+         }
+         var weapon:Boolean = UpgradeWindow.isWeaponCategory(int(itemData.category));
+         // from the shop: the window lists what is owned, as from the inventory (the shop's list
+         // has no owned decals or camouflages)
+         _upgradeFromShop = this.inventory_list.isShop;
+         if(this._upgradeFromShop)
+         {
+            this.inventory_list.toggleShopMode(false);
+         }
          this.inventory_list.focusCategory(SuperCategory.UPGRADES);
          this.inventory_list.mainTabBar.selectedIndex = InventoryTab.INVENTORY;
          this.inventory_list.mainTabBar.enabled = false;
