@@ -194,13 +194,15 @@ package survarium.paperdoll
                if(event.dropTarget && !(event.dragTarget is IPaperDollSlot))
                {
                   trace("relocateFabrica:other");
+                  // an int local, never an expression in the field: the exe reads a move's count as an int's raw bits (relocate_item, 0x289234): a Number reaches it as 0
+                  var units:int = index >= ProfileSlot.QUICK_1 && index <= ProfileSlot.QUICK_6 ? LocalPaperDoll.pocketUnits(_data as ItemData,item) : 1;
                   _relocateArray = [{
                      profile:profileId,
                      id:itemId,
                      dict_id:dictId,
                      sourceSlot:sourceDescriptor,
                      targetSlot:targetDescriptor,
-                     count:index >= ProfileSlot.QUICK_1 && index <= ProfileSlot.QUICK_6 ? LocalPaperDoll.pocketUnits(_data as ItemData,item) : 1
+                     count:units
                   }];
                   trace_relocate(_relocateArray);
                   result = playerProfile._relocateFunction(_relocateArray);

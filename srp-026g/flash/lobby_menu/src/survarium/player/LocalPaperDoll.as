@@ -106,8 +106,7 @@ package survarium.player
       // An item type goes into one pocket of a kit (docs/notes/one-pocket-a-type.md): the units of
       // `item` a pocket holding `held` takes when one more is put in. The pocket's own type: one more,
       // within the pocket's size (one of an item that fills a whole pocket); another: one.
-      // An int, never a uint: the exe reads a move's count as an int, and Scaleform hands it a
-      // uint as 0 (rev 28: every drop on a pocket asked for 0 units and left it empty).
+      // An int: the caller puts it in a move through an int local (ItemPaperDollSlot.handleDropEvent).
       public static function pocketUnits(held:ItemData, item:ItemData) : int
       {
          if(!held || held.dictId != item.dictId)

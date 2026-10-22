@@ -54,8 +54,15 @@ The owner's rule of 2026-10-21. Code: `session::v026g::account` (`doubled_pocket
 - **Release:** server and lobby movie (`build_lobby_026g.py`). The server alone already refuses;
   an old lobby lights up a second pocket and the drop is refused with the text.
 - **Revision 28's bug, fixed in the next:** every drop on a pocket left it empty ("medkit x0",
-  then gone; the owner, 2026-10-22). `LocalPaperDoll.pocketUnits` returned a `uint`, and the exe
-  reads a move's `count` as an int: Scaleform gave it 0, so the request (`46 00`, logged:
-  `... 64 0E 00000000 ...`, slot 100 -> 14, count 0) asked for no units, which the server takes
-  as leaving the pocket empty. It returns an `int` now, as the literal `1` it replaced was.
-
+  then gone; the owner, 2026-10-22). The request (`46 00`, from the local packet log:
+  `... 64 0E 00000000 01000000`, slot 100 -> 14, count 0) asked for no units, which the server
+  takes as leaving the pocket empty.
+  - The cause (PROVEN): `relocate_item` (0x288D60) reads each field of a move through the GFx
+    getter and then the value's raw low bits (`count`: `movzx edi, word [esp+0x90]` at 0x289234),
+    whatever its type. An int arrives as itself; a Number (a double) has 0 in those bits for any
+    small whole number. #277's `count: <cond> ? pocketUnits(...) : 1` reached the exe as a
+    Number (an int or a uint return type alike: tried); the literal `count: 1` it replaced was an
+    int (an experiment build with the literal back sent 1).
+  - The fix: the count goes through an `int` local (`var units:int = ...; count: units`) in
+    `ItemPaperDollSlot.handleDropEvent` and `InventoryList`'s double click. Any field of a move
+    the lobby builds must be an int literal or an int-typed variable, never an expression.

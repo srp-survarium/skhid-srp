@@ -2815,13 +2815,15 @@ package survarium.controls
                      profile = (pp.profileId);
                      dict_id = item.dictId;
                      targetSlot = (newSlot);
+                     // an int local, never an expression in the field: the exe reads a move's count as an int's raw bits (relocate_item, 0x289234): a Number reaches it as 0
+                     var units:int = newSlot >= ProfileSlot.QUICK_1 && newSlot <= ProfileSlot.QUICK_6 ? LocalPaperDoll.pocketUnits(pp.paperDoll.getSlotAt(newSlot).data as ItemData,item) : 1;
                      _relocateArray = [{
                         profile:profile,
                         id:id,
                         dict_id:dict_id,
                         sourceSlot:item.descriptor,
                         targetSlot:targetSlot,
-                        count:newSlot >= ProfileSlot.QUICK_1 && newSlot <= ProfileSlot.QUICK_6 ? LocalPaperDoll.pocketUnits(pp.paperDoll.getSlotAt(newSlot).data as ItemData,item) : 1
+                        count:units
                      }];
                      pp._relocateFunction(_relocateArray);
                   }
