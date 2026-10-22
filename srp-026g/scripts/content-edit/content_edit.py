@@ -34,7 +34,8 @@ Edits (edits.json):
                     a new entry of the indexed table `list` (a lobby card's `ui_desc/props_list`, the
                     card lines' `ui_properties`) after the entry whose keys match `after`, made like
                     the entry matching `like` with `values` set; a value "{a/b}" is that number of
-                    the same file; files without `only_if`, the table or those entries are left alone
+                    the same file, a list of numbers a vector (a position); files without `only_if`,
+                    the table or those entries are left alone
   "add_key":        [{"file", "table", "key", "text"}] a new text of a localization table
   "add_value":      [{"files" (a list of game paths), "table" ("" the root), "key", "value"}]
                     a new key of the named table in each file, in its place by name CRC: a bool,
@@ -299,10 +300,16 @@ def add_entry(buf, path, after, like, values):
         name = name_at(buf, i).decode()
         if name in values:
             v = filled(buf, values[name])
-            if t == T_STR:
+            if t > T_STR:
+                if not isinstance(v, list) or len(v) != t - 4:
+                    raise ValueError('%s: %s takes %d numbers' % (path, name, t - 4))
+                d = append(buf, struct.pack('<%df' % len(v), *v))
+            elif t == T_STR:
                 v = v.encode()
                 d, cnt = append(buf, v + b'\0'), len(v) + 1
             elif t == T_INT:
+                if v != int(v):
+                    raise ValueError('%s: %s is an int; %r is not' % (path, name, v))
                 d = (d & ~0xffffffff) | (int(v) & 0xffffffff)
             elif t == T_FLOAT:
                 d = (d & ~0xffffffff) | struct.unpack('<I', struct.pack('<f', v))[0]
@@ -601,7 +608,7 @@ def main():
                 bufs[p] = b
                 n += k
         print('string %s -> %s: %d values' % (e['from'], e['to'], n))
-    shifts, added, grown = {}, {}, {}
+    shifts, added, grown = {}, {}, {}  # grown: file -> table -> entries added (less those removed)
     for e in edits.get('add_entry', []):
         n = 0
         for p in sorted(fnmatch.filter(files, e['files'])):
@@ -620,32 +627,38 @@ def main():
             shifts.setdefault(p, []).append((lst, at))
             allowed[p] = {shifted(q, lst, at) for q in allowed.get(p, ())}
             added.setdefault(p, []).append('%s[%d]' % (lst, at))
-            grown.setdefault(p, set()).add(lst)
+            grown.setdefault(p, {}).setdefault(lst, 0)
+            grown[p][lst] += 1
         print('entry %s after %s: %d files' % (e['list'], e['after'], n))
     for e in edits.get('add_key', []):
         add_key(buf(e['file']), e['table'], e['key'], e['text'])
         added.setdefault(e['file'], []).append('/%s/%s' % (e['table'], e['key']))
-        grown.setdefault(e['file'], set()).add('/' + e['table'])
+        grown.setdefault(e['file'], {}).setdefault('/' + e['table'], 0)
+        grown[e['file']]['/' + e['table']] += 1
     for e in edits.get('add_value', []):
         for p in e['files']:
             add_value(buf(p), e['table'], e['key'], e['value'])
             table = '/' + e['table'] if e['table'] else ''
             added.setdefault(p, []).append('%s/%s' % (table, e['key']))
-            grown.setdefault(p, set()).add(table)
+            grown.setdefault(p, {}).setdefault(table, 0)
+            grown[p][table] += 1
         print('value %s/%s: %d files' % (e['table'], e['key'], len(e['files'])))
     removed = {}
     for e in edits.get('remove_item', []):
         remove_item(buf(e['file']), e['path'], e['value'])
         removed.setdefault(e['file'], {}).setdefault(e['path'], []).append(e['value'])
-    dropped, shrunk = {}, {}
+    dropped = {}
     for e in edits.get('remove_entry', []):
         at = remove_entry(buf(e['file']), e['list'], e['where'])
         lst = '/' + e['list']
         print('remove %s[%d] %s' % (e['list'], at, json.dumps(e['where'], ensure_ascii=False)))
         dropped.setdefault(e['file'], []).append((lst, at))
-        shrunk.setdefault(e['file'], {}).setdefault(lst, 0)
-        shrunk[e['file']][lst] += 1
+        grown.setdefault(e['file'], {}).setdefault(lst, 0)
+        grown[e['file']][lst] -= 1
         allowed[e['file']] = {q for q in (unshifted(q, lst, at) for q in allowed.get(e['file'], ())) if q is not None}
+        if any(unshifted(a, lst, at) is None for a in added.get(e['file'], ())):
+            sys.exit('remove_entry: %s[%d] is an entry this list adds' % (lst, at))
+        added[e['file']] = [unshifted(a, lst, at) for a in added.get(e['file'], ())]
 
     # read back: compare every value with the live file, by path
     renames = [('/%s/%s' % (e['table'], e['from']), '/%s/%s' % (e['table'], e['to']), e['from'], e['to'])
@@ -686,8 +699,7 @@ def main():
                 (o and n and o[0] == n[0] == T_STR and any(q.endswith('/' + k.decode()) and n[1] == x + o[1]
                                                            for k, x in prefixed.get(p, ()))) or \
                 (o is None and any(q == a or q.startswith(a + '/') for a in added.get(p, ()))) or \
-                (q in grown.get(p, ()) and o and n and o[0] == n[0] and n[1] == o[1] + 1) or \
-                (o and n and o[0] == n[0] and o[1] - n[1] == shrunk.get(p, {}).get(q, 0) > 0)
+                (o and n and o[0] == n[0] and n[1] - o[1] == grown.get(p, {}).get(q, 0) != 0)
             bad += not ok
             print('%s%s %s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, q, show(o), show(n)))
     if copies:

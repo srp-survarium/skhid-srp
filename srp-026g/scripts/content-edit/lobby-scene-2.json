@@ -1,17 +1,26 @@
 {
- "_about": "The lobby without the New Year decoration, its workbench lit by the room's lamp (2026-10-22, the owner: \"can you remove the christmas tree and gifts from the lobby and make the light above crafting table stronger by just making the close by lampe stronger, (same yellow light), not by just adding a new fake white light\", then \"and christmas sounds\"). projects/lobby_scene/day/client_project, the stock file (lobby-bench-light-1, the fill light under the bench, is withdrawn: its file and manifest row are gone). Removed (remove_entry, matched by name and position): the tree in the corner by the door (flora/elka_green_05 at (-2.043, 0.561, 4.355) on a chemical barrel at (-2.035, -0.003, 4.409)), its ornaments (fx/stars, the new_year_stars garland; 4 Zarya grenades, 2 RGO grenades, 4 artefact coils), the gifts under it (2 vodka bottles, a toy Niva, a trap, a givokost artefact): render_visuals[0..17] and their 26 collision_objects[0..25]; the warm glow above its top (client_objects[41], ambient_light(23), (-2.092, 3.294, 4.439)); the Christmas sound (client_objects[66], sounds/new_year, scapes/lobby/new_year: christmas_sounds_01..04). The lamp: the room's one warm light with a lamp of its own, the ceiling lamp at (1.69, 2.96, -0.63) (client_objects[59], point_light, colour (1, 0.824, 0.702) kept), intensity 3.28 -> 4, range 8 -> 10 m, so that it reaches the weapon at (4.25, 1.30, 3.05), 4.73 m away. The fixture right above the bench (4.82, 3.23, 2.92, the lamp_bzz sound) has no light of its own; giving it one would be a new light. The set paths are the live file's indices: remove_entry is applied last. Rendering and sound only.",
- "set": [
+ "_about": "The lobby without the New Year decoration, its workbench lit by the lamp above it (2026-10-22, the owner: \"can you remove the christmas tree and gifts from the lobby and make the light above crafting table stronger by just making the close by lampe stronger, (same yellow light), not by just adding a new fake white light\", then \"and christmas sounds\"; after testing the first version, which raised the ceiling lamp: \"the lamp above the table is still not bright\"). projects/lobby_scene/day/client_project, the stock file (lobby-bench-light-1, the white-looking fill light on the floor under the bench, is withdrawn: its file and manifest row are gone). Removed (remove_entry, matched by name and position): the tree in the corner by the door (flora/elka_green_05 at (-2.043, 0.561, 4.355) in a chemical barrel at (-2.035, -0.003, 4.409)), its ornaments (fx/stars, the new_year_stars garland; 4 Zarya grenades, 2 RGO grenades, 4 artefact coils), the gifts under it (2 vodka bottles, a toy Niva, a trap, a givokost artefact): render_visuals[0..17] and their 26 collision_objects[0..25]; the warm glow above its top (client_objects[41], ambient_light(23), (-2.092, 3.294, 4.439)); the Christmas sound (client_objects[66], sounds/new_year, scapes/lobby/new_year: christmas_sounds_01..04). Added (add_entry): the lamp above the workbench (the electric1 model's fixture at (4.82, 3.23, 2.92), the lamp_bzz sound) had no light of its own; point_light(7) is a copy of the ceiling lamp's point_light (client_objects[59], the same fixture, its light 0.16 m under the fixture's bottom) put after it, 0.16 m under this fixture's bottom at (4.81, 3.02, 2.91), the colour (1, 0.824, 0.702) and every other field the ceiling lamp's, intensity 3.28 -> 4, range 8 -> 5 m (an int, as the original's): the weapon at (4.25, 1.30, 3.05) is 1.81 m from it. Values to tune. add_entry runs before remove_entry: the light is client_objects[60] while the edits run, [59] in the result. Rendering and sound only.",
+ "add_entry": [
   {
-   "file": "projects/lobby_scene/day/client_project",
-   "path": "client_objects[59]/intensity",
-   "from": 3.28,
-   "to": 4.0
-  },
-  {
-   "file": "projects/lobby_scene/day/client_project",
-   "path": "client_objects[59]/range",
-   "from": 8,
-   "to": 10
+   "files": "projects/lobby_scene/day/client_project",
+   "list": "client_objects",
+   "after": {
+    "full_name": "environment_and_lights/light/point_light"
+   },
+   "like": {
+    "full_name": "environment_and_lights/light/point_light"
+   },
+   "values": {
+    "name": "point_light(7)",
+    "full_name": "environment_and_lights/light/point_light(7)",
+    "position": [
+     4.81,
+     3.02,
+     2.91
+    ],
+    "intensity": 4.0,
+    "range": 5
+   }
   }
  ],
  "remove_entry": [

@@ -251,15 +251,19 @@ simulation change.
 | `projects/lobby_scene/day/client_project` (the lobby's scene): the New Year tree in the corner by the door taken out (a new edit, `remove_entry`: an indexed table's entry matched by its keys, here the name and the position): `render_visuals[0..17]`, the fir `flora/elka_green_05` at (-2.043, 0.561, 4.355) in a chemical barrel at (-2.035, -0.003, 4.409); its ornaments, the `fx/stars` garland (the `new_year_stars` model), 4 Zarya and 2 RGO grenades, 4 artefact coils; the gifts under it, 2 vodka bottles, a toy Niva (scale 0.15), a trap and a givokost artefact; and their 26 `collision_objects[0..25]` | the owner: "can you remove the christmas tree and gifts from the lobby" |
 | `client_objects[41]` (`ambient_light(23)`, at (-2.092, 3.294, 4.439), 0.16 m above the tree's top, intensity 2.2, radius 1.1, colour 0xFFF28653) taken out | the warm glow of the tree's top: nothing else is within its 1.1 m |
 | `client_objects[66]` (`sounds/new_year`, the collection `scapes/lobby/new_year`: `christmas_sounds_01..04`) taken out | the owner: "and christmas sounds". The lobby's other sounds stay: `background`, `lobby_room_tone`, `fire`, `lamp_drone`, `lamp_bzz`. The lobby has no music setting: its sound is these scene objects |
-| `client_objects[59]` (`point_light`, the ceiling lamp at (1.672, 2.742, -0.643), colour (1, 0.824, 0.702) kept) `intensity` 3.28 -> 4, `range` 8 -> 10 m | the owner: "make the light above crafting table stronger by just making the close by lampe stronger, (same yellow light), not by just adding a new fake white light". It is the room's one warm light with a lamp of its own (the electric1 model's fixture at (1.69, 2.96, -0.63)); the weapon at (4.25, 1.30, 3.05) is 4.73 m from it. The same fixture above the bench (4.82, 3.23, 2.92, with the `lamp_bzz` sound) has no light of its own: giving it one would be a new light |
-| lobby-bench-light-1 withdrawn: `client_objects[49]` (`ambient_light(3)`) back to the stock intensity 1 and radius 3.1 | the owner saw it as the fake white light |
+| a new light, `point_light(7)` (`add_entry`, after the ceiling lamp's `point_light`; `client_objects[59]` in the result): the ceiling lamp's entry copied, every field kept (colour (1, 0.824, 0.702), `attenuation_power` 7.7, shadows) but `name`, `full_name`, `position` (4.81, 3.02, 2.91), `intensity` 3.28 -> 4 and `range` 8 -> 5 m (an int, as the original's) | the owner: "make the light above crafting table stronger by just making the close by lampe stronger, (same yellow light), not by just adding a new fake white light"; then, of the first version (the ceiling lamp 3.28 -> 4, range 8 -> 10): "the lamp above the table is still not bright". The fixture above the workbench (`electric1.model`, its shade at x 4.76..4.89, y 3.18..3.30, z 2.87..2.97, with the `lamp_bzz` sound) had no light of its own; the ceiling lamp is the same fixture, its light 0.16 m under the shade's bottom, so this one is too. The weapon at (4.25, 1.30, 3.05) is 1.81 m from it. **To tune** after a game run: intensity, range and `attenuation_power` (the copy's 7.7) |
+| lobby-bench-light-1 withdrawn: `client_objects[49]` (`ambient_light(3)`) back to the stock intensity 1 and radius 3.1 | the owner's "fake white light": the fill light on the floor |
 
-The `set` paths are the live file's indices: `remove_entry` is applied after every other edit. Applied
-to the stock file (sha256 `e93de4fc…c0f8`; patch 27's copy is lobby-bench-light-1's, no longer in the
-manifest): 1 file edited, 0 unexpected differences (`client_objects` 72 -> 70, `render_visuals` 90 -> 72,
-`collision_objects` 92 -> 66, the lamp's two values); the result sha256 `7f8544ec…ac96a`; in
-`release/build-content 28` (2026-10-22, a dry run, after every other list): the same, every list at
-0 unexpected differences, the scene packed over patch 27's. Rendering
-and sound only: no server data, no simulation change. `client_project.lua` (the editor's text of the
-scene, which the game does not read) is left as it is. Not seen in a game: the lamp lights the whole
-room, so the room is brighter too; 4 and 10 m are a first guess to tune.
+`add_entry` takes a list of numbers for a vector (the position) and refuses a fraction for an int; it
+runs before `remove_entry`, so the light is entry 60 while the edits run and 59 in the result (no
+other part of the scene, nor the exe, refers to `client_objects` by index; the table's count is
+72 + 1 - 2 = 71). The fixture is part of the `level/lobby/electric1` model, whose scene entry has no
+emissive or other material setting: the shade itself is not changed (the model files are shared).
+
+Applied to the stock file (sha256 `e93de4fc…c0f8`; patch 27's copy is lobby-bench-light-1's, no longer
+in the manifest): 1 file edited, 0 unexpected differences (`client_objects` 72 -> 71, `render_visuals`
+90 -> 72, `collision_objects` 92 -> 66, the new light's values); the result sha256 `307ea4f0…78c90`;
+in `release/build-content 28` (2026-10-22, a dry run, after every other list): the same, every list
+at 0 unexpected differences, the scene packed over patch 27's. Rendering and
+sound only: no server data, no simulation change. `client_project.lua` (the editor's text of the
+scene, which the game does not read) is left as it is.
