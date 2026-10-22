@@ -1811,7 +1811,7 @@ fn a_premium_armour_piece_is_upgraded_and_rerolled_like_its_plain_piece() {
     }
     let message = lobby::permitted_reroll_result(legs, rolled.choices, rolled.reroll_seconds);
     takes(&mut client, &message, &account);
-    choose_modifier(&mut account, legs, BM_REPUTATION, 0, NOW).unwrap();
+    choose_modifier(&mut account, legs, BM_REPUTATION, 0).unwrap();
     let item = account.item(legs).unwrap();
     assert_eq!(own_modifications(item), [EXPERIENCE, rolled.choices[0]]);
     assert_eq!(
