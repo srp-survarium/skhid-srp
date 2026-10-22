@@ -435,6 +435,7 @@ Each site is checked against the original bytes first, so a different build
 or an already patched file is refused rather than patched twice.
 """
 
+import collections
 import hashlib
 import os
 import re
@@ -1786,6 +1787,301 @@ def weapon_camo_va(late_join):
     return death_camera_va(late_join) + DEATH_CAMERA_SIZE
 
 
+# Every function a patch installs: what the game calls of ours, and the shape
+# it must have (client_patch.md section 0.4; README "Call shapes"). A
+# function the game calls must pop off the stack what the game's own function
+# in its place pops (its `ret n`), or the caller's stack is off by the
+# difference: Research's rule slot 16 (#297) popped 4 bytes where the game's
+# rules pop 8, and the game died at the first sync. build() fails on a call,
+# jump or pointer into our code that is not declared here
+# (audit_installs); selftest_026g.py (test_call_shapes) reads the built bytes
+# and the original's and fails on any shape that is not its model's. The
+# kinds, by what the site was in the original:
+#   SLOT    a pointer the game calls through (a vtable slot, a delegate), at
+#           the site: the model is the function the original's pointer names;
+#   ENTRY   a function's first bytes jump to ours, or its body is ours in
+#           place: the model is that function;
+#   CALLEE  `[push ...] call F` calls ours: the model is F, less the bytes of
+#           the pushes the site no longer makes;
+#   INLINE  a call of ours where the site was other instructions: ours does
+#           them and returns with their stack effect (a plain `ret` when they
+#           push nothing);
+#   ABI     a call of ours that pops what `pops` says, for the reason `why`
+#           (the site's instructions have an effect no model gives);
+#   JUMP    a jump into ours from the middle of the game's code: every way
+#           back is at the stack depth the site's instructions leave (the
+#           self-test follows the stack through ours).
+# {site VA: (kind, what, pops, why)}; pops and why for ABI only.
+SLOT, ENTRY, CALLEE, INLINE, ABI, JUMP = "slot", "entry", "callee", "inline", "abi", "jump"
+INSTALLS = {
+    # the snapshot upload (every full build) and the default server's stub
+    0x27AEA1: (JUMP, "on_match_ready: the snapshot upload (the late join's ready_hook first)", None, None),
+    0x27A505: (JUMP, "the 0xF6 case: the snapshot upload", None, None),
+    0x1EB25B: (JUMP, "the missing server's fatal: the default server's stub", None, None),
+    # the late join (patch 11 and those it grew)
+    0x2CBF9B: (CALLEE, "a player's animations: register_animations", None, None),
+    0x2D3880: (CALLEE, "a slot's ids: bind_slot", None, None),
+    0x2D3906: (JUMP, "twenty histories: history_capacity", None, None),
+    0x27A23D: (JUMP, "0xD8's capability byte: connect_capability", None, None),
+    0x27A378: (JUMP, "the 0xE4 case: prepare_hook", None, None),
+    0x1F2013: (CALLEE, "the player's destructor: player_destroyed_hook", None, None),
+    0x27B517: (JUMP, "on_match_disconnected: disconnect_hook", None, None),
+    0x219E60: (ENTRY, "network_client's destructor: client_destroyed_hook", None, None),
+    0x23572B: (JUMP, "the hud's lists made again: lists_hook", None, None),
+    0x39E52: (JUMP, "a box that is no box: box_hook", None, None),
+    0x316EA0: (INLINE, "a spawn's weapons' random state: weapon_random_hook", None, None),
+    0x316E57: (INLINE, "a spawn's weapons' kept state: kit_state_hook", None, None),
+    0x2D1050: (CALLEE, "a first world's inputs: first_load_input", None, None),
+    0x2D1055: (CALLEE, "a first world's kit choices: first_load_kit", None, None),
+    0x242900: (ENTRY, "the camera's projection: fov_projection", None, None),
+    0x16F2A4: (INLINE, "select_lod's x0.5: fov_lod_scale", None, None),
+    0x1590AF: (INLINE, "the screen factor's x100: fov_screen_scale", None, None),
+    0x23537A: (ABI, "the scoreboard's row: tab_row", 0,
+               "the site's `push eax / push ebx / push eax / call edx` is SetElement(data, place, row), thiscall, "
+               "`ret 0Ch`: no stack effect, as tab_row's PushBack (vtable+3Ch) or SetElement"),
+    0x23B421: (INLINE, "the scoreboard's refresh: tab_shown", None, None),
+    # patch 23, 26, 25, 31, 34, 32, 46
+    0x2D84E9: (INLINE, "the use scan's ray length: reach", None, None),
+    0x2D861C: (JUMP, "the use scan's wall or floor: solid", None, None),
+    0x2D85BE: (JUMP, "the use scan's usable object: candidate", None, None),
+    0x1EE3A3: (JUMP, "the replay's seek: seek_clear", None, None),
+    0x380889: (INLINE, "the version field's last writes: stale_dll", None, None),
+    0x316820: (ENTRY, "the respawn rule's tick: kit_change", None, None),
+    0x26794D: (CALLEE, "the view of a kit change: kit_view", None, None),
+    0x23B7DA: (JUMP, "the local player alive: ui_alive", None, None),
+    0x23B7FC: (INLINE, "the hud's update: ui_start", None, None),
+    0x25D0E0: (ENTRY, "the game world's on_mouse_move: death_look, then warmup_look", None, None),
+    0x24225E: (INLINE, "the warmup mode's pitch: warmup_limits", None, None),
+    0x25CF60: (ENTRY, "the game world's on_mouse_key_action: warmup_keys", None, None),
+    0x1F364B: (CALLEE, "update_camera's view update: death_view", None, None),
+    0x242196: (CALLEE, "the input builder's last action call: suicide_key", None, None),
+    0x265E73: (CALLEE, "start_item_upgrade's camera: the stash's start, then start_cam", None, None),
+    0x265F44: (CALLEE, "exit_item_upgrade's camera: the stash's exit, then exit_cam", None, None),
+    0x284B10: (ENTRY, "setup_profile: the stash's setup, then setup_hook", None, None),
+    0x284081: (INLINE, "the lobby camera's wheel least: min_step", None, None),
+    0x28428C: (INLINE, "the lobby camera's step least: min_step", None, None),
+    0x284316: (INLINE, "the lobby camera's last clamp: min_final", None, None),
+    0x284A33: (INLINE, "the lobby character's decal pose: player_mode", None, None),
+    # patch 27/49, 28, 29, 30, 33
+    0xE7E3E: (CALLEE, "query_db's query_mount_archive: mount_all", None, None),
+    0x147E0: (ENTRY, "on_mounted_resources: on_mounted", None, None),
+    0x1D90DC: (JUMP, "the forward compile's switch: use_uv_scrolling", None, None),
+    0x1D94CB: (JUMP, "the forward compile's constants: uv_scrolling_parameters", None, None),
+    0x14990F: (JUMP, "renderer_context: scene_slomo", None, None),
+    0x28CDB6: (JUMP, "video_tutorial_link_clicked: replay_link", None, None),
+    0x29AAD5: (CALLEE, "the upgrade window's drop: drop_upgrade", None, None),
+    0x275756: (JUMP, "`83 46 02`: detach_answer", None, None),
+    0x275589: (CALLEE, "`83 46 01`'s detach: detach_first", None, None),
+    0x27534D: (CALLEE, "process_detach_upgrade's find_if: find_host", None, None),
+    READ_ORDER_VA: (ENTRY, "hdd_manager_sorting_predicate, in place: read_order", None, None),
+    # patch 38, 44, 45, 47, 48
+    0x2D8A0F: (JUMP, "the spot's owner: spot", None, None),
+    0x24B0D2: (INLINE, "the weapon's model ready: weapon_ready", None, None),
+    0x284020: (INLINE, "the lobby camera's tick: tick", None, None),
+    0x247576: (INLINE, "mt_draw's culled player: cull", None, None),
+    0x24778F: (INLINE, "mt_draw's held item's transform: matrix", None, None),
+    0x283D81: (INLINE, "the lobby camera's drag buttons: left", None, None),
+    0x265999: (CALLEE, "the decal preview's pick: pick", None, None),
+    0x2659B2: (CALLEE, "the decal preview's matrix: decode", None, None),
+    0x2641A0: (ENTRY, "the decal editor's bake: bake", None, None),
+    0x263938: (CALLEE, "the decal editor's start query: start", None, None),
+    0x265C20: (ENTRY, "the lobby character's mouse keys: click", None, None),
+    0x29A9B2: (INLINE, "relocate_upgrade_item: relocate", None, None),
+    0x29AACF: (INLINE, "drop_upgrade_item: drop", None, None),
+    0x270313: (CALLEE, "the 0x87 reader's last call: account", None, None),
+    0x284B89: (INLINE, "setup_profile past its early return: again", None, None),
+    0x284F7F: (INLINE, "on_player_ready: made", None, None),
+    # the replay viewer (patch revision 11): a vtable slot, and the sound queue's cave
+    REPLAY_REATTACH_SLOT[0]: (SLOT, "replay_network_client's \"is this place mine\" (vtable 0x9FF344 +54h): "
+                              "the thunk to is_player_current", None, None),
+    SOUND_QUEUE_HOOK_VA: (JUMP, "a weapon's delayed sound: the full queue's cave", None, None),
+}
+# The bodies a patch replaces in place, at a function's entry: {VA: size}.
+BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
+# A vtable our code builds and installs (a rule's, a cook's): the game reads
+# it and calls through its slots, so each slot that stands in for a game slot
+# must pop what that slot does. (name, the vtable's VA in our code, [model
+# slot VA or None per slot, from slot 0]). The self-test reads each slot's
+# function from the built bytes and its model's ret from the original exe
+# (test_call_shapes), and fails on a mismatch. On main no patch builds a game
+# vtable (the late join writes the game's own vtable 0xA09F90 into the slot,
+# not one of ours). Research (#297, when it moves onto `.srpx`) adds its rule
+# vtable here, with tdm_rule_core's twenty slots (vtable 0xA15DA4) as the
+# models: slot 16 (rn_deserialize) would then have to pop 8, as the game's
+# does, and the wrong `ret 4` the first writing shipped would fail the build.
+INSTALLED_VTABLES = ()
+# What our code hands the game at run time to call later (a callback, a
+# boost::function): no write of build() shows them, so each is declared with
+# the instruction that hands it over and the game's own function it stands
+# in for: (what, the code's name, the bytes before the pointer in that
+# instruction (the code holds them once), the model, why that model).
+CALLBACKS = (
+    ("the late join's query: query_completed", "late_join", bytes.fromhex("6a00566a008d83"), 0x27AA20,
+     "0x27D280 makes the network client's boost member callback of its resource queries; its one other "
+     "call (0x27B04C) binds 0x27AA20, the client's own queries_completed (ecx = the client, [esp+4] the "
+     "queries_result); the marker is the `push 0 / push esi / push 0 / lea eax,[ebx+query_completed]` "
+     "before `push eax` (query_completed's VA follows the lea's `8D 83`)"),
+    ("a weapon's camouflage bake: bake_done", "weapon_camo", b"\xC7\x40\x08", 0x126830,
+     "BIND_MANAGER 0x9ED148 binds a `void (*)(A*, B*)`; the game binds 0x126830 with it at 0x126A2C "
+     "(a bake query of query_resources 0xE5B60, as weapon_camo's); the marker is bind's "
+     "`mov dword [eax+8], bake_done` (bake_done's VA follows `C7 40 08`)"),
+)
+
+
+def is_cave(old):
+    """A write into the int3 padding between the game's functions: our code."""
+    return len(old) >= 5 and set(old) == {0xCC}
+
+
+def our_ranges(data, writes):
+    """[(lo, hi)] of our code: the sections build() adds (`.srp` and after),
+    the caves it wrote into the padding and the code over on_hash_mismatch."""
+    headers = Headers(data)
+    ours = [(IMAGE_BASE + rva, IMAGE_BASE + rva + vsize) for name, rva, vsize, _, _, _ in headers.sections(data)
+            if name.startswith(b".srp")]
+    return ours + [(va, va + len(new)) for va, old, new in writes if is_cave(old) or va == HASH_MISMATCH_VA]
+
+
+def installs_of(data, writes):
+    """{site VA: (how, our VA)} of every function build() made the game call:
+    `call` (E8) or `jmp` (E9) written into the game's code to our code, a
+    pointer written into the game's data that names our code ("pointer"),
+    a body replaced in place ("body")."""
+    ours = our_ranges(data, writes)
+    inside = lambda target: any(lo <= target < hi for lo, hi in ours)
+    out = {}
+    for va, old, new in writes:
+        if is_cave(old) or va == HASH_MISMATCH_VA:
+            continue
+        if va in BODIES and len(new) == BODIES[va]:
+            out[va] = ("body", va)
+        elif len(new) >= 5 and new[0] in (0xE8, 0xE9):
+            target = (va + 5 + struct.unpack_from("<i", new, 1)[0]) & 0xFFFFFFFF
+            if inside(target):
+                out[va] = ("call" if new[0] == 0xE8 else "jmp", target)
+        elif len(new) == 4 and inside(struct.unpack("<I", new)[0]):
+            out[va] = ("pointer", struct.unpack("<I", new)[0])
+    return out
+
+
+def audit_installs(data, writes, installs=None):
+    """Every function build() made the game call is declared in INSTALLS
+    (or `installs`), with a kind that fits the site; else the build stops."""
+    installs = INSTALLS if installs is None else installs
+    pushes = re.compile(rb"(?:[\x50-\x57]|\x6A.|\x68.{4})*", re.S)
+    for va, (how, target) in sorted(installs_of(data, writes).items()):
+        if va not in installs:
+            sys.exit(f"{va:#x}: a {how} into our code ({target:#x}) with no call shape declared: give it a kind "
+                     f"and its model in patch_026g.py's INSTALLS (client_patch.md section 0.4)")
+        kind = installs[va][0]
+        old = next(o for v, o, _ in writes if v == va)
+        fits = {"call": (CALLEE, INLINE, ABI), "jmp": (ENTRY, JUMP), "pointer": (SLOT,), "body": (ENTRY,)}[how]
+        if kind not in fits:
+            sys.exit(f"{va:#x}: a {how} into our code declared {kind}; a {how} is {' or '.join(fits)}")
+        if kind == CALLEE and not (len(old) >= 5 and old[-5] == 0xE8 and pushes.fullmatch(old[:-5])):
+            sys.exit(f"{va:#x}: declared {CALLEE}, but the original's {old.hex()} is not `[push ...] call`")
+        if kind == INLINE and old[0] == 0xE8:
+            sys.exit(f"{va:#x}: declared {INLINE}, but the original is a call: {CALLEE}")
+        if kind == ABI and not (type(installs[va][2]) is int and installs[va][3]):
+            sys.exit(f"{va:#x}: declared {ABI} without the bytes it pops and why")
+
+
+# `.srpx`, the arena of the later patches (client_patch.md section 0.3;
+# README "The arena"). The exe's section table has room for twelve entries
+# (it is at 210h and the headers end at 400h, where the first section's
+# bytes begin); the game's seven, `.srp`, `.srpd`, `.srpc` and `.srpw` take
+# eleven. The twelfth is `.srpx`, code, data and writable, on the page after
+# `.srpw` (whose three pages end at ARENA_VA), and it only grows: a patch
+# that needs room declares its blocks in ARENA, the builder places them in
+# that order (each at the next multiple of its alignment) and gives each its
+# VA (arena_layout), and only the section's sizes and SizeOfImage grow.
+# Nothing else of the file moves: a block never moves once placed, a new
+# block goes at ARENA's end, and a block's bytes are assembled for the VA the
+# builder gives it (build() checks each, as for the sections before). With no
+# block declared there is no `.srpx`: the exe is byte for byte what it was
+# without the arena.
+#   ArenaBlock(name, kind, size, align): name "<patch>.<what>", unique;
+#   kind "code" (bytes, int3 after them), "data" (bytes, zeros after them)
+#   or "state" (zeros: no bytes given); size the room it keeps, which its
+#   bytes never outgrow (grow a block only while it is the last); align a
+#   power of two from 16, 0x1000 for a page of its own.
+# Research (#297) and the dynamic anomalies (#225) take their pages so:
+#   ArenaBlock("research.code", "code", 0x3000, 0x1000),   # 0xA42D000
+#   ArenaBlock("research.state", "state", 0x1000, 0x1000), # 0xA430000
+#   ArenaBlock("anomalies.code", "code", ..., 0x1000),     # 0xA431000
+ARENA_NAME = b".srpx\0\0\0"
+ARENA_CHARACTERISTICS = 0xE0000060              # code, initialized data, execute, read, write
+ARENA_VA = 0xA42D000                            # weapon_camo_va + .srpw's three pages
+ARENA_KINDS = ("code", "data", "state")
+
+
+ArenaBlock = collections.namedtuple("ArenaBlock", "name kind size align")
+
+
+ARENA = ()
+
+
+def arena_layout(blocks):
+    """({name: VA}, the arena's size): each block at the next multiple of
+    its alignment after the one before, in the order given."""
+    vas, at = {}, 0
+    for block in blocks:
+        name, kind, size, align = block
+        if not re.fullmatch(r"[a-z0-9_-]+\.[a-z0-9_-]+", name) or name in vas:
+            sys.exit(f".srpx: {name!r} is no block name of its own (<patch>.<what>)")
+        if kind not in ARENA_KINDS or type(size) is not int or size <= 0 \
+                or type(align) is not int or align < 16 or align & (align - 1) or align > 0x1000:
+            sys.exit(f".srpx: block {name}: a kind of {', '.join(ARENA_KINDS)}, a size above 0 and an alignment "
+                     f"a power of two from 16 to 0x1000")
+        at = (at + align - 1) // align * align
+        vas[name] = ARENA_VA + at
+        at += size
+    return vas, at
+
+
+def add_arena(data, blocks, contents):
+    """Appends `.srpx` with the blocks at their VAs (arena_layout) and their
+    bytes (`contents`: {name: bytes} of the code and data blocks), after the
+    last section; returns the new file. No blocks: `data` as it is. The file
+    holds the arena up to the end of its last block with bytes; the state
+    after it is the loader's zeros (VirtualSize)."""
+    if not blocks:
+        if contents:
+            sys.exit(f".srpx: bytes for {', '.join(sorted(contents))}, which ARENA does not declare")
+        return data
+    vas, size = arena_layout(blocks)
+    if set(contents) != {b.name for b in blocks if b.kind != "state"}:
+        sys.exit(f".srpx: the code and data blocks are {sorted(b.name for b in blocks if b.kind != 'state')}; "
+                 f"bytes were given for {sorted(contents)}")
+    headers = Headers(data)
+    if IMAGE_BASE + struct.unpack_from("<I", data, headers.size_of_image_at)[0] != ARENA_VA:
+        sys.exit(f".srpx: the image does not end at {ARENA_VA:#x}, where the arena begins (has `.srpw` grown "
+                 f"past its three pages?)")
+    # Zeros, each code block int3 after its bytes; the file ends with the
+    # last code or data block (a state block after it has no bytes there).
+    end = max((vas[b.name] - ARENA_VA + b.size for b in blocks if b.kind != "state"), default=0)
+    arena = bytearray(end)
+    for block in blocks:
+        start = vas[block.name] - ARENA_VA
+        body = contents.get(block.name, b"")
+        if len(body) > block.size:
+            sys.exit(f".srpx: block {block.name} is {len(body):#x} bytes; it keeps {block.size:#x}")
+        if block.kind == "code":
+            arena[start:start + block.size] = body + b"\xCC" * (block.size - len(body))
+        elif block.kind == "data":
+            arena[start:start + len(body)] = body
+    out = add_code_section(data, ARENA_NAME, ARENA_VA, bytes(arena), ARENA_CHARACTERISTICS)
+    headers = Headers(out)
+    slot = headers.table + 40 * (len(headers.sections(out)) - 1)
+    struct.pack_into("<I", out, slot + 8, size)
+    if not arena:
+        struct.pack_into("<I", out, slot + 20, 0)       # no bytes in the file: no PointerToRawData
+    struct.pack_into("<I", out, headers.size_of_image_at,
+                     (ARENA_VA - IMAGE_BASE + size + headers.section_alignment - 1)
+                     // headers.section_alignment * headers.section_alignment)
+    return out
+
+
 def hook_bytes(base, va, expected, offset, opcode):
     """The bytes a hook site gets: the call or jump to base+offset and nops."""
     return bytes([opcode]) + struct.pack("<i", base + offset - va - 5) + b"\x90" * (len(expected) - 5)
@@ -1820,6 +2116,11 @@ def data_file_offset(va):
     return va - DATA_VA + DATA_FILE
 
 
+# Every write of build() into the original's sections: (VA, the original's
+# bytes, the new ones), in order. audit_installs reads it.
+WRITES = []
+
+
 def patch_value(data, va, expected, new):
     """As `patch`, for a value in .data."""
     at = data_file_offset(va)
@@ -1827,6 +2128,7 @@ def patch_value(data, va, expected, new):
     if found != expected or len(new) != len(expected):
         sys.exit(f"{va:#x}: expected {expected.hex()}, found {found.hex()}")
     data[at:at + len(new)] = new
+    WRITES.append((va, bytes(expected), bytes(new)))
 
 
 def patch_section_value(data, va, expected, new):
@@ -1843,6 +2145,7 @@ def patch_section_value(data, va, expected, new):
     if found != expected or len(new) != len(expected):
         sys.exit(f"{va:#x}: expected {expected.hex()}, found {found.hex()}")
     data[at:at + len(new)] = new
+    WRITES.append((va, bytes(expected), bytes(new)))
 
 
 def patch(data, va, expected, new):
@@ -1851,6 +2154,7 @@ def patch(data, va, expected, new):
     if found != expected:
         sys.exit(f"{va:#x}: expected {expected.hex()}, found {found.hex()}")
     data[at:at + len(new)] = new
+    WRITES.append((va, bytes(expected), bytes(new)))
 
 
 class Headers:
@@ -2030,7 +2334,8 @@ def add_code_section(data, name, va, code, characteristics):
     return out
 
 
-def build(original, mode, code=None, server=None, late_join=None, revision=None, required_patches=None):
+def build(original, mode, code=None, server=None, late_join=None, revision=None, required_patches=None,
+          arena=None):
     """Returns (patched file, description). mode: "cert-only", "section" or
     "hash-mismatch"; code = the assembled .bin for that cave. An optional
     server embeds a default host:port in full builds only. late_join = the
@@ -2051,7 +2356,10 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
     required_patches: the n of each resources.db.patch_<n> (1 to 255) the
     build with the late join requires at its start (patch 49; a release's
     offered patches); none when not given. It is the mount's bitmap and
-    nothing else."""
+    nothing else.
+    arena: (blocks, {name: bytes}) in place of ARENA and the patches' bytes
+    for it, for the self-test's made-up arenas; the build with the late join
+    only."""
     if hashlib.sha256(original).hexdigest() != EXE_SHA256:
         sys.exit("the source is not the original 0.26g survarium.exe (sha256 mismatch)")
     if server is not None:
@@ -2105,6 +2413,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                 or forward_scroll[SCENE_SLOMO_OFFSET] != 0x60:
             sys.exit("forward_scroll_026g.section.bin: its entries are not where patch_026g.py jumps to them")
     data = bytearray(original)
+    WRITES.clear()
     patch(data, *CERT)
     if mode == "cert-only":
         return data, "certificate check only"
@@ -2155,6 +2464,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
         at = file_offset(HASH_MISMATCH_VA)
         if hashlib.sha256(data[at:at + HASH_MISMATCH_REGION]).hexdigest() != HASH_MISMATCH_SHA256:
             sys.exit(f"{HASH_MISMATCH_VA:#x}: on_hash_mismatch is not the original")
+        WRITES.append((HASH_MISMATCH_VA, bytes(data[at:at + HASH_MISMATCH_REGION]),
+                       cave + b"\xCC" * (HASH_MISMATCH_REGION - len(cave))))
         data[at:at + HASH_MISMATCH_REGION] = cave + b"\xCC" * (HASH_MISMATCH_REGION - len(cave))
         rewritten.append((HASH_MISMATCH_VA, HASH_MISMATCH_VA + HASH_MISMATCH_REGION))
         where = "over on_hash_mismatch"
@@ -2352,6 +2663,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             sys.exit(f"read_order_026g.bin is {len(read_order)} bytes, not {READ_ORDER_SIZE:#x}")
         if hashlib.sha256(data[at:at + READ_ORDER_SIZE]).hexdigest() != READ_ORDER_SHA256:
             sys.exit(f"{READ_ORDER_VA:#x}: hdd_manager_sorting_predicate is not the original")
+        WRITES.append((READ_ORDER_VA, bytes(data[at:at + READ_ORDER_SIZE]), read_order))
         data[at:at + READ_ORDER_SIZE] = read_order
         if neutralize_relocs(data, [(READ_ORDER_VA, READ_ORDER_VA + READ_ORDER_SIZE)]):
             sys.exit("a base relocation under hdd_manager_sorting_predicate")
@@ -2606,6 +2918,15 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                                     DEATH_CAMERA_CHARACTERISTICS)
             data = add_code_section(data, WEAPON_CAMO_NAME, weapon_camo_va(late_join), weapon_camo,
                                     WEAPON_CAMO_CHARACTERISTICS)
+            # `.srpx`: each patch of the arena puts its blocks' bytes here,
+            # assembled for the VAs arena_layout(ARENA) gives them.
+            arena_bytes = {}
+            blocks, arena_bytes = arena if arena is not None else (ARENA, arena_bytes)
+            data = add_arena(data, blocks, arena_bytes)
+    if arena is not None and late_join is None:
+        sys.exit("the arena (`.srpx`) is of the build with the late join")
+    if mode != "cert-only":
+        audit_installs(data, WRITES)
     headers = Headers(data)
     struct.pack_into("<I", data, headers.checksum_at, pe_checksum(data, headers.checksum_at))
     return data, (f"certificate check, mutex, minimum VRAM check, hash interval {HASH_INTERVAL_MS} ms, "

@@ -397,6 +397,7 @@ without the late join, as patch revision 4 was, which check 15 builds on):
 import ctypes
 import hashlib
 import itertools
+import csv
 import json
 import math
 import os
@@ -4456,6 +4457,259 @@ def lib_required_patches(data):
     return result.stdout.strip() if result.returncode == 0 else f"failed: {result.stderr.strip()}"
 
 
+ABI_TSV = os.path.join(HERE, "..", "..", "tools", "re-kit", "v026g", "abi.tsv")
+
+
+def abi_cleanup():
+    """{VA: ret_cleanup} of every re-kit abi.tsv row with one (its number of
+    bytes popped, or -1 for several). The models' call shapes come from here
+    (the re-kit is the source, not hand-written notes); 0.26g never rebases,
+    so a VA is an address."""
+    out = {}
+    with open(ABI_TSV, newline="") as f:
+        for row in csv.DictReader(f, delimiter="\t", quoting=csv.QUOTE_NONE):
+            cleanup = row["ret_cleanup"]
+            if cleanup not in ("", "None"):
+                values = {int(c) for c in cleanup.split()}
+                out.setdefault(int(row["va"], 16), -1 if len(values) != 1 else values.pop())
+    return out
+
+
+def effective_cleanup(image, va, bound=0x800):
+    """The bytes `ret` pops at `va`, read from the image: a linear scan from
+    the entry to the first `ret` (its imm16, or 0 for a plain `ret`), or a
+    tail `jmp` into the game's code followed once (a thunk); None when neither
+    is reached (int3, an indirect or local jump, no instruction). Our installed
+    functions and their models are small stubs or tail calls, for which this
+    is exact; it is not a full control-flow cleanup."""
+    for _ in range(8):
+        try:
+            rows = ndisasm(image.read(va, bound), va)
+        except (ValueError, subprocess.CalledProcessError):
+            return None
+        for _, _, text in rows:
+            if text.startswith("ret"):
+                parts = text.split()
+                return int(parts[1], 16) if len(parts) > 1 else 0
+            if text == "int3" or text == "":
+                return None
+            if text.startswith("jmp "):
+                target = branch_target(text)
+                if target is not None and P.TEXT_VA <= target < P.TEXT_VA + P.TEXT_VSIZE:
+                    va = target
+                    break            # follow the tail call, scan from there
+                return None
+        else:
+            return None
+    return None
+
+
+def model_cleanup(original, image, model, abi):
+    """The bytes the model pops: re-kit abi.tsv first (hand-verified), else
+    read from the original exe. (cleanup or None, where it came from)."""
+    if model in abi and abi[model] >= 0:
+        return abi[model], "abi.tsv"
+    read = effective_cleanup(Image(original), model)
+    return read, "the original exe"
+
+
+def our_function_va(data, install, writes):
+    """Where our installed function is: the target of the call/jmp written at
+    the site, or the pointer written there (a slot), read from the built
+    exe's writes."""
+    for va, old, new in writes:
+        if va != install:
+            continue
+        if len(new) >= 5 and new[0] in (0xE8, 0xE9):
+            return (va + 5 + struct.unpack_from("<i", new, 1)[0]) & 0xFFFFFFFF
+        if len(new) == 4:
+            return struct.unpack("<I", new)[0]
+    return None
+
+
+def test_call_shapes(original, data, report=None):
+    """Every function a patch makes the game call is declared (INSTALLS), and
+    every one the game calls through a pointer our code hands it (a vtable
+    slot, a delegate, a callback) pops off the stack exactly what the game's
+    own function in its place does: the self-test reads our function's `ret`
+    from the built bytes and the model's from re-kit abi.tsv or the original
+    exe, and fails on a mismatch. This is the check that would have caught
+    Research's rule slot 16 (`ret 4` where the game's rules `ret 8`),
+    client_patch.md section 0.4. `report(ok, text)` defaults to the self-test's
+    `check`; the negative test passes its own to capture without printing."""
+    report = check if report is None else report
+    check_, globals()["check"] = check, report      # the sub-checks below use `check`
+    try:
+        return _call_shapes_body(original, data)
+    finally:
+        globals()["check"] = check_
+
+
+def _call_shapes_body(original, data):
+    print("  call shapes (every installed function's model)")
+    image = Image(data)
+    installs = P.installs_of(data, P.WRITES)
+    # 1. Every call/jmp/pointer into our code is declared, with a fitting kind.
+    try:
+        P.audit_installs(data, P.WRITES)
+        audited = True
+    except SystemExit as exit:
+        audited = False
+        print(f"        {exit}")
+    check(audited and all(va in P.INSTALLS for va in installs),
+          f"every one of the {len(installs)} functions the game calls of ours is declared in INSTALLS")
+    # 2. Each pointer the game calls through (a slot) and each run-time
+    # callback pops what its model does.
+    abi = abi_cleanup()
+    slots = [(va, P.INSTALLS[va][1], None) for va, (kind, *_) in P.INSTALLS.items()
+             if kind == P.SLOT and va in installs]
+    callbacks = []
+    for what, name, before_bytes, model, _why in P.CALLBACKS:
+        code = open(os.path.join(HERE, f"{name}_026g.section.bin"), "rb").read()
+        at = code.find(before_bytes)
+        base = {"late_join": P.LATE_JOIN_VA, "weapon_camo": P.weapon_camo_va(open(P.late_join_bin(), "rb").read())}[name]
+        got = -1 if at < 0 or code.find(before_bytes, at + 1) >= 0 \
+            else struct.unpack_from("<I", code, at + len(before_bytes))[0]
+        callbacks.append((got, what, model))
+    for site, what, model in slots:
+        model_va = struct.unpack_from("<I", original, Image(original).offset(site))[0]
+        want, whence = model_cleanup(original, image, model_va, abi)
+        ours = effective_cleanup(image, our_function_va(data, site, P.WRITES))
+        check(want is not None and ours == want,
+              f"{what}: `ret {ours}` pops what its model {model_va:#x} does (`ret {want}`, {whence})")
+    for our_va, what, model in callbacks:
+        want, whence = model_cleanup(original, image, model, abi)
+        ours = effective_cleanup(image, our_va) if our_va not in (None, -1) else None
+        check(want is not None and ours == want,
+              f"{what}: `ret {ours}` pops what its model {model:#x} does (`ret {want}`, {whence})")
+    # 3. Every vtable our code builds (a rule's, a cook's): each slot that
+    # stands in for a game slot pops what that slot does.
+    for name, table_va, models in P.INSTALLED_VTABLES:
+        for slot, model in enumerate(models):
+            if model is None:
+                continue
+            our_va = struct.unpack_from("<I", data, image.offset(table_va + 4 * slot))[0]
+            want, whence = model_cleanup(original, image, model, abi)
+            ours = effective_cleanup(image, our_va)
+            check(want is not None and ours == want,
+                  f"{name} slot {slot}: `ret {ours}` pops what its model {model:#x} does (`ret {want}`, {whence})")
+    if not P.INSTALLED_VTABLES:
+        check(True, "no patch on main builds a game vtable of its own (the late join installs the game's own)")
+
+
+def test_call_shapes_negative(original):
+    """The call-shape check rejects a wrong `ret` and an undeclared install:
+    a fake build whose one installed function pops the wrong number of bytes,
+    and one with a call into our code that INSTALLS does not name. It proves
+    the check is live (Research's slot 16 was `ret 4` where the model is
+    `ret 8`)."""
+    print("  call shapes: the check rejects a wrong ret and an undeclared install")
+    image = Image(original)
+    # A fake installed vtable: our code `ret 4`, its model the game's
+    # tdm_rule_core::deserialize (slot 16, 0xA15DA4 + 64), which pops 8 (as
+    # Research's rn_deserialize had to). The function and the table live in a
+    # made-up `.srpx` block; the check reads the slot and compares.
+    model = struct.unpack_from("<I", original, image.offset(0xA15DA4 + 4 * 16))[0]
+    want, _ = model_cleanup(original, image, model, abi_cleanup())
+    code = open(P.default_bin("section"), "rb").read()
+    late_join = open(P.late_join_bin(), "rb").read()
+    blocks = (P.ArenaBlock("fake.code", "code", 0x1000, 0x1000),
+              P.ArenaBlock("fake.table", "data", 0x1000, 0x1000))
+    layout, _ = P.arena_layout(blocks)
+    fn_va, table_va = layout["fake.code"], layout["fake.table"]
+    body = bytes.fromhex("c20400")                              # ret 4 (pops 4, not the model's 8)
+    data, _ = P.build(original, "section", code, None, late_join,
+                      arena=(blocks, {"fake.code": body, "fake.table": struct.pack("<I", fn_va)}))
+    saved = P.INSTALLED_VTABLES
+    P.INSTALLED_VTABLES = (("fake rule vtable", table_va, [model]),)
+    captured = []
+    try:
+        test_call_shapes(original, data, report=lambda ok, text: captured.append((ok, text)))
+    finally:
+        P.INSTALLED_VTABLES = saved
+    rejected = any(not ok and "fake rule vtable slot 0" in text for ok, text in captured)
+    check(rejected and want == 8,
+          f"a slot that pops 4 where its model {model:#x} pops {want} is rejected (Research's rule slot 16)")
+    # An undeclared install: a call into our code with no INSTALLS row.
+    fake_writes = [(0x500000, bytes(5), b"\xE8" + struct.pack("<i", P.SECTION_VA - 0x500000 - 5))]
+    headers = P.Headers(data)                                   # any built exe with our sections
+    try:
+        P.audit_installs(data, fake_writes, installs={})
+        refused = False
+    except SystemExit:
+        refused = True
+    check(refused, "a call into our code with no INSTALLS row is rejected")
+
+
+def test_arena(original):
+    """`.srpx`, the arena of the later patches (client_patch.md section 0.3).
+    Deterministic, no overlaps, every block inside the section, the headers
+    and the PE checksum right; and the build with no block declared is byte
+    for byte the build without the arena (main's exe does not change)."""
+    print("  the arena (.srpx)")
+    code = open(P.default_bin("section"), "rb").read()
+    late_join = open(P.late_join_bin(), "rb").read()
+    without, _ = P.build(original, "section", code, None, late_join)
+    # No block: `.srpx` does not exist, the exe is unchanged.
+    none, _ = P.build(original, "section", code, None, late_join, arena=((), {}))
+    check(none == without and not any(n.startswith(b".srpx") for n, *_ in Image(none).headers.sections(none)),
+          "no block declared: no .srpx, the exe is byte for byte the build without the arena")
+    # Blocks of each kind, out of alignment order, built twice: the same bytes.
+    blocks = (P.ArenaBlock("a.code", "code", 0x2800, 0x1000),
+              P.ArenaBlock("a.state", "state", 0x1000, 0x1000),
+              P.ArenaBlock("b.data", "data", 0x40, 0x10),
+              P.ArenaBlock("b.code", "code", 0x80, 0x40))
+    layout, size = P.arena_layout(blocks)
+    contents = {"a.code": b"\x90" * 0x10 + b"\xc3", "b.data": b"hello\0", "b.code": b"\xc3"}
+    one, _ = P.build(original, "section", code, None, late_join, arena=(blocks, contents))
+    two, _ = P.build(original, "section", code, None, late_join, arena=(blocks, dict(contents)))
+    check(one == two, "the arena is byte for byte deterministic (built twice, the same exe)")
+    image = Image(one)
+    sections = image.headers.sections(one)
+    name, rva, vsize, raw, rsize, flags = sections[-1]
+    align = lambda v, to: (v + to - 1) // to * to
+    prev = sections[-2]
+    check(name == P.ARENA_NAME and flags == P.ARENA_CHARACTERISTICS
+          and P.IMAGE_BASE + rva == P.ARENA_VA and rva == align(prev[1] + prev[2], image.headers.section_alignment),
+          f".srpx at {P.ARENA_VA:#x}: code | data | execute | read | write, on the page after .srpw")
+    # Every block inside, aligned, in order, none overlapping the next.
+    placed = sorted(((layout[b.name], layout[b.name] + b.size, b) for b in blocks))
+    inside = all(rva <= va - P.IMAGE_BASE and end - P.IMAGE_BASE <= rva + vsize for va, end, _ in placed)
+    aligned = all(layout[b.name] % b.align == 0 for b in blocks)
+    overlaps = [b.name for (lo, hi, b), (lo2, _, _) in zip(placed, placed[1:]) if hi > lo2]
+    check(inside and aligned and not overlaps and vsize == size,
+          f"the {len(blocks)} blocks are aligned, inside .srpx and do not overlap; VirtualSize {vsize:#x} = the "
+          f"arena's size ({', '.join(f'{b.name} @ {layout[b.name]:#x}' for b in blocks)})")
+    # The code and data bytes are where the layout puts them; the gaps int3.
+    body = bytes(one[raw:raw + rsize])
+    at = lambda va: va - P.ARENA_VA
+    ok = (body[at(layout['a.code']):at(layout['a.code']) + len(contents['a.code'])] == contents['a.code']
+          and set(body[at(layout['a.code']) + len(contents['a.code']):at(layout['a.code']) + 0x2800]) <= {0xCC}
+          and body[at(layout['b.data']):at(layout['b.data']) + len(contents['b.data'])] == contents['b.data']
+          and body[at(layout['b.code']):at(layout['b.code']) + 1] == b"\xc3")
+    check(ok, "each code and data block holds its bytes, padded with int3 (code) or zeros (data)")
+    # The headers and the PE checksum, as test_pe checks them for the sections.
+    get = lambda at: struct.unpack_from("<I", one, at)[0]
+    checksum = P.pe_checksum(one, image.headers.checksum_at)
+    security = image.directory(4)
+    check(get(image.headers.size_of_image_at) == align(rva + vsize, image.headers.section_alignment)
+          and raw == prev[3] + prev[4] and rsize == align(vsize, image.headers.file_alignment)
+          and get(image.headers.checksum_at) == checksum
+          and security[0] == raw + rsize and security[0] + security[1] == len(one),
+          "SizeOfImage ends past .srpx, its file bytes follow .srpw's, the certificate table stays last, "
+          "the PE checksum is right")
+    # A block whose bytes do not fit, and bytes for no block, are refused.
+    for bad, why in (((P.ArenaBlock("x.code", "code", 4, 16), ), "a block its bytes outgrow"),
+                     ((P.ArenaBlock("x.code", "code", 0x20, 16), ), "bytes for an undeclared block")):
+        payload = {"x.code": b"\xCC" * 8} if "outgrow" in why else {"y.code": b"\xc3"}
+        try:
+            P.build(original, "section", code, None, late_join, arena=(bad, payload))
+            refused = False
+        except SystemExit:
+            refused = True
+        check(refused, f".srpx refuses {why}")
+
+
 def test_late_join(original, without, server, source):
     """The default build with the late join against `without`, the build
     of the same server without it (checked by everything above)."""
@@ -4464,6 +4718,7 @@ def test_late_join(original, without, server, source):
     upload = open(P.default_bin("section"), "rb").read()
     data, description = P.build(original, "section", upload, server, code)
     print("  " + description)
+    test_call_shapes(original, data)       # while P.WRITES still holds this build's
     image, before = Image(data), Image(without)
     headers = image.headers
     sections, old_sections = image.sections, before.sections
@@ -4824,6 +5079,9 @@ def main():
     test_late_join_bin()
     test_no_branch_into_hooks(original)
     test_server_options(original)
+    print("variant section, the arena and the call shapes")
+    test_arena(original)
+    test_call_shapes_negative(original)
     variants = [(mode, None) for mode in ("cert-only", "section", "hash-mismatch")]
     variants += [(mode, "026g.skhid.link:1234") for mode in P.CAVES]
     variants += [(mode, "a" * 63 + ":65535") for mode in P.CAVES]

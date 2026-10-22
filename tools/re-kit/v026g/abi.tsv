@@ -1818,3 +1818,6 @@ va	name	source	ret_cleanup	result
 0x00845a40		auto	0	
 0x00846f40		auto	0	
 0x0084b1c0		auto	0	
+0x00054e10	survarium::replay_network_client::is_this_place_mine	manual	4	AL: 1 when the place is the one the replay is on (the stock slot is a stub: xor al,al)
+0x0027aa20	survarium::network_client::on_match_ready	manual	4	
+0x00126830	vostok::render::skeleton_model_instance_cook::on_bake_finished	manual	0	

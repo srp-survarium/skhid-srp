@@ -1537,3 +1537,132 @@ Please reinstall the application and try again" (string 0x9DEF00, pushed at
   Not known from the code alone: whether every small archive mounts as the
   retail one does (the mounter reads the 256 signature bytes after the
   file table, section 0.1).
+
+### 0.3 `.srpx`, the arena of the later patches (generic tooling, 2026-10-22) — PROVEN bytes, the self-test's arena checks pass; no patch on main uses it yet
+
+The exe's section table has room for twelve entries: it begins at file 0x210
+and the headers end at 0x400, where the first section's bytes begin, so
+0x400 - 0x210 = 0x1F0 = 12 x 40 bytes. The game's seven sections and ours,
+`.srp`, `.srpd`, `.srpc` and `.srpw`, take eleven. The twelfth and last is
+`.srpx`, the arena every later patch's code, data and state goes in, so no
+patch needs a PE section of its own again (the table is full after it).
+
+`.srpx` is code, initialized data and writable (characteristics 0xE0000060),
+on the page after `.srpw`'s three pages (`ARENA_VA` = 0xA42D000). It only
+grows: a patch that wants room declares its blocks in `patch_026g.py`'s
+`ARENA` (an `ArenaBlock(name, kind, size, align)` each: `kind` "code",
+"data" or "state"; `align` a power of two from 16, 0x1000 for a page of its
+own), the builder lays them out in that order (each at the next multiple of
+its alignment after the one before, `arena_layout`) and gives each its VA,
+and only the section's `VirtualSize`/`SizeOfRawData` and the image's
+`SizeOfImage` grow. A block never moves once it is placed (a new block goes
+at the arena's end), each block's bytes are assembled for the VA the builder
+gives it (build() checks each, as for the sections before), and the arena is
+byte-for-byte deterministic. In the file the arena runs to the end of its
+last code or data block; a state block's bytes are the loader's zeros
+(`VirtualSize` past `SizeOfRawData`), as `.srpd` is.
+
+```
+section table (0x210..0x400): 12 slots
+  .text .rdata .data STLPORT_ .tls .rsrc .reloc   (the game's 7)
+  .srp .srpd .srpc .srpw                           (ours, 8..11)
+  .srpx                                            (the arena, 12)
+
+.srpx  (VA 0xA42D000, grows ->)
+  +0        research.code   (code,  0x3000, page)   -> 0xA42D000
+  +0x3000   research.state  (state, 0x1000, page)   -> 0xA430000
+  +0x4000   anomalies.code  (code,  ...,    page)   -> 0xA431000
+  ...each new patch's blocks appended here, nothing before them moves
+```
+
+**Main's exe does not change.** With no block declared there is no `.srpx`
+at all (`add_arena` returns the file unchanged), so a build of the current
+`REVISION` is byte for byte what it was before the arena existed (the
+self-test checks this, and the exe of every variant was compared sha256 for
+sha256 before and after the change). Only a patch that declares a block makes
+the section appear.
+
+**Adopting it (Research #297, dynamic anomalies #225).** #297 creates `.srpx`
+itself today, at 0xA42D000, with Research's code at +0 and its state at
++0x3000; #225 uses +0x4000. To move onto the arena with the same addresses,
+each adds its blocks to `ARENA` in that order and passes their bytes to
+`build()`:
+
+```python
+ARENA = (
+    ArenaBlock("research.code",  "code",  0x3000, 0x1000),   # VA 0xA42D000
+    ArenaBlock("research.state", "state", 0x1000, 0x1000),   # VA 0xA430000
+    ArenaBlock("anomalies.code", "code",  0x4000, 0x1000),   # VA 0xA431000
+)
+```
+
+`arena_layout(ARENA)` then gives Research `0xA42D000` and `0xA430000` and the
+anomalies `0xA431000` (where #225 already assembles its code), so neither
+branch's `.section.bin` changes. The two branches are not changed here; this
+is the shape they move onto when they merge.
+
+### 0.4 Call shapes: every installed function has a model (generic tooling, 2026-10-22) — PROVEN bytes, the self-test's shape checks pass
+
+A function the game calls through a pointer our code hands it (a vtable slot,
+a delegate, a callback) must pop off the stack exactly what the game's own
+function in its place pops (its `ret imm16`), or the game's caller is left
+with the stack off by the difference. Research's rule slot 16
+(`rn_deserialize`) popped 4 bytes where the game's rules end `ret 8`, from a
+wrong hand-written note, and the game died at the first sync (#297). That is
+the bug this makes impossible for every exe patch.
+
+Every function a patch installs declares, in `patch_026g.py`, the game's own
+function it stands in for (its **model**) or an explicit ABI. `INSTALLS`
+names each site the game calls of ours, by the shape the site had in the
+original:
+
+- **SLOT** — a pointer the game calls through (a vtable slot, a delegate):
+  the model is the function the original's pointer named.
+- **ENTRY** — a function's first bytes jump to ours, or its body is ours in
+  place: the model is that function.
+- **CALLEE** — `[push ...] call F` calls ours: the model is F.
+- **INLINE** — a call of ours where the site was other instructions: ours
+  does them and returns with their stack effect (a plain `ret` when they
+  push nothing).
+- **ABI** — a call of ours that pops what the declaration says, for a stated
+  reason (the site's instructions have an effect no model gives).
+- **JUMP** — a jump into ours from the middle of the game's code (not a
+  function the game calls through a pointer): checked by the stack balance at
+  the return point, not by a `ret`.
+
+`CALLBACKS` names the functions our code hands the game at run time (no
+write of `build()` shows them), each with the instruction that hands it over
+and its model. `INSTALLED_VTABLES` names a vtable our code builds and
+installs (a rule's, a cook's), with the game's own slot each stands in for.
+
+Two checks run:
+
+1. `build()` fails on any call, jump or pointer into our code
+   (`installs_of`) that `INSTALLS` does not declare, or whose kind does not
+   fit the site (`audit_installs`). A new installed function cannot ship
+   undeclared.
+2. The self-test (`selftest_026g.py`, `test_call_shapes`) reads our
+   function's actual `ret` from the built bytes and the model's from
+   `tools/re-kit/v026g/abi.tsv` (the hand-verified source, not a note) or,
+   where the re-kit has no row, from the original exe, and fails on any
+   mismatch — for every SLOT, every callback and every slot of an
+   INSTALLED_VTABLE. A negative test (`test_call_shapes_negative`) builds a
+   fake rule vtable whose slot pops 4 where the model (`tdm_rule_core`'s slot
+   16, `ret 8`) pops 8 and checks the shape check rejects it: Research's bug.
+
+On main the installed pointers are the replay camera's "is this place mine"
+slot (model `is_this_place_mine`, `ret 4`) and the two callbacks
+`query_completed` (model `on_match_ready`, `ret 4`) and `bake_done` (model
+`on_bake_finished`, `ret 0`); no patch on main builds a game vtable of its
+own (the late join writes the game's own vtable into the slot it binds), so
+`INSTALLED_VTABLES` is empty. When Research moves onto `.srpx`, its rule
+vtable goes in `INSTALLED_VTABLES` with `tdm_rule_core`'s twenty slots
+(vtable 0xA15DA4) as the models, and slot 16 (`rn_deserialize`) must then
+`ret 8`.
+
+**Not covered.** JUMP hooks (a jump or call inside the game's own code, not a
+function the game calls through a pointer) are not `ret`-checked: their stack
+balance at the return point is covered by each patch's own Unicorn check and
+by the relocation and no-branch-into-a-hook checks. The `ret`-equality check
+is for the function-pointer class, where the model is unambiguous and the
+Research bug lived.

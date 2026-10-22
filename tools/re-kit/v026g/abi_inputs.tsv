@@ -4279,3 +4279,9 @@ va	name	location	role	basis
 0x00846f40		entry ESP+12		auto
 0x0084b1c0		entry ESP+4		auto
 0x0084b1c0		entry ESP+8		auto
+0x00054e10	survarium::replay_network_client::is_this_place_mine	ECX	the replay network client	observed
+0x00054e10	survarium::replay_network_client::is_this_place_mine	entry ESP+4	the roster place	observed
+0x0027aa20	survarium::network_client::on_match_ready	ECX	the network client	observed
+0x0027aa20	survarium::network_client::on_match_ready	entry ESP+4	the queries_result (the match's resource queries, done)	observed
+0x00126830	vostok::render::skeleton_model_instance_cook::on_bake_finished	entry ESP+4	the bind's first bound argument	observed
+0x00126830	vostok::render::skeleton_model_instance_cook::on_bake_finished	entry ESP+8	the cook parameters (freed here)	observed

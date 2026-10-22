@@ -41,6 +41,21 @@ PATCH = re.compile(r'^resources\.db\.patch_([1-9][0-9]{0,2})$')
 SHA = re.compile(r'^[0-9a-f]{64}$')
 LOBBY = 'lobby_menu'
 
+# The value-type check's allowlist (content_type_check.py): a new key whose
+# type no 0.26g file already uses at that name, with the reason it is right.
+# (game path or '*', key name): reason. Everything else a pack or an edit adds
+# must keep the type the stock or previous version has at that path, or use a
+# type 0.26g uses at that key name; a vector rewritten as an indexed table
+# (the Research pack bug) is refused.
+TYPE_ALLOWLIST = {
+    ('*', 'camo_available'): 'patch 44: a new weapon parameter, a bool (weapon-camo-1)',
+    ('*', 'decal_available'): 'patch 47: a new weapon parameter, a bool (weapon-decals-1)',
+    ('*', 'camouflage'): 'patch 44: data/camouflage, a new named table on a weapon (weapon-camo-1)',
+    ('*', 'decals'): 'patch 47: data/decals, a new named table on a weapon (weapon-decals-1)',
+    ('*', 'st_srp_attachments'): 'a new localization string key (weapon-attachments-1)',
+    ('*', 'st_inv_magazine_size'): 'a new localization string key (weapon-balance-1)',
+}
+
 
 class Problem(Exception):
     pass
@@ -293,6 +308,43 @@ def apply_edits(rows, tree, base, base_files, game, work, world):
             world.put(file.relative_to(out).as_posix(), file.read_bytes(), f'edit {name}')
 
 
+def type_check(base, base_files, game, world):
+    """Every file the manifest makes keeps the value type of each key path the
+    base/live version has, and a new key uses a 0.26g type for its path or is
+    allowlisted (content_type_check.py). A Problem lists every offender with
+    the file, the path, the old type and the new type."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        'content_type_check', str(Path(__file__).resolve().parent / 'content_type_check.py'))
+    ctc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ctc)
+    # The config reader is infrastructure of this checkout, not of --tree
+    # (which supplies the content): use build-content's own content_edit.py.
+    own = Path(__file__).resolve().parent.parent / 'srp-026g' / 'scripts' / 'content-edit'
+    walk = ctc.load_walk(str(own))
+    # The corpus of the types 0.26g already uses at each key name: every base
+    # config file (the stock db and the base patches), so a new key's type is
+    # weighed against all of 0.26g, not only the files this patch touches.
+    corpus_paths = sorted(p for p in base_files
+                          if p.endswith(('.options', '.raw_options', '.material', '/settings',
+                                         '/export_properties', '/hit_targets')))
+    corp = ctc.corpus_with(walk, game.get(base, corpus_paths))
+    # The previous version of each changed file: the base's bytes, where the
+    # base has it; None for a file no base archive has (a pack's new file).
+    had = [p for p in sorted(world.bytes) if p in base_files]
+    previous = game.get(base, had)
+    problems = []
+    for path in sorted(world.bytes):
+        problems += ctc.violations(walk, previous.get(path), world.bytes[path], path, corp, TYPE_ALLOWLIST)
+    if problems:
+        print()
+        for problem in problems:
+            print(f'TYPE: {problem}')
+        raise Problem(f'{len(problems)} value-type change(s) the manifest does not account for: no patch made '
+                      '(a key keeps its type; a new key uses a 0.26g type or an allowlist row in build_content.py)')
+    print(f'value types: every key the base has keeps its type across {len(world.bytes)} file(s)')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     for option in ('stock', 'patches', 'list', 'bin', 'tree', 'manifest', 'work'):
@@ -325,6 +377,11 @@ def main():
         base_files = game.files(base)
         print('the edit lists, in order:')
         apply_edits(rows, args.tree, base, base_files, game, work, world)
+
+        # The value types every changed file keeps (content_type_check.py):
+        # a key that exists in the base/live version keeps its type, a new key
+        # uses a type 0.26g files already use at that path or is allowlisted.
+        type_check(base, base_files, game, world)
 
         # What the sources make, against what players have.
         folder = work / 'world'

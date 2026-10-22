@@ -1763,3 +1763,4 @@ va	status	ref_021d	name
 0x00845a40	verified	0x00681c80	_ripemd160_block_asm_data_order
 0x00846f40	verified	0x00683180	_md5_block_asm_data_order
 0x0084b1c0	verified	0x00684100	_bn_sqr_comba4
+0x00054e10	observed		survarium::replay_network_client::is_this_place_mine

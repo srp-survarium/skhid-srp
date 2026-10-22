@@ -57,7 +57,7 @@ release's. The "Result" row is the build of the revision named in it.
 
 | File | What |
 |---|---|
-| `patch_026g.py` | Builds the patched exe from the original. Python 3, nothing else |
+| `patch_026g.py` | Builds the patched exe from the original. Python 3, nothing else. Holds `ARENA` (the `.srpx` blocks), `INSTALLS`/`CALLBACKS`/`INSTALLED_VTABLES` (every installed function's model) and the checks of both (arena and call shapes, above; `docs/notes/client_patch.md` 0.3, 0.4) |
 | `snapshot_upload_026g.asm` | The source of the upload code (nasm) |
 | `snapshot_upload_026g.section.bin`, `.hash-mismatch.bin` | That code assembled, for the two places it can go; `patch_026g.py` reads them. Assembling the source again gives the same bytes |
 | `late_join_026g.asm`, `late_join_validate_026g.c`, `late_join_runtime_026g.c`, `late_join_install_026g.c`, `late_join_runtime_026g.h` | The source of the late-join code (patch 11): the hooks and the game's calling conventions in assembly, the checks of what the server sends and the bookkeeping in C |
@@ -112,6 +112,39 @@ release's. The "Result" row is the build of the revision named in it.
 | `run_battery_rule.ps1` | Runs the battery rule's handler (patch 9) out of any 0.26g exe on a made-up rule object, in the 32-bit Windows PowerShell: what an exe does with a put that is played again after a rollback. Starts nothing of the game |
 | `survarium_login_server.crt` | The login certificate (the same file as `../certs/survarium_login_server.crt`) |
 | `launcher/` | The game's launcher made to work again, and to keep these files current: its patch tool, the one piece of new code, the self-test and its own README. Its updater is `../../client/updater` |
+
+## The arena (`.srpx`) and call shapes
+
+Two things keep a new exe patch from the mistakes PR #297 shipped
+(`docs/notes/client_patch.md` sections 0.3 and 0.4).
+
+**`.srpx`, the arena.** The exe's section table holds twelve entries (it is
+at file 0x210 and the headers end at 0x400); the game's seven plus `.srp`,
+`.srpd`, `.srpc` and `.srpw` take eleven. The twelfth is `.srpx`, a growing
+arena, so a later patch need not add a section of its own. A patch that wants
+room declares its blocks in `patch_026g.py`'s `ARENA` — an
+`ArenaBlock(name, kind, size, align)` each (`kind` "code", "data" or
+"state") — the builder lays them out in that order and gives each its VA
+(`arena_layout`), and only the section's sizes and `SizeOfImage` grow. A
+block never moves once placed, every block's bytes are assembled for the VA
+the builder gives it, and the arena is byte-for-byte deterministic
+(`selftest_026g.py`'s `test_arena`). With no block declared there is no
+`.srpx`, and the exe is byte for byte the build without it, so **main's exe
+does not change until a patch uses the arena**. The old `.srp`/`.srpd`/
+`.srpc`/`.srpw` stay as they are; only new patches use `.srpx`. Research
+(#297) and the dynamic anomalies (#225) move onto it with the same VAs they
+use today (`ARENA` example in section 0.3).
+
+**Call shapes.** Every function a patch installs — a vtable slot, a delegate,
+a callback, a hook the game enters — declares in `patch_026g.py` the game's
+own function it stands in for (its model) or an explicit ABI (`INSTALLS`,
+`CALLBACKS`, `INSTALLED_VTABLES`). `build()` refuses an install it does not
+name (`audit_installs`); the self-test reads our function's `ret` from the
+built bytes and the model's from `tools/re-kit/v026g/abi.tsv` (or the
+original exe) and fails on any mismatch (`test_call_shapes`), with a negative
+test that a slot popping the wrong number of bytes is rejected — Research's
+rule slot 16 (`ret 4` where the rules `ret 8`). Jumps inside the game's code
+are covered by each patch's own check instead.
 
 ## How to apply
 

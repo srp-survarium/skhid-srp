@@ -2178,6 +2178,45 @@ manifest "base|resources.db.patch_40|$sha40" "edit|e1.json|-"
 expect_refused "build-content: a Flash tree without a row" "srp-026g/flash/m has no movie row" "$bc" 42 --out "$T/work/c42l"
 check "--help is build-content's usage" has "$("$here/build-content" --help)" "usage: release/build-content"
 
+# The value-type check (content_type_check.py), on real binary configs: a
+# vector (float3) rewritten as an indexed table is refused, both when the file
+# is a changed version (the path was a vector) and when it is a new file whose
+# `position` path 0.26g uses as a vector; an allowlist row lets it through.
+python3 - "$here/content_type_check.py" "$here/../srp-026g/scripts/content-edit" "$T/tc.log" <<'EOF'
+import importlib.util, struct, sys, zlib
+ctc_path, ce_dir, logp = sys.argv[1:4]
+spec = importlib.util.spec_from_file_location('ctc', ctc_path)
+ctc = importlib.util.module_from_spec(spec); spec.loader.exec_module(ctc)
+walk = ctc.load_walk(ce_dir)
+REC = struct.Struct('<QQIHH')
+def cfg(as_table):  # a root table with one key `position`: a float3, or an indexed table of 3 floats
+    nm = b'position\0'; crc = zlib.crc32(b'position') & 0xffffffff
+    if not as_table:
+        buf = bytearray(REC.pack(0,48,crc,7,3)); buf = bytearray(REC.pack(24,0,0,3,1)) + buf + nm
+        off = len(buf); buf += struct.pack('<fff',1,2,3); struct.pack_into('<Q',buf,24,off)
+        return bytes(buf)
+    items = b''.join(REC.pack(struct.unpack('<I',struct.pack('<f',v))[0],0,0,2,4) for v in (1,2,3))
+    buf = bytearray(REC.pack(24,0,0,3,1) + REC.pack(0,48,crc,4,3) + nm)
+    buf += bytes((-len(buf)) % 8); off = len(buf); buf += items; struct.pack_into('<Q',buf,24,off)
+    return bytes(buf)
+vec, tab = cfg(False), cfg(True)
+corp = ctc.corpus_with(walk, {'lvl_a': vec})      # 0.26g uses /position as float3
+lines = [('identity', ctc.violations(walk, vec, vec, 'lvl_a', corp, {})),
+         ('changed_vector_to_table', ctc.violations(walk, vec, tab, 'lvl_a', corp, {})),
+         ('new_file_vector_as_table', ctc.violations(walk, None, tab, 'lvl_b', corp, {})),
+         ('new_file_allowlisted', ctc.violations(walk, None, tab, 'lvl_b', corp, {('lvl_b','/position'):'ok'}))]
+with open(logp,'w') as f:
+    for name, v in lines:
+        f.write('%s\t%d\t%s\n' % (name, len(v), ' | '.join(v)))
+EOF
+tc() { grep -P "^$1\t" "$T/tc.log" | cut -f2-; }
+check "type check: a file unchanged has no violation" test "$(tc identity | cut -f1)" = 0
+check "type check: a vector rewritten as an indexed table in a changed file is refused (the Research bug)" \
+    bash -c "grep -q 'changed_vector_to_table' '$T/tc.log' && tc() { grep -P \"^\$1\t\" '$T/tc.log' | cut -f2-; }; tc changed_vector_to_table | grep -q 'float3, now indexed table'"
+check "type check: a new file's vector written as a table, where 0.26g uses that path as a vector, is refused" \
+    test "$(tc new_file_vector_as_table | cut -f1)" != 0
+check "type check: ... the same key allowlisted passes" test "$(tc new_file_allowlisted | cut -f1)" = 0
+
 echo
 if ((failures)); then
     echo "$failures FAILED"

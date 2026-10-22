@@ -22,6 +22,22 @@ only `gameplay/` (the server game data holds only the files srp reads).
 `content_edit.py` runs on its own for a check (`--check`) on a folder of files at their game paths
 (`srp-game-data get --db <resources.db> --patch <patch>... --out live/ <path>...`).
 
+### The value-type check
+
+`release/build-content` also runs `release/content_type_check.py` over every file a pack or an edit
+makes: each key path that already exists in the stock or previous version of that file must keep its
+value type (a float2/3/4 vs an indexed table vs an int vs a float vs a string vs a named table). A
+key new to the file is allowed, unless 0.26g already uses that exact key path (in another config)
+with a type our bytes contradict; then it must use a 0.26g type or be listed in `build_content.py`'s
+`TYPE_ALLOWLIST` with a reason. It fails with the file, the path, the old type and the new type, and
+no patch is made. It reuses this folder's `content_edit.py` as the config reader (`walk`), and
+weighs new keys against a corpus of every base config file's key paths.
+
+This catches the two Research pack bugs (#297) that got past every other check: the builder wrote
+every vector (float2/3/4) as an indexed table through a `json.loads(json.dumps(...))` round-trip, so
+the game, which reads vectors raw, loaded scrambled levels. A vector rewritten as a list is exactly
+what it refuses (`release/test.sh` has the negative test; today's content passes it unchanged).
+
 Then run `weapon_balance_1_changes_only_its_values`
 (`crates/survarium/src/v026g/maps.rs`, ignored: it needs `SRP_TEST_RESOURCES_DB`,
 `SRP_TEST_SKHID_PATCHES` and `SRP_TEST_PATCH_WEAPON_BALANCE_1`) when a change touches its files. The
