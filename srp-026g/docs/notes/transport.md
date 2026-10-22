@@ -7,6 +7,7 @@
 - **GUESS** = plausible, not checked.
 - 0.26g functions have no symbols. They are named by the `__FUNCSIG__`/assert strings they reference, or by matching their code to the 0.21d function.
 - Image base 0x10000 in both builds. `conn` = `udp_match_connection` (0.26g: `udp_match_client + 8`). `pkt` = `udp_match_packet`.
+- Which messages carry one client's bytes to another, and what srp checks of them: `relay_trust.md`.
 
 ## 0. Function map (0.21d PDB → 0.26g)
 
