@@ -2248,6 +2248,12 @@ package
       {
          // the compare card showed the window's item (MessageCraftItem.compareWith)
          this.hideItemHint(null);
+         // The keys leave the window before it goes: a focus left on its removed buttons made the
+         // game's own stage.focus read crash on the next key (exe patch 52 guards the read).
+         if(stage != null && stage.focus != null && this.craftWindow.contains(stage.focus as DisplayObject))
+         {
+            stage.focus = this;
+         }
          this.inventory_list.lockControls(false);
          removeChild(this.craftWindow);
          removeChild(this.backBlack);
