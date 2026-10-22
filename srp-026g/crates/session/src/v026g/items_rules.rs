@@ -72,8 +72,9 @@
 //!   (0x275B84 → 0x29F770 `dict_id`). [srp, the owner's rule of
 //!   2026-10-21] A golden weapon takes its plain weapon, or a golden
 //!   weapon of the same plain weapon, as its donor and stays golden (the
-//!   lobby shows the item, not the donor); a plain weapon takes no golden
-//!   one ([`golden::may_donate`]).
+//!   lobby shows the item, not the donor); [the owner's rule of
+//!   2026-10-22] a plain weapon takes a golden one too, which is used up
+//!   ([`golden::may_donate`]).
 //!   [srp] The modification gained is rolled as a drop's are, the one
 //!   lost is any of the item's own (a golden weapon's silver bonus too).
 //! - **Golden weapons** ([`golden`], the owner's rule of 2026-10-21): the
@@ -85,7 +86,8 @@
 //!   2026-10-22): the same, with its two premium bonuses (+5 % experience,
 //!   +5 % reputation with its faction) as its own first modifications,
 //!   given once to those owned before ([`give_premium_armour_bonuses`]);
-//!   its plain piece is its donor as a golden weapon's plain weapon is.
+//!   its plain piece and it are donors for each other as a golden weapon
+//!   and its plain weapon are.
 //! - **Repair.** In silver: what the window shows,
 //!   `(1 - condition) * repair_cost_ratio * cost` and each defect's
 //!   `fix_cost_general`, and the item is locked for the defects'
@@ -749,15 +751,7 @@ pub fn craft(
         return Err("not an item with modifications");
     }
     if !golden::may_donate(donor.dict_id, item.dict_id) {
-        return Err(
-            if golden::is_golden(donor.dict_id)
-                && golden::kin(donor.dict_id) == golden::kin(item.dict_id)
-            {
-                "a golden item is no donor for a plain one"
-            } else {
-                "the donor is another item"
-            },
-        );
+        return Err("the donor is another item");
     }
     if !defects(item).is_empty() || !defects(donor).is_empty() {
         return Err("a damaged item");

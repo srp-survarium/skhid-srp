@@ -243,11 +243,11 @@ package survarium.item
       
       // Whether an item of donorDictId may be used up to upgrade one of
       // itemDictId, as the server has it (golden::may_donate): the same
-      // item, or for a golden item its plain item and its other golden
-      // copies; never a golden item for a plain one.
+      // item, or any copy of the same plain item, both ways (a golden item
+      // for a plain one too: owner 2026-10-22).
       public static function isCraftDonor(donorDictId:int, itemDictId:int) : Boolean
       {
-         return donorDictId == itemDictId || isGolden(itemDictId) && plainOf(donorDictId) == plainOf(itemDictId);
+         return donorDictId == itemDictId || plainOf(donorDictId) == plainOf(itemDictId);
       }
       
       // Skhid: not with three modifications (rank MAX; the server refuses its craft): the item

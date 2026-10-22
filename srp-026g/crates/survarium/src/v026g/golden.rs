@@ -18,9 +18,8 @@
 //! counts for the rank, a reroll may replace it, a failed craft may take
 //! it.
 //!
-//! In a craft a golden weapon takes its plain weapon, or a golden weapon
-//! of the same plain weapon, as its donor; a plain weapon takes no golden
-//! one ([`may_donate`]).
+//! In a craft any copy of the same plain weapon is a donor for any other:
+//! its plain weapon, a golden one of it, both ways ([`may_donate`]).
 //!
 //! The premium armour (the Bandit and Survivor jackets and trousers,
 //! [`PREMIUM_ARMOUR`]; the owner, 2026-10-22: the golden weapons'
@@ -212,13 +211,15 @@ fn kin_in(dictionary: &Dictionary, dict_id: u16) -> u16 {
 }
 
 /// Whether an item of `donor` may be used up to upgrade one of `item`:
-/// another of the same item, or (the owner's rule, 2026-10-21; for the
-/// premium armour 2026-10-22) for a golden item its plain item or a golden
-/// item of that plain item (`akmn_premium` and `akmn_premium_2`). Never a
-/// golden item for a plain one: the golden item would be lost. The lobby's
-/// craft window lists the same (`ItemFactory.isCraftDonor`).
+/// another of the same item, or (the owner's rules, 2026-10-21 and
+/// 2026-10-22; the premium armour too) any item of the same plain item:
+/// a golden item's plain item, a golden item of the same plain item
+/// (`akmn_premium` and `akmn_premium_2`), and a golden item for a plain one
+/// (the owner: "if I press upgrade on lancaster, I should get inside
+/// premium lancasters too"; the golden one is used up). The lobby's craft
+/// window lists the same (`ItemFactory.isCraftDonor`).
 pub fn may_donate(donor: u16, item: u16) -> bool {
-    donor == item || (is_golden(item) && kin(donor) == kin(item))
+    donor == item || kin(donor) == kin(item)
 }
 
 /// The modifications of its own a new item of `dict_id` has: the silver

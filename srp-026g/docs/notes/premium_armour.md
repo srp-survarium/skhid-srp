@@ -39,8 +39,9 @@ The owner's rule of 2026-10-22: give the premium armour the golden weapons' trea
 - **Upgradable as the plain piece:** same item level, so the same craft and reroll prices and
   chances; the premium bonuses reroll and a failed craft may take one, as any modification; gone,
   it does not come back (drop weight 0).
-- **Craft donors:** a premium piece takes its plain piece or another of itself; a plain piece takes
-  no premium one (`golden::may_donate`, `ItemFactory.isCraftDonor`). Not another faction's piece.
+- **Craft donors:** a premium piece and its plain piece are donors for each other, as a golden
+  weapon and its plain weapon (`golden::may_donate`, `ItemFactory.isCraftDonor`); the donor is used
+  up. Not another faction's piece.
 - **Gold background and gold name**, as the golden weapons (the lobby knows them by its list; the
   descriptor's rarity is 0 now).
 - **Shop and bundles** show the two bonuses on a piece not owned (`ItemFactory.startingModifiers`;

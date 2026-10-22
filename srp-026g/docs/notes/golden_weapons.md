@@ -29,9 +29,9 @@ data: `scripts/content-edit/golden-weapons-1.json`; the lobby: `ItemDictId` (the
   for crafting"):
   - golden weapon + its plain weapon as donor: yes, it stays golden;
   - golden + golden of the same plain weapon (`akmn_premium` + `akmn_premium_2`): yes;
-  - plain weapon + a golden donor: no (the golden one would be used up). The server refuses
-    it; the craft window lists only the donors the server takes and refuses one a swap of the
-    two would make.
+  - plain weapon + a golden donor: yes (owner 2026-10-22: "if I press upgrade on lancaster, I
+    should get inside premium lancasters too"); the golden one is used up, the weapon stays plain.
+    The craft window lists every copy of the same plain weapon.
 - **Gold background:** golden weapons keep it in the shop and the inventory (the lobby knows
   them by its list, not by the item's rarity, which is 0 now).
 - **Gold name** (owner 2026-10-22): a golden weapon's name is gold (`Colors.GOLD`) in the shop,
