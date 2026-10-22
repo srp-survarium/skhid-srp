@@ -27,8 +27,14 @@ down. What must hold:
   a weapon's (armour) flies back too, a weapon's over a weapon's keeps the
   yaw and pitch kept at the first;
 - the camera flies at the window's start (round 5, 2026-10-23: no wait for
-  the weapon), its targets set by the start and its steps' speeds the
-  setter's, the point moving from the first tick;
+  the weapon), its targets set by the start, the point moving from the
+  first tick; every part of it (the point, the yaw, the pitch, and the
+  camera's own side angle, height and distance steps, whose speeds the
+  flight sets each tick) eases out together: per tick the eye and the view
+  move less and less, never faster than the tick before, with no sudden
+  stop mid-flight, nothing at READY, and no snap at the end (round 5b: the
+  owner's "the camera jumps a bit at the end of the transition"), there and
+  back;
 - the weapon's middle (its model's box through bone 1's inverse bind and
   pose, as the data of the AK-12 and the PM has them) is drawn at the bench;
   while the character makes the window's player the held item is drawn
@@ -354,14 +360,18 @@ def main():
         assert (round(table.f(CAMERA + HEIGHT_TARGET), 6), round(table.f(CAMERA + DISTANCE_TARGET), 6),
                 round(table.f(CAMERA + 0x98), 6)) == (BENCH[1], VIEW_DISTANCE, 0.37)
         # The weapon not at the bench yet (READY 0): the camera flies anyway,
-        # the three steps with the setter's speeds, from the first tick.
-        for at, (target, now) in zip(SPEEDS, STEPS):
-            expected = abs(table.f(CAMERA + target) - table.f(CAMERA + now)) * from_f32(f32(1.1111112))
-            assert expected > 0 and math.isclose(table.f(CAMERA + at), expected, rel_tol=1e-5), (hex(at), expected)
+        # from the first tick, its three steps' speeds RATE * |target - now|.
         before = [table.f(CAMERA + at) for at in (POINT_X, POINT_Z, YAW, PITCH, POINT_Y, DISTANCE)]
         table.frame()
         after = [table.f(CAMERA + at) for at in (POINT_X, POINT_Z, YAW, PITCH, POINT_Y, DISTANCE)]
         assert table.flag(READY) == 0 and all(a != b for a, b in zip(before, after)), (before, after)
+        # (set at 0x284020: after the tick's height step, before its side and distance steps, which then
+        # move 5 * dt = 8% of the way in a 16 ms tick; the first tick was 32 ms)
+        table.frame()
+        for at, (target, now), stepped in zip(SPEEDS, STEPS, (True, False, True)):
+            expected = abs(table.f(CAMERA + target) - table.f(CAMERA + now)) * 5.0 / (0.92 if stepped else 1.0)
+            assert expected > 0 and math.isclose(table.f(CAMERA + at), expected, rel_tol=1e-3), \
+                (hex(at), expected, table.f(CAMERA + at))
         assert 0 < after[0] < BENCH[0] and 0 < after[1] < BENCH[2]
         seconds = None
         for n in range(300):
@@ -378,13 +388,14 @@ def main():
         assert (table.f(CAMERA + YAW), table.f(CAMERA + PITCH)) == (table.s(TARGET_YAW), table.s(TARGET_PITCH))
         matrix = table.matrix()
         eye = matrix[12:15]
-        assert math.isclose(math.dist(eye, point), VIEW_DISTANCE, abs_tol=1e-3), eye
+        # the camera's own steps stop within 0.001 of their targets (0x283FA0, 0x284253)
+        assert math.isclose(math.dist(eye, point), VIEW_DISTANCE, abs_tol=1.5e-3), eye
         expected_eye = (BENCH[0] - VIEW_DISTANCE * math.cos(VIEW_PITCH), point[1] - VIEW_DISTANCE * math.sin(VIEW_PITCH),
                         BENCH[2])
-        assert all(abs(a - b) < 1e-3 for a, b in zip(eye, expected_eye)), (eye, expected_eye)
-        assert math.isclose(table.f(CAMERA + SIDE), 0.37, abs_tol=1e-5)
+        assert all(abs(a - b) < 2e-3 for a, b in zip(eye, expected_eye)), (eye, expected_eye)
+        assert math.isclose(table.f(CAMERA + SIDE), 0.37, abs_tol=1.001e-3)
         say(f"a weapon's window{rebased}: the camera flies at the start, before the weapon is at the bench "
-            f"(its point, yaw, pitch, height and distance move at the first tick, the steps' speeds the setter's); "
+            f"(its point, yaw, pitch, height and distance move at the first tick, the steps' speeds 5 x the way left); "
             f"the camera's point is at the bench {BENCH} within 1 cm after "
             f"{seconds:.2f} s, then x and z exactly and the height within 0.001 (the camera's own step); its eye at ({eye[0]:.3f}, {eye[1]:.3f}, {eye[2]:.3f}): "
             f"{VIEW_DISTANCE} m in front of it along -x, {-VIEW_DISTANCE * math.sin(VIEW_PITCH):.3f} m above; "
@@ -429,6 +440,48 @@ def main():
             assert table.frame() == stock.frame() and table.camera_bytes() == stock.camera_bytes()
         say(f"the close{rebased}: the camera is back after {back} ticks of 16 ms at the origin's point and the "
             "yaw and pitch it had, exactly; then 60 ticks (with a drag) as the original's")
+
+        # (a Table of its own: the emulator is the lobby's, made again)
+        # The flight is smooth, there and back: every tick the eye and the view
+        # move no more than the tick before (an ease-out), with no sudden stop
+        # mid-flight (READY at the 12th tick changes nothing) and no snap at
+        # the end.
+        def moves(t, ticks, ready_at=None):
+            out, last = [], None
+            for n in range(ticks):
+                if n == ready_at:
+                    t.lobby.word(t.state + READY, 1)
+                t.frame()
+                m = t.matrix()
+                pose = (m[12:15], m[8:11])
+                if last is not None:
+                    out.append(math.dist(pose[0], last[0]) + VIEW_DISTANCE * math.dist(pose[1], last[1]))
+                last = pose
+            return out
+
+        def smooth(d):
+            moving = [x for x in d if x > 0]
+            last = max(i for i, x in enumerate(d) if x > 0)
+            return max(d) < 0.8 and d[last] < 5e-4 and all(
+                d[n] <= d[n - 1] * 1.01 + 2e-4 and (d[n - 1] < 2e-3 or d[n] >= 0.75 * d[n - 1])
+                for n in range(2, len(d))), (max(moving), last, d[last])
+
+        flight = Table(patched, delta)
+        flight.set_f(CAMERA + YAW, 0.4)
+        flight.set_f(CAMERA + PITCH, 0.1)
+        flight.lobby.handler(START_HANDLER, AK)
+        there = moves(flight, 300, ready_at=12)
+        ok_there, (top, end, last_move) = smooth(there)
+        assert ok_there, (top, end, last_move)
+        assert flight.flag(0x2C) == 0                      # the easing over: the wheel's speeds the stock's
+        flight.lobby.handler(EXIT_HANDLER, 0)
+        back = moves(flight, 300)
+        ok_back, (top_back, end_back, last_back) = smooth(back)
+        assert ok_back and not flight.flag(FLY), (top_back, end_back, last_back)
+        say(f"the flight{rebased}, there and back: the eye and the view move at most {top:.3f} (there) and "
+            f"{top_back:.3f} (back) a 16 ms tick, each tick no more than the one before and never less than "
+            f"3/4 of it while moving (no sudden stop of a step mid-flight, nothing at READY), the last move "
+            f"{last_move * 1000:.2f} mm there and {last_back * 1000:.2f} mm back (no snap at the end)")
 
         # Windows over windows.
         table = Table(patched, delta)

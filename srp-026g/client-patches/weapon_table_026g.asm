@@ -142,11 +142,19 @@ ORG CAVE
 %define DRAW_ITEM       0x2477C8    ; eax = the item's transform
 
 ; The camera (lobby menu+10Ch), from the camera itself
+%define SIDE_TARGET     0x98
+%define HEIGHT_TARGET   0x9C
 %define POINT_X         0xA0
 %define HEIGHT          0xA4
 %define POINT_Z         0xA8
 %define YAW             0xB8
 %define PITCH           0xBC
+%define SIDE            0xAC
+%define DISTANCE_TARGET 0xC0
+%define DISTANCE        0xC4
+%define SIDE_SPEED      0xE0        ; the camera's own steps' speeds (the setter's, the wheel's)
+%define HEIGHT_SPEED    0xE4
+%define DISTANCE_SPEED  0xE8
 %define TURN_YAW        0xCC        ; a drag's moves of the frame
 %define TURN_PITCH      0xD0
 
@@ -162,7 +170,8 @@ ORG CAVE
 %define SPIN            0x20        ; the weapon's turn about the vertical, by the drag's yaw
 %define TILT            0x24        ; and about the bench's length, by its pitch (within TILT_MAX)
 %define READY           0x28        ; 1: the window's weapon is drawn at the bench
-                                    ; +2Ch, +30h: unused since round 5 (the camera's wait for it)
+%define EASE            0x2C        ; 1: a flight's camera steps ease with it (from `camera` until all are there)
+%define EASED           0x30        ; float: how long they have (at most EASE_MAX s)
 %define LEFT            0x34        ; the left button since it went down: 0 up, 1 the weapon's drag, 2 not
 %define MIDDLE          0x38        ; float4: the weapon's middle, in its model's space (w 0)
 %define STAMP           0x48        ; +1 at every bench transform written (the interface's frame stamp)
@@ -199,6 +208,8 @@ camera:
 .again:
     mov dword [edi+TABLE], 1
     mov dword [edi+FLY], 1
+    mov dword [edi+EASE], 1
+    mov [edi+EASED], eax
     mov [edi+SPIN], eax
     mov [edi+TILT], eax
     mov eax, [edi+CONST(bench_x)]
@@ -226,6 +237,8 @@ camera:
     je .set
     xor eax, eax
     mov [edi+TABLE], eax            ; FLY stays: the camera flies back
+    mov dword [edi+EASE], 1
+    mov [edi+EASED], eax
     mov [edi+TARGET_X], eax
     mov [edi+TARGET_Z], eax
     mov eax, [edi+SAVED_YAW]
@@ -241,10 +254,11 @@ camera:
 ; load); what follows reads no flag before it sets them.
 tick:
     pushad
-    sub esp, 48
+    sub esp, 64
     movups [esp], xmm1
     movups [esp+16], xmm2
     movups [esp+32], xmm3
+    movups [esp+48], xmm4
     call base
     cmp dword [edi+FLY], 0
     je .out
@@ -263,7 +277,7 @@ tick:
     mov [esi+TURN_YAW], eax
     mov [esi+TURN_PITCH], eax
 .fly:
-    xor ecx, ecx                    ; ecx = 1 once a value is still away from its target
+    xor ecx, ecx                    ; ecx = 1 once a value is still away from its target (ch: a step)
     lea edx, [edi+CONST(fields)]
 .away:
     movzx eax, byte [edx]
@@ -278,7 +292,53 @@ tick:
     add edx, 2
     cmp byte [edx], 0
     jne .away
-    movss xmm1, [esp+48+32+14h]     ; the share of the way: RATE * dt, at most 1
+    ; a flight: the camera's own three steps (the side angle, the height, the
+    ; distance) ease as these do: their speeds RATE * |target - now| a
+    ; second, each tick, so that all seven end together and slow down to
+    ; the end (the setter's speeds are constant: those steps stopped dead
+    ; mid-flight while the rest went on, and the rest snapped 1 mm at its
+    ; end: the owner's "the camera jumps a bit at the end", 2026-10-23).
+    ; They stop within 0.001 of their targets (0x283FA0, 0x284253): the
+    ; flight is not over until they do, at most EASE_MAX seconds.
+    cmp dword [edi+EASE], 0
+    je .eased
+    movss xmm0, [edi+EASED]
+    addss xmm0, [esp+64+32+14h]
+    movss [edi+EASED], xmm0
+    movss xmm2, [edi+CONST(rate)]
+    movups xmm3, [edi+CONST(abs_mask)]
+    lea edx, [edi+CONST(steps)]
+.speed:
+    movzx eax, byte [edx]
+    movzx ebp, byte [edx+1]
+    movss xmm0, [esi+eax]
+    subss xmm0, [esi+ebp]
+    andps xmm0, xmm3
+    comiss xmm0, [edi+CONST(step_close)]
+    jb .stopped                     ; within 0.001: that step does not move
+    movss xmm1, [edi+EASED]
+    comiss xmm1, [edi+CONST(ease_max)]
+    jae .stopped                    ; it cannot get there (a clamp): over anyway
+    mov ch, 1
+.stopped:
+    mulss xmm0, xmm2
+    movzx eax, byte [edx+2]
+    movss [esi+eax], xmm0
+    add edx, 3
+    cmp byte [edx], 0
+    jne .speed
+    test ch, ch
+    jnz .easing                     ; a step still eases: not over
+    test cl, cl
+    jnz .eased
+    mov [edi+EASE], ecx             ; all seven there: the easing is over (0)
+    jmp .eased
+.easing:
+    mov ecx, 1
+.eased:
+    movss xmm1, [esp+64+32+14h]     ; the share of the way: RATE * dt, at most 1
+    movss xmm4, xmm1                ; and at least FLOOR * dt, so that each lands, exactly
+    mulss xmm4, [edi+CONST(floor)]
     mulss xmm1, [edi+CONST(rate)]
     minss xmm1, [edi+CONST(one)]
     lea edx, [edi+CONST(fields)]
@@ -292,11 +352,26 @@ tick:
     jmp .stepped
 .move:
     movss xmm0, [edi+ebp]
-    movss xmm2, [esi+eax]
-    subss xmm0, xmm2
-    mulss xmm0, xmm1
-    addss xmm0, xmm2
-    movss [esi+eax], xmm0
+    subss xmm0, [esi+eax]           ; the way left
+    movaps xmm2, xmm0
+    andps xmm2, [edi+CONST(abs_mask)]
+    movaps xmm3, xmm2
+    mulss xmm3, xmm1
+    addss xmm3, xmm4                ; the step: share * |way| + FLOOR * dt
+    comiss xmm3, xmm2
+    jb .short
+    mov ebp, [edi+ebp]              ; it gets there: the target itself (no snap later)
+    mov [esi+eax], ebp
+    jmp .stepped
+.short:
+    xorps xmm2, xmm2
+    comiss xmm0, xmm2
+    jae .forward
+    subss xmm2, xmm3
+    movaps xmm3, xmm2
+.forward:
+    addss xmm3, [esi+eax]
+    movss [esi+eax], xmm3
 .stepped:
     add edx, 2
     cmp byte [edx], 0
@@ -310,7 +385,8 @@ tick:
     movups xmm1, [esp]
     movups xmm2, [esp+16]
     movups xmm3, [esp+32]
-    add esp, 48
+    movups xmm4, [esp+48]
+    add esp, 64
     popad
     movss xmm0, [ebx+0C8h]
     ret
@@ -659,7 +735,11 @@ base_eax:
 
 ; the camera's offsets and the state's targets the flight moves, then 0
 fields:           db POINT_X, TARGET_X, POINT_Z, TARGET_Z, YAW, TARGET_YAW, PITCH, TARGET_PITCH, 0
+; the camera's own steps: target, now, speed; then 0
+steps:            db SIDE_TARGET, SIDE, SIDE_SPEED, HEIGHT_TARGET, HEIGHT, HEIGHT_SPEED
+                  db DISTANCE_TARGET, DISTANCE, DISTANCE_SPEED, 0
 align 16, db 0
+abs_mask:         dd 0x7FFFFFFF, 0, 0, 0   ; (aligned: an andps operand)
 bench_x:          dd 4.25           ; BENCH: above the workbench (top y 0.91, x 3.75..4.88, z 1.70..4.60)
 bench_y:          dd 1.30           ;   between its drill press (z < 2.40) and its vice (z > 3.50)
 bench_z:          dd 3.05
@@ -674,7 +754,10 @@ tilt_min:         dd -1.2
 two_pi:           dd 6.2831855
 rate:             dd 5.0            ; RATE: the share of the way a second
 one:              dd 1.0
-close:            dd 1.0e-6         ; there: within 0.001 (squared)
+close:            dd 1.0e-12        ; there: within 1e-6 (squared; each lands on its target by FLOOR)
+step_close:       dd 0.001          ; the camera's own steps stop within it (0x91A8F0)
+ease_max:         dd 4.0            ; EASE_MAX: the longest a flight eases the camera's steps (s)
+floor:            dd 0.01           ; FLOOR: the least speed of the point (m/s), the yaw and pitch (rad/s)
 millimetre:       dd 0.001
 ; MIDDLES: the weapons whose box does not give their middle within 1 cm (a
 ; default box; the Magnum's spare rounds; a body off the axis, the RPD's):

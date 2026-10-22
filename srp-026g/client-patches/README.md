@@ -2554,7 +2554,16 @@ Round 5 (2026-10-23, the owner: "yes, let's", to the camera flying at once inste
 tick; the weapon appears above the bench when its player is made (until then the held item takes
 the decal pose's transform, 10 m under the floor: neither in the hand nor at the bench). A refresh
 keeps the bench's weapon as before; the close, the drag and the left button (with the table on)
-are unchanged. 1 742 bytes. `check_weapon_table_026g.py` 40 checks. Section 3.42, round 5.
+are unchanged. Section 3.42, round 5.
+
+Round 5b (2026-10-23, the owner: "the camera jumps a bit at the end of the transition"): the
+camera's own side angle, height and distance steps moved at the setter's constant speeds and
+stopped dead at 0.9 s while the point, yaw and pitch still glided, which then snapped 2 mm onto
+their targets at 1.6 s. Now a flight sets those steps' speeds to 5 × the way left each tick, so all
+seven ease out together, and the point, yaw and pitch land exactly (a least speed of 0.01 a second)
+instead of snapping. The bench and the wheel are unchanged; the close flies back the same way.
+1 994 bytes. `check_weapon_table_026g.py` 42 checks (every tick's move no more than the one
+before, no sudden stop, no snap, there and back). Section 3.42, round 5b.
 
 ### 46. On the death screen a drag turns the camera; the wheel does nothing (the next release's revision)
 
