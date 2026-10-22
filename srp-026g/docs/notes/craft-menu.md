@@ -50,7 +50,8 @@ then pop up doesn't show up").
   the equipped one: its card beside the hovered one, and the hovered card's bars against it.
 - **Both cards are coloured**, each against the other: a better value green, a worse one red, on
   the item being upgraded's card too (owner 2026-10-22: "when hovering the relative changes should
-  be green <-> red"). The equipped item's card elsewhere stays as before (uncoloured).
+  be green <-> red"). So is the equipped item's card when an inventory item is compared with it
+  (owner 2026-10-22: "we should do the same thing for comparisons in character <-> inventory").
 - **No item being upgraded** (the main slot empty): no compare card, the hovered card alone.
 - **The item being upgraded itself** in the list: no compare card (nothing to compare).
 - **After an upgrade** (the result shows): compared with the upgraded item.

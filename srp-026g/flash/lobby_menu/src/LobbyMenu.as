@@ -1659,9 +1659,9 @@ package
             this.itemHintRendererSec.displaylabel(true);
             this.itemHintRenderer.itemCompare.setSecondaryWeapon(secondData);
             this.itemHintRendererSec.data = secondData;
-            // In the craft window both cards are coloured, each against the other (craft-menu.md);
-            // the equipped one elsewhere is not, as before.
-            this.itemHintRendererSec.itemCompare.setSecondaryWeapon(this.craftOpen() ? e.itemData : null);
+            // Both cards coloured, each against the other: the equipped (or the craft window's) one
+            // too (craft-menu.md, "Comparing items").
+            this.itemHintRendererSec.itemCompare.setSecondaryWeapon(e.itemData);
             addChild(this.itemHintRendererSec);
          }
          else
