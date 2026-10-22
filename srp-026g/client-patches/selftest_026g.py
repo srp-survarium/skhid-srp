@@ -1918,6 +1918,7 @@ def test_upgrade_preview(original, image, before):
         0x270313: ["call 0x270320"],
         0x284B89: ["cmp dword [ebx+0xd2c4],byte -0x1"],
         0x284F7F: ["cmp byte [ebx+0xd2c9],0x0"],
+        0x284B7C: ["cmp byte [ebx+0xd2c8],0x0"],
     }
     for va, old, offset, opcode in P.UPGRADE_PREVIEW_HOOKS:
         entry = code_va + offset
@@ -1977,7 +1978,7 @@ def test_upgrade_preview(original, image, before):
           and P.upgrade_preview_targets(code, code_va) == (stash_find, state, preview_state),
           f"the upgrade preview at {code_va:#x} (.srpw+{P.UPGRADE_PREVIEW_OFFSET:#x}) is "
           f"upgrade_preview_026g.section.bin ({len(code)} bytes), its state at 0x{P.UPGRADE_PREVIEW_STATE_OFFSET:X} "
-          "of .srpd, patch 32's read; it begins with six `jmp near`, calls only setup_profile, the inventory's "
+          "of .srpd, patch 32's read; it begins with seven `jmp near`, calls only setup_profile, the inventory's "
           "find, item_by_id, the config's has_key and child, the profile's ctor and copy, the allocator, the "
           "log and the stash's find_kit_or_show, jumps only to setup_profile's end and the 0x87 reader's last "
           "call outside itself, and every branch inside it lands on an instruction")

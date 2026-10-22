@@ -1710,7 +1710,7 @@ WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14)  # camera, tick, cull, matrix,
 # at UPGRADE_PREVIEW_OFFSET of `.srpw`, a page of its own (the second page is
 # the weapon decals', patch 47); its state at UPGRADE_PREVIEW_STATE_OFFSET of
 # `.srpd`, after the patches' mount's (MOUNT_STATE_OFFSET) and before patch
-# 32's (WEAPON_PREVIEW_STATE_OFFSET). Six `jmp near`, the entries:
+# 32's (WEAPON_PREVIEW_STATE_OFFSET). Seven `jmp near`, the entries:
 # - relocate_upgrade_item's handler (0x29A8B0), `mov edx,[esi+4620h]` at
 #   0x29A9B2 (before its `46 01` is written): relocate, which queues the
 #   change for the window's weapon and makes the character again at once;
@@ -1725,7 +1725,12 @@ WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14)  # camera, tick, cull, matrix,
 #   0x284B89: again, which returns when the player being made is of the
 #   kit's id and revision asked;
 # - on_player_ready, `cmp byte [ebx+0D2C9h],0` at 0x284F7F: made, a log line
-#   with the time the lobby character's player took.
+#   with the time the lobby character's player took;
+# - setup_profile's early return, `cmp byte [ebx+0D2C8h],0` at 0x284B7C (its
+#   last test before `jz 284CF8h`): early, which for the lobby's own
+#   character returns early only while no player is being made (patch 32's
+#   window closed while its scratch's player was being made: the owner's
+#   report of 2026-10-23, client_patch.md section 3.42).
 # No base relocation is under a site and no branch aims inside one; the code
 # holds the absolute addresses of its state, patch 32's and its strings (the
 # exe is never rebased).
@@ -1733,13 +1738,14 @@ UPGRADE_PREVIEW_OFFSET = 0x2000
 UPGRADE_PREVIEW_STATE_OFFSET = 0xD60
 UPGRADE_PREVIEW_STATE_SIZE = 0xA0
 UPGRADE_PREVIEW_FIND = 0x0F
-UPGRADE_PREVIEW_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19)  # relocate, drop, account, find, again, made
+UPGRADE_PREVIEW_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19, 0x1E)  # relocate, drop, account, find, again, made, early
 UPGRADE_PREVIEW_HOOKS = (
     (0x29A9B2, bytes.fromhex("8b9620460000"), 0x0, 0xE8),          # relocate_upgrade_item: relocate
     (0x29AACF, bytes.fromhex("8b8e20460000"), 0x5, 0xE8),          # drop_upgrade_item: drop
     (0x270313, bytes.fromhex("e808000000"), 0xA, 0xE8),            # the 0x87 reader's last call: account
     (0x284B89, bytes.fromhex("83bbc4d20000ff"), 0x14, 0xE8),       # setup_profile past its early return: again
     (0x284F7F, bytes.fromhex("80bbc9d2000000"), 0x19, 0xE8),       # on_player_ready: made
+    (0x284B7C, bytes.fromhex("80bbc8d2000000"), 0x1E, 0xE8),       # setup_profile's early return: early
 )
 WEAPON_TABLE_HOOKS = (
     (0x284020, bytes.fromhex("f30f1083c8000000"), 0x5, 0xE8),        # the camera's tick: tick
@@ -1893,6 +1899,7 @@ INSTALLS = {
     0x270313: (CALLEE, "the 0x87 reader's last call: account", None, None),
     0x284B89: (INLINE, "setup_profile past its early return: again", None, None),
     0x284F7F: (INLINE, "on_player_ready: made", None, None),
+    0x284B7C: (INLINE, "setup_profile's early return: early", None, None),
     # the replay viewer (patch revision 11): a vtable slot, and the sound queue's cave
     REPLAY_REATTACH_SLOT[0]: (SLOT, "replay_network_client's \"is this place mine\" (vtable 0x9FF344 +54h): "
                               "the thunk to is_player_current", None, None),
@@ -3305,7 +3312,7 @@ def upgrade_preview_bin():
 
 def upgrade_preview_targets(code, va):
     """upgrade_preview_026g.section.bin assembled at `va`: (the find's
-    `call`, its state, patch 32's state) when its six entries are `jmp
+    `call`, its state, patch 32's state) when its seven entries are `jmp
     near`, find (+0Fh's) begins `push eax / call <find>` and the state is
     the immediate of pop_op's `mov esi,<state>` (the one after account's
     `call`), patch 32's that of preview's first `mov esi,<state>`; else None."""
