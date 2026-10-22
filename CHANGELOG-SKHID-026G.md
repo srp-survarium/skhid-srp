@@ -543,3 +543,9 @@ kept and can be put back).
 - TODO: #300 Rooms: browse All rooms from a room (My room / All rooms tabs)
 - TODO: #301 Lobby: no New Year tree, gifts or Christmas sound; two bulbs light the workbench
 - TODO: #302 Lobby: the camera turns again after the upgrade window closes
+
+## 22 Oct, 14:57 — TODO: the owner's words (update required)
+
+<!-- Revision 29 (026g-rev29), released 2026-10-22 14:57 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #304 Pockets: equipping a medkit, grenade or trap works again (rev 28 regression)
