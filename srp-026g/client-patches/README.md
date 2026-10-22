@@ -2316,6 +2316,9 @@ artefacts that never respawn by themselves (`artefacts_respawn_time_sec`
 100000; no stock core has more than 80). Its states are the release's
 timeline by energy, played by the game's own state timers: charging 20 s,
 damage 4 s, the artefact until it is taken, 60 s after the pick-up, idle.
+The pack has them on London and Cologne only (the owner, 2026-10-22); on
+any other map no core is timed, so the rule finds no candidate and every
+pick-up is the original's: the patch is data-driven and changes nothing there.
 
 Two hooks into `dynamic_anomalies_026g.asm`, at +0x4000 of `.srpx` (VA
 0xA431000, `DYNAMIC_ANOMALIES_OFFSET`, after Research's pages, patch 53; the build with

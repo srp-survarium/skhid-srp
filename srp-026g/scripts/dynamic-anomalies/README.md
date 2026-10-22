@@ -2,8 +2,10 @@
 
 `build.py` turns the anomaly places of the release builds into timed 0.26g
 `generic_anomaly_core`s, the kind exe patch 42 (`client-patches/dynamic_anomalies_026g.asm`)
-chooses from. It writes a content pack (`--pack`) or a folder: the client projects of level_01 to level_09
-rewritten, plus the anomaly particles the game lacks. The rules are in
+chooses from. It writes a content pack (`--pack`) or a folder: the client projects of level_08
+(Cologne) and level_09 (London), the only maps with timed anomalies (the owner, 2026-10-22:
+"they should only work for london and keln, other maps keep static"; `--maps` names others), and
+the anomaly particles the game lacks. The rules are in
 `docs/notes/dynamic_anomalies.md`.
 
 ## What it does
@@ -55,8 +57,9 @@ rewritten, plus the anomaly particles the game lacks. The rules are in
     place. Under the 15 m rule only one of a place's anomalies lives at a time anyway.
   - Each place keeps three kinds: the places are drawn as often as before, each kind a third of
     the time (the release: a quarter).
-- **Stock anomalies out.** The release removed the always-on anomalies of the native maps: the
-  swamp, the school's fruit cloud and stalactite, the antenna's electric pairs, and so on.
+- **Stock anomalies out** (on the maps it builds). The release removed the always-on anomalies of the native maps: the
+  swamp, the school's fruit cloud and stalactite, the antenna's electric pairs, and so on; Cologne had
+  none. With London and Cologne only, the other maps keep theirs (their projects are not in the pack).
   - Every `generic_anomaly_core` is removed. So is every object only removed objects name, and
     London's 7 patch_14 places.
   - Anything another object still names stays. The script checks that nothing in the written
@@ -71,14 +74,14 @@ rewritten, plus the anomaly particles the game lacks. The rules are in
 
 ## Size
 
-The new projects hold up to 103,000 values (level_02, 86 places). London has 61,800 to 65,902.
+The new projects hold up to 65,902 values (London day_3; London has 61,800 to 65,902, Cologne 44,673 to 47,500).
 The most a 0.26g project is known to have loaded is London's 43,799 in patch_14. The
 format has no total limit (u64 offsets; u16 counts per table only), but a load of the big
 ones in a game is still to be seen.
 
 ## Commands
 
-The content ships as the pack `dynamic-anomalies@1` of `release/content.tsv`:
+The content ships as the pack `dynamic-anomalies@2` of `release/content.tsv`:
 `release/build-content` composes it over the base and makes the release's patch. Never pack
 the folder by hand. The pack's folder is made once into `$SKHID_PACKS_DIR`, over exactly what
 the manifest composes packs over: the stock db and its `base` rows' patches (12, 14, 17, 19
@@ -90,17 +93,17 @@ python3 -I srp-026g/scripts/dynamic-anomalies/build.py \
   --live <stock>/resources.db $(for n in 12 14 17 19 20 21 22 23 24; do echo --live $P/resources.db.patch_$n; done) \
   --release-natives $R/v028d0/out/game/resources.db \
   $(for f in $R/v031a2/out/game/resources.*.db; do echo --release-london $f; done) \
-  --out $SKHID_PACKS_DIR/dynamic-anomalies-1 --pack dynamic-anomalies@1
+  --out $SKHID_PACKS_DIR/dynamic-anomalies-2 --pack dynamic-anomalies@2
 release/build-content <revision> --out <folder>
 python3 -I srp-026g/scripts/dynamic-anomalies/test_bcw.py $P/resources.db.patch_14 $R/v031a2/out/game/resources.03.db
 ```
 
 The pack.json's sha256 must be the manifest row's (2026-10-22:
-`cd5731c544732529594e311058fba8a40baf5ad5126cbef1c3b9b422da0716f2`); a different one means
+`393f6768d121d881ae2466f40ed3d2afb204c544b556bac613b852413cf08e91`); a different one means
 the inputs changed: a new version and its row. Without `--pack`, `--out` gets the files at
 their game paths, for a look. The bots' map files: `mapdata-dump --patch` with the patch
 `release/build-content` made.
 
 `DBGRAB` names dbgrab when it is not at `tools/re-kit/common/dbgrab/target/release/dbgrab`.
-The pack (2026-10-22): 75 projects, 3,870 places, 11,610 timed cores, 5 particles, 80
-operations (75 replace a project).
+The pack (2026-10-22): 12 projects (Cologne 9, London 3), 342 places, 1,026 timed cores, 5
+particles, 17 operations (12 replace a project).

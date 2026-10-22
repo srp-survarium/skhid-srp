@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """The release's timed anomalies as 0.26g data (patch 42's maps): a patch
-folder with the client projects of level_01..level_09 rewritten and the
+folder with the client projects of level_08 (Cologne) and level_09 (London) rewritten and the
 anomaly particles they need. README.md has the rules and the commands.
 
     python build.py --live <resources.db> --live <resources.db.patch_N>... \\
         --release-natives <0.28d0 resources.db> \\
-        --release-london <0.31a2 resources.NN.db>... --out <folder> [--maps level_01,level_09] \\
+        --release-london <0.31a2 resources.NN.db>... --out <folder> [--maps level_08,level_09] \\
         [--pack <id>@<version>]
 
 --live: the game the players have, stock first, then the live patches in
@@ -292,7 +292,8 @@ def main():
     parser.add_argument("--release-natives", action="append", required=True)
     parser.add_argument("--release-london", action="append", required=True)
     parser.add_argument("--out", required=True)
-    parser.add_argument("--maps", default=",".join(f"level_0{i}" for i in range(1, 10)))
+    # The owner (2026-10-22): only London and Cologne; every other map keeps its static anomalies.
+    parser.add_argument("--maps", default="level_08,level_09")
     parser.add_argument("--pack", help="<id>@<version>: write a content pack (files/ and pack.json)")
     args = parser.parse_args()
     if args.pack and not re.fullmatch(r"[a-z0-9._-]+@[A-Za-z0-9._-]+", args.pack):
@@ -368,7 +369,7 @@ def main():
         ident, version = args.pack.split("@", 1)
         manifest = {"format_version": 1, "id": ident, "version": version, "target_build": "0.26g",
                     "description": "dynamic anomalies: the release's timed anomalies on every map (the client "
-                                   "projects of level_01 to level_09 and the particles they need, "
+                                   "projects of level_08 and level_09 and the particles they need, "
                                    "srp-026g/scripts/dynamic-anomalies; client patch 42)",
                     "operations": sorted(operations, key=lambda o: o["path"])}
         with open(os.path.join(args.out, "pack.json"), "w") as file:
