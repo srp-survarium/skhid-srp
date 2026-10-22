@@ -1285,8 +1285,11 @@ The old bytes' jumps all landed inside them; nothing else aims inside; no base r
   the base vtables back, 0xF1850, free), 1..6 the resource's, 7 `on_event(type, time, data)`
   `ret 0Ch` (a kill is type 1, `data = {killer, victim}`; 0 the match started), 8 / 9
   `entered` / `left(place, time)` `ret 8`, 10 register_animations, 11 `set_game_world_core(core)`,
-  12 the blackboard (core+188B0h, 0x2D58F0), 13 `on_match_ready(time)`, 14 finished, 15 / 16
-  `serialize(writer)` / `deserialize(reader)` `ret 4`, 17 `fill_match_hud_state(hud, ?)` `ret 8`
+  12 the blackboard (core+188B0h, 0x2D58F0), 13 `on_match_ready(time)`, 14 finished, 15
+  `serialize(writer)` `ret 4`, 16 `deserialize(reader, ?)` `ret 8` (the snapshot's rules loop in
+  0x2D2770, 0x2D2B42..0x2D2B5D: `push [esp+84h]` (its third argument), `push` the reader,
+  `call [vtable+40h]`, no clean-up; tdm 0x3163D0, timelimit 0x317FD0 and kd 0x323910 each `ret 8`
+  and none reads the second), 17 `fill_match_hud_state(hud, ?)` `ret 8`
   (tdm: +90h, +92h the tickets, +94h, +95h the alive counts), 18 `rule_completed(time)` `ret 4`
   (al), 19 the priority (0x8FE10: 3); then at +108h the link resolver's one slot (0x316540, `ret
   1Ch`). Base constructor 0x313900 (eax = this, push the type: 0 respawn, 1 gather, 2 timelimit, 3
@@ -1319,6 +1322,16 @@ The old bytes' jumps all landed inside them; nothing else aims inside; no base r
   `Invoke` 0x511600 (thiscall: name, result, args, count; `ret 10h`), a GFx value 18h bytes (+4 the
   type: 4 uint, 5 number; +8 the value). The world from the ui: [[ui+18h]+4D4Ch]+1F8h, its rules
   at +18824h (the minimap's 0x23AA21). `root.set_game_type` gets `mode.mode` (0x234D66).
+- **The first local test's crash** (PROVEN, 2026-10-22, the owner's two clients on map 184, both
+  at their first synchronization: `PRIV_INSTRUCTION` at 0x9FB814): the first build's slot 16 was
+  `deserialize(reader)` `ret 4`. The rules loop above left esp 4 bytes low; 0x2D2770's epilogue
+  (`pop edi/esi/ebp/ebx; add esp,68h; ret 0Ch`) then popped each register one slot off and returned
+  through the dword below its return address, a stale argument of 0x2D0B70's log call at 0x2D0F3D
+  (`push 0x9FB814`, the "net_sync" channel's name), whose first byte is `outsb`. The dump agrees:
+  esp 0x767F7754 is 0x2D0B70's frame minus 4, `[esp]` = edi = 8 (the loop's pushed dword), ebp
+  clobbered, the last real return address 0x27C0DE (`network_client::process_dynamic_match_info`).
+  Slot 16 takes the dword and pops it now; selftest check 53 compares every slot's `ret` with
+  tdm's, and `check_research_026g.py` runs the rule through the game's own loops.
 
 ## 4. Mode 3 batteries: not needed in 0.26g
 

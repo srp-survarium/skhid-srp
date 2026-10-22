@@ -430,7 +430,12 @@ THISCALL void rn_serialize(struct rn_rule *rule, u8 *writer) {
     rr_write(&rule->state, AT(buffer, 4, u8 *) + at);
 }
 
-THISCALL void rn_deserialize(struct rn_rule *rule, u8 *reader) {
+/* Slot 16 takes two arguments and pops both (`ret 8`): the snapshot's rules
+ * loop 0x2D2B42 pushes a dword of its own and the reader and does not clean
+ * up, as tdm's 0x3163D0, timelimit's 0x317FD0 and kd's 0x323910 expect. The
+ * dword is not read (none of the three reads it either). */
+THISCALL void rn_deserialize(struct rn_rule *rule, u8 *reader, u32 unused) {
+    (void)unused;
     u8 *at = AT(reader, 4, u8 *);
     u32 size = rr_serialized_size(&rule->state);
     if (!rr_read(&rule->state, &rule->params, at, size)) rr_reset(&rule->state, &rule->params);

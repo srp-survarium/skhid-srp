@@ -4308,3 +4308,9 @@ va	name	location	role	basis
 0x002375c0	survarium::game_world_ui::show_parametrized_message	entry ESP+4	game_world_ui	observed
 0x000725e0	vostok::math::create_rotation	EDI	float3 angles	observed
 0x000725e0	vostok::math::create_rotation	ESI	the matrix out	observed
+0x003163d0	survarium::tdm_rule_core::deserialize	entry ESP+8	a dword of the caller (game_world_core::deserialize's third argument), not read; popped (ret 8)	observed
+0x00317fd0	survarium::timelimit_rule_core::deserialize	entry ESP+8	a dword of the caller (game_world_core::deserialize's third argument), not read; popped (ret 8)	observed
+0x00323910	survarium::kd_stats_rule::deserialize	entry ESP+8	a dword of the caller (game_world_core::deserialize's third argument), not read; popped (ret 8)	observed
+0x002d2770	survarium::game_world_core::deserialize	entry ESP+4	the world core (EBP in the body)	observed
+0x002d2770	survarium::game_world_core::deserialize	entry ESP+8	the snapshot (EBX in the body): the rules' reader {start, cursor, end} from +0B7EE4h	observed
+0x002d2770	survarium::game_world_core::deserialize	entry ESP+12	a dword passed on to every rule's deserialize (slot 16, [vtable+40h]) as its second argument: 0x2D2B42 push [esp+84h], push &reader, call, no clean-up	observed

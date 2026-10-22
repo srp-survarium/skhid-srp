@@ -1825,7 +1825,7 @@ va	name	source	ret_cleanup	result
 0x00316090	survarium::tdm_rule_core::on_event	manual	12	
 0x00316590	survarium::tdm_rule_core::on_player_entered_match	manual	8	
 0x00316340	survarium::tdm_rule_core::serialize	manual	4	
-0x003163d0	survarium::tdm_rule_core::deserialize	manual	4	
+0x003163d0	survarium::tdm_rule_core::deserialize	manual	8	
 0x00316430	survarium::tdm_rule_core::fill_match_hud_state	manual	8	
 0x00316520	survarium::tdm_rule_core::rule_completed	manual	4	AL: completed
 0x00317f10	survarium::timelimit_rule_core::tick	manual	12	
@@ -1835,3 +1835,4 @@ va	name	source	ret_cleanup	result
 0x00511600	Scaleform::GFx::Movie::Invoke	manual	16	AL: invoked
 0x002375c0	survarium::game_world_ui::show_parametrized_message	manual	16	
 0x000725e0	vostok::math::create_rotation	manual	0	[ESI]: float4x4, rows Rx(-x) Ry(-y) Rz(-z) (v * M)
+0x002d2770	survarium::game_world_core::deserialize	manual	12	
