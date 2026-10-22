@@ -757,12 +757,8 @@ fn a_modification_is_changed_for_one_of_three() {
     // In the old one's place.
     assert_eq!(own_modifications(item), [rolled.choices[1], 2010]);
     assert_eq!(item.reroll.offer, None);
-    let message = lobby::permitted_modifier_chosen(
-        rifle,
-        2000,
-        chosen.new_modification,
-        [2640, 13, 0],
-    );
+    let message =
+        lobby::permitted_modifier_chosen(rifle, 2000, chosen.new_modification, [2640, 13, 0]);
     let mut expected = vec![0x83, 0x46, 0x08];
     expected.extend(rifle.to_le_bytes());
     expected.extend(2000_u32.to_le_bytes());

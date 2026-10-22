@@ -104,9 +104,7 @@ use survarium::v026g::golden;
 use survarium::v026g::item_params::item_params;
 use survarium::v026g::lobby::requests::{KEEP_OLD_MODIFICATION, RepairPayment};
 use survarium::v026g::lobby::{Crafted, FULL_CONDITION, Repaired, limits};
-use survarium::v026g::modifications::{
-    self, Bonuses, CraftOutcome, MAX_RANK, Modifications,
-};
+use survarium::v026g::modifications::{self, Bonuses, CraftOutcome, MAX_RANK, Modifications};
 use survarium::v026g::prices;
 use survarium::v026g::scopes::ScopeFits;
 
