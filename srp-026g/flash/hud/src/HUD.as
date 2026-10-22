@@ -4,6 +4,7 @@ package
    import flash.display.Bitmap;
    import flash.display.BitmapData;
    import flash.display.BlendMode;
+   import flash.display.DisplayObject;
    import flash.display.Graphics;
    import flash.display.MovieClip;
    import flash.display.Sprite;
@@ -2164,12 +2165,35 @@ package
             this.progress_indicator.team_2_score.maximum = goal;
          }
          this.researchUnits.update(units,ownTeam);
-         this.researchUnits.x = this.progress_indicator.x + this.progress_indicator.width / 2;
-         this.researchUnits.y = this.progress_indicator.y + this.progress_indicator.height + 22;
+         this.placeResearchUnits();
          this.minimap.setResearchUnits(units,ownTeam);
          this.tabMinimap.setResearchUnits(units,ownTeam);
       }
       
+      // The units centred under Team Deathmatch's bars and the timer: the
+      // bounds of those children in the HUD's units (the indicator's own
+      // width and height count its hidden parts, and its origin is its
+      // centre: the layout puts it at the stage's middle, offsetH = width / 2).
+      private function placeResearchUnits() : void
+      {
+         var bars:Rectangle = null;
+         var part:DisplayObject;
+         var parts:Array = [this.progress_indicator.team_1_score,this.progress_indicator.team_2_score,this.progress_indicator.match_time_2_tdm];
+         for each(part in parts)
+         {
+            if(part != null && part.visible)
+            {
+               bars = bars == null ? part.getBounds(this) : bars.union(part.getBounds(this));
+            }
+         }
+         if(bars == null)
+         {
+            bars = this.progress_indicator.getBounds(this);
+         }
+         this.researchUnits.x = Math.round(bars.x + bars.width / 2);
+         this.researchUnits.y = Math.round(bars.bottom + ResearchUnits.TOP);
+      }
+
       public function set_artifacts_progress(team:uint, value:uint) : void
       {
          this.progress_indicator.art_teams.team = team;
@@ -2351,6 +2375,10 @@ package
          this._profilePanel.x = int(this.stageWidth - 594) / 2;
          this._profilePanel.y = int(this.stageHeight - 120);
          this.layout.reflow();
+         if(this._gameType == this.GAME_MODE_RESEARCH)
+         {
+            this.placeResearchUnits();
+         }
       }
    }
 }

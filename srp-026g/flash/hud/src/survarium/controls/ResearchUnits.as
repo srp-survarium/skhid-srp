@@ -3,6 +3,7 @@ package survarium.controls
    import flash.display.Graphics;
    import flash.display.Shape;
    import flash.display.Sprite;
+   import flash.text.TextFieldAutoSize;
    import survarium.data.LocalizationData;
 
    // Research (mode 5): the research units under the teams' points. One circle
@@ -28,6 +29,9 @@ package survarium.controls
 
       protected static const SPACING:Number = 40;
 
+      // From the bottom of the bars to the units' centres (HUD.placeResearchUnits).
+      public static const TOP:Number = RADIUS + RING + 8;
+
       protected var _units:Array = [];
 
       protected var _caption:DefaultLabel3;
@@ -38,6 +42,9 @@ package survarium.controls
          mouseEnabled = false;
          mouseChildren = false;
          this._caption = new DefaultLabel3();
+         // As wide as its text: the symbol's field is a few letters wide
+         // ("Captu"); the longest text, German's, has 28 letters.
+         this._caption.autoSize = TextFieldAutoSize.CENTER;
          this._caption.y = RADIUS + RING + 6;
          this._caption.visible = false;
          addChild(this._caption);
@@ -169,7 +176,8 @@ package survarium.controls
          if(capturing)
          {
             this._caption.text = LocalizationData.getName("research_capturing");
-            this._caption.x = -this._caption.width / 2;
+            this._caption.validateNow();
+            this._caption.x = -Math.round(this._caption.width / 2);
          }
          this._caption.visible = capturing;
       }
