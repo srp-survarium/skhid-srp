@@ -629,8 +629,8 @@ fn a_modification_is_rerolled_and_chosen() {
         panic!("{:?}", decoded[0]);
     };
     assert_eq!(item_id, rifle);
-    // Six hours, less the moment the answer took.
-    assert!((6 * 3600 - 5..=6 * 3600).contains(&reroll_time));
+    // No wait before the next silver reroll (the owner's rule of 2026-10-22).
+    assert_eq!(reroll_time, 0);
     assert_eq!(
         decoded[1],
         Decoded::Money {
@@ -685,7 +685,8 @@ fn a_modification_is_rerolled_and_chosen() {
     );
     // The next change costs a tenth more.
     assert_eq!(rest[..2], [2640, 13]);
-    assert!(rest[2] > 6 * 3600 - 60);
+    // No wait (the owner's rule of 2026-10-22).
+    assert_eq!(rest[2], 0);
     assert_eq!(decoded.len(), 1);
     // The client changed its copy itself, as the account was.
     assert_same_items(&mut world, alice);
@@ -694,29 +695,14 @@ fn a_modification_is_rerolled_and_chosen() {
         [choices[2], 2010]
     );
 
-    // Silver again within the six hours: refused, the window refilled.
+    // Silver again at once: no wait (the owner's rule of 2026-10-22).
     world.ask(alice, ask::reroll(rifle, choices[2], false));
-    let decoded = world.take(alice);
-    assert_eq!(
-        denial(&decoded, 0x46).as_deref(),
-        Some("st_cannot_select_rerolled_modification")
-    );
-    assert!(matches!(
-        decoded.last(),
-        Some(Decoded::Permitted(Permitted::RerollWindow {
-            a: 2640,
-            b: 13,
-            ..
-        }))
-    ));
-    // Gold pays at any time.
-    world.ask(alice, ask::reroll(rifle, choices[2], true));
     let decoded = world.take(alice);
     assert!(matches!(
         decoded[0],
-        Decoded::Permitted(Permitted::RerollResult { .. })
+        Decoded::Permitted(Permitted::RerollResult { reroll_time: 0, .. })
     ));
-    assert_eq!(world.account(alice).premium_money, 1000 - 13);
+    assert_eq!(world.account(alice).generic_money, 100_000 - 2400 - 2640);
     // An item that is none.
     world.ask(alice, ask::open_reroll(999));
     assert_eq!(

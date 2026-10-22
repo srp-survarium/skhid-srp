@@ -46,10 +46,11 @@
 //!   three modifications and the player takes one
 //!   (`MessageRerollItem`: the window can not be closed before), or
 //!   [srp, the owner's rule of 2026-10-21] keeps the old one: the window's
-//!   "keep old" button (`docs/notes/reroll-keep-old.md`). Paid in
-//!   silver it can be done once in six hours
-//!   (`st_modifier_reroll_timer_description`; the window disables silver
-//!   while the item's `reroll_time` runs), in gold at any time. A damaged
+//!   "keep old" button (`docs/notes/reroll-keep-old.md`). [srp, the
+//!   owner's rule of 2026-10-22] In silver or gold, at any time: the
+//!   game's six hours between silver changes are gone, so the item's
+//!   `reroll_time` stays 0 (one left from before is cleared,
+//!   [`finish_repairs`]). A damaged
 //!   item can not be changed (`st_reroll_message_broken_item`). The prices
 //!   are `reroll.options`' by item level, [GUESS] times
 //!   `reroll_modificator_multiplicator` for each change made
@@ -104,7 +105,7 @@ use survarium::v026g::item_params::item_params;
 use survarium::v026g::lobby::requests::{KEEP_OLD_MODIFICATION, RepairPayment};
 use survarium::v026g::lobby::{Crafted, FULL_CONDITION, Repaired, limits};
 use survarium::v026g::modifications::{
-    self, Bonuses, CraftOutcome, MAX_RANK, Modifications, REROLL_WAIT_SECONDS,
+    self, Bonuses, CraftOutcome, MAX_RANK, Modifications,
 };
 use survarium::v026g::prices;
 use survarium::v026g::scopes::ScopeFits;
@@ -551,33 +552,31 @@ pub struct RerollWindow {
     pub offer: Option<[u32; 3]>,
 }
 
-fn window_of(item: &Item, now: u64) -> RerollWindow {
+fn window_of(item: &Item) -> RerollWindow {
     let reroll = &Modifications::shared().reroll;
     let level = item_level(item.dict_id);
-    let wait = seconds_left(item.reroll_time, now);
     RerollWindow {
         item_id: item.item_id,
         regular_cost: reroll.price(level, false, item.reroll.count),
         premium_cost: reroll.price(level, true, item.reroll.count),
-        changed: (item.reroll.modification != 0 || wait != 0)
-            .then_some((item.reroll.modification, wait)),
+        changed: (item.reroll.modification != 0).then_some((item.reroll.modification, 0)),
         offer: item.reroll.offer.map(|(_, choices)| choices),
     }
 }
 
 /// `46 06 <item>`: the reroll window was opened.
-pub fn reroll_window(account: &Account, item_id: u32, now: u64) -> Result<RerollWindow, ItemError> {
+pub fn reroll_window(account: &Account, item_id: u32) -> Result<RerollWindow, ItemError> {
     let item = account
         .item(item_id)
         .ok_or(ItemError::Reroll("no such item"))?;
-    Ok(window_of(item, now))
+    Ok(window_of(item))
 }
 
 /// What a reroll did (`83 46 07`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rerolled {
     pub choices: [u32; 3],
-    /// The item's `reroll_time`: the seconds until silver pays again.
+    /// The item's `reroll_time` for the client: always 0 (no wait).
     pub reroll_seconds: u32,
     /// What was taken: silver, gold. Both 0 for an offer made before and
     /// shown again.
@@ -601,7 +600,7 @@ pub fn reroll(
         // Paid for and not chosen yet: the same three.
         return Ok(Rerolled {
             choices,
-            reroll_seconds: seconds_left(item.reroll_time, now),
+            reroll_seconds: 0,
             paid: (0, 0),
         });
     }
@@ -622,9 +621,6 @@ pub fn reroll(
         return Err(ItemError::Reroll(
             "another modification is the one to change",
         ));
-    }
-    if !gold && seconds_left(item.reroll_time, now) != 0 {
-        return Err(ItemError::Reroll("silver pays once in six hours"));
     }
     let table = Modifications::shared();
     let price = table
@@ -656,12 +652,9 @@ pub fn reroll(
     item.reroll.modification = modification;
     item.reroll.count = item.reroll.count.saturating_add(1);
     item.reroll.offer = Some((modification, choices));
-    if !gold {
-        item.reroll_time = until(now, REROLL_WAIT_SECONDS);
-    }
     Ok(Rerolled {
         choices,
-        reroll_seconds: seconds_left(item.reroll_time, now),
+        reroll_seconds: 0,
         paid,
     })
 }
@@ -687,7 +680,6 @@ pub fn choose_modifier(
     item_id: u32,
     old_modification: u32,
     choice: u32,
-    now: u64,
 ) -> Result<Chosen, ItemError> {
     let item = account
         .item_mut(item_id)
@@ -707,7 +699,7 @@ pub fn choose_modifier(
         return Ok(Chosen {
             old_modification,
             new_modification: old_modification,
-            window: window_of(item, now),
+            window: window_of(item),
         });
     }
     let new_modification = *choices
@@ -721,7 +713,7 @@ pub fn choose_modifier(
     held.0 = new_modification;
     item.reroll.modification = new_modification;
     item.reroll.offer = None;
-    let window = window_of(item, now);
+    let window = window_of(item);
     bump_kits_wearing(account, item_id);
     Ok(Chosen {
         old_modification,
@@ -975,9 +967,8 @@ pub fn finish_repairs(account: &mut Account, now: u64) -> Vec<u32> {
             item.repair_time = 0;
             done.push(item.item_id);
         }
-        if item.reroll_time != 0 && u64::from(item.reroll_time) <= now {
-            item.reroll_time = 0;
-        }
+        // No wait between rerolls any more: one left from before goes.
+        item.reroll_time = 0;
     }
     done
 }
