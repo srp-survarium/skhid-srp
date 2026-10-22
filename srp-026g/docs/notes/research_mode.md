@@ -10,7 +10,7 @@ Code: exe patch 53 (`client-patches/research_rule_026g.c` the rules, `research_n
 the game's side, `research_026g.asm` the hooks; README "53."); the hud movie
 (`flash/hud`: `HUD.research_update`, `survarium.controls.ResearchUnits`,
 `ResearchMinimapPoint`, `Minimap.setResearchUnits`); the content (`scripts/research-mode`,
-pack `research-mode@2`); srp (`maps::mode::RESEARCH`, `match_msgs::rules::Research`,
+pack `research-mode@3`); srp (`maps::mode::RESEARCH`, `match_msgs::rules::Research`,
 rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
 
 ## Rules (0.27d's)
@@ -113,7 +113,7 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
 ## Making the pack
 
 - `scripts/research-mode/make_pack.py --stock <folder> --donor <folder> --london <folder> --out
-  <SKHID_PACKS_DIR>/research-mode-2`: the inputs at their game paths or as `dbgrab ... get` writes
+  <SKHID_PACKS_DIR>/research-mode-3`: the inputs at their game paths or as `dbgrab ... get` writes
   them, each checked against `inputs.sha256` (0.26g's 25 `<w>_4` projects and London's day_4
   config from the stock db and patch 14; 0.27d0's `_4`/`_5` projects, `_5` configs, six
   localizations and the four models; 0.31a2's London `day_4`/`day_5`), and `stock.list` (the
@@ -127,6 +127,22 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   build-content 30` over revision 29 (one patch, every file as the manifest makes it, 109
   projects); map 184's project as players get it has 9,475 float3, 199 float4 and 354 float2
   values and no vector as an indexed table; every unit and spawn of the 25 maps on its minimap.
+
+- **Units against the floors** (a report, not a gate): `mapdata-zones --db <resources.db> --patch
+  <each offered patch> --patch <the new patch>` stands a player (patch 53's test) on every ground
+  face under each unit's shapes and groups where he counts into floors. A unit taller than its
+  floor is 0.27d's design (the owner, 2026-10-22: "it is definitely fine for capture bounding box to
+  not just be floor"); a floor counts only where the capsule standing on it overlaps a shape, as
+  in 0.27d. Pack 3 with patch 53's fixed test (2026-10-22), a floor above the unit's own inside
+  its shapes:
+  - level_08 (day, evening, pre-rain), unit C: faces at 37.50 m (64 samples, a small surface)
+    inside its box (35.84 m its floor, top 39.18 m);
+  - London (level_09 day), unit B: faces at 3.54-4.77 m (the level unit A stands on) inside B's
+    sphere (radius 6.5 m, top 7.08 m), 0.31a2's units as they are.
+
+  School (level_02), whose floor above A and C (20.25-20.5 m, the boxes' tops 20.04 m) took the
+  units in the first build, has none: the first build took a player's transform for his capsule's
+  centre (client_patch.md §3.50, "A player's transform is his feet").
 
 ## The exe (patch 53)
 
@@ -199,7 +215,7 @@ Left out, and why:
 - Exe: patch 53. Simulation change for mode 5 only. Its code is in a new section, `.srpx`, the
   section of the later patches' code (below).
   Simulation change: a match of mode 5 needs it; modes 2-4 do not change.
-- Content: pack `research-mode@2` and the hud movie (content.tsv); the server data with it
+- Content: pack `research-mode@3` and the hud movie (content.tsv); the server data with it
   makes the 25 maps playable.
 - srp: mode 5 in the maps, rooms, results and pay; a server that offers Research asks for the
   revision with patch 53.
