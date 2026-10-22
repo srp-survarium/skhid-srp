@@ -2222,6 +2222,8 @@ package
          this.handleFrontInventory();
          this.inventory_list.lockControls(true);
          this.backBlack.alpha = 0.5;
+         // the item being upgraded is in the window's main slot: not listed (craft-menu.md)
+         this.inventory_list.hideCraftSlotted([itemData.itemId]);
          this.inventory_list.filterItem(itemData.dictId);
          this.inventory_list.selectItem(itemData.itemId);
       }

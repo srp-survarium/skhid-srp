@@ -55,3 +55,15 @@ then pop up doesn't show up").
 - **Elsewhere** (the window closed): compared with the equipped item, as before.
 - Code: `MessageCraftItem.compareWith`, `LobbyMenu.showItemHint` (and `updateHintItem`, which leaves
   the compare card alone while the window is open).
+
+## Items in the slots
+
+The owner's rule: 2026-10-22 ("once you move an item to donor/receiver, it should disappear from
+the inventory ... it still is in inventory, it is just a visual thing ... to know what is moved and
+what isn't").
+
+- **While the craft window is open:** its list leaves out the item in the main slot and the one in
+  the donor slot. Taken out of a slot, an item is listed again.
+- **Only the list:** the items stay owned; nothing is sent to the server.
+- **Closed:** the inventory lists every item again, as before.
+- Code: `MessageCraftItem.hideSlotted`, `InventoryList.hideCraftSlotted`, `LobbyMenu.openCraftWindow`.

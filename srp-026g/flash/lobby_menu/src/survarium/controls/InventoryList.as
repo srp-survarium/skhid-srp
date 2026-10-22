@@ -145,6 +145,10 @@ package survarium.controls
       protected var _filterDictId:int = -1;
       
       protected var _filterselectedId:int = -1;
+
+      // The craft window's items in its slots (craft-menu.md, "Items in the slots"): left out of
+      // its list, still owned.
+      private var _craftSlotted:Array = [];
       
       // The search box (docs/notes/item-search.md), always there under the grid: the grid is
       // SEARCH_ROW shorter (the fade at its foot moves up with it), and the box sits in that row,
@@ -2350,6 +2354,16 @@ package survarium.controls
          this.applySearch();
       }
       
+      // The craft window's slots hold these items: its list leaves them out.
+      public function hideCraftSlotted(itemIds:Array) : void
+      {
+         _craftSlotted = itemIds;
+         if(this._filterDictId != -1)
+         {
+            this.applySearch();
+         }
+      }
+
       // The list again with the search's words (as filterItem asks it), the item chosen kept chosen
       // while it is still listed, from the top.
       private function applySearch() : void
@@ -3033,6 +3047,10 @@ package survarium.controls
       public function filterItem(itemDictId:int) : void
       {
          _filterDictId = itemDictId;
+         if(itemDictId == -1)
+         {
+            _craftSlotted = [];
+         }
          var supper:Array = optionControl.getSelectedIndexes();
          var filterOptions:Object = optionControl.getFilterOptions();
          var seller:int = sellersTabPage.selectedIndex != -1 ? (sellersTabPage.dataProvider[sellersTabPage.selectedIndex].faction_id) : Faction.NONE;
@@ -3192,7 +3210,7 @@ package survarium.controls
                {
                   itemData = this._inventoryItems[i];
                   // The craft's donors: the server's (a golden item also takes its plain item).
-                  isFiltered = this._filterDictId == -1 ? (checkBaseOptions(itemData)) : ItemFactory.isCraftDonor(itemData.dictId,this._filterDictId);
+                  isFiltered = this._filterDictId == -1 ? (checkBaseOptions(itemData)) : ItemFactory.isCraftDonor(itemData.dictId,this._filterDictId) && this._craftSlotted.indexOf(itemData.itemId) == -1;
                   if(isFiltered)
                   {
                      relativeItem = shopDict[itemData.dictId];

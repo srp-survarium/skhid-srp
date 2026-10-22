@@ -157,6 +157,7 @@ package survarium.messages
             {
                Message.showMessage("ok",LocalizationData.getName("craft_message_equipped_item"));
             }
+            this.hideSlotted();
          }
       }
       
@@ -287,6 +288,7 @@ package survarium.messages
                this.dragItemSlot2.data = null;
             }
          }
+         this.hideSlotted();
          this.updateCraftChance();
          this.checkAcceptButton();
       }
@@ -630,6 +632,26 @@ package survarium.messages
          upgraded.itemId = main.itemId;
          upgraded.upgrades = main.upgrades;
          return upgraded;
+      }
+
+      // The list leaves out the items in the slots, so it shows what is moved (still owned).
+      private function hideSlotted() : void
+      {
+         var list:InventoryList = parent != null ? parent["inventory_list"] as InventoryList : null;
+         if(list == null)
+         {
+            return;
+         }
+         var ids:Array = [];
+         if(this.dragItemSlot1.data)
+         {
+            ids.push(this.dragItemSlot1.data.itemId);
+         }
+         if(this.dragItemSlot2.data)
+         {
+            ids.push(this.dragItemSlot2.data.itemId);
+         }
+         list.hideCraftSlotted(ids);
       }
 
       // The item being upgraded or the donor.
