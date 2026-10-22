@@ -1,5 +1,5 @@
 {
- "_about": "The lobby without the New Year decoration, its workbench lit by the lamp above it (2026-10-22, the owner: \"can you remove the christmas tree and gifts from the lobby and make the light above crafting table stronger by just making the close by lampe stronger, (same yellow light), not by just adding a new fake white light\", then \"and christmas sounds\"; after testing the first version, which raised the ceiling lamp: \"the lamp above the table is still not bright\"). projects/lobby_scene/day/client_project, the stock file (lobby-bench-light-1, the white-looking fill light on the floor under the bench, is withdrawn: its file and manifest row are gone). Removed (remove_entry, matched by name and position): the tree in the corner by the door (flora/elka_green_05 at (-2.043, 0.561, 4.355) in a chemical barrel at (-2.035, -0.003, 4.409)), its ornaments (fx/stars, the new_year_stars garland; 4 Zarya grenades, 2 RGO grenades, 4 artefact coils), the gifts under it (2 vodka bottles, a toy Niva, a trap, a givokost artefact): render_visuals[0..17] and their 26 collision_objects[0..25]; the warm glow above its top (client_objects[41], ambient_light(23), (-2.092, 3.294, 4.439)); the Christmas sound (client_objects[66], sounds/new_year, scapes/lobby/new_year: christmas_sounds_01..04). Added (add_entry): the lamp above the workbench (the electric1 model's bare bulb at (4.82, 3.23, 2.92), the lamp_bzz sound) had no light of its own; point_light(7) is a copy of the ceiling lamp's point_light (client_objects[59], the same bulb, its light 0.16 m under the bulb) put after it, 0.16 m under this bulb at (4.81, 3.02, 2.91), the colour (1, 0.824, 0.702) and every other field the ceiling lamp's, intensity 3.28 -> 3, range 8 -> 5 m (an int, as the original's): the weapon at (4.25, 1.30, 3.05) is 1.81 m from it. It is behind the weapon seen from the camera (the owner, of the second version: \"almost amazing, one small problem is that light is behind the weapon, which drops shadows on it when looking, we can fix that by adding a second lamp + light source above the artifacts list its textures says таблица артефактов, there can be the same lamp going from the same wire original one did\"; \"i specifically chose that location, because wire is above the artefact table\"; of the lit lamp_on first used there: \"spot is exact, but the lamp used not, it is also very bright, it should be the same lamp as above the table with wire\"): a second bulb, props/light/lamp (the bare bulb in its socket the electric1 bulbs are, unlit, at scale 0.9: theirs is 0.19 m long, radius 0.05; the model's 0.21 m, 0.056; render_visuals, the entry of the scene's lamp_on at (-2.563, 3.759, 2.548) copied with its model and scale changed), hangs from the electric1 model's wire where it runs over the poster props/signboard/posters_014 (the 'таблица артефактов' strip of posters_01, x 3.12..3.68, y 1.88..3.55 on the back wall z 4.60): its top at (3.40, 3.475, 4.225), the wire's bottom above the poster's middle; point_light(8), the same copy, under it at (3.40, 3.10, 4.225), intensity 3, range 5 m, as the bench bulb's, 2.32 m from the weapon on the camera's side (lower x); sounds/lamp_bzz copied at the bulb (3.40, 3.37, 4.225). Values to tune. add_entry runs before remove_entry: the lights are client_objects[60] and [61] while the edits run, [59] and [60] in the result. Rendering and sound only.",
+ "_about": "The lobby without the New Year decoration, its workbench lit by the lamp above it (2026-10-22, the owner: \"can you remove the christmas tree and gifts from the lobby and make the light above crafting table stronger by just making the close by lampe stronger, (same yellow light), not by just adding a new fake white light\", then \"and christmas sounds\"; after testing the first version, which raised the ceiling lamp: \"the lamp above the table is still not bright\"). projects/lobby_scene/day/client_project, the stock file (lobby-bench-light-1, the white-looking fill light on the floor under the bench, is withdrawn: its file and manifest row are gone). Removed (remove_entry, matched by name and position): the tree in the corner by the door (flora/elka_green_05 at (-2.043, 0.561, 4.355) in a chemical barrel at (-2.035, -0.003, 4.409)), its ornaments (fx/stars, the new_year_stars garland; 4 Zarya grenades, 2 RGO grenades, 4 artefact coils), the gifts under it (2 vodka bottles, a toy Niva, a trap, a givokost artefact): render_visuals[0..17] and their 26 collision_objects[0..25]; the warm glow above its top (client_objects[41], ambient_light(23), (-2.092, 3.294, 4.439)); the Christmas sound (client_objects[66], sounds/new_year, scapes/lobby/new_year: christmas_sounds_01..04). Added (add_entry): the lamp above the workbench (the electric1 model's bare bulb at (4.82, 3.23, 2.92), the lamp_bzz sound) had no light of its own; point_light(7) is a copy of the ceiling lamp's point_light (client_objects[59], the same bulb, its light 0.16 m under the bulb) put after it, 0.16 m under this bulb at (4.81, 3.02, 2.91), the colour (1, 0.824, 0.702) and every other field the ceiling lamp's, intensity 3.28 -> 3, range 8 -> 5 m (an int, as the original's): the weapon at (4.25, 1.30, 3.05) is 1.81 m from it. It is behind the weapon seen from the camera (the owner, of the second version: \"almost amazing, one small problem is that light is behind the weapon, which drops shadows on it when looking, we can fix that by adding a second lamp + light source above the artifacts list its textures says таблица артефактов, there can be the same lamp going from the same wire original one did\"; \"i specifically chose that location, because wire is above the artefact table\"; of the lit lamp_on first used there: \"spot is exact, but the lamp used not, it is also very bright, it should be the same lamp as above the table with wire\"; of the straight-hanging plain bulb: \"see how lamp on the right has wire ... and is at an angle\"): a second lamp made as the bench one: the bench bulb (electric1) hangs from the main wire on a drop wire of its own, 0.26 m from the wire's centre (5.096, 3.515, 2.921) to the socket's top (4.920, 3.320, 2.919), towards the room (-x), and its axis is tilted 50.7 degrees from the vertical towards the room. Over the poster props/signboard/posters_014 (the 'таблица артефактов' strip of posters_01, x 3.12..3.68 on the back wall z 4.60) the electric1 wire's centre is at (3.40, 3.505, 4.225): wire_set(2), a copy of the scene's wire_set (the plafond's cable) with 7 points (5 fragments, as the v0.11e maps' short wires) along the bench drop turned to the back wall's room side (-z), width 0.02 (the thinnest of the game's wires), from there to (3.40, 3.310, 4.049); props/light/lamp at scale 0.9 (the bench bulb's shape and size, the plain material; render_visuals, the lamp_on entry copied) with its top there and rotation x -0.885 (the scene's angles are the negative of the right-handed ones: posters_014 faces -z at rotation 0, military_04 the room (-x) at y -1.571; so its axis goes to (0, -0.634, -0.774), 50.7 degrees towards -z), its tip at (3.40, 3.191, 3.903); point_light(8), the same copy as point_light(7), just under the tip at (3.40, 3.01, 3.90), intensity 3, range 5 m, 2.09 m from the weapon on the camera's side (lower x); sounds/lamp_bzz copied at the bulb (3.40, 3.25, 3.98). Values to tune. add_entry runs before remove_entry: the lights are client_objects[60] and [61] while the edits run, [59] and [60] in the result. Rendering and sound only.",
  "add_entry": [
   {
    "files": "projects/lobby_scene/day/client_project",
@@ -30,7 +30,7 @@
    "values": {
     "name": "point_light(8)",
     "full_name": "environment_and_lights/light/point_light(8)",
-    "position": [3.4, 3.1, 4.225],
+    "position": [3.4, 3.01, 3.9],
     "intensity": 3.0,
     "range": 5
    }
@@ -47,7 +47,35 @@
    "values": {
     "name": "lamp_bzz(2)",
     "full_name": "sounds/lamp_bzz(2)",
-    "position": [3.4, 3.37, 4.225]
+    "position": [3.4, 3.25, 3.98]
+   }
+  },
+  {
+   "files": "projects/lobby_scene/day/client_project",
+   "list": "client_objects",
+   "after": {
+    "full_name": "environment_and_lights/light/wire_set"
+   },
+   "like": {
+    "full_name": "environment_and_lights/light/wire_set"
+   },
+   "values": {
+    "name": "wire_set(2)",
+    "full_name": "environment_and_lights/light/wire_set(2)",
+    "position": [3.4, 3.505, 4.225],
+    "points": [
+     [0.0, 0.0, 0.0],
+     [0.0, -0.034, -0.027],
+     [0.0, -0.069, -0.054],
+     [0.0, -0.102, -0.083],
+     [0.0, -0.133, -0.114],
+     [0.0, -0.164, -0.145],
+     [0.0, -0.195, -0.176]
+    ],
+    "points_count": 7,
+    "fragments_count": 5,
+    "offset1": [0.0, -0.195, -0.176],
+    "wire_width": 0.02
    }
   },
   {
@@ -64,7 +92,8 @@
    "values": {
     "lib_name": "props/light/lamp",
     "visual_name": "props/light/lamp",
-    "position": [3.4, 3.475, 4.225],
+    "position": [3.4, 3.31, 4.049],
+    "rotation": [-0.885, 0.0, 0.0],
     "scale": [0.9, 0.9, 0.9]
    }
   }

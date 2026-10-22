@@ -34,7 +34,8 @@ Edits (edits.json):
                     a new entry of the indexed table `list` (a lobby card's `ui_desc/props_list`, the
                     card lines' `ui_properties`) after the entry whose keys match `after`, made like
                     the entry matching `like` with `values` set; a value "{a/b}" is that number of
-                    the same file, a list of numbers a vector (a position); files without `only_if`,
+                    the same file, a list of numbers a vector (a position), a list of vectors an
+                    indexed table of vectors (a wire's points) made anew; files without `only_if`,
                     the table or those entries are left alone
   "add_key":        [{"file", "table", "key", "text"}] a new text of a localization table
   "add_value":      [{"files" (a list of game paths), "table" ("" the root), "key", "value"}]
@@ -300,7 +301,17 @@ def add_entry(buf, path, after, like, values):
         name = name_at(buf, i).decode()
         if name in values:
             v = filled(buf, values[name])
-            if t > T_STR:
+            if t == T_INDEXED:
+                items = children(buf, c)
+                if not items or not isinstance(v, list) or not all(isinstance(x, list) for x in v):
+                    raise ValueError('%s: %s takes a list of vectors' % (path, name))
+                _, ii, icrc, it, icnt = rec(buf, items[0])
+                if it <= T_STR or any(len(x) != it - 4 for x in v):
+                    raise ValueError('%s: %s holds vectors of %d numbers' % (path, name, it - 4))
+                d = append_array(buf, [REC.pack(append(buf, struct.pack('<%df' % len(x), *x)), ii, icrc, it, icnt)
+                                       for x in v])
+                cnt = len(v)
+            elif t > T_STR:
                 if not isinstance(v, list) or len(v) != t - 4:
                     raise ValueError('%s: %s takes %d numbers' % (path, name, t - 4))
                 d = append(buf, struct.pack('<%df' % len(v), *v))
@@ -626,6 +637,7 @@ def main():
             lst = '/' + e['list']
             shifts.setdefault(p, []).append((lst, at))
             allowed[p] = {shifted(q, lst, at) for q in allowed.get(p, ())}
+            added[p] = [shifted(q, lst, at) for q in added.get(p, ())]
             added.setdefault(p, []).append('%s[%d]' % (lst, at))
             grown.setdefault(p, {}).setdefault(lst, 0)
             grown[p][lst] += 1
