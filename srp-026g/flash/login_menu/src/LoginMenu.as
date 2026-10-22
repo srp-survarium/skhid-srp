@@ -2,11 +2,13 @@ package
 {
    import com.greensock.TweenLite;
    import flash.display.Bitmap;
+   import flash.display.Graphics;
    import flash.display.MovieClip;
    import flash.display.Sprite;
    import flash.events.Event;
    import flash.events.KeyboardEvent;
    import flash.external.ExternalInterface;
+   import flash.geom.Rectangle;
    import flash.text.TextField;
    import flash.text.TextFormat;
    import flash.ui.Keyboard;
@@ -131,6 +133,7 @@ package
          var spritePass:Sprite = this.panelContainer.spritePass;
          loadingIndicator = this.panelContainer.loadingIndicator;
          spriteMail.mouseEnabled = spritePass.mouseEnabled = false;
+         this.drawPlayerIcon(spriteMail);
          this.loadingIndicator.gotoAndStop(1);
          var backContainer:MovieClip = new MovieClip();
          addChild(backContainer);
@@ -209,6 +212,35 @@ package
          var clearPass:Function;
          var selectAll:Function;
 
+      }
+      
+      // The login field takes a nickname (srp-026g/docs/notes/names.md): a
+      // player's head and shoulders where the e-mail's envelope was, in its
+      // place and size, white as it was.
+      private function drawPlayerIcon(icon:Sprite) : void
+      {
+         var bounds:Rectangle = icon.getBounds(icon);
+         var i:int = 0;
+         while(i < icon.numChildren)
+         {
+            icon.getChildAt(i).visible = false;
+            i++;
+         }
+         var middle:Number = bounds.x + bounds.width / 2;
+         var radius:Number = bounds.height / 4;
+         var shoulders:Number = bounds.y + radius * 2 + bounds.height / 12;
+         var halfWidth:Number = bounds.height * 0.45;
+         var bottom:Number = bounds.y + bounds.height;
+         var g:Graphics = icon.graphics;
+         g.beginFill(16777215);
+         g.drawCircle(middle,bounds.y + radius,radius);
+         g.endFill();
+         g.beginFill(16777215);
+         g.moveTo(middle - halfWidth,bottom);
+         g.curveTo(middle - halfWidth,shoulders,middle,shoulders);
+         g.curveTo(middle + halfWidth,shoulders,middle + halfWidth,bottom);
+         g.lineTo(middle - halfWidth,bottom);
+         g.endFill();
       }
       
       private function onLocal(value:String) : void

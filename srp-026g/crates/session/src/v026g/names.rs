@@ -28,7 +28,7 @@
 //! Either way the name is then one no other account has ([`unique`]).
 
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::lobby::{cut, limits};
+use survarium::v026g::lobby::{NameRefusal, cut, limits};
 
 use super::account::{Account, cap_name};
 use super::premium::{RENAME_VOUCHER, Settings};
@@ -48,6 +48,34 @@ pub fn base_char(c: char) -> bool {
 /// owner's rule).
 pub fn name_char(c: char) -> bool {
     base_char(c) || "-_+".contains(c)
+}
+
+/// What is wrong with a name a client asks about (`49 03`, `49 08`,
+/// `49 09`), in the client's own reasons, and with a new account's login,
+/// which is its name ([`crate::SessionStore::sign_in_with_digest_from`]).
+/// [choice] The original server's rules are not known; these are the ones
+/// srp can keep: three characters or more, no blanks, the game's own
+/// characters ([`name_char`]: no markup for other players' chat, no `@`),
+/// and within the 63 bytes the client's buffers hold.
+pub fn name_refusal(name: &str, nickname: bool) -> Option<NameRefusal> {
+    if name.chars().count() < 3 {
+        return Some(NameRefusal::Short);
+    }
+    if name.chars().any(char::is_whitespace) {
+        return Some(NameRefusal::Space);
+    }
+    if !name.chars().all(name_char) {
+        return Some(NameRefusal::WrongSymbol);
+    }
+    if name.len() > limits::NAME {
+        // A clan check has no pattern reason.
+        return Some(if nickname {
+            NameRefusal::Pattern
+        } else {
+            NameRefusal::WrongSymbol
+        });
+    }
+    None
 }
 
 /// What no name may show, however old: markup (`<`, `>`, `&`, `"`), the

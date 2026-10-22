@@ -207,6 +207,7 @@ Dispatch in `on_sign_in_answer_received` 0x37FB10 is on byte 0:
 | `USER_BANNED` | 0x11 → **one of 0x12..0x1F**. 0x11 now shows a plain connection error. Use 0x1E (cheating) or 0x1C (administrator); 0x1B is incorrect_info (checked against the tables 0x21bd04 and 0x21f2a4: code N shows status N − 6). |
 | "already online" | 0x13 → **0x21** |
 | invalid version | 0x14 → **0x22** |
+| `NICKNAME_REFUSED` (a refused new nickname, `names.md`) | **0x23**: status 7, `st_login_menu_status_user_not_confirmed`, whose text the edit list `login-nickname-1.json` makes the nickname's rules (the stock text asks to verify an e-mail; srp sends 0x23 for nothing else) |
 
 ### 4.6 Sign-out: no network traffic
 

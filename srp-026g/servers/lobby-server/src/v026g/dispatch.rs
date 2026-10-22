@@ -16,44 +16,19 @@ use std::net::SocketAddr;
 use std::time::Instant;
 
 use session::LockExt;
-use session::v026g::{names, quests, rules, tutorial, wire};
+use session::v026g::{quests, rules, tutorial, wire};
 use survarium::v026g::lobby::requests::{ClientMessage, id};
-use survarium::v026g::lobby::{self, NameRefusal, Ranked, important};
+use survarium::v026g::lobby::{self, Ranked, important};
 
 use super::core::{Core, Who};
+/// The name rules, in the client's reasons: a rename's and a new login's.
+pub(super) use session::v026g::names::name_refusal;
 
 /// The texts of the refusals the rules do not name themselves.
 mod text {
     pub const DROP_CARD: &str = "st_cannot_use_drop_card";
     pub const RENAME: &str = "st_change_name_error";
     pub const COMMENT: &str = "st_error_during_storing_user_comment";
-}
-
-/// What is wrong with a name a client asks about (`49 03`, `49 08`,
-/// `49 09`), in the client's own reasons. [choice] The original server's
-/// rules are not known; these are the ones srp can keep: three characters
-/// or more, no blanks, the game's own characters ([`names::name_char`]: no
-/// markup for other players' chat, no `@`), and within the 63 bytes the
-/// client's buffers hold.
-pub(super) fn name_refusal(name: &str, nickname: bool) -> Option<NameRefusal> {
-    if name.chars().count() < 3 {
-        return Some(NameRefusal::Short);
-    }
-    if name.chars().any(char::is_whitespace) {
-        return Some(NameRefusal::Space);
-    }
-    if !name.chars().all(names::name_char) {
-        return Some(NameRefusal::WrongSymbol);
-    }
-    if name.len() > lobby::limits::NAME {
-        // A clan check has no pattern reason.
-        return Some(if nickname {
-            NameRefusal::Pattern
-        } else {
-            NameRefusal::WrongSymbol
-        });
-    }
-    None
 }
 
 impl Core<'_> {
@@ -686,6 +661,7 @@ impl Core<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use survarium::v026g::lobby::NameRefusal;
 
     #[test]
     fn a_name_is_checked_by_the_clients_reasons() {

@@ -3181,8 +3181,10 @@ fn a_nickname_is_checked_and_changed() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
+    let stalker = world.connect("Сталкер");
     world.take(alice);
     world.take(bob);
+    world.take(stalker);
     let check = |world: &mut World, name: &str| {
         world.ask(alice, request::profile_text(3, name));
         match world.take(alice).remove(0) {
@@ -3195,6 +3197,8 @@ fn a_nickname_is_checked_and_changed() {
     assert_eq!(check(&mut world, "Alice"), None);
     assert_eq!(check(&mut world, "Alisa"), None);
     assert_eq!(check(&mut world, "A B"), Some(NameRefusal::Space));
+    // Cyrillic case too: a 0.26g sign-in by the name finds one account.
+    assert_eq!(check(&mut world, "СТАЛКЕР"), Some(NameRefusal::Taken));
 
     let rename = |name: &str, voucher: u32| {
         let (id, mut body) = request::profile_text(4, name);

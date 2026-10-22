@@ -1,12 +1,16 @@
-# Account names and clan abbreviations: their characters
+# Account names and clan abbreviations: their characters; sign-in by nickname
 
 The rules the code and the tests follow. Code: `session::v026g::names` (`base_char`,
-`name_char`, `shown_name`, `made_safe`, `unique`, `same_name`), `session` `lib.rs`
-(`SessionStore::find_or_create`, `name_taken`, `make_names_safe` on loading),
-`v026g::Accounts::take_names` (srp's start), `lobby-server` `dispatch.rs::name_refusal` and
-`shop.rs::nickname_refusal`, `session::v026g::clans::name_fault`. Why: the movies put a
-player's name and clan abbreviation into the HTML of other players' chat unescaped (only the
-line's text is: `styledChar`); see `relay_trust.md` section 4 (gap 6).
+`name_char`, `name_refusal`, `shown_name`, `made_safe`, `unique`, `same_name`), `session`
+`lib.rs` (`SessionStore::authenticate`, `find_or_create`, `name_taken`, `login_of_name`,
+`account_id_signing_in_as`, `make_names_safe` on loading), `v026g::Accounts::take_names`
+(srp's start), `lobby-server` `shop.rs::nickname_refusal`, `login-server` `v026g.rs`
+(`NICKNAME_REFUSED`), `session::v026g::clans::name_fault`, the edit list
+`scripts/content-edit/login-nickname-1.json` and the login movie's `LoginMenu.as`
+(`drawPlayerIcon`). Why: the movies put a player's name and clan abbreviation into the HTML of
+other players' chat unescaped (only the line's text is: `styledChar`); see `relay_trust.md`
+section 4 (gap 6). Sign-in by nickname: the owner, 2026-10-22, "in login menu, it should no
+longer say email and instead say nickname".
 
 - **Where a name is shown:** the lobby chat (`LobbyChat.as::get_styled_text`: `"[" + abbr +
   "] "` and `<a href='event:name:<name>: '><name>: </a>`), the match chat (`GameChat.as`),
@@ -24,16 +28,51 @@ line's text is: `styledChar`); see `relay_trust.md` section 4 (gap 6).
   in the rename window. The player's own name, case aside, passes these rules (one saved
   before them, with a `.` or a blank, is its to keep); it is still `Taken` if another account
   has it.
-- **A new account (first sign-in):** the login may hold anything the login server takes (as
-  before: no control characters). The name it is shown by is the login's part before its first
-  `@` (as before), with every character a chosen name may not have made `_`: `john.doe@x`
-  shows as `john_doe`. Nothing is refused, so no sign-up fails over it.
+- **The login screen** (edit list `login-nickname-1.json`, the six localization tables; the
+  login movie):
+  - the login field says the game's own word for a player's name, the rename window's
+    (`st_change_name_label`): Nickname, Name, Imię, Имя, Ім'я (`st_login_default_text`, and
+    `st_login_str`), not E-mail;
+  - its envelope icon (`SpriteMail`) is hidden and a player's head and shoulders drawn in its
+    place (`LoginMenu.as::drawPlayerIcon`);
+  - "Invalid e-mail or password" says nickname (`..._invalid_user_or_password`, 0x0A);
+  - the status of 0x23 (`..._user_not_confirmed`, "verify your e-mail", which srp never sent)
+    says a new nickname's rules: 3 or more letters, digits or `- _ +`, not another player's.
+  - The site's sign-in line says the same (`web-server` `lib.rs`).
+- **A new account (first 0.26g sign-in):** the login typed is the nickname, and the name it is
+  shown by, as typed (case kept; the login is kept in lower case, as every login).
+  - It takes a chosen name's rules (`name_refusal`, above: no `@`, no `.`, no blank, 3 or more
+    characters, 63 bytes).
+  - It is no account's name or login, case aside, Cyrillic's too (`name_taken`). A name or a
+    login one account has is that account's sign-in (below), so a new account is refused for
+    it only when several accounts have it as their name (saved before names were unique).
+  - Refused: 0x23 (`NICKNAME_REFUSED`), the rules' text above. Nothing is made, nothing counts
+    as a wrong password. The checks come after "registration closed", before the address's
+    registration limit and the password's hash.
+  - The 0.21d login server and srp's own accounts (tests, bots: `sign_in`, `sign_in_from`,
+    `get_or_create_account`) keep the rule below.
+- **Signing in (0.26g):** a user name is, in order:
+  - an account's login, case aside: every old account signs in as before (an e-mail, often);
+  - or else the name the one account is shown by, case aside (`login_of_name`): an old account
+    also signs in by its name, a renamed one by its new name. A name several accounts have
+    (saved before names were unique) signs none of them in: they use their logins.
+  - Wrong passwords count for the account's login, either way (5 in a row lock it out for that
+    address). The password check, the lockout and the ban's reason (`account_id_signing_in_as`)
+    are otherwise unchanged.
+  - [choice] A login is looked up before a name: an old account shown by another one's login
+    (both saved before names were unique) signs in by its own login only.
+- **A new account by any other sign-in (`Logins::Any`):** the login may hold anything (no
+  control characters). The name it is shown by is the login's part before its first `@`, with
+  every character a chosen name may not have made `_`: `john.doe@x` shows as `john_doe`.
 - **One name, one account:** a new account's name is no other account's name or login, case
   aside (a rename's rule). If it is, `_2`, `_3`, ... is added (the name cut so the number fits
   the 63 bytes): `john.doe@x` with a `john_doe` already there is `john_doe_2`. A name with no
   letter or digit left (a login of Chinese letters -> `___`) is `player_<id as 8 hex digits>`, as an empty one
   always was. [choice] The names are compared with no lock held: two sign-ups of one name at
-  the same instant may still both get it.
+  the same instant may still both get it (a new 0.26g nickname then gets its `_2`).
+- **A rename is checked the same way** (`nickname_refusal`): the rules above, then
+  `name_taken`, which folds every letter's case (it compared ASCII case only: `СТАЛКЕР`
+  passed beside `Сталкер`, and a sign-in by that name would have found two accounts).
 - **A name saved before (on loading):** only what no name may show is made `_`: `<`, `>`,
   `&`, `"`, `'` (the end of the name's link), `:` (the link's field separator:
   `clickLinkHandler` splits on it, so the player menu would act on another name), `@`, control
@@ -43,8 +82,9 @@ line's text is: `styledChar`); see `relay_trust.md` section 4 (gap 6).
   from a login, a blank) stays as players know it.
   - The repaired name is made unique as a new one is. A clash with another account's name or
     login is logged as an error with both ids; every change as a warning; and saved. The
-    sign-in is untouched: the login is not the name.
-  - Names saved before names were unique (two `stepan@...` both `stepan`) are kept.
+    login is untouched; the account signs in by its repaired name, no longer the old one.
+  - Names saved before names were unique (two `stepan@...` both `stepan`) are kept; neither
+    signs in by that name (above).
 - **The two copies:** the store's name is the only one made or repaired. At srp's start the
   0.26g accounts take it (`take_names`, a count logged), so both are the same; a rename sets
   both, as before.

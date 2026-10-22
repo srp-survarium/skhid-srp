@@ -1,0 +1,149 @@
+{
+ "_about": "Players sign in with a nickname, not an e-mail (the owner, 2026-10-22: \"in login menu, it should no longer say email and instead say nickname\"; srp-026g/docs/notes/names.md). In the six localization tables: the login field's text (st_login_default_text, and st_login_str) is the game's own word for a player's name, the rename window's (Nickname, Name, Imię, Имя, Ім'я); the wrong-password status says nickname for e-mail; the status of the login server's 0x23 (st_login_menu_status_user_not_confirmed, an e-mail verification srp never sent) says a new nickname's rules, the login server's answer to a refused new nickname.",
+ "edit_text": [
+  {
+   "file": "localization/english/localization",
+   "path": "strings/st_login_default_text",
+   "from": "E-mail",
+   "to": "Nickname"
+  },
+  {
+   "file": "localization/english/localization",
+   "path": "strings/st_login_str",
+   "from": "E-mail",
+   "to": "Nickname"
+  },
+  {
+   "file": "localization/english/localization",
+   "path": "strings/st_login_menu_status_invalid_user_or_password",
+   "from": "e-mail",
+   "to": "nickname"
+  },
+  {
+   "file": "localization/english/localization",
+   "path": "strings/st_login_menu_status_user_not_confirmed",
+   "from": "Your account is not verified. Use link that was sent to your email address to verify your account.",
+   "to": "Nickname: 3 or more letters, digits or - _ +, not taken by another player."
+  },
+  {
+   "file": "localization/german/localization",
+   "path": "strings/st_login_default_text",
+   "from": "E-mail",
+   "to": "Name"
+  },
+  {
+   "file": "localization/german/localization",
+   "path": "strings/st_login_str",
+   "from": "E-mail",
+   "to": "Name"
+  },
+  {
+   "file": "localization/german/localization",
+   "path": "strings/st_login_menu_status_invalid_user_or_password",
+   "from": "Ungültige E-mail",
+   "to": "Ungültiger Name"
+  },
+  {
+   "file": "localization/german/localization",
+   "path": "strings/st_login_menu_status_user_not_confirmed",
+   "from": "Ihr Benutzerkonto ist nicht bestätigt. Verwenden Sie den Link für die Bestätigung des Benutzerkontos, die Ihnen per  e-mail bei der Registrierung des Benutzerkontos abgeschickt wurde.",
+   "to": "Name: mindestens 3 Buchstaben, Ziffern oder - _ +, nicht von einem anderen Spieler belegt."
+  },
+  {
+   "file": "localization/polish/localization",
+   "path": "strings/st_login_default_text",
+   "from": "E-mail",
+   "to": "Imię"
+  },
+  {
+   "file": "localization/polish/localization",
+   "path": "strings/st_login_str",
+   "from": "E-mail",
+   "to": "Imię"
+  },
+  {
+   "file": "localization/polish/localization",
+   "path": "strings/st_login_menu_status_invalid_user_or_password",
+   "from": "Nieprawidłowy e-mail",
+   "to": "Nieprawidłowe imię"
+  },
+  {
+   "file": "localization/polish/localization",
+   "path": "strings/st_login_menu_status_user_not_confirmed",
+   "from": "Twoje konto nie zostało zweryfikowane. Użyj odnośnika, który wysłano na twój adres e-mail, aby dokonać weryfikacji konta.",
+   "to": "Imię: co najmniej 3 litery, cyfry lub - _ +, niezajęte przez innego gracza."
+  },
+  {
+   "file": "localization/russian/localization",
+   "path": "strings/st_login_default_text",
+   "from": "E-mail",
+   "to": "Имя"
+  },
+  {
+   "file": "localization/russian/localization",
+   "path": "strings/st_login_str",
+   "from": "E-mail",
+   "to": "Имя"
+  },
+  {
+   "file": "localization/russian/localization",
+   "path": "strings/st_login_menu_status_invalid_user_or_password",
+   "from": "Неправильный email",
+   "to": "Неправильное имя"
+  },
+  {
+   "file": "localization/russian/localization",
+   "path": "strings/st_login_menu_status_user_not_confirmed",
+   "from": "Ваш аккаунт не подтвержден. Используйте ссылку для подтверждения аккаунта, которая была выслана Вам на e-mail при регистрации аккаунта.",
+   "to": "Имя: не меньше 3 букв, цифр или - _ +, не занятое другим игроком."
+  },
+  {
+   "file": "localization/original/localization",
+   "path": "strings/st_login_default_text",
+   "from": "E-mail",
+   "to": "Имя"
+  },
+  {
+   "file": "localization/original/localization",
+   "path": "strings/st_login_str",
+   "from": "E-mail",
+   "to": "Имя"
+  },
+  {
+   "file": "localization/original/localization",
+   "path": "strings/st_login_menu_status_invalid_user_or_password",
+   "from": "Неправильный email",
+   "to": "Неправильное имя"
+  },
+  {
+   "file": "localization/original/localization",
+   "path": "strings/st_login_menu_status_user_not_confirmed",
+   "from": "Ваш аккаунт не подтвержден. Используйте ссылку для подтверждения аккаунта, которая была выслана Вам на e-mail при регистрации аккаунта.",
+   "to": "Имя: не меньше 3 букв, цифр или - _ +, не занятое другим игроком."
+  },
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_login_default_text",
+   "from": "E-mail",
+   "to": "Ім'я"
+  },
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_login_str",
+   "from": "E-mail",
+   "to": "Ім'я"
+  },
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_login_menu_status_invalid_user_or_password",
+   "from": "Неправильний email",
+   "to": "Неправильне ім'я"
+  },
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_login_menu_status_user_not_confirmed",
+   "from": "Ваш обліковий запис не підтверджений. Використовуйте посилання для підтвердження акаунта, яке було вислано Вам на e-mail при реєстрації облікового запису.",
+   "to": "Ім'я: щонайменше 3 літери, цифри або - _ +, не зайняте іншим гравцем."
+  }
+ ]
+}

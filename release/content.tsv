@@ -36,7 +36,7 @@ movie	cursor	-	the mouse cursor
 movie	debug_animations	-	the animation debug screen
 movie	hud	-	the match HUD (#264: hit marks and crosshair centred at any UI scale)
 movie	lobby_menu	-	the lobby: rooms, exchange, craft and upgrade windows, Optics, player kits, ...
-movie	login_menu	-	the login screen with the login hint
+movie	login_menu	-	the login screen with the login hint; a player icon for the nickname field, not an envelope (#288)
 movie	main_menu	-	the main menu with the FOV slider
 movie	player_icons	-	the players' icons over their heads
 movie	replay_player	-	the replay player
@@ -71,3 +71,4 @@ edit	lobby-bench-light-1.json	-	the lobby's lamp under the workbench brighter, i
 edit	weapon-attachments-1.json	-	the weapon window says Attachments: st_srp_attachments in the six localization tables, the lobby's scope_window_title mapped to it; Ukrainian Appearance is Вигляд (#244)
 edit	battery-respawn-1.json	-	battery modes: respawn 10 s, respawn_time 8 -> 10 in the 56 configs of modes 2 and 3 (Team Deathmatch keeps 8)
 edit	v011e-spawn-protection-1.json	-	the v0.11 maps (Vostok Radar Station, Chemical Plant): spawn protection 6 s, invulnerability_time 2 -> 6 on the 174 respawn points of their four projects (as 0.26g's maps)
+edit	login-nickname-1.json	-	sign-in by nickname (#288): the login field says the game's word for a player's name, not E-mail; the wrong-password status too; the 0x23 status says a new nickname's rules

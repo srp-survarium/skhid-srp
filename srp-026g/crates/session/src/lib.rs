@@ -151,6 +151,23 @@ pub enum SignInError {
     RegistrationLimit,
     /// New accounts are not taken now ([`SessionStore::set_registrations_open`]).
     RegistrationsClosed,
+    /// A new 0.26g account's login, which is its name, breaks a chosen
+    /// name's rules ([`v026g::names::name_refusal`]).
+    InvalidNickname,
+    /// A new 0.26g account's login is the name of several accounts (saved
+    /// before names were unique), case aside: none of them signs in by it.
+    NicknameTaken,
+}
+
+/// What a sign-in's user name may be.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Logins {
+    /// Any user name; a new account is shown by its part before an `@`.
+    Any,
+    /// The 0.26g login server's: a new account's login is a chosen name
+    /// and the name it is shown by, and an account also signs in by the
+    /// name it is shown by.
+    Nicknames,
 }
 
 /// What a player did in one match, for the lobby to reward and charge when
@@ -636,7 +653,7 @@ impl SessionStore {
         password: &[u8],
         now: Instant,
     ) -> Result<u32, SignInError> {
-        self.authenticate(user_name, password, None, now)
+        self.authenticate(user_name, password, None, now, Logins::Any)
             .map(|signed_in| signed_in.account_id)
     }
 
@@ -652,7 +669,7 @@ impl SessionStore {
         ip: IpAddr,
         now: Instant,
     ) -> Result<SignedIn, SignInError> {
-        self.authenticate(user_name, password, Some(ip), now)
+        self.authenticate(user_name, password, Some(ip), now, Logins::Any)
     }
 
     /// [`Self::sign_in_from`] for the 0.26g client, which gives the SHA-1 of
@@ -670,7 +687,7 @@ impl SessionStore {
         if !password::is_sha1_digest(digest) {
             return Err(SignInError::WrongPassword);
         }
-        self.authenticate(user_name, digest, Some(ip), now)
+        self.authenticate(user_name, digest, Some(ip), now, Logins::Nicknames)
     }
 
     /// The id of the account signing in as `user_name`, if there is one.
@@ -679,14 +696,47 @@ impl SessionStore {
         self.logins.locked().get(&key).copied()
     }
 
+    /// The account a 0.26g sign-in as `user_name` is for: the one with that
+    /// login, or else the one account shown by that name, case aside.
+    pub fn account_id_signing_in_as(&self, user_name: &str) -> Option<u32> {
+        self.account_id_by_name(user_name).or_else(|| {
+            let login = self.login_of_name(user_name)?;
+            self.logins.locked().get(&login).copied()
+        })
+    }
+
+    /// The login of the one account shown by `name`, case aside; `None`
+    /// when no account is, or several are (saved before names were
+    /// unique). Locks every account in turn: call it with none locked.
+    fn login_of_name(&self, name: &str) -> Option<String> {
+        let name = name.trim();
+        let accounts: Vec<_> = self.accounts.locked().values().cloned().collect();
+        let mut found = accounts.iter().filter_map(|account| {
+            let account = account.locked();
+            v026g::names::same_name(&account.name, name).then(|| account.login.clone())
+        });
+        let first = found.next()?;
+        found.next().is_none().then_some(first)
+    }
+
     fn authenticate(
         &self,
         user_name: &str,
         password: &[u8],
         ip: Option<IpAddr>,
         now: Instant,
+        logins: Logins,
     ) -> Result<SignedIn, SignInError> {
-        let key = persist::user_name_key(user_name).ok_or(SignInError::InvalidUserName)?;
+        let mut key = persist::user_name_key(user_name).ok_or(SignInError::InvalidUserName)?;
+        // A name no account signs in with is the name of the one account
+        // shown by it: the sign-in is that account's, and so is the count
+        // of its wrong passwords.
+        if logins == Logins::Nicknames
+            && !self.logins.locked().contains_key(&key)
+            && let Some(login) = self.login_of_name(user_name)
+        {
+            key = login;
+        }
         // Wrong passwords count per name and address: a guesser locks out
         // only itself.
         let failure_key = match ip {
@@ -717,13 +767,26 @@ impl SessionStore {
                 if user_name.chars().any(char::is_control) {
                     return Err(SignInError::InvalidUserName);
                 }
+                // 0.26g: the login is the name, by a rename's rules, and is
+                // no account's name (none signs in by a name several have).
+                if logins == Logins::Nicknames {
+                    let name = user_name.trim();
+                    if v026g::names::name_refusal(name, true).is_some() {
+                        return Err(SignInError::InvalidNickname);
+                    }
+                    // 0: no account's id.
+                    if self.name_taken(name, 0) {
+                        return Err(SignInError::NicknameTaken);
+                    }
+                }
                 if let Some(ip) = ip
                     && !self.limits.may_register(ip, now)
                 {
                     return Err(SignInError::RegistrationLimit);
                 }
                 let hash = password::hash(password).ok_or(SignInError::WrongPassword)?;
-                let (account_id, created) = self.find_or_create(&key, user_name.trim(), Some(hash));
+                let (account_id, created) =
+                    self.find_or_create(&key, user_name.trim(), Some(hash), logins);
                 if let Some(password_epoch) = created {
                     if let Some(ip) = ip {
                         self.limits.registered(ip, now);
@@ -831,7 +894,8 @@ impl SessionStore {
     /// ([`persist::login_key`]); an empty one falls back to the address.
     pub fn get_or_create_account(&self, ip: IpAddr, user_name: &str) -> u32 {
         let key = persist::login_key(ip, user_name);
-        self.find_or_create(&key, user_name.trim(), None).0
+        self.find_or_create(&key, user_name.trim(), None, Logins::Any)
+            .0
     }
 
     /// The account of `key`, made if there is none: its id, and the password
@@ -842,12 +906,16 @@ impl SessionStore {
     /// name with an `@` shows only its part before it, in name characters
     /// ([`v026g::names::shown_name`]), and one no other account has
     /// ([`v026g::names::unique`]); with no letter there, the name falls
-    /// back to a unique value derived from the id.
+    /// back to a unique value derived from the id. With
+    /// [`Logins::Nicknames`] the name is the user name itself (checked by
+    /// the caller), made unique the same way only if another account took
+    /// it meanwhile.
     fn find_or_create(
         &self,
         key: &str,
         user_name: &str,
         password_hash: Option<String>,
+        logins: Logins,
     ) -> (u32, Option<u64>) {
         if let Some(&account_id) = self.logins.locked().get(key) {
             return (account_id, None);
@@ -855,12 +923,18 @@ impl SessionStore {
         let account_id = self.next_account_id.fetch_add(1, Ordering::Relaxed);
         // With no lock held: it looks at every account. [choice] Two
         // sign-ups of one name at the same instant may still both get it.
-        let shown = user_name.split('@').next().unwrap_or_default();
-        let name = v026g::names::unique(
-            &v026g::names::shown_name(shown),
-            &format!("player_{account_id:08x}"),
-            |name| self.name_taken(name, account_id),
-        );
+        let (shown, fallback) = match logins {
+            Logins::Any => {
+                let shown = user_name.split('@').next().unwrap_or_default();
+                (
+                    v026g::names::shown_name(shown),
+                    format!("player_{account_id:08x}"),
+                )
+            }
+            Logins::Nicknames => (user_name.to_owned(), user_name.to_owned()),
+        };
+        let name =
+            v026g::names::unique(&shown, &fallback, |name| self.name_taken(name, account_id));
         let mut logins = self.logins.locked();
         if let Some(&account_id) = logins.get(key) {
             return (account_id, None);
@@ -880,9 +954,10 @@ impl SessionStore {
     }
 
     /// Whether an account other than `except` is shown by `name`, or signs
-    /// in with it, case aside (a rename has the same rule). Locks every
-    /// account in turn: call it with none locked.
-    fn name_taken(&self, name: &str, except: u32) -> bool {
+    /// in with it, case aside: a new account's name, a rename's and a new
+    /// 0.26g login's rule. Locks every account in turn: call it with none
+    /// locked.
+    pub fn name_taken(&self, name: &str, except: u32) -> bool {
         let login = persist::user_name_key(name);
         if login
             .and_then(|key| self.logins.locked().get(&key).copied())

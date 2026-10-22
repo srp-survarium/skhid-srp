@@ -471,6 +471,10 @@ fn handle_sign_in(store: Arc<SessionStore>, tls: &SslContext, mut stream: TcpStr
                     "Wrong password for {user_name}: too many in a row, refused for a while"
                 ),
                 SignInError::InvalidUserName => log::info!("Invalid user name {user_name}"),
+                // Only the 0.26g sign-in takes nicknames.
+                SignInError::InvalidNickname | SignInError::NicknameTaken => {
+                    log::info!("Sign-in of {user_name} refused: {error:?}");
+                }
                 SignInError::TooManyFromAddress | SignInError::RegistrationLimit => {
                     log::warn!("Sign-in of {user_name} from {peer} refused: {error:?}");
                     let _ = ssl_stream.write_all(&[TOO_MANY_ATTEMPTS]);
