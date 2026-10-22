@@ -422,7 +422,8 @@ given is never given again) and is not busy taking somebody in.
 **A side counts** what the balance rule counts (§8.2) for **the players who
 are in the match now** (the match server says who has left, once a second),
 and **its lead**: a battery of lead is `SRP_BALANCE_BATTERY_LEAD` (0.55) of
-a player to the side that has it, a ticket `SRP_BALANCE_TICKET_LEAD` (0.2).
+a player to the side that has it, a ticket `SRP_BALANCE_TICKET_LEAD` (0.2), and so
+is a point of Research's (mode 5: 100 to win, as 100 tickets).
 Of the ways to put the waiting groups on a side or leave them out, the one
 that takes the most players, and of those the one after which the sides
 count most alike. Allowed:

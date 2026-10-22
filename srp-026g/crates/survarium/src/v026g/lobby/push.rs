@@ -1200,8 +1200,9 @@ pub fn permitted_item_used(item_id: u32) -> ServerMessage {
 
 /// `83 46 06`: the reroll window of an item: what the next change costs
 /// in silver (`a`) and in gold (`b`), and, once one of its modifications
-/// was changed, `more`: that modification's id (the only one the window
-/// lets be changed again, `was_rerolled_before`, 0x29FD13) and the item's
+/// was changed, `more`: that modification's id (`was_rerolled_before`,
+/// 0x29FD13: the game's window let only it be changed again; srp's marks
+/// it and locks nothing, `docs/notes/reroll-keep-old.md`) and the item's
 /// `reroll_time` in seconds (PROVEN, 0x2757CC -> 0x29F430: `regular_cost`,
 /// `premium_cost`, `reroll_time`). The item must be in the client's
 /// inventory.

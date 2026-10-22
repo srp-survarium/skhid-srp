@@ -85,6 +85,15 @@ pub mod event {
     /// The end of the match for a player whose protection value is 0
     /// (results.md §9).
     pub const NEW_PLAYER_MATCH: usize = 27;
+    /// Research (mode 5, exe patch 53; `research_mode.md`) counts in three
+    /// of these places: a unit captured, a player's share of it in
+    /// hundredths (a battery's delivery share otherwise);
+    pub const RESEARCH_CAPTURE: usize = BRING_VICTORY_ITEM;
+    /// a unit taken from the other team, the same (a rescued battery's);
+    pub const RESEARCH_NEUTRALISE: usize = RECOVER_VICTORY_ITEM;
+    /// an enemy killed inside a unit his team does not own, by ones (a
+    /// battery carrier killed).
+    pub const KILL_INVADER: usize = 10;
 }
 
 /// The CRC a client reports in 0xDF for a world: boost's CRC-32 (the
@@ -686,6 +695,155 @@ impl Tdm {
     }
 }
 
+/// A research unit as Research's rule writes it (exe patch 53, `rr_write`):
+/// 96 bytes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ResearchUnit {
+    /// The capture of `taking`, 0 to [`Research::FULL`].
+    pub progress: u32,
+    /// Whose progress it is: 0, 1, or 2 for nobody.
+    pub taking: u8,
+    /// Whose unit it is: 0, 1, or 2 for nobody.
+    pub owner: u8,
+    /// The players of each team inside.
+    pub counts: [u8; 2],
+    /// Those players, by roster place: as many bits as `counts`.
+    pub inside: [u32; 2],
+    /// Each roster place's mark: its share of the capture when it went in,
+    /// [`Research::FULL`] for all of it.
+    pub marks: [u32; MAX_PLAYERS],
+}
+
+impl Default for ResearchUnit {
+    fn default() -> Self {
+        Self {
+            progress: 0,
+            taking: rules::DRAW,
+            owner: rules::DRAW,
+            counts: [0; 2],
+            inside: [0; 2],
+            marks: [0; MAX_PLAYERS],
+        }
+    }
+}
+
+impl ResearchUnit {
+    pub const LEN: usize = 16 + 4 * MAX_PLAYERS;
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        let progress = reader.u32()?;
+        let [taking, owner, first, second] =
+            [reader.u8()?, reader.u8()?, reader.u8()?, reader.u8()?];
+        let inside = [reader.u32()?, reader.u32()?];
+        let mut marks = [0; MAX_PLAYERS];
+        for mark in &mut marks {
+            *mark = reader.u32()?;
+        }
+        let unit = Self {
+            progress,
+            taking,
+            owner,
+            counts: [first, second],
+            inside,
+            marks,
+        };
+        // What `rr_read` refuses.
+        let sound = progress <= Research::FULL
+            && taking <= rules::DRAW
+            && owner <= rules::DRAW
+            && (0..2).all(|team| u32::from(unit.counts[team]) == inside[team].count_ones())
+            && (inside[0] | inside[1]) >> MAX_PLAYERS == 0;
+        sound.then_some(unit)
+    }
+
+    pub fn write(&self, out: &mut Vec<u8>) {
+        out.extend(self.progress.to_le_bytes());
+        out.extend([self.taking, self.owner, self.counts[0], self.counts[1]]);
+        out.extend(self.inside[0].to_le_bytes());
+        out.extend(self.inside[1].to_le_bytes());
+        for mark in self.marks {
+            out.extend(mark.to_le_bytes());
+        }
+    }
+}
+
+/// Research's rule (class 480, exe patch 53; `research_mode.md`, "Wire"):
+/// 21 bytes and 96 a unit; mode 5. Its own bytes say how many units it
+/// has, so, as Team Deathmatch's, it is read from the kd stats back.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Research {
+    /// Each team's points, millionths: 0 to `resources_count` × 10^6.
+    pub points: [u32; 2],
+    /// The points shown, whole (rounded): what the statistics' tail has.
+    pub scores: [u16; 2],
+    /// When the match ends, match ms: 3 s after a team reached the goal.
+    /// `None` (0xFFFFFFFF) before.
+    pub end: Option<u32>,
+    /// The roster places that entered and have not left.
+    pub entered: u32,
+    /// The units, by `cp_id` (three on every map).
+    pub units: Vec<ResearchUnit>,
+}
+
+impl Research {
+    /// A unit's whole capture.
+    pub const FULL: u32 = 1_000_000_000;
+    /// The bytes before the units.
+    pub const HEAD_LEN: usize = 21;
+    /// The units a map may have (`RR_MAX_ZONES`).
+    pub const MAX_UNITS: usize = 3;
+
+    /// The rule's length with `units` units.
+    pub const fn len_of(units: usize) -> usize {
+        Self::HEAD_LEN + ResearchUnit::LEN * units
+    }
+
+    /// Reads a rule that fills `bytes` exactly.
+    fn read(bytes: &[u8]) -> Option<Self> {
+        let mut reader = Reader::new(bytes);
+        let points = [reader.u32()?, reader.u32()?];
+        let scores = [reader.u16()?, reader.u16()?];
+        let end = reader.u32()?;
+        let entered = reader.u32()?;
+        let units = usize::from(reader.u8()?);
+        if units == 0 || units > Self::MAX_UNITS || entered >> MAX_PLAYERS != 0 {
+            return None;
+        }
+        let units = (0..units)
+            .map(|_| ResearchUnit::read(&mut reader))
+            .collect::<Option<Vec<_>>>()?;
+        (reader.rest() == 0).then_some(Self {
+            points,
+            scores,
+            end: (end != u32::MAX).then_some(end),
+            entered,
+            units,
+        })
+    }
+
+    /// Reads the rule at the end of `bytes`: the length its unit count
+    /// gives, the most units first. Where it starts, and the rule.
+    fn read_back(bytes: &[u8]) -> Option<(usize, Self)> {
+        (1..=Self::MAX_UNITS).rev().find_map(|units| {
+            let at = bytes.len().checked_sub(Self::len_of(units))?;
+            Self::read(&bytes[at..]).map(|rule| (at, rule))
+        })
+    }
+
+    pub fn write(&self, out: &mut Vec<u8>) {
+        out.extend(self.points[0].to_le_bytes());
+        out.extend(self.points[1].to_le_bytes());
+        out.extend(self.scores[0].to_le_bytes());
+        out.extend(self.scores[1].to_le_bytes());
+        out.extend(self.end.unwrap_or(u32::MAX).to_le_bytes());
+        out.extend(self.entered.to_le_bytes());
+        out.push(self.units.len() as u8);
+        for unit in &self.units {
+            unit.write(out);
+        }
+    }
+}
+
 /// `player_respawn_rule_core` (0x316F10, base 0x316C90). PROVEN.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Respawn {
@@ -1014,6 +1172,8 @@ pub struct Rules {
     pub gather: Option<Gather>,
     /// Mode 4: the 12 bytes before the kd stats.
     pub tdm: Option<Tdm>,
+    /// Mode 5: the bytes before the kd stats, as many as its units make.
+    pub research: Option<Research>,
     /// One for each roster place.
     pub kills_deaths: Vec<KillsDeaths>,
     /// The blackboard's `team_1_respawn`, `team_2_respawn`: whether each
@@ -1037,7 +1197,8 @@ impl Rules {
     ///
     /// The respawn rule has two bytes for each respawn point of the map,
     /// and nothing says how many: in mode 4 the rest is the tdm rule's 12
-    /// bytes; in modes 2 and 3 it is the number with which the gather
+    /// bytes; in mode 5 Research's 21 + 96 a unit (309 with its three
+    /// units); in modes 2 and 3 it is the number with which the gather
     /// rule after it reads to the kd stats exactly, the smallest if
     /// several do.
     pub fn decode(
@@ -1088,12 +1249,25 @@ impl Rules {
                     active_players_mask: reader.u32()?,
                 })
             });
+        let (research_at, research) = match (game_mode == mode::RESEARCH)
+            .then(|| Research::read_back(middle))
+            .flatten()
+        {
+            Some((at, rule)) => (Some(at), Some(rule)),
+            None => (None, None),
+        };
         let mut respawn = None;
         let mut gather = None;
         if let Some((mut head, head_len)) = Respawn::read_head(middle) {
             let points = |bytes: &[u8]| -> Vec<[u8; 2]> { bytes.as_chunks::<2>().0.to_vec() };
-            if game_mode == mode::TEAM_DEATHMATCH {
-                if let Some(end) = middle.len().checked_sub(Tdm::LEN)
+            // Where a mode rule of a size known from the end starts.
+            let fixed_at = match game_mode {
+                mode::TEAM_DEATHMATCH => Some(middle.len().checked_sub(Tdm::LEN)),
+                mode::RESEARCH => Some(research_at),
+                _ => None,
+            };
+            if let Some(end) = fixed_at {
+                if let Some(end) = end
                     && end >= head_len
                     && (end - head_len).is_multiple_of(2)
                 {
@@ -1116,6 +1290,7 @@ impl Rules {
             respawn,
             gather,
             tdm,
+            research,
             kills_deaths,
             team_respawn,
         })
@@ -1134,12 +1309,15 @@ impl Rules {
         if let Some(tdm) = &self.tdm {
             tdm.write(&mut mode_rule);
         }
+        if let Some(research) = &self.research {
+            research.write(&mut mode_rule);
+        }
         self.encode(&respawn, &mode_rule)
     }
 
     /// A rules section from parts, for tests and tools: the timelimit,
     /// `respawn` (the respawn rule's bytes), `mode_rule` (the gather,
-    /// timed or tdm rule's), the kd stats, the two flags.
+    /// timed, tdm or research rule's), the kd stats, the two flags.
     pub fn encode(&self, respawn: &[u8], mode_rule: &[u8]) -> Vec<u8> {
         let mut out = Vec::new();
         self.timelimit.write(&mut out);
@@ -1159,7 +1337,8 @@ impl Rules {
 /// The match's standing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Standing {
-    /// Batteries (modes 2, 3) or tickets left (mode 4).
+    /// Batteries (modes 2, 3), tickets left (mode 4) or the points shown
+    /// (mode 5).
     pub points: [u16; 2],
     /// 0, 1, or 2 for a draw.
     pub winner: u8,
@@ -1185,9 +1364,37 @@ impl Decoded<'_> {
     /// Mode 4 takes the tdm rule's tickets when it was read: the
     /// statistics' copy is written when play begins and is 0 before.
     /// Modes 2 and 3 take the statistics' points, and with no statistics
-    /// the gather rule's own, which are the same count.
+    /// the gather rule's own, which are the same count. Mode 5 takes
+    /// Research's shown points when its rule was read (the rule copies
+    /// them into the statistics in play only), else the statistics'.
     pub fn standing(&self, game_mode: u8, teams: &[u8]) -> Option<Standing> {
         let tail = self.statistics.as_ref().map(|statistics| statistics.tail);
+        if game_mode == mode::RESEARCH {
+            let research = self.rules.as_ref().and_then(|rules| rules.research.as_ref());
+            if let Some(research) = research {
+                return Some(Standing {
+                    points: research.scores,
+                    winner: rules::research_winner(
+                        research.scores,
+                        research.points,
+                        research.end.is_some(),
+                    ),
+                });
+            }
+            // Without the rule: the tail's leader, which patch 53's publish()
+            // writes from rr_leader every tick (the millionths at the goal),
+            // when it is one (3 until a rule's first event); else the points.
+            let tail = tail?;
+            let winner = if tail.winner_team <= rules::DRAW {
+                tail.winner_team
+            } else {
+                rules::winner_by_points(tail.team_points)
+            };
+            return Some(Standing {
+                points: tail.team_points,
+                winner,
+            });
+        }
         if game_mode != mode::TEAM_DEATHMATCH {
             let gather = self
                 .rules
@@ -1261,10 +1468,10 @@ pub fn decode(
     game_mode: u8,
     batteries: usize,
 ) -> Option<Decoded<'_>> {
-    let batteries = if game_mode == mode::TEAM_DEATHMATCH {
-        0
-    } else {
+    let batteries = if mode::WITH_BATTERIES.contains(&game_mode) {
         batteries
+    } else {
+        0
     };
     let mut best: Option<(u8, Decoded)> = None;
     for sections in Sections::candidates(body) {
@@ -1633,6 +1840,271 @@ mod tests {
         assert_eq!((rules.tdm, rules.gather, rules.respawn), (None, None, None));
     }
 
+    /// Research's rule (snapshot_rules.md §2.8), made up: team 0 owns unit
+    /// A and has 64.4 points, team 1 has 37.5; player 1 is taking unit B
+    /// for team 1, half done; unit C is nobody's.
+    fn research() -> Research {
+        let mut marks = [0; MAX_PLAYERS];
+        marks[1] = 250_000_000;
+        Research {
+            points: [64_400_000, 37_500_000],
+            scores: [64, 38],
+            end: None,
+            entered: 0b11,
+            units: vec![
+                ResearchUnit {
+                    progress: Research::FULL,
+                    taking: 0,
+                    owner: 0,
+                    ..ResearchUnit::default()
+                },
+                ResearchUnit {
+                    progress: 500_000_000,
+                    taking: 1,
+                    counts: [0, 1],
+                    inside: [0, 0b10],
+                    marks,
+                    ..ResearchUnit::default()
+                },
+                ResearchUnit::default(),
+            ],
+        }
+    }
+
+    fn research_bytes(rule: &Research) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        rule.write(&mut bytes);
+        bytes
+    }
+
+    fn research_rules(rule: &Research) -> Vec<u8> {
+        [
+            &TIMELIMIT[..],
+            &RESPAWN,
+            &research_bytes(rule),
+            &KD_AND_FLAGS,
+        ]
+        .concat()
+    }
+
+    #[test]
+    fn the_rules_of_a_research_match() {
+        let rule = research();
+        let own = research_bytes(&rule);
+        // 21 bytes and 96 a unit, little-endian.
+        assert_eq!(own.len(), 309);
+        assert_eq!(Research::len_of(3), 309);
+        assert_eq!(own[..8], [0x80, 0xAA, 0xD6, 0x03, 0x60, 0x34, 0x3C, 0x02]);
+        assert_eq!(
+            own[8..21],
+            [64, 0, 38, 0, 0xFF, 0xFF, 0xFF, 0xFF, 3, 0, 0, 0, 3]
+        );
+        // Unit B: progress, taking, owner, counts, inside, place 1's mark.
+        let b = &own[21 + 96..21 + 2 * 96];
+        assert_eq!(
+            b[..16],
+            [0, 0x65, 0xCD, 0x1D, 1, 2, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0]
+        );
+        assert_eq!(b[20..24], [0x80, 0xB2, 0xE6, 0x0E]);
+
+        let bytes = research_rules(&rule);
+        let rules = Rules::decode(&bytes, TIME, 2, mode::RESEARCH, 0).unwrap();
+        assert_eq!(rules.research.as_ref(), Some(&rule));
+        assert_eq!((rules.tdm, rules.gather.as_ref()), (None, None));
+        // The rest before it is the respawn rule's three points.
+        assert_eq!(rules.respawn.as_ref().unwrap().points, vec![[0, 0]; 3]);
+        assert_eq!(rules.kills_deaths[0].kills, 3);
+        assert_eq!(rules.to_bytes(), bytes);
+        // The same bytes as another mode's: no research rule.
+        for game_mode in [mode::BATTERIES, mode::TEAM_DEATHMATCH] {
+            let rules = Rules::decode(&bytes, TIME, 2, game_mode, 10).unwrap();
+            assert_eq!(rules.research, None, "{game_mode}");
+        }
+        // Its end, once a team has the goal.
+        let over = Research {
+            points: [100_000_000, 41_000_000],
+            scores: [100, 41],
+            end: Some(600_000),
+            ..rule
+        };
+        let rules = Rules::decode(&research_rules(&over), TIME, 2, mode::RESEARCH, 0).unwrap();
+        assert_eq!(rules.research.unwrap().end, Some(600_000));
+    }
+
+    #[test]
+    fn the_research_rules_length_gives_the_respawn_points() {
+        let rule = research();
+        // 20 respawn points (London's) and one unit less: each read from
+        // the rule's own count.
+        let respawn = Respawn {
+            times: vec![(1, 70_000)],
+            seed: 9,
+            points: vec![[1, 0]; 20],
+        };
+        let mut respawn_bytes = Vec::new();
+        respawn.write(&mut respawn_bytes);
+        let two = Research {
+            units: rule.units[..2].to_vec(),
+            ..rule.clone()
+        };
+        for each in [&rule, &two] {
+            let bytes = [
+                &TIMELIMIT[..],
+                &respawn_bytes,
+                &research_bytes(each),
+                &KD_AND_FLAGS,
+            ]
+            .concat();
+            let rules = Rules::decode(&bytes, TIME, 2, mode::RESEARCH, 0).unwrap();
+            assert_eq!(rules.research.as_ref(), Some(each));
+            assert_eq!(rules.respawn.as_ref(), Some(&respawn));
+        }
+        // An odd byte before the rule: no respawn rule, the research rule
+        // still read from the end.
+        let bytes = [
+            &TIMELIMIT[..],
+            &RESPAWN,
+            &[0],
+            &research_bytes(&rule),
+            &KD_AND_FLAGS,
+        ]
+        .concat();
+        let rules = Rules::decode(&bytes, TIME, 2, mode::RESEARCH, 0).unwrap();
+        assert_eq!((rules.respawn, rules.research), (None, Some(rule)));
+    }
+
+    #[test]
+    fn a_wrong_research_rule_is_refused() {
+        let unread = |rule: &Research| {
+            Rules::decode(&research_rules(rule), TIME, 2, mode::RESEARCH, 0)
+                .unwrap()
+                .research
+        };
+        let good = research();
+        assert!(unread(&good).is_some());
+        let mut wrong = good.clone();
+        // Inside counts that are not the places inside.
+        wrong.units[1].counts = [0, 2];
+        assert_eq!(unread(&wrong), None);
+        // A team 3, a progress over a whole capture, a place over 20.
+        let mut wrong = good.clone();
+        wrong.units[0].owner = 3;
+        assert_eq!(unread(&wrong), None);
+        let mut wrong = good.clone();
+        wrong.units[2].progress = Research::FULL + 1;
+        assert_eq!(unread(&wrong), None);
+        let mut wrong = good.clone();
+        wrong.entered = 1 << 20;
+        assert_eq!(unread(&wrong), None);
+        // Four units, or none.
+        let mut wrong = good.clone();
+        wrong.units.push(ResearchUnit::default());
+        assert_eq!(unread(&wrong), None);
+        wrong.units.clear();
+        assert_eq!(unread(&wrong), None);
+        // A byte short (its unit count): no count where the length says.
+        let mut bytes = research_rules(&good);
+        bytes.remove(Timelimit::LEN + RESPAWN.len() + 20);
+        let rules = Rules::decode(&bytes, TIME, 2, mode::RESEARCH, 0).unwrap();
+        assert_eq!(rules.research, None);
+    }
+
+    #[test]
+    fn a_research_matchs_standing_is_its_rules_shown_points() {
+        let mut statistics = player_bytes();
+        statistics.extend(EMPTY_PLAYER);
+        // The tail as the rule writes it in play: the shown points, the
+        // leader; no batteries.
+        statistics.extend([64, 0, 38, 0, 0, 0, 0, 3, 0, 0, 0]);
+        let rules = research_rules(&research());
+        let whole = body(&statistics, &rules);
+        // A battery count is not used in mode 5.
+        let decoded = decode(TIME, &whole, 2, mode::RESEARCH, 10).unwrap();
+        let read = decoded.statistics.as_ref().unwrap();
+        assert!(read.victory_items.is_empty());
+        assert_eq!(decoded.rules.as_ref().unwrap().research, Some(research()));
+        assert_eq!(
+            decoded.standing(mode::RESEARCH, &[0, 1]),
+            Some(Standing {
+                points: [64, 38],
+                winner: 0
+            })
+        );
+        // The rule's points before the statistics' (written in play only).
+        let mut early = statistics.clone();
+        let at = early.len() - StatisticsTail::LEN;
+        early[at..at + 4].fill(0);
+        let early = body(&early, &rules);
+        let decoded = decode(TIME, &early, 2, mode::RESEARCH, 0).unwrap();
+        let standing = decoded.standing(mode::RESEARCH, &[0, 1]).unwrap();
+        assert_eq!(standing.points, [64, 38]);
+        // Without the rule, the statistics': equal points, the leader the
+        // rule wrote a draw.
+        let mut even = statistics.clone();
+        even[at..at + 4].copy_from_slice(&[40, 0, 40, 0]);
+        even[at + 6] = rules::DRAW;
+        let even = body(&even, &[]);
+        let decoded = decode(TIME, &even, 2, mode::RESEARCH, 0).unwrap();
+        assert_eq!(decoded.rules, None);
+        assert_eq!(
+            decoded.standing(mode::RESEARCH, &[0, 1]),
+            Some(Standing {
+                points: [40, 40],
+                winner: rules::DRAW
+            })
+        );
+    }
+
+    #[test]
+    fn a_research_match_without_its_rule_takes_the_tails_leader() {
+        // Both show 100 at the goal; the tail's leader (rr_leader, by the
+        // millionths) is team 1.
+        let mut statistics = player_bytes();
+        statistics.extend(EMPTY_PLAYER);
+        statistics.extend([100, 0, 100, 0, 0, 0, 1, 3, 0, 0, 0]);
+        let whole = body(&statistics, &[]);
+        let decoded = decode(TIME, &whole, 2, mode::RESEARCH, 0).unwrap();
+        assert_eq!(decoded.rules, None);
+        assert_eq!(
+            decoded.standing(mode::RESEARCH, &[0, 1]),
+            Some(Standing {
+                points: [100, 100],
+                winner: 1
+            })
+        );
+        // No leader written yet (3): the points, equal a draw.
+        let at = statistics.len() - StatisticsTail::LEN + 6;
+        statistics[at] = 3;
+        let whole = body(&statistics, &[]);
+        let decoded = decode(TIME, &whole, 2, mode::RESEARCH, 0).unwrap();
+        assert_eq!(
+            decoded.standing(mode::RESEARCH, &[0, 1]).map(|standing| standing.winner),
+            Some(rules::DRAW)
+        );
+    }
+
+    #[test]
+    fn a_research_match_at_the_goal_is_won_by_the_millionths() {
+        // Both show 100: team 1 reached the goal, team 0 has 99.6.
+        let mut rule = research();
+        rule.points = [99_600_000, 100_000_000];
+        rule.scores = [100, 100];
+        rule.end = Some(TIME + 3_000);
+        let mut statistics = player_bytes();
+        statistics.extend(EMPTY_PLAYER);
+        statistics.extend([100, 0, 100, 0, 0, 0, 1, 3, 0, 0, 0]);
+        let whole = body(&statistics, &research_rules(&rule));
+        let decoded = decode(TIME, &whole, 2, mode::RESEARCH, 0).unwrap();
+        assert_eq!(decoded.rules.as_ref().unwrap().research, Some(rule.clone()));
+        assert_eq!(
+            decoded.standing(mode::RESEARCH, &[0, 1]),
+            Some(Standing {
+                points: [100, 100],
+                winner: 1
+            })
+        );
+    }
+
     /// The rules section of a live world (match 0x25ee80b6 of 2026-10-12,
     /// level_07, mode 2, seven players, at 914 900 ms): the bools are 0xFF.
     /// Team 0 has nine batteries in its container (id 0 on level_07) and
@@ -1862,6 +2334,7 @@ mod tests {
             respawn: Some(respawn),
             gather: Some(gather()),
             tdm: None,
+            research: None,
             kills_deaths: vec![KillsDeaths::default(); 2],
             team_respawn: [true, true],
         };
@@ -2075,6 +2548,7 @@ mod tests {
             respawn: Some(Respawn::default()),
             gather: Some(won),
             tdm: None,
+            research: None,
             kills_deaths: vec![KillsDeaths::default(); 2],
             team_respawn: [true, true],
         }

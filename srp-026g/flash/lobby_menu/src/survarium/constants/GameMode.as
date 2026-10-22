@@ -12,6 +12,9 @@ package survarium.constants
       
       public static const TEAM_DEATHMATCH:int = 4;
       
+      // Research: capture the research units (docs/notes/research_mode.md)
+      public static const RESEARCH:int = 5;
+      
       public function GameMode()
       {
          super();

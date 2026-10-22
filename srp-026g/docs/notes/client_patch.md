@@ -1266,6 +1266,143 @@ The old bytes' jumps all landed inside them; nothing else aims inside; no base r
 
 **Checked:** `selftest_026g.py` check 52; `check_stage_focus_026g.py` (Unicorn 2.1.4): the original faults at 0x77200B with both pointers 0 (or the collectible 1) and at 0x771FF8 for an interface call that gives none; the build gives null; every other case the same in both.
 
+### 3.50 Research, mode 5 (written 2026-10-22, README patch 53, the next release's revision; the rules: `research_mode.md`) — PROVEN in the code, the hooks, the cook, the rule and the hud run with Unicorn with the game's own register_cook, rule constructor and config look-ups; not run in a game
+
+- **Rule cooks** (PROVEN): each is a static object `{+0 vtable, +8 class, +10h -1, +14h
+  GetCurrentThreadId(), +18h 8, +20h the game (client cooks)}`, made by its function (tdm's
+  0x2F41E0) and registered by `register_cook` 0x102D10 (`edi` = the cook): a vector at
+  [0xA86E00]..[0xA86E04] grown to 0x206 places on the first call, `cooks[class] = cook`. The
+  game's constructor makes the client ones and swaps their vtables (0x1E99C0..0x1E9B4C; tdm's
+  client vtable 0x9FD8AC; ebx = the game); the last registration is at 0x1E9B4C (`mov eax,ebx /
+  call 0x1EC170`). Classes in use found at the registrations: 0x0D..0x82, 0x12C..0x141, 0x200,
+  0x202, 0x203 (a few set elsewhere); 0x1E0 is in no registration and no query.
+- **A cook's create** (PROVEN, slot 9, thiscall, `ret 4`): client tdm 0x2063F0: `esi =
+  [0x1F1D9C4]`, `ecx = 0xACCC60`, 0x420789 (`lea eax,[ecx+8]`), `push eax`, `eax = size`, 0xE4F90
+  (allocate), the core constructor with the query (`[q]` the match options, `[q+0Ch]` the mode
+  config's root), +130h the game; slot 10 the size. Slot 7 (0x2F4290) is the shared translate:
+  it calls 9 with `[query+108h]` and 10.
+- **The cook's RTTI** (PROVEN): tdm_rule_cook's locator 0xA47134 (type descriptor 0xACCC38,
+  hierarchy 0xA47148: tdm_rule_cook, tdm_rule_core_cook, translate_query_cook, cook_base,
+  boost's noncopyable at +20h, attributes 1). No code of `.text` names any cook's type descriptor
+  (0xACCC38, tdm_rule_core_cook's 0xACCC0C, translate_query_cook's 0xAB8E58, cook_base's 0xAB8D2C)
+  or the locator: nothing casts a cook or asks its type, so a borrowed locator would only misname
+  it. The cook has its own all the same (`rn_cook_locator`): `.?AVresearch_rule_cook@srp@@`
+  (type_info's vftable 0x886A78, the first word of every type descriptor), its hierarchy shaped
+  as tdm_rule_core_cook's (locator 0xA524C0, hierarchy 0xA4718C: attributes 1, four bases) with
+  that hierarchy's base class descriptors of translate_query_cook 0xA38D74, cook_base 0xA38D24 and
+  noncopyable 0xA40010. The descriptor's second word (type_info's name cache) is written by
+  type_info::name: `.srpx` is writable.
+- **Rule vtables** (PROVEN, tdm 0xA15DA4, timelimit 0xA06E2C, kd 0xA177D4): 0 delete (0x266710:
+  the base vtables back, 0xF1850, free), 1..6 the resource's, 7 `on_event(type, data, time)`
+  `ret 0Ch` (a kill is type 1, `data = {killer, victim}`; 0 the match started; the world's
+  dispatcher 0x2D1EA0 pushes the time `[core+18FC0h]`, then its second argument, then its first,
+  and calls `[vtable+1Ch]`; the kill site 0x2D9EEE..0x2D9EF7 gives it `&{killer, victim}` and 1;
+  tdm 0x316090 and kd 0x3237E0 read the data at `[esp+8]`), 8 / 9
+  `entered` / `left(place, time)` `ret 8`, 10 register_animations, 11 `set_game_world_core(core)`,
+  12 the blackboard (core+188B0h, 0x2D58F0), 13 `on_match_ready(time)`, 14 finished, 15
+  `serialize(writer)` `ret 4`, 16 `deserialize(reader, ?)` `ret 8` (the snapshot's rules loop in
+  0x2D2770, 0x2D2B42..0x2D2B5D: `push [esp+84h]` (its third argument), `push` the reader,
+  `call [vtable+40h]`, no clean-up; tdm 0x3163D0, timelimit 0x317FD0 and kd 0x323910 each `ret 8`
+  and none reads the second), 17 `fill_match_hud_state(hud, ?)` `ret 8`
+  (tdm: +90h, +92h the tickets, +94h, +95h the alive counts; kd 0x323980 writes from +98h on,
+  timelimit's 0x15A4B0 nothing; the hud state's constructor 0x278D00 sets +90h 0FFFFh, +92h 0,
+  +94h and +95h 0FFh, and only mode 4's last players (0x23B3DE) read the alive counts: Research
+  writes the points and leaves the counts, as modes 2 and 3 do), 18 `rule_completed(time)` `ret 4`
+  (al), 19 the priority (0x8FE10: 3); then at +108h the link resolver's one slot (0x316540, `ret
+  1Ch`). Base constructor 0x313900 (eax = this, push the type: 0 respawn, 1 gather, 2 timelimit, 3
+  kd, 4 tdm; at +10Ch); the code compares the type with 0 and 1 only.
+- **Ticks** (PROVEN): timelimit's set_game_world_core 0x318050 puts a delegate `{object,
+  function, previous, next, order, enabled}` (rule+110h) at the end of the world's list at
+  core+18850h (count, head, tail; order from the counter at [core+18FB0h]); atomic_tick 0x2D1E20
+  runs the seven lists (core+18840h.., 10h each; 0x2D1D20 sorts by +10h) as `function(ecx =
+  object, dt, time, step)` `ret 0Ch`, dt the time since the last (50 ms).
+- **The world** (PROVEN): places at [core+18458h], 30h each, `[place + 4 * kit]` the player of
+  kit `place[0Ch]` (tdm 0x3161F0); a player's team `[[player+6B8h]+45ECh]`, alive +33Ch, in the
+  tick lists +33Fh, `m_transform` +40Ch (its translation +43Ch, read by the player's own code
+  0x2D9148 and restored by its deserialize 0x2DB8B9: the feet, below), pitch +48Ch; the time rule's state copied at
+  core+18FE4h (3 in play; written by its tick and deserialize); the game's own place
+  core+18FDCh (client tdm 0x267852); the statistics `[core+18FA8h]`: a player's record 1F8h,
+  `u16 events[28][3]` at +0Ch (the kill handler 0x2F4EB0), `m_team_points` +31D4h, the winner
+  +31E4h (tdm 0x316257).
+- **A player's transform is his feet** (PROVEN, 2026-10-22). A living player's tick takes his
+  transform from his character controller (`[[player+494h]]`, 0x2D942A): `get_transform`
+  0x7F5C0 copies the controller's matrix (+80h; its row 3 the capsule's centre) and moves its
+  translation down by `heights[(stance + 2) % 3] + heights[stance]` (+1D0h float[3], the stance
+  +1F0h) times up (0xA7DC00: 0, 1, 0), half the capsule's height; 0x74620 turns that into the map's
+  frame and `rep movs` puts it at +40Ch (0x2D9461). The server's worlds keep the controller's
+  centre, 0.9 m over the feet standing (player_bots.md §4), and `default.player` gives the capsule:
+  0.76 m wide, 1.8 m standing, 1.1 m crouched. The first build took +43Ch for the capsule's centre
+  and tested ±0.9 m round it: a player's feet up to 0.9 m over a unit's top counted, so at School
+  the floor above units A and C (20.25-20.5 m, the boxes' tops 20.04 m) took them (the owner's
+  test, 2026-10-22). 0.27d's units are physics triggers: `capturable_zone_core`'s enter 0x324350
+  and leave 0x324420 get the colliding objects (each's owner, slot 1, the player) from the zone's
+  trigger shapes (the collision geometries' meshes, half extents their scale, 0x7A1F0) overlapping
+  the player's collision: no point, no height of its own. Now the capsule stands on the feet,
+  2 x half its height tall (read from the controller as get_transform does; the config's
+  `capture_half_height` without one), `capture_reach` round (0.38 m, half the width), and it is
+  inside when the nearest it comes to a shape is at most its radius (the capsule's segment against
+  the shape, a ternary search: the distance along a segment to a convex shape is convex); Bullet's
+  collision margin is not counted.
+- **Saving** (PROVEN): a writer's buffer at [writer+14h] (data +4, size +0Ch), grown by 0x7AB30
+  (eax = buffer, push the size; `ret 4`); a reader's cursor at [reader+4] (tdm 0x3163D0). A rule
+  writes field by field (tdm 0x316340) through `buffer_writer::w<unsigned char/short/int>` 0x1F3DE0
+  / 0x2F5DA0 / 0x1F48A0: eax = the value's address, push the writer, the source file, the line, the
+  function, the field's name; `ret 14h`. Each appends the value; with [0x1F1D32C] and [0x1F1D32D]
+  set (the hash mismatch dump) it first records `{next, type name, name, function, file, line,
+  size, writer+10h}` (20h bytes from 0x80450) at the end of the writer's list (+0 count, +8 head,
+  +0Ch tail). Research's serialize does the same, 88 fields (`m_points[0]` .. `C.marks[19]`): the
+  bytes `rr_write` gives (snapshot_rules.md 2.8) and each named in the dump; the first build
+  appended `rr_write`'s bytes in one piece, which wrote the same bytes and nothing in the dump.
+- **Config** (PROVEN): 0xF6B10 (eax = a table, edi = the key) gives the child (CRC look-up, then
+  the names); 0xF6C00 (esi = the key) says whether there is one; a value is 24 bytes, its data a
+  pointer for tables, strings and vectors, +14h the type, +16h the count (the respawn point's
+  reader 0x2F4580).
+- **The hud** (PROVEN): game_world_ui::update_ui (0x23B300..) shows the match's first message by
+  mode at 0x23B336 (2, 3, 4: `st_start_match_welcome_message`, `_2`, `_3`; 0x2375C0, ecx = the
+  key, `(ui, 21h, 14h, 6000)`, `ret 10h`: localised by 0x1FF0F0 into root.set_parameterized_
+  message), then each frame the teams' points (0x2364C0 → `root.set_game_progress`) and, for mode
+  4 only, `set_last_players` (0x23B3DE: `cmp dword [edi+20h],4`). The movie: [[[ui+8]+108h]+4],
+  `Invoke` 0x511600 (thiscall: name, result, args, count; `ret 10h`), a GFx value 18h bytes (+4 the
+  type: 4 uint, 5 number; +8 the value). The world from the ui: [[ui+18h]+4D4Ch]+1F8h, its rules
+  at +18824h (the minimap's 0x23AA21). `root.set_game_type` gets `mode.mode` (0x234D66).
+- **The first local test's crash** (PROVEN, 2026-10-22, the owner's two clients on map 184, both
+  at their first synchronization: `PRIV_INSTRUCTION` at 0x9FB814): the first build's slot 16 was
+  `deserialize(reader)` `ret 4`. The rules loop above left esp 4 bytes low; 0x2D2770's epilogue
+  (`pop edi/esi/ebp/ebx; add esp,68h; ret 0Ch`) then popped each register one slot off and returned
+  through the dword below its return address, a stale argument of 0x2D0B70's log call at 0x2D0F3D
+  (`push 0x9FB814`, the "net_sync" channel's name), whose first byte is `outsb`. The dump agrees:
+  esp 0x767F7754 is 0x2D0B70's frame minus 4, `[esp]` = edi = 8 (the loop's pushed dword), ebp
+  clobbered, the last real return address 0x27C0DE (`network_client::process_dynamic_match_info`).
+  Slot 16 takes the dword and pops it now; selftest check 53 compares every slot's `ret` with
+  tdm's, and `check_research_026g.py` runs the rule through the game's own loops.
+- **The review of #297** (2026-10-22, after the merge; `fix/research-review`):
+  - **Slot 7's arguments** (PROVEN, CRITICAL): `rn_on_event` took `(type, time, data)`; the game
+    passes `(type, data, time)` (above). It read the time as the kill's bytes: before 65,536 ms of
+    game time a fault at the first death on every client, after it random killer and victim
+    places (up to 254 into the 20 places) and no kill invader. Now `(type, data, time)`, and a
+    kill's places out of 0..19 are refused. `check_research_026g.py` runs slot 7 through the
+    dispatcher 0x2D1EA0 with a kill and checks what it counted; with the first build's order
+    put back by a shim, the case fails. Every slot of ours, the tick and the cook are reached
+    the same way (client_patch.md §0.4, "through the game's own caller").
+  - **The scoreboard** (PROVEN): the game's event sites (the kill handler 0x2F4EB0, 0x2F4DE1)
+    add to the player's cell and then, when the statistics have an event listener (+31A0h, a
+    boost::function, not 0 once set), call it through 0x2F5D40 (eax = +31A0h; place, event,
+    amount; `ret 0Ch`); the listener is `base_game_statistics_handler::on_event` 0x26DB80 (vtable
+    0xA0755C slot +44h, §3.16), ecx the statistics object itself (`[core+18FA8h]`), which adds the
+    event's weight times the amount (x 0.01 for the hundredths events 6, 17, 18) to the player's
+    score (`m_scores`, +31F0h[place]). Research's counts did not call it: the Tab list's score grew at the
+    next world loaded only. `count()` calls it after each add, with what it added.
+  - **The leader at the goal**: both shown 100 (99.5 rounds up) was a draw. `rr_leader` takes
+    the millionths once a team reached the goal (the rule's end is set), and so does srp
+    (`rules::research_winner`).
+  - **A late joiner's first world**: the time rule's deserialize (0x31803E) sends event 0
+    before Research's deserialize runs, so slot 7's `publish()` wrote the fresh rule's 0 / 0
+    and a draw into the statistics' tail; `rn_deserialize` publishes the loaded state at its
+    end.
+  - **The hud's cache** is of a rule by its address; a new match's rule allocated where the
+    last one was found its owners there and could say "Unit A lost" at its first frame. The
+    cook's create forgets it.
+
 ## 4. Mode 3 batteries: not needed in 0.26g
 
 - 0.26g splits the rule: `match_time_vi_spawn_rule` (vtable 0xA06C04) wraps `match_time_vi_spawn_rule_core` (vtable 0xA15CAC). The battery tick is no longer a vtable slot: the core's ctor 0x3147A0 stores a delegate `{this, 0x3148A0}` at +0x1C4 / +0x1C8 (0x3147F1). [V]
@@ -1537,3 +1674,170 @@ Please reinstall the application and try again" (string 0x9DEF00, pushed at
   Not known from the code alone: whether every small archive mounts as the
   retail one does (the mounter reads the 256 signature bytes after the
   file table, section 0.1).
+
+### 0.3 `.srpx`, the arena of the later patches (generic tooling, 2026-10-22) — PROVEN bytes: the exe is byte for byte main's build with Research on it; the self-test's arena checks pass
+
+The exe's section table has room for twelve entries: it begins at file 0x210
+and the headers end at 0x400, where the first section's bytes begin, so
+0x400 - 0x210 = 0x1F0 = 12 x 40 bytes. The game's seven sections and ours,
+`.srp`, `.srpd`, `.srpc` and `.srpw`, take eleven. The twelfth and last is
+`.srpx`, which Research (patch 53, #297) made first: code, initialized data
+and writable (0xE0000060), on the page after `.srpw`'s three pages
+(`ARENA_VA` = 0xA42D000). It is now an arena every later patch's code, data
+and state goes in, so no patch needs a PE section of its own again (the
+table is full).
+
+It only grows. A patch that wants room declares its blocks in
+`patch_026g.py`'s `ARENA`, in placement order, append only: an
+`ArenaBlock(name, kind, size, align)` each (`kind` "code", "data" or
+"state"; `align` a power of two from 16, 0x1000 for a page of its own). The
+builder lays them out in that order, each at the next multiple of its
+alignment after the one before (`arena_layout`; `ARENA_LAYOUT` holds the
+VAs), and only the section's `VirtualSize`/`SizeOfRawData` and the image's
+`SizeOfImage` grow. A block never moves once placed: `ARENA_PINNED` writes
+down every block's VA when it is added, and `build()` stops if a size or an
+alignment change would move one (`check_arena`). A patch takes its VAs from
+`ARENA_LAYOUT` (and checks its `.bin` was built for them, as Research does),
+and the file holds the whole arena (code blocks int3 after their
+bytes, data and state blocks and the gaps zeros), byte-for-byte
+deterministic.
+
+```
+section table (0x210..0x400): 12 slots
+  .text .rdata .data STLPORT_ .tls .rsrc .reloc   (the game's 7)
+  .srp .srpd .srpc .srpw                           (ours, 8..11)
+  .srpx                                            (the arena, 12)
+
+.srpx  (VA 0xA42D000, grows ->)
+  +0        research.code   (code,  0x3000, page)   -> 0xA42D000
+  +0x3000   research.state  (state, 0x1000, page)   -> 0xA430000
+  +0x4000   (next: #225's anomalies.code)           -> 0xA431000
+  ...each new patch's blocks appended, nothing before them moves
+```
+
+**Research on the arena.** `ARENA` is Research's two blocks; `RESEARCH_VA`
+and `RESEARCH_STATE_VA` are `ARENA_LAYOUT["research.code"]` and
+`["research.state"]`, the VAs `research_026g.py` links for. The build is byte
+for byte what main built before the arena existed (Research writing `.srpx`
+itself): the default exe, `--revision` with `--required-patches`,
+`--no-late-join`, `--cave=hash-mismatch`, `--cert-only` and `--server`,
+compared by sha256 against main 5d834b9f's tool. `DYNAMIC_ANOMALIES_OFFSET`
+is gone: nothing reserves room ahead, the next block simply goes after the
+last.
+
+**Adopting it: the dynamic anomalies (#225).** #225 assembles
+`dynamic_anomalies_026g.asm` for 0xA431000 (`.srpx` + 0x4000) and puts its
+bytes there itself. On the arena:
+
+1. append its block to `ARENA`, after Research's:
+   `ArenaBlock("anomalies.code", "code", <its size, a page multiple>, 0x1000)`
+   (state of its own, if any, as one more block after it), and its row to
+   `ARENA_PINNED`: `"anomalies.code": 0xA431000`;
+2. take its VA from `ARENA_LAYOUT["anomalies.code"]` (0xA431000, so its
+   `.bin` does not change), check its `.bin` was assembled for it, aim its
+   hooks there, and put its bytes into `arena_bytes["anomalies.code"]` in
+   `build()` (beside `arena_bytes["research.code"]`); drop its own
+   `add_code_section` / `.srpx` code;
+3. declare its hooks in `INSTALLS` (and any vtable or callback it hands the
+   game in `INSTALLED_VTABLES` / `CALLBACKS`, section 0.4), or `build()`
+   refuses them;
+4. the self-test's `.srpx` check reads the blocks from `ARENA_LAYOUT`; add the
+   anomalies' bytes to what it expects there.
+
+A patch after it does the same with the next block.
+
+### 0.4 Call shapes: every installed function has a model (generic tooling, 2026-10-22) — PROVEN bytes, the self-test's shape checks pass
+
+A function the game calls through a pointer our code hands it (a vtable slot,
+a delegate, a callback) must pop off the stack exactly what the game's own
+function in its place pops (its `ret imm16`), or the game's caller is left
+with the stack off by the difference. Research's rule slot 16
+(`rn_deserialize`) popped 4 bytes where the game's rules end `ret 8`, from a
+wrong hand-written note, and the game died at the first sync (#297; fixed
+there, and check 53 compared Research's own vtables with tdm's). This makes
+that comparison the rule for every patch.
+
+Every function a patch installs declares, in `patch_026g.py`, the game's own
+function it stands in for (its **model**) or an explicit ABI:
+
+- `INSTALLS` names each site where the game calls or enters our code, by the
+  shape the site had in the original: **SLOT** (a pointer the game calls
+  through: the model is the function the original's pointer named), **ENTRY**
+  (a function's first bytes jump to ours, or its body is ours in place: the
+  model is that function), **CALLEE** (`[push ...] call F` calls ours: the
+  model is F), **INLINE** (a call of ours where the site was other
+  instructions), **ABI** (pops what the declaration says, with the reason),
+  **JUMP** (a jump into ours from the middle of the game's code).
+- `CALLBACKS` names the functions our code hands the game at run time (no
+  write of `build()` shows them), with the instruction that hands each over
+  and its model.
+- `INSTALLED_VTABLES` names each vtable our code builds and installs (a
+  rule's, a cook's): the `.section.json` symbol of its locator, the model
+  vtable (the game's own in the same role) and how many slots are ours.
+  Today: Research's rule (tdm_rule_core, 0xA15DA4, 9 of 20 slots ours), its
+  cook (tdm_rule_cook, 0x9FD8AC, 2 of 11) and its rule's link resolver (the
+  game's own function only).
+
+Each slot of ours and each callback also names a case of its patch's Unicorn
+check that reaches it **through the game's own caller** (the last field of
+`INSTALLED_VTABLES`' rows and `CALLBACKS`'): the `ret` comparison cannot see
+the order of the arguments, and Research's slot 7 took `(type, time, data)`
+where the game's dispatcher 0x2D1EA0 passes `(type, data, time)` (#297's
+review, §3.50). The self-test fails a slot of ours or a callback without such
+a case, or with a case its script does not have; a negative test shows both.
+Research's cases: slot 7 through the dispatcher 0x2D1EA0 (with the first
+build's order put back by a shim, the case fails), 8 and 9 through the
+world's entered/left loops (0x2D2010, 0x2D2130), 11 and 12 through the
+world's set-core and blackboard loops (0x2D3B40, 0x2D5906), 15 and 16 through
+game_world_core's serialize and deserialize loops (0x2D2661, 0x2D2B42), 17
+through the hud's loop (0x2D36D0), 18 through the completed loop (0x2D2730),
+the cook's 9 and 10 through translate's calls (0x2F42B8..0x2F42CF), the tick
+through the tick list's runner 0x2D1D20; the late join's query callback
+through the game's boost invoker 0x202300, weapon_camo's bake through
+0x127700.
+
+The checks:
+
+1. `build()` fails on any call (E8), jump (E9) or other 4 bytes naming our
+   code (a pointer, a `push imm32`, a `mov imm32`), at any offset of any write
+   into the game's sections (`installs_of`), that `INSTALLS` does not declare,
+   or whose kind does not fit the site (`audit_installs`); and on any
+   `*_vtable` symbol of the arena's C code (`ARENA_SYMBOLS`) that
+   `INSTALLED_VTABLES` does not declare (`audit_vtables`). A new installed
+   function or vtable cannot ship undeclared.
+2. The self-test (`test_call_shapes`) reads what each of ours pops from the
+   built bytes, every `ret` reachable from its entry with its branches
+   followed (a body the compiler split, a tail jump into the game:
+   `function_pops`; an instruction cap reached is a failure, not a pass), and
+   the model's the same way from the original exe; where
+   `tools/re-kit/v026g/abi.tsv` has the model's row its `ret_cleanup` must say
+   the same. It fails on a mismatch for:
+   - every SLOT (model: the function the original's pointer named);
+   - every ENTRY (model: the function at the site; a body in place too);
+   - every CALLEE (model: the replaced call's target, less the bytes of the
+     pushes replaced with it: `kit_view` 4 - 4 = 0, `detach_first` 8 - 8 = 0);
+   - every ABI (its declared pops);
+   - every CALLBACK;
+   - every slot of ours of every INSTALLED_VTABLES vtable (check 53's
+     comparison, generalised).
+   Today that is 10 ENTRY, 18 CALLEE, 1 ABI and 1 SLOT site, 2 callbacks and
+   Research's 11 own vtable slots. Over the variants it builds it also flags
+   an `INSTALLS` row that none installs (a stale row).
+   `test_call_shapes_negative` builds a made-up rule vtable whose slot 16
+   pops 4 where tdm_rule_core's pops 8 and checks it is rejected (and the same
+   slot at 8 passes), and refuses an undeclared vtable, an undeclared install
+   and a `push imm32` of our code's address inside a write.
+
+On main the installed pointers are the replay camera's "is this place mine"
+slot (model `is_this_place_mine`, `ret 4`), the callbacks `query_completed`
+(model `on_match_ready`, `ret 4`) and `bake_done` (model `on_bake_finished`,
+`ret 0`), and Research's three vtables above (its rule slot 16 now `ret 8`).
+
+**Not covered.** INLINE sites (a call of ours over instructions that were not
+a call) and JUMP sites (a jump into ours from the middle of the game's code)
+are declared but not `ret`-checked: their stack balance at the return point
+stays covered by each patch's own Unicorn check and by the relocation and
+no-branch-into-a-hook checks. Nor are the in-place rewrites of the game's code
+(STAGE_FOCUS, the scoreboard's loop), which install nothing. Not yet either:
+that every slot of ours is reached through the game's own call site with its
+arguments in their order (the Research follow-up).

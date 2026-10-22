@@ -679,6 +679,7 @@ def native_query(data):
         assert completions == [1]
         assert uc.reg_read(UC_X86_REG_ESP) == STACK + 4
         assert all(uc.reg_read(reg) == value for reg, value in saved)
+    print("  driven: query_completed through the game's boost invoker 0x202300 (masks 1..7)")
 
 
 def animation_table(m, table):

@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use binary_config_parser::{ConfigError, ConfigValue};
 use vostok_resources_db::{Archive, FileEntry, NodeKind};
@@ -29,8 +29,10 @@ impl From<ConfigError> for Error {
 }
 
 pub struct Resources {
-    archive: Archive,
-    files: HashMap<String, FileEntry>,
+    archives: Vec<Archive>,
+    /// By path: the archive that gives it (the last layer that has it) and
+    /// its entry there.
+    files: HashMap<String, (usize, FileEntry)>,
     /// Index entries that are hard links whose target is not a file (a link
     /// to a link); none in the shipped 0.26g archive.
     pub unresolved_links: usize,
@@ -45,28 +47,47 @@ impl Resources {
     /// link's own path, so they are kept here as files like any other; a
     /// loader that took only plain file nodes would lose those meshes.
     pub fn open(path: &Path) -> Result<Self, Error> {
-        let archive =
-            Archive::open(path).map_err(|error| Error(format!("{}: {error}", path.display())))?;
-        // The unpacker indexes slices directly; a damaged file must not take
-        // the caller down, so treat a panic while listing as a load error.
-        let entries = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| archive.list()))
-            .map_err(|_| Error(format!("{}: unreadable file index", path.display())))?;
-        let mut files = HashMap::with_capacity(entries.len());
+        Self::open_layers(&[path.to_path_buf()])
+    }
+
+    /// The archives mounted in order, as the game mounts `resources.db` and
+    /// its `resources.db.patch_<n>`: a file of a later one wins.
+    pub fn open_layers(paths: &[PathBuf]) -> Result<Self, Error> {
+        let mut archives = Vec::with_capacity(paths.len());
+        let mut files = HashMap::new();
         let mut unresolved_links = 0;
-        for entry in entries {
-            match entry.kind {
-                NodeKind::File { .. } => {
-                    files.insert(normalize(&String::from_utf8_lossy(&entry.path)), entry);
+        for (layer, path) in paths.iter().enumerate() {
+            let archive = Archive::open(path)
+                .map_err(|error| Error(format!("{}: {error}", path.display())))?;
+            // The unpacker indexes slices directly; a damaged file must not
+            // take the caller down, so treat a panic while listing as a load
+            // error.
+            let entries = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| archive.list()))
+                .map_err(|_| Error(format!("{}: unreadable file index", path.display())))?;
+            for entry in entries {
+                match entry.kind {
+                    NodeKind::File { .. } => {
+                        files.insert(
+                            normalize(&String::from_utf8_lossy(&entry.path)),
+                            (layer, entry),
+                        );
+                    }
+                    NodeKind::HardLink => unresolved_links += 1,
+                    _ => {}
                 }
-                NodeKind::HardLink => unresolved_links += 1,
-                _ => {}
             }
+            archives.push(archive);
         }
         Ok(Self {
-            archive,
+            archives,
             files,
             unresolved_links,
         })
+    }
+
+    /// Every file's path (normalized), in no order.
+    pub fn paths(&self) -> impl Iterator<Item = &str> {
+        self.files.keys().map(String::as_str)
     }
 
     pub fn exists(&self, path: &str) -> bool {
@@ -75,11 +96,11 @@ impl Resources {
 
     /// File bytes by engine path; a leading `resources/` is optional.
     pub fn read(&mut self, path: &str) -> Result<Vec<u8>, Error> {
-        let entry = self
+        let (layer, entry) = self
             .files
             .get(&normalize(path))
             .ok_or_else(|| Error(format!("missing resource `{path}`")))?;
-        self.archive
+        self.archives[*layer]
             .read_file(entry)
             .map_err(|error| Error(format!("{path}: {error}")))
     }

@@ -189,7 +189,8 @@ package survarium.rooms
             "2": ["Protective device", "Захисний пристрій", "Защитное устройство", "Schutzeinrichtung", "Urządzenie ochronne"],
             "3": ["Protective device: chargers", "Захисний пристрій: зарядники", "Защитное устройство: зарядники",
                 "Schutzeinrichtung: Ladestationen", "Urządzenie ochronne: ładowarki"],
-            "4": ["Team Deathmatch", "Командний бій", "Командный бой", "Kommandokampf", "Walka drużynowa"]
+            "4": ["Team Deathmatch", "Командний бій", "Командный бой", "Kommandokampf", "Walka drużynowa"],
+            "5": ["Research", "Дослідження", "Исследование", "Forschung", "Badania"]
         };
         // maps_dict's map_weather_id: 1 day, 2 rain, 3 evening, 4 night, 5 prerain.
         private static const WEATHER:Object = {

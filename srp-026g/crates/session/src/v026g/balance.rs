@@ -205,7 +205,8 @@ pub struct Weights {
     /// A battery of lead in a match being played (modes 2 and 3), in
     /// players: what the side that leads counts for more.
     pub battery_lead: f64,
-    /// The same for a ticket of lead in a Team Deathmatch.
+    /// The same for a ticket of lead in a Team Deathmatch, and for a point
+    /// of lead in Research (mode 5: points of 100 too).
     pub ticket_lead: f64,
 }
 
@@ -263,10 +264,10 @@ impl Weights {
     }
 
     /// What each side's lead counts for in a match of `game_mode` that
-    /// stands at `points` (batteries home, or tickets left): nothing for the
-    /// side that trails.
+    /// stands at `points` (batteries home, tickets left, or Research's
+    /// points): nothing for the side that trails.
     pub fn lead(&self, game_mode: u8, points: [u16; 2]) -> [i32; 2] {
-        let each = if game_mode == mode::TEAM_DEATHMATCH {
+        let each = if matches!(game_mode, mode::TEAM_DEATHMATCH | mode::RESEARCH) {
             self.ticket_lead
         } else {
             self.battery_lead
@@ -413,6 +414,8 @@ mod tests {
         assert_eq!(weights.lead(mode::BATTERIES, [4, 4]), [0, 0]);
         // Tickets: a fifth of a player.
         assert_eq!(weights.lead(mode::TEAM_DEATHMATCH, [80, 93]), [0, 3120]);
+        // Research's points as tickets.
+        assert_eq!(weights.lead(mode::RESEARCH, [93, 80]), [3120, 0]);
         // With no weight for a player there is no lead to count.
         let none = Weights {
             player: 0.0,

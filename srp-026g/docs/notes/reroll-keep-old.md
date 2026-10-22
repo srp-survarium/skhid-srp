@@ -24,8 +24,8 @@ modification reroll of the Upgrade window; the price is paid anyway. Code:
   offer is kept and shown again when the window is opened for the item, paid for; until then the
   item has the old one. (Not discarded: the player paid for it, and keeping it gives nothing
   more.)
-- **What stays locked:** the modification changed is the item's only one that may be changed
-  again, kept or not (the game's rule: one modification of an item, any number of times).
+- **What stays locked:** nothing since 2026-10-22, see below. (The game's rule was one
+  modification of an item, any number of times: the first change picked which.)
 - **Wire:** "keep old" is `46 08 <item> <old> 3` (the place after the three; the exe sends Flash's
   value as it is, 0x29FF7A). The answer is `83 46 08 <item> <old> <old> <costs> <wait>`: the
   client changes the old one into itself (nothing) and fills the window again. No exe change.
@@ -33,3 +33,29 @@ modification reroll of the Upgrade window; the price is paid anyway. Code:
 - **Release:** the lobby movie (the content patch) and the server, together: an old movie never
   sends "keep old"; an old server refuses it as a choice that is none (the window is filled
   again, the offer still there).
+
+## Any modification may be rerolled
+
+The owner, 2026-10-22: "it should be possible to roll every single slot of equipment and not be
+locked into one". Code: `items_rules::reroll`; the lobby: `MessageRerollItem.updateModifiers`.
+
+- **Rule:** any of the item's own modifications may be changed, each any number of times. The
+  game's lock (the first change picks the one) is gone, on the server and in the window.
+- **Same as before:** the price by item level, times 1.1 for each change of the item (any
+  modification, kept or not: one count an item, `reroll.count`); paid once, when the three are
+  offered; one offer at a time (asking for another modification meanwhile shows the same three,
+  free); keep old; no craft while one is offered; refused for a damaged item or one in repair;
+  golden weapons' and premium armour's bonuses roll like any other.
+- **The one changed last:** still kept (`reroll.modification`) and sent (`83 46 06`/`08`,
+  `was_rerolled_before`); the window selects it when it opens, locks nothing and greys out
+  nothing.
+- **Text:** the window's rule line is srp's own (`st_modifier_reroll_description` says "only one
+  modifier"): "You can change any modifier of an item, any number of times. You then choose one
+  of three random modifiers.", in the lobby's five languages.
+- **Exe:** no lock. `reroll_item_modifier` 0x29FE80 sends `46 07` with `item.mods[index]` of the
+  row clicked, no check (0x29FED0..0x29FEFE); the window's data 0x29FC8D..0x29FD1A only sets
+  `was_rerolled_before` (the window selects that row) and `reroll_available` (the window does
+  not read it). The lock was the window's alone. No exe change.
+- **Match:** nothing changes there: the item's modifications work as before.
+- **Release:** the server and the lobby movie. With an old movie the lock stays in the window
+  only; with an old server the new window's other rows are refused (`84 46`).

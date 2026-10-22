@@ -785,6 +785,123 @@ fn a_rerolled_modification_may_be_kept() {
     world.assert_clean();
 }
 
+/// The owner's rule of 2026-10-22 (`docs/notes/reroll-keep-old.md`): after
+/// one modification was changed, another is changed too, at the next price;
+/// while an offer waits, asking for another shows that offer again, free.
+#[test]
+fn another_modification_is_rerolled_after_the_first() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    world.change(alice, |account| account.generic_money = 100_000);
+    let premium = world.account(alice).premium_money;
+    let rifle = give(&mut world, alice, "ak_74m", &[2000, 2010]);
+
+    // 2000: offered and paid.
+    world.ask(alice, ask::reroll(rifle, 2000, false));
+    let decoded = world.take(alice);
+    let Decoded::Permitted(Permitted::RerollResult { choices: first, .. }) = decoded[0] else {
+        panic!("{:?}", decoded[0]);
+    };
+    assert_eq!(world.account(alice).generic_money, 100_000 - 2400);
+
+    // 2010 asked for while 2000's offer waits: 2000's three again, nothing
+    // charged.
+    world.ask(alice, ask::reroll(rifle, 2010, false));
+    let decoded = world.take(alice);
+    assert_eq!(denial(&decoded, 0x46), None);
+    assert!(matches!(
+        decoded[0],
+        Decoded::Permitted(Permitted::RerollResult { item_id, choices, .. })
+            if item_id == rifle && choices == first
+    ));
+    assert_eq!(
+        decoded[1],
+        Decoded::Money {
+            generic: 100_000 - 2400,
+            premium
+        }
+    );
+    assert_eq!(world.account(alice).item(rifle).unwrap().reroll.count, 1);
+
+    world.ask(alice, ask::choose(rifle, 2000, 0));
+    let decoded = world.take(alice);
+    assert!(matches!(
+        decoded[0],
+        Decoded::Permitted(Permitted::ModifierChosen { new_modification, .. })
+            if new_modification == first[0]
+    ));
+
+    // 2010 now: not refused, at a tenth more.
+    world.ask(alice, ask::reroll(rifle, 2010, false));
+    let decoded = world.take(alice);
+    assert_eq!(denial(&decoded, 0x46), None);
+    let Decoded::Permitted(Permitted::RerollResult {
+        item_id,
+        choices: second,
+        ..
+    }) = decoded[0]
+    else {
+        panic!("{:?}", decoded[0]);
+    };
+    assert_eq!(item_id, rifle);
+    assert_eq!(
+        decoded[1],
+        Decoded::Money {
+            generic: 100_000 - 2400 - 2640,
+            premium
+        }
+    );
+    assert_eq!(world.account(alice).generic_money, 100_000 - 2400 - 2640);
+
+    // The window: 2010 is the one changed last, the next change two
+    // tenths more, the offer waiting.
+    world.ask(alice, ask::open_reroll(rifle));
+    let decoded = world.take(alice);
+    assert_eq!(
+        decoded[0],
+        Decoded::Permitted(Permitted::RerollWindow {
+            item_id: rifle,
+            a: 2904,
+            b: 15,
+            more: Some((2010, 0))
+        })
+    );
+    assert!(matches!(
+        decoded[1],
+        Decoded::Permitted(Permitted::RerollResult { choices, .. }) if choices == second
+    ));
+
+    world.ask(alice, ask::choose(rifle, 2010, 1));
+    let decoded = world.take(alice);
+    let Decoded::Permitted(Permitted::ModifierChosen {
+        old_modification,
+        new_modification,
+        rest,
+        ..
+    }) = decoded[0]
+    else {
+        panic!("{:?}", decoded[0]);
+    };
+    assert_eq!((old_modification, new_modification), (2010, second[1]));
+    assert_eq!(rest, [2904, 15, 0]);
+    assert_same_items(&mut world, alice);
+    assert_eq!(
+        items_rules::own_modifications(world.account(alice).item(rifle).unwrap()),
+        [first[0], second[1]]
+    );
+    world.ask(alice, ask::open_reroll(rifle));
+    assert_eq!(
+        world.take(alice),
+        [Decoded::Permitted(Permitted::RerollWindow {
+            item_id: rifle,
+            a: 2904,
+            b: 15,
+            more: Some((second[1], 0))
+        })]
+    );
+    world.assert_clean();
+}
+
 #[test]
 fn an_item_is_crafted_with_a_donor() {
     let mut world = World::new();

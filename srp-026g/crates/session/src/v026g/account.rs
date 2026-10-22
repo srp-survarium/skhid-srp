@@ -48,8 +48,9 @@ pub struct Upgrade {
 /// `super::items_rules`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Reroll {
-    /// The modification that was changed before, the only one that may be
-    /// changed again; 0: none yet.
+    /// The modification changed last (the window marks it); 0: none yet.
+    /// Not a lock: any of the item's own may be changed (the owner's rule
+    /// of 2026-10-22, `docs/notes/reroll-keep-old.md`).
     pub modification: u32,
     /// The changes paid for so far.
     pub count: u32,

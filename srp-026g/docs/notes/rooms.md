@@ -13,7 +13,8 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
 - **Making one:** team size 6 v 6 to 10 v 10; players to start 1 v 1 to 3 v 3; max level
   (equipment cap; 0 = any; never below the maker's own gear); the time to start, 30 s to
   1 min 15 s (the 15 s vote and a wait of 15 s to 1 min; shown as the whole); an optional 4-digit PIN; a pool of maps (with modes: Protective device,
-  Protective device: chargers, Team Deathmatch; experimental maps addable). Named after its
+  Protective device: chargers, Team Deathmatch, Research once its maps are in the data;
+  experimental maps addable). Named after its
   maker; never changed once made. No level is chosen: the room's level is its members'
   match level.
   - **Remembered** (the owner's of 2026-10-20: "when you set up your room with the specific

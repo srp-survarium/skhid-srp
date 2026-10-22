@@ -156,11 +156,20 @@ impl Core<'_> {
         };
         match rolled {
             Ok((rolled, money)) => {
-                log::info!(
-                    "{} changes modification {modification} of item {item_id} for {:?}",
-                    who.name,
-                    rolled.paid
-                );
+                if rolled.again {
+                    log::info!(
+                        "{} asks to change modification {modification} of item {item_id}: \
+                         the pending offer for {} is shown again, nothing charged",
+                        who.name,
+                        rolled.replaced
+                    );
+                } else {
+                    log::info!(
+                        "{} changes modification {modification} of item {item_id} for {:?}",
+                        who.name,
+                        rolled.paid
+                    );
+                }
                 self.accounts.mark_dirty(who.account_id);
                 self.send(
                     who.addr,
