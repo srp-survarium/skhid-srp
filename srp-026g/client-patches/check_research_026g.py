@@ -65,7 +65,7 @@ def config_bytes():
                        "capture_time_in_s": [20, 18, 15, 14.9, 14.8, 14.7, 14.6, 14.5],
                        "resource_per_s": [0.075, 0.15, 0.35], "capture_zones": units, "capture_award": 100,
                        "capture_reach": 0.4, "capture_half_height": 0.9},
-        "ui": {"loading_screen_id": 0, "icon": 3, "mode_name": "st_mode_05_name"},
+        "ui": {"loading_screen_id": 0, "icon": 1, "mode_name": "st_mode_05_name"},
         "name": "level_01_day_5", "rules": [93, 91, base.RESEARCH_CLASS, 94], "mode": 5}})
 
 

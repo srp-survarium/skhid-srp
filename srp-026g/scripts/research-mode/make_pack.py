@@ -52,6 +52,10 @@ PACK_ID = 'research-mode'
 VERSION = '2'
 RULE_CLASS = 0x1E0           # client-patches/research_native_026g.c RN_CLASS (patch 53)
 RULES = [93, 91, RULE_CLASS, 94]
+# The lobby's mode icon (ui.icon: SrvGameModeIcons frame icon + 1, LobbyGameLoad.setMode). 0.26g's
+# movie has three frames: 0 the protective device (modes 2, 3), 1 a transmitter mast no mode uses,
+# 2 the skull (Team Deathmatch). 0.27d's configs say 3, a frame 0.26g's movie has not.
+ICON = 1
 CAPTURE_AWARD = 100          # 0.27d gameplay/awards/events.options capture_the_point: shared, factor 100
 CAPTURE_REACH = 0.4          # m: a player's capsule radius, added round each shape
 CAPTURE_HALF_HEIGHT = 0.9    # m: half the capsule's height over its centre (player_bots_behaviour.md)
@@ -461,6 +465,7 @@ def mode_config(donor, level, weather, map_id, project_path, units, name):
     config = copy.deepcopy(donor)
     mode = config['mode']
     mode['name'] = name
+    mode['ui']['icon'] = ICON
     mode['rules'] = list(RULES)
     mode['mode'] = 5
     mode['match_making_params']['map_name'] = project_path
