@@ -851,7 +851,11 @@ mod tests {
             parts.rules.gather.as_mut().unwrap().team_points = [0, 0];
             assert_eq!(check(&parts.body(), game_mode, &profiles()), Ok(()));
             parts.rules.gather.as_mut().unwrap().team_points = [1, 1];
-            refused(check(&parts.body(), game_mode, &profiles()), "rules", "mode rule");
+            refused(
+                check(&parts.body(), game_mode, &profiles()),
+                "rules",
+                "mode rule",
+            );
         }
     }
 
