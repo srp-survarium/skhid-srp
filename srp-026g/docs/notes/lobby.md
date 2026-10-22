@@ -615,5 +615,10 @@ around character"; "we want to fix it too".
   (`root.get_mouse_over`).
 - **Now:** on close the keys go back to the lobby (`stage.focus`) if a control of the window had them,
   and the window leaves the display list, as the craft window does. It is added again when it opens.
-- Code: `LobbyMenu.closeModifierWindow`. Lobby movie only.
+- **The open puts it back first** (2026-10-22, the owner: after the second Attachment "lobby bugged
+  out", "i didn't get camera transition"): `UpgradeWindow.setData` places the window by its
+  parent's inventory list, so the open adds the window to the display list before `setData`. Done
+  after it (#302, revisions 28 and 29), every second open in a session threw there: no window, no
+  `start_item_upgrade` (no camera to the bench), the list left in upgrade mode.
+- Code: `LobbyMenu.closeModifierWindow`, `openModifierWindow`. Lobby movie only.
 

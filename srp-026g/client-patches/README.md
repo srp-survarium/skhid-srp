@@ -2541,6 +2541,16 @@ buffer; the code's branches) and check 33 (patch 32's two jumps to it); `check_w
 (patch 32's cases with patch 45's camera). Round 1 (e93fb6f0) run in a game by the owner (the camera at the
 bench, the weapon there); **round 2 not run in a game**.
 
+Round 4 (2026-10-23, the owner on main + #312: "i can press attachments and then quickly esc, what
+happens is that the weapon I was trying to attach too, is now in my hands, even though in inventory
+I have a different weapon"): a window closed while its player is still being made left that player
+in the hands. setup_profile's early return (what is asked is the shown copy) does not look at the
+player being made; patch 32's scratch keeps the chosen kit's id with a revision of its own, so the
+close's call for the account's kit returned early and the window's player came after it. On live
+too (revisions 28 and 29 have the same code), for a weapon no kit holds and for armour the chosen
+kit does not wear. Fixed by patch 48's `early` (below): the close waits for that player and the
+account's is made right after it. `../docs/notes/client_patch.md` section 3.42, round 4.
+
 ### 46. On the death screen a drag turns the camera; the wheel does nothing (the next release's revision)
 
 The owner (2026-10-21): "when player dies they can still move camera
@@ -2710,9 +2720,9 @@ round trip live); then the character's player is made again; a camouflage's firs
 of GPU and compression (the game's own log lines). Now the drop itself changes what the character
 is built from; what is sent is not changed and the server's account stays the truth.
 
-`upgrade_preview_026g.asm` at `.srpw`+2000h (1596 bytes, the section's third page), its state
+`upgrade_preview_026g.asm` at `.srpw`+2000h (1638 bytes, the section's third page), its state
 (A0h bytes: the window's item, the queue of changes, the revision last given and its upgrades,
-the last query's time and kit) at `.srpd`+D60h, after the patches' mount's and before patch 32's; six `jmp near`, its entries:
+the last query's time and kit) at `.srpd`+D60h, after the patches' mount's and before patch 32's; seven `jmp near`, its entries:
 
 - **relocate** (+0): relocate_upgrade_item's handler (0x29A8B0), `mov edx,[esi+4620h]` at
   0x29A9B2 (6 bytes, `call` and a nop), before it writes `46 01`; and **drop** (+5):
@@ -2741,6 +2751,12 @@ the last query's time and kit) at `.srpd`+D60h, after the patches' mount's and b
 - **made** (+19h): on_player_ready, `cmp byte [ebx+0D2C9h],0` at 0x284F7F (7 bytes): for the lobby's
   own character a log line "srp: lobby character's player made in <n> ms" (the lobby's clock,
   [menu+9Ch]+584Ch, since the query), then the original's comparison.
+- **early** (+1Eh, 2026-10-23): setup_profile's early return, `cmp byte [ebx+0D2C8h],0` at
+  0x284B7C (7 bytes, its last test before `jz 284CF8h`): for the lobby's own character it returns
+  early only while no player is being made (+D2C4h -1); otherwise the call waits for that player
+  (+D2C8h) and on_player_ready makes it next, as the original does for another kit. A call for
+  what is being made still returns at `again`. Patch 45's round 4: an upgrade window closed while
+  patch 32's scratch's player was being made showed the window's weapon afterwards.
 
 The log lines go through the game's own function (`{0x9DAF4C | 1, 0, [0x1F1D614]}`, as every
 game line's caller builds it; round 2: the first build passed an empty one and nothing was
@@ -2755,7 +2771,9 @@ the code holds absolute addresses (the exe is never rebased). The lobby only: no
 Checked: `selftest_026g.py` check 48 (the sites in the original and the build, the handlers'
 registers, the 0x87 reader's last call, setup_profile's ways to 0x284B89, the code's calls and
 branches, `.srpw`'s three pages); `check_upgrade_preview_026g.py` (Unicorn, the cases in its
-header: the game's own setup_profile, profile copy and config lookups). **Not run in a game.**
+header: the game's own setup_profile, profile copy and config lookups; the quick close through the
+movie's two handlers and the game's own on_player_ready, with and without `early`). **Not run in
+a game.**
 
 ### 49. The game stops at its start without a patch its release requires (the next release's revision)
 
