@@ -19,8 +19,9 @@ import bincfg  # noqa: E402
 from released import die  # noqa: E402
 
 # The modes a match can be (2 batteries, 3 batteries with chargers, 4 team
-# deathmatch), as the server plays them (crates/survarium/src/v026g/maps.rs).
-MODES = (2, 3, 4)
+# deathmatch, 5 Research), as the server plays them
+# (crates/survarium/src/v026g/maps.rs).
+MODES = (2, 3, 4, 5)
 # What a build must extract for these.
 WANTED = ["client_project", "gameplay/game_modes/", "gameplay/db_static_dictionaries",
           "localization/english/localization", "localization/ukrainian/localization", "flash_movies/hud.swf"]
@@ -37,7 +38,7 @@ def project_file(raw, project_path):
 
 def playable(raw):
     """The playable maps by project folder: a `maps_dict` id whose
-    `gameplay/game_modes/` config is of mode 2, 3 or 4 and whose project
+    `gameplay/game_modes/` config is of mode 2 to 5 and whose project
     (`match_making_params.map_name`) exists. Of each map: the name key
     (`map_name`) and per mode the ids, their projects and configs, the mode's
     name key, parameters and rules."""

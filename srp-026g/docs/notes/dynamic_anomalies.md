@@ -16,9 +16,10 @@ PROVEN = read in the code (addresses given); LIKELY = inferred, not read to the 
 
 ## Spec
 
-- **Where:** every map from the release (level_01 to level_09, every mode and weather); the
-  v021d_/v011e_ maps keep their anomalies. A place = three timed anomalies (lifebone, spring,
-  onyx) at one point; at most one of them lives at a time.
+- **Where:** every map from the release (level_01 to level_09, modes 2 to 4, every weather); the
+  v021d_/v011e_ maps and Research's (mode 5, 0.27d's, #297: stock cores whose artefacts come
+  back within 80 s, which patch 42 leaves alone) keep their anomalies. A place = three timed
+  anomalies (lifebone, spring, onyx) at one point; at most one of them lives at a time.
 - **An anomaly's life:** idle (nothing) -> charging 20 s (the charging particle, harmless) ->
   damage 4 s (the damage zone) -> artefact (one artefact in its container, the zone on, until
   someone takes it) -> after the pick-up: gone at once, 60 s rest -> idle.
@@ -35,7 +36,8 @@ PROVEN = read in the code (addresses given); LIKELY = inferred, not read to the 
 - **Bots** (testing only): keep off a timed anomaly's damage zone while a checked world shows
   it charging, hurting or holding its artefact; never predict the next choice; take no
   artefacts.
-- **Release:** exe patch 42 (every full build) and the content pack in one release; the exe
+- **Release:** exe patch 42 (every full build) and the content pack in one release, with
+  Research (#297, patch 53), whose section `.srpx` holds this code at +0x4000; the exe
   requires that release's content patch (patch 49), and the server refuses older exes.
 - **Not as the release:** no mochalka (0.26g has no such artefact); state switches a tick or
   two late; no anomaly-detector zones (section 5).
@@ -262,7 +264,8 @@ content pack). Places per mode 2 / 3 / 4, three timed anomalies per place:
 ## 8. Release and test
 
 - **Release** (the one after revision 28; one `release.sh` run with the content):
-  - exe patch 42 (`.srpa` at 0xA42D000, every full build);
+  - exe patch 42 (at +0x4000 of `.srpx`, VA 0xA431000, after Research's pages; every full build). `.srpx`
+    is made by Research (patch 53, #297): the two ship together, #225 stacked on #297;
   - the content: the pack `dynamic-anomalies@1` (row in `release/content.tsv`). Its folder
     is made once into `$SKHID_PACKS_DIR/dynamic-anomalies-1` by `build.py --pack
     dynamic-anomalies@1` with `--live` = the stock db and the base rows' patches (12, 14, 17,

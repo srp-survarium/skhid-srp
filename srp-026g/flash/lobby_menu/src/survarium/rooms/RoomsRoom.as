@@ -105,7 +105,8 @@ package survarium.rooms
                 if (e != null)
                 {
                     var tag:Shape = new Shape();
-                    tag.graphics.lineStyle(1, e.mode == GameMode.TEAM_DEATHMATCH ? 0xB23A2A : 0x5A8FB5);
+                    tag.graphics.lineStyle(1, e.mode == GameMode.TEAM_DEATHMATCH ? 0xB23A2A
+                        : e.mode == GameMode.RESEARCH ? 0x6E9A3C : 0x5A8FB5);
                     tag.graphics.beginFill(0x000000, 0.7);
                     tag.graphics.drawRect(10, 10, cw * 0.55, 24);
                     tag.graphics.endFill();

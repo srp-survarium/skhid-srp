@@ -98,7 +98,8 @@ pub struct LiveView {
     /// Bit `i`: roster place `i` is in the match. A player who left is
     /// not; one on its way in is.
     pub present: u32,
-    /// Batteries home (modes 2, 3) or tickets left (mode 4), by team.
+    /// Batteries home (modes 2, 3), tickets left (mode 4) or Research's
+    /// points (mode 5), by team.
     /// `None` until the match server trusted a world.
     pub points: Option<[u16; 2]>,
     /// Each team's kills in that world.

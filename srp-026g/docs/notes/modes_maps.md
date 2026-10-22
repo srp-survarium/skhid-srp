@@ -83,6 +83,7 @@ All 74 shipped level configs, PROVEN from `gameplay/game_modes/<name>.options` a
 | 2 batteries | 93, 91, 88, 94 | match_time 900, wait_time 5, countdown_time 20, wait_player_percent 0.8, respawn_time 8, victory_items_count 10 | `st_mode_02_name` "Protective device", icon 0 | day/evn/rain: L1 61,63,65 · L2 67,69,71 · L3 73,75,77 · L4 79,81,83 · L5 85,87,89 · L6 91,93,95 · L7 97,99,101 · L8 103,105 (night 107 broken), prerain 109 |
 | 3 timed batteries + stations | 93, 91, 89, 94 | as mode 2 + vi_spawn_time 60, vi_spawn_variation 10, spawn_points_count 3 (level_08: 2) | `st_mode_03_name` "Protective device" (same text as 2), icon 0 | L1 62,64,66 · L2 68,70,72 · L3 74,76,78 · L4 80,82,84 · L5 86,88,90 · L6 92,94,96 · L7 98,100,102 · L8 104,106 (night 108 broken), prerain 110 |
 | 4 Team Deathmatch | 93, 91, 90, 94 | match_time 900, wait_time 5, countdown 20, wait_player_percent 0.8, respawn_time 8, **tickets_count 100** (level_05, level_08: 150) | `st_mode_04_name` "Team Deathmatch", icon 2 | day/evn/rain: L1 117,118,119 · L2 120,121,122 · L3 123,124,125 · L4 126,127,128 · L5 129,130,131 · L6 132,133,134 · L7 135,136,137 · L8 138,139, prerain 140 |
+| 5 Research (skhid's, not 0.26g's: `research_mode.md`) | 93, 91, **480**, 94 | 0.27d's: match_time 900, wait_time 5, countdown 20, wait_player_percent 0.8, respawn_time 10, **resources_count 100**, capture_time_in_s, resource_per_s, restore_multiplier 0.5, the units in `capture_zones` | `st_mode_05_name` "Research", icon 3 | 0.26g's rows 145-149 (`level_0{1,4,6,7,8}_day_5`, no config in 0.26g) and 184-203: levels 1 to 8 in day, evening, rain (level 8 prerain), London day; the content pack `research-mode` |
 | test | — | `test/tt5` (11): mode 2, 600 s, 2 batteries, wait 1, countdown 1, 10 %; `test/artefact_testlevel` (45): mode 2, 2 batteries, respawn 1; `test/tdm_test` (115): mode 4, 90 s, 50 tickets | | maps lack projects |
 | 0 loopback | 92 only | respawn_time 1 | map `test/tt5/day` | 141 `loopback_client` |
 | 0 none | — | empty | | 142 `gather_server_resources` (LIKELY a server-side preload list, unused by the client) |
@@ -109,6 +110,7 @@ All 74 shipped level configs, PROVEN from `gameplay/game_modes/<name>.options` a
 | 0x5D (93) | timelimit_rule_core (0x317DA0, 0x150) | 0x2F4A09 / 0x9FD944 | 0x5C (`timelimit_rule_cook` ctor 0x162776) |
 | 0x5E (94) | kd_stats_rule (0x323790, 0x1B8) | 0x2CCDA9 | 0x5D (vt 0x819A68, 0x151723) |
 | 0x5F | pvp_match_core_cook (sibling `match.md`) | 0x2CBB69 | — |
+| 0x1E0 (480) | skhid's research rule (exe patch 53, mode 5; `research_mode.md`) | the game's constructor, after its own cooks | — |
 
 Other shifts seen on the way: project 0x41 → 0x40, game materials 0x52 → 0x51 (LIKELY: same request order), default.player 0x55 → 0x54 (LIKELY).
 
@@ -221,9 +223,22 @@ A rule ends the match by answering true to `rule_completed(t)` (vtable slot 18).
 - Statistics: `m_team_points[0..1]` := the tickets (0x316257..0x316278), `m_active_in_match_players_mask` := the active mask.
 - With `tickets_count` 0 in a config both respawn flags are cleared at match start (event 0, 0x31609B..0x3160D1): elimination without respawns. No shipped config uses it.
 
+### Mode 5, Research (skhid's rule 480, exe patch 53; added 2026-10-22)
+
+Not 0.26g's: 0.27d's rules as `research_mode.md` has them, the rule's bytes in snapshot_rules.md §2.8.
+
+- Each team earns points while it owns units (millionths in the rule, shown whole). **End:** when a
+  team's points reach `resources_count` (100), the end time := t + 3000 ms; `rule_completed(t)` =
+  end set and end ≤ t (as the gather rules). Or the time limit (§10).
+- **Winner:** more shown points; **equal → draw (2)**, on time as at the goal.
+- Statistics, each tick in play: `m_team_points[0..1]` := the shown points, `m_winner_team` := the
+  leader. No battery records, no active mask.
+- srp: the end is the rule's own end time (`Research::end`) when its points have the goal; the
+  standing the rule's shown points, else the tail's (`snapshot::Decoded::standing`).
+
 ### What the results code needs from a snapshot
 
-Only the 11-byte statistics tail: `m_team_points[2]` (batteries or tickets) and `m_winner_team`; and for the phase, the timelimit rule's 13 bytes (snapshot_rules.md §2.2, §3.3).
+Only the 11-byte statistics tail: `m_team_points[2]` (batteries, tickets or Research's points) and `m_winner_team`; and for the phase, the timelimit rule's 13 bytes (snapshot_rules.md §2.2, §3.3).
 
 ## Correction (2026-10-12): §11, the gather rule's completion
 
@@ -239,9 +254,10 @@ is played as soon as the server runs on data with it.
 
 - **Playable** (`MapMode::is_playable`): the data has the id's config
   (`maps_dict` → `gameplay/game_modes/<cfg_mode_name>`), its `mode.mode` is
-  one srp plays (2, 3 or 4), and the data has its project
+  one srp plays (2 to 5), and the data has its project
   (`match_making_params.map_name`). No range of levels: on 0.26g's data that
-  is the 72 ids of §3; with London 75 (181, 182, 183).
+  is the 72 ids of §3; with London 75 (181, 182, 183); with the Research
+  pack 25 more (mode 5; a mode-5 id also needs its `resources_count`).
 - **From the project** (`server_objects` of `client_project`, which the server
   data keeps of every project: `resources_db::server::server_objects_of`):
   `MapMode::respawn_points`, every entry of `respawn_points` (§2's table, the

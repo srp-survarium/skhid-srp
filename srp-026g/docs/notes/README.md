@@ -57,6 +57,7 @@ given), LIKELY or GUESS.
 | [reroll-keep-old.md](reroll-keep-old.md) | Keeping the old modification after a reroll (the owner, 2026-10-21): the window's "Keep old" takes none of the three offered, the price stays paid; the offer kept until answered, one answer, no second roll meanwhile |
 | [battery_credit.md](battery_credit.md) | A player's battery events (put in, found, delivery shares, quests) paid per match, per kind, at most as many times as the map has batteries: the owner's rule against farming (2026-10-20), its catch |
 | [damage_calculator.md](damage_calculator.md) | The site's damage calculator (`/damage`): the owner's rules for it, the data it is built from, how it is served and kept up to date |
+| [research_mode.md](research_mode.md) | Research (mode 5, capture points) as 0.27d shipped it: the rules, the data, the inventory of the builds (what is ported, what is left out and why), exe patch 53, the pack, the server's part |
 | [maps_tab.md](maps_tab.md) | The site's Maps tab (`/maps`): spawns, batteries, chargers, containers and artefacts on every map; the owner's rules, rebuilt per release |
 | [spotting.md](spotting.md) | Spotting: no cooldown, a battery's body and its use box both spot it, the markers (the owner, 2026-10-19; exe patch 38) |
 | [fov_lod.md](fov_lod.md) | Models at a high field of view: why they went out sooner (LOD and screen factor by size on the screen), the scale table, the fix (exe patch 40) |
@@ -136,8 +137,9 @@ Every setting has a default; none is needed on a dev PC.
   srp, and so does one under the newest patch of the game data): a game
   whose exe says an older patch revision is refused at its sign-in (0x22)
   and its sessions from before a restart in the lobby (client_patch.md §6).
-- `SRP_MATCH_MODES` (default `2,3,4`), `SRP_MATCH_MAPS` (default: every
-  playable map, 72 of them): a room's pool by default, and what a clan
+- `SRP_MATCH_MODES` (default `2,3,4,5`: 5 is Research, played on data with
+  its maps), `SRP_MATCH_MAPS` (default: every playable map, 72 of them on
+  0.26g's data): a room's pool by default, and what a clan
   team's match is drawn from, so for a first test name one, e.g.
   `SRP_MATCH_MAPS=117` (Team Deathmatch on level_01).
 - `SRP_BALANCE_PLAYER` (default 12), `SRP_BALANCE_PLAYER_LEVEL` (1.5),
@@ -145,7 +147,8 @@ Every setting has a default; none is needed on a dev PC.
   counts for when the sides of a match are made (`matchmaking.md` §8).
   `SRP_BALANCE_RATED_PLAYERS` (4): the fewest players a match must have
   had in it to move the balance rating (§8.3).
-  `SRP_BALANCE_BATTERY_LEAD` (0.55), `SRP_BALANCE_TICKET_LEAD` (0.2):
+  `SRP_BALANCE_BATTERY_LEAD` (0.55), `SRP_BALANCE_TICKET_LEAD` (0.2; a
+  point of Research's too):
   what a lead counts for when a player comes into a match being played
   (`matchmaking.md` §9).
   `SRP_SQUADS` (default on; `off`: no squads), `SRP_SQUADS_OFF_TEXT`

@@ -44,6 +44,34 @@ impl AddedMap {
             containers: Vec::new(),
         }
     }
+
+    /// Research on a level 12 in the day, as the Research pack adds a map
+    /// (`research_mode.md`): 14 respawn points and no containers.
+    pub fn level_12_research() -> Self {
+        Self {
+            id: 202,
+            config: "level_12_day_5.options",
+            project: "level_12/day_5",
+            mode: mode::RESEARCH,
+            respawn_points: 14,
+            ..Self::level_12_tdm()
+        }
+    }
+}
+
+/// `value`'s entry `key`, a named table's, made if it has none.
+fn entry_or_new<'a>(value: &'a mut ConfigValue, key: &str) -> &'a mut ConfigValue {
+    let ConfigValue::Named(entries) = value else {
+        panic!("`{key}` of a value that is not a named table");
+    };
+    let at = match entries.iter().position(|(name, _)| name == key) {
+        Some(at) => at,
+        None => {
+            entries.push((key.to_owned(), ConfigValue::Integer(0)));
+            entries.len() - 1
+        }
+    };
+    &mut entries[at].1
 }
 
 /// `value`'s entry `key`, a named table's.
@@ -74,19 +102,31 @@ fn stock_config(game_mode: u8) -> ConfigValue {
 
 /// The test data ([`game_data::shared`]) with `map` added as a patch adds
 /// one. Its config is level_01's of its mode with the map's numbers and
-/// names; its localization key is `st_level_<level>_name`, which no
-/// localization has.
+/// names (Research, which the test data lacks: Team Deathmatch's with the
+/// rules and the goal of the pack's configs); its localization key is
+/// `st_level_<level>_name`, which no localization has.
 pub fn with_map(map: &AddedMap) -> GameData {
     let stock = game_data::shared();
 
-    let mut config = stock_config(if mode::ALL.contains(&map.mode) {
-        map.mode
-    } else {
-        mode::BATTERIES
+    let mut config = stock_config(match map.mode {
+        mode::RESEARCH => mode::TEAM_DEATHMATCH,
+        other if mode::ALL.contains(&other) => other,
+        _ => mode::BATTERIES,
     });
     let root = entry(&mut config, "mode");
     *entry(root, "name") = ConfigValue::String(map.config.trim_end_matches(".options").into());
     *entry(root, "mode") = ConfigValue::Integer(map.mode.into());
+    if map.mode == mode::RESEARCH {
+        *entry(root, "rules") = ConfigValue::Indexed(
+            [93, 91, 480, 94]
+                .into_iter()
+                .map(ConfigValue::Integer)
+                .collect(),
+        );
+        let parameters = entry(root, "parameters");
+        *entry_or_new(parameters, "tickets_count") = ConfigValue::Integer(0);
+        *entry_or_new(parameters, "resources_count") = ConfigValue::Integer(100);
+    }
     let making = entry(root, "match_making_params");
     *entry(making, "map_id") = ConfigValue::Integer(map.level.into());
     *entry(making, "map_weather_id") = ConfigValue::Integer(map.weather.into());

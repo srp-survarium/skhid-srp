@@ -2,9 +2,9 @@
 ; (0.28a2 to 0.46c2: timeout_anomaly_core and timeout_anomalies_rule_core)
 ; on 0.26g's generic_anomaly_core. The rules: ../docs/notes/dynamic_anomalies.md;
 ; client_patch.md section 3.38; checks: check_dynamic_anomalies_026g.py and
-; selftest_026g.py check 42. The code is the section `.srpa` (patch_026g.py
-; DYNAMIC_ANOMALIES_*), after .srpw (the page after its last, the upgrade preview's):
-;   nasm -f bin -DCAVE=0xA42D000 dynamic_anomalies_026g.asm -o dynamic_anomalies_026g.section.bin
+; selftest_026g.py check 42. The code is at +0x4000 of `.srpx` (patch_026g.py
+; DYNAMIC_ANOMALIES_*, EXTENSION_VA + DYNAMIC_ANOMALIES_OFFSET), after Research's pages:
+;   nasm -f bin -DCAVE=0xA431000 dynamic_anomalies_026g.asm -o dynamic_anomalies_026g.section.bin
 ;
 ; A timed anomaly is a stock generic_anomaly_core with energy_enabled whose
 ; artefacts never respawn by themselves (artefacts_respawn_time_sec 100000

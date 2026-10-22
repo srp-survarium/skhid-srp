@@ -4304,3 +4304,32 @@ va	name	location	role	basis
 0x00846f40		entry ESP+12		auto
 0x0084b1c0		entry ESP+4		auto
 0x0084b1c0		entry ESP+8		auto
+0x00102d10	vostok::resources::register_cook	EDI	the cook: its class at +8	observed
+0x00313900	survarium::game_match_rule_base::game_match_rule_base	EAX	this	observed
+0x00313900	survarium::game_match_rule_base::game_match_rule_base	entry ESP+4	game_match_rule_type (0 respawn, 1 gather, 2 timelimit, 3 kd, 4 tdm)	observed
+0x002f4250	survarium::tdm_rule_core_cook::create_resource	ECX	the cook	observed
+0x002f4250	survarium::tdm_rule_core_cook::create_resource	entry ESP+4	query: +0 the match options, +0Ch the mode config's root	observed
+0x00316090	survarium::tdm_rule_core::on_event	entry ESP+4	the event type (0 match started, 1 a kill)	observed
+0x00316090	survarium::tdm_rule_core::on_event	entry ESP+12	the event's data (a kill: u8 killer, u8 victim)	observed
+0x00316590	survarium::tdm_rule_core::on_player_entered_match	entry ESP+4	u8 roster place	observed
+0x00316340	survarium::tdm_rule_core::serialize	entry ESP+4	writer: its buffer at +14h (data +4, size +0Ch)	observed
+0x003163d0	survarium::tdm_rule_core::deserialize	entry ESP+4	reader: its cursor at +4	observed
+0x00316430	survarium::tdm_rule_core::fill_match_hud_state	entry ESP+4	match_hud_state: +90h, +92h team points	observed
+0x00317f10	survarium::timelimit_rule_core::tick	ECX	the delegate's object	observed
+0x00317f10	survarium::timelimit_rule_core::tick	entry ESP+4	dt, ms	observed
+0x00317f10	survarium::timelimit_rule_core::tick	entry ESP+8	the time, ms	observed
+0x000f6b10	vostok::configs::binary_config_value::operator[]	EAX	the table value	observed
+0x000f6b10	vostok::configs::binary_config_value::operator[]	EDI	the key (C string)	observed
+0x000f6c00	vostok::configs::binary_config_value::value_exists	EAX	the table value	observed
+0x000f6c00	vostok::configs::binary_config_value::value_exists	ESI	the key (C string)	observed
+0x0007ab30	vostok::network_core::mutable_buffer::resize	EAX	the buffer	observed
+0x0007ab30	vostok::network_core::mutable_buffer::resize	entry ESP+4	the new size	observed
+0x00511600	Scaleform::GFx::Movie::Invoke	ECX	the movie ([[[game_world_ui+8]+108h]+4])	observed
+0x00511600	Scaleform::GFx::Movie::Invoke	entry ESP+4	the method's name	observed
+0x00511600	Scaleform::GFx::Movie::Invoke	entry ESP+8	result value or 0	observed
+0x00511600	Scaleform::GFx::Movie::Invoke	entry ESP+12	the arguments, GFx values of 18h bytes (+4 type: 4 uint, 5 number; +8 value)	observed
+0x00511600	Scaleform::GFx::Movie::Invoke	entry ESP+16	the count	observed
+0x002375c0	survarium::game_world_ui::show_parametrized_message	ECX	the localization key	observed
+0x002375c0	survarium::game_world_ui::show_parametrized_message	entry ESP+4	game_world_ui	observed
+0x000725e0	vostok::math::create_rotation	EDI	float3 angles	observed
+0x000725e0	vostok::math::create_rotation	ESI	the matrix out	observed

@@ -28,6 +28,7 @@
     { key: "spawners", label: T("Battery spawns", "Батареї") },
     { key: "stations", label: T("Chargers", "Зарядки") },
     { key: "containers", label: T("Containers", "Контейнери") },
+    { key: "units", label: T("Research units", "Установки") },
     { key: "resupply", label: T("Ammo stashes", "Поповнення амуніції") },
     ...Object.entries(MAPS.artefacts).map(([k, a]) => ({ key: "art:" + k, label: N(a.name), icon: a.icon })),
   ];
@@ -97,6 +98,18 @@
     if (rotate) attrs.transform = `rotate(${rotate} ${x} ${y})`;
     return svgEl("image", attrs);
   }
+  // A Research unit (mode 5), as the HUD draws it with nobody owning it
+  // (its icon is drawn in code, `ResearchMinimapPoint`): its white letter
+  // (cp_id 0, 1, 2: A, B, C) on a grey disc, `px` screen pixels across,
+  // centred on (x, y).
+  const letter = cp => String.fromCharCode(65 + cp);
+  const unitMark = (cp, x, y, px, u) => {
+    const r = (px * u) / 2;
+    return svgEl("g", { filter: outline() },
+      svgEl("circle", { cx: x, cy: y, r, fill: "#8a8a8a" }),
+      svgEl("text", { x, y, "font-size": r * 1.3, "font-weight": 700, "text-anchor": "middle", "dominant-baseline": "central", fill: "#fff" },
+        letter(cp)));
+  };
   // Legend swatches, drawn as the markers are.
   // Two teams in one swatch: blue above and behind, red below and in front.
   const swatch = key => {
@@ -106,6 +119,7 @@
     if (key === "stations") s.append(hud("charger", 0, 0, 22, 1));
     if (key === "containers") s.append(hud("base", -4, -2, 16, 1, "t0"), hud("base", 4, 2, 16, 1, "t1"));
     if (key === "resupply") s.append(hud("resupply", -4, -2, 16, 1, "t0"), hud("resupply", 4, 2, 16, 1, "t1"));
+    if (key === "units") s.append(unitMark(0, 0, 0, 18, 1));
     return s;
   };
 
@@ -119,7 +133,7 @@
     const mo = mode();
     const counts = {
       respawn: mo.respawn.length, spawners: mo.spawners.length, stations: mo.stations.length, containers: mo.containers.length,
-      resupply: mo.resupply.length,
+      resupply: mo.resupply.length, units: (mo.units || []).length,
       ...Object.fromEntries(Object.keys(MAPS.artefacts).map(k => ["art:" + k, m.artefacts.filter(a => a[3].includes(k)).length])),
     };
     $("layers").replaceChildren(...LAYERS.map(l => {
@@ -143,7 +157,7 @@
     const same = MAPS.maps.filter(m => sameFrame(m, map()));
     let [x0, y0, x1, y1] = map().play;
     for (const m of same) { x0 = Math.min(x0, m.play[0]); y0 = Math.min(y0, m.play[1]); x1 = Math.max(x1, m.play[2]); y1 = Math.max(y1, m.play[3]); }
-    const points = same.flatMap(m => [...m.artefacts, ...m.modes.flatMap(o => [...o.respawn, ...o.spawners, ...o.stations, ...o.containers, ...o.resupply])]);
+    const points = same.flatMap(m => [...m.artefacts, ...m.modes.flatMap(o => [...o.respawn, ...o.spawners, ...o.stations, ...o.containers, ...o.resupply, ...(o.units || [])])]);
     for (const [x, z] of points) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, -z); y1 = Math.max(y1, -z); }
     const pad = Math.max(x1 - x0, y1 - y0) * 0.03;
     return [x0 - pad, y0 - pad, x1 - x0 + 2 * pad, y1 - y0 + 2 * pad];
@@ -184,6 +198,8 @@
           tip(kinds.map(k => N(MAPS.artefacts[k].name)).join(", "))));
       });
     }
+    if (state.on.units) for (const [x, z, , cp] of mo.units || [])
+      kids.push(svgEl("g", { class: "mk" }, unitMark(cp, x, -z, 22, u), tip(`${T("Research unit", "Установка")} ${letter(cp)}`)));
     // The HUD's player triangle, turned the way the player faces at spawn.
     if (state.on.respawn) for (const [x, z, , t, facing] of mo.respawn)
       kids.push(svgEl("g", { class: "mk" }, hud("player", x, -z, MAPS.hud.player.h, u, tintOf(t), facing), tip(`${T("Spawn", "Відродження")}, ${teamName(t)}`)));

@@ -385,6 +385,14 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     and the option's text out of order are refused.
     check_mount_patches_026g.py runs the code on folders missing a
     required patch.
+53. the same build: Research, mode 5 (patch 53, research_026g.section.bin
+    at the start of `.srpx`, the twelfth and last section, the later
+    patches' code, on the page after `.srpw`; its state at +3000h): the .bin is its .json's, the
+    three sites (the game's constructor, update_ui's two) are the
+    original's instructions before and the hooks after, no relocation
+    under one and no branch into one, the entries are jumps, the stubs
+    leave only where they should, the C code names the game's functions
+    it calls. check_research_026g.py runs the hooks, the cook and the rule.
 """
 
 import ctypes
@@ -1469,6 +1477,7 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.WEAPON_TABLE_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.WEAPON_DECALS_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.UPGRADE_PREVIEW_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.DYNAMIC_ANOMALIES_HOOKS]
 
 
@@ -1954,6 +1963,56 @@ def test_upgrade_preview(original, image, before):
           "find, item_by_id, the config's has_key and child, the profile's ctor and copy, the allocator, the "
           "log and the stash's find_kit_or_show, jumps only to setup_profile's end and the 0x87 reader's last "
           "call outside itself, and every branch inside it lands on an instruction")
+
+
+def test_research(original, image, before):
+    """Check 53: Research, mode 5 (patch 53, RESEARCH_HOOKS; research_026g.py,
+    check_research_026g.py runs the hooks, the cook and the rule on made-up
+    games). Here: the .bin is its .json's; each site is the original's
+    instructions before and the hook after, with no relocation under it and
+    no branch into it; the entries are jumps; the code's calls outside it are
+    the game's functions research_native_026g.c names."""
+    source = Image(original)
+    plain = lambda text: text.replace("[dword 0x", "[0x").replace("dword [", "[")
+    code = open(P.research_bin(), "rb").read()
+    kept = json.load(open(os.path.join(HERE, "research_026g.section.json")))
+    check(kept["size"] == len(code) and kept["sha256"] == hashlib.sha256(code).hexdigest()
+          and int(kept["va"], 16) == P.RESEARCH_VA,
+          f"research_026g.section.bin is its .json's ({len(code)} bytes for {P.RESEARCH_VA:#x}; "
+          "research_026g.py --check-bin builds it again where a C compiler is)")
+    originals = {0x1E9B4C: ["mov eax,ebx", "call 0x1ec170"], 0x23B3DE: ["cmp dword [edi+0x20],0x4", "jnz 0x23b3fc"],
+                 0x23B351: ["cmp eax,0x4", "jnz 0x23b36a"]}
+    loose = lambda text: text.replace("byte +", "")     # ndisasm 2.16 writes `byte +0x4`, 3.x `0x4`
+    for va, old, offset, opcode in P.RESEARCH_HOOKS:
+        rows = ndisasm(source.read(va, len(old)), va)
+        hooked = ndisasm(image.read(va, len(old)), va)
+        word = "call" if opcode == 0xE8 else "jmp"
+        check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
+              and [loose(text) for _, _, text in rows] == originals[va]
+              and hooked[0][2].startswith(word) and branch_target(hooked[0][2]) == P.RESEARCH_VA + offset
+              and all(text == "nop" for _, _, text in hooked[1:]),
+              f"{va:#x}: `{'; '.join(originals[va])}` becomes {hooked[0][2]} + {len(hooked) - 1} nop; "
+              "the build without the late join keeps it")
+        hits = [hit for hit in aimed_inside(original, va, len(old), 0x82)
+                if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
+        relocated = [r for kind, r in source.relocations().values() if kind == 3 and r + 4 > va and r < va + len(old)]
+        check(not hits and not relocated, f"{va:#x}: no branch aims inside the site, no base relocation under it")
+    entries = ndisasm(image.read(P.RESEARCH_VA, 15), P.RESEARCH_VA)
+    check([text.split()[0] for _, _, text in entries] == ["jmp"] * 3,
+          "the section starts with its three entries, `jmp near` each: register, hud, welcome")
+    stubs = code[:code.index(b"st_start_match_welcome_message_5")]
+    texts = [plain(t) for _, _, t in ndisasm(stubs, P.RESEARCH_VA)]
+    targets = {int(t.split()[-1], 16) for t in texts if t.startswith(("call ", "j")) and t.split()[-1].startswith("0x")}
+    outside = {c for c in targets if not P.RESEARCH_VA <= c < P.RESEARCH_VA + len(code)}
+    check(outside == {0x1EC170, 0x23B35B, 0x23B36A} and "mov [esp],0x23b3fc" in texts
+          and "mov ecx,0xa03aac" in texts,
+          "the stubs leave to the constructor's replaced call, update_ui's message (TDM's key or mode 5's) and its "
+          f"way on without one, and the hud's to update_ui past Team Deathmatch's part ({sorted(hex(c) for c in outside)}); "
+          "the C code calls the game through registers only")
+    for va, what in ((0x102D10, "register_cook"), (0xE4F90, "the cooks' allocate"), (0x313900, "the rule base's ctor"),
+                     (0xF6B10, "the config's child"), (0xF6C00, "the config's has"), (0x7AB30, "a buffer's resize"),
+                     (0x511600, "the movie's invoke"), (0x2375C0, "the hud's message")):
+        check(struct.pack("<I", va) in code[P.RESEARCH_ASM_SIZE:], f"the C code names {what} ({va:#x})")
 
 
 def aimed_inside(original, va, size, near):
@@ -4578,27 +4637,35 @@ def test_late_join(original, without, server, source):
           f"weapon_decals_026g.section.bin at +{P.WEAPON_DECALS_OFFSET:#x}, int3 padding and "
           f"upgrade_preview_026g.section.bin at +{P.UPGRADE_PREVIEW_OFFSET:#x} ({len(camo)} bytes), "
           "code | execute | read, on the page after .srpc, its file bytes right after .srpc's")
+    research = open(P.research_bin(), "rb").read()
+    research = research + b"\xCC" * (P.RESEARCH_STATE_OFFSET - len(research)) + bytes(P.RESEARCH_SIZE - P.RESEARCH_STATE_OFFSET)
     anomalies = open(P.dynamic_anomalies_bin(), "rb").read()
-    name_a, rva_a, vsize_a, raw_a, rsize_a, flags_a = sections[-1]
-    check(name_a == P.DYNAMIC_ANOMALIES_NAME and flags_a == P.DYNAMIC_ANOMALIES_CHARACTERISTICS
-          and rva_a == rva_w + P.UPGRADE_PREVIEW_OFFSET + 0x1000 and rva_a >= align(rva_w + vsize_w, headers.section_alignment)
-          and P.IMAGE_BASE + rva_a == P.dynamic_anomalies_va(code)
-          and vsize_a == len(anomalies) and raw_a == raw_w + rsize_w and rsize_a == align(vsize_a, headers.file_alignment)
-          and bytes(data[raw_a:raw_a + vsize_a]) == anomalies and set(data[raw_a + vsize_a:raw_a + rsize_a]) <= {0xCC},
-          f".srpa at VA {P.IMAGE_BASE + rva_a:#x}: the {len(anomalies)} bytes of dynamic_anomalies_026g.section.bin, "
-          "code | execute | read, on the page after .srpw's last (the upgrade preview's), its file bytes right after .srpw's")
+    extension = research + b"\xCC" * (P.DYNAMIC_ANOMALIES_OFFSET - len(research)) + anomalies
+    name_r, rva_r, vsize_r, raw_r, rsize_r, flags_r = sections[-1]
+    check(name_r == P.EXTENSION_NAME and flags_r == P.EXTENSION_CHARACTERISTICS
+          and rva_r == align(rva_w + vsize_w, headers.section_alignment) and P.IMAGE_BASE + rva_r == P.EXTENSION_VA
+          and P.RESEARCH_VA == P.EXTENSION_VA + P.RESEARCH_OFFSET and P.RESEARCH_OFFSET == 0
+          and P.RESEARCH_SIZE <= P.DYNAMIC_ANOMALIES_OFFSET
+          and P.dynamic_anomalies_va(code) == P.EXTENSION_VA + P.DYNAMIC_ANOMALIES_OFFSET
+          and vsize_r == P.DYNAMIC_ANOMALIES_OFFSET + len(anomalies) and raw_r == raw_w + rsize_w
+          and rsize_r == align(vsize_r, headers.file_alignment)
+          and bytes(data[raw_r:raw_r + vsize_r]) == extension and set(data[raw_r + vsize_r:raw_r + rsize_r]) <= {0xCC},
+          f".srpx at VA {P.IMAGE_BASE + rva_r:#x}: research_026g.section.bin, int3 padding to its state page at "
+          f"+{P.RESEARCH_STATE_OFFSET:#x}, the page zeroed, int3 padding to +{P.DYNAMIC_ANOMALIES_OFFSET:#x} "
+          f"(VA {P.dynamic_anomalies_va(code):#x}) and the {len(anomalies)} bytes of dynamic_anomalies_026g.section.bin; "
+          "code | data | execute | read | write, on the page after .srpw, its file bytes right after .srpw's")
     get = lambda blob, at: struct.unpack_from("<I", blob, at)[0]
-    check(get(data, headers.size_of_image_at) == align(rva_a + vsize_a, headers.section_alignment)
+    check(get(data, headers.size_of_image_at) == align(rva_r + vsize_r, headers.section_alignment)
           and get(data, headers.optional + 12) == get(without, headers.optional + 12) + state_size
-          and get(data, headers.size_of_code_at) == get(original, headers.size_of_code_at) + rsize + rsize_c + rsize_w + rsize_a
-          and headers.table + 40 * len(sections) <= headers.size_of_headers,
-          "SizeOfImage ends at .srpa, SizeOfUninitializedData grew by .srpd's page, SizeOfCode by .srp's, "
-          ".srpc's, .srpw's and .srpa's file sizes; the section table fits in the headers")
+          and get(data, headers.size_of_code_at) == get(original, headers.size_of_code_at) + rsize + rsize_c + rsize_w
+          + rsize_r and headers.table + 40 * len(sections) <= headers.size_of_headers,
+          "SizeOfImage ends at .srpx, SizeOfUninitializedData grew by .srpd's page, SizeOfCode by .srp's, "
+          ".srpc's, .srpw's and .srpx's file sizes; the section table fits in the headers (its last entry)")
     security_offset, security_size = image.directory(4)
     old_offset, old_size = struct.unpack_from("<II", original, headers.security_at)
-    check(security_offset == raw_a + rsize_a and security_offset + security_size == len(data) and security_offset % 8 == 0
+    check(security_offset == raw_r + rsize_r and security_offset + security_size == len(data) and security_offset % 8 == 0
           and bytes(data[security_offset:]) == bytes(original[old_offset:old_offset + old_size]),
-          f"certificate table at {security_offset:#x}: right after .srpa's bytes, 8-byte aligned, last in the file, "
+          f"certificate table at {security_offset:#x}: right after .srpx's bytes, 8-byte aligned, last in the file, "
           "identical to the original's")
     same = all(image.directory(index) == before.directory(index) for index in range(16) if index != 4)
     check(same, "the other 15 data directories are those of the build without it")
@@ -4745,6 +4812,7 @@ def test_late_join(original, without, server, source):
     test_weapon_table(original, image, before)
     test_weapon_decals(original, image, before)
     test_upgrade_preview(original, image, before)
+    test_research(original, image, before)
     test_suicide_key(original, image, before)
     test_tab_list(original, image, before)
     test_tab_self(original, image, before)

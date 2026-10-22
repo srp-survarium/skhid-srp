@@ -1,0 +1,10 @@
+# srp's own texts of Research (the hud's messages exe patch 53 shows); 0.27d's are read from the donor.
+# Terms as 0.27d translated them: unit = Installation / instalacja / установка.
+key	english	german	original	polish	russian	ukrainian
+st_research_unit_a_captured	Unit A captured	Installation A eingenommen	Установка A захвачена	Instalacja A zdobyta	Установка A захвачена	Установку A захоплено
+st_research_unit_b_captured	Unit B captured	Installation B eingenommen	Установка B захвачена	Instalacja B zdobyta	Установка B захвачена	Установку B захоплено
+st_research_unit_c_captured	Unit C captured	Installation C eingenommen	Установка C захвачена	Instalacja C zdobyta	Установка C захвачена	Установку C захоплено
+st_research_unit_a_lost	Unit A lost	Installation A verloren	Установка A потеряна	Instalacja A utracona	Установка A потеряна	Установку A втрачено
+st_research_unit_b_lost	Unit B lost	Installation B verloren	Установка B потеряна	Instalacja B utracona	Установка B потеряна	Установку B втрачено
+st_research_unit_c_lost	Unit C lost	Installation C verloren	Установка C потеряна	Instalacja C utracona	Установка C потеряна	Установку C втрачено
+st_finish_match_mode_05_draw_message	Draw. Both teams researched as much	Unentschieden. Beide Mannschaften haben gleich viel erforscht	Ничья. Команды исследовали поровну	Remis. Obie drużyny zbadały tyle samo	Ничья. Команды исследовали поровну	Нічия. Команди дослідили порівну

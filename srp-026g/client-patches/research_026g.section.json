@@ -1,0 +1,41 @@
+{
+  "va": "0xa42d000",
+  "size": 8528,
+  "sha256": "40b2249c73e89ca6b397be76a8649cf23f65268c2f8953369a795d34e5a02243",
+  "symbols": {
+    "rn_completed": "0xa42df0b",
+    "rn_cook_create": "0xa42e251",
+    "rn_cook_size": "0xa42dd59",
+    "rn_cook_vtable": "0xa42f080",
+    "rn_deserialize": "0xa42dea1",
+    "rn_entered": "0xa42dde5",
+    "rn_fill_hud": "0xa42dd2b",
+    "rn_hud": "0xa42e846",
+    "rn_left": "0xa42de15",
+    "rn_on_event": "0xa42e010",
+    "rn_register": "0xa42e78c",
+    "rn_resolver_vtable": "0xa42f0b0",
+    "rn_rule_vtable": "0xa42f0c0",
+    "rn_serialize": "0xa42de45",
+    "rn_set_blackboard": "0xa42dd1b",
+    "rn_set_core": "0xa42dc9b",
+    "rn_tick": "0xa42e1e6",
+    "rr_completed": "0xa42d97c",
+    "rr_entered": "0xa42d8f1",
+    "rr_inside": "0xa42d351",
+    "rr_kill": "0xa42d84c",
+    "rr_leader": "0xa42d95e",
+    "rr_left": "0xa42d90b",
+    "rr_prepare": "0xa42d239",
+    "rr_read": "0xa42da6e",
+    "rr_reset": "0xa42d303",
+    "rr_serialized_size": "0xa42d22a",
+    "rr_tick": "0xa42d4fd",
+    "rr_write": "0xa42d996"
+  },
+  "built_with": {
+    "cc": "gcc (GCC) 15.3.0",
+    "ld": "GNU ld (GNU Binutils) 2.46",
+    "nasm": "NASM version 3.02 compiled on Jun 29 2026"
+  }
+}

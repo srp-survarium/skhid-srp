@@ -40,7 +40,7 @@ u8  team_2_respawn
 
 - The loader mirrors it: slot 16 (+0x40) per rule in the same order (0x2D2B20..0x2D2B5D), then the two blackboard bytes (0x323DC0). PROVEN.
 - The two trailing bytes are new in 0.26g (`survarium::blackboard::serialize`, strings 0xA1791C `team_1_respawn`, 0xA17964 `team_2_respawn`): bools "this team may still respawn". Team Deathmatch clears one when the team's tickets reach 0 (§2.5). PROVEN.
-- **Rule order: the mode config's `rules` order = timelimit (93), player_respawn (91), the mode rule (88 gather / 89 match_time_vi_spawn / 90 tdm), kd_stats (94). PROVEN (2026-10-12).** The core's vector is a plain copy of the range it is constructed with (0x2CFF74..0x2CFF90 → 0x2D4D70, no sort), and so is `pvp_match_core`'s (0x2D5603..0x2D5628); the cook requests one resource per `rules[i]` in config order (modes_maps.md §3). The last link: `pvp_match_core_cook::on_resources_loaded` 0x2CBC60 reads the query result as 0x2E0-byte entries (0 project, 1 game materials, 2 storm, then the rules), takes the rule count from the config's `rules` (0x2CBD53..0x2CBD85) and copies entry `3 + i` into `rules[i]` (0x2CBDA8..0x2CBE22), which goes straight to the `pvp_match_core` constructor (0x2CC0ED..0x2CC11A). The one sort nearby (0x2D4DD0, by `[obj+0x10]`, from 0x2D1D20) sorts the tick delegates at core+0x18840.., not the rules. Every shipped mode config lists the four in that order (2: 93, 91, 88, 94; 3: 93, 91, 89, 94; 4: 93, 91, 90, 94). 0.21d's order was gather, respawn, timelimit, kd, which was also its (hard-coded) request order.
+- **Rule order: the mode config's `rules` order = timelimit (93), player_respawn (91), the mode rule (88 gather / 89 match_time_vi_spawn / 90 tdm / 480 research, §2.8), kd_stats (94). PROVEN (2026-10-12).** The core's vector is a plain copy of the range it is constructed with (0x2CFF74..0x2CFF90 → 0x2D4D70, no sort), and so is `pvp_match_core`'s (0x2D5603..0x2D5628); the cook requests one resource per `rules[i]` in config order (modes_maps.md §3). The last link: `pvp_match_core_cook::on_resources_loaded` 0x2CBC60 reads the query result as 0x2E0-byte entries (0 project, 1 game materials, 2 storm, then the rules), takes the rule count from the config's `rules` (0x2CBD53..0x2CBD85) and copies entry `3 + i` into `rules[i]` (0x2CBDA8..0x2CBE22), which goes straight to the `pvp_match_core` constructor (0x2CC0ED..0x2CC11A). The one sort nearby (0x2D4DD0, by `[obj+0x10]`, from 0x2D1D20) sorts the tick delegates at core+0x18840.., not the rules. Every shipped mode config lists the four in that order (2: 93, 91, 88, 94; 3: 93, 91, 89, 94; 4: 93, 91, 90, 94). 0.21d's order was gather, respawn, timelimit, kd, which was also its (hard-coded) request order.
 - So the timelimit rule is the first 13 bytes and the respawn rule starts at byte 13; the signature of §2.2 is a check now, not a search.
 
 ### 2.2 timelimit_rule_core (class 0x5D) — 13 bytes, PROVEN (serialize 0x317F30, deserialize 0x317FD0)
@@ -160,6 +160,33 @@ Per player i < N (N = match options +0x577B5, stored at rule+0x1B0 by the constr
 
 - Mode 4 has no variable part besides the respawn rule, so `len == 13 + (8 + 4·popcount(respawn mask) + 2·P) + 12 + 5N + 2` gives P and confirms the layout; the tdm rule is then the 12 bytes before the kd stats.
 - Modes 2 and 3: nothing in the blob says P, and the gather rule after the respawn rule has no fixed length. `Rules::decode` takes the P (smallest first) with which the gather rule reads exactly to the kd stats, its containers holding as many batteries as the two team points say and each of those batteries naming that container. The match server compares the P found with the map's (§2.3) and logs a difference.
+- Mode 5: the research rule (§2.8) is 21 + 96·Z bytes, Z its own byte 20 (3 on every map: 309 bytes), so, as in mode 4, the length gives P.
+
+### 2.8 The research rule (class 480 = 0x1E0, mode 5) — 21 + 96·Z bytes (exe patch 53, `rr_write` / `rr_read`; added 2026-10-22)
+
+Not 0.26g's: srp's own rule for Research (`research_mode.md`), loaded by the configs'
+`rules [93, 91, 480, 94]`, so between the respawn rule and the kd stats. Little-endian.
+
+| at | size | field |
+|---|---|---|
+| 0 | u32 x2 | each team's points, millionths (0 to `resources_count` x 10^6) |
+| 8 | u16 x2 | the points shown, whole (rounded): what the HUD and the statistics' tail have |
+| 12 | u32 | the end: match ms, 0xFFFFFFFF none; the tick + 3000 when a team's points reach the goal |
+| 16 | u32 | roster places entered and not left |
+| 20 | u8 | Z, the units (3) |
+| 21 + 96z | u32 | unit z's progress, 0 to 1 000 000 000 (a whole capture) |
+| +4 | u8 x4 | the team taking it, its owner (2 = nobody), players of team 0 inside, of team 1 |
+| +8 | u32 x2 | those players by roster place, a mask a team |
+| +16 | u32 x20 | each roster place's mark: its share of the capture when it went in, 10^9 = all |
+
+- `rule_completed(t)`: the end is set and `t >= end` (as the gather rules; modes_maps.md §11).
+- The rule writes the statistics' tail (§3.3) each tick in play: `m_team_points` the shown points,
+  `m_winner_team` the leader (2 for equal points). No battery records (§3.2) in mode 5.
+- `rr_read` refuses, and `Research::read` with it: a unit count other than the map's, a progress
+  over 10^9, a team over 2, inside counts that are not their masks' bits, a place over 19.
+- srp: `snapshot::Research` and `ResearchUnit` (read from the kd stats back, the most units first;
+  written too), the standing from its shown points (else the tail's), the end from its end time
+  when its points have the goal (`rules::research_finished`).
 
 ## 3. The statistics blob
 
@@ -228,7 +255,7 @@ Mode 4 has no such records. The class is `victory_item_event_manager` (its strin
 
 | # | size | field | meaning |
 |---|---|---|---|
-| 1 | u16 | `m_team_points[0]` | modes 2, 3: batteries in team 0's container (copied from the rule's u8 at 0x313AA5). Mode 4: team 0's tickets (0x316257) |
+| 1 | u16 | `m_team_points[0]` | modes 2, 3: batteries in team 0's container (copied from the rule's u8 at 0x313AA5). Mode 4: team 0's tickets (0x316257). Mode 5: team 0's shown research points (§2.8) |
 | 2 | u16 | `m_team_points[1]` | same for team 1 |
 | 3 | u8 | `m_team_victory_items[0]` | modes 2, 3: the same count, kept by the statistics' own handler 0x2F5570 (+1 for the team of the player who puts a battery in, 0x2F5590; −1 for the other team when one is taken out, 0x2F55C1). 0 in mode 4 |
 | 4 | u8 | `m_team_victory_items[1]` | same |

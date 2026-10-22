@@ -1010,6 +1010,81 @@ fn the_quest_numbers_come_from_the_counters() {
     let alice = shared.quest_stats(&deathmatch.players[0]);
     assert_eq!(alice.team_batteries, 0);
     assert!(!alice.battery_mode);
+    // Nor are Research's points, and no base is robbed there.
+    let mut research = result.clone();
+    research.game_mode = mode::RESEARCH;
+    let shared = Shared::of(&research, &terms);
+    let alice = shared.quest_stats(&research.players[0]);
+    assert_eq!(alice.team_batteries, 0);
+    assert!(!alice.battery_mode);
+    assert!(!shared.quest_stats(&research.players[1]).base_robbed);
+}
+
+/// A Research match (mode 5) team 0 won 100 to 64: Alice captured units
+/// worth fifteen whole captures (more than a map has batteries),
+/// neutralised one and killed two invaders.
+fn research_match(game_mode: u8, weights: &[f32; EVENTS]) -> (GameAccounts, MatchResult) {
+    let mut alice = player(
+        0,
+        0,
+        "Alice",
+        counters_of(
+            0,
+            &[
+                (event::RESEARCH_CAPTURE, 1500),
+                (event::RESEARCH_NEUTRALISE, 100),
+                (event::KILL_INVADER, 2),
+            ],
+        ),
+    );
+    alice.score = snapshot::score(alice.statistics.as_ref().unwrap(), weights);
+    let players = vec![alice, player(1, 1, "Bob", PlayerStatistics::default())];
+    let store = accounts(&players);
+    let mut result = result(players);
+    result.game_mode = game_mode;
+    result.team_points = [100, 64];
+    (store, result)
+}
+
+#[test]
+fn a_research_match_pays_its_captures_by_research_weights_uncapped() {
+    let research_weights = static_info::score_weights(mode::RESEARCH);
+    // The score the match server sent and counted: 15 × 30 + 30 + 2 × 10.
+    let (store, result) = research_match(mode::RESEARCH, &research_weights);
+    assert_eq!(result.players[0].score, 500);
+    let report = Results::new()
+        .settle(&result, &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    let alice = &report.players[0];
+    assert!(alice.reward.won);
+    assert_eq!(alice.reward.score, 500);
+    assert_eq!(report.stats.game_mode, mode::RESEARCH);
+    assert_eq!(
+        (report.stats.winner_team, report.stats.team_scores),
+        (0, [100, 64])
+    );
+    // The activity row: the 18 events and the fixed part of a win.
+    let activity = columns(&alice.full, 2);
+    assert_eq!(activity.0, 20.0);
+    // As a match whose terms weigh so pays it: all fifteen captures, at
+    // Research's weights and not the batteries'.
+    let (store, plain) = research_match(mode::BATTERIES, &research_weights);
+    let weighed = Terms {
+        score_weights: research_weights,
+        ..terms()
+    };
+    let as_weighed = Results::new()
+        .settle(&plain, &store, &weighed, &mut Rng::new(1))
+        .unwrap();
+    assert_eq!(columns(&as_weighed.players[0].full, 2), activity);
+    let (store, batteries) = research_match(mode::BATTERIES, &SCORE_WEIGHTS);
+    let at_battery_weights = Results::new()
+        .settle(&batteries, &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    assert!(columns(&at_battery_weights.players[0].full, 2).1 < activity.1);
+    // Research's points are no batteries: nothing to the drop chance.
+    assert_eq!(alice.full.drop_chances[1], 0.0);
+    assert!(as_weighed.players[0].full.drop_chances[1] > 0.0);
 }
 
 #[test]

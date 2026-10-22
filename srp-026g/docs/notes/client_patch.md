@@ -977,7 +977,7 @@ The report: "with a high FOV some models disappear" (patch 22's `uro_fov`, 50 to
 - **The release's rule** (0.28a2, BCJ-decoded; PROVEN): `timeout_anomalies_rule_core` constructor 0x5F7B30 (six config ints at +1A0h..+1B4h, the seed +1C0h), tick 0x5F7C00 (nothing before the world's start + delay or before `m_next_try_spawn_time_ms` +1C4h; the next try at now + interval - variation + draw(2 variation); the active count of states 1..3 against the maximum; the candidates of 0x5F7EC0: state 0, one of its artefacts free (+2ECh 0), no anomaly in a state other than 0 within the radius (container positions +74h); one drawn `(x*n)>>32`, its `m_start_charging_time_ms` = now). `timeout_anomaly_core` tick 0x5F41C0: 0 -> 1 at the start, 1 -> 2 after charging (zones on), 2 -> 3 after damage (an artefact into the container, 0x5F4360), 4 -> 0 after the post-artefact timeout; the taker's call 0x5F72C0: state 4, zones off.
 - **0.26g already has the timeline** (PROVEN): `select_state` 0x31BA90 keeps a state while its end (+2Ch) is set, else takes the first enabled state with energy >= threshold; `anomaly_state::initialize` 0x31BC10 sets the end at now + active_time_sec*1000; `execute` 0x31BCB0 sets energy = energy_on_exit at the first tick past it (`now > end`). `on_artefact_container_use` 0x33BCD0 (the container's owner, slot 10, from `use_execute` 0x31C832) adds energy_af_container_use, clamps to energy_maximum when above 0, makes an artefact due at now + `artefact_respawn_delay` 0x31BA00. `on_player_action` 0x33BB50 adds energy_on_* x param for every action and clamps the same way: so a timed core keeps energy_maximum 0 (a clamp would end an anomaly a player walks into).
 - **Where the rule finds things** (PROVEN): the anomaly cores are tick list 6 of the world (`server_game_project::set_game_world_core` 0x318B26: each core's delegate +194h {core, 0x31B5B0, prev, next +0Ch}, the list's first at world+188A4h, in the project's order; keys from a counter, so the order is the same in every game); the time rule is the rules vector's first (world+18824h; vtable 0xA06E2C, state +148h 3 = in process, start +12Ch); the static info is world+18FACh (0x2D00BB), its seed +577B0h (0x2D01D7); a core's place is its first container's use box: container+38h/+3Ch (geometries, usable_object::load 0x2F81F0) -> collision_geometry+18h (the ghost, collision_geometry::load 0x2F8C30) -> +18h (the bullet object, bt_ghost_object 0x3578F0) -> +40h (the world transform's origin: btCollisionObject 0x8E870 keeps the transform at +10h, create_ghost_object 0x357AA0 copies it there by 0x70C20).
-- **The patch** (`DYNAMIC_ANOMALIES_*`, builds with the late join): `.srpa` at VA 0xA42D000 (RVA 0xA41D000, the page after `.srpw`'s last (the upgrade preview's), the 871 bytes of dynamic_anomalies_026g.section.bin, code | execute | read; its file bytes after `.srpw`'s, the certificate table moved behind them; SizeOfImage, SizeOfCode and the section count follow). 0x2D1E20 (`push ecx; mov eax,51EB851Fh`, 6 bytes) jumps to tick_hook (+0): pushad, the rule (world, now = edi, the tick's length), popad, the two instructions, back to 0x2D1E26. 0x33BCD0 (`push ecx; push esi; mov esi,ecx; mov eax,[esi+15Ch]`, 10 bytes) jumps to pickup_hook (+40h): a timed core gets energy = energy_af_container_use and no artefact due, `ret 8`; any other does the four instructions and goes on at 0x33BCDA. Neither site has a base relocation or a branch into it.
+- **The patch** (`DYNAMIC_ANOMALIES_*`, builds with the late join): the 871 bytes of dynamic_anomalies_026g.section.bin at `.srpx`+4000h, VA 0xA431000 (`EXTENSION_VA + DYNAMIC_ANOMALIES_OFFSET`; `.srpx` is the one section of the later patches' code, made by Research, patch 53, section 3.50: the section table has room for twelve; its first four pages are Research's (its state page the fourth, which ends at +4000h, where this code begins); no section of its own, so the section count stays twelve). 0x2D1E20 (`push ecx; mov eax,51EB851Fh`, 6 bytes) jumps to tick_hook (+0): pushad, the rule (world, now = edi, the tick's length), popad, the two instructions, back to 0x2D1E26. 0x33BCD0 (`push ecx; push esi; mov esi,ecx; mov eax,[esi+15Ch]`, 10 bytes) jumps to pickup_hook (+40h): a timed core gets energy = energy_af_container_use and no artefact due, `ret 8`; any other does the four instructions and goes on at 0x33BCDA. Neither site has a base relocation or a branch into it.
 - **Lockstep** (PROVEN by the code): the rule reads only the world and the static info's seed and writes only the chosen core's energy, pending (+138h) and its time (+13Ch), all three in the core's snapshot (`generic_anomaly_core::serialize` 0x31AF20); the try times and the draws are functions of the seed and the try's number (LCG 0x08088405). A rollback, a resync and a late joiner therefore choose alike, and the snapshot's format and hash are unchanged.
 - **Checked:** `check_dynamic_anomalies_026g.py <original exe>` (Unicorn, about 4 minutes): the built exe's atomic_tick entry and pick-up with the game's own `generic_anomaly_core::tick` on made-up worlds, every tick against the rules' model (111,000 checks): a 15-minute London-like match with pick-ups, a world copied at 5 minutes running on beside it, 16 against 15 active, 14.99 against 15.01 m, no free artefact, stock cores (their pick-up byte for byte the original's), the same choices at other addresses; a memory-write hook allows the hooks only the chosen core's three fields. The self-test's check 42 reads both sites, the targets (the delegate, list 6, the static info, the time rule's vtable) and `.srpa`; the late join's layout checks count ten sections.
 - **Revisions.** A simulation change: the `next` row of `simulation_changes.tsv`. A game without it never charges a timed anomaly and desyncs from one with it: a server asks for the release's revision.
@@ -1231,6 +1231,60 @@ So of what the game logs, the dominant wait is the client's own send tick (a qua
 **The build:** the checked-in .bin's bitmap is zeros (`patch_026g.py` checks it, and the text before it), so a build without `--required-patches=` requires nothing. With it, `build()` writes `required_bitmap(numbers)` into its copy of the .bin; only those bytes and the PE checksum differ (selftest check 49). `required_patches_of(exe)` and `release/lib.sh`'s `exe_required_patches` read it back by finding the text (once in the exe) and the 32 bytes after it. A release: `release/build-zip --patches <list>` passes the numbers of every row of the offered-patch list (release.sh gives it its list after `upload-patch` added the new patch), checks both exes; `release.sh` and `release/deploy` refuse a ZIP whose exe requires other patches than the server data offers.
 
 **Builds** (this branch, on main 7f010cc1, no server): the default build `8f75d355eda63a17d7afc83dd99ecff7d368e07801771c1f5e72f7d62c84c27b`; with `--required-patches=12,14,17,19,20,21,22,23,24,25,26,27` (revision 27's list) `33c7cba9bb1e1558b97ef43be5296f45d963174f7597f21c6f5a6e76ac3c0cc6` (12 918 392 bytes each).
+
+### 3.50 Research, mode 5 (written 2026-10-22, README patch 53, the release after revision 28; the rules: `research_mode.md`) — PROVEN in the code, the hooks, the cook, the rule and the hud run with Unicorn with the game's own register_cook, rule constructor and config look-ups; not run in a game
+
+- **Rule cooks** (PROVEN): each is a static object `{+0 vtable, +8 class, +10h -1, +14h
+  GetCurrentThreadId(), +18h 8, +20h the game (client cooks)}`, made by its function (tdm's
+  0x2F41E0) and registered by `register_cook` 0x102D10 (`edi` = the cook): a vector at
+  [0xA86E00]..[0xA86E04] grown to 0x206 places on the first call, `cooks[class] = cook`. The
+  game's constructor makes the client ones and swaps their vtables (0x1E99C0..0x1E9B4C; tdm's
+  client vtable 0x9FD8AC; ebx = the game); the last registration is at 0x1E9B4C (`mov eax,ebx /
+  call 0x1EC170`). Classes in use found at the registrations: 0x0D..0x82, 0x12C..0x141, 0x200,
+  0x202, 0x203 (a few set elsewhere); 0x1E0 is in no registration and no query.
+- **A cook's create** (PROVEN, slot 9, thiscall, `ret 4`): client tdm 0x2063F0: `esi =
+  [0x1F1D9C4]`, `ecx = 0xACCC60`, 0x420789 (`lea eax,[ecx+8]`), `push eax`, `eax = size`, 0xE4F90
+  (allocate), the core constructor with the query (`[q]` the match options, `[q+0Ch]` the mode
+  config's root), +130h the game; slot 10 the size. Slot 7 (0x2F4290) is the shared translate:
+  it calls 9 with `[query+108h]` and 10.
+- **Rule vtables** (PROVEN, tdm 0xA15DA4, timelimit 0xA06E2C, kd 0xA177D4): 0 delete (0x266710:
+  the base vtables back, 0xF1850, free), 1..6 the resource's, 7 `on_event(type, time, data)`
+  `ret 0Ch` (a kill is type 1, `data = {killer, victim}`; 0 the match started), 8 / 9
+  `entered` / `left(place, time)` `ret 8`, 10 register_animations, 11 `set_game_world_core(core)`,
+  12 the blackboard (core+188B0h, 0x2D58F0), 13 `on_match_ready(time)`, 14 finished, 15 / 16
+  `serialize(writer)` / `deserialize(reader)` `ret 4`, 17 `fill_match_hud_state(hud, ?)` `ret 8`
+  (tdm: +90h, +92h the tickets, +94h, +95h the alive counts), 18 `rule_completed(time)` `ret 4`
+  (al), 19 the priority (0x8FE10: 3); then at +108h the link resolver's one slot (0x316540, `ret
+  1Ch`). Base constructor 0x313900 (eax = this, push the type: 0 respawn, 1 gather, 2 timelimit, 3
+  kd, 4 tdm; at +10Ch); the code compares the type with 0 and 1 only.
+- **Ticks** (PROVEN): timelimit's set_game_world_core 0x318050 puts a delegate `{object,
+  function, previous, next, order, enabled}` (rule+110h) at the end of the world's list at
+  core+18850h (count, head, tail; order from the counter at [core+18FB0h]); atomic_tick 0x2D1E20
+  runs the seven lists (core+18840h.., 10h each; 0x2D1D20 sorts by +10h) as `function(ecx =
+  object, dt, time, step)` `ret 0Ch`, dt the time since the last (50 ms).
+- **The world** (PROVEN): places at [core+18458h], 30h each, `[place + 4 * kit]` the player of
+  kit `place[0Ch]` (tdm 0x3161F0); a player's team `[[player+6B8h]+45ECh]`, alive +33Ch, in the
+  tick lists +33Fh, `m_transform` +40Ch (its translation +43Ch, read by the player's own code
+  0x2D9148 and restored by its deserialize 0x2DB8B9), pitch +48Ch; the time rule's state copied at
+  core+18FE4h (3 in play; written by its tick and deserialize); the game's own place
+  core+18FDCh (client tdm 0x267852); the statistics `[core+18FA8h]`: a player's record 1F8h,
+  `u16 events[28][3]` at +0Ch (the kill handler 0x2F4EB0), `m_team_points` +31D4h, the winner
+  +31E4h (tdm 0x316257).
+- **Saving** (PROVEN): a writer's buffer at [writer+14h] (data +4, size +0Ch), grown by 0x7AB30
+  (eax = buffer, push the size; `ret 4`; the u8 writer 0x1F3DE0); a reader's cursor at
+  [reader+4] (tdm 0x3163D0).
+- **Config** (PROVEN): 0xF6B10 (eax = a table, edi = the key) gives the child (CRC look-up, then
+  the names); 0xF6C00 (esi = the key) says whether there is one; a value is 24 bytes, its data a
+  pointer for tables, strings and vectors, +14h the type, +16h the count (the respawn point's
+  reader 0x2F4580).
+- **The hud** (PROVEN): game_world_ui::update_ui (0x23B300..) shows the match's first message by
+  mode at 0x23B336 (2, 3, 4: `st_start_match_welcome_message`, `_2`, `_3`; 0x2375C0, ecx = the
+  key, `(ui, 21h, 14h, 6000)`, `ret 10h`: localised by 0x1FF0F0 into root.set_parameterized_
+  message), then each frame the teams' points (0x2364C0 → `root.set_game_progress`) and, for mode
+  4 only, `set_last_players` (0x23B3DE: `cmp dword [edi+20h],4`). The movie: [[[ui+8]+108h]+4],
+  `Invoke` 0x511600 (thiscall: name, result, args, count; `ret 10h`), a GFx value 18h bytes (+4 the
+  type: 4 uint, 5 number; +8 the value). The world from the ui: [[ui+18h]+4D4Ch]+1F8h, its rules
+  at +18824h (the minimap's 0x23AA21). `root.set_game_type` gets `mode.mode` (0x234D66).
 
 ## 4. Mode 3 batteries: not needed in 0.26g
 

@@ -209,6 +209,15 @@ fn a_map_without_batteries_cuts_nothing() {
         played.players[0].total(event::PUT_VICTORY_ITEM_IN_CONTAINER),
         50
     );
+    // Research (mode 5, no batteries: `Game::batteries` is 0) counts its
+    // captures in two of the battery events' places: thirty whole ones stay.
+    let mut research = statistics(&[&[
+        (event::RESEARCH_CAPTURE, 0, 3_000),
+        (event::RESEARCH_NEUTRALISE, 1, 1_200),
+    ]]);
+    assert!(cap(&mut research, 0).is_empty());
+    assert_eq!(research.players[0].total(event::RESEARCH_CAPTURE), 3_000);
+    assert_eq!(research.players[0].total(event::RESEARCH_NEUTRALISE), 1_200);
 }
 
 /// The last world of a directory of saved worlds (`SRP_SNAPSHOT_DIR`'s

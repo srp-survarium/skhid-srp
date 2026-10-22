@@ -1777,3 +1777,28 @@ va	status	ref_021d	name
 0x00845a40	verified	0x00681c80	_ripemd160_block_asm_data_order
 0x00846f40	verified	0x00683180	_md5_block_asm_data_order
 0x0084b1c0	verified	0x00684100	_bn_sqr_comba4
+0x00102d10	observed		vostok::resources::register_cook
+0x00313900	observed		survarium::game_match_rule_base::game_match_rule_base
+0x00266710	observed		survarium::game_match_rule_base::`scalar deleting destructor'
+0x00316540	observed		survarium::game_match_rule_base::resolve_links
+0x0008fe10	observed		survarium::tdm_rule_core::priority
+0x002f41e0	observed		survarium::tdm_rule_core_cook::tdm_rule_core_cook
+0x002f41d0	observed		survarium::tdm_rule_core_cook::resource_size
+0x002f4250	observed		survarium::tdm_rule_core_cook::create_resource
+0x002063e0	observed		survarium::tdm_rule_cook::resource_size
+0x002063f0	observed		survarium::tdm_rule_cook::create_resource
+0x00315ff0	observed		survarium::tdm_rule_core::tdm_rule_core
+0x00316090	observed		survarium::tdm_rule_core::on_event
+0x003161f0	observed		survarium::tdm_rule_core::update_statistics
+0x00316590	observed		survarium::tdm_rule_core::on_player_entered_match
+0x003165d0	observed		survarium::tdm_rule_core::on_player_left_match
+0x003163d0	observed		survarium::tdm_rule_core::deserialize
+0x00316430	observed		survarium::tdm_rule_core::fill_match_hud_state
+0x00316520	observed		survarium::tdm_rule_core::rule_completed
+0x00267830	observed		survarium::tdm_rule::on_event
+0x002d1d20	observed		survarium::game_world_core::tick_delegates
+0x002d36b0	observed		survarium::game_world_core::fill_match_hud_state
+0x002364c0	observed		survarium::game_world_ui::set_game_progress
+0x00236610	observed		survarium::game_world_ui::set_last_players
+0x00511600	observed		Scaleform::GFx::Movie::Invoke
+0x000725e0	observed		vostok::math::create_rotation
