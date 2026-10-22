@@ -294,7 +294,7 @@ static int read_params(struct rr_params *params, const cfg *root) {
     for (u32 i = 0; i < params->capture_count; ++i)
         params->capture_ms[i] = (u32)(number(item(times, i)) * 1000.0f); /* 0.27d: trunc(s x 1000) */
     params->owned_count = rates->count > RR_MAX_OWNED ? RR_MAX_OWNED : rates->count;
-    for (u32 i = 0; i < params->owned_count; ++i) params->points_rate[i] = rounded(number(item(rates, i)) * 1000.0f);
+    for (u32 i = 0; i < params->owned_count; ++i) params->points_rate[i] = rounded(number(item(rates, i)) * (1000.0f * RR_RATE_MS));
     params->target = (u32)number(child(parameters, "resources_count")) * RR_MICRO;
     u32 restore = rounded(number(child(parameters, "restore_multiplier")) * 1000.0f);
     params->award = has(parameters, "capture_award") ? (u32)number(child(parameters, "capture_award")) : 100;

@@ -1,6 +1,7 @@
 # Research (mode 5, capture points)
 
-The owner's rules: Research comes back as 0.27 shipped it, its rules unchanged (2026-10-19);
+The owner's rules: Research comes back as 0.27 shipped it, its rules unchanged (2026-10-19), but
+for its points' rate, 1.25 x 0.27d's ("let's make it 1.25x faster", 2026-10-22);
 "find previous work and (FULLY!) implement the research mode; this will not go into this release
 though, and will go into the next one" and "we need to find everything associated with the
 release too" (2026-10-22). Not in revision 28.
@@ -32,8 +33,11 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   the game's get_transform does), 0.38 m round (`default.player`: 0.76 m wide). A unit reaches no
   higher than its shapes: a player on a floor above a shape's top is outside (client_patch.md
   §3.50, "A player's transform is his feet"; the first build counted feet up to 0.9 m over it).
-- **Points:** owning 1, 2 or 3 units gives 0.075, 0.15 or 0.35 points a second (100 points in
-  22:13, 11:07 or 4:46). Shown whole (rounded).
+- **Points:** owning 1, 2 or 3 units gives 0.09375, 0.1875 or 0.4375 points a second (100 points
+  in 17:47, 8:53 or 3:49). The owner (2026-10-22): "let's make it 1.25x faster", over 0.27d's
+  0.075, 0.15 and 0.35 (22:13, 11:07, 4:46). Shown whole (rounded). The rule counts them in
+  millionths of a point per 4 ms (375, 750, 1750: whole numbers), a 50 ms tick's share floored
+  (one unit: 4687 for 4687.5, 100 points at 17:46.8).
 - **End:** 3 s after a team reaches 100, or at the time limit (900 s; the time rule as in every
   mode: waiting 80 %, countdown 20 s). Respawn 10 s, at the mode's own spawns.
 - **Score events** (0.27d `gameplay/awards/events.options`):
@@ -60,7 +64,8 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   shipped them, and London's day (0.31a2's Research layout; skhid's London has only its day).
 - `gameplay/game_modes/level_0N_<w>_5.options` (w day, evn, rain, prerain): 0.27d's parameters
   (`match_time` 900, `wait_time` 5, `countdown_time` 20, `wait_player_percent` 0.8,
-  `respawn_time` 10, `resources_count` 100, `capture_time_in_s`, `resource_per_s`,
+  `respawn_time` 10, `resources_count` 100, `capture_time_in_s`, `resource_per_s` (x 1.25:
+  0.09375, 0.1875, 0.4375),
   `restore_multiplier` 0.5), `rules [93, 91, 480, 94]` (480 = 1E0h: the exe's research rule
   cook), `ui.icon` 1 (0.27d's 3 is a frame 0.26g's lobby has not: its `SrvGameModeIcons` has
   three, 0 the protective device of modes 2 and 3, 1 a transmitter mast no mode used, 2 Team

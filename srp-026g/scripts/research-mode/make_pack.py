@@ -19,7 +19,7 @@ usage: python3 -I make_pack.py --stock <folder> --donor <folder> --london <folde
 Every input is checked against inputs.sha256. What the pack holds, per map and weather of 0.27d
 (24) and London's day (25 maps):
 - gameplay/game_modes/level_0N_<w>_5.options: 0.27d's config (its parameters, as the owner
-  approved them unchanged) with rules [93, 91, RULE_CLASS, 94] (exe patch 53's class), the map's
+  approved them, but resource_per_s x RATE_FACTOR) with rules [93, 91, RULE_CLASS, 94] (exe patch 53's class), the map's
   project, and the units: mode.parameters.capture_zones[] = {cp_id, position, shapes[] {type,
   position, axis_x, axis_y, axis_z, half}} from the capturable_zone objects and the
   collision_geometry they name, in world space; capture_award 100 (0.27d's capture_the_point,
@@ -49,13 +49,17 @@ sys.path.insert(0, str(HERE))
 import bcw  # noqa: E402
 
 PACK_ID = 'research-mode'
-VERSION = '2'
+VERSION = '3'
 RULE_CLASS = 0x1E0           # client-patches/research_native_026g.c RN_CLASS (patch 53)
 RULES = [93, 91, RULE_CLASS, 94]
 # The lobby's mode icon (ui.icon: SrvGameModeIcons frame icon + 1, LobbyGameLoad.setMode). 0.26g's
 # movie has three frames: 0 the protective device (modes 2, 3), 1 a transmitter mast no mode uses,
 # 2 the skull (Team Deathmatch). 0.27d's configs say 3, a frame 0.26g's movie has not.
 ICON = 1
+# The owner (2026-10-22): "let's make it 1.25x faster": research points a second x 1.25 of
+# 0.27d's 0.075, 0.15, 0.35 (1, 2, 3 units owned): 0.09375, 0.1875, 0.4375.
+DONOR_RATES = (0.075, 0.15, 0.35)
+RATE_FACTOR = 1.25
 CAPTURE_AWARD = 100          # 0.27d gameplay/awards/events.options capture_the_point: shared, factor 100
 CAPTURE_REACH = 0.38         # m: a player's capsule radius (default.player stand_capsule_width 0.76)
 CAPTURE_HALF_HEIGHT = 0.9    # m: half the capsule's height over its centre (player_bots_behaviour.md)
@@ -471,6 +475,10 @@ def mode_config(donor, level, weather, map_id, project_path, units, name):
     mode['match_making_params']['map_name'] = project_path
     mode['match_making_params']['map_id'] = int(level)
     parameters = mode['parameters']
+    rates = parameters['resource_per_s']
+    if [f32(rate) for rate in rates] != [f32(rate) for rate in DONOR_RATES]:
+        sys.exit(f'{name}: resource_per_s {rates}, not 0.27d\'s {DONOR_RATES}')
+    parameters['resource_per_s'] = [f32(rate * RATE_FACTOR) for rate in DONOR_RATES]
     parameters['capture_zones'] = units
     parameters['capture_award'] = CAPTURE_AWARD
     parameters['capture_reach'] = CAPTURE_REACH

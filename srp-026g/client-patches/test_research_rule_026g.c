@@ -27,9 +27,9 @@ static struct rr_params params_027d(void) {
     p.capture_count = 8;
     memcpy(p.capture_ms, capture, sizeof capture);
     p.owned_count = 3;
-    p.points_rate[0] = 75;
-    p.points_rate[1] = 150;
-    p.points_rate[2] = 350;
+    p.points_rate[0] = 75 * RR_RATE_MS;
+    p.points_rate[1] = 150 * RR_RATE_MS;
+    p.points_rate[2] = 350 * RR_RATE_MS;
     p.target = 100 * RR_MICRO;
     p.award = 100;
     p.reach = 0.4f;
@@ -292,6 +292,33 @@ static void test_one_unit_rate(void) {
     CHECK(s.score[0] == 9 && s.score[1] == 5);
 }
 
+/* skhid's rates (the owner, 2026-10-22: 1.25 x 0.27d's): resource_per_s
+ * 0.09375, 0.1875, 0.4375, whole numbers per RR_RATE_MS (375, 750, 1750).
+ * 100 points in 17:46.8, 8:53.4 and 3:48.6: 50 ms ticks of 4687.5, 9375 and
+ * 21875 millionths, the first floored to 4687. */
+static void test_skhid_rates(void) {
+    struct rr_params p = params_027d();
+    p.points_rate[0] = 375;
+    p.points_rate[1] = 750;
+    p.points_rate[2] = 1750;
+    CHECK(rr_prepare(&p, 500));
+    static const rr_u32 ms[3] = {1066800, 533350, 228600}; /* the tick 100 is reached on */
+    for (int owned = 1; owned <= 3; ++owned) {
+        struct rr_state s;
+        rr_u32 time = 0;
+        fresh(&s, &p);
+        for (int z = 0; z < owned; ++z) {
+            s.zones[z].owner = 0;
+            s.zones[z].capturing = 0;
+            s.zones[z].progress = RR_FULL;
+        }
+        run(&s, &p, ms[owned - 1] - 50, &time, 0);
+        CHECK(s.end_time == RR_NEVER);
+        run(&s, &p, 50, &time, 0);
+        CHECK(s.points[0] == p.target && s.end_time == time + 3000);
+    }
+}
+
 static void test_kill_invader(void) {
     struct rr_params p = params_027d();
     struct rr_state s;
@@ -377,6 +404,7 @@ int main(void) {
     test_water_fill();
     test_points_and_end();
     test_one_unit_rate();
+    test_skhid_rates();
     test_kill_invader();
     test_left_and_dead();
     test_wire();

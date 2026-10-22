@@ -24,6 +24,7 @@ enum {
     RR_NEVER = 0xFFFFFFFFu,     /* end time not set */
     RR_FULL = 1000000000u,      /* a whole capture, in progress units */
     RR_MICRO = 1000000u,        /* points are kept in millionths */
+    RR_RATE_MS = 4,             /* points_rate is per this many ms (resource_per_s x 1.25 is whole there) */
     RR_MAX_DT = 10000u,         /* the most ms one tick may move the rule */
 };
 
@@ -54,7 +55,7 @@ struct rr_params {
     rr_u32 capture_rate[RR_MAX_CAPTURE]; /* RR_FULL / capture_ms: units per ms */
     rr_u32 restore_rate;               /* capture_rate[0] x restore_multiplier */
     rr_u32 owned_count;
-    rr_u32 points_rate[RR_MAX_OWNED];  /* millionths of a point per ms, k units owned */
+    rr_u32 points_rate[RR_MAX_OWNED];  /* millionths of a point per RR_RATE_MS ms, k units owned */
     rr_u32 target;                     /* resources_count in millionths */
     rr_u32 award;                      /* points shared at a capture or neutralisation */
     rr_u32 zone_count;

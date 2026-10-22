@@ -293,7 +293,7 @@ def main():
           and run.read(rule + 0x108) == SYMBOLS["rn_resolver_vtable"] + 4 and run.read(rule + 0x10C) == 5
           and run.read(rule + R_VALID) == 1 and run.read(params) == 8 and run.read(params + 4) == 20000
           and run.read(params + 0x20) == 14500 and run.read(params + 0x24) == FULL // 20000
-          and run.read(params + 0x4C) == 75 and run.read(params + 0x54) == 350
+          and run.read(params + 0x4C) == 300 and run.read(params + 0x54) == 1400
           and run.read(params + 0x58) == 100 * 1000000 and run.read(params + 0x5C) == 100
           and run.read(params + 0x60) == 3 and run.read(params + P_ZONES + ZONE_DEF + 4) == 1,
           f"rule {rule:#x}")

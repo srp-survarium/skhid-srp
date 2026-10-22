@@ -237,7 +237,7 @@ rr_u32 rr_tick(struct rr_state *state, const struct rr_params *params, const str
             if (state->zones[z].owner == t) ++owned;
         if (owned) {
             owned = LIMIT(owned, params->owned_count);
-            rr_u32 gain = dt * params->points_rate[owned - 1];
+            rr_u32 gain = dt * params->points_rate[owned - 1] / RR_RATE_MS;
             state->points[t] = LIMIT(state->points[t] + gain, params->target);
         }
         rr_u32 score = (state->points[t] + RR_MICRO / 2) / RR_MICRO;
