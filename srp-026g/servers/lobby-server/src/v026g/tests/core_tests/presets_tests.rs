@@ -300,3 +300,54 @@ fn play_offers_a_preset_for_the_room_it_would_take() {
         ["S1;O;0;0;0;0;5;0"]
     );
 }
+
+/// The review's case: preset 2's kit 1 is empty and its kit 2 plays; the
+/// popup offers it and "Switch and enter" plays kit 2, so the member is fit
+/// for the room's match (not taken out at its start).
+#[test]
+fn switch_and_enter_plays_a_kit_of_the_preset_that_can_play() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let key = create(
+        &mut world,
+        alice,
+        RoomSpec {
+            max_level: 3,
+            ..spec(8)
+        },
+        None,
+    );
+    // Preset 2: kit 1 empty, the starter pistol and rounds in kit 2.
+    choose(&mut world, bob, 2);
+    world.change(bob, |account| {
+        let starter = account.kits[0].slots;
+        account.kits[0].slots = [None; 23];
+        account.kits[1].slots[7] = starter[7];
+        account.kits[1].slots[8] = starter[8];
+    });
+    // Preset 1 plays kit 1, level 5.
+    choose(&mut world, bob, 1);
+    with_gear(&mut world, bob, 5);
+    assert_eq!(world.account(bob).active_kit, 1);
+    assert_eq!(
+        rows(&mut world, bob, ROOM_OFFER_BASE + key, 1),
+        [format!("S1;O;{key};2;2;0;5;3")]
+    );
+    let (lists, _) = asked(&mut world, bob, ROOM_PRESET_BASE + 100_000 + key);
+    assert_eq!(lists[0][0], "P1;L;1;2;0;2");
+    assert!(
+        lists[1][0].starts_with(&format!("S1;R;{key};")),
+        "{lists:?}"
+    );
+    assert_eq!(world.account(bob).active_kit, 2);
+    // Bob's row in the room: fit to play (`P;<i>;<gear>;<owner>;<me>;
+    // <in match>;<fit>;...`).
+    let me = lists[1]
+        .iter()
+        .find(|row| row.starts_with("P;") && row.split(';').nth(4) == Some("1"))
+        .unwrap()
+        .clone();
+    assert_eq!(me.split(';').nth(6), Some("0"), "{me}");
+    world.assert_clean();
+}

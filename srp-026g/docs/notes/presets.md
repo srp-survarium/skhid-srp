@@ -34,6 +34,12 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
     item: the stack of that type owned now is taken [choice].
   - A type in two pockets (data from before the rule): the first pocket keeps it, the other stays
     empty (counted as empty).
+  - An item that no longer fits its slot (the game's data changed since; the repair at load takes
+    such an item off a kit, not off a snapshot): its slot stays empty (counted); the preset can
+    still be chosen.
+  - The kit played: when it can not play after the choice (no weapon, too little ammo) and another
+    kit can, that one is played, the kit whose level is the preset's, so the room's gear check and
+    the kit its match takes agree (review of #314).
   - Never buys (the ammo window's moves buy what is missing; choosing does not), never makes an
     item or money, never takes anything the account does not own.
   - Refused (nothing changes) while the player is in a match or on its way to one.

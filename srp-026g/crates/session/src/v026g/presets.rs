@@ -163,10 +163,13 @@ fn owned(account: &Account, saved: &PresetSlot) -> Option<u32> {
 /// `preset` onto the three kits, all or nothing: each kit emptied and
 /// filled from it by the kit rules ([`rules::fill_kit`]). An item gone
 /// leaves its slot empty; a stack gets the units saved, at most those owned;
-/// a type a pocket of the kit already holds stays out of a second one.
-/// Nothing is bought, made or taken: the inventory and the money stay as
-/// they are.
-fn put_on(account: &mut Account, preset: &Preset) -> Result<Applied, PresetError> {
+/// a type a pocket of the kit already holds stays out of a second one; an
+/// item that no longer fits its slot (the game's data changed since) stays
+/// out, as the repair at load takes it off a kit. Nothing is bought, made
+/// or taken: the inventory and the money stay as they are. The kit played
+/// is then one that can play ([`play_a_playable_kit`]).
+fn put_on(account: &mut Account, preset: &Preset, now: u64) -> Result<Applied, PresetError> {
+    let dictionary = Dictionary::shared();
     let mut changed = account.clone();
     let mut empty = 0;
     for (kit_index, saved) in preset.kits.iter().enumerate().take(changed.kits.len()) {
@@ -179,6 +182,9 @@ fn put_on(account: &mut Account, preset: &Preset) -> Result<Applied, PresetError
             let Some(item_id) = owned(&changed, saved) else {
                 continue;
             };
+            if !dictionary.fits(saved.dict_id, slot as u8) {
+                continue;
+            }
             if POCKET_SLOTS.contains(&(slot as u8)) {
                 if pocket_types.contains(&saved.dict_id) {
                     continue;
@@ -200,8 +206,33 @@ fn put_on(account: &mut Account, preset: &Preset) -> Result<Applied, PresetError
         empty += wanted.saturating_sub(filled) as u32;
     }
     changed.sync_kits();
+    play_a_playable_kit(&mut changed, now);
     *account = changed;
     Ok(Applied { empty })
+}
+
+/// The kit played can not play (no weapon, too little ammo) and another
+/// can: that one is played, the one whose level is the account's gear level
+/// (the first of two alike), so the rooms' gear check and the kit a match
+/// takes agree. Whether the kit played changed.
+fn play_a_playable_kit(account: &mut Account, now: u64) -> bool {
+    if rules::check_play(account, account.active_kit, now).is_ok() {
+        return false;
+    }
+    let gear = matchmaking::gear_level(account, now);
+    let best = account
+        .kits
+        .iter()
+        .filter(|kit| rules::check_play(account, kit.id, now).is_ok())
+        .find(|kit| matchmaking::kit_level(account, kit) == gear)
+        .map(|kit| kit.id);
+    match best {
+        Some(kit_id) => {
+            account.active_kit = kit_id;
+            true
+        }
+        None => false,
+    }
 }
 
 /// Make preset `number` the active one, all or nothing. The kits as they
@@ -209,7 +240,7 @@ fn put_on(account: &mut Account, preset: &Preset) -> Result<Applied, PresetError
 /// them ([`put_on`]). An empty preset chosen starts as the kits worn: they
 /// stay as they are [choice, `presets.md`]. The active one chosen again
 /// changes nothing.
-pub fn choose(account: &mut Account, number: u8) -> Result<Applied, PresetError> {
+pub fn choose(account: &mut Account, number: u8, now: u64) -> Result<Applied, PresetError> {
     let index = index(number)?;
     settle(account);
     if number == account.active_preset {
@@ -218,7 +249,7 @@ pub fn choose(account: &mut Account, number: u8) -> Result<Applied, PresetError>
     let left = usize::from(account.active_preset - 1);
     let mut changed = account.clone();
     let applied = match account.presets[index] {
-        Some(chosen) => put_on(&mut changed, &chosen)?,
+        Some(chosen) => put_on(&mut changed, &chosen, now)?,
         None => Applied { empty: 0 },
     };
     changed.presets[left] = snapshot(account);
@@ -240,7 +271,7 @@ pub fn level(account: &Account, number: u8, now: u64) -> Option<u8> {
         account
     } else {
         copy = account.clone();
-        put_on(&mut copy, &preset).ok()?;
+        put_on(&mut copy, &preset, now).ok()?;
         &copy
     };
     kits.kits

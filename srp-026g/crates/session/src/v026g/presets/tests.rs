@@ -83,7 +83,7 @@ fn choosing_a_preset_keeps_the_kits_with_the_one_left() {
 
     // An empty preset starts as the kits worn: nothing changes on them.
     let before = account.clone();
-    assert_eq!(choose(&mut account, 2).unwrap(), Applied { empty: 0 });
+    assert_eq!(choose(&mut account, 2, NOW).unwrap(), Applied { empty: 0 });
     assert_eq!(account.active_preset, 2);
     assert_eq!(account.kits, before.kits);
     assert_eq!(account.presets[0], snapshot(&before));
@@ -97,7 +97,7 @@ fn choosing_a_preset_keeps_the_kits_with_the_one_left() {
     let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
 
     // Back to 1: its kits on, 2 kept as it was left.
-    assert_eq!(choose(&mut account, 1).unwrap(), Applied { empty: 0 });
+    assert_eq!(choose(&mut account, 1, NOW).unwrap(), Applied { empty: 0 });
     assert_eq!(account.active_preset, 1);
     assert_eq!(all_worn(&account), starter);
     assert_eq!(account.presets[0], None);
@@ -117,28 +117,28 @@ fn choosing_a_preset_keeps_the_kits_with_the_one_left() {
     assert_eq!(account.active_kit, 1);
 
     // And to 2 again.
-    choose(&mut account, 2).unwrap();
+    choose(&mut account, 2, NOW).unwrap();
     assert_eq!(all_worn(&account), rifle);
     assert_eq!(owned(&account), before);
 
     // The active one chosen again: nothing changes.
     let same = account.clone();
-    assert_eq!(choose(&mut account, 2).unwrap(), Applied { empty: 0 });
+    assert_eq!(choose(&mut account, 2, NOW).unwrap(), Applied { empty: 0 });
     assert_eq!(account, same);
-    assert_eq!(choose(&mut account, 0), Err(PresetError::NoSuchPreset));
-    assert_eq!(choose(&mut account, 6), Err(PresetError::NoSuchPreset));
+    assert_eq!(choose(&mut account, 0, NOW), Err(PresetError::NoSuchPreset));
+    assert_eq!(choose(&mut account, 6, NOW), Err(PresetError::NoSuchPreset));
     assert_eq!(account, same);
 }
 
 /// Preset 5: the PPSh-41 alone in kit 3; preset 1 active again.
 fn with_preset_5(account: &mut Account) {
-    choose(account, 5).unwrap();
+    choose(account, 5, NOW).unwrap();
     for kit in &mut account.kits {
         kit.slots = [None; KIT_SLOTS];
     }
     let ppsh = owned_id(account, "ppsh");
     put(account, 2, 7, ppsh, 1);
-    choose(account, 1).unwrap();
+    choose(account, 1, NOW).unwrap();
 }
 
 /// The kits after a change come back as they are after it: away to preset
@@ -146,9 +146,9 @@ fn with_preset_5(account: &mut Account) {
 fn kept(account: &mut Account, what: &str) {
     let after = all_worn(account);
     let kits = snapshot(account);
-    choose(account, 5).unwrap();
+    choose(account, 5, NOW).unwrap();
     assert_ne!(all_worn(account), after, "{what}: preset 5 is other kits");
-    choose(account, 1).unwrap();
+    choose(account, 1, NOW).unwrap();
     assert_eq!(all_worn(account), after, "{what}");
     assert_eq!(snapshot(account), kits, "{what}");
 }
@@ -281,7 +281,7 @@ fn a_sold_item_leaves_its_slot_empty() {
     rules::sell(&mut account, pistol, 1).unwrap();
     let before = owned(&account);
 
-    assert_eq!(choose(&mut account, 2).unwrap(), Applied { empty: 1 });
+    assert_eq!(choose(&mut account, 2, NOW).unwrap(), Applied { empty: 1 });
     assert_eq!(account.kits[0].slots[7], None);
     assert_eq!(account.kits[0].slots[8], Some(rounds));
     // Nothing bought in its place.
@@ -291,8 +291,8 @@ fn a_sold_item_leaves_its_slot_empty() {
 /// Preset 2 holds kit 1 as Alice starts; she plays preset 1 with nothing
 /// worn.
 fn starter_in_2(account: &mut Account) {
-    choose(account, 2).unwrap();
-    choose(account, 1).unwrap();
+    choose(account, 2, NOW).unwrap();
+    choose(account, 1, NOW).unwrap();
     account.kits[0].slots = [None; KIT_SLOTS];
 }
 
@@ -306,13 +306,13 @@ fn a_stack_gets_what_is_owned_and_never_more() {
     // Fired since: 20 left of the 50 saved.
     account.item_mut(rounds).unwrap().condition_or_stack = 20;
     let before = owned(&account);
-    assert_eq!(choose(&mut account, 2).unwrap(), Applied { empty: 0 });
+    assert_eq!(choose(&mut account, 2, NOW).unwrap(), Applied { empty: 0 });
     assert_eq!(account.kits[0].slots[8].unwrap().count, 20);
     assert_eq!(owned(&account), before);
 
     // Used up, then bought again (a new item): the stack owned now, at most
     // the 50 kept.
-    choose(&mut account, 1).unwrap();
+    choose(&mut account, 1, NOW).unwrap();
     account.presets[1].as_mut().unwrap().kits[0][8]
         .as_mut()
         .unwrap()
@@ -320,7 +320,7 @@ fn a_stack_gets_what_is_owned_and_never_more() {
     account.inventory.retain(|item| item.item_id != rounds);
     let again = account.add_item(ammo, 30);
     let before = owned(&account);
-    choose(&mut account, 2).unwrap();
+    choose(&mut account, 2, NOW).unwrap();
     assert_eq!(
         account.kits[0].slots[8],
         Some(KitSlot {
@@ -331,10 +331,10 @@ fn a_stack_gets_what_is_owned_and_never_more() {
     assert_eq!(owned(&account), before);
 
     // None owned: the slot stays empty, nothing is bought.
-    choose(&mut account, 1).unwrap();
+    choose(&mut account, 1, NOW).unwrap();
     account.inventory.retain(|item| item.item_id != again);
     let before = owned(&account);
-    assert_eq!(choose(&mut account, 2).unwrap(), Applied { empty: 1 });
+    assert_eq!(choose(&mut account, 2, NOW).unwrap(), Applied { empty: 1 });
     assert_eq!(account.kits[0].slots[8], None);
     assert_eq!(owned(&account), before);
 }
@@ -378,7 +378,7 @@ fn choosing_makes_no_item_and_no_money() {
     });
     account.presets[4] = Some(preset);
     let before = owned(&account);
-    assert_eq!(choose(&mut account, 5).unwrap(), Applied { empty: 3 });
+    assert_eq!(choose(&mut account, 5, NOW).unwrap(), Applied { empty: 3 });
     assert!(worn(&account, 0).is_empty());
     assert!(worn(&account, 1).is_empty());
     assert_eq!(worn(&account, 2), [(8, 2, 50)]);
@@ -413,7 +413,7 @@ fn an_item_type_goes_into_one_pocket() {
     }
     account.presets[1] = Some(preset);
     let before = owned(&account);
-    assert_eq!(choose(&mut account, 2).unwrap(), Applied { empty: 2 });
+    assert_eq!(choose(&mut account, 2, NOW).unwrap(), Applied { empty: 2 });
     let pockets: Vec<Option<KitSlot>> = account.kits[0].slots[13..=16].to_vec();
     assert_eq!(
         pockets,
@@ -449,12 +449,12 @@ fn a_covering_item_takes_off_what_it_covers() {
     let balaclava = account.add_item(1810, FULL_CONDITION);
 
     // Preset 2 with the helmet; preset 1 wears the balaclava.
-    choose(&mut account, 2).unwrap();
+    choose(&mut account, 2, NOW).unwrap();
     put(&mut account, 0, 0, helmet, 1);
-    choose(&mut account, 1).unwrap();
+    choose(&mut account, 1, NOW).unwrap();
     put(&mut account, 0, 1, balaclava, 1);
     let before = owned(&account);
-    assert_eq!(choose(&mut account, 2).unwrap(), Applied { empty: 0 });
+    assert_eq!(choose(&mut account, 2, NOW).unwrap(), Applied { empty: 0 });
     assert_eq!(
         account.kits[0].slots[0].map(|held| held.item_id),
         Some(helmet)
@@ -472,7 +472,7 @@ fn a_covering_item_takes_off_what_it_covers() {
         count: 1,
     });
     account.presets[2] = Some(both);
-    assert_eq!(choose(&mut account, 3).unwrap(), Applied { empty: 1 });
+    assert_eq!(choose(&mut account, 3, NOW).unwrap(), Applied { empty: 1 });
     assert_eq!(account.kits[0].slots[0], None);
     assert_eq!(
         account.kits[0].slots[1].map(|held| held.item_id),
@@ -506,22 +506,22 @@ fn a_presets_level_is_the_rooms_measure_of_the_kits_it_gives() {
     let (torso, torso_level) = best_torso();
     assert!(torso_level > starter);
     let piece = account.add_item(torso, FULL_CONDITION);
-    choose(&mut account, 2).unwrap();
+    choose(&mut account, 2, NOW).unwrap();
     rifle_kit(&mut account);
     put(&mut account, 1, 2, piece, 1);
     assert_eq!(matchmaking::gear_level(&account, NOW), torso_level);
     assert_eq!(level(&account, 2, NOW), Some(torso_level));
-    choose(&mut account, 1).unwrap();
+    choose(&mut account, 1, NOW).unwrap();
     assert_eq!(level(&account, 2, NOW), Some(torso_level));
     assert_eq!(level(&account, 1, NOW), Some(starter));
 
     // Preset 3: the torso in a kit that cannot play (no weapon).
-    choose(&mut account, 3).unwrap();
+    choose(&mut account, 3, NOW).unwrap();
     for kit in &mut account.kits {
         kit.slots = [None; KIT_SLOTS];
     }
     put(&mut account, 2, 2, piece, 1);
-    choose(&mut account, 1).unwrap();
+    choose(&mut account, 1, NOW).unwrap();
     assert_eq!(level(&account, 3, NOW), None);
     // An empty preset has none either.
     assert_eq!(level(&account, 4, NOW), None);
@@ -596,4 +596,68 @@ fn a_join_offers_the_highest_preset_the_room_allows() {
     assert_eq!(offer(7, 7, &levels), Offer::None);
     // No preset saved: nothing.
     assert_eq!(offer(11, 7, &[None; PRESETS]), Offer::None);
+}
+
+/// The review's case: preset 2's kit 1 is empty and its kit 2 plays, and
+/// kit 1 is the one played. Chosen ("Switch and enter"), the kit played is
+/// kit 2, whose level is the preset's: the room's gear check and the kit
+/// its match takes agree.
+#[test]
+fn a_chosen_preset_plays_a_kit_that_can_play() {
+    let mut account = alice();
+    choose(&mut account, 2, NOW).unwrap();
+    account.kits[0].slots = [None; KIT_SLOTS];
+    rifle_kit(&mut account);
+    // Played by hand: kit 1, empty (the lobby lets a kit be chosen so).
+    account.active_kit = 1;
+    choose(&mut account, 1, NOW).unwrap();
+    assert_eq!(account.active_kit, 1);
+    let level_2 = level(&account, 2, NOW).unwrap();
+
+    assert_eq!(choose(&mut account, 2, NOW).unwrap(), Applied { empty: 0 });
+    assert_eq!(account.active_kit, 2);
+    assert!(rules::check_play(&account, 2, NOW).is_ok());
+    let kit = account.kit(2).unwrap();
+    assert_eq!(matchmaking::kit_level(&account, kit), level_2);
+    assert_eq!(matchmaking::gear_level(&account, NOW), level_2);
+
+    // A kit played that can play stays played.
+    account.active_kit = 3;
+    choose(&mut account, 1, NOW).unwrap();
+    assert_eq!(account.active_kit, 1);
+    account.kits[1].slots = [None; KIT_SLOTS];
+    choose(&mut account, 3, NOW).unwrap();
+    rifle_kit(&mut account);
+    let (pistol, rounds) = (
+        owned_id(&account, "tt_33"),
+        owned_id(&account, "ammo_7.62x25"),
+    );
+    put(&mut account, 0, 7, pistol, 1);
+    put(&mut account, 0, 8, rounds, 50);
+    choose(&mut account, 1, NOW).unwrap();
+    assert_eq!(account.active_kit, 1);
+    choose(&mut account, 3, NOW).unwrap();
+    assert_eq!(account.active_kit, 1);
+}
+
+/// A slot kept with a preset whose item no longer fits it (the game's data
+/// changed which slot it goes in; the repair at load takes such an item off
+/// a kit, not off a snapshot): it stays empty, counted, and the preset can
+/// still be chosen.
+#[test]
+fn an_item_that_no_longer_fits_its_slot_stays_out() {
+    let mut account = alice();
+    let mut preset = snapshot(&account).unwrap();
+    let pistol = preset.kits[0][7].unwrap();
+    preset.kits[0][7] = None;
+    // The pistol kept in the helmet's slot.
+    preset.kits[0][0] = Some(pistol);
+    assert!(!Dictionary::shared().fits(pistol.dict_id, 0));
+    account.presets[1] = Some(preset);
+    let before = owned(&account);
+    assert_eq!(choose(&mut account, 2, NOW).unwrap(), Applied { empty: 1 });
+    assert_eq!(account.kits[0].slots[0], None);
+    assert_eq!(account.kits[0].slots[7], None);
+    assert!(account.kits[0].slots[8].is_some());
+    assert_eq!(owned(&account), before);
 }

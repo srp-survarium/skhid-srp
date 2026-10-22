@@ -38,7 +38,7 @@ impl Core<'_> {
             .player(who.addr)
             .is_some_and(|player| player.in_match.is_none() && player.connect.is_none());
         let chosen = if free {
-            presets::choose(&mut who.account.locked(), preset)
+            presets::choose(&mut who.account.locked(), preset, quests::now())
         } else {
             Err(PresetError::Busy)
         };

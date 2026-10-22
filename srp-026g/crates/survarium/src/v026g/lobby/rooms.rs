@@ -377,9 +377,10 @@ pub enum RoomCode {
     /// The asker's kit could not play (no weapon, too little ammo) when its
     /// room's match started: it was taken out of the room.
     KitUnfit = 13,
-    /// "Switch and enter": the preset could not be put on the kits (an
-    /// empty one, or the asker is in a match): nothing changed, no room
-    /// joined (`presets.md`).
+    /// "Switch and enter": the preset could not be chosen (the asker is in a
+    /// match or on its way to one, or a kit rule refused): nothing changed,
+    /// no room joined (`presets.md`). An empty preset is no refusal: it
+    /// starts as the kits worn.
     PresetRefused = 14,
 }
 

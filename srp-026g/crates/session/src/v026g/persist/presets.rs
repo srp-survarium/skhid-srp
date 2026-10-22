@@ -167,7 +167,7 @@ mod tests {
             .unwrap();
         // Alice keeps her starter in preset 1 and plays preset 3, emptied.
         let mut account = Account::new("Alice");
-        presets::choose(&mut account, 3).unwrap();
+        presets::choose(&mut account, 3, 0).unwrap();
         account.kits[0].slots = [None; crate::v026g::account::KIT_SLOTS];
         repository.save(7, &account).unwrap();
         let loaded = repository.load_all().unwrap();
@@ -182,7 +182,7 @@ mod tests {
         assert!(presets::preset(bob, 1).unwrap().is_some());
 
         // A later save replaces them.
-        presets::choose(&mut account, 1).unwrap();
+        presets::choose(&mut account, 1, 0).unwrap();
         repository.save(7, &account).unwrap();
         let loaded = repository.load_all().unwrap();
         let alice = &loaded.iter().find(|(id, _)| *id == 7).unwrap().1;
