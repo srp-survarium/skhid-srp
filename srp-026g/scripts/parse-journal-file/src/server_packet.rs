@@ -1,5 +1,5 @@
 use vostok::serde::advance_buffer;
-use vostok::serde::{Deserialize, DeserializeError};
+use vostok::serde::DeserializeError;
 
 use raw::*;
 
@@ -131,9 +131,8 @@ impl ServerGameMessageKind {
                 let countdown_time = advance_buffer::<u8>(buffer)?;
 
                 let mut event_scores = [0_u16; 21];
-                for i in 0..21 {
-                    let event_score = advance_buffer::<u16>(buffer)?;
-                    event_scores[i] = event_score;
+                for event_score in &mut event_scores {
+                    *event_score = advance_buffer::<u16>(buffer)?;
                 }
 
                 let mut players = vec![0_u8; player_count as usize];

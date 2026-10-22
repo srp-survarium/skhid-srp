@@ -11,8 +11,9 @@
 
 use survarium::v021d;
 use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::golden;
 use survarium::v026g::item_params;
-use survarium::v026g::loadouts::{self, Loadout};
+use survarium::v026g::loadouts::{self, Loadout, POCKET_SLOTS};
 use survarium::v026g::lobby::{FULL_CONDITION, KIT_PREMIUM, KIT_READY, limits};
 use survarium::v026g::quests::FACTIONS;
 
@@ -182,6 +183,40 @@ pub struct Account {
     /// map (`maps::MapMode::level`), by map; the matchmaker draws the maps
     /// its players played less more often ([`super::matchmaking`]).
     pub map_plays: Vec<(u8, u32)>,
+    /// The settings of the last room it made by hand, its create window's
+    /// start ([`super::room_settings`]); none before its first.
+    pub room_settings: Option<super::room_settings::RoomSettings>,
+    /// The matches whose results screen it used a drop card on, sorted,
+    /// of those whose reports are kept: one card a match
+    /// ([`super::rewards::Results::use_drop_card`]). Kept with the account,
+    /// so the mark is written with the card taken and the item given.
+    pub drop_cards: Vec<u32>,
+}
+
+/// The pockets of a kit's `slots` ([`POCKET_SLOTS`]) holding an item type
+/// (a dict id; `dict_of` gives an item id's) that an earlier pocket of it
+/// holds: the rule is one pocket an item type, its units within that
+/// pocket's size (`docs/notes/one-pocket-a-type.md`). A booster in a pocket
+/// adds its bonus at every spawn, so a type in two pockets gave it twice.
+/// Ammo slots are no pockets: the ammo window spreads one ammo over the
+/// ammo bags by design.
+pub fn doubled_pockets(
+    slots: &[Option<KitSlot>; KIT_SLOTS],
+    dict_of: impl Fn(u32) -> Option<u16>,
+) -> Vec<usize> {
+    let mut seen: Vec<u16> = Vec::new();
+    let mut doubled = Vec::new();
+    for pocket in POCKET_SLOTS.map(usize::from) {
+        let Some(dict_id) = slots[pocket].and_then(|held| dict_of(held.item_id)) else {
+            continue;
+        };
+        if seen.contains(&dict_id) {
+            doubled.push(pocket);
+        } else {
+            seen.push(dict_id);
+        }
+    }
+    doubled
 }
 
 /// The level reached with `total` experience, where it starts and where
@@ -252,6 +287,8 @@ impl Account {
                 ..Default::default()
             },
             map_plays: Vec::new(),
+            room_settings: None,
+            drop_cards: Vec::new(),
         };
         for worn in &loadout.items {
             let Some(entry) = dictionary.item(worn.dict_id) else {
@@ -288,7 +325,11 @@ impl Account {
         }
     }
 
-    /// A new instance into the inventory; returns its id.
+    /// A new instance into the inventory; returns its id. A golden weapon
+    /// comes with its silver bonus as its own first modification, a premium
+    /// armour piece with its two premium bonuses
+    /// ([`golden::starting_modifications`]), whatever made it (the shop, a
+    /// bundle, the admin).
     pub fn add_item(&mut self, dict_id: u16, condition_or_stack: u32) -> u32 {
         let item_id = self.next_item_id;
         self.next_item_id += 1;
@@ -298,7 +339,7 @@ impl Account {
             condition_or_stack,
             repair_time: 0,
             reroll_time: 0,
-            modifications: Vec::new(),
+            modifications: golden::starting_modifications(dict_id),
             upgrades: Vec::new(),
             reroll: Reroll::default(),
         });
@@ -480,6 +521,58 @@ impl Account {
         taken
     }
 
+    /// The pockets of `kit` that break the rule of one pocket an item type
+    /// ([`doubled_pockets`]).
+    pub fn doubled_pockets(&self, kit: &Kit) -> Vec<usize> {
+        doubled_pockets(&kit.slots, |item_id| {
+            self.item(item_id).map(|item| item.dict_id)
+        })
+    }
+
+    /// Makes every kit keep the rule of one pocket an item type
+    /// (`docs/notes/one-pocket-a-type.md`): of the pockets holding one type,
+    /// the first keeps it, with the most units any of them held, and the
+    /// others are emptied. A slot only names units of the inventory's stack,
+    /// so nothing leaves the inventory: what the emptied pockets named is in
+    /// the storage. (The most, not the sum: every pocket of a kit has one
+    /// size, which the server does not know, and each of them held what fit
+    /// it.) A kit that changed gets a new revision. How many pockets it
+    /// emptied.
+    pub fn merge_pockets(&mut self) -> usize {
+        let mut emptied = 0;
+        for index in 0..self.kits.len() {
+            let mut slots = self.kits[index].slots;
+            // `(dict id, the first pocket holding it)`.
+            let mut first: Vec<(u16, usize)> = Vec::new();
+            let mut changed = false;
+            for pocket in POCKET_SLOTS.map(usize::from) {
+                let Some(held) = slots[pocket] else {
+                    continue;
+                };
+                let Some(dict_id) = self.item(held.item_id).map(|item| item.dict_id) else {
+                    continue;
+                };
+                match first.iter().find(|&&(id, _)| id == dict_id) {
+                    Some(&(_, kept)) => {
+                        if let Some(kept) = slots[kept].as_mut() {
+                            kept.count = kept.count.max(held.count);
+                        }
+                        slots[pocket] = None;
+                        changed = true;
+                        emptied += 1;
+                    }
+                    None => first.push((dict_id, pocket)),
+                }
+            }
+            if changed {
+                let kit = &mut self.kits[index];
+                kit.slots = slots;
+                kit.revision = kit.revision.wrapping_add(1);
+            }
+        }
+        emptied
+    }
+
     /// What a kit weighs, as the lobby counts it
     /// ([`item_params::carried_weight`]).
     pub fn kit_weight(&self, kit: &Kit) -> f32 {
@@ -545,9 +638,10 @@ impl Account {
     /// it can not crash a client: the next ids past every id in use, at
     /// most three kits with distinct non-zero ids, an active kit that
     /// exists, no duplicate item id, item lists within the client's
-    /// limits, no slot holding an item that is gone or does not fit, and
-    /// none worn in a slot another worn item covers
-    /// ([`Self::uncover_kits`]). `true` if anything changed.
+    /// limits, no slot holding an item that is gone or does not fit, none
+    /// worn in a slot another worn item covers ([`Self::uncover_kits`]), and
+    /// no item type in two pockets ([`Self::merge_pockets`]). `true` if
+    /// anything changed.
     ///
     /// It never deletes an item for a definition the game's data lacks:
     /// that is data made without a patch, and the load refuses it before
@@ -605,6 +699,7 @@ impl Account {
             }
         }
         self.uncover_kits();
+        self.merge_pockets();
         self.sync_kits();
         self.name = cap_name(&self.name);
         self.clan_tag =
@@ -831,6 +926,143 @@ mod tests {
         assert!(account.kits[1].slots.iter().all(Option::is_none));
         assert_eq!(account.quest_faction, 0);
         // And it is stable.
+        assert!(!account.repair());
+    }
+
+    /// The units each owned stack has, by item id, and what the pockets of
+    /// every kit name of each, at most what is owned.
+    fn units(account: &Account) -> Vec<(u32, u16, u32)> {
+        for kit in &account.kits {
+            for pocket in POCKET_SLOTS.map(usize::from) {
+                if let Some(held) = kit.slots[pocket] {
+                    let owned = account.item(held.item_id).unwrap().condition_or_stack;
+                    assert!(held.count <= owned, "pocket {pocket}: {held:?} of {owned}");
+                }
+            }
+        }
+        account
+            .inventory
+            .iter()
+            .map(|item| (item.item_id, item.dict_id, item.condition_or_stack))
+            .collect()
+    }
+
+    fn in_pocket(account: &mut Account, kit: usize, pocket: usize, item_id: u32, count: u32) {
+        account.kits[kit].slots[pocket] = Some(KitSlot { item_id, count });
+    }
+
+    /// Kits saved before the rule of one pocket an item type: a speed
+    /// booster in three pockets (each adding its +5 % at a spawn), and
+    /// grenades in two, the second holding more. The first pocket of a
+    /// type keeps it with the most units any of them held; the others are
+    /// emptied; the inventory is what it was (a slot only names units of
+    /// the stack), so nothing is lost or made.
+    #[test]
+    fn a_type_in_two_pockets_is_merged_into_the_first() {
+        let dictionary = Dictionary::shared();
+        let speed = dictionary.item_named("speed_booster").unwrap().dict_id;
+        let grenade = dictionary.item_named("rgd-5").unwrap().dict_id;
+        let medkit = dictionary.item_named("medkit").unwrap().dict_id;
+        let mut account = Account::new("Alice");
+        let booster = account.add_item(speed, 3);
+        let grenades = account.add_item(grenade, 3);
+        let medkits = account.add_item(medkit, 5);
+        in_pocket(&mut account, 0, 13, booster, 1);
+        in_pocket(&mut account, 0, 14, grenades, 1);
+        in_pocket(&mut account, 0, 15, booster, 1);
+        in_pocket(&mut account, 0, 16, grenades, 2);
+        in_pocket(&mut account, 0, 17, booster, 1);
+        in_pocket(&mut account, 0, 18, medkits, 2);
+        // The second kit keeps the rule: untouched.
+        in_pocket(&mut account, 1, 13, booster, 1);
+        in_pocket(&mut account, 1, 14, grenades, 2);
+        let before = account.clone();
+        assert_eq!(account.doubled_pockets(&account.kits[0]), [15, 16, 17]);
+        assert!(account.doubled_pockets(&account.kits[1]).is_empty());
+
+        assert_eq!(account.merge_pockets(), 3);
+        let pockets: Vec<Option<KitSlot>> = account.kits[0].slots[13..=18].to_vec();
+        assert_eq!(
+            pockets,
+            [
+                Some(KitSlot {
+                    item_id: booster,
+                    count: 1
+                }),
+                Some(KitSlot {
+                    item_id: grenades,
+                    count: 2
+                }),
+                None,
+                None,
+                None,
+                Some(KitSlot {
+                    item_id: medkits,
+                    count: 2
+                }),
+            ]
+        );
+        assert_eq!(account.kits[0].revision, before.kits[0].revision + 1);
+        assert_eq!(account.kits[1], before.kits[1]);
+        // The other slots, the inventory and the money are as they were.
+        assert_eq!(account.kits[0].slots[..13], before.kits[0].slots[..13]);
+        assert_eq!(account.inventory, before.inventory);
+        assert_eq!(units(&account), units(&before));
+        assert_eq!(account.generic_money, before.generic_money);
+        // Valid now: nothing more to merge, and the repair keeps it.
+        assert_eq!(account.merge_pockets(), 0);
+        assert!(!account.repair());
+    }
+
+    /// Two stacks of one type (two instances of a dict id) count as one
+    /// type; the first pocket keeps its own stack, at most what it owns.
+    #[test]
+    fn two_stacks_of_one_type_are_one_type() {
+        let grenade = Dictionary::shared().item_named("rgd-5").unwrap().dict_id;
+        let mut account = Account::new("Alice");
+        let few = account.add_item(grenade, 1);
+        let many = account.add_item(grenade, 4);
+        in_pocket(&mut account, 2, 16, few, 1);
+        in_pocket(&mut account, 2, 13, many, 3);
+        let inventory = account.inventory.clone();
+        assert_eq!(account.doubled_pockets(&account.kits[2]), [16]);
+        assert!(account.repair());
+        assert_eq!(
+            account.kits[2].slots[13],
+            Some(KitSlot {
+                item_id: many,
+                count: 3
+            })
+        );
+        assert_eq!(account.kits[2].slots[16], None);
+        assert_eq!(account.inventory, inventory);
+
+        // The other way round: the kept stack owns less than the most held.
+        in_pocket(&mut account, 2, 13, few, 1);
+        in_pocket(&mut account, 2, 16, many, 3);
+        assert!(account.repair());
+        assert_eq!(
+            account.kits[2].slots[13],
+            Some(KitSlot {
+                item_id: few,
+                count: 1
+            })
+        );
+        assert_eq!(account.kits[2].slots[16], None);
+        assert_eq!(account.inventory, inventory);
+        units(&account);
+    }
+
+    /// Ammo is no pocket item: one ammo in several ammo slots is the ammo
+    /// window's own way.
+    #[test]
+    fn ammo_in_several_ammo_slots_is_left_alone() {
+        let mut account = Account::new("Alice");
+        let ammo = account.kits[0].slots[8].unwrap();
+        account.kits[0].slots[9] = Some(KitSlot { count: 20, ..ammo });
+        account.kits[0].slots[11] = Some(KitSlot { count: 10, ..ammo });
+        assert!(account.doubled_pockets(&account.kits[0]).is_empty());
+        assert_eq!(account.merge_pockets(), 0);
         assert!(!account.repair());
     }
 }

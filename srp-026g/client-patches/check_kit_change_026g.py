@@ -41,7 +41,8 @@ camera; the first move after it puts the cursor back where the drag began;
 the wheel alone goes on to the player's handler without the frame's turn.
 With the kits shown in any other mode (the death screen), the cursor shown
 without them, or no player's handler, the cursor takes every move, as in
-the original. The warmup mode keeps the pitch within +-60 degrees and the
+the original (these runs bind no local player: a dead one's death screen
+in the first person mode is patch 46's, check_death_camera_026g.py). The warmup mode keeps the pitch within +-60 degrees and the
 distance within 1.5 and 4.6, the lobby camera's. The original does none of
 it: it never changes a kit of a live player, its view always gives the
 player camera, its hud only hides the kits at a respawn and shows them at a
@@ -973,8 +974,10 @@ def main():
                             (bytes.fromhex("0fab02"), bytes.fromhex("909090"), check_keys),
                             (bytes.fromhex("0fb302731c"), bytes.fromhex("0fb302eb1c"), check_keys)):
         broken = bytearray(patched)
-        at = broken.rfind(old)                     # in `.srp`, the last section with bytes
-        assert at > base.Headers(broken).sections(broken)[-2][3]
+        _, _, _, raw, size, _ = next(section for section in base.Headers(broken).sections(broken)
+                                     if section[0] == base.SECTION_NAME)
+        at = broken.rfind(old, raw, raw + size)    # in `.srp`
+        assert at > raw
         broken[at:at + len(old)] = new
         try:
             check(bytes(broken), True)

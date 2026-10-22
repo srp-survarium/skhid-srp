@@ -50,9 +50,15 @@ pub mod id {
 pub const INVENTORY_SLOT: u8 = 100;
 
 /// Added to the amount of `47 04` by srp's exchange window when it buys gold
-/// with silver (`SrpExchange.BUY_GOLD`). The stock window sends only gold
+/// with silver (`MessageMoneyExchange.BUY_GOLD`). The stock window sends only gold
 /// for silver, and no account has this much gold.
 pub const BUY_PREMIUM: u32 = 0x4000_0000;
+
+/// The place of `46 08` that srp's reroll window sends for "keep the old
+/// one" (`MessageRerollItem`, `RerollChoice.KEEP_OLD`): none of the three
+/// offered is taken (`docs/notes/reroll-keep-old.md`). The exe sends the
+/// place as Flash gives it (0x29FF7A).
+pub const KEEP_OLD_MODIFICATION: u32 = 3;
 
 /// One entry of `46 00`: `relocate_item_descr`, 16 bytes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -256,7 +262,8 @@ pub enum ClientMessage {
         flag: bool,
     },
     /// `46 08`: take one of the three offered. `new_modification_id` is
-    /// its place among them (0..=2), not an id (`items.md` §3).
+    /// its place among them (0..=2), not an id (`items.md` §3), or
+    /// [`KEEP_OLD_MODIFICATION`]: none of them.
     ChooseModifier {
         item_id: u32,
         old_modification_id: u32,

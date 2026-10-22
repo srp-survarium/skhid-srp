@@ -36,6 +36,28 @@ Edits (edits.json):
                     the entry matching `like` with `values` set; a value "{a/b}" is that number of
                     the same file; files without `only_if`, the table or those entries are left alone
   "add_key":        [{"file", "table", "key", "text"}] a new text of a localization table
+  "add_value":      [{"files" (a list of game paths), "table" ("" the root), "key", "value"}]
+                    a new key of the named table in each file, in its place by name CRC: a bool,
+                    an int, a float (a number with a point), a text, or an object (a named table of
+                    those); a file that has the key already is refused
+  "remove_item":    [{"file", "path", "value"}]        the one item equal to `value` of an indexed table of
+                                                       numbers (an item's `default_modifications`) or of
+                                                       strings (a weapon's `death` animations); the
+                                                       later items move down in place, the count drops by 1
+  "copy":           [{"files", "from", "to"}]          every live file the glob matches (its path starts
+                                                       with `from`) is also a new file at `to` + the rest
+                                                       of its path, a path no live file has; applied first,
+                                                       the globs below see the copies
+  "scale":          [{"files", "path", "by"}]          the number at `path` of every matching file times
+                                                       `by`, as a float (a matching file without it is
+                                                       refused)
+  "prefix_string":  [{"files", "key", "prefix"}]       every string value named `key` of the matching files
+                                                       gets `prefix` in front, appended
+  "set_entry":      [{"file", "list", "where", "from", "to"}]
+                    the one entry of the indexed table `list` whose keys match `where`: each key of
+                    `from` must hold that value, then takes the value in `to` (a number keeps its type,
+                    a string is appended)
+A copy is read back against the file it was copied from: byte for byte when nothing edits it.
 New records and arrays are appended (arrays at 8-byte boundaries, as the files keep them); a table
 that grows gets a new array and the old one stays, unreferenced.
 
@@ -292,6 +314,71 @@ def add_key(buf, table, key, text):
     REC.pack_into(buf, toff, append_array(buf, new), i, c, ty, cnt + 1)
 
 
+def value_record(buf, name_off, key, value):
+    """A 24-byte record of `value` named `key` (its name at `name_off`); a table's children and
+    texts are appended."""
+    crc = zlib.crc32(key.encode()) & 0xffffffff
+    if isinstance(value, dict):
+        kids = sorted((value_record(buf, append(buf, k.encode() + b'\0'), k, v) for k, v in value.items()),
+                      key=lambda r: REC.unpack(r)[2])
+        return REC.pack(append_array(buf, kids) if kids else 0, name_off, crc, T_NAMED, len(kids))
+    if isinstance(value, bool):
+        return REC.pack(int(value), name_off, crc, T_BOOL, 4)
+    if isinstance(value, int):
+        return REC.pack(value & 0xffffffff, name_off, crc, T_INT, 4)
+    if isinstance(value, float):
+        return REC.pack(struct.unpack('<I', struct.pack('<f', value))[0], name_off, crc, T_FLOAT, 4)
+    text = value.encode()
+    return REC.pack(append(buf, text + b'\0'), name_off, crc, T_STR, len(text) + 1)
+
+
+def add_value(buf, table, key, value):
+    """A new key of the named table `table` ('' the root), in its place by name CRC."""
+    toff = find(buf, table) if table else 0
+    assert rec(buf, toff)[3] == T_NAMED, (table, 'not a named table')
+    kids = [bytes(buf[c:c + 24]) for c in children(buf, toff)]
+    crc = zlib.crc32(key.encode()) & 0xffffffff
+    assert all(REC.unpack(r)[2] != crc for r in kids), (table, key, 'its CRC is taken')
+    record = value_record(buf, append(buf, key.encode() + b'\0'), key, value)
+    new = sorted(kids + [record], key=lambda r: REC.unpack(r)[2])
+    d, i, c, ty, cnt = rec(buf, toff)
+    REC.pack_into(buf, toff, append_array(buf, new), i, c, ty, cnt + 1)
+
+
+def items_of(buf, path):
+    """The items of an indexed table of numbers or strings, as numbers and (UTF-8) strings."""
+    off = find(buf, path)
+    if rec(buf, off)[3] != T_INDEXED:
+        raise ValueError('%s is not an indexed table' % path)
+    items = []
+    for c in children(buf, off):
+        d, _, _, t, cnt = rec(buf, c)
+        if t in (T_INT, T_FLOAT):
+            items.append(as_number(t, d & 0xffffffff))
+        elif t == T_STR:
+            items.append(bytes(buf[d:d + cnt - 1]).decode())
+        else:
+            raise ValueError('%s holds an item that is neither a number nor a string' % path)
+    return items
+
+
+def remove_item(buf, path, value):
+    """The one item equal to `value` of the indexed table of numbers or strings `path` taken out: the later
+    items' records move down one place in the table's own array, its count drops by one (the last
+    record stays, unreferenced). A value the table holds not exactly once is refused."""
+    items = items_of(buf, path)
+    if items.count(value) != 1:
+        raise ValueError('%s holds %r %d times, not once: the base is not the live data'
+                         % (path, value, items.count(value)))
+    off = find(buf, path)
+    kids = children(buf, off)
+    at = items.index(value)
+    for dst, src in zip(kids[at:], kids[at + 1:]):
+        buf[dst:dst + 24] = buf[src:src + 24]
+    d, i, crc, t, cnt = rec(buf, off)
+    REC.pack_into(buf, off, d, i, crc, t, cnt - 1)
+
+
 def shifted(path, lst, at):
     """A path of the file before an entry was put at `at` of the table `lst`, after it."""
     head = lst + '['
@@ -322,6 +409,58 @@ def set_prop(buf, prop_id, frm, to):
     raise KeyError('prop %d' % prop_id)
 
 
+def prefix_strings(buf, key, prefix):
+    """Every string value named `key` gets `prefix` in front (the new strings appended). Returns
+    how many."""
+    def named(off):
+        """(offset, name) of every value under a table; an indexed table's items have no name."""
+        t = rec(buf, off)[3]
+        out = []
+        if t in (T_NAMED, T_INDEXED):
+            for c in children(buf, off):
+                out.append((c, name_at(buf, rec(buf, c)[1]) if t == T_NAMED else None))
+                out += named(c)
+        return out
+    n = 0
+    for off, name in named(0):
+        d, i, c, t, cnt = rec(buf, off)
+        if t == T_STR and name == key.encode():
+            new = prefix.encode() + bytes(buf[d:d + cnt - 1])
+            REC.pack_into(buf, off, append(buf, new + b'\0'), i, c, t, len(new) + 1)
+            n += 1
+    return n
+
+
+def set_entry(buf, path, where, frm, to):
+    """The one entry of the indexed table `path` whose keys match `where`: each key of `frm` must
+    hold that value; then each key of `to` takes its value (a number keeps its type, a string is
+    appended). Returns the entry's index."""
+    lst = find(buf, path)
+    if rec(buf, lst)[3] != T_INDEXED:
+        raise ValueError('%s is not an indexed table' % path)
+    hit = [i for i, e in enumerate(children(buf, lst)) if matches(buf, e, where)]
+    if len(hit) != 1:
+        raise ValueError('%s: %d entries match %r, not 1' % (path, len(hit), where))
+    at = hit[0]
+    entry = children(buf, lst)[at]
+    for k, v in frm.items():
+        c = child(buf, entry, k)
+        if c is None or value_of(buf, c) != v:
+            raise ValueError('%s[%d]/%s is %r, not %r: the base is not the live data'
+                             % (path, at, k, None if c is None else value_of(buf, c), v))
+    for k, v in to.items():
+        c = child(buf, entry, k)
+        if c is None:
+            raise KeyError('%s[%d]/%s' % (path, at, k))
+        d, i, crc, t, cnt = rec(buf, c)
+        if t == T_STR:
+            new = v.encode()
+            REC.pack_into(buf, c, append(buf, new + b'\0'), i, crc, t, len(new) + 1)
+        else:
+            set_number(buf, '%s[%d]/%s' % (path, at, k), value_of(buf, c), v)
+    return at
+
+
 def game_path(name):
     return name.replace('__', '/')
 
@@ -350,9 +489,45 @@ def main():
         return bufs[p]
 
     allowed = {}
+    copies = {}
+    for e in edits.get('copy', []):
+        n = 0
+        for p in sorted(fnmatch.filter(files, e['files'])):
+            if not p.startswith(e['from']):
+                sys.exit('copy: %s does not start with %s' % (p, e['from']))
+            q = e['to'] + p[len(e['from']):]
+            if q in files or q in copies:
+                sys.exit('copy: %s is already there' % q)
+            copies[q] = p
+            bufs[q] = bytearray(open(files[p], 'rb').read())
+            n += 1
+        print('copy %s -> %s: %d files' % (e['files'], e['to'], n))
+    prefixed = {}
+    for e in edits.get('scale', []):
+        n = 0
+        for p in sorted(fnmatch.filter(list(files) + list(copies), e['files'])):
+            b = buf(p)
+            off = find(b, e['path'])
+            d, _, _, t, _ = rec(b, off)
+            old = as_number(t, d & 0xffffffff)
+            set_number(b, e['path'], old, round(old * e['by'], 6), as_float=True)
+            allowed.setdefault(p, set()).add('/' + e['path'])
+            n += 1
+        print('scale %s x %g: %d files' % (e['path'], e['by'], n))
+    for e in edits.get('prefix_string', []):
+        n = 0
+        for p in sorted(fnmatch.filter(list(files) + list(copies), e['files'])):
+            k = prefix_strings(buf(p), e['key'], e['prefix'])
+            if k:
+                prefixed.setdefault(p, []).append((e['key'].encode(), e['prefix'].encode()))
+                n += k
+        print('prefix %s with %s: %d values' % (e['key'], e['prefix'], n))
     for e in edits.get('set', []):
         set_number(buf(e['file']), e['path'], e['from'], e['to'], e.get('as_float', False))
         allowed.setdefault(e['file'], set()).add('/' + e['path'])
+    for e in edits.get('set_entry', []):
+        at = set_entry(buf(e['file']), e['list'], e['where'], e['from'], e['to'])
+        allowed.setdefault(e['file'], set()).update('/%s[%d]/%s' % (e['list'], at, k) for k in e['to'])
     for e in edits.get('set_prop', []):
         q = set_prop(buf(e['file']), e['prop_id'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).add(q)
@@ -401,30 +576,60 @@ def main():
         add_key(buf(e['file']), e['table'], e['key'], e['text'])
         added.setdefault(e['file'], []).append('/%s/%s' % (e['table'], e['key']))
         grown.setdefault(e['file'], set()).add('/' + e['table'])
+    for e in edits.get('add_value', []):
+        for p in e['files']:
+            add_value(buf(p), e['table'], e['key'], e['value'])
+            table = '/' + e['table'] if e['table'] else ''
+            added.setdefault(p, []).append('%s/%s' % (table, e['key']))
+            grown.setdefault(p, set()).add(table)
+        print('value %s/%s: %d files' % (e['table'], e['key'], len(e['files'])))
+    removed = {}
+    for e in edits.get('remove_item', []):
+        remove_item(buf(e['file']), e['path'], e['value'])
+        removed.setdefault(e['file'], {}).setdefault(e['path'], []).append(e['value'])
 
     # read back: compare every value with the live file, by path
     renames = [('/%s/%s' % (e['table'], e['from']), '/%s/%s' % (e['table'], e['to']), e['from'], e['to'])
                for e in edits.get('rename_key', [])]
     strings = [(e['from'].encode(), e['to'].encode()) for e in edits.get('replace_string', [])]
-    bad = 0
+    bad = same_copies = 0
     for p, b in sorted(bufs.items()):
-        old = {q: (t, v) for q, t, v in walk(bytearray(open(files[p], 'rb').read()))}
+        source = bytearray(open(files[copies.get(p, p)], 'rb').read())
+        if p in copies and b == source:
+            same_copies += 1
+            continue
+        old = {q: (t, v) for q, t, v in walk(source)}
         new = {q: (t, v) for q, t, v in walk(b)}
         for ro, rn, _, _ in renames:
             if ro in old and rn in new and rn not in old:
                 old[rn] = old.pop(ro)
         for lst, at in shifts.get(p, ()):
             old = {shifted(q, lst, at): v for q, v in old.items()}
+        for lst, values in removed.get(p, {}).items():
+            was, now = items_of(source, lst), items_of(b, lst)
+            want = list(was)
+            for v in values:
+                want.remove(v)
+            ok = now == want
+            bad += not ok
+            print('%s%s /%s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, lst, was, now))
+            for d in (old, new):
+                for q in [q for q in d if q == '/' + lst or q.startswith('/%s[' % lst)]:
+                    del d[q]
         for q in sorted(set(old) | set(new)):
             o, n = old.get(q), new.get(q)
             if o == n:
                 continue
             ok = (q in allowed.get(p, ()) and o and n and n[0] in (o[0], T_FLOAT)) or \
                 (o and n and o[0] == n[0] == T_STR and (o[1], n[1]) in strings) or \
+                (o and n and o[0] == n[0] == T_STR and any(q.endswith('/' + k.decode()) and n[1] == x + o[1]
+                                                           for k, x in prefixed.get(p, ()))) or \
                 (o is None and any(q == a or q.startswith(a + '/') for a in added.get(p, ()))) or \
                 (q in grown.get(p, ()) and o and n and o[0] == n[0] and n[1] == o[1] + 1)
             bad += not ok
             print('%s%s %s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, q, show(o), show(n)))
+    if copies:
+        print('%d new files (copies), %d of them byte for byte' % (len(copies), same_copies))
     print('%d files edited, %d unexpected differences' % (len(bufs), bad))
     if bad:
         sys.exit(1)

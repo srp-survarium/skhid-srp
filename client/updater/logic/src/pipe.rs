@@ -33,6 +33,11 @@ pub mod state {
     pub const INSTALLED: u8 = 0x11;
     /// The original's `copy` action is done.
     pub const COPIED: u8 = 0x13;
+    /// "Server maintenance...": the launcher turns PLAY off (and Enter with
+    /// it) until another updater says [`LATEST`] (`on_updater_state_changed`
+    /// 0x1612B, `srp-026g/docs/notes/launcher.md` 5.4). Said when the server
+    /// stops answering while the launcher stays open.
+    pub const MAINTENANCE: u8 = 0x16;
 }
 
 /// What an install step is, for [`ToLauncher::InstallInfo`] (ids 06..0D).

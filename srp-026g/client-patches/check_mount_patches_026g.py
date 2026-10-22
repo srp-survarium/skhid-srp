@@ -35,6 +35,16 @@ name, access denied, a sharing violation: any error but 2 and 3) stops the
 game before anything is queued, with its number and the error; a failed
 mount stops it with the patch's number, or the game's own message for
 resources.db. Says nothing about what the real file system does.
+
+Patch 49, the patches an exe requires: the same folders and more with a
+build that requires patches 1, 12, 14, 17 and 255 (--required-patches): a
+required patch that is not there (error 2 or 3) stops the game before
+anything is queued with its number and the error, the lowest such number;
+one that is not required and not there is skipped; one that is there and not
+required is mounted as before. The default build (no patch required) runs
+every folder above as it did before patch 49. And the case of 2026-10-21: a
+build that requires revision 27's list (12, 14, 17, 19 to 27) in a folder
+with 12 to 25 alone stops at patch 26; with all of them it mounts them.
 """
 import struct
 import sys
@@ -317,7 +327,14 @@ def main():
         sys.exit(__doc__)
     original = open(sys.argv[1], "rb").read()
     upload = open(base.default_bin("section"), "rb").read()
-    data, _ = base.build(original, "section", upload, None, open(base.late_join_bin(), "rb").read())
+    late_join = open(base.late_join_bin(), "rb").read()
+    data, _ = base.build(original, "section", upload, None, late_join)
+    needed = (1, 12, 14, 17, 255)
+    requiring, _ = base.build(original, "section", upload, None, late_join, required_patches=needed)
+    live = (12, 14, 17, *range(19, 28))
+    requiring_live, _ = base.build(original, "section", upload, None, late_join, required_patches=live)
+    assert base.required_patches_of(data) == [] and base.required_patches_of(requiring) == list(needed) \
+        and base.required_patches_of(requiring_live) == list(live)
     db = "..\\..\\resources.db"
     folders = [
         ("no patch", folder(), [db]),
@@ -337,6 +354,26 @@ def main():
         ("patch 1 access denied (error 5)", folder(2, patch_1=ACCESS_DENIED), 1, ACCESS_DENIED),
         ("patch 255 in use, a sharing violation (error 32)", folder(14, patch_255=SHARING_VIOLATION),
          255, SHARING_VIOLATION),
+    ]
+    all_needed = folder(*needed)
+    required = [
+        ("every required patch there", all_needed, [db] + [patch(n) for n in needed]),
+        ("every required patch there, and 2, 13 and 20 that are not required",
+         folder(*needed, 2, 13, 20), [db] + [patch(n) for n in sorted(needed + (2, 13, 20))]),
+        ("every required patch there, 13 path not found (error 3): not required, not there",
+         {**all_needed, **folder(patch_13=PATH_NOT_FOUND)}, [db] + [patch(n) for n in needed]),
+    ]
+    missing = [
+        ("no patch", folder(), 1, NOT_FOUND),
+        ("patch 1 alone", folder(1), 12, NOT_FOUND),
+        ("every required patch but 14", folder(1, 12, 17, 255, 20), 14, NOT_FOUND),
+        ("every required patch but 14 and 17: the first", folder(1, 12, 255), 14, NOT_FOUND),
+        ("every required patch but 255", folder(1, 12, 14, 17, 2), 255, NOT_FOUND),
+        ("every required patch, 12 path not found (error 3)", {**all_needed, **folder(patch_12=PATH_NOT_FOUND)},
+         12, PATH_NOT_FOUND),
+        ("every required patch, 17 a folder by that name (error 5)", {**all_needed, **folder(patch_17=ACCESS_DENIED)},
+         17, ACCESS_DENIED),
+        ("the patches of revision 27 (12 to 27, no 13, 15, 16, 18)", folder(12, 14, 17, *range(19, 28)), 1, NOT_FOUND),
     ]
     failed = 0
 
@@ -387,6 +424,30 @@ def main():
             say(run.fatal == f"Cannot mount resources.db.patch_{n}. Please run the Skhid launcher again."
                 and not run.kept and not run.unmounted,
                 f"patches 14, 17, 20, {n} fails{rebased}: {run.fatal!r}")
+        # Patch 49: a build that requires 1, 12, 14, 17 and 255.
+        for name, files, expected in required:
+            run = Run(requiring, delta, files)
+            got = run.query()
+            results = [run.mounted(True) for _ in got]
+            say(got == expected and run.fatal is None and results[-1][1] and run.kept == [results[0][0]]
+                and not run.unmounted and [run.references(mount) for mount in run.made] == [1] * len(got),
+                f"requiring {', '.join(map(str, needed))}: {name}{rebased}: mounts {len(got)}, the last callback "
+                "goes on with resources.db's mount")
+        for name, files, n, error in missing:
+            run = Run(requiring, delta, files)
+            got = run.query()
+            say(run.fatal == f"Cannot open resources.db.patch_{n} (error {error}). Please run the Skhid launcher "
+                "again." and got == [] and run.closed == run.opened,
+                f"requiring {', '.join(map(str, needed))}: {name}{rebased}: stops before any mount: {run.fatal!r}")
+        run = Run(requiring_live, delta, folder(*live[:-2]))
+        got = run.query()
+        say(run.fatal == "Cannot open resources.db.patch_26 (error 2). Please run the Skhid launcher again."
+            and got == [], f"requiring revision 27's list: without 26 and 27{rebased}: stops before any mount: "
+            f"{run.fatal!r}")
+        run = Run(requiring_live, delta, folder(*live))
+        got = run.query()
+        say(got == [db] + [patch(n) for n in live] and run.fatal is None,
+            f"requiring revision 27's list: all of it{rebased}: mounts {len(got)}")
         run = Run(data, delta, folder(1))
         run.query()
         run.mounted(False)

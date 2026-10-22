@@ -36,6 +36,9 @@ release's. The "Result" row is the build of the revision named in it.
 | Revision 22 | Released 2026-10-18 21:55 UTC (tag `026g-rev22`, `main` b4e7cea). Shipped: #184 Changelog: game update 21; #185 Shop: stop selling the Russian and Belarusian flags and coats of arms, the USSR flag and the red star; #187 Admin page: reset a forgotten password while srp runs; #186 Site: damage calculator tab (/damage), English and Ukrainian; #189 Password reset: close the sign-in race, write only the account, report errors. Without a server sha256 `6d082912ea51f6098b51c0ceba06341c2f4b6efd463e1e9ad3f275b0819987ef`, with `--server=skhid.link:1234` `f9e9dbeb45eed7a690d0e8f228c864beef4098546dbd60196546c609ed2462c6`. The ZIP: 6881533 bytes, sha256 `81d40f91c49f93487ba7df702e2a53f7af36df422a5633727005b6f822c9e399`; the server data: sha256 `c5615e24624e4cb146fceaefc9925fa20987fee0c5cf6333764cc8a094233dda`. Its content: `resources.db.patch_22` (845094613 bytes, sha256 `8d89d7a472d3659f370822212874aa237edb2257c8a3640d70c21c6fda0c65a5`) |
 | Revision 23 | Released 2026-10-19 10:52 UTC (tag `026g-rev23`, `main` 2145a91). Shipped: #191 Site in the calculator's look; calculator: healing table, play-area map, aligned bonuses; #192 Damage calculator: armour picker by icon and level, item protection by its bonuses; #193 Website: Maps tab (spawns, batteries, chargers, containers, artefacts); #194 Reroll offers three on items of few types; backpacks may roll health regeneration; #188 Patch 31: before the start a drag turns the camera and the wheel moves it, as in the lobby; #180 Match native game memory defaults to launcher budgets; #178 Fix launcher crash when an install starts with stale status information; #196 Shop: sell the STK2 Novice's knit cap to everyone; #197 Site: Maps tab and calculator built with revision 23's patch. Without a server sha256 `bccb7d7b905112cbcf2cbe156a44774520b34a8de6370fe752b51c5281edb9a2`, with `--server=skhid.link:1234` `d4154dbefef865457f7c363b823995e009c419ec1b7c895ae8eb85811714186e`. The ZIP: 6881868 bytes, sha256 `a946f4442433d59c09ca41b311907ab13de1d2c64442c42a0b01325204608e38`; the server data: sha256 `fdee2965e1a16ae26a27ddb7ee414af65a44676ae43048861716b482b7fe4d89`. Its content: `resources.db.patch_23` (55877739 bytes, sha256 `f504ed4ceba7642df009dede3405236a4774f728c500f736f5a4921fe33141b0`) |
 | Revision 24 | Released 2026-10-19 18:03 UTC (tag `026g-rev24`, `main` c52751b). Shipped: #204 Patch list: Google Drive mirrors of patches 19 to 23; #202 No tutorial: new accounts start with 10k silver, 500 gold, the Scavengers and ammo; #203 Rooms: every PvP match is a room's (the in-game Rooms window); the old queue goes; #206 Patch 39: the Tab list shows the places in the match, none whose player left; #207 Site: Maps tab and calculator built with revision 24's patch. Without a server sha256 `f1e91352927aeeda9aaae91d18eea88d5cfccdf979dfc4e56b102a37c378b9c0`, with `--server=skhid.link:1234` `809177184f37f8d69bb8edac8404c1f0ff1559dfe3f88a2e27959ce48988aaf5`. The ZIP: 6881999 bytes, sha256 `da6136600bf68e95d26f6c316873ccc746acf9c620036c00f32734ea78a8d536`; the server data: sha256 `6e0631e74542aa0c0eb92321c733062c02945590b57dc186a6560879e83e5f7a`. Its content: `resources.db.patch_24` (40387410 bytes, sha256 `c87623b9f80238a6b9c21507bd194bfbce6622cfd26b3a6be66839c9046a21b4`) |
+| Revision 25 | Released 2026-10-20 08:36 UTC (tag `026g-rev25`, `main` 1948a6d). Shipped: #213 Lobby: every Get Gold opens the exchange, not the online store; #214 Exchange: a typed amount over the balance becomes the most it pays for; #215 Lobby: Buy on an owned item: modified ones too, no "already purchased" question; #216 Lobby: craft window: right-click Buy and Sell; Continue and Exit after an upgrade; #217 Lobby: Optics in a weapon's right-click menu (opens the scope editor); #201 Patch 38: spotting has no cooldown, and a battery's body spots it (simulation change); #200 Fall damage as in 0.27: fatal_damage 1.0 (simulation change); #205 Patch 40: a model's LOD and screen factor at a wider field of view are the original's; #212 Rooms: the map vote runs until the match starts; #218 Lobby movie: one driver builds every lobby change, in order; #219 Rooms: the room's window under a match's results; #210 Late joiners: fewer players first, then the side they played on, then the balance; #211 Rooms: a member sees it is in a room (yellow tab, red Leave room); #222 Ukrainian: the Duty faction is Долг; #209 Late joins: a failed joiner closes nothing, and no joiner waits for a game that is not playing; #221 Battery pick-up 20 % faster (take_time 0.6 -> 0.5); #199 Release: rebuild the Maps tab and the calculator from the release's patches; #224 re-kit 0.26g: weapon draw/holster, the modifier getter, the battery's states. Without a server sha256 `12006dd9346171e3fcadbd6ac1b63fed7e0c73ca7e4c031198bc371d24f9a8b4`, with `--server=skhid.link:1234` `0142022a113c03c61e1cb9cc1658d68e0e9d1ba6b04886f48785a43441396ca1`. The ZIP: 6882118 bytes, sha256 `6e27343932698b25a5b707be7121dffe93ae1988ab5eef6e8bedd17670fa9a0d`; the server data: sha256 `781087d5fdc07c0651fa1d8599a30a749b4819a5c4e4cb8d68f3deb502395288`. Its content: `resources.db.patch_25` (40649751 bytes, sha256 `cf5078143de863dceefc3976575ac94f08b9e5672d95bbff7522bd1ef3b076ac`) |
+| Revision 26 | Released 2026-10-20 20:38 UTC (tag `026g-rev26`, `main` d7b9ca0). Shipped: #228 Clippy clean, and clippy in the dev process (AGENTS.md); #229 Rooms: the create window remembers the last room made by hand; #236 Patch 43: the player's own row in the Tab list is gold; #232 Rankings: right-click a player to see their equipment; #233 Rooms list: the selected room's players below State; right-click for their equipment; #234 Rooms: a match starts at the room's minimum, or is called off; #237 selftest: the relocation-under-site checks include one starting 3 bytes before; #240 Admin page: take silver, gold and items from an account, with a preview; #243 Drop cards: one per player of a match, own matches only; log sales and exchanges; #242 Weapon balance 2: AK-12 50 / 35 (premium: silver only), Socom16 damage 60; #239 Battery events pay per match at most as many times as the map has batteries (anti-farming); #245 Rooms with a PIN: their matches pay no rewards. Without a server sha256 `f02c1534a7631cc8eb628ed80a3e4d397e2826d6ca74e8521c253dfa7e431d2c`, with `--server=skhid.link:1234` `865d79efca2fac450f01938b5a22add57a7a551d570e9269db159542f9cc9c01`. The ZIP: 6882132 bytes, sha256 `ced6f17ed2e61622846da4f88b820a73185691950baeb33324698e1835ccc6ae`; the server data: sha256 `c7bb103a116ed7564b30c92dfe85429c5b3cb839ea7a42810487dc3469b8fa4b`. Its content: `resources.db.patch_26` (40426564 bytes, sha256 `42d9161d2c1ee9cf89a04015f1b6daa071922bf6f72f6dfdaf3c63d0e76fa17c`) |
+| Revision 27 | Released 2026-10-21 13:10 UTC (tag `026g-rev27`, `main` 750277f). Shipped: #248 Flash movies as committed ActionScript source (baseline: all eight trees rebuild exactly); #253 Rooms: room chat and Join room from a friend's menu (source tree); #247 Fall damage: how speed counts; #254 Rooms: who came by Play leaves its room after the match it played (without squads); #255 Rooms: a restarted game learns its room before the room plays with it (source tree); #256 Replay tests: fixtures of today's revision, not 11-15; #257 Rooms: Switch room as the game's normal button, with why to switch; #259 Client programs: ordinary Windows binaries (std, static MSVC CRT, version info, icon); #258 Updater: PLAY only for a game the server lets in; release puts the ZIP in before srp starts; #260 Weapon balance 2, retuned: AK-12 piercing 40, Socom16 damage 70; #264 HUD at 4K: hit marks and crosshair centred at any UI scale; #265 Weapon balance 2: the A-545 takes 0.28a's nerf; #266 Grenade bounces louder: impact sound settings (content-edit grenade-bounce-1); #261 Results screen: drop card slot greys once used or refused; messages show over the screen; #262 Lobby source: names for every placeholder, named numbers in every movie; #263 Golden weapons: only the silver bonus, as the weapon's own modification; upgradable as the plain weapon; #267 release/build-content: the next content patch from a manifest of what should be live; #268 Reroll: keep the old modification (the price stays paid); #269 Ported masks: the Army balaclava (1823) and five 0.69d masks, one content patch; #270 Patch 46: on the death screen a drag turns the camera; the wheel does nothing; #271 Death poses 1: remove the face-down death pose that looks into the arms; #272 Crouched steps audible at 40 % of walking; #273 Weapon camo, the workbench, decals and instant preview (#244) on main for revision 27; #274 Grenade bounce retuned: only the distance preset changes (mid_range). Without a server sha256 `8c25b2d9deda746a53f218380b3acafa76241697b6238d231817bfe6300f1147`, with `--server=skhid.link:1234` `459031e87bdce63a1564eb84df2de81079a878c8444603a6ecf0aac59641b2f6`. The ZIP: 7089320 bytes, sha256 `0a691de4291013660132de5dd09b2eaa46451c5109b0ae683f538c6af21af4a9`; the server data: sha256 `334ac3b45ebaaa6538d541cb861c73b94515afce4d3f5b782e12f3735eff1d4b`. Its content: `resources.db.patch_27` (311105123 bytes, sha256 `7c540c3de5aee63b5c2e856eaea8276df4f6bbfe3bf8a42054f8aab27ed548ab`) |
 | Revision 4 | Revision 3 with patch 10 (a start with a Documents folder the game may not write to). **In the players' download since 2026-10-13 15:36 UTC.** Made as the download is, it differs from the revision 3 exe (`ac947abd…6d7b`; without a server `eedc5b5c…cf0d`) in the four bytes at file 0x35F0B, two bytes of an address at file 0x8410C8, the revision byte and the PE checksum, and in nothing else (compared byte by byte). The built exe was started in both situations of patch 10, not past the sign-in screen, before the release; the first sign-in with revision 4 on the players' server was logged three minutes after it. It plays together with revision 3 |
 | Revision 3 | Revision 3 is revision 2 with patch 9 (the battery rule). **It was the players' download from 2026-10-13 12:22 to 15:36 UTC** (the rows below are the downloads so far): it and the revision 2 exe differ in the 13 bytes of patch 9, the revision byte and the PE checksum, and in nothing else (compared byte by byte). Its rule was run outside the game (`run_battery_rule.ps1`). Eight sign-ins with revision 3 were logged in those hours; whether one of them played a match to a team's last battery was not looked at. A game of revision 3 or later and an older one part at a team's last battery (patch 9) |
 | The players' download | `Survarium-0.26g-srp-files.zip` of skhid.link (and 026g.skhid.link), since 2026-10-13 15:36 UTC: 6 793 103 bytes, sha256 `29b2ac002a1787c1352d021065f18a87ea5caa66fb16298c8e603a5347416bb4`, 23 files, made by `make_client_026g.py --pack-zip --server=skhid.link:1234 --localization=english` of `main` dbd70f0 with `--bugtrap=` naming the build of `client/bugtrap` that had been run in the game (that DLL does not build to the same bytes twice). It differs from the download before in two files: the game exe (sha256 `ae3ddf43f38eecb9e5080b10aa6b8397ce5dbed0f133b381461c82cb17329f25`, patch revision 4: patch 10) and `bugtrap.dll` (39 936 bytes, sha256 `9e3295c1312854c455c474e1dbd457b0a792b5ae406ff0b55d3b19b4f2fc4353`: the start-up notice of `client/bugtrap/README.md`); the other 21 files are byte for byte the same. Built twice: the same ZIP. Checked after the replacement: `/api/client-files` and `/download` of both names give this sha256. No restart: nothing on the server changed |
@@ -69,8 +72,8 @@ release's. The "Result" row is the build of the revision named in it.
 | `play_skhid.sh`, `LINUX.txt` | Linux Wine/DXVK launcher and instructions, included in the generated folder and ZIP |
 | `stale_dll_026g.asm`, `stale_dll_026g.section.bin` | The code of patch 25 (the sign-in reports a stale `shell_32.dll` in `%TEMP%`, a file one known cheat leaves behind) and that code assembled for 0xE00 of `.srp`; `patch_026g.py` reads the .bin |
 | `check_stale_dll_026g.py` | Runs patch 25's check on made-up machines, loaded as is and rebased (needs Unicorn) |
-| `mount_patches_026g.asm`, `mount_patches_026g.section.bin` | The code of patch 27 (the game mounts each `resources.db.patch_<n>` over `resources.db`) and that code assembled for 0x400 of `.srp`, its state at 0x800 of `.srpd`; `patch_026g.py` reads the .bin. Assembling the source again gives the same bytes |
-| `check_mount_patches_026g.py` | Runs patch 27's two hooks and its code on made-up game folders, loaded as is and rebased (needs Unicorn) |
+| `mount_patches_026g.asm`, `mount_patches_026g.section.bin` | The code of patch 27 (the game mounts each `resources.db.patch_<n>` over `resources.db`) and patch 49 (it stops at its start without a patch the exe requires) and that code assembled for 0x400 of `.srp`, its state at 0x800 of `.srpd`; `patch_026g.py` reads the .bin and writes the required patches' bitmap into its copy. Assembling the source again gives the same bytes |
+| `check_mount_patches_026g.py` | Runs patch 27's two hooks and its code on made-up game folders, with no patch required and with patch 49's required patches, loaded as is and rebased (needs Unicorn) |
 | `forward_scroll_026g.asm`, `forward_scroll_026g.section.bin` | The code of patch 28 (the transparent effects scroll as in 0.29, `scene_slomo` bound to 1.0) and that code assembled for 0xB00 of `.srp`; `patch_026g.py` reads the .bin. Assembling the source again gives the same bytes |
 | `replay_link_026g.asm`, `replay_link_026g.section.bin` | The source of patch 29's code ("Watch replay": the lobby's link starts the updater) and that code assembled, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_replay_link_026g.py` | Runs the original and patch 29's link callback on made-up links (needs Unicorn) |
@@ -78,6 +81,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_shared_upgrades_026g.py` | Runs the original's and patch 30's upgrade-window drop and the `83 46 01` / `02` answers on made-up inventories with one upgrade on several items (needs Unicorn) |
 | `kit_change_026g.asm`, `kit_change_026g.section.bin` | The source of patch 31's code (a kit chosen before the match starts is played at once) and that code assembled for 0xEC0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `warmup_look_026g.asm`, `warmup_look_026g.section.bin` | The source of patch 31's camera before the start (while the kits are shown, a drag turns the warmup camera and the wheel moves it, as the lobby's character view) and that code assembled for 0xD40 of `.srp`, its state at 0xE20 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `death_camera_026g.asm`, `death_camera_026g.section.bin` | The source of patch 46's camera on the death screen (a drag turns the view from the corpse's eyes; the wheel does nothing) and that code assembled for `.srpc` (0xA429000), its state at 0xE60 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `warmup_keys_026g.asm`, `warmup_keys_026g.section.bin` | The same patch's buttons: one held from before the start (a drag of its camera) is not the player's until it is let go, and that code assembled for 0x9A8 of `.srp`, its state at 0xE30 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `warmup_limits_026g.asm`, `warmup_limits_026g.section.bin` | The same camera's end of a drag and its limits (the lobby camera's: distance 1.5 to 4.6, pitch within 60 degrees) and that code assembled for 0xA98 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `read_order_026g.asm`, `read_order_026g.bin` | The source of patch 33 (the order of the archive reads is a strict weak ordering) and that code assembled at 0x10BCC0, the 0x1A0 bytes of `hdd_manager_sorting_predicate` it replaces, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
@@ -87,9 +91,19 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
+| `dynamic_anomalies_026g.asm`, `dynamic_anomalies_026g.section.bin` | The source of patch 42's code (dynamic anomalies: the release's anomalies rule in `game_world_core::atomic_tick`, a timed anomaly's pick-up) and that code assembled for `.srpa`, its own section on the page after `.srpw`'s last (0xA42D000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `check_dynamic_anomalies_026g.py` | Runs patch 42's two hooks with the game's own `generic_anomaly_core::tick` on made-up worlds, tick by tick, against a Python model of the rules: a London-like match with pick-ups, a copy of the world at 5 minutes (late joiner, resync, rollback), the 16-active and 15 m limits, stock cores byte for byte, and a write hook that lets the code write only the chosen core's three fields (needs Unicorn; about 5 minutes) |
+| `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
+| `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
+| `check_death_camera_026g.py` | Runs the original's and patch 46's mouse moves through the game world's input handler (the death screen, a live player, spectators, a death before the start) and update_camera's call of the view's update on a made-up eye transform (needs Unicorn) |
 | `check_baked_texture_026g.py` | Runs the original's and patch 35's baked-texture list of the camouflage/decal baker (the look-up, the push and check_loaded_baked_texture) on made-up loads, among them those of the crash of 2026-10-17 (needs Unicorn) |
-| `weapon_preview_026g.asm`, `weapon_preview_026g.section.bin` | The source of patch 32's code (a weapon's upgrade window shows the weapon) and that code assembled for 0x2E50 of `.srp`, its state at 0xE00 of `.srpd`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `weapon_preview_026g.asm`, `weapon_preview_026g.section.bin` | The source of patch 32's code (a weapon's upgrade window shows the weapon) and that code assembled for 0x2E50 of `.srp`, its state at 0xE00 of `.srpd`, `-DFIND` the stash code's address and `-DCAMERA` patch 45's camera (weapon_table_026g.asm), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
+| `weapon_stash_026g.asm`, `weapon_stash_026g.section.bin`, `check_weapon_stash_026g.py` | Patch 32's find_kit grown: a weapon no kit holds is shown in the chosen kit's hands from a scratch copy of the account's profile; assembled for 0x360 of `.srpw`; its check runs it with the game's own profile and record copies (needs Unicorn) |
+| `weapon_table_026g.asm`, `weapon_table_026g.section.bin`, `check_weapon_table_026g.py` | Patch 45: a weapon's upgrade window shows the weapon in the air above the lobby's workbench, turning about its middle, the camera flown there once it is, and a drag (the left button too, off the movie) turning it; assembled for 0x800 of `.srpw`, its state at 0xF00 of `.srpd`; its check runs the lobby's handlers, the camera's constructor and tick, its drag buttons and mt_draw's two sites with the game's own code (needs Unicorn) |
+| `weapon_decals_026g.asm`, `weapon_decals_026g.section.bin`, `check_weapon_decals_026g.py` | Patch 47: a weapon wears a decal (the bake patch 44 asks for paints it; the code takes two, the server gives one slot) and the lobby's decal editor places them on the weapon above the workbench; assembled for 0x1000 of `.srpw` (its second page), no state of its own; its check runs the bake with the game's own unpacking and the editor's four sites with the game's own encode (needs Unicorn) |
+| `upgrade_preview_026g.asm`, `upgrade_preview_026g.section.bin`, `check_upgrade_preview_026g.py` | Patch 48: an upgrade dropped on a weapon in its upgrade window is shown at once (the character made again from patch 32's scratch with the change, before the request leaves), the server's account staying the truth; on_player_ready logs the time the lobby character's player took; assembled for 0x2000 of `.srpw` (its third page), its state at 0xD60 of `.srpd`; its check runs the six sites with the game's own setup_profile, profile copy and config lookups (needs Unicorn) |
 | `weapon_draw_026g.asm`, `weapon_draw_026g.section.bin` | The source of patch 32's draw (a weapon's window draws the player as the lobby does) and that code assembled for 0xD20 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_weapon_preview_026g.py` | Runs the original's and patch 32's upgrade window start and close (with the lobby camera's own setter), `setup_profile`'s entry, the lobby camera's three distance clamps and the player's decal pose on a made-up lobby, loaded as is and rebased (needs Unicorn) |
 | `check_forward_scroll_026g.py` | Runs the original's and the build's forward-effect compile, with patch 28's two hooks, on made-up materials and compares what each sends; runs the third hook against the game's own binding of `scene_time`; loaded as is and rebased (needs Unicorn). With `--rev12=` it compares the build with revision 12 byte by byte |
@@ -208,8 +222,9 @@ survarium_skhid.exe -localization=english -server=<host>:<login port> -mt_alloca
 ```
 
 Or let `make_client_026g.py` do all of it, without touching the game folder.
-`bugtrap.dll` and `updater_skhid.exe` build reproducibly: the same commit and
-toolchain give the same files in any folder, so a release builds them afresh
+`bugtrap.dll` and `updater_skhid.exe` build reproducibly: the same commit,
+toolchain and `SKHID_REVISION` (the release revision their version resource
+says; `release/build-zip` sets it) give the same files in any folder, so a release builds them afresh
 instead of copying the last download's (`../../client/check-reproducible.sh`
 checks it; the downloads listed above were made with `--bugtrap=` naming a
 kept DLL). First build the crash reporter with `../../client/bugtrap/build.sh`,
@@ -242,12 +257,14 @@ a player has none; `--extractor=<path>` names another copy, which must be the sa
 `--site=https://<host>` names the server's web
 page when it is not `https://<host of --server>`. A player then unpacks the ZIP into
 the game's folder (the one that holds `game`) once and double-clicks `Skhid.bat`,
-which starts `launcher_skhid.exe`: it looks for a newer ZIP on that site, installs it, and its
-PLAY button starts the game in the language chosen in it. The same input gives the
+which starts `launcher_skhid.exe`: it looks for a newer ZIP on that site, installs it, brings the
+game's patches to the server's `/patches` list, and enables its PLAY button only for a game the
+server lets in (`launcher/README.md`, "How an update works"); PLAY starts the game in the
+language chosen in it. The same input gives the
 same ZIP byte for byte, which the updater relies on. Back up the original `bugtrap.dll` and login certificate before
 installing. `--check` does every check and writes nothing. Existing ZIPs are
 never overwritten. `--bugtrap=<path>` selects another built DLL; by default
-the builder reads `client/bugtrap/target/i686-pc-windows-msvc/release/BugTrap.dll`.
+the builder reads `client/bugtrap/target/i686-win7-windows-msvc/release/BugTrap.dll`.
 
 Game content no longer goes into the ZIP: it ships as `resources.db.patch_<n>`
 files that the updater fetches from the server's `/patches` list
@@ -294,7 +311,8 @@ Other builds of the patch: `--cert-only` (only patch 1), `--cave=hash-mismatch`
 
 ## Login menu account hint
 
-`login_hint_026g.py` replaces the old registration button with plain text:
+The login movie's old registration button is replaced with plain text (released in
+`resources.db.patch_12`; its source is `../flash/login_menu`, srp's class `SrpLoginHint`):
 
 - English: "Account created on first sign-in"
 - Ukrainian: "Акаунт створюється під час першого входу"
@@ -307,46 +325,20 @@ removed from keyboard focus, and its browser callback is erased. All five game
 languages have a translation. The language comes from the native client's
 localization data, so it follows `-localization`.
 
-Build a new resource archive with Python 3, a JDK and JPEXS FFDec 26.0.0:
-
-```sh
-python login_hint_026g.py /original/game/resources.db /output/game/resources.db \
-  --ffdec=/path/to/ffdec.jar
-```
-
-`--java` and `--javac` can specify the JDK executables. The original archive is
-only read; an existing output is refused. Install the output as the client's
-`game/resources.db` while the game is closed, keeping the original for rollback.
-This archive is a separate output from the small `make_client_026g.py` overlay;
-include it when preparing a complete client distribution.
-
-The patch verifies the original build 2777 login movie's SHA-256 and edits one
-ActionScript block. All other movie tags and existing unrelated methods remain
-byte-identical. Recompressing the movie leaves enough room in its original
-archive entry; padding preserves the entry size and offsets, with four ignored
-trailer bytes retaining the original content CRC. Both the signed file table
-and the resource checksum validation remain intact. No archive signature bypass
-is added. The sources are in `login_hint/`;
-game assets are generated locally and are not checked in.
+The released movie keeps its archive entry's size and CRC (zero padding and
+four trailer bytes), so the signed file table stays intact. A change of it is
+an edit of `../flash/login_menu/src`, built like any movie of the trees
+(`tools/actionscript/flash_tree.py build`, [lobby-source.md](../docs/notes/lobby-source.md)).
+The bytecode builder that made it (`login_hint_026g.py`) is in git history only.
 
 ## Field-of-view slider
 
-`fov_slider_026g.py` puts a "FOV:" slider under gamma in Settings →
+srp's `SrpFovSlider` (`../flash/main_menu`) puts a "FOV:" slider under gamma in Settings →
 Graphics. The exe side is patch 22 (patch revision 11): the game's video
 option 7, a "FOV" slider labelled `st_fov_option` in all five languages, is
 bound to `uro_fov`, which the camera follows. `Settings.as` maps the option
-to `_slider_fov`, but the stock menu places no slider for it; this build
-adds one to `main_menu.swf` in a new resources.db:
-
-```sh
-python fov_slider_026g.py /original/game/resources.db /output/game/resources.db \
-  --ffdec=/path/to/ffdec.jar
-```
-
-It needs a JDK and JPEXS FFDec (tested with 25.1.3), as the login hint
-does. The input is only read; an existing output is refused. It compiles
-`fov_slider/SrpFovSlider.as` into `main_menu.swf` and calls it twice in
-`Settings.create_content`. The first call, before the options are bound,
+to `_slider_fov`, but the stock menu places no slider for it; the released
+`main_menu.swf` has one. `Settings.create_content` calls `SrpFovSlider` twice. The first call, before the options are bound,
 creates the slider on the Graphics frame, hidden, so the game binds option
 7 to it like its other controls (label, range, value, apply). The second
 call, before the final return, runs after the game has set the label, as
@@ -354,24 +346,23 @@ the login hint's calls run after the stock code. It shows the slider, makes
 it opaque (Scaleform leaves a slider made by script at alpha 0), adds the
 colon gamma has ("FOV:"), places it under gamma and moves the preset-button
 panel down to make room. Under Scaleform `ENTER_FRAME` never reached the
-slider, so nothing runs per frame. As with the login hint, one ActionScript
-block changes, every other tag and unrelated method stays byte-identical,
-and the archive entry keeps its size and CRC, so the signed file table is
-untouched. The input may already carry the login hint.
+slider, so nothing runs per frame. As with the login hint, the archive entry
+keeps its size and CRC, so the signed file table is untouched.
 
 With an exe before revision 11 the slider shows and does nothing: its
 option 7 names a console variable that does not exist. Without this
 archive, revision 11 still has the setting (`uro_fov 80` in the console or
-`user.cfg`), just no slider. `test_fov_slider.py` checks the build's
-refusals without game files. Checked live in the lobby and in a match on a
+`user.cfg`), just no slider. A change of it is an edit of `../flash/main_menu/src`
+(`tools/actionscript/flash_tree.py build`); the bytecode builder that made it
+(`fov_slider_026g.py`) is in git history only. Checked live in the lobby and in a match on a
 local server (with an earlier form of patch 22): the slider shows "FOV:"
 under gamma, changes the view and is saved to `user.cfg`. In the players'
 download from revision 12 the movie ships in `resources.db.patch_12`.
 
 ## Lobby exchange, silver and gold both ways
 
-`exchange_026g.py` turns the lobby's gold-for-silver window into an exchange
-both ways. The gold box at the top of the lobby ("Get Gold", which asked to
+The lobby's gold-for-silver window is an exchange both ways (since revision
+23; source: the window's class, `../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`). The gold box at the top of the lobby ("Get Gold", which asked to
 open the online store) opens it to buy gold; the silver box opens it to sell
 gold. The window has:
 
@@ -408,34 +399,22 @@ size is final when `Message` centres it; the swap button is added in
 `onRegulatMoneyAddClick`. The exe is not
 changed: the window calls the game's `exchange_premium_money`, which sends `47 04`
 with the u32 it is given. Gold for silver sends the gold, as the stock window
-did; silver for gold sends `0x40000000` + the gold (`SrpExchange.BUY_GOLD`),
+did; silver for gold sends `0x40000000` + the gold (`MessageMoneyExchange.BUY_GOLD`),
 which the server reads as `BuyPremium` (`requests::BUY_PREMIUM`). So the server
 must be released first; an older server refuses such an amount as more gold
 than the account has.
 
-The input is a lobby region with the matches list (sha256 `8a98cf0d…`, live
-since 14 Oct, or `48c3439f…`, with the JOIN reasons and the match level; the
-exchange changes other classes than the list's), not the retail movie, either as a whole `resources.db` or as
-the extracted `lobby_menu.swf` file. The output is of the
-same kind:
-
-```sh
-python exchange_026g.py <lobby_menu.swf entry> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar
-```
-
-The checks are those of the login hint: the input's sha256, every other method
-and tag byte for byte, the entry's size and CRC kept. The build is
-deterministic. Tests: `python -m unittest test_exchange`.
-
-Checked in a local lobby under Wine (2026-10-15, against this branch's
-server): the window opens centred, shows both directions with their balances
-and rate, the swap button works, and gold bought with silver reaches the top
-bar. Not in release overlays yet.
+Checked in a local lobby under Wine (2026-10-15): the window opens centred,
+shows both directions with their balances and rate, the swap button works,
+and gold bought with silver reaches the top bar. Its first build (a bytecode
+step on revision 22's movie) is in revision 23's movie; it is built from
+source now ("Building the lobby movie"). Tests (the buy-gold mark agrees with
+the server's, every text in every language): `python -m unittest test_build_lobby`.
 
 ## Get Gold opens the exchange
 
-`buy_gold_026g.py` makes every "Get Gold" of the lobby open the exchange
-window above, to buy gold with silver, instead of the online store (a browser
+`MessageMoneyExchange.buyGold()` (`../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`)
+makes every "Get Gold" of the lobby open the exchange window above, to buy gold with silver, instead of the online store (a browser
 window on a dead site). The rules: `docs/notes/buy-gold.md`. The
 "Insufficient Gold Rubles" dialog's button calls `goToStore` of the window that
 showed it; the bodies of all ten (`ItemCard`, `StatusPanel`, `MessageAsk`,
@@ -443,63 +422,32 @@ showed it; the bodies of all ten (`ItemCard`, `StatusPanel`, `MessageAsk`,
 `MessagePremiumDiscount`, `MessagePremiumProfile`, `MessageRepair`,
 `MessageRerollItem`) and the premium window's gold button
 (`MessagePremium.onPremiumMoneyAddClick`, which asked first) become
-`SrpBuyGold.open()`. It shows the exchange with `showMessage`'s third
+`MessageMoneyExchange.buyGold()`. It shows the exchange with `showMessage`'s third
 and fifth arguments set, so it opens over a window still open instead of
-waiting behind it, and that window stays visible under it. The
-build refuses a movie where one of them is missing or does not lead to the
-store, and checks that no method pushes `go_to_store` afterwards. The exe and
-the server do not change.
-
-The input is the live lobby movie (`flash_movies/lobby_menu.swf` of
-`resources.db.patch_24`, sha256 `3ca94f2a…`); the output is a new movie for a
-new `resources.db.patch_<n>`, as for the rooms:
-
-```sh
-# development only (a step of build_lobby_026g.py, which builds the movie that ships)
-python buy_gold_026g.py <lobby_menu.swf> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar --step-only
-```
-
-The build is deterministic (sha256 `b7cf70a8…` with FFDec 25.1.3). Tests:
-`python -m unittest test_buy_gold`. Not in a release yet.
+waiting behind it, and that window stays visible under it. The exe and the
+server do not change. Not in a release yet.
 
 ## Exchange window updates
 
-`exchange_update_026g.py` brings a change of `exchange/SrpExchange.as` to a
-live lobby movie, which has the window already: FFDec compiles the class anew
-over the one in the movie (`exchange/ReplaceExchange.java`). Only the window's
-ABC block changes; every method of every other class and every other
-script's initializer, found by name (the block's bodies may be renumbered),
-is checked byte for byte, and every constant they may point at keeps its
-index and value. A method defined twice in the source is refused (FFDec keeps
-the last).
+A change of the window (`../flash/lobby_menu/src/survarium/messages/MessageMoneyExchange.as`) is built in by
+building the lobby movie.
 
 The first such change (2026-10-20): an amount more than the Pay balance pays
 for becomes, as it is typed, the most it does, in the field typed in. Buying
 gold with 5,500 silver: 10,000 in Pay becomes 5,500, 100 in Receive becomes
 55. Selling gold works the same way with the gold balance. Silver is still
-whole gold: with 5,550 silver, anything over 5,500 becomes 5,500.
-
-```sh
-# development only (a step of build_lobby_026g.py, which builds the movie that ships)
-python exchange_update_026g.py <lobby_menu.swf> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar --step-only
-```
-
-The input is the movie with Get Gold (`b7cf70a8…`); the build is
-deterministic (`f900cc8b…` with FFDec 25.1.3). Tests:
-`python -m unittest test_exchange_update`. Not in a release yet.
+whole gold: with 5,550 silver, anything over 5,500 becomes 5,500. Not in a
+release yet.
 
 ## Buy for modified items
 
-`buy_modified_026g.py`: right-click on an owned item with modifications lists
-Buy, which buys a stock one (the rules: `docs/notes/buy-modified.md`). The
+`InventoryList.showContextMenu` and `LobbyMenu.try_buy_item` (in
+`../flash/lobby_menu/src`): right-click on an owned item with modifications lists Buy, which buys a stock one (the rules: `docs/notes/buy-modified.md`). The
 menu (`InventoryList.showContextMenu`) listed Buy for an item that is not a
 stack only when `!itemData.rank`; an owned item's rank is its number of
 modifications (the server's `roll_modifications`), and a dictionary item's
 is its rarity. The test becomes `!rank || itemAvailable`, the method's own
-"owned and enabled" (`descriptor <= 100 && enabled`): after `getproperty
-rank`, `convert_b; getlocal <itemAvailable>; not; bitand` (no jump added;
-the register from the method's debug name), and the `not` that followed
-stays. Shop, bundle and bundle-content entries are never `itemAvailable`, so
+"owned and enabled" (`descriptor <= 100 && enabled`). Shop, bundle and bundle-content entries are never `itemAvailable`, so
 they keep the old rule. `buyElement` and `try_buy_item` go by the dictionary
 id and the shop's
 price and seller, so nothing else changes; the server gives a new item
@@ -509,111 +457,75 @@ A buy on an owned item is not asked "This item is already purchased by you.
 Would you like to buy anyway?" any more. `LobbyMenu.try_buy_item`, which
 every buy goes through, asked it for a non-stack item the account has unless
 the buy came from a bundle (`sourceSlot != 300`); it asks it now only for a
-buy from the shop's list (`sourceSlot == 200`): `pushshort 300; equals;
-not` becomes `pushshort 200; equals; nop`. A buy on an owned item comes
+buy from the shop's list (`sourceSlot == 200`). A buy on an owned item comes
 with that item's own slot (100 or less), the victory screen's treasure maps
-with 200 as before.
-
-The input is the movie of the exchange update (`f900cc8b…`); the build is
-deterministic (`45452c50…` with FFDec 25.1.3):
-
-```sh
-# development only (a step of build_lobby_026g.py, which builds the movie that ships)
-python buy_modified_026g.py <lobby_menu.swf> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar --step-only
-```
-
-Tests: `python -m unittest test_buy_modified`. Not in a release yet.
+with 200 as before. Not in a release yet.
 
 ## The craft window: Buy and Sell, Continue and Exit
 
-`craft_menu_026g.py`: right-click on an item in the craft window's list
-("Upgrade") gives Buy and Sell only, and its result offers Continue and Exit (the rules: `docs/notes/craft-menu.md`).
-The window locks the inventory list (`lockControls(true)`), and
-`InventoryList.showContextMenu` ended at once on a locked list. Its read of
-the lock, `this._inventoryLocked`, becomes `SrpCraftMenu.locked(this._inventoryLocked,
-this, activeItem)`: five instructions after the `getproperty`, no jump added.
-While the list is locked and a `MessageCraftItem` is on the lobby, the helper
-shows its own menu (Buy by the list's rule; Sell for an owned item, not the
-item being upgraded or the donor the window holds) and returns true, so the
-method ends; otherwise it returns the lock as it was. Buy goes as the item
-card's (the dictionary id, the shop's price, the shop's seller); Sell through
-the list's public `sellItem`.
+`InventoryList` and `MessageCraftItem` (`../flash/lobby_menu/src/survarium`): right-click on an item in
+the craft window's list ("Upgrade") gives Buy and Sell only, and its result offers Continue and Exit (the
+rules: `docs/notes/craft-menu.md`). The window locks the inventory list (`lockControls(true)`), and
+`InventoryList.showContextMenu` ended at once on a locked list. On a locked list it now calls
+`showCraftMenu(activeItem)` first: while a `MessageCraftItem` is on the lobby (`findCraftWindow`) it
+shows that menu (Buy by the list's rule; Sell for an owned item, not the item being upgraded or the
+donor the window holds, `MessageCraftItem.holds`); otherwise nothing, as before. Buy goes as the
+item card's (`buyFromCraftMenu`: the dictionary id, the shop's price, the shop's seller); Sell
+through the list's `sellItem`.
 
 After an upgrade the window's result had one button, Ready, which closed it.
-`MessageCraftItem.fillCraftedItem` now ends with `SrpCraftMenu.result(this,
-result)`: the window's Cancel shows again as Exit (the lobby already closes
+`MessageCraftItem.fillCraftedItem` now ends with `offerContinue()` (but for a refused craft): the window's Cancel shows again as Exit (the lobby already closes
 the window on it, as on Ready), and the Ready button becomes Continue, side
 by side. Continue closes the window as Exit does, puts the main item (as the
 inventory has it now) on the item card (`setPrimaryItem`) and sends the
 list's `craft_item` event, which opens the Upgrade window for it again with
 an empty donor slot; an item with three modifications, or not craftable,
 just closes. The words are the game's: `btn_exit_label` and
-`btn_go_to_online_store` ("Continue").
-
-The input is the movie of Buy on owned items (`45452c50…`); the build is
-deterministic (`1091a19d…` with FFDec 25.1.3):
-
-```sh
-# development only (a step of build_lobby_026g.py, which builds the movie that ships)
-python craft_menu_026g.py <lobby_menu.swf> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar --step-only
-```
-
-Tests: `python -m unittest test_craft_menu`. Not in a release yet.
+`btn_go_to_online_store` ("Continue"). Not in a release yet.
 
 ## Weapon scope context menu
 
-`scope_context_menu_026g.py` adds the existing localized **Optics** action to a
-compatible weapon's right-click menu, in the inventory or an equipped slot. It
+`InventoryList` (`../flash/lobby_menu/src/survarium/controls/InventoryList.as`: `isUpgradeable`,
+`upgradeLabelKey`) adds the existing localized **Optics** action to a compatible weapon's right-click menu, in the inventory or an equipped slot. It
 opens the scope editor already shipped in revision 19. Armor still opens its
-camouflage/decal editor. See [weapon_scopes.md §5](../docs/notes/weapon_scopes.md#5-weapon-right-click-menu)
-for the build command and validation. The output is a `lobby_menu.swf` replacement
-for the next resource patch (built on `1091a19d…`, the craft window's movie: `2e4cb7d2…`,
-deterministic with FFDec 25.1.3); this does not change the executable or reserve a
-release revision.
+camouflage/decal editor. See [weapon_scopes.md §5](../docs/notes/weapon_scopes.md#5-weapon-right-click-menu).
+This does not change the executable or reserve a release revision.
 
-## Building the lobby movie (one driver)
+## Building the lobby movie (from source)
 
 The lobby movie is one file (`flash_movies/lobby_menu.swf`), and a patch that
-carries it replaces the players' movie whole. So it is built one way only:
-`build_lobby_026g.py` starts from revision 23's movie (`flash_movies/lobby_menu.swf`
-of `resources.db.patch_23`, sha256 `12f0ee1d…`) and applies every lobby change
-the repository holds, in order, as `patch_026g.py` does for the exe:
+carries it replaces the players' movie whole. It is built one way only, from
+its ActionScript source tree, `../flash/lobby_menu/src`
+([lobby-source.md](../docs/notes/lobby-source.md)), with every lobby change as
+an edit of it:
 
-1. the rooms window (`rooms_026g.py`, today's `rooms/SrpRooms.as`, #212 in it);
-2. Get Gold opens the exchange (`buy_gold_026g.py`, #213);
-3. the exchange window's amounts (`exchange_update_026g.py`, #214);
-4. Buy on owned items (`buy_modified_026g.py`, #215);
-5. the craft window's menu and buttons (`craft_menu_026g.py`, #216);
-6. Optics in a weapon's menu (`scope_context_menu_026g.py`, #217).
-
-A change of a step's source is built in by building again; a new lobby change
-is a new entry of `STEPS`. Never ship a movie made by running one step alone
-on some movie: it would lack the steps not run. Each step checks its own work
-(every method it does not change byte for byte); the steps' own lists of known
-inputs name the movies they were first built on, and the driver checks the
-base instead.
+- the features written in the game's own classes: the exchange and Get Gold in
+  `MessageMoneyExchange` (#214, #213; the ten `goToStore` and the premium
+  window's gold button call it), Buy on owned items in `LobbyMenu` and
+  `InventoryList` (#215), the craft window's Buy/Sell and Continue in
+  `InventoryList` and `MessageCraftItem` (#216), Optics in `InventoryList`
+  (#217), the player gear in `LobbyMenu` and `PlayerRanking` (#232);
+- the rooms window, new UI, in `../flash/lobby_menu/src/survarium/rooms`, and
+  its parts in `TopMenu`, `StatusPanel`, `LobbyMenu`, `BottomPanel` and
+  `PlayerRanking`.
 
 ```sh
-python build_lobby_026g.py <patch_23's lobby_menu.swf> <new lobby_menu.swf> --ffdec=/path/to/ffdec.jar
+python build_lobby_026g.py <patch_24's lobby_menu.swf> <new lobby_menu.swf>
 ```
 
-Each step's own script refuses to write a movie unless given `--step-only`
-(a development build of that one step). The driver's result must be
-`RESULT_SHA256`, the movie last checked: a changed source or FFDec gives
-another, refused until `RESULT_SHA256` is set to it on purpose (`--any-result`
-for development). The login hint and the exchange's first build are frozen in
-the base (a change of theirs needs a new base); the exchange's later changes
-are a step.
+It needs `private/actionscript/tools.json` at the repository root (a JDK and
+Apache Flex 4.16.1: `tools/actionscript/README.md`; `--tools` names another).
+One Flex run compiles the whole tree, and its code goes into revision 24's
+movie in place of all of its code; the graphics, fonts and symbol bindings are
+revision 24's. About 5 seconds; the same tree gives the same bytes. Nothing is
+patched in bytecode; the steps that did (`rooms_026g.py` to
+`player_gear_026g.py` and their Java patchers, on revision 23's movie) are in
+git history only.
 
-Since the rooms' window under a match's results (2026-10-20): `RESULT_SHA256` is
-`57f73166…` (the owner checked `d41b9655…` in the game; then #219's review fixes); with #211 (Leave room / Leave queue, the yellow tab) `a56cd0ed…` (the owner checked `d7907536…`; then the review fixes); with #209 (why a waiting member cannot go into its room's match, `J;-1;<why>`) `57258f9e…`, not yet checked in the game. The first build of 2026-10-20 (`main` with
-#212): sha256 `8841ba5c…`, deterministic
-with FFDec 25.1.3. Its 881 scripts decompile byte for byte to those of the
-movie the owner tested with #212 (`ed14345f…`, made the long way: the rooms
-class compiled over Optics' movie); the bytecode is laid out differently (the
-rooms class compiled first), the non-script tags are the base's in both (every
-step keeps them). Tests: `python -m unittest test_build_lobby`. Not in a
-release yet.
+The build says whether the movie is `RESULT_SHA256`, the one last checked in
+the game (a note, not a gate): since 2026-10-21 `8b099212…`, the tree of
+6064476c (the owner checked it in the game). Tests:
+`python -m unittest test_build_lobby`. Not in a release yet.
 
 ## What each patch does
 
@@ -1570,6 +1482,9 @@ engine_world+2D4h..2DCh go, and +2D4h is read nowhere after its callback
 stores it. The patches stay mounted to the end the same way.
 `../docs/notes/client_patch.md` section 0.2 has the addresses.
 
+A patch that is not there but that the exe requires stops the game too, as
+one that cannot be opened (patch 49, below).
+
 A file that is there and cannot be mounted stops the game: for
 `resources.db` with the game's own "Cannot mount resources", for a patch
 with "Cannot mount resources.db.patch_<n>. Please run the Skhid launcher
@@ -1917,9 +1832,18 @@ scrolling, before the shell_32.dll check); seven sites:
   when a kit of the account's profile holds the window's item as its
   weapon 1, or as its weapon 2 without a weapon 1, the character shows
   that kit (`setup_profile` 0x284B10 with that kit) and the camera looks at
-  the weapon: height 1.05, distance 0.85, the side angle the original's.
-  Any other item (armour; a weapon only in the stash; a weapon 2 behind a
-  weapon 1) gets the original's values and nothing else;
+  the weapon: height 1.05, distance 0.85, the side angle the original's
+  (since patch 45, which both ends now jump to instead of the setter, the
+  camera flies to the workbench and the weapon is drawn there: patch 45).
+  A weapon no kit holds (only in the stash, or a weapon 2 behind a weapon
+  1; 2026-10-21) is shown the same way in the hands of the kit chosen in
+  the lobby, from a scratch copy of the account's profile in which it is
+  that kit's weapon 1 (`weapon_stash_026g.asm` at `.srpw`+360h, which patch
+  32's two finds call: client_patch.md section 3.30); the account's profile
+  is never written. Armour gets the original's camera; armour the chosen kit
+  does not wear is shown worn, from the same kind of scratch (patch 32's
+  start, exit and setup_profile sites go through the stash code's entries
+  first);
 - 0x265F44 (exit_item_upgrade's call of the setter): after a weapon, the
   character shows the kit chosen in the lobby again (`setup_profile` with
   the profile's +4632h); the camera gets the original's values, a distance
@@ -1958,7 +1882,13 @@ weapon (in the chosen kit or another, weapon 1 or a lone weapon 2) it
 shows that kit and looks at it, and the close shows the chosen kit; the
 clamps give the original's results and flags in 1,500 cases; the decal
 pose is the window's mode as in the original, and 0 while a weapon is
-shown. The byte comparison with the build of `main` 5fba57f: 514 bytes
+shown. `check_weapon_stash_026g.py` runs the stash code with the game's
+own profile and record ctors and copies: a stash weapon, a weapon 2 behind
+a weapon 1 and one in no kit are the chosen kit's weapon 1 in the scratch
+(a deep copy of the record, a new revision each time, allocated once),
+the account's profile and inventory unwritten, and armour, an unknown
+item, a profile with no inventory behind it, a full table and a failed
+allocation give no kit. The byte comparison with the build of `main` 5fba57f: 514 bytes
 differ, all of them the patch's (section 3.30). **Run in a game (2026-10-17):** the first
 build (without the draw): the camera moved in, the character showed the
 weapon's kit, but in a T-pose with no weapon (the decal pose). **Not run:**
@@ -2376,14 +2306,15 @@ the proof: `client_patch.md` section 3.38.
 
 The release (0.28a2 to 0.46c2) had a timed anomaly class and an anomalies
 rule. Here a timed anomaly is a stock `generic_anomaly_core` (the map data:
-the resources.db patch of the same release) with energy_enabled and
+the content pack `dynamic-anomalies` of `release/content.tsv`, shipped with this
+patch) with energy_enabled and
 artefacts that never respawn by themselves (`artefacts_respawn_time_sec`
 100000; no stock core has more than 80). Its states are the release's
 timeline by energy, played by the game's own state timers: charging 20 s,
 damage 4 s, the artefact until it is taken, 60 s after the pick-up, idle.
 
 Two hooks into `dynamic_anomalies_026g.asm`, a section of its own (`.srpa`,
-VA 0xA429000, the page after the late join's state page; the build with
+VA 0xA42D000, the page after `.srpw`'s last; the build with
 the late join only):
 
 - `game_world_core::atomic_tick` (0x2D1E20, its first six bytes) first runs
@@ -2400,6 +2331,449 @@ static info's seed and the try's number. `check_dynamic_anomalies_026g.py`
 (Unicorn) runs the built exe's hooks with the game's own anomaly tick on
 made-up worlds against the rules, tick by tick; check 42 of the self-test
 reads the sites and the section.
+
+### 43. The player's own row in the Tab list is gold (the next release's revision)
+
+The owner (2026-10-20): "when pressing tab in game, your own character
+should be gold", "just like when you kill or get killed in a kill list top
+right". The rule: `../docs/notes/tab-list-left-places.md`.
+
+The colour is already in the hud movie (`flash_movies/hud.swf`, revision
+22's): the kill list (`CombatLogItem`) colours a name by its team code, 2
+being the player's own (`game_world_ui::on_player_killed` 0x237C70 sends 2
+when the place is the player's), with `Colors.PLAYER`; the Tab list's rows
+(`PlayerListRenderer.updateData`) give the row marked `isLocal` the same
+`Colors.PLAYER`. It is `Colors.YELLOW`, 0xF1E545, the lobby's colour for
+the player too. `PlayerList` marks the row whose name is the one
+`root.set_local_player` gave. In a match only `game_world::on_activate`
+(0x1F9340) gives it, the name made as the rows' names are ("[clan] name",
+or the name), and only while the journal records (the journal's flag
+0xA8394C and its use, 1). Patch 14 (revision 4) turned the journal off by
+default, so since then no hud has known its player's name and no row was
+gold.
+
+**The patch.** In every full build (with and without the late join, and
+`--cave=hash-mismatch`), as patch 14's default is, 0x1F9478 `test eax,eax`
+(`85 C0`) becomes `jmp short 0x1F9487` (`EB 0D`): past the journal's two
+tests, the name is given whatever the journal does. Two bytes; no address
+and no base relocation under them, nothing jumps into them. The movie is
+not changed.
+
+Rendering only: the hud's lists (and its chat, which keeps the name too).
+Nothing a match computes: no row in
+`../crates/session/src/v026g/simulation_changes.tsv`; games with and
+without it play together. `../docs/notes/client_patch.md` section 3.40.
+
+Checked: `selftest_026g.py` check 43; `check_tab_self_026g.py` runs
+on_activate's end (0x1F9395..0x1F949D) with the game's own network client
+(vtable 0x9FFB14: +20h, lobby_client), string code and memcpy on a
+made-up world, for the builds with and without the late join and over
+on_hash_mismatch: with the journal
+off the original gives no name and the build "[clan] name" (or the name);
+recording, both the same; played back, the build alone; when the network client's +20h
+says no, neither. Against the build of `main` b97133d (revision 25's exe,
+`12006dd9…a8b4`) the default build differs in file 0x1E8878..0x1E8879 and
+the PE checksum, and in nothing else (compared byte by byte). **Not run in
+a game.**
+
+### 44. A weapon wears the camouflage its item holds (the next release's revision)
+
+The owner's request: the armour camouflages on the regular weapons, painted where the premium
+weapons are painted. The rules, the data and the masks: `../docs/notes/weapon-camo.md`,
+`../scripts/weapon-camo/`.
+
+weapon_cook::on_weapon_subresources_ready (0x24ACF0), when the weapon's model is loaded and before
+it is given to the weapon (0x243A30), calls `weapon_ready` (`.srpw`+0) in place of `lea
+eax,[esp+20h] / push eax` (0x24B0D2, five bytes, no address and no relocation under them). With a
+non-empty `data/camouflage` text in the weapon's merged config (a camouflage upgrade puts it
+there when the config has a `data` table), an `object/model` text and a model with a render
+instance, it asks for one class-6Ch bake for each of the instance's surfaces (at most 8), as the
+lobby's decal editor (0x2641A0) asks for one: a camouflage_decal_cook_parameters from the game's
+allocator with the camouflage's diffuse, `_nmap` and `_smap` names, the identity as the
+camouflage's matrix, the render instance (one reference more), the surface's index, the scale
+(`data/camo_scale`, else 4.0), and the baked files' name `srpw1_<camouflage>_<model>_<surface>`
+('/' and '\\' as '_'); its callback lets go of the reference and frees the parameters. The baker
+refuses a surface whose diffuse has no `_aoac` texture (it stays plain). Every register and the
+flags are kept, eax as the original's `lea` leaves it. Since patch 47 the camouflage's lookup and
+its three names are patch 47's lookup and fill (`-DDECALS`), which add the weapon's decals: a
+weapon with decals and no camouflage is baked too.
+
+`.srpw` is a section of its own (code, three pages: patch 44's 739 bytes, the stash's and patch
+45's on the first, patch 47's on the second and patch 48's on the third; raw bytes after `.srpc`'s,
+the Authenticode blob moved behind them, SizeOfImage and SizeOfCode grown), at 0xA42A000, the page
+after `.srpc` (patch 46's death camera, the page after `.srpd`): `.srp`'s two pages are full. It is
+the last section. In the builds with the late join only.
+
+Rendering only: no row in `../crates/session/src/v026g/simulation_changes.tsv`; games with and
+without it play together (without it the weapon is plain). `../docs/notes/client_patch.md`
+section 3.41.
+
+Checked: `selftest_026g.py` check 44 (the function's frame and the site in the original, the
+call, the code's calls into the game, nothing aiming inside the site, no relocation, `.srpw`'s
+section entry and the headers); `check_weapon_camo_026g.py` (Unicorn, the cases in its header).
+Run in a game on 2026-10-20 (a local server, an AK-12 and an Uzi with the City camouflage in
+slot 2): both baked and the lobby's character showed them. **Not run in a match.**
+
+### 45. A weapon's upgrade window shows the weapon above the workbench (the next release's revision)
+
+The owner's request (2026-10-21): "instead of focusing on players the camera would flow to the
+working table and the 3d model of the weapon would have been there", "that would allow you to
+rotate it", "with weapon in the air". Patch 32 still decides which weapon is shown and has the
+lobby's character hold it (a kit's weapon, or a stash weapon in the chosen kit's hands from a
+scratch profile), with its scope and camouflage; patch 45 draws that held weapon on its own above
+the workbench by the lobby's right wall and flies the camera there.
+
+`weapon_table_026g.asm` at `.srpw`+800h (812 bytes in round 1, 1 488 in round 2 below; after the stash code), its state (40 bytes, then 48h)
+at `.srpd`+F00h; it begins with four `jmp near` (its entries; a fifth, `left`, in round 2):
+
+- **camera** (+0): patch 32's start_cam and exit_cam end with `jmp camera` instead of `jmp
+  2845C0h` (the lobby camera's setter; `-DCAMERA` of `weapon_preview_026g.asm`, which without it
+  assembles to the old bytes). With patch 32's mode 1 (a weapon shown) the table goes on: the
+  camera's point is to fly to BENCH (4.25, 1.30, 3.05), its yaw to -pi/2 (the nearest turn of it
+  to the camera's yaw: it looks along +x, at the wall), its pitch to -0.25 (a little above); the
+  height 1.30 and the distance 1.2 go to the setter in place of patch 32's 1.05 and 0.85; the
+  camera's yaw and pitch are kept (once, not again for a window over a weapon's) and the weapon's
+  turn starts at 0. Mode 0 with the table on (the close, or an armour's window over a weapon's)
+  puts it off: the point flies back to the origin, the yaw and pitch to the ones kept. Then the
+  setter, every register but xmm0 and xmm1 the caller's.
+- **tick** (+5): the camera's tick, `movss xmm0,[ebx+0C8h]` at 0x284020 (8 bytes, every tick
+  passes it; ebx = camera+4, the frame's time at [esp+10h]) is `call tick` and 3 nops. While the
+  table is on, the drag's moves of the frame (+CCh yaw, +D0h pitch) turn the weapon (its spin, and
+  its tilt within +-1.2) and are taken from the camera. While the camera is the table's, its point
+  x and z, yaw and pitch move 5 * dt of the way to their targets each tick (the height, the
+  distance and the side angle by the camera's own steps); off and back within 0.001 of each, they
+  are set to them and the camera is the stock one again. Every register but xmm0 (the original's
+  load) kept.
+- **cull** (+0Ah): player::mt_draw's `cmp byte [ebp-1],0 / jne 247592h` at 0x247576 (6 bytes) is
+  `call cull` and a nop: the table's player takes the draw path even when its model was not seen
+  last frame (the camera looks away from it), so that its held item is drawn.
+- **matrix** (+0Fh): mt_draw's `cmp byte [ebx+0F49Ch],0 / je 2477C2h` at 0x24778F (9 bytes) is
+  `call matrix` and 4 nops: for the table's player the held item is drawn (weapon::draw, its
+  vtable+48h, which places the model, its locators and the scope) with the bench's transform,
+  built in the decal pose's buffer [ebp-0E8h]: rotY(spin) * rotZ(tilt), the point 0.18 m along -z
+  of the model (a rifle's middle; its grip is at the origin) at BENCH. Else the decal pose's or the
+  hand's, as the original.
+
+The table's player is the one mt_draw draws for lobby_character's update (its return address
+0x284A83), whose character (the update's ebx, which mt_draw's prologue keeps at [ebp-0F0h]) has it
+at +D2B8h and its upgrade window open (+D515h, only the lobby's own character), while the table is
+on. Every other player, every other time: the original's code, byte for byte. No base relocation
+is under a site and no branch aims inside one; the code holds no absolute address (its state by
+call/pop, the return address it looks for from it).
+
+Round 2 (2026-10-21, after the owner's game run; 1 488 bytes, state 48h bytes):
+
+- **The middle.** The weapon turns about its middle and the middle is at BENCH: the model's box
+  (render_model+108h, rotY(π) of the mesh, as the engine turns it) through bone 1's (`offset`)
+  inverse bind (+140h of the skeleton render model) and its pose of the frame (mt_draw's
+  [ebp−0Ch]), found from the held weapon (+1810h → +108h, vtable 0x9F0F24 checked → +62B4h).
+  A default ±1 box, a missing piece or not a weapon: (0, 0, 0.2) of the model. The first round
+  put (0, 0, −0.18) there, which was the stock's end (the box's frame is not the mesh's).
+- **The weapon first.** The camera holds at the window's start (its three steps' speeds 0) until
+  the weapon is drawn at the bench, which waits for the character's new player (+D2C4h −1,
+  +D2C8h 0; the held item stays in the hand until then), at most 2 s; then it flies.
+- **The left button** (`left`, +14h; 0x283D81 `test byte [eax+0Ch],52h / setne al`, 7 bytes, is
+  `call left` and 2 nops): at the bench a left-button drag turns the weapon too, when its press
+  is off the movie (the lobby menu's is_mouse_over_ui, asked once at the press's first move):
+  a press on a control or on an item being dragged (a camouflage, a scope) does not, until it is
+  let go. Buttons 52h as before.
+- **The light** is data, not this patch: `../scripts/content-edit/lobby-bench-light-1.json`.
+
+Round 3 (2026-10-21; 1 798 bytes, state 90h bytes):
+
+- **The middle, for every weapon.** The box's centre is taken with its x 0 (a box holds parts
+  parked beside the gun: the VSS's, SR-3M's and Val's second magazine 28 cm, the SKS's stripper
+  clip 35 cm), and the 26 weapons that leaves more than 1 cm off (a default box: the AK-74U, Vepr,
+  TOZ-34, IZh-27, AKMN, A-545, TOZ-122 and their premiums; the Magnum, RPD, Mosin, Winchester,
+  MP-153, Remington 700, Benelli, Saiga, 9A-91, Valmet, SOK-94) have their middle in a table by
+  items_dict id: round 3b (after the crash on the VSS: round 3 read weapon+25Ch, not a pointer for a
+  held weapon) takes it from the record the character's player was built from, inside the
+  character (its current copy +D2B4h, kit +D2B5h, slot 7 or 10, the record's +4), every index
+  checked, else the box's way. Round 3c: the table holds the middles in the bind space and they go
+  through bone 1's pose of the frame as the box's (the Vepr's `preview` animation puts its body
+  7 cm from where its 3rd-view idle does). Every weapon of the data is within
+  1 cm (it was up to 16.5 cm): client_patch.md section 3.42 has the table.
+- **No empty bench on a refresh.** Once the bench showed a weapon, a rebuild (a scope or a
+  camouflage put on) keeps the current player's weapon there until the new player's comes. The
+  new weapon still shows plain until its camouflage bake lands (the old player is let go when the
+  new one comes in, on_player_ready: not reachable).
+- **The interface for other patches:** the transform the weapon is drawn with at the bench (16
+  floats, rows, v * M) at `.srpd`+F50h (the state's +50h, `WEAPON_TABLE_MATRIX_OFFSET`), a u32
+  stamp +1 each frame at +48h (`WEAPON_TABLE_STAMP_OFFSET`); valid while the state's +0 and +28h
+  are 1.
+
+What it leaves alone: what patch 32 shows and builds (the kit, the scratch profile, the
+character's pose and the decal pose, the least distance 0.6 while a weapon's window is open), the
+wheel (it moves the camera nearer or further, 0.6 to 4.6), armour windows, the squad panels, a
+match. Rendering and the lobby only: no row in
+`../crates/session/src/v026g/simulation_changes.tsv`. `../docs/notes/client_patch.md` section 3.42.
+
+Checked: `selftest_026g.py` check 45 (the four sites in the original and the build, nothing
+aiming inside them, no relocation; the tick's frame and adds, the camera's point written by its
+constructor alone, the character at the origin, mt_draw's caller and prologue and its decal
+buffer; the code's branches) and check 33 (patch 32's two jumps to it); `check_weapon_table_026g.py`
+(Unicorn, the cases in its header: 32 checks, as is and rebased) and `check_weapon_preview_026g.py`
+(patch 32's cases with patch 45's camera). Round 1 (e93fb6f0) run in a game by the owner (the camera at the
+bench, the weapon there); **round 2 not run in a game**.
+
+### 46. On the death screen a drag turns the camera; the wheel does nothing (the next release's revision)
+
+The owner (2026-10-21): "when player dies they can still move camera
+around, with holding a mouse button? Scroll shouldn't work though". The
+rules: `../docs/notes/death-camera.md`.
+
+**The death screen today.** A death leaves the player's input handler in
+the first person mode (`player::on_player_death` 0x1F28E0 changes no mode;
+only the network clients' spectate and replay paths switch to 4 or 2):
+`player::update_camera` (0x1F3480) gives the view's update (0x2422B0) the
+eyes' transform (player+44Ch), which modes 0 and 4 copy as they are, so
+the camera is the corpse's eyes and does not move. The hud shows the kits
+and the cursor (0x2383B0) until the respawn (8 s in every mode's options),
+so the game world's input handler (priority 7) takes every mouse move and
+the wheel and answers 1: the player's handler (priority 10) gets none, and
+in the first person mode it would not use the wheel anyway (only the
+third-person and warmup steps add it to the distance). The game builds and
+sends the local player's input only while it is alive (game_world::tick,
+`cmp byte [eax+33Ch],0` at 0x1F7883): a dead player sends nothing.
+
+**The patch** (builds with the late join; `death_camera_026g.asm`, 860
+bytes, in a section of its own, `.srpc`, on the page after the late join's
+state page, 0xA429000; its state, a yaw and a pitch, 8 bytes at the late
+join's state page +E60h):
+
+- `WARMUP_LOOK_HOOK`'s jump (the first ten bytes of the game world's
+  on_mouse_move, 0x25D0E0) goes to `death_look` (`.srpc`+0) instead of
+  patch 31's warmup_look. While the kits are shown (hud+2DFh), the player's
+  handler is in the first person mode (+358h = 0) and the local player
+  (game+53ACh, +4) is dead (+33Ch = 0): a mouse button held is a drag as
+  patch 31's (its state and its drag_end: the lobby's buttons, right, 5th
+  and 7th, at once; the left one past 8 units, so a click stays the kits';
+  the hud's pointer off the screen during it, back where it began at the
+  release). A drag's move turns the yaw by x and the pitch by y at the
+  player's look's step (the option sensitivity, 0xA74AEC, x 0.1 x pi/180; the
+  pitch also x height / width of the render window x 0.9549, and inverted by
+  mouse_invertion, 0x1F1D9D3), within 70 degrees to either side, 60 up and
+  40 down (relative to the head, below), and is taken (1):
+  neither the cursor's nor the player's handler's. The wheel in a drag is
+  taken with it and changes nothing. Without a button the move, the wheel's
+  too, goes on through warmup_look to the original: the cursor's. Every
+  other move goes on to warmup_look as before.
+- update_camera's `call 0x2422B0` (0x1F364B, `DEATH_VIEW_HOOK`) calls
+  `death_view` (`.srpc`+200h): while that player is dead, the handler in
+  the first person mode, the kits shown and the turn not 0, it runs the
+  update's own third-person step (0x2422DE, after the update's own start)
+  on the identity with the turn's yaw and pitch and the distance 0 (the
+  handler's warmup yaw, pitch and distance, +34Ch, +350h, +354h, borrowed
+  and put back): the turn L, the yaw about up and then the pitch about the
+  turned right. The view is then L times the eyes' transform (each of L's
+  rows x E.i + y E.j + z E.k), at the eyes' place: the look turned about the
+  head's own up and right. A live player gets the original update and the
+  turn is cleared.
+
+**Relative to the head** (the owner, after the first game test,
+2026-10-21: "the way the angle is set should be different for different
+death poses, I think, sometimes you can see inside of models", then "Can
+we maybe still orbit around eyes but take a pose into consideration?").
+The first build turned the view about the world's up: with the head rolled
+or lying on its side that swung the look into the corpse's own torso. The
+eyes' transform (player+44Ch) is the head's own, every frame: base_player's
+character head transform, the head bone's matrix times the body's
+(`animation::calculated_head_matrix`, 0.10b; the use ray of
+detect_usable_object starts at its place +47Ch along its forward +46Ch).
+Turning by it and keeping the turn within 70 degrees either side, 60 up
+and 40 down of the face's forward keeps the look in front of the face
+whatever the pose, with no table of poses (the numbers to be tuned in the
+game). The head itself is not drawn for the local player in the first
+person mode (mt_draw gives set_head_visibility 0x1F37A0 a 0 every frame,
+dead too: models 0, 5, 6, 7 hidden), so the eyes never see the face from
+inside; the eye point is not moved. Not an orbit (the owner's call).
+
+Camera only: the moves of a drag never reach the player's input handler,
+and a dead player sends no input anyway. Nothing a match computes: no row
+in `../crates/session/src/v026g/simulation_changes.tsv`; games with and
+without it play together, replays are unchanged. A death before the start
+(the warmup mode) keeps patch 31's orbit and wheel; spectators and replays
+(another mode, no kits) are the original's. `../docs/notes/client_patch.md`
+section 3.43.
+
+Checked: `selftest_026g.py` check 46 (the site, the view's update and its
+step, the mode a death leaves, the input a dead player does not send, the
+handler's world, game, client and local player, the window's size and the
+look's step as the game has them; the code's exits, calls, absolute
+operands and returns) and the layout checks of check 15 (ten sections,
+`.srpc` last); check 32 sees the mouse move's jump go to death_look.
+`check_death_camera_026g.py` (Unicorn) runs mouse moves through the input
+world's loop (the death screen's moves, wheel, click, right and left drags,
+an inverted and a slow mouse, the pitch's and the yaw's limits; a live player, a
+spectator, third person, no local player, a death before the start, the
+kits hidden) and the view's update on a made-up rolled and tilted eye
+transform (the build's view bit for bit the original's step on the identity
+times the eyes' rows, float32 in the build's order; the look in the head's
+frame the turn's alone; the warmup fields put back; a live player's turn
+cleared): 122 runs, eight broken builds fail. `check_late_join_026g.py`, `check_kit_change_026g.py`
+and `check_weapon_preview_026g.py` now find `.srp` and `.srpd` by their
+names (`.srpc` is the last section); every `check_*_026g.py` passes.
+Against the build of `main` ecb9916 the default build differs in the
+headers, the two sites and the new section's 1 024 bytes (the certificate
+moved behind them). **Not run in a game.**
+
+### 47. A weapon wears a decal, placed on it above the workbench (the next release's revision)
+
+The owner's request (2026-10-21): "implement and allow put two decals on weapons"; then the server gives a weapon one decal slot (0): the client keeps three upgrade records an item, and a scoped weapon holds its scope and camouflage besides (the owner, 2026-10-21: "let's remove one decal instead for now"); the code bakes up to two, as written. The rules and
+the data: `../docs/notes/weapon-camo.md`, `../scripts/content-edit/weapon-decals-1.json` (every
+weapon config with `data` gets `parameters/decal_available` and an empty `data/decals`, as
+armour's).
+
+`weapon_decals_026g.asm` at `.srpw`+1000h (3145 bytes, the section's second page), its state (12
+bytes, the left button's press) at `.srpd`+FA0h; it begins with seven `jmp near`, its entries:
+
+- **lookup** (+0) and **fill** (+5), called by patch 44 (`weapon_camo_026g.asm`, -DDECALS): what a
+  weapon's bake paints. lookup: the camouflage (`data/camouflage`, as patch 44 read it) and the
+  decals (`data/decals`, where a decal upgrade appends {texture, low, high}, the record's u64
+  put in by the game's config merge); patch 44 bakes when there is either. fill: the
+  camouflage's layer of the parameters, and for each of the first two decals the layer P +
+  i*270h: the texture, `_nmap`, `_fmap`, `_smap` and the float4x4 the editor unpacks from the u64
+  (0x263D00), its point 1.0 lower (a weapon's y -1..1 in the u64's 0..2) and its two sides halved
+  (a weapon's decals are half a character's); `_<texture>_<high><low>` after the baked files'
+  name. A decal never placed (u64 0) goes on the left of the receiver, the second on the right.
+- **pick** (+0Ah): the decal preview's `call 0x264960` at 0x265999 (5 bytes): for the weapon above
+  the workbench (patch 45's table on, patch 32's weapon shown, the edit's host the window's item)
+  the mouse's ray in the weapon model's space (the inverse of bone 1's skinning of the frame, read
+  from the weapon's render instance, times the transform patch 45 publishes at `.srpd`+F50h; none
+  before patch 45 has drawn the weapon at the bench) gives the point of
+  it nearest the weapon's long axis and its direction reversed as the normal (the decal looks
+  along the ray; its projector and occlusion find the surface); a ray behind the eye, more than
+  0.25 m off the axis or beyond its ends misses. Else the original's pick on the character.
+- **decode** (+0Fh): the preview's `call 0x263D00` at 0x2659B2 (5 bytes): the weapon's decal at
+  the weapon's transform, so the preview's box is drawn on the weapon at the bench.
+- **bake** (+14h): the editor's bake, 0x2641A0 (`push ebp / mov ebp,esp / and esp,-8`, 6 bytes)
+  is `jmp bake` and a nop. For the weapon: the click picks, packs the u64 (0x264A10), accepts it
+  (0x263950: the record, `46 05`) and tells the movie (`root.exit_decal_edit`); the start's and
+  the cancel's bakes do nothing (the weapon keeps its textures). The server sends the account
+  after a weapon's `46 05`, the lobby builds the weapon again and patch 44 bakes the new place.
+- **start** (+19h): the start's `call 0x264CF0` at 0x263938 (5 bytes): on a weapon the decal's
+  index in `data/decals` counts the records of slots 0 and 1 (a weapon's camouflage is in slot
+  2); a record of another slot ends the edit with nothing queried.
+- **click** (+1Eh): the character's mouse key handler, 0x265C20 (6 bytes, `jmp click` and a nop),
+  which places the edit's decal on the left button's release: in a weapon's edit only when the
+  cursor is within 5 pixels of where the button went down. A drag (patch 45's left button turns
+  the weapon) places nothing; a release with no press seen (the movie's "change") neither.
+
+Everything else, armour's decals, the squad panels and a match: the original's code. No base
+relocation is under a site and no branch aims inside one; the code holds absolute addresses (the
+exe is never rebased). The movie: a weapon's upgrade window shows one decal slot when it has
+`decal_available` (`UpgradeWindow.as`, `WEAPON_DECALS`). Rendering and the lobby only: no row in
+`../crates/session/src/v026g/simulation_changes.tsv`; a game without the patch shows the weapon
+without its decals. `../docs/notes/client_patch.md` section 3.44.
+
+Checked: `selftest_026g.py` check 47 (the sites in the original and the build, their callers,
+nothing aiming inside, no relocation, the code's calls and branches, `.srpw`'s two pages) and
+check 44; `check_weapon_decals_026g.py` (Unicorn, the cases in its header, with patch 45's own
+transform: 202 checks) and
+`check_weapon_camo_026g.py` (the camouflage alone as before). **Not run in a game**: the preview on
+a weapon, the place the click gives and the bake of a decal on a weapon are read and emulated
+only.
+
+### 48. An upgrade dropped on a weapon in its window is shown at once (the next release's revision)
+
+The owner's request (2026-10-21): "can equipments in general be more responsive? I want the scope
+to be equipped and see the results a few frames after? Or camo?", and "the server can be in the
+background". Where the time went (`../docs/notes/client_patch.md` section 3.45): the lobby client
+sends its messages only at its own tick, every ~505 ms (the packet logs: a request leaves 0 to
+505 ms after the drop, 250 ms on average); the server answers in 2-3 ms (locally; a network's
+round trip live); then the character's player is made again; a camouflage's first bake is ~40 ms
+of GPU and compression (the game's own log lines). Now the drop itself changes what the character
+is built from; what is sent is not changed and the server's account stays the truth.
+
+`upgrade_preview_026g.asm` at `.srpw`+2000h (1596 bytes, the section's third page), its state
+(A0h bytes: the window's item, the queue of changes, the revision last given and its upgrades,
+the last query's time and kit) at `.srpd`+D60h, after the patches' mount's and before patch 32's; six `jmp near`, its entries:
+
+- **relocate** (+0): relocate_upgrade_item's handler (0x29A8B0), `mov edx,[esi+4620h]` at
+  0x29A9B2 (6 bytes, `call` and a nop), before it writes `46 01`; and **drop** (+5):
+  drop_upgrade_item's (0x29A9D0), `mov ecx,[esi+4620h]` at 0x29AACF, before patch 30's `46 02`.
+  For the window's weapon (patch 32's mode 1, its item the host, the lobby character's window
+  open): the change is queued ({upgrade, the record's dict id, slot}, or "take off"), a log line
+  is written ("srp: upgrade preview: item <host>, upgrade <id>, slot <n>") and setup_profile is
+  called at once. A scope's record holds the variant made for the weapon, as the server's
+  (`ScopeFits`): the first category-22 entry of the items dictionary whose config's
+  `srp_scope_fit` names the scope and the weapon (by name or dict id); none: nothing is queued.
+- **account** (+0Ah): the 0x87 reader's last call (`call 0x270320` at 0x270313): each account
+  answers the oldest queued change (srp pushes the account after every `46 01` / `46 02`, a
+  refusal too).
+- **find** (+0Fh): patch 32's two finds (`weapon_preview_026g.asm`, -DFIND) call it; it calls the
+  stash's find_kit_or_show, then, for the item a change was queued on and shown from the account's
+  profile, builds the character from the stash's scratch: the account's profile, the queue
+  applied to the weapon's record in order as the server applies it (a put leaves an identical
+  record as it is, else takes the upgrade and what is in its slot off and adds it when there is
+  room; a take-off takes it off), and a kit revision of its own (`0x80000000 | n`) that stays the
+  same while the weapon's upgrades are the same, so the account confirming the change makes
+  nothing again (setup_profile's early return).
+- **again** (+14h): setup_profile past its early return, `cmp dword [ebx+0D2C4h],-1` at 0x284B89
+  (7 bytes): for the lobby's own character, a player being made of the same kit's id and revision
+  is what is asked: it returns (a call waiting for that player is dropped: this one is newer);
+  with no player being made the query's start time and kit are kept.
+- **made** (+19h): on_player_ready, `cmp byte [ebx+0D2C9h],0` at 0x284F7F (7 bytes): for the lobby's
+  own character a log line "srp: lobby character's player made in <n> ms" (the lobby's clock,
+  [menu+9Ch]+584Ch, since the query), then the original's comparison.
+
+The log lines go through the game's own function (`{0x9DAF4C | 1, 0, [0x1F1D614]}`, as every
+game line's caller builds it; round 2: the first build passed an empty one and nothing was
+written).
+
+A refusal: the account comes back without the change, the weapon's upgrades differ from those
+shown, the character is made again from the account's. Armour windows, the squad panels and a
+match: the original's code. No base relocation is under a site and no branch aims inside one;
+the code holds absolute addresses (the exe is never rebased). The lobby only: no row in
+`../crates/session/src/v026g/simulation_changes.tsv`.
+
+Checked: `selftest_026g.py` check 48 (the sites in the original and the build, the handlers'
+registers, the 0x87 reader's last call, setup_profile's ways to 0x284B89, the code's calls and
+branches, `.srpw`'s three pages); `check_upgrade_preview_026g.py` (Unicorn, the cases in its
+header: the game's own setup_profile, profile copy and config lookups). **Not run in a game.**
+
+### 49. The game stops at its start without a patch its release requires (the next release's revision)
+
+The crashes of 2026-10-21 (`../docs/notes/required-patches.md`): players whose updater could not
+download patch_26 and patch_27 started the revision 27 exe without the launcher; patch 27 skips a
+missing number, so the game ran on older content than the server's and crashed in matches (an
+unknown item id in a profile, other animation ids in a world snapshot). Now each release's exe
+knows the patches of its release and does not start without them.
+
+In `mount_patches_026g.asm` (patch 27), the probe's missing case (`CreateFileA` fails with 2, file
+not found, or 3, path not found) tests n in a bitmap of 32 bytes (`needed`, bit n of byte n/8,
+`bt [edx+needed],ecx`): a clear bit is a number skipped, as before; a set bit goes on to the same
+fatal call as a file that cannot be opened, before anything is mounted: "Cannot open
+resources.db.patch_<n> (error 2). Please run the Skhid launcher again." (error 3 for a missing
+folder on the way), the lowest such n. The code grows from 707 to 759 bytes at `.srp`+400h (before
+patch 30's +700h); nothing else changes and no new site.
+
+The bitmap sits right after the "Cannot open" text, before the state's address at the .bin's end.
+The checked-in .bin holds zeros: a build without the option requires no patch (local and test
+builds). `patch_026g.py --required-patches=12,14,17,...` (and `make_client_026g.py`, passing it on)
+writes it into the build's copy; only those bytes and the PE checksum differ. `release/build-zip`
+passes the numbers of every row of the offered-patch list (`release/patches.tsv`; `--test`:
+`patches-test.tsv`), which `release/release.sh` gives it with `--patches` after `upload-patch`
+added the release's new patch: one command, and each release's exe requires exactly what its
+server offers. `build-zip` reads both exes back (`lib.sh`'s `exe_required_patches`, which finds the
+text and reads the 32 bytes after it); `release.sh` and `release/deploy` refuse a ZIP whose exe
+requires other patches than the server data offers, or none (an exe from before patch 49).
+
+With the launcher nothing changes: its updater fetches the listed patches before PLAY is on. A
+game started some other way without a patch now stops at once with the message, before any
+match. A patch is never removed from a player's folder by this; one the list no longer offers is
+simply not required by the next release's exe (and still mounted when it is there). The lobby
+only (start-up): no row in `../crates/session/src/v026g/simulation_changes.tsv`.
+
+Checked: `selftest_026g.py` check 49 (the default build's bitmap zeros; the `bt` and its way to the
+fatal; against the build without the option only the bitmap and the checksum differ; the list
+read back by `patch_026g.py` and by `release/lib.sh`; bad lists refused) and check 27 (the texts,
+the ways out); `check_mount_patches_026g.py` (Unicorn, as is and rebased: a build requiring 1,
+12, 14, 17 and 255 on folders with all of them, with more, with a required one missing, path not
+found or a folder by its name; revision 27's list without 26 and 27, the case of 2026-10-21,
+stops at patch 26); `release/test.sh` (the stand-in build-zip given the list, the new patch
+required after `--resources`, a ZIP that requires fewer refused before the swap, `deploy`'s
+refusals). **Not run in a game.**
 
 ## Not ported, not done
 

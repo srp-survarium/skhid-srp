@@ -8,4 +8,4 @@ rust_host=$(rustc -vV | sed -n 's/^host: //p')
 export PATH="$(rustc --print sysroot)/lib/rustlib/$rust_host/bin:$PATH"
 (cd exe && cargo build --locked --release "$@")
 (cd tests/fake_exe && cargo build --locked --release "$@")
-ls -l exe/target/i686-pc-windows-msvc/release/updater_skhid.exe
+ls -l exe/target/i686-win7-windows-msvc/release/updater_skhid.exe

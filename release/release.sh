@@ -82,7 +82,9 @@
 #   4. during the countdown: release/upload-patch (with --resources:
 #      publishes it and adds its row to the list), release/build-server-db
 #      (of the list), release/build-zip (--ref: the commit checked in step
-#      1; --revision: the release's); checks the two files as release/deploy does; makes the release
+#      1; --revision: the release's; --patches: the list, with the new
+#      patch, whose every patch the exe requires at its start: patch 49);
+#      checks the two files as release/deploy does; makes the release
 #      folder $TARGET_DIR/release-rev<rev>-<UTC YYYYMMDD-HHMM>[-<label>] and
 #      stages both in it (sha256 checked there, chmod 644), with
 #      changed.txt; with server code to build: tags the running image (by
@@ -102,11 +104,14 @@
 #      The swap: srp26 stopped; srp.db, the old ZIP and server data (hard
 #      links), their sha256, the image ID, the setting (and the source) kept
 #      in the folder with its rollback, srp.db copied to the jump host too
-#      (live only); the server data (and source) in place,
-#      SRP_MIN_PATCH_REVISION=<rev>, srp26 made anew;
-#   6. checks the container, the log's game data line and /patches (exactly
-#      the list's patches), and only then puts the ZIP in place and checks
-#      /api/client-files. A failed check prints srp's log and runs the
+#      (live only); the server data (and source) and the ZIP in place,
+#      SRP_MIN_PATCH_REVISION=<rev>, srp26 made anew: the ZIP goes in while
+#      srp26 is stopped, so the site never offers the old ZIP beside the new
+#      /patches and revision (an updater would enable PLAY for a game the
+#      login server refuses);
+#   6. checks the container, the log's game data line, /patches (exactly
+#      the list's patches) and /api/client-files (the new ZIP and, from an
+#      srp that says it, min-revision <rev>). A failed check prints srp's log and runs the
 #      folder's rollback (srp.db, image, data, ZIP, setting, source: as
 #      before), with --now too. The run's output is the folder's release.log;
 #   7. live only, once it all went out (never after a stop or a rollback):
@@ -850,15 +855,7 @@ if command -v nix >/dev/null; then okay "nix"; else problem "nix is not installe
 command -v python3 >/dev/null || command -v nix >/dev/null || problem "python3 (or nix to get it)"
 if [[ -d $SKHID_GAME ]]; then okay "SKHID_GAME: $SKHID_GAME"; else problem "SKHID_GAME: $SKHID_GAME is not a folder (the original 0.26g install)"; fi
 if [[ -f $SKHID_STOCK_DB ]]; then
-    cache=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/stock-db.sha256
-    key="$(stat -c '%s %Y' "$SKHID_STOCK_DB") $(readlink -f "$SKHID_STOCK_DB")"
-    stock=$(grep -F -- "$key " "$cache" 2>/dev/null | tail -n 1 || true)
-    stock=${stock##* }
-    if [[ -z $stock ]]; then
-        say "  ...      sha256 of $SKHID_STOCK_DB ($(size_of "$SKHID_STOCK_DB") bytes; once, then cached by size and time)"
-        stock=$(sha256_of "$SKHID_STOCK_DB")
-        { mkdir -p "${cache%/*}" && printf '%s %s\n' "$key" "$stock" >>"$cache"; } 2>/dev/null || true
-    fi
+    stock=$(stock_sha256 "$SKHID_STOCK_DB")
     if [[ $stock == "$STOCK_SHA" ]]; then okay "SKHID_STOCK_DB: the stock resources.db (sha256 ${STOCK_SHA:0:12}…)"; else problem "SKHID_STOCK_DB: $SKHID_STOCK_DB has sha256 $stock, not the stock 0.26g one ($STOCK_SHA)"; fi
 else
     problem "SKHID_STOCK_DB: $SKHID_STOCK_DB: no such file (the stock 0.26g resources.db)"
@@ -1330,7 +1327,7 @@ if [[ -n $resources ]]; then
 fi
 data=$work/$DATA_NAME
 zip=$work/zip/$ZIP_NAME
-build_zip=("$BUILD_ZIP" --ref "$main_commit" --revision "$rev" --work "$work/zip" "${step_flags[@]}")
+build_zip=("$BUILD_ZIP" --ref "$main_commit" --revision "$rev" --patches "$PATCH_LIST" --work "$work/zip" "${step_flags[@]}")
 if ((DRY_RUN)); then
     say "[dry run] 4. $( ((no_maint)) && printf 'after the go' || printf 'during the countdown'), build here: release/build-server-db${step_flags[*]:+ ${step_flags[*]}} --out $data"
     say "[dry run]    and: ${build_zip[*]}"
@@ -1349,6 +1346,7 @@ else
     check_release_files "$zip" "$data" "$rev" "$work"
     [[ $OFFERED == "$planned_offer" ]] ||
         die "$data does not offer what the preflight said (the list and the new patch): $(tr '\n' ' ' <<<"$OFFERED")"
+    check_exe_requires "$zip" "$work"
     say "ZIP: $ZIP_SIZE bytes, sha256 $ZIP_SHA, revision $rev; server data: sha256 $DATA_SHA; /patches will offer:"
     say_offered
     progress "4. staging in the release folder $TARGET_DIR/$REL (not in place yet)"
@@ -1435,9 +1433,9 @@ if ((!DRY_RUN)); then
     if ((build_code)); then say "  the image: main's source, built (the running one, $RUN_IMAGE, is tagged $BEFORE_TAG)"; fi
     say "  the ZIP's entries, against the live ZIP:"
     grep -E '^  (CHANGED|ADDED|REMOVED) |^updater_skhid.exe' "$work/build-zip.log" | sed 's/^ */    /' || say "    (no entry changed)"
-    say "Next: srp26 stopped, the old files kept in the release folder, the server data in place, the revision set,"
-    say "srp26 made anew (every lobby link drops; its start copies srp.db to backups/), checked; srp.db's copy kept;"
-    say "then the ZIP. A failed check rolls it all back."
+    say "Next: srp26 stopped, the old files kept in the release folder, the server data and the ZIP in place, the revision set,"
+    say "srp26 made anew (every lobby link drops; its start copies srp.db to backups/), checked; srp.db's copy kept."
+    say "A failed check rolls it all back."
     if ((now)); then
         say "(--now: every match running at the stop ends WITHOUT RESULTS; how many is said right before it)"
     elif ((no_maint)); then
@@ -1460,12 +1458,12 @@ progress "5. the swap"
 swap_prepare "$rev"
 ((DRY_RUN)) || phase=swapping
 swap_server "$rev"
-progress "6. the server is up on the new data; the ZIP"
-swap_zip
+progress "6. the server is up on the new data and offers the new ZIP"
+swap_finish
 
 # 6. After.
 if ((DRY_RUN)); then
-    say "[dry run] 6. after the restart: srp26 running, its log's \"game data:\" line, GET $TARGET_SITE/patches is exactly the list's; srp's new backup of srp.db kept in the folder$( [[ $TARGET == live ]] && printf ' and copied to the jump host'); then the ZIP, GET $TARGET_SITE/api/client-files names it"
+    say "[dry run] 6. after the restart: srp26 running, its log's \"game data:\" line, GET $TARGET_SITE/patches is exactly the list's, GET $TARGET_SITE/api/client-files names the ZIP (put in before the restart) and min-revision $rev; srp's new backup of srp.db kept in the folder$( [[ $TARGET == live ]] && printf ' and copied to the jump host')"
     say "[dry run] a failed check: srp's log, then sh $TARGET_DIR/$REL/rollback.sh $TARGET_DIR/$REL on the $TARGET host (srp.db, image, files, setting back)"
     if ((test_server)); then
         say "[dry run] 7. no record (--test: no commit, no tag)"

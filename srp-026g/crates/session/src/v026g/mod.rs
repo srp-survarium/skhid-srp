@@ -24,7 +24,8 @@
 //!   takes.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, TryLockError};
+use std::time::{Duration, Instant};
 
 pub mod account;
 pub mod autobuy;
@@ -37,6 +38,7 @@ pub mod items_rules;
 pub mod known;
 pub mod matches_now;
 pub mod matchmaking;
+pub mod moderation;
 pub mod names;
 pub mod notices;
 pub mod pay;
@@ -46,6 +48,7 @@ pub mod pvb;
 pub mod quests;
 pub mod replays;
 pub mod rewards;
+pub mod room_settings;
 pub mod rooms;
 pub mod rules;
 pub mod tutorial;
@@ -55,8 +58,9 @@ pub use account::{Account, Item, Kit, KitSlot, QuestInstance};
 pub use persist::{GameRepository, MemoryGameRepository, SqliteGameRepository};
 pub use rules::ActionError;
 
-use crate::LockExt;
 use crate::persist::PersistError;
+use crate::{LockExt, RESET_WRITE_WAIT, ResetWrite};
+use moderation::AdminAction;
 
 struct Writer {
     repository: Box<dyn GameRepository>,
@@ -68,6 +72,35 @@ struct Writer {
 /// [`GameAccounts::flush`] after the accounts
 /// ([`GameAccounts::on_flush`]).
 pub type FlushHook = Box<dyn Fn(&mut dyn GameRepository) + Send + Sync>;
+
+/// Bonuses srp gives the items owned once in a database's life, when a
+/// rule makes a config default a modification of the item's own
+/// ([`GameAccounts::grant_once`]).
+struct OnceGrant {
+    /// The `g26_meta` key written once it is done.
+    mark: &'static str,
+    /// For the log: the rule, the items, what they get.
+    title: &'static str,
+    items: &'static str,
+    bonus: &'static str,
+    give: fn(&mut Account) -> items_rules::GoldenGrant,
+}
+
+const GOLDEN_SILVER: OnceGrant = OnceGrant {
+    mark: persist::GOLDEN_SILVER_GIVEN,
+    title: "Golden weapons",
+    items: "golden weapons",
+    bonus: "the silver bonus",
+    give: items_rules::give_golden_silver,
+};
+
+const PREMIUM_ARMOUR_BONUSES: OnceGrant = OnceGrant {
+    mark: persist::PREMIUM_ARMOUR_GIVEN,
+    title: "Premium armour",
+    items: "premium armour pieces",
+    bonus: "the premium bonuses",
+    give: items_rules::give_premium_armour_bonuses,
+};
 
 /// One line of [`GameAccounts::board`].
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -109,6 +142,8 @@ pub struct GameAccounts {
     /// [`rewards::Results::attached`] takes it.
     restored_results: Mutex<Vec<(String, String)>>,
     flush_hooks: Mutex<Vec<FlushHook>>,
+    /// The admin's audit rows not written yet ([`Self::write_admin`]).
+    pending_actions: Mutex<Vec<AdminAction>>,
 }
 
 impl Default for GameAccounts {
@@ -129,6 +164,7 @@ impl GameAccounts {
             bots: Mutex::new(HashSet::new()),
             restored_results: Mutex::new(Vec::new()),
             flush_hooks: Mutex::new(Vec::new()),
+            pending_actions: Mutex::new(Vec::new()),
         }
     }
 
@@ -174,7 +210,15 @@ impl GameAccounts {
                      worn item covers; taken off to the inventory"
                 );
             }
-            if account.repair() || uncovered > 0 {
+            // Kits saved before the rule of one pocket an item type.
+            let merged = account.merge_pockets();
+            if merged > 0 {
+                log::warn!(
+                    "0.26g account {account_id}: {merged} pockets held an item type another \
+                     pocket of their kit held; merged into that pocket"
+                );
+            }
+            if account.repair() || uncovered > 0 || merged > 0 {
                 log::warn!("0.26g account {account_id} was not consistent; repaired");
                 for (host, record, why) in items_rules::upgrades_taken_off(&kept, &account) {
                     log::warn!(
@@ -199,6 +243,7 @@ impl GameAccounts {
             bots: Mutex::new(HashSet::new()),
             restored_results: Mutex::new(results),
             flush_hooks: Mutex::new(Vec::new()),
+            pending_actions: Mutex::new(Vec::new()),
         })
     }
 
@@ -225,11 +270,19 @@ impl GameAccounts {
     /// switch would stay worn for ever. Once in the database's life
     /// (`persist::GEAR_MENDED`), so an item found later, which arrives worn
     /// ([`pay::drop_condition`]), stays as found until its owner repairs it.
+    ///
+    /// The first time a database is opened by an srp with the golden-weapons
+    /// rule, every golden weapon in it gets the silver bonus as its own
+    /// first modification ([`Self::give_golden_silver_once`]); the first
+    /// time with the premium-armour rule, every premium armour piece its
+    /// premium bonuses ([`Self::give_premium_armour_bonuses_once`]).
     pub fn from_env() -> Result<Self, PersistError> {
         match SqliteGameRepository::from_env()? {
             Some(mut repository) => {
                 let mend = !pay::item_wear() && repository.first_time(persist::GEAR_MENDED)?;
                 let store = Self::with_repository(Box::new(repository))?;
+                store.give_golden_silver_once()?;
+                store.give_premium_armour_bonuses_once()?;
                 if mend {
                     let (items, accounts) = store.mend_gear();
                     store.flush();
@@ -242,6 +295,129 @@ impl GameAccounts {
             }
             None => Ok(Self::new()),
         }
+    }
+
+    /// [`Self::give_golden_silver`] once in the database's life
+    /// (`persist::GOLDEN_SILVER_GIVEN`; [`Self::grant_once`]): until the
+    /// rule the silver bonus was a default of the item's config, which the
+    /// golden-weapons patch takes off; after it, a silver bonus rerolled
+    /// away stays away. Returns `(items, accounts)` given; `None` when it
+    /// was done before, or for a store kept in memory.
+    pub fn give_golden_silver_once(&self) -> Result<Option<(usize, usize)>, PersistError> {
+        self.grant_once(&GOLDEN_SILVER)
+    }
+
+    /// Gives every account's golden weapons the silver bonus as their own
+    /// first modification ([`items_rules::give_golden_silver`]) and marks
+    /// the accounts it changed. Returns the items given and the accounts
+    /// changed. A golden weapon that already has three modifications of
+    /// its own keeps them, and is logged.
+    pub fn give_golden_silver(&self) -> (usize, Vec<u32>) {
+        self.grant(&GOLDEN_SILVER)
+    }
+
+    /// [`Self::give_premium_armour_bonuses`] once in the database's life
+    /// (`persist::PREMIUM_ARMOUR_GIVEN`; [`Self::grant_once`]): until the
+    /// rule the premium bonuses were defaults of the item's config, which
+    /// the premium-armour patch takes off; after it, a bonus rerolled away
+    /// stays away. Returns `(items, accounts)` given; `None` when it was
+    /// done before, or for a store kept in memory.
+    pub fn give_premium_armour_bonuses_once(&self) -> Result<Option<(usize, usize)>, PersistError> {
+        self.grant_once(&PREMIUM_ARMOUR_BONUSES)
+    }
+
+    /// Gives every account's premium armour the premium bonuses it lacks as
+    /// its own first modifications
+    /// ([`items_rules::give_premium_armour_bonuses`]) and marks the
+    /// accounts it changed. Returns the items given and the accounts
+    /// changed. A piece with no place left for a bonus keeps its own, and
+    /// is logged.
+    pub fn give_premium_armour_bonuses(&self) -> (usize, Vec<u32>) {
+        self.grant(&PREMIUM_ARMOUR_BONUSES)
+    }
+
+    /// `grant` once in the database's life. The accounts it changed are
+    /// written first and the mark (`grant.mark` in `g26_meta`) after them.
+    /// A crash between leaves it unmarked; so does an account not written,
+    /// and then srp does not start ([`PersistError::NotWritten`]): running
+    /// unmarked, a bonus rerolled away could come back at a later start.
+    /// Either way the next start gives it again to the items still without
+    /// it (those written have it, and are left alone).
+    fn grant_once(&self, grant: &OnceGrant) -> Result<Option<(usize, usize)>, PersistError> {
+        let Some(writer) = &self.writer else {
+            return Ok(None);
+        };
+        let done = writer.locked().repository.is_done(grant.mark)?;
+        if done {
+            return Ok(None);
+        }
+        let (items, accounts) = self.grant(grant);
+        self.flush();
+        let unsaved: Vec<u32> = accounts
+            .iter()
+            .copied()
+            .filter(|&account_id| self.is_dirty(account_id))
+            .collect();
+        if !unsaved.is_empty() {
+            return Err(PersistError::NotWritten(format!(
+                "{}: {} given at start was not written for accounts {unsaved:?}; srp does not \
+                 start, and the next start gives it again to the {} still without it",
+                grant.items, grant.bonus, grant.items
+            )));
+        }
+        writer.locked().repository.mark_done(grant.mark)?;
+        log::info!(
+            "{}: {items} of {} accounts got {} as their own first modifications, once",
+            grant.title,
+            accounts.len(),
+            grant.bonus
+        );
+        Ok(Some((items, accounts.len())))
+    }
+
+    /// Gives every account's items `grant` and marks the accounts it
+    /// changed; logs each account changed and each item with no place left.
+    fn grant(&self, grant: &OnceGrant) -> (usize, Vec<u32>) {
+        let accounts: Vec<(u32, Arc<Mutex<Account>>)> = self
+            .accounts
+            .locked()
+            .iter()
+            .map(|(&id, account)| (id, Arc::clone(account)))
+            .collect();
+        let (mut items, mut changed) = (0, Vec::new());
+        for (account_id, account) in accounts {
+            let done = {
+                let mut account = account.locked();
+                let done = (grant.give)(&mut account);
+                if !done.given.is_empty() {
+                    log::info!(
+                        "{}: {} (account {account_id}) got {}: items {:?}",
+                        grant.title,
+                        account.name,
+                        grant.bonus,
+                        done.given
+                    );
+                }
+                if !done.full.is_empty() {
+                    log::warn!(
+                        "{}: {} (account {account_id}) has {} with three modifications of their \
+                         own; they keep them, without {}: items {:?}",
+                        grant.title,
+                        account.name,
+                        grant.items,
+                        grant.bonus,
+                        done.full
+                    );
+                }
+                done
+            };
+            if !done.given.is_empty() {
+                items += done.given.len();
+                changed.push(account_id);
+                self.mark_dirty(account_id);
+            }
+        }
+        (items, changed)
     }
 
     /// Makes every account's weapons and armour whole
@@ -471,8 +647,15 @@ impl GameAccounts {
             .into_iter()
             .collect();
         dirty.sort_unstable();
+        // The accounts the admin changed first, each with its audit rows in
+        // one write: a row is never kept without the change it tells of.
         let mut written = 0;
+        let (_, admin_failed) = self.write_actions(&mut writer, &mut written);
         for account_id in dirty {
+            // Retried with its rows on the next pass, never without them.
+            if admin_failed.contains(&account_id) {
+                continue;
+            }
             let Some(account) = self.get(account_id) else {
                 continue;
             };
@@ -522,6 +705,160 @@ impl GameAccounts {
             .expect("failed to spawn the 0.26g saver thread");
         Some(saver)
     }
+
+    /// The writer, waited for [`RESET_WRITE_WAIT`] at most: the saver holds
+    /// it for its whole pass, and an admin's request should not hang on a
+    /// long one. `None`: still busy.
+    fn writer_soon(writer: &Mutex<Writer>) -> Option<MutexGuard<'_, Writer>> {
+        let deadline = Instant::now() + RESET_WRITE_WAIT;
+        loop {
+            match writer.try_lock() {
+                Ok(writer) => return Some(writer),
+                Err(TryLockError::Poisoned(poisoned)) => return Some(poisoned.into_inner()),
+                Err(TryLockError::WouldBlock) if Instant::now() < deadline => {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(TryLockError::WouldBlock) => return None,
+            }
+        }
+    }
+
+    /// The admin changed the account (`moderation`, the admin page): it is
+    /// written now, on the caller's thread, with `action` added to the
+    /// audit trail in the same write (both are kept or neither); this
+    /// account and the audit rows waiting, nothing else (not the saver's
+    /// whole pass). Call it with no account locked.
+    ///
+    /// Past [`RESET_WRITE_WAIT`] for the writer the write is left to the
+    /// saver, woken ([`ResetWrite::Pending`]); what the database refuses
+    /// stays for the saver to retry, the account and its rows together, and
+    /// the first error is returned. In every case the change stands in
+    /// memory. A store kept in memory keeps no audit rows: the log has them.
+    pub fn write_admin(&self, account_id: u32, action: AdminAction) -> ResetWrite {
+        let Some(writer) = &self.writer else {
+            return ResetWrite::Written;
+        };
+        self.pending_actions.locked().push(action);
+        self.mark_dirty(account_id);
+        let Some(mut writer) = Self::writer_soon(writer) else {
+            self.wake.notify_one();
+            return ResetWrite::Pending;
+        };
+        match self.write_actions(&mut writer, &mut 0).0 {
+            Ok(()) => ResetWrite::Written,
+            Err(error) => ResetWrite::Failed(error),
+        }
+    }
+
+    /// Write the audit rows waiting, each account's with the account as it
+    /// is now, in one write ([`GameRepository::save_admin`]): the rows
+    /// alone when what was written of it is the account now (it has the
+    /// change: a row waits only for a change made already). The rows of an
+    /// account that fails stay, the account marked, for the next write.
+    /// Returns the first error and the accounts that failed; `written`
+    /// counts the accounts written.
+    fn write_actions(
+        &self,
+        writer: &mut Writer,
+        written: &mut usize,
+    ) -> (Result<(), PersistError>, HashSet<u32>) {
+        let waiting = std::mem::take(&mut *self.pending_actions.locked());
+        let mut accounts: Vec<u32> = Vec::new();
+        for action in &waiting {
+            if !accounts.contains(&action.account_id) {
+                accounts.push(action.account_id);
+            }
+        }
+        let mut result = Ok(());
+        let mut failed = HashSet::new();
+        for account_id in accounts {
+            let rows: Vec<AdminAction> = waiting
+                .iter()
+                .filter(|action| action.account_id == account_id)
+                .cloned()
+                .collect();
+            let copy = self.get(account_id).map(|account| account.locked().clone());
+            let write = copy
+                .as_ref()
+                .is_some_and(|copy| writer.saved.get(&account_id) != Some(copy));
+            let account = if write { copy.as_ref() } else { None };
+            match writer.repository.save_admin(account_id, account, &rows) {
+                Ok(()) => {
+                    if write && let Some(copy) = copy {
+                        writer.saved.insert(account_id, copy);
+                        *written += 1;
+                    }
+                }
+                Err(error) => {
+                    log::error!(
+                        "Admin change of 0.26g account {account_id} not saved: {error}; retrying"
+                    );
+                    // Marked again (the saver may have taken the mark
+                    // meanwhile): it retries, with the rows.
+                    self.dirty.locked().insert(account_id);
+                    failed.insert(account_id);
+                    if result.is_ok() {
+                        result = Err(error);
+                    }
+                }
+            }
+        }
+        if !failed.is_empty() {
+            let mut kept: Vec<AdminAction> = waiting
+                .into_iter()
+                .filter(|action| failed.contains(&action.account_id))
+                .collect();
+            let mut pending = self.pending_actions.locked();
+            kept.append(&mut pending);
+            *pending = kept;
+        }
+        (result, failed)
+    }
+
+    /// The account's latest `limit` rows of the admin's audit trail, the
+    /// newest first, those not written yet included. `wait`: wait for a
+    /// busy saver for [`RESET_WRITE_WAIT`] at most; else not at all (a
+    /// request that waited for [`Self::write_admin`] already). `Err` when
+    /// the database was busy or refused; empty for a store kept in memory.
+    pub fn admin_actions(
+        &self,
+        account_id: u32,
+        limit: usize,
+        wait: bool,
+    ) -> Result<Vec<AdminAction>, String> {
+        let Some(writer) = &self.writer else {
+            return Ok(Vec::new());
+        };
+        let writer = if wait {
+            Self::writer_soon(writer)
+        } else {
+            match writer.try_lock() {
+                Ok(writer) => Some(writer),
+                Err(TryLockError::Poisoned(poisoned)) => Some(poisoned.into_inner()),
+                Err(TryLockError::WouldBlock) => None,
+            }
+        };
+        let Some(mut writer) = writer else {
+            return Err("the database is busy; shown next time".to_owned());
+        };
+        // Under the writer: a row is either waiting or written, never both.
+        let mut actions: Vec<AdminAction> = self
+            .pending_actions
+            .locked()
+            .iter()
+            .rev()
+            .filter(|action| action.account_id == account_id)
+            .take(limit)
+            .cloned()
+            .collect();
+        let written = writer
+            .repository
+            .admin_actions(account_id, limit)
+            .map_err(|error| error.to_string())?;
+        actions.extend(written);
+        actions.truncate(limit);
+        Ok(actions)
+    }
 }
 
 #[cfg(test)]
@@ -544,6 +881,158 @@ mod tests {
         assert!(!store.is_dirty(5));
         assert_eq!(store.flush(), 0);
         assert!(Arc::new(store).spawn_saver().is_none());
+    }
+
+    #[test]
+    fn the_golden_weapons_of_every_account_get_the_silver_bonus_once() {
+        use survarium::v026g::dictionary::Dictionary;
+        use survarium::v026g::golden::SILVER_BONUS;
+        use survarium::v026g::lobby::FULL_CONDITION;
+        let dict = |name: &str| Dictionary::shared().item_named(name).unwrap().dict_id;
+        let repository = MemoryGameRepository::default();
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        // Alice's golden rifle as the store had it before the rule: the
+        // silver bonus was the config's, not the item's.
+        let rifle = {
+            let account = store.get_or_create(5, "Alice");
+            let mut account = account.locked();
+            let rifle = account.add_item(dict("ak_74n_premium"), FULL_CONDITION);
+            account.item_mut(rifle).unwrap().modifications.clear();
+            rifle
+        };
+        store.get_or_create(6, "Bob");
+        store.flush();
+        let kept = |repository: &MemoryGameRepository| {
+            repository
+                .get(5)
+                .unwrap()
+                .item(rifle)
+                .unwrap()
+                .modifications
+                .clone()
+        };
+        let mut marks = repository.clone();
+
+        // The write fails: not marked done, and srp does not start.
+        repository.fail_account_saves(true);
+        let error = store.give_golden_silver_once().unwrap_err();
+        assert!(matches!(error, PersistError::NotWritten(_)), "{error}");
+        assert!(error.to_string().contains("accounts [5]"), "{error}");
+        assert!(store.is_dirty(5) && !store.is_dirty(6));
+        assert!(kept(&repository).is_empty());
+        assert!(!marks.is_done(persist::GOLDEN_SILVER_GIVEN).unwrap());
+
+        // The next start gives it again, writes it, then marks it done.
+        repository.fail_account_saves(false);
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        assert_eq!(store.give_golden_silver_once().unwrap(), Some((1, 1)));
+        assert_eq!(kept(&repository), [(SILVER_BONUS, false)]);
+        assert!(marks.is_done(persist::GOLDEN_SILVER_GIVEN).unwrap());
+
+        // Once: the silver bonus rerolled away stays away at later starts.
+        store
+            .get(5)
+            .unwrap()
+            .locked()
+            .item_mut(rifle)
+            .unwrap()
+            .modifications = vec![(2000, false)];
+        store.mark_dirty(5);
+        store.flush();
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        assert_eq!(store.give_golden_silver_once().unwrap(), None);
+        assert_eq!(kept(&repository), [(2000, false)]);
+        // A store kept in memory has no marks and nothing to give once.
+        assert_eq!(GameAccounts::new().give_golden_silver_once().unwrap(), None);
+    }
+
+    #[test]
+    fn the_premium_armour_of_every_account_gets_its_bonuses_once() {
+        use survarium::v026g::dictionary::Dictionary;
+        use survarium::v026g::golden::{BLACK_MARKET_REPUTATION_BONUS, EXPERIENCE_BONUS};
+        use survarium::v026g::lobby::FULL_CONDITION;
+        let dict = |name: &str| Dictionary::shared().item_named(name).unwrap().dict_id;
+        let repository = MemoryGameRepository::default();
+        // The golden weapons' grant was done before: it is not done again.
+        repository
+            .clone()
+            .mark_done(persist::GOLDEN_SILVER_GIVEN)
+            .unwrap();
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        // Alice's Bandit jacket and golden rifle as the store had them
+        // before the rule: the bonuses were the config's, the silver bonus
+        // rerolled away.
+        let (jacket, rifle) = {
+            let account = store.get_or_create(5, "Alice");
+            let mut account = account.locked();
+            let jacket = account.add_item(dict("bm_torso_4_premium"), FULL_CONDITION);
+            account.item_mut(jacket).unwrap().modifications.clear();
+            let rifle = account.add_item(dict("ak_74n_premium"), FULL_CONDITION);
+            account.item_mut(rifle).unwrap().modifications = vec![(2000, false)];
+            (jacket, rifle)
+        };
+        store.get_or_create(6, "Bob");
+        store.flush();
+        let kept = |repository: &MemoryGameRepository, item_id| {
+            repository
+                .get(5)
+                .unwrap()
+                .item(item_id)
+                .unwrap()
+                .modifications
+                .clone()
+        };
+        let mut marks = repository.clone();
+
+        // The write fails: not marked done, and srp does not start.
+        repository.fail_account_saves(true);
+        let error = store.give_premium_armour_bonuses_once().unwrap_err();
+        assert!(matches!(error, PersistError::NotWritten(_)), "{error}");
+        assert!(error.to_string().contains("accounts [5]"), "{error}");
+        assert!(kept(&repository, jacket).is_empty());
+        assert!(!marks.is_done(persist::PREMIUM_ARMOUR_GIVEN).unwrap());
+
+        // The next start gives them again, writes them, then marks it done;
+        // the silver grant, done before, gives nothing.
+        repository.fail_account_saves(false);
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        assert_eq!(store.give_golden_silver_once().unwrap(), None);
+        assert_eq!(
+            store.give_premium_armour_bonuses_once().unwrap(),
+            Some((1, 1))
+        );
+        assert_eq!(
+            kept(&repository, jacket),
+            [
+                (EXPERIENCE_BONUS, false),
+                (BLACK_MARKET_REPUTATION_BONUS, false)
+            ]
+        );
+        assert_eq!(kept(&repository, rifle), [(2000, false)]);
+        assert!(marks.is_done(persist::PREMIUM_ARMOUR_GIVEN).unwrap());
+
+        // Once: a bonus rerolled away stays away at later starts.
+        store
+            .get(5)
+            .unwrap()
+            .locked()
+            .item_mut(jacket)
+            .unwrap()
+            .modifications = vec![(EXPERIENCE_BONUS, false), (1090, false)];
+        store.mark_dirty(5);
+        store.flush();
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        assert_eq!(store.give_premium_armour_bonuses_once().unwrap(), None);
+        assert_eq!(
+            kept(&repository, jacket),
+            [(EXPERIENCE_BONUS, false), (1090, false)]
+        );
+        assert_eq!(
+            GameAccounts::new()
+                .give_premium_armour_bonuses_once()
+                .unwrap(),
+            None
+        );
     }
 
     #[test]
@@ -724,6 +1213,43 @@ mod tests {
         assert!(!store.is_dirty(5) && !store.is_dirty(6));
     }
 
+    /// A kit saved before the rule of one pocket an item type: the speed
+    /// booster in three pockets. Merged at load into the first, written
+    /// once, with the inventory as it was.
+    #[test]
+    fn kits_saved_with_a_type_in_two_pockets_are_merged_at_load() {
+        let mut repository = MemoryGameRepository::default();
+        let mut account = Account::new("Alice");
+        let speed = survarium::v026g::dictionary::Dictionary::shared()
+            .item_named("speed_booster")
+            .unwrap()
+            .dict_id;
+        let booster = account.add_item(speed, 3);
+        for pocket in [14, 15, 17] {
+            account.kits[0].slots[pocket] = Some(KitSlot {
+                item_id: booster,
+                count: 1,
+            });
+        }
+        repository.save(5, &account).unwrap();
+
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        {
+            let loaded = store.get(5).unwrap();
+            let loaded = loaded.locked();
+            let pockets: Vec<Option<u32>> = loaded.kits[0].slots[13..=18]
+                .iter()
+                .map(|slot| slot.map(|held| held.item_id))
+                .collect();
+            assert_eq!(pockets, [None, Some(booster), None, None, None, None]);
+            assert_eq!(loaded.inventory, account.inventory);
+        }
+        assert!(store.is_dirty(5));
+        assert_eq!(store.flush(), 1);
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        assert!(!store.is_dirty(5));
+    }
+
     /// Data made without a patch: the accounts' items, modifications and
     /// quests it lacks stop the load, each named with its accounts, and
     /// nothing of any account is changed or written (the old `repair`
@@ -763,12 +1289,10 @@ mod tests {
         assert!(repository.get(5).unwrap().item(lost).is_some());
 
         // The data has them again (here: they are taken out): it loads.
-        let mut alice = alice;
         alice.inventory.retain(|item| item.item_id != lost);
         alice.inventory[0].modifications.pop();
         alice.extras.bonus.reward_dict = 0;
         repository.save(5, &alice).unwrap();
-        let mut bob = bob;
         bob.inventory.retain(|item| item.dict_id != 9999);
         bob.quest_cooldowns.clear();
         repository.save(6, &bob).unwrap();
@@ -822,5 +1346,157 @@ mod tests {
         assert_eq!(board.top.len(), 2);
         assert_eq!(board.battles, 3);
         assert_eq!(GameAccounts::new().board(10), Board::default());
+    }
+
+    fn admin_action(account_id: u32, change: &str) -> AdminAction {
+        AdminAction {
+            at: 1,
+            admin: "t".into(),
+            account_id,
+            account: "Alice".into(),
+            kind: "money".into(),
+            change: change.into(),
+            reason: "farmed".into(),
+            before: "a".into(),
+            after: "b".into(),
+        }
+    }
+
+    #[test]
+    fn an_admin_change_is_written_at_once_with_its_audit_row() {
+        let repository = MemoryGameRepository::default();
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        let account = store.get_or_create(5, "Alice");
+        store.get_or_create(6, "Bob");
+        store.flush();
+        let saves = repository.saves();
+        account.locked().generic_money = 7;
+        // Bob changed too, but only the admin's account is written now.
+        store.get(6).unwrap().locked().generic_money = 9;
+        store.mark_dirty(6);
+        assert!(matches!(
+            store.write_admin(5, admin_action(5, "first")),
+            ResetWrite::Written
+        ));
+        assert_eq!(repository.saves(), saves + 1);
+        assert_eq!(repository.get(5).unwrap().generic_money, 7);
+        assert_ne!(repository.get(6).unwrap().generic_money, 9);
+        assert_eq!(repository.all_admin_actions(), [admin_action(5, "first")]);
+        assert_eq!(
+            store.admin_actions(5, 10, true).unwrap(),
+            [admin_action(5, "first")]
+        );
+        assert!(store.admin_actions(6, 10, true).unwrap().is_empty());
+        // A store kept in memory keeps the log only.
+        let memory = GameAccounts::new();
+        memory.get_or_create(5, "Alice");
+        assert!(matches!(
+            memory.write_admin(5, admin_action(5, "x")),
+            ResetWrite::Written
+        ));
+        assert!(memory.admin_actions(5, 10, true).unwrap().is_empty());
+    }
+
+    #[test]
+    fn an_admin_change_the_database_refused_is_an_error_and_retried() {
+        let repository = MemoryGameRepository::default();
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        let account = store.get_or_create(5, "Alice");
+        store.flush();
+        repository.fail_saves(true);
+        account.locked().premium_money = 3;
+        assert!(matches!(
+            store.write_admin(5, admin_action(5, "refused")),
+            ResetWrite::Failed(_)
+        ));
+        assert!(store.is_dirty(5));
+        assert!(repository.all_admin_actions().is_empty());
+        // Waiting rows are shown all the same, the newest first.
+        store.write_admin(5, admin_action(5, "second"));
+        let shown: Vec<String> = store
+            .admin_actions(5, 10, true)
+            .unwrap()
+            .into_iter()
+            .map(|action| action.change)
+            .collect();
+        assert_eq!(shown, ["second", "refused"]);
+        // The saver's next pass writes the account and the rows, in order.
+        repository.fail_saves(false);
+        store.flush();
+        assert_eq!(repository.get(5).unwrap().premium_money, 3);
+        let written: Vec<String> = repository
+            .all_admin_actions()
+            .into_iter()
+            .map(|action| action.change)
+            .collect();
+        assert_eq!(written, ["refused", "second"]);
+        assert_eq!(store.admin_actions(5, 1, true).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn an_audit_row_is_never_kept_without_its_account_change() {
+        let repository = MemoryGameRepository::default();
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        let account = store.get_or_create(5, "Alice");
+        account.locked().generic_money = 500;
+        store.flush();
+        // The database refuses the account, not a row alone.
+        repository.fail_account_saves(true);
+        account.locked().generic_money = 0;
+        assert!(matches!(
+            store.write_admin(5, admin_action(5, "taken")),
+            ResetWrite::Failed(_)
+        ));
+        assert_eq!(repository.get(5).unwrap().generic_money, 500);
+        assert!(
+            repository.all_admin_actions().is_empty(),
+            "the row tells of a change the database does not have"
+        );
+        // The saver's retry, refused again: still neither.
+        store.flush();
+        assert_eq!(repository.get(5).unwrap().generic_money, 500);
+        assert!(repository.all_admin_actions().is_empty());
+        assert!(store.is_dirty(5));
+        // Then both, in one write.
+        repository.fail_account_saves(false);
+        assert_eq!(store.flush(), 1);
+        assert_eq!(repository.get(5).unwrap().generic_money, 0);
+        assert_eq!(repository.all_admin_actions(), [admin_action(5, "taken")]);
+        // Nothing is written twice.
+        store.flush();
+        assert_eq!(repository.all_admin_actions().len(), 1);
+    }
+
+    #[test]
+    fn an_admin_change_waits_for_a_busy_saver_only_so_long() {
+        let repository = MemoryGameRepository::default();
+        let store = Arc::new(GameAccounts::with_repository(Box::new(repository.clone())).unwrap());
+        store.get_or_create(5, "Alice").locked().generic_money = 4;
+        let held = store.writer.as_ref().unwrap().locked();
+        let pending = std::thread::scope(|scope| {
+            scope
+                .spawn(|| store.write_admin(5, admin_action(5, "busy")))
+                .join()
+                .unwrap()
+        });
+        assert!(matches!(pending, ResetWrite::Pending));
+        // The history after a write that waited already: no second wait.
+        let started = Instant::now();
+        let history = std::thread::scope(|scope| {
+            scope
+                .spawn(|| store.admin_actions(5, 10, false))
+                .join()
+                .unwrap()
+        });
+        assert!(started.elapsed() < RESET_WRITE_WAIT, "it waited again");
+        assert_eq!(
+            history,
+            Err("the database is busy; shown next time".to_owned())
+        );
+        drop(held);
+        assert!(store.is_dirty(5));
+        store.flush();
+        assert_eq!(repository.get(5).unwrap().generic_money, 4);
+        assert_eq!(repository.all_admin_actions().len(), 1);
     }
 }

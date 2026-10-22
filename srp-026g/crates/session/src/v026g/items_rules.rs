@@ -30,7 +30,7 @@
 //! - **Scopes** ([`survarium::v026g::scopes`], `docs/notes/weapon_scopes.md`).
 //!   [srp, the owner's rule of 2026-10-17] A scope item is bought once and
 //!   worn like a cosmetic: by any number of weapons, each holding its own
-//!   record, in slot 3 (a weapon takes no camouflage), one scope a weapon
+//!   record, in slot 3 (a weapon's camouflage goes into 2), one scope a weapon
 //!   (another replaces it). It goes only on a weapon the game data has a
 //!   variant of it for, and the record holds **that variant's dict id**,
 //!   not the scope item's: the client builds the weapon with the record's
@@ -44,16 +44,21 @@
 //!   times (`st_modifier_reroll_description`); the first change picks which
 //!   (the window locks the others, `was_rerolled_before`). A change offers
 //!   three modifications and the player takes one
-//!   (`MessageRerollItem`: the window can not be closed before). Paid in
-//!   silver it can be done once in six hours
-//!   (`st_modifier_reroll_timer_description`; the window disables silver
-//!   while the item's `reroll_time` runs), in gold at any time. A damaged
+//!   (`MessageRerollItem`: the window can not be closed before), or
+//!   [srp, the owner's rule of 2026-10-21] keeps the old one: the window's
+//!   "keep old" button (`docs/notes/reroll-keep-old.md`). [srp, the
+//!   owner's rule of 2026-10-22] In silver or gold, at any time: the
+//!   game's six hours between silver changes are gone, so the item's
+//!   `reroll_time` stays 0 (one left from before is cleared,
+//!   [`finish_repairs`]). A damaged
 //!   item can not be changed (`st_reroll_message_broken_item`). The prices
 //!   are `reroll.options`' by item level, [GUESS] times
 //!   `reroll_modificator_multiplicator` for each change made
 //!   ([`Reroll::price`](survarium::v026g::modifications::Reroll::price)).
-//!   [srp] The payment is taken when the three are offered; an offer not
-//!   answered (the client went away) is kept and shown again.
+//!   [srp] The payment is taken when the three are offered, whatever is
+//!   chosen; until the choice the item keeps the old one, and an offer not
+//!   answered (the client went away, a restart: it is saved) is kept and
+//!   shown again, with nothing more to pay.
 //! - **Craft.** The item and a donor: neither damaged nor in repair, the
 //!   item with fewer than three modifications and no fewer than the donor
 //!   (`MessageCraftItem`). The price is `craft.options`' by the item's
@@ -64,8 +69,25 @@
 //!   whatever happens (the answer names it, and the client drops it).
 //!   [LIKELY] The donor is another of the same item: the client's result
 //!   window shows the *donor's* dictionary entry as the upgraded item
-//!   (0x275B84 → 0x29F770 `dict_id`). [srp] The modification gained is
-//!   rolled as a drop's are, the one lost is any of the item's own.
+//!   (0x275B84 → 0x29F770 `dict_id`). [srp, the owner's rule of
+//!   2026-10-21] A golden weapon takes its plain weapon, or a golden
+//!   weapon of the same plain weapon, as its donor and stays golden (the
+//!   lobby shows the item, not the donor); [the owner's rule of
+//!   2026-10-22] a plain weapon takes a golden one too, which is used up
+//!   ([`golden::may_donate`]).
+//!   [srp] The modification gained is rolled as a drop's are, the one
+//!   lost is any of the item's own (a golden weapon's silver bonus too).
+//! - **Golden weapons** ([`golden`], the owner's rule of 2026-10-21): the
+//!   silver bonus is the item's own first modification, given when it is
+//!   made ([`Account::add_item`]) and once to those owned before
+//!   ([`give_golden_silver`]); from then on it rerolls, crafts and counts
+//!   for the rank as any modification.
+//! - **Premium armour** ([`golden::PREMIUM_ARMOUR`], the owner's rule of
+//!   2026-10-22): the same, with its two premium bonuses (+5 % experience,
+//!   +5 % reputation with its faction) as its own first modifications,
+//!   given once to those owned before ([`give_premium_armour_bonuses`]);
+//!   its plain piece and it are donors for each other as a golden weapon
+//!   and its plain weapon are.
 //! - **Repair.** In silver: what the window shows,
 //!   `(1 - condition) * repair_cost_ratio * cost` and each defect's
 //!   `fix_cost_general`, and the item is locked for the defects'
@@ -85,12 +107,11 @@
 
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::drops::Rng;
+use survarium::v026g::golden;
 use survarium::v026g::item_params::item_params;
-use survarium::v026g::lobby::requests::RepairPayment;
+use survarium::v026g::lobby::requests::{KEEP_OLD_MODIFICATION, RepairPayment};
 use survarium::v026g::lobby::{Crafted, FULL_CONDITION, Repaired, limits};
-use survarium::v026g::modifications::{
-    self, Bonuses, CraftOutcome, MAX_RANK, Modifications, REROLL_WAIT_SECONDS,
-};
+use survarium::v026g::modifications::{self, Bonuses, CraftOutcome, MAX_RANK, Modifications};
 use survarium::v026g::prices;
 use survarium::v026g::scopes::ScopeFits;
 
@@ -368,7 +389,7 @@ pub fn attach_upgrade(
 /// [`attach_upgrade`] with `scopes`. What was in the slot comes off the
 /// item; the cosmetic stays on every other item wearing it. On the item
 /// already in that slot it stays as it is (its value too); in another slot
-/// of it, it moves. A scope's record holds the variant made for the weapon
+/// of it, it moves, its value (a decal's place) with it. A scope's record holds the variant made for the weapon
 /// ([`modifications::record_dict_in`]).
 pub fn attach_upgrade_in(
     account: &mut Account,
@@ -415,6 +436,13 @@ pub fn attach_upgrade_in(
             detach_first: false,
         });
     }
+    // Moved from another slot of the host: its place goes with it (the
+    // answer carries it, and the client's record takes it from there).
+    let value = host
+        .upgrades
+        .iter()
+        .find(|held| held.id == upgrade_item_id && held.a == u32::from(record_dict))
+        .map_or(0, |held| held.value);
     let before = host.upgrades.len();
     host.upgrades.retain(|held| held.id != upgrade_item_id);
     let detach_first = host.upgrades.len() != before;
@@ -422,7 +450,7 @@ pub fn attach_upgrade_in(
     host.upgrades.push(Upgrade {
         id: upgrade_item_id,
         a: record_dict.into(),
-        value: 0,
+        value,
         param: slot,
     });
     // Only the host shows another cosmetic: every kit wearing it, the
@@ -432,7 +460,7 @@ pub fn attach_upgrade_in(
         host_item_id,
         upgrade_item_id,
         slot,
-        value: 0,
+        value,
         detach_first,
     })
 }
@@ -486,13 +514,16 @@ pub fn detach_upgrade(
 
 /// `46 05 <kit> <host> <upgrade> <u64>`: the decal editor's value for a
 /// cosmetic on an item (the client has written it into its own copy, and
-/// expects no answer). Each item wearing the cosmetic has its own.
+/// expects no answer). Each item wearing the cosmetic has its own. True
+/// when the host is a weapon: the client's copy is the inventory's, and
+/// its lobby shows the weapon with the new place only when it is sent the
+/// account (patch 47 bakes the decal when the weapon is built).
 pub fn place_upgrade(
     account: &mut Account,
     host_item_id: u32,
     upgrade_item_id: u32,
     value: u64,
-) -> Result<(), ItemError> {
+) -> Result<bool, ItemError> {
     let held = account
         .item_mut(host_item_id)
         .and_then(|host| {
@@ -503,7 +534,10 @@ pub fn place_upgrade(
         .ok_or(ItemError::Upgrade("the cosmetic is not on that item"))?;
     held.value = value;
     bump_kits_wearing(account, host_item_id);
-    Ok(())
+    let weapon = account.item(host_item_id).is_some_and(|host| {
+        item_params(host.dict_id).is_some_and(|params| modifications::is_weapon_kind(params.kind))
+    });
+    Ok(weapon)
 }
 
 // -------------------------------------------------------------- reroll
@@ -517,39 +551,37 @@ pub struct RerollWindow {
     pub regular_cost: u32,
     pub premium_cost: u32,
     /// Once a modification was changed: its id (the one that may be
-    /// changed again) and the seconds until silver pays again.
+    /// changed again) and the seconds until silver pays again, always 0 now.
     pub changed: Option<(u32, u32)>,
     /// A paid change that waits for its choice (`83 46 07` again).
     pub offer: Option<[u32; 3]>,
 }
 
-fn window_of(item: &Item, now: u64) -> RerollWindow {
+fn window_of(item: &Item) -> RerollWindow {
     let reroll = &Modifications::shared().reroll;
     let level = item_level(item.dict_id);
-    let wait = seconds_left(item.reroll_time, now);
     RerollWindow {
         item_id: item.item_id,
         regular_cost: reroll.price(level, false, item.reroll.count),
         premium_cost: reroll.price(level, true, item.reroll.count),
-        changed: (item.reroll.modification != 0 || wait != 0)
-            .then_some((item.reroll.modification, wait)),
+        changed: (item.reroll.modification != 0).then_some((item.reroll.modification, 0)),
         offer: item.reroll.offer.map(|(_, choices)| choices),
     }
 }
 
 /// `46 06 <item>`: the reroll window was opened.
-pub fn reroll_window(account: &Account, item_id: u32, now: u64) -> Result<RerollWindow, ItemError> {
+pub fn reroll_window(account: &Account, item_id: u32) -> Result<RerollWindow, ItemError> {
     let item = account
         .item(item_id)
         .ok_or(ItemError::Reroll("no such item"))?;
-    Ok(window_of(item, now))
+    Ok(window_of(item))
 }
 
 /// What a reroll did (`83 46 07`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rerolled {
     pub choices: [u32; 3],
-    /// The item's `reroll_time`: the seconds until silver pays again.
+    /// The item's `reroll_time` for the client: always 0 (no wait).
     pub reroll_seconds: u32,
     /// What was taken: silver, gold. Both 0 for an offer made before and
     /// shown again.
@@ -573,7 +605,7 @@ pub fn reroll(
         // Paid for and not chosen yet: the same three.
         return Ok(Rerolled {
             choices,
-            reroll_seconds: seconds_left(item.reroll_time, now),
+            reroll_seconds: 0,
             paid: (0, 0),
         });
     }
@@ -594,9 +626,6 @@ pub fn reroll(
         return Err(ItemError::Reroll(
             "another modification is the one to change",
         ));
-    }
-    if !gold && seconds_left(item.reroll_time, now) != 0 {
-        return Err(ItemError::Reroll("silver pays once in six hours"));
     }
     let table = Modifications::shared();
     let price = table
@@ -628,12 +657,9 @@ pub fn reroll(
     item.reroll.modification = modification;
     item.reroll.count = item.reroll.count.saturating_add(1);
     item.reroll.offer = Some((modification, choices));
-    if !gold {
-        item.reroll_time = until(now, REROLL_WAIT_SECONDS);
-    }
     Ok(Rerolled {
         choices,
-        reroll_seconds: seconds_left(item.reroll_time, now),
+        reroll_seconds: 0,
         paid,
     })
 }
@@ -642,6 +668,7 @@ pub fn reroll(
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Chosen {
     pub old_modification: u32,
+    /// The one the item has now: the old one when it was kept.
     pub new_modification: u32,
     /// The window as it is now.
     pub window: RerollWindow,
@@ -649,13 +676,15 @@ pub struct Chosen {
 
 /// `46 08 <item> <old modification> <choice>`: take one of the three
 /// offered; `choice` is its place among them (the client sends the index
-/// of the row clicked, `MessageRerollItem.onMessageAccept`).
+/// of the row clicked, `MessageRerollItem.onMessageAccept`), or
+/// [`KEEP_OLD_MODIFICATION`]: none, the item keeps the old one
+/// (`docs/notes/reroll-keep-old.md`). Either way the offer is over; what
+/// the change cost was paid when it was made ([`reroll`]).
 pub fn choose_modifier(
     account: &mut Account,
     item_id: u32,
     old_modification: u32,
     choice: u32,
-    now: u64,
 ) -> Result<Chosen, ItemError> {
     let item = account
         .item_mut(item_id)
@@ -666,6 +695,17 @@ pub fn choose_modifier(
         .ok_or(ItemError::Reroll("nothing was offered"))?;
     if replaced != old_modification {
         return Err(ItemError::Reroll("another modification is being changed"));
+    }
+    if choice == KEEP_OLD_MODIFICATION {
+        // Nothing of the item changes: the offer goes, and the old one
+        // stays the one that may be changed again (it already is, since
+        // the change was paid).
+        item.reroll.offer = None;
+        return Ok(Chosen {
+            old_modification,
+            new_modification: old_modification,
+            window: window_of(item),
+        });
     }
     let new_modification = *choices
         .get(choice as usize)
@@ -678,7 +718,7 @@ pub fn choose_modifier(
     held.0 = new_modification;
     item.reroll.modification = new_modification;
     item.reroll.offer = None;
-    let window = window_of(item, now);
+    let window = window_of(item);
     bump_kits_wearing(account, item_id);
     Ok(Chosen {
         old_modification,
@@ -710,7 +750,7 @@ pub fn craft(
     if !is_gear(item) || !is_gear(donor) {
         return Err("not an item with modifications");
     }
-    if donor.dict_id != item.dict_id {
+    if !golden::may_donate(donor.dict_id, item.dict_id) {
         return Err("the donor is another item");
     }
     if !defects(item).is_empty() || !defects(donor).is_empty() {
@@ -924,9 +964,8 @@ pub fn finish_repairs(account: &mut Account, now: u64) -> Vec<u32> {
             item.repair_time = 0;
             done.push(item.item_id);
         }
-        if item.reroll_time != 0 && u64::from(item.reroll_time) <= now {
-            item.reroll_time = 0;
-        }
+        // No wait between rerolls any more: one left from before goes.
+        item.reroll_time = 0;
     }
     done
 }
@@ -967,25 +1006,132 @@ pub fn mend_all(account: &mut Account) -> usize {
     mended.len()
 }
 
+/// What [`give_golden_silver`] or [`give_premium_armour_bonuses`] did to
+/// one account.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct GoldenGrant {
+    /// The items that got a bonus (all they lacked that fit) as their own
+    /// first modifications.
+    pub given: Vec<u32>,
+    /// Items with no place left for a bonus they lack (three modifications
+    /// of their own): a fourth would be cut at the next load
+    /// (`make_safe`), so they keep theirs; for the log.
+    pub full: Vec<u32>,
+}
+
+/// The golden weapons of the account (`survarium::v026g::golden`) get
+/// the silver bonus as their own first modification, unless they hold a
+/// modification of its type already. Once in the database's life, for the
+/// golden weapons owned before the rule (their silver was a default of
+/// the item's config, which the golden-weapons patch takes off).
+pub fn give_golden_silver(account: &mut Account) -> GoldenGrant {
+    let table = Modifications::shared();
+    let silver_kind = table.modification(golden::SILVER_BONUS).map(|row| row.kind);
+    let mut done = GoldenGrant::default();
+    for item in &mut account.inventory {
+        if !golden::is_golden_weapon(item.dict_id) {
+            continue;
+        }
+        let held = own_modifications(item);
+        let has_silver = held.iter().any(|&id| {
+            id == golden::SILVER_BONUS || table.modification(id).map(|row| row.kind) == silver_kind
+        });
+        if has_silver {
+            continue;
+        }
+        if held.len() >= MAX_RANK {
+            done.full.push(item.item_id);
+            continue;
+        }
+        item.modifications.insert(0, (golden::SILVER_BONUS, false));
+        done.given.push(item.item_id);
+    }
+    for &item_id in &done.given {
+        bump_kits_wearing(account, item_id);
+    }
+    if !done.given.is_empty() {
+        account.sync_kits();
+    }
+    done
+}
+
+/// The premium armour pieces of the account (`survarium::v026g::golden::
+/// PREMIUM_ARMOUR`) get each premium bonus they lack as their own
+/// modification, first and in the table's order; a bonus is lacking when
+/// the piece holds no modification of its type. Once in the database's
+/// life, for the pieces owned before the rule (their bonuses were defaults
+/// of the item's config, which the premium-armour patch takes off). A
+/// piece with no place left for a bonus it lacks (three of its own) gets
+/// those that fit and is listed in `full`.
+pub fn give_premium_armour_bonuses(account: &mut Account) -> GoldenGrant {
+    let table = Modifications::shared();
+    let kind = |id: u32| table.modification(id).map(|row| row.kind);
+    let mut done = GoldenGrant::default();
+    for item in &mut account.inventory {
+        let Some(bonuses) = Dictionary::shared()
+            .item(item.dict_id)
+            .and_then(|entry| golden::armour_bonuses(&entry.name))
+        else {
+            continue;
+        };
+        let mut held = own_modifications(item);
+        let (mut given, mut short) = (0, false);
+        for &bonus in bonuses {
+            let lacking = !held
+                .iter()
+                .any(|&id| id == bonus || (kind(id).is_some() && kind(id) == kind(bonus)));
+            if !lacking {
+                continue;
+            }
+            if held.len() >= MAX_RANK {
+                short = true;
+                continue;
+            }
+            item.modifications.insert(given, (bonus, false));
+            held.push(bonus);
+            given += 1;
+        }
+        if given > 0 {
+            done.given.push(item.item_id);
+        }
+        if short {
+            done.full.push(item.item_id);
+        }
+    }
+    for &item_id in &done.given {
+        bump_kits_wearing(account, item_id);
+    }
+    if !done.given.is_empty() {
+        account.sync_kits();
+    }
+    done
+}
+
 // ------------------------------------------------- matches and drops
 
-/// Gives a new item its modifications by the rarity a drop rolled; returns
-/// the rank the lobby shows for it (the item's `base_rarity_level` and
-/// its modifications, 3 at most).
+/// Gives a new item its modifications by the rarity a drop rolled: as many
+/// as the rarity, those it came with (a golden weapon's silver bonus)
+/// counted; returns the rank the lobby shows for it (the item's
+/// `base_rarity_level` and its modifications, 3 at most).
 pub fn roll_modifications(account: &mut Account, item_id: u32, rarity: u8, rng: &mut Rng) -> u8 {
     let Some(item) = account.item_mut(item_id) else {
         return 0;
     };
-    let rolled = Modifications::shared().roll_for_rarity(item.dict_id, rarity, rng);
-    item.modifications
-        .extend(rolled.into_iter().map(|id| (id, false)));
+    let table = Modifications::shared();
+    let mut held = own_modifications(item);
+    while held.len() < usize::from(rarity).min(MAX_RANK) {
+        let Some(id) = table.roll(item.dict_id, &held, rng) else {
+            break;
+        };
+        held.push(id);
+        item.modifications.push((id, false));
+    }
     let base = item_params(item.dict_id).map_or(0, |params| params.base_rarity_level);
     (usize::from(base) + rank(item)).min(MAX_RANK) as u8
 }
 
 /// What the item's wear is multiplied by: its "reliability"
-/// modifications (5 % to 25 % less; a premium weapon has one as a
-/// default).
+/// modifications (5 % to 25 % less).
 pub fn wear_factor(account: &Account, item_id: u32) -> f32 {
     account.item(item_id).map_or(1.0, |item| {
         Modifications::shared().wear_factor(item.dict_id, &item.modifications, "degrade_per_match")

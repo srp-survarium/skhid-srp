@@ -28,6 +28,8 @@ edition = "2024"
 
 [workspace.lints.clippy]
 new_without_default = "allow"
+# Parallel arrays indexed by one place, slot or event number read better as an index loop.
+needless_range_loop = "allow"
 
 [workspace.dependencies]
 arrayref = "0.3.9" # TODO: Remove

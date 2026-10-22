@@ -41,6 +41,9 @@ srp-game-data build --db resources.db [--patch "<file>[=<URL>[ <URL>]...]"]... [
 srp-game-data info server-game-data.db
 srp-game-data check server-game-data.db <the same archives as build>
 srp-game-data pack --dir <folder> --out resources.db.patch_<n>
+srp-game-data files --db resources.db [--patch resources.db.patch_<n>]...
+srp-game-data get --db resources.db [--patch ...]... --out <folder> [--paths <file>] [<path>...]
+srp-game-data compare --db resources.db [--patch ...]... --dir <folder>
 ```
 
 - `--dir` takes what the game mounts from that folder, by the exe's own rule:
@@ -101,6 +104,16 @@ srp-game-data pack --dir <folder> --out resources.db.patch_<n>
   `resources.db`), a name the game mounts, and is never overwritten; the
   `.part` is removed if anything fails. The release script
   `release/build-patch` calls it.
+
+- `files`, `get` and `compare` read any file of `resources.db` with
+  patches over it as the game mounts them (no URLs: `--patch` names the
+  file only), not only the server's: `files` lists every one (path, size,
+  CRC-32, the archive it is from), `get` writes the files named into a new
+  folder at their paths, `compare` says of every file under a folder
+  whether the archives give the same bytes there (`same`), others
+  (`differs`) or none (`new`). `release/build-content` builds the next
+  content patch with them: the base files its edit lists start from, the
+  movies' originals, and what players have.
 
 For example, on the release machine:
 

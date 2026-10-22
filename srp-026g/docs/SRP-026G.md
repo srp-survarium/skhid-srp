@@ -178,7 +178,7 @@ that rule is mended when the accounts load, and never plays.
 
 | Variable | Default | What |
 |---|---|---|
-| `SRP_DATA_DIR` | `./data` | `srp.db` (accounts, sessions, and the 0.26g `g26_*` tables; since 2026-10-12 also the finished matches' results screens not shown yet and each account's play period, `g26_results`), `backups/` (a copy at every start) |
+| `SRP_DATA_DIR` | `./data` | `srp.db` (accounts, sessions, and the 0.26g `g26_*` tables; since 2026-10-12 also the finished matches' results screens not shown yet and each account's play period, `g26_results`; since 2026-10-20 the admin's audit trail, `g26_admin_actions`, and the matches each account used a drop card on, `g26_drop_cards`), `backups/` (a copy at every start) |
 | `SRP_DB` | on | `off`: everything in memory only |
 | `SRP_LOG_FILES` | on | `off`: no `logs/<server>.log`, stdout only |
 | `SRP_LOG_DIR` | unset | A folder: every line srp prints, in one file per UTC day (`srp-YYYY-MM-DD.log`), added to across restarts. The compose file sets `/srv/srp/data/logs` (the data volume): a container's own output is gone at every update |
@@ -215,7 +215,7 @@ that rule is mended when the accounts load, and never plays.
 | `SRP_BALANCE_TICKET_LEAD` | 0.2 | The same for a ticket of lead in a Team Deathmatch |
 | `SRP_SQUADS` | on | `off`: nobody is invited to a squad or added to one; the one who invites is told in a message box. Clan teams are not squads |
 | `SRP_SQUADS_OFF_TEXT` | `Squads are switched off on this server.` | What that message box shows: a text key of the game or a sentence of up to 255 bytes, shown as it is (the game has no text of its own for this) |
-| `SRP_MIN_PATCH_REVISION` | none | A game whose exe says a patch revision under this one is refused at its sign-in with the game's own "You're using an outdated version of the game." (login answer 0x22), and a lobby sign-in with a session it had before the restart is refused and the session ended, so a game that reconnects goes to its login screen within about half a minute and is refused there. It never gets the lobby's sign-in, which names items (the price list) its game may lack (`patch_check.rs`). The test bots are never refused. Left out or 0: every game is let in; not a number from 0 to 255 stops srp at start, and so does a number under the newest patch of the server's game data (`resources.db.patch_<n>` is released with revision n: an older game lacks its items), with a line that says what to set |
+| `SRP_MIN_PATCH_REVISION` | none | A game whose exe says a patch revision under this one is refused at its sign-in with the game's own "You're using an outdated version of the game." (login answer 0x22), and a lobby sign-in with a session it had before the restart is refused and the session ended, so a game that reconnects goes to its login screen within about half a minute and is refused there. It never gets the lobby's sign-in, which names items (the price list) its game may lack (`patch_check.rs`). The test bots are never refused. Left out or 0: every game is let in; not a number from 0 to 255 stops srp at start, and so does a number under the newest patch of the server's game data (`resources.db.patch_<n>` is released with revision n: an older game lacks its items), with a line that says what to set. The web page says it to the players' updater (`/api/client-files`, `min-revision`), which keeps PLAY off for an older game exe |
 | `SRP_MATCH_MODES` | `2,3,4` | The modes played |
 | `SRP_MATCH_MAPS` | every playable map of those modes | `maps_dict` ids, e.g. `117` (Team Deathmatch on level_01) for a first test: a room's pool by default, and what a clan team's match is drawn from |
 | `SRP_ROOMS_MAX` | 50 | The most rooms at once, 1 to 1000 |
@@ -405,13 +405,16 @@ read by the 0.21d browser server and by the compose file's caddy, not by the
   deploy. These addresses alone are sent with a `Content-Security-Policy`
   that lets that one script run, by its SHA-256, and ask this server.
 - The admin page (token, path and address as in the table). Tabs:
-  money (silver and gold, `+500` / `-100`); account (premium hours, set the
-  level, experience, reputation with a faction 1 to 4); item (an item of the
-  0.26g dictionary by id or exact name: up to 8 of an item, up to 100 000
-  units of a stack; an id the dictionary lacks is refused, since the client
-  crashes on one); text (two lines, 63 bytes each, shown to everyone in the
-  lobby and to who signs in, until cleared: `0xA5` / `0xA6`); ban, unban,
-  bans; maintenance; signups; password (since 2026-10-18).
+  money (silver and gold, `+500` / `-100`, never below 0, with a reason, a
+  preview and a confirm: `notes/account-moderation.md`); take items (the
+  same: listed, ticked, taken whole or units of a stack, off every kit);
+  account (premium hours, set the level, experience, reputation with a
+  faction 1 to 4); give item (an item of the 0.26g dictionary by id or exact
+  name: up to 8 of an item, up to 100 000 units of a stack; an id the
+  dictionary lacks is refused, since the client crashes on one); text (two
+  lines, 63 bytes each, shown to everyone in the lobby and to who signs in,
+  until cleared: `0xA5` / `0xA6`); ban, unban, bans; maintenance; signups;
+  password (since 2026-10-18).
 - Password reset (`notes/password-reset.md`, the owner's decision of
   2026-10-18): by the user name the player signs in with, in any case, never
   the character name. The page shows the account it matched first, then

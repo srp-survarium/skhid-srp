@@ -118,7 +118,7 @@ fn a_full_account_comes_back_as_it_was_saved() {
 
     let mut repository = SqliteRepository::open(&dir.db()).unwrap();
     let loaded = repository.load_all().unwrap();
-    assert_eq!(loaded.accounts, [record.clone()]);
+    assert_eq!(loaded.accounts, std::slice::from_ref(&record));
     assert_eq!(loaded.next_account_id, 4);
     let mut again = loaded.accounts[0].clone();
     assert!(!again.repair());

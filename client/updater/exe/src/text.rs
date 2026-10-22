@@ -340,3 +340,23 @@ pub fn patches_not_ready() -> String {
      what is in the way. Details: game\\binaries\\x86\\updater_skhid.log."
         .into()
 }
+
+/// The server lets in only games of revision `need` and up, and the game
+/// exe the update installed says `have`: the server's update is not offered
+/// yet (it is being put in place). The launcher stays open and looks again.
+pub fn behind(have: u8, need: u8) -> String {
+    format!(
+        "The server lets in game revision {need} and up; this game is revision {have}, and \
+         the update to it is not offered yet (the server is being updated). Click OK: the \
+         launcher keeps looking and starts anew with the update.{PLAY_OFF}"
+    )
+}
+
+/// `check` by hand replaced this updater, and the new one could not be run
+/// to finish the update.
+pub fn replaced_not_run(reason: &str) -> String {
+    format!(
+        "updater_skhid.exe was updated, but the new one could not be started to finish the \
+         update ({reason}). Start it again."
+    )
+}

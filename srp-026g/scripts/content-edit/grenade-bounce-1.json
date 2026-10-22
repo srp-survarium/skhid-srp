@@ -1,0 +1,10 @@
+{
+ "_about": "Grenade bounces carry further (the owner's suggestion, 2026-10-21; retuned 2026-10-21 after the owner's test of revision 27: the first version, material_hit + volume_k doubled + spl_value 75, was too loud and sounded different; docs/notes/grenade_bounce.md). The bounce is the grenade material's (45) collision sound in game_materials/material.pairs: weapons/f1/f1_hit_ground, _wood, _metal, used by no other pair, each three samples sounds/single/weapons/f1/grenade_hit_<material>_0N. Only their distance preset changes: spl_preset weapons_reloading (0.755 at 0 m, 0.135 at 3.5 m, silent from 9 m) -> mid_range (1 at 0 m, 0.43 at 3.5 m, 0.14 at 8 m, 0.03 at 15 m, silent from 20 m). A .spl preset holds two distance curves (volume, spl) and nothing else. volume_k (0.5 / 0.4 / 0.3) and spl_value (20) stay stock. Live = stock 0.26g (no patch carries these files): take the live folder from the stock resources.db.",
+ "replace_string": [
+  {
+   "files": "sounds/single/weapons/f1/grenade_hit_*.raw_options",
+   "from": "weapons_reloading",
+   "to": "mid_range"
+  }
+ ]
+}

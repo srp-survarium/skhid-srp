@@ -17,7 +17,7 @@ import make_client_026g as overlay
 
 # A program that writes down how it was started (client/updater/tests).
 STAND_IN = Path(overlay.HERE, '..', '..', 'client', 'updater', 'tests', 'fake_exe', 'target',
-                'i686-pc-windows-msvc', 'release', 'fake-exe.exe').resolve()
+                'i686-win7-windows-msvc', 'release', 'fake-exe.exe').resolve()
 
 
 class ReleaseTests(unittest.TestCase):
@@ -237,11 +237,11 @@ class ReleaseTests(unittest.TestCase):
 
     def test_a_release_names_the_revision_of_the_default_exe(self):
         call, _ = self.build(self.root / 'default')
-        self.assertEqual(call.kwargs, {'revision': None})
+        self.assertEqual(call.kwargs, {'revision': None, 'required_patches': None})
         code = Path(overlay.P.late_join_bin()).read_bytes()
         call, _ = self.build(self.root / 'release', '--revision=17')
         self.assertEqual((call.args[1:], call.kwargs),
-                         (('section', mock.ANY, 'release.example:2234', code), {'revision': 17}))
+                         (('section', mock.ANY, 'release.example:2234', code), {'revision': 17, 'required_patches': None}))
         refused = (('--revision=17', '--no-late-join'), ('--revision=17', '--cave=hash-mismatch'),
                    ('--revision=017',), ('--revision=x',))
         for n, options in enumerate(refused):

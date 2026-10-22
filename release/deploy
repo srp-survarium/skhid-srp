@@ -8,7 +8,8 @@
 #   1. checks here: the ZIP's exe says patch revision <n>; the server data
 #      reads (srp-game-data info), offers no patch above <n>, offers
 #      patch_12 (the menus) from revision 12 on, and offers exactly the
-#      patches of release/patches.tsv;
+#      patches of release/patches.tsv, which the ZIP's exe requires, no
+#      more and no fewer (patch 49);
 #   2. takes the release lock on the jump host; reads srp26's container (its
 #      image ID, its data volume), the files in download/, the setting;
 #   3. makes the release folder release-rev<n>-<UTC YYYYMMDD-HHMM>[-<label>]
@@ -17,12 +18,14 @@
 #      folder and copies it to the jump host; keeps the old files (hard
 #      links), their sha256, the image ID, the setting; tags the running
 #      image srp-026g:before-rev<n>-<stamp>; puts the rollback in the folder;
-#   5. the server data into place (a hard link renamed over the old one),
-#      SRP_MIN_PATCH_REVISION=<n> in .env (that one line; the file is never
-#      printed), docker compose up -d --no-deps --force-recreate srp26;
-#      checks the container (running, healthy, not restarting), its log's
-#      game data line and $SKHID_SITE/patches;
-#   6. only then the ZIP into place; checks $SKHID_SITE/api/client-files.
+#   5. the server data and the ZIP into place (hard links renamed over the
+#      old ones, while srp26 is stopped: the site never offers the old ZIP
+#      beside the new /patches and revision), SRP_MIN_PATCH_REVISION=<n> in
+#      .env (that one line; the file is never printed), docker compose up -d
+#      --no-deps --force-recreate srp26;
+#   6. checks the container (running, healthy, not restarting), its log's
+#      game data line, $SKHID_SITE/patches and $SKHID_SITE/api/client-files
+#      (the new ZIP; min-revision <n> from an srp that says it).
 # A failure in 5-6 prints srp's log (a refusal to start says why there) and
 # runs the folder's rollback, srp.db included, then checks srp26 is up on
 # the old files. Its output goes in the folder as release.log. Every write
@@ -80,6 +83,7 @@ check_release_files "$zip" "$data" "$revision" "$work"
 read_patch_list
 [[ $OFFERED == "$(offered_of_list "")" ]] ||
     die "$data does not offer exactly the patches of $PATCH_LIST (build it with release/build-server-db)"
+check_exe_requires "$zip" "$work"
 say "ZIP: $zip, $ZIP_SIZE bytes, sha256 $ZIP_SHA, patch revision $revision"
 say "server data: $data, sha256 $DATA_SHA; /patches will offer:"
 say_offered
@@ -121,7 +125,7 @@ stage_upload "$zip" "$ZIP_NAME" "$ZIP_SHA"
 # 4.-6. The swap.
 swap_prepare "$revision"
 swap_server "$revision"
-swap_zip
+swap_finish
 if ((DRY_RUN)); then
     say "[dry run] then: srp26 running, its game data line, GET $TARGET_SITE/patches must be $EXPECTED,"
     say "[dry run] and GET $TARGET_SITE/api/client-files must say sha256 $ZIP_SHA, size $ZIP_SIZE"

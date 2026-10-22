@@ -201,6 +201,20 @@ game_data_bin() {
     printf '%s\n' "$ROOT/srp-026g/target/release/srp-game-data"
 }
 
+# Our srp-check-game-data (what srp checks of its game data at start):
+# $SRP_CHECK_GAME_DATA_BIN, else built from this checkout (at nice 10).
+check_data_bin() {
+    if [[ -n ${SRP_CHECK_GAME_DATA_BIN:-} ]]; then
+        printf '%s\n' "$SRP_CHECK_GAME_DATA_BIN"
+        return
+    fi
+    say "building srp-check-game-data (srp-026g, nix develop) ..." >&2
+    (cd "$ROOT" && nice -n 10 nix develop ./srp-026g -c bash -c \
+        'cd srp-026g && cargo build --quiet --release -p survarium --bin srp-check-game-data') >&2 ||
+        die "srp-check-game-data did not build"
+    printf '%s\n' "$ROOT/srp-026g/target/release/srp-check-game-data"
+}
+
 # The building steps (build-patch, build-server-db, build-zip) run at nice
 # 10, with every child: the release PC goes on doing other things.
 lower_priority() { renice -n 10 -p $$ >/dev/null 2>&1 || true; }
@@ -251,6 +265,48 @@ exe_revision() {
 # The revision of the exe in a ZIP (<scratch> holds it), or `unknown`.
 zip_revision() {
     if zip_extract "$1" "$ZIP_EXE" "$2"; then exe_revision "$2"; else printf 'unknown\n'; fi
+}
+
+# The patches a players' survarium_skhid.exe requires at its start (patch 49,
+# srp-026g/client-patches/README.md): the n of each bit set in the 32-byte
+# bitmap right after the patches' mount's "Cannot open" text, which is in the
+# exe once (patch_026g.py's required_patches_of reads it the same way), as
+# `<n> <n> ...`, in order; an empty line when it requires none. Fails when the
+# text is not there once: an exe from before patch 49, or not one of ours.
+exe_required_patches() {
+    python -I -c '
+import sys
+text = b"Cannot open resources.db.patch_%u (error %u). Please run the Skhid launcher again.\0"
+data = open(sys.argv[1], "rb").read()
+at = data.find(text)
+if at < 0 or data.find(text, at + 1) >= 0:
+    sys.exit(f"{sys.argv[1]}: no list of required patches (an exe from before patch 49?)")
+bitmap = data[at + len(text):at + len(text) + 32]
+print(" ".join(str(n) for n in range(8 * len(bitmap)) if bitmap[n >> 3] >> (n & 7) & 1))
+' "$1"
+}
+
+# The numbers of LIST's patches (read_patch_list first), as patch_026g.py's
+# --required-patches= takes them: `12,14,17`; nothing for an empty list.
+list_numbers() {
+    local name _ out=''
+    while read -r name _; do
+        if [[ -n $name ]]; then out+=${out:+,}$(patch_number "$name"); fi
+    done <<<"$LIST"
+    printf '%s\n' "$out"
+}
+
+# The ZIP's exe requires exactly the patches OFFERED names (check_release_files
+# or the like first): a game of this release stops at its start without one
+# of the patches its server offers (patch 49), and requires none the server
+# does not offer. <scratch> is a folder for the exe.
+check_exe_requires() {
+    local zip=$1 scratch=$2 want got
+    want=$(sed -n 's/^patch_\([0-9]*\) .*/\1/p' <<<"$OFFERED" | sort -n | paste -sd' ')
+    zip_extract "$zip" "$ZIP_EXE" "$scratch/exe" || die "$zip has no $ZIP_EXE"
+    got=$(exe_required_patches "$scratch/exe") || die "$zip: its exe holds no list of required patches (built before patch 49?)"
+    [[ $got == "$want" ]] ||
+        die "$zip: its exe requires the patches ${got:-(none)}, the server data offers ${want:-(none)}: a ZIP is built for its list (release/build-zip --patches)"
 }
 
 # GET <site>/download (the players' ZIP) into <file>; dies unless 200.
@@ -373,6 +429,48 @@ read_patch_list() {
     done <"$PATCH_LIST"
     LIST=''
     if ((${#rows[@]})); then LIST=$(printf '%s\n' "${rows[@]}"); fi
+}
+
+# Every patch of LIST (read_patch_list first) in ~/.cache/skhid-release/patches/
+# ($XDG_CACHE_HOME), each checked by its size and sha256 there, else
+# downloaded there from its row's first URL (200, the row's size and
+# sha256). Sets PATCH_CACHE to that folder.
+PATCH_CACHE=''
+cache_patches() {
+    local name sha size urls file url status
+    PATCH_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/patches
+    mkdir -p "$PATCH_CACHE"
+    while read -r name sha size urls; do
+        [[ -n $name ]] || continue
+        file=$PATCH_CACHE/$name
+        if [[ -f $file && $(size_of "$file") == "$size" && $(sha256_of "$file") == "$sha" ]]; then
+            say "$name: in the cache"
+            continue
+        fi
+        url=${urls%% *}
+        say "$name: downloading $url ($size bytes)"
+        status=$(http_get "$url" "$file.part")
+        [[ $status == 200 ]] || die "GET $url answered $status, not 200 (in $PATCH_LIST)"
+        [[ $(size_of "$file.part") == "$size" && $(sha256_of "$file.part") == "$sha" ]] ||
+            die "GET $url did not give the $size bytes of sha256 $sha that $PATCH_LIST names"
+        mv "$file.part" "$file"
+    done <<<"$LIST"
+}
+
+# The sha256 of the stock db $1, hashed once and then cached by its size,
+# time and path (~/.cache/skhid-release/stock-db.sha256).
+stock_sha256() {
+    local cache key stock
+    cache=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/stock-db.sha256
+    key="$(stat -c '%s %Y' "$1") $(readlink -f "$1")"
+    stock=$(grep -F -- "$key " "$cache" 2>/dev/null | tail -n 1 || true)
+    stock=${stock##* }
+    if [[ -z $stock ]]; then
+        say "  ...      sha256 of $1 ($(size_of "$1") bytes; once, then cached by size and time)" >&2
+        stock=$(sha256_of "$1")
+        { mkdir -p "${cache%/*}" && printf '%s %s\n' "$key" "$stock" >>"$cache"; } 2>/dev/null || true
+    fi
+    printf '%s\n' "$stock"
 }
 
 # The row of <name> in LIST, or nothing.
@@ -727,10 +825,17 @@ restart_command() {
 #   swap_prepare <revision>  srp26 stopped; srp.db, the old files, the image
 #                            ID, the setting kept in the folder; the image
 #                            tagged; the rollback written
-#   swap_server <revision>   the server data and the setting (and source) in
-#                            place, srp26 made anew on them, checked:
-#                            running, its game data line, /patches
-#   swap_zip                 then the ZIP in place, /api/client-files
+#   swap_server <revision>   the server data, the ZIP and the setting (and
+#                            source) in place while srp26 is stopped, srp26
+#                            made anew on them, checked: running, its game
+#                            data line, /patches, /api/client-files
+#   swap_finish              the folder says released
+# The ZIP goes in with the server data, never after the start: the site
+# (srp26) answers nothing while it is stopped, and from its start on it
+# offers the new ZIP, the new /patches and takes the new revision at once.
+# A ZIP put in after the start left a time in which an updater found the
+# old ZIP current, fetched the new patches and enabled PLAY for a game the
+# login server refuses ("outdated version").
 # SWAP_STATE says how far it got, for swap_failed: `` (nothing), stopped
 # (only srp26 stopped and copies made: it is started again), moved (the
 # rollback runs), finished.
@@ -905,15 +1010,22 @@ check_server() {
     say "/patches: $patches, as the server data says"
 }
 
-# /api/client-files names the new ZIP (sha256, size); a few tries (it may be
-# reading the file). Prints what failed and returns 1.
+# <revision>: /api/client-files names the new ZIP (sha256, size) and, when
+# the server says one (srp since min-revision), <revision> as the least
+# revision it lets in; a few tries (it may be reading the file). Prints what
+# failed and returns 1.
 check_client_files() {
-    local status _
+    local status _ min
     for _ in 1 2 3 4 5; do
         status=$(HTTP_TIMEOUT=60 http_get "$TARGET_SITE/api/client-files" "$SWAP_WORK/client-files")
         if [[ $status == 200 ]] && grep -qx "sha256 $ZIP_SHA" "$SWAP_WORK/client-files" &&
             grep -qx "size $ZIP_SIZE" "$SWAP_WORK/client-files"; then
-            say "/api/client-files: the new ZIP (sha256 $ZIP_SHA, $ZIP_SIZE bytes)"
+            min=$(sed -n 's/^min-revision //p' "$SWAP_WORK/client-files")
+            if [[ -n $min && $min != "$1" ]]; then
+                say "/api/client-files says min-revision $min, not $1: srp26 did not take the new setting"
+                return 1
+            fi
+            say "/api/client-files: the new ZIP (sha256 $ZIP_SHA, $ZIP_SIZE bytes), min-revision ${min:-(not said: an srp from before it)}"
             return 0
         fi
         sleep 2
@@ -922,12 +1034,15 @@ check_client_files() {
     return 1
 }
 
-# <revision>: the server's files in place, srp26 made anew, check_server. A
-# failure shows srp's log and runs the rollback (swap_failed).
+# <revision>: the server's files and the ZIP in place, srp26 made anew,
+# check_server, check_client_files. A failure shows srp's log and runs the
+# rollback (swap_failed), which puts the old ZIP back too.
 swap_server() {
     ((DRY_RUN)) || SWAP_STATE=moved
     write_on live "$(put_command "$DATA_NAME")"
     SWAP_DONE+=("in place: download/$DATA_NAME")
+    write_on live "$(put_command "$ZIP_NAME")"
+    SWAP_DONE+=("in place: download/$ZIP_NAME")
     write_on live "$(min_revision_command "$1")"
     SWAP_DONE+=("SRP_MIN_PATCH_REVISION=$1 in .env (was $OLD_MIN)")
     if ((SWAP_SRC)); then
@@ -939,14 +1054,12 @@ swap_server() {
     write_on live "cd $D && id=\$($TARGET_COMPOSE ps -aq srp26 | head -n 1) && docker inspect -f '{{.Image}}' \"\$id\" > $REL/image.new"
     ((DRY_RUN)) && return 0
     check_server || die "the new server did not come up as it must"
+    check_client_files "$1" || die "the site does not hand out the new ZIP"
     keep_db_backup || die "the pre-release copy of srp.db is not kept: rolling back rather than going on without it"
 }
 
-swap_zip() {
-    write_on live "$(put_command "$ZIP_NAME")"
-    SWAP_DONE+=("in place: download/$ZIP_NAME")
+swap_finish() {
     ((DRY_RUN)) && return 0
-    check_client_files || die "the site does not hand out the new ZIP"
     on_target "echo released > $REL_DIR/state"
     SWAP_STATE=finished
 }

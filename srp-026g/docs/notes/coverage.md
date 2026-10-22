@@ -195,12 +195,12 @@ Dispatch: `servers/lobby-server/src/v026g/dispatch.rs`, `Core::handle`. "Writer"
 | `00` | moving items; the ammo window (`relocate_item`, `apply_profile_items`) | 0x2706F0 / 0x27070F | **real**: the move is applied or refused with a text; inventory, account and money pushed | `dispatch.rs`; `rules::move_items` | medium |
 | `01` | putting a cosmetic on an item | 0x2707C0 / 0x2707DA | **real**: `83 46 01` or a refusal, then the pushes | `items.rs` `attach_upgrade` | medium |
 | `02` | taking a cosmetic off one item (the host is patch 30's) | 0x2708C0 / 0x2708CE | **real**: `83 46 02` | `items.rs` `detach_upgrade` | medium |
-| `03` | using a drop card | 0x270AE0 / 0x270AEE | **being changed today**. The meaning of the two numbers is a GUESS; both orders are tried. | `dispatch.rs` `use_drop_card` | — |
+| `03` | using a drop card | 0x270AE0 / 0x270AEE | **real**: `98`, then the pushes; one card a finisher of a kept match, else the game's refusal (`drop_cards.md`). The order `<match> <card>` is PROVEN (`results.md` §3); the other is still tried | `dispatch.rs` `use_drop_card`; `rewards::Results::use_drop_card` | medium |
 | `04` | using an item (premium voucher) | 0x274400 / 0x27440D | **real**: `83 46 04`, services, pushes | `shop.rs` `use_item` | medium |
 | `05` | the decal editor | 0x270950 / 0x270960 | **real**: stored; no answer, as the client expects none | `items.rs` `place_upgrade` | medium |
 | `06` | opening the modification window | 0x270DC0 / 0x270DCD | **real**: `83 46 06` | `items.rs` `open_reroll` | medium |
 | `07` | changing a modification | 0x270E30 / 0x270E41 | **real**: paid, three choices drawn, `83 46 07` | `items.rs` `reroll_modifier` | medium |
-| `08` | picking one of the three | 0x270EE0 / 0x270EED | **real**: `83 46 08` | `items.rs` `choose_modifier` | medium |
+| `08` | picking one of the three, or keeping the old one (srp's window, `reroll-keep-old.md`) | 0x270EE0 / 0x270EED | **real**: `83 46 08` | `items.rs` `choose_modifier` | medium |
 | `09` | upgrading an item with a donor | 0x270F90 / 0x270FA1 | **real**: `83 46 09`; a failure is `83 46 09 FE` | `items.rs` `craft` | medium |
 | `0A` | the tutorial's "choose a weapon" step | 0x2A45D0 / 0x2A467C | **accepted, not answered** (no tutorial, `no-tutorial.md`; it was `89`, `87`, `8B`, `premium.md` §5.1) | `dispatch.rs` (logged) | high (that an `89` is awaited), LIKELY (the grant) |
 

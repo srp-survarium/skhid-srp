@@ -1,0 +1,8 @@
+{
+  "schema": 2,
+  "movie": "flash_movies/player_icons.swf",
+  "archive": "resources.db",
+  "archive_offset": 61659557,
+  "movie_size": 186560,
+  "movie_sha256": "36aa353350acb61a79b52c1bcc2d303c7c21352863cd61095025a748275e796b"
+}

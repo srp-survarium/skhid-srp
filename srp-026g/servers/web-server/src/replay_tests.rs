@@ -8,7 +8,7 @@
 use std::net::{TcpListener, TcpStream};
 
 use session::v026g::GameAccounts;
-use session::v026g::replays::{ReplaySettings, Sidecar, TOKEN_DOWNLOADS};
+use session::v026g::replays::{ReplaySettings, Sidecar, TOKEN_DOWNLOADS, oldest_replayable_here};
 
 use super::*;
 
@@ -72,7 +72,8 @@ fn planted(name: &str) -> Planted {
         match_id: MATCH,
         size: REPLAY.len() as u64,
         sha256: "ab".repeat(32),
-        revisions: vec![Some(12)],
+        // Games of today's revision: the oldest whose recordings are given.
+        revisions: vec![Some(oldest_replayable_here(0))],
         account_ids: Vec::new(),
         made_at: 0,
     };
@@ -104,11 +105,13 @@ fn web(replays: Option<Arc<Replays>>) -> Web {
         resource_downloads: AtomicU32::new(0),
         replay_downloads: AtomicU32::new(0),
         replay_failures: Mutex::new(HashMap::new()),
+        plans: Default::default(),
         game: Some(Game {
             accounts: Arc::new(GameAccounts::new()),
             lobby: Arc::new(Quiet),
             matches: Arc::new(Quiet),
             patches: Vec::new(),
+            min_patch_revision: 0,
             replays,
         }),
     }
@@ -117,7 +120,7 @@ fn web(replays: Option<Arc<Replays>>) -> Web {
 /// A live token of `account` for `MATCH`, as the lobby gives it.
 fn token(replays: &Replays, account: u32) -> String {
     let now = Instant::now();
-    replays.ask(account, MATCH, Some(14), None, now);
+    replays.ask(account, MATCH, Some(oldest_replayable_here(0)), None, now);
     replays.answer(account, now).ready.expect("ready").token
 }
 

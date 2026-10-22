@@ -23,6 +23,13 @@ USAGE (this script never touches the source exe):
         a release's (release/build-zip passes it). Only the revision byte
         and the PE checksum differ; <n> is REVISION to 255. Not with
         --no-late-join, --cave=hash-mismatch or --cert-only
+    python patch_026g.py <survarium.exe> <survarium_srp.exe> --required-patches=<n>,<n>,...
+        the default build that stops at its start when one of these
+        resources.db.patch_<n> is not there (patch 49): a release's, the
+        patches of its offered-patch list (release/build-zip passes them).
+        Only the bitmap at the end of the patches' mount and the PE
+        checksum differ; each <n> is 1 to 255. Not with --no-late-join,
+        --cave=hash-mismatch or --cert-only
     python patch_026g.py <survarium.exe> --check [--cave=...] [--cert-only]
         every check and patch in memory, nothing written
     python selftest_026g.py
@@ -54,8 +61,19 @@ USAGE (this script never touches the source exe):
         nasm -f bin read_order_026g.asm -o read_order_026g.bin
     (checked in). A weapon's upgrade window showing the weapon comes from
     weapon_preview_026g.asm:
-        nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
-    (checked in; STATE is 0xE00 of the late join's state page, checked), and its
+        nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA42C00F -DCAMERA=0xA42A800 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
+    (checked in; STATE is 0xE00 of the late join's state page, checked; FIND is
+    upgrade_preview_026g.asm in `.srpw`, which shows an upgrade dropped on the
+    window's weapon at once and calls weapon_stash_026g.asm's find first:
+        nasm -f bin -DCAVE=0xA42C000 -DSTATE=0xA428D60 -DPREVIEW=0xA428E00 -DFIND=0xA42A36F upgrade_preview_026g.asm -o upgrade_preview_026g.section.bin
+    checked in; its STATE is 0xD60 of the late join's state page, checked;
+    weapon_stash_026g.asm also shows a weapon no kit holds and armour the
+    chosen kit does not wear:
+        nasm -f bin -DCAVE=0xA42A360 -DSTATE=0xA428E00 -DPREVIEW=0xA427E50 weapon_stash_026g.asm -o weapon_stash_026g.section.bin
+    checked in; CAMERA is weapon_table_026g.asm in `.srpw`, which shows the
+    weapon in the air above the lobby's workbench:
+        nasm -f bin -DCAVE=0xA42A800 -DSTATE=0xA428F00 -DPREVIEW=0xA428E00 weapon_table_026g.asm -o weapon_table_026g.section.bin
+    checked in; its STATE is 0xF00 of the late join's state page, checked), and its
     draw from weapon_draw_026g.asm:
         nasm -f bin -DCAVE=0xA425D20 -DSTATE=0xA428E00 weapon_draw_026g.asm -o weapon_draw_026g.section.bin
     (checked in). The warmup camera turned by a drag and moved by the wheel while
@@ -68,9 +86,21 @@ USAGE (this script never touches the source exe):
         nasm -f bin -DCAVE=0xA425980 suicide_key_026g.asm -o suicide_key_026g.section.bin
     (checked in). A spot's hit on a battery's body comes from spot_026g.asm:
         nasm -f bin -DCAVE=0xA4257C0 spot_026g.asm -o spot_026g.section.bin
-    (checked in). The dynamic anomalies come from dynamic_anomalies_026g.asm,
-    the section `.srpa` after the late join's state page:
-        nasm -f bin -DCAVE=0xA429000 dynamic_anomalies_026g.asm -o dynamic_anomalies_026g.section.bin
+    (checked in). The camera on the death screen comes from death_camera_026g.asm,
+    a section of its own, `.srpc`, on the page after the late join's state page:
+        nasm -f bin -DCAVE=0xA429000 -DSTATE=0xA428E60 -DLOOK=0xA425D40 -DLOOK_STATE=0xA428E20 -DDRAG_END=0xA425A98 death_camera_026g.asm -o death_camera_026g.section.bin
+    (checked in; STATE is 0xE60 of the late join's state page, LOOK_STATE warmup_look's, checked).
+    A weapon's camouflage comes from weapon_camo_026g.asm, in a section of its
+    own, `.srpw`, on the page after `.srpc`, and what it paints (the camouflage,
+    the decals) and the decal editor on a weapon from weapon_decals_026g.asm, on
+    that section's second page:
+        nasm -f bin -DCAVE=0xA42A000 -DDECALS=0xA42B000 weapon_camo_026g.asm -o weapon_camo_026g.section.bin
+        nasm -f bin -DCAVE=0xA42B000 -DPREVIEW=0xA428E00 -DTABLE=0xA428F00 -DPRESS=0xA428FA0 weapon_decals_026g.asm -o weapon_decals_026g.section.bin
+    (checked in; PREVIEW and TABLE are patch 32's and patch 45's states, PRESS
+    its own, 0xFA0 of the late join's state page, checked).
+    The dynamic anomalies come from dynamic_anomalies_026g.asm, a section of
+    its own, `.srpa`, on the page after `.srpw`'s last (the upgrade preview's):
+        nasm -f bin -DCAVE=0xA42D000 dynamic_anomalies_026g.asm -o dynamic_anomalies_026g.section.bin
     (checked in). The late-join code is late_join_026g.section.bin, checked in too; it is
     made by `late_join_026g.py --write-bin`, which needs nasm, a C compiler
     for x86 and GNU ld (--late-join-bin=<file> names another one).
@@ -146,7 +176,10 @@ Patches:
   assertion (0x40141). The default of -record_journal, the text "1" given
   to the option object 0xA9D628 by its initializer at 0x851CC7
   (`mov eax,9DB51Ch`), becomes the exe's own "0" at 0x9DBF0C: no journal
-  is made unless -record_journal=1 asks for one;
+  is made unless -record_journal=1 asks for one. game_world::on_activate
+  gave the hud its player's name only while the journal recorded: 0x1F9478
+  `test eax,eax` becomes `jmp short 1F9487h` (patch 43, TAB_SELF), so the
+  Tab list's own row is gold again;
 - the late join (patch revision 5; the default build only, not
   --cave=hash-mismatch): a player enters a match that is being played.
   The game keeps room for twenty players from the first connection (three
@@ -366,8 +399,25 @@ Patches:
   with a free artefact and nothing busy within 15 m charges, while fewer
   than 16 are active), and on_artefact_container_use (0x33BCD0) puts a
   timed anomaly to its after-the-pick-up energy. The code is a section of
-  its own, `.srpa`, the page after the late join's state
+  its own, `.srpa`, the page after `.srpw`
   (dynamic_anomalies_026g.asm);
+- on the death screen a drag turns the camera; the wheel does nothing
+  (patch 46, with the late join, client_patch.md section 3.43, docs/notes/
+  death-camera.md). A death leaves the player's input handler in the first
+  person mode: the camera is the corpse's eyes (player+44Ch), and with the
+  kits shown the cursor takes every move. The game world's on_mouse_move
+  (0x25D0E0, WARMUP_LOOK_HOOK) jumps to death_look first: while the kits
+  are shown, the handler is in the first person mode and the local player
+  is dead, a drag as patch 31's (the lobby's buttons at once, the left one
+  past a click) turns a yaw and a pitch of its own (within 70 degrees
+  either side, 60 up, 40 down) and takes the move, and the wheel stays the
+  cursor's; any other move goes on to warmup_look. update_camera's call of
+  the view's update (0x1F364B) calls death_view, which turns the eyes' view
+  by them relative to the head's pose (the update's own third-person step
+  on the identity, times the eyes' transform) while that player is dead; a
+  live one clears them. The code
+  is death_camera_026g.asm, the section `.srpc`; a dead player sends no
+  input (0x1F7883), so nothing a match computes changes;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -525,7 +575,7 @@ HASH_INTERVAL_MS = 50                         # = one tick
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 24
+REVISION = 27
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -714,6 +764,18 @@ MOUNTED_OFFSET, MOUNT_ALL_OFFSET = 0, 0x88      # the .asm's two entries
 MOUNT_STATE_OFFSET = 0x800
 MOUNT_MAX_PATCHES = 255
 MOUNT_STATE_SIZE = 8 + 4 * (1 + MOUNT_MAX_PATCHES) + MOUNT_MAX_PATCHES
+# The patches an exe requires (patch 49, README; client_patch.md section 3.46):
+# a missing resources.db.patch_<n> whose bit is set stops the game at its
+# start with the "Cannot open resources.db.patch_<n> (error 2)" fatal, as
+# one that cannot be opened. The bitmap (bit n of byte n/8) is the .asm's
+# `needed`, the MOUNT_REQUIRED_SIZE bytes before the state's address at the
+# .bin's end, right after the "Cannot open" text (release/lib.sh's
+# exe_required_patches finds it so). build() writes it; the checked-in .bin
+# holds zeros, and a build without required_patches requires none. A
+# release passes its offered-patch list's numbers (release/build-zip), so
+# its exe never runs on older content than its server offers.
+MOUNT_REQUIRED_SIZE = (MOUNT_MAX_PATCHES + 1) // 8
+MOUNT_UNREADABLE = b"Cannot open resources.db.patch_%u (error %u). Please run the Skhid launcher again.\0"
 MOUNT_QUERY_VA, MOUNTED_VA = 0xE7E3E, 0x147E0
 MOUNT_QUERY_MOUNT_ARCHIVE = 0xE7EF0
 MOUNT_QUERY = (MOUNT_QUERY_VA, b"\xE8" + struct.pack("<i", MOUNT_QUERY_MOUNT_ARCHIVE - MOUNT_QUERY_VA - 5),
@@ -873,6 +935,42 @@ WARMUP_KEYS_HOOK = (0x25CF60, bytes.fromhex("5556" "8bf1" "8b4c240c" "8b01"), 0,
 WARMUP_KEYS_STATE_OFFSET = 0xE30
 WARMUP_KEYS_STATE_SIZE = 4
 
+# The camera on the death screen (patch 46, README; client_patch.md section
+# 3.43; the rules: docs/notes/death-camera.md). A death leaves the player's
+# input handler in the first person mode (on_player_death 0x1F28E0 sets no
+# mode): update_camera (0x1F3480) gives the view's update (0x2422B0) the
+# eyes' transform (player+44Ch), which it copies (modes 0 and 4); the kits
+# and the cursor are shown, so the game world's handler takes every move and
+# the wheel. death_camera_026g.asm, in a section of its own (`.srpc`, code,
+# the page after the late join's state page, death_camera_va), has two
+# entries: death_look (DEATH_LOOK_OFFSET), where WARMUP_LOOK_HOOK's jump goes
+# instead of warmup_look, which it goes on to for every move but a dead local
+# player's with the kits shown in the first person mode: a drag as patch 31's
+# (its state, its drag_end) turns a yaw and a pitch of its own (8 bytes at
+# DEATH_CAMERA_STATE_OFFSET of the late join's state page) and is taken (1),
+# a move without a button the cursor's; and death_view (DEATH_VIEW_OFFSET),
+# which update_camera's `call 0x2422B0` (0x1F364B) calls: while that player
+# is dead, in the first person mode, the kits shown and a turn kept, the
+# update's own third-person step (0x2422DE) on the identity with that yaw
+# and pitch and the distance 0 (the handler's warmup fields borrowed and put
+# back), the turn times the eyes' (the head's) transform; a live
+# player clears the turn. No base relocation under the site; a dead local
+# player sends no input (game_world::tick 0x1F7883).
+DEATH_CAMERA_NAME = b".srpc\0\0\0"
+DEATH_CAMERA_CHARACTERISTICS = 0x60000020     # code, execute, read (as .srp)
+DEATH_CAMERA_SIZE = 0x1000                     # .srpc's one page: `.srpw` follows it
+DEATH_LOOK_OFFSET, DEATH_VIEW_OFFSET = 0, 0x200   # the .asm's two entries
+DEATH_VIEW_HOOK = (0x1F364B, bytes.fromhex("e860ec0400"), DEATH_VIEW_OFFSET, 0xE8)   # update_camera: death_view
+DEATH_CAMERA_STATE_OFFSET = 0xE60             # after the FOV LOD scale's (FOV_LOD_STATE_OFFSET)
+DEATH_CAMERA_STATE_SIZE = 8
+DEATH_UPDATE_VA, DEATH_THIRD_VA = 0x2422B0, 0x2422DE   # the view's update and its third-person step
+# What the code leaves to: warmup_look (twice: not a death screen's move, a
+# move that is the cursor's), drag_end, the view's update and its step.
+DEATH_CAMERA_EXITS = (WARMUP_LOOK_VA, WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET, DEATH_UPDATE_VA, DEATH_THIRD_VA)
+DEATH_CAMERA_EXITS_EXPECTED = sorted([(0xE9, WARMUP_LOOK_VA), (0xE9, WARMUP_LOOK_VA),
+                                      (0xE8, WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET),
+                                      (0xE9, DEATH_UPDATE_VA), (0xE9, DEATH_THIRD_VA)])
+
 # The order of the archive reads (patch 33, README; client_patch.md section
 # 3.31). vostok::resources::hdd_manager_sorting_predicate::operator()
 # (0x10BCC0, eax = one query_result, [esp+4] the other, `ret 4`, al = less;
@@ -926,7 +1024,7 @@ READ_ORDER_SHA256 = "3c49ddd03438f137bbf3ec844d41ed3c4247d6d815595f1d494a515e112
 WEAPON_PREVIEW_OFFSET = 0x2E50
 WEAPON_PREVIEW_VA = SECTION_VA + WEAPON_PREVIEW_OFFSET
 WEAPON_PREVIEW_STATE_OFFSET = 0xE00
-WEAPON_PREVIEW_STATE_SIZE = 12
+WEAPON_PREVIEW_STATE_SIZE = 24                 # its three dwords, then weapon_stash_026g.asm's three
 WEAPON_PREVIEW_LEAST = 0xA7AFA4
 WEAPON_PREVIEW_HOOKS = (
     (0x265E73, bytes.fromhex("e848e70100"), 0x00, 0xE8),            # start_item_upgrade's camera: start_cam
@@ -1017,6 +1115,25 @@ TAB_LIST_LOOP = (TAB_LIST_LOOP_VA,
                  # call 0x23A7F0 / push ebx / call 0x236D30 / .next: inc bl / jmp short 0x23B42C / nop / nop
                  bytes.fromhex("0fb6c3" "69d0fc450000" "0fb684c7c0000000" "84c0" "7415" "01d1" "50" "8d4148"
                                "83c108" "57" "e885f3ffff" "53" "e8bfb8ffff" "fec3" "ebb7" "9090"))
+
+# The player's own row in the Tab list is gold (patch 43, README;
+# client_patch.md section 3.40; the rule: ../docs/notes/tab-list-left-places.md).
+# hud.swf's PlayerListRenderer gives the row whose `isLocal` is set the name
+# colour Colors.PLAYER (0xF1E545), the one CombatLogItem gives the kill
+# list's own name (who_team / victim_team 2); PlayerList sets `isLocal` on
+# the row of the name `root.set_local_player` gave. In a match only
+# game_world::on_activate (0x1F9340) gives it: after chat_handler::set_mode
+# it makes the name as the rows have it ("[clan] name", or the name) and
+# calls chat_handler::set_local_player_name (0x209AC0) on the hud, but only
+# while the journal records: `mov eax,[0A8394Ch]` / `test eax,eax` / `jz` /
+# `mov ecx,[0A83948h]` / `cmp dword [ecx],1` / `jnz`, the journal's flag
+# and its use (1 record). Patch 14 (revision 4) turned the journal off by
+# default, so no hud has had its player's name since. TAB_SELF makes
+# `test eax,eax` / `jz` a `jmp short 1F9487h` past the two tests: the name
+# is given whatever the journal does. The two addresses (and their base
+# relocations) are not under the two bytes. Every full build, as JOURNAL_DEFAULT.
+# The hud's lists and chat only.
+TAB_SELF = (0x1F9478, bytes.fromhex("85c0"), bytes.fromhex("eb0d"))
 
 # Spotting (patch 38, README; client_patch.md section 3.35; the rules:
 # ../docs/notes/spotting.md). base_player::apply_new_input (0x2D86E0): an
@@ -1471,8 +1588,8 @@ FOV_LOD_STATE_SIZE = 4
 # rules: ../docs/notes/dynamic_anomalies.md). The release's anomalies rule
 # (0.28a2 timeout_anomalies_rule_core) on timed generic_anomaly_cores, whose
 # states are the release's timeline by energy. Two hooks into
-# dynamic_anomalies_026g.asm, the section `.srpa` (code, the page after the
-# late join's state page, DYNAMIC_ANOMALIES_VA): game_world_core::
+# dynamic_anomalies_026g.asm, the section `.srpa` (code, the page after
+# `.srpw`'s last, the upgrade preview's; dynamic_anomalies_va): game_world_core::
 # atomic_tick's first six bytes (`push ecx; mov eax,51EB851Fh`, a constant)
 # jump to tick_hook (+0), which runs the rule before any object of the tick
 # and goes on at 0x2D1E26; generic_anomaly_core::on_artefact_container_use's
@@ -1490,8 +1607,8 @@ DYNAMIC_ANOMALIES_EXITS = (0x2D1E26, 0x33BCDA)
 
 
 def dynamic_anomalies_va(late_join):
-    """Where `.srpa` is: the page after the late join's state page."""
-    return late_join_state_va(late_join) + LATE_JOIN_STATE_SIZE
+    """Where `.srpa` is: the page after `.srpw`, whose last page is the upgrade preview's."""
+    return weapon_camo_va(late_join) + UPGRADE_PREVIEW_OFFSET + 0x1000
 
 # A battery under the floor (patch 23, pickup_below_026g.asm at
 # PICKUP_VA): client_patch.md section 3.23.
@@ -1517,6 +1634,154 @@ def late_join_state_va(code):
     """Where the state page of this late-join code is: the page after it."""
     end = LATE_JOIN_VA + len(code)
     return (end + 0xFFF) // 0x1000 * 0x1000
+
+
+def death_camera_va(late_join):
+    """Where `.srpc` is: the page after the late join's state page."""
+    return late_join_state_va(late_join) + LATE_JOIN_STATE_SIZE
+
+
+# A weapon wears the camouflage its item holds (patch 44, client_patch.md
+# section 3.41): weapon_camo_026g.asm, in its own section `.srpw` on the page
+# after `.srpc` (the death camera's one page; weapon_camo_va). weapon_cook::
+# on_weapon_subresources_ready's `lea eax,[esp+20h] / push eax` (0x24B0D2,
+# the model loaded, before it is given to the weapon at 0x243A30) calls
+# weapon_ready, which asks for the camouflage's bake of each of the model's
+# surfaces when the weapon's merged config has `data/camouflage`, and does
+# the two instructions. No base relocation is under the site.
+WEAPON_CAMO_NAME = b".srpw\0\0\0"
+WEAPON_CAMO_CHARACTERISTICS = 0x60000020      # code, execute, read (as .srp)
+WEAPON_CAMO_HOOK = (0x24B0D2, bytes.fromhex("8d44242050"), 0, 0xE8)
+WEAPON_CAMO_ENTRY = bytes.fromhex("609c89e5") # pushad; pushfd; mov ebp,esp
+WEAPON_CAMO_NAME_FORMAT = b"srpw1_%s_%s_%d\0"
+# Patch 32 grown (client_patch.md section 3.30): weapon_stash_026g.asm at
+# WEAPON_STASH_OFFSET of `.srpw`, after the camouflage's code. An upgrade
+# window's item the lobby character does not show is shown on it from a
+# scratch copy of the account's profile: a weapon no kit holds in the chosen
+# kit's hands (find_kit_or_show, at WEAPON_STASH_FIND, which
+# weapon_preview_026g.asm's two finds call: -DFIND), armour the chosen kit
+# does not wear worn (patch 32's start, exit and setup_profile hooks go to
+# the stash's entries first, which go on to patch 32's: -DPREVIEW).
+WEAPON_STASH_OFFSET = 0x360
+WEAPON_STASH_FIND = 0x0F
+WEAPON_STASH_ENTRIES = {0x265E73: (0x00, 0x00), 0x265F44: (0x05, 0x6D), 0x284B10: (0x0A, 0xAD)}
+#   hook site: (the stash's entry, patch 32's entry it goes on to)
+WEAPON_PREVIEW_FIND_CALLS = (0x2B, 0xCC)       # weapon_preview_026g.section.bin: the two `call FIND`
+# A weapon's upgrade window shows the weapon in the air above the lobby's
+# workbench (patch 45, README; client_patch.md section 3.42):
+# weapon_table_026g.asm at WEAPON_TABLE_OFFSET of `.srpw`, after the stash
+# code; its state (WEAPON_TABLE_STATE_SIZE bytes) at WEAPON_TABLE_STATE_OFFSET
+# of `.srpd`, after the others'. It begins with a table of five `jmp near`:
+# camera (+0), which patch 32's start_cam and exit_cam jump to instead of the
+# lobby camera's setter (WEAPON_PREVIEW_CAMERA_JUMPS, -DCAMERA), and the four
+# hooks' entries:
+# - the lobby camera's tick (0x283EF0, ebx = camera+4), `movss xmm0,
+#   [ebx+0C8h]` at 0x284020 (the drag's yaw of the frame; every tick passes
+#   it): tick, which turns the weapon by the drag and flies the camera;
+# - player::mt_draw (0x2474A0), `cmp byte [ebp-1],0 / jne 247592h` at
+#   0x247576 (a player not seen and not the world's own goes to the culled
+#   draw): cull, which sends the table's player to the draw path;
+# - mt_draw, `cmp byte [ebx+0F49Ch],0 / je 2477C2h` at 0x24778F (the held
+#   item's transform: the decal pose's or the hand's): matrix, which gives
+#   the table's player's held item the bench's transform, its middle at the
+#   bench, once the character makes no player;
+# - the lobby camera's on_mouse_move (0x283D30), `test byte [eax+0Ch],52h /
+#   setne al` at 0x283D81 (its drag buttons): left, which at the bench also
+#   drags with the left button pressed off the movie (is_mouse_over_ui).
+# No base relocation is under a site; the code holds no absolute address but
+# the game's functions' and finds its state with call/pop.
+WEAPON_TABLE_OFFSET = 0x800
+WEAPON_TABLE_STATE_OFFSET = 0xF00
+WEAPON_TABLE_STATE_SIZE = 0xA0
+# The interface other patches read (weapon decals): while the state's TABLE
+# (+0) and READY (+28h) are 1, the transform the held weapon was last drawn
+# with at the bench, a float4x4 in rows (v * M, as the game's: row 3 the
+# translation), at +WEAPON_TABLE_MATRIX_OFFSET of the state, and a u32 stamp
+# at +WEAPON_TABLE_STAMP_OFFSET that grows by 1 at each one written.
+WEAPON_TABLE_STAMP_OFFSET = 0x48
+WEAPON_TABLE_MATRIX_OFFSET = 0x50
+WEAPON_PREVIEW_CAMERA_JUMPS = (0x68, 0xA8)     # weapon_preview_026g.section.bin: the two `jmp CAMERA`
+WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14)  # camera, tick, cull, matrix, left: `jmp near` each
+# A weapon's upgrade window shows an upgrade dropped on the weapon at once
+# (patch 48, README; client_patch.md section 3.45): upgrade_preview_026g.asm
+# at UPGRADE_PREVIEW_OFFSET of `.srpw`, a page of its own (the second page is
+# the weapon decals', patch 47); its state at UPGRADE_PREVIEW_STATE_OFFSET of
+# `.srpd`, after the patches' mount's (MOUNT_STATE_OFFSET) and before patch
+# 32's (WEAPON_PREVIEW_STATE_OFFSET). Six `jmp near`, the entries:
+# - relocate_upgrade_item's handler (0x29A8B0), `mov edx,[esi+4620h]` at
+#   0x29A9B2 (before its `46 01` is written): relocate, which queues the
+#   change for the window's weapon and makes the character again at once;
+# - drop_upgrade_item's handler (0x29A9D0), `mov ecx,[esi+4620h]` at
+#   0x29AACF (before patch 30's `46 02`): drop, the same;
+# - the 0x87 reader (0x270260), `call 0x270320` at 0x270313, its last call:
+#   account, the server's account answers the oldest queued change;
+# - patch 32's two `call FIND` (WEAPON_PREVIEW_FIND_CALLS): find, which calls
+#   weapon_stash_026g.asm's find_kit_or_show and builds the window's weapon
+#   from the scratch with the queue applied;
+# - setup_profile past its early return, `cmp dword [ebx+0D2C4h],-1` at
+#   0x284B89: again, which returns when the player being made is of the
+#   kit's id and revision asked;
+# - on_player_ready, `cmp byte [ebx+0D2C9h],0` at 0x284F7F: made, a log line
+#   with the time the lobby character's player took.
+# No base relocation is under a site and no branch aims inside one; the code
+# holds the absolute addresses of its state, patch 32's and its strings (the
+# exe is never rebased).
+UPGRADE_PREVIEW_OFFSET = 0x2000
+UPGRADE_PREVIEW_STATE_OFFSET = 0xD60
+UPGRADE_PREVIEW_STATE_SIZE = 0xA0
+UPGRADE_PREVIEW_FIND = 0x0F
+UPGRADE_PREVIEW_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19)  # relocate, drop, account, find, again, made
+UPGRADE_PREVIEW_HOOKS = (
+    (0x29A9B2, bytes.fromhex("8b9620460000"), 0x0, 0xE8),          # relocate_upgrade_item: relocate
+    (0x29AACF, bytes.fromhex("8b8e20460000"), 0x5, 0xE8),          # drop_upgrade_item: drop
+    (0x270313, bytes.fromhex("e808000000"), 0xA, 0xE8),            # the 0x87 reader's last call: account
+    (0x284B89, bytes.fromhex("83bbc4d20000ff"), 0x14, 0xE8),       # setup_profile past its early return: again
+    (0x284F7F, bytes.fromhex("80bbc9d2000000"), 0x19, 0xE8),       # on_player_ready: made
+)
+WEAPON_TABLE_HOOKS = (
+    (0x284020, bytes.fromhex("f30f1083c8000000"), 0x5, 0xE8),        # the camera's tick: tick
+    (0x247576, bytes.fromhex("807dff007516"), 0xA, 0xE8),            # mt_draw's culled player: cull
+    (0x24778F, bytes.fromhex("80bb9cf4000000742a"), 0xF, 0xE8),      # mt_draw's held item's transform: matrix
+    (0x283D81, bytes.fromhex("f6400c520f95c0"), 0x14, 0xE8),        # the camera's drag buttons: left
+)
+
+# Decals on a weapon (patch 47, README; client_patch.md section 3.44):
+# weapon_decals_026g.asm at WEAPON_DECALS_OFFSET of `.srpw`, the section's
+# second page; its state (WEAPON_DECALS_STATE_SIZE bytes: the left button's
+# press) at WEAPON_DECALS_STATE_OFFSET of `.srpd`, after patch 45's, whose
+# published transform (WEAPON_TABLE_MATRIX_OFFSET) it reads, as patch 32's
+# mode and item. It begins with seven `jmp near`: lookup (+0) and fill (+5), which patch 44 calls
+# once each (WEAPON_CAMO_DECALS_CALLS: what a weapon's bake paints, the
+# camouflage and the decals of `data/decals`), and the decal editor's four
+# sites, for a weapon above the workbench:
+# - the preview's pick, `call 0x264960` at 0x265999 of lobby_character's
+#   per-frame decal preview (0x265980): pick;
+# - the preview's matrix, `call 0x263D00` at 0x2659B2: decode;
+# - the editor's bake, 0x2641A0 (`push ebp / mov ebp,esp / and esp,-8`, the
+#   entry): `jmp bake` and a nop;
+# - the start's query, `call 0x264CF0` at 0x263938 (the end of 0x2636B0):
+#   start;
+# - the character's mouse key handler, 0x265C20 (`push ebp / mov ebp,esp /
+#   and esp,-8`, the entry; in the input vtable 0xA09F6C): `jmp click` and a
+#   nop: the left button places the decal on a click, not after a drag.
+# No base relocation is under a site and no branch aims inside one.
+WEAPON_DECALS_OFFSET = 0x1000
+WEAPON_DECALS_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19, 0x1E)  # lookup, fill, pick, decode, bake, start, click
+WEAPON_DECALS_STATE_OFFSET = 0xFA0
+WEAPON_DECALS_STATE_SIZE = 12
+WEAPON_DECALS_HOOKS = (
+    (0x265999, bytes.fromhex("e8c2efffff"), 0xA, 0xE8),         # the preview's pick
+    (0x2659B2, bytes.fromhex("e849e3ffff"), 0xF, 0xE8),         # the preview's matrix
+    (0x2641A0, bytes.fromhex("558bec83e4f8"), 0x14, 0xE9),      # the editor's bake
+    (0x263938, bytes.fromhex("e8b3130000"), 0x19, 0xE8),        # the start's query
+    (0x265C20, bytes.fromhex("558bec83e4f8"), 0x1E, 0xE9),      # the mouse key handler
+)
+WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries patch 44 calls
+
+
+def weapon_camo_va(late_join):
+    """Where `.srpw` is: the page after `.srpc`, which is one page."""
+    return death_camera_va(late_join) + DEATH_CAMERA_SIZE
 
 
 def hook_bytes(base, va, expected, offset, opcode):
@@ -1763,7 +2028,7 @@ def add_code_section(data, name, va, code, characteristics):
     return out
 
 
-def build(original, mode, code=None, server=None, late_join=None, revision=None):
+def build(original, mode, code=None, server=None, late_join=None, revision=None, required_patches=None):
     """Returns (patched file, description). mode: "cert-only", "section" or
     "hash-mismatch"; code = the assembled .bin for that cave. An optional
     server embeds a default host:port in full builds only. late_join = the
@@ -1780,7 +2045,11 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
     revision: what the build with the late join says instead of REVISION
     (a release's, REVISION to 255). It is the revision byte and nothing
     else: every patch above is chosen by the kind of build, never by its
-    number."""
+    number.
+    required_patches: the n of each resources.db.patch_<n> (1 to 255) the
+    build with the late join requires at its start (patch 49; a release's
+    offered patches); none when not given. It is the mount's bitmap and
+    nothing else."""
     if hashlib.sha256(original).hexdigest() != EXE_SHA256:
         sys.exit("the source is not the original 0.26g survarium.exe (sha256 mismatch)")
     if server is not None:
@@ -1798,6 +2067,13 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
                      f"{REVISION_WITHOUT_LATE_JOIN}, or nothing)")
         if type(revision) is not int or not REVISION <= revision <= 255:
             sys.exit(f"--revision={revision}: a revision from {REVISION} (REVISION, the last release's) to 255")
+    if required_patches is not None:
+        if late_join is None:
+            sys.exit("--required-patches is of the default build, with the late join (the patches' mount)")
+        required_patches = sorted(required_patches)
+        if any(type(n) is not int or not 1 <= n <= MOUNT_MAX_PATCHES for n in required_patches) \
+                or len(set(required_patches)) != len(required_patches):
+            sys.exit(f"--required-patches: each patch once, a number from 1 to {MOUNT_MAX_PATCHES}: {required_patches}")
     if late_join is None:
         revision = REVISION_WITHOUT_LATE_JOIN
     elif revision is None:
@@ -1811,6 +2087,12 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
         if mount_patches[MOUNTED_OFFSET:MOUNTED_OFFSET + 5] != bytes.fromhex("e800000000") \
                 or mount_patches[MOUNT_ALL_OFFSET] != 0x60:
             sys.exit("mount_patches_026g.section.bin: its entries are not where patch_026g.py calls them")
+        needed = len(mount_patches) - 4 - MOUNT_REQUIRED_SIZE
+        if mount_patches[needed - len(MOUNT_UNREADABLE):needed] != MOUNT_UNREADABLE \
+                or any(mount_patches[needed:needed + MOUNT_REQUIRED_SIZE]):
+            sys.exit("mount_patches_026g.section.bin: no zeroed bitmap of the required patches after its "
+                     "\"Cannot open\" text (patch 49)")
+        mount_patches = mount_patches[:needed] + required_bitmap(required_patches or ()) + mount_patches[-4:]
         forward_scroll = open(forward_scroll_bin(), "rb").read()
         if forward_scroll[-4:] != struct.pack("<I", FORWARD_SCROLL_VA):
             sys.exit(f"forward_scroll_026g.section.bin was assembled for another address: -DCAVE={FORWARD_SCROLL_VA:#x}")
@@ -1857,6 +2139,10 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
     rewritten.append((MOUNT_NO_ROOT[0], MOUNT_NO_ROOT[0] + len(MOUNT_NO_ROOT[1])))
     # Not in `rewritten`: the relocation of this address must stay active.
     patch(data, *JOURNAL_DEFAULT)
+    # Every build: the hud gets its player's name, which patch 14's default
+    # had withheld (patch 43; no relocation under the two bytes).
+    patch(data, *TAB_SELF)
+    rewritten.append((TAB_SELF[0], TAB_SELF[0] + len(TAB_SELF[1])))
     if mode == "hash-mismatch":
         if len(cave) > HASH_MISMATCH_SIZE:
             sys.exit(f"the cave code is {len(cave)} bytes; {HASH_MISMATCH_SIZE} fit")
@@ -2027,12 +2313,33 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
         if WARMUP_LOOK_STATE_OFFSET + WARMUP_LOOK_STATE_SIZE > WARMUP_KEYS_STATE_OFFSET \
                 or WARMUP_KEYS_STATE_OFFSET + WARMUP_KEYS_STATE_SIZE > LATE_JOIN_STATE_SIZE:
             sys.exit("the warmup keys' state is not between the warmup look's and the page's end")
-        for (va, expected, offset, opcode), base in ((WARMUP_LOOK_HOOK, WARMUP_LOOK_VA),
+        # Patch 46: the mouse move's jump goes to death_look, which goes on
+        # to warmup_look; update_camera's call of the view's update calls
+        # death_view.
+        death_camera = open(death_camera_bin(), "rb").read()
+        death_va = death_camera_va(late_join)
+        death_state = late_join_state_va(late_join) + DEATH_CAMERA_STATE_OFFSET
+        look_state = late_join_state_va(late_join) + WARMUP_LOOK_STATE_OFFSET
+        if death_camera[DEATH_LOOK_OFFSET:DEATH_LOOK_OFFSET + 7] != bytes.fromhex("80b9e302000000") \
+                or death_camera[DEATH_VIEW_OFFSET:DEATH_VIEW_OFFSET + 4] != bytes.fromhex("8b442404") \
+                or death_camera_exits(death_camera, death_va, DEATH_CAMERA_EXITS) != DEATH_CAMERA_EXITS_EXPECTED \
+                or death_camera.count(b"\xBB" + struct.pack("<I", look_state)) != 1 \
+                or not death_camera.count(struct.pack("<I", death_state)) \
+                or not death_camera.count(struct.pack("<I", death_state + 4)):
+            sys.exit(f"death_camera_026g.section.bin: its entries, its exits or its states are not where "
+                     f"patch_026g.py puts them (assembled with -DCAVE={death_va:#x} -DSTATE={death_state:#x} "
+                     f"-DLOOK={WARMUP_LOOK_VA:#x} -DLOOK_STATE={look_state:#x} "
+                     f"-DDRAG_END={WARMUP_LIMITS_VA + WARMUP_DRAG_END_OFFSET:#x}?)")
+        if FOV_LOD_STATE_OFFSET + FOV_LOD_STATE_SIZE > DEATH_CAMERA_STATE_OFFSET \
+                or DEATH_CAMERA_STATE_OFFSET + DEATH_CAMERA_STATE_SIZE > LATE_JOIN_STATE_SIZE:
+            sys.exit("the death camera's state is not between the FOV LOD scale's and the page's end")
+        for (va, expected, offset, opcode), base in ((WARMUP_LOOK_HOOK, death_va + DEATH_LOOK_OFFSET),
                                                      (WARMUP_LIMITS_HOOK, WARMUP_LIMITS_VA),
-                                                     (WARMUP_KEYS_HOOK, WARMUP_KEYS_VA)):
+                                                     (WARMUP_KEYS_HOOK, WARMUP_KEYS_VA),
+                                                     (DEATH_VIEW_HOOK, death_va)):
             patch(data, va, expected, hook_bytes(base, va, expected, offset, opcode))
             if neutralize_relocs(data, [(va, va + len(expected))]):
-                sys.exit(f"{va:#x}: a base relocation under a hook of the warmup camera")
+                sys.exit(f"{va:#x}: a base relocation under a hook of the warmup or the death camera")
         read_order = open(read_order_bin(), "rb").read()
         at = file_offset(READ_ORDER_VA)
         if len(read_order) != READ_ORDER_SIZE:
@@ -2055,8 +2362,18 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
             sys.exit(f"weapon_preview_026g.section.bin: its entries or its state are not where patch_026g.py "
                      f"puts them (assembled with -DCAVE={WEAPON_PREVIEW_VA:#x} "
                      f"-DSTATE={late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET:#x}?)")
+        stash_va = weapon_camo_va(late_join) + WEAPON_STASH_OFFSET
+        upgrade_preview_va = weapon_camo_va(late_join) + UPGRADE_PREVIEW_OFFSET
+        if any(weapon_preview[at] != 0xE8
+               or WEAPON_PREVIEW_VA + at + 5 + struct.unpack_from("<i", weapon_preview, at + 1)[0]
+               != upgrade_preview_va + UPGRADE_PREVIEW_FIND for at in WEAPON_PREVIEW_FIND_CALLS):
+            sys.exit(f"weapon_preview_026g.section.bin does not call upgrade_preview_026g.asm "
+                     f"(-DFIND={upgrade_preview_va + UPGRADE_PREVIEW_FIND:#x}?)")
         for va, expected, offset, opcode in WEAPON_PREVIEW_HOOKS:
-            patch(data, va, expected, hook_bytes(WEAPON_PREVIEW_VA, va, expected, offset, opcode))
+            if va in WEAPON_STASH_ENTRIES:              # through the stash's entry, which goes on to patch 32's
+                patch(data, va, expected, hook_bytes(stash_va, va, expected, WEAPON_STASH_ENTRIES[va][0], opcode))
+            else:
+                patch(data, va, expected, hook_bytes(WEAPON_PREVIEW_VA, va, expected, offset, opcode))
         if sorted(neutralize_relocs(data, [(va, va + len(expected)) for va, expected, _, _ in WEAPON_PREVIEW_HOOKS])) \
                 != WEAPON_PREVIEW_RELOCS:
             sys.exit("the base relocations under the weapon preview's sites are not where they were read")
@@ -2139,6 +2456,111 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
             patch(data, va, expected, hook_bytes(SHARED_UPGRADES_VA, va, expected, offset, opcode))
             if neutralize_relocs(data, [(va, va + len(expected))]):
                 sys.exit(f"{va:#x}: a base relocation under a hook of the shared upgrades")
+        weapon_camo = open(weapon_camo_bin(), "rb").read()
+        camo_va = weapon_camo_va(late_join)
+        name_at = weapon_camo.find(WEAPON_CAMO_NAME_FORMAT)
+        if not weapon_camo.startswith(WEAPON_CAMO_ENTRY) or name_at < 0 \
+                or struct.pack("<I", camo_va + name_at) not in weapon_camo[:name_at]:
+            sys.exit(f"weapon_camo_026g.section.bin: its entry is not where patch_026g.py calls it, or it was "
+                     f"assembled for another address (-DCAVE={camo_va:#x})")
+        weapon_stash = open(weapon_stash_bin(), "rb").read()
+        if len(weapon_camo) > WEAPON_STASH_OFFSET or WEAPON_STASH_OFFSET + len(weapon_stash) > 0x1000:
+            sys.exit("the weapon camouflage's code and the weapon stash's do not fit in .srpw's page")
+        if weapon_preview_state(weapon_stash, camo_va + WEAPON_STASH_OFFSET) \
+                != late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET:
+            sys.exit(f"weapon_stash_026g.section.bin: assembled for another state "
+                     f"(-DSTATE={late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET:#x}?)")
+        stash_va = camo_va + WEAPON_STASH_OFFSET
+        entries = {va: (entry, preview) for va, (entry, preview) in WEAPON_STASH_ENTRIES.items()}
+        jumps = [WEAPON_PREVIEW_VA + preview for _, preview in sorted(entries.values())]
+        tails = sorted({stash_va + at + 5 + struct.unpack_from("<i", weapon_stash, at + 1)[0]
+                        for at in range(len(weapon_stash) - 4) if weapon_stash[at] == 0xE9}
+                       & {WEAPON_PREVIEW_VA + preview for _, preview in entries.values()})
+        if any(weapon_stash[entry] != 0xE9 for entry, _ in entries.values()) or tails != sorted(jumps) \
+                or weapon_stash[WEAPON_STASH_FIND] != 0xE8:
+            sys.exit(f"weapon_stash_026g.section.bin: its entries are not where patch_026g.py puts them, or it "
+                     f"does not go on to patch 32's (-DPREVIEW={WEAPON_PREVIEW_VA:#x}?)")
+        weapon_table = open(weapon_table_bin(), "rb").read()
+        table_va = camo_va + WEAPON_TABLE_OFFSET
+        table_state = late_join_state_va(late_join) + WEAPON_TABLE_STATE_OFFSET
+        preview_state = late_join_state_va(late_join) + WEAPON_PREVIEW_STATE_OFFSET
+        if WEAPON_STASH_OFFSET + len(weapon_stash) > WEAPON_TABLE_OFFSET \
+                or WEAPON_TABLE_OFFSET + len(weapon_table) > 0x1000:
+            sys.exit("the weapon stash's code and the weapon table's do not fit in .srpw's page")
+        if DEATH_CAMERA_STATE_OFFSET + DEATH_CAMERA_STATE_SIZE > WEAPON_TABLE_STATE_OFFSET \
+                or WEAPON_TABLE_STATE_OFFSET + WEAPON_TABLE_STATE_SIZE > LATE_JOIN_STATE_SIZE:
+            sys.exit("the weapon table's state is not between the others' and the page's end")
+        # Its state routine as patch 32's; its one read of patch 32's mode is
+        # `cmp byte [edi+PREVIEW-STATE],0` (edi = its state).
+        if weapon_preview_state(weapon_table, table_va) != table_state \
+                or weapon_table.count(b"\x80\xBF" + struct.pack("<i", preview_state - table_state) + b"\x00") != 1 \
+                or any(weapon_table[at] != 0xE9 for at in WEAPON_TABLE_ENTRIES):
+            sys.exit(f"weapon_table_026g.section.bin: its entries or its state are not where patch_026g.py puts "
+                     f"them (assembled with -DCAVE={table_va:#x} -DSTATE={table_state:#x} "
+                     f"-DPREVIEW={preview_state:#x}?)")
+        if any(weapon_preview[at] != 0xE9
+               or WEAPON_PREVIEW_VA + at + 5 + struct.unpack_from("<i", weapon_preview, at + 1)[0] != table_va
+               for at in WEAPON_PREVIEW_CAMERA_JUMPS):
+            sys.exit(f"weapon_preview_026g.section.bin does not jump to weapon_table_026g.asm (-DCAMERA={table_va:#x}?)")
+        weapon_decals = open(weapon_decals_bin(), "rb").read()
+        decals_va = camo_va + WEAPON_DECALS_OFFSET
+        decals_calls = {decals_va + entry: 0 for entry in WEAPON_CAMO_DECALS_CALLS}
+        for at in range(len(weapon_camo) - 4):
+            target = camo_va + at + 5 + struct.unpack_from("<i", weapon_camo, at + 1)[0]
+            if weapon_camo[at] == 0xE8 and target in decals_calls:
+                decals_calls[target] += 1
+        if WEAPON_TABLE_OFFSET + len(weapon_table) > WEAPON_DECALS_OFFSET \
+                or WEAPON_DECALS_OFFSET + len(weapon_decals) > 0x2000:
+            sys.exit("the weapon table's code and the weapon decals' do not fit in .srpw's two pages")
+        press_state = late_join_state_va(late_join) + WEAPON_DECALS_STATE_OFFSET
+        if WEAPON_TABLE_STATE_OFFSET + WEAPON_TABLE_STATE_SIZE > WEAPON_DECALS_STATE_OFFSET \
+                or WEAPON_DECALS_STATE_OFFSET + WEAPON_DECALS_STATE_SIZE > LATE_JOIN_STATE_SIZE:
+            sys.exit("the weapon decals' state is not between the weapon table's and the page's end")
+        # its reads of patch 45's `on`, its transform and patch 32's mode; its press
+        if any(weapon_decals[at] != 0xE9 for at in WEAPON_DECALS_ENTRIES) \
+                or weapon_decals.count(b"\x8D\x15" + struct.pack("<I", table_state + WEAPON_TABLE_MATRIX_OFFSET)) != 1 \
+                or weapon_decals.count(b"\xC7\x05" + struct.pack("<II", press_state, 1)) != 1 \
+                or list(decals_calls.values()) != [1] * len(WEAPON_CAMO_DECALS_CALLS) \
+                or weapon_decals.count(b"\x83\x3D" + struct.pack("<I", table_state) + b"\x00") != 1 \
+                or weapon_decals.count(b"\x80\x3D" + struct.pack("<I", preview_state) + b"\x00") != 1:
+            sys.exit(f"weapon_decals_026g.section.bin: its entries are not where patch_026g.py and patch 44 call "
+                     f"them, or it was assembled for other states (-DCAVE={decals_va:#x} "
+                     f"-DPREVIEW={preview_state:#x} -DTABLE={table_state:#x} -DPRESS={press_state:#x}; "
+                     f"patch 44 with -DDECALS={decals_va:#x}?)")
+        weapon_camo = weapon_camo + b"\xCC" * (WEAPON_STASH_OFFSET - len(weapon_camo)) + weapon_stash
+        weapon_camo = weapon_camo + b"\xCC" * (WEAPON_TABLE_OFFSET - len(weapon_camo)) + weapon_table
+        weapon_camo = weapon_camo + b"\xCC" * (WEAPON_DECALS_OFFSET - len(weapon_camo)) + weapon_decals
+        for va, expected, offset, opcode in WEAPON_DECALS_HOOKS:
+            patch(data, va, expected, hook_bytes(decals_va, va, expected, offset, opcode))
+            if neutralize_relocs(data, [(va, va + len(expected))]):
+                sys.exit(f"{va:#x}: a base relocation under a hook of the weapon decals")
+        upgrade_preview = open(upgrade_preview_bin(), "rb").read()
+        upgrade_preview_state = late_join_state_va(late_join) + UPGRADE_PREVIEW_STATE_OFFSET
+        if WEAPON_DECALS_OFFSET + len(weapon_decals) > UPGRADE_PREVIEW_OFFSET \
+                or len(upgrade_preview) > 0x1000:
+            sys.exit("the weapon decals' code and the upgrade preview's do not fit in .srpw")
+        if MOUNT_STATE_OFFSET + MOUNT_STATE_SIZE > UPGRADE_PREVIEW_STATE_OFFSET \
+                or UPGRADE_PREVIEW_STATE_OFFSET + UPGRADE_PREVIEW_STATE_SIZE > WEAPON_PREVIEW_STATE_OFFSET:
+            sys.exit("the upgrade preview's state is not between the patches' mount's and the weapon preview's")
+        if upgrade_preview_targets(upgrade_preview, upgrade_preview_va) \
+                != (stash_va + WEAPON_STASH_FIND, upgrade_preview_state, preview_state):
+            sys.exit(f"upgrade_preview_026g.section.bin: its entries, its state or its find are not where "
+                     f"patch_026g.py puts them (assembled with -DCAVE={upgrade_preview_va:#x} "
+                     f"-DSTATE={upgrade_preview_state:#x} -DPREVIEW={preview_state:#x} "
+                     f"-DFIND={stash_va + WEAPON_STASH_FIND:#x}?)")
+        weapon_camo = weapon_camo + b"\xCC" * (UPGRADE_PREVIEW_OFFSET - len(weapon_camo)) + upgrade_preview
+        for va, expected, offset, opcode in UPGRADE_PREVIEW_HOOKS:
+            patch(data, va, expected, hook_bytes(upgrade_preview_va, va, expected, offset, opcode))
+            if neutralize_relocs(data, [(va, va + len(expected))]):
+                sys.exit(f"{va:#x}: a base relocation under a hook of the upgrade preview")
+        for va, expected, offset, opcode in WEAPON_TABLE_HOOKS:
+            patch(data, va, expected, hook_bytes(table_va, va, expected, offset, opcode))
+            if neutralize_relocs(data, [(va, va + len(expected))]):
+                sys.exit(f"{va:#x}: a base relocation under a hook of the weapon table")
+        va, expected, offset, opcode = WEAPON_CAMO_HOOK
+        patch(data, va, expected, hook_bytes(camo_va, va, expected, offset, opcode))
+        if neutralize_relocs(data, [(va, va + len(expected))]):
+            sys.exit("a base relocation under the weapon camouflage's hook")
         spot = open(spot_bin(), "rb").read()
         if SHARED_UPGRADES_OFFSET + len(shared_upgrades) > SPOT_OFFSET or SPOT_OFFSET + len(spot) > PICKUP_OFFSET:
             sys.exit("the shared upgrades' code, the spot code and the pickup code do not fit")
@@ -2188,6 +2610,10 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
         data = add_section(data, cave)
         if late_join is not None:
             add_state_section(data, late_join_state_va(late_join))
+            data = add_code_section(data, DEATH_CAMERA_NAME, death_camera_va(late_join), death_camera,
+                                    DEATH_CAMERA_CHARACTERISTICS)
+            data = add_code_section(data, WEAPON_CAMO_NAME, weapon_camo_va(late_join), weapon_camo,
+                                    WEAPON_CAMO_CHARACTERISTICS)
             data = add_code_section(data, DYNAMIC_ANOMALIES_NAME, dynamic_anomalies_va(late_join), anomalies,
                                     DYNAMIC_ANOMALIES_CHARACTERISTICS)
     headers = Headers(data)
@@ -2225,10 +2651,47 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None)
                      "the scoreboard shows the places in the match and none whose player left, "
                      "a spot has no cooldown and a battery's body spots it, "
                      "a model's LOD and screen factor at a wider field of view are the original's, "
+                     "a drag turns the camera on the death screen and the wheel does nothing there, "
+                     "a weapon wears the camouflage its item holds, "
+                     "a weapon's upgrade window shows it in the air above the lobby's workbench, "
+                     "a weapon wears the decals its item holds, placed on it above the workbench, "
+                     "an upgrade dropped on a weapon in its window is shown at once, "
                      f"dynamic anomalies (the release's rule, {len(anomalies)} bytes of code in .srpa at "
-                     f"{dynamic_anomalies_va(late_join):#x})"
+                     f"{dynamic_anomalies_va(late_join):#x}), "
+                     + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
+                        if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")
                   + (f", default login server {server}" if server is not None else ""))
+
+
+def required_bitmap(numbers):
+    """The mount's bitmap of the required patches: bit n of byte n/8."""
+    bitmap = bytearray(MOUNT_REQUIRED_SIZE)
+    for n in numbers:
+        bitmap[n >> 3] |= 1 << (n & 7)
+    return bytes(bitmap)
+
+
+def required_patches_of(exe):
+    """The n of every resources.db.patch_<n> a built exe requires (patch
+    49): the bitmap right after the mount's "Cannot open" text, which is in
+    the exe once; None when it is not (not a build with the patches' mount)."""
+    at = exe.find(MOUNT_UNREADABLE)
+    if at < 0 or exe.find(MOUNT_UNREADABLE, at + 1) >= 0:
+        return None
+    bitmap = exe[at + len(MOUNT_UNREADABLE):at + len(MOUNT_UNREADABLE) + MOUNT_REQUIRED_SIZE]
+    return [n for n in range(8 * MOUNT_REQUIRED_SIZE) if bitmap[n >> 3] >> (n & 7) & 1]
+
+
+def parse_required_patches(text):
+    """--required-patches=<n>,<n>,...: the numbers, each a whole number
+    without a sign or a leading zero, increasing (a list in revision order,
+    as release/patches.tsv); build() checks their range."""
+    numbers = text.split(",")
+    if not all(re.fullmatch(r"[1-9][0-9]{0,2}", n) for n in numbers) \
+            or [int(n) for n in numbers] != sorted(set(int(n) for n in numbers)):
+        sys.exit(f"--required-patches={text}: patch numbers from 1 to {MOUNT_MAX_PATCHES}, increasing, commas between")
+    return [int(n) for n in numbers]
 
 
 def parse_revision(text):
@@ -2261,6 +2724,10 @@ def stale_dll_bin():
 
 def mount_patches_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "mount_patches_026g.section.bin")
+
+
+def weapon_camo_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_camo_026g.section.bin")
 
 
 def spot_bin():
@@ -2335,6 +2802,66 @@ def warmup_look_calls(code):
     return [(WARMUP_LOOK_VA + at + struct.unpack_from("<i", code, at - 4)[0]) & 0xFFFFFFFF]
 
 
+def death_camera_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "death_camera_026g.section.bin")
+
+
+def death_camera_exits(code, va, targets):
+    """[(opcode, target)] of each `jmp rel32` (E9) or `call rel32` (E8) in
+    death_camera_026g.section.bin, assembled for `va`, whose target is one of
+    `targets`: what the code leaves to (a .bin assembled for another place,
+    or with other addresses, has none of them)."""
+    out = []
+    for at in range(len(code) - 4):
+        if code[at] in (0xE8, 0xE9):
+            target = (va + at + 5 + struct.unpack_from("<i", code, at + 1)[0]) & 0xFFFFFFFF
+            if target in targets:
+                out.append((code[at], target))
+    return sorted(out)
+
+
+def weapon_stash_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_stash_026g.section.bin")
+
+
+def weapon_table_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_table_026g.section.bin")
+
+
+def weapon_decals_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_decals_026g.section.bin")
+
+
+def upgrade_preview_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "upgrade_preview_026g.section.bin")
+
+
+def upgrade_preview_targets(code, va):
+    """upgrade_preview_026g.section.bin assembled at `va`: (the find's
+    `call`, its state, patch 32's state) when its six entries are `jmp
+    near`, find (+0Fh's) begins `push eax / call <find>` and the state is
+    the immediate of pop_op's `mov esi,<state>` (the one after account's
+    `call`), patch 32's that of preview's first `mov esi,<state>`; else None."""
+    if any(code[at] != 0xE9 for at in UPGRADE_PREVIEW_ENTRIES):
+        return None
+    target = lambda at: va + at + 5 + struct.unpack_from("<i", code, at + 1)[0] - va
+    find = target(UPGRADE_PREVIEW_FIND)
+    account = target(UPGRADE_PREVIEW_ENTRIES[2])
+    preview = target(UPGRADE_PREVIEW_ENTRIES[0])
+    if code[find] != 0x50 or code[find + 1] != 0xE8 or code[account] != 0xE8:
+        return None
+    pop_op = target(account)
+    # relocate: pushad / movzx edx,cl / mov eax,[esp+34h] / call preview
+    call_at = code.find(b"\xE8", preview)
+    if code[pop_op] != 0x60 or code[pop_op + 1] != 0xBE or call_at < 0:
+        return None
+    body = target(call_at)
+    if code[body] != 0xBE:
+        return None
+    return ((va + find + 1 + 5 + struct.unpack_from("<i", code, find + 2)[0]) & 0xFFFFFFFF,
+            struct.unpack_from("<I", code, pop_op + 2)[0], struct.unpack_from("<I", code, body + 1)[0])
+
+
 def weapon_preview_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_preview_026g.section.bin")
 
@@ -2351,15 +2878,16 @@ def weapon_draw_state(code):
     return WEAPON_DRAW_VA + 6 + struct.unpack_from("<i", code, 9)[0]
 
 
-def weapon_preview_state(code):
-    """The state address weapon_preview_026g.asm was assembled for: its
+def weapon_preview_state(code, base=WEAPON_PREVIEW_VA):
+    """The state address weapon_preview_026g.asm (at `base`; or another code
+    with the same routine, weapon_stash_026g.asm) was assembled for: its
     `state` routine is `call $+5` / `pop eax` / `lea eax,[eax+disp32]` /
     `ret`; 0 when it is not there exactly once."""
     head = bytes.fromhex("e80000000058" "8d80")
     at = code.find(head)
     if at < 0 or code.find(head, at + 1) >= 0 or code[at + 12:at + 13] != b"\xC3":
         return 0
-    return WEAPON_PREVIEW_VA + at + 5 + struct.unpack_from("<i", code, at + 8)[0]
+    return base + at + 5 + struct.unpack_from("<i", code, at + 8)[0]
 
 
 def late_join_bin():
@@ -2370,7 +2898,7 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--") or a == "--check"]
     options = [a for a in sys.argv[1:] if a.startswith("--") and a != "--check"]
     mode, bin_path, server = "section", None, None
-    late_join, late_join_path, revision = True, None, None
+    late_join, late_join_path, revision, required = True, None, None, None
     for option in options:
         if option == "--cert-only":
             mode = "cert-only"
@@ -2386,6 +2914,8 @@ def main():
             server = parse_server(option[9:])
         elif option.startswith("--revision="):
             revision = parse_revision(option[11:])
+        elif option.startswith("--required-patches="):
+            required = parse_required_patches(option[len("--required-patches="):])
         else:
             sys.exit(f"unknown option {option}\n\n{__doc__}")
     if len(args) == 3:                                    # the draft's form: <exe> <out> <bin>
@@ -2403,9 +2933,11 @@ def main():
         late_join_code = open(late_join_path or late_join_bin(), "rb").read()
     elif late_join_path:
         sys.exit("--late-join-bin goes with the default build only")
-    if revision is not None and late_join_code is None:
-        sys.exit("--revision goes with the default build only (not --no-late-join, --cave=hash-mismatch or --cert-only)")
-    data, description = build(open(source, "rb").read(), mode, code, server, late_join_code, revision=revision)
+    if (revision is not None or required is not None) and late_join_code is None:
+        sys.exit("--revision and --required-patches go with the default build only "
+                 "(not --no-late-join, --cave=hash-mismatch or --cert-only)")
+    data, description = build(open(source, "rb").read(), mode, code, server, late_join_code, revision=revision,
+                              required_patches=required)
     if target != "--check":
         with open(target, "wb") as out:
             out.write(data)

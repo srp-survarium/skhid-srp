@@ -1,0 +1,8 @@
+{
+  "schema": 2,
+  "movie": "flash_movies/hud.swf",
+  "archive": "resources.db.patch_22",
+  "archive_offset": 1091584,
+  "movie_size": 7713475,
+  "movie_sha256": "b924b29db06070dfe7d89827a3cf3bc71f14ae4cbca9a2546d95ac977951ec80"
+}

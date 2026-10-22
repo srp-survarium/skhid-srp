@@ -17,6 +17,14 @@ pub mod channel {
     pub const TEAM_2: u8 = 7;
     pub const SQUAD: u8 = 8;
     pub const CLAN_TEAM: u8 = 9;
+    /// srp's own: a room's chat (`social.md` §9.8). Not one of the game's
+    /// channels: the client sends a line typed in a tab whose
+    /// `channel_to_send` is 10 with channel id 0 (0x26AD30: any channel
+    /// above 9 goes out with id 0) and shows a received one in the tabs
+    /// that list 10 (`add_message` 0x208AD0 passes it on as it is). Only
+    /// srp's lobby movie has such a tab (the "Room Chat" tab of
+    /// `SrpRooms.as`); the game's own tabs list 10 nowhere in the lobby.
+    pub const ROOM: u8 = 10;
 }
 
 /// `client_type` of a chat sender (`social.md` §1.2).

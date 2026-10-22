@@ -534,6 +534,9 @@ pub struct Setup {
     pub loadouts: Vec<Loadout>,
 }
 
+/// Stack items' counts, by dict id.
+pub type Stacks = BTreeMap<u16, u32>;
+
 /// How a match ended, for the results screen and the rewards.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Report {
@@ -547,7 +550,7 @@ pub struct Report {
     /// By roster index: the stacks owned as the match started
     /// ([`Loadout::owned`]) and what the last readable snapshot had left of
     /// them (`None`: never read, so nothing is taken).
-    pub supplies: Vec<(BTreeMap<u16, u32>, Option<BTreeMap<u16, u32>>)>,
+    pub supplies: Vec<(Stacks, Option<Stacks>)>,
     /// By roster index: whether the player was ever in the match (entered).
     /// One whose game never got that far neither won nor lost.
     pub entered: Vec<bool>,

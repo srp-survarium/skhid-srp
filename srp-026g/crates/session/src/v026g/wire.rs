@@ -36,7 +36,8 @@ pub fn item_descr_at(item: &Item, now: u64) -> ItemDescr {
         dict_id: item.dict_id,
         condition_or_stack: item.condition_or_stack,
         repair_time: items_rules::seconds_left(item.repair_time, now),
-        reroll_time: items_rules::seconds_left(item.reroll_time, now),
+        // no wait between rerolls (items_rules: Reroll)
+        reroll_time: 0,
         modifications: item
             .modifications
             .iter()
@@ -161,6 +162,13 @@ pub fn own_account(account: &Account, now: u64) -> Result<ServerMessage, WireErr
 pub fn squad_member_account(account: &Account, now: u64) -> Result<ServerMessage, WireError> {
     let revision = account.active().map_or(0, |kit| kit.revision);
     lobby::squad_member_account(&account_body(account, now), revision)
+}
+
+/// `93`: the account's kits as a results screen's row shows them (the
+/// game's "Information about the player" window), from the account as it
+/// is now; `id` goes in the full result the client discards.
+pub fn player_gear(account: &Account, id: u32, now: u64) -> Result<ServerMessage, WireError> {
+    lobby::player_details(&lobby::FullResult::empty(id), &account_body(account, now))
 }
 
 /// `8B`.
@@ -329,7 +337,7 @@ mod tests {
     use crate::v026g::{quests as quest_rules, rules};
     use survarium::v026g::dictionary::Dictionary;
     use survarium::v026g::drops::Rng;
-    use survarium::v026g::loadouts::Loadouts;
+    use survarium::v026g::loadouts::{Loadouts, POCKET_SLOTS};
     use survarium::v026g::lobby::client_model::{Client, Decoded, ModelError};
     use survarium::v026g::lobby::requests::{INVENTORY_SLOT, Relocation};
     use survarium::v026g::lobby::{Delivery, FULL_CONDITION, KIT_READY, ServerId};
@@ -555,14 +563,21 @@ mod tests {
             .unwrap();
         assert_eq!(client.inventory().len(), account.inventory.len());
 
-        // Dress all three kits with whatever fits each slot.
+        // Dress all three kits with whatever fits each slot (a pocket with
+        // a type no other pocket holds).
         for kit in 1..=3 {
-            let mut moves = Vec::new();
+            let mut moves: Vec<Relocation> = Vec::new();
             for slot in 0..KIT_SLOTS as u8 {
+                let pocketed = |dict_id| {
+                    POCKET_SLOTS.contains(&slot)
+                        && moves.iter().any(|done| {
+                            done.dict_id == dict_id && POCKET_SLOTS.contains(&done.target_slot)
+                        })
+                };
                 let Some(item) = account
                     .inventory
                     .iter()
-                    .find(|item| dictionary.fits(item.dict_id, slot))
+                    .find(|item| dictionary.fits(item.dict_id, slot) && !pocketed(item.dict_id))
                 else {
                     continue;
                 };

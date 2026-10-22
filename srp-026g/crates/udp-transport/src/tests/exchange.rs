@@ -586,7 +586,7 @@ impl Pair {
             .collect()
     }
 
-    fn to_model(&mut self, datagram: &[u8]) {
+    fn deliver_to_model(&mut self, datagram: &[u8]) {
         let now = self.now();
         self.model.receive(datagram, now);
         assert!(self.model.faults.is_empty(), "{:?}", self.model.faults);
@@ -597,7 +597,7 @@ impl Pair {
         self.model.poll(now)
     }
 
-    fn to_server(&mut self, datagram: &[u8]) {
+    fn deliver_to_server(&mut self, datagram: &[u8]) {
         let now = self.now();
         self.server.receive(datagram, now);
     }
@@ -606,12 +606,12 @@ impl Pair {
     fn settle(&mut self) {
         for _ in 0..2000 {
             for (_, datagram) in self.server_step(false) {
-                self.to_model(&datagram);
+                self.deliver_to_model(&datagram);
             }
             for datagram in self.model_step() {
-                self.to_server(&datagram);
+                self.deliver_to_server(&datagram);
             }
-            if self.server.backlog() == 0 && self.step % 50 == 0 {
+            if self.server.backlog() == 0 && self.step.is_multiple_of(50) {
                 return;
             }
         }
@@ -648,13 +648,13 @@ fn late_datagram(held: usize, later: usize) -> Pair {
                 stash = Some(datagram);
                 continue;
             }
-            pair.to_model(&datagram);
+            pair.deliver_to_model(&datagram);
             if number == held + later {
-                pair.to_model(&stash.take().expect("held back"));
+                pair.deliver_to_model(&stash.take().expect("held back"));
             }
         }
         for datagram in pair.model_step() {
-            pair.to_server(&datagram);
+            pair.deliver_to_server(&datagram);
         }
     }
     pair.settle();
@@ -690,7 +690,7 @@ fn a_late_game_datagram_does_not_make_our_seq_skip() {
     let mut model_sent = 0;
     while pair.emitted < 600 {
         for (_, datagram) in pair.server_step(true) {
-            pair.to_model(&datagram);
+            pair.deliver_to_model(&datagram);
         }
         for datagram in pair.model_step() {
             model_sent += 1;
@@ -698,11 +698,11 @@ fn a_late_game_datagram_does_not_make_our_seq_skip() {
                 stash = Some((pair.emitted, datagram));
                 continue;
             }
-            pair.to_server(&datagram);
+            pair.deliver_to_server(&datagram);
         }
         let emitted = pair.emitted;
         if let Some((_, datagram)) = stash.take_if(|(at, _)| emitted >= *at + 140) {
-            pair.to_server(&datagram);
+            pair.deliver_to_server(&datagram);
         }
     }
     pair.settle();

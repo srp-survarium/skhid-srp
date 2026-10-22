@@ -38,7 +38,7 @@ README patch 31, `client_patch.md` section 3.29; the server: `TimelimitRule::bef
   - the wheel moves the camera nearer (forward) or further, 0.12 a notch as the lobby's;
   - the camera keeps the lobby camera's limits: distance 1.5 to 4.6, pitch within 60 degrees
     up or down (so it starts at 1.5, the stock warmup's 1.0 being nearer than the lobby's);
-  - on the death screen the cursor alone takes the mouse, as before;
+  - on the death screen: patch 46's free look (`death-camera.md`), the wheel nothing;
   - a button pressed while the cursor is shown (a drag, a pick on the death screen) and still
     held when the cursor goes (the start, the respawn) does nothing, held or let go: no
     shot and no aim without a press of its own (the owner, 2026-10-19: "players will shoot

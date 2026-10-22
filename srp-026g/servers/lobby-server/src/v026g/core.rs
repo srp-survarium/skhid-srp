@@ -88,6 +88,11 @@ pub(super) struct Player<'a> {
     pub money_sent: (u32, u32),
     /// The count of ranked players the client's ranking page has.
     pub ranked_sent: u32,
+    /// The ranking pages it was sent, newest last, as (the index of the
+    /// first row, the account of each row): a right-click on a row asks by
+    /// its place, which resolves to what the page (or a cached tab of it)
+    /// showed there (`gear`). The last `gear::PAGES_KEPT` only.
+    pub ranked_shown: Vec<(u32, Vec<u32>)>,
     /// The online counts the client was last sent, and when (`None`: only
     /// with the sign-in's pushes).
     pub online_sent: (u32, u32, u32),
@@ -100,6 +105,9 @@ pub(super) struct Player<'a> {
     /// The name it was last told is no player's (`st_player_not_found`),
     /// and when: not said again for each line (`social`).
     pub not_found: Option<(String, Instant)>,
+    /// The room whose chat it hears: the room it was in when its movie put
+    /// up its "Room Chat" tab, while it is in that room (`room_chat`).
+    pub room_chat: Option<u32>,
 }
 
 pub(super) enum Stage<'a> {
@@ -217,14 +225,21 @@ pub(super) struct Core<'a> {
     /// The rooms (`rooms`).
     pub rooms: session::v026g::rooms::Rooms,
     /// The room matches being made, by the queue's match id: the map their
-    /// vote chose (`rooms`, `play::launch`).
-    pub room_launching: HashMap<u32, u8>,
+    /// vote chose, the room's minimum of players and whether the room has a
+    /// PIN (its match pays nothing) (`rooms`, `play::launch`).
+    pub room_launching: HashMap<u32, (u8, u8, bool)>,
     /// Why a request or a Play left the account outside a room, said once
     /// with its next room state (`rooms`).
     pub room_codes: HashMap<u32, survarium::v026g::lobby::rooms::RoomCode>,
     /// When a member who came while its room's match is played goes into
     /// it (`rooms::LATE_JOIN_WAIT` after it came, or at once on its ask).
     pub room_join_at: HashMap<u32, Instant>,
+    /// Each member's room at the last tick: who came and went is said in
+    /// the room's chat (`room_chat`).
+    pub room_seen: HashMap<u32, u32>,
+    /// A member (or one queued) whose game started anew, until its new
+    /// game is told the room: by then, or it loses the place (`rooms`).
+    pub room_unseen: HashMap<u32, Instant>,
 }
 
 impl<'a> Core<'a> {
@@ -274,6 +289,8 @@ impl<'a> Core<'a> {
             room_launching: HashMap::new(),
             room_codes: HashMap::new(),
             room_join_at: HashMap::new(),
+            room_seen: HashMap::new(),
+            room_unseen: HashMap::new(),
         }
     }
 
@@ -538,10 +555,12 @@ impl<'a> Core<'a> {
         // The account's other link: another game signed in with it (the
         // old one is told so, `AA`), or this game connected again.
         let mut still_in_match = None;
+        let mut reconnect = false;
         if let Some(old) = self.by_account.get(&account_id).copied() {
             let same_session = self
                 .player(old)
                 .is_some_and(|player| player.session_id == session_id);
+            reconnect = same_session;
             if same_session {
                 still_in_match = self.player(old).and_then(|player| player.in_match);
                 log::info!("{login_name} connected to the lobby again from {from}");
@@ -555,6 +574,10 @@ impl<'a> Core<'a> {
                 self.sign_out(old, "its account signed in again", now, false);
             }
         }
+
+        // Not the game the server knew (that one connects again with its
+        // session): its room is not shown in it yet (`rooms::room_restarted`).
+        let anew = !reconnect && !self.away.contains_key(&session_id);
 
         // A client that connects again is in the match it was in, if that
         // still runs: its link went silent (`away`), or it gave up on a
@@ -650,12 +673,14 @@ impl<'a> Core<'a> {
             squad_serial: None,
             money_sent: balance,
             ranked_sent: ranking.len() as u32,
+            ranked_shown: Vec::new(),
             online_sent: online,
             online_at: None,
             friends_sent: Vec::new(),
             chat_allowance: super::social::CHAT_BURST,
             chat_at: now,
             not_found: None,
+            room_chat: None,
         };
         let mut link = Link {
             transport,
@@ -673,6 +698,9 @@ impl<'a> Core<'a> {
         }
         self.links.insert(from, link);
         self.by_account.insert(account_id, from);
+        if anew {
+            self.room_restarted(account_id, now);
+        }
         self.send_all(from, push);
         // The ranking page of a game that was running before this sign-in
         // may still wait for rows that will never come (`ranking_flush`).
@@ -904,6 +932,7 @@ impl<'a> Core<'a> {
         self.collect_away(now);
         self.clan_matches(now);
         self.room_tick(now);
+        self.room_chat_tick();
         let online = self.online_counts();
         let accounts = self.accounts.len();
         if accounts != self.ranked.0 {
@@ -976,7 +1005,7 @@ impl<'a> Core<'a> {
 
     fn notice(&mut self, notice: Notice, now: Instant) {
         match notice {
-            Notice::MatchFinished(finished) => self.match_finished(finished.match_id, now),
+            Notice::MatchFinished(finished) => self.match_finished(finished, now),
             Notice::Push {
                 account_id,
                 messages,
@@ -995,6 +1024,10 @@ impl<'a> Core<'a> {
                     return;
                 };
                 self.push_account(&who);
+                // Its kits may have changed (the admin took an item it
+                // wore): its squad's view of it is compared again, as after
+                // a sale.
+                self.squads_dirty = true;
                 let (skills, reputations, quests) = {
                     let account = who.account.locked();
                     (

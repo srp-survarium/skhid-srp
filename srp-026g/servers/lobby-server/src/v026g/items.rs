@@ -8,10 +8,10 @@
 //! |---|---|---|
 //! | `46 01` attach | `83 46 01`, then the inventory and the account | `84 46` `st_cannot_upgrade_item`, then the inventory and the account (the window showed the cosmetic in its slot already) |
 //! | `46 02` detach | `83 46 02`, then the same (also for a cosmetic that is gone: sold, Flash's `on_item_sold` asks after the sale) | the same |
-//! | `46 05` place a decal | nothing: the client wrote the value itself and has no handler for an answer | `84 46`, then the inventory and the account |
+//! | `46 05` place a decal | nothing: the client wrote the value itself and has no handler for an answer; on a weapon the inventory and the account (patch 47: the lobby builds the weapon again with it) | `84 46`, then the inventory and the account |
 //! | `46 06` window opened | `83 46 06`, and `83 46 07` again for a change not chosen yet | `84 46` `st_cannot_select_rerolled_modification` |
 //! | `46 07` reroll | `83 46 07` and the money | `84 46`, then `83 46 06`: the window is locked until it is filled again |
-//! | `46 08` choose | `83 46 08` (the client changes its copies itself) | `84 46`, then `83 46 06` (and `07`) |
+//! | `46 08` choose | `83 46 08` (the client changes its copies itself; keeping the old one: the old one into itself) | `84 46`, then `83 46 06` (and `07`) |
 //! | `46 09` craft | `83 46 09`, then the inventory, the account and the money | `83 46 09 FE`: the window waits for a result, and shows `st_cannot_craft_item` for this one |
 //! | `47 03` repair | `83 47 03`, then the inventory (the client leaves the defects on its copy), the account and the money | `84 47` with the rule's text |
 //!
@@ -80,11 +80,15 @@ impl Core<'_> {
     }
 
     /// `46 05 <kit> <host> <upgrade> <u64>`: the decal editor's value. The
-    /// client has written it into its own copy and reads no answer.
+    /// client has written it into its own copy and reads no answer. A
+    /// weapon's: the account too, which builds the weapon of the lobby's
+    /// view again with the decal's new place (patch 47; the stock editor
+    /// baked an armour's itself).
     pub(super) fn place_upgrade(&mut self, who: &Who, host: u32, upgrade: u32, value: u64) {
         let placed = items_rules::place_upgrade(&mut who.account.locked(), host, upgrade, value);
         match placed {
-            Ok(()) => {
+            Ok(true) => self.item_changed(who),
+            Ok(false) => {
                 self.accounts.mark_dirty(who.account_id);
                 self.squads_dirty = true;
             }
@@ -121,7 +125,7 @@ impl Core<'_> {
     /// The window as it is, after a refusal: the client's is locked until
     /// it is filled again.
     fn refill_reroll_window(&mut self, who: &Who, item_id: u32) {
-        let window = items_rules::reroll_window(&who.account.locked(), item_id, quests::now());
+        let window = items_rules::reroll_window(&who.account.locked(), item_id);
         if let Ok(window) = window {
             self.send_reroll_window(who, &window);
         }
@@ -129,7 +133,7 @@ impl Core<'_> {
 
     /// `46 06 <item>`.
     pub(super) fn open_reroll(&mut self, who: &Who, item_id: u32) {
-        let window = items_rules::reroll_window(&who.account.locked(), item_id, quests::now());
+        let window = items_rules::reroll_window(&who.account.locked(), item_id);
         match window {
             Ok(window) => self.send_reroll_window(who, &window),
             Err(error) => self.refuse_item(who, id::INVENTORY, "a reroll window", error),
@@ -175,19 +179,24 @@ impl Core<'_> {
         }
     }
 
-    /// `46 08 <item> <old modification> <choice>`.
+    /// `46 08 <item> <old modification> <choice>`. Keeping the old one
+    /// is answered as a change of it into itself: the client's copies stay
+    /// as they are and the window shows the change over.
     pub(super) fn choose_modifier(&mut self, who: &Who, item_id: u32, old: u32, choice: u32) {
         let chosen = items_rules::choose_modifier(
             &mut who.account.locked(),
             item_id,
             old,
             choice,
-            quests::now(),
         );
         match chosen {
             Ok(chosen) => {
                 self.accounts.mark_dirty(who.account_id);
-                self.squads_dirty = true;
+                if chosen.new_modification == chosen.old_modification {
+                    log::info!("{} keeps modification {old} of item {item_id}", who.name);
+                } else {
+                    self.squads_dirty = true;
+                }
                 let window = chosen.window;
                 let (changed, wait) = window.changed.unwrap_or((chosen.new_modification, 0));
                 debug_assert_eq!(changed, chosen.new_modification);

@@ -168,3 +168,100 @@ fn options_that_do_not_say_one_set_of_archives_are_refused() {
         assert!(message.contains(why), "{options:?}: {message}");
     }
 }
+
+/// `<layers>`: the patches in the game's order whatever their order given,
+/// the options a command takes, the other words as paths.
+#[test]
+fn layers_are_the_db_and_the_patches_in_ascending_n() {
+    let (archives, rest) = layered(
+        &args("--db r/resources.db --patch b/resources.db.patch_14 x/y --patch a/resources.db.patch_2 --dir d"),
+        &["--dir"],
+    )
+    .unwrap();
+    assert_eq!(
+        archives,
+        [
+            PathBuf::from("r/resources.db"),
+            PathBuf::from("a/resources.db.patch_2"),
+            PathBuf::from("b/resources.db.patch_14"),
+        ]
+    );
+    assert_eq!(rest.named.get("--dir").map(String::as_str), Some("d"));
+    assert_eq!(rest.paths, ["x/y"]);
+    for (options, why) in [
+        (
+            "--patch resources.db.patch_1",
+            "--db <resources.db> is needed",
+        ),
+        (
+            "--db r --patch p/patch_1",
+            "the game mounts a patch only by the name",
+        ),
+        (
+            "--db r --patch a/resources.db.patch_3 --patch b/resources.db.patch_3",
+            "two patches of one number",
+        ),
+        ("--db r --out o", "--out: not an option here"),
+        (
+            "--db r --dir a --dir b",
+            "--dir: not an option here, or given twice",
+        ),
+        ("--db r --dir", "--dir needs a value"),
+    ] {
+        let message = layered(&args(options), &["--dir"]).expect_err(options);
+        assert!(message.contains(why), "{options}: {message}");
+    }
+}
+
+/// `get` and `compare` see a later patch's file over an earlier one's.
+#[test]
+fn get_and_compare_see_the_files_as_the_game_mounts_them() {
+    let game = Game::new("layers", &[]);
+    let archive = |name: &str, files: &[(&str, &str)]| {
+        let dir = game.0.join(format!("{name}.files"));
+        for (path, text) in files {
+            let path = dir.join(path);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, text).unwrap();
+        }
+        let (bytes, _) = resources_db::pack::pack(&dir).unwrap();
+        std::fs::write(game.0.join(name), bytes).unwrap();
+        game.0.join(name).display().to_string()
+    };
+    let db = archive("resources.db", &[("a/x", "stock x"), ("a/y", "stock y")]);
+    let patch = archive("resources.db.patch_5", &[("a/x", "patched x")]);
+    let layers = format!("--db {db} --patch {patch}");
+    let out = game.0.join("got");
+    get(&args(&format!("{layers} --out {} a/x a/y", out.display()))).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(out.join("a/x")).unwrap(),
+        "patched x"
+    );
+    assert_eq!(std::fs::read_to_string(out.join("a/y")).unwrap(), "stock y");
+    let refused = get(&args(&format!("{layers} --out {} a/x", out.display()))).unwrap_err();
+    assert!(refused.contains("never overwritten"), "{refused}");
+    let refused = get(&args(&format!(
+        "{layers} --out {}/other a/z",
+        game.0.display()
+    )))
+    .unwrap_err();
+    assert!(
+        refused.contains("a/z: no archive has this file"),
+        "{refused}"
+    );
+
+    let made = game.0.join("made");
+    for (path, text) in [("a/x", "patched x"), ("a/y", "new y"), ("b/z", "z")] {
+        std::fs::create_dir_all(made.join(path).parent().unwrap()).unwrap();
+        std::fs::write(made.join(path), text).unwrap();
+    }
+    let lines = compare(&args(&format!("{layers} --dir {}", made.display()))).unwrap();
+    assert_eq!(
+        lines,
+        [
+            "same a/x resources.db.patch_5",
+            "differs a/y resources.db",
+            "new b/z"
+        ]
+    );
+}

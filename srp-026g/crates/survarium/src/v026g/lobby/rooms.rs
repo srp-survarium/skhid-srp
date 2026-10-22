@@ -30,6 +30,10 @@ pub const ROOM_PLAY: u32 = ROOMS_FIRST + 6;
 /// `ROOM_POOL_BASE + page`: the maps a room's pool may hold
 /// ([`room_pool`]), [`POOL_PAGE_ROWS`] a page.
 pub const ROOM_POOL_BASE: u32 = ROOMS_FIRST + 10;
+/// The rooms the asker's friends are members of ([`friend_rooms`]): a
+/// friend's right-click menu offers "Join room" by it (the owner's of
+/// 2026-10-20).
+pub const ROOM_FRIENDS: u32 = ROOMS_FIRST + 40;
 /// `ROOM_KICK_BASE + place + 20 × check` ([`kick_start`]): the owner takes
 /// the member at that place of the state's list out of the room; `check` is
 /// that state's serial modulo [`KICK_CHECKS`], so a kick made from an older
@@ -43,11 +47,24 @@ pub const ROOM_PIN_BASE: u32 = ROOMS_FIRST + 10_000;
 /// `ROOM_JOIN_BASE + key`, key 1 to [`ROOM_KEY_MAX`]: join that room.
 /// Answered with the state.
 pub const ROOM_JOIN_BASE: u32 = ROOMS_FIRST + 100_000;
+/// `ROOM_MEMBERS_BASE + key`, key 1 to [`ROOM_KEY_MAX`]: who is in that
+/// room, for anyone looking at the list ([`room_members`]; since
+/// 2026-10-20, a movie before it never asks).
+pub const ROOM_MEMBERS_BASE: u32 = ROOMS_FIRST + 300_000;
 /// Leave the queue the asker waits in. Answered with the state.
 pub const ROOM_UNQUEUE: u32 = ROOMS_FIRST + 7;
 /// Go into the asker's room's match being played now, without waiting for
 /// [`RoomView::join_in`]. Answered with the state.
 pub const ROOM_JOIN_MATCH: u32 = ROOMS_FIRST + 8;
+/// What the asker's create window starts with: the settings of the last
+/// room it made by hand, fitted to the pool and the rules now
+/// ([`room_form`]; the owner's of 2026-10-20).
+pub const ROOM_FORM: u32 = ROOMS_FIRST + 9;
+/// The asker's room chat: its last lines (20, `session::v026g::rooms`) as
+/// chat lines on [`super::channel::ROOM`], and from now on the room's new ones;
+/// the movie asks when it puts up its "Room Chat" tab (`social.md` §9.8).
+/// Answered with the state.
+pub const ROOM_CHAT: u32 = ROOMS_FIRST + 30;
 /// `ROOM_QUEUE_BASE + key`, key 1 to [`ROOM_KEY_MAX`]: wait in that full
 /// room's queue (its PIN, if it asks one, given just before), or join it if
 /// a place is free. Answered with the state.
@@ -93,6 +110,9 @@ pub const LIST_ROWS: usize = 31;
 pub const MEMBERS_MAX: usize = 20;
 /// The most cards of a vote.
 pub const CARDS: usize = 3;
+/// The most rows of [`friend_rooms`] after its header: all a `91` holds
+/// (a friend list has 200 at most).
+pub const FRIEND_ROWS: usize = u8::MAX as usize - 1;
 /// The most bytes of a name in a row: a player's name is at most this long
 /// in the game (`limits::NAME` is the buffer's).
 const ROW_NAME: usize = 32;
@@ -127,8 +147,12 @@ pub enum RoomRequest {
     Pin { pin: u16 },
     Join { key: u32 },
     Queue { key: u32 },
+    Members { key: u32 },
     Unqueue,
     JoinMatch,
+    Form,
+    Chat,
+    Friends,
     Bits { chunk: u8, bits: u32 },
     Create(RoomSpec),
 }
@@ -154,6 +178,18 @@ pub fn kick_start(place: u8, serial: u32) -> u32 {
     ROOM_KICK_BASE + u32::from(place) + MEMBERS_MAX as u32 * (serial % KICK_CHECKS)
 }
 
+/// The `match` of a `3D 00 <GEAR_IN_ROOM> <match>` for the member at `place`
+/// of a room state of that `serial` (`lobby::GEAR_IN_ROOM`), and back:
+/// `(place, check)`.
+pub fn member_gear(place: u8, serial: u32) -> u32 {
+    u32::from(place) + MEMBERS_MAX as u32 * (serial % KICK_CHECKS)
+}
+
+pub fn member_gear_place(value: u32) -> Option<(u8, u32)> {
+    let check = value / MEMBERS_MAX as u32;
+    (check < KICK_CHECKS).then(|| ((value % MEMBERS_MAX as u32) as u8, check))
+}
+
 /// The start of 20 entries of a pool: `chunk` 0 to [`CHUNKS`] − 1, `bits`
 /// below 2^20.
 pub fn bits_start(chunk: u8, bits: u32) -> u32 {
@@ -173,6 +209,9 @@ pub fn room_request(start: u32, count: u8) -> Option<RoomRequest> {
         ROOM_PLAY => R::Play,
         ROOM_UNQUEUE => R::Unqueue,
         ROOM_JOIN_MATCH => R::JoinMatch,
+        ROOM_FORM => R::Form,
+        ROOM_CHAT => R::Chat,
+        ROOM_FRIENDS => R::Friends,
         _ if (ROOM_VOTE_BASE..ROOM_VOTE_BASE + CARDS as u32).contains(&start) => R::Vote {
             card: (start - ROOM_VOTE_BASE) as u8,
         },
@@ -196,6 +235,11 @@ pub fn room_request(start: u32, count: u8) -> Option<RoomRequest> {
         _ if (ROOM_QUEUE_BASE + 1..=ROOM_QUEUE_BASE + ROOM_KEY_MAX).contains(&start) => R::Queue {
             key: start - ROOM_QUEUE_BASE,
         },
+        _ if (ROOM_MEMBERS_BASE + 1..=ROOM_MEMBERS_BASE + ROOM_KEY_MAX).contains(&start) => {
+            R::Members {
+                key: start - ROOM_MEMBERS_BASE,
+            }
+        }
         _ if (ROOM_BITS_BASE..ROOM_BITS_BASE + CHUNKS * (1 << BITS_PER_CHUNK)).contains(&start) => {
             let offset = start - ROOM_BITS_BASE;
             R::Bits {
@@ -299,6 +343,20 @@ pub struct RoomRow {
     pub pin: bool,
     /// The owner's name: the room's.
     pub name: String,
+}
+
+/// A friend of the asker who is a member of a room, in [`friend_rooms`]:
+/// what joining it from the friend's menu needs (as the list's Join: a PIN
+/// asked first, Queue for a full room).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FriendRoom {
+    /// The friend's account, as its row of the friend list (`A3 07`) has it.
+    pub account_id: u32,
+    pub key: u32,
+    pub players: u8,
+    /// Players a side.
+    pub size: u8,
+    pub pin: bool,
 }
 
 /// A card of the vote.
@@ -419,6 +477,28 @@ pub struct RoomSwitch {
     pub name: String,
 }
 
+/// What the create window starts with ([`room_form`]): the settings of the
+/// asker's last room made by hand, or the defaults.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RoomForm {
+    /// The settings are the asker's own (false: the defaults).
+    pub saved: bool,
+    /// One of [`SIZES`].
+    pub size: u8,
+    /// One of [`MIN_SIDES`].
+    pub min_side: u8,
+    /// 0 (any) to [`LEVEL_MAX`].
+    pub max_level: u8,
+    /// One of [`WAITS`].
+    pub wait: u8,
+    /// By the pool's entries ([`room_pool`]'s order): the entry's map and
+    /// weather (its tile in the window) are in. An entry is in the pool made
+    /// when its tile is in and its mode is not in [`Self::modes_off`].
+    pub tiles_on: Vec<bool>,
+    /// The modes left out (`maps::MapMode::mode`).
+    pub modes_off: Vec<u8>,
+}
+
 /// A map a pool may hold, in [`room_pool`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PoolEntry {
@@ -440,16 +520,22 @@ fn row(name: String) -> Ranked {
     }
 }
 
-/// A name fit for a row: no `;`, at most [`ROW_NAME`] bytes.
+/// A name fit for a row: no `;`, at most [`ROW_NAME`] bytes; one longer is
+/// cut and ends with "…" (the owner's of 2026-10-20: long names shown as
+/// cut, not as other names).
 fn row_name(name: &str) -> String {
+    let name = name.replace(';', "_");
+    if name.len() <= ROW_NAME {
+        return name;
+    }
     let mut cut = String::new();
     for c in name.chars() {
-        let c = if c == ';' { '_' } else { c };
-        if cut.len() + c.len_utf8() > ROW_NAME {
+        if cut.len() + c.len_utf8() + '…'.len_utf8() > ROW_NAME {
             break;
         }
         cut.push(c);
     }
+    cut.push('…');
     cut
 }
 
@@ -584,6 +670,53 @@ pub fn room_state(
     rows_at(ROOM_STATE, names)
 }
 
+/// A member of a room as the Rooms list's side panel shows it
+/// ([`room_members`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ListMember {
+    pub member: Member,
+    /// The team of its place in the room's match being played, 0 or 1;
+    /// `None` when it has none.
+    pub side: Option<u8>,
+    /// Its account: a right-click on it asks for its kits by it
+    /// (`3D 00 <GEAR_BY_ACCOUNT> <account>`).
+    pub account_id: u32,
+}
+
+/// `91` as the answer to `3B 00 <ROOM_MEMBERS_BASE + key> 1`, `place =
+/// ROOM_MEMBERS_BASE + i`, to anyone (the room chosen in the Rooms list; a
+/// room with a PIN too: names are no secret): `S1;G;<key>;<members>`, then
+/// two rows a member in the order of the room: `P;<i>;<gear>;<owner>;<me>;
+/// <in match>;<fit>;<away>;<side>;<account>` (the state's fields; `side` 1
+/// or 2, the team of its place in the room's match being played, 0 when it
+/// has none), and its whole name alone (up to the 63 bytes a row holds, `;`
+/// and all: a name is never cut here). A room gone: `S1;G;<key>;0`, no
+/// member.
+pub fn room_members(key: u32, members: &[ListMember]) -> Result<ServerMessage, WireError> {
+    at_most("room members", members.len(), MEMBERS_MAX)?;
+    rows_at(ROOM_MEMBERS_BASE, members_names(key, members))
+}
+
+fn members_names(key: u32, members: &[ListMember]) -> Vec<String> {
+    let mut names = vec![format!("{ROOMS_VERSION};G;{key};{}", members.len())];
+    for (index, seen) in members.iter().enumerate() {
+        let member = &seen.member;
+        names.push(format!(
+            "P;{index};{};{};{};{};{};{};{};{}",
+            member.gear,
+            u8::from(member.owner),
+            u8::from(member.me),
+            u8::from(member.in_match),
+            member.fit as u8,
+            u8::from(member.away),
+            seen.side.map_or(0, |team| team.min(1) + 1),
+            seen.account_id
+        ));
+        names.push(member.name.clone());
+    }
+    names
+}
+
 /// `91` as the answer to `3B 00 <ROOM_POOL_BASE + page> <count>`, `place =
 /// that start + i`: `S1;M;<total>;<page>`, then a row an entry of that
 /// page, `<index>;<map_id>;<level>;<weather>;<mode>;<extra>`. An entry's
@@ -609,6 +742,68 @@ pub fn room_pool(entries: &[PoolEntry], page: u8) -> Result<ServerMessage, WireE
             }),
     );
     rows_at(ROOM_POOL_BASE + u32::from(page), names)
+}
+
+/// `91` as the answer to `3B 00 <ROOM_FORM> 1`, `place = ROOM_FORM + i`:
+/// `S1;F;<saved>;<size>;<min side>;<max level>;<wait>;<modes off>` (`saved`
+/// 1: the asker's own settings, 0: the defaults; `modes off` the modes left
+/// out, `,` between them, empty for none), then a row a chunk of 20 entries
+/// of the pool, `E;<chunk>;<bits>`: entry `chunk × 20 + b`'s tile is in by
+/// bit `b` ([`RoomForm::tiles_on`]), every chunk the pool has (one at least).
+pub fn room_form(form: &RoomForm) -> Result<ServerMessage, WireError> {
+    at_most("room form entries", form.tiles_on.len(), POOL_BITS)?;
+    rows_at(ROOM_FORM, form_names(form))
+}
+
+fn form_names(form: &RoomForm) -> Vec<String> {
+    let modes: Vec<String> = form.modes_off.iter().map(u8::to_string).collect();
+    let mut names = vec![format!(
+        "{ROOMS_VERSION};F;{};{};{};{};{};{}",
+        u8::from(form.saved),
+        form.size,
+        form.min_side,
+        form.max_level,
+        form.wait,
+        modes.join(",")
+    )];
+    let chunk = BITS_PER_CHUNK as usize;
+    let chunks = form.tiles_on.len().div_ceil(chunk).max(1);
+    names.extend((0..chunks).map(|index| {
+        let bits = form
+            .tiles_on
+            .iter()
+            .skip(index * chunk)
+            .take(chunk)
+            .enumerate()
+            .filter(|&(_, &on)| on)
+            .fold(0_u32, |bits, (b, _)| bits | 1 << b);
+        format!("E;{index};{bits}")
+    }));
+    names
+}
+
+/// `91` as the answer to `3B 00 <ROOM_FRIENDS> 1`, `place = ROOM_FRIENDS +
+/// i`: `S1;Y;<count>`, then a row a friend of the asker who is a member of
+/// a room (not one waiting in its queue; not of the asker's own room),
+/// `<account id>;<key>;<players>;<size>;<pin>`. At most [`FRIEND_ROWS`].
+pub fn friend_rooms(friends: &[FriendRoom]) -> Result<ServerMessage, WireError> {
+    at_most("friends in rooms", friends.len(), FRIEND_ROWS)?;
+    rows_at(ROOM_FRIENDS, friend_names(friends))
+}
+
+fn friend_names(friends: &[FriendRoom]) -> Vec<String> {
+    let mut names = vec![format!("{ROOMS_VERSION};Y;{}", friends.len())];
+    names.extend(friends.iter().map(|friend| {
+        format!(
+            "{};{};{};{};{}",
+            friend.account_id,
+            friend.key,
+            friend.players,
+            friend.size,
+            u8::from(friend.pin)
+        )
+    }));
+    names
 }
 
 /// `91` as the answer to a bits request: `S1;B;<chunk>;<entries in>`, at
@@ -655,11 +850,26 @@ mod tests {
             room_request(ROOM_JOIN_MATCH, 1),
             Some(RoomRequest::JoinMatch)
         );
-        assert_eq!(room_request(ROOM_JOIN_MATCH + 1, 1), None);
+        // The create window's settings, then the pool.
+        assert_eq!(ROOM_JOIN_MATCH + 1, ROOM_FORM);
+        assert_eq!(room_request(ROOM_FORM, 1), Some(RoomRequest::Form));
+        assert_eq!(ROOM_FORM + 1, ROOM_POOL_BASE);
         assert_eq!(
             room_request(ROOM_POOL_BASE + 15, 1),
             Some(RoomRequest::Pool { page: 15 })
         );
+        // The room chat past the pool's pages, before the kicks.
+        const {
+            assert!(ROOM_POOL_BASE + POOL_PAGES <= ROOM_CHAT);
+            assert!(ROOM_CHAT < ROOM_KICK_BASE);
+        }
+        assert_eq!(room_request(ROOM_CHAT, 1), Some(RoomRequest::Chat));
+        assert_eq!(room_request(ROOM_CHAT + 1, 1), None);
+        // The friends' rooms: after the pool's last page, before the kicks.
+        const { assert!(ROOM_POOL_BASE + POOL_PAGES <= ROOM_FRIENDS && ROOM_FRIENDS < ROOM_KICK_BASE) };
+        assert_eq!(room_request(ROOM_FRIENDS, 1), Some(RoomRequest::Friends));
+        assert_eq!(room_request(ROOM_FRIENDS - 1, 1), None);
+        assert_eq!(room_request(ROOM_FRIENDS + 1, 1), None);
         assert_eq!(
             room_request(kick_start(19, 1000), 1),
             Some(RoomRequest::Kick {
@@ -688,6 +898,14 @@ mod tests {
             Some(RoomRequest::Queue { key: 7 })
         );
         assert_eq!(room_request(ROOM_QUEUE_BASE, 1), None);
+        // Who is in a room: after the queues, below the pool's bits.
+        assert_eq!(ROOM_QUEUE_BASE + ROOM_KEY_MAX + 1, ROOM_MEMBERS_BASE);
+        const { assert!(ROOM_MEMBERS_BASE + ROOM_KEY_MAX < ROOM_BITS_BASE) };
+        assert_eq!(room_request(ROOM_MEMBERS_BASE, 1), None);
+        assert_eq!(
+            room_request(ROOM_MEMBERS_BASE + ROOM_KEY_MAX, 1),
+            Some(RoomRequest::Members { key: ROOM_KEY_MAX })
+        );
         assert_eq!(
             room_request(bits_start(7, 0xF_FFFF), 1),
             Some(RoomRequest::Bits {
@@ -724,9 +942,183 @@ mod tests {
     }
 
     #[test]
+    fn a_form_says_its_settings_and_its_tiles_by_chunk() {
+        let mut tiles_on = vec![false; 23];
+        for index in [0, 2, 19, 20, 22] {
+            tiles_on[index] = true;
+        }
+        let form = RoomForm {
+            saved: true,
+            size: 9,
+            min_side: 2,
+            max_level: 7,
+            wait: 45,
+            tiles_on,
+            modes_off: vec![3, 4],
+        };
+        assert_eq!(
+            form_names(&form),
+            ["S1;F;1;9;2;7;45;3,4", "E;0;524293", "E;1;5"]
+        );
+        assert!(room_form(&form).is_ok());
+        // No pool: one chunk all the same; no mode out: an empty field.
+        let form = RoomForm {
+            saved: false,
+            tiles_on: Vec::new(),
+            modes_off: Vec::new(),
+            ..form
+        };
+        assert_eq!(form_names(&form), ["S1;F;0;9;2;7;45;", "E;0;0"]);
+        // More entries than a create can name: refused.
+        let form = RoomForm {
+            tiles_on: vec![true; POOL_BITS + 1],
+            ..form
+        };
+        assert!(room_form(&form).is_err());
+    }
+
+    #[test]
+    fn a_member_list_gives_each_side_account_and_whole_name() {
+        let member = Member {
+            gear: 7,
+            owner: true,
+            me: false,
+            in_match: true,
+            fit: Fit::Gear,
+            away: true,
+            name: "a;b".into(),
+        };
+        let other = Member {
+            owner: false,
+            in_match: false,
+            fit: Fit::Yes,
+            away: false,
+            name: "Bob".into(),
+            ..member.clone()
+        };
+        let seen = |member: &Member, side, account_id| ListMember {
+            member: member.clone(),
+            side,
+            account_id,
+        };
+        assert_eq!(
+            members_names(
+                42,
+                &[
+                    seen(&member, Some(1), 5),
+                    seen(&other, None, 6),
+                    seen(&other, Some(0), 7)
+                ]
+            ),
+            [
+                "S1;G;42;3",
+                "P;0;7;1;0;1;2;1;2;5",
+                "a;b",
+                "P;1;7;0;0;0;0;0;0;6",
+                "Bob",
+                "P;2;7;0;0;0;0;0;1;7",
+                "Bob"
+            ]
+        );
+        assert_eq!(members_names(42, &[]), ["S1;G;42;0"]);
+        assert!(room_members(42, &vec![seen(&member, None, 1); MEMBERS_MAX + 1]).is_err());
+    }
+
+    /// The longest names the game takes (63 bytes: wide Latin, Cyrillic,
+    /// mixed) come whole, and the widest member row fits a row.
+    #[test]
+    fn a_member_list_never_cuts_a_name() {
+        let names = [
+            "W".repeat(63),
+            format!("{}W", "Ш".repeat(31)),
+            format!("Ж{}", "m".repeat(61)),
+        ];
+        let members: Vec<ListMember> = (0..MEMBERS_MAX)
+            .map(|i| ListMember {
+                member: Member {
+                    gear: 15,
+                    owner: true,
+                    me: true,
+                    in_match: true,
+                    fit: Fit::Gear,
+                    away: true,
+                    name: names[i % names.len()].clone(),
+                },
+                side: Some(1),
+                account_id: i32::MAX as u32,
+            })
+            .collect();
+        let rows = members_names(99_999, &members);
+        assert_eq!(rows.len(), 1 + 2 * MEMBERS_MAX);
+        for row in &rows {
+            assert!(row.len() <= crate::v026g::lobby::limits::NAME, "{row}");
+        }
+        for (i, name) in rows[1..].chunks(2).map(|pair| &pair[1]).enumerate() {
+            assert_eq!(name, &names[i % names.len()]);
+            assert_eq!(name.len(), 63);
+        }
+        let message = room_members(99_999, &members).unwrap();
+        let mut client = crate::v026g::lobby::client_model::Client::signed_in();
+        match client.receive(&message).unwrap() {
+            crate::v026g::lobby::client_model::Decoded::EloList(decoded) => {
+                assert_eq!(decoded.len(), rows.len());
+                for (decoded, row) in decoded.iter().zip(&rows) {
+                    assert_eq!(&decoded.0, row);
+                }
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_room_members_kits_are_asked_by_place_and_check() {
+        assert_eq!(
+            member_gear_place(member_gear(19, 1234)),
+            Some((19, 1234 % KICK_CHECKS))
+        );
+        assert_eq!(member_gear_place(member_gear(0, 0)), Some((0, 0)));
+        assert_eq!(member_gear_place(MEMBERS_MAX as u32 * KICK_CHECKS), None);
+        assert_eq!(member_gear_place(u32::MAX), None);
+    }
+
+    #[test]
+    fn the_friends_rooms_say_how_to_join_each() {
+        let friends = [
+            FriendRoom {
+                account_id: 4_000_000_001,
+                key: 99_999,
+                players: 20,
+                size: 10,
+                pin: true,
+            },
+            FriendRoom {
+                account_id: 7,
+                key: 12,
+                players: 1,
+                size: 8,
+                pin: false,
+            },
+        ];
+        assert_eq!(
+            friend_names(&friends),
+            ["S1;Y;2", "4000000001;99999;20;10;1", "7;12;1;8;0"]
+        );
+        assert_eq!(friend_names(&[]), ["S1;Y;0"]);
+        assert!(friend_rooms(&vec![friends[1]; FRIEND_ROWS]).is_ok());
+        assert!(friend_rooms(&vec![friends[1]; FRIEND_ROWS + 1]).is_err());
+    }
+
+    #[test]
     fn a_name_loses_its_separators_and_its_tail() {
         assert_eq!(row_name("a;b"), "a_b");
-        assert_eq!(row_name(&"x".repeat(40)).len(), ROW_NAME);
+        // Cut, it says so.
+        let cut = row_name(&"x".repeat(40));
+        assert_eq!(cut, format!("{}…", "x".repeat(ROW_NAME - 3)));
+        assert_eq!(cut.len(), ROW_NAME);
+        assert_eq!(row_name(&"x".repeat(ROW_NAME)), "x".repeat(ROW_NAME));
         assert_eq!(row_name("Сич").len(), 6);
+        let wide = row_name(&"Ш".repeat(20));
+        assert_eq!(wide, format!("{}…", "Ш".repeat(14)));
+        assert!(wide.len() <= ROW_NAME);
     }
 }

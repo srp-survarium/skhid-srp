@@ -251,13 +251,25 @@ pub fn from_env() -> Result<GameData, GameDataError> {
 }
 
 /// Reads the game's files ([`from_env`]), makes them this process's, and
-/// derives every table from them and checks it ([`super::tables::check`]).
+/// derives every table from them and checks it ([`super::tables::check`]),
+/// and that the golden weapons and the premium armour have their patches
+/// ([`super::golden::check`]).
 /// `srp` calls it before anything else: whatever is wrong stops it here.
 /// The files are the process's before the check, so that a table one
 /// parser takes from another ([`super::item_params::all`] and the like) is
 /// built from them and no other.
 pub fn init() -> Result<&'static GameData, GameDataError> {
-    let data = from_env()?;
+    init_with(from_env()?)
+}
+
+/// [`init`] with the server's game data in the file `data`, not
+/// `SRP_GAME_DATA`: what `srp-check-game-data` runs on data a release
+/// builds, so that data `srp` would refuse is refused before it ships.
+pub fn init_from(data: &Path) -> Result<&'static GameData, GameDataError> {
+    init_with(GameData::open(data)?)
+}
+
+fn init_with(data: GameData) -> Result<&'static GameData, GameDataError> {
     if SHARED.set(data).is_err() {
         return Err(error(
             "a table was used before the game's files were read; srp reads them first",
@@ -265,6 +277,7 @@ pub fn init() -> Result<&'static GameData, GameDataError> {
     }
     let data = shared();
     super::tables::check(data)?;
+    super::golden::check(data)?;
     log::info!(
         "game data: {} ({} gameplay and text files, {} projects; made of {}; {} patch(es) offered at \
          /patches)",

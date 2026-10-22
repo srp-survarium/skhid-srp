@@ -30,17 +30,31 @@
 //!   cannot go in now (`late_hold`: a joiner on its way, a game loading,
 //!   the last 30 s, the end, full, a maintenance; the owner's of 2026-10-20).
 //! - **After.** The match over, its players are in the lobby again and in
-//!   the room, whose next vote and wait begin.
+//!   the room, whose next vote and wait begin; except those that came by
+//!   Play and played it: they leave the room, as by Leave, after their
+//!   results (the owner's of 2026-10-20: their next Play may put them into
+//!   a room of their level). Who chose the room (a join, a create, its
+//!   queue, a switch) stays.
 //! - **Play.** Play with nothing else chosen puts the player into an open
 //!   room (the one nearest its level, however far, then the fullest), or makes
 //!   one for it (8 v 8, any max level, 30 s, the whole pool), and answers
-//!   with the lobby state: the movie shows the room.
+//!   with the lobby state: the movie shows the room. It is a member by Play
+//!   (`Rooms::came_by_play`) until it chooses the room (a join).
+//! - **Remembered.** A room made by hand (a create, not Play) is its maker's
+//!   next create window, kept with the account (`room_remember`; not the
+//!   PIN; the owner's of 2026-10-20); the window asks for it fitted to the
+//!   pool and the maker's equipment now (`room_settings::form`).
 //! - A member whose game is gone (crashed, killed, its link silent) keeps
 //!   its place while its session is kept: the link's 30 s and the session's
 //!   60 s, about 90 s in all (the owner's of 2026-10-18); then it leaves the
 //!   room and its queue, and may join again as a new member. Its game
 //!   started anew within that keeps the place; a game quit from its menu
 //!   (`FA`) leaves the room at once.
+//! - A game started anew (a new session) is not seated in a match, nor
+//!   sent "match found", until it has been told its room (`room_unseen`:
+//!   its movie asks the state, Play, Join match); one not told within
+//!   about 90 s loses the place. Live, 2026-10-20: a game that did not know
+//!   it was in a room was pulled into its matches.
 //! - A member that leaves the room's match by its own word (0xE0) leaves
 //!   the room (`room_left_matches`); joining it again while that match is
 //!   played, it goes into it late as a new place (the owner's of
@@ -57,12 +71,13 @@ use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::{self as policy, Closed, Worth};
+use session::v026g::room_settings::{self, RoomSettings};
 use session::v026g::rooms::{self as model, Due, Refused, Spec, Stage};
 use session::v026g::{matchmaking, quests, rules};
 use session::{LockExt, QueuePool};
 use survarium::v026g::lobby::rooms::{
-    self as wire, Card, Fit, JoinHold, Member, PoolEntry, RoomCode, RoomPhase, RoomRequest,
-    RoomRow, RoomSpec, RoomSwitch, RoomView,
+    self as wire, Card, Fit, FriendRoom, JoinHold, ListMember, Member, PoolEntry, RoomCode,
+    RoomPhase, RoomRequest, RoomRow, RoomSpec, RoomSwitch, RoomView,
 };
 use survarium::v026g::lobby::{self, ClientState};
 use survarium::v026g::maps;
@@ -253,6 +268,21 @@ impl Core<'_> {
 
     /// A room request (`3B` at a rooms' start).
     pub(super) fn room_request(&mut self, who: &Who, request: RoomRequest, now: Instant) {
+        // Every request but the list's, the create window's steps, a room's
+        // members and the friends' rooms is answered with the asker's room:
+        // its game knows it from then on.
+        if !matches!(
+            request,
+            RoomRequest::List { .. }
+                | RoomRequest::Pool { .. }
+                | RoomRequest::Form
+                | RoomRequest::Bits { .. }
+                | RoomRequest::Pin { .. }
+                | RoomRequest::Members { .. }
+                | RoomRequest::Friends
+        ) {
+            self.room_shown(who.account_id);
+        }
         match request {
             RoomRequest::List { count } => {
                 let list = self.room_list(who, count, now);
@@ -262,6 +292,28 @@ impl Core<'_> {
             RoomRequest::Pool { page } => {
                 let entries = self.room_entries();
                 self.send_made(who.addr, wire::room_pool(&entries, page));
+            }
+            // The movie put up its "Room Chat" tab: the room's last lines,
+            // and its new ones from now on (`room_chat`).
+            RoomRequest::Chat => {
+                self.room_chat_listen(who);
+                self.send_room_state(who, RoomCode::None, now);
+            }
+            // The create window's start: the asker's last room made by hand,
+            // fitted to the pool and its equipment now.
+            RoomRequest::Form => {
+                let entries = self.room_entries();
+                let form = {
+                    let account = who.account.locked();
+                    let gear = matchmaking::gear_level(&account, quests::now());
+                    room_settings::form(account.room_settings.as_ref(), &entries, gear)
+                };
+                self.send_made(who.addr, wire::room_form(&form));
+            }
+            // A friend's right-click menu: which friends' rooms it may offer.
+            RoomRequest::Friends => {
+                let friends = self.friend_rooms(who);
+                self.send_made(who.addr, wire::friend_rooms(&friends));
             }
             RoomRequest::Bits { chunk, bits } => {
                 let entries = self.rooms.draft(who.account_id, chunk, bits, now);
@@ -376,6 +428,12 @@ impl Core<'_> {
                 self.room_late_join(who.account_id, now);
                 self.send_room_state(who, RoomCode::None, now);
             }
+            // Who is in a room the asker looks at in the list: anyone may
+            // ask, of any room (a PIN keeps the door, not the names).
+            RoomRequest::Members { key } => {
+                let members = self.room_members(who, key);
+                self.send_made(who.addr, wire::room_members(key, &members));
+            }
             RoomRequest::Unqueue => {
                 if let Some(key) = self.rooms.dequeue(who.account_id) {
                     log::info!("{}: left room {key}'s queue", who.name);
@@ -386,7 +444,10 @@ impl Core<'_> {
                 let code = match self.room_fit(who) {
                     Err(code) => code,
                     Ok(()) => match self.room_create(who, spec, now) {
-                        Ok(_) => RoomCode::None,
+                        Ok(key) => {
+                            self.room_remember(who, key);
+                            RoomCode::None
+                        }
                         Err(refused) => code_of(refused),
                     },
                 };
@@ -447,10 +508,34 @@ impl Core<'_> {
         Ok(key)
     }
 
+    /// A room made by hand: its settings are its maker's create window's
+    /// start from now on, kept with the account (the owner's of
+    /// 2026-10-20). Not its PIN. A room Play makes keeps nothing.
+    fn room_remember(&self, who: &Who, key: u32) {
+        let Some(room) = self.rooms.get(key) else {
+            return;
+        };
+        let spec = room.spec;
+        let settings = RoomSettings::of_room(
+            spec.size,
+            spec.min_players / 2,
+            spec.max_level,
+            spec.wait,
+            &room.pool,
+            &self.room_entries(),
+        );
+        let mut account = who.account.locked();
+        if account.room_settings.as_ref() != Some(&settings) {
+            account.room_settings = Some(settings);
+            self.accounts.mark_dirty(who.account_id);
+        }
+    }
+
     /// Play for a game whose movie has rooms: into an open room, or a
     /// new one; the lobby state, so the movie shows it. Its own room if it
     /// has one.
     pub(super) fn room_play(&mut self, who: &Who, now: Instant) {
+        self.room_shown(who.account_id);
         self.room_quick(who, now);
         self.send(who.addr, lobby::client_state(&ClientState::Lobby, None));
     }
@@ -471,6 +556,7 @@ impl Core<'_> {
                     let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
                     match self.room_for_play(who.account_id, gear) {
                         Some(key) if self.rooms.join(who.account_id, gear, key, now).is_ok() => {
+                            self.rooms.came_by_play(who.account_id);
                             log::info!("{} pressed Play: into room {key}", who.name);
                         }
                         _ => {
@@ -484,6 +570,9 @@ impl Core<'_> {
                             };
                             match self.room_create(who, spec, now) {
                                 Ok(key) => {
+                                    // It pressed Play, not made a room: a
+                                    // member by Play, its maker or not.
+                                    self.rooms.came_by_play(who.account_id);
                                     log::info!(
                                         "{} pressed Play: no open room, made room {key}",
                                         who.name
@@ -501,6 +590,98 @@ impl Core<'_> {
         }
     }
 
+    /// A member of a room as the asker is told it.
+    fn room_member(&self, who: &Who, room: &model::Room, account_id: u32, unix: u64) -> Member {
+        let gear = self.accounts.get(account_id).map_or(0, |account| {
+            matchmaking::gear_level(&account.locked(), unix)
+        });
+        Member {
+            gear,
+            owner: account_id == room.owner,
+            me: account_id == who.account_id,
+            in_match: room.in_match.contains(&account_id),
+            fit: self.member_fit(account_id),
+            away: !self.by_account.contains_key(&account_id)
+                || self.room_unseen.contains_key(&account_id),
+            name: self.name_of(account_id).unwrap_or_default(),
+        }
+    }
+
+    /// `3D 00 <GEAR_BY_ACCOUNT> <account>`: the kits of a member of a room
+    /// now, as the list's side panel shows them to anyone (`S1;G`, a PIN
+    /// room's too). Any other account (in no room, or none at all) gets no
+    /// answer: account ids cannot be walked for anyone's kits.
+    pub(super) fn listed_member_gear(&mut self, who: &Who, account_id: u32) {
+        if self
+            .rooms
+            .all()
+            .any(|room| room.members.contains(&account_id))
+        {
+            self.send_gear(who, account_id, account_id);
+        } else {
+            log::info!(
+                "{} asked for the kits of account {account_id}: in no room",
+                who.name
+            );
+        }
+    }
+
+    /// `3D 00 <GEAR_IN_ROOM> <place + 20 × check>`: the kits of the member
+    /// at that place of the asker's room, if the check is its serial's now
+    /// (a member came or went since its list was drawn: no answer).
+    pub(super) fn room_member_gear(&mut self, who: &Who, value: u32) {
+        let member = wire::member_gear_place(value).and_then(|(place, check)| {
+            let room = self.rooms.of(who.account_id)?;
+            (room.serial % wire::KICK_CHECKS == check)
+                .then(|| room.members.get(usize::from(place)).copied())
+                .flatten()
+        });
+        match member {
+            Some(account_id) => self.send_gear(who, account_id, account_id),
+            None => log::info!(
+                "{} asked for the kits of a member of its room: not in it now",
+                who.name
+            ),
+        }
+    }
+
+    /// Who is in the room of that key, for anyone looking at the list (the
+    /// owner's of 2026-10-20), each with its side while it plays the room's
+    /// match: the team of its latest place in the match's roster. Nobody: the
+    /// room is gone.
+    fn room_members(&self, who: &Who, key: u32) -> Vec<ListMember> {
+        let Some(room) = self.rooms.get(key) else {
+            return Vec::new();
+        };
+        let formed = match room.stage {
+            Stage::InMatch { match_id, .. } => self.store.matchmaking().formed_match(match_id),
+            _ => None,
+        };
+        let unix = quests::now();
+        room.members
+            .iter()
+            .map(|&account_id| {
+                let member = self.room_member(who, room, account_id, unix);
+                let side = formed
+                    .as_ref()
+                    .filter(|_| member.in_match)
+                    .and_then(|formed| {
+                        formed
+                            .seats
+                            .iter()
+                            .rev()
+                            .find(|seat| seat.player.account_id == account_id)
+                    })
+                    .map(|seat| seat.team);
+                ListMember {
+                    member,
+                    side,
+                    account_id,
+                }
+            })
+            .collect()
+    }
+
     /// The asker's room as the movie is told it.
     fn room_view(&self, who: &Who, now: Instant) -> Option<RoomView> {
         let room = self.rooms.of(who.account_id)?;
@@ -510,20 +691,7 @@ impl Core<'_> {
         let members = room
             .members
             .iter()
-            .map(|&account_id| {
-                let gear = self.accounts.get(account_id).map_or(0, |account| {
-                    matchmaking::gear_level(&account.locked(), unix)
-                });
-                Member {
-                    gear,
-                    owner: account_id == room.owner,
-                    me: account_id == who.account_id,
-                    in_match: room.in_match.contains(&account_id),
-                    fit: self.member_fit(account_id),
-                    away: !self.by_account.contains_key(&account_id),
-                    name: self.name_of(account_id).unwrap_or_default(),
-                }
-            })
+            .map(|&account_id| self.room_member(who, room, account_id, unix))
             .collect();
         let (phase, secs) = phase_of(room, now);
         let (join_in, join_hold) = match self.room_join_in(who, room, now) {
@@ -693,6 +861,33 @@ impl Core<'_> {
         self.send_made(who.addr, wire::room_state(view.as_ref(), code, queued));
     }
 
+    /// The asker's friends who are members of a room (not waiting in a
+    /// queue), but of the asker's own room: a friend's menu offers "Join
+    /// room" for these (the owner's of 2026-10-20). Any friend may see its
+    /// friend's room; friendship is both ways.
+    fn friend_rooms(&self, who: &Who) -> Vec<FriendRoom> {
+        let friends = self
+            .store
+            .account(who.account_id)
+            .map(|account| account.locked().friends.clone())
+            .unwrap_or_default();
+        let mine = self.rooms.key_of(who.account_id);
+        friends
+            .into_iter()
+            .filter_map(|account_id| {
+                let room = self.rooms.of(account_id)?;
+                (Some(room.key) != mine).then(|| FriendRoom {
+                    account_id,
+                    key: room.key,
+                    players: room.members.len() as u8,
+                    size: room.spec.size,
+                    pin: room.spec.pin.is_some(),
+                })
+            })
+            .take(wire::FRIEND_ROWS)
+            .collect()
+    }
+
     fn room_list(
         &self,
         who: &Who,
@@ -732,8 +927,9 @@ impl Core<'_> {
     /// A room's level: the level its match would have with its members now
     /// (`matchmaking::match_level` of their levels, as a match's is made).
     /// A room has no level of its own: it follows who is in it.
-    /// The room Play puts the account into (a member as any other, it stays
-    /// until it leaves): of the open rooms that let it in, the one whose
+    /// The room Play puts the account into (until the end of the first
+    /// match of it that it plays, unless it chooses the room): of the open
+    /// rooms that let it in, the one whose
     /// level is nearest the player's, however far (the owner's of
     /// 2026-10-18: too few players online to leave anyone out; only a room
     /// made by hand has a max level); then the fullest, then the oldest.
@@ -765,7 +961,7 @@ impl Core<'_> {
     /// still may come: in the lobby (its game there, in no room, not in a
     /// match), its equipment within the max level. Straight into a match
     /// being played. One who may not is out of the queue.
-    fn room_admit_queues(&mut self, now: Instant) {
+    fn room_admit_queues(&mut self) {
         // Near a maintenance nobody may come: the queues wait, to be told
         // (code 9) when their rooms are disbanded.
         if self.maintenance_is_near() {
@@ -787,6 +983,52 @@ impl Core<'_> {
         }
     }
 
+    /// The account signed in from a game started anew (closed or crashed,
+    /// not from its menu). Its room and its queue keep it, but that game
+    /// may not know of them (live, 2026-10-20: one in a room it did not
+    /// know of was pulled into its matches twice): it is seated in no
+    /// match until the room is shown in it (`room_shown`), and loses its
+    /// place if that is not within the 90 s a lost game has.
+    pub(super) fn room_restarted(&mut self, account_id: u32, now: Instant) {
+        if self.rooms.of(account_id).is_none() && self.rooms.queue_place(account_id).is_none() {
+            return;
+        }
+        let wait = self.settings.link_timeout + self.settings.session_grace;
+        log::info!(
+            "Account {account_id}: signed in from a game started anew; in no match of its room              until its game is told the room"
+        );
+        self.room_unseen.insert(account_id, now + wait);
+    }
+
+    /// The account's game was told its room (a request answered with its
+    /// state, or Play): the room plays with it again. One that comes while
+    /// its room's match is played sees the room first (`LATE_JOIN_WAIT`).
+    fn room_shown(&mut self, account_id: u32) {
+        if self.room_unseen.remove(&account_id).is_some() {
+            self.room_join_at.remove(&account_id);
+            log::info!("Account {account_id}: its game started anew was told its room");
+        }
+    }
+
+    /// Who signed in anew and was not told its room in time is out of it.
+    fn room_unseen_gone(&mut self, now: Instant) {
+        let late: Vec<u32> = self
+            .room_unseen
+            .iter()
+            .filter(|(_, until)| **until <= now)
+            .map(|(account_id, _)| *account_id)
+            .collect();
+        for account_id in late {
+            self.room_unseen.remove(&account_id);
+            if self.rooms.of(account_id).is_some() || self.rooms.queue_place(account_id).is_some() {
+                log::info!(
+                    "Account {account_id}: its game started anew was never told its room; out of it"
+                );
+                self.room_gone(account_id);
+            }
+        }
+    }
+
     /// A member of a room whose session ended.
     pub(super) fn room_gone(&mut self, account_id: u32) {
         if let Some(key) = self.rooms.leave(account_id) {
@@ -798,6 +1040,7 @@ impl Core<'_> {
         self.rooms.forget_draft(account_id);
         self.rooms.forget_pin(account_id);
         self.room_codes.remove(&account_id);
+        self.room_unseen.remove(&account_id);
     }
 
     /// Who left its room's match by its own word (its game's 0xE0, which
@@ -844,13 +1087,44 @@ impl Core<'_> {
         }
     }
 
-    /// The room's match is over.
+    /// The room's match is over: its players are back in the room, but for
+    /// those that came by Play, who leave it (`Rooms::match_over`, the
+    /// owner's of 2026-10-20). They get their results all the same (sent
+    /// after this, `end_running`), then the lobby with no room: their next
+    /// Play puts them into the room nearest their level.
     pub(super) fn room_match_over(&mut self, match_id: u32) {
         self.room_launching.remove(&match_id);
-        if let Some(key) = self.rooms.match_over(match_id) {
+        if let Some((key, left)) = self.rooms.match_over(match_id) {
             log::info!("Room {key}: its match {match_id:#x} is over; back in the room");
-            // A maintenance is near: the match was played out, and the room
-            // ends with it.
+            for account_id in left {
+                // As by Leave: nothing to tell it but that it is in no room.
+                self.room_codes.remove(&account_id);
+                self.room_join_at.remove(&account_id);
+                log::info!(
+                    "{}: came by Play, played match {match_id:#x}: out of room {key}",
+                    self.name_of(account_id).unwrap_or_default()
+                );
+            }
+            if self.rooms.get(key).is_none() {
+                log::info!("Room {key}: nobody left in it after its match; gone");
+            } else if self.maintenance_is_near() {
+                // A maintenance is near: the match was played out, and the
+                // room ends with it.
+                self.room_disband(key);
+            }
+        }
+    }
+
+    /// The room's match was called off before its countdown (fewer than
+    /// its minimum could play it, `match.md` section 34): the room goes on
+    /// as for a match that could not be made, its vote and wait whole.
+    pub(super) fn room_match_not_made(&mut self, match_id: u32) {
+        self.room_launching.remove(&match_id);
+        if let Some(key) = self.rooms.match_not_made(match_id) {
+            log::info!(
+                "Room {key}: its match {match_id:#x} was called off before its countdown; the \
+                 room votes and waits again"
+            );
             if self.maintenance_is_near() {
                 self.room_disband(key);
             }
@@ -873,6 +1147,10 @@ impl Core<'_> {
     /// The member as its room's match takes it: free in the lobby, its
     /// active kit one Play would take, its game of the pool.
     fn room_ready(&self, account_id: u32) -> Option<Ready> {
+        // Its game started anew and does not know of the room yet.
+        if self.room_unseen.contains_key(&account_id) {
+            return None;
+        }
         let addr = *self.by_account.get(&account_id)?;
         let player = self.player(addr)?;
         if player.in_match.is_some() || player.connect.is_some() || player.queued_since.is_some() {
@@ -887,6 +1165,13 @@ impl Core<'_> {
             return None;
         }
         let session_id = player.session_id;
+        // Its game plays in matches that take players (a member's game
+        // started anew may be an older one): counted for the room's vote
+        // as it is seated, or a match is made with fewer than the room's
+        // minimum and called off at once (`room_start`).
+        if self.pool_for_sessions([session_id]) != Some(QueuePool::GrowingRoster) {
+            return None;
+        }
         let unix = quests::now();
         if self.member_fit(account_id) != Fit::Yes {
             return None;
@@ -915,10 +1200,11 @@ impl Core<'_> {
         });
         self.room_left_matches();
         self.room_failed_joins();
+        self.room_unseen_gone(now);
         if self.rooms.is_empty() {
             return;
         }
-        self.room_admit_queues(now);
+        self.room_admit_queues();
         // A maintenance is near: no room plays another match. A room not
         // playing ends now; one playing plays its match out and ends with it
         // (`room_match_over`), the owner's of 2026-10-17.
@@ -1025,6 +1311,10 @@ impl Core<'_> {
             return;
         };
         let size = usize::from(room.spec.size);
+        let room_minimum = u8::try_from(room.needs()).unwrap_or(u8::MAX);
+        // A PIN is the room's for its whole life: its every match pays
+        // nothing (the owner's of 2026-10-20).
+        let private = room.spec.pin.is_some();
         let members = room.members.clone();
         let unfit: Vec<(u32, Fit)> = members
             .iter()
@@ -1039,9 +1329,6 @@ impl Core<'_> {
         let ready: Vec<Ready> = members
             .iter()
             .filter_map(|&account_id| self.room_ready(account_id))
-            .filter(|ready| {
-                self.pool_for_sessions([ready.player.session_id]) == Some(QueuePool::GrowingRoster)
-            })
             .collect();
         // Squads of the room's members, each a party; any other member alone.
         let mut seen = HashSet::new();
@@ -1084,9 +1371,14 @@ impl Core<'_> {
         };
         let teams: [Vec<session::Player>; 2] =
             sides.map(|side| side.iter().filter_map(player_of).collect());
-        if teams.iter().any(Vec::is_empty) {
+        // Never fewer than the room's minimum: the match server would call
+        // such a match off at once (`MatchSetup::room_minimum`), and the room
+        // make it again.
+        let seated = teams.iter().map(Vec::len).sum::<usize>();
+        if teams.iter().any(Vec::is_empty) || seated < usize::from(room_minimum) {
             log::info!(
-                "Room {key}: no match yet: {} of {} members are free with a kit Play takes",
+                "Room {key}: no match yet: {} of {} members are free with a kit Play takes, \
+                 {seated} seated, the room needs {room_minimum}",
                 ready.len(),
                 members.len()
             );
@@ -1113,7 +1405,8 @@ impl Core<'_> {
             self.rooms.not_started(key, now);
             return;
         };
-        self.room_launching.insert(match_id, map_id);
+        self.room_launching
+            .insert(match_id, (map_id, room_minimum, private));
         // Made at the match server before anyone is told: if it fails, its
         // players are back in the lobby (`launch`) and the room waits again,
         // nobody left marked as searching.

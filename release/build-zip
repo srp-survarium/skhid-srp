@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# usage: release/build-zip [--test] [--ref <commit>] [--revision <n>] [--work <dir>]
+# usage: release/build-zip [--test] [--ref <commit>] [--revision <n>] [--patches <list>] [--work <dir>]
 #
 # Builds the players' ZIP from a fresh worktree of origin/main and compares it
 # with the one the site hands out now, entry by entry:
@@ -9,12 +9,19 @@
 #      build's revision is that + 1 (or --revision <n>, which must be above
 #      it; --test: any, from patch_026g.py's REVISION). Nothing is edited:
 #      the revision is passed to the build;
-#   3. bugtrap.dll and updater_skhid.exe (nix develop ./srp-026g), then
+#   3. bugtrap.dll and updater_skhid.exe (nix develop ./srp-026g,
+#      SKHID_REVISION=<n>: their version resource says it), then
 #      make_client_026g.py $SKHID_GAME ... --pack-zip --revision=<n>
-#      --server=$SKHID_GAME_SERVER --site=$SKHID_SITE
-#      --localization=$SKHID_LOCALIZATION (no resources.db regions: patches
-#      come from the server's /patches), and patch_026g.py --revision=<n>
-#      without a server, for the record's second hash;
+#      --required-patches=<the list's> --server=$SKHID_GAME_SERVER
+#      --site=$SKHID_SITE --localization=$SKHID_LOCALIZATION (no
+#      resources.db regions: patches come from the server's /patches), and
+#      patch_026g.py --revision=<n> --required-patches=<the list's> without
+#      a server, for the record's second hash. The required patches (patch
+#      49): every patch of the offered-patch list (release/patches.tsv;
+#      --test: patches-test.tsv; --patches: another), so the exe stops at
+#      its start, "Cannot open resources.db.patch_<n> ... run the Skhid
+#      launcher again", without one the release's server offers; both exes
+#      are read back for it;
 #   4. prints every entry as same / CHANGED / ADDED / REMOVED against the
 #      current ZIP, and says whether updater_skhid.exe changed.
 # <work>/exe.sha256: `<sha256> with-server` (the ZIP's exe) and
@@ -26,6 +33,9 @@
 #   --ref <commit>  build that instead of origin/main (a release is built
 #                   from main; this is for trying a branch)
 #   --revision <n>  the exe's patch revision instead of the current exe's + 1
+#   --patches <list>  the offered-patch list whose patches the exe requires,
+#                   instead of release/patches.tsv (--test: patches-test.tsv);
+#                   release.sh passes its list with the release's new patch
 #   --work <dir>    an empty or new folder for it all (default: a new one
 #                   under $TMPDIR); the ZIP is <work>/Survarium-0.26g-srp-files.zip
 #
@@ -33,13 +43,14 @@
 #   git worktree remove <work>/src
 . "$(dirname "$0")/lib.sh"
 
-test_server=0 ref=origin/main work='' revision=''
+test_server=0 ref=origin/main work='' revision='' patches=''
 while (($#)); do
     case $1 in
     -h | --help) usage ;;
     --test) test_server=1; shift ;;
     --ref) (($# >= 2)) || usage 1; ref=$2; shift 2 ;;
     --revision) (($# >= 2)) || usage 1; revision=$2; shift 2 ;;
+    --patches) (($# >= 2)) || usage 1; patches=$2; shift 2 ;;
     --work) (($# >= 2)) || usage 1; work=$2; shift 2 ;;
     *) die "unknown argument $1 (--help)" ;;
     esac
@@ -55,6 +66,12 @@ else
     load_env SKHID_GAME_SERVER
     server=$SKHID_GAME_SERVER site=${SKHID_SITE%/}
 fi
+# The patches the exe requires: those of the offered-patch list.
+if ((test_server)); then use_patches test; else use_patches live; fi
+if [[ -n $patches ]]; then PATCH_LIST=$patches; fi
+read_patch_list
+required=$(list_numbers)
+[[ -n $required ]] || die "$PATCH_LIST names no patch: the exe would require none (patch 49)"
 [[ -d $SKHID_GAME ]] || die "SKHID_GAME: $SKHID_GAME is not a folder"
 if [[ -z $work ]]; then
     work=$(mktemp -d "${TMPDIR:-/tmp}/skhid-zip.XXXXXX")
@@ -86,6 +103,7 @@ if [[ -z $revision ]]; then
     revision=$((live_revision + 1))
 fi
 say "patch revision: $revision for this build ($live_revision live, REVISION $recorded on $ref, the last release's)"
+say "required patches: ${required//,/, } (every patch of $PATCH_LIST)"
 ((revision >= recorded)) || die "revision $revision is below REVISION $recorded of $ref (patch_026g.py builds none below the last release's)"
 if [[ $live_revision == unknown ]]; then
     say "WARNING: the live exe's revision cannot be read; compare by hand"
@@ -97,18 +115,28 @@ fi
 
 # 3. The build.
 say "building bugtrap.dll and updater_skhid.exe (log: $work/build.log) ..."
-if ! (cd "$work/src" && nix develop ./srp-026g -c bash -c \
+# SKHID_REVISION: their version resource says this release's revision
+# (FileVersion <n>.0.0.0, ProductVersion "revision <n>"; client/windows_build.rs).
+if ! (cd "$work/src" && SKHID_REVISION=$revision nix develop ./srp-026g -c bash -c \
     'client/bugtrap/build.sh && bash client/updater/build.sh') >"$work/build.log" 2>&1; then
     tail -n 30 "$work/build.log" >&2
     die "the build failed (log: $work/build.log)"
 fi
+for built in client/bugtrap/target/i686-win7-windows-msvc/release/BugTrap.dll \
+    client/updater/exe/target/i686-win7-windows-msvc/release/updater_skhid.exe; do
+    python - "$work/src/$built" "revision $revision" <<'PY' || die "$built does not say revision $revision in its version resource"
+import sys
+sys.exit(sys.argv[2].encode("utf-16-le") + b"\0\0" not in open(sys.argv[1], "rb").read())
+PY
+done
 zip=$work/Survarium-0.26g-srp-files.zip
 (cd "$work/src/srp-026g/client-patches" &&
     python make_client_026g.py "$SKHID_GAME" "$zip" --pack-zip --revision="$revision" \
-        --server="$server" --site="$site" --localization="$SKHID_LOCALIZATION" &&
+        --required-patches="$required" --server="$server" --site="$site" --localization="$SKHID_LOCALIZATION" &&
     original=$SKHID_GAME/binaries/x86/survarium.exe &&
     if [[ ! -f $original ]]; then original=$SKHID_GAME/game/binaries/x86/survarium.exe; fi &&
-    python patch_026g.py "$original" "$work/without-server.exe" --revision="$revision") >"$work/make_client.log" 2>&1 || {
+    python patch_026g.py "$original" "$work/without-server.exe" --revision="$revision" \
+        --required-patches="$required") >"$work/make_client.log" 2>&1 || {
     tail -n 30 "$work/make_client.log" >&2
     die "make_client_026g.py or patch_026g.py failed (log: $work/make_client.log)"
 }
@@ -116,6 +144,10 @@ zip_extract "$zip" "$ZIP_EXE" "$work/new.exe" || die "$zip has no $ZIP_EXE"
 built_revision=$(exe_revision "$work/new.exe")
 [[ $built_revision == "$revision" ]] || die "the built exe says revision $built_revision, not $revision"
 [[ $(exe_revision "$work/without-server.exe") == "$revision" ]] || die "the exe without a server does not say revision $revision"
+for built in new.exe without-server.exe; do
+    [[ $(exe_required_patches "$work/$built") == "${required//,/ }" ]] ||
+        die "$built does not require the patches ${required//,/, } (it requires: $(exe_required_patches "$work/$built" 2>&1 || true))"
+done
 printf '%s with-server\n%s without-server\n' "$(sha256_of "$work/new.exe")" "$(sha256_of "$work/without-server.exe")" >"$work/exe.sha256"
 
 # 4. Entry by entry.
@@ -150,4 +182,4 @@ fi
 say "Every other change must be explained by a merged change; anything else is unreleased work riding along: stop."
 say
 say "the exe: sha256 $(sha256_of "$work/new.exe") (--server=$server), $(sha256_of "$work/without-server.exe") without a server"
-say "$zip: $(size_of "$zip") bytes, sha256 $(sha256_of "$zip"), revision $revision, server $server"
+say "$zip: $(size_of "$zip") bytes, sha256 $(sha256_of "$zip"), revision $revision, server $server, requires patches ${required//,/, }"

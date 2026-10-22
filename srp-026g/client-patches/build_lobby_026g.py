@@ -1,115 +1,85 @@
-#!/usr/bin/env python3
-"""Build the lobby movie: every lobby change, in order, on revision 23's movie.
+"""Build the lobby movie from its ActionScript source tree (srp-026g/flash/lobby_menu).
 
-    python build_lobby_026g.py <revision 23's lobby_menu.swf> <new lobby_menu.swf> --ffdec <ffdec.jar>
+    python build_lobby_026g.py <revision 24's lobby_menu.swf> <new lobby_menu.swf> [--tools private/actionscript/tools.json]
 
 The lobby movie is one file (`flash_movies/lobby_menu.swf`), and a resources.db
-patch carrying it replaces the players' movie whole. Like patch_026g.py for the
-exe, this always starts from the same released movie and applies every change
-the repository holds, in order, so the movie that ships is the sum of them all:
-nothing is in it because someone ran a step, nothing is missing because someone
-did not. A change of a step's source (SrpRooms.as, …) is built in by building
-again; a new lobby change is a new entry of STEPS.
+patch carrying it replaces the players' movie whole. It is built from source
+only: srp-026g/flash/lobby_menu/src is the movie's complete ActionScript, and
+every lobby change is an edit of it (docs/notes/lobby-source.md). The whole
+tree is compiled in one Flex run, and the code goes into revision 24's movie in
+place of its code (tools/actionscript/flash_tree.py build): the graphics,
+fonts and symbol bindings are revision 24's. About 5 seconds.
 
-The input is `flash_movies/lobby_menu.swf` of `resources.db.patch_23` (revision
-23, BASE_SHA256); the output is the movie for the next resources.db.patch_<n>
-(`srp-game-data pack`). Each step checks its own work (every method it does not
-change byte for byte, no non-script tag changed). The result must be
-RESULT_SHA256, the movie last checked: a change of a source or of FFDec gives
-another, which the build refuses until RESULT_SHA256 is set to it on purpose
-(--any-result builds it anyway, for development). Requires a JDK and JPEXS
-FFDec 25.1.3. No game assets are stored in this repository.
-
-Frozen in the base: the login hint (login_hint_026g.py) and the exchange's
-first build (exchange_026g.py) are in revision 23's movie already; a change of
-theirs needs a new base, not a step. The exchange's later changes are a step
-(exchange_update_026g.py).
+The input is `flash_movies/lobby_menu.swf` of `resources.db.patch_24` (revision
+24, BASE_SHA256). The output is the movie for the next resources.db.patch_<n>
+(`srp-game-data pack`). The build says whether the movie is RESULT_SHA256, the
+one last checked in the game (the build is deterministic: the same tree and
+tools give the same bytes). Requires a JDK and Apache Flex 4.16.1, named in a
+tools.json (tools/actionscript/README.md).
 """
 import argparse
-import contextlib
 import hashlib
 from pathlib import Path
-import tempfile
+import subprocess
+import sys
 
-import buy_gold_026g
-import buy_modified_026g
-import craft_menu_026g
-import exchange_update_026g
-import rooms_026g
-import scope_context_menu_026g
+HERE = Path(__file__).resolve().parent
+REPO = HERE.parents[1]
+TREE = HERE.parent / "flash" / "lobby_menu"
+sys.path.insert(0, str(REPO / "tools" / "actionscript"))
 
-# lobby_menu.swf of resources.db.patch_23 (revision 23): the lobby with the
-# matches list, the exchange and the login hint, before the rooms.
-BASE_SHA256 = "12f0ee1dae4301d18405e956678ad1c9aa2c975ce2639c408722f5708548856b"
-RETAIL_SHA256 = "ab6f22d80d32fa4928403d19e3e054bd5316b2370e2550cefec0c9d22b959850"
-# The movie the steps make (FFDec 25.1.3). Set it anew, on purpose, when a
-# step changes. 57258f9e (#209, 2026-10-20): the rooms window tells a member
-# waiting during its room's match why it cannot go in (`J;-1;<why>`); NOT yet
-# checked in the game. Before it, a56cd0ed was checked in the game by the
-# owner (2026-10-20): the rooms' Leave room / Leave queue (red, white text)
-# and the yellow tab in a room or a queue (#211: the owner checked d7907536;
-# then the review fixes: no double-click into Play, Leave on whatever the
-# game says of Play).
-RESULT_SHA256 = "57258f9ed5391dadf080fbbbd30dc438c2267e5f3db50630d5f37ce03e683a55"
-# Every lobby change, in the order they are built (each on the one before).
-STEPS = [
-    ("the rooms window (rooms/SrpRooms.as)", rooms_026g),
-    ("Get Gold opens the exchange (#213)", buy_gold_026g),
-    ("the exchange window's amounts (#214)", exchange_update_026g),
-    ("Buy on owned items (#215)", buy_modified_026g),
-    ("the craft window's menu and buttons (#216)", craft_menu_026g),
-    ("Optics in a weapon's menu (#217)", scope_context_menu_026g),
-]
+import flash_tree  # noqa: E402
+
+# lobby_menu.swf of resources.db.patch_24 (revision 24): the graphics the tree's code goes into.
+BASE_SHA256 = "3ca94f2aa3d56da554e25c3ce24e3c5e6620368942fab728a90a2528c8b18a60"
+# Older movies a release might be handed by mistake, named in the refusal.
+OLDER = {
+    "12f0ee1dae4301d18405e956678ad1c9aa2c975ce2639c408722f5708548856b": "revision 23's (resources.db.patch_23)",
+    "ab6f22d80d32fa4928403d19e3e054bd5316b2370e2550cefec0c9d22b959850": "the retail",
+}
+# The movie last checked in the game: the build says whether it made this one
+# (a note, not a gate). Set it when the owner has checked a new one, with a
+# line on what it holds. RESULT (2026-10-21): the tree of 6064476c (the lobby's
+# features in the game's classes, the rooms in survarium/rooms, the craft and
+# upgrade windows' own right-click menus, Buy asking the shop, Sell on all but
+# the last of a kind), one Flex run. The owner checked c3898574…, built from
+# this tree before the build compiled every tree from one place: the same
+# code laid out by compc in another order ("good, it works").
+RESULT_SHA256 = "8b099212b42baffd663e00d5f7a6447f2edf664999c11d7e01bf4c94c656791e"
 
 
-def build(original, ffdec, java="java", javac="javac", work=None, report=print, any_result=False):
-    """The movie of every step on `original` (revision 23's), and each step's
-    sha256 on the way."""
-    digest = hashlib.sha256(original).hexdigest()
-    if digest == RETAIL_SHA256:
-        raise ValueError("This is the retail lobby movie; give revision 23's (resources.db.patch_23)")
+def build(movie, tools, report=print):
+    """The lobby movie from source (bytes)."""
+    digest = hashlib.sha256(movie.read_bytes()).hexdigest()
+    if digest in OLDER:
+        raise ValueError(f"This is {OLDER[digest]} lobby movie; give revision 24's (resources.db.patch_24)")
     if digest != BASE_SHA256:
-        raise ValueError(f"Not revision 23's lobby movie (sha256 {digest}): the steps are built on that one")
-    movie = original
-    hashes = []
-    scratch = contextlib.nullcontext(work) if work else tempfile.TemporaryDirectory(prefix="srp-lobby-")
-    with scratch as temporary:
-        root = Path(temporary)
-        for number, (name, step) in enumerate(STEPS, 1):
-            folder = root / f"step{number}"
-            folder.mkdir(parents=True, exist_ok=True)
-            # The steps' own lists of known inputs name the movies they were
-            # first built on; here each takes the one before it.
-            movie = step.build_movie(movie, ffdec, java, javac, folder, known=False)
-            hashes.append(hashlib.sha256(movie).hexdigest())
-            report(f"{number}. {name}: sha256 {hashes[-1]}")
-    if not any_result and hashes[-1] != RESULT_SHA256:
-        raise ValueError(f"The movie is {hashes[-1]}, not RESULT_SHA256 ({RESULT_SHA256}): a step's source or "
-                         "FFDec changed. Check the movie (in the game), then set RESULT_SHA256 to it; "
-                         "--any-result builds it anyway")
-    return movie, hashes
+        raise ValueError(f"Not revision 24's lobby movie (sha256 {digest}): the source tree's graphics are that movie's")
+    return flash_tree.build(TREE, movie, tools, report)
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("source", type=Path, help="lobby_menu.swf of resources.db.patch_23")
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("source", type=Path, help="lobby_menu.swf of resources.db.patch_24")
     parser.add_argument("output", type=Path, help="the new lobby_menu.swf, a new file")
-    parser.add_argument("--ffdec", required=True, type=Path, help="path to ffdec.jar")
-    parser.add_argument("--java", default="java")
-    parser.add_argument("--javac", default="javac")
-    parser.add_argument("--any-result", action="store_true",
-                        help="write the movie even if it is not RESULT_SHA256 (development)")
+    parser.add_argument("--tools", type=Path, default=REPO / "private" / "actionscript" / "tools.json",
+                        help="JSON naming java and flex (4.16.1); default %(default)s")
     args = parser.parse_args()
     if args.output.exists() or args.output.is_symlink():
         parser.error("Output already exists; choose a new path")
-    movie, _ = build(args.source.read_bytes(), args.ffdec.resolve(), args.java, args.javac,
-                     any_result=args.any_result)
+    if not args.tools.is_file():
+        parser.error(f"No tools file {args.tools} (tools/actionscript/README.md)")
+    try:
+        movie = build(args.source.resolve(), args.tools.resolve())
+    except (ValueError, OSError, subprocess.SubprocessError) as error:
+        sys.exit(str(error))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("xb") as output:
         output.write(movie)
-    print(f"Created {args.output}: the lobby movie of {len(STEPS)} steps ({len(movie)} bytes, "
-          f"sha256 {hashlib.sha256(movie).hexdigest()})")
+    sha = hashlib.sha256(movie).hexdigest()
+    checked = ("RESULT_SHA256, the movie last checked in the game" if sha == RESULT_SHA256 else
+               "a new movie, not RESULT_SHA256: check it in the game, then set RESULT_SHA256 to it")
+    print(f"Created {args.output}: the lobby movie from source ({len(movie)} bytes, sha256 {sha}): {checked}")
 
 
 if __name__ == "__main__":

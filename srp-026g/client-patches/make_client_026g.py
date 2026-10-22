@@ -12,6 +12,9 @@ USAGE
                                      for a server that asks for no later one
         [--revision=<n>]             the default exe says patch revision <n>, a
                                      release's, instead of REVISION (patch_026g.py)
+        [--required-patches=<n>,...] the default exe stops at its start without
+                                     these resources.db.patch_<n> (patch 49): a
+                                     release's offered patches (patch_026g.py)
         [--check]                    every check, nothing written
         [--pack-zip]                 write the output as a ZIP instead of a folder
         [--bugtrap=<BugTrap.dll>]     defaults to the Rust release build in this repo
@@ -126,7 +129,7 @@ import launcher_pages  # noqa: E402
 import patch_launcher_026g as L  # noqa: E402
 
 UPDATER_EXE = os.path.abspath(os.path.join(
-    HERE, "..", "..", "client", "updater", "exe", "target", "i686-pc-windows-msvc", "release", L.UPDATER_NAME))
+    HERE, "..", "..", "client", "updater", "exe", "target", "i686-win7-windows-msvc", "release", L.UPDATER_NAME))
 # The extractor the updater runs, and the size and sha256 the updater is
 # built with (EXTRACTOR in client/updater/logic/src/game.rs; a test here
 # reads them from that file and compares).
@@ -135,7 +138,7 @@ EXTRACTOR_EXE = os.path.abspath(os.path.join(HERE, "..", "..", "client", "update
 EXTRACTOR_SIZE = 602624
 EXTRACTOR_SHA256 = "256feca8e274e5da655e2a284fabafd9f554365eb164862089dacd4e8276d282"
 BUGTRAP_DLL = os.path.abspath(os.path.join(
-    HERE, "..", "..", "client", "bugtrap", "target", "i686-pc-windows-msvc", "release", "BugTrap.dll"))
+    HERE, "..", "..", "client", "bugtrap", "target", "i686-win7-windows-msvc", "release", "BugTrap.dll"))
 # The same build-2777 mirror pinned in client/updater/logic/src/game.rs.
 GAME_URL = (
     "https://drive.usercontent.google.com/download?"
@@ -444,7 +447,7 @@ def main():
     archive = False
     launcher, updater_path, site = True, UPDATER_EXE, None
     extractor_path = EXTRACTOR_EXE
-    late_join, revision = True, None
+    late_join, revision, required = True, None, None
     for option in options:
         if option == "--check":
             check = True
@@ -452,6 +455,8 @@ def main():
             late_join = False
         elif option.startswith("--revision="):
             revision = P.parse_revision(option[len("--revision="):])
+        elif option.startswith("--required-patches="):
+            required = P.parse_required_patches(option[len("--required-patches="):])
         elif option == "--pack-zip":
             archive = True
         elif option == "--cert-only":
@@ -491,9 +496,11 @@ def main():
     embedded = mode != "cert-only"
     # The late join is of the default build alone (patch revision 5).
     late_join_code = Path(P.late_join_bin()).read_bytes() if mode == "section" and late_join else None
-    if revision is not None and late_join_code is None:
-        sys.exit("--revision goes with the default build only (not --no-late-join, --cave=hash-mismatch or --cert-only)")
-    exe, description = P.build(original, mode, code, server if embedded else None, late_join_code, revision=revision)
+    if (revision is not None or required is not None) and late_join_code is None:
+        sys.exit("--revision and --required-patches go with the default build only "
+                 "(not --no-late-join, --cave=hash-mismatch or --cert-only)")
+    exe, description = P.build(original, mode, code, server if embedded else None, late_join_code, revision=revision,
+                               required_patches=required)
     exe = bytes(exe)
 
     # The certificates.

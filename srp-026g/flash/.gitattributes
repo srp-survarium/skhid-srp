@@ -1,0 +1,2 @@
+# LF line ends, as the trees are exported (flash_tree.py).
+*.as text eol=lf

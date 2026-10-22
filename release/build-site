@@ -54,26 +54,11 @@ SKHID_STOCK_DB=$(realpath -s -- "$SKHID_STOCK_DB")
 read_patch_list
 PATCH_LIST=$(realpath -s -- "$PATCH_LIST")
 cache=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release
-mkdir -p "$cache/patches"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
 # 1. The patches.
-while read -r name sha size urls; do
-    [[ -n $name ]] || continue
-    file=$cache/patches/$name
-    if [[ -f $file && $(size_of "$file") == "$size" && $(sha256_of "$file") == "$sha" ]]; then
-        say "$name: in the cache"
-        continue
-    fi
-    url=${urls%% *}
-    say "$name: downloading $url ($size bytes)"
-    status=$(http_get "$url" "$file.part")
-    [[ $status == 200 ]] || die "GET $url answered $status, not 200 (in $PATCH_LIST)"
-    [[ $(size_of "$file.part") == "$size" && $(sha256_of "$file.part") == "$sha" ]] ||
-        die "GET $url did not give the $size bytes of sha256 $sha that $PATCH_LIST names"
-    mv "$file.part" "$file"
-done <<<"$LIST"
+cache_patches
 
 # 2. The tools.
 # shellcheck disable=SC2016 # a nix expression

@@ -1,7 +1,7 @@
 @echo off
 rem Run from an x86 VS developer command prompt. Rust DLL must be built first.
 setlocal
-set OUT=%~dp0..\target\i686-pc-windows-msvc\release
+set OUT=%~dp0..\target\i686-win7-windows-msvc\release
 pushd "%OUT%"
 cl /nologo /MT /D_WIN32_WINNT=0x0600 /Fecrash_probe.exe "%~dp0crash_probe.cpp" /link BugTrap.dll.lib user32.lib
 if errorlevel 1 exit /b 1

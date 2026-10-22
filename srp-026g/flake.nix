@@ -25,6 +25,40 @@
       rust = pkgs.rust-bin.nightly.latest.default.override {
         extensions = [ "rust-src" "rustfmt" "clippy" "rust-analyzer" ];
       };
+
+      # The players' Windows programs (client/bugtrap, client/updater) are
+      # built with Microsoft's C runtime, linked in statically (libcmt,
+      # libvcruntime, libucrt), as a Rust program built on Windows with
+      # `+crt-static` is. These are those libraries and the import libraries
+      # Rust's standard library names, 32-bit, from the Visual Studio 2022
+      # build tools and the Windows 11 SDK, fetched from Microsoft by `xwin`
+      # at pinned versions (its --accept-license: Microsoft's terms for the
+      # build tools). The output hash pins the bytes: a different download
+      # fails the build. Nothing of the SDK's headers or tools is kept.
+      msvcLibs = pkgs.stdenvNoCC.mkDerivation {
+        name = "msvc-crt-14.44.17.14-sdk-10.0.26100-x86-libs";
+        nativeBuildInputs = [ pkgs.xwin ];
+        SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+        outputHashMode = "recursive";
+        outputHashAlgo = "sha256";
+        outputHash = "sha256-F4ErAyoePkNwxGseI36VfaoPnFfvfje0Ldnekrzlg/8=";
+        # (This file has CRLF line ends; bash takes none.)
+        buildCommand = builtins.replaceStrings [ "\r" ] [ "" ] (''
+          xwin --accept-license --log-level warn --http-retry 3 --timeout 600s \
+            --arch x86 --variant desktop \
+            --crt-version 14.44.17.14 --sdk-version 10.0.26100 \
+            --cache-dir "$TMPDIR/cache" splat --output "$TMPDIR/splat"
+          mkdir -p "$out/lib/x86"
+          # Each library with the other spellings of its name xwin links to it.
+          for lib in libcmt libvcruntime oldnames libucrt \
+                     kernel32 ntdll userenv ws2_32 dbghelp advapi32 uuid; do
+            for dir in crt/lib/x86 sdk/lib/ucrt/x86 sdk/lib/um/x86; do
+              find "$TMPDIR/splat/$dir" -maxdepth 1 -iname "$lib.lib" \
+                -exec cp -P -t "$out/lib/x86" {} +
+            done
+          done
+        '');
+      };
     in
     {
       devShells.${system}.default = pkgs.mkShell {
@@ -39,6 +73,9 @@
           pkgs.openssl
           # Used by scripts/dev-bootstrap.sh to run the servers in tmux windows.
           pkgs.tmux
+          # llvm-rc (the Windows programs' version and icon resources) and
+          # llvm-readobj (client/bugtrap/tests/check_abi.py).
+          pkgs.llvm
         ];
 
         # The `openssl` crate defaults to vendoring (compiling OpenSSL from
@@ -47,6 +84,8 @@
         env = {
           OPENSSL_NO_VENDOR = "1";
           PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
+          # Where client/bugtrap and client/updater link the C runtime from.
+          SKHID_MSVC_LIB = "${msvcLibs}/lib/x86";
         };
       };
     };

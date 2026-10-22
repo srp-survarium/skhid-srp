@@ -1,4 +1,6 @@
 va	name	source	ret_cleanup	result
+0x00011540	vostok::intrusive_ptr<render_model_instance>::release	manual	0	
+0x000127c0	vostok::buffer_string::assign	manual	0	
 0x00014650	vostok::render::one_way_render_channel::owner_initialize	manual	0	
 0x00014710	vostok::render::one_way_render_channel::owner_finalize	manual	0	
 0x000147e0	on_mounted_resources	manual	0	
@@ -150,6 +152,7 @@ va	name	source	ret_cleanup	result
 0x0004abc0	vostok::vfs::transfer_children::transfer_child	manual	12	
 0x0004ad50	vostok::vfs::transfer_children::transfer_children	manual	20	
 0x0004fbd0	vostok::vfs::physical_path_mounter::mount_root	manual	4	
+0x000573c0	vostok::math::float4x4::create_translation	manual	0	EAX = the matrix: identity rotation, the vector in row 3 (row-vector, v * M)
 0x0005afe0	vostok::sound::sound_instance_proxy_internal::stop	manual	0	
 0x000621b0	vostok::render::animated_model_instance_cook::delete_resource	manual	4	
 0x00067089		auto	0	
@@ -167,8 +170,13 @@ va	name	source	ret_cleanup	result
 0x0006f109		auto	0	
 0x0006f181		auto	0	
 0x0006f561		auto	0	
+0x00075e20	vostok::physics::bullet_physics_world::ray_test	manual	32	the result at entry ESP+4: +0 the hit point, +1Ch the object (0: no hit)
 0x0007ab30	vostok::network_core::mutable_buffer::resize	manual	4	
 0x0007ac10	vostok::network_core::buffer_writer::w	manual	8	
+0x0007ef90	vostok::physics::bullet_character_controller::on_ground	manual	0	EAX low byte: 1 when |velocity.up| < 4.0 (0xA7AB10) and the last hit normal.up >= the walkable-slope dot (0x21E51D8); 0 if +0x203 is set
+0x0007f050	vostok::physics::bullet_character_controller::end_jump	manual	0	clears the jump flag +0x2C70C; velocity +0x2C770 := up x min(velocity.up, 0)
+0x0007fe40	vostok::physics::bullet_character_controller::set_landing_callback	manual	4	stores the delegate at +0x2C748 and the minimum speed at +0x2C740
+0x000803d0	vostok::physics::bullet_character_controller::call_landing_callback	manual	4	calls the stored delegate with the speed
 0x000804e0	vostok::network_core::buffer_writer::w<float>	manual	20	
 0x00080fa0	vostok::network_core::buffer_writer::w<bool>	manual	20	
 0x000e0420	vostok::resources::resource_children::link_parent_resource	manual	12	
@@ -177,6 +185,7 @@ va	name	source	ret_cleanup	result
 0x000e06d0	vostok::resources::resource_children::unlink_child_resource	manual	4	
 0x000e07b0	vostok::resources::resource_children::unlink_from_children	manual	0	
 0x000e07e0	vostok::resources::resource_children::unlink_from_parents	manual	0	
+0x000e45b0	vostok::buffer_string::appendf	manual	0	EAX: the buffer_string
 0x000e4f40	vostok::memory::doug_lea_allocator::initialize_impl	manual	16	
 0x000e4f80	vostok::memory::doug_lea_allocator::finalize_impl	manual		
 0x000e4f90	vostok::memory::doug_lea_allocator::malloc_impl	manual	4	
@@ -189,8 +198,13 @@ va	name	source	ret_cleanup	result
 0x000e7d20	vostok::resources::mount_by_config_helper::mount_by_config_helper	manual	0	EAX: the helper
 0x000e7d90	vostok::resources::mount_by_config_helper::query_db	manual	0	
 0x000e7e80	vostok::resources::query_mount_physical	manual	0	
+0x000e7ef0	vostok::resources::query_mount_archive	manual	0	
 0x000eb600	vostok::memory::doug_lea_allocator::usable_size_impl	manual	4	
+0x000ee700	vostok::math::float4x4::multiply_affine	manual	0	EAX = the out matrix = EDX * ECX (apply EDX first; the w column taken as 0, 0, 0, 1); caller pops
 0x000f1850	vostok::resources::unmanaged_resource::~unmanaged_resource	manual	0	
+0x000f6b10	vostok::configs::binary_config_value::operator[]	manual	0	EAX: the child value (no end check)
+0x000f6c00	vostok::configs::binary_config_value::value_exists	manual	0	AL: the key is there
+0x000f6d50	vostok::configs::binary_config_value::find_child_by_crc	manual	0	EAX = the first child (18h bytes: +0 value or children, +8 name, +10h crc32 of the name, +14h u16 type 1 int 3 named 4 indexed 5 string, +16h u16 count) whose crc is not below the key's; children sorted by crc
 0x000f6df0	vostok::memory::writer_base::`scalar deleting destructor'	manual	4	EAX: original owner pointer; storage may already be deleted
 0x000f6e30	vostok::memory::writer_base::open_chunk	manual	0	
 0x000f6e90	vostok::memory::writer_base::close_chunk	manual	0	
@@ -208,6 +222,9 @@ va	name	source	ret_cleanup	result
 0x00110b80	vostok::network::network_world::tick	manual	4	
 0x00110dd0	vostok::network::network_world::clear_resources	manual	0	
 0x00110e10	vostok::network::network_world::dispatch_callbacks	manual	0	
+0x00111860	vostok::logging::has_passed_filters	manual	0	AL = the line is written; the game asks it only while [0x1F1D60C] is set
+0x00111ed0	vostok::logging::log_message	manual	0	one line of Survarium_<user>.log: "<channel> <level>\t[time]\t<text>" (level 4: info)
+0x00113580	vostok::debug::terminate	manual		never returns (0x1134E0, then int3)
 0x001166f0	vostok::render::renderer_cook::allocate_resource	manual	20	EAX: output pointer/size buffer address
 0x00116730	vostok::render::renderer_cook::deallocate_resource	manual	4	
 0x00116750	vostok::render::renderer_cook::create_resource	manual	20	
@@ -265,6 +282,8 @@ va	name	source	ret_cleanup	result
 0x001190b0	vostok::render::engine::world::set_grass	manual	8	
 0x00119110	vostok::render::engine::world::reset_grass	manual	8	
 0x00119170	vostok::render::engine::world::set_gamma_correction_factor	manual	4	
+0x00119590	type_to_int<camouflage_decal_cook_parameters*>::get	manual	0	EAX: the type id
+0x00119760	vostok::render::camouflage_decal_cook_parameters::camouflage_decal_cook_parameters	manual	4	EAX: P
 0x001198b0	vostok::render::render_output_window::render_output_window	manual	4	EAX: owner pointer
 0x00119ab0	vostok::render::render_output_window::set_size	manual	16	
 0x00119bf0	vostok::render::render_output_window::get_window_client_size	manual	0	EAX: output storage pointer
@@ -321,6 +340,8 @@ va	name	source	ret_cleanup	result
 0x00126670	vostok::render::skeleton_model_instance_cook::on_skeleton_loaded	manual	8	
 0x00126750	vostok::render::skeleton_model_instance_cook::on_render_model_loaded	manual	8	
 0x00126af0	vostok::render::skeleton_model_instance_cook::on_all_subresources_ready	manual	4	
+0x00127700	boost::function_invoker<bind(void(*)(A*,B*),a,b)>::invoke	manual	0	
+0x00134020	vostok::render::camouflage_decal_baker_cook::translate_query	manual	4	class 6Ch; asks 4 class-6Bh (107) camouflage_decal_texture_type_baker_cook queries per P, one per type d, n, f, s (names 0x9EE7A4..0x9EE7B0, the class at 0x1342E8): a log's "cook of '' [quid n][class 107] failed" is one of them (once per baked surface, before its d, n, s lines: LIKELY f, fresnel)
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	manual	8	
 0x00135af0	vostok::render::material_effects_instance_cook::translate_query	manual	4	
 0x00135c20	vostok::render::material_effects_instance_cook::query_effects	manual	12	
@@ -415,6 +436,7 @@ va	name	source	ret_cleanup	result
 0x001512d0	vostok::render::scene::remove_decal	manual	4	
 0x00151370	vostok::render::scene::add_volume_fog	manual	8	
 0x001514a0	vostok::render::scene::select_volume_fog_instances	manual	8	
+0x001539d0	vostok::memory::doug_lea_allocator::free_impl	manual	0	
 0x00153de0	vostok::render::scene::update_streaming_texture_parameters	manual	0	
 0x00154020	vostok::render::scene::process_streaming	manual	28	
 0x00154a00	vostok::render::scene::process_ready_streaming_textures	manual	4	
@@ -466,6 +488,7 @@ va	name	source	ret_cleanup	result
 0x0015a9d0	vostok::render::skeleton_render_model_instance::get_bind_pose	manual	8	
 0x0015aa60	vostok::render::skeleton_render_model_instance::get_bone_matrix	manual	12	EAX (32bits): output matrix pointer
 0x0015ab00	vostok::render::skeleton_render_model_instance::get_bone_direction	manual	16	EAX (32bits): output three-float pointer
+0x0015ae50	vostok::math::float4x4::create_rotation_y	manual	0	rows (cos a, 0, sin a), (0, 1, 0), (-sin a, 0, cos a); caller pops
 0x0015af60	vostok::render::statistics_cpu_gpu::statistics_cpu_gpu	manual	4	EAX: owner address
 0x0015ba20	vostok::render::statistics_float::print	manual	4	
 0x0015bc70	vostok::render::statistics_cpu_gpu::print_name	manual	4	
@@ -706,6 +729,7 @@ va	name	source	ret_cleanup	result
 0x001bd2c0	vostok::render::stage_screen_image::clear_surfaces	manual	0	
 0x001bd320	vostok::render::stage_screen_image::execute	manual	4	
 0x001bde20	vostok::render::lights_db::add_light	manual	4	
+0x001be3a0	vostok::math::float4x4::create_rotation_x	manual	0	EAX = ESI; rows (1, 0, 0), (0, cos a, -sin a), (0, sin a, cos a); caller pops
 0x001be690	vostok::render::effect_editor_view_mode::compile	manual	12	
 0x001be980	vostok::render::effect_fill_environment_probe_face::compile	manual	12	
 0x001bed60	vostok::render::effect_fill_sky_ao_map::compile	manual	12	
@@ -852,7 +876,10 @@ va	name	source	ret_cleanup	result
 0x001ec510	survarium::game::load_config_query	manual	12	
 0x001edbf0	survarium::game::play_ui_sound	manual	4	
 0x001f0090	survarium::items_dictionary::item_by_id	manual	4	
+0x001f0090	survarium::items_dictionary::item_by_id	manual	4	EAX = the entry: 3A0h bytes each from [dictionary+130h], +0 u16 the dict id (0x1F00D4), +228h u8 item_category
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	manual	0	
+0x001f3480	survarium::player::update_camera	manual	4	
+0x001f37a0	survarium::player::set_head_visibility	manual	4	
 0x001f3de0	vostok::network_core::buffer_writer::w<unsigned char>	manual	20	
 0x001f48a0	vostok::network_core::buffer_writer::w<unsigned int>	manual	20	
 0x001f6d50	survarium::game_world::register_cooks	manual	0	
@@ -861,6 +888,7 @@ va	name	source	ret_cleanup	result
 0x001f8190	survarium::game_world::switch_to_warmup_camera	manual	0	
 0x001f8200	survarium::game_world::switch_to_player_camera	manual	4	
 0x001f8270	survarium::game_world::switch_to_free_fly_camera	manual	4	
+0x001f8360	survarium::game_world::switch_to_spectator_camera	manual	0	
 0x001f83d0	survarium::game_world::set_game_project	manual	4	
 0x001f8650	survarium::game_world::on_project_loaded	manual	12	
 0x001f8b40	survarium::game_world::unload	manual	0	
@@ -895,6 +923,7 @@ va	name	source	ret_cleanup	result
 0x0021d5e0	survarium::lobby_menu::tick	manual	12	
 0x0021d720	survarium::lobby_menu::on_client_status_received	manual	4	
 0x0021d9d0	survarium::lobby_menu::on_operation_denied_received	manual	4	
+0x0021df00	survarium::lobby_menu::update_player_region	manual	4	projects the lobby character's feet and head (character+8, -0.1 and +2 m) and calls the movie's root.set_player_region
 0x0021e170	survarium::lobby_menu::set_mouse_position	manual	12	
 0x0021e260	survarium::lobby_menu::demo_play	manual	4	
 0x0021f3d0	survarium::login_menu::enable_button	manual	0	
@@ -926,11 +955,15 @@ va	name	source	ret_cleanup	result
 0x00240200	survarium::player_input_handler::on_mouse_move	manual	16	
 0x00241090	survarium::player_input_handler::on_before_processing	manual	4	
 0x00241170	survarium::player_input_handler::on_after_processing	manual	4	
+0x00241200	survarium::player_input_handler::alt_is_held	manual	0	EAX: 1 when the left or the right Alt key is down
 0x00241250	survarium::player_input_handler::process_first_person_mode	manual	8	
 0x002421c0	survarium::player_input_handler::process_third_person_mode	manual	0	
 0x00242200	survarium::player_input_handler::process_warmup_mode	manual	0	
+0x002422b0	survarium::player_input_handler::update_inverted_view	manual	8	
 0x00242460	survarium::player_input_handler::action_present	manual	12	AL: boolean found; output state is queued value or2 for persistent presence; higher EAX bits unspecified
 0x00242770	survarium::game_camera::set_position_direction	manual	4	
+0x00242d50	survarium::base_network_client::spectate_next_player	manual	0	
+0x00242f00	survarium::base_network_client::spectate_previous_player	manual	0	
 0x00243370	survarium::camera_director::set_position_direction	manual	4	
 0x00243440	survarium::camera_director::apply	manual	4	
 0x00243510	survarium::camera_director::switch_to_camera	manual	0	
@@ -941,6 +974,7 @@ va	name	source	ret_cleanup	result
 0x00243980		auto	0	
 0x002439d0		auto	0	
 0x00243a30		auto	8	
+0x00243a30	survarium::weapon::load_weapon	manual	8	keeps the skeleton model instance at +1810h (0x243A9A) and the scope at +1808h
 0x00243bc0	survarium::weapon::calculate_locator	manual	16	
 0x00243cb0		auto	0	
 0x00243d40	survarium::weapon::set_foreground	manual	0	
@@ -958,6 +992,8 @@ va	name	source	ret_cleanup	result
 0x00244c50	survarium::weapon::remove_aimed_rifle_scope_from_scene	manual	0	
 0x00244e10		auto	16	
 0x00245250		auto	0	
+0x002474a0	survarium::player::mt_draw	manual	0	the held item (+128h) drawn by its vtable+48h with [ebp-0A8h] (the hand) or [ebp-0E8h] (the decal pose, translate(0, -10, 0)) at 0x2477C8; [ebp-0F0h] = the caller's EBX
+0x00248ad0	survarium::step_manager::on_step	manual	12	
 0x00256fa0	survarium::damage_zone_cook::delete_resource	manual	4	
 0x00257170	survarium::damage_zone_cook::calculate_max_requests_count	manual	4	
 0x00257210	survarium::damage_zone_cook::calculate_buffer_size	manual	4	
@@ -966,18 +1002,36 @@ va	name	source	ret_cleanup	result
 0x00258240	survarium::damage_zone_cook::construct_resource	manual	4	
 0x00258480	survarium::rifle_scope_cook::translate_query	manual	4	
 0x00258580	survarium::rifle_scope_cook::on_config_loaded	manual	4	
+0x0025d0e0	survarium::game_world::on_mouse_move	manual	16	AL: 1 (the move taken) while the hud's cursor is shown
+0x0025d130	survarium::game_world::set_cursor_position	manual	8	
+0x0025d160	survarium::game_world::set_pointer	manual	12	
 0x00260e90	survarium::options_item_base::options_item_base	manual	12	
+0x002636b0	survarium::lobby_character::start_decal_edit	manual	8	
+0x00263950	survarium::lobby_character::accept_decal_edit	manual	8	
+0x00263a70	survarium::lobby_character::cancel_decal_edit	manual	4	
+0x00263b60	survarium::lobby_character::pack_decal_value	manual	0	EDX:EAX the decal u64 (bits 0-9 yaw, 10-19 pitch, 20-26 roll, 27-30 size*32, 31-41 (x+1.5)*682.67, 42-52 y*1024, 53-63 (z+1.5)*682.67)
+0x00263d00	survarium::lobby_character::unpack_decal_value	manual	0	EAX = out: the decal float4x4, rows right*s, up*s, forward*1.5, point - 0.75*forward; u64 0 is 0x76961E1C98074123
+0x002648e0	survarium::lobby_character::on_decals_baked	manual	12	
+0x00264960	survarium::lobby_character::pick_decal_place	manual	20	AL = hit; point and normal written
+0x00264a10	survarium::lobby_character::decal_value	manual	0	EDX:EAX the u64 of +D530h (point), -(+D53Ch) (direction), +D518h (size), +D51Ch (roll)
+0x00264cf0	survarium::lobby_character::query_decal_host	manual	0	
+0x00265860	survarium::lobby_character::show_decal_preview	manual	4	
+0x00265980	survarium::lobby_character::update_decal_preview	manual	0	
 0x0026b1b0	survarium::messaging_client::read_important_message	manual	12	
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	manual	12	AL: Observed constant1 on local return path
 0x0026d090	survarium::lobby_menu::on_mouse_move	manual	16	AL: Observed constant1 on local return path
+0x0026d130	survarium::lobby_menu::mouse_ray	manual	4	the normalized direction at [EDI], the eye at [entry ESP+4]
 0x0026daa0	survarium::base_game_statistics_handler::on_victory_item_event	manual	16	
 0x0026e4e0	survarium::player_result_brief::deserialize	manual	0	
 0x0026e610	survarium::match_stats::deserialize	manual	4	
 0x0026f060	survarium::lobby_client::lobby_client	manual	8	
+0x0026f3b0	survarium::player_profile::~player_profile	manual	0	
 0x0026f3e0	survarium::lobby_client::~lobby_client	manual	0	
 0x0026f560	survarium::lobby_client::clear_profile_info	manual	4	
 0x0026ff90	survarium::lobby_client::query_match_stats	manual	4	
 0x00270100	survarium::lobby_client::read_status_info	manual	0	
+0x00270260	survarium::lobby_client::process_own_account	manual	4	the 0x87 reader: the account body (0x1F1070), revisions, active id, flags, experience; its last call 0x270320 (0x270313, esi = the lobby client) copies the items from the inventory
+0x00270390	survarium::inventory_item_descr::operator=	manual	0	EAX = destination; clobbers ECX, EDX, XMM0
 0x00270400	survarium::lobby_client::read_enumerate_inventory_info	manual	4	
 0x00270570	survarium::lobby_client::read_player_skills	manual	4	
 0x00270660	survarium::lobby_client::status	manual	0	
@@ -991,6 +1045,7 @@ va	name	source	ret_cleanup	result
 0x00271eb0	survarium::lobby_client::read_players_elo_list	manual	8	
 0x00274720	survarium::lobby_client::read_squad_info	manual	4	
 0x002749d0	survarium::lobby_client::squad_ready_count	manual	0	
+0x00277aa0	survarium::lobby_client::find_item_by_id	manual	0	EAX = the matching inventory_item_descr, or end; caller pops the argument
 0x0027a300	survarium::network_client::on_match_packet_received	manual	8	
 0x0027a790	survarium::network_client::close_current_match	manual	4	
 0x0027b1f0	survarium::network_client::tick	manual	8	
@@ -999,7 +1054,18 @@ va	name	source	ret_cleanup	result
 0x0027c1f0	survarium::network_client::register_message_in_stats	manual	4	
 0x0027c5f0	survarium::network_client::process_player_entered_match	manual	4	
 0x0027c690	survarium::network_client::process_player_left_match	manual	4	
+0x00283bc0	survarium::lobby_camera::lobby_camera	manual	4	height 1.2, distance 1.96, the point (+A0h, +A8h) 0; vtables 0xA09EB4 (input) and 0xA09ED8 (+4)
+0x00283d30	survarium::lobby_camera::on_mouse_move	manual	16	AL = 1 while a drag turns the camera (a button of 52h held)
+0x00283eb0	survarium::lobby_camera::on_input_frame_end	manual	4	zeroes the frame's wheel (+C8h) and drag moves (+CCh, +D0h)
+0x00283ef0	survarium::lobby_camera::tick	manual	0	the camera world matrix at +48h; dt (at most 0.1 s) at [esp+10h] of its frame
+0x002844d0	survarium::lobby_camera::process_collision	manual	4	
+0x002845c0	survarium::lobby_camera::set_target	manual	4	targets +9Ch (height), +98h (side angle), +C0h (distance); [ECX] = the distance target it replaces; speeds +E0h..+E8h = |change| * 1.111 a second
+0x002849f0	survarium::lobby_character::update	manual	12	gives its player (+D2B8h) the upgrade mode (+F49Ch) and the decal transform (+F4A0h), updates it (0x2DA9A0) and draws it (call 0x2474A0 at 0x284A7E, return 0x284A83)
 0x00284b10	survarium::lobby_character::setup_profile	manual	8	
+0x00284d10	survarium::player_profile::operator=	manual	0	EAX = destination; deep copy (every item record, the kits); clobbers ECX, EDX, XMM0; DF = 0
+0x00284dc0	survarium::player_profile::copy_body	manual	8	
+0x00284ea0	survarium::player_profile::copy_kit	manual	4	
+0x00284f20	survarium::lobby_character::on_player_ready	manual	4	the new player at +D2B8h; +D2C4h (the player query) back to -1 (0x284F86); setup_profile again when +D2C8h was set
 0x0028de20	survarium::lobby_menu::add_quest	manual	4	
 0x0028e690	survarium::lobby_menu::create_quest_ui_message	manual	12	
 0x0028f350	survarium::object_environment_probe::`scalar deleting destructor'	manual	4	
@@ -1022,7 +1088,9 @@ va	name	source	ret_cleanup	result
 0x00294930	survarium::object_sound::insert	manual	0	
 0x00294a90	survarium::object_sound::remove	manual	0	
 0x002989d0	survarium::damage_zone::damage_zone	manual	4	
+0x0029a850	survarium::lobby_menu::process_default_cancel_decal_edit	manual	4	AL = 1
 0x0029ab20	survarium::lobby_menu::fill_match_statistic	manual	16	
+0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	manual	8	
 0x002aec40	vostok::render::stage_particles::is_effects_ready	manual	0	EAX: normalized0/1 effect+1C non-null result
 0x002c6f90		auto	0	
 0x002c7250		auto	4	
@@ -1056,6 +1124,8 @@ va	name	source	ret_cleanup	result
 0x002d2e40	survarium::game_world_core::move	manual	4	
 0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	manual	8	XMM0 low32: B x max(0, 1 + k x S) for a multiplicative index, B + k x S for an additive one (index list 0x927E08); S = the kit's float plus its item nodes; EAX, ECX, EDX clobbered
 0x002d6230	survarium::character_breath_vibration_params::load	manual	8	
+0x002d7920	survarium::base_player::jump	manual	4	sets the controller's jump flag +0x2C70C
+0x002d8220	survarium::base_player::on_physical_controller_landing	manual	4	v > fatal speed +0x30C: hit fatal_damage +0x314 (modifier 30); v > harmless speed +0x310: fatal_damage x (v - harmless) / (fatal - harmless); else nothing
 0x002d84c0		auto	8	
 0x002d9a60	survarium::base_player::hit	manual	40	
 0x002d9ae0	survarium::base_player::hit	manual	32	
@@ -1124,6 +1194,8 @@ va	name	source	ret_cleanup	result
 0x002f5ac0	survarium::shared_statistics::serialize	manual	0	
 0x002f5be0	survarium::shared_statistics::deserialize	manual	0	
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	manual	20	
+0x002f73f0	survarium::player_profile::player_profile	manual	0	EAX = this; keeps EBX, ESI, EDI, EBP
+0x002f7c10	survarium::inventory_item_descr::inventory_item_descr	manual	0	the two buffer_vectors point at their inline storage (+20h..+60h, +6Ch..+B4h)
 0x002f81f0	survarium::usable_object::load	manual	4	
 0x002f8280	survarium::usable_object::resolve_links	manual	28	
 0x002f8300	survarium::usable_object::insert	manual	8	

@@ -1,100 +1,107 @@
-"""Checks of the lobby movie driver without requiring the proprietary game assets."""
+"""Checks of the lobby movie's source build without the proprietary game movie or the compilers."""
 import hashlib
+import json
 from pathlib import Path
+import re
 import tempfile
 import unittest
 from unittest import mock
 
 import build_lobby_026g as lobby
 
+HERE = Path(__file__).resolve().parent
+TREE = HERE.parent / 'flash' / 'lobby_menu'
+
+
+def silent(_):
+    pass
+
 
 class BuildLobbyTests(unittest.TestCase):
-    def test_a_movie_other_than_revision_23s_is_refused_before_any_step(self):
-        with mock.patch.object(lobby.STEPS[0][1], 'build_movie') as first:
-            with self.assertRaisesRegex(ValueError, "Not revision 23's lobby movie"):
-                lobby.build(b'some other movie', None, report=lambda _: None)
-            first.assert_not_called()
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
 
-    def test_the_retail_movie_is_named_as_such(self):
-        retail = hashlib.sha256(b'retail').hexdigest()
-        with mock.patch.object(lobby, 'RETAIL_SHA256', retail):
-            with self.assertRaisesRegex(ValueError, 'retail lobby movie'):
-                lobby.build(b'retail', None, report=lambda _: None)
+    def tearDown(self):
+        self.temp.cleanup()
 
-    def test_every_step_runs_once_in_order_on_the_one_before(self):
-        base = b'revision 23'
+    def movie(self, data):
+        path = self.root / 'lobby_menu.swf'
+        path.write_bytes(data)
+        return path
+
+    def test_a_movie_other_than_revision_24s_is_refused_before_any_compiler(self):
+        with mock.patch.object(lobby.flash_tree, 'build') as build:
+            with self.assertRaisesRegex(ValueError, "Not revision 24's lobby movie"):
+                lobby.build(self.movie(b'some other movie'), None, report=silent)
+            for data, name in [(b'revision 23', "revision 23's"), (b'retail', 'the retail')]:
+                with mock.patch.dict(lobby.OLDER, {hashlib.sha256(data).hexdigest(): name}):
+                    with self.assertRaisesRegex(ValueError, f'This is {name} lobby movie'):
+                        lobby.build(self.movie(data), None, report=silent)
+            build.assert_not_called()
+
+    def test_the_tree_is_built_over_revision_24s_movie(self):
+        base = b'revision 24'
         calls = []
 
-        def fake(name):
-            def build_movie(original, ffdec, java, javac, work, known=True):
-                calls.append((name, original, known))
-                return original + b'+' + name.encode()
-            return build_movie
+        def fake(tree, movie, tools, report):
+            calls.append((tree, movie.read_bytes()))
+            return b'the lobby from source'
 
-        patches = [mock.patch.object(module, 'build_movie', fake(module.__name__)) for _, module in lobby.STEPS]
-        with mock.patch.object(lobby, 'BASE_SHA256', hashlib.sha256(base).hexdigest()):
-            for p in patches:
-                p.start()
-            try:
-                movie, hashes = lobby.build(base, None, report=lambda _: None, any_result=True)
-            finally:
-                for p in patches:
-                    p.stop()
-        names = [module.__name__ for _, module in lobby.STEPS]
-        self.assertEqual([name for name, _, _ in calls], names)
-        self.assertTrue(all(known is False for _, _, known in calls))
-        expected = base
-        for (name, original, _), step_name in zip(calls, names):
-            self.assertEqual(original, expected)
-            expected = expected + b'+' + step_name.encode()
-        self.assertEqual(movie, expected)
-        self.assertEqual(len(hashes), len(lobby.STEPS))
-
-    def test_every_lobby_movie_builder_is_a_step(self):
-        # A lobby movie patcher left out of STEPS would never reach the players.
-        here = Path(lobby.__file__).resolve().parent
-        builders = {path.stem for path in here.glob('*_026g.py')
-                    if 'def build_movie' in path.read_text(encoding='utf-8')
-                    and 'lobby' in path.read_text(encoding='utf-8')}
-        # The exchange's first build and the login hint made revision 23's base.
-        before_base = {'exchange_026g', 'login_hint_026g'}
-        steps = {module.__name__ for _, module in lobby.STEPS}
-        self.assertEqual(builders - before_base - steps, set())
-
-    def test_a_result_other_than_the_checked_one_is_refused(self):
-        base = b'revision 23'
-        patches = [mock.patch.object(module, 'build_movie', lambda m, *a, **k: m + b'+')
-                   for _, module in lobby.STEPS]
-        with mock.patch.object(lobby, 'BASE_SHA256', hashlib.sha256(base).hexdigest()):
-            for p in patches:
-                p.start()
-            try:
-                with self.assertRaisesRegex(ValueError, 'not RESULT_SHA256'):
-                    lobby.build(base, None, report=lambda _: None)
-            finally:
-                for p in patches:
-                    p.stop()
-
-    def test_every_step_alone_refuses_to_write_a_movie(self):
-        # A movie of one step lacks the others: only --step-only writes one.
-        for _, module in lobby.STEPS:
-            with self.subTest(module.__name__), tempfile.TemporaryDirectory() as temporary:
-                output = Path(temporary) / 'lobby_menu.swf'
-                with mock.patch('sys.argv', [module.__name__, 'unused', str(output), '--ffdec=unused']), \
-                        mock.patch.object(module, 'build_movie') as build, \
-                        self.assertRaises(SystemExit):
-                    module.main()
-                build.assert_not_called()
-                self.assertFalse(output.exists())
+        with mock.patch.object(lobby, 'BASE_SHA256', hashlib.sha256(base).hexdigest()), \
+                mock.patch.object(lobby.flash_tree, 'build', side_effect=fake):
+            self.assertEqual(lobby.build(self.movie(base), None, report=silent), b'the lobby from source')
+        self.assertEqual(calls, [(lobby.TREE, base)])
 
     def test_existing_output_is_not_overwritten(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            output = Path(temporary) / 'lobby_menu.swf'
-            output.write_bytes(b'existing movie')
-            with mock.patch('sys.argv', ['build_lobby_026g.py', 'unused', str(output), '--ffdec=unused']):
-                with self.assertRaises(SystemExit):
-                    lobby.main()
-            self.assertEqual(output.read_bytes(), b'existing movie')
+        output = self.root / 'lobby_menu.swf'
+        output.write_bytes(b'existing movie')
+        with mock.patch('sys.argv', ['build_lobby_026g.py', 'unused', str(output)]), \
+                mock.patch.object(lobby, 'build') as build:
+            with self.assertRaises(SystemExit):
+                lobby.main()
+            build.assert_not_called()
+        self.assertEqual(output.read_bytes(), b'existing movie')
+
+
+class LobbySourceTests(unittest.TestCase):
+    """The lobby's source tree."""
+
+    def test_the_tree_is_of_revision_24s_movie(self):
+        spec = json.loads((TREE / 'movie.json').read_text())
+        self.assertEqual(spec['movie_sha256'], lobby.BASE_SHA256)
+
+    def test_the_exchange_and_the_server_agree_on_the_buy_gold_mark(self):
+        window = (TREE / 'src' / 'survarium' / 'messages' / 'MessageMoneyExchange.as').read_text(encoding='utf-8')
+        server = (HERE.parent / 'crates' / 'survarium' / 'src' / 'v026g' / 'lobby' / 'requests.rs').read_text(encoding='utf-8')
+        sent = re.search(r'BUY_GOLD:uint = (0x[0-9A-Fa-f]+);', window)
+        read = re.search(r'pub const BUY_PREMIUM: u32 = (0x[0-9A-Fa-f_]+);', server)
+        self.assertIsNotNone(sent)
+        self.assertIsNotNone(read)
+        self.assertEqual(int(sent.group(1), 16), int(read.group(1).replace('_', ''), 16))
+
+    def test_every_exchange_text_is_in_every_language(self):
+        window = (TREE / 'src' / 'survarium' / 'messages' / 'MessageMoneyExchange.as').read_text(encoding='utf-8')
+        texts = re.search(r'TEXT:Object = \{(.*?)\};', window, re.S).group(1)
+        rows = re.findall(r'"(\w+)": ?\[(.*?)\]', texts, re.S)
+        self.assertGreater(len(rows), 5)
+        for key, row in rows:
+            self.assertEqual(len(re.findall(r'"[^"]+"', row)), 5, key)
+
+    def test_get_gold_opens_the_exchange_over_the_dialog_on_the_buy_side(self):
+        source = (TREE / 'src' / 'survarium' / 'messages' / 'MessageMoneyExchange.as').read_text(encoding='utf-8')
+        body = re.search(r'public static function buyGold\(\) : void\s*\{(.*?)\n      \}', source, re.S).group(1)
+        self.assertRegex(body, r'Message\.showMessage\("exchange",\{\s*label:"",\s*srpBuyGold:true\s*\},true,0,true\);')
+
+    def test_the_weapon_window_title_is_in_every_language(self):
+        edits = json.loads((HERE.parent / 'scripts' / 'content-edit' / 'weapon-attachments-1.json').read_text(encoding='utf-8'))
+        added = {e['file']: e['key'] for e in edits['add_key'] if e['text']}
+        languages = ['english', 'german', 'original', 'polish', 'russian', 'ukrainian']
+        self.assertEqual(added, {f'localization/{l}/localization': 'st_srp_attachments' for l in languages})
+        [mapped] = [e for e in edits['replace_string'] if e['files'].endswith('.options')]
+        self.assertEqual(mapped['to'], 'st_srp_attachments')
+        window = (TREE / 'src' / 'survarium' / 'upgrade' / 'UpgradeWindow.as').read_text(encoding='utf-8')
+        self.assertIn('"scope_window_title"', window)
 
 
 if __name__ == '__main__':

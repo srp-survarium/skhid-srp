@@ -413,6 +413,7 @@ pub fn premium_days(offer_id: u32) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use survarium::v026g::golden;
     use survarium::v026g::lobby;
     use survarium::v026g::lobby::client_model::{Client, Decoded};
 
@@ -586,9 +587,9 @@ mod tests {
         let rifle = account.item(items[0].item_id).unwrap();
         assert_eq!(rifle.dict_id, dict("ak_74n_premium"));
         assert_eq!(rifle.condition_or_stack, FULL_CONDITION);
-        // Its fixed modifications are the item's own in the client's data:
-        // none travel with it.
-        assert!(rifle.modifications.is_empty());
+        // A golden weapon: its silver bonus is its own first modification
+        // (`golden::starting_modifications`).
+        assert_eq!(rifle.modifications, [(golden::SILVER_BONUS, false)]);
         let ammo = account.item(items[1].item_id).unwrap().clone();
         assert_eq!(
             (ammo.dict_id, ammo.condition_or_stack),
@@ -613,6 +614,22 @@ mod tests {
         };
         assert_eq!(items.len(), 4);
         assert_eq!(account.premium_money, 0);
+        // The Survivor jacket and pants: their premium bonuses are their own
+        // first modifications (`golden::starting_modifications`).
+        for (gave, name) in items
+            .iter()
+            .zip(["scav_torso_4_premium", "scav_legs_4_premium"])
+        {
+            let piece = account.item(gave.item_id).unwrap();
+            assert_eq!(piece.dict_id, dict(name));
+            assert_eq!(
+                piece.modifications,
+                [
+                    (golden::EXPERIENCE_BONUS, false),
+                    (golden::SCAVENGER_REPUTATION_BONUS, false)
+                ]
+            );
+        }
         // The account as it is now goes out whole.
         let mut client = Client::signed_in();
         let push = super::super::wire::after_change(&account, NOW).unwrap();

@@ -33,7 +33,10 @@ PROVEN by the data:
 - Types with `drop_weight` 0 never roll: 11 (weight, unused), 15 pockets,
   16 artefact slots, 17 ammo bags, 29 pocket size, 33..40 (the boosters'
   effects and the premium items' silver, experience and reputation
-  bonuses). They are only ever `default_modifications`.
+  bonuses). They are only ever `default_modifications` in the data; srp gives
+  the golden weapons their silver one (1230) and the premium armour its
+  experience and reputation ones (1240, 1250, 1260) as modifications of their
+  own ([golden_weapons.md](golden_weapons.md), [premium_armour.md](premium_armour.md)).
 - Three defects have `required_modifications: [low, high]` (4030 pockets
   `[1030, 1039]`, 4040 artefact slots, 4050 ammo bags): the id range of the
   modifications that give what the defect takes.
@@ -92,7 +95,7 @@ own timer; `ItemControlPanel` shows `rerollTime / 60` minutes).
 | `46 05` | u32 active kit, **u32 host item, u32 cosmetic item**, u64 value | the decal editor 0x263950; the client then finds the host and the cosmetic's record and writes the value itself (0x270A1A..0x270AC6) |
 | `46 06` | u32 item | `item_reroll_opened` |
 | `46 07` | u32 item, u32 modification id (`item.mods[index]`), **bool gold** | `reroll_item_modifier(item, index, money type)` |
-| `46 08` | u32 item, u32 old modification id, **u32 the place of the choice (0..2)** | `modifier_choosed(item, index, modifiersList2.selectedIndex)`: the third is an index into the three offered, not an id |
+| `46 08` | u32 item, u32 old modification id, **u32 the place of the choice (0..2)**; srp's window sends 3 to keep the old one ([reroll-keep-old.md](reroll-keep-old.md)) | `modifier_choosed(item, index, modifiersList2.selectedIndex)`: the third is an index into the three offered, not an id |
 | `46 09` | **u32 item, u32 donor item, bool gold** | `craft_item(slot1.itemId, slot2.itemId, premium)` |
 | `47 03` | u32 item, u8 kind, u32 kit item if kind 2 | as before |
 
@@ -131,9 +134,12 @@ What the lobby checks or says itself (PROVEN, `lobby_menu.swf` and the
   number of times. When you change the modifier you will be prompted to
   choose one of three random modifiers." "Only one attempt in 6 hours is
   available when paying with silver." Silver is disabled while the item's
-  `reroll_time` runs; gold never. Not for a damaged item
+  `reroll_time` runs; gold never. [srp, the owner's rule of 2026-10-22] No
+  wait: srp sends `reroll_time` 0 and the window shows no six-hour line.
+  Not for a damaged item
   (`st_reroll_message_broken_item`). The window can not be closed between
-  the offer and the choice.
+  the offer and the choice. [srp, the owner's rule of 2026-10-21] Its Cancel button
+  then keeps the old modification ([reroll-keep-old.md](reroll-keep-old.md)).
 - Craft: both items not damaged and not in repair; both with fewer than
   three modifications; the item with no fewer than the donor
   (`st_craft_message_modifiers_difference`); not an equipped item while in
@@ -151,9 +157,9 @@ srp's reading of what only the server knew:
 | an item gets modifications of the types its mask names, one of a type, by `drop_weight` | LIKELY |
 | a dropped weapon or armour of rarity `n` gets `n` modifications | LIKELY (the rank shown is their count) |
 | a reroll offers three that fit in the replaced one's place (its own type too, another strength): of different types while the item has them, then other strengths of those, so an item of few types (a backpack, a balaclava) is offered three too | [srp] |
-| the payment is taken when the three are offered; an offer not chosen is kept and shown again when the window opens | [srp] |
+| the payment is taken when the three are offered, whatever is chosen, the old one kept too; an offer not chosen is kept (saved) and shown again when the window opens | [srp] |
 | each change of an item makes the next cost `reroll_modificator_multiplicator` (1.1) times more | GUESS: the number's use is not in the client; the per-item prices in `83 46 06`/`08` suggest the price was the item's own |
-| the donor must be another of the same item | LIKELY (the result window shows the donor's dictionary entry as the upgraded item) |
+| the donor must be another of the same item | LIKELY (the result window shows the donor's dictionary entry as the upgraded item); a golden weapon and its plain weapon count as the same item ([srp], the owner's rule of 2026-10-21, [golden_weapons.md](golden_weapons.md)), and so do a premium armour piece and its plain piece (2026-10-22, [premium_armour.md](premium_armour.md)) |
 | the craft's chance row is `rank(item) - rank(donor)`; success, then failure, then nothing | PROVEN for the row (the UI indexes it so); the roll is the server's |
 | a gained modification is rolled as a drop's; a lost one is any of the item's own | [srp] |
 | a repair takes the defects off at once; the wait only locks the item in the lobby | [srp] |
@@ -163,6 +169,7 @@ srp's reading of what only the server knew:
 | wear is multiplied by `1 + value` of the item's "reliability" modifications | LIKELY |
 | the kit's items' `money_bonus` / `experience_bonus` / `reputation_bonus` (modifications 1230..1280, defaults of the premium items) add that share to a match's pay, shown in the screen's "premium items" column | LIKELY for the meaning; that the three bytes of the column are percents is GUESS |
 | any camouflage goes on any vest or trousers | [srp]: the data pairs none |
+| a weapon's decal in slot 0 (one, with `decal_available`: the client keeps three upgrades an item), its camouflage in 2, its scope in 3 | [srp] (`weapon-camo.md`; client patches 44, 45 and 47 bake and place them) |
 | one cosmetic (camouflage, decal) is worn by any number of items at once, each with its own slot and value | [srp], the owner's rule (2026-10-16), with patch 30 of the client: §6 |
 
 ## 5. Not done
@@ -208,8 +215,10 @@ The server (`session::v026g::items_rules`):
 - `46 01`: the cosmetic goes into the slot of the host; what was in that
   slot comes off the host; every other item keeps what it wears. Already
   in that slot: nothing changes (its value kept). In another slot of the
-  host: it moves (`detach_first`). Only the kits wearing the host get new
-  revisions.
+  host: it moves (`detach_first`), its value (a decal's place) with it, in
+  the answer too. Only the kits wearing the host get new revisions. (The
+  lobby movie of a drag from slot to slot sent `46 02` for the slot left
+  after the `46 01`, taking it off; the movie no longer does, 2026-10-21.)
 - `46 02 <kit> <upgrade> <host>`: off that host alone. A cosmetic that is no
   item any more (the `on_item_sold` that follows a sale) is off: `83 46
   02`, not a refusal. A host that does not wear it: refused, then the

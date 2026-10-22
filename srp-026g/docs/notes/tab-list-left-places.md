@@ -1,10 +1,11 @@
-# The Tab list shows the places in the match (patch 39)
+# The Tab list shows the places in the match (patches 39 and 43)
 
 The rules the code and the tests follow. Code: `client-patches/late_join_026g.asm`
 (`tab_row`, `tab_shown`, `lists_hook`), `patch_026g.py` `TAB_LIST_*`, README patch 39,
 `client_patch.md` section 3.36; the test: `check_tab_list_026g.py`. The owner's rules: 2026-10-18
 (rooms: `rooms.md`, "In the match (Tab list)") and 2026-10-19 ("once they leave their previous
-entry should be removed").
+entry should be removed"). Patch 43 (own row gold): `patch_026g.py` `TAB_SELF`, README patch 43,
+`client_patch.md` section 3.40, `check_tab_self_026g.py`; the owner 2026-10-20.
 
 - **What the list is:** the in-match scoreboard (Tab, the hud movie's `root.list_set_players`).
   It has a row for every roster place that is *in the match* now, and for no other.
@@ -38,3 +39,7 @@ entry should be removed").
   removed; it is not greyed for the rooms' ~90 s seat. That needs the server to tell the
   clients which places are away with a seat kept (a UI-only message and a client hook for it);
   not built (client_patch.md section 3.36, "Not done").
+- **Your own row is gold** (owner, 2026-10-20: "when pressing tab in game, your own character
+  should be gold", "just like when you kill or get killed in a kill list top right"): the
+  kill list's own colour, the hud's `Colors.PLAYER` (0xF1E545), on the player's own row only, in
+  every match and after every remake of the list (patch 43).

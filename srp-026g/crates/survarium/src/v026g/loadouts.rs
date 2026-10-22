@@ -296,10 +296,12 @@ pub const BOT_MEDKIT: BotKitItem = kit_item("medkit", 13, 2, Some(QUICK_USE_FIRS
 /// (0x2FD1A5), which for a booster (0x33F960 → 0x33F990) adds those
 /// entries to the kit's lists. At a death the respawn rule (0x316AA0)
 /// sets the delay to `respawn_time × max(0, 1 + modifier 60)` through the
-/// getter 0x2D5AE0, which sums the lists: 8 s × 0.8 = 6.4 s, then up to
-/// the 50 ms grid. That the -0.2 of the default modification reaches the
-/// booster's parameters is LIKELY (the client applies modifications to
-/// an item's config, `item_config_cook`; the defaults' path there was not
+/// getter 0x2D5AE0, which sums the lists: 8 s × 0.8 = 6.4 s in Team
+/// Deathmatch, 10 s × 0.8 = 8 s in the battery modes
+/// (`docs/notes/battery_respawn.md`), then up to the 50 ms grid. That
+/// the -0.2 of the default modification reaches the booster's
+/// parameters is LIKELY (the client applies modifications to an item's
+/// config, `item_config_cook`; the defaults' path there was not
 /// traced).
 pub const BOT_RADIO: BotKitItem = kit_item("respawn_booster", 14, 1, None);
 

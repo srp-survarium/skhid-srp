@@ -91,7 +91,7 @@ In-memory size 0x298 (ctor 0x26ECE0). Reader arg = items dictionary (lobby_clien
 | 8 | u8 | 0x0E6 | `faction_id` (reputation faction, in `statistics_reputation`) |
 | 9 | 3 x u16 | 0x0E8 | play time in seconds per profile column -> `profile_play_time` "%d:%02d" (0x29BD15) |
 | 10 | u8 nA, nA x u32 | count 0x014, data 0x004 | list never read by the UI (as in 0.21d). Room for **4**; **no check** (see hazards) |
-| 11 | item descriptor, mode 1 | 0x018 | the **dropped item** (`dropped_item`: `item_id`, `dict_id`, `condition_or_stack`, `modifiers`). `allow_drop_card` = item_id != 0 or dict_id != 0 |
+| 11 | item descriptor, mode 1 | 0x018 | the **dropped item** (`dropped_item`: `item_id`, `dict_id`, `condition_or_stack`, `modifiers`). `allow_drop_card` = item_id != 0 or dict_id != 0 (PROVEN 0x29D156..0x29D165): "the match dropped an item", not a flag of its own; `drop_cards.md` |
 | 12 | u8 | 0x0CC | `rarity_level` of the drop |
 | 13 | f32 | 0x0D0 | drop chance, base (`st_item_drop_chance_base`, shown `+%.1f%%` of v*100) |
 | 14 | f32 | 0x0D4 | drop chance from match result (`st_item_drop_chance_match_result`) |
@@ -214,6 +214,8 @@ Differences: no "lobby connected" check and no pending path: the 0.21d string "q
 ### 5.2 Victory-screen player request (old `21 0E <player> <match>`) - PROVEN layout, LIKELY arg meaning
 
 Flash `victory_screen_request_player_data` (handler 0x29ED70, slot +0x6A0; slot order matches the name table at 0x9C5798..: `close_victory_screen` 0x29ED60 clears +0x313A, `show_match_statistic` 0x29EDA0) -> 0x26FF00: **`3D 00 <u32 arg0> <u32 arg1>`**; by the 0.21d AS3 arg0 = player id (brief id), arg1 = match_id. Reply: **0x93** (section 2).
+
+**From the Rankings (srp's, 2026-10-20).** srp's changed lobby movie sends `3D 00 <0xFFFF_FF03> <place>` (`GEAR_BY_PLACE`) for "Show player's information" on a row of the Rankings; the server answers `93` with that account's kits as they are now, for any account (`player_gear.md`). No results row has a player id that high.
 
 **How long srp can answer it (2026-10-12).** PROVEN in the 0.26g ActionScript: `VictoryScreen.reguestPlayerInfo` calls `victory_screen_request_player_data(uint(rendererData.id), this._match_id)` for a row not yet in `playersCache`, so arg0 is the row's player id and arg1 the match id; with no answer the panel does not open and nothing waits. 0x93 has no "nothing to show" form. So srp keeps a match's report for as long as a screen of it may be open: the last 64 reports, and past them any whose screen an account was sent in the last two hours (`rewards.rs`, `SHOWN_FOR_SECONDS`; `social.md` §9.5).
 

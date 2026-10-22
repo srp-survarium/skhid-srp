@@ -29,18 +29,26 @@ host and refuse while another run holds it.
 
 Ask, in this order:
 
-1. **Does it include new content?** If yes: **the path to the patch
-   database**, `resources.db.patch_<rev>` (a standalone archive in the
-   game's format, named for the release's revision, below; how it was made
-   doesn't matter). A folder of files at the paths the game reads them from
-   (`gameplay/items/...`) is packed into one by
-   `release/build-patch <folder> <rev>`. **The lobby movie**
-   (`flash_movies/lobby_menu.swf`), when any lobby change is new since the
-   last release, is built by `srp-026g/client-patches/build_lobby_026g.py`
-   alone (every lobby change, in order, on revision 23's movie; README
-   "Building the lobby movie"), never by running one lobby step on some
-   movie: a patch replaces the movie whole, so a movie missing a step drops
-   that change for the players.
+1. **Does it include new content?** Content is whatever `release/content.tsv`
+   (the manifest: base patches, Flash movies, content packs, edit lists; its
+   header says how) makes that players do not have yet. Find out, and make
+   the patch, with **`release/build-content <revision>`** (the release's
+   revision, below; from a fresh worktree of `origin/main`, never `git
+   stash`). It builds every movie of `srp-026g/flash` from source (the lobby
+   by `build_lobby_026g.py`; seconds each; `private/actionscript/tools.json`),
+   composes the packs (`vostok-port`, `$SKHID_PACKS_DIR`), applies the edit
+   lists in order from the base, compares each file with the stock db and
+   every listed patch, and prints each file, why it is made (which row) and
+   whether players have it so already. Only the files that differ go into
+   `<out>/resources.db.patch_<revision>`, with `server-game-data.db` built of
+   the list and it and checked. A live file the manifest does not make stops
+   it (what made it?), nothing is written. "nothing to ship" means no
+   `--resources`. **Show the owner the file list** (and the lobby build's
+   line: whether it is `RESULT_SHA256`, the movie last checked in the game);
+   ship only movies the owner checked. Never put a patch folder together by
+   hand (`release/build-patch` is the step build-content runs). A merged PR
+   with a new edit list or pack that has no manifest row stops build-content:
+   the PR adds the row.
 2. **Any server-code change?** `release.sh` compares main's `srp-026g`
    build inputs with the target's tree and builds the image when they
    differ; the owner may know better (`--server-code yes|no`).
@@ -63,6 +71,17 @@ the next release's revision, `REVISION + 1`. There is no bump PR. From
 revision 12 on the exe expects the menus of `resources.db.patch_12`: a
 release of revision 12 or later is refused unless patch_12 is offered (in
 the list, or the `--resources` file).
+
+**The exe requires its release's patches** (patch 49,
+`srp-026g/docs/notes/required-patches.md`). `build-zip` builds the exe with
+`--required-patches=` every patch of the list `release.sh` gives it
+(`--patches`: the list after `upload-patch` added the new one); a game
+started without one of them stops at once: "Cannot open
+resources.db.patch_<n> (error 2). Please run the Skhid launcher again."
+`release.sh` and `deploy` refuse a ZIP whose exe requires other patches
+than the server data offers. So a patch removed from the list is no longer
+required by the next release's exe, and every patch a release offers must
+be downloadable by every player (add the Drive mirror at publish time).
 
 **Replays, and a change of what a match computes.** A game is given a
 replay only when every game of its recording was of the oldest replayable
@@ -256,20 +275,36 @@ The order, as it runs:
    **y/N** (no answer in `$SKHID_SWAP_ANSWER_MINUTES`, default 10, is a
    no), then: notes srp's newest backup of srp.db, stops srp26, keeps the
    old files in the folder, puts the folder's rollback in, puts the server
-   data in place (a hard link renamed over the old file: atomic), sets
+   data **and the ZIP** in place (hard links renamed over the old files:
+   atomic; the ZIP goes in while srp26 is stopped, never after its start:
+   see below), sets
    `SRP_MIN_PATCH_REVISION=<rev>` (that line only; it must be at least the
    highest patch, or srp refuses to start) and runs
    `docker compose up -d --no-deps --force-recreate srp26` (after any
    `.env` change the container is made anew, never just restarted).
-6. **Checks, then the ZIP**: the container running, healthy, not
-   restarting; the log's `game data:` line; `/patches` exactly the list's.
-   Then srp.db: at its start srp copies it with `VACUUM INTO` to
+6. **Checks**: the container running, healthy, not restarting; the
+   log's `game data:` line; `/patches` exactly the list's;
+   `/api/client-files` names the new ZIP and (an srp that says it)
+   `min-revision <rev>`. Then srp.db: at its start srp copies it with `VACUUM INTO` to
    `backups/srp-<unix>.db` before it opens it, so that copy is the state
    just before the release; it is copied (`docker exec ... cat`) into the
    folder and, from live, to the jump host (`$SKHID_BACKUP_DIR`, default
    `/srv/skhid-backups/srp-db`: folder 700, files 600, a line in
-   `SHA256SUMS` there), its sha256 compared on both ends. Only then the
-   ZIP goes in place and `/api/client-files` must name it.
+   `SHA256SUMS` there), its sha256 compared on both ends.
+
+   **Why the ZIP goes in before the start.** The site is srp26: it answers
+   nothing while srp26 is stopped, and from the start on it serves the
+   new `/patches`, the new `min-revision` and (read from the file each
+   time) whatever ZIP is in `download/`. A ZIP put in after the start (as
+   before 2026-10-21) left a gap of the checks and the srp.db copy in which
+   a launcher found the old ZIP current, downloaded the new patch and
+   enabled PLAY: the old exe was then refused at its sign-in with the
+   game's "You're using an outdated version of the game." The updater now
+   also keeps PLAY off for an exe under `min-revision` and, while the
+   launcher stays open, asks the site every 10 s and starts the launcher
+   anew when it offers another ZIP or revision (`client/updater/README.md`,
+   "PLAY and the server's revision"). Put a ZIP by hand only with srp26
+   stopped, or together with its restart.
 7. **The record, live only, once it all went out** (never after a stop or
    a rollback: those leave no commit and no tag; `--test` makes neither):
    - an annotated tag `026g-rev<n>` on the commit that was built (main as
@@ -394,10 +429,11 @@ preflight: look at its `release.log`, finish or roll it back, then write
   the planned time` (it waits for it) or `5. staged after the planned
   time: the swap at once`.
 - The ZIP's entries against the current ZIP (build-zip's list, shown again
-  at the y/N before the swap and in `changed.txt`): `survarium_skhid.exe`
-  always differs (the revision); `updater_skhid.exe` only if the updater
-  changed (players get it at their next launcher start); anything else
-  must be explained by a merged change. Unexplained: answer no (that
+  at the y/N before the swap and in `changed.txt`): `survarium_skhid.exe`,
+  `updater_skhid.exe` and `bugtrap.dll` always differ (the revision: the
+  exe's byte, the other two's version resource, built with
+  `SKHID_REVISION=<n>`; players get the new updater at their next launcher
+  start); anything else must be explained by a merged change. Unexplained: answer no (that
   cancels cleanly).
 - After the swap: the checks, the srp.db copy on both ends; then a game
   updates, downloads the patches, signs in; an old game is refused. Ask
@@ -451,12 +487,13 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 
 | Script | Does | Writes |
 |---|---|---|
-| `release/build-patch <folder> <rev> [--out <file>]` | packs a folder into `resources.db.patch_<rev>` (read back and compared) | a local file |
+| `release/build-content <rev> [--out <folder>] [--tree] [--manifest]` | the next content patch of `release/content.tsv`: what differs from players' files (the stock db, the listed patches), each file with why; `server-game-data.db` with it | a local folder, the patch cache |
+| `release/build-patch <folder> <rev> [--out <file>]` | packs a folder into `resources.db.patch_<rev>` (read back and compared) | a local file | (build-content's step; never by hand)
 | `release/upload-patch [--test] [--dry-run] <file>` | publishes one patch: `.tmp`, sha256 there, `chmod 644`, `mv -n`, GET must be 200 with the sha256, then its row in the list; never replaces one | the patches server, the list |
 | `release/add-mirror [--test] <name> <url>` | another URL of a listed patch: downloaded as the updater does, not a web page, the row's size and sha256, then appended to the row | the list (and the URL cache) |
 | `release/build-server-db [--test] [--out <file>]` | `server-game-data.db` from the stock db and the list's patches (each first URL GET 200 with the row's size and sha256; each mirror checked as above), `srp-game-data build --patch "<file>=<urls>"` | a local file |
 | `release/build-site --tree <checkout> [--with <patch>]` | the Maps tab and the calculator from the stock db and the list's patches (cached, each sha256 checked), FFDec 26.0.0, dbgrab; both `built-from.tsv` must name exactly those; release.sh runs it in its preflight, by hand it is a local preview (`--tree .`) | the checkout's `servers/web-server/{maps,damage}/`, the cache |
-| `release/build-zip [--test] [--ref <commit>] [--revision <n>] [--work <dir>]` | the players' ZIP from a fresh worktree of origin/main (never this checkout, never `git stash`): `--server`, `--site`, `--localization`, `--revision` (default: the site's exe's + 1; above it), no resources.db regions; the exe without a server too, both sha256 in `<work>/exe.sha256`; entries against the site's ZIP | a worktree, the ZIP |
+| `release/build-zip [--test] [--ref <commit>] [--revision <n>] [--patches <list>] [--work <dir>]` | the players' ZIP from a fresh worktree of origin/main (never this checkout, never `git stash`): `--server`, `--site`, `--localization`, `--revision` (default: the site's exe's + 1; above it), `--required-patches` (every patch of the offered-patch list, or `--patches`'; release.sh passes its list with the new patch: the exe stops at its start without one, patch 49), no resources.db regions; the exe without a server too, both sha256 in `<work>/exe.sha256`; entries against the site's ZIP | a worktree, the ZIP |
 | `release/deploy --zip --server-data --revision [--label] [--dry-run]` | the swap on its own, in a window planned by hand: the release folder, the checks, the rollback on failure | the live host |
 | `release/rollback [--test] [--keep-db] [<folder>]` | a release folder's rollback | the target |
 | `release/setup-patches-server [--test] [--check]` | once: the patches folder and Caddy's site block for it (validate and reload; either failing puts the backup back) | the jump host's Caddy |

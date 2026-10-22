@@ -5,6 +5,7 @@ pub mod awards;
 pub mod dictionary;
 pub mod drops;
 pub mod game_data;
+pub mod golden;
 pub mod item_params;
 pub mod loadouts;
 pub mod localization;

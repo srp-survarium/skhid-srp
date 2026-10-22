@@ -102,11 +102,13 @@ mod away;
 mod clans;
 mod core;
 mod dispatch;
+mod gear;
 mod items;
 mod patch_check;
 mod play;
 pub mod pvb;
 mod replay;
+mod room_chat;
 pub mod rooms;
 mod shop;
 mod social;
@@ -423,6 +425,10 @@ pub struct MatchFinished {
     /// The id the players were sent to the match with
     /// ([`MatchTicket::match_id`]).
     pub match_id: u32,
+    /// A room's match called off before its countdown (the match server's
+    /// `MatchEnd::NotMade`): its room goes on as for a match that could not
+    /// be made, and nobody is shown results.
+    pub not_made: bool,
 }
 
 pub(crate) enum Notice {

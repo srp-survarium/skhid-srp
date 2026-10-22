@@ -448,3 +448,72 @@ kept and can be put back).
 - TODO: #203 Rooms: every PvP match is a room's (the in-game Rooms window); the old queue goes
 - TODO: #206 Patch 39: the Tab list shows the places in the match, none whose player left
 - TODO: #207 Site: Maps tab and calculator built with revision 24's patch
+
+## 20 Oct, 08:36 — TODO: the owner's words (update required)
+
+<!-- Revision 25 (026g-rev25), released 2026-10-20 08:36 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #213 Lobby: every Get Gold opens the exchange, not the online store
+- TODO: #214 Exchange: a typed amount over the balance becomes the most it pays for
+- TODO: #215 Lobby: Buy on an owned item: modified ones too, no "already purchased" question
+- TODO: #216 Lobby: craft window: right-click Buy and Sell; Continue and Exit after an upgrade
+- TODO: #217 Lobby: Optics in a weapon's right-click menu (opens the scope editor)
+- TODO: #201 Patch 38: spotting has no cooldown, and a battery's body spots it (simulation change)
+- TODO: #200 Fall damage as in 0.27: fatal_damage 1.0 (simulation change)
+- TODO: #205 Patch 40: a model's LOD and screen factor at a wider field of view are the original's
+- TODO: #212 Rooms: the map vote runs until the match starts
+- TODO: #218 Lobby movie: one driver builds every lobby change, in order
+- TODO: #219 Rooms: the room's window under a match's results
+- TODO: #210 Late joiners: fewer players first, then the side they played on, then the balance
+- TODO: #211 Rooms: a member sees it is in a room (yellow tab, red Leave room)
+- TODO: #222 Ukrainian: the Duty faction is Долг
+- TODO: #209 Late joins: a failed joiner closes nothing, and no joiner waits for a game that is not playing
+- TODO: #221 Battery pick-up 20 % faster (take_time 0.6 -> 0.5)
+- TODO: #199 Release: rebuild the Maps tab and the calculator from the release's patches
+- TODO: #224 re-kit 0.26g: weapon draw/holster, the modifier getter, the battery's states
+
+## 20 Oct, 20:38 — TODO: the owner's words (update required)
+
+<!-- Revision 26 (026g-rev26), released 2026-10-20 20:38 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #228 Clippy clean, and clippy in the dev process (AGENTS.md)
+- TODO: #229 Rooms: the create window remembers the last room made by hand
+- TODO: #236 Patch 43: the player's own row in the Tab list is gold
+- TODO: #232 Rankings: right-click a player to see their equipment
+- TODO: #233 Rooms list: the selected room's players below State; right-click for their equipment
+- TODO: #234 Rooms: a match starts at the room's minimum, or is called off
+- TODO: #237 selftest: the relocation-under-site checks include one starting 3 bytes before
+- TODO: #240 Admin page: take silver, gold and items from an account, with a preview
+- TODO: #243 Drop cards: one per player of a match, own matches only; log sales and exchanges
+- TODO: #242 Weapon balance 2: AK-12 50 / 35 (premium: silver only), Socom16 damage 60
+- TODO: #239 Battery events pay per match at most as many times as the map has batteries (anti-farming)
+- TODO: #245 Rooms with a PIN: their matches pay no rewards
+
+## 21 Oct, 13:10 — TODO: the owner's words (update required)
+
+<!-- Revision 27 (026g-rev27), released 2026-10-21 13:10 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #248 Flash movies as committed ActionScript source (baseline: all eight trees rebuild exactly)
+- TODO: #253 Rooms: room chat and Join room from a friend's menu (source tree)
+- TODO: #247 Fall damage: how speed counts
+- TODO: #254 Rooms: who came by Play leaves its room after the match it played (without squads)
+- TODO: #255 Rooms: a restarted game learns its room before the room plays with it (source tree)
+- TODO: #256 Replay tests: fixtures of today's revision, not 11-15
+- TODO: #257 Rooms: Switch room as the game's normal button, with why to switch
+- TODO: #259 Client programs: ordinary Windows binaries (std, static MSVC CRT, version info, icon)
+- TODO: #258 Updater: PLAY only for a game the server lets in; release puts the ZIP in before srp starts
+- TODO: #260 Weapon balance 2, retuned: AK-12 piercing 40, Socom16 damage 70
+- TODO: #264 HUD at 4K: hit marks and crosshair centred at any UI scale
+- TODO: #265 Weapon balance 2: the A-545 takes 0.28a's nerf
+- TODO: #266 Grenade bounces louder: impact sound settings (content-edit grenade-bounce-1)
+- TODO: #261 Results screen: drop card slot greys once used or refused; messages show over the screen
+- TODO: #262 Lobby source: names for every placeholder, named numbers in every movie
+- TODO: #263 Golden weapons: only the silver bonus, as the weapon's own modification; upgradable as the plain weapon
+- TODO: #267 release/build-content: the next content patch from a manifest of what should be live
+- TODO: #268 Reroll: keep the old modification (the price stays paid)
+- TODO: #269 Ported masks: the Army balaclava (1823) and five 0.69d masks, one content patch
+- TODO: #270 Patch 46: on the death screen a drag turns the camera; the wheel does nothing
+- TODO: #271 Death poses 1: remove the face-down death pose that looks into the arms
+- TODO: #272 Crouched steps audible at 40 % of walking
+- TODO: #273 Weapon camo, the workbench, decals and instant preview (#244) on main for revision 27
+- TODO: #274 Grenade bounce retuned: only the distance preset changes (mid_range)

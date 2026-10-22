@@ -137,6 +137,8 @@ impl MatchHost for RegistryHost {
             // with (`rewards::Terms::at`).
             score_weights: None,
             vs_bots: setup.vs_bots,
+            private: setup.private,
+            room_minimum: setup.room_minimum,
         };
         let ticket = match pool {
             session::QueuePool::Standard => self.0.create(setup),
@@ -215,6 +217,7 @@ pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
             matches::MatchEnd::TimeLimit => rewards::MatchEnd::TimeLimit,
             matches::MatchEnd::Deserted => rewards::MatchEnd::Deserted,
             matches::MatchEnd::NoShow => rewards::MatchEnd::NoShow,
+            matches::MatchEnd::NotMade => rewards::MatchEnd::NotMade,
         },
         winner: result.winner,
         team_points: result.team_points,
@@ -223,6 +226,7 @@ pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
         trusted_snapshot_ms: result.trusted_snapshot_ms,
         trusted_by: result.trusted_by,
         vs_bots: result.vs_bots,
+        private: result.private,
         players: result
             .players
             .into_iter()
@@ -305,6 +309,9 @@ impl Settler {
                         .join(", ")
                 );
             }
+            None if result.end == rewards::MatchEnd::NotMade => log::info!(
+                "Match {match_id:#x}: called off before its countdown; nothing to settle"
+            ),
             None => log::info!("Match {match_id:#x}: nobody came; nothing to settle"),
         }
         // Written before anyone is told: what a player is shown is kept.
@@ -314,7 +321,10 @@ impl Settler {
                 self.inbox.account_changed(player.account_id);
             }
         }
-        self.inbox.match_finished(MatchFinished { match_id });
+        self.inbox.match_finished(MatchFinished {
+            match_id,
+            not_made: result.end == rewards::MatchEnd::NotMade,
+        });
     }
 }
 
@@ -424,6 +434,8 @@ pub struct Stack {
     pub login_addr: SocketAddr,
     pub lobby_addr: SocketAddr,
     pub match_addr: SocketAddr,
+    /// `SRP_MIN_PATCH_REVISION`, which the web page says to the updater.
+    pub min_patch_revision: u8,
     stop: Arc<AtomicBool>,
     /// The lobby's and the match server's threads: the ones [`Stack::stop`]
     /// waits for.
@@ -607,6 +619,7 @@ impl Stack {
             login_addr,
             lobby_addr,
             match_addr,
+            min_patch_revision: options.lobby.min_patch_revision,
             stop,
             threads,
         })
@@ -623,6 +636,7 @@ impl Stack {
                 inbox: self.inbox.clone(),
             }),
             patches: offered_patches(),
+            min_patch_revision: self.min_patch_revision,
             replays: Some(self.replays.clone()),
         }
     }

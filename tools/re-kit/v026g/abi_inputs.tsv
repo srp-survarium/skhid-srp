@@ -1,4 +1,7 @@
 va	name	location	role	basis
+0x00011540	vostok::intrusive_ptr<render_model_instance>::release	ECX	the intrusive pointer (count at +0D0h)	observed
+0x000127c0	vostok::buffer_string::assign	EAX	destination buffer_string	observed
+0x000127c0	vostok::buffer_string::assign	ECX	text	observed
 0x00014650	vostok::render::one_way_render_channel::owner_initialize	ECX	channel receiver	observed
 0x00014710	vostok::render::one_way_render_channel::owner_finalize	ECX	channel receiver	observed
 0x000147e0	on_mounted_resources	entry ESP+4	mount_ptr holder (engine_world+2C0h)	observed
@@ -446,6 +449,8 @@ va	name	location	role	basis
 0x0004ad50	vostok::vfs::transfer_children::transfer_children	ECX	transfer_children	observed
 0x0004ad50	vostok::vfs::transfer_children::transfer_children	entry ESP+4	vfs_hashset (stored at +0)	observed
 0x0004fbd0	vostok::vfs::physical_path_mounter::mount_root	entry ESP+4	physical_path_mounter	observed
+0x000573c0	vostok::math::float4x4::create_translation	EAX	out matrix	observed
+0x000573c0	vostok::math::float4x4::create_translation	ECX	pointer to the float3	observed
 0x0005afe0	vostok::sound::sound_instance_proxy_internal::stop	ECX	sound_instance_proxy_internal receiver	inferred
 0x000621b0	vostok::render::animated_model_instance_cook::delete_resource	entry ESP+4	resource value; immediately dereferenced	observed
 0x00067089		entry ESP+4		auto
@@ -505,11 +510,20 @@ va	name	location	role	basis
 0x0006f561		entry ESP+8		auto
 0x0006f561		entry ESP+4		auto
 0x0006f561		entry ESP+16		auto
+0x00075e20	vostok::physics::bullet_physics_world::ray_test	ECX	the physics world (vtable 0x9E2EBC +48h; a player's +350h, the lobby menu's +3104h)	observed
+0x00075e20	vostok::physics::bullet_physics_world::ray_test	entry ESP+4	the result (28h bytes), then from*, direction*, length (float), filter group, filter mask, 0, 1 (the lobby: 10h, 8)	observed
 0x0007ab30	vostok::network_core::mutable_buffer::resize	EAX	mutable_buffer	observed
 0x0007ab30	vostok::network_core::mutable_buffer::resize	stack+4	requested_used_size	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	stack+4	buffer_writer	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	stack+8	source_bytes	observed
 0x0007ac10	vostok::network_core::buffer_writer::w	EDI	byte_count	observed
+0x0007ef90	vostok::physics::bullet_character_controller::on_ground	EAX	bullet_character_controller	observed
+0x0007f050	vostok::physics::bullet_character_controller::end_jump	EAX	bullet_character_controller	observed
+0x0007fe40	vostok::physics::bullet_character_controller::set_landing_callback	EDI	bullet_character_controller	observed
+0x0007fe40	vostok::physics::bullet_character_controller::set_landing_callback	ECX	the delegate to copy (base_player -> on_physical_controller_landing)	observed
+0x0007fe40	vostok::physics::bullet_character_controller::set_landing_callback	entry ESP+4	float minimum landing speed (base_player passes its harmless speed +0x310)	observed
+0x000803d0	vostok::physics::bullet_character_controller::call_landing_callback	EAX	&delegate (controller +0x2C748)	observed
+0x000803d0	vostok::physics::bullet_character_controller::call_landing_callback	entry ESP+4	float landing speed, -(velocity.up) at the start of the landing tick	observed
 0x000804e0	vostok::network_core::buffer_writer::w<float>	EAX	float value pointer	observed
 0x000804e0	vostok::network_core::buffer_writer::w<float>	stack+4	buffer_writer receiver	observed
 0x000804e0	vostok::network_core::buffer_writer::w<float>	stack+8	diagnostic source filename	observed
@@ -534,6 +548,8 @@ va	name	location	role	basis
 0x000e06d0	vostok::resources::resource_children::unlink_child_resource	entry ESP+4	child resource pointer	observed
 0x000e07b0	vostok::resources::resource_children::unlink_from_children	ESI	resource_children owner	observed
 0x000e07e0	vostok::resources::resource_children::unlink_from_parents	ESI	resource_children owner	observed
+0x000e45b0	vostok::buffer_string::appendf	EAX	buffer_string	observed
+0x000e45b0	vostok::buffer_string::appendf	entry ESP+4	printf format, cdecl	observed
 0x000e4f40	vostok::memory::doug_lea_allocator::initialize_impl	ECX	allocator owner	observed
 0x000e4f40	vostok::memory::doug_lea_allocator::initialize_impl	entry ESP+4	arena base pointer	observed
 0x000e4f40	vostok::memory::doug_lea_allocator::initialize_impl	entry ESP+8	arena size low32	observed
@@ -566,8 +582,24 @@ va	name	location	role	basis
 0x000e7e80	vostok::resources::query_mount_physical	entry ESP+12	descriptor	observed
 0x000e7e80	vostok::resources::query_mount_physical	entry ESP+16	flag argument	observed
 0x000e7e80	vostok::resources::query_mount_physical	entry ESP+20	callback	observed
+0x000e7ef0	vostok::resources::query_mount_archive	ESI	allocator	observed
+0x000e7ef0	vostok::resources::query_mount_archive	entry ESP+4	virtual path string ("resources")	observed
+0x000e7ef0	vostok::resources::query_mount_archive	entry ESP+8	file table's native path string (the archive's)	observed
+0x000e7ef0	vostok::resources::query_mount_archive	entry ESP+12	archive's native path string	observed
+0x000e7ef0	vostok::resources::query_mount_archive	entry ESP+16	descriptor (C string, the mount id)	observed
+0x000e7ef0	vostok::resources::query_mount_archive	entry ESP+20	callback (boost::function, copied into the task)	observed
 0x000eb600	vostok::memory::doug_lea_allocator::usable_size_impl	entry ESP+4	allocation pointer	observed
+0x000ee700	vostok::math::float4x4::multiply_affine	ECX	the second matrix (applied last)	observed
+0x000ee700	vostok::math::float4x4::multiply_affine	EDX	the first matrix (applied first)	observed
+0x000ee700	vostok::math::float4x4::multiply_affine	entry ESP+4	out matrix	observed
 0x000f1850	vostok::resources::unmanaged_resource::~unmanaged_resource	ECX	unmanaged_resource receiver	inferred
+0x000f6b10	vostok::configs::binary_config_value::operator[]	EAX	table value	observed
+0x000f6b10	vostok::configs::binary_config_value::operator[]	EDI	key	observed
+0x000f6c00	vostok::configs::binary_config_value::value_exists	EAX	table value	observed
+0x000f6c00	vostok::configs::binary_config_value::value_exists	ESI	key	observed
+0x000f6d50	vostok::configs::binary_config_value::find_child_by_crc	ECX	the children's begin	observed
+0x000f6d50	vostok::configs::binary_config_value::find_child_by_crc	EAX	the children's end	observed
+0x000f6d50	vostok::configs::binary_config_value::find_child_by_crc	entry ESP+8	&the key's crc32	observed
 0x000f6df0	vostok::memory::writer_base::`scalar deleting destructor'	ECX	writer_base owner	observed
 0x000f6df0	vostok::memory::writer_base::`scalar deleting destructor'	entry ESP+4	deleting flags; only bit0 tested	observed
 0x000f6e30	vostok::memory::writer_base::open_chunk	EDI	writer_base owner	observed
@@ -596,6 +628,18 @@ va	name	location	role	basis
 0x00110b80	vostok::network::network_world::tick	entry ESP+4	single_threaded byte	observed
 0x00110dd0	vostok::network::network_world::clear_resources	ECX	network-world receiver	observed
 0x00110e10	vostok::network::network_world::dispatch_callbacks	ECX	network-world receiver	observed
+0x00111860	vostok::logging::has_passed_filters	entry ESP+4	the channel's name ("game" 0x9FA4E4)	observed
+0x00111860	vostok::logging::has_passed_filters	entry ESP+8	the level (4 info)	observed
+0x00111ed0	vostok::logging::log_message	entry ESP+4	&a boost::function (empty: its manager 0)	observed
+0x00111ed0	vostok::logging::log_message	entry ESP+8	[0x1F1D610]	observed
+0x00111ed0	vostok::logging::log_message	entry ESP+0Ch	0x21E73B8	observed
+0x00111ed0	vostok::logging::log_message	entry ESP+10h	the source file's name	observed
+0x00111ed0	vostok::logging::log_message	entry ESP+14h	the line	observed
+0x00111ed0	vostok::logging::log_message	entry ESP+18h	the function's name	observed
+0x00111ed0	vostok::logging::log_message	entry ESP+1Ch	the channel's name	observed
+0x00111ed0	vostok::logging::log_message	entry ESP+20h	the level (4 info)	observed
+0x00111ed0	vostok::logging::log_message	entry ESP+24h	the format, its arguments after it (cdecl)	observed
+0x00113580	vostok::debug::terminate	entry ESP+4	printf-like format of the fatal message; its arguments follow	observed
 0x001166f0	vostok::render::renderer_cook::allocate_resource	entry ESP+4	output pointer/size buffer	observed
 0x00116730	vostok::render::renderer_cook::deallocate_resource	entry ESP+4	resource pointer	observed
 0x00116750	vostok::render::renderer_cook::create_resource	entry ESP+4	query object	observed
@@ -737,6 +781,7 @@ va	name	location	role	basis
 0x00119110	vostok::render::engine::world::reset_grass	stack+4	by-value grass resource pointer retained/released by callback	inferred
 0x00119110	vostok::render::engine::world::reset_grass	stack+8	scene resource reference forwarded as raw scene EAX	inferred
 0x00119170	vostok::render::engine::world::set_gamma_correction_factor	stack+4	gamma correction factor float stored at global render context+0x60	inferred
+0x00119760	vostok::render::camouflage_decal_cook_parameters::camouflage_decal_cook_parameters	entry ESP+4	P, 8B8h bytes	observed
 0x001198b0	vostok::render::render_output_window::render_output_window	EDI	render_output_window owner	observed
 0x001198b0	vostok::render::render_output_window::render_output_window	entry ESP+4	constructor properties record	observed
 0x00119ab0	vostok::render::render_output_window::set_size	entry ESP+4	render_output_window owner	observed
@@ -879,6 +924,8 @@ va	name	location	role	basis
 0x00126750	vostok::render::skeleton_model_instance_cook::on_render_model_loaded	entry ESP+4	queries result	observed
 0x00126750	vostok::render::skeleton_model_instance_cook::on_render_model_loaded	entry ESP+8	shared callback state	observed
 0x00126af0	vostok::render::skeleton_model_instance_cook::on_all_subresources_ready	entry ESP+4	shared callback state	observed
+0x00127700	boost::function_invoker<bind(void(*)(A*,B*),a,b)>::invoke	entry ESP+4	function buffer {f, a, b}	observed
+0x00127700	boost::function_invoker<bind(void(*)(A*,B*),a,b)>::invoke	entry ESP+8	queries result	observed
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	ECX	cook owner	observed
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	entry ESP+4	queries_result pointer	observed
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	entry ESP+8	cook-data pointer	observed
@@ -1122,6 +1169,9 @@ va	name	location	role	basis
 0x001514a0	vostok::render::scene::select_volume_fog_instances	EAX	scene receiver	inferred
 0x001514a0	vostok::render::scene::select_volume_fog_instances	stack+4	frustum matrix pointer	inferred
 0x001514a0	vostok::render::scene::select_volume_fog_instances	stack+8	output fog parameter vector	inferred
+0x001539d0	vostok::memory::doug_lea_allocator::free_impl	ECX	allocator	observed
+0x001539d0	vostok::memory::doug_lea_allocator::free_impl	EAX	memory	observed
+0x001539d0	vostok::memory::doug_lea_allocator::free_impl	entry ESP+4	pointer it clears	observed
 0x00153de0	vostok::render::scene::update_streaming_texture_parameters	ECX	scene receiver	inferred
 0x00154020	vostok::render::scene::process_streaming	stack+4	scene receiver	inferred
 0x00154020	vostok::render::scene::process_streaming	stack+8	matrix pointer	inferred
@@ -1218,6 +1268,7 @@ va	name	location	role	basis
 0x0015a590	vostok::render::skeleton_render_model_instance::update_render_matrices	entry ESP+8	first matrix-array input	observed
 0x0015a590	vostok::render::skeleton_render_model_instance::update_render_matrices	entry ESP+0xC	second matrix-array input retained across first multiply output push	observed
 0x0015a590	vostok::render::skeleton_render_model_instance::update_render_matrices	entry ESP+0x10	matrix count	observed
+0x0015a590	vostok::render::skeleton_render_model_instance::update_render_matrices	entry ESP+8	the bones' matrices in model space (rows, v * M): skinned as model+140h (the inverse binds) * bone; the instance box (+62B8h) = rotY(pi) of the model's (+108h)	observed
 0x0015a9a0	vostok::render::skeleton_render_model_instance::get_locators_count	ECX	skeleton instance receiver replaced by its original-model resource pointer	observed
 0x0015a9b0	vostok::render::skeleton_render_model_instance::get_locator	ECX	skeleton instance receiver replaced by its original-model resource pointer	observed
 0x0015a9c0	vostok::render::skeleton_render_model_instance::get_locator	ECX	skeleton instance receiver replaced by its original-model resource pointer	observed
@@ -1233,6 +1284,8 @@ va	name	location	role	basis
 0x0015ab00	vostok::render::skeleton_render_model_instance::get_bone_direction	ESI	output three-float vector	observed
 0x0015ab00	vostok::render::skeleton_render_model_instance::get_bone_direction	entry ESP+4 / +8 / +0xC	three point components	observed
 0x0015ab00	vostok::render::skeleton_render_model_instance::get_bone_direction	entry ESP+0x10 low16	bone index copiedEBX then forwardedECX and consumedCX	observed
+0x0015ae50	vostok::math::float4x4::create_rotation_y	ESI	out matrix	observed
+0x0015ae50	vostok::math::float4x4::create_rotation_y	entry ESP+4	float angle (radians)	observed
 0x0015af60	vostok::render::statistics_cpu_gpu::statistics_cpu_gpu	entry ESP+4	CPU/GPU statistics owner	observed
 0x0015af60	vostok::render::statistics_cpu_gpu::statistics_cpu_gpu	EAX	parent group pointer	observed
 0x0015af60	vostok::render::statistics_cpu_gpu::statistics_cpu_gpu	ECX	label character pointer	observed
@@ -1743,6 +1796,8 @@ va	name	location	role	basis
 0x001bde20	vostok::render::lights_db::add_light	ECX	lights_db receiver copied to EDI	inferred
 0x001bde20	vostok::render::lights_db::add_light	EAX	light ID copied to ESI	inferred
 0x001bde20	vostok::render::lights_db::add_light	stack+4	light_props pointer; type discriminator at+0x64	inferred
+0x001be3a0	vostok::math::float4x4::create_rotation_x	ESI	out matrix	observed
+0x001be3a0	vostok::math::float4x4::create_rotation_x	entry ESP+4	float angle (radians)	observed
 0x001be690	vostok::render::effect_editor_view_mode::compile	entry ESP+4	effect compiler object	observed
 0x001be980	vostok::render::effect_fill_environment_probe_face::compile	entry ESP+4	effect compiler object	observed
 0x001bed60	vostok::render::effect_fill_sky_ao_map::compile	entry ESP+4	effect compiler object	observed
@@ -2074,6 +2129,9 @@ va	name	location	role	basis
 0x001f0090	survarium::items_dictionary::item_by_id	stack+4	item ID	inferred
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	EDI	damage_collector	inferred
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	ESI	writer	inferred
+0x001f3480	survarium::player::update_camera	entry ESP+4	the player (its input handler at +F470h, null but for the local one)	observed
+0x001f37a0	survarium::player::set_head_visibility	ESI	the player	observed
+0x001f37a0	survarium::player::set_head_visibility	entry ESP+4	visible (byte; mt_draw gives 0 for the local player in modes 0 and 4, dead too): its models 0, 5, 6, 7 get 3, else 2	observed
 0x001f3de0	vostok::network_core::buffer_writer::w<unsigned char>	EAX	integer value pointer	observed
 0x001f3de0	vostok::network_core::buffer_writer::w<unsigned char>	stack+4	buffer_writer receiver	observed
 0x001f3de0	vostok::network_core::buffer_writer::w<unsigned char>	stack+8	diagnostic source filename	observed
@@ -2094,6 +2152,7 @@ va	name	location	role	basis
 0x001f8200	survarium::game_world::switch_to_player_camera	EAX	game-world receiver	inferred
 0x001f8200	survarium::game_world::switch_to_player_camera	stack+4	mode-selector Boolean: true0 false2	inferred
 0x001f8270	survarium::game_world::switch_to_free_fly_camera	stack+4	game-world receiver	inferred
+0x001f8360	survarium::game_world::switch_to_spectator_camera	EDX	the game world (its player input handler at +4D58h set to mode 4)	observed
 0x001f83d0	survarium::game_world::set_game_project	EAX	project resource pointer reference	inferred
 0x001f83d0	survarium::game_world::set_game_project	stack+4	world receiver	inferred
 0x001f8650	survarium::game_world::on_project_loaded	ECX	world receiver	inferred
@@ -2156,6 +2215,8 @@ va	name	location	role	basis
 0x0021d9d0	survarium::lobby_menu::on_operation_denied_received	stack+4	lobby menu	inferred
 0x0021d9d0	survarium::lobby_menu::on_operation_denied_received	ECX	message type	inferred
 0x0021d9d0	survarium::lobby_menu::on_operation_denied_received	EAX	error token string	inferred
+0x0021df00	survarium::lobby_menu::update_player_region	EAX	lobby menu (its character at +694h)	observed
+0x0021df00	survarium::lobby_menu::update_player_region	entry ESP+4	float the camera's distance	observed
 0x0021e170	survarium::lobby_menu::set_mouse_position	ECX	lobby receiver	inferred
 0x0021e170	survarium::lobby_menu::set_mouse_position	stack+4	signed X coordinate	inferred
 0x0021e170	survarium::lobby_menu::set_mouse_position	stack+8	signed Y coordinate	inferred
@@ -2238,16 +2299,21 @@ va	name	location	role	basis
 0x00240200	survarium::player_input_handler::on_mouse_move	stack+16	mouse_z	inferred
 0x00241090	survarium::player_input_handler::on_before_processing	ECX	player input-handler receiver used for the observed dispatch/input fields	observed
 0x00241170	survarium::player_input_handler::on_after_processing	ECX	player input-handler receiver used for the observed dispatch/input fields	observed
+0x00241200	survarium::player_input_handler::alt_is_held	EAX	the player input handler	observed
 0x00241250	survarium::player_input_handler::process_first_person_mode	stack+4	handler	inferred
 0x00241250	survarium::player_input_handler::process_first_person_mode	stack+8	process_keyboard_look	inferred
 0x002421c0	survarium::player_input_handler::process_third_person_mode	EAX	player input-handler receiver used for the observed dispatch/input fields	observed
 0x00242200	survarium::player_input_handler::process_warmup_mode	ESI	player input-handler receiver used for the observed dispatch/input fields	observed
+0x002422b0	survarium::player_input_handler::update_inverted_view	entry ESP+4	the player input handler (mode +358h; the view written at +48h)	observed
+0x002422b0	survarium::player_input_handler::update_inverted_view	entry ESP+8	the transform (4x4; the player's eyes, +44Ch, in modes 0 and 4)	observed
 0x00242460	survarium::player_input_handler::action_present	entry ESP+4	input-handler receiver; ring+0x98 and active actions+0x2A8	observed
 0x00242460	survarium::player_input_handler::action_present	entry ESP+8	action identifier searched in both collections	observed
 0x00242460	survarium::player_input_handler::action_present	entry ESP+12	output action-state pointer; written only when a matching event/action is found	observed
 0x00242770	survarium::game_camera::set_position_direction	stack+4	camera receiver	inferred
 0x00242770	survarium::game_camera::set_position_direction	EAX	position vector reference	inferred
 0x00242770	survarium::game_camera::set_position_direction	ECX	direction vector reference	inferred
+0x00242d50	survarium::base_network_client::spectate_next_player	ECX	the network client (vtable+64h)	observed
+0x00242f00	survarium::base_network_client::spectate_previous_player	ECX	the network client (vtable+68h)	observed
 0x00243370	survarium::camera_director::set_position_direction	stack+4	director receiver	inferred
 0x00243370	survarium::camera_director::set_position_direction	EAX	position vector reference	inferred
 0x00243370	survarium::camera_director::set_position_direction	ECX	direction vector reference	inferred
@@ -2267,6 +2333,9 @@ va	name	location	role	basis
 0x00243a30		ECX		auto
 0x00243a30		entry ESP+4		auto
 0x00243a30		entry ESP+8		auto
+0x00243a30	survarium::weapon::load_weapon	ECX	the weapon	observed
+0x00243a30	survarium::weapon::load_weapon	entry ESP+4	the weapon's skeleton model instance (its +108h: the skeleton_render_model_instance)	observed
+0x00243a30	survarium::weapon::load_weapon	entry ESP+8	the scope (or 0)	observed
 0x00243bc0	survarium::weapon::calculate_locator	stack+4	locator	inferred
 0x00243bc0	survarium::weapon::calculate_locator	EDI	output_matrix	inferred
 0x00243cb0		ECX		auto
@@ -2298,6 +2367,12 @@ va	name	location	role	basis
 0x00244c50	survarium::weapon::remove_aimed_rifle_scope_from_scene	EDI	scene_reference	inferred
 0x00244e10		ECX		auto
 0x00245250		ECX		auto
+0x002474a0	survarium::player::mt_draw	ECX	the player	observed
+0x00248ad0	survarium::step_manager::on_step	ECX	step_manager (+4 the game world)	observed
+0x00248ad0	survarium::step_manager::on_step	EAX	foot position (float3*; the ground ray starts 1 m above it, 2 m long)	observed
+0x00248ad0	survarium::step_manager::on_step	entry ESP+4	step direction (float3*)	observed
+0x00248ad0	survarium::step_manager::on_step	entry ESP+8	foot game material id (u16): the material pair with the ground gives the sound (pair+20h; none, no sound), decal, particle	observed
+0x00248ad0	survarium::step_manager::on_step	entry ESP+0Ch	view flag (byte): 1 when not the current player in first person	observed
 0x00256fa0	survarium::damage_zone_cook::delete_resource	stack+4	damage-zone object to destroy	inferred
 0x00257170	survarium::damage_zone_cook::calculate_max_requests_count	stack+4	config	inferred
 0x00257210	survarium::damage_zone_cook::calculate_buffer_size	stack+4	config	inferred
@@ -2314,11 +2389,44 @@ va	name	location	role	basis
 0x00258480	survarium::rifle_scope_cook::translate_query	stack+4	parent query	inferred
 0x00258580	survarium::rifle_scope_cook::on_config_loaded	ECX	cook receiver saved locally	inferred
 0x00258580	survarium::rifle_scope_cook::on_config_loaded	stack+4	query results	inferred
+0x0025d0e0	survarium::game_world::on_mouse_move	ECX	the game world's input handler (game world+1F8h)	observed
+0x0025d0e0	survarium::game_world::on_mouse_move	entry ESP+4	the input world (+28h its mouse: +4 x, +8 y, +0Ch the wheel, +10h the buttons held)	observed
+0x0025d0e0	survarium::game_world::on_mouse_move	entry ESP+8	x, then y (+12) and the wheel (+16)	observed
+0x0025d130	survarium::game_world::set_cursor_position	ECX	the game world (vtable+3Ch)	observed
+0x0025d130	survarium::game_world::set_cursor_position	entry ESP+4	x, then y (+8): the system's cursor and the hud's pointer	observed
+0x0025d160	survarium::game_world::set_pointer	ECX	the game world (vtable+30h; the pointer kept at +8Ch, +90h)	observed
+0x0025d160	survarium::game_world::set_pointer	entry ESP+4	x, then y (+8) and the wheel (+12)	observed
 0x00260e90	survarium::options_item_base::options_item_base	EDI	options item receiver	inferred
 0x00260e90	survarium::options_item_base::options_item_base	EAX	console command name	inferred
 0x00260e90	survarium::options_item_base::options_item_base	stack+4	parent tab	inferred
 0x00260e90	survarium::options_item_base::options_item_base	stack+8	option item id byte	inferred
 0x00260e90	survarium::options_item_base::options_item_base	stack+12	option item type	inferred
+0x002636b0	survarium::lobby_character::start_decal_edit	EAX	the host item id	observed
+0x002636b0	survarium::lobby_character::start_decal_edit	entry ESP+4	lobby_character	observed
+0x002636b0	survarium::lobby_character::start_decal_edit	entry ESP+8	the decal item id	observed
+0x00263950	survarium::lobby_character::accept_decal_edit	ESI	lobby_character (editing, +D514h)	observed
+0x00263950	survarium::lobby_character::accept_decal_edit	entry ESP+4	the host item id	observed
+0x00263950	survarium::lobby_character::accept_decal_edit	entry ESP+8	the decal item id	observed
+0x00263a70	survarium::lobby_character::cancel_decal_edit	ESI	lobby_character	observed
+0x00263a70	survarium::lobby_character::cancel_decal_edit	entry ESP+4	passed on to place_decal_markers	observed
+0x00263b60	survarium::lobby_character::pack_decal_value	entry ESP+4	the decal frame float4x4 (point at +30h)	observed
+0x00263b60	survarium::lobby_character::pack_decal_value	entry ESP+8	size (float)	observed
+0x00263b60	survarium::lobby_character::pack_decal_value	entry ESP+12	roll (float, 0..2pi)	observed
+0x00263d00	survarium::lobby_character::unpack_decal_value	entry ESP+4	out float4x4	observed
+0x00263d00	survarium::lobby_character::unpack_decal_value	entry ESP+8	u64 low	observed
+0x00263d00	survarium::lobby_character::unpack_decal_value	entry ESP+12	u64 high	observed
+0x002648e0	survarium::lobby_character::on_decals_baked	ECX	lobby_character	observed
+0x002648e0	survarium::lobby_character::on_decals_baked	entry ESP+8	P	observed
+0x00264960	survarium::lobby_character::pick_decal_place	entry ESP+4	lobby_character	observed
+0x00264960	survarium::lobby_character::pick_decal_place	entry ESP+8	out point	observed
+0x00264960	survarium::lobby_character::pick_decal_place	entry ESP+12	out normal	observed
+0x00264960	survarium::lobby_character::pick_decal_place	entry ESP+16	collision mask (20h the character, 800h the markers)	observed
+0x00264960	survarium::lobby_character::pick_decal_place	entry ESP+20	out object id or 0	observed
+0x00264a10	survarium::lobby_character::decal_value	ESI	lobby_character	observed
+0x00264cf0	survarium::lobby_character::query_decal_host	ESI	lobby_character (+D520h the host)	observed
+0x00265860	survarium::lobby_character::show_decal_preview	EAX	the preview box float4x4 (world)	observed
+0x00265860	survarium::lobby_character::show_decal_preview	entry ESP+4	lobby_character	observed
+0x00265980	survarium::lobby_character::update_decal_preview	EAX	lobby_character	observed
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+4	messaging client receiver	inferred
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+8	message identifier	inferred
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+12	one-byte read/acknowledgment action	inferred
@@ -2329,18 +2437,26 @@ va	name	location	role	basis
 0x0026d090	survarium::lobby_menu::on_mouse_move	stack+8	signed relative X delta	inferred
 0x0026d090	survarium::lobby_menu::on_mouse_move	stack+12	signed relative Y delta	inferred
 0x0026d090	survarium::lobby_menu::on_mouse_move	stack+16	wheel delta forwarded unchanged	inferred
+0x0026d130	survarium::lobby_menu::mouse_ray	ESI	lobby menu (mouse +8Ch/+90h, camera rows +0Ch.., eye +3Ch)	observed
+0x0026d130	survarium::lobby_menu::mouse_ray	EDI	out direction	observed
+0x0026d130	survarium::lobby_menu::mouse_ray	entry ESP+4	out eye	observed
 0x0026e4e0	survarium::player_result_brief::deserialize	EDI	brief result output	inferred
 0x0026e4e0	survarium::player_result_brief::deserialize	ESI	reader	inferred
 0x0026e610	survarium::match_stats::deserialize	stack+4	match summary output	inferred
 0x0026e610	survarium::match_stats::deserialize	EAX	reader	inferred
 0x0026f060	survarium::lobby_client::lobby_client	stack+4	lobby client storage	inferred
 0x0026f060	survarium::lobby_client::lobby_client	stack+8	game owner	inferred
+0x0026f3b0	survarium::player_profile::~player_profile	ECX	this	observed
 0x0026f3e0	survarium::lobby_client::~lobby_client	ECX	lobby client	inferred
 0x0026f560	survarium::lobby_client::clear_profile_info	stack+4	lobby client	inferred
 0x0026ff90	survarium::lobby_client::query_match_stats	EAX	lobby client receiver	inferred
 0x0026ff90	survarium::lobby_client::query_match_stats	stack+4	match identifier	inferred
 0x00270100	survarium::lobby_client::read_status_info	EDI	lobby client	inferred
 0x00270100	survarium::lobby_client::read_status_info	EAX	reader	inferred
+0x00270260	survarium::lobby_client::process_own_account	EAX	the message's reader (+4 the read position)	observed
+0x00270260	survarium::lobby_client::process_own_account	entry ESP+4	the lobby client	observed
+0x00270390	survarium::inventory_item_descr::operator=	EAX	source record	observed
+0x00270390	survarium::inventory_item_descr::operator=	EDI	destination record (constructed: its vectors point into itself)	observed
 0x00270400	survarium::lobby_client::read_enumerate_inventory_info	stack+4	lobby client	inferred
 0x00270400	survarium::lobby_client::read_enumerate_inventory_info	EAX	reader	inferred
 0x00270570	survarium::lobby_client::read_player_skills	stack+4	lobby client	inferred
@@ -2366,6 +2482,9 @@ va	name	location	role	basis
 0x00274720	survarium::lobby_client::read_squad_info	stack+4	lobby client	inferred
 0x00274720	survarium::lobby_client::read_squad_info	EAX	reader	inferred
 0x002749d0	survarium::lobby_client::squad_ready_count	ECX	lobby client receiver	inferred
+0x00277aa0	survarium::lobby_client::find_item_by_id	ECX	the inventory's begin (B4h records)	observed
+0x00277aa0	survarium::lobby_client::find_item_by_id	EDI	the inventory's end	observed
+0x00277aa0	survarium::lobby_client::find_item_by_id	entry ESP+4	pointer to the u32 item id	observed
 0x0027a300	survarium::network_client::on_match_packet_received	ECX	network_client receiver	observed
 0x0027a300	survarium::network_client::on_match_packet_received	stack+4	packet/message discriminator; low byte consumed by switch	observed
 0x0027a300	survarium::network_client::on_match_packet_received	stack+8	packet buffer_reader	observed
@@ -2384,9 +2503,35 @@ va	name	location	role	basis
 0x0027c5f0	survarium::network_client::process_player_entered_match	stack+4	network_client receiver	observed
 0x0027c690	survarium::network_client::process_player_left_match	ESI	network_client receiver	observed
 0x0027c690	survarium::network_client::process_player_left_match	stack+4	packet buffer_reader	observed
+0x00283bc0	survarium::lobby_camera::lobby_camera	EAX	this (lobby menu+10Ch)	observed
+0x00283bc0	survarium::lobby_camera::lobby_camera	ECX	lobby menu (+88h, +B4h: its time at [+9Ch]+584Ch)	observed
+0x00283bc0	survarium::lobby_camera::lobby_camera	entry ESP+4	collision scene (+B0h)	observed
+0x00283d30	survarium::lobby_camera::on_mouse_move	ECX	the camera	observed
+0x00283d30	survarium::lobby_camera::on_mouse_move	entry ESP+4	input world (the mouse: vtable+28h, buttons at +0Ch)	observed
+0x00283d30	survarium::lobby_camera::on_mouse_move	entry ESP+8	int dx (to +CCh, the yaw)	observed
+0x00283d30	survarium::lobby_camera::on_mouse_move	entry ESP+12	int dy (to +D0h, the pitch)	observed
+0x00283d30	survarium::lobby_camera::on_mouse_move	entry ESP+16	int wheel (to +C8h, -0.001 a unit)	observed
+0x00283eb0	survarium::lobby_camera::on_input_frame_end	ECX	the camera	observed
+0x00283ef0	survarium::lobby_camera::tick	ECX	camera+4 (the point +A0h..+A8h, yaw +B8h, pitch +BCh, distance +C4h of the camera)	observed
+0x002844d0	survarium::lobby_camera::process_collision	EAX	the lobby camera (its physics world at +B0h)	observed
+0x002844d0	survarium::lobby_camera::process_collision	ESI	the target point	observed
+0x002844d0	survarium::lobby_camera::process_collision	EDI	the distance (float*), cut to a hit's	observed
+0x002844d0	survarium::lobby_camera::process_collision	entry ESP+4	the direction from the target (float3*)	observed
+0x002845c0	survarium::lobby_camera::set_target	EAX	the camera	observed
+0x002845c0	survarium::lobby_camera::set_target	ECX	where the distance target it replaces goes	observed
+0x002845c0	survarium::lobby_camera::set_target	XMM0	float height of the point	observed
+0x002845c0	survarium::lobby_camera::set_target	XMM1	float distance	observed
+0x002845c0	survarium::lobby_camera::set_target	entry ESP+4	float side angle (turns the view only)	observed
+0x002849f0	survarium::lobby_character::update	entry ESP+4	the lobby_character (kept in EBX)	observed
 0x00284b10	survarium::lobby_character::setup_profile	EAX	the profile to copy (account profile, 0x4634 bytes)	observed
 0x00284b10	survarium::lobby_character::setup_profile	entry ESP+4	the lobby_character	observed
 0x00284b10	survarium::lobby_character::setup_profile	entry ESP+8	the kit to show (byte, 0..2)	observed
+0x00284d10	survarium::player_profile::operator=	ESI	destination profile (constructed)	observed
+0x00284d10	survarium::player_profile::operator=	EDI	source profile	observed
+0x00284dc0	survarium::player_profile::copy_body	entry ESP+4	destination profile	observed
+0x00284dc0	survarium::player_profile::copy_body	entry ESP+8	source profile	observed
+0x00284ea0	survarium::player_profile::copy_kit	EAX	destination kit (704h)	observed
+0x00284ea0	survarium::player_profile::copy_kit	entry ESP+4	source kit	observed
 0x0028de20	survarium::lobby_menu::add_quest	ESI	lobby menu	inferred
 0x0028de20	survarium::lobby_menu::add_quest	stack+4	quest record	inferred
 0x0028e690	survarium::lobby_menu::create_quest_ui_message	stack+4	menu receiver	inferred
@@ -2436,6 +2581,9 @@ va	name	location	role	basis
 0x0029ab20	survarium::lobby_menu::fill_match_statistic	stack+8	match summary	inferred
 0x0029ab20	survarium::lobby_menu::fill_match_statistic	stack+12	full player result	inferred
 0x0029ab20	survarium::lobby_menu::fill_match_statistic	stack+16	selected player index	inferred
+0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	ESI	player_equipment_sound_effect (+38h logic selector, +3Ch player, +40h world); foot material = player u16 [0F2C4h + 4*state+24h + 2*third_person], state+24h: 1 crouch walk, 2 stand run, 3 sprint, 4 jump (boots walk_/run_/sprint_/jump_{1st,3rd}_view_material_id, copied to player+0F2C8h)	observed
+0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	entry ESP+4	foot position (float3*)	observed
+0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	entry ESP+8	step direction (float3*)	observed
 0x002aec40	vostok::render::stage_particles::is_effects_ready	ECX	stage_particles owner	observed
 0x002c6f90		EAX		auto
 0x002c6f90		entry ESP+4		auto
@@ -2499,6 +2647,10 @@ va	name	location	role	basis
 0x002d5ae0	survarium::player_params_modifiers_container::apply_modifier	stack+8	float k, the modifier's weight (1.0 at the weapon draw)	observed
 0x002d6230	survarium::character_breath_vibration_params::load	entry ESP+8	configuration object pointer copied to EBX	observed
 0x002d6230	survarium::character_breath_vibration_params::load	entry ESP+4	destination parameter object; only present keys overwrite its scalar fields	observed
+0x002d7920	survarium::base_player::jump	entry ESP+4	base_player	observed
+0x002d7920	survarium::base_player::jump	EAX	jump direction, stored at base_player +0x338	observed
+0x002d8220	survarium::base_player::on_physical_controller_landing	ECX	base_player	observed
+0x002d8220	survarium::base_player::on_physical_controller_landing	entry ESP+4	float landing speed m/s, vertical only	observed
 0x002d84c0		entry ESP+4		auto
 0x002d9a60	survarium::base_player::hit	ECX	hit-receiver subobject	inferred
 0x002d9a60	survarium::base_player::hit	stack+12	bodypart index	inferred
@@ -2630,6 +2782,8 @@ va	name	location	role	basis
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	stack+12	diagnostic source line	observed
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	stack+16	diagnostic caller function name	observed
 0x002f5da0	vostok::network_core::buffer_writer::w<unsigned short>	stack+20	diagnostic value label	observed
+0x002f73f0	survarium::player_profile::player_profile	ECX	this (4634h bytes)	observed
+0x002f7c10	survarium::inventory_item_descr::inventory_item_descr	ECX	this (B4h bytes)	observed
 0x002f81f0	survarium::usable_object::load	ECX	usable_receiver	inferred
 0x002f81f0	survarium::usable_object::load	stack+4	config	inferred
 0x002f8280	survarium::usable_object::resolve_links	ECX	link_resolver_receiver	inferred
@@ -2675,6 +2829,7 @@ va	name	location	role	basis
 0x002fe550	survarium::inventory::deserialize	EAX	inventory	inferred
 0x002fe550	survarium::inventory::deserialize	ESI	reader	inferred
 0x002ffb80	survarium::inventory_item::inventory_item	EAX	item_storage	inferred
+0x002ffb80	survarium::inventory_item::inventory_item	entry ESP+4	kept at +24Ch (an item object's +25Ch with the subobject at +10h): an upgrade's items_dict entry as weapon::draw reads it (0x24505F); NOT a pointer for a held weapon (2 for the VSS, crash 2026-10-21)	observed
 0x002ffdf0		ECX		auto
 0x002ffdf0		entry ESP+4		auto
 0x002fff10		ECX		auto

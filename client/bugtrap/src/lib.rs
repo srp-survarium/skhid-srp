@@ -1,21 +1,18 @@
-#![no_std]
 #![allow(non_snake_case, unsafe_op_in_unsafe_fn)]
 
 #[cfg(not(all(target_os = "windows", target_arch = "x86")))]
 compile_error!(
-    "This DLL implements the native ANSI Win32 BugTrap ABI; build for i686-pc-windows-msvc."
+    "This DLL implements the native ANSI Win32 BugTrap ABI; build for i686-win7-windows-msvc."
 );
 
 mod api;
 mod archive;
-mod arithmetic;
 mod crash_text;
 mod dump;
 mod modules;
 mod logs;
 mod notice;
 mod notice_text;
-mod runtime;
 mod sanitize;
 mod text;
 mod ui;
@@ -58,6 +55,9 @@ pub unsafe extern "system" fn DllMain(module: HINSTANCE, reason: u32, _: *mut c_
     match reason {
         1 => {
             DisableThreadLibraryCalls(module);
+            // A closure of no state: no allocation; one lock of the standard
+            // library's own, no other thread, nothing loaded.
+            std::panic::set_hook(Box::new(panic));
             BT_InstallSehFilter();
         }
         0 => BT_UninstallSehFilter(),
@@ -151,12 +151,10 @@ pub unsafe extern "C" fn BT_InterceptSUEF(_: HMODULE, _: i32) {
     SetLastError(ERROR_NOT_SUPPORTED);
 }
 
-#[panic_handler]
-fn panic(_: &core::panic::PanicInfo) -> ! {
+// A panic in this DLL ends the game at once, with this code, as it always did:
+// no message (the game has no console) and no unwinding (panic = "abort").
+fn panic(_: &std::panic::PanicHookInfo) {
     unsafe {
         TerminateProcess(GetCurrentProcess(), 0xE0000001);
-    }
-    loop {
-        core::hint::spin_loop();
     }
 }

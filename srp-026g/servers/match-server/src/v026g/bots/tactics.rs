@@ -65,6 +65,10 @@ pub struct TacticsBase {
     walkable: Vec<u64>,
 }
 
+/// The past-fixed-zones regions and the zones they were made for
+/// ([`Tactics::past_fixed_zones`]).
+type PastFixed = (Vec<bool>, Arc<Vec<u64>>);
+
 /// One map's tactics for a match: the shared [`TacticsBase`] and the
 /// match's own hazard clocks and human routes.
 pub struct Tactics {
@@ -77,7 +81,7 @@ pub struct Tactics {
     /// [`Self::past_fixed_zones`]'s regions, and the zones it was made for
     /// ([`Hazards::fixed_zones`]): made again only when they change (at
     /// the anomalies' attach).
-    past_fixed: std::sync::Mutex<Option<(Vec<bool>, Arc<Vec<u64>>)>>,
+    past_fixed: std::sync::Mutex<Option<PastFixed>>,
 }
 
 /// The label's bits for the sides' spawn areas.
@@ -635,6 +639,8 @@ impl Tactics {
     /// within them; else the search, to go on with in
     /// [`Self::resume_route`] with the same arguments.
     #[allow(clippy::too_many_arguments)]
+    // The Err is the search under way (`path::plan_start`).
+    #[allow(clippy::result_large_err)]
     pub fn start_route(
         &self,
         start: NodeId,
