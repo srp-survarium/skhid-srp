@@ -19,7 +19,8 @@ The owner's rule of 2026-10-22: give the premium armour the golden weapons' trea
   its plain piece's. So **[srp's choice] all bonuses stay** and players lose nothing:
   - the two premium bonuses become modifications of the piece's own, its first two places (rank 2);
   - the plain piece's default (a pocket, an ammo bag, 2 % less stamina spent) stays a config
-    default, as on the plain piece (it is part of the piece, never rolls: drop weight 0).
+    default, as on the plain piece (it is part of the piece; as a default its kind is taken, so
+    no roll adds another).
 - **Per item** (dict id, name, config under `gameplay/items/armour/`; rarity before -> after):
 
   | id | item | config | rarity | stays a default | own modifications (new) |
@@ -57,5 +58,11 @@ The owner's rule of 2026-10-22: give the premium armour the golden weapons' trea
   and sets `base_rarity_level` 3 -> 0. srp refuses to start on data without it (`golden::check`), and
   so does `release/build-server-db` (`srp-check-game-data`).
 - **Release:** a resources.db patch (the content edit, the lobby movie), the server data built with
-  it, the server. Not tested in the game yet.
+  it, the server, together. srp from this change on refuses data without the patch: no server-only
+  release until rev 28 ships, and a local srp needs server data from `release/build-content 28`.
+  Not tested in the game yet.
+- **Rollback: without `--keep-db`.** After the one-time grant the pieces hold the bonuses as their
+  own; the rev 27 srp and data still have them as defaults too, so it would pay them twice (and a
+  piece bought meanwhile would never get them: the mark is set). The golden weapons' silver has the
+  same exposure.
 - **Tech debt:** the same special cases as the golden weapons' ([tech-debt.md](tech-debt.md)).

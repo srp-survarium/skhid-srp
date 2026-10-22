@@ -55,7 +55,8 @@ data: `scripts/content-edit/golden-weapons-1.json`; the lobby: `ItemDictId` (the
   holds its icon and prop to the data). Owned ones show the server's modifications.
 - **Release:** a resources.db patch (the content edit; the lobby movie), the server data built
   with it, the server, the `next` row of `simulation_changes.tsv` (the bonuses change matches).
-  Not tested in the game yet.
+  Not tested in the game yet. A rollback past it goes without `--keep-db` (the granted silver
+  would add to an old default).
 - **Tech debt** ([tech-debt.md](tech-debt.md)): the silver bonus is a granted modification, not a config
   default, so that it can be rerolled and takes a place. That needs special cases: srp grants it on
   creation (`golden::starting_modifications`, `give_golden_silver` for owned ones), the lobby fakes it on
