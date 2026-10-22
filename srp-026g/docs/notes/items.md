@@ -136,6 +136,8 @@ What the lobby checks or says itself (PROVEN, `lobby_menu.swf` and the
   available when paying with silver." Silver is disabled while the item's
   `reroll_time` runs; gold never. [srp, the owner's rule of 2026-10-22] No
   wait: srp sends `reroll_time` 0 and the window shows no six-hour line.
+  [srp, the owner's rule of 2026-10-22] Any modification, not only one:
+  the window locks none ([reroll-keep-old.md](reroll-keep-old.md)).
   Not for a damaged item
   (`st_reroll_message_broken_item`). The window can not be closed between
   the offer and the choice. [srp, the owner's rule of 2026-10-21] Its Cancel button
