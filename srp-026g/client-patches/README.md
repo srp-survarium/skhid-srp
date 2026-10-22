@@ -2851,8 +2851,14 @@ invader, a place that left, the wire and its refusals); `check_research_026g.py`
 constructor's hook registers the cook once and goes on as the original, a taken class; the cook
 makes the rule from a mode config with the game's look-ups; set_game_world_core links the tick;
 a capture at 20 s and its event, nothing outside play, the points in the statistics' tail, kill
-invader, serialize and deserialize, the hud's points, completed; update_ui in mode 5 and 4, the
-messages; the first message by mode); `selftest_026g.py` check 53. **Not run in a game.**
+invader, serialize (rr_write's bytes through the game's writers; with the hash mismatch dump on,
+the 88 fields by name) and deserialize (two arguments, 8 bytes popped), the game's own serialize
+and deserialize loops over a world's rules with esp as before, the hud's points (the alive counts
+left), completed; update_ui in mode 5 and 4, the messages; the first message by mode);
+`selftest_026g.py` check 53 (also: every slot of ours pops what tdm_rule_core's and
+tdm_rule_cook's in its place pop; the cook's RTTI hierarchy). The first local test (2026-10-22)
+crashed at the first synchronization (slot 16, fixed) on a scrambled level (pack 1's vectors,
+fixed in pack 2). **Not yet run in a game since.**
 
 ## Not ported, not done
 

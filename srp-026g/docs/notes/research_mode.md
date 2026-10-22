@@ -9,7 +9,7 @@ Code: exe patch 53 (`client-patches/research_rule_026g.c` the rules, `research_n
 the game's side, `research_026g.asm` the hooks; README "53."); the hud movie
 (`flash/hud`: `HUD.research_update`, `survarium.controls.ResearchUnits`,
 `ResearchMinimapPoint`, `Minimap.setResearchUnits`); the content (`scripts/research-mode`,
-pack `research-mode@1`); srp (`maps::mode::RESEARCH`, `match_msgs::rules::Research`,
+pack `research-mode@2`); srp (`maps::mode::RESEARCH`, `match_msgs::rules::Research`,
 rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
 
 ## Rules (0.27d's)
@@ -58,7 +58,10 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   (`match_time` 900, `wait_time` 5, `countdown_time` 20, `wait_player_percent` 0.8,
   `respawn_time` 10, `resources_count` 100, `capture_time_in_s`, `resource_per_s`,
   `restore_multiplier` 0.5), `rules [93, 91, 480, 94]` (480 = 1E0h: the exe's research rule
-  cook), `ui.icon` 3, `st_mode_05_name`, and the units as `capture_zones[] {cp_id, position,
+  cook), `ui.icon` 1 (0.27d's 3 is a frame 0.26g's lobby has not: its `SrvGameModeIcons` has
+  three, 0 the protective device of modes 2 and 3, 1 a transmitter mast no mode used, 2 Team
+  Deathmatch's skull; `LobbyGameLoad.setMode` shows frame icon + 1), `st_mode_05_name`, and the
+  units as `capture_zones[] {cp_id, position,
   shapes[] {type 0 sphere / 1 box / 2 cylinder, position, axis_x, axis_y, axis_z, half}}` in
   world space, `capture_award` 100, `capture_reach` 0.4, `capture_half_height` 0.9.
 - `projects/level_0N/<w>_5/client_project` (w day, evening, rain, prerain): 0.26g's `<w>_4`
@@ -69,6 +72,27 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   have. Four models 0.26g lacks come byte for byte from 0.27d (same format; their materials
   are 0.26g's): the transmitter's cable corner, two box covers, level_01's tractor (0.27d moved
   it beside unit B for cover).
+- **Values in 0.26g's types.** The game reads a config's vectors raw (a float3 value's data is a
+  pointer to three floats: the respawn point's reader 0x2F4580 does `movq` off it), so a vector
+  written as an indexed table puts an object somewhere near (x, 0, 0). Pack 1 copied the projects
+  through JSON, which made every vector of every kept object (position, rotation, scale, pivot,
+  colours, directions, `levelmap_min`/`max`, tangents, probe colours: about 9,800 on map 184) an
+  indexed table: the first local test's level "did not load properly" and its spawns, props and
+  player positions were wrong (2026-10-22). Pack 2 copies deeply (tuples stay float2/3/4), puts
+  every added object, entry and spawn in 0.26g's form at every depth (`conform`: the keys 0.26g's
+  projects have at that path, of the types they have there), and stops when a value of the made
+  project has a type 0.26g's projects never have at its path, or a mode config one a stock 0.26g
+  config does not (`check_types`, `check_config_types`). A colour ramp's `key0`, `key1`, ... count
+  as one key: the game reads `key%d` from 0 while there is one (0x350080), and some 0.27d lights
+  have four. Nothing else of the 0.27d objects (`skeleton_visual`, `wire_set`, lights, sounds,
+  particles; nested tables included) is a key 0.26g lacks.
+- **Environment probes** stay 0.26g's own (each map's `<w>_4` ones, none added): the game reads a
+  probe's `texture` (0x28F48D, the `<w>_4` bake of its weather) and never a `textures` table (no
+  such key in the exe), so a `_5` project needs no `_5` keys.
+- **Minimap:** the hud places the units at (x, -z), as the exe's own objects (0x238681 negates z
+  for `pos_y`), on each level's minimap frame (`Minimap._minimapProps`: level_02 110 m round
+  (21.079, 105.098)). Every unit and spawn of the 25 maps is inside its frame (map 184: A at 0.37,
+  0.40, B 0.60, 0.50, C 0.36, 0.61 of the frame).
 - maps_dict: 145-149 (0.26g's own rows for `level_0{1,4,6,7,8}_day_5`, never with a file
   before); 184-203 for the rest (0.27d's 152-170 are srp's ported maps now).
 - Texts in the six languages: 0.27d's `st_mode_05_name` ("Research"), `st_mode_05_description`,
@@ -80,7 +104,7 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
 ## Making the pack
 
 - `scripts/research-mode/make_pack.py --stock <folder> --donor <folder> --london <folder> --out
-  <SKHID_PACKS_DIR>/research-mode-1`: the inputs at their game paths or as `dbgrab ... get` writes
+  <SKHID_PACKS_DIR>/research-mode-2`: the inputs at their game paths or as `dbgrab ... get` writes
   them, each checked against `inputs.sha256` (0.26g's 25 `<w>_4` projects and London's day_4
   config from the stock db and patch 14; 0.27d0's `_4`/`_5` projects, `_5` configs, six
   localizations and the four models; 0.31a2's London `day_4`/`day_5`), and `stock.list` (the
@@ -90,7 +114,10 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
 - Checked: `vostok-port pack check` over the stock db and patches 12 to 27; `release/build-content
   29` with it (2026-10-22: one patch, every file the manifest makes as it makes it, the server
   data with 109 projects); `vostok-port pack probes`: no probe missing; `release/build-site` with
-  that patch (the Maps tab with the units).
+  that patch (the Maps tab with the units). Pack 2 (2026-10-22): its own type checks; `release/
+  build-content 30` over revision 29 (one patch, every file as the manifest makes it, 109
+  projects); map 184's project as players get it has 9,475 float3, 199 float4 and 354 float2
+  values and no vector as an indexed table; every unit and spawn of the 25 maps on its minimap.
 
 ## The exe (patch 53)
 
@@ -163,7 +190,7 @@ Left out, and why:
 - Exe: patch 53. Simulation change for mode 5 only. Its code is in a new section, `.srpx`, the
   section of the later patches' code (below).
   Simulation change: a match of mode 5 needs it; modes 2-4 do not change.
-- Content: pack `research-mode@1` and the hud movie (content.tsv); the server data with it
+- Content: pack `research-mode@2` and the hud movie (content.tsv); the server data with it
   makes the 25 maps playable.
 - srp: mode 5 in the maps, rooms, results and pay; a server that offers Research asks for the
   revision with patch 53.
