@@ -7,5 +7,10 @@ with inventory ... not character, but character menu ... with 3 profiles current
   on the Inventory tab. Before, the shop hid it.
 - **What it does there:** what it does on the Inventory tab. A shop item dropped on one of its slots
   is bought into that slot, as the game already did (`DragRegion`, `MainScene.buyFunction`).
+- **Its right-click menu acts on the kit's item:** choosing a kit item makes it the card's item
+  even though the shop does not list it (`InventoryList.selectItem`). Before that fix, Attachment
+  there opened the shop card's item, which the game does not have, and the game crashed in
+  `lobby_character::place_decal_markers` (0x265F80, a null read at 0x265FE4). The modification
+  window now opens only for an owned item (`LobbyMenu.openModifierWindow`).
 - **Nothing else changes:** the shop's list and its item card are as before. Server: nothing.
 - Code: `InventoryList.set visible`.
