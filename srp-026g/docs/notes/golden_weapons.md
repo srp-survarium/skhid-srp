@@ -45,6 +45,16 @@ data: `scripts/content-edit/golden-weapons-1.json`; the lobby: `ItemDictId` (the
   without it (`golden::check`), and so does `release/build-server-db` (`srp-check-game-data`).
 - **Lobby:** the craft result showed the donor's entry (the exe names it); it shows the item
   upgraded.
+- **Shop and bundles show the silver bonus** (owner: "gold sold weapons in shop no longer show that
+  they have silver bonus"): a golden weapon not owned (a shop entry, a bundle's contents) shows
+  1230 in its first place, as srp gives it on purchase (`ItemFactory.startingModifiers`; a test
+  holds its icon and prop to the data). Owned ones show the server's modifications.
 - **Release:** a resources.db patch (the content edit; the lobby movie), the server data built
   with it, the server, the `next` row of `simulation_changes.tsv` (the bonuses change matches).
   Not tested in the game yet.
+- **Tech debt** ([tech-debt.md](tech-debt.md)): the silver bonus is a granted modification, not a config
+  default, so that it can be rerolled and takes a place. That needs special cases: srp grants it on
+  creation (`golden::starting_modifications`, `give_golden_silver` for owned ones), the lobby fakes it on
+  shop entries and bundle contents (`ItemFactory.startingModifiers`, `GangShop.setupShopItems`,
+  `InventoryList.setupBundleData`), and `golden::check` guards the data. A config default would need none
+  of these, but could not be rerolled and would add a 4th bonus.

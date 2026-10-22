@@ -1218,10 +1218,8 @@ package survarium.controls
                newItem.dragEnabled = false;
                newItem.descriptor = ItemPlace.NONE;
                newItem.canBuy = true;
-               if(!newItem.modifiers)
-               {
-                  newItem.modifiers = [];
-               }
+               // As the server gives it: a golden weapon with the silver bonus.
+               newItem.modifiers = ItemFactory.startingModifiers(newItem.dictId).concat(newItem.modifiersDefault);
                newItem.upgrades = [];
                newItem.sellerIcon = sellerIcons.getIcon(0);
                newItem.value = newItem.isStack ? (bundleItems[j].amount) : ItemCondition.FULL;

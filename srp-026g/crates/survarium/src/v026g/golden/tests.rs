@@ -198,3 +198,48 @@ fn data_without_the_golden_weapons_patch_is_refused() {
     assert_eq!(unpatched(&data, dictionary).unwrap(), Vec::<String>::new());
     assert_eq!(check(&data), Ok(()));
 }
+
+/// The lobby shows a golden weapon not owned (the shop's, a bundle's) with
+/// the silver bonus srp gives it (`ItemFactory.startingModifiers`): its
+/// `GOLDEN_SILVER_*` constants are [`SILVER_BONUS`]'s `ui_desc`, as the exe
+/// gives the movie a modification (icon, one `{prop_id, prop_value}`).
+#[test]
+fn the_lobby_shows_the_silver_bonus_of_the_data() {
+    let source = include_str!("../../../../../flash/lobby_menu/src/survarium/item/ItemFactory.as");
+    let lobby = |name: &str| -> String {
+        let start = source
+            .find(&format!("const {name}:"))
+            .unwrap_or_else(|| panic!("the lobby's {name}"));
+        let line = &source[start..];
+        let line = &line[line.find('=').unwrap() + 1..line.find(';').unwrap()];
+        line.trim().trim_matches('"').to_owned()
+    };
+    let modifications = game_data::config(
+        game_data::shared(),
+        "gameplay/items/modifications/modifications.options",
+    )
+    .unwrap()
+    .unwrap();
+    let rows = modifications.req("modifications").unwrap().children();
+    let silver = rows
+        .into_iter()
+        .find(|row| row.i32_at("id").unwrap() == SILVER_BONUS as i32)
+        .expect("the silver bonus");
+    let ui = silver.req("ui_desc").unwrap();
+    let props = ui.req("props_list").unwrap().children();
+    let [prop] = props[..] else {
+        panic!("one prop: {props:?}")
+    };
+    assert_eq!(
+        lobby("GOLDEN_SILVER_ICON"),
+        ui.i32_at("icon").unwrap().to_string()
+    );
+    assert_eq!(
+        lobby("GOLDEN_SILVER_PROP_ID"),
+        prop.i32_at("prop_id").unwrap().to_string()
+    );
+    assert_eq!(
+        lobby("GOLDEN_SILVER_PROP_VALUE"),
+        prop.str_at("prop_value").unwrap()
+    );
+}
