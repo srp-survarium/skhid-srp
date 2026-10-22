@@ -1250,10 +1250,14 @@ va	name	source	ret_cleanup	result
 0x003114a0	survarium::damage_zone_core_cook::construct_resource	manual	4	
 0x003119a0	survarium::artefact_spring_core::serialize	manual	8	
 0x003119e0	survarium::artefact_spring_core::deserialize	manual	12	
+0x00311bc0	survarium::artefact_spring_core::add_active_modifiers	manual	0	
+0x00311da0	survarium::artefact_spring_core::remove_active_modifiers	manual	4	
+0x00312250	survarium::artefact_lifebone_core::enable_active_effects	manual	4	
 0x00312470	survarium::artefact_lifebone_core::serialize	manual	8	
 0x003124b0	survarium::artefact_lifebone_core::deserialize	manual	12	
 0x00312a80	survarium::artefact_onyx_core::serialize	manual	8	
 0x00312af0	survarium::artefact_onyx_core::deserialize	manual	12	
+0x00313300	survarium::artefact_base::action	manual	8	
 0x00313670	survarium::artefact_base::serialize	manual	8	
 0x00313760	survarium::artefact_base::deserialize	manual	12	
 0x00317f30	survarium::timelimit_rule_core::serialize	manual	4	
@@ -1324,6 +1328,7 @@ va	name	source	ret_cleanup	result
 0x00329a20	survarium::player_stamina::spend	manual	4	
 0x00329a70	survarium::player_stamina::sprint	manual	4	
 0x00329c60	survarium::player_stamina::is_overburdened	manual	4	
+0x0032a420	survarium::body_part::increase_health	manual	8	
 0x0032ae00	survarium::body_part_parameters::serialize	manual	8	
 0x0032afe0	survarium::body_part_parameters::deserialize	manual	12	
 0x0032b9f0	survarium::hit_info::hit_info	manual	32	
@@ -1366,6 +1371,7 @@ va	name	source	ret_cleanup	result
 0x0033a650	survarium::weapon_core_throw_grenade_state::is_ready_for_transition	manual	0	
 0x0033a6a0	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression	manual	20	
 0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	manual	0	
+0x0033acf0	survarium::artefact_spring_core::config::config	manual	4	EAX: the config (ESI)
 0x0033cac0	survarium::medkit::medkit	manual	4	
 0x0033d2b0	survarium::medkit::`scalar deleting destructor'	manual	4	
 0x0033d2d0	survarium::medkit::~medkit	manual		

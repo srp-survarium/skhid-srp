@@ -98,6 +98,11 @@ USAGE (this script never touches the source exe):
         nasm -f bin -DCAVE=0xA42B000 -DPREVIEW=0xA428E00 -DTABLE=0xA428F00 -DPRESS=0xA428FA0 weapon_decals_026g.asm -o weapon_decals_026g.section.bin
     (checked in; PREVIEW and TABLE are patch 32's and patch 45's states, PRESS
     its own, 0xFA0 of the late join's state page, checked).
+    The artefacts' code (Spring's aim time, Lifebone's heal, one press for
+    every artefact of a kind) comes from artefacts_026g.asm, on `.srpw`'s
+    third page after the upgrade preview's code:
+        nasm -f bin -DCAVE=0xA42C700 artefacts_026g.asm -o artefacts_026g.section.bin
+    (checked in).
     The late-join code is late_join_026g.section.bin, checked in too; it is
     made by `late_join_026g.py --write-bin`, which needs nasm, a C compiler
     for x86 and GNU ld (--late-join-bin=<file> names another one).
@@ -411,6 +416,23 @@ Patches:
   live one clears them. The code
   is death_camera_026g.asm, the section `.srpc`; a dead player sends no
   input (0x1F7883), so nothing a match computes changes;
+- the artefacts as the owner set them (patch 54, with the late join,
+  client_patch.md section 3.51, docs/notes/artefacts.md; their numbers in
+  the configs, release/content.tsv artefacts-1.json). A Spring's loader
+  (0x33ACF0) reads a fixed set of keys into its character modifier nodes,
+  none of them the aim time; artefacts_026g.asm (`.srpw`+2700h) makes its
+  passive's unused max_carried_weight node aim_time with
+  `passive/aim_time_mod` and adds two active nodes, aim_time with
+  `active/aim_time_mod` at +3B8h and list 42 with
+  `active/stopping_power_mod` at +3C8h (a Spring is 3D8h bytes, 0x25E7A8,
+  0x2EEA74), linked and unlinked with the active's (0x311BC0, 0x311DA0);
+  the player's stagger (0x2DBCD0, at 0x2DBD89) is times max(0, 1 + list
+  42), so bullets do not slow an active Spring's holder. A
+  Lifebone's active (0x312250) removed injuries only; after them it fills
+  the pain, body and head pools (0x3122AA, increase_health as a medkit). An artefact's
+  activation (artefact_base::action 0x313300, at 0x313339) presses every
+  other artefact of its class in the artefact slots, so one key fires all
+  of a kind that are ready;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -1780,6 +1802,53 @@ WEAPON_DECALS_HOOKS = (
 )
 WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries patch 44 calls
 
+# The artefacts (patch 54, README; client_patch.md section 3.51; the rules:
+# ../docs/notes/artefacts.md): artefacts_026g.asm at ARTEFACTS_OFFSET of
+# `.srpw`, after the upgrade preview's code, in the section's third page
+# (patch 53's `.srpx` follows the three). Its numbers are the artefacts'
+# configs' (release/content.tsv, artefacts-1.json). It begins with six
+# `jmp near`, one for each site:
+# - Spring's loader 0x33ACF0, `mov dword [esi+48h],13h` at 0x33AE13 (its
+#   active's third node): loader. The passive's second node (+350h,
+#   max_carried_weight 0 in retail) becomes aim_time (49) with the value of
+#   `passive/aim_time_mod`; two more nodes are the active's: +3B8h aim_time
+#   with `active/aim_time_mod`, +3C8h list 42 with
+#   `active/stopping_power_mod`;
+# - the link of Spring's active nodes, 0x311BC0 (`push ebx / push esi /
+#   mov esi,eax / mov eax,[esi+250h]`, the entry): link the two too;
+# - their unlink, 0x311DA0 (`push ebx / mov ebx,[esp+8]`, the entry): unlink;
+# - Lifebone's enable_active after its remove_affects, `mov ecx,[edi+250h]`
+#   at 0x3122AA: the pain, body and head pools filled to their maximum
+#   (increase_health, as a medkit);
+# - artefact_base::action having activated one, `mov dword [esi+280h],4` at
+#   0x313339: every other artefact of its class in the artefact slots is
+#   pressed too;
+# - the player's stagger 0x2DBCD0, `movss xmm2,[esi+31Ch]` at 0x2DBD89 (the
+#   recent hits' stopping power summed): the sum times max(0, 1 + list 42),
+#   list 42 (artefact_synergy) being read by no code of 0.26g and set by no
+#   config, so an active Spring's -1 takes the slow away.
+# The two nodes are after a Spring's own fields: the two sizes of a Spring,
+# artefact<artefact_spring_core> (0x3B8, 0x25E7A8) and the bare core (0x398,
+# 0x2EEA74), become ARTEFACTS_SPRING_SIZE. No base relocation is under a
+# site and no branch aims inside one; the code holds the absolute addresses
+# of its two names (the exe is never rebased).
+ARTEFACTS_OFFSET = 0x2700
+ARTEFACTS_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19)  # loader, link, unlink, lifebone, fire, stagger
+ARTEFACTS_HOOKS = (
+    (0x33AE13, bytes.fromhex("c7464813000000"), 0x0, 0xE9),        # Spring's loader: its active's third node
+    (0x311BC0, bytes.fromhex("53568bf08b8650020000"), 0x5, 0xE9),  # Spring's active link
+    (0x311DA0, bytes.fromhex("538b5c2408"), 0xA, 0xE9),            # Spring's active unlink
+    (0x3122AA, bytes.fromhex("8b8f50020000"), 0xF, 0xE9),          # Lifebone's enable_active
+    (0x313339, bytes.fromhex("c7868002000004000000"), 0x14, 0xE9), # artefact_base::action: active
+    (0x2DBD89, bytes.fromhex("f30f10961c030000"), 0x19, 0xE9),     # the player's stagger: its sum
+)
+ARTEFACTS_BACKS = (0x33AE1A, 0x311BCA, 0x311DA5, 0x3122B0, 0x313343, 0x2DBD91)  # where each goes on
+ARTEFACTS_SPRING_SIZE = 0x3D8                  # the active's two nodes at +3B8h and +3C8h
+ARTEFACTS_SIZES = (
+    (0x25E7A8, bytes.fromhex("b8b8030000"), b"\xB8" + struct.pack("<I", ARTEFACTS_SPRING_SIZE)),
+    (0x2EEA74, bytes.fromhex("b898030000"), b"\xB8" + struct.pack("<I", ARTEFACTS_SPRING_SIZE)),
+)
+
 
 def weapon_camo_va(late_join):
     """Where `.srpw` is: the page after `.srpc`, which is one page."""
@@ -2264,6 +2333,9 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             sites.append((site[0], site[0] + len(site[1])))
         patch(data, *SPOT_COOLDOWN)
         sites.append((SPOT_COOLDOWN[0], SPOT_COOLDOWN[0] + len(SPOT_COOLDOWN[1])))
+        for site in ARTEFACTS_SIZES:
+            patch(data, *site)
+            sites.append((site[0], site[0] + len(site[1])))
         patch(data, *REPLAY_REATTACH_THUNK)
         sites.append((REPLAY_REATTACH_THUNK[0], REPLAY_REATTACH_THUNK[0] + len(REPLAY_REATTACH_THUNK[1])))
         # An address: its relocation stays.
@@ -2614,6 +2686,19 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      f"-DSTATE={upgrade_preview_state:#x} -DPREVIEW={preview_state:#x} "
                      f"-DFIND={stash_va + WEAPON_STASH_FIND:#x}?)")
         weapon_camo = weapon_camo + b"\xCC" * (UPGRADE_PREVIEW_OFFSET - len(weapon_camo)) + upgrade_preview
+        artefacts = open(artefacts_bin(), "rb").read()
+        artefacts_va = camo_va + ARTEFACTS_OFFSET
+        if UPGRADE_PREVIEW_OFFSET + len(upgrade_preview) > ARTEFACTS_OFFSET \
+                or ARTEFACTS_OFFSET + len(artefacts) > 0x3000:
+            sys.exit("the upgrade preview's code and the artefacts' do not fit in .srpw's three pages")
+        if artefacts_backs(artefacts, artefacts_va) != list(ARTEFACTS_BACKS):
+            sys.exit(f"artefacts_026g.section.bin: its entries are not where patch_026g.py jumps to them, or it "
+                     f"was assembled for another address (-DCAVE={artefacts_va:#x})")
+        weapon_camo = weapon_camo + b"\xCC" * (ARTEFACTS_OFFSET - len(weapon_camo)) + artefacts
+        for va, expected, offset, opcode in ARTEFACTS_HOOKS:
+            patch(data, va, expected, hook_bytes(artefacts_va, va, expected, offset, opcode))
+            if neutralize_relocs(data, [(va, va + len(expected))]):
+                sys.exit(f"{va:#x}: a base relocation under a hook of the artefacts")
         for va, expected, offset, opcode in UPGRADE_PREVIEW_HOOKS:
             patch(data, va, expected, hook_bytes(upgrade_preview_va, va, expected, offset, opcode))
             if neutralize_relocs(data, [(va, va + len(expected))]):
@@ -2723,6 +2808,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "a weapon wears the decals its item holds, placed on it above the workbench, "
                      "an upgrade dropped on a weapon in its window is shown at once, "
                      f"Research (mode 5: rule class {RESEARCH_CLASS:#x}, its hud and messages), "
+                     "a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills "
+                     "pain, body and head, and one press fires every artefact of its kind, "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")
@@ -2899,6 +2986,26 @@ def weapon_decals_bin():
 
 def upgrade_preview_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "upgrade_preview_026g.section.bin")
+
+
+def artefacts_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "artefacts_026g.section.bin")
+
+
+def artefacts_backs(code, va):
+    """artefacts_026g.section.bin assembled at `va`: where each of its five
+    entries goes on (the target of the first `jmp near` back into .text
+    after the entry's own code), when they are `jmp near`; else None."""
+    if any(code[at] != 0xE9 for at in ARTEFACTS_ENTRIES):
+        return None
+    backs = []
+    for at in ARTEFACTS_ENTRIES:
+        start = at + 5 + struct.unpack_from("<i", code, at + 1)[0]
+        target = next((va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] for i in range(start, len(code) - 4)
+                       if code[i] == 0xE9 and va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] < SECTION_VA),
+                      None)
+        backs.append(target)
+    return backs
 
 
 def upgrade_preview_targets(code, va):

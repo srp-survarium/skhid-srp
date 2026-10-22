@@ -2899,6 +2899,10 @@ va	name	location	role	basis
 0x003119a0	survarium::artefact_spring_core::serialize	stack+8	secondary_context	inferred
 0x003119e0	survarium::artefact_spring_core::deserialize	ECX	artefact	inferred
 0x003119e0	survarium::artefact_spring_core::deserialize	stack+4	reader	inferred
+0x00311bc0	survarium::artefact_spring_core::add_active_modifiers	EAX	the Spring (its active nodes at +360h, +370h, +380h)	observed
+0x00311da0	survarium::artefact_spring_core::remove_active_modifiers	stack+4	the Spring	observed
+0x00312250	survarium::artefact_lifebone_core::enable_active_effects	ECX	the Lifebone	observed
+0x00312250	survarium::artefact_lifebone_core::enable_active_effects	stack+4	the time (the slot is scratch after 0x3122E2)	observed
 0x00312470	survarium::artefact_lifebone_core::serialize	ECX	artefact	inferred
 0x00312470	survarium::artefact_lifebone_core::serialize	stack+4	writer	inferred
 0x00312470	survarium::artefact_lifebone_core::serialize	stack+8	secondary_context	inferred
@@ -2909,6 +2913,9 @@ va	name	location	role	basis
 0x00312a80	survarium::artefact_onyx_core::serialize	stack+8	secondary_context	inferred
 0x00312af0	survarium::artefact_onyx_core::deserialize	ECX	artefact	inferred
 0x00312af0	survarium::artefact_onyx_core::deserialize	stack+4	reader	inferred
+0x00313300	survarium::artefact_base::action	ECX	the artefact	observed
+0x00313300	survarium::artefact_base::action	stack+4	bool pressed	observed
+0x00313300	survarium::artefact_base::action	stack+8	the time	observed
 0x00313670	survarium::artefact_base::serialize	ECX	artefact	inferred
 0x00313670	survarium::artefact_base::serialize	stack+4	writer	inferred
 0x00313670	survarium::artefact_base::serialize	stack+8	optional_effect_serialization_context	inferred
@@ -3061,6 +3068,9 @@ va	name	location	role	basis
 0x00329a70	survarium::player_stamina::sprint	stack+4	time_ms	inferred
 0x00329c60	survarium::player_stamina::is_overburdened	EDI	stamina	inferred
 0x00329c60	survarium::player_stamina::is_overburdened	stack+4	carried_weight	inferred
+0x0032a420	survarium::body_part::increase_health	ESI	the pool (Hmax +9Ch, H +0A0h)	observed
+0x0032a420	survarium::body_part::increase_health	stack+4	the time	observed
+0x0032a420	survarium::body_part::increase_health	stack+8	float amount added, H clamped to [0, Hmax]	observed
 0x0032ae00	survarium::body_part_parameters::serialize	ECX	body_part_parameters	inferred
 0x0032ae00	survarium::body_part_parameters::serialize	stack+4	writer	inferred
 0x0032afe0	survarium::body_part_parameters::deserialize	ECX	body_part_parameters	inferred
@@ -3171,6 +3181,8 @@ va	name	location	role	basis
 0x0033a6a0	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression	stack+12	substate context	inferred
 0x0033a6a0	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression	stack+20	metadata output pointer	inferred
 0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	EDX	throw-grenade state	inferred
+0x0033acf0	survarium::artefact_spring_core::config::config	ESI	the config (Spring+340h): five modifier nodes and the duration ms	observed
+0x0033acf0	survarium::artefact_spring_core::config::config	stack+4	the item config's data value	observed
 0x0033cac0	survarium::medkit::medkit	stack+4	medkit receiver	inferred
 0x0033cac0	survarium::medkit::medkit	EAX	configuration	inferred
 0x0033d2b0	survarium::medkit::`scalar deleting destructor'	ECX	medkit receiver	inferred

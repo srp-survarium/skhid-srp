@@ -402,6 +402,12 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     it calls, each slot of the rule's and the cook's vtables that is ours
     pops what tdm_rule_core's (0xA15DA4) and tdm_rule_cook's (0x9FD8AC)
     pops. check_research_026g.py runs the hooks, the cook and the rule.
+54. the same build: the artefacts (patch 54, artefacts_026g.asm on
+    `.srpw`'s third page): the original's five sites (Spring's loader and
+    its keys, the active's link and unlink, Lifebone's enable_active after
+    its remove_affects, artefact_base::action's activation) and the two
+    sizes of a Spring, the hooks and sizes in the build, the code, its exits
+    and calls, its two names. check_artefacts_026g.py runs it.
 """
 
 import ctypes
@@ -695,6 +701,14 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.upgrade_preview_bin(), "rb").read(),
           f"{os.path.basename(P.upgrade_preview_bin())} is current ({len(fresh)} bytes)")
+    artefacts = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.ARTEFACTS_OFFSET
+    with tempfile.TemporaryDirectory() as tmp:
+        out = os.path.join(tmp, "out.bin")
+        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={artefacts:#x}",
+                        os.path.join(HERE, "artefacts_026g.asm"), "-o", out], check=True, timeout=60)
+        fresh = open(out, "rb").read()
+    check(fresh == open(P.artefacts_bin(), "rb").read(),
+          f"{os.path.basename(P.artefacts_bin())} is current ({len(fresh)} bytes)")
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.WEAPON_DRAW_VA:#x}", f"-DSTATE={state:#x}",
@@ -1493,7 +1507,9 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.WEAPON_TABLE_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.WEAPON_DECALS_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.UPGRADE_PREVIEW_HOOKS] + \
-        [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS]
+        [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
+        [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES]
 
 
 def pickup_sites():
@@ -3837,6 +3853,98 @@ def test_stage_focus(original, image, before):
           "stay inside)" + "".join(f", {h:#x}" for h in hits + under))
 
 
+def test_artefacts(original, image, before):
+    """Check 54: the artefacts (patch 54, ARTEFACTS_*). check_artefacts_026g.py
+    runs Spring's loader and links, Lifebone's active and the action with
+    the game's own code on made-up artefacts."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    cstr = lambda va: stock.read(va, 32).split(b"\0")[0]
+    check(rows(stock, 0x33AD3B, 0x39) == [
+              "call 0xf6b10", "mov edi,0xa1c218", "call 0xf6b10", "cmp word [eax+0x14],byte +0x2", "jnz 0x33ad57",
+              "movss xmm0,dword [eax]", "jmp short 0x33ad5b", "cvtsi2ss xmm0,dword [eax]", "mov edi,0xa1c230",
+              "mov eax,ebx", "mov [esi+0x10],ebp", "mov [esi+0x14],ebp", "mov dword [esi+0x18],0x5",
+              "movss dword [esi+0x1c],xmm0"]
+          and rows(stock, 0x33AE06, 0x1E) == [
+              "mov edi,0xa1c230", "mov eax,ebx", "mov [esi+0x40],ebp", "mov [esi+0x44],ebp",
+              "mov dword [esi+0x48],0x13", "movss dword [esi+0x4c],xmm0", "call 0xf6b10"]
+          and [cstr(va) for va in (0xA1C1FC, 0xA1C218, 0xA1C230, 0x9FD6C4)]
+          == [b"passive", b"max_carried_weight_mod", b"active", b"data"],
+          "Spring's loader (0x33ACF0, esi = the config at +340h, ebx = `data`): the passive's second node is "
+          "max_carried_weight (5) from `passive/max_carried_weight_mod` (0xA1C218), the active's third (+40h, "
+          "index 13h at 0x33AE13) before the duration's lookup in `active` (0xA1C230)")
+    check(rows(stock, 0x311BC0, 10) == ["push ebx", "push esi", "mov esi,eax", "mov eax,[esi+0x250]"]
+          and rows(stock, 0x311DA0, 5) == ["push ebx", "mov ebx,[esp+0x8]"]
+          and stock.read(0x311946, 5) == b"\xE8" + struct.pack("<i", 0x311BC0 - 0x31194B)
+          and stock.read(0x311974, 5) == b"\xE8" + struct.pack("<i", 0x311DA0 - 0x311979),
+          "the link of Spring's active nodes (0x311BC0, eax = the Spring, called by enable_active 0x311946) and "
+          "their unlink (0x311DA0, stdcall, called by disable_active 0x311974)")
+    check(rows(stock, 0x31227B, 0x3B)[-6:] == ["add esi,byte +0x20", "cmp esi,ebx", "jnz 0x312282", "pop ebp",
+                                              "mov ecx,[edi+0x250]", "mov ecx,[ecx+0x174]"]
+          and stock.read(0x312279, 2) == bytes.fromhex("742f"),
+          "Lifebone's enable_active (0x312250): its remove_affects loop and the way around it both reach "
+          "0x3122AA `mov ecx,[edi+0x250]` with the function's four pushes")
+    check(rows(stock, 0x313300, 0x45) == [
+              "push esi", "mov esi,ecx", "cmp dword [esi+0x280],byte +0x3", "jnz 0x313344",
+              "cmp byte [esp+0x8],0x0", "jz 0x313344", "cmp dword [esi+0x28c],byte +0x0", "jnz 0x313344",
+              "mov eax,[esi]", "mov edx,[eax+0x80]", "push edi", "mov edi,[esp+0x10]", "push edi", "call edx",
+              "push edi", "push esi", "call 0x313350", "mov [esi+0x2a0],edi", "mov dword [esi+0x280],0x4",
+              "pop edi", "pop esi"],
+          "artefact_base::action (0x313300): a press of one in its passive (state 3) with no cooldown calls "
+          "its enable_active, its effect, keeps the time and sets state 4 at 0x313339")
+    for va, old, new in P.ARTEFACTS_SIZES:
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
+              f"{va:#x}: a Spring's size {struct.unpack('<I', old[1:])[0]:#x} in the original and the build "
+              f"without the late join, {P.ARTEFACTS_SPRING_SIZE:#x} here")
+    check(rows(stock, 0x25E7A6, 8) == ["pop edi", "pop esi", "mov eax,0x3b8", "pop ebx"]
+          and stock.read(0x25EA4F, 10) == bytes.fromhex("c78398030000a442a000")
+          and stock.read(0x25EA83, 6) == bytes.fromhex("8983b4030000"),
+          "the size of artefact<artefact_spring_core> (0x25E770, type 6), whose constructor 0x25EA10 fills "
+          "+398h..+3B7h; the bare core's (0x2EEA30) is 398h")
+    artefacts_va = P.weapon_camo_va(open(P.late_join_bin(), "rb").read()) + P.ARTEFACTS_OFFSET
+    for va, old, offset, opcode in P.ARTEFACTS_HOOKS:
+        hook = P.hook_bytes(artefacts_va, va, old, offset, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`jmp {artefacts_va + offset:#x}` here")
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(va - 4 < v < va + len(old) for va, old, _, _ in P.ARTEFACTS_HOOKS + tuple(
+                 (s, o, 0, 0) for s, o, _ in P.ARTEFACTS_SIZES))]
+    hits = [h for va, old, _, _ in P.ARTEFACTS_HOOKS for h in aimed_inside(original, va, len(old), 0x82)
+            if not va <= h < va + len(old) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside a hook"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = open(P.artefacts_bin(), "rb").read()
+    check(image.read(artefacts_va, len(code)) == code,
+          f"the code at {artefacts_va:#x} is artefacts_026g.section.bin ({len(code)} bytes)")
+    listing = ndisasm(code, artefacts_va)
+    names = code.index(b"aim_time_mod\0")
+    listing = [row for row in listing if row[0] < artefacts_va + names]
+    texts = [text for _, _, text in listing]
+    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
+                      and not artefacts_va <= branch_target(t) < artefacts_va + len(code)})
+    check(P.artefacts_backs(code, artefacts_va) == list(P.ARTEFACTS_BACKS)
+          and outside == sorted(set(P.ARTEFACTS_BACKS) | {0xF6B10, 0x2D5D00, 0x2D5AE0, 0x2E58B0, 0x32A420}),
+          "its five entries go on where they came from (" + ", ".join(hex(a) for a in P.ARTEFACTS_BACKS)
+          + "); it calls the config lookup 0xF6B10, the unlink 0x2D5D00, the getter 0x2D5AE0, the pool "
+          "lookup 0x2E58B0 and increase_health 0x32A420, and nothing else outside")
+    heals = artefacts_va + names + 47
+    check(code[names:] == b"aim_time_mod\0stopping_power_mod\0pain\0body\0head\0"
+          + struct.pack("<III", *(artefacts_va + names + at for at in (32, 37, 42)))
+          and f"mov ebp,{artefacts_va + names + 13:#x}" in texts
+          and f"mov ebp,{artefacts_va + names:#x}" in texts and f"mov ebx,{heals:#x}" in texts
+          and f"cmp ebx,{heals + 12:#x}" in texts and "mov edi,0xa1c1fc" in texts and "mov edi,0xa1c230" in texts,
+          "its data: the keys aim_time_mod (in `passive` 0xA1C1FC and `active` 0xA1C230) and "
+          "stopping_power_mod (in `active`), and the pools Lifebone's active fills (pain, body, head)")
+    check(rows(stock, 0x2DBD86, 0x1E) == ["xorps xmm1,xmm1", "movss xmm2,dword [esi+0x31c]", "comiss xmm2,xmm0",
+                                          "lea eax,[esi+0x31c]", "jna 0x2dbda0", "lea eax,[esp+0x14]",
+                                          "movss xmm0,dword [eax]"]
+          and "jna near 0x2dbd89" in rows(stock, 0x2DBCF9, 6)
+          and stock.read(0x2D8FE3, 7) == bytes.fromhex("8bc7e8e62c0000"),
+          "the player's stagger (0x2DBCD0, eax = the player, from its tick 0x2D8FE5): xmm0 the recent hits' "
+          "stopping power, from the loop or none (0x2DBCF9) at 0x2DBD89, -min(it, [+31Ch]) the slow")
+
+
 def test_spot(original, image, before):
     """Check 38: spotting (patch 38, SPOT_*). check_spot_026g.py runs the
     input apply with the game's own spottable code on made-up hits."""
@@ -4696,6 +4804,7 @@ def test_late_join(original, without, server, source):
     camo = camo + b"\xCC" * (P.WEAPON_TABLE_OFFSET - len(camo)) + open(P.weapon_table_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.WEAPON_DECALS_OFFSET - len(camo)) + open(P.weapon_decals_bin(), "rb").read()
     camo = camo + b"\xCC" * (P.UPGRADE_PREVIEW_OFFSET - len(camo)) + open(P.upgrade_preview_bin(), "rb").read()
+    camo = camo + b"\xCC" * (P.ARTEFACTS_OFFSET - len(camo)) + open(P.artefacts_bin(), "rb").read()
     name_w, rva_w, vsize_w, raw_w, rsize_w, flags_w = sections[-2]
     check(name_w == P.WEAPON_CAMO_NAME and flags_w == P.WEAPON_CAMO_CHARACTERISTICS
           and rva_w == align(rva_c + vsize_c, headers.section_alignment) and P.IMAGE_BASE + rva_w == P.weapon_camo_va(code)
@@ -4705,7 +4814,8 @@ def test_late_join(original, without, server, source):
           f"weapon_stash_026g.section.bin at +{P.WEAPON_STASH_OFFSET:#x}, int3 padding and "
           f"weapon_table_026g.section.bin at +{P.WEAPON_TABLE_OFFSET:#x}, int3 padding and "
           f"weapon_decals_026g.section.bin at +{P.WEAPON_DECALS_OFFSET:#x}, int3 padding and "
-          f"upgrade_preview_026g.section.bin at +{P.UPGRADE_PREVIEW_OFFSET:#x} ({len(camo)} bytes), "
+          f"upgrade_preview_026g.section.bin at +{P.UPGRADE_PREVIEW_OFFSET:#x}, int3 padding and "
+          f"artefacts_026g.section.bin at +{P.ARTEFACTS_OFFSET:#x} ({len(camo)} bytes), "
           "code | execute | read, on the page after .srpc, its file bytes right after .srpc's")
     research = open(P.research_bin(), "rb").read()
     research = research + b"\xCC" * (P.RESEARCH_STATE_OFFSET - len(research)) + bytes(P.RESEARCH_SIZE - P.RESEARCH_STATE_OFFSET)
@@ -4880,6 +4990,7 @@ def test_late_join(original, without, server, source):
     test_tab_list(original, image, before)
     test_tab_self(original, image, before)
     test_spot(original, image, before)
+    test_artefacts(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)
