@@ -33,6 +33,9 @@ data: `scripts/content-edit/golden-weapons-1.json`; the lobby: `ItemDictId` (the
     two would make.
 - **Gold background:** golden weapons keep it in the shop and the inventory (the lobby knows
   them by its list, not by the item's rarity, which is 0 now).
+- **Gold name** (owner 2026-10-22): a golden weapon's name is gold (`Colors.GOLD`) in the shop,
+  the inventory and the item card, whatever its rank. A shop entry keeps rank 0 although it shows
+  the silver bonus: the shop's buy options are off for an item with a rank.
 - **Weapons owned before:** at the first start of the srp with this rule each golden weapon gets
   the silver bonus as its first modification, once (`g26_meta` `golden_silver_given`, written
   only after the changed accounts are; an account not written stops srp, and the next start

@@ -8,6 +8,7 @@ package survarium.controls
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.interfaces.IDataRenderer;
    import survarium.constants.Colors;
+   import survarium.item.ItemFactory;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
    import survarium.data.ItemData;
@@ -248,6 +249,11 @@ package survarium.controls
          else
          {
             nameColor = Colors.LIGHT_GRAY;
+         }
+         // Skhid: a golden weapon's name is gold, whatever its rank (golden_weapons.md)
+         if(ItemFactory.isGolden(item.dictId))
+         {
+            nameColor = Colors.GOLD;
          }
          this.itemName.textField.textColor = nameColor;
          this.itemName.text = item.name;
