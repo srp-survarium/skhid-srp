@@ -938,8 +938,9 @@ impl Modifications {
     }
 
     /// What the modifications of one item add to a match's pay: its own
-    /// and its defaults (the premium copies of weapons and armour carry
-    /// 1230..=1280 as defaults).
+    /// and its defaults (in the game's data the premium copies of weapons
+    /// and armour carried 1230..=1280 as defaults; srp makes them their own
+    /// modifications, `super::golden`).
     pub fn bonuses(&self, dict_id: u16, modifications: &[(u32, bool)]) -> Bonuses {
         let defaults = item_params(dict_id).map_or(&[][..], |params| params.default_modifications);
         let own = modifications

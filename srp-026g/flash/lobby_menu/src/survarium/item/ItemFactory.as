@@ -160,52 +160,91 @@ package survarium.item
          return category == ItemCategory.SCOPES ? SuperCategory.UPGRADES : getCategory(category);
       }
       
+      // A golden item: a golden weapon or a premium armour piece (golden::is_golden).
       public static function isGolden(dictId:int) : Boolean
       {
-         return ItemDictId.GOLDEN_WEAPONS.indexOf(dictId) != -1;
+         return ItemDictId.GOLDEN_WEAPONS.indexOf(dictId) != -1 || ItemDictId.PREMIUM_ARMOUR.indexOf(dictId) != -1;
       }
       
-      // A golden weapon's plain weapon; anything else itself.
+      // A golden item's plain item; anything else itself.
       public static function plainOf(dictId:int) : int
       {
          var index:int = ItemDictId.GOLDEN_WEAPONS.indexOf(dictId);
-         return index == -1 ? dictId : int(ItemDictId.GOLDEN_PLAIN[index]);
+         if(index != -1)
+         {
+            return int(ItemDictId.GOLDEN_PLAIN[index]);
+         }
+         index = ItemDictId.PREMIUM_ARMOUR.indexOf(dictId);
+         return index == -1 ? dictId : int(ItemDictId.PREMIUM_ARMOUR_PLAIN[index]);
       }
       
-      // Modification 1230, +10 % silver, as the exe gives the movie a modification ({state, icon,
-      // name, props} from its ui_desc; the name is unused for a modification): the one srp gives a
-      // new golden weapon, in its first place (golden::starting_modifications). A test holds these
-      // to the data (survarium::v026g::golden::tests).
-      public static const GOLDEN_SILVER_ICON:int = 66;
+      // The bonuses srp gives a new golden item as its own first modifications
+      // (golden::starting_modifications), as the exe gives the movie a modification ({state, icon,
+      // name, props} from its ui_desc; the name is unused for a modification): [id, icon, prop_id,
+      // prop_value] a line. A test holds these to the data (survarium::v026g::golden::tests).
+      public static const BONUS_UI:Array = [
+         [1230,66,126,"0.10"], // +10 % silver
+         [1240,65,127,"0.05"], // +5 % experience
+         [1250,67,128,"0.05"], // +5 % reputation with the Scavengers
+         [1260,68,129,"0.05"] // +5 % reputation with the Black Market
+      ];
       
-      public static const GOLDEN_SILVER_PROP_ID:int = 126;
+      public static const SILVER_BONUS:int = 1230;
       
-      public static const GOLDEN_SILVER_PROP_VALUE:String = "0.10";
+      // Modification id as the exe gives it to the movie, of BONUS_UI; null for another id.
+      public static function bonusModifier(id:int) : Object
+      {
+         var row:Array;
+         for each(row in BONUS_UI)
+         {
+            if(row[0] == id)
+            {
+               return {
+                  state:ModificationState.MODIFICATION,
+                  icon:row[1],
+                  props:[{
+                     prop_id:row[2],
+                     prop_value:row[3]
+                  }]
+               };
+            }
+         }
+         return null;
+      }
       
       // The modifications of its own a new item of dictId has, as srp gives them
-      // (golden::starting_modifications): the silver bonus for a golden weapon, none for anything
-      // else. For entries of items not owned (the shop's, a bundle's contents); an owned item has
-      // the server's.
+      // (golden::starting_modifications): the silver bonus for a golden weapon, its premium bonuses
+      // for a premium armour piece, none for anything else. For entries of items not owned (the
+      // shop's, a bundle's contents); an owned item has the server's.
       public static function startingModifiers(dictId:int) : Array
       {
-         if(!isGolden(dictId))
+         var ids:Array;
+         if(ItemDictId.GOLDEN_WEAPONS.indexOf(dictId) != -1)
          {
-            return [];
+            ids = [SILVER_BONUS];
          }
-         return [{
-            state:ModificationState.MODIFICATION,
-            icon:GOLDEN_SILVER_ICON,
-            props:[{
-               prop_id:GOLDEN_SILVER_PROP_ID,
-               prop_value:GOLDEN_SILVER_PROP_VALUE
-            }]
-         }];
+         else
+         {
+            var index:int = ItemDictId.PREMIUM_ARMOUR.indexOf(dictId);
+            if(index == -1)
+            {
+               return [];
+            }
+            ids = ItemDictId.PREMIUM_ARMOUR_BONUSES[index];
+         }
+         var modifiers:Array = [];
+         var id:int;
+         for each(id in ids)
+         {
+            modifiers.push(bonusModifier(id));
+         }
+         return modifiers;
       }
       
       // Whether an item of donorDictId may be used up to upgrade one of
       // itemDictId, as the server has it (golden::may_donate): the same
-      // item, or for a golden weapon its plain weapon and its other golden
-      // copies; never a golden weapon for a plain one.
+      // item, or for a golden item its plain item and its other golden
+      // copies; never a golden item for a plain one.
       public static function isCraftDonor(donorDictId:int, itemDictId:int) : Boolean
       {
          return donorDictId == itemDictId || isGolden(itemDictId) && plainOf(donorDictId) == plainOf(itemDictId);
@@ -313,7 +352,7 @@ package survarium.item
          item.modifiers = description.modifiers;
          item.modifiersDefault = description.modifiers;
          item.rank = description.rarity_level;
-         // A golden weapon keeps its gold background with no descriptor rarity.
+         // A golden item keeps its gold background with no descriptor rarity.
          item.fromBundle = item.rank > 0 || isGolden(dictId);
          var defaultCount:uint = item.modifiersDefault.length;
          var i:uint = 0;

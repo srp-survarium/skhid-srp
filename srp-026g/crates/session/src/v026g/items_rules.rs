@@ -81,6 +81,11 @@
 //!   made ([`Account::add_item`]) and once to those owned before
 //!   ([`give_golden_silver`]); from then on it rerolls, crafts and counts
 //!   for the rank as any modification.
+//! - **Premium armour** ([`golden::PREMIUM_ARMOUR`], the owner's rule of
+//!   2026-10-22): the same, with its two premium bonuses (+5 % experience,
+//!   +5 % reputation with its faction) as its own first modifications,
+//!   given once to those owned before ([`give_premium_armour_bonuses`]);
+//!   its plain piece is its donor as a golden weapon's plain weapon is.
 //! - **Repair.** In silver: what the window shows,
 //!   `(1 - condition) * repair_cost_ratio * cost` and each defect's
 //!   `fix_cost_general`, and the item is locked for the defects'
@@ -748,7 +753,7 @@ pub fn craft(
             if golden::is_golden(donor.dict_id)
                 && golden::kin(donor.dict_id) == golden::kin(item.dict_id)
             {
-                "a golden weapon is no donor for a plain one"
+                "a golden item is no donor for a plain one"
             } else {
                 "the donor is another item"
             },
@@ -1007,15 +1012,16 @@ pub fn mend_all(account: &mut Account) -> usize {
     mended.len()
 }
 
-/// What [`give_golden_silver`] did to one account.
+/// What [`give_golden_silver`] or [`give_premium_armour_bonuses`] did to
+/// one account.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct GoldenSilver {
-    /// The golden weapons that got the silver bonus as their first
-    /// modification.
+pub struct GoldenGrant {
+    /// The items that got a bonus (all they lacked that fit) as their own
+    /// first modifications.
     pub given: Vec<u32>,
-    /// Golden weapons that already had three modifications of their own:
-    /// a fourth would be cut at the next load (`make_safe`), so they keep
-    /// theirs; for the log.
+    /// Items with no place left for a bonus they lack (three modifications
+    /// of their own): a fourth would be cut at the next load
+    /// (`make_safe`), so they keep theirs; for the log.
     pub full: Vec<u32>,
 }
 
@@ -1024,12 +1030,12 @@ pub struct GoldenSilver {
 /// modification of its type already. Once in the database's life, for the
 /// golden weapons owned before the rule (their silver was a default of
 /// the item's config, which the golden-weapons patch takes off).
-pub fn give_golden_silver(account: &mut Account) -> GoldenSilver {
+pub fn give_golden_silver(account: &mut Account) -> GoldenGrant {
     let table = Modifications::shared();
     let silver_kind = table.modification(golden::SILVER_BONUS).map(|row| row.kind);
-    let mut done = GoldenSilver::default();
+    let mut done = GoldenGrant::default();
     for item in &mut account.inventory {
-        if !golden::is_golden(item.dict_id) {
+        if !golden::is_golden_weapon(item.dict_id) {
             continue;
         }
         let held = own_modifications(item);
@@ -1045,6 +1051,58 @@ pub fn give_golden_silver(account: &mut Account) -> GoldenSilver {
         }
         item.modifications.insert(0, (golden::SILVER_BONUS, false));
         done.given.push(item.item_id);
+    }
+    for &item_id in &done.given {
+        bump_kits_wearing(account, item_id);
+    }
+    if !done.given.is_empty() {
+        account.sync_kits();
+    }
+    done
+}
+
+/// The premium armour pieces of the account (`survarium::v026g::golden::
+/// PREMIUM_ARMOUR`) get each premium bonus they lack as their own
+/// modification, first and in the table's order; a bonus is lacking when
+/// the piece holds no modification of its type. Once in the database's
+/// life, for the pieces owned before the rule (their bonuses were defaults
+/// of the item's config, which the premium-armour patch takes off). A
+/// piece with no place left for a bonus it lacks (three of its own) gets
+/// those that fit and is listed in `full`.
+pub fn give_premium_armour_bonuses(account: &mut Account) -> GoldenGrant {
+    let table = Modifications::shared();
+    let kind = |id: u32| table.modification(id).map(|row| row.kind);
+    let mut done = GoldenGrant::default();
+    for item in &mut account.inventory {
+        let Some(bonuses) = Dictionary::shared()
+            .item(item.dict_id)
+            .and_then(|entry| golden::armour_bonuses(&entry.name))
+        else {
+            continue;
+        };
+        let mut held = own_modifications(item);
+        let (mut given, mut short) = (0, false);
+        for &bonus in bonuses {
+            let lacking = !held
+                .iter()
+                .any(|&id| id == bonus || (kind(id).is_some() && kind(id) == kind(bonus)));
+            if !lacking {
+                continue;
+            }
+            if held.len() >= MAX_RANK {
+                short = true;
+                continue;
+            }
+            item.modifications.insert(given, (bonus, false));
+            held.push(bonus);
+            given += 1;
+        }
+        if given > 0 {
+            done.given.push(item.item_id);
+        }
+        if short {
+            done.full.push(item.item_id);
+        }
     }
     for &item_id in &done.given {
         bump_kits_wearing(account, item_id);

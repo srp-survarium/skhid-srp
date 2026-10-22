@@ -1,0 +1,19 @@
+{
+ "_about": "Premium armour, release 1 (2026-10-22, srp-026g/docs/notes/premium_armour.md). The owner: give the premium armour the golden weapons' treatment, so that its bonuses can be rerolled. The four pieces (the Bandit bundle's jacket and trousers, the Survivor bundle's; every armour config with a base rarity) had the plain piece's one default (1030 a pocket, 1050 an ammo bag, 1160 2 % less stamina spent) and two premium bonuses as defaults: 1240 (+5 % experience) and 1250 / 1260 (+5 % reputation with the Scavengers / the Black Market). The two premium bonuses go (srp gives each piece both as modifications of its own, the first two, so they count for the rank and can be rerolled; the client never offers a default for a reroll); the plain piece's default stays, as the plain piece has it; base_rarity_level 3 -> 0 (the plain pieces' value: the lobby's rank is min(3, base_rarity_level + modifications), so a base of 3 forbade every craft).",
+ "set": [
+  {"file": "gameplay/items/armour/torso/scavenger_torso_4_premium.options", "path": "parameters/base_rarity_level", "from": 3, "to": 0},
+  {"file": "gameplay/items/armour/legs/scavenger_legs_4_premium.options", "path": "parameters/base_rarity_level", "from": 3, "to": 0},
+  {"file": "gameplay/items/armour/torso/blackmarket_torso_4_premium.options", "path": "parameters/base_rarity_level", "from": 3, "to": 0},
+  {"file": "gameplay/items/armour/legs/blackmarket_legs_4_premium.options", "path": "parameters/base_rarity_level", "from": 3, "to": 0}
+ ],
+ "remove_item": [
+  {"file": "gameplay/items/armour/torso/scavenger_torso_4_premium.options", "path": "default_modifications", "value": 1240},
+  {"file": "gameplay/items/armour/torso/scavenger_torso_4_premium.options", "path": "default_modifications", "value": 1250},
+  {"file": "gameplay/items/armour/legs/scavenger_legs_4_premium.options", "path": "default_modifications", "value": 1240},
+  {"file": "gameplay/items/armour/legs/scavenger_legs_4_premium.options", "path": "default_modifications", "value": 1250},
+  {"file": "gameplay/items/armour/torso/blackmarket_torso_4_premium.options", "path": "default_modifications", "value": 1240},
+  {"file": "gameplay/items/armour/torso/blackmarket_torso_4_premium.options", "path": "default_modifications", "value": 1260},
+  {"file": "gameplay/items/armour/legs/blackmarket_legs_4_premium.options", "path": "default_modifications", "value": 1240},
+  {"file": "gameplay/items/armour/legs/blackmarket_legs_4_premium.options", "path": "default_modifications", "value": 1260}
+ ]
+}

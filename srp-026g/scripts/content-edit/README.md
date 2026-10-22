@@ -227,3 +227,16 @@ no later patch has them): 4 files edited, 174 values, 0 unexpected differences, 
 in `release/build-content 28` (2026-10-22): the same, the four projects packed and the server game
 data with 6 on all 174 points.
 The simulation changes (its words in the `next` row of `simulation_changes.tsv`).
+
+## premium-armour-1.json (2026-10-22)
+
+| change | why |
+|---|---|
+| The four premium armour pieces (`blackmarket_torso_4_premium`, `blackmarket_legs_4_premium`, `scavenger_torso_4_premium`, `scavenger_legs_4_premium`: every armour config with a base rarity): 1240 (+5 % experience) and 1250 / 1260 (+5 % reputation with the Scavengers / the Black Market) taken off `default_modifications` (`remove_item`; the plain piece's one default, 1030, 1050 or 1160, stays), `parameters/base_rarity_level` 3 -> 0 | the owner: the golden weapons' treatment for the premium armour, so that the Modification button works on it. srp gives each piece both bonuses as modifications of its own, the first two ([`../../docs/notes/premium_armour.md`](../../docs/notes/premium_armour.md)): the client never offers a default for a reroll, and a base of 3 forbade every craft |
+
+Applied in `release/build-content 28` (2026-10-22, a dry run after v011e-spawn-protection-1): 4
+files edited, 0 unexpected differences (the four configs are patch 21's); the server game data built
+with it passes `srp-check-game-data`. srp and `release/build-server-db` refuse data without it
+(`golden::check`). The patch also carries the lobby movie built from the tree (the pieces' bonuses on
+shop and bundle entries, gold background and name, the plain piece as a craft donor). Not a
+simulation change.

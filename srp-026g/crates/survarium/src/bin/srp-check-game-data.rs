@@ -1,7 +1,7 @@
 //! `srp-check-game-data <server-game-data.db>`: checks the server's game
 //! data as `srp` does at start (`survarium::v026g::game_data::init`: every
-//! table, and the golden weapons' patch), so that `release/build-server-db`
-//! refuses data `srp` would refuse after the swap. Exit status 1 with the
+//! table, the golden weapons' and the premium armour's patches), so that
+//! `release/build-server-db` refuses data `srp` would refuse after the swap. Exit status 1 with the
 //! reason when it is refused.
 
 use std::path::PathBuf;

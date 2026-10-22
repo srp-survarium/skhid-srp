@@ -280,7 +280,7 @@ package survarium.messages
                }
             }
             // A donor the server refuses (ItemFactory.isCraftDonor): a
-            // golden weapon is no donor for a plain one, which a swap of the
+            // golden item is no donor for a plain one, which a swap of the
             // two would make.
             else if(!ItemFactory.isCraftDonor(this.dragItemSlot2.data.dictId,this.dragItemSlot1.data.dictId))
             {
