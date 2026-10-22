@@ -2875,10 +2875,11 @@ does what no config of 0.26g could.
   modifier nodes (passive: movement speed, max_carried_weight, 0 in retail; active: movement
   speed, stamina regeneration and spending) and the duration; none is aim time. At 0x33AE13 (its
   active's third node) `artefacts_026g.asm` makes the passive's second node aim_time (49) with
-  `passive/aim_time_mod`, and fills a sixth node at +3B8h, aim_time with `active/aim_time_mod`.
-  That node is after a Spring's own fields: its two sizes (artefact<artefact_spring_core>
-  0x3B8 at 0x25E7A8, the bare core 0x398 at 0x2EEA74) become 0x3C8. The active's link
-  (0x311BC0) and unlink (0x311DA0) take it in and out with the three others, so it is linked
+  `passive/aim_time_mod`, and fills a sixth node at +3B8h, aim_time with `active/aim_time_mod`
+  (and a seventh at +3C8h, below). The two are after a Spring's own fields: its two sizes
+  (artefact<artefact_spring_core> 0x3B8 at 0x25E7A8, the bare core 0x398 at 0x2EEA74) become
+  0x3D8. The active's link (0x311BC0) and unlink (0x311DA0) take them in and out with the
+  three others, so they are linked
   exactly while they are (a deserialized active Spring links it through 0x311BC0 too). The
   getter (0x2D5AE0) sums a list's nodes: a stack of Springs adds up.
 - **No slow from bullets while a Spring is active.** A hit's stopping power slows its target:
@@ -2892,14 +2893,15 @@ does what no config of 0.26g could.
   them (0x3122AA, where the time is still its argument) the pools `pain`, `body` and `head` are
   found by name (0x2E58B0) and filled with increase_health (0x32A420, Hmax - H), as a medkit
   heals a pool (0x33D9C3).
-- **One press, every artefact of a kind.** artefact_base::action (0x313300) activates the
-  artefact pressed when it is in its passive with no cooldown; at 0x313339 (state 4) the code
-  presses every other artefact of the same class (vtable) in the inventory's artefact slots
-  (13..18) through its own action, as inventory::action presses an item of kind 1: the ready
-  ones fire, one on its cooldown or already active does nothing. Different kinds keep their keys.
+- **One press, every artefact of a kind.** artefact_base::action (0x313300) activated the
+  artefact pressed only, when it was in its passive with no cooldown. At its entry a key-down
+  now activates the pressed one and every other artefact of the same class (vtable) and kind 1
+  in the inventory's artefact slots (13..18) that is ready, each as action does (enable_active,
+  its effect 0x313350, the time, state 4), and returns: a press of one cooling or active still
+  fires the ready ones. A key-up goes on in action. Different kinds keep their keys.
 
 The code is `artefacts_026g.asm` at +2700h of `.srpw` (its third page, after the upgrade
-preview's code; patch 53's `.srpx` still starts at .srpw + 3 pages): six `jmp near` entries, 709
+preview's code; patch 53's `.srpx` still starts at .srpw + 3 pages): six `jmp near` entries, 784
 bytes in all. No base relocation is under a site and nothing aims inside one. Only in the builds
 with the late join.
 
@@ -2909,7 +2911,7 @@ modifier), so a server asks for the release's revision, and
 `aim_time_mod` keys: it goes with the edit list's resources.db patch (patch 49 makes the release's
 exe require it). `../docs/notes/client_patch.md` section 3.51 has the proof.
 
-Checked: `selftest_026g.py` check 54 (the five sites and the two sizes before and after, no
+Checked: `selftest_026g.py` check 54 (the six sites and the two sizes before and after, no
 relocation or branch inside, the code, its exits and calls, its texts) and the `.srpw` layout;
 `check_artefacts_026g.py` (Unicorn, the game's own code: the loader with the config lookup on
 a binary config of the release's numbers, both Springs' links with the getter: aim time x0.95
@@ -2917,11 +2919,11 @@ passive, x0.85 active, x0.7 for two active Springs, speed x1.05 / x1.15 / x1.3; 
 enable_active with made-up pools: pain, body and head full, a limb, a full pool and a missing
 one left alone; an
 inventory of two Springs, an Onyx, a Spring cooling and one active: one press fires the ready
-Springs alone, the Onyx alone, a key-up nothing; the stagger with made-up hits: -0.45, -0.5 at
+Springs alone, the Onyx alone, a key-up nothing, a cooling Spring's key the ready one; the stagger with made-up hits: -0.45, -0.5 at
 most, an old hit out, and 0 with an active Spring in the build). The edited retail Spring config was read by
-the build's loader too (aim -0.05 / -0.1). Against the build of `main` 3ae20f2, the default
-build differs in the eight sites (0x25E7A9, 0x2EEA75, 0x2DBD89, 0x311BC0, 0x311DA0, 0x3122AA,
-0x313339, 0x33AE13), `.srpw`'s 709 bytes at 0xA42C700, its sizes and the headers that follow (compared
+the build's loader too (aim -0.05 / -0.1, stopping power -1). Against the build of `main`
+5d834b9, the default build differs in the eight sites (0x25E7A9, 0x2EEA75, 0x2DBD89,
+0x311BC0, 0x311DA0, 0x3122AA, 0x313300, 0x33AE13), `.srpw`'s 784 bytes at 0xA42C700, its sizes and the headers that follow (compared
 section by section). **Not run in a game.**
 
 ## Not ported, not done

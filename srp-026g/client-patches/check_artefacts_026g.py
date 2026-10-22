@@ -369,6 +369,14 @@ def run(data, patched):
     g.call(ACTION, (0, 1400), ecx=cooling)
     g.call(ACTION, (1, 1400), ecx=a)
     expect(g.pressed == [], "a key-up or an active one: nothing")
+    # A press of a cooling Spring's key, a ready one beside it: the ready one
+    # fires in the build, nothing in the original.
+    g.word(cooling + 0x28C, 500)
+    ready = artefact(13, spring_vt)
+    g.pressed = []
+    g.call(ACTION, (1, 1500), ecx=cooling)
+    expect(g.pressed == ([ready] if patched else []) and g.read(ready + 0x280) == (4 if patched else 3)
+           and g.read(cooling + 0x280) == 3, "a cooling one's key fires the ready one of its kind")
     return checks
 
 

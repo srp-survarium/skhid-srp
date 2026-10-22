@@ -430,9 +430,9 @@ Patches:
   42), so bullets do not slow an active Spring's holder. A
   Lifebone's active (0x312250) removed injuries only; after them it fills
   the pain, body and head pools (0x3122AA, increase_health as a medkit). An artefact's
-  activation (artefact_base::action 0x313300, at 0x313339) presses every
-  other artefact of its class in the artefact slots, so one key fires all
-  of a kind that are ready;
+  press (artefact_base::action 0x313300, at its entry) activates every
+  ready artefact of the pressed one's class in the artefact slots, so one
+  key fires all of a kind that are ready, even when the pressed one is not;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -1820,9 +1820,10 @@ WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries pa
 # - Lifebone's enable_active after its remove_affects, `mov ecx,[edi+250h]`
 #   at 0x3122AA: the pain, body and head pools filled to their maximum
 #   (increase_health, as a medkit);
-# - artefact_base::action having activated one, `mov dword [esi+280h],4` at
-#   0x313339: every other artefact of its class in the artefact slots is
-#   pressed too;
+# - artefact_base::action 0x313300 (`push esi / mov esi,ecx / cmp dword
+#   [esi+280h],3`, the entry): a key-down activates every ready artefact of
+#   the pressed one's class in the artefact slots, as action activates one,
+#   and returns; a key-up goes on in action;
 # - the player's stagger 0x2DBCD0, `movss xmm2,[esi+31Ch]` at 0x2DBD89 (the
 #   recent hits' stopping power summed): the sum times max(0, 1 + list 42),
 #   list 42 (artefact_synergy) being read by no code of 0.26g and set by no
@@ -1839,10 +1840,10 @@ ARTEFACTS_HOOKS = (
     (0x311BC0, bytes.fromhex("53568bf08b8650020000"), 0x5, 0xE9),  # Spring's active link
     (0x311DA0, bytes.fromhex("538b5c2408"), 0xA, 0xE9),            # Spring's active unlink
     (0x3122AA, bytes.fromhex("8b8f50020000"), 0xF, 0xE9),          # Lifebone's enable_active
-    (0x313339, bytes.fromhex("c7868002000004000000"), 0x14, 0xE9), # artefact_base::action: active
+    (0x313300, bytes.fromhex("568bf183be8002000003"), 0x14, 0xE9), # artefact_base::action: its entry
     (0x2DBD89, bytes.fromhex("f30f10961c030000"), 0x19, 0xE9),     # the player's stagger: its sum
 )
-ARTEFACTS_BACKS = (0x33AE1A, 0x311BCA, 0x311DA5, 0x3122B0, 0x313343, 0x2DBD91)  # where each goes on
+ARTEFACTS_BACKS = (0x33AE1A, 0x311BCA, 0x311DA5, 0x3122B0, 0x31330A, 0x2DBD91)  # where each goes on
 ARTEFACTS_SPRING_SIZE = 0x3D8                  # the active's two nodes at +3B8h and +3C8h
 ARTEFACTS_SIZES = (
     (0x25E7A8, bytes.fromhex("b8b8030000"), b"\xB8" + struct.pack("<I", ARTEFACTS_SPRING_SIZE)),
@@ -2993,7 +2994,7 @@ def artefacts_bin():
 
 
 def artefacts_backs(code, va):
-    """artefacts_026g.section.bin assembled at `va`: where each of its five
+    """artefacts_026g.section.bin assembled at `va`: where each of its six
     entries goes on (the target of the first `jmp near` back into .text
     after the entry's own code), when they are `jmp near`; else None."""
     if any(code[at] != 0xE9 for at in ARTEFACTS_ENTRIES):

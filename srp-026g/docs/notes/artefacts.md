@@ -17,6 +17,7 @@ Client patch 54 (README section 54, client_patch.md section 3.51) and the edit l
 - A press of an artefact's key fires every artefact of that kind in the slots that is ready
   (its passive, its cooldown 0): one key, all of a kind, their actives added up.
 - A copy on its cooldown or already active does nothing on that press; it is not fired later.
+- The key of a copy that is not ready still fires the ready ones of its kind.
 - Different kinds have their own keys and cooldowns: Onyx, Spring and Lifebone fire on their own.
 - Every game of the match computes this the same way (the press is an input).
 

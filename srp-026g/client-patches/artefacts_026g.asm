@@ -39,7 +39,8 @@ ORG CAVE
 %define LIFEBONE_BACK 0x3122B0     ; Lifebone's enable_active: its holder's modifiers, the timer
 %define FIND_POOL 0x2E58B0         ; eax = the damage model's pools, ecx = &name: eax = the pool or 0
 %define INCREASE_HEALTH 0x32A420   ; esi = a pool; (time, amount), `ret 8`
-%define ACTION_BACK 0x313343       ; artefact_base::action: `pop edi; pop esi; ret 8`
+%define ACTION_BACK 0x31330A       ; artefact_base::action after its state test: `jne 0x313344`
+%define EFFECT 0x313350            ; artefact_base's activation effect (the artefact, the time), `ret 8`
 %define AIM_TIME 0x31              ; the aim_time modifier's index (49)
 %define STOPPING 0x2A              ; list 42: the stagger's multiplier
 %define AIM_NODE 0x3B8             ; the active's aim_time node in a Spring
@@ -51,7 +52,7 @@ ORG CAVE
     jmp near link_active           ; +5  from 0x311BC0
     jmp near unlink_active         ; +10 from 0x311DA0
     jmp near lifebone_active       ; +15 from 0x3122AA
-    jmp near fire_kind             ; +20 from 0x313339
+    jmp near fire_kind             ; +20 from 0x313300
     jmp near stagger               ; +25 from 0x2DBD89
 
 ; The loader at 0x33AE13 `mov dword [esi+48h],13h` (the active's third
@@ -155,7 +156,7 @@ unlink:
     jmp UNLINK_NODE
 
 ; 0x311BC0 `push ebx; push esi; mov esi,eax; mov eax,[esi+250h]`, eax = the
-; Spring: its two nodes go in after the original's three.
+; Spring: its two nodes go in, then the function links its own three.
 link_active:
     pushad
     mov ebx, eax
@@ -247,17 +248,20 @@ lifebone_active:
     mov ecx, [edi+0x250]
     jmp LIFEBONE_BACK
 
-; artefact_base::action 0x313300 has activated this one (state 3, pressed,
-; no cooldown; enable_active, its effect, the time): at 0x313339
-; `mov dword [esi+280h],4`, esi = the artefact, edi = the time. Every other
-; artefact of the same class in the inventory's artefact slots is pressed
-; too, through its own action (vtable +2Ch, as inventory::action presses
-; an item of kind 1): those in their passive with no cooldown are activated;
-; the others do nothing. This one is active by then, so their presses of it
-; do nothing.
+; artefact_base::action 0x313300 (thiscall: pressed, the time; `ret 8`),
+; its first ten bytes `push esi; mov esi,ecx; cmp dword [esi+280h],3`. A
+; press (key-down) activates the one pressed and every other artefact of its
+; class (vtable) and kind 1 in the inventory's artefact slots that is ready,
+; each as action activates one, and returns: so a press of one cooling or
+; active still fires the ready ones of its kind. A key-up goes on as the
+; original (it does nothing).
 fire_kind:
-    mov dword [esi+0x280], 4
+    cmp byte [esp+4], 0
+    je .original
     pushad
+    mov esi, ecx                   ; the one pressed
+    mov edi, [esp+0x28]            ; the time (pushad 20h, the return, pressed)
+    call activate
     mov ebx, [esi+0x250]           ; the inventory
     test ebx, ebx
     jz .done
@@ -273,16 +277,42 @@ fire_kind:
     jne .next
     cmp dword [ecx+0x24C], 1
     jne .next
-    push edi                       ; the time
-    push 1                         ; pressed
-    call [eax+0x2C]
+    call activate
 .next:
     inc ebp
     cmp ebp, LAST_SLOT
     jbe .slot
 .done:
     popad
+    ret 8
+.original:
+    push esi
+    mov esi, ecx
+    cmp dword [esi+0x280], 3
     jmp ACTION_BACK
+
+; ecx = an artefact, edi = the time: if it is in its passive (state 3) with
+; no cooldown (+28Ch), activated as action does (0x31331C..0x313339): its
+; enable_active (vtable +80h), its effect, the time (+2A0h), state 4. Keeps
+; ebx, esi, edi and ebp.
+activate:
+    cmp dword [ecx+0x280], 3
+    jne .no
+    cmp dword [ecx+0x28C], 0
+    jne .no
+    push esi
+    mov esi, ecx
+    mov eax, [esi]
+    push edi
+    call [eax+0x80]
+    push edi
+    push esi
+    call EFFECT
+    mov [esi+0x2A0], edi
+    mov dword [esi+0x280], 4
+    pop esi
+.no:
+    ret
 
 aim_key:
     db "aim_time_mod", 0

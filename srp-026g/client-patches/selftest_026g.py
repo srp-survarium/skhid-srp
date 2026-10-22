@@ -403,11 +403,11 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     pops what tdm_rule_core's (0xA15DA4) and tdm_rule_cook's (0x9FD8AC)
     pops. check_research_026g.py runs the hooks, the cook and the rule.
 54. the same build: the artefacts (patch 54, artefacts_026g.asm on
-    `.srpw`'s third page): the original's five sites (Spring's loader and
+    `.srpw`'s third page): the original's six sites (Spring's loader and
     its keys, the active's link and unlink, Lifebone's enable_active after
-    its remove_affects, artefact_base::action's activation) and the two
-    sizes of a Spring, the hooks and sizes in the build, the code, its exits
-    and calls, its two names. check_artefacts_026g.py runs it.
+    its remove_affects, artefact_base::action's entry, the player's
+    stagger) and the two sizes of a Spring, the hooks and sizes in the
+    build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
 """
 
 import ctypes
@@ -3891,7 +3891,8 @@ def test_artefacts(original, image, before):
               "push edi", "push esi", "call 0x313350", "mov [esi+0x2a0],edi", "mov dword [esi+0x280],0x4",
               "pop edi", "pop esi"],
           "artefact_base::action (0x313300): a press of one in its passive (state 3) with no cooldown calls "
-          "its enable_active, its effect, keeps the time and sets state 4 at 0x313339")
+          "its enable_active, its effect, keeps the time and sets state 4 at 0x313339; its entry's ten bytes "
+          "are whole instructions, the jne after them at 0x31330A")
     for va, old, new in P.ARTEFACTS_SIZES:
         check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
               f"{va:#x}: a Spring's size {struct.unpack('<I', old[1:])[0]:#x} in the original and the build "
@@ -3924,10 +3925,12 @@ def test_artefacts(original, image, before):
     outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
                       and not artefacts_va <= branch_target(t) < artefacts_va + len(code)})
     check(P.artefacts_backs(code, artefacts_va) == list(P.ARTEFACTS_BACKS)
-          and outside == sorted(set(P.ARTEFACTS_BACKS) | {0xF6B10, 0x2D5D00, 0x2D5AE0, 0x2E58B0, 0x32A420}),
-          "its five entries go on where they came from (" + ", ".join(hex(a) for a in P.ARTEFACTS_BACKS)
+          and outside == sorted(set(P.ARTEFACTS_BACKS) | {0xF6B10, 0x2D5D00, 0x2D5AE0, 0x2E58B0, 0x32A420,
+                                                          0x313350}),
+          "its six entries go on where they came from (" + ", ".join(hex(a) for a in P.ARTEFACTS_BACKS)
           + "); it calls the config lookup 0xF6B10, the unlink 0x2D5D00, the getter 0x2D5AE0, the pool "
-          "lookup 0x2E58B0 and increase_health 0x32A420, and nothing else outside")
+          "lookup 0x2E58B0, increase_health 0x32A420 and the activation effect 0x313350, and nothing else "
+          "outside")
     heals = artefacts_va + names + 47
     check(code[names:] == b"aim_time_mod\0stopping_power_mod\0pain\0body\0head\0"
           + struct.pack("<III", *(artefacts_va + names + at for at in (32, 37, 42)))
