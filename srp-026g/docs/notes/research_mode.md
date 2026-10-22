@@ -64,8 +64,9 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
 - `projects/level_0N/<w>_5/client_project` (w day, evening, rain, prerain): 0.26g's `<w>_4`
   with what 0.27d's `_5` changed against its own `_4`: the units' props (chargers, antennas,
   turbines, transmitters, diesel generators, monitors: render visuals and collision objects),
-  their sounds and particles, the cover 0.27d added or took away at the units, 0.27d's mode-5
-  spawns. Four models 0.26g lacks come byte for byte from 0.27d (same format; their materials
+  their sounds, particles, lights and turning windmills, the cover 0.27d added or took away at the
+  units, 0.27d's mode-5 spawns and resupply zones, each object in the form 0.26g's of its type
+  have. Four models 0.26g lacks come byte for byte from 0.27d (same format; their materials
   are 0.26g's): the transmitter's cable corner, two box covers, level_01's tractor (0.27d moved
   it beside unit B for cover).
 - maps_dict: 145-149 (0.26g's own rows for `level_0{1,4,6,7,8}_day_5`, never with a file
@@ -87,8 +88,9 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   added, removed and left out, and the manifest row (`release/content.tsv`); the same inputs
   give the same pack.
 - Checked: `vostok-port pack check` over the stock db and patches 12 to 27; `release/build-content
-  29` with it (2026-10-22: one patch of 533 files, every file the manifest makes as it makes it,
-  the server data with 109 projects); `vostok-port pack probes`: no probe missing.
+  29` with it (2026-10-22: one patch, every file the manifest makes as it makes it, the server
+  data with 109 projects); `vostok-port pack probes`: no probe missing; `release/build-site` with
+  that patch (the Maps tab with the units).
 
 ## The exe (patch 52)
 
@@ -139,9 +141,8 @@ Left out, and why:
 - **0.46c2's `ctp` variants and sounds:** a later rework (other unit places per variant, new
   ui sounds); the owner asked for Research as it was released.
 - **The spawn's invulnerability zone** (`effect_zone`, 3 s): 0.26g's spawns give 6 s already.
-- **The props' point lights and the windmills' turning fans** (`light`, `skeleton_visual`):
-  0.26g's projects have no such objects.
-- **level_03's one extra anomaly in its mode-5 project:** 0.27d's anomaly format.
+- **level_03's reworked anomaly in its mode-5 project:** 0.27d's anomaly format; the map keeps
+  0.26g's (and the geometries its artefacts name).
 - **Badges, achievements, daily quests of the mode:** 0.26g has none of these systems.
 - **Map hints** (`st_map_hint_5_*`, 0.28a): the loading screen of 0.26g shows the description.
 - **The lobby's "Research" match filter checkbox** (0.27d `checkBoxCapture`): there is no

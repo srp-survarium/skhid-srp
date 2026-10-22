@@ -84,13 +84,8 @@ MODELS = ('item/quest/quest_stellage/transmitter/transmitter_cable_corner', 'pro
 LEFT_OUT = {
     'capturable_zone': 'the units: in the config (capture_zones), read by exe patch 52',
     'effect_zone': "the spawn's invulnerability zone: 0.26g's projects have none (the respawn points give 6 s)",
-    'light': "the props' point lights: 0.26g's projects place no light objects",
-    'skeleton_visual': "the windmills' turning fans: 0.26g's projects have no animated visuals",
     'generic_anomaly_core': "level_03's extra anomaly: 0.27d's anomaly format, not the mode's",
 }
-# Keys of 0.27d's objects 0.26g's of the same type have not.
-DROPPED_KEYS = {'is_enabled', 'offset', 'is_visible_in_editor', 'view_mode', 'shapes', 'collision_mask',
-                'radius', 'use_for_first_respawn', 'tc_tile'}
 
 
 def sha256(data):
@@ -251,30 +246,34 @@ def object_key(obj):
 
 
 def converted(obj, templates, where):
-    """A 0.27d object in 0.26g's form: the keys 0.26g's objects of its type have, `layer` default."""
+    """A 0.27d object in 0.26g's form: the keys 0.26g's objects of its type have (`is_enabled`
+    is 0.26g's `enabled`, `layer` default), none it has not; it must have every key each of
+    them has."""
     kind = obj.get('game_object_type')
-    template = templates.get(kind)
-    if template is None:
+    if kind not in templates:
         sys.exit(f'{where}: no 0.26g object of type {kind} to take the form of')
-    out = {key: value for key, value in obj.items() if key not in DROPPED_KEYS}
-    if 'layer' in template:
+    allowed, always = templates[kind]
+    out = {key: value for key, value in obj.items() if key in allowed}
+    if 'enabled' in allowed and 'enabled' not in out:
+        out['enabled'] = obj.get('is_enabled', True)
+    if 'layer' in allowed:
         out['layer'] = 'default'
-    if kind == 'collision_geometry' and 'meshes' not in out:
-        sys.exit(f"{where}: {obj.get('full_name')} has no meshes")
-    missing = set(template) - set(out) - {'enabled'}
-    if missing - {'layer'}:
+    missing = always - set(out)
+    if missing:
         sys.exit(f"{where}: {obj.get('full_name')} lacks {sorted(missing)} of 0.26g's {kind}")
     return out
 
 
 def templates_of(projects):
-    templates = {}
+    """By object type (respawn_point for the spawns): (every key a 0.26g object of the type has,
+    the keys all of them have)."""
+    seen = {}
     for project in projects:
         for obj in project['client_objects']:
-            templates.setdefault(obj.get('game_object_type'), obj)
+            seen.setdefault(obj.get('game_object_type'), []).append(set(obj))
         for point in project['server_objects']['respawn_points']:
-            templates.setdefault('respawn_point', point)
-    return templates
+            seen.setdefault('respawn_point', []).append(set(point))
+    return {kind: (set().union(*keys), set.intersection(*keys)) for kind, keys in seen.items()}
 
 
 def transplant(target, donor5, donor4, templates, where, log):
@@ -301,6 +300,13 @@ def transplant(target, donor5, donor4, templates, where, log):
     after = {object_key(o) for o in donor5['client_objects']}
     have = {object_key(o) for o in out['client_objects']}
     removed = (have & before) - after
+    # An object another object names (a geometry of an anomaly's artefact,
+    # whose anomaly 0.27d's level_03 reworked and the pack leaves as 0.26g
+    # has it) stays.
+    staying = json.dumps([o for o in out['client_objects'] if object_key(o) not in removed])
+    removed = {key for key in removed
+               if not any(object_key(o) == key and o.get('full_name') and json.dumps(o['full_name']) in staying
+                          for o in out['client_objects'])}
     kept = [o for o in out['client_objects'] if object_key(o) not in removed]
     left_out, added = {}, []
     for obj in donor5['client_objects']:
@@ -313,14 +319,13 @@ def transplant(target, donor5, donor4, templates, where, log):
         added.append(converted(obj, templates, where))
     out['client_objects'] = kept + added
     log.append(f'{where}: client_objects +{len(added)} -{len(removed)}, left out {dict(sorted(left_out.items()))}')
-    template = templates['respawn_point']
-    out['server_objects']['respawn_points'] = [
-        {**{k: v for k, v in point.items() if k not in DROPPED_KEYS}, **({'layer': 'default'} if 'layer' in template else {})}
-        for point in donor5['server_objects']['respawn_points']]
-    for point in out['server_objects']['respawn_points']:
-        missing = set(template) - set(point)
-        if missing:
-            sys.exit(f'{where}: a respawn point lacks {sorted(missing)}')
+    out['server_objects']['respawn_points'] = [converted({**point, 'game_object_type': 'respawn_point'}, templates, where)
+                                               for point in donor5['server_objects']['respawn_points']]
+    names = {o.get('full_name') for o in out['client_objects']}
+    for obj in out['client_objects']:
+        for link in obj.get('collision_geometries') or []:
+            if isinstance(link, dict) and link.get('name') not in names:
+                sys.exit(f"{where}: {obj.get('full_name')} names {link.get('name')}, which the project has not")
     return out
 
 
