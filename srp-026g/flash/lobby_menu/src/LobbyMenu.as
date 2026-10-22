@@ -2114,7 +2114,18 @@ package
          this.inventory_list.inventoryTabPage.enabled = true;
          this.inventory_list.updateItemCard = true;
          trace("closeModifierWindow::",this.item_control.mouseChildren);
+         // The keys go back to the lobby and the window leaves the display list (it was only
+         // hidden): the game turns the camera only when nothing of the movie is under the cursor
+         // (get_mouse_over) and no control has the keys (lobby.md, "The upgrade window's close").
+         if(stage != null && stage.focus != null && this.modifierWindow.contains(stage.focus as DisplayObject))
+         {
+            stage.focus = this;
+         }
          this.modifierWindow.visible = false;
+         if(this.modifierWindow.parent == this)
+         {
+            removeChild(this.modifierWindow);
+         }
          this.player_profile.visible = this.inventory_list.visible;
          this.dragRegion.mouseEnabled = true;
          if(this._upgradeShown)
