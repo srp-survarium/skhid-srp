@@ -220,6 +220,12 @@ package survarium.upgrade
          return instance._inventory.getInventoryItem(itemId);
       }
       
+      // The chosen kit's weapons (slots 1 and 2) by dictionary id, for a sight's card (weapon_scopes.md).
+      public static function kitWeapons() : Array
+      {
+         return Boolean(instance) && Boolean(instance._inventory) ? instance._inventory.kitWeaponDicts() : [];
+      }
+
       public static function wearers(item:Object) : Array
       {
          var wearer:Object = null;

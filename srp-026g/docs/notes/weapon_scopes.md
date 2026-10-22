@@ -136,6 +136,14 @@ in `crates/session/src/v026g/items_rules.rs`.
 Not needed: a client patch beyond patch 30, a simulation change (a scope is view-only), a server
 table in code.
 
+## 4a. A sight's card
+
+- A sight's card lists the weapons it goes on ("Can be installed on: …"). The weapons in the
+  chosen kit's slot 1 or slot 2 are gold in that list (owner 2026-10-22: "it should in gold
+  highlight your weapon, if it is in the list ... it should work for weapon being either in slot 1
+  or slot 2 in the currently selected profile"). The rest of the list stays as it was.
+- Code: `ItemInfoRenderer.scopeHintText`, `UpgradeWindow.kitWeapons`, `InventoryList.kitWeaponDicts`.
+
 ## 5. Weapon right-click menu
 
 The released revision 19/20 movie's `ItemCard` and `ItemControlPanel` already allow

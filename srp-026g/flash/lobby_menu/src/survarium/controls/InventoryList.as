@@ -1592,6 +1592,26 @@ package survarium.controls
          return this._inventoryItemsDict[itemId];
       }
       
+      // The dictionary ids of the weapons in the chosen kit's two weapon slots.
+      public function kitWeaponDicts() : Array
+      {
+         var ids:Array = [];
+         var pp:ILocalPlayerProfile = parent != null ? parent["player_profile"] as ILocalPlayerProfile : null;
+         if(pp == null || pp.paperDoll == null)
+         {
+            return ids;
+         }
+         for each(var slot:int in [ProfileSlot.WEAPON_1,ProfileSlot.WEAPON_2])
+         {
+            var weapon:ItemData = pp.paperDoll.getSlotAt(slot) != null ? pp.paperDoll.getSlotAt(slot).data as ItemData : null;
+            if(weapon != null)
+            {
+               ids.push(weapon.dictId);
+            }
+         }
+         return ids;
+      }
+
       public function getItemCount(dictId:uint) : uint
       {
          for(var i:uint = 0; i < this._inventoryItems.length; i++)
