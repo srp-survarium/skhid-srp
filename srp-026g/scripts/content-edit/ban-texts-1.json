@@ -1,0 +1,77 @@
+{
+ "_about": "What a banned player reads (the owner, 2026-10-22, after a player banned 1 h for friendly fire was shown \"You are banned (Use / distribution / advertisement of prohibited software). Pretending to be administrator of the game.\"). The client shows st_login_menu_status_user_banned then the reason text, joined with no space. The header named prohibited software for every ban: it becomes \"You are banned. \" (the space before the reason). st_ban_reason_administrator (0x1C, the login server ban code for a reason with none of its words) said the player pretended to be an admin: it becomes \"Decision of the administration.\", the neutral text srp meant it to be. Six localization tables each.",
+ "edit_text": [
+  {
+   "file": "localization/english/localization",
+   "path": "strings/st_login_menu_status_user_banned",
+   "from": "You are banned (Use / distribution / advertisement of prohibited software).",
+   "to": "You are banned. "
+  },
+  {
+   "file": "localization/german/localization",
+   "path": "strings/st_login_menu_status_user_banned",
+   "from": "Sie sind gesperrt (Nutzung / Verbreitung / Werbung vom illegales  Software verboten ist).",
+   "to": "Sie sind gesperrt. "
+  },
+  {
+   "file": "localization/polish/localization",
+   "path": "strings/st_login_menu_status_user_banned",
+   "from": "Zbanowano ciebie (Używanie / dystrybucja / reklamowanie zabronionego oprogramowania).",
+   "to": "Zbanowano ciebie. "
+  },
+  {
+   "file": "localization/russian/localization",
+   "path": "strings/st_login_menu_status_user_banned",
+   "from": "Вы забанены (Использование / распространение / реклама запрещенного ПО).",
+   "to": "Вы забанены. "
+  },
+  {
+   "file": "localization/original/localization",
+   "path": "strings/st_login_menu_status_user_banned",
+   "from": "Вы забанены (Использование / распространение / реклама запрещенного ПО).",
+   "to": "Вы забанены. "
+  },
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_login_menu_status_user_banned",
+   "from": "Ви забанені (Використання / поширення / реклама забороненого ПЗ).",
+   "to": "Ви забанені. "
+  },
+  {
+   "file": "localization/english/localization",
+   "path": "strings/st_ban_reason_administrator",
+   "from": "Pretending to be administrator of the game.",
+   "to": "Decision of the administration."
+  },
+  {
+   "file": "localization/german/localization",
+   "path": "strings/st_ban_reason_administrator",
+   "from": "Sich als Spieladministrator ausgegeben.",
+   "to": "Entscheidung der Administration."
+  },
+  {
+   "file": "localization/polish/localization",
+   "path": "strings/st_ban_reason_administrator",
+   "from": "Podawanie się za administratora gry.",
+   "to": "Decyzja administracji."
+  },
+  {
+   "file": "localization/russian/localization",
+   "path": "strings/st_ban_reason_administrator",
+   "from": "Выдача себя за администратора игры.",
+   "to": "Решение администрации."
+  },
+  {
+   "file": "localization/original/localization",
+   "path": "strings/st_ban_reason_administrator",
+   "from": "Выдача себя за администратора игры.",
+   "to": "Решение администрации."
+  },
+  {
+   "file": "localization/ukrainian/localization",
+   "path": "strings/st_ban_reason_administrator",
+   "from": "Видача себе за адміністратора гри",
+   "to": "Рішення адміністрації."
+  }
+ ]
+}

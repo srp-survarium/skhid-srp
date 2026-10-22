@@ -352,3 +352,12 @@ in `release/build-content 28` (2026-10-22, a dry run, after every other list): t
 at 0 unexpected differences, the scene packed over patch 27's. Rendering and
 sound only: no server data, no simulation change. `client_project.lua` (the editor's text of the
 scene, which the game does not read) is left as it is.
+
+## ban-texts-1.json (2026-10-22)
+
+| change | why |
+|---|---|
+| `st_login_menu_status_user_banned` -> "You are banned. " (and its five translations), in the six localization tables | the stock header said "(Use / distribution / advertisement of prohibited software)" for every ban, whatever the reason. The client puts the reason text right after it, with no space: the new text ends in one |
+| `st_ban_reason_administrator` -> "Decision of the administration." (Entscheidung der Administration, Decyzja administracji, Решение администрации, Рішення адміністрації) | the login server sends this code (0x1C) for an admin's reason with none of its words (`BAN_REASONS`, login-server `v026g.rs`), meant as the neutral one; its stock text was "Pretending to be administrator of the game". A player banned 1 h for friendly fire read both stock texts (the owner, 2026-10-22) |
+
+Applied to revision 29's live tables (from the stock db and patches 12 to 29): 6 files edited, 0 unexpected differences. Text only: no server data, no simulation change.
