@@ -279,9 +279,8 @@ package survarium.messages
                   this.dragItemSlot1.data = null;
                }
             }
-            // A donor the server refuses (ItemFactory.isCraftDonor): a
-            // golden item is no donor for a plain one, which a swap of the
-            // two would make.
+            // A donor the server refuses (ItemFactory.isCraftDonor): one
+            // of another item.
             else if(!ItemFactory.isCraftDonor(this.dragItemSlot2.data.dictId,this.dragItemSlot1.data.dictId))
             {
                Message.showMessage("ok",LocalizationData.getName("cannot_craft_item"));

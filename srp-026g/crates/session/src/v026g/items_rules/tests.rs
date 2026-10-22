@@ -1578,15 +1578,13 @@ fn a_golden_weapon_is_upgraded_like_its_plain_weapon() {
 
     let mut rng = Rng::new(9);
     let mut account = rich();
-    // A plain rifle takes no golden one as its donor: it would be lost.
+    // A plain rifle takes a golden one as its donor too (the owner's rule of
+    // 2026-10-22): the golden one is used up, the rifle stays plain.
     let plain = give(&mut account, "ak_74n", &[2000]);
     let golden = account.add_item(golden_rifle, FULL_CONDITION);
-    let before = account.clone();
-    assert_eq!(
-        craft(&mut account, plain, golden, true, false, NOW, &mut rng),
-        Err("a golden item is no donor for a plain one")
-    );
-    assert_eq!(account, before);
+    assert!(craft(&mut account, plain, golden, true, false, NOW, &mut rng).is_ok());
+    assert!(account.item(golden).is_none());
+    assert_eq!(account.item(plain).unwrap().dict_id, dict("ak_74n"));
     // Two golden rifles, as two plain ones.
     let golden = account.add_item(golden_rifle, FULL_CONDITION);
     let other = account.add_item(golden_rifle, FULL_CONDITION);
@@ -1785,16 +1783,18 @@ fn a_premium_armour_piece_is_upgraded_and_rerolled_like_its_plain_piece() {
         }
     }
     assert!(seen_added);
-    // Never the premium piece for a plain one, nor another piece.
+    // The premium piece is a donor for its plain one too (used up), never
+    // another piece. As any donor it may hold no more modifications than the
+    // item (the game's own rule): the plain piece holds as many here.
     let mut account = rich();
     let legs = account.add_item(premium, FULL_CONDITION);
     let plain_legs = account.add_item(plain, FULL_CONDITION);
-    let before = account.clone();
-    assert_eq!(
-        craft(&mut account, plain_legs, legs, false, false, NOW, &mut rng),
-        Err("a golden item is no donor for a plain one")
-    );
-    assert_eq!(account, before);
+    let held = account.item(legs).unwrap().modifications.clone();
+    account.item_mut(plain_legs).unwrap().modifications = held;
+    let crafted = craft(&mut account, plain_legs, legs, true, false, NOW, &mut rng);
+    assert!(crafted.is_ok(), "{crafted:?}");
+    assert!(account.item(legs).is_none());
+    let legs = account.add_item(premium, FULL_CONDITION);
     let other = give(&mut account, "scav_legs_4", &[]);
     assert_eq!(
         craft(&mut account, legs, other, false, false, NOW, &mut rng),

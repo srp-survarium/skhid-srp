@@ -228,13 +228,13 @@ fn a_golden_item_takes_its_plain_item_as_its_donor() {
     assert!(may_donate(plain, golden));
     assert!(may_donate(golden, golden));
     assert!(may_donate(plain, plain));
-    assert!(!may_donate(golden, plain));
+    assert!(may_donate(golden, plain));
     assert!(!may_donate(dict("vss"), golden));
     assert!(!may_donate(dict("vss_premium"), golden));
     assert!(!may_donate(dict("ak_74m"), plain));
     assert!(may_donate(plain_legs, legs));
     assert!(may_donate(legs, legs));
-    assert!(!may_donate(legs, plain_legs));
+    assert!(may_donate(legs, plain_legs));
     assert!(!may_donate(dict("scav_legs_4"), legs));
     assert!(!may_donate(dict("bm_torso_4"), legs));
     assert!(!may_donate(dict("scav_legs_4_premium"), legs));
