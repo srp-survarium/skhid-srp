@@ -121,14 +121,7 @@ package survarium.controls
          {
             timer = MainScene.getTimerInstance();
             elapsed = (timer.currentCount);
-            var left:String = Util.getTimeStringMinutes(Math.max(0,int(this._data.rerollTime / 60) - (elapsed - this._data.timeDelta)));
-            this.rerollTimer.setTime(left);
-            // Skhid: the button keeps its name, the wait for a silver reroll beside it (the game's
-            // empty button with a timer read as no button; a gold reroll works meanwhile)
-            if(this._rerollable)
-            {
-               this.btn_item_reroll.label = LocalizationData.getName("btn_reroll_label") + " " + left;
-            }
+            this.rerollTimer.setTime(Util.getTimeStringMinutes(Math.max(0,int(this._data.rerollTime / 60) - (elapsed - this._data.timeDelta))));
          }
       }
       
@@ -243,8 +236,9 @@ package survarium.controls
          {
             if(Boolean(this._data.rerollTime))
             {
-               this.rerollTimer.visible = false;
                this.onTimerUpdate(null);
+               this.rerollTimer.visible = true;
+               this.btn_item_reroll.label = "";
                this.btn_item_reroll.tipEnabled = true;
                this.btn_item_reroll.tooltipRendererName = "SrvProfileTipRenderer";
                this.btn_item_reroll.tipData = {"name":LocalizationData.getName("reroll_timer_hint")};
