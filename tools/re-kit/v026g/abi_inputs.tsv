@@ -2430,6 +2430,8 @@ va	name	location	role	basis
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+4	messaging client receiver	inferred
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+8	message identifier	inferred
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+12	one-byte read/acknowledgment action	inferred
+0x0026cb80	survarium::lobby_menu::on_keyboard_action	ECX	the lobby menu (+9Ch the game, +690h the movie holder: [+108h]+4 the invoke's ECX)	observed
+0x0026cb80	survarium::lobby_menu::on_keyboard_action	entry ESP+8	the key (DIK code; 1 Esc: with [this+313Ah] set and has_active_window true, root.close_active_window)	observed
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	ECX	lobby input-handler subobject receiver	inferred
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	stack+8	raw mouse button	inferred
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	stack+12	mouse button action	inferred
@@ -4230,6 +4232,11 @@ va	name	location	role	basis
 0x00447290		entry ESP+12		auto
 0x00447290		entry ESP+8		auto
 0x00447290		entry ESP+4		auto
+0x00511600		ECX	the movie holder (+0Ch the GFx movie)	observed
+0x00511600		entry ESP+4	the ActionScript method's name ("root.has_active_window")	observed
+0x00511600		entry ESP+8	the result Value, or 0	observed
+0x00771fa0	Scaleform::GFx::AS3::Instances::fl_display::Stage::focusGet	ECX	the Stage instance (+14h, +40h, +1A8h, +8 the MovieImpl)	observed
+0x00771fa0	Scaleform::GFx::AS3::Instances::fl_display::Stage::focusGet	entry ESP+4	the result SPtr<InteractiveObject> (0x790E40 assigns it)	observed
 0x00824910		entry ESP+12		auto
 0x00824910		entry ESP+4		auto
 0x00824910		entry ESP+8		auto
