@@ -745,6 +745,8 @@ struct Peer {
     inputs_moved: u32,
     /// Inputs with a rotation no client makes: not relayed.
     inputs_refused: u32,
+    /// Uploads no game could load (`Sections::fault`): sent to nobody.
+    uploads_refused: u32,
     resyncs: u32,
     /// Resyncs since its reports last agreed with the right ones.
     restores_unagreed: u32,
@@ -1308,6 +1310,7 @@ impl Game {
             inputs_relayed_late: 0,
             inputs_moved: 0,
             inputs_refused: 0,
+            uploads_refused: 0,
             resyncs: 0,
             restores_unagreed: 0,
             latest_input_ms: 0,
@@ -1727,17 +1730,10 @@ impl Game {
         let relayed_last = self.own_relayed_last(index, clock);
         // The initial world's time: the clock started on it.
         let first_time = self.clock_start.map(|(_, at)| at);
-        // An upload not yet checked, only when another game reported its
-        // hash too: no majority contradicting it is not enough (three games
-        // at three CRCs contradict nobody; a back-in started from the wrong
-        // one of them, 2026-10-14). With one game simulating its own word
-        // is all there is.
-        let recent = self.recent.as_ref().filter(|recent| {
+        let recent = self.vouched_recent().filter(|_| {
             self.admissions[index]
                 .as_ref()
                 .is_none_or(Admission::entered)
-                && (self.live() <= 1
-                    || self.vouchers(recent.time, snapshot::crc(&recent.body)) >= 2)
         });
         [self.snapshot.as_ref(), recent]
             .into_iter()
@@ -1809,9 +1805,23 @@ impl Game {
         }
     }
 
-    /// The newest snapshot there is, however old.
+    /// The upload not yet checked, when a game may start from it: only
+    /// once another game reported its hash too, as long as two or more
+    /// simulate. No majority contradicting it is not enough: three games
+    /// at three CRCs contradict nobody (a back-in started from the wrong
+    /// one of them, 2026-10-14), and one game's world is then all a game
+    /// started from it has between it and what that one sent (match.md
+    /// section 36). With one game simulating its own word is all there is.
+    fn vouched_recent(&self) -> Option<&Snapshot> {
+        self.recent.as_ref().filter(|recent| {
+            self.live() <= 1 || self.vouchers(recent.time, snapshot::crc(&recent.body)) >= 2
+        })
+    }
+
+    /// The newest snapshot there is, however old: the checked one, or an
+    /// upload as [`Self::vouched_recent`] allows.
     fn newest_snapshot(&self) -> Option<Snapshot> {
-        [self.snapshot.as_ref(), self.recent.as_ref()]
+        [self.snapshot.as_ref(), self.vouched_recent()]
             .into_iter()
             .flatten()
             .max_by_key(|snapshot| snapshot.time)
@@ -3603,6 +3613,7 @@ impl Game {
         let clock = self.clock(now);
         let initial = self.snapshot.is_none() && self.requested_at.is_none();
         let joiner = self.waiting_entry(index);
+        let places = self.snapshot_players();
         let id = self.id;
         let snapshot = Snapshot {
             time: upload.item_time,
@@ -3628,6 +3639,26 @@ impl Game {
                 return;
             }
         }
+        // A world no game could load goes to nobody: a game reads a world
+        // with no check of its own (match.md section 36), so its frame must
+        // walk from the front, its mask name no place past the roster, and
+        // no section or player state be over its buffer
+        // (`Sections::fault`). No real world was refused so (2203 kept
+        // worlds, 2026-10-12..21). Its client stays asked: a world of its
+        // that loads may still come.
+        if let Some(why) = Sections::fault(&snapshot.body, places) {
+            peer.uploads_refused += 1;
+            if peer.uploads_refused <= REFUSED_LOGGED {
+                log::warn!(
+                    "Match {id:#x}: player {index}'s upload at {} ms ({} bytes) has {why}; sent to \
+                     nobody",
+                    snapshot.time,
+                    snapshot.body.len()
+                );
+            }
+            self.dump(&snapshot, index, "unloadable");
+            return;
+        }
         peer.asked = None;
         peer.unanswered_since = None;
         if !initial && let Some(asked_at) = peer.wrong_world_asked.take() {
@@ -3647,19 +3678,6 @@ impl Game {
         peer.simulating_at = Some(now);
         if !initial && let Some(asked) = peer.asked_clock.take() {
             observe_upload(&mut peer.upload_offset, asked, snapshot.time);
-        }
-        // The server needs no more of a world than its bytes; that it does
-        // not split into its sections here says the reader is wrong (no
-        // 0.26g world was seen when it was written) as likely as the world.
-        // It is used, saved to look at, and gives no results.
-        if Sections::candidates(&snapshot.body).is_empty() {
-            log::warn!(
-                "Match {id:#x}: player {index}'s upload at {} ms ({} bytes) does not read as a \
-                 world (a mask, players and six sections); used as it is, without results",
-                snapshot.time,
-                snapshot.body.len()
-            );
-            self.dump(&snapshot, index, "unreadable");
         }
         if initial {
             self.first_snapshot(index, snapshot, now);
@@ -4065,8 +4083,18 @@ impl Game {
                         candidate.snapshot.time,
                         self.hashes.get(&candidate.snapshot.time)
                     );
-                    // Its world may still serve a late joiner, but its
-                    // results never count: nobody vouched for them.
+                    // Its results never count: nobody vouched for them.
+                    // Another game reported for its tick and did not agree:
+                    // nobody starts from it either, even should that game
+                    // stop simulating (`vouched_recent`). A game alone has
+                    // its world serve a late joiner.
+                    let gainsaid = self
+                        .hashes
+                        .get(&candidate.snapshot.time)
+                        .is_some_and(|reports| reports.keys().any(|from| *from != candidate.from));
+                    if gainsaid && self.recent.as_ref() == Some(&candidate.snapshot) {
+                        self.recent = None;
+                    }
                     self.dump(&candidate.snapshot, candidate.from, "unchecked");
                 }
             }
@@ -5916,7 +5944,8 @@ fn given_clock(set_times: &VecDeque<SetTimeSent>, now: Instant) -> Option<u32> {
 fn input_summary(peer: &Peer) -> String {
     format!(
         "{} inputs, {} first seen over {LATE_INPUT_MS} ms late on the way, {} too late to relay \
-         and discarded, {} moved, {} refused for their rotation, the latest {} ms, resynced {} \
+         and discarded, {} moved, {} refused for their rotation, {} uploads no game could \
+         load, the latest {} ms, resynced {} \
          times, started once more after its first world {} times, round trip {} ms, {} messages \
          to it sent again, our seq skipped ahead {} times, {} of {} relays and roster changes \
          never acked, {} relayed late at their tick",
@@ -5925,6 +5954,7 @@ fn input_summary(peer: &Peer) -> String {
         peer.inputs_discarded,
         peer.inputs_moved,
         peer.inputs_refused,
+        peer.uploads_refused,
         peer.latest_input_ms,
         peer.resyncs,
         peer.reloads,
@@ -6113,6 +6143,14 @@ impl Game {
             .map_or(0, |peer| peer.inputs_refused)
     }
 
+    /// How many of its uploads were sent to nobody: no game could load
+    /// them.
+    pub fn uploads_refused(&self, index: usize) -> u32 {
+        self.peers[index]
+            .as_ref()
+            .map_or(0, |peer| peer.uploads_refused)
+    }
+
     pub fn rule_state(&self) -> u8 {
         self.rule.state
     }
@@ -6216,6 +6254,11 @@ impl Game {
     /// The time of the newest snapshot there is.
     pub fn newest_snapshot_time(&self) -> Option<u32> {
         self.newest_snapshot().map(|snapshot| snapshot.time)
+    }
+
+    /// The time of the newest upload not yet checked, vouched for or not.
+    pub fn recent_time(&self) -> Option<u32> {
+        self.recent.as_ref().map(|snapshot| snapshot.time)
     }
 
     /// How many hash reports of the client are kept for judging.
