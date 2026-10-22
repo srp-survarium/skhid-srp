@@ -1221,6 +1221,60 @@ So of what the game logs, the dominant wait is the client's own send tick (a qua
 
 **Builds** (this branch, on main 7f010cc1, no server): the default build `8f75d355eda63a17d7afc83dd99ecff7d368e07801771c1f5e72f7d62c84c27b`; with `--required-patches=12,14,17,19,20,21,22,23,24,25,26,27` (revision 27's list) `33c7cba9bb1e1558b97ef43be5296f45d963174f7597f21c6f5a6e76ac3c0cc6` (12 918 392 bytes each).
 
+### 3.49 Research, mode 5 (written 2026-10-22, README patch 52, the release after revision 28; the rules: `research_mode.md`) — PROVEN in the code, the hooks, the cook, the rule and the hud run with Unicorn with the game's own register_cook, rule constructor and config look-ups; not run in a game
+
+- **Rule cooks** (PROVEN): each is a static object `{+0 vtable, +8 class, +10h -1, +14h
+  GetCurrentThreadId(), +18h 8, +20h the game (client cooks)}`, made by its function (tdm's
+  0x2F41E0) and registered by `register_cook` 0x102D10 (`edi` = the cook): a vector at
+  [0xA86E00]..[0xA86E04] grown to 0x206 places on the first call, `cooks[class] = cook`. The
+  game's constructor makes the client ones and swaps their vtables (0x1E99C0..0x1E9B4C; tdm's
+  client vtable 0x9FD8AC; ebx = the game); the last registration is at 0x1E9B4C (`mov eax,ebx /
+  call 0x1EC170`). Classes in use found at the registrations: 0x0D..0x82, 0x12C..0x141, 0x200,
+  0x202, 0x203 (a few set elsewhere); 0x1E0 is in no registration and no query.
+- **A cook's create** (PROVEN, slot 9, thiscall, `ret 4`): client tdm 0x2063F0: `esi =
+  [0x1F1D9C4]`, `ecx = 0xACCC60`, 0x420789 (`lea eax,[ecx+8]`), `push eax`, `eax = size`, 0xE4F90
+  (allocate), the core constructor with the query (`[q]` the match options, `[q+0Ch]` the mode
+  config's root), +130h the game; slot 10 the size. Slot 7 (0x2F4290) is the shared translate:
+  it calls 9 with `[query+108h]` and 10.
+- **Rule vtables** (PROVEN, tdm 0xA15DA4, timelimit 0xA06E2C, kd 0xA177D4): 0 delete (0x266710:
+  the base vtables back, 0xF1850, free), 1..6 the resource's, 7 `on_event(type, time, data)`
+  `ret 0Ch` (a kill is type 1, `data = {killer, victim}`; 0 the match started), 8 / 9
+  `entered` / `left(place, time)` `ret 8`, 10 register_animations, 11 `set_game_world_core(core)`,
+  12 the blackboard (core+188B0h, 0x2D58F0), 13 `on_match_ready(time)`, 14 finished, 15 / 16
+  `serialize(writer)` / `deserialize(reader)` `ret 4`, 17 `fill_match_hud_state(hud, ?)` `ret 8`
+  (tdm: +90h, +92h the tickets, +94h, +95h the alive counts), 18 `rule_completed(time)` `ret 4`
+  (al), 19 the priority (0x8FE10: 3); then at +108h the link resolver's one slot (0x316540, `ret
+  1Ch`). Base constructor 0x313900 (eax = this, push the type: 0 respawn, 1 gather, 2 timelimit, 3
+  kd, 4 tdm; at +10Ch); the code compares the type with 0 and 1 only.
+- **Ticks** (PROVEN): timelimit's set_game_world_core 0x318050 puts a delegate `{object,
+  function, previous, next, order, enabled}` (rule+110h) at the end of the world's list at
+  core+18850h (count, head, tail; order from the counter at [core+18FB0h]); atomic_tick 0x2D1E20
+  runs the seven lists (core+18840h.., 10h each; 0x2D1D20 sorts by +10h) as `function(ecx =
+  object, dt, time, step)` `ret 0Ch`, dt the time since the last (50 ms).
+- **The world** (PROVEN): places at [core+18458h], 30h each, `[place + 4 * kit]` the player of
+  kit `place[0Ch]` (tdm 0x3161F0); a player's team `[[player+6B8h]+45ECh]`, alive +33Ch, in the
+  tick lists +33Fh, `m_transform` +40Ch (its translation +43Ch, read by the player's own code
+  0x2D9148 and restored by its deserialize 0x2DB8B9), pitch +48Ch; the time rule's state copied at
+  core+18FE4h (3 in play; written by its tick and deserialize); the game's own place
+  core+18FDCh (client tdm 0x267852); the statistics `[core+18FA8h]`: a player's record 1F8h,
+  `u16 events[28][3]` at +0Ch (the kill handler 0x2F4EB0), `m_team_points` +31D4h, the winner
+  +31E4h (tdm 0x316257).
+- **Saving** (PROVEN): a writer's buffer at [writer+14h] (data +4, size +0Ch), grown by 0x7AB30
+  (eax = buffer, push the size; `ret 4`; the u8 writer 0x1F3DE0); a reader's cursor at
+  [reader+4] (tdm 0x3163D0).
+- **Config** (PROVEN): 0xF6B10 (eax = a table, edi = the key) gives the child (CRC look-up, then
+  the names); 0xF6C00 (esi = the key) says whether there is one; a value is 24 bytes, its data a
+  pointer for tables, strings and vectors, +14h the type, +16h the count (the respawn point's
+  reader 0x2F4580).
+- **The hud** (PROVEN): game_world_ui::update_ui (0x23B300..) shows the match's first message by
+  mode at 0x23B336 (2, 3, 4: `st_start_match_welcome_message`, `_2`, `_3`; 0x2375C0, ecx = the
+  key, `(ui, 21h, 14h, 6000)`, `ret 10h`: localised by 0x1FF0F0 into root.set_parameterized_
+  message), then each frame the teams' points (0x2364C0 → `root.set_game_progress`) and, for mode
+  4 only, `set_last_players` (0x23B3DE: `cmp dword [edi+20h],4`). The movie: [[[ui+8]+108h]+4],
+  `Invoke` 0x511600 (thiscall: name, result, args, count; `ret 10h`), a GFx value 18h bytes (+4 the
+  type: 4 uint, 5 number; +8 the value). The world from the ui: [[ui+18h]+4D4Ch]+1F8h, its rules
+  at +18824h (the minimap's 0x23AA21). `root.set_game_type` gets `mode.mode` (0x234D66).
+
 ## 4. Mode 3 batteries: not needed in 0.26g
 
 - 0.26g splits the rule: `match_time_vi_spawn_rule` (vtable 0xA06C04) wraps `match_time_vi_spawn_rule_core` (vtable 0xA15CAC). The battery tick is no longer a vtable slot: the core's ctor 0x3147A0 stores a delegate `{this, 0x3148A0}` at +0x1C4 / +0x1C8 (0x3147F1). [V]
