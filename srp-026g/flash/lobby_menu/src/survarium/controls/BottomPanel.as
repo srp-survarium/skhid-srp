@@ -452,7 +452,8 @@ package survarium.controls
          var modes:Object = {
             "2":["Protective device","Захисний пристрій","Защитное устройство","Laden der Schutzeinrichtung","Urządzenie ochronne"],
             "3":["Protective device","Захисний пристрій","Защитное устройство","Laden der Schutzeinrichtung","Urządzenie ochronne"],
-            "4":["Team Deathmatch","Командний бій","Командный бой","Kommandokampf","Walka drużynowa"]
+            "4":["Team Deathmatch","Командний бій","Командный бой","Kommandokampf","Walka drużynowa"],
+            "5":["Research","Дослідження","Исследование","Forschung","Badania"]
          };
          return {
             "friends":friends,
