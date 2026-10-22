@@ -92,8 +92,8 @@ package survarium.item
       }
 
       // A modification's range, one line: "Damage: +1%  +2%  [+3%]  +4%  +5%". The others grey,
-      // the rolled one white in brackets (plain ASCII: the lobby's font lacks symbols), the best
-      // gold, in brackets too when it is the rolled one. "" for one that does not roll.
+      // the rolled one white in brackets (plain ASCII: the lobby's font lacks symbols); no gold
+      // here (owner 2026-10-22: it confused). "" for one that does not roll.
       public static function rangeTip(modifier:Object) : String
       {
          var descriptor:PropertiesDescriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
@@ -110,7 +110,6 @@ package survarium.item
          var marked:Boolean;
          var i:uint;
          var text:String;
-         var best:Boolean;
          for each(prop in modifier.props)
          {
             rolls = ROLLS[prop.prop_id] as Array;
@@ -130,15 +129,14 @@ package survarium.item
             while(i < rolls.length)
             {
                text = format(description,rolls[i]);
-               best = i == rolls.length - 1;
                if(!marked && Math.abs(rolls[i] - rolled) < EPSILON)
                {
                   marked = true;
-                  parts.push(Util.styledChar("[" + text + "]",best ? "gold" : "white"));
+                  parts.push(Util.styledChar("[" + text + "]","white"));
                }
                else
                {
-                  parts.push(Util.styledChar(text,best ? "gold" : "gray"));
+                  parts.push(Util.styledChar(text,"gray"));
                }
                i++;
             }

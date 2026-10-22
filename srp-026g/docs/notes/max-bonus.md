@@ -36,9 +36,9 @@ Code, in `flash/lobby_menu/src` ([lobby-source.md](lobby-source.md)): `survarium
 
 - Hovering a bonus in the reroll window (the item's bonuses or the three offered) shows its five
   values on one line, weakest first: `Damage: +1%  +2%  [+3%]  +4%  +5%`.
-- The others grey, the current value white and in brackets, the max gold (in brackets too when it
-  is the current one). The brackets mark it without relying on colour; plain ASCII, as the lobby's
-  font lacks symbols.
+- The others grey, the current value white and in brackets; no gold in the tip (owner
+  2026-10-22: a gold max there confused). The brackets mark it without relying on colour; plain
+  ASCII, as the lobby's font lacks symbols.
 - No tip for a bonus that does not roll (the golden weapons' silver bonus).
 
 ## One source of truth
