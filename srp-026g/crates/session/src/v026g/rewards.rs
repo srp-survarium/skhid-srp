@@ -41,7 +41,9 @@
 //!     [`pay::ACTIVITY_PER_SCORE`] for each point of "other score": the
 //!     score of the row's own events (every event that is no kill and no
 //!     help), counted with the weights the match was played with
-//!     ([`Terms::score_weights`], the ones the scoreboard used).
+//!     ([`Terms::score_weights`], the ones the scoreboard used; a Research
+//!     match's weigh its captures and its "kill invader": `static_info::
+//!     RESEARCH_WEIGHTS`).
 //! - **The rates** (the owner's choices): the three rows' silver times the
 //!   percent of the match's level ([`pay::MONEY_RATES`]: 150 to level 5,
 //!   rising to 220 from level 12; or `SRP_MONEY_RATE` at every level);
@@ -98,7 +100,7 @@
 //!   sent in its own place of the screen: the table's (40 %), with the play
 //!   time bonus only when `SRP_DROP_PLAYTIME_BONUS=on`
 //!   ([`pay::drop_playtime_bonus`]); [`pay::DROP_CHANCE_PER_BATTERY`] for each battery the
-//!   player's own team has at the end; [`pay::DROP_CHANCE_PREMIUM`] for a
+//!   player's own team has at the end (modes 2 and 3); [`pay::DROP_CHANCE_PREMIUM`] for a
 //!   premium account. Together they are at most 1. A weapon or an armour
 //!   piece found so arrives worn, with one defect
 //!   ([`pay::drop_condition`], [`pay::drop_defect`]).
@@ -157,7 +159,7 @@ use survarium::v026g::lobby::{
 };
 use survarium::v026g::maps::mode;
 use survarium::v026g::match_msgs::snapshot::{EVENTS, HUNDREDTHS, KITS, PlayerStatistics, event};
-use survarium::v026g::match_msgs::static_info::SCORE_WEIGHTS;
+use survarium::v026g::match_msgs::static_info::{self, SCORE_WEIGHTS};
 use survarium::v026g::modifications;
 use survarium::v026g::quests::MatchStats as QuestStats;
 
@@ -275,7 +277,8 @@ pub struct MatchResult {
     pub end: MatchEnd,
     /// 0 or 1, [`DRAW`], or `None` when no trusted snapshot gave a standing.
     pub winner: Option<u8>,
-    /// Batteries home (modes 2, 3) or tickets left (mode 4).
+    /// Batteries home (modes 2, 3), tickets left (mode 4) or Research's
+    /// points (mode 5).
     pub team_points: [u16; 2],
     pub duration_ms: u32,
     /// `None` if play never began.
@@ -337,7 +340,9 @@ pub struct Terms {
     /// The percent of the original's reputation the match's rows and its
     /// quests pay.
     pub reputation_rate: u32,
-    /// The match's score weights.
+    /// The score weights of the matches of modes 2 to 4; a Research
+    /// match's are these with its own three ([`static_info::weights_of`]),
+    /// as the match server sends them.
     pub score_weights: [f32; EVENTS],
     /// Whether the match wears the items of the kits played
     /// ([`pay::item_wear`]).
@@ -1390,8 +1395,15 @@ struct Shared<'a> {
     trusted: bool,
     /// 0 or 1, [`DRAW`], or `None`.
     winner: Option<u8>,
+    /// Whether the match is of a mode with batteries (2 and 3): the
+    /// battery quests, the drop chance a battery and a robbed base count in
+    /// it only.
+    batteries: bool,
     /// Which teams took a battery from the other's base.
     stole: [bool; 2],
+    /// The weights its score was counted with: the terms', with Research's
+    /// own in mode 5 ([`static_info::weights_of`]).
+    weights: [f32; EVENTS],
     /// The match level's multipliers: money, experience, reputation.
     multipliers: (f64, f64, f64),
     /// A test bot was in the match, or it is a room with a PIN's
@@ -1402,8 +1414,9 @@ struct Shared<'a> {
 impl<'a> Shared<'a> {
     fn of(result: &'a MatchResult, terms: &'a Terms) -> Self {
         let trusted = result.played_ms.is_some() && result.trusted_by > 0;
+        let batteries = mode::WITH_BATTERIES.contains(&result.game_mode);
         let mut stole = [false; 2];
-        if trusted {
+        if trusted && batteries {
             for player in &result.players {
                 if player.team < 2 && total(&counters(player), event::STEAL_VICTORY_ITEM) > 0 {
                     stole[usize::from(player.team)] = true;
@@ -1424,7 +1437,9 @@ impl<'a> Shared<'a> {
             terms,
             trusted,
             winner: result.winner.filter(|&winner| trusted && winner <= DRAW),
+            batteries,
             stole,
+            weights: static_info::weights_of(result.game_mode, terms.score_weights),
             multipliers,
             unrated: false,
         }
@@ -1459,7 +1474,7 @@ impl<'a> Shared<'a> {
 
     /// The score with what the client adds at the end of a match.
     fn score(&self, player: &PlayerResult) -> u32 {
-        let weights = &self.terms.score_weights;
+        let weights = &self.weights;
         let bonus = |given: bool, event: usize| {
             if given {
                 f64::from(weights[event]).round().max(0.0) as u32
@@ -1602,7 +1617,7 @@ impl<'a> Shared<'a> {
     /// level ([`pay`]).
     fn lines(&self, player: &PlayerResult, main: usize) -> [[(f64, Pay); KITS]; 3] {
         let events = self.events(player);
-        let weights = &self.terms.score_weights;
+        let weights = &self.weights;
         let mut lines = [[(0.0, Pay::NONE); KITS]; 3];
         for (event, counts) in events.iter().enumerate() {
             let line = EVENT_LINES[event];
@@ -1649,7 +1664,7 @@ impl<'a> Shared<'a> {
     fn quest_stats(&self, player: &PlayerResult) -> QuestStats {
         let events = self.events(player);
         let count = |event: usize| clamp_u16(total(&events, event));
-        let batteries = self.result.game_mode != mode::TEAM_DEATHMATCH;
+        let batteries = self.batteries;
         let (kills, deaths, streak) = if self.trusted {
             (player.kills, player.deaths, player.longest_killstreak)
         } else {
@@ -1678,7 +1693,7 @@ impl<'a> Shared<'a> {
             } else {
                 0
             },
-            base_robbed: player.team < 2 && self.stole[usize::from(1 - player.team)],
+            base_robbed: batteries && player.team < 2 && self.stole[usize::from(1 - player.team)],
             battery_mode: batteries,
         }
     }
@@ -1987,10 +2002,7 @@ impl<'a> Shared<'a> {
             // of the player's own team at the end); the premium account.
             // Together at most 1, the later parts cut.
             let base = (table.item_chance() * (1.0 + percent as f32 / 100.0)).min(1.0);
-            let batteries = if self.trusted
-                && self.result.game_mode != mode::TEAM_DEATHMATCH
-                && player.team < 2
-            {
+            let batteries = if self.trusted && self.batteries && player.team < 2 {
                 self.result.team_points[usize::from(player.team)]
             } else {
                 0

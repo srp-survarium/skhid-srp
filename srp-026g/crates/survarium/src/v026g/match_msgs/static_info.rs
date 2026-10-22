@@ -27,6 +27,7 @@ use super::super::dictionary::{Dictionary, PROFILE_SLOTS};
 use super::super::loadouts::Loadout;
 use super::super::skills::{MODIFIERS, write_modifier_block};
 use super::super::{lzma2, maps};
+use super::snapshot::event;
 use super::{MAX_PLAYERS, ServerMessage};
 
 /// A profile holds 3 kits.
@@ -118,6 +119,36 @@ pub const SCORE_WEIGHTS: [f32; SCORE_EVENTS] = [
     0.0,  // stolen battery brought home
     0.0,  // a new player's match
 ];
+
+/// What Research (mode 5) weighs otherwise: its rule counts a unit's
+/// capture in event 6 and a neutralisation in event 18 (hundredths, a
+/// player's share of the 100 a capture gives), and a "kill invader" in
+/// event 10 (`research_mode.md`, "Score events"). The weights are 0.27d's
+/// awards (`gameplay/awards/events.options`: `capture_the_point` 30,
+/// `kill_invader` 10): a whole capture or neutralisation scores 30.
+pub const RESEARCH_WEIGHTS: [(usize, f32); 3] = [
+    (event::RESEARCH_CAPTURE, 30.0),
+    (event::RESEARCH_NEUTRALISE, 30.0),
+    (event::KILL_INVADER, 10.0),
+];
+
+/// The weights of a match of `game_mode`: `weights`, with Research's own
+/// in mode 5. The other modes play with `weights` as they are.
+pub fn weights_of(game_mode: u8, weights: [f32; SCORE_EVENTS]) -> [f32; SCORE_EVENTS] {
+    let mut weights = weights;
+    if game_mode == maps::mode::RESEARCH {
+        for (event, weight) in RESEARCH_WEIGHTS {
+            weights[event] = weight;
+        }
+    }
+    weights
+}
+
+/// srp's weights for a match of `game_mode` ([`SCORE_WEIGHTS`],
+/// [`weights_of`]).
+pub fn score_weights(game_mode: u8) -> [f32; SCORE_EVENTS] {
+    weights_of(game_mode, SCORE_WEIGHTS)
+}
 
 /// An upgrade on an item: `u32 id, u32, u64, u8 param`. Only the id and
 /// the param are understood.
@@ -964,6 +995,33 @@ mod tests {
             [0x00, 0x00, 0x20, 0x41, 0x00, 0x00, 0xA0, 0x40]
         );
         assert_eq!(weights[17 * 4..18 * 4], [0x00, 0x00, 0x0C, 0x42]);
+    }
+
+    #[test]
+    fn research_weighs_its_captures_and_kill_invader() {
+        use super::super::super::maps::mode;
+        let research = score_weights(mode::RESEARCH);
+        assert_eq!(
+            (research[6], research[18], research[10]),
+            (30.0, 30.0, 10.0)
+        );
+        // The rest as every mode's.
+        for event in (0..SCORE_EVENTS).filter(|event| ![6, 10, 18].contains(event)) {
+            assert_eq!(research[event], SCORE_WEIGHTS[event], "{event}");
+        }
+        // Modes 2 to 4 are unchanged.
+        for game_mode in [
+            mode::BATTERIES,
+            mode::TIMED_BATTERIES,
+            mode::TEAM_DEATHMATCH,
+        ] {
+            assert_eq!(score_weights(game_mode), SCORE_WEIGHTS);
+        }
+        // Over weights of another's (a test's, a tool's): the three only.
+        let mut zero = weights_of(mode::RESEARCH, [0.0; SCORE_EVENTS]);
+        assert_eq!(zero.iter().filter(|weight| **weight != 0.0).count(), 3);
+        zero[10] = 0.0;
+        assert_eq!(weights_of(mode::BATTERIES, zero), zero);
     }
 
     #[test]

@@ -12,12 +12,13 @@
 //! whose its battery containers are (its `server_objects`).
 //!
 //! An id can be played ([`MapMode::is_playable`]) when the game data has
-//! its config, the config is of a mode srp plays (2, 3 or 4) and the data
+//! its config, the config is of a mode srp plays (2 to 5) and the data
 //! has its project. No level or id is known here beforehand: a map a patch
 //! adds is played as soon as the server runs on the data with it. Of
 //! 0.26g's 89 ids, 72 can be played (modes 2, 3 and 4 of its maps in their
-//! weathers); with London (`level_09`, patch 14 of skhid) 75. The others
-//! must never be sent:
+//! weathers); with London (`level_09`, patch 14 of skhid) 75; with the
+//! Research pack (mode 5, `research_mode.md`) 25 more, among them 145..=149.
+//! The others must never be sent:
 //! - 114 and 143..=151 name a config the client does not have ("Wrong map
 //!   config. Map id = %u", 0x2C9D18);
 //! - 107 and 108 (level_08 at night) and the test maps 11, 45 and 115 name a
@@ -43,8 +44,11 @@ pub mod mode {
     pub const TIMED_BATTERIES: u8 = 3;
     /// Team Deathmatch with tickets; rule 90.
     pub const TEAM_DEATHMATCH: u8 = 4;
+    /// Research: three units to capture, the first team to 100 points
+    /// wins; rule 480, exe patch 52 (`docs/notes/research_mode.md`).
+    pub const RESEARCH: u8 = 5;
     /// The modes a match can be.
-    pub const ALL: [u8; 3] = [BATTERIES, TIMED_BATTERIES, TEAM_DEATHMATCH];
+    pub const ALL: [u8; 4] = [BATTERIES, TIMED_BATTERIES, TEAM_DEATHMATCH, RESEARCH];
     /// The modes whose maps have the teams' battery containers.
     pub const WITH_BATTERIES: [u8; 2] = [BATTERIES, TIMED_BATTERIES];
 }
@@ -87,8 +91,9 @@ pub struct MapMode {
     /// `st_mode_04_name`; [`super::localization`]).
     pub map_name_key: &'static str,
     pub mode_name_key: &'static str,
-    /// `rules`: the rule resource classes the client loads.
-    pub rules: &'static [u8],
+    /// `rules`: the rule resource classes the client loads (Research's
+    /// own is 480, over a byte).
+    pub rules: &'static [u16],
     /// Seconds a match lasts.
     pub match_time: u32,
     pub wait_time: u32,
@@ -107,6 +112,8 @@ pub struct MapMode {
     pub spawn_points_count: u32,
     /// Mode 4: a team's tickets.
     pub tickets_count: u32,
+    /// Mode 5: the points that win (`resources_count`, 100).
+    pub resources_count: u32,
     /// How many respawn points the project has: every entry of its
     /// `server_objects.respawn_points`, whatever its team or layer, is
     /// loaded (`player_respawn_rule_cook` 0x2C6910), so this is how many
@@ -117,7 +124,7 @@ pub struct MapMode {
     /// Modes 2 and 3: whose the two battery containers are, by container
     /// id: `victory_items_containers[..].team` of the project by its `id`.
     /// PROVEN (data). A battery's container id in a snapshot is this id,
-    /// not the team. `None` in mode 4 and without a project.
+    /// not the team. `None` in modes 4 and 5 and without a project.
     pub container_teams: Option<[u8; 2]>,
 }
 
@@ -162,8 +169,9 @@ impl ProjectObjects {
     /// ids 0 and 1, of teams 0 and 1, one each: the gather rules and the
     /// scores know no other.
     /// `with_batteries`: the containers are read (and must be one of each
-    /// team) only for a mode that has batteries; a Team Deathmatch project
-    /// copied from a batteries one may keep containers it never uses.
+    /// team) only for a mode that has batteries; a Team Deathmatch or
+    /// Research project copied from a batteries one may keep containers it
+    /// never uses.
     pub fn from_project(project: &ConfigValue, with_batteries: bool) -> Result<Self, ConfigError> {
         let objects = project.get("server_objects");
         let respawn_points = objects
@@ -214,9 +222,10 @@ impl MapMode {
     /// The row of a `maps_dict` id's config (`gameplay/game_modes/`
     /// `cfg_mode_name`) and what the server reads of its project, if the
     /// data has the project ([`ProjectObjects::from_project`]). A playable
-    /// id ([`MapMode::is_playable`]) must have a respawn point, and one of
-    /// modes 2 and 3 the two teams' battery containers. The strings are
-    /// leaked: the rows live as long as the process.
+    /// id ([`MapMode::is_playable`]) must have a respawn point, one of
+    /// modes 2 and 3 the two teams' battery containers, and one of mode 5
+    /// the points that win. The strings are leaked: the rows live as long
+    /// as the process.
     pub fn from_config(
         id: u8,
         cfg_mode_name: &str,
@@ -236,14 +245,14 @@ impl MapMode {
                     .ok_or_else(|| ConfigError(format!("`{key}` is not a string"))),
             }
         };
-        let rules: Vec<u8> = match mode.get("rules") {
+        let rules: Vec<u16> = match mode.get("rules") {
             None => Vec::new(),
             Some(list) => list
                 .children()
                 .into_iter()
                 .map(|rule| {
                     rule.as_i32()
-                        .and_then(|rule| u8::try_from(rule).ok())
+                        .and_then(|rule| u16::try_from(rule).ok())
                         .ok_or_else(|| ConfigError("a `rules` entry is not a class id".into()))
                 })
                 .collect::<Result<_, _>>()?,
@@ -292,6 +301,7 @@ impl MapMode {
             vi_spawn_variation: int(p, "vi_spawn_variation")?,
             spawn_points_count: int(p, "spawn_points_count")?,
             tickets_count: int(p, "tickets_count")?,
+            resources_count: int(p, "resources_count")?,
             respawn_points: objects.respawn_points,
             container_teams: objects
                 .container_teams
@@ -309,6 +319,11 @@ impl MapMode {
                     "its project {} has no battery containers, and it is mode {}",
                     row.project, row.mode
                 )));
+            }
+            if row.mode == mode::RESEARCH && row.resources_count == 0 {
+                return Err(ConfigError(
+                    "it is mode 5 and has no `resources_count`".to_owned(),
+                ));
             }
         }
         Ok(row)
@@ -611,6 +626,50 @@ mod tests {
     }
 
     #[test]
+    fn a_research_map_is_played_from_its_data() {
+        // Research on a level 12, as the pack adds its 25 maps: rule 480,
+        // its project's respawn points, no containers.
+        let added = fixtures::AddedMap::level_12_research();
+        let table = fixtures::table_of(&fixtures::with_map(&added)).unwrap();
+        let map = *table.iter().find(|map| map.id == added.id).unwrap();
+        assert!(map.is_playable());
+        assert_eq!(
+            (map.level, map.mode, map.project),
+            (12, mode::RESEARCH, "level_12/day_5")
+        );
+        assert_eq!(map.rules, [93, 91, 480, 94]);
+        assert_eq!((map.respawn_points, map.container_teams), (14, None));
+        assert_eq!((map.resources_count, map.tickets_count), (100, 0));
+        assert!(!mode::WITH_BATTERIES.contains(&map.mode));
+        // The stock maps are as they were.
+        assert!(
+            table
+                .iter()
+                .filter(|row| row.id != added.id)
+                .eq(all().iter())
+        );
+        // A stray container of a project copied from a batteries one is
+        // not read.
+        let stray = fixtures::AddedMap {
+            containers: vec![(3, 1)],
+            ..added.clone()
+        };
+        let table = fixtures::table_of(&fixtures::with_map(&stray)).unwrap();
+        let map = table.iter().find(|map| map.id == added.id).unwrap();
+        assert!(map.is_playable());
+        assert_eq!(map.container_teams, None);
+        // Without a respawn point it stops the server, as every mode.
+        let bare = fixtures::AddedMap {
+            respawn_points: 0,
+            ..added
+        };
+        let message = fixtures::table_of(&fixtures::with_map(&bare))
+            .unwrap_err()
+            .to_string();
+        assert!(message.contains("no respawn points"), "{message}");
+    }
+
+    #[test]
     fn a_map_whose_project_the_server_cannot_play_stops_it() {
         // Batteries on a map without its two containers, or with two of
         // one team; a map without a respawn point.
@@ -661,7 +720,7 @@ mod tests {
         // A mode srp does not play is in the table, not played, whatever
         // its project.
         let other = fixtures::AddedMap {
-            mode: 5,
+            mode: 6,
             respawn_points: 0,
             ..fixtures::AddedMap::level_12_tdm()
         };

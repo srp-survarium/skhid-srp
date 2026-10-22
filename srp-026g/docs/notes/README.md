@@ -136,8 +136,9 @@ Every setting has a default; none is needed on a dev PC.
   srp, and so does one under the newest patch of the game data): a game
   whose exe says an older patch revision is refused at its sign-in (0x22)
   and its sessions from before a restart in the lobby (client_patch.md §6).
-- `SRP_MATCH_MODES` (default `2,3,4`), `SRP_MATCH_MAPS` (default: every
-  playable map, 72 of them): a room's pool by default, and what a clan
+- `SRP_MATCH_MODES` (default `2,3,4,5`: 5 is Research, played on data with
+  its maps), `SRP_MATCH_MAPS` (default: every playable map, 72 of them on
+  0.26g's data): a room's pool by default, and what a clan
   team's match is drawn from, so for a first test name one, e.g.
   `SRP_MATCH_MAPS=117` (Team Deathmatch on level_01).
 - `SRP_BALANCE_PLAYER` (default 12), `SRP_BALANCE_PLAYER_LEVEL` (1.5),
@@ -145,7 +146,8 @@ Every setting has a default; none is needed on a dev PC.
   counts for when the sides of a match are made (`matchmaking.md` §8).
   `SRP_BALANCE_RATED_PLAYERS` (4): the fewest players a match must have
   had in it to move the balance rating (§8.3).
-  `SRP_BALANCE_BATTERY_LEAD` (0.55), `SRP_BALANCE_TICKET_LEAD` (0.2):
+  `SRP_BALANCE_BATTERY_LEAD` (0.55), `SRP_BALANCE_TICKET_LEAD` (0.2; a
+  point of Research's too):
   what a lead counts for when a player comes into a match being played
   (`matchmaking.md` §9).
   `SRP_SQUADS` (default on; `off`: no squads), `SRP_SQUADS_OFF_TEXT`
