@@ -517,3 +517,29 @@ kept and can be put back).
 - TODO: #272 Crouched steps audible at 40 % of walking
 - TODO: #273 Weapon camo, the workbench, decals and instant preview (#244) on main for revision 27
 - TODO: #274 Grenade bounce retuned: only the distance preset changes (mid_range)
+
+## 22 Oct, 14:12 — TODO: the owner's words (update required)
+
+<!-- Revision 28 (026g-rev28), released 2026-10-22 14:12 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #276 Rooms: the results stay open when Play's member leaves the room after a match
+- TODO: #277 One pocket an item type (server rule, kit migration, lobby drop targets, 4th-grenade fix)
+- TODO: #278 Battery modes: respawn 10 s
+- TODO: #279 UI at 4K: Esc menu, Settings, cursor, replay controls and lobby pop-ups take the 1080p scale
+- TODO: #281 v0.11 maps: spawn protection 6 s
+- TODO: #280 Patch 49: the game stops at its start without a patch its release requires
+- TODO: #283 Lobby: item search (always open, typing starts it, levels and kinds) and lobby keys (R, Enter, Esc)
+- TODO: #290 Golden weapons: the shop and bundles show the silver bonus again
+- TODO: #292 Rerolls: no wait between silver ones; no Upgrade at three modifications
+- TODO: #291 Lobby: best bonus in gold, and the bonus range in the reroll window
+- TODO: #284 Release overlay test: expect required_patches (after #280)
+- TODO: #287 Content: 38 decals and the Steam camouflage from 0.69d
+- TODO: #293 Premium armour: its bonuses rerollable modifications of its own, upgradable as the plain piece
+- TODO: #294 Crafts: a golden item is a donor for its plain one too
+- TODO: #295 Lobby: compare with the item being upgraded; premium bonuses in gold
+- TODO: #296 Patch 52: a key in the lobby no longer kills the game when the focus is on a dead object
+- TODO: #298 Lobby: craft list and compare colours; sight card's kit weapons in gold; character menu in the shop
+- TODO: #299 Shop: Attachment on a kit item no longer crashes; its window lists the inventory
+- TODO: #300 Rooms: browse All rooms from a room (My room / All rooms tabs)
+- TODO: #301 Lobby: no New Year tree, gifts or Christmas sound; two bulbs light the workbench
+- TODO: #302 Lobby: the camera turns again after the upgrade window closes
