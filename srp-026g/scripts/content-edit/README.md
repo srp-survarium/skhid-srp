@@ -318,3 +318,17 @@ in `release/build-content 28` (2026-10-22, a dry run, after every other list): t
 at 0 unexpected differences, the scene packed over patch 27's. Rendering and
 sound only: no server data, no simulation change. `client_project.lua` (the editor's text of the
 scene, which the game does not read) is left as it is.
+
+## sponge-spawns-1.json (2026-10-22)
+
+| change | why |
+|---|---|
+| `client_objects[i]/artefacts` of every `generic_anomaly_core` with an artefact container: `{dict_id 758, count 1}` after its last kind (`add_entry`), 200 cores of 74 projects: levels 1 to 7 in their nine weathers (level_01, 02, 04, 05: 2 a project; level_03 5; level_06 3; level_07 1), London's three (7 each: patch 14's timed places), `v011e_level_03` (2), `v011e_level_04` (4: the antenna's electric pairs and the enabled track stages 07 and 18; its 24 disabled track controllers have no container and are left alone), `v021d_level_03` (5) and `v021d_level_06` (2), each in its two modes. Cologne (level_08) has no anomaly core. The pools grow by one entry each: 1570 -> 1770 artefact counts in all | the Sponge (pack `sponge@1`, items_dict 758) spawns where 0.26g's artefacts do. Made by `../sponge/spawns.py` from the live projects; the core is named by its index, the entry it follows by its kind and count |
+
+Checked on the live projects (2026-10-22, `--check`): 74 files edited, 0 unexpected differences;
+in a dry run of `release/build-content 30` (after every other list): the same, the 74 projects
+packed (69 MB uncompressed). The Research maps of `research-mode@3` (`<w>_5`, made by a pack) are
+not in the list: they keep 0.26g's anomaly pools without the Sponge. When `dynamic-anomalies`
+(#225) replaces London's projects, its 21 London entries go (its timed cores take the Sponge as
+their fourth kind). Rendering and spawning only: the match's artefacts change, so it rides with
+the exe's Sponge patch and its `simulation_changes.tsv` row.
