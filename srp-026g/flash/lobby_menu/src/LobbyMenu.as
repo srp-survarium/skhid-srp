@@ -5301,6 +5301,7 @@ package
             this.inventory_list.item_compare.setSecondaryWeapon(null);
          }
          this.inventory_list.hoverItem();
+         this.inventory_list.hoverScopesFor();
       }
       
       private function onPaperDollItemRollOver(e:ListEvent) : void
@@ -5312,12 +5313,15 @@ package
          if((e) && (e.itemData))
          {
             this.inventory_list.hoverItem(e.itemData.itemId);
+            this.linkScopeHovers(e.itemData);
          }
       }
       
       private function onInventoryListItemRollOut(e:ListEvent) : void
       {
          this.player_profile.paperDoll.hoverItem();
+         this.player_profile.paperDoll.hoverWeaponsFor();
+         this.inventory_list.hoverScopesFor();
       }
       
       private function onInventoryListItemRollOver(e:ListEvent) : void
@@ -5326,6 +5330,21 @@ package
          if((e.itemData))
          {
             this.player_profile.paperDoll.hoverItem(e.itemData.itemId);
+            this.linkScopeHovers(e.itemData);
+         }
+      }
+      
+      // A hovered weapon: the listed sights that fit it look hovered; a hovered sight: the kit's
+      // weapons it fits (weapon_scopes.md, section 4a).
+      private function linkScopeHovers(item:Object) : void
+      {
+         if(item.isWeapon)
+         {
+            this.inventory_list.hoverScopesFor(int(item.dictId));
+         }
+         else if(item.category == ItemCategory.SCOPES)
+         {
+            this.player_profile.paperDoll.hoverWeaponsFor(int(item.dictId));
          }
       }
       

@@ -142,7 +142,12 @@ table in code.
   chosen kit's slot 1 or slot 2 are gold in that list (owner 2026-10-22: "it should in gold
   highlight your weapon, if it is in the list ... it should work for weapon being either in slot 1
   or slot 2 in the currently selected profile"). The rest of the list stays as it was.
-- Code: `ItemInfoRenderer.scopeHintText`, `UpgradeWindow.kitWeapons`, `InventoryList.kitWeaponDicts`.
+- **Hover:** hovering a weapon (in the list or the kit) makes the listed sights that fit it look
+  hovered; hovering a sight in the list makes the kit's slot 1 and slot 2 weapons it fits look
+  hovered, as the kit's copy of a hovered item already did (owner 2026-10-22: "when I hover mouse
+  over my weapon the optical sights that fit into it are highlighted too with the same hover, same
+  the other way around").
+- Code: `ItemInfoRenderer.scopeHintText`, `UpgradeWindow.kitWeapons`, `InventoryList.kitWeaponDicts`. Hover: `LobbyMenu.linkScopeHovers`, `InventoryList.hoverScopesFor`, `LocalPaperDoll.hoverWeaponsFor`.
 
 ## 5. Weapon right-click menu
 

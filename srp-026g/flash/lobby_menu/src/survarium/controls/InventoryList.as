@@ -1651,6 +1651,43 @@ package survarium.controls
          return null;
       }
       
+      // The listed sights that fit a hovered weapon look hovered too; -1 ends it (weapon_scopes.md,
+      // section 4a).
+      private var _linkedHovers:Array = [];
+
+      public function hoverScopesFor(weaponDictId:int = -1) : void
+      {
+         var dataProvider:DataProvider = itemsTileList.dataProvider as DataProvider;
+         var position:Number = itemsTileList.getActualScrollPosition();
+         var renderer:IInventoryItemRenderer;
+         for each(var linked:int in this._linkedHovers)
+         {
+            renderer = linked != this._hoverIndex ? itemsTileList.getRendererAt(linked,position) as IInventoryItemRenderer : null;
+            if(renderer != null)
+            {
+               renderer.hover(false);
+            }
+         }
+         _linkedHovers = [];
+         if(weaponDictId < 0 || dataProvider == null)
+         {
+            return;
+         }
+         for(var i:int = 0; i < dataProvider.length; i++)
+         {
+            var itemData:Object = dataProvider[i];
+            if(itemData != null && itemData.category == ItemCategory.SCOPES && UpgradeWindow.fits(weaponDictId,int(itemData.dictId)))
+            {
+               renderer = itemsTileList.getRendererAt(i,position) as IInventoryItemRenderer;
+               if(renderer != null)
+               {
+                  renderer.hover();
+                  this._linkedHovers.push(i);
+               }
+            }
+         }
+      }
+
       public function hoverItem(value:int = 0) : void
       {
          var dataProvider:DataProvider = itemsTileList.dataProvider as DataProvider;
