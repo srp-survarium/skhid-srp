@@ -170,9 +170,10 @@ pull:
     call PULL_SET
     jmp PULL_ON
 .sponge:
+    push eax                          ; the time: a tap's release already seen arms it
     push ecx
-    call SP_PULL_PIN                  ; al = the index, 0
-    add esp, 4
+    call SP_PULL_PIN                  ; cdecl (sponge, time): al = the index, 0
+    add esp, 8
     jmp PULL_ON
 
 ; 0x319C8B, edi = the zone, ebx = 0, eax = the receiver's vt+20h, ecx = the

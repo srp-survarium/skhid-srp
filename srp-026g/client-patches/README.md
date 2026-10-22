@@ -2962,7 +2962,9 @@ texts and spawning are not this patch's (path B's branch). The rules: `../docs/n
 - **The throw.** A sponge sits in an artefact slot; its key's press (its action, 0.28's
   0x514580) makes its slot the inventory's grenade slot, and the stock throw-grenade state
   starts; the key's release takes the slot back and, with the pin pulled, arms it: the fuse is
-  the time + `activation_timeout`, rounded up to the tick grid as 0x30A120 does. The state reads
+  the time + `activation_timeout`, rounded up to the tick grid as 0x30A120 does, and the holder
+  is the thrower from then on. A release before the pull (a tap) is kept and the pull arms it
+  (0.28 threw it unarmed: it never exploded and could not be thrown again). The state reads
   the grenade slot's item as a grenade set in four places; each becomes a stub that runs ours
   for a sponge, else the original: its way in at 0x2E40C6 (vtable +64h and 0x30A090: the
   original dereferences null for any item that is not a grenade set; for a sponge: not in the
@@ -2978,11 +2980,20 @@ texts and spawning are not this patch's (path B's branch). The rules: `../docs/n
 - **The kill credit.** 0.26g has no damage_zone_owner: the zone's hit loop 0x319AF0 hits with no
   instigator, inflictor or item. At 0x319C8B a stub passes, for the zone a sponge is ticking (the
   state page names it while it does), the thrower's game object, the sponge's inflictor and the
-  sponge; any other zone hits as before.
+  sponge; any other zone hits as before. The thrower is his roster place, found again at each
+  tick (a place is never given to another player in a match); while the place is out of the
+  match (it left) no one is credited.
 - **The state.** Its serialize and deserialize: the artefact base's, the fuse, the pin, whether
-  it was thrown, the body's transform and velocities, and when the zone is on the zone's own
-  state, its geometry's transform and the owner's place (a field 0.28 does not serialize: its
-  owner is a pointer it keeps).
+  it was thrown, the body's transform and velocities, then two fields of ours, a tap waiting for
+  the pull and the thrower's place, and when the zone is on the zone's own state and the
+  explosion point (the zone's position and its hits'). A load sets the passive as the state
+  loaded says, in or out.
+- **Lifetimes.** Out of its inventory (in any state) its passive leaves the holder's pool; armed
+  in the hand it falls from the hand, its fuse and thrower kept (0.28 left it at the identity
+  transform). Its zone runs to its end whatever the item's state (nothing can pick a spent one
+  up: a container gives only an artefact the anomaly spawned again from state 0). Destroyed, it
+  takes each thing out of what it went into first: the zone off, the drawables out of the
+  scene's list, the geometry it made destroyed and freed, the body out of the physics world.
 - **The section**: `sponge_a_026g.asm` (eight `jmp near`, 200h bytes) and the C code at +C000h of
   `.srpx` (0xA439000), its state page at +F000h zeroed. +8000h is path B's (another branch),
   +4000h patch 42's.
@@ -3003,8 +3014,11 @@ loaded zone and geometry, set_game_world, the passive on pickup and its regenera
 the press (the original crashes there), the pin and the fuse, the throw's velocity, the fuse's
 ticks, the explosion's splash on six targets, the zone on, ticked and off, the zone hit's
 arguments against the original, serialization round trips in every state, the draw, a death and
-revive, patch 54's press; with `--v028d0` 0.28d0's own action, passive, throw and splash on the
-same inputs give the same numbers). **Not run in a game.**
+revive, patch 54's press; a removal while armed, a load turning the passive out and in, a late
+joiner's zone and a thrower who left, a tap, the destructor in the air and with the zone on, a
+container's can_use on a spent sponge; with `--v028d0` 0.28d0's own action, passive, throw and
+splash on the same inputs give the same numbers, and its tap leaves the sponge unarmed). **Not
+run in a game.**
 
 ## Not ported, not done
 

@@ -1879,3 +1879,7 @@ va	name	source	ret_cleanup	result
 0x00125790	vostok::detail::type_to_int<vostok::configs::binary_config_value>::get	manual	0	EAX: the type id a variant<32> of a config value has at +2Ch
 0x00304370	survarium::damage_type_from_string	manual	0	EAX: the index in 0x9257E0 (ranged, blunt, slash, explosive, toxic 4, radiation, fire, shock); no end for an unknown name
 0x00312590	survarium::artefact_lifebone_core::modify_regeneration	manual	8	speed (+0) = (s + [m+1Ch]) x [m+20h]; timeout (+4) = trunc((t + [m+24h] x 1000) x [m+28h]); threshold (+8) = (th + [m+2Ch]) x [m+30h]
+0x002f8be0	survarium::collision_geometry::~collision_geometry	manual	0	its ghost (+18h) destroyed (0x357BA0), its meshes vector (+0Ch) freed; the memory not freed (0x2F8BC0 deletes with operator delete)
+0x002d0ab0	survarium::game_world_core::active_player_ptr	manual	0	EAX: &out; the place's current kit player (refcount +1) when the place is below the places' end (+1845Ch) and its bit is set in core+18FD8h, else 0
+0x0031b5b0	survarium::generic_anomaly_core::tick	manual	12	its artefacts (+1B0h, count +1B4h) ticked through their vt+74h (0x31B69B)
+0x003134c0	survarium::artefact_base::spawn_in_container	manual	4	state 1 (spawning, +288h the spawn time), +284h the byte [arg]+64h (LIKELY the anomaly's id), the count its amount; called at 0x31B8A1 for one of an anomaly's state-0 artefacts (0x31B815), chosen by its random state +1B8h

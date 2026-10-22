@@ -4416,3 +4416,9 @@ va	name	location	role	basis
 0x00304370	survarium::damage_type_from_string	ESI	the name	observed
 0x00312590	survarium::artefact_lifebone_core::modify_regeneration	stack+4	&the regeneration info {float speed, u32 timeout ms, float threshold}	observed
 0x00312590	survarium::artefact_lifebone_core::modify_regeneration	stack+8	&the modifier	observed
+0x002f8be0	survarium::collision_geometry::~collision_geometry	ECX	the geometry (vtables 0xA13428/0xA13454)	observed
+0x002d0ab0	survarium::game_world_core::active_player_ptr	ESI	game_world_core	observed
+0x002d0ab0	survarium::game_world_core::active_player_ptr	CL	the place	observed
+0x002d0ab0	survarium::game_world_core::active_player_ptr	EDI	&out (an intrusive pointer)	observed
+0x003134c0	survarium::artefact_base::spawn_in_container	EAX	the artefact	observed
+0x003134c0	survarium::artefact_base::spawn_in_container	stack+4	an object of the anomaly (its +64h byte kept at +284h)	observed

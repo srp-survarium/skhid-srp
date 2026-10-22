@@ -40,6 +40,7 @@ typedef int i32;
 #define ALLOCATOR 0x1F1D9C4
 #define ALLOCATE 0xE4F90           /* esi = allocator, eax = size, push its info; ret 4 */
 #define GEOMETRY_INFO (0xACED34 + 8) /* the collision geometry's allocation info (0x304719: 0x420789 is lea eax,[ecx+8]) */
+#define FREE 0x1539D0              /* ecx = allocator, eax = the memory; cdecl (&the pointer, zeroed) */
 /* the artefact cook (vtable 0x9FC70C, class 76h) */
 #define RATTLE_CONSTRUCT 0x25FA10  /* eax = &effect, ecx = config root; stdcall (memory, scene); artefact<rattle> */
 #define RATTLE_SIZE 0x360          /* 0x25E7C9 */
@@ -105,6 +106,8 @@ typedef int i32;
 #define W_HITS 0x18F58             /* the splash's hit manager (0x30A4CF) */
 #define W_TIME_BASE 0x18FBC        /* the tick grid's origin (50: 0x2D00CD; 0.28 +1D05Ch) */
 #define W_PLACES 0x18458           /* Research's: places, 30h each, [4 x kit] the player, +0Ch the kit */
+#define W_PLACES_END 0x1845C       /* their end (active_player_ptr 0x2D0AB0: the count) */
+#define W_ACTIVE_PLACES 0x18FD8    /* u32: a bit for each place in the match now (active_player_ptr) */
 /* the rigid body (grenade_core's 0x303890, 0.28's 0x514400 the same numbers) */
 #define MAKE_SHAPE 0x7A390         /* edx = type, ecx = &dims; cdecl (&scale, 0) */
 #define MAKE_BODY 0x357100         /* cdecl (&desc, shape) */
@@ -146,6 +149,7 @@ typedef int i32;
 #define GEOMETRY_VTABLE 0xA13428
 #define GEOMETRY_VTABLE2 0xA13454
 #define LOAD_GEOMETRY 0x2F8C30     /* stdcall (geometry, &config) */
+#define GEOMETRY_DTOR 0x2F8BE0     /* thiscall: its ghost (0x357BA0) and meshes gone, not freed (0x2F8BC0 deletes) */
 #define EULER 0x725E0              /* edi = &angles, esi = &out: eax */
 #define TRANSLATION 0x573C0        /* ecx = &position, eax = &out: eax */
 #define MULTIPLY 0xEE700           /* ecx = A, edx = B; cdecl (&out): B x A */
@@ -222,11 +226,12 @@ struct sponge {
     u8 *linked;                    /* the regeneration list the node is in, 0 when out */
     u32 explode_time;              /* m_explode_time_ms, NEVER: not armed */
     u8 pin;                        /* m_is_pin_pulled */
-    u8 owner;                      /* the thrower's place (GO_ID) for the zone's hits, FFh none */
-    u8 pad[2];
+    u8 owner;                      /* the thrower's place (GO_ID), taken when it is armed; FFh none */
+    u8 released;                   /* the key let go before the pin was pulled (a tap): the pull arms it */
+    u8 pad;
     void *body;                    /* the rigid body (made at set_world) */
     void *physics;                 /* the physics world while thrown */
-    u32 pad2;
+    u8 *made_geometry;             /* the zone's collision geometry this sponge made (and frees) */
     matrix transform;              /* +430h m_transform */
     u8 *zone;                      /* the damage zone (data/active/damage_zone), a resource we hold */
     u32 sounds, effects;           /* zones moved with the explosion */
@@ -328,16 +333,18 @@ static void release(u8 *resource) {
 
 static u32 vt(const void *object, u32 offset) { return AT(*(const u8 *const *)object, offset, u32); }
 
-static u8 *holder(const struct sponge *s) {
+/* The holder's interface (inventory+174h), slot `offset` of it: +0Ch the
+ * player, +8 &the damage model; 0 out of an inventory. */
+static void *from_holder(const struct sponge *s, u32 offset) {
     u8 *inventory = AT(s, I_INVENTORY, u8 *);
     u8 *owner = inventory ? AT(inventory, INV_OWNER, u8 *) : 0;
-    return owner ? ((THISCALL u8 * (*)(void *)) vt(owner, 0xC))(owner) : 0;
+    return owner ? ((THISCALL void *(*)(void *))vt(owner, offset))(owner) : 0;
 }
 
+static u8 *holder(const struct sponge *s) { return from_holder(s, 0xC); }
+
 static u8 *damage_model(const struct sponge *s) {
-    u8 *inventory = AT(s, I_INVENTORY, u8 *);
-    u8 *owner = inventory ? AT(inventory, INV_OWNER, u8 *) : 0;
-    u8 **at = owner ? ((THISCALL u8 * *(*)(void *)) vt(owner, 0x8))(owner) : 0;
+    u8 **at = from_holder(s, 0x8);
     return at ? *at : 0;
 }
 
@@ -517,29 +524,44 @@ static void zone_place(struct sponge *s, const matrix *transform) {
         multiply(transform, &s->effect_local[i], &AT(zone, Z_EFFECTS, matrix *)[i]);
 }
 
-/* The thrower's game object, from his place (the killer a hit names). */
-static void *owner_object(const struct sponge *s) {
+/* The thrower, from his place: its current kit's player, only while the
+ * place is in the match (active_player_ptr 0x2D0AB0's test: below the
+ * places' end and its bit in world+18FD8h, cleared at the tick of a leave
+ * by 0x2D2040). A place is never given to another player in a match
+ * (matchmaking.md: a joiner gets a new one), so the place names the thrower;
+ * a thrower who left gets no credit, and one back in his place does. */
+static u8 *owner_player(const struct sponge *s) {
     u8 *world = AT(s, I_WORLD, u8 *);
-    u8 *places = world ? AT(world, W_PLACES, u8 *) : 0;
-    if (!places || s->owner >= MAX_PLACES) return 0;
+    if (!world || s->owner >= MAX_PLACES) return 0;
+    u8 *places = AT(world, W_PLACES, u8 *), *end = AT(world, W_PLACES_END, u8 *);
+    if (!places || end <= places || (u32)(end - places) / PLACE_SIZE <= s->owner) return 0;
+    if (!(AT(world, W_ACTIVE_PLACES, u32) >> s->owner & 1)) return 0;
     u8 *place = places + PLACE_SIZE * s->owner;
     if (place[PLACE_KIT] >= KITS) return 0;
     u8 *player = AT(place, 4 * place[PLACE_KIT], u8 *);
-    return player && player[P_GAME_OBJECT + GO_ID] == s->owner ? player + P_GAME_OBJECT : 0;
+    return player && player[P_GAME_OBJECT + GO_ID] == s->owner ? player : 0;
+}
+
+/* his game object (the killer a hit names) */
+static void *owner_object(const struct sponge *s) {
+    u8 *player = owner_player(s);
+    return player ? player + P_GAME_OBJECT : 0;
 }
 
 /* The zone's tick (0x319A70), its hits the thrower's (the hook in its hit
- * loop reads G). */
+ * loop reads G): the instigator found again from the thrower's place for
+ * each tick (the inflictor's too), none kept after it. */
 static void zone_tick(struct sponge *s, u32 dt, u32 time) {
     if (!s->zone) return;
     struct sp_globals *g = G;
     g->zone = s->zone;
-    g->instigator = owner_object(s);
+    g->instigator = s->inflictor.instigator = owner_object(s);
     g->inflictor = &s->inflictor;
     g->item = s;
     ((THISCALL void (*)(void *, u32, u32, u32))ZONE_TICK)(s->zone, dt, time, time % TICK == 0);
     g->zone = 0;
     g->instigator = g->inflictor = g->item = 0;
+    s->inflictor.instigator = 0;
 }
 
 /* ---- the passive (0.28's 0x5139A0 / 0x513A10, on 0.26g's Lifebone list) */
@@ -576,32 +598,69 @@ THISCALL void sp_disable_passive(struct sponge *s) {
 
 /* ---- the slots --------------------------------------------------------- */
 
+/* Armed at `time`: state 6, the explosion activation_timeout later rounded
+ * up to the world's tick grid (as 0.26g's pull_pin 0x30A120), the thrower
+ * the holder now. Once: only when not armed. */
+static void arm(struct sponge *s, u32 time) {
+    if (s->explode_time != NEVER) return;
+    AT(s, A_STATE, u32) = ST_ARMED;
+    u32 origin = AT(AT(s, I_WORLD, u8 *), W_TIME_BASE, u32), due = s->activation_timeout_ms + time;
+    due = due > origin ? due - origin - 1 : 0;
+    s->explode_time = (due / TICK + 1) * TICK + origin;
+    u8 *player = holder(s);
+    s->owner = player ? player[P_GAME_OBJECT + GO_ID] : 0xFF;
+    s->released = 0;
+}
+
 /* 0.28's action 0x514580: a press (not armed) puts it in the grenade slot
- * (the throw state starts); a release takes it out and, with the pin pulled
- * and not armed, arms it: state 6, the explosion activation_timeout from now
- * rounded up to the world's tick grid (as 0.26g's pull_pin 0x30A120). */
+ * (the throw state starts); a release takes it out and, with the pin pulled,
+ * arms it. A release before the pull (a tap: both in one tick, or the
+ * release first) is kept, and the pull arms it (0.28 would throw it unarmed:
+ * it never explodes and is never thrown again). */
 THISCALL void sp_action(struct sponge *s, u32 pressed, u32 time) {
     u8 *inventory = AT(s, I_INVENTORY, u8 *);
     if (!inventory) return;
     if ((u8)pressed && s->explode_time == NEVER) {
         AT(inventory, INV_GRENADE_SLOT, u32) = AT(s, I_SLOT, u32);
+        s->released = 0;
         return;
     }
     AT(inventory, INV_GRENADE_SLOT, u32) = NO_SLOT;
-    if (s->pin && s->explode_time == NEVER) {
-        AT(s, A_STATE, u32) = ST_ARMED;
-        u32 origin = AT(AT(s, I_WORLD, u8 *), W_TIME_BASE, u32), due = s->activation_timeout_ms + time;
-        due = due > origin ? due - origin - 1 : 0;
-        s->explode_time = (due / TICK + 1) * TICK + origin;
-    }
+    if (s->explode_time != NEVER) return;
+    if (s->pin) arm(s, time);
+    else s->released = 1;
 }
 
-/* 0.28's removed_from_inventory 0x513200: nothing while armed. */
+/* The passive as the state says: in while it is in an inventory and held
+ * (3), active (4) or armed in the hand or the air (6), out otherwise. */
+static void sync_passive(struct sponge *s) {
+    u32 state = AT(s, A_STATE, u32);
+    if (AT(s, I_INVENTORY, u8 *) && (state == ST_PASSIVE || state == ST_ACTIVE || state == ST_ARMED))
+        ((THISCALL void (*)(void *))vt(s, V_ENABLE_PASSIVE))(s);
+    else
+        ((THISCALL void (*)(void *))vt(s, V_DISABLE_PASSIVE))(s);
+}
+
+/* 0.28's removed_from_inventory 0x513200, its holes closed: the passive out
+ * in every state (0.28 skipped state 6 and left the node in the old holder's
+ * pool); armed in the hand, it falls from the hand (into the physics world
+ * there, no speed; 0.28 left it where m_transform was, the identity), its
+ * fuse and thrower kept; armed in the air or exploded, nothing else. */
 THISCALL void sp_removed(struct sponge *s) {
     u32 state = AT(s, A_STATE, u32);
-    if (state == ST_ARMED) return;
-    if (state == ST_ACTIVE) ((THISCALL void (*)(void *))vt(s, V_DISABLE_ACTIVE))(s);
     ((THISCALL void (*)(void *))vt(s, V_DISABLE_PASSIVE))(s);
+    if (state == ST_ARMED) {
+        static const float still[3] = {0, 0, 0};
+        if (!s->physics && s->body && holder(s)) {
+            matrix hand;
+            hand_transform(s, &hand);
+            s->transform = hand;
+            launch(s, &hand, still);
+        }
+        return;
+    }
+    if (state == ST_ZONE) return;
+    if (state == ST_ACTIVE) ((THISCALL void (*)(void *))vt(s, V_DISABLE_ACTIVE))(s);
     AT(s, A_STATE, u32) = ST_NONE;
 }
 
@@ -612,19 +671,21 @@ THISCALL void sp_revived(struct sponge *s) {
     AT(s, A_STATE, u32) = ST_PASSIVE;
 }
 
-/* 0.28's 0x513FD0: the splash's parameters, the holder's radius (12) and
- * damage (11) modifiers on them, the inflictor this one's with the holder. */
+/* 0.28's 0x513FD0: the splash's parameters, the thrower's radius (12) and
+ * damage (11) modifiers on them, the inflictor this one's naming him (0.28
+ * the holder: the same player while it is held; a thrower out of the match
+ * neither). */
 static void splash_of(struct sponge *s, struct splash *out) {
     *out = s->splash;
     out->inflictor = &s->inflictor;
-    u8 *player = holder(s);
+    u8 *player = owner_player(s);
+    s->inflictor.instigator = player ? player + P_GAME_OBJECT : 0;
     if (!player) return;
     out->radius = modified(player, M_RADIUS, out->radius);
     out->min = modified(player, M_DAMAGE, out->min);
     out->max = modified(player, M_DAMAGE, out->max);
     out->stamina = modified(player, M_DAMAGE, out->stamina);
     out->stopping = modified(player, M_DAMAGE, out->stopping);
-    s->inflictor.instigator = player + P_GAME_OBJECT;
 }
 
 /* 0.28's tick 0x514160: states 6 and 7 are the sponge's own. */
@@ -650,26 +711,29 @@ THISCALL void sp_tick(struct sponge *s, u32 dt, u32 time) {
         __asm__ volatile("push %[when]\n\tpush %[at]\n\tpush %[hits]\n\tcall *%[fn]"
                          : "+S"(params), [when] "+a"(when), [at] "+c"(at), [hits] "+d"(hits), [fn] "+D"(fn)
                          : : CLOBBERS);
+        s->inflictor.instigator = 0;                 /* the zone's ticks name him again each time */
+        s->transform = transform;                    /* the explosion point: the zone's hits' position */
         zone_on(s, 1);
-        u8 *player = holder(s);
-        s->owner = player ? player[P_GAME_OBJECT + GO_ID] : 0xFF;
         u8 *shape = geometry(s);
         if (shape) ((THISCALL void (*)(void *, const matrix *))vt(shape, GV_SET_TRANSFORM))(shape, &transform);
         zone_place(s, &transform);
         leave_physics(s);
         s->pin = 0;
+        AT(s, A_STATE, u32) = ST_ZONE;               /* before the slot: its removed_from_inventory sees it spent */
         u8 *inventory = AT(s, I_INVENTORY, u8 *);
         u32 slot = AT(s, I_SLOT, u32);
         if (inventory && slot < NO_SLOT && AT(inventory, INV_SLOTS + 4 * slot, struct sponge *) == s)
             __asm__ volatile("call *%[fn]" : "+a"(slot), "+S"(inventory) : [fn] "r"(REMOVE_FROM_SLOT)
                              : "ecx", "edx", CLOBBERS);
         sp_disable_passive(s);                       /* 0.28 leaves it in the thrower's list (its +30h skips state 6) */
-        AT(s, A_STATE, u32) = ST_ZONE;
     }
-    if (AT(s, A_STATE, u32) == ST_ZONE) zone_tick(s, dt, time);
+    /* the zone runs on whatever the item's state (nothing can take an
+     * exploded sponge: a container's can_use 0x31C6B0 wants state 2, which
+     * only the anomaly's spawn of a state-0 artefact gives, 0x31B815) */
+    if (zone_active(s)) zone_tick(s, dt, time);
     if (time == s->explode_time + s->duration_ms) {
         zone_off(s, 0);
-        AT(s, A_STATE, u32) = ST_NONE;
+        if (AT(s, A_STATE, u32) == ST_ZONE) AT(s, A_STATE, u32) = ST_NONE;
         s->explode_time = NEVER;
     }
 }
@@ -679,9 +743,11 @@ THISCALL void sp_tick(struct sponge *s, u32 dt, u32 time) {
 /* 0.28's grenade_set_base[6] 0x515150: ready to be thrown (not in the air). */
 u32 sp_can_throw(struct sponge *s) { return !s->physics; }
 
-/* [1] 0x514610: the pin; the "grenade index" 0. */
-u32 sp_pull_pin(struct sponge *s) {
+/* [1] 0x514610: the pin; the "grenade index" 0. A release already seen
+ * (a tap) arms it now. */
+u32 sp_pull_pin(struct sponge *s, u32 time) {
     s->pin = 1;
+    if (s->released) arm(s, time);
     return 0;
 }
 
@@ -715,15 +781,15 @@ THISCALL void sp_serialize(struct sponge *s, u8 *writer, void *dumper) {
         get_velocity(GET_ANGULAR, s->body, v);
         field(writer, WRITE_VEC3, v, 0x47, "angular_velocity");
     }
+    /* ours: the tap waiting for the pull, the thrower's place (from the arming on) */
+    field(writer, WRITE_U8, &s->released, 0x48, "m_released_before_pin");
+    field(writer, WRITE_U8, &s->owner, 0x49, "m_zone_owner");
     if (AT(s, A_STATE, u32) == ST_ZONE && s->zone) {
         u8 *serial = s->zone + Z_SERIAL;
         ((THISCALL void (*)(void *, void *, void *))vt(serial, 0))(serial, writer, dumper);
-        matrix m;
-        u8 *shape = geometry(s);
-        if (shape) ((THISCALL matrix * (*)(void *, matrix *)) vt(shape, GV_GET_TRANSFORM))(shape, &m);
-        else memset(&m, 0, sizeof m);
-        field(writer, WRITE_MATRIX, &m, 0x4F, "m_damage_zone->get_collision_geometry(0)->transform()");
-        field(writer, WRITE_U8, &s->owner, 0x50, "m_zone_owner");
+        /* 0.28 wrote its geometry's transform, which is the explosion's:
+         * m_transform, which the zone's hits' position (the inflictor's) is */
+        field(writer, WRITE_MATRIX, &s->transform, 0x4F, "m_damage_zone->get_collision_geometry(0)->transform()");
     }
 }
 
@@ -765,26 +831,41 @@ THISCALL void sp_deserialize(struct sponge *s, u8 *reader, void *a, void *b) {
     } else {
         leave_physics(s);
     }
+    s->released = read8(reader) != 0;
+    s->owner = read8(reader);
+    s->inflictor.instigator = 0;
     if (AT(s, A_STATE, u32) == ST_ZONE && s->zone) {
         if (!zone_active(s)) zone_on(s, 1);
         u8 *serial = s->zone + Z_SERIAL;
         ((THISCALL void (*)(void *, void *, void *, void *))vt(serial, 4))(serial, reader, a, b);
-        matrix m;
-        read_bytes(reader, &m, sizeof m);
+        read_bytes(reader, &s->transform, sizeof s->transform);
         u8 *shape = geometry(s);
-        if (shape) ((THISCALL void (*)(void *, const matrix *))vt(shape, GV_SET_TRANSFORM))(shape, &m);
-        zone_place(s, &m);
-        s->owner = read8(reader);
+        if (shape) ((THISCALL void (*)(void *, const matrix *))vt(shape, GV_SET_TRANSFORM))(shape, &s->transform);
+        zone_place(s, &s->transform);
         ((THISCALL void (*)(void *, void *))vt(serial, 8))(serial, AT(s, I_WORLD, void *));
     } else if (zone_active(s)) {
         zone_off(s, 1);
     }
-    u8 *player = holder(s);
-    if (player && player[P_ALIVE]) ((THISCALL void (*)(void *))vt(s, V_ENABLE_PASSIVE))(s);
+    sync_passive(s);
 }
 
 /* ---- the world and the draw -------------------------------------------- */
 
+/* Out of the scene's list (scene+0DCh {?, head, tail}, prev +4, next +8)
+ * when it is in it. */
+static void unlink_drawable(u8 *scene, u8 *drawable) {
+    u8 *list = scene + 0xDC, *at = AT(list, 4, u8 *);
+    while (at && at != drawable) at = AT(at, 8, u8 *);
+    if (!at) return;
+    u8 *prev = AT(drawable, 4, u8 *), *next = AT(drawable, 8, u8 *);
+    if (prev) AT(prev, 8, u8 *) = next;
+    else AT(list, 4, u8 *) = next;
+    if (next) AT(next, 4, u8 *) = prev;
+    else AT(list, 8, u8 *) = prev;
+    AT(drawable, 4, u8 *) = AT(drawable, 8, u8 *) = 0;
+}
+
+/* At the list's end, as Rattle's set_world 0x25FB30 links its drawable. */
 static void link_drawable(u8 *scene, u8 *drawable) {
     u8 *list = scene + 0xDC;
     AT(drawable, 8, u8 *) = 0;
@@ -800,15 +881,50 @@ THISCALL void sp_set_world(struct sponge *s, u8 *world) {
     ((THISCALL void (*)(void *, void *))RATTLE_SET_WORLD)(s, world);
     if (!s->body) s->body = make_body();
     u8 *scene = AT(s, 0x340 + D_SCENE, u8 *);
-    if (scene && s->zone) link_drawable(scene, s->zone + Z_DRAWABLE);
+    if (scene && s->zone) {
+        unlink_drawable(scene, s->zone + Z_DRAWABLE);  /* once, however often the world is set */
+        link_drawable(scene, s->zone + Z_DRAWABLE);
+    }
 }
 
+static void free_memory(void *memory) {
+    u32 allocator = *(u32 *)ALLOCATOR;
+    void *pointer = memory, **at = &pointer;
+    __asm__ volatile("push %[at]\n\tcall *%[fn]\n\tadd $4, %%esp" : "+a"(memory), "+c"(allocator)
+                     : [at] "r"(at), [fn] "r"(FREE) : "edx", CLOBBERS);
+}
+
+/* Each thing out of what it went into, before it goes: the passive out of
+ * its pool; the zone off (its ghosts out of the physics world, 0x319D30)
+ * and its drawable out of the scene's list; the geometry this sponge made
+ * out of the zone, destroyed (0x2F8BE0: its ghost) and freed to the cooks'
+ * allocator it came from; the body out of the physics world, then
+ * destroyed; the zone let go; the sponge's own drawable out of the list
+ * (Rattle's destructor then takes its model out of the scene). */
 THISCALL void *sp_dtor(struct sponge *s, u32 flags) {
     sp_disable_passive(s);
-    if (s->body) destroy_body(s->body);
+    u8 *scene = AT(s, 0x340 + D_SCENE, u8 *);
+    if (s->zone) {
+        if (G->zone == s->zone) G->zone = 0;
+        if (zone_active(s)) zone_off(s, 1);
+        if (scene) unlink_drawable(scene, s->zone + Z_DRAWABLE);
+    }
+    if (s->made_geometry) {
+        u8 *made = s->made_geometry;
+        s->made_geometry = 0;
+        if (s->zone && AT(s->zone, Z_GEOMETRY_COUNT, u32) && AT(AT(s->zone, Z_GEOMETRIES, u8 **), 0, u8 *) == made)
+            AT(AT(s->zone, Z_GEOMETRIES, u8 **), 0, u8 *) = 0;
+        ((THISCALL void (*)(void *))GEOMETRY_DTOR)(made);
+        free_memory(made);
+    }
+    if (s->body) {
+        leave_physics(s);
+        destroy_body(s->body);
+    }
     s->body = 0;
     release(s->zone);
     s->zone = 0;
+    if (scene) unlink_drawable(scene, (u8 *)s + 0x340);
     return ((THISCALL void *(*)(void *, u32))RATTLE_DTOR)(s, flags);
 }
 
@@ -1015,6 +1131,7 @@ static void zone_cooked(struct sponge *s, u8 *zone, const cfg *config) {
         AT(shape, 0, u32) = GEOMETRY_VTABLE;
         AT(shape, 4, u32) = GEOMETRY_VTABLE2;
         AT(AT(zone, Z_GEOMETRIES, u8 *), 0, u8 *) = shape;
+        s->made_geometry = shape;
         ((STDCALL void (*)(void *, const cfg *))LOAD_GEOMETRY)(shape, item(geometries, 0));
     }
     if (has(config, "sound_zones")) {

@@ -3070,3 +3070,5 @@ va	status	ref_021d	name
 0x00357830	inferred-high		vostok::physics::bullet_rigid_body::get_angular_velocity
 0x00357890	inferred-high		vostok::physics::bullet_rigid_body::get_transform
 0x003578b0	inferred-high		vostok::physics::bullet_rigid_body::set_transform
+0x002f8bc0	inferred-high		survarium::collision_geometry::`scalar deleting destructor'
+0x002f8be0	inferred-high		survarium::collision_geometry::~collision_geometry

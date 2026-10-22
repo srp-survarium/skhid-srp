@@ -355,6 +355,8 @@ class Game:
         # places, the player
         self.places = r.allocate(20 * 0x30)
         r.word(CORE + 0x18458, self.places)
+        r.word(CORE + 0x1845C, self.places + 20 * 0x30)
+        r.word(CORE + 0x18FD8, (1 << 20) - 1)                         # every place in the match
         self.player = self.make_player(self.PLACE)
         # the inventory: slots +10Ch, owner +174h, grenade slot +17Ch, dirty +184h
         self.inventory = r.allocate(0x200)
@@ -1075,13 +1077,14 @@ def main():
     b_sponge, b_zone, b_body = make_sponge(14)
     blob, names, c, c_zone, c_body, read_ok, same = round_trip(b_sponge, 15, "held")
     check("held (state 3): the base's fields, then m_explode_time_ms, m_is_pin_pulled, thrown() (0.28's order and "
-          "lines, named in the hash mismatch dump); a fresh sponge reads them all (ret 0Ch), is held as it was "
+          "lines, named in the hash mismatch dump), then ours: the tap, the thrower's place; a fresh sponge reads them all (ret 0Ch), is held as it was "
           "(the passive in), and writes the same bytes",
-          read_ok and same and names[-3:] == ["m_explode_time_ms", "m_is_pin_pulled", "thrown()"]
-          and blob[-6:] == b"\xff\xff\xff\xff\x00\x00" and r.read(c + STATE_AT) == 3 and r.read(c + S_LINKED),
+          read_ok and same and names[-5:] == ["m_explode_time_ms", "m_is_pin_pulled", "thrown()",
+                                              "m_released_before_pin", "m_zone_owner"]
+          and blob[-8:] == b"\xff\xff\xff\xff\x00\x00\x00\xff" and r.read(c + STATE_AT) == 3 and r.read(c + S_LINKED),
           f"{names}")
     r.thiscall(vt(b_sponge, 11), b_sponge, 1, 200000)
-    r.thiscall(SYMBOLS["sp_pull_pin"], 0) if False else r.call(SYMBOLS["sp_pull_pin"], (b_sponge,))
+    r.call(SYMBOLS["sp_pull_pin"], (b_sponge, 200000))
     r.thiscall(vt(b_sponge, 11), b_sponge, 0, 200050)
     b_armed = r.read(b_sponge + S_EXPLODE)
     blob, names, c, c_zone, c_body, read_ok, same = round_trip(b_sponge, 16, "armed")
@@ -1101,8 +1104,9 @@ def main():
     c_bullet = r.read(c_body + 0x14)
     check("thrown (state 6 in the air): m_transform, linear_velocity, angular_velocity written; read back the "
           "body goes into the physics world at m_transform with both velocities, the same bytes again",
-          read_ok and same and names[-6:] == ["m_explode_time_ms", "m_is_pin_pulled", "thrown()", "m_transform",
-                                              "linear_velocity", "angular_velocity"]
+          read_ok and same and names[-8:] == ["m_explode_time_ms", "m_is_pin_pulled", "thrown()", "m_transform",
+                                              "linear_velocity", "angular_velocity", "m_released_before_pin",
+                                              "m_zone_owner"]
           and r.read(c + S_PHYSICS) == game.physics and ("pw_add", c_body, 0x818, 8) in game.log
           and r.readf(c + S_TRANSFORM, 16) == translation(-1.0, 2.5, 7.0)
           and r.bytes(c_bullet + 0x140, 12) == r.bytes(b_bullet + 0x140, 12)
@@ -1121,12 +1125,13 @@ def main():
         r.thiscall(vt(b_sponge, 29), b_sponge, 50, time)
     r.thiscall(vt(b_sponge, 29), b_sponge, 50, time + 50)
     blob, names, c, c_zone, c_body, read_ok, same = round_trip(b_sponge, 18, "zone")
-    check("the zone (state 7): its serializable (+130h) and its geometry's transform after the sponge's (0.28's), "
-          "then the thrower's place (ours); read back the zone is on, read, placed, the thrower kept, the same "
-          "bytes again",
-          read_ok and same and names[-3:] == ["m_damage_zone->get_collision_geometry(0)->transform()",
-                                              "m_zone_owner"][-3:] if False else
-          read_ok and same and names[-2:] == ["m_damage_zone->get_collision_geometry(0)->transform()", "m_zone_owner"]
+    check("the zone (state 7): the thrower's place (ours, from the arming), then the zone's serializable (+130h) "
+          "and the explosion point (0.28's geometry transform: m_transform, the zone hits' position); read back "
+          "the zone is on, read, placed there, m_transform the explosion point, the thrower kept, the same bytes "
+          "again",
+          read_ok and same and names[-3:] == ["m_released_before_pin", "m_zone_owner",
+                                              "m_damage_zone->get_collision_geometry(0)->transform()"]
+          and r.readf(c + S_TRANSFORM + 0x30, 3) == [-1.0, 2.5, 7.0]
           and b"ZONE!" in blob and ("activate", c_zone + 0x108, game.physics) in events
           and ("zone_deserialize", c_zone + 0x130, b"ZONE!") in zone_io and ("zone_after", c_zone + 0x130, CORE) in zone_io
           and r.read(c + S_OWNER, 1) == 3 and r.read(c + STATE_AT) == 7
@@ -1157,7 +1162,7 @@ def main():
     r.thiscall(draw, drawable)
     check("held (state 3): the stock draw (no model calls)", not [e for e in game.log if "model" in e[0]])
     r.thiscall(vt(d_sponge, 11), d_sponge, 1, 300000)
-    r.call(SYMBOLS["sp_pull_pin"], (d_sponge,))
+    r.call(SYMBOLS["sp_pull_pin"], (d_sponge, 300000))
     r.thiscall(vt(d_sponge, 11), d_sponge, 0, 300000)
     game.log.clear()
     r.thiscall(draw, drawable)
@@ -1224,6 +1229,218 @@ def main():
           untouched and r.read(game.inventory + 0x17C) == r.read(alive + SLOT) and r.read(other + S_EXPLODE) == NEVER
           and r.read(other + STATE_AT) == 3 and r.read(lifebone_like + STATE_AT) == 4)
 
+    # 14. Lifetimes and lockstep (the review of 2026-10-22): each hole of 0.28's closed.
+    infection = game.pools["infection"]
+
+    def in_pool(node):
+        found, at = 0, r.read(infection + 0x2EC)
+        while at and found < 64:
+            found += at == node
+            at = r.read(at + 0x20)
+        return found
+
+    def in_scene(drawable):
+        at, seen = r.read(game.scene + 0xDC + 4), []
+        while at and len(seen) < 64:
+            seen.append(at)
+            at = r.read(at + 8)
+        return seen.count(drawable)
+
+    def remove_from_slot(slot):
+        r.call(0x2FC680, regs={UC_X86_REG_EAX: slot, UC_X86_REG_ESI: game.inventory})
+
+    def tap(obj, at):
+        """press and release in one tick, the pull after them"""
+        r.thiscall(vt(obj, 11), obj, 1, at)
+        r.thiscall(vt(obj, 11), obj, 0, at)
+
+    def throw(obj, x, y, z):
+        r.word(throw_state + 0x17C, obj)
+        r.span(0x33A7BB, 0x33A7D9, {UC_X86_REG_ESI: throw_state, UC_X86_REG_EDI: game.player},
+               [0, 0, 0, 0] + [struct.unpack("<I", struct.pack("<f", v))[0] for v in translation(x, y, z)])
+
+    def tick_until(obj, start, state):
+        t = start
+        while r.read(obj + STATE_AT) != state and t < start + 20000:
+            t += 50
+            r.thiscall(vt(obj, 29), obj, 50, t)
+        return t
+
+    # 14a. Out of the inventory while armed in the hand: the passive out of the pool (0.28 left it in);
+    #      the sponge falls from the hand, its fuse and thrower kept, and explodes where it fell, his.
+    a, a_zone, a_body = make_sponge(13)
+    r.thiscall(vt(a, 11), a, 1, 600000)
+    r.call(SYMBOLS["sp_pull_pin"], (a, 600000))
+    r.thiscall(vt(a, 11), a, 0, 600000)
+    a_fuse = r.read(a + S_EXPLODE)
+    was_in = in_pool(a + S_NODE)
+    game.log.clear()
+    remove_from_slot(13)
+    a_bullet = r.read(a_body + 0x14)
+    check("taken out of its inventory armed in the hand (0x2FC680): the passive out of the holder's pool (0.28's "
+          "+30h skipped state 6 and left it there); it falls from the hand (into the physics world there, no "
+          "speed), still armed (the same fuse), the thrower kept",
+          was_in == 1 and in_pool(a + S_NODE) == 0 and r.read(a + S_LINKED) == 0 and r.read(a + INVENTORY) == 0
+          and r.read(a + STATE_AT) == 6 and r.read(a + S_EXPLODE) == a_fuse == 603000
+          and ("body_set", a_body, [f32(0.4), f32(1.7), f32(0.2)]) in game.log and ("pw_add", a_body, 0x818, 8) in game.log
+          and r.read(a + S_PHYSICS) == game.physics and r.readf(a_bullet + 0x140, 3) == [0.0, 0.0, 0.0]
+          and r.read(a + S_OWNER, 1) == 3, f"fuse {a_fuse} log {game.log}")
+    r.floats(a_body + 0x100, translation(0.4, 0.1, 0.2))
+    splashes.clear()
+    end = tick_until(a, 600000, 7)
+    hit, _, at, when, instigator = splashes[0] if splashes else ({}, 0, [], 0, 0)
+    check("it explodes at its fuse where it fell, the splash the thrower's (his game object, his modifiers: "
+          "radius 15)", end == a_fuse and len(splashes) == 1 and at == [f32(0.4), f32(0.1), f32(0.2)]
+          and instigator == game.player + 0x110 and hit["radius"] == 15.0 and r.read(a + S_INFLICTOR + 8) == 0,
+          str(splashes))
+
+    # 14b. Deserialize: the passive follows the state loaded, in and out (0.28 only ever linked it).
+    free_one, _, _ = make_sponge(14)
+    remove_from_slot(14)
+    free_blob = write(free_one)[0]
+    held_one, _, _ = make_sponge(15)
+    held_blob = write(held_one)[0]
+    target_one, _, _ = make_sponge(16)
+    linked_first = in_pool(target_one + S_NODE)
+    load(target_one, free_blob)
+    out_after = (in_pool(target_one + S_NODE), r.read(target_one + S_LINKED), r.read(target_one + STATE_AT))
+    load(target_one, held_blob)
+    in_after = (in_pool(target_one + S_NODE), r.read(target_one + STATE_AT))
+    load(target_one, held_blob)
+    check("a rollback's load sets the passive by the state loaded: a held sponge given a state 0 is out of the "
+          "pool; given state 3 again it is in once, and once after a second load",
+          linked_first == 1 and out_after == (0, 0, 0) and in_after == (1, 3) and in_pool(target_one + S_NODE) == 1,
+          f"{linked_first} {out_after} {in_after}")
+
+    # 14c. The zone in a late joiner's world: the explosion point and the thrower from the state, the
+    #      instigator found again at each tick from his place, none kept; none for a thrower who left.
+    e, e_zone, e_body = make_sponge(17)
+    r.thiscall(vt(e, 11), e, 1, 700000)
+    r.call(SYMBOLS["sp_pull_pin"], (e, 700000))
+    r.thiscall(vt(e, 11), e, 0, 700000)
+    throw(e, 1.0, 1.0, 1.0)
+    r.floats(e_body + 0x100, translation(6.0, 0.5, -2.0))
+    e_end = tick_until(e, 700000, 7)
+    blob, names, j, j_zone, j_body, read_ok, same = round_trip(e, 18, "late")
+    events.clear()
+    r.thiscall(vt(j, 29), j, 50, e_end + 50)
+    position, _ = r.thiscall(r.read(r.read(j + S_INFLICTOR) + 8), j + S_INFLICTOR)
+    ticked = [x for x in events if x[0] == "zone_tick"]
+    check("a late joiner's sponge from a state-7 world: m_transform the explosion point (6, 0.5, -2), its zone "
+          "ticked naming the thrower found from his place, the inflictor naming him for the tick and no one "
+          "after, its position the explosion point",
+          read_ok and same and r.readf(j + S_TRANSFORM + 0x30, 3) == [6.0, 0.5, -2.0]
+          and ticked and ticked[0][5] == (j_zone, game.player + 0x110, j + S_INFLICTOR, j)
+          and r.read(j + S_INFLICTOR + 8) == 0 and r.readf(position, 3) == [6.0, 0.5, -2.0], str(ticked))
+    r.word(CORE + 0x18FD8, ((1 << 20) - 1) & ~(1 << 3))
+    events.clear()
+    r.thiscall(vt(j, 29), j, 50, e_end + 100)
+    gone = [x for x in events if x[0] == "zone_tick"]
+    r.word(CORE + 0x18FD8, (1 << 20) - 1)
+    r.word(CORE + 0x1845C, game.places + 3 * 0x30)
+    events.clear()
+    r.thiscall(vt(j, 29), j, 50, e_end + 150)
+    past = [x for x in events if x[0] == "zone_tick"]
+    r.word(CORE + 0x1845C, game.places + 20 * 0x30)
+    events.clear()
+    r.thiscall(vt(j, 29), j, 50, e_end + 200)
+    back = [x for x in events if x[0] == "zone_tick"]
+    check("the thrower's place out of the match (its bit in world+18FD8h cleared, as 0x2D2040 does at a leave) "
+          "or past the places' end: the zone's hits name no one; back in: him again",
+          gone and gone[0][5][1] == 0 and past and past[0][5][1] == 0 and back and back[0][5][1] == game.player + 0x110,
+          f"{gone} {past} {back}")
+
+    # 14d. A tap: the release before the pull; the pull arms it (0.28 threw it unarmed, never to explode).
+    t, _, t_body = make_sponge(19)
+    tap(t, 800000)
+    tapped = (r.read(t + S_EXPLODE), r.read(t + 0x422, 1), r.read(game.inventory + 0x17C))
+    tap_blob, _, t2, _, _, read_ok, same = round_trip(t, 20, "tap")
+    r.call(SYMBOLS["sp_pull_pin"], (t2, 800050))
+    check("a tap (press and release before the pull substate): not armed yet, the release kept (and in the "
+          "state: a game loading it has it too); the pull a tick later arms it once, from the pull: 803050, the "
+          "thrower its holder",
+          tapped == (NEVER, 1, 0x17) and read_ok and same and r.read(t2 + 0x422, 1) == 0
+          and r.read(t2 + S_EXPLODE) == 803050 and r.read(t2 + STATE_AT) == 6 and r.read(t2 + S_OWNER, 1) == 3,
+          f"{tapped} {r.read(t2 + S_EXPLODE)}")
+    r.thiscall(vt(t2, 11), t2, 0, 800100)
+    again = r.read(t2 + S_EXPLODE)
+    throw(t2, 2.0, 1.0, 2.0)
+    t_end = tick_until(t2, 800050, 7)
+    r.call(SYMBOLS["sp_pull_pin"], (t, 800000))
+    check("a release after that arms nothing again; thrown, it explodes at its fuse; a tap with the pull in the "
+          "same tick arms from that tick (803000 from 800000)",
+          again == 803050 and t_end == 803050 and r.read(t2 + STATE_AT) == 7 and r.read(t + S_EXPLODE) == 803000,
+          f"{again} {t_end} {r.read(t2 + STATE_AT)} {r.read(t + S_EXPLODE)}")
+
+    # 14e. The destructor takes each thing out of what it went into, then destroys it.
+    r.stub(lambda r: game.log.append(("rattle_dtor", r.emu.reg_read(UC_X86_REG_ECX), r.arg(0))), 4, at=0x260860)
+    r.stub(lambda r: events.append(("destroy_ghost", r.arg(0))), 0, at=0x357BA0)
+    r.stub(lambda r: (events.append(("free", r.emu.reg_read(UC_X86_REG_EAX), r.emu.reg_read(UC_X86_REG_ECX))),
+                      r.word(r.arg(0), 0)) and None, 0, at=0x1539D0)
+    flying, _, f_body = make_sponge(21)
+    r.thiscall(vt(flying, 11), flying, 1, 900000)
+    r.call(SYMBOLS["sp_pull_pin"], (flying, 900000))
+    r.thiscall(vt(flying, 11), flying, 0, 900000)
+    throw(flying, 1.0, 2.0, 3.0)
+    game.log.clear()
+    r.thiscall(vt(flying, 0), flying, 1)
+    kinds = [x[0] for x in game.log]
+    check("a sponge destroyed in the air: its passive out, its body out of the physics world before the shape "
+          "and the body are destroyed, its drawables out of the scene's list, then Rattle's destructor",
+          in_pool(flying + S_NODE) == 0 and kinds.index("pw_remove") < kinds.index("destroy_shape")
+          < kinds.index("free_body") < kinds.index("rattle_dtor") and ("pw_remove", f_body, 1) in game.log
+          and in_scene(flying + 0x340) == 0 and in_scene(r.read(flying + S_ZONE) + 0x408) == 0, str(kinds))
+    spent, s_zone, _ = make_sponge(22)
+    made = r.read(r.read(s_zone + 0x11C))
+    r.thiscall(vt(spent, 11), spent, 1, 900000)
+    r.call(SYMBOLS["sp_pull_pin"], (spent, 900000))
+    r.thiscall(vt(spent, 11), spent, 0, 900000)
+    throw(spent, 1.0, 2.0, 3.0)
+    tick_until(spent, 900000, 7)
+    r.word(s_zone + 0xD0, 2)
+    events.clear()
+    game.log.clear()
+    r.thiscall(vt(spent, 0), spent, 1)
+    order = [x[0] for x in events]
+    check("a sponge destroyed with its zone on: the zone off (0x319D30) before its geometry's ghost is destroyed "
+          "(0x2F8BE0), the geometry out of the zone and freed to the cooks' allocator it came from, the zone's "
+          "drawable out of the scene's list, the zone let go",
+          order[:3] == ["zone_off", "destroy_ghost", "free"] and events[0][1:] == (s_zone, 1)
+          and events[2][1:] == (made, 0x5A110C) and r.read(r.read(s_zone + 0x11C)) == 0
+          and in_scene(s_zone + 0x408) == 0 and in_scene(spent + 0x340) == 0 and r.read(s_zone + 0xD0) == 1,
+          str(events))
+
+    # 14f. Nothing takes a spent sponge (state 7): a container's can_use (0x31C6B0) wants state 2; the zone
+    #      runs on whatever the item's state, and its end touches only a sponge still in state 7.
+    container, user, picker_inv = r.allocate(0x80), r.allocate(4), r.allocate(0x200)
+    picker = r.allocate(0x200)
+    r.word(user, picker)
+    r.word(picker + 0x10C, picker_inv)
+    r.emu.mem_write(picker_inv + 0x16C, b"\x02")
+    z, z_zone, z_body = make_sponge(23)
+    r.thiscall(vt(z, 11), z, 1, 1000000)
+    r.call(SYMBOLS["sp_pull_pin"], (z, 1000000))
+    r.thiscall(vt(z, 11), z, 0, 1000000)
+    throw(z, 1.0, 2.0, 3.0)
+    z_end = tick_until(z, 1000000, 7)
+    r.word(container + 0x4C, z)
+    spent_use, _ = r.thiscall(0x31C6B0, container, user)
+    r.word(z + STATE_AT, 2)
+    ready_use, _ = r.thiscall(0x31C6B0, container, user)
+    r.word(z + STATE_AT, 3)                             # as if something had put it in a hand
+    events.clear()
+    t_z = z_end
+    while t_z < z_end + 10000:
+        t_z += 50
+        r.thiscall(vt(z, 29), z, 50, t_z)
+    z_ticks = [x for x in events if x[0] == "zone_tick"]
+    check("a container's can_use: no for the spent sponge (state 7), yes in state 2 (so nothing picks one up "
+          "while its zone runs); and were its state changed, the zone still ticks to its end, and the end leaves "
+          "that state alone",
+          (spent_use & 0xFF) == 0 and (ready_use & 0xFF) == 1 and len(z_ticks) == 200
+          and ("zone_off", z_zone, 0) in events and r.read(z + STATE_AT) == 3 and r.read(z + S_EXPLODE) == NEVER,
+          f"{spent_use:#x} {ready_use:#x} ticks {len(z_ticks)}")
+
     # 13. 0.28d0's own sponge code on the same numbers (its layout: artefact_sponge_core, client_patch.md).
     if args.v028d0:
         old = Run(raw_sections(unbcj(open(args.v028d0, "rb").read())))
@@ -1252,6 +1469,16 @@ def main():
               "same times, state 6 at the release, a press while armed only the grenade slot 17h",
               pressed == 13 and old28 == fuse + [armed_at] and armed28 == (6, 0x17)
               and old.read(inventory28 + 0x1F4) == 0x17 and old.read(s28 + 0x460) == armed_at, str(old28))
+        old.word(s28 + 0x460, NEVER)
+        old.emu.mem_write(s28 + 0x464, b"\x00")
+        old.thiscall(0x514580, s28, 1, 800000)
+        old.thiscall(0x514580, s28, 0, 800000)
+        _, cleanup28 = old.thiscall(0x514610, s28 + 0x3C0, 800050)
+        check("0.28's hole: a tap (the release, 0x514580, before the pin's pull 0x514610) leaves its sponge "
+              "unarmed with the pin out, and the key is already up: thrown, it never explodes; ours arms it at "
+              "the pull (14d)",
+              old.read(s28 + 0x460) == NEVER and old.read(s28 + 0x464, 1) == 1 and cleanup28 == 4,
+              f"{old.read(s28 + 0x460):#x}")
         old.floats(s28 + 0x3D4, [0.0, 1.0, 0.0, 1.0, 1.5, 1.0])
         old_regen = []
         for speed, timeout, threshold in regen_cases:
