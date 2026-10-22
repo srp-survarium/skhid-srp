@@ -405,6 +405,7 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     check_research_026g.py runs the hooks, the cook and the rule.
 """
 
+import ast
 import ctypes
 import hashlib
 import itertools
@@ -4818,13 +4819,41 @@ def check_driven(what, driven):
     a callback) has a case of its patch's Unicorn check that reaches it
     through the game's own caller (INSTALLED_VTABLES' and CALLBACKS' last
     field): the `ret` comparison cannot see the order of the arguments
-    (Research's slot 7, #297's review). The case must be in its script; the
-    script runs it (a patch's check is run with the patch)."""
+    (Research's slot 7, #297's review). The case must be the label of a
+    case of its script: the text of a string argument of a `check(`,
+    `say(` or `print(` call there (case_labels), not a comment or a
+    docstring; the script runs it (a patch's check is run with the patch)."""
     script, case = driven if driven else (None, None)
-    text = open(os.path.join(HERE, script)).read() if script and os.path.exists(os.path.join(HERE, script)) else ""
-    check(bool(case) and case in text,
+    path = os.path.join(HERE, script) if script else ""
+    labels = case_labels(path) if script and os.path.exists(path) else []
+    check(bool(case) and any(case in label for label in labels),
           f"{what}: reached through the game's own caller in {script}: \"{case}\"" if case
           else f"{what}: no case of its check reaches it through the game's own caller (declare one)")
+
+
+def case_labels(path):
+    """The labels of a check script's cases: every string argument of its
+    `check(`, `say(` and `print(` calls (an f-string's literal parts with
+    `{}` for each field; `a + b` of strings joined), parsed, so a comment or
+    a docstring is no case."""
+    def text(node):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        if isinstance(node, ast.JoinedStr):
+            return "".join(text(v) if isinstance(v, ast.Constant) else "{}" for v in node.values)
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            left, right = text(node.left), text(node.right)
+            return left + right if left is not None and right is not None else left or right
+        if isinstance(node, ast.IfExp):
+            return text(node.body)
+        return None
+    out = []
+    for node in ast.walk(ast.parse(open(path).read())):
+        if isinstance(node, ast.Call):
+            name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+            if name in ("check", "say", "print"):
+                out += [label for label in map(text, node.args) if label]
+    return out
 
 
 def test_call_shapes_negative(original):
@@ -4893,6 +4922,21 @@ def test_call_shapes_negative(original):
             globals()["check"] = saved
         check(any(not ok and "caller" in text for ok, text in captured),
               f"a slot of ours with {name} through the game's own caller is refused")
+    # A case named only in a comment or a docstring is no case.
+    with tempfile.TemporaryDirectory(prefix="srp-driven-") as folder:
+        fake = os.path.join(folder, "check_fake.py")
+        open(fake, "w").write('def cases():\n    """driven: a docstring\'s case"""\n'
+                              '    # driven: a comment\'s case\n    check(True, "driven: a real case")\n')
+        captured = []
+        saved = globals()["check"]
+        globals()["check"] = lambda ok, text: captured.append(ok)
+        try:
+            for case in ("driven: a docstring's case", "driven: a comment's case", "driven: a real case"):
+                check_driven("a made-up slot", (fake, case))
+        finally:
+            globals()["check"] = saved
+        check(captured == [False, False, True],
+              "a case named only in a comment or a docstring is refused; a `check(` label passes")
     # An undeclared install: a call into our code with no INSTALLS row.
     fake_writes = [(0x500000, bytes(5), b"\xE8" + struct.pack("<i", P.SECTION_VA - 0x500000 - 5))]
     try:

@@ -247,7 +247,7 @@ def driven(run, cook, query, check):
     slot of ours with none). Serialize and deserialize: section 6b."""
     print("  10. through the game's own call sites")
     players, statistics = world(run)
-    run.word(statistics + LISTENER, 1)                     # a listener (the hud's) is there
+    run.word(statistics + LISTENER, 1)                     # the statistics' event listener is set
     run.word(CORE + 0x18FC0, 0x2A000)                      # the world's time: [core+18FC0h]
     # the cook: translate (0x2F4290) calls create with the query it made
     # (0x2F42B8..0x2F42C2) and then size (0x2F42C6..0x2F42CD)
@@ -288,6 +288,35 @@ def driven(run, cook, query, check):
     check("driven: the tick (the delegate, as timelimit's) through the tick list's runner 0x2D1D20",
           a["owner"] == 0 and a["progress"] == FULL and run.emu.reg_read(UC_X86_REG_ESP) == STACK + 0x8000,
           str(a))
+    # The tick's (dt, time) in their places: one tick that reaches the goal
+    # sets the end at the time it was given + 3000 (rr_tick clamps dt, so a
+    # count alone cannot tell the two apart); with the two swapped by a shim
+    # in the delegate, the end is wrong.
+    def goal_tick(function=None):
+        state = bytes(run.emu.mem_read(rule + R_STATE, 0x18 + 3 * ZONE))
+        delegate = rule + 0x110 + 4
+        real = run.read(delegate)
+        if function is not None:
+            run.word(delegate, function)
+        for z in range(3):
+            at = rule + R_STATE + S_ZONES + ZONE * z
+            run.word(at, FULL)
+            run.emu.mem_write(at + 4, bytes([0, 0]))
+        run.word(rule + R_STATE, 100 * 1000000 - 1)
+        run.word(rule + R_STATE + 12, 0xFFFFFFFF)
+        run.call(0x2D1D20, args=(CORE + TICK_LIST, 50, 0x2B000, 1))
+        end = run.read(rule + R_STATE + 12)
+        run.word(delegate, real)
+        run.emu.mem_write(rule + R_STATE, state)
+        return end
+    shim_tick = run.allocate(0x20)
+    run.emu.mem_write(shim_tick, bytes.fromhex("8b442404874424088944240" "4") + b"\xE9"
+                      + struct.pack("<i", SYMBOLS["rn_tick"] - (shim_tick + 12 + 5)))
+    end_right, end_swapped = goal_tick(), goal_tick(shim_tick)
+    check("driven: the tick's (dt, time) through the tick list's runner 0x2D1D20: the goal's end at the time "
+          "given + 3000", end_right == 0x2B000 + 3000, f"end {end_right:#x}")
+    check("... with dt and time swapped (a shim in the delegate) the end is not that", end_swapped != 0x2B000 + 3000,
+          f"end {end_swapped:#x}")
     # a kill through the dispatcher 0x2D1EA0, as the kill site 0x2D9EEE gives
     # it (1, &{killer, victim}): team 1's place 1 inside A, which team 0 owns
     put(run, players[1], 2.0)

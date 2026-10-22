@@ -1381,10 +1381,18 @@ impl Decoded<'_> {
                     ),
                 });
             }
-            let points = tail.map(|tail| tail.team_points)?;
+            // Without the rule: the tail's leader, which patch 53's publish()
+            // writes from rr_leader every tick (the millionths at the goal),
+            // when it is one (3 until a rule's first event); else the points.
+            let tail = tail?;
+            let winner = if tail.winner_team <= rules::DRAW {
+                tail.winner_team
+            } else {
+                rules::winner_by_points(tail.team_points)
+            };
             return Some(Standing {
-                points,
-                winner: rules::winner_by_points(points),
+                points: tail.team_points,
+                winner,
             });
         }
         if game_mode != mode::TEAM_DEATHMATCH {
@@ -2030,9 +2038,11 @@ mod tests {
         let decoded = decode(TIME, &early, 2, mode::RESEARCH, 0).unwrap();
         let standing = decoded.standing(mode::RESEARCH, &[0, 1]).unwrap();
         assert_eq!(standing.points, [64, 38]);
-        // Without the rule, the statistics'; equal points are a draw.
+        // Without the rule, the statistics': equal points, the leader the
+        // rule wrote a draw.
         let mut even = statistics.clone();
         even[at..at + 4].copy_from_slice(&[40, 0, 40, 0]);
+        even[at + 6] = rules::DRAW;
         let even = body(&even, &[]);
         let decoded = decode(TIME, &even, 2, mode::RESEARCH, 0).unwrap();
         assert_eq!(decoded.rules, None);
@@ -2046,6 +2056,34 @@ mod tests {
     }
 
     #[test]
+    fn a_research_match_without_its_rule_takes_the_tails_leader() {
+        // Both show 100 at the goal; the tail's leader (rr_leader, by the
+        // millionths) is team 1.
+        let mut statistics = player_bytes();
+        statistics.extend(EMPTY_PLAYER);
+        statistics.extend([100, 0, 100, 0, 0, 0, 1, 3, 0, 0, 0]);
+        let whole = body(&statistics, &[]);
+        let decoded = decode(TIME, &whole, 2, mode::RESEARCH, 0).unwrap();
+        assert_eq!(decoded.rules, None);
+        assert_eq!(
+            decoded.standing(mode::RESEARCH, &[0, 1]),
+            Some(Standing {
+                points: [100, 100],
+                winner: 1
+            })
+        );
+        // No leader written yet (3): the points, equal a draw.
+        let at = statistics.len() - StatisticsTail::LEN + 6;
+        statistics[at] = 3;
+        let whole = body(&statistics, &[]);
+        let decoded = decode(TIME, &whole, 2, mode::RESEARCH, 0).unwrap();
+        assert_eq!(
+            decoded.standing(mode::RESEARCH, &[0, 1]).map(|standing| standing.winner),
+            Some(rules::DRAW)
+        );
+    }
+
+    #[test]
     fn a_research_match_at_the_goal_is_won_by_the_millionths() {
         // Both show 100: team 1 reached the goal, team 0 has 99.6.
         let mut rule = research();
@@ -2054,7 +2092,7 @@ mod tests {
         rule.end = Some(TIME + 3_000);
         let mut statistics = player_bytes();
         statistics.extend(EMPTY_PLAYER);
-        statistics.extend([100, 0, 100, 0, 0, 0, 0, 1, 0, 0, 0]);
+        statistics.extend([100, 0, 100, 0, 0, 0, 1, 3, 0, 0, 0]);
         let whole = body(&statistics, &research_rules(&rule));
         let decoded = decode(TIME, &whole, 2, mode::RESEARCH, 0).unwrap();
         assert_eq!(decoded.rules.as_ref().unwrap().research, Some(rule.clone()));

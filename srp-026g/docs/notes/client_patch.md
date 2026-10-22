@@ -1385,11 +1385,12 @@ The old bytes' jumps all landed inside them; nothing else aims inside; no base r
     put back by a shim, the case fails. Every slot of ours, the tick and the cook are reached
     the same way (client_patch.md §0.4, "through the game's own caller").
   - **The scoreboard** (PROVEN): the game's event sites (the kill handler 0x2F4EB0, 0x2F4DE1)
-    add to the player's cell and then, when the statistics have a listener (+31A0h, a
-    boost::function, not 0 while a hud shows them), call it through 0x2F5D40 (eax = +31A0h; place,
-    event, amount; `ret 0Ch`); the listener is the hud's on_event 0x26DB80, which adds the
+    add to the player's cell and then, when the statistics have an event listener (+31A0h, a
+    boost::function, not 0 once set), call it through 0x2F5D40 (eax = +31A0h; place, event,
+    amount; `ret 0Ch`); the listener is `base_game_statistics_handler::on_event` 0x26DB80 (vtable
+    0xA0755C slot +44h, §3.16), ecx the statistics object itself (`[core+18FA8h]`), which adds the
     event's weight times the amount (x 0.01 for the hundredths events 6, 17, 18) to the player's
-    score (+31F0h[place]). Research's counts did not call it: the Tab list's score grew at the
+    score (`m_scores`, +31F0h[place]). Research's counts did not call it: the Tab list's score grew at the
     next world loaded only. `count()` calls it after each add, with what it added.
   - **The leader at the goal**: both shown 100 (99.5 rounds up) was a draw. `rr_leader` takes
     the millionths once a team reached the goal (the rule's end is set), and so does srp

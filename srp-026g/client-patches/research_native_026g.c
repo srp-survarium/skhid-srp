@@ -84,7 +84,7 @@ enum {
 #define STATS_EVENTS 0xC           /* u16 events[28][3] */
 #define STATS_TEAM_POINTS 0x31D4   /* u16 m_team_points[2] */
 #define STATS_WINNER 0x31E4        /* m_winner_team */
-#define STATS_LISTENER 0x31A0      /* the hud's listener (a boost::function: 0 when none) */
+#define STATS_LISTENER 0x31A0      /* the statistics' event listener (a boost::function: 0 when none) */
 #define STATS_NOTIFY 0x2F5D40      /* eax = statistics+31A0h; push amount, event, place; ret 0Ch */
 /* the statistics' events a unit counts (snapshot_rules.md section 3.1) */
 #define EVENT_CAPTURE 6            /* hundredths: a unit taken, the shares of `award` */
@@ -378,9 +378,11 @@ static void players_of(const struct rn_rule *rule, struct rr_player out[RR_PLAYE
 
 /* An event counted as the game's own sites count one (the kill handler
  * 0x2F4EB0, 0x2F4DE1): the player's cell, then, when the statistics have
- * their listener (+31A0h, set while a hud shows them), its call through
- * 0x2F5D40 (eax = +31A0h; place, event, amount; ret 0Ch). The listener is
- * the hud's on_event 0x26DB80: the player's score (+31F0h) grows by the
+ * their event listener (+31A0h, a boost::function, not 0 once set), its
+ * call through 0x2F5D40 (eax = +31A0h; place, event, amount; ret 0Ch). The
+ * listener is base_game_statistics_handler::on_event 0x26DB80 (vtable
+ * 0xA0755C slot +44h, client_patch.md 3.16), ecx the statistics object
+ * itself ([core+18FA8h]): the player's score (m_scores, +31F0h) grows by the
  * event's weight times the amount (hundredths for events 6, 17, 18), so the
  * Tab list shows it at once, not at the next world loaded. */
 static void count(struct rn_rule *rule, u32 place, u32 event, u32 amount) {

@@ -1857,4 +1857,4 @@ va	name	source	ret_cleanup	result
 0x00321820		auto	4	
 0x002d1ea0	survarium::game_world_core::rules_on_event	manual	8	
 0x002f5d40	survarium::shared_statistics::notify_listener	manual	12	
-0x0026db80	survarium::match_statistics_hud::on_event	manual	12	
+0x0026db80	survarium::base_game_statistics_handler::on_event	manual	12	

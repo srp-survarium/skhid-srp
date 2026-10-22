@@ -1961,7 +1961,7 @@ CALLBACKS = (
      "call (0x27B04C) binds 0x27AA20, the client's own queries_completed (ecx = the client, [esp+4] the "
      "queries_result); the marker is the `push 0 / push esi / push 0 / lea eax,[ebx+query_completed]` "
      "before `push eax` (query_completed's VA follows the lea's `8D 83`)",
-     ("check_late_join_026g.py", "m.start(0x202300, args=(BASE + 0x30000, results))")),
+     ("check_late_join_026g.py", "driven: query_completed through the game's boost invoker 0x202300")),
     ("a weapon's camouflage bake: bake_done", "weapon_camo", b"\xC7\x40\x08", 0x126830,
      "BIND_MANAGER 0x9ED148 binds a `void (*)(A*, B*)`; the game binds 0x126830 with it at 0x126A2C "
      "(a bake query of query_resources 0xE5B60, as weapon_camo's); the marker is bind's "
@@ -1971,7 +1971,7 @@ CALLBACKS = (
      "rn_set_core puts it in the world's second tick list as timelimit_rule_core's set_game_world_core "
      "(0x318050) puts its tick 0x317F10; the list's runner 0x2D1D20 calls it with ecx the object and "
      "(dt, time, step); the marker is `mov dword [ecx+114h], rn_tick` (the delegate's function)",
-     (RESEARCH_CHECK, "driven: the tick (the delegate, as timelimit's) through the tick list's runner 0x2D1D20")),
+     (RESEARCH_CHECK, "driven: the tick's (dt, time) through the tick list's runner 0x2D1D20")),
 )
 
 
