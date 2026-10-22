@@ -1692,8 +1692,8 @@ package
          this.setTopmostLevel(this.itemHintRendererSec,true);
       }
       
-      // A craft slot's item left of the window, compared with the other slot's item left of it
-      // (craft-menu.md, "Comparing items").
+      // A craft slot's item left of the window, compared with the other slot's; the item being
+      // upgraded always the left card (craft-menu.md, "Comparing items").
       private function showCraftSlotHint(e:ListEvent) : void
       {
          if(!e.itemData || !this.craftOpen())
@@ -1716,13 +1716,17 @@ package
             this.itemHintRendererSec.displaylabel(true);
             this.itemHintRendererSec.data = secondData;
             addChild(this.itemHintRendererSec);
-            this.itemHintRendererSec.x = this.itemHintRenderer.x - this.itemHintRendererSec.width - 1;
             this.itemHintRendererSec.y = this.itemHintRenderer.y;
-            if(this.itemHintRendererSec.x < 0)
+            var hoveredMain:Boolean = e.itemRenderer == this.craftWindow.dragItemSlot1;
+            var left:ItemInfoRenderer = hoveredMain ? this.itemHintRenderer : this.itemHintRendererSec;
+            var right:ItemInfoRenderer = hoveredMain ? this.itemHintRendererSec : this.itemHintRenderer;
+            right.x = this.craftWindow.x - right.width - 3;
+            left.x = right.x - left.width - 1;
+            if(left.x < 0)
             {
-               // no room on the left: both right of the window, the compared one further right
-               this.itemHintRenderer.x = this.craftWindow.x + this.craftWindow.width + 3;
-               this.itemHintRendererSec.x = this.itemHintRenderer.x + this.itemHintRenderer.width + 1;
+               // no room on the left: both right of the window, in the same order
+               left.x = this.craftWindow.x + this.craftWindow.width + 3;
+               right.x = left.x + left.width + 1;
             }
          }
          this.setTopmostLevel(this.itemHintRenderer,true);
