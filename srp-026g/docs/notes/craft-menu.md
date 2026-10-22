@@ -51,7 +51,10 @@ then pop up doesn't show up").
 - **No item being upgraded** (the main slot empty): no compare card, the hovered card alone.
 - **The item being upgraded itself** in the list: no compare card (nothing to compare).
 - **After an upgrade** (the result shows): compared with the upgraded item.
-- **The window's main and donor slots** show no card on hover, before and after: unchanged.
+- **Hovering the window's donor slot** shows the donor's card compared with the item being upgraded;
+  **hovering the main slot**, the item being upgraded compared with the donor (owner 2026-10-22:
+  "when hovering in upgrade window itself, it should still compare donor to receiver"). The other
+  slot empty: the card alone. Once the result shows: no card on the slots, as before.
 - **Elsewhere** (the window closed): compared with the equipped item, as before.
 - Code: `MessageCraftItem.compareWith`, `LobbyMenu.showItemHint` (and `updateHintItem`, which leaves
   the compare card alone while the window is open).

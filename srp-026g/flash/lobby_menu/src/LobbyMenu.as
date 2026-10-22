@@ -1692,6 +1692,43 @@ package
          this.setTopmostLevel(this.itemHintRendererSec,true);
       }
       
+      // A craft slot's item left of the window, compared with the other slot's item left of it
+      // (craft-menu.md, "Comparing items").
+      private function showCraftSlotHint(e:ListEvent) : void
+      {
+         if(!e.itemData || !this.craftOpen())
+         {
+            return;
+         }
+         this.hideItemHint(null);
+         var secondData:Object = InventoryList.AllOW_COMPARE ? this.craftWindow.slotCompareWith(e.itemRenderer) : null;
+         this.itemHintRenderer.mouseEnabled = this.itemHintRenderer.mouseChildren = false;
+         this.itemHintRendererSec.mouseEnabled = this.itemHintRendererSec.mouseChildren = false;
+         this.itemHintRenderer.displayOrange(true);
+         this.itemHintRenderer.displaylabel(secondData != null);
+         this.itemHintRenderer.itemCompare.setSecondaryWeapon(secondData);
+         this.itemHintRenderer.data = e.itemData;
+         addChild(this.itemHintRenderer);
+         this.itemHintRenderer.x = this.craftWindow.x - this.itemHintRenderer.width - 3;
+         this.itemHintRenderer.y = this.craftWindow.y;
+         if(secondData)
+         {
+            this.itemHintRendererSec.displaylabel(true);
+            this.itemHintRendererSec.data = secondData;
+            addChild(this.itemHintRendererSec);
+            this.itemHintRendererSec.x = this.itemHintRenderer.x - this.itemHintRendererSec.width - 1;
+            this.itemHintRendererSec.y = this.itemHintRenderer.y;
+            if(this.itemHintRendererSec.x < 0)
+            {
+               // no room on the left: both right of the window, the compared one further right
+               this.itemHintRenderer.x = this.craftWindow.x + this.craftWindow.width + 3;
+               this.itemHintRendererSec.x = this.itemHintRenderer.x + this.itemHintRenderer.width + 1;
+            }
+         }
+         this.setTopmostLevel(this.itemHintRenderer,true);
+         this.setTopmostLevel(this.itemHintRendererSec,true);
+      }
+
       private function onHintTargetRender(e:Event) : void
       {
          if((this._pdTarget) && (this._pdTarget.data) && this._pdTarget.data.descriptor == ItemPlace.NONE)
@@ -2213,6 +2250,8 @@ package
          this.craftWindow.btnAccept.addEventListener(ButtonEvent.CLICK,this.onCloseCraft);
          this.craftWindow.btnClose.addEventListener(ButtonEvent.CLICK,this.onCloseCraft);
          this.craftWindow.addEventListener("closeCraft",this.closeCraftWindow);
+         this.craftWindow.addEventListener(ListEvent.ITEM_ROLL_OVER,this.showCraftSlotHint);
+         this.craftWindow.addEventListener(ListEvent.ITEM_ROLL_OUT,this.hideItemHint);
          this.craftWindow.dragItemSlot1.dragEnabled = false;
          this.craftWindow.dragItemSlot1.setData(itemData);
          addChild(this.backBlack);
