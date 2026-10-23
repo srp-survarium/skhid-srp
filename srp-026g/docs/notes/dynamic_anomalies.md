@@ -12,7 +12,7 @@ differently, they should only work for london and keln, other maps keep static".
 below are what the code and the data follow. Code: `client-patches/dynamic_anomalies_026g.asm`
 (README patch 42, `client_patch.md` §3.38), checks `client-patches/check_dynamic_anomalies_026g.py`
 and the self-test's check 42; data: `scripts/dynamic-anomalies/build.py --pack`, the `pack
-dynamic-anomalies@3` row of `release/content.tsv`; server: `match-server` `bots::anomalies`,
+dynamic-anomalies@4` row of `release/content.tsv`; server: `match-server` `bots::anomalies`,
 `mapdata-dump --patch`. PROVEN = read in the code (addresses given); LIKELY = inferred, not
 read to the end.
 
@@ -22,8 +22,8 @@ read to the end.
   and weather they have. Every other map keeps its static anomalies as they are: level_01 to
   level_07, v021d_/v011e_ and Research's (mode 5, #297). Their projects are not in the pack,
   and no core of theirs is timed (stock cores' artefacts come back within 80 s), so patch 42
-  does nothing there. A place = three timed anomalies (lifebone, spring, onyx) at one point;
-  at most one of them lives at a time.
+  does nothing there. A place = four timed anomalies (lifebone, spring, onyx, mochalka: the
+  Sponge) at one point; at most one of them lives at a time.
 - **An anomaly's life:** idle (nothing) -> charging 20 s (the charging particle, harmless) ->
   damage 4 s (the damage zone) -> artefact (one artefact in its container, the zone on, until
   someone takes it) -> after the pick-up: gone at once, 60 s rest -> idle.
@@ -33,13 +33,14 @@ read to the end.
   per part for every kind, but its body routes a part's hit at 0.1 to 0.15 into one health
   pool. 0.26g routes each part at 1 into its own pools, pain included (`formula.txt`
   section 8), so the same 0.5 killed 8 to 9 times faster here (pack @2). The values
-  (`build.py` `MAX_HIT`, pack @3):
+  (`build.py` `MAX_HIT`, pack @3; mochalka @4):
 
   | kind (artefact) | type | parts hit | max_hit a part | its fatal pool, a second | death | 0.28d0 | 0.26g's static zones of the type |
   |---|---|---|---|---|---|---|---|
   | lifebone (54) | toxic | face | 0.5 | infection 0.5 | 2.0 s | 0.5 x face, 2.0 s | 0.05 to 0.25 x face, 4 to 20 s; v021d_level_06 1 x 3 parts, 0.33 s |
   | spring (74) | shock | back, front, brain, both hips, feet, arms (9) | 0.0625 (was 0.5) | pain 0.5 (body 0.125) | 2.0 s (was 0.25 s) | 0.5 x the 9, 2.0 s | level_03's pairs 0.6 x 2 feet a hit, one a second; v021d_level_03 0.9 x 6 parts every 2 s: 0.7 to 1.0 s |
   | onyx (76) | radiation | the same 9 | 0.0556 (was 0.5) | infection 0.5 | 2.0 s (was 0.22 s) | 0.5 x the 9, 2.0 s | 0.023 to 0.08 x 4 or 5 parts, 2.5 to 11 s |
+  | mochalka (758, the Sponge) | toxic | face | 0.5 | infection 0.5 | 2.0 s | 0.5 x face, 2.0 s (0.28d0's mochalka zone is its lifebone zone) | as lifebone |
 
   The same for every kind and place:
   - continuous, `interval_in_msec` 1000, `max_armor_piercing` 0;
@@ -50,11 +51,17 @@ read to the end.
 
   The timings are the release's: charging 20 s (the charge zone: max_hit 0, harmless),
   damage 4 s, then the zone stays on while the artefact waits.
-- **Sponge (the owner, 2026-10-23): Sponge is not in the game yet; anomalies hold only
-  0.26g's artefacts.** A timed core's artefacts are one row of its own kind: 54 lifebone, 74
-  spring or 76 onyx, the only artefacts of 0.26g's `items_dict`. `build.py` refuses any other
-  kind. The release's fourth kind, mochalka (758, the Sponge; 0.28's Sponge port is parked as
-  #311), is left out with its anomalies (section 5).
+- **The Sponge (the owner, 2026-10-23: "let's also build Sponge on top of anomalies").** The
+  release's fourth kind, mochalka (758), is the Sponge of pack `sponge@2` and exe patch 55
+  (`sponge.md`). Every place has its mochalka anomaly as in the release: London 27 and Cologne
+  29 a project, a quarter of the timed anomalies. One anomaly of a place lives at a time and a
+  try picks uniformly among the idle ones with a free artefact, so a Sponge comes in about one
+  charge in four (when nobody holds the place's other kinds' artefacts). A mochalka core holds
+  5 Sponges of its own, as the others hold 5 of their kind. Its zone is lifebone's (toxic,
+  face, 0.5): the release's mochalka zone is its lifebone zone. A timed core's artefacts are
+  one row of its own kind (54, 74, 76 or 758); `build.py` refuses a kind that is not an
+  artefact of `items_dict` with pack `sponge@2` (`--over`). (Until 2026-10-23, pack @3: no
+  mochalka, the Sponge not in the game yet.)
 - **Which one charges:** first try at the match's start + 30 s (not in the warmup or the
   countdown), then a try every 20 to 40 s. A try picks one idle anomaly at random that has a
   free artefact and no busy anomaly within 15 m. None while 16 are active.
@@ -72,8 +79,7 @@ read to the end.
 - **Release:** exe patch 42 (every full build; its code the block `anomalies.code` of the
   `.srpx` arena, linked by `link_026g.py`) and the content pack in one release; the exe
   requires that release's content patch (patch 49), and the server refuses older exes.
-- **Not as the release:** no mochalka (0.26g has no such artefact); state switches a tick or
-  two late; no anomaly-detector zones (section 5).
+- **Not as the release:** state switches a tick or two late; no anomaly-detector zones (section 5).
 
 ## 1. The release mechanism (0.28a2 to 0.46c2)
 
@@ -241,10 +247,9 @@ read to the end.
   whose use depended on the world (a draw for the choice only when there were candidates);
   here the tries come from a stream of the seed alone and each try's choice from a draw of
   that try's, so that nothing has to be kept. Same distributions.
-- **No mochalka.** The release's fourth kind (758, "Sponge", a thrown artefact, data type 13)
-  does not exist in 0.26g (only 54, 74 and 76, no thrown kind); mapping it to onyx (the
-  closest by role) would double the onyx anomaly at every place. Its anomalies are left out:
-  each place has three kinds, one alive at a time, as before.
+- **Mochalka's zone is patch 14's lifebone zone** (2026-10-23). Patch 14 has no mochalka
+  zone; 0.28d0's mochalka zone is its lifebone zone but for its name (toxic, face, 0.5, no hit
+  sound), so it takes patch 14's lifebone form (toxic, face, the gas sounds).
 - **No anomaly detector zones.** 0.26g has no `anomaly_detector` effect.
 - **Damage zones in 0.26g's form** (patch 14's: toxic/shock/radiation per kind, its sounds),
   the release's particles on them.
@@ -254,7 +259,7 @@ read to the end.
 The release had timed anomalies on every map (every map config of 0.28a2, 0.28d0, 0.31a2 and
 0.46c2 has the same `anomalies` table; none of 0.26g's maps has one). The owner (2026-10-22)
 wants them on London and Cologne only, so the pack (`scripts/dynamic-anomalies/build.py`) has
-those two maps' projects and nothing of the others. Places per mode 2 / 3 / 4, three timed
+those two maps' projects and nothing of the others. Places per mode 2 / 3 / 4, four timed
 anomalies per place:
 
 | map | from | places | removed (as the release) |
@@ -264,21 +269,27 @@ anomalies per place:
 
 - 12 projects (Cologne: day, evening and prerain of modes 2 to 4; London: day of modes 2 to 4;
   every weather of a mode takes the release's `day_<mode>`, whose weathers have the same
-  places), 342 places, 1,026 timed anomalies, 5 particles: 17 pack operations.
+  places), 342 places, 1,368 timed anomalies (342 of them mochalka), 5 particles: 17 pack operations
+  (pack @4; @3 had 1,026 without mochalka).
 - Static, as today: level_01 to level_07 (the swamp, the school's fruit cloud and stalactite,
   Vostok's electric pairs and the rest), v021d_/v011e_, Research's mode-5 maps.
 - The release's Cologne is 0.26g's (visuals and collision equal but for equivalent rotations
   and a few edits). LIKELY fine; to be seen in a game.
 - Particles the game lacked (`pre_onix1`, `pre_onix2`, `pre_spring1`, `pre_spring2`,
   `pre_zhivokost1`) come from 0.31a2 as patch 14 converted its own four; every material
-  they name is in the game.
-- A project now holds up to 65,902 config values (London day_3; Cologne up to 47,500). That
+  they name is in the game. Mochalka's (`pre_mochalka1`, `pre_mochalka2`,
+  `pre_mochalka2_indoor`) and their materials are pack `sponge@2`'s.
+- A project now holds up to 73,300 config values (London day_3; Cologne up to 55,446). That
   is no limit: the live v011e_level_03 day_2 (patch 28) loads with 112,899. The format has no
   total limit (a table's count is u16 only).
 - **What a match must hold** (#225's review, 2026-10-23): the saved world goes through three
   fixed buffers: 0x2000 for the objects' state, 0x2000 for the second stream, 0x8000 for the
   whole world. Cologne's 87 timed cores need about 3.2 to 3.5 KB of them, against about
   5.4 KB free in the fullest live 20-player world. To see in a full 20-player Cologne match.
+  With mochalka (pack @4, 2026-10-23) Cologne has 116 timed cores, and each of the 29 new ones
+  serializes its 5 Sponges, a Sponge 8 bytes more than an artefact base (patch 55's fuse, pin,
+  thrown, tap and owner): LIKELY about 2.3 KB more, near or past the 5.4 KB. NOT measured:
+  measure a full 20-player Cologne world before the release.
 
 ## 7. The server
 
@@ -305,10 +316,11 @@ anomalies per place:
 - **Release** (one `release.sh` run with the content):
   - exe patch 42 (every full build): the arena's block `anomalies.code` in `.srpx`
     (`link_026g.py`, client_patch.md 0.3), the two hooks by symbol;
-  - the content: the pack `dynamic-anomalies@3` (row in `release/content.tsv`). Its folder
-    is made once into `$SKHID_PACKS_DIR/dynamic-anomalies-3` by `build.py --pack
-    dynamic-anomalies@3` with `--live` = the stock db and the base rows' patches (12, 14, 17,
-    19 to 24), as `scripts/dynamic-anomalies/README.md` says; `release/build-content` then
+  - the content: the pack `dynamic-anomalies@4` (row in `release/content.tsv`, after
+    `sponge@2`, which it needs). Its folder is made once into
+    `$SKHID_PACKS_DIR/dynamic-anomalies-4` by `build.py --pack dynamic-anomalies@4 --over
+    <sponge-2>` with `--live` = the stock db and the base rows' patches (12, 14, 17, 19 to
+    24), as `scripts/dynamic-anomalies/README.md` says; `release/build-content` then
     composes it into the release's `resources.db.patch_<n>`;
   - the release's exe requires that patch (patch 49) and `deploy` sets
     `SRP_MIN_PATCH_REVISION`: a game without patch 42 never charges a timed anomaly and would

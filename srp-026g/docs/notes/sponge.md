@@ -60,15 +60,19 @@ Client patch 55 (README section 55, client_patch.md section 3.52): 0.28d0's
 
 ## Spawns
 
-- Every map anomaly core (generic_anomaly_core) with an artefact container carries one Sponge
-  too ({758, count 1} after its other kinds): 200 cores of 74 projects (the stock maps in their
-  weathers, London, the 0.21d and v0.11e maps; edit list sponge-spawns-1, made by
-  scripts/sponge/spawns.py). Cologne has none; the cores without a container (v0.11e level 4)
-  and Research's mode-5 maps are left as they are.
-- Dynamic anomalies (PR #225, not merged): 758 into its kinds with a mochalka zone like its
-  Lifebone's, its pack requiring `sponge` for the pre_mochalka particles: a follow-up in #225
-  (and, once it lands, London's 21 entries out of sponge-spawns-1: #225 takes London's static
-  cores away).
+- Static anomalies: every map anomaly core (generic_anomaly_core) with an artefact container
+  carries one Sponge too ({758, count 1} after its other kinds): 179 cores of 71 projects
+  (levels 1 to 7 in their weathers, the 0.21d and v0.11e maps; edit list sponge-spawns-1, made
+  by scripts/sponge/spawns.py). The cores without a container (v0.11e level 4), Research's
+  mode-5 maps and the timed cores are left as they are.
+- Timed anomalies (the owner, 2026-10-23: "let's also build Sponge on top of anomalies"):
+  London and Cologne, whose projects pack dynamic-anomalies@4 replaces (London's 7 static
+  places go), have the release's mochalka anomaly at every place: 27 (London) and 29
+  (Cologne) mochalka cores a project, 5 Sponges each, a quarter of the timed anomalies; a
+  place's anomaly is chosen among its idle kinds, so a Sponge comes about one charge in four.
+  Their zone is Lifebone's (toxic, face), as the release's mochalka zone is
+  (docs/notes/dynamic_anomalies.md).
+- No project has both: sponge-spawns-1 edits no London or Cologne project.
 
 ## Content (pack sponge@2)
 

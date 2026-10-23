@@ -11,8 +11,10 @@ usage: python3 -I spawns.py <projects folder> <out .json>
 Every generic_anomaly_core that spawns artefacts (an `artefacts` list and at least one artefact
 container) gets {dict_id 758, count 1} after its last entry: one more kind in the anomaly's
 artefacts (the others have count 2 to 10). Cores without containers (v011e_level_04's
-disabled track controllers) spawn nothing and are left alone. Prints the cores per map and
-weather, and each pool before and after.
+disabled track controllers) spawn nothing and are left alone. So are the timed cores of pack
+dynamic-anomalies (London, Cologne; their artefacts never come by themselves): each holds one
+kind of its own, the Sponge's being its mochalka cores. Prints the cores per map and weather,
+and each pool before and after.
 """
 import collections
 import json
@@ -25,6 +27,9 @@ sys.path.insert(0, str(HERE.parent / 'research-mode'))
 import bcw  # noqa: E402
 
 DICT_ID = 758
+# A timed core of pack dynamic-anomalies (exe patch 42): its artefacts' first spawn is never
+# (scripts/dynamic-anomalies/build.py NEVER).
+TIMED = 100000
 
 
 def main():
@@ -34,6 +39,7 @@ def main():
     if out.exists():
         sys.exit(f'{out}: already there')
     entries, per_map, skipped, pools = [], collections.Counter(), collections.Counter(), collections.Counter()
+    timed = collections.Counter()
     projects = sorted(p for p in root.rglob('client_project') if p.is_file())
     if not projects:
         sys.exit(f'{root}: no client projects')
@@ -44,6 +50,9 @@ def main():
             if obj.get('game_object_type') != 'generic_anomaly_core':
                 continue
             artefacts = obj.get('artefacts') or []
+            if obj.get('artefacts_first_spawn_time_sec', 0) >= TIMED:
+                timed[path] += 1
+                continue
             if not artefacts or not obj.get('artefact_containers'):
                 skipped[path] += 1
                 continue
@@ -59,20 +68,23 @@ def main():
             pools[f'{obj["full_name"]}: {before} -> {before} + {DICT_ID} x1'] += 1
     about = ('the Sponge (items_dict 758, pack sponge@2) in the maps\' anomalies: every generic_anomaly_core '
              'with an artefact container gets {dict_id 758, count 1} after its last artefact kind '
-             '(made by srp-026g/scripts/sponge/spawns.py)')
+             '(made by srp-026g/scripts/sponge/spawns.py); the timed anomalies of pack dynamic-anomalies '
+             '(London, Cologne) are left alone: their mochalka cores hold the Sponge')
     # An entry a line: the list reads as the cores it changes.
     lines = ',\n'.join('  ' + json.dumps(entry, ensure_ascii=False) for entry in entries)
     out.write_text('{\n "_about": ' + json.dumps(about, ensure_ascii=False) + ',\n "add_entry": [\n' + lines + '\n ]\n}\n',
                    encoding='utf-8')
     if json.loads(out.read_text(encoding='utf-8'))['add_entry'] != entries:
         sys.exit(f'{out}: does not read back')
-    for path in sorted(set(per_map) | set(skipped)):
+    for path in sorted(set(per_map) | set(skipped) | set(timed)):
         print(f'{path}: {per_map[path]} cores' + (f' ({skipped[path]} without containers left alone)'
-                                                   if skipped[path] else ''))
+                                                   if skipped[path] else '')
+              + (f' ({timed[path]} timed left alone)' if timed[path] else ''))
     print('pools (a core: before -> after; how many projects):')
     for line, n in sorted(pools.items()):
         print(f'  {line}  [{n}]')
-    print(f'{len(entries)} cores in {len(per_map)} projects; {sum(skipped.values())} cores left alone; {out}')
+    print(f'{len(entries)} cores in {len(per_map)} projects; {sum(skipped.values())} cores without containers and '
+          f'{sum(timed.values())} timed cores left alone; {out}')
 
 
 if __name__ == '__main__':
