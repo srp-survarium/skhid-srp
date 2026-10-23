@@ -376,3 +376,19 @@ Only srp reads the masks: the client shows whatever modification the server send
 rolls has three types or more besides reliability
 (`modifications::tests::every_item_of_the_built_game_data_rolls_three_types` on the built server
 game data). No simulation change: a match applies only the modifications an item has.
+
+## artefact-texts-1.json (2026-10-23)
+
+| change | why |
+|---|---|
+| `st_spring_pickup_hint`: movement speed by 2 % -> "movement speed and aiming speed by 5 %" (German said 5 % already) | `artefacts-1.json`: passive movement speed +5 %, aim time -5 % (the gloves' texts call aim time "aiming speed") |
+| `st_spring_activation_hint`: "Speed of movement and aiming +10 %" (German's total +15 %), and "Bullets do not slow you!" | the active's aim time -10 % and `stopping_power_mod` -1 (client patch 54) |
+| `st_lifebone_activation_hint`: "Health restored!" after the cured wounds | patch 54 fills pain, body and head at the active; the pickup hint ("increases health regeneration") is still right |
+| `st_onyx_pickup_hint` 10 % -> 5 % (German "auf 15 %" -> "um 5 %"), `st_onyx_activation_hint` 95 % -> 90 % (German "auf 90 %" -> "um 90 %") | stock mistakes: `damage_mul` and `armor_piercing_mul` are 0.95 passive, 0.1 active, never both |
+
+These hints are the artefacts' only texts: fixed sentences in the localization tables (`data/pickup_hint`,
+`data/activation_hint`), nothing computed from the config; an artefact has no lobby card (its `ui_desc`
+name and description keys have no text, `props_list` is empty). The "Onyx artifact." / "Артефакт Онікс."
+openings, which the maps tab and the damage calculator take the names from, stay. Applied to revision
+29's live tables: 6 files edited, 0 unexpected differences.
+Text only: no server data, no simulation change.
