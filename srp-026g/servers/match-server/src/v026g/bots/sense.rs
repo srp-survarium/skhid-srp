@@ -75,7 +75,10 @@ pub fn sense(
             continue;
         }
         let distance = enemy.feet.distance_xz(me.feet);
-        if distance > tuning.sight_m || !in_view(me.feet, me.yaw, enemy.feet, tuning.view_deg) {
+        let near = distance <= tuning.touch_m;
+        if distance > tuning.sight_m
+            || !(near || in_view(me.feet, me.yaw, enemy.feet, tuning.view_deg))
+        {
             continue;
         }
         // [aimpoint] Seen when some part of him shows, not only the eyes
@@ -408,6 +411,52 @@ mod tests {
             &mut Rng::new(1),
         );
         assert!(percepts.iter().all(|p| p.source != Source::Seen));
+    }
+
+    /// Match 0x6da44bbb at 662-677 s: an enemy at arm's length behind, in a
+    /// clear line, is seen (`touch_m`); one farther behind is not, nor one
+    /// as near behind a wall, nor any with the rule off.
+    #[test]
+    fn an_enemy_at_arms_length_behind_is_seen_unless_a_wall_is_between() {
+        // Facing +z (yaw 0); both enemies behind.
+        let me = place(0, 0, Vec3::ZERO, 0.0);
+        let close = place(1, 1, Vec3::new(0.3, 0.0, -1.2), 0.0);
+        let farther = place(2, 1, Vec3::new(-0.3, 0.0, -3.0), 0.0);
+        let view = view(vec![me.clone(), close, farther], vec![]);
+        let seen = |sight: &RayTree, tuning: &SenseTuning| -> Vec<Place> {
+            sense(
+                &me,
+                &view,
+                sight,
+                tuning,
+                &CheatTuning::default(),
+                500,
+                &[1, 2],
+                &mut RayBudget(20),
+                &mut Rng::new(1),
+            )
+            .iter()
+            .filter(|p| p.source == Source::Seen)
+            .map(|p| p.who)
+            .collect()
+        };
+        let open = RayTree::build(&[]);
+        let tuning = SenseTuning {
+            touch_m: 2.0,
+            step_m: 0.0,
+            ..SenseTuning::default()
+        };
+        assert_eq!(seen(&open, &tuning), vec![1]);
+        // A wall across z = -0.6, floor to ceiling.
+        let (a, b) = (Vec3::new(-5.0, -1.0, -0.6), Vec3::new(5.0, -1.0, -0.6));
+        let (c, d) = (Vec3::new(5.0, 4.0, -0.6), Vec3::new(-5.0, 4.0, -0.6));
+        let walled = RayTree::from_corners([[a, b, c], [a, c, d]]);
+        assert!(seen(&walled, &tuning).is_empty());
+        let off = SenseTuning {
+            touch_m: 0.0,
+            ..tuning
+        };
+        assert!(seen(&open, &off).is_empty());
     }
 
     /// Audit issue 4: footsteps. An enemy walking upright behind within
