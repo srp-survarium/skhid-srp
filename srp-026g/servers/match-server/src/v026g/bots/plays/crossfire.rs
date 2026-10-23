@@ -17,7 +17,7 @@
 
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input, Score};
-use crate::v026g::bots::tactics::SpotQuery;
+use crate::v026g::bots::tactics::{SpotQuery, Tactics};
 use crate::v026g::bots::view::Mode;
 
 pub const NUMBERS: &[(&str, f32)] = &[
@@ -47,6 +47,11 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // A spot too near the other half's is chosen again at most this often.
     ("repick_every_s", 3.0),
     ("samples", 64.0),
+    // A choke's spots (in sight of it, out of the spawn areas) are looked
+    // for once and kept this long for the whole team, seconds: the play is
+    // offered only where one is fine for the bot, as the commander polls
+    // each second. GUESS, as HoldExit's.
+    ("spots_keep_s", 15.0),
 ];
 
 pub fn tuning() -> PlayTuning {
@@ -116,7 +121,11 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         }
     }
     // The running one stays while it has a place.
-    if let Some((PlayKind::Crossfire, t, _)) = cx.bot.current
+    let running = match cx.bot.current {
+        Some((PlayKind::Crossfire, t, _)) => Some(t),
+        _ => None,
+    };
+    if let Some(t) = running
         && !chokes.contains(&t)
         && cx.point_of(t).is_some()
     {
@@ -126,6 +135,16 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         let Some(key) = choke_key(choke) else {
             continue;
         };
+        // Offered only where a spot is fine for it now: taking it to find
+        // none ended it within the second (the audit's churn: "no spot
+        // round the choke", mostly round a known enemy's last place).
+        if running != Some(choke)
+            && cx
+                .point_of(choke)
+                .is_none_or(|at| fine_spots(cx, at).is_empty())
+        {
+            continue;
+        }
         for half in 0..2 {
             out.extend(
                 cx.candidate(PlayKind::Crossfire, choke, Some(key * 2 + half))
@@ -180,30 +199,49 @@ fn halves(cx: &Ctx, choke: Vec3) -> Vec<(Place, Vec3)> {
         .collect()
 }
 
-/// A spot for the choke, `apart_deg` from every teammate in its ring.
-fn pick(cx: &Ctx, choke: Vec3, rng: &mut Rng) -> Option<Vec3> {
+/// The spots to cover `choke` from that stay so for a while, best first:
+/// in sight of it, outside every spawn area; found once for the side and
+/// kept `spots_keep_s`.
+fn spots_by(cx: &Ctx, choke: Vec3) -> std::sync::Arc<Vec<Vec3>> {
     let num = |name| cx.num(PlayKind::Crossfire, name);
+    let key = Tactics::spot_key(PlayKind::Crossfire as u32, cx.bot.side, choke);
+    let keep = (num("spots_keep_s") * 1000.0) as u32;
+    cx.tactics.spots_kept(key, cx.now, keep, || {
+        let query = SpotQuery {
+            sight_to: Some(choke),
+            prefer_high: num("prefer_high"),
+            side: cx.bot.side,
+            samples: num("samples") as usize,
+            ..SpotQuery::ring(choke, num("spot_min_m"), num("spot_max_m"))
+        };
+        let mut rng = Rng::new(key ^ u64::from(cx.now));
+        cx.tactics
+            .spots(&query, cx.now, query.samples, &mut rng)
+            .into_iter()
+            .map(|s| s.at)
+            .filter(|at| !cx.tactics.in_spawn_area(*at, None))
+            .collect()
+    })
+}
+
+/// Of [`spots_by`], those this bot may take now, best first: fine goals,
+/// `apart_deg` round the choke from every teammate in its ring.
+fn fine_spots(cx: &Ctx, choke: Vec3) -> Vec<Vec3> {
+    let apart = cx.num(PlayKind::Crossfire, "apart_deg");
     let others = halves(cx, choke);
-    let query = SpotQuery {
-        sight_to: Some(choke),
-        prefer_high: num("prefer_high"),
-        side: cx.bot.side,
-        samples: num("samples") as usize,
-        ..SpotQuery::ring(choke, num("spot_min_m"), num("spot_max_m"))
-    };
-    let fine: Vec<Vec3> = cx
-        .tactics
-        .spots(&query, cx.now, 12, rng)
-        .into_iter()
-        .map(|s| s.at)
+    spots_by(cx, choke)
+        .iter()
+        .copied()
         .filter(|at| {
             cx.tactics.fine_goal(*at, cx.now, cx.bot.side)
-                && !cx.tactics.in_spawn_area(*at, None)
-                && others
-                    .iter()
-                    .all(|(_, o)| round(choke, *at, *o) >= num("apart_deg"))
+                && others.iter().all(|(_, o)| round(choke, *at, *o) >= apart)
         })
-        .collect();
+        .collect()
+}
+
+/// A spot for the choke, `apart_deg` from every teammate in its ring.
+fn pick(cx: &Ctx, choke: Vec3, rng: &mut Rng) -> Option<Vec3> {
+    let fine = fine_spots(cx, choke);
     // Among the best three, any (not always the best: hard to read).
     let n = fine.len().min(3);
     (n > 0).then(|| fine[rng.below(n)])

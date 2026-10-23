@@ -277,6 +277,49 @@ What decides the winner (52 matches of 6+ players with a result, 10 of them reco
 - Winners mostly won the gunfight itself (the first aimed shot won 85 % against 71 %): skill or gear, not a team pattern. Focus fire, crossfire and who saw first did not separate them. For both sides, firing back within 0.5 s and breaking the line of sight when losing paid.
 - The commander keeps a slot (a battery, a post) with the bot that holds it unless another bot's claim beats it by the margin: two bots no longer swap one battery every half second.
 - **The commander's bands** (alarm > objective > fight > roam; `team::Bands`): an objective first, but only a real one. An objective scoring under 0.10 (its curves all but rule it out) competes in the roam band by its score; the bot's running play keeps its band down to half that. A second bot on a container a teammate already has (a second raider, a second guard of the lead) needs 0.20. In the owner's matches of 2026-10-16, 192 of 226 raids were taken at under 0.05, over a roam at 1.00, and gave no steal; the two that scored were taken at 0.21 and 0.24. In the fight band instead (tried), a raid at 0.02 still beat every roam. Bench, 600 s, 40 seeds, 6 maps, 4 v 4 and 10 v 10: raids taken 7,271 -> 510 (6,137 of them under 0.05 before), steals by raiders 8 -> 7, all steals 33 -> 30, deliveries 9,572 -> 9,543 (±37) and kills 22,353 -> 22,371 (±212), both within the noise. Alarms are never demoted. **Behind on points** (the HUD's score gap under 0) an attack on the enemy's container (raid, sneak, late denial; `team::attack`) has no floor and no second-bot bar (`Bands::behind_floor`, `Bands::behind_second`, both 0): attacks score as products of many parts and most sit under 0.10, so with the floor the team behind in the owner's 7 v 7 matches 0x652d4e6e, 0x1a0961e2 and 0x7298fb57 (2-5 down, every battery home) took none of them and held, grouped and roamed instead; before the floor it took 25-43 % of them and came back from -3 to 0 in one. Level or ahead the floor stands. Asymmetric bench (`SRP_BENCH_START=3,7` and `7,3`, 10 batteries all home, 7 v 7, 600 s, 4 battery maps, 20 seeds): points won back by the side behind 51 -> 110 (+59 ±18), its steals 81 -> 120, its deaths on an attack 0.67 -> 0.41 a bot-minute, 44 -> 79 % of its attack time with a teammate attacking too; a floor of 0.05 (+37) or the second bar kept (+38) won back less. With batteries lying (`0,2`, `2,0`) deliveries hold (+7 ±12). The normal bench (180 s, 20 seeds) holds: delivered 2457 -> 2452, kills 3204 -> 3208.
+### 3.1 Fewer plays dropped at once, supports that do something (built 2026-10-23)
+
+The audit of three real 7 v 7 matches (2026-10-22) found plays taken and ended within the second over and over (the churn), followers standing beside their leader doing nothing, and few trades. What changed:
+- **A spot play is offered only where it has a spot.** HoldExit, Crossfire and Cut looked for their spot after they were taken; with none they ended within the second, sat out the set-aside, and were taken again. Now each offers a target only where a spot is fine for the bot right now (`fine_spots`), unless it is already running there. Their spot lists are looked for once per side and point and kept `spots_keep_s` (15 s; `Tactics::spots_kept`, keyed by `Tactics::spot_key`), so the sight rays are cast once every 15 s per exit, choke or cut. A hazard on a spot is still checked at each poll.
+- **Roam ends when it makes no headway.** A bot that has not got `headway_m` (3 m) further in `headway_s` (10 s) on its way ends the run, and the commander picks again. On level_06's Team Deathmatch whole teams stood at a point by their base, with an open way to the goal and no stuck note (it pushed nowhere). Only the spot plays failing at once had restarted them. Without that churn, kills there fell from 10.3 to 1.1 a run (10 v 10) until this end was added, then rose to 13.7.
+- **PairUp keeps its teammate.** It is kept while he lives and stays within `mate_max_m`, instead of asking each poll for a teammate nearer the top player. Asking again ended it as soon as the bot stood a step ahead of him.
+- **A Buddy near his leader covers him.** It watches where the leader does not: a known enemy off his facing (more than `front_deg`, within `threat_m`), else behind him or a side, drawn and turned now and then. It matches his stance.
+
+Left out, with numbers (battery bench below unless stated, 16 seeds, difference a seed ± standard error):
+- **A floor for fight plays** (a running fight play keeps its band): quick ends fell, but A->B->A flips rose +0.087 (beyond the noise), idle Buddy rose +0.37 % and the thief battery test broke.
+- **A Buddy that steps out of his leader's line of fire**: it covered more (watching off his facing +22 points) but its moves churned the plays (flips +0.038 ± 0.012).
+- **Trades (audit issue 9) are not improved.** Two tries made more Trade plays without more trades:
+  - Trade taken by every mate within 25 m and kept up to 10 s by the killer: Trade plays +180, flips +0.088 (both beyond the noise), deaths traded within 5 s +1.3 ± 1.2, within 10 s +1.5 ± 1.8.
+  - The partner alone, kept by the killer: Trade kills +1.9 ± 0.6, but deaths traded within 5 s −0.3 ± 0.9 and within 10 s +0.5 ± 1.2.
+- **Skip a human route whose next point turned bad** (a teammate killed by it in the last 10 s). Such a route is drawn and then ends on its first step: 7,178 quick ends in 32 seeds of Team Deathmatch with the routes, now the most common. Skipping it cut those, but battery kills with the routes fell −3.6 ± 1.6 (beyond the noise); walking toward a fresh death is how bots trade.
+
+**Measured** (2026-10-23): `real_bot_cost`, 180 s, 4 v 4 and 10 v 10.
+- Battery: the 6 battery maps (levels 1-6, level 3 timed), `SRP_BENCH_BATTERIES=10`, `SRP_BENCH_USE_LINE=1`.
+- Team Deathmatch: levels 1, 2, 5, 6, 7 and 8.
+- "Routes" runs set `SRP_BOT_ROUTES` (the human routes, as live); the others run without them. Cut works only with routes.
+- Each cell is base -> with the change; the bracket is the difference a seed ± standard error; * is beyond 2 standard errors.
+- Quick ends are plays the bot ended itself within 1 s. The flips and quick-end rows are per bot-minute. Idle Buddy is the share of its alive time with a goal and no movement. "Watching off his facing" is the share of a Buddy's time within 1.4 x `close_m` of its leader spent looking more than 60 degrees off his facing.
+
+| | Battery, 16 seeds | Battery, routes, 96 seeds | Team DM, 16 seeds | Team DM, routes, 32 seeds |
+|---|---|---|---|---|
+| quick ends | 0.257 -> 0.106 (−0.151 ± 0.013*) | 0.246 -> 0.117 (−0.129 ± 0.005*) | 1.486 -> 0.107 (−1.379 ± 0.011*) | 2.260 -> 0.547 (−1.713 ± 0.034*) |
+| A->B->A flips | 0.472 -> 0.449 (−0.023 ± 0.016) | 0.441 -> 0.435 (−0.006 ± 0.006) | 1.470 -> 0.531 (−0.939 ± 0.022*) | 1.295 -> 0.456 (−0.838 ± 0.013*) |
+| idle Buddy, % | 0.34 -> 0.18 (−0.16 ± 0.05*) | 0.18 -> 0.11 (−0.07 ± 0.01*) | 9.19 -> 8.50 (−0.69 ± 0.27*) | 7.72 -> 6.56 (−1.16 ± 0.20*) |
+| idle Buddy/PairUp/CoverHuman, % | 0.37 -> 0.21 (−0.17 ± 0.06*) | 0.22 -> 0.15 (−0.07 ± 0.02*) | 9.86 -> 9.71 (−0.16 ± 0.31) | 8.32 -> 7.31 (−1.01 ± 0.21*) |
+| Buddy watching off his facing, % | 36.0 -> 56.1 (+20.0 ± 3.7*) | 40.1 -> 65.0 (+24.9 ± 1.7*) | 39.0 -> 62.7 (+23.8 ± 0.7*) | 43.9 -> 66.6 (+22.7 ± 0.6*) |
+| PairUp ended itself | 5.3 -> 3.8 (−1.6 ± 0.9) | 5.2 -> 3.6 (−1.5 ± 0.4*) | 77.6 -> 77.2 (−0.4 ± 5.6) | 66.5 -> 51.9 (−14.5 ± 3.6*) |
+| deaths traded within 5 s, % | 11.97 -> 11.29 (−0.68 ± 1.28) | 10.89 -> 11.04 (+0.15 ± 0.41) | 18.09 -> 17.00 (−1.10 ± 1.15) | 14.72 -> 14.58 (−0.15 ± 0.54) |
+| kills, team 0 | 66.4 -> 64.4 (−1.9 ± 1.9) | 63.8 -> 64.2 (+0.4 ± 0.7) | 132.3 -> 138.8 (+6.4 ± 2.7*) | 105.5 -> 108.8 (+3.3 ± 1.8) |
+| kills, team 1 | 66.5 -> 69.5 (+3.0 ± 2.7) | 69.2 -> 68.3 (−1.0 ± 0.9) | 134.3 -> 141.0 (+6.8 ± 2.2*) | 105.3 -> 108.6 (+3.2 ± 1.7) |
+| deaths a bot-minute | 0.272 -> 0.274 (+0.002 ± 0.008) | 0.272 -> 0.271 (−0.001 ± 0.003) | 0.562 -> 0.591 (+0.030 ± 0.009*) | 0.438 -> 0.452 (+0.014 ± 0.006*) |
+| team kills | 10.8 -> 9.9 (−0.9 ± 1.3) | 10.6 -> 10.5 (−0.1 ± 0.4) | 12.6 -> 14.8 (+2.3 ± 1.5) | 4.9 -> 4.8 (−0.1 ± 0.6) |
+| delivered | 38.4 -> 37.5 (−0.9 ± 0.5) | 38.2 -> 37.6 (−0.6 ± 0.3) | | |
+| carriers killed | 9.8 -> 10.6 (+0.8 ± 1.1) | 11.7 -> 12.3 (+0.7 ± 0.4) | | |
+
+- Both teams are bots, so a team's K/D stays about 1. In Team Deathmatch both sides kill more because more bots are out holding instead of restarting, and deaths per bot-minute rise with it.
+- Delivered with the routes: seeds 1-16 +0.3 ± 0.6, 17-32 −2.5 ± 0.7, 33-48 −0.6 ± 0.9, 49-96 −0.2 ± 0.5. On seeds 17-32, 49-80 the spot plays alone gave −0.8 ± 0.4 and the Buddy alone −0.5 ± 0.3. It is the one guard that leans the wrong way, about 1.4 %.
+- The 7 whole-match tests pass. In `a_take_waits_for_the_fight_unless_covered`, carriers killed within 3 s of a take went 52 -> 43 (cheat off) and 40 -> 34 (cheat on). In `bots_hold_fire_while_a_teammate_is_in_the_line_of_fire` (one run, friends on), team kills went 10 -> 19.
+- Run notes (level_06 10 v 10, seed 3): before, HoldExit and Crossfire ended with "no spot" about every 25 s. After, none did. Some Crossfire <-> Buddy switches remain; that is what the fight floor was for.
 
 ## 4. Event reactions
 

@@ -6,8 +6,10 @@
 //! scoreboard (fair: every player sees it). When he is known near (the
 //! memory: seen, heard, told), the bot goes to stand within `pair_m` of a
 //! teammate who is nearer to him, and stays by that teammate while he is
-//! near; with no such teammate it waits back, watching where he was, for a
-//! drawn while. It never aims or shoots: the reflex does, beside a friend.
+//! near (the same teammate, though once beside him it may stand the nearer
+//! of the two); with no such teammate it waits back, watching where he
+//! was, for a drawn while. It never aims or shoots: the reflex does,
+//! beside a friend.
 //!
 //! The slot is the bot pair (the bot and the teammate it joins), so two
 //! bots do not run to each other. A hunter squad that goes for the top
@@ -117,16 +119,19 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum State {
-    /// By the teammate nearer to him.
-    Pair,
+    /// By the teammate who was nearer to him when it joined him: kept while
+    /// he lives and stays within `mate_max_m`. Asking again for one nearer
+    /// ended it as soon as it stood beside him a step ahead (the audit of
+    /// three real 7v7 matches: "no teammate nearer to him now" 10-29 times
+    /// a match, mostly within the second).
+    Pair { mate: Place },
     /// No teammate: back, watching.
     Wait { until: u32 },
 }
 
 pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
-    let has_mate = cx.point_of(target).and_then(|at| mate(cx, at)).is_some();
-    if has_mate {
-        State::Pair
+    if let Some(m) = cx.point_of(target).and_then(|at| mate(cx, at)) {
+        State::Pair { mate: m.place }
     } else {
         let s = rng.range(
             cx.num(PlayKind::PairUp, "wait_min_s"),
@@ -151,11 +156,16 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
     if him.distance_xz(cx.me.feet) > num("near_m") * 1.5 {
         return Step::Done("he is far now");
     }
-    let mate = mate(cx, him).map(|p| p.feet);
     match state {
-        State::Pair => {
-            let Some(mate) = mate else {
-                return Step::Done("no teammate nearer to him now");
+        State::Pair { mate } => {
+            let Some(mate) = cx
+                .view
+                .team(cx.me.team)
+                .find(|p| p.place == *mate)
+                .map(|p| p.feet)
+                .filter(|at| at.distance_xz(cx.me.feet) <= num("mate_max_m"))
+            else {
+                return Step::Done("its teammate is down or gone");
             };
             let pair = num("pair_m");
             if cx.me.feet.distance_xz(mate) <= pair {
@@ -168,8 +178,8 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             )
         }
         State::Wait { until } => {
-            if mate.is_some() {
-                *state = State::Pair;
+            if let Some(m) = mate(cx, him) {
+                *state = State::Pair { mate: m.place };
                 return Step::Continue(Intent::stay().looking(Look::At(him)));
             }
             if cx.now >= *until {
@@ -261,6 +271,19 @@ mod tests {
             matches!(steps.last(), Some(Step::Continue(i)) if i.go == Go::Stay && i.look == Look::At(Vec3::new(50.0, 0.0, 32.0))),
             "{steps:?}"
         );
+        // Beside him a step nearer the top player than he is: kept.
+        let mut s = top();
+        let mut rng = Rng::new(1);
+        let mut state = start(TargetRef::Place(1), &s.cx(0), &mut rng);
+        assert_eq!(state, State::Pair { mate: 2 });
+        s.view.places[0].feet = Vec3::new(34.0, 0.0, 34.0);
+        assert!(super::mate(&s.cx(0), Vec3::new(50.0, 0.0, 32.0)).is_none());
+        let st = step(&mut state, TargetRef::Place(1), &s.cx(0), &mut rng);
+        assert!(matches!(st, Step::Continue(i) if i.go == Go::Stay), "{st:?}");
+        // He dies: done.
+        s.view.places[2].alive = false;
+        let st = step(&mut state, TargetRef::Place(1), &s.cx(0), &mut rng);
+        assert_eq!(st, Step::Done("its teammate is down or gone"));
         // Alone: it waits back, crouched, then is done.
         let mut s = top();
         s.view.places[2].alive = false;

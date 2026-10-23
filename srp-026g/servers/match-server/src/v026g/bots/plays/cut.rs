@@ -20,14 +20,17 @@
 //!   off the route's line by at least `side_deg` (a side angle, not in
 //!   their face), not on their side of it, higher ground preferred; one of
 //!   the best few, drawn. With no such spot, straight down their way, then
-//!   in a wider ring.
+//!   in a wider ring. The spots are looked for once and kept a while for
+//!   the side, and a cut is offered only where one is fine for the bot:
+//!   taken to find none, it ended within the second (2,992 times in the
+//!   Team Deathmatch bench with the routes, 16 seeds; the audit's churn).
 //! - Held crouched, looking where they come from. Team Deathmatch: a long
 //!   hold; the battery modes: brief (the fights follow the batteries).
 //!   Moved on after 1-2 kills.
 
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input, Score};
-use crate::v026g::bots::tactics::SpotQuery;
+use crate::v026g::bots::tactics::{SpotQuery, Tactics};
 use crate::v026g::bots::view::Mode;
 
 pub const NUMBERS: &[(&str, f32)] = &[
@@ -52,6 +55,11 @@ pub const NUMBERS: &[(&str, f32)] = &[
     ("kills_max", 2.0),
     ("give_up_s", 60.0),
     ("samples", 64.0),
+    // A cut's spots are looked for once and kept this long for the side,
+    // seconds. GUESS, as HoldExit's and Crossfire's: the sight rays cast
+    // once a quarter-minute a cut, a hazard on a spot still checked at each
+    // poll.
+    ("spots_keep_s", 15.0),
 ];
 
 pub fn tuning() -> PlayTuning {
@@ -140,7 +148,16 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         Mode::Batteries => cx.num(PlayKind::Cut, "weight_batteries"),
         Mode::TimedBatteries => cx.num(PlayKind::Cut, "weight_timed"),
     };
-    for (index, at, _, worth) in cuts(cx) {
+    let running = match cx.bot.current {
+        Some((PlayKind::Cut, TargetRef::Point(p), _)) => Some(p),
+        _ => None,
+    };
+    for (index, at, from, worth) in cuts(cx) {
+        // Offered only where a spot is fine for it now.
+        let runs = running.is_some_and(|p| p.distance_xz(at) < 1.0);
+        if !runs && fine_spots(cx, at, from).is_empty() {
+            continue;
+        }
         if let Some(mut c) = cx.candidate(PlayKind::Cut, TargetRef::Point(at), Some(index as u32)) {
             c.score = Score::new(c.score.get() * worth * weight);
             if !c.score.is_zero() {
@@ -165,8 +182,11 @@ pub enum State {
     },
 }
 
-/// A spot to cut the way through `at` (coming from `from`).
-fn pick(cx: &Ctx, at: Vec3, from: Vec3, rng: &mut Rng) -> Option<Vec3> {
+/// The spots of `pick`'s `try_` (0-2) to cut the way through `at` (coming
+/// from `from`), best first: in sight of it, in the try's ring and angle,
+/// outside every spawn area; found once for the side and kept
+/// `spots_keep_s`.
+fn spots_by(cx: &Ctx, at: Vec3, from: Vec3, try_: u32) -> std::sync::Arc<Vec<Vec3>> {
     let num = |name| cx.num(PlayKind::Cut, name);
     // Their way's direction at the cut.
     let (wx, wz) = (at.x - from.x, at.z - from.z);
@@ -180,12 +200,14 @@ fn pick(cx: &Ctx, at: Vec3, from: Vec3, rng: &mut Rng) -> Option<Vec3> {
     };
     // A side angle first; then straight down their way (still not on their
     // side); then a wider ring.
-    let tries = [
-        (num("spot_min_m"), num("spot_max_m"), side_cos),
-        (num("spot_min_m"), num("spot_max_m"), 1.0),
-        (num("spot_min_m") * 0.6, num("spot_max_m") * 1.5, 1.0),
-    ];
-    for (min_m, max_m, most) in tries {
+    let (min_m, max_m, most) = match try_ {
+        0 => (num("spot_min_m"), num("spot_max_m"), side_cos),
+        1 => (num("spot_min_m"), num("spot_max_m"), 1.0),
+        _ => (num("spot_min_m") * 0.6, num("spot_max_m") * 1.5, 1.0),
+    };
+    let key = Tactics::spot_key(PlayKind::Cut as u32 + 64 * try_, cx.bot.side, at);
+    let keep = (num("spots_keep_s") * 1000.0) as u32;
+    cx.tactics.spots_kept(key, cx.now, keep, || {
         let query = SpotQuery {
             sight_to: Some(at),
             prefer_high: num("prefer_high"),
@@ -193,24 +215,38 @@ fn pick(cx: &Ctx, at: Vec3, from: Vec3, rng: &mut Rng) -> Option<Vec3> {
             samples: num("samples") as usize,
             ..SpotQuery::ring(at, min_m, max_m)
         };
-        let fine: Vec<Vec3> = cx
-            .tactics
+        let mut rng = Rng::new(key ^ u64::from(cx.now));
+        cx.tactics
             // More than a plain hold asks for: the side rule drops many.
-            .spots(&query, cx.now, 40, rng)
+            .spots(&query, cx.now, 40, &mut rng)
             .into_iter()
             .map(|s| s.at)
             .filter(|spot| (-0.2..=most).contains(&along(spot)))
-            .filter(|spot| {
-                cx.tactics.fine_goal(*spot, cx.now, cx.bot.side)
-                    && !cx.tactics.in_spawn_area(*spot, None)
-            })
-            .collect();
-        let n = fine.len().min(num("pick_of").max(1.0) as usize);
-        if n > 0 {
-            return Some(fine[rng.below(n)]);
-        }
-    }
-    None
+            .filter(|spot| !cx.tactics.in_spawn_area(*spot, None))
+            .collect()
+    })
+}
+
+/// The spots this bot may take now to cut the way through `at`, best
+/// first: those of the first of [`spots_by`]'s tries with a fine goal.
+fn fine_spots(cx: &Ctx, at: Vec3, from: Vec3) -> Vec<Vec3> {
+    (0..3)
+        .map(|try_| {
+            spots_by(cx, at, from, try_)
+                .iter()
+                .copied()
+                .filter(|spot| cx.tactics.fine_goal(*spot, cx.now, cx.bot.side))
+                .collect::<Vec<_>>()
+        })
+        .find(|fine| !fine.is_empty())
+        .unwrap_or_default()
+}
+
+/// A spot to cut the way through `at` (coming from `from`).
+fn pick(cx: &Ctx, at: Vec3, from: Vec3, rng: &mut Rng) -> Option<Vec3> {
+    let fine = fine_spots(cx, at, from);
+    let n = fine.len().min(cx.num(PlayKind::Cut, "pick_of").max(1.0) as usize);
+    (n > 0).then(|| fine[rng.below(n)])
 }
 
 pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
