@@ -399,21 +399,64 @@ pub fn slide(grid: &WalkGrid, mut node: NodeId, from: Vec3, to: Vec3) -> (NodeId
     let (sx, sz) = (dx / steps as f32, dz / steps as f32);
     let mut at = from;
     for _ in 0..steps {
+        // The step, else along one axis (a body slides along a wall): each
+        // to a floor walked to, else off a ledge to the floor below (its
+        // drop skips the cell eroded at the ledge's foot: [`dropped_to`]).
+        // A body walking into a ledge's edge at a slant goes over it, not
+        // along it.
         let tries = [(sx, sz), (sx, 0.0), (0.0, sz)];
         let moved = tries.iter().find_map(|&(mx, mz)| {
             if mx == 0.0 && mz == 0.0 {
                 return None;
             }
             let point = Vec3::new(at.x + mx, at.y, at.z + mz);
-            floor_under(grid, node, point).map(|next| (next, point))
+            floor_under(grid, node, point)
+                .map(|next| (next, Vec3::new(point.x, grid.position(next).y, point.z)))
+                .or_else(|| {
+                    dropped_to(grid, node, at, (mx, mz)).map(|next| (next, grid.position(next)))
+                })
         });
         let Some((next, point)) = moved else {
             break;
         };
         node = next;
-        at = Vec3::new(point.x, grid.position(next).y, point.z);
+        at = point;
     }
     (node, at, at == from)
+}
+
+/// The floor below a ledge that a step `(sx, sz)` from `at` (on `node`)
+/// walks off: a drop link of `node`'s ahead of the step whose line from
+/// `node` passes within half a cell of where the step ends. The grid's
+/// drop from the last floor of a sheer ledge lands two cells on, past the
+/// cell eroded at the foot of its face, so no floor holds the step between:
+/// a body walked to the edge and stood there, the server's reckoning of a
+/// bot as well as the tests' stand-in (`player_bots_stuck.md` §8.4).
+fn dropped_to(grid: &WalkGrid, node: NodeId, at: Vec3, (sx, sz): (f32, f32)) -> Option<NodeId> {
+    let half = grid.cell_size() * 0.5 + 1e-4;
+    let from = grid.position(node);
+    let (px, pz) = (at.x + sx, at.z + sz);
+    grid.links(node)
+        .filter(|(_, kind)| *kind == LinkKind::Drop)
+        .map(|(next, _)| next)
+        .filter(|&next| {
+            let to = grid.position(next);
+            let (dx, dz) = (to.x - from.x, to.z - from.z);
+            let len2 = dx * dx + dz * dz;
+            if len2 <= 0.0 || dx * sx + dz * sz <= 0.0 {
+                return false;
+            }
+            let t = (((px - from.x) * dx + (pz - from.z) * dz) / len2).clamp(0.0, 1.0);
+            let (ex, ez) = (from.x + dx * t - px, from.z + dz * t - pz);
+            ex * ex + ez * ez <= half * half
+        })
+        .min_by(|&a, &b| {
+            let d = |n: NodeId| {
+                let p = grid.position(n);
+                (p.x - px).powi(2) + (p.z - pz).powi(2)
+            };
+            d(a).total_cmp(&d(b))
+        })
 }
 
 /// The floor whose cell holds `point`: `node` itself or one it walks or
@@ -698,6 +741,38 @@ pub(super) mod tests {
         }
         let at = track.estimate().unwrap();
         assert!(at.feet.x < 19.8 && at.feet.z > 13.0, "{at:?}");
+    }
+
+    /// A body that walks off a ledge lands on the floor below, though the
+    /// drop skips the cells eroded at the ledge's edge.
+    #[test]
+    fn a_body_walks_off_a_ledge_to_the_floor_below() {
+        // A block 2 m high from x 0 to 10.1 (its top and its face) on the
+        // ground: the ground at the face's foot is eroded, and the drop
+        // from the top's last floor skips that cell.
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(0.0, 0.0, 10.1, 10.0, 2.0));
+        triangles.extend(wall_x(10.1, 0.0, 10.0).map(|mut t| {
+            t.v.iter_mut().for_each(|v| v.y = v.y.min(2.0));
+            t
+        }));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default());
+        let start = grid.locate(Vec3::new(8.0, 2.0, 5.0), 0.5).unwrap();
+        let skips = (0..grid.len() as NodeId).any(|n| {
+            grid.links(n).any(|(m, kind)| {
+                kind == LinkKind::Drop && grid.position(n).distance_xz(grid.position(m)) > 0.4
+            })
+        });
+        assert!(skips, "the drops here skip a cell");
+        let (mut node, mut feet) = (start, grid.position(start));
+        // At a slant to the edge, as a body steering rarely walks square
+        // to it: it goes over, not along.
+        for _ in 0..40 {
+            let to = feet + Vec3::new(0.25, 0.0, 0.03);
+            (node, feet, _) = slide(&grid, node, feet, to);
+        }
+        assert!(feet.x > 11.0 && feet.y.abs() < 0.1, "{feet:?}");
+        assert_eq!(grid.locate(feet, 0.5), Some(node));
     }
 
     #[test]

@@ -153,6 +153,17 @@ pub type NodeId = u32;
 const NONE: u32 = u32::MAX;
 /// No link in a direction ([`WalkGrid`]'s `to`).
 const NO_LINK: u8 = u8::MAX;
+
+/// How deep a drop makes the floor before it a lip ([`WalkGrid::is_lip`]),
+/// metres. GUESS: a fall of 1 m loses a bot its route's floor (the bench's
+/// falls count from 1 m); a curb's 0.5 m does not.
+pub const LIP_DROP_M: f32 = 1.0;
+
+/// The extra cost of walking onto a lip, metres. GUESS: a cell's length, so
+/// a way along a ledge costs double and takes the floors a cell back where
+/// there are any (a step inward costs about 0.1 m once); measured on the
+/// bots' bench (falls off the route, player_bots_stuck.md §8.5).
+pub const LIP_PENALTY: f32 = 0.25;
 /// The 8 neighbour directions (dx, dz); `DIRS[d ^ 1]` is the opposite.
 const DIRS: [(i32, i32); 8] = [
     (1, 0),
@@ -1196,9 +1207,36 @@ impl WalkGrid {
         })
     }
 
-    /// The cost of a link: its length plus the kind's penalty.
+    /// The cost of a link: its length plus the kind's penalty, plus
+    /// [`LIP_PENALTY`] for walking onto a lip ([`Self::is_lip`]), so a
+    /// way keeps a cell back from a ledge where it can.
     pub fn link_cost(&self, from: NodeId, to: NodeId, kind: LinkKind) -> f32 {
-        (self.position(to) - self.position(from)).length() + kind.penalty()
+        let lip = if kind != LinkKind::Drop && self.is_lip(to) {
+            LIP_PENALTY
+        } else {
+            0.0
+        };
+        (self.position(to) - self.position(from)).length() + kind.penalty() + lip
+    }
+
+    /// Whether a floor is a lip: the last floor before a ledge at least
+    /// [`LIP_DROP_M`] high (one of its links drops that far). Erosion keeps
+    /// a body's width back from walls and jumps, but not from drops, so a
+    /// lip's centre is within a cell of the edge, and a body that strays
+    /// 0.3 m from it falls (player_bots_stuck.md §8.5).
+    pub fn is_lip(&self, node: NodeId) -> bool {
+        let a = node as usize;
+        let how = self.how[a];
+        // Any direction whose kind bits (0-1 of its nibble) say drop.
+        if how & 0x1111_1111 & !(how >> 1) == 0 {
+            return false;
+        }
+        let y = self.height[a];
+        let (i, k) = self.cell_xz(self.cell_of[a] as usize);
+        (0..8).any(|d| {
+            matches!(self.link_of(a, d, i, k), Some((to, LinkKind::Drop))
+                if y - self.height[to as usize] >= LIP_DROP_M)
+        })
     }
 
     /// Every floor whose cell overlaps the ground box `[x0, z0, x1, z1]`.
@@ -2093,6 +2131,38 @@ pub(crate) mod tests {
             grid.path_where(a, b, |n| grid.position(n).x < 3.0)
                 .is_none()
         );
+    }
+
+    /// A block 2 m high on a yard: the last floors before its edge are
+    /// lips, and a way along the edge keeps a cell back from it
+    /// (`player_bots_stuck.md` §8.5). A drop of 0.8 m makes no lip.
+    #[test]
+    fn a_way_along_a_ledge_keeps_back_from_its_lip() {
+        let mut tris = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
+        tris.extend(floor(0.0, 0.0, 5.1, 10.0, 2.0));
+        tris.extend(wall_x(5.1, 0.0, 10.0, 2.0));
+        let grid = WalkGrid::build(&tris, AREA, 0.25, Body::default());
+        let top = |x: f32, z: f32| grid.locate(Vec3::new(x, 2.0, z), 0.5).unwrap();
+        // The lip's cell overlaps the block's top, so its centre (x 5.125)
+        // is even past the edge.
+        let (a, b) = (top(5.05, 1.0), top(5.05, 9.0));
+        assert!(grid.is_lip(a) && grid.is_lip(b));
+        assert!(!grid.is_lip(top(4.8, 5.0)));
+        let path = grid.path(a, b).unwrap();
+        let on_lip = path.nodes.iter().filter(|&&n| grid.is_lip(n)).count();
+        assert!(
+            on_lip <= 4,
+            "{on_lip} of {} floors on the lip",
+            path.nodes.len()
+        );
+
+        let mut tris = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
+        tris.extend(floor(0.0, 0.0, 5.1, 10.0, 0.8));
+        tris.extend(wall_x(5.1, 0.0, 10.0, 0.8));
+        let grid = WalkGrid::build(&tris, AREA, 0.25, Body::default());
+        let edge = grid.locate(Vec3::new(5.05, 0.8, 5.0), 0.5).unwrap();
+        assert!(grid.links(edge).any(|(_, kind)| kind == LinkKind::Drop));
+        assert!(!grid.is_lip(edge));
     }
 
     #[test]
