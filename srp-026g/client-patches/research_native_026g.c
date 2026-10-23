@@ -832,13 +832,16 @@ static void units(u8 *ui, const struct rn_view *view) {
 /* Every frame, from update_player_icons' call in update_ui (0x23B207, before
  * update_ui's 40 ms gate and its hud-state checksum, past which the rest of
  * the hud runs about once a second, at a change of the match's seconds):
- * the units' markers while the match is in play (the time rule's state 3),
- * none in another mode, without a rule, in the countdown or after the end;
+ * the units' markers while the match is in play (the time rule's state 3,
+ * no end set), none in another mode, without a rule, in the countdown or
+ * after the end (end_time set: the time rule's state stays 3);
  * and in play the hud's units too, so that their rings and timers follow
  * the capture. */
 void rn_markers(u8 *ui) {
     struct rn_view view;
-    if (!view_of(ui, &view) || AT(view.rule->core, CORE_STATE, u32) != 3) {
+    /* the time rule stays in state 3 after the end: Research's end is its
+     * end_time (the final score still reaches the hud through rn_hud) */
+    if (!view_of(ui, &view) || AT(view.rule->core, CORE_STATE, u32) != 3 || view.rule->state.end_time != RR_NEVER) {
         hide_markers(ui);
         return;
     }

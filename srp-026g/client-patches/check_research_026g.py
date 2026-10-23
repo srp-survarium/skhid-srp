@@ -771,6 +771,16 @@ def main():
     sent, _ = frame()
     check("B's capture 0.6 ms further (9999.4 ms left: 10 s in whole seconds, the same tenth of a per cent): "
           "nothing sent", sent == [], str(sent))
+    run.word(rule + R_STATE + 12, now + 3000)
+    sent, _ = frame()
+    check("the end (end_time set; the time rule stays in state 3): the markers hidden, once",
+          [i for i in sent if i[1] == "root.research_markers"] == [(icons, "root.research_markers", 0, [0, 0])],
+          str(sent))
+    sent, _ = frame()
+    check("then no markers", not any(i[1] == "root.research_markers" for i in sent), str(sent))
+    run.word(rule + R_STATE + 12, 0xFFFFFFFF)
+    sent, _ = frame()
+    check("no end again (in play): shown", any(i[1] == "root.research_markers" and i[3][1] == 3 for i in sent))
     run.word(CORE + MATCH_STATE, 2)
     sent, _ = frame()
     check("the countdown (the time rule's state 2): the markers hidden, once",
