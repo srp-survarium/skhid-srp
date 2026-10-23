@@ -47,6 +47,11 @@ use super::view::{BatteryState, Clock, WorldFacts};
 use super::*;
 use crate::v026g::drive::{half_value, key};
 
+#[path = "fight_tally.rs"]
+mod fight_tally;
+#[path = "bench_spread.rs"]
+mod bench_spread;
+
 /// The client's use: a ray from the eye this long (`usable_objects_detection_distance`).
 const USE_REACH_M: f32 = 2.0;
 /// A lying battery's middle over its position, and how near the ray must
@@ -83,6 +88,8 @@ struct Body {
     moved: f32,
     /// The bot's target as its last input was made (the reflex's).
     target: Option<Place>,
+    /// Its shots' spread ([`bench_spread`]).
+    spread: bench_spread::Spread,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -176,6 +183,10 @@ struct Game {
     /// Batteries no use takes off the floor (`SRP_BENCH_UNTAKEABLE=<n>`:
     /// the first n; as the sunk ones of audit #7, which a use never took).
     untakeable: usize,
+    /// Every shot, for the bench's fight tally ([`fight_tally`]).
+    shot_facts: Vec<fight_tally::ShotFact>,
+    /// Shots spread as the game's do ([`bench_spread`], `SRP_BENCH_SPREAD`).
+    spread: bool,
 }
 
 /// The soak map: the 80 x 40 m field (a wall across its middle up to
@@ -251,6 +262,7 @@ impl Game {
             carrying: None,
             moved: 0.0,
             target: None,
+            spread: bench_spread::Spread::default(),
         };
         let mut game = Self {
             kin: Kinematics::default(),
@@ -286,6 +298,8 @@ impl Game {
             use_line: false,
             take_m: BATTERY_M,
             untakeable: 0,
+            shot_facts: Vec::new(),
+            spread: false,
             world,
         };
         for place in 0..teams.len() {
@@ -328,6 +342,7 @@ impl Game {
         body.gun = Arms::fallback().primary.0;
         body.recoil = Recoil::new(kick_of(body.gun.item));
         body.cadence = Cadence::default();
+        body.spread.reset();
     }
 
     fn eye(body: &Body) -> Vec3 {
@@ -377,12 +392,18 @@ impl Game {
                     body.recoil = Recoil::new(kick_of(gun.item));
                     body.recoil.update(tick);
                     body.cadence = Cadence::default();
+                    body.spread.reset();
                 } else if pressed[place] & key::RELOAD != 0 {
                     body.recoil.reset();
                 }
                 body.yaw += turn.0;
                 let taken = body.recoil.turn(turn.1);
                 body.pitch = (body.pitch + turn.1 + taken).clamp(-1.0, 1.0);
+            }
+        }
+        for (body, &pressed) in self.bodies.iter_mut().zip(&pressed) {
+            if body.alive {
+                body.spread.tick(body.gun, body.keys, pressed, tick, TICK_S);
             }
         }
         self.record();
@@ -456,7 +477,14 @@ impl Game {
         let dir = Vec3::new(fx * c, s, fz * c);
         let kick = body.recoil.kick();
         let top = kick.top(self.rng.unit());
+        let (gun, keys) = (body.gun, body.keys);
         self.bodies[shooter].recoil.shot(at, top, 0.0);
+        let (aim_state, cone) = self.bodies[shooter].spread.shot(gun, keys, at);
+        let dir = if self.spread {
+            bench_spread::deflect(dir, cone, &mut self.rng)
+        } else {
+            dir
+        };
         let tick = self.tick;
         let body = &self.bodies[shooter];
         // A shot at the bot's target with nothing of him showing
@@ -494,6 +522,28 @@ impl Game {
                 best = Some((target, along));
             }
         }
+        let shooter_body = &self.bodies[shooter];
+        let (moving, aimed, crouched) = fight_tally::stance(shooter_body.keys);
+        let aimed_at = shooter_body
+            .target
+            .filter(|&t| self.bodies[t].alive)
+            .map(|t| {
+                let (d, off) = fight_tally::aim_off(eye, dir, Self::chest(&self.bodies[t]));
+                (t, d, off)
+            });
+        self.shot_facts.push(fight_tally::ShotFact {
+            shooter,
+            tick,
+            hit: best
+                .map(|b| b.0)
+                .filter(|&t| self.bodies[t].team != shooter_body.team),
+            target: aimed_at,
+            moving,
+            aimed,
+            crouched,
+            aim_state,
+            cone,
+        });
         let Some((target, _)) = best else {
             return;
         };
@@ -2140,6 +2190,9 @@ fn lost_battery_run(look_weight: Option<f32>, limit: u32) -> LostBattery {
     // which the fight goes that way; with the table's taps the bot's
     // random sequence differs and it kills him at 2.65 s, by the container.
     tuning.aim.combat.fire.rifle = vec![];
+    // Likewise the shots before the sights are up (`aim_in_first` off):
+    // with the aim-in first it kills him at 2.95 s, before the take.
+    tuning.aim.combat.aim_in_first = false;
     if let Some(weight) = look_weight {
         tuning
             .plays
@@ -2606,6 +2659,15 @@ fn bench_tuning() -> Tuning {
         }
         tuning.aim.combat = serde_json::from_value(combat).expect("SRP_BENCH_COMBAT: known names");
     }
+    // The senses' numbers (`SenseTuning`), as `SRP_BENCH_COMBAT`'s.
+    if let Ok(numbers) = std::env::var("SRP_BENCH_SENSE") {
+        let mut sense = serde_json::to_value(&tuning.sense).unwrap();
+        for pair in numbers.split(',').filter(|p| !p.is_empty()) {
+            let (name, value) = pair.split_once('=').expect("SRP_BENCH_SENSE: name=value");
+            sense[name] = serde_json::from_str(value).expect("SRP_BENCH_SENSE: a JSON value");
+        }
+        tuning.sense = serde_json::from_value(sense).expect("SRP_BENCH_SENSE: known names");
+    }
     if let Ok(floors) = std::env::var("SRP_BENCH_SEARCH_FLOORS") {
         tuning.think.search_floors_per_poll = if floors == "max" {
             u32::MAX
@@ -2749,6 +2811,17 @@ fn real_bot_cost() {
                 Arc::new(bench_tuning()),
                 Trace::none(0),
             );
+            // Every bot of one tier (`SRP_BENCH_TIER=4-5|9-10|13-15`): its
+            // kits and its skill.
+            if let Ok(tier) = std::env::var("SRP_BENCH_TIER")
+                && !tier.is_empty()
+            {
+                let tier: survarium::v026g::loadouts::BotTier =
+                    serde_json::from_value(serde_json::Value::String(tier))
+                        .expect("SRP_BENCH_TIER: 4-5, 9-10 or 13-15");
+                bots = bots.with_tiers(&vec![Some(tier); teams.len()]);
+            }
+            let mut fight = fight_tally::FightTally::default();
             if let Some(table) = &table {
                 bots.set_routes(table);
             }
@@ -2795,6 +2868,7 @@ fn real_bot_cost() {
             {
                 game.untakeable = n;
             }
+            game.spread = std::env::var_os("SRP_BENCH_SPREAD").is_some();
             // As the game does (`gather_victory_items_rule::select_spawners`):
             // this many batteries at spawners drawn at random (the mode's
             // count is 10), not one at every spawner.
@@ -2915,6 +2989,10 @@ fn real_bot_cost() {
                             }
                         }
                     }
+                    for fact in std::mem::take(&mut game.shot_facts) {
+                        fight.shot(fact);
+                    }
+                    fight.sample(&game, game.tick);
                     let thieves = std::mem::take(&mut game.thieves);
                     raids.bodies(&game, &thieves, game.tick);
                     for place in thieves {
@@ -3031,6 +3109,7 @@ fn real_bot_cost() {
                 raids.polled(&bots, &notes, &made);
                 for note in notes {
                     decisions.note(&note);
+                    fight.note(&note);
                     events.note(&note);
                     carry.note(&note);
                     if let Some(rest) = note.text.strip_prefix("takes ") {
@@ -3242,6 +3321,7 @@ fn real_bot_cost() {
                 rows.join("; ")
             );
             eprintln!("  raids: {}", raid_line(&raids.finish()));
+            eprintln!("  {}", fight.line(&game));
             eprintln!(
                 "  carriers: killed carrying {:?} (by team carrying), by the shooter's play {:?}; delivered {:?}; picked up {} lying + {} stolen; plays taken {takes_all} = {:.2} a bot-minute",
                 carriers_killed,

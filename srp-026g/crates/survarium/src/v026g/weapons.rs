@@ -80,6 +80,161 @@ pub struct WeaponParams {
     pub right_recoil: Range,
     pub recoil_power: f32,
     pub recoil_gains: (f32, f32, f32),
+    /// The `dispersion` block: how wide its shots spread.
+    pub dispersion: Dispersion,
+}
+
+/// A weapon's `dispersion` block (`weapon_dispersion_params` 0x330EE0;
+/// `docs/notes/player_bots_weapons.md` §9 has the whole rule). Degrees,
+/// the cone's full angle; rates in degrees a second.
+///
+/// A shot's cone is `base` (× the ammo's `dispersion`, 1 for every ammo
+/// of 0.26g) plus, until the aim-in is complete (`aim_time` after the aim
+/// is pressed), the character part (the player's stance and movement
+/// value × `from_the_hip` or `aim`) and the bloom (`one_shot` a shot, up
+/// to `max`). Both fall at `speed_of_aiming`; the character part rises at
+/// `growth_speed`. Fully aimed, only `base` is left, moving or not.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Dispersion {
+    /// `base_dispersion`.
+    pub base: f32,
+    /// `one_shoot_dispersion_amount`.
+    pub one_shot: f32,
+    /// `speed_of_aiming`.
+    pub speed_of_aiming: f32,
+    /// `growth_speed`.
+    pub growth_speed: f32,
+    /// `max_dispersion`: the bloom's cap.
+    pub max: f32,
+    /// `from_the_hip_multiplier`, `aim_multiplier` (1 when absent).
+    pub from_the_hip: f32,
+    pub aim: f32,
+}
+
+impl Dispersion {
+    fn from_config(block: Option<&ConfigValue>) -> Result<Self, ConfigError> {
+        let number = |key: &str, absent: f32| -> Result<f32, ConfigError> {
+            match block.and_then(|t| t.get(key)) {
+                None => Ok(absent),
+                Some(value) => value
+                    .as_f32()
+                    .ok_or_else(|| ConfigError(format!("`dispersion.{key}` is not a number"))),
+            }
+        };
+        Ok(Self {
+            base: number("base_dispersion", 0.0)?,
+            one_shot: number("one_shoot_dispersion_amount", 0.0)?,
+            speed_of_aiming: number("speed_of_aiming", 0.0)?,
+            growth_speed: number("growth_speed", 0.0)?,
+            max: number("max_dispersion", 0.0)?,
+            from_the_hip: number("from_the_hip_multiplier", 1.0)?,
+            aim: number("aim_multiplier", 1.0)?,
+        })
+    }
+
+    /// The cone, degrees: `character` the character part reached and
+    /// `bloom` the bloom; none of either once `aimed_in`.
+    pub fn cone_deg(&self, character: f32, bloom: f32, aimed_in: bool) -> f32 {
+        if aimed_in {
+            self.base
+        } else {
+            self.base + character + bloom
+        }
+    }
+}
+
+/// `default.player`'s `character_dispersion_params` (0x2F0D30): the
+/// character part of a shot's cone by stance and movement, degrees,
+/// before the weapon's multiplier. 0.26g's player: idle 5, walk 10, run
+/// and jump 20, crouch 4, crouch walk 8, the aimed values the same.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CharacterDispersion {
+    pub idle: f32,
+    pub idle_aim: f32,
+    pub walk: f32,
+    pub walk_aim: f32,
+    pub run: f32,
+    pub jump: f32,
+    pub crouch: f32,
+    pub crouch_aim: f32,
+    pub crouch_walk: f32,
+    pub crouch_walk_aim: f32,
+}
+
+/// What a body does, for [`CharacterDispersion::of`]: "moving" is a move
+/// key held (forward xor back, or left xor right; the game reads the keys,
+/// never the speed).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Stance {
+    pub crouched: bool,
+    pub moving: bool,
+    pub sprinting: bool,
+    pub jumping: bool,
+    /// The aim is pressed (from its start, not its end).
+    pub aimed: bool,
+}
+
+impl CharacterDispersion {
+    pub fn from_config(config: &ConfigValue) -> Result<Self, ConfigError> {
+        let params = config.req("player")?.get("character_dispersion_params");
+        let number = |key: &str| -> Result<f32, ConfigError> {
+            match params.and_then(|t| t.get(&format!("{key}_dispersion"))) {
+                None => Ok(0.0),
+                Some(value) => value.as_f32().ok_or_else(|| {
+                    ConfigError(format!("`character_dispersion_params.{key}_dispersion` is not a number"))
+                }),
+            }
+        };
+        Ok(Self {
+            idle: number("idle")?,
+            idle_aim: number("idle_aim")?,
+            walk: number("walk")?,
+            walk_aim: number("walk_aim")?,
+            run: number("run")?,
+            jump: number("jump")?,
+            crouch: number("crouch")?,
+            crouch_aim: number("crouch_aim")?,
+            crouch_walk: number("crouch_walk")?,
+            crouch_walk_aim: number("crouch_walk_aim")?,
+        })
+    }
+
+    /// The character part's target for `stance` with `weapon`'s
+    /// multiplier (0x331560 and 0x331330, no skills or injuries).
+    pub fn of(&self, stance: Stance, weapon: &Dispersion) -> f32 {
+        let a = stance.aimed;
+        let value = if stance.jumping {
+            self.jump
+        } else if stance.crouched {
+            match (stance.moving, a) {
+                (false, false) => self.crouch,
+                (false, true) => self.crouch_aim,
+                (true, false) => self.crouch_walk,
+                (true, true) => self.crouch_walk_aim,
+            }
+        } else if stance.sprinting && stance.moving {
+            self.run
+        } else {
+            match (stance.moving, a) {
+                (false, false) => self.idle,
+                (false, true) => self.idle_aim,
+                (true, false) => self.walk,
+                (true, true) => self.walk_aim,
+            }
+        };
+        value * if a { weapon.aim } else { weapon.from_the_hip }
+    }
+}
+
+/// The players' character dispersion ([`super::game_data`]), read once.
+pub fn character_dispersion() -> &'static CharacterDispersion {
+    static SHARED: std::sync::OnceLock<CharacterDispersion> = std::sync::OnceLock::new();
+    SHARED.get_or_init(|| {
+        let path = super::item_params::PLAYER_PATH;
+        ConfigValue::parse(super::game_data::file(path))
+            .and_then(|config| CharacterDispersion::from_config(&config))
+            .expect("the player's config reads")
+    })
 }
 
 impl WeaponParams {
@@ -169,6 +324,7 @@ impl WeaponParams {
                 number(recoil, "compensation_integral_gain")?,
                 number(recoil, "compensation_derivational_gain")?,
             ),
+            dispersion: Dispersion::from_config(config.get("dispersion"))?,
         })
     }
 }
@@ -270,6 +426,33 @@ mod tests {
         let tt = weapon_named("tt_33").unwrap();
         assert_eq!(tt.reload_state, STATE_RELOAD_EMPTY);
         assert_eq!(weapon(mosin.dict_id), Some(mosin));
+    }
+
+    /// The `dispersion` blocks and the player's character dispersion, as
+    /// the RE of 0.26g's shot read them (`player_bots_weapons.md` §9).
+    #[test]
+    fn the_dispersion_is_read_from_the_configs() {
+        let uzi = weapon_named("uzi").unwrap().dispersion;
+        assert_eq!(
+            (uzi.base, uzi.one_shot, uzi.speed_of_aiming, uzi.growth_speed, uzi.max),
+            (0.3, 1.5, 15.0, 20.0, 20.0)
+        );
+        assert_eq!((uzi.from_the_hip, uzi.aim), (1.0, 1.0));
+        let mosin = weapon_named("mosin_nagant").unwrap().dispersion;
+        assert_eq!((mosin.base, mosin.from_the_hip, mosin.aim), (0.1, 2.0, 1.0));
+        let c = character_dispersion();
+        assert_eq!((c.idle, c.walk, c.run, c.jump), (5.0, 10.0, 20.0, 20.0));
+        assert_eq!((c.crouch, c.crouch_walk, c.walk_aim), (4.0, 8.0, 10.0));
+        // Strafing from the hip: 10 of the character and the base; fully
+        // aimed, the base alone.
+        let strafing = Stance {
+            moving: true,
+            ..Stance::default()
+        };
+        let character = c.of(strafing, &uzi);
+        assert_eq!(uzi.cone_deg(character, 0.0, false), 10.3);
+        assert_eq!(uzi.cone_deg(character, 3.0, true), 0.3);
+        assert_eq!(c.of(strafing, &mosin), 20.0);
     }
 
     /// The players' game data with the 0.29a3 weapons (revision 19 on):

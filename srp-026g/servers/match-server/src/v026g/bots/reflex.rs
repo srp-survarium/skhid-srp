@@ -250,6 +250,36 @@ pub struct CombatTuning {
     /// always.
     pub ads_near_m: f32,
     pub ads_near_chance: f32,
+    /// Audit issue 8: no shot until the sights are fully up (the weapon's
+    /// `aim_time` since the aim was pressed, and `aim_in_margin_ms` for the
+    /// input to reach the game), unless the hip cone at his distance keeps
+    /// the shots on him; and the aim pressed whenever it does not, near
+    /// or not. In 0.26g a shot spreads by the weapon's base alone once the
+    /// aim-in is complete, moving or not, and from the hip (or during the
+    /// aim-in) by the stance and movement too: 10.3 degrees strafing with
+    /// an Uzi against 0.3 aimed (`player_bots_weapons.md` §9). The hip
+    /// cone "keeps the shots on him" when `hip_cone_share` of its half
+    /// (0.58: four shots of five fall within it) is within `body_half_m`
+    /// of him at his distance. GUESS: `body_half_m` half a torso's width;
+    /// `aim_in_margin_ms` one tick. On the real-map bench with the game's
+    /// spread (`SRP_BENCH_SPREAD`), 8 seeds, with the rest of audit issue
+    /// 4's change, the hit rate rose from 14.8 / 16.6 / 17.5 % to 20.8 /
+    /// 23.6 / 26.3 % at tiers 4-5 / 9-10 / 13-15, with a third fewer shots
+    /// and the kills the same within the noise
+    /// (`player_bots_behaviour.md` §2.5).
+    pub aim_in_first: bool,
+    pub aim_in_margin_ms: u32,
+    pub hip_cone_share: f32,
+    pub body_half_m: f32,
+    /// Audit issue 8: fire only once the view is within `fire_body_share`
+    /// of his body's half width (`body_half_m`) at his distance of where
+    /// it means to aim, as a player waits for the crosshair to arrive, at
+    /// least `fire_within_min_deg` and at most the aim's
+    /// `fire_within_deg`; 0: off (the flat `fire_within_deg`). Off: at 3 it
+    /// raised the hit rate 1.6 points alone but with `aim_in_first` cost
+    /// 11.5 kills a seed on the bench.
+    pub fire_body_share: f32,
+    pub fire_within_min_deg: f32,
     /// Standing to aim at a seen target, the legs step side to side: runs
     /// of `strafe_run_ms` one way then the other, a still moment of
     /// `strafe_still_ms` between with `strafe_still_chance`; a hit turns
@@ -273,10 +303,31 @@ pub struct CombatTuning {
     /// than `switch_share` of its distance, or nearer than
     /// `switch_near_m` and `switch_margin_m` nearer than it (match
     /// 0x5402a730: a bot aimed at a bot 67 m away with the human 6 m from
-    /// it).
+    /// it). Audit issue 4 widened them from 0.5 and 15 m (the owner at
+    /// 22-28 m from a bot aimed 44-46 m away): with `switch_between_thinks`
+    /// and `SenseTuning::step_m`, contacts where a farther enemy was aimed
+    /// at fell from 12.75 % to 10.99 % (−1.76 ± 0.76 a seed) on the bench,
+    /// tiers 9-10; alone they cost kills (−6.4 a seed). GUESSES.
     pub switch_share: f32,
     pub switch_near_m: f32,
     pub switch_margin_m: f32,
+    /// Audit issue 4 (the owner's matches of 2026-10-23: a bot aimed at bots
+    /// 44-46 m away with the owner in its sight at 22-28 m; a farther enemy
+    /// aimed at meanwhile in 2-14 % of contacts): the rules but the much
+    /// nearer one wait `switch_hold_ms` on a target (no flicking between
+    /// two); a seen enemy facing the bot (his view within
+    /// `switch_facing_deg` of it) and `switch_facing_margin_m` nearer takes
+    /// the target from one not facing it (0: off). Both off: on the
+    /// real-map bench neither changed a measure by 2 standard errors
+    /// (300 ms and 20 degrees tried, `player_bots_behaviour.md` §2.5).
+    pub switch_hold_ms: u32,
+    pub switch_facing_deg: f32,
+    pub switch_facing_margin_m: f32,
+    /// A switch is weighed at every tick, not only at a think (an enemy
+    /// noticed between two thinks who presses more is taken at once, as one
+    /// with no target is). Bench, tiers 9-10: without it contacts never
+    /// engaged rose 0.62 ± 0.28 points a seed.
+    pub switch_between_thinks: bool,
     /// The turn to a threat, even with a target: hit, at the nearest enemy
     /// it sensed firing in the last `threat_shot_ms` (seen, or heard: where
     /// it heard him); not hit, at a shot heard within `threat_heard_m`
@@ -304,6 +355,12 @@ pub struct CombatTuning {
     /// target): a threat not made by a hit, looked at `glance_ms`.
     pub glance_heard_m: f32,
     pub glance_heard_share: f32,
+    /// ... and any heard within this whatever the target's distance, as a
+    /// player checks a noise at arm's length (audit issue 4: match 0x4da3b51d
+    /// at 190-199 s, two bots 1-4 m apart for 8 s, neither hurt). Off: 6 m
+    /// changed no measure on the bench (the steps heard, `SenseTuning::step_m`,
+    /// did that case's work).
+    pub glance_close_m: f32,
     /// No target: a teammate's callout (a told track) at most
     /// `glance_told_fresh_ms` old (from the sense that made it) within
     /// `glance_told_m`, from outside the view, is glanced at for
@@ -612,15 +669,25 @@ impl Default for CombatTuning {
             recoil_pull_low: 0.5,
             ads_near_m: 10.0,
             ads_near_chance: 0.85,
+            aim_in_first: true,
+            aim_in_margin_ms: 50,
+            hip_cone_share: 0.58,
+            body_half_m: 0.25,
+            fire_body_share: 0.0,
+            fire_within_min_deg: 0.5,
             strafe_run_ms: (250, 700),
             strafe_still_chance: 0.5,
             strafe_still_ms: (150, 450),
             strafe_walking: true,
             sniper_crouch_chance: 0.25,
             fire: FireTuning::default(),
-            switch_share: 0.5,
-            switch_near_m: 15.0,
+            switch_share: 0.65,
+            switch_near_m: 25.0,
             switch_margin_m: 5.0,
+            switch_hold_ms: 0,
+            switch_facing_deg: 0.0,
+            switch_facing_margin_m: 10.0,
+            switch_between_thinks: true,
             threat_shot_ms: 1_000,
             threat_heard_m: 25.0,
             // Half the sense's view (`SenseTuning::view_deg`).
@@ -632,6 +699,7 @@ impl Default for CombatTuning {
             sound_again_ms: 1_500,
             glance_heard_m: 10.0,
             glance_heard_share: 0.5,
+            glance_close_m: 0.0,
             glance_told_m: 0.0,
             glance_told_fresh_ms: 3_000,
             glance_told_every_ms: 4_000,
@@ -942,6 +1010,8 @@ pub struct Reflex {
     /// it crouches to fire (`FireTuning::crouch_chance`); it side-steps
     /// while it fires (`FireTuning::strafe_chance`).
     ads_near: bool,
+    /// Since when its aim is pressed (`CombatTuning::aim_in_first`).
+    aim_since: Option<u32>,
     crouch_fire: bool,
     strafe_fire: bool,
     /// The side step: the key held (0: still) and until when.
@@ -1022,6 +1092,72 @@ fn hit_bearing(
     }
     let error = c.hit_bearing_error_deg.to_radians();
     best.map(|(_, b)| wrap(b + rng.range(-error, error)))
+}
+
+/// Audit issue 8: whether `gun`'s cone from the hip (the weapon's base and
+/// the player's stance and movement value times its hip multiplier,
+/// `survarium::v026g::weapons`) keeps the shots on a body `distance` away:
+/// `hip_cone_share` of its half within `body_half_m` of him. Moving as the
+/// game reads it, from the keys (forward xor back, left xor right), or
+/// `strafing` (it side-steps to fire).
+fn hip_cone_fits(me: &PlaceView, gun: &Gun, strafing: bool, distance: f32, c: &CombatTuning) -> bool {
+    use survarium::v026g::weapons::{Stance, character_dispersion};
+    let keys = me.keys;
+    let fb = keys & (key::FORWARD | key::BACK);
+    let lr = keys & (key::LEFT | key::RIGHT);
+    let stance = Stance {
+        crouched: keys & key::CROUCH != 0,
+        moving: strafing
+            || fb == key::FORWARD
+            || fb == key::BACK
+            || lr == key::LEFT
+            || lr == key::RIGHT,
+        sprinting: keys & key::SPRINT != 0,
+        jumping: keys & key::JUMP != 0,
+        aimed: false,
+    };
+    let d = &gun.dispersion;
+    let cone = d.cone_deg(character_dispersion().of(stance, d), 0.0, false);
+    (cone * 0.5 * c.hip_cone_share).to_radians().tan() * distance <= c.body_half_m
+}
+
+/// Whether the seen enemy `other` takes the target from the seen `kept`
+/// (audit issue 4: a bot aimed 44-46 m away with the owner in its sight at
+/// 22-28 m): much nearer (`switch_share` of its distance) at once; after
+/// `switch_hold_ms` on the target, also nearer than `switch_near_m` and
+/// `switch_margin_m` nearer, or facing the bot (his view within
+/// `switch_facing_deg` of it, as a player sees which way a man looks) and
+/// `switch_facing_margin_m` nearer while the kept one does not face it.
+fn presses_more(
+    me: &PlaceView,
+    view: Option<&MatchView>,
+    kept: &SeenTrack,
+    other: &SeenTrack,
+    held_ms: u32,
+    c: &CombatTuning,
+) -> bool {
+    let (far, near) = (
+        kept.at().distance_xz(me.feet),
+        other.at().distance_xz(me.feet),
+    );
+    if near < far * c.switch_share {
+        return true;
+    }
+    if held_ms < c.switch_hold_ms {
+        return false;
+    }
+    if near < c.switch_near_m && near + c.switch_margin_m <= far {
+        return true;
+    }
+    let faces = |who: Place, at: Vec3| {
+        c.switch_facing_deg > 0.0
+            && view.and_then(|v| v.place(who)).is_some_and(|p| {
+                wrap(p.yaw - bearing(at, me.feet)).abs() <= c.switch_facing_deg.to_radians()
+            })
+    };
+    near + c.switch_facing_margin_m <= far
+        && faces(other.who(), other.at())
+        && !faces(kept.who(), kept.at())
 }
 
 /// A point `m` metres from `from` along the yaw `bearing`.
@@ -1283,17 +1419,15 @@ impl Reflex {
         let seen = memory.all_seen(now);
         let in_range = |t: &&SeenTrack| t.at().distance_xz(me.feet) <= aim.range_m;
         let d = |t: &SeenTrack| t.at().distance_xz(me.feet);
-        // The present target, unless another seen enemy is much nearer.
+        // The present target, unless another seen enemy presses more
+        // ([`Self::presses_more`]).
+        let held_ms = now.saturating_sub(self.since);
         let keep = self
             .target
             .and_then(|target| seen.iter().filter(in_range).find(|t| t.who() == target))
             .filter(|kept| {
-                let far = d(kept);
                 !seen.iter().filter(in_range).any(|t| {
-                    let near = d(t);
-                    t.who() != kept.who()
-                        && (near < far * c.switch_share
-                            || (near < c.switch_near_m && near + c.switch_margin_m <= far))
+                    t.who() != kept.who() && presses_more(me, view, kept, t, held_ms, c)
                 })
             });
         // A threat's shooter seen: him before any other.
@@ -1503,7 +1637,8 @@ impl Reflex {
                     && t.time + c.threat_shot_ms >= now
                     && d(t.at) <= c.glance_heard_m
                     && !super::sense::in_view(me.feet, me.yaw, t.at, c.threat_off_deg * 2.0)
-                    && target_at.is_none_or(|at| d(t.at) < d(at) * c.glance_heard_share)
+                    && (d(t.at) <= c.glance_close_m
+                        || target_at.is_none_or(|at| d(t.at) < d(at) * c.glance_heard_share))
             })
             .min_by(|a, b| d(a.at).total_cmp(&d(b.at)));
         if let Some(track) = heard {
@@ -2197,6 +2332,9 @@ impl Reflex {
             .last_tick
             .map_or(50, |last| now.saturating_sub(last).clamp(1, 100));
         self.last_tick = Some(now);
+        // The aim-in counts from the first tick of an unbroken press of the
+        // aim (the input reaches the game within `aim_in_margin_ms`).
+        let aim_since = self.aim_since.take();
         let legs = self.legs(now);
         let settle_s = mix(aim.settle_s, skill).max(0.05);
         let floor = mix(aim.error_deg, skill).to_radians();
@@ -2254,6 +2392,21 @@ impl Reflex {
                 .any(|t| t.at().distance_xz(me.feet) <= aim.range_m)
         {
             self.choose(me, Some(view), memory, now, aim, skill, rng);
+        } else if c.switch_between_thinks
+            && let Some(kept) = self.target.and_then(|target| memory.seen(target, now))
+        {
+            // Likewise an enemy noticed since the last think who presses
+            // more than the target (a man stepping out beside it): him at
+            // once, not a think later.
+            let held_ms = now.saturating_sub(self.since);
+            let seen = memory.all_seen(now);
+            if seen.iter().any(|t| {
+                t.who() != kept.who()
+                    && t.at().distance_xz(me.feet) <= aim.range_m
+                    && presses_more(me, Some(view), &kept, t, held_ms, c)
+            }) {
+                self.choose(me, Some(view), memory, now, aim, skill, rng);
+            }
         }
         let seen = self.target.and_then(|target| memory.seen(target, now));
         if seen.is_some() {
@@ -2291,6 +2444,7 @@ impl Reflex {
                 .trade
                 .filter(|(at, until)| now < *until && !shot && at.distance_xz(me.feet) <= c.trade_m)
             {
+                self.aim_since = Some(aim_since.unwrap_or(now));
                 return Override {
                     look_at: Some(at + Vec3::new(0.0, 1.3, 0.0)),
                     keys: key::AIM | reload,
@@ -2368,8 +2522,27 @@ impl Reflex {
         // the weapon takes it); the weapon's trigger turns that into
         // presses and counts the rounds.
         let distance = point.distance_xz(me.feet);
-        let within = off <= aim.fire_within_deg.to_radians();
+        let within_deg = if c.fire_body_share > 0.0 {
+            (c.fire_body_share * c.body_half_m)
+                .atan2(distance.max(0.5))
+                .to_degrees()
+                .clamp(c.fire_within_min_deg, aim.fire_within_deg)
+        } else {
+            aim.fire_within_deg
+        };
+        let within = off <= within_deg.to_radians();
         let bolt = gun.handling == Handling::Bolt;
+        // Down the sights at him, unless it runs for cover (a bolt action
+        // always, else from `ads_near_m` or as drawn, and with
+        // `aim_in_first` whenever the hip cone would not keep the shots
+        // on him); no shot before the sights are up unless it would.
+        let running = legs.is_some_and(|l| l.run);
+        let hip_fits = !c.aim_in_first || hip_cone_fits(me, gun, self.strafe_fire, distance, c);
+        let ads = !running && (bolt || distance >= c.ads_near_m || self.ads_near || !hip_fits);
+        self.aim_since = ads.then(|| aim_since.unwrap_or(now));
+        let aimed_in = self
+            .aim_since
+            .is_some_and(|since| now >= since + gun.aim_ms + c.aim_in_margin_ms);
         let range_m = if bolt {
             c.fire.bolt_range_m.max(aim.range_m)
         } else {
@@ -2385,6 +2558,7 @@ impl Reflex {
             && now >= self.busy_until
             && self.hands().held().rounds > 0
             && distance <= range_m
+            && (aimed_in || hip_fits)
             && friend.is_none()
             // The shot leaves along the view (kick and all): the wall test is
             // on the view now and the one it turns to, each with the kick's
@@ -2407,14 +2581,12 @@ impl Reflex {
             }
         }
         let fire = self.trigger(wants, fire_allowed, now, c, distance, rng);
-        // Down the sights at him, unless it runs for cover (a bolt action
-        // always, else from `ads_near_m` or as drawn); crouched as drawn
-        // for its kind; the side step while it stands to aim, for every
-        // target with an automatic weapon, for some with a bolt or a
-        // marksman rifle, also while it walks (`strafe_walking`, not while
-        // it runs); a bolt action stands still for its aimed shot.
-        let running = legs.is_some_and(|l| l.run);
-        if !running && (bolt || distance >= c.ads_near_m || self.ads_near) {
+        // Down the sights as above; crouched as drawn for its kind; the
+        // side step while it stands to aim, for every target with an
+        // automatic weapon, for some with a bolt or a marksman rifle, also
+        // while it walks (`strafe_walking`, not while it runs); a bolt
+        // action stands still for its aimed shot.
+        if ads {
             keys |= key::AIM;
         }
         if self.crouch_fire && !running {
@@ -3440,10 +3612,13 @@ mod tests {
         let share = moving / fighting.len() as f32;
         // Top players: a side key on 78 % of their automatic fire.
         assert!((0.6..=0.95).contains(&share), "{share}");
-        // Near, down the sights only with the per-target draw.
+        // Near, down the sights only with the per-target draw (and, with
+        // `aim_in_first`, where the hip cone would not keep the shots on
+        // him: a strafing support weapon's does not at 6 m).
         let never = AimTuning {
             combat: CombatTuning {
                 ads_near_chance: 0.0,
+                aim_in_first: false,
                 ..CombatTuning::default()
             },
             ..AimTuning::default()
@@ -5267,6 +5442,224 @@ mod tests {
                 steps,
                 "carrying {carrying}: {o:?}"
             );
+        }
+    }
+
+    /// Audit issue 4's numbers, explicit (the tests hold whatever the
+    /// defaults become).
+    fn issue_4_aim() -> AimTuning {
+        AimTuning {
+            combat: CombatTuning {
+                switch_share: 0.5,
+                switch_near_m: 15.0,
+                switch_margin_m: 5.0,
+                switch_hold_ms: 300,
+                switch_facing_deg: 20.0,
+                switch_facing_margin_m: 10.0,
+                switch_between_thinks: true,
+                glance_heard_m: 10.0,
+                glance_heard_share: 0.5,
+                glance_close_m: 6.0,
+                ..CombatTuning::default()
+            },
+            ..AimTuning::default()
+        }
+    }
+
+    /// Audit issue 4 (match 0x4da3b51d at 190-199 s): an enemy steps out 4 m
+    /// beside a bot holding a target 60 m away. Noticed between two thinks,
+    /// he is the target at the tick he is noticed, not a think later.
+    #[test]
+    fn a_close_enemy_beside_a_bot_with_a_far_target_is_taken_at_once() {
+        let (far, near) = (Vec3::new(0.0, 0.0, 60.0), Vec3::new(3.0, 0.0, 2.5));
+        let mut me = body(0, 0, Vec3::ZERO, 0.0);
+        facing(&mut me, far + Vec3::new(0.0, 1.3, 0.0));
+        let view = view_of(vec![
+            me.clone(),
+            body(1, 1, far, 0.0),
+            body(2, 1, near, 0.0),
+        ]);
+        for between in [true, false] {
+            let mut aim = issue_4_aim();
+            aim.combat.switch_between_thinks = between;
+            let mut memory = Memory::default();
+            let mut reflex = Reflex::default();
+            let mut rng = Rng::new(50);
+            for now in [1_000, 1_300] {
+                sense(&mut memory, &[percept(1, far, now, Source::Seen)], now);
+                let sit = Situation::of(&view);
+                reflex.think_with(&me, &sit, &memory, now, &aim, 0.6, &mut rng);
+            }
+            assert_eq!(reflex.target(), Some(1));
+            // He shows at 1 400 (noticed 300 ms on); the next think would
+            // be at 1 900.
+            let mut taken = None;
+            for now in (1_350..1_900).step_by(50) {
+                let mut seen = vec![percept(1, far, now, Source::Seen)];
+                if now >= 1_400 {
+                    seen.push(percept(2, near, now, Source::Seen));
+                }
+                sense(&mut memory, &seen, now);
+                reflex.tick(&me, &view, &memory, now, true, &aim, 0.6, &mut rng);
+                if taken.is_none() && reflex.target() == Some(2) {
+                    taken = Some(now);
+                }
+            }
+            if between {
+                assert_eq!(taken, Some(1_700), "taken at the tick he is noticed");
+            } else {
+                assert_eq!(taken, None, "a think later");
+            }
+        }
+    }
+
+    /// Audit issue 4 (match 0x130b8388 at 129.8 s): a bot aimed at a bot
+    /// 45 m away with the owner in its sight at 25 m. One facing the bot
+    /// and 10 m nearer takes the target from one who does not face it,
+    /// once the target was held `switch_hold_ms`; one not facing it does
+    /// not.
+    #[test]
+    fn a_nearer_enemy_facing_the_bot_takes_the_target_from_one_who_does_not() {
+        let aim = issue_4_aim();
+        let (far, other) = (Vec3::new(0.0, 0.0, 45.0), Vec3::new(10.0, 0.0, 23.0));
+        let mut me = body(0, 0, Vec3::ZERO, 0.0);
+        facing(&mut me, far + Vec3::new(0.0, 1.3, 0.0));
+        // The far one looks away (+z, yaw 0); the other at the bot or away.
+        let toward_me = bearing(other, me.feet);
+        for (other_yaw, switches) in [(toward_me, true), (toward_me + 1.2, false)] {
+            let view = view_of(vec![
+                me.clone(),
+                body(1, 1, far, 0.0),
+                body(2, 1, other, other_yaw),
+            ]);
+            let mut memory = Memory::default();
+            let mut reflex = Reflex::default();
+            let mut rng = Rng::new(51);
+            for now in [1_000, 1_300] {
+                sense(&mut memory, &[percept(1, far, now, Source::Seen)], now);
+                let sit = Situation::of(&view);
+                reflex.think_with(&me, &sit, &memory, now, &aim, 0.6, &mut rng);
+            }
+            assert_eq!(reflex.target(), Some(1));
+            for now in [1_600, 1_900, 2_200] {
+                let seen = [
+                    percept(1, far, now, Source::Seen),
+                    percept(2, other, now, Source::Seen),
+                ];
+                sense(&mut memory, &seen, now);
+                let sit = Situation::of(&view);
+                reflex.think_with(&me, &sit, &memory, now, &aim, 0.6, &mut rng);
+            }
+            let want = if switches { 2 } else { 1 };
+            assert_eq!(reflex.target(), Some(want), "facing the bot: {switches}");
+            // The hold: just short of it, the facing one does not press.
+            if switches {
+                let (kept, by) = (memory.seen(1, 2_200), memory.seen(2, 2_200));
+                let (kept, by) = (kept.unwrap(), by.unwrap());
+                let c = &aim.combat;
+                assert!(presses_more(&me, Some(&view), &kept, &by, c.switch_hold_ms, c));
+                assert!(!presses_more(&me, Some(&view), &kept, &by, c.switch_hold_ms - 1, c));
+            }
+        }
+    }
+
+    /// Audit issue 4: steps heard 5 m behind a bot holding a target 9 m
+    /// away (not under half its distance) turn it for a glance, as a
+    /// player checks a noise at arm's length; at 7 m they do not, nor with
+    /// the close glance off.
+    #[test]
+    fn steps_heard_within_six_metres_are_glanced_at_while_holding_a_target() {
+        let target_at = Vec3::new(0.0, 0.0, 9.0);
+        for (heard_at, close_m, turns) in [
+            (Vec3::new(0.5, 0.0, -5.0), 6.0, true),
+            (Vec3::new(0.5, 0.0, -7.0), 6.0, false),
+            (Vec3::new(0.5, 0.0, -5.0), 0.0, false),
+        ] {
+            let mut aim = issue_4_aim();
+            aim.combat.glance_close_m = close_m;
+            let mut me = body(0, 0, Vec3::ZERO, 0.0);
+            facing(&mut me, target_at + Vec3::new(0.0, 1.3, 0.0));
+            let view = view_of(vec![
+                me.clone(),
+                body(1, 1, target_at, 0.0),
+                body(2, 1, heard_at, 0.0),
+            ]);
+            let mut memory = Memory::default();
+            let mut reflex = Reflex::default();
+            let mut rng = Rng::new(53);
+            for now in [1_000, 1_300] {
+                sense(&mut memory, &[percept(1, target_at, now, Source::Seen)], now);
+                let sit = Situation::of(&view);
+                reflex.think_with(&me, &sit, &memory, now, &aim, 0.6, &mut rng);
+            }
+            assert_eq!(reflex.target(), Some(1));
+            let percepts = [
+                percept(1, target_at, 1_600, Source::Seen),
+                percept(2, heard_at, 1_600, Source::Heard),
+            ];
+            sense(&mut memory, &percepts, 1_600);
+            let sit = Situation::of(&view);
+            reflex.think_with(&me, &sit, &memory, 1_600, &aim, 0.6, &mut rng);
+            let o = reflex.tick(&me, &view, &memory, 1_650, true, &aim, 0.6, &mut rng);
+            let looks = o.look_at.is_some_and(|p| p.distance_xz(heard_at) < 0.5);
+            assert_eq!(looks, turns, "{heard_at:?} {close_m}: {o:?}");
+            if turns {
+                assert!(o.glance && !o.fire, "{o:?}");
+            }
+        }
+    }
+
+    /// Audit issue 8: with `aim_in_first`, no shot at 20 m until the aim
+    /// has been pressed for the weapon's `aim_time` (and the margin): a strafing Uzi's hip cone (10.3 degrees) would put most
+    /// shots off him. At 3 m the hip cone keeps them on him: it fires from
+    /// the hip. Without the rule it fires at 20 m before the sights are up.
+    #[test]
+    fn it_fires_only_once_the_sights_are_up_unless_the_hip_cone_fits() {
+        for (at_m, first, hip) in [(20.0, true, false), (3.0, true, true), (20.0, false, false)] {
+            let aim = AimTuning {
+                combat: CombatTuning {
+                    aim_in_first: first,
+                    ads_near_chance: 0.0,
+                    ..CombatTuning::default()
+                },
+                ..AimTuning::default()
+            };
+            let enemy_at = Vec3::new(0.0, 0.0, at_m);
+            let mut me = body(0, 0, Vec3::ZERO, 0.0);
+            let enemy = body(1, 1, enemy_at, 0.0);
+            facing(&mut me, enemy.chest());
+            let view = view_of(vec![me.clone(), enemy]);
+            let mut memory = Memory::default();
+            let mut reflex = Reflex::default();
+            let mut rng = Rng::new(11);
+            let sight = |time| percept(1, enemy_at, time, Source::Seen);
+            for now in [1_000, 1_300] {
+                sense(&mut memory, &[sight(now)], now);
+                reflex.think(&me, &memory, now, &aim, 1.0, &mut rng);
+            }
+            assert_eq!(reflex.target(), Some(1));
+            let aim_in = reflex.held_gun().aim_ms + aim.combat.aim_in_margin_ms;
+            let (mut pressed, mut fired) = (None, None);
+            for k in 0..40 {
+                let now = 1_300 + k * 50;
+                sense(&mut memory, &[sight(now)], now);
+                let o = reflex.tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng);
+                if o.keys & key::AIM != 0 && pressed.is_none() {
+                    pressed = Some(now);
+                }
+                if o.fire && fired.is_none() {
+                    fired = Some(now);
+                }
+            }
+            let fired = fired.expect("it fires");
+            if hip {
+                assert_eq!(pressed, None, "{at_m} m: from the hip");
+            } else if first {
+                let pressed = pressed.expect("aimed");
+                assert!(fired >= pressed + aim_in, "{at_m} m: {fired} {pressed}");
+            } else {
+                assert!(fired < pressed.expect("aimed") + aim_in, "{at_m} m without: {fired} {pressed:?}");
+            }
         }
     }
 }

@@ -1906,3 +1906,12 @@ va	name	source	ret_cleanup	result
 0x00208ad0	survarium::chat_handler::add_message	manual	20	
 0x0026da00	survarium::base_game_statistics_handler::on_player_killed	manual	68	
 0x002f4eb0	survarium::shared_statistics::on_player_killed	manual	40	
+0x00330ee0	survarium::weapon_dispersion_params::weapon_dispersion_params	manual	8	EAX = the params
+0x00331050	survarium::dispersion_calculator::initialize	manual	20	
+0x00331150	survarium::dispersion_calculator::fire	manual	4	
+0x00331220	survarium::dispersion_calculator::get_base_dispersion	manual	0	XMM0 = base_dispersion × ammo dispersion
+0x00331330	survarium::dispersion_calculator::calculate_character_dispersion	manual	20	
+0x00331480	survarium::dispersion_calculator::get_character_skill_influence	manual	4	XMM0 = influence
+0x00331560	survarium::dispersion_calculator::get_character_state_dispersion	manual	8	XMM0 = state dispersion
+0x003317c0	survarium::dispersion_calculator::get_injury_penalty	manual	4	XMM0 = additive penalty
+0x0032fe40	survarium::transition_helper::tick	manual	0	AL = 1 when the value is at its target after the tick

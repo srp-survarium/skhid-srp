@@ -4449,3 +4449,35 @@ va	name	location	role	basis
 0x002f4eb0	survarium::shared_statistics::on_player_killed	entry ESP+32	u8 event 10 to the killer when set	observed
 0x002f4eb0	survarium::shared_statistics::on_player_killed	entry ESP+36	u8 the weapon's category: GRENADE_KILL (event 25) when it is the grenades' ([0x1F1DA1C], 0x2F514A)	observed
 0x002d9b90	survarium::base_player::hit_impl	entry ESP+8	the hit record: +44h u8 the inflictor's place, the killer of the death it causes (0x2D9EDC: the rules' kill event {killer, victim} through 0x2D1EA0 and generate_killed_event 0x2DA170); the only kill event of the game	observed
+0x00330ee0	survarium::weapon_dispersion_params::weapon_dispersion_params	entry ESP+4	params out (this)	observed
+0x00330ee0	survarium::weapon_dispersion_params::weapon_dispersion_params	entry ESP+8	`dispersion` config value	observed
+0x00331050	survarium::dispersion_calculator::initialize	entry ESP+4	dispersion_calculator	observed
+0x00331050	survarium::dispersion_calculator::initialize	entry ESP+8	stance	observed
+0x00331050	survarium::dispersion_calculator::initialize	entry ESP+12	movement type	observed
+0x00331050	survarium::dispersion_calculator::initialize	entry ESP+16	low-stamina fraction (float)	observed
+0x00331050	survarium::dispersion_calculator::initialize	entry ESP+20	time ms	observed
+0x00331050	survarium::dispersion_calculator::initialize	ECX	broken arms count	observed
+0x00331050	survarium::dispersion_calculator::initialize	EAX	double-handed flag	observed
+0x00331150	survarium::dispersion_calculator::fire	EDI	dispersion_calculator	observed
+0x00331150	survarium::dispersion_calculator::fire	entry ESP+4	time ms	observed
+0x00331220	survarium::dispersion_calculator::get_base_dispersion	ECX	dispersion_calculator	observed
+0x00331330	survarium::dispersion_calculator::calculate_character_dispersion	EDI	dispersion_calculator	observed
+0x00331330	survarium::dispersion_calculator::calculate_character_dispersion	EAX	movement type (0 idle, 1 crouch walk, 2 walk, 3 sprint, 4 jump)	observed
+0x00331330	survarium::dispersion_calculator::calculate_character_dispersion	entry ESP+4	stance (0 stand, 1 crouch, 2 dead)	observed
+0x00331330	survarium::dispersion_calculator::calculate_character_dispersion	entry ESP+8	broken arms count (u8)	observed
+0x00331330	survarium::dispersion_calculator::calculate_character_dispersion	entry ESP+12	double-handed flag (u8)	observed
+0x00331330	survarium::dispersion_calculator::calculate_character_dispersion	entry ESP+16	low-stamina fraction (float)	observed
+0x00331330	survarium::dispersion_calculator::calculate_character_dispersion	entry ESP+20	time ms	observed
+0x00331480	survarium::dispersion_calculator::get_character_skill_influence	EDX	dispersion_calculator	observed
+0x00331480	survarium::dispersion_calculator::get_character_skill_influence	ESI	movement type	observed
+0x00331480	survarium::dispersion_calculator::get_character_skill_influence	entry ESP+4	stance	observed
+0x00331480	survarium::dispersion_calculator::get_character_skill_influence	XMM0	low-stamina fraction	observed
+0x00331560	survarium::dispersion_calculator::get_character_state_dispersion	EAX	movement type	observed
+0x00331560	survarium::dispersion_calculator::get_character_state_dispersion	ECX	stance	observed
+0x00331560	survarium::dispersion_calculator::get_character_state_dispersion	entry ESP+4	dispersion_calculator	observed
+0x00331560	survarium::dispersion_calculator::get_character_state_dispersion	entry ESP+8	low-stamina fraction	observed
+0x003317c0	survarium::dispersion_calculator::get_injury_penalty	EDX	dispersion_calculator	observed
+0x003317c0	survarium::dispersion_calculator::get_injury_penalty	CL	double-handed flag	observed
+0x003317c0	survarium::dispersion_calculator::get_injury_penalty	entry ESP+4	broken arms count (u8)	observed
+0x0032fe40	survarium::transition_helper::tick	ECX	helper {cur, start, target, duration s, start ms}	observed
+0x0032fe40	survarium::transition_helper::tick	EDX	time ms	observed

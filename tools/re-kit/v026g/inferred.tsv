@@ -3031,3 +3031,9 @@ va	status	ref_021d	name
 0x0026dc30	inferred-high		survarium::base_game_statistics_handler::recalculate_scores
 0x0026da00	inferred-medium		survarium::base_game_statistics_handler::on_player_killed
 0x002f4eb0	inferred-medium		survarium::shared_statistics::on_player_killed
+0x00331150	inferred-high		survarium::dispersion_calculator::fire
+0x00331220	inferred-medium		survarium::dispersion_calculator::get_base_dispersion
+0x00331560	inferred-medium		survarium::dispersion_calculator::get_character_state_dispersion
+0x003317c0	inferred-medium		survarium::dispersion_calculator::get_injury_penalty
+0x002fbc20	inferred-medium		survarium::weapon_user_animations_selector::move_predicate
+0x002fbc50	inferred-medium		survarium::weapon_user_animations_selector::not_move_predicate

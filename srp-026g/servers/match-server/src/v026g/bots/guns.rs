@@ -60,6 +60,7 @@
 
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::loadouts::{BOT_AMMO_SLOTS, BotRole, BotTier, Loadout, bot_kits};
+use survarium::v026g::weapons::Dispersion;
 
 /// How a weapon reloads, ms (see the module's notes for where each comes
 /// from).
@@ -107,6 +108,11 @@ pub struct Gun {
     /// The dictionary category (8 rifles, 13 sniper rifles, 14 shotguns,
     /// 15 submachine guns, 16 machine guns, 17 pistols).
     pub category: u8,
+    /// `aim_time`: the sights up, ms. Until then a shot spreads as from
+    /// the hip (`dispersion`).
+    pub aim_ms: u32,
+    /// How wide its shots spread (`survarium::v026g::weapons::Dispersion`).
+    pub dispersion: Dispersion,
 }
 
 /// The rows of the bursts' table an automatic weapon takes
@@ -256,6 +262,8 @@ impl Gun {
             hide_ms: ms(w.hide_time),
             handling,
             category: w.category,
+            aim_ms: ms(w.aim_time),
+            dispersion: w.dispersion,
         }
     }
 }

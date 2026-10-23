@@ -366,3 +366,75 @@ their median.
 - **0.29a3 weapons:** these weapons run only with the players' game data. The
   repository's test data has none of them.
 - **Bolt still time:** `bolt_still_ms` (300 ms) is a choice, not measured.
+
+## 9. The 0.26g bullet dispersion (2026-10-23)
+
+Read in the 0.26g executable (image base 0x10000; the functions are in
+`tools/re-kit/v026g/`) and checked against the live configs. The numbers are
+read by `weapons::Dispersion` and `weapons::CharacterDispersion`.
+
+**The cone (PROVEN, `get_dispersed_bullet_direction` 0x2E1D50):**
+
+```
+D = base_dispersion × ammo.dispersion  +  (C + W) × (aim progress == 1 ? 0 : 1)
+θ = frac(N(0, 0.5)) × D / 2   about a random axis across the barrel
+```
+
+- **D is the full apex angle in degrees.** |θ| has median 0.31·D/2, 80th
+  percentile 0.58·D/2, and never passes D/2.
+- **C, the character part:** ramps linearly to a target `(aimed ? aim_multiplier
+  : from_the_hip_multiplier) × state value`. It rises at `growth_speed` and
+  falls at `speed_of_aiming` (degrees a second). The state values are
+  `player.character_dispersion_params` in `default.player` (bots use the same
+  file, LIKELY):
+
+  | state | idle | walk | run | jump | crouch | crouch walk |
+  |---|---|---|---|---|---|---|
+  | value (hip and aimed alike) | 5 | 10 | 20 | 20 | 4 | 8 |
+
+  The state comes from the keys, not the velocity: moving is
+  (forward xor back) or (left xor right).
+- **W, the bloom:** each shot adds `one_shoot_dispersion_amount` (capped at
+  `max_dispersion`); it falls at `speed_of_aiming`.
+- **The aim:** the aim progress reaches 1 exactly `aim_time` after AIM is
+  pressed (`parameters/aim_time`, 0.2 to 0.35 s). From then on the whole
+  dynamic part counts 0: only `base_dispersion` is left (0.05 to 1°),
+  **strafing or not**. Releasing AIM brings it all back at once.
+- **Modifiers:** skills and weapon modifications scale these numbers by
+  `max(0, 1 + m)`. All are 0 for a player without skills.
+
+**Uzi and AK-74U (base 0.3, aim_time 0.25 s), the full cone D:**
+
+| case | D |
+|---|---|
+| aimed for 0.25 s, still or strafing | 0.3° |
+| from the hip, standing | 5.3° |
+| from the hip, strafing (or in the first 0.25 s of the aim) | 10.3° |
+| from the hip, crouched | 4.3° |
+| sprinting or jumping | 20.3° |
+
+The snipers (base 0.05, hip ×4) are 20° wide from the hip even standing; the
+Mosin's hip is ×2.
+
+**Chance to hit a 0.5 × 0.7 m torso with exact aim** (Monte Carlo of the rule
+above):
+
+| D | 10 m | 20 m | 30 m | 50 m |
+|---|---|---|---|---|
+| 0.3° (aimed in) | 100 % | 100 % | 100 % | 100 % |
+| 5.3° (hip, standing) | 88 % | 56 % | 40 % | 25 % |
+| 10.3° (hip, strafing) | 57 % | 31 % | 21 % | 13 % |
+| 20.3° (sprint, jump) | 32 % | 16 % | 11 % | 7 % |
+
+**What this means for the bots:** a strafing bot hits as well as a still one,
+provided it holds AIM for the weapon's `aim_time` before the first shot and
+keeps holding it. Before this, 35-40 % of the bots' shots left before their
+sights were up, and those hit 9-11 % against 18-24 % aimed in (the bench with
+the cone on, `SRP_BENCH_SPREAD=1`). `CombatTuning::aim_in_first` holds the
+shot until the sights are up, unless the hip cone of the bot's stance fits the
+target at that distance (`hip_cone_share` × the half cone against
+`body_half_m`). Results: `player_bots_behaviour.md` §2.5.
+
+**Not traced:** how the client poses the weapon bone that the shot starts from;
+recoil (look pitch + weapon+0x478) climbs bursts on top of the cone, LIKELY for
+bots too. The bench models the cone but not the recoil.

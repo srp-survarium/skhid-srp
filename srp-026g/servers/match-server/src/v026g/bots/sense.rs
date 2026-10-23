@@ -126,6 +126,33 @@ pub fn sense(
             busy: sound.kind == SoundKind::Shot,
         });
     }
+    // Footsteps (`SenseTuning::step_m`): an enemy walking upright near by,
+    // not seen and not heard otherwise at this think.
+    if tuning.step_m > 0.0 {
+        for enemy in &view.places {
+            let distance = enemy.feet.distance_xz(me.feet);
+            if !enemy.alive
+                || !enemy.present
+                || enemy.team == me.team
+                || distance > tuning.step_m * hearing
+                || enemy.speed() <= tuning.step_speed
+                || enemy.keys & crate::v026g::drive::key::CROUCH != 0
+                || out.iter().any(|p| p.who == enemy.place)
+            {
+                continue;
+            }
+            let error = distance * tuning.heard_error;
+            let (dx, dz) = (rng.range(-error, error), rng.range(-error, error));
+            out.push(Percept {
+                who: enemy.place,
+                at: Vec3::new(enemy.feet.x + dx, enemy.feet.y, enemy.feet.z + dz),
+                error_m: error,
+                time: view.clock,
+                source: Source::Heard,
+                busy: false,
+            });
+        }
+    }
     out
 }
 
@@ -371,6 +398,66 @@ mod tests {
             &mut Rng::new(1),
         );
         assert!(percepts.iter().all(|p| p.source != Source::Seen));
+    }
+
+    /// Audit issue 4: footsteps. An enemy walking upright behind within
+    /// `step_m` is heard; one crouched, one standing, one farther is not.
+    #[test]
+    fn a_walking_enemy_near_behind_is_heard_by_his_steps() {
+        let me = place(0, 0, Vec3::ZERO, 0.0);
+        let walking = |p: Place, z: f32, keys: u32, speed: f32| PlaceView {
+            velocity: [speed, 0.0],
+            keys,
+            ..place(p, 1, Vec3::new(0.5, 0.0, z), 0.0)
+        };
+        let view = view(
+            vec![
+                me.clone(),
+                walking(1, -4.0, 0, 3.0),
+                walking(2, -3.0, crate::v026g::drive::key::CROUCH, 2.0),
+                walking(3, -2.0, 0, 0.0),
+                walking(4, -12.0, 0, 3.0),
+            ],
+            vec![],
+        );
+        let tuning = SenseTuning {
+            step_m: 8.0,
+            ..SenseTuning::default()
+        };
+        let percepts = sense(
+            &me,
+            &view,
+            &RayTree::build(&[]),
+            &tuning,
+            &CheatTuning::default(),
+            500,
+            &[1, 2, 3, 4],
+            &mut RayBudget(10),
+            &mut Rng::new(1),
+        );
+        let heard: Vec<Place> = percepts
+            .iter()
+            .filter(|p| p.source == Source::Heard)
+            .map(|p| p.who)
+            .collect();
+        assert_eq!(heard, vec![1], "{percepts:?}");
+        assert!(percepts[0].at.distance_xz(Vec3::new(0.5, 0.0, -4.0)) <= 4.0 * tuning.heard_error * 1.5);
+        // Off (0): nothing.
+        let percepts = sense(
+            &me,
+            &view,
+            &RayTree::build(&[]),
+            &SenseTuning {
+                step_m: 0.0,
+                ..tuning
+            },
+            &CheatTuning::default(),
+            500,
+            &[1, 2, 3, 4],
+            &mut RayBudget(10),
+            &mut Rng::new(1),
+        );
+        assert!(percepts.is_empty(), "{percepts:?}");
     }
 
     fn spawner(x: f32, z: f32) -> mapdata::BatterySpawner {
