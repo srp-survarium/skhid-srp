@@ -118,6 +118,13 @@ impl Walkers {
             .collect();
         log::info!("Match {id:#x}: the bots' roles by place {roles:?}");
         let weapons = formed.profiles.iter().map(weapon_of).collect();
+        // The bodies' speed by their first kit's skills and weight, until a
+        // world shows a life's own.
+        let speed_levels: Vec<Option<f32>> = formed
+            .profiles
+            .iter()
+            .map(|profile| survarium::v026g::bot_skills::profile_movement_level(profile, 0))
+            .collect();
         Some(Self {
             bots: Bots::new(
                 id,
@@ -140,6 +147,7 @@ impl Walkers {
         })
         .map(|mut walkers| {
             walkers.bots.set_weapons(weapons);
+            walkers.bots.set_speed_levels(&speed_levels);
             // Play 17: the routes humans took (a private table; without it
             // the bots roam to the exits).
             if let Some(path) = std::env::var_os("SRP_BOT_ROUTES").filter(|path| !path.is_empty()) {

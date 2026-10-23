@@ -71,6 +71,12 @@ pub struct PlayerLimits {
     pub max_carried_weight: f32,
     /// `player.stamina_params.min_carried_weight`.
     pub min_carried_weight: f32,
+    /// `player.stamina_params.max_carried_weight_movement_speed_modifier`:
+    /// the movement speed lost at the capacity (`bot_skills`).
+    pub max_carried_weight_movement_speed_modifier: f32,
+    /// `player.stamina_params.max_carried_weight_spending_speed_modifier`:
+    /// the stamina spending added at the capacity.
+    pub max_carried_weight_spending_speed_modifier: f32,
     /// `player.ammo_bags_count`.
     pub ammo_bags_count: u32,
     /// `player.pocket_slots_count`.
@@ -89,6 +95,14 @@ impl PlayerLimits {
         Ok(Self {
             max_carried_weight: float(Some(stamina), "max_carried_weight")?,
             min_carried_weight: float(Some(stamina), "min_carried_weight")?,
+            max_carried_weight_movement_speed_modifier: float(
+                Some(stamina),
+                "max_carried_weight_movement_speed_modifier",
+            )?,
+            max_carried_weight_spending_speed_modifier: float(
+                Some(stamina),
+                "max_carried_weight_spending_speed_modifier",
+            )?,
             ammo_bags_count: int(Some(player), "ammo_bags_count")?,
             pocket_slots_count: int(Some(player), "pocket_slots_count")?,
             pocket_slot_size: int(Some(player), "pocket_slot_size")?,
@@ -402,6 +416,8 @@ mod tests {
         let player = player();
         assert_eq!(player.max_carried_weight, 30.0);
         assert_eq!(player.min_carried_weight, 20.0);
+        assert_eq!(player.max_carried_weight_movement_speed_modifier, -0.2);
+        assert_eq!(player.max_carried_weight_spending_speed_modifier, 1.5);
         assert_eq!(player.ammo_bags_count, 3);
         assert_eq!((player.pocket_slots_count, player.pocket_slot_size), (1, 1));
     }
