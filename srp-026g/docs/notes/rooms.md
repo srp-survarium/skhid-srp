@@ -172,6 +172,8 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     in its room, said in the list as outside a room (the state's `code`, `lobby.md` §2.16.3).
   - New room from it: made as from no room, out of the old one.
   - The window, closed and opened again, shows My room.
+- **Kit presets** (the owner's of 2026-10-23): a join from the list or Play may first offer one of
+  the player's kit presets, "Enter anyway" / "Exit" or "Switch and enter" (it makes that preset active) ([presets.md](presets.md)).
 - **Joining from the list:** the Join button, a double-click on a room, or Enter with one chosen
   (Up and Down choose the room above or below)
   (Queue for a full room; the PIN typed first for a private one).

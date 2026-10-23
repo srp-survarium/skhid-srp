@@ -161,7 +161,30 @@ package survarium.rooms
                 "Ваш комплект не міг грати (немає зброї або мало набоїв): вас вивели з кімнати.",
                 "Ваш комплект не мог играть (нет оружия или мало патронов): вас вывели из комнаты.",
                 "Deine Ausrüstung konnte nicht spielen (keine Waffe oder zu wenig Munition): du wurdest aus dem Raum genommen.",
-                "Twój zestaw nie mógł grać (brak broni lub za mało amunicji): usunięto cię z pokoju."]
+                "Twój zestaw nie mógł grać (brak broni lub za mało amunicji): usunięto cię z pokoju."],
+            "code14": ["The loadout could not be chosen.", "Не вдалося обрати комплект.", "Не удалось выбрать комплект.",
+                "Das Loadout ließ sich nicht wählen.", "Nie udało się wybrać zestawu."],
+            // A join's kit preset (presets.md): {gear} the kits' level now, {max}
+            // the room's, {n} and {level} the preset's.
+            "offerHigher": ["Room max level {max}, your gear {gear}. Loadout {n} is level {level}.",
+                "Макс. рівень кімнати {max}, ваше спорядження {gear}. Комплект {n}: рівень {level}.",
+                "Макс. уровень комнаты {max}, ваше снаряжение {gear}. Комплект {n}: уровень {level}.",
+                "Max. Stufe des Raums {max}, deine Ausrüstung {gear}. Loadout {n}: Stufe {level}.",
+                "Maks. poziom pokoju {max}, twój ekwipunek {gear}. Zestaw {n}: poziom {level}."],
+            "offerFits": ["Your gear {gear} is over the room's max level {max}. Loadout {n} is level {level}.",
+                "Ваше спорядження {gear} вище макс. рівня кімнати {max}. Комплект {n}: рівень {level}.",
+                "Ваше снаряжение {gear} выше макс. уровня комнаты {max}. Комплект {n}: уровень {level}.",
+                "Deine Ausrüstung {gear} liegt über der max. Stufe {max}. Loadout {n}: Stufe {level}.",
+                "Twój ekwipunek {gear} przekracza maks. poziom {max}. Zestaw {n}: poziom {level}."],
+            // The kits can not play; loadout {n} can, level {level}.
+            "offerUnfit": ["Your loadout can't play. Loadout {n} is level {level}.",
+                "Ваш комплект не для бою. Комплект {n}: рівень {level}.",
+                "Ваш комплект не для боя. Комплект {n}: уровень {level}.",
+                "Dein Loadout ist nicht spielbar. Loadout {n}: Stufe {level}.",
+                "Twój zestaw nie nadaje się do gry. Zestaw {n}: poziom {level}."],
+            "enterAnyway": ["Enter anyway", "Увійти так", "Войти так", "Trotzdem rein", "Wejdź mimo to"],
+            "switchEnter": ["Switch and enter", "Змінити й увійти", "Сменить и войти", "Wechseln, rein", "Zmień i wejdź"],
+            "exit": ["Exit", "Вийти", "Выйти", "Abbrechen", "Wyjdź"]
         };
         private static const FRIENDS:Array = ["Friends", "Друзі", "Друзья", "Freunde", "Znajomi"];
         private static const LEVELS:Array = [

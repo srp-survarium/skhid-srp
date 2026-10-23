@@ -734,7 +734,8 @@ fn equipment_over_the_max_level_keeps_a_member_out_of_the_match() {
 
 /// A member whose kit cannot play (no ammo) is marked in the room, counts
 /// for no start, and is taken out of the room when the match starts
-/// without it; it may come back.
+/// without it; it may come back once its kit can play (the door refuses a
+/// kit that can not, code 15).
 #[test]
 fn a_kit_without_ammo_counts_for_nothing_and_is_taken_out_at_the_start() {
     let mut world = World::new();
@@ -742,12 +743,14 @@ fn a_kit_without_ammo_counts_for_nothing_and_is_taken_out_at_the_start() {
     let dave = world.connect("Dave");
     let carol = world.connect("Carol");
     let key = create(&mut world, alice, spec(6), None);
+    let ammo = world.account(dave).kits[0].slots;
+    // In the room, then the ammo taken out of the kit.
+    rows(&mut world, dave, ROOM_JOIN_BASE + key, 1);
     world.change(dave, |account| {
         for slot in [8, 9, 11, 12, 19, 20, 21, 22] {
             account.kits[0].slots[slot] = None;
         }
     });
-    rows(&mut world, dave, ROOM_JOIN_BASE + key, 1);
     let marked = state(&mut world, alice);
     assert!(
         marked.iter().any(|row| row.ends_with(";1;0;Dave")),
@@ -762,7 +765,12 @@ fn a_kit_without_ammo_counts_for_nothing_and_is_taken_out_at_the_start() {
     assert!(sent_to_match(&world.take(carol)).is_some());
     assert!(sent_to_match(&world.take(dave)).is_none());
     assert_eq!(state(&mut world, dave), ["S1;N;13;0;0"]);
-    // Taken out, not turned out: Dave may come back.
+    // Taken out, not turned out: Dave may come back, once his kit plays.
+    assert_eq!(
+        rows(&mut world, dave, ROOM_JOIN_BASE + key, 1),
+        ["S1;N;15;0;0"]
+    );
+    world.change(dave, |account| account.kits[0].slots = ammo);
     let back = rows(&mut world, dave, ROOM_JOIN_BASE + key, 1);
     assert_eq!(header(&back)[1], "R", "{back:?}");
 }
@@ -2038,4 +2046,65 @@ fn joining_a_friends_room_during_its_match_goes_the_late_join_path() {
     assert!(sent_to_match(&world.take(me)).is_none());
     let waiting = state(&mut world, me);
     assert!(waiting.iter().any(|row| row == "J;15"), "{waiting:?}");
+}
+
+/// A member whose kit can not play (an empty loadout) is offered no room to
+/// switch to: the switch is a Join, which the door would refuse (code 15).
+#[test]
+fn a_member_whose_kit_can_not_play_is_offered_no_switch() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let erin = world.connect("Erin");
+    let switch_of = |rows: &[String]| rows.iter().any(|row| row.starts_with("W;"));
+    let any = create(&mut world, alice, spec(8), None);
+    rows(&mut world, bob, ROOM_JOIN_BASE + any, 1);
+    create(
+        &mut world,
+        erin,
+        RoomSpec {
+            max_level: 4,
+            ..spec(6)
+        },
+        None,
+    );
+    assert!(switch_of(&state(&mut world, bob)));
+    let starter = world.account(bob).kits[0].slots;
+    world.change(bob, |account| account.kits[0].slots = [None; 23]);
+    assert!(!switch_of(&state(&mut world, bob)));
+    world.change(bob, |account| account.kits[0].slots = starter);
+    assert!(switch_of(&state(&mut world, bob)));
+}
+
+/// A queued player whose kit can not play when a place frees (it switched
+/// to an empty loadout while waiting) keeps its place, passed over: the next
+/// goes in; it goes in itself once its kit plays and a place frees.
+#[test]
+fn a_queued_player_whose_kit_can_not_play_keeps_its_place_and_the_next_goes_in() {
+    let mut world = World::new();
+    let owner = world.connect("Owner");
+    let key = create(&mut world, owner, spec(6), None);
+    let members: Vec<usize> = (1..12)
+        .map(|n| world.connect(&format!("Member{n}")))
+        .collect();
+    for &member in &members {
+        rows(&mut world, member, ROOM_JOIN_BASE + key, 1);
+    }
+    let first = world.connect("First");
+    let second = world.connect("Second");
+    rows(&mut world, first, ROOM_QUEUE_BASE + key, 1);
+    rows(&mut world, second, ROOM_QUEUE_BASE + key, 1);
+    let starter = world.account(first).kits[0].slots;
+    world.change(first, |account| account.kits[0].slots = [None; 23]);
+    rows(&mut world, members[0], ROOM_LEAVE, 1);
+    world.advance(Duration::from_secs(1));
+    let inside = state(&mut world, second);
+    assert_eq!(header(&inside)[KEY], key.to_string(), "{inside:?}");
+    assert_eq!(state(&mut world, first), [format!("S1;N;0;{key};1")]);
+    // Its kit plays again, a place frees: in.
+    world.change(first, |account| account.kits[0].slots = starter);
+    rows(&mut world, members[1], ROOM_LEAVE, 1);
+    world.advance(Duration::from_secs(1));
+    let inside = state(&mut world, first);
+    assert_eq!(header(&inside)[KEY], key.to_string(), "{inside:?}");
 }

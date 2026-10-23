@@ -106,6 +106,7 @@ mod gear;
 mod items;
 mod patch_check;
 mod play;
+mod presets;
 pub mod pvb;
 mod replay;
 mod room_chat;

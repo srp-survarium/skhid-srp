@@ -9,6 +9,7 @@ package survarium.rooms
     import flash.geom.Point;
     import flash.text.TextField;
     import flash.utils.getTimer;
+    import survarium.player.LocalPlayerProfile;
     import survarium.controls.PlayerInfo;
     import survarium.constants.GameMode;
     import survarium.constants.RoomCode;
@@ -63,6 +64,9 @@ package survarium.rooms
 
         internal function onNew(e:Event):void
         {
+            // The maintenance rule: no room made (the server's; presets.md).
+            if (!LocalPlayerProfile.mayCreate())
+                return;
             win._view = "create";
             win._code = RoomCode.NONE;
             look._scrollPx = 0;

@@ -44,6 +44,7 @@ pub mod notices;
 pub mod pay;
 pub mod persist;
 pub mod premium;
+pub mod presets;
 pub mod pvb;
 pub mod quests;
 pub mod replays;

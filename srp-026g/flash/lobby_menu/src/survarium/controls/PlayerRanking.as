@@ -16,6 +16,7 @@ package survarium.controls
    import scaleform.gfx.MouseEventEx;
    import survarium.data.LocalizationData;
    import survarium.gsearch.MatchMakingSettings;
+   import survarium.player.LocalPlayerProfile;
    import survarium.rooms.RoomsWindow;
    
    public class PlayerRanking extends UIWindow
@@ -129,6 +130,11 @@ package survarium.controls
             return;
          }
          if(MatchMakingSettings.pvbTake(players))
+         {
+            return;
+         }
+         // The kit presets' list (presets.md): the Character panel's.
+         if(LocalPlayerProfile.presetsTake(players))
          {
             return;
          }

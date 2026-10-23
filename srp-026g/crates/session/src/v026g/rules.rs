@@ -212,6 +212,38 @@ pub fn move_items(
     Ok(())
 }
 
+/// The kit at `kit_index` emptied, then `moves` (each from the inventory)
+/// made into it by the moves' own rules ([`relocate`]): the item owned and
+/// fitting the slot, one item in one slot of a kit, a covering item taking
+/// off what it covers, one pocket an item type. Unlike [`move_items`] it
+/// never buys: a stack gets at most the units owned. All or nothing; a kit
+/// whose slots changed gets a new revision. A kit preset is put on with it
+/// (`super::presets`).
+pub fn fill_kit(
+    account: &mut Account,
+    kit_index: usize,
+    moves: &[Relocation],
+) -> Result<(), ActionError> {
+    let before = account
+        .kits
+        .get(kit_index)
+        .ok_or(ActionError::NoSuchKit)?
+        .clone();
+    account.kits[kit_index].slots = [None; KIT_SLOTS];
+    let filled = relocate(account, Dictionary::shared(), kit_index, moves);
+    let kit = &mut account.kits[kit_index];
+    if filled.is_err() {
+        *kit = before;
+        return filled;
+    }
+    kit.revision = if kit.slots == before.slots {
+        before.revision
+    } else {
+        before.revision.wrapping_add(1)
+    };
+    Ok(())
+}
+
 /// [`move_items`] with every item owned.
 ///
 /// The moves are made in order, and a move may name as its source a slot
@@ -772,32 +804,81 @@ const WEAPON_SLOTS: [usize; 2] = [7, 10];
 /// 0x9266A8): the ammo is one pool, not two slots a weapon.
 const AMMO_SLOTS: [usize; 8] = [8, 9, 11, 12, 19, 20, 21, 22];
 
-/// `2F`: whether the account may enter a battle with a kit: the kit must be
-/// its own and usable, wear nothing in a slot another worn item covers
-/// ([`Account::covered_items`]), hold no item type in two pockets
-/// ([`Account::doubled_pockets`]), hold a weapon, and each weapon must have its
-/// category's `minimum_count` of rounds that fit it, in the kit and owned.
-/// This is the client's own check before Play (0x2F7DA0, PROVEN; corrected
-/// 2026-10-12 after the first live session, where the server asked for a
-/// weapon's ammo in "its own" two slots and refused a kit the client had
-/// let through): for each weapon it adds up, over the eight ammo slots, the
-/// kit's units and the stacks of the ammo that is compatible with the weapon
-/// (0x2CA770) and fails when either sum is under
-/// `categories_dict/category_<weapon's>/minimum_count`. The texts are its
-/// `st_profile_check_failed_*`.
-pub fn check_play(account: &Account, kit_id: u32, now: u64) -> Result<(), ActionError> {
+/// The kit a match would take now: the active one when usable, else the
+/// first ([`Account::settle_active_kit`], without changing the account).
+pub fn kit_to_play(account: &Account, now: u64) -> u32 {
+    if account
+        .kit_index(account.active_kit)
+        .is_some_and(|index| account.kit_usable(index, now))
+    {
+        account.active_kit
+    } else {
+        account
+            .kits
+            .first()
+            .map_or(account.active_kit, |kit| kit.id)
+    }
+}
+
+/// Why a kit can not play: each a bit of a [`PlayBlocks`] set
+/// (`presets.md`, the table of the reasons: code, when, the player's text,
+/// where it is checked). A new reason gets a bit here, a row there, a test
+/// and its texts.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlayBlock {
+    /// The account may not use the kit ([`Account::kit_usable`]).
+    KitLocked = 1,
+    /// An item is worn in a slot another worn item covers.
+    CoveredSlot = 2,
+    /// An item type is in two pockets.
+    PocketTaken = 4,
+    /// A weapon has too little ammo in the kit (or owned) for its
+    /// category's minimum.
+    NoAmmo = 8,
+    /// No weapon.
+    NoWeapon = 16,
+}
+
+impl PlayBlock {
+    /// Every reason, in the order [`check_play`] says the first.
+    pub const ALL: [PlayBlock; 5] = [
+        PlayBlock::KitLocked,
+        PlayBlock::CoveredSlot,
+        PlayBlock::PocketTaken,
+        PlayBlock::NoAmmo,
+        PlayBlock::NoWeapon,
+    ];
+
+    pub fn error(self) -> ActionError {
+        match self {
+            PlayBlock::KitLocked => ActionError::KitNotUsable,
+            PlayBlock::CoveredSlot => ActionError::CoveredSlot,
+            PlayBlock::PocketTaken => ActionError::PocketTaken,
+            PlayBlock::NoAmmo => ActionError::NoAmmo,
+            PlayBlock::NoWeapon => ActionError::NoWeapon,
+        }
+    }
+}
+
+/// A set of [`PlayBlock`]s, their bits; 0: the kit can play.
+pub type PlayBlocks = u8;
+
+/// Every reason the kit `kit_id` can not play now (0: it can).
+pub fn play_blocks(account: &Account, kit_id: u32, now: u64) -> Result<PlayBlocks, ActionError> {
     let index = account.kit_index(kit_id).ok_or(ActionError::NoSuchKit)?;
+    let mut blocks = 0;
     if !account.kit_usable(index, now) {
-        return Err(ActionError::KitNotUsable);
+        blocks |= PlayBlock::KitLocked as u8;
     }
     let kit = &account.kits[index];
     // Never a kit the lobby's rule would not have let be: the match gets
     // it as not loaded (`match_profile`).
     if !account.covered_items(kit).is_empty() {
-        return Err(ActionError::CoveredSlot);
+        blocks |= PlayBlock::CoveredSlot as u8;
     }
     if !account.doubled_pockets(kit).is_empty() {
-        return Err(ActionError::PocketTaken);
+        blocks |= PlayBlock::PocketTaken as u8;
     }
     let dictionary = Dictionary::shared();
     let mut weapons = 0;
@@ -827,13 +908,54 @@ pub fn check_play(account: &Account, kit_id: u32, now: u64) -> Result<(), Action
             owned += u64::from(ammo.condition_or_stack);
         }
         if in_kit < minimum || owned < minimum {
-            return Err(ActionError::NoAmmo);
+            blocks |= PlayBlock::NoAmmo as u8;
         }
     }
     if weapons == 0 {
-        return Err(ActionError::NoWeapon);
+        blocks |= PlayBlock::NoWeapon as u8;
     }
-    Ok(())
+    Ok(blocks)
+}
+
+/// `2F`: whether the account may enter a battle with a kit: the kit must be
+/// its own and usable, wear nothing in a slot another worn item covers
+/// ([`Account::covered_items`]), hold no item type in two pockets
+/// ([`Account::doubled_pockets`]), hold a weapon, and each weapon must have its
+/// category's `minimum_count` of rounds that fit it, in the kit and owned.
+/// This is the client's own check before Play (0x2F7DA0, PROVEN; corrected
+/// 2026-10-12 after the first live session, where the server asked for a
+/// weapon's ammo in "its own" two slots and refused a kit the client had
+/// let through): for each weapon it adds up, over the eight ammo slots, the
+/// kit's units and the stacks of the ammo that is compatible with the weapon
+/// (0x2CA770) and fails when either sum is under
+/// `categories_dict/category_<weapon's>/minimum_count`. The texts are its
+/// `st_profile_check_failed_*`.
+///
+/// Whether the kit `kit_id` can play now: the first of its
+/// [`play_blocks`], in [`PlayBlock::ALL`]'s order.
+pub fn check_play(account: &Account, kit_id: u32, now: u64) -> Result<(), ActionError> {
+    let blocks = play_blocks(account, kit_id, now)?;
+    match PlayBlock::ALL
+        .into_iter()
+        .find(|block| blocks & *block as u8 != 0)
+    {
+        Some(block) => Err(block.error()),
+        None => Ok(()),
+    }
+}
+
+/// Every reason the kit a match would take ([`kit_to_play`]) can not play
+/// (0: it can): the rooms' entries refuse on any (code 15), the rooms'
+/// member check (`member_fit`) takes such a member out at its match's
+/// start, and the lobby movie greys Play and Join by them and lists them in
+/// the buttons' tip (the presets list's `<blocks>`, `presets.md`).
+pub fn kits_play_blocks(account: &Account, now: u64) -> PlayBlocks {
+    play_blocks(account, kit_to_play(account, now), now).unwrap_or(PlayBlock::KitLocked as u8)
+}
+
+/// [`kits_play_blocks`] is none.
+pub fn kits_can_play(account: &Account, now: u64) -> bool {
+    kits_play_blocks(account, now) == 0
 }
 
 /// Bit `f - 1` for each faction the account may take quests from and buy
@@ -2253,6 +2375,65 @@ mod tests {
         assert_eq!(account.active_kit, 2);
         set_autobuy(&mut account, true);
         assert!(account.autobuy);
+    }
+
+    /// Each reason a kit can not play comes out as its bit, every one of a
+    /// kit's together (the presets list's `<blocks>`, `presets.md`'s
+    /// table); `check_play` says the first.
+    #[test]
+    fn every_reason_a_kit_can_not_play_is_its_bit() {
+        let mut account = account();
+        assert_eq!(play_blocks(&account, 1, NOW), Ok(0));
+        assert_eq!(kits_play_blocks(&account, NOW), 0);
+        assert!(kits_can_play(&account, NOW));
+        // No weapon: the second kit, empty.
+        assert_eq!(play_blocks(&account, 2, NOW), Ok(PlayBlock::NoWeapon as u8));
+        assert_eq!(play_blocks(&account, 9, NOW), Err(ActionError::NoSuchKit));
+        // No ammo: the pistol's slot emptied.
+        let ammo = account.kits[0].slots[8];
+        account.kits[0].slots[8] = None;
+        assert_eq!(play_blocks(&account, 1, NOW), Ok(PlayBlock::NoAmmo as u8));
+        assert_eq!(check_play(&account, 1, NOW), Err(ActionError::NoAmmo));
+        account.kits[0].slots[8] = ammo;
+        // A covered slot: the Zubr helmet over a mask.
+        let (helmet, balaclava) = owned_zubr_and_balaclava(&mut account);
+        account.kits[0].slots[0] = Some(KitSlot {
+            item_id: helmet.item_id,
+            count: 1,
+        });
+        account.kits[0].slots[1] = Some(KitSlot {
+            item_id: balaclava.item_id,
+            count: 1,
+        });
+        assert_eq!(
+            play_blocks(&account, 1, NOW),
+            Ok(PlayBlock::CoveredSlot as u8)
+        );
+        // One type in two pockets too: both reasons.
+        let grenade = account.add_item(dict("rgd-5"), 3);
+        for slot in [13, 14] {
+            account.kits[0].slots[slot] = Some(KitSlot {
+                item_id: grenade,
+                count: 1,
+            });
+        }
+        assert_eq!(
+            play_blocks(&account, 1, NOW),
+            Ok(PlayBlock::CoveredSlot as u8 | PlayBlock::PocketTaken as u8)
+        );
+        assert_eq!(check_play(&account, 1, NOW), Err(ActionError::CoveredSlot));
+        account.kits[0].slots[0] = None;
+        assert_eq!(
+            play_blocks(&account, 1, NOW),
+            Ok(PlayBlock::PocketTaken as u8)
+        );
+        // The kit a match takes is the active one: kit 2 played, no weapon.
+        account.active_kit = 2;
+        assert_eq!(kits_play_blocks(&account, NOW), PlayBlock::NoWeapon as u8);
+        // No kit at all: locked (a kit the account may not use).
+        account.kits.clear();
+        assert_eq!(kits_play_blocks(&account, NOW), PlayBlock::KitLocked as u8);
+        assert!(!kits_can_play(&account, NOW));
     }
 
     #[test]
