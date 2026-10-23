@@ -54,6 +54,8 @@ serde_json = { version = "1.0.140", features = ["std"] }
 sha2 = "0.10"
 socket2 = { version = "0.5", features = ["all"] }
 thiserror = "2.0.12"
+# Chat translation's HTTPS calls (lobby-server, v026g::translate::claude).
+ureq = { version = "2.12", default-features = false, features = ["tls"] }
 
 actix-web = "4.10.2"
 env_logger = "0.10"

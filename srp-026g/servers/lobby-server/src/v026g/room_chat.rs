@@ -31,6 +31,7 @@
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::time::Instant;
 
 use session::v026g::rooms::ChatLine;
 use survarium::v026g::lobby::{self, ServerMessage, channel, sender};
@@ -71,24 +72,29 @@ impl Core<'_> {
     /// A line in room `key`'s chat: kept, and sent to its members but
     /// `except` (the sender: its game showed its own line) and those who
     /// ignore its sender.
-    fn room_line(&mut self, key: u32, line: ChatLine, except: u32) {
-        let sent = message(&line);
+    fn room_line(&mut self, key: u32, line: ChatLine, except: u32, now: Instant) {
         let from = line.from;
+        let readers: Vec<SocketAddr> = self
+            .room_listeners(key)
+            .into_iter()
+            .filter_map(|(addr, account_id)| {
+                (account_id != except && (from == 0 || !self.ignores(account_id, from)))
+                    .then_some(addr)
+            })
+            .collect();
+        log::debug!(
+            "Room {key}: a chat line reached {} member(s)",
+            readers.len()
+        );
+        // In each member's language when translation is on (`chat_out`);
+        // kept as it was said.
+        self.say(line.clone(), channel::ROOM, readers, now);
         self.rooms.say(key, line);
-        let mut reached = 0;
-        for (addr, account_id) in self.room_listeners(key) {
-            if account_id == except || (from != 0 && self.ignores(account_id, from)) {
-                continue;
-            }
-            self.send(addr, sent.clone());
-            reached += 1;
-        }
-        log::debug!("Room {key}: a chat line reached {reached} member(s)");
     }
 
     /// `4C` on [`channel::ROOM`]: a member's line, to its room. One in no
     /// room reaches nobody.
-    pub(super) fn room_say(&mut self, who: &Who, body: &str) {
+    pub(super) fn room_say(&mut self, who: &Who, body: &str, at: Instant) {
         let Some(key) = self.rooms.key_of(who.account_id) else {
             log::info!("{}: a room chat line, but in no room", who.name);
             return;
@@ -99,7 +105,7 @@ impl Core<'_> {
             tag: self.clan_tag_of(who.account_id),
             body: body.to_owned(),
         };
-        self.room_line(key, line, who.account_id);
+        self.room_line(key, line, who.account_id, at);
     }
 
     /// The movie's tab is up ([`RoomRequest::Chat`]): the member hears its
@@ -133,7 +139,7 @@ impl Core<'_> {
 
     /// Each tick: who came into a room and who went since the last, said in
     /// its room; a member that left its room hears it no more.
-    pub(super) fn room_chat_tick(&mut self) {
+    pub(super) fn room_chat_tick(&mut self, at: Instant) {
         let now: HashMap<u32, u32> = self
             .rooms
             .all()
@@ -185,7 +191,7 @@ impl Core<'_> {
                 tag: String::new(),
                 body: format!("{name} {what}"),
             };
-            self.room_line(key, line, 0);
+            self.room_line(key, line, 0, at);
         }
     }
 }

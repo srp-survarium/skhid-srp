@@ -240,6 +240,13 @@ pub(super) struct Core<'a> {
     /// A member (or one queued) whose game started anew, until its new
     /// game is told the room: by then, or it loses the place (`rooms`).
     pub room_unseen: HashMap<u32, Instant>,
+    /// Chat translation (`translate`), when it is on.
+    pub translator: Option<super::translate::Translator>,
+    /// Chat lines not yet sent to every reader (`chat_out`).
+    pub chat_queue: std::collections::VecDeque<super::chat_out::Pending>,
+    /// The sample of public chat kept for the glossary, when it is on
+    /// (`chat_sample`).
+    pub chat_sample: Option<super::chat_sample::ChatSample>,
 }
 
 impl<'a> Core<'a> {
@@ -291,6 +298,9 @@ impl<'a> Core<'a> {
             room_join_at: HashMap::new(),
             room_seen: HashMap::new(),
             room_unseen: HashMap::new(),
+            translator: None,
+            chat_queue: Default::default(),
+            chat_sample: None,
         }
     }
 
@@ -829,6 +839,7 @@ impl<'a> Core<'a> {
         for notice in self.inbox.take() {
             self.notice(notice, now);
         }
+        self.chat_step(now);
         if now >= self.next_tick {
             self.next_tick = now + self.settings.tick;
             self.tick(now);
@@ -932,7 +943,7 @@ impl<'a> Core<'a> {
         self.collect_away(now);
         self.clan_matches(now);
         self.room_tick(now);
-        self.room_chat_tick();
+        self.room_chat_tick(now);
         let online = self.online_counts();
         let accounts = self.accounts.len();
         if accounts != self.ranked.0 {

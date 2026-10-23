@@ -178,6 +178,19 @@ RUST_LOG=info
 # rooms at once, and the playable maps_dict ids a creator may add besides
 # SRP_MATCH_MAPS.
 # SRP_ROOMS_MAX=50
+
+# Chat translation (docs/notes/chat-translation.md): each reader gets a
+# player's chat line in its game language. Off by default. `claude` sends the
+# line's text (no name) to Anthropic's API; the key comes from here only.
+# SRP_CHAT_TRANSLATE=claude
+# ANTHROPIC_API_KEY=
+# SRP_CHAT_TRANSLATE_TIMEOUT_MS=2000
+
+# A nameless sample of the public channels' lines, to find slang for the
+# translation's glossary. Off until the players are told (the note says
+# what); files older than the days kept are deleted.
+# SRP_CHAT_SAMPLE_DIR=/srv/srp/data/chat-sample
+# SRP_CHAT_SAMPLE_KEEP_DAYS=14
 # SRP_ROOMS_EXTRA_MAPS=
 # The bots' maps (docs/notes/player_bots_mapdata.md section 6): the
 # <project>.mapdata files, copied by hand into the data volume (game data:
