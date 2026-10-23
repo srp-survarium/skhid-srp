@@ -2819,6 +2819,233 @@ fn a_match_against_bots_pays_half_and_counts_no_quest() {
     assert!(report.screen_for(10).is_some());
 }
 
+/// Alice alone against Bob, one of the server's bots: the match against
+/// bots of [`a_match_against_bots_pays_half_and_counts_no_quest`], ended
+/// by `end` with Alice in it at the end or not.
+fn against_bots(end: MatchEnd, present_at_end: bool) -> MatchResult {
+    let mut players = alice_and_bob();
+    players[1].driven = true;
+    players[1].account_id = 0;
+    players[1].session_id = 0;
+    players[0].present_at_end = present_at_end;
+    players[0].left = !present_at_end;
+    let mut outcome = result(players);
+    outcome.trusted_by = 1;
+    outcome.vs_bots = true;
+    outcome.end = end;
+    outcome
+}
+
+/// Alice's account for [`against_bots`]: a faction chosen (so a match
+/// would pay reputation), a drop card in hand.
+fn against_bots_account() -> (GameAccounts, u32) {
+    let store = accounts(&alice_and_bob()[..1]);
+    let alice = store.get(10).unwrap();
+    let mut alice = alice.locked();
+    quests::choose_faction(&mut alice, 1).unwrap();
+    let card = Dictionary::shared().item_named(DROP_CARD).unwrap().dict_id;
+    let cards = alice.add_item(card, 3);
+    drop(alice);
+    (store, cards)
+}
+
+/// A match against bots pays only when it came to its own end (the mode's
+/// rule or the time limit) with its player in it (the owner's of
+/// 2026-10-23): one its player left (the match is over at once, everyone
+/// gone: `Deserted`), stood still in (`SRP_PVB_STALL_S`: `Deserted` with
+/// the player still in) or left before the end pays nothing, takes no
+/// drop card and rolls no drop. One played to its end pays its share.
+#[test]
+fn a_match_against_bots_pays_only_when_played_to_its_end() {
+    let quarter = Terms {
+        pvb_pay: 0.25,
+        ..terms()
+    };
+    // Played to its end, by the time limit or by the mode's rule: paid.
+    for end in [MatchEnd::TimeLimit, MatchEnd::ModeRule] {
+        let (store, _) = against_bots_account();
+        let report = Results::new()
+            .settle(&against_bots(end, true), &store, &quarter, &mut Rng::new(1))
+            .unwrap();
+        let alice = &report.players[0].reward;
+        assert!(!alice.forfeited, "{end:?}");
+        assert_eq!(alice.standing, Standing::Finished);
+        assert!(alice.money > 0 && alice.experience > 0 && alice.reputation > 0);
+        assert!(alice.drop_chance > 0.0);
+    }
+
+    // Over before its end, or without its player at the end.
+    let cases = [
+        // Left: the match is over at once, as one everyone left.
+        (MatchEnd::Deserted, false),
+        // Stood still (or its world lost) with the player in it.
+        (MatchEnd::Deserted, true),
+        // Left, and the end came before the match was let go.
+        (MatchEnd::TimeLimit, false),
+        (MatchEnd::ModeRule, false),
+    ];
+    for (end, present) in cases {
+        let (store, cards) = against_bots_account();
+        let before = account(&store, 10);
+        let results = Results::new();
+        let report = results
+            .settle(&against_bots(end, present), &store, &quarter, &mut Rng::new(1))
+            .unwrap();
+        let case = format!("{end:?}, present {present}");
+        let alice = &report.players[0];
+        let reward = &alice.reward;
+        assert!(reward.forfeited, "{case}");
+        assert_eq!(
+            (
+                reward.experience,
+                reward.money,
+                reward.reputation,
+                reward.quest_money
+            ),
+            (0, 0, 0, 0),
+            "{case}: {reward:?}"
+        );
+        assert_eq!(reward.premium_bonus, (0, 0, 0), "{case}");
+        assert!(reward.levels.is_empty() && reward.reputation_levels.is_empty());
+        assert_eq!((reward.level_money, reward.level_gold), (0, 0));
+        assert_eq!((reward.drop, reward.drop_chance), (None, 0.0), "{case}");
+        assert!(!reward.daily_bonus && reward.daily_reward.is_none());
+        assert_eq!(alice.full.dropped, None);
+        assert_eq!(alice.full.drop_chances, [0.0; 4]);
+        assert!(alice.notices.is_empty());
+        // The screen's cells: the counts, and nothing paid for them.
+        for component in &alice.full.components {
+            for &(_, money, experience, reputation) in &component.columns {
+                assert_eq!((money, experience, reputation), (0, 0, 0), "{case}");
+            }
+        }
+        assert!(report.screen_for(10).is_some());
+        let after = account(&store, 10);
+        assert_eq!(after.generic_money, before.generic_money, "{case}");
+        assert_eq!(after.premium_money, before.premium_money);
+        assert_eq!(after.exp_total, before.exp_total, "{case}");
+        assert_eq!(after.reputation(1), before.reputation(1), "{case}");
+        assert_eq!(after.rating, before.rating);
+        // Nor does a drop card turn it into a roll.
+        let mut rng = Rng::new(5);
+        let refused = use_card_of(&results, &store, MATCH, 10, cards, &mut rng);
+        if present {
+            assert_eq!(refused, Err(DropCardRefusal::Forfeited), "{case}");
+        } else {
+            assert_eq!(
+                refused,
+                Err(DropCardRefusal::NotFinished(Standing::Left)),
+                "{case}"
+            );
+        }
+    }
+    assert_eq!(
+        DropCardRefusal::Forfeited.to_string(),
+        "a match against bots not played to its end"
+    );
+}
+
+/// The share is `SRP_PVB_PAY` of a match's silver and experience, cell by
+/// cell: at a quarter, the money rate 100 and the experience rate 4 it
+/// pays what the same match not against bots pays at 25 and 1.
+#[test]
+fn a_match_against_bots_played_to_its_end_pays_its_share() {
+    let (store, _) = against_bots_account();
+    let quarter = Terms {
+        pvb_pay: 0.25,
+        experience_rate: 4,
+        ..terms()
+    };
+    let report = Results::new()
+        .settle(
+            &against_bots(MatchEnd::TimeLimit, true),
+            &store,
+            &quarter,
+            &mut Rng::new(1),
+        )
+        .unwrap();
+    let alice = &report.players[0];
+
+    let (store, _) = against_bots_account();
+    let mut reference = against_bots(MatchEnd::TimeLimit, true);
+    reference.vs_bots = false;
+    let at_a_quarter = Terms {
+        money_rate: pay::MoneyRate::Flat(25),
+        experience_rate: 1,
+        ..terms()
+    };
+    let reference = Results::new()
+        .settle(&reference, &store, &at_a_quarter, &mut Rng::new(1))
+        .unwrap();
+    let reference = &reference.players[0];
+    assert!(alice.reward.money > 0 && alice.reward.experience > 0);
+    assert_eq!(alice.reward.money, reference.reward.money);
+    assert_eq!(alice.reward.experience, reference.reward.experience);
+    assert_eq!(alice.reward.reputation, reference.reward.reputation);
+    assert_eq!(alice.full.components, reference.full.components);
+    assert!(!alice.reward.forfeited && !reference.reward.forfeited);
+}
+
+/// The rule is for matches against bots only: a match of players that
+/// everyone left pays those who left what their counters made, as
+/// before, and one that ended by its time pays as before.
+#[test]
+fn a_match_of_players_left_early_pays_as_before() {
+    let mut players = alice_and_bob();
+    for player in &mut players {
+        player.present_at_end = false;
+        player.left = true;
+    }
+    let mut outcome = result(players.clone());
+    outcome.end = MatchEnd::Deserted;
+    let store = accounts(&players);
+    let report = Results::new()
+        .settle(&outcome, &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    for player in &report.players {
+        let reward = &player.reward;
+        assert_eq!(reward.standing, Standing::Left);
+        assert!(!reward.forfeited);
+        assert!(reward.money > 0 && reward.experience > 0, "{reward:?}");
+    }
+
+    let store = accounts(&alice_and_bob());
+    let report = Results::new()
+        .settle(&result(alice_and_bob()), &store, &terms(), &mut Rng::new(1))
+        .unwrap();
+    for player in &report.players {
+        assert!(!player.reward.forfeited);
+        assert!(player.reward.money > 0 && player.reward.experience > 0);
+    }
+}
+
+/// A report kept before the rule has no `forfeited`: it is read as one
+/// that paid.
+#[test]
+fn a_reward_kept_without_the_forfeited_mark_is_not_forfeited() {
+    let (store, _) = against_bots_account();
+    let report = Results::new()
+        .settle(
+            &against_bots(MatchEnd::Deserted, false),
+            &store,
+            &terms(),
+            &mut Rng::new(3),
+        )
+        .unwrap();
+    assert!(report.players[0].reward.forfeited);
+    let mut body = serde_json::to_value(&*report).unwrap();
+    body["players"][0]["reward"]
+        .as_object_mut()
+        .unwrap()
+        .remove("forfeited")
+        .unwrap();
+    let rows = vec![(report_key(MATCH), body.to_string())];
+    let [kept] = &kept_reports(&rows)[..] else {
+        panic!("one report kept");
+    };
+    assert!(!kept.players[0].reward.forfeited);
+}
+
 /// Alice and Bob, and Carol, who came late (two minutes before the end)
 /// and stayed: each with the Scavengers' first quest (win with the base not
 /// robbed), which the match meets for Alice and Carol, and the day's first

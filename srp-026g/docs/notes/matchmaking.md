@@ -569,9 +569,12 @@ movie (`lobby.md` §2.16.2); its Play then makes the match at once:
 - at most `SRP_PVB_MAX_MATCHES` (5) run at once, counting the choices held
   for players who have not pressed Play yet: the sixth is refused (code
   7), and each map's `free` in the status says how many more may start;
-- its rewards: half the silver and experience (`SRP_PVB_PAY`), no quest,
-  no daily bonus, no rating and no balance rating (`results.md`;
-  `session::v026g::rewards`).
+- its rewards: a quarter of the silver and experience (`SRP_PVB_PAY`),
+  no quest, no daily bonus, no rating and no balance rating, and only for
+  a match that came to its own end (the mode's rule or the time limit)
+  with its player in it: one left, lost or stalled pays nothing, not even
+  a drop or a drop card (`results.md`; `session::v026g::rewards`,
+  `Reward::forfeited`).
 
 The log: one line for the choice (`<name>: vs bots, 8 v 8 on map 61: ok,
 held for 10 s`, or `no, code n (why)` with the numbers), one for the Play

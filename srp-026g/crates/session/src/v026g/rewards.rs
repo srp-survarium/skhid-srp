@@ -75,12 +75,20 @@
 //!   one of the day's doubled matches.
 //! - **A match against the server's bots** ("Player vs Bots",
 //!   [`MatchResult::vs_bots`]; the owner's of 2026-10-16): its rows pay
-//!   [`Terms::pvb_pay`] (`SRP_PVB_PAY`, default half) of their silver and
-//!   experience, and so do the premium half and the items' bonus counted
-//!   from them; reputation, the drop and the pay of a level reached are as
-//!   in any match. It counts for no quest and no daily bonus, and, as every
-//!   match with a bot of the server's, moves no rating and no balance
-//!   rating.
+//!   [`Terms::pvb_pay`] (`SRP_PVB_PAY`, default a quarter) of their silver
+//!   and experience, and so do the premium half and the items' bonus
+//!   counted from them; reputation, the drop and the pay of a level reached
+//!   are as in any match. It counts for no quest and no daily bonus, and,
+//!   as every match with a bot of the server's, moves no rating and no
+//!   balance rating. **It pays only when it came to its own end** (the
+//!   mode's rule or the time limit) with its player in it (the owner's of
+//!   2026-10-23: a match left at once ended at once and paid what was
+//!   made, so leaving was a way to farm). One its player left, lost, or
+//!   stood still in (`SRP_PVB_STALL_S`), or whose world was lost, ends
+//!   `Deserted` and pays nothing: no silver, experience, reputation, drop
+//!   or drop card ([`Reward::forfeited`]). What it used is taken as in any
+//!   match (supplies, wear when on, autobuy and auto-repair). Its screen
+//!   shows the match's numbers with every cell 0.
 //! - **A room with a PIN's match** ([`MatchResult::private`]; the
 //!   owner's of 2026-10-20): pays nothing to anyone in it, late joiners
 //!   too: no experience, silver, reputation, quest, daily bonus, drop or
@@ -122,6 +130,7 @@
 //! | the player | gets |
 //! |---|---|
 //! | stayed to the end | everything above |
+//! | of a match against bots that did not come to its own end, or that it was not in at the end | nothing paid; what it used is taken ([`Reward::forfeited`]) |
 //! | left early | what its counters earned (kills, help, other score), a loss in the rating whatever its team did, wear, quests; nothing of the activity row's fixed part, no daily bonus and no drop |
 //! | never got into the match | nothing; its rating stays (0.21d) |
 //! | left by its own word and came into the match again (a new place) | its latest place's as above; the place it left counts for nothing ([`MatchResult::latest_places`]) |
@@ -231,6 +240,16 @@ pub enum MatchEnd {
     NotMade,
 }
 
+impl MatchEnd {
+    /// Whether the match came to its own end by the mode's rules: the
+    /// mode's rule (a score, the batteries, the tickets) or the time limit.
+    /// Not a match everyone left, or whose players stood still or lost its
+    /// world (`Deserted`), nor one never played.
+    pub fn is_own_end(self) -> bool {
+        matches!(self, Self::ModeRule | Self::TimeLimit)
+    }
+}
+
 /// One roster place of a finished match (the match server's
 /// `PlayerResult`).
 #[derive(Clone, Debug, PartialEq)]
@@ -292,7 +311,8 @@ pub struct MatchResult {
     /// A match of one player against the server's bots ("Player vs Bots",
     /// the match server's `MatchSetup::vs_bots`): it pays
     /// [`Terms::pvb_pay`] of its silver and experience, and counts for no
-    /// quest and no daily bonus.
+    /// quest and no daily bonus; and only when it came to its own end with
+    /// its player in it ([`Reward::forfeited`]).
     pub vs_bots: bool,
     /// A match of a room with a PIN (the match server's
     /// `MatchSetup::private`): it pays nothing to anyone in it, late
@@ -355,7 +375,7 @@ pub struct Terms {
     pub rated_players: u32,
     /// What a match against the server's bots ([`MatchResult::vs_bots`])
     /// pays of the silver and the experience of its rows, 0 to 1
-    /// (`SRP_PVB_PAY`, default 0.5; [`super::pvb::pay`]).
+    /// (`SRP_PVB_PAY`, default 0.25; [`super::pvb::pay`]).
     pub pvb_pay: f64,
 }
 
@@ -365,7 +385,7 @@ impl Terms {
     /// `SRP_REPUTATION_RATE` (default 120), `SRP_ITEM_WEAR` and
     /// `SRP_DROP_PLAYTIME_BONUS` (both off unless set),
     /// `SRP_BALANCE_RATED_PLAYERS` (default 4), `SRP_PVB_PAY` (default
-    /// 0.5) and the weights srp's matches are made with.
+    /// 0.25) and the weights srp's matches are made with.
     pub fn at(now: u64) -> Self {
         Self {
             now,
@@ -462,6 +482,12 @@ pub struct Reward {
     /// What autobuy and auto-repair spent after the match: the lists the
     /// results screen shows.
     pub spent: lobby::SpentMoney,
+    /// A match against the server's bots ([`MatchResult::vs_bots`]) that
+    /// did not come to its own end (the mode's rule or the time limit) with
+    /// the player in it: it paid nothing, and takes no drop card. Absent
+    /// from a report kept before the rule: not forfeited.
+    #[serde(default)]
+    pub forfeited: bool,
 }
 
 /// One player of a [`MatchReport`].
@@ -1007,6 +1033,13 @@ impl Results {
         if result.private {
             log::info!("Match {:#x}: private room, no rewards", result.match_id);
         }
+        if result.vs_bots && !result.end.is_own_end() {
+            log::info!(
+                "Match {:#x}: against bots, over before its end ({:?}); no rewards",
+                result.match_id,
+                result.end
+            );
+        }
         let mut shared = Shared::of(result, terms);
         // Test bots (`super::bots`; none unless `SRP_BOT_ACCOUNTS` names
         // them) and the match server's own (in every match against bots):
@@ -1039,8 +1072,12 @@ impl Results {
         for (index, player) in result.players.iter().enumerate() {
             let standing = shared.standing(player);
             // Only a player who stayed has a game of its play period; a
-            // private match is nobody's.
-            let game = if standing == Standing::Finished && held[index].is_some() && !result.private
+            // private match is nobody's, nor is a match against bots that
+            // paid nothing.
+            let game = if standing == Standing::Finished
+                && held[index].is_some()
+                && !result.private
+                && !shared.forfeits(player)
             {
                 self.inner
                     .locked()
@@ -1231,7 +1268,8 @@ impl Results {
     /// 2026-10-20; the original's screen takes one card too:
     /// `docs/notes/drop_cards.md`). Refused, and nothing changed, for a
     /// match not kept, one the account was not in or left before its end,
-    /// a room with a PIN's match (it gives nothing), one it used a card
+    /// a room with a PIN's match (it gives nothing), a match against bots
+    /// that paid nothing ([`Reward::forfeited`]), one it used a card
     /// for already, an item that is no drop card of the account, or a roll
     /// that gave nothing. Lock the account before calling it, as for
     /// [`Results::claim_premium`]; mark it dirty after.
@@ -1285,17 +1323,19 @@ impl Results {
                 .collect();
             (report, kept)
         };
-        let standing = report
+        let reward = &report
             .player(account_id)
             .filter(|_| account_id != 0)
             .ok_or(DropCardRefusal::NotAPlayer)?
-            .reward
-            .standing;
-        if standing != Standing::Finished {
-            return Err(DropCardRefusal::NotFinished(standing));
+            .reward;
+        if reward.standing != Standing::Finished {
+            return Err(DropCardRefusal::NotFinished(reward.standing));
         }
         if report.private {
             return Err(DropCardRefusal::Private);
+        }
+        if reward.forfeited {
+            return Err(DropCardRefusal::Forfeited);
         }
         if account.drop_cards.contains(&match_id) {
             return Err(DropCardRefusal::Used);
@@ -1326,6 +1366,9 @@ pub enum DropCardRefusal {
     /// A room with a PIN's match: it gives nothing
     /// ([`MatchReport::private`]).
     Private,
+    /// A match against bots that did not come to its own end with the
+    /// player in it: it paid nothing ([`Reward::forfeited`]).
+    Forfeited,
     /// The item is no drop card of the account.
     NoCard,
     /// The roll gave nothing (`drop_card_drop` always gives: a table the
@@ -1343,6 +1386,7 @@ impl std::fmt::Display for DropCardRefusal {
             }
             Self::Used => f.write_str("a card was used for the match already"),
             Self::Private => f.write_str("private match"),
+            Self::Forfeited => f.write_str("a match against bots not played to its end"),
             Self::NoCard => f.write_str("no drop card of the account"),
             Self::NoRoll => f.write_str("the drop card table rolled nothing; card kept"),
         }
@@ -1455,6 +1499,15 @@ impl<'a> Shared<'a> {
         } else {
             Standing::Left
         }
+    }
+
+    /// Whether a match against the server's bots pays the player nothing:
+    /// it did not come to its own end ([`MatchEnd::is_own_end`]), or the
+    /// player was not in it at that end (the owner's of 2026-10-23: a
+    /// match left, lost or stood still in is no way to be paid).
+    fn forfeits(&self, player: &PlayerResult) -> bool {
+        self.result.vs_bots
+            && !(self.result.end.is_own_end() && self.standing(player) == Standing::Finished)
     }
 
     fn won(&self, player: &PlayerResult) -> bool {
@@ -1760,7 +1813,9 @@ impl<'a> Shared<'a> {
     /// this is (0: no drop is rolled); `bot` whether the account is a test
     /// bot (no daily bonus). A room with a PIN's match
     /// ([`MatchResult::private`]) gives and takes nothing: only the
-    /// screen's numbers are filled.
+    /// screen's numbers are filled. A match against bots that did not come
+    /// to its own end with the player in it ([`Reward::forfeited`]) gives
+    /// nothing and takes what it used.
     fn settle_player(
         &self,
         account: &mut Account,
@@ -1781,6 +1836,7 @@ impl<'a> Shared<'a> {
             reputation_faction: account.quest_faction,
             rating_before: account.rating,
             rating_after: account.rating,
+            forfeited: self.forfeits(player),
             ..Reward::default()
         };
         full.faction = account.quest_faction;
@@ -1842,9 +1898,14 @@ impl<'a> Shared<'a> {
         // The score's lines, and the premium half of each kit's column. A
         // match against the server's bots pays a share of the silver and
         // the experience (`SRP_PVB_PAY`): of every cell, so of the premium
-        // half and the items' bonus too, which are counted from them.
+        // half and the items' bonus too, which are counted from them. One
+        // that did not come to its own end with the player in it pays
+        // nothing at all, reputation neither: the screen's cells are 0.
         let vs_bots = self.result.vs_bots;
-        let pvb_pay = if vs_bots {
+        let forfeited = reward.forfeited;
+        let pvb_pay = if forfeited {
+            0.0
+        } else if vs_bots {
             self.terms.pvb_pay.clamp(0.0, 1.0)
         } else {
             1.0
@@ -1852,7 +1913,11 @@ impl<'a> Shared<'a> {
         let rate = f64::from(self.terms.experience_rate) * pvb_pay;
         let money_share =
             f64::from(self.terms.money_rate.at(self.result.match_level)) / 100.0 * pvb_pay;
-        let reputation_share = f64::from(self.terms.reputation_rate) / 100.0;
+        let reputation_share = if forfeited {
+            0.0
+        } else {
+            f64::from(self.terms.reputation_rate) / 100.0
+        };
         let (money_k, experience_k, reputation_k) = self.multipliers;
         let faction = account.quest_faction;
         let lines = self.lines(player, main);
@@ -1987,8 +2052,9 @@ impl<'a> Shared<'a> {
             notices.extend(pay.notices);
         }
 
-        // The drop.
-        if standing == Standing::Finished && game > 0 {
+        // The drop (none for a match against bots that paid nothing: its
+        // `game` is 0 too, `settle`).
+        if standing == Standing::Finished && game > 0 && !forfeited {
             let tables = Drops::shared();
             let (table, percent) = if new_player {
                 (&tables.new_player, 0)

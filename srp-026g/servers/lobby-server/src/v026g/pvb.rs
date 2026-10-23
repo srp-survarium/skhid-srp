@@ -28,7 +28,10 @@
 //! A match against bots takes no late joiner (its teams are fixed:
 //! `play::late_admission`). Its rewards are
 //! `session::v026g::rewards`' for `vs_bots`: [`SRP_PVB_PAY`] of the silver
-//! and experience, no quest, no daily bonus, no rating. The match server
+//! and experience, no quest, no daily bonus, no rating; and nothing at all
+//! unless the match came to its own end (the mode's rule or the time limit)
+//! with its player in it: left, lost or stalled, it pays nothing
+//! (`rewards::Reward::forfeited`). The match server
 //! ends it when its player stops uploading the worlds it is asked for
 //! (`SRP_PVB_STALL_S`), and keeps one bots' map in memory for each match
 //! that may run (`SRP_PVB_MAX_MATCHES`).
@@ -52,7 +55,7 @@
 //! | `SRP_PVB` | off | the mode is offered (`on`) | the lobby, the match server |
 //! | `SRP_PVB_MAX_GEAR` | 5 | the highest equipment level let in, 0 to 15 | the lobby |
 //! | `SRP_PVB_MAX_MATCHES` | 5 | the most matches against bots at once, 1 to 20; the match server keeps up to that many bots' maps in memory | the lobby, the match server |
-//! | `SRP_PVB_PAY` | 0.5 | the share of a match's silver and experience it pays, 0 to 1 | the rewards (`session::v026g::pvb`) |
+//! | `SRP_PVB_PAY` | 0.25 | the share of a match's silver and experience it pays, 0 to 1; only a match played to its own end pays | the rewards (`session::v026g::pvb`) |
 //! | `SRP_PVB_STALL_S` | 60 | a match whose only player uploads no world it is asked for this long is over, 10 to 3600 | the match server |
 //!
 //! [`SRP_PVB_PAY`]: session::v026g::pvb::pay
