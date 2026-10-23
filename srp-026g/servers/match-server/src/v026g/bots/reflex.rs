@@ -2558,7 +2558,7 @@ impl Reflex {
         };
         // [friends] A teammate in the line of fire: no shot, a step aside.
         let friend =
-            self.friend_in_line(me, view, (point, error, lift), distance, gun, &aim.friends);
+            self.friend_in_line(me, view, (point, error, lift), distance, gun, now, &aim.friends);
         self.held_for = friend.map(|f| super::friends::Held {
             who: f.who,
             ready: fire_allowed
@@ -2655,7 +2655,10 @@ impl Reflex {
 
     /// [friends] The teammate in the line of fire, if any: on the view now
     /// and the view it turns to (`point` with `error`), each `lift` higher
-    /// as [`Self::clear_shot`]'s, short of `distance` and a little past.
+    /// as [`Self::clear_shot`]'s, short of `distance` and a little past;
+    /// the teammates led to `now`, the tick decided
+    /// ([`super::friends::FriendlyFireTuning::lead`]).
+    #[allow(clippy::too_many_arguments)]
     fn friend_in_line(
         &self,
         me: &PlaceView,
@@ -2663,6 +2666,7 @@ impl Reflex {
         (point, error, lift): (Vec3, (f32, f32), f32),
         distance: f32,
         gun: &Gun,
+        now: u32,
         t: &super::friends::FriendlyFireTuning,
     ) -> Option<super::friends::Blocked> {
         use super::friends::{along, blocking};
@@ -2674,7 +2678,14 @@ impl Reflex {
                 to.y.atan2(to.x.hypot(to.z)) + error.1 + lift,
             ),
         ];
-        blocking(me, view, &dirs, distance, t.spread(gun), t)
+        // At most the encoder's lead past the clock's tick.
+        let most = (super::encode::LEAD_TICKS + 1) * survarium::v026g::match_msgs::TICK_MS;
+        let ahead_s = if t.lead {
+            (now.saturating_sub(view.clock).min(most) + t.lead_extra_ms) as f32 / 1000.0
+        } else {
+            0.0
+        };
+        blocking(me, view, &dirs, distance, t.spread(gun), ahead_s, t)
     }
 
     /// The aim's wander, one tick on: a mean-reverting walk whose spread is
