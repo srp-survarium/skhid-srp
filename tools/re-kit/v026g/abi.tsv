@@ -1090,6 +1090,11 @@ va	name	source	ret_cleanup	result
 0x00294870	survarium::object_sound::on_sound_resources_ready	manual	8	
 0x00294930	survarium::object_sound::insert	manual	0	
 0x00294a90	survarium::object_sound::remove	manual	0	
+0x00296ab0	survarium::player_logic_preview_state::player_logic_preview_state	manual	8	EAX this; +18h the owner (EDX), +1Ch the user, +20h 3 (the preview state id), +30h the clips, +34h their count, +38h the clip playing (0), +3Ch the random seed (RDTSC)
+0x00296b30	survarium::player_logic_preview_state::initialize	manual	0	subscribes on_animation_interval_end (0x296BF0, bound to this) to the user's animation player (owner+44h -> +750h, 0x391C40)
+0x00296bf0	survarium::player_logic_preview_state::on_animation_interval_end	manual	4	EAX 0; the callback params' +24h byte (interrupt the animation player's tick) = params+0 is the user (+1Ch) and params+4 the clip playing (+38h): base_player::tick_animations then selects anew
+0x00296c20	survarium::player_logic_preview_state::random_animation_index	manual	0	EAX an index below count; seed = seed*8088405h+1, high dword of seed*n; above 3 clips the last three indices picked (0xA73CF4..0xA73CFC, one history for every preview state) are left out, the pick pushed on it
+0x00296d00	survarium::player_logic_preview_state::selected_animations	manual	12	EAX = out (the expression); the clip (+30h)[random_animation_index] kept at +38h, a lexeme of it blended in over 0.3 s (0x921804)
 0x002989d0	survarium::damage_zone::damage_zone	manual	4	
 0x0029a850	survarium::lobby_menu::process_default_cancel_decal_edit	manual	4	AL = 1
 0x0029ab20	survarium::lobby_menu::fill_match_statistic	manual	16	

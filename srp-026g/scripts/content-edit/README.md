@@ -426,3 +426,14 @@ file edited, 0 unexpected differences. No simulation change: the slot rule is th
 
 Applied to revision 30's live tables (from the stock db and patches 12 to 30): 6 files edited, 0
 unexpected differences. Text only: no server data, no simulation change.
+
+## lobby-idles-1.json (2026-10-23)
+
+| change | why |
+|---|---|
+| The two still clips, ak `on_site/idle_wpn_loby` and `on_site/idle_wpn_loby_3`, out of `user_animations_in_place/preview` of the 77 weapon configs that name them (`remove_item` of a string; 9 -> 7 clips: every rifle, shotgun and SMG, stock and ported, and the TOZ-66) | a player's report via the owner: in the lobby the character sometimes twitches and then freezes in one pose. The lobby plays random clips of that list one after another, each blended in over 0.3 s (`player_logic_preview_state`, 0x296D00); these two hold one pose on every channel of every bone for 13.3 and 15 s ([`../../docs/notes/lobby-idles.md`](../../docs/notes/lobby-idles.md)) |
+
+The pistols' and the PKP's lists have no still clip; the clips stay in the archive. Built by
+`release/build-content 32` (the stock db and patches 12 to 31): 77 files edited, 0 unexpected
+differences; the patch holds the 77 configs (and main's lobby movie). No simulation change: the
+lobby's pick is seeded from RDTSC.
