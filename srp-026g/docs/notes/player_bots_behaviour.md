@@ -123,7 +123,7 @@ In two real matches (0x7db2c16a, 0x15aa5b99) bots ended a take "could not take i
 
 - The stand-in counts a step walked straight as no standing (it has no route).
 - A first version pressed at stands it had passed by up to 0.5 m (standing uses 2.1 m long) and over looks down past 1 rad: kills −7.2 ± 2.9 a seed; fixed before the numbers above.
-- Left: a battery the team believes lying where it is not (it lies on a crate and the look at it from below is blocked) is still tried at each stand (seen in the soaks); the team's look at it is `sense::sense_batteries`.
+- Left: a battery the team believes lying where it is not (it lies on a crate and the look at it from below is blocked) is still tried at each stand (seen in the soaks); the team's look at it is `sense::sense_batteries`. Two such beliefs are fixed in §2.7.
 
 ### 2.3 A take waits for the fight unless covered (built 2026-10-23)
 
@@ -284,6 +284,58 @@ Without the bench's spread the figures are within a few percent of these (1.63 a
 The guards stayed within the noise for every part except as said. Guards checked: kills, deaths and K/D a team; team hits and team kills; deliveries; carriers killed; the time from the take to the put-in; plays ended within 1 s; flips; idle time; the blockers' hit rate and time to the first shot; and their headway. The blocker parts left alone the carrier and the plays the commander ranks an alarm: Hunt, Intercept, and Escort behind the carrier. The first three (b) rows also left every Collect bot alone; the two crouches did not. The parts were taken out again; only the measure is kept.
 
 **Not verified:** no real match was played with any of these. The bench's blocker is the bots' own body model: whether a crouched 0.26g body clears a line 0.63 m over it is the 0.100b model's heights (a GUESS, `friends.rs`).
+
+### 2.7 Batteries not taken, and a carrier who camps (audit 6 and 7; built 2026-10-23)
+
+The audit of the owner's PvB matches of 2026-10-23 (`private/pvb-jumps-local/analysis/AUDIT.md`) ranked two battery mistakes. In 0x4da3b51d team 1 sent 29 lone intercepts, 8 of them killed, to a carrier who stood 8 m from his own container for 4 minutes (#6). Battery 3 lay 127 s and drew 57 Collect plays, 7 "took no battery" and one pickup (#7).
+
+**Why a battery was not taken.**
+- PROVEN, 0x4da3b51d b3: the team believed it at the spot it was first seen, 0.7 m from where it lay after its carrier died. `sense_batteries` looked again only when a battery lay over 1.5 m across from the belief, so takes aimed at the empty spot. Now a known battery that lies over 0.2 m (in 3D) from the belief is looked at again (`SenseTuning::battery_moved_m`; a few centimetres of settling costs no look). From a take's stand, close by, it is put right without a ray. "Took no battery" lines now end with the spot the take aimed at.
+- PROVEN, the worlds' frame: the bots took a lying battery's z as mirrored until a battery lying near a spawner voted for the plain reading, and needed it within 3 m of one reading and over 10 m from the other. The worlds are in the map's frame: in 0x4da3b51d the batteries at 50 s lie on level_08's spawner spots (`item`) to 0.01 m (battery 0 at (1.29, 33.27, 20.34), spawner (1.288, 33.267, 20.34)). On level_05 day 2 several spawners lie at z −0.5 to −1, where both readings are near a spawner and no vote is cast. In one bench match (seed 28, 10 v 10) the bots aimed 38 stands at the mirror images (z +0.82 and +0.54 for batteries at −0.82 and −0.54) and took no battery in 180 s. The vote is gone (`Bots::facts`).
+- PROVEN in the client (client_patch.md §3.23): a pickup needs a hand that is not broken (`victory_item_core::can_use` 0x300710, the prompt `st_cannot_pickup_item_broken_hand`; the use's every tick 0x300830). A theft from the enemy's container needs one too; a put-in does not. LEAD, not built: the bots cannot see their own broken limbs (where the worlds carry the damage model's hand byte is not decoded), so a bot with a broken hand still tries. Whether a medkit mends the hand is not checked.
+
+**A camping carrier.** `TeamKnowledge::carrier_places` keeps where the team's senses (seen, heard, the thief cheat) placed each enemy carrier over 30 s. `carrier_still` finds one whose places of the last `camp_s` (20 s), three at least, all lie within their error and `camp_m` (3 m) of their middle. Past `camp_half` (0.5) of the way from our container to his, he camps (`intercept_camping`). Such a carry is no alarm and no commitment, and both of its slots are offered (`camp_pair` 1), so two bots go at once, not one after another into his ground.
+
+**The bench.** `real_bot_cost` gains two stagings:
+- `SRP_BENCH_CAMP=<m>` freezes the first team-0 carrier within that many metres of his container: no moves, no use, until he dies or loses the battery.
+- `SRP_BENCH_NUDGE=<m>`: every 20 s one lying battery, in turn, moves that far on its floor, unseen.
+
+Each match prints a `sums:` line (JSON) and counts the stands given up at a belief more than 0.2 m from where the battery lay (`SRP_BENCH_SHOW_STALE=1` prints each).
+
+**Measured** (`real_bot_cost`, 180 s, `SRP_BENCH_SIDES=4,10`, `SRP_BENCH_BATTERIES=10`, `SRP_BENCH_USE_LINE=1`, `SRP_BENCH_SPREAD=1`; paired by seed, the change minus the base, ± the standard error of the difference a seed, * over 2 standard errors; means a seed):
+
+| Change, bench | Measure | Base | Change | Difference |
+|---|---|---|---|---|
+| Re-look at 0.2 m, not 1.5; batteries nudged 0.7 m (24 seeds, 6 maps) | stands given up | 43.0 | 1.7 | −41.3 ± 4.7* |
+| | of them at a spot the battery had left | 41.5 | 0 | −41.5 ± 4.7* |
+| | "could not take it" ends | 14.3 | 2.3 | −12.1 ± 1.6* |
+| | pickups | 57.8 | 63.1 | +5.3 ± 1.0* |
+| | delivered, team 0 / team 1 | 15.2 / 21.6 | 17.0 / 22.8 | +1.8 ± 0.4* / +1.2 ± 0.4* |
+| | Collect plays a pickup | 16.6 | 14.9 | −1.7 ± 0.25* |
+| | kills | 130.3 | 128.6 | −1.8 ± 2.1 |
+| | K/D team 0 / team 1 | 0.94 / 1.03 | 0.87 / 1.11 | −0.07 ± 0.03* / +0.09 ± 0.03* |
+| ... plain (32 seeds, 6 maps) | pickups, delivered, kills | 63.2, 39.6, 127.3 | 63.2, 39.6, 127.2 | all within ± 0.2 |
+| The map's frame; level_05 day 2 (64 seeds) | matches with no battery taken | 1 of 128 | 0 | |
+| | pickups | 8.39 | 8.77 | +0.38 ± 0.21 |
+| ... 6 maps (24 seeds) | everything | | | identical |
+| The pair; a carrier camps (24 seeds, maps 1, 2, 4-8 day 2) | Intercept bot-minutes, team 1 | 14.6 | 16.0 | +1.4 ± 0.3* |
+| | Intercept deaths a bot-minute, team 1 | 1.07 | 0.99 | −0.09 ± 0.05 |
+| | kills team 1 / deaths team 1 | 71.4 / 72.3 | 75.6 / 72.9 | +4.2 ± 1.2* / +0.5 ± 0.9 |
+| | K/D team 1 | 1.03 | 1.08 | +0.05 ± 0.02* |
+| | campers killed (of 10.5 camps) | 2.50 | 2.75 | +0.25 ± 0.15 |
+| | delivered | 49.7 | 49.9 | +0.2 ± 0.5 |
+| ... plain (24 seeds, 6 maps) | kills team 1 / deaths team 1 | 63.7 / 62.8 | 66.0 / 62.9 | +2.3 ± 0.8* / +0.1 ± 0.8 |
+| | carriers killed | 10.6 | 11.8 | +1.2 ± 0.4* |
+| | delivered | 39.6 | 39.3 | −0.3 ± 0.2 |
+
+- The nudge's K/D: both teams use the same code, so the move is between the sides (team 1's deaths −2.7 ± 1.0* in 10 v 10), and both deliver more.
+- The pair's effect is in 10 v 10 (4 v 4 within the noise): the team that sends it kills more and dies no more.
+
+**Tried and left off.**
+- The camping carrier's score times `camp_cut` 0.25 (one bot, no alarm). At a camper: team 1's Intercept minutes −3.6 ± 0.4* and its Intercept deaths −3.3 ± 0.9*, but the deaths a bot-minute did not fall (1.07 to 1.11), and K/D and deliveries stayed within the noise. On the plain bench it cut Intercept minutes by 10-20 %, and deliveries moved −0.3 ± 0.2. The number stays at 1 (off) for the bench.
+- The team's set-aside of a battery after two "could not take it" or three "took no battery" (30-60 s): not retried. #361 measured it worse on its guards. With the two causes above gone, stands given up are 0.03 a pickup on the plain bench (1.6 a seed, none at a stale spot), and the set-aside would leave real batteries lying.
+
+**Not verified:** no real match was played with these. The stand-in game's take is its own rule (§2.2). The camper is a frozen bot, not a player who hides and shoots.
 
 ## 3. Plays
 

@@ -300,6 +300,20 @@ pub struct CarrierSeen {
 /// Seen carriers are kept this long, ms.
 pub const CARRIER_SEEN_KEEP_MS: u32 = 60_000;
 
+/// An enemy carrier's place as a bot of the team sensed it (seen, heard,
+/// or the thief cheat), with its error: whether he stays put
+/// ([`TeamKnowledge::carrier_still`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CarrierPlace {
+    pub who: Place,
+    pub at: Vec3,
+    pub error_m: f32,
+    pub time: u32,
+}
+
+/// Carriers' places are kept this long, ms.
+pub const CARRIER_PLACES_KEEP_MS: u32 = 30_000;
+
 /// A battery an enemy carrier dropped where he died, unseen: the kill feed
 /// says he died, the team knew he carried it (a theft of ours, or seen
 /// carrying), and the game's HUD shows the dropped battery only to his
@@ -352,6 +366,8 @@ pub struct TeamKnowledge {
     pub carriers_seen: Vec<CarrierSeen>,
     /// Where enemy carriers died with a battery the team cannot see.
     pub looks: Vec<LookSpot>,
+    /// Enemy carriers' places of the last [`CARRIER_PLACES_KEEP_MS`].
+    pub carrier_places: Vec<CarrierPlace>,
 }
 
 impl TeamKnowledge {
@@ -522,6 +538,53 @@ impl TeamKnowledge {
         self.carriers_seen
             .retain(|seen| seen.time + CARRIER_SEEN_KEEP_MS >= now);
         self.looks.retain(|look| look.until >= now);
+        self.carrier_places
+            .retain(|p| p.time + CARRIER_PLACES_KEEP_MS >= now);
+    }
+
+    /// A bot of the team sensed the enemy carrier at `who` at `at`, within
+    /// `error_m`. `carrying(place)`: whether a place carries now; the
+    /// places of one who no longer does are dropped (a new carry starts
+    /// afresh).
+    pub fn carrier_at(
+        &mut self,
+        who: Place,
+        at: Vec3,
+        error_m: f32,
+        time: u32,
+        carrying: impl Fn(Place) -> bool,
+    ) {
+        self.carrier_places.retain(|p| carrying(p.who));
+        self.carrier_places.push(CarrierPlace {
+            who,
+            at,
+            error_m,
+            time,
+        });
+    }
+
+    /// Where the enemy carrier at `who` has stayed: his places of the last
+    /// `window_ms` and more (the first at least that old) all lie within
+    /// their error and `still_m` of their middle, three of them at least;
+    /// that middle. A thief cheat's place (10 m off) is drawn every 3 s,
+    /// so a carrier who walks home on it is seen to move within seconds.
+    pub fn carrier_still(&self, who: Place, now: u32, window_ms: u32, still_m: f32) -> Option<Vec3> {
+        let places: Vec<&CarrierPlace> = self
+            .carrier_places
+            .iter()
+            .filter(|p| p.who == who)
+            .collect();
+        let first = places.iter().map(|p| p.time).min()?;
+        if places.len() < 3 || first + window_ms > now {
+            return None;
+        }
+        let n = places.len() as f32;
+        let sum = places.iter().fold(Vec3::ZERO, |sum, p| sum + p.at);
+        let middle = sum * (1.0 / n);
+        places
+            .iter()
+            .all(|p| p.at.distance_xz(middle) <= p.error_m + still_m)
+            .then_some(middle)
     }
 
     /// A bot of the team saw the enemy at `who` carrying `battery`.
@@ -603,6 +666,36 @@ mod tests {
             source: Source::Seen,
             busy: false,
         }
+    }
+
+    /// A carrier the thief cheat places within its 10 m every 3 s is still
+    /// once 20 s of places lie within their error and 3 m of their middle;
+    /// one who walks home is not, nor one known for less than 20 s, and a
+    /// new carry starts afresh.
+    #[test]
+    fn a_carrier_is_still_when_his_places_keep_within_their_error() {
+        let mut team = TeamKnowledge::default();
+        let at = Vec3::new(50.0, 0.0, 30.0);
+        let offsets = [(9.0f32, 0.0f32), (-6.0, 6.0), (0.0, -9.0), (5.0, 5.0)];
+        for k in 0..8u32 {
+            let (dx, dz) = offsets[k as usize % 4];
+            team.carrier_at(1, at + Vec3::new(dx, 0.0, dz), 10.0, k * 3_000, |_| true);
+        }
+        let still = team.carrier_still(1, 21_000, 20_000, 3.0).expect("still");
+        assert!(still.distance_xz(at) < 3.0, "{still:?}");
+        assert_eq!(team.carrier_still(1, 19_000, 20_000, 3.0), None, "too short");
+        assert_eq!(team.carrier_still(2, 21_000, 20_000, 3.0), None);
+        // Walking home at 1.5 m/s on the same cheat: not still.
+        let mut walking = TeamKnowledge::default();
+        for k in 0..8u32 {
+            let (dx, dz) = offsets[k as usize % 4];
+            let on = Vec3::new(4.5 * k as f32, 0.0, 0.0);
+            walking.carrier_at(1, at + on + Vec3::new(dx, 0.0, dz), 10.0, k * 3_000, |_| true);
+        }
+        assert_eq!(walking.carrier_still(1, 21_000, 20_000, 3.0), None);
+        // He no longer carries: the next place starts a new carry.
+        team.carrier_at(3, at, 0.0, 22_000, |p| p != 1);
+        assert_eq!(team.carrier_still(1, 22_000, 20_000, 3.0), None);
     }
 
     #[test]

@@ -135,16 +135,21 @@ pub struct FailedStand {
 }
 
 impl FailedStand {
-    /// Its line in the log.
+    /// Its line in the log, with where the bot believed the battery lay
+    /// (to hold against the worlds: a belief left behind by a battery
+    /// that moved is aimed at and missed).
     pub fn note(&self) -> String {
         format!(
-            "took no battery {} from a stand {:.1} m off it ({}): its use's ray {:.2} m to it, {:.0} deg down, the view {:.1} deg off it",
+            "took no battery {} from a stand {:.1} m off it ({}): its use's ray {:.2} m to it, {:.0} deg down, the view {:.1} deg off it; it was believed at ({:.2}, {:.2}, {:.2})",
             self.battery,
             self.feet.distance_xz(self.at),
             if self.crouch { "crouched" } else { "standing" },
             self.ray_m,
             self.down.to_degrees(),
             self.off.to_degrees(),
+            self.at.x,
+            self.at.y,
+            self.at.z,
         )
     }
 }

@@ -163,6 +163,7 @@ pub fn sense(
 /// (`!victory_item_collision!`, read from resources.db): 0.24 m high.
 pub const BATTERY_HEIGHTS: [f32; 3] = [0.25, 0.12, 0.04];
 
+
 /// What a bot may look at for its team's battery knowledge.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum BatteryLook {
@@ -178,8 +179,17 @@ enum BatteryLook {
 /// its team (`player_bots_behaviour.md` §2: "a battery a bot sees becomes
 /// known to its team"). A battery lying in the view, within
 /// `battery_sight_m`, in a clear line on the bullet mesh (or within
-/// `battery_near_m`) becomes known where it lies; a spot believed to hold
-/// one, so seen empty, is forgotten; a spawner's spot so seen is checked.
+/// `battery_near_m`) becomes known where it lies, and is put right when it
+/// lies over `battery_moved_m` from the spot known: a take aims at that
+/// spot, and the use's ray must meet the box (half sizes 0.3 x 0.12 x
+/// 0.16 m). With 1.5 m there, a battery an enemy took and dropped dead
+/// 0.7 m on, unseen, stayed known where it had been, and team 0's bots
+/// aimed at the empty spot from a metre for two minutes (the owner's match
+/// 0x4da3b51d, battery 3, 135-262 s: 7 "took no battery" stands, their
+/// views 0.5-10 degrees off the old spot in the worlds, 23-55 off the
+/// battery; team 1's bot, on its HUD's spot, took it at its first use).
+/// A spot believed to hold one, so seen empty, is forgotten; a spawner's
+/// spot so seen is checked.
 /// Nearest first, at most `battery_rays` rays from the poll's budget.
 /// `worth(spawner)` says which spawners are worth a look.
 #[allow(clippy::too_many_arguments)]
@@ -215,7 +225,7 @@ pub fn sense_batteries(
         if let BatteryState::Free(at) = *state
             && team
                 .battery(battery)
-                .is_none_or(|k| k.at.distance_xz(at) > 1.5)
+                .is_none_or(|k| (k.at - at).length() > tuning.battery_moved_m)
         {
             consider(BatteryLook::Battery(battery, at), at);
         }
@@ -613,6 +623,56 @@ mod tests {
         );
         assert!(team.battery(0).is_none());
         assert_eq!(rays.0, 96);
+    }
+
+    /// Audit issue 7 (0x4da3b51d, battery 3): a battery the team knows,
+    /// taken and dropped 0.7 m on unseen, is put right where it lies when
+    /// it is seen (a take's stand is near it: no ray), so the take aims at
+    /// it and not at the empty spot. One that lies where it is known (a few
+    /// centimetres of settling) costs no look.
+    #[test]
+    fn a_known_battery_seen_lying_a_little_off_is_put_right() {
+        use crate::v026g::bots::view::BatteryState;
+        let me = place(0, 0, Vec3::ZERO, 0.0);
+        let mut view = view(vec![me.clone()], vec![]);
+        view.mode = Mode::Batteries;
+        let known = Vec3::new(0.0, 0.3, 10.0);
+        let mut team = TeamKnowledge::default();
+        team.set_battery(
+            0,
+            Some(KnownBattery {
+                at: known,
+                time: 0,
+                hud: false,
+            }),
+        );
+        // Settled 5 cm: no look, nothing changes.
+        view.batteries = vec![BatteryState::Free(known + Vec3::new(0.05, 0.0, 0.0))];
+        let mut rays = RayBudget(100);
+        let sight = RayTree::build(&[]);
+        let tuning = SenseTuning::default();
+        sense_batteries(&me, &view, &sight, &[], &tuning, &mut team, |_| true, &mut rays);
+        assert_eq!(rays.0, 100);
+        assert_eq!(team.battery(0).map(|k| k.at), Some(known));
+        // Taken and dropped 0.7 m on: seen there, the team's spot follows.
+        let moved = Vec3::new(0.7, 0.1, 10.0);
+        view.batteries = vec![BatteryState::Free(moved)];
+        sense_batteries(&me, &view, &sight, &[], &tuning, &mut team, |_| true, &mut rays);
+        assert_eq!(team.battery(0).map(|k| k.at), Some(moved));
+        // From a take's stand a metre off it, no ray is needed.
+        let mut team = TeamKnowledge::default();
+        team.set_battery(
+            0,
+            Some(KnownBattery {
+                at: known,
+                time: 0,
+                hud: false,
+            }),
+        );
+        let stand = place(0, 0, Vec3::new(0.0, 0.0, 9.0), 0.0);
+        let mut none = RayBudget(0);
+        sense_batteries(&stand, &view, &sight, &[], &tuning, &mut team, |_| true, &mut none);
+        assert_eq!(team.battery(0).map(|k| k.at), Some(moved));
     }
 
     #[test]
