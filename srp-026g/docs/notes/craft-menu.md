@@ -78,3 +78,37 @@ what isn't").
 - **Only the list:** the items stay owned; nothing is sent to the server.
 - **Closed:** the inventory lists every item again, as before.
 - Code: `MessageCraftItem.hideSlotted`, `InventoryList.hideCraftSlotted`, `LobbyMenu.openCraftWindow`.
+
+## A failed upgrade
+
+The owner's rule: 2026-10-23 ("remove chance for bonus removal during combination"; players called
+the silver upgrade's 67.5 % chance to lose a modification too harsh).
+
+- **An upgrade never takes a modification away**, whatever the item holds (reliability, a golden
+  weapon's silver bonus, premium armour's bonuses too).
+- **Success:** as before: one more modification, at the chances of `craft.options`.
+- **Otherwise** (the data's "-1 mod." chance as well as its "nothing"): the price and the donor are
+  spent, the item stays as it was; the window says "you failed to upgrade the item".
+- **Prices, donors, success chances, silver and gold:** unchanged.
+- **The window:** no failure ("-1 mod.") row; the server sends every failure chance as 0 (0x9B).
+  The chances' panel, the prices under it and the window close up by the row's height (23 px), the
+  window's top where it was; the result view is as before.
+- Code: `items_rules::craft`, `wire::craft_tables`, `MessageCraftItem.removeFailureRow`.
+
+## Buy from the slots
+
+The owner's rule: 2026-10-23 ("in upgrade window it should be possible to click on donor /
+upgradable item and press buy").
+
+- **Before:** a click on either slot did nothing (the donor slot only drags), the footer is locked
+  while the window is open (and shows Sell, not Buy, for an owned item), and the slots' items are
+  left out of the list, so with one copy owned there was nothing to right-click: buying another
+  meant closing the window.
+- **Now:** a click (either button) on the item in the main slot or the donor slot gives **Buy**, as
+  the list's Buy: a stock item of the kind at the shop's price, the game's buy dialog, nothing new on
+  the server. The new copy shows in the window's list; the window and its slots stay as they were.
+- **Only Buy** (no Sell: the slot's item is the craft's). An item the shop does not sell, or not to
+  this account (golden, premium, drops, not unlocked): no menu, as in the list.
+- **A drag** of the donor out of its slot (the press moved) gives no menu. Once the result shows,
+  the slots are hidden: nothing.
+- Code: `MessageCraftItem.onSlotDown`, `onSlotClick`; `InventoryList.showCraftSlotMenu`.

@@ -2171,6 +2171,7 @@ va	status	ref_021d	name
 0x0031b530	inferred-medium	0x001edb84	survarium::generic_anomaly_core::deactivate
 0x0031b5b0	inferred-medium	0x001edc0b	survarium::generic_anomaly_core::tick
 0x0031b9f0	inferred-medium	0x001ee043	survarium::generic_anomaly_core::deactivate_damage_zone
+0x0031ba00	inferred-high		survarium::generic_anomaly_core::artefact_respawn_delay
 0x0031bc10	inferred-medium	0x001ee16f	survarium::anomaly_state::initialize
 0x0031bcb0	inferred-medium	0x001ee1f3	survarium::anomaly_state::execute
 0x0031bdf0	inferred-medium	0x001ee2d3	survarium::zone_group::finalize
@@ -2227,6 +2228,7 @@ va	status	ref_021d	name
 0x003285d0	inferred-medium		survarium::game_world_core::dump_game_state
 0x00328860	inferred-medium		survarium::game_world_core::compare_game_state_dumps
 0x0032a420	inferred-medium		survarium::body_part::increase_health
+0x0032a4b0	inferred-medium		survarium::body_part::regenerate
 0x0032b4c0	inferred-medium	0x00200c52	vostok::buffer_vector<stlp_std::pair<enum survarium::hit_affects_type_enum,unsigned int> >::push_back
 0x0032b890	inferred-medium	0x00200de2	vostok::intrusive_list<survarium::body_part_events_subscriber,survarium::body_part_events_subscriber *,64,vostok::threading::single_threading_policy,vostok::no_size_policy,vostok::no_debug_policy>::for_each<vostok::intrusive_list<survarium::body_part_events_subscriber,survarium::body_part_events_subscriber *,64,vostok::threading::single_threading_policy,vostok::no_size_policy,vostok::no_debug_policy>::void_predicate_ref<survarium::notify_damage_received_functor> >
 0x0032b920	inferred-medium	0x00200e5f	vostok::intrusive_list<survarium::body_part_events_subscriber,survarium::body_part_events_subscriber *,64,vostok::threading::single_threading_policy,vostok::no_size_policy,vostok::no_debug_policy>::for_each<vostok::intrusive_list<survarium::body_part_events_subscriber,survarium::body_part_events_subscriber *,64,vostok::threading::single_threading_policy,vostok::no_size_policy,vostok::no_debug_policy>::void_predicate_ref<survarium::notify_fully_regenerated_functor> >
@@ -2257,6 +2259,7 @@ va	status	ref_021d	name
 0x00339db0	inferred-high	0x001f8815	survarium::weapon_core_shotgun_reload_state::weapon_and_hands_expression
 0x0033a900	inferred-medium	0x00209520	boost::detail::function::function_obj_invoker0<boost::_bi::bind_t<bool,boost::_mfi::cmf1<bool,survarium::weapon_core_throw_grenade_state,bool>,boost::_bi::list2<boost::_bi::value<survarium::weapon_core_throw_grenade_state *>,boost::_bi::value<bool> > >,bool>::invoke
 0x0033acf0	inferred-medium		survarium::artefact_spring_core::config::config
+0x0033f3a0	inferred-medium		survarium::armor::add_modifiers
 0x0033f4e0	inferred-medium	0x0020baad	vostok::buffer_vector<survarium::armor::body_part_params>::push_back
 0x0033fd00	inferred-medium		survarium::player_serialized_state::serialize
 0x003402c0	inferred-medium		survarium::hit_player_game_effect_presenter::serialize
@@ -2375,6 +2378,8 @@ va	status	ref_021d	name
 0x00357970	inferred-medium	0x0021c00b	vostok::memory::detail::call_destructor_predicate::operator()<vostok::physics::bt_ghost_object>
 0x00357aa0	inferred-medium	0x0021bed1	vostok::physics::create_ghost_object
 0x00357ba0	inferred-medium	0x0021bf98	vostok::physics::destroy_ghost_object
+0x00357f80	inferred-medium		vostok::configs::apply_add_modifiers
+0x00358010	inferred-medium		vostok::configs::apply_multiply_modifiers
 0x00358d90	inferred-medium	0x00225589	vostok::configs::process_string
 0x00359ca0	inferred-medium	0x00225f59	boost::intrusive::detail::tree_algorithms<boost::intrusive::rbtree_node_traits<void *,0> >::dispose_subtree<boost::intrusive::detail::node_disposer<`vostok::configs::create_binary_config_buffer_impl'::`3'::remap_disposer::crc_disposer,boost::intrusive::rbtree_impl<boost::intrusive::setopt<boost::intrusive::detail::member_hook_traits<vostok::configs::pointer_remap_type,boost::intrusive::set_member_hook<boost::intrusive::none,boost::intrusive::none,boost::intrusive::none,boost::intrusive::none>,12>,vostok::configs::pointer_remap_type::comparer,unsigned int,1> > > >
 0x0035a050	inferred-high	0x002260f8	vostok::memory::stream::append
@@ -3015,6 +3020,9 @@ va	status	ref_021d	name
 0x0086d0a0	inferred-medium	0x006a0dc0	survarium::`dynamic atexit destructor for 'g_file_opener''
 0x0086ec40	inferred-medium	0x00284b61	stlp_std::basic_istream<char,stlp_std::char_traits<char> >::`vbase destructor'
 0x0007f5c0	inferred-medium		vostok::physics::bullet_character_controller::get_transform
+0x002d1ea0	inferred-medium		survarium::game_world_core::rules_on_event
+0x002f5d40	inferred-medium		survarium::shared_statistics::notify_listener
+0x0026db80	inferred-medium		survarium::base_game_statistics_handler::on_event
 0x00125600	inferred-high		vostok::variant<32>::try_get<vostok::configs::binary_config_value>
 0x00125790	inferred-high		vostok::detail::type_to_int<vostok::configs::binary_config_value>::get
 0x0025e660	inferred-high		survarium::artefact_cook::new_derived_resource

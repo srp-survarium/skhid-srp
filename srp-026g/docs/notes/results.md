@@ -198,7 +198,7 @@ So: **a `99` whose reader runs past its end is a crash waiting for its second ti
 | 2 | 16 x u16 | `root.setup_item_craft_prices_general` |
 | 3 | 16 x u16 | `root.setup_item_craft_prices_premium` |
 
-Fixed 112 bytes, no counts, no hazards. **Meaning (PROVEN in the UI, `MessageCraftItem.updateCraftChance`):** a row for each difference in rank between the item and its donor (0, 1, 2); its four values are success and failure in silver, then success and failure in gold, in percent; the two price tables are indexed by the item's level. The values are `gameplay/items/craft/craft.options` (items.md).
+Fixed 112 bytes, no counts, no hazards. **Meaning (PROVEN in the UI, `MessageCraftItem.updateCraftChance`):** a row for each difference in rank between the item and its donor (0, 1, 2); its four values are success and failure in silver, then success and failure in gold, in percent; the two price tables are indexed by the item's level. The values are `gameplay/items/craft/craft.options` (items.md), but every failure is sent as 0: [srp, the owner's rule of 2026-10-23] an upgrade never takes a modification away (`craft-menu.md`).
 
 ---
 

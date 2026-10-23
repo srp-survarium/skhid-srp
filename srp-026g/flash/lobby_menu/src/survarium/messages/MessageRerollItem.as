@@ -31,10 +31,17 @@ package survarium.messages
    public class MessageRerollItem extends MessageAccept
    {
 
-      // The cancel button while the three are offered: the item keeps its modification (the change
-      // stays paid). English, Ukrainian, Russian, German, Polish.
-      private static const KEEP_OLD_LABEL:Array = ["Keep old","Не міняти","Не менять","Behalten","Zostaw stary"];
+      // The window's rule line, in place of the game's st_modifier_reroll_description ("only one
+      // modifier"): any modifier may be changed (the owner's rule of 2026-10-22).
+      private static const REROLL_DESCRIPTION:Array = [
+         "You can change any modifier of an item, any number of times. You then choose one of three random modifiers.",
+         "Можна змінити будь-який модифікатор предмета, скільки завгодно разів. Потім оберіть один із трьох випадкових модифікаторів.",
+         "Можно изменить любой модификатор предмета, сколько угодно раз. Затем выберите один из трёх случайных модификаторов.",
+         "Du kannst jeden Modifikator eines Gegenstands beliebig oft ändern. Danach wählst du einen von drei zufälligen Modifikatoren.",
+         "Możesz zmienić dowolny modyfikator przedmiotu, dowolną liczbę razy. Następnie wybierasz jeden z trzech losowych modyfikatorów."];
 
+      // The original movie places the game's lock hint (one modification an item) on this window;
+      // since any modification may be changed it is not used (configUI hides it).
       public var lockedHint:ToolTip;
       
       public var buttonReroll:Button;
@@ -95,7 +102,7 @@ package survarium.messages
       
       public function MessageRerollItem()
       {
-         trace("MessageRerollItem",this.modifiersList,this.modifiersList2,this.checkBoxRegularCost,this.checkBoxPremiumCost,this.wheels,this.rerollContainer,this.buttonReroll,this.buttonCraft,this.lockedHint);
+         trace("MessageRerollItem",this.modifiersList,this.modifiersList2,this.checkBoxRegularCost,this.checkBoxPremiumCost,this.wheels,this.rerollContainer,this.buttonReroll,this.buttonCraft);
          super();
       }
       
@@ -119,12 +126,17 @@ package survarium.messages
          itemRenderer = new rendererClass();
          this.itemRenderer.x = 10;
          this.itemRenderer.y = 42;
+         // Hovering the item's picture shows its stats tip, the lobby's item tip (as on a profile's
+         // items), its modifications applied (the owner, 2026-10-23). The picture's own back is a
+         // fill of alpha 0, which takes no hover: a 0.01 one over it.
+         this.itemRenderer.tooltipRendererName = "SrvItemHintRednerer";
+         this.itemRenderer.graphics.beginFill(0,0.01);
+         this.itemRenderer.graphics.drawRect(this.itemRenderer.iconRenderer.x,this.itemRenderer.iconRenderer.y,this.itemRenderer.iconRenderer.width,this.itemRenderer.iconRenderer.height);
+         this.itemRenderer.graphics.endFill();
          addChildAt(this.itemRenderer,numChildren - 3);
          super.configUI();
          this.modifiersList.setMaxFit(true);
          btnAccept.label = LocalizationData.getName("reroll");
-         this.lockedHint.tooltipRendererName = "SrvProfileTipRenderer";
-         this.lockedHint.tipData = {name:LocalizationData.getName("reroll_modifier_lock_hint")};
          this.lockedHint.visible = false;
          tabEnabled = true;
          btnAccept.enabled = false;
@@ -135,7 +147,7 @@ package survarium.messages
             trace("in:data::",this.labelText,this.labelChooseModifier,this.decriptionLabel,this.buttonCraft,this.buttonReroll,this.checkBoxRegularCost,this.checkBoxPremiumCost,this.sellerIcon);
             this.labelText.text = LocalizationData.getName("item_modification");
             this.labelChooseModifier.text = LocalizationData.getName("choose_modifier");
-            this.decriptionLabel.text = LocalizationData.getName("modifier_reroll_description");
+            this.decriptionLabel.text = String(REROLL_DESCRIPTION[RoomsText.language()]);
             // Skhid: no "only one attempt in 6 hours" line: silver rerolls have no wait
             // (items_rules: Reroll, the owner's rule of 2026-10-22)
             this.decriptionTimerLabel.text = "";
@@ -248,6 +260,9 @@ package survarium.messages
          this.checkBoxPremiumCost.value = this._rerollCostGold;
          if(modifiers)
          {
+            // The stats tip's item: its modifications as the server has them now (after a choice
+            // too), with the item kind's own, as the inventory composes them.
+            _data.modifiers = modifiers.concat(_data.modifiersDefault ? _data.modifiersDefault : []);
             modifierCount = modifiers.length;
             options = [];
             iconContainer = IconContainer.getInstance("modifiers");
@@ -269,12 +284,12 @@ package survarium.messages
             {
                modifier = modifiers[i];
                modifierIcon = iconContainer.getIcon(modifier.icon);
+               // Skhid: every modifier may be changed, each any number of times (the owner's rule
+               // of 2026-10-22); the one changed last is selected.
                option = {
                   id:modifier.id,
                   icon:modifierIcon,
-                  label:modifier.textValue,
-                  reroll_available:!modifier.was_rerolled_before,
-                  locked:rerolledIndex == i && noneRerolled == false
+                  label:modifier.textValue
                };
                options.push(ModificationRolls.withRange(option,modifier));
                i++;
@@ -284,10 +299,6 @@ package survarium.messages
             if(!noneRerolled && rerolledIndex != -1)
             {
                this.modifiersList.selectedIndex = rerolledIndex;
-               this.modifiersList.enabled = false;
-               this.modifiersList.mouseEnabled = false;
-               this.modifiersList.mouseChildren = false;
-               this.lockedHint.visible = true;
             }
          }
       }
@@ -391,7 +402,6 @@ package survarium.messages
          btnAccept.y = backgroundBottom + 4 - buttonAreaHeight;
          btnCancel.y = btnAccept.y;
          btnAccept.label = LocalizationData.getName(!choosing ? "btn_reroll_change_label" : "btn_reroll_choose_label");
-         btnCancel.label = (!choosing ? LocalizationData.getName("cancel") : String(KEEP_OLD_LABEL[RoomsText.language()])).toUpperCase();
          btnClose.enabled = !choosing;
       }
       
@@ -455,7 +465,8 @@ package survarium.messages
          }
       }
 
-      // While the three are offered the cancel button keeps the old modification: the server's
+      // While the three are offered the game's Cancel button (the stock label MessageAccept sets)
+      // takes none of them: the item keeps its modification, the change stays paid. The server's
       // answer (83 46 08, the old one into itself) fills the window again, as after a choice.
       override protected function onMessageCancel(event:ButtonEvent = null) : void
       {

@@ -2,7 +2,8 @@
 ; Lifebone's heal, one press fires every artefact of its kind. Its numbers
 ; are in the artefacts' configs (release/content.tsv artefacts-1.json); this
 ; is what the stock code could not read or do.
-;   nasm -f bin -DCAVE=0xA42C700 artefacts_026g.asm -o artefacts_026g.section.bin
+; The arena's block artefacts.code (link_026g.py links it; patch_026g.py's
+; ARTEFACTS_HOOKS jump to the six entries by their names).
 ; client_patch.md section 3.51; the rules: ../docs/notes/artefacts.md.
 ;
 ; A Spring (artefact_spring_core, type 6) keeps its config at +340h, filled
@@ -25,7 +26,9 @@
 ; List 42 (artefact_synergy, which no code of 0.26g reads and no config
 ; sets) is the stagger's: a hit's slow is times max(0, 1 + its sum).
 BITS 32
-ORG CAVE
+global artefacts_loader, artefacts_link, artefacts_unlink, artefacts_lifebone, artefacts_fire
+global artefacts_stagger
+section .text
 
 %define CONFIG_CHILD 0xF6B10       ; eax = a config value, edi = a key: eax = its child
 %define ACTIVE_KEY 0xA1C230        ; "active", the loader's own
@@ -48,11 +51,17 @@ ORG CAVE
 %define FIRST_SLOT 13              ; the inventory's artefact slots, 13..18
 %define LAST_SLOT 18
 
+artefacts_loader:
     jmp near loader                ; +0  from 0x33AE13
+artefacts_link:
     jmp near link_active           ; +5  from 0x311BC0
+artefacts_unlink:
     jmp near unlink_active         ; +10 from 0x311DA0
+artefacts_lifebone:
     jmp near lifebone_active       ; +15 from 0x3122AA
+artefacts_fire:
     jmp near fire_kind             ; +20 from 0x313300
+artefacts_stagger:
     jmp near stagger               ; +25 from 0x2DBD89
 
 ; The loader at 0x33AE13 `mov dword [esi+48h],13h` (the active's third

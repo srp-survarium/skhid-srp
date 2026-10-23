@@ -136,7 +136,12 @@ impl Core<'_> {
         let window = items_rules::reroll_window(&who.account.locked(), item_id);
         match window {
             Ok(window) => self.send_reroll_window(who, &window),
-            Err(error) => self.refuse_item(who, id::INVENTORY, "a reroll window", error),
+            Err(error) => self.refuse_item(
+                who,
+                id::INVENTORY,
+                &format!("a reroll window for item {item_id}"),
+                error,
+            ),
         }
     }
 
@@ -156,11 +161,20 @@ impl Core<'_> {
         };
         match rolled {
             Ok((rolled, money)) => {
-                log::info!(
-                    "{} changes modification {modification} of item {item_id} for {:?}",
-                    who.name,
-                    rolled.paid
-                );
+                if rolled.again {
+                    log::info!(
+                        "{} asks to change modification {modification} of item {item_id}: \
+                         the pending offer for {} is shown again, nothing charged",
+                        who.name,
+                        rolled.replaced
+                    );
+                } else {
+                    log::info!(
+                        "{} changes modification {modification} of item {item_id} for {:?}",
+                        who.name,
+                        rolled.paid
+                    );
+                }
                 self.accounts.mark_dirty(who.account_id);
                 self.send(
                     who.addr,
@@ -173,7 +187,12 @@ impl Core<'_> {
                 }
             }
             Err(error) => {
-                self.refuse_item(who, id::INVENTORY, "a reroll", error);
+                self.refuse_item(
+                    who,
+                    id::INVENTORY,
+                    &format!("a reroll of item {item_id}"),
+                    error,
+                );
                 self.refill_reroll_window(who, item_id);
             }
         }
@@ -257,7 +276,9 @@ impl Core<'_> {
                 self.send_made(who.addr, lobby::permitted_repaired(item_id, repaired));
                 self.item_changed(who);
             }
-            Err(error) => self.refuse_item(who, id::SHOP, "a repair", error),
+            Err(error) => {
+                self.refuse_item(who, id::SHOP, &format!("a repair of item {item_id}"), error)
+            }
         }
     }
 

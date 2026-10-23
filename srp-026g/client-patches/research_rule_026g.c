@@ -284,6 +284,10 @@ void rr_left(struct rr_state *state, rr_u8 place) {
 }
 
 rr_u32 rr_leader(const struct rr_state *state) {
+    /* At the goal by the millionths: 100 shown for both (99.5 rounds up)
+     * is not a draw when one team reached 100. */
+    if (state->end_time != RR_NEVER && state->points[0] != state->points[1])
+        return state->points[0] > state->points[1] ? 0 : 1;
     if (state->score[0] > state->score[1]) return 0;
     if (state->score[1] > state->score[0]) return 1;
     return RR_NOBODY;

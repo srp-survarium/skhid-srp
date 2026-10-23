@@ -511,4 +511,44 @@ mod tests {
             .unwrap();
         assert_eq!(covered_slots(zubr.dict_id), [1]);
     }
+
+    /// On a server game data file as `release/build-content` makes it
+    /// (`SRP_TEST_GAME_DATA`), with `protective-mask-1.json` (T28): the
+    /// Protective mask (1816) is a mask like the others, worn in the mask
+    /// slot only and covering no slot, its level, weight and price as the
+    /// face-069d pack made them; no mask covers anything, and only a whole
+    /// suit, worn in the back slot, covers the helmet slot.
+    #[test]
+    #[ignore = "needs SRP_TEST_GAME_DATA: a server-game-data.db made by release/build-content"]
+    fn the_protective_mask_of_the_built_game_data_is_just_a_mask() {
+        use super::super::game_data::GameData;
+        let path = std::env::var_os("SRP_TEST_GAME_DATA").expect("SRP_TEST_GAME_DATA");
+        let data = GameData::open(std::path::Path::new(&path)).unwrap();
+        let file = |path: &str| data.file(path).unwrap_or_else(|| panic!("no {path}"));
+        let dictionary = Dictionary::parse(file(super::super::dictionary::PATH)).unwrap();
+        let params = derive(&data, &dictionary).unwrap();
+        let of = |dict_id: u16| params.iter().find(|row| row.dict_id == dict_id).unwrap();
+        let mask = of(1816);
+        assert_eq!(mask.kind, "arm_mask");
+        assert_eq!((mask.item_level, mask.weight), (10, 1.5));
+        assert!(mask.covered_slots.is_empty());
+        let item = dictionary.item(1816).unwrap();
+        assert_eq!(
+            (item.name.as_str(), item.base_cost),
+            ("face_069d_protective_mask", 13_130)
+        );
+        let slots: Vec<u8> = (0..=6)
+            .filter(|&slot| dictionary.fits(1816, slot))
+            .collect();
+        assert_eq!(slots, [1]);
+        for row in &params {
+            let name = &dictionary.item(row.dict_id).unwrap().name;
+            if row.kind == "arm_mask" {
+                assert!(row.covered_slots.is_empty(), "{name}");
+            }
+            if row.covered_slots.contains(&0) {
+                assert!(dictionary.fits(row.dict_id, 3), "{name}");
+            }
+        }
+    }
 }

@@ -28,6 +28,7 @@ mod drop_cards;
 mod extras;
 mod items;
 mod map_plays;
+mod presets;
 mod results;
 mod room_settings;
 
@@ -136,6 +137,8 @@ const MIGRATIONS: &[&str] = &[
     admin_actions::MIGRATION,
     // 10: the matches an account used a drop card on (`drop_cards`).
     drop_cards::MIGRATION,
+    // 11: an account's kit presets and the active one (`presets`).
+    presets::MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
@@ -475,6 +478,11 @@ pub const GOLDEN_SILVER_GIVEN: &str = "golden_silver_given";
 /// them.
 pub const PREMIUM_ARMOUR_GIVEN: &str = "premium_armour_given";
 
+/// The `g26_meta` key that says every account's autobuy was turned on, and
+/// the accounts were written (`GameAccounts::turn_autobuy_on_once`): it is
+/// written after them.
+pub const AUTOBUY_TURNED_ON: &str = "autobuy_turned_on";
+
 fn schema_version(connection: &Connection) -> Result<i64, PersistError> {
     connection.execute_batch(
         "CREATE TABLE IF NOT EXISTS g26_meta (
@@ -609,6 +617,8 @@ impl GameRepository for SqliteGameRepository {
                         map_plays: Vec::new(),
                         room_settings: None,
                         drop_cards: Vec::new(),
+                        presets: [None; super::presets::PRESETS],
+                        active_preset: super::presets::FIRST_PRESET,
                     },
                 ))
             })?;
@@ -623,6 +633,8 @@ impl GameRepository for SqliteGameRepository {
             account.balance = balance::load(&transaction, account_id)?;
             account.room_settings = room_settings::load(&transaction, account_id)?;
             account.drop_cards = drop_cards::load(&transaction, account_id)?;
+            account.presets = presets::load(&transaction, account_id)?;
+            account.active_preset = presets::load_active(&transaction, account_id)?;
             {
                 let mut statement = transaction.prepare_cached(
                     "SELECT skill_id, points FROM g26_skills WHERE account_id = ?1 ORDER BY seq",
@@ -868,6 +880,8 @@ fn write_account(
     balance::save(transaction, account_id, account.balance)?;
     room_settings::save(transaction, account_id, account.room_settings.as_ref())?;
     drop_cards::save(transaction, account_id, &account.drop_cards)?;
+    presets::save(transaction, account_id, &account.presets)?;
+    presets::save_active(transaction, account_id, account.active_preset)?;
     for (seq, &(skill_id, points)) in account.skills.iter().enumerate() {
         transaction.execute(
             "INSERT INTO g26_skills (account_id, seq, skill_id, points)
@@ -1090,6 +1104,42 @@ mod tests {
         assert_eq!(loaded, [(7, account.clone())]);
         assert_eq!(loaded[0].1.inventory[0].upgrades, [first]);
         assert_eq!(loaded[0].1.inventory[1].upgrades, [second]);
+    }
+
+    /// Reliability no longer rolls (the owner's rule of 2026-10-23,
+    /// docs/notes/no-reliability-roll.md), but items that have it keep it:
+    /// saved, loaded and checked as the server's start does, nothing of
+    /// them changes.
+    #[test]
+    fn items_with_reliability_come_back_with_it() {
+        use survarium::v026g::dictionary::Dictionary;
+        use survarium::v026g::lobby::FULL_CONDITION;
+
+        let temp = TempDb::new("reliability");
+        let dict = |name| Dictionary::shared().item_named(name).unwrap().dict_id;
+        let mut account = Account::new("Alice");
+        let mut give = |name, modifications: &[u32]| {
+            let item_id = account.add_item(dict(name), FULL_CONDITION);
+            account.item_mut(item_id).unwrap().modifications =
+                modifications.iter().map(|&id| (id, false)).collect();
+            item_id
+        };
+        let rifle = give("ak_74m", &[2093, 2000]);
+        let backpack = give("scav_back_1", &[1062, 1120, 1204]);
+        let mut repository = SqliteGameRepository::open(&temp.path()).unwrap();
+        repository.save(7, &account).unwrap();
+        let mut loaded = repository.load_all().unwrap();
+        assert_eq!(loaded, [(7, account.clone())]);
+        let loaded = &mut loaded[0].1;
+        assert!(!loaded.repair(), "nothing to mend");
+        assert_eq!(
+            loaded.item(rifle).unwrap().modifications,
+            [(2093, false), (2000, false)]
+        );
+        assert_eq!(
+            loaded.item(backpack).unwrap().modifications,
+            [(1062, false), (1120, false), (1204, false)]
+        );
     }
 
     #[test]

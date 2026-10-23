@@ -44,6 +44,7 @@ pub mod notices;
 pub mod pay;
 pub mod persist;
 pub mod premium;
+pub mod presets;
 pub mod pvb;
 pub mod quests;
 pub mod replays;
@@ -275,7 +276,9 @@ impl GameAccounts {
     /// rule, every golden weapon in it gets the silver bonus as its own
     /// first modification ([`Self::give_golden_silver_once`]); the first
     /// time with the premium-armour rule, every premium armour piece its
-    /// premium bonuses ([`Self::give_premium_armour_bonuses_once`]).
+    /// premium bonuses ([`Self::give_premium_armour_bonuses_once`]); the
+    /// first time with autobuy on by default, every account's autobuy is
+    /// turned on ([`Self::turn_autobuy_on_once`]).
     pub fn from_env() -> Result<Self, PersistError> {
         match SqliteGameRepository::from_env()? {
             Some(mut repository) => {
@@ -283,6 +286,7 @@ impl GameAccounts {
                 let store = Self::with_repository(Box::new(repository))?;
                 store.give_golden_silver_once()?;
                 store.give_premium_armour_bonuses_once()?;
+                store.turn_autobuy_on_once()?;
                 if mend {
                     let (items, accounts) = store.mend_gear();
                     store.flush();
@@ -334,6 +338,65 @@ impl GameAccounts {
     /// is logged.
     pub fn give_premium_armour_bonuses(&self) -> (usize, Vec<u32>) {
         self.grant(&PREMIUM_ARMOUR_BONUSES)
+    }
+
+    /// Every account's autobuy turned on, once in the database's life
+    /// (`persist::AUTOBUY_TURNED_ON`; the owner's of 2026-10-23: on by
+    /// default). An account keeps only the box's state, not whether its
+    /// player ever touched it, so each account of before gets it on once; a
+    /// box turned off later stays off. A new account starts with it on
+    /// ([`Account::with_loadout`]). A mark, not a schema step: an older srp
+    /// still opens the database (a rollback keeps it). The accounts changed
+    /// are written first and the mark after them, as [`Self::grant_once`]
+    /// does: an account not written stops the start, and the next start
+    /// turns on those still off. Returns the accounts turned on; `None` when
+    /// it was done before, or for a store kept in memory.
+    pub fn turn_autobuy_on_once(&self) -> Result<Option<usize>, PersistError> {
+        let Some(writer) = &self.writer else {
+            return Ok(None);
+        };
+        let done = writer
+            .locked()
+            .repository
+            .is_done(persist::AUTOBUY_TURNED_ON)?;
+        if done {
+            return Ok(None);
+        }
+        let accounts: Vec<(u32, Arc<Mutex<Account>>)> = self
+            .accounts
+            .locked()
+            .iter()
+            .map(|(&id, account)| (id, Arc::clone(account)))
+            .collect();
+        let mut changed = Vec::new();
+        for (account_id, account) in accounts {
+            let turned = {
+                let mut account = account.locked();
+                !std::mem::replace(&mut account.autobuy, true)
+            };
+            if turned {
+                changed.push(account_id);
+                self.mark_dirty(account_id);
+            }
+        }
+        self.flush();
+        let unsaved: Vec<u32> = changed
+            .iter()
+            .copied()
+            .filter(|&account_id| self.is_dirty(account_id))
+            .collect();
+        if !unsaved.is_empty() {
+            return Err(PersistError::NotWritten(format!(
+                "autobuy turned on at start was not written for accounts {unsaved:?}; srp does \
+                 not start, and the next start turns it on for the accounts still without it"
+            )));
+        }
+        writer
+            .locked()
+            .repository
+            .mark_done(persist::AUTOBUY_TURNED_ON)?;
+        log::info!("Autobuy turned on for {} accounts, once", changed.len());
+        Ok(Some(changed.len()))
     }
 
     /// `grant` once in the database's life. The accounts it changed are
@@ -881,6 +944,48 @@ mod tests {
         assert!(!store.is_dirty(5));
         assert_eq!(store.flush(), 0);
         assert!(Arc::new(store).spawn_saver().is_none());
+    }
+
+    #[test]
+    fn autobuy_is_turned_on_once_for_every_account() {
+        // A new account starts with it on.
+        assert!(Account::new("Carol").autobuy);
+        let repository = MemoryGameRepository::default();
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        // Alice and Bob as the store had them: Alice off, Bob on.
+        store.get_or_create(5, "Alice").locked().autobuy = false;
+        store.get_or_create(6, "Bob");
+        store.flush();
+        let autobuy = |repository: &MemoryGameRepository, account_id| {
+            repository.get(account_id).unwrap().autobuy
+        };
+        let mut marks = repository.clone();
+
+        // The write fails: not marked done, and srp does not start.
+        repository.fail_account_saves(true);
+        let error = store.turn_autobuy_on_once().unwrap_err();
+        assert!(matches!(error, PersistError::NotWritten(_)), "{error}");
+        assert!(error.to_string().contains("accounts [5]"), "{error}");
+        assert!(!autobuy(&repository, 5));
+        assert!(!marks.is_done(persist::AUTOBUY_TURNED_ON).unwrap());
+
+        // The next start turns it on, writes it, then marks it done.
+        repository.fail_account_saves(false);
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        assert_eq!(store.turn_autobuy_on_once().unwrap(), Some(1));
+        assert!(autobuy(&repository, 5) && autobuy(&repository, 6));
+        assert!(marks.is_done(persist::AUTOBUY_TURNED_ON).unwrap());
+
+        // Once: turned off after, it stays off at later starts.
+        store.get(5).unwrap().locked().autobuy = false;
+        store.mark_dirty(5);
+        store.flush();
+        let store = GameAccounts::with_repository(Box::new(repository.clone())).unwrap();
+        assert_eq!(store.turn_autobuy_on_once().unwrap(), None);
+        assert!(!autobuy(&repository, 5));
+        assert!(!store.get(5).unwrap().locked().autobuy);
+        // A store kept in memory has no marks and nothing to do once.
+        assert_eq!(GameAccounts::new().turn_autobuy_on_once().unwrap(), None);
     }
 
     #[test]

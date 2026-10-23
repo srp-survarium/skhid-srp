@@ -22,6 +22,40 @@ only `gameplay/` (the server game data holds only the files srp reads).
 `content_edit.py` runs on its own for a check (`--check`) on a folder of files at their game paths
 (`srp-game-data get --db <resources.db> --patch <patch>... --out live/ <path>...`).
 
+### The value-type check
+
+`release/build-content` also runs `release/content_type_check.py` over every file a pack or an edit
+makes, value by value (types: a float2/3/4, an indexed table, an int, a float, a string, a named
+table):
+
+- a value at a key path the previous version of the file has keeps the type it had there; a list
+  entry is itself in that path, by its `game_object_type` and its own `full_name` or `name`
+  (`client_objects[light:bulb_2]/intensity`), else by its index, so an entry an edit moved or took
+  out is never compared with the one now at its index;
+- a value at a path new to the file, where 0.26g already uses that structural path (any base
+  config: items, materials, model settings, projects; and the file's previous version), has one of
+  the types used there; a path 0.26g has no precedent for is free;
+- a file at a config path (`.options`, `.raw_options`, `.material`, `/settings`,
+  `/export_properties`, `/hit_targets`, `/client_project`) that the reader refuses (a table out of
+  CRC order, a broken record) stops the build; it is never skipped. The same for every base config.
+  (A root that is not a table is a config there: base patch 19's ported textures' `.options` are a
+  lone `true`.)
+
+A new key that has to take another type than 0.26g's goes in `build_content.py`'s `TYPE_ALLOWLIST`
+as (game path, structural path) with the reason; a row never lets a key that exists change its
+type. It is empty: today's content needs none. The check fails with the file, the path, the old type
+and the new type, and no patch is made. It reuses this folder's `content_edit.py` as the reader
+(`walk`) and names structural paths as Research's pack builder does
+(`scripts/research-mode/make_pack.py`): a list entry by its `game_object_type`
+(`client_objects[respawn_point]/position`), otherwise `[]`, a colour ramp's `key0`, `key1`, ... as
+`key#`. So it is make_pack.py's pack-time check applied at release time to every pack and edit
+list, whoever built it.
+
+This catches the two Research pack bugs (#297) that got past every other check: the builder wrote
+every vector (float2/3/4) as an indexed table through a `json.loads(json.dumps(...))` round-trip, so
+the game, which reads vectors raw, loaded scrambled levels. A vector rewritten as a list is exactly
+what it refuses (`release/test.sh` has the negative test; today's content passes it unchanged).
+
 Then run `weapon_balance_1_changes_only_its_values`
 (`crates/survarium/src/v026g/maps.rs`, ignored: it needs `SRP_TEST_RESOURCES_DB`,
 `SRP_TEST_SKHID_PATCHES` and `SRP_TEST_PATCH_WEAPON_BALANCE_1`) when a change touches its files. The
@@ -169,6 +203,18 @@ pair by its two materials). Applied to the stock resources.db's files (no Skhid 
 them): 1,578 files edited (1,577 new, 1,012 of them byte for byte), 0 unexpected differences;
 every new name a pair, collection or composite gives resolves to a new file. Sound only: no
 simulation change, nothing in the server game data.
+
+## crouch-steps-2.json (2026-10-23)
+
+| change | why |
+|---|---|
+| The 16 moving crouch clips (`animations/single/weapons/ak/player/crouch/3rd_view/`: `forward`, `backward`, `left`, `right`, the four diagonals and their `aimed_` versions; every weapon's crouch body plays them): a second event channel `player_sound_events` (type 2), knots 2 and 17 of the 30 frames, each with the domain value (0 or 1, the foot) of the `anim_intervals` domain it starts in. The bone tracks byte for byte | T27, the owner: "for some reason we added sounds but the movement is still silent when crouching". A step is an animation event: only clips with this channel call `on_foot_step`, and the crouch clips had only `anim_intervals`, so crouch-steps-1's pairs never played (`docs/notes/crouch_steps.md`). Run and sprint have it the same way (2 frames after each interval knot, its domain value), and so do 0.31a2's crouch clips (2 and 17) |
+
+New edit for it: `add_event_channel` (an animation clip, not a config: its live channels checked,
+one appended; `clip_parse` reads all 777 clips of the live game back byte for byte). Applied to the
+stock clips (no Skhid patch carries them): 16 files edited, 48 bytes longer each (a 16-byte header,
+32 bytes of knots, domains and name). Sound only: no simulation change, nothing in the server game
+data.
 ## lobby-bench-light-1.json (2026-10-21)
 
 | change | why |
@@ -319,6 +365,58 @@ at 0 unexpected differences, the scene packed over patch 27's. Rendering and
 sound only: no server data, no simulation change. `client_project.lua` (the editor's text of the
 scene, which the game does not read) is left as it is.
 
+## ban-texts-1.json (2026-10-22)
+
+| change | why |
+|---|---|
+| `st_login_menu_status_user_banned` -> "You are banned. " (and its five translations), in the six localization tables | the stock header said "(Use / distribution / advertisement of prohibited software)" for every ban, whatever the reason. The client puts the reason text right after it, with no space: the new text ends in one |
+| `st_ban_reason_administrator` -> "Decision of the administration." (Entscheidung der Administration, Decyzja administracji, Решение администрации, Рішення адміністрації) | the login server sends this code (0x1C) for an admin's reason with none of its words (`BAN_REASONS`, login-server `v026g.rs`), meant as the neutral one; its stock text was "Pretending to be administrator of the game". A player banned 1 h for friendly fire read both stock texts (the owner, 2026-10-22) |
+
+Applied to revision 29's live tables (from the stock db and patches 12 to 29): 6 files edited, 0 unexpected differences. Text only: no server data, no simulation change.
+
+## third-mod-1.json (2026-10-23)
+
+| change | why |
+|---|---|
+| The 15 masks and respirators (the stock nine, `bandit_026` 1810, the 0.69d masks 1812-1816, `army_026` 1823) may roll type 13 Armor (1000-1004: +2, +3, +4, +5, +8; a mask has only its face values), character 12 of `parameters/available_modifications_mask` set (`0000000000000000010000000000010100000000` -> `0000000000001000010000000000010100000000`) | reliability (type 32) no longer rolls (wear is off since #35, `docs/notes/no-reliability-roll.md`), which left them weight and anomaly filters only; the owner's pick (2026-10-23) |
+| The four oxygen packs (`scavenger_oxygen_1`, `edge_back_3`, `ren_back_3`, `ren_back_5`) may roll type 24 Weight limit (1120-1124: +1..+5 kg) and type 28 Energy costs (1160-1164: −2..−10 %), characters 23 and 27 (`0000000000000000010000000000001100000000` -> `0000000000000000010000010001001100000000`) | the same: weight and oxygen were left; the owner's pick |
+| The Pilgrim container (`edge_back_6`) may roll type 28 Energy costs, character 27 (`backpacks-1.json`'s `0000000000000011110010010000100100000000` -> `0000000000000011110010010001100100000000`) | its default Regeneration (1094) takes the type `backpacks-1.json` added, so it was left with weight and weight limit; the owner's pick |
+
+Only srp reads the masks: the client shows whatever modification the server sends, from its own
+`modifications.options`. Applied to revision 29's live files (from the stock db and patches 12 to
+29, after `backpacks-1.json`): 20 files edited, 0 unexpected differences. With it every item that
+rolls has three types or more besides reliability
+(`modifications::tests::every_item_of_the_built_game_data_rolls_three_types` on the built server
+game data). No simulation change: a match applies only the modifications an item has.
+
+## artefact-texts-1.json (2026-10-23)
+
+| change | why |
+|---|---|
+| `st_spring_pickup_hint`: movement speed by 2 % -> "movement speed and aiming speed by 5 %" (German said 5 % already) | `artefacts-1.json`: passive movement speed +5 %, aim time -5 % (the gloves' texts call aim time "aiming speed") |
+| `st_spring_activation_hint`: "Speed of movement and aiming +10 %" (German's total +15 %), and "Bullets do not slow you!" | the active's aim time -10 % and `stopping_power_mod` -1 (client patch 54) |
+| `st_lifebone_activation_hint`: "Health restored!" after the cured wounds | patch 54 fills pain, body and head at the active; the pickup hint ("increases health regeneration") is still right |
+| `st_onyx_pickup_hint` 10 % -> 5 % (German "auf 15 %" -> "um 5 %"), `st_onyx_activation_hint` 95 % -> 90 % (German "auf 90 %" -> "um 90 %") | stock mistakes: `damage_mul` and `armor_piercing_mul` are 0.95 passive, 0.1 active, never both |
+
+These hints are the artefacts' only texts: fixed sentences in the localization tables (`data/pickup_hint`,
+`data/activation_hint`), nothing computed from the config; an artefact has no lobby card (its `ui_desc`
+name and description keys have no text, `props_list` is empty). The "Onyx artifact." / "Артефакт Онікс."
+openings, which the maps tab and the damage calculator take the names from, stay. Applied to revision
+29's live tables: 6 files edited, 0 unexpected differences.
+Text only: no server data, no simulation change.
+
+## protective-mask-1.json (2026-10-23)
+
+| change | why |
+|---|---|
+| The Protective mask (1816, `face_069d_protective_mask`, the face-069d pack) no longer covers the helmet slot: `helmet` out of its `data/additional_model_slots` (`remove_item` of a string; `['helmet']` -> `[]`, as the other ported masks have it) | the owner, 2026-10-23 (Skhid T28): "the hunter mask should just be a mask"; players asked to wear a helmet with it. The client's paperdoll locks the cells of the slots an item covers, and srp reads them from the same config (`item_params::covered_slots`), so a helmet now goes on with it |
+
+It stays in the mask slot (its dictionary category fits no other), so the kits that wear it need
+no repair: their helmet slot is empty and can now be filled. Its level, weight, price, armour and
+modifications are unchanged (`item_params::tests::the_protective_mask_of_the_built_game_data_is_just_a_mask`
+on the built server game data). Its model is the pack's, fitted over the bare head: with a helmet
+it shows through most helmets (`docs/notes/masks-pack.md`). Applied to revision 30's live files: 1
+file edited, 0 unexpected differences. No simulation change: the slot rule is the lobby's.
 ## sponge-spawns-1.json (2026-10-22)
 
 | change | why |

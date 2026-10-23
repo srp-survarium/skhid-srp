@@ -23,8 +23,9 @@ data: `scripts/content-edit/golden-weapons-1.json`; the lobby: `ItemDictId` (the
 - **Upgradable as the plain weapon:** the same craft and reroll rules, places, chances and
   prices (same item level).
 - **Rolls like any modification, the silver bonus too** (owner: "modifications on premium
-  weapons can be rolled too (even silver)"): a reroll may replace it, a failed craft may take
-  it. Once gone it does not come back by itself (it never rolls: drop weight 0).
+  weapons can be rolled too (even silver)"): a reroll may replace it. A failed craft no longer
+  takes it (owner 2026-10-23: an upgrade never takes a modification away, `craft-menu.md`). Once
+  gone it does not come back by itself (it never rolls: drop weight 0).
 - **Craft donors** (owner: "you should be able to use simple AK-12's and non-premium weapons
   for crafting"):
   - golden weapon + its plain weapon as donor: yes, it stays golden;

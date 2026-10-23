@@ -42,6 +42,8 @@ LIFEBONE_ACTIVE = 0x312250               # thiscall (time), `ret 4`
 ACTION = 0x313300                        # thiscall (pressed, time), `ret 8`
 NOTIFY, THRESHOLDS = 0x32B920, 0x32A9C0  # increase_health's notifications: stubs
 STAGGER = 0x2DBCD0                       # eax = the player; (time), `ret 4`
+INVENTORY_ACTION = 0x2FCAA0              # edi = the inventory; (slot, pressed, time), `ret 0Ch`
+SPRING_ENABLE, SPRING_DISABLE = 0x3118D0, 0x311970   # thiscall: (time) `ret 4`; () `ret`
 MOVEMENT, STAMINA_REGEN, MAX_WEIGHT, STAMINA_SPEND, AIM_TIME, STOPPING = 4, 3, 5, 19, 49, 42
 AIM_NODE, STOP_NODE = 0x3B8, 0x3C8
 
@@ -377,6 +379,44 @@ def run(data, patched):
     g.call(ACTION, (1, 1500), ecx=cooling)
     expect(g.pressed == ([ready] if patched else []) and g.read(ready + 0x280) == (4 if patched else 3)
            and g.read(cooling + 0x280) == 3, "a cooling one's key fires the ready one of its kind")
+
+    # Through the game's own callers, with what they pass: inventory::action
+    # 0x2FCAA0 (edi = the inventory; slot, pressed, time) calls the pressed
+    # item's vtable +2Ch (artefact_base::action, our entry) with (pressed,
+    # time); its activation calls each Spring's own enable_active 0x3118D0
+    # (thiscall, the time), which calls the active's link 0x311BC0 (ours
+    # first) with eax = the Spring; the active's end, disable_active 0x311970
+    # (thiscall), calls its unlink 0x311DA0 (ours first) with the Spring
+    # pushed.
+    g = Game(data)
+    inventory = g.inventory()
+    spring_vt = g.block(0x100)
+    g.word(spring_vt + 0x2C, ACTION)
+    g.word(spring_vt + 0x80, SPRING_ENABLE)
+    one, two = g.spring(SPRING), g.spring(SPRING)
+    for slot, s in ((13, one), (14, two)):
+        g.word(s, spring_vt)
+        g.word(s + 0x24C, 1)
+        g.word(s + 0x280, 3)
+        g.word(s + 0xD0, 1)                    # a reference held, as by the inventory
+        g.word(inventory + 0x10C + 4 * slot, s)
+        g.call(PASSIVE_LINK, eax=s)
+    g.call(INVENTORY_ACTION, (13, 1, 2000), edi=inventory)
+    expect([g.read(s + 0x280) for s in (one, two)] == ([4, 4] if patched else [4, 3])
+           and g.read(two + 0x2A0) == (2000 if patched else 0),
+           "the slot's key through inventory::action 0x2FCAA0 (slot, pressed, time): "
+           + ("both Springs active at its time" if patched else "the pressed Spring alone"))
+    expect(g.modifier(AIM_TIME, 1.0) == (0.7 if patched else 1.0)
+           and g.modifier(MOVEMENT, 1.0) == (1.3 if patched else 1.2)
+           and g.listed(STOPPING) == ([-1.0, -1.0] if patched else []),
+           "their active nodes linked by the game's enable_active 0x3118D0 (eax = the Spring at 0x311946)")
+    g.call(SPRING_DISABLE, ecx=one)
+    expect(g.modifier(AIM_TIME, 1.0) == (0.8 if patched else 1.0)
+           and g.listed(STOPPING) == ([-1.0] if patched else []) and g.count(STOPPING) == (1 if patched else 0),
+           "one active's end through disable_active 0x311970 (the Spring pushed at 0x311973): its nodes out")
+    g.call(INVENTORY_ACTION, (13, 0, 2100), edi=inventory)
+    expect(g.read(one + 0x280) == 4 and g.read(one + 0xD0) == 1 and g.read(two + 0xD0) == 1,
+           "a key-up through inventory::action: nothing, the reference given back")
     return checks
 
 

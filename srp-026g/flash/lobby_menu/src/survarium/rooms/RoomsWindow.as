@@ -17,6 +17,7 @@ package survarium.rooms
     import survarium.controls.BottomPanel;
     import survarium.controls.Message;
     import survarium.controls.SrvContextMenu;
+    import survarium.player.LocalPlayerProfile;
     import survarium.controls.TopMenu;
     import survarium.constants.JoinHold;
     import survarium.constants.RoomCode;
@@ -106,6 +107,16 @@ package survarium.rooms
         // Play was pressed and its answer has not come yet: Play stays grey
         // (until then; then while in a room).
         private var _playAskedAt:int = 0;
+
+        // When Play (quickPlay) opened the window (0: it did not, or that is
+        // settled): a refusal of the kit (code 15) within PLAY_OPEN_MS closes
+        // it again, so a refused Play leaves no rooms view behind
+        // (presets.md). A poll's plain answer before Play's own keeps it;
+        // a room, another code, the window closed, or a Join or New room in
+        // it end it.
+        private static const PLAY_OPEN_MS:int = 6000;
+
+        internal var _openedByPlayAt:int = 0;
         // The list as last drawn, but its times: a change redraws it.
         private var _listSig:String = "";
         private var _windowsSeen:Object = {};
@@ -133,6 +144,11 @@ package survarium.rooms
         // Our room went while the results were up: the window, drawn as it
         // was, waits under them and is hidden as they close.
         private var _hideAfterResults:Boolean = false;
+        // A join (or Play) waiting for its kit preset offer (`S1;O`,
+        // presets.md): {room, play, at}; and the offer shown, the popup over
+        // the view: {kind, preset, level, gear, max, room, play}.
+        internal var _offerAsk:Object = null;
+        internal var _offer:Object = null;
 
         // PlayerRanking.fillPlayers, first: rows of the rooms' range are
         // the window's answers (true: taken).
@@ -240,7 +256,34 @@ package survarium.rooms
         {
             _lobby = lobby;
             _nativePlay = on;
+            // The lobby is live: the presets' reasons may now come (their
+            // fallback counts from here).
+            LocalPlayerProfile.lobbyLive();
             applyPlay();
+        }
+
+        // RoomsList's empty-list hint: whether Play is lit now (the game's
+        // own state and ours).
+        internal function playLit():Boolean
+        {
+            try
+            {
+                var lobby:LobbyMenu = _lobby != null ? _lobby : parent as LobbyMenu;
+                return lobby != null && lobby.statusPanel.playBtn.enabled && !leavesRoom() && !leavesQueue();
+            }
+            catch (e:Error)
+            {
+            }
+            return false;
+        }
+
+        // LocalPlayerProfile, a presets list taken: whether the kits can play
+        // may have changed: Play and the list's Join again.
+        public function kitsChanged():void
+        {
+            applyPlay();
+            if (_shown && _view == "list" && _offer == null)
+                render();
         }
 
         // StatusPanel's Play in a room ("Leave room"): out of the room.
@@ -464,14 +507,16 @@ package survarium.rooms
         // until its answer (6 s at most).
         internal function applyPlay(each:Boolean = false):void
         {
-            if (_lobby == null)
+            // Before the game's first word on Play, the lobby we are in.
+            var lobby:LobbyMenu = _lobby != null ? _lobby : parent as LobbyMenu;
+            if (lobby == null)
                 return;
             try
             {
                 var leaving:Boolean = leavesRoom();
                 var queued:Boolean = !leaving && leavesQueue();
                 var asking:Boolean = _playAskedAt != 0 && getTimer() - _playAskedAt < 6000;
-                _lobby.statusPanel.showRoomsPlay(leaving, queued, asking, each, _nativePlay,
+                lobby.statusPanel.showRoomsPlay(leaving, queued, asking, each, _nativePlay,
                     say(leaving ? "leaveRoom" : "leaveQueue"));
             }
             catch (e:Error)
@@ -503,12 +548,21 @@ package survarium.rooms
         {
             _code = RoomCode.NONE;
             _steps = [];
+            _openedByPlayAt = _shown ? 0 : Math.max(1, getTimer());
             if (!_shown)
                 show(true);
             _fastUntil = getTimer() + 10000;
             _playAskedAt = getTimer();
             applyPlay();
-            ask(RoomsWire.PLAY, 1);
+            // From no room: whether the room Play takes offers a kit preset first.
+            if (_room == null && _queueKey == 0)
+            {
+                _offer = null;
+                _offerAsk = {"room": null, "play": true, "at": getTimer()};
+                ask(RoomsWire.OFFER, 1);
+            }
+            else
+                ask(RoomsWire.PLAY, 1);
         }
 
         // The results screen is up (over our window, after a match): Esc and
@@ -529,6 +583,11 @@ package survarium.rooms
         public function show(value:Boolean):void
         {
             _hideAfterResults = false;
+            if (!value)
+            {
+                _offer = null;
+                _openedByPlayAt = 0;
+            }
             _shown = value;
             visible = value;
             // Enter in the list joins the room chosen (once on the stage).
@@ -663,6 +722,8 @@ package survarium.rooms
             // No answer to Play (or Leave) within 6 s: the button is back. Silence never drops the
             // room: during a match the lobby may not answer, and the next
             // answer says where we are.
+            if (_offerAsk != null && _now - _offerAsk.at >= 6000)
+                _offerAsk = null;
             if (_playAskedAt != 0 && _now - _playAskedAt >= 6000)
             {
                 _playAskedAt = 0;
@@ -824,6 +885,8 @@ package survarium.rooms
             {
                 next();
             }
+            else if (kind == "O")
+                takeOffer(head);
             else if (kind == "G")
                 takeMembers(head, rows);
             else if (kind == "Y")
@@ -847,6 +910,18 @@ package survarium.rooms
                 var newCode:Boolean = code != _code;
                 _code = code;
                 applyPlay();
+                if (_openedByPlayAt != 0 && code == RoomCode.KIT_CANT_PLAY
+                    && getTimer() - _openedByPlayAt < PLAY_OPEN_MS)
+                {
+                    _openedByPlayAt = 0;
+                    _code = RoomCode.NONE;
+                    applyPlay();
+                    if (_shown)
+                        show(false);
+                    return;
+                }
+                if (code != RoomCode.NONE)
+                    _openedByPlayAt = 0;
                 var wasRoom:Boolean = _view == "room";
                 if (had || wasRoom)
                     _view = "list";
@@ -870,6 +945,7 @@ package survarium.rooms
             else if (kind == "R")
             {
                 settle();
+                _openedByPlayAt = 0;
                 _queueKey = 0;
                 _queuePlace = 0;
                 var was:Object = _room;
@@ -1078,6 +1154,8 @@ package survarium.rooms
                 createView.render();
             else
                 listView.render();
+            if (_offer != null)
+                drawOffer();
         }
 
         // The header's two tabs while we are in a room (the owner's of
@@ -1141,9 +1219,120 @@ package survarium.rooms
             askMembers(true);
         }
 
+        // A join from the list: first whether it offers one of our kit
+        // presets (presets.md); the server answers `S1;O` (takeOffer).
+        internal function askOffer(room:Object):void
+        {
+            _offer = null;
+            _offerAsk = {"room": room, "play": false, "at": getTimer()};
+            ask(RoomsWire.OFFER + int(room.key), 1);
+        }
+
+        // `S1;O;<key>;<kind>;<preset>;<level>;<gear>;<max>`: kind 0 joins as
+        // asked; 1 (the room allows more than our kits), 2 (our gear is over
+        // its max) and 3 (our kits can not play, preset n can) show the popup.
+        private function takeOffer(head:Array):void
+        {
+            var asked:Object = _offerAsk;
+            if (asked == null)
+                return;
+            _offerAsk = null;
+            var kind:int = int(head[3]);
+            if (kind != 1 && kind != 2 && kind != 3)
+            {
+                goOn(asked, 0);
+                return;
+            }
+            _offer = {"kind": kind, "preset": int(head[4]), "level": int(head[5]), "gear": int(head[6]),
+                "max": int(head[7]), "room": asked.room, "play": asked.play};
+            _busyAt = 0;
+            _playAskedAt = 0;
+            applyPlay();
+            if (!_shown)
+                show(true);
+            else
+                render();
+        }
+
+        // The join (or Play) asked, with `preset` put on first (0: none).
+        private function goOn(asked:Object, preset:int):void
+        {
+            if (!asked.play)
+            {
+                listView.joinWith(asked.room, preset);
+                return;
+            }
+            _fastUntil = getTimer() + 10000;
+            _playAskedAt = getTimer();
+            applyPlay();
+            ask(preset > 0 ? RoomsWire.PRESET + (preset - 1) * RoomsWire.PRESET_STEP : RoomsWire.PLAY, 1);
+        }
+
+        // The popup over the view: why, then "Enter anyway" (or "Exit") and
+        // "Switch and enter". The view under it takes no press meanwhile.
+        private function drawOffer():void
+        {
+            look._routes = [];
+            var cover:Sprite = new Sprite();
+            cover.graphics.beginFill(0x000000, 0.6);
+            cover.graphics.drawRect(0, 0, look._w, look._h);
+            cover.graphics.endFill();
+            look._content.addChild(cover);
+            var w:Number = 560;
+            var h:Number = 150;
+            var x:Number = int((look._w - w) / 2);
+            var y:Number = int((look._h - h) / 2);
+            var box:Shape = new Shape();
+            box.graphics.beginFill(0x3A3E44, 1);
+            box.graphics.drawRect(x, y, w, h);
+            box.graphics.endFill();
+            box.graphics.beginFill(0x131517, 1);
+            box.graphics.drawRect(x + 1, y + 1, w - 2, h - 2);
+            box.graphics.endFill();
+            look._content.addChild(box);
+            var text:String = say(_offer.kind == 1 ? "offerHigher" : _offer.kind == 3 ? "offerUnfit" : "offerFits");
+            text = text.split("{max}").join(String(_offer.max)).split("{gear}").join(String(_offer.gear))
+                .split("{n}").join(String(_offer.preset)).split("{level}").join(String(_offer.level));
+            var tf:TextField = look.text(look._content, "", x + 20, y + 18, w - 40, 15, RoomsLook.LIGHT, "center");
+            tf.multiline = true;
+            tf.wordWrap = true;
+            tf.height = 48;
+            tf.text = text;
+            var bw:Number = 200;
+            var by:Number = y + h - 50;
+            look.button(look._content, say(_offer.kind == 1 ? "enterAnyway" : "exit"), x + w / 2 - bw - 8, by, bw,
+                _offer.kind == 1 ? onOfferAsIs : onOfferExit, null, 32);
+            look.button(look._content, say("switchEnter"), x + w / 2 + 8, by, bw, onOfferSwitch, null, 32, true);
+        }
+
+        private function onOfferAsIs(e:Event):void
+        {
+            var offer:Object = _offer;
+            _offer = null;
+            if (offer != null)
+                goOn(offer, 0);
+            render();
+        }
+
+        private function onOfferSwitch(e:Event):void
+        {
+            var offer:Object = _offer;
+            _offer = null;
+            if (offer != null)
+                goOn(offer, int(offer.preset));
+            render();
+        }
+
+        private function onOfferExit(e:Event):void
+        {
+            _offer = null;
+            render();
+        }
+
         internal function message(y:Number):void
         {
-            if (_code != RoomCode.NONE)
+            // A kit that can not play: no word (Play and Join are greyed).
+            if (_code != RoomCode.NONE && _code != RoomCode.KIT_CANT_PLAY)
                 look.text(look._content, _code < RoomCode.NONE ? say("pin4") : say("code" + _code), 14, y, look._w - 28, 15, 0xFF8A7A);
         }
 

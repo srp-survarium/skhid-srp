@@ -65,7 +65,6 @@ use survarium::v026g::lobby::requests::id;
 use survarium::v026g::lobby::{self, PvbCode, PvbMap, PvbNumbers, PvbStatus};
 use survarium::v026g::maps::{self, MapMode};
 
-use super::MAINTENANCE_WINDOW;
 use super::core::{Core, Who};
 
 /// The game's text for a Play the choice no longer makes: "Error changing
@@ -264,11 +263,7 @@ impl Core<'_> {
         if matchmaking::gear_level(&who.account.locked(), quests::now()) > config.max_gear {
             return Err(PvbCode::GearTooHigh);
         }
-        if self
-            .store
-            .minutes_to_maintenance()
-            .is_some_and(|minutes| minutes <= MAINTENANCE_WINDOW)
-        {
+        if self.maintenance_is_near() {
             return Err(PvbCode::Maintenance);
         }
         if self.pvb_running() + self.pvb_held(who.account_id, now) >= config.max_matches {

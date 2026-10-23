@@ -905,6 +905,7 @@ va	name	source	ret_cleanup	result
 0x001feed0	survarium::text_translator::load_text_localization	manual	4	
 0x001ff0f0	survarium::text_translator::translate_text	manual	8	
 0x001ff240	survarium::text_translator::on_texts_ready	manual	4	
+0x00206670	survarium::timelimit_rule_cook::create_resource	manual	8	EAX: a new timelimit_rule (0x158 bytes, 0x267A40), 0 when the allocation failed
 0x002079d0	survarium::key_binder::id_to_action_name	manual	0	
 0x00207ad0	survarium::key_binder::action_name_to_ptr	manual	4	
 0x00207c30	survarium::key_binder::keyname_to_ptr	manual	0	
@@ -1017,6 +1018,7 @@ va	name	source	ret_cleanup	result
 0x00264cf0	survarium::lobby_character::query_decal_host	manual	0	
 0x00265860	survarium::lobby_character::show_decal_preview	manual	4	
 0x00265980	survarium::lobby_character::update_decal_preview	manual	0	
+0x00267a40	survarium::timelimit_rule::timelimit_rule	manual	4	EAX: this; the vtable 0xA06E8C (RTTI timelimit_rule) stored at 0x267A61 over the core's 0xA06E2C
 0x0026b1b0	survarium::messaging_client::read_important_message	manual	12	
 0x0026cb80	survarium::lobby_menu::on_keyboard_action	manual	12	first, for every key in the lobby, invokes root.has_active_window (0x26CBF9, its name 0xA07404, through 0x511600) on the lobby's movie; LobbyMenu.has_active_window reads stage.focus (the access violation at 0x77200B of 2026-10-22, patch 52); Esc then root.close_active_window (0xA0741C)
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	manual	12	AL: Observed constant1 on local return path
@@ -1091,6 +1093,7 @@ va	name	source	ret_cleanup	result
 0x002989d0	survarium::damage_zone::damage_zone	manual	4	
 0x0029a850	survarium::lobby_menu::process_default_cancel_decal_edit	manual	4	AL = 1
 0x0029ab20	survarium::lobby_menu::fill_match_statistic	manual	16	
+0x002a6470	survarium::player_equipment_sound_effect::on_player_sound_event	manual	4	EAX 0 (callback_return_type_enum)
 0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	manual	8	
 0x002aec40	vostok::render::stage_particles::is_effects_ready	manual	0	EAX: normalized0/1 effect+1C non-null result
 0x002c6f90		auto	0	
@@ -1205,6 +1208,7 @@ va	name	source	ret_cleanup	result
 0x002f8460	survarium::usable_object::serialize_usable_object	manual	0	
 0x002f84c0	survarium::usable_object::deserialize_usable_object	manual	0	
 0x002f8510	survarium::usable_object::post_deserialize_resolve	manual	0	
+0x002f8c30	survarium::collision_geometry::load	manual	8	
 0x002fc4b0	survarium::inventory::inventory	manual	0	
 0x002fc560	survarium::inventory::`scalar deleting destructor'	manual	4	
 0x002fc620	survarium::inventory::set_item	manual	4	
@@ -1269,8 +1273,6 @@ va	name	source	ret_cleanup	result
 0x00318360	survarium::timelimit_rule_core::rule_completed	manual	4	
 0x003190c0	survarium::damage_zone_core::damage_zone_core	manual	0	
 0x003193f0	survarium::damage_zone_core::serialize	manual	8	
-0x003193f0	survarium::damage_zone_core::serialize	manual	8	
-0x00319470	survarium::damage_zone_core::deserialize	manual	12	
 0x00319470	survarium::damage_zone_core::deserialize	manual	12	
 0x00319500	survarium::damage_zone_core::load	manual	4	
 0x0031ad70	survarium::generic_anomaly_core::~generic_anomaly_core	manual		
@@ -1282,7 +1284,15 @@ va	name	source	ret_cleanup	result
 0x0031b230	survarium::anomaly_state::deserialize	manual	8	
 0x0031b2a0		auto	8	
 0x0031b390		auto	12	
+0x0031b4b0	survarium::generic_anomaly_core::activate	manual	4	
+0x0031b530	survarium::generic_anomaly_core::deactivate	manual		
+0x0031b5b0	survarium::generic_anomaly_core::tick	manual	12	
+0x0031b6c0	survarium::generic_anomaly_core::spawn_artefact	manual	4	
+0x0031b9a0	survarium::generic_anomaly_core::activate_damage_zone	manual	8	
 0x0031ba90	survarium::generic_anomaly_core::select_state	manual	0	
+0x0031bc10	survarium::anomaly_state::initialize	manual	8	
+0x0031bcb0	survarium::anomaly_state::execute	manual	12	
+0x0031bd50	survarium::anomaly_state::finalize	manual	4	
 0x0031c480	survarium::artefact_container_core::load	manual	4	
 0x0031c530	survarium::artefact_container_core::serialize	manual	8	
 0x0031c5b0	survarium::artefact_container_core::deserialize	manual	12	
@@ -1329,6 +1339,7 @@ va	name	source	ret_cleanup	result
 0x00329a70	survarium::player_stamina::sprint	manual	4	
 0x00329c60	survarium::player_stamina::is_overburdened	manual	4	
 0x0032a420	survarium::body_part::increase_health	manual	8	
+0x0032a4b0	survarium::body_part::regenerate	manual	8	
 0x0032ae00	survarium::body_part_parameters::serialize	manual	8	
 0x0032afe0	survarium::body_part_parameters::deserialize	manual	12	
 0x0032b9f0	survarium::hit_info::hit_info	manual	32	
@@ -1372,6 +1383,10 @@ va	name	source	ret_cleanup	result
 0x0033a6a0	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression	manual	20	
 0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	manual	0	
 0x0033acf0	survarium::artefact_spring_core::config::config	manual	4	EAX: the config (ESI)
+0x0033bb50	survarium::generic_anomaly_core::on_player_action	manual	12	
+0x0033bcd0	survarium::generic_anomaly_core::on_artefact_container_use	manual	8	
+0x0033bd50	survarium::generic_anomaly_core::load	manual	4	
+0x0033c440	survarium::generic_anomaly_core::resolve_links	manual	28	
 0x0033cac0	survarium::medkit::medkit	manual	4	
 0x0033d2b0	survarium::medkit::`scalar deleting destructor'	manual	4	
 0x0033d2d0	survarium::medkit::~medkit	manual		
@@ -1395,6 +1410,7 @@ va	name	source	ret_cleanup	result
 0x0033eaa0	survarium::armor::armor	manual	8	
 0x0033efc0	survarium::armor::`scalar deleting destructor'	manual	4	
 0x0033f0c0	survarium::armor::on_holder_assigned	manual	0	
+0x0033f3a0	survarium::armor::add_modifiers	manual	0	
 0x0033fde0	survarium::player_history_item::serialize	manual	0	
 0x0033fee0	survarium::player_history_item::deserialize	manual	4	
 0x00341030	survarium::short_jump_start_state::selected_animations	manual	20	
@@ -1428,6 +1444,10 @@ va	name	source	ret_cleanup	result
 0x0034ce30	vostok::render::culling::portal_sector_structure::sort_portal_ids	manual	4	
 0x0034ce80	vostok::render::culling::portal_sector_structure::initialize_portals_geometry	manual	4	
 0x0034d040	vostok::render::culling::portal_sector_structure::update_portals_visability	manual	8	
+0x003578f0	vostok::physics::bt_ghost_object::bt_ghost_object	manual	12	EAX: the ghost
+0x00357aa0	vostok::physics::create_ghost_object	manual		EAX: the bt_ghost_object (kept at collision_geometry+18h)
+0x00357f80	vostok::configs::apply_add_modifiers	manual	0	[ESI] = value + sum of the modifiers (type 1)
+0x00358010	vostok::configs::apply_multiply_modifiers	manual	0	[ESI] = value x max(0, 1 + sum of the modifiers) (type 2)
 0x00376280	vostok::network::login_client::create_client	manual	0	
 0x003762d0	vostok::network::login_client::login_client	manual	0	EAX: receiver pointer explicitly moved intoEAX at normal return
 0x00376520	vostok::network::login_client::~login_client	manual	0	
@@ -1837,12 +1857,42 @@ va	name	source	ret_cleanup	result
 0x00317f10	survarium::timelimit_rule_core::tick	manual	12	
 0x000f6b10	vostok::configs::binary_config_value::operator[]	manual	0	EAX: the child value
 0x000f6c00	vostok::configs::binary_config_value::value_exists	manual	0	AL: 1 when the key is there
-0x0007ab30	vostok::network_core::mutable_buffer::resize	manual	4	
 0x00511600	Scaleform::GFx::Movie::Invoke	manual	16	AL: invoked
 0x002375c0	survarium::game_world_ui::show_parametrized_message	manual	16	
 0x000725e0	vostok::math::create_rotation	manual	0	[ESI]: float4x4, rows Rx(-x) Ry(-y) Rz(-z) (v * M)
 0x002d2770	survarium::game_world_core::deserialize	manual	12	
 0x0007f5c0	vostok::physics::bullet_character_controller::get_transform	manual	0	[ECX]: the controller's matrix (+80h), its translation moved down by heights[(stance+2)%3] + heights[stance] (half the capsule's height): the feet
+0x00054e10	survarium::replay_network_client::is_this_place_mine	manual	4	AL: 1 when the place is the one the replay is on (the stock slot is a stub: xor al,al)
+0x0027aa20	survarium::network_client::on_match_ready	manual	4	
+0x00126830	vostok::render::skeleton_model_instance_cook::on_bake_finished	manual	0	
+0x001f2100	survarium::player::~player	manual	0	
+0x00219e60	survarium::network_client::~network_client	manual	0	
+0x00242900	survarium::game_camera::get_projection_matrix	manual	8	EAX: the matrix
+0x0025cf60	survarium::game_world::on_mouse_key_action	manual	12	AL: taken
+0x002641a0	survarium::lobby_character::bake_decals	manual	16	AL: baked
+0x00265c20	survarium::lobby_character::on_decal_click	manual	12	
+0x00270320	survarium::lobby_client::copy_account_items	manual	0	
+0x00277cf0	survarium::lobby_client::find_item_holding_upgrade	manual	0	
+0x00275220	survarium::lobby_client::process_detach_upgrade	manual	8	
+0x002708c0	survarium::lobby_client::send_detach_upgrade	manual	8	
+0x002d8100	survarium::base_player::register_animations	manual	4	
+0x00316820	survarium::player_respawn_rule_base::tick	manual	12	
+0x002d4ab0		auto	0	
+0x002d4b50		auto	0	
+0x00321820		auto	4	
+0x002d1ea0	survarium::game_world_core::rules_on_event	manual	8	
+0x002f5d40	survarium::shared_statistics::notify_listener	manual	12	
+0x0026db80	survarium::base_game_statistics_handler::on_event	manual	12	
+0x00265de0	survarium::lobby_character::start_item_upgrade	manual	0	+D515h = 1; the lobby camera's setter at 0x265E73 (look-at 1.3, 0.8 for the shown kit's slot 4); the input focus, the scene's decal texture, the decal markers (0x265F80)
+0x00265f10	survarium::lobby_character::exit_item_upgrade	manual	0	+D515h = 0; the lobby camera's setter at 0x265F44 (1.2, side 0, the distance kept at 0x1F1D9E4); the scene's and the input focus's ends
+0x0029a870	survarium::lobby_menu::start_item_upgrade	manual	4	the movie's callback 5: esi = menu+694h, edi = the item id (the first value's number), then 0x265DE0; al = 1
+0x0029a890	survarium::lobby_menu::exit_item_upgrade	manual	4	the movie's callback 6: esi = menu+694h, then 0x265F10; al = 1
+0x00284aa0	survarium::lobby_character::release_player	manual	4	lets its player (+D2B8h) go (vtable+24h(1), +28h, the reference); with the byte argument set, +D2C9h = 1: on_player_ready lets the player being made go too (0x284F90)
+0x000e4f90	vostok::memory::doug_lea_allocator::malloc_impl	manual	4	EAX: the block, or 0
+0x002e58b0		manual	0	EAX: the pool whose name (+80h) is the text, or 0
+0x00313350		manual	8	
+0x00420789		manual	0	EAX: ECX + 8
+0x000e5b60	vostok::resources::query_resources	manual	0	
 0x0025e660	survarium::artefact_cook::new_derived_resource	manual	16	EAX: the artefact built in the memory (0 for none)
 0x0025e770	survarium::artefact_cook::derived_resource_size	manual	4	EAX: the size by data/type (3 4B8h, 6 3B8h, 7 F40h, 8 360h), else the core cook's
 0x0025e800	survarium::artefact_cook::query_for_derived_resources	manual	12	
@@ -1875,7 +1925,6 @@ va	name	source	ret_cleanup	result
 0x00357750	vostok::physics::bullet_rigid_body::set_angular_velocity	manual	4	
 0x003577d0	vostok::physics::bullet_rigid_body::get_linear_velocity	manual	0	EAX: &out
 0x00357830	vostok::physics::bullet_rigid_body::get_angular_velocity	manual	0	EAX: &out
-0x000e5b60	vostok::resources::query_resources	manual	0	
 0x00125790	vostok::detail::type_to_int<vostok::configs::binary_config_value>::get	manual	0	EAX: the type id a variant<32> of a config value has at +2Ch
 0x00304370	survarium::damage_type_from_string	manual	0	EAX: the index in 0x9257E0 (ranged, blunt, slash, explosive, toxic 4, radiation, fire, shock); no end for an unknown name
 0x00312590	survarium::artefact_lifebone_core::regeneration_modifier	manual	8	speed (+0) = (s + [m+1Ch]) x [m+20h]; timeout (+4) = trunc((t + [m+24h] x 1000) x [m+28h]); threshold (+8) = (th + [m+2Ch]) x [m+30h]

@@ -419,11 +419,14 @@ def draw_at_bench(run, weapon=True, ready=True):
     emu.reg_write(UC_X86_REG_EBP, frame)
     emu.reg_write(UC_X86_REG_EBX, PLAYER)
     camo_va = base.weapon_camo_va(open(base.late_join_bin(), "rb").read())
-    hook = emu.hook_add(UC_HOOK_CODE, lambda e, a, s, u: e.emu_stop(), begin=0x2477C2, end=0x2477C8)
+    hooks = [emu.hook_add(UC_HOOK_CODE, lambda e, a, s, u: e.emu_stop(), begin=b, end=e)
+             for b, e in ((0x2477C2, 0x2477C8), (0x247794, 0x247794))]
     emu.emu_start(camo_va + base.WEAPON_TABLE_OFFSET + 0xF, 0x2477C8, count=200_000)
-    emu.hook_del(hook)
+    for hook in hooks:
+        emu.hook_del(hook)
     at = emu.reg_read(UC_X86_REG_EIP)
-    assert at == (0x2477C8 if ready else 0x2477C2), hex(at)
+    # not yet there: the decal pose's way (10 m under; patch 45 round 5), not the hand
+    assert at == (0x2477C8 if ready else 0x247794), hex(at)
     w = run.floats(run.table + base.WEAPON_TABLE_MATRIX_OFFSET, 16)
     return w, (s1 if weapon else rigid(0, 0, (0, 0, 0)))
 

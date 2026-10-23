@@ -61,7 +61,7 @@ USAGE (this script never touches the source exe):
         nasm -f bin read_order_026g.asm -o read_order_026g.bin
     (checked in). A weapon's upgrade window showing the weapon comes from
     weapon_preview_026g.asm:
-        nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA42C00F -DCAMERA=0xA42A800 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
+        nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA42C00F -DCAMERA=0xA42A6B0 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
     (checked in; STATE is 0xE00 of the late join's state page, checked; FIND is
     upgrade_preview_026g.asm in `.srpw`, which shows an upgrade dropped on the
     window's weapon at once and calls weapon_stash_026g.asm's find first:
@@ -72,7 +72,7 @@ USAGE (this script never touches the source exe):
         nasm -f bin -DCAVE=0xA42A360 -DSTATE=0xA428E00 -DPREVIEW=0xA427E50 weapon_stash_026g.asm -o weapon_stash_026g.section.bin
     checked in; CAMERA is weapon_table_026g.asm in `.srpw`, which shows the
     weapon in the air above the lobby's workbench:
-        nasm -f bin -DCAVE=0xA42A800 -DSTATE=0xA428F00 -DPREVIEW=0xA428E00 weapon_table_026g.asm -o weapon_table_026g.section.bin
+        nasm -f bin -DCAVE=0xA42A6B0 -DSTATE=0xA428F00 -DPREVIEW=0xA428E00 weapon_table_026g.asm -o weapon_table_026g.section.bin
     checked in; its STATE is 0xF00 of the late join's state page, checked), and its
     draw from weapon_draw_026g.asm:
         nasm -f bin -DCAVE=0xA425D20 -DSTATE=0xA428E00 weapon_draw_026g.asm -o weapon_draw_026g.section.bin
@@ -98,11 +98,10 @@ USAGE (this script never touches the source exe):
         nasm -f bin -DCAVE=0xA42B000 -DPREVIEW=0xA428E00 -DTABLE=0xA428F00 -DPRESS=0xA428FA0 weapon_decals_026g.asm -o weapon_decals_026g.section.bin
     (checked in; PREVIEW and TABLE are patch 32's and patch 45's states, PRESS
     its own, 0xFA0 of the late join's state page, checked).
-    The artefacts' code (Spring's aim time, Lifebone's heal, one press for
-    every artefact of a kind) comes from artefacts_026g.asm, on `.srpw`'s
-    third page after the upgrade preview's code:
-        nasm -f bin -DCAVE=0xA42C700 artefacts_026g.asm -o artefacts_026g.section.bin
-    (checked in).
+    The arena, `.srpx` (Research, the artefacts' code, the engine-function
+    library), is linked from its C and NASM sources at every build
+    (link_026g.py: gcc -m32, GNU ld and NASM 2.16 are needed) and must be
+    arena_026g.lock.json's (`python link_026g.py --write` after a change).
     The late-join code is late_join_026g.section.bin, checked in too; it is
     made by `late_join_026g.py --write-bin`, which needs nasm, a C compiler
     for x86 and GNU ld (--late-join-bin=<file> names another one).
@@ -399,6 +398,15 @@ Patches:
   page; select_lod's x0.5 (0x16F2A4) and the factor's x100 (0x1590AF)
   call fov_lod_scale and fov_screen_scale, which multiply by k after the
   original's constant (k is 1 at 65 and less, and through a scope);
+- dynamic anomalies (patch 42, with the late join, client_patch.md section
+  3.38, docs/notes/dynamic_anomalies.md): the release's anomalies rule on
+  timed generic anomalies (energy_enabled, artefacts that never respawn by
+  themselves). game_world_core::atomic_tick (0x2D1E20) first runs the rule
+  (a try 20 to 40 s apart from the start + 30 s: one idle timed anomaly
+  with a free artefact and nothing busy within 15 m charges, while fewer
+  than 16 are active), and on_artefact_container_use (0x33BCD0) puts a
+  timed anomaly to its after-the-pick-up energy. The code is the arena's
+  block anomalies.code in `.srpx` (dynamic_anomalies_026g.asm);
 - on the death screen a drag turns the camera; the wheel does nothing
   (patch 46, with the late join, client_patch.md section 3.43, docs/notes/
   death-camera.md). A death leaves the player's input handler in the first
@@ -420,7 +428,7 @@ Patches:
   client_patch.md section 3.51, docs/notes/artefacts.md; their numbers in
   the configs, release/content.tsv artefacts-1.json). A Spring's loader
   (0x33ACF0) reads a fixed set of keys into its character modifier nodes,
-  none of them the aim time; artefacts_026g.asm (`.srpw`+2700h) makes its
+  none of them the aim time; artefacts_026g.asm (the arena's block artefacts.code) makes its
   passive's unused max_carried_weight node aim_time with
   `passive/aim_time_mod` and adds two active nodes, aim_time with
   `active/aim_time_mod` at +3B8h and list 42 with
@@ -462,6 +470,8 @@ import os
 import re
 import struct
 import sys
+
+import link_026g as linker
 
 IMAGE_BASE = 0x10000
 TEXT_VA, TEXT_FILE = 0x11000, 0x400          # same in 0.26g as in 0.21d
@@ -590,7 +600,7 @@ HASH_INTERVAL_MS = 50                         # = one tick
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 29
+REVISION = 30
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -1634,6 +1644,26 @@ FOV_LOD_RELOCS = [0x1590B1, 0x16F2A8]
 FOV_LOD_STATE_OFFSET = 0xE50                  # after the scoreboard's (TAB_LIST_STATE_OFFSET)
 FOV_LOD_STATE_SIZE = 4
 
+# Dynamic anomalies (patch 42, README; client_patch.md section 3.38; the
+# rules: ../docs/notes/dynamic_anomalies.md). The release's anomalies rule
+# (0.28a2 timeout_anomalies_rule_core) on timed generic_anomaly_cores, whose
+# states are the release's timeline by energy. Two hooks into
+# dynamic_anomalies_026g.asm, the arena's block anomalies.code (link_026g.py
+# links it; each hook jumps to its entry by name): game_world_core::
+# atomic_tick's first six bytes (`push ecx; mov eax,51EB851Fh`, a constant)
+# jump to anomalies_tick_hook, which runs the rule before any object of the
+# tick and goes on at 0x2D1E26; generic_anomaly_core::
+# on_artefact_container_use's first ten (`push ecx; push esi; mov esi,ecx;
+# mov eax,[esi+15Ch]`) jump to anomalies_pickup_hook, which takes a timed
+# core's pick-up and goes on at 0x33BCDA with any other. No base relocation
+# under either. The code calls no engine function (it reads the world's and
+# the cores' fields and goes back into the two functions).
+DYNAMIC_ANOMALIES_HOOKS = (
+    (0x2D1E20, bytes.fromhex("51b81f85eb51"), "anomalies_tick_hook", 0xE9),             # atomic_tick
+    (0x33BCD0, bytes.fromhex("51568bf18b865c010000"), "anomalies_pickup_hook", 0xE9),   # on_artefact_container_use
+)
+DYNAMIC_ANOMALIES_EXITS = (0x2D1E26, 0x33BCDA)                 # where each goes on
+
 # A battery under the floor (patch 23, pickup_below_026g.asm at
 # PICKUP_VA): client_patch.md section 3.23.
 PICKUP_OFFSET = 0x800
@@ -1711,10 +1741,13 @@ WEAPON_PREVIEW_FIND_CALLS = (0x2B, 0xCC)       # weapon_preview_026g.section.bin
 #   bench, once the character makes no player;
 # - the lobby camera's on_mouse_move (0x283D30), `test byte [eax+0Ch],52h /
 #   setne al` at 0x283D81 (its drag buttons): left, which at the bench also
-#   drags with the left button pressed off the movie (is_mouse_over_ui).
+#   drags with the left button pressed off the movie (is_mouse_over_ui);
+# - the camera's tick, `call 0x2844D0` at 0x284309 (its collision ray from
+#   the point back to the eye, which shortens the distance at a hit): ray,
+#   which casts none while the camera is the table's (round 5c).
 # No base relocation is under a site; the code holds no absolute address but
 # the game's functions' and finds its state with call/pop.
-WEAPON_TABLE_OFFSET = 0x800
+WEAPON_TABLE_OFFSET = 0x6B0                    # round 5d: 0x800 until it outgrew the page (the stash ends at +6A5h)
 WEAPON_TABLE_STATE_OFFSET = 0xF00
 WEAPON_TABLE_STATE_SIZE = 0xA0
 # The interface other patches read (weapon decals): while the state's TABLE
@@ -1725,13 +1758,13 @@ WEAPON_TABLE_STATE_SIZE = 0xA0
 WEAPON_TABLE_STAMP_OFFSET = 0x48
 WEAPON_TABLE_MATRIX_OFFSET = 0x50
 WEAPON_PREVIEW_CAMERA_JUMPS = (0x68, 0xA8)     # weapon_preview_026g.section.bin: the two `jmp CAMERA`
-WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14)  # camera, tick, cull, matrix, left: `jmp near` each
+WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19)  # camera, tick, cull, matrix, left, ray: `jmp near` each
 # A weapon's upgrade window shows an upgrade dropped on the weapon at once
 # (patch 48, README; client_patch.md section 3.45): upgrade_preview_026g.asm
 # at UPGRADE_PREVIEW_OFFSET of `.srpw`, a page of its own (the second page is
 # the weapon decals', patch 47); its state at UPGRADE_PREVIEW_STATE_OFFSET of
 # `.srpd`, after the patches' mount's (MOUNT_STATE_OFFSET) and before patch
-# 32's (WEAPON_PREVIEW_STATE_OFFSET). Six `jmp near`, the entries:
+# 32's (WEAPON_PREVIEW_STATE_OFFSET). Seven `jmp near`, the entries:
 # - relocate_upgrade_item's handler (0x29A8B0), `mov edx,[esi+4620h]` at
 #   0x29A9B2 (before its `46 01` is written): relocate, which queues the
 #   change for the window's weapon and makes the character again at once;
@@ -1746,7 +1779,12 @@ WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14)  # camera, tick, cull, matrix,
 #   0x284B89: again, which returns when the player being made is of the
 #   kit's id and revision asked;
 # - on_player_ready, `cmp byte [ebx+0D2C9h],0` at 0x284F7F: made, a log line
-#   with the time the lobby character's player took.
+#   with the time the lobby character's player took;
+# - setup_profile's early return, `cmp byte [ebx+0D2C8h],0` at 0x284B7C (its
+#   last test before `jz 284CF8h`): early, which for the lobby's own
+#   character returns early only while no player is being made (patch 32's
+#   window closed while its scratch's player was being made: the owner's
+#   report of 2026-10-23, client_patch.md section 3.42).
 # No base relocation is under a site and no branch aims inside one; the code
 # holds the absolute addresses of its state, patch 32's and its strings (the
 # exe is never rebased).
@@ -1754,19 +1792,21 @@ UPGRADE_PREVIEW_OFFSET = 0x2000
 UPGRADE_PREVIEW_STATE_OFFSET = 0xD60
 UPGRADE_PREVIEW_STATE_SIZE = 0xA0
 UPGRADE_PREVIEW_FIND = 0x0F
-UPGRADE_PREVIEW_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19)  # relocate, drop, account, find, again, made
+UPGRADE_PREVIEW_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19, 0x1E)  # relocate, drop, account, find, again, made, early
 UPGRADE_PREVIEW_HOOKS = (
     (0x29A9B2, bytes.fromhex("8b9620460000"), 0x0, 0xE8),          # relocate_upgrade_item: relocate
     (0x29AACF, bytes.fromhex("8b8e20460000"), 0x5, 0xE8),          # drop_upgrade_item: drop
     (0x270313, bytes.fromhex("e808000000"), 0xA, 0xE8),            # the 0x87 reader's last call: account
     (0x284B89, bytes.fromhex("83bbc4d20000ff"), 0x14, 0xE8),       # setup_profile past its early return: again
     (0x284F7F, bytes.fromhex("80bbc9d2000000"), 0x19, 0xE8),       # on_player_ready: made
+    (0x284B7C, bytes.fromhex("80bbc8d2000000"), 0x1E, 0xE8),       # setup_profile's early return: early
 )
 WEAPON_TABLE_HOOKS = (
     (0x284020, bytes.fromhex("f30f1083c8000000"), 0x5, 0xE8),        # the camera's tick: tick
     (0x247576, bytes.fromhex("807dff007516"), 0xA, 0xE8),            # mt_draw's culled player: cull
     (0x24778F, bytes.fromhex("80bb9cf4000000742a"), 0xF, 0xE8),      # mt_draw's held item's transform: matrix
     (0x283D81, bytes.fromhex("f6400c520f95c0"), 0x14, 0xE8),        # the camera's drag buttons: left
+    (0x284309, bytes.fromhex("e8c2010000"), 0x19, 0xE8),            # the camera's collision ray: ray
 )
 
 # Decals on a weapon (patch 47, README; client_patch.md section 3.44):
@@ -1803,11 +1843,10 @@ WEAPON_DECALS_HOOKS = (
 WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries patch 44 calls
 
 # The artefacts (patch 54, README; client_patch.md section 3.51; the rules:
-# ../docs/notes/artefacts.md): artefacts_026g.asm at ARTEFACTS_OFFSET of
-# `.srpw`, after the upgrade preview's code, in the section's third page
-# (patch 53's `.srpx` follows the three). Its numbers are the artefacts'
+# ../docs/notes/artefacts.md): artefacts_026g.asm in the arena's block
+# artefacts.code (ARENA below). Its numbers are the artefacts'
 # configs' (release/content.tsv, artefacts-1.json). It begins with six
-# `jmp near`, one for each site:
+# `jmp near`, one for each site, each a global symbol the hook jumps to:
 # - Spring's loader 0x33ACF0, `mov dword [esi+48h],13h` at 0x33AE13 (its
 #   active's third node): loader. The passive's second node (+350h,
 #   max_carried_weight 0 in retail) becomes aim_time (49) with the value of
@@ -1833,15 +1872,13 @@ WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries pa
 # 0x2EEA74), become ARTEFACTS_SPRING_SIZE. No base relocation is under a
 # site and no branch aims inside one; the code holds the absolute addresses
 # of its two names (the exe is never rebased).
-ARTEFACTS_OFFSET = 0x2700
-ARTEFACTS_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19)  # loader, link, unlink, lifebone, fire, stagger
 ARTEFACTS_HOOKS = (
-    (0x33AE13, bytes.fromhex("c7464813000000"), 0x0, 0xE9),        # Spring's loader: its active's third node
-    (0x311BC0, bytes.fromhex("53568bf08b8650020000"), 0x5, 0xE9),  # Spring's active link
-    (0x311DA0, bytes.fromhex("538b5c2408"), 0xA, 0xE9),            # Spring's active unlink
-    (0x3122AA, bytes.fromhex("8b8f50020000"), 0xF, 0xE9),          # Lifebone's enable_active
-    (0x313300, bytes.fromhex("568bf183be8002000003"), 0x14, 0xE9), # artefact_base::action: its entry
-    (0x2DBD89, bytes.fromhex("f30f10961c030000"), 0x19, 0xE9),     # the player's stagger: its sum
+    (0x33AE13, bytes.fromhex("c7464813000000"), "artefacts_loader", 0xE9),        # Spring's loader: its active's third node
+    (0x311BC0, bytes.fromhex("53568bf08b8650020000"), "artefacts_link", 0xE9),    # Spring's active link
+    (0x311DA0, bytes.fromhex("538b5c2408"), "artefacts_unlink", 0xE9),            # Spring's active unlink
+    (0x3122AA, bytes.fromhex("8b8f50020000"), "artefacts_lifebone", 0xE9),        # Lifebone's enable_active
+    (0x313300, bytes.fromhex("568bf183be8002000003"), "artefacts_fire", 0xE9),    # artefact_base::action: its entry
+    (0x2DBD89, bytes.fromhex("f30f10961c030000"), "artefacts_stagger", 0xE9),     # the player's stagger: its sum
 )
 ARTEFACTS_BACKS = (0x33AE1A, 0x311BCA, 0x311DA5, 0x3122B0, 0x31330A, 0x2DBD91)  # where each goes on
 ARTEFACTS_SPRING_SIZE = 0x3D8                  # the active's two nodes at +3B8h and +3C8h
@@ -1856,12 +1893,369 @@ def weapon_camo_va(late_join):
     return death_camera_va(late_join) + DEATH_CAMERA_SIZE
 
 
+# Every function a patch installs: what the game calls of ours, and the shape
+# it must have (client_patch.md section 0.4; README "Call shapes"). A
+# function the game calls must pop off the stack what the game's own function
+# in its place pops (its `ret n`), or the caller's stack is off by the
+# difference: Research's rule slot 16 (#297) popped 4 bytes where the game's
+# rules pop 8, and the game died at the first sync. build() fails on a call,
+# jump or pointer into our code, at any offset of any write, that is not
+# declared here (audit_installs). selftest_026g.py (test_call_shapes) reads
+# what ours pops from the built bytes and its model's from the original exe
+# and fails on a mismatch for every SLOT, ENTRY, CALLEE and ABI site (and
+# every CALLBACK and INSTALLED_VTABLES slot); INLINE and JUMP sites are
+# declared but not checked by it (each patch's Unicorn check covers them).
+# The kinds, by what the site was in the original:
+#   SLOT    a pointer the game calls through (a vtable slot, a delegate), at
+#           the site: the model is the function the original's pointer names;
+#   ENTRY   a function's first bytes jump to ours, or its body is ours in
+#           place: the model is that function;
+#   CALLEE  `[push ...] call F` calls ours: the model is F, less the bytes of
+#           the pushes the site no longer makes;
+#   INLINE  a call of ours where the site was other instructions: ours does
+#           them and returns with their stack effect (a plain `ret` when they
+#           push nothing);
+#   ABI     a call of ours that pops what `pops` says, for the reason `why`
+#           (the site's instructions have an effect no model gives);
+#   JUMP    a jump into ours from the middle of the game's code: every way
+#           back must be at the stack depth the site's instructions leave.
+# {site VA: (kind, what, pops, why)}; pops and why for ABI only.
+SLOT, ENTRY, CALLEE, INLINE, ABI, JUMP = "slot", "entry", "callee", "inline", "abi", "jump"
+INSTALLS = {
+    # the snapshot upload (every full build) and the default server's stub
+    0x27AEA1: (JUMP, "on_match_ready: the snapshot upload (the late join's ready_hook first)", None, None),
+    0x27A505: (JUMP, "the 0xF6 case: the snapshot upload", None, None),
+    0x1EB25B: (JUMP, "the missing server's fatal: the default server's stub", None, None),
+    # the late join (patch 11 and those it grew)
+    0x2CBF9B: (CALLEE, "a player's animations: register_animations", None, None),
+    0x2D3880: (CALLEE, "a slot's ids: bind_slot", None, None),
+    0x2D3906: (JUMP, "twenty histories: history_capacity", None, None),
+    0x27A23D: (JUMP, "0xD8's capability byte: connect_capability", None, None),
+    0x27A378: (JUMP, "the 0xE4 case: prepare_hook", None, None),
+    0x1F2013: (CALLEE, "the player's destructor: player_destroyed_hook", None, None),
+    0x27B517: (JUMP, "on_match_disconnected: disconnect_hook", None, None),
+    0x219E60: (ENTRY, "network_client's destructor: client_destroyed_hook", None, None),
+    0x23572B: (JUMP, "the hud's lists made again: lists_hook", None, None),
+    0x39E52: (JUMP, "a box that is no box: box_hook", None, None),
+    0x316EA0: (INLINE, "a spawn's weapons' random state: weapon_random_hook", None, None),
+    0x316E57: (INLINE, "a spawn's weapons' kept state: kit_state_hook", None, None),
+    0x2D1050: (CALLEE, "a first world's inputs: first_load_input", None, None),
+    0x2D1055: (CALLEE, "a first world's kit choices: first_load_kit", None, None),
+    0x242900: (ENTRY, "the camera's projection: fov_projection", None, None),
+    0x16F2A4: (INLINE, "select_lod's x0.5: fov_lod_scale", None, None),
+    0x1590AF: (INLINE, "the screen factor's x100: fov_screen_scale", None, None),
+    0x23537A: (ABI, "the scoreboard's row: tab_row", 0,
+               "the site's `push eax / push ebx / push eax / call edx` is SetElement(data, place, row), thiscall, "
+               "`ret 0Ch`: no stack effect, as tab_row's PushBack (vtable+3Ch) or SetElement"),
+    0x23B421: (INLINE, "the scoreboard's refresh: tab_shown", None, None),
+    # patch 23, 26, 25, 31, 34, 32, 46
+    0x2D84E9: (INLINE, "the use scan's ray length: reach", None, None),
+    0x2D861C: (JUMP, "the use scan's wall or floor: solid", None, None),
+    0x2D85BE: (JUMP, "the use scan's usable object: candidate", None, None),
+    0x1EE3A3: (JUMP, "the replay's seek: seek_clear", None, None),
+    0x380889: (INLINE, "the version field's last writes: stale_dll", None, None),
+    0x316820: (ENTRY, "the respawn rule's tick: kit_change", None, None),
+    0x26794D: (CALLEE, "the view of a kit change: kit_view", None, None),
+    0x23B7DA: (JUMP, "the local player alive: ui_alive", None, None),
+    0x23B7FC: (INLINE, "the hud's update: ui_start", None, None),
+    0x25D0E0: (ENTRY, "the game world's on_mouse_move: death_look, then warmup_look", None, None),
+    0x24225E: (INLINE, "the warmup mode's pitch: warmup_limits", None, None),
+    0x25CF60: (ENTRY, "the game world's on_mouse_key_action: warmup_keys", None, None),
+    0x1F364B: (CALLEE, "update_camera's view update: death_view", None, None),
+    0x242196: (CALLEE, "the input builder's last action call: suicide_key", None, None),
+    0x265E73: (CALLEE, "start_item_upgrade's camera: the stash's start, then start_cam", None, None),
+    0x265F44: (CALLEE, "exit_item_upgrade's camera: the stash's exit, then exit_cam", None, None),
+    0x284B10: (ENTRY, "setup_profile: the stash's setup, then setup_hook", None, None),
+    0x284081: (INLINE, "the lobby camera's wheel least: min_step", None, None),
+    0x28428C: (INLINE, "the lobby camera's step least: min_step", None, None),
+    0x284316: (INLINE, "the lobby camera's last clamp: min_final", None, None),
+    0x284A33: (INLINE, "the lobby character's decal pose: player_mode", None, None),
+    # patch 27/49, 28, 29, 30, 33
+    0xE7E3E: (CALLEE, "query_db's query_mount_archive: mount_all", None, None),
+    0x147E0: (ENTRY, "on_mounted_resources: on_mounted", None, None),
+    0x1D90DC: (JUMP, "the forward compile's switch: use_uv_scrolling", None, None),
+    0x1D94CB: (JUMP, "the forward compile's constants: uv_scrolling_parameters", None, None),
+    0x14990F: (JUMP, "renderer_context: scene_slomo", None, None),
+    0x28CDB6: (JUMP, "video_tutorial_link_clicked: replay_link", None, None),
+    0x29AAD5: (CALLEE, "the upgrade window's drop: drop_upgrade", None, None),
+    0x275756: (JUMP, "`83 46 02`: detach_answer", None, None),
+    0x275589: (CALLEE, "`83 46 01`'s detach: detach_first", None, None),
+    0x27534D: (CALLEE, "process_detach_upgrade's find_if: find_host", None, None),
+    READ_ORDER_VA: (ENTRY, "hdd_manager_sorting_predicate, in place: read_order", None, None),
+    # patch 38, 44, 45, 47, 48
+    0x2D8A0F: (JUMP, "the spot's owner: spot", None, None),
+    0x24B0D2: (INLINE, "the weapon's model ready: weapon_ready", None, None),
+    0x284020: (INLINE, "the lobby camera's tick: tick", None, None),
+    0x247576: (INLINE, "mt_draw's culled player: cull", None, None),
+    0x24778F: (INLINE, "mt_draw's held item's transform: matrix", None, None),
+    0x283D81: (INLINE, "the lobby camera's drag buttons: left", None, None),
+    0x284309: (CALLEE, "the lobby camera's collision ray: ray", None, None),
+    0x265999: (CALLEE, "the decal preview's pick: pick", None, None),
+    0x2659B2: (CALLEE, "the decal preview's matrix: decode", None, None),
+    0x2641A0: (ENTRY, "the decal editor's bake: bake", None, None),
+    0x263938: (CALLEE, "the decal editor's start query: start", None, None),
+    0x265C20: (ENTRY, "the lobby character's mouse keys: click", None, None),
+    0x29A9B2: (INLINE, "relocate_upgrade_item: relocate", None, None),
+    0x29AACF: (INLINE, "drop_upgrade_item: drop", None, None),
+    0x270313: (CALLEE, "the 0x87 reader's last call: account", None, None),
+    0x284B89: (INLINE, "setup_profile past its early return: again", None, None),
+    0x284F7F: (INLINE, "on_player_ready: made", None, None),
+    0x284B7C: (INLINE, "setup_profile's early return: early", None, None),
+    # the replay viewer (patch revision 11): a vtable slot, and the sound queue's cave
+    REPLAY_REATTACH_SLOT[0]: (SLOT, "replay_network_client's \"is this place mine\" (vtable 0x9FF344 +54h): "
+                              "the thunk to is_player_current", None, None),
+    SOUND_QUEUE_HOOK_VA: (JUMP, "a weapon's delayed sound: the full queue's cave", None, None),
+    # Research, patch 53 (in `.srpx`)
+    0x1E9B4C: (INLINE, "the game's constructor, `mov eax,ebx / call 0x1EC170`: register (it does both, the call "
+                       "as a tail jump with the return address moved past the nops)", None, None),
+    0x23B3DE: (INLINE, "update_ui after the teams' points: hud", None, None),
+    0x23B351: (JUMP, "update_ui's first message by mode: welcome", None, None),
+    # the artefacts, patch 54 (in `.srpx`)
+    0x33AE13: (JUMP, "Spring's loader 0x33ACF0, `mov dword [esi+48h],13h` (esi = the config, ebx = `data`): "
+                     "loader", None, None),
+    0x311BC0: (ENTRY, "add_active_modifiers, the link of Spring's active nodes (eax = the Spring): link_active, "
+                      "then the function", None, None),
+    0x311DA0: (ENTRY, "remove_active_modifiers, their unlink (stdcall, the Spring): unlink_active, then the "
+                      "function", None, None),
+    0x3122AA: (JUMP, "Lifebone's enable_active after its remove_affects, `mov ecx,[edi+250h]`: "
+                     "lifebone_active", None, None),
+    0x313300: (ENTRY, "artefact_base::action (thiscall: pressed, time; inventory::action's vtable +2Ch call): "
+                      "fire_kind, a key-up back in the function", None, None),
+    0x2DBD89: (JUMP, "the player's stagger 0x2DBCD0, `movss xmm2,[esi+31Ch]` after the hits' sum: stagger",
+               None, None),
+    # the dynamic anomalies, patch 42 (in `.srpx`)
+    0x2D1E20: (ENTRY, "game_world_core::atomic_tick (the world, the tick's length; `ret 8`): the anomalies' "
+                      "rule, then the function", None, None),
+    0x33BCD0: (ENTRY, "generic_anomaly_core::on_artefact_container_use (thiscall: the container, the time; "
+                      "`ret 8`): a timed anomaly's pick-up, any other core's back in the function", None, None),
+}
+# The bodies a patch replaces in place, at a function's entry: {VA: size}.
+BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
+# A vtable our code builds and installs at run time (a rule's, a cook's):
+# the game calls through its slots, so each slot of ours must pop what the
+# game's own vtable pops in the same place (the self-test's generalisation of
+# check 53, test_call_shapes: our slot's function read from the built bytes,
+# up to the next symbol, the model's from the original exe; a slot that holds
+# the game's own function is the model itself). (what, the .section.json of
+# the arena's block whose code holds it, its symbol (the RTTI locator, the slots after it),
+# the model vtable's first slot or None (every slot must be a game function),
+# the slots, how many of them are ours). Research's rule slot 16
+# (rn_deserialize) popped 4 where tdm's pops 8 in #297's first build and
+# crashed the game at its first sync: this is the check that catches it, for
+# every patch. Every `*_vtable` symbol of the arena's link must be here
+# (audit_vtables).
+#
+# The last field: {slot: (check script, case)} for each slot of ours, the
+# case of that patch's Unicorn check that reaches the slot through the
+# game's own call site (the loop or dispatcher that calls it in the game,
+# with what the game passes there), not by calling our function directly.
+# A `ret` comparison cannot see the order of the arguments: Research's slot 7
+# took (type, time, data) where the game passes (type, data, time) (#297's
+# review). The self-test fails a slot of ours with no such case, or a case
+# its script does not have (test_call_shapes).
+RESEARCH_CHECK = "check_research_026g.py"
+INSTALLED_VTABLES = (
+    ("Research's rule", "research.code", "rn_rule_vtable", 0xA15DA4, 20, 9, {
+        7: (RESEARCH_CHECK, "driven: slot 7, on_event(type, data, time), through the dispatcher 0x2D1EA0"),
+        8: (RESEARCH_CHECK, "driven: slot 8, entered(place, time), through the world's loop 0x2D2010"),
+        9: (RESEARCH_CHECK, "driven: slot 9, left(place, time), through the world's loop 0x2D2130"),
+        11: (RESEARCH_CHECK, "driven: slot 11, set_game_world_core, through the world's loop 0x2D3B40"),
+        12: (RESEARCH_CHECK, "driven: slot 12, the blackboard, through the world's loop 0x2D5906"),
+        15: (RESEARCH_CHECK, "the game's serialize loop (0x2D2661)"),
+        16: (RESEARCH_CHECK, "the game's deserialize loop (0x2D2B42)"),
+        17: (RESEARCH_CHECK, "driven: slot 17, fill_match_hud_state(hud, ?), through the hud's loop 0x2D36D0"),
+        18: (RESEARCH_CHECK, "driven: slot 18, rule_completed(time), through the world's loop 0x2D2730"),
+    }),
+    ("Research's cook", "research.code", "rn_cook_vtable", 0x9FD8AC, 11, 2, {
+        9: (RESEARCH_CHECK, "driven: the cook's create and size through translate 0x2F4290's calls"),
+        10: (RESEARCH_CHECK, "driven: the cook's create and size through translate 0x2F4290's calls"),
+    }),
+    ("Research's rule's link resolver", "research.code", "rn_resolver_vtable", None, 1, 0, {}),
+)
+# What our code hands the game at run time to call later (a callback, a
+# boost::function, a tick delegate): no write of build() shows them, so each
+# is declared with the instruction that hands it over and the game's own
+# function it stands in for: (what, the code's name (its .section.bin, or an
+# arena block), the bytes before the
+# pointer in that instruction (the code holds them once), the model, why
+# that model, (check script, the case that calls it through the game's own
+# caller)) (the last as INSTALLED_VTABLES' slots).
+CALLBACKS = (
+    ("the late join's query: query_completed", "late_join", bytes.fromhex("6a00566a008d83"), 0x27AA20,
+     "0x27D280 makes the network client's boost member callback of its resource queries; its one other "
+     "call (0x27B04C) binds 0x27AA20, the client's own queries_completed (ecx = the client, [esp+4] the "
+     "queries_result); the marker is the `push 0 / push esi / push 0 / lea eax,[ebx+query_completed]` "
+     "before `push eax` (query_completed's VA follows the lea's `8D 83`)",
+     ("check_late_join_026g.py", "driven: query_completed through the game's boost invoker 0x202300")),
+    ("a weapon's camouflage bake: bake_done", "weapon_camo", b"\xC7\x40\x08", 0x126830,
+     "BIND_MANAGER 0x9ED148 binds a `void (*)(A*, B*)`; the game binds 0x126830 with it at 0x126A2C "
+     "(a bake query of query_resources 0xE5B60, as weapon_camo's); the marker is bind's "
+     "`mov dword [eax+8], bake_done` (bake_done's VA follows `C7 40 08`)",
+     ("check_weapon_camo_026g.py", "the callback deallocates P from the game's allocator")),
+    ("Research's tick: rn_tick", "research.code", bytes.fromhex("c78114010000"), 0x317F10,
+     "rn_set_core puts it in the world's second tick list as timelimit_rule_core's set_game_world_core "
+     "(0x318050) puts its tick 0x317F10; the list's runner 0x2D1D20 calls it with ecx the object and "
+     "(dt, time, step); the marker is `mov dword [ecx+114h], rn_tick` (the delegate's function)",
+     (RESEARCH_CHECK, "driven: the tick's (dt, time) through the tick list's runner 0x2D1D20")),
+)
+
+
+def is_cave(old):
+    """A write into the int3 padding between the game's functions: our code."""
+    return len(old) >= 5 and set(old) == {0xCC}
+
+
+def our_ranges(data, writes):
+    """[(lo, hi)] of our code: the executable sections build() adds (`.srp`
+    and after; not `.srpd`, state), the caves it wrote into the padding and
+    the code over on_hash_mismatch."""
+    headers = Headers(data)
+    ours = [(IMAGE_BASE + rva, IMAGE_BASE + rva + vsize) for name, rva, vsize, _, _, flags in headers.sections(data)
+            if name.startswith(b".srp") and flags & 0x20000000]
+    return ours + [(va, va + len(new)) for va, old, new in writes if is_cave(old) or va == HASH_MISMATCH_VA]
+
+
+def installs_of(data, writes):
+    """{site VA: (how, our VA, the original's bytes from the site)} of every
+    function build() made the game call, found at any offset of any write
+    into the game's sections: a `call` (E8) or `jmp` (E9) rel32 to our code,
+    any other 4 bytes that name our code ("pointer": a slot, a delegate, a
+    `push imm32`, a `mov imm32`), and a body replaced in place ("body")."""
+    ours = our_ranges(data, writes)
+    inside = lambda target: any(lo <= target < hi for lo, hi in ours)
+    out = {}
+    for va, old, new in writes:
+        if is_cave(old) or va == HASH_MISMATCH_VA:
+            continue
+        if va in BODIES and len(new) == BODIES[va]:
+            out[va] = ("body", va, old)
+            continue
+        taken = set()
+        for at in range(len(new) - 4):
+            if new[at] in (0xE8, 0xE9) and at + 5 <= len(new):
+                target = (va + at + 5 + struct.unpack_from("<i", new, at + 1)[0]) & 0xFFFFFFFF
+                if inside(target):
+                    out[va + at] = ("call" if new[at] == 0xE8 else "jmp", target, old[at:])
+                    taken.update(range(at, at + 5))
+        for at in range(len(new) - 3):
+            value = struct.unpack_from("<I", new, at)[0]
+            if at not in taken and inside(value):
+                out[va + at] = ("pointer", value, old[at:])
+    return out
+
+
+def audit_installs(data, writes, installs=None):
+    """Every function build() made the game call is declared in INSTALLS
+    (or `installs`), with a kind that fits the site; else the build stops."""
+    installs = INSTALLS if installs is None else installs
+    pushes = re.compile(rb"(?:[\x50-\x57]|\x6A.|\x68.{4})*", re.S)
+    for va, (how, target, old) in sorted(installs_of(data, writes).items()):
+        if va not in installs:
+            sys.exit(f"{va:#x}: a {how} into our code ({target:#x}) with no call shape declared: give it a kind "
+                     f"and its model in patch_026g.py's INSTALLS (client_patch.md section 0.4)")
+        kind = installs[va][0]
+        fits = {"call": (CALLEE, INLINE, ABI), "jmp": (ENTRY, JUMP), "pointer": (SLOT,), "body": (ENTRY,)}[how]
+        if kind not in fits:
+            sys.exit(f"{va:#x}: a {how} into our code declared {kind}; a {how} is {' or '.join(fits)}")
+        if kind == CALLEE and not (len(old) >= 5 and old[-5] == 0xE8 and pushes.fullmatch(old[:-5])):
+            sys.exit(f"{va:#x}: declared {CALLEE}, but the original's {old.hex()} is not `[push ...] call`")
+        if kind == INLINE and old[0] == 0xE8:
+            sys.exit(f"{va:#x}: declared {INLINE}, but the original is a call: {CALLEE}")
+        if kind == ABI and not (type(installs[va][2]) is int and installs[va][3]):
+            sys.exit(f"{va:#x}: declared {ABI} without the bytes it pops and why")
+
+
+# `.srpx`, the arena of the later patches (client_patch.md section 0.3;
+# README "The arena"). The exe's section table has room for twelve entries
+# (it is at 210h and the headers end at 400h, where the first section's
+# bytes begin); the game's seven, `.srp`, `.srpd`, `.srpc` and `.srpw` take
+# eleven. The twelfth is `.srpx`, code, data and writable, on the page after
+# `.srpw` (whose three pages end at ARENA_VA). A patch that needs room
+# declares its blocks in ARENA, each with its C or NASM sources, and the
+# tooling links them (link_026g.py): every source an ELF32 object, all of
+# them linked by GNU ld at ARENA_VA, a block an output section, in ARENA's
+# order, each at the next multiple of its alignment, its size what its
+# sources hold. A patch calls another's functions (the engine library's) by
+# their names, and a hook site takes its target from the link by symbol
+# (arena_target), so no block keeps a VA of its own: the exe is made whole
+# for every release and never rebased, and nothing outside it holds an
+# address of the arena. The file holds the whole arena (a state block as
+# zeros), only the section's sizes and SizeOfImage grow, and the linked bytes
+# must be arena_026g.lock.json's (arena()). With no block declared there
+# would be no `.srpx` at all.
+#   ArenaBlock(name, kind, align, sources): name "<patch>.<what>", unique;
+#   kind "code" (the sources' .text and .rodata, int3 after them), "data"
+#   (their .data) or "state" (their .bss: zeros); align a power of two from
+#   16, 0x1000 for a page of its own; sources the .c and .asm files.
+# A new patch adds its blocks (anywhere: the order is only the layout's) and
+# its source files, then `python link_026g.py --write`.
+ARENA_NAME = b".srpx\0\0\0"
+ARENA_CHARACTERISTICS = 0xE0000060              # code, initialized data, execute, read, write
+ARENA_VA = 0xA42D000                            # weapon_camo_va + .srpw's three pages
+# The most the arena may take: a block of a runaway size (a state array, a
+# table) stops the link instead of growing the image. Raise it on purpose.
+ARENA_LIMIT = 0x100000
+ArenaBlock = linker.ArenaBlock
+
+ARENA = (
+    # Research, patch 53: the asm's three entries and stubs, then the C code
+    ArenaBlock("research.code", "code", 0x1000,
+               ("research_026g.asm", "research_rule_026g.c", "research_native_026g.c")),
+    # its rule's cook and the hud's cache (research_native_026g.c rn_state)
+    ArenaBlock("research.state", "state", 0x1000, ("research_rule_026g.c", "research_native_026g.c")),
+    ArenaBlock("artefacts.code", "code", 0x1000, ("artefacts_026g.asm",)),       # patch 54
+    ArenaBlock("engine.code", "code", 0x1000, ("engine_026g.asm",)),             # the engine-function library
+    ArenaBlock("anomalies.code", "code", 0x1000, ("dynamic_anomalies_026g.asm",)),  # patch 42
+)
+
+
+def arena(blocks=None, tools=None):
+    """The linked arena (link_026g.Linked) of `blocks` (ARENA when None, or
+    the self-test's made-up arenas); the build stops when it cannot be
+    linked, or when ARENA's is not arena_026g.lock.json's."""
+    default = blocks is None
+    blocks = ARENA if default else tuple(blocks)
+    try:
+        linked = linker.link(blocks, ARENA_VA, ARENA_LIMIT, tools)
+    except linker.LinkError as error:
+        sys.exit(f".srpx: {error}")
+    if default:
+        why = linker.lock_differs(linked, linker.read_lock())
+        if why is not None:
+            sys.exit(f".srpx: the arena linked from its sources is not {linker.LOCK.name}'s: {why}. After a "
+                     "change of an arena source: python link_026g.py --write (and commit the lock); with no "
+                     "change, the tools differ from the lock's")
+    return linked
+
+
+def arena_target(linked, symbol):
+    """The VA of `symbol`, a global of a code block of the arena: what a hook
+    calls or jumps to; else the build stops."""
+    va = linked.symbols.get(symbol)
+    home = next((b for b in linked.blocks.values() if va is not None and b.va <= va < b.va + b.size), None)
+    if home is None or home.kind != "code":
+        sys.exit(f".srpx: {symbol!r} is no global symbol of a code block of the arena (a hook's target is a "
+                 f"`global` of its block's NASM, or a C function)")
+    return va
+
+
+def add_arena(data, linked):
+    """Appends `.srpx`, the linked arena's bytes at ARENA_VA, after the last
+    section; returns the new file. No arena (None): `data` as it is."""
+    if linked is None:
+        return data
+    headers = Headers(data)
+    if IMAGE_BASE + struct.unpack_from("<I", data, headers.size_of_image_at)[0] != ARENA_VA or linked.va != ARENA_VA:
+        sys.exit(f".srpx: the image does not end at {ARENA_VA:#x}, where the arena begins (has `.srpw` grown "
+                 f"past its three pages?)")
+    return add_code_section(data, ARENA_NAME, ARENA_VA, linked.image, ARENA_CHARACTERISTICS)
+
+
 # Research, mode 5 (patch 53, README; client_patch.md section 3.50;
-# docs/notes/research_mode.md): research_026g.section.bin (research_026g.py:
-# research_026g.asm's three entries and stubs, then the C code of
-# research_rule_026g.c and research_native_026g.c and its constant data,
-# linked for RESEARCH_VA) at the start of `.srpx`, the C code's state (the
-# rule's cook, the hud's cache) zeroed on the page at RESEARCH_STATE_OFFSET.
+# docs/notes/research_mode.md): research_026g.asm's three entries and stubs,
+# then the C code of research_rule_026g.c and research_native_026g.c and its
+# constant data, in the arena's block research.code; the C code's state (the
+# rule's cook, the hud's cache: rn_state) in research.state, zeroed.
 # Three hooks, `call` or `jmp` to an entry:
 # - the game's constructor, `mov eax,ebx / call 0x1EC170` at 0x1E9B4C (after
 #   its own client rule cooks; ebx = the game): register, which registers the
@@ -1872,90 +2266,39 @@ def weapon_camo_va(late_join):
 # - update_ui, `cmp eax,4 / jne 0x23B36A` at 0x23B351 (the match's first
 #   message by mode): welcome, mode 5's st_start_match_welcome_message_5.
 # No base relocation is under a site and no branch aims inside one.
-#
-# `.srpx` is the section of the later patches' code: the twelfth and last
-# entry the exe's section table has room for (its headers end at 400h, where
-# the first section's bytes begin, and the table at 210h holds twelve), so
-# a patch that needs a page of its own takes one of this section's, at an
-# offset of its own, rather than a section. It is code, data and writable
-# (EXTENSION_CHARACTERISTICS), on the page after `.srpw` (whose three pages
-# end there). Its pages: Research's code (+0, RESEARCH_OFFSET) and state
-# (+3000h); the dynamic anomalies of patch 42 (#225, not merged) take
-# DYNAMIC_ANOMALIES_OFFSET (+4000h) on, assembled for EXTENSION_VA plus it;
-# +8000h..+BFFFh free; the Sponge's patch 55 +C000h, SPONGE_A_OFFSET (its
-# code, state at +F000h). Pages no patch of this build fills are int3.
-EXTENSION_NAME = b".srpx\0\0\0"
-EXTENSION_CHARACTERISTICS = 0xE0000060         # code, initialized data, execute, read, write
-EXTENSION_VA = 0xA42D000                       # weapon_camo_va + .srpw's three pages
-RESEARCH_OFFSET = 0x0
-DYNAMIC_ANOMALIES_OFFSET = 0x4000              # reserved for patch 42 (#225)
-RESEARCH_VA = EXTENSION_VA + RESEARCH_OFFSET
-RESEARCH_ASM_SIZE = 0x100
-RESEARCH_STATE_OFFSET = 0x3000
-RESEARCH_STATE_VA = RESEARCH_VA + RESEARCH_STATE_OFFSET
-RESEARCH_SIZE = RESEARCH_STATE_OFFSET + 0x1000
+RESEARCH_ASM_SIZE = 0x100                      # research_026g.asm, int3 to 0x100: the C code after it
 RESEARCH_CLASS = 0x1E0                         # research_native_026g.c RN_CLASS: the mode configs' rules[2]
-RESEARCH_ENTRIES = (0x0, 0x5, 0xA)             # register, hud, welcome: `jmp near` each
 RESEARCH_HOOKS = (
-    (0x1E9B4C, bytes.fromhex("8bc3e81d260000"), 0x0, 0xE8),     # the game's constructor: register
-    (0x23B3DE, bytes.fromhex("837f20047518"), 0x5, 0xE8),       # update_ui after the teams' points: hud
-    (0x23B351, bytes.fromhex("83f8047514"), 0xA, 0xE9),         # update_ui's first message: welcome
+    (0x1E9B4C, bytes.fromhex("8bc3e81d260000"), "research_register", 0xE8),  # the game's constructor
+    (0x23B3DE, bytes.fromhex("837f20047518"), "research_hud", 0xE8),         # update_ui after the teams' points
+    (0x23B351, bytes.fromhex("83f8047514"), "research_welcome", 0xE9),       # update_ui's first message
 )
-
-# The Sponge, artefact type 12 (patch 55, README; client_patch.md
-# section 3.52; docs/notes/sponge.md): sponge_a_026g.section.bin
-# (sponge_a_026g.py: sponge_a_026g.asm's eight entries and stubs, then the C
-# code of sponge_a_026g.c and its constant data, linked for SPONGE_A_VA) at
-# SPONGE_A_OFFSET of `.srpx`, the C code's state (the zone a sponge ticks)
-# zeroed on the page at SPONGE_A_STATE_OFFSET. 0.28d0's artefact_sponge_core
-# written again on 0.26g's interfaces. Eight hooks, `jmp` each:
-# - the artefact cook's construct 0x25E660 at its type switch (`cmp eax,5 /
-#   ja near`, 0x25E68A) and its size 0x25E770 at its own (`cmp eax,5 / ja
-#   short`, 0x25E79A): type 12 (eax 9 there) is a sponge, else the switch;
-# - its query of the model and spawn effects 0x25E800 (the entry's `push ebp
-#   / mov ebp,esp / and esp,-8`): a sponge's asks for a damage zone too;
-# - the throw-grenade state, where it takes the item in the grenade slot for
-#   a grenade set: its way in 0x2E4090 at 0x2E40C6 (vtable +64h and
-#   0x30A090: a null dereference for any other item), its is_ready at
-#   0x33A677 (the grenade's exploded flag), its throw at 0x33A7BB (`call
-#   0x30A250`), the pull substate's pin at 0x3103C9 (`call 0x30A120`): a
-#   sponge's own, else the original;
-# - the damage zone's hit loop 0x319AF0 at 0x319C8B (the receiver's vt+20h
-#   with no instigator, inflictor or item): a zone a sponge ticks names its
-#   thrower (kill credit), its inflictor and it.
-# No base relocation is under a site and no branch aims inside one.
-SPONGE_A_OFFSET = 0xC000
-SPONGE_A_VA = EXTENSION_VA + SPONGE_A_OFFSET
-SPONGE_A_ASM_SIZE = 0x200
-SPONGE_A_STATE_OFFSET = 0x3000
-SPONGE_A_STATE_VA = SPONGE_A_VA + SPONGE_A_STATE_OFFSET
-SPONGE_A_SIZE = SPONGE_A_STATE_OFFSET + 0x1000
-SPONGE_A_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19, 0x1E, 0x23)
-SPONGE_A_HOOKS = (
-    (0x25E68A, bytes.fromhex("83f8050f87a4000000"), 0x0, 0xE9),             # construct's type switch
-    (0x25E79A, bytes.fromhex("83f8057733"), 0x5, 0xE9),                     # size's type switch
-    (0x25E800, bytes.fromhex("558bec83e4f8"), 0xA, 0xE9),                   # the query's entry
-    (0x2E40C6, bytes.fromhex("8b018b5064ffd2e8be5f0200"), 0xF, 0xE9),       # the throw state's way in
-    (0x33A677, bytes.fromhex("8b8e7c0100008b9168020000"), 0x14, 0xE9),      # is_ready's grenade
-    (0x33A7BB, bytes.fromhex("8b8e7c01000081c74c040000578d442414508a868001000051e877fafcff"), 0x19, 0xE9),
-    (0x3103C9, bytes.fromhex("8bb6380100008b8e7c0100005051e8449dffff"), 0x1E, 0xE9),  # the pin
-    (0x319C8B, bytes.fromhex("535383ec08d95c2404d9442420d91c24528d54243c528b9424b40000005352ffd0"),
-     0x23, 0xE9),                                                           # the zone's hit
-)
+# The engine-function library (engine_026g.py, client_patch.md section 0.5):
+# a cdecl thunk per engine function our code calls, each the global symbol
+# `engine_...` in the arena's block engine.code. One copy for every patch, so
+# one ABI check (check_engine_026g.py) covers every caller.
 
 
-def research_layout(code):
-    """(VA, state VA, class) research_026g.section.bin was built for, read
-    from it: the target of the register stub's `jmp 0x1EC170` gives the VA,
-    the state's address and the class are found in the C code (0 for one that
-    is not there); (0, 0, 0) without the stub's jump, once."""
-    jmp = code.find(b"\x83\x04\x24\x02\xE9")                      # add dword [esp],2 / jmp rel32
-    if jmp < 0 or code.find(b"\x83\x04\x24\x02\xE9", jmp + 1) >= 0:
-        return (0, 0, 0)
-    va = (0x1EC170 - (jmp + 9) - struct.unpack_from("<i", code, jmp + 5)[0]) & 0xFFFFFFFF
-    c_code = code[RESEARCH_ASM_SIZE:]
-    return (va, RESEARCH_STATE_VA if struct.pack("<I", RESEARCH_STATE_VA) in c_code else 0,
-            RESEARCH_CLASS if struct.pack("<I", RESEARCH_CLASS) in c_code else 0)
+def arena_symbols(linked):
+    """{block: {symbol: VA}} of every symbol the link defined (locals too)."""
+    out = {name: {} for name in linked.blocks}
+    for name, va, block, _ in linked.every:
+        out[block][name] = va
+    return out
+
+
+def audit_vtables(vtables=None, symbols=None):
+    """Every `*_vtable` symbol of the arena's link is declared in
+    INSTALLED_VTABLES; else the build stops (a vtable our code hands the game
+    with no model would go unchecked)."""
+    vtables = INSTALLED_VTABLES if vtables is None else vtables
+    symbols = arena_symbols(arena()) if symbols is None else symbols
+    declared = {(row[1], row[2]) for row in vtables}
+    for block, table in sorted(symbols.items()):
+        for symbol in sorted(table):
+            if symbol.endswith("_vtable") and (block, symbol) not in declared:
+                sys.exit(f"{block}: {symbol} is a vtable our code installs with no model: declare it in "
+                         f"patch_026g.py's INSTALLED_VTABLES (client_patch.md section 0.4)")
 
 
 def hook_bytes(base, va, expected, offset, opcode):
@@ -1992,6 +2335,11 @@ def data_file_offset(va):
     return va - DATA_VA + DATA_FILE
 
 
+# Every write of build() into the original's sections: (VA, the original's
+# bytes, the new ones), in order. audit_installs reads it.
+WRITES = []
+
+
 def patch_value(data, va, expected, new):
     """As `patch`, for a value in .data."""
     at = data_file_offset(va)
@@ -1999,6 +2347,7 @@ def patch_value(data, va, expected, new):
     if found != expected or len(new) != len(expected):
         sys.exit(f"{va:#x}: expected {expected.hex()}, found {found.hex()}")
     data[at:at + len(new)] = new
+    WRITES.append((va, bytes(expected), bytes(new)))
 
 
 def patch_section_value(data, va, expected, new):
@@ -2015,6 +2364,7 @@ def patch_section_value(data, va, expected, new):
     if found != expected or len(new) != len(expected):
         sys.exit(f"{va:#x}: expected {expected.hex()}, found {found.hex()}")
     data[at:at + len(new)] = new
+    WRITES.append((va, bytes(expected), bytes(new)))
 
 
 def patch(data, va, expected, new):
@@ -2023,6 +2373,7 @@ def patch(data, va, expected, new):
     if found != expected:
         sys.exit(f"{va:#x}: expected {expected.hex()}, found {found.hex()}")
     data[at:at + len(new)] = new
+    WRITES.append((va, bytes(expected), bytes(new)))
 
 
 class Headers:
@@ -2202,7 +2553,8 @@ def add_code_section(data, name, va, code, characteristics):
     return out
 
 
-def build(original, mode, code=None, server=None, late_join=None, revision=None, required_patches=None):
+def build(original, mode, code=None, server=None, late_join=None, revision=None, required_patches=None,
+          arena_blocks=None):
     """Returns (patched file, description). mode: "cert-only", "section" or
     "hash-mismatch"; code = the assembled .bin for that cave. An optional
     server embeds a default host:port in full builds only. late_join = the
@@ -2223,7 +2575,11 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
     required_patches: the n of each resources.db.patch_<n> (1 to 255) the
     build with the late join requires at its start (patch 49; a release's
     offered patches); none when not given. It is the mount's bitmap and
-    nothing else."""
+    nothing else.
+    arena_blocks: the blocks of `.srpx` instead of ARENA (the self-test's made-up
+    arenas: ARENA's own reordered, or more blocks after them; no lock is
+    compared, ARENA's own hooks are made); () for none; the build with the
+    late join only."""
     if hashlib.sha256(original).hexdigest() != EXE_SHA256:
         sys.exit("the source is not the original 0.26g survarium.exe (sha256 mismatch)")
     if server is not None:
@@ -2277,6 +2633,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                 or forward_scroll[SCENE_SLOMO_OFFSET] != 0x60:
             sys.exit("forward_scroll_026g.section.bin: its entries are not where patch_026g.py jumps to them")
     data = bytearray(original)
+    linked = None
+    WRITES.clear()
     patch(data, *CERT)
     if mode == "cert-only":
         return data, "certificate check only"
@@ -2327,6 +2685,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
         at = file_offset(HASH_MISMATCH_VA)
         if hashlib.sha256(data[at:at + HASH_MISMATCH_REGION]).hexdigest() != HASH_MISMATCH_SHA256:
             sys.exit(f"{HASH_MISMATCH_VA:#x}: on_hash_mismatch is not the original")
+        WRITES.append((HASH_MISMATCH_VA, bytes(data[at:at + HASH_MISMATCH_REGION]),
+                       cave + b"\xCC" * (HASH_MISMATCH_REGION - len(cave))))
         data[at:at + HASH_MISMATCH_REGION] = cave + b"\xCC" * (HASH_MISMATCH_REGION - len(cave))
         rewritten.append((HASH_MISMATCH_VA, HASH_MISMATCH_VA + HASH_MISMATCH_REGION))
         where = "over on_hash_mismatch"
@@ -2527,6 +2887,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             sys.exit(f"read_order_026g.bin is {len(read_order)} bytes, not {READ_ORDER_SIZE:#x}")
         if hashlib.sha256(data[at:at + READ_ORDER_SIZE]).hexdigest() != READ_ORDER_SHA256:
             sys.exit(f"{READ_ORDER_VA:#x}: hdd_manager_sorting_predicate is not the original")
+        WRITES.append((READ_ORDER_VA, bytes(data[at:at + READ_ORDER_SIZE]), read_order))
         data[at:at + READ_ORDER_SIZE] = read_order
         if neutralize_relocs(data, [(READ_ORDER_VA, READ_ORDER_VA + READ_ORDER_SIZE)]):
             sys.exit("a base relocation under hdd_manager_sorting_predicate")
@@ -2730,19 +3091,6 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      f"-DSTATE={upgrade_preview_state:#x} -DPREVIEW={preview_state:#x} "
                      f"-DFIND={stash_va + WEAPON_STASH_FIND:#x}?)")
         weapon_camo = weapon_camo + b"\xCC" * (UPGRADE_PREVIEW_OFFSET - len(weapon_camo)) + upgrade_preview
-        artefacts = open(artefacts_bin(), "rb").read()
-        artefacts_va = camo_va + ARTEFACTS_OFFSET
-        if UPGRADE_PREVIEW_OFFSET + len(upgrade_preview) > ARTEFACTS_OFFSET \
-                or ARTEFACTS_OFFSET + len(artefacts) > 0x3000:
-            sys.exit("the upgrade preview's code and the artefacts' do not fit in .srpw's three pages")
-        if artefacts_backs(artefacts, artefacts_va) != list(ARTEFACTS_BACKS):
-            sys.exit(f"artefacts_026g.section.bin: its entries are not where patch_026g.py jumps to them, or it "
-                     f"was assembled for another address (-DCAVE={artefacts_va:#x})")
-        weapon_camo = weapon_camo + b"\xCC" * (ARTEFACTS_OFFSET - len(weapon_camo)) + artefacts
-        for va, expected, offset, opcode in ARTEFACTS_HOOKS:
-            patch(data, va, expected, hook_bytes(artefacts_va, va, expected, offset, opcode))
-            if neutralize_relocs(data, [(va, va + len(expected))]):
-                sys.exit(f"{va:#x}: a base relocation under a hook of the artefacts")
         for va, expected, offset, opcode in UPGRADE_PREVIEW_HOOKS:
             patch(data, va, expected, hook_bytes(upgrade_preview_va, va, expected, offset, opcode))
             if neutralize_relocs(data, [(va, va + len(expected))]):
@@ -2794,36 +3142,25 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                                     DEATH_CAMERA_CHARACTERISTICS)
             data = add_code_section(data, WEAPON_CAMO_NAME, weapon_camo_va(late_join), weapon_camo,
                                     WEAPON_CAMO_CHARACTERISTICS)
-            research = open(research_bin(), "rb").read()
-            if weapon_camo_va(late_join) + (len(weapon_camo) + 0xFFF) // 0x1000 * 0x1000 != EXTENSION_VA:
-                sys.exit(f".srpw does not end at EXTENSION_VA {EXTENSION_VA:#x}")
-            if RESEARCH_OFFSET + RESEARCH_SIZE > DYNAMIC_ANOMALIES_OFFSET:
-                sys.exit("Research's pages run into the dynamic anomalies' in .srpx")
-            if len(research) > RESEARCH_STATE_OFFSET or any(research[at] != 0xE9 for at in RESEARCH_ENTRIES) \
-                    or research_layout(research) != (RESEARCH_VA, RESEARCH_STATE_VA, RESEARCH_CLASS):
-                sys.exit(f"research_026g.section.bin was built for another place, state or class "
-                         f"(research_026g.py --write-bin: VA {RESEARCH_VA:#x}, state {RESEARCH_STATE_VA:#x})")
-            for va, expected, offset, opcode in RESEARCH_HOOKS:
-                patch(data, va, expected, hook_bytes(RESEARCH_VA, va, expected, offset, opcode))
-                if neutralize_relocs(data, [(va, va + len(expected))]):
-                    sys.exit(f"{va:#x}: a base relocation under a hook of Research")
-            research += b"\xCC" * (RESEARCH_STATE_OFFSET - len(research)) + bytes(RESEARCH_SIZE - RESEARCH_STATE_OFFSET)
-            extension = b"\xCC" * RESEARCH_OFFSET + research
-            sponge = open(sponge_a_bin(), "rb").read()
-            if not (RESEARCH_OFFSET + RESEARCH_SIZE <= DYNAMIC_ANOMALIES_OFFSET < SPONGE_A_OFFSET
-                    and SPONGE_A_OFFSET + SPONGE_A_SIZE <= 0x10000):
-                sys.exit("the pages of .srpx overlap: Research, patch 42, patch 55")
-            if len(sponge) > SPONGE_A_STATE_OFFSET or any(sponge[at] != 0xE9 for at in SPONGE_A_ENTRIES) \
-                    or sponge_a_layout(sponge) != (SPONGE_A_VA, SPONGE_A_STATE_VA):
-                sys.exit(f"sponge_a_026g.section.bin was built for another place or state "
-                         f"(sponge_a_026g.py --write-bin: VA {SPONGE_A_VA:#x}, state {SPONGE_A_STATE_VA:#x})")
-            for va, expected, offset, opcode in SPONGE_A_HOOKS:
-                patch(data, va, expected, hook_bytes(SPONGE_A_VA, va, expected, offset, opcode))
-                if neutralize_relocs(data, [(va, va + len(expected))]):
-                    sys.exit(f"{va:#x}: a base relocation under a hook of the Sponge")
-            sponge += b"\xCC" * (SPONGE_A_STATE_OFFSET - len(sponge)) + bytes(SPONGE_A_SIZE - SPONGE_A_STATE_OFFSET)
-            extension += b"\xCC" * (SPONGE_A_OFFSET - len(extension)) + sponge
-            data = add_code_section(data, EXTENSION_NAME, EXTENSION_VA, extension, EXTENSION_CHARACTERISTICS)
+            # `.srpx`, the arena: its blocks linked from their sources
+            # (link_026g.py), each hook's target taken from the link by
+            # its symbol.
+            linked = arena(arena_blocks) if arena_blocks != () else None
+            if linked is not None:
+                for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + DYNAMIC_ANOMALIES_HOOKS:
+                    patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
+                    if neutralize_relocs(data, [(va, va + len(expected))]):
+                        sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
+                if artefacts_backs(linked) != list(ARTEFACTS_BACKS):
+                    sys.exit("artefacts_026g.asm: its entries do not go on where patch_026g.py's ARTEFACTS_BACKS "
+                             "says")
+            data = add_arena(data, linked)
+    if arena_blocks is not None and late_join is None:
+        sys.exit("the arena (`.srpx`) is of the build with the late join")
+    if mode != "cert-only":
+        audit_installs(data, WRITES)
+    if late_join is not None and linked is not None:
+        audit_vtables(symbols=arena_symbols(linked))
     headers = Headers(data)
     struct.pack_into("<I", data, headers.checksum_at, pe_checksum(data, headers.checksum_at))
     return data, (f"certificate check, mutex, minimum VRAM check, hash interval {HASH_INTERVAL_MS} ms, "
@@ -2868,6 +3205,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      f"Research (mode 5: rule class {RESEARCH_CLASS:#x}, its hud and messages), "
                      "a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills "
                      "pain, body and head, and one press fires every artefact of its kind, "
+                     "dynamic anomalies (the release's rule on London's and Cologne's timed anomalies), "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")
@@ -2938,31 +3276,6 @@ def mount_patches_bin():
 
 def weapon_camo_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "weapon_camo_026g.section.bin")
-
-
-def research_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "research_026g.section.bin")
-
-
-def sponge_a_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "sponge_a_026g.section.bin")
-
-
-def sponge_a_layout(code):
-    """(VA, state VA) sponge_a_026g.section.bin was built for, read from it:
-    the size stub's `jmp 0x25E7D2` (its first) gives the VA, the state's
-    address is in the zone hit stub; (0, 0) where neither is."""
-    at = 0x5 + 5 + struct.unpack_from("<i", code, 0x6)[0] if len(code) > 0x10 and code[0x5] == 0xE9 else -1
-    if not 0 <= at < SPONGE_A_ASM_SIZE - 0x10 or code[at:at + 4] != b"\x83\xf8\x09\x74" \
-            or code[at + 5:at + 8] != b"\x83\xf8\x05":
-        return (0, 0)
-    ja = at + 8                                                # cmp eax,9 / je / cmp eax,5 / ja rel32
-    if code[ja:ja + 2] != b"\x0f\x87":
-        return (0, 0)
-    va = (0x25E7D2 - (ja + 6) - struct.unpack_from("<i", code, ja + 2)[0]) & 0xFFFFFFFF
-    zone_hit = 0x23 + 5 + struct.unpack_from("<i", code, 0x24)[0]
-    state = struct.unpack_from("<I", code, zone_hit + 2)[0] if code[zone_hit:zone_hit + 2] == b"\x3b\x3d" else 0
-    return (va, state)
 
 
 def spot_bin():
@@ -3067,18 +3380,17 @@ def upgrade_preview_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "upgrade_preview_026g.section.bin")
 
 
-def artefacts_bin():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "artefacts_026g.section.bin")
-
-
-def artefacts_backs(code, va):
-    """artefacts_026g.section.bin assembled at `va`: where each of its six
-    entries goes on (the target of the first `jmp near` back into .text
-    after the entry's own code), when they are `jmp near`; else None."""
-    if any(code[at] != 0xE9 for at in ARTEFACTS_ENTRIES):
+def artefacts_backs(linked):
+    """Where each of the artefacts' six entries (ARTEFACTS_HOOKS' symbols)
+    goes on: the target of the first `jmp near` back into .text after the
+    entry's own code, when the entry is a `jmp near`; else None."""
+    block = linked.blocks["artefacts.code"]
+    code, va = linker.block_bytes(linked, "artefacts.code"), block.va
+    entries = [linked.symbols.get(symbol, 0) - va for _, _, symbol, _ in ARTEFACTS_HOOKS]
+    if any(not 0 <= at < len(code) - 4 or code[at] != 0xE9 for at in entries):
         return None
     backs = []
-    for at in ARTEFACTS_ENTRIES:
+    for at in entries:
         start = at + 5 + struct.unpack_from("<i", code, at + 1)[0]
         target = next((va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] for i in range(start, len(code) - 4)
                        if code[i] == 0xE9 and va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] < SECTION_VA),
@@ -3089,7 +3401,7 @@ def artefacts_backs(code, va):
 
 def upgrade_preview_targets(code, va):
     """upgrade_preview_026g.section.bin assembled at `va`: (the find's
-    `call`, its state, patch 32's state) when its six entries are `jmp
+    `call`, its state, patch 32's state) when its seven entries are `jmp
     near`, find (+0Fh's) begins `push eax / call <find>` and the state is
     the immediate of pop_op's `mov esi,<state>` (the one after account's
     `call`), patch 32's that of preview's first `mov esi,<state>`; else None."""

@@ -21,6 +21,11 @@ The owner's rule against farming battery events and how srp keeps it. Code:
   that, nothing." So one battery can pay up to N times per kind: the owner knew it.
   - N is the map's `victory_items_count` (10 on every battery map); Team Deathmatch and Research
     (mode 5, whose captures count in events 6 and 18): no cap.
+  - Research's events (capture 6, neutralisation 18, kill invader 10) stay uncapped by the
+    owner's decision (2026-10-22: "let's not cap it at all", "it takes a lot of time to capture
+    a point either way"), knowing a 1v1 room can earn about 1,320 score per 15-minute match by
+    trading units (#297's review); the take-back policy (gains over 0.5M) covers exploiters
+    (`research_mode.md`, "Rewards: no cap"). Do not cap them without the owner.
   - 20 put in and 19 found (`VICTORY_ITEM_FOUND`, weight 2.5, the results' "items" title): at
     most N each. 6 delivery share, 17 stolen delivery share, 18 rescued delivery share
     (hundredths of a delivery, shared among the carriers by distance): at most N × 100 each.

@@ -295,9 +295,24 @@ KITS = kits_of({WEAPON_1: AK, WEAPON_2: PISTOL, VEST_SLOT: VEST, LEGS: LEGS_ITEM
                {WEAPON_2: PISTOL2, VEST_SLOT: VEST},
                {WEAPON_1: SVD, VEST_SLOT: VEST})
 # A weapon shown: the build's camera is patch 45's, which looks at the weapon
-# above the workbench (weapon_table_026g.asm's bench_y and view_distance;
+# above the workbench (weapon_table_026g.asm's bench_y and frame_view;
 # check_weapon_table_026g.py runs it); patch 32's own were 1.05 and 0.85.
-HEIGHT, DISTANCE, NEAR_MIN, LEAST = 1.3, 1.2, 0.6, 1.5
+# patch 45's frame_view for a 1 m weapon (16:9 without a viewport; check_weapon_table_026g.py's
+# frame()): the camera's distance and its side angle (the weapon left of the view's middle)
+def _bench_view():
+    big = math.tan(math.radians(65 / 2)) * 16 / 9
+    s, p, m = 365 / 1920, 882 / 1920, 0.02
+    t = 2 * s * big
+    left = math.sqrt(1 / big ** 2 + (1 - 2 * m) ** 2) / (4 * (0.5 - s - m))
+    right = math.sqrt(1 / big ** 2 + (1 - 2 * m - 2 * p) ** 2) / (4 * (0.5 - p - m + s))
+    distance = max(left, right, 0.962) * math.sqrt(1 + t * t)
+    c, sn = math.cos(-0.25), math.sin(-0.25)
+    side = math.atan(t * c) + math.asin(t * sn * sn / (c * math.sqrt(1 + (t * c) ** 2)))
+    return round(distance, 6), side
+
+
+DISTANCE, SIDE_ANGLE = _bench_view()
+HEIGHT, NEAR_MIN, LEAST = 1.3, 0.3, 1.5
 
 
 def main():
@@ -350,7 +365,8 @@ def main():
             lobby = Lobby(patched, delta, KITS)
             lobby.handler(START_HANDLER, item)
             camera = lobby.camera()
-            assert camera == (HEIGHT, 0.37, DISTANCE, 1.96), camera
+            # patch 45 frames the weapon itself: its side angle (round 5e)
+            assert camera[0] == HEIGHT and abs(camera[1] - SIDE_ANGLE) < 2e-5 and camera[2:] == (DISTANCE, 1.96), camera
             assert lobby.calls == [("setup", PROFILE, CHARACTER, kit)] + o_calls, lobby.calls
             assert lobby.state(patched) == (1, item, 1)
             lobby.calls.clear()

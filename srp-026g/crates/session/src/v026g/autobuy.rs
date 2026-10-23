@@ -425,6 +425,8 @@ mod tests {
     #[test]
     fn without_the_boxes_what_was_used_is_gone_and_nothing_is_spent() {
         let (mut account, rifle, ammo) = rifleman(300);
+        // Autobuy is on for a new account: the player turned it off.
+        account.autobuy = false;
         account.item_mut(rifle).unwrap().condition_or_stack = 900_000;
         let money = account.generic_money;
         let rounds = dict("ammo_5.45x39_7n6m");

@@ -175,6 +175,7 @@ package survarium.messages
          btnAccept.label = LocalizationData.getName("btn_item_craft");
          this.background.height = 415;
          this.rerollContainer.y += 1;
+         this.removeFailureRow();
          this.updateLayout();
          tabEnabled = true;
          btnAccept.enabled = false;
@@ -211,6 +212,10 @@ package survarium.messages
             this.dragItemSlot2.addEventListener(MouseEvent.ROLL_OVER,this.onSlotOver);
             this.dragItemSlot1.addEventListener(MouseEvent.ROLL_OUT,this.onSlotOut);
             this.dragItemSlot2.addEventListener(MouseEvent.ROLL_OUT,this.onSlotOut);
+            this.dragItemSlot1.addEventListener(MouseEvent.MOUSE_DOWN,this.onSlotDown);
+            this.dragItemSlot2.addEventListener(MouseEvent.MOUSE_DOWN,this.onSlotDown);
+            this.dragItemSlot1.addEventListener(MouseEvent.CLICK,this.onSlotClick);
+            this.dragItemSlot2.addEventListener(MouseEvent.CLICK,this.onSlotClick);
             this.dragItemSlot1.dispatchEvent(new Event(Events.DROPED_IN));
             this.dragItemSlot3.dragEnabled = false;
             this.dragItemSlot3.visible = false;
@@ -227,6 +232,22 @@ package survarium.messages
          }
          this.updateCraftChance();
          this.checkAcceptButton();
+      }
+      
+      // An upgrade never takes a modification away (the owner's rule of 2026-10-23, craft-menu.md):
+      // no failure ("-1 mod.") row, and the server sends its chances as 0. The chances' panel,
+      // the prices under it and the window close up by the row's height; the top stays.
+      private function removeFailureRow() : void
+      {
+         var row:Number = this.labelFailChance.y - this.labelSuccessChance.y;
+         this.labelFailChance.visible = false;
+         this.failChanceRegular.visible = false;
+         this.failChanceGold.visible = false;
+         this.rerollContainer.background.height -= row;
+         this.checkBoxRegularCost.y -= row;
+         this.checkBoxPremiumCost.y -= row;
+         this.craftTimer.y -= row;
+         this.background.height -= row;
       }
       
       private function updateLayout() : void
@@ -676,6 +697,35 @@ package survarium.messages
       private function onSlotOut(e:MouseEvent) : void
       {
          dispatchEvent(new ListEvent(ListEvent.ITEM_ROLL_OUT,false,false,-1,-1,-1,e.currentTarget as IListItemRenderer,null));
+      }
+
+      // Where a press on a slot began, in its units: a press that moved more than the drag's 3
+      // (DragSlot.handleMouseMove) is a drag of the donor, not a click.
+      private var _slotDownX:Number = 0;
+
+      private var _slotDownY:Number = 0;
+
+      private function onSlotDown(e:MouseEvent) : void
+      {
+         this._slotDownX = (e.currentTarget as MovieClip).mouseX;
+         this._slotDownY = (e.currentTarget as MovieClip).mouseY;
+      }
+
+      // A click (either button) on a slot's item: Buy, to buy another of the kind; the window stays
+      // as it is (craft-menu.md, "Buy from the slots").
+      private function onSlotClick(e:MouseEvent) : void
+      {
+         var slot:MovieClip = e.currentTarget as MovieClip;
+         var list:InventoryList = parent != null ? parent["inventory_list"] as InventoryList : null;
+         if(slot == null || slot.data == null || list == null || this.dragItemSlot3.visible)
+         {
+            return;
+         }
+         if(Math.abs(slot.mouseX - this._slotDownX) > 3 || Math.abs(slot.mouseY - this._slotDownY) > 3)
+         {
+            return;
+         }
+         list.showCraftSlotMenu(slot.data,this);
       }
 
       // The item a slot's card is compared with: the other slot's (the donor with the item being

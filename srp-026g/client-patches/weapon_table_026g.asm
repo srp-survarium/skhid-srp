@@ -7,7 +7,7 @@
 ; turns it. At WEAPON_TABLE_OFFSET of `.srpw`, after the stash code; its state
 ; (WEAPON_TABLE_STATE_SIZE bytes) at STATE, WEAPON_TABLE_STATE_OFFSET of
 ; `.srpd`; patch 32's mode at PREVIEW (WEAPON_PREVIEW_STATE_OFFSET).
-;   nasm -f bin -DCAVE=0xA42A800 -DSTATE=0xA428F00 -DPREVIEW=0xA428E00 weapon_table_026g.asm -o weapon_table_026g.section.bin
+;   nasm -f bin -DCAVE=0xA42A6B0 -DSTATE=0xA428F00 -DPREVIEW=0xA428E00 weapon_table_026g.asm -o weapon_table_026g.section.bin
 ;
 ; The lobby camera (lobby menu+10Ch; ctor 0x283BC0, tick 0x283EF0 with ecx =
 ; camera+4, setter 0x2845C0) looks at the point (+A0h, +A4h, +A8h) from the
@@ -25,17 +25,14 @@
 ;                patch 32's mode 1 (a weapon shown) turns the table on: the
 ;                camera's point is to go to BENCH (the height and the distance
 ;                by the setter), its yaw and pitch to the bench's view, the
-;                weapon's turn to 0, and the camera holds until the weapon is
-;                at the bench; mode 0 with the table on (a close, or an
+;                weapon's turn to 0, and the camera flies at once (round 5:
+;                no wait for the weapon); mode 0 with the table on (a close, or an
 ;                armour's window over a weapon's) turns it off: the point goes
 ;                back to the origin, the yaw and the pitch to what they were
 ;                before. Then the setter.
 ;   +5  tick     0x284020 `movss xmm0,[ebx+0C8h]` (the camera's tick, ebx =
 ;                camera+4, [esp+10h] the frame's time, at most 0.1 s): while
-;                the table is on and its weapon not yet drawn there (at most
-;                HOLD_MAX seconds) the camera holds (its three steps' speeds
-;                0), then they get the setter's speeds again and it flies;
-;                at the bench a drag turns the weapon (the yaw's move its
+;                the table is on a drag turns the weapon (the yaw's move its
 ;                spin, the pitch's its tilt) instead of the camera; while the
 ;                camera flies, its point, yaw and pitch move a share RATE * dt
 ;                of the way to their targets, and once off and there it is
@@ -48,7 +45,11 @@
 ;                character makes no player (+D2C4h -1, +D2C8h 0), the table's
 ;                player's held item is drawn with the bench's transform
 ;                ([ebp-0E8h], the decal pose's buffer), its middle at BENCH,
-;                and the weapon is there (READY); before, in the hand. Once
+;                and the weapon is there (READY); before, the decal pose's
+;                transform (10 m under the floor, where the stock decal
+;                editor puts it away): the camera flies meanwhile and the
+;                old player's weapon is seen neither in the hand nor at the
+;                bench (round 5). Once
 ;                there, a refresh's new player (an attach) does not take it
 ;                away: the current player's weapon stays at the bench until
 ;                the new player replaces it. The transform is also kept at
@@ -56,10 +57,12 @@
 ;                patches: patch_026g.py WEAPON_TABLE_MATRIX_OFFSET).
 ;   +20 left     0x283D81 `test byte [eax+0Ch],52h / setne al` in the camera's
 ;                on_mouse_move (eax = the mouse's state, esi = the camera): a
-;                button of 52h as before; at the bench, the left button too
+;                button of 52h as before; with the table on, the left button too
 ;                when its press is off the movie (the lobby menu's vtable+24h,
 ;                is_mouse_over_ui, false at the press's first move: not on a
 ;                control, not on an item being dragged), until it is let go.
+;   +25 ray      0x284309 `call 2844D0h` in the camera's tick: no collision
+;                ray while the camera is the table's (round 5c)
 ; The table's player: mt_draw called by lobby_character's update (return
 ; address 0x284A83), whose character (the update's ebx, kept by mt_draw at
 ; [ebp-0F0h]) has that player (+D2B8h) and its upgrade window open (+D515h:
@@ -92,6 +95,10 @@ ORG CAVE
 %error PREVIEW is required
 %endif
 
+%define URO_FOV         0xA6FA28    ; uro_fov's value: the lobby camera's vertical field of view (degrees, patch 22)
+%define OWNER           0x9C        ; lobby menu: its owner; +53B0h its viewport, +108h/+10Ch its width and height
+%define VIEWPORT        0x53B0
+%define RAY             0x2844D0    ; lobby camera: the collision ray from its point back to the eye; `ret 4`
 %define CAMERA_SET      0x2845C0    ; lobby camera: xmm0 height, xmm1 distance, [esp+4] side angle; `ret 4`
 %define MODE            0           ; patch 32's state: 1 while its window's weapon is shown
 %define LOBBY_DRAW      0x284A83    ; after lobby_character's update's `call 0x2474A0`
@@ -146,16 +153,18 @@ ORG CAVE
 %define POINT_X         0xA0
 %define HEIGHT          0xA4
 %define POINT_Z         0xA8
-%define SIDE            0xAC
 %define YAW             0xB8
 %define PITCH           0xBC
+%define SIDE            0xAC
 %define DISTANCE_TARGET 0xC0
 %define DISTANCE        0xC4
-%define TURN_YAW        0xCC        ; a drag's moves of the frame
-%define TURN_PITCH      0xD0
-%define SIDE_SPEED      0xE0        ; the setter's speeds of the three steps
+%define SIDE_SPEED      0xE0        ; the camera's own steps' speeds (the setter's, the wheel's)
 %define HEIGHT_SPEED    0xE4
 %define DISTANCE_SPEED  0xE8
+%define ZOOM            0x94        ; the camera's zoom: patch 22's projection (fov_projection) takes
+                                    ; 65 z + (uro_fov - 65) max(0, (z - 1/4) / (3/4)) degrees (vertical)
+%define TURN_YAW        0xCC        ; a drag's moves of the frame
+%define TURN_PITCH      0xD0
 
 ; The state, at STATE
 %define TABLE           0x00        ; 1: the weapon is at the bench
@@ -169,20 +178,24 @@ ORG CAVE
 %define SPIN            0x20        ; the weapon's turn about the vertical, by the drag's yaw
 %define TILT            0x24        ; and about the bench's length, by its pitch (within TILT_MAX)
 %define READY           0x28        ; 1: the window's weapon is drawn at the bench
-%define HOLD            0x2C        ; 1: the camera waits for it
-%define WAITED          0x30        ; float: how long it has
+%define EASE            0x2C        ; 1: a flight's camera steps ease with it (from `camera` until all are there)
+%define LENGTH          0x30        ; float: 0 not measured; - the window's weapon's length (its box's) to frame;
+                                    ; framed: the wheel's farthest distance (> 0)
 %define LEFT            0x34        ; the left button since it went down: 0 up, 1 the weapon's drag, 2 not
 %define MIDDLE          0x38        ; float4: the weapon's middle, in its model's space (w 0)
 %define STAMP           0x48        ; +1 at every bench transform written (the interface's frame stamp)
+%define TARGET_ZOOM     0x4C        ; the camera's zoom the flight goes to (1 back at the stock camera)
 %define BENCH_MATRIX    0x50        ; float4x4: the bench transform the held item was last drawn with
 %define BIND_MIDDLE     0x90        ; float4: the table's middle (bind space), before bone 1
 %define CONST(label)    ((label) - STATE)
+%define FC(label)       ((label) - wide)    ; frame_view's constants, from ebx
 
     jmp near camera
     jmp near tick
     jmp near cull
     jmp near matrix
     jmp near left
+    jmp near ray
 
 ; patch 32's start_cam and exit_cam: `jmp camera` where they jumped to the
 ; setter. Every register but xmm0 and xmm1 (the bench's while it is on) is
@@ -191,6 +204,7 @@ camera:
     pushad
     mov esi, eax                    ; esi = the camera
     call base                       ; edi = the state
+    lea ebx, [edi+CONST(wide)]      ; ebx: the constants (FC)
     cmp byte [edi + PREVIEW - STATE + MODE], 0
     je .off
     cmp dword [edi+FLY], 0
@@ -203,22 +217,34 @@ camera:
     xor eax, eax
     cmp dword [edi+TABLE], 0
     jne .again                      ; a weapon's window over a weapon's: the bench keeps its weapon
-    mov [edi+READY], eax            ; until the new player's is there, and the camera need not wait
-    mov [edi+WAITED], eax
+    mov [edi+READY], eax            ; until the new player's is there
 .again:
-    mov dword [edi+TABLE], 1
-    mov dword [edi+FLY], 1
-    mov dword [edi+HOLD], 1
+    lea ecx, [eax+1]
+    mov [edi+TABLE], ecx
+    mov [edi+FLY], ecx
+    mov [edi+EASE], ecx
     mov [edi+SPIN], eax
     mov [edi+TILT], eax
-    mov eax, [edi+CONST(bench_x)]
+    mov [edi+LENGTH], eax           ; the weapon's own length once it is drawn there
+    ; the bench's view at the original's 65 degrees whatever uro_fov is (as a
+    ; scope's, through patch 22's projection): the zoom z with 65 z + (u - 65)
+    ; (z - 1/4) / (3/4) = 65 is (u + 130) / (4u - 65)
+    fld dword [edi + URO_FOV - STATE]
+    fld st0
+    fmul dword [ebx+FC(four)]
+    fsub dword [ebx+FC(original_fov)]
+    fxch
+    fadd dword [ebx+FC(zoom_add)]
+    fdivrp st1, st0
+    fstp dword [edi+TARGET_ZOOM]
+    mov eax, [ebx+FC(bench_x)]
     mov [edi+TARGET_X], eax
-    mov eax, [edi+CONST(bench_z)]
+    mov eax, [ebx+FC(bench_z)]
     mov [edi+TARGET_Z], eax
-    mov eax, [edi+CONST(view_pitch)]
+    mov eax, [ebx+FC(view_pitch)]
     mov [edi+TARGET_PITCH], eax
-    fld dword [edi+CONST(two_pi)]   ; the bench's yaw, the nearest turn of it to the camera's
-    fld dword [edi+CONST(view_yaw)]
+    fld dword [ebx+FC(two_pi)]   ; the bench's yaw, the nearest turn of it to the camera's
+    fld dword [ebx+FC(view_yaw)]
     fsub dword [esi+YAW]
 .turns:
     fprem1
@@ -228,15 +254,19 @@ camera:
     fadd dword [esi+YAW]
     fstp dword [edi+TARGET_YAW]
     fstp st0
-    movss xmm0, [edi+CONST(bench_y)]
-    movss xmm1, [edi+CONST(view_distance)]
+    movss xmm0, [ebx+FC(one)]    ; framed for a 1 m weapon until its own is known
+    call frame_view                 ; xmm1 the distance, xmm2 the side angle
+    movss [esp+32+4], xmm2          ; the setter's side angle: the weapon's place on the screen
+    movss xmm0, [ebx+FC(bench_y)]
     jmp .set
 .off:
     cmp dword [edi+TABLE], 0
     je .set
     xor eax, eax
     mov [edi+TABLE], eax            ; FLY stays: the camera flies back
-    mov [edi+HOLD], eax
+    mov dword [edi+EASE], 1
+    mov ecx, [ebx+FC(one)]
+    mov [edi+TARGET_ZOOM], ecx      ; the player's field of view again
     mov [edi+TARGET_X], eax
     mov [edi+TARGET_Z], eax
     mov eax, [edi+SAVED_YAW]
@@ -252,98 +282,69 @@ camera:
 ; load); what follows reads no flag before it sets them.
 tick:
     pushad
-    sub esp, 48
+    sub esp, 64
     movups [esp], xmm1
     movups [esp+16], xmm2
     movups [esp+32], xmm3
+    movups [esp+48], xmm4
     call base
     cmp dword [edi+FLY], 0
     je .out
     lea esi, [ebx-4]                ; the camera
+    lea ebp, [edi+CONST(wide)]      ; ebp: the constants (FC), until the glides
     cmp dword [edi+TABLE], 0
     je .fly
-    cmp dword [edi+HOLD], 0
-    je .turn
-    ; the weapon not at the bench yet: hold, at most HOLD_MAX seconds
-    movss xmm0, [edi+WAITED]
-    addss xmm0, [esp+48+32+14h]
-    movss [edi+WAITED], xmm0
-    cmp dword [edi+READY], 0
-    jne .go
-    comiss xmm0, [edi+CONST(hold_max)]
-    jae .go
-    xor eax, eax
-    mov [esi+SIDE_SPEED], eax
-    mov [esi+HEIGHT_SPEED], eax
-    mov [esi+DISTANCE_SPEED], eax
-    jmp .out
-.go:
-    mov dword [edi+HOLD], 0         ; the setter's speeds: |target - now| * 1.111 a second
-    movups xmm1, [edi+CONST(abs_mask)]
-    lea edx, [edi+CONST(steps)]
-.speed:
-    movzx eax, byte [edx]
-    movzx ecx, byte [edx+1]
-    movss xmm0, [esi+eax]
-    subss xmm0, [esi+ecx]
-    andps xmm0, xmm1
-    mulss xmm0, [edi+CONST(speed)]
-    movzx ecx, byte [edx+2]
-    movss [esi+ecx], xmm0
-    add edx, 3
-    cmp byte [edx], 0
-    jne .speed
-.turn:
+    cmp dword [edi+LENGTH], 0
+    jge .framed
+    movss xmm0, [edi+LENGTH]        ; the weapon drawn there (- its length): framed for it, gliding there
+    call frame_view
+    movss [esi+DISTANCE_TARGET], xmm1
+    movss xmm0, xmm1                ; the wheel's farthest: max(FAR_SHARE d, d + FAR_REACH)
+    mulss xmm0, [ebp+FC(far_share)]
+    addss xmm1, [ebp+FC(flip_half)+4]
+    maxss xmm1, xmm0
+    movss [edi+LENGTH], xmm1        ; framed: the wheel's farthest
+    mov dword [edi+EASE], 1
+.framed:
     movss xmm0, [esi+TURN_YAW]      ; the drag turns the weapon, not the camera
     addss xmm0, [edi+SPIN]
     movss [edi+SPIN], xmm0
     movss xmm0, [esi+TURN_PITCH]
     addss xmm0, [edi+TILT]
-    maxss xmm0, [edi+CONST(tilt_min)]
-    minss xmm0, [edi+CONST(tilt_max)]
+    maxss xmm0, [ebp+FC(tilt_min)]
+    minss xmm0, [ebp+FC(tilt_max)]
     movss [edi+TILT], xmm0
     xor eax, eax
     mov [esi+TURN_YAW], eax
     mov [esi+TURN_PITCH], eax
 .fly:
-    xor ecx, ecx                    ; ecx = 1 once a value is still away from its target
+    ; The flight: each value moves RATE * dt of its way left and FLOOR * dt
+    ; more, and lands on its target exactly (no snap); the point, yaw and
+    ; pitch (patch 45's) and, while the flight eases (EASE), the camera's
+    ; own side angle, height and distance too, their steps' speeds 0 (the
+    ; setter's constant speeds stopped those dead mid-flight, round 5b).
+    movss xmm1, [esp+64+32+14h]     ; the share of the way: RATE * dt, at most 1
+    movss xmm4, xmm1                ; and FLOOR * dt more
+    mulss xmm4, [ebp+FC(floor)]
+    mulss xmm1, [ebp+FC(rate)]
+    minss xmm1, [ebp+FC(one)]
+    xor ecx, ecx                    ; ecx = 1 while a value is not there
     lea edx, [edi+CONST(fields)]
-.away:
-    movzx eax, byte [edx]
-    movzx ebp, byte [edx+1]
-    movss xmm0, [edi+ebp]
-    subss xmm0, [esi+eax]
-    mulss xmm0, xmm0
-    comiss xmm0, [edi+CONST(close)]
-    jb .near
-    mov cl, 1
-.near:
-    add edx, 2
-    cmp byte [edx], 0
-    jne .away
-    movss xmm1, [esp+48+32+14h]     ; the share of the way: RATE * dt, at most 1
-    mulss xmm1, [edi+CONST(rate)]
-    minss xmm1, [edi+CONST(one)]
-    lea edx, [edi+CONST(fields)]
-.step:
-    movzx eax, byte [edx]
-    movzx ebp, byte [edx+1]
+    mov ebp, edi                    ; their targets: the state's
+    call glide
+    cmp dword [edi+EASE], 0
+    je .eased
+    lea edx, [edi+CONST(steps)]
+    mov ebp, esi                    ; their targets: the camera's own
+    call glide
+    xor eax, eax
+    mov [esi+SIDE_SPEED], eax       ; the camera's steps leave them to this
+    mov [esi+HEIGHT_SPEED], eax
+    mov [esi+DISTANCE_SPEED], eax
     test ecx, ecx
-    jnz .move
-    mov ebp, [edi+ebp]              ; there: the target itself
-    mov [esi+eax], ebp
-    jmp .stepped
-.move:
-    movss xmm0, [edi+ebp]
-    movss xmm2, [esi+eax]
-    subss xmm0, xmm2
-    mulss xmm0, xmm1
-    addss xmm0, xmm2
-    movss [esi+eax], xmm0
-.stepped:
-    add edx, 2
-    cmp byte [edx], 0
-    jne .step
+    jnz .eased
+    mov [edi+EASE], ecx             ; all seven there: the camera's steps are its own again
+.eased:
     test ecx, ecx
     jnz .out
     cmp dword [edi+TABLE], 0
@@ -353,9 +354,181 @@ tick:
     movups xmm1, [esp]
     movups xmm2, [esp+16]
     movups xmm3, [esp+32]
-    add esp, 48
+    movups xmm4, [esp+48]
+    add esp, 64
     popad
     movss xmm0, [ebx+0C8h]
+    ret
+
+; The bench's view of a weapon of length L = xmm0 (edi = the state, esi =
+; the camera), at the original's field of view and the screen's aspect a
+; (the viewport's, else 16:9): the camera looks at BENCH (the weapon's
+; middle) and its side angle turns the view so that the middle is at FX of
+; the width (and about the middle of the height) whatever the distance, so
+; the wheel zooms into the weapon; and it is as near as keeps the ends at
+; any spin m (FRAME_MARGIN, 0.02 of the width) in from the screen's left
+; edge and from the upgrade window's left edge, and from the top and the
+; bottom at any tilt.
+;   The lobby movie lays itself out on 1920 x 1080, scaled by the width below
+;   an aspect of 1.85 and by the height above (LobbyMenu.onStageResize); with
+;   a' = a from 1.85 on, else 16:9, its width is 1080 a' units. The upgrade
+;   window's left edge is PANEL_RIGHT (882) units from its right edge (the
+;   inventory right-aligned, 112 in and 580 wide; the window 190 left of it:
+;   UpgradeWindow's container.x): p = 882 / (1080 a') of the width from the
+;   right. The middle's place: FRAME_SHIFT (365) units left of the screen's
+;   middle, s = 365 / (1080 a'), FX = 1/2 - s: 0.310 at 16:9 and 16:10, 0.359
+;   at 21:9, 0.405 at 32:9. FRAME_SHIFT is the one number to tune: the free
+;   part between the Squad strip (88 units) and the window's edge has its
+;   middle 397 units left, and the owner wanted it a little to the right
+;   (2026-10-23).
+;   T = tan(65 / 2) a; t = 2 s T, the tangent of the middle's angle off the
+;   view's axis. In the view's frame the middle is at (-t, 1) * d with d the
+;   distance along the axis; an end r = L / 2 from it stays right of m at any
+;   spin while d >= L sqrt(1 / T^2 + (1 - 2m)^2) / (4 (1/2 - s - m)), left of
+;   the window's edge less m while d >= L sqrt(1 / T^2 + (1 - 2m - 2p)^2) /
+;   (4 (1/2 - p - m + s)), and in from the top and the bottom while d >=
+;   TILT_ROOM L. The camera's distance is d sqrt(1 + t^2), at least
+;   NEAR_VIEW: xmm1. The side angle sigma with the pitch P (VIEW_PITCH):
+;   tan(angle) = cos P sin sigma / (cos^2 P cos sigma + sin^2 P) = t, so
+;   sigma = atan(t cos P) + asin(t sin^2 P / (cos P sqrt(1 + t^2 cos^2 P))):
+;   xmm2. Uses eax, xmm1, xmm2 and the x87 stack (left empty).
+frame_view:
+    push ebx
+    lea ebx, [edi+CONST(wide)]      ; ebx: the constants (FC)
+    sub esp, 16
+    movss [esp], xmm0               ; L
+    fld dword [ebx+FC(wide)]     ; a: the viewport's, else 16:9
+    mov eax, [esi+MENU]
+    test eax, eax
+    jz .aspect
+    mov eax, [eax+OWNER]
+    test eax, eax
+    jz .aspect
+    mov eax, [eax+VIEWPORT]
+    test eax, eax
+    jz .aspect
+    cmp dword [eax+0x10C], 0
+    jle .aspect
+    fstp st0
+    fild dword [eax+0x108]
+    fidiv dword [eax+0x10C]
+.aspect:
+    fld dword [ebx+FC(wide)]
+    fld dword [ebx+FC(layout_switch)]
+    fcomip st0, st2
+    fcmovb st0, st1                 ; a', a
+    fmul dword [ebx+FC(layout_height)]   ; 1080 a', a
+    fld dword [ebx+FC(frame_shift)]
+    fdiv st0, st1
+    fstp dword [esp+4]              ; s; 1080 a', a
+    fdivr dword [ebx+FC(panel_right)]
+    fstp dword [esp+8]              ; p; a
+    fmul dword [ebx+FC(tan_original)]    ; T
+    fld1
+    fdiv st0, st1
+    fmul st0, st0
+    fstp dword [esp+12]             ; 1 / T^2; T
+    fld dword [esp+4]
+    fadd st0, st0
+    fmulp st1, st0                  ; t
+    fld dword [esp+12]              ; the screen's left edge
+    fadd dword [ebx+FC(spin_room)]
+    fsqrt
+    fld dword [esp+4]
+    fmul dword [ebx+FC(four)]
+    fsubr dword [ebx+FC(four_room)]
+    fdivp st1, st0                  ; left, t
+    fld dword [esp+8]               ; the upgrade window's edge
+    fadd st0, st0
+    fsubr dword [ebx+FC(spin_width)]
+    fmul st0, st0
+    fadd dword [esp+12]
+    fsqrt
+    fld dword [esp+4]
+    fsub dword [esp+8]
+    fmul dword [ebx+FC(four)]
+    fadd dword [ebx+FC(four_room)]
+    fdivp st1, st0                  ; right, left, t
+    fcomi st0, st1
+    fcmovb st0, st1
+    fstp st1
+    fld dword [ebx+FC(tilt_room)]        ; the height's
+    fcomi st0, st1
+    fcmovb st0, st1
+    fstp st1                        ; d / L, t
+    fmul dword [esp]
+    fabs                            ; d, t (the tick gives - L)
+    fld st1
+    fmul st0, st0
+    fld1
+    faddp st1, st0
+    fsqrt
+    fmulp st1, st0                  ; the camera's distance, t
+    fld dword [ebx+FC(near_view)]
+    fcomi st0, st1
+    fcmovb st0, st1
+    fstp st1
+    fstp dword [esp]                ; t
+    fld st0
+    fmul dword [ebx+FC(cos_pitch)]       ; t cos P, t
+    fld st0
+    fmul st0, st0
+    fld1
+    faddp st1, st0
+    fsqrt
+    fmul dword [ebx+FC(cos_pitch)]       ; cos P sqrt(1 + t^2 cos^2 P), t cos P, t
+    fld st2
+    fmul dword [ebx+FC(sin2_pitch)]
+    fdivrp st1, st0                 ; x = t sin^2 P / that (below 0.03: asin x = x within 5e-6), t cos P, t
+    fxch
+    fld1
+    fpatan                          ; atan(t cos P), x, t
+    faddp st1, st0                  ; sigma, t
+    fstp dword [esp+4]
+    fstp st0
+    movss xmm1, [esp]
+    movss xmm2, [esp+4]
+    add esp, 16
+    pop ebx
+    ret
+
+; edx = a table of {now, target} offsets (now the camera's, target ebp's),
+; 0 at its end; esi = the camera; xmm1 = RATE * dt, xmm4 = FLOOR * dt. Each
+; value moves share * |way| + FLOOR * dt towards its target, or onto it when
+; that is the whole way; ecx = 1 when one is not there. Uses eax, edx,
+; xmm0, xmm2, xmm3.
+glide:
+    push ebx
+.each:
+    movzx eax, byte [edx]           ; now
+    movzx ebx, byte [edx+1]         ; target
+    movss xmm0, [ebp+ebx]
+    subss xmm0, [esi+eax]           ; the way left
+    movaps xmm2, xmm0
+    andps xmm2, [edi+CONST(abs_mask)]
+    movaps xmm3, xmm2
+    mulss xmm3, xmm1
+    addss xmm3, xmm4                ; the step
+    comiss xmm3, xmm2
+    jb .short
+    mov ebx, [ebp+ebx]              ; the whole way: the target itself
+    mov [esi+eax], ebx
+    jmp .next
+.short:
+    mov cl, 1
+    xorps xmm2, xmm2
+    comiss xmm0, xmm2
+    jae .forward
+    subss xmm2, xmm3
+    movaps xmm3, xmm2
+.forward:
+    addss xmm3, [esi+eax]
+    movss [esi+eax], xmm3
+.next:
+    add edx, 2
+    cmp byte [edx], 0
+    jne .each
+    pop ebx
     ret
 
 ; 0x247576 `cmp byte [ebp-1],0 / jne 247592h` -> call cull + nop. Returns to
@@ -393,6 +566,7 @@ matrix:
     cmp dword [eax+READY], 0        ; (a refresh: a scope or a camouflage put on or off)
     pop eax
     jne .bench
+    ret                             ; not shown yet: the decal pose's transform, 10 m under
 .original:
     cmp byte [ebx+DECAL], 0
     jne .ret                        ; the 4 nops, then the decal pose's transform
@@ -523,12 +697,12 @@ middle:
     movzx ecx, word [edx]
     test ecx, ecx
     jz .model
-    add edx, 8
+    add edx, 6
     cmp ecx, eax
     jne .find
-    movsx eax, word [edx-6]         ; its x, y, z (mm, bind space)
+    movsx eax, byte [edx-4]         ; its x, y, z (mm, bind space)
     cvtsi2ss xmm0, eax
-    movsx eax, word [edx-4]
+    movsx eax, byte [edx-3]
     cvtsi2ss xmm1, eax
     movsx eax, word [edx-2]
     cvtsi2ss xmm2, eax
@@ -552,6 +726,23 @@ middle:
     mov esi, [esi+RENDER_MODEL]
     test esi, esi
     jz .done
+    cmp dword [edi+LENGTH], 0
+    jne .measured
+    mov eax, [ebp+CHARACTER]        ; while the character makes its player the weapon drawn is the
+    cmp dword [eax+BUILDING], -1    ; old one (a window over a weapon's: the bench keeps it until
+    jne .measured                   ; the new player comes): the window's weapon is measured then
+    cmp byte [eax+BUILD_AGAIN], 0
+    jne .measured
+    movss xmm0, [esi+BOX_MIN+8]     ; - the window's weapon's length: its box along it, a default box 1 m
+    subss xmm0, [esi+BOX_MAX+8]
+    cmp dword [esi+BOX_MIN], 0xBF800000
+    jne .length
+    cmp dword [esi+BOX_MAX], 0x3F800000
+    jne .length
+    movss xmm0, [edi+CONST(minus_one)]
+.length:
+    movss [edi+LENGTH], xmm0
+.measured:
     mov edx, [esi+INVERSE_BINDS]
     test edx, edx
     jz .done
@@ -629,8 +820,6 @@ left:
     jz .up
     cmp dword [edi+TABLE], 0
     je .no
-    cmp dword [edi+HOLD], 0
-    jne .no
     mov eax, [edi+LEFT]
     cmp eax, 1
     je .drag
@@ -663,6 +852,43 @@ left:
 .yes:
     mov al, 1
     ret
+
+; 0x284309 `call 2844D0h` -> call ray: the camera's tick casts a ray from its
+; point back towards the eye through the lobby's collision scene (menu+3104h)
+; and, at a hit, writes the hit's distance over the current one (+C4h), which
+; the tick then clamps to the least (0.6). While the camera is the table's
+; (FLY: flying there, there, flying back) no ray: the bench's view is made
+; with nothing between its eye and the bench, and the window's player, once
+; made, put something in the ray's way by the bench: the owner's log of
+; 2026-10-23 (round 5c), the distance cut to 0.6 the frame that player came
+; (the eye 0.8 m in one frame) and held at 1.09 of 1.2 after. Every register
+; and flag the original's own way; `ret 4` as it.
+ray:
+    push eax
+    call base_eax
+    mov ecx, eax                    ; ecx = the state (ecx is the ray's to lose, as edx)
+    mov eax, [esp]                  ; the camera
+    cmp dword [ecx+FLY], 0
+    je .stock
+    cmp dword [ecx+TABLE], 0        ; at the bench, framed: the wheel no farther than LENGTH, the
+    je .none                        ; farthest (its least is patch 32's NEAR_MIN): the target, and
+    cmp dword [ecx+LENGTH], 0       ; the distance itself once the flight's easing is over (while
+    jle .none                       ; it eases it glides there: no snap)
+    movss xmm0, [ecx+LENGTH]
+    movss xmm1, [eax+DISTANCE_TARGET]
+    minss xmm1, xmm0
+    movss [eax+DISTANCE_TARGET], xmm1
+    cmp dword [ecx+EASE], 0
+    jne .none
+    movss xmm1, [eax+DISTANCE]
+    minss xmm1, xmm0
+    movss [eax+DISTANCE], xmm1
+.none:
+    pop eax
+    ret 4
+.stock:
+    pop eax
+    jmp RAY
 
 ; ZF clear when ebx is the lobby character's player drawn by its update
 ; (ebp = mt_draw's frame) with the upgrade window open and the table on.
@@ -702,60 +928,81 @@ base_eax:
     ret
 
 ; the camera's offsets and the state's targets the flight moves, then 0
-fields:           db POINT_X, TARGET_X, POINT_Z, TARGET_Z, YAW, TARGET_YAW, PITCH, TARGET_PITCH, 0
-; the camera's steps: target, now, speed; then 0
-steps:            db SIDE_TARGET, SIDE, SIDE_SPEED, HEIGHT_TARGET, HEIGHT, HEIGHT_SPEED
-                  db DISTANCE_TARGET, DISTANCE, DISTANCE_SPEED, 0
+fields:           db POINT_X, TARGET_X, POINT_Z, TARGET_Z, YAW, TARGET_YAW, PITCH, TARGET_PITCH, ZOOM, TARGET_ZOOM, 0
+; the camera's own steps it moves while a flight eases: now, target; then 0
+steps:            db SIDE, SIDE_TARGET, HEIGHT, HEIGHT_TARGET, DISTANCE, DISTANCE_TARGET, 0
 align 16, db 0
+abs_mask:         dd 0x7FFFFFFF, 0, 0, 0   ; (aligned: an andps operand)
 bench_x:          dd 4.25           ; BENCH: above the workbench (top y 0.91, x 3.75..4.88, z 1.70..4.60)
 bench_y:          dd 1.30           ;   between its drill press (z < 2.40) and its vice (z > 3.50)
 bench_z:          dd 3.05
                   dd 1.0            ;   (w, for row 3)
 flip_half:        dd -0.5, 0.5, -0.5, 0.0   ; the box's centre, turned as the instance's box (rotY(pi))
-abs_mask:         dd 0x7FFFFFFF, 0, 0, 0
 view_yaw:         dd -1.5707964     ; the camera looks along +x, at the wall the bench stands at
 view_pitch:       dd -0.25          ; from a little above
-view_distance:    dd 1.2
+tan_original:     dd 0.63707026     ; tan(65 / 2 degrees): the original's vertical field of view
+four:             dd 4.0
+original_fov:     dd 65.0
+zoom_add:         dd 130.0
+wide:             dd 1.7777778      ; 16:9: without a viewport, and the layout's below 1.85
+layout_switch:    dd 1.85           ; the lobby movie scales by the height from this aspect on
+layout_height:    dd 1080.0         ; its height in units
+frame_shift:      dd 365.0          ; FRAME_SHIFT: the weapon's middle, units left of the screen's middle
+panel_right:      dd 882.0          ; PANEL_RIGHT: the upgrade window's left edge, units from the right
+spin_room:        dd 0.9216         ; (1 - 2m)^2, FRAME_MARGIN m 0.02 of the width
+spin_width:       dd 0.96           ; 1 - 2m
+four_room:        dd 1.92           ; 4 (1/2 - m)
+cos_pitch:        dd 0.96891242     ; cos VIEW_PITCH
+sin2_pitch:       dd 0.06120872     ; sin^2 VIEW_PITCH
+far_share:        dd 1.25           ; FAR_SHARE: the wheel's farthest at least this of the framed distance,
+                                    ; and FAR_REACH (flip_half's 0.5) m beyond it
+minus_one:        dd -1.0
+tilt_room:        dd 0.962          ; TILT_ROOM: (1/2) sqrt(1 + 1 / ((1 - 2m) tan(65/2))^2), and the pitch's
+near_view:        dd 0.3            ; NEAR_VIEW: the nearest (patch 32's NEAR_MIN)
 middle_z:         dd 0.2            ; MIDDLE_Z: without a box, a rifle's middle (grip at the origin, along +z)
 tilt_max:         dd 1.2
 tilt_min:         dd -1.2
 two_pi:           dd 6.2831855
 rate:             dd 5.0            ; RATE: the share of the way a second
 one:              dd 1.0
-close:            dd 1.0e-6         ; there: within 0.001 (squared)
-speed:            dd 1.1111112      ; the setter's: |change| * 1.111 a second (0xA2D9E4)
-hold_max:         dd 2.0            ; HOLD_MAX: the longest the camera waits for the weapon (s)
+floor:            dd 0.01           ; FLOOR: the least speed of the point (m/s), the yaw and pitch (rad/s)
 millimetre:       dd 0.001
 ; MIDDLES: the weapons whose box does not give their middle within 1 cm (a
 ; default box; the Magnum's spare rounds; a body off the axis, the RPD's):
 ; items_dict id, the middle of the gun (parts parked beside it left out) in
 ; its bind space (mm: the 3rd-view idle's middle through the inverse of bone
 ; 1's skinning in that pose), which the code takes through bone 1 as the
-; box's, from the data (client_patch.md section 3.42)
-middles:          dw 12, 5, -2, 240     ; toz_122 (weapons/toz_122)
-                  dw 13, 10, -37, 88    ; ak_74u (weapons/ak74u)
-                  dw 14, 15, -4, 270    ; rem_700 (weapons/rem_700)
-                  dw 16, 1, -38, 275    ; toz_34 (weapons/toz34/toz_34)
-                  dw 56, 1, 1, 96       ; magnum (weapons/magnum/magnum)
-                  dw 77, -28, -39, 231  ; rpd (weapons/rpd/rpd)
-                  dw 80, 10, -30, 167   ; akmn (weapons/akmn/akmn)
-                  dw 90, 4, -8, 40      ; winchester_1894 (weapons/winchester_1894)
-                  dw 107, 15, 11, 221   ; mosin_nagant (weapons/mosin_nagant/mosin_nagant)
-                  dw 108, 0, -31, 276   ; izh_27_lancaster (weapons/izh_27_lancaster/izh_27_lancaster_)
-                  dw 110, 10, -25, 309  ; mp_153 (weapons/mp153/mp153)
-                  dw 125, 10, -17, 162  ; benelli_m4 (weapons/benelli_m4/benelli_m4)
-                  dw 216, -5, -31, 21   ; vepr (weapons/vepr)
-                  dw 220, 8, -28, 169   ; a_545 (weapons/a_545/a_545)
-                  dw 303, 11, -16, 178  ; a9_91 (weapons/a9_91/a9_91)
-                  dw 337, 0, -31, 276   ; izh_27_lancaster_premium (weapons/izh_27_lancaster/izh_27_lancaster_)
-                  dw 2214, 11, -29, 174 ; valmet (weapons/valmet_rk62/valmet_rk62)
-                  dw 2215, 10, -6, 141  ; soc_vepr (weapons/soc_vepr/soc_vepr)
-                  dw 2227, 10, -17, 256 ; saiga_12 (weapons/saiga_12s/saiga_12s)
-                  dw 2228, 10, -17, 256 ; saiga_12_premium (weapons/saiga_12s/saiga_12s_camo)
-                  dw 2241, 10, -30, 167 ; akmn_premium (weapons/akmn/akmn_camo)
-                  dw 2242, 10, -30, 167 ; akmn_premium_2 (weapons/akmn/akmn_camo_st)
-                  dw 2243, 10, -37, 88  ; ak_74u_premium (weapons/aks74u_camo/ak74u_camo)
-                  dw 2244, -5, -31, 21  ; vepr_premium (weapons/vepr_camo/vepr_camo)
-                  dw 2249, 15, -4, 270  ; rem_700_premium (weapons/rem_700_camo_st)
-                  dw 2251, 0, -31, 276  ; izh_27_lancaster_premium_2 (weapons/izh_27_lancaster_camo/izh_27_lancaster_camo_st)
+; box's, from the data (client_patch.md section 3.42). 6 bytes each: the
+; id a word, x and y a byte (within 4 cm of the axis), z a word.
+%macro GUN 4
+    dw %1
+    db %2, %3
+    dw %4
+%endmacro
+middles:          GUN 12, 5, -2, 240     ; toz_122 (weapons/toz_122)
+                  GUN 13, 10, -37, 88    ; ak_74u (weapons/ak74u)
+                  GUN 14, 15, -4, 270    ; rem_700 (weapons/rem_700)
+                  GUN 16, 1, -38, 275    ; toz_34 (weapons/toz34/toz_34)
+                  GUN 56, 1, 1, 96       ; magnum (weapons/magnum/magnum)
+                  GUN 77, -28, -39, 231  ; rpd (weapons/rpd/rpd)
+                  GUN 80, 10, -30, 167   ; akmn (weapons/akmn/akmn)
+                  GUN 90, 4, -8, 40      ; winchester_1894 (weapons/winchester_1894)
+                  GUN 107, 15, 11, 221   ; mosin_nagant (weapons/mosin_nagant/mosin_nagant)
+                  GUN 108, 0, -31, 276   ; izh_27_lancaster (weapons/izh_27_lancaster/izh_27_lancaster_)
+                  GUN 110, 10, -25, 309  ; mp_153 (weapons/mp153/mp153)
+                  GUN 125, 10, -17, 162  ; benelli_m4 (weapons/benelli_m4/benelli_m4)
+                  GUN 216, -5, -31, 21   ; vepr (weapons/vepr)
+                  GUN 220, 8, -28, 169   ; a_545 (weapons/a_545/a_545)
+                  GUN 303, 11, -16, 178  ; a9_91 (weapons/a9_91/a9_91)
+                  GUN 337, 0, -31, 276   ; izh_27_lancaster_premium (weapons/izh_27_lancaster/izh_27_lancaster_)
+                  GUN 2214, 11, -29, 174 ; valmet (weapons/valmet_rk62/valmet_rk62)
+                  GUN 2215, 10, -6, 141  ; soc_vepr (weapons/soc_vepr/soc_vepr)
+                  GUN 2227, 10, -17, 256 ; saiga_12 (weapons/saiga_12s/saiga_12s)
+                  GUN 2228, 10, -17, 256 ; saiga_12_premium (weapons/saiga_12s/saiga_12s_camo)
+                  GUN 2241, 10, -30, 167 ; akmn_premium (weapons/akmn/akmn_camo)
+                  GUN 2242, 10, -30, 167 ; akmn_premium_2 (weapons/akmn/akmn_camo_st)
+                  GUN 2243, 10, -37, 88  ; ak_74u_premium (weapons/aks74u_camo/ak74u_camo)
+                  GUN 2244, -5, -31, 21  ; vepr_premium (weapons/vepr_camo/vepr_camo)
+                  GUN 2249, 15, -4, 270  ; rem_700_premium (weapons/rem_700_camo_st)
+                  GUN 2251, 0, -31, 276  ; izh_27_lancaster_premium_2 (weapons/izh_27_lancaster_camo/izh_27_lancaster_camo_st)
                   dw 0

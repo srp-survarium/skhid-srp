@@ -40,13 +40,17 @@
 //!   when it is sold ([`drop_gone_upgrades`]). After `83 46 01` the client's
 //!   own copy holds the scope item's dict id (0x275671) until the inventory
 //!   that follows every answer puts the variant's in its place.
-//! - **Reroll.** One modification of an item may be changed, any number of
-//!   times (`st_modifier_reroll_description`); the first change picks which
-//!   (the window locks the others, `was_rerolled_before`). A change offers
+//! - **Reroll.** The game's: one modification of an item may be changed,
+//!   any number of times (`st_modifier_reroll_description`); the first
+//!   change picks which (the window locks the others,
+//!   `was_rerolled_before`). [srp, the owner's rule of 2026-10-22] Any of
+//!   the item's own modifications may be changed, each any number of
+//!   times; the one changed last is only marked in the window
+//!   (`docs/notes/reroll-keep-old.md`). A change offers
 //!   three modifications and the player takes one
 //!   (`MessageRerollItem`: the window can not be closed before), or
 //!   [srp, the owner's rule of 2026-10-21] keeps the old one: the window's
-//!   "keep old" button (`docs/notes/reroll-keep-old.md`). [srp, the
+//!   Cancel button (`docs/notes/reroll-keep-old.md`). [srp, the
 //!   owner's rule of 2026-10-22] In silver or gold, at any time: the
 //!   game's six hours between silver changes are gone, so the item's
 //!   `reroll_time` stays 0 (one left from before is cleared,
@@ -65,7 +69,10 @@
 //!   level; the chances by how many more modifications the item has than
 //!   the donor, in silver or in gold: one more modification
 //!   (`st_item_craft_success_label`), one fewer
-//!   (`st_item_craft_fail_label`), or nothing. The donor is used up
+//!   (`st_item_craft_fail_label`), or nothing. [srp, the owner's rule of
+//!   2026-10-23] Never one fewer: a failure is a "nothing", the item keeps
+//!   its modifications, 0x9B says 0 % (`wire::craft_tables`) and the
+//!   window shows no failure row. The donor is used up and the price paid
 //!   whatever happens (the answer names it, and the client drops it).
 //!   [LIKELY] The donor is another of the same item: the client's result
 //!   window shows the *donor's* dictionary entry as the upgraded item
@@ -75,8 +82,7 @@
 //!   lobby shows the item, not the donor); [the owner's rule of
 //!   2026-10-22] a plain weapon takes a golden one too, which is used up
 //!   ([`golden::may_donate`]).
-//!   [srp] The modification gained is rolled as a drop's are, the one
-//!   lost is any of the item's own (a golden weapon's silver bonus too).
+//!   [srp] The modification gained is rolled as a drop's are.
 //! - **Golden weapons** ([`golden`], the owner's rule of 2026-10-21): the
 //!   silver bonus is the item's own first modification, given when it is
 //!   made ([`Account::add_item`]) and once to those owned before
@@ -103,7 +109,14 @@
 //!   `modifications`] After a match that wore an item, one roll for its
 //!   first free defect slot. `SRP_ITEM_DEFECTS=off` switches them off.
 //! - **Drops.** A dropped weapon or armour of rarity `n` has `n`
-//!   modifications (the lobby's rank is their count).
+//!   modifications (the lobby's rank is their count), fewer when the item
+//!   takes fewer types.
+//! - **No reliability rolls** ([srp, the owner's rule of 2026-10-23],
+//!   `docs/notes/no-reliability-roll.md`): no drop, upgrade or reroll offer
+//!   gives a modification that only changes wear (items wear nothing since
+//!   #35); one an item has stays, and rerolls into another. Every live item
+//!   rolls three types or more (`third-mod-1.json`); an upgrade of
+//!   an item with nothing left to roll is still refused, nothing taken.
 
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::drops::Rng;
@@ -550,8 +563,9 @@ pub struct RerollWindow {
     /// What the next change costs, in silver and in gold.
     pub regular_cost: u32,
     pub premium_cost: u32,
-    /// Once a modification was changed: its id (the one that may be
-    /// changed again) and the seconds until silver pays again, always 0 now.
+    /// Once a modification was changed: the id of the one changed last
+    /// (the window marks it; any may be changed) and the seconds until
+    /// silver pays again, always 0 now.
     pub changed: Option<(u32, u32)>,
     /// A paid change that waits for its choice (`83 46 07` again).
     pub offer: Option<[u32; 3]>,
@@ -586,10 +600,16 @@ pub struct Rerolled {
     /// What was taken: silver, gold. Both 0 for an offer made before and
     /// shown again.
     pub paid: (u32, u32),
+    /// The modification the three are offered for: the one asked for, or
+    /// the pending offer's when it is shown again.
+    pub replaced: u32,
+    /// The pending offer shown again (nothing was rolled or taken).
+    pub again: bool,
 }
 
 /// `46 07 <item> <modification> <gold>`: change `modification` of the
-/// item; three are offered in its place.
+/// item, any of its own (the one changed before locks nothing: the
+/// owner's rule of 2026-10-22); three are offered in its place.
 pub fn reroll(
     account: &mut Account,
     item_id: u32,
@@ -601,12 +621,15 @@ pub fn reroll(
     let item = account
         .item(item_id)
         .ok_or(ItemError::Reroll("no such item"))?;
-    if let Some((_, choices)) = item.reroll.offer {
-        // Paid for and not chosen yet: the same three.
+    if let Some((replaced, choices)) = item.reroll.offer {
+        // Paid for and not chosen yet: the same three, whichever
+        // modification is named.
         return Ok(Rerolled {
             choices,
             reroll_seconds: 0,
             paid: (0, 0),
+            replaced,
+            again: true,
         });
     }
     if !is_gear(item) {
@@ -621,11 +644,6 @@ pub fn reroll(
     let held = own_modifications(item);
     if !held.contains(&modification) {
         return Err(ItemError::Reroll("the item has no such modification"));
-    }
-    if item.reroll.modification != 0 && item.reroll.modification != modification {
-        return Err(ItemError::Reroll(
-            "another modification is the one to change",
-        ));
     }
     let table = Modifications::shared();
     let price = table
@@ -661,6 +679,8 @@ pub fn reroll(
         choices,
         reroll_seconds: 0,
         paid,
+        replaced: modification,
+        again: false,
     })
 }
 
@@ -698,8 +718,8 @@ pub fn choose_modifier(
     }
     if choice == KEEP_OLD_MODIFICATION {
         // Nothing of the item changes: the offer goes, and the old one
-        // stays the one that may be changed again (it already is, since
-        // the change was paid).
+        // stays the one changed last (it already is, since the change was
+        // paid).
         item.reroll.offer = None;
         return Ok(Chosen {
             old_modification,
@@ -775,6 +795,12 @@ pub fn craft(
     }
     let table = Modifications::shared();
     let dict_id = item.dict_id;
+    // [srp, 2026-10-23] Nothing left that may roll (every type besides
+    // reliability held; none on live data, `third-mod-1.json`): an upgrade
+    // could gain nothing, so none is made and nothing is taken.
+    if table.candidates(dict_id, &held).is_empty() {
+        return Err("nothing left to roll for the item");
+    }
     let price = table.craft.price(item_level(dict_id), gold);
     let balance = if gold {
         account.premium_money
@@ -789,13 +815,13 @@ pub fn craft(
         .craft
         .outcome_at(held.len() - donor_rank, gold, at)
         .ok_or("no chances for that difference")?;
-    // The modification gained or lost, before anything changes.
-    let change = match outcome {
+    // The modification gained, before anything changes. [srp, the owner's
+    // rule of 2026-10-23] An upgrade never takes one away: the data's
+    // failure ("-1 mod.") does what "nothing happened" does, the price and
+    // the donor spent and the item as it was (`docs/notes/craft-menu.md`).
+    let gained = match outcome {
         CraftOutcome::Success => table.roll(dict_id, &held, rng),
-        CraftOutcome::Failure if !held.is_empty() => {
-            Some(held[rng.below(held.len() as u32) as usize])
-        }
-        _ => None,
+        CraftOutcome::Failure | CraftOutcome::Neutral => None,
     };
 
     if gold {
@@ -807,32 +833,15 @@ pub fn craft(
         .inventory
         .retain(|item| item.item_id != donor_item_id);
     let item = account.item_mut(item_id).expect("the item was found above");
-    let crafted = match (outcome, change) {
-        (CraftOutcome::Success, Some(modification)) => {
+    let crafted = match gained {
+        Some(modification) => {
             item.modifications.push((modification, false));
             Crafted::Added {
                 consumed_item_id: donor_item_id,
                 modification,
             }
         }
-        (CraftOutcome::Failure, Some(modification)) => {
-            if let Some(index) = item
-                .modifications
-                .iter()
-                .position(|&entry| entry == (modification, false))
-            {
-                item.modifications.remove(index);
-            }
-            if item.reroll.modification == modification {
-                item.reroll.modification = 0;
-            }
-            Crafted::Removed {
-                mode: 2,
-                consumed_item_id: donor_item_id,
-                modification,
-            }
-        }
-        _ => Crafted::Nothing {
+        None => Crafted::Nothing {
             consumed_item_id: donor_item_id,
         },
     };
