@@ -103,6 +103,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of the three files after it from those rows and the re-kit's ABI rows (`--write`, `--check`) |
 | `engine_026g.h`, `engine_026g.inc`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
+| `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
@@ -157,8 +158,9 @@ an arena source: `python link_026g.py --write` and commit the lock with it.
 a hook jumps to, `extern` what it uses of other patches; its hooks as
 (site, bytes, symbol, opcode) rows made in `build()`; each declared in
 `INSTALLS` (below); `python link_026g.py --write`. Research (patch 53: its
-asm, its C, and its state `rn_state`), the artefacts (patch 54) and the
-engine library are the arena's blocks today; the dynamic anomalies (#225)
+asm, its C, and its state `rn_state`), the artefacts (patch 54), the
+engine library and the kit keys with the match chat option (patch 58) are
+the arena's blocks today; the dynamic anomalies (#225)
 add theirs the same way. The older fixed sections stay as they are
 (client_patch.md 0.3 says what moving one would take).
 
@@ -3143,6 +3145,74 @@ the build's loader too (aim -0.05 / -0.1, stopping power -1). Against the build 
 0x311BC0, 0x311DA0, 0x3122AA, 0x313300, 0x33AE13), `.srpx` one page longer (the artefacts'
 page at 0xA431000, its first four pages as they were) and the headers that follow (compared
 section by section). **Not run in a game.**
+
+### 58. The keys 1, 2 and 3 pick a kit; a match chat option (the next release's revision)
+
+A player's asks (2026-10-21, board T29): "before respawn, add key shortcuts for change loadouts
+1 2 3. i sometimes missclick", "option to turn off in-game chat". The rules:
+`../docs/notes/match-hud-options.md`.
+
+**The keys.** A key in a match reaches the game world's `on_keyboard_action` (0x25CD00,
+slot 0 of its input vtable 0x9FC588; the input world, the DirectInput key, the kind 1 down, 2
+held, 3 up) before the player's handler. The hud movie gets no key there (only the chat's
+handler hands keys to it, while the chat is typed in), so the movie cannot see 1, 2 and 3 by
+itself. The kits are shown by the hud (`root.show_profiles_selector`, 0x2383B0) together with
+the cursor (`show_cursor` 0x23A930, the hud's +2DCh, the handler's +2E0h): on the death screen
+and before the start (patch 31). After its Tab test the function asks the kind at 0x25CD41
+(`cmp dword [ebp+10h],1 / jnz near 0x25CF0D`, edi = the handler); the patch jumps there to
+`match_keys_keyboard`, which for a key 1, 2 or 3 (DIK 2..4) going down while the cursor is
+shown invokes the hud movie's `root.select_kit_key(0, 1 or 2)` (an unsigned int, as the hud's
+other calls on `[[[hud+8]+108h]+4]`), then goes on at 0x25CD4B (or 0x25CF0D for any other
+kind) as the original: the key is not taken, the player's handler gets it as before (a dead
+player sends no input, 0x1F7883). The movie (`HUD.select_kit_key`) does what a click on that
+kit's tab does (`ProfileSelector.pickByKey`: `tabPage.selectedIndex`, whose change calls
+`profile_changed` as a click's does), and nothing when the kits are not shown, the chat is
+being typed in (between `focus_chat(true)` and `focus_chat(false)`, or the focus on its input), the kit cannot be played (`enabled`, as its greyed tab) or is the one chosen.
+
+**The chat option.** The gameplay options' option 4 (`options_item_bool` named
+"g_private_messages_in_game", 0xA064FC; the checkbox `_no_in_batle` of `main_menu.swf`,
+labelled "Disable private messages at the time of battle") names no console variable: the
+options' constructor finds no command of that name (0x260E90), the timeline greys the checkbox,
+and nothing reads it. The game world's constructor calls the hud's at 0x1F6845 (`game::game`
+makes the game world before it queries the configs, so before `startup.cfg` and `user.cfg` are
+run and before the options look their variables up); the patch calls `match_keys_hud` there,
+which calls the hud's constructor and then registers, once, a `cc_bool` of that name on a byte
+of its own, saved in `user.cfg` (`cc_value<bool>` 0x1DDB0 through the engine library, then the
+cc_bool vtable 0x9E7C4C, as the hud registers its own `show_quests_progress` at 0x2339C9). So
+the option is live and kept. The main menu enables its checkbox (where its timeline makes it,
+`settingsTabs_15`, and in `Settings.create_content`);
+`match-chat-off-1.json` labels it "Hide chat in match" in the six tables (Chat im Kampf
+ausblenden, Ukryj czat na czas rozgrywki, Скрыть чат во время боя, Приховати чат під час бою).
+A received line is given to `chat_handler::add_message` (0x208AD0, stdcall: the handler, the
+channel, the body, the name, the tag; `ret 14h`) by `process_incoming_text_message` at
+0x26B916; the patch calls `match_keys_chat` there, which with the option on, in a match (the
+handler's +0Dh, `set_mode`'s flag) and on a channel the hud shows (3 clan, 5 match, 6 and 7 the
+teams, 8 squad, 9) returns as add_message does without it; any other line goes to add_message.
+Kept: the server's lines (0, 2), the general and private channels (1, 4: in a match
+add_message gives them to the lobby's movie), the player's own lines (the local echo, another
+call), and every line in the lobby.
+
+All three in the arena's blocks `match_keys.code` and `match_keys.state`
+(`match_keys_026g.asm`), with the late join. No address and no base relocation under the sites
+(0x25CD41 ten bytes, 0x1F6845 and 0x26B916 a `call` each); nothing aims inside them.
+
+Rendering and input only: a kit choice goes as a click's; no row in
+`../crates/session/src/v026g/simulation_changes.tsv`. `../docs/notes/client_patch.md` section
+3.53.
+
+Checked: `selftest_026g.py` check 58 (the three sites before and after, the code around them,
+the option's name used once, the block's code, exits, calls and data, the movies' and the
+manifest's parts) and the call shapes (0x1F6845 and 0x26B916 CALLEE, `ret 4` and `ret 14h` as
+their models; 0x25CD41 JUMP); `check_match_keys_026g.py` (Unicorn): the keys from 0x25CD41 for
+the keys 1 to 5 and Enter, each kind, with and without the cursor and the movie: Invoke with
+`root.select_kit_key` and the kit exactly for 1, 2 and 3 going down with the cursor and the
+movie, and every case at the original's 0x25CD4B or 0x25CF0D with its registers, frame and
+stack; the variable: the hud's constructor called with the game world and the hud, its
+registers back, one `cc_bool` "g_private_messages_in_game" at the list's head over two calls,
+found by the game's lookup (0xEB7C0) and set and cleared by the game's execute (0xEB980) as a
+`user.cfg` line; the chat: every channel with the option off and on, in and out of a match,
+dropped exactly for 3 and 5 to 9 on, in a match, else given to add_message with the site's
+arguments, the stack and ebx, esi, edi, ebp as before. **Not run in a game.**
 
 ## Not ported, not done
 

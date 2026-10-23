@@ -57,7 +57,19 @@ package survarium.player
          dispatchEvent(new Event(Events.PROFILE_SELECTED));
          trace("PS:selectProfile:End");
       }
-      
+
+      // A key 1, 2 or 3 on the kit screen (index 0, 1 or 2): as a click on that kit's tab. A
+      // kit that cannot be played, or the one already chosen, does nothing, as a click.
+      public function pickByKey(index:uint) : void
+      {
+         if(index >= this._profiles.length || !this._profiles[index].enabled || index == this.tabPage.selectedIndex)
+         {
+            return;
+         }
+         this.tabPage.selectedIndex = index;
+         this.tabPage.validateNow();
+      }
+
       private function updateTabGlow() : void
       {
          this.selectedTabGlow.visible = true;

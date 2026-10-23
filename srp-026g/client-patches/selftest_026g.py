@@ -1533,7 +1533,8 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.UPGRADE_PREVIEW_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
-        [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES]
+        [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES] + \
+        [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS]
 
 
 def pickup_sites():
@@ -4032,6 +4033,90 @@ def test_artefacts(original, image, before):
           "stopping power, from the loop or none (0x2DBCF9) at 0x2DBD89, -min(it, [+31Ch]) the slow")
 
 
+def test_match_keys(original, image, before):
+    """Check 58: the kit keys and the match chat option (patch 58,
+    MATCH_KEYS_HOOKS). check_match_keys_026g.py runs the three entries from
+    the game's sites on made-up objects."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    cstr = lambda va: stock.read(va, 40).split(b"\0")[0]
+    check(rows(stock, 0x25CD00, 14) == ["push ebp", "mov ebp,esp", "and esp,byte -0x8", "sub esp,byte +0xc",
+                                          "push ebx", "push esi", "push edi", "mov edi,ecx"]
+          and struct.unpack("<I", stock.read(0x9FC588, 4))[0] == 0x25CD00
+          and rows(stock, 0x25CD39, 0x1B) == ["test bl,bl", "jnz near 0x25cf0d", "cmp dword [ebp+0x10],byte +0x1",
+                                              "jnz near 0x25cf0d", "mov ebx,[edi-0x15c]", "mov esi,[ebp+0xc]"]
+          and rows(stock, 0x25CF0D, 11) == ["xor al,al", "pop edi", "pop esi", "pop ebx", "mov esp,ebp", "pop ebp",
+                                           "ret 0xc"]
+          and rows(stock, 0x25CED1, 0x20)[-3:] == ["cmp byte [esi+0x2e0],0x0", "lea edi,[esi+0x4]", "setz cl"]
+          and stock.read(0x23A93A, 6) == bytes.fromhex("389fdc020000") and stock.read(0x23A9A1, 6) == bytes.fromhex("889fdc020000")
+          and stock.read(0x2384D0, 3) == bytes.fromhex("8b4e08") and stock.read(0x2384EE, 9) == bytes.fromhex("8b91080100008b4a04"),
+          "the game world's on_keyboard_action (0x25CD00, slot 0 of its input vtable 0x9FC588; edi = the handler "
+          "from 0x25CD0C): after the Tab test, the kind's test at 0x25CD41 (1, a key down, goes on at 0x25CD4B; any "
+          "other to 0x25CF0D, al 0); the handler's +2E0h is the hud's (handler+4) cursor flag +2DCh, which "
+          "show_cursor (0x23A930) keeps; the hud invokes its movie at [[[hud+8]+108h]+4] (0x2384D0)")
+    check(rows(stock, 0x1F6821, 0x29)[1:3] == ["push esi", "mov eax,ebp"] and rows(stock, 0x1F6845, 5) == ["call 0x233810"]
+          and rows(stock, 0x1E90A3, 5) == ["call 0x1f67b0"] and rows(stock, 0x1E9B4C, 7)[1] == "call 0x1ec170"
+          and popped(stock, 0x233810, 0x233BE0) == 4,
+          "0x1F6845 is the game world's (0x1F67B0, made by game::game at 0x1E90A3, before query_base_resources "
+          "0x1EC170 queries the configs) call of the hud's constructor, eax the game world, the hud pushed")
+    check(stock.read(0x262454, 10) == bytes.fromhex("6a00" "6a04" "53" "b8fc64a000") and cstr(0xA064FC) == b"g_private_messages_in_game"
+          and stock.read(0x26245E, 5) == b"\xE8" + struct.pack("<i", 0x260E90 - 0x262463)
+          and [m.start() for m in re.finditer(re.escape(struct.pack("<I", 0xA064FC)), original)] == [P.file_offset(0x26245A)]
+          and stock.read(0x2339C9, 0x29) == bytes.fromhex("6a026a01" "8d855c030000" "50" "687031a000" "b860e12a0a"
+                                                          "e8cda3deff" "6820c98600" "c70560e12a0a4c7c9e00"),
+          "the gameplay options' option 4 is an options_item_bool (0x260E90) named \"g_private_messages_in_game\", "
+          "used there alone (no command has the name); the hud registers its show_quests_progress as a cc_bool the "
+          "same way (0x1DDB0, then the vtable 0x9E7C4C)")
+    check(rows(stock, 0x26B90B, 0x13) == ["push eax", "lea ecx,[esp+0xc8]", "push ecx", "push edi", "push esi",
+                                          "call 0x208ad0", "mov edx,[ebx+0x8]"]
+          and popped(stock, 0x208AD0, 0x209224) == 0x14,
+          "0x26B916 is process_incoming_text_message's call of add_message (0x208AD0, five arguments, `ret 14h`)")
+    linked = P.arena()
+    block = linked.blocks["match_keys.code"]
+    for va, old, symbol, opcode in P.MATCH_KEYS_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`{'jmp' if opcode == 0xE9 else 'call'} {target:#x}` ({symbol}, an entry of match_keys.code) here")
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(va - 4 < v < va + len(old) for va, old, _, _ in P.MATCH_KEYS_HOOKS)]
+    hits = [h for va, old, _, _ in P.MATCH_KEYS_HOOKS for h in aimed_inside(original, va, len(old), 0x82)
+            if not va <= h < va + len(old) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside a hook"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "match_keys.code")
+    check(image.read(block.va, len(code)) == code, f"the code at {block.va:#x} is the link's match_keys.code ({len(code)} bytes)")
+    names = code.index(b"root.select_kit_key\0")
+    texts = [text for va, _, text in ndisasm(code[:names], block.va)]
+    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
+                      and not block.va <= branch_target(t) < block.va + len(code)})
+    state = linked.blocks["match_keys.state"]
+    library = {linked.symbols["engine_movie_invoke"], linked.symbols["engine_cc_bool"]}
+    check(outside == sorted({*P.MATCH_KEYS_BACKS, 0x233810, 0x208AD0} | library)
+          and f"push dword {block.va + names:#x}" in texts and "push dword 0xa064fc" in texts
+          and "mov eax,0x9e7c4c" in texts and f"mov [{linked.symbols['chat_variable']:#x}],eax" in texts
+          and state.va <= linked.symbols["chat_variable"] < linked.symbols["hide_chat"] < state.va + state.size,
+          "it goes on in on_keyboard_action (0x25CD4B, 0x25CF0D), calls the hud's constructor (0x233810), the library's "
+          "Invoke and cc_value<bool> and nothing else, jumps to add_message (0x208AD0); it invokes "
+          "root.select_kit_key, names its variable \"g_private_messages_in_game\" as a cc_bool, both in "
+          "match_keys.state")
+    here = lambda *path: open(os.path.join(HERE, "..", *path), encoding="utf-8").read()
+    check("public function select_kit_key(index:uint)" in here("flash", "hud", "src", "HUD.as")
+          and "public function pickByKey(index:uint)" in here("flash", "hud", "src", "survarium", "player",
+                                                               "ProfileSelector.as")
+          and 'this.settings_content["_no_in_batle"]' in here("flash", "main_menu", "src", "survarium", "menu",
+                                                                "Settings.as")
+          and "this._no_in_batle.enabled = true;" in here("flash", "main_menu", "src", "main_menu_fla",
+                                                          "settingsTabs_15.as")
+          and "\nedit\tmatch-chat-off-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
+                                                            encoding="utf-8").read(),
+          "the hud movie has root.select_kit_key, the main menu enables the option's checkbox (_no_in_batle: its "
+          "timeline and create_content), "
+          "release/content.tsv labels it (match-chat-off-1.json)")
+
+
 def test_spot(original, image, before):
     """Check 38: spotting (patch 38, SPOT_*). check_spot_026g.py runs the
     input apply with the game's own spottable code on made-up hits."""
@@ -5619,6 +5704,7 @@ def test_late_join(original, without, server, source):
     test_tab_self(original, image, before)
     test_spot(original, image, before)
     test_artefacts(original, image, before)
+    test_match_keys(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)
