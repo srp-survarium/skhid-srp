@@ -881,6 +881,7 @@ dependencies = [
  "lzma-rust2",
  "resources-db 0.1.0",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -1018,6 +1018,7 @@ va	name	source	ret_cleanup	result
 0x00265860	survarium::lobby_character::show_decal_preview	manual	4	
 0x00265980	survarium::lobby_character::update_decal_preview	manual	0	
 0x0026b1b0	survarium::messaging_client::read_important_message	manual	12	
+0x0026cb80	survarium::lobby_menu::on_keyboard_action	manual	12	first, for every key in the lobby, invokes root.has_active_window (0x26CBF9, its name 0xA07404, through 0x511600) on the lobby's movie; LobbyMenu.has_active_window reads stage.focus (the access violation at 0x77200B of 2026-10-22, patch 52); Esc then root.close_active_window (0xA0741C)
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	manual	12	AL: Observed constant1 on local return path
 0x0026d090	survarium::lobby_menu::on_mouse_move	manual	16	AL: Observed constant1 on local return path
 0x0026d130	survarium::lobby_menu::mouse_ray	manual	4	the normalized direction at [EDI], the eye at [entry ESP+4]
@@ -1250,10 +1251,14 @@ va	name	source	ret_cleanup	result
 0x003114a0	survarium::damage_zone_core_cook::construct_resource	manual	4	
 0x003119a0	survarium::artefact_spring_core::serialize	manual	8	
 0x003119e0	survarium::artefact_spring_core::deserialize	manual	12	
+0x00311bc0	survarium::artefact_spring_core::add_active_modifiers	manual	0	
+0x00311da0	survarium::artefact_spring_core::remove_active_modifiers	manual	4	
+0x00312250	survarium::artefact_lifebone_core::enable_active_effects	manual	4	
 0x00312470	survarium::artefact_lifebone_core::serialize	manual	8	
 0x003124b0	survarium::artefact_lifebone_core::deserialize	manual	12	
 0x00312a80	survarium::artefact_onyx_core::serialize	manual	8	
 0x00312af0	survarium::artefact_onyx_core::deserialize	manual	12	
+0x00313300	survarium::artefact_base::action	manual	8	
 0x00313670	survarium::artefact_base::serialize	manual	8	
 0x00313760	survarium::artefact_base::deserialize	manual	12	
 0x00317f30	survarium::timelimit_rule_core::serialize	manual	4	
@@ -1332,6 +1337,7 @@ va	name	source	ret_cleanup	result
 0x00329a20	survarium::player_stamina::spend	manual	4	
 0x00329a70	survarium::player_stamina::sprint	manual	4	
 0x00329c60	survarium::player_stamina::is_overburdened	manual	4	
+0x0032a420	survarium::body_part::increase_health	manual	8	
 0x0032ae00	survarium::body_part_parameters::serialize	manual	8	
 0x0032afe0	survarium::body_part_parameters::deserialize	manual	12	
 0x0032b9f0	survarium::hit_info::hit_info	manual	32	
@@ -1374,6 +1380,7 @@ va	name	source	ret_cleanup	result
 0x0033a650	survarium::weapon_core_throw_grenade_state::is_ready_for_transition	manual	0	
 0x0033a6a0	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression	manual	20	
 0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	manual	0	
+0x0033acf0	survarium::artefact_spring_core::config::config	manual	4	EAX: the config (ESI)
 0x0033bb50	survarium::generic_anomaly_core::on_player_action	manual	12	
 0x0033bcd0	survarium::generic_anomaly_core::on_artefact_container_use	manual	8	
 0x0033bd50	survarium::generic_anomaly_core::load	manual	4	
@@ -1814,6 +1821,8 @@ va	name	source	ret_cleanup	result
 0x0044635d		auto	0	
 0x00446d42		auto	0	
 0x00447290		auto	16	
+0x00511600		manual	16	AL: the invoke's result; ECX's +0Ch (the GFx movie) vtable +0C4h (Invoke) given the four stack slots, in a profiler scope (0x2B8850)
+0x00771fa0	Scaleform::GFx::AS3::Instances::fl_display::Stage::focusGet	manual	4	the stage.focus getter (thunk 0x7750F0, member pointer 0xAFF180 set at 0x865D10, ThunkInfo "focus" 0x8F1E40): the focus group's weak pointer (MovieImpl+3B64h + 40h x byte [+3F54h], locked by 0x514370), its AvmInteractiveObj (vtable +4 of the interface at byte [obj+41h], minus 1Ch), [avm+8] raw or [avm+4] collectible (bit 0 cleared), traits [+14h] type +3Ch 12h or >= 17h: the result via 0x790E40, else emptied (0x772031); the object untested (0x77200B reads [0+14h]; patch 52 tests it)
 0x00824910		auto	0	
 0x00824c68		auto	0	
 0x00824c9c		auto	0	
@@ -1837,7 +1846,7 @@ va	name	source	ret_cleanup	result
 0x00316090	survarium::tdm_rule_core::on_event	manual	12	
 0x00316590	survarium::tdm_rule_core::on_player_entered_match	manual	8	
 0x00316340	survarium::tdm_rule_core::serialize	manual	4	
-0x003163d0	survarium::tdm_rule_core::deserialize	manual	4	
+0x003163d0	survarium::tdm_rule_core::deserialize	manual	8	
 0x00316430	survarium::tdm_rule_core::fill_match_hud_state	manual	8	
 0x00316520	survarium::tdm_rule_core::rule_completed	manual	4	AL: completed
 0x00317f10	survarium::timelimit_rule_core::tick	manual	12	
@@ -1847,3 +1856,36 @@ va	name	source	ret_cleanup	result
 0x00511600	Scaleform::GFx::Movie::Invoke	manual	16	AL: invoked
 0x002375c0	survarium::game_world_ui::show_parametrized_message	manual	16	
 0x000725e0	vostok::math::create_rotation	manual	0	[ESI]: float4x4, rows Rx(-x) Ry(-y) Rz(-z) (v * M)
+0x002d2770	survarium::game_world_core::deserialize	manual	12	
+0x0007f5c0	vostok::physics::bullet_character_controller::get_transform	manual	0	[ECX]: the controller's matrix (+80h), its translation moved down by heights[(stance+2)%3] + heights[stance] (half the capsule's height): the feet
+0x00054e10	survarium::replay_network_client::is_this_place_mine	manual	4	AL: 1 when the place is the one the replay is on (the stock slot is a stub: xor al,al)
+0x0027aa20	survarium::network_client::on_match_ready	manual	4	
+0x00126830	vostok::render::skeleton_model_instance_cook::on_bake_finished	manual	0	
+0x001f2100	survarium::player::~player	manual	0	
+0x00219e60	survarium::network_client::~network_client	manual	0	
+0x00242900	survarium::game_camera::get_projection_matrix	manual	8	EAX: the matrix
+0x0025cf60	survarium::game_world::on_mouse_key_action	manual	12	AL: taken
+0x002641a0	survarium::lobby_character::bake_decals	manual	16	AL: baked
+0x00265c20	survarium::lobby_character::on_decal_click	manual	12	
+0x00270320	survarium::lobby_client::copy_account_items	manual	0	
+0x00277cf0	survarium::lobby_client::find_item_holding_upgrade	manual	0	
+0x00275220	survarium::lobby_client::process_detach_upgrade	manual	8	
+0x002708c0	survarium::lobby_client::send_detach_upgrade	manual	8	
+0x002d8100	survarium::base_player::register_animations	manual	4	
+0x00316820	survarium::player_respawn_rule_base::tick	manual	12	
+0x002d4ab0		auto	0	
+0x002d4b50		auto	0	
+0x00321820		auto	4	
+0x002d1ea0	survarium::game_world_core::rules_on_event	manual	8	
+0x002f5d40	survarium::shared_statistics::notify_listener	manual	12	
+0x0026db80	survarium::base_game_statistics_handler::on_event	manual	12	
+0x00265de0	survarium::lobby_character::start_item_upgrade	manual	0	+D515h = 1; the lobby camera's setter at 0x265E73 (look-at 1.3, 0.8 for the shown kit's slot 4); the input focus, the scene's decal texture, the decal markers (0x265F80)
+0x00265f10	survarium::lobby_character::exit_item_upgrade	manual	0	+D515h = 0; the lobby camera's setter at 0x265F44 (1.2, side 0, the distance kept at 0x1F1D9E4); the scene's and the input focus's ends
+0x0029a870	survarium::lobby_menu::start_item_upgrade	manual	4	the movie's callback 5: esi = menu+694h, edi = the item id (the first value's number), then 0x265DE0; al = 1
+0x0029a890	survarium::lobby_menu::exit_item_upgrade	manual	4	the movie's callback 6: esi = menu+694h, then 0x265F10; al = 1
+0x00284aa0	survarium::lobby_character::release_player	manual	4	lets its player (+D2B8h) go (vtable+24h(1), +28h, the reference); with the byte argument set, +D2C9h = 1: on_player_ready lets the player being made go too (0x284F90)
+0x000e4f90	vostok::memory::doug_lea_allocator::malloc_impl	manual	4	EAX: the block, or 0
+0x002e58b0		manual	0	EAX: the pool whose name (+80h) is the text, or 0
+0x00313350		manual	8	
+0x00420789		manual	0	EAX: ECX + 8
+0x000e5b60	vostok::resources::query_resources	manual	0	

@@ -28,6 +28,7 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use crate::file_error::{self, Kind, Stop};
 use crate::sha256::{from_hex, to_hex};
 use crate::zip::safe_name;
 
@@ -238,6 +239,24 @@ pub enum Found {
     /// There, with other bytes.
     Changed,
     Missing,
+    /// There, but Windows does not let it be read: blocked by Windows
+    /// Security, or held by another program (`crate::file_error`).
+    Stop(Stop),
+    /// There, but it cannot be read for another reason (Windows' error
+    /// code): it is repaired.
+    Unreadable(u32),
+}
+
+impl Found {
+    /// What a look found that could not read the file (Windows' error code).
+    pub fn after_error(code: u32) -> Self {
+        match file_error::kind(code) {
+            Kind::Missing => Self::Missing,
+            Kind::Virus => Self::Stop(Stop::Virus),
+            Kind::InUse => Self::Stop(Stop::InUse),
+            Kind::Other => Self::Unreadable(code),
+        }
+    }
 }
 
 /// Why the archive is installed (again).
@@ -251,6 +270,38 @@ pub enum Reason {
     Missing(String),
     /// A program file of the installed archive has other bytes.
     Changed(String),
+    /// A program file of the installed archive cannot be read (Windows'
+    /// error code): repaired as a changed one.
+    Unreadable(String, u32),
+    /// A file of the installed archive is blocked by Windows Security or
+    /// held by another program: no download would get past it. PLAY stays
+    /// off until the player has seen to it.
+    Stop(Stop, String),
+}
+
+/// What the overlay does after a look at the server's answer and the files.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum Verdict {
+    /// The files are the server's: on to the patch step, then PLAY.
+    UpToDate,
+    /// The archive is downloaded and installed (a repair too).
+    Install(Reason),
+    /// Nothing is downloaded and PLAY stays off: the player is told what to
+    /// do about the file, and the update runs again on Retry.
+    Stop(Stop, String),
+}
+
+/// [`why_install`], as what the overlay does.
+pub fn verdict(
+    installed: Option<&Installed>,
+    offered: &Manifest,
+    look: impl FnMut(&InstalledFile) -> Found,
+) -> Verdict {
+    match why_install(installed, offered, look) {
+        None => Verdict::UpToDate,
+        Some(Reason::Stop(stop, name)) => Verdict::Stop(stop, name),
+        Some(reason) => Verdict::Install(reason),
+    }
 }
 
 /// Whether the files are those of the server's archive: `None` when they
@@ -270,20 +321,32 @@ pub fn why_install(
 }
 
 /// What is wrong with the installed files themselves, whatever the server
-/// offers: `None` when every one is there and no program file has changed.
+/// offers: `None` when every one is there and no program file has changed or
+/// cannot be read. A file the player may edit is the player's, read or not,
+/// blocked or held too: the game does not need it (the log names it). A
+/// [`Reason::Stop`] wins over any other: a download would not help.
 pub fn damage(
     installed: &Installed,
     mut look: impl FnMut(&InstalledFile) -> Found,
 ) -> Option<Reason> {
+    let mut first = None;
     for file in &installed.files {
-        match look(file) {
-            Found::Same => {}
-            Found::Changed if player_may_edit(&file.name) => {}
-            Found::Changed => return Some(Reason::Changed(file.name.clone())),
-            Found::Missing => return Some(Reason::Missing(file.name.clone())),
-        }
+        let name = || file.name.clone();
+        let reason = match look(file) {
+            Found::Same => continue,
+            Found::Changed | Found::Unreadable(_) | Found::Stop(_)
+                if player_may_edit(&file.name) =>
+            {
+                continue;
+            }
+            Found::Changed => Reason::Changed(name()),
+            Found::Missing => Reason::Missing(name()),
+            Found::Unreadable(code) => Reason::Unreadable(name(), code),
+            Found::Stop(stop) => return Some(Reason::Stop(stop, name())),
+        };
+        first.get_or_insert(reason);
     }
-    None
+    first
 }
 
 #[cfg(test)]
@@ -532,6 +595,122 @@ mod tests {
         );
         assert_eq!(damage(&state, changed("play_skhid.bat")), None);
         assert!(damage(&state, missing("game/binaries/x86/play_skhid.bat")).is_some());
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_read_is_never_up_to_date() {
+        let state = installed();
+        let same = Manifest {
+            sha256: state.archive,
+            size: 1,
+            min_revision: None,
+        };
+        // `look` finds `found` for the file whose name ends with `name`.
+        let one = |name: &'static str, found: Found| {
+            move |file: &InstalledFile| {
+                if file.name.ends_with(name) {
+                    found
+                } else {
+                    Found::Same
+                }
+            }
+        };
+        let exe = "game/binaries/x86/survarium_skhid.exe";
+        // What a read error is, by Windows' code.
+        assert_eq!(Found::after_error(2), Found::Missing);
+        assert_eq!(Found::after_error(3), Found::Missing);
+        assert_eq!(Found::after_error(225), Found::Stop(Stop::Virus));
+        assert_eq!(Found::after_error(226), Found::Stop(Stop::Virus));
+        assert_eq!(Found::after_error(32), Found::Stop(Stop::InUse));
+        assert_eq!(Found::after_error(33), Found::Stop(Stop::InUse));
+        assert_eq!(Found::after_error(5), Found::Unreadable(5));
+        assert_eq!(Found::after_error(23), Found::Unreadable(23));
+        // Blocked by Windows Security (2026-10-21: "up to date" with the
+        // game exe unreadable): no download, PLAY stays off.
+        for code in [225, 226] {
+            assert_eq!(
+                verdict(
+                    Some(&state),
+                    &same,
+                    one("survarium_skhid.exe", Found::after_error(code))
+                ),
+                Verdict::Stop(Stop::Virus, exe.into())
+            );
+        }
+        // Held by another program, still after the tries: the same stop.
+        assert_eq!(
+            verdict(
+                Some(&state),
+                &same,
+                one("survarium_skhid.exe", Found::after_error(32))
+            ),
+            Verdict::Stop(Stop::InUse, exe.into())
+        );
+        // Any other read error: a repair.
+        assert_eq!(
+            verdict(
+                Some(&state),
+                &same,
+                one("survarium_skhid.exe", Found::after_error(5))
+            ),
+            Verdict::Install(Reason::Unreadable(exe.into(), 5))
+        );
+        // Gone: downloaded.
+        assert_eq!(
+            verdict(
+                Some(&state),
+                &same,
+                one("survarium_skhid.exe", Found::after_error(2))
+            ),
+            Verdict::Install(Reason::Missing(exe.into()))
+        );
+        assert_eq!(
+            verdict(Some(&state), &same, |_: &InstalledFile| Found::Same),
+            Verdict::UpToDate
+        );
+        // A start script or text the player may edit is the player's, read
+        // or not, blocked or held: the game does not need it.
+        for found in [
+            Found::Unreadable(5),
+            Found::Stop(Stop::Virus),
+            Found::Stop(Stop::InUse),
+        ] {
+            for name in ["play_skhid.bat", "README.txt"] {
+                assert_eq!(
+                    verdict(Some(&state), &same, one(name, found)),
+                    Verdict::UpToDate,
+                    "{name} {found:?}"
+                );
+            }
+        }
+        // A stop wins over a file to repair before it: a download would not
+        // get past it.
+        let mut state = state;
+        let dll = "game/binaries/x86/bugtrap.dll";
+        state.files.push(InstalledFile {
+            name: dll.into(),
+            sha256: digest(b"dll"),
+            size: 1,
+        });
+        let both = |file: &InstalledFile| {
+            if file.name == dll {
+                Found::Stop(Stop::Virus)
+            } else if file.name.ends_with("survarium_skhid.exe") {
+                Found::Missing
+            } else {
+                Found::Same
+            }
+        };
+        assert_eq!(state.files[0].name, exe);
+        assert_eq!(
+            damage(&state, both),
+            Some(Reason::Stop(Stop::Virus, dll.into()))
+        );
+        // Without the server (the offline case), the same answers.
+        assert_eq!(
+            damage(&state, one("survarium_skhid.exe", Found::Unreadable(5))),
+            Some(Reason::Unreadable(exe.into(), 5))
+        );
     }
 
     #[test]

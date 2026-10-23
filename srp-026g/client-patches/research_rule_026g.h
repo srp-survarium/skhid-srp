@@ -24,6 +24,7 @@ enum {
     RR_NEVER = 0xFFFFFFFFu,     /* end time not set */
     RR_FULL = 1000000000u,      /* a whole capture, in progress units */
     RR_MICRO = 1000000u,        /* points are kept in millionths */
+    RR_RATE_MS = 4,             /* points_rate is per this many ms (resource_per_s x 1.25 is whole there) */
     RR_MAX_DT = 10000u,         /* the most ms one tick may move the rule */
 };
 
@@ -54,13 +55,13 @@ struct rr_params {
     rr_u32 capture_rate[RR_MAX_CAPTURE]; /* RR_FULL / capture_ms: units per ms */
     rr_u32 restore_rate;               /* capture_rate[0] x restore_multiplier */
     rr_u32 owned_count;
-    rr_u32 points_rate[RR_MAX_OWNED];  /* millionths of a point per ms, k units owned */
+    rr_u32 points_rate[RR_MAX_OWNED];  /* millionths of a point per RR_RATE_MS ms, k units owned */
     rr_u32 target;                     /* resources_count in millionths */
     rr_u32 award;                      /* points shared at a capture or neutralisation */
     rr_u32 zone_count;
     struct rr_zone_def zones[RR_MAX_ZONES];
     float reach;                       /* a player's capsule radius, m */
-    float half_height;                 /* a player's capsule half height, m */
+    float half_height;                 /* half a capsule's height, m, when the game gives none */
 };
 
 struct rr_zone {
@@ -82,11 +83,14 @@ struct rr_state {
     struct rr_zone zones[RR_MAX_ZONES];
 };
 
-/* One player as the world has him this tick. */
+/* One player as the world has him this tick: his capsule stands on
+ * `position` (the player's transform, the feet: research_mode.md "Inside")
+ * and is 2 x `half_height` tall, `reach` (rr_params) round. */
 struct rr_player {
     rr_u8 alive;                       /* alive and in the world */
     rr_u8 team;                        /* 0 or 1 (other: never counted) */
-    float position[3];                 /* the capsule's centre */
+    float position[3];                 /* the feet */
+    float half_height;                 /* half the capsule's height (0.9 standing) */
 };
 
 /* What a tick or an event asks the game to count (statistics events). */
@@ -111,7 +115,9 @@ void rr_reset(struct rr_state *, const struct rr_params *);
  * in thousandths; returns 0 when the parameters cannot be played. */
 int rr_prepare(struct rr_params *, rr_u32 restore_permille);
 
-int rr_inside(const struct rr_params *, rr_u32 zone, const float position[3]);
+/* Whether a capsule standing on `feet`, 2 x `half_height` tall and
+ * params->reach round, overlaps one of the zone's shapes. */
+int rr_inside(const struct rr_params *, rr_u32 zone, const float feet[3], float half_height);
 
 /* One tick of the match in play (the time rule's state 3): the zones, then
  * the teams' points. players[i] is roster place i (only `entered` ones are
@@ -127,7 +133,8 @@ rr_u32 rr_kill(const struct rr_state *, rr_u8 killer, rr_u8 victim, rr_u8 killer
 void rr_entered(struct rr_state *, rr_u8 place);
 void rr_left(struct rr_state *, rr_u8 place);
 
-/* 0, 1, or RR_NOBODY for equal scores. */
+/* 0, 1, or RR_NOBODY: by the shown scores, equal a draw; once a team
+ * reached the goal (end_time set), by the millionths. */
 rr_u32 rr_leader(const struct rr_state *);
 int rr_completed(const struct rr_state *, rr_u32 time);
 

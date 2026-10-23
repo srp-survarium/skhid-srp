@@ -517,3 +517,62 @@ kept and can be put back).
 - TODO: #272 Crouched steps audible at 40 % of walking
 - TODO: #273 Weapon camo, the workbench, decals and instant preview (#244) on main for revision 27
 - TODO: #274 Grenade bounce retuned: only the distance preset changes (mid_range)
+
+## 22 Oct, 14:12 — TODO: the owner's words (update required)
+
+<!-- Revision 28 (026g-rev28), released 2026-10-22 14:12 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #276 Rooms: the results stay open when Play's member leaves the room after a match
+- TODO: #277 One pocket an item type (server rule, kit migration, lobby drop targets, 4th-grenade fix)
+- TODO: #278 Battery modes: respawn 10 s
+- TODO: #279 UI at 4K: Esc menu, Settings, cursor, replay controls and lobby pop-ups take the 1080p scale
+- TODO: #281 v0.11 maps: spawn protection 6 s
+- TODO: #280 Patch 49: the game stops at its start without a patch its release requires
+- TODO: #283 Lobby: item search (always open, typing starts it, levels and kinds) and lobby keys (R, Enter, Esc)
+- TODO: #290 Golden weapons: the shop and bundles show the silver bonus again
+- TODO: #292 Rerolls: no wait between silver ones; no Upgrade at three modifications
+- TODO: #291 Lobby: best bonus in gold, and the bonus range in the reroll window
+- TODO: #284 Release overlay test: expect required_patches (after #280)
+- TODO: #287 Content: 38 decals and the Steam camouflage from 0.69d
+- TODO: #293 Premium armour: its bonuses rerollable modifications of its own, upgradable as the plain piece
+- TODO: #294 Crafts: a golden item is a donor for its plain one too
+- TODO: #295 Lobby: compare with the item being upgraded; premium bonuses in gold
+- TODO: #296 Patch 52: a key in the lobby no longer kills the game when the focus is on a dead object
+- TODO: #298 Lobby: craft list and compare colours; sight card's kit weapons in gold; character menu in the shop
+- TODO: #299 Shop: Attachment on a kit item no longer crashes; its window lists the inventory
+- TODO: #300 Rooms: browse All rooms from a room (My room / All rooms tabs)
+- TODO: #301 Lobby: no New Year tree, gifts or Christmas sound; two bulbs light the workbench
+- TODO: #302 Lobby: the camera turns again after the upgrade window closes
+
+## 22 Oct, 14:57 — TODO: the owner's words (update required)
+
+<!-- Revision 29 (026g-rev29), released 2026-10-22 14:57 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #304 Pockets: equipping a medkit, grenade or trap works again (rev 28 regression)
+
+## 23 Oct, 04:36 — TODO: the owner's words (update required)
+
+<!-- Revision 30 (026g-rev30), released 2026-10-23 04:36 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #297 Research (mode 5) as 0.27d shipped it: exe patch 53, 25 maps, hud, lobby, srp (for the release after revision 28)
+- TODO: #307 Generic tooling: .srpx arena, call-shape models, content value-type check
+- TODO: #310 Research: review fixes (slot 7 argument order, scoreboard, draw at the goal) and slots driven through the game's caller
+- TODO: #309 Any modification of an item may be rerolled
+- TODO: #306 Ban texts: no prohibited-software header, a neutral fallback reason
+- TODO: #312 Lobby: the Attachments window opens again after it was closed once (rev 28 regression)
+- TODO: #313 Patch 48: an upgrade window closed at once leaves the kit's weapon in the hands
+- TODO: #308 Artefacts buffed: Spring's aim time and no slow, Lifebone's full heal, one press for every artefact of a kind (patch 54)
+- TODO: #317 Engine-function library: plain cdecl calls into LTO-ABI engine functions, checked against the re-kit rows
+- TODO: #320 Exe patches: link the arena (.srpx) from C/NASM sources, no pinned addresses
+- TODO: #314 Kit presets: five kit sets, the active one is the kits, a Character dropdown, and a preset offer on room join
+- TODO: #321 Lobby: Play and the rooms' entries greyed until the reasons are known; a refused Play closes the rooms window
+- TODO: #324 Shop shows only the bundles: reputations again after the price list
+- TODO: #322 Reliability never rolls: upgrades, rerolls and drops leave it out
+- TODO: #323 Updater: a file Windows Security blocks stops the update, never "up to date"
+- TODO: #325 Artefact hints say the new numbers (Spring, Lifebone, Onyx)
+- TODO: #326 Reroll window: remove the one-modification lock code left after #309
+- TODO: #327 Upgrade: a failed craft no longer takes a modification away
+- TODO: #328 Reroll window: the game's own Cancel in place of "Keep old"
+- TODO: #329 Craft window: Buy from its slots; the TT-33 in the shop at 500
+- TODO: #315 Patch 45: the camera flies to the bench at once
+- TODO: #330 Research HUD: "Capturing unit..." on one line, not "Captu"

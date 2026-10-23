@@ -17,6 +17,7 @@ package survarium.friends
    import survarium.data.LocalizationData;
    import survarium.rooms.RoomsText;
    import survarium.rooms.RoomsWindow;
+   import survarium.player.LocalPlayerProfile;
    import survarium.constants.ClaimReason;
    import survarium.constants.CommentKind;
    import survarium.constants.FriendStatus;
@@ -449,6 +450,14 @@ package survarium.friends
                continue;
             }
             this._friendRoom = rooms[i];
+            // A reason holds (kits that can not play, a maintenance): no Join
+            // (the server refuses it; presets.md). A friend's room's max level
+            // is not known here, so no loadout the popup could offer counts:
+            // the kits must play now.
+            if(!LocalPlayerProfile.mayPlay())
+            {
+               return;
+            }
             var full:Boolean = rooms[i].players >= rooms[i].size * 2;
             SrvContextMenu.addItem(items,{
                "name":RoomsText.sayFirst(full ? "queueRoom" : "joinRoom"),

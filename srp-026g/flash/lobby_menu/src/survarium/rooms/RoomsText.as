@@ -12,10 +12,18 @@ package survarium.rooms
         private static const TEXT:Object = {
             "servers": ["Rooms", "Кімнати", "Комнаты", "Räume", "Pokoje"],
             "room": ["Room", "Кімната", "Комната", "Raum", "Pokój"],
+            // The window's tabs while in a room (the owner's of 2026-10-22).
+            "myRoom": ["My room", "Моя кімната", "Моя комната", "Mein Raum", "Mój pokój"],
+            "allRooms": ["All rooms", "Усі кімнати", "Все комнаты", "Alle Räume", "Wszystkie pokoje"],
             "create": ["Create", "Створити", "Создать", "Erstellen", "Utwórz"],
             "new": ["New room", "Нова кімната", "Новая комната", "Neuer Raum", "Nowy pokój"],
             "back": ["Back", "Назад", "Назад", "Zurück", "Wstecz"],
             "join": ["Join", "Увійти", "Войти", "Beitreten", "Dołącz"],
+            // Play greyed (presets.md, the reasons): no word of it; New room
+            // greyed too (a maintenance): no word of either.
+            "noneQuiet": ["No rooms yet.", "Кімнат ще немає.", "Комнат пока нет.", "Noch keine Räume.", "Brak pokojów."],
+            "noneNoPlay": ["No rooms yet. Make one.", "Кімнат ще немає. Створіть.", "Комнат пока нет. Создайте.",
+                "Noch keine Räume. Erstelle einen.", "Brak pokojów. Utwórz."],
             "none": ["No rooms yet. Make one, or press Play.", "Кімнат ще немає. Створіть або натисніть «Грати».",
                 "Комнат пока нет. Создайте или нажмите «Играть».", "Noch keine Räume. Erstelle einen oder drücke Spielen.",
                 "Brak pokojów. Utwórz lub naciśnij Graj."],
@@ -158,7 +166,30 @@ package survarium.rooms
                 "Ваш комплект не міг грати (немає зброї або мало набоїв): вас вивели з кімнати.",
                 "Ваш комплект не мог играть (нет оружия или мало патронов): вас вывели из комнаты.",
                 "Deine Ausrüstung konnte nicht spielen (keine Waffe oder zu wenig Munition): du wurdest aus dem Raum genommen.",
-                "Twój zestaw nie mógł grać (brak broni lub za mało amunicji): usunięto cię z pokoju."]
+                "Twój zestaw nie mógł grać (brak broni lub za mało amunicji): usunięto cię z pokoju."],
+            "code14": ["The loadout could not be chosen.", "Не вдалося обрати комплект.", "Не удалось выбрать комплект.",
+                "Das Loadout ließ sich nicht wählen.", "Nie udało się wybrać zestawu."],
+            // A join's kit preset (presets.md): {gear} the kits' level now, {max}
+            // the room's, {n} and {level} the preset's.
+            "offerHigher": ["Room max level {max}, your gear {gear}. Loadout {n} is level {level}.",
+                "Макс. рівень кімнати {max}, ваше спорядження {gear}. Комплект {n}: рівень {level}.",
+                "Макс. уровень комнаты {max}, ваше снаряжение {gear}. Комплект {n}: уровень {level}.",
+                "Max. Stufe des Raums {max}, deine Ausrüstung {gear}. Loadout {n}: Stufe {level}.",
+                "Maks. poziom pokoju {max}, twój ekwipunek {gear}. Zestaw {n}: poziom {level}."],
+            "offerFits": ["Your gear {gear} is over the room's max level {max}. Loadout {n} is level {level}.",
+                "Ваше спорядження {gear} вище макс. рівня кімнати {max}. Комплект {n}: рівень {level}.",
+                "Ваше снаряжение {gear} выше макс. уровня комнаты {max}. Комплект {n}: уровень {level}.",
+                "Deine Ausrüstung {gear} liegt über der max. Stufe {max}. Loadout {n}: Stufe {level}.",
+                "Twój ekwipunek {gear} przekracza maks. poziom {max}. Zestaw {n}: poziom {level}."],
+            // The kits can not play; loadout {n} can, level {level}.
+            "offerUnfit": ["Your loadout can't play. Loadout {n} is level {level}.",
+                "Ваш комплект не для бою. Комплект {n}: рівень {level}.",
+                "Ваш комплект не для боя. Комплект {n}: уровень {level}.",
+                "Dein Loadout ist nicht spielbar. Loadout {n}: Stufe {level}.",
+                "Twój zestaw nie nadaje się do gry. Zestaw {n}: poziom {level}."],
+            "enterAnyway": ["Enter anyway", "Увійти так", "Войти так", "Trotzdem rein", "Wejdź mimo to"],
+            "switchEnter": ["Switch and enter", "Змінити й увійти", "Сменить и войти", "Wechseln, rein", "Zmień i wejdź"],
+            "exit": ["Exit", "Вийти", "Выйти", "Abbrechen", "Wyjdź"]
         };
         private static const FRIENDS:Array = ["Friends", "Друзі", "Друзья", "Freunde", "Znajomi"];
         private static const LEVELS:Array = [

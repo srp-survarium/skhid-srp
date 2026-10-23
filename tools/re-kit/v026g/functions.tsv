@@ -1761,6 +1761,7 @@ va	status	ref_021d	name
 0x0044635d	verified	0x002b2710	IsRootUNCName
 0x00446d42	verified	0x002e997b	strtok_s
 0x00447290	verified	0x002ea080	_aullrem
+0x00771fa0	observed		Scaleform::GFx::AS3::Instances::fl_display::Stage::focusGet
 0x00824910	verified	0x00664190	strncpy
 0x00824c68	verified	0x006642b4	feof
 0x00824c9c	verified	0x006642e8	ferror
@@ -1802,3 +1803,4 @@ va	status	ref_021d	name
 0x00236610	observed		survarium::game_world_ui::set_last_players
 0x00511600	observed		Scaleform::GFx::Movie::Invoke
 0x000725e0	observed		vostok::math::create_rotation
+0x00054e10	observed		survarium::replay_network_client::is_this_place_mine

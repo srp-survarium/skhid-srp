@@ -19,7 +19,7 @@ usage: python3 -I make_pack.py --stock <folder> --donor <folder> --london <folde
 Every input is checked against inputs.sha256. What the pack holds, per map and weather of 0.27d
 (24) and London's day (25 maps):
 - gameplay/game_modes/level_0N_<w>_5.options: 0.27d's config (its parameters, as the owner
-  approved them unchanged) with rules [93, 91, RULE_CLASS, 94] (exe patch 53's class), the map's
+  approved them, but resource_per_s x RATE_FACTOR) with rules [93, 91, RULE_CLASS, 94] (exe patch 53's class), the map's
   project, and the units: mode.parameters.capture_zones[] = {cp_id, position, shapes[] {type,
   position, axis_x, axis_y, axis_z, half}} from the capturable_zone objects and the
   collision_geometry they name, in world space; capture_award 100 (0.27d's capture_the_point,
@@ -34,11 +34,13 @@ Every input is checked against inputs.sha256. What the pack holds, per map and w
   and the hud's strings (localization/flash_movies_localizations.options hud_strings).
 """
 import argparse
+import copy
 import hashlib
 import json
 import math
 import os
 from pathlib import Path
+import re
 import struct
 import sys
 
@@ -47,11 +49,19 @@ sys.path.insert(0, str(HERE))
 import bcw  # noqa: E402
 
 PACK_ID = 'research-mode'
-VERSION = '1'
+VERSION = '3'
 RULE_CLASS = 0x1E0           # client-patches/research_native_026g.c RN_CLASS (patch 53)
 RULES = [93, 91, RULE_CLASS, 94]
+# The lobby's mode icon (ui.icon: SrvGameModeIcons frame icon + 1, LobbyGameLoad.setMode). 0.26g's
+# movie has three frames: 0 the protective device (modes 2, 3), 1 a transmitter mast no mode uses,
+# 2 the skull (Team Deathmatch). 0.27d's configs say 3, a frame 0.26g's movie has not.
+ICON = 1
+# The owner (2026-10-22): "let's make it 1.25x faster": research points a second x 1.25 of
+# 0.27d's 0.075, 0.15, 0.35 (1, 2, 3 units owned): 0.09375, 0.1875, 0.4375.
+DONOR_RATES = (0.075, 0.15, 0.35)
+RATE_FACTOR = 1.25
 CAPTURE_AWARD = 100          # 0.27d gameplay/awards/events.options capture_the_point: shared, factor 100
-CAPTURE_REACH = 0.4          # m: a player's capsule radius, added round each shape
+CAPTURE_REACH = 0.38         # m: a player's capsule radius (default.player stand_capsule_width 0.76)
 CAPTURE_HALF_HEIGHT = 0.9    # m: half the capsule's height over its centre (player_bots_behaviour.md)
 LANGUAGES = ('english', 'german', 'original', 'polish', 'russian', 'ukrainian')
 WEATHERS = {'day': 'day', 'evn': 'evening', 'rain': 'rain', 'prerain': 'prerain'}
@@ -245,6 +255,112 @@ def object_key(obj):
     return (obj.get('game_object_type'), obj.get('lib_name'), obj.get('sound_name'), rounded(obj['position']))
 
 
+# ---- value types --------------------------------------------------------------------------
+
+def kind_of(value):
+    """A value's type in the game's binary config (bcw.from_py's mapping)."""
+    if isinstance(value, bool):
+        return 'bool'
+    if isinstance(value, int):
+        return 'int'
+    if isinstance(value, float):
+        return 'float'
+    if isinstance(value, str):
+        return 'string'
+    if isinstance(value, tuple):
+        return f'float{len(value)}'
+    if isinstance(value, dict):
+        return 'table'
+    if isinstance(value, list):
+        return 'list'
+    raise TypeError(type(value))
+
+
+def slot(key):
+    """A key as a path names it: a colour ramp's `key0`, `key1`, ... are one (the game reads them
+    as `key%d` from 0 while there is one, 0x350080: a ramp may have more keys than 0.26g's have)."""
+    return 'key#' if re.fullmatch(r'key\d+', key) else key
+
+
+def project_paths(project, schema=None):
+    """{path: {types}} of a project: a client object's keys under ('client_objects', its type), a
+    list's items under '[]'."""
+    schema = {} if schema is None else schema
+
+    def walk(value, path):
+        schema.setdefault(path, set()).add(kind_of(value))
+        if isinstance(value, dict):
+            for key, child in value.items():
+                walk(child, path + (slot(key),))
+        elif isinstance(value, list):
+            for child in value:
+                walk(child, path + ('[]',))
+    for key, value in project.items():
+        if key == 'client_objects':
+            schema.setdefault(('client_objects',), set()).add('list')
+            for obj in value:
+                walk(obj, ('client_objects', obj.get('game_object_type')))
+        else:
+            walk(value, (key,))
+    return schema
+
+
+def conform(value, path, schema, where, log):
+    """`value` in 0.26g's form at `path`: the keys 0.26g has there (others dropped and logged, at
+    any depth), each of a type 0.26g has there (an int where 0.26g has floats only made a float);
+    a type 0.26g never has there stops the build."""
+    have = schema.get(path)
+    if have is None:
+        sys.exit(f'{where}: {"/".join(map(str, path))}: not a path of 0.26g\'s projects')
+    kind = kind_of(value)
+    if kind == 'int' and kind not in have and have == {'float'}:
+        log.add('made a float: ' + '/'.join(map(str, path)))
+        return float(value)
+    if kind not in have:
+        sys.exit(f'{where}: {"/".join(map(str, path))} is {kind}; 0.26g has {sorted(have)} there')
+    if isinstance(value, dict):
+        out = {}
+        for key, child in value.items():
+            if path + (slot(key),) not in schema:
+                log.add('dropped: ' + '/'.join(map(str, path + (key,))))
+                continue
+            out[key] = conform(child, path + (slot(key),), schema, where, log)
+        return out
+    if isinstance(value, list):
+        return [conform(child, path + ('[]',), schema, where, log) for child in value]
+    return value
+
+
+def check_types(project, schema, where):
+    """Every value of the made project at a path 0.26g's projects have, of a type they have there."""
+    for path, kinds in project_paths(project).items():
+        if path not in schema:
+            sys.exit(f'{where}: {"/".join(map(str, path))}: a path 0.26g\'s projects have not')
+        if kinds - schema[path]:
+            sys.exit(f'{where}: {"/".join(map(str, path))} is {sorted(kinds)}; 0.26g has {sorted(schema[path])}')
+
+
+def check_config_types(config, stock, where):
+    """The config's values at the paths a stock 0.26g mode config has: of the stock's types."""
+    have = {}
+
+    def walk(value, path, into):
+        into.setdefault(path, set()).add(kind_of(value))
+        if isinstance(value, dict):
+            for key, child in value.items():
+                walk(child, path + (key,), into)
+        elif isinstance(value, list):
+            for child in value:
+                walk(child, path + ('[]',), into)
+    walk(stock, (), have)
+    made = {}
+    walk(config, (), made)
+    for path, kinds in made.items():
+        if path in have and kinds - have[path]:
+            sys.exit(f'{where}: {"/".join(map(str, path))} is {sorted(kinds)}; 0.26g\'s configs have '
+                     f'{sorted(have[path])}')
+
+
 def converted(obj, templates, where):
     """A 0.27d object in 0.26g's form: the keys 0.26g's objects of its type have (`is_enabled`
     is 0.26g's `enabled`, `layer` default), none it has not; it must have every key each of
@@ -276,13 +392,16 @@ def templates_of(projects):
     return {kind: (set().union(*keys), set.intersection(*keys)) for kind, keys in seen.items()}
 
 
-def transplant(target, donor5, donor4, templates, where, log):
+def transplant(target, donor5, donor4, templates, schema, where, log):
     """`target` (0.26g's <w>_4) with what 0.27d's <w>_5 (donor5) changed against its own <w>_4
     (donor4): a placement donor5 has and neither donor4 nor the target has is the mode's, added;
     one the target and donor4 have and donor5 has not is one the mode took away, removed. What
     0.27d changed on the map in both its projects (and the target lacks) is not the mode's and
-    is left as 0.26g has it."""
-    out = json.loads(json.dumps(target))
+    is left as 0.26g has it. What is added is in 0.26g's form (conform: its keys at every depth,
+    its types). Copies are deep copies: a vector stays a tuple (a float2/3/4), never a list (an
+    indexed table the game would read as floats)."""
+    dropped = set()
+    out = copy.deepcopy(target)
     for section in ('render_visuals', 'collision_objects'):
         before = {entry_key(e) for e in donor4[section]}
         after = {entry_key(e) for e in donor5[section]}
@@ -290,7 +409,7 @@ def transplant(target, donor5, donor4, templates, where, log):
         removed = (have & before) - after
         out[section] = [e for e in out[section] if entry_key(e) not in removed]
         added = [e for e in donor5[section] if entry_key(e) not in before and entry_key(e) not in have]
-        out[section] += [json.loads(json.dumps(e)) for e in added]
+        out[section] += [conform(copy.deepcopy(e), (section, '[]'), schema, where, dropped) for e in added]
         log.append(f'{where}: {section} +{len(added)} -{len(removed)}')
     zones = set()
     for obj in donor5['client_objects']:
@@ -316,11 +435,15 @@ def transplant(target, donor5, donor4, templates, where, log):
         if kind in LEFT_OUT or obj.get('full_name') in zones:
             left_out[kind] = left_out.get(kind, 0) + 1
             continue
-        added.append(converted(obj, templates, where))
+        added.append(conform(converted(obj, templates, where), ('client_objects', kind), schema, where, dropped))
     out['client_objects'] = kept + added
     log.append(f'{where}: client_objects +{len(added)} -{len(removed)}, left out {dict(sorted(left_out.items()))}')
-    out['server_objects']['respawn_points'] = [converted({**point, 'game_object_type': 'respawn_point'}, templates, where)
-                                               for point in donor5['server_objects']['respawn_points']]
+    out['server_objects']['respawn_points'] = [
+        conform(converted({**point, 'game_object_type': 'respawn_point'}, templates, where),
+                ('server_objects', 'respawn_points', '[]'), schema, where, dropped)
+        for point in donor5['server_objects']['respawn_points']]
+    if dropped:
+        log.append(f'{where}: to 0.26g\'s form: {"; ".join(sorted(dropped))}')
     names = {o.get('full_name') for o in out['client_objects']}
     for obj in out['client_objects']:
         for link in obj.get('collision_geometries') or []:
@@ -343,14 +466,19 @@ def model_refs(project):
 # ---- configs -----------------------------------------------------------------------------
 
 def mode_config(donor, level, weather, map_id, project_path, units, name):
-    config = json.loads(json.dumps(donor))
+    config = copy.deepcopy(donor)
     mode = config['mode']
     mode['name'] = name
+    mode['ui']['icon'] = ICON
     mode['rules'] = list(RULES)
     mode['mode'] = 5
     mode['match_making_params']['map_name'] = project_path
     mode['match_making_params']['map_id'] = int(level)
     parameters = mode['parameters']
+    rates = parameters['resource_per_s']
+    if [f32(rate) for rate in rates] != [f32(rate) for rate in DONOR_RATES]:
+        sys.exit(f'{name}: resource_per_s {rates}, not 0.27d\'s {DONOR_RATES}')
+    parameters['resource_per_s'] = [f32(rate * RATE_FACTOR) for rate in DONOR_RATES]
     parameters['capture_zones'] = units
     parameters['capture_award'] = CAPTURE_AWARD
     parameters['capture_reach'] = CAPTURE_REACH
@@ -395,6 +523,10 @@ def main():
         else:
             targets.append(bcw.loads(stock.read(f'projects/level_{level}/{ours}_4/client_project')))
     templates = templates_of(targets)
+    schema = {}
+    for target in targets:
+        project_paths(target, schema)
+    stock_config = bcw.loads(stock.read('gameplay/game_modes/level_09_day_4.options'))
     referenced = set()
     for (level, weather, map_id), target in zip(MAP_IDS, targets):
         ours = WEATHERS[weather]
@@ -402,7 +534,8 @@ def main():
         source, folder = (london, 'level_09') if level == '09' else (donor, f'level_{level}')
         donor5 = bcw.loads(source.read(f'projects/{folder}/{weather}_5/client_project'))
         donor4 = bcw.loads(source.read(f'projects/{folder}/{weather}_4/client_project'))
-        project = transplant(target, donor5, donor4, templates, where, log)
+        project = transplant(target, donor5, donor4, templates, schema, where, log)
+        check_types(project, schema, where)
         referenced |= model_refs(project) - model_refs(target)
         project_path = f'level_{level}/{ours}_5'
         files[f'projects/{project_path}/client_project'] = bcw.dump(project)
@@ -419,6 +552,7 @@ def main():
                                     'map_name': day4['ui']['map_name']}
             config['mode']['match_making_params']['map_weather_id'] = day4['match_making_params']['map_weather_id']
             config['mode']['match_making_params']['map_id'] = day4['match_making_params']['map_id']
+        check_config_types(config, stock_config, where)
         files[f'gameplay/game_modes/{config_name}.options'] = bcw.dump(config)
         configs.append({'cfg_mode_name': f'{config_name}.options', 'id': map_id})
         maps.append({'id': map_id})

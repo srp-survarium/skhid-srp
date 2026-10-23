@@ -1,5 +1,6 @@
 //! Every sentence the updater shows a player. Each says what went wrong
-//! and, where there is one, what to do about it. English only; the
+//! and, where there is one, what to do about it. English only (but the
+//! box of a file blocked or held, `updater_logic::file_error`); the
 //! launcher's own states and its progress bar are in the launcher's
 //! language. A message goes to the launcher as at most 255 ASCII characters,
 //! so the sentences are short and name files by their last parts.
@@ -132,6 +133,16 @@ pub fn offline_damaged(reason: &str, name: &str) -> String {
     format!(
         "{} is missing or damaged and cannot be repaired now: {reason}",
         short(name)
+    )
+}
+
+/// The server could not be asked, and a file it installed cannot be read
+/// (Windows' error code).
+pub fn offline_unreadable(reason: &str, name: &str, code: Code) -> String {
+    format!(
+        "{} cannot be read ({}, error {code}) and cannot be repaired now: {reason}",
+        short(name),
+        win::error_text(code)
     )
 }
 

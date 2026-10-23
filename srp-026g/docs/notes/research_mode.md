@@ -1,6 +1,7 @@
 # Research (mode 5, capture points)
 
-The owner's rules: Research comes back as 0.27 shipped it, its rules unchanged (2026-10-19);
+The owner's rules: Research comes back as 0.27 shipped it, its rules unchanged (2026-10-19), but
+for its points' rate, 1.25 x 0.27d's ("let's make it 1.25x faster", 2026-10-22);
 "find previous work and (FULLY!) implement the research mode; this will not go into this release
 though, and will go into the next one" and "we need to find everything associated with the
 release too" (2026-10-22). Not in revision 28.
@@ -9,7 +10,7 @@ Code: exe patch 53 (`client-patches/research_rule_026g.c` the rules, `research_n
 the game's side, `research_026g.asm` the hooks; README "53."); the hud movie
 (`flash/hud`: `HUD.research_update`, `survarium.controls.ResearchUnits`,
 `ResearchMinimapPoint`, `Minimap.setResearchUnits`); the content (`scripts/research-mode`,
-pack `research-mode@1`); srp (`maps::mode::RESEARCH`, `match_msgs::rules::Research`,
+pack `research-mode@3`); srp (`maps::mode::RESEARCH`, `match_msgs::rules::Research`,
 rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
 
 ## Rules (0.27d's)
@@ -26,10 +27,17 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   - Nobody inside and nobody owns it: the progress falls back at half speed.
   - An owned unit stays owned with nobody inside; its owner inside fills its drained progress
     back up.
-- **Inside:** a living player whose capsule (radius 0.4 m, 0.9 m above and below its centre)
-  overlaps one of the unit's shapes (0.27d's trigger: boxes, cylinders; London's spheres).
-- **Points:** owning 1, 2 or 3 units gives 0.075, 0.15 or 0.35 points a second (100 points in
-  22:13, 11:07 or 4:46). Shown whole (rounded).
+- **Inside:** a living player whose body overlaps one of the unit's shapes (0.27d's physics
+  trigger: boxes, cylinders; London's spheres): his capsule standing on his feet (the player's
+  transform), 1.8 m tall standing and 1.1 m crouched (half its height read from his controller as
+  the game's get_transform does), 0.38 m round (`default.player`: 0.76 m wide). A unit reaches no
+  higher than its shapes: a player on a floor above a shape's top is outside (client_patch.md
+  §3.50, "A player's transform is his feet"; the first build counted feet up to 0.9 m over it).
+- **Points:** owning 1, 2 or 3 units gives 0.09375, 0.1875 or 0.4375 points a second (100 points
+  in 17:47, 8:53 or 3:49). The owner (2026-10-22): "let's make it 1.25x faster", over 0.27d's
+  0.075, 0.15 and 0.35 (22:13, 11:07, 4:46). Shown whole (rounded). The rule counts them in
+  millionths of a point per 4 ms (375, 750, 1750: whole numbers), a 50 ms tick's share floored
+  (one unit: 4687 for 4687.5, 100 points at 17:46.8).
 - **End:** 3 s after a team reaches 100, or at the time limit (900 s; the time rule as in every
   mode: waiting 80 %, countdown 20 s). Respawn 10 s, at the mode's own spawns.
 - **Score events** (0.27d `gameplay/awards/events.options`):
@@ -40,6 +48,12 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   - killing an enemy inside a unit his team does not own ("kill invader") is score 10, event 10.
   srp sends these weights (30, 30, 10) in a Research match's static info; the activity pay
   follows the score as for every event.
+- **Rewards: no cap** (the owner, 2026-10-22: "let's not cap it at all", "it takes a lot of time
+  to capture a point either way"). Captures, neutralisations and kill invader pay as their
+  score, with no per-match cap like the battery events' (`battery_credit.md`). The review of
+  #297 showed a 1v1 room can earn about 1,320 score per 15-minute match by trading units back
+  and forth; the owner knows and chose no cap. Exploiters are handled by the take-back policy
+  (only gains over 0.5M silver and gold are taken back). Do not add a cap without the owner.
 - **HUD:** the teams' points in Team Deathmatch's bars; the three units under them (letter,
   owner's colour: own team blue, other red, nobody grey; a ring for the capture of the team
   taking it); "Capturing unit..." while one's own player is inside a unit his team is taking;
@@ -56,11 +70,15 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   shipped them, and London's day (0.31a2's Research layout; skhid's London has only its day).
 - `gameplay/game_modes/level_0N_<w>_5.options` (w day, evn, rain, prerain): 0.27d's parameters
   (`match_time` 900, `wait_time` 5, `countdown_time` 20, `wait_player_percent` 0.8,
-  `respawn_time` 10, `resources_count` 100, `capture_time_in_s`, `resource_per_s`,
+  `respawn_time` 10, `resources_count` 100, `capture_time_in_s`, `resource_per_s` (x 1.25:
+  0.09375, 0.1875, 0.4375),
   `restore_multiplier` 0.5), `rules [93, 91, 480, 94]` (480 = 1E0h: the exe's research rule
-  cook), `ui.icon` 3, `st_mode_05_name`, and the units as `capture_zones[] {cp_id, position,
+  cook), `ui.icon` 1 (0.27d's 3 is a frame 0.26g's lobby has not: its `SrvGameModeIcons` has
+  three, 0 the protective device of modes 2 and 3, 1 a transmitter mast no mode used, 2 Team
+  Deathmatch's skull; `LobbyGameLoad.setMode` shows frame icon + 1), `st_mode_05_name`, and the
+  units as `capture_zones[] {cp_id, position,
   shapes[] {type 0 sphere / 1 box / 2 cylinder, position, axis_x, axis_y, axis_z, half}}` in
-  world space, `capture_award` 100, `capture_reach` 0.4, `capture_half_height` 0.9.
+  world space, `capture_award` 100, `capture_reach` 0.38 (half the body's 0.76 m), `capture_half_height` 0.9 (half its 1.8 m standing, when the game gives none).
 - `projects/level_0N/<w>_5/client_project` (w day, evening, rain, prerain): 0.26g's `<w>_4`
   with what 0.27d's `_5` changed against its own `_4`: the units' props (chargers, antennas,
   turbines, transmitters, diesel generators, monitors: render visuals and collision objects),
@@ -69,6 +87,27 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   have. Four models 0.26g lacks come byte for byte from 0.27d (same format; their materials
   are 0.26g's): the transmitter's cable corner, two box covers, level_01's tractor (0.27d moved
   it beside unit B for cover).
+- **Values in 0.26g's types.** The game reads a config's vectors raw (a float3 value's data is a
+  pointer to three floats: the respawn point's reader 0x2F4580 does `movq` off it), so a vector
+  written as an indexed table puts an object somewhere near (x, 0, 0). Pack 1 copied the projects
+  through JSON, which made every vector of every kept object (position, rotation, scale, pivot,
+  colours, directions, `levelmap_min`/`max`, tangents, probe colours: about 9,800 on map 184) an
+  indexed table: the first local test's level "did not load properly" and its spawns, props and
+  player positions were wrong (2026-10-22). Pack 2 copies deeply (tuples stay float2/3/4), puts
+  every added object, entry and spawn in 0.26g's form at every depth (`conform`: the keys 0.26g's
+  projects have at that path, of the types they have there), and stops when a value of the made
+  project has a type 0.26g's projects never have at its path, or a mode config one a stock 0.26g
+  config does not (`check_types`, `check_config_types`). A colour ramp's `key0`, `key1`, ... count
+  as one key: the game reads `key%d` from 0 while there is one (0x350080), and some 0.27d lights
+  have four. Nothing else of the 0.27d objects (`skeleton_visual`, `wire_set`, lights, sounds,
+  particles; nested tables included) is a key 0.26g lacks.
+- **Environment probes** stay 0.26g's own (each map's `<w>_4` ones, none added): the game reads a
+  probe's `texture` (0x28F48D, the `<w>_4` bake of its weather) and never a `textures` table (no
+  such key in the exe), so a `_5` project needs no `_5` keys.
+- **Minimap:** the hud places the units at (x, -z), as the exe's own objects (0x238681 negates z
+  for `pos_y`), on each level's minimap frame (`Minimap._minimapProps`: level_02 110 m round
+  (21.079, 105.098)). Every unit and spawn of the 25 maps is inside its frame (map 184: A at 0.37,
+  0.40, B 0.60, 0.50, C 0.36, 0.61 of the frame).
 - maps_dict: 145-149 (0.26g's own rows for `level_0{1,4,6,7,8}_day_5`, never with a file
   before); 184-203 for the rest (0.27d's 152-170 are srp's ported maps now).
 - Texts in the six languages: 0.27d's `st_mode_05_name` ("Research"), `st_mode_05_description`,
@@ -80,7 +119,7 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
 ## Making the pack
 
 - `scripts/research-mode/make_pack.py --stock <folder> --donor <folder> --london <folder> --out
-  <SKHID_PACKS_DIR>/research-mode-1`: the inputs at their game paths or as `dbgrab ... get` writes
+  <SKHID_PACKS_DIR>/research-mode-3`: the inputs at their game paths or as `dbgrab ... get` writes
   them, each checked against `inputs.sha256` (0.26g's 25 `<w>_4` projects and London's day_4
   config from the stock db and patch 14; 0.27d0's `_4`/`_5` projects, `_5` configs, six
   localizations and the four models; 0.31a2's London `day_4`/`day_5`), and `stock.list` (the
@@ -90,7 +129,26 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
 - Checked: `vostok-port pack check` over the stock db and patches 12 to 27; `release/build-content
   29` with it (2026-10-22: one patch, every file the manifest makes as it makes it, the server
   data with 109 projects); `vostok-port pack probes`: no probe missing; `release/build-site` with
-  that patch (the Maps tab with the units).
+  that patch (the Maps tab with the units). Pack 2 (2026-10-22): its own type checks; `release/
+  build-content 30` over revision 29 (one patch, every file as the manifest makes it, 109
+  projects); map 184's project as players get it has 9,475 float3, 199 float4 and 354 float2
+  values and no vector as an indexed table; every unit and spawn of the 25 maps on its minimap.
+
+- **Units against the floors** (a report, not a gate): `mapdata-zones --db <resources.db> --patch
+  <each offered patch> --patch <the new patch>` stands a player (patch 53's test) on every ground
+  face under each unit's shapes and groups where he counts into floors. A unit taller than its
+  floor is 0.27d's design (the owner, 2026-10-22: "it is definitely fine for capture bounding box to
+  not just be floor"); a floor counts only where the capsule standing on it overlaps a shape, as
+  in 0.27d. Pack 3 with patch 53's fixed test (2026-10-22), a floor above the unit's own inside
+  its shapes:
+  - level_08 (day, evening, pre-rain), unit C: faces at 37.50 m (64 samples, a small surface)
+    inside its box (35.84 m its floor, top 39.18 m);
+  - London (level_09 day), unit B: faces at 3.54-4.77 m (the level unit A stands on) inside B's
+    sphere (radius 6.5 m, top 7.08 m), 0.31a2's units as they are.
+
+  School (level_02), whose floor above A and C (20.25-20.5 m, the boxes' tops 20.04 m) took the
+  units in the first build, has none: the first build took a player's transform for his capsule's
+  centre (client_patch.md §3.50, "A player's transform is his feet").
 
 ## The exe (patch 53)
 
@@ -100,8 +158,8 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   by the game's constructor after its own cooks (the class is free in register_cook's table of
   0x206; refused, and the mode not loaded, if taken).
 - **Tick (50 ms):** only while the time rule is in play (core+18FE4h = 3); players by roster
-  place (entered, alive `+33Ch`, in the world `+33Fh`, team `+6B8h -> +45ECh`, position
-  `+43Ch`); then the statistics' tail: `m_team_points` = the scores, `m_winner_team` = the
+  place (entered, alive `+33Ch`, in the world `+33Fh`, team `+6B8h -> +45ECh`, feet `+43Ch`,
+  capsule half height from the controller `[[+494h]]`); then the statistics' tail: `m_team_points` = the scores, `m_winner_team` = the
   leader.
 - **Wire (rules blob, between the respawn rule and the kd rule; little-endian):**
 
@@ -121,11 +179,12 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   where the first section's bytes begin; moving every section's bytes to grow it would change
   every file offset the tools and the released records name). Eleven are taken (the seven of the
   game, `.srp`, `.srpd`, `.srpc`, `.srpw`). The twelfth, `.srpx` (0xA42D000, code, data and
-  writable), holds the code of every later patch that needs pages of its own, each at an offset
-  of its own: Research at +0 (code to +3000h, its state page +3000h), the dynamic anomalies
-  (patch 42, #225) at +4000h (`DYNAMIC_ANOMALIES_OFFSET`). #225 then adds no section: it
-  assembles `dynamic_anomalies_026g.asm` for 0xA431000 and puts its bytes into `.srpx` at
-  +4000h (int3 between), its two hooks aiming there.
+  writable), is the arena of every later patch (client_patch.md 0.3): blocks declared in
+  `patch_026g.py`'s `ARENA` with their sources, linked by `link_026g.py`. Research's are
+  `research.code` (research_026g.asm, research_rule_026g.c, research_native_026g.c; 0xA42D000
+  today) and `research.state` (`rn_state`, 0xA430000 today); its hooks take their targets from
+  the link by symbol. The dynamic anomalies (patch 42, #225) add a block of their own the same
+  way, and no section.
 - **HUD:** update_ui (every frame): `root.research_update(own team, points 0, points 1, goal,
   Z, then cp_id, x, -z, owner, taking, progress %, inside 0, inside 1, own player inside)`, sent
   at a change and every 60 frames; the messages through the hud's parameterised message.
@@ -163,7 +222,7 @@ Left out, and why:
 - Exe: patch 53. Simulation change for mode 5 only. Its code is in a new section, `.srpx`, the
   section of the later patches' code (below).
   Simulation change: a match of mode 5 needs it; modes 2-4 do not change.
-- Content: pack `research-mode@1` and the hud movie (content.tsv); the server data with it
+- Content: pack `research-mode@3` and the hud movie (content.tsv); the server data with it
   makes the 25 maps playable.
 - srp: mode 5 in the maps, rooms, results and pay; a server that offers Research asks for the
   revision with patch 53.

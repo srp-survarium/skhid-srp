@@ -5,6 +5,7 @@ package survarium.paperdoll
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.events.DragEvent;
    import scaleform.clik.events.SliderEvent;
+   import survarium.data.Relocation;
    import survarium.constants.Events;
    import survarium.data.ItemData;
    import survarium.interfaces.ILocalPaperDoll;
@@ -58,14 +59,7 @@ package survarium.paperdoll
             dictId = (_data.dictId);
             targetDescriptor = ItemPlace.INVENTORY;
             isDropped = true;
-            relocation = {
-               profile:profileId,
-               id:itemId,
-               dict_id:dictId,
-               sourceSlot:index,
-               targetSlot:targetDescriptor,
-               count:_data.condition_or_stack as uint
-            };
+            relocation = Relocation.move(profileId,itemId,dictId,index,targetDescriptor,_data.condition_or_stack);
             _relocateArray = [relocation];
             playerProfile._relocateFunction(_relocateArray);
          }
@@ -143,14 +137,7 @@ package survarium.paperdoll
             }
             if(index == ProfileSlot.WEAPON_1 || index == ProfileSlot.WEAPON_2)
             {
-               relocation = {
-                  profile:profileId,
-                  id:itemId,
-                  dict_id:dictId,
-                  sourceSlot:sourceDescriptor,
-                  targetSlot:targetDescriptor,
-                  count:1
-               };
+               relocation = Relocation.move(profileId,itemId,dictId,sourceDescriptor,targetDescriptor,1);
                trace_relocate(_relocateArray);
             }
             trace("descriptors::",event.dragTarget.descriptor,event.dropTarget.descriptor,item.descriptor);
@@ -160,14 +147,7 @@ package survarium.paperdoll
          }
          if(!item.isStack)
          {
-            move = {
-               profile:profileId,
-               id:itemId,
-               dict_id:dictId,
-               sourceSlot:sourceDescriptor,
-               targetSlot:targetDescriptor,
-               count:1
-            };
+            move = Relocation.move(profileId,itemId,dictId,sourceDescriptor,targetDescriptor,1);
             trace("relocateFabrica:a");
             _relocateArray = [move];
             if(index != ProfileSlot.WEAPON_1 && index != ProfileSlot.WEAPON_2)
@@ -194,14 +174,7 @@ package survarium.paperdoll
                if(event.dropTarget && !(event.dragTarget is IPaperDollSlot))
                {
                   trace("relocateFabrica:other");
-                  _relocateArray = [{
-                     profile:profileId,
-                     id:itemId,
-                     dict_id:dictId,
-                     sourceSlot:sourceDescriptor,
-                     targetSlot:targetDescriptor,
-                     count:index >= ProfileSlot.QUICK_1 && index <= ProfileSlot.QUICK_6 ? LocalPaperDoll.pocketUnits(_data as ItemData,item) : 1
-                  }];
+                  _relocateArray = [Relocation.move(profileId,itemId,dictId,sourceDescriptor,targetDescriptor,index >= ProfileSlot.QUICK_1 && index <= ProfileSlot.QUICK_6 ? LocalPaperDoll.pocketUnits(_data as ItemData,item) : 1)];
                   trace_relocate(_relocateArray);
                   result = playerProfile._relocateFunction(_relocateArray);
                }

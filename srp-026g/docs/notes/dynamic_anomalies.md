@@ -41,8 +41,8 @@ read to the end.
 - **Bots** (testing only): keep off a timed anomaly's damage zone while a checked world shows
   it charging, hurting or holding its artefact; never predict the next choice; take no
   artefacts.
-- **Release:** exe patch 42 (every full build) and the content pack in one release, with
-  Research (#297, patch 53), whose section `.srpx` holds this code at +0x4000; the exe
+- **Release:** exe patch 42 (every full build; its code the block `anomalies.code` of the
+  `.srpx` arena, linked by `link_026g.py`) and the content pack in one release; the exe
   requires that release's content patch (patch 49), and the server refuses older exes.
 - **Not as the release:** no mochalka (0.26g has no such artefact); state switches a tick or
   two late; no anomaly-detector zones (section 5).
@@ -264,10 +264,9 @@ anomalies per place:
 
 ## 8. Release and test
 
-- **Release** (the one after revision 28; one `release.sh` run with the content):
-  - exe patch 42 (at +0x4000 of `.srpx`, VA 0xA431000, after Research's pages; every full
-    build). `.srpx` is made by Research (patch 53, #297): the two ship together, #225
-    stacked on #297;
+- **Release** (one `release.sh` run with the content):
+  - exe patch 42 (every full build): the arena's block `anomalies.code` in `.srpx`
+    (`link_026g.py`, client_patch.md 0.3), the two hooks by symbol;
   - the content: the pack `dynamic-anomalies@2` (row in `release/content.tsv`). Its folder
     is made once into `$SKHID_PACKS_DIR/dynamic-anomalies-2` by `build.py --pack
     dynamic-anomalies@2` with `--live` = the stock db and the base rows' patches (12, 14, 17,

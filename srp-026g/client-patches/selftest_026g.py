@@ -361,7 +361,7 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     on the page after `.srpc`): its hook, its entry and name format, its
     calls of patch 47's lookup and fill. check_weapon_camo_026g.py runs it.
 45. the same build: a weapon's upgrade window shows it above the lobby's
-    workbench (patch 45, weapon_table_026g.asm at `.srpw`+800h; patch 32
+    workbench (patch 45, weapon_table_026g.asm at `.srpw`+6B0h; patch 32
     grown: weapon_stash_026g.asm at +360h): the sites, the entries, the
     states. check_weapon_table_026g.py and check_weapon_stash_026g.py run them.
 47. the same build: decals on a weapon (patch 47, weapon_decals_026g.asm on
@@ -385,19 +385,52 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     and the option's text out of order are refused.
     check_mount_patches_026g.py runs the code on folders missing a
     required patch.
-53. the same build: Research, mode 5 (patch 53, research_026g.section.bin
-    at the start of `.srpx`, the twelfth and last section, the later
-    patches' code, on the page after `.srpw`; its state at +3000h): the .bin is its .json's, the
-    three sites (the game's constructor, update_ui's two) are the
+52. every full build: Scaleform's Stage focus getter (0x771FA0) gives null
+    for a focused object without its ActionScript object (patch 52,
+    STAGE_FOCUS), where the original read its traits through null: the 46
+    bytes at 0x771FED and the getter around them, its member pointer and
+    ThunkInfo "focus", no relocation under them, nothing aims inside, the
+    lobby's key handler invoking root.has_active_window; cert-only keeps
+    the original. check_stage_focus_026g.py runs it.
+53. the same build: Research, mode 5 (patch 53, the arena's blocks
+    research.code and research.state in `.srpx`, the twelfth and last
+    section, the later patches' code, on the page after `.srpw`, linked from
+    their sources by link_026g.py): the arena is its lock's, the three sites (the game's constructor, update_ui's two) are the
     original's instructions before and the hooks after, no relocation
     under one and no branch into one, the entries are jumps, the stubs
-    leave only where they should, the C code names the game's functions
-    it calls. check_research_026g.py runs the hooks, the cook and the rule.
+    leave only where they should, the C code calls the game's functions
+    through the engine-function library (each slot of the rule's and the cook's vtables that is ours
+    pops what tdm_rule_core's (0xA15DA4) and tdm_rule_cook's (0x9FD8AC)
+    pops: the call shapes' INSTALLED_VTABLES check, for every patch).
+    check_research_026g.py runs the hooks, the cook and the rule.
+54. the same build: the artefacts (patch 54, artefacts_026g.asm, the
+    arena's block artefacts.code): the original's six sites (Spring's loader and
+    its keys, the active's link and unlink, Lifebone's enable_active after
+    its remove_affects, artefact_base::action's entry, the player's
+    stagger) and the two sizes of a Spring, the hooks and sizes in the
+    build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
+The engine-function library (engine_026g.py, the arena's block engine.code;
+client_patch.md section 0.5): its files are what engine_026g.tsv and the
+re-kit's ABI rows give, and engine_026g.py refuses a spec row whose
+parameters are not where the re-kit's roles say (each names a word of its
+location's role: two parameters swapped are refused) and a cleanup that is
+no number. check_engine_026g.py
+(run here, test_engine) proves every thunk against the rows and the original
+exe: each argument in its register or slot at the real function's entry, the
+exe's `ret` against abi.tsv's cleanup (a wrong cleanup fails), the stack
+balanced, EBX ESI EDI EBP kept, the result where C takes it; the config's
+look-ups, the field writers, the statistics' listener, the pool lookup and
+the allocation's name run for real. Not caught here: a re-kit row whose
+location is itself wrong (role and all) for a function not run for real;
+Research's other ones (malloc, the rule base's constructor, the message,
+Invoke, register_cook) run for real in check_research_026g.py (not run here).
 """
 
+import ast
 import ctypes
 import hashlib
 import itertools
+import csv
 import json
 import math
 import os
@@ -686,6 +719,20 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.upgrade_preview_bin(), "rb").read(),
           f"{os.path.basename(P.upgrade_preview_bin())} is current ({len(fresh)} bytes)")
+    import engine_026g
+    try:
+        stale = engine_026g.stale()
+    except engine_026g.Refused as error:
+        stale = [f"refused: {error}"]
+    check(not stale, "engine_026g.h, .inc and .asm are what engine_026g.tsv and the re-kit's ABI rows give "
+          "(engine_026g.py --write)" + (": not " + ", ".join(stale) if stale else ""))
+    # The arena (Research, the artefacts, the engine library) is linked from
+    # its sources here, as by every build, and is the lock's.
+    linked = P.arena()
+    check(P.linker.lock_differs(linked, P.linker.read_lock()) is None,
+          f"the arena linked from its sources is {P.linker.LOCK.name}'s ({linked.size:#x} bytes, SHA-256 "
+          f"{linked.sha256[:16]}..., blocks {', '.join(f'{b.name} {b.va:#x}' for b in linked.blocks.values())}; "
+          "link_026g.py --write)")
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.WEAPON_DRAW_VA:#x}", f"-DSTATE={state:#x}",
@@ -771,6 +818,9 @@ def allowed_ranges(original, mode, cave_size, server=None):
     # Patch 43 gives back what that default withheld (test_tab_self).
     ranges.append((P.file_offset(P.TAB_SELF[0]), len(P.TAB_SELF[1])))
     rewritten.append((P.TAB_SELF[0], P.TAB_SELF[0] + len(P.TAB_SELF[1])))
+    # Patch 52: the Stage focus getter's 46 bytes (test_stage_focus).
+    ranges.append((P.file_offset(P.STAGE_FOCUS[0]), len(P.STAGE_FOCUS[1])))
+    rewritten.append((P.STAGE_FOCUS[0], P.STAGE_FOCUS[0] + len(P.STAGE_FOCUS[1])))
     if server is not None:
         va, old = P.DEFAULT_SERVER_HOOK
         ranges.append((P.file_offset(va), len(old)))
@@ -1105,10 +1155,14 @@ def test_start_up_folder(original, image, mode):
               and image.read(P.TAB_SELF[0], len(P.TAB_SELF[1])) == P.TAB_SELF[1],
               "cert-only: mounter::finish, the journal's default and on_activate's name (patch 43) are the "
               "original's")
+        check(image.read(P.STAGE_FOCUS[0], len(P.STAGE_FOCUS[1])) == P.STAGE_FOCUS[1],
+              "cert-only: the Stage focus getter (patch 52) is the original's")
         return
     check(image.read(P.TAB_SELF[0], len(P.TAB_SELF[2])) == P.TAB_SELF[2],
           f"{P.TAB_SELF[0]:#x}: patch 43's `jmp short` with the journal off by default: on_activate gives the hud "
           "its player's name (test_tab_self)")
+    check(image.read(P.STAGE_FOCUS[0], len(P.STAGE_FOCUS[2])) == P.STAGE_FOCUS[2],
+          f"{P.STAGE_FOCUS[0]:#x}: patch 52's tests in the Stage focus getter (test_stage_focus)")
     # mounter::finish from the read of the mount's root to its `ret 0Ch`.
     start, end = 0x46B04, 0x46B3D
     tail = ["mov eax,[eax+0x34]", "test eax,eax", "jnz 0x46b0f", "xor ecx,ecx", "jmp short 0x46b12",
@@ -1478,6 +1532,8 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.WEAPON_DECALS_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.UPGRADE_PREVIEW_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
+        [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES] + \
         [(va, len(old)) for va, old, _, _ in P.DYNAMIC_ANOMALIES_HOOKS]
 
 
@@ -1694,6 +1750,7 @@ def test_weapon_table(original, image, before):
         0x247576: ["cmp byte [ebp-0x1],0x0", "jnz 0x247592"],
         0x24778F: ["cmp byte [ebx+0xf49c],0x0", "jz 0x2477c2"],
         0x283D81: ["test byte [eax+0xc],0x52", "setnz al"],
+        0x284309: ["call 0x2844d0"],
     }
     for va, old, offset, opcode in P.WEAPON_TABLE_HOOKS:
         entry = table_va + offset
@@ -1747,11 +1804,11 @@ def test_weapon_table(original, image, before):
           "from there, the match's 0x1F7DCE and the match's draw task (its address at 0x1F7CC6) alone; its "
           "[ebp-0E8h] is the decal pose's transform alone")
     texts = [t for _, _, t in ndisasm(code, table_va)]
-    listing = ndisasm(code[:code.index(bytes.fromhex("a008a80cb810bc1400"))], table_va)   # to `fields`
+    listing = ndisasm(code[:code.index(bytes.fromhex("a008a80cb810bc14944c00"))], table_va)   # to `fields`
     targets = {branch_target(t) for _, _, t in listing if branch_target(t) is not None}
     outside = {t for t in targets if not table_va <= t < table_va + len(code)}
     starts = {a for a, _, _ in listing}
-    check(outside == {0x2845C0} and all(t in starts for t in targets - outside)
+    check(outside == {0x2845C0, 0x2844D0} and all(t in starts for t in targets - outside)
           and [rows(image, table_va + at, 5)[0].startswith("jmp ") for at in P.WEAPON_TABLE_ENTRIES] == [True] * len(P.WEAPON_TABLE_ENTRIES)
           and [t for _, _, t in listing if re.search(r"call (?:dword )?\[|jmp (?:dword )?\[", t)] == ["call [eax+0x24]"]
           and not [t for _, _, t in listing if re.search(r"\[(?:dword )?0x", t)]
@@ -1759,8 +1816,8 @@ def test_weapon_table(original, image, before):
           and P.weapon_preview_state(code, table_va)
           == P.late_join_state_va(open(P.late_join_bin(), "rb").read()) + P.WEAPON_TABLE_STATE_OFFSET,
           f"the weapon table at {table_va:#x} (.srpw+{P.WEAPON_TABLE_OFFSET:#x}) is weapon_table_026g.section.bin "
-          f"({len(code)} bytes), its state at 0x{P.WEAPON_TABLE_STATE_OFFSET:X} of .srpd; it begins with five "
-          "`jmp near`, jumps only to the camera's setter outside itself and calls only the lobby menu's "
+          f"({len(code)} bytes), its state at 0x{P.WEAPON_TABLE_STATE_OFFSET:X} of .srpd; it begins with six "
+          "`jmp near`, jumps only to the camera's setter and its collision ray outside itself and calls only the lobby menu's "
           "vtable+24h (is_mouse_over_ui), every branch inside it lands on an instruction, and no operand is an "
           "absolute address")
     mouse = {a: t for a, _, t in ndisasm(source.read(0x283D79, 0x13), 0x283D79)}
@@ -1900,6 +1957,7 @@ def test_upgrade_preview(original, image, before):
         0x270313: ["call 0x270320"],
         0x284B89: ["cmp dword [ebx+0xd2c4],byte -0x1"],
         0x284F7F: ["cmp byte [ebx+0xd2c9],0x0"],
+        0x284B7C: ["cmp byte [ebx+0xd2c8],0x0"],
     }
     for va, old, offset, opcode in P.UPGRADE_PREVIEW_HOOKS:
         entry = code_va + offset
@@ -1959,60 +2017,169 @@ def test_upgrade_preview(original, image, before):
           and P.upgrade_preview_targets(code, code_va) == (stash_find, state, preview_state),
           f"the upgrade preview at {code_va:#x} (.srpw+{P.UPGRADE_PREVIEW_OFFSET:#x}) is "
           f"upgrade_preview_026g.section.bin ({len(code)} bytes), its state at 0x{P.UPGRADE_PREVIEW_STATE_OFFSET:X} "
-          "of .srpd, patch 32's read; it begins with six `jmp near`, calls only setup_profile, the inventory's "
+          "of .srpd, patch 32's read; it begins with seven `jmp near`, calls only setup_profile, the inventory's "
           "find, item_by_id, the config's has_key and child, the profile's ctor and copy, the allocator, the "
           "log and the stash's find_kit_or_show, jumps only to setup_profile's end and the 0x87 reader's last "
           "call outside itself, and every branch inside it lands on an instruction")
 
 
 def test_research(original, image, before):
-    """Check 53: Research, mode 5 (patch 53, RESEARCH_HOOKS; research_026g.py,
+    """Check 53: Research, mode 5 (patch 53, RESEARCH_HOOKS; link_026g.py links it,
     check_research_026g.py runs the hooks, the cook and the rule on made-up
-    games). Here: the .bin is its .json's; each site is the original's
-    instructions before and the hook after, with no relocation under it and
-    no branch into it; the entries are jumps; the code's calls outside it are
-    the game's functions research_native_026g.c names."""
+    games). Here: each site is the original's instructions before and the
+    hook to its symbol after, with no relocation under it and no branch into
+    it; the entries are jumps; the code's calls outside it are the game's
+    functions research_native_026g.c names. Each slot of ours
+    popping what tdm's in the same place pops is test_call_shapes'
+    (INSTALLED_VTABLES)."""
     source = Image(original)
     plain = lambda text: text.replace("[dword 0x", "[0x").replace("dword [", "[")
-    code = open(P.research_bin(), "rb").read()
-    kept = json.load(open(os.path.join(HERE, "research_026g.section.json")))
-    check(kept["size"] == len(code) and kept["sha256"] == hashlib.sha256(code).hexdigest()
-          and int(kept["va"], 16) == P.RESEARCH_VA,
-          f"research_026g.section.bin is its .json's ({len(code)} bytes for {P.RESEARCH_VA:#x}; "
-          "research_026g.py --check-bin builds it again where a C compiler is)")
+    linked = P.arena()
+    code = P.linker.block_bytes(linked, "research.code")
+    research_va = linked.blocks["research.code"].va
+    check(image.read(research_va, len(code)) == code and linked.blocks["research.state"].kind == "state"
+          and not any(image.read(linked.blocks["research.state"].va, linked.blocks["research.state"].size)),
+          f"the arena's block research.code at {research_va:#x} ({len(code)} bytes) is the link's, research.state "
+          f"at {linked.blocks['research.state'].va:#x} zeros")
     originals = {0x1E9B4C: ["mov eax,ebx", "call 0x1ec170"], 0x23B3DE: ["cmp dword [edi+0x20],0x4", "jnz 0x23b3fc"],
                  0x23B351: ["cmp eax,0x4", "jnz 0x23b36a"]}
     loose = lambda text: text.replace("byte +", "")     # ndisasm 2.16 writes `byte +0x4`, 3.x `0x4`
-    for va, old, offset, opcode in P.RESEARCH_HOOKS:
+    for va, old, symbol, opcode in P.RESEARCH_HOOKS:
         rows = ndisasm(source.read(va, len(old)), va)
         hooked = ndisasm(image.read(va, len(old)), va)
         word = "call" if opcode == 0xE8 else "jmp"
         check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
               and [loose(text) for _, _, text in rows] == originals[va]
-              and hooked[0][2].startswith(word) and branch_target(hooked[0][2]) == P.RESEARCH_VA + offset
+              and hooked[0][2].startswith(word) and branch_target(hooked[0][2]) == linked.symbols[symbol]
+              and research_va <= linked.symbols[symbol] < research_va + 15
               and all(text == "nop" for _, _, text in hooked[1:]),
-              f"{va:#x}: `{'; '.join(originals[va])}` becomes {hooked[0][2]} + {len(hooked) - 1} nop; "
+              f"{va:#x}: `{'; '.join(originals[va])}` becomes {hooked[0][2]} ({symbol}) + {len(hooked) - 1} nop; "
               "the build without the late join keeps it")
         hits = [hit for hit in aimed_inside(original, va, len(old), 0x82)
                 if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
         relocated = [r for kind, r in source.relocations().values() if kind == 3 and r + 4 > va and r < va + len(old)]
         check(not hits and not relocated, f"{va:#x}: no branch aims inside the site, no base relocation under it")
-    entries = ndisasm(image.read(P.RESEARCH_VA, 15), P.RESEARCH_VA)
+    entries = ndisasm(image.read(research_va, 15), research_va)
     check([text.split()[0] for _, _, text in entries] == ["jmp"] * 3,
           "the section starts with its three entries, `jmp near` each: register, hud, welcome")
     stubs = code[:code.index(b"st_start_match_welcome_message_5")]
-    texts = [plain(t) for _, _, t in ndisasm(stubs, P.RESEARCH_VA)]
+    texts = [plain(t) for _, _, t in ndisasm(stubs, research_va)]
     targets = {int(t.split()[-1], 16) for t in texts if t.startswith(("call ", "j")) and t.split()[-1].startswith("0x")}
-    outside = {c for c in targets if not P.RESEARCH_VA <= c < P.RESEARCH_VA + len(code)}
+    outside = {c for c in targets if not research_va <= c < research_va + len(code)}
     check(outside == {0x1EC170, 0x23B35B, 0x23B36A} and "mov [esp],0x23b3fc" in texts
           and "mov ecx,0xa03aac" in texts,
           "the stubs leave to the constructor's replaced call, update_ui's message (TDM's key or mode 5's) and its "
           f"way on without one, and the hud's to update_ui past Team Deathmatch's part ({sorted(hex(c) for c in outside)}); "
           "the C code calls the game through registers only")
-    for va, what in ((0x102D10, "register_cook"), (0xE4F90, "the cooks' allocate"), (0x313900, "the rule base's ctor"),
-                     (0xF6B10, "the config's child"), (0xF6C00, "the config's has"), (0x7AB30, "a buffer's resize"),
-                     (0x511600, "the movie's invoke"), (0x2375C0, "the hud's message")):
-        check(struct.pack("<I", va) in code[P.RESEARCH_ASM_SIZE:], f"the C code names {what} ({va:#x})")
+    # The C code reaches the game's functions through the engine-function
+    # library (check_engine_026g.py proves each thunk): a call or a pointer
+    # to each one's entry, and none of their VAs in the code.
+    import engine_026g
+    entries = {f["symbol"]: (linked.symbols[f["symbol"]], f["va"]) for f in engine_026g.functions()}
+    c_listing = [plain(t) for _, _, t in ndisasm(code[P.RESEARCH_ASM_SIZE:], research_va + P.RESEARCH_ASM_SIZE)]
+    for symbol in ("engine_register_cook", "engine_malloc", "engine_match_rule_base", "engine_cfg_child",
+                   "engine_cfg_has", "engine_write_u8", "engine_write_u16", "engine_write_u32",
+                   "engine_statistics_notify", "engine_movie_invoke", "engine_show_message"):
+        entry, real = entries[symbol]
+        named = any(t == f"call {entry:#x}" or t.endswith(f",{entry:#x}") for t in c_listing)
+        check(named and struct.pack("<I", real) not in code[P.RESEARCH_ASM_SIZE:],
+              f"the C code calls {symbol} ({entry:#x}, the library's thunk of {real:#x}), not {real:#x} itself")
+    # Each slot of the rule's, the cook's and the link resolver's vtables
+    # that is ours pops what the game's counterpart pops: test_call_shapes,
+    # from INSTALLED_VTABLES (the same check for every patch's vtables).
+    read32 = lambda img, va: struct.unpack("<I", img.read(va, 4))[0]
+    # The cook's RTTI: its own complete object locator (research_rule_cook, a
+    # translate_query_cook as tdm_rule_core_cook is); the rule's the base's.
+    def type_name(img, td):
+        raw = img.read(td + 8, 64)
+        return raw[:raw.index(b"\0")].decode()
+
+    def hierarchy(img, locator):
+        signature, offset, _, td, chd = struct.unpack("<5I", img.read(locator, 20))
+        _, attributes, count, array = struct.unpack("<4I", img.read(chd, 16))
+        bases = [read32(img, array + 4 * i) for i in range(count)]
+        return (signature, offset, read32(img, td), type_name(img, td), attributes,
+                [(type_name(img, read32(img, b)),) + struct.unpack("<6I", img.read(b + 4, 24)) for b in bases])
+    cook_locator = read32(image, linked.symbols["rn_cook_vtable"])
+    ours = hierarchy(image, cook_locator)
+    core = hierarchy(source, 0xA524C0)                    # tdm_rule_core_cook's locator (vtable 0xA12C14)
+    check(ours[:2] == (0, 0) and ours[2] == read32(source, 0xACCC38) and ours[3] == ".?AVresearch_rule_cook@srp@@"
+          and ours[4] == core[4] and ours[5][1:] == core[5][1:] and ours[5][0][1:6] == core[5][0][1:6]
+          and ours[5][0][0] == ours[3] and research_va <= cook_locator < research_va + len(code),
+          f"the cook's RTTI locator ({cook_locator:#x}) is its own: {ours[3]}, a translate_query_cook as "
+          f"tdm_rule_core_cook is ({[b[0] for b in ours[5]]})")
+    check(read32(image, linked.symbols["rn_rule_vtable"]) == 0xA4C970
+          and hierarchy(source, 0xA4C970)[3] == ".?AVgame_match_rule_base@survarium@@",
+          "the rule's vtable has game_match_rule_base's locator (0xA4C970)")
+
+
+def instruction(image, va):
+    """(length, text) of the instruction at `va` (ndisasm, a window decoded
+    at a time and cached on the image), or None."""
+    cache = image.__dict__.setdefault("instructions", {})
+    if va not in cache:
+        try:
+            window = image.read(va, 0x200)
+        except ValueError:
+            return None
+        rows = ndisasm(window, va)
+        for (at, code_hex, text), following in zip(rows, rows[1:] + [None]):
+            if following is None or at + len(code_hex) // 2 > va + len(window) - 16:
+                break
+            cache.setdefault(at, (len(code_hex) // 2, text))
+        if va not in cache and rows:
+            cache[va] = (len(rows[0][1]) // 2, rows[0][2])
+    return cache.get(va)
+
+
+def function_pops(image, entry, limit=20000):
+    """The bytes the function at `entry` pops: every `ret n` reachable from
+    its entry, its branches followed (a body split by the compiler, a tail
+    jump into the game too), its calls stepped over. ({n, ...}, [what could
+    not be followed])."""
+    todo, seen, found, lost = [entry], set(), set(), []
+    while todo and len(seen) < limit:
+        va = todo.pop()
+        while va not in seen:
+            seen.add(va)
+            got = instruction(image, va)
+            if got is None:
+                lost.append(f"{va:#x}: outside the image")
+                break
+            length, text = got
+            words = text.split()
+            while words and words[0] in ("rep", "repe", "repz", "repne", "repnz", "bnd"):
+                words = words[1:]                          # `rep ret`, `bnd ret`: a ret
+            op = words[0] if words else ""
+            if op in ("ret", "retn"):
+                found.add(int(words[1], 16) if len(words) > 1 else 0)
+                break
+            if op in ("int3", "ud2", "hlt"):
+                break
+            target = branch_target(text)
+            if op == "jmp":
+                if target is None:
+                    lost.append(f"{va:#x}: {text}")
+                    break
+                va = target
+                continue
+            if (op.startswith("j") or op.startswith("loop")) and target is not None:
+                todo.append(target)
+            va += length
+    if todo or len(seen) >= limit:
+        lost.append(f"{entry:#x}: more than {limit} instructions, not all followed")
+    return found, lost
+
+
+def popped(image, start, end):
+    """The bytes the function at `start` pops: its first `ret`'s immediate
+    (None without a `ret` before `end`)."""
+    for _, _, text in ndisasm(image.read(start, end - start), start):
+        if text == "ret":
+            return 0
+        if text.startswith("ret "):
+            return int(text.split()[1], 16)
+    return None
 
 
 def aimed_inside(original, va, size, near):
@@ -2228,7 +2395,12 @@ def test_dynamic_anomalies(original, image, before):
     plain = lambda text: text.replace("[dword 0x", "[0x").replace("dword [", "[")
     at = lambda start, size: {a: plain(t) for a, _, t in ndisasm(source.read(start, size), start)}
     u32 = lambda va: struct.unpack("<I", source.read(va, 4))[0]
-    va_a = P.dynamic_anomalies_va(open(P.late_join_bin(), "rb").read())
+    linked = P.arena()
+    block = linked.blocks["anomalies.code"]
+    code = P.linker.block_bytes(linked, "anomalies.code")
+    check(block.kind == "code" and block.va % 0x1000 == 0 and image.read(block.va, len(code)) == code,
+          f"the dynamic anomalies' code is the arena's block anomalies.code, a code page at {block.va:#x}, "
+          f"the link's {len(code)} bytes")
     tick = at(0x2D1E20, 0x80)
     check(tick.get(0x2D1E20) == "push ecx" and tick.get(0x2D1E21) == "mov eax,0x51eb851f"
           and tick.get(0x2D1E26) == "mul edi" and tick.get(0x2D1E3A) == "mov ecx,[esp+0xc]"
@@ -2258,17 +2430,19 @@ def test_dynamic_anomalies(original, image, before):
           and source.read(0x317DB4, 6) == bytes.fromhex("c7062c6ea000") and u32(0xA06E2C + 0x3C) == 0x317F30,
           "the world keeps the static info at +18FACh (0x2D00BB), whose seed is at +577B0h (0x2D01D7); "
           "timelimit_rule_core's vtable is 0xA06E2C (constructor 0x317DB4; serialize 0x317F30 at +3Ch)")
-    for (va, old, offset, opcode), exit_ in zip(P.DYNAMIC_ANOMALIES_HOOKS, P.DYNAMIC_ANOMALIES_EXITS):
+    for (va, old, symbol, opcode), exit_ in zip(P.DYNAMIC_ANOMALIES_HOOKS, P.DYNAMIC_ANOMALIES_EXITS):
         site = image.read(va, len(old))
+        entry = linked.symbols[symbol]
         target = va + 5 + struct.unpack_from("<i", site, 1)[0]
         check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
-              and site[0] == opcode and target == va_a + offset and set(site[5:]) <= {0x90},
-              f"{va:#x}: `{old.hex()}` becomes a jump to {va_a + offset:#x} and nops; the build without the late join "
-              "keeps it")
-        stub = ndisasm(image.read(va_a + offset, 0x40), va_a + offset)
+              and site == P.hook_bytes(entry, va, old, 0, opcode) and target == entry
+              and block.va <= entry < block.va + len(code),
+              f"{va:#x}: `{old.hex()}` becomes a jump to {entry:#x} ({symbol}, an entry of the block) and nops; "
+              "the build without the late join keeps it")
+        stub = ndisasm(image.read(entry, 0x40), entry)
         texts = [plain(t) for _, _, t in stub]
         jumps = [branch_target(t) for t in texts if t.startswith("jmp ")]
-        check(exit_ in jumps, f"{va_a + offset:#x}: the replaced instructions done, it goes on at {exit_:#x}")
+        check(exit_ in jumps, f"{entry:#x}: the replaced instructions done, it goes on at {exit_:#x}")
     hits = [hit for va, old, _, _ in P.DYNAMIC_ANOMALIES_HOOKS for hit in aimed_inside(original, va, len(old), 0x82)
             if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
     check(not hits, "no rel32 branch of .text, no rel8 branch near them and no 4-byte value aims inside the two sites"
@@ -3767,6 +3941,162 @@ def test_suicide_key(original, image, before):
           "relocation) and no base relocation is under it" + "".join(f", {h:#x}" for h in hits + under))
 
 
+def test_stage_focus(original, image, before):
+    """Check 52: Scaleform's Stage focus getter (0x771FA0) gives null for a
+    focused object without its ActionScript object (patch 52, STAGE_FOCUS),
+    where the original read that object's traits through null (the lobby's
+    access violation at 0x77200B, 2026-10-22). Every full build.
+    check_stage_focus_026g.py runs it."""
+    stock = Image(original)
+    rows = lambda img, at, size: [text for _, _, text in ndisasm(img.read(at, size), at)]
+    va, old, new = P.STAGE_FOCUS
+    check(stock.read(va, len(old)) == old and before.read(va, len(new)) == new == image.read(va, len(new)),
+          f"{va:#x}: the original's 46 bytes, the new ones here and in the build without the late join")
+    head = ["push ecx", "mov eax,[ecx+0x14]", "mov ecx,[eax+0x40]", "mov edx,[ecx+0x1a8]", "mov eax,[edx+0x8]",
+            "movzx edx,byte [eax+0x3f54]", "push esi", "lea ecx,[esp+0x4]", "shl edx,byte 0x6", "push ecx",
+            "lea ecx,[edx+eax+0x3b64]", "call 0x514370", "mov esi,[esp+0x4]", "test esi,esi", "jz 0x772031",
+            "inc dword [esi+0x4]", "mov ecx,esi", "call 0x505c90", "movzx eax,byte [esi+0x41]",
+            "mov edx,[esi+eax*4]", "lea ecx,[esi+eax*4]", "mov eax,[edx+0x4]", "call eax"]
+    tail = ["mov ecx,[esp+0xc]", "push eax", "call 0x790e40", "mov ecx,esi", "call 0x505c90", "pop esi", "pop ecx",
+            "ret 0x4", "push edi", "mov edi,[esp+0x10]", "mov ecx,[edi]", "test ecx,ecx"]
+    reads = ["mov ecx,[eax+0x14]", "mov ecx,[ecx+0x3c]", "cmp ecx,byte +0x12"]
+    check(rows(stock, 0x771FA0, 0x77203A - 0x771FA0) == head + [
+              "test eax,eax", "jz 0x771ff6", "add eax,byte -0x1c", "jmp short 0x771ff8", "xor eax,eax",
+              "mov ecx,[eax+0x8]", "test ecx,ecx", "jz 0x772003", "mov eax,ecx", "jmp short 0x772006",
+              "mov eax,[eax+0x4]", "test al,0x1", "jz 0x77200b", "dec eax"] + reads + [
+              "jz 0x77201b", "cmp ecx,byte +0x17", "jl 0x772031"] + tail,
+          "the original: the focus group's weak pointer (MovieImpl +3B64h + 40h x [+3F54h]) locked by 0x514370; "
+          "no focus -> 0x772031 (null); else the interface's vtable +4 minus 1Ch (0 for none), its raw pointer "
+          "(+8) or collectible one (+4, bit 0 cleared), and that object's traits type ([+14h], +3Ch) read untested: "
+          "12h or 17h and up -> 0x77201B (the result), else 0x772031")
+    check(rows(image, 0x771FA0, 0x77203A - 0x771FA0) == head + [
+              "test eax,eax", "jz 0x772012", "mov ecx,[eax-0x14]", "test ecx,ecx", "jnz 0x771ffb",
+              "mov ecx,[eax-0x18]", "and ecx,byte -0x2", "jz 0x772012", "mov eax,ecx"] + reads + [
+              "jz 0x77201b", "cmp ecx,byte +0x17", "jnl 0x77201b", "jmp short 0x772031"] + ["nop"] * 7 + tail,
+          "here the same reads with no interface or no ActionScript object -> 0x772031 (null); eax at 0x77201B "
+          "the object, as before")
+    # The getter is flash.display.Stage's `focus`: the static initializer
+    # sets the thunk's member pointer, and the ThunkInfo names it.
+    check(rows(stock, 0x865D10, 12) == ["mov eax,0x771fa0", "xor ecx,ecx", "mov [0xaff180],eax"]
+          and "call [dword 0xaff180]" in rows(stock, 0x7750F0, 0x35)
+          and struct.unpack("<I", stock.read(0x8F1E40, 4))[0] == 0x7750F0
+          and stock.read(struct.unpack("<I", stock.read(0x8F1E48, 4))[0], 6) == b"focus\0",
+          "0x865D10 makes 0x771FA0 the member pointer at 0xAFF180, which the thunk 0x7750F0 calls; the ThunkInfo "
+          "at 0x8F1E40 gives that thunk the name \"focus\"")
+    # The lobby's key handler asks the movie whether a window is open, which
+    # reads `stage.focus` (LobbyMenu.has_active_window).
+    check("push dword 0xa07404" in rows(stock, 0x26CBDB, 0x28) and "call 0x511600" in rows(stock, 0x26CBDB, 0x28)
+          and stock.read(0xA07404, 23) == b"root.has_active_window\0",
+          "0x26CBF9 invokes root.has_active_window (0xA07404) on every key in the lobby")
+    under = [v for kind, v in stock.relocations().values() if kind == 3 and va - 4 < v < va + len(old)]
+    spelled = [va + i for i in range(1, len(old)) if original.find(struct.pack("<I", va + i)) != -1]
+    hits = [h for h in aimed_inside(original, va, len(old), 0x82) if h not in spelled and not va <= h < va + len(old)
+            and starts_instruction(stock, h)]
+    check(not under and not hits,
+          "no base relocation under the 46 bytes, and no branch from outside them aims inside (their own jumps "
+          "stay inside)" + "".join(f", {h:#x}" for h in hits + under))
+
+
+def test_artefacts(original, image, before):
+    """Check 54: the artefacts (patch 54, ARTEFACTS_*). check_artefacts_026g.py
+    runs Spring's loader and links, Lifebone's active and the action with
+    the game's own code on made-up artefacts."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    cstr = lambda va: stock.read(va, 32).split(b"\0")[0]
+    check(rows(stock, 0x33AD3B, 0x39) == [
+              "call 0xf6b10", "mov edi,0xa1c218", "call 0xf6b10", "cmp word [eax+0x14],byte +0x2", "jnz 0x33ad57",
+              "movss xmm0,dword [eax]", "jmp short 0x33ad5b", "cvtsi2ss xmm0,dword [eax]", "mov edi,0xa1c230",
+              "mov eax,ebx", "mov [esi+0x10],ebp", "mov [esi+0x14],ebp", "mov dword [esi+0x18],0x5",
+              "movss dword [esi+0x1c],xmm0"]
+          and rows(stock, 0x33AE06, 0x1E) == [
+              "mov edi,0xa1c230", "mov eax,ebx", "mov [esi+0x40],ebp", "mov [esi+0x44],ebp",
+              "mov dword [esi+0x48],0x13", "movss dword [esi+0x4c],xmm0", "call 0xf6b10"]
+          and [cstr(va) for va in (0xA1C1FC, 0xA1C218, 0xA1C230, 0x9FD6C4)]
+          == [b"passive", b"max_carried_weight_mod", b"active", b"data"],
+          "Spring's loader (0x33ACF0, esi = the config at +340h, ebx = `data`): the passive's second node is "
+          "max_carried_weight (5) from `passive/max_carried_weight_mod` (0xA1C218), the active's third (+40h, "
+          "index 13h at 0x33AE13) before the duration's lookup in `active` (0xA1C230)")
+    check(rows(stock, 0x311BC0, 10) == ["push ebx", "push esi", "mov esi,eax", "mov eax,[esi+0x250]"]
+          and rows(stock, 0x311DA0, 5) == ["push ebx", "mov ebx,[esp+0x8]"]
+          and stock.read(0x311946, 5) == b"\xE8" + struct.pack("<i", 0x311BC0 - 0x31194B)
+          and stock.read(0x311974, 5) == b"\xE8" + struct.pack("<i", 0x311DA0 - 0x311979),
+          "the link of Spring's active nodes (0x311BC0, eax = the Spring, called by enable_active 0x311946) and "
+          "their unlink (0x311DA0, stdcall, called by disable_active 0x311974)")
+    check(rows(stock, 0x31227B, 0x3B)[-6:] == ["add esi,byte +0x20", "cmp esi,ebx", "jnz 0x312282", "pop ebp",
+                                              "mov ecx,[edi+0x250]", "mov ecx,[ecx+0x174]"]
+          and stock.read(0x312279, 2) == bytes.fromhex("742f"),
+          "Lifebone's enable_active (0x312250): its remove_affects loop and the way around it both reach "
+          "0x3122AA `mov ecx,[edi+0x250]` with the function's four pushes")
+    check(rows(stock, 0x313300, 0x45) == [
+              "push esi", "mov esi,ecx", "cmp dword [esi+0x280],byte +0x3", "jnz 0x313344",
+              "cmp byte [esp+0x8],0x0", "jz 0x313344", "cmp dword [esi+0x28c],byte +0x0", "jnz 0x313344",
+              "mov eax,[esi]", "mov edx,[eax+0x80]", "push edi", "mov edi,[esp+0x10]", "push edi", "call edx",
+              "push edi", "push esi", "call 0x313350", "mov [esi+0x2a0],edi", "mov dword [esi+0x280],0x4",
+              "pop edi", "pop esi"],
+          "artefact_base::action (0x313300): a press of one in its passive (state 3) with no cooldown calls "
+          "its enable_active, its effect, keeps the time and sets state 4 at 0x313339; its entry's ten bytes "
+          "are whole instructions, the jne after them at 0x31330A")
+    for va, old, new in P.ARTEFACTS_SIZES:
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
+              f"{va:#x}: a Spring's size {struct.unpack('<I', old[1:])[0]:#x} in the original and the build "
+              f"without the late join, {P.ARTEFACTS_SPRING_SIZE:#x} here")
+    check(rows(stock, 0x25E7A6, 8) == ["pop edi", "pop esi", "mov eax,0x3b8", "pop ebx"]
+          and stock.read(0x25EA4F, 10) == bytes.fromhex("c78398030000a442a000")
+          and stock.read(0x25EA83, 6) == bytes.fromhex("8983b4030000"),
+          "the size of artefact<artefact_spring_core> (0x25E770, type 6), whose constructor 0x25EA10 fills "
+          "+398h..+3B7h; the bare core's (0x2EEA30) is 398h")
+    linked = P.arena()
+    artefacts_va = linked.blocks["artefacts.code"].va
+    check(linked.blocks["artefacts.code"].kind == "code" and artefacts_va % 0x1000 == 0,
+          f"the artefacts' code is the arena's block artefacts.code, a code page at {artefacts_va:#x}")
+    for va, old, symbol, opcode in P.ARTEFACTS_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and artefacts_va <= target < artefacts_va + 30,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`jmp {target:#x}` ({symbol}, an entry of the block) here")
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(va - 4 < v < va + len(old) for va, old, _, _ in P.ARTEFACTS_HOOKS + tuple(
+                 (s, o, 0, 0) for s, o, _ in P.ARTEFACTS_SIZES))]
+    hits = [h for va, old, _, _ in P.ARTEFACTS_HOOKS for h in aimed_inside(original, va, len(old), 0x82)
+            if not va <= h < va + len(old) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside a hook"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "artefacts.code")
+    check(image.read(artefacts_va, len(code)) == code,
+          f"the code at {artefacts_va:#x} is the link's artefacts.code ({len(code)} bytes)")
+    listing = ndisasm(code, artefacts_va)
+    names = code.index(b"aim_time_mod\0")
+    listing = [row for row in listing if row[0] < artefacts_va + names]
+    texts = [text for _, _, text in listing]
+    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
+                      and not artefacts_va <= branch_target(t) < artefacts_va + len(code)})
+    check(P.artefacts_backs(linked) == list(P.ARTEFACTS_BACKS)
+          and outside == sorted(set(P.ARTEFACTS_BACKS) | {0xF6B10, 0x2D5D00, 0x2D5AE0, 0x2E58B0, 0x32A420,
+                                                          0x313350}),
+          "its six entries go on where they came from (" + ", ".join(hex(a) for a in P.ARTEFACTS_BACKS)
+          + "); it calls the config lookup 0xF6B10, the unlink 0x2D5D00, the getter 0x2D5AE0, the pool "
+          "lookup 0x2E58B0, increase_health 0x32A420 and the activation effect 0x313350, and nothing else "
+          "outside")
+    heals = artefacts_va + names + 47
+    check(code[names:] == b"aim_time_mod\0stopping_power_mod\0pain\0body\0head\0"
+          + struct.pack("<III", *(artefacts_va + names + at for at in (32, 37, 42)))
+          and f"mov ebp,{artefacts_va + names + 13:#x}" in texts
+          and f"mov ebp,{artefacts_va + names:#x}" in texts and f"mov ebx,{heals:#x}" in texts
+          and f"cmp ebx,{heals + 12:#x}" in texts and "mov edi,0xa1c1fc" in texts and "mov edi,0xa1c230" in texts,
+          "its data: the keys aim_time_mod (in `passive` 0xA1C1FC and `active` 0xA1C230) and "
+          "stopping_power_mod (in `active`), and the pools Lifebone's active fills (pain, body, head)")
+    check(rows(stock, 0x2DBD86, 0x1E) == ["xorps xmm1,xmm1", "movss xmm2,dword [esi+0x31c]", "comiss xmm2,xmm0",
+                                          "lea eax,[esi+0x31c]", "jna 0x2dbda0", "lea eax,[esp+0x14]",
+                                          "movss xmm0,dword [eax]"]
+          and "jna near 0x2dbd89" in rows(stock, 0x2DBCF9, 6)
+          and stock.read(0x2D8FE3, 7) == bytes.fromhex("8bc7e8e62c0000"),
+          "the player's stagger (0x2DBCD0, eax = the player, from its tick 0x2D8FE5): xmm0 the recent hits' "
+          "stopping power, from the loop or none (0x2DBCF9) at 0x2DBD89, -min(it, [+31Ch]) the slow")
+
+
 def test_spot(original, image, before):
     """Check 38: spotting (patch 38, SPOT_*). check_spot_026g.py runs the
     input apply with the game's own spottable code on made-up hits."""
@@ -4503,6 +4833,548 @@ def lib_required_patches(data):
     return result.stdout.strip() if result.returncode == 0 else f"failed: {result.stderr.strip()}"
 
 
+ABI_TSV = os.path.join(HERE, "..", "..", "tools", "re-kit", "v026g", "abi.tsv")
+
+
+def abi_cleanup():
+    """{VA: ret_cleanup} of every re-kit abi.tsv row with one (its number of
+    bytes popped, or -1 for several). The models' call shapes come from here
+    (the re-kit is the source, not hand-written notes); 0.26g never rebases,
+    so a VA is an address."""
+    out = {}
+    with open(ABI_TSV, newline="") as f:
+        for row in csv.DictReader(f, delimiter="\t", quoting=csv.QUOTE_NONE):
+            cleanup = row["ret_cleanup"]
+            if cleanup not in ("", "None"):
+                values = {int(c) for c in re.split(r"[ ,;/]+", cleanup.strip()) if c}
+                out.setdefault(int(row["va"], 16), -1 if len(values) != 1 else values.pop())
+    return out
+
+
+def effective_cleanup(image, va):
+    """The bytes the function at `va` pops (function_pops), or None when its
+    rets differ, none is found or a branch could not be followed."""
+    if va is None:
+        return None
+    found, lost = function_pops(image, va)
+    return found.pop() if len(found) == 1 and not lost else None
+
+
+_ORIGINALS = {}
+
+
+def model_cleanup(original, image, model, abi):
+    """The bytes the model pops, read from the original exe; when re-kit
+    abi.tsv has the model's row, its ret_cleanup must say the same (the
+    reviewed table and the bytes agree, or the check fails: a wrong
+    hand-written note is how Research's slot 16 went wrong). (cleanup or None,
+    where it came from)."""
+    source = _ORIGINALS.setdefault(hashlib.sha256(original).hexdigest(), Image(original))
+    read = effective_cleanup(source, model)
+    if abi.get(model, -1) >= 0:
+        if abi[model] != read:
+            return None, f"abi.tsv says {abi[model]}, the original exe {read}"
+        return read, "the original exe, as abi.tsv"
+    return read, "the original exe; no abi.tsv row"
+
+
+def callee_pushes(code):
+    """The bytes the pushes before a replaced `call` pushed (`push r32`,
+    `push imm8`, `push imm32`: four each); None for anything else."""
+    pushed, at = 0, 0
+    while at < len(code):
+        if 0x50 <= code[at] <= 0x57:
+            at += 1
+        elif code[at] == 0x6A:
+            at += 2
+        elif code[at] == 0x68:
+            at += 5
+        else:
+            return None
+        pushed += 4
+    return pushed if at == len(code) else None
+
+
+# Every site test_call_shapes saw installed, over every variant built: an
+# INSTALLS row no variant installs is stale (main checks at its end).
+INSTALLED_SEEN = set()
+
+
+def test_call_shapes(original, data, report=None):
+    """Every function a patch makes the game call is declared (INSTALLS), and
+    every one the game calls through a pointer our code hands it (a vtable
+    slot, a delegate, a callback) pops off the stack exactly what the game's
+    own function in its place does: the self-test reads our function's `ret`
+    from the built bytes and the model's from re-kit abi.tsv or the original
+    exe, and fails on a mismatch. This is the check that would have caught
+    Research's rule slot 16 (`ret 4` where the game's rules `ret 8`),
+    client_patch.md section 0.4. `report(ok, text)` defaults to the self-test's
+    `check`; the negative test passes its own to capture without printing."""
+    report = check if report is None else report
+    check_, globals()["check"] = check, report      # the sub-checks below use `check`
+    try:
+        return _call_shapes_body(original, data)
+    finally:
+        globals()["check"] = check_
+
+
+def _call_shapes_body(original, data):
+    print("  call shapes (every installed function's model)")
+    image = Image(data)
+    installs = P.installs_of(data, P.WRITES)
+    # 1. Every call/jmp/pointer into our code is declared, with a fitting kind.
+    try:
+        P.audit_installs(data, P.WRITES)
+        audited = True
+    except SystemExit as exit:
+        audited = False
+        print(f"        {exit}")
+    check(audited and all(va in P.INSTALLS for va in installs),
+          f"every one of the {len(installs)} functions the game calls of ours is declared in INSTALLS")
+    INSTALLED_SEEN.update(installs)
+    # 2. Each function the game calls of ours pops what its model does: a
+    # slot's (the function the original's pointer named), an entry's (the
+    # function at the site), a callee's (the replaced call's target, less the
+    # bytes of the pushes replaced with it), an ABI's (its declared pops),
+    # each run-time callback's. Ours is read from the built bytes, every
+    # `ret` reachable from its entry (function_pops); the model's from the
+    # original exe (abi.tsv agreeing where it has the row).
+    abi = abi_cleanup()
+    source = Image(original)
+    for site, (how, target, old) in sorted(installs.items()):
+        kind, what, pops, _ = P.INSTALLS[site]
+        if kind in (P.JUMP, P.INLINE):
+            continue
+        if kind == P.SLOT:
+            model = struct.unpack("<I", source.read(site, 4))[0]
+            want, whence = model_cleanup(original, image, model, abi)
+            whence = f"its model {model:#x}, {whence}"
+        elif kind == P.ENTRY:
+            want, whence = model_cleanup(original, image, site, abi)
+            whence = f"the original's function at the site, {whence}"
+        elif kind == P.CALLEE:
+            model = (site + len(old) + struct.unpack_from("<i", old, len(old) - 4)[0]) & 0xFFFFFFFF
+            pushed = callee_pushes(old[:-5])
+            want, whence = model_cleanup(original, image, model, abi)
+            whence = f"its model {model:#x}, {whence}" + (f", less the {pushed} bytes pushed at the site"
+                                                          if pushed else "")
+            want = None if want is None or pushed is None else want - pushed
+        else:                                              # ABI
+            want, whence = pops, "declared"
+        found, lost = function_pops(image, target)
+        ours = found.pop() if len(found) == 1 and not lost else None
+        check(want is not None and ours == want,
+              f"{site:#x} {kind} ({what}): ours ({target:#x}) pops {ours if ours is not None else sorted(found)}, "
+              f"as it must: {want} ({whence})" + (f"; not followed: {lost[:2]}" if lost else ""))
+    callbacks = []
+    linked = P.arena()
+    for what, name, before_bytes, model, _why, driven in P.CALLBACKS:
+        code = P.linker.block_bytes(linked, name) if name in linked.blocks \
+            else open(os.path.join(HERE, f"{name}_026g.section.bin"), "rb").read()
+        at = code.find(before_bytes)
+        got = -1 if at < 0 or code.find(before_bytes, at + 1) >= 0 \
+            else struct.unpack_from("<I", code, at + len(before_bytes))[0]
+        callbacks.append((got, what, model, driven))
+    for our_va, what, model, driven in callbacks:
+        want, whence = model_cleanup(original, image, model, abi)
+        ours = effective_cleanup(image, our_va) if our_va not in (None, -1) else None
+        check(want is not None and ours == want,
+              f"{what}: `ret {ours}` pops what its model {model:#x} does (`ret {want}`, {whence})")
+        check_driven(f"{what}", driven)
+    # 3. Every vtable our code builds (a rule's, a cook's): each slot of ours
+    # pops what the game's vtable pops in the same place (check 53, for
+    # every patch).
+    check_vtables(original, image, P.INSTALLED_VTABLES, P.arena_symbols(linked))
+
+
+def made_up(folder, name, text):
+    """A made-up block's NASM source in `folder`: its path."""
+    path = os.path.join(folder, name)
+    with open(path, "w") as out:
+        out.write("bits 32\n" + text)
+    return path
+
+
+def check_vtables(original, image, vtables, symbols):
+    """Each declared vtable's slots against its model's: a slot that is the
+    game's own function is its model; a slot of ours must pop (its first
+    `ret` before the next symbol of its code) what the model's slot pops; a
+    vtable without a model must hold only the game's functions. The number of
+    our own slots is the declaration's (a slot that changes owner is seen)."""
+    source = Image(original)
+    abi = abi_cleanup()
+    read32 = lambda img, va: struct.unpack("<I", img.read(va, 4))[0]
+    in_text = lambda va: P.TEXT_VA <= va < P.TEXT_VA + P.TEXT_VSIZE
+    for what, json_name, symbol, model, slots, own, driven in vtables:
+        table = symbols[json_name]
+        ours_at = table[symbol] + 4                        # the RTTI locator, then the slots
+        compared = []
+        for slot in range(slots):
+            ours = read32(image, ours_at + 4 * slot)
+            theirs = read32(source, model + 4 * slot) if model is not None else None
+            if in_text(ours) and (model is None or ours == theirs):
+                continue                                   # the game's own function
+            compared.append(slot)
+            if model is None:
+                check(False, f"{what} vtable slot {slot}: {ours:#x} is ours, but the vtable has no model")
+                continue
+            mine, lost = function_pops(image, ours)
+            want, whence = model_cleanup(original, image, theirs, abi)
+            check(want is not None and mine == {want} and not lost,
+                  f"{what} vtable slot {slot}: ours ({ours:#x}) pops {sorted(mine)} bytes, the model's "
+                  f"({theirs:#x}, vtable {model:#x}) {want} ({whence})"
+                  + (f"; not followed: {lost[:2]}" if lost else ""))
+            check_driven(f"{what} vtable slot {slot}", driven.get(slot))
+        check(len(compared) == own,
+              f"{what} vtable ({symbol}): {own} slots of ours, each compared with "
+              + (f"vtable {model:#x}'s ({compared})" if model is not None else "none (the game's functions only)"))
+
+
+def check_driven(what, driven):
+    """A function of ours the game calls through a pointer (a vtable slot,
+    a callback) has a case of its patch's Unicorn check that reaches it
+    through the game's own caller (INSTALLED_VTABLES' and CALLBACKS' last
+    field): the `ret` comparison cannot see the order of the arguments
+    (Research's slot 7, #297's review). The case must be the label of a
+    case of its script: the text of a string argument of a `check(`,
+    `say(` or `print(` call there (case_labels), not a comment or a
+    docstring; the script runs it (a patch's check is run with the patch)."""
+    script, case = driven if driven else (None, None)
+    path = os.path.join(HERE, script) if script else ""
+    labels = case_labels(path) if script and os.path.exists(path) else []
+    check(bool(case) and any(case in label for label in labels),
+          f"{what}: reached through the game's own caller in {script}: \"{case}\"" if case
+          else f"{what}: no case of its check reaches it through the game's own caller (declare one)")
+
+
+def case_labels(path):
+    """The labels of a check script's cases: every string argument of its
+    `check(`, `say(` and `print(` calls (an f-string's literal parts with
+    `{}` for each field; `a + b` of strings joined), parsed, so a comment or
+    a docstring is no case."""
+    def text(node):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        if isinstance(node, ast.JoinedStr):
+            return "".join(text(v) if isinstance(v, ast.Constant) else "{}" for v in node.values)
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            left, right = text(node.left), text(node.right)
+            return left + right if left is not None and right is not None else left or right
+        if isinstance(node, ast.IfExp):
+            return text(node.body)
+        return None
+    out = []
+    for node in ast.walk(ast.parse(open(path).read())):
+        if isinstance(node, ast.Call):
+            name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+            if name in ("check", "say", "print"):
+                out += [label for label in map(text, node.args) if label]
+    return out
+
+
+def test_call_shapes_negative(original):
+    """The call-shape check rejects a wrong `ret` and an undeclared install:
+    a fake build whose one installed function pops the wrong number of bytes,
+    and one with a call into our code that INSTALLS does not name. It proves
+    the check is live (Research's slot 16 was `ret 4` where the model is
+    `ret 8`)."""
+    print("  call shapes: the check rejects a wrong ret and an undeclared install")
+    image = Image(original)
+    # A made-up rule vtable in made-up `.srpx` blocks (after the arena's own,
+    # linked from NASM sources): tdm_rule_core's twenty slots (vtable
+    # 0xA15DA4), but slot 16, the deserialize, ours and `ret 4` where tdm's
+    # pops 8: Research's first rn_deserialize. (Named `_slots`, not
+    # `_vtable`: build() would refuse an undeclared vtable before the check.)
+    read32 = lambda va: struct.unpack_from("<I", original, image.offset(va))[0]
+    model = read32(0xA15DA4 + 4 * 16)
+    want = popped(image, model, model + 0x400)
+    code = open(P.default_bin("section"), "rb").read()
+    late_join = open(P.late_join_bin(), "rb").read()
+    slots = [f"{read32(0xA15DA4 + 4 * i):#x}" for i in range(20)]
+    slots[16] = "fake_deserialize"
+    for wrong, name in ((bytes.fromhex("c20400"), "pops 4"), (bytes.fromhex("c20800"), "pops 8")):
+        with tempfile.TemporaryDirectory(prefix="srp-fake-") as folder:
+            blocks = (P.ArenaBlock("fake.code", "code", 0x1000, (made_up(folder, "fake_code.asm", (
+                          "section .text\nglobal fake_deserialize\nfake_deserialize:\n    db "
+                          + ", ".join(f"{b:#x}" for b in wrong) + "\n")),)),
+                      P.ArenaBlock("fake.table", "data", 0x1000, (made_up(folder, "fake_table.asm", (
+                          "section .data\nglobal fake_rule_slots\nextern fake_deserialize\nfake_rule_slots:\n"
+                          "    dd 0, " + ", ".join(slots) + "\n")),)))
+            data, _ = P.build(original, "section", code, None, late_join, arena_blocks=P.ARENA + blocks)
+            symbols = P.arena_symbols(P.arena(P.ARENA + blocks))
+        table_va = symbols["fake.table"]["fake_rule_slots"]
+        captured = []
+        saved = globals()["check"]
+        globals()["check"] = lambda ok, text: captured.append((ok, text))
+        try:
+            check_vtables(original, Image(data), (("a made-up rule", "fake.table", "fake_rule_slots",
+                                                     0xA15DA4, 20, 1,
+                                                     {16: (P.RESEARCH_CHECK,
+                                                           "the game's deserialize loop (0x2D2B42)")}),),
+                          symbols)
+        finally:
+            globals()["check"] = saved
+        failed = [text for ok, text in captured if not ok]
+        if name == "pops 4":
+            check(want == 8 and any("slot 16" in text for text in failed),
+                  f"a rule vtable slot 16 that pops 4 where tdm_rule_core's ({model:#x}) pops {want} is rejected "
+                  "(Research's first rn_deserialize)")
+        else:
+            check(not failed, "... the same slot popping 8 passes")
+    # A vtable symbol of the arena's code with no declaration stops the build.
+    try:
+        P.audit_vtables(vtables=(), symbols={"fake.table": {"fake_rule_vtable": table_va}})
+        refused = False
+    except SystemExit:
+        refused = True
+    check(refused, "a `*_vtable` of the arena's code with no INSTALLED_VTABLES row is refused")
+    # A slot of ours with no case through the game's caller, or with a case
+    # its script does not have, is refused.
+    for driven, name in (({}, "no case"), ({16: (P.RESEARCH_CHECK, "no such case of the check")}, "a missing case")):
+        captured = []
+        saved = globals()["check"]
+        globals()["check"] = lambda ok, text: captured.append((ok, text))
+        try:
+            check_vtables(original, Image(data), (("a made-up rule", "fake.table", "fake_rule_slots",
+                                                     0xA15DA4, 20, 1, driven),), symbols)
+        finally:
+            globals()["check"] = saved
+        check(any(not ok and "caller" in text for ok, text in captured),
+              f"a slot of ours with {name} through the game's own caller is refused")
+    # A case named only in a comment or a docstring is no case.
+    with tempfile.TemporaryDirectory(prefix="srp-driven-") as folder:
+        fake = os.path.join(folder, "check_fake.py")
+        open(fake, "w").write('def cases():\n    """driven: a docstring\'s case"""\n'
+                              '    # driven: a comment\'s case\n    check(True, "driven: a real case")\n')
+        captured = []
+        saved = globals()["check"]
+        globals()["check"] = lambda ok, text: captured.append(ok)
+        try:
+            for case in ("driven: a docstring's case", "driven: a comment's case", "driven: a real case"):
+                check_driven("a made-up slot", (fake, case))
+        finally:
+            globals()["check"] = saved
+        check(captured == [False, False, True],
+              "a case named only in a comment or a docstring is refused; a `check(` label passes")
+    # An undeclared install: a call into our code with no INSTALLS row.
+    fake_writes = [(0x500000, bytes(5), b"\xE8" + struct.pack("<i", P.SECTION_VA - 0x500000 - 5))]
+    try:
+        P.audit_installs(data, fake_writes, installs={})
+        refused = False
+    except SystemExit:
+        refused = True
+    check(refused, "a call into our code with no INSTALLS row is rejected")
+    # ... and one written anywhere in a write: a `push imm32` of our code's
+    # address in the middle of rewritten bytes.
+    fake_writes = [(0x500000, bytes(8), b"\x90\x90\x68" + struct.pack("<I", P.SECTION_VA + 0x10) + b"\x90")]
+    found = P.installs_of(data, fake_writes)
+    try:
+        P.audit_installs(data, fake_writes, installs={})
+        refused = False
+    except SystemExit:
+        refused = True
+    check(refused and list(found) == [0x500003] and found[0x500003][0] == "pointer",
+          "a `push imm32` of our code's address inside a write (at +3) is found and, undeclared, rejected")
+
+
+def link_refusal(blocks, tools=None, lock=None):
+    """The text the arena of `blocks` (ARENA's when None, compared with
+    `lock` when given) is refused with; None when it links."""
+    saved = P.linker.read_lock
+    if lock is not None:
+        P.linker.read_lock = lambda: lock
+    try:
+        P.arena(blocks, P.linker.toolchain(**tools) if tools else None)
+    except (SystemExit, P.linker.LinkError) as stop:
+        return str(stop)
+    finally:
+        P.linker.read_lock = saved
+    return None
+
+
+def test_arena(original):
+    """`.srpx`, the arena of the later patches (client_patch.md section 0.3),
+    linked from its blocks' sources (link_026g.py). Deterministic, in
+    ARENA's order, aligned, none overlapping, every block inside the
+    section, code gaps int3, state zeros, a symbol of one block used by
+    another, the headers and the PE checksum right; ARENA's blocks in another
+    order link and work (the hooks and the library's calls follow the
+    symbols, the library's check passes there); with no block there is no
+    `.srpx`. Refused: a symbol no source defines, a relocation the arena
+    does not link, a section no block takes, a block past ARENA_LIMIT, a
+    missing tool, NASM 3, a hook symbol the link lacks, and an arena that is
+    not the lock's."""
+    print("  the arena (.srpx)")
+    code = open(P.default_bin("section"), "rb").read()
+    late_join = open(P.late_join_bin(), "rb").read()
+    without, _ = P.build(original, "section", code, None, late_join)
+    none, _ = P.build(original, "section", code, None, late_join, arena_blocks=())
+    check([s[0] for s in Image(none).headers.sections(none)] == [s[0] for s in Image(without).headers.sections(without)][:-1]
+          and Image(without).headers.sections(without)[-1][0] == P.ARENA_NAME
+          and bytes(P.add_arena(bytearray(b"MZ"), None)) == b"MZ",
+          "with no block at all there is no `.srpx` (add_arena adds no section)")
+    with tempfile.TemporaryDirectory(prefix="srp-arena-") as folder:
+        # Blocks of each kind, out of alignment order, after ARENA's own: a
+        # code block whose source has state too, a data block pointing at
+        # it, a code block calling it.
+        a = made_up(folder, "a_part.asm", "section .text\nglobal a_entry\na_entry:\n    times 16 nop\n    ret\n"
+                    "section .bss\nglobal a_state\na_state:\n    resb 0x40\n")
+        b = made_up(folder, "b_part.asm", "extern a_entry, a_state\nsection .data\nglobal b_data\nb_data:\n"
+                    "    db \"hello\", 0\n    dd a_entry, a_state\nsection .text\nglobal b_entry\nb_entry:\n"
+                    "    call a_entry\n    ret\n")
+        blocks = (P.ArenaBlock("a.code", "code", 0x1000, (a,)), P.ArenaBlock("a.state", "state", 0x1000, (a,)),
+                  P.ArenaBlock("b.data", "data", 0x10, (b,)), P.ArenaBlock("b.code", "code", 0x40, (b,)))
+        one, _ = P.build(original, "section", code, None, late_join, arena_blocks=P.ARENA + blocks)
+        P.linker._links.clear()
+        P.linker._objects.clear()
+        two, _ = P.build(original, "section", code, None, late_join, arena_blocks=P.ARENA + blocks)
+        linked = P.arena(P.ARENA + blocks)
+    check(one == two, "the arena is byte for byte deterministic (linked twice from its sources, the same exe)")
+    image = Image(one)
+    sections = image.headers.sections(one)
+    name, rva, vsize, raw, rsize, flags = sections[-1]
+    align = lambda v, to: (v + to - 1) // to * to
+    prev = sections[-2]
+    check(name == P.ARENA_NAME and flags == P.ARENA_CHARACTERISTICS
+          and P.IMAGE_BASE + rva == P.ARENA_VA and rva == align(prev[1] + prev[2], image.headers.section_alignment),
+          f".srpx at {P.ARENA_VA:#x}: code | data | execute | read | write, on the page after .srpw")
+    # Every block inside, aligned, in ARENA's order, none overlapping the next.
+    order = [linked.blocks[b.name] for b in P.ARENA + blocks]
+    inside = all(rva <= b.va - P.IMAGE_BASE and b.va + b.size - P.IMAGE_BASE <= rva + vsize for b in order)
+    aligned = all(linked.blocks[b.name].va % b.align == 0 for b in P.ARENA + blocks)
+    in_order = all(x.va + x.size <= y.va for x, y in zip(order, order[1:]))
+    check(inside and aligned and in_order and order[0].va == P.ARENA_VA and vsize == linked.size
+          and linked.size == order[-1].va + order[-1].size - P.ARENA_VA,
+          f"the {len(order)} blocks are aligned, in ARENA's order, inside .srpx and do not overlap; VirtualSize "
+          f"{vsize:#x} = the arena's size, to its last block's end ({', '.join(f'{b.name} @ {b.va:#x}' for b in order)})")
+    # The bytes: each code block's bytes, then int3 to the next block; data
+    # and state blocks and their gaps zeros; a reference across blocks
+    # resolved by the link.
+    body = bytes(one[raw:raw + vsize])
+    at = lambda va: va - P.ARENA_VA
+    gaps = all(set(body[at(x.va + x.size):at(y.va)]) <= ({0xCC} if x.kind == "code" else {0})
+               for x, y in zip(order, order[1:]))
+    states = all(not any(body[at(b.va):at(b.va + b.size)]) for b in order if b.kind == "state")
+    s = linked.symbols
+    b_data = body[at(s["b_data"]):at(s["b_data"]) + 14]
+    call = body[at(s["b_entry"]):at(s["b_entry"]) + 5]
+    check(gaps and states and body == linked.image
+          and body[at(s["a_entry"]):at(s["a_entry"]) + 17] == b"\x90" * 16 + b"\xc3"
+          and b_data == b"hello\0" + struct.pack("<II", s["a_entry"], s["a_state"])
+          and call[0] == 0xE8 and s["b_entry"] + 5 + struct.unpack_from("<i", call, 1)[0] == s["a_entry"]
+          and linked.blocks["a.state"].size == 0x40 and s["a_state"] == linked.blocks["a.state"].va,
+          "each code block's bytes and int3 to the next block, data and state blocks zeros past their bytes; "
+          "a.state is a_part.asm's .bss (0x40 bytes); b.data's pointers and b.code's call reach a.code's "
+          "a_entry and a.state's a_state through the link")
+    # The headers and the PE checksum, as test_pe checks them for the sections.
+    get = lambda at: struct.unpack_from("<I", one, at)[0]
+    checksum = P.pe_checksum(one, image.headers.checksum_at)
+    security = image.directory(4)
+    check(get(image.headers.size_of_image_at) == align(rva + vsize, image.headers.section_alignment)
+          and raw == prev[3] + prev[4] and rsize == align(vsize, image.headers.file_alignment)
+          and get(image.headers.checksum_at) == checksum
+          and security[0] == raw + rsize and security[0] + security[1] == len(one),
+          "SizeOfImage ends past .srpx, its file bytes follow .srpw's, the certificate table stays last, "
+          "the PE checksum is right")
+    # ARENA's blocks in another order (research.code and artefacts.code
+    # swapped): every block elsewhere, and still each hook at its symbol,
+    # Research's calls at the library's thunks and the library's check passing.
+    names = [b.name for b in P.ARENA]
+    swapped = list(P.ARENA)
+    i, j = names.index("research.code"), names.index("artefacts.code")
+    swapped[i], swapped[j] = swapped[j], swapped[i]
+    data, _ = P.build(original, "section", code, None, late_join, arena_blocks=tuple(swapped))
+    moved = P.arena(tuple(swapped))
+    default = P.arena()
+    built = Image(data)
+    hooks = [(va, symbol, branch_target(ndisasm(built.read(va, 5), va)[0][2]))
+             for va, _, symbol, _ in P.RESEARCH_HOOKS + P.ARTEFACTS_HOOKS]
+    research_va = moved.blocks["research.code"].va
+    listing = [t for _, _, t in ndisasm(P.linker.block_bytes(moved, "research.code")[P.RESEARCH_ASM_SIZE:],
+                                        research_va + P.RESEARCH_ASM_SIZE)]
+    calls = {s for s in moved.symbols if s.startswith("engine_") and any(
+        t == f"call {moved.symbols[s]:#x}" or t.endswith(f",{moved.symbols[s]:#x}") for t in listing)}
+    check(moved.blocks["artefacts.code"].va == P.ARENA_VA != default.blocks["artefacts.code"].va
+          and moved.blocks["research.code"].va != default.blocks["research.code"].va
+          and all(target == moved.symbols[symbol] != default.symbols[symbol] for _, symbol, target in hooks)
+          and len(calls) >= 11 and P.artefacts_backs(moved) == list(P.ARTEFACTS_BACKS)
+          and built.read(moved.blocks["research.code"].va, 0x100) == P.linker.block_bytes(moved, "research.code")[:0x100],
+          f"ARENA with research.code and artefacts.code swapped links (artefacts.code at "
+          f"{moved.blocks['artefacts.code'].va:#x}, research.code at {research_va:#x}): the {len(hooks)} hooks "
+          f"reach their symbols there, Research's C calls {len(calls)} library functions at their new thunks, "
+          "the artefacts' entries go on where they came from")
+    try:
+        import check_engine_026g as engine_check
+        bad = [text for ok, text in engine_check.run_checks(original, (
+            moved.blocks["engine.code"].va, P.linker.block_bytes(moved, "engine.code"),
+            {k: v for k, v in moved.symbols.items() if k.startswith("engine_")}))
+            if not ok]
+    except ImportError as error:
+        bad = [f"check_engine_026g.py needs Python unicorn ({error})"]
+    check(not bad, "... and check_engine_026g.py passes on the library there" + (": " + "; ".join(bad) if bad else ""))
+    # What the link refuses, loudly.
+    with tempfile.TemporaryDirectory(prefix="srp-arena-") as folder:
+        cases = [
+            ("a symbol no source defines", "nowhere_026g", (P.ArenaBlock("lost.code", "code", 16, (made_up(
+                folder, "lost.asm", "extern nowhere_026g\nsection .text\n    call nowhere_026g\n"),)),)),
+            ("a 16-bit address (R_386_16)", "R_386_16", (P.ArenaBlock("narrow.code", "code", 16, (made_up(
+                folder, "narrow.asm", "section .text\nnarrow:\n    dw narrow\n"),)),)),
+            ("a block past the arena's limit (ARENA_LIMIT)", "past its limit", (P.ArenaBlock(
+                "huge.state", "state", 16, (made_up(folder, "huge.asm", f"section .bss\n    resb {P.ARENA_LIMIT:#x}\n"),)),)),
+            ("a symbol defined in two sources", "multiple definition", tuple(
+                P.ArenaBlock(f"twice{n}.code", "code", 16, (made_up(folder, f"twice{n}.asm",
+                             "section .text\nglobal research_hud\nresearch_hud:\n    ret\n"),)) for n in (1, 2))),
+        ]
+        c_data = os.path.join(folder, "counter.c")
+        with open(c_data, "w") as out:
+            out.write("int counter = 1;\nint count(void) { return ++counter; }\n")
+        cases.append(("a C source's initialized data (.data) in a code block only", "no data block",
+                      (P.ArenaBlock("counter.code", "code", 16, (c_data,)),)))
+        for what, word, extra in cases:
+            text = link_refusal(P.ARENA + extra)
+            said = next((line.strip() for line in (text or "linked").splitlines() if word in line), text or "linked")
+            check(text is not None and word in text, f"the link refuses {what}: {said[:160]}")
+        text = link_refusal(None, {"cc": os.path.join(folder, "no-such-cc")})
+        check(text is not None and "no-such-cc" in text, f"a missing compiler is refused: {(text or 'linked')[:160]}")
+        if os.name == "posix":
+            fake = os.path.join(folder, "nasm")
+            with open(fake, "w") as out:
+                out.write("#!/bin/sh\necho 'NASM version 3.01 compiled on Oct 11 2025'\n")
+            os.chmod(fake, 0o755)
+            text = link_refusal(None, {"nasm": fake})
+            check(text is not None and "NASM 2.16" in text, f"NASM 3 is refused: {(text or 'linked')[:160]}")
+    try:
+        P.arena_target(default, "nowhere_026g")
+        text = None
+    except SystemExit as stop:
+        text = str(stop)
+    check(text is not None and "nowhere_026g" in text, "a hook whose symbol the link lacks stops the build")
+    lock = P.linker.read_lock()
+    text = link_refusal(None, lock=dict(lock, sha256="0" * 64))
+    check(lock is not None and text is not None and P.linker.LOCK.name in text,
+          f"an arena whose bytes are not the lock's stops the build: {(text or 'built')[:160]}")
+
+
+def test_engine(original):
+    """The engine-function library (engine_026g.py; client_patch.md section
+    0.5): check_engine_026g.py's cases, each thunk against the re-kit's rows
+    and the original exe, and its negative cases, wrong rows the check must
+    reject. Needs Python `unicorn` (as the check_*.py scripts): without it the
+    check fails, as a wrong row must never pass unseen."""
+    print("  the engine-function library: every thunk against the ABI rows and the exe")
+    try:
+        import check_engine_026g as engine_check
+    except ImportError as error:
+        check(False, f"check_engine_026g.py needs Python unicorn ({error})")
+        return
+    results = engine_check.run_checks(original)
+    bad = [text for ok, text in results if not ok]
+    check(not bad, f"check_engine_026g.py: {len(results)} cases on the {len(engine_check.engine.functions())} "
+          "functions of engine_026g.tsv" + (": " + "; ".join(bad) if bad else ""))
+    for what, failed in engine_check.negative(original):
+        check(failed, f"the library's check rejects {what}")
+
+
 def test_late_join(original, without, server, source):
     """The default build with the late join against `without`, the build
     of the same server without it (checked by everything above)."""
@@ -4511,6 +5383,7 @@ def test_late_join(original, without, server, source):
     upload = open(P.default_bin("section"), "rb").read()
     data, description = P.build(original, "section", upload, server, code)
     print("  " + description)
+    test_call_shapes(original, data)       # while P.WRITES still holds this build's
     image, before = Image(data), Image(without)
     headers = image.headers
     sections, old_sections = image.sections, before.sections
@@ -4637,23 +5510,17 @@ def test_late_join(original, without, server, source):
           f"weapon_decals_026g.section.bin at +{P.WEAPON_DECALS_OFFSET:#x}, int3 padding and "
           f"upgrade_preview_026g.section.bin at +{P.UPGRADE_PREVIEW_OFFSET:#x} ({len(camo)} bytes), "
           "code | execute | read, on the page after .srpc, its file bytes right after .srpc's")
-    research = open(P.research_bin(), "rb").read()
-    research = research + b"\xCC" * (P.RESEARCH_STATE_OFFSET - len(research)) + bytes(P.RESEARCH_SIZE - P.RESEARCH_STATE_OFFSET)
-    anomalies = open(P.dynamic_anomalies_bin(), "rb").read()
-    extension = research + b"\xCC" * (P.DYNAMIC_ANOMALIES_OFFSET - len(research)) + anomalies
+    linked = P.arena()
     name_r, rva_r, vsize_r, raw_r, rsize_r, flags_r = sections[-1]
-    check(name_r == P.EXTENSION_NAME and flags_r == P.EXTENSION_CHARACTERISTICS
-          and rva_r == align(rva_w + vsize_w, headers.section_alignment) and P.IMAGE_BASE + rva_r == P.EXTENSION_VA
-          and P.RESEARCH_VA == P.EXTENSION_VA + P.RESEARCH_OFFSET and P.RESEARCH_OFFSET == 0
-          and P.RESEARCH_SIZE <= P.DYNAMIC_ANOMALIES_OFFSET
-          and P.dynamic_anomalies_va(code) == P.EXTENSION_VA + P.DYNAMIC_ANOMALIES_OFFSET
-          and vsize_r == P.DYNAMIC_ANOMALIES_OFFSET + len(anomalies) and raw_r == raw_w + rsize_w
+    check(name_r == P.ARENA_NAME and flags_r == P.ARENA_CHARACTERISTICS
+          and rva_r == align(rva_w + vsize_w, headers.section_alignment) and P.IMAGE_BASE + rva_r == P.ARENA_VA
+          and linked.va == P.ARENA_VA and list(linked.blocks) == [b.name for b in P.ARENA]
+          and vsize_r == linked.size and raw_r == raw_w + rsize_w
           and rsize_r == align(vsize_r, headers.file_alignment)
-          and bytes(data[raw_r:raw_r + vsize_r]) == extension and set(data[raw_r + vsize_r:raw_r + rsize_r]) <= {0xCC},
-          f".srpx at VA {P.IMAGE_BASE + rva_r:#x}: research_026g.section.bin, int3 padding to its state page at "
-          f"+{P.RESEARCH_STATE_OFFSET:#x}, the page zeroed, int3 padding to +{P.DYNAMIC_ANOMALIES_OFFSET:#x} "
-          f"(VA {P.dynamic_anomalies_va(code):#x}) and the {len(anomalies)} bytes of dynamic_anomalies_026g.section.bin; "
-          "code | data | execute | read | write, on the page after .srpw, its file bytes right after .srpw's")
+          and bytes(data[raw_r:raw_r + vsize_r]) == linked.image,
+          f".srpx, the arena, at VA {P.IMAGE_BASE + rva_r:#x}: the linked arena ({linked.size:#x} bytes), its "
+          "blocks " + ", ".join(f"{b.name} ({b.kind}) at {b.va:#x}" for b in linked.blocks.values())
+          + "; code | data | execute | read | write, on the page after .srpw, its file bytes right after .srpw's")
     get = lambda blob, at: struct.unpack_from("<I", blob, at)[0]
     check(get(data, headers.size_of_image_at) == align(rva_r + vsize_r, headers.section_alignment)
           and get(data, headers.optional + 12) == get(without, headers.optional + 12) + state_size
@@ -4817,6 +5684,8 @@ def test_late_join(original, without, server, source):
     test_tab_list(original, image, before)
     test_tab_self(original, image, before)
     test_spot(original, image, before)
+    test_artefacts(original, image, before)
+    test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)
     test_required_patches(original, data, server)
@@ -4889,6 +5758,10 @@ def main():
     test_late_join_bin()
     test_no_branch_into_hooks(original)
     test_server_options(original)
+    print("variant section, the arena and the call shapes")
+    test_arena(original)
+    test_engine(original)
+    test_call_shapes_negative(original)
     variants = [(mode, None) for mode in ("cert-only", "section", "hash-mismatch")]
     variants += [(mode, "026g.skhid.link:1234") for mode in P.CAVES]
     variants += [(mode, "a" * 63 + ":65535") for mode in P.CAVES]
@@ -4897,6 +5770,9 @@ def main():
         code = None if mode == "cert-only" else open(P.default_bin(mode), "rb").read()
         data, description = P.build(original, mode, code, server)
         print("  " + description)
+        if mode != "cert-only":                            # the variant's own installs, for the stale check
+            P.audit_installs(data, P.WRITES)
+            INSTALLED_SEEN.update(P.installs_of(data, P.WRITES))
         check(hashlib.sha256(original).hexdigest() == P.EXE_SHA256, "the original in memory is untouched")
         image = Image(data)
         cave = b"" if code is None else P.split_code(code)[0]
@@ -4927,6 +5803,9 @@ def main():
             out.write(data)
         print(f"  written: {path} (sha256 {hashlib.sha256(data).hexdigest()})")
         test_windows(path, source, mode)
+    stale = sorted(set(P.INSTALLS) - INSTALLED_SEEN)
+    check(not stale, f"every INSTALLS row is installed by some variant built here ({len(INSTALLED_SEEN)} sites)"
+          + (": stale " + ", ".join(f"{va:#x}" for va in stale) if stale else ""))
     print()
     print(f"{len(failures)} FAILED" if failures else "all checks passed")
     sys.exit(1 if failures else 0)

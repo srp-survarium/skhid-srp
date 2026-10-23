@@ -27,9 +27,9 @@ static struct rr_params params_027d(void) {
     p.capture_count = 8;
     memcpy(p.capture_ms, capture, sizeof capture);
     p.owned_count = 3;
-    p.points_rate[0] = 75;
-    p.points_rate[1] = 150;
-    p.points_rate[2] = 350;
+    p.points_rate[0] = 75 * RR_RATE_MS;
+    p.points_rate[1] = 150 * RR_RATE_MS;
+    p.points_rate[2] = 350 * RR_RATE_MS;
     p.target = 100 * RR_MICRO;
     p.award = 100;
     p.reach = 0.4f;
@@ -68,6 +68,7 @@ static void place(int i, int team, int zone) {
     players[i].position[0] = zone < 0 ? 1000.0f : 100.0f * (float)zone;
     players[i].position[1] = 0.5f;
     players[i].position[2] = 0;
+    players[i].half_height = 0.9f;
 }
 
 static void away(int i) { players[i].position[0] = 1000.0f; }
@@ -96,20 +97,37 @@ static void fresh(struct rr_state *s, const struct rr_params *p) {
 
 static void test_inside(void) {
     struct rr_params p = params_027d();
-    float in_cylinder[3] = {5.3f, 2.6f, 0}, out_cylinder[3] = {5.5f, 0, 0}, above[3] = {0, 2.8f, 0};
-    CHECK(rr_inside(&p, 0, in_cylinder));
-    CHECK(!rr_inside(&p, 0, out_cylinder));
-    CHECK(!rr_inside(&p, 0, above));
-    /* the box: 4 m along world z, 3 m along world x */
-    float box_z[3] = {100, 0, 4.3f}, box_x[3] = {103.3f, 0, 0}, box_far_x[3] = {103.5f, 0, 0};
-    CHECK(rr_inside(&p, 1, box_z));
-    CHECK(rr_inside(&p, 1, box_x));
-    CHECK(!rr_inside(&p, 1, box_far_x));
-    /* the sphere: the capsule's segment reaches down to it */
-    float over[3] = {200, 7.2f, 0}, high[3] = {200, 7.4f, 0}, side[3] = {206.3f, 0, 0};
-    CHECK(rr_inside(&p, 2, over));
-    CHECK(!rr_inside(&p, 2, high));
-    CHECK(rr_inside(&p, 2, side));
+    /* The capsule stands on the feet: 1.8 m tall standing (0.9 x 2), 0.4 m
+     * round. The cylinder of unit A: radius 5, y -1.8..1.8. */
+    float in_cylinder[3] = {5.3f, 1.0f, 0}, out_cylinder[3] = {5.5f, 0, 0};
+    CHECK(rr_inside(&p, 0, in_cylinder, 0.9f));
+    CHECK(!rr_inside(&p, 0, out_cylinder, 0.9f));
+    /* feet just under its top: in; just over it (a floor above): out */
+    float on_top[3] = {0, 1.75f, 0}, above[3] = {0, 1.85f, 0};
+    CHECK(rr_inside(&p, 0, on_top, 0.9f));
+    CHECK(!rr_inside(&p, 0, above, 0.9f));
+    /* below: a standing head reaches up into it, a crouched one (0.55) not */
+    float under[3] = {0, -3.2f, 0}, deep[3] = {0, -3.7f, 0};
+    CHECK(rr_inside(&p, 0, under, 0.9f));
+    CHECK(!rr_inside(&p, 0, under, 0.55f));
+    CHECK(!rr_inside(&p, 0, deep, 0.9f));
+    /* the edge of the capsule's bottom: round, not square */
+    float rim[3] = {5.1f, 1.75f, 0}, rim_out[3] = {5.3f, 1.75f, 0};
+    CHECK(rr_inside(&p, 0, rim, 0.9f));
+    CHECK(!rr_inside(&p, 0, rim_out, 0.9f));
+    /* the box: 4 m along world z, 3 m along world x; its corners are round
+     * to the capsule (0.3 and 0.3 out: 0.42 m away) */
+    float box_z[3] = {100, 0, 4.3f}, box_x[3] = {103.3f, 0, 0}, box_far_x[3] = {103.5f, 0, 0},
+          corner[3] = {103.3f, 0, 4.3f};
+    CHECK(rr_inside(&p, 1, box_z, 0.9f));
+    CHECK(rr_inside(&p, 1, box_x, 0.9f));
+    CHECK(!rr_inside(&p, 1, box_far_x, 0.9f));
+    CHECK(!rr_inside(&p, 1, corner, 0.9f));
+    /* the sphere: radius 6 at y 0 */
+    float over[3] = {200, 5.9f, 0}, high[3] = {200, 6.1f, 0}, side[3] = {206.3f, 0, 0};
+    CHECK(rr_inside(&p, 2, over, 0.9f));
+    CHECK(!rr_inside(&p, 2, high, 0.9f));
+    CHECK(rr_inside(&p, 2, side, 0.9f));
 }
 
 static void test_capture_alone(void) {
@@ -274,6 +292,58 @@ static void test_one_unit_rate(void) {
     CHECK(s.score[0] == 9 && s.score[1] == 5);
 }
 
+/* skhid's rates (the owner, 2026-10-22: 1.25 x 0.27d's): resource_per_s
+ * 0.09375, 0.1875, 0.4375, whole numbers per RR_RATE_MS (375, 750, 1750).
+ * 100 points in 17:46.8, 8:53.4 and 3:48.6: 50 ms ticks of 4687.5, 9375 and
+ * 21875 millionths, the first floored to 4687. */
+static void test_skhid_rates(void) {
+    struct rr_params p = params_027d();
+    p.points_rate[0] = 375;
+    p.points_rate[1] = 750;
+    p.points_rate[2] = 1750;
+    CHECK(rr_prepare(&p, 500));
+    static const rr_u32 ms[3] = {1066800, 533350, 228600}; /* the tick 100 is reached on */
+    for (int owned = 1; owned <= 3; ++owned) {
+        struct rr_state s;
+        rr_u32 time = 0;
+        fresh(&s, &p);
+        for (int z = 0; z < owned; ++z) {
+            s.zones[z].owner = 0;
+            s.zones[z].capturing = 0;
+            s.zones[z].progress = RR_FULL;
+        }
+        run(&s, &p, ms[owned - 1] - 50, &time, 0);
+        CHECK(s.end_time == RR_NEVER);
+        run(&s, &p, 50, &time, 0);
+        CHECK(s.points[0] == p.target && s.end_time == time + 3000);
+    }
+}
+
+/* Both at 100 shown, one at the goal: not a draw (the review of #297). */
+static void test_leader_at_the_goal(void) {
+    struct rr_params p = params_027d();
+    struct rr_state s;
+    rr_u32 time = 0;
+    fresh(&s, &p);
+    s.points[0] = p.target - 3000;            /* 99.997: shows 100 */
+    s.points[1] = p.target - 500000;          /* 99.5: shows 100 too */
+    for (int z = 0; z < 3; ++z) {
+        s.zones[z].owner = 0;
+        s.zones[z].capturing = 0;
+        s.zones[z].progress = RR_FULL;
+    }
+    run(&s, &p, 50, &time, 0);
+    CHECK(s.points[0] == p.target && s.score[0] == 100 && s.score[1] == 100 && s.end_time != RR_NEVER);
+    CHECK(rr_leader(&s) == 0);
+    /* before the goal, equal shown scores are a draw */
+    struct rr_state t;
+    fresh(&t, &p);
+    t.points[0] = 37400000;
+    t.points[1] = 37200000;
+    t.score[0] = t.score[1] = 37;
+    CHECK(rr_leader(&t) == RR_NOBODY);
+}
+
 static void test_kill_invader(void) {
     struct rr_params p = params_027d();
     struct rr_state s;
@@ -359,6 +429,8 @@ int main(void) {
     test_water_fill();
     test_points_and_end();
     test_one_unit_rate();
+    test_leader_at_the_goal();
+    test_skhid_rates();
     test_kill_invader();
     test_left_and_dead();
     test_wire();

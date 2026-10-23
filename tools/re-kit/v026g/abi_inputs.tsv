@@ -2430,6 +2430,8 @@ va	name	location	role	basis
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+4	messaging client receiver	inferred
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+8	message identifier	inferred
 0x0026b1b0	survarium::messaging_client::read_important_message	stack+12	one-byte read/acknowledgment action	inferred
+0x0026cb80	survarium::lobby_menu::on_keyboard_action	ECX	the lobby menu (+9Ch the game, +690h the movie holder: [+108h]+4 the invoke's ECX)	observed
+0x0026cb80	survarium::lobby_menu::on_keyboard_action	entry ESP+8	the key (DIK code; 1 Esc: with [this+313Ah] set and has_active_window true, root.close_active_window)	observed
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	ECX	lobby input-handler subobject receiver	inferred
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	stack+8	raw mouse button	inferred
 0x0026cff0	survarium::lobby_menu::on_mouse_key_action	stack+12	mouse button action	inferred
@@ -2898,6 +2900,10 @@ va	name	location	role	basis
 0x003119a0	survarium::artefact_spring_core::serialize	stack+8	secondary_context	inferred
 0x003119e0	survarium::artefact_spring_core::deserialize	ECX	artefact	inferred
 0x003119e0	survarium::artefact_spring_core::deserialize	stack+4	reader	inferred
+0x00311bc0	survarium::artefact_spring_core::add_active_modifiers	EAX	the Spring (its active nodes at +360h, +370h, +380h)	observed
+0x00311da0	survarium::artefact_spring_core::remove_active_modifiers	stack+4	the Spring	observed
+0x00312250	survarium::artefact_lifebone_core::enable_active_effects	ECX	the Lifebone	observed
+0x00312250	survarium::artefact_lifebone_core::enable_active_effects	stack+4	the time (the slot is scratch after 0x3122E2)	observed
 0x00312470	survarium::artefact_lifebone_core::serialize	ECX	artefact	inferred
 0x00312470	survarium::artefact_lifebone_core::serialize	stack+4	writer	inferred
 0x00312470	survarium::artefact_lifebone_core::serialize	stack+8	secondary_context	inferred
@@ -2908,6 +2914,9 @@ va	name	location	role	basis
 0x00312a80	survarium::artefact_onyx_core::serialize	stack+8	secondary_context	inferred
 0x00312af0	survarium::artefact_onyx_core::deserialize	ECX	artefact	inferred
 0x00312af0	survarium::artefact_onyx_core::deserialize	stack+4	reader	inferred
+0x00313300	survarium::artefact_base::action	ECX	the artefact	observed
+0x00313300	survarium::artefact_base::action	stack+4	bool pressed	observed
+0x00313300	survarium::artefact_base::action	stack+8	the time	observed
 0x00313670	survarium::artefact_base::serialize	ECX	artefact	inferred
 0x00313670	survarium::artefact_base::serialize	stack+4	writer	inferred
 0x00313670	survarium::artefact_base::serialize	stack+8	optional_effect_serialization_context	inferred
@@ -3078,6 +3087,9 @@ va	name	location	role	basis
 0x00329a70	survarium::player_stamina::sprint	stack+4	time_ms	inferred
 0x00329c60	survarium::player_stamina::is_overburdened	EDI	stamina	inferred
 0x00329c60	survarium::player_stamina::is_overburdened	stack+4	carried_weight	inferred
+0x0032a420	survarium::body_part::increase_health	ESI	the pool (Hmax +9Ch, H +0A0h)	observed
+0x0032a420	survarium::body_part::increase_health	stack+4	the time	observed
+0x0032a420	survarium::body_part::increase_health	stack+8	float amount added, H clamped to [0, Hmax]	observed
 0x0032ae00	survarium::body_part_parameters::serialize	ECX	body_part_parameters	inferred
 0x0032ae00	survarium::body_part_parameters::serialize	stack+4	writer	inferred
 0x0032afe0	survarium::body_part_parameters::deserialize	ECX	body_part_parameters	inferred
@@ -3188,6 +3200,8 @@ va	name	location	role	basis
 0x0033a6a0	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression	stack+12	substate context	inferred
 0x0033a6a0	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression	stack+20	metadata output pointer	inferred
 0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	EDX	throw-grenade state	inferred
+0x0033acf0	survarium::artefact_spring_core::config::config	ESI	the config (Spring+340h): five modifier nodes and the duration ms	observed
+0x0033acf0	survarium::artefact_spring_core::config::config	stack+4	the item config's data value	observed
 0x0033bb50	survarium::generic_anomaly_core::on_player_action	ECX	player_actions_subscriber subobject (core+8)	observed
 0x0033bb50	survarium::generic_anomaly_core::on_player_action	stack+8	action: a jump table of handlers, each adds its energy_on_* x param and clamps to energy_maximum when above 0	observed
 0x0033bb50	survarium::generic_anomaly_core::on_player_action	stack+12	param (f32)	observed
@@ -4262,6 +4276,11 @@ va	name	location	role	basis
 0x00447290		entry ESP+12		auto
 0x00447290		entry ESP+8		auto
 0x00447290		entry ESP+4		auto
+0x00511600		ECX	the movie holder (+0Ch the GFx movie)	observed
+0x00511600		entry ESP+4	the ActionScript method's name ("root.has_active_window")	observed
+0x00511600		entry ESP+8	the result Value, or 0	observed
+0x00771fa0	Scaleform::GFx::AS3::Instances::fl_display::Stage::focusGet	ECX	the Stage instance (+14h, +40h, +1A8h, +8 the MovieImpl)	observed
+0x00771fa0	Scaleform::GFx::AS3::Instances::fl_display::Stage::focusGet	entry ESP+4	the result SPtr<InteractiveObject> (0x790E40 assigns it)	observed
 0x00824910		entry ESP+12		auto
 0x00824910		entry ESP+4		auto
 0x00824910		entry ESP+8		auto
@@ -4310,7 +4329,7 @@ va	name	location	role	basis
 0x002f4250	survarium::tdm_rule_core_cook::create_resource	ECX	the cook	observed
 0x002f4250	survarium::tdm_rule_core_cook::create_resource	entry ESP+4	query: +0 the match options, +0Ch the mode config's root	observed
 0x00316090	survarium::tdm_rule_core::on_event	entry ESP+4	the event type (0 match started, 1 a kill)	observed
-0x00316090	survarium::tdm_rule_core::on_event	entry ESP+12	the event's data (a kill: u8 killer, u8 victim)	observed
+0x00316090	survarium::tdm_rule_core::on_event	entry ESP+8	the event's data (a kill: u8 killer, u8 victim; read at 0x316106 as [esp+18h] after four pushes)	observed
 0x00316590	survarium::tdm_rule_core::on_player_entered_match	entry ESP+4	u8 roster place	observed
 0x00316340	survarium::tdm_rule_core::serialize	entry ESP+4	writer: its buffer at +14h (data +4, size +0Ch)	observed
 0x003163d0	survarium::tdm_rule_core::deserialize	entry ESP+4	reader: its cursor at +4	observed
@@ -4333,3 +4352,50 @@ va	name	location	role	basis
 0x002375c0	survarium::game_world_ui::show_parametrized_message	entry ESP+4	game_world_ui	observed
 0x000725e0	vostok::math::create_rotation	EDI	float3 angles	observed
 0x000725e0	vostok::math::create_rotation	ESI	the matrix out	observed
+0x003163d0	survarium::tdm_rule_core::deserialize	entry ESP+8	a dword of the caller (game_world_core::deserialize's third argument), not read; popped (ret 8)	observed
+0x00317fd0	survarium::timelimit_rule_core::deserialize	entry ESP+8	a dword of the caller (game_world_core::deserialize's third argument), not read; popped (ret 8)	observed
+0x00323910	survarium::kd_stats_rule::deserialize	entry ESP+8	a dword of the caller (game_world_core::deserialize's third argument), not read; popped (ret 8)	observed
+0x002d2770	survarium::game_world_core::deserialize	entry ESP+4	the world core (EBP in the body)	observed
+0x002d2770	survarium::game_world_core::deserialize	entry ESP+8	the snapshot (EBX in the body): the rules' reader {start, cursor, end} from +0B7EE4h	observed
+0x002d2770	survarium::game_world_core::deserialize	entry ESP+12	a dword passed on to every rule's deserialize (slot 16, [vtable+40h]) as its second argument: 0x2D2B42 push [esp+84h], push &reader, call, no clean-up	observed
+0x0007f5c0	vostok::physics::bullet_character_controller::get_transform	ESI	the controller ([[player+494h]]): +80h matrix, +1D0h float heights[3], +1F0h stance	observed
+0x0007f5c0	vostok::physics::bullet_character_controller::get_transform	ECX	the transform written (64 bytes)	observed
+0x00054e10	survarium::replay_network_client::is_this_place_mine	ECX	the replay network client	observed
+0x00054e10	survarium::replay_network_client::is_this_place_mine	entry ESP+4	the roster place	observed
+0x0027aa20	survarium::network_client::on_match_ready	ECX	the network client	observed
+0x0027aa20	survarium::network_client::on_match_ready	entry ESP+4	the queries_result (the match's resource queries, done)	observed
+0x00126830	vostok::render::skeleton_model_instance_cook::on_bake_finished	entry ESP+4	the bind's first bound argument	observed
+0x00126830	vostok::render::skeleton_model_instance_cook::on_bake_finished	entry ESP+8	the cook parameters (freed here)	observed
+0x00316090	survarium::tdm_rule_core::on_event	entry ESP+12	the world's time ([core+18FC0h], pushed first by 0x2D1EA0)	observed
+0x003237e0	survarium::kd_stats_rule::on_event	stack+12	the world's time ([core+18FC0h], pushed first by 0x2D1EA0)	observed
+0x002d1ea0	survarium::game_world_core::rules_on_event	EDI	the world core: its rules [core+18824h..18828h]	observed
+0x002d1ea0	survarium::game_world_core::rules_on_event	entry ESP+4	the event type, passed on as each rule's on_event (slot 7) first argument	observed
+0x002d1ea0	survarium::game_world_core::rules_on_event	entry ESP+8	the event's data, passed on second; the world's time [core+18FC0h] third (pushed first)	observed
+0x002f5d40	survarium::shared_statistics::notify_listener	EAX	the statistics' event listener (statistics+31A0h; a boost::function, called when not 0): base_game_statistics_handler::on_event 0x26DB80	observed
+0x002f5d40	survarium::shared_statistics::notify_listener	entry ESP+4	u8 roster place	observed
+0x002f5d40	survarium::shared_statistics::notify_listener	entry ESP+8	the event (the statistics' events[e]: 2 a kill, 6/17/18 in hundredths)	observed
+0x002f5d40	survarium::shared_statistics::notify_listener	entry ESP+12	u16 the amount added	observed
+0x0026db80	survarium::base_game_statistics_handler::on_event	ECX	the statistics object itself ([core+18FA8h]; vtable 0xA0755C, this slot +44h): m_scores[place] (+31F0h) grows by amount x the event's weight (x 0.01 for 6, 17, 18)	observed
+0x00265de0	survarium::lobby_character::start_item_upgrade	ESI	the lobby_character (lobby menu+694h)	observed
+0x00265de0	survarium::lobby_character::start_item_upgrade	EDI	the window's item id	observed
+0x00265f10	survarium::lobby_character::exit_item_upgrade	ESI	the lobby_character (lobby menu+694h)	observed
+0x0029a870	survarium::lobby_menu::start_item_upgrade	ECX	the lobby menu	observed
+0x0029a870	survarium::lobby_menu::start_item_upgrade	entry ESP+4	the movie's arguments: [[+8]+8] the item id	observed
+0x0029a890	survarium::lobby_menu::exit_item_upgrade	ECX	the lobby menu	observed
+0x00284aa0	survarium::lobby_character::release_player	ESI	the lobby_character	observed
+0x00284aa0	survarium::lobby_character::release_player	entry ESP+4	byte: 1 also drops the player being made (+D2C9h)	observed
+0x002375c0	survarium::game_world_ui::show_parametrized_message	entry ESP+8 low byte	the message's first parameter, a GFx uint (21h at update_ui's welcome 0x23B362)	observed
+0x002375c0	survarium::game_world_ui::show_parametrized_message	entry ESP+12 low byte	the message's second parameter, a GFx uint (14h at the welcome)	observed
+0x002375c0	survarium::game_world_ui::show_parametrized_message	entry ESP+16	the message's third parameter, a GFx uint (1770h, its time in ms, at the welcome)	observed
+0x002e58b0		EAX	the damage model's pools (its owner+108h; +8 the list's head, a pool's name at +80h, the next at +0)	observed
+0x002e58b0		ECX	pointer to the name (a char *)	observed
+0x00313350		entry ESP+4	the artefact (artefact_base)	observed
+0x00313350		entry ESP+8	the time (artefact_base::action's, 0x313329)	observed
+0x00420789		ECX	the object; the result is its +8 (0xAC1220: the allocation's name of weapon_camo's and upgrade_preview's malloc)	observed
+0x000e5b60	vostok::resources::query_resources	EAX	the requests {name, class}	observed
+0x000e5b60	vostok::resources::query_resources	ECX	the requests' count	observed
+0x000e5b60	vostok::resources::query_resources	entry ESP+4	the callback, a boost::function	observed
+0x000e5b60	vostok::resources::query_resources	entry ESP+8	the allocator	observed
+0x000e5b60	vostok::resources::query_resources	entry ESP+12	the user data	observed
+0x000e5b60	vostok::resources::query_resources	entry ESP+16	the parent query, or 0	observed
+0x000e5b60	vostok::resources::query_resources	entry ESP+20	a flag (1 at weapon_camo's bake)	observed

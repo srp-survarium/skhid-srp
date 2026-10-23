@@ -46,6 +46,7 @@ package
    import scaleform.gfx.InteractiveObjectEx;
    import scaleform.gfx.MouseCursorEvent;
    import scaleform.gfx.MouseEventEx;
+   import survarium.data.Relocation;
    import survarium.Util;
    import survarium.ammo.AmmoShareControll;
    import survarium.ammo.AmmoShareElement;
@@ -415,6 +416,10 @@ package
 
       // the upgrade window told the game (start_item_upgrade), so its close does too
       protected var _upgradeShown:Boolean = false;
+
+      // the upgrade window was opened from the shop: its list shows the inventory while it is open,
+      // the shop again after (shop-character-menu.md)
+      protected var _upgradeFromShop:Boolean = false;
 
       protected var backBlack:Sprite = new BackBlack();
       
@@ -1573,6 +1578,11 @@ package
          var oldData:ItemData;
          var curerrentSlot:IPaperDollSlot;
          var newData:ItemData;
+         if(hintTarget == this.itemHintRendererSec && this.craftOpen())
+         {
+            // The craft window's item, not an equipped one: the paper doll does not change it.
+            return;
+         }
          if((hintTarget.parent) && (hintTarget.data))
          {
             oldData = hintTarget.data as ItemData;
@@ -1601,6 +1611,12 @@ package
          }
       }
       
+      // Whether the craft (Upgrade) window is open.
+      private function craftOpen() : Boolean
+      {
+         return this.craftWindow != null && this.craftWindow.parent != null;
+      }
+
       private function showItemHint(e:ListEvent) : void
       {
          var secondData:Object;
@@ -1628,7 +1644,13 @@ package
          {
             this.itemHintRenderer.x = this.inventory_list.x + this._pdTarget.x - this.itemHintRenderer.width + 6;
          }
-         if(InventoryList.AllOW_COMPARE)
+         if(InventoryList.AllOW_COMPARE && this.craftOpen())
+         {
+            // With the item being upgraded, not the equipped one; none while the window has none
+            // (craft-menu.md, "Comparing items").
+            secondData = this.craftWindow.compareWith(e.itemData);
+         }
+         else if(InventoryList.AllOW_COMPARE)
          {
             secondData = this.player_profile.getRelativeData(e.itemData);
          }
@@ -1642,6 +1664,9 @@ package
             this.itemHintRendererSec.displaylabel(true);
             this.itemHintRenderer.itemCompare.setSecondaryWeapon(secondData);
             this.itemHintRendererSec.data = secondData;
+            // Both cards coloured, each against the other: the equipped (or the craft window's) one
+            // too (craft-menu.md, "Comparing items").
+            this.itemHintRendererSec.itemCompare.setSecondaryWeapon(e.itemData);
             addChild(this.itemHintRendererSec);
          }
          else
@@ -1675,6 +1700,49 @@ package
          this.setTopmostLevel(this.itemHintRendererSec,true);
       }
       
+      // A craft slot's item left of the window, compared with the other slot's; the item being
+      // upgraded always the left card (craft-menu.md, "Comparing items").
+      private function showCraftSlotHint(e:ListEvent) : void
+      {
+         if(!e.itemData || !this.craftOpen())
+         {
+            return;
+         }
+         this.hideItemHint(null);
+         var secondData:Object = InventoryList.AllOW_COMPARE ? this.craftWindow.slotCompareWith(e.itemRenderer) : null;
+         this.itemHintRenderer.mouseEnabled = this.itemHintRenderer.mouseChildren = false;
+         this.itemHintRendererSec.mouseEnabled = this.itemHintRendererSec.mouseChildren = false;
+         this.itemHintRenderer.displayOrange(true);
+         this.itemHintRenderer.displaylabel(secondData != null);
+         this.itemHintRenderer.itemCompare.setSecondaryWeapon(secondData);
+         this.itemHintRenderer.data = e.itemData;
+         addChild(this.itemHintRenderer);
+         this.itemHintRenderer.x = this.craftWindow.x - this.itemHintRenderer.width - 3;
+         this.itemHintRenderer.y = this.craftWindow.y;
+         if(secondData)
+         {
+            this.itemHintRendererSec.displaylabel(true);
+            this.itemHintRendererSec.data = secondData;
+            // both cards coloured, each against the other
+            this.itemHintRendererSec.itemCompare.setSecondaryWeapon(e.itemData);
+            addChild(this.itemHintRendererSec);
+            this.itemHintRendererSec.y = this.itemHintRenderer.y;
+            var hoveredMain:Boolean = e.itemRenderer == this.craftWindow.dragItemSlot1;
+            var left:ItemInfoRenderer = hoveredMain ? this.itemHintRenderer : this.itemHintRendererSec;
+            var right:ItemInfoRenderer = hoveredMain ? this.itemHintRendererSec : this.itemHintRenderer;
+            right.x = this.craftWindow.x - right.width - 3;
+            left.x = right.x - left.width - 1;
+            if(left.x < 0)
+            {
+               // no room on the left: both right of the window, in the same order
+               left.x = this.craftWindow.x + this.craftWindow.width + 3;
+               right.x = left.x + left.width + 1;
+            }
+         }
+         this.setTopmostLevel(this.itemHintRenderer,true);
+         this.setTopmostLevel(this.itemHintRendererSec,true);
+      }
+
       private function onHintTargetRender(e:Event) : void
       {
          if((this._pdTarget) && (this._pdTarget.data) && this._pdTarget.data.descriptor == ItemPlace.NONE)
@@ -2037,12 +2105,28 @@ package
          }
          this.modifierWindow.removeEventListener(Event.CLOSE,this.closeModifierWindow);
          this.inventory_list.removeEventListener(Event.CLOSE,this.closeModifierWindow);
+         if(this._upgradeFromShop)
+         {
+            this.inventory_list.toggleShopMode(true);
+            _upgradeFromShop = false;
+         }
          this.inventory_list.focusCategory(SuperCategory.NO_FOCUS);
          this.inventory_list.mainTabBar.enabled = true;
          this.inventory_list.inventoryTabPage.enabled = true;
          this.inventory_list.updateItemCard = true;
          trace("closeModifierWindow::",this.item_control.mouseChildren);
+         // The keys go back to the lobby and the window leaves the display list (it was only
+         // hidden): the game turns the camera only when nothing of the movie is under the cursor
+         // (get_mouse_over) and no control has the keys (lobby.md, "The upgrade window's close").
+         if(stage != null && stage.focus != null && this.modifierWindow.contains(stage.focus as DisplayObject))
+         {
+            stage.focus = this;
+         }
          this.modifierWindow.visible = false;
+         if(this.modifierWindow.parent == this)
+         {
+            removeChild(this.modifierWindow);
+         }
          this.player_profile.visible = this.inventory_list.visible;
          this.dragRegion.mouseEnabled = true;
          if(this._upgradeShown)
@@ -2196,6 +2280,8 @@ package
          this.craftWindow.btnAccept.addEventListener(ButtonEvent.CLICK,this.onCloseCraft);
          this.craftWindow.btnClose.addEventListener(ButtonEvent.CLICK,this.onCloseCraft);
          this.craftWindow.addEventListener("closeCraft",this.closeCraftWindow);
+         this.craftWindow.addEventListener(ListEvent.ITEM_ROLL_OVER,this.showCraftSlotHint);
+         this.craftWindow.addEventListener(ListEvent.ITEM_ROLL_OUT,this.hideItemHint);
          this.craftWindow.dragItemSlot1.dragEnabled = false;
          this.craftWindow.dragItemSlot1.setData(itemData);
          addChild(this.backBlack);
@@ -2205,6 +2291,8 @@ package
          this.handleFrontInventory();
          this.inventory_list.lockControls(true);
          this.backBlack.alpha = 0.5;
+         // the item being upgraded is in the window's main slot: not listed (craft-menu.md)
+         this.inventory_list.hideCraftSlotted([itemData.itemId]);
          this.inventory_list.filterItem(itemData.dictId);
          this.inventory_list.selectItem(itemData.itemId);
       }
@@ -2229,6 +2317,14 @@ package
       
       private function closeCraftWindow(e:Event) : void
       {
+         // the compare card showed the window's item (MessageCraftItem.compareWith)
+         this.hideItemHint(null);
+         // The keys leave the window before it goes: a focus left on its removed buttons made the
+         // game's own stage.focus read crash on the next key (exe patch 52 guards the read).
+         if(stage != null && stage.focus != null && this.craftWindow.contains(stage.focus as DisplayObject))
+         {
+            stage.focus = this;
+         }
          this.inventory_list.lockControls(false);
          removeChild(this.craftWindow);
          removeChild(this.backBlack);
@@ -2247,7 +2343,20 @@ package
             return;
          }
          var itemData:ItemData = this.item_control.getItemData();
-         var weapon:Boolean = Boolean(itemData) && UpgradeWindow.isWeaponCategory(int(itemData.category));
+         // Only an owned item: the game's window looks the item up and crashed on one it lacks (a
+         // shop item on the card; shop-character-menu.md).
+         if(itemData == null || !this.inventory_list.owns(itemData.itemId))
+         {
+            return;
+         }
+         var weapon:Boolean = UpgradeWindow.isWeaponCategory(int(itemData.category));
+         // from the shop: the window lists what is owned, as from the inventory (the shop's list
+         // has no owned decals or camouflages)
+         _upgradeFromShop = this.inventory_list.isShop;
+         if(this._upgradeFromShop)
+         {
+            this.inventory_list.toggleShopMode(false);
+         }
          this.inventory_list.focusCategory(SuperCategory.UPGRADES);
          this.inventory_list.mainTabBar.selectedIndex = InventoryTab.INVENTORY;
          this.inventory_list.mainTabBar.enabled = false;
@@ -2262,6 +2371,9 @@ package
          this.modifierWindow.visible = true;
          this.dragRegion.mouseEnabled = false;
          MainScene.activePop = this.modifierWindow;
+         // on the display list before setData, which places it by its parent's inventory list:
+         // the close takes it off (#302), and a second open threw there and stopped half way
+         addChild(this.modifierWindow);
          this.modifierWindow.setData(itemData);
          // the game shows a weapon in the character's hands (patch 32), any other item as before
          this._upgradeShown = Boolean(itemData);
@@ -2270,7 +2382,6 @@ package
             trace("start_item_upgrade");
             ExternalInterface.call("start_item_upgrade",itemData.itemId);
          }
-         addChild(this.modifierWindow);
          this.modifierWindow.addEventListener(Event.CLOSE,this.closeModifierWindow);
          this.inventory_list.addEventListener(Event.CLOSE,this.closeModifierWindow);
          this.player_profile.visible = false;
@@ -3518,15 +3629,8 @@ package
          var count:uint = (value.count);
          var faction_id:uint = (value.seller);
          trace("relocate_to_paperdoll::",profile,id,dict_id,sourceSlot,targetSlot,count,"faction",faction_id,value.isStack,value.is_stack);
-         var relocate_object:Object = {
-            profile:profile,
-            id:id,
-            dict_id:dict_id,
-            sourceSlot:sourceSlot,
-            targetSlot:targetSlot,
-            count:count,
-            faction_id:faction_id
-         };
+         var relocate_object:Object = Relocation.move(profile,id,dict_id,sourceSlot,targetSlot,count);
+         relocate_object.faction_id = faction_id;
          var new_data:ItemData;
          var _relocateArray:Array;
          if((value.is_stack))
@@ -3850,6 +3954,11 @@ package
       
       public function has_active_window() : Boolean
       {
+         // The Character panel's presets list: Esc closes it first.
+         if(LocalPlayerProfile.presetListOpen())
+         {
+            return true;
+         }
          // The rooms window counts while open (not under the results), so
          // Esc closes it before it opens the game's menu.
          if(RoomsWindow.me != null && RoomsWindow.me.escapable())
@@ -3868,6 +3977,10 @@ package
       
       public function close_active_window() : void
       {
+         if(LocalPlayerProfile.closePresetListByEsc())
+         {
+            return;
+         }
          if(RoomsWindow.me != null && RoomsWindow.me.closeByEsc())
          {
             return;
@@ -5226,6 +5339,7 @@ package
             this.inventory_list.item_compare.setSecondaryWeapon(null);
          }
          this.inventory_list.hoverItem();
+         this.inventory_list.hoverScopesFor();
       }
       
       private function onPaperDollItemRollOver(e:ListEvent) : void
@@ -5237,12 +5351,15 @@ package
          if((e) && (e.itemData))
          {
             this.inventory_list.hoverItem(e.itemData.itemId);
+            this.linkScopeHovers(e.itemData);
          }
       }
       
       private function onInventoryListItemRollOut(e:ListEvent) : void
       {
          this.player_profile.paperDoll.hoverItem();
+         this.player_profile.paperDoll.hoverWeaponsFor();
+         this.inventory_list.hoverScopesFor();
       }
       
       private function onInventoryListItemRollOver(e:ListEvent) : void
@@ -5251,6 +5368,21 @@ package
          if((e.itemData))
          {
             this.player_profile.paperDoll.hoverItem(e.itemData.itemId);
+            this.linkScopeHovers(e.itemData);
+         }
+      }
+      
+      // A hovered weapon: the listed sights that fit it look hovered; a hovered sight: the kit's
+      // weapons it fits (weapon_scopes.md, section 4a).
+      private function linkScopeHovers(item:Object) : void
+      {
+         if(item.isWeapon)
+         {
+            this.inventory_list.hoverScopesFor(int(item.dictId));
+         }
+         else if(item.category == ItemCategory.SCOPES)
+         {
+            this.player_profile.paperDoll.hoverWeaponsFor(int(item.dictId));
          }
       }
       

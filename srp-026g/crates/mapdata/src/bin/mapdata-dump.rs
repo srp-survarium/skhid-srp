@@ -74,7 +74,9 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     projects.dedup();
 
     let started = Instant::now();
-    let mut resources = Resources::open_with_patches(&cli.db, &cli.patches)?;
+    let mut layers = vec![cli.db.clone()];
+    layers.extend(cli.patches.iter().cloned());
+    let mut resources = Resources::open_layers(&layers)?;
     if resources.unresolved_links > 0 {
         eprintln!(
             "warning: {} hard links in the index point at no file",

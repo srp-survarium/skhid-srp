@@ -11,13 +11,12 @@
  * Every address is a VA of the original exe (image base 0x10000; it is never
  * rebased). The proof of each is in docs/notes/client_patch.md section 3.50
  * and tools/re-kit/v026g. The logic is research_rule_026g.c. The code keeps
- * its mutable state in the section's own page (RN_STATE, -DRN_STATE_VA).
+ * its mutable state in rn_state, the arena's block research.state.
+ * It calls the game's functions through the engine-function library
+ * (engine_026g.h: plain cdecl functions, whatever registers the game's take).
  */
+#include "engine_026g.h"
 #include "research_rule_026g.h"
-
-#ifndef RN_STATE_VA
-#error "RN_STATE_VA: the section's state page (research_026g.py)"
-#endif
 
 typedef rr_u8 u8;
 typedef rr_u16 u16;
@@ -35,20 +34,21 @@ enum {
 
 /* ---- the game ---------------------------------------------------------- */
 
-#define REGISTER_COOK 0x102D10     /* edi = the cook */
 #define COOKS 0xA86E00             /* register_cook's table: begin, end */
 #define COOK_TABLE_SIZE 0x206
 #define CURRENT_THREAD_ID 0x870118 /* [import] GetCurrentThreadId */
 #define COOK_BASE_VTABLE 0x9DDCB8
-#define ALLOCATOR 0x1F1D9C4        /* the rule cooks' allocator (esi of 0xE4F90) */
-#define ALLOCATE 0xE4F90           /* esi allocator, eax size, push its info; ret 4 */
+#define ALLOCATOR 0x1F1D9C4        /* the rule cooks' allocator (engine_malloc's) */
 #define ALLOCATION_INFO (0xACCC60 + 8) /* client tdm rule cook's (0x420789: ecx + 8) */
-#define RULE_BASE_CTOR 0x313900    /* eax = this, push type; ret 4 */
-#define CONFIG_CHILD 0xF6B10       /* eax = table, edi = key: the child */
-#define CONFIG_HAS 0xF6C00         /* eax = table, esi = key: al */
-#define BUFFER_RESIZE 0x7AB30      /* eax = buffer, push size; ret 4 */
-#define HUD_INVOKE 0x511600        /* thiscall movie (name, result, args, count); ret 10h */
-#define HUD_MESSAGE 0x2375C0       /* ecx = key; (ui, 21h, 14h, ms); ret 10h */
+/* The game's functions (engine_026g.h): engine_register_cook 0x102D10,
+ * engine_malloc 0xE4F90, engine_match_rule_base 0x313900, engine_cfg_child
+ * 0xF6B10 and engine_cfg_has 0xF6C00, engine_movie_invoke 0x511600,
+ * engine_show_message 0x2375C0, engine_statistics_notify 0x2F5D40 and the
+ * field writers buffer_writer::w<unsigned char/short/int> (tdm_rule_core::
+ * serialize 0x316340): engine_write_u8 0x1F3DE0, engine_write_u16 0x2F5DA0
+ * and engine_write_u32 0x1F48A0, which append the value to the writer's
+ * buffer (its size grown by 0x7AB30) and, with [0x1F1D32C] and [0x1F1D32D]
+ * set (the hash mismatch dump), record the field's name, type and place. */
 
 /* the world (game_world_core) */
 #define CORE_PLACES 0x18458        /* -> places, 30h each: [3] players, +Ch the current kit */
@@ -63,7 +63,13 @@ enum {
 /* a player (base_player) */
 #define PLAYER_ALIVE 0x33C         /* m_is_alive */
 #define PLAYER_IN_WORLD 0x33F      /* in the world's tick lists */
-#define PLAYER_POSITION 0x43C      /* m_transform's translation (+40Ch row 3) */
+#define PLAYER_POSITION 0x43C      /* m_transform's translation (+40Ch row 3): the feet */
+#define PLAYER_PHYSICS 0x494       /* -> -> its character controller (0x2D942A) */
+/* the controller (get_transform 0x7F5C0: the player's transform is the
+ * capsule's centre moved down by heights[(stance + 2) % 3] + heights[stance],
+ * half the capsule's height: 0.9 m standing) */
+#define CONTROLLER_HEIGHTS 0x1D0   /* float[3] */
+#define CONTROLLER_STANCE 0x1F0    /* 0..2 */
 #define PLAYER_PROFILE 0x6B8       /* -> its match profile */
 #define PROFILE_TEAM 0x45EC
 /* shared_statistics */
@@ -71,6 +77,7 @@ enum {
 #define STATS_EVENTS 0xC           /* u16 events[28][3] */
 #define STATS_TEAM_POINTS 0x31D4   /* u16 m_team_points[2] */
 #define STATS_WINNER 0x31E4        /* m_winner_team */
+#define STATS_LISTENER 0x31A0      /* the statistics' event listener (a boost::function: 0 when none) */
 /* the statistics' events a unit counts (snapshot_rules.md section 3.1) */
 #define EVENT_CAPTURE 6            /* hundredths: a unit taken, the shares of `award` */
 #define EVENT_KILL_INVADER 10      /* one: an enemy killed inside a unit his team was taking */
@@ -79,7 +86,6 @@ enum {
 #define KITS 3
 /* match_hud_state (fill_match_hud_state) */
 #define HUD_TEAM_POINTS 0x90
-#define HUD_ALIVE 0x94
 /* game_world_ui */
 #define UI_GAME 0x18
 #define UI_HUD 0x8
@@ -99,7 +105,15 @@ enum {
 #define RESOLVE_LINKS 0x316540     /* ret 1Ch */
 #define RULE_BASE_LOCATOR 0xA4C970 /* game_match_rule_base's RTTI locators */
 #define LINK_RESOLVER_LOCATOR 0xA4C95C
-#define COOK_LOCATOR 0xA47134      /* the client tdm rule cook's (its vtable 0x9FD8AC) */
+/* MSVC's RTTI of the cook (rn_cook_locator): type_info's vftable (every type
+ * descriptor's first word, tdm_rule_cook's 0xACCC38 among them) and the base
+ * class descriptors of tdm_rule_core_cook's hierarchy (0xA4718C), which is
+ * the cook's shape: translate_query_cook (with cook_base) and boost's
+ * noncopyable at +20h. */
+#define TYPE_INFO_VFTABLE 0x886A78
+#define BCD_TRANSLATE_QUERY_COOK 0xA38D74
+#define BCD_COOK_BASE 0xA38D24
+#define BCD_NONCOPYABLE 0xA40010
 
 /* ---- the state page --------------------------------------------------- */
 
@@ -116,7 +130,8 @@ struct rn_globals {
     u32 registered;                /* 1: done, 2: the class was taken */
     struct rn_hud hud;
 };
-#define G ((struct rn_globals *)RN_STATE_VA)
+struct rn_globals rn_state;        /* zeroed: the block research.state (link_026g.py) */
+#define G (&rn_state)
 
 /* ---- the rule --------------------------------------------------------- */
 
@@ -166,7 +181,7 @@ void *memcpy(void *to, const void *from, unsigned long size) {
 
 /* ---- calls into the game ---------------------------------------------- */
 
-typedef struct {
+typedef struct engine_cfg {
     u32 data;                      /* a value, or a pointer (tables, vectors, strings) */
     u32 data_high;
     u32 name, name_high;
@@ -176,23 +191,9 @@ typedef struct {
 _Static_assert(sizeof(cfg) == 24, "a config value is 24 bytes");
 enum { CFG_BOOL = 0, CFG_INT = 1, CFG_FLOAT = 2, CFG_NAMED = 3, CFG_INDEXED = 4, CFG_STRING = 5, CFG_FLOAT3 = 7 };
 
-static const cfg *child(const cfg *table, const char *key) {
-    const cfg *result;
-    __asm__ volatile("call *%[fn]"
-                     : "=a"(result), "+D"(key)
-                     : "a"(table), [fn] "r"(CONFIG_CHILD)
-                     : "ecx", "edx", "memory", "cc");
-    return result;
-}
+static const cfg *child(const cfg *table, const char *key) { return engine_cfg_child(table, key); }
 
-static int has(const cfg *table, const char *key) {
-    u32 result;
-    __asm__ volatile("call *%[fn]"
-                     : "=a"(result), "+S"(key)
-                     : "a"(table), [fn] "r"(CONFIG_HAS)
-                     : "ecx", "edx", "edi", "memory", "cc");
-    return (u8)result;
-}
+static int has(const cfg *table, const char *key) { return (int)engine_cfg_has(table, key); }
 
 static const cfg *item(const cfg *table, u32 index) { return (const cfg *)table->data + index; }
 
@@ -213,29 +214,17 @@ static void vector(const cfg *value, float out[3]) {
     out[2] = at[2];
 }
 
-static void *allocate(u32 size) {
-    void *result;
-    __asm__ volatile("push %[info]\n\tcall *%[fn]"
-                     : "=a"(result)
-                     : "a"(size), "S"(*(u32 *)ALLOCATOR), [info] "i"(ALLOCATION_INFO), [fn] "r"(ALLOCATE)
-                     : "ecx", "edx", "memory", "cc");
-    return result;
-}
+static void *allocate(u32 size) { return engine_malloc(*(void **)ALLOCATOR, size, (const void *)ALLOCATION_INFO); }
 
-static void rule_base(void *rule, u32 type) {
-    u32 ignored;
-    __asm__ volatile("push %[type]\n\tcall *%[fn]"
-                     : "=a"(ignored)
-                     : "a"(rule), [type] "r"(type), [fn] "r"(RULE_BASE_CTOR)
-                     : "ecx", "edx", "memory", "cc");
-}
+static const char RN_FILE[] = ".\\research_native_026g.c";
+static const char RN_SERIALIZE[] = "srp::research_rule::serialize";
 
-static void resize(void *buffer, u32 size) {
-    u32 ignored;
-    __asm__ volatile("push %[size]\n\tcall *%[fn]"
-                     : "=a"(ignored)
-                     : "a"(buffer), [size] "r"(size), [fn] "r"(BUFFER_RESIZE)
-                     : "ecx", "edx", "memory", "cc");
+/* One field through the game's writer of its size; `ordinal` stands for the
+ * line (the field's place in the state). */
+static void field(u8 *writer, u32 size, const void *value, u32 ordinal, const char *name) {
+    void (*write)(const void *, void *, const char *, unsigned int, const char *, const char *) =
+        size == 1 ? engine_write_u8 : size == 2 ? engine_write_u16 : engine_write_u32;
+    write(value, writer, RN_FILE, ordinal, RN_SERIALIZE, name);
 }
 
 typedef struct {
@@ -246,9 +235,6 @@ typedef struct {
 } gfx_value;
 _Static_assert(sizeof(gfx_value) == 0x18, "a GFx::Value is 18h bytes");
 enum { GFX_NUMBER = 5 };
-
-typedef THISCALL u32 (*invoke_fn)(void *, const char *, void *, const gfx_value *, u32);
-typedef THISCALL void (*message_fn)(const char *, void *, u32, u32, u32);
 
 /* ---- reading the config ----------------------------------------------- */
 
@@ -268,11 +254,11 @@ static int read_params(struct rr_params *params, const cfg *root) {
     for (u32 i = 0; i < params->capture_count; ++i)
         params->capture_ms[i] = (u32)(number(item(times, i)) * 1000.0f); /* 0.27d: trunc(s x 1000) */
     params->owned_count = rates->count > RR_MAX_OWNED ? RR_MAX_OWNED : rates->count;
-    for (u32 i = 0; i < params->owned_count; ++i) params->points_rate[i] = rounded(number(item(rates, i)) * 1000.0f);
+    for (u32 i = 0; i < params->owned_count; ++i) params->points_rate[i] = rounded(number(item(rates, i)) * (1000.0f * RR_RATE_MS));
     params->target = (u32)number(child(parameters, "resources_count")) * RR_MICRO;
     u32 restore = rounded(number(child(parameters, "restore_multiplier")) * 1000.0f);
     params->award = has(parameters, "capture_award") ? (u32)number(child(parameters, "capture_award")) : 100;
-    params->reach = has(parameters, "capture_reach") ? number(child(parameters, "capture_reach")) : 0.4f;
+    params->reach = has(parameters, "capture_reach") ? number(child(parameters, "capture_reach")) : 0.38f;
     params->half_height =
         has(parameters, "capture_half_height") ? number(child(parameters, "capture_half_height")) : 0.9f;
     const cfg *zones = child(parameters, RN_ZONES);
@@ -319,6 +305,20 @@ static u32 team_of(const u8 *player) {
     return profile ? AT(profile, PROFILE_TEAM, u32) : RR_NOBODY;
 }
 
+/* Half the player's capsule's height, as get_transform (0x7F5C0) takes it
+ * off the capsule's centre to give the player's transform; the config's
+ * when the player has no controller or it says nothing sensible. */
+static float half_height_of(const struct rn_rule *rule, const u8 *player) {
+    u8 **physics = AT(player, PLAYER_PHYSICS, u8 **);
+    u8 *controller = physics ? *physics : 0;
+    if (!controller) return rule->params.half_height;
+    int stance = AT(controller, CONTROLLER_STANCE, int);
+    if (stance < 0 || stance > 2) return rule->params.half_height;
+    float half = AT(controller, CONTROLLER_HEIGHTS + 4 * ((stance + 2) % 3), float) +
+                 AT(controller, CONTROLLER_HEIGHTS + 4 * stance, float);
+    return half > 0.1f && half < 2.0f ? half : rule->params.half_height;
+}
+
 static void players_of(const struct rn_rule *rule, struct rr_player out[RR_PLAYERS]) {
     for (u32 i = 0; i < RR_PLAYERS; ++i) {
         out[i].alive = 0;
@@ -330,17 +330,29 @@ static void players_of(const struct rn_rule *rule, struct rr_player out[RR_PLAYE
         out[i].alive = player[PLAYER_ALIVE] && player[PLAYER_IN_WORLD];
         out[i].team = team > 1 ? RR_NOBODY : (u8)team;
         for (int axis = 0; axis < 3; ++axis) out[i].position[axis] = AT(player, PLAYER_POSITION + 4 * axis, float);
+        out[i].half_height = half_height_of(rule, player);
     }
 }
 
+/* An event counted as the game's own sites count one (the kill handler
+ * 0x2F4EB0, 0x2F4DE1): the player's cell, then, when the statistics have
+ * their event listener (+31A0h, a boost::function, not 0 once set), its
+ * call through 0x2F5D40 (engine_statistics_notify: +31A0h, place, event,
+ * amount). The listener is base_game_statistics_handler::on_event 0x26DB80 (vtable
+ * 0xA0755C slot +44h, client_patch.md 3.16), ecx the statistics object
+ * itself ([core+18FA8h]): the player's score (m_scores, +31F0h) grows by the
+ * event's weight times the amount (hundredths for events 6, 17, 18), so the
+ * Tab list shows it at once, not at the next world loaded. */
 static void count(struct rn_rule *rule, u32 place, u32 event, u32 amount) {
     u8 *statistics = AT(rule->core, CORE_STATISTICS, u8 *);
-    u8 *at = place_of(rule, place);
+    u8 *at = place < RR_PLAYERS ? place_of(rule, place) : 0;
     if (!statistics || !at || event >= EVENTS) return;
     u32 kit = at[PLACE_KIT] < KITS ? at[PLACE_KIT] : 0;
     u16 *cell = &AT(statistics, STATS_PLAYER * place + STATS_EVENTS + event * 2 * KITS + 2 * kit, u16);
-    u32 sum = *cell + amount;
+    u32 sum = *cell + amount, added = (sum > 0xFFFF ? 0xFFFF : sum) - *cell;
     *cell = (u16)(sum > 0xFFFF ? 0xFFFF : sum);
+    if (!added || !AT(statistics, STATS_LISTENER, u32)) return;
+    engine_statistics_notify(statistics + STATS_LISTENER, place, event, added);
 }
 
 static void give(struct rn_rule *rule, const struct rr_award *awards, u32 count_of) {
@@ -376,12 +388,18 @@ THISCALL void rn_tick(struct rn_rule *rule, u32 dt, u32 time, u32 step) {
     publish(rule);
 }
 
-THISCALL void rn_on_event(struct rn_rule *rule, u32 type, u32 time, const u8 *data) {
+/* Slot 7, on_event(type, data, time): the world's dispatcher 0x2D1EA0
+ * pushes the core's time ([core+18FC0h]), then its second argument, then
+ * its first; the kill site (0x2D9EEE..0x2D9EF7) gives it 1 and
+ * &{killer, victim} (tdm 0x316090 and kd 0x3237E0 read the data at
+ * [esp+8]). The first build took (type, time, data): it read the time as
+ * the kill's bytes. */
+THISCALL void rn_on_event(struct rn_rule *rule, u32 type, const u8 *data, u32 time) {
     (void)time;
     if (!rule->valid || !rule->core) return;
     if (type == 0) {
         publish(rule);
-    } else if (type == 1 && data && data[0] != 0xFF) {
+    } else if (type == 1 && data && data[0] < RR_PLAYERS && data[1] < RR_PLAYERS) {
         struct rr_award award;
         u32 killer = team_of(player_of(rule, data[0])), victim = team_of(player_of(rule, data[1]));
         if (killer > 1 || victim > 1) return;
@@ -423,26 +441,74 @@ THISCALL void rn_set_core(struct rn_rule *rule, u8 *core) {
 
 THISCALL void rn_set_blackboard(struct rn_rule *rule, void *blackboard) { rule->blackboard = blackboard; }
 
+/* The fields' names in the hash mismatch dump, in rr_write's order; a unit's
+ * by its letter (cp_id 0, 1, 2: A, B, C), short for the section's room. */
+#define RN_MARK(z, i) #z ".marks[" #i "]"
+#define RN_MARKS(z)                                                                                                \
+    RN_MARK(z, 0), RN_MARK(z, 1), RN_MARK(z, 2), RN_MARK(z, 3), RN_MARK(z, 4), RN_MARK(z, 5), RN_MARK(z, 6),          \
+        RN_MARK(z, 7), RN_MARK(z, 8), RN_MARK(z, 9), RN_MARK(z, 10), RN_MARK(z, 11), RN_MARK(z, 12), RN_MARK(z, 13),  \
+        RN_MARK(z, 14), RN_MARK(z, 15), RN_MARK(z, 16), RN_MARK(z, 17), RN_MARK(z, 18), RN_MARK(z, 19)
+#define RN_ZONE(z)                                                                                                 \
+    {#z ".progress", #z ".capturing", #z ".owner", #z ".count[0]", #z ".count[1]", #z ".present[0]",                 \
+     #z ".present[1]", RN_MARKS(z)}
+static const char *const RN_ZONE_FIELDS[RR_MAX_ZONES][7 + RR_PLAYERS] = {RN_ZONE(A), RN_ZONE(B), RN_ZONE(C)};
+_Static_assert(RR_MAX_ZONES == 3 && RR_PLAYERS == 20, "RN_ZONE_FIELDS names three zones of twenty marks");
+
+/* The state field by field through the game's writers, as tdm_rule_core's
+ * serialize (0x316340) does: the bytes rr_write gives (little-endian, 21 + 96
+ * a unit, what the server's decoder reads), and in the hash mismatch dump
+ * each field named. */
 THISCALL void rn_serialize(struct rn_rule *rule, u8 *writer) {
-    u8 *buffer = AT(writer, 0x14, u8 *);
-    u32 size = rr_serialized_size(&rule->state), at = AT(buffer, 0xC, u32);
-    resize(buffer, at + size);
-    rr_write(&rule->state, AT(buffer, 4, u8 *) + at);
+    const struct rr_state *state = &rule->state;
+    u32 n = 0;
+    field(writer, 4, &state->points[0], n++, "m_points[0]");
+    field(writer, 4, &state->points[1], n++, "m_points[1]");
+    field(writer, 2, &state->score[0], n++, "m_score[0]");
+    field(writer, 2, &state->score[1], n++, "m_score[1]");
+    field(writer, 4, &state->end_time, n++, "m_end_time");
+    field(writer, 4, &state->entered, n++, "m_entered");
+    u8 zones = (u8)state->zone_count;
+    field(writer, 1, &zones, n++, "m_zone_count");
+    for (u32 z = 0; z < state->zone_count && z < RR_MAX_ZONES; ++z) {
+        const struct rr_zone *zone = &state->zones[z];
+        const char *const *names = RN_ZONE_FIELDS[z];
+        field(writer, 4, &zone->progress, n++, names[0]);
+        field(writer, 1, &zone->capturing, n++, names[1]);
+        field(writer, 1, &zone->owner, n++, names[2]);
+        field(writer, 1, &zone->count[0], n++, names[3]);
+        field(writer, 1, &zone->count[1], n++, names[4]);
+        field(writer, 4, &zone->present[0], n++, names[5]);
+        field(writer, 4, &zone->present[1], n++, names[6]);
+        for (u32 i = 0; i < RR_PLAYERS; ++i) field(writer, 4, &zone->marks[i], n++, names[7 + i]);
+    }
 }
 
-THISCALL void rn_deserialize(struct rn_rule *rule, u8 *reader) {
+/* Slot 16 takes two arguments and pops both (`ret 8`): the snapshot's rules
+ * loop 0x2D2B42 pushes a dword of its own and the reader and does not clean
+ * up, as tdm's 0x3163D0, timelimit's 0x317FD0 and kd's 0x323910 expect. The
+ * dword is not read (none of the three reads it either). */
+THISCALL void rn_deserialize(struct rn_rule *rule, u8 *reader, u32 unused) {
+    (void)unused;
     u8 *at = AT(reader, 4, u8 *);
     u32 size = rr_serialized_size(&rule->state);
     if (!rr_read(&rule->state, &rule->params, at, size)) rr_reset(&rule->state, &rule->params);
     AT(reader, 4, u8 *) = at + size;
+    /* A late joiner's first world: the time rule's deserialize (0x31803E)
+     * sends event 0 before ours runs, so slot 7's publish() wrote the fresh
+     * rule's 0 / 0 and a draw into the statistics' tail; the tail is the
+     * loaded state's from here. */
+    if (rule->valid && rule->core) publish(rule);
 }
 
+/* The teams' points, as tdm's 0x316430 puts its tickets. Its alive counts
+ * (+94h, +95h) stay as the hud state's constructor (0x278D00) leaves them,
+ * 0FFh, as in modes 2 and 3: only tdm's slot writes them (kd 0x323980 writes
+ * +98h on, timelimit's 0x15A4B0 nothing) and only mode 4's last players read
+ * them (update_ui 0x23B3DE). */
 THISCALL void rn_fill_hud(struct rn_rule *rule, u8 *hud, u32 unused) {
     (void)unused;
     AT(hud, HUD_TEAM_POINTS, u16) = rule->state.score[0];
     AT(hud, HUD_TEAM_POINTS + 2, u16) = rule->state.score[1];
-    hud[HUD_ALIVE] = 0;
-    hud[HUD_ALIVE + 1] = 0;
 }
 
 THISCALL u32 rn_completed(struct rn_rule *rule, u32 time) { return (u32)rr_completed(&rule->state, time); }
@@ -470,7 +536,10 @@ THISCALL u32 rn_cook_size(void *cook) {
 THISCALL void *rn_cook_create(u8 *cook, u8 *query) {
     struct rn_rule *rule = allocate(sizeof(struct rn_rule));
     if (!rule) return 0;
-    rule_base(rule, RN_TYPE);
+    /* The hud's cache is of a rule by its address; a new match's rule may
+     * be allocated where the last one was: forget the last one's. */
+    G->hud.rule = 0;
+    engine_match_rule_base(rule, RN_TYPE);
     u8 *base = rule->base;
     memset(base + 0x110, 0, sizeof *rule - 0x110);
     AT(base, 0, const u32 *) = rn_rule_vtable + 1;
@@ -481,8 +550,43 @@ THISCALL void *rn_cook_create(u8 *cook, u8 *query) {
     return rule;
 }
 
+/* The cook's own RTTI, as MSVC lays it out (x86): research_rule_cook, a
+ * translate_query_cook; its complete object locator before the vtable. No
+ * code of the game casts a cook or asks its type (no reference to any cook's
+ * type descriptor in .text), but the locator names the cook for what it is,
+ * not tdm's. The type descriptor's second word is type_info's cache of the
+ * undecorated name, written by type_info::name: the section is writable. */
+struct rn_type_descriptor {
+    u32 vftable;
+    u32 spare;
+    char name[sizeof ".?AVresearch_rule_cook@srp@@"];
+};
+struct rn_base_class {
+    const struct rn_type_descriptor *type;
+    u32 contained, mdisp, pdisp, vdisp, attributes;
+    const void *hierarchy;
+};
+struct rn_hierarchy {
+    u32 signature, attributes, count;
+    const u32 *bases;
+};
+struct rn_locator {
+    u32 signature, offset, cd_offset;
+    const struct rn_type_descriptor *type;
+    const struct rn_hierarchy *hierarchy;
+};
+extern const struct rn_hierarchy rn_cook_hierarchy;
+__attribute__((used)) const struct rn_type_descriptor rn_cook_type = {TYPE_INFO_VFTABLE, 0,
+                                                                      ".?AVresearch_rule_cook@srp@@"};
+__attribute__((used)) const struct rn_base_class rn_cook_base = {&rn_cook_type, 3, 0, 0xFFFFFFFF, 0, 0x40,
+                                                                 &rn_cook_hierarchy};
+__attribute__((used)) const u32 rn_cook_bases[4] = {(u32)&rn_cook_base, BCD_TRANSLATE_QUERY_COOK, BCD_COOK_BASE,
+                                                    BCD_NONCOPYABLE};
+__attribute__((used)) const struct rn_hierarchy rn_cook_hierarchy = {0, 1, 4, rn_cook_bases};
+__attribute__((used)) const struct rn_locator rn_cook_locator = {0, 0, 0, &rn_cook_type, &rn_cook_hierarchy};
+
 __attribute__((used)) const u32 rn_cook_vtable[1 + 11] = {
-    COOK_LOCATOR, 0x36760, 0xFDA90, 0xF7760, 0x372420, 0x372420, 0x36780, 0x1FA420, 0x2F4290, 0x75AF0,
+    (u32)&rn_cook_locator, 0x36760, 0xFDA90, 0xF7760, 0x372420, 0x372420, 0x36780, 0x1FA420, 0x2F4290, 0x75AF0,
     (u32)rn_cook_create, (u32)rn_cook_size,
 };
 
@@ -505,7 +609,7 @@ void rn_register(void *game) {
     AT(cook, 0x14, u32) = ((u32(__attribute__((stdcall)) *)(void)) * (u32 *)CURRENT_THREAD_ID)();
     AT(cook, 0x18, u32) = 8;
     AT(cook, 0x20, void *) = game;
-    __asm__ volatile("call *%[fn]" : "+D"(cook) : [fn] "r"(REGISTER_COOK) : "eax", "ecx", "edx", "memory", "cc");
+    engine_register_cook(cook);
     g->registered = 1;
 }
 
@@ -523,7 +627,7 @@ static struct rn_rule *find_rule(u8 *ui) {
 }
 
 static void message(u8 *ui, const char *key) {
-    ((message_fn)HUD_MESSAGE)(key, ui, 0x21, 0x14, 6000);
+    engine_show_message(key, ui, 0x21, 0x14, 6000);
 }
 
 static const char *const CAPTURED[RR_MAX_ZONES] = {"st_research_unit_a_captured", "st_research_unit_b_captured",
@@ -610,5 +714,5 @@ void rn_hud(u8 *ui) {
     hud->sum = sum;
     hud->shown = 0;
     u8 *movie = AT(AT(AT(ui, UI_HUD, u8 *), 0x108, u8 *), 4, u8 *);
-    ((invoke_fn)HUD_INVOKE)(movie, "root.research_update", 0, values, n);
+    engine_movie_invoke(movie, "root.research_update", 0, values, n);
 }

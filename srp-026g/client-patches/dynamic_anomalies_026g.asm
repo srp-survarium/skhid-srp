@@ -2,9 +2,9 @@
 ; (0.28a2 to 0.46c2: timeout_anomaly_core and timeout_anomalies_rule_core)
 ; on 0.26g's generic_anomaly_core. The rules: ../docs/notes/dynamic_anomalies.md;
 ; client_patch.md section 3.38; checks: check_dynamic_anomalies_026g.py and
-; selftest_026g.py check 42. The code is at +0x4000 of `.srpx` (patch_026g.py
-; DYNAMIC_ANOMALIES_*, EXTENSION_VA + DYNAMIC_ANOMALIES_OFFSET), after Research's pages:
-;   nasm -f bin -DCAVE=0xA431000 dynamic_anomalies_026g.asm -o dynamic_anomalies_026g.section.bin
+; selftest_026g.py check 42. The arena's block anomalies.code (link_026g.py
+; links it; patch_026g.py's DYNAMIC_ANOMALIES_HOOKS jump to its two entries,
+; anomalies_tick_hook and anomalies_pickup_hook, by their names).
 ;
 ; A timed anomaly is a stock generic_anomaly_core with energy_enabled whose
 ; artefacts never respawn by themselves (artefacts_respawn_time_sec 100000
@@ -21,7 +21,7 @@
 ; would end an anomaly a player walks into.
 ;
 ; Two hooks, nothing else:
-; - tick_hook: game_world_core::atomic_tick (0x2D1E20; [esp+4] the world,
+; - anomalies_tick_hook: game_world_core::atomic_tick (0x2D1E20; [esp+4] the world,
 ;   [esp+8] the tick's length, edi now) first runs the release's anomalies
 ;   rule (0.28a2 timeout_anomalies_rule_core tick 0x5F7C00, choice 0x5F7EC0),
 ;   before any object of the tick: from the match's start + 30 s, a try at
@@ -30,7 +30,7 @@
 ;   artefact of its own and no busy one within 15 m (places: the first
 ;   container's use box) starts charging now, its artefact due when its timed
 ;   states above the pick-up level have run (the release: charging + damage).
-; - pickup_hook: generic_anomaly_core::on_artefact_container_use (0x33BCD0,
+; - anomalies_pickup_hook: generic_anomaly_core::on_artefact_container_use (0x33BCD0,
 ;   the owner's call when a player takes the artefact, use_execute 0x31C838):
 ;   a timed anomaly goes to its after-the-pick-up energy, no artefact due
 ;   (the release's 0x5F72C0: state 4, zones off). Any other core: the original.
@@ -42,7 +42,8 @@
 ; serialized: a rollback, a resync and a late joiner choose alike, and the
 ; snapshot and its hash keep their format.
 BITS 32
-ORG CAVE
+global anomalies_tick_hook, anomalies_pickup_hook
+section .text
 
 %define ATOMIC_TICK_ON     0x2D1E26   ; after `push ecx; mov eax,51EB851Fh`
 %define PICKUP_ON          0x33BCDA   ; after `push ecx; push esi; mov esi,ecx; mov eax,[esi+15Ch]`
@@ -99,9 +100,9 @@ ORG CAVE
 %define TRY_SALT           0x7A11ED42 ; the tries' stream from the seed
 %define PICK_SALT          0x51C4E5A3 ; a try's choice from its draw
 
-; --- entries: patch_026g.py jumps to these offsets --------------------------
+; --- entries: patch_026g.py jumps to these by name ---------------------------
 
-tick_hook:                             ; +0
+anomalies_tick_hook:                   ; from 0x2D1E20
     pushad
     push dword [esp+0x28]              ; the tick's length
     push edi                           ; now
@@ -113,9 +114,7 @@ tick_hook:                             ; +0
     mov eax, 0x51EB851F
     jmp ATOMIC_TICK_ON
 
-    times 0x40 - ($ - $$) db 0xCC
-
-pickup_hook:                           ; +40h, ecx = the core, [esp+4] the container, [esp+8] now
+anomalies_pickup_hook:                 ; from 0x33BCD0; ecx = the core, [esp+4] the container, [esp+8] now
     push edi
     mov edi, ecx
     call timed
@@ -132,8 +131,6 @@ pickup_hook:                           ; +40h, ecx = the core, [esp+4] the conta
     mov esi, ecx
     mov eax, [esi+AF_USE]
     jmp PICKUP_ON
-
-    times 0x80 - ($ - $$) db 0xCC
 
 ; --- the rule ----------------------------------------------------------------
 
@@ -411,5 +408,3 @@ candidate:
     pop ecx
     pop ebx
     ret
-
-    dd CAVE                            ; the address it was assembled for (patch_026g.py checks it)

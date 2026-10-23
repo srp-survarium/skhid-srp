@@ -1,6 +1,7 @@
 package survarium.messages
 {
    import scaleform.clik.events.ButtonEvent;
+   import survarium.data.Relocation;
    import survarium.controls.Message;
    import survarium.data.LocalizationData;
    
@@ -32,14 +33,7 @@ package survarium.messages
          }
          var count:uint = _data.count;
          trace("relocate_ok_clicked",_data.profile,_data.id,_data.dict_id,_data.sourceSlot,_data.targetSlot,count);
-         var _relocateArray:Array = [{
-            profile:_data.profile,
-            id:_data.id,
-            dict_id:_data.dict_id,
-            sourceSlot:_data.sourceSlot,
-            targetSlot:_data.targetSlot,
-            count:count
-         }];
+         var _relocateArray:Array = [Relocation.move(_data.profile,_data.id,_data.dict_id,_data.sourceSlot,_data.targetSlot,count)];
          _data.onOK(_relocateArray);
          _data.onOK = null;
          _data = null;

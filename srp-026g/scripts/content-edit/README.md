@@ -22,6 +22,40 @@ only `gameplay/` (the server game data holds only the files srp reads).
 `content_edit.py` runs on its own for a check (`--check`) on a folder of files at their game paths
 (`srp-game-data get --db <resources.db> --patch <patch>... --out live/ <path>...`).
 
+### The value-type check
+
+`release/build-content` also runs `release/content_type_check.py` over every file a pack or an edit
+makes, value by value (types: a float2/3/4, an indexed table, an int, a float, a string, a named
+table):
+
+- a value at a key path the previous version of the file has keeps the type it had there; a list
+  entry is itself in that path, by its `game_object_type` and its own `full_name` or `name`
+  (`client_objects[light:bulb_2]/intensity`), else by its index, so an entry an edit moved or took
+  out is never compared with the one now at its index;
+- a value at a path new to the file, where 0.26g already uses that structural path (any base
+  config: items, materials, model settings, projects; and the file's previous version), has one of
+  the types used there; a path 0.26g has no precedent for is free;
+- a file at a config path (`.options`, `.raw_options`, `.material`, `/settings`,
+  `/export_properties`, `/hit_targets`, `/client_project`) that the reader refuses (a table out of
+  CRC order, a broken record) stops the build; it is never skipped. The same for every base config.
+  (A root that is not a table is a config there: base patch 19's ported textures' `.options` are a
+  lone `true`.)
+
+A new key that has to take another type than 0.26g's goes in `build_content.py`'s `TYPE_ALLOWLIST`
+as (game path, structural path) with the reason; a row never lets a key that exists change its
+type. It is empty: today's content needs none. The check fails with the file, the path, the old type
+and the new type, and no patch is made. It reuses this folder's `content_edit.py` as the reader
+(`walk`) and names structural paths as Research's pack builder does
+(`scripts/research-mode/make_pack.py`): a list entry by its `game_object_type`
+(`client_objects[respawn_point]/position`), otherwise `[]`, a colour ramp's `key0`, `key1`, ... as
+`key#`. So it is make_pack.py's pack-time check applied at release time to every pack and edit
+list, whoever built it.
+
+This catches the two Research pack bugs (#297) that got past every other check: the builder wrote
+every vector (float2/3/4) as an indexed table through a `json.loads(json.dumps(...))` round-trip, so
+the game, which reads vectors raw, loaded scrambled levels. A vector rewritten as a list is exactly
+what it refuses (`release/test.sh` has the negative test; today's content passes it unchanged).
+
 Then run `weapon_balance_1_changes_only_its_values`
 (`crates/survarium/src/v026g/maps.rs`, ignored: it needs `SRP_TEST_RESOURCES_DB`,
 `SRP_TEST_SKHID_PATCHES` and `SRP_TEST_PATCH_WEAPON_BALANCE_1`) when a change touches its files. The
@@ -182,6 +216,9 @@ data, no simulation change. Not seen in a game:
 how much brighter 2.5 is (the engine's ambient light is a fill light with a radius; the value is
 a first guess to tune).
 
+Withdrawn on 2026-10-22 by lobby-scene-2 below (the owner saw the fill light as a fake white light):
+the list and its manifest row are removed, so the scene is built from the stock file again.
+
 ## weapon-decals-1.json (2026-10-21)
 
 | change | why |
@@ -240,3 +277,118 @@ with it passes `srp-check-game-data`. srp and `release/build-server-db` refuse d
 (`golden::check`). The patch also carries the lobby movie built from the tree (the pieces' bonuses on
 shop and bundle entries, gold background and name, the plain piece as a craft donor). Not a
 simulation change.
+
+## lobby-scene-2.json (2026-10-22)
+
+| change | why |
+|---|---|
+| `projects/lobby_scene/day/client_project` (the lobby's scene): the New Year tree in the corner by the door taken out (a new edit, `remove_entry`: an indexed table's entry matched by its keys, here the name and the position): `render_visuals[0..17]`, the fir `flora/elka_green_05` at (-2.043, 0.561, 4.355) in a chemical barrel at (-2.035, -0.003, 4.409); its ornaments, the `fx/stars` garland (the `new_year_stars` model), 4 Zarya and 2 RGO grenades, 4 artefact coils; the gifts under it, 2 vodka bottles, a toy Niva (scale 0.15), a trap and a givokost artefact; and their 26 `collision_objects[0..25]` | the owner: "can you remove the christmas tree and gifts from the lobby" |
+| `client_objects[41]` (`ambient_light(23)`, at (-2.092, 3.294, 4.439), 0.16 m above the tree's top, intensity 2.2, radius 1.1, colour 0xFFF28653) taken out | the warm glow of the tree's top: nothing else is within its 1.1 m |
+| `client_objects[66]` (`sounds/new_year`, the collection `scapes/lobby/new_year`: `christmas_sounds_01..04`) taken out | the owner: "and christmas sounds". The lobby's other sounds stay: `background`, `lobby_room_tone`, `fire`, `lamp_drone`, `lamp_bzz`. The lobby has no music setting: its sound is these scene objects |
+| a new light, `point_light(7)` (`add_entry`, after the ceiling lamp's `point_light`; `client_objects[60]` in the result): the ceiling lamp's entry copied, every field kept (colour (1, 0.824, 0.702), `attenuation_power` 7.7, shadows) but `name`, `full_name`, `position` (4.81, 3.02, 2.91), `intensity` 3.28 -> 3 and `range` 8 -> 5 m (an int, as the original's) | the owner: "make the light above crafting table stronger by just making the close by lampe stronger, (same yellow light), not by just adding a new fake white light"; then, of the first version (the ceiling lamp 3.28 -> 4, range 8 -> 10): "the lamp above the table is still not bright". The bulb above the workbench (baked into `electric1.model`: a bare bulb in its socket, 0.21 m, the shape of `props/light/lamp`, on an arm from the wall, with the `lamp_bzz` sound) had no light of its own; the ceiling lamp is the same bulb, its light 0.16 m under it, so this one is too. The weapon at (4.25, 1.30, 3.05) is 1.81 m from it. Intensity 4 in the second version; 3 now that the second lamp lights the weapon too |
+| a second lamp over the artefact table, made as the bench one: `wire_set(2)` (a copy of the scene's `wire_set`, the plafond's cable: 7 points, 5 fragments, as the v0.11e maps' short wires; `wire_width` 0.02, the thinnest of the game's wires) from the `electric1` wire's centre at (3.40, 3.505, 4.225) down to (3.40, 3.310, 4.049); `level/lobby/bench_bulb` (the content pack `lobby-bulb@1`, below) hanging from it, its origin (the socket's top) there, `rotation` y 1.571 (`render_visuals[67]` in the result: the entry of the scene's `lamp_on` copied, its model, rotation and scale changed); `point_light(8)`, the same copy as `point_light(7)`, 2.5 cm in front of the bulb's tip along its axis at (3.40, 3.17, 3.88), `intensity` 1.15, `range` 4 m, `attenuation_power` 2; `lamp_bzz(2)`, a copy of `sounds/lamp_bzz` at the bulb (3.40, 3.24, 3.96) | the owner, of the second version: "almost amazing, one small problem is that light is behind the weapon, which drops shadows on it when looking, we can fix that by adding a second lamp + light source above the artifacts list its textures says таблица артефактов, there can be the same lamp going from the same wire original one did"; "i specifically chose that location, because wire is above the artefact table"; of the glowing `lamp_on` first put there: "spot is exact, but the lamp used not, it is also very bright, it should be the same lamp as above the table with wire"; of `props/light/lamp` hanging straight: "see how lamp on the right has wire ... and is at an angle"; of it tilted, its light 0.18 m under the tip: "good, but light is misaligned now", "also lamp is not transparent, like the one above the table"; of the bench bulb model, its light at the tip with the bench light's values (3, 5 m, 7.7): "the lamp is correct, only the light still doesn't look right because the artifacts sheet is too bright", "maybe light direction is wrong?". See below |
+
+The bench bulb, measured in `electric1.model` (its surfaces `electric_s`, the socket, material
+`level/lobby/electric`, and `wp_locker_s`, the glass, `level/lobby/glass_clone`, which draws see-through;
+the drop wire is in `conc_low_s`, vertices 471..485, radius about 0.003): a drop wire leaves the main
+wire's centre at (5.096, 3.515, 2.921), bends at (5.024, 3.424, 2.921) and enters the socket's top at
+(4.920, 3.320, 2.921): 0.26 m, all in the plane z 2.92, towards the room (-x), 38 then 48 degrees from the
+vertical. The bulb's axis (the principal axis of its vertices) is (-0.774, -0.634, -0.003): 50.7 degrees
+from the vertical towards -x, 0.192 m from the socket's top to the tip at (4.771, 3.198, 2.919) (the
+ceiling bulb, measured the same way, is 0.7 degrees off the vertical, 0.190 m).
+
+No model of the db is that bulb: `props/light/lamp` (and `lamp_on`) is the same shape in one surface with
+one opaque material, and no lamp model has a glass surface of its own with a see-through material; a
+scene's `render_visuals` entry has no material override (every entry of the 84 projects holds
+`lib_name`, `position`, `rotation`, `scale`, `visual_name` and at most `sectors`). So the content pack
+`lobby-bulb@1` (`../lobby-bulb/make_pack.py`, from the stock resources.db) adds
+`models/level/lobby/bench_bulb.model`: `electric1`'s two surfaces' triangles of the bench bulb alone (36
+vertices and 34 triangles of the socket, 41 and 65 of the glass), the vertices as they are (normals,
+tangents, UVs into the lobby's atlases) moved by -(4.920, 3.320, 2.921), so its origin is the socket's
+top and it keeps the bench bulb's tilt; the two surfaces' materials are `electric1`'s; settings and
+export properties are the stock ones' (`props/light/lamp`'s settings: no collision, LOD0 only) with the
+counts and bounds of the new geometry, written by the script's config writer (each written file read
+back as the tree it was made from, and the writer checked against the seven stock configs it reads).
+
+The poster is `props/signboard/posters_014` at (3.583, 1.972, 4.627), scale 1.317: the "ТАБЛИЦА
+АРТЕФАКТОВ" strip of `props/signboard/posters_01` (its UVs u 0.89..1.0, v 0.02..0.33), x 3.12..3.68, y
+1.88..3.55 on the back wall (z 4.60). The `electric1` wire runs over it along x at z 4.16..4.25 (rings of
+6 vertices, radius 0.03; over x 3.40 its centre is at y 3.505, z 4.225). The new lamp is the bench one
+turned from the right wall to the back wall: its drop and tilt go towards -z (the room) instead of -x.
+The scene's angles are the negative of the right-handed ones (`posters_014`, rotation 0, faces -z, its
+packed normal; `military_04` faces the room, -x, at y -1.571, and `military_06` at (1.571, 0.012,
+1.571); the lobby camera's yaw turns the same way, `../../docs/notes/client_patch.md` section 3.42), so y
+1.571 turns the bulb's -x tilt to -z: the placed model's vertices give the axis (0.003, -0.634, -0.774),
+50.7 degrees, the socket's top at the wire's end (3.40, 3.310, 4.049) and the tip at (3.40, 3.188,
+3.900). The game run of the version before this one showed that tilt (the bulb seen end-on from the
+lobby's camera, the drop wire towards it). Its light was then 0.18 m under the tip, the bench light's
+offset (the bench light, (4.81, 3.02, 2.91), is 0.18 m under its tip and 4 cm towards the wall: left as
+it is, the owner's "almost amazing"); now it is 2.7 cm from the tip along the axis, 2.22 m from the
+weapon, on the camera's side (the camera at about (3.09, 1.60, 3.05) looking along +x).
+
+Its values. A `point_light` has no direction: `light_type` 0 is `light_type_point` (the engine's
+`light_props.h`; 1 is the spot, as `back2`), and the point light's shader (`shaders/sm_4_0/point_light.h`,
+`point_light_accumulator.ps`, the 0.26 sources under `private/editor-026`) reads only its position, range
+and `attenuation_power`; its `rotation` and spot angles, copied from the ceiling lamp, are unused. A
+surface gets intensity x max(|1 - saturate(d^2 / range^2)|, 0.001)^attenuation_power (times the BRDF's
+cos of the incidence: the poster faces the light square on). With the bench light's 3, 5 m, 7.7 the
+poster, 0.7..1.5 m away, got 2.55..1.45 and the weapon, 2.22 m, 0.56: the curve is flat near the light
+and steep past 2 m. 1.15, 4 m, 2 give the weapon 0.55 (99 %), the poster 1.08..0.85 (42..59 %), 0.6 m
+41 %, and 3.5 m 0.06 (0.02 before): the poster about half as bright, the weapon as it was.
+
+`add_entry` takes a list of numbers for a vector (the position) and a list of vectors for an indexed
+table of them (the wire's points), and refuses a fraction for an int; an entry it adds before one added
+earlier moves that one's checked paths too. It runs before `remove_entry` (no other part of the scene,
+nor the exe, refers to `client_objects` or `render_visuals` by index). The counts: `client_objects`
+72 + 4 - 2 = 74, `render_visuals` 90 + 1 - 18 = 73. The first
+bulb is part of the `level/lobby/electric1` model, whose scene entry has no emissive or other material
+setting: it is not changed (the model files are shared). **To tune** after a game run: both lights'
+intensity and range, and `attenuation_power` (the copy's 7.7).
+
+Applied to the stock file (sha256 `e93de4fc…c0f8`; patch 27's copy is lobby-bench-light-1's, no longer
+in the manifest): 1 file edited, 0 unexpected differences (`client_objects` 72 -> 74, `render_visuals`
+90 -> 73, `collision_objects` 92 -> 66, the new entries); the result sha256 `9d809203…2a8b8`;
+in `release/build-content 28` (2026-10-22, a dry run, after every other list): the same, every list
+at 0 unexpected differences, the scene packed over patch 27's. Rendering and
+sound only: no server data, no simulation change. `client_project.lua` (the editor's text of the
+scene, which the game does not read) is left as it is.
+
+## ban-texts-1.json (2026-10-22)
+
+| change | why |
+|---|---|
+| `st_login_menu_status_user_banned` -> "You are banned. " (and its five translations), in the six localization tables | the stock header said "(Use / distribution / advertisement of prohibited software)" for every ban, whatever the reason. The client puts the reason text right after it, with no space: the new text ends in one |
+| `st_ban_reason_administrator` -> "Decision of the administration." (Entscheidung der Administration, Decyzja administracji, Решение администрации, Рішення адміністрації) | the login server sends this code (0x1C) for an admin's reason with none of its words (`BAN_REASONS`, login-server `v026g.rs`), meant as the neutral one; its stock text was "Pretending to be administrator of the game". A player banned 1 h for friendly fire read both stock texts (the owner, 2026-10-22) |
+
+Applied to revision 29's live tables (from the stock db and patches 12 to 29): 6 files edited, 0 unexpected differences. Text only: no server data, no simulation change.
+
+## third-mod-1.json (2026-10-23)
+
+| change | why |
+|---|---|
+| The 15 masks and respirators (the stock nine, `bandit_026` 1810, the 0.69d masks 1812-1816, `army_026` 1823) may roll type 13 Armor (1000-1004: +2, +3, +4, +5, +8; a mask has only its face values), character 12 of `parameters/available_modifications_mask` set (`0000000000000000010000000000010100000000` -> `0000000000001000010000000000010100000000`) | reliability (type 32) no longer rolls (wear is off since #35, `docs/notes/no-reliability-roll.md`), which left them weight and anomaly filters only; the owner's pick (2026-10-23) |
+| The four oxygen packs (`scavenger_oxygen_1`, `edge_back_3`, `ren_back_3`, `ren_back_5`) may roll type 24 Weight limit (1120-1124: +1..+5 kg) and type 28 Energy costs (1160-1164: −2..−10 %), characters 23 and 27 (`0000000000000000010000000000001100000000` -> `0000000000000000010000010001001100000000`) | the same: weight and oxygen were left; the owner's pick |
+| The Pilgrim container (`edge_back_6`) may roll type 28 Energy costs, character 27 (`backpacks-1.json`'s `0000000000000011110010010000100100000000` -> `0000000000000011110010010001100100000000`) | its default Regeneration (1094) takes the type `backpacks-1.json` added, so it was left with weight and weight limit; the owner's pick |
+
+Only srp reads the masks: the client shows whatever modification the server sends, from its own
+`modifications.options`. Applied to revision 29's live files (from the stock db and patches 12 to
+29, after `backpacks-1.json`): 20 files edited, 0 unexpected differences. With it every item that
+rolls has three types or more besides reliability
+(`modifications::tests::every_item_of_the_built_game_data_rolls_three_types` on the built server
+game data). No simulation change: a match applies only the modifications an item has.
+
+## artefact-texts-1.json (2026-10-23)
+
+| change | why |
+|---|---|
+| `st_spring_pickup_hint`: movement speed by 2 % -> "movement speed and aiming speed by 5 %" (German said 5 % already) | `artefacts-1.json`: passive movement speed +5 %, aim time -5 % (the gloves' texts call aim time "aiming speed") |
+| `st_spring_activation_hint`: "Speed of movement and aiming +10 %" (German's total +15 %), and "Bullets do not slow you!" | the active's aim time -10 % and `stopping_power_mod` -1 (client patch 54) |
+| `st_lifebone_activation_hint`: "Health restored!" after the cured wounds | patch 54 fills pain, body and head at the active; the pickup hint ("increases health regeneration") is still right |
+| `st_onyx_pickup_hint` 10 % -> 5 % (German "auf 15 %" -> "um 5 %"), `st_onyx_activation_hint` 95 % -> 90 % (German "auf 90 %" -> "um 90 %") | stock mistakes: `damage_mul` and `armor_piercing_mul` are 0.95 passive, 0.1 active, never both |
+
+These hints are the artefacts' only texts: fixed sentences in the localization tables (`data/pickup_hint`,
+`data/activation_hint`), nothing computed from the config; an artefact has no lobby card (its `ui_desc`
+name and description keys have no text, `props_list` is empty). The "Onyx artifact." / "Артефакт Онікс."
+openings, which the maps tab and the damage calculator take the names from, stay. Applied to revision
+29's live tables: 6 files edited, 0 unexpected differences.
+Text only: no server data, no simulation change.
