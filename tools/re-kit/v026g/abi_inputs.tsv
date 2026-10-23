@@ -4497,3 +4497,6 @@ va	name	location	role	basis
 0x0025a730	survarium::particle_game_effect_emitter_cook::on_particle_system_loaded	stack+8	the effect's config: key_frames, view (an int, 1 when absent; the emitter +13Ch), time_to_finish, time_mode, length	observed
 0x00313640		ECX	the calculator: +8h the artefact	observed
 0x00313640		entry ESP+4	out: +0 0, +4 0.0f, +8 byte finished	observed
+0x0023dec0	survarium::base_game_scene::point_to_screen	entry ESP+4	the game ([game_world_ui+18h]): +0Ch the camera's transform (inverted by 0xEE040), +4Ch the projection (multiplied by 0xEEA10), [+9Ch]+53B0h -> +108h the viewport's width and height (u32)	observed
+0x0023dec0	survarium::base_game_scene::point_to_screen	entry ESP+8	the point, float3 in world space	observed
+0x0023dec0	survarium::base_game_scene::point_to_screen	entry ESP+12	the screen position out, float2 in pixels from the top left	observed

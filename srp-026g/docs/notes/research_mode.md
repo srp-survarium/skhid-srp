@@ -9,7 +9,9 @@ release too" (2026-10-22). Not in revision 28.
 Code: exe patch 53 (`client-patches/research_rule_026g.c` the rules, `research_native_026g.c`
 the game's side, `research_026g.asm` the hooks; README "53."); the hud movie
 (`flash/hud`: `HUD.research_update`, `survarium.controls.ResearchUnits`,
-`ResearchMinimapPoint`, `Minimap.setResearchUnits`); the content (`scripts/research-mode`,
+`ResearchMinimapPoint`, `Minimap.setResearchUnits`); the player-icons movie
+(`flash/player_icons`: `research_markers`, `HUDIconLayer.research_markers`,
+`survarium.controls.ResearchMarker`); the content (`scripts/research-mode`,
 pack `research-mode@3`); srp (`maps::mode::RESEARCH`, `match_msgs::rules::Research`,
 rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
 
@@ -62,6 +64,20 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   the units on the minimap and the Tab map; messages: the start's "Find and capture research
   units!", "Unit A captured" / "Unit A lost" for one's own team, the end's victory, defeat or
   draw.
+- **Timers** (players on Discord, passed on by the owner 2026-10-23: "Missing timers on Research
+  capture"): under a unit, while its capture or neutralisation runs, the time left (m:ss, rounded
+  up) at the speed of the players inside: the capture to full (or the owner filling a drained
+  unit back up), or the other team's capture or ownership drained to neutral; a unit nobody took
+  yet, a whole capture. None when nobody is inside, both teams are, or the unit is owned and
+  full. 0.27d showed no time (its units' rings, and a "Capturing unit..." bar).
+- **Markers on the screen** (the same feedback: "add in-screen locations of capture points. Having
+  to Tab to see where they are at times is eh. (Farthest one has smaller icons, while the one
+  closest to you is bigger.)"): each unit where it is on the screen, 2 m over its position, as
+  0.27d's player icon of kind 2 in the player-icons movie: the letter in its owner's colour, the
+  capture ring, larger while one's own player is inside; hidden off the screen and behind the
+  camera, as 0.27d's (it never clamped them to the screen's edges). Full size to 15 m, smaller
+  down to 55 % at 150 m (0.27d's were one size); under it the time left while a capture or
+  neutralisation runs, else the distance in metres.
 - **Late joiners, rollbacks, replays:** the rule's whole state is in the world (21 + 96 bytes a
   unit); a joiner, a resync or a replay computes the same.
 - **Bots (Player vs Bots):** not offered in Research (srp's bots play modes 2 to 4).
@@ -205,8 +221,27 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   the link by symbol. Patch 58's kit keys have blocks of their own the same way,
   and no section (#225's dynamic anomalies had one too, taken out of revision 31).
 - **HUD:** update_ui (every frame): `root.research_update(own team, points 0, points 1, goal,
-  Z, then cp_id, x, -z, owner, taking, progress %, inside 0, inside 1, own player inside)`, sent
-  at a change and every 60 frames; the messages through the hud's parameterised message.
+  Z, then cp_id, x, -z, owner, taking, progress %, inside 0, inside 1, own player inside, then
+  per unit the ms left)` (the ms after the nine-a-unit block, which a movie reading nine a unit
+  reads as before), sent at a change and every 60 frames; the messages through the hud's
+  parameterised message. The ms left are `rr_ms_left` of the rule's state (progress, the team
+  taking it, owner, the players inside and `capture_rate[n - 1]`), only while the time rule is
+  in play (world+18FE4h = 3), as the tick moves the units then only.
+- **Markers:** the same frame, `root.research_markers(own team, Z, then cp_id, on the screen, x,
+  y, metres, owner, taking, progress %, ms left, own player inside)` to the player-icons movie
+  ([[ui+10h]+108h]+4, as update_player_icons 0x23ACC1), at a change and every 60 frames: the
+  unit's position + 2 m up through the game's `base_game_scene::point_to_screen` (0x23DEC0,
+  `engine_point_to_screen`: the game, the point, the pixel out; AL on the screen, in front and
+  inside it), the distance from the camera director's position ([game+98h]+34h, as
+  update_player_icons sizes a player's marker, 0x23AB63). At a match of another mode on the same
+  ui, `research_markers(0, 0)` once. The movie's `HUDIconLayer.research_markers` sizes them
+  (`ResearchMarker`).
+- **0.27d's markers:** its player-icons movie has a third icon kind, `RoundProgress` (the letter
+  and the ring, `CapturePointMarker.updateCaptureRendrer` as the hud's units; `set_capture_data`);
+  the capturable_zone's tick (0x299D22) places icon 6Ah + index at the zone's position through
+  the icons' placer 0x234C20 with no distance scaling (scale 1, alpha C3h; the players' icons
+  get 3 to 1 by distance, 1 to 100 m), hidden when point_to_screen (0x236D90) says off the
+  screen.
 
 ## Inventory of the builds (2026-10-22)
 
@@ -241,15 +276,18 @@ Left out, and why:
 - Exe: patch 53. Simulation change for mode 5 only. Its code is in a new section, `.srpx`, the
   section of the later patches' code (below).
   Simulation change: a match of mode 5 needs it; modes 2-4 do not change.
-- Content: pack `research-mode@3` and the hud movie (content.tsv); the server data with it
-  makes the 25 maps playable.
+- Content: pack `research-mode@3` and the hud and player-icons movies (content.tsv); the server
+  data with it makes the 25 maps playable. The timers and markers (2026-10-23) change no
+  simulation: the exe's hud and the two movies only, which ship together in a release (an older
+  movie ignores the numbers it does not read; an older exe sends no markers).
 - srp: mode 5 in the maps, rooms, results and pay; a server that offers Research asks for the
   revision with patch 53.
 
 ## Tests
 
-- `test_research_rule_026g.c` (the rules, the wire, the water-fill), `check_research_026g.py`
-  (the built exe's hooks and slots under Unicorn on made-up worlds), `selftest_026g.py`.
+- `test_research_rule_026g.c` (the rules, the wire, the water-fill, the time left),
+  `check_research_026g.py` (the built exe's hooks and slots under Unicorn on made-up worlds; the
+  markers through the game's own point_to_screen), `selftest_026g.py`.
 - srp: `match_msgs::rules` (decode), maps (mode 5 playable), rewards (weights, no battery caps).
 - In the game: see the PR's test plan.
 

@@ -1503,6 +1503,20 @@ The old bytes' jumps all landed inside them; nothing else aims inside; no base r
   `Invoke` 0x511600 (thiscall: name, result, args, count; `ret 10h`), a GFx value 18h bytes (+4 the
   type: 4 uint, 5 number; +8 the value). The world from the ui: [[ui+18h]+4D4Ch]+1F8h, its rules
   at +18824h (the minimap's 0x23AA21). `root.set_game_type` gets `mode.mode` (0x234D66).
+- **The units' markers and timers** (PROVEN in the code, run with Unicorn through the game's own
+  point_to_screen; 2026-10-23): the player-icons movie is [[ui+10h]+108h]+4
+  (game_world_ui::update_player_icons 0x23ACC1, create_hud_icon 0x23BE31). update_player_icons
+  places a player's marker with `base_game_scene::point_to_screen` 0x23DEC0 (`ret 0Ch`: the game
+  [ui+18h], a float3 in the world, a float2 out in pixels; the game's camera transform +0Ch
+  inverted by 0xEE040 times its projection +4Ch by 0xEEA10, the viewport's width and height at
+  [[+9Ch]+53B0h]+108h; AL 1 when the projected z is below 1 and the pixel strictly inside the
+  screen, else the out point clamped to the edges), hides it at AL 0 (0x23AB17), and sizes it by
+  its distance from the camera director's position [[game+98h]+34h] (0x23AB63: 3 at 1 m to 1 at
+  100 m, alpha FFh to 80h). `rn_hud` sends `root.research_markers` from the same function
+  (`engine_point_to_screen`) and the same position; the time left (`rr_ms_left`) goes after
+  `research_update`'s nine-a-unit block. 0.27d's markers were the same layer: icon kind 2
+  (`RoundProgress`), ids 6Ah + index, placed by the zone's tick (0x299D22 -> 0x234BE0 ->
+  0x234C20) at scale 1, alpha C3h, hidden at point_to_screen's 0.
 - **The first local test's crash** (PROVEN, 2026-10-22, the owner's two clients on map 184, both
   at their first synchronization: `PRIV_INSTRUCTION` at 0x9FB814): the first build's slot 16 was
   `deserialize(reader)` `ret 4`. The rules loop above left esp 4 bytes low; 0x2D2770's epilogue
