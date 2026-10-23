@@ -721,7 +721,7 @@ fn a_modification_is_rerolled_and_chosen() {
     world.assert_clean();
 }
 
-/// `docs/notes/reroll-keep-old.md`: the window's "keep old", after the
+/// `docs/notes/reroll-keep-old.md`: the window's Cancel (keep old), after the
 /// game was started again.
 #[test]
 fn a_rerolled_modification_may_be_kept() {

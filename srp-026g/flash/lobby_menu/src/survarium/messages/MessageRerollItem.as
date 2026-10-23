@@ -31,10 +31,6 @@ package survarium.messages
    public class MessageRerollItem extends MessageAccept
    {
 
-      // The cancel button while the three are offered: the item keeps its modification (the change
-      // stays paid). English, Ukrainian, Russian, German, Polish.
-      private static const KEEP_OLD_LABEL:Array = ["Keep old","Не міняти","Не менять","Behalten","Zostaw stary"];
-
       // The window's rule line, in place of the game's st_modifier_reroll_description ("only one
       // modifier"): any modifier may be changed (the owner's rule of 2026-10-22).
       private static const REROLL_DESCRIPTION:Array = [
@@ -396,7 +392,6 @@ package survarium.messages
          btnAccept.y = backgroundBottom + 4 - buttonAreaHeight;
          btnCancel.y = btnAccept.y;
          btnAccept.label = LocalizationData.getName(!choosing ? "btn_reroll_change_label" : "btn_reroll_choose_label");
-         btnCancel.label = (!choosing ? LocalizationData.getName("cancel") : String(KEEP_OLD_LABEL[RoomsText.language()])).toUpperCase();
          btnClose.enabled = !choosing;
       }
       
@@ -460,7 +455,8 @@ package survarium.messages
          }
       }
 
-      // While the three are offered the cancel button keeps the old modification: the server's
+      // While the three are offered the game's Cancel button (the stock label MessageAccept sets)
+      // takes none of them: the item keeps its modification, the change stays paid. The server's
       // answer (83 46 08, the old one into itself) fills the window again, as after a choice.
       override protected function onMessageCancel(event:ButtonEvent = null) : void
       {

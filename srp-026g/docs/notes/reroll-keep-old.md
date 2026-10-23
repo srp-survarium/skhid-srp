@@ -9,15 +9,17 @@ modification reroll of the Upgrade window; the price is paid anyway. Code:
   pays (silver or gold, `46 07`); the server takes the price and offers three in its place
   (`83 46 07`); the window shows the item's modifications (the old one marked) and the three; the
   player takes one (`46 08`), which replaces the old one (`83 46 08`).
-- **New:** while the three are offered, the window's Cancel button reads "Keep old" and takes none
-  of them: the item keeps its modification.
+- **New:** while the three are offered, the window's Cancel button takes none of them: the item
+  keeps its modification. It is the game's own Cancel, as in every other window (the owner,
+  2026-10-23: "replace keep old with generic cancel, like all other options"): the stock
+  `cancel` text in every state of the window, no text of srp's.
 - **Pending:** nothing of the item changes until the answer. The server holds the offer (the old
   one and the three) with the item, saved with it.
 - **Price:** taken once, when the three are offered. Keeping the old one gives nothing back; the
   change counts like any other: the next one costs 1.1 times more (no wait since 2026-10-22).
 - **No second roll while one is pending:** asking again (silver or gold, any modification) shows
   the same three and takes nothing; a craft of the item is refused until the answer.
-- **One answer:** a choice or "keep old" ends the offer; a second answer is refused. The old and a
+- **One answer:** a choice or Cancel ends the offer; a second answer is refused. The old and a
   new one can never both be on the item: a choice replaces the old one in its place.
 - **The window closed, the game left, a server restart:** the window can not be closed while the
   three are offered (its close button is off, as in the game). If the game goes away anyway, the
@@ -26,12 +28,13 @@ modification reroll of the Upgrade window; the price is paid anyway. Code:
   more.)
 - **What stays locked:** nothing since 2026-10-22, see below. (The game's rule was one
   modification of an item, any number of times: the first change picked which.)
-- **Wire:** "keep old" is `46 08 <item> <old> 3` (the place after the three; the exe sends Flash's
+- **Wire:** Cancel (keep the old one) is `46 08 <item> <old> 3` (the place after the three; the exe sends Flash's
   value as it is, 0x29FF7A). The answer is `83 46 08 <item> <old> <old> <costs> <wait>`: the
   client changes the old one into itself (nothing) and fills the window again. No exe change.
-- **Texts (the button):** Keep old, Не міняти, Не менять, Behalten, Zostaw stary.
+- **Texts (the button):** none of srp's: the game's `cancel`, in its five languages. (Until
+  2026-10-23 it read "Keep old" while the three were offered.)
 - **Release:** the lobby movie (the content patch) and the server, together: an old movie never
-  sends "keep old"; an old server refuses it as a choice that is none (the window is filled
+  sends the keep-old answer; an old server refuses it as a choice that is none (the window is filled
   again, the offer still there).
 
 ## Any modification may be rerolled
