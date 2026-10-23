@@ -412,7 +412,7 @@ mod tests {
         expected.extend_from_slice(&[
             1, 0, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0,   // the kits' revisions
             1, 0, 0, 0,                             // the active kit
-            0,                                      // autobuy
+            1,                                      // autobuy: on for a new account
             0,                                      // level
             0, 0, 0, 0,  0, 0, 0, 0,  0xF4, 0x01, 0, 0,
         ]);

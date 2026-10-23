@@ -6,7 +6,7 @@ package survarium.player
    import scaleform.clik.utils.ConstrainedElement;
 
    // The greyed Play's and Join's tip (presets.md, the reasons): the game's
-   // tooltip (SrvProfileTipRendererStyled, as Autorepair's), its text a
+   // tooltip (SrvProfileTipRendererStyled, as Autobuy's), its text a
    // line a reason, with the left margin as wide as the right (the owner's
    // of 2026-10-23: "a bit more padding from the left"). The stock renderer
    // pads the right by 5 more than its margins and takes one line only.
