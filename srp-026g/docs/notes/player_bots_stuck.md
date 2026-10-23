@@ -251,6 +251,26 @@ Ranked by what they would do for the bots (each a suggestion, not built):
    `motor.rs` presses jump when the reckoning (`BodyTrack::last_error`)
    shows the body short of the reckoned place by more than 1 m while the
    route ahead rises under 0.6 m (a lip, a rail).
+   **Built** (`motor.rs`, `Motor::hop_key`, the numbers `Feel::hop_*`):
+   while walking a route (`walk` and `walk_aiming`), a hop when a world
+   has just put the body caught on rising ground. The signal is the
+   reckoned feet going back along the way from one tick to the next: the
+   keys never move them back, only a world does, by as much as the body
+   was short of the reckoning (`last_error`, along the way), read from
+   the poses the motor is given. It hops when that is at least 1 m and a
+   fifth of the way reckoned since the world before, and the ground about
+   the body climbs 0.25-0.9 m within 1.5 m: the floors the reckoning
+   walked (it walks the grid; the route's corners are far apart, a lip
+   between two is not in its heights), or the route's own heights. Not
+   turning more than 0.35 rad, not within 1.5 m of a low leg or a jump of
+   the route, not within 2 s of the route's jump, at most once in 4 s.
+   A hop has to come at the first world that shows the catch: at the next
+   the stuck watch takes over (1.5 s without moving). The player numbers
+   (a jump a minute, on the move) are why it exists; the thresholds are a
+   choice, not measured. Tests: `a_body_caught_at_a_lip_hops_once`,
+   `the_hop_cools_down`, `flat_walking_never_hops`,
+   `no_hop_under_a_low_floor_or_by_a_planned_jump`. Not seen in a real
+   game.
 3. **Short stops** (GUESS on impact). Players stand 2 s at the median, 6 s
    at the 90th percentile; bots look about 1-2 s at an arrival and stand to
    aim. Suggest: `tactics.rs`'s hold plays end in 2-6 s by that spread.
