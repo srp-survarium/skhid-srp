@@ -179,9 +179,8 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
     owner's "670, then 70"). The server read the same bytes: live match 0x31973a2 scored 993
     and 1023 and paid 124k silver.
   - Fixed in the next revision (`check_research_026g.py` runs the game's own
-    `recalculate_scores` on the cell, and a kit 1 kill invader). The match server pays no event
-    7 or 19 in a Research match (`battery_cap::research_misplaced`): revision 30's games cannot be
-    told apart, and 19 is never real in Research; a real teammate cure there goes unpaid.
+    `recalculate_scores` on the cell, and a kit 1 kill invader). No server-side workaround: the
+    release raises the minimum patch revision, so revision 30's games are refused.
 - **Wire (rules blob, between the respawn rule and the kd rule; little-endian):**
 
   | at | size | what |

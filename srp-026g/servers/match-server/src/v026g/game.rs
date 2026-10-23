@@ -4729,18 +4729,6 @@ impl Game {
                         self.batteries()
                     );
                 }
-                if self.game_mode() == mode::RESEARCH {
-                    for cut in battery_cap::research_misplaced(&mut statistics) {
-                        log::info!(
-                            "Match {:#x}: place {}'s event \"{}\" counted {}, paid 0 (Research \
-                             of revision 30 counts its captures there)",
-                            self.id,
-                            cut.place,
-                            cut.kind,
-                            cut.counted
-                        );
-                    }
-                }
                 statistics
             });
         let statistics = statistics.as_ref();
