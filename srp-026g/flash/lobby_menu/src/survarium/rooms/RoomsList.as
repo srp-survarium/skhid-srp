@@ -92,7 +92,7 @@ package survarium.rooms
             var inner:Sprite = look.scrollBox(14, 108, tableW - 12, look._h - RoomsLook.FOOT_H - 108 - 8);
             var sel:Object = null;
             if (win._rooms.length == 0)
-                look.text(inner, win.say(LocalPlayerProfile.mayPlay() ? "none" : LocalPlayerProfile.mayCreate() ? "noneNoPlay" : "noneQuiet"), 0, 14, tableW - 20, 16, RoomsLook.GREY);
+                look.text(inner, win.say(win.playLit() ? "none" : LocalPlayerProfile.mayCreate() ? "noneNoPlay" : "noneQuiet"), 0, 14, tableW - 20, 16, RoomsLook.GREY);
             for (var i:int = 0; i < win._rooms.length; i++)
             {
                 var room:Object = win._rooms[i];
@@ -470,6 +470,8 @@ package survarium.rooms
         // with `preset`: 0 none, else put on before the join.
         private function joinRoom(room:Object, preset:int = -1):void
         {
+            // A Join of the player's own: no longer the window Play opened.
+            win._openedByPlayAt = 0;
             if (room == null || win._steps.length > 0 || !joins(room) || !mayGoIn(room))
                 return;
             win._busyAt = getTimer();

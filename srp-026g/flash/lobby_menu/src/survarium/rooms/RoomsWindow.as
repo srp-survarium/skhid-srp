@@ -17,6 +17,7 @@ package survarium.rooms
     import survarium.controls.BottomPanel;
     import survarium.controls.Message;
     import survarium.controls.SrvContextMenu;
+    import survarium.player.LocalPlayerProfile;
     import survarium.controls.TopMenu;
     import survarium.constants.JoinHold;
     import survarium.constants.RoomCode;
@@ -107,10 +108,15 @@ package survarium.rooms
         // (until then; then while in a room).
         private var _playAskedAt:int = 0;
 
-        // The window was opened by Play (quickPlay) and nothing has answered
-        // it yet: a refusal of the kit (code 15) closes it again, so a
-        // refused Play leaves no rooms view behind (presets.md).
-        private var _openedByPlay:Boolean = false;
+        // When Play (quickPlay) opened the window (0: it did not, or that is
+        // settled): a refusal of the kit (code 15) within PLAY_OPEN_MS closes
+        // it again, so a refused Play leaves no rooms view behind
+        // (presets.md). A poll's plain answer before Play's own keeps it;
+        // a room, another code, the window closed, or a Join or New room in
+        // it end it.
+        private static const PLAY_OPEN_MS:int = 6000;
+
+        internal var _openedByPlayAt:int = 0;
         // The list as last drawn, but its times: a change redraws it.
         private var _listSig:String = "";
         private var _windowsSeen:Object = {};
@@ -250,7 +256,25 @@ package survarium.rooms
         {
             _lobby = lobby;
             _nativePlay = on;
+            // The lobby is live: the presets' reasons may now come (their
+            // fallback counts from here).
+            LocalPlayerProfile.lobbyLive();
             applyPlay();
+        }
+
+        // RoomsList's empty-list hint: whether Play is lit now (the game's
+        // own state and ours).
+        internal function playLit():Boolean
+        {
+            try
+            {
+                var lobby:LobbyMenu = _lobby != null ? _lobby : parent as LobbyMenu;
+                return lobby != null && lobby.statusPanel.playBtn.enabled && !leavesRoom() && !leavesQueue();
+            }
+            catch (e:Error)
+            {
+            }
+            return false;
         }
 
         // LocalPlayerProfile, a presets list taken: whether the kits can play
@@ -483,14 +507,16 @@ package survarium.rooms
         // until its answer (6 s at most).
         internal function applyPlay(each:Boolean = false):void
         {
-            if (_lobby == null)
+            // Before the game's first word on Play, the lobby we are in.
+            var lobby:LobbyMenu = _lobby != null ? _lobby : parent as LobbyMenu;
+            if (lobby == null)
                 return;
             try
             {
                 var leaving:Boolean = leavesRoom();
                 var queued:Boolean = !leaving && leavesQueue();
                 var asking:Boolean = _playAskedAt != 0 && getTimer() - _playAskedAt < 6000;
-                _lobby.statusPanel.showRoomsPlay(leaving, queued, asking, each, _nativePlay,
+                lobby.statusPanel.showRoomsPlay(leaving, queued, asking, each, _nativePlay,
                     say(leaving ? "leaveRoom" : "leaveQueue"));
             }
             catch (e:Error)
@@ -522,7 +548,7 @@ package survarium.rooms
         {
             _code = RoomCode.NONE;
             _steps = [];
-            _openedByPlay = !_shown;
+            _openedByPlayAt = _shown ? 0 : Math.max(1, getTimer());
             if (!_shown)
                 show(true);
             _fastUntil = getTimer() + 10000;
@@ -558,7 +584,10 @@ package survarium.rooms
         {
             _hideAfterResults = false;
             if (!value)
+            {
                 _offer = null;
+                _openedByPlayAt = 0;
+            }
             _shown = value;
             visible = value;
             // Enter in the list joins the room chosen (once on the stage).
@@ -881,18 +910,18 @@ package survarium.rooms
                 var newCode:Boolean = code != _code;
                 _code = code;
                 applyPlay();
-                if (_openedByPlay && code == RoomCode.KIT_CANT_PLAY)
+                if (_openedByPlayAt != 0 && code == RoomCode.KIT_CANT_PLAY
+                    && getTimer() - _openedByPlayAt < PLAY_OPEN_MS)
                 {
-                    _openedByPlay = false;
+                    _openedByPlayAt = 0;
                     _code = RoomCode.NONE;
-                    _playAskedAt = 0;
                     applyPlay();
                     if (_shown)
                         show(false);
                     return;
                 }
-                if (code != RoomCode.NONE || _playAskedAt == 0)
-                    _openedByPlay = false;
+                if (code != RoomCode.NONE)
+                    _openedByPlayAt = 0;
                 var wasRoom:Boolean = _view == "room";
                 if (had || wasRoom)
                     _view = "list";
@@ -916,7 +945,7 @@ package survarium.rooms
             else if (kind == "R")
             {
                 settle();
-                _openedByPlay = false;
+                _openedByPlayAt = 0;
                 _queueKey = 0;
                 _queuePlace = 0;
                 var was:Object = _room;

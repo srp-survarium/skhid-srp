@@ -940,13 +940,31 @@ package survarium.player
          addEventListener(MouseEvent.MOUSE_DOWN,this.onPanelPress);
          addEventListener(Event.REMOVED_FROM_STAGE,this.onPresetsGone);
          this.showPresetTitle();
-         this._reasonsFallback = new Timer(REASONS_FALLBACK_MS,1);
-         this._reasonsFallback.addEventListener(TimerEvent.TIMER_COMPLETE,this.onReasonsFallback);
-         this._reasonsFallback.start();
          this._presetsRetry = new Timer(2000,0);
          this._presetsRetry.addEventListener(TimerEvent.TIMER,this.onPresetsRetry);
          this._presetsRetry.start();
          this.askPresets();
+      }
+      
+      // RoomsWindow.playEnabled: the game's first word on Play, the lobby
+      // live; the fallback counts from here (the asks while the movie loads
+      // are lost), and an ask goes now.
+      public static function lobbyLive() : void
+      {
+         if(me == null || me._reasonsFallback != null)
+         {
+            return;
+         }
+         me._reasonsFallback = new Timer(REASONS_FALLBACK_MS,1);
+         me._reasonsFallback.addEventListener(TimerEvent.TIMER_COMPLETE,me.onReasonsFallback);
+         me._reasonsFallback.start();
+         me.askPresets();
+      }
+      
+      // StatusPanel: Play greyed from its start until the reasons are known.
+      public static function reasonsKnown() : Boolean
+      {
+         return me != null && me._reasonsKnown;
       }
       
       // No list in REASONS_FALLBACK_MS: the buttons lit (none greyed for
