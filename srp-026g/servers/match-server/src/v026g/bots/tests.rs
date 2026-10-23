@@ -2439,6 +2439,8 @@ fn bench_tuning() -> Tuning {
         ("SRP_BENCH_COLLECT", super::plays::PlayKind::Collect),
         ("SRP_BENCH_INTERCEPT", super::plays::PlayKind::Intercept),
         ("SRP_BENCH_RAID", super::plays::PlayKind::Raid),
+        ("SRP_BENCH_BUDDY", super::plays::PlayKind::Buddy),
+        ("SRP_BENCH_TRADE", super::plays::PlayKind::Trade),
     ] {
         let Ok(numbers) = std::env::var(var) else {
             continue;

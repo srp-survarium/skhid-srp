@@ -16,13 +16,23 @@
 //!
 //! The follower goes to a point `close_m` short of the leader on its own
 //! side of him (a second angle, not his back), runs while farther than
-//! `keep_m`, walks nearer, and stands looking about once there. Fights,
-//! objectives and alarms outrank it (it is in the roam band), so it is the
-//! default of a follower and nothing more; when the leader is down the
-//! follower roams by itself.
+//! `keep_m`, walks nearer. Fights, objectives and alarms outrank it (it is
+//! in the roam band), so it is the default of a follower and nothing more;
+//! when the leader is down the follower roams by itself.
+//!
+//! Near him it covers him, as a teammate a player would want: it watches
+//! where he does not (a known enemy off his facing, else behind him or a
+//! side, drawn and turned now and then, as `cover_human`) and matches his
+//! stance. The audit of three real 7v7 matches (2026-10-22) had followers
+//! standing beside their leader, doing nothing, for minutes. Stepping out
+//! of his line of fire too was tried and left out: it covered more (58 %
+//! of the time near him looking more than 60 degrees off his facing,
+//! against 47 % looking only and 36 % before) but its moves churned the
+//! plays (A->B->A flips +8 %, beyond the noise).
 
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
+use crate::v026g::bots::kin;
 
 pub const NUMBERS: &[(&str, f32)] = &[
     // Stand this far from the leader, metres.
@@ -36,6 +46,19 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // The leader waits at most this long a run, seconds.
     ("wait_s", 6.0),
     ("give_up_s", 90.0),
+    // Near him: the direction it watches, off his facing, is drawn again
+    // this often, seconds. GUESS, cover_human's.
+    ("turn_min_s", 4.0),
+    ("turn_max_s", 9.0),
+    // A point this far out along the watched direction is looked at,
+    // metres (cover_human's).
+    ("look_m", 20.0),
+    // A known enemy this near him and more than `front_deg` off his facing
+    // is watched instead, metres. GUESS: the fights' ranges (median kill at
+    // 19 m, few past 60).
+    ("threat_m", 60.0),
+    // What he covers himself: within this of his facing, degrees. GUESS.
+    ("front_deg", 60.0),
 ];
 
 pub fn tuning() -> PlayTuning {
@@ -96,14 +119,71 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum State {
-    Follow,
+    Follow {
+        /// What it watches near him, off his facing, degrees.
+        watch_deg: f32,
+        turn_at: u32,
+    },
 }
 
-pub fn start(_target: TargetRef, _cx: &Ctx, _rng: &mut Rng) -> State {
-    State::Follow
+/// A watched direction off his facing: behind, or a side.
+fn draw_watch(rng: &mut Rng) -> f32 {
+    [180.0, 90.0, -90.0][rng.below(3)]
 }
 
-pub fn step(_state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> Step {
+/// When the watched direction is drawn again.
+fn next_turn(cx: &Ctx, rng: &mut Rng) -> u32 {
+    let num = |name| cx.num(PlayKind::Buddy, name);
+    cx.now + (rng.range(num("turn_min_s"), num("turn_max_s")) * 1000.0) as u32
+}
+
+pub fn start(_target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
+    State::Follow {
+        watch_deg: draw_watch(rng),
+        turn_at: next_turn(cx, rng),
+    }
+}
+
+/// The ground point `m` from `from` along `yaw`.
+fn along(from: Vec3, yaw: f32, m: f32) -> Vec3 {
+    let f = kin::forward(yaw);
+    Vec3::new(from.x + f[0] * m, from.y, from.z + f[1] * m)
+}
+
+/// The degrees between `him`'s facing and the way from him to `at`.
+fn off_facing(him: &PlaceView, at: Vec3) -> f32 {
+    let (dx, dz) = (at.x - him.feet.x, at.z - him.feet.z);
+    let len = dx.hypot(dz);
+    if len < 1e-3 {
+        return 180.0;
+    }
+    let f = kin::forward(him.yaw);
+    ((f[0] * dx + f[1] * dz) / len).clamp(-1.0, 1.0).acos().to_degrees()
+}
+
+/// Where it looks near him: the known enemy nearest him off his facing,
+/// else the drawn direction.
+fn watch(cx: &Ctx, him: &PlaceView, watch_deg: f32) -> Look {
+    let num = |name| cx.num(PlayKind::Buddy, name);
+    let threat = cx
+        .memory
+        .tracks()
+        .iter()
+        .filter(|t| {
+            t.at.distance_xz(him.feet) <= num("threat_m")
+                && off_facing(him, t.at) > num("front_deg")
+        })
+        .min_by(|a, b| {
+            a.at.distance_xz(him.feet)
+                .total_cmp(&b.at.distance_xz(him.feet))
+        })
+        .map(|t| t.at);
+    Look::At(threat.unwrap_or_else(|| {
+        along(cx.me.eye(), him.yaw + watch_deg.to_radians(), num("look_m"))
+    }))
+}
+
+pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Step {
     let num = |name| cx.num(PlayKind::Buddy, name);
     if let Some((_, _, started)) = cx.bot.current
         && cx.now > started + (num("give_up_s") * 1000.0) as u32
@@ -123,7 +203,16 @@ pub fn step(_state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> 
     let d = cx.me.feet.distance_xz(him.feet);
     let close = num("close_m");
     if d <= close * 1.4 {
-        return Step::Continue(Intent::stay());
+        let State::Follow { watch_deg, turn_at } = state;
+        if cx.now >= *turn_at {
+            *watch_deg = draw_watch(rng);
+            *turn_at = next_turn(cx, rng);
+        }
+        let mut intent = Intent::stay().looking(watch(cx, him, *watch_deg));
+        if him.crouched() {
+            intent = intent.crouched();
+        }
+        return Step::Continue(intent);
     }
     // Short of him on the bot's own side: beside, not in his back.
     let k = close / d;
@@ -144,7 +233,9 @@ pub fn step(_state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> 
 mod tests {
     use super::super::tests::Scenario;
     use super::*;
+    use crate::v026g::bots::know::Source;
     use crate::v026g::bots::view::Mode;
+    use crate::v026g::drive::key;
 
     /// Bot 2 follows its partner bot 0, `d` metres ahead on the x axis.
     fn pair(d: f32) -> Scenario {
@@ -205,6 +296,53 @@ mod tests {
         s.view.places[0].alive = false;
         let steps = s.run(2, PlayKind::Buddy, TargetRef::Place(0), 2, 250, 5.0);
         assert_eq!(steps[0], Step::Done("the partner is down"));
+    }
+
+    /// Near him it watches where he does not look, in his stance.
+    #[test]
+    fn near_him_it_covers_his_back_in_his_stance() {
+        // The cosine between his facing and the way from the bot to what
+        // it looks at.
+        let looks_his_way = |s: &Scenario, look: Look| {
+            let Look::At(at) = look else {
+                panic!("{look:?}")
+            };
+            let me = s.view.places[2].feet;
+            let f = kin::forward(s.view.places[0].yaw);
+            let (dx, dz) = (at.x - me.x, at.z - me.z);
+            (f[0] * dx + f[1] * dz) / dx.hypot(dz)
+        };
+        let first = |s: &Scenario, seed: u64| {
+            let mut rng = Rng::new(seed);
+            let mut state = start(TargetRef::Place(0), &s.cx(2), &mut rng);
+            match step(&mut state, TargetRef::Place(0), &s.cx(2), &mut rng) {
+                Step::Continue(i) => i,
+                other => panic!("{other:?}"),
+            }
+        };
+        // He faces away from it (+x), it stands 8 m behind: it stays and
+        // watches behind him or a side, never his way.
+        let mut s = pair(8.0);
+        s.view.places[0].yaw = kin::yaw_of([1.0, 0.0]);
+        for seed in 0..6 {
+            let i = first(&s, seed);
+            assert_eq!(i.go, Go::Stay, "{i:?}");
+            assert!(looks_his_way(&s, i.look) < 0.5, "{i:?}");
+        }
+        // A known enemy off his facing: watched.
+        let enemy = Vec3::new(20.0, 0.0, 10.0);
+        s.enemy(5, 1, enemy, Some(Source::Heard));
+        assert_eq!(first(&s, 1).look, Look::At(enemy));
+        // A known enemy he faces: his own, so it keeps to its watch.
+        let ahead = Vec3::new(40.0, 0.0, 30.0);
+        let mut s = pair(8.0);
+        s.view.places[0].yaw = kin::yaw_of([1.0, 0.0]);
+        s.enemy(5, 1, ahead, Some(Source::Heard));
+        assert_ne!(first(&s, 1).look, Look::At(ahead));
+        // He crouches: so does it, staying.
+        s.view.places[0].keys |= key::CROUCH;
+        let i = first(&s, 1);
+        assert!(i.go == Go::Stay && i.crouch, "{i:?}");
     }
 
     #[test]

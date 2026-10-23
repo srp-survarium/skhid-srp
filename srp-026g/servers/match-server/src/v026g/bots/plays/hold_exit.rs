@@ -17,7 +17,7 @@
 
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input, Score};
-use crate::v026g::bots::tactics::SpotQuery;
+use crate::v026g::bots::tactics::{SpotQuery, Tactics};
 use crate::v026g::bots::view::Mode;
 
 pub const NUMBERS: &[(&str, f32)] = &[
@@ -54,6 +54,13 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // Not at its spot after this, it gives up, seconds.
     ("give_up_s", 60.0),
     ("samples", 64.0),
+    // An exit's spots (in sight of it, out of the spawn areas, far from
+    // the enemy's spawns) are looked for once and kept this long for the
+    // whole team, seconds: the play is offered only where one is fine for
+    // the bot, as the commander polls each second. GUESS, not tuned: the
+    // sight rays cast once a quarter-minute an exit, and a hazard on a
+    // spot is still checked at each poll (`fine_spots`).
+    ("spots_keep_s", 15.0),
 ];
 
 pub fn tuning() -> PlayTuning {
@@ -82,7 +89,17 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     if cx.me.carrying.is_some() {
         return;
     }
-    for index in 0..cx.tactics.exits(enemy).len() {
+    let running = match cx.bot.current {
+        Some((PlayKind::HoldExit, TargetRef::Exit(i), _)) => Some(i),
+        _ => None,
+    };
+    for (index, &exit) in cx.tactics.exits(enemy).iter().enumerate() {
+        // Offered only where a spot is fine for it now: taking it to find
+        // none ended it within the second (the audit's churn), and the
+        // set-aside that followed let it be taken again 8 s later.
+        if running != Some(index) && fine_spots(cx, exit).is_empty() {
+            continue;
+        }
         out.extend(
             cx.candidate(
                 PlayKind::HoldExit,
@@ -121,41 +138,63 @@ fn weighed(cx: &Ctx, kind: PlayKind, mut c: Candidate) -> Option<Candidate> {
     (!c.score.is_zero()).then_some(c)
 }
 
-/// A spot to hold `exit` from.
-fn pick(cx: &Ctx, exit: Vec3, rng: &mut Rng) -> Option<Vec3> {
+/// The spots to hold `exit` from that stay so for a while, best first: in
+/// sight of it, outside every spawn area and `base_min_m` from the enemy's
+/// spawns; found once for the side and kept `spots_keep_s`.
+fn spots_by(cx: &Ctx, exit: Vec3) -> std::sync::Arc<Vec<Vec3>> {
     let num = |name| cx.num(PlayKind::HoldExit, name);
-    let enemy = cx.bot.side.and_then(|side| cx.enemy_side(side));
-    let spawns: Vec<Vec3> = cx
-        .tactics
-        .world
-        .map
-        .spawns
+    let key = Tactics::spot_key(PlayKind::HoldExit as u32, cx.bot.side, exit);
+    let keep = (num("spots_keep_s") * 1000.0) as u32;
+    cx.tactics.spots_kept(key, cx.now, keep, || {
+        let enemy = cx.bot.side.and_then(|side| cx.enemy_side(side));
+        let spawns: Vec<Vec3> = cx
+            .tactics
+            .world
+            .map
+            .spawns
+            .iter()
+            .filter(|s| Some(s.team) == enemy)
+            .map(|s| s.position)
+            .collect();
+        let query = SpotQuery {
+            sight_to: Some(exit),
+            prefer_high: num("prefer_high"),
+            side: cx.bot.side,
+            samples: num("samples") as usize,
+            ..SpotQuery::ring(exit, num("spot_min_m"), num("spot_max_m"))
+        };
+        let mut rng = Rng::new(key ^ u64::from(cx.now));
+        cx.tactics
+            .spots(&query, cx.now, query.samples, &mut rng)
+            .into_iter()
+            .map(|s| s.at)
+            .filter(|at| {
+                !cx.tactics.in_spawn_area(*at, None)
+                    && spawns
+                        .iter()
+                        .all(|s| s.distance_xz(*at) >= num("base_min_m"))
+            })
+            .collect()
+    })
+}
+
+/// Of [`spots_by`], those this bot may take now, best first: fine goals,
+/// `moved_min_m` from where it stands.
+fn fine_spots(cx: &Ctx, exit: Vec3) -> Vec<Vec3> {
+    let moved = cx.num(PlayKind::HoldExit, "moved_min_m");
+    spots_by(cx, exit)
         .iter()
-        .filter(|s| Some(s.team) == enemy)
-        .map(|s| s.position)
-        .collect();
-    let query = SpotQuery {
-        sight_to: Some(exit),
-        prefer_high: num("prefer_high"),
-        side: cx.bot.side,
-        samples: num("samples") as usize,
-        ..SpotQuery::ring(exit, num("spot_min_m"), num("spot_max_m"))
-    };
-    let fine: Vec<Vec3> = cx
-        .tactics
-        .spots(&query, cx.now, 12, rng)
-        .into_iter()
-        .map(|s| s.at)
+        .copied()
         .filter(|at| {
-            cx.tactics.fine_goal(*at, cx.now, cx.bot.side)
-                && !cx.tactics.in_spawn_area(*at, None)
-                && spawns
-                    .iter()
-                    .all(|s| s.distance_xz(*at) >= num("base_min_m"))
-                && at.distance_xz(cx.me.feet) >= num("moved_min_m")
+            cx.tactics.fine_goal(*at, cx.now, cx.bot.side) && at.distance_xz(cx.me.feet) >= moved
         })
-        .collect();
-    let n = fine.len().min(num("pick_of").max(1.0) as usize);
+        .collect()
+}
+
+/// A spot to hold `exit` from: one of the best `pick_of` fine ones.
+fn pick(cx: &Ctx, exit: Vec3, rng: &mut Rng) -> Option<Vec3> {
+    let fine = fine_spots(cx, exit);
+    let n = fine.len().min(cx.num(PlayKind::HoldExit, "pick_of").max(1.0) as usize);
     (n > 0).then(|| fine[rng.below(n)])
 }
 
