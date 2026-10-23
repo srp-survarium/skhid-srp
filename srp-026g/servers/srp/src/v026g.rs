@@ -41,6 +41,7 @@ use session::v026g::replays::{ReplaySettings, Replays};
 use session::v026g::rewards::{self, Results, Terms};
 use session::v026g::{GameAccounts, quests, wire};
 use survarium::v026g::drops::Rng;
+use survarium::v026g::match_msgs::static_info::TeamDamage;
 
 /// Delay before restarting a server that exited, to avoid a hot crash loop.
 const RESTART_DELAY: Duration = Duration::from_secs(1);
@@ -383,6 +384,10 @@ pub struct Options {
     /// off): the folders the match server converts recordings into, the
     /// lobby gives tokens for and the web page serves from.
     pub replays: Option<ReplaySettings>,
+    /// Team damage turned back on its dealer past a threshold, as 0.28a
+    /// had it (`SRP_TEAM_DAMAGE`; exe patch 63, `docs/notes/team-damage.md`):
+    /// 0.28a's numbers by default, `None` off.
+    pub team_damage: Option<TeamDamage>,
 }
 
 impl Options {
@@ -402,6 +407,7 @@ impl Options {
             certs: PathBuf::from("./certs"),
             bots: session::v026g::bots::from_env(),
             replays: ReplaySettings::from_env(),
+            team_damage: matches::team_damage_from_env(),
         }
     }
 
@@ -416,6 +422,7 @@ impl Options {
             certs: certs.to_owned(),
             bots: Vec::new(),
             replays: None,
+            team_damage: Some(TeamDamage::ORIGINAL),
         }
     }
 }
@@ -471,10 +478,10 @@ impl Stack {
         // The match server first: the registry tells the port it got.
         let match_socket = UdpSocket::bind(&options.match_bind)?;
         let match_addr = match_socket.local_addr()?;
-        let registry = Arc::new(MatchRegistry::new(
-            &options.match_public_host,
-            match_addr.port(),
-        ));
+        let registry = Arc::new(
+            MatchRegistry::new(&options.match_public_host, match_addr.port())
+                .with_team_damage(options.team_damage),
+        );
 
         // One for the process: the match server converts, the lobby gives
         // tokens, the web page takes them.

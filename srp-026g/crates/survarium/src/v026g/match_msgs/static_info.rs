@@ -12,7 +12,12 @@
 //! u16 match level         logged only
 //! 28 × f32                score weights
 //! 20 × u8                 squad ids
+//! [srp's block]           "SRPX", then {u8 tag, u8 len, len bytes}...
 //! ```
+//!
+//! The client reads the fields above and nothing after them; srp's block
+//! is read by exe patches only (`match_options::deserialize`'s end,
+//! 0x1F0F30): tag 1 is [`TeamDamage`] (patch 63).
 //!
 //! The client checks nothing of this: a string, a kit or an item too many
 //! writes over its memory, an item the dictionary lacks crashes it later.
@@ -307,6 +312,85 @@ pub struct MatchOptions {
     pub match_id: u32,
     pub match_level: u16,
     pub score_weights: [f32; SCORE_EVENTS],
+    /// Team damage turned back on its dealer past a threshold (srp's block,
+    /// tag 1); `None`: off, the block not sent.
+    pub team_damage: Option<TeamDamage>,
+}
+
+/// srp's block after the options: its magic, then tagged entries.
+pub const SRPX_MAGIC: &[u8; 4] = b"SRPX";
+/// The entry of [`TeamDamage`].
+pub const SRPX_TEAM_DAMAGE: u8 = 1;
+
+/// 0.28a's `teamdamage_params` (`gameplay/players/default.player` of 0.28a2,
+/// 0.28d0 and 0.31a2; `docs/notes/team-damage.md`), which exe patch 63 plays:
+/// a player whose damage to teammates is more than `max_amount` and more
+/// than `max_ratio` of all the damage he dealt (in health: 1.0 is a full
+/// bar; per match, never less) hurts no teammate any more: each hit of his
+/// on one is dealt to himself, its damage times `return_ratio`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TeamDamage {
+    pub max_amount: f32,
+    pub max_ratio: f32,
+    pub return_ratio: f32,
+}
+
+impl TeamDamage {
+    /// 0.28a's numbers.
+    pub const ORIGINAL: Self = Self {
+        max_amount: 3.0,
+        max_ratio: 0.67,
+        return_ratio: 2.0,
+    };
+
+    /// What the client takes (patch 63's `td_options`): finite, the amount
+    /// not negative, the share 0 to 1, the factor 0 to 16. Anything else
+    /// it reads as no block.
+    pub fn is_valid(&self) -> bool {
+        self.max_amount.is_finite()
+            && self.max_amount >= 0.0
+            && (0.0..=1.0).contains(&self.max_ratio)
+            && (0.0..=16.0).contains(&self.return_ratio)
+    }
+
+    /// `SRP_TEAM_DAMAGE`: unset, empty or `on` for [`Self::ORIGINAL`], `off`
+    /// for none, or `max_amount,max_ratio,return_ratio`. `Err` says why a
+    /// value is none of them.
+    pub fn from_setting(value: Option<&str>) -> Result<Option<Self>, String> {
+        let value = value.map(str::trim).unwrap_or("");
+        match value.to_ascii_lowercase().as_str() {
+            "" | "on" => return Ok(Some(Self::ORIGINAL)),
+            "off" => return Ok(None),
+            _ => {}
+        }
+        let numbers = value
+            .split(',')
+            .map(|number| number.trim().parse::<f32>())
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| format!("`{value}` is not `on`, `off` or three numbers"))?;
+        let [max_amount, max_ratio, return_ratio] = numbers[..] else {
+            return Err(format!("`{value}` is not three numbers"));
+        };
+        let rules = Self {
+            max_amount,
+            max_ratio,
+            return_ratio,
+        };
+        if rules.is_valid() {
+            Ok(Some(rules))
+        } else {
+            Err(format!(
+                "`{value}`: the amount must be 0 or more, the share 0 to 1, the factor 0 to 16"
+            ))
+        }
+    }
+
+    fn write(&self, out: &mut Vec<u8>) {
+        out.extend([SRPX_TEAM_DAMAGE, 12]);
+        for number in [self.max_amount, self.max_ratio, self.return_ratio] {
+            out.extend(number.to_le_bytes());
+        }
+    }
 }
 
 /// Why options cannot go to a client, or why bytes are no options.
@@ -354,6 +438,10 @@ pub enum StaticInfoError {
     Lzma2,
     /// Reading: the local index is not below N.
     LocalIndex { index: u8, roster: u8 },
+    /// Team damage numbers the client would not take.
+    TeamDamage,
+    /// Reading: srp's block is not "SRPX" and whole entries.
+    SrpBlock,
 }
 
 impl std::fmt::Display for StaticInfoError {
@@ -390,6 +478,8 @@ impl std::fmt::Display for StaticInfoError {
             Self::LocalIndex { index, roster } => {
                 write!(f, "local index {index} in a roster of {roster}")
             }
+            Self::TeamDamage => write!(f, "team damage numbers out of range"),
+            Self::SrpBlock => write!(f, "srp's block after the options is malformed"),
         }
     }
 }
@@ -599,6 +689,13 @@ pub fn options_bytes(
         *squad = profile.squad;
     }
     out.extend(squads);
+    if let Some(team_damage) = &options.team_damage {
+        if !team_damage.is_valid() {
+            return Err(StaticInfoError::TeamDamage);
+        }
+        out.extend(SRPX_MAGIC);
+        team_damage.write(&mut out);
+    }
     if out.len() > OPTIONS_BUFFER {
         return Err(StaticInfoError::TooLarge(out.len()));
     }
@@ -831,6 +928,7 @@ pub fn parse_options(
         *weight = reader.f32()?;
     }
     let squads = reader.take(MAX_PLAYERS)?;
+    let team_damage = read_srp_block(&mut reader)?;
     if !reader.bytes.is_empty() {
         return Err(StaticInfoError::Trailing(reader.bytes.len()));
     }
@@ -851,7 +949,45 @@ pub fn parse_options(
         match_id,
         match_level,
         score_weights,
+        team_damage,
     })
+}
+
+/// srp's block after the options, if any: as patch 63's `td_options` reads
+/// it, but strict (an unknown tag, a short entry or numbers it would drop
+/// are refused, so a test sees them).
+fn read_srp_block(reader: &mut Reader) -> Result<Option<TeamDamage>, StaticInfoError> {
+    if reader.bytes.is_empty() {
+        return Ok(None);
+    }
+    if reader.take(4).map_err(|_| StaticInfoError::SrpBlock)? != SRPX_MAGIC {
+        return Err(StaticInfoError::SrpBlock);
+    }
+    let mut team_damage = None;
+    while !reader.bytes.is_empty() {
+        let tag = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
+        let len = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
+        let mut entry = Reader {
+            bytes: reader
+                .take(usize::from(len))
+                .map_err(|_| StaticInfoError::SrpBlock)?,
+        };
+        match (tag, len) {
+            (SRPX_TEAM_DAMAGE, 12) => {
+                let rules = TeamDamage {
+                    max_amount: entry.f32()?,
+                    max_ratio: entry.f32()?,
+                    return_ratio: entry.f32()?,
+                };
+                if !rules.is_valid() {
+                    return Err(StaticInfoError::TeamDamage);
+                }
+                team_damage = Some(rules);
+            }
+            _ => return Err(StaticInfoError::SrpBlock),
+        }
+    }
+    Ok(team_damage)
 }
 
 /// Reads a 0xE4 payload as the client at its local index would: the
@@ -932,6 +1068,71 @@ mod tests {
             match_id: 0x1234_5678,
             match_level: 3,
             score_weights: SCORE_WEIGHTS,
+            team_damage: None,
+        }
+    }
+
+    #[test]
+    fn team_damage_goes_after_the_squads_and_reads_back() {
+        let mut with = options(vec![alice()]);
+        let without = options_bytes(&with, dictionary()).unwrap();
+        with.team_damage = Some(TeamDamage::ORIGINAL);
+        let bytes = options_bytes(&with, dictionary()).unwrap();
+        let mut block = b"SRPX".to_vec();
+        block.extend([1, 12]);
+        block.extend(3.0f32.to_le_bytes());
+        block.extend(0.67f32.to_le_bytes());
+        block.extend(2.0f32.to_le_bytes());
+        assert_eq!(bytes[..without.len()], without[..]);
+        assert_eq!(bytes[without.len()..], block[..]);
+        assert_eq!(parse_options(&bytes, dictionary()), Ok(with.clone()));
+        // An unknown tag, a short entry, another magic: refused.
+        for bad in [
+            [&without[..], &b"SRPX"[..], &[2, 0][..]].concat(),
+            [&without[..], &block[..block.len() - 1]].concat(),
+            [&without[..], b"SRPY", &block[4..]].concat(),
+        ] {
+            assert_eq!(
+                parse_options(&bad, dictionary()),
+                Err(StaticInfoError::SrpBlock)
+            );
+        }
+        // Numbers the client would drop are not sent.
+        with.team_damage = Some(TeamDamage {
+            max_ratio: 1.5,
+            ..TeamDamage::ORIGINAL
+        });
+        assert_eq!(
+            options_bytes(&with, dictionary()),
+            Err(StaticInfoError::TeamDamage)
+        );
+    }
+
+    #[test]
+    fn the_team_damage_setting() {
+        let original = Ok(Some(TeamDamage::ORIGINAL));
+        assert_eq!(TeamDamage::from_setting(None), original);
+        assert_eq!(TeamDamage::from_setting(Some(" ")), original);
+        assert_eq!(TeamDamage::from_setting(Some("ON")), original);
+        assert_eq!(TeamDamage::from_setting(Some("off")), Ok(None));
+        assert_eq!(
+            TeamDamage::from_setting(Some("2.5, 0.5, 1")),
+            Ok(Some(TeamDamage {
+                max_amount: 2.5,
+                max_ratio: 0.5,
+                return_ratio: 1.0
+            }))
+        );
+        for bad in [
+            "yes",
+            "1,2",
+            "3,0.67,2,1",
+            "3,1.5,2",
+            "-1,0.5,2",
+            "3,0.5,17",
+            "nan,0.5,2",
+        ] {
+            assert!(TeamDamage::from_setting(Some(bad)).is_err(), "{bad}");
         }
     }
 
@@ -1334,11 +1535,12 @@ mod tests {
             parse_options(&good[..good.len() - 1], dictionary()),
             Err(StaticInfoError::Truncated)
         );
+        // A byte after the squads is no srp block.
         let mut long = good.clone();
         long.push(0);
         assert_eq!(
             parse_options(&long, dictionary()),
-            Err(StaticInfoError::Trailing(1))
+            Err(StaticInfoError::SrpBlock)
         );
         // Four kits announced: the fourth would overwrite the item table.
         let mut bytes = good.clone();

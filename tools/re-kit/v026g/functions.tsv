@@ -1807,3 +1807,4 @@ va	status	ref_021d	name
 0x00511600	observed		Scaleform::GFx::Movie::Invoke
 0x000725e0	observed		vostok::math::create_rotation
 0x00054e10	observed		survarium::replay_network_client::is_this_place_mine
+0x001f0e70	reviewed	0x001f59a4	survarium::match_options::deserialize
