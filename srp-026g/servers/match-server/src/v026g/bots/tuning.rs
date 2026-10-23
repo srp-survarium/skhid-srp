@@ -482,6 +482,10 @@ impl Tuning {
         )?;
         check(self.think.commander_ms >= 50, "think.commander_ms")?;
         check(
+            self.feel.hop_rise_m.0 <= self.feel.hop_rise_m.1 && self.feel.hop_every_s > 0.0,
+            "feel.hop_*",
+        )?;
+        check(
             self.skill.min <= self.skill.start && self.skill.start <= self.skill.max,
             "skill.start",
         )?;
