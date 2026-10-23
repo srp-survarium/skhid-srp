@@ -2197,17 +2197,15 @@ package
          this.tabMinimap.setResearchUnits(units,ownTeam);
       }
       
-      // The units centred under Team Deathmatch's bars and the timer, below
-      // the respawn countdown's line, measured in the indicator's own space
-      // (its origin is its centre). The countdown's line is kept free while it
-      // is empty too: the units do not jump when the player dies.
+      // The units centred under Team Deathmatch's bars and the timer, measured
+      // in the indicator's own space (its origin is its centre). The respawn
+      // countdown may overlap them (owner: less screen space).
       private function placeResearchUnits() : void
       {
          var space:DisplayObject = this.progress_indicator;
          var bars:Rectangle = null;
          var part:DisplayObject;
          var parts:Array = [this.progress_indicator.team_1_score,this.progress_indicator.team_2_score,this.progress_indicator.match_time_2_tdm];
-         var respawn:DisplayObject = this.progress_indicator.respawn_time;
          var top:Number = 0;
          for each(part in parts)
          {
@@ -2219,10 +2217,6 @@ package
          if(bars != null)
          {
             top = bars.bottom;
-         }
-         if(respawn != null)
-         {
-            top = Math.max(top,respawn.getBounds(space).bottom,respawn.y + ResearchUnits.RESPAWN_LINE);
          }
          _researchX = bars == null ? 0 : bars.x + bars.width / 2;
          _researchY = top + ResearchUnits.TOP;

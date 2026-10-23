@@ -29,13 +29,8 @@ package survarium.controls
 
       protected static const SPACING:Number = 40;
 
-      // From the bottom of the bars and the respawn countdown to the units'
-      // centres (HUD.placeResearchUnits).
+      // From the bottom of the bars to the units' centres (HUD.placeResearchUnits).
       public static const TOP:Number = RADIUS + RING + 8;
-
-      // The respawn countdown's line from its top: the field of its symbol
-      // (DefaultLabel33) is 2 down and 22.45 high.
-      public static const RESPAWN_LINE:Number = 25;
 
       protected var _units:Array = [];
 
