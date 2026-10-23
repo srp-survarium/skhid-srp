@@ -750,6 +750,19 @@ impl Route {
         ((self.length() - s).max(0.0), None)
     }
 
+    /// The body is looked for from segment `segment` again (never later than
+    /// it was): a world showed it still under the jump that segment leads
+    /// up, which the reckoning had it up ([`Route::progress`] never goes
+    /// back by itself).
+    pub fn back_to(&mut self, segment: usize) {
+        self.segment = self.segment.min(segment);
+    }
+
+    /// The segment the body was last found on ([`Route::progress`]).
+    pub fn segment(&self) -> usize {
+        self.segment
+    }
+
     /// The next waypoint after `s` that is reached by a jump: its index and
     /// the distance to the waypoint before it (where the jump starts).
     pub fn next_jump(&self, s: f32) -> Option<(usize, f32)> {

@@ -244,6 +244,16 @@ impl Stuck {
         }
     }
 
+    /// A jump of its route from `at` (the take-off) that did not get the
+    /// body up in its tries (`motor::JUMP_TRIES`): the spot is avoided from
+    /// the first time, as a fall's ([`Self::fell`]; where it is the only
+    /// way, the bot takes it anyway). The grid's jumps of 0.9-1.05 m are at
+    /// the client's reach: some it never makes (`player_bots_stuck.md`
+    /// §8.9).
+    pub fn failed_jump(&mut self, time: u32, at: Vec3) {
+        self.fell(time, at);
+    }
+
     /// The spots to keep clear of at `time`.
     pub fn avoided(&self, time: u32) -> impl Iterator<Item = Vec3> + '_ {
         self.spots
