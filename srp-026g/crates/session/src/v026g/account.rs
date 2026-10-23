@@ -280,7 +280,9 @@ impl Account {
             balance: Default::default(),
             kits: (1..=KITS as u32).map(Kit::empty).collect(),
             active_kit: 1,
-            autobuy: false,
+            // On for a new account (the owner's of 2026-10-23); the player
+            // may turn it off.
+            autobuy: true,
             inventory: Vec::new(),
             next_item_id: 1,
             quests: Vec::new(),

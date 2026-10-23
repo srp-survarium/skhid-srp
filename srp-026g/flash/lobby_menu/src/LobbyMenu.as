@@ -199,10 +199,9 @@ package
       // as an admin text; the exe never calls it.
       private static const ADMIN_MESSAGE_WARNING:int = 0;
 
-      // set_autobuy's value: which of the kit's auto-buy and auto-repair boxes are ticked.
+      // set_autobuy's value: bit 0 the autobuy box, bit 1 the auto-repair box (gone: an account
+      // that had it ticked still sends 3).
       private static const AUTO_BUY:int = 1;
-
-      private static const AUTO_REPAIR:int = 2;
 
       private static const AUTO_BUY_AND_REPAIR:int = 3;
 
@@ -420,6 +419,9 @@ package
       // the upgrade window was opened from the shop: its list shows the inventory while it is open,
       // the shop again after (shop-character-menu.md)
       protected var _upgradeFromShop:Boolean = false;
+
+      // the craft window (Upgrade) likewise: its list shows the owned donors while it is open
+      protected var _craftFromShop:Boolean = false;
 
       protected var backBlack:Sprite = new BackBlack();
       
@@ -2293,6 +2295,12 @@ package
          this.backBlack.alpha = 0.5;
          // the item being upgraded is in the window's main slot: not listed (craft-menu.md)
          this.inventory_list.hideCraftSlotted([itemData.itemId]);
+         // from the shop (a kit item's menu): the donors are owned items, not the shop's entries
+         _craftFromShop = this.inventory_list.isShop;
+         if(this._craftFromShop)
+         {
+            this.inventory_list.toggleShopMode(false);
+         }
          this.inventory_list.filterItem(itemData.dictId);
          this.inventory_list.selectItem(itemData.itemId);
       }
@@ -2328,6 +2336,11 @@ package
          this.inventory_list.lockControls(false);
          removeChild(this.craftWindow);
          removeChild(this.backBlack);
+         if(this._craftFromShop)
+         {
+            this.inventory_list.toggleShopMode(true);
+            _craftFromShop = false;
+         }
          this.inventory_list.filterItem(-1);
          if((this.craftWindow.dragItemSlot1.data))
          {
@@ -3494,13 +3507,6 @@ package
       {
          trace("set_auto_buy::",value);
          this.player_profile.checkbox_autobuy.selected = value == AUTO_BUY_AND_REPAIR || value == AUTO_BUY;
-         this.player_profile.checkbox_autorepair.selected = value == AUTO_BUY_AND_REPAIR || value == AUTO_REPAIR;
-      }
-      
-      public function set_autorepair(value:Boolean) : void
-      {
-         trace("set_auto_repair::",value);
-         this.player_profile.checkbox_autorepair.selected = value;
       }
       
       public function try_buy_item(profile:uint, uid:uint, dict_uid:uint, sourceSlot:uint, targetSlot:uint, count:int, price:uint, seller:int = -1, onComplete:Function = null) : Boolean

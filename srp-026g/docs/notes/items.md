@@ -47,6 +47,22 @@ PROVEN by the data:
 - A modifier is `{path[], value, type}`: type 1 with absolute steps
   (armour +0.02, a slot +1), type 2 with small fractions (damage +0.01,
   weight −0.05, wear −0.05). LIKELY 1 adds and 2 multiplies by `1 + value`.
+  PROVEN (2026-10-23): the match's item cook applies a path's summed
+  modifiers once, type 1 by 0x357F80 (an int value, as every item's
+  `*_modifier` 0, becomes a float first: +0.05 is kept), type 2 by 0x358010
+  (x max(0, 1 + sum)).
+- **A gear modification of a player modifier** (`parameters/<name>_modifier`
+  on a vest, trousers or backpack): the cooked config's 68 `_modifier`
+  floats (0x2C83E0 from the inventory_item ctor 0x2FFB80) -> armor::armor
+  0x33EAA0 makes a node of each nonzero one -> 0x33F3A0 links them into the
+  kit's lists -> the getter 0x2D5AE0. Run with Unicorn on the original exe
+  (T16, 2026-10-23) for type 21, Regeneration (1090..1094,
+  `health_regeneration_speed_modifier` +0.05..+0.15): index 2's only reader
+  is the pool update 0x32A4B0, speed = the pool's `regeneration_speed` x
+  (1 + sum) (index 2 is not in the additive table 0x927E08), so +5..+15 % of
+  0.03/s (body, head, arms, legs; pain 0.1/s), with the same 8 s timeout and
+  cap (body 50 %). Body 0 -> 50 %: 16.7 s, 15.9 s at +5 %, 14.5 s at +15 %,
+  11.5 s with three +15 % pieces. It works as its card says; it is small.
 - 47 items (every vest and every pair of trousers) have `camo_available`
   and `decal_available`; `items_compatibility` pairs no cosmetic with
   anything.
