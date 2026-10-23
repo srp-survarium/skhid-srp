@@ -1900,3 +1900,9 @@ va	name	source	ret_cleanup	result
 0x002fbdc0	survarium::weapon_user_animations_selector::jump_predicate	manual	0	AL 1 when the weapon in hand's can_jump (vtable+64h) and is_trying_to_jump both answer 1
 0x002fc230	survarium::weapon_user_animations_selector::is_trying_to_jump	manual	0	AL 0 without the jump action (bit 4 of the player's actions at +330h), else further player checks
 0x0031eab0	survarium::weapon_core_base_state::weapon_core_base_state	manual	8	EAX the state (EDI)
+0x00233810	survarium::game_world_ui::game_world_ui	manual	4	
+0x0001ddb0	vostok::console_commands::cc_value<bool>::cc_value	manual	16	
+0x0025cd00	survarium::game_world::on_keyboard_action	manual	12	AL: 1 the key taken (no later handler gets it)
+0x00208ad0	survarium::chat_handler::add_message	manual	20	
+0x0026da00	survarium::base_game_statistics_handler::on_player_killed	manual	68	
+0x002f4eb0	survarium::shared_statistics::on_player_killed	manual	40	

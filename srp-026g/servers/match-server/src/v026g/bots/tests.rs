@@ -2566,6 +2566,12 @@ fn bench_tuning() -> Tuning {
     {
         tuning.sense.battery_sight_m = m;
     }
+    if let Some(m) = std::env::var("SRP_BENCH_FRIEND_NEAR_M")
+        .ok()
+        .and_then(|m| m.parse().ok())
+    {
+        tuning.aim.friends.near_m = m;
+    }
     // Collect's and Intercept's numbers: `name=value,...`.
     for (var, kind) in [
         ("SRP_BENCH_COLLECT", super::plays::PlayKind::Collect),
@@ -3761,4 +3767,36 @@ fn a_jump_lets_the_trigger_go_and_is_traced() {
     assert_eq!(jumping(&mut bot, walk, None, at, 1_050), walk);
     // Not tracing: watched, no line.
     assert!(bot.traced.is_empty() && bot.jump_watch.is_some());
+}
+
+/// The near margin of the line of fire (`friends::FriendlyFireTuning::
+/// near_m`) off and on, `SRP_NEAR_SEEDS` seeds (default 8): whole TDM
+/// (6 against 6) and battery (4 against 4) matches, kills and team hits
+/// per seed. A measurement: it asserts nothing (friends.rs has the numbers).
+#[test]
+#[ignore = "whole matches; run in release"]
+fn friends_near_margin_off_and_on() {
+    let seeds: u64 = std::env::var("SRP_NEAR_SEEDS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(8);
+    for seed in 1..=seeds {
+        for near in [0.0, bench_tuning().aim.friends.near_m] {
+            let mut tuning = bench_tuning();
+            tuning.aim.friends.near_m = near;
+            let tdm = soak_tuned(6, 0, 60, None, 600, seed, tuning.clone());
+            let batteries = soak_tuned(4, 3, 0, None, 600, seed, tuning);
+            for (mode, out) in [("tdm", tdm), ("batteries", batteries)] {
+                eprintln!(
+                    "{mode} seed {seed} near_m {near}: kills {}, team kills {}; hits {}, team hits {} of {} shots; winner {:?}",
+                    out.kills[0] + out.kills[1],
+                    out.team_kills,
+                    out.hits,
+                    out.team_hits,
+                    out.shots,
+                    out.winner
+                );
+            }
+        }
+    }
 }

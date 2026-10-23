@@ -22,6 +22,21 @@
 //! as [`super::aimpoint::Part`]'s heights: the 0.100b model's, a GUESS for
 //! 0.26g's.
 //!
+//! Near the shooter the margin is at least [`FriendlyFireTuning::near_m`]:
+//! the body and a semi-automatic's or a bolt's thin spread alone gave
+//! 0.35-0.5 m within 10 m, and in the soak half the team hits came through
+//! that band (12 seeds each, the floor off and on: TDM 6 against 6, team
+//! hits 187 -> 101 and team kills 24 -> 8, kills 1367 -> 1425; batteries
+//! 4 against 4, 165 -> 82 and 22 -> 7, kills 1733 -> 1757).
+//!
+//! What a team kill costs (PROVEN, 0.26g): the game credits a kill only
+//! when the killer is neither the victim nor of his team
+//! (`shared_statistics::on_player_killed` 0x2F4EB0, the team test at
+//! 0x2F5049): a team kill is a death with no one's kill, and pays and
+//! scores nothing. In the saved bot matches, bots team-killed 10.5 per 100
+//! deaths before this module (79 of 753, 2026-10-16) and 3.1 with it
+//! (6 of 194, 2026-10-23); human matches 0.7-2.5.
+//!
 //! With a teammate in the way the bot does not fire and steps to the side
 //! away from him ([`Blocked::away`]), as a player would to clear his line.
 
@@ -52,6 +67,11 @@ pub struct FriendlyFireTuning {
     /// Teammates this far past the target count too, metres (a miss goes
     /// on).
     pub past_target_m: f32,
+    /// The least margin, metres, however near the shooter: the body's
+    /// half width and the spread alone let a line pass a hand's width
+    /// from a teammate a few metres on, and the game's bullet met him
+    /// there (0: none).
+    pub near_m: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -76,6 +96,7 @@ impl Default for FriendlyFireTuning {
                 shotgun: 4.0,
             },
             past_target_m: 2.0,
+            near_m: 0.63,
         }
     }
 }
@@ -156,7 +177,7 @@ pub fn blocking(
             let Some((s, gap)) = ray_to_segment(eye, dir, reach, foot, head) else {
                 continue;
             };
-            if gap <= width + grow * s && best.is_none_or(|(d, _, _)| s < d) {
+            if gap <= (width + grow * s).max(t.near_m) && best.is_none_or(|(d, _, _)| s < d) {
                 // Which side of the line he stands on, seen from above:
                 // his offset across the line, to the shooter's right.
                 let [rx, rz] = forward(me.yaw - std::f32::consts::FRAC_PI_2);
@@ -296,9 +317,9 @@ mod tests {
         let me = body(0, 0, Vec3::ZERO, true);
         let enemy = body(1, 1, Vec3::new(0.0, 0.0, 30.0), true);
         let dir = line_to(&me, enemy.chest());
-        // 0.5 m off the line 3 m on, a bolt action's thin spread.
+        // 0.7 m off the line 15 m on, a bolt action's thin spread.
         let spread = t.spread_deg.bolt.to_radians();
-        let near = Vec3::new(0.5, 0.0, 3.0);
+        let near = Vec3::new(0.7, 0.0, 15.0);
         let bot = view(vec![me.clone(), enemy.clone(), body(2, 0, near, true)]);
         let human = view(vec![me.clone(), enemy, body(2, 0, near, false)]);
         assert_eq!(blocking(&me, &bot, &[dir], 30.0, spread, &t), None);
@@ -338,5 +359,20 @@ mod tests {
         mate.keys = key::CROUCH;
         let v = view(vec![me.clone(), enemy, mate]);
         assert_eq!(blocking(&me, &v, &[dir], 23.0, 0.03, &t), None);
+    }
+
+    #[test]
+    fn near_the_shooter_the_margin_is_at_least_near_m() {
+        let t = FriendlyFireTuning::default();
+        let me = body(0, 0, Vec3::ZERO, true);
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, 30.0), true);
+        let dir = line_to(&me, enemy.chest());
+        let spread = t.spread_deg.bolt.to_radians();
+        // 0.5 m off the line 3 m on: the body and the bolt's spread alone
+        // (0.39 m) let it pass; the floor does not.
+        let mate = view(vec![me.clone(), enemy, body(2, 0, Vec3::new(0.5, 0.0, 3.0), true)]);
+        assert!(blocking(&me, &mate, &[dir], 30.0, spread, &t).is_some());
+        let off = FriendlyFireTuning { near_m: 0.0, ..t };
+        assert_eq!(blocking(&me, &mate, &[dir], 30.0, spread, &off), None);
     }
 }
