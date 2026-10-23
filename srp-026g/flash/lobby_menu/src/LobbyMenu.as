@@ -3954,6 +3954,11 @@ package
       
       public function has_active_window() : Boolean
       {
+         // The Character panel's presets list: Esc closes it first.
+         if(LocalPlayerProfile.presetListOpen())
+         {
+            return true;
+         }
          // The rooms window counts while open (not under the results), so
          // Esc closes it before it opens the game's menu.
          if(RoomsWindow.me != null && RoomsWindow.me.escapable())
@@ -3972,6 +3977,10 @@ package
       
       public function close_active_window() : void
       {
+         if(LocalPlayerProfile.closePresetListByEsc())
+         {
+            return;
+         }
          if(RoomsWindow.me != null && RoomsWindow.me.closeByEsc())
          {
             return;

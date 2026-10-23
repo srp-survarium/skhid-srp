@@ -7,7 +7,7 @@ snapshot of 3 kit contents"; items "just like normal kits are"; on join "Apply t
 then they join with a new one". Then, the same day: "no need for set or apply, just choose preset
 applies it, and adding equipment to it saves things". Code: `session::v026g::presets` (the rules),
 `rules::fill_kit`, `persist/presets.rs`, `lobby-server` `presets.rs` and `rooms.rs`; the lobby:
-`LocalPlayerProfile` (the dropdown), `RoomsWindow` (the popup). Wire: `lobby.md` §2.16.3 and
+`LocalPlayerProfile` (the panel's title), `RoomsWindow` (the popup). Wire: `lobby.md` §2.16.3 and
 §2.16.4.
 
 - **Five presets an account, one active,** kept with it in srp.db (`g26_preset_slots`,
@@ -23,7 +23,7 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
 - **Items, as kits:** a slot names an item the account owns. Kits share one inventory: an item may
   be in each of the three kits (one slot of a kit at most). Presets follow it: the same item may be
   in several presets. A preset reserves, copies or moves nothing.
-- **Choosing a preset** in the dropdown (the only control): the kits stay with the preset left as
+- **Choosing a preset** in the Character panel's title (the only control): the kits stay with the preset left as
   its snapshot, then the chosen one is put on the three kits and becomes active. One server
   action, all or nothing: each kit emptied and filled through the lobby's kit rules
   (`rules::fill_kit`, the moves' own `relocate`): the item fits the slot, one item one slot of a
@@ -53,8 +53,15 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
   active one). The active preset's is the kits' own; another's is that of the kits it would give
   now (sold items gone). A preset none of whose kits can play (no weapon, too little ammo) has no
   level and is never offered.
-- **Character panel:** a dropdown left of its title with the five presets ("Preset N: level L",
-  "Preset N: empty", "Preset N: can't play"), the active one shown. Picking another chooses it.
+- **Character panel:** its title is the switcher (the owner's, 2026-10-23: the dropdown left of
+  the title was ugly). The title names the active preset in the title's own font, size and
+  colour, centred, with a caret after it: "Preset 2 · Lvl. 15" (the level's word is the kit tabs'
+  own). A press anywhere on the title opens the five under it, the title bar's width: "Preset 1 ·
+  Lvl. 15", "Preset 4 · empty", "Preset 3 · can't play", the active one marked as the lobby's
+  lists mark a selected row. A press on a row chooses it (one press to open, one to choose); a
+  press outside or Esc closes the list with no change. No step arrows: each step would choose a
+  preset, so going from 2 to 4 would put 3 on the way. Until the server's first list the title
+  is "Character"; while the kits are locked (a search, a match) it takes no press.
   A choice that left slots empty, or was refused, says so in the game's message box ("N slots
   left empty: those items are gone.") [choice: no line of its own].
 - **Joining a room** (the owner's, 2026-10-23: "If the person joins a high level room with low

@@ -59,7 +59,7 @@ fn kits(world: &World, index: usize) -> Vec<[Option<session::v026g::account::Kit
 }
 
 #[test]
-fn the_dropdown_lists_the_presets_and_chooses_the_active_one() {
+fn the_title_lists_the_presets_and_chooses_the_active_one() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     // Preset 1 active: the starter kit, level 0; the others empty.

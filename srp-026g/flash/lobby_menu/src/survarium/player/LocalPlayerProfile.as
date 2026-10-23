@@ -2,20 +2,25 @@ package survarium.player
 {
    import fl.transitions.easing.Strong;
    import flash.display.DisplayObject;
+   import flash.display.Graphics;
    import flash.display.MovieClip;
+   import flash.display.Shape;
+   import flash.display.Sprite;
    import flash.events.Event;
+   import flash.events.MouseEvent;
    import flash.external.*;
    import flash.text.TextField;
    import flash.utils.getDefinitionByName;
    import flash.utils.getTimer;
    import scaleform.clik.controls.Button;
-   import scaleform.clik.controls.DropdownMenu;
+   import scaleform.clik.controls.ScrollingList;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.events.ButtonEvent;
    import scaleform.clik.events.DragEvent;
    import scaleform.clik.events.IndexEvent;
    import scaleform.clik.events.ListEvent;
    import scaleform.clik.motion.Tween;
+   import scaleform.clik.utils.Padding;
    import survarium.Util;
    import survarium.controls.Message;
    import survarium.controls.PlayerProfileBase;
@@ -78,11 +83,13 @@ package survarium.player
       
       protected var _convertedItems:Array;
       // Kit presets (presets.md, the owner's of 2026-10-23): five sets of the
-      // three kits, one active, chosen in a dropdown left of the title. The
-      // active one is the kits: choosing another puts it on, and every change
-      // of the kits is the active one's (the server's). srp's wire: the
-      // ranking request at PRESETS_FIRST and on (lobby.md 2.16.4), answered
-      // with the list, `P1;L;<done>;<preset>;<empty>;<active>` and a row
+      // three kits, one active. The panel's title is the switcher: it names
+      // the active preset ("Preset 2 · Lvl. 15"), and a press on it opens the
+      // five under it; a press on one chooses it. The active one is the kits:
+      // choosing another puts it on, and every change of the kits is the
+      // active one's (the server's). srp's wire: the ranking request at
+      // PRESETS_FIRST and on (lobby.md 2.16.4), answered with the list,
+      // `P1;L;<done>;<preset>;<empty>;<active>` and a row
       // `<preset>;<saved>;<level>` each (level -1: none of its kits can play).
       public static var me:LocalPlayerProfile;
       
@@ -99,30 +106,67 @@ package survarium.player
       
       private static const PRESET_REFUSED:int = 2;
       
-      // The words, in the lobby's five languages (RoomsText.language).
+      // The title bar (the timeline's header, 570 x 31 at 5, 5) and the
+      // caret drawn after the title's text.
+      private static const TITLE_X:Number = 5;
+      
+      private static const TITLE_Y:Number = 5;
+      
+      private static const TITLE_W:Number = 570;
+      
+      private static const TITLE_H:Number = 31;
+      
+      private static const CARET_W:Number = 10;
+      
+      private static const CARET_H:Number = 6;
+      
+      private static const CARET_GAP:Number = 8;
+      
+      // A choice shown before the server's answer, at most this long (ms).
+      private static const PRESET_PENDING_MS:int = 5000;
+      
+      // The words, in the lobby's five languages (RoomsText.language). The
+      // level's word is the kit tabs' own ("Lvl."), this one if it is missing.
       private static const PRESET_WORDS:Object = {
          "preset":["Preset","Пресет","Пресет","Preset","Zestaw"],
-         "level":["level","рівень","уровень","Stufe","poziom"],
+         "level":["Lvl.","Рів.","Ур.","Stufe","Poz."],
          "empty":["empty","порожній","пустой","leer","pusty"],
          "unfit":["can't play","не для бою","не для боя","nicht spielbar","niegrywalny"],
          "gone":["{n} slots left empty: those items are gone.","Порожніх слотів: {n}, цих предметів немає.","Пустых слотов: {n}, этих предметов нет.","{n} Plätze leer: diese Gegenstände fehlen.","Pustych miejsc: {n}, tych przedmiotów brak."],
          "refused":["The preset could not be chosen.","Не вдалося обрати пресет.","Не удалось выбрать пресет.","Das Preset ließ sich nicht wählen.","Nie udało się wybrać zestawu."]
       };
       
-      private var _presetMenu:DropdownMenu;
+      // The title bar's press area and its hover / open look (below the
+      // title's text), the caret, and the open list (null: closed).
+      private var _presetTitle:Sprite;
+      
+      private var _presetGlow:Shape;
+      
+      private var _presetCaret:Shape;
+      
+      private var _presetList:ScrollingList;
+      
+      private var _presetHover:Boolean = false;
+      
+      // The title's text field as the timeline placed it: its x and centre.
+      private var _titleX:Number = 0;
+      
+      private var _titleCentre:Number = 0;
       
       // {known, saved, level} a preset, preset 1 first; the active one (0
-      // the first), as the server last said.
+      // the first), as the server last said; whether it said it yet.
       private var _presets:Array = [];
       
       private var _presetAt:int = 0;
       
-      private var _presetLabels:String = "";
+      private var _presetsSeen:Boolean = false;
+      
+      // A preset chosen and not answered yet (-1: none): the title names it.
+      private var _presetPending:int = -1;
+      
+      private var _presetPendingAt:int = 0;
       
       private var _presetsAskedAt:int = -100000;
-      
-      // The menu set by us, not by the player: no choice to send.
-      private var _presetFilling:Boolean = false;
       
       // The kits locked (as the paper doll and the ammo button): no preset
       // chosen.
@@ -481,7 +525,7 @@ package survarium.player
          this.playerWeight.textFieldLabel.text = LocalizationData.getName("equipment_weight");
          this.ammoContainer.tx_total_label.text = LocalizationData.getName("equipment_cost");
          this.btnShowAmmo.label = LocalizationData.getName("show_ammo");
-         this.labelText.text = LocalizationData.getName("paperdoll_label");
+         this.showPresetTitle();
          this.checkbox_autobuy.tipData = {name:LocalizationData.getName("auto_button_hint")};
          this.checkbox_autorepair.tipData = {name:LocalizationData.getName("auto_repair_hint")};
       }
@@ -638,13 +682,30 @@ package survarium.player
          return true;
       }
       
+      // LobbyMenu.has_active_window / close_active_window: Esc closes the
+      // presets' list first (true: it was open).
+      public static function presetListOpen() : Boolean
+      {
+         return me != null && me._presetList != null;
+      }
+      
+      public static function closePresetListByEsc() : Boolean
+      {
+         if(!presetListOpen())
+         {
+            return false;
+         }
+         me.closePresetList();
+         return true;
+      }
+      
       private static function presetWord(key:String) : String
       {
          return String(PRESET_WORDS[key][RoomsText.language()]);
       }
       
-      // The dropdown (the game's, as Player vs Bots' menus) left of the title,
-      // which is centred in the header.
+      // The title bar's press area over the panel, the title's text (which
+      // takes no press) above it, and the caret.
       private function makePresets() : void
       {
          var i:int = 0;
@@ -657,67 +718,315 @@ package survarium.player
             });
             i++;
          }
-         var menuClass:Class = getDefinitionByName("SrvDropDownMenuP") as Class;
-         this._presetMenu = new menuClass() as DropdownMenu;
-         this._presetMenu.dropdown = "OptionScrollingList";
-         this._presetMenu.itemRenderer = "OptionsListRenderer";
-         this._presetMenu.scrollBar = "";
-         this._presetMenu.menuDirection = "down";
-         this._presetMenu.menuMargin = 0;
-         this._presetMenu.thumbOffsetTop = 0;
-         this._presetMenu.thumbOffsetBottom = 0;
-         this._presetMenu.menuRowsFixed = false;
-         this._presetMenu.menuRowCount = PRESET_COUNT;
-         this._presetMenu.x = 10;
-         this._presetMenu.y = 4;
-         this._presetMenu.width = 200;
-         this._presetMenu.menuWidth = 220;
-         this._presetMenu.addEventListener(ListEvent.INDEX_CHANGE,this.onPresetChosen);
-         addChild(this._presetMenu);
-         this.fillPresetMenu();
+         this._titleX = this.labelText.x;
+         this._titleCentre = this.labelText.x + this.labelText.width / 2;
+         this.labelText.mouseEnabled = false;
+         this._presetTitle = new Sprite();
+         this._presetTitle.x = TITLE_X;
+         this._presetTitle.y = TITLE_Y;
+         // Alpha 0 is not hit-tested in Scaleform: 0.01.
+         this._presetTitle.graphics.beginFill(0,0.01);
+         this._presetTitle.graphics.drawRect(0,0,TITLE_W,TITLE_H);
+         this._presetTitle.graphics.endFill();
+         this._presetTitle.mouseChildren = false;
+         this._presetGlow = new Shape();
+         this._presetTitle.addChild(this._presetGlow);
+         this._presetCaret = new Shape();
+         this._presetTitle.addChild(this._presetCaret);
+         // On top of the panel, the text above it.
+         addChild(this._presetTitle);
+         setChildIndex(this.labelText,numChildren - 1);
+         this._presetTitle.addEventListener(MouseEvent.ROLL_OVER,this.onPresetOver);
+         this._presetTitle.addEventListener(MouseEvent.ROLL_OUT,this.onPresetOut);
+         // On the panel, not the bar: a press Scaleform gives the panel
+         // itself (scaleform-movie-pitfalls) is found by its point.
+         addEventListener(MouseEvent.MOUSE_DOWN,this.onPanelPress);
+         addEventListener(Event.REMOVED_FROM_STAGE,this.onPresetsGone);
+         this.showPresetTitle();
       }
       
-      private function fillPresetMenu() : void
+      private function presetLabel(i:int) : String
       {
-         var rows:Array = [];
-         var labels:String = "";
+         var preset:Object = this._presets[i];
+         var label:String = presetWord("preset") + " " + (i + 1);
+         if(!preset.known)
+         {
+            return label;
+         }
+         if(!preset.saved)
+         {
+            return label + " · " + presetWord("empty");
+         }
+         if(preset.level < 0)
+         {
+            return label + " · " + presetWord("unfit");
+         }
+         var level:String = LocalizationData.getName("clan_players_level_label");
+         if(level == null || level == "" || level == "clan_players_level_label")
+         {
+            level = presetWord("level");
+         }
+         return label + " · " + level + " " + preset.level;
+      }
+      
+      // The preset the title names: the one chosen while unanswered.
+      private function presetShown() : int
+      {
+         return this._presetPending >= 0 ? this._presetPending : this._presetAt;
+      }
+      
+      // The title: the panel's name until the server's first list, then the
+      // active preset with a caret, the two centred in the bar together.
+      private function showPresetTitle() : void
+      {
+         if(this._presetTitle == null)
+         {
+            this.labelText.text = LocalizationData.getName("paperdoll_label");
+            return;
+         }
+         var ready:Boolean = this._presetsSeen;
+         this.labelText.text = ready ? this.presetLabel(this.presetShown()) : LocalizationData.getName("paperdoll_label");
+         var shift:Number = ready ? (CARET_GAP + CARET_W) / 2 : 0;
+         this.labelText.x = this._titleX - shift;
+         this._presetCaret.visible = ready;
+         this._presetCaret.x = this._titleCentre - shift + this.labelText.textWidth / 2 + CARET_GAP - TITLE_X;
+         this._presetCaret.y = TITLE_H / 2 - CARET_H / 2 + 1;
+         this._presetTitle.buttonMode = ready && !this._presetsLocked;
+         this.drawPresetTitle();
+      }
+      
+      // The lobby's list rows' look (OptionsListRenderer): over, white at
+      // 1/32; open, as a selected row, with its 1 px outline at 10 %.
+      private function drawPresetTitle() : void
+      {
+         if(this._presetTitle == null)
+         {
+            return;
+         }
+         var open:Boolean = this._presetList != null;
+         var live:Boolean = this._presetsSeen && !this._presetsLocked;
+         var g:Graphics = this._presetGlow.graphics;
+         g.clear();
+         if(live && (open || this._presetHover))
+         {
+            g.beginFill(16777215,0.03125);
+            g.drawRect(0,0,TITLE_W,TITLE_H);
+            g.endFill();
+         }
+         if(live && open)
+         {
+            g.beginFill(16777215,0.1);
+            g.drawRect(0,0,TITLE_W,1);
+            g.drawRect(0,TITLE_H - 1,TITLE_W,1);
+            g.drawRect(0,1,1,TITLE_H - 2);
+            g.drawRect(TITLE_W - 1,1,1,TITLE_H - 2);
+            g.endFill();
+         }
+         // The caret: down, up while the list is open; the title's colour.
+         var c:Graphics = this._presetCaret.graphics;
+         c.clear();
+         c.beginFill(this.labelText.textColor,live ? 1 : 0.35);
+         if(open)
+         {
+            c.moveTo(0,CARET_H);
+            c.lineTo(CARET_W,CARET_H);
+            c.lineTo(CARET_W / 2,0);
+            c.lineTo(0,CARET_H);
+         }
+         else
+         {
+            c.moveTo(0,0);
+            c.lineTo(CARET_W,0);
+            c.lineTo(CARET_W / 2,CARET_H);
+            c.lineTo(0,0);
+         }
+         c.endFill();
+      }
+      
+      private function onPresetOver(e:MouseEvent) : void
+      {
+         this._presetHover = true;
+         this.drawPresetTitle();
+      }
+      
+      private function onPresetOut(e:MouseEvent) : void
+      {
+         this._presetHover = false;
+         this.drawPresetTitle();
+      }
+      
+      // A press on the title opens or closes the list. A press on a row the
+      // list missed (given to the panel) chooses that row.
+      private function onPanelPress(e:MouseEvent) : void
+      {
+         if(this._presetTitle == null || e.target != this && e.target != this._presetTitle)
+         {
+            return;
+         }
+         if(this._presetTitle.hitTestPoint(e.stageX,e.stageY,false))
+         {
+            if(this._presetList != null)
+            {
+               this.closePresetList();
+            }
+            else
+            {
+               this.openPresetList();
+            }
+            return;
+         }
+         if(e.target != this || this._presetList == null)
+         {
+            return;
+         }
          var i:int = 0;
          while(i < PRESET_COUNT)
          {
-            var preset:Object = this._presets[i];
-            var label:String = presetWord("preset") + " " + (i + 1);
-            if(preset.known)
+            var row:DisplayObject = this._presetList.getRendererAt(i) as DisplayObject;
+            if(row != null && row.visible && row.hitTestPoint(e.stageX,e.stageY,false))
             {
-               label += ": " + (!preset.saved ? presetWord("empty") : (preset.level >= 0 ? presetWord("level") + " " + preset.level : presetWord("unfit")));
+               this.choosePreset(i);
+               return;
             }
-            rows.push({"label":label});
-            labels += label + "|";
             i++;
          }
-         this._presetFilling = true;
-         try
+      }
+      
+      // The lobby's list (the game's dropdowns' list and rows) under the
+      // title, its width, five rows, the active one selected.
+      private function openPresetList() : void
+      {
+         if(this._presetList != null || !this._presetsSeen || this._presetsLocked || stage == null)
          {
-            if(labels != this._presetLabels)
+            return;
+         }
+         var listClass:Class = getDefinitionByName("OptionScrollingList") as Class;
+         var list:ScrollingList = new listClass() as ScrollingList;
+         list.itemRenderer = getDefinitionByName("OptionsListRenderer") as Class;
+         list.width = TITLE_W;
+         list.padding = new Padding(0,0,0,0);
+         list.margin = 0;
+         list.wrapping = "normal";
+         list.thumbOffset = {
+            "top":0,
+            "bottom":0
+         };
+         list.rowCount = PRESET_COUNT;
+         list.dataProvider = new DataProvider(this.presetRows());
+         list.selectedIndex = this.presetShown();
+         list.x = TITLE_X;
+         list.y = TITLE_Y + TITLE_H;
+         list.addEventListener(ListEvent.ITEM_CLICK,this.onPresetRow);
+         this._presetList = list;
+         addChild(list);
+         stage.addEventListener(MouseEvent.MOUSE_DOWN,this.onStagePress);
+         addEventListener(Event.ENTER_FRAME,this.watchPresetList);
+         this.drawPresetTitle();
+      }
+      
+      private function presetRows() : Array
+      {
+         var rows:Array = [];
+         var i:int = 0;
+         while(i < PRESET_COUNT)
+         {
+            rows.push({"label":this.presetLabel(i)});
+            i++;
+         }
+         return rows;
+      }
+      
+      private function closePresetList() : void
+      {
+         if(this._presetList == null)
+         {
+            return;
+         }
+         var list:ScrollingList = this._presetList;
+         this._presetList = null;
+         list.removeEventListener(ListEvent.ITEM_CLICK,this.onPresetRow);
+         if(list.parent != null)
+         {
+            list.parent.removeChild(list);
+         }
+         if(stage != null)
+         {
+            stage.removeEventListener(MouseEvent.MOUSE_DOWN,this.onStagePress);
+         }
+         removeEventListener(Event.ENTER_FRAME,this.watchPresetList);
+         this.drawPresetTitle();
+      }
+      
+      // A press outside the title and the list closes it, no choice.
+      private function onStagePress(e:MouseEvent) : void
+      {
+         if(this._presetList == null)
+         {
+            return;
+         }
+         if(this._presetList.hitTestPoint(e.stageX,e.stageY,false) || this._presetTitle.hitTestPoint(e.stageX,e.stageY,false))
+         {
+            return;
+         }
+         this.closePresetList();
+      }
+      
+      // The panel hidden (closed, another window) closes the list.
+      private function watchPresetList(e:Event) : void
+      {
+         var at:DisplayObject = this;
+         while(at != null)
+         {
+            if(!at.visible)
             {
-               this._presetLabels = labels;
-               this._presetMenu.dataProvider = new DataProvider(rows);
+               this.closePresetList();
+               return;
             }
-            this._presetMenu.selectedIndex = this._presetAt;
-            this._presetMenu.invalidateSelectedIndex();
+            at = at.parent;
          }
-         finally
+         if(stage == null)
          {
-            this._presetFilling = false;
+            this.closePresetList();
          }
-         this.lockPresets(this._presetsLocked);
+      }
+      
+      private function onPresetsGone(e:Event) : void
+      {
+         this._presetHover = false;
+         this.closePresetList();
+      }
+      
+      private function onPresetRow(e:ListEvent) : void
+      {
+         e.stopPropagation();
+         this.choosePreset(e.index);
+      }
+      
+      // A preset picked: it becomes the active one (its kits put on). The
+      // title names it at once; the server's answer settles it.
+      private function choosePreset(at:int) : void
+      {
+         this.closePresetList();
+         if(this._presetsLocked || at < 0 || at >= PRESET_COUNT || at == this.presetShown())
+         {
+            return;
+         }
+         this._presetPending = at;
+         this._presetPendingAt = getTimer();
+         this.showPresetTitle();
+         this.sendPresets(PRESET_CHOOSE + at + 1);
       }
       
       private function lockPresets(locked:Boolean) : void
       {
          this._presetsLocked = locked;
-         if(this._presetMenu != null)
+         if(locked)
          {
-            this._presetMenu.enabled = !locked;
+            this.closePresetList();
+         }
+         if(this._presetTitle != null)
+         {
+            this.showPresetTitle();
          }
       }
       
@@ -772,8 +1081,19 @@ package survarium.player
             }
             i++;
          }
-         this.fillPresetMenu();
+         this._presetsSeen = true;
          var done:int = int(head[2]);
+         // A choice's answer (or one never coming) ends the choice shown.
+         if(done == PRESET_CHOSEN || done == PRESET_REFUSED || getTimer() - this._presetPendingAt > PRESET_PENDING_MS)
+         {
+            this._presetPending = -1;
+         }
+         this.showPresetTitle();
+         if(this._presetList != null)
+         {
+            this._presetList.dataProvider = new DataProvider(this.presetRows());
+            this._presetList.selectedIndex = this.presetShown();
+         }
          var empty:int = int(head[4]);
          if(done == PRESET_CHOSEN && empty > 0)
          {
@@ -782,22 +1102,6 @@ package survarium.player
          else if(done == PRESET_REFUSED)
          {
             Message.showMessage("ok",presetWord("refused"));
-         }
-      }
-      
-      // A preset picked: it becomes the active one (its kits put on); the
-      // menu shows the active one again with the server's answer.
-      private function onPresetChosen(e:ListEvent) : void
-      {
-         e.stopPropagation();
-         if(this._presetFilling || this._presetsLocked)
-         {
-            return;
-         }
-         var at:int = this._presetMenu.selectedIndex;
-         if(at >= 0 && at < PRESET_COUNT && at != this._presetAt)
-         {
-            this.sendPresets(PRESET_CHOOSE + at + 1);
          }
       }
    }

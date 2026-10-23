@@ -1,6 +1,6 @@
 //! Kit presets (`docs/notes/presets.md`, the owner's of 2026-10-23): five
 //! sets of an account's three kits, one of them active, chosen in the
-//! Character panel's dropdown, and offered when the kits' gear does not
+//! Character panel's title, and offered when the kits' gear does not
 //! suit a room.
 //!
 //! **The active preset is the kits.** It is kept nowhere else: whatever

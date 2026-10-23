@@ -451,7 +451,7 @@ Code: `lobby/rooms.rs` (`survarium`: starts, decoding, writers), `session::v026g
 
 #### 2.16.4 Kit presets, on `3B` / 0x91: srp's own (contract P1, 2026-10-23)
 
-The Character panel's dropdown of five kit presets, one active (`presets.md`): the active one is the kits, so every kit change is its own and nothing is saved by hand. Starts from **2 090 000 000 to 2 090 000 099** (`PRESETS_FIRST`, `PRESETS_LAST`): above the rooms, inside an `int`. Every request is answered with the list, one `91` at 2 090 000 000.
+The Character panel's title, the switcher of five kit presets, one active (`presets.md`): the active one is the kits, so every kit change is its own and nothing is saved by hand. Starts from **2 090 000 000 to 2 090 000 099** (`PRESETS_FIRST`, `PRESETS_LAST`): above the rooms, inside an `int`. Every request is answered with the list, one `91` at 2 090 000 000.
 
 | start | request |
 |---|---|

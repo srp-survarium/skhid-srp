@@ -1,7 +1,7 @@
 //! Kit presets (`docs/notes/presets.md`): the lobby's side of
 //! `session::v026g::presets` and of its wire
 //! (`survarium::v026g::lobby::presets`, `lobby.md` §2.16.4). The Character
-//! panel's dropdown lists the presets and chooses the active one; a room
+//! panel's title lists the presets and chooses the active one; a room
 //! join may choose one first ("Switch and enter", `rooms`). The active
 //! preset is the kits, so every kit change is already its own: nothing
 //! here saves.
