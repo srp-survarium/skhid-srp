@@ -62,3 +62,17 @@ locked into one". Code: `items_rules::reroll`; the lobby: `MessageRerollItem.upd
 - **Match:** nothing changes there: the item's modifications work as before.
 - **Release:** the server and the lobby movie. With an old movie the lock stays in the window
   only; with an old server the new window's other rows are refused (`84 46`).
+
+## The item's stats on hover
+
+The owner, 2026-10-23: "when in modification, when hovering over the weapon, it should show its
+stats". The lobby: `MessageRerollItem.configUI`, `updateModifiers`.
+
+- **Rule:** hovering the item's picture (top left of the window) shows the lobby's item tip
+  (`SrvItemHintRednerer`, as on a profile's items): name, stats with its modifications applied,
+  the modifications. Weapons and armour alike.
+- **After a change:** the tip's modifications are the ones the window was filled with last (on
+  opening, after a choice or Cancel), with the item kind's own: the stats follow the new one.
+  While the three are offered the item is unchanged, so is the tip.
+- **The Upgrade (craft) window:** its slots already show the item's tip, compared with the other
+  slot's (craft-menu.md); unchanged.

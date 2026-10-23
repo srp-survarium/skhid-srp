@@ -126,6 +126,13 @@ package survarium.messages
          itemRenderer = new rendererClass();
          this.itemRenderer.x = 10;
          this.itemRenderer.y = 42;
+         // Hovering the item's picture shows its stats tip, the lobby's item tip (as on a profile's
+         // items), its modifications applied (the owner, 2026-10-23). The picture's own back is a
+         // fill of alpha 0, which takes no hover: a 0.01 one over it.
+         this.itemRenderer.tooltipRendererName = "SrvItemHintRednerer";
+         this.itemRenderer.graphics.beginFill(0,0.01);
+         this.itemRenderer.graphics.drawRect(this.itemRenderer.iconRenderer.x,this.itemRenderer.iconRenderer.y,this.itemRenderer.iconRenderer.width,this.itemRenderer.iconRenderer.height);
+         this.itemRenderer.graphics.endFill();
          addChildAt(this.itemRenderer,numChildren - 3);
          super.configUI();
          this.modifiersList.setMaxFit(true);
@@ -253,6 +260,9 @@ package survarium.messages
          this.checkBoxPremiumCost.value = this._rerollCostGold;
          if(modifiers)
          {
+            // The stats tip's item: its modifications as the server has them now (after a choice
+            // too), with the item kind's own, as the inventory composes them.
+            _data.modifiers = modifiers.concat(_data.modifiersDefault ? _data.modifiersDefault : []);
             modifierCount = modifiers.length;
             options = [];
             iconContainer = IconContainer.getInstance("modifiers");
