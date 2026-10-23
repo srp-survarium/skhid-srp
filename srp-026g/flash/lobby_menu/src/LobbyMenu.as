@@ -199,10 +199,9 @@ package
       // as an admin text; the exe never calls it.
       private static const ADMIN_MESSAGE_WARNING:int = 0;
 
-      // set_autobuy's value: which of the kit's auto-buy and auto-repair boxes are ticked.
+      // set_autobuy's value: bit 0 the autobuy box, bit 1 the auto-repair box (gone: an account
+      // that had it ticked still sends 3).
       private static const AUTO_BUY:int = 1;
-
-      private static const AUTO_REPAIR:int = 2;
 
       private static const AUTO_BUY_AND_REPAIR:int = 3;
 
@@ -3508,13 +3507,6 @@ package
       {
          trace("set_auto_buy::",value);
          this.player_profile.checkbox_autobuy.selected = value == AUTO_BUY_AND_REPAIR || value == AUTO_BUY;
-         this.player_profile.checkbox_autorepair.selected = value == AUTO_BUY_AND_REPAIR || value == AUTO_REPAIR;
-      }
-      
-      public function set_autorepair(value:Boolean) : void
-      {
-         trace("set_auto_repair::",value);
-         this.player_profile.checkbox_autorepair.selected = value;
       }
       
       public function try_buy_item(profile:uint, uid:uint, dict_uid:uint, sourceSlot:uint, targetSlot:uint, count:int, price:uint, seller:int = -1, onComplete:Function = null) : Boolean
