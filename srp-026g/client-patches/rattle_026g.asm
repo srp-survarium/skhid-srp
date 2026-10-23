@@ -2,7 +2,7 @@
 ; it quiets, in front of the C code of rattle_026g.c in the arena's block
 ; rattle.code (link_026g.py links it; patch_026g.py's RATTLE_HOOKS jump or
 ; call to the seven entries by their names). README section 59,
-; client_patch.md section 3.53, docs/notes/rattle.md.
+; client_patch.md section 3.56, docs/notes/rattle.md.
 ;
 ;   rattle_construct  the artefact cook's case for type 8, `call 0x25FA10`
 ;                     at 0x25E72C: Rattle's constructor, then the Rattle's

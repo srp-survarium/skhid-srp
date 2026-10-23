@@ -221,3 +221,9 @@ extern engine_config_variant_type
 ; unsigned int engine_point_to_screen(void *game, const float *point, float *out)
 ; 0x23dec0 survarium::base_game_scene::point_to_screen: game ESP+4, point ESP+8, out ESP+12; pops 12; AL
 extern engine_point_to_screen
+; unsigned int engine_binded_action(const void *binder, unsigned int kinds, unsigned int key, unsigned int *toggle)
+; 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX
+extern engine_binded_action
+; void engine_show_ui(void *world, unsigned int shown)
+; 0x1f95f0 survarium::game_world::show_ui: world ECX, shown ESP+4; pops 4
+extern engine_show_ui

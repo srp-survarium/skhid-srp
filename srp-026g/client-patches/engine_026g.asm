@@ -76,6 +76,8 @@ global engine_geometry_load
 global engine_geometry_destroy
 global engine_config_variant_type
 global engine_point_to_screen
+global engine_binded_action
+global engine_show_ui
 
 engine_cfg_child:
     ; 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
@@ -1309,6 +1311,40 @@ engine_point_to_screen:
     push dword [esp + 28]   ; game -> 4
     call 0x23dec0
     movzx eax, al
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_binded_action:
+    ; 0x207d50 survarium::key_binder::get_binded_action: binder EAX, kinds EDI, key ESI, toggle ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; toggle -> 4
+    mov eax, [esp + 24]   ; binder
+    mov edi, [esp + 28]   ; kinds
+    mov esi, [esp + 32]   ; key
+    call 0x207d50
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_show_ui:
+    ; 0x1f95f0 survarium::game_world::show_ui: world ECX, shown ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; shown -> 4
+    mov ecx, [esp + 24]   ; world
+    call 0x1f95f0
     pop edi
     pop esi
     pop ebx

@@ -99,7 +99,8 @@ USAGE (this script never touches the source exe):
     (checked in; PREVIEW and TABLE are patch 32's and patch 45's states, PRESS
     its own, 0xFA0 of the late join's state page, checked).
     The arena, `.srpx` (Research, the artefacts' code, the engine-function
-    library, the kit keys and the match chat option), is linked from its C and
+    library, the kit keys and the match chat option, the hide-the-interface
+    key), is linked from its C and
     NASM sources at every build
     (link_026g.py: gcc -m32, GNU ld and NASM 2.16 are needed) and must be
     arena_026g.lock.json's (`python link_026g.py --write` after a change).
@@ -457,7 +458,7 @@ Patches:
   victim untouched; the counts go with the world after the effects
   (0x2D2716, 0x2D2C75);
 - the Sponge and the Rattle (patch 59, with the late join; client_patch.md
-  sections 3.52 and 3.55, docs/notes/sponge.md and rattle.md; the arena's
+  sections 3.52 and 3.56, docs/notes/sponge.md and rattle.md; the arena's
   blocks sponge.code, sponge.state, rattle.code and rattle.state). The
   Sponge, artefact type 12, is 0.28d0's thrown toxic artefact written again
   on 0.26g (the cook's switches, the throw state, the damage zone's hit).
@@ -471,6 +472,20 @@ Patches:
   (0x5C8BA) by it. Every static map anomaly that spawns artefacts holds both:
   the anomaly cook's look-up of the core's `artefacts` (0x2E9D53) returns
   the table with {758, 1} and {759, 1} after the core's own kinds;
+- one key hides the whole interface and shows it again, in a match and in
+  the lobby (patch 62, with the late join; docs/notes/hide-ui-key.md): the
+  game's action toggle_replay_ui (19h, F11), which only worked in a replay.
+  hide_ui_026g.asm (the arena's blocks hide_ui.code and .state): the game
+  world's on_keyboard_action case 19h (0x25CED1) without the replay's movie
+  hides or shows the hud and the player icons with the game world's own
+  show_ui (0x1F95F0), not while the kits are shown; show_profiles_selector's
+  show_cursor call (0x23845B) gives a game world this key hid its ui back
+  before the kits show; lobby_menu::on_keyboard_action's binder call
+  (0x26CCD2) asks again for kind 1 when the key has no lobby action, and on
+  toggle_replay_ui invokes the lobby movie's root.toggle_interface and takes
+  the key (back at 0x26CCAE, al 1); while the movie says its interface is
+  hidden (root.interface_hidden) any other key goes straight to the movie
+  (back at 0x26CDD2), no window key or F6's Play acting;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -1959,6 +1974,34 @@ TEAM_DAMAGE_SIZES = (
     (0x2CCE5E, bytes.fromhex("c7442418b8010000"), bytes.fromhex("c7442418") + struct.pack("<I", TEAM_DAMAGE_KD_SIZE)),
 )
 
+# The key that hides the interface (patch 62, README; client_patch.md section
+# 3.55; the rules: ../docs/notes/hide-ui-key.md): hide_ui_026g.asm in the
+# arena's blocks hide_ui.code and hide_ui.state (ARENA below), three entries:
+# - the game world's on_keyboard_action 0x25CD00, its case of action 19h
+#   (toggle_replay_ui, F11; the switch's table 0x25CF30 + 8 * 4), `mov
+#   esi,[esp+10h] / cmp dword [esi+18h],0 / jz 0x25CF0D` at 0x25CED1: with
+#   the replay's movie (the handler's +18h) it goes on at 0x25CEDB as before;
+#   without it the game world's show_ui (0x1F95F0, state +0A0h) hides the hud
+#   and the player icons (not while the cursor shows the kits) or shows them
+#   when this key hid them; both ways the key is not taken (0x25CF0D);
+# - show_profiles_selector's `call 0x23A930` (show_cursor) at 0x23845B: a
+#   game world this key hid gets its ui back before the kits are shown;
+# - lobby_menu::on_keyboard_action's `call 0x207D50` (get_binded_action,
+#   kind 2) at 0x26CCD2: a key with no lobby action is asked again for kind
+#   1; toggle_replay_ui invokes the lobby movie's root.toggle_interface and
+#   returns at 0x26CCAE (al 1: taken, the movie does not get the key); any
+#   other key, while the movie answers root.interface_hidden true, returns at
+#   0x26CDD2 (the key to the movie, which shows the interface; no window key,
+#   no F6 Play).
+# No base relocation is under a site and no branch aims inside one.
+HIDE_UI_HOOKS = (
+    (0x25CED1, bytes.fromhex("8b742410" "837e1800" "7432"), "hide_ui_match", 0xE9),   # on_keyboard_action: case 19h
+    (0x23845B, bytes.fromhex("e8d0240000"), "hide_ui_kits", 0xE8),                  # the kits' show_cursor call
+    (0x26CCD2, bytes.fromhex("e879b0f9ff"), "hide_ui_lobby", 0xE8),                 # the lobby's binder call
+)
+HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x23A930, 0x26CCAE, 0x26CDD2)
+# the replay's toggle, the key not taken, show_cursor; the lobby's key taken, and the key to the movie
+
 
 def weapon_camo_va(late_join):
     """Where `.srpw` is: the page after `.srpc`, which is one page."""
@@ -2150,6 +2193,15 @@ INSTALLS = {
                      "thread): rattle_amplitude, x the proxy's gain", None, None),
     0x05C8BA: (JUMP, "calculate_hdr_audio_frame's `movss [esi+40h],xmm0` (its HDR loudness): rattle_loudness, + "
                      "20 log10(gain)", None, None),
+    # the key that hides the interface, patch 62 (in `.srpx`)
+    0x25CED1: (JUMP, "the game world's on_keyboard_action 0x25CD00, its case of action 19h (toggle_replay_ui), "
+                     "`mov esi,[esp+10h] / cmp dword [esi+18h],0 / jz 0x25CF0D`: match, back at 0x25CEDB (the "
+                     "replay's controls, esi the handler) or 0x25CF0D", None, None),
+    0x23845B: (CALLEE, "show_profiles_selector's show_cursor (edi the hud, the byte pushed; `ret 4`): kits, which "
+                       "shows a hidden ui first and jumps to it", None, None),
+    0x26CCD2: (CALLEE, "lobby_menu::on_keyboard_action's get_binded_action (eax the binder, edi 2, esi the key, "
+                       "the toggle's place pushed; `ret 4`): lobby, which on toggle_replay_ui returns to 0x26CCAE "
+                       "instead", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -2380,6 +2432,8 @@ ARENA = (
     # the Rattle, patch 59: the asm's seven entries and stubs, then the C code
     ArenaBlock("rattle.code", "code", 0x1000, ("rattle_026g.asm", "rattle_026g.c")),
     ArenaBlock("rattle.state", "state", 0x10, ("rattle_026g.c",)),                  # rt_g: the steps' quiet
+    ArenaBlock("hide_ui.code", "code", 0x1000, ("hide_ui_026g.asm",)),           # patch 62
+    ArenaBlock("hide_ui.state", "state", 0x1000, ("hide_ui_026g.asm",)),         # the game world it hid
 )
 
 
@@ -2493,7 +2547,7 @@ SPONGE_HOOKS = (
     (0x2E9D53, bytes.fromhex("e8b8cde0ff"), "sponge_artefacts", 0xE8),                  # an anomaly's kinds
 )
 # The Rattle, artefact type 8 (patch 59 with the Sponge, README; client_patch.md
-# section 3.55; docs/notes/rattle.md): rattle_026g.asm's seven entries and
+# section 3.56; docs/notes/rattle.md): rattle_026g.asm's seven entries and
 # stubs, then the C code of rattle_026g.c and its constant data, in the
 # arena's block rattle.code; the C code's state (rt_g: the steps' pending
 # quiet) in rattle.state, zeroed. 0.20e left artefact_rattle_core's effect
@@ -3401,7 +3455,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in (RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS
-                                                     + TEAM_DAMAGE_HOOKS + SPONGE_HOOKS + RATTLE_HOOKS):
+                                                     + TEAM_DAMAGE_HOOKS + SPONGE_HOOKS + RATTLE_HOOKS
+                                                     + HIDE_UI_HOOKS):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
@@ -3461,6 +3516,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "pain, body and head, and one press fires every artefact of its kind, "
                      "the keys 1, 2 and 3 pick a kit while the kits are shown, "
                      "an option hides the other players' chat lines in a match, "
+                     "F11 (toggle_replay_ui) hides the interface in a match and in the lobby, "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")

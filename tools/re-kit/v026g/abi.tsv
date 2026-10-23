@@ -1994,3 +1994,6 @@ va	name	source	ret_cleanup	result
 0x0023dec0	survarium::base_game_scene::point_to_screen	manual	12	AL: on the screen: in front (the projected z below 1, so not behind the camera) and strictly inside 0..width, 0..height; the out position is then the pixel, else the point clamped to the screen's edges (projected above the top: the bottom edge, x mirrored). game_world_ui::update_player_icons (0x23AB12) hides a player's marker when AL is 0
 0x0023aa10	survarium::game_world_ui::update_player_icons	manual	4	
 0x0023b200	survarium::game_world_ui::update_ui	manual	12	
+0x00207d50	survarium::key_binder::get_binded_action	manual	4	EAX: the bound action's id (game_action_id); 49h when the key is bound to no action of the kinds asked
+0x0023a930	survarium::game_world_ui::show_cursor	manual	4	
+0x002383b0	survarium::game_world_ui::show_profiles_selector	manual	4	

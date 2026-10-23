@@ -185,7 +185,7 @@ Patch number
 
 ## Built (2026-10-23)
 
-- Exe patch 59 (README section 59, client_patch.md section 3.55): `rattle_026g.asm`,
+- Exe patch 59 (README section 59, client_patch.md section 3.56): `rattle_026g.asm`,
   `rattle_026g.c` in the arena's blocks `rattle.code` and `rattle.state`; seven hooks and the
   cook's size; the game called through the engine library. Pack `rattle@2`
   (`scripts/rattle/make_pack.py`).
