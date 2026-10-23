@@ -153,6 +153,45 @@ The numbers are GUESSES; only `exposed_m` was tried at two values (below). `expo
 - On the maps the batteries delivered are the same within the noise at either distance, and an eighth fewer carriers are killed carrying; the rest is within the noise.
 - `with_the_battery_cheat_whole_matches_are_won_by_batteries` moved from seed 1 to seed 2: seed 1 ended level, 1-1, with the rule (a level end came in 1 of the 32 soak matches with the rule and 1 without it, at other seeds).
 
+### 2.4 Who carries a battery, and the put-in (built 2026-10-23)
+
+The worlds say a battery is carried, not by whom (§1): the view (`bots/view.rs`, `Tracker::carriers_seen`) guesses the carrier. In the owner's matches of 2026-10-22 (the audit of `private/pvb-jumps-local/analysis/AUDIT.md`, #2) a bot at its own container was believed to carry a battery a teammate beside it had picked up: the old rule gave it to whoever had pressed use last within 4 m; the bot tried 9 put-ins and the real carrier walked off, not knowing he carried it. Now:
+- **Who took it.** Each player's last 4 use presses are kept with his eye and view (`UsePress`; the client's use ray is 2 m, PROVEN). A battery newly carried goes to the player, alive, not of a thief's team for a battery taken from a container, and not believed to carry another, whose press's ray passed nearest the battery (its middle, 0.12 m up; a container's battery 1 m over it), plus a quarter of his feet's distance, plus 1 if the press came more than 1 s before the last world (it was judged already); a press within 6 s and 4 m. Without such a press, the nearest player within 6 m at a cost of 3 + his distance. The others in reach are kept, cheapest first.
+- **The belief moves.** When its carrier's 3 uses at his own container (feet within 2.5 m) put nothing in, each judged by a world 1.5 s after it, or he died and the battery stayed carried 2.5 s, the belief goes to the next of the others still alive and carrying nothing; with none it stays.
+- **The log** (`Note` place `usize::MAX`): `battery 3 picked up by 4: its use's ray 0.01 m off it, 0.6 m away; the others near: 5 (7.9)`; `player 4 no longer believed to carry battery 3 (3 uses at his container put nothing in); now player 5`; a battery dropped more than 4 m from its believed carrier, `battery 3 fell 6.2 m from player 4, believed its carrier`.
+- **The put-in and the take wait for the world** (`plays/collect.rs`, `use_seen`): the world showing a use comes a second or two after the press (worlds come every second, behind the clock), so a second press "failed" while the first had put the battery in, and the bot took a new play that ended "put it in" within a second (291 of 442 put-in plays on the bench, 8 seeds). A use is judged by a world `USE_SEEN_MS` (300 ms, GUESS) after it, or after 3 s without one; then the next press, or the failure. A carry that ends with the bot not carrying says how (`carry_ended`): "put it in"/"brought home", "someone else carries it", or "dropped it".
+- **A failed take's log** gives the last use's ray: `took no battery 0 from a stand 0.9 m off it (standing): its use's ray 1.68 m to it, 42 deg down, the view 0.1 deg off it`.
+
+**Measured** (2026-10-23; `real_bot_cost` as in §2.3, `SRP_BENCH_BATTERIES=10`, `SRP_BENCH_USE_LINE=1`, seeds 1-16, 192 runs a side; the battery soaks `raids_in_whole_battery_matches`, 4 a side to 3, 900 s, seeds 1-8 cheat off and on; ± the standard error of the difference a seed, * over 2 of them). A seed's sums:
+
+| Run | Before (55f1042) | After | Difference a seed |
+|---|---|---|---|
+| real maps: put-ins failed | 36.9 | 0.3 | −36.6 ± 0.8 * |
+| Collect plays a pickup | 5.82 | 5.21 | −0.62 ± 0.15 * |
+| plays ended within 1 s | 367 | 345 | −22 ± 7 * |
+| batteries picked up | 61.5 | 63.8 | +2.3 ± 1.0 * |
+| batteries put in by the play's carrier | 18.8 | 22.2 | +3.4 ± 1.3 * |
+| delivered | 38.4 | 39.6 | +1.3 ± 0.9 |
+| carriers killed carrying | 9.8 | 11.8 | +2.0 ± 0.8 * |
+| intercepts ended "he no longer carries it" | 9.6 | 11.3 | +1.7 ± 0.8 * |
+| carrier believed wrong (world-s) | 1.7 | 1.2 | −0.5 ± 0.4 |
+| kills, all | 132.9 | 136.7 | +3.8 ± 2.2 |
+| K/D team 0 / team 1 | 0.92 / 1.13 | 0.90 / 1.18 | −0.02 ± 0.02 / +0.05 ± 0.03 |
+| deaths team 0 / team 1 | 75.8 / 67.9 | 79.0 / 69.2 | +3.3 ± 1.6 * / +1.3 ± 1.6 |
+| A→B→A flips in 10 s | 90.1 | 90.8 | +0.8 ± 2.8 |
+| stood with a goal, ticks | 20,093 | 19,964 | −129 ± 281 |
+| soaks: put-ins failed | 2.31 | 0 | −2.31 ± 0.20 * |
+| soaks: delivered | 3 | 3 | 0 |
+| soaks: kills team 0 / team 1 | 109.9 / 105.7 | 107.9 / 107.0 | −2.0 ± 1.7 / +1.3 ± 1.5 |
+
+- The whole-match tests pass (`four_bots_a_side…`, `with_the_battery_cheat…`, `timed_batteries…`, `a_take_waits…`, `bots_hold_fire…`, the Team Deathmatch).
+- Both teams run this code: more batteries move, and the interceptors chase the right carrier, so more carriers die and both sides fight more (team 0's deaths up 4 %); neither team's K/D moves beyond the noise.
+
+**Tried and left out** (no clear benefit by the owner's rule):
+- *A battery two bots of the team failed to take, left by the whole team for 45 s* (audit #7). With the first two batteries of each run made untakeable (`SRP_BENCH_UNTAKEABLE=2`, 8 seeds): failed takes −9.0 ± 2.6 and failed stands −23.5 ± 5.8, but delivered −0.4 ± 0.6, team 0's deaths +2.0 ± 0.8 and standing with a goal +497 ± 248 ticks; on the plain bench it never fired.
+- *A carrier camping deep in his ground* (audit #6: kept within 3 m of a spot 20 s, in the far third; a quarter of his score, no alarm, a run from beyond its band ended). On the bench it fired 0.25 times in 8 seeds' runs, nothing changed beyond the noise; a scenario (a carrier set still at the far end of the soak's floor, 8 seeds, cheat off and on) came out the same with and without it to the kill.
+- *The cause of the failed takes* (audit #7) is still open: on the bench, 10 of 12 failed stands were standing ~1 m off with the eye 1.4-2.0 m from the battery (median 1.67 m, near the 2 m ray's end) and the view on it; the bench's take is the stand-in's own rule (`uses_battery`), so the real client's reason needs the new log lines from real matches.
+
 ## 3. Plays
 
 Each play has a score from the situation, a precondition and steps. A commander per team hands them out every ~0.5 s: never two bots on one ambush, and no bot parked at its own container. In the saved worlds lives that stay in their own third are the worst in every mode (K/D 0.3–0.6, ~0.03 batteries a life), so a steal is answered by the 1–2 nearest bots (the thief cheat and the alarms in §4); the only guard is play 18.
