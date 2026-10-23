@@ -3090,6 +3090,9 @@ va	name	location	role	basis
 0x0032a420	survarium::body_part::increase_health	ESI	the pool (Hmax +9Ch, H +0A0h)	observed
 0x0032a420	survarium::body_part::increase_health	stack+4	the time	observed
 0x0032a420	survarium::body_part::increase_health	stack+8	float amount added, H clamped to [0, Hmax]	observed
+0x0032a4b0	survarium::body_part::regenerate	EDI	the pool: +9Ch max health, +A0h health, +A4h regeneration_speed (per s), +A8h regeneration_threshold (x max), +ACh timeout ms, +B0h last hit ms, +2ECh regeneration_modifiers subscribers (0x329DF0); speed = getter 0x2D5AE0 index 2 (health_regeneration_speed) on +A4h, k 1	observed
+0x0032a4b0	survarium::body_part::regenerate	entry ESP+4	elapsed ms	observed
+0x0032a4b0	survarium::body_part::regenerate	entry ESP+8	now ms	observed
 0x0032ae00	survarium::body_part_parameters::serialize	ECX	body_part_parameters	inferred
 0x0032ae00	survarium::body_part_parameters::serialize	stack+4	writer	inferred
 0x0032afe0	survarium::body_part_parameters::deserialize	ECX	body_part_parameters	inferred
@@ -3259,6 +3262,7 @@ va	name	location	role	basis
 0x0033efc0	survarium::armor::`scalar deleting destructor'	ECX	armor receiver	inferred
 0x0033efc0	survarium::armor::`scalar deleting destructor'	stack+4	deletion flags	inferred
 0x0033f0c0	survarium::armor::on_holder_assigned	ECX	armor receiver	inferred
+0x0033f3a0	survarium::armor::add_modifiers	EDI	the armour: +250h its inventory (+174h the holder, vtable +0Ch the player), +838h its nodes {prev, next, index, value} (one per nonzero modifier float), +83Ch their count; linked at the tail of the kit list +6B8h + kit x 704h + 204h + index x 14h	observed
 0x0033fde0	survarium::player_history_item::serialize	ECX	player history record	inferred
 0x0033fde0	survarium::player_history_item::serialize	EAX	writer	inferred
 0x0033fee0	survarium::player_history_item::deserialize	stack+4	player history record	inferred
@@ -3333,6 +3337,12 @@ va	name	location	role	basis
 0x003578f0	vostok::physics::bt_ghost_object::bt_ghost_object	stack+8	shape, kept at +10h	observed
 0x003578f0	vostok::physics::bt_ghost_object::bt_ghost_object	stack+12	the bullet object (btCollisionObject, world transform at +10h, origin +40h), kept at +18h; its +F8h = the ghost	observed
 0x00357aa0	vostok::physics::create_ghost_object	stack+8	float4x4 transform (copied into the bullet object by 0x70C20)	observed
+0x00357f80	vostok::configs::apply_add_modifiers	ESI	the config value record (data +0, type +14h; an int becomes a float first)	observed
+0x00357f80	vostok::configs::apply_add_modifiers	ECX	the modifiers set (end at [ECX])	observed
+0x00357f80	vostok::configs::apply_add_modifiers	entry ESP+4	its first modifier node (value -20h, type -0Ch)	observed
+0x00358010	vostok::configs::apply_multiply_modifiers	ESI	the config value record (data +0, type +14h; an int becomes a float first)	observed
+0x00358010	vostok::configs::apply_multiply_modifiers	ECX	the modifiers set (end at [ECX])	observed
+0x00358010	vostok::configs::apply_multiply_modifiers	entry ESP+4	its first modifier node (value -20h, type -0Ch)	observed
 0x00376280	vostok::network::login_client::create_client	ECX	login-client receiver	observed
 0x003762d0	vostok::network::login_client::login_client	EAX	world pointer	observed
 0x003762d0	vostok::network::login_client::login_client	EDI	login-client receiver	observed

@@ -16,5 +16,14 @@ with inventory ... not character, but character menu ... with 3 profiles current
   while it is open, and the shop again when it closes. It listed the shop's decals and camouflages:
   one dropped in a circle was not owned, the drop failed with an error and the drag stayed on the
   cursor. A drop of an item not owned is now ignored (`UpgradeWindow.onItemDropped`).
-- **Nothing else changes:** the shop's list and its item card are as before. Server: nothing.
-- Code: `InventoryList.set visible`.
+- **Every entry of a kit item's menu acts on that item** (live, rev 30, 2026-10-23: Modification
+  on an equipped item from the shop was refused, "no such item"): Repair, Modification, Upgrade
+  and Attachments act on the owned item the menu was opened on, that very copy, put on the card
+  first (`InventoryList.menuItem`). They read the card or the list's selection, and in the shop
+  the list holds only shop entries (item id 0): the card could be a shop entry again by the time
+  an entry was chosen, and Repair and Upgrade used the list's selected shop entry (Upgrade did
+  nothing). These entries are listed only for an owned item. The craft window (Upgrade) opened
+  from the shop lists the inventory while it is open, as the modification window does.
+- **The shop's own entries** (its list, its card) offer none of them, as before: Buy only.
+- **Server:** a refused reroll window, reroll or repair logs the item id the client sent.
+- Code: `InventoryList.set visible`, `InventoryList.showContextMenu`, `LobbyMenu.openCraftWindow`.
