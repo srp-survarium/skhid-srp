@@ -220,6 +220,46 @@ fn a_map_without_batteries_cuts_nothing() {
     assert_eq!(research.players[0].total(event::RESEARCH_NEUTRALISE), 1_200);
 }
 
+#[test]
+fn a_revision_30_research_capture_of_kit_1_is_no_250_point_cure() {
+    let weights = survarium::v026g::match_msgs::static_info::score_weights(mode::RESEARCH);
+    // Revision 30's patch 53 counted a kit 1 player's two captures and a
+    // neutralisation 4 bytes on: 200 hundredths in kit 0's teammate cures
+    // (event 7) and 100 in its batteries found (19), the kill invader in
+    // participating (11). Kit 0's went to the right event's kit 2 cell.
+    let mut played = statistics(&[
+        &[
+            (event::TEAMMATE_CURE, 0, 200),
+            (event::VICTORY_ITEM_FOUND, 0, 100),
+            (event::KILL, 1, 3),
+        ],
+        &[(event::RESEARCH_CAPTURE, 2, 100), (event::KILL, 0, 1)],
+    ]);
+    // 300 x 2.5 + 30: 750 points too many, and 200 helps' pay.
+    assert_eq!(snapshot::score(&played.players[0], &weights), 780);
+    let cuts = research_misplaced(&mut played);
+    assert_eq!(
+        cuts,
+        [
+            Cut {
+                place: 0,
+                kind: "teammate cure (a capture's share)",
+                counted: 200,
+                paid: 0
+            },
+            Cut {
+                place: 0,
+                kind: "battery found (a neutralisation's share)",
+                counted: 100,
+                paid: 0
+            },
+        ]
+    );
+    assert_eq!(snapshot::score(&played.players[0], &weights), 30);
+    // Kit 0's capture, in the right event, stays: 30 + 10.
+    assert_eq!(snapshot::score(&played.players[1], &weights), 40);
+}
+
 /// The last world of a directory of saved worlds (`SRP_SNAPSHOT_DIR`'s
 /// `match026g_<id>_<ms>_p<n>_<kind>_r<run>.bin`) through the cap on a map
 /// of 10 batteries: each place's battery totals and score before and after.

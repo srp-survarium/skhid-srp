@@ -2,7 +2,7 @@
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
   "size": 28746,
-  "sha256": "9b15e63b2dae83ed80192d0ee912f2f3ad3204a1804ca247373c8591fc817fd9",
+  "sha256": "e1718e9ca82810194bb5b4a581c6c563012ddf37db66c25d0cccaa0c815bc4ed",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -123,7 +123,7 @@
     "rr_write": "0xa42da9c"
   },
   "built_with": {
-    "cc": "gcc (GCC) 15.2.0",
+    "cc": "gcc (GCC) 15.3.0",
     "ld": "GNU ld (GNU Binutils) 2.46",
     "nasm": "NASM version 2.16.03 compiled on Apr 17 2024"
   }

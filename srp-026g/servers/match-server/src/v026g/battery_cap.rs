@@ -84,5 +84,43 @@ fn cut(counts: &mut [u16; KITS], paid: u32) {
     }
 }
 
+/// The events a Research game of revision 30 counted its captures,
+/// neutralisations and kills of invaders in for a player of kit 1 or 2
+/// (exe patch 53 took the statistics handler for the shared statistics:
+/// its cell was 4 bytes on, `research_native_026g.c`): a capture's 100
+/// hundredths in event 7 (a teammate cured, 2.5 a one and a help's pay),
+/// a neutralisation's in 19 (a battery found, 2.5 a one). Both are one
+/// byte on the wire, so what is left of them is the hundredths modulo 256
+/// and the captures cannot be told from them: a Research match pays
+/// neither. 19 has nothing else in Research (no batteries); 7's real cures
+/// go unpaid with them (2.5 score and a help's 10 silver each).
+const RESEARCH_MISPLACED: [(usize, &str); 2] = [
+    (event::TEAMMATE_CURE, "teammate cure (a capture's share)"),
+    (
+        event::VICTORY_ITEM_FOUND,
+        "battery found (a neutralisation's share)",
+    ),
+];
+
+/// Zero [`RESEARCH_MISPLACED`] for every player of a Research match.
+pub(crate) fn research_misplaced(statistics: &mut Statistics) -> Vec<Cut> {
+    let mut cuts = Vec::new();
+    for (place, player) in statistics.players.iter_mut().enumerate() {
+        for (event, kind) in RESEARCH_MISPLACED {
+            let counted = player.total(event);
+            if counted > 0 {
+                player.events[event] = [0; KITS];
+                cuts.push(Cut {
+                    place,
+                    kind,
+                    counted,
+                    paid: 0,
+                });
+            }
+        }
+    }
+    cuts
+}
+
 #[cfg(test)]
 mod tests;
