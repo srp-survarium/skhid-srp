@@ -82,7 +82,12 @@ pub struct Tactics {
     /// ([`Hazards::fixed_zones`]): made again only when they change (at
     /// the anomalies' attach).
     past_fixed: std::sync::Mutex<Option<PastFixed>>,
+    /// [`Self::spots_kept`]'s lists.
+    spot_lists: std::sync::Mutex<Vec<KeptSpots>>,
 }
+
+/// A list of [`Tactics::spots_kept`]: (key, kept until, the spots).
+type KeptSpots = (u64, u32, Arc<Vec<Vec3>>);
 
 /// The label's bits for the sides' spawn areas.
 const SPAWN_BITS: u32 = 8;
@@ -446,6 +451,7 @@ impl Tactics {
             hazards: base.hazards.clone(),
             routes: Vec::new(),
             past_fixed: Default::default(),
+            spot_lists: Default::default(),
             base,
         }
     }
@@ -894,6 +900,40 @@ impl Tactics {
             out.push(spot);
         }
         out
+    }
+
+    /// The spots `find` gives for `key`, made once and kept until `now +
+    /// keep_ms` for every bot that asks: a play that offers itself only
+    /// where it has a spot (HoldExit, Crossfire) looks at each poll, and
+    /// [`Self::spots`]'s sight rays are too dear for that.
+    pub fn spots_kept(
+        &self,
+        key: u64,
+        now: u32,
+        keep_ms: u32,
+        find: impl FnOnce() -> Vec<Vec3>,
+    ) -> Arc<Vec<Vec3>> {
+        let mut lists = self.spot_lists.lock().unwrap_or_else(|e| e.into_inner());
+        lists.retain(|&(_, until, _)| now < until);
+        if let Some((_, _, spots)) = lists.iter().find(|(k, ..)| *k == key) {
+            return spots.clone();
+        }
+        let spots = Arc::new(find());
+        lists.push((key, now.saturating_add(keep_ms), spots.clone()));
+        spots
+    }
+
+    /// A key for [`Self::spots_kept`]: the play's `tag` (its kind, under
+    /// 64, plus 64 times a variant of its own up to 3), the side and the
+    /// point the spots are round, to `KEY_GRID_M`.
+    pub fn spot_key(tag: u32, side: Option<i32>, around: Vec3) -> u64 {
+        const KEY_GRID_M: f32 = 4.0;
+        let cell = |v: f32| u64::from((v / KEY_GRID_M).round() as i32 as u16);
+        u64::from(tag) << 56
+            | u64::from(side.map_or(0xff, |s| s as u8)) << 48
+            | cell(around.x) << 32
+            | cell(around.y) << 16
+            | cell(around.z)
     }
 
     /// The exits of `side`'s base: points 30-60 m out on the ways from its

@@ -25,6 +25,13 @@
 //!
 //! It sprints only far from known danger ([`Ctx::pace_toward`]). At the
 //! end it looks about a few seconds, then the commander picks again.
+//!
+//! **No headway:** on its way, a bot that has not got `headway_m` further
+//! in `headway_s` ends the run and the commander picks again (another
+//! detour, route or play). On level_06's Team Deathmatch whole teams stood
+//! at one point by their base with a way open to the goal, unseen by the
+//! stuck watch (it pushed nowhere); only the plays that failed at once
+//! there (HoldExit and Crossfire with no spot) restarted them now and then.
 
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
@@ -49,6 +56,12 @@ pub const NUMBERS: &[(&str, f32)] = &[
     ("wide_sneak", 1.3),
     // A route's point counts as reached within this, metres.
     ("reach_m", 5.0),
+    // On its way, not this much further in `headway_s`: the run ends,
+    // metres and seconds. GUESS: past a pair's wait for its follower (6 s)
+    // and a short fight, well short of the 90 s give-up; measured on the
+    // real-map bench (level_06 Team Deathmatch, where teams stood).
+    ("headway_m", 3.0),
+    ("headway_s", 10.0),
 ];
 
 pub fn tuning() -> PlayTuning {
@@ -98,18 +111,48 @@ pub enum State {
         next: usize,
         /// Until when it waits for its pair's follower (0: not yet).
         wait_until: u32,
+        headway: Headway,
     },
     /// To the waypoint off the straight way, then to the goal.
     Via {
         via: Vec3,
         goal: Vec3,
+        headway: Headway,
     },
     Going {
         goal: Vec3,
+        headway: Headway,
     },
     Looking {
         until: u32,
     },
+}
+
+/// Where the bot last got `headway_m` further on its way, and when.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Headway {
+    at: Vec3,
+    time: u32,
+}
+
+impl Headway {
+    fn new(cx: &Ctx) -> Self {
+        Self {
+            at: cx.me.feet,
+            time: cx.now,
+        }
+    }
+
+    /// Whether the bot has got nowhere for `headway_s` (it stood or went
+    /// round within `headway_m`).
+    fn none(&mut self, cx: &Ctx) -> bool {
+        let num = |name| cx.num(PlayKind::Roam, name);
+        if cx.me.feet.distance_xz(self.at) > num("headway_m") {
+            *self = Self::new(cx);
+            return false;
+        }
+        cx.now > self.time + (num("headway_s") * 1000.0) as u32
+    }
 }
 
 impl Ctx<'_> {
@@ -271,6 +314,7 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
             points,
             next: 0,
             wait_until: 0,
+            headway: Headway::new(cx),
         };
     }
     // The exit or the way ahead; with no side known, a floor 20-60 m off.
@@ -291,8 +335,9 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
     let me = cx.me.feet;
     let (dx, dz) = (goal.x - me.x, goal.z - me.z);
     let length = dx.hypot(dz);
+    let headway = Headway::new(cx);
     if length < 30.0 {
-        return State::Going { goal };
+        return State::Going { goal, headway };
     }
     for _ in 0..6 {
         let offset = rng.range(
@@ -306,10 +351,10 @@ pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
             me.z + dz * t + dx / length * offset,
         );
         if cx.tactics.fine_goal(via, cx.now, cx.bot.side) {
-            return State::Via { via, goal };
+            return State::Via { via, goal, headway };
         }
     }
-    State::Going { goal }
+    State::Going { goal, headway }
 }
 
 pub fn step(state: &mut State, _target: TargetRef, cx: &Ctx, rng: &mut Rng) -> Step {
@@ -323,6 +368,7 @@ pub fn step(state: &mut State, _target: TargetRef, cx: &Ctx, rng: &mut Rng) -> S
             points,
             next,
             wait_until,
+            headway,
         } => {
             let reach = cx.num(PlayKind::Roam, "reach_m");
             while *next < points.len() && cx.me.feet.distance_xz(points[*next]) < reach {
@@ -355,19 +401,29 @@ pub fn step(state: &mut State, _target: TargetRef, cx: &Ctx, rng: &mut Rng) -> S
                     *wait_until = cx.now + (cx.num(PlayKind::Buddy, "wait_s") * 1000.0) as u32;
                 }
                 if cx.now < *wait_until {
+                    *headway = Headway::new(cx);
                     return Step::Continue(Intent::stay().looking(Look::Path));
                 }
             }
+            if headway.none(cx) {
+                return Step::Done("made no headway");
+            }
             Step::Continue(Intent::to(at, cx.pace_toward(at)).within(reach * 0.6))
         }
-        State::Via { via, goal } => {
+        State::Via { via, goal, headway } => {
             let (via, goal) = (*via, *goal);
+            if headway.none(cx) {
+                return Step::Done("made no headway");
+            }
             if cx.me.feet.distance_xz(via) < 4.0 {
-                *state = State::Going { goal };
+                *state = State::Going {
+                    goal,
+                    headway: *headway,
+                };
             }
             Step::Continue(Intent::to(via, cx.pace_toward(via)).within(3.0))
         }
-        State::Going { goal } => {
+        State::Going { goal, headway } => {
             let goal = *goal;
             if cx.me.feet.distance_xz(goal) < 3.0 {
                 let look = rng.range(
@@ -378,6 +434,9 @@ pub fn step(state: &mut State, _target: TargetRef, cx: &Ctx, rng: &mut Rng) -> S
                     until: cx.now + (look * 1000.0) as u32,
                 };
                 return Step::Continue(Intent::stay());
+            }
+            if headway.none(cx) {
+                return Step::Done("made no headway");
             }
             Step::Continue(Intent::to(goal, cx.pace_toward(goal)).within(2.0))
         }
@@ -459,6 +518,44 @@ mod tests {
         });
         let (north, south) = draws(&s, 400);
         assert!(south > north, "{north} {south}");
+    }
+
+    /// A bot that gets nowhere on its way for `headway_s` ends the run, so
+    /// the commander picks again; one that walks on does not.
+    #[test]
+    fn a_bot_that_gets_nowhere_on_its_way_ends_the_run() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(5.0, 0.0, 15.0));
+        let mut rng = Rng::new(1);
+        let goal = Vec3::new(50.0, 0.0, 15.0);
+        let mut state = State::Going {
+            goal,
+            headway: Headway::new(&s.cx(0)),
+        };
+        // Standing (or going round within 3 m): done after 10 s.
+        let mut steps = Vec::new();
+        for second in 1..=12 {
+            s.view.clock += 1_000;
+            s.view.places[0].feet.x = 5.0 + (second % 2) as f32;
+            steps.push(step(&mut state, TargetRef::Exit(0), &s.cx(0), &mut rng));
+        }
+        assert!(
+            steps[..9].iter().all(|st| matches!(st, Step::Continue(_))),
+            "{steps:?}"
+        );
+        assert_eq!(steps.last(), Some(&Step::Done("made no headway")));
+        // Walking 1.5 m a second: it goes on.
+        s.view.places[0].feet.x = 5.0;
+        let mut state = State::Going {
+            goal,
+            headway: Headway::new(&s.cx(0)),
+        };
+        for _ in 0..20 {
+            s.view.clock += 1_000;
+            s.view.places[0].feet.x += 1.5;
+            let st = step(&mut state, TargetRef::Exit(0), &s.cx(0), &mut rng);
+            assert!(matches!(st, Step::Continue(_)), "{st:?}");
+        }
     }
 
     #[test]
