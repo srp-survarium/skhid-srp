@@ -549,3 +549,30 @@ kept and can be put back).
 <!-- Revision 29 (026g-rev29), released 2026-10-22 14:57 UTC. To be worded for players; what it shipped: -->
 
 - TODO: #304 Pockets: equipping a medkit, grenade or trap works again (rev 28 regression)
+
+## 23 Oct, 04:36 — TODO: the owner's words (update required)
+
+<!-- Revision 30 (026g-rev30), released 2026-10-23 04:36 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #297 Research (mode 5) as 0.27d shipped it: exe patch 53, 25 maps, hud, lobby, srp (for the release after revision 28)
+- TODO: #307 Generic tooling: .srpx arena, call-shape models, content value-type check
+- TODO: #310 Research: review fixes (slot 7 argument order, scoreboard, draw at the goal) and slots driven through the game's caller
+- TODO: #309 Any modification of an item may be rerolled
+- TODO: #306 Ban texts: no prohibited-software header, a neutral fallback reason
+- TODO: #312 Lobby: the Attachments window opens again after it was closed once (rev 28 regression)
+- TODO: #313 Patch 48: an upgrade window closed at once leaves the kit's weapon in the hands
+- TODO: #308 Artefacts buffed: Spring's aim time and no slow, Lifebone's full heal, one press for every artefact of a kind (patch 54)
+- TODO: #317 Engine-function library: plain cdecl calls into LTO-ABI engine functions, checked against the re-kit rows
+- TODO: #320 Exe patches: link the arena (.srpx) from C/NASM sources, no pinned addresses
+- TODO: #314 Kit presets: five kit sets, the active one is the kits, a Character dropdown, and a preset offer on room join
+- TODO: #321 Lobby: Play and the rooms' entries greyed until the reasons are known; a refused Play closes the rooms window
+- TODO: #324 Shop shows only the bundles: reputations again after the price list
+- TODO: #322 Reliability never rolls: upgrades, rerolls and drops leave it out
+- TODO: #323 Updater: a file Windows Security blocks stops the update, never "up to date"
+- TODO: #325 Artefact hints say the new numbers (Spring, Lifebone, Onyx)
+- TODO: #326 Reroll window: remove the one-modification lock code left after #309
+- TODO: #327 Upgrade: a failed craft no longer takes a modification away
+- TODO: #328 Reroll window: the game's own Cancel in place of "Keep old"
+- TODO: #329 Craft window: Buy from its slots; the TT-33 in the shop at 500
+- TODO: #315 Patch 45: the camera flies to the bench at once
+- TODO: #330 Research HUD: "Capturing unit..." on one line, not "Captu"
