@@ -16,6 +16,7 @@
 pub mod claude;
 pub mod detect;
 pub mod glossary;
+pub mod swear;
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::mpsc::{self, Receiver, SyncSender, TrySendError};
@@ -25,6 +26,7 @@ use std::time::{Duration, Instant};
 use session::LockExt;
 
 use glossary::Glossary;
+use swear::{Masked, SwearFilter};
 
 /// The game's five languages, as the client names them in `4F` (0x26C36E:
 /// english 0, russian 1, ukrainian 2, german 3, polish 4).
@@ -87,6 +89,9 @@ pub struct Translated {
     /// A text for some of the languages asked for. One left out, or one
     /// equal to the line, is given the original.
     pub lines: Vec<(Lang, String)>,
+    /// The backend declined the line (a refusal): every reader gets the
+    /// original, and the backend is not rested for it.
+    pub refused: bool,
 }
 
 /// What a backend is asked.
@@ -116,6 +121,9 @@ pub struct Config {
     /// `SRP_CHAT_TRANSLATE_TIMEOUT_MS` (default 2000, 200 to 10000): the
     /// longest a line waits for its translation.
     pub timeout: Duration,
+    /// `SRP_CHAT_SWEAR_DIR`: the game's own swear lists, one more input to
+    /// srp's (`swear`); none: srp's alone.
+    pub swear_dir: Option<std::path::PathBuf>,
 }
 
 /// The default wait for a translation.
@@ -162,12 +170,33 @@ impl Config {
         let model = var("SRP_CHAT_TRANSLATE_MODEL")
             .filter(|model| !model.is_empty())
             .unwrap_or_else(|| claude::DEFAULT_MODEL.to_owned());
-        Some(Self { model, timeout })
+        let swear_dir = var("SRP_CHAT_SWEAR_DIR")
+            .filter(|dir| !dir.is_empty() && dir != "off")
+            .map(std::path::PathBuf::from);
+        Some(Self {
+            model,
+            timeout,
+            swear_dir,
+        })
     }
 
     /// The translator: off (`None`, said loudly) when the backend can not
     /// be made, as with no key.
     pub fn build(&self) -> Option<Translator> {
+        // No line goes out unfiltered: a list that does not read keeps it off.
+        let swear = match &self.swear_dir {
+            None => SwearFilter::built_in(),
+            Some(dir) => match SwearFilter::with_game_lists(dir) {
+                Ok(swear) => swear,
+                Err(error) => {
+                    log::error!(
+                        "SRP_CHAT_SWEAR_DIR: {error}; chat is not translated without the lists"
+                    );
+                    return None;
+                }
+            },
+        };
+        log::info!("Chat translation masks {} swear entries", swear.len());
         match claude::Claude::from_env(&self.model, self.timeout * 2) {
             Ok(backend) => {
                 log::info!(
@@ -175,11 +204,9 @@ impl Config {
                     self.model,
                     self.timeout.as_millis()
                 );
-                Some(Translator::threaded(
-                    Arc::new(backend),
-                    WORKERS,
-                    self.timeout,
-                ))
+                let mut translator = Translator::threaded(Arc::new(backend), WORKERS, self.timeout);
+                translator.swear = swear;
+                Some(translator)
             }
             Err(error) => {
                 log::error!("SRP_CHAT_TRANSLATE is on but {error}: chat is not translated");
@@ -190,13 +217,33 @@ impl Config {
 }
 
 /// A job for a worker.
-type Job = Line;
+struct Job {
+    /// What the backend is given (the swear words masked).
+    line: Line,
+    /// The line as said: the cache's key.
+    key: String,
+    /// The masked words, in their placeholders' order.
+    words: Vec<String>,
+}
 
 /// A job's result.
 struct Done {
-    text: String,
+    key: String,
     to: Vec<Lang>,
+    words: Vec<String>,
     result: Result<Translated, String>,
+}
+
+/// What never reached the backend, or came back as no translation: counts
+/// only, never a text (`swear`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Withheld {
+    /// Lines not sent: mostly swearing, or blocked.
+    pub skipped: u64,
+    /// Lines the backend refused.
+    pub refused: u64,
+    /// Answers that were no translation (a placeholder of its own).
+    pub garbled: u64,
 }
 
 enum Run {
@@ -233,6 +280,9 @@ pub struct Translator {
     backoff_until: Option<Instant>,
     /// The terms sent with a line (`glossary`): srp's own by default.
     pub glossary: Glossary,
+    /// What is masked or never sent (`swear`): srp's own list by default.
+    pub swear: SwearFilter,
+    pub withheld: Withheld,
 }
 
 impl Translator {
@@ -250,10 +300,11 @@ impl Translator {
                         // The lock is held only while waiting for a job.
                         let job = queue.locked().recv();
                         let Ok(job) = job else { return };
-                        let result = backend.translate(&job);
+                        let result = backend.translate(&job.line);
                         let done = Done {
-                            text: job.text,
-                            to: job.to,
+                            key: job.key,
+                            to: job.line.to,
+                            words: job.words,
                             result,
                         };
                         if finished.send(done).is_err() {
@@ -283,6 +334,8 @@ impl Translator {
             asked: HashSet::new(),
             backoff_until: None,
             glossary: Glossary::shared().clone(),
+            swear: SwearFilter::built_in(),
+            withheld: Withheld::default(),
         }
     }
 
@@ -313,13 +366,28 @@ impl Translator {
         if to.is_empty() || self.backoff_until.is_some_and(|until| now < until) {
             return;
         }
-        let job = Job {
-            text: text.to_owned(),
-            from,
-            glossary: self.glossary.entries(text, from, &to),
-            to,
+        let (masked, words) = match self.swear.mask(text) {
+            Masked::Send { text, words } => (text, words),
+            Masked::Skip => {
+                for lang in to {
+                    self.remember((text.to_owned(), lang), None);
+                }
+                self.withheld.skipped += 1;
+                log::info!("Chat translation: {:?}", self.withheld);
+                return;
+            }
         };
-        let asked: Vec<Lang> = job.to.clone();
+        let job = Job {
+            line: Line {
+                glossary: self.glossary.entries(&masked, from, &to),
+                text: masked,
+                from,
+                to,
+            },
+            key: text.to_owned(),
+            words,
+        };
+        let asked: Vec<Lang> = job.line.to.clone();
         match &mut self.run {
             Run::Threads { jobs, .. } => match jobs.try_send(job) {
                 Ok(()) => {}
@@ -330,10 +398,11 @@ impl Translator {
                 Err(TrySendError::Disconnected(_)) => return,
             },
             Run::Inline(done) => {
-                let result = self.backend.translate(&job);
+                let result = self.backend.translate(&job.line);
                 done.push(Done {
-                    text: job.text,
-                    to: job.to,
+                    key: job.key,
+                    to: job.line.to,
+                    words: job.words,
                     result,
                 });
             }
@@ -352,10 +421,18 @@ impl Translator {
         let count = finished.len();
         for done in finished {
             for lang in &done.to {
-                self.asked.remove(&(done.text.clone(), *lang));
+                self.asked.remove(&(done.key.clone(), *lang));
             }
             match done.result {
+                Ok(translated) if translated.refused => {
+                    for lang in &done.to {
+                        self.remember((done.key.clone(), *lang), None);
+                    }
+                    self.withheld.refused += 1;
+                    log::info!("Chat translation: {:?}", self.withheld);
+                }
                 Ok(translated) => {
+                    let mut garbled = false;
                     for lang in &done.to {
                         let text = translated
                             .lines
@@ -363,11 +440,21 @@ impl Translator {
                             .find(|(to, _)| to == lang)
                             .map(|(_, line)| clean(line))
                             .filter(|line| {
+                                let stray = swear::has_stray_placeholder(line, &done.words);
+                                garbled |= stray;
+                                !stray
+                            })
+                            .map(|line| swear::unmask(&line, &done.words))
+                            .filter(|line| {
                                 !line.is_empty()
-                                    && *line != done.text
+                                    && *line != done.key
                                     && translated.source != Some(*lang)
                             });
-                        self.remember((done.text.clone(), *lang), text);
+                        self.remember((done.key.clone(), *lang), text);
+                    }
+                    if garbled {
+                        self.withheld.garbled += 1;
+                        log::info!("Chat translation: {:?}", self.withheld);
                     }
                 }
                 Err(error) => {
@@ -433,6 +520,19 @@ pub mod fake {
                     .iter()
                     .map(|lang| (*lang, format!("{}: {text}", lang.code())))
                     .collect(),
+                refused: false,
+            })
+        }
+    }
+
+    /// Declines every line (a refusal).
+    pub struct Refuses;
+
+    impl Backend for Refuses {
+        fn translate(&self, _: &Line) -> Result<Translated, String> {
+            Ok(Translated {
+                refused: true,
+                ..Translated::default()
             })
         }
     }
@@ -511,6 +611,75 @@ mod tests {
     }
 
     #[test]
+    fn swear_words_never_reach_the_backend_and_come_back_after() {
+        let echo = Arc::new(Echo::default());
+        let mut translator = Translator::inline(echo.clone(), DEFAULT_TIMEOUT);
+        let now = Instant::now();
+        let line = "иди на базу, мудак, там снайпер";
+        translator.request(line, Some(Lang::Ru), &[Lang::De], now);
+        translator.poll(now);
+        assert_eq!(
+            echo.asked.locked()[0].text,
+            "иди на базу, __X1__, там снайпер"
+        );
+        assert_eq!(
+            translator.lookup(line, Lang::De),
+            Lookup::Text("de: иди на базу, мудак, там снайпер".into())
+        );
+        assert_eq!(translator.withheld, Withheld::default());
+    }
+
+    #[test]
+    fn a_line_mostly_swearing_or_blocked_is_never_sent() {
+        let echo = Arc::new(Echo::default());
+        let mut translator = Translator::inline(echo.clone(), DEFAULT_TIMEOUT);
+        let now = Instant::now();
+        for line in ["сука блять", "kill yourself noob"] {
+            translator.request(line, None, &[Lang::En, Lang::De], now);
+            translator.poll(now);
+            assert_eq!(translator.lookup(line, Lang::En), Lookup::Original);
+        }
+        assert_eq!(echo.calls.load(Ordering::Relaxed), 0);
+        assert_eq!(translator.withheld.skipped, 2);
+    }
+
+    #[test]
+    fn a_refusal_or_no_translation_gives_the_original_and_is_counted() {
+        let mut translator = Translator::inline(Arc::new(fake::Refuses), DEFAULT_TIMEOUT);
+        let now = Instant::now();
+        translator.request("hello there", Some(Lang::En), &[Lang::Ru], now);
+        translator.poll(now);
+        assert_eq!(translator.lookup("hello there", Lang::Ru), Lookup::Original);
+        assert_eq!(translator.withheld.refused, 1);
+        // Not a failing backend: the next line is asked at once.
+        translator.request("good game", Some(Lang::En), &[Lang::Ru], now);
+        assert_eq!(translator.lookup("good game", Lang::Ru), Lookup::Waiting);
+
+        // An answer with a placeholder of its own is no translation.
+        struct Invents;
+        impl Backend for Invents {
+            fn translate(&self, line: &Line) -> Result<Translated, String> {
+                Ok(Translated {
+                    lines: line
+                        .to
+                        .iter()
+                        .map(|lang| (*lang, "__X7__ ok".to_owned()))
+                        .collect(),
+                    ..Translated::default()
+                })
+            }
+        }
+        let mut translator = Translator::inline(Arc::new(Invents), DEFAULT_TIMEOUT);
+        translator.request("иди сюда, мудак", Some(Lang::Ru), &[Lang::En], now);
+        translator.poll(now);
+        assert_eq!(
+            translator.lookup("иди сюда, мудак", Lang::En),
+            Lookup::Original
+        );
+        assert_eq!(translator.withheld.garbled, 1);
+    }
+
+    #[test]
     fn a_failure_gives_the_original_and_the_backend_a_rest() {
         let mut translator = Translator::inline(Arc::new(Broken), DEFAULT_TIMEOUT);
         let now = Instant::now();
@@ -538,6 +707,7 @@ mod tests {
                 Ok(Translated {
                     source: Some(Lang::En),
                     lines: vec![(Lang::En, line.text.clone()), (Lang::Pl, line.text.clone())],
+                    refused: false,
                 })
             }
         }

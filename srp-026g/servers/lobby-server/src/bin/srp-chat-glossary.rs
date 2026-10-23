@@ -15,8 +15,9 @@
 //! - `slang`: slang candidates from a chat sample (`SRP_CHAT_SAMPLE_DIR`,
 //!   `chat_sample`): per language of the writer's game, the words used most
 //!   that are in neither the word list given for that language (one word a
-//!   line, e.g. a hunspell `.dic`) nor the glossary. For a person to read:
-//!   the rows to add are chosen by hand.
+//!   line, e.g. a hunspell `.dic`), nor the glossary, nor srp's swear list. For
+//!   a person to read: the rows to add (to `chat-glossary.tsv`, or as swear
+//!   words to `chat-swear.tsv`) are chosen by hand.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
@@ -24,6 +25,7 @@ use std::process::ExitCode;
 
 use lobby_server::v026g::translate::Lang;
 use lobby_server::v026g::translate::glossary::Glossary;
+use lobby_server::v026g::translate::swear::SwearFilter;
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::game_data;
 use survarium::v026g::localization::Localization;
@@ -170,6 +172,7 @@ fn slang(arguments: &[String]) -> Result<(), String> {
         return Err(USAGE.to_owned());
     }
     let glossary = Glossary::shared();
+    let swear = SwearFilter::built_in();
     let mut counts: BTreeMap<Lang, HashMap<String, usize>> = BTreeMap::new();
     for path in &samples {
         let text = std::fs::read_to_string(path)
@@ -199,7 +202,7 @@ fn slang(arguments: &[String]) -> Result<(), String> {
         let mut candidates: Vec<(usize, String)> = words
             .into_iter()
             .filter(|(word, _)| known.is_none_or(|known| !known.contains(word)))
-            .filter(|(word, _)| !glossary.knows(word))
+            .filter(|(word, _)| !glossary.knows(word) && !swear.swears(word))
             .map(|(word, count)| (count, word))
             .collect();
         candidates.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));

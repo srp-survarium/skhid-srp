@@ -185,6 +185,10 @@ RUST_LOG=info
 # SRP_CHAT_TRANSLATE=claude
 # ANTHROPIC_API_KEY=
 # SRP_CHAT_TRANSLATE_TIMEOUT_MS=2000
+# Swear words are masked before a line goes out (srp's own list); the game's
+# five swear lists (localization/<language>/swear_filter_data_a_c, copied by
+# hand) can be added from this folder of the data volume.
+# SRP_CHAT_SWEAR_DIR=/srv/srp/data/swear_filter
 
 # A nameless sample of the public channels' lines, to find slang for the
 # translation's glossary. Off until the players are told (the note says

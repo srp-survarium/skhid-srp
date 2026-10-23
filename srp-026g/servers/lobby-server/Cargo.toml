@@ -11,6 +11,8 @@ default = []
 
 [dependencies]
 bytemuck = { workspace = true }
+binary-config-parser = { workspace = true }
+encoding_rs = { workspace = true }
 openssl = { workspace = true }
 thiserror = { workspace = true }
 env_logger = { workspace = true }

@@ -67,6 +67,52 @@ by speech to text, this text path, then text to speech. Code: `servers/lobby-ser
 - **No name leaves srp.** The backend gets the text, the guessed language, the languages wanted
   and the glossary's terms of the line; no account, name, clan or address.
 
+## What never reaches the model
+
+The owner's (2026-10-23): obscene lines must not go to the backend; the game's swear list "is not
+very good", so srp has its own. Code: `translate/swear.rs`; the list:
+`servers/lobby-server/chat-swear.tsv`.
+
+- **Swear words are masked.** Each becomes `__X1__`, `__X2__` ...; the model is told to copy them;
+  the words are put back in the translation, and the reader's own client filter then masks them as
+  in any line.
+- **A line is not sent at all** (every reader gets the original, nothing leaves srp) when more than
+  half its words swear, or it holds a `block` entry: slurs, threats ("kill yourself", "убей себя"),
+  sexual violence.
+- **A refusal, or an answer that is no translation** (no JSON, or a placeholder of its own): the
+  original, and a count. The backend is not rested for it. The counts (`skipped`, `refused`,
+  `garbled`) are logged, never a text.
+- **srp's list** (`lang`, `kind`, `entry`; the file's header says the kinds):
+  - `stem`: a word beginning with it, for the inflected mat: хуй/хуе/хуя, пизд, еб/заеб/выеб...,
+    бля, мудак, Ukrainian їб/курв, Polish kurw, pierdol, jeb/zajeb, chuj; transliterated Russian
+    (blya, nahui, pizd, ebat); English and German stems;
+  - `word`: whole words: suka, сука, ass; LDNOOBW's single words for en, de, pl, ru (CC-BY 4.0,
+    commit 5faf2ba4; it has no Ukrainian list), less those a shooter's chat uses innocently
+    (escort, domination, suck...);
+  - `allow`: innocents a stem would take (Scunthorpe cases): бляха, употребл, оскорбл, мандарин,
+    хачапури, sukces, cockpit, cocktail, Dickens, niggle;
+  - `block`: as above.
+  - New rows: from `srp-chat-glossary slang` over the chat sample, by hand.
+- **Matching** (both readings of each word, Cyrillic and Latin): lowercase, ё as е; look-alikes
+  (a/а, e/е, o/о, p/р, c/с, x/х, y/у, k/к, m/м, t/т); digits and symbols as letters (0 o, 1 и/i,
+  3 з/e, 4 ч/a, 6 б, @ a, $ s); separators inside a word dropped (х.у.й, x-y-й); spaced single
+  letters joined (f u c k); a letter typed 3 times or more taken once. A `stem` matches only at a
+  word's start, which keeps "употреблять" and "Scunthorpe" clean.
+- **The game's list, one more input** (`SRP_CHAT_SWEAR_DIR`, optional): the client's swear
+  filter is `localization/<language>/swear_filter_data_a_c` in `resources.db` (0.26g replaced
+  0.21d's `swear_filter_data_bin`). A binary config `swear_filter_data` of three lists:
+  `alphabet` (a letter and the characters typed for it: "a @", "i l 1 | j", "x >< }{ )("),
+  `swear_dictionary` ("<word> 0" a swear stem, "<word> 1" a clean word that holds one:
+  "manuscript", "dickens") and `separators`. English 156 entries, German about as many, Polish
+  45 KB, Russian and Ukrainian one file of 10 614. The client runs it on every received line
+  (`chat_handler::filter_message` 0x209230 calls 0x268B70: the wide text, a tree walk at
+  0x268E90 that collects ranges, the ranges merged and masked; the exact rules are not traced).
+  srp takes its swear entries of 4 letters or more as stems and its clean ones as `allow`; with
+  them srp's 514 entries become 1 973. The five files are game data, copied by hand into the
+  folder (`<language>/swear_filter_data_a_c`, as `srp-game-data get` writes `localization/`),
+  never into the repository. A folder that is set but does not read keeps translation off.
+- **Cost:** about 0.2 ms a line (debug build) with the game's lists.
+
 ## How it flows
 
     talker's game          srp lobby thread                      worker threads
@@ -171,7 +217,8 @@ Prices are the vendors' public ones as of 2026-10 (DeepL's changed in 2026: chec
   API (in the US). Only the text goes, with the guessed language and the glossary's terms: no
   name, account or address. Under Anthropic's commercial API terms inputs are not used for
   training; they are kept a limited time for abuse checks.
-- Lines read only by readers of their own language are not sent; "gg" is not sent.
+- Lines read only by readers of their own language are not sent; "gg" is not sent; swear words
+  are masked, and a line that is mostly swearing, a slur or a threat is never sent (above).
 - **What players are told** (before it is turned on; one line, on the site and the operator's
   text): "Chat is machine-translated: each line's text (never your name) goes to a translation
   service."
@@ -242,7 +289,9 @@ control of what is said).
 - `translate/` and `chat_out.rs` unit tests; `tests/core_tests/chat_translate_tests.rs` with fake
   backends: each reader in its language and the same-language reader the original; shorthand
   never sent; a failing backend gives the original at once; a stuck one holds a reader no longer
-  than the timeout, in order; the server's room lines are not translated.
+  than the timeout, in order; the server's room lines are not translated; swear words masked
+  and put back; a line mostly swearing or blocked never sent; a refusal or an answer that is no
+  translation gives the original and is counted; tricky words both ways (`swear.rs`).
 - The Claude request and answer are checked as JSON; **no call was made** (no key here).
 
 ## In-game test (needs the owner's key)

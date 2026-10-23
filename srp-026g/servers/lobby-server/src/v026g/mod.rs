@@ -101,6 +101,8 @@
 //!   `ANTHROPIC_API_KEY`), `SRP_CHAT_TRANSLATE_MODEL` (`claude-haiku-5-5`),
 //!   `SRP_CHAT_TRANSLATE_TIMEOUT_MS` (2000): chat lines in each reader's
 //!   game language (`translate`, `chat_out`).
+//! - `SRP_CHAT_SWEAR_DIR` (default none): the game's swear lists, one more
+//!   input to srp's own (`translate::swear`).
 //! - `SRP_CHAT_SAMPLE_DIR` (default off), `SRP_CHAT_SAMPLE_KEEP_DAYS` (14):
 //!   a nameless sample of public chat, to find slang for the glossary
 //!   (`chat_sample`).
