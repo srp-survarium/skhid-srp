@@ -765,6 +765,18 @@ impl Ctx<'_> {
         target: TargetRef,
         slot: Option<u32>,
     ) -> Option<Candidate> {
+        self.candidate_given(kind, target, slot, &[])
+    }
+
+    /// [`Ctx::candidate`] with the inputs `given` taken as these values
+    /// (a running play's commitment leaves out what only its start needs).
+    pub fn candidate_given(
+        &self,
+        kind: PlayKind,
+        target: TargetRef,
+        slot: Option<u32>,
+        given: &[(Input, f32)],
+    ) -> Option<Candidate> {
         if self
             .bot
             .set_aside
@@ -776,7 +788,10 @@ impl Ctx<'_> {
         }
         let play = self.play(kind);
         let (score, why) = curve::score(&play.considerations, |input| {
-            self.input(input, kind, target)
+            given
+                .iter()
+                .find(|(i, _)| *i == input)
+                .map_or_else(|| self.input(input, kind, target), |&(_, value)| value)
         });
         (!score.is_zero()).then(|| Candidate {
             kind,

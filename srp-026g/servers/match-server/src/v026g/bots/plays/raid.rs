@@ -21,12 +21,16 @@
 
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
+use crate::v026g::bots::view;
 use crate::v026g::drive::key;
 
 pub const NUMBERS: &[(&str, f32)] = &[
     ("reach_m", 2.0),
     ("sneak_m", 20.0),
     ("use_every_s", 1.2),
+    // At the container the eye steps in to this from the use box's
+    // middle (the use reaches 2 m).
+    ("use_near_m", 1.6),
     ("tries", 4.0),
     // Not in the first this many seconds of the match (the batteries are
     // out on the map then, not in containers).
@@ -35,6 +39,11 @@ pub const NUMBERS: &[(&str, f32)] = &[
     // sends a second raider (two slots).
     ("pair_behind", 0.5),
     ("give_up_s", 90.0),
+    // A running raid is left once this many enemies are known within
+    // `guard_m` of their container (a take needs fewer than two within
+    // 25 m); 2 within 15 m or 3 within 15 m measured no better.
+    ("guarded", 3.0),
+    ("guard_m", 25.0),
 ];
 
 pub fn tuning() -> PlayTuning {
@@ -77,10 +86,47 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         return;
     }
     let target = TargetRef::Container(theirs.id);
-    out.extend(cx.candidate(PlayKind::Raid, target, Some(u32::from(theirs.id))));
+    out.extend(raid_candidate(cx, target, u32::from(theirs.id)));
     // Behind late: a second bot raids too (holding gains nothing then).
     if cx.sig.behind_late() >= cx.num(PlayKind::Raid, "pair_behind") && theirs.batteries >= 2 {
-        out.extend(cx.candidate(PlayKind::Raid, target, Some(0x100 | u32::from(theirs.id))));
+        out.extend(raid_candidate(cx, target, 0x100 | u32::from(theirs.id)));
+    }
+}
+
+/// The raid at their container `target` on `slot`: scored by all its
+/// considerations to be taken; once it runs, committed while it is
+/// healthy and their container is not `guarded`, with the window it was
+/// taken in left out (their dead, none known by their container).
+///
+/// Why (PROVEN, 2026-10-23): a raid's candidate held only while the
+/// window it was taken in held, and the walk there takes 15-60 s. Live
+/// (2026-10-20..23) 11,387 raids ran a median of 4.5 s and 43 stole; the
+/// commander replaced them (Roam, Buddy, Collect, ...) as soon as a second
+/// enemy was known within 25 m of their container or their dead came
+/// back; a raid rarely ended by its own steps. In the stand-in's whole
+/// matches 372 of 469 raids left were no candidate any more, 42 more
+/// fell under the keep bar. Committed (real maps, 8 maps, 4v4 and 7v7,
+/// 5 seeds, 600 s): raids that came within 2 m 10 -> 32, raid steals
+/// 10 -> 30 (battery cheat on: 8 -> 23); 30 of the 32 that came within
+/// 2 m stole. The stand-in field still gives none: its defenders stand by
+/// their container (3 or more within 25 m most of the time) and their
+/// spawn is 7 m from it.
+fn raid_candidate(cx: &Ctx, target: TargetRef, slot: u32) -> Option<Candidate> {
+    let running = matches!(cx.bot.current, Some((PlayKind::Raid, t, _)) if t == target);
+    let committed = running
+        && cx.point_of(target).is_some_and(|at| {
+            let near = cx.enemies_near(at, cx.num(PlayKind::Raid, "guard_m"));
+            (near as f32) < cx.num(PlayKind::Raid, "guarded")
+        });
+    if committed {
+        cx.candidate_given(
+            PlayKind::Raid,
+            target,
+            Some(slot),
+            &[(Input::EnemiesDead, 1.0), (Input::EnemiesNearTarget, 0.0)],
+        )
+    } else {
+        cx.candidate(PlayKind::Raid, target, Some(slot))
     }
 }
 
@@ -145,6 +191,17 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                 return Step::Failed("took nothing: blocked");
             }
             let mut intent = Intent::stay().crouched().looking(Look::use_box(at));
+            // The use is a 2 m ray from the eye to the use box's middle
+            // (`Look::use_box`): from where the approach stopped (up to
+            // `reach_m` off) it can fall short, so it steps in as a
+            // put-in does (`collect::USE_NEAR_M`) to `use_near_m`.
+            let eye = cx.me.feet + Vec3::new(0.0, view::EYE_CROUCHED, 0.0);
+            if (at + Vec3::new(0.0, 1.0, 0.0) - eye).length() > num("use_near_m") {
+                intent = Intent::to(at, Pace::Sneak)
+                    .within(0.5)
+                    .crouched()
+                    .looking(Look::use_box(at));
+            }
             if cx.now >= *last_use + (num("use_every_s") * 1000.0) as u32 {
                 *tries += 1;
                 *last_use = cx.now;
