@@ -295,9 +295,13 @@ KITS = kits_of({WEAPON_1: AK, WEAPON_2: PISTOL, VEST_SLOT: VEST, LEGS: LEGS_ITEM
                {WEAPON_2: PISTOL2, VEST_SLOT: VEST},
                {WEAPON_1: SVD, VEST_SLOT: VEST})
 # A weapon shown: the build's camera is patch 45's, which looks at the weapon
-# above the workbench (weapon_table_026g.asm's bench_y and view_distance;
+# above the workbench (weapon_table_026g.asm's bench_y and frame_view;
 # check_weapon_table_026g.py runs it); patch 32's own were 1.05 and 0.85.
-HEIGHT, DISTANCE, NEAR_MIN, LEAST = 1.3, 1.2, 0.6, 1.5
+# patch 45's frame_view for a 1 m weapon (16:9 without a viewport; check_weapon_table_026g.py's
+# frame()): L sqrt(1 / T^2 + 0.9216) / (4 (fx - 0.02)), T = tan(32.5 degrees) 16 / 9, fx 1/2 - 441/1920
+_T = math.tan(math.radians(65 / 2)) * 1.7777778
+HEIGHT, DISTANCE, NEAR_MIN, LEAST = 1.3, round(math.sqrt(1 / _T ** 2 + 0.9216) / (4 * (0.5 - 441 / 1920 - 0.02)), 6), \
+    0.3, 1.5
 
 
 def main():
@@ -350,7 +354,8 @@ def main():
             lobby = Lobby(patched, delta, KITS)
             lobby.handler(START_HANDLER, item)
             camera = lobby.camera()
-            assert camera == (HEIGHT, 0.37, DISTANCE, 1.96), camera
+            # patch 45 frames the weapon itself: the side angle 0 (round 5d)
+            assert camera == (HEIGHT, 0.0, DISTANCE, 1.96), camera
             assert lobby.calls == [("setup", PROFILE, CHARACTER, kit)] + o_calls, lobby.calls
             assert lobby.state(patched) == (1, item, 1)
             lobby.calls.clear()

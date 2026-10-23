@@ -7,7 +7,7 @@
 ; turns it. At WEAPON_TABLE_OFFSET of `.srpw`, after the stash code; its state
 ; (WEAPON_TABLE_STATE_SIZE bytes) at STATE, WEAPON_TABLE_STATE_OFFSET of
 ; `.srpd`; patch 32's mode at PREVIEW (WEAPON_PREVIEW_STATE_OFFSET).
-;   nasm -f bin -DCAVE=0xA42A800 -DSTATE=0xA428F00 -DPREVIEW=0xA428E00 weapon_table_026g.asm -o weapon_table_026g.section.bin
+;   nasm -f bin -DCAVE=0xA42A6B0 -DSTATE=0xA428F00 -DPREVIEW=0xA428E00 weapon_table_026g.asm -o weapon_table_026g.section.bin
 ;
 ; The lobby camera (lobby menu+10Ch; ctor 0x283BC0, tick 0x283EF0 with ecx =
 ; camera+4, setter 0x2845C0) looks at the point (+A0h, +A4h, +A8h) from the
@@ -95,6 +95,9 @@ ORG CAVE
 %error PREVIEW is required
 %endif
 
+%define URO_FOV         0xA6FA28    ; uro_fov's value: the lobby camera's vertical field of view (degrees, patch 22)
+%define OWNER           0x9C        ; lobby menu: its owner; +53B0h its viewport, +108h/+10Ch its width and height
+%define VIEWPORT        0x53B0
 %define RAY             0x2844D0    ; lobby camera: the collision ray from its point back to the eye; `ret 4`
 %define CAMERA_SET      0x2845C0    ; lobby camera: xmm0 height, xmm1 distance, [esp+4] side angle; `ret 4`
 %define MODE            0           ; patch 32's state: 1 while its window's weapon is shown
@@ -158,6 +161,8 @@ ORG CAVE
 %define SIDE_SPEED      0xE0        ; the camera's own steps' speeds (the setter's, the wheel's)
 %define HEIGHT_SPEED    0xE4
 %define DISTANCE_SPEED  0xE8
+%define ZOOM            0x94        ; the camera's zoom: patch 22's projection (fov_projection) takes
+                                    ; 65 z + (uro_fov - 65) max(0, (z - 1/4) / (3/4)) degrees (vertical)
 %define TURN_YAW        0xCC        ; a drag's moves of the frame
 %define TURN_PITCH      0xD0
 
@@ -174,10 +179,11 @@ ORG CAVE
 %define TILT            0x24        ; and about the bench's length, by its pitch (within TILT_MAX)
 %define READY           0x28        ; 1: the window's weapon is drawn at the bench
 %define EASE            0x2C        ; 1: a flight's camera steps ease with it (from `camera` until all are there)
-                                    ; +30h: unused
+%define LENGTH          0x30        ; float: the window's weapon's length (its box's), 0 not yet, < 0 framed
 %define LEFT            0x34        ; the left button since it went down: 0 up, 1 the weapon's drag, 2 not
 %define MIDDLE          0x38        ; float4: the weapon's middle, in its model's space (w 0)
 %define STAMP           0x48        ; +1 at every bench transform written (the interface's frame stamp)
+%define TARGET_ZOOM     0x4C        ; the camera's zoom the flight goes to (1 back at the stock camera)
 %define BENCH_MATRIX    0x50        ; float4x4: the bench transform the held item was last drawn with
 %define BIND_MIDDLE     0x90        ; float4: the table's middle (bind space), before bone 1
 %define CONST(label)    ((label) - STATE)
@@ -215,10 +221,21 @@ camera:
     mov dword [edi+EASE], 1
     mov [edi+SPIN], eax
     mov [edi+TILT], eax
+    mov [edi+LENGTH], eax           ; the weapon's own length once it is drawn there
+    ; the bench's view at the original's 65 degrees whatever uro_fov is (as a
+    ; scope's, through patch 22's projection): the zoom z with 65 z + (u - 65)
+    ; (z - 1/4) / (3/4) = 65 is (u + 130) / (4u - 65)
+    fld dword [edi + URO_FOV - STATE]
+    fld st0
+    fmul dword [edi+CONST(four)]
+    fsub dword [edi+CONST(original_fov)]
+    fxch
+    fadd dword [edi+CONST(zoom_add)]
+    fdivrp st1, st0
+    fstp dword [edi+TARGET_ZOOM]
+    mov [esp+32+4], eax             ; the side angle 0: frame_view places the weapon on the screen
     mov eax, [edi+CONST(bench_x)]
     mov [edi+TARGET_X], eax
-    mov eax, [edi+CONST(bench_z)]
-    mov [edi+TARGET_Z], eax
     mov eax, [edi+CONST(view_pitch)]
     mov [edi+TARGET_PITCH], eax
     fld dword [edi+CONST(two_pi)]   ; the bench's yaw, the nearest turn of it to the camera's
@@ -232,8 +249,9 @@ camera:
     fadd dword [esi+YAW]
     fstp dword [edi+TARGET_YAW]
     fstp st0
+    movss xmm0, [edi+CONST(one)]    ; framed for a 1 m weapon until its own is known
+    call frame_view                 ; xmm1 the distance, TARGET_Z
     movss xmm0, [edi+CONST(bench_y)]
-    movss xmm1, [edi+CONST(view_distance)]
     jmp .set
 .off:
     cmp dword [edi+TABLE], 0
@@ -241,6 +259,8 @@ camera:
     xor eax, eax
     mov [edi+TABLE], eax            ; FLY stays: the camera flies back
     mov dword [edi+EASE], 1
+    mov ecx, [edi+CONST(one)]
+    mov [edi+TARGET_ZOOM], ecx      ; the player's field of view again
     mov [edi+TARGET_X], eax
     mov [edi+TARGET_Z], eax
     mov eax, [edi+SAVED_YAW]
@@ -267,6 +287,14 @@ tick:
     lea esi, [ebx-4]                ; the camera
     cmp dword [edi+TABLE], 0
     je .fly
+    cmp dword [edi+LENGTH], 0
+    jle .framed
+    movss xmm0, [edi+LENGTH]        ; the weapon drawn there: framed for its length, gliding there
+    call frame_view
+    movss [esi+DISTANCE_TARGET], xmm1
+    or byte [edi+LENGTH+3], 0x80
+    mov dword [edi+EASE], 1
+.framed:
     movss xmm0, [esi+TURN_YAW]      ; the drag turns the weapon, not the camera
     addss xmm0, [edi+SPIN]
     movss [edi+SPIN], xmm0
@@ -319,6 +347,75 @@ tick:
     add esp, 64
     popad
     movss xmm0, [ebx+0C8h]
+    ret
+
+; The bench's view of a weapon of length L = xmm0 (edi = the state, esi =
+; the camera), at the original's field of view and the screen's aspect a
+; (the viewport's, else 16:9): the weapon's middle (at BENCH) in the middle
+; of the screen's part left of the upgrade window, and as near as lets its
+; ends stay on the screen (FRAME_MARGIN m = 0.02 of the width in) at any
+; spin.
+;   The lobby movie lays itself out on 1920 x 1080, scaled by the width below
+;   an aspect of 1.85 and by the height above (LobbyMenu.onStageResize); the
+;   upgrade window's left edge is 882 units left of the right edge (the
+;   inventory is right-aligned, 112 in and 580 wide; the window 190 left of
+;   it: UpgradeWindow's container.x). So with a' = a from 1.85 on, else 16:9,
+;   the free part's middle is fx = 1/2 - 441 / (1080 a') of the width (0.270
+;   at 16:9 and 16:10, 0.329 at 21:9).
+;   T = tan(65 / 2) * a (the bench's field of view is the original's 65
+;   degrees, vertical, whatever uro_fov: TARGET_ZOOM). The middle is at fx when the camera looks at a point
+;   k = (1 - 2 fx) d T along its right ((0, 0, -1) at the bench's yaw) of it:
+;   TARGET_Z = BENCH z - k. An end at r = L / 2 from the middle stays right
+;   of m at any spin while d >= L sqrt(1 / T^2 + (1 - 2m)^2) / (4 (fx - m)):
+;   that d, at least NEAR_VIEW, in xmm1. Uses eax, xmm1 and the x87 stack
+;   (left empty).
+frame_view:
+    sub esp, 8
+    movss [esp], xmm0               ; L
+    fld dword [edi+CONST(wide)]     ; a: the viewport's, else 16:9
+    mov eax, [esi+MENU]
+    test eax, eax
+    jz .aspect
+    mov eax, [eax+OWNER]
+    test eax, eax
+    jz .aspect
+    mov eax, [eax+VIEWPORT]
+    test eax, eax
+    jz .aspect
+    cmp dword [eax+0x10C], 0
+    jle .aspect
+    fstp st0
+    fild dword [eax+0x108]
+    fidiv dword [eax+0x10C]
+.aspect:
+    fld dword [edi+CONST(wide)]
+    fld dword [edi+CONST(layout_switch)]
+    fcomip st0, st2
+    fcmovb st0, st1                 ; a': a from 1.85 on, else 16:9
+    fstp dword [esp+4]              ; a
+    fmul dword [edi+CONST(tan_original)]    ; T = tan(65 / 2) a: the bench's own field of view
+    fld1
+    fdiv st0, st1
+    fmul st0, st0
+    fadd dword [edi+CONST(spin_room)]
+    fsqrt
+    fmul dword [esp]                ; L sqrt(1 / T^2 + (1 - 2m)^2), T
+    fld dword [edi+CONST(panel_share)]
+    fdiv dword [esp+4]
+    fsubr dword [edi+CONST(four_room)]      ; 4 (fx - m)
+    fdivp st1, st0                  ; d, T
+    fld dword [edi+CONST(near_view)]
+    fcomi st0, st1
+    fcmovb st0, st1
+    fstp st1                        ; max(d, NEAR_VIEW), T
+    fst dword [esp]
+    fmulp st1, st0
+    fmul dword [edi+CONST(panel_shift)]
+    fdiv dword [esp+4]              ; k = (1 - 2 fx) d T
+    fsubr dword [edi+CONST(bench_z)]
+    fstp dword [edi+TARGET_Z]
+    movss xmm1, [esp]
+    add esp, 8
     ret
 
 ; edx = a table of {now, target} offsets (now the camera's, target ebp's),
@@ -555,6 +652,18 @@ middle:
     mov esi, [esi+RENDER_MODEL]
     test esi, esi
     jz .done
+    cmp dword [edi+LENGTH], 0
+    jne .measured
+    movss xmm0, [esi+BOX_MAX+8]     ; the window's weapon's length: its box along it, a default box 1 m
+    subss xmm0, [esi+BOX_MIN+8]
+    cmp dword [esi+BOX_MIN], 0xBF800000
+    jne .length
+    cmp dword [esi+BOX_MAX], 0x3F800000
+    jne .length
+    movss xmm0, [edi+CONST(one)]
+.length:
+    movss [edi+LENGTH], xmm0
+.measured:
     mov edx, [esi+INVERSE_BINDS]
     test edx, edx
     jz .done
@@ -723,7 +832,7 @@ base_eax:
     ret
 
 ; the camera's offsets and the state's targets the flight moves, then 0
-fields:           db POINT_X, TARGET_X, POINT_Z, TARGET_Z, YAW, TARGET_YAW, PITCH, TARGET_PITCH, 0
+fields:           db POINT_X, TARGET_X, POINT_Z, TARGET_Z, YAW, TARGET_YAW, PITCH, TARGET_PITCH, ZOOM, TARGET_ZOOM, 0
 ; the camera's own steps it moves while a flight eases: now, target; then 0
 steps:            db SIDE, SIDE_TARGET, HEIGHT, HEIGHT_TARGET, DISTANCE, DISTANCE_TARGET, 0
 align 16, db 0
@@ -735,7 +844,17 @@ bench_z:          dd 3.05
 flip_half:        dd -0.5, 0.5, -0.5, 0.0   ; the box's centre, turned as the instance's box (rotY(pi))
 view_yaw:         dd -1.5707964     ; the camera looks along +x, at the wall the bench stands at
 view_pitch:       dd -0.25          ; from a little above
-view_distance:    dd 1.2
+tan_original:     dd 0.63707026     ; tan(65 / 2 degrees): the original's vertical field of view
+four:             dd 4.0
+original_fov:     dd 65.0
+zoom_add:         dd 130.0
+wide:             dd 1.7777778      ; 16:9: without a viewport, and the layout's below 1.85
+layout_switch:    dd 1.85           ; the lobby movie scales by the height from this aspect on
+spin_room:        dd 0.9216         ; (1 - 2m)^2, FRAME_MARGIN m 0.02 of the width
+four_room:        dd 1.92           ; 4 (1/2 - m)
+panel_share:      dd 1.6333333      ; 4 * 441 / 1080: 4 (fx - m) = four_room - panel_share / a'
+panel_shift:      dd 0.8166667      ; 882 / 1080: 1 - 2 fx = panel_shift / a'
+near_view:        dd 0.3            ; NEAR_VIEW: the nearest (patch 32's NEAR_MIN)
 middle_z:         dd 0.2            ; MIDDLE_Z: without a box, a rifle's middle (grip at the origin, along +z)
 tilt_max:         dd 1.2
 tilt_min:         dd -1.2

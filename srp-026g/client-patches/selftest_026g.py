@@ -361,7 +361,7 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     on the page after `.srpc`): its hook, its entry and name format, its
     calls of patch 47's lookup and fill. check_weapon_camo_026g.py runs it.
 45. the same build: a weapon's upgrade window shows it above the lobby's
-    workbench (patch 45, weapon_table_026g.asm at `.srpw`+800h; patch 32
+    workbench (patch 45, weapon_table_026g.asm at `.srpw`+6B0h; patch 32
     grown: weapon_stash_026g.asm at +360h): the sites, the entries, the
     states. check_weapon_table_026g.py and check_weapon_stash_026g.py run them.
 47. the same build: decals on a weapon (patch 47, weapon_decals_026g.asm on
@@ -1766,7 +1766,7 @@ def test_weapon_table(original, image, before):
           "from there, the match's 0x1F7DCE and the match's draw task (its address at 0x1F7CC6) alone; its "
           "[ebp-0E8h] is the decal pose's transform alone")
     texts = [t for _, _, t in ndisasm(code, table_va)]
-    listing = ndisasm(code[:code.index(bytes.fromhex("a008a80cb810bc1400"))], table_va)   # to `fields`
+    listing = ndisasm(code[:code.index(bytes.fromhex("a008a80cb810bc14944c00"))], table_va)   # to `fields`
     targets = {branch_target(t) for _, _, t in listing if branch_target(t) is not None}
     outside = {t for t in targets if not table_va <= t < table_va + len(code)}
     starts = {a for a, _, _ in listing}

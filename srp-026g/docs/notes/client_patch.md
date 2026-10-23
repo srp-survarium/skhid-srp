@@ -1163,6 +1163,38 @@ The owner's request (2026-10-21): "instead of focusing on players the camera wou
   - The other weapon checks pass.
 - **Build** (local test, `--revision=30`): `survarium_skhid.camnow-r30.exe` sha256 `ef9b3a2dd438c5677766f77338c5f3bb4396089e4a31e5a0b59a0fd9603b99a0` (12 934 776 bytes). **Not run in a game.**
 
+**Round 5d** (2026-10-23, the owner on 5c: "yes, it is smooth", then "the weapon is a bit too far, and is a bit off center to the right", "people go into that menu to interact with a weapon, so it should be front and center (also it seems we are centered from left to inventory, while there is still appearance tab)", "one problem is with fov", "i was on high fov (100) and that's why it was far too", "maybe we should not have fov affect weapon preview in lobby under bench?", "just like we did with scopes"). PROVEN in the code and the movie's source, emulated:
+
+- **The measured point.** The owner's screenshot (5c, uro_fov 100, 1280 x 720): the PPSh's middle at x ≈ 520, about 230 px long. The camera then looked at BENCH from 1.2 m with the stock side angle 0.37, which turns the view (rotY of the matrix): BENCH sits 20.5 degrees off the view's axis, to the left. At a vertical 100 degrees (patch 22: the lobby camera follows uro_fov, `fov_projection` on lobby_camera's vtable slot 0, its zoom at camera+94h) that projects to x = 640 − 640 tan 20.5° / (tan 50° · 16/9) = 527, and a 0.91 m model to 233 px. The maths agree with the picture. The appearance window's left edge is at 692 and the inventory at 820, so "to the right" is relative to the part left of the appearance window (centre ≈ 346), not the screen.
+- **The field of view, as a scope's.** A full scope's view is the original's whatever uro_fov because patch 22's angle `65 z + (uro_fov − 65) max(0, (z − 1/4) / (3/4))` drops the setting's term there. The bench uses the same projection and the same zoom field: `camera` sets TARGET_ZOOM (state +4Ch) to the z with that angle = 65, z = (uro_fov + 130) / (4 uro_fov − 65): 1.333 at 50, 1 at 65, 0.687 at 100. The flight glides camera+94h there with the rest (the field of view eases over the flight), and the close glides it back to 1, landing exactly: the player's field of view again. No second projection path. At uro_fov 65 nothing changes.
+- **Centre and size, once, at the original's 65 degrees.**
+  - **The free part's centre.** The lobby movie lays itself out on 1920 x 1080, scaled by the width below an aspect of 1.85 and by the height above (`LobbyMenu.onStageResize`). The inventory is right-aligned (`layoutData` −112, 580 wide), and the upgrade window's panel is 190 left of it (`UpgradeWindow` `container.x = inventory_list.x − x − 190`). So the free part ends 882 units from the right edge, and its middle is fx = 1/2 − 441 / (1080 a') of the width (a' the aspect from 1.85 on, else 16:9): 0.270 at 16:9 and 16:10, 0.329 at 21:9.
+  - **Centring.** The side angle is now 0 (`camera` passes 0 to the setter). The camera looks at a point k = (1 − 2 fx) d T along its right of BENCH (TARGET_Z = 3.05 − k), T = tan(65/2) · a. The weapon's middle (drawn at BENCH) lands at fx across and at the middle in height.
+  - **Distance.** An end at r = L/2 from the middle stays 2% in from the left edge at any spin while d ≥ L sqrt(1/T² + 0.96²) / (4 (fx − 0.02)), and that is d, at least 0.3 m. L is the window's weapon's render box along its length (`middle` measures it once; a default box counts as 1 m). Until the weapon is drawn the view is a 1 m weapon's; the frame it is, `tick` frames it for its own length and the flight eases there (EASE again).
+  - **Patch 32's NEAR_MIN** (its least distance while a weapon's window is open) is 0.3, was 0.6, so a pistol can come that near.
+- **What it gives** (check_weapon_table_026g.py, the same at uro_fov 50, 65 and 100), of the free part's width at rest:
+
+  | screen | AK-12 (0.94 m) | SVD (1.22 m) | PM (0.16 m) |
+  |---|---|---|---|
+  | 16:9 | 63% at 1.22 m | 63% at 1.59 m | 43% at 0.30 m |
+  | 16:10 | 66% at 1.29 m | 66% at 1.67 m | 48% at 0.30 m |
+  | 21:9 | 53% at 0.88 m | 53% at 1.15 m | 26% at 0.30 m |
+
+  The rifles are below the asked 70% because their ends must stay on the screen at any spin: a turned rifle's near end swings left toward the screen's edge (the middle sits at 0.27 of the width).
+- **Room.** The code grew to 2 230 bytes and moved from `.srpw`+800h to +6B0h (the stash ends at +6A5h), so patch 32's two `jmp CAMERA` are reassembled for 0xA42A6B0.
+- **Checked:**
+  - **`check_weapon_table_026g.py` 46 checks (as is and rebased).** For 1280 x 720, 1920 x 1200 and 3440 x 1440 (viewport set), uro_fov 50, 65 and 100, and the AK-12, an SVD box and the PM:
+    - the zoom gives 65 degrees;
+    - the middle projects to fx and the height's middle within 0.0002;
+    - the distance is the formula's for the measured length;
+    - over a full spin at tilts 0 and ±1.2 the ends stay within the 2% margin (and in front of the near plane);
+    - the results do not depend on uro_fov;
+    - after the close the zoom is exactly 1.
+  - The other cases now have their targets from frame() (the side angle 0, every value landing exactly).
+  - `check_weapon_preview_026g.py` (the side angle 0, the distance the 1 m weapon's, NEAR_MIN 0.3).
+  - The self-test and the other weapon checks pass.
+- **Build** (local test, `--revision=30`): `survarium_skhid.camnow-r30.exe` sha256 `482f974f0414b022b8869f123905f379369ada7beef912a61730b3d3ef378d48` (12 934 776 bytes). **Not run in a game.**
+
 ### 3.43 On the death screen a drag turns the camera; the wheel does nothing (written 2026-10-21, README patch 46, the next release's revision; the rules: `death-camera.md`) — PROVEN in the code, the mouse moves and the view's update run with Unicorn; the first build run in a game
 
 The owner: "when player dies they can still move camera around, with holding a mouse button? Scroll shouldn't work though".

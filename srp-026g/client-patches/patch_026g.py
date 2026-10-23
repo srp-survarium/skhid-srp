@@ -61,7 +61,7 @@ USAGE (this script never touches the source exe):
         nasm -f bin read_order_026g.asm -o read_order_026g.bin
     (checked in). A weapon's upgrade window showing the weapon comes from
     weapon_preview_026g.asm:
-        nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA42C00F -DCAMERA=0xA42A800 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
+        nasm -f bin -DCAVE=0xA427E50 -DSTATE=0xA428E00 -DFIND=0xA42C00F -DCAMERA=0xA42A6B0 weapon_preview_026g.asm -o weapon_preview_026g.section.bin
     (checked in; STATE is 0xE00 of the late join's state page, checked; FIND is
     upgrade_preview_026g.asm in `.srpw`, which shows an upgrade dropped on the
     window's weapon at once and calls weapon_stash_026g.asm's find first:
@@ -72,7 +72,7 @@ USAGE (this script never touches the source exe):
         nasm -f bin -DCAVE=0xA42A360 -DSTATE=0xA428E00 -DPREVIEW=0xA427E50 weapon_stash_026g.asm -o weapon_stash_026g.section.bin
     checked in; CAMERA is weapon_table_026g.asm in `.srpw`, which shows the
     weapon in the air above the lobby's workbench:
-        nasm -f bin -DCAVE=0xA42A800 -DSTATE=0xA428F00 -DPREVIEW=0xA428E00 weapon_table_026g.asm -o weapon_table_026g.section.bin
+        nasm -f bin -DCAVE=0xA42A6B0 -DSTATE=0xA428F00 -DPREVIEW=0xA428E00 weapon_table_026g.asm -o weapon_table_026g.section.bin
     checked in; its STATE is 0xF00 of the late join's state page, checked), and its
     draw from weapon_draw_026g.asm:
         nasm -f bin -DCAVE=0xA425D20 -DSTATE=0xA428E00 weapon_draw_026g.asm -o weapon_draw_026g.section.bin
@@ -1696,7 +1696,7 @@ WEAPON_PREVIEW_FIND_CALLS = (0x2B, 0xCC)       # weapon_preview_026g.section.bin
 #   which casts none while the camera is the table's (round 5c).
 # No base relocation is under a site; the code holds no absolute address but
 # the game's functions' and finds its state with call/pop.
-WEAPON_TABLE_OFFSET = 0x800
+WEAPON_TABLE_OFFSET = 0x6B0                    # round 5d: 0x800 until it outgrew the page (the stash ends at +6A5h)
 WEAPON_TABLE_STATE_OFFSET = 0xF00
 WEAPON_TABLE_STATE_SIZE = 0xA0
 # The interface other patches read (weapon decals): while the state's TABLE
