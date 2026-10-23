@@ -804,19 +804,6 @@ const WEAPON_SLOTS: [usize; 2] = [7, 10];
 /// 0x9266A8): the ammo is one pool, not two slots a weapon.
 const AMMO_SLOTS: [usize; 8] = [8, 9, 11, 12, 19, 20, 21, 22];
 
-/// `2F`: whether the account may enter a battle with a kit: the kit must be
-/// its own and usable, wear nothing in a slot another worn item covers
-/// ([`Account::covered_items`]), hold no item type in two pockets
-/// ([`Account::doubled_pockets`]), hold a weapon, and each weapon must have its
-/// category's `minimum_count` of rounds that fit it, in the kit and owned.
-/// This is the client's own check before Play (0x2F7DA0, PROVEN; corrected
-/// 2026-10-12 after the first live session, where the server asked for a
-/// weapon's ammo in "its own" two slots and refused a kit the client had
-/// let through): for each weapon it adds up, over the eight ammo slots, the
-/// kit's units and the stacks of the ammo that is compatible with the weapon
-/// (0x2CA770) and fails when either sum is under
-/// `categories_dict/category_<weapon's>/minimum_count`. The texts are its
-/// `st_profile_check_failed_*`.
 /// The kit a match would take now: the active one when usable, else the
 /// first ([`Account::settle_active_kit`], without changing the account).
 pub fn kit_to_play(account: &Account, now: u64) -> u32 {
@@ -930,6 +917,20 @@ pub fn play_blocks(account: &Account, kit_id: u32, now: u64) -> Result<PlayBlock
     Ok(blocks)
 }
 
+/// `2F`: whether the account may enter a battle with a kit: the kit must be
+/// its own and usable, wear nothing in a slot another worn item covers
+/// ([`Account::covered_items`]), hold no item type in two pockets
+/// ([`Account::doubled_pockets`]), hold a weapon, and each weapon must have its
+/// category's `minimum_count` of rounds that fit it, in the kit and owned.
+/// This is the client's own check before Play (0x2F7DA0, PROVEN; corrected
+/// 2026-10-12 after the first live session, where the server asked for a
+/// weapon's ammo in "its own" two slots and refused a kit the client had
+/// let through): for each weapon it adds up, over the eight ammo slots, the
+/// kit's units and the stacks of the ammo that is compatible with the weapon
+/// (0x2CA770) and fails when either sum is under
+/// `categories_dict/category_<weapon's>/minimum_count`. The texts are its
+/// `st_profile_check_failed_*`.
+///
 /// Whether the kit `kit_id` can play now: the first of its
 /// [`play_blocks`], in [`PlayBlock::ALL`]'s order.
 pub fn check_play(account: &Account, kit_id: u32, now: u64) -> Result<(), ActionError> {

@@ -157,7 +157,7 @@ package survarium.rooms
                 ? win.say("queue") : win.say("join");
             var made:Array = look.footer(joinable != null ? [[win.say("new"), win.createView.onNew, null], [joinWord, onJoin, joinable]]
                 : [[win.say("new"), win.createView.onNew, null]]);
-            if (joinable != null && (!joins(joinable) || !LocalPlayerProfile.mayEnter(joinable.max)))
+            if (joinable != null && (!joins(joinable) || !mayGoIn(joinable)))
             {
                 made[1].enabled = false;
                 // Greyed by a reason (presets.md): the reasons in its tip.
@@ -445,6 +445,17 @@ package survarium.rooms
             joinRoom(room);
         }
 
+        // Whether no reason greys Join (or Queue) for `room` (presets.md): a
+        // join asks the popup first, which may offer a loadout that can play
+        // (mayEnter); a full room's queue asks nothing, so its kits must
+        // play now (mayPlay).
+        private function mayGoIn(room:Object):Boolean
+        {
+            if (room.players >= room.size * 2)
+                return LocalPlayerProfile.mayPlay();
+            return LocalPlayerProfile.mayEnter(room.max);
+        }
+
         // Whether Join takes us there: a member (the All rooms tab) not into
         // its own room, nor a full one (its queue is from no room only).
         private function joins(room:Object):Boolean
@@ -459,7 +470,7 @@ package survarium.rooms
         // with `preset`: 0 none, else put on before the join.
         private function joinRoom(room:Object, preset:int = -1):void
         {
-            if (room == null || win._steps.length > 0 || !joins(room) || !LocalPlayerProfile.mayEnter(room.max))
+            if (room == null || win._steps.length > 0 || !joins(room) || !mayGoIn(room))
                 return;
             win._busyAt = getTimer();
             win._stepsAt = win._busyAt;

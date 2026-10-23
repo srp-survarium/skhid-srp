@@ -912,8 +912,9 @@ impl Core<'_> {
     /// the highest) and not under its equipment; the lowest of them, then
     /// the fullest, then the oldest. None while it plays a match.
     fn room_switch(&self, who: &Who, room: &model::Room) -> Option<RoomSwitch> {
-        // Only what a Join would take (no maintenance near, no clan team).
-        self.room_fit(who).ok()?;
+        // Only what a Join would take (no maintenance near, no clan team, a
+        // kit that can play).
+        self.room_enter_fit(who).ok()?;
         let playing = room.in_match.contains(&who.account_id)
             || self
                 .player(who.addr)
@@ -1067,7 +1068,16 @@ impl Core<'_> {
             return;
         }
         for key in self.rooms.with_queue_and_place() {
-            while let Some(account_id) = self.rooms.next_in_queue(key) {
+            // One whose kit can not play now keeps its place, passed over
+            // (it may switch back while it waits); the next goes in.
+            let accounts = &self.accounts;
+            let unix = quests::now();
+            let can_play = |account_id: u32| {
+                accounts
+                    .get(account_id)
+                    .is_some_and(|account| rules::kits_can_play(&account.locked(), unix))
+            };
+            while let Some(account_id) = self.rooms.next_ready_in_queue(key, &can_play) {
                 let fits = self.room_fit_of(account_id).is_ok()
                     && self.accounts.get(account_id).is_some_and(|account| {
                         let gear = matchmaking::gear_level(&account.locked(), quests::now());

@@ -450,9 +450,11 @@ package survarium.friends
                continue;
             }
             this._friendRoom = rooms[i];
-            // Kits that can not play and no loadout that can: no Join (the
-            // server refuses it; presets.md).
-            if(!LocalPlayerProfile.mayEnter(-1))
+            // A reason holds (kits that can not play, a maintenance): no Join
+            // (the server refuses it; presets.md). A friend's room's max level
+            // is not known here, so no loadout the popup could offer counts:
+            // the kits must play now.
+            if(!LocalPlayerProfile.mayPlay())
             {
                return;
             }

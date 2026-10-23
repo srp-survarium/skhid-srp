@@ -92,6 +92,11 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
     (`send_presets`); the movie greys by the list (`LocalPlayerProfile.mayPlay`, `mayEnter`,
     `mayCreate`; `StatusPanel.showRoomsPlay`, `RoomsList`, `RoomsCreate.onNew`,
     `FriendListRender`). The movie never lights a Play the game keeps off.
+  - Only a Join asks the popup first: a full room's Queue, and a friend's "Join room" (whose
+    room's max level the movie does not know), are greyed by any reason, not lit for a loadout
+    the popup could offer. "Switch room" is not offered while a reason holds (`room_switch`
+    asks the door's `room_enter_fit`). A queued player whose kit can not play when a place
+    frees keeps its place, passed over, and the next goes in (`next_ready_in_queue`).
   - N, the minutes, come with the list (`<minutes>`); while a maintenance is planned the movie asks
     for the list every minute, so N and the rule's start follow.
   - **A new reason** gets a bit (`PlayBlock` or a lobby bit next to `BLOCK_MAINTENANCE`), a row
