@@ -81,6 +81,15 @@ pub struct SenseTuning {
     pub sprint_m: f32,
     pub reload_m: f32,
     pub use_m: f32,
+    /// Footsteps: an enemy walking upright (faster than `step_speed`, m/s,
+    /// not crouched) is heard within this, metres (0: never; the view has
+    /// no walking sound, only a sprint's). Audit issue 4: in match
+    /// 0x4da3b51d a bot stood 1-4 m from an enemy for 8 s and knew him only
+    /// by an old sound. GUESS: half the sprint's range; the client's
+    /// footstep sound ranges are not read. Bench, tiers 9-10: enemies
+    /// within reach engaged within 1 s rose 8.6 ± 2.5 points a seed.
+    pub step_m: f32,
+    pub step_speed: f32,
     /// A heard position's error per metre of distance.
     pub heard_error: f32,
     /// What one bot senses its teammates know this much later, ms.
@@ -115,6 +124,8 @@ impl Default for SenseTuning {
             sprint_m: 15.0,
             reload_m: 10.0,
             use_m: 8.0,
+            step_m: 8.0,
+            step_speed: 1.5,
             heard_error: 0.15,
             callout_ms: 1_000,
             forget_ms: 3_000,

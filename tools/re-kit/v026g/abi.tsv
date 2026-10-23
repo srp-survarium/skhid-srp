@@ -1900,3 +1900,12 @@ va	name	source	ret_cleanup	result
 0x002fbdc0	survarium::weapon_user_animations_selector::jump_predicate	manual	0	AL 1 when the weapon in hand's can_jump (vtable+64h) and is_trying_to_jump both answer 1
 0x002fc230	survarium::weapon_user_animations_selector::is_trying_to_jump	manual	0	AL 0 without the jump action (bit 4 of the player's actions at +330h), else further player checks
 0x0031eab0	survarium::weapon_core_base_state::weapon_core_base_state	manual	8	EAX the state (EDI)
+0x00330ee0	survarium::weapon_dispersion_params::weapon_dispersion_params	manual	8	EAX = the params
+0x00331050	survarium::dispersion_calculator::initialize	manual	20	
+0x00331150	survarium::dispersion_calculator::fire	manual	4	
+0x00331220	survarium::dispersion_calculator::get_base_dispersion	manual	0	XMM0 = base_dispersion × ammo dispersion
+0x00331330	survarium::dispersion_calculator::calculate_character_dispersion	manual	20	
+0x00331480	survarium::dispersion_calculator::get_character_skill_influence	manual	4	XMM0 = influence
+0x00331560	survarium::dispersion_calculator::get_character_state_dispersion	manual	8	XMM0 = state dispersion
+0x003317c0	survarium::dispersion_calculator::get_injury_penalty	manual	4	XMM0 = additive penalty
+0x0032fe40	survarium::transition_helper::tick	manual	0	AL = 1 when the value is at its target after the tick

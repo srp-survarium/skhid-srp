@@ -153,6 +153,53 @@ The numbers are GUESSES; only `exposed_m` was tried at two values (below). `expo
 - On the maps the batteries delivered are the same within the noise at either distance, and an eighth fewer carriers are killed carrying; the rest is within the noise.
 - `with_the_battery_cheat_whole_matches_are_won_by_batteries` moved from seed 1 to seed 2: seed 1 ended level, 1-1, with the rule (a level end came in 1 of the 32 soak matches with the rule and 1 without it, at other seeds).
 
+### 2.4 Target choice and the aim-in (built 2026-10-23)
+
+Audit issues 4 (a close enemy ignored, a far target kept) and 8 (bots hit 5.5-9.9 % of their shots in the owner's matches against his 20.5-23.2 %).
+
+**Where the misses came from.** The bench (`real_bot_cost`) had no bullet spread: every shot left along the view. The 0.26g spread is now read from the executable and the configs (`player_bots_weapons.md` §9) and the bench applies it with `SRP_BENCH_SPREAD=1` (`bots/bench_spread.rs`; the shots' tally in `bots/fight_tally.rs`). With it the base bots hit 14.8 / 16.6 / 17.5 % at tiers 4-5 / 9-10 / 13-15. 35-40 % of their shots left before their sights were fully up (`aim_time` after AIM is pressed), and those hit 9-11 % against 18-24 % once aimed in: from the hip or during the aim-in, the stance and movement add 5-20 degrees to the cone (10.3 degrees strafing with an Uzi), while fully aimed-in the cone is the weapon's base alone (0.3 degrees), strafing or not. The miss was the habit of firing as the sights came up, not the aim. The bots keep strafing as they fire.
+
+**What changed:**
+- **Aim-in first** (`CombatTuning::aim_in_first`, `reflex::hip_cone_fits`): no shot until the aim has been pressed for the weapon's `aim_time` (from its config) and one tick, unless the hip cone of the bot's stance and movement (from the weapon's `dispersion` block and `default.player`) keeps 58 % of the shots within a half torso (0.25 m) at the target's distance; then it fires from the hip without the aim. The aim is pressed whenever the hip cone does not fit, near or not. The skill tiers keep their aim error, reaction and settle (`signals.rs`): the change is only when to press the trigger.
+- **Steps heard** (`SenseTuning::step_m` 8 m): an enemy walking upright (faster than 1.5 m/s, not crouched) is heard within 8 m. Before, a walking enemy made no sound (in match 0x4da3b51d a bot stood 1-4 m from an enemy for 8 s).
+- **Wider switch** (`switch_share` 0.65 from 0.5, `switch_near_m` 25 m from 15 m): a seen enemy nearer than 0.65 of the target's distance, or nearer than 25 m and 5 m nearer, takes the target.
+- **Switch between thinks** (`switch_between_thinks`): an enemy noticed between two thinks who takes the target by those rules is taken at that tick, not at the next think.
+
+**Tried and left off** (bench, tiers 9-10, the change without that part, 8 seeds; ± is the standard error of the difference a seed):
+- A firing gate scaled by the body's width at the distance (`fire_body_share` 3): +1.6 points of hit rate alone, but with the aim-in −11.5 kills a seed.
+- A hold of 300 ms on a target before the near rules apply (`switch_hold_ms`), against flicking: no measure moved by 2 standard errors (flips +1.5 ± 7.6 without it).
+- A nearer enemy facing the bot (within 20 degrees) taking the target from one not facing it (`switch_facing_deg`): nothing better with it; without it enemies within reach engaged within 1 s +3.1 ± 2.2 points.
+- A glance at any sound heard within 6 m while holding a target (`glance_close_m`): no measure moved (kills +0.75 ± 0.41 without it, the rest within 1 point); the steps heard do that work.
+- The wider switch alone cost kills (−6.4 a seed, significant); with the steps heard and the switch between thinks it brings farther targets down (below).
+
+**Measured** (2026-10-23). `real_bot_cost`, 180 s, the 6 battery maps (levels 1-6, level 3 timed), 4 v 4 and 10 v 10 (12 runs a seed), `SRP_BENCH_BATTERIES=10`, `SRP_BENCH_USE_LINE=1`, `SRP_BENCH_SPREAD=1`, seeds 1-8, the tier with `SRP_BENCH_TIER`; the base is `4a1ef11b`. Means a seed (12 runs); * marks a difference over 2 standard errors:
+
+| Measure | 4-5 before | after | 9-10 before | after | 13-15 before | after |
+|---|---|---|---|---|---|---|
+| hit rate | 14.8 % | 20.8 %* | 16.6 % | 23.6 %* | 17.5 % | 26.3 %* |
+| shots | 5,155 | 3,619* | 5,101 | 3,504* | 4,853 | 3,312* |
+| kills, team 0 / 1 | 59.1 / 68.4 | 60.3 / 66.1 | 72.1 / 74.1 | 66.3* / 73.0 | 68.6 / 75.3 | 73.6* / 76.8 |
+| deaths, team 0 / 1 | 79.4 / 60.8 | 74.4 / 60.8 | 82.9 / 72.5 | 80.4 / 67.4* | 86.1 / 69.3 | 84.0 / 74.5* |
+| K/D, team 0 / 1 | 0.74 / 1.13 | 0.81 / 1.09 | 0.87 / 1.02 | 0.82 / 1.08 | 0.80 / 1.09 | 0.88 / 1.03 |
+| batteries delivered | 38.3 | 37.8 | 36.9 | 38.6 | 36.3 | 36.1 |
+| carriers killed carrying | 10.9 | 12.1 | 12.0 | 14.5 | 11.0 | 12.9 |
+| contacts a farther enemy aimed at | 12.4 % | 10.2 %* | 12.2 % | 10.8 %* | 11.8 % | 10.5 % |
+| enemies within reach engaged within 1 s | 68.8 % | 76.9 %* | 71.9 % | 79.3 %* | 71.2 % | 79.7 % |
+| ... never engaged | 24.8 % | 19.7 %* | 24.5 % | 18.5 %* | 25.0 % | 17.9 % |
+| plays ended within 1 s | 374 | 356 | 366 | 344 | 338 | 363 |
+| target flips A→B→A | 95.0 | 83.5 | 94.4 | 82.5* | 82.6 | 88.5 |
+| standing with a goal and no route | 4.0 % | 3.6 % | 4.0 % | 3.9 % | 3.8 % | 3.7 % |
+
+- The hit rate rises at every tier and keeps the tiers' order; a third fewer shots land as many hits, and the total kills are the same within the noise (−1.1 ± 3.8, −7.0 ± 4.4, +6.5 ± 3.9).
+- The per-team shifts at tiers 9-10 and 13-15 go opposite ways (team 0 kills fewer at 9-10, more at 13-15): both teams are the same bots, so it is the sides of the maps, and team 0's K/D is better at two tiers of three.
+- **Without the bench's spread** (the old bench, where every shot flies along the view, tiers 9-10): hit rate 19.7 → 23.9 %*, kills 154.5 → 137.5 (−17.0 ± 4.6*): with no cone to beat, waiting for the sights only delays the shot. The game has the cone (PROVEN), so the numbers with it are the ones that count.
+- **Whole matches** (`--ignored`, the flat floor, no spread): all 7 pass before and after. The take soak brought 95 → 96 batteries a side with no level end (one before); with friendly fire off the bots killed 181 → 158 teammates; the raids 449 / 469 → 423 / 409.
+- The log notes of seeds 3 and 6 show the same plays taken; one 4 v 4 on level 3 took Retreat 85 times against 25, but over all runs Retreat is not more frequent (−13.6 ± 25.7 a seed at tiers 9-10).
+
+**Tests:** `reflex::tests::a_close_enemy_beside_a_bot_with_a_far_target_is_taken_at_once`, `a_nearer_enemy_facing_the_bot_takes_the_target_from_one_who_does_not`, `steps_heard_within_six_metres_are_glanced_at_while_holding_a_target` (these two with the parts left off set on), `it_fires_only_once_the_sights_are_up_unless_the_hip_cone_fits`; `sense::tests::a_walking_enemy_near_behind_is_heard_by_his_steps`; `weapons::tests::the_dispersion_is_read_from_the_configs`; `bench_spread::tests`. `lost_battery_run` keeps the shots before the sights are up (its thief must take the battery before he dies), and the near-hip part of `it_aims_down_the_sights_and_steps_side_to_side_at_a_seen_target` turns the aim-in off.
+
+**Not verified:** no real match has been played with this. Whether the game drops the aim during a reload while AIM stays held is not traced (the aim-in counts from the bot's own press). The bench does not model recoil.
+
 ## 3. Plays
 
 Each play has a score from the situation, a precondition and steps. A commander per team hands them out every ~0.5 s: never two bots on one ambush, and no bot parked at its own container. In the saved worlds lives that stay in their own third are the worst in every mode (K/D 0.3–0.6, ~0.03 batteries a life), so a steal is answered by the 1–2 nearest bots (the thief cheat and the alarms in §4); the only guard is play 18.

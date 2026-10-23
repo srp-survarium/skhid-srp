@@ -1807,3 +1807,8 @@ va	status	ref_021d	name
 0x00511600	observed		Scaleform::GFx::Movie::Invoke
 0x000725e0	observed		vostok::math::create_rotation
 0x00054e10	observed		survarium::replay_network_client::is_this_place_mine
+0x00330ee0	reviewed	0x00208041	survarium::weapon_dispersion_params::weapon_dispersion_params
+0x00331050	reviewed	0x00207813	survarium::dispersion_calculator::initialize
+0x00331330	reviewed	0x00207954	survarium::dispersion_calculator::calculate_character_dispersion
+0x00331480	reviewed	0x00207aaa	survarium::dispersion_calculator::get_character_skill_influence
+0x0032fe40	reviewed	0x002075a9	survarium::transition_helper::tick
