@@ -290,6 +290,26 @@ mod tests {
         assert!(holds(&s).is_empty(), "carrying");
     }
 
+    /// An exit with no spot fine for the bot is not offered (taken, it
+    /// ended within the second); the one it already holds stays offered.
+    #[test]
+    fn an_exit_with_no_spot_is_not_offered_unless_held() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.bot(0, 0, Vec3::new(20.0, 0.0, 35.0));
+        // Every spot too near the enemy's spawns.
+        s.tuning
+            .plays
+            .entry(PlayKind::HoldExit)
+            .or_insert_with(|| crate::v026g::bots::plays::default_tuning(PlayKind::HoldExit))
+            .numbers
+            .insert("base_min_m".into(), 10_000.0);
+        assert!(holds(&s).is_empty());
+        s.current = Some((PlayKind::HoldExit, TargetRef::Exit(0), s.view.clock));
+        let out = holds(&s);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].target, TargetRef::Exit(0));
+    }
+
     /// Steps the play by hand from its start; returns the steps and the
     /// state, the bot moved to each goal at once.
     fn walk(s: &mut Scenario, steps: usize, ms: u32) -> (Vec<Step>, State) {
