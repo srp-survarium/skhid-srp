@@ -175,6 +175,7 @@ package survarium.messages
          btnAccept.label = LocalizationData.getName("btn_item_craft");
          this.background.height = 415;
          this.rerollContainer.y += 1;
+         this.removeFailureRow();
          this.updateLayout();
          tabEnabled = true;
          btnAccept.enabled = false;
@@ -199,11 +200,6 @@ package survarium.messages
             this.decriptionLabel.text = LocalizationData.getName("item_craft_description");
             this.labelSuccessChance.text = LocalizationData.getName("item_craft_success_label");
             this.labelFailChance.text = LocalizationData.getName("item_craft_fail_label");
-            // An upgrade never takes a modification away (the owner's rule of 2026-10-23,
-            // craft-menu.md): no failure ("-1 mod.") row; the server sends its chances as 0.
-            this.labelFailChance.visible = false;
-            this.failChanceRegular.visible = false;
-            this.failChanceGold.visible = false;
             this.labelRegularMoney.text = LocalizationData.getName("regular_money");
             this.labelGoldMoney.text = LocalizationData.getName("premium_money");
             this.dragItemSlot1.selected = false;
@@ -232,6 +228,22 @@ package survarium.messages
          }
          this.updateCraftChance();
          this.checkAcceptButton();
+      }
+      
+      // An upgrade never takes a modification away (the owner's rule of 2026-10-23, craft-menu.md):
+      // no failure ("-1 mod.") row, and the server sends its chances as 0. The chances' panel,
+      // the prices under it and the window close up by the row's height; the top stays.
+      private function removeFailureRow() : void
+      {
+         var row:Number = this.labelFailChance.y - this.labelSuccessChance.y;
+         this.labelFailChance.visible = false;
+         this.failChanceRegular.visible = false;
+         this.failChanceGold.visible = false;
+         this.rerollContainer.background.height -= row;
+         this.checkBoxRegularCost.y -= row;
+         this.checkBoxPremiumCost.y -= row;
+         this.craftTimer.y -= row;
+         this.background.height -= row;
       }
       
       private function updateLayout() : void

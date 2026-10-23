@@ -90,6 +90,7 @@ the silver upgrade's 67.5 % chance to lose a modification too harsh).
 - **Otherwise** (the data's "-1 mod." chance as well as its "nothing"): the price and the donor are
   spent, the item stays as it was; the window says "you failed to upgrade the item".
 - **Prices, donors, success chances, silver and gold:** unchanged.
-- **The window:** no failure ("-1 mod.") row (its place under the success row stays empty); the
-  server sends every failure chance as 0 (0x9B).
-- Code: `items_rules::craft`, `wire::craft_tables`, `MessageCraftItem.configUI`.
+- **The window:** no failure ("-1 mod.") row; the server sends every failure chance as 0 (0x9B).
+  The chances' panel, the prices under it and the window close up by the row's height (23 px), the
+  window's top where it was; the result view is as before.
+- Code: `items_rules::craft`, `wire::craft_tables`, `MessageCraftItem.removeFailureRow`.
