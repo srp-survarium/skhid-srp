@@ -57,6 +57,7 @@
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
+use session::v026g::rooms::ChatLine;
 use session::v026g::{Account, quests, wire};
 use session::{LockExt, Squad, SquadError};
 use survarium::v026g::lobby::requests::{ClientMessage, FriendshipAction, id};
@@ -212,7 +213,7 @@ impl Core<'_> {
         let (in_match, session_id) = (player.in_match, player.session_id);
         // A room's own channel: its members (`room_chat`).
         if channel == channel::ROOM {
-            self.room_say(who, body);
+            self.room_say(who, body, now);
             return;
         }
 
@@ -260,27 +261,25 @@ impl Core<'_> {
             return;
         }
         let tag = self.clan_tag_of(who.account_id);
-        let line = lobby::chat_text(
-            sender::ACCOUNT,
-            who.account_id,
-            &who.name,
-            &tag,
-            channel,
-            body,
-        );
-        let mut reached = 0;
-        for (addr, account_id) in recipients {
-            // Its client would drop the line itself.
-            if self.ignores(account_id, who.account_id) {
-                continue;
-            }
-            self.send(addr, line.clone());
-            reached += 1;
-        }
+        // Its client would drop the line itself.
+        let readers: Vec<SocketAddr> = recipients
+            .into_iter()
+            .filter(|(_, account_id)| !self.ignores(*account_id, who.account_id))
+            .map(|(addr, _)| addr)
+            .collect();
         log::info!(
-            "Chat from {} on channel {channel} reached {reached} player(s)",
-            who.name
+            "Chat from {} on channel {channel} reached {} player(s)",
+            who.name,
+            readers.len()
         );
+        // In each reader's language when translation is on (`chat_out`).
+        let said = ChatLine {
+            from: who.account_id,
+            name: who.name.clone(),
+            tag,
+            body: body.to_owned(),
+        };
+        self.say(said, channel, readers, now);
     }
 
     // ------------------------------------------------- important messages

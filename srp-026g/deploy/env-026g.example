@@ -178,6 +178,28 @@ RUST_LOG=info
 # rooms at once, and the playable maps_dict ids a creator may add besides
 # SRP_MATCH_MAPS.
 # SRP_ROOMS_MAX=50
+
+# Chat translation (docs/notes/chat-translation.md): each reader gets a
+# player's chat line in its game language. Off by default. `grok` sends the
+# line's text (no name) to xAI (Grok); the key comes from here only, a key of
+# its own with a spend limit.
+# SRP_CHAT_TRANSLATE=grok
+# XAI_API_KEY=
+# (or SRP_CHAT_TRANSLATE=claude with ANTHROPIC_API_KEY)
+# SRP_CHAT_TRANSLATE_TIMEOUT_MS=2000
+# The gate before translation, required with it: the local classifier service
+# (deploy/chat-moderation/), its per-language thresholds and timeout. A line it
+# refuses, or does not answer for, is not sent. `none`: srp's word list alone
+# (a test, not for players).
+# SRP_CHAT_MODERATION_URL=http://127.0.0.1:8099/score
+# SRP_CHAT_MODERATION_THRESHOLDS=en=0.05,ru=0.05,uk=0.05,de=0.05,pl=0.05
+# SRP_CHAT_MODERATION_TIMEOUT_MS=300
+
+# A nameless sample of the public channels' lines, to find slang for the
+# translation's glossary. Off until the players are told (the note says
+# what); files older than the days kept are deleted.
+# SRP_CHAT_SAMPLE_DIR=/srv/srp/data/chat-sample
+# SRP_CHAT_SAMPLE_KEEP_DAYS=14
 # SRP_ROOMS_EXTRA_MAPS=
 # The bots' maps (docs/notes/player_bots_mapdata.md section 6): the
 # <project>.mapdata files, copied by hand into the data volume (game data:

@@ -1,0 +1,6 @@
+# Exporting and fine-tuning (export.py, train.py), on a PC, not the game host.
+-r requirements.txt
+torch>=2.3
+transformers>=4.44,<5
+onnx>=1.16
+sentencepiece>=0.2
