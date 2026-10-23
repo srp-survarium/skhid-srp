@@ -197,6 +197,8 @@ pub struct AimTuning {
     /// The reflex's other numbers (plays 5, 7, 11, 19, 20, 21, reloads),
     /// the same at every skill.
     pub combat: super::reflex::CombatTuning,
+    /// No shot through a teammate ([`super::friends`]).
+    pub friends: super::friends::FriendlyFireTuning,
 }
 
 impl Default for AimTuning {
@@ -218,6 +220,7 @@ impl Default for AimTuning {
             range_m: 80.0,
             reaction_ms: (450.0, 120.0),
             combat: super::reflex::CombatTuning::default(),
+            friends: super::friends::FriendlyFireTuning::default(),
         }
     }
 }

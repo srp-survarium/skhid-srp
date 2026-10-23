@@ -2353,6 +2353,9 @@ impl Reflex {
         } else {
             aim.range_m
         };
+        // [friends] A teammate in the line of fire: no shot, a step aside.
+        let friend =
+            self.friend_in_line(me, view, (point, error, lift), distance, gun, &aim.friends);
         let mut wants = false;
         if fire_allowed
             && within
@@ -2360,6 +2363,7 @@ impl Reflex {
             && now >= self.busy_until
             && self.hands().held().rounds > 0
             && distance <= range_m
+            && friend.is_none()
             // The shot leaves along the view (kick and all): the wall test is
             // on the view now and the one it turns to, each with the kick's
             // lift not taken back.
@@ -2401,6 +2405,9 @@ impl Reflex {
         } else if legs.is_none() || (c.strafe_walking && !running) {
             strafe = self.side_step(now, c, rng);
         }
+        if let Some(friend) = friend.filter(|_| !running) {
+            strafe = friend.away;
+        }
         Override {
             look_at: Some(point),
             error,
@@ -2433,6 +2440,30 @@ impl Reflex {
         };
         self.sight
             .clear_shot(&lifted, aimed, (error.0, error.1 + lift))
+    }
+
+    /// [friends] The teammate in the line of fire, if any: on the view now
+    /// and the view it turns to (`point` with `error`), each `lift` higher
+    /// as [`Self::clear_shot`]'s, short of `distance` and a little past.
+    fn friend_in_line(
+        &self,
+        me: &PlaceView,
+        view: &MatchView,
+        (point, error, lift): (Vec3, (f32, f32), f32),
+        distance: f32,
+        gun: &Gun,
+        t: &super::friends::FriendlyFireTuning,
+    ) -> Option<super::friends::Blocked> {
+        use super::friends::{along, blocking};
+        let to = point - me.eye();
+        let dirs = [
+            along(me.yaw, (me.pitch + lift).clamp(-1.0, 1.0)),
+            along(
+                yaw_of([to.x, to.z]) + error.0,
+                to.y.atan2(to.x.hypot(to.z)) + error.1 + lift,
+            ),
+        ];
+        blocking(me, view, &dirs, distance, t.spread(gun), t)
     }
 
     /// The aim's wander, one tick on: a mean-reverting walk whose spread is
