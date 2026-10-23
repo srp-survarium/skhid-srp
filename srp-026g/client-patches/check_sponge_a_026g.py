@@ -5,6 +5,7 @@ players, worlds and zones, and 0.28d0's own sponge code on the same inputs.
 
     python check_sponge_a_026g.py <original survarium.exe> [--v028d0 <0.28d0 survarium.exe>]
                                   [--options <artefact_sponge.options>] [--pack <sponge-2 folder>]
+                                  [--project <a map's client_project>]...
 
 Requires Python `unicorn`. The built exe's sections are loaded as they are
 and its code runs as machine code; the game's own code runs where the patch
@@ -30,8 +31,13 @@ here) 0.28d0's action 0x514580, its passive's callback 0x514380, its throw
 run on the same numbers, and must agree. --options checks the config this
 script writes against the 0.28d0 file. --pack (or SRP_SPONGE_PACK) names the
 content pack's folder: its artefact_sponge.options is read by the build's cook
-and its passive run through the game's regeneration tick (0x32A4B0). What
-each case checks is printed.
+and its passive run through the game's regeneration tick (0x32A4B0). The
+static anomalies' kinds (sponge_artefacts, 0x2E9D53, for the Sponge and the
+Rattle) run in the anomaly cook's own loop 0x2E9D49..0x2E9DFB (operator[]
+0xF6B10, the buffer_vector's push 0x2EA3C0, the stack probe 0x424CA0) on
+made-up cores, beside the original exe, and with --project on every
+generic_anomaly_core of a map's client_project as the game loads it (each
+`srp-game-data get` writes one). What each case checks is printed.
 """
 import argparse
 import lzma
@@ -502,6 +508,9 @@ def main():
     parser.add_argument("--options", help="0.28d0's gameplay/items/artefacts/artefact_sponge.options")
     parser.add_argument("--pack", default=os.environ.get("SRP_SPONGE_PACK", PACK),
                         help="the content pack's folder (sponge@2: private/content-packs/sponge-2)")
+    parser.add_argument("--project", action="append", default=[],
+                        help="a map's projects/<map>/<weather>/client_project (srp-game-data get), each core's "
+                             "kinds run through the cook's loop")
     args = parser.parse_args()
     original = open(args.original, "rb").read()
     code = open(base.default_bin("section"), "rb").read()
@@ -558,7 +567,8 @@ def main():
           and r.read(sponge + S_NODE + 8) == 0x312590 and r.read(sponge + S_NODE + 0x10) == sponge
           and r.read(sponge + S_NODE + 0x14) == sponge + S_PASSIVE)
 
-    # 1b. Every other type is the switch's: Rattle (type 8) built alike by the built exe and the original.
+    # 1b. Every other type is the switch's: Rattle (type 8) through the switch's own case, which the
+    #     Rattle's hooks (rattle_026g.asm, check_rattle_026g.py) make the Rattle's: 378h bytes, its vtable.
     rattle = dict(sponge_options())
     rattle["data"] = dict(rattle["data"], type=8)
     same = []
@@ -569,8 +579,12 @@ def main():
         made, cleanup = emu.thiscall(0x25E660, fixture.cook, memory, pointer, emu.allocate(4), fixture.scene)
         size, _ = emu.thiscall(0x25E770, fixture.cook, pointer)
         same.append((made == memory, cleanup, size, emu.read(memory), emu.read(memory + 0x340), emu.read(memory + 0x27C, 2)))
-    check("type 8 (Rattle) through the hooked switches: as the original builds it (0x360 bytes, vtable 0xA06124)",
-          same[0] == same[1] and same[0][2] == 0x360 and same[0][3] == 0xA06124, str(same))
+    check("type 8 (Rattle) through the hooked switches: the switch's case for it, the Rattle's object (378h "
+          "bytes, its vtable rt_vtable) where the original builds Rattle's (360h, 0xA06124); the drawable, "
+          "the amount and the cleanup alike",
+          same[0][0] == same[1][0] and same[0][1] == same[1][1] and same[0][4:] == same[1][4:]
+          and same[0][2:4] == (0x378, ARENA.symbols["rt_vtable"] + 4) and same[1][2:4] == (0x360, 0xA06124),
+          str(same))
 
     # 1c. The query: model, spawn particle and sound, and the damage zone from data/active/damage_zone.
     asked = []
@@ -1264,6 +1278,21 @@ def main():
             at = r.read(at + 8)
         return seen.count(drawable)
 
+    def forget_node(node):
+        """the node out of the infection pool's list, here (what a destroyed
+        world's pool no longer needs)"""
+        before, at = 0, r.read(infection + 0x2EC)
+        while at and at != node:
+            before, at = at, r.read(at + 0x20)
+        if not at:
+            return
+        if before:
+            r.word(before + 0x20, r.read(at + 0x20))
+        else:
+            r.word(infection + 0x2EC, r.read(at + 0x20))
+        if not r.read(at + 0x20):
+            r.word(infection + 0x2F0, before)
+
     def remove_from_slot(slot):
         r.call(0x2FC680, regs={UC_X86_REG_EAX: slot, UC_X86_REG_ESI: game.inventory})
 
@@ -1390,24 +1419,50 @@ def main():
           again == 803050 and t_end == 803050 and r.read(t2 + STATE_AT) == 7 and r.read(t + S_EXPLODE) == 803000,
           f"{again} {t_end} {r.read(t2 + STATE_AT)} {r.read(t + S_EXPLODE)}")
 
-    # 14e. The destructor takes each thing out of what it went into, then destroys it.
+    # 14e. The destructor (at a match's end, when the world goes in whatever order its parts go) touches
+    #      nothing the world owns, as 0.26g's grenade, Spring, Rattle and collision sensor destructors: the
+    #      physics world, the holder's pool and the scene's list here are unmapped addresses, so a call into
+    #      one or a walk of one faults the case.
     r.stub(lambda r: game.log.append(("rattle_dtor", r.emu.reg_read(UC_X86_REG_ECX), r.arg(0))), 4, at=0x260860)
     r.stub(lambda r: events.append(("destroy_ghost", r.arg(0))), 0, at=0x357BA0)
     r.stub(lambda r: (events.append(("free", r.emu.reg_read(UC_X86_REG_EAX), r.emu.reg_read(UC_X86_REG_ECX))),
                       r.word(r.arg(0), 0)) and None, 0, at=0x1539D0)
-    flying, _, f_body = make_sponge(21)
+    GONE = 0x0BAD0000                                    # nothing is mapped there
+
+    def destroyed_after_its_world(obj):
+        """slot 0 with the world's parts gone: (faulted, the log's kinds)"""
+        linked = r.read(obj + S_LINKED)
+        scene_list = (r.read(game.scene + 0xDC + 4), r.read(game.scene + 0xDC + 8))
+        if linked:
+            r.word(obj + S_LINKED, GONE)
+        if r.read(obj + S_PHYSICS):
+            r.word(obj + S_PHYSICS, GONE + 0x1000)
+        r.word(game.scene + 0xDC + 4, GONE + 0x2000)
+        r.word(game.scene + 0xDC + 8, GONE + 0x2000)
+        game.log.clear()
+        try:
+            r.thiscall(vt(obj, 0), obj, 1)
+            faulted = None
+        except Exception as error:                       # unicorn's UcError: an unmapped read or write
+            faulted = str(error)
+        r.word(game.scene + 0xDC + 4, scene_list[0])
+        r.word(game.scene + 0xDC + 8, scene_list[1])
+        return faulted, [x[0] for x in game.log]
+    flying, f_zone, f_body = make_sponge(21)
     r.thiscall(vt(flying, 11), flying, 1, 900000)
     r.call(SYMBOLS["sp_pull_pin"], (flying, 900000))
     r.thiscall(vt(flying, 11), flying, 0, 900000)
     throw(flying, 1.0, 2.0, 3.0)
-    game.log.clear()
-    r.thiscall(vt(flying, 0), flying, 1)
-    kinds = [x[0] for x in game.log]
-    check("a sponge destroyed in the air: its passive out, its body out of the physics world before the shape "
-          "and the body are destroyed, its drawables out of the scene's list, then Rattle's destructor",
-          in_pool(flying + S_NODE) == 0 and kinds.index("pw_remove") < kinds.index("destroy_shape")
-          < kinds.index("free_body") < kinds.index("rattle_dtor") and ("pw_remove", f_body, 1) in game.log
-          and in_scene(flying + 0x340) == 0 and in_scene(r.read(flying + S_ZONE) + 0x408) == 0, str(kinds))
+    in_air = r.read(flying + S_PHYSICS) != 0 and r.read(flying + S_LINKED) != 0
+    faulted, kinds = destroyed_after_its_world(flying)
+    forget_node(flying + S_NODE)
+    check("a sponge destroyed in the air with its passive linked, its world gone (its physics world, the "
+          "holder's pool and the scene's list unmapped): none of them touched, the body's shape and the body "
+          "destroyed (grenade_core's 0x303770 way), then Rattle's destructor; nothing of the world kept",
+          in_air and faulted is None and "pw_remove" not in kinds
+          and kinds.index("destroy_shape") < kinds.index("free_body") < kinds.index("rattle_dtor")
+          and r.read(flying + S_PHYSICS) == 0 and r.read(flying + S_LINKED) == 0 and r.read(flying + S_BODY) == 0
+          and r.read(flying + S_ZONE) == 0, faulted or str(kinds))
     spent, s_zone, _ = make_sponge(22)
     made = r.read(r.read(s_zone + 0x11C))
     r.thiscall(vt(spent, 11), spent, 1, 900000)
@@ -1415,18 +1470,19 @@ def main():
     r.thiscall(vt(spent, 11), spent, 0, 900000)
     throw(spent, 1.0, 2.0, 3.0)
     tick_until(spent, 900000, 7)
+    zone_on_then = r.read(s_zone + 0x124, 1) == 1                     # Z_ACTIVE
     r.word(s_zone + 0xD0, 2)
+    r.word(STATE, s_zone)                               # the zone's hit hook's zone: this one
     events.clear()
-    game.log.clear()
-    r.thiscall(vt(spent, 0), spent, 1)
+    faulted, kinds = destroyed_after_its_world(spent)
     order = [x[0] for x in events]
-    check("a sponge destroyed with its zone on: the zone off (0x319D30) before its geometry's ghost is destroyed "
-          "(0x2F8BE0), the geometry out of the zone and freed to the cooks' allocator it came from, the zone's "
-          "drawable out of the scene's list, the zone let go",
-          order[:3] == ["zone_off", "destroy_ghost", "free"] and events[0][1:] == (s_zone, 1)
-          and events[2][1:] == (made, 0x5A110C) and r.read(r.read(s_zone + 0x11C)) == 0
-          and in_scene(s_zone + 0x408) == 0 and in_scene(spent + 0x340) == 0 and r.read(s_zone + 0xD0) == 1,
-          str(events))
+    check("a sponge destroyed with its zone on, its world gone: the zone not switched off (its ghosts were the "
+          "physics world's), the geometry it made out of the zone, destroyed (collision_geometry's destructor "
+          "0x2F8BE0: its ghost) and freed to the cooks' allocator it came from, its hold on the zone let go, "
+          "the zone's hit hook no longer naming it",
+          zone_on_then and faulted is None and "zone_off" not in order and order[:2] == ["destroy_ghost", "free"]
+          and events[1][1:] == (made, 0x5A110C) and r.read(r.read(s_zone + 0x11C)) == 0
+          and r.read(s_zone + 0xD0) == 1 and r.read(STATE) == 0, faulted or str(events))
 
     # 14f. Nothing takes a spent sponge (state 7): a container's can_use (0x31C6B0) wants state 2; the zone
     #      runs on whatever the item's state, and its end touches only a sponge still in state 7.
@@ -1569,10 +1625,90 @@ def main():
     gone, _, _ = make_sponge(8)
     game.log.clear()
     eip, moved = r.span(0xFBB4E, 0xFBB58, {UC_X86_REG_ESI: gone})
-    check("driven: slot 0, the destructor (flags 0), through the resource system's delete 0xFBB4E: the passive "
-          "out, then Rattle's destructor with the same flags (0: the memory is the resource system's)",
-          eip == 0xFBB58 and moved == 0 and in_pool(gone + S_NODE) == 0 and ("rattle_dtor", gone, 0) in game.log,
-          str([e for e in game.log if e[0] == "rattle_dtor"]))
+    left = in_pool(gone + S_NODE)
+    forget_node(gone + S_NODE)
+    check("driven: slot 0, the destructor (flags 0), through the resource system's delete 0xFBB4E: the holder's "
+          "pool not walked (the passive's node left as Spring's 0x25EA90 leaves its own), then Rattle's "
+          "destructor with the same flags (0: the memory is the resource system's)",
+          eip == 0xFBB58 and moved == 0 and left == 1 and r.read(gone + S_LINKED) == 0
+          and ("rattle_dtor", gone, 0) in game.log, str([e for e in game.log if e[0] == "rattle_dtor"]))
+
+    # 17. The static anomalies' kinds: the anomaly cook's look-up of a core's `artefacts` (0x2E9D53,
+    #     sponge_artefacts) in its own first loop (0x2E9D49..0x2E9DFB: the kinds' list it queries and
+    #     hands the core), on the build and on the original exe.
+    print("  17. the static anomalies' kinds: the Sponge and the Rattle in every anomaly that spawns artefacts")
+    k_run, k_stock = Run(pe_sections(built)), Run(pe_sections(original))
+
+    def cooked_kinds(emu, core):
+        """the cook's list for a core's config (a bcw value or a loaded file's bytes): [(dict_id, count)],
+        the sum of the counts, the config's bytes untouched"""
+        blob = core if isinstance(core, (bytes, bytearray)) else bcw.dump(core)
+        at = emu.allocate(len(blob) + 0x10)
+        image = loaded(blob, at)
+        emu.emu.mem_write(at, image)
+        frame = STACK + 0x8100                          # ebp; esp below it, the alloca's room under that
+        emu.word(frame + 0x10, at)
+        eip, _ = emu.span(0x2E9D49, 0x2E9DFB, {UC_X86_REG_EBP: frame})
+        begin, end = emu.read(frame - 0x20), emu.read(frame - 0x1C)
+        kinds = [(emu.read(e, 2), emu.read(e + 8)) for e in range(begin, end, 12)]
+        return eip, kinds, emu.read(frame - 0x4), emu.bytes(at, len(image)) == image
+
+    lifebone = {"dict_id": 54, "count": 10}
+    spring = {"dict_id": 74, "count": 10}
+    containers = ["logic/a/artefact_container(1)", "logic/a/artefact_container(2)"]
+    cores = (
+        ("one kind and two containers", {"artefacts": [lifebone], "artefact_containers": containers},
+         [(54, 10), (758, 1), (759, 1)]),
+        ("two kinds", {"artefacts": [lifebone, spring], "artefact_containers": containers},
+         [(54, 10), (74, 10), (758, 1), (759, 1)]),
+        ("the Sponge already there (a map that names it)",
+         {"artefacts": [lifebone, {"dict_id": 758, "count": 3}], "artefact_containers": containers},
+         [(54, 10), (758, 3), (759, 1)]),
+        ("both already there", {"artefacts": [{"dict_id": 759, "count": 2}, {"dict_id": 758, "count": 1}],
+                                "artefact_containers": containers}, [(759, 2), (758, 1)]),
+        ("no artefact containers (v011e level 4's track controllers)", {"artefacts": [lifebone]}, [(54, 10)]),
+        ("an empty containers list", {"artefacts": [lifebone], "artefact_containers": []}, [(54, 10)]),
+        ("no kinds", {"artefacts": [], "artefact_containers": containers}, []),
+    )
+    for what, core, want in cores:
+        eip, kinds, total, kept = cooked_kinds(k_run, core)
+        s_eip, s_kinds, s_total, _ = cooked_kinds(k_stock, core)
+        check(f"a core with {what}: the cook's kinds {kinds} (the original exe's {s_kinds}), counted {total}; "
+              "the config untouched",
+              eip == s_eip == 0x2E9DFB and kinds == want and kinds[:len(s_kinds)] == s_kinds
+              and total == sum(c for _, c in want) and s_total == sum(c for _, c in s_kinds) and kept)
+    # the copies live in a ring of slots: a run of cores, each read before the next copy is made
+    run_ok = []
+    for i in range(20):
+        _, kinds, _, _ = cooked_kinds(k_run, {"artefacts": [{"dict_id": 54 + i, "count": i + 1}],
+                                              "artefact_containers": containers})
+        run_ok.append(kinds == [(54 + i, i + 1), (758, 1), (759, 1)])
+    check("twenty cores cooked in a row (the copies' ring of eight slots, each slot taken again): each its own "
+          "kind, then the Sponge's and the Rattle's", all(run_ok), str(run_ok))
+    totals = [0, 0, 0]                                 # projects, cores, cores that spawn
+    for project in args.project:
+        tree = bcw.load(project)
+        n = n_spawning = 0
+        bad = []
+        objects = tree.get("client_objects") or []
+        for index, obj in enumerate(objects):
+            if obj.get("game_object_type") != "generic_anomaly_core":
+                continue
+            n += 1
+            own = [(a["dict_id"], a["count"]) for a in obj.get("artefacts") or []]
+            spawning = bool(own) and bool(obj.get("artefact_containers"))
+            n_spawning += spawning
+            _, kinds, _, _ = cooked_kinds(k_run, obj)
+            want = own + ([(758, 1), (759, 1)] if spawning else [])
+            if kinds != want:
+                bad.append((index, kinds, want))
+        check(f"{project}: every one of its {n} anomaly cores (as the project holds it): the {n_spawning} "
+              "with kinds and containers get the Sponge and the Rattle after their own, the others as they are",
+              not bad, str(bad[:3]))
+        totals = [totals[0] + 1, totals[1] + n, totals[2] + n_spawning]
+    if args.project:
+        print(f"  --  {totals[0]} projects: {totals[1]} anomaly cores, {totals[2]} of them with the Sponge and "
+              "the Rattle")
 
     # 15. The content pack's own config (release/content.tsv sponge@2, SRP_SPONGE_PACK or --pack: its
     #     folder), loaded as the game loads it: the cook reads it, and its passive keeps infection full.

@@ -63,6 +63,7 @@ engine_cook_finish_query	0x2ee8d0	ECX:cook EDX:resource_ptr ESI:artefact EDI:que
 engine_artefact_tick	0x313200	ECX:artefact ESP+4:dt ESP+8:time	void engine_artefact_tick(void *artefact, unsigned int dt, unsigned int time)
 engine_artefact_serialize	0x313670	ECX:artefact ESP+4:writer ESP+8:optional_effect_serialization_context	void engine_artefact_serialize(void *artefact, void *writer, void *dumper)
 engine_artefact_deserialize	0x313760	ECX:artefact ESP+4:reader ESP+8:optional_effect_deserialization_context ESP+12:third	void engine_artefact_deserialize(void *artefact, void *reader, void *a, void *b)
+engine_artefact_ui_info	0x313880	ECX:artefact ESP+4:info	void engine_artefact_ui_info(void *artefact, void *info)
 engine_sensor_insert	0x3080b0	ESP+4:sensor ESP+8:physics	void engine_sensor_insert(void *sensor, void *physics)
 engine_zone_deactivate	0x319d30	ESP+4:zone ESP+8:flag	void engine_zone_deactivate(void *zone, unsigned int flag)
 engine_zone_tick	0x319a70	ECX:zone ESP+4:dt ESP+8:time ESP+12:bool	void engine_zone_tick(void *zone, unsigned int dt, unsigned int time, unsigned int on_grid)

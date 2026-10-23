@@ -444,6 +444,21 @@ Patches:
   (g_private_messages_in_game), which makes that option live and saved in
   user.cfg; add_message's call for a received line (0x26B916) drops a
   player's line in a match while it is on (channels 3 and 5 to 9);
+- the Sponge and the Rattle (patch 59, with the late join; client_patch.md
+  sections 3.52 and 3.53, docs/notes/sponge.md and rattle.md; the arena's
+  blocks sponge.code, sponge.state, rattle.code and rattle.state). The
+  Sponge, artefact type 12, is 0.28d0's thrown toxic artefact written again
+  on 0.26g (the cook's switches, the throw state, the damage zone's hit).
+  The Rattle, artefact type 8, whose effect 0.20e left as stubs (vtable
+  0xA06124), gets a vtable of its own at the cook's constructor call
+  (0x25E72C; the object 378h, 0x25E7C9) with an active of its duration; the
+  point proxies of another player's steps, rustles and landing (0x65874, run
+  by on_player_sound_event 0x2A6470 and on_landing at 0x1F3BB6) and of his
+  fire states' sounds (0x297F79) carry the quiet his Rattles give, and the
+  sound thread scales a propagator's amplitude (0x5CA37) and HDR loudness
+  (0x5C8BA) by it. Every static map anomaly that spawns artefacts holds both:
+  the anomaly cook's look-up of the core's `artefacts` (0x2E9D53) returns
+  the table with {758, 1} and {759, 1} after the core's own kinds;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -2055,6 +2070,24 @@ INSTALLS = {
                None, None),
     0x319C8B: (JUMP, "the damage zone's hit loop 0x319AF0, the receiver's vt+20h call and its pushes: "
                      "sponge_zone_hit", None, None),
+    0x2E9D53: (CALLEE, "generic_anomaly_core_cook::query_for_artefacts 0x2E9D40, the `artefacts` table's look-up "
+                       "(operator[] 0xF6B10, eax the core's config, edi the key): sponge_artefacts, the table with "
+                       "the Sponge and the Rattle after the core's own kinds", None, None),
+    # the Rattle, patch 59 (in `.srpx`)
+    0x25E72C: (CALLEE, "the artefact cook's construct, type 8's `call 0x25FA10` (Rattle's constructor, stdcall "
+                       "(memory, scene)): rattle_construct, the Rattle's vtable and numbers after it", None, None),
+    0x2A6470: (ENTRY, "player_equipment_sound_effect::on_player_sound_event (thiscall, the event; `ret 4`): "
+                      "rattle_steps, run with the player's steps' quiet pending", None, None),
+    0x1F3BB6: (CALLEE, "player::on_landing's step `call 0x23FBE0` (cl, edx, xmm0, four stack arguments; `ret "
+                       "10h`): rattle_landing, run with the steps' quiet pending", None, None),
+    0x065874: (CALLEE, "0x657C0's `call 0x64F80` (new_point_sound_instance_proxy, `ret 10h`): rattle_point, the "
+                       "new proxy marked with the pending quiet", None, None),
+    0x297F79: (CALLEE, "play_sound_callback's `call 0x65670` (emit_point_sound, `ret 8`): rattle_shot, a fire "
+                       "state's proxy marked with its user's shot quiet", None, None),
+    0x05CA37: (JUMP, "calculate_hdr_audio_frame's `movss [esi+4Ch],xmm0` (a propagator's amplitude, sound "
+                     "thread): rattle_amplitude, x the proxy's gain", None, None),
+    0x05C8BA: (JUMP, "calculate_hdr_audio_frame's `movss [esi+40h],xmm0` (its HDR loudness): rattle_loudness, + "
+                     "20 log10(gain)", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -2082,6 +2115,7 @@ BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
 # its script does not have (test_call_shapes).
 RESEARCH_CHECK = "check_research_026g.py"
 SPONGE_CHECK = "check_sponge_a_026g.py"
+RATTLE_CHECK = "check_rattle_026g.py"
 INSTALLED_VTABLES = (
     ("Research's rule", "research.code", "rn_rule_vtable", 0xA15DA4, 20, 9, {
         7: (RESEARCH_CHECK, "driven: slot 7, on_event(type, data, time), through the dispatcher 0x2D1EA0"),
@@ -2121,6 +2155,19 @@ INSTALLED_VTABLES = (
         0: (SPONGE_CHECK, "driven: the drawable's draw, through the scene's loop 0x23DD41"),
     }),
     ("the Sponge's hit inflictor", "sponge.code", "sp_inflictor_vtable", None, 3, 0, {}),
+    # The Rattle (patch 59): Rattle's artefact vtable with the active's seven
+    # slots of ours, as Spring's has them.
+    ("the Rattle's artefact", "rattle.code", "rt_vtable", 0xA06124, 36, 7, {
+        18: (RATTLE_CHECK, "driven: slot 18, fill_ui_info(info), through the hud's quick slot 0x23A25B"),
+        26: (RATTLE_CHECK, "driven: slot 26, serialize(writer, dumper), through generic_anomaly_core::serialize's "
+                           "loop 0x31B074"),
+        27: (RATTLE_CHECK, "driven: slot 27, deserialize(reader, a, b), through generic_anomaly_core::deserialize's "
+                           "loop 0x31B1A0"),
+        30: (RATTLE_CHECK, "driven: slot 30, tick_impl(dt, time), through artefact_base::tick 0x313200"),
+        32: (RATTLE_CHECK, "driven: slot 32, enable_active(time), through artefact_base::action 0x313300"),
+        34: (RATTLE_CHECK, "driven: slot 34, disable_active, through artefact_base::decrement_amount 0x313530"),
+        35: (RATTLE_CHECK, "driven: slot 35, active_effect_ended, through artefact_base::tick 0x313200"),
+    }),
 )
 # What our code hands the game at run time to call later (a callback, a
 # boost::function, a tick delegate): no write of build() shows them, so each
@@ -2267,6 +2314,9 @@ ARENA = (
     # the Sponge, patch 59: the asm's eight entries and stubs, then the C code
     ArenaBlock("sponge.code", "code", 0x1000, ("sponge_a_026g.asm", "sponge_a_026g.c")),
     ArenaBlock("sponge.state", "state", 0x10, ("sponge_a_026g.c",)),                # sp_g: the zone ticked now
+    # the Rattle, patch 59: the asm's seven entries and stubs, then the C code
+    ArenaBlock("rattle.code", "code", 0x1000, ("rattle_026g.asm", "rattle_026g.c")),
+    ArenaBlock("rattle.state", "state", 0x10, ("rattle_026g.c",)),                  # rt_g: the steps' quiet
 )
 
 
@@ -2353,7 +2403,14 @@ RESEARCH_HOOKS = (
 #   sponge's own, else the original;
 # - the damage zone's hit loop 0x319AF0 at 0x319C8B (the receiver's vt+20h
 #   with no instigator, inflictor or item): a zone a sponge ticks names its
-#   thrower (kill credit), its inflictor and it.
+#   thrower (kill credit), its inflictor and it;
+# - the static anomalies' spawns, for the Sponge and the Rattle both (a
+#   `call`): generic_anomaly_core_cook::query_for_artefacts 0x2E9D40 looks
+#   up the core's `artefacts` table at 0x2E9D53 (operator[] 0xF6B10); the
+#   only reader of that key in the exe, it sizes its lists from the table
+#   and queries every kind's item. A core with artefact containers and kinds
+#   gets a copy of its table with {758, 1} and {759, 1} after its own kinds
+#   (each unless it has it already): the maps' projects stay as they are.
 # No base relocation is under a site and no branch aims inside one.
 SPONGE_HOOKS = (
     (0x25E68A, bytes.fromhex("83f8050f87a4000000"), "sponge_construct", 0xE9),          # construct's type switch
@@ -2366,7 +2423,42 @@ SPONGE_HOOKS = (
     (0x3103C9, bytes.fromhex("8bb6380100008b8e7c0100005051e8449dffff"), "sponge_pull", 0xE9),  # the pin
     (0x319C8B, bytes.fromhex("535383ec08d95c2404d9442420d91c24528d54243c528b9424b40000005352ffd0"),
      "sponge_zone_hit", 0xE9),                                                          # the zone's hit
+    (0x2E9D53, bytes.fromhex("e8b8cde0ff"), "sponge_artefacts", 0xE8),                  # an anomaly's kinds
 )
+# The Rattle, artefact type 8 (patch 59 with the Sponge, README; client_patch.md
+# section 3.53; docs/notes/rattle.md): rattle_026g.asm's seven entries and
+# stubs, then the C code of rattle_026g.c and its constant data, in the
+# arena's block rattle.code; the C code's state (rt_g: the steps' pending
+# quiet) in rattle.state, zeroed. 0.20e left artefact_rattle_core's effect
+# as stubs (0.26g's vtable 0xA06124 too): the Rattle gets a vtable of its own
+# with an active of a duration, and quiets the sounds its carrier makes for
+# others. Seven hooks, `call` or `jmp` to an entry:
+# - the artefact cook's case for type 8, `call 0x25FA10` at 0x25E72C:
+#   Rattle's constructor, then the Rattle's vtable and its config's numbers;
+# - on_player_sound_event 0x2A6470 (its entry, `mov eax,ecx / mov
+#   edx,[eax+3Ch]`; the feet, a jump's included, and the rustles) and
+#   on_landing's step (`call 0x23FBE0` at 0x1F3BB6): run with the player's
+#   steps' quiet pending;
+# - 0x657C0's point proxy (`call 0x64F80` at 0x65874): marked with that
+#   quiet (u16 at proxy+3Ah);
+# - play_sound_callback's point proxy (`call 0x65670` at 0x297F79): a fire
+#   state's marked with its weapon user's shot quiet;
+# - calculate_hdr_audio_frame (sound thread), its stores of a propagator's
+#   amplitude (`movss [esi+4Ch],xmm0` at 0x5CA37) and HDR loudness (`movss
+#   [esi+40h],xmm0` at 0x5C8BA): x the proxy's gain, + 20 log10 of it.
+# The object grows from Rattle's 360h to RATTLE_OBJECT_SIZE (the cook's size
+# 0x25E7C9). No base relocation is under a site and no branch aims inside one.
+RATTLE_HOOKS = (
+    (0x25E72C, bytes.fromhex("e8df120000"), "rattle_construct", 0xE8),       # the cook's case for type 8
+    (0x2A6470, bytes.fromhex("8bc18b503c"), "rattle_steps", 0xE9),           # on_player_sound_event's entry
+    (0x1F3BB6, bytes.fromhex("e825c00400"), "rattle_landing", 0xE8),         # on_landing's step
+    (0x065874, bytes.fromhex("e807f7ffff"), "rattle_point", 0xE8),           # 0x657C0's point proxy
+    (0x297F79, bytes.fromhex("e8f2d6dcff"), "rattle_shot", 0xE8),            # play_sound_callback's point proxy
+    (0x05CA37, bytes.fromhex("f30f11464c"), "rattle_amplitude", 0xE9),       # a propagator's amplitude
+    (0x05C8BA, bytes.fromhex("f30f114640"), "rattle_loudness", 0xE9),        # its HDR loudness
+)
+RATTLE_OBJECT_SIZE = 0x378                                                    # struct rattle (rattle_026g.c)
+RATTLE_SIZES = ((0x25E7C9, bytes.fromhex("b860030000"), b"\xB8" + struct.pack("<I", RATTLE_OBJECT_SIZE)),)
 # The engine-function library (engine_026g.py, client_patch.md section 0.5):
 # a cdecl thunk per engine function our code calls, each the global symbol
 # `engine_...` in the arena's block engine.code. One copy for every patch, so
@@ -2831,7 +2923,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             sites.append((site[0], site[0] + len(site[1])))
         patch(data, *SPOT_COOLDOWN)
         sites.append((SPOT_COOLDOWN[0], SPOT_COOLDOWN[0] + len(SPOT_COOLDOWN[1])))
-        for site in ARTEFACTS_SIZES:
+        for site in ARTEFACTS_SIZES + RATTLE_SIZES:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
         patch(data, *REPLAY_REATTACH_THUNK)
@@ -3242,7 +3334,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS \
-                        + SPONGE_HOOKS:
+                        + SPONGE_HOOKS + RATTLE_HOOKS:
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")

@@ -202,6 +202,9 @@ void engine_artefact_serialize(void *artefact, void *writer, void *dumper);
 /* 0x313760 survarium::artefact_base::deserialize: artefact ECX, reader ESP+4, a ESP+8, b ESP+12; pops 12 */
 void engine_artefact_deserialize(void *artefact, void *reader, void *a, void *b);
 
+/* 0x313880 survarium::artefact_base::fill_ui_info: artefact ECX, info ESP+4; pops 4 */
+void engine_artefact_ui_info(void *artefact, void *info);
+
 /* 0x3080b0 survarium::collision_sensor::insert: sensor ESP+4, physics ESP+8; pops 8 */
 void engine_sensor_insert(void *sensor, void *physics);
 

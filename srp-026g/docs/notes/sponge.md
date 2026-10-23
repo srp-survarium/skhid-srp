@@ -1,9 +1,9 @@
 # The Sponge (the owner, 2026-10-22)
 
-Client patch 59 (README section 59, client_patch.md section 3.52): 0.28d0's
-`artefact_sponge_core` written again on 0.26g's interfaces. The content pack `sponge@2`
-(release/content.tsv; srp-026g/scripts/sponge/make_pack.py) and the edit list
-`scripts/content-edit/sponge-spawns-1.json`. 0.28a2 brought the Sponge; the reference is
+Client patch 59 with the Rattle (README section 59, client_patch.md section 3.52;
+`rattle.md`): 0.28d0's `artefact_sponge_core` written again on 0.26g's interfaces. The
+content pack `sponge@2` (release/content.tsv; srp-026g/scripts/sponge/make_pack.py); the
+spawns are the exe's (below), no map file. 0.28a2 brought the Sponge; the reference is
 0.28d0's `artefact_sponge.options` and its code.
 
 ## As in 0.28d0
@@ -49,6 +49,11 @@ Client patch 59 (README section 59, client_patch.md section 3.52): 0.28d0's
   pool while armed).
 - A spent Sponge cannot be picked up while its zone runs, and the zone's end only resets a
   Sponge still spent.
+- Destroyed (when the world goes at a match's end: the anomaly holds it until then), it frees
+  only what is its own (its body, the geometry it made, its hold on the zone) and touches
+  nothing the world owns (the physics world, the holder's pool, the scene's list), as 0.26g's
+  grenades, Springs and Rattles do: whichever of those goes first, nothing is called or walked
+  that may be gone (2026-10-23, #344's open "crash at a match's end").
 
 ## Every game the same (lockstep, late join, rollback)
 
@@ -60,19 +65,20 @@ Client patch 59 (README section 59, client_patch.md section 3.52): 0.28d0's
 
 ## Spawns
 
-- Static anomalies: every map anomaly core (generic_anomaly_core) with an artefact container
-  carries one Sponge too ({758, count 1} after its other kinds): 179 cores of 71 projects
-  (levels 1 to 7 in their weathers, the 0.21d and v0.11e maps; edit list sponge-spawns-1, made
-  by scripts/sponge/spawns.py). The cores without a container (v0.11e level 4), Research's
-  mode-5 maps and the timed cores are left as they are.
-- Timed anomalies (the owner, 2026-10-23: "let's also build Sponge on top of anomalies"):
-  London and Cologne, whose projects pack dynamic-anomalies@4 replaces (London's 7 static
-  places go), have the release's mochalka anomaly at every place: 27 (London) and 29
-  (Cologne) mochalka cores a project, 5 Sponges each, a quarter of the timed anomalies; a
-  place's anomaly is chosen among its idle kinds, so a Sponge comes about one charge in four.
-  Their zone is Lifebone's (toxic, face), as the release's mochalka zone is
-  (docs/notes/dynamic_anomalies.md).
-- No project has both: sponge-spawns-1 edits no London or Cologne project.
+- Static anomalies: every map anomaly that spawns artefacts (a generic_anomaly_core with an
+  artefact container and kinds) carries one Sponge and one Rattle too ({758, count 1} and
+  {759, count 1} after its own kinds), on every map: the stock maps in their weathers and
+  modes, London, the 0.21d and v0.11e maps and the Research maps alike. The cores without a
+  container (v0.11e level 4's track controllers) are left as they are, and a core that names a
+  kind already keeps its own entry.
+- The exe does it, not the maps' files (2026-10-23): the anomaly cook's look-up of a core's
+  `artefacts` table (0x2E9D53, the only reader of that key) gets the table with the two
+  entries after its own (client_patch.md 3.52, "The static anomalies' kinds"). Before, edit
+  lists put them in the maps' client projects (sponge-spawns-1, rattle-spawns-1: 200 cores of
+  74 projects), which shipped those 74 whole projects (a project is one 0.7-1 MB file; a patch
+  holds whole files).
+- No timed anomalies: main has none since #345; #346 (their redesign) decides for its own
+  cores.
 
 ## Content (pack sponge@2)
 
@@ -92,4 +98,5 @@ Client patch 59 (README section 59, client_patch.md section 3.52): 0.28d0's
   `crates/session/src/v026g/simulation_changes.tsv`.
 - The exe needs the pack's config (item 758): the release's exe requires its resources.db
   patch (patch 49).
-- The site's /maps rebuild needs the lobby icon `artefact_sponge.webp` in its icons folder.
+- The site's /maps lists each container's kinds from the maps' projects, which do not name
+  the Sponge: it does not show it (or the Rattle) until its builder learns the exe's rule.

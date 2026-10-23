@@ -106,8 +106,10 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown, and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the three entries from the game's sites, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
-| `sponge_a_026g.asm`, `sponge_a_026g.c` | The source of patch 59 (the Sponge, artefact type 12): the eight hooks and their stubs in assembly, and 0.28d0's artefact_sponge_core written again in C on 0.26g's interfaces (the object, its vtables, the cook's query, the throw, the explosion, the zone, the passive, the state) |
-| `check_sponge_a_026g.py` | Checks of patch 59: runs the built exe's hooks and the sponge's slots with the game's own cook, Rattle constructor, config look-ups, splash and damage zone code on made-up items, players and worlds (needs Unicorn); with `--v028d0` the same inputs through 0.28d0's own code, with `--options` the config read from a decoded `artefact_sponge.options` |
+| `sponge_a_026g.asm`, `sponge_a_026g.c` | The source of patch 59's Sponge (artefact type 12): the nine hooks and their stubs in assembly, and 0.28d0's artefact_sponge_core written again in C on 0.26g's interfaces (the object, its vtables, the cook's query, the throw, the explosion, the zone, the passive, the state), and the static anomalies' kinds (the Sponge and the Rattle in every anomaly that spawns artefacts) |
+| `rattle_026g.asm`, `rattle_026g.c` | The source of patch 59's Rattle (artefact type 8): the seven hooks and their stubs in assembly (the cook, the steps' and the shots' point proxies, the sound thread's amplitude and loudness), and the Rattle's active, state and quiet in C (the arena's blocks `rattle.code`, `rattle.state`) |
+| `check_rattle_026g.py` | Checks of patch 59's Rattle: runs the built exe's hooks and the Rattle's slots with the game's own cook, Rattle constructor, artefact_base, patch 54's press, on_player_sound_event, 0x657C0, play_sound_callback and the sound thread's stores on made-up items, players, weapons and proxies, each slot of ours through the game's caller (needs Unicorn); with `--pack` the pack's own config |
+| `check_sponge_a_026g.py` | Checks of patch 59's Sponge: runs the built exe's hooks and the sponge's slots with the game's own cook, Rattle constructor, config look-ups, splash and damage zone code on made-up items, players and worlds, and the anomaly cook's kinds loop (needs Unicorn); with `--v028d0` the same inputs through 0.28d0's own code, with `--options` the config read from a decoded `artefact_sponge.options`, with `--project` every anomaly of a map's client_project |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
 | `check_death_camera_026g.py` | Runs the original's and patch 46's mouse moves through the game world's input handler (the death screen, a live player, spectators, a death before the start) and update_camera's call of the view's update on a made-up eye transform (needs Unicorn) |
@@ -162,9 +164,10 @@ a hook jumps to, `extern` what it uses of other patches; its hooks as
 (site, bytes, symbol, opcode) rows made in `build()`; each declared in
 `INSTALLS` (below); `python link_026g.py --write`. Research (patch 53: its
 asm, its C, and its state `rn_state`), the artefacts (patch 54), the
-engine library, the kit keys with the match chat option (patch 58) and
-the Sponge (patch 59: `sponge.code`, its state `sp_g` in `sponge.state`)
-are the arena's blocks today. The older fixed sections stay as they are
+engine library, the kit keys with the match chat option (patch 58), the
+Sponge and the Rattle (patch 59: `sponge.code` and `sponge.state`,
+`rattle.code` and `rattle.state`) are the arena's blocks today. The older
+fixed sections stay as they are
 (client_patch.md 0.3 says what moving one would take).
 
 **Call shapes.** Every function a patch installs — a vtable slot, a delegate,
@@ -174,7 +177,7 @@ own function it stands in for (its model) or an explicit ABI (`INSTALLS`,
 name (a call, jump or pointer into our code at any offset of any write), and
 a `*_vtable` of the arena's C code without a model (`audit_vtables`). The
 self-test (`test_call_shapes`) reads what ours pops from the built bytes
-(every `ret` reachable) and the model's from the original exe,
+(every `ret` reachable; a switch's jump table `jmp [r*4+table]` followed through its entries that aim back into the function) and the model's from the original exe,
 `tools/re-kit/v026g/abi.tsv` having to agree where it has the row, and fails
 on a mismatch for: every SLOT, ENTRY (the model is the function at the site),
 CALLEE (the replaced call's target, less the pushes replaced with it) and ABI
@@ -3216,7 +3219,14 @@ found by the game's lookup (0xEB7C0) and set and cleared by the game's execute (
 `user.cfg` line; the chat: every channel with the option off and on, in and out of a match,
 dropped exactly for 3 and 5 to 9 on, in a match, else given to add_message with the site's
 arguments, the stack and ebx, esi, edi, ebp as before. **Not run in a game.**
-### 59. The Sponge: artefact type 12 as 0.28d0's code (the next release's revision)
+### 59. The Sponge and the Rattle (the next release's revision)
+
+Two artefacts in one patch, shipped together (the owner, 2026-10-23: "we will also add sponge and
+rattle artifacts"): the Sponge (0.28's thrown toxic artefact, item 758) and the Rattle (0.20e's cut
+artefact, item 759, its effect ours). Every static map anomaly that spawns artefacts holds one of
+each, by the exe (below), so no map file ships for them.
+
+#### The Sponge: artefact type 12 as 0.28d0's code
 
 The Sponge (`artefact_sponge`, data type 12, the item of dictionary 758) is a thrown artefact of
 0.28: carried in an artefact slot and thrown on its key as a grenade, it explodes after its fuse
@@ -3228,11 +3238,8 @@ and the config reader 0x5439E0 of the decoded 0.28d0 exe) on 0.26g's interfaces,
 written, and it reads 0.28d0's `artefact_sponge.options` as it is. The content is pack `sponge@2`
 (`../scripts/sponge/make_pack.py`: item 758, 0.28d0's config with the owner's static toxin rule in
 its passive, regen_add 1000 and timeout_mul 0, 0.28d0's model, particles, materials and textures,
-texts in six languages), the edit list `sponge-spawns-1` (one Sponge in each of the 179 static
-map anomaly cores with an artefact container) and pack `dynamic-anomalies@4` (London's and
-Cologne's timed anomalies with the release's fourth kind, mochalka: five Sponges each, one place
-in four's anomaly); the hud movie draws its combat-log icon
-(`SpongeLogIcon`). The rules: `../docs/notes/sponge.md`.
+texts in six languages); the hud movie draws its combat-log icon (`SpongeLogIcon`). The rules:
+`../docs/notes/sponge.md`.
 
 - **The object** (`sponge_a_026g.c`, 0x698 bytes): Rattle's `artefact<artefact_rattle_core>`
   (artefact_base 0x312FD0 and the drawable at +340h, built by Rattle's constructor 0x25FA10), then
@@ -3285,12 +3292,21 @@ in four's anomaly); the hud movie draws its combat-log icon
 - **Lifetimes.** Out of its inventory (in any state) its passive leaves the holder's pool; armed
   in the hand it falls from the hand, its fuse and thrower kept (0.28 left it at the identity
   transform). Its zone runs to its end whatever the item's state (nothing can pick a spent one
-  up: a container gives only an artefact the anomaly spawned again from state 0). Destroyed, it
-  takes each thing out of what it went into first: the zone off, the drawables out of the
-  scene's list, the geometry it made destroyed and freed, the body out of the physics world.
-- **The arena**: `sponge_a_026g.asm` (the eight entries `sponge_construct` .. `sponge_zone_hit`,
-  `jmp near` each, and the stubs) and the C code, the block `sponge.code`, `sp_g` the block
-  `sponge.state` (`patch_026g.py` `ARENA`, `SPONGE_HOOKS`; `link_026g.py` places them). The C
+  up: a container gives only an artefact the anomaly spawned again from state 0). Destroyed (at
+  a match's end, when the world goes), it touches nothing the world owns, as 0.26g's grenade,
+  Spring and Rattle destructors: the physics world, the holder's pool and the scene's list are
+  neither called nor walked (any may be gone first); its body, the geometry it made and its hold
+  on the zone go.
+- **The static anomalies' kinds**, for the Sponge and the Rattle: the anomaly cook's look-up of a
+  core's `artefacts` (`call 0xF6B10` at 0x2E9D53 in query_for_artefacts 0x2E9D40, the only reader
+  of that key) is `sponge_artefacts`: a core with artefact containers and kinds gets a copy of its
+  table with {758, 1} and {759, 1} after its own kinds (each unless it has it), from a ring of
+  eight copies in `sponge.state`; the maps' projects stay as they are (edit lists of them shipped
+  74 whole projects).
+- **The arena**: `sponge_a_026g.asm` (the nine entries `sponge_construct` .. `sponge_artefacts`,
+  `jmp near` each, and the stubs) and the C code, the block `sponge.code`, `sp_g` and the kinds'
+  copies the block `sponge.state` (`patch_026g.py` `ARENA`, `SPONGE_HOOKS`; `link_026g.py` places
+  them). The C
   code calls the game only through the engine library (`engine_026g.tsv`). Its vtables are
   `INSTALLED_VTABLES` rows and its query callback a `CALLBACKS` row, each slot of ours run
   through the game's own call site by `check_sponge_a_026g.py`.
@@ -3298,13 +3314,7 @@ in four's anomaly); the hud movie draws its combat-log icon
 What it does that 0.28d0 does not, and why: `../docs/notes/client_patch.md` section 3.52 (the
 splash of 0.28d0's config does no damage there either: `splash_pierce` 0).
 
-**Revisions.** A sponge exists only in a match with item 758, which no resources.db of a release
-before this one has; a game with it runs this code in every game of the match, so it is in the
-`next` row of `../crates/session/src/v026g/simulation_changes.tsv`. The exe needs the pack's
-config: patch 49 makes the release's exe require its resources.db patch. Only in the builds with
-the late join.
-
-Checked: `selftest_026g.py` check 59 (the eight sites before and after, no relocation under one
+Checked (the Sponge): `selftest_026g.py` check 59 (the nine sites before and after, no relocation under one
 and no branch into one, the entries and the stubs' exits, the block, the C code's calls through the
 engine library) and the call shapes (the query's entry, ten artefact slots, the draw, the
 callback: each pops what its model pops, each reached through the game's own caller);
@@ -3315,8 +3325,10 @@ the press (the original crashes there), the pin and the fuse, the throw's veloci
 ticks, the explosion's splash on six targets, the zone on, ticked and off, the zone hit's
 arguments against the original, serialization round trips in every state, the draw, a death and
 revive, patch 54's press; a removal while armed, a load turning the passive out and in, a late
-joiner's zone and a thrower who left, a tap, the destructor in the air and with the zone on, a
-container's can_use on a spent sponge; each slot of ours through the game's own call site
+joiner's zone and a thrower who left, a tap, the destructor in the air and with the zone on with
+the physics world, the holder's pool and the scene's list unmapped, a container's can_use on a
+spent sponge; the anomaly cook's kinds loop on made-up cores beside the original exe, twenty in a
+row, and with `--project` every core of a map; each slot of ours through the game's own call site
 (inventory::action, remove_item, setup_from_profile, the anomaly core's serialize, deserialize,
 spawn and tick loops, added_to_inventory, artefact_base::tick, the scene's drawable loop, the
 resource system's delete, the boost invoker 0x202300); with `--v028d0` 0.28d0's own action, passive, throw and
@@ -3324,6 +3336,81 @@ splash on the same inputs give the same numbers, and its tap leaves the sponge u
 pack (`--pack`, `SRP_SPONGE_PACK`) the cook reads the pack's own `artefact_sponge.options` and the
 game's regeneration tick 0x32A4B0 fills infection again after a toxic hit while it is owned, not
 after a death or a removal). **Not run in a game.**
+
+#### The Rattle: its carrier's steps and shots quieter for others
+
+The Rattle (`artefact_rattle`, data type 8, the item of dictionary 759) was cut before release:
+0.20e had its item, config and model, and every effect method of `artefact_rattle_core` an empty
+stub; 0.26g's exe still cooks it, with the same stubs (its vtable 0xA06124: no active effect, an
+active that ends at its first tick). The owner's rules (`../docs/notes/rattle.md`): from its
+pickup to its holder's death others hear his steps and movement noise at 70 % a Rattle; its key
+(patch 54's press fires every ready one) makes them silent for 10 s (cooldown 40 s) and his shots
+50 % a Rattle fired; he hears himself as before. The content is pack `rattle@2`
+(`../scripts/rattle/make_pack.py`: item 759, 0.20e's config made 0.26g's with the owner's numbers,
+0.20e's model, texts in six languages).
+
+- **The object** (`rattle_026g.c`, 0x378 bytes): Rattle's (artefact_base and the drawable at
+  +340h, constructor 0x25FA10), then the duration in ms (`data/active/duration` x 1000), the time
+  left, and the three factors `data/passive/steps_sound_volume_3rd_person` (0.7),
+  `data/active/steps_sound_volume_3rd_person` (0) and `data/active/shots_sound_volume_3rd_person`
+  (0.5). The cook's case for type 8 calls the constructor at 0x25E72C: the hook calls it and then
+  gives the object a vtable of its own (Rattle's, its RTTI locator too, with seven slots of ours)
+  and reads the numbers; the cook's size for type 8 (0x25E7C9 `mov eax,360h`) is 378h.
+- **The active**, as Spring's: enable_active (+80h) sets the time left to the duration through the
+  holder's artefact_duration modifier (0x2D5AE0 on 39), tick_impl (+78h) takes dt off it,
+  active_effect_ended (+8Ch) is its end at 0, disable_active (+88h) clears it (the end or a death),
+  serialize and deserialize (+68h, +6Ch) add it in state 4 after artefact_base's, the hud's info
+  (+48h) shows its seconds. artefact_base's tick then starts the cooldown as for every artefact.
+- **The steps and the movement noise.** on_player_sound_event 0x2A6470 (the feet, a jump's
+  included, and the rustles; its entry hooked) and on_landing's step (`call 0x23FBE0` at 0x1F3BB6)
+  run with the stepping player's quiet pending (`rt_g`); 0x657C0, which plays them, makes a point
+  proxy for another player's sounds (`call 0x64F80` at 0x65874, hooked) and the hook marks it with
+  that quiet. A first-person (hud) sound, the carrier's own, is never marked.
+- **The shots.** play_sound_callback 0x297E20 makes another player's weapon sound's point proxy at
+  0x297F79 (`call 0x65670`, hooked): when the sound's weapon_sound_effect is a fire state's (the
+  handler's vtable 0xA04EE4 at effect-168h, 0xA05150 or 0xA05248 at effect-170h) the proxy gets
+  the weapon user's shot quiet; reloads, switches and the other states' sounds are left as they are.
+- **The quiet** of a player: his inventory (+10Ch), its artefact slots 13..18, each Rattle in state
+  3 x its passive's factor, in state 4 x its active's (steps) and x its shots' factor (shots); the
+  gain to the quiet q = round((1 - gain) x 65535), u16 at proxy+3Ah, the y of the proxy's ext
+  parameters (zeroed by its constructor 0x5A6B0; the sound code reads only x).
+- **The sound thread**: calculate_hdr_audio_frame's stores of a propagator's amplitude (0x5CA37)
+  and HDR loudness (0x5C8BA) take its proxy's (+8) gain: amplitude x gain (0 makes no voice),
+  loudness + 20 log10(gain) (-100 dB for 0), so a quieted sound neither plays loud nor ducks the
+  others.
+- **The arena**: `rattle_026g.asm` (the seven entries `rattle_construct` .. `rattle_loudness`,
+  `jmp near` each, the stubs and three constants) and the C code, the block `rattle.code`, `rt_g`
+  the block `rattle.state` (`patch_026g.py` `ARENA`, `RATTLE_HOOKS`, `RATTLE_SIZES`). The C code
+  calls the game only through the engine library (`engine_artefact_ui_info` 0x313880 a new row);
+  its vtable is an `INSTALLED_VTABLES` row, each slot of ours run through the game's own caller by
+  `check_rattle_026g.py`.
+
+What it does and why: `../docs/notes/client_patch.md` section 3.54.
+
+**Revisions** (both). A Sponge or a Rattle exists only in a match with item 758 or 759, which no
+resources.db of a release before this one has; a game with them runs this code in every game of
+the match (the Rattle's active and cooldown, two new kinds in the anomalies), so it is in the
+`next` row of `../crates/session/src/v026g/simulation_changes.tsv`; the Rattle's quiet is
+presentation (each game computes it from the same artefact states). The exe needs the packs'
+configs: patch 49 makes the release's exe require its resources.db patch. Only in the builds with
+the late join. The server's bots hear no Rattle (the server knows no inventory: an owner decision,
+`../docs/notes/rattle.md`).
+
+Checked (the Rattle): `selftest_026g.py` check 59 (the seven sites and the size before and after,
+no relocation under one and no branch into one, the entries and the stubs' exits, the C code's
+calls through the engine library) and the call shapes (the four call sites and the entry, seven
+artefact slots each reached through the game's own caller); `check_rattle_026g.py` (Unicorn, the
+game's own code with made-up items, players, weapons and proxies: the size and construct against
+the original's, the Sponge's type 12 untouched, the pickup, patch 54's press firing two Rattles for
+the duration x the holder's modifier, the original's active ending at its first tick, 240 ticks of
+50 ms then the cooldown, the hud's seconds, serialization in states 4 and 3 against the original's
+bytes, the quiet for none to four Rattles passive and active, a pistol's fire state, a reload's
+sound and a weapon without a user; on_player_sound_event's pending quiet, 0x657C0's proxy marked
+and unmarked, play_sound_callback's proxy with the effect where the hook reads it, on_landing's
+step getting every register and argument, the sound thread's amplitude and loudness for gains 1,
+0.7, 0.25 or 0.5 and 0 with the stacks as they were; the hud's quick slot, artefact_base::action
+and tick, decrement_amount, the anomaly's serialize and deserialize loops reaching its slots; with
+`--pack` the pack's own config). **Not run in a game.**
 
 ## Not ported, not done
 

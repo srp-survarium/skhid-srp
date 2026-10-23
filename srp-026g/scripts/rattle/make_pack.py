@@ -18,7 +18,9 @@ Every input is checked against inputs.sha256. What the pack holds (docs/notes/ra
   owner's numbers for the sound factors in place of 0.20e's unread step volumes, cooldown 40 s,
   amount -1 (0.20e's 1 would use it up at its first active's end: artefact_base::decrement_amount
   0x313530), 0.26g's lobby cell [21, 1], Lifebone's effect and spawn particle (0.20e's
-  effect_artefact_rattle and fx/explosions/grenate are not in 0.26g);
+  effect_artefact_rattle and fx/explosions/grenate are not in 0.26g), spawn_sec 0.26g's Spring's
+  (1, an int as every 0.26g artefact's; 0.20e's 0.5 is a float, which release/build-content's
+  value-type check refuses at that path: @2);
 - the model item/artefacts/artefact_pogremushka: 0.20e's files (0.26g's model format: 0.20e's and
   0.26g's Spring are byte for byte the same), its settings' LOD switching Spring's in 0.26g
   (200, 300, 400; 0.20e said default). Its materials item/artefacts_02 and
@@ -39,7 +41,7 @@ sys.path.insert(0, str(HERE.parent / 'research-mode'))
 import bcw  # noqa: E402
 
 PACK_ID = 'rattle'
-VERSION = '1'
+VERSION = '2'
 DICT_ID = 759
 CONFIG = 'gameplay/items/artefacts/artefact_rattle.options'
 MODEL = 'models/item/artefacts/artefact_pogremushka.model/'
@@ -135,10 +137,11 @@ def rattle_config(donor, spring):
     out['cooldown_sec'] = COOLDOWN_SEC
     out['amount'] = -1
     out['effect'] = EFFECT[1]
+    out['spawn_sec'] = spring['data']['spawn_sec']
     # 0.26g's artefacts as Spring has them: the same keys of the same types (the passive and the
     # active are the Rattle's own, read by the exe's patch alone)
     for key in ('type', 'amount', 'cooldown_sec', 'effect', 'pickup_hint', 'activation_hint', 'spawn_sec'):
-        if key not in spring['data'] or type(spring['data'][key]) not in (type(out[key]), int):
+        if key not in spring['data'] or type(spring['data'][key]) is not type(out[key]):
             sys.exit(f'0.26g\'s Spring has no data/{key} of the type the Rattle\'s is')
     if set(config) != set(spring) or set(config['object']) != set(spring['object']) \
             or set(config['ui_desc']) != set(spring['ui_desc']):
@@ -183,7 +186,8 @@ def main():
     spring = bcw.loads(stock.read('gameplay/items/artefacts/artefact_spring.options'))
     files[CONFIG] = bcw.dump(rattle_config(bcw.loads(donor.read(CONFIG)), spring))
     log.append(f'{CONFIG}: 0.20e\'s, data/duration into data/active, passive {PASSIVE}, active {ACTIVE}, '
-               f'cooldown_sec 0 -> {COOLDOWN_SEC}, amount 1 -> -1, icon 19 -> {ICON}, '
+               f'cooldown_sec 0 -> {COOLDOWN_SEC}, amount 1 -> -1, spawn_sec 0.5 -> {spring["data"]["spawn_sec"]} '
+               f'(Spring\'s int), icon 19 -> {ICON}, '
                f'particle_on_spawn {SPAWN_PARTICLE[0]} -> {SPAWN_PARTICLE[1]}, effect {EFFECT[0]} -> {EFFECT[1]}')
     spring_settings = bcw.loads(stock.read('models/item/artefacts/artefact_spring.model/settings'))
     if spring_settings['lod_switching'] != LOD_SWITCHING:

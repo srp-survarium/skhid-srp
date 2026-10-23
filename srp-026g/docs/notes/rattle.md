@@ -37,8 +37,10 @@ at least 4 rattles? 50 -> 75 -> 87 -> 94?")
 
 ## Spawns
 
-- As the Sponge: one Rattle in every map anomaly core with an artefact container, and the
-  dynamic anomalies' kinds (#225).
+- As the Sponge: one Rattle in every map anomaly that spawns artefacts (a core with an
+  artefact container and kinds), after the Sponge: exe patch 59 gives the anomaly cook the
+  core's table with {758, 1} and {759, 1} after its own kinds (`sponge.md` "Spawns",
+  client_patch.md 3.52); no map file ships. No timed anomalies (main has none since #345).
 
 ## Content (a pack, as sponge@2)
 
@@ -164,12 +166,44 @@ The server's bots
   How it would learn of Rattles is an owner decision (not built).
 
 Patch number
-- 56, 57 and 58 are taken by other branches (exp/fast-weapon-spawn, park/minimap-off-default,
-  feat/hud-batch-t47-t29): the Rattle is exe patch 59, its code at `.srpx` +8000h
-  (+8000h..+BFFFh free in this branch).
+- Exe patch 59 with the Sponge (both artefacts ship together, `feat/sponge-rattle`): 56 is
+  #318's, 57 the parked minimap work's, 58 #342's (on main), 60 #347's. The code is on the
+  arena (`rattle.code`, `rattle.state`), not at a fixed `.srpx` offset.
 
 ## Release
 
 - Changes what a match computes (a new artefact in the anomalies): the `next` row of
   `crates/session/src/v026g/simulation_changes.tsv`; the exe requires the pack.
-- The site's /maps rebuild needs the lobby icon `artefact_rattle.webp`.
+- The site's /maps lists each container's kinds from the maps' projects, which do not name
+  the Rattle: it does not show it until its builder learns the exe's rule.
+- The pack `rattle@2` is made by `scripts/rattle/make_pack.py` (its folder goes into
+  SKHID_PACKS_DIR as `rattle-2`). @1 had 0.20e's `data/spawn_sec` 0.5, a float where every
+  0.26g artefact has an int: release/build-content's value-type check refused it; @2 has
+  Spring's 1.
+
+## Built (2026-10-23)
+
+- Exe patch 59 (README section 59, client_patch.md section 3.54): `rattle_026g.asm`,
+  `rattle_026g.c` in the arena's blocks `rattle.code` and `rattle.state`; seven hooks and the
+  cook's size; the game called through the engine library. Pack `rattle@2`
+  (`scripts/rattle/make_pack.py`).
+- The config (`data`): `active/duration` 10, `cooldown_sec` 40, `spawn_sec` 1,
+  `passive/steps_sound_volume_3rd_person` 0.7, `active/steps_sound_volume_3rd_person` 0,
+  `active/shots_sound_volume_3rd_person` 0.5 (each Rattle's own: they multiply); 0.20e's
+  1st-person keys dropped.
+- How much quieter: each Rattle in its passive x 0.7 on the steps; each active one x 0 on the steps
+  and x 0.5 on the shots. Two presses that overlap (a Rattle picked up while another is active)
+  count every Rattle active at the time of the sound.
+- What a gain does: the sound's voice volume and its HDR loudness for every listener but the
+  carrier in first person; gain 0 makes no voice. The carrier, and a spectator watching him in
+  first person, hear him as before.
+- Ours, beyond 0.20e's file: `amount` -1 (0.20e's 1 would use the Rattle up at its first active's
+  end); spawn particle and effect Lifebone's (0.20e's `fx/explosions/grenate` and
+  `effect_artefact_rattle` are not in 0.26g; 0.20e's effect was Lifebone's particle too); the
+  model's LOD switching Spring's (0.20e's said default); `spawn_sec` Spring's 1 (0.20e's 0.5).
+- Texts: name and description new; the pickup hint 50 % -> 30 %; the activation hint names the
+  shots.
+- Not built: the server's bots (they hear no Rattle: the server knows no inventory; an owner
+  decision).
+- Verified statically and in Unicorn only (`selftest_026g.py` check 59, `check_rattle_026g.py`);
+  not run in a game.

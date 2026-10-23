@@ -67,6 +67,7 @@ global engine_cook_finish_query
 global engine_artefact_tick
 global engine_artefact_serialize
 global engine_artefact_deserialize
+global engine_artefact_ui_info
 global engine_sensor_insert
 global engine_zone_deactivate
 global engine_zone_tick
@@ -1161,6 +1162,22 @@ engine_artefact_deserialize:
     push dword [esp + 32]   ; reader -> 4
     mov ecx, [esp + 32]   ; artefact
     call 0x313760
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_artefact_ui_info:
+    ; 0x313880 survarium::artefact_base::fill_ui_info: artefact ECX, info ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; info -> 4
+    mov ecx, [esp + 24]   ; artefact
+    call 0x313880
     pop edi
     pop esi
     pop ebx
