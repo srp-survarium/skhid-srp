@@ -16,7 +16,8 @@ plays them), and of each map
 - Research's three units (mode 5): the mode config's
   `parameters.capture_zones` (`cp_id`, `position`);
 - artefact containers and what spawns there: the project's `client_objects`
-  (`artefact_container`, grouped by their `generic_anomaly_core`);
+  (`artefact_container`, grouped by their `generic_anomaly_core`), and the
+  kinds exe patch 59 adds to every core that spawns artefacts (EXE_KINDS);
 - the minimap and its frame: `flash_movies/hud.swf`, class
   `survarium.controls.Minimap` (`_minimapProps`, `_levels`), keyed by the
   project's `project_name` as the HUD does;
@@ -164,6 +165,13 @@ def heading(o):
     return round(math.degrees(math.atan2(-vz, vx)) - 90) % 360
 
 
+# Exe patch 59 (srp-026g/client-patches/sponge_a_026g.c, sp_artefacts) adds
+# these kinds to every generic_anomaly_core with kinds and artefact containers,
+# after its own: the Sponge (758) and the Rattle (759). The projects do not
+# name them; a game whose items_dict lacks one shows none of it.
+EXE_KINDS = (758, 759)
+
+
 def objects(project, artefact_keys):
     """What the tab shows of one project."""
     so = project.get("server_objects") or {}
@@ -174,7 +182,10 @@ def objects(project, artefact_keys):
     for o in client:
         if o.get("game_object_type") != "generic_anomaly_core":
             continue
-        kinds = {artefact_keys[a["dict_id"]] for a in o.get("artefacts") or [] if a["dict_id"] in artefact_keys}
+        ids = [a["dict_id"] for a in o.get("artefacts") or []]
+        if ids and o.get("artefact_containers"):
+            ids += [i for i in EXE_KINDS if i not in ids]
+        kinds = {artefact_keys[i] for i in ids if i in artefact_keys}
         for name in o.get("artefact_containers") or []:
             kinds_of[name] |= kinds
     # A container's own position is its anomaly's pivot, shared by all of

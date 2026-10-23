@@ -456,6 +456,21 @@ Patches:
   past the threshold to its dealer at return_ratio times its damage, the
   victim untouched; the counts go with the world after the effects
   (0x2D2716, 0x2D2C75);
+- the Sponge and the Rattle (patch 59, with the late join; client_patch.md
+  sections 3.52 and 3.55, docs/notes/sponge.md and rattle.md; the arena's
+  blocks sponge.code, sponge.state, rattle.code and rattle.state). The
+  Sponge, artefact type 12, is 0.28d0's thrown toxic artefact written again
+  on 0.26g (the cook's switches, the throw state, the damage zone's hit).
+  The Rattle, artefact type 8, whose effect 0.20e left as stubs (vtable
+  0xA06124), gets a vtable of its own at the cook's constructor call
+  (0x25E72C; the object 378h, 0x25E7C9) with an active of its duration; the
+  point proxies of another player's steps, rustles and landing (0x65874, run
+  by on_player_sound_event 0x2A6470 and on_landing at 0x1F3BB6) and of his
+  fire states' sounds (0x297F79) carry the quiet his Rattles give, and the
+  sound thread scales a propagator's amplitude (0x5CA37) and HDR loudness
+  (0x5C8BA) by it. Every static map anomaly that spawns artefacts holds both:
+  the anomaly cook's look-up of the core's `artefacts` (0x2E9D53) returns
+  the table with {758, 1} and {759, 1} after the core's own kinds;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -2100,6 +2115,40 @@ INSTALLS = {
                      "save", None, None),
     0x2D2C75: (JUMP, "game_world_core::deserialize after the effects' reads (ebp the core, the reader at "
                      "[esp+3Ch]): load", None, None),
+    # the Sponge, patch 59 (in `.srpx`)
+    0x25E68A: (JUMP, "the artefact cook's construct 0x25E660 at its type switch (`cmp eax,5 / ja near`, eax = "
+                     "data/type - 3): sponge_construct, type 12 a sponge's (`ret 10h` as the function), else the "
+                     "switch", None, None),
+    0x25E79A: (JUMP, "its size 0x25E770 at its switch (`cmp eax,5 / ja short`): sponge_size, type 12 the sponge's "
+                     "(`ret 4` as the function), else the switch", None, None),
+    0x25E800: (ENTRY, "the artefact cook's query_for_derived_resources (thiscall: parent, the artefact, &config; "
+                      "`ret 0Ch`): sponge_query, a sponge's query, any other back in the function", None, None),
+    0x2E40C6: (JUMP, "can_start_throw_grenade 0x2E4090, the grenade slot's item's vt+64h and 0x30A090: "
+                     "sponge_predicate", None, None),
+    0x33A677: (JUMP, "the throw state's is_ready 0x33A650, its grenade's exploded flag: sponge_ready", None, None),
+    0x33A7BB: (JUMP, "the throw state's throw 0x33A770, `call 0x30A250` and its pushes: sponge_throw", None, None),
+    0x3103C9: (JUMP, "the pull substate's initialize 0x3103A0, `call 0x30A120` and its pushes: sponge_pull",
+               None, None),
+    0x319C8B: (JUMP, "the damage zone's hit loop 0x319AF0, the receiver's vt+20h call and its pushes: "
+                     "sponge_zone_hit", None, None),
+    0x2E9D53: (CALLEE, "generic_anomaly_core_cook::query_for_artefacts 0x2E9D40, the `artefacts` table's look-up "
+                       "(operator[] 0xF6B10, eax the core's config, edi the key): sponge_artefacts, the table with "
+                       "the Sponge and the Rattle after the core's own kinds", None, None),
+    # the Rattle, patch 59 (in `.srpx`)
+    0x25E72C: (CALLEE, "the artefact cook's construct, type 8's `call 0x25FA10` (Rattle's constructor, stdcall "
+                       "(memory, scene)): rattle_construct, the Rattle's vtable and numbers after it", None, None),
+    0x2A6470: (ENTRY, "player_equipment_sound_effect::on_player_sound_event (thiscall, the event; `ret 4`): "
+                      "rattle_steps, run with the player's steps' quiet pending", None, None),
+    0x1F3BB6: (CALLEE, "player::on_landing's step `call 0x23FBE0` (cl, edx, xmm0, four stack arguments; `ret "
+                       "10h`): rattle_landing, run with the steps' quiet pending", None, None),
+    0x065874: (CALLEE, "0x657C0's `call 0x64F80` (new_point_sound_instance_proxy, `ret 10h`): rattle_point, the "
+                       "new proxy marked with the pending quiet", None, None),
+    0x297F79: (CALLEE, "play_sound_callback's `call 0x65670` (emit_point_sound, `ret 8`): rattle_shot, a fire "
+                       "state's proxy marked with its user's shot quiet", None, None),
+    0x05CA37: (JUMP, "calculate_hdr_audio_frame's `movss [esi+4Ch],xmm0` (a propagator's amplitude, sound "
+                     "thread): rattle_amplitude, x the proxy's gain", None, None),
+    0x05C8BA: (JUMP, "calculate_hdr_audio_frame's `movss [esi+40h],xmm0` (its HDR loudness): rattle_loudness, + "
+                     "20 log10(gain)", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -2126,6 +2175,8 @@ BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
 # review). The self-test fails a slot of ours with no such case, or a case
 # its script does not have (test_call_shapes).
 RESEARCH_CHECK = "check_research_026g.py"
+SPONGE_CHECK = "check_sponge_a_026g.py"
+RATTLE_CHECK = "check_rattle_026g.py"
 INSTALLED_VTABLES = (
     ("Research's rule", "research.code", "rn_rule_vtable", 0xA15DA4, 20, 9, {
         7: (RESEARCH_CHECK, "driven: slot 7, on_event(type, data, time), through the dispatcher 0x2D1EA0"),
@@ -2143,6 +2194,41 @@ INSTALLED_VTABLES = (
         10: (RESEARCH_CHECK, "driven: the cook's create and size through translate 0x2F4290's calls"),
     }),
     ("Research's rule's link resolver", "research.code", "rn_resolver_vtable", None, 1, 0, {}),
+    # The Sponge (patch 59): Rattle's artefact vtable with ten slots of ours,
+    # its drawable's draw, and its hit inflictor's (the game's three).
+    ("the Sponge's artefact", "sponge.code", "sp_vtable", 0xA06124, 36, 10, {
+        0: (SPONGE_CHECK, "driven: slot 0, the destructor (flags 0), through the resource system's delete 0xFBB4E"),
+        11: (SPONGE_CHECK, "driven: slot 11, action(pressed, time), through inventory::action 0x2FCB20"),
+        13: (SPONGE_CHECK, "driven: slot 13, removed_from_inventory, through inventory::remove_item 0x2FC680"),
+        14: (SPONGE_CHECK, "driven: slot 14, revived, through inventory::setup_from_profile's loop 0x2FD1A5"),
+        26: (SPONGE_CHECK, "driven: slot 26, serialize(writer, dumper), through generic_anomaly_core::serialize's "
+                           "loop 0x31B074"),
+        27: (SPONGE_CHECK, "driven: slot 27, deserialize(reader, a, b), through generic_anomaly_core::deserialize's "
+                           "loop 0x31B1A0"),
+        28: (SPONGE_CHECK, "driven: slot 28, set_game_world_core(world), through generic_anomaly_core::"
+                           "spawn_artefact 0x31B965"),
+        29: (SPONGE_CHECK, "driven: slot 29, tick(dt, time), through generic_anomaly_core::tick's loop 0x31B690"),
+        31: (SPONGE_CHECK, "driven: slot 31, enable_passive, through artefact_base::added_to_inventory 0x313470"),
+        33: (SPONGE_CHECK, "driven: slot 33, disable_passive, through artefact_base::tick 0x313200 (the holder "
+                           "dead)"),
+    }),
+    ("the Sponge's drawable", "sponge.code", "sp_drawable_vtable", 0xA061B8, 1, 1, {
+        0: (SPONGE_CHECK, "driven: the drawable's draw, through the scene's loop 0x23DD41"),
+    }),
+    ("the Sponge's hit inflictor", "sponge.code", "sp_inflictor_vtable", None, 3, 0, {}),
+    # The Rattle (patch 59): Rattle's artefact vtable with the active's seven
+    # slots of ours, as Spring's has them.
+    ("the Rattle's artefact", "rattle.code", "rt_vtable", 0xA06124, 36, 7, {
+        18: (RATTLE_CHECK, "driven: slot 18, fill_ui_info(info), through the hud's quick slot 0x23A25B"),
+        26: (RATTLE_CHECK, "driven: slot 26, serialize(writer, dumper), through generic_anomaly_core::serialize's "
+                           "loop 0x31B074"),
+        27: (RATTLE_CHECK, "driven: slot 27, deserialize(reader, a, b), through generic_anomaly_core::deserialize's "
+                           "loop 0x31B1A0"),
+        30: (RATTLE_CHECK, "driven: slot 30, tick_impl(dt, time), through artefact_base::tick 0x313200"),
+        32: (RATTLE_CHECK, "driven: slot 32, enable_active(time), through artefact_base::action 0x313300"),
+        34: (RATTLE_CHECK, "driven: slot 34, disable_active, through artefact_base::decrement_amount 0x313530"),
+        35: (RATTLE_CHECK, "driven: slot 35, active_effect_ended, through artefact_base::tick 0x313200"),
+    }),
 )
 # What our code hands the game at run time to call later (a callback, a
 # boost::function, a tick delegate): no write of build() shows them, so each
@@ -2169,6 +2255,13 @@ CALLBACKS = (
      "(0x318050) puts its tick 0x317F10; the list's runner 0x2D1D20 calls it with ecx the object and "
      "(dt, time, step); the marker is `mov dword [ecx+114h], rn_tick` (the delegate's function)",
      (RESEARCH_CHECK, "driven: the tick's (dt, time) through the tick list's runner 0x2D1D20")),
+    ("the Sponge's resources loaded: sp_loaded", "sponge.code", bytes.fromhex("c74588"), 0x27AA20,
+     "sp_cook_query hands the resource query a boost::function of vtable 0xA09374|1, the game's own for a "
+     "member function bound to its object (as 0x27D280 binds network_client's 0x27AA20 for the late join): "
+     "the invoker 0x202300 calls [buffer] with ecx = the object and the queries_result pushed, so its model "
+     "is 0x27AA20 (thiscall, the queries_result; `ret 4`); the marker is the `mov dword [ebp-78h]` storing "
+     "the function in the buffer (sp_loaded's VA follows `C7 45 88`)",
+     (SPONGE_CHECK, "driven: sp_loaded(results) through the game's boost invoker 0x202300")),
 )
 
 
@@ -2280,6 +2373,12 @@ ARENA = (
     ArenaBlock("match_keys.code", "code", 0x1000, ("match_keys_026g.asm",)),     # patch 58
     ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
     ArenaBlock("team_damage.code", "code", 0x1000, ("team_damage_026g.asm", "team_damage_026g.c")),  # patch 63
+    # the Sponge, patch 59: the asm's eight entries and stubs, then the C code
+    ArenaBlock("sponge.code", "code", 0x1000, ("sponge_a_026g.asm", "sponge_a_026g.c")),
+    ArenaBlock("sponge.state", "state", 0x10, ("sponge_a_026g.c",)),                # sp_g: the zone ticked now
+    # the Rattle, patch 59: the asm's seven entries and stubs, then the C code
+    ArenaBlock("rattle.code", "code", 0x1000, ("rattle_026g.asm", "rattle_026g.c")),
+    ArenaBlock("rattle.state", "state", 0x10, ("rattle_026g.c",)),                  # rt_g: the steps' quiet
 )
 
 
@@ -2347,6 +2446,81 @@ RESEARCH_HOOKS = (
     (0x23B3DE, bytes.fromhex("837f20047518"), "research_hud", 0xE8),         # update_ui after the teams' points
     (0x23B351, bytes.fromhex("83f8047514"), "research_welcome", 0xE9),       # update_ui's first message
 )
+# The Sponge, artefact type 12 (patch 59, README; client_patch.md section
+# 3.52; docs/notes/sponge.md): sponge_a_026g.asm's eight entries and stubs,
+# then the C code of sponge_a_026g.c and its constant data, in the arena's
+# block sponge.code; the C code's state (the zone a sponge ticks, for the
+# zone's hit: sp_g) in sponge.state, zeroed. 0.28d0's artefact_sponge_core
+# written again on 0.26g's interfaces. Eight hooks, `jmp` each:
+# - the artefact cook's construct 0x25E660 at its type switch (`cmp eax,5 /
+#   ja near`, 0x25E68A) and its size 0x25E770 at its own (`cmp eax,5 / ja
+#   short`, 0x25E79A): type 12 (eax 9 there) is a sponge, else the switch;
+# - its query of the model and spawn effects 0x25E800 (the entry's `push ebp
+#   / mov ebp,esp / and esp,-8`): a sponge's asks for a damage zone too;
+# - the throw-grenade state, where it takes the item in the grenade slot for
+#   a grenade set: its way in 0x2E4090 at 0x2E40C6 (vtable +64h and
+#   0x30A090: a null dereference for any other item), its is_ready at
+#   0x33A677 (the grenade's exploded flag), its throw at 0x33A7BB (`call
+#   0x30A250`), the pull substate's pin at 0x3103C9 (`call 0x30A120`): a
+#   sponge's own, else the original;
+# - the damage zone's hit loop 0x319AF0 at 0x319C8B (the receiver's vt+20h
+#   with no instigator, inflictor or item): a zone a sponge ticks names its
+#   thrower (kill credit), its inflictor and it;
+# - the static anomalies' spawns, for the Sponge and the Rattle both (a
+#   `call`): generic_anomaly_core_cook::query_for_artefacts 0x2E9D40 looks
+#   up the core's `artefacts` table at 0x2E9D53 (operator[] 0xF6B10); the
+#   only reader of that key in the exe, it sizes its lists from the table
+#   and queries every kind's item. A core with artefact containers and kinds
+#   gets a copy of its table with {758, 1} and {759, 1} after its own kinds
+#   (each unless it has it already): the maps' projects stay as they are.
+# No base relocation is under a site and no branch aims inside one.
+SPONGE_HOOKS = (
+    (0x25E68A, bytes.fromhex("83f8050f87a4000000"), "sponge_construct", 0xE9),          # construct's type switch
+    (0x25E79A, bytes.fromhex("83f8057733"), "sponge_size", 0xE9),                       # size's type switch
+    (0x25E800, bytes.fromhex("558bec83e4f8"), "sponge_query", 0xE9),                    # the query's entry
+    (0x2E40C6, bytes.fromhex("8b018b5064ffd2e8be5f0200"), "sponge_predicate", 0xE9),    # the throw state's way in
+    (0x33A677, bytes.fromhex("8b8e7c0100008b9168020000"), "sponge_ready", 0xE9),        # is_ready's grenade
+    (0x33A7BB, bytes.fromhex("8b8e7c01000081c74c040000578d442414508a868001000051e877fafcff"), "sponge_throw",
+     0xE9),                                                                             # the throw
+    (0x3103C9, bytes.fromhex("8bb6380100008b8e7c0100005051e8449dffff"), "sponge_pull", 0xE9),  # the pin
+    (0x319C8B, bytes.fromhex("535383ec08d95c2404d9442420d91c24528d54243c528b9424b40000005352ffd0"),
+     "sponge_zone_hit", 0xE9),                                                          # the zone's hit
+    (0x2E9D53, bytes.fromhex("e8b8cde0ff"), "sponge_artefacts", 0xE8),                  # an anomaly's kinds
+)
+# The Rattle, artefact type 8 (patch 59 with the Sponge, README; client_patch.md
+# section 3.55; docs/notes/rattle.md): rattle_026g.asm's seven entries and
+# stubs, then the C code of rattle_026g.c and its constant data, in the
+# arena's block rattle.code; the C code's state (rt_g: the steps' pending
+# quiet) in rattle.state, zeroed. 0.20e left artefact_rattle_core's effect
+# as stubs (0.26g's vtable 0xA06124 too): the Rattle gets a vtable of its own
+# with an active of a duration, and quiets the sounds its carrier makes for
+# others. Seven hooks, `call` or `jmp` to an entry:
+# - the artefact cook's case for type 8, `call 0x25FA10` at 0x25E72C:
+#   Rattle's constructor, then the Rattle's vtable and its config's numbers;
+# - on_player_sound_event 0x2A6470 (its entry, `mov eax,ecx / mov
+#   edx,[eax+3Ch]`; the feet, a jump's included, and the rustles) and
+#   on_landing's step (`call 0x23FBE0` at 0x1F3BB6): run with the player's
+#   steps' quiet pending;
+# - 0x657C0's point proxy (`call 0x64F80` at 0x65874): marked with that
+#   quiet (u16 at proxy+3Ah);
+# - play_sound_callback's point proxy (`call 0x65670` at 0x297F79): a fire
+#   state's marked with its weapon user's shot quiet;
+# - calculate_hdr_audio_frame (sound thread), its stores of a propagator's
+#   amplitude (`movss [esi+4Ch],xmm0` at 0x5CA37) and HDR loudness (`movss
+#   [esi+40h],xmm0` at 0x5C8BA): x the proxy's gain, + 20 log10 of it.
+# The object grows from Rattle's 360h to RATTLE_OBJECT_SIZE (the cook's size
+# 0x25E7C9). No base relocation is under a site and no branch aims inside one.
+RATTLE_HOOKS = (
+    (0x25E72C, bytes.fromhex("e8df120000"), "rattle_construct", 0xE8),       # the cook's case for type 8
+    (0x2A6470, bytes.fromhex("8bc18b503c"), "rattle_steps", 0xE9),           # on_player_sound_event's entry
+    (0x1F3BB6, bytes.fromhex("e825c00400"), "rattle_landing", 0xE8),         # on_landing's step
+    (0x065874, bytes.fromhex("e807f7ffff"), "rattle_point", 0xE8),           # 0x657C0's point proxy
+    (0x297F79, bytes.fromhex("e8f2d6dcff"), "rattle_shot", 0xE8),            # play_sound_callback's point proxy
+    (0x05CA37, bytes.fromhex("f30f11464c"), "rattle_amplitude", 0xE9),       # a propagator's amplitude
+    (0x05C8BA, bytes.fromhex("f30f114640"), "rattle_loudness", 0xE9),        # its HDR loudness
+)
+RATTLE_OBJECT_SIZE = 0x378                                                    # struct rattle (rattle_026g.c)
+RATTLE_SIZES = ((0x25E7C9, bytes.fromhex("b860030000"), b"\xB8" + struct.pack("<I", RATTLE_OBJECT_SIZE)),)
 # The engine-function library (engine_026g.py, client_patch.md section 0.5):
 # a cdecl thunk per engine function our code calls, each the global symbol
 # `engine_...` in the arena's block engine.code. One copy for every patch, so
@@ -2811,7 +2985,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             sites.append((site[0], site[0] + len(site[1])))
         patch(data, *SPOT_COOLDOWN)
         sites.append((SPOT_COOLDOWN[0], SPOT_COOLDOWN[0] + len(SPOT_COOLDOWN[1])))
-        for site in ARTEFACTS_SIZES + TEAM_DAMAGE_SIZES:
+        for site in ARTEFACTS_SIZES + TEAM_DAMAGE_SIZES + RATTLE_SIZES:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
         patch(data, *REPLAY_REATTACH_THUNK)
@@ -3222,7 +3396,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in (RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS
-                                                     + TEAM_DAMAGE_HOOKS):
+                                                     + TEAM_DAMAGE_HOOKS + SPONGE_HOOKS + RATTLE_HOOKS):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")

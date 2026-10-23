@@ -2821,7 +2821,6 @@ va	name	location	role	basis
 0x002f84c0	survarium::usable_object::deserialize_usable_object	EDI	reader	inferred
 0x002f8510	survarium::usable_object::post_deserialize_resolve	ECX	usable_receiver	inferred
 0x002f8510	survarium::usable_object::post_deserialize_resolve	ESI	world	inferred
-0x002f8c30	survarium::collision_geometry::load	stack+4	config (binary_config_value by value, 8 bytes)	observed
 0x002fc4b0	survarium::inventory::inventory	EAX	inventory_storage	inferred
 0x002fc560	survarium::inventory::`scalar deleting destructor'	ECX	inventory receiver	inferred
 0x002fc560	survarium::inventory::`scalar deleting destructor'	stack+4	deallocation flags bit0	inferred
@@ -4455,3 +4454,166 @@ va	name	location	role	basis
 0x001f0e70	survarium::match_options::deserialize	entry ESP+8	the items dictionary, passed to each profile's reader 0x1F1070	observed
 0x00323790	survarium::kd_stats_rule::kd_stats_rule	ESI	the rule (this; 1B8h bytes, 268h with patch 63)	observed
 0x00323790	survarium::kd_stats_rule::kd_stats_rule	entry ESP+4	the query: [query] the match options (+577B5h its places)	observed
+0x0025e660	survarium::artefact_cook::new_derived_resource	ECX	the cook	observed
+0x0025e660	survarium::artefact_cook::new_derived_resource	stack+4	the memory (its size from resource_size)	observed
+0x0025e660	survarium::artefact_cook::new_derived_resource	stack+8	&resource_ptr<binary_config>: [it]+108h the item config's root (data/type picks the class: 3, 6, 7, 8)	observed
+0x0025e660	survarium::artefact_cook::new_derived_resource	stack+12	&the effect resource (data/effect, class 6Dh)	observed
+0x0025e660	survarium::artefact_cook::new_derived_resource	stack+16	the scene (the drawable's +0Ch)	observed
+0x0025e770	survarium::artefact_cook::derived_resource_size	ECX	the cook	observed
+0x0025e770	survarium::artefact_cook::derived_resource_size	stack+4	&resource_ptr<binary_config>	observed
+0x0025e800	survarium::artefact_cook::query_for_derived_resources	ECX	the cook	observed
+0x0025e800	survarium::artefact_cook::query_for_derived_resources	stack+4	the parent query (the artefact's)	observed
+0x0025e800	survarium::artefact_cook::query_for_derived_resources	stack+8	the artefact	observed
+0x0025e800	survarium::artefact_cook::query_for_derived_resources	stack+12	&resource_ptr<binary_config>	observed
+0x0025fa10	survarium::artefact<survarium::artefact_rattle_core>::artefact<survarium::artefact_rattle_core>	EAX	&the effect resource	observed
+0x0025fa10	survarium::artefact<survarium::artefact_rattle_core>::artefact<survarium::artefact_rattle_core>	ECX	the item config's root	observed
+0x0025fa10	survarium::artefact<survarium::artefact_rattle_core>::artefact<survarium::artefact_rattle_core>	stack+4	the memory	observed
+0x0025fa10	survarium::artefact<survarium::artefact_rattle_core>::artefact<survarium::artefact_rattle_core>	stack+8	the scene, kept at +34Ch (the drawable +340h, its +0Ch)	observed
+0x0025fb30	survarium::artefact<survarium::artefact_rattle_core>::set_game_world_core	ECX	the artefact	observed
+0x0025fb30	survarium::artefact<survarium::artefact_rattle_core>::set_game_world_core	stack+4	game_world_core	observed
+0x0025fb80	survarium::artefact<survarium::artefact_rattle_core>::draw	ECX	the drawable (artefact+340h): +0Ch scene, +10h the state last drawn, +14h model, +18h particle, +1Ch sound	observed
+0x002605f0	survarium::artefact_cook::on_rattle_resources_loaded	EDI	the artefact	observed
+0x002605f0	survarium::artefact_cook::on_rattle_resources_loaded	stack+4	queries_result	observed
+0x00312fd0	survarium::artefact_base::artefact_base	ESI	this	observed
+0x00312fd0	survarium::artefact_base::artefact_base	stack+4	the item config's root	observed
+0x00312fd0	survarium::artefact_base::artefact_base	stack+8	&the effect resource (+290h)	observed
+0x00313200	survarium::artefact_base::tick	ECX	the artefact	observed
+0x00313200	survarium::artefact_base::tick	stack+4	dt ms	observed
+0x00313200	survarium::artefact_base::tick	stack+8	the time ms	observed
+0x00313490	survarium::artefact_base::removed_from_inventory	ECX	the artefact	observed
+0x002ee8d0	survarium::artefact_core_cook::finish_query	ECX	the cook	observed
+0x002ee8d0	survarium::artefact_core_cook::finish_query	EDX	&resource_ptr<binary_config>	observed
+0x002ee8d0	survarium::artefact_core_cook::finish_query	ESI	the artefact	observed
+0x002ee8d0	survarium::artefact_core_cook::finish_query	EDI	the artefact's query ([queries_result+20h])	observed
+0x002e4090	survarium::weapon_core::can_start_throw_grenade	ECX	weapon_core: +8 the player, +5ECh its state	observed
+0x0033a770	survarium::weapon_core_throw_grenade_state::throw_grenade	ESI	the throw state: +17Ch the grenade set (the slot's item, no cast), +180h the grenade's index, +120h -> +8 the player	observed
+0x003103a0	survarium::weapon_core_throw_grenade_pull_substate::initialize	ECX	the pull substate: +138h the throw state	observed
+0x0030a090	survarium::grenade_set_core::ready_to_throw	EAX	the grenade set	observed
+0x0030a120	survarium::grenade_set_core::pull_pin	stack+4	the grenade set	observed
+0x0030a120	survarium::grenade_set_core::pull_pin	stack+8	the time	observed
+0x0030a250	survarium::grenade_set_core::throw_grenade	AL	the grenade's index	observed
+0x0030a250	survarium::grenade_set_core::throw_grenade	stack+4	the grenade set	observed
+0x0030a250	survarium::grenade_set_core::throw_grenade	stack+8	&the hand's transform	observed
+0x0030a250	survarium::grenade_set_core::throw_grenade	stack+12	&the aim's matrix (player+44Ch)	observed
+0x00309f00	survarium::grenade_set_core::logic_transform	EAX	the item (+250h its inventory -> +174h the holder)	observed
+0x00309f00	survarium::grenade_set_core::logic_transform	stack+4	&out, 64 bytes	observed
+0x0030a350	survarium::grenade_set_core::explosive	EAX	the grenade set	observed
+0x0030a350	survarium::grenade_set_core::explosive	stack+4	&out	observed
+0x0030a350	survarium::grenade_set_core::explosive	stack+8	the inflictor (hit_inflictor: +8 the instigator's game object, +0Ch the item)	observed
+0x00339630	survarium::splash_hit	ESI	the hit parameters: [0] inflictor, +4 int bodies[8] (-1 ends), +24h type, +28h radius, +2Ch min, +30h max, +34h pierce, +38h stamina, +3Ch stopping	observed
+0x00339630	survarium::splash_hit	stack+4	the hit manager ([world+18F58h]; +98h its collision world)	observed
+0x00339630	survarium::splash_hit	stack+8	&the centre (float3)	observed
+0x00339630	survarium::splash_hit	stack+12	the time	observed
+0x002e58b0	survarium::damage_model::find_pool	EAX	the pools ([damage model]+108h; +8 the first)	observed
+0x002e58b0	survarium::damage_model::find_pool	ECX	&the name's pointer	observed
+0x003080b0	survarium::collision_sensor::insert	stack+4	the sensor (a damage zone's +108h)	observed
+0x003080b0	survarium::collision_sensor::insert	stack+8	the physics world ([world+18FA4h])	observed
+0x00319a70	survarium::damage_zone_core::tick	ECX	the zone	observed
+0x00319a70	survarium::damage_zone_core::tick	stack+4	dt	observed
+0x00319a70	survarium::damage_zone_core::tick	stack+8	the time	observed
+0x00319a70	survarium::damage_zone_core::tick	stack+12	bool: the time on the 50 ms grid	observed
+0x00319d30	survarium::damage_zone_core::deactivate	stack+4	the zone	observed
+0x00319d30	survarium::damage_zone_core::deactivate	stack+8	a flag (1 from an anomaly's off)	observed
+0x002f8c30	survarium::collision_geometry::load	stack+4	the geometry (24h bytes, vtables 0xA13428/0xA13454)	observed
+0x002f8c30	survarium::collision_geometry::load	stack+8	&its config (a collision_geometries entry)	observed
+0x002f8fe0	survarium::collision_geometry::set_transform	ECX	the geometry	observed
+0x002f8fe0	survarium::collision_geometry::set_transform	stack+4	&the matrix	observed
+0x0007a390	vostok::physics::create_collision_shape	EDX	the type (3 the grenade's sphere)	observed
+0x0007a390	vostok::physics::create_collision_shape	ECX	&dims float3 (0.05, 0.1, 0.1)	observed
+0x0007a390	vostok::physics::create_collision_shape	stack+4	&scale float3	observed
+0x0007a390	vostok::physics::create_collision_shape	stack+8	0	observed
+0x00357100	vostok::physics::create_dynamic_rigid_body	stack+4	&the description (50h bytes)	observed
+0x00357100	vostok::physics::create_dynamic_rigid_body	stack+8	the shape	observed
+0x003576c0	vostok::physics::bullet_rigid_body::set_linear_velocity	ECX	&the velocity (float3)	observed
+0x003576c0	vostok::physics::bullet_rigid_body::set_linear_velocity	stack+4	the body	observed
+0x00357750	vostok::physics::bullet_rigid_body::set_angular_velocity	ECX	&the velocity (float3)	observed
+0x00357750	vostok::physics::bullet_rigid_body::set_angular_velocity	stack+4	the body	observed
+0x003577d0	vostok::physics::bullet_rigid_body::get_linear_velocity	EAX	the body	observed
+0x003577d0	vostok::physics::bullet_rigid_body::get_linear_velocity	EDX	&out float3	observed
+0x00357830	vostok::physics::bullet_rigid_body::get_angular_velocity	EAX	the body	observed
+0x00357830	vostok::physics::bullet_rigid_body::get_angular_velocity	EDX	&out float3	observed
+0x000e5b60	vostok::resources::query_resources	EAX	the requests {const char* name, u32 class}[]	observed
+0x000e5b60	vostok::resources::query_resources	ECX	their count	observed
+0x000e5b60	vostok::resources::query_resources	stack+4	&the callback (boost::function: vtable|1 in place, buffer at +8; invoker(buffer, queries_result&))	observed
+0x000e5b60	vostok::resources::query_resources	stack+8	the allocator ([0x1F1D9C4])	observed
+0x000e5b60	vostok::resources::query_resources	stack+12	the creation data, a pointer per request (a variant<32> or 0)	observed
+0x000e5b60	vostok::resources::query_resources	stack+16	the parent query	observed
+0x000e5b60	vostok::resources::query_resources	stack+20	1	observed
+0x00304370	survarium::damage_type_from_string	ESI	the name	observed
+0x00312590	survarium::artefact_lifebone_core::regeneration_modifier	stack+4	&the regeneration info {float speed, u32 timeout ms, float threshold}	observed
+0x00312590	survarium::artefact_lifebone_core::regeneration_modifier	stack+8	&the modifier	observed
+0x002f8be0	survarium::collision_geometry::~collision_geometry	ECX	the geometry (vtables 0xA13428/0xA13454)	observed
+0x002d0ab0	survarium::game_world_core::active_player_ptr	ESI	game_world_core	observed
+0x002d0ab0	survarium::game_world_core::active_player_ptr	CL	the place	observed
+0x002d0ab0	survarium::game_world_core::active_player_ptr	EDI	&out (an intrusive pointer)	observed
+0x003134c0	survarium::artefact_base::initialize	EAX	the artefact	observed
+0x003134c0	survarium::artefact_base::initialize	stack+4	an object of the anomaly (its +64h byte kept at +284h)	observed
+0x0025e960	survarium::artefact_cook::on_derived_resources_loaded	stack+4	the queries_result: resource i at +12Ch + i * 2E0h, the parent at +20h	observed
+0x0025e960	survarium::artefact_cook::on_derived_resources_loaded	stack+8	the artefact	observed
+0x0025ef80	survarium::artefact<survarium::artefact_lifebone_core>::artefact	ECX	the memory (4B8h bytes)	observed
+0x0025ef80	survarium::artefact<survarium::artefact_lifebone_core>::artefact	EAX	the config's root	observed
+0x0025ef80	survarium::artefact<survarium::artefact_lifebone_core>::artefact	stack+8	the render context (+4A4h)	observed
+0x00248460	survarium::grenade<survarium::grenade_core>::pull_pin	ECX	the grenade	observed
+0x00248460	survarium::grenade<survarium::grenade_core>::pull_pin	stack+4	the explode time (ms)	observed
+0x00248460	survarium::grenade<survarium::grenade_core>::pull_pin	stack+8	the hits' id (+4)	observed
+0x00248460	survarium::grenade<survarium::grenade_core>::pull_pin	stack+12	the initiator (the holder's +110h, +8)	observed
+0x00248460	survarium::grenade<survarium::grenade_core>::pull_pin	stack+16	bool: from the deserializer (keeps +232h)	observed
+0x00303a60	survarium::grenade_core::tick	ECX	the grenade	observed
+0x00303a60	survarium::grenade_core::tick	stack+8	the time: explode (vtable +28h) when it is +14Ch, else active_tick (+24h)	observed
+0x00309ec0	survarium::grenade_set_core::register_in_game_world	ECX	the set: its +248h the world, its grenades' 0x303820	observed
+0x0030a4a0	survarium::grenade_set_core::on_exploded	EAX	the set (its explosive at +278h..+2B7h)	observed
+0x0030a4a0	survarium::grenade_set_core::on_exploded	stack+4	the grenade (the hits' id +4, initiator +8)	observed
+0x0030a4a0	survarium::grenade_set_core::on_exploded	stack+8	the transform (the position at +30h)	observed
+0x002d2db0	survarium::game_world_core::remove_from_tick_list	ECX	the node	observed
+0x002d2db0	survarium::game_world_core::remove_from_tick_list	stack+4	the world	observed
+0x0032a4b0	survarium::body_part_parameters::tick	EDI	the pool; its modifier nodes at +2ECh adjust {speed, timeout, threshold} through 0x329DF0	observed
+0x00062a80	vostok::curve::load	entry ESP+4	the curve (damage_zone_core +168h hit_curve, +188h speed_curve)	observed
+0x00062a80	vostok::curve::load	entry ESP+8	the allocator (vtable +10h allocate, +18h free)	observed
+0x00062a80	vostok::curve::load	entry ESP+12	the config value, 24 bytes by value; its keys key%d (appendf 0xE45D0)	observed
+0x00025f30	vostok::curve::evaluate	ECX	the curve	observed
+0x00025f30	vostok::curve::evaluate	entry ESP+4	float x; then 0f, 1f, 0f, 0f as damage_zone_core passes them	observed
+0x00319af0	survarium::damage_zone_core::tick	ECX	the zone core: continuous_hit gives each object its sensor touches max_hit x intensity x dt / interval_in_msec through base_player::hit 0x2D9AE0 (receiver +118h, vtable +20h), once per hit_parts_filter name	observed
+0x0031a410	survarium::damage_zone_core::intensity	ECX	the zone core (curves at +168h, +188h)	observed
+0x0007a1f0	vostok::physics::create_bt_primitive	EDX	the primitive's type (cmp edx,3 / jmp [edx*4+7A374h]): 0 sphere, 1 box, 2 cylinder (scale x the radius, y the half height), 3 capsule	observed
+0x0007a1f0	vostok::physics::create_bt_primitive	ECX	the scale (float3, [ecx] read first)	observed
+0x0007a1f0	vostok::physics::create_bt_primitive	ESI	the allocator (vtable +10h)	observed
+0x000e0210		ECX	the resource whose intrusive refcount at +0D0h fell to 0	observed
+0x000e0210		EAX	&its refcount field (that object+0D0h), passed on to 0xE02A0	observed
+0x00301de0	vostok::network_core::buffer_writer::w<class vostok::math::float4x4>	EAX	pointer to the value (a float4x4, 64 bytes)	observed
+0x00301de0	vostok::network_core::buffer_writer::w<class vostok::math::float4x4>	stack+4	buffer_writer receiver	observed
+0x00301de0	vostok::network_core::buffer_writer::w<class vostok::math::float4x4>	stack+8	diagnostic source filename	observed
+0x00301de0	vostok::network_core::buffer_writer::w<class vostok::math::float4x4>	stack+12	diagnostic source line	observed
+0x00301de0	vostok::network_core::buffer_writer::w<class vostok::math::float4x4>	stack+16	diagnostic caller function name	observed
+0x00301de0	vostok::network_core::buffer_writer::w<class vostok::math::float4x4>	stack+20	diagnostic value label	observed
+0x00081a70	vostok::network_core::buffer_writer::w<class vostok::math::float3>	EAX	pointer to the value (a float3, 12 bytes)	observed
+0x00081a70	vostok::network_core::buffer_writer::w<class vostok::math::float3>	stack+4	buffer_writer receiver	observed
+0x00081a70	vostok::network_core::buffer_writer::w<class vostok::math::float3>	stack+8	diagnostic source filename	observed
+0x00081a70	vostok::network_core::buffer_writer::w<class vostok::math::float3>	stack+12	diagnostic source line	observed
+0x00081a70	vostok::network_core::buffer_writer::w<class vostok::math::float3>	stack+16	diagnostic caller function name	observed
+0x00081a70	vostok::network_core::buffer_writer::w<class vostok::math::float3>	stack+20	diagnostic value label	observed
+0x0007a1b0	vostok::physics::destroy_shape	ESI	the shape (0 for none)	observed
+0x0042a390	__RTCastToVoid	stack+4	the object (a polymorphic pointer)	observed
+0x00260860	survarium::artefact<survarium::artefact_rattle_core>::`scalar deleting destructor'	ECX	the artefact	observed
+0x00260860	survarium::artefact<survarium::artefact_rattle_core>::`scalar deleting destructor'	stack+4	flags (bit 0: free the memory)	observed
+0x00313760	survarium::artefact_base::deserialize	stack+12	the third argument, passed on to 0x2FFF10 after the reader and stack+8	observed
+0x002a6470	survarium::player_equipment_sound_effect::on_player_sound_event	ECX	player_equipment_sound_effect (+3Ch the player, +44h the feet on)	observed
+0x002a6470	survarium::player_equipment_sound_effect::on_player_sound_event	stack+4	the animation sound event: [+0] the player, +10h its time, +20h the event (0, 1 the feet; 2, 3, 4 the rustles 0x2A6580, 0x2A6630, 0x2A66C0)	observed
+0x0023fbe0	survarium::player::landing_step	CL	not first view (the third-person foot material)	observed
+0x0023fbe0	survarium::player::landing_step	EDX	the time	observed
+0x0023fbe0	survarium::player::landing_step	XMM0	the landing speed	observed
+0x0023fbe0	survarium::player::landing_step	stack+4	the state: [+0] the foot materials, +4 the speed for a step, +8 for a jump material, +0Ch the last step time	observed
+0x0023fbe0	survarium::player::landing_step	stack+8..+16	the step_manager (player+0F460h), the position, the direction (on_step's)	observed
+0x000657c0	survarium::play_sound	ECX	&the sound scene ([it] the scene)	observed
+0x000657c0	survarium::play_sound	stack+4	the sound (a sound emitter resource: vt+1Ch, its count +0D0h)	observed
+0x000657c0	survarium::play_sound	stack+8	&the position	observed
+0x000657c0	survarium::play_sound	stack+12	the hud flag (byte): 1 the viewer's own player in first person	observed
+0x00065670	vostok::sound::sound_emitter::emit_point_sound	EAX	&the sound scene	observed
+0x00065670	vostok::sound::sound_emitter::emit_point_sound	ECX	the sound emitter	observed
+0x00065670	vostok::sound::sound_emitter::emit_point_sound	stack+4	&the proxy pointer (out)	observed
+0x00297e20	survarium::weapon_sound_effect::play_sound_callback	ECX	the weapon_sound_effect: +0 first-view sounds, +18h third-view, +30h the weapon core (+8 its user), +34h the game world; a fire state's at handler+168h (0xA04EE4) or +170h (0xA05150, 0xA05248)	observed
+0x00297e20	survarium::weapon_sound_effect::play_sound_callback	stack+4	the sound's index	observed
+0x0005c7a0	vostok::sound::sound_scene::calculate_hdr_audio_frame	stack+8	the propagators (each: +8 the proxy, +0Ch the emitter, +38h the distance)	observed
+0x00313880	survarium::artefact_base::fill_ui_info	ECX	the artefact	observed
+0x00313880	survarium::artefact_base::fill_ui_info	stack+4	the hud's item info (8 bytes)	observed
+0x002ea3c0	vostok::buffer_vector<survarium::`anonymous namespace'::artefact>::push_back	ESI	the vector (+0 begin, +4 end, +8 the capacity's end; query_for_artefacts' _alloca list)	observed
+0x002ea3c0	vostok::buffer_vector<survarium::`anonymous namespace'::artefact>::push_back	EDI	the element: +0 the artefact's dict id (u16), +8 its count (query_for_artefacts 0x2E9DD3..0x2E9DE0)	observed
