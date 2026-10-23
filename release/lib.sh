@@ -228,6 +228,17 @@ python() {
     fi
 }
 
+# Runs a script of the checkout <src>'s srp-026g/client-patches
+# (make_client_026g.py, patch_026g.py, ...) with the arguments after <src>,
+# in that checkout's dev shell: its python3, and the gcc, GNU ld and NASM
+# 2.16 the exe's arena is linked with (link_026g.py; the bytes must be
+# arena_026g.lock.json's). Nothing of this machine's PATH is needed but nix.
+client_patches_python() {
+    local src=$1
+    shift
+    (cd "$src/srp-026g/client-patches" && nix develop "$src/srp-026g" -c python3 "$@")
+}
+
 # `<sha256> <name>` of every file entry of a ZIP, in name order. (Python's
 # zipfile, not unzip: an unzip may be sandboxed to its working folder.)
 zip_hashes() {

@@ -180,10 +180,11 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   every file offset the tools and the released records name). Eleven are taken (the seven of the
   game, `.srp`, `.srpd`, `.srpc`, `.srpw`). The twelfth, `.srpx` (0xA42D000, code, data and
   writable), is the arena of every later patch (client_patch.md 0.3): blocks declared in
-  `patch_026g.py`'s `ARENA`, laid out in order. Research's are the first two, `research.code`
-  (0xA42D000, to +3000h) and `research.state` (0xA430000). The dynamic anomalies (patch 42,
-  #225) append theirs, `anomalies.code` at 0xA431000, the address
-  `dynamic_anomalies_026g.asm` is assembled for, and add no section.
+  `patch_026g.py`'s `ARENA` with their sources, linked by `link_026g.py`. Research's are
+  `research.code` (research_026g.asm, research_rule_026g.c, research_native_026g.c; 0xA42D000
+  today) and `research.state` (`rn_state`, 0xA430000 today); its hooks take their targets from
+  the link by symbol. The dynamic anomalies (patch 42, #225) add a block of their own the same
+  way, and no section.
 - **HUD:** update_ui (every frame): `root.research_update(own team, points 0, points 1, goal,
   Z, then cp_id, x, -z, owner, taking, progress %, inside 0, inside 1, own player inside)`, sent
   at a change and every 60 frames; the messages through the hud's parameterised message.

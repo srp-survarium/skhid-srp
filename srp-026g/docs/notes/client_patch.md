@@ -1435,7 +1435,7 @@ A node is {prev, next, index, value}, linked at the tail of the holder's list ho
 
 **Checked:** `selftest_026g.py` check 54; `check_artefacts_026g.py` (Unicorn): the loader with the game's lookup (0xF6B10) on a binary config of the release's numbers (and the retail ones in the original), links and unlinks with the getter for one and two Springs, Lifebone's enable_active with made-up pools, the action over a made-up inventory, and through the game's own callers: a slot's key through inventory::action 0x2FCAA0 (edi = the inventory; slot, pressed, time; its vtable +2Ch call), the Springs' own enable_active 0x3118D0 linking and disable_active 0x311970 unlinking their nodes; the build's loader on the edited retail `artefact_spring.options` (content_edit.py output).
 
-**Where and how it is installed** (the merge with main's arena and call shapes, 2026-10-23). The code is the arena's third block, `artefacts.code`, a code page at 0xA431000 (`.srpx`+4000h, §0.3; `ARTEFACTS_VA`), not `.srpw`+2700h where it was first written: it still fit there and nothing of main used that page, but new code goes on the arena. Its six sites are in `INSTALLS` (§0.4): 0x311BC0, 0x311DA0 and 0x313300 ENTRY, their models the functions at the sites (`ret` 0, 4 and 8, as `abi.tsv`; ours goes on in the function, or for a key-down returns `ret 8` itself), and 0x33AE13, 0x3122AA and 0x2DBD89 JUMP (from inside the game's code, back at the depth they left). It hands the game no pointer (no callback, no vtable). Each hook's arguments, read again against the game's code: the loader's ebx = `data`, eax and edi set by 0x33AE0B..0x33AE10 for the next lookup (kept by pushad), xmm0 the third node's value (kept); the link's eax = the Spring (0x311944, 0x311A4D); the unlink's Spring pushed (0x311973), [esp+24h] after pushad; Lifebone's time [esp+14h] with the function's four pushes on both ways to 0x3122AA (`push ebp` popped at 0x3122A9), [esp+38h] after pushad and the amount; the pool lookup 0x2E58B0's eax = the pools' holder, ecx = the address of the name's pointer, nothing on the stack (as 0x312291); increase_health (esi = the pool; time, amount; `ret 8`) pushed as the medkit pushes them (0x33D9A3..0x33D9C3); action's (pressed, time) as inventory::action pushes them (0x2FCB2D..0x2FCB31), enable_active's (time) and the effect 0x313350's (the artefact, the time) as action pushes them (0x313329, 0x31332C..0x31332E); the getter's (B, k) as enable_active 0x3118D0 passes them (B the value, k 1.0; ecx and edi kept, `ret 8`); the stagger's sum in xmm0 and its argument slot [esp+14h] on both ways to 0x2DBD89 (0x2DBCF9 and the loop's end, the memmove's three pushes taken back at 0x2DBD65). No argument count or order was wrong.
+**Where and how it is installed** (the merge with main's arena and call shapes, 2026-10-23). The code is the arena's block `artefacts.code`, a code page (0xA431000 as the link places it today, §0.3; the hooks jump to its six global entries by name), not `.srpw`+2700h where it was first written: it still fit there and nothing of main used that page, but new code goes on the arena. Its six sites are in `INSTALLS` (§0.4): 0x311BC0, 0x311DA0 and 0x313300 ENTRY, their models the functions at the sites (`ret` 0, 4 and 8, as `abi.tsv`; ours goes on in the function, or for a key-down returns `ret 8` itself), and 0x33AE13, 0x3122AA and 0x2DBD89 JUMP (from inside the game's code, back at the depth they left). It hands the game no pointer (no callback, no vtable). Each hook's arguments, read again against the game's code: the loader's ebx = `data`, eax and edi set by 0x33AE0B..0x33AE10 for the next lookup (kept by pushad), xmm0 the third node's value (kept); the link's eax = the Spring (0x311944, 0x311A4D); the unlink's Spring pushed (0x311973), [esp+24h] after pushad; Lifebone's time [esp+14h] with the function's four pushes on both ways to 0x3122AA (`push ebp` popped at 0x3122A9), [esp+38h] after pushad and the amount; the pool lookup 0x2E58B0's eax = the pools' holder, ecx = the address of the name's pointer, nothing on the stack (as 0x312291); increase_health (esi = the pool; time, amount; `ret 8`) pushed as the medkit pushes them (0x33D9A3..0x33D9C3); action's (pressed, time) as inventory::action pushes them (0x2FCB2D..0x2FCB31), enable_active's (time) and the effect 0x313350's (the artefact, the time) as action pushes them (0x313329, 0x31332C..0x31332E); the getter's (B, k) as enable_active 0x3118D0 passes them (B the value, k 1.0; ecx and edi kept, `ret 8`); the stagger's sum in xmm0 and its argument slot [esp+14h] on both ways to 0x2DBD89 (0x2DBCF9 and the loop's end, the memmove's three pushes taken back at 0x2DBD65). No argument count or order was wrong.
 
 ## 4. Mode 3 batteries: not needed in 0.26g
 
@@ -1709,7 +1709,7 @@ Please reinstall the application and try again" (string 0x9DEF00, pushed at
   retail one does (the mounter reads the 256 signature bytes after the
   file table, section 0.1).
 
-### 0.3 `.srpx`, the arena of the later patches (generic tooling, 2026-10-22) — PROVEN bytes: the exe is byte for byte main's build with Research on it; the self-test's arena checks pass
+### 0.3 `.srpx`, the arena of the later patches (generic tooling, 2026-10-22; linked from source since 2026-10-23) — PROVEN bytes: the self-test's arena and link checks pass, check_research_026g.py's and check_artefacts_026g.py's output is main's, check_engine_026g.py passes; not run in a game
 
 The exe's section table has room for twelve entries: it begins at file 0x210
 and the headers end at 0x400, where the first section's bytes begin, so
@@ -1717,24 +1717,76 @@ and the headers end at 0x400, where the first section's bytes begin, so
 `.srp`, `.srpd`, `.srpc` and `.srpw`, take eleven. The twelfth and last is
 `.srpx`, which Research (patch 53, #297) made first: code, initialized data
 and writable (0xE0000060), on the page after `.srpw`'s three pages
-(`ARENA_VA` = 0xA42D000). It is now an arena every later patch's code, data
+(`ARENA_VA` = 0xA42D000). It is the arena every later patch's code, data
 and state goes in, so no patch needs a PE section of its own again (the
 table is full).
 
-It only grows. A patch that wants room declares its blocks in
-`patch_026g.py`'s `ARENA`, in placement order, append only: an
-`ArenaBlock(name, kind, size, align)` each (`kind` "code", "data" or
-"state"; `align` a power of two from 16, 0x1000 for a page of its own). The
-builder lays them out in that order, each at the next multiple of its
-alignment after the one before (`arena_layout`; `ARENA_LAYOUT` holds the
-VAs), and only the section's `VirtualSize`/`SizeOfRawData` and the image's
-`SizeOfImage` grow. A block never moves once placed: `ARENA_PINNED` writes
-down every block's VA when it is added, and `build()` stops if a size or an
-alignment change would move one (`check_arena`). A patch takes its VAs from
-`ARENA_LAYOUT` (and checks its `.bin` was built for them, as Research does),
-and the file holds the whole arena (code blocks int3 after their
-bytes, data and state blocks and the gaps zeros), byte-for-byte
-deterministic.
+**Each patch is plain C or NASM; the tooling links it.** A patch that wants
+room declares its blocks in `patch_026g.py`'s `ARENA`: an
+`ArenaBlock(name, kind, align, sources)` each (`kind` "code", "data" or
+"state"; `align` a power of two from 16, 0x1000 for a page of its own;
+`sources` its `.c` and `.asm` files). `link_026g.py` builds the arena from
+them at every build (the self-test's, the release's, every check script's):
+
+1. each source once to a relocatable ELF32 object: `nasm -f elf32` for
+   `.asm`, `gcc -m32 -c` with Research's flags (`-Os -ffreestanding
+   -fno-pic -fno-builtin -fno-stack-protector -msse2 -mfpmath=sse
+   -mincoming-stack-boundary=2 -fno-asynchronous-unwind-tables ...
+   -Werror`, Nix hardening off) for `.c`;
+2. a linker script made from `ARENA`: one output section per block, in
+   `ARENA`'s order, each at the next multiple of its alignment, holding of
+   each of its sources (in the order given) for a code block their `.text`
+   then their `.rodata`, for a data block their `.data`, for a state block
+   their `.bss` (zeros in the file, as every state was);
+3. GNU ld links all the objects together at `ARENA_VA`; each block's VA and
+   size are what the link gives it, and the file holds the whole arena (a
+   code block's gap to the next block int3, the rest zeros). Nothing is
+   reserved and no VA is written down: the exe is made whole for every
+   release and never rebased, and nothing outside it holds an arena
+   address.
+
+A patch reaches another's code by name: ordinary ELF symbols (the engine
+library's `engine_...`, 0.5; a C function the NASM part calls, `extern
+rn_register`). The game's functions and data stay absolute addresses in the
+sources. A hook site in the game takes its target from the link by symbol:
+`RESEARCH_HOOKS` and `ARTEFACTS_HOOKS` are (site, original bytes, symbol,
+opcode), and `arena_target` gives the symbol's VA (a global of a code block;
+else the build stops). `INSTALLED_VTABLES` names the block whose code holds
+each vtable, and `audit_vtables` reads every `*_vtable` symbol of the link,
+locals too (0.4).
+
+**Refused, loudly** (the build stops and says why): a missing tool (CC, LD,
+NASM or NASM_DIR name others than `cc`, `ld` and `nasm`); NASM other than
+2.16; a section with bytes no block of the source takes (a C file's `.data`
+in a code block only); a relocation other than R_386_32 and R_386_PC32 (GOT,
+PLT, 16- or 8-bit addresses: the code is not position-independent and the
+exe is never rebased); a symbol no source defines or one defined twice (ld);
+a block with nothing in it; an arena past `ARENA_LIMIT` (0x100000, a
+deliberate cap against a runaway state array).
+
+**NASM 2.16, not 3.** NASM 3.01 (nixpkgs' now) assembles `jmp near label`
+to a label as a two-byte short jump (`EB`): the five-byte entry tables of
+`research_026g.asm` and `artefacts_026g.asm` shrink and every entry after
+the first moves. `link_026g.py` refuses any NASM but 2.16;
+`nix develop ./srp-026g` has NASM 2.16.03 (built from its release tarball,
+`flake.nix`), Python 3, the shell's gcc 15.2.0 and GNU ld 2.46; the lock was
+written there. That gcc 15.2.0 also rebuilds main's last prebuilt Research
+`.bin` byte for byte (its `.json` named gcc 15.3.0, which gives the same
+bytes). `release/build-zip` runs `make_client_026g.py` and `patch_026g.py`
+in that shell (`client_patches_python`, release/lib.sh), and
+`release/test.sh` runs the same invocation for real with nothing but nix on
+PATH.
+
+**The lock, `arena_026g.lock.json`.** No prebuilt arena code is checked in;
+the lock is: the linked arena's VA, size and SHA-256, every block's kind, VA
+and size, every global symbol's VA (the map), and the tools that wrote it.
+`python link_026g.py --write` writes it after a change of an arena source
+(its diff in the PR shows what moved); `--check` compares. `arena()`, which
+`build()` and every check script call, links and compares the bytes, blocks
+and symbols with the lock, and stops when they differ: an unexpected change
+(another compiler or NASM, a source edited without `--write`) cannot ship.
+The self-test's made-up arenas are not compared (`build(...,
+arena_blocks=...)`).
 
 ```
 section table (0x210..0x400): 12 slots
@@ -1742,56 +1794,70 @@ section table (0x210..0x400): 12 slots
   .srp .srpd .srpc .srpw                           (ours, 8..11)
   .srpx                                            (the arena, 12)
 
-.srpx  (VA 0xA42D000, grows ->)
-  +0        research.code   (code,  0x3000, page)   -> 0xA42D000
-  +0x3000   research.state  (state, 0x1000, page)   -> 0xA430000
-  +0x4000   artefacts.code  (code,  0x1000, page)   -> 0xA431000  (patch 54)
-  +0x5000   anomalies.code  (code,  0x1000, page)   -> 0xA432000  (#225's, int3 until it lands)
-  +0x6000   engine.code     (code,  0x1000, page)   -> 0xA433000  (the engine-function library, 0.5)
-  +0x7000   (next)                                  -> 0xA434000
-  ...each new patch's blocks appended, nothing before them moves
+.srpx  (VA 0xA42D000), as the link places ARENA today (the lock has it):
+  research.code   code   0x1000   research_026g.asm (0x100), research_rule_026g.c,
+                                  research_native_026g.c                -> 0xA42D000, 0x2BF0
+  research.state  state  0x1000   rn_state (research_native_026g.c)      -> 0xA430000, 0x38
+  artefacts.code  code   0x1000   artefacts_026g.asm                     -> 0xA431000, 0x310
+  engine.code     code   0x1000   engine_026g.asm (0.5)                  -> 0xA432000, 0x47A
+  (a new block: wherever its row goes; the link places it and every block after it)
 ```
 
-**Research on the arena.** `ARENA` is Research's two blocks; `RESEARCH_VA`
-and `RESEARCH_STATE_VA` are `ARENA_LAYOUT["research.code"]` and
-`["research.state"]`, the VAs `research_026g.py` links for. The build is byte
-for byte what main built before the arena existed (Research writing `.srpx`
-itself): the default exe, `--revision` with `--required-patches`,
-`--no-late-join`, `--cave=hash-mismatch`, `--cert-only` and `--server`,
-compared by sha256 against main 5d834b9f's tool. `DYNAMIC_ANOMALIES_OFFSET`
-is gone: nothing reserves room ahead, the next block simply goes after the
-last.
+**What changed with the link (2026-10-23).** Before it each block's bytes
+were built for a VA written down by hand (`ARENA_PINNED`; NASM with
+`-DCAVE`, Research's C linked by its own script at a fixed address with its
+`.bin` and `.json` checked in, the engine library's entries at
+`ENGINE_PINNED` VAs that Research's `.bin` called directly), so two PRs adding
+a block collided and the second had to move and rebuild by hand. Now:
+`ARENA_PINNED`, `check_arena`, `arena_layout`, `ARENA_SYMBOLS`,
+`research_026g.py` and the checked-in `research_026g.section.bin` / `.json`,
+`artefacts_026g.section.bin` and `engine_026g.section.bin` are gone;
+Research's state is `rn_state` (its `.bss`) instead of `-DRN_STATE_VA`;
+the asm entries are global symbols (the tables stay, so Research's and the
+artefacts' bytes and their checks' output are unchanged); the reserved
+`anomalies.code` page is dropped, so the library moved from 0xA433000 to
+0xA432000. Research's C differs in one place: gcc unrolls a three-step copy
+into the state that it looped over a constant address before (`rn_hud`);
+check_research_026g.py prints exactly what it printed on main.
 
-**The artefacts on the arena (patch 54, #308).** The first patch after
-Research adopted it: `ArenaBlock("artefacts.code", "code", 0x1000, 0x1000)`
-after Research's two, pinned at 0xA431000; `ARTEFACTS_VA` is
-`ARENA_LAYOUT["artefacts.code"]`, `artefacts_026g.asm` is assembled for it
-(build() checks the entries' exits), its bytes go in
-`arena_bytes["artefacts.code"]`, and its six hooks are in `INSTALLS` (§3.51).
-It was written for `.srpw`'s spare third page (+2700h, where it still fit),
-but new code goes on the arena.
+**Adding a block (a PR).** One `ARENA` row and its source file(s):
 
-**Adopting it: the dynamic anomalies (#225).** #225 assembles
-`dynamic_anomalies_026g.asm` for 0xA431000 (`.srpx` + 0x4000) and puts its
-bytes there itself; the artefacts took that page, so on the arena it is
-assembled for 0xA432000 (`.srpx` + 0x5000). Its block is already in `ARENA`
-and `ARENA_PINNED` (`anomalies.code`, one page, int3: the engine-function
-library took the page after it, 0.5). On the arena:
+1. write the code as plain NASM (`bits 32`, `section .text`, `global` the
+   labels a hook or another patch uses, `extern` what it uses of others,
+   `%include "engine_026g.inc"` for the library) or C (`#include
+   "engine_026g.h"`; state as ordinary zeroed globals);
+2. add `ArenaBlock("<patch>.code", "code", <align>, ("<file>.asm",))` (and a
+   `"<patch>.state"` block naming the same sources if it keeps state);
+3. hook the game with rows of (site, original bytes, symbol, opcode), made in
+   `build()` with `arena_target` as Research's and the artefacts' are; declare
+   each in `INSTALLS` (and any vtable or callback in `INSTALLED_VTABLES` /
+   `CALLBACKS`, 0.4), or `build()` refuses it;
+4. `python link_026g.py --write`, commit the lock with the sources.
 
-1. keep the block's row (one page fits its 871 bytes; state of its own, if
-   any, goes as a new block at `ARENA`'s end);
-2. take its VA from `ARENA_LAYOUT["anomalies.code"]` (0xA432000: its `.bin`
-   assembled again with `-DCAVE=0xA432000`), check its `.bin` was assembled for it, aim its
-   hooks there, and put its bytes into `arena_bytes["anomalies.code"]` in
-   `build()` (in place of the `b""` there now); drop its own
-   `add_code_section` / `.srpx` code;
-3. declare its hooks in `INSTALLS` (and any vtable or callback it hands the
-   game in `INSTALLED_VTABLES` / `CALLBACKS`, section 0.4), or `build()`
-   refuses them;
-4. the self-test's `.srpx` check reads the blocks from `ARENA_LAYOUT`; add the
-   anomalies' bytes to what it expects there.
+Two PRs adding blocks no longer collide on addresses; they meet only in the
+lock (whichever merges second runs `--write` again on top of the first).
 
-A patch after it does the same with the next block.
+**The dynamic anomalies (#225).** #225 assembles `dynamic_anomalies_026g.asm`
+for a fixed `-DCAVE` and adds its bytes itself. On the arena: drop `org` /
+`-DCAVE` and its own `.srpx` code, give its hook labels `global` names, add
+one row `ArenaBlock("anomalies.code", "code", 0x1000,
+("dynamic_anomalies_026g.asm",))`, its hooks as (site, bytes, symbol,
+opcode) in `build()`, and `link_026g.py --write`.
+
+**The older fixed sections, later.** `.srp` (the upload code and the small
+caves at fixed offsets: `SPOT_OFFSET`, `KIT_CHANGE_OFFSET`, ...), `.srpd`
+(their state, at fixed offsets of one page), `.srpc` and `.srpw` (each
+`.bin` assembled with `-DCAVE`/`-DSTATE`/`-DPREVIEW`/... naming other
+patches' VAs) are out of this change. Moving one onto the link: its `.asm`
+made relocatable (no `org`, `-D` addresses of other patches replaced by
+`extern` symbols, its state a `.bss` in a state block), one `ARENA` row, its
+hooks as symbol rows, its `*_bin()` / `*_OFFSET` / `*_VA` constants and the
+self-test's "is current" and `-DCAVE` checks replaced by the link's symbols,
+and its check script reading VAs from `arena()`. The late join's C
+(`late_join_026g.py`, its checked-in `.bin`) would become sources of a block
+the same way Research's did. Each move changes the exe's layout (the
+sections shrink or go), so one patch at a time, each with its own Unicorn
+check run before and after.
 
 ### 0.4 Call shapes: every installed function has a model (generic tooling, 2026-10-22) — PROVEN bytes, the self-test's shape checks pass
 
@@ -1849,7 +1915,7 @@ The checks:
    code (a pointer, a `push imm32`, a `mov imm32`), at any offset of any write
    into the game's sections (`installs_of`), that `INSTALLS` does not declare,
    or whose kind does not fit the site (`audit_installs`); and on any
-   `*_vtable` symbol of the arena's C code (`ARENA_SYMBOLS`) that
+   `*_vtable` symbol of the arena's link (`arena_symbols`, locals too) that
    `INSTALLED_VTABLES` does not declare (`audit_vtables`). A new installed
    function or vtable cannot ship undeclared.
 2. The self-test (`test_call_shapes`) reads what each of ours pops from the
@@ -1889,7 +1955,7 @@ no-branch-into-a-hook checks. Nor are the in-place rewrites of the game's code
 that every slot of ours is reached through the game's own call site with its
 arguments in their order (the Research follow-up).
 
-### 0.5 The engine-function library: calling the game's functions (generic tooling, 2026-10-23) — PROVEN bytes and thunks: check_engine_026g.py passes on every function and rejects the wrong rows; Research's checks pass on the migrated code; not run in a game
+### 0.5 The engine-function library: calling the game's functions (generic tooling, 2026-10-23; by symbol since the arena's link, 0.3) — PROVEN bytes and thunks: check_engine_026g.py passes on every function and rejects the wrong rows; Research's checks pass on the migrated code; not run in a game
 
 The game's compiler (LTO) moved arguments of many functions into arbitrary
 registers (the config's child 0xF6B10: EAX, EDI; its has 0xF6C00: EAX, ESI;
@@ -1904,11 +1970,14 @@ function an ordinary cdecl one; a patch calls that and never sees the ABI.
 **Where the ABI comes from.** `tools/re-kit/v026g/abi_inputs.tsv` (each
 argument's register or stack slot) and `abi.tsv` (the cleanup, the result),
 every row of the VA together. `engine_026g.tsv` (in `client-patches/`)
-lists the library's functions, one row each, append only (each entry's
-address is pinned in `patch_026g.py`'s `ENGINE_PINNED`; rows out of that
-order are refused, as Research's `.bin` calls the entries by address): the C
-name, the VA, where each C parameter goes with a word of the re-kit's role
-there (`EAX:table EDI:key`), the C prototype. `engine_026g.py` refuses a row
+lists the library's functions, one row each, in any order (each is a global
+symbol the link resolves for every caller): the C name, the VA, where each C
+parameter goes with a word of the re-kit's role there (`EAX:table
+EDI:key`), the C prototype. (Until the arena was linked, 0.3, each function
+was a `jmp near` entry at a VA pinned in `ENGINE_PINNED`, rows out of that
+order refused, because Research's prebuilt `.bin` called the entries by
+address. With calls by symbol a row's place moves nothing that is not
+linked again, so the entries, the pin and the order check are gone.) `engine_026g.py` refuses a row
 whose locations are not exactly the re-kit's for the VA, a parameter whose
 word is not in a role of its location (and no two parameters may have words
 that fit each other's locations, so a swap is always refused), stack slots
@@ -1918,9 +1987,8 @@ widened; EDX:EAX for 64 bits; XMM0, moved to ST0 for a float). An XMM or
 x87 argument, varargs (log_message 0x111ED0, buffer_string::appendf
 0xE45B0) and tail jumps stay hand-written.
 
-**What it generates.** `engine_026g.asm`: at the block's start a `jmp near`
-per row (entry i at 0xA433000 + 5i: an entry never moves), then a thunk per
-function:
+**What it generates.** `engine_026g.asm`, the arena's block `engine.code`: a
+thunk per function, each the global symbol of its C name:
 
 ```
 engine_x:   push ebp / ebx / esi / edi      ; cdecl's callee-saved: kept
@@ -1933,20 +2001,17 @@ engine_x:   push ebp / ebx / esi / edi      ; cdecl's callee-saved: kept
             ret                             ; cdecl: the caller pops its own
 ```
 
-`engine_026g.section.bin` is it assembled for 0xA433000; `engine_026g.h`
-declares each function in C with its address (`__asm__(".set name, VA")`,
-so gcc emits `call rel32` to the entry); `engine_026g.inc` gives NASM the
-same addresses. The comments name the real function and its shape.
+`engine_026g.h` declares each function in C (gcc emits `call rel32` with a
+relocation the link fills); `engine_026g.inc` gives NASM an `extern` for
+each. The comments name the real function and its shape.
 
 **Why one block, not a copy in each patch.** The thunks are code shared by
-every patch, so they are one pinned arena block, `engine.code` at 0xA433000
-(`.srpx` + 0x6000; 0xA432000 is kept for #225, 0.3), built once and checked
-once: the self-test runs the ABI check on exactly the bytes every patch
-calls, and a C patch only includes the header (no change to how
-`research_026g.py` compiles and links), an asm patch only `%include`s the
-addresses. A copy linked into each patch's own block would need the same
-thunks assembled and checked per patch, and asm patches have no linker to
-take them.
+every patch, so they are one arena block, `engine.code` (0xA432000 as the
+link places it today), built once and checked once: the self-test runs the
+ABI check on exactly the bytes every patch calls (the block as linked), and
+a C patch only includes the header, an asm patch only `%include`s the
+externs. A copy in each patch's own block would need the same thunks
+checked per patch.
 
 **The check** (`check_engine_026g.py`; the self-test's `test_engine`, which
 fails without Unicorn): the original exe's sections and the library's bytes
@@ -1970,17 +2035,17 @@ parameters in each other's places (the config child's table and key,
 malloc's allocator and size, the rule base's rule and type, the message's
 second and third parameters, Invoke's name and result, free's allocator and
 memory, profile assign's destination and source: the generator refuses
-each), rows out of their pinned order (the u8 and u16 writers, the config's
-child and has), a cleanup "0x10"; libraries made from wrong re-kit rows
+each), a cleanup "0x10"; libraries made from wrong re-kit rows
 (0xF6B10's table and key registers exchanged, the spec following them: the
 real lookup finds nothing; w<unsigned char> popping 16: the exe pops 20;
 value_exists' key in EDI: the real one reads ESI); and the built library
 checked against rows with malloc's allocator and size exchanged. The
-self-test also fails when the four files are not what the rows give
-(`--write` not run).
+self-test also fails when the three files are not what the rows give
+(`--write` not run), and runs the same check on the library linked at
+another VA (the arena with two blocks swapped, 0.3).
 
 What is caught and what is not. Caught by the self-test: a spec parameter in
-another's place or a row out of order (the generator), a wrong cleanup in
+another's place (the generator), a wrong cleanup in
 abi.tsv (the exe's `ret`s), a thunk that does not follow its rows (the entry
 check), and a wrong re-kit location for the functions run for real (the
 config's child and has, the three writers, the statistics' listener, the
@@ -1997,7 +2062,7 @@ and the 22 the artefacts, weapon camouflage, weapon decals and upgrade
 preview patches call directly (weapon_table calls none: its one game
 transfer is the tail jump to set_target 0x2845C0, XMM arguments). Research's
 C calls the library for all 11 (its inline-asm stubs and thiscall casts are
-gone); its built `.bin` changed, its behaviour did not: check_research_026g.py
+gone); its built code changed, its behaviour did not: check_research_026g.py
 passes every case as before (the hooks, the cook and rule through the game's
 own register_cook, constructor, config look-ups and field writers, the
 slots driven through the game's own callers, the invoke and the messages

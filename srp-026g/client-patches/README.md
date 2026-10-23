@@ -57,7 +57,7 @@ release's. The "Result" row is the build of the revision named in it.
 
 | File | What |
 |---|---|
-| `patch_026g.py` | Builds the patched exe from the original. Python 3, nothing else. Holds `ARENA` (the `.srpx` blocks), `INSTALLS`/`CALLBACKS`/`INSTALLED_VTABLES` (every installed function's model) and the checks of both (arena and call shapes, above; `docs/notes/client_patch.md` 0.3, 0.4) |
+| `patch_026g.py` | Builds the patched exe from the original. Python 3, and for the arena gcc (`-m32`), GNU ld and NASM 2.16 (`nix develop ./srp-026g`). Holds `ARENA` (the `.srpx` blocks and their sources), `INSTALLS`/`CALLBACKS`/`INSTALLED_VTABLES` (every installed function's model) and the checks of both (arena and call shapes, above; `docs/notes/client_patch.md` 0.3, 0.4) |
 | `snapshot_upload_026g.asm` | The source of the upload code (nasm) |
 | `snapshot_upload_026g.section.bin`, `.hash-mismatch.bin` | That code assembled, for the two places it can go; `patch_026g.py` reads them. Assembling the source again gives the same bytes |
 | `late_join_026g.asm`, `late_join_validate_026g.c`, `late_join_runtime_026g.c`, `late_join_install_026g.c`, `late_join_runtime_026g.h` | The source of the late-join code (patch 11): the hooks and the game's calling conventions in assembly, the checks of what the server sends and the bookkeeping in C |
@@ -91,17 +91,16 @@ release's. The "Result" row is the build of the revision named in it.
 | `suicide_key_026g.asm`, `suicide_key_026g.section.bin` | The source of patch 34's code (the commit_suicide key kills one's own player) and that code assembled for 0x980 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `spot_026g.asm`, `spot_026g.section.bin` | The source of patch 38's code (a spot's hit on a battery's body spots the battery) and that code assembled for 0x7C0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
-| `artefacts_026g.asm`, `artefacts_026g.section.bin`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; assembled for 0xA431000, the arena's block `artefacts.code` (`.srpx`+4000h); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
+| `artefacts_026g.asm`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; the arena's block `artefacts.code` (linked by `link_026g.py`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `research_026g.asm`, `research_rule_026g.c`, `research_rule_026g.h`, `research_native_026g.c` | The source of patch 53 (Research, mode 5): the three hooks and their stubs in assembly, the rule's logic in C on integers (no pointer into the game), and its side in the game (the cook, the rule's twenty slots, the hud) in C |
-| `research_026g.section.bin`, `research_026g.section.json` | That code built for the start of `.srpx` (0xA42D000), which `patch_026g.py` reads, and beside it its symbols and what built it. The same tools give the same bytes; another compiler gives other bytes that do the same, so the file is kept, not rebuilt for a release |
-| `research_026g.py` | Builds those two files (`--write-bin`) or says whether they are what the sources give here (`--check-bin`). Needs nasm, gcc for x86 (`-m32`, SSE2 scalar floats) and GNU ld |
-| `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each (append only), and the generator of the four files after it from those rows and the re-kit's ABI rows (`--write`, `--check`; needs nasm) |
-| `engine_026g.h`, `engine_026g.inc`, `engine_026g.asm`, `engine_026g.section.bin` | Generated, not edited: the C declarations, their addresses for NASM, the thunks and the thunks assembled for 0xA433000, the arena's block `engine.code` (`.srpx`+6000h) |
+| `link_026g.py`, `arena_026g.lock.json` | The arena's linker (below, "The arena"): every block's C and NASM sources compiled to ELF32 objects and linked by GNU ld at `.srpx`'s VA, at every build; `--write` writes the lock (the linked arena's SHA-256, its blocks and symbols), `--check` compares. Needs gcc (`-m32`), GNU ld and NASM 2.16 (`nix develop ./srp-026g`) |
+| `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of the three files after it from those rows and the re-kit's ABI rows (`--write`, `--check`) |
+| `engine_026g.h`, `engine_026g.inc`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `check_research_026g.py`, `test_research_rule_026g.c` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules under the sanitizers |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
@@ -116,7 +115,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `weapon_draw_026g.asm`, `weapon_draw_026g.section.bin` | The source of patch 32's draw (a weapon's window draws the player as the lobby does) and that code assembled for 0xD20 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_weapon_preview_026g.py` | Runs the original's and patch 32's upgrade window start and close (with the lobby camera's own setter), `setup_profile`'s entry, the lobby camera's three distance clamps and the player's decal pose on a made-up lobby, loaded as is and rebased (needs Unicorn) |
 | `check_forward_scroll_026g.py` | Runs the original's and the build's forward-effect compile, with patch 28's two hooks, on made-up materials and compares what each sends; runs the third hook against the game's own binding of `scene_time`; loaded as is and rebased (needs Unicorn). With `--rev12=` it compares the build with revision 12 byte by byte |
-| `selftest_026g.py` | Builds every variant and checks it (sections, disassembly of every hook, checksum, signature, and what the late join adds to the build without it); needs the original exe and nasm |
+| `selftest_026g.py` | Builds every variant and checks it (sections, disassembly of every hook, checksum, signature, and what the late join adds to the build without it); needs the original exe, nasm (2.16) and, for the arena, gcc (`-m32`) and GNU ld |
 | `run_battery_rule.ps1` | Runs the battery rule's handler (patch 9) out of any 0.26g exe on a made-up rule object, in the 32-bit Windows PowerShell: what an exe does with a put that is played again after a rollback. Starts nothing of the game |
 | `survarium_login_server.crt` | The login certificate (the same file as `../certs/survarium_login_server.crt`) |
 | `launcher/` | The game's launcher made to work again, and to keep these files current: its patch tool, the one piece of new code, the self-test and its own README. Its updater is `../../client/updater` |
@@ -129,21 +128,38 @@ Two things keep a new exe patch from the mistakes PR #297 shipped
 **`.srpx`, the arena.** The exe's section table holds twelve entries (it is
 at file 0x210 and the headers end at 0x400); the game's seven plus `.srp`,
 `.srpd`, `.srpc` and `.srpw` take eleven. The twelfth is `.srpx`, a growing
-arena, so a later patch need not add a section of its own. A patch that wants
-room declares its blocks in `patch_026g.py`'s `ARENA` — an
-`ArenaBlock(name, kind, size, align)` each (`kind` "code", "data" or
-"state") — the builder lays them out in that order and gives each its VA
-(`arena_layout`), and only the section's sizes and `SizeOfImage` grow. A
-block never moves once placed, every block's bytes are assembled for the VA
-the builder gives it, and the arena is byte-for-byte deterministic
-(`selftest_026g.py`'s `test_arena`). With no block declared there is no
-`.srpx`. Research (patch 53) is on it: its code and state are `ARENA`'s
-first two blocks, at the VAs it was built for, and the exe is byte for byte
-what main built before the arena. The old `.srp`/`.srpd`/`.srpc`/`.srpw` stay
-as they are; new patches append blocks (the artefacts, patch 54, took the third,
-`artefacts.code` at 0xA431000; `anomalies.code` at 0xA432000 is kept for the
-dynamic anomalies, #225, int3 until they land: client_patch.md 0.3 says how;
-`engine.code` at 0xA433000 is the engine-function library, below).
+arena, so a later patch need not add a section of its own. **A patch is
+plain C or NASM, and the tooling links it** (`link_026g.py`): it declares
+its blocks in `patch_026g.py`'s `ARENA`, an `ArenaBlock(name, kind, align,
+sources)` each (`kind` "code", "data" or "state"; `sources` its `.c` and
+`.asm` files); every source becomes an ELF32 object (`nasm -f elf32`, `gcc
+-m32 -c` with Research's flags) and GNU ld links them all at `.srpx`'s VA,
+one output section per block in `ARENA`'s order (a code block takes its
+sources' `.text` and `.rodata`, a data block `.data`, a state block `.bss`).
+Sizes and VAs are what the link gives: nothing is reserved or pinned, and
+two PRs adding blocks do not collide. Calls between patches are by symbol
+(the engine library's `engine_...`, below); the game's addresses stay
+absolute (the exe is never rebased); a hook site takes its target from the
+link by symbol (`RESEARCH_HOOKS`, `ARTEFACTS_HOOKS`: site, bytes, symbol,
+opcode). The link refuses, loudly, a missing tool, NASM other than 2.16
+(NASM 3 assembles `jmp near` to a label as a short jump), a section no
+block takes, a relocation other than R_386_32/R_386_PC32, an undefined or
+doubly defined symbol and an arena past `ARENA_LIMIT`.
+
+No prebuilt arena code is checked in. `arena_026g.lock.json` records the
+linked arena's SHA-256, its blocks and its symbols; every build (the
+self-test's, the release's: `release/build-zip` builds in the dev shell)
+links from source and stops if the bytes are not the lock's. After changing
+an arena source: `python link_026g.py --write` and commit the lock with it.
+
+**Adding a block:** one `ARENA` row and its source file; `global` the labels
+a hook jumps to, `extern` what it uses of other patches; its hooks as
+(site, bytes, symbol, opcode) rows made in `build()`; each declared in
+`INSTALLS` (below); `python link_026g.py --write`. Research (patch 53: its
+asm, its C, and its state `rn_state`), the artefacts (patch 54) and the
+engine library are the arena's blocks today; the dynamic anomalies (#225)
+add theirs the same way. The older fixed sections stay as they are
+(client_patch.md 0.3 says what moving one would take).
 
 **Call shapes.** Every function a patch installs — a vtable slot, a delegate,
 a callback, a hook the game enters — declares in `patch_026g.py` the game's
@@ -182,27 +198,28 @@ game's function takes it (`docs/notes/client_patch.md` 0.5).
 
 - **From C:** `#include "engine_026g.h"` and call it:
   `const struct engine_cfg *mode = engine_cfg_child(root, "mode");`. The
-  header gives each function its address; no inline asm. (Research's C does
+  link gives each call its address; no inline asm. (Research's C does
   this for the eleven game functions it calls; GetCurrentThreadId, a
   Windows import, it calls through its import slot as before.)
-- **From NASM:** `%include "engine_026g.inc"`, push the arguments right to
+- **From NASM** (a block of the arena): `%include "engine_026g.inc"` (an
+  `extern` each), push the arguments right to
   left, `call engine_...`, `add esp, 4 x their count`. EBX, ESI, EDI and EBP
   are kept; EAX, ECX and EDX are not. The result is in EAX (a byte result
   widened), EDX:EAX for 64 bits, ST0 for a float.
-- **A function the library lacks:** add a row to `engine_026g.tsv` (at the
-  end: a row's place is its entry's address, and its line to
-  `patch_026g.py`'s `ENGINE_PINNED`) with its C name, VA, where each
+- **A function the library lacks:** add a row to `engine_026g.tsv` with
+  its C name, VA, where each
   parameter goes with a word of the re-kit's role there (`EAX:table
   EDI:key`, `ESI:allocator EAX:size ESP+4:description`; `-` for none) and
   its C prototype. Its re-kit rows (`tools/re-kit/v026g/abi_inputs.tsv`, `abi.tsv`)
   must have every argument and the cleanup (`ret_cleanup`) and, if it
   returns something, the result; append the rows that are missing (from the
   function's body and its callers; the re-kit's README). Then
-  `python engine_026g.py --write` and the self-test. The generator refuses a
+  `python engine_026g.py --write`, `python link_026g.py --write` and the
+  self-test. The generator refuses a
   row whose locations are not the re-kit's, a parameter whose word is not in
   its location's role (two parameters swapped: the words do not fit), a
   stack slot missing, a cleanup that is no number or larger than the slots, a
-  result the rows do not give, rows out of `ENGINE_PINNED`'s order, and what
+  result the rows do not give, and what
   it cannot pass (an XMM argument, varargs).
 - **The check** (`check_engine_026g.py`, in the self-test): for every
   function, what the exe's `ret`s pop is abi.tsv's cleanup; the thunk, called
@@ -2958,11 +2975,11 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   `st_start_match_welcome_message_5`.
 - **The section** `.srpx` (0xA42D000, after `.srpw`'s three pages) is the arena of the later
   patches (the twelfth and last section table entry; "The arena" above, client_patch.md 0.3).
-  Research has its first two blocks: `research.code` at 0xA42D000 (the 256 bytes of
-  `research_026g.asm`, three `jmp near`: register, hud, welcome; the C code and its constants
-  linked for where they run; int3 to +3000h) and `research.state` at 0xA430000 (the cook, the
-  hud's cache; zeroed). The next block, `artefacts.code` at 0xA431000, is patch 54's; #225's
-  dynamic anomalies go after it, at 0xA432000.
+  Research has its first two blocks: `research.code` (the 256 bytes of `research_026g.asm`,
+  three `jmp near`, the global symbols research_register, research_hud and research_welcome;
+  then the C code and its constants) and `research.state` (`rn_state`: the cook, the hud's
+  cache; zeroed), linked from source (0xA42D000 and 0xA430000 today). The next blocks are patch
+  54's and the engine library's; #225's dynamic anomalies add theirs.
 - **The register hook**: `mov eax,ebx / call 0x1EC170` at 0x1E9B4C of the game's constructor (after
   its own client rule cooks) becomes a `call` of the register stub, which registers the cook once
   and does the two instructions.
@@ -3022,10 +3039,10 @@ does what no config of 0.26g could.
   its effect 0x313350, the time, state 4), and returns: a press of one cooling or active still
   fires the ready ones. A key-up goes on in action. Different kinds keep their keys.
 
-The code is `artefacts_026g.asm` in the arena (`.srpx`, "The arena" above): its third block,
-`artefacts.code`, a code page at 0xA431000 after Research's two (`ARENA`, pinned in
-`ARENA_PINNED`; `ARTEFACTS_VA`): six `jmp near` entries, 784 bytes in all, int3 to the page's
-end. No base relocation is under a site and nothing aims inside one. Only in the builds with the
+The code is `artefacts_026g.asm` in the arena (`.srpx`, "The arena" above): its block
+`artefacts.code`, a code page after Research's two (0xA431000 today, as linked): six `jmp near`
+entries, global symbols the hooks jump to (artefacts_loader ... artefacts_stagger), 784 bytes in
+all. No base relocation is under a site and nothing aims inside one. Only in the builds with the
 late join.
 
 **Call shapes.** The six sites are declared in `INSTALLS`: Spring's active link 0x311BC0, its

@@ -392,10 +392,10 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     ThunkInfo "focus", no relocation under them, nothing aims inside, the
     lobby's key handler invoking root.has_active_window; cert-only keeps
     the original. check_stage_focus_026g.py runs it.
-53. the same build: Research, mode 5 (patch 53, research_026g.section.bin
-    at the start of `.srpx`, the twelfth and last section, the later
-    patches' code, on the page after `.srpw`; its state at +3000h): the .bin is its .json's, the
-    three sites (the game's constructor, update_ui's two) are the
+53. the same build: Research, mode 5 (patch 53, the arena's blocks
+    research.code and research.state in `.srpx`, the twelfth and last
+    section, the later patches' code, on the page after `.srpw`, linked from
+    their sources by link_026g.py): the arena is its lock's, the three sites (the game's constructor, update_ui's two) are the
     original's instructions before and the hooks after, no relocation
     under one and no branch into one, the entries are jumps, the stubs
     leave only where they should, the C code calls the game's functions
@@ -404,17 +404,17 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     pops: the call shapes' INSTALLED_VTABLES check, for every patch).
     check_research_026g.py runs the hooks, the cook and the rule.
 54. the same build: the artefacts (patch 54, artefacts_026g.asm, the
-    arena's block artefacts.code at `.srpx`+4000h): the original's six sites (Spring's loader and
+    arena's block artefacts.code): the original's six sites (Spring's loader and
     its keys, the active's link and unlink, Lifebone's enable_active after
     its remove_affects, artefact_base::action's entry, the player's
     stagger) and the two sizes of a Spring, the hooks and sizes in the
     build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
-The engine-function library (engine_026g.py, the arena's block engine.code
-at `.srpx`+6000h; client_patch.md section 0.5): its files are what
-engine_026g.tsv and the re-kit's ABI rows give, and engine_026g.py refuses a
-spec row whose parameters are not where the re-kit's roles say (each names
-a word of its location's role: two parameters swapped are refused), rows out
-of ENGINE_PINNED's order and a cleanup that is no number. check_engine_026g.py
+The engine-function library (engine_026g.py, the arena's block engine.code;
+client_patch.md section 0.5): its files are what engine_026g.tsv and the
+re-kit's ABI rows give, and engine_026g.py refuses a spec row whose
+parameters are not where the re-kit's roles say (each names a word of its
+location's role: two parameters swapped are refused) and a cleanup that is
+no number. check_engine_026g.py
 (run here, test_engine) proves every thunk against the rows and the original
 exe: each argument in its register or slot at the real function's entry, the
 exe's `ret` against abi.tsv's cleanup (a wrong cleanup fails), the stack
@@ -719,21 +719,20 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.upgrade_preview_bin(), "rb").read(),
           f"{os.path.basename(P.upgrade_preview_bin())} is current ({len(fresh)} bytes)")
-    artefacts = P.ARTEFACTS_VA
-    with tempfile.TemporaryDirectory() as tmp:
-        out = os.path.join(tmp, "out.bin")
-        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={artefacts:#x}",
-                        os.path.join(HERE, "artefacts_026g.asm"), "-o", out], check=True, timeout=60)
-        fresh = open(out, "rb").read()
-    check(fresh == open(P.artefacts_bin(), "rb").read(),
-          f"{os.path.basename(P.artefacts_bin())} is current ({len(fresh)} bytes)")
     import engine_026g
     try:
-        stale = engine_026g.stale(tool("nasm"))
+        stale = engine_026g.stale()
     except engine_026g.Refused as error:
         stale = [f"refused: {error}"]
-    check(not stale, "engine_026g.h, .inc, .asm and .section.bin are what engine_026g.tsv and the re-kit's ABI rows "
-          "give (engine_026g.py --write)" + (": not " + ", ".join(stale) if stale else ""))
+    check(not stale, "engine_026g.h, .inc and .asm are what engine_026g.tsv and the re-kit's ABI rows give "
+          "(engine_026g.py --write)" + (": not " + ", ".join(stale) if stale else ""))
+    # The arena (Research, the artefacts, the engine library) is linked from
+    # its sources here, as by every build, and is the lock's.
+    linked = P.arena()
+    check(P.linker.lock_differs(linked, P.linker.read_lock()) is None,
+          f"the arena linked from its sources is {P.linker.LOCK.name}'s ({linked.size:#x} bytes, SHA-256 "
+          f"{linked.sha256[:16]}..., blocks {', '.join(f'{b.name} {b.va:#x}' for b in linked.blocks.values())}; "
+          "link_026g.py --write)")
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.WEAPON_DRAW_VA:#x}", f"-DSTATE={state:#x}",
@@ -2023,46 +2022,48 @@ def test_upgrade_preview(original, image, before):
 
 
 def test_research(original, image, before):
-    """Check 53: Research, mode 5 (patch 53, RESEARCH_HOOKS; research_026g.py,
+    """Check 53: Research, mode 5 (patch 53, RESEARCH_HOOKS; link_026g.py links it,
     check_research_026g.py runs the hooks, the cook and the rule on made-up
-    games). Here: the .bin is its .json's; each site is the original's
-    instructions before and the hook after, with no relocation under it and
-    no branch into it; the entries are jumps; the code's calls outside it are
-    the game's functions research_native_026g.c names. Each slot of ours
+    games). Here: each site is the original's instructions before and the
+    hook to its symbol after, with no relocation under it and no branch into
+    it; the entries are jumps; the code's calls outside it are the game's
+    functions research_native_026g.c names. Each slot of ours
     popping what tdm's in the same place pops is test_call_shapes'
     (INSTALLED_VTABLES)."""
     source = Image(original)
     plain = lambda text: text.replace("[dword 0x", "[0x").replace("dword [", "[")
-    code = open(P.research_bin(), "rb").read()
-    kept = json.load(open(os.path.join(HERE, "research_026g.section.json")))
-    check(kept["size"] == len(code) and kept["sha256"] == hashlib.sha256(code).hexdigest()
-          and int(kept["va"], 16) == P.RESEARCH_VA,
-          f"research_026g.section.bin is its .json's ({len(code)} bytes for {P.RESEARCH_VA:#x}; "
-          "research_026g.py --check-bin builds it again where a C compiler is)")
+    linked = P.arena()
+    code = P.linker.block_bytes(linked, "research.code")
+    research_va = linked.blocks["research.code"].va
+    check(image.read(research_va, len(code)) == code and linked.blocks["research.state"].kind == "state"
+          and not any(image.read(linked.blocks["research.state"].va, linked.blocks["research.state"].size)),
+          f"the arena's block research.code at {research_va:#x} ({len(code)} bytes) is the link's, research.state "
+          f"at {linked.blocks['research.state'].va:#x} zeros")
     originals = {0x1E9B4C: ["mov eax,ebx", "call 0x1ec170"], 0x23B3DE: ["cmp dword [edi+0x20],0x4", "jnz 0x23b3fc"],
                  0x23B351: ["cmp eax,0x4", "jnz 0x23b36a"]}
     loose = lambda text: text.replace("byte +", "")     # ndisasm 2.16 writes `byte +0x4`, 3.x `0x4`
-    for va, old, offset, opcode in P.RESEARCH_HOOKS:
+    for va, old, symbol, opcode in P.RESEARCH_HOOKS:
         rows = ndisasm(source.read(va, len(old)), va)
         hooked = ndisasm(image.read(va, len(old)), va)
         word = "call" if opcode == 0xE8 else "jmp"
         check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
               and [loose(text) for _, _, text in rows] == originals[va]
-              and hooked[0][2].startswith(word) and branch_target(hooked[0][2]) == P.RESEARCH_VA + offset
+              and hooked[0][2].startswith(word) and branch_target(hooked[0][2]) == linked.symbols[symbol]
+              and research_va <= linked.symbols[symbol] < research_va + 15
               and all(text == "nop" for _, _, text in hooked[1:]),
-              f"{va:#x}: `{'; '.join(originals[va])}` becomes {hooked[0][2]} + {len(hooked) - 1} nop; "
+              f"{va:#x}: `{'; '.join(originals[va])}` becomes {hooked[0][2]} ({symbol}) + {len(hooked) - 1} nop; "
               "the build without the late join keeps it")
         hits = [hit for hit in aimed_inside(original, va, len(old), 0x82)
                 if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
         relocated = [r for kind, r in source.relocations().values() if kind == 3 and r + 4 > va and r < va + len(old)]
         check(not hits and not relocated, f"{va:#x}: no branch aims inside the site, no base relocation under it")
-    entries = ndisasm(image.read(P.RESEARCH_VA, 15), P.RESEARCH_VA)
+    entries = ndisasm(image.read(research_va, 15), research_va)
     check([text.split()[0] for _, _, text in entries] == ["jmp"] * 3,
           "the section starts with its three entries, `jmp near` each: register, hud, welcome")
     stubs = code[:code.index(b"st_start_match_welcome_message_5")]
-    texts = [plain(t) for _, _, t in ndisasm(stubs, P.RESEARCH_VA)]
+    texts = [plain(t) for _, _, t in ndisasm(stubs, research_va)]
     targets = {int(t.split()[-1], 16) for t in texts if t.startswith(("call ", "j")) and t.split()[-1].startswith("0x")}
-    outside = {c for c in targets if not P.RESEARCH_VA <= c < P.RESEARCH_VA + len(code)}
+    outside = {c for c in targets if not research_va <= c < research_va + len(code)}
     check(outside == {0x1EC170, 0x23B35B, 0x23B36A} and "mov [esp],0x23b3fc" in texts
           and "mov ecx,0xa03aac" in texts,
           "the stubs leave to the constructor's replaced call, update_ui's message (TDM's key or mode 5's) and its "
@@ -2072,8 +2073,8 @@ def test_research(original, image, before):
     # library (check_engine_026g.py proves each thunk): a call or a pointer
     # to each one's entry, and none of their VAs in the code.
     import engine_026g
-    entries = {f["symbol"]: (engine_026g.entry_va(i), f["va"]) for i, f in enumerate(engine_026g.functions())}
-    c_listing = [plain(t) for _, _, t in ndisasm(code[P.RESEARCH_ASM_SIZE:], P.RESEARCH_VA + P.RESEARCH_ASM_SIZE)]
+    entries = {f["symbol"]: (linked.symbols[f["symbol"]], f["va"]) for f in engine_026g.functions()}
+    c_listing = [plain(t) for _, _, t in ndisasm(code[P.RESEARCH_ASM_SIZE:], research_va + P.RESEARCH_ASM_SIZE)]
     for symbol in ("engine_register_cook", "engine_malloc", "engine_match_rule_base", "engine_cfg_child",
                    "engine_cfg_has", "engine_write_u8", "engine_write_u16", "engine_write_u32",
                    "engine_statistics_notify", "engine_movie_invoke", "engine_show_message"):
@@ -2097,15 +2098,15 @@ def test_research(original, image, before):
         bases = [read32(img, array + 4 * i) for i in range(count)]
         return (signature, offset, read32(img, td), type_name(img, td), attributes,
                 [(type_name(img, read32(img, b)),) + struct.unpack("<6I", img.read(b + 4, 24)) for b in bases])
-    cook_locator = read32(image, int(kept["symbols"]["rn_cook_vtable"], 16))
+    cook_locator = read32(image, linked.symbols["rn_cook_vtable"])
     ours = hierarchy(image, cook_locator)
     core = hierarchy(source, 0xA524C0)                    # tdm_rule_core_cook's locator (vtable 0xA12C14)
     check(ours[:2] == (0, 0) and ours[2] == read32(source, 0xACCC38) and ours[3] == ".?AVresearch_rule_cook@srp@@"
           and ours[4] == core[4] and ours[5][1:] == core[5][1:] and ours[5][0][1:6] == core[5][0][1:6]
-          and ours[5][0][0] == ours[3] and P.RESEARCH_VA <= cook_locator < P.RESEARCH_VA + len(code),
+          and ours[5][0][0] == ours[3] and research_va <= cook_locator < research_va + len(code),
           f"the cook's RTTI locator ({cook_locator:#x}) is its own: {ours[3]}, a translate_query_cook as "
           f"tdm_rule_core_cook is ({[b[0] for b in ours[5]]})")
-    check(read32(image, int(kept["symbols"]["rn_rule_vtable"], 16)) == 0xA4C970
+    check(read32(image, linked.symbols["rn_rule_vtable"]) == 0xA4C970
           and hierarchy(source, 0xA4C970)[3] == ".?AVgame_match_rule_base@survarium@@",
           "the rule's vtable has game_match_rule_base's locator (0xA4C970)")
 
@@ -3979,15 +3980,17 @@ def test_artefacts(original, image, before):
           and stock.read(0x25EA83, 6) == bytes.fromhex("8983b4030000"),
           "the size of artefact<artefact_spring_core> (0x25E770, type 6), whose constructor 0x25EA10 fills "
           "+398h..+3B7h; the bare core's (0x2EEA30) is 398h")
-    artefacts_va = P.ARTEFACTS_VA
-    check(artefacts_va == P.ARENA_LAYOUT["artefacts.code"] == P.ARENA_PINNED["artefacts.code"] == 0xA431000
-          and P.ARENA_BLOCKS["artefacts.code"].kind == "code",
-          "the artefacts' code is the arena's block artefacts.code, a code page at 0xA431000 (.srpx+4000h)")
-    for va, old, offset, opcode in P.ARTEFACTS_HOOKS:
-        hook = P.hook_bytes(artefacts_va, va, old, offset, opcode)
-        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook,
+    linked = P.arena()
+    artefacts_va = linked.blocks["artefacts.code"].va
+    check(linked.blocks["artefacts.code"].kind == "code" and artefacts_va % 0x1000 == 0,
+          f"the artefacts' code is the arena's block artefacts.code, a code page at {artefacts_va:#x}")
+    for va, old, symbol, opcode in P.ARTEFACTS_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and artefacts_va <= target < artefacts_va + 30,
               f"{va:#x}: {old.hex()} in the original and the build without the late join, "
-              f"`jmp {artefacts_va + offset:#x}` here")
+              f"`jmp {target:#x}` ({symbol}, an entry of the block) here")
     under = [v for kind, v in stock.relocations().values() if kind == 3
              and any(va - 4 < v < va + len(old) for va, old, _, _ in P.ARTEFACTS_HOOKS + tuple(
                  (s, o, 0, 0) for s, o, _ in P.ARTEFACTS_SIZES))]
@@ -3995,16 +3998,16 @@ def test_artefacts(original, image, before):
             if not va <= h < va + len(old) and starts_instruction(stock, h)]
     check(not under and not hits, "no base relocation under the sites, and no branch aims inside a hook"
           + "".join(f", {h:#x}" for h in hits + under))
-    code = open(P.artefacts_bin(), "rb").read()
+    code = P.linker.block_bytes(linked, "artefacts.code")
     check(image.read(artefacts_va, len(code)) == code,
-          f"the code at {artefacts_va:#x} is artefacts_026g.section.bin ({len(code)} bytes)")
+          f"the code at {artefacts_va:#x} is the link's artefacts.code ({len(code)} bytes)")
     listing = ndisasm(code, artefacts_va)
     names = code.index(b"aim_time_mod\0")
     listing = [row for row in listing if row[0] < artefacts_va + names]
     texts = [text for _, _, text in listing]
     outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
                       and not artefacts_va <= branch_target(t) < artefacts_va + len(code)})
-    check(P.artefacts_backs(code, artefacts_va) == list(P.ARTEFACTS_BACKS)
+    check(P.artefacts_backs(linked) == list(P.ARTEFACTS_BACKS)
           and outside == sorted(set(P.ARTEFACTS_BACKS) | {0xF6B10, 0x2D5D00, 0x2D5AE0, 0x2E58B0, 0x32A420,
                                                           0x313350}),
           "its six entries go on where they came from (" + ", ".join(hex(a) for a in P.ARTEFACTS_BACKS)
@@ -4898,8 +4901,10 @@ def _call_shapes_body(original, data):
               f"{site:#x} {kind} ({what}): ours ({target:#x}) pops {ours if ours is not None else sorted(found)}, "
               f"as it must: {want} ({whence})" + (f"; not followed: {lost[:2]}" if lost else ""))
     callbacks = []
+    linked = P.arena()
     for what, name, before_bytes, model, _why, driven in P.CALLBACKS:
-        code = open(os.path.join(HERE, f"{name}_026g.section.bin"), "rb").read()
+        code = P.linker.block_bytes(linked, name) if name in linked.blocks \
+            else open(os.path.join(HERE, f"{name}_026g.section.bin"), "rb").read()
         at = code.find(before_bytes)
         got = -1 if at < 0 or code.find(before_bytes, at + 1) >= 0 \
             else struct.unpack_from("<I", code, at + len(before_bytes))[0]
@@ -4913,15 +4918,15 @@ def _call_shapes_body(original, data):
     # 3. Every vtable our code builds (a rule's, a cook's): each slot of ours
     # pops what the game's vtable pops in the same place (check 53, for
     # every patch).
-    check_vtables(original, image, P.INSTALLED_VTABLES, arena_symbols())
+    check_vtables(original, image, P.INSTALLED_VTABLES, P.arena_symbols(linked))
 
 
-def arena_symbols():
-    """{.section.json: {symbol: VA}} of the arena's C code (ARENA_SYMBOLS)."""
-    out = {}
-    for name in sorted(set(P.ARENA_SYMBOLS.values())):
-        out[name] = {k: int(v, 16) for k, v in json.load(open(os.path.join(HERE, name)))["symbols"].items()}
-    return out
+def made_up(folder, name, text):
+    """A made-up block's NASM source in `folder`: its path."""
+    path = os.path.join(folder, name)
+    with open(path, "w") as out:
+        out.write("bits 32\n" + text)
+    return path
 
 
 def check_vtables(original, image, vtables, symbols):
@@ -5009,31 +5014,34 @@ def test_call_shapes_negative(original):
     `ret 8`)."""
     print("  call shapes: the check rejects a wrong ret and an undeclared install")
     image = Image(original)
-    # A made-up rule vtable in made-up `.srpx` blocks (after the arena's own):
-    # tdm_rule_core's twenty slots (vtable 0xA15DA4), but slot 16, the
-    # deserialize, ours and `ret 4` where tdm's pops 8: Research's first
-    # rn_deserialize.
+    # A made-up rule vtable in made-up `.srpx` blocks (after the arena's own,
+    # linked from NASM sources): tdm_rule_core's twenty slots (vtable
+    # 0xA15DA4), but slot 16, the deserialize, ours and `ret 4` where tdm's
+    # pops 8: Research's first rn_deserialize. (Named `_slots`, not
+    # `_vtable`: build() would refuse an undeclared vtable before the check.)
     read32 = lambda va: struct.unpack_from("<I", original, image.offset(va))[0]
     model = read32(0xA15DA4 + 4 * 16)
     want = popped(image, model, model + 0x400)
     code = open(P.default_bin("section"), "rb").read()
     late_join = open(P.late_join_bin(), "rb").read()
-    blocks = (P.ArenaBlock("fake.code", "code", 0x1000, 0x1000),
-              P.ArenaBlock("fake.table", "data", 0x1000, 0x1000))
-    layout, _ = P.arena_layout(P.ARENA + blocks)
-    fn_va, table_va = layout["fake.code"], layout["fake.table"]
-    slots = [read32(0xA15DA4 + 4 * i) for i in range(20)]
-    slots[16] = fn_va
+    slots = [f"{read32(0xA15DA4 + 4 * i):#x}" for i in range(20)]
+    slots[16] = "fake_deserialize"
     for wrong, name in ((bytes.fromhex("c20400"), "pops 4"), (bytes.fromhex("c20800"), "pops 8")):
-        table = struct.pack("<I", 0) + struct.pack("<20I", *slots)
-        data, _ = P.build(original, "section", code, None, late_join,
-                          arena=(blocks, {"fake.code": wrong, "fake.table": table}))
-        symbols = {"fake.json": {"fake_rule_vtable": table_va, "fake_deserialize": fn_va}}
+        with tempfile.TemporaryDirectory(prefix="srp-fake-") as folder:
+            blocks = (P.ArenaBlock("fake.code", "code", 0x1000, (made_up(folder, "fake_code.asm", (
+                          "section .text\nglobal fake_deserialize\nfake_deserialize:\n    db "
+                          + ", ".join(f"{b:#x}" for b in wrong) + "\n")),)),
+                      P.ArenaBlock("fake.table", "data", 0x1000, (made_up(folder, "fake_table.asm", (
+                          "section .data\nglobal fake_rule_slots\nextern fake_deserialize\nfake_rule_slots:\n"
+                          "    dd 0, " + ", ".join(slots) + "\n")),)))
+            data, _ = P.build(original, "section", code, None, late_join, arena_blocks=P.ARENA + blocks)
+            symbols = P.arena_symbols(P.arena(P.ARENA + blocks))
+        table_va = symbols["fake.table"]["fake_rule_slots"]
         captured = []
         saved = globals()["check"]
         globals()["check"] = lambda ok, text: captured.append((ok, text))
         try:
-            check_vtables(original, Image(data), (("a made-up rule", "fake.json", "fake_rule_vtable",
+            check_vtables(original, Image(data), (("a made-up rule", "fake.table", "fake_rule_slots",
                                                      0xA15DA4, 20, 1,
                                                      {16: (P.RESEARCH_CHECK,
                                                            "the game's deserialize loop (0x2D2B42)")}),),
@@ -5049,7 +5057,7 @@ def test_call_shapes_negative(original):
             check(not failed, "... the same slot popping 8 passes")
     # A vtable symbol of the arena's code with no declaration stops the build.
     try:
-        P.audit_vtables(vtables=(), symbols={"fake.json": {"fake_rule_vtable": table_va}})
+        P.audit_vtables(vtables=(), symbols={"fake.table": {"fake_rule_vtable": table_va}})
         refused = False
     except SystemExit:
         refused = True
@@ -5061,7 +5069,7 @@ def test_call_shapes_negative(original):
         saved = globals()["check"]
         globals()["check"] = lambda ok, text: captured.append((ok, text))
         try:
-            check_vtables(original, Image(data), (("a made-up rule", "fake.json", "fake_rule_vtable",
+            check_vtables(original, Image(data), (("a made-up rule", "fake.table", "fake_rule_slots",
                                                      0xA15DA4, 20, 1, driven),), symbols)
         finally:
             globals()["check"] = saved
@@ -5103,40 +5111,59 @@ def test_call_shapes_negative(original):
           "a `push imm32` of our code's address inside a write (at +3) is found and, undeclared, rejected")
 
 
+def link_refusal(blocks, tools=None, lock=None):
+    """The text the arena of `blocks` (ARENA's when None, compared with
+    `lock` when given) is refused with; None when it links."""
+    saved = P.linker.read_lock
+    if lock is not None:
+        P.linker.read_lock = lambda: lock
+    try:
+        P.arena(blocks, P.linker.toolchain(**tools) if tools else None)
+    except (SystemExit, P.linker.LinkError) as stop:
+        return str(stop)
+    finally:
+        P.linker.read_lock = saved
+    return None
+
+
 def test_arena(original):
-    """`.srpx`, the arena of the later patches (client_patch.md section 0.3).
-    Deterministic, no overlaps, every block inside the section, the headers
-    and the PE checksum right; blocks appended after ARENA's own move none of
-    them; Research's blocks at the VAs it was built for; and with no block at
-    all there is no `.srpx`."""
+    """`.srpx`, the arena of the later patches (client_patch.md section 0.3),
+    linked from its blocks' sources (link_026g.py). Deterministic, in
+    ARENA's order, aligned, none overlapping, every block inside the
+    section, code gaps int3, state zeros, a symbol of one block used by
+    another, the headers and the PE checksum right; ARENA's blocks in another
+    order link and work (the hooks and the library's calls follow the
+    symbols, the library's check passes there); with no block there is no
+    `.srpx`. Refused: a symbol no source defines, a relocation the arena
+    does not link, a section no block takes, a block past ARENA_LIMIT, a
+    missing tool, NASM 3, a hook symbol the link lacks, and an arena that is
+    not the lock's."""
     print("  the arena (.srpx)")
     code = open(P.default_bin("section"), "rb").read()
     late_join = open(P.late_join_bin(), "rb").read()
     without, _ = P.build(original, "section", code, None, late_join)
-    # No block added: the exe is the build's; no block at all: no `.srpx`.
-    none, _ = P.build(original, "section", code, None, late_join, arena=((), {}))
-    bare = bytes(P.add_arena(bytearray(b"MZ"), (), {}))
-    check(none == without and bare == b"MZ",
-          "no block added: the exe is byte for byte the build's; with no block at all add_arena adds no section")
-    check(P.ARENA_LAYOUT == {"research.code": 0xA42D000, "research.state": 0xA430000,
-                             "artefacts.code": 0xA431000, "anomalies.code": 0xA432000, "engine.code": 0xA433000}
-          and [b.name for b in P.ARENA[:5]] == ["research.code", "research.state", "artefacts.code",
-                                                "anomalies.code", "engine.code"],
-          "ARENA's first blocks are Research's, at 0xA42D000 (code) and 0xA430000 (state), the VAs "
-          "research_026g.py links it for, then the artefacts' code (patch 54) at 0xA431000, #225's page "
-          "kept at 0xA432000 and the engine-function library at 0xA433000")
-    # Blocks of each kind, out of alignment order, built twice: the same bytes.
-    blocks = (P.ArenaBlock("a.code", "code", 0x2800, 0x1000),
-              P.ArenaBlock("a.state", "state", 0x1000, 0x1000),
-              P.ArenaBlock("b.data", "data", 0x40, 0x10),
-              P.ArenaBlock("b.code", "code", 0x80, 0x40))
-    layout, size = P.arena_layout(P.ARENA + blocks)
-    check(all(layout[b.name] == va for b, va in zip(P.ARENA, P.ARENA_LAYOUT.values())),
-          "blocks appended after ARENA's own leave every one of them where it was")
-    contents = {"a.code": b"\x90" * 0x10 + b"\xc3", "b.data": b"hello\0", "b.code": b"\xc3"}
-    one, _ = P.build(original, "section", code, None, late_join, arena=(blocks, contents))
-    two, _ = P.build(original, "section", code, None, late_join, arena=(blocks, dict(contents)))
-    check(one == two, "the arena is byte for byte deterministic (built twice, the same exe)")
+    none, _ = P.build(original, "section", code, None, late_join, arena_blocks=())
+    check([s[0] for s in Image(none).headers.sections(none)] == [s[0] for s in Image(without).headers.sections(without)][:-1]
+          and Image(without).headers.sections(without)[-1][0] == P.ARENA_NAME
+          and bytes(P.add_arena(bytearray(b"MZ"), None)) == b"MZ",
+          "with no block at all there is no `.srpx` (add_arena adds no section)")
+    with tempfile.TemporaryDirectory(prefix="srp-arena-") as folder:
+        # Blocks of each kind, out of alignment order, after ARENA's own: a
+        # code block whose source has state too, a data block pointing at
+        # it, a code block calling it.
+        a = made_up(folder, "a_part.asm", "section .text\nglobal a_entry\na_entry:\n    times 16 nop\n    ret\n"
+                    "section .bss\nglobal a_state\na_state:\n    resb 0x40\n")
+        b = made_up(folder, "b_part.asm", "extern a_entry, a_state\nsection .data\nglobal b_data\nb_data:\n"
+                    "    db \"hello\", 0\n    dd a_entry, a_state\nsection .text\nglobal b_entry\nb_entry:\n"
+                    "    call a_entry\n    ret\n")
+        blocks = (P.ArenaBlock("a.code", "code", 0x1000, (a,)), P.ArenaBlock("a.state", "state", 0x1000, (a,)),
+                  P.ArenaBlock("b.data", "data", 0x10, (b,)), P.ArenaBlock("b.code", "code", 0x40, (b,)))
+        one, _ = P.build(original, "section", code, None, late_join, arena_blocks=P.ARENA + blocks)
+        P.linker._links.clear()
+        P.linker._objects.clear()
+        two, _ = P.build(original, "section", code, None, late_join, arena_blocks=P.ARENA + blocks)
+        linked = P.arena(P.ARENA + blocks)
+    check(one == two, "the arena is byte for byte deterministic (linked twice from its sources, the same exe)")
     image = Image(one)
     sections = image.headers.sections(one)
     name, rva, vsize, raw, rsize, flags = sections[-1]
@@ -5145,25 +5172,34 @@ def test_arena(original):
     check(name == P.ARENA_NAME and flags == P.ARENA_CHARACTERISTICS
           and P.IMAGE_BASE + rva == P.ARENA_VA and rva == align(prev[1] + prev[2], image.headers.section_alignment),
           f".srpx at {P.ARENA_VA:#x}: code | data | execute | read | write, on the page after .srpw")
-    # Every block inside, aligned, in order, none overlapping the next.
-    placed = sorted(((layout[b.name], layout[b.name] + b.size, b) for b in P.ARENA + blocks))
-    inside = all(rva <= va - P.IMAGE_BASE and end - P.IMAGE_BASE <= rva + vsize for va, end, _ in placed)
-    aligned = all(layout[b.name] % b.align == 0 for b in P.ARENA + blocks)
-    overlaps = [b.name for (lo, hi, b), (lo2, _, _) in zip(placed, placed[1:]) if hi > lo2]
-    check(inside and aligned and not overlaps and vsize == size,
-          f"the {len(P.ARENA + blocks)} blocks are aligned, inside .srpx and do not overlap; VirtualSize "
-          f"{vsize:#x} = the arena's size ({', '.join(f'{b.name} @ {layout[b.name]:#x}' for b in P.ARENA + blocks)})")
-    # The code and data bytes are where the layout puts them; the gaps int3.
-    body = bytes(one[raw:raw + rsize])
+    # Every block inside, aligned, in ARENA's order, none overlapping the next.
+    order = [linked.blocks[b.name] for b in P.ARENA + blocks]
+    inside = all(rva <= b.va - P.IMAGE_BASE and b.va + b.size - P.IMAGE_BASE <= rva + vsize for b in order)
+    aligned = all(linked.blocks[b.name].va % b.align == 0 for b in P.ARENA + blocks)
+    in_order = all(x.va + x.size <= y.va for x, y in zip(order, order[1:]))
+    check(inside and aligned and in_order and order[0].va == P.ARENA_VA and vsize == linked.size
+          and linked.size == order[-1].va + order[-1].size - P.ARENA_VA,
+          f"the {len(order)} blocks are aligned, in ARENA's order, inside .srpx and do not overlap; VirtualSize "
+          f"{vsize:#x} = the arena's size, to its last block's end ({', '.join(f'{b.name} @ {b.va:#x}' for b in order)})")
+    # The bytes: each code block's bytes, then int3 to the next block; data
+    # and state blocks and their gaps zeros; a reference across blocks
+    # resolved by the link.
+    body = bytes(one[raw:raw + vsize])
     at = lambda va: va - P.ARENA_VA
-    ok = (body[at(layout['a.code']):at(layout['a.code']) + len(contents['a.code'])] == contents['a.code']
-          and set(body[at(layout['a.code']) + len(contents['a.code']):at(layout['a.code']) + 0x2800]) <= {0xCC}
-          and body[at(layout['b.data']):at(layout['b.data']) + len(contents['b.data'])] == contents['b.data']
-          and body[at(layout['b.code']):at(layout['b.code']) + 1] == b"\xc3"
-          and not any(body[at(layout['a.state']):at(layout['a.state']) + 0x1000])
-          and not any(body[at(P.RESEARCH_STATE_VA):at(P.RESEARCH_STATE_VA) + 0x1000]))
-    check(ok, "each code and data block holds its bytes, padded with int3 (code) or zeros (data); "
-          "each state block is zeros")
+    gaps = all(set(body[at(x.va + x.size):at(y.va)]) <= ({0xCC} if x.kind == "code" else {0})
+               for x, y in zip(order, order[1:]))
+    states = all(not any(body[at(b.va):at(b.va + b.size)]) for b in order if b.kind == "state")
+    s = linked.symbols
+    b_data = body[at(s["b_data"]):at(s["b_data"]) + 14]
+    call = body[at(s["b_entry"]):at(s["b_entry"]) + 5]
+    check(gaps and states and body == linked.image
+          and body[at(s["a_entry"]):at(s["a_entry"]) + 17] == b"\x90" * 16 + b"\xc3"
+          and b_data == b"hello\0" + struct.pack("<II", s["a_entry"], s["a_state"])
+          and call[0] == 0xE8 and s["b_entry"] + 5 + struct.unpack_from("<i", call, 1)[0] == s["a_entry"]
+          and linked.blocks["a.state"].size == 0x40 and s["a_state"] == linked.blocks["a.state"].va,
+          "each code block's bytes and int3 to the next block, data and state blocks zeros past their bytes; "
+          "a.state is a_part.asm's .bss (0x40 bytes); b.data's pointers and b.code's call reach a.code's "
+          "a_entry and a.state's a_state through the link")
     # The headers and the PE checksum, as test_pe checks them for the sections.
     get = lambda at: struct.unpack_from("<I", one, at)[0]
     checksum = P.pe_checksum(one, image.headers.checksum_at)
@@ -5174,26 +5210,83 @@ def test_arena(original):
           and security[0] == raw + rsize and security[0] + security[1] == len(one),
           "SizeOfImage ends past .srpx, its file bytes follow .srpw's, the certificate table stays last, "
           "the PE checksum is right")
-    # A block of ARENA whose size or alignment would move a later one stops
-    # the build: the VAs are pinned (ARENA_PINNED).
-    grown = (P.ArenaBlock("research.code", "code", 0x4000, 0x1000),) + P.ARENA[1:]
+    # ARENA's blocks in another order (research.code and artefacts.code
+    # swapped): every block elsewhere, and still each hook at its symbol,
+    # Research's calls at the library's thunks and the library's check passing.
+    names = [b.name for b in P.ARENA]
+    swapped = list(P.ARENA)
+    i, j = names.index("research.code"), names.index("artefacts.code")
+    swapped[i], swapped[j] = swapped[j], swapped[i]
+    data, _ = P.build(original, "section", code, None, late_join, arena_blocks=tuple(swapped))
+    moved = P.arena(tuple(swapped))
+    default = P.arena()
+    built = Image(data)
+    hooks = [(va, symbol, branch_target(ndisasm(built.read(va, 5), va)[0][2]))
+             for va, _, symbol, _ in P.RESEARCH_HOOKS + P.ARTEFACTS_HOOKS]
+    research_va = moved.blocks["research.code"].va
+    listing = [t for _, _, t in ndisasm(P.linker.block_bytes(moved, "research.code")[P.RESEARCH_ASM_SIZE:],
+                                        research_va + P.RESEARCH_ASM_SIZE)]
+    calls = {s for s in moved.symbols if s.startswith("engine_") and any(
+        t == f"call {moved.symbols[s]:#x}" or t.endswith(f",{moved.symbols[s]:#x}") for t in listing)}
+    check(moved.blocks["artefacts.code"].va == P.ARENA_VA != default.blocks["artefacts.code"].va
+          and moved.blocks["research.code"].va != default.blocks["research.code"].va
+          and all(target == moved.symbols[symbol] != default.symbols[symbol] for _, symbol, target in hooks)
+          and len(calls) >= 11 and P.artefacts_backs(moved) == list(P.ARTEFACTS_BACKS)
+          and built.read(moved.blocks["research.code"].va, 0x100) == P.linker.block_bytes(moved, "research.code")[:0x100],
+          f"ARENA with research.code and artefacts.code swapped links (artefacts.code at "
+          f"{moved.blocks['artefacts.code'].va:#x}, research.code at {research_va:#x}): the {len(hooks)} hooks "
+          f"reach their symbols there, Research's C calls {len(calls)} library functions at their new thunks, "
+          "the artefacts' entries go on where they came from")
     try:
-        P.check_arena(grown)
-        refused = False
-    except SystemExit:
-        refused = True
-    check(refused, "research.code grown to 0x4000 (research.state would move to 0xA431000) stops the build: "
-          "the arena's VAs are pinned (ARENA_PINNED)")
-    # A block whose bytes do not fit, and bytes for no block, are refused.
-    for bad, why in (((P.ArenaBlock("x.code", "code", 4, 16), ), "a block its bytes outgrow"),
-                     ((P.ArenaBlock("x.code", "code", 0x20, 16), ), "bytes for an undeclared block")):
-        payload = {"x.code": b"\xCC" * 8} if "outgrow" in why else {"y.code": b"\xc3"}
-        try:
-            P.build(original, "section", code, None, late_join, arena=(bad, payload))
-            refused = False
-        except SystemExit:
-            refused = True
-        check(refused, f".srpx refuses {why}")
+        import check_engine_026g as engine_check
+        bad = [text for ok, text in engine_check.run_checks(original, (
+            moved.blocks["engine.code"].va, P.linker.block_bytes(moved, "engine.code"),
+            {k: v for k, v in moved.symbols.items() if k.startswith("engine_")}))
+            if not ok]
+    except ImportError as error:
+        bad = [f"check_engine_026g.py needs Python unicorn ({error})"]
+    check(not bad, "... and check_engine_026g.py passes on the library there" + (": " + "; ".join(bad) if bad else ""))
+    # What the link refuses, loudly.
+    with tempfile.TemporaryDirectory(prefix="srp-arena-") as folder:
+        cases = [
+            ("a symbol no source defines", "nowhere_026g", (P.ArenaBlock("lost.code", "code", 16, (made_up(
+                folder, "lost.asm", "extern nowhere_026g\nsection .text\n    call nowhere_026g\n"),)),)),
+            ("a 16-bit address (R_386_16)", "R_386_16", (P.ArenaBlock("narrow.code", "code", 16, (made_up(
+                folder, "narrow.asm", "section .text\nnarrow:\n    dw narrow\n"),)),)),
+            ("a block past the arena's limit (ARENA_LIMIT)", "past its limit", (P.ArenaBlock(
+                "huge.state", "state", 16, (made_up(folder, "huge.asm", f"section .bss\n    resb {P.ARENA_LIMIT:#x}\n"),)),)),
+            ("a symbol defined in two sources", "multiple definition", tuple(
+                P.ArenaBlock(f"twice{n}.code", "code", 16, (made_up(folder, f"twice{n}.asm",
+                             "section .text\nglobal research_hud\nresearch_hud:\n    ret\n"),)) for n in (1, 2))),
+        ]
+        c_data = os.path.join(folder, "counter.c")
+        with open(c_data, "w") as out:
+            out.write("int counter = 1;\nint count(void) { return ++counter; }\n")
+        cases.append(("a C source's initialized data (.data) in a code block only", "no data block",
+                      (P.ArenaBlock("counter.code", "code", 16, (c_data,)),)))
+        for what, word, extra in cases:
+            text = link_refusal(P.ARENA + extra)
+            said = next((line.strip() for line in (text or "linked").splitlines() if word in line), text or "linked")
+            check(text is not None and word in text, f"the link refuses {what}: {said[:160]}")
+        text = link_refusal(None, {"cc": os.path.join(folder, "no-such-cc")})
+        check(text is not None and "no-such-cc" in text, f"a missing compiler is refused: {(text or 'linked')[:160]}")
+        if os.name == "posix":
+            fake = os.path.join(folder, "nasm")
+            with open(fake, "w") as out:
+                out.write("#!/bin/sh\necho 'NASM version 3.01 compiled on Oct 11 2025'\n")
+            os.chmod(fake, 0o755)
+            text = link_refusal(None, {"nasm": fake})
+            check(text is not None and "NASM 2.16" in text, f"NASM 3 is refused: {(text or 'linked')[:160]}")
+    try:
+        P.arena_target(default, "nowhere_026g")
+        text = None
+    except SystemExit as stop:
+        text = str(stop)
+    check(text is not None and "nowhere_026g" in text, "a hook whose symbol the link lacks stops the build")
+    lock = P.linker.read_lock()
+    text = link_refusal(None, lock=dict(lock, sha256="0" * 64))
+    check(lock is not None and text is not None and P.linker.LOCK.name in text,
+          f"an arena whose bytes are not the lock's stops the build: {(text or 'built')[:160]}")
 
 
 def test_engine(original):
@@ -5212,7 +5305,7 @@ def test_engine(original):
     bad = [text for ok, text in results if not ok]
     check(not bad, f"check_engine_026g.py: {len(results)} cases on the {len(engine_check.engine.functions())} "
           "functions of engine_026g.tsv" + (": " + "; ".join(bad) if bad else ""))
-    for what, failed in engine_check.negative(original, tool("nasm")):
+    for what, failed in engine_check.negative(original):
         check(failed, f"the library's check rejects {what}")
 
 
@@ -5351,32 +5444,17 @@ def test_late_join(original, without, server, source):
           f"weapon_decals_026g.section.bin at +{P.WEAPON_DECALS_OFFSET:#x}, int3 padding and "
           f"upgrade_preview_026g.section.bin at +{P.UPGRADE_PREVIEW_OFFSET:#x} ({len(camo)} bytes), "
           "code | execute | read, on the page after .srpc, its file bytes right after .srpc's")
-    research = open(P.research_bin(), "rb").read()
-    research = research + b"\xCC" * (P.RESEARCH_STATE_OFFSET - len(research)) + bytes(P.RESEARCH_SIZE - P.RESEARCH_STATE_OFFSET)
-    artefacts = open(P.artefacts_bin(), "rb").read()
-    artefacts_size = P.ARENA_BLOCKS["artefacts.code"].size
-    engine = open(P.engine_bin(), "rb").read()
-    arena = (research + artefacts + b"\xCC" * (artefacts_size - len(artefacts))
-             + b"\xCC" * P.ARENA_BLOCKS["anomalies.code"].size
-             + engine + b"\xCC" * (P.ARENA_BLOCKS["engine.code"].size - len(engine)))
-    arena_size = sum(P.ARENA_BLOCKS[name].size for name in P.ARENA_LAYOUT)
+    linked = P.arena()
     name_r, rva_r, vsize_r, raw_r, rsize_r, flags_r = sections[-1]
     check(name_r == P.ARENA_NAME and flags_r == P.ARENA_CHARACTERISTICS
           and rva_r == align(rva_w + vsize_w, headers.section_alignment) and P.IMAGE_BASE + rva_r == P.ARENA_VA
-          and P.RESEARCH_VA == P.ARENA_LAYOUT["research.code"] == P.ARENA_VA
-          and P.RESEARCH_STATE_VA == P.ARENA_LAYOUT["research.state"] == P.ARENA_VA + 0x3000
-          and P.ARTEFACTS_VA == P.ARENA_LAYOUT["artefacts.code"] == P.ARENA_VA + P.RESEARCH_SIZE
-          and P.ENGINE_VA == P.ARENA_LAYOUT["engine.code"] == P.ARENA_VA + 0x6000
-          and vsize_r == arena_size and raw_r == raw_w + rsize_w
+          and linked.va == P.ARENA_VA and list(linked.blocks) == [b.name for b in P.ARENA]
+          and vsize_r == linked.size and raw_r == raw_w + rsize_w
           and rsize_r == align(vsize_r, headers.file_alignment)
-          and bytes(data[raw_r:raw_r + vsize_r]) == arena,
-          f".srpx, the arena, at VA {P.IMAGE_BASE + rva_r:#x}: its blocks research.code "
-          f"(research_026g.section.bin, int3 padding), research.state (+{P.RESEARCH_STATE_OFFSET:#x}, the page "
-          f"zeroed), artefacts.code (+{P.RESEARCH_SIZE:#x}, artefacts_026g.section.bin, int3 padding), "
-          f"anomalies.code (+5000h, int3: #225's) and engine.code (+6000h, engine_026g.section.bin, int3 "
-          "padding) at the "
-          "VAs ARENA_LAYOUT gives them; code | data | execute | read | write, on the page after "
-          ".srpw, its file bytes right after .srpw's")
+          and bytes(data[raw_r:raw_r + vsize_r]) == linked.image,
+          f".srpx, the arena, at VA {P.IMAGE_BASE + rva_r:#x}: the linked arena ({linked.size:#x} bytes), its "
+          "blocks " + ", ".join(f"{b.name} ({b.kind}) at {b.va:#x}" for b in linked.blocks.values())
+          + "; code | data | execute | read | write, on the page after .srpw, its file bytes right after .srpw's")
     get = lambda blob, at: struct.unpack_from("<I", blob, at)[0]
     check(get(data, headers.size_of_image_at) == align(rva_r + vsize_r, headers.section_alignment)
           and get(data, headers.optional + 12) == get(without, headers.optional + 12) + state_size

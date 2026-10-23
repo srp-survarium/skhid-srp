@@ -16,7 +16,9 @@
 #      --site=$SKHID_SITE --localization=$SKHID_LOCALIZATION (no
 #      resources.db regions: patches come from the server's /patches), and
 #      patch_026g.py --revision=<n> --required-patches=<the list's> without
-#      a server, for the record's second hash. The required patches (patch
+#      a server, for the record's second hash (both in the dev shell: the
+#      exe's arena is linked from source with its gcc, ld and NASM 2.16,
+#      and must be client-patches/arena_026g.lock.json's). The required patches (patch
 #      49): every patch of the offered-patch list (release/patches.tsv;
 #      --test: patches-test.tsv; --patches: another), so the exe stops at
 #      its start, "Cannot open resources.db.patch_<n> ... run the Skhid
@@ -130,13 +132,15 @@ sys.exit(sys.argv[2].encode("utf-16-le") + b"\0\0" not in open(sys.argv[1], "rb"
 PY
 done
 zip=$work/Survarium-0.26g-srp-files.zip
-(cd "$work/src/srp-026g/client-patches" &&
-    python make_client_026g.py "$SKHID_GAME" "$zip" --pack-zip --revision="$revision" \
-        --required-patches="$required" --server="$server" --site="$site" --localization="$SKHID_LOCALIZATION" &&
-    original=$SKHID_GAME/binaries/x86/survarium.exe &&
-    if [[ ! -f $original ]]; then original=$SKHID_GAME/game/binaries/x86/survarium.exe; fi &&
-    python patch_026g.py "$original" "$work/without-server.exe" --revision="$revision" \
-        --required-patches="$required") >"$work/make_client.log" 2>&1 || {
+original=$SKHID_GAME/binaries/x86/survarium.exe
+if [[ ! -f $original ]]; then original=$SKHID_GAME/game/binaries/x86/survarium.exe; fi
+# In the checkout's dev shell (client_patches_python): the exe's arena
+# (`.srpx`) is linked from its sources there, with the lock's tools.
+{ client_patches_python "$work/src" make_client_026g.py "$SKHID_GAME" "$zip" --pack-zip \
+    --revision="$revision" --required-patches="$required" --server="$server" --site="$site" \
+    --localization="$SKHID_LOCALIZATION" &&
+    client_patches_python "$work/src" patch_026g.py "$original" "$work/without-server.exe" \
+        --revision="$revision" --required-patches="$required"; } >"$work/make_client.log" 2>&1 || {
     tail -n 30 "$work/make_client.log" >&2
     die "make_client_026g.py or patch_026g.py failed (log: $work/make_client.log)"
 }
