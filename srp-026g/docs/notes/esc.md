@@ -16,17 +16,23 @@ window: "we fixed that a few times already, but ... not from a single place".
   - `MENU`: the right-click menu (drawn over messages).
 - **`shown`** says whether the modal is up now. One that is not (the rooms window under the
   results, a message held back while the results are up, a window closed by a path that forgot to
-  leave) is passed over, not dropped.
+  leave) is passed over, not dropped. A box forced over the results (a refused card's "ok") is
+  shown: Esc closes it before the results.
 - **A message's Esc is what its own close does** (`MessageBase.cancelByEsc`): its Cancel or X
   (`onNo` runs: the Upgrade window's donor with more modifiers leaves its slot), an OK box's OK
   (it tells the game). The tutorial-complete box only closes (its Cancel would repeat the
-  tutorial).
+  tutorial). An invite (squad, clan, clan team) does what its hide button does: the box closes,
+  nothing is sent (no decline) and the invite stays in the list.
 - **Modals that keep Esc out stay:** a message not closable now (`closable` false: a reroll being
   paid), the reroll's choice of modifier (its X is off).
 - **Text box first:** with no right-click menu open, Esc first takes the keys from a text box
-  (the item search also empties, `item-search.md`); the next Esc closes the modal.
+  (the item search also empties, `item-search.md`, unless a message box is on top; the Upgrade
+  window is not one); the next Esc closes the modal.
 - **Nothing open** (no modal, no text box): Esc is the game's (its menu).
-- A dropdown's open list takes Esc itself (`has_active_window` says false).
+- A dropdown's open list takes Esc itself (`has_active_window` says false); a closed dropdown
+  that still holds the focus does not, so Esc closes the top modal.
+- **A match found or loading** (`set_mm_sync_state`, `set_loading_level`) closes the message up
+  with `Message.close`, not as Esc: nothing is answered.
 
 ## The modals
 

@@ -60,7 +60,14 @@ package survarium.messages
       {
          super.onMessageCancel();
       }
-      
+
+      // Esc is the box's own hide (btnHide), not its Cancel: the box closes, nothing is sent
+      // (no DECLINE) and the invite stays in the list.
+      override public function cancelByEsc() : void
+      {
+         this.hideMe(null);
+      }
+
       override protected function configUI() : void
       {
          super.configUI();
