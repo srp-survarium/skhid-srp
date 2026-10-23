@@ -2859,7 +2859,7 @@ mod tests {
         facing(&mut me, enemy.chest());
         let view = view_of(vec![me.clone(), enemy]);
         let mut memory = Memory::default();
-        let mut reflex = Reflex::armed(Arms::of_role(role));
+        let mut reflex = Reflex::armed(Arms::of_test_role(role));
         let mut rng = Rng::new(11);
         let mut out = Vec::new();
         for k in 0..ticks {
@@ -3050,7 +3050,7 @@ mod tests {
     /// ranges' middles. Returns, for each tick it fired, how far the view
     /// was over the chest, degrees; and the shots.
     fn kicked_fight(role: &str, distance: f32, aim: &AimTuning, ticks: u32) -> (Vec<f32>, u32) {
-        let (over, shots) = kicked_fight_with(Arms::of_role(role), distance, aim, ticks, 1.0);
+        let (over, shots) = kicked_fight_with(Arms::of_test_role(role), distance, aim, ticks, 1.0);
         (over.into_iter().map(|(_, o)| o).collect(), shots)
     }
 
@@ -3202,7 +3202,7 @@ mod tests {
             ..AimTuning::default()
         };
         let climb = |skill: f32| {
-            let (over, _) = kicked_fight_with(Arms::of_role("support"), 20.0, &aim, 300, skill);
+            let (over, _) = kicked_fight_with(Arms::of_test_role("support"), 20.0, &aim, 300, skill);
             let v: Vec<f32> = over
                 .iter()
                 .filter(|(h, _)| *h >= 250)
@@ -3772,7 +3772,7 @@ mod tests {
         let mut memory = Memory::default();
         // The role's guns with the test's ammo: a magazine and a little
         // more (the kits carry a life's worth, too long a duel to test).
-        let arms = Arms::of_role(role).map(|arms| {
+        let arms = Arms::of_test_role(role).map(|arms| {
             let spare = match arms.primary.0.item {
                 "uzi" => 50,
                 "mosin_nagant" => 10,

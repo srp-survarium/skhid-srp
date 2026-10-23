@@ -2669,7 +2669,7 @@ fn a_bot_spent_of_its_first_kit_picks_its_second_for_the_next_life() {
         .iter()
         .map(|(arms, _)| arms.primary.0.item)
         .collect();
-    assert_eq!(items, ["uzi", "ak_74u", "toz_34"]);
+    assert_eq!(items, ["vityaz", "ak_74u", "mp_153"]);
     // Each kit full: a life's rounds (the bags' most) times the lives.
     let life: Vec<u32> = bot.kits.iter().map(|(arms, _)| arms.primary.1).collect();
     assert_eq!(life, [200, 120, 60]);
@@ -2690,7 +2690,7 @@ fn a_bot_spent_of_its_first_kit_picks_its_second_for_the_next_life() {
     assert_eq!((bot.kit, bot.kits[0].1, bot.reflex.left()), (0, 1040, 200));
     // Its storage down to 210, and this life fires 190 of them: 20 left,
     // under a magazine. The fullest other kit for the next life (the
-    // AK-74U's 720 before the TOZ-34's 360), chosen once.
+    // AK-74U's 720 before the MP-153's 360), chosen once.
     bot.kits[0].1 = 210;
     let hands = bot.reflex.hands();
     (hands.primary.rounds, hands.primary.spare) = (10, 0);
@@ -2703,14 +2703,14 @@ fn a_bot_spent_of_its_first_kit_picks_its_second_for_the_next_life() {
     assert_eq!(bot.reflex.held_gun().item, "ak_74u");
     assert_eq!(bot.reflex.left(), 120);
     assert_eq!(bot.kits[0].1, 20);
-    // The rusher's kits: the TOZ-34, the Uzi, the AK-74U.
+    // The rusher's kits: the MP-153, the Vityaz, the AK-74U.
     let rusher = bots.bots[1].as_ref().unwrap();
     let items: Vec<&str> = rusher
         .kits
         .iter()
         .map(|(arms, _)| arms.primary.0.item)
         .collect();
-    assert_eq!(items, ["toz_34", "uzi", "ak_74u"]);
+    assert_eq!(items, ["mp_153", "vityaz", "ak_74u"]);
 }
 
 /// Three kits, the first empty: the bot picks the fullest of the others,
@@ -2739,7 +2739,7 @@ fn a_bot_with_its_first_kit_empty_picks_the_fullest() {
     assert_eq!(bot.pick_kit(), Some((2, 0, 300)));
     assert_eq!(bot.pick_kit(), None);
     bot.new_life(0.5, None, Vec3::ZERO);
-    assert_eq!((bot.kit, bot.reflex.held_gun().item), (2, "toz_34"));
+    assert_eq!((bot.kit, bot.reflex.held_gun().item), (2, "mp_153"));
     assert_eq!(bot.reflex.left(), 60);
     assert_eq!(bot.kits[0].1, 0);
 }
@@ -2760,8 +2760,8 @@ fn every_kit_low_the_bot_picks_the_fullest_once() {
         Trace::none(0),
     );
     let bot = bots.bots[0].as_mut().unwrap();
-    // The Uzi's storage 200, this life fired 180: 20 left (a magazine is
-    // 32). The AK-74U's kit 10 (of 30), the TOZ-34's 1 (of 2).
+    // The Vityaz's storage 200, this life fired 180: 20 left (under a
+    // magazine). The AK-74U's kit 10 (of 30), the MP-153's 1.
     bot.kits[0].1 = 200;
     bot.kits[1].1 = 10;
     bot.kits[2].1 = 1;
@@ -2778,8 +2778,8 @@ fn every_kit_low_the_bot_picks_the_fullest_once() {
     }
     bot.new_life(0.5, None, Vec3::ZERO);
     assert_eq!((bot.kit, bot.reflex.left()), (1, 10));
-    // In the AK-74U's kit with its 10: the Uzi's has nothing, the TOZ-34's
-    // 1. No kit with more: it stays, and never goes back to the empty one.
+    // In the AK-74U's kit with its 10: the Vityaz's has nothing, the
+    // MP-153's 1. No kit with more: it stays, and never goes back to the empty one.
     assert_eq!(bot.pick_kit(), None);
     bot.reflex.hands().primary.rounds = 0;
     bot.reflex.hands().primary.spare = 0;
@@ -2813,7 +2813,7 @@ fn a_bot_of_a_higher_tier_carries_that_tiers_kits() {
             .collect()
     };
     assert_eq!(items(0), ["ak_12", "sr3m", "vsk_94"]);
-    assert_eq!(items(1), ["sv_98", "ak_74m", "pp2000"]);
+    assert_eq!(items(1), ["sv_98", "akmn", "pp2000"]);
     // A bot of no role keeps none.
     assert!(items(2).is_empty());
     let support = bots.bots[0].as_ref().unwrap();

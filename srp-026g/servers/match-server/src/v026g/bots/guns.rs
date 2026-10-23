@@ -395,6 +395,27 @@ impl Arms {
         Self::of_kit(BotTier::Low, role, 0)
     }
 
+    /// For the tests of how a kind of weapon is fired, reloaded and switched
+    /// from: the first bots' weapons by role (the Uzi's magazine, the
+    /// AK-74U's, the TOZ-34's two barrels, the Mosin's clip of 5 loaded
+    /// round by round), with a life's rounds as their kits had them (the
+    /// most their bags take) and `loadouts::BOT_AMMO_LIVES` lives of storage.
+    #[cfg(test)]
+    pub fn of_test_role(role: &str) -> Option<&'static Arms> {
+        let (item, rounds) = match role {
+            "flanker" => ("uzi", 200),
+            "support" => ("ak_74u", 90),
+            "rusher" => ("toz_34", 60),
+            "camper" => ("mosin_nagant", 30),
+            _ => return None,
+        };
+        Some(Box::leak(Box::new(Arms {
+            primary: (gun(item)?, rounds),
+            pistol: None,
+            reserve: rounds * survarium::v026g::loadouts::BOT_AMMO_LIVES,
+        })))
+    }
+
     /// For a bot whose personality is no role (a tuning's own): the
     /// support's, the middle of the four.
     pub fn fallback() -> &'static Arms {
@@ -536,7 +557,7 @@ mod tests {
     /// A role's arms with the TT-33 and a clip of its ammo as weapon 2:
     /// the switch is kept for kits that have one.
     fn with_pistol(role: &str) -> &'static Arms {
-        let arms = Arms::of_role(role).unwrap();
+        let arms = Arms::of_test_role(role).unwrap();
         Box::leak(Box::new(Arms {
             primary: (arms.primary.0, 30),
             pistol: gun("tt_33").map(|gun| (gun, 50)),
@@ -548,10 +569,10 @@ mod tests {
     fn a_life_loads_from_its_ammo_and_reloads_what_is_left() {
         // The support: a life's 90 rounds (three bags of 30), 30 in the
         // magazine, 60 to load.
-        let support = Hands::of(Arms::of_role("support").unwrap());
+        let support = Hands::of(Arms::of_test_role("support").unwrap());
         assert_eq!((support.primary.rounds, support.primary.spare), (30, 60));
         // Dry with no weapon 2: no switch, ever.
-        let mut bare = Hands::of(Arms::of_role("camper").unwrap());
+        let mut bare = Hands::of(Arms::of_test_role("camper").unwrap());
         let mosin = bare.held_mut();
         (mosin.rounds, mosin.spare) = (0, 0);
         assert!(bare.held().dry());
