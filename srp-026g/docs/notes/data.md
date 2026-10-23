@@ -552,6 +552,11 @@ Evidence: the 0.26g exe (VAs) and `flash_movies/lobby_menu.swf` decompiled with 
     server pays it so, `prices::sell_price` takes `base_cost`), and is repaired by it. So
     buying for 25,000 and selling back cannot make silver. PROVEN in the ActionScript and
     the code; not yet seen in a running game, nor the camouflages in the factions' tabs.
+  - **The starting weapons are sold to everyone** at the owner's prices (`OWNER_PRICES`,
+    seller 0, level 0; the game prices all three at 0): the Mosin carbine and the PPSh-41
+    1,000 each (2026-10-18), the TT-33 500 (2026-10-23: "it should be there and cost
+    500"; before it, it was in no shop, so no Buy anywhere). Selling one back pays a quarter
+    of the game's 0. Their free ammo is listed at no cost.
 - **What a new account owns (2026-10-12, `loadouts.rs`):** the TT-33, the Mosin carbine and
   the PPSh-41 with a clip of each free ammo (7.62x25, 7.62x54R): the wiki of February 2015
   names the three as every new player's, and they are the only weapons and ammo with

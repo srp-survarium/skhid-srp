@@ -3444,6 +3444,25 @@ package survarium.controls
          }
       }
 
+      // The craft window's slots (the item being upgraded, the donor): a click gives Buy, by the
+      // list's rule for an owned item, to buy another of the kind without leaving the window
+      // (craft-menu.md, "Buy from the slots"). No Sell: the slot's item is the craft's. Not sold:
+      // no menu, as in the list.
+      public function showCraftSlotMenu(item:Object, craft:MessageCraftItem) : void
+      {
+         if(item == null || !this.buyable(item))
+         {
+            return;
+         }
+         SrvContextMenu.show([{
+            name:LocalizationData.getName("buy"),
+            click_function:function(e:* = null):void
+            {
+               buyFromCraftMenu(item);
+            }
+         }],0,0,craft);
+      }
+
       private function findUpgradeWindow() : UpgradeWindow
       {
          var lobby:LobbyMenu = parent as LobbyMenu;

@@ -1775,12 +1775,10 @@ mod tests {
             Err(ActionError::BadCount)
         );
         assert_eq!(account.generic_money, money);
-        // The pistol itself is not sold.
+        // The pistol itself is sold for the owner's 500 (2026-10-23).
         let pistol = account.inventory[0].dict_id;
-        assert_eq!(
-            buy(&mut account, pistol, 1, 0, INVENTORY_SLOT, 1, NOW),
-            Err(ActionError::NotSold)
-        );
+        assert!(buy(&mut account, pistol, 1, 0, INVENTORY_SLOT, 1, NOW).is_ok());
+        assert_eq!(account.generic_money, money - 500);
     }
 
     #[test]
