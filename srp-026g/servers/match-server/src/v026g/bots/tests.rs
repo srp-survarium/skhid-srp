@@ -129,6 +129,9 @@ struct Game {
     /// those with nothing of him showing.
     walled: u32,
     hidden: u32,
+    /// Shots whose line met a living teammate before any enemy: in a game
+    /// he takes the bullet, and his death is a team kill, no one's kill.
+    through_friend: u32,
     /// Rays the counts above cast (not the bots').
     metric_rays: u64,
     delivered: [u32; 2],
@@ -247,6 +250,7 @@ impl Game {
             shots: 0,
             hits: 0,
             walled: 0,
+            through_friend: 0,
             hidden: 0,
             metric_rays: 0,
             delivered: [0, 0],
@@ -465,6 +469,22 @@ impl Game {
             {
                 best = Some((target, along));
             }
+        }
+        // A teammate's chest on the line short of the enemy it met (or of
+        // 100 m), in sight: his.
+        let short = best.map_or(100.0, |(_, d)| d);
+        if self.bodies.iter().enumerate().any(|(place, other)| {
+            let to = Self::chest(other) - eye;
+            let along = to.dot(dir);
+            place != shooter
+                && other.alive
+                && other.team == body.team
+                && along > 0.0
+                && along < short
+                && (to - dir * along).length() < 0.45
+                && self.world.sight.visible(eye, Self::chest(other))
+        }) {
+            self.through_friend += 1;
         }
         let Some((target, _)) = best else {
             return;
@@ -750,6 +770,7 @@ struct Outcome {
     hits: u32,
     walled: u32,
     hidden: u32,
+    through_friend: u32,
     /// Sight and aim rays the bots cast (`aimpoint`), per bot and second
     /// of play.
     rays_per_bot_s: f32,
@@ -912,6 +933,7 @@ fn soak_tuned(
     out.shots = game.shots;
     out.hits = game.hits;
     out.walled = game.walled;
+    out.through_friend = game.through_friend;
     out.hidden = game.hidden;
     out.rays_per_bot_s = (super::aimpoint::rays_cast() - rays_before - game.metric_rays) as f32
         / teams.len() as f32
@@ -934,7 +956,7 @@ fn soak_tuned(
             );
         }
         eprintln!(
-            "winner {:?} at {} s; kills {:?}; delivered {:?}; stolen {}; hits {} of {} shots, {} into a wall short of the target, {} at a hidden target; {:.1} sight and aim rays per bot a second; least moved {:.0} m; stuck notes {}",
+            "winner {:?} at {} s; kills {:?}; delivered {:?}; stolen {}; hits {} of {} shots, {} into a wall short of the target, {} at a hidden target, {} through a teammate; {:.1} sight and aim rays per bot a second; least moved {:.0} m; stuck notes {}",
             out.winner,
             out.end_s,
             out.kills,
@@ -944,6 +966,7 @@ fn soak_tuned(
             out.shots,
             out.walled,
             out.hidden,
+            out.through_friend,
             out.rays_per_bot_s,
             out.least_moved_m,
             out.stuck_notes
@@ -973,6 +996,15 @@ fn a_short_soak_has_fights_and_keeps_the_input_rules() {
         "{} into a wall, {} at a hidden target, of {} shots",
         out.walled,
         out.hidden,
+        out.shots
+    );
+    // Never through a teammate (`aimpoint::friend_in_line`): before it, 64
+    // of 571 shots met a teammate before any enemy (in a game, team kills:
+    // deaths with no one's kill); with it 1 of 525.
+    assert!(
+        out.through_friend <= out.shots / 100,
+        "{} through a teammate of {} shots",
+        out.through_friend,
         out.shots
     );
 }
@@ -1816,6 +1848,14 @@ fn bench_tuning() -> Tuning {
         .and_then(|m| m.parse().ok())
     {
         tuning.sense.battery_sight_m = m;
+    }
+    // The line of fire's clearance from teammates (-1: shots through them,
+    // as before it was kept).
+    if let Some(m) = std::env::var("SRP_BENCH_FRIEND_CLEAR_M")
+        .ok()
+        .and_then(|m| m.parse().ok())
+    {
+        tuning.aim.combat.friend_clear_m = m;
     }
     // Collect's and Intercept's numbers: `name=value,...`.
     for (var, kind) in [

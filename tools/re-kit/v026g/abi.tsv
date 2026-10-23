@@ -1900,3 +1900,5 @@ va	name	source	ret_cleanup	result
 0x0001ddb0	vostok::console_commands::cc_value<bool>::cc_value	manual	16	
 0x0025cd00	survarium::game_world::on_keyboard_action	manual	12	AL: 1 the key taken (no later handler gets it)
 0x00208ad0	survarium::chat_handler::add_message	manual	20	
+0x0026da00	survarium::base_game_statistics_handler::on_player_killed	manual	68	
+0x002f4eb0	survarium::shared_statistics::on_player_killed	manual	40	

@@ -449,6 +449,7 @@ impl Tuning {
             (0.0..=1.0).contains(&c.recoil_pull),
             "aim.combat.recoil_pull",
         )?;
+        check(c.friend_clear_m >= 0.0, "aim.combat.friend_clear_m")?;
         check(self.hazard_margin >= 0.0, "hazard_margin")?;
         let shares: f32 = self.personalities.iter().map(|p| p.share).sum();
         check(

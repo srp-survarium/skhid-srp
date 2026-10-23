@@ -3028,3 +3028,5 @@ va	status	ref_021d	name
 0x0026db80	inferred-high		survarium::base_game_statistics_handler::on_event
 0x0026db60	inferred-high		survarium::base_game_statistics_handler::deserialize
 0x0026dc30	inferred-high		survarium::base_game_statistics_handler::recalculate_scores
+0x0026da00	inferred-medium		survarium::base_game_statistics_handler::on_player_killed
+0x002f4eb0	inferred-medium		survarium::shared_statistics::on_player_killed

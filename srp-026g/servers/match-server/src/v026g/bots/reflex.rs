@@ -65,6 +65,7 @@
 use mapdata::Vec3;
 use serde::{Deserialize, Serialize};
 
+use super::aimpoint;
 use super::guns::{Arms, Gun, Hands};
 use super::kin::{forward, wrap, yaw_of};
 use super::know::{Memory, SeenTrack, Source, TeamKnowledge};
@@ -194,6 +195,9 @@ pub struct CombatTuning {
     pub grenade_give_up_ms: u32,
     /// After a throw, the legs go at the place from/until this, ms.
     pub grenade_push_ms: (u32, u32),
+    /// No shot while a living teammate's body is this near the shot's
+    /// line short of the target, metres ([`aimpoint::friend_in_line`]).
+    pub friend_clear_m: f32,
     /// An enemy seen crouched, aiming and slower than this (m/s) holds an
     /// angle; remembered this long, ms.
     pub held_speed: f32,
@@ -378,6 +382,10 @@ impl Default for CombatTuning {
             grenade_friend_m: 6.0,
             grenade_give_up_ms: 1_500,
             grenade_push_ms: (1_500, 3_500),
+            // The body's 0.38 m and this: a line clear of his capsule by a
+            // hand's width (a shot leaves from the camera, the muzzle's
+            // offset left out: aimpoint).
+            friend_clear_m: 0.25,
             held_speed: 0.3,
             held_memory_ms: 5_000,
             camp_ms: 8_000,
@@ -737,6 +745,32 @@ fn bearing(from: Vec3, to: Vec3) -> f32 {
 
 /// How far the view of `me` is off looking at `point` (plus `error`),
 /// radians.
+/// `me` with the view, and the view's `error`, `lift` higher: the lines a
+/// shot leaves along when the kick's lift is not taken back.
+fn lifted(me: &PlaceView, error: (f32, f32), lift: f32) -> (PlaceView, (f32, f32)) {
+    let lifted = PlaceView {
+        pitch: (me.pitch + lift).clamp(-1.0, 1.0),
+        ..me.clone()
+    };
+    (lifted, (error.0, error.1 + lift))
+}
+
+/// [aimpoint] [`aimpoint::friend_in_line`] with the view `lift` higher.
+fn friend_in_line(
+    me: &PlaceView,
+    view: &MatchView,
+    aimed: &aimpoint::Aim,
+    error: (f32, f32),
+    lift: f32,
+    clear_m: f32,
+) -> bool {
+    if lift == 0.0 {
+        return aimpoint::friend_in_line(me, view, aimed, error, clear_m);
+    }
+    let (lifted, error) = lifted(me, error, lift);
+    aimpoint::friend_in_line(&lifted, view, aimed, error, clear_m)
+}
+
 fn off_by(me: &PlaceView, point: Vec3, error: (f32, f32)) -> f32 {
     let eye = me.eye();
     let (dx, dz) = (point.x - eye.x, point.z - eye.z);
@@ -2099,6 +2133,8 @@ impl Reflex {
             // on the view now and the one it turns to, each with the kick's
             // lift not taken back.
             && self.clear_shot(me, &aimed, error, lift)
+            // Nor through a teammate (his death would be a team kill).
+            && !friend_in_line(me, view, &aimed, error, lift, c.friend_clear_m)
         {
             if !gun.auto || now < self.burst_until {
                 wants = true;
@@ -2153,12 +2189,8 @@ impl Reflex {
         if lift == 0.0 {
             return self.sight.clear_shot(me, aimed, error);
         }
-        let lifted = PlaceView {
-            pitch: (me.pitch + lift).clamp(-1.0, 1.0),
-            ..me.clone()
-        };
-        self.sight
-            .clear_shot(&lifted, aimed, (error.0, error.1 + lift))
+        let (lifted, error) = lifted(me, error, lift);
+        self.sight.clear_shot(&lifted, aimed, error)
     }
 
     /// The aim's wander, one tick on: a mean-reverting walk whose spread is
@@ -2277,6 +2309,54 @@ mod tests {
         // The play holds fire: no shot.
         let o = reflex.tick(&me, &view, &memory, 2_400, false, &aim, 1.0, &mut rng);
         assert!(!o.fire);
+    }
+
+    /// Whether a bot facing an enemy 20 m up +z fires within 1 s, with
+    /// its teammate (place 2) as `friend`.
+    fn fires_past(friend: PlaceView) -> bool {
+        let me = body(0, 0, Vec3::ZERO, 0.0);
+        let enemy = body(1, 1, Vec3::new(0.0, 0.0, 20.0), 0.0);
+        let view = view_of(vec![me.clone(), enemy, friend]);
+        let aim = AimTuning::default();
+        let mut memory = Memory::default();
+        let mut reflex = Reflex::default();
+        let mut rng = Rng::new(9);
+        let sight = |time| percept(1, Vec3::new(0.0, 0.0, 20.0), time, Source::Seen);
+        sense(&mut memory, &[sight(1_000)], 1_000);
+        reflex.think(&me, &memory, 1_000, &aim, 1.0, &mut rng);
+        sense(&mut memory, &[sight(1_300)], 1_300);
+        reflex.think(&me, &memory, 1_300, &aim, 1.0, &mut rng);
+        assert_eq!(reflex.target(), Some(1));
+        (0..20).any(|k| {
+            let now = 1_300 + k * 50;
+            sense(&mut memory, &[sight(now)], now);
+            reflex
+                .tick(&me, &view, &memory, now, true, &aim, 1.0, &mut rng)
+                .fire
+        })
+    }
+
+    #[test]
+    fn it_holds_fire_while_a_teammate_stands_in_the_line() {
+        // In the saved bot matches nearly every death that gave no kill was
+        // a bot's team kill, the victim on its line to an enemy.
+        let at = |x: f32, z: f32| body(2, 0, Vec3::new(x, 0.0, z), 0.0);
+        for z in [0.6, 3.0, 10.0, 19.0] {
+            assert!(!fires_past(at(0.0, z)), "a teammate {z} m ahead in the line");
+        }
+        assert!(!fires_past(at(0.5, 10.0)), "his shoulder in the line");
+        // Clear of the line, behind it, past the enemy, an enemy in his
+        // place, or crouched under it near by: it fires.
+        assert!(fires_past(at(1.5, 10.0)), "1.5 m to the side");
+        assert!(fires_past(at(0.0, -3.0)), "behind");
+        assert!(fires_past(at(0.0, 24.0)), "past the enemy");
+        assert!(fires_past(body(2, 1, Vec3::new(0.0, 0.0, 10.0), 0.0)), "an enemy");
+        let mut crouched = at(0.0, 3.0);
+        crouched.keys = key::CROUCH;
+        assert!(fires_past(crouched), "over a crouched teammate's head");
+        let mut dead = at(0.0, 10.0);
+        dead.alive = false;
+        assert!(fires_past(dead), "his body");
     }
 
     #[test]

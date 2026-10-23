@@ -4435,3 +4435,13 @@ va	name	location	role	basis
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+12	the body	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+16	the sender's name	observed
 0x00208ad0	survarium::chat_handler::add_message	entry ESP+20	the sender's clan tag	observed
+0x0026da00	survarium::base_game_statistics_handler::on_player_killed	ECX	the statistics handler [core+18FA8h]; passes its shared statistics (+8) in EAX and its ten arguments on to shared_statistics::on_player_killed 0x2F4EB0 (0x26DA3F)	observed
+0x002f4eb0	survarium::shared_statistics::on_player_killed	EAX	the shared statistics: a player's record 1F8h at +place*1F8h; the teams at [+31C8h] + place*45FCh + 45ECh	observed
+0x002f4eb0	survarium::shared_statistics::on_player_killed	entry ESP+8	u8 the killer's place, 0xFF none: none, or the victim himself (a suicide, event 3, 0x2F4F38), or one of his team (a team kill, event 4, 0x2F5049) credits no kill; else KILL (event 0) to him (0x2F5084)	observed
+0x002f4eb0	survarium::shared_statistics::on_player_killed	entry ESP+12	u8 the killer's kit (his events' column)	observed
+0x002f4eb0	survarium::shared_statistics::on_player_killed	entry ESP+16	u8 the victim's place: DEATH (event 2) to him always	observed
+0x002f4eb0	survarium::shared_statistics::on_player_killed	entry ESP+20	u8 the victim's kit	observed
+0x002f4eb0	survarium::shared_statistics::on_player_killed	entry ESP+24	u8 a head shot (HEADSHOT_KILL, event 15)	observed
+0x002f4eb0	survarium::shared_statistics::on_player_killed	entry ESP+32	u8 event 10 to the killer when set	observed
+0x002f4eb0	survarium::shared_statistics::on_player_killed	entry ESP+36	u8 the weapon's category: GRENADE_KILL (event 25) when it is the grenades' ([0x1F1DA1C], 0x2F514A)	observed
+0x002d9b90	survarium::base_player::hit_impl	entry ESP+8	the hit record: +44h u8 the inflictor's place, the killer of the death it causes (0x2D9EDC: the rules' kill event {killer, victim} through 0x2D1EA0 and generate_killed_event 0x2DA170); the only kill event of the game	observed

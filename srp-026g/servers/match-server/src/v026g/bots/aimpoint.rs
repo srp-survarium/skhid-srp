@@ -37,6 +37,14 @@
 //!   through thin stuff (`bullet::try_pierce`, 0x32D960; materials' `armor`, ammo's
 //!   `bullet_pierce`), but the mesh keeps no material per face and the rule
 //!   was not read: everything in it counts as solid.
+//! - **Never through a teammate** ([`friend_in_line`]): no shot while a
+//!   living teammate's body (his capsule) comes within `friend_clear_m` of
+//!   either of the view's lines short of the aim. The game takes a bullet
+//!   that meets him as any other: he dies, and the death is a team kill,
+//!   no one's kill (`shared_statistics::on_player_killed` 0x2F4EB0). In the
+//!   saved bot matches of 2026-10-16 and 10-23 nearly every death that
+//!   gave no kill was a bot's team kill, the victim most often on the
+//!   shooter's line to an enemy (PROVEN from the worlds' statistics).
 //! - **Grenades** are not aimed here: they go over cover on purpose.
 //!
 //! The cost: a target's parts are looked at again every [`LOOK_AGAIN_MS`]
@@ -64,6 +72,12 @@ const SHORT_M: f32 = 0.3;
 /// the tick's shot and the next look (the view's places are the clock's,
 /// a tick is up to 100 ms ahead of it), at most this far ahead, ms.
 const AHEAD_MAX_MS: u32 = 300;
+/// A body for the line of fire: the player's capsule (`default.player`:
+/// 0.76 m wide, 1.8 m tall standing, 1.1 m crouched; client_patch.md
+/// "A player's transform is his feet"), its radius and heights, metres.
+const BODY_RADIUS: f32 = 0.38;
+const BODY_STANDING: f32 = 1.8;
+const BODY_CROUCHED: f32 = 1.1;
 
 /// A point on a body that a bot may see and aim at.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -166,6 +180,83 @@ fn visible(sight: &RayTree, from: Vec3, to: Vec3) -> bool {
     #[cfg(test)]
     RAYS.with(|r| r.set(r.get() + 1));
     sight.visible(from, to)
+}
+
+/// At a tick it would fire at `aim`: whether a living teammate of `me`
+/// stands in the way, his body within `clear_m` of the view now or of
+/// the view it turns to (`aim`'s point with `error`), short of the aim.
+/// A bullet that meets him kills him as the enemy's would and credits
+/// no one with a kill (the client's `on_player_killed` 0x2F4EB0: a
+/// killer of the victim's team counts a team kill, 0x2F5049).
+pub fn friend_in_line(
+    me: &PlaceView,
+    view: &MatchView,
+    aim: &Aim,
+    error: (f32, f32),
+    clear_m: f32,
+) -> bool {
+    let eye = me.eye();
+    let reach = (aim.point - eye).length();
+    let lines = shot_lines(me, aim, error).map(|dir| (eye, eye + dir * reach));
+    view.team(me.team)
+        .filter(|p| p.place != me.place)
+        .any(|p| {
+            let height = if p.crouched() {
+                BODY_CROUCHED
+            } else {
+                BODY_STANDING
+            };
+            let axis = (
+                p.feet + Vec3::new(0.0, BODY_RADIUS, 0.0),
+                p.feet + Vec3::new(0.0, height - BODY_RADIUS, 0.0),
+            );
+            lines
+                .iter()
+                .any(|line| segment_distance(*line, axis) < BODY_RADIUS + clear_m)
+        })
+}
+
+/// The two lines a shot at `aim` may leave along from `me`'s eye (unit):
+/// the view now and the view it turns to (`aim`'s point with `error`, yaw
+/// and pitch, radians).
+fn shot_lines(me: &PlaceView, aim: &Aim, error: (f32, f32)) -> [Vec3; 2] {
+    let along = |yaw: f32, pitch: f32| {
+        let [fx, fz] = forward(yaw);
+        let (c, s) = (pitch.cos(), pitch.sin());
+        Vec3::new(fx * c, s, fz * c)
+    };
+    let to = aim.point - me.eye();
+    let (yaw, pitch) = (
+        yaw_of([to.x, to.z]) + error.0,
+        to.y.atan2(to.x.hypot(to.z)) + error.1,
+    );
+    [along(me.yaw, me.pitch), along(yaw, pitch)]
+}
+
+/// The least distance between two segments, metres.
+fn segment_distance((a0, a1): (Vec3, Vec3), (b0, b1): (Vec3, Vec3)) -> f32 {
+    let (u, v, w) = (a1 - a0, b1 - b0, a0 - b0);
+    let (uu, uv, vv, uw, vw) = (u.dot(u), u.dot(v), v.dot(v), u.dot(w), v.dot(w));
+    let near = |t: f32, s: f32| ((a0 + u * t) - (b0 + v * s)).length();
+    // Along a, the nearest to b's line (parallel or a point: a's start),
+    // then along b the nearest to that, and a again to that.
+    let den = uu * vv - uv * uv;
+    let t = if den > 1e-9 {
+        ((uv * vw - vv * uw) / den).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let s = if vv > 1e-9 {
+        ((uv * t + vw) / vv).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let t = if uu > 1e-9 {
+        ((uv * s - uw) / uu).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    near(t, s)
 }
 
 fn ray_cast(sight: &RayTree, from: Vec3, dir: Vec3, max_t: f32) -> Option<f32> {
@@ -353,17 +444,7 @@ impl Sight {
             return true;
         }
         let eye = me.eye();
-        let along = |yaw: f32, pitch: f32| {
-            let [fx, fz] = forward(yaw);
-            let (c, s) = (pitch.cos(), pitch.sin());
-            Vec3::new(fx * c, s, fz * c)
-        };
-        let to = aim.point - eye;
-        let (yaw, pitch) = (
-            yaw_of([to.x, to.z]) + error.0,
-            to.y.atan2(to.x.hypot(to.z)) + error.1,
-        );
-        [along(me.yaw, me.pitch), along(yaw, pitch)]
+        shot_lines(me, aim, error)
             .into_iter()
             .all(|dir| ray_cast(&world.sight, eye, dir, self.reach).is_none())
     }
