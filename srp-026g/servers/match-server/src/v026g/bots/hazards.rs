@@ -20,7 +20,11 @@
 //! - a zone of an energy core (level_02's fruit cloud) that a body
 //!   walking in its zones would switch on within [`ENERGY_REACH_S`]
 //!   (the low states): always (walking in raises the energy); the high
-//!   states' zones by the energy the worlds give, falling at its speed.
+//!   states' zones by the energy the worlds give, falling at its speed;
+//! - a zone of a timed anomaly (exe patch 42, no energy from players): by
+//!   the state the last checked world gave, run on by its timers (charging
+//!   -> damage -> artefact; off from the pick-up on); the clients' choice
+//!   of the next anomaly to charge is never predicted.
 //!
 //! Until [`Hazards::attach`] gives it the cores, every zone counts as
 //! active: the bots keep off all of them, which costs a detour now and
