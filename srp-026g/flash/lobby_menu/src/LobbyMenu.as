@@ -5204,6 +5204,7 @@ package
       public function set_mm_sync_state(value:String, showLeaveButton:uint = 0) : void
       {
          this.showInterface();
+         _hiddenKeyUp = 0;
          if((value) && !showLeaveButton)
          {
             ExternalInterface.call("sound_play",UiSound.MATCH_FOUND);
@@ -5914,6 +5915,11 @@ package
          {
             _hiddenKeyUp = e.keyCode;
             e.stopImmediatePropagation();
+         }
+         else if(e.keyCode == this._hiddenKeyUp)
+         {
+            // pressed again: its release was missed (the exe passes no key while a match is found)
+            _hiddenKeyUp = 0;
          }
       }
 
