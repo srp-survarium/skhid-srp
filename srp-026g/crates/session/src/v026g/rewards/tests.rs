@@ -1494,6 +1494,8 @@ fn the_kit_played_wears() {
             item_id: spare,
             count: 1,
         });
+        // Autobuy off (on for a new account): the ammo used stays used.
+        alice.autobuy = false;
         (
             alice.kits[0].slots[7].unwrap().item_id,
             alice.kits[0].slots[8].unwrap().item_id,
