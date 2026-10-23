@@ -1,0 +1,11 @@
+{
+ "_about": "Master set net 1 (T31, 2026-10-23): the camouflage net over the Fringe Settlers' tier-4 set (the \"Leshy\" vest edge_torso_4, players' \"Master vest\"; the \"Leshy\" pants edge_legs_4; Master's hood edge_helmet_4) drawn like every other character surface, in the deferred pass with an alpha test, not as a transparent forward surface. The net is the additional part edge_sniper_06_alpha_s of the seven edge_sniper_06 models, and its material, characters/human/edge_sniper_06/edge_sniper_06_alpha, is 0.26g's unfinished \"Forward test material\" (forward_lighting with a distortion stage, copied from a glass, one texture a path no archive has): the only forward material on a character's torso or legs, and the only one on a four-bone skinned surface (the glasses of masks, helmets and the Pilgrim backpack have one or two bones). Players wearing the set make translucent streaks across other players' screens, along their aim (the net's vertices on the arm bones), and a corpse leaves the net floating beside it. The new material is a copy of the hood's own (complex, g_stage alpha test at 0.5, cast shadows) with the net's diffuse (DXT5, its alpha the net: 0 in the holes, about 0.69 on the strands) and normal map; the hood's roughness map stays. The seven models' settings name it for the net part; the mesh, the textures and the old material are untouched.",
+ "copy": [
+  {"files": "material_instances/characters/human/edge_sniper_06/edge_sniper_06_helmet.material", "from": "material_instances/characters/human/edge_sniper_06/edge_sniper_06_helmet.material", "to": "material_instances/characters/human/edge_sniper_06/edge_sniper_06_net.material"}
+ ],
+ "replace_string": [
+  {"files": "material_instances/characters/human/edge_sniper_06/edge_sniper_06_net.material", "from": "character/human/edge_sniper_06/edge_sniper_06_helmet", "to": "character/human/edge_sniper_06/edge_sniper_06_alpha"},
+  {"files": "material_instances/characters/human/edge_sniper_06/edge_sniper_06_net.material", "from": "character/human/edge_sniper_06/edge_sniper_06_helmet_nmap", "to": "character/human/edge_sniper_06/edge_sniper_06_alpha_nmap"},
+  {"files": "models/character/human/edge/edge_sniper_06_*.skinned_model/settings", "from": "characters/human/edge_sniper_06/edge_sniper_06_alpha", "to": "characters/human/edge_sniper_06/edge_sniper_06_net"}
+ ]
+}
