@@ -1,4 +1,4 @@
-; The Sponge (exe patch 55): the hooks of artefact type 12, in front of
+; The Sponge (exe patch 59): the hooks of artefact type 12, in front of
 ; the C code of sponge_a_026g.c in the arena's block sponge.code
 ; (link_026g.py links it; patch_026g.py's SPONGE_HOOKS jump to the eight
 ; entries by their names). client_patch.md section 3.52.

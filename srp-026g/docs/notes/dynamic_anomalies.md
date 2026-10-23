@@ -52,7 +52,7 @@ read to the end.
   The timings are the release's: charging 20 s (the charge zone: max_hit 0, harmless),
   damage 4 s, then the zone stays on while the artefact waits.
 - **The Sponge (the owner, 2026-10-23: "let's also build Sponge on top of anomalies").** The
-  release's fourth kind, mochalka (758), is the Sponge of pack `sponge@2` and exe patch 55
+  release's fourth kind, mochalka (758), is the Sponge of pack `sponge@2` and exe patch 59
   (`sponge.md`). Every place has its mochalka anomaly as in the release: London 27 and Cologne
   29 a project, a quarter of the timed anomalies. One anomaly of a place lives at a time and a
   try picks uniformly among the idle ones with a free artefact, so a Sponge comes in about one
@@ -287,7 +287,7 @@ anomalies per place:
   whole world. Cologne's 87 timed cores need about 3.2 to 3.5 KB of them, against about
   5.4 KB free in the fullest live 20-player world. To see in a full 20-player Cologne match.
   With mochalka (pack @4, 2026-10-23) Cologne has 116 timed cores, and each of the 29 new ones
-  serializes its 5 Sponges, a Sponge 8 bytes more than an artefact base (patch 55's fuse, pin,
+  serializes its 5 Sponges, a Sponge 8 bytes more than an artefact base (patch 59's fuse, pin,
   thrown, tap and owner): LIKELY about 2.3 KB more, near or past the 5.4 KB. NOT measured:
   measure a full 20-player Cologne world before the release.
 

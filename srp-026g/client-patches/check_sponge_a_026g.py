@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run patch 55 (the Sponge, artefact type 12: sponge_a_026g.asm,
+"""Run patch 59 (the Sponge, artefact type 12: sponge_a_026g.asm,
 sponge_a_026g.c) in the default build on made-up cooks, inventories,
 players, worlds and zones, and 0.28d0's own sponge code on the same inputs.
 

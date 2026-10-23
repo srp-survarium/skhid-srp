@@ -17,7 +17,7 @@ usage: python3 -I make_pack.py --stock <folder> --donor <folder> [--base-files <
 
 Every input is checked against inputs.sha256. What the pack holds:
 - items_dict row 758 (artefact_sponge, category 12, a stack, base cost 0, as Lifebone's 54);
-- gameplay/items/artefacts/artefact_sponge.options: 0.28d0's file, which exe patch 55 (0.28d0's
+- gameplay/items/artefacts/artefact_sponge.options: 0.28d0's file, which exe patch 59 (0.28d0's
   artefact_sponge_core written again for 0.26g) reads as it is, with two numbers of the owner's
   static toxin rule (PASSIVE: the passive keeps the toxin pool `infection` full while the Sponge
   is owned) and the description key srp's own text (0.28d0 names Spring's);
@@ -53,7 +53,7 @@ VERSION = '2'
 DICT_ID = 758
 CONFIG = 'gameplay/items/artefacts/artefact_sponge.options'
 # The owner's static toxin rule (2026-10-22): while a Sponge is owned its passive keeps infection
-# full. The passive is a regeneration modifier of the pool (exe patch 55, Lifebone's callback
+# full. The passive is a regeneration modifier of the pool (exe patch 59, Lifebone's callback
 # 0x312590): speed (s + regen_add) x regen_mul, timeout (t + timeout_add s) x timeout_mul,
 # threshold (th + threshold_add) x threshold_mul. 0.28d0 has {0, 1, 0, 1, 1.5, 1}: regen_add
 # 1000 refills the pool at the next regeneration tick, timeout_mul 0 takes the delay after a hit
@@ -183,7 +183,7 @@ def check_types(made, model, where, skip=()):
 
 
 def sponge_config(donor, lifebone):
-    """0.28d0's artefact_sponge.options as exe patch 55 reads it: the file as it is but PASSIVE and
+    """0.28d0's artefact_sponge.options as exe patch 59 reads it: the file as it is but PASSIVE and
     DESCRIPTION."""
     config = copy.deepcopy(donor)
     passive = config['data']['passive']

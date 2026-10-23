@@ -99,7 +99,8 @@ USAGE (this script never touches the source exe):
     (checked in; PREVIEW and TABLE are patch 32's and patch 45's states, PRESS
     its own, 0xFA0 of the late join's state page, checked).
     The arena, `.srpx` (Research, the artefacts' code, the engine-function
-    library), is linked from its C and NASM sources at every build
+    library, the kit keys and the match chat option), is linked from its C and
+    NASM sources at every build
     (link_026g.py: gcc -m32, GNU ld and NASM 2.16 are needed) and must be
     arena_026g.lock.json's (`python link_026g.py --write` after a change).
     The late-join code is late_join_026g.section.bin, checked in too; it is
@@ -441,6 +442,17 @@ Patches:
   press (artefact_base::action 0x313300, at its entry) activates every
   ready artefact of the pressed one's class in the artefact slots, so one
   key fires all of a kind that are ready, even when the pressed one is not;
+- the keys 1, 2 and 3 pick kit 1, 2 and 3 while the kits are shown, and an
+  option hides the other players' chat lines in a match (patch 58, with the
+  late join; docs/notes/match-hud-options.md). match_keys_026g.asm (the
+  arena's blocks match_keys.code and .state): the game world's
+  on_keyboard_action (0x25CD00, at its kind's test 0x25CD41) invokes the hud
+  movie's root.select_kit_key for a key 1 to 3 going down while the hud
+  shows the cursor, and goes on as before; the hud's constructor call (0x1F6845)
+  registers a cc_bool named as the gameplay options' dead option 4
+  (g_private_messages_in_game), which makes that option live and saved in
+  user.cfg; add_message's call for a received line (0x26B916) drops a
+  player's line in a match while it is on (channels 3 and 5 to 9);
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -1887,6 +1899,32 @@ ARTEFACTS_SIZES = (
     (0x2EEA74, bytes.fromhex("b898030000"), b"\xB8" + struct.pack("<I", ARTEFACTS_SPRING_SIZE)),
 )
 
+# The kit keys and the match chat option (patch 58, README; client_patch.md
+# section 3.53; the rules: ../docs/notes/match-hud-options.md):
+# match_keys_026g.asm in the arena's blocks match_keys.code and
+# match_keys.state (ARENA below), three entries:
+# - the game world's on_keyboard_action 0x25CD00 at its kind's test,
+#   `cmp dword [ebp+10h],1 / jnz near 0x25CF0D` at 0x25CD41 (after the Tab
+#   test; edi = its input handler): a key 1, 2 or 3 going down while the hud
+#   shows the cursor (the kits) invokes the hud movie's
+#   root.select_kit_key(kit), then the function goes on as before at
+#   0x25CD4B or 0x25CF0D (the key is not taken);
+# - the game world's constructor's `call 0x233810` (the hud's constructor)
+#   at 0x1F6845: the hud made, then a cc_bool named as the gameplay options'
+#   dead option 4 ("g_private_messages_in_game" 0xA064FC) registered on the
+#   option's byte, saved in user.cfg, before the configs run and the options
+#   look their variables up;
+# - process_incoming_text_message's `call 0x208AD0` (add_message) at
+#   0x26B916: with the option on, in a match, a player's line on a channel
+#   the hud shows (3, 5..9) is dropped (`ret 14h`, add_message's).
+# No base relocation is under a site and no branch aims inside one.
+MATCH_KEYS_HOOKS = (
+    (0x25CD41, bytes.fromhex("837d1001" "0f85c2010000"), "match_keys_keyboard", 0xE9),   # on_keyboard_action: the kind
+    (0x1F6845, bytes.fromhex("e8c6cf0300"), "match_keys_hud", 0xE8),          # the hud's constructor call
+    (0x26B916, bytes.fromhex("e8b5d1f9ff"), "match_keys_chat", 0xE8),         # a received line's add_message
+)
+MATCH_KEYS_BACKS = (0x25CD4B, 0x25CF0D)        # on_keyboard_action: a key down, any other
+
 
 def weapon_camo_va(late_join):
     """Where `.srpw` is: the page after `.srpc`, which is one page."""
@@ -2028,7 +2066,14 @@ INSTALLS = {
                       "rule, then the function", None, None),
     0x33BCD0: (ENTRY, "generic_anomaly_core::on_artefact_container_use (thiscall: the container, the time; "
                       "`ret 8`): a timed anomaly's pick-up, any other core's back in the function", None, None),
-    # the Sponge, patch 55 (in `.srpx`)
+    # the kit keys and the match chat option, patch 58 (in `.srpx`)
+    0x25CD41: (JUMP, "the game world's on_keyboard_action 0x25CD00, `cmp dword [ebp+10h],1 / jnz near 0x25CF0D` "
+                     "(edi = its input handler): keyboard", None, None),
+    0x1F6845: (CALLEE, "the game world's constructor's call of the hud's (eax the game world, the hud): hud, "
+                       "which calls it and registers the chat option's variable", None, None),
+    0x26B916: (CALLEE, "process_incoming_text_message's add_message (stdcall: the handler, the channel, the "
+                       "body, the name, the tag): chat, which drops the line or jumps to it", None, None),
+    # the Sponge, patch 59 (in `.srpx`)
     0x25E68A: (JUMP, "the artefact cook's construct 0x25E660 at its type switch (`cmp eax,5 / ja near`, eax = "
                      "data/type - 3): sponge_construct, type 12 a sponge's (`ret 10h` as the function), else the "
                      "switch", None, None),
@@ -2088,7 +2133,7 @@ INSTALLED_VTABLES = (
         10: (RESEARCH_CHECK, "driven: the cook's create and size through translate 0x2F4290's calls"),
     }),
     ("Research's rule's link resolver", "research.code", "rn_resolver_vtable", None, 1, 0, {}),
-    # The Sponge (patch 55): Rattle's artefact vtable with ten slots of ours,
+    # The Sponge (patch 59): Rattle's artefact vtable with ten slots of ours,
     # its drawable's draw, and its hit inflictor's (the game's three).
     ("the Sponge's artefact", "sponge.code", "sp_vtable", 0xA06124, 36, 10, {
         0: (SPONGE_CHECK, "driven: slot 0, the destructor (flags 0), through the resource system's delete 0xFBB4E"),
@@ -2252,7 +2297,9 @@ ARENA = (
     ArenaBlock("artefacts.code", "code", 0x1000, ("artefacts_026g.asm",)),       # patch 54
     ArenaBlock("engine.code", "code", 0x1000, ("engine_026g.asm",)),             # the engine-function library
     ArenaBlock("anomalies.code", "code", 0x1000, ("dynamic_anomalies_026g.asm",)),  # patch 42
-    # the Sponge, patch 55: the asm's eight entries and stubs, then the C code
+    ArenaBlock("match_keys.code", "code", 0x1000, ("match_keys_026g.asm",)),     # patch 58
+    ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
+    # the Sponge, patch 59: the asm's eight entries and stubs, then the C code
     ArenaBlock("sponge.code", "code", 0x1000, ("sponge_a_026g.asm", "sponge_a_026g.c")),
     ArenaBlock("sponge.state", "state", 0x10, ("sponge_a_026g.c",)),                # sp_g: the zone ticked now
 )
@@ -2322,7 +2369,7 @@ RESEARCH_HOOKS = (
     (0x23B3DE, bytes.fromhex("837f20047518"), "research_hud", 0xE8),         # update_ui after the teams' points
     (0x23B351, bytes.fromhex("83f8047514"), "research_welcome", 0xE9),       # update_ui's first message
 )
-# The Sponge, artefact type 12 (patch 55, README; client_patch.md section
+# The Sponge, artefact type 12 (patch 59, README; client_patch.md section
 # 3.52; docs/notes/sponge.md): sponge_a_026g.asm's eight entries and stubs,
 # then the C code of sponge_a_026g.c and its constant data, in the arena's
 # block sponge.code; the C code's state (the zone a sponge ticks, for the
@@ -3230,7 +3277,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + DYNAMIC_ANOMALIES_HOOKS \
-                        + SPONGE_HOOKS:
+                        + MATCH_KEYS_HOOKS + SPONGE_HOOKS:
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")
@@ -3289,6 +3336,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills "
                      "pain, body and head, and one press fires every artefact of its kind, "
                      "dynamic anomalies (the release's rule on London's and Cologne's timed anomalies), "
+                     "the keys 1, 2 and 3 pick a kit while the kits are shown, "
+                     "an option hides the other players' chat lines in a match, "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")

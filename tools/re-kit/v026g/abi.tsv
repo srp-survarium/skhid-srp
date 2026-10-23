@@ -1893,6 +1893,10 @@ va	name	source	ret_cleanup	result
 0x00313350		manual	8	
 0x00420789		manual	0	EAX: ECX + 8
 0x000e5b60	vostok::resources::query_resources	manual	0	
+0x00233810	survarium::game_world_ui::game_world_ui	manual	4	
+0x0001ddb0	vostok::console_commands::cc_value<bool>::cc_value	manual	16	
+0x0025cd00	survarium::game_world::on_keyboard_action	manual	12	AL: 1 the key taken (no later handler gets it)
+0x00208ad0	survarium::chat_handler::add_message	manual	20	
 0x0025e660	survarium::artefact_cook::new_derived_resource	manual	16	EAX: the artefact built in the memory (0 for none)
 0x0025e770	survarium::artefact_cook::derived_resource_size	manual	4	EAX: the size by data/type (3 4B8h, 6 3B8h, 7 F40h, 8 360h), else the core cook's
 0x0025e800	survarium::artefact_cook::query_for_derived_resources	manual	12	

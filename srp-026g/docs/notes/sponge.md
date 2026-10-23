@@ -1,6 +1,6 @@
 # The Sponge (the owner, 2026-10-22)
 
-Client patch 55 (README section 55, client_patch.md section 3.52): 0.28d0's
+Client patch 59 (README section 59, client_patch.md section 3.52): 0.28d0's
 `artefact_sponge_core` written again on 0.26g's interfaces. The content pack `sponge@2`
 (release/content.tsv; srp-026g/scripts/sponge/make_pack.py) and the edit list
 `scripts/content-edit/sponge-spawns-1.json`. 0.28a2 brought the Sponge; the reference is

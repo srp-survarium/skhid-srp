@@ -39,7 +39,7 @@ REPO = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 DBGRAB = os.environ.get("DBGRAB", os.path.join(REPO, "tools", "re-kit", "common", "dbgrab", "target", "release", "dbgrab"))
 
 # The artefact kinds of the release's places: all four. 758 (mochalka, the
-# Sponge) is pack sponge@2's item (exe patch 55); the owner (2026-10-23):
+# Sponge) is pack sponge@2's item (exe patch 59); the owner (2026-10-23):
 # "let's also build Sponge on top of anomalies". main() refuses a kind that
 # is not an artefact of items_dict (the live game's, with --over's packs).
 KINDS = {54: "lifebone", 74: "spring", 76: "onyx", 758: "mochalka"}

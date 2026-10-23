@@ -59,7 +59,7 @@ the anomaly particles the game lacks. The rules are in
 - **Mochalka (758, the Sponge) is the fourth kind, as in the release** (the owner, 2026-10-23:
   "let's also build Sponge on top of anomalies"; pack @3 left it out).
   - Its item, config, model and particles are pack `sponge@2`'s (`srp-026g/scripts/sponge`,
-    exe patch 55). `--over <sponge-2 folder>` gives the script its `items_dict` row and
+    exe patch 59). `--over <sponge-2 folder>` gives the script its `items_dict` row and
     particles; the pack adds neither again. The script refuses a kind that is not an artefact
     of `items_dict` with the `--over` packs, and an `--over` pack that touches a project it
     replaces.

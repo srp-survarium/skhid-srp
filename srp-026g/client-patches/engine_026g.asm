@@ -36,6 +36,7 @@ global engine_unpack_decal_value
 global engine_decal_value
 global engine_mouse_ray
 global engine_accept_decal_edit
+global engine_cc_bool
 global engine_resource_release
 global engine_hand_transform
 global engine_matrix_multiply
@@ -633,6 +634,25 @@ engine_accept_decal_edit:
     push dword [esp + 28]   ; host -> 4
     mov esi, [esp + 28]   ; character
     call 0x263950
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_cc_bool:
+    ; 0x1ddb0 vostok::console_commands::cc_value<bool>::cc_value: object EAX, name ESP+4, value ESP+8, saved ESP+12, kind ESP+16; pops 16
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 36]   ; kind -> 16
+    push dword [esp + 36]   ; saved -> 12
+    push dword [esp + 36]   ; value -> 8
+    push dword [esp + 36]   ; name -> 4
+    mov eax, [esp + 36]   ; object
+    call 0x1ddb0
     pop edi
     pop esi
     pop ebx

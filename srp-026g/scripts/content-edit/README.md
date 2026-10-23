@@ -417,6 +417,16 @@ modifications are unchanged (`item_params::tests::the_protective_mask_of_the_bui
 on the built server game data). Its model is the pack's, fitted over the bare head: with a helmet
 it shows through most helmets (`docs/notes/masks-pack.md`). Applied to revision 30's live files: 1
 file edited, 0 unexpected differences. No simulation change: the slot rule is the lobby's.
+
+## match-chat-off-1.json (2026-10-23)
+
+| change | why |
+|---|---|
+| `st_private_messages_in_game_option` "Disable private messages at the time of battle" -> "Hide chat in match" (Chat im Kampf ausblenden, Ukryj czat na czas rozgrywki, Скрыть чат во время боя, Приховати чат під час бою), in the six localization tables | the gameplay options' checkbox of that label (option 4, `g_private_messages_in_game`) named no console variable and was greyed; exe patch 58 gives it one and the main menu enables it: checked, the other players' chat lines are not shown in a match (`../../docs/notes/match-hud-options.md`; a player's ask, board T29) |
+
+Applied to revision 30's live tables (from the stock db and patches 12 to 30): 6 files edited, 0
+unexpected differences. Text only: no server data, no simulation change.
+
 ## sponge-spawns-1.json (2026-10-22; London out 2026-10-23)
 
 | change | why |

@@ -112,6 +112,10 @@ package
       
       private var _profilePanel:MovieClip = new HUDProfileSelector();
       
+      // Whether the player is typing in the chat: focus_chat(true) to focus_chat(false). Not the
+      // input's `visible`, which the chat's timeline starts true until the chat is first closed.
+      private var _chatTyping:Boolean = false;
+      
       private var _itemFactory:IItemFactory = new ItemFactory();
       
       public var itemDescriptor:ItemDescriptor;
@@ -808,6 +812,20 @@ package
       {
          this._profilePanel.profileSelector.selectProfile(value);
       }
+
+      // The keys 1, 2 and 3 (exe patch 58 calls this for each going down while the cursor is
+      // shown; docs/notes/match-hud-options.md): the kit of that tab, while the kits are shown
+      // and the chat takes no typing (opened with its key, or its input clicked into).
+      public function select_kit_key(index:uint) : void
+      {
+         var typing:Boolean = this._chatTyping
+            || this.chat && this.chat.text_inpput && stage.focus != null && stage.focus == this.chat.text_inpput.textField;
+         if(!this._profilePanel.visible || typing)
+         {
+            return;
+         }
+         this._profilePanel.profileSelector.pickByKey(index);
+      }
       
       public function setup_player_profiles(value:Array) : void
       {
@@ -1327,6 +1345,7 @@ package
       
       public function focus_chat(bool:Boolean) : void
       {
+         this._chatTyping = bool;
          if(this.chat)
          {
             this.chat.ignoreFocus = true;
