@@ -203,6 +203,18 @@ pair by its two materials). Applied to the stock resources.db's files (no Skhid 
 them): 1,578 files edited (1,577 new, 1,012 of them byte for byte), 0 unexpected differences;
 every new name a pair, collection or composite gives resolves to a new file. Sound only: no
 simulation change, nothing in the server game data.
+
+## crouch-steps-2.json (2026-10-23)
+
+| change | why |
+|---|---|
+| The 16 moving crouch clips (`animations/single/weapons/ak/player/crouch/3rd_view/`: `forward`, `backward`, `left`, `right`, the four diagonals and their `aimed_` versions; every weapon's crouch body plays them): a second event channel `player_sound_events` (type 2), knots 2 and 17 of the 30 frames, each with the domain value (0 or 1, the foot) of the `anim_intervals` domain it starts in. The bone tracks byte for byte | T27, the owner: "for some reason we added sounds but the movement is still silent when crouching". A step is an animation event: only clips with this channel call `on_foot_step`, and the crouch clips had only `anim_intervals`, so crouch-steps-1's pairs never played (`docs/notes/crouch_steps.md`). Run and sprint have it the same way (2 frames after each interval knot, its domain value), and so do 0.31a2's crouch clips (2 and 17) |
+
+New edit for it: `add_event_channel` (an animation clip, not a config: its live channels checked,
+one appended; `clip_parse` reads all 777 clips of the live game back byte for byte). Applied to the
+stock clips (no Skhid patch carries them): 16 files edited, 48 bytes longer each (a 16-byte header,
+32 bytes of knots, domains and name). Sound only: no simulation change, nothing in the server game
+data.
 ## lobby-bench-light-1.json (2026-10-21)
 
 | change | why |
