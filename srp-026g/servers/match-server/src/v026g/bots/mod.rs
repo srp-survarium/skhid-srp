@@ -1730,6 +1730,28 @@ impl Bots {
                 );
             }
         }
+        // Going for a battery, far off its reckoning and below it near it:
+        // it fell there (a ledge by the battery), which the team counts against
+        // offering it again (`plays::collect`, `fallen_at`).
+        if let Some(a) = bot.assignment.as_ref()
+            && a.kind == PlayKind::Collect
+            && let plays::TargetRef::Battery(battery) = a.target
+            && let Some(at) = state.knowledge.battery(battery).map(|k| k.at).or_else(|| {
+                match view.batteries.get(battery) {
+                    Some(BatteryState::Free(at)) if tuning.cheats.batteries => Some(*at),
+                    _ => None,
+                }
+            })
+            && me.feet.distance_xz(at) <= tuning.number(PlayKind::Collect, "fall_near_m")
+            && me.feet.y < at.y - plays::collect::BELOW_STAND_M
+            && self
+                .tracker
+                .body(bot.place)
+                .and_then(|body| body.last_error())
+                .is_some_and(|error| error > REPLAN_ERROR_M)
+        {
+            state.knowledge.fell_near(bot.place, at, now);
+        }
         percepts.extend(state.knowledge.heard_by(bot.place, now));
         // With the battery cheat off, the batteries and spawners' spots it
         // sees become its team's knowledge.

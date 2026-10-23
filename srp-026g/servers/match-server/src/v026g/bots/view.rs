@@ -742,6 +742,7 @@ impl Tracker {
             }
         }
         // Batteries picked up since the world before.
+        let mut picked = Vec::new();
         for (battery, state) in batteries.iter().enumerate() {
             if !matches!(state, BatteryState::Carried(_)) {
                 continue;
@@ -765,6 +766,7 @@ impl Tracker {
             }
             let best = candidates.remove(0);
             carry.carrier = Some(best.place);
+            picked.push((battery, best.place));
             carry.others = candidates
                 .iter()
                 .map(|c| c.place)
@@ -789,6 +791,20 @@ impl Tracker {
                     others.join(", ")
                 },
             ));
+        }
+        // One who picked up a battery did not have another (the game
+        // gives a battery only to a player carrying nothing:
+        // `victory_item_core::can_use` 0x300710): he is no other candidate
+        // for any other carry, even once he has put his own in. In
+        // 0x1b8ee975 one world showed batteries 6 and 8 picked up by bots
+        // 6 and 4 side by side; bot 4 put 8 in, bot 6's put-ins failed, and
+        // battery 6 was believed bot 4's for 35 s while bot 6 carried it.
+        for &(battery, place) in &picked {
+            for (other, carry) in self.carries.iter_mut().enumerate() {
+                if other != battery {
+                    carry.others.retain(|&p| p != place);
+                }
+            }
         }
         // Beliefs the batteries' staying carried rule out.
         for (battery, state) in batteries.iter().enumerate() {
@@ -1321,6 +1337,52 @@ mod tests {
         );
         assert_eq!(at.tracker.carrier(0), Some(1));
         assert_eq!(at.tracker.carrier(1), Some(0));
+    }
+
+    /// Two batteries picked up in one world side by side (0x1b8ee975,
+    /// 607 s): the one who put his in is no candidate for the other's
+    /// carry when the other's put-ins fail (the game gives a battery only
+    /// to a player carrying nothing), so the belief stays with its taker.
+    #[test]
+    fn one_who_picked_up_another_battery_is_not_believed_to_carry_this_one() {
+        let mut at = AtTheContainer::new();
+        at.world(
+            1_200,
+            vec![BatteryState::Free(BATTERY), BatteryState::Free(AT_IT)],
+        );
+        at.press(1, 1_300, key::CROUCH);
+        at.press(0, 1_300, 0);
+        at.world(
+            1_400,
+            vec![BatteryState::Carried(None), BatteryState::Carried(None)],
+        );
+        assert_eq!(at.tracker.carrier(0), Some(1));
+        assert_eq!(at.tracker.carrier(1), Some(0));
+        // Place 0 puts battery 1 in; place 1's uses there put nothing in.
+        at.world(
+            2_000,
+            vec![BatteryState::Carried(None), BatteryState::Home(1)],
+        );
+        at.tracker.take_notes();
+        for time in [2_400, 3_600, 4_800] {
+            at.press(1, time, key::CROUCH);
+            at.world(
+                time + 1_000,
+                vec![BatteryState::Carried(None), BatteryState::Home(1)],
+            );
+        }
+        at.world(
+            6_400,
+            vec![BatteryState::Carried(None), BatteryState::Home(1)],
+        );
+        assert_eq!(at.tracker.carrier(0), Some(1));
+        let notes = at.tracker.take_notes();
+        assert!(
+            notes
+                .iter()
+                .any(|n| n.ends_with("now still player 1, no one else near it")),
+            "{notes:?}"
+        );
     }
 
     /// The belief went to the wrong teammate (the taker's use was not

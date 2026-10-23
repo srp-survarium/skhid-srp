@@ -73,6 +73,15 @@ const FIRST_PITCH_MAX_RAD: f32 = 0.98;
 const AT_STAND_UP_M: f32 = 0.4;
 /// A stand is reached within this, metres.
 const AT_STAND_M: f32 = 0.25;
+/// A bot this far below the floor it would stand on for a take is on
+/// another floor (it fell off the ledge the battery lies by, or stands
+/// under an overhang), metres. Once a stand there failed, the take goes up
+/// by the route, not round the battery by straight steps: in 0x1b8ee975
+/// battery 4 lay 236 s on a walk 2.8 m over a floor that runs under it, and
+/// bots tried their stands under it (one for 36 s). A take from below that
+/// works is left alone (on the bench, gating every take from 1.2 m below
+/// cost 3.5 pickups a seed of 66).
+pub const BELOW_STAND_M: f32 = 1.2;
 /// A stand this near in a clear line is walked to straight, by keys
 /// (`Intent::straight`); the route's arrival (the motor's `arrive_m`,
 /// 0.6 m) is too loose for a stand.
@@ -268,6 +277,14 @@ fn back_spot(cx: &Ctx, at: Vec3, from: Option<Vec3>) -> Vec3 {
 
 pub const NUMBERS: &[(&str, f32)] = &[
     ("reach_m", 1.5),
+    // A bot going for a battery that is over 2 m off its reckoning within
+    // `fall_near_m` of it fell there (a ledge by it); after `falls_aside`
+    // such falls of the team within `falls_window_s`, the battery is not
+    // offered for `falls_aside_s` after the last (0: never).
+    ("fall_near_m", 8.0),
+    ("falls_aside", 3.0),
+    ("falls_window_s", 120.0),
+    ("falls_aside_s", 60.0),
     // Within `hold_near_m` of the battery, a take waits while an enemy
     // within `exposed_m` sees the bot, not reloading (a reload pressed
     // within `reload_cover_s`) and kept busy by no teammate with a clear
@@ -394,11 +411,20 @@ impl Ctx<'_> {
     /// may lead to ([`Ctx::reachable`]), and no search of this bot or its
     /// team proved no way to it lately ([`Ctx::no_way_lately`]). A battery
     /// no way leads to now (inside a hazard) is left for later. Ambush
-    /// asks it too: a battery nobody can take is not waited at.
+    /// asks it too: a battery nobody can take is not waited at. Nor is
+    /// one the team keeps falling by ([`TeamKnowledge::fallen_at`]).
     pub fn can_take(&self, at: Vec3) -> bool {
+        let num = |name| self.num(PlayKind::Collect, name);
         self.tactics
             .stand_to_take(at)
             .is_some_and(|stand| self.reachable(stand, false) && !self.no_way_lately(stand))
+            && !self.team.fallen_at(
+                at,
+                self.now,
+                num("falls_aside") as usize,
+                (num("falls_window_s") * 1000.0) as u32,
+                (num("falls_aside_s") * 1000.0) as u32,
+            )
     }
 }
 
@@ -667,7 +693,21 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             }
             Step::Continue(Intent::to(stand, cx.pace_toward(stand)).within(num("reach_m") * 0.6))
         }
-        State::Take { .. } => take(state, target, cx),
+        State::Take { tried, .. } => {
+            // Under its floor (fallen, or under an overhang), a stand there
+            // failed: up by the route, however near across (a goal within
+            // reach across is no goal); the take goes on once up.
+            if !tried.is_empty()
+                && let TargetRef::Battery(battery) = target
+                && let Some(stand) = cx
+                    .battery_lying(battery)
+                    .and_then(|at| cx.tactics.stand_to_take(at))
+                && cx.me.feet.y < stand.y - BELOW_STAND_M
+            {
+                return Step::Continue(Intent::to(stand, cx.pace_toward(stand)).within(0.0));
+            }
+            take(state, target, cx)
+        }
         State::Bring => {
             if cx.me.carrying.is_none() {
                 return Step::Done(carry_ended(cx, target, "brought home"));
@@ -1174,8 +1214,42 @@ mod tests {
         assert!(matches!(state, State::Take { .. }));
     }
 
-    /// A battery whose search lately proved no way (every way in crosses a
-    /// fire) is left until that is forgotten, and a fetch of it gives up.
+    /// A bot under the floor the battery is taken from (fallen off the
+    /// ledge, or under an overhang: 0x1b8ee975's battery 4, 236 s) whose
+    /// stand there failed walks up to the stand by the route, however near
+    /// across; before a failure, and once up, the take goes on as ever.
+    #[test]
+    fn a_take_failed_under_its_floor_walks_up_to_it() {
+        let mut s = take_field(&[], Vec3::new(25.6, -2.0, 12.0));
+        let target = TargetRef::Battery(0);
+        let mut rng = Rng::new(1);
+        let mut state = fresh_take(&s, None);
+        let first = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert!(
+            !matches!(first.go, Go::To { within_m, .. } if within_m == 0.0),
+            "{first:?}"
+        );
+        let State::Take { tried, .. } = &mut state else {
+            panic!("{state:?}");
+        };
+        tried.push(TakeStand {
+            feet: Vec3::new(25.6, -2.0, 12.0),
+            crouch: false,
+        });
+        let up = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert!(
+            matches!(up.go, Go::To { at, within_m } if at == TAKE_AT && within_m == 0.0),
+            "{up:?}"
+        );
+        assert!(matches!(state, State::Take { .. }), "{state:?}");
+        s.bot(0, 0, Vec3::new(25.6, 0.0, 12.0));
+        let on = intent_of(step(&mut state, target, &s.cx(0), &mut rng));
+        assert!(
+            !matches!(on.go, Go::To { within_m, .. } if within_m == 0.0),
+            "{on:?}"
+        );
+    }
+
     #[test]
     fn a_battery_no_way_was_found_to_lately_is_left_for_a_while() {
         let mut s = with_toxic(0.3);

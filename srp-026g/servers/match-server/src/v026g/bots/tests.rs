@@ -1080,6 +1080,8 @@ impl CarryTally {
 /// One raid of a soak, from its take to the bot's next play.
 #[derive(Clone, Debug, Default)]
 struct RaidRun {
+    /// The raider.
+    place: Place,
     /// Its score at the take.
     score: f32,
     /// How long it ran, s.
@@ -1147,6 +1149,7 @@ impl RaidTally {
                 }
                 *raid = on.map(|a| {
                     let run = RaidRun {
+                        place,
                         score: a.score,
                         nearest_m: f32::INFINITY,
                         ..Default::default()
@@ -3788,7 +3791,30 @@ fn real_bot_cost() {
                 "  by play (takes, under 0.05, kills, deaths, steals): {}",
                 rows.join("; ")
             );
-            eprintln!("  raids: {}", raid_line(&raids.finish()));
+            let raid_runs = raids.finish();
+            eprintln!("  raids: {}", raid_line(&raid_runs));
+            // A side's raids: [runs, bot-s, came within 5 m, stole, died].
+            let mut raid_sums = [[0f32; 5]; 2];
+            for run in &raid_runs {
+                let side = &mut raid_sums[usize::from(teams[run.place] & 1)];
+                side[0] += 1.0;
+                side[1] += run.ran_s;
+                side[2] += f32::from(u8::from(run.nearest_m <= 5.0));
+                side[3] += f32::from(u8::from(run.stole));
+                side[4] += f32::from(u8::from(run.died));
+                if std::env::var("SRP_BENCH_SHOW_RAIDS").is_ok() {
+                    eprintln!(
+                        "  raid {} {:.3} {:.1} {:.1} {} {} {}",
+                        teams[run.place] & 1,
+                        run.score,
+                        run.ran_s,
+                        run.nearest_m,
+                        u8::from(run.stole),
+                        u8::from(run.died),
+                        run.next.split(';').next().unwrap_or_default().replace(' ', "_")
+                    );
+                }
+            }
             eprintln!("  {}", blocks.finish(&mut events));
             eprintln!("  {}", fight.line(&game));
             eprintln!(
@@ -3834,6 +3860,8 @@ fn real_bot_cost() {
                     "camper": game.camper.map(|(p, t)| (p, t, game.bodies[p].alive)),
                     "camp_ended": game.camp_ended,
                     "nudged": game.nudged,
+                    "raids": raid_sums,
+                    "stolen": game.stolen,
                 })
             );
             eprintln!(

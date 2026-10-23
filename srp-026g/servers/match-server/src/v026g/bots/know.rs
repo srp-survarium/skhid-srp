@@ -314,6 +314,22 @@ pub struct CarrierPlace {
 /// Carriers' places are kept this long, ms.
 pub const CARRIER_PLACES_KEEP_MS: u32 = 30_000;
 
+/// A bot of the team fell near a battery it went for: it was far off its
+/// reckoning there (a ledge by the battery; [`TeamKnowledge::fell_near`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Fall {
+    pub who: Place,
+    pub at: Vec3,
+    pub time: u32,
+}
+
+/// Falls are kept this long, ms; a bot's falls this near in time are one.
+pub const FALLS_KEEP_MS: u32 = 120_000;
+const FALL_SAME_MS: u32 = 5_000;
+/// Falls this near a spot are at it, metres across and up or down.
+const FALL_SPOT_M: f32 = 1.5;
+const FALL_SPOT_UP_M: f32 = 2.0;
+
 /// A battery an enemy carrier dropped where he died, unseen: the kill feed
 /// says he died, the team knew he carried it (a theft of ours, or seen
 /// carrying), and the game's HUD shows the dropped battery only to his
@@ -368,6 +384,8 @@ pub struct TeamKnowledge {
     pub looks: Vec<LookSpot>,
     /// Enemy carriers' places of the last [`CARRIER_PLACES_KEEP_MS`].
     pub carrier_places: Vec<CarrierPlace>,
+    /// The team's falls by batteries of the last [`FALLS_KEEP_MS`].
+    pub falls: Vec<Fall>,
 }
 
 impl TeamKnowledge {
@@ -540,6 +558,50 @@ impl TeamKnowledge {
         self.looks.retain(|look| look.until >= now);
         self.carrier_places
             .retain(|p| p.time + CARRIER_PLACES_KEEP_MS >= now);
+        self.falls.retain(|f| f.time + FALLS_KEEP_MS >= now);
+    }
+
+    /// `who`, going for a battery lying at `at`, fell near it (once in
+    /// [`FALL_SAME_MS`] a bot).
+    pub fn fell_near(&mut self, who: Place, at: Vec3, time: u32) {
+        if self
+            .falls
+            .iter()
+            .any(|f| f.who == who && f.time + FALL_SAME_MS > time)
+        {
+            return;
+        }
+        self.falls.push(Fall { who, at, time });
+    }
+
+    /// Whether a battery lying at `at` is set aside for the team: `count`
+    /// falls at it within `window_ms`, the last less than `aside_ms` ago
+    /// (0x1b8ee975: battery 6 lay 455 s by a ledge, 166 Collect plays, 17
+    /// falls, 7 of them deaths).
+    pub fn fallen_at(
+        &self,
+        at: Vec3,
+        now: u32,
+        count: usize,
+        window_ms: u32,
+        aside_ms: u32,
+    ) -> bool {
+        let falls: Vec<u32> = self
+            .falls
+            .iter()
+            .filter(|f| {
+                f.at.distance_xz(at) <= FALL_SPOT_M
+                    && (f.at.y - at.y).abs() <= FALL_SPOT_UP_M
+                    && f.time + window_ms >= now
+            })
+            .map(|f| f.time)
+            .collect();
+        count > 0
+            && falls.len() >= count
+            && falls
+                .iter()
+                .max()
+                .is_some_and(|&last| now < last + aside_ms)
     }
 
     /// A bot of the team sensed the enemy carrier at `who` at `at`, within
@@ -995,5 +1057,28 @@ mod tests {
         team.forget_callouts(5);
         let left: Vec<Place> = team.heard_by(4, 2_300).iter().map(|p| p.who).collect();
         assert_eq!(left, vec![6]);
+    }
+
+    /// Three falls of the team at a battery within 120 s set it aside for
+    /// 60 s after the last; one bot's fall is counted once in 5 s, falls at
+    /// another battery or long ago do not count, and `count` 0 is off.
+    #[test]
+    fn falls_at_a_battery_set_it_aside_for_a_while() {
+        let mut team = TeamKnowledge::default();
+        let at = Vec3::new(5.0, 35.5, 60.0);
+        let aside = |team: &TeamKnowledge, now| team.fallen_at(at, now, 3, 120_000, 60_000);
+        team.fell_near(1, at, 10_000);
+        team.fell_near(1, at, 12_000);
+        team.fell_near(2, Vec3::new(20.0, 35.5, 60.0), 13_000);
+        team.fell_near(3, at + Vec3::new(0.0, 3.0, 0.0), 14_000);
+        team.fell_near(2, at + Vec3::new(1.0, 0.0, 0.0), 20_000);
+        assert!(!aside(&team, 21_000), "two falls here: {:?}", team.falls);
+        team.fell_near(1, at, 30_000);
+        assert!(aside(&team, 31_000));
+        assert!(aside(&team, 89_000));
+        assert!(!aside(&team, 91_000), "60 s after the last");
+        assert!(!team.fallen_at(at, 31_000, 0, 120_000, 60_000), "off");
+        // The first fall out of the window: two left.
+        assert!(!team.fallen_at(at, 31_000, 3, 15_000, 60_000));
     }
 }

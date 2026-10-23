@@ -13,7 +13,7 @@
 //!   container ([`attack`]) has [`Bands::behind_floor`] and
 //!   [`Bands::behind_second`] instead: it keeps the objective band, and a
 //!   second attacker may join it (F0 of the owner's matches 0x652d4e6e,
-//!   0x1a0961e2, 0x7298fb57).
+//!   0x1a0961e2, 0x7298fb57); one scoring under 0.06 still does not.
 //! - **Commitment:** a bot keeps its play unless a candidate of a higher
 //!   band comes, or one of the same band beats it by [`MARGIN`] (research
 //!   B9: no flapping between near-equal plays).
@@ -60,7 +60,16 @@ pub struct Bands {
     /// under 0.10. With the floor the team behind took none of those in
     /// three real 7v7 matches (Hold, Group and Roam instead, 2-5 points
     /// down, every battery home); before it, 25-43 % of them, and it came
-    /// back from -3 to 0 in one.
+    /// back from -3 to 0 in one. Not 0: since a raid once taken holds
+    /// (`raid::raid_candidate`), the raids under it ran on for nothing.
+    /// In the owner's PvB matches 0x6da44bbb and 0x1b8ee975 the team
+    /// behind took 47 and 57 raids at 0.00-0.16 and stole none (14 raid
+    /// deaths in one); 0.06 would have left 11 and 11. Bench (600 s,
+    /// `SRP_BENCH_START=3,7` and `7,3`, 8 maps, 4 v 4 and 7 v 7, 6 seeds):
+    /// the side behind raided 299 -> 166 times a seed, 6,097 -> 2,846
+    /// bot-s, its raid deaths 29.5 -> 18.8, its raid steals 8.3 -> 9.2 and
+    /// the points won back held (10.8 -> 10.3); its kills rose 421 -> 434.
+    /// At 0.10 the points won back fell (-6.3 ± 2.9).
     pub behind_floor: f32,
     /// ... and a second attacker on the same container to this bar
     /// instead of [`Bands::second`] (attacks in pairs, not one by one: a
@@ -75,7 +84,7 @@ impl Default for Bands {
             demote_to: Rank::Roam,
             keep: 0.5,
             second: 0.20,
-            behind_floor: 0.0,
+            behind_floor: 0.06,
             behind_second: 0.0,
         }
     }
@@ -439,7 +448,7 @@ mod tests {
         demote_to: Rank::Roam,
         keep: 0.5,
         second: 0.2,
-        behind_floor: 0.0,
+        behind_floor: 0.06,
         behind_second: 0.0,
     };
 
@@ -621,21 +630,25 @@ mod tests {
     }
 
     #[test]
-    fn a_team_behind_attacks_the_enemy_container_whatever_the_score() {
+    fn a_team_behind_attacks_the_enemy_container_under_the_floor() {
         // 7298 600.9 s, bot 12 at 0-5: LateDenial 0.102 lost to Roam 1.0;
-        // most attacks score under 0.05.
+        // most attacks score under 0.10.
         for attack in [PlayKind::Raid, PlayKind::Sneak, PlayKind::LateDenial] {
-            let all = || {
+            let all_at = |score| {
                 vec![
-                    on(attack, 0.03, 0),
+                    on(attack, score, 0),
                     c(PlayKind::Crossfire, Rank::Fight, 0.85, None, 1),
                     c(PlayKind::Roam, Rank::Roam, 1.0, None, 2),
                 ]
             };
+            let all = || all_at(0.07);
             assert_eq!(one_at(&BANDS, all(), None, -2.0).0, attack, "{attack:?}");
             // Level or ahead the floor stands (PR 123's anti-churn).
             assert_eq!(one_at(&BANDS, all(), None, 0.0).0, PlayKind::Crossfire);
             assert_eq!(one_at(&BANDS, all(), None, 1.0).0, PlayKind::Crossfire);
+            // Behind, one under 0.06 is no attack (0x6da44bbb: 47 raids
+            // at 0.00-0.16, none stole).
+            assert_eq!(one_at(&BANDS, all_at(0.03), None, -2.0).0, PlayKind::Crossfire);
         }
         // Other objectives keep the floor behind too: a hold (an ambush, a
         // guard) gains a team behind nothing.
@@ -661,7 +674,7 @@ mod tests {
                 Asking {
                     place: 2,
                     candidates: vec![
-                        on(PlayKind::Raid, 0.04, 0x100),
+                        on(PlayKind::Raid, 0.07, 0x100),
                         c(PlayKind::Cut, Rank::Fight, 0.3, None, 2),
                     ],
                     current: None,
