@@ -2042,7 +2042,7 @@ def test_research(original, image, before):
           f"the arena's block research.code at {research_va:#x} ({len(code)} bytes) is the link's, research.state "
           f"at {linked.blocks['research.state'].va:#x} zeros")
     originals = {0x1E9B4C: ["mov eax,ebx", "call 0x1ec170"], 0x23B3DE: ["cmp dword [edi+0x20],0x4", "jnz 0x23b3fc"],
-                 0x23B351: ["cmp eax,0x4", "jnz 0x23b36a"]}
+                 0x23B351: ["cmp eax,0x4", "jnz 0x23b36a"], 0x23B207: ["call 0x23aa10"]}
     loose = lambda text: text.replace("byte +", "")     # ndisasm 2.16 writes `byte +0x4`, 3.x `0x4`
     for va, old, symbol, opcode in P.RESEARCH_HOOKS:
         rows = ndisasm(source.read(va, len(old)), va)
@@ -2051,7 +2051,7 @@ def test_research(original, image, before):
         check(source.read(va, len(old)) == old and before.read(va, len(old)) == old
               and [loose(text) for _, _, text in rows] == originals[va]
               and hooked[0][2].startswith(word) and branch_target(hooked[0][2]) == linked.symbols[symbol]
-              and research_va <= linked.symbols[symbol] < research_va + 15
+              and research_va <= linked.symbols[symbol] < research_va + 20
               and all(text == "nop" for _, _, text in hooked[1:]),
               f"{va:#x}: `{'; '.join(originals[va])}` becomes {hooked[0][2]} ({symbol}) + {len(hooked) - 1} nop; "
               "the build without the late join keeps it")
@@ -2059,17 +2059,18 @@ def test_research(original, image, before):
                 if not (va <= hit < va + len(old)) and starts_instruction(source, hit)]
         relocated = [r for kind, r in source.relocations().values() if kind == 3 and r + 4 > va and r < va + len(old)]
         check(not hits and not relocated, f"{va:#x}: no branch aims inside the site, no base relocation under it")
-    entries = ndisasm(image.read(research_va, 15), research_va)
-    check([text.split()[0] for _, _, text in entries] == ["jmp"] * 3,
-          "the section starts with its three entries, `jmp near` each: register, hud, welcome")
+    entries = ndisasm(image.read(research_va, 20), research_va)
+    check([text.split()[0] for _, _, text in entries] == ["jmp"] * 4,
+          "the section starts with its four entries, `jmp near` each: register, hud, welcome, icons")
     stubs = code[:code.index(b"st_start_match_welcome_message_5")]
     texts = [plain(t) for _, _, t in ndisasm(stubs, research_va)]
     targets = {int(t.split()[-1], 16) for t in texts if t.startswith(("call ", "j")) and t.split()[-1].startswith("0x")}
     outside = {c for c in targets if not research_va <= c < research_va + len(code)}
-    check(outside == {0x1EC170, 0x23B35B, 0x23B36A} and "mov [esp],0x23b3fc" in texts
+    check(outside == {0x1EC170, 0x23B35B, 0x23B36A, 0x23AA10} and "mov [esp],0x23b3fc" in texts
           and "mov ecx,0xa03aac" in texts,
           "the stubs leave to the constructor's replaced call, update_ui's message (TDM's key or mode 5's) and its "
-          f"way on without one, and the hud's to update_ui past Team Deathmatch's part ({sorted(hex(c) for c in outside)}); "
+          "way on without one, update_player_icons (the icons' stub calls it first), "
+          f"and the hud's to update_ui past Team Deathmatch's part ({sorted(hex(c) for c in outside)}); "
           "the C code calls the game through registers only")
     # The C code reaches the game's functions through the engine-function
     # library (check_engine_026g.py proves each thunk): a call or a pointer
@@ -2079,7 +2080,8 @@ def test_research(original, image, before):
     c_listing = [plain(t) for _, _, t in ndisasm(code[P.RESEARCH_ASM_SIZE:], research_va + P.RESEARCH_ASM_SIZE)]
     for symbol in ("engine_register_cook", "engine_malloc", "engine_match_rule_base", "engine_cfg_child",
                    "engine_cfg_has", "engine_write_u8", "engine_write_u16", "engine_write_u32",
-                   "engine_statistics_notify", "engine_movie_invoke", "engine_show_message"):
+                   "engine_statistics_notify", "engine_movie_invoke", "engine_show_message",
+                   "engine_point_to_screen"):
         entry, real = entries[symbol]
         named = any(t == f"call {entry:#x}" or t.endswith(f",{entry:#x}") for t in c_listing)
         check(named and struct.pack("<I", real) not in code[P.RESEARCH_ASM_SIZE:],
