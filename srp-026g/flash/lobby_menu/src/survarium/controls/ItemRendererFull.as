@@ -30,6 +30,11 @@ package survarium.controls
       
       public var bundleBackground:MovieClip;
       
+      // The loadouts' badge (ItemRendererBase.updateLoadoutBadge) on this tile: set by the
+      // craft window for its two slots, which hold owned items; the other windows' tiles
+      // (the paper doll, repair, reroll) stay as they were.
+      public var showLoadouts:Boolean = false;
+      
       public function ItemRendererFull()
       {
          super();
@@ -49,6 +54,10 @@ package survarium.controls
          this.damageIndicator.alpha = contentAlpha;
          this.brokenIcon.alpha = contentAlpha;
          this.paintedIcon.alpha = contentAlpha;
+         if(this._loadoutBadge)
+         {
+            this._loadoutBadge.alpha = contentAlpha;
+         }
       }
       
       override protected function configUI() : void
@@ -117,6 +126,8 @@ package survarium.controls
          this.textLevel.x = this.sellerIcon.numChildren ? 24 : this.sellerIcon.x;
          this.brokenIcon.visible = item.broken;
          this.paintedIcon.visible = item.upgrades && item.upgrades.length > 0;
+         // The info field is the count's font and size (CalibriBold 14), as the inventory's.
+         this.updateLoadoutBadge(item.itemId,this.showLoadouts && !item.isStack,this.textFieldInfo,this.textFieldInfo);
          this.damageIndicator.track.scaleX = _data.value / ItemCondition.FULL;
          var condition:int = _data.value / ItemCondition.FULL * 510;
          var trackColor:uint = Util.getColor(Math.min(510 - condition,255),Math.min(condition,255),0);
