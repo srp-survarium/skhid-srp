@@ -186,8 +186,8 @@ rewards); the lobby (`GameMode.RESEARCH`, the rooms' and matches' mode names).
   `patch_026g.py`'s `ARENA` with their sources, linked by `link_026g.py`. Research's are
   `research.code` (research_026g.asm, research_rule_026g.c, research_native_026g.c; 0xA42D000
   today) and `research.state` (`rn_state`, 0xA430000 today); its hooks take their targets from
-  the link by symbol. The dynamic anomalies (patch 42, #225) add a block of their own the same
-  way, and no section.
+  the link by symbol. Patch 58's kit keys have blocks of their own the same way,
+  and no section (#225's dynamic anomalies had one too, taken out of revision 31).
 - **HUD:** update_ui (every frame): `root.research_update(own team, points 0, points 1, goal,
   Z, then cp_id, x, -z, owner, taking, progress %, inside 0, inside 1, own player inside)`, sent
   at a change and every 60 frames; the messages through the hud's parameterised message.

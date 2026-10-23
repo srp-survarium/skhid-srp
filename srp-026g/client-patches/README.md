@@ -95,8 +95,6 @@ release's. The "Result" row is the build of the revision named in it.
 | `artefacts_026g.asm`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; the arena's block `artefacts.code` (linked by `link_026g.py`); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
-| `dynamic_anomalies_026g.asm` | Patch 42's code (dynamic anomalies: the release's anomalies rule in `game_world_core::atomic_tick`, a timed anomaly's pick-up): the arena's block `anomalies.code` (linked by `link_026g.py`; its two hooks jump to `anomalies_tick_hook` and `anomalies_pickup_hook` by name) |
-| `check_dynamic_anomalies_026g.py` | Runs patch 42's two hooks with the game's own `generic_anomaly_core::tick` on made-up worlds, tick by tick, against a Python model of the rules: a London-like match with pick-ups, a copy of the world at 5 minutes (late joiner, resync, rollback), the 16-active and 15 m limits, stock cores byte for byte, and a write hook that lets the code write only the chosen core's three fields (needs Unicorn; about 5 minutes) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
@@ -161,9 +159,8 @@ a hook jumps to, `extern` what it uses of other patches; its hooks as
 (site, bytes, symbol, opcode) rows made in `build()`; each declared in
 `INSTALLS` (below); `python link_026g.py --write`. Research (patch 53: its
 asm, its C, and its state `rn_state`), the artefacts (patch 54), the
-engine library, the dynamic anomalies (patch 42, `anomalies.code`) and the
-kit keys with the match chat option (patch 58) are the arena's blocks
-today. The older fixed sections stay as they are
+engine library and the kit keys with the match chat option (patch 58) are
+the arena's blocks today. The older fixed sections stay as they are
 (client_patch.md 0.3 says what moving one would take).
 
 **Call shapes.** Every function a patch installs — a vtable slot, a delegate,
@@ -2432,48 +2429,6 @@ its screen factor (the original's at 20, 60 and 150 m). Against the build of
 code (0xC4BC60..0xC4BCED), the two scales (0xC4C0E0..0xC4C115) and the PE
 checksum, and in nothing else (compared byte by byte). **Not run in a game.**
 
-### 42. Dynamic anomalies (the next release's revision)
-
-The owner (2026-10-20): the release's London anomalies "appeared with
-artifacts and disappeared when artifacts were picked up, and they used to
-spawn in many lcoations". The rules: `../docs/notes/dynamic_anomalies.md`;
-the proof: `client_patch.md` section 3.38.
-
-The release (0.28a2 to 0.46c2) had a timed anomaly class and an anomalies
-rule. Here a timed anomaly is a stock `generic_anomaly_core` (the map data:
-the content pack `dynamic-anomalies` of `release/content.tsv`, shipped with this
-patch) with energy_enabled and
-artefacts that never respawn by themselves (`artefacts_respawn_time_sec`
-100000; no stock core has more than 80). Its states are the release's
-timeline by energy, played by the game's own state timers: charging 20 s,
-damage 4 s, the artefact until it is taken, 60 s after the pick-up, idle.
-The pack has them on London and Cologne only (the owner, 2026-10-22); on
-any other map no core is timed, so the rule finds no candidate and every
-pick-up is the original's: the patch is data-driven and changes nothing there.
-
-Two hooks into `dynamic_anomalies_026g.asm`, the arena's block
-`anomalies.code` in `.srpx` (0xA433000 as the link places it today; each hook
-jumps to its entry by name, `DYNAMIC_ANOMALIES_HOOKS`; the build with the
-late join only):
-
-- `game_world_core::atomic_tick` (0x2D1E20, its first six bytes) first runs
-  the release's anomalies rule: a try at the match's start + 30 s and then
-  20 to 40 s after the tick of the last; while fewer than 16 are active, one
-  idle timed anomaly with a free artefact of its own and no busy one within
-  15 m starts charging, its artefact due when charging and damage have run;
-- `on_artefact_container_use` (0x33BCD0, its first ten bytes): a taken
-  artefact puts its timed anomaly to the after-the-pick-up energy, no
-  artefact due; any other core is the original's.
-
-Nothing new is kept or serialized: the tries and draws come from the
-static info's seed and the try's number. `check_dynamic_anomalies_026g.py`
-(Unicorn) runs the built exe's hooks with the game's own anomaly tick on
-made-up worlds against the rules, tick by tick; check 42 of the self-test
-reads the sites, their targets in the link and the block's bytes. Both
-sites are `INSTALLS` ENTRY rows (models: `atomic_tick` and
-`on_artefact_container_use`, both `ret 8`). The code calls no engine
-function: it reads the world's and the cores' fields and jumps back.
-
 ### 43. The player's own row in the Tab list is gold (the next release's revision)
 
 The owner (2026-10-20): "when pressing tab in game, your own character
@@ -3084,7 +3039,7 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   three `jmp near`, the global symbols research_register, research_hud and research_welcome;
   then the C code and its constants) and `research.state` (`rn_state`: the cook, the hud's
   cache; zeroed), linked from source (0xA42D000 and 0xA430000 today). The next blocks are patch
-  54's, the engine library's and patch 42's (`anomalies.code`).
+  54's, the engine library's and patch 58's.
 - **The register hook**: `mov eax,ebx / call 0x1EC170` at 0x1E9B4C of the game's constructor (after
   its own client rule cooks) becomes a `call` of the register stub, which registers the cook once
   and does the two instructions.
