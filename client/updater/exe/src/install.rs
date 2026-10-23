@@ -17,6 +17,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use updater_logic::file_error::Stop;
 use updater_logic::manifest::player_may_edit;
 
 use crate::win::{self, Code};
@@ -110,6 +111,23 @@ pub enum InstallError {
     Replace { path: String, code: Code },
     /// The player closed the launcher.
     Stopped,
+}
+
+impl InstallError {
+    /// The file Windows Security did not let be written or replaced, and
+    /// the code (`updater_logic::file_error`, `Stop::Virus`).
+    pub fn virus(&self) -> Option<(&str, Code)> {
+        match self {
+            Self::Folder { path, code }
+            | Self::Write { path, code }
+            | Self::Replace { path, code }
+                if Stop::of(*code) == Some(Stop::Virus) =>
+            {
+                Some((path, *code))
+            }
+            _ => None,
+        }
+    }
 }
 
 /// What an install changed.

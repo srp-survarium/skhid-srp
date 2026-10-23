@@ -111,15 +111,16 @@ def frames(data):
 class Holder:
     """Another Windows program that holds a file of the game: the game its
     resources.db, an antivirus a file it scans. It may read and write the
-    file but not delete or rename it, as theirs."""
+    file but not delete or rename it, as theirs. `mode="lock"`: nobody else
+    may even read it, as some antivirus scans do."""
 
     counter = 0
 
-    def __init__(self, test, name, wait=True):
+    def __init__(self, test, name, wait=True, mode="hold"):
         Holder.counter += 1
         self.held = os.path.join(test.root, f"held-{Holder.counter}")
         self.let_go = os.path.join(test.root, f"release-{Holder.counter}")
-        command, env = windows([harness.FAKE_EXE, "hold", windows_path(test.path(name)),
+        command, env = windows([harness.FAKE_EXE, mode, windows_path(test.path(name)),
                                 windows_path(self.held), windows_path(self.let_go)])
         self.process = subprocess.Popen(command, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         test.addCleanup(self.release)

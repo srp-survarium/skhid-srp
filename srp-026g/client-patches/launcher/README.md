@@ -395,6 +395,8 @@ ZIP's files go in all or none, and a patch file is a checked file or none.
 | Not enough disk space | "Not enough free disk space for the update in <folder>: N MB needed, M MB free." |
 | The game folder cannot be written (Program Files, read-only) | "Cannot write <file>: Access is denied (error 5). Move the game out of Program Files or start the launcher as administrator; an antivirus can block it too." |
 | A file is held by another program (the game is running) | "Cannot replace <file>: ... (error 32). Nothing was changed. Another program holds the file: close the game and try again." |
+| Windows Security blocks a Skhid program file (error 225 or 226 at its read, write or rename), or a program holds it from every reader (a start script or text file is left alone) | Status "Error", PLAY stays off, nothing downloaded; the updater's own box, in the launcher's language, with Retry and Cancel: "Windows Security blocked survarium_skhid.exe: a false positive.", the two steps (Protection history > Allow on device; the game folder as an exclusion), "Then try again." (or "... is in use by another program. Close the game, then try again."). Retry runs the update again ([updater README](../../../client/updater/README.md#a-file-that-cannot-be-read)) |
+| A Skhid file cannot be read for another reason (access denied) | Repaired: the ZIP downloaded and installed again; when that fails too, the install's error naming the file, PLAY off. Never "up to date" |
 | The server lets in a newer game than its ZIP (a release half put in place) | "The server lets in game revision n and up; this game is revision r, and the update to it is not offered yet (the server is being updated). Click OK: the launcher keeps looking and starts anew with the update. PLAY stays off until this is done."; the window starts anew by itself once the server offers the new ZIP (after OK: a launcher with a box open cannot close, and a second one is never started beside it) |
 | A patch cannot be had or put in place (the list cannot be fetched or read, every address of a patch fails, a wrong checksum, the game is running, an antivirus holds the file, the disk is full) | Status "Error", PLAY stays off, a box that says which and what to do, ending "PLAY stays off until this is done." The next start tries again (the cases: [updater README](../../../client/updater/README.md#patches)) |
 | The restore of `resources.db` fails (the game is running, a blob is missing on the server) | Nothing: no box, PLAY as usual. The reason is in the log after `resources:`; it is tried again at the next start |
@@ -409,7 +411,9 @@ can still be one the server refuses: the game then says "You're using an
 outdated version of the game." Start the launcher: it updates.
 
 The texts are English only (the launcher shows them in an ANSI message box,
-so only ASCII is safe). The launcher's own lines are in its five languages.
+so only ASCII is safe), but the box of a file Windows Security blocks or a
+program holds, which is the updater's own. The launcher's own lines are in
+its five languages.
 
 ## What each patch does
 
