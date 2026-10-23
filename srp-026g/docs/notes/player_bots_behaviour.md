@@ -426,6 +426,63 @@ The owner's evening matches on #343 (with #363 and #364): bots made 3.4 team kil
 
 **Not verified:** no real match has been played with this. The owner's death fits the gap, but the worlds are a second apart and cannot prove the line at the shot. The grenade case is a LEAD: log the weapon of each team kill.
 
+### 2.10 Answering a loss or a hit (measured 2026-10-23; no change kept)
+
+Audit issues 9 (few trades, chains of deaths to one killer) and 8's `hit_bearing` part (a bot hit by a shooter it has not sensed makes no turn). In the owner's matches 12-27 % of bot deaths were traded within 5 s (the killer killed by the victim's team), and one killer often took two or more of a team within 15 s.
+
+**The measure.** The real-map bench (`real_bot_cost`, `bots/tests.rs`) gains:
+- **`HitTally`:** every hit on a living bot starts a 3 s follow, unless one runs. It records whether the bot knew of the shooter at the hit (its target, or a track of him within 1.5 s), and then whether it turned to face him (within 20 degrees), took him as its target, hit him back, killed him or died. Each follow goes to the events as a `"hit"` line; `bench.log` gets a `hits taken:` line split by sensed and not sensed.
+- **The teammates at a kill:** at each kill, the victim's living teammates within 30 m, as a `"mates"` line. For each one: its distance to the victim and to the killer, whether its eye had a line to his chest, whether it knew of him, and whether he was its target.
+- **One-sided runs** (`SRP_BENCH_ONE_SIDE=1`): team 1 plays by the `SRP_BENCH_SIDE1_*` numbers (`COMBAT`, `SENSE`, `TRADE` and the other plays'), team 0 by the usual `SRP_BENCH_*`. A change given to team 0 alone then shows in its K/D. A change both teams get keeps K/D at 1. (`Bots::tuning_of`; test builds only.)
+
+**Baseline** (`real_bot_cost`, 180 s, 4 v 4 and 10 v 10, `SRP_BENCH_SPREAD=1`, seeds 1-16; batteries on maps `6/2,1/2,3/3,2/2,4/2,5/2` with `SRP_BENCH_BATTERIES=10`, `SRP_BENCH_USE_LINE=1`; team deathmatch on `6/4,8/4,1/4,2/4,5/4,7/4`; means a seed):
+
+| Measure | Batteries | Team DM |
+|---|---|---|
+| deaths traded within 5 s / 10 s | 11.0 / 19.1 % | 16.3 / 28.1 % |
+| chains (one killer, 2+ of a team, each within 15 s of the last), per 100 deaths | 13.8 | 18.0 |
+| deaths followed by another to the same killer within 15 s | 17.6 % | 25.2 % |
+| Trade plays a seed; their kills / deaths | 30.5; 3.2 / 1.4 | 171; 16.4 / 9.4 |
+| hits whose shooter the bot had not sensed | 4.7 % | 2.7 % |
+| ... it faced him within 1 s / took him as target within 1.5 s | 56.5 / 50.4 % | 59.0 / 52.5 % |
+| ... it hit him back within 3 s / died within 3 s | 6.5 / 26.3 % | 5.5 / 41.2 % |
+| hits by a shooter it knew of: hit back / died within 3 s | 19.1 / 26.6 % | 21.4 / 31.8 % |
+
+**Why deaths go untraded.** Take the victim's best-placed teammate within 30 m at the kill:
+
+| That teammate | Batteries: deaths, traded | Team DM: deaths, traded |
+|---|---|---|
+| had the killer as its target | 25 %, 28 % traded | 34 %, 32 % traded |
+| knew where he was, no line to him | 38 %, 6 % | 33 %, 9 % |
+| had a line and knew, not aiming at him | 14 %, 9 % | 19 %, 13 % |
+| none within 30 m | 20 %, 2 % | 12 %, 1 % |
+
+- Most trades come from the reflex in whatever play the trader holds, at a median 9.5 m (TDM) and 12.7 m (batteries) from the victim. Few come from the Trade play.
+- A teammate already aiming at the killer (median 23 m from him) kills him within 5 s in 13 % of cases, another teammate does in 21 %, and in 53 % (TDM; 58 % batteries) nobody dies within the 5 s. The trade is lost in the gunfight at 20-30 m, not in the choice to trade.
+- The second victim of a chain dies a median 8 m (TDM) and 11 m (batteries) from the first, 6-7 s later, 13-15 m from the killer.
+
+**Tried and left off** (16 seeds paired unless said; the change minus the base, ± the standard error of the difference a seed; * over 2 standard errors; both teams with the change unless "one-sided"):
+
+| Part | Traded within 5 s: batteries / TDM | Why left off |
+|---|---|---|
+| (a) Trade kept until the killer is down or no sense gave him for 2.5 s, at most 10 s (the kill feed's killer, else the known enemy nearest the body) | −0.60 ± 0.66 / −0.66 ± 0.85 | Trade kills +1.2* / +10.8*, but Trade deaths +1.9* / +12.9*; chains +1.1 ± 0.5* a 100 deaths (batteries). |
+| (b) Trade offered to the nearest teammate other than the partner killed within 25 m, the killer's place known within 35 m (one bot a victim) | +0.21 ± 0.77 / −0.18 ± 0.73 | Trade plays +70* / +203* and plays taken a bot-minute +0.26* / +0.62*. Trade kills and deaths rise alike (+6.3* / +7.2* in batteries, +19.6* / +16.8* in TDM). TDM team kills +1.6*. |
+| (c) A killer the kill feed names for 2 of the team within 15 s, alive: the bots within 35 m of his last kill hold where they are, crouched, looking at him, 8 s | +0.48 ± 0.79 / −1.16 ± 0.58* | TDM kills −9.6*. One-sided, team 0's K/D −0.020 ± 0.025 / +0.012 ± 0.022: its TDM deaths −4.9*, but its kills −2.8 with them. Chains unchanged. |
+| (d) Trade peeks the killer instead of walking to the body: the nearest spot within 10 m that sees his known place, 20 degrees or more round from the body as he sees it, held 5 s | +0.93 ± 0.79 / +0.20 ± 0.66 | Deaths followed by another to the same killer +2.9* (batteries). With (b): −0.64 ± 0.66 / +0.65 ± 0.99. With (b) and (f): −0.31 ± 0.95 / +0.33 ± 0.86. |
+| (e) The reflex's trade watch (play 21's look at the body, sights up) for any teammate's death within 20 m, not the partner's alone | −1.07 ± 1.18 / −0.33 ± 0.77 | Chains +1.8* (batteries); TDM hit rate −0.69*. |
+| (f) The watch aims at the killer as last sensed (the kill feed's), else at a shot heard, not at the body; 48 seeds | +0.16 ± 0.61 / +0.76 ± 0.45 | Under the bar in both modes; batteries chains +1.05 ± 0.43*. With (e): −0.02 ± 1.00 / +1.03 ± 1.01, carriers killed +2.3*. |
+| (g) `hit_bearing` on with `hit_cover` off: a hit from an unsensed shooter turns the bot along the hit marker's direction, no cover taken; 48 seeds | +0.75 ± 0.41 / +0.18 ± 0.47 | The unsensed-hit reaction moves the right way but under the bar: faced within 1 s +3.8 ± 2.2 / +1.0 ± 2.1, his target +3.6 ± 1.9 / −0.4 ± 2.3. One-sided K/D −0.034 ± 0.026 / +0.009 ± 0.028, and team 0's TDM hit rate −0.50 ± 0.26. |
+| (h) `hit_bearing` on, with its cover (`hit_cover`) | −0.07 ± 0.77 / +0.21 ± 0.58 | Delivered −1.1 ± 0.7 (as found before: the cover takes bots off their work). |
+
+The guards stayed within the noise for every part except as said. They were: kills, deaths and deaths per bot-minute; K/D one-sided; hit rate; team kills; delivered; carriers killed; plays taken.
+
+- Each part was a tuning number, off by default; with all of them off the runs matched the base exactly (the bench is deterministic).
+- Parts (c), (f) and the kill feed's killer read a `killer` on `view::Death`: the one enemy whose kills rose in the world that showed the death. The HUD's kill feed names the killer, so this is fair. The parts were taken out again; only the measure is kept.
+
+**What it says.** On the bench, going at the killer, by any of these routes, is an even duel: every Trade kill the changes added came with about one Trade death. A trade is lost where the teammate already aims at the killer and neither of them dies within 5 s. Better trades need the gunfight at 20-30 m to end sooner (aim, the aim-in, the hide of play 7), not a new play. The unsensed hit is rare between bots (3-5 % of hits): a far human sniper is the case `hit_bearing` was written for, and the bench has none.
+
+**Not verified:** no real match was played with any of these. The owner's evening matches on #343 (3d886b74) had trades within 5 s of 7-18 % and 17-19 chains a 100 bot deaths. Their deaths with no teammate within 20 m rose in TDM to 31-34 %, against 12 % with none within 30 m on the bench (a lead only; different maps).
+
 ## 3. Plays
 
 Each play has a score from the situation, a precondition and steps. A commander per team hands them out every ~0.5 s: never two bots on one ambush, and no bot parked at its own container. In the saved worlds lives that stay in their own third are the worst in every mode (K/D 0.3–0.6, ~0.03 batteries a life), so a steal is answered by the 1–2 nearest bots (the thief cheat and the alarms in §4); the only guard is play 18.

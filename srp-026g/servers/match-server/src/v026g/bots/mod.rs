@@ -550,6 +550,10 @@ pub struct Bots {
     /// random stream starts from it (`anomalies.rs`).
     static_seed: u32,
     pub tuning: Arc<Tuning>,
+    /// The real-map bench's one-sided runs: team 1 plays by this tuning
+    /// instead (`real_bot_cost`, `SRP_BENCH_ONE_SIDE`).
+    #[cfg(test)]
+    side1_tuning: Option<Arc<Tuning>>,
     tracker: Tracker,
     tactics: Option<Tactics>,
     teams: [TeamState; 2],
@@ -612,6 +616,8 @@ impl Bots {
             bots,
             trace,
             tuning,
+            #[cfg(test)]
+            side1_tuning: None,
             routes: Vec::new(),
             weapons: Vec::new(),
             searching: Searching {
@@ -1382,13 +1388,24 @@ impl Bots {
         }
     }
 
+    /// The tuning team `team` plays by: the match's (the bench's one-sided
+    /// runs give team 1 another).
+    #[cfg_attr(not(test), allow(unused_variables))]
+    fn tuning_of(&self, team: u8) -> Arc<Tuning> {
+        #[cfg(test)]
+        if let Some(tuning) = self.side1_tuning.as_ref().filter(|_| team == 1) {
+            return tuning.clone();
+        }
+        self.tuning.clone()
+    }
+
     /// A team's commander tick: signals, modifiers, skill, and a play for
     /// each living bot.
     fn commander(&mut self, team: u8, view: &MatchView, notes: &mut Vec<Note>) {
         let Some(tactics) = self.tactics.as_ref() else {
             return;
         };
-        let tuning = self.tuning.clone();
+        let tuning = self.tuning_of(team);
         let now = view.clock;
         let state = &mut self.teams[usize::from(team)];
         state.next_commander = now + tuning.think.commander_ms;
@@ -1651,7 +1668,10 @@ impl Bots {
         let Some(tactics) = self.tactics.as_ref() else {
             return;
         };
-        let tuning = self.tuning.clone();
+        let Some(team) = self.bots[index].as_ref().map(|bot| bot.team) else {
+            return;
+        };
+        let tuning = self.tuning_of(team);
         let now = view.clock;
         let Some(bot) = self.bots[index].as_mut() else {
             return;
@@ -1900,7 +1920,10 @@ impl Bots {
     /// A bot's ticks due: the motor drives the intent (the reflex
     /// overriding the look and the trigger), the encoder makes inputs.
     fn ticks(&mut self, index: usize, clock: &Clock, view: &MatchView, made: &mut Vec<Made>) {
-        let tuning = self.tuning.clone();
+        let Some(team) = self.bots[index].as_ref().map(|bot| bot.team) else {
+            return;
+        };
+        let tuning = self.tuning_of(team);
         let Some(bot) = self.bots[index].as_mut() else {
             return;
         };

@@ -167,6 +167,9 @@ struct Game {
     /// Every kill: (tick, the shooter, the killed), for the bench's
     /// events (`SRP_BENCH_EVENTS`).
     kill_log: Vec<(u32, Place, Place)>,
+    /// Every hit on an enemy: (tick, the shooter, the one hit), for the
+    /// bench's hit tally ([`HitTally`]).
+    hit_log: Vec<(u32, Place, Place)>,
     /// By battery: stolen from this team's container, and when (ms) and
     /// how (alive: dropped by a live carrier) it fell since, if it did.
     stolen_marks: Vec<Option<StolenMark>>,
@@ -319,6 +322,7 @@ impl Game {
             thieves: Vec::new(),
             carrier_kills: Vec::new(),
             kill_log: Vec::new(),
+            hit_log: Vec::new(),
             stolen_marks: Vec::new(),
             stolen_drops: Vec::new(),
             stolen_log: Vec::new(),
@@ -667,6 +671,7 @@ impl Game {
         } else {
             self.hits += 1;
             self.shots_hits[shooter].1 += 1;
+            self.hit_log.push((tick, shooter, target));
         }
         let other = &mut self.bodies[target];
         other.health -= 0.2;
@@ -3111,6 +3116,219 @@ impl BlockTally {
     }
 }
 
+/// A bot hit by an enemy, followed for [`HitTally::FOLLOW_MS`].
+#[derive(Clone, Debug)]
+struct HitFollow {
+    t0: u32,
+    shooter: Place,
+    /// It knew of him at the hit: its target, or a track of him sensed
+    /// within [`HitTally::SENSED_MS`].
+    sensed: bool,
+    /// Its view off the way to him at the hit, degrees, and his distance.
+    off_deg: f32,
+    distance: f32,
+    /// Ms from the hit: its view within [`HitTally::FACED_DEG`] of him,
+    /// him its target, its first hit on him.
+    faced: Option<u32>,
+    targeted: Option<u32>,
+    hit_back: Option<u32>,
+    died: bool,
+    killed_him: bool,
+}
+
+/// The real-map bench's hits taken (audit issue 8, `hit_bearing`): each
+/// hit on a living bot that it had no follow of already starts one, and
+/// what it did in the next [`HitTally::FOLLOW_MS`]: turned to the
+/// shooter, took him as its target, hit him back, killed him, died. Split
+/// by whether the bot sensed him at the hit. Each follow goes to the
+/// events as a `"hit"` line: [bot, shooter, sensed, off degrees,
+/// distance, faced ms, targeted ms, hit back ms, died, killed him].
+#[derive(Default)]
+struct HitTally {
+    follows: Vec<Option<HitFollow>>,
+    /// [not sensed, sensed]: follows; faced within 1 s; targeted within
+    /// 1.5 s; hit back; died; killed him.
+    counts: [[u32; 6]; 2],
+}
+
+impl HitTally {
+    const FOLLOW_MS: u32 = 3_000;
+    const SENSED_MS: u32 = 1_500;
+    const FACED_DEG: f32 = 20.0;
+
+    /// How far a view at `yaw` from `from` is off the way to `to`, degrees.
+    fn off(yaw: f32, from: Vec3, to: Vec3) -> f32 {
+        use super::kin::{wrap, yaw_of};
+        wrap(yaw - yaw_of([to.x - from.x, to.z - from.z])).abs().to_degrees()
+    }
+
+    /// After a game step: takes the game's hits.
+    fn tick(&mut self, game: &mut Game, bots: &Bots, events: &mut BenchEvents) {
+        let tick = game.tick;
+        let n = game.bodies.len();
+        self.follows.resize(n, None);
+        let hits = std::mem::take(&mut game.hit_log);
+        for &(at, shooter, victim) in &hits {
+            // Its hit back (and the kill, a hit that left him dead).
+            if let Some(follow) = self.follows[shooter].as_mut()
+                && follow.shooter == victim
+            {
+                follow.hit_back.get_or_insert(at - follow.t0);
+                let him = &game.bodies[victim];
+                if !him.alive && him.dead_at == at {
+                    follow.killed_him = true;
+                }
+            }
+            let body = &game.bodies[victim];
+            if !body.alive && body.dead_at == at {
+                Self::mates(game, bots, at, shooter, victim, events);
+            }
+            let Some(bot) = bots.bots[victim].as_ref() else {
+                continue;
+            };
+            if !body.alive || self.follows[victim].is_some() {
+                continue;
+            }
+            let sensed = bot.reflex.target() == Some(shooter)
+                || bot
+                    .memory
+                    .tracks()
+                    .iter()
+                    .any(|t| t.who == shooter && t.time + Self::SENSED_MS >= at);
+            let to = game.bodies[shooter].feet;
+            self.follows[victim] = Some(HitFollow {
+                t0: at,
+                shooter,
+                sensed,
+                off_deg: Self::off(body.yaw, body.feet, to),
+                distance: body.feet.distance_xz(to),
+                faced: None,
+                targeted: None,
+                hit_back: None,
+                died: false,
+                killed_him: false,
+            });
+        }
+        for place in 0..n {
+            let Some(follow) = self.follows[place].as_mut() else {
+                continue;
+            };
+            let body = &game.bodies[place];
+            let since = tick.saturating_sub(follow.t0);
+            if body.alive {
+                let to = game.bodies[follow.shooter].feet;
+                if follow.faced.is_none()
+                    && Self::off(body.yaw, body.feet, to) <= Self::FACED_DEG
+                {
+                    follow.faced = Some(since);
+                }
+                if follow.targeted.is_none()
+                    && bots.bots[place]
+                        .as_ref()
+                        .is_some_and(|b| b.reflex.target() == Some(follow.shooter))
+                {
+                    follow.targeted = Some(since);
+                }
+            } else {
+                follow.died = true;
+            }
+            if !body.alive || since >= Self::FOLLOW_MS || follow.killed_him {
+                let follow = self.follows[place].take().unwrap();
+                self.end(place, follow, events);
+            }
+        }
+    }
+
+    /// At a kill: the victim's living teammates within 30 m, as a
+    /// `"mates"` line: [victim, killer, [[mate, metres from the victim,
+    /// metres from the killer, a line from its eye to his chest, it knew of
+    /// him (a track within [`Self::SENSED_MS`]), him its target], ...]].
+    fn mates(
+        game: &Game,
+        bots: &Bots,
+        at: u32,
+        killer: Place,
+        victim: Place,
+        events: &mut BenchEvents,
+    ) {
+        if events.0.is_none() {
+            return;
+        }
+        let dead = &game.bodies[victim];
+        let him = &game.bodies[killer];
+        let mates: Vec<serde_json::Value> = bots
+            .bots
+            .iter()
+            .flatten()
+            .filter(|b| b.place != victim && b.team == dead.team)
+            .filter(|b| game.bodies[b.place].alive)
+            .filter(|b| game.bodies[b.place].feet.distance_xz(dead.feet) <= 30.0)
+            .map(|b| {
+                let body = &game.bodies[b.place];
+                let line = game
+                    .world
+                    .sight
+                    .visible(Game::eye(body), Game::chest(him));
+                let knew = b
+                    .memory
+                    .tracks()
+                    .iter()
+                    .any(|t| t.who == killer && t.time + Self::SENSED_MS >= at);
+                serde_json::json!([
+                    b.place,
+                    (body.feet.distance_xz(dead.feet) * 10.0).round() / 10.0,
+                    (body.feet.distance_xz(him.feet) * 10.0).round() / 10.0,
+                    line,
+                    knew,
+                    b.reflex.target() == Some(killer),
+                ])
+            })
+            .collect();
+        events.line(serde_json::json!({"t": at, "mates": [victim, killer, mates]}));
+    }
+
+    fn end(&mut self, place: Place, f: HitFollow, events: &mut BenchEvents) {
+        events.line(serde_json::json!({
+            "t": f.t0,
+            "hit": [place, f.shooter, f.sensed, f.off_deg.round(), (f.distance * 10.0).round() / 10.0,
+                f.faced, f.targeted, f.hit_back, f.died, f.killed_him],
+        }));
+        let row = &mut self.counts[usize::from(f.sensed)];
+        row[0] += 1;
+        row[1] += u32::from(f.faced.is_some_and(|ms| ms <= 1_000));
+        row[2] += u32::from(f.targeted.is_some_and(|ms| ms <= 1_500));
+        row[3] += u32::from(f.hit_back.is_some());
+        row[4] += u32::from(f.died);
+        row[5] += u32::from(f.killed_him);
+    }
+
+    /// The follows under way at the end, and one line on all of them.
+    fn finish(&mut self, events: &mut BenchEvents) -> String {
+        for place in 0..self.follows.len() {
+            if let Some(follow) = self.follows[place].take() {
+                self.end(place, follow, events);
+            }
+        }
+        let line = |row: &[u32; 6]| {
+            let pc = |k: usize| 100.0 * row[k] as f32 / row[0].max(1) as f32;
+            format!(
+                "{} hits; faced him within 1 s {:.0} %, took him as target within 1.5 s {:.0} %, hit him back {:.0} %, died {:.0} %, killed him {:.0} %",
+                row[0],
+                pc(1),
+                pc(2),
+                pc(3),
+                pc(4),
+                pc(5)
+            )
+        };
+        format!(
+            "hits taken: shooter not sensed: {}; sensed: {}",
+            line(&self.counts[0]),
+            line(&self.counts[1])
+        )
+    }
+}
+
 /// Where the time of the bots' polls goes, seconds.
 #[derive(Default)]
 struct Times {
@@ -3150,6 +3368,17 @@ fn reset_peak_memory() {
 }
 
 fn bench_tuning() -> Tuning {
+    bench_tuning_of(false)
+}
+
+/// [`bench_tuning`]; for `side1`, the plays', the reflex's and the senses'
+/// numbers from `SRP_BENCH_SIDE1_<name>` instead of `SRP_BENCH_<name>`
+/// (the one-sided runs, `SRP_BENCH_ONE_SIDE`: team 1 plays by it).
+fn bench_tuning_of(side1: bool) -> Tuning {
+    let var = |name: &str| {
+        let prefix = if side1 { "SRP_BENCH_SIDE1_" } else { "SRP_BENCH_" };
+        std::env::var(format!("{prefix}{name}"))
+    };
     let mut tuning = Tuning::default();
     // The battery cheat instead of the fair battery knowledge.
     if std::env::var_os("SRP_BENCH_CHEAT").is_some() {
@@ -3179,14 +3408,14 @@ fn bench_tuning() -> Tuning {
         tuning.aim.friends.lead_extra_ms = ms;
     }
     // Collect's and Intercept's numbers: `name=value,...`.
-    for (var, kind) in [
-        ("SRP_BENCH_COLLECT", super::plays::PlayKind::Collect),
-        ("SRP_BENCH_INTERCEPT", super::plays::PlayKind::Intercept),
-        ("SRP_BENCH_RAID", super::plays::PlayKind::Raid),
-        ("SRP_BENCH_BUDDY", super::plays::PlayKind::Buddy),
-        ("SRP_BENCH_TRADE", super::plays::PlayKind::Trade),
+    for (name, kind) in [
+        ("COLLECT", super::plays::PlayKind::Collect),
+        ("INTERCEPT", super::plays::PlayKind::Intercept),
+        ("RAID", super::plays::PlayKind::Raid),
+        ("BUDDY", super::plays::PlayKind::Buddy),
+        ("TRADE", super::plays::PlayKind::Trade),
     ] {
-        let Ok(numbers) = std::env::var(var) else {
+        let Ok(numbers) = var(name) else {
             continue;
         };
         let play = tuning
@@ -3196,14 +3425,14 @@ fn bench_tuning() -> Tuning {
         for pair in numbers.split(',').filter(|p| !p.is_empty()) {
             let (name, value) = pair
                 .split_once('=')
-                .unwrap_or_else(|| panic!("{var}: name=value"));
+                .unwrap_or_else(|| panic!("SRP_BENCH_{name}: name=value"));
             play.numbers
                 .insert(name.to_owned(), value.parse().expect("a number"));
         }
     }
     // The reflex's numbers (`CombatTuning`): `name=json,...` (`;` between
     // them when a value has a comma).
-    if let Ok(numbers) = std::env::var("SRP_BENCH_COMBAT") {
+    if let Ok(numbers) = var("COMBAT") {
         let mut combat = serde_json::to_value(&tuning.aim.combat).unwrap();
         let sep = if numbers.contains(';') { ';' } else { ',' };
         for pair in numbers.split(sep).filter(|p| !p.is_empty()) {
@@ -3213,7 +3442,7 @@ fn bench_tuning() -> Tuning {
         tuning.aim.combat = serde_json::from_value(combat).expect("SRP_BENCH_COMBAT: known names");
     }
     // The senses' numbers (`SenseTuning`), as `SRP_BENCH_COMBAT`'s.
-    if let Ok(numbers) = std::env::var("SRP_BENCH_SENSE") {
+    if let Ok(numbers) = var("SENSE") {
         let mut sense = serde_json::to_value(&tuning.sense).unwrap();
         for pair in numbers.split(',').filter(|p| !p.is_empty()) {
             let (name, value) = pair.split_once('=').expect("SRP_BENCH_SENSE: name=value");
@@ -3374,6 +3603,12 @@ fn real_bot_cost() {
                         .expect("SRP_BENCH_TIER: 4-5, 9-10 or 13-15");
                 bots = bots.with_tiers(&vec![Some(tier); teams.len()]);
             }
+            // One-sided (`SRP_BENCH_ONE_SIDE`): team 1 by the
+            // `SRP_BENCH_SIDE1_*` numbers, so a change given to team 0
+            // alone shows in its K/D.
+            if std::env::var_os("SRP_BENCH_ONE_SIDE").is_some() {
+                bots.side1_tuning = Some(Arc::new(bench_tuning_of(true)));
+            }
             let mut fight = fight_tally::FightTally::default();
             if let Some(table) = &table {
                 bots.set_routes(table);
@@ -3521,6 +3756,7 @@ fn real_bot_cost() {
             let mut events = BenchEvents::open(level, mode, per_team);
             let mut carry = CarryTally::new(format!("{project}-{per_team}v{per_team}"));
             let mut blocks = BlockTally::default();
+            let mut hits = HitTally::default();
             while clock < limit_ms {
                 clock += 5;
                 while game.tick + TICK_MS <= clock {
@@ -3528,6 +3764,7 @@ fn real_bot_cost() {
                     game.step();
                     carry.deaths(&stats_before, &game, &bots);
                     blocks.tick(&game, &bots, &mut events);
+                    hits.tick(&mut game, &bots, &mut events);
                     let play_of = |place: Place| {
                         bots.bots[place]
                             .as_ref()
@@ -3943,6 +4180,7 @@ fn real_bot_cost() {
                 }
             }
             eprintln!("  {}", blocks.finish(&mut events));
+            eprintln!("  {}", hits.finish(&mut events));
             eprintln!("  {}", fight.line(&game));
             eprintln!(
                 "  carriers: killed carrying {:?} (by team carrying), by the shooter's play {:?}; delivered {:?}; picked up {} lying + {} stolen; plays taken {takes_all} = {:.2} a bot-minute",
