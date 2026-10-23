@@ -2171,6 +2171,7 @@ va	status	ref_021d	name
 0x0031b530	inferred-medium	0x001edb84	survarium::generic_anomaly_core::deactivate
 0x0031b5b0	inferred-medium	0x001edc0b	survarium::generic_anomaly_core::tick
 0x0031b9f0	inferred-medium	0x001ee043	survarium::generic_anomaly_core::deactivate_damage_zone
+0x0031ba00	inferred-high		survarium::generic_anomaly_core::artefact_respawn_delay
 0x0031bc10	inferred-medium	0x001ee16f	survarium::anomaly_state::initialize
 0x0031bcb0	inferred-medium	0x001ee1f3	survarium::anomaly_state::execute
 0x0031bdf0	inferred-medium	0x001ee2d3	survarium::zone_group::finalize
