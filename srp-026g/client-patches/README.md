@@ -91,6 +91,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `suicide_key_026g.asm`, `suicide_key_026g.section.bin` | The source of patch 34's code (the commit_suicide key kills one's own player) and that code assembled for 0x980 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `spot_026g.asm`, `spot_026g.section.bin` | The source of patch 38's code (a spot's hit on a battery's body spots the battery) and that code assembled for 0x7C0 of `.srp`, which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `check_spot_026g.py` | Runs the original's and patch 38's input apply (the spot and its wait, the player's tick's countdown) with the game's own spottable code of players and batteries on made-up ray hits (needs Unicorn) |
+| `artefacts_026g.asm`, `artefacts_026g.section.bin`, `check_artefacts_026g.py` | Patch 54: a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills pain, body and head, one press fires every ready artefact of its kind; assembled for 0xA431000, the arena's block `artefacts.code` (`.srpx`+4000h); its check runs Spring's loader and links, the modifier getter, Lifebone's active and the action with the game's own code on made-up artefacts, and the press through inventory::action and Spring's own enable/disable_active (needs Unicorn) |
 | `check_suicide_key_026g.py` | Runs the original's and patch 34's last action call of the input builder, with the game's own event buffer code, on made-up input handlers (needs Unicorn) |
 | `check_tab_list_026g.py` | Runs the original's and patch 39's refresh of the scoreboard's rows (update_ui 0x23B421..0x23B477), with the game's own list code of initialize_match made again, on made-up huds whose places enter and leave (needs Unicorn) |
 | `check_tab_self_026g.py` | Runs the original's and patch 43's end of game_world::on_activate, where the hud gets its player's name (the Tab list's own row gold), on a made-up world with the journal off, recording and played back (needs Unicorn) |
@@ -136,7 +137,8 @@ the builder gives it, and the arena is byte-for-byte deterministic
 `.srpx`. Research (patch 53) is on it: its code and state are `ARENA`'s
 first two blocks, at the VAs it was built for, and the exe is byte for byte
 what main built before the arena. The old `.srp`/`.srpd`/`.srpc`/`.srpw` stay
-as they are; new patches append blocks (the dynamic anomalies, #225, next:
+as they are; new patches append blocks (the artefacts, patch 54, took the third,
+`artefacts.code` at 0xA431000; the dynamic anomalies, #225, next:
 client_patch.md 0.3 says how).
 
 **Call shapes.** Every function a patch installs — a vtable slot, a delegate,
@@ -2539,6 +2541,16 @@ buffer; the code's branches) and check 33 (patch 32's two jumps to it); `check_w
 (patch 32's cases with patch 45's camera). Round 1 (e93fb6f0) run in a game by the owner (the camera at the
 bench, the weapon there); **round 2 not run in a game**.
 
+Round 4 (2026-10-23, the owner on main + #312: "i can press attachments and then quickly esc, what
+happens is that the weapon I was trying to attach too, is now in my hands, even though in inventory
+I have a different weapon"): a window closed while its player is still being made left that player
+in the hands. setup_profile's early return (what is asked is the shown copy) does not look at the
+player being made; patch 32's scratch keeps the chosen kit's id with a revision of its own, so the
+close's call for the account's kit returned early and the window's player came after it. On live
+too (revisions 28 and 29 have the same code), for a weapon no kit holds and for armour the chosen
+kit does not wear. Fixed by patch 48's `early` (below): the close waits for that player and the
+account's is made right after it. `../docs/notes/client_patch.md` section 3.42, round 4.
+
 ### 46. On the death screen a drag turns the camera; the wheel does nothing (the next release's revision)
 
 The owner (2026-10-21): "when player dies they can still move camera
@@ -2708,9 +2720,9 @@ round trip live); then the character's player is made again; a camouflage's firs
 of GPU and compression (the game's own log lines). Now the drop itself changes what the character
 is built from; what is sent is not changed and the server's account stays the truth.
 
-`upgrade_preview_026g.asm` at `.srpw`+2000h (1596 bytes, the section's third page), its state
+`upgrade_preview_026g.asm` at `.srpw`+2000h (1638 bytes, the section's third page), its state
 (A0h bytes: the window's item, the queue of changes, the revision last given and its upgrades,
-the last query's time and kit) at `.srpd`+D60h, after the patches' mount's and before patch 32's; six `jmp near`, its entries:
+the last query's time and kit) at `.srpd`+D60h, after the patches' mount's and before patch 32's; seven `jmp near`, its entries:
 
 - **relocate** (+0): relocate_upgrade_item's handler (0x29A8B0), `mov edx,[esi+4620h]` at
   0x29A9B2 (6 bytes, `call` and a nop), before it writes `46 01`; and **drop** (+5):
@@ -2739,6 +2751,12 @@ the last query's time and kit) at `.srpd`+D60h, after the patches' mount's and b
 - **made** (+19h): on_player_ready, `cmp byte [ebx+0D2C9h],0` at 0x284F7F (7 bytes): for the lobby's
   own character a log line "srp: lobby character's player made in <n> ms" (the lobby's clock,
   [menu+9Ch]+584Ch, since the query), then the original's comparison.
+- **early** (+1Eh, 2026-10-23): setup_profile's early return, `cmp byte [ebx+0D2C8h],0` at
+  0x284B7C (7 bytes, its last test before `jz 284CF8h`): for the lobby's own character it returns
+  early only while no player is being made (+D2C4h -1); otherwise the call waits for that player
+  (+D2C8h) and on_player_ready makes it next, as the original does for another kit. A call for
+  what is being made still returns at `again`. Patch 45's round 4: an upgrade window closed while
+  patch 32's scratch's player was being made showed the window's weapon afterwards.
 
 The log lines go through the game's own function (`{0x9DAF4C | 1, 0, [0x1F1D614]}`, as every
 game line's caller builds it; round 2: the first build passed an empty one and nothing was
@@ -2753,7 +2771,9 @@ the code holds absolute addresses (the exe is never rebased). The lobby only: no
 Checked: `selftest_026g.py` check 48 (the sites in the original and the build, the handlers'
 registers, the 0x87 reader's last call, setup_profile's ways to 0x284B89, the code's calls and
 branches, `.srpw`'s three pages); `check_upgrade_preview_026g.py` (Unicorn, the cases in its
-header: the game's own setup_profile, profile copy and config lookups). **Not run in a game.**
+header: the game's own setup_profile, profile copy and config lookups; the quick close through the
+movie's two handlers and the game's own on_player_ready, with and without `early`). **Not run in
+a game.**
 
 ### 49. The game stops at its start without a patch its release requires (the next release's revision)
 
@@ -2888,8 +2908,8 @@ positions against the units' shapes, which the mode config carries (`capture_zon
   Research has its first two blocks: `research.code` at 0xA42D000 (the 256 bytes of
   `research_026g.asm`, three `jmp near`: register, hud, welcome; the C code and its constants
   linked for where they run; int3 to +3000h) and `research.state` at 0xA430000 (the cook, the
-  hud's cache; zeroed). The next patch's block (#225's dynamic anomalies) goes after them, at
-  0xA431000.
+  hud's cache; zeroed). The next block, `artefacts.code` at 0xA431000, is patch 54's; #225's
+  dynamic anomalies go after it, at 0xA432000.
 - **The register hook**: `mov eax,ebx / call 0x1EC170` at 0x1E9B4C of the game's constructor (after
   its own client rule cooks) becomes a `call` of the register stub, which registers the cook once
   and does the two instructions.
@@ -2912,6 +2932,88 @@ left), completed; update_ui in mode 5 and 4, the messages; the first message by 
 tdm_rule_cook's in its place pop; the cook's RTTI hierarchy). The first local test (2026-10-22)
 crashed at the first synchronization (slot 16, fixed) on a scrambled level (pack 1's vectors,
 fixed in pack 2). **Not yet run in a game since.**
+### 54. The artefacts: Spring's aim time and no slow from bullets, Lifebone's heal, one press for every artefact of a kind (the next release's revision)
+
+The owner's decision (2026-10-22): the three combat artefacts buffed, best one of each, a stack
+of one kind still adding up. The rules: `../docs/notes/artefacts.md`. The numbers are in the
+configs (`../scripts/content-edit/artefacts-1.json`: Spring's passive speed, the two new
+`aim_time_mod` keys and `active/stopping_power_mod`, Lifebone's regeneration delay); the patch
+does what no config of 0.26g could.
+
+- **Spring's aim time.** Its loader 0x33ACF0 reads a fixed set of keys into five character
+  modifier nodes (passive: movement speed, max_carried_weight, 0 in retail; active: movement
+  speed, stamina regeneration and spending) and the duration; none is aim time. At 0x33AE13 (its
+  active's third node) `artefacts_026g.asm` makes the passive's second node aim_time (49) with
+  `passive/aim_time_mod`, and fills a sixth node at +3B8h, aim_time with `active/aim_time_mod`
+  (and a seventh at +3C8h, below). The two are after a Spring's own fields: its two sizes
+  (artefact<artefact_spring_core> 0x3B8 at 0x25E7A8, the bare core 0x398 at 0x2EEA74) become
+  0x3D8. The active's link (0x311BC0) and unlink (0x311DA0) take them in and out with the
+  three others, so they are linked
+  exactly while they are (a deserialized active Spring links it through 0x311BC0 too). The
+  getter (0x2D5AE0) sums a list's nodes: a stack of Springs adds up.
+- **No slow from bullets while a Spring is active.** A hit's stopping power slows its target:
+  the player's stagger (0x2DBCD0, every tick) sums the stopping power of the hits of the last
+  0.5 s and makes -min(sum, 0.5) the player's own movement_speed node (+2F4h); nothing scaled
+  it. At 0x2DBD89 the sum becomes M42(sum), the getter on list 42 (artefact_synergy, read by no
+  code of 0.26g and set by no config): times max(0, 1 + its nodes). A Spring's active has a
+  seventh node there, +3C8h with `active/stopping_power_mod` (-1), linked and unlinked as the
+  aim node; the object is 0x3D8 bytes. A hit's stamina damage is not changed.
+- **Lifebone's heal.** Its enable_active (0x312250) removed the hand and leg injuries only. After
+  them (0x3122AA, where the time is still its argument) the pools `pain`, `body` and `head` are
+  found by name (0x2E58B0) and filled with increase_health (0x32A420, Hmax - H), as a medkit
+  heals a pool (0x33D9C3).
+- **One press, every artefact of a kind.** artefact_base::action (0x313300) activated the
+  artefact pressed only, when it was in its passive with no cooldown. At its entry a key-down
+  now activates the pressed one and every other artefact of the same class (vtable) and kind 1
+  in the inventory's artefact slots (13..18) that is ready, each as action does (enable_active,
+  its effect 0x313350, the time, state 4), and returns: a press of one cooling or active still
+  fires the ready ones. A key-up goes on in action. Different kinds keep their keys.
+
+The code is `artefacts_026g.asm` in the arena (`.srpx`, "The arena" above): its third block,
+`artefacts.code`, a code page at 0xA431000 after Research's two (`ARENA`, pinned in
+`ARENA_PINNED`; `ARTEFACTS_VA`): six `jmp near` entries, 784 bytes in all, int3 to the page's
+end. No base relocation is under a site and nothing aims inside one. Only in the builds with the
+late join.
+
+**Call shapes.** The six sites are declared in `INSTALLS`: Spring's active link 0x311BC0, its
+unlink 0x311DA0 and artefact_base::action 0x313300 are ENTRY (their first bytes jump to ours;
+ours goes on in the function or, for a key-down, returns `ret 8` itself: each pops what the
+function does, 0, 4 and 8, checked by the self-test against the original and `abi.tsv`); the
+loader's 0x33AE13, Lifebone's 0x3122AA and the stagger's 0x2DBD89 are JUMP (from the middle of
+the game's code, back at the same stack depth). The patch hands the game no pointer: no
+callback, no vtable. Each hook's arguments were read against the game's callers: the loader's
+registers (0x33AE0B), the link's eax (0x311946, 0x311A4F), the unlink's pushed Spring
+(0x311973), Lifebone's time at [esp+14h] with its four pushes, action's (pressed, time) as
+inventory::action 0x2FCAA0 pushes them for its vtable +2Ch call, the effect 0x313350's (the
+artefact, the time), increase_health's (time, amount) as the medkit at 0x33D9C3, the getter's
+(B, k) as 0x3118D0 passes them, and the stagger's sum at [esp+14h] (its argument slot) on both
+ways to 0x2DBD89.
+
+**Revisions.** It changes what a match computes (every game runs every press and every
+modifier), so a server asks for the release's revision, and
+`../crates/session/src/v026g/simulation_changes.tsv` has its `next` row. The exe reads the two
+`aim_time_mod` keys: it goes with the edit list's resources.db patch (patch 49 makes the release's
+exe require it). `../docs/notes/client_patch.md` section 3.51 has the proof.
+
+Checked: `selftest_026g.py` check 54 (the six sites and the two sizes before and after, no
+relocation or branch inside, the code, its exits and calls, its texts), the arena's layout
+(`artefacts.code` at 0xA431000) and the call shapes (the three ENTRY sites' `ret`);
+`check_artefacts_026g.py` (Unicorn, the game's own code: the loader with the config lookup on
+a binary config of the release's numbers, both Springs' links with the getter: aim time x0.95
+passive, x0.85 active, x0.7 for two active Springs, speed x1.05 / x1.15 / x1.3; Lifebone's
+enable_active with made-up pools: pain, body and head full, a limb, a full pool and a missing
+one left alone; an
+inventory of two Springs, an Onyx, a Spring cooling and one active: one press fires the ready
+Springs alone, the Onyx alone, a key-up nothing, a cooling Spring's key the ready one; the stagger with made-up hits: -0.45, -0.5 at
+most, an old hit out, and 0 with an active Spring in the build; through the game's own callers, a
+slot's key through inventory::action 0x2FCAA0 fires both Springs, whose own enable_active
+0x3118D0 links their nodes (aim x0.7, speed x1.3) and whose disable_active 0x311970 unlinks one's;
+52 / 51 checks). The edited retail Spring config was read by
+the build's loader too (aim -0.05 / -0.1, stopping power -1). Against the build of `main`
+5e03028, the default build differs in the eight sites (0x25E7A9, 0x2EEA75, 0x2DBD89,
+0x311BC0, 0x311DA0, 0x3122AA, 0x313300, 0x33AE13), `.srpx` one page longer (the artefacts'
+page at 0xA431000, its first four pages as they were) and the headers that follow (compared
+section by section). **Not run in a game.**
 
 ## Not ported, not done
 

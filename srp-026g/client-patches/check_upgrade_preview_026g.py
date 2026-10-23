@@ -14,9 +14,10 @@ the items dictionary (for a scope: variants whose config has
 Requires Python `unicorn` (2.1.4). Stubs that write down how they were
 called: the dictionary's item_by_id (0x1F0090), the game's allocator
 (0x420789, 0xE4F90), setup_profile's query (from 0x284BDF, after it copied
-the profile into the character's next copy: the query is "made" and
-setup_profile returns), the 0x87 reader's last call (0x270320) and the
-game's log (0x111ED0, 0x111860). What must hold:
+the profile into the character's next copy: the query is "made", nothing
+waits (+D2C8h 0, as 0x284BEE) and setup_profile returns), the 0x87 reader's last call (0x270320), the
+game's log (0x111ED0, 0x111860) and, for the armour shown worn,
+can_move_item_to_slot (0x2CA910: a vest in slot 2). What must hold:
 - a camouflage dropped on the window's weapon (a kit's, or one only in the
   stash): the character is made again at once from the scratch profile,
   whose weapon record has {camouflage, its dict id, 0, slot} added, the
@@ -36,9 +37,23 @@ game's log (0x111ED0, 0x111860). What must hold:
   nothing previewed, nothing made;
 - `again` for a squad mate's character and the 0x87 site with nothing
   queued: the original's; `made` writes one log line for the lobby's own
-  character (the time since its query), the original's comparison after.
+  character (the time since its query), the original's comparison after;
+- a window closed at once (the owner's quick Esc, 2026-10-23): the movie's
+  start_item_upgrade and exit_item_upgrade handlers (0x29A870, 0x29A890,
+  the lobby camera's own setter and patch 45's camera; the input focus,
+  the scene's two calls and the decal markers stubs), then the game's own
+  on_player_ready (0x284F20; the players' virtual calls and
+  set_effect_presenter 0x1F3740 stubs) for each player the queries make:
+  for a rifle only in the stash and for armour the chosen kit does not
+  wear, the close while the scratch's player is being made waits for it
+  and on_player_ready makes the account's after it, so the character
+  shows the chosen kit's own weapon (the build without `early` shows the
+  window's rifle); `early` (0x284B7C) itself: the early return's flag as
+  the original's but for the lobby's own character while its player is
+  being made, every register kept.
 Says nothing about what the game draws.
 """
+import itertools
 import struct
 import sys
 import zlib
@@ -56,6 +71,11 @@ RELOCATE_SITE, RELOCATE_NEXT = 0x29A9B2, 0x29A9B8
 DROP_SITE, DROP_NEXT = 0x29AACF, 0x29AAD5
 ACCOUNT_SITE, ACCOUNT_NEXT = 0x270313, 0x270318
 MADE_SITE, MADE_NEXT = 0x284F7F, 0x284F86
+EARLY_SITE, EARLY_JZ = 0x284B7C, 0x284B83      # setup_profile's last early-return test, then `jz 284CF8h`
+START_HANDLER, EXIT_HANDLER = 0x29A870, 0x29A890   # the movie's start_item_upgrade / exit_item_upgrade
+PLAYER_READY = 0x284F20                        # lobby_character::on_player_ready (ecx, [esp+4] the query's result)
+DECALS, EFFECT_PRESENTER = 0x265F80, 0x1F3740  # the decal markers (`ret 8`); player::set_effect_presenter (`ret`)
+CAN_MOVE, VEST_SLOT = 0x2CA910, 2              # items_dictionary::can_move_item_to_slot (stdcall, `ret 0Ch`)
 ITEM_CTOR = 0x2F7C10
 GAME_ALLOCATOR, ALLOCATION_WHERE = 0x1F1D9C4, 0xAC1220
 LOG_FILTERED = 0x1F1D60C
@@ -70,6 +90,15 @@ CONFIGS = 0x20680000                           # config nodes and names
 INVENTORY = 0x20700000
 SCRATCH = 0x20800000
 CHARACTER, SQUAD, MENU, CLOCK = 0x20A00000, 0x20A10000, 0x20B00000, 0x20B10000
+# The handlers' objects: the lobby camera (menu+10Ch), the input focus (the
+# owner's, [menu+9Ch] = CLOCK, vtable+38h), the character's scene (+D2C0h),
+# the movie's arguments, players made (+D0h their count), and the stubs the
+# objects' vtables name
+CAMERA, FOCUS, SCENE, ARGS = 0x20C00000, 0x20C01000, 0x20C02000, 0x20C03000
+PLAYERS_MADE, VTABLES, STUB_CODE = 0x20C04000, 0x20C0A000, 0x20C0C000
+STUB_NAMES = ("owner_focus", "focus", "unfocus", "scene_begin", "scene_end", "player_insert", "player_update",
+              "player_remove", "player_detach")
+STUB_AT = {name: STUB_CODE + 0x10 * i for i, name in enumerate(STUB_NAMES)}
 STACK, STOP = 0x21000000, 0x21100000
 ALLOCATOR = 0x5A110C00
 
@@ -95,9 +124,10 @@ class Emu:
         for at, size in ((CLIENT, 0x200000), (PLAYERS, 0x10000), (DICTIONARY, 0x10000), (ENTRIES, 0x80000),
                          (CONFIGS, 0x10000), (INVENTORY, 0x100000), (SCRATCH, 0x10000),
                          (STACK - 0x10000, 0x10000), (STOP, 0x1000), (CHARACTER, 0x10000), (SQUAD, 0x10000),
-                         (MENU, 0x1000), (CLOCK, 0x10000)):
+                         (MENU, 0x10000), (CLOCK, 0x10000), (CAMERA, 0x10000)):
             emu.mem_map(at, size, UC_PROT_ALL)
-        for at in (ITEM_BY_ID, ALLOCATION_NAME, ALLOCATE, QUERY_STUB, ACCOUNT_ITEMS, LOG, LOG_FILTER):
+        for at in (ITEM_BY_ID, ALLOCATION_NAME, ALLOCATE, QUERY_STUB, ACCOUNT_ITEMS, LOG, LOG_FILTER, DECALS,
+                   EFFECT_PRESENTER, CAN_MOVE) + tuple(STUB_AT.values()):
             emu.hook_add(UC_HOOK_CODE, self.stub, begin=at, end=at)
         late_join = open(base.late_join_bin(), "rb").read()
         self.preview_state = base.late_join_state_va(late_join) + base.WEAPON_PREVIEW_STATE_OFFSET
@@ -152,10 +182,24 @@ class Emu:
             copy = emu.reg_read(UC_X86_REG_ESI)
             self.calls.append(("query", ebx, (copy - ebx - 0x18) // COPY_SIZE, self.u8(ebp + 12)))
             self.u32(ebx + 0xD2C4, 77)
+            self.u8(ebx + 0xD2C8, 0)                # as 0x284BEE, which the stub skips: nothing waits
             emu.reg_write(UC_X86_REG_EIP, SETUP_DONE)
         elif address == ACCOUNT_ITEMS:
             self.calls.append(("account items", emu.reg_read(UC_X86_REG_ESI)))
             self.ret(emu.reg_read(UC_X86_REG_EAX), 0)
+        elif address == CAN_MOVE:                   # (dictionary, category, slot): armour of category 2 in slot 2
+            category, slot = self.u32(esp + 8), self.u32(esp + 12)
+            self.calls.append(("can_move", category, slot))
+            self.ret(int(category == 2 and slot == VEST_SLOT), 12)
+        elif address in (DECALS, EFFECT_PRESENTER) or address in STUB_AT.values():
+            name = {DECALS: "decals", EFFECT_PRESENTER: "effect_presenter"}.get(address) \
+                or STUB_NAMES[(address - STUB_CODE) // 0x10]
+            ecx = emu.reg_read(UC_X86_REG_ECX)
+            pops = {"decals": 8, "effect_presenter": 0, "owner_focus": 0, "focus": 4, "unfocus": 4,
+                    "scene_begin": 12, "scene_end": 8, "player_insert": 16, "player_update": 4,
+                    "player_remove": 4, "player_detach": 0}[name]
+            self.calls.append((name, ecx if name.startswith("player") else self.u32(esp + 4)))
+            self.ret(FOCUS if name == "owner_focus" else 0, pops)
         elif address == LOG_FILTER:
             self.calls.append(("filter", self.u32(esp + 4), self.u32(esp + 8)))
             self.ret(1, 0)
@@ -364,6 +408,72 @@ class Emu:
         self.u8(character + 0xD2B4, (self.u8(character + 0xD2B4) + 1) % 3)
         self.u32(character + 0xD2C4, 0xFFFFFFFF)
 
+    def lobby_objects(self):
+        """What the movie's handlers and on_player_ready reach besides the
+        character: the camera, the owner's input focus, the scene, the
+        players' vtable; the window closed (+D515h 0, as the handlers leave it)."""
+        self.emu.mem_write(CAMERA, bytes(0x10000))
+        vtable = lambda at, slots: [self.u32(at + off, STUB_AT[name]) for off, name in slots]
+        self.u32(MENU + 0x10C, CAMERA)
+        self.u32(CLOCK, VTABLES)                   # the owner ([menu+9Ch]): vtable+38h its input focus
+        vtable(VTABLES, ((0x38, "owner_focus"),))
+        self.u32(FOCUS, VTABLES + 0x100)
+        vtable(VTABLES + 0x100, ((0x10, "focus"), (0x14, "unfocus")))
+        self.u32(CHARACTER + 0xD2C0, SCENE)
+        self.u32(SCENE, VTABLES + 0x200)
+        vtable(VTABLES + 0x200, ((0x2C, "scene_begin"), (0x38, "scene_end")))
+        vtable(VTABLES + 0x300, ((0x1C, "player_insert"), (0x20, "player_update"), (0x24, "player_remove"),
+                                 (0x28, "player_detach")))
+        self.u32(CHARACTER + 0xD504, 0x5EC0)
+        self.u32(CHARACTER + 0xD2B8, 0)
+        self.u8(CHARACTER + 0xD515, 0)
+        self.players = 0
+
+    def handler(self, entry, item):
+        """The movie's start_item_upgrade(item) or exit_item_upgrade(item): the
+        delegate (ecx the lobby menu, whose +694h is the character), the
+        number at +8 of the first value; it returns true."""
+        self.u32(ARGS + 8, ARGS + 0x40)
+        self.u32(ARGS + 0x48, item)
+        regs = dict(SENTINELS)
+        regs[UC_X86_REG_ECX] = MENU
+        self.call(entry, regs, [ARGS])
+        return self.emu.reg_read(UC_X86_REG_EAX) & 0xFF == 1 \
+            and all(self.emu.reg_read(r) == v for r, v in SENTINELS.items())
+
+    def player_ready(self):
+        """The game's on_player_ready for the query being made: a new player
+        (its vtable the stubs', counted) in the query's result (+12Ch)."""
+        self.players += 1
+        player = PLAYERS_MADE + 0x800 * self.players
+        result = player + 0x400
+        self.emu.mem_write(player, bytes(0x400))
+        self.u32(player, VTABLES + 0x300)
+        self.u32(player + 0xD0, 100)               # held elsewhere too: nothing is destroyed
+        self.u32(result + 0x12C, player)
+        regs = dict(SENTINELS)
+        regs[UC_X86_REG_ECX] = CHARACTER
+        self.call(PLAYER_READY, regs, [result])
+        return player
+
+    def held(self, character=CHARACTER, index=None):
+        """The item id of the weapon the shown copy's (or copy `index`'s) kit
+        holds: slot 7, or slot 10 when 7 is empty (find_kit's, the player's)."""
+        copy = self.copy(self.u8(character + 0xD2B4) if index is None else index, character)
+        kit = copy + KIT0 + self.u8(character + 0xD2B5) * KIT_SIZE + SLOTS
+        index = self.u16(kit + 4 * WEAPON_1)
+        if index == 0xFFFF:
+            index = self.u16(kit + 4 * WEAPON_2)
+        return None if index == 0xFFFF else self.u32(copy + TABLE + index * ITEM_SIZE)
+
+    def worn(self, character=CHARACTER, index=None):
+        """The item ids the shown copy's (or copy `index`'s) kit has in its
+        armour slots 0..6."""
+        copy = self.copy(self.u8(character + 0xD2B4) if index is None else index, character)
+        kit = copy + KIT0 + self.u8(character + 0xD2B5) * KIT_SIZE + SLOTS
+        return {self.u32(copy + TABLE + self.u16(kit + 4 * s) * ITEM_SIZE)
+                for s in range(7) if self.u16(kit + 4 * s) != 0xFFFF}
+
     def copy(self, index, character=CHARACTER):
         return character + 0x18 + index * COPY_SIZE
 
@@ -550,6 +660,75 @@ def main():
                      and logs == (["srp: lobby character's player made in 340 ms"] if character == CHARACTER else []))
     say(all(lines), "on_player_ready: the lobby's own character logs the time since its query (340 ms), a squad "
                     "mate's nothing; the flags of the original's comparison and every register kept")
+
+    # 8. the owner's quick Esc (2026-10-23): a window closed while its scratch's player is being made
+    table_state = base.late_join_state_va(late_join) + base.WEAPON_TABLE_STATE_OFFSET
+    early_bytes = next(old for va, old, _, _ in base.UPGRADE_PREVIEW_HOOKS if va == EARLY_SITE)
+    built_bytes = bytes(e.emu.mem_read(EARLY_SITE, len(early_bytes)))
+
+    def quick_esc(item, fixed=True):
+        """The account's chosen kit 1 (the SVD its weapon 2, no armour) shown;
+        the window of `item` opened and closed at once; then each player the
+        queries make arrives. (the steps' results, the held weapon, the kit's
+        armour worn)."""
+        e.emu.mem_write(EARLY_SITE, built_bytes if fixed else early_bytes)
+        e.emu.ctl_remove_cache(EARLY_SITE, EARLY_SITE + len(early_bytes))   # the site's code translated again
+        fresh(window=None, chosen=1)
+        e.emu.mem_write(table_state, bytes(base.WEAPON_TABLE_STATE_SIZE))
+        e.lobby_objects()
+        e.refresh()                                # the lobby shows the chosen kit
+        e.player_ready()
+        shown = e.held() == SVD and e.u8(CHARACTER + 0xD2B4) == 1
+        e.calls = []
+        started = e.handler(START_HANDLER, item)
+        making = e.queries() == [("query", CHARACTER, 2, 1)] and e.u32(CHARACTER + 0xD2C4) == 77 \
+            and e.u8(CHARACTER + 0xD515) == 1 and e.u32(table_state + 0x28) == 0 \
+            and item in {e.held(index=2)} | e.worn(index=2)
+        e.calls = []
+        closed = e.handler(EXIT_HANDLER, item)
+        waits = not e.queries() and e.u8(CHARACTER + 0xD2C8) == 1 and e.u8(e.preview_state) == 0 \
+            and e.u8(CHARACTER + 0xD515) == 0 and e.u32(table_state) == 0
+        e.calls = []
+        e.player_ready()                           # the window's player
+        again = e.queries() == [("query", CHARACTER, 0, 1)] and e.u8(CHARACTER + 0xD2C8) == 0
+        last = e.player_ready() if e.u32(CHARACTER + 0xD2C4) != 0xFFFFFFFF else None
+        e.emu.mem_write(EARLY_SITE, built_bytes)
+        e.emu.ctl_remove_cache(EARLY_SITE, EARLY_SITE + len(early_bytes))
+        return (shown, started and making, closed and waits, again, last is not None
+                and e.u32(CHARACTER + 0xD2B8) == last), e.held(), e.worn()
+
+    steps, held, worn = quick_esc(STASH)
+
+    say(all(steps) and held == SVD and STASH not in worn,
+        "the owner's quick Esc on a rifle only in the stash (chosen kit 2, the SVD its weapon 2): the start "
+        "queries the scratch's player (the rifle the kit's weapon 1), the close while it is being made waits "
+        "(+D2C8h) instead of returning early, the window's player arrives and on_player_ready queries the "
+        "account's at once (0x2850C5); once that arrives the character holds the SVD")
+    steps_bug, held_bug, _ = quick_esc(STASH, fixed=False)
+    say(steps_bug[:2] == (True, True) and not steps_bug[2] and held_bug == STASH,
+        "the same without `early` (0x284B7C the original's): the close returns early, nothing waits, and the "
+        "window's player stays: the stash rifle in the hands, the kit's SVD not (the owner's screenshot)")
+    steps, held, worn = quick_esc(VEST)
+    say(all(steps) and held == SVD and VEST not in worn,
+        "the same for armour the chosen kit does not wear (shown worn from the scratch): after the quick "
+        "close the character wears the kit's own again")
+
+    # `early` itself: the flag of the original's test, for whom and when
+    rows = []
+    for character, waiting, query in itertools.product((CHARACTER, SQUAD), (0, 1), (0xFFFFFFFF, 77)):
+        fresh()
+        e.u8(character + 0xD2C8, waiting)
+        e.u32(character + 0xD2C4, query)
+        regs = dict(SENTINELS)
+        regs[UC_X86_REG_EBX] = character
+        regs[UC_X86_REG_EAX], regs[UC_X86_REG_ECX], regs[UC_X86_REG_EDX] = 0x0A0A0A0A, 0x0C0C0C0C, 0x0D0D0D0D
+        balanced = e.run(EARLY_SITE, EARLY_JZ, regs)
+        zf = (e.emu.reg_read(UC_X86_REG_EFLAGS) >> 6) & 1
+        want = waiting == 0 and (character == SQUAD or query == 0xFFFFFFFF)
+        rows.append(balanced and zf == want and all(e.emu.reg_read(r) == v for r, v in regs.items()))
+    say(all(rows), "`early` at 0x284B7C: the early return (ZF) when no call waits, for the lobby's own "
+                   "character only while no player is being made, for a squad mate's as the original; every "
+                   "register and the stack kept")
 
     print(f"upgrade preview: {'all checks passed' if not failures else f'{failures} FAILED'}")
     sys.exit(1 if failures else 0)

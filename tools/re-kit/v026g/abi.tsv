@@ -1250,10 +1250,14 @@ va	name	source	ret_cleanup	result
 0x003114a0	survarium::damage_zone_core_cook::construct_resource	manual	4	
 0x003119a0	survarium::artefact_spring_core::serialize	manual	8	
 0x003119e0	survarium::artefact_spring_core::deserialize	manual	12	
+0x00311bc0	survarium::artefact_spring_core::add_active_modifiers	manual	0	
+0x00311da0	survarium::artefact_spring_core::remove_active_modifiers	manual	4	
+0x00312250	survarium::artefact_lifebone_core::enable_active_effects	manual	4	
 0x00312470	survarium::artefact_lifebone_core::serialize	manual	8	
 0x003124b0	survarium::artefact_lifebone_core::deserialize	manual	12	
 0x00312a80	survarium::artefact_onyx_core::serialize	manual	8	
 0x00312af0	survarium::artefact_onyx_core::deserialize	manual	12	
+0x00313300	survarium::artefact_base::action	manual	8	
 0x00313670	survarium::artefact_base::serialize	manual	8	
 0x00313760	survarium::artefact_base::deserialize	manual	12	
 0x00317f30	survarium::timelimit_rule_core::serialize	manual	4	
@@ -1324,6 +1328,7 @@ va	name	source	ret_cleanup	result
 0x00329a20	survarium::player_stamina::spend	manual	4	
 0x00329a70	survarium::player_stamina::sprint	manual	4	
 0x00329c60	survarium::player_stamina::is_overburdened	manual	4	
+0x0032a420	survarium::body_part::increase_health	manual	8	
 0x0032ae00	survarium::body_part_parameters::serialize	manual	8	
 0x0032afe0	survarium::body_part_parameters::deserialize	manual	12	
 0x0032b9f0	survarium::hit_info::hit_info	manual	32	
@@ -1366,6 +1371,7 @@ va	name	source	ret_cleanup	result
 0x0033a650	survarium::weapon_core_throw_grenade_state::is_ready_for_transition	manual	0	
 0x0033a6a0	survarium::weapon_core_throw_grenade_state::weapon_and_hands_expression	manual	20	
 0x0033a7e0	survarium::weapon_core_throw_grenade_state::attach_grenade	manual	0	
+0x0033acf0	survarium::artefact_spring_core::config::config	manual	4	EAX: the config (ESI)
 0x0033cac0	survarium::medkit::medkit	manual	4	
 0x0033d2b0	survarium::medkit::`scalar deleting destructor'	manual	4	
 0x0033d2d0	survarium::medkit::~medkit	manual		
@@ -1858,3 +1864,8 @@ va	name	source	ret_cleanup	result
 0x002d1ea0	survarium::game_world_core::rules_on_event	manual	8	
 0x002f5d40	survarium::shared_statistics::notify_listener	manual	12	
 0x0026db80	survarium::base_game_statistics_handler::on_event	manual	12	
+0x00265de0	survarium::lobby_character::start_item_upgrade	manual	0	+D515h = 1; the lobby camera's setter at 0x265E73 (look-at 1.3, 0.8 for the shown kit's slot 4); the input focus, the scene's decal texture, the decal markers (0x265F80)
+0x00265f10	survarium::lobby_character::exit_item_upgrade	manual	0	+D515h = 0; the lobby camera's setter at 0x265F44 (1.2, side 0, the distance kept at 0x1F1D9E4); the scene's and the input focus's ends
+0x0029a870	survarium::lobby_menu::start_item_upgrade	manual	4	the movie's callback 5: esi = menu+694h, edi = the item id (the first value's number), then 0x265DE0; al = 1
+0x0029a890	survarium::lobby_menu::exit_item_upgrade	manual	4	the movie's callback 6: esi = menu+694h, then 0x265F10; al = 1
+0x00284aa0	survarium::lobby_character::release_player	manual	4	lets its player (+D2B8h) go (vtable+24h(1), +28h, the reference); with the byte argument set, +D2C9h = 1: on_player_ready lets the player being made go too (0x284F90)

@@ -1100,6 +1100,15 @@ The owner's request (2026-10-21): "instead of focusing on players the camera wou
 
   The Vepr-12 (another model, the box's way) is within 0.9 cm in its idle (it has no preview). `check_weapon_table_026g.py` 42 checks (the Vepr in both poses from the data). Builds: without a server sha256 `91c233ddcffccc9b548ffd54e40e1943bf601f873b1c7dcdea8942d6dc77f801`, with `--server=skhid.link:1234` `5fd38b4895bb10583f9ee752830b0fe75bfcc6a1cb646d08f34d0cbe4543be47` (12 911 224 bytes each). **Not run in a game.**
 
+**Round 4** (2026-10-23, the owner's report on a local game of main with PR #312: "i can press attachments and then quickly esc, what happens is that the weapon I was trying to attach too, is now in my hands, even though in inventory I have a different weapon"; the screenshot: the chosen kit's weapon slot shows a Mosin carbine (its weapon 2, no weapon 1), the character holds a blue-camouflaged long rifle, the window's). PROVEN in the code, emulated:
+
+- **The Esc path is the close's.** The movie's Esc (`close_active_window`) calls the open popup's `UpgradeWindow.closePopup`, which dispatches CLOSE (or, with the decal editor open, only leaves the editor: the window stays open); `closeModifierWindow` calls `exit_item_upgrade` whenever `_upgradeShown`, which `openModifierWindow` sets for every window it tells the game of. The screenshot agrees: the camera is back at the character (patch 45's table off), so the close ran. READY is not read by the close.
+- **Why the window's weapon stayed.** `setup_profile` (0x284B10) returns early (0x284B83 → 0x284CF8) when the kit asked has the id (copy+76Ch) and revision (+4614h) of the **shown** copy (+D2B4h), the last asked id (+4) is that id and no call waits (+D2C8h); it does not look at a player being made (+D2C4h). The shown copy changes only when the player arrives (on_player_ready 0x284FAC). Patch 32's scratch (a weapon no kit holds, in the chosen kit's slot 7; armour the chosen kit does not wear) keeps the chosen kit's **id** with a revision of its own (`0x80000000 | n`). So: the window's start asks for the scratch (a new revision: a query, the copy after the shown one, +4 = the chosen kit's id); a close before that player arrives asks for the account's chosen kit, which is the shown copy's id and revision with +4 equal: the early return, nothing waits; the scratch's player arrives, is shown, and nothing makes the account's again (on_player_ready re-calls setup_profile only when +D2C8h is set, 0x285099). A weapon in another kit was not hit (+4 is that kit's id, so the close waited, as the original does for another kit). In the stock game a kit id comes back with an older revision while a newer one is being made only by such a scratch.
+- **On live too.** Revisions 28 and 29 (tags `026g-rev28`, `026g-rev29`) hold the same patch 32, stash, 45 and 48 code as main (no change to those files since): the same race.
+- **The fix** (patch 48's code, which already handles setup_profile while a player is being made, `again`): `early`, a seventh entry (+1Eh), at 0x284B7C `cmp byte [ebx+0D2C8h],0` (7 bytes, the early return's last test; `call 0xA42C01E` + 2 nops; only the `jz` after it reads the flags): ZF as the original's for a squad mate's character; for the lobby's own (lobby menu+694h) also only while no player is being made (+D2C4h −1). The close then goes on: `again` (the player being made is the scratch's revision, not the asked one) lets the original wait (the profile into the copy after the one being made, +D2C8h 1); the scratch's player arrives, on_player_ready's own re-call (0x2850C5) queries the account's, and the character holds the chosen kit's weapon (the scratch's player shows for the time one player takes to make). A call for what is being made still returns at `again`; once nothing is being made the early return is the original's. No base relocation under the site, nothing aims inside it (selftest check 48). Smallest: the game has no cancel of a query that shows something else after it (+D2C9h, set by 0x284AA0 and by the lobby menu letting its three characters' players go at 0x21D100.., comes with the shown player let go, and on_player_ready then shows nothing).
+- **Checked:** `check_upgrade_preview_026g.py` (Unicorn, the game's own setup_profile, profile copy, the movie's start and exit handlers 0x29A870/0x29A890 with the camera's setter and patch 45's camera, and on_player_ready 0x284F20 with its players' virtual calls stubbed): a rifle only in the stash with the chosen kit's weapon 2 the SVD (the owner's case): start, close before the player arrives, the window's player arrives, the account's is queried by on_player_ready, then arrives: the character holds the SVD; with 0x284B7C the original's bytes the same run ends with the stash rifle in the hands (the report); the same for armour the chosen kit does not wear; `early` itself for both characters, waiting or not, a player being made or not (the flag, every register). The other weapon checks pass; the self-test passes.
+- **Build** (local test, `--revision=30`): `survarium_skhid.esc-r30.exe` sha256 `c74062480cac6c06b9f8509ce24354b1d265a7c08a4342a890c95e0938451e5f` (12 934 776 bytes); against main's build with the same revision it differs in the PE checksum, `.srpw`'s virtual size, the site (7 bytes) and patch 48's code (+1Eh on). **Not run in a game.**
+
 ### 3.43 On the death screen a drag turns the camera; the wheel does nothing (written 2026-10-21, README patch 46, the next release's revision; the rules: `death-camera.md`) — PROVEN in the code, the mouse moves and the view's update run with Unicorn; the first build run in a game
 
 The owner: "when player dies they can still move camera around, with holding a mouse button? Scroll shouldn't work though".
@@ -1178,6 +1187,7 @@ So of what the game logs, the dominant wait is the client's own send tick (a qua
 | patch 32's two `call FIND` | (stash +0Fh) | `call 0xA42C00F` | `find`: the stash's find_kit_or_show, then the queue applied (below) |
 | 0x284B89 (setup_profile past its early return) | `cmp dword [ebx+0D2C4h],-1` | `call 0xA42C014` + 2 nops | `again` (below); the original's comparison for its `je` |
 | 0x284F7F (on_player_ready) | `cmp byte [ebx+0D2C9h],0` | `call 0xA42C019` + 2 nops | `made`: the log line, then the original's comparison (read by the `jnz` after a `mov`) |
+| 0x284B7C (setup_profile's early return, added 2026-10-23) | `cmp byte [ebx+0D2C8h],0` | `call 0xA42C01E` + 2 nops | `early`: the flag for `jz 284CF8h`: the original's, but for the lobby's own character the early return only while no player is being made (section 3.42, round 4) |
 
 - **The preview.** For the window's weapon (patch 32's mode 1, its item the host, the menu's own character +D515h): the change is queued (five at most: {upgrade id, the record's dict id, slot 0..3 or FFh "take off"}), a line "srp: upgrade preview: item <host>, upgrade <id>, slot <n>" is logged (the game's logger 0x111ED0 on channel "game", info, as 0x27B326 calls it) and setup_profile(the account's profile, the character, the chosen kit) is called. setup_hook gives it the weapon's kit and `find` the profile: for the item a change was queued on and the account's profile given (its inventory behind it), the stash's scratch (allocated once, as the stash's make_scratch, if a kit weapon never needed it), the account's profile copied into it unless the stash just did, the queue applied to the weapon's record in order as `items_rules::attach_upgrade_in` / `detach_upgrade` do (a put of the same id, slot and dict id leaves it with its value; else the id and whatever is in the slot come off and {id, dict id, 0, slot} is added when the record has room; a take-off takes the id off), and the kit's revision: the last given (state +08h) while the kit and the record's upgrades (17 bytes each: id, dict id, value, slot) are those it was given for, else the next `0x80000000 | n` of patch 32's serial. Once a change was queued on the item, the character is built so (the queue empty or not) until another item's window queues one.
 - **A scope's record** holds the variant made for that weapon (srp's `ScopeFits`, `weapon_scopes.md`): the dictionary's entries (3A0h each from [dictionary+130h], their count +134h, by dict id) are read in order; the first of category 22 whose config ([entry+114h]+108h, a binary config: +0 the children, +16h their count, 18h each, sorted by the crc32 of their names at +10h; `value_exists` 0x0F6C00 and `operator[]` 0x0F6B10) has `srp_scope_fit` with `scope` naming the scope item and `weapons` naming the weapon (a string: the entry's name at +4; an integer: its dict id) is the record's dict id. None: nothing is queued (the server refuses such a scope).
@@ -1402,6 +1412,30 @@ The old bytes' jumps all landed inside them; nothing else aims inside; no base r
   - **The hud's cache** is of a rule by its address; a new match's rule allocated where the
     last one was found its owners there and could say "Unit A lost" at its first frame. The
     cook's create forgets it.
+
+### 3.51 The artefacts: Spring's aim time and no slow from bullets, Lifebone's heal, one press for every artefact of a kind (written 2026-10-22, README patch 54, the next release's revision; the rules: `artefacts.md`) — PROVEN in the code, the loader, the links, the getter, Lifebone's active and the action run with Unicorn; not run in a game
+
+**A Spring's modifiers.** `artefact<artefact_spring_core>` is built in place by the artefact cook (vtable 0x9FC720: size 0x25E770, construct 0x25E660, both a switch on `data/type`: 3 Lifebone 0x4B8 / 0x25EF80, 6 Spring 0x3B8 / 0x25EA10, 7 Onyx 0xF40 / 0x25F4D0, 8 Rattle 0x360 / 0x25FA10); the base cook builds bare cores (sizes 0x2EEA30: 0x498, 0x398, 0xF20, 0x340; construct 0x2EE930, Spring 0x311840). Both Spring constructors call the loader 0x33ACF0 with esi = the object +340h and the item's `data`; it writes, from fixed keys (0xA1C1FC `passive`, 0xA1C230 `active`):
+
+```
++340h {0, 0, 4,    passive/movement_speed_mod}       +370h {0, 0, 3,   active/stamina_regen_mod}
++350h {0, 0, 5,    passive/max_carried_weight_mod}   +380h {0, 0, 13h, active/stamina_spend_mod}
++360h {0, 0, 4,    active/movement_speed_mod}        +390h trunc(active/duration x 1000) ms
+```
+
+A node is {prev, next, index, value}, linked at the tail of the holder's list holder+6B8h + kit (+115h) x 704h + index x 14h + 204h ({count, head, tail, ?, sorted +10h}): the passive's at 0x311AD0 (pickup, deserialize), unlinked at 0x311D10; the active's at 0x311BC0 (enable_active 0x3118D0, deserialize 0x3119E0 for state 4), unlinked at 0x311DA0 (disable_active 0x311970, from the active's end and death). The getter 0x2D5AE0 sums a list (`B x max(0, 1 + k S)` for index 49, aim_time, as for 4); a walk's speed (0x2DBB50) with its flag set (LIKELY aiming: the only reader of index 20, movement_speed_when_aiming) takes min(M4, M[4,20]) on that base, so a Spring counts there too.
+
+**The patch.** 0x33AE13 `mov dword [esi+48h],13h` -> `jmp loader`: it does that, then (pushad, xmm0 kept) `passive/aim_time_mod` into +350h as index 31h (the max_carried_weight node, 0 in retail, no longer read) and `active/aim_time_mod` into a sixth node at +3B8h, index 31h, and goes on at 0x33AE1A. With the stopping power node at +3C8h (below) the object grows to 3D8h (0x25E7A8 `mov eax,3B8h`, 0x2EEA74 `mov eax,398h`); the wrapped Spring's own fields end at +3B7h (0x25EA4F..0x25EA83). 0x311BC0's first ten bytes (`push ebx / push esi / mov esi,eax / mov eax,[esi+250h]`) -> `jmp link_active`: the sixth node linked as 0x311BC0 links the others, then those ten bytes, back at 0x311BCA. 0x311DA0's `push ebx / mov ebx,[esp+8]` -> `jmp unlink_active`: 0x2D5D00 on it, the two instructions, back at 0x311DA5. The node is in its list exactly while the three active ones are (0x2D5D00 must not be given a node that is not in the list: it takes a missing prev as the list's head).
+
+**A Lifebone's heal.** enable_active 0x312250 (thiscall, the time): `remove_affects` entries (+360h..+364h, stride 20h) each through 0x2E58B0 (eax = the damage model's pools, [the holder's slot 2]+108h; ecx = &name; strcmp with pool+80h) and 0x32A6A0; then the duration (M39) into +494h. Its argument slot [esp+14h] is scratch after 0x3122E2. 0x3122AA `mov ecx,[edi+250h]` (reached with four pushes, from the loop or around it) -> `jmp lifebone_active`: the pools named `pain`, `body` and `head` (its table `heals`), each with H < Hmax given increase_health 0x32A420 (esi = the pool; the time, Hmax - H; `ret 8`; it clamps, calls 0x32A9C0, and 0x32B920 when the pool is then full), as the medkit at 0x33D9C3; the instruction; back at 0x3122B0.
+
+**The slow from bullets.** base_player::hit_impl (0x2D9B90) queues (time, stopping_power x k_power) in m_recent_hits (player+2E8h) once per bullet; the stagger 0x2DBCD0 (eax = the player, the time; `ret 4`; from the tick at 0x2D8FE5) sums those younger than [+320h] (0.5 s) into xmm0 and its local [esp+14h], both ways (the loop's end, or none at 0x2DBCF9) reaching 0x2DBD89 `movss xmm2,[esi+31Ch]`; then -min(local, [+31Ch] 0.5) goes into the player's own node +2F4h (index [+2FCh] = 4, value +300h). 0x2DBD89 -> `jmp stagger`: the getter on list 42 with (the sum, 1.0), the result into xmm0 and the local, xmm1 0, the instruction; back at 0x2DBD91. List 42 is artefact_synergy: no getter call reads it (re-kit damage notes) and no retail config sets it, so without a Spring the factor is 1. The Spring's seventh node, +3C8h, index 2Ah, `active/stopping_power_mod`, is filled by the loader hook and linked and unlinked with the aim node (the object 3D8h bytes).
+
+**One press.** artefact_base::action 0x313300 (thiscall, pressed, time; `ret 8`): state 3, pressed, no cooldown (+28Ch) -> vtable +80h enable_active, the effect (0x313350), +2A0h = the time, state 4 at 0x313339. inventory::action (0x2FCAA0) calls an item of kind 1 (+24Ch) through vtable +2Ch with (pressed, time); the artefact slots are inventory+10Ch + 4 x 13..18; [artefact+250h] is the inventory. The entry's ten bytes (`push esi / mov esi,ecx / cmp dword [esi+280h],3`) -> `jmp fire_kind`: a key-down activates the pressed one, then each other slot's item with the same vtable and kind 1, each only in state 3 with no cooldown and as action does (vtable +80h with the time, 0x313350 (it, the time), +2A0h, state 4), and returns `ret 8`; nothing is pressed through action, so nothing recurses, and a press of a cooling or active one still fires the ready ones of its kind. A key-up runs the ten bytes and goes on at 0x31330A (the jne on their flags).
+
+**Checked:** `selftest_026g.py` check 54; `check_artefacts_026g.py` (Unicorn): the loader with the game's lookup (0xF6B10) on a binary config of the release's numbers (and the retail ones in the original), links and unlinks with the getter for one and two Springs, Lifebone's enable_active with made-up pools, the action over a made-up inventory, and through the game's own callers: a slot's key through inventory::action 0x2FCAA0 (edi = the inventory; slot, pressed, time; its vtable +2Ch call), the Springs' own enable_active 0x3118D0 linking and disable_active 0x311970 unlinking their nodes; the build's loader on the edited retail `artefact_spring.options` (content_edit.py output).
+
+**Where and how it is installed** (the merge with main's arena and call shapes, 2026-10-23). The code is the arena's third block, `artefacts.code`, a code page at 0xA431000 (`.srpx`+4000h, §0.3; `ARTEFACTS_VA`), not `.srpw`+2700h where it was first written: it still fit there and nothing of main used that page, but new code goes on the arena. Its six sites are in `INSTALLS` (§0.4): 0x311BC0, 0x311DA0 and 0x313300 ENTRY, their models the functions at the sites (`ret` 0, 4 and 8, as `abi.tsv`; ours goes on in the function, or for a key-down returns `ret 8` itself), and 0x33AE13, 0x3122AA and 0x2DBD89 JUMP (from inside the game's code, back at the depth they left). It hands the game no pointer (no callback, no vtable). Each hook's arguments, read again against the game's code: the loader's ebx = `data`, eax and edi set by 0x33AE0B..0x33AE10 for the next lookup (kept by pushad), xmm0 the third node's value (kept); the link's eax = the Spring (0x311944, 0x311A4D); the unlink's Spring pushed (0x311973), [esp+24h] after pushad; Lifebone's time [esp+14h] with the function's four pushes on both ways to 0x3122AA (`push ebp` popped at 0x3122A9), [esp+38h] after pushad and the amount; the pool lookup 0x2E58B0's eax = the pools' holder, ecx = the address of the name's pointer, nothing on the stack (as 0x312291); increase_health (esi = the pool; time, amount; `ret 8`) pushed as the medkit pushes them (0x33D9A3..0x33D9C3); action's (pressed, time) as inventory::action pushes them (0x2FCB2D..0x2FCB31), enable_active's (time) and the effect 0x313350's (the artefact, the time) as action pushes them (0x313329, 0x31332C..0x31332E); the getter's (B, k) as enable_active 0x3118D0 passes them (B the value, k 1.0; ecx and edi kept, `ret 8`); the stagger's sum in xmm0 and its argument slot [esp+14h] on both ways to 0x2DBD89 (0x2DBCF9 and the loop's end, the memmove's three pushes taken back at 0x2DBD65). No argument count or order was wrong.
 
 ## 4. Mode 3 batteries: not needed in 0.26g
 
@@ -1711,7 +1745,8 @@ section table (0x210..0x400): 12 slots
 .srpx  (VA 0xA42D000, grows ->)
   +0        research.code   (code,  0x3000, page)   -> 0xA42D000
   +0x3000   research.state  (state, 0x1000, page)   -> 0xA430000
-  +0x4000   (next: #225's anomalies.code)           -> 0xA431000
+  +0x4000   artefacts.code  (code,  0x1000, page)   -> 0xA431000  (patch 54)
+  +0x5000   (next: #225's anomalies.code)           -> 0xA432000
   ...each new patch's blocks appended, nothing before them moves
 ```
 
@@ -1725,18 +1760,28 @@ compared by sha256 against main 5d834b9f's tool. `DYNAMIC_ANOMALIES_OFFSET`
 is gone: nothing reserves room ahead, the next block simply goes after the
 last.
 
+**The artefacts on the arena (patch 54, #308).** The first patch after
+Research adopted it: `ArenaBlock("artefacts.code", "code", 0x1000, 0x1000)`
+after Research's two, pinned at 0xA431000; `ARTEFACTS_VA` is
+`ARENA_LAYOUT["artefacts.code"]`, `artefacts_026g.asm` is assembled for it
+(build() checks the entries' exits), its bytes go in
+`arena_bytes["artefacts.code"]`, and its six hooks are in `INSTALLS` (§3.51).
+It was written for `.srpw`'s spare third page (+2700h, where it still fit),
+but new code goes on the arena.
+
 **Adopting it: the dynamic anomalies (#225).** #225 assembles
 `dynamic_anomalies_026g.asm` for 0xA431000 (`.srpx` + 0x4000) and puts its
-bytes there itself. On the arena:
+bytes there itself; the artefacts took that page, so on the arena it is
+assembled for 0xA432000 (`.srpx` + 0x5000). On the arena:
 
-1. append its block to `ARENA`, after Research's:
+1. append its block to `ARENA`, after the artefacts':
    `ArenaBlock("anomalies.code", "code", <its size, a page multiple>, 0x1000)`
    (state of its own, if any, as one more block after it), and its row to
-   `ARENA_PINNED`: `"anomalies.code": 0xA431000`;
-2. take its VA from `ARENA_LAYOUT["anomalies.code"]` (0xA431000, so its
-   `.bin` does not change), check its `.bin` was assembled for it, aim its
+   `ARENA_PINNED`: `"anomalies.code": 0xA432000`;
+2. take its VA from `ARENA_LAYOUT["anomalies.code"]` (0xA432000: its `.bin`
+   assembled again with `-DCAVE=0xA432000`), check its `.bin` was assembled for it, aim its
    hooks there, and put its bytes into `arena_bytes["anomalies.code"]` in
-   `build()` (beside `arena_bytes["research.code"]`); drop its own
+   `build()` (beside `arena_bytes["research.code"]` and `["artefacts.code"]`); drop its own
    `add_code_section` / `.srpx` code;
 3. declare its hooks in `INSTALLS` (and any vtable or callback it hands the
    game in `INSTALLED_VTABLES` / `CALLBACKS`, section 0.4), or `build()`
@@ -1820,7 +1865,7 @@ The checks:
    - every CALLBACK;
    - every slot of ours of every INSTALLED_VTABLES vtable (check 53's
      comparison, generalised).
-   Today that is 10 ENTRY, 18 CALLEE, 1 ABI and 1 SLOT site, 2 callbacks and
+   Today that is 13 ENTRY (three of them the artefacts', patch 54), 18 CALLEE, 1 ABI and 1 SLOT site, 2 callbacks and
    Research's 11 own vtable slots. Over the variants it builds it also flags
    an `INSTALLS` row that none installs (a stale row).
    `test_call_shapes_negative` builds a made-up rule vtable whose slot 16

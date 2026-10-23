@@ -403,6 +403,12 @@ without the late join, as patch revision 4 was, which check 15 builds on):
     pops what tdm_rule_core's (0xA15DA4) and tdm_rule_cook's (0x9FD8AC)
     pops: the call shapes' INSTALLED_VTABLES check, for every patch).
     check_research_026g.py runs the hooks, the cook and the rule.
+54. the same build: the artefacts (patch 54, artefacts_026g.asm, the
+    arena's block artefacts.code at `.srpx`+4000h): the original's six sites (Spring's loader and
+    its keys, the active's link and unlink, Lifebone's enable_active after
+    its remove_affects, artefact_base::action's entry, the player's
+    stagger) and the two sizes of a Spring, the hooks and sizes in the
+    build, the code, its exits and calls, its data. check_artefacts_026g.py runs it.
 """
 
 import ast
@@ -698,6 +704,14 @@ def test_bins():
         fresh = open(out, "rb").read()
     check(fresh == open(P.upgrade_preview_bin(), "rb").read(),
           f"{os.path.basename(P.upgrade_preview_bin())} is current ({len(fresh)} bytes)")
+    artefacts = P.ARTEFACTS_VA
+    with tempfile.TemporaryDirectory() as tmp:
+        out = os.path.join(tmp, "out.bin")
+        subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={artefacts:#x}",
+                        os.path.join(HERE, "artefacts_026g.asm"), "-o", out], check=True, timeout=60)
+        fresh = open(out, "rb").read()
+    check(fresh == open(P.artefacts_bin(), "rb").read(),
+          f"{os.path.basename(P.artefacts_bin())} is current ({len(fresh)} bytes)")
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.bin")
         subprocess.run([tool("nasm"), "-f", "bin", f"-DCAVE={P.WEAPON_DRAW_VA:#x}", f"-DSTATE={state:#x}",
@@ -1496,7 +1510,9 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.WEAPON_TABLE_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.WEAPON_DECALS_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.UPGRADE_PREVIEW_HOOKS] + \
-        [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS]
+        [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
+        [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES]
 
 
 def pickup_sites():
@@ -1918,6 +1934,7 @@ def test_upgrade_preview(original, image, before):
         0x270313: ["call 0x270320"],
         0x284B89: ["cmp dword [ebx+0xd2c4],byte -0x1"],
         0x284F7F: ["cmp byte [ebx+0xd2c9],0x0"],
+        0x284B7C: ["cmp byte [ebx+0xd2c8],0x0"],
     }
     for va, old, offset, opcode in P.UPGRADE_PREVIEW_HOOKS:
         entry = code_va + offset
@@ -1977,7 +1994,7 @@ def test_upgrade_preview(original, image, before):
           and P.upgrade_preview_targets(code, code_va) == (stash_find, state, preview_state),
           f"the upgrade preview at {code_va:#x} (.srpw+{P.UPGRADE_PREVIEW_OFFSET:#x}) is "
           f"upgrade_preview_026g.section.bin ({len(code)} bytes), its state at 0x{P.UPGRADE_PREVIEW_STATE_OFFSET:X} "
-          "of .srpd, patch 32's read; it begins with six `jmp near`, calls only setup_profile, the inventory's "
+          "of .srpd, patch 32's read; it begins with seven `jmp near`, calls only setup_profile, the inventory's "
           "find, item_by_id, the config's has_key and child, the profile's ctor and copy, the allocator, the "
           "log and the stash's find_kit_or_show, jumps only to setup_profile's end and the 0x87 reader's last "
           "call outside itself, and every branch inside it lands on an instruction")
@@ -3883,6 +3900,104 @@ def test_stage_focus(original, image, before):
           "stay inside)" + "".join(f", {h:#x}" for h in hits + under))
 
 
+def test_artefacts(original, image, before):
+    """Check 54: the artefacts (patch 54, ARTEFACTS_*). check_artefacts_026g.py
+    runs Spring's loader and links, Lifebone's active and the action with
+    the game's own code on made-up artefacts."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    cstr = lambda va: stock.read(va, 32).split(b"\0")[0]
+    check(rows(stock, 0x33AD3B, 0x39) == [
+              "call 0xf6b10", "mov edi,0xa1c218", "call 0xf6b10", "cmp word [eax+0x14],byte +0x2", "jnz 0x33ad57",
+              "movss xmm0,dword [eax]", "jmp short 0x33ad5b", "cvtsi2ss xmm0,dword [eax]", "mov edi,0xa1c230",
+              "mov eax,ebx", "mov [esi+0x10],ebp", "mov [esi+0x14],ebp", "mov dword [esi+0x18],0x5",
+              "movss dword [esi+0x1c],xmm0"]
+          and rows(stock, 0x33AE06, 0x1E) == [
+              "mov edi,0xa1c230", "mov eax,ebx", "mov [esi+0x40],ebp", "mov [esi+0x44],ebp",
+              "mov dword [esi+0x48],0x13", "movss dword [esi+0x4c],xmm0", "call 0xf6b10"]
+          and [cstr(va) for va in (0xA1C1FC, 0xA1C218, 0xA1C230, 0x9FD6C4)]
+          == [b"passive", b"max_carried_weight_mod", b"active", b"data"],
+          "Spring's loader (0x33ACF0, esi = the config at +340h, ebx = `data`): the passive's second node is "
+          "max_carried_weight (5) from `passive/max_carried_weight_mod` (0xA1C218), the active's third (+40h, "
+          "index 13h at 0x33AE13) before the duration's lookup in `active` (0xA1C230)")
+    check(rows(stock, 0x311BC0, 10) == ["push ebx", "push esi", "mov esi,eax", "mov eax,[esi+0x250]"]
+          and rows(stock, 0x311DA0, 5) == ["push ebx", "mov ebx,[esp+0x8]"]
+          and stock.read(0x311946, 5) == b"\xE8" + struct.pack("<i", 0x311BC0 - 0x31194B)
+          and stock.read(0x311974, 5) == b"\xE8" + struct.pack("<i", 0x311DA0 - 0x311979),
+          "the link of Spring's active nodes (0x311BC0, eax = the Spring, called by enable_active 0x311946) and "
+          "their unlink (0x311DA0, stdcall, called by disable_active 0x311974)")
+    check(rows(stock, 0x31227B, 0x3B)[-6:] == ["add esi,byte +0x20", "cmp esi,ebx", "jnz 0x312282", "pop ebp",
+                                              "mov ecx,[edi+0x250]", "mov ecx,[ecx+0x174]"]
+          and stock.read(0x312279, 2) == bytes.fromhex("742f"),
+          "Lifebone's enable_active (0x312250): its remove_affects loop and the way around it both reach "
+          "0x3122AA `mov ecx,[edi+0x250]` with the function's four pushes")
+    check(rows(stock, 0x313300, 0x45) == [
+              "push esi", "mov esi,ecx", "cmp dword [esi+0x280],byte +0x3", "jnz 0x313344",
+              "cmp byte [esp+0x8],0x0", "jz 0x313344", "cmp dword [esi+0x28c],byte +0x0", "jnz 0x313344",
+              "mov eax,[esi]", "mov edx,[eax+0x80]", "push edi", "mov edi,[esp+0x10]", "push edi", "call edx",
+              "push edi", "push esi", "call 0x313350", "mov [esi+0x2a0],edi", "mov dword [esi+0x280],0x4",
+              "pop edi", "pop esi"],
+          "artefact_base::action (0x313300): a press of one in its passive (state 3) with no cooldown calls "
+          "its enable_active, its effect, keeps the time and sets state 4 at 0x313339; its entry's ten bytes "
+          "are whole instructions, the jne after them at 0x31330A")
+    for va, old, new in P.ARTEFACTS_SIZES:
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
+              f"{va:#x}: a Spring's size {struct.unpack('<I', old[1:])[0]:#x} in the original and the build "
+              f"without the late join, {P.ARTEFACTS_SPRING_SIZE:#x} here")
+    check(rows(stock, 0x25E7A6, 8) == ["pop edi", "pop esi", "mov eax,0x3b8", "pop ebx"]
+          and stock.read(0x25EA4F, 10) == bytes.fromhex("c78398030000a442a000")
+          and stock.read(0x25EA83, 6) == bytes.fromhex("8983b4030000"),
+          "the size of artefact<artefact_spring_core> (0x25E770, type 6), whose constructor 0x25EA10 fills "
+          "+398h..+3B7h; the bare core's (0x2EEA30) is 398h")
+    artefacts_va = P.ARTEFACTS_VA
+    check(artefacts_va == P.ARENA_LAYOUT["artefacts.code"] == P.ARENA_PINNED["artefacts.code"] == 0xA431000
+          and P.ARENA_BLOCKS["artefacts.code"].kind == "code",
+          "the artefacts' code is the arena's block artefacts.code, a code page at 0xA431000 (.srpx+4000h)")
+    for va, old, offset, opcode in P.ARTEFACTS_HOOKS:
+        hook = P.hook_bytes(artefacts_va, va, old, offset, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`jmp {artefacts_va + offset:#x}` here")
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(va - 4 < v < va + len(old) for va, old, _, _ in P.ARTEFACTS_HOOKS + tuple(
+                 (s, o, 0, 0) for s, o, _ in P.ARTEFACTS_SIZES))]
+    hits = [h for va, old, _, _ in P.ARTEFACTS_HOOKS for h in aimed_inside(original, va, len(old), 0x82)
+            if not va <= h < va + len(old) and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside a hook"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = open(P.artefacts_bin(), "rb").read()
+    check(image.read(artefacts_va, len(code)) == code,
+          f"the code at {artefacts_va:#x} is artefacts_026g.section.bin ({len(code)} bytes)")
+    listing = ndisasm(code, artefacts_va)
+    names = code.index(b"aim_time_mod\0")
+    listing = [row for row in listing if row[0] < artefacts_va + names]
+    texts = [text for _, _, text in listing]
+    outside = sorted({branch_target(t) for t in texts if branch_target(t) is not None
+                      and not artefacts_va <= branch_target(t) < artefacts_va + len(code)})
+    check(P.artefacts_backs(code, artefacts_va) == list(P.ARTEFACTS_BACKS)
+          and outside == sorted(set(P.ARTEFACTS_BACKS) | {0xF6B10, 0x2D5D00, 0x2D5AE0, 0x2E58B0, 0x32A420,
+                                                          0x313350}),
+          "its six entries go on where they came from (" + ", ".join(hex(a) for a in P.ARTEFACTS_BACKS)
+          + "); it calls the config lookup 0xF6B10, the unlink 0x2D5D00, the getter 0x2D5AE0, the pool "
+          "lookup 0x2E58B0, increase_health 0x32A420 and the activation effect 0x313350, and nothing else "
+          "outside")
+    heals = artefacts_va + names + 47
+    check(code[names:] == b"aim_time_mod\0stopping_power_mod\0pain\0body\0head\0"
+          + struct.pack("<III", *(artefacts_va + names + at for at in (32, 37, 42)))
+          and f"mov ebp,{artefacts_va + names + 13:#x}" in texts
+          and f"mov ebp,{artefacts_va + names:#x}" in texts and f"mov ebx,{heals:#x}" in texts
+          and f"cmp ebx,{heals + 12:#x}" in texts and "mov edi,0xa1c1fc" in texts and "mov edi,0xa1c230" in texts,
+          "its data: the keys aim_time_mod (in `passive` 0xA1C1FC and `active` 0xA1C230) and "
+          "stopping_power_mod (in `active`), and the pools Lifebone's active fills (pain, body, head)")
+    check(rows(stock, 0x2DBD86, 0x1E) == ["xorps xmm1,xmm1", "movss xmm2,dword [esi+0x31c]", "comiss xmm2,xmm0",
+                                          "lea eax,[esi+0x31c]", "jna 0x2dbda0", "lea eax,[esp+0x14]",
+                                          "movss xmm0,dword [eax]"]
+          and "jna near 0x2dbd89" in rows(stock, 0x2DBCF9, 6)
+          and stock.read(0x2D8FE3, 7) == bytes.fromhex("8bc7e8e62c0000"),
+          "the player's stagger (0x2DBCD0, eax = the player, from its tick 0x2D8FE5): xmm0 the recent hits' "
+          "stopping power, from the loop or none (0x2DBCF9) at 0x2DBD89, -min(it, [+31Ch]) the slow")
+
+
 def test_spot(original, image, before):
     """Check 38: spotting (patch 38, SPOT_*). check_spot_026g.py runs the
     input apply with the game's own spottable code on made-up hits."""
@@ -4973,10 +5088,12 @@ def test_arena(original):
     bare = bytes(P.add_arena(bytearray(b"MZ"), (), {}))
     check(none == without and bare == b"MZ",
           "no block added: the exe is byte for byte the build's; with no block at all add_arena adds no section")
-    check(P.ARENA_LAYOUT == {"research.code": 0xA42D000, "research.state": 0xA430000}
-          and [b.name for b in P.ARENA[:2]] == ["research.code", "research.state"],
+    check(P.ARENA_LAYOUT == {"research.code": 0xA42D000, "research.state": 0xA430000,
+                             "artefacts.code": 0xA431000}
+          and [b.name for b in P.ARENA[:3]] == ["research.code", "research.state", "artefacts.code"],
           "ARENA's first blocks are Research's, at 0xA42D000 (code) and 0xA430000 (state), the VAs "
-          "research_026g.py links it for; the next block (#225's) goes at 0xA431000")
+          "research_026g.py links it for, then the artefacts' code (patch 54) at 0xA431000; the next "
+          "block (#225's) goes at 0xA432000")
     # Blocks of each kind, out of alignment order, built twice: the same bytes.
     blocks = (P.ArenaBlock("a.code", "code", 0x2800, 0x1000),
               P.ArenaBlock("a.state", "state", 0x1000, 0x1000),
@@ -5185,16 +5302,22 @@ def test_late_join(original, without, server, source):
           "code | execute | read, on the page after .srpc, its file bytes right after .srpc's")
     research = open(P.research_bin(), "rb").read()
     research = research + b"\xCC" * (P.RESEARCH_STATE_OFFSET - len(research)) + bytes(P.RESEARCH_SIZE - P.RESEARCH_STATE_OFFSET)
+    artefacts = open(P.artefacts_bin(), "rb").read()
+    artefacts_size = P.ARENA_BLOCKS["artefacts.code"].size
+    arena = research + artefacts + b"\xCC" * (artefacts_size - len(artefacts))
     name_r, rva_r, vsize_r, raw_r, rsize_r, flags_r = sections[-1]
     check(name_r == P.ARENA_NAME and flags_r == P.ARENA_CHARACTERISTICS
           and rva_r == align(rva_w + vsize_w, headers.section_alignment) and P.IMAGE_BASE + rva_r == P.ARENA_VA
           and P.RESEARCH_VA == P.ARENA_LAYOUT["research.code"] == P.ARENA_VA
           and P.RESEARCH_STATE_VA == P.ARENA_LAYOUT["research.state"] == P.ARENA_VA + 0x3000
-          and vsize_r == P.RESEARCH_SIZE and raw_r == raw_w + rsize_w and rsize_r == align(vsize_r, headers.file_alignment)
-          and bytes(data[raw_r:raw_r + vsize_r]) == research,
+          and P.ARTEFACTS_VA == P.ARENA_LAYOUT["artefacts.code"] == P.ARENA_VA + P.RESEARCH_SIZE
+          and vsize_r == P.RESEARCH_SIZE + artefacts_size and raw_r == raw_w + rsize_w
+          and rsize_r == align(vsize_r, headers.file_alignment)
+          and bytes(data[raw_r:raw_r + vsize_r]) == arena,
           f".srpx, the arena, at VA {P.IMAGE_BASE + rva_r:#x}: its blocks research.code "
-          f"(research_026g.section.bin, int3 padding) and research.state (+{P.RESEARCH_STATE_OFFSET:#x}, the page "
-          "zeroed) at the VAs ARENA_LAYOUT gives them; code | data | execute | read | write, on the page after "
+          f"(research_026g.section.bin, int3 padding), research.state (+{P.RESEARCH_STATE_OFFSET:#x}, the page "
+          f"zeroed) and artefacts.code (+{P.RESEARCH_SIZE:#x}, artefacts_026g.section.bin, int3 padding) at the "
+          "VAs ARENA_LAYOUT gives them; code | data | execute | read | write, on the page after "
           ".srpw, its file bytes right after .srpw's")
     get = lambda blob, at: struct.unpack_from("<I", blob, at)[0]
     check(get(data, headers.size_of_image_at) == align(rva_r + vsize_r, headers.section_alignment)
@@ -5358,6 +5481,7 @@ def test_late_join(original, without, server, source):
     test_tab_list(original, image, before)
     test_tab_self(original, image, before)
     test_spot(original, image, before)
+    test_artefacts(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)

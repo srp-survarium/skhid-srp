@@ -98,6 +98,11 @@ USAGE (this script never touches the source exe):
         nasm -f bin -DCAVE=0xA42B000 -DPREVIEW=0xA428E00 -DTABLE=0xA428F00 -DPRESS=0xA428FA0 weapon_decals_026g.asm -o weapon_decals_026g.section.bin
     (checked in; PREVIEW and TABLE are patch 32's and patch 45's states, PRESS
     its own, 0xFA0 of the late join's state page, checked).
+    The artefacts' code (Spring's aim time, Lifebone's heal, one press for
+    every artefact of a kind) comes from artefacts_026g.asm, the arena's
+    block artefacts.code (`.srpx`+4000h, after Research's two):
+        nasm -f bin -DCAVE=0xA431000 artefacts_026g.asm -o artefacts_026g.section.bin
+    (checked in).
     The late-join code is late_join_026g.section.bin, checked in too; it is
     made by `late_join_026g.py --write-bin`, which needs nasm, a C compiler
     for x86 and GNU ld (--late-join-bin=<file> names another one).
@@ -411,6 +416,23 @@ Patches:
   live one clears them. The code
   is death_camera_026g.asm, the section `.srpc`; a dead player sends no
   input (0x1F7883), so nothing a match computes changes;
+- the artefacts as the owner set them (patch 54, with the late join,
+  client_patch.md section 3.51, docs/notes/artefacts.md; their numbers in
+  the configs, release/content.tsv artefacts-1.json). A Spring's loader
+  (0x33ACF0) reads a fixed set of keys into its character modifier nodes,
+  none of them the aim time; artefacts_026g.asm (`.srpx`+4000h) makes its
+  passive's unused max_carried_weight node aim_time with
+  `passive/aim_time_mod` and adds two active nodes, aim_time with
+  `active/aim_time_mod` at +3B8h and list 42 with
+  `active/stopping_power_mod` at +3C8h (a Spring is 3D8h bytes, 0x25E7A8,
+  0x2EEA74), linked and unlinked with the active's (0x311BC0, 0x311DA0);
+  the player's stagger (0x2DBCD0, at 0x2DBD89) is times max(0, 1 + list
+  42), so bullets do not slow an active Spring's holder. A
+  Lifebone's active (0x312250) removed injuries only; after them it fills
+  the pain, body and head pools (0x3122AA, increase_health as a medkit). An artefact's
+  press (artefact_base::action 0x313300, at its entry) activates every
+  ready artefact of the pressed one's class in the artefact slots, so one
+  key fires all of a kind that are ready, even when the pressed one is not;
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -1710,7 +1732,7 @@ WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14)  # camera, tick, cull, matrix,
 # at UPGRADE_PREVIEW_OFFSET of `.srpw`, a page of its own (the second page is
 # the weapon decals', patch 47); its state at UPGRADE_PREVIEW_STATE_OFFSET of
 # `.srpd`, after the patches' mount's (MOUNT_STATE_OFFSET) and before patch
-# 32's (WEAPON_PREVIEW_STATE_OFFSET). Six `jmp near`, the entries:
+# 32's (WEAPON_PREVIEW_STATE_OFFSET). Seven `jmp near`, the entries:
 # - relocate_upgrade_item's handler (0x29A8B0), `mov edx,[esi+4620h]` at
 #   0x29A9B2 (before its `46 01` is written): relocate, which queues the
 #   change for the window's weapon and makes the character again at once;
@@ -1725,7 +1747,12 @@ WEAPON_TABLE_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14)  # camera, tick, cull, matrix,
 #   0x284B89: again, which returns when the player being made is of the
 #   kit's id and revision asked;
 # - on_player_ready, `cmp byte [ebx+0D2C9h],0` at 0x284F7F: made, a log line
-#   with the time the lobby character's player took.
+#   with the time the lobby character's player took;
+# - setup_profile's early return, `cmp byte [ebx+0D2C8h],0` at 0x284B7C (its
+#   last test before `jz 284CF8h`): early, which for the lobby's own
+#   character returns early only while no player is being made (patch 32's
+#   window closed while its scratch's player was being made: the owner's
+#   report of 2026-10-23, client_patch.md section 3.42).
 # No base relocation is under a site and no branch aims inside one; the code
 # holds the absolute addresses of its state, patch 32's and its strings (the
 # exe is never rebased).
@@ -1733,13 +1760,14 @@ UPGRADE_PREVIEW_OFFSET = 0x2000
 UPGRADE_PREVIEW_STATE_OFFSET = 0xD60
 UPGRADE_PREVIEW_STATE_SIZE = 0xA0
 UPGRADE_PREVIEW_FIND = 0x0F
-UPGRADE_PREVIEW_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19)  # relocate, drop, account, find, again, made
+UPGRADE_PREVIEW_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19, 0x1E)  # relocate, drop, account, find, again, made, early
 UPGRADE_PREVIEW_HOOKS = (
     (0x29A9B2, bytes.fromhex("8b9620460000"), 0x0, 0xE8),          # relocate_upgrade_item: relocate
     (0x29AACF, bytes.fromhex("8b8e20460000"), 0x5, 0xE8),          # drop_upgrade_item: drop
     (0x270313, bytes.fromhex("e808000000"), 0xA, 0xE8),            # the 0x87 reader's last call: account
     (0x284B89, bytes.fromhex("83bbc4d20000ff"), 0x14, 0xE8),       # setup_profile past its early return: again
     (0x284F7F, bytes.fromhex("80bbc9d2000000"), 0x19, 0xE8),       # on_player_ready: made
+    (0x284B7C, bytes.fromhex("80bbc8d2000000"), 0x1E, 0xE8),       # setup_profile's early return: early
 )
 WEAPON_TABLE_HOOKS = (
     (0x284020, bytes.fromhex("f30f1083c8000000"), 0x5, 0xE8),        # the camera's tick: tick
@@ -1780,6 +1808,53 @@ WEAPON_DECALS_HOOKS = (
     (0x265C20, bytes.fromhex("558bec83e4f8"), 0x1E, 0xE9),      # the mouse key handler
 )
 WEAPON_CAMO_DECALS_CALLS = (0x0, 0x5)                           # the entries patch 44 calls
+
+# The artefacts (patch 54, README; client_patch.md section 3.51; the rules:
+# ../docs/notes/artefacts.md): artefacts_026g.asm in the arena's block
+# artefacts.code (ARTEFACTS_VA, `.srpx`+4000h, after Research's two; ARENA
+# below). Its numbers are the artefacts'
+# configs' (release/content.tsv, artefacts-1.json). It begins with six
+# `jmp near`, one for each site:
+# - Spring's loader 0x33ACF0, `mov dword [esi+48h],13h` at 0x33AE13 (its
+#   active's third node): loader. The passive's second node (+350h,
+#   max_carried_weight 0 in retail) becomes aim_time (49) with the value of
+#   `passive/aim_time_mod`; two more nodes are the active's: +3B8h aim_time
+#   with `active/aim_time_mod`, +3C8h list 42 with
+#   `active/stopping_power_mod`;
+# - the link of Spring's active nodes, 0x311BC0 (`push ebx / push esi /
+#   mov esi,eax / mov eax,[esi+250h]`, the entry): link the two too;
+# - their unlink, 0x311DA0 (`push ebx / mov ebx,[esp+8]`, the entry): unlink;
+# - Lifebone's enable_active after its remove_affects, `mov ecx,[edi+250h]`
+#   at 0x3122AA: the pain, body and head pools filled to their maximum
+#   (increase_health, as a medkit);
+# - artefact_base::action 0x313300 (`push esi / mov esi,ecx / cmp dword
+#   [esi+280h],3`, the entry): a key-down activates every ready artefact of
+#   the pressed one's class in the artefact slots, as action activates one,
+#   and returns; a key-up goes on in action;
+# - the player's stagger 0x2DBCD0, `movss xmm2,[esi+31Ch]` at 0x2DBD89 (the
+#   recent hits' stopping power summed): the sum times max(0, 1 + list 42),
+#   list 42 (artefact_synergy) being read by no code of 0.26g and set by no
+#   config, so an active Spring's -1 takes the slow away.
+# The two nodes are after a Spring's own fields: the two sizes of a Spring,
+# artefact<artefact_spring_core> (0x3B8, 0x25E7A8) and the bare core (0x398,
+# 0x2EEA74), become ARTEFACTS_SPRING_SIZE. No base relocation is under a
+# site and no branch aims inside one; the code holds the absolute addresses
+# of its two names (the exe is never rebased).
+ARTEFACTS_ENTRIES = (0x0, 0x5, 0xA, 0xF, 0x14, 0x19)  # loader, link, unlink, lifebone, fire, stagger
+ARTEFACTS_HOOKS = (
+    (0x33AE13, bytes.fromhex("c7464813000000"), 0x0, 0xE9),        # Spring's loader: its active's third node
+    (0x311BC0, bytes.fromhex("53568bf08b8650020000"), 0x5, 0xE9),  # Spring's active link
+    (0x311DA0, bytes.fromhex("538b5c2408"), 0xA, 0xE9),            # Spring's active unlink
+    (0x3122AA, bytes.fromhex("8b8f50020000"), 0xF, 0xE9),          # Lifebone's enable_active
+    (0x313300, bytes.fromhex("568bf183be8002000003"), 0x14, 0xE9), # artefact_base::action: its entry
+    (0x2DBD89, bytes.fromhex("f30f10961c030000"), 0x19, 0xE9),     # the player's stagger: its sum
+)
+ARTEFACTS_BACKS = (0x33AE1A, 0x311BCA, 0x311DA5, 0x3122B0, 0x31330A, 0x2DBD91)  # where each goes on
+ARTEFACTS_SPRING_SIZE = 0x3D8                  # the active's two nodes at +3B8h and +3C8h
+ARTEFACTS_SIZES = (
+    (0x25E7A8, bytes.fromhex("b8b8030000"), b"\xB8" + struct.pack("<I", ARTEFACTS_SPRING_SIZE)),
+    (0x2EEA74, bytes.fromhex("b898030000"), b"\xB8" + struct.pack("<I", ARTEFACTS_SPRING_SIZE)),
+)
 
 
 def weapon_camo_va(late_join):
@@ -1893,6 +1968,7 @@ INSTALLS = {
     0x270313: (CALLEE, "the 0x87 reader's last call: account", None, None),
     0x284B89: (INLINE, "setup_profile past its early return: again", None, None),
     0x284F7F: (INLINE, "on_player_ready: made", None, None),
+    0x284B7C: (INLINE, "setup_profile's early return: early", None, None),
     # the replay viewer (patch revision 11): a vtable slot, and the sound queue's cave
     REPLAY_REATTACH_SLOT[0]: (SLOT, "replay_network_client's \"is this place mine\" (vtable 0x9FF344 +54h): "
                               "the thunk to is_player_current", None, None),
@@ -1902,6 +1978,19 @@ INSTALLS = {
                        "as a tail jump with the return address moved past the nops)", None, None),
     0x23B3DE: (INLINE, "update_ui after the teams' points: hud", None, None),
     0x23B351: (JUMP, "update_ui's first message by mode: welcome", None, None),
+    # the artefacts, patch 54 (in `.srpx`)
+    0x33AE13: (JUMP, "Spring's loader 0x33ACF0, `mov dword [esi+48h],13h` (esi = the config, ebx = `data`): "
+                     "loader", None, None),
+    0x311BC0: (ENTRY, "add_active_modifiers, the link of Spring's active nodes (eax = the Spring): link_active, "
+                      "then the function", None, None),
+    0x311DA0: (ENTRY, "remove_active_modifiers, their unlink (stdcall, the Spring): unlink_active, then the "
+                      "function", None, None),
+    0x3122AA: (JUMP, "Lifebone's enable_active after its remove_affects, `mov ecx,[edi+250h]`: "
+                     "lifebone_active", None, None),
+    0x313300: (ENTRY, "artefact_base::action (thiscall: pressed, time; inventory::action's vtable +2Ch call): "
+                      "fire_kind, a key-up back in the function", None, None),
+    0x2DBD89: (JUMP, "the player's stagger 0x2DBCD0, `movss xmm2,[esi+31Ch]` after the hits' sum: stagger",
+               None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -2062,8 +2151,8 @@ def audit_installs(data, writes, installs=None):
 #   power of two from 16, 0x1000 for a page of its own.
 # A new patch appends its blocks at ARENA's end and takes its VAs from
 # ARENA_LAYOUT; the dynamic anomalies (#225), next, so:
-#   ArenaBlock("anomalies.code", "code", <its size>, 0x1000)  # 0xA431000
-# which is the +4000h of `.srpx` it is assembled for today.
+#   ArenaBlock("anomalies.code", "code", <its size>, 0x1000)  # 0xA432000
+# (its .bin assembled for that VA: the artefacts, patch 54, took +4000h).
 ARENA_NAME = b".srpx\0\0\0"
 ARENA_CHARACTERISTICS = 0xE0000060              # code, initialized data, execute, read, write
 ARENA_VA = 0xA42D000                            # weapon_camo_va + .srpw's three pages
@@ -2077,6 +2166,7 @@ ArenaBlock = collections.namedtuple("ArenaBlock", "name kind size align")
 ARENA = (
     ArenaBlock("research.code", "code", 0x3000, 0x1000),     # patch 53: 0xA42D000
     ArenaBlock("research.state", "state", 0x1000, 0x1000),   # its rule's cook and the hud's cache: 0xA430000
+    ArenaBlock("artefacts.code", "code", 0x1000, 0x1000),    # patch 54: 0xA431000
 )
 
 
@@ -2107,6 +2197,7 @@ ARENA_BLOCKS = {block.name: block for block in ARENA}
 ARENA_PINNED = {
     "research.code": 0xA42D000,
     "research.state": 0xA430000,
+    "artefacts.code": 0xA431000,
 }
 
 
@@ -2186,6 +2277,9 @@ RESEARCH_HOOKS = (
     (0x23B3DE, bytes.fromhex("837f20047518"), 0x5, 0xE8),       # update_ui after the teams' points: hud
     (0x23B351, bytes.fromhex("83f8047514"), 0xA, 0xE9),         # update_ui's first message: welcome
 )
+# The artefacts (patch 54, ARTEFACTS_* above): the arena's third block, a page
+# of code at 0xA431000, where artefacts_026g.asm is assembled.
+ARTEFACTS_VA = ARENA_LAYOUT["artefacts.code"]
 
 
 def research_layout(code):
@@ -2654,6 +2748,9 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             sites.append((site[0], site[0] + len(site[1])))
         patch(data, *SPOT_COOLDOWN)
         sites.append((SPOT_COOLDOWN[0], SPOT_COOLDOWN[0] + len(SPOT_COOLDOWN[1])))
+        for site in ARTEFACTS_SIZES:
+            patch(data, *site)
+            sites.append((site[0], site[0] + len(site[1])))
         patch(data, *REPLAY_REATTACH_THUNK)
         sites.append((REPLAY_REATTACH_THUNK[0], REPLAY_REATTACH_THUNK[0] + len(REPLAY_REATTACH_THUNK[1])))
         # An address: its relocation stays.
@@ -3069,6 +3166,15 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                 if neutralize_relocs(data, [(va, va + len(expected))]):
                     sys.exit(f"{va:#x}: a base relocation under a hook of Research")
             arena_bytes["research.code"] = research
+            artefacts = open(artefacts_bin(), "rb").read()
+            if artefacts_backs(artefacts, ARTEFACTS_VA) != list(ARTEFACTS_BACKS):
+                sys.exit(f"artefacts_026g.section.bin: its entries are not where patch_026g.py jumps to them, or it "
+                         f"was assembled for another address (-DCAVE={ARTEFACTS_VA:#x})")
+            for va, expected, offset, opcode in ARTEFACTS_HOOKS:
+                patch(data, va, expected, hook_bytes(ARTEFACTS_VA, va, expected, offset, opcode))
+                if neutralize_relocs(data, [(va, va + len(expected))]):
+                    sys.exit(f"{va:#x}: a base relocation under a hook of the artefacts")
+            arena_bytes["artefacts.code"] = artefacts
             # The self-test's made-up blocks go after the patches' own: none
             # of those moves.
             check_arena()
@@ -3125,6 +3231,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "a weapon wears the decals its item holds, placed on it above the workbench, "
                      "an upgrade dropped on a weapon in its window is shown at once, "
                      f"Research (mode 5: rule class {RESEARCH_CLASS:#x}, its hud and messages), "
+                     "a Spring's passive and active take aim time from its config and its active takes the bullets' slow away, a Lifebone's active fills "
+                     "pain, body and head, and one press fires every artefact of its kind, "
                      + (f"it stops at its start without resources.db.patch_{', _'.join(map(str, required_patches))}"
                         if required_patches else "it requires no resources.db patch")
                      if late_join is not None else "")
@@ -3303,9 +3411,29 @@ def upgrade_preview_bin():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "upgrade_preview_026g.section.bin")
 
 
+def artefacts_bin():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "artefacts_026g.section.bin")
+
+
+def artefacts_backs(code, va):
+    """artefacts_026g.section.bin assembled at `va`: where each of its six
+    entries goes on (the target of the first `jmp near` back into .text
+    after the entry's own code), when they are `jmp near`; else None."""
+    if any(code[at] != 0xE9 for at in ARTEFACTS_ENTRIES):
+        return None
+    backs = []
+    for at in ARTEFACTS_ENTRIES:
+        start = at + 5 + struct.unpack_from("<i", code, at + 1)[0]
+        target = next((va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] for i in range(start, len(code) - 4)
+                       if code[i] == 0xE9 and va + i + 5 + struct.unpack_from("<i", code, i + 1)[0] < SECTION_VA),
+                      None)
+        backs.append(target)
+    return backs
+
+
 def upgrade_preview_targets(code, va):
     """upgrade_preview_026g.section.bin assembled at `va`: (the find's
-    `call`, its state, patch 32's state) when its six entries are `jmp
+    `call`, its state, patch 32's state) when its seven entries are `jmp
     near`, find (+0Fh's) begins `push eax / call <find>` and the state is
     the immediate of pop_op's `mov esi,<state>` (the one after account's
     `call`), patch 32's that of preview's first `mov esi,<state>`; else None."""
