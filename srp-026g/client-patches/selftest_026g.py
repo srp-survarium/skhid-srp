@@ -1130,6 +1130,50 @@ def test_ai_arena(original, image, before):
     check(not hits, "no branch of the initializer lands inside the instruction")
 
 
+def test_minimap_off(original, image, before):
+    """Check 57: the minimap is off until the player turns it on (patch 57,
+    MINIMAP_OFF): the hud's constructor gives minimap_position 2 before it
+    registers the variable; the build without the late join keeps 0."""
+    va, old, new = P.MINIMAP_OFF
+    stock = Image(original)
+    start, end = 0x23385D, 0x233923
+    original_at = {address: text for address, _, text in ndisasm(stock.read(start, end - start), start)}
+    rows = {address: text for address, _, text in ndisasm(image.read(start, end - start), start)}
+    check(stock.read(va, len(old)) == old and before.read(va, len(old)) == old and image.read(va, len(new)) == new,
+          f"{va:#x}: the original's `{old.hex()}`, kept by the build without the late join, `{new.hex()}` here")
+    between = [text for address, text in sorted(original_at.items()) if start < address < va]
+    check(original_at.get(start) == "lea esi,[ebp+0x358]"
+          and not any(text.split()[1].startswith("esi") for text in between if len(text.split()) > 1)
+          and original_at.get(va) == "mov [esi],ebx" and original_at.get(va + 2) == "mov byte [ebp+0x35c],0x1"
+          and original_at.get(0x2338F5) == "push byte +0x2" and original_at.get(0x2338F7) == "push byte +0x1"
+          and original_at.get(0x2338F9) == "push byte +0x2" and original_at.get(0x2338FB) == "push ebx"
+          and original_at.get(0x2338FC) == "push esi" and original_at.get(0x2338FD) == "push dword 0xa0315c"
+          and original_at.get(0x233902) == "mov eax,0xa2ae1a8" and original_at.get(0x233907) == "call 0x1dcd0"
+          and stock.read(0xA0315C, 17) == b"minimap_position\0",
+          "the original: esi = hud+358h from 0x23385d, unchanged until 0x2338bc, which stores ebx (0) there; then "
+          "cc_value<unsigned int> 0xa2ae1a8 \"minimap_position\" on esi, 0 to 2, kept in user.cfg (0x1dcd0)")
+    check(rows.get(va) == "mov [esi],ebx" and rows.get(va + 2) == f"mov byte [esi],{P.MINIMAP_OFF_VALUE:#x}"
+          and rows.get(va + 5) == "mov byte [esi+0x4],0x1"
+          and all(rows.get(a) == original_at.get(a) for a in (0x2338B5, 0x2338C5, 0x2338F5, 0x2338FD, 0x233907)),
+          f"{va:#x}: `mov [esi],ebx / mov byte [esi],{P.MINIMAP_OFF_VALUE} / mov byte [esi+0x4],0x1` "
+          "(+35ch, as the original's), the rest of the constructor the original's")
+    check(stock.read(0x233BEB, 6) == bytes.fromhex("8b9058030000") and stock.read(0x233C1B, 5) == b"\x68" +
+          struct.pack("<I", 0xA031A4) and stock.read(0xA031A4, 26) == b"root.set_minimap_position\0",
+          "refresh_minimap_screen_position (0x233be0) sends +358h to root.set_minimap_position")
+    items = [struct.unpack("<I", stock.read(0xA742D4 + 4 * i, 4))[0] for i in range(3)]
+    check([stock.read(item, 20).split(b"\0")[0] for item in items]
+          == [b"st_minimap_top", b"st_minimap_bottom", b"st_minimap_off"]
+          and stock.read(0x262589, 12) == bytes.fromhex("6a03" "68d442a700" "685c31a000"),
+          "the options' minimap_position list (0x262589: three items at 0xa742d4): 0 upper left, 1 lower left, "
+          f"{P.MINIMAP_OFF_VALUE} off")
+    movie = os.path.join(HERE, "..", "flash", "hud", "src", "survarium", "constants", "MinimapPosition.as")
+    check(f"HIDDEN:int = {P.MINIMAP_OFF_VALUE};" in open(movie, encoding="utf-8").read(),
+          f"the hud movie hides the minimap for {P.MINIMAP_OFF_VALUE} (MinimapPosition.HIDDEN)")
+    relocated = [rva for kind, rva in stock.relocations().values() if kind == 3 and rva + 4 > va and rva < va + len(old)]
+    hits = [h for h in aimed_inside(original, va, len(old), 0x82) if starts_instruction(stock, h)]
+    check(not relocated and not hits, "no base relocation under the nine bytes, and no branch aims inside them")
+
+
 def test_memory_defaults(original, image, before):
     stock = Image(original)
     for va, old, new in P.MEMORY_DEFAULTS:
@@ -1520,6 +1564,7 @@ def late_join_sites():
         [(P.READ_ORDER_VA, P.READ_ORDER_SIZE)] + \
         [(P.BAKED_TEXTURE_MISSING[0], len(P.BAKED_TEXTURE_MISSING[1]))] + \
         [(P.AI_ARENA_VA, len(P.AI_ARENA[1]))] + \
+        [(P.MINIMAP_OFF_VA, len(P.MINIMAP_OFF[1]))] + \
         [(va, len(old)) for va, old, _ in P.MEMORY_DEFAULTS] + \
         [(va, len(old)) for va, old, _, _ in P.WEAPON_PREVIEW_HOOKS] + \
         [(P.WEAPON_DRAW_HOOK[0], len(P.WEAPON_DRAW_HOOK[1]))] +         [(P.SUICIDE_KEY_HOOK[0], len(P.SUICIDE_KEY_HOOK[1]))] + \
@@ -5608,6 +5653,7 @@ def test_late_join(original, without, server, source):
     test_read_order(original, image, before)
     test_baked_texture_missing(original, image, before)
     test_ai_arena(original, image, before)
+    test_minimap_off(original, image, before)
     test_memory_defaults(original, image, before)
     test_weapon_preview(original, image, before)
     test_weapon_table(original, image, before)

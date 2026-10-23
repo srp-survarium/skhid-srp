@@ -379,6 +379,12 @@ Patches:
   MiB, matching the launcher (patch 37, with the late join). Only the two
   default-only immediates change; explicit numeric options keep their native
   branches. See README section 37 for the crash evidence and its limits;
+- the minimap is off until the player turns it on (patch 57, with the late
+  join; docs/notes/match-hud-options.md). The hud's constructor gives the
+  console variable minimap_position 0 (upper left) at 0x2338BC before it
+  registers it; it gives 2 (off). startup.cfg and user.cfg run after it,
+  so a choice saved in user.cfg (every user.cfg the game wrote has the
+  line) is kept;
 - the scoreboard (Tab) shows a row for the places in the match and none for
   a place whose player left (patch 39, with the late join, client_patch.md
   section 3.36; the rules: docs/notes/tab-list-left-places.md): its rows
@@ -652,6 +658,23 @@ BAKED_TEXTURE_MISSING = (0x131C1E, bytes.fromhex("7553"), bytes.fromhex("eb53"))
 AI_ARENA_VA = 0x1E8CCB
 AI_ARENA_SIZE = 0x400000
 AI_ARENA = (AI_ARENA_VA, bytes.fromhex("c744241800000400"), bytes.fromhex("c744241800004000"))
+
+# The minimap is off until the player turns it on (patch 57, README; the
+# rule: ../docs/notes/match-hud-options.md). The console variable
+# minimap_position (cc_value<unsigned int> 0xA2AE1A8, 0 to 2, kept in
+# user.cfg; the options' "Minimap position" list: 0 upper left, 1 lower
+# left, 2 off) is the hud's field +358h, which the hud's constructor
+# (game_world_ui::game_world_ui 0x233810, esi = hud+358h from 0x23385D)
+# sets to 0 at 0x2338BC (`mov [esi],ebx`, ebx 0) before it registers the
+# variable; startup.cfg and user.cfg are run later (on_configs_loaded
+# 0x1EA210), so a saved choice still wins. refresh_minimap_screen_position
+# (0x233BE0) sends +358h to `root.set_minimap_position`, which hides the
+# minimap for 2. The nine bytes `mov [esi],ebx / mov byte [ebp+35Ch],1`
+# become `mov [esi],ebx / mov byte [esi],2 / mov byte [esi+4],1` (esi +4 is
+# +35Ch, show_quests_progress' byte, as before). No address under them.
+MINIMAP_OFF_VA = 0x2338BC
+MINIMAP_OFF = (MINIMAP_OFF_VA, bytes.fromhex("891e" "c6855c03000001"), bytes.fromhex("891e" "c60602" "c6460401"))
+MINIMAP_OFF_VALUE = 2                          # MinimapPosition.HIDDEN of the hud movie
 
 # Match the shipped launcher's budgets when command-line keys are absent.
 # mt_allocator starts at 16 MiB, then adds 360 MiB on the default branch;
@@ -2697,6 +2720,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
         sites.append((BAKED_TEXTURE_MISSING[0], BAKED_TEXTURE_MISSING[0] + len(BAKED_TEXTURE_MISSING[1])))
         patch(data, *AI_ARENA)
         sites.append((AI_ARENA_VA, AI_ARENA_VA + len(AI_ARENA[1])))
+        patch(data, *MINIMAP_OFF)
+        sites.append((MINIMAP_OFF_VA, MINIMAP_OFF_VA + len(MINIMAP_OFF[1])))
         for site in MEMORY_DEFAULTS:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
@@ -3157,6 +3182,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
                      "a drag turns the warmup camera and the wheel moves it while the kits are shown, "
                      "the archive reads' order is a strict weak ordering, "
                      f"the ai arena is {AI_ARENA_SIZE >> 20} MiB, "
+                     "the minimap off until the player turns it on, "
                      "a weapon's upgrade window shows the weapon, "
                      "the commit_suicide key (K) kills one's own player, "
                      "the scoreboard shows the places in the match and none whose player left, "

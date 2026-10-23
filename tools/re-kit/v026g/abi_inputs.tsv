@@ -4379,3 +4379,12 @@ va	name	location	role	basis
 0x000e5b60	vostok::resources::query_resources	entry ESP+12	the user data	observed
 0x000e5b60	vostok::resources::query_resources	entry ESP+16	the parent query, or 0	observed
 0x000e5b60	vostok::resources::query_resources	entry ESP+20	a flag (1 at weapon_camo's bake)	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	EAX	the console command object (48h bytes; vtable cc_value<unsigned int> 0x9DC30C, linked at the head of the list 0x1F1D66C)	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	entry ESP+4	the name (+10h)	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	entry ESP+8	the value address of a u32 (+40h)	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	entry ESP+12	the least (+44h)	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	entry ESP+16	the most (+48h)	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	entry ESP+20	saved to user.cfg, a byte (+1Dh; 1 for minimap_position)	observed
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	entry ESP+24	+14h (2 for minimap_position)	observed
+0x00233810	survarium::game_world_ui::game_world_ui	EAX	the game world (kept at the hud+18h)	observed
+0x00233810	survarium::game_world_ui::game_world_ui	entry ESP+4	the hud being made (game_world+1FCh)	observed

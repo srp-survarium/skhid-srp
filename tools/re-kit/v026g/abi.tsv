@@ -1879,3 +1879,5 @@ va	name	source	ret_cleanup	result
 0x00313350		manual	8	
 0x00420789		manual	0	EAX: ECX + 8
 0x000e5b60	vostok::resources::query_resources	manual	0	
+0x0001dcd0	vostok::console_commands::cc_value<unsigned int>::cc_value	manual	24	
+0x00233810	survarium::game_world_ui::game_world_ui	manual	4	

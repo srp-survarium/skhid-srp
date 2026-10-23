@@ -3144,6 +3144,42 @@ the build's loader too (aim -0.05 / -0.1, stopping power -1). Against the build 
 page at 0xA431000, its first four pages as they were) and the headers that follow (compared
 section by section). **Not run in a game.**
 
+### 57. The minimap is off until the player turns it on (the next release's revision)
+
+The owner (2026-10-23, board T47): the in-game map off by default. The rule:
+`../docs/notes/match-hud-options.md`.
+
+The match HUD's minimap is the console variable `minimap_position`
+(`cc_value<unsigned int>` 0xA2AE1A8, 0 to 2, kept in `user.cfg`), the "Minimap
+position" list of Options, Game (0 upper left, 1 lower left, 2 "Minimap off";
+the list's texts at 0xA742D4). Its value is the hud's field +358h, which
+`refresh_minimap_screen_position` (0x233BE0) sends to
+`root.set_minimap_position`; the hud movie hides the minimap for 2
+(`MinimapPosition.HIDDEN`). The hud's constructor (0x233810, in the game
+world's, which `game::game` makes) stores 0 there (`mov [esi],ebx` at 0x2338BC,
+esi = hud+358h, ebx 0) and then registers the variable on it; `startup.cfg` and
+`user.cfg` are run later (`on_configs_loaded` 0x1EA210), so a saved line sets it.
+
+**The patch** (with the late join): the nine bytes at 0x2338BC, `mov [esi],ebx /
+mov byte [ebp+35Ch],1`, become `mov [esi],ebx / mov byte [esi],2 / mov byte
+[esi+4],1` (esi+4 is the same +35Ch, `show_quests_progress`). No address and
+no base relocation under them, nothing jumps into them.
+
+**What players see:** a game folder without `user.cfg`, or a `user.cfg` without
+the `minimap_position` line, starts with the minimap off; the list turns it on
+and the choice is saved as before. Every `user.cfg` the game has written has
+the line (the game saves every variable), so a player who has played before
+keeps what it says, the upper left corner unless changed. The "Fix minimap"
+checkbox and the Tab screen's map are not changed.
+
+Rendering only: no row in `../crates/session/src/v026g/simulation_changes.tsv`.
+`../docs/notes/client_patch.md` section 3.52.
+
+Checked: `selftest_026g.py` check 57 (the nine bytes before and after, the
+constructor around them, the variable's registration on esi, the refresh's
+read and the movie's `HIDDEN`, the options' list, no relocation or branch
+inside). **Not run in a game.**
+
 ## Not ported, not done
 
 - The 0.21d mode 3 battery patch is not needed: 0.26g serializes the

@@ -3022,3 +3022,4 @@ va	status	ref_021d	name
 0x002d1ea0	inferred-medium		survarium::game_world_core::rules_on_event
 0x002f5d40	inferred-medium		survarium::shared_statistics::notify_listener
 0x0026db80	inferred-medium		survarium::base_game_statistics_handler::on_event
+0x0001dcd0	inferred-high		vostok::console_commands::cc_value<unsigned int>::cc_value
