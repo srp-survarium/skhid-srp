@@ -10,15 +10,23 @@
 //! batteries found and put in, in the battery modes). Without the file the
 //! bots roam to the enemy's exits as before (`plays::roam`).
 //!
-//! The file (format 1):
+//! The file (format 2):
 //!
 //! ```json
-//! {"format": 1, "routes": [{"level": "level_01", "mode": 2, "team": 1,
-//!   "lives": 22, "reward": 3.3, "kd": 2.9, "died": 0.9,
-//!   "points": [[-22.7, -81.2], [4.6, -69.4]]}]}
+//! {"format": 2, "routes": [{"level": "level_01", "mode": 2, "team": 1,
+//!   "lives": 22, "reward": 3.3, "fight": 2.5, "battery": 0.4,
+//!   "kd": 2.9, "died": 0.9, "points": [[-22.7, -81.2], [4.6, -69.4]]}]}
 //! ```
 //!
-//! `team` is the map side (spawn team) the route leaves from.
+//! `team` is the map side (spawn team) the route leaves from. What a route
+//! is good for, so a bot takes the one that fits its task (play 17): `fight`
+//! is the kills and assists a life on it gave, `battery` the batteries found
+//! and put in (battery modes; 0 in Team Deathmatch), `reward` = `fight` + 2
+//! × `battery`. A row may say whose lives it is made of (`by`: every
+//! player's, or the top players' of matches of 10+ players, put on the
+//! every-player scale by the side's average life); the bots do not read it.
+//! Format 1 files (no `fight`, `battery`) are read too: their reward counts
+//! as fight.
 
 use std::path::Path;
 
@@ -40,10 +48,13 @@ struct Row {
     lives: u32,
     reward: f32,
     #[serde(default)]
+    fight: Option<f32>,
+    #[serde(default)]
+    battery: Option<f32>,
+    #[serde(default)]
     #[allow(dead_code)]
     kd: f32,
     #[serde(default)]
-    #[allow(dead_code)]
     died: f32,
     points: Vec<[f32; 2]>,
 }
@@ -55,14 +66,21 @@ pub struct RouteTable {
 }
 
 /// One human route of a map side, its points on the walk grid.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct HumanRoute {
     /// The map side it leaves from.
     pub team: i32,
     /// Lives in its group (how much its reward is worth).
     pub lives: u32,
-    /// What a life on it gave.
+    /// What a life on it gave: `fight` + 2 × `battery`.
     pub reward: f32,
+    /// Kills and assists a life on it gave.
+    pub fight: f32,
+    /// Batteries found and put in a life on it gave (0 in Team
+    /// Deathmatch, and in a format 1 table).
+    pub battery: f32,
+    /// The share of its lives that ended in a death on the way.
+    pub died: f32,
     /// From its base outward. A point with no floor near is left out.
     pub points: Vec<Vec3>,
 }
@@ -75,8 +93,8 @@ impl RouteTable {
 
     pub fn parse(text: &str) -> Result<Self, String> {
         let file: File = serde_json::from_str(text).map_err(|e| e.to_string())?;
-        if file.format != 1 {
-            return Err(format!("format {} (1 is known)", file.format));
+        if !(1..=2).contains(&file.format) {
+            return Err(format!("format {} (1 and 2 are known)", file.format));
         }
         Ok(Self { rows: file.routes })
     }
@@ -100,6 +118,9 @@ impl RouteTable {
                 team: row.team,
                 lives: row.lives,
                 reward: row.reward.max(0.0),
+                fight: row.fight.unwrap_or(row.reward).max(0.0),
+                battery: row.battery.unwrap_or(0.0).max(0.0),
+                died: row.died.clamp(0.0, 1.0),
                 points: row
                     .points
                     .iter()
@@ -142,6 +163,25 @@ impl HumanRoute {
 mod tests {
     use super::*;
 
+    /// Format 2 says what a route is good for; format 1's reward counts as
+    /// fight.
+    #[test]
+    fn format_2_reads_fight_and_battery_and_format_1_still_reads() {
+        let text = r#"{"format": 2, "routes": [
+            {"level": "level_03", "mode": 2, "team": 0, "lives": 12, "reward": 2.6,
+             "fight": 1.4, "battery": 0.6, "kd": 1.5, "died": 0.8, "by": "top",
+             "points": [[1.0, 2.0]]}]}"#;
+        let route = &RouteTable::parse(text).unwrap().for_map(3, 2)[0];
+        assert_eq!(
+            (route.fight, route.battery, route.died, route.reward),
+            (1.4, 0.6, 0.8, 2.6)
+        );
+        let old = r#"{"format": 1, "routes": [{"level": "level_03", "mode": 2, "team": 0,
+            "lives": 12, "reward": 2.6, "points": [[1.0, 2.0]]}]}"#;
+        let route = &RouteTable::parse(old).unwrap().for_map(3, 2)[0];
+        assert_eq!((route.fight, route.battery), (2.6, 0.0));
+    }
+
     #[test]
     fn a_table_is_read_by_map_and_mode_and_a_strange_format_is_refused() {
         let text = r#"{"format": 1, "source": "test", "routes": [
@@ -158,7 +198,100 @@ mod tests {
         assert_eq!(routes[0].team, 1);
         assert_eq!(routes[0].points[1], Vec3::new(4.6, 0.0, -69.4));
         assert!(table.for_map(3, 2).is_empty());
-        assert!(RouteTable::parse(r#"{"format": 2, "routes": []}"#).is_err());
+        assert!(RouteTable::parse(r#"{"format": 3, "routes": []}"#).is_err());
+    }
+
+    /// How walkable each route of the real table is for a bot (private
+    /// files): from its side's spawn centre through its points, each leg
+    /// planned as a bot of its side plans (off hazards and the other
+    /// side's spawn area): the legs with no way, the jumps on the way, the
+    /// way's length against the straight one, and the points lost (no
+    /// floor near, or not allowed). With `SRP_ROUTES_REACH_OUT` a TSV of
+    /// it, a row a route in the file's order. Run in release.
+    #[test]
+    #[ignore = "needs the private map files and route table"]
+    fn how_walkable_the_real_routes_are() {
+        use crate::v026g::bots::tactics::Tactics;
+        let (Some(dir), Some(path)) = (
+            std::env::var_os("SRP_MAPDATA_DIR"),
+            std::env::var_os("SRP_BOT_ROUTES"),
+        ) else {
+            panic!("set SRP_MAPDATA_DIR and SRP_BOT_ROUTES");
+        };
+        let table = RouteTable::load(path.as_ref()).unwrap();
+        let mut out = String::from(
+            "row	level	mode	team	points	lost	legs	no_way	jumps	length_m	straight_m
+",
+        );
+        let mut worlds = std::collections::HashMap::new();
+        for (index, row) in table.rows.iter().enumerate() {
+            let level: u8 = row.level.trim_start_matches("level_").parse().unwrap();
+            let tactics = worlds.entry((level, row.mode)).or_insert_with(|| {
+                let path = std::path::Path::new(&dir)
+                    .join(format!("level_{level:02}_day_{}.mapdata", row.mode));
+                let map = mapdata::MapData::read(&path).unwrap();
+                let world = mapdata::World::build(map, mapdata::CELL, mapdata::Body::default());
+                Tactics::new(std::sync::Arc::new(world), 1.0)
+            });
+            let raw = HumanRoute {
+                team: row.team,
+                points: row
+                    .points
+                    .iter()
+                    .map(|p| Vec3::new(p[0], 0.0, p[1]))
+                    .collect(),
+                ..Default::default()
+            };
+            let total = raw.points.len();
+            let route = raw.on_floors(&tactics.world.grid);
+            let points: Vec<Vec3> = route
+                .points
+                .iter()
+                .copied()
+                .filter(|&p| tactics.fine_goal(p, 0, Some(row.team)))
+                .collect();
+            let spawns: Vec<Vec3> = tactics
+                .world
+                .map
+                .spawns
+                .iter()
+                .filter(|s| s.team == row.team)
+                .map(|s| s.position)
+                .collect();
+            let centre =
+                spawns.iter().fold(Vec3::ZERO, |a, b| a + *b) * (1.0 / spawns.len() as f32);
+            let start = spawns
+                .iter()
+                .copied()
+                .min_by(|a, b| a.distance_xz(centre).total_cmp(&b.distance_xz(centre)))
+                .unwrap();
+            let (mut no_way, mut jumps, mut length, mut straight) = (0, 0, 0.0f32, 0.0f32);
+            let mut from = start;
+            for &to in &points {
+                straight += from.distance_xz(to);
+                match tactics.route(from, to, 0, Some(row.team)) {
+                    Some(way) => {
+                        jumps += way.points().iter().filter(|w| w.jump).count();
+                        length += way.length();
+                    }
+                    None => no_way += 1,
+                }
+                from = to;
+            }
+            out.push_str(&format!(
+                "{index}	{}	{}	{}	{total}	{}	{}	{no_way}	{jumps}	{length:.1}	{straight:.1}
+",
+                row.level,
+                row.mode,
+                row.team,
+                total - points.len(),
+                points.len(),
+            ));
+        }
+        match std::env::var_os("SRP_ROUTES_REACH_OUT") {
+            Some(file) => std::fs::write(file, out).unwrap(),
+            None => eprint!("{out}"),
+        }
     }
 
     /// The real table on the real maps (private files): every route's
