@@ -3168,6 +3168,7 @@ mod tests {
             let arms: &'static Arms = Box::leak(Box::new(Arms {
                 primary: (gun, 300),
                 pistol: None,
+                reserve: 300,
             }));
             for skill in [0.0, 0.6, 1.0] {
                 let (over, _) = kicked_fight_with(Some(arms), 20.0, &aim, 300, skill);

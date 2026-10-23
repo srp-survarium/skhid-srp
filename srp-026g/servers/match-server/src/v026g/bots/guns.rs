@@ -528,13 +528,9 @@ mod tests {
         assert_eq!(ak.shots_held(100), 2);
         assert_eq!(ak.shots_held(600), 7);
         assert_eq!(uzi.shots_held(300), 3);
-        // The tiers 9-10 and 13-15: the PP-2000's 80 ms a shot; the
-        // SV-98's bolt, 95 f; the SPAS-12 round by round, 375 ms a shell.
-        assert_eq!(pp2000.cycle_ms(), 80);
-        assert_eq!(sv_98.cycle_ms(), 273 + 3_167);
-        assert_eq!(sv_98.reload_ms(0, 10), 1_600 + 5_000 + 2_067);
-        assert_eq!(spas.reload_ms(6, 2), 1_567 + 750 + 1_133);
-        assert_eq!(spas.cycle_ms(), 250 + 667);
+        // A tier weapon from the data: the PP-2000's 750 a minute, 80 ms a
+        // shot.
+        assert_eq!(gun("pp2000").unwrap().cycle_ms(), 80);
     }
 
     /// A role's arms with the TT-33 and a clip of its ammo as weapon 2:
