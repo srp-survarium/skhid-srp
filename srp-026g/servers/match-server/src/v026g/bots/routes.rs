@@ -294,6 +294,154 @@ mod tests {
         }
     }
 
+    /// Each route of the real table against the map's damage zones
+    /// (private files), as a match has them (anomalies attached): its
+    /// points on a zone's floors, of them those of a zone on all match, the
+    /// farthest any of them is from a floor clear of every zone (−1: none
+    /// within 6 m), and its legs whose straight line crosses a zone's
+    /// floors (all match). With `SRP_ROUTES_ZONES_OUT` a TSV, a row a route
+    /// in the file's order; with `SRP_ZONE_FLOORS_DIR` each map's zone
+    /// floors (`x,z,y,fixed`, a floor a metre cell and metre of height) for the lives' check. Run in
+    /// release.
+    #[test]
+    #[ignore = "needs the private map files and route table"]
+    fn real_routes_and_the_damage_zones() {
+        use crate::v026g::bots::anomalies::Anomalies;
+        use crate::v026g::bots::tactics::Tactics;
+        let (Some(dir), Some(path)) = (
+            std::env::var_os("SRP_MAPDATA_DIR"),
+            std::env::var_os("SRP_BOT_ROUTES"),
+        ) else {
+            panic!("set SRP_MAPDATA_DIR and SRP_BOT_ROUTES");
+        };
+        let floors_dir = std::env::var_os("SRP_ZONE_FLOORS_DIR");
+        let table = RouteTable::load(path.as_ref()).unwrap();
+        let mut out = String::from(
+            "row	level	mode	team	points	in_zone	in_fixed	clear_m	legs	cross	cross_fixed
+",
+        );
+        let mut maps = std::collections::HashMap::new();
+        for (index, row) in table.rows.iter().enumerate() {
+            let level: u8 = row.level.trim_start_matches("level_").parse().unwrap();
+            let tactics = maps.entry((level, row.mode)).or_insert_with(|| {
+                let path = std::path::Path::new(&dir)
+                    .join(format!("level_{level:02}_day_{}.mapdata", row.mode));
+                let map = mapdata::MapData::read(&path).unwrap();
+                let world = mapdata::World::build(map, mapdata::CELL, mapdata::Body::default());
+                let mut tactics = Tactics::new(std::sync::Arc::new(world), 1.0);
+                let anomalies = Anomalies::new(&tactics.world.map, 0x8000_0001);
+                tactics.hazards.attach(anomalies);
+                if let Some(floors_dir) = &floors_dir {
+                    let grid = &tactics.world.grid;
+                    let mut seen = std::collections::HashSet::new();
+                    let mut csv = String::from(
+                        "x,z,y,fixed
+",
+                    );
+                    for node in 0..grid.len() as mapdata::NodeId {
+                        if tactics.hazards.zone_of(node).is_none() {
+                            continue;
+                        }
+                        let at = grid.position(node);
+                        let fixed = tactics.hazards.fixed_at(node);
+                        let cell = (
+                            at.x.floor() as i32,
+                            at.z.floor() as i32,
+                            at.y.round() as i32,
+                        );
+                        if seen.insert((cell, fixed)) {
+                            csv.push_str(&format!(
+                                "{},{},{},{}
+",
+                                cell.0,
+                                cell.1,
+                                cell.2,
+                                u8::from(fixed)
+                            ));
+                        }
+                    }
+                    std::fs::write(
+                        std::path::Path::new(floors_dir)
+                            .join(format!("level_{level:02}_day_{}.csv", row.mode)),
+                        csv,
+                    )
+                    .unwrap();
+                }
+                tactics
+            });
+            let grid = &tactics.world.grid;
+            let hazards = &tactics.hazards;
+            let points = HumanRoute {
+                team: row.team,
+                points: row
+                    .points
+                    .iter()
+                    .map(|p| Vec3::new(p[0], 0.0, p[1]))
+                    .collect(),
+                ..Default::default()
+            }
+            .on_floors(grid)
+            .points;
+            let (mut in_zone, mut in_fixed, mut clear_m) = (0, 0, 0.0f32);
+            for &p in &points {
+                let Some(node) = grid.locate(p, 1.0) else {
+                    continue;
+                };
+                if hazards.zone_of(node).is_none() {
+                    continue;
+                }
+                in_zone += 1;
+                in_fixed += usize::from(hazards.fixed_at(node));
+                let r = 6.0;
+                let clear = grid
+                    .floors_in([p.x - r, p.z - r, p.x + r, p.z + r])
+                    .filter(|&n| {
+                        grid.can_stand(n) && tactics.walkable(n) && hazards.zone_of(n).is_none()
+                    })
+                    .map(|n| grid.position(n))
+                    .filter(|at| (at.y - p.y).abs() < 1.5)
+                    .map(|at| at.distance_xz(p))
+                    .fold(f32::INFINITY, f32::min);
+                clear_m = if clear <= r && clear_m >= 0.0 {
+                    clear_m.max(clear)
+                } else {
+                    -1.0
+                };
+            }
+            let (mut cross, mut cross_fixed) = (0, 0);
+            for leg in points.windows(2) {
+                let (a, b) = (leg[0], leg[1]);
+                let steps = (a.distance_xz(b) / 0.5).ceil().max(1.0) as usize;
+                let (mut zone, mut fixed) = (false, false);
+                for i in 0..=steps {
+                    let t = i as f32 / steps as f32;
+                    let at = a + (b - a) * t;
+                    if let Some(node) = grid.locate(at + Vec3::new(0.0, 0.5, 0.0), 1.0)
+                        && hazards.zone_of(node).is_some()
+                    {
+                        zone = true;
+                        fixed |= hazards.fixed_at(node);
+                    }
+                }
+                cross += usize::from(zone);
+                cross_fixed += usize::from(fixed);
+            }
+            out.push_str(&format!(
+                "{index}	{}	{}	{}	{}	{in_zone}	{in_fixed}	{clear_m:.1}	{}	{cross}	{cross_fixed}
+",
+                row.level,
+                row.mode,
+                row.team,
+                points.len(),
+                points.len().saturating_sub(1),
+            ));
+        }
+        match std::env::var_os("SRP_ROUTES_ZONES_OUT") {
+            Some(file) => std::fs::write(file, out).unwrap(),
+            None => eprint!("{out}"),
+        }
+    }
+
     /// The real table on the real maps (private files): every route's
     /// points land on floors and it leaves from its own side. Run with
     /// `SRP_MAPDATA_DIR` and `SRP_BOT_ROUTES` set, in release.
