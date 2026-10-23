@@ -444,6 +444,18 @@ Patches:
   (g_private_messages_in_game), which makes that option live and saved in
   user.cfg; add_message's call for a received line (0x26B916) drops a
   player's line in a match while it is on (channels 3 and 5 to 9);
+- team damage turned back on its dealer past a threshold, as 0.28a to
+  0.31a2 had it (patch 63, with the late join; docs/notes/team-damage.md;
+  the server's numbers in the static info's srp block, SRP_TEAM_DAMAGE).
+  team_damage_026g.asm and .c (the arena's block team_damage.code):
+  kd_stats_rule (1B8h bytes grown to 268h, 0x2CCE37, 0x2CCE5E) keeps, per
+  roster place, the pain its hits took off other places and off teammates
+  (hit_impl's loss at 0x2D9EA9), and the numbers its constructor's match
+  options got (0x2CCE4A; match_options::deserialize's end 0x1F0F30 reads
+  them after the squads); hit_impl's entry (0x2D9B90) gives a teammate's hit
+  past the threshold to its dealer at return_ratio times its damage, the
+  victim untouched; the counts go with the world after the effects
+  (0x2D2716, 0x2D2C75);
 - the option B snapshot upload: two 5-byte jumps (0x27AEA1 in
   on_match_ready, 0x27A505 in the 0xF6 case of on_match_packet_received)
   into the upload code, and the upload code itself:
@@ -1896,6 +1908,42 @@ MATCH_KEYS_HOOKS = (
 )
 MATCH_KEYS_BACKS = (0x25CD4B, 0x25CF0D)        # on_keyboard_action: a key down, any other
 
+# Team damage (patch 63, README; client_patch.md section 3.54; the rules:
+# ../docs/notes/team-damage.md): team_damage_026g.asm (the entries) and
+# team_damage_026g.c (the logic) in the arena's block team_damage.code:
+# - base_player::hit_impl 0x2D9B90 (stdcall: the player, the hit; `ret 8`)
+#   at its entry, `push ebp / mov ebp,esp / sub esp,6Ch`: a teammate's hit
+#   whose dealer is past the threshold goes to the dealer (hit_impl for him,
+#   its damage times return_ratio) and the victim takes nothing (`ret 8`);
+#   else those three instructions and on at 0x2D9B96;
+# - hit_impl's `subss xmm0,[eax+0A0h]` at 0x2D9EA9 (the pain the hit took,
+#   for the player's on_hit): counted for the hit's dealer, back at 0x2D9EB1;
+# - match_options::deserialize 0x1F0E70 at its epilogue 0x1F0F30 (`pop edi
+#   / esi / ebp / ebx / ecx`, then `ret 8`): the static info's srp block
+#   after the squads read into the options' unused +57860h;
+# - kd_stats_rule_cook's create, its `call 0x323790` (the rule's
+#   constructor) at 0x2CCE4A: the rule made, then its counts none and the
+#   options' numbers its own; the rule's allocation (0x2CCE37) and its
+#   resource's size (0x2CCE5E) 1B8h -> 268h;
+# - game_world_core::serialize 0x2D2570 at 0x2D2716 and deserialize
+#   0x2D2770 at 0x2D2C75, after the effects' three writes and reads: the
+#   counts saved and loaded as a record of their own ("SRTD").
+# No base relocation is under a site and no branch aims inside one.
+TEAM_DAMAGE_HOOKS = (
+    (0x2D9B90, bytes.fromhex("558bec83ec6c"), "td_hit", 0xE9),               # base_player::hit_impl: its entry
+    (0x2D9EA9, bytes.fromhex("f30f5c80a0000000"), "td_lost", 0xE9),          # hit_impl: the pain the hit took
+    (0x1F0F30, bytes.fromhex("5f5e5d5b59"), "td_options_entry", 0xE9),        # match_options::deserialize's end
+    (0x2CCE4A, bytes.fromhex("e841690500"), "td_kd", 0xE8),                  # kd_stats_rule's constructor call
+    (0x2D2716, bytes.fromhex("c686ba0b0c0000"), "td_save_entry", 0xE9),       # serialize after the effects
+    (0x2D2C75, bytes.fromhex("8b8534900100"), "td_load_entry", 0xE9),         # deserialize after the effects
+)
+TEAM_DAMAGE_BACKS = (0x2D9B96, 0x2D9EB1, 0x2D271D, 0x2D2C7B)   # where the JUMP entries go on
+TEAM_DAMAGE_KD_SIZE = 0x1B8 + 0xB0             # kd_stats_rule and the counts (team_damage_026g.c TD_SIZE)
+TEAM_DAMAGE_SIZES = (
+    (0x2CCE37, bytes.fromhex("b8b8010000"), b"\xB8" + struct.pack("<I", TEAM_DAMAGE_KD_SIZE)),
+    (0x2CCE5E, bytes.fromhex("c7442418b8010000"), bytes.fromhex("c7442418") + struct.pack("<I", TEAM_DAMAGE_KD_SIZE)),
+)
+
 
 def weapon_camo_va(late_join):
     """Where `.srpw` is: the page after `.srpc`, which is one page."""
@@ -2039,6 +2087,19 @@ INSTALLS = {
                        "which calls it and registers the chat option's variable", None, None),
     0x26B916: (CALLEE, "process_incoming_text_message's add_message (stdcall: the handler, the channel, the "
                        "body, the name, the tag): chat, which drops the line or jumps to it", None, None),
+    # team damage, patch 63 (in `.srpx`)
+    0x2D9B90: (ENTRY, "base_player::hit_impl (stdcall: the player, the hit): hit, a teammate's hit past the "
+                      "threshold turned on its dealer (`ret 8`), else the function", None, None),
+    0x2D9EA9: (JUMP, "hit_impl's `subss xmm0,[eax+0A0h]`, the pain the hit took (ebx the player, edi the hit): "
+                     "lost", None, None),
+    0x1F0F30: (JUMP, "match_options::deserialize's five pops (ebx the options, esi the reader): options, which "
+                     "pops them and returns `ret 8` as the function", None, None),
+    0x2CCE4A: (CALLEE, "kd_stats_rule_cook's create, the rule's constructor (esi the rule, the query): kd, "
+                       "which calls it and sets the rule's team damage part", None, None),
+    0x2D2716: (JUMP, "game_world_core::serialize after the effects' writes (ebp the core, edi their writer): "
+                     "save", None, None),
+    0x2D2C75: (JUMP, "game_world_core::deserialize after the effects' reads (ebp the core, the reader at "
+                     "[esp+3Ch]): load", None, None),
 }
 # The bodies a patch replaces in place, at a function's entry: {VA: size}.
 BODIES = {READ_ORDER_VA: READ_ORDER_SIZE}
@@ -2218,6 +2279,7 @@ ARENA = (
     ArenaBlock("engine.code", "code", 0x1000, ("engine_026g.asm",)),             # the engine-function library
     ArenaBlock("match_keys.code", "code", 0x1000, ("match_keys_026g.asm",)),     # patch 58
     ArenaBlock("match_keys.state", "state", 0x1000, ("match_keys_026g.asm",)),   # its option's variable
+    ArenaBlock("team_damage.code", "code", 0x1000, ("team_damage_026g.asm", "team_damage_026g.c")),  # patch 63
 )
 
 
@@ -2749,7 +2811,7 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             sites.append((site[0], site[0] + len(site[1])))
         patch(data, *SPOT_COOLDOWN)
         sites.append((SPOT_COOLDOWN[0], SPOT_COOLDOWN[0] + len(SPOT_COOLDOWN[1])))
-        for site in ARTEFACTS_SIZES:
+        for site in ARTEFACTS_SIZES + TEAM_DAMAGE_SIZES:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
         patch(data, *REPLAY_REATTACH_THUNK)
@@ -3159,7 +3221,8 @@ def build(original, mode, code=None, server=None, late_join=None, revision=None,
             # its symbol.
             linked = arena(arena_blocks) if arena_blocks != () else None
             if linked is not None:
-                for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS:
+                for va, expected, symbol, opcode in (RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS
+                                                     + TEAM_DAMAGE_HOOKS):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
                         sys.exit(f"{va:#x}: a base relocation under the hook to {symbol}")

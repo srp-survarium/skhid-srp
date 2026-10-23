@@ -1534,7 +1534,9 @@ def late_join_sites():
         [(va, len(old)) for va, old, _, _ in P.RESEARCH_HOOKS] + \
         [(va, len(old)) for va, old, _, _ in P.ARTEFACTS_HOOKS] + \
         [(va, len(old)) for va, old, _ in P.ARTEFACTS_SIZES] + \
-        [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS]
+        [(va, len(old)) for va, old, _, _ in P.MATCH_KEYS_HOOKS] + \
+        [(va, len(old)) for va, old, _, _ in P.TEAM_DAMAGE_HOOKS] + \
+        [(va, len(old)) for va, old, _ in P.TEAM_DAMAGE_SIZES]
 
 
 def pickup_sites():
@@ -4117,6 +4119,71 @@ def test_match_keys(original, image, before):
           "release/content.tsv labels it (match-chat-off-1.json)")
 
 
+def test_team_damage(original, image, before):
+    """Check 63: team damage turned back on its dealer (patch 63,
+    TEAM_DAMAGE_*). check_team_damage_026g.py runs the six entries from the
+    game's sites, with the game's own options reader, kd_stats_rule
+    constructor and field writers, on made-up objects."""
+    stock = Image(original)
+    rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
+    check(rows(stock, 0x2D9B90, 10) == ["push ebp", "mov ebp,esp", "sub esp,byte +0x6c", "push ebx",
+                                       "mov ebx,[ebp+0x8]"]
+          and stock.read(0x2D9B9A, 7) == bytes.fromhex("80bb3c03000000")
+          and stock.read(0x2D9AC6, 5) == b"\xE8" + struct.pack("<i", 0x2D9B90 - 0x2D9ACB)
+          and stock.read(0x2D9B7E, 5) == b"\xE8" + struct.pack("<i", 0x2D9B90 - 0x2D9B83)
+          and stock.read(0x2D9B7A, 4) == bytes.fromhex("885c2464")
+          and rows(stock, 0x2D9E9B, 0x1A) == ["movss xmm0,dword [ebp-0x18]", "mov edx,[ebx]", "mov edx,[edx+0x40]",
+                                              "push eax", "mov eax,[ebp-0x1c]", "subss xmm0,dword [eax+0xa0]",
+                                              "movzx eax,byte [edi+0x44]"]
+          and stock.read(0x2D9C4B, 7) == bytes.fromhex("c74508ecb19f00") and stock.read(0x9FB1EC, 5) == b"pain\0",
+          "base_player::hit_impl (0x2D9B90; called by the two hit overloads 0x2D9AC6, 0x2D9B7E, the dealer's place "
+          "at the hit's +44h, 0x2D9B7A) begins `push ebp / mov ebp,esp / sub esp,6Ch`; at 0x2D9EA9 it takes the "
+          "pain pool's value ([ebp-1Ch], \"pain\" 0x9FB1EC) off the pain before ([ebp-18h]), the hit in edi")
+    check(rows(stock, 0x1F0F2C, 0xC) == ["cmp eax,edi", "jnz 0x1f0f20", "pop edi", "pop esi", "pop ebp", "pop ebx",
+                                        "pop ecx", "ret 0x8"]
+          and stock.read(0x1F0F15, 6) == bytes.fromhex("8dbb40780500")
+          and stock.read(0x3183E3, 6) == bytes.fromhex("888640780500")
+          and stock.read(0x27BD08, 6) == bytes.fromhex("8d8640780500"),
+          "match_options::deserialize (0x1F0E70) ends with the squads up to +57840h and its five pops at 0x1F0F30; "
+          "+57840h (the \"Mode\" string) is only emptied (0x3183E3) and logged (0x27BD08)")
+    check(stock.read(0x2CCE37, 5) == bytes.fromhex("b8b8010000") and stock.read(0x2CCE4A, 5) == b"\xE8" + struct.pack(
+              "<i", 0x323790 - 0x2CCE4F)
+          and stock.read(0x2CCE5E, 8) == bytes.fromhex("c7442418b8010000")
+          and stock.read(0x3237A4, 6) == bytes.fromhex("c706d477a100") and stock.read(0x32379F, 5) == bytes.fromhex("68a0000000"),
+          "kd_stats_rule_cook's create allocates 1B8h (0x2CCE37), constructs the rule (0x323790 at 0x2CCE4A: "
+          "vtable 0xA177D4, its 0A0h bytes of places zeroed) and names its size (0x2CCE5E)")
+    check(rows(stock, 0x2D26E8, 0x35)[-3:] == ["push edi", "call eax", "mov byte [esi+0xc0bba],0x0"]
+          and rows(stock, 0x2D26E8, 0x35)[:3] == ["lea edi,[esi+0xc0b90]", "push edi", "call edx"]
+          and rows(stock, 0x2D2C69, 0x12) == ["push esi", "push byte +0x0", "lea ecx,[esp+0x44]", "push ecx",
+                                             "mov ecx,eax", "call edx", "mov eax,[ebp+0x19034]"]
+          and stock.read(0x2D2C1A, 6) == bytes.fromhex("8b83840b0c00"),
+          "game_world_core::serialize writes the effects (edi = item+0C0B90h) up to 0x2D2716; deserialize reads "
+          "them through the reader at [esp+3Ch] (item+0C0B84h) up to 0x2D2C75")
+    linked = P.arena()
+    block = linked.blocks["team_damage.code"]
+    for va, old, symbol, opcode in P.TEAM_DAMAGE_HOOKS:
+        target = linked.symbols[symbol]
+        hook = P.hook_bytes(target, va, old, 0, opcode)
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(hook)) == hook
+              and block.va <= target < block.va + block.size,
+              f"{va:#x}: {old.hex()} in the original and the build without the late join, "
+              f"`{'jmp' if opcode == 0xE9 else 'call'} {target:#x}` ({symbol}, an entry of team_damage.code) here")
+    for va, old, new in P.TEAM_DAMAGE_SIZES:
+        check(stock.read(va, len(old)) == old == before.read(va, len(old)) and image.read(va, len(new)) == new,
+              f"{va:#x}: {old.hex()} -> {new.hex()} (kd_stats_rule {P.TEAM_DAMAGE_KD_SIZE:#x} bytes)")
+    sites = [(va, len(old)) for va, old, _, _ in P.TEAM_DAMAGE_HOOKS] + [(va, len(old)) for va, old, _ in
+                                                                         P.TEAM_DAMAGE_SIZES]
+    under = [v for kind, v in stock.relocations().values() if kind == 3
+             and any(va - 4 < v < va + size for va, size in sites)]
+    hits = [h for va, size in sites for h in aimed_inside(original, va, size, 0x82)
+            if not va <= h < va + size and starts_instruction(stock, h)]
+    check(not under and not hits, "no base relocation under the sites, and no branch aims inside one"
+          + "".join(f", {h:#x}" for h in hits + under))
+    code = P.linker.block_bytes(linked, "team_damage.code")
+    check(image.read(block.va, len(code)) == code,
+          f"the code at {block.va:#x} is the link's team_damage.code ({len(code)} bytes)")
+
+
 def test_spot(original, image, before):
     """Check 38: spotting (patch 38, SPOT_*). check_spot_026g.py runs the
     input apply with the game's own spottable code on made-up hits."""
@@ -5705,6 +5772,7 @@ def test_late_join(original, without, server, source):
     test_spot(original, image, before)
     test_artefacts(original, image, before)
     test_match_keys(original, image, before)
+    test_team_damage(original, image, before)
     test_stage_focus(original, image, before)
     test_revision(original, image, "section", P.REVISION, late_join=True)
     test_revision_override(original, data, server)
