@@ -4417,3 +4417,19 @@ va	name	location	role	basis
 0x000e5b60	vostok::resources::query_resources	entry ESP+12	the user data	observed
 0x000e5b60	vostok::resources::query_resources	entry ESP+16	the parent query, or 0	observed
 0x000e5b60	vostok::resources::query_resources	entry ESP+20	a flag (1 at weapon_camo's bake)	observed
+0x00233810	survarium::game_world_ui::game_world_ui	EAX	the game world (kept at the hud+18h)	observed
+0x00233810	survarium::game_world_ui::game_world_ui	entry ESP+4	the hud being made (game_world+1FCh)	observed
+0x0001ddb0	vostok::console_commands::cc_value<bool>::cc_value	EAX	the console command object (48h bytes; vtable cc_value<bool> 0x9DC34C, which the callers make cc_bool 0x9E7C4C; linked at the head of the list 0x1F1D66C)	observed
+0x0001ddb0	vostok::console_commands::cc_value<bool>::cc_value	entry ESP+4	the name (+10h)	observed
+0x0001ddb0	vostok::console_commands::cc_value<bool>::cc_value	entry ESP+8	the value address of a bool byte (+40h)	observed
+0x0001ddb0	vostok::console_commands::cc_value<bool>::cc_value	entry ESP+12	saved to user.cfg, a byte (+1Dh; 1 for show_quests_progress)	observed
+0x0001ddb0	vostok::console_commands::cc_value<bool>::cc_value	entry ESP+16	a command kind (+14h; 2 for show_quests_progress)	observed
+0x0025cd00	survarium::game_world::on_keyboard_action	ECX	the game world's input handler (game_world+1F8h; the hud at +4, the hud's cursor flag at +2E0h)	observed
+0x0025cd00	survarium::game_world::on_keyboard_action	entry ESP+4	the input world	observed
+0x0025cd00	survarium::game_world::on_keyboard_action	entry ESP+8	the key (DirectInput code: 2..4 the keys 1..3, 1Ch Enter, 1 Esc)	observed
+0x0025cd00	survarium::game_world::on_keyboard_action	entry ESP+12	the kind (1 down, 2 held, 3 up)	observed
+0x00208ad0	survarium::chat_handler::add_message	entry ESP+4	the chat handler (+0Dh in a match: set_mode's flag; +14h its movie)	observed
+0x00208ad0	survarium::chat_handler::add_message	entry ESP+8	the channel (0 server, 1 general, 2 system, 3 clan, 4 private, 5 match, 6 and 7 the teams, 8 squad, 9)	observed
+0x00208ad0	survarium::chat_handler::add_message	entry ESP+12	the body	observed
+0x00208ad0	survarium::chat_handler::add_message	entry ESP+16	the sender's name	observed
+0x00208ad0	survarium::chat_handler::add_message	entry ESP+20	the sender's clan tag	observed

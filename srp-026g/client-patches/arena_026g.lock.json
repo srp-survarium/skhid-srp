@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 25402,
-  "sha256": "75c7bda2e53519e2d5ba5415ecdde34e0b37d4917e7a4729386cf6014a6ae8b2",
+  "size": 32842,
+  "sha256": "100d89729c21f979b6c2f989d889ac7b2cb959f3ccdbad52651e2bb2618430a5",
   "blocks": {
     "research.code": {
       "kind": "code",
@@ -22,12 +22,22 @@
     "engine.code": {
       "kind": "code",
       "va": "0xa432000",
-      "size": 1146
+      "size": 1186
     },
     "anomalies.code": {
       "kind": "code",
       "va": "0xa433000",
       "size": 826
+    },
+    "match_keys.code": {
+      "kind": "code",
+      "va": "0xa434000",
+      "size": 264
+    },
+    "match_keys.state": {
+      "kind": "state",
+      "va": "0xa435000",
+      "size": 74
     }
   },
   "symbols": {
@@ -39,12 +49,14 @@
     "artefacts_loader": "0xa431000",
     "artefacts_stagger": "0xa431019",
     "artefacts_unlink": "0xa43100a",
+    "chat_variable": "0xa435000",
     "engine_accept_decal_edit": "0xa432460",
     "engine_allocation_name": "0xa4322e0",
     "engine_apply_modifier": "0xa432210",
     "engine_artefact_effect": "0xa4321f0",
     "engine_camouflage_parameters": "0xa432360",
     "engine_camouflage_parameters_type": "0xa4323f0",
+    "engine_cc_bool": "0xa432480",
     "engine_cfg_child": "0xa432000",
     "engine_cfg_has": "0xa432020",
     "engine_decal_value": "0xa432420",
@@ -72,6 +84,10 @@
     "engine_write_u16": "0xa4320b0",
     "engine_write_u32": "0xa4320e0",
     "engine_write_u8": "0xa432080",
+    "hide_chat": "0xa435048",
+    "match_keys_chat": "0xa4340c3",
+    "match_keys_hud": "0xa434080",
+    "match_keys_keyboard": "0xa434000",
     "memcpy": "0xa42ebbf",
     "memset": "0xa42e65c",
     "research_hud": "0xa42d005",

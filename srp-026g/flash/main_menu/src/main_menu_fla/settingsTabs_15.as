@@ -333,7 +333,9 @@ package main_menu_fla
             }
             this._no_in_batle.autoSize = "none";
             this._no_in_batle.data = "";
-            this._no_in_batle.enabled = false;
+            // "Hide chat in match" (exe patch 58 gives the option its variable): enabled
+            // whenever the timeline makes the checkbox; the other dead options stay greyed.
+            this._no_in_batle.enabled = true;
             this._no_in_batle.enableInitCallback = false;
             this._no_in_batle.focusable = true;
             this._no_in_batle.label = "";
