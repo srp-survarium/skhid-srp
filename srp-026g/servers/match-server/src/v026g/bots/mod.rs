@@ -1616,33 +1616,44 @@ impl Bots {
                 ),
             );
             if self.trace.enabled() {
-                let mut top = asked
+                let (mut top, left) = asked
                     .iter()
                     .find(|(p, _, _)| *p == place)
-                    .map(|(_, c, _)| c.clone())
+                    .map(|(_, c, was)| (c.clone(), was.clone()))
                     .unwrap_or_default();
                 let bands = team::Bands::used();
                 top.sort_by(|a, b| bands.better(a, b, gap < 0.0));
-                let top: Vec<serde_json::Value> = top
-                    .into_iter()
-                    .take(5)
-                    .map(|c| {
-                        serde_json::json!({
-                            "play": format!("{:?}", c.kind),
-                            "target": format!("{:?}", c.target),
-                            "rank": format!("{:?}", c.rank),
-                            "score": c.score.get(),
-                            "parts": c.why.parts.iter()
-                                .map(|(i, v, s)| serde_json::json!([format!("{i:?}"), v, s]))
-                                .collect::<Vec<_>>(),
-                        })
+                let json = |c: &plays::Candidate| {
+                    serde_json::json!({
+                        "play": format!("{:?}", c.kind),
+                        "target": format!("{:?}", c.target),
+                        "rank": format!("{:?}", c.rank),
+                        "score": c.score.get(),
+                        "parts": c.why.parts.iter()
+                            .map(|(i, v, s)| serde_json::json!([format!("{i:?}"), v, s]))
+                            .collect::<Vec<_>>(),
                     })
-                    .collect();
+                };
+                // The play it leaves: its candidate now (null when it is
+                // none), so a trace says why it was left.
+                let left = left.map(|was| {
+                    let now_as = top
+                        .iter()
+                        .find(|c| c.kind == was.kind && c.target == was.target)
+                        .map(json);
+                    serde_json::json!({
+                        "play": format!("{:?}", was.kind),
+                        "since": was.since,
+                        "candidate": now_as,
+                    })
+                });
+                let top: Vec<serde_json::Value> = top.iter().take(5).map(json).collect();
                 self.trace.line(serde_json::json!({
                     "t": now, "bot": place, "team": team,
                     "pos": me.feet.to_array(), "health": me.health,
                     "takes": format!("{:?}", assignment.kind),
                     "reason": assignment.reason,
+                    "left": left,
                     "top": top,
                     "mods": [state.mods.aggression, state.mods.risk, state.mods.objective_urgency],
                     "skill": state.skill.skill,

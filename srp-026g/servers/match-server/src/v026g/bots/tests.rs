@@ -789,6 +789,136 @@ struct Outcome {
     stuck_notes: usize,
     #[allow(dead_code)]
     notes: Vec<Note>,
+    /// Every raid taken (play 24), as it went.
+    raids: Vec<RaidRun>,
+}
+
+/// One raid of a soak, from its take to the bot's next play.
+#[derive(Clone, Debug, Default)]
+struct RaidRun {
+    /// Its score at the take.
+    score: f32,
+    /// How long it ran, s.
+    ran_s: f32,
+    /// How near the eye came to their container's use box, m.
+    nearest_m: f32,
+    /// Uses pressed meanwhile.
+    uses: u32,
+    stole: bool,
+    died: bool,
+    /// What came next: the next play, or how it ended.
+    next: String,
+}
+
+/// The raids of a run as they go ([`RaidRun`]), each bot's from its take
+/// to its next play.
+#[derive(Default)]
+struct RaidTally {
+    /// Each bot's raid under way: its start, and the run so far.
+    raiding: Vec<Option<(u32, RaidRun)>>,
+    runs: Vec<RaidRun>,
+}
+
+impl RaidTally {
+    /// After the game's steps up to `clock`: the raiders' bodies, and the
+    /// `thieves` of those steps.
+    fn bodies(&mut self, game: &Game, thieves: &[Place], clock: u32) {
+        self.raiding.resize(game.bodies.len(), None);
+        for (place, raid) in self.raiding.iter_mut().enumerate() {
+            let Some((since, run)) = raid else {
+                continue;
+            };
+            let body = &game.bodies[place];
+            if let Some(&(_, at)) = game.containers.iter().find(|(t, _)| *t != body.team) {
+                let d = (at + USE_BOX_UP - Game::eye(body)).length();
+                run.nearest_m = run.nearest_m.min(d);
+            }
+            run.stole |= thieves.contains(&place);
+            run.died |= !body.alive;
+            run.ran_s = clock.saturating_sub(*since) as f32 / 1000.0;
+        }
+    }
+
+    /// After a poll: its notes, the plays now and the inputs made.
+    fn polled(&mut self, bots: &Bots, notes: &[Note], made: &[Made]) {
+        self.raiding.resize(bots.bots.len(), None);
+        for note in notes {
+            if let Some(Some((_, run))) = self.raiding.get_mut(note.place)
+                && note.text.starts_with("ends Raid")
+            {
+                run.next = note.text.clone();
+            }
+        }
+        for (place, raid) in self.raiding.iter_mut().enumerate() {
+            let assignment = bots.bots[place]
+                .as_ref()
+                .and_then(|bot| bot.assignment.as_ref());
+            let on = assignment.filter(|a| a.kind == super::plays::PlayKind::Raid);
+            if raid.as_ref().map(|r| r.0) != on.map(|a| a.since) {
+                if let Some((_, mut run)) = raid.take() {
+                    if run.next.is_empty() {
+                        run.next = assignment.map_or("none".into(), |a| format!("{:?}", a.kind));
+                    }
+                    self.runs.push(run);
+                }
+                *raid = on.map(|a| {
+                    let run = RaidRun {
+                        score: a.score,
+                        nearest_m: f32::INFINITY,
+                        ..Default::default()
+                    };
+                    (a.since, run)
+                });
+            }
+        }
+        for made in made {
+            if made.input.actions & key::USE != 0
+                && let Some(Some((_, run))) = self.raiding.get_mut(made.place)
+            {
+                run.uses += 1;
+            }
+        }
+    }
+
+    /// The runs, those under way at the end too.
+    fn finish(mut self) -> Vec<RaidRun> {
+        for (_, mut run) in self.raiding.into_iter().flatten() {
+            run.next = "the match's end".into();
+            self.runs.push(run);
+        }
+        self.runs
+    }
+}
+
+/// One line on `runs`: how many, how long, how near, the uses, the steals,
+/// the deaths; and what came after them.
+fn raid_line(runs: &[RaidRun]) -> String {
+    let n = runs.len().max(1);
+    let mut ran: Vec<f32> = runs.iter().map(|r| r.ran_s).collect();
+    ran.sort_by(f32::total_cmp);
+    let mut scores: Vec<f32> = runs.iter().map(|r| r.score).collect();
+    scores.sort_by(f32::total_cmp);
+    let mut next: std::collections::BTreeMap<&str, u32> = Default::default();
+    for run in runs {
+        let what = run.next.split(';').next().unwrap_or_default();
+        *next.entry(what).or_default() += 1;
+    }
+    let mut next: Vec<(&str, u32)> = next.into_iter().collect();
+    next.sort_by_key(|&(_, n)| std::cmp::Reverse(n));
+    next.truncate(8);
+    format!(
+        "{} raids; score median {:.2}; ran median {:.1} s, over 10 s {}, over 30 s {}; came within 5 m {}, 2 m {}; used {}; stole {}; died on one {}; next {next:?}",
+        runs.len(),
+        scores.get(n / 2).copied().unwrap_or(0.0),
+        ran.get(n / 2).copied().unwrap_or(0.0),
+        runs.iter().filter(|r| r.ran_s > 10.0).count(),
+        runs.iter().filter(|r| r.ran_s > 30.0).count(),
+        runs.iter().filter(|r| r.nearest_m <= 5.0).count(),
+        runs.iter().filter(|r| r.nearest_m <= 2.0).count(),
+        runs.iter().filter(|r| r.uses > 0).count(),
+        runs.iter().filter(|r| r.stole).count(),
+        runs.iter().filter(|r| r.died).count(),
+    )
 }
 
 /// A match of `per_team` bots a side to `win` batteries (Team Deathmatch
@@ -839,6 +969,10 @@ fn soak_tuned(
     } else {
         survarium::v026g::maps::mode::TEAM_DEATHMATCH
     };
+    // `SRP_SOAK_TRACE=<dir>`: the decision trace of each run there.
+    let trace = std::env::var_os("SRP_SOAK_TRACE").map_or(Trace::none(0), |dir| {
+        Trace::open(std::path::Path::new(&dir), seed as u32, 0, u64::MAX)
+    });
     let mut bots = Bots::new(
         0x50AC + seed as u32,
         mode,
@@ -847,7 +981,7 @@ fn soak_tuned(
         &driven,
         &roles,
         Arc::new(tuning),
-        Trace::none(0),
+        trace,
     );
     bots.map_ready(world.clone());
     let tickets = (win == 0).then_some(tdm_tickets);
@@ -858,12 +992,15 @@ fn soak_tuned(
     let mut out = Outcome::default();
     let rays_before = super::aimpoint::rays_cast();
     let limit_ms = limit_s * 1000;
+    let mut raids = RaidTally::default();
     let (mut clock, mut next_world) = (0, 1_000);
     while clock < limit_ms {
         clock += 25;
         while game.tick + TICK_MS <= clock {
             game.step();
         }
+        let thieves = std::mem::take(&mut game.thieves);
+        raids.bodies(&game, &thieves, clock);
         if clock >= next_world {
             next_world += 1_000;
             if let Some((_, fixes, health, facts)) = game.world_at(clock / TICK_MS * TICK_MS - 300)
@@ -885,6 +1022,7 @@ fn soak_tuned(
             playing: true,
         });
         notes.iter().for_each(|note| out.decisions.note(note));
+        raids.polled(&bots, &notes, &made);
         out.notes.extend(notes);
         for made in made {
             out.decisions.made(&made);
@@ -923,6 +1061,7 @@ fn soak_tuned(
         }
     }
     out.end_s = clock as f32 / 1000.0;
+    out.raids = raids.finish();
     for (place, &team) in teams.iter().enumerate() {
         out.kills[usize::from(team)] += game.stats[place].0;
     }
@@ -1265,6 +1404,49 @@ fn bots_hold_fire_while_a_teammate_is_in_the_line_of_fire() {
         kills_on * 10 >= kills_off * 8,
         "the enemy dies about as often: {kills_on} kills against {kills_off}"
     );
+}
+
+/// The raids (play 24) of whole battery matches, the battery cheat off
+/// and on, `SRP_RAID_SEEDS` seeds each (default 8): how many are taken,
+/// how long they run, how near their container they come, the uses, the
+/// steals, and the matches' deliveries and winners. A measurement: it
+/// asserts nothing.
+#[test]
+#[ignore = "whole matches; run in release"]
+fn raids_in_whole_battery_matches() {
+    let seeds: u64 = std::env::var("SRP_RAID_SEEDS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(8);
+    for cheat in [false, true] {
+        let mut tuning = bench_tuning();
+        tuning.cheats.batteries = cheat;
+        let mut runs: Vec<RaidRun> = Vec::new();
+        let (mut stolen, mut delivered, mut wins, mut decided) = (0, 0, [0u32; 2], 0);
+        for seed in 1..=seeds {
+            let out = soak_tuned(4, 3, 0, None, 900, seed, tuning.clone());
+            stolen += out.stolen;
+            delivered += out.delivered[0] + out.delivered[1];
+            if let Some(team) = out.winner {
+                wins[usize::from(team)] += 1;
+                decided += u32::from(out.end_s < 899.0);
+            }
+            eprintln!(
+                "  cheat {cheat} seed {seed}: winner {:?} at {:.0} s, delivered {:?}, stolen {}, raids {}, raid steals {}",
+                out.winner,
+                out.end_s,
+                out.delivered,
+                out.stolen,
+                out.raids.len(),
+                out.raids.iter().filter(|r| r.stole).count()
+            );
+            runs.extend(out.raids);
+        }
+        eprintln!(
+            "cheat {cheat}: {}; all steals {stolen}, delivered {delivered}, wins {wins:?} ({decided} by the points)",
+            raid_line(&runs)
+        );
+    }
 }
 
 /// Timed batteries: they come by the stations over time; bots wait there
@@ -1700,6 +1882,99 @@ fn a_covered_bot_takes_a_battery_in_an_enemys_sight() {
     }
 }
 
+/// A raid that gets there steals (play 24): bot 0 of team 0, 0-3 down,
+/// 25 m from the enemy's container with all three batteries in it, their
+/// one body dead for the run, 5 min into the match. It walks in, crouches
+/// the last metres, steps in to the use's reach and takes one out; the
+/// raid ends with it carried and the carry home is Collect's. Before the
+/// step in, a raid that stopped 2 m off (`reach_m`) pressed use at the
+/// box's middle from 2.0 m and more, past the 2 m ray.
+#[test]
+fn a_raid_that_gets_there_steals() {
+    let world = soak_world();
+    let mut tuning = bench_tuning();
+    tuning.cheats.batteries = true;
+    let teams = [0u8, 1];
+    let mut bots = Bots::new(
+        0x2A1D,
+        survarium::v026g::maps::mode::BATTERIES,
+        0,
+        &teams,
+        &[true, false],
+        &[None, None],
+        Arc::new(tuning),
+        Trace::none(0),
+    );
+    bots.map_ready(world.clone());
+    let mut game = Game::new(world.clone(), &teams, 5, None, None);
+    for battery in 0..3 {
+        game.batteries[battery] = Lying::Home(1);
+    }
+    game.points = [0, 3];
+    let start = Vec3::new(44.0, 0.0, 34.0);
+    game.bodies[0].node = world.grid.locate(start, 1.0);
+    game.bodies[0].feet = start;
+    // Dead, and not back within the run.
+    game.bodies[1].alive = false;
+    game.bodies[1].dead_at = 1_000_000;
+    bots.entered(0, true, 0);
+    bots.entered(1, true, 0);
+    // A sneak (play 4) would take the same window: just ran.
+    if let Some(bot) = bots.bots[0].as_mut() {
+        bot.last_ran.push((super::plays::PlayKind::Sneak, 0));
+    }
+    let (mut clock, mut next_world) = (0, 1_000);
+    let mut stole: Option<(u32, Option<super::plays::PlayKind>)> = None;
+    while clock < 40_000 && stole.is_none() {
+        clock += 25;
+        while game.tick + TICK_MS <= clock {
+            game.step();
+        }
+        if clock >= next_world {
+            next_world += 1_000;
+            if let Some((_, fixes, health, facts)) = game.world_at(clock / TICK_MS * TICK_MS - 300)
+            {
+                for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
+                    bots.fixed(place, fix, Some(health));
+                }
+                bots.facts(facts);
+            }
+        }
+        let (made, _) = bots.poll(Clock {
+            clock,
+            time_left_s: 600.0,
+            total_s: 900.0,
+            playing: true,
+        });
+        for made in made {
+            let r = made.input.rotation;
+            let turn = (
+                half_value(u16::from_le_bytes([r[0], r[1]])),
+                half_value(u16::from_le_bytes([r[2], r[3]])),
+            );
+            let gun = Arms::fallback().primary.0;
+            game.inputs[made.place].push_back((made.time, made.input.actions, turn, None, gun));
+        }
+        if game.thieves.contains(&0) {
+            let play = bots.bots[0]
+                .as_ref()
+                .and_then(|bot| bot.assignment.as_ref())
+                .map(|a| a.kind);
+            stole = Some((clock, play));
+        }
+    }
+    let (at, play) = stole.unwrap_or_else(|| {
+        panic!(
+            "no steal: at {:?}, {:.1} m from their container, batteries {:?}",
+            game.bodies[0].feet,
+            game.bodies[0].feet.distance_xz(game.containers[1].1),
+            game.batteries
+        )
+    });
+    assert_eq!(play, Some(super::plays::PlayKind::Raid), "stolen at {at} ms");
+    assert_eq!(game.points, [0, 2]);
+}
+
 /// How a lost-battery run went (`lost_battery_run`): when the thief died,
 /// when the team got a look spot, when its bot first went to look, when
 /// it took the battery (match ms).
@@ -2095,6 +2370,7 @@ fn bench_tuning() -> Tuning {
     for (var, kind) in [
         ("SRP_BENCH_COLLECT", super::plays::PlayKind::Collect),
         ("SRP_BENCH_INTERCEPT", super::plays::PlayKind::Intercept),
+        ("SRP_BENCH_RAID", super::plays::PlayKind::Raid),
     ] {
         let Ok(numbers) = std::env::var(var) else {
             continue;
@@ -2383,6 +2659,7 @@ fn real_bot_cost() {
             let mut carrier_kills: std::collections::BTreeMap<String, u32> = Default::default();
             let mut carriers_killed = [0u32; 2];
             let mut takes_all = 0u32;
+            let mut raids = RaidTally::default();
             while clock < limit_ms {
                 clock += 5;
                 while game.tick + TICK_MS <= clock {
@@ -2415,7 +2692,9 @@ fn real_bot_cost() {
                             }
                         }
                     }
-                    for place in std::mem::take(&mut game.thieves) {
+                    let thieves = std::mem::take(&mut game.thieves);
+                    raids.bodies(&game, &thieves, game.tick);
+                    for place in thieves {
                         by_play.entry(play_of(place)).or_default()[4] += 1;
                         by_team[usize::from(teams[place])][5] += 1;
                     }
@@ -2521,6 +2800,7 @@ fn real_bot_cost() {
                     playing: true,
                 };
                 let (made, notes) = timed_poll(&mut bots, clock_now, &mut times);
+                raids.polled(&bots, &notes, &made);
                 for note in notes {
                     decisions.note(&note);
                     if let Some(rest) = note.text.strip_prefix("takes ") {
@@ -2731,6 +3011,7 @@ fn real_bot_cost() {
                 "  by play (takes, under 0.05, kills, deaths, steals): {}",
                 rows.join("; ")
             );
+            eprintln!("  raids: {}", raid_line(&raids.finish()));
             eprintln!(
                 "  carriers: killed carrying {:?} (by team carrying), by the shooter's play {:?}; delivered {:?}; picked up {} lying + {} stolen; plays taken {takes_all} = {:.2} a bot-minute",
                 carriers_killed,
